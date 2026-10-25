@@ -15,6 +15,22 @@ namespace zvid { struct D3DTexture; }
 
 namespace ztwod {
 
+// The frame time summed by an update and the camera's last place: the
+// rain's [0x0073653c] / [0x00736528], the snow's [0x00736538] / [0x00736518].
+struct WeatherClock {
+  float time = 0.0f;
+  float last_camera[3] = {};
+};
+
+// What both updates work out before their particle loops (the exe has the
+// code twice, 0x005a5b40..0x005a5e34 and 0x005a6110..0x005a6404).
+struct WeatherMotion {
+  int32_t left = 0, top = 0;
+  float width = 0.0f, height = 0.0f;
+  float d[3] = {};  // a place's move this frame
+  float s[3] = {};  // the streak, tail to head
+};
+
 // One particle's streak on the screen (0x20 bytes, +0x38's array).
 struct WeatherStreak {
   int32_t x = -1, y = -1, w = -1, h = -1;  // +0x00  from the tail to the head
@@ -31,6 +47,10 @@ class Weather : public Object2D {
   void draw() override;                 // +0x04  0x005a5360: the particles once per manager rect
   virtual void draw_particles();        // +0x7c  0x005a57d0
   void reset(int32_t i);                // 0x005a56e0: a fresh random place, both buffers
+  // The shared start of the updates: false without a camera.
+  bool motion(float dt, WeatherClock& clock, WeatherMotion& out);
+  // A particle's streak from its current place (the head) and the tail.
+  void project(int32_t i, const WeatherMotion& m, float& k_head);
 
   const Rect* rect = nullptr;            // +0x34  the rect drawn into (the manager's)
   std::vector<WeatherStreak> streaks;    // +0x38
@@ -64,6 +84,13 @@ class Rain : public Weather {
   void update(float dt) override;    // +0x24  0x005a6110
 };
 
+// Snow (vtable 0x005d05e0): 0x005a5ad0.
+class Snow : public Weather {
+ public:
+  explicit Snow(int32_t particles);  // 0x005a5ad0
+  void update(float dt) override;    // +0x24  0x005a5b40 (0x005a5e10 is its tail)
+};
+
 // The weather manager [0x00736328]: a Layer with two rects (+0x10, +0x14),
 // set each frame (0x005a6790), and the 2D text target (+0x18, zvid's).
 struct WeatherLayer : Layer {
@@ -89,11 +116,8 @@ struct WeatherHooks {
   void (*flush)() = nullptr;
 };
 WeatherHooks& weather_hooks();
-// The frame time summed by every rain update ([0x0073653c]) and the camera's
-// last place ([0x00736528]).
 struct WeatherState {
-  float time = 0.0f;
-  float last_camera[3] = {};
+  WeatherClock rain, snow;
 };
 WeatherState& weather_state();
 

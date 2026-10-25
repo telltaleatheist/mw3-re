@@ -982,18 +982,23 @@ TEST(mission_c4m2_sun_flare_drawn_and_blocked_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// The rain (0x005a60a0, 0x005a6110, 0x005a57d0; docs/weather.md): c4
-// mission 2's world.zrd makes it (100 particles, gravity 3, wind 0.2,
-// alpha_gradient 0.5 0), the world parameters add it to the manager with the
-// player view's camera, and each Direct3D frame sets the manager's rect and
-// ticks it: its streaks are drawn as textured quads inside the window. At the
-// end the cleanup takes it off the manager.
-TEST(mission_c4m2_rain_made_and_drawn_headless) {
-  if (!have_game()) return;
+// The weather (docs/weather.md) in a mission: the world parameters make it
+// from world.zrd and add it to the overlay with the player view's camera;
+// each Direct3D frame sets the overlay's rect and ticks it, and its streaks
+// are drawn as textured quads inside the window. At the end the cleanup
+// takes it off the overlay. Run until the fifth Core frame; the third's
+// state is kept.
+struct WeatherSeen {
+  int quads = 0, quads_at_3 = -1, count = 0, shown = 0, thick = 0, outside = 0;
+  bool made = false, camera = false, rect_is_managers = false, gone_after = false;
+  float gravity = 0, wind = 0, alpha_tail = 0, alpha_head = -1;
+};
+template <class Kind>
+WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write_dir) {
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3_GAME_DIR);
-  zutl::set_write_dir(temp_dir("mission_rain_write"));
+  zutl::set_write_dir(temp_dir(write_dir));
   mech3::reset_states();
   reset_process_state();
   mech3::missions() = mech3::Missions{};
@@ -1008,13 +1013,8 @@ TEST(mission_c4m2_rain_made_and_drawn_headless) {
   mech3::MountFiles files;
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
-  struct Seen {
-    int quads = 0, quads_at_3 = -1, count = 0, shown = 0, outside = 0;
-    bool rain = false, camera = false, rect_is_managers = false, gone_after = false;
-    float gravity = 0, wind = 0, alpha_tail = 0, alpha_head = -1;
-  };
-  static Seen seen;
-  seen = Seen{};
+  static WeatherSeen seen;
+  seen = WeatherSeen{};
   const ztwod::WeatherHooks keep_hooks = ztwod::weather_hooks();
   ztwod::weather_hooks().draw = [](int32_t n, const zvid::D3DTexture* t, int32_t prio, float op, int32_t ov) {
     ++seen.quads;
@@ -1031,8 +1031,8 @@ TEST(mission_c4m2_rain_made_and_drawn_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
-    mech3::GameEngine::Launch l;  // c4 mission 2
-    l.index = 3, l.number = 2;
+    mech3::GameEngine::Launch l;
+    l.index = index, l.number = number;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
     int frames = 0;
@@ -1041,14 +1041,14 @@ TEST(mission_c4m2_rain_made_and_drawn_headless) {
       if (++frames != 3) return;
       seen.quads_at_3 = seen.quads;
       const ztwod::WeatherLayer& m = ztwod::weather_layer();
-      if (auto* r = dynamic_cast<ztwod::Rain*>(m.head)) {
-        seen.rain = m.head == m.tail;
-        seen.count = r->count;
-        seen.gravity = r->gravity, seen.wind = r->wind_vel;
-        seen.alpha_tail = r->alpha_tail, seen.alpha_head = r->alpha_head;
-        seen.camera = r->camera != nullptr;
-        seen.rect_is_managers = r->rect && r->rect == m.rects[0];
-        for (const ztwod::WeatherStreak& s : r->streaks) seen.shown += s.shown;
+      if (auto* w = dynamic_cast<Kind*>(m.head)) {
+        seen.made = m.head == m.tail;
+        seen.count = w->count;
+        seen.gravity = w->gravity, seen.wind = w->wind_vel;
+        seen.alpha_tail = w->alpha_tail, seen.alpha_head = w->alpha_head;
+        seen.camera = w->camera != nullptr;
+        seen.rect_is_managers = w->rect && w->rect == m.rects[0];
+        for (const ztwod::WeatherStreak& s : w->streaks) seen.shown += s.shown > 0, seen.thick += s.shown > 1;
       }
     };
     CountingPump pump;
@@ -1062,20 +1062,41 @@ TEST(mission_c4m2_rain_made_and_drawn_headless) {
     mech3::set_app(nullptr);
   }
   ztwod::weather_hooks() = keep_hooks;
-  if (std::getenv("MW3_RAIN_LOG"))
-    std::fprintf(stderr, "RAIN rain %d count %d shown %d quads %d (at 3: %d) outside %d g %g w %g a %g %g cam %d rect %d gone %d\n",
-                 seen.rain, seen.count, seen.shown, seen.quads, seen.quads_at_3, seen.outside, seen.gravity, seen.wind,
-                 seen.alpha_tail, seen.alpha_head, seen.camera, seen.rect_is_managers, seen.gone_after);
-  EXPECT(seen.rain && seen.count == 100 && seen.shown == 100);
+  if (std::getenv("MW3_WEATHER_LOG"))
+    std::fprintf(stderr, "WEATHER made %d count %d shown %d thick %d quads %d (at 3: %d) outside %d g %g w %g a %g %g cam %d rect %d gone %d\n",
+                 seen.made, seen.count, seen.shown, seen.thick, seen.quads, seen.quads_at_3, seen.outside, seen.gravity,
+                 seen.wind, seen.alpha_tail, seen.alpha_head, seen.camera, seen.rect_is_managers, seen.gone_after);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return seen;
+}
+
+// c4 mission 2's rain (0x005a60a0, 0x005a6110): 100 drops, gravity 3, wind
+// 0.2, alpha_gradient 0.5 0; every streak a pixel wide.
+TEST(mission_c4m2_rain_made_and_drawn_headless) {
+  if (!have_game()) return;
+  const WeatherSeen seen = run_weather_mission<ztwod::Rain>(3, 2, "mission_rain_write");
+  EXPECT(seen.made && seen.count == 100 && seen.shown == 100 && seen.thick == 0);
   EXPECT(seen.gravity == 3.0f && std::fabs(seen.wind - 0.2f) < 1e-6f);
   EXPECT(seen.alpha_tail == 0.5f && seen.alpha_head == 0.0f);
   EXPECT(seen.camera && seen.rect_is_managers);
   EXPECT(seen.quads_at_3 > 0 && seen.quads > seen.quads_at_3 && seen.outside == 0);
   EXPECT(seen.gone_after);
-  zrdr::close_archives(true);
-  mech3::reset_states();
-  reset_process_state();
-  mech3::options() = mech3::Options{};
+}
+
+// c4b mission 4's snow (0x005a5ad0, 0x005a5b40): 100 flakes, gravity 0.2,
+// wind 0.1, alpha_gradient 1 0.25; flakes 1 to 3 pixels thick by depth.
+TEST(mission_c4b_m4_snow_made_and_drawn_headless) {
+  if (!have_game()) return;
+  const WeatherSeen seen = run_weather_mission<ztwod::Snow>(4, 4, "mission_snow_write");
+  EXPECT(seen.made && seen.count == 100 && seen.shown == 100 && seen.thick > 0);
+  EXPECT(std::fabs(seen.gravity - 0.2f) < 1e-6f && std::fabs(seen.wind - 0.1f) < 1e-6f);
+  EXPECT(seen.alpha_tail == 1.0f && seen.alpha_head == 0.25f);
+  EXPECT(seen.camera && seen.rect_is_managers);
+  EXPECT(seen.quads_at_3 > 0 && seen.quads > seen.quads_at_3 && seen.outside == 0);
+  EXPECT(seen.gone_after);
 }
 
 TEST(mission_start_reads_c1m1_vehicles_headless) {

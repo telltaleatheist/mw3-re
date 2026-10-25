@@ -51,3 +51,19 @@ is in `README.md`.
   claude-files/outbox/2026-10-25 (weather_c4m2_rain_on/off.png). Docs:
   weather.md, fixes, CHANGES, discoveries, symbols, twod, world-params,
   hud-plan item 5. Next: 19b, snow.
+
+## Item 19b: the snow (2026-10-25)
+
+- Assigned (the lead, after reviewing 19a): the snow 0x5a5ad0 (vtable
+  0x5d05e0), its update 0x5a5b40 with 0x5a5e10, create_snow in app_mission;
+  stacked on mac4/weather (19a being merged).
+- Done 19b: `ztwod::Snow` (0x5a5ad0, update 0x5a5b40; Ghidra's 0x5a5e10 is
+  its tail, not a function), the two updates' shared start as
+  `Weather::motion` / `project`, a clock each (rain [0x73653c]/[0x736528],
+  snow [0x736538]/[0x736518]), create_snow through `program_weather`.
+  Snow keeps its places (reset only off the view: |y| or |x| > |z|, z > 1,
+  !(z >= 0.5)); flakes ftol(3.5 k) pixels thick. The per_second FIX covers
+  the snow's fall too. Tests: test_weather.py 400 cases (200 snow, 5,227
+  frames; 8 ulps / 1e-7 of a place / a pixel, the snow's places synced each
+  frame; 69 frames tolerated), 20/20 breaks, the two headless runs sharing
+  run_weather_mission, a snow pair (weather_c4bm4_snow_on/off.png).

@@ -27,10 +27,11 @@ it is clear what the designers meant.
   every frame a foot touched lava, so a faster computer cooked you faster
   (1.5 heat a second at 30 fps, over 7 at 144). It is now 1.5 a second
   always, what lava did at 30 fps.
-- **Rain falls at the same slant at any frame rate.** The original moved
-  each streak by a fixed step a frame for the fall and the wind but by the
-  real frame's move for your mech, so above 30 fps the rain looked steeper
-  while you walked; now it looks as it did at 30 fps.
+- **Rain and snow fall the same at any frame rate.** The original moved
+  them by a fixed step a frame for the fall and the wind but by the real
+  frame's move for your mech, so above 30 fps the rain looked steeper while
+  you walked and the snow fell and blew faster; now both look as they did
+  at 30 fps.
 - **Smoke drifts the same at any frame rate.** Above 60 fps the original's
   smoke stopped slowing down and ignored the wind, and the wind's gusts
   changed faster the faster the game ran. Both now go by time, at the 30 fps
@@ -132,7 +133,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
-- The rain's very first frame no longer draws its streaks from unset sizes (it used the screen's size from the second frame on anyway).
+- The rain's and snow's very first frame no longer draws its streaks from unset sizes (it used the screen's size from the second frame on anyway).
 - A picture the menus or the HUD let go of twice is no longer freed twice (which could crash); the rebuild reports it instead.
 - Keypad 0 (the zoom lock) no longer crashes when the mech you are looking at has no HUD; it does nothing then.
 - A script that cycles the textures of a model with no material, or turns a scroll off, no longer crashes (neither happens with the shipped scripts).

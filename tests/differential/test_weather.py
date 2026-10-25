@@ -1,13 +1,14 @@
-"""The rain against the original x86 (docs/weather.md): the constructor
-0x5a60a0 (over the base 0x5a5470 and its reset 0x5a56e0), then frame after
-frame the update 0x5a6110, which runs the draw (0x59ffb0 -> 0x5a5360 ->
-0x5a57d0) itself. rand, the camera node's place and angles (0x4ed530,
+"""The rain and the snow against the original x86 (docs/weather.md): the
+constructors 0x5a60a0 / 0x5a5ad0 (over the base 0x5a5470 and its reset
+0x5a56e0), then frame after frame the updates 0x5a6110 / 0x5a5b40, which run
+the draw (0x59ffb0 -> 0x5a5360 -> 0x5a57d0) themselves. rand, the camera node's place and angles (0x4ed530,
 0x4ed5d0) and the device's reload, draw and flush are stubs both sides log;
 the x87 at 24 bits, as in play.
 
     cmake --build build && .venv/bin/python tests/differential/test_weather.py [cases]
 
-Each case: 0 to 300 particles, then up to 12 frames, each with its own dt,
+Each case (odd seeds snow): 0 to 300 particles, then up to 12 frames (snow
+40, the camera never jumping: flakes keep their places), each with its own dt,
 colour (often the last one), alphas, wind, gravity, down (mostly straight),
 the camera's place (small moves, sometimes a jump) and angles, hidden
 sometimes, the object's rect, and the manager or none with either rect.
@@ -15,9 +16,11 @@ Compared after the constructor and each frame: the current buffer, the
 summed time, the camera's last place, the rect the object holds, every
 streak and both buffers' places, the ramp's first row, and the calls,
 exactly but for what the x87's fsin / fcos (the wind's heading, the camera's
-matrix) against libm's can move: 2 ulps, or a pixel; the frames that needed
-it are counted. A frame starting with no rect is compared on the places
-only: the exe's width and height are unset there (FIX (bug), the screen's).
+matrix) against libm's can move: 8 ulps, 1e-7 of a place, or a pixel; the
+frames that needed it are counted. The snow keeps its places, so the port
+takes the emulator's after each frame (the ulps would add up). A frame
+starting with no rect is compared on the places only: the exe's width and
+height are unset there (FIX (bug), the screen's).
 """
 import ctypes
 import math
@@ -31,12 +34,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Emu, Trace, compare, load_probe  # noqa: E402
 
 U32, I32 = ctypes.c_uint32, ctypes.c_int32
-CTOR, UPDATE = 0x5a60a0, 0x5a6110
-HW, TIME, LAST = 0x72f348, 0x73653c, 0x736528
+# The rain's and the snow's constructor, update, summed time and camera's last place.
+KINDS = {'rain': (0x5a60a0, 0x5a6110, 0x73653c, 0x736528), 'snow': (0x5a5ad0, 0x5a5b40, 0x736538, 0x736518)}
+HW = 0x72f348
 DRAW, RELOAD, FLUSH = 0x72f3bc, 0x72f374, 0x72f3e4
 TL = 0x72f41c
 TEX = 0x7700
-COUNT = {'cases': 0, 'frames': 0, 'particles': 0, 'quads': 0, 'reloads': 0, 'hidden': 0, 'no rect': 0,
+COUNT = {'cases': 0, 'snow': 0, 'frames': 0, 'particles': 0, 'quads': 0, 'reloads': 0, 'hidden': 0, 'no rect': 0,
          'no manager': 0, 'frames within an ulp or a pixel': 0}
 
 
@@ -71,7 +75,7 @@ def camera_out(vals):
     return fn
 
 
-def emu_state(e, obj, n, rects):
+def emu_state(e, obj, n, rects, TIME, LAST):
     rect = e.r32(obj + 0x34)
     out = [e.r32(obj + 0x60), e.r32(TIME), e.r32(LAST), e.r32(LAST + 4), e.r32(LAST + 8),
            0 if not rect else rects.index(rect) + 1]
@@ -99,22 +103,28 @@ def places_only(state, n):
 
 def close(a, b, kind):
     """Equal, or within what the x87's fsin / fcos against libm's can move
-    (the wind's heading, the camera's matrix): 2 ulps of a float ('f'), a
-    pixel of an int ('i') or of a pixel float ('p'); 'x' exact."""
+    (the wind's heading, the camera's matrix): 8 ulps of a float ('f'; a short
+    d's normalize magnifies them into the streak's u), a
+    pixel of an int ('i') or of a pixel float ('p'), a place ('q') 8 ulps
+    or 1e-7 (a place near 0 is a sum that cancels: d's ulps, |d| <= 1); 'x'
+    exact."""
     if a == b:
         return True
     if kind == 'f':
-        return (a ^ b) >> 31 == 0 and abs(a - b) <= 2
+        return (a ^ b) >> 31 == 0 and abs(a - b) <= 8
     if kind == 'i':
         return abs(((a ^ 0x80000000) - 0x80000000) - ((b ^ 0x80000000) - 0x80000000)) <= 1
     if kind == 'p':
         fa, fb = struct.unpack('<2f', struct.pack('<2I', a, b))
         return abs(fa - fb) <= 1.0
+    if kind == 'q':
+        fa, fb = struct.unpack('<2f', struct.pack('<2I', a, b))
+        return ((a ^ b) >> 31 == 0 and abs(a - b) <= 8) or abs(fa - fb) <= 1e-7
     return False
 
 
 def state_kinds(n):
-    return 'xffffx' + ('iiiixffx' + 'f' * 6) * n + 'x' * 32
+    return 'xffffx' + ('iiiixffx' + 'q' * 6) * n + 'x' * 32
 
 
 DRAW_KINDS = 'xxxxx' + 'ppfff' * 4
@@ -147,11 +157,13 @@ def run_case(probe, seed):
     tb.script = script
     probe.probe_app_set_callback(tb.callback())
 
+    kind = 'snow' if seed % 2 else 'rain'
+    CTOR, UPDATE, TIME, LAST = KINDS[kind]
     n = r.choice([0, 1, r.randrange(1, 40), r.randrange(40, 301)])
     e.w32(HW, 0)
     obj = e.alloc(0x98)
     e.call(CTOR, ecx=obj, stack=(n,))
-    probe.probe_weather_new(n, TEX)
+    probe.probe_weather_new(n, TEX, kind == 'snow')
     e.w32(HW, 1)
     img, pix, alp = e.world_alloc(0x40), e.world_alloc(0x100), e.world_alloc(0x80)
     e.w32(img + 0x10, pix)
@@ -190,18 +202,18 @@ def run_case(probe, seed):
         tb.log.clear()
 
     got = probe.probe_weather_state(out)
-    check('after the constructor', emu_state(e, obj, n, rects), list(out)[:got])
+    check('after the constructor', emu_state(e, obj, n, rects, TIME, LAST), list(out)[:got])
     color = r.getrandbits(16)
     place = [r.uniform(-2000, 2000), r.uniform(0, 300), r.uniform(-2000, 2000)]
     unset = False
-    for frame in range(r.randrange(1, 13)):
+    for frame in range(r.randrange(1, 13) if kind == 'rain' else r.randrange(1, 40)):
         if r.random() < 0.6:
             color = r.choice([color, r.getrandbits(16), 0x7fff])
         alphas = [r.choice([1.0, r.uniform(0, 1)]), r.choice([0.05, r.uniform(0, 1)])]
         wind = [r.uniform(-math.pi, math.pi), r.choice([1.0, 0.0, r.uniform(0, 30)])]
         gravity = r.choice([1.0, r.uniform(0, 20), 0.0])
         down = [0.0, 1.0, 0.0] if r.random() < 0.8 else [r.uniform(-1, 1) for _ in range(3)]
-        if r.random() < 0.15:
+        if r.random() < 0.15 and kind == 'rain':
             place = [r.uniform(-2000, 2000), r.uniform(0, 300), r.uniform(-2000, 2000)]
         else:
             place = [p + r.uniform(-3, 3) for p in place]
@@ -234,7 +246,7 @@ def run_case(probe, seed):
         e.call(UPDATE, ecx=obj, stack=(dt,))
         probe.probe_weather_update(dt)
         got = probe.probe_weather_state(out)
-        emu_s, port_s = emu_state(e, obj, n, rects), list(out)[:got]
+        emu_s, port_s = emu_state(e, obj, n, rects, TIME, LAST), list(out)[:got]
         if not hidden:
             unset = not has_rect  # a hidden frame keeps the last one's streaks
         if not unset:
@@ -244,20 +256,26 @@ def run_case(probe, seed):
         else:
             COUNT['no rect'] += 1
             check(f'frame {frame} (no rect)', places_only(emu_s, n), places_only(port_s, n), calls=False,
-                  kinds='xffff' + 'f' * 6 * n)
+                  kinds='xffff' + 'q' * 6 * n)
+        if kind == 'snow' and n:  # from the emulator's places on
+            p0, p1 = e.r32(obj + 0x58), e.r32(obj + 0x5c)
+            probe.probe_weather_places((U32 * (3 * n))(*struct.unpack(f'<{3 * n}I', e.cpu.read(p0, 12 * n))),
+                                       (U32 * (3 * n))(*struct.unpack(f'<{3 * n}I', e.cpu.read(p1, 12 * n))))
         COUNT['frames'] += 1
         COUNT['hidden'] += hidden
         COUNT['no manager'] += 1 - managed
     COUNT['cases'] += 1
+    COUNT['snow'] += kind == 'snow'
     COUNT['particles'] += n
     COUNT['frames within an ulp or a pixel'] += len(tolerated)
 
 
 def main():
     probe = load_probe()
-    probe.probe_weather_new.argtypes = [I32, U32]
+    probe.probe_weather_new.argtypes = [I32, U32, I32]
     probe.probe_weather_set.argtypes = [ctypes.POINTER(U32), ctypes.POINTER(I32), I32, I32, I32, I32, I32]
     probe.probe_weather_update.argtypes = [U32]
+    probe.probe_weather_places.argtypes = [ctypes.POINTER(U32), ctypes.POINTER(U32)]
     probe.probe_weather_state.argtypes = [ctypes.POINTER(U32)]
     probe.probe_weather_state.restype = I32
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 400

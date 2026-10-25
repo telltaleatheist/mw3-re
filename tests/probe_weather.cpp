@@ -1,7 +1,7 @@
-// Probes for test_weather.py (docs/weather.md): the rain 0x005a60a0, its
-// update 0x005a6110 with the draw it runs (0x005a5360, 0x005a57d0). rand,
-// the camera's place and angles and the three device calls go to the trace;
-// the texture is the emulator's address.
+// Probes for test_weather.py (docs/weather.md): the rain 0x005a60a0 and the
+// snow 0x005a5ad0, their updates 0x005a6110 / 0x005a5b40 with the draw they
+// run (0x005a5360, 0x005a57d0). rand, the camera's place and angles and the
+// three device calls go to the trace; the texture is the emulator's address.
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -24,7 +24,8 @@ float bf(uint32_t i) {
   return f;
 }
 uint32_t u(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
-std::unique_ptr<ztwod::Rain> g_rain;
+std::unique_ptr<ztwod::Weather> g_rain;  // the rain or the snow
+bool g_snow = false;
 zimg::Texture g_image;
 float g_place[3], g_angles[3];
 ztwod::Rect g_rects[3];  // the object's own, the manager's two
@@ -32,9 +33,9 @@ ztwod::Rect g_rects[3];  // the object's own, the manager's two
 
 extern "C" {
 
-// A rain of n particles made without a device, then given the device and an
+// A rain (or snow) of n particles made without a device, then given the device and an
 // image as the test gives the emulator's.
-void probe_weather_new(int32_t n, uint32_t texture) {
+void probe_weather_new(int32_t n, uint32_t texture, int32_t snow) {
   if (g_rain) g_rain->image = nullptr, g_rain->texture = nullptr;  // the probe's, not to free
   zrndr::device_fog().active = 0;
   ztwod::WeatherHooks& h = ztwod::weather_hooks();
@@ -53,9 +54,11 @@ void probe_weather_new(int32_t n, uint32_t texture) {
   ztwod::weather_state() = ztwod::WeatherState{};
   ztwod::WeatherLayer& l = ztwod::weather_layer();
   l.rects[0] = l.rects[1] = nullptr;
-  g_rain = std::make_unique<ztwod::Rain>(n);
+  g_snow = snow != 0;
+  if (g_snow) g_rain = std::make_unique<ztwod::Snow>(n);
+  else g_rain = std::make_unique<ztwod::Rain>(n);
   zrndr::device_fog().active = 1;
-  ztwod::Rain& r = *g_rain;
+  ztwod::Weather& r = *g_rain;
   r.ramp_pixels.assign(0x80, 0);
   r.ramp_alpha.assign(0x80, 0);
   g_image = zimg::Texture{};
@@ -71,7 +74,7 @@ void probe_weather_new(int32_t n, uint32_t texture) {
 // the manager (or none) with its two rects (each or none).
 void probe_weather_set(const uint32_t* w, const int32_t* rects, int32_t has_rect, int32_t managed,
                        int32_t r0, int32_t r1, int32_t hidden) {
-  ztwod::Rain& r = *g_rain;
+  ztwod::Weather& r = *g_rain;
   r.color = static_cast<uint16_t>(w[0]);
   r.alpha_tail = bf(w[1]), r.alpha_head = bf(w[2]);
   r.wind_dir = bf(w[3]), r.wind_vel = bf(w[4]), r.gravity = bf(w[5]);
@@ -88,13 +91,20 @@ void probe_weather_set(const uint32_t* w, const int32_t* rects, int32_t has_rect
 
 void probe_weather_update(uint32_t dt) { g_rain->update(bf(dt)); }
 
+// Both buffers' places (bits, 3 per particle each) as the emulator's, so each
+// frame starts the same (the snow keeps its places; ulps would add up).
+void probe_weather_places(const uint32_t* b0, const uint32_t* b1) {
+  ztwod::Weather& r = *g_rain;
+  for (size_t k = 0; k < r.pos[0].size(); ++k) r.pos[0][k] = bf(b0[k]), r.pos[1][k] = bf(b1[k]);
+}
+
 // The state after: cur, the time, the camera's last place, which rect the
 // object holds (0 none, 1 its own, 2 / 3 the manager's), then per particle
 // its streak (8 words) and both buffers' places, then the ramp's 16 texels
 // and 16 alphas.
 int32_t probe_weather_state(uint32_t* out) {
-  const ztwod::Rain& r = *g_rain;
-  const ztwod::WeatherState& st = ztwod::weather_state();
+  const ztwod::Weather& r = *g_rain;
+  const ztwod::WeatherClock& st = g_snow ? ztwod::weather_state().snow : ztwod::weather_state().rain;
   uint32_t* o = out;
   *o++ = static_cast<uint32_t>(r.cur);
   *o++ = fb(st.time);

@@ -12,8 +12,7 @@ and `zEntity\zent_init.cpp` (0x005a5310..0x005a6860).
 Shipped: RAIN in c4 (m2, m3, ia, mp; 100 particles, colour 128 128 172,
 gravity 3, wind 0 at 0.2, alpha_gradient 0.5 0), t1 m1..m4 (60, grey 165,
 gravity 0.8, wind 0.1) and c3 mp2 only; SNOW in c4b m4 and m6.
-Rain is ported (item 19a); snow (0x005a5ad0, update 0x005a5b40 with
-0x005a5e10) is item 19b.
+Both are ported: the rain in item 19a, the snow in 19b.
 
 ## 1. The classes
 
@@ -21,9 +20,11 @@ Rain is ported (item 19a); snow (0x005a5ad0, update 0x005a5b40 with
 |---|---|---|
 | Base (`ztwod::Weather`) | ctor 0x005a5470, dtor 0x005a5640 (deleting 0x005a5620) | 0x005d0528 |
 | Rain (`ztwod::Rain`) | ctor 0x005a60a0 (dtor 0x005a60e0) | 0x005d0660 |
-| Snow | ctor 0x005a5ad0 | 0x005d05e0 |
+| Snow (`ztwod::Snow`) | ctor 0x005a5ad0 (dtor 0x005a5b10) | 0x005d05e0 |
 
-Slots: +0x04 draw 0x005a5360 (shared), +0x24 update (rain 0x005a6110),
+Slots: +0x04 draw 0x005a5360 (shared), +0x24 update (rain 0x005a6110, snow
+0x005a5b40; Ghidra's 0x005a5e10 is not a function but the snow update's
+tail, made from a data pointer),
 +0x60 / +0x64 zTwoD's show_for / hide (the world parameters' 0x492660(1)
 shows it with -1, 0 hides it), +0x7c the particles' draw 0x005a57d0.
 
@@ -34,7 +35,8 @@ Fields (twod_weather.h): +0x34 the rect drawn into, +0x38 the streaks
 place buffers (x y z per particle), +0x60 / +0x64 which is current and
 next, +0x68 / +0x6c wind heading and speed, +0x70 gravity, +0x74 `down`
 (0 1 0), +0x80..+0x88 the "SnowFX" ramp image and its texture, +0x8c..+0x94
-(1, 20, 400 for rain; unread by the rain).
+(1, 20, 400 for both; unread by both). +0x54 is 0 (the constructor's,
+never written): the snow's flake size reads it.
 
 The constructor gives each particle a random place (0x005a56e0, CRT rand):
 depth 0.5..1, x and y -1..0.5, either one below -depth folded up by 1.5
@@ -87,6 +89,17 @@ The rain's update 0x005a6110, unless hidden:
 So the rain has no lasting motion: every frame each particle is a new
 random point, and its streak is one frame's motion seen from the camera.
 
+The snow's update 0x005a5b40 is the same up to the loop (its own time
+[0x00736538] and camera place [0x00736518]; the port shares the code as
+`Weather::motion` / `project`), then differs in the loop:
+
+- A flake keeps its place: the next buffer holds place + d, and the buffers
+  swap, so the flakes drift with the fall, the wind and against the camera.
+- `shown`, the streak's second-edge offset in pixels, is ftol((+0x54 + 1)
+  x k_head x 3.5) (0x005d05d8): 1 to 3 pixels, thicker the nearer.
+- A flake starts again (0x005a56e0) only when its next place leaves the
+  view: |y| > |z|, |x| > |z|, z > 1, or not z >= 0.5 (so a NaN depth too).
+
 ## 3. The draw
 
 0x005a5360 erases (no background: nothing), points the software finish at
@@ -113,30 +126,35 @@ written; the texture's other seven rows hold whatever was in memory. FIX
 ## 4. Frame rate
 
 The fall and the wind are per-frame steps of a 30 fps frame; the camera's
-move is a real frame's. Since a streak's length is fixed (0.1 after the
-normalize), the frame rate changes only its slant: at 60 fps the camera
-term halves and the rain looks steeper while you walk. FIX (B), behind
-`zfix` per_second: the fall and the wind are scaled by the frame's 30 fps
-steps, so the slant is the 30 fps one at any frame rate.
+move is a real frame's. For the rain a streak's length is fixed (0.1 after
+the normalize), so the frame rate changes only its slant: at 60 fps the
+camera term halves and the rain looks steeper while you walk. The snow's
+flakes keep moving by d, so they fall and blow twice as fast at 60 fps.
+FIX (B), behind `zfix` per_second: the fall and the wind are scaled by the
+frame's 30 fps steps, so both look as at 30 fps at any frame rate.
 
 ## 5. Tests
 
 - `tests/differential/test_weather.py` (`tests/probe_weather.cpp`): the
-  constructor and up to 12 frames of the update (with its draw) per case,
-  400 cases: every streak, both buffers, the summed time, the camera's last
-  place, the held rect, the ramp's row and the calls (rand, reload, each
-  quad's vertices, flush). The x87 at 24 bits. Exact but for the x87's
-  fsin / fcos against libm's (the wind, the camera's matrix): 2 ulps of a
-  float or a pixel, about 9 frames in 2,600. Frames starting without a rect
-  are compared on the places only. 13 break tests caught.
-- `mission_c4m2_rain_made_and_drawn_headless` (test_program.cpp): c4m2
-  makes the rain with its block's values, the frames set its rect and draw
-  quads inside the window, and the cleanup takes it off the layer.
-- Screenshots (c4m2, frame 90): rain on and off.
+  constructor and up to 12 frames (snow 40) of the update (with its draw)
+  per case, 400 cases, odd seeds snow: every streak, both buffers, the
+  summed time, the camera's last place, the held rect, the ramp's row and
+  the calls (rand, reload, each quad's vertices, flush). The x87 at 24
+  bits. Exact but for the x87's fsin / fcos against libm's (the wind, the
+  camera's matrix), which a short d's normalize and a cancelling place
+  magnify: 8 ulps, 1e-7 of a place, or a pixel, 69 frames in 5,227. The
+  snow's places are the emulator's again after each frame (the ulps would
+  add up). Frames starting without a rect are compared on the places only.
+  20 break tests caught (7 of them the snow's).
+- `mission_c4m2_rain_made_and_drawn_headless` and
+  `mission_c4b_m4_snow_made_and_drawn_headless` (test_program.cpp): the
+  mission makes its weather with its block's values, the frames set its
+  rect and draw quads inside the window (snow: thicker flakes too), and the
+  cleanup takes it off the layer.
+- Screenshots (frame 90): c4m2 rain and c4b m4 snow, each on and off.
 
 ## 6. Open
 
-- Snow: 0x005a5ad0, its update 0x005a5b40 and 0x005a5e10 (item 19b).
 - 0x004b5290 adds or removes another object, 0x0060b270, on the same layer
   (a camera-side object, not traced).
 - The software draw 0x0055a950.

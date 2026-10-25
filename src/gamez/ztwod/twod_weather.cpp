@@ -173,28 +173,27 @@ Rain::Rain(int32_t particles) : Weather(particles) {
   x94 = 400.0f;
 }
 
-// Mech3.exe 1.2 @ 0x005a6110. Every particle's streak this frame: from its
-// place moved along the streak vector (the tail) to its place (the head),
-// projected into the rect as (k p + 0.5) x size with k = 1.5 - depth; then
-// a fresh place for it. The motion is gravity along `down`, the wind at its
-// heading and the camera's move since the last frame against them, a tenth
-// each, in camera space. FIX (bug): without a rect (the first frame, before
+// The start both updates share (0x005a6110 to 0x005a6404, 0x005a5b40 to
+// 0x005a5e34): the time summed, the rect, and the motion this frame in
+// camera space: gravity along `down`, the wind at its heading and the
+// camera's move since the last frame against them, a tenth each. d is cut to
+// length 1; the streak s is d made 0.1 long, only when |d|^2 > 0.01 (a short
+// move is its own streak). FIX (bug): without a rect (the first frame, before
 // the draw sets one) the exe reads its width and height unset; the screen's
 // are used.
-void Rain::update(float dt) {
-  if (flags & kHidden) return;
-  WeatherState& st = g_state;
+bool Weather::motion(float dt, WeatherClock& st, WeatherMotion& m) {
   st.time = st.time + dt;
-  if (!camera) return;
-  int32_t left, top, width, height;
+  if (!camera) return false;
+  int32_t width, height;
   if (rect) {
     width = rect->right - rect->left, height = rect->bottom - rect->top;
-    left = rect->left, top = rect->top;
+    m.left = rect->left, m.top = rect->top;
   } else {
     const Rect* r = screen_rect();
-    left = r->left, top = r->top;
+    m.left = r->left, m.top = r->top;
     width = r->right - r->left, height = r->bottom - r->top;
   }
+  m.width = static_cast<float>(width), m.height = static_cast<float>(height);
   float place[3], angles[3];
   if (g_hooks.camera_place) g_hooks.camera_place(camera, place);
   else zcls::node_world_position(camera, place);
@@ -213,14 +212,14 @@ void Rain::update(float dt) {
                   static_cast<float>(std::cos(static_cast<double>(wind_dir)) * static_cast<double>(wv))};
   // Into camera space: the camera's matrix (its angles and place), its view
   // (0x00520b00, the frame's view set again), the three turned by it.
-  zmth::Mat34 m;
-  zmth::push(&m);
+  zmth::Mat34 mat;
+  zmth::push(&mat);
   zmth::load_identity();
   const float one[3] = {1.0f, 1.0f, 1.0f};
   zmth::euler(angles, place, one);
   zmth::pop();
-  zmth::set_view(m);
-  zmth::push(&m);
+  zmth::set_view(mat);
+  zmth::push(&mat);
   zmth::load_view();
   zmth::rotate_points(&moved, 1);
   zmth::rotate_points(&fall, 1);
@@ -230,27 +229,76 @@ void Rain::update(float dt) {
   d = {d.x - moved.x, d.y - moved.y, d.z - moved.z};
   if (d.x * d.x + d.y * d.y + d.z * d.z > 1.0f) zmth::normalize(d);  // 0x005d05cc
   zmth::Vec3 s = d;
-  if (s.x * s.x + s.y * s.y + s.z * s.z > 0.01f) {  // 0x005d05d0: a short move is its own streak
+  if (s.x * s.x + s.y * s.y + s.z * s.z > 0.01f) {  // 0x005d05d0
     zmth::normalize(s);
     s = {s.x * 0.1f, s.y * 0.1f, s.z * 0.1f};
   }
-  const float w = static_cast<float>(width), h = static_cast<float>(height);
+  m.d[0] = d.x, m.d[1] = d.y, m.d[2] = d.z;
+  m.s[0] = s.x, m.s[1] = s.y, m.s[2] = s.z;
+  return true;
+}
+
+// Both loops' body up to the reset: the next place = place + d, the tail =
+// place + s; both ends projected into the rect as (k p + 0.5) x size with
+// k = 1.5 - depth; u along the ramp is k x the end's alpha.
+void Weather::project(int32_t i, const WeatherMotion& m, float& k1) {
+  float* n = &pos[next][static_cast<size_t>(3 * i)];
+  const float* c = &pos[cur][static_cast<size_t>(3 * i)];
+  n[0] = c[0] + m.d[0], n[1] = c[1] + m.d[1], n[2] = c[2] + m.d[2];
+  const float tail[3] = {c[0] + m.s[0], c[1] + m.s[1], c[2] + m.s[2]};
+  k1 = 1.5f - c[2];  // 0x005d05bc
+  const float k2 = 1.5f - tail[2];
+  const float w = m.width, h = m.height;
+  WeatherStreak& r = streaks[static_cast<size_t>(i)];
+  r.x = crt::msvc_ftol((k2 * tail[0] - -0.5f) * w) + m.left;  // 0x005d05d4
+  r.y = crt::msvc_ftol((k2 * tail[1] - -0.5f) * h) + m.top;
+  r.w = crt::msvc_ftol((c[0] * k1 - -0.5f) * w) + m.left - r.x;
+  r.h = crt::msvc_ftol((c[1] * k1 - -0.5f) * h) - r.y + m.top;
+  r.color = color;
+  r.u_tail = k2 * alpha_tail;
+  r.u_head = k1 * alpha_head;
+}
+
+// Mech3.exe 1.2 @ 0x005a6110. Every particle's streak this frame, then a
+// fresh place for it: the rain keeps nothing from one frame to the next.
+void Rain::update(float dt) {
+  if (flags & kHidden) return;
+  WeatherMotion m;
+  if (!motion(dt, g_state.rain, m)) return;
   for (int32_t i = 0; i < count; ++i) {
-    float* n = &pos[next][static_cast<size_t>(3 * i)];
-    const float* c = &pos[cur][static_cast<size_t>(3 * i)];
-    n[0] = c[0] + d.x, n[1] = c[1] + d.y, n[2] = c[2] + d.z;
-    const float tail[3] = {c[0] + s.x, c[1] + s.y, c[2] + s.z};
-    const float k1 = 1.5f - c[2], k2 = 1.5f - tail[2];  // 0x005d05bc
-    WeatherStreak& r = streaks[static_cast<size_t>(i)];
-    r.x = crt::msvc_ftol((k2 * tail[0] - -0.5f) * w) + left;  // 0x005d05d4
-    r.y = crt::msvc_ftol((k2 * tail[1] - -0.5f) * h) + top;
-    r.w = crt::msvc_ftol((c[0] * k1 - -0.5f) * w) + left - r.x;
-    r.h = crt::msvc_ftol((c[1] * k1 - -0.5f) * h) - r.y + top;
-    r.color = color;
-    r.u_tail = k2 * alpha_tail;
-    r.u_head = k1 * alpha_head;
-    r.shown = 1;
+    float k1;
+    project(i, m, k1);
+    streaks[static_cast<size_t>(i)].shown = 1;
     reset(i);
+  }
+  Object2D::update(dt);
+  std::swap(cur, next);
+}
+
+// Mech3.exe 1.2 @ 0x005a5ad0
+Snow::Snow(int32_t particles) : Weather(particles) {
+  x8c = 1;
+  x90 = 20.0f;
+  x94 = 400.0f;
+}
+
+// Mech3.exe 1.2 @ 0x005a5b40 (with its tail 0x005a5e10). As the rain, but a
+// flake keeps its place, moved by d each frame, and starts again only once
+// its next place leaves the view: off the sides (|x| or |y| past the depth)
+// or the depth out of 0.5..1 (NaN included). A flake is 3.5 x k pixels thick
+// (+0x54 is always 0), thicker the nearer.
+void Snow::update(float dt) {
+  if (flags & kHidden) return;
+  WeatherMotion m;
+  if (!motion(dt, g_state.snow, m)) return;
+  for (int32_t i = 0; i < count; ++i) {
+    float k1;
+    project(i, m, k1);
+    WeatherStreak& r = streaks[static_cast<size_t>(i)];
+    r.shown = crt::msvc_ftol(static_cast<float>(x54 + 1) * k1 * 3.5f);  // 0x005d05d8
+    const float* n = &pos[next][static_cast<size_t>(3 * i)];
+    const float az = std::fabs(n[2]);
+    if (std::fabs(n[1]) > az || std::fabs(n[0]) > az || n[2] > 1.0f || !(n[2] >= 0.5f)) reset(i);
   }
   Object2D::update(dt);
   std::swap(cur, next);

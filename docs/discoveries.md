@@ -1007,6 +1007,12 @@ From the network code (network-messages.md).
   towards you; stand still in c4 and they fall nearly straight. Nothing
   carries over from one frame to the next, and a drop that would reach past
   the screen's edge is simply not drawn (0x5a6110, `weather.md`).
+- **Snow is different: the flakes really drift.** Unlike the rain, each
+  snowflake keeps its place from frame to frame, falling slowly, blown by
+  the wind and sliding past as you move; only a flake that leaves your view
+  comes back somewhere new. Nearer flakes are drawn thicker, 1 to 3 pixels
+  (0x5a5b40, `weather.md`). It snows in the two winter missions of the
+  fourth campaign's second half (c4b missions 4 and 6).
 - **The training grounds rain too:** all four training missions have a
   light grey rain (60 drops), and the only rain in the third campaign is in
   multiplayer map 2 (`world-params.md`).
