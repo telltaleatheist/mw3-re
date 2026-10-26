@@ -771,6 +771,38 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_config_endo_slots(Handle config) { return static_cast<int32_t>(unported("0x00425e80", {config})); }
   virtual int32_t lab_config_sink_items(Handle config) { return static_cast<int32_t>(unported("0x00425f30", {config})); }
   virtual int32_t lab_config_sink_limit(Handle config) { return static_cast<int32_t>(unported("0x00426070", {config})); }
+  // The unassigned list's rule (0x00453840, lab_screen.cpp): a loadout's
+  // weight (0x00425300(-1), a float), weapons (0x00425ea0), equipment of a
+  // kind (0x00473570), a part's free slots (0x00425e20), its armour (+0x2c
+  // tons, +0x30 tech, +0x34 ferro-fibrous); an equipment item's tech
+  // (+0x1c); the parts a definition has firepoints on (+0x24, each +0x0c).
+  virtual float lab_config_weight(Handle config) {
+    return zgame::from_bits(unported("0x00425300", {config, 0xffffffffu}));
+  }
+  virtual int32_t lab_config_weapons(Handle config) { return static_cast<int32_t>(unported("0x00425ea0", {config})); }
+  virtual int32_t lab_config_equipment(Handle config, int32_t kind, int32_t tech) {
+    return static_cast<int32_t>(unported("0x00473570", {config, static_cast<uint32_t>(kind), static_cast<uint32_t>(tech)}));
+  }
+  virtual int32_t lab_config_part_free(Handle config, int32_t part) {
+    return static_cast<int32_t>(unported("0x00425e20", {config, static_cast<uint32_t>(part)}));
+  }
+  virtual float lab_config_armor_tons(Handle config) { return zgame::from_bits(field32(config, 0x2c)); }
+  virtual int32_t lab_config_armor_tech(Handle config) { return static_cast<int32_t>(field32(config, 0x30)); }
+  virtual uint8_t lab_config_armor_ferro(Handle config) { return field8(config, 0x34); }
+  virtual int32_t lab_item_tech(Handle item);
+  struct LabFirepoint {
+    int32_t part;
+    float radius;                    // +0x04: a missile weapon needs one over 0
+  };
+  virtual std::vector<LabFirepoint> lab_dfn_firepoints(Handle dfn);
+  // The put-on (0x00454600, lab_screen.cpp's lab_put_on): the loadout behind
+  // a handle, MESSAGE_AREA's text (its vt+0x7c, the text as the format),
+  // ASSIGNED_LIST's part (step 6's 0x00455eb0), and the put-on itself (by
+  // default the stand-in "lab.vt+0xac" of the lab test).
+  virtual struct Config* lab_config_of(Handle config) { (void)config; return nullptr; }
+  virtual void lab_message(const char* text) { unported("lab.message", {text}); }
+  virtual int32_t lab_assigned_part() { return static_cast<int32_t>(unported("0x00455eb0", {0x1a13cu})); }
+  virtual void lab_put_on(class LabUnassignedList& list, int32_t index);
   virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }

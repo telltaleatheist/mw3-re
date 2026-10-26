@@ -48,6 +48,7 @@ struct LabLater {
   uint32_t at = 0;                   // the offset in the original's screen
   void call(uint32_t slot, std::initializer_list<Arg> args = {}) const;
   void call_fn(const char* key, std::initializer_list<Arg> args = {}) const;  // a function of its own
+  uint32_t ask(const char* key) const;  // the same, its answer
 };
 
 // PANEL_LEFT, PANEL_RIGHT, PANEL_CENTER (0x0044b010, vtable 0x005c0e98): an
@@ -176,6 +177,8 @@ class LabLaterList : public LabItemList, public LabLater {
  public:
   explicit LabLaterList(Engine& e) : LabItemList(e) {}
   void refill() override { call(0xb8, {store, x224}); }  // +0xb8
+  // 0x00455eb0 (ASSIGNED_LIST's, 0x00455ec0 on its +0x160): the part chosen, -1 none.
+  int32_t part() const { return static_cast<int32_t>(ask("0x00455eb0")); }
   bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
   void after_bind() override;        // +0x88
   void show_for(float seconds) override;  // +0x60
@@ -186,9 +189,8 @@ class LabLaterList : public LabItemList, public LabLater {
 // store's items of one tab (SELECT_WEAPON 25 kind 1, SELECT_AMMO 23 kind 2,
 // SELECT_EQUIP 24 kind 3, SELECT_ARMOR 26 kind 3's armour), sorted by
 // SORT_ITEM/QTY/MASS/CRIT (27..30), each row greyed when it cannot go on
-// the mech, with its mass and how many the store has. Its +0xa8 (may an
-// item go on, 0x00453840) and +0xac (put it on, 0x00454600) are step 5b2's:
-// "lab.vt+0xa8" / "lab.vt+0xac" (docs/mechlab.md, The unassigned list).
+// the mech (+0xa8, 0x00453840), with its mass and how many the store has.
+// Its +0xac puts the row's item on (0x00454600, `lab_put_on`).
 class LabUnassignedList : public LabItemList, public LabLater {
  public:
   explicit LabUnassignedList(Engine& e);  // 0x004535d0
@@ -197,8 +199,8 @@ class LabUnassignedList : public LabItemList, public LabLater {
   bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x00454fc0
   int32_t add_object(Handle item, int32_t n) override;  // +0x94  0x00454f60: NORMAL_FONT
   bool can_light(int32_t index) override { return can_xa8(index); }  // +0xa4  0x00453830
-  bool can_xa8(int32_t index) override { return call_bool(0xa8, index); }  // +0xa8  0x00453840 (5b2)
-  void select(int32_t index) override { call(0xac, {index}); }  // +0xac  0x00454600 (5b2)
+  bool can_xa8(int32_t index) override;  // +0xa8  0x00453840: may the row's item go on the shown loadout
+  void select(int32_t index) override { e_.lab_put_on(*this, index); }  // +0xac  0x00454600 (lab_put_on)
   void refill() override;            // +0xb8  0x00453f20
   void set_tab(int32_t kind, bool armor);  // 0x004550d0
   void set_sort(int32_t by);         // 0x00453f00: 0 id, 1 mass, 2 count, 3 slots
@@ -265,6 +267,14 @@ class LabMessage : public ztwod::FontText {
   uint32_t x4b0 = 0;                 // +0x4b0
   float x4b4 = 1.0f;                 // +0x4b4
 };
+
+// 0x00454600 (UNASSIGNED_LIST's +0xac, docs/mechlab.md, The item rules):
+// the row's item onto the shown slot's loadout from the lab's store, if the
+// rule allows it; then the screen refreshed.
+void lab_put_on(Engine& e, LabUnassignedList& list, int32_t index);
+// [0x005e47d4]: which end of the part's firepoints the next weapon takes
+// (1 at start: the last).
+uint8_t& lab_firepoint_toggle();
 
 // 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix bugs:
 // the exe compares the mechs' numbers) or 1 the tonnage, then the number.

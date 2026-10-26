@@ -472,3 +472,28 @@ Notes for when it resumes (branch mac4/fe-salvage):
   Shots before and after: the salvage panel, a briefing, the main menu,
   the HUD, the lab (scratchpad fonts/).
 
+
+## Lab 5b2: the item rules (2026-10-25)
+
+- Assignment (lead): plan item 2, 0x00453840 (may an item go on) and
+  0x00454600 (put it on) with the Config helpers they ask; tested with
+  test_lab_screen.py sessions with adds against the exe, breaks. Branch
+  mac4/lab-5b2 off main d751ead.
+- First half done: the item rule 0x00453840 (`can_xa8`), 0x00456750,
+  Config's 0x00425ea0 / 0x00473570 (test_mechsave checks both, breaks
+  2/2). test_lab_screen runs the exe's rule: 80/80, breaks 14 of 15 (the
+  15th, armour's slot test with a part, is dead code). Harness: the float
+  stub's `fld` thunk pops the argument itself (`ret 4`); the plan keeps to
+  play's states (the rule reads the shown loadout unchecked).
+- Second half next: the put-on 0x00454600 operates inline on the real
+  loadout and store (armour by half tons and swaps, 0x004513f0 and
+  0x004247a0, sinks and jump jets with messages, the firepoint pick with
+  the static toggle 0x005e47d4); its own differential with exe objects.
+- Second half done: the put-on 0x00454600 (`lab_put_on`, an Engine hook so
+  the lab test keeps its stand-in), Config::remove 0x00471de0, find_like,
+  spread_armor 0x004247a0. test_salvage.py's puton part runs the exe's
+  put-on on real loadouts and stores: 200/200, breaks 12/14 (the two left
+  are the remove's, unreachable from the put-on: test_mechsave covers the
+  remove, 3/4, and the spread, 6/7; the misses cannot differ). Finds: the
+  firepoint toggle (last, first, alternating, across mechs) and missiles
+  with no scattering firepoint getting the part number as their firepoint.

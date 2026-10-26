@@ -33,6 +33,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC
 SAVE, LOAD, CHECKSUM, WEIGHT, UNPLACED, JJ, JJ_LIMIT, VALIDATE = (0x424480, 0x424600, 0x4255b0, 0x425300, 0x424220,
                                                                    0x425ff0, 0x425fb0, 0x4254d0)
 LIST_CTOR, LOAD_SAVED, CONFIG_CTOR, FIND_WEAPON = 0x424a90, 0x424b70, 0x423d00, 0x581ed0
+WEAPON_COUNT, EQUIP_COUNT, SPREAD, REMOVE = 0x425ea0, 0x473570, 0x4247a0, 0x471de0
 SLOTS_LEFT, FERRO_SLOTS, ENDO_SLOTS, ENGINE_SLOTS, SINK_LIMIT, SINK_ITEMS = (0x425d80, 0x425e40, 0x425e80, 0x425e60,
                                                                            0x426070, 0x425f30)
 SAVE_ALL, DIR_EXISTS, WARCH = 0x424f60, 0x576080, 0x9abc
@@ -361,6 +362,35 @@ class Emulated(DfnEmu):
         for fn in (SLOTS_LEFT, FERRO_SLOTS, ENDO_SLOTS, ENGINE_SLOTS, SINK_LIMIT, SINK_ITEMS):
             cpu.call(fn, ecx=c)
             out += struct.pack('<I', eax())
+        # the mech lab's counts (0x00453840's): weapons with TAG, and equipment by kind and tech
+        extras = len(out)
+        cpu.call(WEAPON_COUNT, ecx=c)
+        out += struct.pack('<I', eax())
+        for kind in range(15):
+            for tech in (1, 2, 3):
+                cpu.call(EQUIP_COUNT, ecx=c, stack_args=(kind, tech))
+                out += struct.pack('<I', eax())
+        # the armour spread anew (0x004247a0 on +0x2c, the mech pushed) at other tonnages, last: it changes them
+        tons = struct.unpack('<f', cpu.read(c + 0x2c, 4))[0]
+        mech = struct.unpack('<i', cpu.read(c + 0x14, 4))[0]
+        for t in (tons, tons + 0.5, tons - 0.5, tons + 5.0, max(tons - 5.0, 0.0), 0.0, 40.0):
+            cpu.write(c + 0x2c, struct.pack('<f', t))
+            cpu.call(SPREAD, ecx=c + 0x2c, stack_args=(mech & 0xffffffff,))
+            out += cpu.read(c + 0x38, 44)
+        # the loadout's remove (0x00471de0, vt+0x14): one of each item in turn, its answer and the
+        # armour and sink fields after; the items' kinds and counts last
+        rd = lambda a: struct.unpack('<I', cpu.read(a, 4))[0]  # noqa: E731
+        head = rd(c + 8)
+        its, node = [], rd(head)
+        while node != head:
+            its.append(rd(node + 8))
+            node = rd(node)
+        for it in its[:12]:
+            cpu.call(REMOVE, ecx=c, stack_args=(it, 1))
+            out.append(eax() & 0xff)
+            out += cpu.read(c + 0x2c, 9) + cpu.read(c + 0x64, 9)
+        out += struct.pack('<I', rd(c + 0xc))
+        out += struct.pack('<I', len(out) - extras)  # (compare_blob finds the weights before the extras)
         self.unpatch()
         cpu.heap_next = mark
         return bytes(out)
@@ -498,8 +528,12 @@ MUTATIONS = [
 def compare_blob(what, want, n, buf):
     """As compare, with the ten weights (x87 sums) within float rounding."""
     got = buf.raw[:max(n, 0)]
-    if len(got) == len(want) and got[:-74] + got[-34:] == want[:-74] + want[-34:]:  # (the slots' 24 bytes last)
-        a, b = struct.unpack('<10f', want[-74:-34]), struct.unpack('<10f', got[-74:-34])
+    # The weights' 40 bytes, then 34 (the flags, jump jets, the slots' 24), then the lab's extras
+    # (counts, spreads, removes), their length in the last 4 bytes.
+    tail = 4 + struct.unpack('<I', want[-4:])[0] if len(want) >= 4 else 0
+    w0, w1 = -(74 + tail), -(34 + tail)
+    if len(got) == len(want) >= -w0 and got[:w0] + got[w1:] == want[:w0] + want[w1:]:
+        a, b = struct.unpack('<10f', want[w0:w1]), struct.unpack('<10f', got[w0:w1])
         if all(x == y or abs(x - y) <= 1e-6 * max(1.0, abs(x)) for x, y in zip(a, b)):
             return
     compare(what, want, n, buf)

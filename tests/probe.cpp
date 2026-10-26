@@ -1572,6 +1572,25 @@ int probe_config_blob(const char* name, const uint8_t* blob, int n, uint8_t* out
   b.push_back(c.validate(false));
   for (int32_t v : {c.slots_left(), c.ferro_slots(), c.endo_slots(), c.engine_slots(), c.sink_limit(), c.sink_items()})
     put_i32(b, v);
+  const size_t extras = b.size();
+  put_i32(b, c.weapon_count());  // the mech lab's counts (0x00453840's)
+  for (int32_t kind = 0; kind < 15; ++kind)
+    for (int32_t tech = 1; tech <= 3; ++tech) put_i32(b, c.equipment_count(kind, tech));
+  const float tons = c.armor_tons;
+  for (float t : {tons, tons + 0.5f, tons - 0.5f, tons + 5.0f, std::max(tons - 5.0f, 0.0f), 0.0f, 40.0f}) {
+    c.armor_tons = t;
+    c.spread_armor(c.mech);  // 0x004247a0
+    put_bytes(b, c.armor, sizeof c.armor);
+  }
+  std::vector<mech3::ConfigItem*> its(c.items.begin(), c.items.end());
+  if (its.size() > 12) its.resize(12);
+  for (mech3::ConfigItem* it : its) {  // 0x00471de0, one of each in turn
+    b.push_back(c.remove(it, 1));
+    put_bytes(b, &c.armor_tons, 4), put_i32(b, c.armor_tech), b.push_back(c.ferro);
+    put_i32(b, c.sink_tech), put_i32(b, c.sinks), b.push_back(c.double_sinks);
+  }
+  put_i32(b, static_cast<int32_t>(c.items.size()));
+  put_i32(b, static_cast<int32_t>(b.size() - extras));  // their length, last
   return finish(b, out, cap);
 }
 

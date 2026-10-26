@@ -387,6 +387,20 @@ int32_t Engine::lab_item_equipment(Handle h) {
   const ConfigItem* it = item_of(h);
   return it && it->kind() == 3 ? static_cast<const EquipmentItem*>(it)->equipment : 0;
 }
+int32_t Engine::lab_item_tech(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it && it->kind() == 3 ? static_cast<const EquipmentItem*>(it)->tech : 0;
+}
+std::vector<Engine::LabFirepoint> Engine::lab_dfn_firepoints(Handle dfn) {
+  std::vector<LabFirepoint> out;
+  const Handle v = dfn ? field32(dfn, 0x24) : 0;
+  if (!v) return out;
+  for (Handle p = field32(v, 0x04), end = field32(v, 0x08); p && p < end; p += 4) {
+    const Handle f = field32(p, 0);
+    out.push_back({static_cast<int32_t>(field32(f, 0x0c)), zgame::from_bits(field32(f, 0x04))});
+  }
+  return out;
+}
 const char* Engine::part_text(int32_t part) {
   return part_display_name(part, [](void* c, int32_t id) { return static_cast<Engine*>(c)->message(id); }, this);
 }

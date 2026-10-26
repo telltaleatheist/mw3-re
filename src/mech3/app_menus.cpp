@@ -647,6 +647,50 @@ int32_t GameEngine::lab_config_sink_limit(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c ? c->sink_limit() : 10;
 }
+float GameEngine::lab_config_weight(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? static_cast<float>(c->weight(-1)) : 0.0f;
+}
+int32_t GameEngine::lab_config_weapons(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->weapon_count() : 0;
+}
+int32_t GameEngine::lab_config_equipment(Handle config, int32_t kind, int32_t tech) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->equipment_count(kind, tech) : 0;
+}
+int32_t GameEngine::lab_config_part_free(Handle config, int32_t part) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c && part >= -1 && part < 9 ? c->free_slots_in(part) : 0;
+}
+float GameEngine::lab_config_armor_tons(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->armor_tons : 0.0f;
+}
+int32_t GameEngine::lab_config_armor_tech(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->armor_tech : 0;
+}
+uint8_t GameEngine::lab_config_armor_ferro(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->ferro : 0;
+}
+std::vector<Engine::LabFirepoint> GameEngine::lab_dfn_firepoints(Handle dfn) {
+  std::vector<LabFirepoint> out;
+  const auto* d = static_cast<const MechDfn*>(object_of(dfn));
+  if (d && d->firepoints)
+    for (const Firepoint* f : *d->firepoints) out.push_back({f ? f->part : -1, f ? f->radius : 0.0f});
+  return out;
+}
+Config* GameEngine::lab_config_of(Handle config) { return static_cast<Config*>(object_of(config)); }
+void GameEngine::lab_message(const char* text) {
+  if (LabScreen* s = lab_screen(states().lab.lab_screen_)) s->message.set_text("%s", text);  // (the exe's format is the text)
+}
+int32_t GameEngine::lab_assigned_part() {
+  LabScreen* s = lab_screen(states().lab.lab_screen_);
+  return s ? s->assigned.part() : -1;
+}
+void GameEngine::lab_put_on(LabUnassignedList& list, int32_t index) { mech3::lab_put_on(*this, list, index); }
 bool GameEngine::lab_config_valid(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && c->validate(false);

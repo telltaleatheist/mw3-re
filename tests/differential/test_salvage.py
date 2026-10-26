@@ -44,6 +44,7 @@ probe.probe_salvage_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_i
 probe.probe_realloc_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 probe.probe_moves_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+probe.probe_puton_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_lance_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 LANCE, CONFIG_CTOR, CONFIG_ADD, DFN_CACHE = 0x408c30, 0x423d00, 0x4723c0, 0x5e60b0
 LAB_BUILD, LAB_REFRESH, REMOVE_ITEM, ADD_COPY_ITEM, FIND_WEAPON = 0x408b40, 0x408bd0, 0x471d20, 0x472630, 0x581ed0
@@ -482,6 +483,192 @@ class Lance(Realloc):
         return '\n'.join(out) + '\n'
 
 
+PUT_ON, LAB_SCREEN, LAB_PILOT, LAB_SLOT, LAB_FLAG, FP_TOGGLE = 0x454600, 0x605a58, 0x605a7c, 0x605a28, 0x605a84, 0x5e47d4
+UNASSIGNED_VT = 0x5c1d68
+
+
+class PutOn(Lance):
+    """The mech lab's put-on (0x00454600, docs/mechlab.md, The item rules): a
+    stand-in UNASSIGNED_LIST (its vtable's +0x3c, +0x40 and the rule +0xa8
+    answered by the plan), the lab's store and the shown slot's real loadout,
+    the mech's definition with firepoints (parts, radii); MESSAGE_AREA's
+    vt+0x7c, ASSIGNED_LIST's part 0x00455eb0, the refresh 0x0044cf50 and the
+    sound 0x0056e3d0 stubbed and logged. Each put-on's events, then the
+    loadout (with its armour) and the store."""
+
+    def __init__(self, seed, labs):
+        Lance.__init__(self, seed, labs)
+        cpu = self.cpu
+        self.events, self.answers = [], {}
+        cpu.stub_function(0x4b4900, lambda c: 100 if i32(c.edx) > 150 else 20 if i32(c.edx) > 20 else 1)
+        # floor and _ftol (the armour's points and spread), as the moves part's
+        cpu.import_code(0x5bb66c, bytes.fromhex(
+            '83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3'))
+        cpu.import_code(IAT_FTOL, FTOL)
+
+        def fmt(c):  # 0x00575fd0 (cdecl buf, size, id, name, number): "F<id>:<name>,<n>"
+            text = f'F{c.arg(2):x}:{self.cstr(c.arg(3))},{i32(c.arg(4))}'[:c.arg(1) - 1]
+            cpu.write(c.arg(0), text.encode('latin1') + b'\0')
+            return len(text)
+        cpu.stub_function(0x575fd0, fmt)
+
+        def ev(name, value=0):
+            def f(c):
+                self.events.append(name(c) if callable(name) else name)
+                return value(c) if callable(value) else value
+            return f
+        cpu.stub_function(0x455eb0, ev('part', lambda c: self.answers['part']))
+        cpu.stub_function(0x44cf50, ev(lambda c: f'refresh {c.ecx == self.screen}'))
+        cpu.stub_function(0x56e3d0, ev(lambda c: f'sound {i32(c.ecx)} {c.arg(0):x}'), 4)
+        self.list_vt = vt = self.alloc(0x100)  # UNASSIGNED_LIST's, its +0x3c, +0x40, +0xa8 logged (run_puton)
+        cpu.write(vt, cpu.read(UNASSIGNED_VT, 0x100))
+
+    def thunk(self, name, fn, pop):
+        """A function the list's vtable calls: logged by the stub."""
+        addr = self.alloc(16)
+        self.cpu.write(addr, b'\xc3')
+        self.cpu.stub_function(addr, fn, pop)
+        return addr
+
+    def run_puton(self, cfg):
+        cpu = self.cpu
+        m = cfg['mech']
+        # the mech's definition: its firepoints (+0x24), a part and a radius each
+        fps = []
+        for part, radius in cfg['fps']:
+            f = self.alloc(0x20)
+            cpu.write(f + 4, struct.pack('<f', radius))
+            cpu.u32(f + 0xc, part & 0xffffffff)
+            fps.append(f)
+        arr, vec, dfn = self.alloc(4 * max(1, len(fps))), self.alloc(0x10), self.alloc(0x1a8)
+        for i, f in enumerate(fps):
+            cpu.u32(arr + 4 * i, f)
+        cpu.u32(vec + 4, arr)
+        cpu.u32(vec + 8, arr + 4 * len(fps))
+        cpu.u32(dfn + 0x24, vec)
+        cpu.u32(DFN_CACHE + 0x3c * m, dfn)
+        # the shown slot's loadout, its armour's sections set
+        c = self.config(m, 'slot', cfg['config'])
+        cpu.write(c + 0x38, struct.pack('<11i', *cfg['sections']))
+        slot = self.alloc(0x18)
+        cpu.u32(slot + 4, m)
+        cpu.u32(slot + 8, c)
+        game, gvt, pilot = self.alloc(0xd0), self.alloc(0x60), self.alloc(0x84)
+        cpu.u32(game, gvt)
+        cpu.u32(gvt + 0x34, self.fn('b8' + struct.pack('<I', slot).hex() + 'c20400'))
+        cpu.u32(pilot + 0x6c, game)
+        cpu.u32(LAB_PILOT, pilot)
+        cpu.u32(LAB_SLOT, 0)
+        cpu.write(LAB_FLAG, bytes([cfg['flag']]))
+        cpu.write(FP_TOGGLE, bytes([cfg['toggle']]))
+        # the lab's store
+        store = self.alloc(0x14)
+        self.call(0x470ce0, ecx=store, stack=(0,))
+        self.fill(store, cfg['store'])
+        cpu.write(store + 0x10, bytes([cfg['full']]))
+        # the screen: MESSAGE_AREA (+0x1afb0) with a logged vt+0x7c
+        self.screen = sc = self.alloc(0x1b468)
+        cpu.u32(LAB_SCREEN, sc)
+        mvt = self.alloc(0x100)
+        cpu.u32(sc + 0x1afb0, mvt)
+        cpu.u32(mvt + 0x7c, self.thunk('message', lambda c: self.events.append(
+            'message ' + self.cstr(self.r32(c.uc.reg_read(UC_X86_REG_ESP) + 8))) or 0, 0))
+        # the list
+        lst = self.alloc(0xeac)
+        cpu.u32(lst, self.list_vt)
+        for off, name in ((0x3c, 'enter'), (0x40, 'leave')):
+            cpu.u32(self.list_vt + off, self.thunk(name, lambda c, name=name: self.events.append(name) or 0, 0))
+        cpu.u32(self.list_vt + 0xa8, self.thunk('rule', lambda c: (
+            self.events.append(f'rule {i32(c.arg(0))}'), self.answers['rule'])[1], 4))
+        cpu.u32(lst + 0x220, store)
+        cpu.u32(lst + 0x1fc, 7)
+        cpu.u32(lst + 0x200, 8)  # the sounds (+0x1fc: rollover, select)
+        out = []
+        for row, rule, part in cfg['puts']:
+            # the rows: the store's items now, in its order (the refresh would list them)
+            its = self.items_of(store)
+            rows = self.alloc(4 * max(1, len(its)))
+            for i, it in enumerate(its):
+                li = self.alloc(0x10)
+                cpu.u32(li + 4, it)
+                cpu.u32(rows + 4 * i, li)
+            cpu.u32(lst + 0x168, rows)  # (0x004534b0's vector)
+            cpu.u32(lst + 0x16c, rows + 4 * len(its))
+            self.answers = {'rule': rule, 'part': part & 0xffffffff}
+            self.events = []
+            self.call(PUT_ON, ecx=lst, stack=(row & 0xffffffff,))
+            out.append(' '.join(self.events) + f' toggle{self.r8(FP_TOGGLE)}')
+            out.append(self.armour_text(c) + ' ' + self.config_text(c))
+            out.append(store_text(self.store('s', store)))
+        return '\n'.join(out) + '\n'
+
+    def armour_text(self, c):
+        tons, tech, ferro = struct.unpack('<fiB', self.cpu.read(c + 0x2c, 9))
+        return f'armour {tons:g} t{tech} f{ferro} ' + ','.join(str(v) for v in struct.unpack('<11i', self.cpu.read(c + 0x38, 44)))
+
+
+def make_puton(seed):
+    r = random.Random(f'puton:{seed}')
+    items = []
+    for _ in range(r.randrange(0, 12)):
+        k = r.choice([1, 1, 2, 3, 3, 3])
+        if k == 1:
+            items.append((1, r.choice([0, 3, 6, 9, 0x11, 0x13, 0x1a, 0x1c, 12, 19]), r.choice([1, 2]), r.randrange(-1, 9), 1))
+        elif k == 2:
+            items.append((2, r.choice([0, 9, 0x11, 19]), 0, -1, r.choice([20, 200])))
+        else:
+            items.append((3, r.choice([1, 2, 9, 10, 11, 11, 5, 3]), r.choice([1, 2]), r.randrange(-1, 9), r.choice([1, 2, 4, 20, 34])))
+    if r.random() < 0.2:  # a full rack: 16 weapons (TAG among them sometimes)
+        items += [(1, r.choice([0, 3, 9]), 1, -1, 1)] * 15 + [r.choice([(1, 6, 1, -1, 1), (3, 13, 1, -1, 1)])]
+    store = store_ops(r, r.randrange(2, 14))
+    store += [('equip', r.choice([1, 2, 9, 10, 11]), r.choice([1, 2]), r.choice([1, 2, 10, 40])) for _ in range(r.randrange(1, 6))]
+    store += [('weapon', r.choice([0x11, 0x13, 0x1a, 0x1c, 3, 9]), r.choice([1, 2])) for _ in range(r.randrange(0, 4))]
+    return {'mech': r.choice([0, 3, 7, 13, 18]), 'config': items,
+            'sections': [r.choice([0, 0, 5, 10, 20, 31]) for _ in range(11)],
+            'fps': [(r.randrange(-1, 9), r.choice([0.0, 0.0, 0.5, 1.0])) for _ in range(r.choice([0, 2, 5, 9]))],
+            'flag': 1 if r.random() < 0.1 else 0, 'toggle': r.choice([0, 1]), 'full': 1 if r.random() < 0.15 else 0,
+            'store': store,
+            'puts': [(r.randrange(-1, 20), r.choice([1, 1, 1, 0]), r.choice([-1, 0, 1, 2, 3, 4, 5, 6, 7]))
+                     for _ in range(r.randrange(1, 14))]}
+
+
+def puton_setup(cfg):
+    out = [f"mech {cfg['mech']} {cfg['flag']} {cfg['toggle']} {cfg['full']}",
+           'config ' + str(len(cfg['config'])) + ' ' + ' '.join(' '.join(str(x) for x in it) for it in cfg['config']),
+           'sections ' + ' '.join(str(v) for v in cfg['sections']),
+           'fps ' + str(len(cfg['fps'])) + ' ' + ' '.join(f'{p} {struct.unpack("<I", struct.pack("<f", rad))[0]:x}'
+                                                       for p, rad in cfg['fps'])]
+    out += ['store ' + ' '.join(str(x) for x in op) for op in cfg['store']]
+    out += [f'put {row} {rule} {part}' for row, rule, part in cfg['puts']]
+    return '\n'.join(out)
+
+
+PUTON_SEEN = {}
+
+
+def run_puton(seed, labs, verbose):
+    cfg = make_puton(seed)
+    want = PutOn(seed, labs).run_puton(cfg)
+    for key, what in (('16 weapons', 'Only 16 weapons'), ('sink type', 'message MSG_3842'),
+                      ('jump jets', 'message Ffc1'), ('put on', 'sound 8 '), ('refused', ' rule ')):
+        PUTON_SEEN[key] = PUTON_SEEN.get(key, 0) + want.count(what)
+    buf = ctypes.create_string_buffer(1 << 18)
+    n = probe.probe_puton_run(puton_setup(cfg).encode(), buf, len(buf))
+    assert n >= 0, 'probe failed'
+    got = buf.value.decode()
+    if got.replace(' }', '}') != want.replace(' }', '}'):
+        for a, b in zip(want.split('\n'), got.split('\n')):
+            if a != b:
+                print(f'puton seed {seed}: differ\n  original: {a}\n  rebuild:  {b}')
+                break
+        else:
+            print(f'puton seed {seed}: differ in length')
+        return False
+    if verbose:
+        print(f'puton seed {seed}: {want[:400]}')
+    return True
+
+
 def config_items(r):
     out = []
     for _ in range(r.choice([0, 1, 2, 4, 6])):
@@ -714,7 +901,9 @@ def main():
     print(f'lance: {lpassed}/{runs} runs identical')
     mpassed = sum(run_moves(seed, labs, verbose) for seed in range(first, first + runs))
     print(f'moves: {mpassed}/{runs} runs identical')
-    return 0 if passed == runs and rpassed == runs and lpassed == runs and mpassed == runs else 1
+    ppassed = sum(run_puton(seed, labs, verbose) for seed in range(first, first + runs))
+    print(f'puton: {ppassed}/{runs} runs identical (' + ', '.join(f'{k} x{v}' for k, v in PUTON_SEEN.items()) + ')')
+    return 0 if passed == runs and rpassed == runs and lpassed == runs and mpassed == runs and ppassed == runs else 1
 
 
 if __name__ == '__main__':
