@@ -399,6 +399,60 @@ is in `README.md`.
   the Bushwhacker. 0x470e30 is the lab / IA / MP / training store (item 12).
 - campaign_menus_to_c1m1 now checks c1m2's store: 0 mechs, 4 kind 1, 3
   ammo, 3 kind 3. Break (no new-campaign stock): a spare mech appears and
-  the lab's ACCEPT checks fail. The weapons and ammo counts are the same
-  either way, so they are not (only) the stock's: the player's loadout
-  moves between the slot and the store too; not traced further.
+  the lab's ACCEPT checks fail. Traced (the lead asked why that reads
+  backwards): with the stock the store is 1 Bushwhacker, 6463 units; each
+  briefing takes the player's mech and loadout into the slot (0 mechs, 6106
+  units) and 0x434e00 brings the lance back for the next mission (1, 6463)
+  before c1m2's briefing takes it again. Without the stock the store is
+  empty, the slot's take finds nothing (its mech -1, the player launches
+  without the store's), and the Bushwhacker returned after c1m1 (1 mech,
+  357 units) stays a spare. The kinds' counts matched because they count
+  entries, not units (corrected).
+
+## Front-end item 1: the salvage screen (2026-10-25)
+
+- Branch mac4/fe-salvage2 off main 8a5c6d4 (the notes below came across
+  from mac4/fe-salvage). Ported whole: `mech3/salvage_screen` (the screen,
+  its lists, the two moves), the second Salvage State 0x608bd8 and
+  `GameEngine::salvage_open`, construct 0x47d3b0.
+- Seen live: `--briefing c1m2 --click-at 420,435@2500`: the stockpile, 6
+  empty bays for 3 bases, the lance row; clicks moved 200 MG rounds, a heat
+  sink, a CASE. The tonnage values overlap their captions (right-aligned
+  font, the port's widths; for Owen).
+- Tests: test_salvage_screen.py (new, 100/100; found the destruction order
+  of BACKGROUND and SALVAGE_TEXT), test_salvage.py moves (200/200; floor,
+  ftol and 0x4b4900 stood in), the campaign test's salvage stage. Breaks:
+  screen 13/14, moves 4/5, headless 5/5 (the misses cannot show).
+
+## Front-end item 1 (the salvage screen), mapped, set aside for 1a (2026-10-25)
+
+Notes for when it resumes (branch mac4/fe-salvage):
+- Open: 0x47d2f0 pushes the second Salvage State 0x608bd8 (app push
+  0x590400). SalvageState (0x47d310/0x47d390) is ported; its construct
+  0x47d3b0 (new 0x166a8) is the screen, vtable 0x5c3c88: +0x08 dtor
+  0x47db10 (body 0x47db60), +0x14 press 0x47e490, +0x00 0x5a2bb0.
+- Screen fields: +0x10fec state, +0x11368 ICON_ACCEPT (id 10), cards
+  0x6a0 each (ctor 0x47db30 = LanceCard 0x47af70 with vtable 0x5c3d58,
+  slot 0 0x47dcd0): 6 bays at +0x114c0, 4 lance at +0x13c80 (ids 4..7,
+  ICON_PILOT, moved by (0x5e5b10 * i, 0x5e5b18), their children by the
+  functor 0x47f1c0 / 0x47f140 / 0x47f1e0), PLAYER_SALVAGE +0x15700 (id 11,
+  store +0x214 = 0x479430's), MISSION_SALVAGE +0x15dd0 (id 12, store the
+  campaign's +0x3c, else [0x609990]), SALVAGE_TEXT +0x1655c (children at
+  +0x110: [3] used tons, [4] capacity, [5] 0x163/0x164 with the bases),
+  BACKGROUND +0x164a0. Lists' vtable 0x5c3ca8: +0x98 0x47da70 (a choice
+  goes to the screen's +0x14 with the id +0x150 and the row).
+- Constants: 0x5e5b08..18 = 120, 80, 60, -50, -70; 300 t and 2 mechs a
+  field base (0x470cc0, 0x470cd0, mech_fieldbase_cut).
+- 0x47e110 (player -> mission): n = 1; kind 2: 0x4b4900(+0x14, +0x04);
+  kind 3 with +0x18 in {1, 2}: by count * 0.5 < 10, 20, 50, 200, 500:
+  1, 2, 10, 20, 40, else 100; to.add_copy(item, n), on success
+  from.remove(item, n); true.
+- 0x47e270 (mission -> player): cap 300 * bases t, 2 * bases mechs; used
+  = the player store's weight(-1) sum; kind 0: 1 if a bay is free (else
+  the negative rest: refused); kind 2: 0x4b4900; kind 3 sub 1/2: min(count,
+  ftol(2 floor(cap - used))); n > 0 and used + item.weight(n) <= cap:
+  add, then remove; true.
+- Refill 0x47dcf0: the lance cards from the game's slots (vt+0x34(i), vt+0x38
+  the count: green 1 under it, else 3), the bays from the store's mechs
+  (0x47b260, 0x484650 name) then empty ones up to 2 * bases, the lists
+  refilled (vt+0x40, +0x3c, +0xa8), texts "%.1f %s" with the tons.

@@ -129,6 +129,7 @@ class GameEngine : public Engine {
   // The mech lab (mech_lab.cpp): opened on the ported Lab State, its slots the
   // ported campaign's; no 3D world yet (mechlab.md item 9), so its load passes.
   void mech_lab_open(Handle store, int32_t a) override;
+  void salvage_open() override;
   int32_t lab_slot_count(Handle pilot) override;
   Handle lab_slot(Handle pilot, int32_t i) override;
   void lab_slot_release(Handle pilot, int32_t i) override;

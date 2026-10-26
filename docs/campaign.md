@@ -331,13 +331,14 @@ the_question` in test_pilot_names.cpp; test_pilot.py keeps the exe's order).
 
 Ported: the main menu and the pilot screen (menus.md 10); the pilot and
 its games, the campaign's read and salvage merge 0x00434cb0 (pilot.md);
-the states Load, Core, Win, Salvage, Fade (game-loop.md); the mission
+the states Load, Core, Win, Salvage, Fade (game-loop.md); the salvage
+screen (section 10); the mission
 load and unload (mission-load.md), the launch 0x00491150 (mech-build.md
 8), the mission start (mission-start.md).
 
 Hooks: the briefing screen 0x00405230 and its calls (0x0040a820,
 0x00409ec0, 0x00409eb0, the movie 0x00409320), the debriefing 0x0047b430,
-the salvage screen 0x0047d3b0, 0x0047ae10 (`mission_results`), the Win
+0x0047ae10 (`mission_results`), the Win
 Movie and IA Dummy states, the end screen's fade target, the movies
 (zFMV), the mech lab. The program's `--mission` start queues Core in
 place of LAUNCH (program.md).
@@ -630,3 +631,70 @@ port's own loop, `lance_fit` with `lance_keeps`). test_briefing.py runs
 mech lab. test_salvage.py keeps test_pilot.py's emulator but lets the
 loadouts' copy, recount and destructor run as they are, with sprintf and
 _strdup stubbed.
+
+## 10. The salvage screen (front-end item 1, `mech3/salvage_screen`)
+
+The briefing's SALVAGE (0x0047d2f0) pushes the second Salvage State
+0x00608bd8 (both made by 0x0047f220; the state table's is 0x00608ee8).
+Its enter makes the screen 0x0047d3b0 (new(0x166a8), vtable 0x005c3c88,
+dlgSalvage.zrd's SALVAGEDIALOG); its leave deletes it (+0x08, 0x0047db10).
+
+- Fields: +0x111ec ICON_ACCEPT (10); +0x11368 a control (vtable
+  0x005bc230) never bound or used; +0x114c0 six bay cards and +0x13c80
+  four lance cards (0x6a0 each: 0x0047db30, the debriefing's LanceCard with
+  vtable 0x005c3d58, only its destructor 0x0047dcd0 its own);
+  +0x15700 PLAYER_SALVAGE (11) and +0x15dd0 MISSION_SALVAGE (12), store
+  lists (0x0048d880(0, 5), vtable 0x005c3ca8); +0x164a0 BACKGROUND;
+  +0x1655c SALVAGE_TEXT (vtable 0x005c11c0, no rollover).
+- Every card binds ICON_PILOT, then it and its labels move: the lance in
+  a row at (60 i, -70), the bays in two columns at (120 col, -50 + 80
+  (row + 1)), the left column bound first (ids 4..6, then 7..9; the lance
+  4..7). Constants [0x005e5b08..0x005e5b18].
+- The player's list shows the game's store (0x00479430), the mission's
+  the campaign's +0x3c (a campaign) or [0x00609990].
+- A list's choice (+0x98, 0x0047da70) selects nothing: it calls the
+  screen's press 0x0047e490 with the list's id and the row. ACCEPT pops
+  the state; a row past the first moves its item (0x0048d960); a move
+  refills.
+- 0x0047e110, player to mission: one; ammo the lab's rounds (0x004b4900,
+  a ton's worth); armor and ferro-fibrous (equipment 1, 2: counted in half
+  tons) by half the count: under 10, 20, 50, 200, 500 one, 2, 10, 20, 40,
+  else 100. Copied in (vt+0), then removed (vt+0x14). True even when
+  nothing could be copied (only a null item fails the copy).
+- 0x0047e270, mission to player, within the campaign's +0xa8 field bases
+  (0x00479440; 0 outside a campaign): 300 t (0x00470cc0) and 2 mechs
+  (0x00470cd0) each. Used is the player's store's weight(-1) sum; a mech
+  takes a free bay (none: refused, the count negative); ammo the lab's
+  rounds; armor min(count, 2 floor(capacity - used)); others one. Refused
+  when the count is not positive or used + weight(n) passes the capacity.
+  Mechs weigh nothing (0x004730d0): only the bays limit them.
+- Refill 0x0047dcf0: the lance cards from the game's slots (vt+0x34; green
+  below the count vt+0x38, else grey; none: the empty icon), their name
+  shown and their first label hidden; the store's mechs into the bays
+  (named in their first label), the empty bays up to 2 per base, the
+  rest hidden; both lists left, entered and refilled; SALVAGE_TEXT's
+  labels: [4] the capacity, [3] the used tons ("%.1f %s", message 0x244),
+  [5] message 0x164 (one base) or 0x163 with the bases.
+
+Ported whole (`SalvageScreen`, `SalvageList`, `salvage_to_mission`,
+`salvage_to_player`; the state's push `GameEngine::salvage_open`).
+Tests: test_salvage_screen.py, the screen made, refilled and pressed
+on the original against the port (probe_salvage_screen.cpp): a game of
+either kind with 0..4 field bases, 0..4 slots and three real stores
+(exe vtables, weapons' tons from weapons.zrd), a plan of frames over the
+lists' rows, the lists' choices and presses of every id and row, the
+destructor; compared: every call out, the dialog, the cards, the lists'
+rows (by store and place) and the stores (100/100; first found: the text
+and the background destroyed in the wrong order). Breaks 13 of 14 (the
+one left, a row 0 let through, cannot show: a list's first row is always
+a title). Also test_salvage.py's moves part, the two moves on the original against
+the port over two filled stores (field bases 0..8, a campaign or not,
+armor counts at each step; 0x004b4900 stood in as the probe has it,
+without zWeapon's definitions; 200/200), breaks 4 of 5 (the fifth, a
+failed copy, cannot happen); the campaign test opens the screen at c1m2's
+briefing, checks the bays, the lance and the capacity, moves a weapon and
+a mech in and an ammo stock out, and ACCEPTs (breaks 5 of 5). Seen with
+`build/mw3 --briefing c1m2 --click-at 420,435@2500`. The tonnage values
+overlap their captions ("Current Tonnage161.8 tons"): the texts are the
+dialog's, the font widths the port's GDI stand-in; not compared with the
+original yet.

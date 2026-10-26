@@ -34,6 +34,7 @@
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
 #include "mech3/quit_box.h"
+#include "mech3/salvage_screen.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
 
@@ -135,6 +136,8 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       screens_[h] = {new DebriefScreen(*this, st, op, mission, won), 0x13bf4};
       return h;
     }
+    case 0x47d3b0:  // the salvage screen, new(0x166a8)
+      return screen(0x166a8, [](GameEngine& e, Handle s) -> MenuScreen* { return new SalvageScreen(e, s); });
     case 0x492750:  // the pause screen, new(0x11b20)
       return screen(0x11b20, [](GameEngine& e, Handle s) -> MenuScreen* { return new PauseScreen(e, s); });
     case 0x44b920: {  // the mech lab's screen, new(0x1b468): the lance's slot count
@@ -159,7 +162,8 @@ namespace {
 // The ported shell states by address, the end screen's Win State too.
 ShellState* shell_state_at(Handle state) {
   States& st = states();
-  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.end_win, &st.salvage};
+  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.end_win, &st.salvage,
+                                &st.briefing_salvage};
   for (ShellState* s : shells)
     if (s->addr() == state) return s;
   return nullptr;
@@ -570,6 +574,9 @@ void GameEngine::briefing_refresh(Handle) {
 void GameEngine::briefing_show(Handle, int32_t a) {
   if (BriefingScreen* b = briefing_screen()) b->show_realloc(a != 0);
 }
+// Mech3.exe 1.2 @ 0x0047d2f0
+void GameEngine::salvage_open() { app().push(&states().briefing_salvage, 0); }
+
 void GameEngine::mech_lab_open(Handle store, int32_t a) {
   mech3::mech_lab_open(pilot(), store, static_cast<uint8_t>(a));
 }

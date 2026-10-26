@@ -47,7 +47,7 @@ ACCEPT back).
 | Mission | Core state | yes | yes | (the HUD and mission work) | |
 | End screen, Win State | 0x00491bf0, 0x0047ab10 | yes: the fade, the results 0x0047ae10, the won salvage 0x00472f00 | yes | | 18, 11 |
 | Debriefing | 0x0047b430, new(0x13bf4) | yes: shell, press, results and rank, the lance cards (campaign.md 3) | yes (headless; live needs a won mission) | its salvage list's rows are 8b's (done) | 17, 8 |
-| Salvage screen | 0x0047d3b0 (dlgSalvage.zrd), Salvage State 0x0047f220 (0x00608ee8, 0x00608bd8) | no (the briefing's SALVAGE is a hook, 0x0047d2f0) | the press does nothing | the screen, its lists, its state | 28, 8 + 22, 1 |
+| Salvage screen | 0x0047d3b0 (dlgSalvage.zrd), Salvage State 0x0047f220 (0x00608ee8, 0x00608bd8) | yes (item 1, campaign.md 10) | moves items both ways, ACCEPT back | | 28, 8 + 22, 1 |
 | Mech lab | Lab State 0x00448830, screen 0x0044b920 | steps 1-4, 5a, 5b1 (mechlab.md 5): the state, the shell, the chassis and loadouts pages, the item lists' base, the unassigned list's shell | from c1m2's briefing MECHLAB opens it, ACCEPT returns | 5b2 the item rules, 6 the criticals page, 7 the weapon groups, 8 engine, sinks, armour and the data panels, 9 the 3D view, 10 the loadout reaching the launch | 159, 66 (state and screen), 71, 43 (item lists), 9, 1 (3D world) |
 | Next mission | debriefing CONTINUE (0x0047d030) | yes | c1m1 -> c1m2's briefing | an operation's last mission: the op's win movie and the next op's opener | |
 | Save / load | the pilot's games (pilot.md), 0x00478f10 after a mission, "Replace existing game?" | yes (the files and the question) | saves after each mission; the pilot screen lists the games | an end-to-end check: quit after c1m1, restart, the saved game resumes at c1m2 | 119, 44 + 33, 24 |
@@ -116,7 +116,8 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    break: no stock, a spare mech appears). 0x00470e30 is the other games'
    "everything" store (lab, Instant Action, multiplayer, training): with
    item 12.
-1. **The salvage screen** (0x0047d3b0, dlgSalvage.zrd) and the Salvage
+1. **(Done) The salvage screen** (campaign.md section 10; test_salvage_screen.py,
+   test_salvage.py's moves, the campaign test). (0x0047d3b0, dlgSalvage.zrd) and the Salvage
    State it runs in (0x0047f220, the briefing's SALVAGE 0x0047d2f0): its
    two lists (the salvage store and the campaign store, the ported
    StoreList rows), moving items, ACCEPT back to the briefing. Test: a

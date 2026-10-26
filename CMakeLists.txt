@@ -179,6 +179,7 @@ add_library(mw3core STATIC
   src/mech3/pilot_menu.cpp
   src/mech3/briefing.cpp
   src/mech3/debriefing.cpp
+  src/mech3/salvage_screen.cpp
   src/mech3/mission_map.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
@@ -289,6 +290,7 @@ add_library(mw3probe SHARED
   tests/probe_pilotscreen.cpp
   tests/probe_briefing.cpp
   tests/probe_debriefing.cpp
+  tests/probe_salvage_screen.cpp
   tests/probe_lab.cpp
   tests/probe_salvage.cpp
   tests/probe_update.cpp

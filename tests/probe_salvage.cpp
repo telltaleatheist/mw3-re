@@ -18,6 +18,7 @@
 #include "mech3/mech_reader.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/pilot.h"
+#include "mech3/salvage_screen.h"
 
 namespace {
 using namespace mech3;
@@ -232,6 +233,69 @@ extern "C" int probe_realloc_run(const char* setup, char* out, int size) {
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.data(), s.size() + 1);
   return static_cast<int>(s.size());
+}
+
+// The salvage screen's moves: two stores filled as probe_realloc_run's,
+// then each "move p|m i" moves the side's i-th item (mod its count) across.
+extern "C" int probe_moves_run(const char* setup, char* out, int size) {
+  std::istringstream ss(setup);
+  Store player(0), mission(0);
+  int32_t kind = 1, units = 0;
+  std::string where;
+  ss >> where >> kind >> units;
+  std::string line, moved;
+  std::getline(ss, line);
+  auto nth = [](Store& st, int32_t i) -> ConfigItem* {
+    if (st.items.empty()) return nullptr;
+    auto it = st.items.begin();
+    std::advance(it, i % static_cast<int32_t>(st.items.size()));
+    return *it;
+  };
+  while (std::getline(ss, line)) {
+    std::istringstream ls(line);
+    std::string op;
+    ls >> where >> op;
+    if (where == "move") {
+      int32_t i;
+      ls >> i;
+      const bool r = op == "p" ? salvage_to_mission(&mission, &player, nth(player, i))
+                               : salvage_to_player(&player, &mission, nth(mission, i), kind == 1 ? units : 0);
+      moved += (moved.empty() ? "" : " ") + std::to_string(r ? 1 : 0);
+      continue;
+    }
+    Store* s = where == "player" ? &player : &mission;
+    if (op == "mech") {
+      int32_t t;
+      ls >> t;
+      s->add_mech(t);
+    } else if (op == "weapon") {
+      int32_t t, tech;
+      ls >> t >> tech;
+      s->add_weapon(t, tech);
+    } else if (op == "ammo") {
+      int32_t t, n;
+      ls >> t >> n;
+      s->add_ammo(t, n);
+    } else if (op == "equip") {
+      int32_t k, tech, n;
+      ls >> k >> tech >> n;
+      s->add_equipment(k, tech, n);
+    }
+  }
+  std::ostringstream o;
+  const std::pair<const char*, Store*> stores[] = {{"player", &player}, {"mission", &mission}};
+  bool first = true;
+  for (const auto& [name, st] : stores) {
+    o << (first ? "" : "\n") << name << "{n" << st->count() << ' ';
+    for (const ConfigItem* it : st->items) o << item_text(it);
+    o << '}';
+    first = false;
+  }
+  o << "\nmoved " << moved << '\n';
+  const std::string str = o.str();
+  if (static_cast<int>(str.size()) >= size) return -1;
+  std::memcpy(out, str.data(), str.size() + 1);
+  return static_cast<int>(str.size());
 }
 
 namespace {
