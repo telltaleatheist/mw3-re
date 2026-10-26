@@ -247,15 +247,40 @@ class LabUnassignedList : public LabItemList, public LabLater {
   ztwod::Control titles;             // +0xd60  ALIST_TITLES (vtable 0x005c1e28): the slots left
 };
 
-// WEAPONS_UNGROUPED and WEAPONS_GROUPED (vtables 0x005c1300, 0x005c1250;
-// destructor 0x0044dee0); step 7's.
-class LabWeaponList : public FileList, public LabLater {
+// A weapon row's location (vtable 0x005c16c0, 0x5d4 bytes): a dark panel
+// with the part's name right-aligned in it.
+class LabLocationTag : public HudPanel {
  public:
-  explicit LabWeaponList(Engine& e) : FileList(e, -1) {}
-  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84  0x0044df70
-  void after_bind() override;        // +0x88
-  void show_for(float seconds) override;  // +0x60
-  void hide() override;              // +0x64
+  LabLocationTag() = default;        // 0x0043a7e0, 0x005a15a0
+  ~LabLocationTag() override = default;  // 0x0044e380 (deleting 0x0044e360)
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0044dfb0: the text 5 inside the right edge
+  void update(float dt) override;    // +0x24  0x0044dff0: shown: the panel, then the text
+  ztwod::Text text;                  // +0x108
+};
+
+// WEAPONS_UNGROUPED (vtable 0x005c1300) and WEAPONS_GROUPED (0x005c1250):
+// the shown loadout's weapons of no group, and the five groups' headers
+// (their number, the row's value 0..4) each with its weapons (docs/mechlab.md,
+// The weapon groups page). A weapon pressed in the first joins the group
+// chosen in the second; one pressed in the second leaves its group.
+class LabWeaponList : public FileList {
+ public:
+  LabWeaponList(Engine& e, bool g) : FileList(e, -1), grouped(g) {}
+  ~LabWeaponList() override;         // 0x0044dee0: the rows' tags deleted (deleting 0x0044c5c0, 0x0044c5e0)
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0044df70: STATIC_FONT
+  bool can_choose(int32_t i) override;  // +0x94  the grouped's 0x0044e560: a group's row
+  void select(int32_t index) override;  // +0x98  0x0044e3f0 / 0x0044e490
+  bool can_roll(int32_t i) override;    // +0x9c  the grouped's 0x0044e540: not a group's row
+  void layout() override;            // +0xa4  0x0044f240: FileList's, then 0x0044e020
+  virtual Handle weapon_at(int32_t row) const;  // +0xa8  0x0044e450 / 0x0044e5e0
+  int32_t group_of(int32_t row) const;  // 0x0044e630: a group's row's group, else -1
+  void select_group(int32_t g);      // 0x0044e4e0: the group's row selected (out of 0..4: the first)
+  void add_weapon(Handle item);      // 0x0044e3d0 / 0x0044e5c0: its label (vt+0x1c)
+  void add_group(int32_t g);         // 0x0044e580: message 0x24b with its number
+  void lay_rows();                   // 0x0044e020: the rows placed, the weapons' tags
+
+  bool grouped;
+  Handle font_static = 0;            // +0x200  STATIC_FONT (the groups' rows)
 };
 
 // A row of a data panel (vtable 0x005c18b8), 0x960 bytes: a label and its value.
@@ -323,6 +348,7 @@ class LabScreen : public MenuScreen {
   void show_page(int32_t page, bool show);  // 0x0044ca50
   HelpButton* tab(int32_t page);     // 0x0044ca20: null out of 0..6
   void check_part(int32_t part);     // 0x0044d3e0: the part buttons, that one checked
+  void refresh_groups();             // 0x0044dcf0: on the weapon groups page, both lists anew
   static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90
   void bind_later(Handle panel, const char* name);  // 0x0059f8b0 on a panel of a later step
 

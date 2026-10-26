@@ -590,6 +590,45 @@ exe's 0x00455fb0 on real loadouts and stores (200/200, 249 take-offs).
 Breaks 16 of 17 (the one left, which item rows light, shows only under the
 mouse, and the plans move none over the list).
 
+### The weapon groups page (step 7)
+
+**WEAPONS_UNGROUPED** (vtable 0x005c1300) and **WEAPONS_GROUPED**
+(0x005c1250): file lists sharing a reading (0x0044df70: STATIC_FONT at
++0x200) and a layout (0x0044f240: the list's, then 0x0044e020), the rows'
+attached objects deleted with the list (0x0044dee0). A weapon's group is
+its +0x08 (-1 none, 0..4).
+
+- **Refresh** (0x0044dcf0, on page 4 with a loadout shown; the shown slot
+  read through 0x0044e680 three times over): the chosen group kept
+  (WEAPONS_GROUPED's selected row's, 0x0044e630); both lists emptied;
+  WEAPONS_UNGROUPED gets the weapons of no group, WEAPONS_GROUPED each
+  group's row (message 0x24b with its number, its value 0..4, 0x0044e580)
+  and its weapons, each by its label (vt+0x1c, 0x00473740: "name (n)");
+  then the chosen group's row selected again (0x0044e4e0, the first when
+  none).
+- **Layout** (0x0044e020): down from OFFSET, each shown row (and the
+  selected one's place) 12 + 5 apart: a weapon's row in NORMAL_FONT with
+  its tag (vtable 0x005c16c0: a dark panel 172 x 12, 3 to the left, the
+  part the weapon is on, 0x00484d70 of vt+0x08, right-aligned 5 inside its
+  edge); a group's row in STATIC_FONT, 5 lower after the first, with the
+  selected row's text and BAR on it.
+- **Presses** (+0x98): a weapon in WEAPONS_UNGROUPED joins the chosen
+  group (0x0044e3f0; -1 when no group row is chosen), one in
+  WEAPONS_GROUPED leaves its group (0x0044e490), each with the select
+  sound and the refresh; a group's row is chosen (FileList's select).
+  WEAPONS_GROUPED chooses and rolls over by row (+0x94 0x0044e560: a group's
+  row; +0x9c 0x0044e540: not one); +0xa8 is the row's weapon (0x0044e450,
+  0x0044e5e0: none for a group's row).
+
+Ported: `LabWeaponList`, `LabLocationTag`, `LabScreen::refresh_groups`.
+Tests: test_lab_screen.py runs the exe's lists (the loadouts' weapons of no
+group and in groups 0..4; a weapon groups session: the page's tab, rows of
+both lists pressed; both lists, their rows and tags dumped): 80/80, the
+groups in 22 runs and the tags in 12. Breaks 13 of 15: which group rows can
+be chosen shows only under the mouse; the first group chosen when none is
+(0x0044e4e0's out-of-range case) never differed in these runs (a refresh
+always found a group chosen by then; not traced further).
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after

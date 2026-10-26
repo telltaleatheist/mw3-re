@@ -150,6 +150,7 @@ class Engine : public zgame::AppHooks {
   }
   // 0x00575fd0: message `id` of Mech3Msg.dll formatted with one string argument.
   virtual const char* message_format(int32_t id, const char* arg);
+  virtual const char* message_format_n(int32_t id, int32_t n);  // 0x00575fd0 with a number
   // sprintf, for the "%d.%d" Winsock version.
   virtual void print_version(char* out, int size, int32_t major, int32_t minor);
   virtual uint32_t lobby_connect() { return unported("0x00589a50", {0x5c3f28}); }
@@ -813,6 +814,8 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_item_group(Handle item);
   virtual double lab_item_weight(Handle item, int32_t n);
   virtual std::string lab_engine_name(Handle config);
+  virtual std::string lab_item_label(Handle item);  // vt+0x1c (0x00473740 for weapons): "name (n)"
+  virtual void lab_set_item_group(Handle item, int32_t group);  // +0x08
   virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }
@@ -864,7 +867,6 @@ class Engine : public zgame::AppHooks {
     unported("0x00433df0", {slot, config, store, 1});
   }
   virtual void lab_slot_set_mech(Handle slot, int32_t mech) { set_field32(slot, 0x04, static_cast<uint32_t>(mech)); }
-  virtual void lab_groups_refresh() { unported("0x0044dcf0", {}); }
   virtual void salvage_open() { unported("0x0047d2f0", {}); }
   virtual void multiplayer_launch_prep() { unported("0x0046ceb0", {}); }
   // The missions object [0x006098d0]: loaded (0x00490930), the launch
