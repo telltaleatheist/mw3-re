@@ -948,6 +948,18 @@ invisible magenta tree and white dock helpers; hardware fog starting at
 32 m versus 500 in software; fog colour = sky band colour per world; the
 sun only darkens; fog relying on the shadow code to be switched on.
 
+### (c) Open: a parked vehicle's edges flicker on c1m2 (playtest #22)
+
+Found while looking for #22's ground blink (tools/analysis/blinks.py on
+`build/mw3 --mission c1m1 ... --shot-series`): on c1m2's start view, still,
+a parked vehicle to the right of the start (window pixels about 750..1050 x
+490..620 at 1280 x 960) has pixels along its edges that change for one
+frame and come back (30 to 60 a frame), where the ground and the mechs
+around it show none. Likely coplanar faces in the vehicle's model fighting
+in depth (two polygons of one surface at equal sz), not the ground. Not
+traced yet: which model, whether its polygons share a plane, whether the
+original shows it too (Owen's PC, the same spot).
+
 ## 7. Porting order
 
 Shaped by the code above; each step is checkable on its own.
