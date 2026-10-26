@@ -46,6 +46,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
+#include "mech3/pilot.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "gamez/zinput/zinput.h"
@@ -70,6 +71,7 @@ struct Args {
   std::vector<Tap> taps;  // --tap DIK@N[:M]
   struct ClickAt { int frame, x, y; };
   std::vector<ClickAt> clicks_at;  // --click-at X,Y@N (the game's 640 x 480 pixels)
+  std::string briefing;  // --briefing NAME (ours): a campaign mission's briefing, as the menus reach it
   bool walk = false;  // --walk: full throttle (THROTTLE0's key) at the start (ours)
   bool shot_any = false;
 };
@@ -79,7 +81,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N]\n"
-      "    [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -107,6 +109,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
     else if (s == "--walk") a.walk = true;
+    else if (s == "--briefing" && next(1)) a.briefing = argv[++i];
     else if (s == "--click-at" && next(1)) {
       Args::ClickAt c{};
       if (std::sscanf(argv[++i], "%d,%d@%d", &c.x, &c.y, &c.frame) == 3) a.clicks_at.push_back(c);
@@ -374,6 +377,7 @@ int run(const Args& a) {
     // window pixel (the motion, then the press and the release a frame
     // apart), --shot / --shot-series as in a mission.
     int menu_frames = 0;
+    std::vector<Args::ClickAt> auto_clicks;  // --briefing's own clicks
     std::deque<std::string> menu_series;
     if (!debug && !launch)
       engine.on_present = [&](int) {
@@ -391,7 +395,9 @@ int run(const Args& a) {
         };
         for (const Args::Tap& t : a.taps)
           if (menu_frames == t.down || menu_frames == t.up) key(t.dik, menu_frames == t.down);
-        for (const Args::ClickAt& c : a.clicks_at) {
+        std::vector<Args::ClickAt> clicks = a.clicks_at;
+        clicks.insert(clicks.end(), auto_clicks.begin(), auto_clicks.end());
+        for (const Args::ClickAt& c : clicks) {
           // The cursor put on the point (zInput's 0x0051b440, the game's
           // 640 x 480 about its centre), then the press and the release.
           if (menu_frames == c.frame) zin::mouse_set((c.x - 320) / 320.0f, (c.y - 240) / 240.0f);
@@ -420,6 +426,28 @@ int run(const Args& a) {
       // the place the lobby launch gives the Load state.
       if (debug) app.post_intro_ = debug.get();
       if (launch) app.post_intro_ = &mech3::states().load;
+      // --briefing c1m2 (ours, for checking the front end): a pilot "Briefing"
+      // whose newest saved campaign stands at that mission (pilot.md: the
+      // newest save is the pilot's game), then the clicks a player makes:
+      // CAMPAIGN, the pilot (the list's first row), ACCEPT. The Campaign state
+      // goes on to the Load state and the mission's own briefing (MECHLAB and
+      // SALVAGE past Op 1 Mission 1). Its store is a new campaign's.
+      if (!a.briefing.empty() && !debug && !launch) {
+        std::string dir, variant;
+        int number = 1;
+        split_mission(a.briefing, dir, variant, number);
+        const int op = dir == "c1" ? 1 : dir == "c2" ? 2 : dir == "c3" ? 3 : dir == "c4" || dir == "c4b" ? 4 : 0;
+        mech3::Pilot* p = op ? mech3::create_pilot("Briefing") : nullptr;
+        if (!p) {
+          std::fprintf(stderr, "mw3: --briefing %s: not a campaign mission (c1m1 .. c4bm7)\n", a.briefing.c_str());
+          return 2;
+        }
+        auto* c = new mech3::CampaignGame(p, op, number);  // as a mission's end saves the next (0x00478f10)
+        p->campaigns.push_back(c);
+        p->current = c;
+        p->save();
+        auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320}};
+      }
 
       sdlfe::SdlPump pump(&input, &app);
       if (!debug && !launch && (a.frames > 0 || !a.shot.empty()))

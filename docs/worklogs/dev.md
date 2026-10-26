@@ -376,3 +376,16 @@ is in `README.md`.
   Seen: main menu, pilot screen, c1m1's briefing (MECHLAB and SALVAGE grey
   on Op 1 Mission 1, as 0x408ef0 has it). render.md 6(c): c1m2's parked
   vehicle edge flicker, open.
+
+## Front-end item 0: --briefing (2026-10-25)
+
+- Branch mac4/fe-briefing off main 39e1251. `--briefing c1m2` (ours): a
+  pilot "Briefing" saved with its newest campaign at the mission, then the
+  driver clicks CAMPAIGN, the pilot, ACCEPT; the Campaign state goes on to
+  the Load state. Two dead ends first: post_intro = Load (the briefing came
+  up but the load stalled at "Loading Textures (0/17)" and the quit hung
+  waiting for it: the Main state's set-up was skipped), and app.replace from
+  the frame hook (queued but never run there).
+- Seen: c1m2's briefing (map, route, MECHLAB and SALVAGE lit); MECHLAB opens
+  the lab with an empty stockpile (a new campaign's store fill 0x470e30 /
+  0x4733b0 not ported; plan item 1a added).
