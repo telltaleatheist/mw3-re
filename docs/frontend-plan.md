@@ -93,12 +93,20 @@ the AVIs in the first-run importer (assets stay out of the repo either way).
 Each item is one sitting, with its test plan; the campaign loop first, so
 Owen can play c1m1 -> c1m2 with salvage and the lab.
 
-0. **(Done in this sitting) The menu driver**: `--click-at`, `--tap`,
-   `--shot` from the plain start. Plus, next to item 1: a debug start that
-   stops at its briefing (`--briefing c1m2`, ours: the launch's game made
-   as the debug campaign, `auto_launch` off), so the lab and salvage can be
-   reached live without winning c1m1. Test: a scripted run reaching c1m2's
-   briefing with MECHLAB lit.
+0. **(Done) The menu driver** (`--click-at`, `--tap`, `--shot` from the
+   plain start) **and `--briefing c1m2`** (program.md): a pilot whose newest
+   saved campaign stands at the mission, then the player's clicks (CAMPAIGN,
+   the pilot, ACCEPT), so the real Campaign and Load states show the
+   mission's own briefing. (Stopping a debug launch at its briefing instead
+   needs the pilot's game the Load state reads; going through the menus does
+   not.) Checked: c1m2's briefing with MECHLAB and SALVAGE lit; MECHLAB opens
+   the lab (its bay, the chassis page), whose stockpile is empty: a new
+   campaign's store fill (0x00470e30, its mechs 0x004733b0; pilot.md Left)
+   is not ported, so this start's store has nothing. Added as item 1a.
+1a. **A new campaign's store** (0x00470e30, 0x004733b0: the starting mechs
+   and parts). Test: the store after a new campaign against the exe (the
+   pilot module's harness, test_pilot.py); `--briefing c1m2`'s lab lists
+   the mechs.
 1. **The salvage screen** (0x0047d3b0, dlgSalvage.zrd) and the Salvage
    State it runs in (0x0047f220, the briefing's SALVAGE 0x0047d2f0): its
    two lists (the salvage store and the campaign store, the ported

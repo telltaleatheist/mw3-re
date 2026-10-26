@@ -92,7 +92,16 @@ They run inside the original main loop, after the original start-up.
   buttons do nothing: their screens are not ported).
 - `--shot FILE.bmp [--shot-frame N] [--shot-any]` saves frame N (default 30;
   with `--shot-any` every frame shown counts, the fade's too) of either
-  and quits, with the window hidden.
+  and quits, with the window hidden; `--shot-series K` also the K frames
+  before it.
+- For checking (ours, from 2026-10-25): `--tap DIK@N[:M]` presses a key as
+  an SDL event; `--click-at X,Y@N` (the plain start) clicks at a game pixel;
+  `--click N:M`, `--walk`, `--fire-group G`, `--objectives N` in a mission;
+  `--briefing c1m2` (the plain start) saves a pilot "Briefing" whose newest
+  campaign stands at that mission and clicks CAMPAIGN, the pilot and ACCEPT,
+  so the Load state shows the mission's own briefing (frontend-plan.md item
+  0). Its store is a new campaign's, and a new campaign's store fill
+  (0x00470e30, 0x004733b0) is not ported: the lab's stockpile is empty.
 
 ## What runs ported
 
