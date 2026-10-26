@@ -2827,6 +2827,12 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   capped at what the mech's parts can hold (twice their internal structure,
   9 on the head) and goes on in half tons. (docs/mechlab.md, The item
   rules)
+- **The criticals list shows ferro-fibrous and endo steel only when the
+  mech is full.** Their critical slots are placed into the body parts'
+  rows only once the loadout has no free slots left; until then they show
+  only in the slot counts above the list. The arrows beside the list step
+  through the parts (head, centre torso, side torsos, arms, legs) but do not
+  wrap round at either end. (docs/mechlab.md, The criticals page)
 - **Fitting armour in the mech lab.** Each click adds half a ton of the
   armour your mech already has. Clicking the other kind (standard against
   ferro-fibrous, or another tech) swaps it: all the old armour goes back to

@@ -803,6 +803,16 @@ class Engine : public zgame::AppHooks {
   virtual void lab_message(const char* text) { unported("lab.message", {text}); }
   virtual int32_t lab_assigned_part() { return static_cast<int32_t>(unported("0x00455eb0", {0x1a13cu})); }
   virtual void lab_put_on(class LabUnassignedList& list, int32_t index);
+  virtual void lab_take_off(class LabAssignedList& list, int32_t index);  // (lab_screen.cpp's lab_take_off)
+  // ASSIGNED_LIST (lab_screen.cpp): a loadout's items in their order (its
+  // list at +0x08), an item's place on a mech (vt+0x08: a weapon's
+  // firepoint's part, through the definition 0x004846a0), its group (+0x08)
+  // and weight (vt+0x00), the loadout's engine's name (0x00432f00 on +0x24).
+  virtual std::vector<Handle> lab_config_items(Handle config);
+  virtual int32_t lab_item_location(Handle item, int32_t mech);
+  virtual int32_t lab_item_group(Handle item);
+  virtual double lab_item_weight(Handle item, int32_t n);
+  virtual std::string lab_engine_name(Handle config);
   virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }

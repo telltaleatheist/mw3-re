@@ -526,6 +526,70 @@ the sink rule's other side runs too) and checked themselves in
 `test_mechsave.py` on every saved loadout. 60 seeds match. Breaking it:
 43 of 43 caught (the list is in the frontend worklog).
 
+### The criticals page (step 6)
+
+**ASSIGNED_LIST** (0x004552e0: the item lists' base, vtable 0x005c1fe0;
++0x22c the part being listed, not set by the constructor). Its rows are
+the shown loadout (+0x224) by part: a part row's object is the part's
+number (1..8: 0x00455d70 tells them, 0x00455ec0 reads it, 0x004560d0
+finds a part's row), the other rows the loadout's items (0x00455df0,
+0x00455e50). Its own slots: +0x90 a text in STATIC_FONT (0x00455bf0);
++0x94 an item in NORMAL_FONT when the player can take it off (the
+loadout the player's, +0x1c, and the lab not read-only), else STATIC
+(0x00455b60); +0x98 a part in SELECTED_FONT on the selected row, else
+LARGE, and listed from then on (0x00455af0); +0xa4 part rows, and item
+rows when they can come off, light (0x00455f30); +0xa8 true; +0xb0 no
+rollover on part rows (0x00455f90); +0xb4, +0x60, +0x64, +0x84 the
+base's.
+
+- **Refill** (+0xb8, 0x004554d0, shown only). The chosen part kept (the
+  head when none); cleared; the shown slot's mech's tech (0x00484720);
+  an XL engine's side-torso slots (3, 2 Clan); recounted; ferro-fibrous
+  (+0x34: 7 Clan armour, else 14) and endo steel (+0x20: 7 on a Clan mech,
+  else 14) to place. Then in the exe's order the head (cockpit 0x24e,
+  life support 0x24f twice, sensors 0x250), the centre torso (the engine,
+  0x251 with its name 0x00432f00, 6 slots; the gyro 0x252, 4), the left
+  and right torsos (an XL engine's 0x253), the arms (shoulder 0x255, upper
+  arm 0x256), the legs (hip 0x2d5, upper leg 0x257, lower leg 0x258, foot
+  0x259): each a part row, its fixed rows (their slots as their count),
+  then 0x004553f0: only when the loadout has no slots left (0x00425d80
+  0), the part's free slots take ferro-fibrous rows and then "Endo-Steel
+  Internals" from what is left to place; then the loadout's items whose
+  place on the mech (vt+0x08: a weapon's firepoint's part) is this part,
+  their slots as the count (a sink of no group, -1, none). Then the
+  chosen part's row selected (0x00456150, with the 3D view's part
+  0x004504d0, the part buttons 0x0044d3e0 and UNASSIGNED_LIST's refill),
+  the layout, each part row's slot bar (0x00455c50: "used/total", total
+  0x00425db0's 12 or 6, used all of them when the loadout has none left,
+  else total less the part's free slots; 0x00451870 the count, the line
+  from after the name, in the row's colour) and each item row's tons
+  ("%.1f" of vt+0x00(-1)) and count, in COUNT_FONT when read-only, else
+  MASS.
+- **Press** (+0xac, 0x00455fb0): a part row becomes the top and selected
+  row and refills, checks its button and the 3D view's part; an item row
+  (an editable lab) goes back to the store ([0x00605a80]) whole, off the
+  loadout (0x00471de0), recounted, the select sound, then the screen's
+  refresh (0x0044cf50).
+- **Arrows** (+0x9c, 0x004559e0): the chosen part steps in the list's
+  order, head, centre, left and right torso, left and right arm, left and
+  right leg; up from the head and down from the right leg stay.
+- **The part buttons** (PART_HEAD..PART_RLEG): a press (0x0044f340) of a
+  checked one unchecks it and reports none first (0), then its part,
+  to the screen's 0x12, which chooses that part's row (0x00456130);
+  0x0044d3e0 checks only the chosen part's button.
+
+Ported: `LabAssignedList` (all of the above), `LabPart::on_left_up`,
+`LabScreen::check_part`, `LabItemRow::show_slots`, `lab_take_off`
+(the press's item row, an Engine hook like the put-on), `engine_name`
+(0x00432f00, shared with the salvage's item names). Tests:
+test_lab_screen.py runs the exe's ASSIGNED_LIST (the loadouts with real
+items, mirrored in the probe; part buttons and arrows in the plan; the
+list's rows, slot bars and the buttons dumped): 80/80, the criticals page
+filled in 29 of them; test_salvage.py's puton part takes items off with the
+exe's 0x00455fb0 on real loadouts and stores (200/200, 249 take-offs).
+Breaks 16 of 17 (the one left, which item rows light, shows only under the
+mouse, and the plans move none over the list).
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after

@@ -497,3 +497,51 @@ Notes for when it resumes (branch mac4/fe-salvage):
   remove, 3/4, and the spread, 6/7; the misses cannot differ). Finds: the
   firepoint toggle (last, first, alternating, across mechs) and missiles
   with no scattering firepoint getting the part number as their firepoint.
+
+## Lab 6: the criticals page (2026-10-26)
+
+- Assignment (lead): plan item 3 (mechlab.md step 6), ASSIGNED_LIST
+  (0x005c1fe0) and the part buttons; also answer whether the put-on's
+  part-number firepoint can index past a mech's list. Branch mac4/lab-6 off
+  mac4/lab-5b2 (5b2 under review).
+- The firepoint question: no, not with shipped data (fixes.md candidate
+  updated): only the Elemental has non-scattering firepoints, its arm
+  parts 2 and 3 are within its 4, and the Elemental never reaches a lab.
+- ASSIGNED_LIST mapped so far (vtable 0x5c1fe0, ctor 0x4552e0 = the base
+  0x451b40(-1)): own slots +0x00 dtor 0x455300, +0x60 show 0x455340 (the
+  base's), +0x64 hide 0x455350, +0x84 read 0x455320 (the base's), +0x90
+  add_text 0x455bf0 (STATIC_FONT +0x1c4), +0x94 add_object 0x455b60
+  (NORMAL_FONT when the loadout is the player's (+0x1c) and the lab not
+  read-only, else STATIC), +0x98 add_part 0x455af0 (SELECTED_FONT when it
+  is the selected row, else LARGE; +0x22c = the part being listed), +0x9c
+  scroll 0x4559e0 (steps the chosen part through a fixed order via
+  0x456130 -> 0x4560d0 its row -> +0xac), +0xa4 can_light 0x455f30 (a
+  part row, or an item row on an editable lab), +0xa8 true, +0xac press
+  0x455fb0 (an item: back to the store [0x605a80], off the loadout,
+  recount, sound, refresh; a part: top = selected = row, refill, the part
+  buttons 0x44d3e0, the 3D pick 0x4504d0), +0xb0 0x455f90 (not a part
+  row), +0xb4 0x455f20, +0xb8 refill 0x4554d0.
+- Refill 0x4554d0 (shown only): part = 0x455eb0 (-1: 6); clear
+  (0x455d60); needs +0x220 and +0x224; +0x22c = -1; the slot's mech
+  tech (0x484720); engine XL (+0x28) slots (3, 2 Clan) per side torso;
+  recount; slots left; ferro (+0x34: 7 Clan / 14) and endo (+0x20: 7 Clan
+  / 14) counters; then per part in order 6 head (msgs 0x24e, 0x24f x2,
+  0x250), 1 CT (engine 0x432f00 name via 0x575fd0 0x251 with 6, gyro 0x252
+  4), 7 LT / 8 RT (XL slots 0x253), 2 LA / 3 RA (0x255, 0x256), 4 LL / 5 RL
+  (0x2d5, 0x257..0x259): add_part, add_text rows, then 0x4553f0 (the
+  part's ferro / endo rows, "Endo Steel Internals", then its items via
+  0x455360: an item whose vt+0x08 location(mech) is the part, its slots
+  as the count, sinks of no group 0); then 0x456150(part) (selected row,
+  the 3D pick 0x4504d0, the part buttons 0x44d3e0, UNASSIGNED refill),
+  layout +0xb4, 0x455c50 (the part rows' slot bars 0x451870 and colour),
+  each item row's mass "%.1f" (sprintf 0x5e406c) and count, their fonts
+  COUNT when read-only else MASS.
+- Done: ASSIGNED_LIST (`LabAssignedList`, every own slot and helper),
+  LabPart's press 0x44f340, check_part 0x44d3e0, the row's slot bar
+  0x451870, lab_take_off (an Engine hook), engine_name 0x432f00 shared.
+  test_lab_screen runs the exe's list (loadouts with mirrored items, part
+  buttons and arrows in the plan): 80/80; test_salvage's puton part takes
+  items off with the exe's 0x455fb0: 200/200. Breaks 16/17. Finds: the
+  arrows stop at the ends (my first table wrapped: the test caught it), and
+  ferro-fibrous / endo steel rows appear in the parts only with no slots
+  left.

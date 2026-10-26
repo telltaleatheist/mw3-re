@@ -487,7 +487,13 @@ Kept:
   but gives it the part's number as its firepoint index, so in play it
   fires from whichever firepoint has that index, maybe on another part. The
   intent is a guess (any of the part's firepoints, or refusing the
-  launcher), so it is kept as the exe does it.
+  launcher), so it is kept as the exe does it. It cannot happen with the
+  shipped data (2026-10-26, the lead asked whether the index can pass the
+  list): every firepoint scatters but the Elemental's two arm ones (their
+  radius missing, read as 0), the Elemental's arm parts (2, 3) are within
+  its 4 firepoints, and no player fits an Elemental (salvage never leaves
+  one; the full store skips mech 7, 0x00426080). Only modded definitions
+  could index past the list.
 
 - A click during a beam's recharge (dev, 2026-10-25, playtest #23): a beam
   fires only from a full charge (0x4b3fc0) and the trigger is an edge, so

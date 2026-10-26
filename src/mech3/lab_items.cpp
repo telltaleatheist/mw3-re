@@ -411,6 +411,21 @@ void LabItemList::stop_sound(int32_t i) {
   playing[i] = 0;
 }
 
+// Mech3.exe 1.2 @ 0x00451870
+void LabItemRow::show_slots(int32_t used, int32_t total) {
+  const LabItem* it = index >= 0 && index < list->item_count() ? list->items[static_cast<size_t>(index)] : nullptr;
+  const Handle font = it ? it->font : 0;
+  count.show_for(-1.0f);
+  if (font) count.set_font(font);
+  count.set_text("%2d/%2d", used, total);
+  count.align = 2;
+  line.show_for(-1.0f);
+  panel.hide();
+  const int32_t px = get_x(), py = get_y();
+  if (needs_render) render();
+  line.set(width + px + 2, py + 6, px + 0x89, py + 6);
+}
+
 // Mech3.exe 1.2 @ 0x00452c80
 void LabItemList::play_sound(int32_t i, float volume) { playing[i] = ztwod::host().sound_play(sounds[i], volume); }
 
