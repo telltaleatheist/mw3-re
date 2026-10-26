@@ -281,9 +281,13 @@ Breaking it: see docs/campaign.md section 8.
 
 - 0x004782c0 / 0x004782f0 / 0x004783c0 (the pilot's mech in a mission),
   with the mission.
-- The store fill 0x00470e30 and a new campaign's mechs 0x004733b0 (the mech
-  lab's tables and the dfn loadouts); the training's mission names are
-  ported as ids (0x00437060 / 0x004370d0).
+- The store fill 0x00470e30 (the mech lab's, Instant Action's, multiplayer's
+  and training's "everything" store); a campaign's is not it: a new
+  campaign's stock (0x004345a0 with 0x004733b0, `store_add_mech`) is ported
+  and carried on by 0x00434e00 (checked at c1m2's briefing in
+  campaign_menus_to_c1m1_through_the_briefing_headless, frontend-plan item
+  1a). The training's mission names are ported as ids (0x00437060 /
+  0x004370d0).
 - The bridge to the mission side: the mission code still reaches the pilot
   through [0x0060861c] as a module-memory handle (GameEngine sets it to the
   pilot's handle when the screen chooses one), not through `mech3::Pilot`.

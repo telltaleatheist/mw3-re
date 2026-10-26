@@ -389,3 +389,16 @@ is in `README.md`.
 - Seen: c1m2's briefing (map, route, MECHLAB and SALVAGE lit); MECHLAB opens
   the lab with an empty stockpile (a new campaign's store fill 0x470e30 /
   0x4733b0 not ported; plan item 1a added).
+
+## Front-end item 1a: a new campaign's store (2026-10-25)
+
+- Branch mac4/fe-store off main 724b11c. Finding: already ported
+  (0x4345a0 with 0x4733b0, carried by 0x434e00); `--briefing` built its game
+  at the mission (no stock, no field bases: the salvage capacity would be
+  0). It now steps the pilot's new campaign with next_mission; the lab shows
+  the Bushwhacker. 0x470e30 is the lab / IA / MP / training store (item 12).
+- campaign_menus_to_c1m1 now checks c1m2's store: 0 mechs, 4 kind 1, 3
+  ammo, 3 kind 3. Break (no new-campaign stock): a spare mech appears and
+  the lab's ACCEPT checks fail. The weapons and ammo counts are the same
+  either way, so they are not (only) the stock's: the player's loadout
+  moves between the slot and the store too; not traced further.

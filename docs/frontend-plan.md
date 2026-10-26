@@ -103,10 +103,19 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    the lab (its bay, the chassis page), whose stockpile is empty: a new
    campaign's store fill (0x00470e30, its mechs 0x004733b0; pilot.md Left)
    is not ported, so this start's store has nothing. Added as item 1a.
-1a. **A new campaign's store** (0x00470e30, 0x004733b0: the starting mechs
-   and parts). Test: the store after a new campaign against the exe (the
-   pilot module's harness, test_pilot.py); `--briefing c1m2`'s lab lists
-   the mechs.
+1a. **(Done) A new campaign's store**: already ported. A new campaign
+   (0x004345a0, Op 1 Mission 1) gets its stock through `store_add_mech`
+   (0x004733b0) and 0x00434e00 carries the stores, the slots and the field
+   bases (+0xa8, 3 at each operation's first mission) on. The empty lab was
+   `--briefing`'s: it built the game at the mission itself (no stock, and no
+   field bases, which would have made the salvage screen's capacity 0); it
+   now steps the pilot's new campaign on with 0x00434e00 and the lab shows
+   the Bushwhacker (Primary, GUNMETAL) at 55 t. In the real loop c1m2's
+   store holds no spare mech, weapons, the three ammo stocks and equipment
+   (now checked in campaign_menus_to_c1m1_through_the_briefing_headless;
+   break: no stock, a spare mech appears). 0x00470e30 is the other games'
+   "everything" store (lab, Instant Action, multiplayer, training): with
+   item 12.
 1. **The salvage screen** (0x0047d3b0, dlgSalvage.zrd) and the Salvage
    State it runs in (0x0047f220, the briefing's SALVAGE 0x0047d2f0): its
    two lists (the salvage store and the campaign store, the ported

@@ -468,6 +468,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     size_t steps = 0, objects = 0;
     std::string section_first;
     bool launch_enabled = false, lab_disabled = false, playing = false, debrief_seen = false, continue_help = false;
+    int store_kinds[4] = {};  // c1m2's briefing: the campaign store's items by kind (0 mechs .. 3)
     int32_t second_number = 0;
     mech3::Handle debrief_handle = 0;
     bool debrief_freed = false, player_card = false, rank_text = false, player_armor = false;
@@ -541,6 +542,12 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         second_number = engine.launch().number;
         debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
+        // The campaign's store at c1m2: no spare mech, the weapons, three
+        // ammo stocks and the equipment (with the new campaign's stock,
+        // 0x004345a0; without it the store would hold a spare mech).
+        if (mech3::Pilot* p = mech3::current_pilot())
+          if (auto* g = dynamic_cast<mech3::CampaignGame*>(p->current))
+            for (const mech3::ConfigItem* it : g->store.items) ++store_kinds[std::min(it->kind(), 3)];
         b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);  // the Lab State (mechlab.md item 1)
         stage = 6;
       } else if (stage == 6 && app.current() == &mech3::states().lab) {
@@ -580,6 +587,9 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(debrief_score == 123456 && debrief_texts > 4 && player_card && rank_text);
     EXPECT(player_armor);
     EXPECT(second_number == 2 && second_steps > 2);  // c1 mission 2's briefing, its script
+    std::printf("  c1m2's store: %d mechs, %d of kind 1, %d of kind 2 (ammo), %d of kind 3\n", store_kinds[0],
+                store_kinds[1], store_kinds[2], store_kinds[3]);
+    EXPECT(store_kinds[0] == 0 && store_kinds[1] > 0 && store_kinds[2] == 3 && store_kinds[3] > 0);
     EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
     EXPECT(launch_enabled && lab_disabled);
     EXPECT(core_frames >= 30 && mech.parts > 0);
