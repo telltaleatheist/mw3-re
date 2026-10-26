@@ -312,3 +312,20 @@ is in `README.md`.
   under 1 km. It now reads each by its !type! (msgdll_formats_each_argument_by_its_type).
 - Test mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless;
   break: the MFD view as a plain zView (camera at the origin, no node).
+
+## Playtest #30 / HUD plan item 9: the radar's boundary lines (2026-10-25)
+
+- Assigned (lead): no mission boundaries (yellow and red lines) on the
+  radar; the radar's polylines (hud-plan item 9, needs zTwoD's PolyLine).
+  Branch mac4/playtest-radar off main f5e2ecf.
+- The polylines are the mission boundary, not the nav route: 0x43d920 (the
+  mission start's, 0x491696) takes the player's settings' vlist regions
+  reg_inside_ (0x4d92f0) and reg_outside_ (0x4d9360), counts their corners,
+  colours them yellow (c3,ad,03) and red. The draw (0x43dd00 step 5) was
+  already ported. Ported the reset (HudRadar::reset_boundary) and the
+  program's hooks (radar_boundary, radar_point_count, radar_point); the
+  launch's hud_43d920 finds the player's HUD (its handle is truncated).
+- Survey: shipped boundaries have 6..12 corners (a polyline holds 21, the
+  radar writes count + 1): no overflow. Screenshot: c1m1's radar shows both
+  lines just south of the start.
+- Test mission_c1m1_radar_shows_the_boundary_headless; break: no region.

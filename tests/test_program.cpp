@@ -1298,6 +1298,83 @@ TEST(mission_c1m1_hud_views_drawn_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest #30 (hud-plan item 9), the radar's boundary lines: at the
+// mission start (0x00491696 -> 0x0043d920) the radar takes the mission
+// boundary's two regions from the player's settings (its vlist's last
+// reg_inside_ and reg_outside_ regions), the inner yellow, the outer red; each
+// frame their corners go onto the radar (0x0043dd00 step 5).
+static bool radar_boundary_run(int32_t index, int32_t number, mech3::HudReport* out) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_radar_bound_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  int frames = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = index, l.number = number;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames == 10) mech3::program_hud_report(out);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 10; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return frames >= 10;
+}
+TEST(mission_c1m1_radar_shows_the_boundary_headless) {
+  if (!have_game()) return;
+  mech3::HudReport r;
+  EXPECT(radar_boundary_run(0, 1, &r));
+  std::printf("  c1m1 boundary: inside %d corners (%d drawn, shown %d, colour %04x), outside %d (%d, %d, %04x)\n",
+              r.boundary_points[0], r.boundary_drawn[0], r.boundary_shown[0], r.boundary_color[0], r.boundary_points[1],
+              r.boundary_drawn[1], r.boundary_shown[1], r.boundary_color[1]);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT(r.boundary_points[i] > 3 && r.boundary_shown[i]);
+    EXPECT(r.boundary_drawn[i] == r.boundary_points[i] + 1);  // closed back to the first
+  }
+  EXPECT(r.boundary_color[0] == zvid::pack_bytes(0xc3, 0xad, 3) && r.boundary_color[1] == zvid::pack_bytes(0xff, 0, 0));
+  // MW3_SURVEY=1: every campaign mission's boundary corners (a polyline holds
+  // 21 points: a region of more than 20 would write past it).
+  if (std::getenv("MW3_SURVEY"))
+    for (int32_t index = 0; index < 5; ++index)
+      for (int32_t number = 1; number <= 9; ++number) {
+        mech3::HudReport s;
+        if (!radar_boundary_run(index, number, &s)) continue;
+        std::printf("  survey %s m%d: inside %d, outside %d corners\n", mech3::mission_dir(index), number,
+                    s.boundary_points[0], s.boundary_points[1]);
+      }
+}
+
 // Playtest #29, the MFD's 3D view (mode 1) and TARGET's (hud-plan 6c3): the
 // MFD's zView has its own render (vtable 0x005c04f8, 0x00442900): the camera
 // 13 m before the player's mech at 1.25 times its centroid's height, the mech

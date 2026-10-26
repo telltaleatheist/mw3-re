@@ -284,6 +284,7 @@ class HudRadar : public ztwod::FilledBox {
   void set_zoom(bool zoomed);        // 0x0043da50
   void toggle_zoom();                // 0x0043da40: R, small or large
   void toggle_map();                 // 0x0043dc10: Shift+R, over the mission map when there is one
+  void reset_boundary();             // 0x0043d920: the mission boundary's two outlines for the polylines
   uint32_t select_map();             // 0x0043da00: the mission map for the size, kept at [0x0060998c]
   void set_fov(float radians);       // 0x0043f0c0
   void set_dir(const float* v);      // 0x0043f130: the cone's edges from the view direction
@@ -911,6 +912,11 @@ class HudHooks : public zgame::Unported {
   virtual void mech_orientation(Mech* m, float q[4]) {
     for (int i = 0; i < 4; ++i) q[i] = zgame::from_bits(unported("peek32", {id(m) + 0x48 + 4u * i}));
   }
+  // The mission boundary (0x0043d920): the player's settings (its controls'
+  // vt+0x90, +0xd0) last vlist region named reg_inside_ (0x004d92f0) or
+  // reg_outside_ (0x004d9360), 0 for none; a list's point count (vt+0x10).
+  virtual uint32_t radar_boundary(int32_t outside) { return unported(outside ? "0x004d9360" : "0x004d92f0", {}); }
+  virtual uint32_t radar_point_count(uint32_t list) { return unported("list.vt+0x10", {list}); }
   virtual void radar_point(uint32_t list, int32_t i, float out[3]) {
     vec3_at(unported("item.vt+0x18", {unported("list.vt+0xc", {list, static_cast<uint32_t>(i)})}), out);
   }

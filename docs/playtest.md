@@ -69,7 +69,7 @@ Owen: "otherwise it seems to be working really well".
 | 27 | Shots at the missile turrets don't destroy them | not reproduced: every c1m1 turret dies to hits on it (vehicles.md, The turrets in the program); tur_srm02's trench walls block shots from across it; needs Owen's turret and weapon | dev | needs repro |
 | 28 | No recoil: the Bushwhacker's arm AC/10 should kick the mech back and throw off the aim (less from the torso) | WeaponCalls::recoil (weapon.cpp 204) unwired in the program; the part update 0x466xxx is ported | dev | fixed: the program set no recoil hook; an arm's weapon kicks the arm (0x466610), a hand's its arm (0x4673f0). Test: `mission_c1m1_arm_weapon_recoils_headless` |
 | 29 | The HUD corners show neither your own mech nor the target. The MFD (D) should cycle: your mech in 3D from the front, a parts diagram with damage, an armour bar graph (green, red where damaged) | fixed: the MFD view's zView renders through 0x442900 (vtable 0x005c04f8): mode 1 the own mech from the front; TARGET's view draws its target (6c3); modes 2 and 3 were right (hud.md section 22) | dev | fixed, Owen to check |
-| 30 | No mission boundaries (yellow and red lines) on the radar | the radar's polylines, hud-plan item 9 | dev | planned |
+| 30 | No mission boundaries (yellow and red lines) on the radar | fixed: the radar's reset 0x43d920 ported, the boundary's reg_inside_ (yellow) and reg_outside_ (red) regions on the radar (hud.md section 15) | dev | fixed, Owen to check |
 
 ## Unported in c1m1 (2026-10-21, census)
 

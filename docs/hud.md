@@ -739,7 +739,7 @@ Run by the HUD's frame each frame. In order:
    the mech's +0xbc (bit 1 yellow, bit 0 red), over the map drawn only
    inside the map's rect.
 5. **The polylines** (+0xbd4 / +0xbd8 points from the lists +0xdb4 /
-   +0xdb8, each item's place by its vt+0x18; likely the nav route): each
+   +0xdb8, each item's place by its vt+0x18; the mission boundary, below): each
    point relative to the mech, scaled by radius over range, turned into the
    mech's frame (its orientation +0x48, conjugated, 0x00525580 / 0x00525740),
    closed back to the first, cut to the radar's circle (clip [0x005e39c8],
@@ -747,6 +747,22 @@ Run by the HUD's frame each frame. In order:
 6. The box (the FilledBox with its static), the cone's two edges, over the
    map the third line; then, with a radius, the contacts (below) and the
    mode flag cleared.
+
+**The boundary lines** (0x0043d920, from the mission start at 0x00491696
+on the view's HUD + 0x14; playtest #30, hud-plan item 9). The two lists are
+the mission boundary's regions, from the player's settings (its controls'
+vt+0x90, the settings' +0xd0 vlist): 0x004d92f0 keeps the last vlist entry's
+region whose name starts `reg_inside_` (11 characters), 0x004d9360
+`reg_outside_` (12). Each list's count is the region's corners (vt+0x10),
+its points the edges' starts (item vt+0x18). The inner line is yellow
+(0x00579370(0xc3, 0xad, 3) into +0xcbc), the outer red ((0xff, 0, 0) into
++0xda8). A polyline holds 21 points and the radar writes count + 1 (the
+loop closed), so a region of more than 20 corners would run past it; the
+shipped ones have 6 to 12 (survey in mission_c1m1_radar_shows_the_boundary_headless,
+MW3_SURVEY=1; c1m1 6 and 6). In the program `ProgramHudHooks` reads
+PlayerControls' settings, and the launch's hook finds the player's HUD (its
+argument is the exe's 32-bit HUD + 0x14). Test: c1m1's radar shows both, 6
+corners each, closed, yellow and red; break: no region found, no lines.
 
 **The contacts** (from 0x0043e445, `HudRadar::update_contacts`). Every
 place below is first thrown by the radar's static: x and z each up to
