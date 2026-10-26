@@ -763,6 +763,13 @@ MW3_SURVEY=1; c1m1 6 and 6). In the program `ProgramHudHooks` reads
 PlayerControls' settings, and the launch's hook finds the player's HUD (its
 argument is the exe's 32-bit HUD + 0x14). Test: c1m1's radar shows both, 6
 corners each, closed, yellow and red; break: no region found, no lines.
+The survey's zeros (checked against the archives' region names): c2m2
+ships no `reg_inside_` / `reg_outside_` region at all (its readerm2.zbd's
+regions are `reg_1to2`, `reg_convoy`, `reg_m2n2defend`...; the player's
+boundary entries set the valves `inside_c2m2` / `outside_c2m2` with no
+region in item 10), so its radar rightly shows no boundary; c4b m7 is no
+mission (c4b ships m4..m6; the `c4bm7` regions in readerm6.zbd are m6's
+boundary, fixes.md), nor are the numbers past each operation's last.
 
 **The contacts** (from 0x0043e445, `HudRadar::update_contacts`). Every
 place below is first thrown by the radar's static: x and z each up to
