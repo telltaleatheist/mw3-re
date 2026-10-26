@@ -329,3 +329,30 @@ is in `README.md`.
   radar writes count + 1): no overflow. Screenshot: c1m1's radar shows both
   lines just south of the start.
 - Test mission_c1m1_radar_shows_the_boundary_headless; break: no region.
+
+## HUD plan items 7-8: the mission maps and the radar's map mode (2026-10-25)
+
+- Assigned (lead): item 7, the mission maps (0x4583b0 and family: maps.zrd
+  read at the start, freed at the end); item 8, the radar's map mode (the
+  map drawn under the contacts, Shift+R). Branch mac4/hud-maps off
+  mac4/playtest-radar.
+- Ported the map family into mech3/mission_map (mech_map.cpp's): the map
+  class 0x4580c0 (an Image), the read 0x4583b0, load/unload, find 0x458590,
+  pick 0x4582a0 ("large", else the first loaded), point 0x4586e0. Wired the
+  startup read and exit free (GameEngine maps_init / mech_data_shutdown),
+  the cleanup's 0x4582c0, the briefing's pick into missions +0xbc (and the
+  debug start's, ours), the HUD's map hooks and 0x491c80.
+- Test mission_c1m1_maps_and_the_radar_map_mode_headless (image stand-ins:
+  the headless zTwoD host loads none). Live: Shift+R draws c1m1_small in the
+  radar's box with the mech's circle at its pixel.
+- Break: the briefing's pick not stored: no map at the start (c1m1 expected).
+  With Shift+R on too, that run crashes at the quit's cleanup instead:
+  zsnd::snapshot calls out()->get_status for a dup voice while the headless
+  test's zSound has no output (hooks().output null). Open, test-only: the
+  headless runs give zSound no output; a dup appears once Shift+R plays
+  over an empty mission map.
+- The full suite first crashed in the new test: its image stand-ins
+  answered every name while the maps' path was set (a world texture with
+  no fields scrolled); now only the maps' bitmaps. And the maps' read flag
+  outlived a test (0x4584e0 keeps it, as the exe); reset_process_state
+  clears the maps as a new process has none.

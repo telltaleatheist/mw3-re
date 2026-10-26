@@ -767,7 +767,10 @@ The survey's zeros (checked against the archives' region names): c2m2
 ships no `reg_inside_` / `reg_outside_` region at all (its readerm2.zbd's
 regions are `reg_1to2`, `reg_convoy`, `reg_m2n2defend`...; the player's
 boundary entries set the valves `inside_c2m2` / `outside_c2m2` with no
-region in item 10), so its radar rightly shows no boundary; c4b m7 is no
+region in item 10, and no condition bit either, so they never fire: 0x004d8e70
+needs a region for its inside/outside test; nothing else, no script or
+animation, sets `outside_c2m2`, so the mission's "left the mission area"
+loss cannot happen), so its radar rightly shows no boundary; c4b m7 is no
 mission (c4b ships m4..m6; the `c4bm7` regions in readerm6.zbd are m6's
 boundary, fixes.md), nor are the numbers past each operation's last.
 
@@ -1367,3 +1370,44 @@ Completed while the box is open; F12 again hides it). Break: without the
 fill no line; without 0x00446930's blank score the columns differ.
 `build/mw3 --mission c1m1 --objectives N` (ours) opens the box from the
 N-th frame, for a screenshot.
+
+## 25. The mission maps (hud-plan items 7-8; mech_map.cpp, `mission_map`)
+
+maps.zrd (reader.zbd) is read once at the app's start (0x00480837 ->
+0x004583b0, the flag [0x00605ad8]): its `maps` list, one map a block (0xdc
+bytes, vtable 0x005c2308, a zTwoD Image; 0x004580c0): `name` (+0xc0),
+`bitmap` (+0xbc), `offset` (+0xc4, a vector, default zero), `mpp` (+0xd0,
+metres a pixel) and its inverse (+0xd4, 0 for 0). The list is [0x00605acc]
+(count [0x00605ad0]); 1.2 ships 50 maps, each mission's and its `_small`.
+No image is loaded yet.
+
+A mission's briefing (0x00405160) sets zTwoD's image path to
+`..\data\common\images\maps`, takes its section's `MAP` (the mission's
+name, c1m1 and so on) and 0x004582a0: every map whose name holds it loads
+its bitmap (0x00458660 -> 0x00458300, a calloc'd rect over the image),
+then the first loaded map whose name holds "large" ([0x005e3eb4]), else
+the first loaded one, goes into the missions object's +0xbc (0x0040a0e0;
+[0x0060998c]). No map's name holds "large", so it is the mission's own
+(c1m1, not c1m1_small). 0x00491c80 answers +0xbc, making an empty map once
+at +0xb8 when there is none. The mission's cleanup releases every map's
+image (0x004582c0, 0x00458390); the app's exit deletes them (0x004584e0).
+
+Shift+R (0x0043dc10) turns the radar's map mode on when 0x0043da00 finds a
+map (0x00458590: the first loaded map whose name holds "large" for the big
+radar, "small" for the small one, else the first loaded) and sets it as
+[0x0060998c]; with the map, the radar draws it under the contacts and puts
+the mech at its pixel (0x004586e0: -(x, z) from the offset times 1/mpp,
+truncated; false outside 0..640, the release's report empty). A debug start
+(our addition) has no briefing: the program picks the map by the mission's
+name at the launch, as the briefing would.
+
+In the program: `GameEngine::maps_init` / `mech_data_shutdown` (the
+startup's read, the exit's free), the mission hooks' `fn_4582c0` (the
+cleanup), `briefing_pick_map` (the briefing's and the debug start's), and
+`ProgramHudHooks`' map hooks (the missions object's +0xbc by the engine's
+handles). Test: mission_c1m1_maps_and_the_radar_map_mode_headless: 50 maps
+read, c1m1 picked, the mech at (600, 162) on it, Shift+R over c1m1_small
+and off again (the images 640 x 640 stand-ins: the headless host loads
+none). The live program draws c1m1_small in the radar's box with the mech's
+circle on it.
+

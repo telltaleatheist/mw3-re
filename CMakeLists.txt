@@ -179,6 +179,7 @@ add_library(mw3core STATIC
   src/mech3/pilot_menu.cpp
   src/mech3/briefing.cpp
   src/mech3/debriefing.cpp
+  src/mech3/mission_map.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp

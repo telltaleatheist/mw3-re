@@ -17,6 +17,7 @@
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/mission_map.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
@@ -448,13 +449,14 @@ void GameEngine::briefing_start(Handle s) {
 }
 
 // 0x00405160 stood in for: the briefing's MAP image (images\maps) as the
-// dialog's first image, at the origin behind the rest. The mission's map
-// object it also makes (0x004582a0 into [0x006098d0]+0xbc, the waypoints'
-// and the radar's) is not ported.
+// dialog's first image, at the origin behind the rest, and the mission's map
+// (0x004582a0 into [0x006098d0]+0xbc through 0x0040a0e0: the radar's and the
+// waypoints'; mission_map.h).
 void GameEngine::briefing_map_image(ztwod::Dialog* d, zrdr::Node* section) {
   ztwod::Host& h = ztwod::host();
   h.image_path("..\\data\\common\\images\\maps");
   const char* name = zrdr::get_string(section, "MAP");
+  briefing_pick_map(name);
   zimg::Texture* t = name ? h.image_get(name) : nullptr;
   if (!d || !t) return;
   ztwod::Image& im = d->images[0];
@@ -464,6 +466,13 @@ void GameEngine::briefing_map_image(ztwod::Dialog* d, zrdr::Node* section) {
   im.set_image(t);
   im.flags = ztwod::kManaged | (im.flags & ztwod::kHidden);  // 0x00409ac0(2)
   im.dirty();
+}
+
+// 0x004582a0 on the MAP name (the maps' images from images\maps, the path
+// already set), into the missions object's +0xbc (0x0040a0e0).
+void GameEngine::briefing_pick_map(const char* name) {
+  MissionMap* m = maps_pick(name);
+  missions().xbc = m ? handle_of(m) : 0;
 }
 
 void program_briefing_progress(float f) {

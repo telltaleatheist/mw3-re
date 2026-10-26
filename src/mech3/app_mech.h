@@ -361,6 +361,13 @@ ObjectiveHooks& mission_objective_hooks();
 // The objectives box's sources (0x00446ad0): the missions object's +0x56 and
 // the launch's game, and an objective's nav point's name (its +0x28).
 uint8_t mission_aborting();
+// The mission's map (mission_map.h): 0x00491c80 on the missions object (its
+// +0xbc, else an empty map made once at +0xb8), a map by name (0x00458590) as
+// a handle, and +0xbc set ([0x0060998c], the radar's Shift+R).
+void* mission_map();
+uint32_t mission_map_find(const char* name);
+void mission_map_set(uint32_t map);
+void* mission_map_of(uint32_t map);
 int32_t mission_operation();
 int32_t mission_number_of_game();
 const char* mission_nav_name(uint32_t nav);
