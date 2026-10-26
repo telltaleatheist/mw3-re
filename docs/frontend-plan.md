@@ -85,8 +85,11 @@ state asks zFMV (0x00598cc0, 0x00598d80 with "fmv.zrd" "INTRO",
 Campaign and Load states skip theirs. Nothing plays and the splash logos
 are not shown.
 Indeo 5 (IV50) has no system decoder on macOS; FFmpeg's libavcodec decodes
-it. A decision for Owen: decode at run time with libavcodec, or convert
-the AVIs in the first-run importer (assets stay out of the repo either way).
+it. Decided (Owen, 2026-10-26): the first-run importer converts the AVIs
+once (libavcodec decodes the Indeo 5, only in the importer), and the game
+plays the converted files with a small built-in decoder; the plan is MPEG-1
+video and MP2 audio played with pl_mpeg (one header, MIT), to confirm at the
+zFMV item. Assets stay out of the repo.
 
 ## 4. Porting order
 
