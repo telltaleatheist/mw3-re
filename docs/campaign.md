@@ -695,6 +695,5 @@ failed copy, cannot happen); the campaign test opens the screen at c1m2's
 briefing, checks the bays, the lance and the capacity, moves a weapon and
 a mech in and an ammo stock out, and ACCEPTs (breaks 5 of 5). Seen with
 `build/mw3 --briefing c1m2 --click-at 420,435@2500`. The tonnage values
-overlap their captions ("Current Tonnage161.8 tons"): the texts are the
-dialog's, the font widths the port's GDI stand-in; not compared with the
-original yet.
+overlapped their captions until the SDL host took GDI's font sizes and
+widths (twod.md section 6, Text widths).

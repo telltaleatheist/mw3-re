@@ -484,6 +484,39 @@ that C++ cannot express are noted where they are: MOUSETRAP's write into
 +0x34 (a `set_trap_rect` the base ignores), the label array 0x007319b0
 (bounded at 64 here), FontText's constructor's message-as-format (`%s`).
 
+### Text widths (the SDL front end)
+
+The game's text is GDI's on the game's own arial.ttf, impact.ttf and
+lucon.ttf; every layout (a caption beside a right-aligned value, a list's
+columns) was made against GDI's metrics, so the SDL host
+(`frontend/sdl/sdl_twod_host.cpp`, `gdi_font_size.cpp`) takes GDI's:
+
+- The size: a negative CreateFont height is the size itself; a positive
+  one (most of fonts.zrd's and the dialogs' FONTS) is the cell, and GDI
+  takes the VDMX table's record (the 1:1 group) whose yMax - yMin is the
+  height, else the one before the first taller, so the largest that fits;
+  past the table or without one (lucon.ttf), the height scaled by the win
+  ascent and descent, one less if that rounds over (Wine's load_VDMX and
+  calc_ppem_for_height, which follow Windows; Wine's tests record Arial
+  12 as 12 high, ascent 9, descent 3: VDMX's 9-pixel record). Arial's VDMX
+  gives sizes 13 and 14 the same 16 cell: the first, 13 (Wine's rule; not
+  checked on Windows itself).
+- Ascent and descent: the VDMX record's yMax and -yMin, else the win
+  ascent and descent scaled; the cell (line height, GetTextExtent's cy,
+  GetTextMetrics) is their sum and the glyphs sit on that baseline.
+- Widths: FreeType's hinted advances in its monochrome mode, which match
+  the hdmx tables (GDI's own advance widths) of Arial and Impact at every
+  size they list, glyph for glyph; no kerning (GetTextExtentPoint32 and
+  DrawText never kern; SDL_ttf would by default).
+
+Before this the host scaled a cell height by FreeType's line height and
+kerned: Arial 12 came out at size 10 (the lab's and the briefing's small
+texts about a tenth wider) and the salvage screen's tonnage values ran
+into their captions ("Current Tonnage161.8 tons"; with GDI's sizes the
+colon shows and the two sit apart as laid out). Test:
+`sdl_host_fonts_take_gdis_sizes_and_widths` (mw3sdltests: the size rule,
+the extents against Arial's hdmx, no kerning; breaks 6 of 6).
+
 ## 7. Testing
 
 `tests/differential/twod_world.py` builds the emulated world: every call out

@@ -456,3 +456,19 @@ Notes for when it resumes (branch mac4/fe-salvage):
   the count: green 1 under it, else 3), the bays from the store's mechs
   (0x47b260, 0x484650 name) then empty ones up to 2 * bases, the lists
   refilled (vt+0x40, +0x3c, +0xa8), texts "%.1f %s" with the tons.
+
+## Text widths (2026-10-25)
+
+- Lead's item before lab 5b2: the tonnage overlap on the salvage screen.
+  Branch mac4/fe-fonts off main 197a289.
+- Found: the faces are the game's own TTFs and FreeType's MONO hinting
+  gives GDI's advances (equal to Arial's and Impact's hdmx at every listed
+  size); the gaps were the size for a positive (cell) height (scaled by
+  FreeType's line height: Arial 12 at size 10, GDI 9 by VDMX, as Wine's
+  tests record) and SDL_ttf's kerning. The salvage caption is "Current
+  Tonnage:" (its colon was under the value).
+- Ported GDI's rule (`frontend/sdl/gdi_font_size`, Wine's load_VDMX and
+  calc_ppem_for_height), the ascent and descent from VDMX, kerning off.
+  Shots before and after: the salvage panel, a briefing, the main menu,
+  the HUD, the lab (scratchpad fonts/).
+
