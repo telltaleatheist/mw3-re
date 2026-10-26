@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zsave/zsave.h"
 #include "gamez/zrender/zrndr_draw.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
@@ -1553,7 +1554,12 @@ struct WiredMissionHooks : MissionHooks {
   int32_t game_mission_index() override { return e->launch().index; }
   int32_t game_type() override { return e->launch().type; }
   int32_t game_mission_number() override { return e->launch().number; }
-  uint8_t game_saved() override { return 0; }
+  // The pilot's game's vt+0x28 from the menus (a campaign's saved game read
+  // back by zSave); the debug start has no game.
+  uint8_t game_saved() override {
+    Pilot* p = e->launch().keep_pilot ? current_pilot() : nullptr;
+    return p && p->current && p->current->restore() ? 1 : 0;
+  }
   void fn_484270(int32_t) override { mech3::mech_types_open(); }  // 0x00484270: mechlib and the voices
   // 0x00413e60, the mechs' set-up: of it, the motions (0x005a9820, before
   // the field bases' arms read theirs) and the cockpit sounds (0x004141a0).
@@ -2147,6 +2153,8 @@ void GameEngine::model_use_gfx_flags(const char* name, int32_t flags) {
   zmod::use_gfx_flags(name, static_cast<uint32_t>(flags));
 }
 int32_t GameEngine::weapons_init() { return zwep::startup(); }
+void GameEngine::save_init() { zsave::init(); }
+void GameEngine::save_shutdown() { zsave::shutdown(); }
 void GameEngine::weapons_set_mode(int32_t v) { zwep::set_network(v); }
 
 void GameEngine::timer_update() {

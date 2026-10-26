@@ -258,13 +258,15 @@ copy and reset (0x00434300, 0x00435240), the store's 0x00473300,
 0x00471c10 and 0x00472cf0; the flow is docs/campaign.md section 4. Hooks
 (PilotHooks): the loadout's copy and recount (the ported Config's by
 default), the mission's salvage store [0x00609990], zSave's world save
-0x005a8a70 and the message box 0x004ac150.
+0x005a8a70 and read 0x005a8a90 (the ported zSave by default, save.md) and
+the message box 0x004ac150. A campaign's vt+0x28 (0x004352d0, the mission
+load's "restored?") reads its file back (save.md section 3).
 
 Found: the next mission's saved game is written (zSave, CREATE_ALWAYS)
 before the pilot asks whether to replace the one already there, so
 answering No keeps the old entry in the list but its file already holds the
-new mission's world. Left as the exe does while zSave is a hook
-(docs/campaign.md).
+new mission's world. FIX (bug) behind `zfix` bugs (campaign.md section 4);
+test_pilot.py keeps the exe's order with the world save a stub.
 
 `test_pilot.py` adds campaigns played on: their stores, lancemates (some
 with a loadout of their own mech), the slot's loadout, +0x9c, the loadouts

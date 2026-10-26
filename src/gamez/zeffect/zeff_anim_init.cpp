@@ -664,9 +664,9 @@ int32_t anim_shutdown() {
 
 // Mech3.exe 1.2 @ 0x00508fc0: zEffect's start (and its reset from the effect
 // table's 0x0050d270): what was loaded freed, the state cleared, gravity
-// -9.8, the random table filled from a seed of the time. The anim entity
-// classes' registration with zEntity (0x005a8a20, types 0x32..0x34, when
-// [0x005ebcc0]) is the hooks'.
+// -9.8, the random table filled from a seed of the time. The three anim
+// registrants' registration with zSave (0x005a8a20, priorities 0x32..0x34,
+// when [0x005ebcc0]; docs/save.md) is the hooks'.
 int32_t anim_init() {
   AnimState& a = g_anim;
   if (a.block.get<int32_t>(0) != 0) anim_free_all();

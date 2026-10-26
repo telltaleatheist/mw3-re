@@ -11,10 +11,12 @@
 #include <filesystem>
 #include <functional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "crt/msvc_rand.h"
 #include "check.h"
+#include "gamez/zsave/zsave.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zutil/ztimer.h"
@@ -384,8 +386,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       EXPECT(s.pilots.item_count() == 1 && s.chosen != nullptr && s.chosen == mech3::find_pilot("Ace"));
       EXPECT(zutl::exists("pilots\\Ace.mw3"));
       // The save after a mission (campaign.md 4, the Win State's 0x00478f10(1))
-      // on the chosen pilot: Op 1 Mission 2's game filed and current, zSave's
-      // world save still a hook.
+      // on the chosen pilot: Op 1 Mission 2's game filed and current.
       mech3::Pilot* ace = mech3::find_pilot("Ace");
       mech3::Pilot* was = mech3::current_pilot();
       mech3::current_pilot() = ace;
@@ -395,7 +396,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       mech3::CampaignGame* next = ace->campaign();
       EXPECT(ace->campaign_count() == n + 1 && next && next->operation() == 1 && next->mission_number() == 2);
       EXPECT(next && next->b0 == 1 && next->store.count() == ace->campaigns[0]->store.count());
-      EXPECT(engine.unported_counts().count("0x005a8a70") == 1);
+      EXPECT(engine.unported_counts().count("0x005a8a70") == 0);  // zSave's (its manager gone with the app's exit)
       mech3::current_pilot() = was;
     }
     // The controls screen (menus.md section 6) is made with its state: the
@@ -434,6 +435,54 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   mech3::options() = mech3::Options{};
 }
 
+namespace {
+// A campaign game as text: its place, record, stores, slot and lancemates,
+// each loadout's fields and items (the round trip's comparison, save.md).
+std::string config_dump(const mech3::Config* c) {
+  if (!c) return "none";
+  std::string out = std::string(c->name ? c->name : "") + " m" + std::to_string(c->mech) + " e" +
+                    std::to_string(c->engine) + " x" + std::to_string(c->xl) + " t" + std::to_string(c->armor_tons) +
+                    " at" + std::to_string(c->armor_tech) + " es" + std::to_string(c->endo_steel) + " s" +
+                    std::to_string(c->sinks) + " a";
+  for (int32_t a : c->armor) out += " " + std::to_string(a);
+  for (const mech3::ConfigItem* it : c->items)
+    out += " [" + std::to_string(it->kind()) + "," + std::to_string(it->id()) + "," + std::to_string(it->count) +
+           "," + std::to_string(it->part) + "]";
+  return out;
+}
+// What the player holds: the store and the mission's salvage together, by
+// item (a briefing reallocates between them, 0x00408bd0, and the load merges
+// the last launch's settled lance back, 0x00434cb0).
+std::string holdings_dump(const mech3::CampaignGame* c) {
+  std::map<std::tuple<int, int32_t>, int32_t> total;
+  for (const mech3::Store* st : {&c->store, &c->store3c})
+    for (const mech3::ConfigItem* it : st->items) total[{it->kind(), it->id()}] += it->count;
+  std::string out;
+  for (const auto& [k, n] : total)
+    out += " [" + std::to_string(std::get<0>(k)) + "," + std::to_string(std::get<1>(k)) + "," + std::to_string(n) + "]";
+  return out;
+}
+std::string campaign_dump(const mech3::CampaignGame* c) {
+  if (!c) return "none";
+  std::string out = "op " + std::to_string(c->operation()) + " m " + std::to_string(c->mission_number()) + " a8 " +
+                    std::to_string(c->a8) + " c4 " + std::to_string(c->c4) + " b4";
+  for (int32_t v : c->b4) out += " " + std::to_string(v);
+  out += "\n holds" + holdings_dump(c);
+  out += "\n slot " + std::to_string(c->slot.mech) + " skin " + std::to_string(c->slot.skin) + " " +
+         config_dump(c->slot.config);
+  for (const mech3::GameSlot* m : c->lancemates)
+    out += "\n mate " + std::to_string(m->mech) + " " + std::to_string(m->x14) + " " + config_dump(m->config);
+  return out;
+}
+// A registrant of the test's own: an entry written at the win's save, and
+// what the reload's mission load gives back (save.md section 3).
+std::string g_probe_read;
+void probe_save(zsave::Context& ctx, void*) { zsave::write(ctx, "marker", "c1m1 won", 8); }
+void probe_load(zsave::Context&, const char* sub, const void* data, uint32_t size, void*) {
+  g_probe_read += std::string(sub) + "=" + std::string(static_cast<const char*>(data), size) + ";";
+}
+}  // namespace
+
 // The campaign from the menus (campaign.md section 7, item 5): the main
 // menu's NEW CAMPAIGN, a new pilot accepted, the Load state's ported
 // briefing (brief_c11: its script, its map, the buttons once the load ends),
@@ -444,6 +493,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   // b4 copy; off for the whole run the exe's own crashes come back).
   for (const bool fix : {true, false}) {
   const char* pilot_name = fix ? "Recruit" : "Recruit2";  // (the pilots stay between tests: new names)
+  std::string before, save_file;  // the campaign as the app quits (the round trip below)
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3_GAME_DIR);
@@ -467,6 +517,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
+    zsave::add("TestProbe", probe_save, nullptr, 2000, nullptr);
     int stage = 0, core_frames = 0, briefing_frames = 0;
     size_t steps = 0, objects = 0;
     std::string section_first;
@@ -752,10 +803,76 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
       EXPECT(!engine.launch().active);
       rec->select_game(mech3::kCampaign);
     }
+    before = campaign_dump(rec ? rec->campaign() : nullptr);
+    save_file = rec && rec->campaign() ? rec->campaign()->path() : "";
     EXPECT(mech3::missions().current == 0);  // c1's world
     EXPECT(engine.unported_counts().count("0x00405230") == 0);  // the briefing is the port
     EXPECT(engine.unported_counts().count("0x0047b430") == 0);  // and the debriefing
     EXPECT(engine.unported_counts().count("0x00479440") == 0);  // the Win State's campaign is the launch's
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  // Save and load (frontend-plan item 7, save.md): the app quit after c1m2's
+  // launch; a new one (the pilots read again from the write dir) chooses the
+  // pilot on the pilot screen, its newest save comes up, and c1m2's briefing
+  // has the store, the lance and the loadout as they were; the mission load
+  // reads the save's zSave file back (the test's registrant's entry).
+  {
+    for (mech3::Pilot* q : mech3::pilots()) delete q;  // each saved as the exe's exit does
+    mech3::pilots().clear();
+    mech3::current_pilot() = nullptr;
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    g_probe_read.clear();
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    zsave::add("TestProbe", nullptr, probe_load, 2000, nullptr);
+    int stage = 0;
+    std::string after;
+    bool listed = false, current_c1m2 = false, file_kept = false, restored = false;
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // NEW CAMPAIGN
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        mech3::Pilot* q = mech3::find_pilot(pilot_name);  // read from its file by the screen's listing
+        listed = q != nullptr;
+        ps->screen->choose(q);  // its row; the newest save chosen (GAMELIST)
+        mech3::CampaignGame* c = q ? q->campaign() : nullptr;
+        current_c1m2 = c && c->operation() == 1 && c->mission_number() == 2 && c->b0 == 0;
+        file_kept = c && zutl::exists(c->path());
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2 && app.current() == &mech3::states().load) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || !b->loaded) return;
+        mech3::Pilot* q = mech3::current_pilot();
+        after = campaign_dump(q ? q->campaign() : nullptr);
+        restored = g_probe_read == "marker=c1m1 won;";
+        stage = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 1200;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    EXPECT(stage == 3 && listed && current_c1m2);
+    EXPECT(!save_file.empty() && file_kept);  // zSave's file, so the pilot kept the save
+    EXPECT(restored);                         // and the mission load read it back
+    EXPECT(engine.unported_counts().count("0x005a8a70") == 0 && engine.unported_counts().count("0x005a8a90") == 0);
+    if (after != before) std::printf("  before the quit:\n%s\n  after the reload:\n%s\n", before.c_str(), after.c_str());
+    EXPECT(!before.empty() && before != "none" && after == before);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

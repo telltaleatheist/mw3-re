@@ -360,7 +360,7 @@ bool program_record_mission(bool next) {
 
 namespace {
 // The pilot module's calls out in the program: the message box is the
-// engine's; the loadouts are the ported Config's; zSave stays logged.
+// engine's; the loadouts are the ported Config's; zSave is the port's.
 struct ProgramPilotHooks : PilotHooks {
   GameEngine* engine = nullptr;
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {

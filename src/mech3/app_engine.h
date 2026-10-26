@@ -107,6 +107,8 @@ class GameEngine : public Engine {
   void mech_set_mode_a(Handle mech, int32_t a) override;  // 0x0041ca30
   void pilot_update(Handle p, float dt) override;  // 0x004783a0
   int32_t weapons_init() override;                // 0x00583750: zwep::startup
+  void save_init() override;                      // 0x005a8b30: zsave::init
+  void save_shutdown() override;                  // 0x005a8bb0: zsave::shutdown
   // The GfxFlags (app_mission.cpp; docs/render-lighting.md).
   int32_t models_init() override;
   int32_t render_init() override;

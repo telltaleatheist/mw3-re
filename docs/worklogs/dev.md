@@ -689,3 +689,29 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   22.09 m/s, centre torso armour 22" against the unedited run's "6, 11, 53,
   22.50, 23". Shots of the five pages in the outbox (2026-10-26/lab9).
 - 8b3's 26 older breaks against the final plan: all 26 still caught.
+
+## Save 1 (2026-10-26): zSave and the campaign's read-back
+
+- Branch mac4/save-load off main aa405ed. frontend-plan item 7 split in
+  three with the lead: save 1 (this), save 2 the anim registrants, save 3
+  live and "Replace existing game?".
+- Found: a saved campaign's `pilots\games` file is zSave's (0x5a8a20..
+  0x5a9970, not zEntity's as the hooks were named); without it the pilot
+  read back drops every saved campaign. MW3's InitInstance switches on only
+  the three anim registrants (GWWorld, craters, weapons off). Saved at a win
+  with that mission loaded, into the next game's file; read back by the
+  mission load through the game's vt+0x28 (0x4352d0) for a game read from
+  the pilot file; every other game's vt+0x28 answers true ("Saved Game
+  Loaded" in IA and training).
+- Ported: `gamez/zsave` whole (registry, sort, save, header, load, temps),
+  CampaignGame::restore, Game::restore, the pilot hooks' save_world /
+  load_world defaults, save_init / save_shutdown (renamed from
+  entity_init / entity_shutdown), game_saved. FIX (bug) x3 for damaged
+  files (zar's table count, a name without a sub, an entry longer than the
+  file); zar's seek keeps SetFilePointer's signed distance (FIX (A) made
+  faithful).
+- Tests: test_zsave.py 200/200 (fake registrants from x86, damaged files,
+  the fixes applied to the original by hooks, --nofix shows the exe's
+  crashes); breaks 18/18. The campaign test's round trip (a new app reading
+  the pilots back, the test registrant's entry restored, slot, loadout,
+  lance and holdings as they were) in both zfix passes; breaks 4/4.

@@ -2727,6 +2727,15 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **Salvage is merged when a saved game is loaded,** not when the mission
   ends: two of the campaign's five stores (what the last mission left) are
   added to the main store on reading, and a third is emptied.
+- **A saved campaign's `pilots\games` file holds only the mission
+  animations.** The game has savers for the world's objects, the craters and
+  the weapons in flight, but switches them off at start-up; only the three
+  mission-animation savers stay on. The file is written when you win a
+  mission, with that mission still loaded, and read back when the next
+  mission loads from a save you chose on the pilot screen (not when you go
+  straight on from the debriefing, and never for Op 1 Mission 1 or Op 4
+  Mission 4). Instant Action, training and multiplayer read nothing but
+  still print "Saved Game Loaded" while loading. (docs/save.md)
 - **The newest save is the one you play.** The pilot screen's campaign list
   shows every save as "Op N, Mission M" with the newest chosen; choosing
   another row plays that one. The fresh start (Op 1, Mission 1) is always

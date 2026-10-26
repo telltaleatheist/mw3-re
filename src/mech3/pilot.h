@@ -51,8 +51,11 @@ class PilotHooks : public zgame::Unported {
   virtual void config_recount(Config& c);
   // The mission's salvage ([0x00609990], a store the mission fills).
   virtual class Store* mission_salvage() { return nullptr; }
-  // 0x005a8a70: zSave writes the world into a saved game (`kind` 2 here).
-  virtual void save_world(const char* path, int32_t kind) { unported("0x005a8a70", {path, kind}); }
+  // 0x005a8a70: zSave writes the world into a saved game (`kind` 2 here);
+  // the ported zSave by default.
+  virtual void save_world(const char* path, int32_t kind);
+  // 0x005a8a90: zSave reads a saved game into the world; false when it did not.
+  virtual bool load_world(const char* path, int32_t kind);
   // 0x004ac150: the game's message box; 1 for yes.
   virtual int32_t message_box(int32_t type, int32_t caption, int32_t text) {
     return static_cast<int32_t>(unported("0x004ac150", {type, caption, text}));
@@ -143,6 +146,9 @@ class Game {
   virtual ~Game() = default;         // vt+0x00  0x004377a0 (deleting 0x00437840)
   virtual void save();               // vt+0x18  0x00434560: the slot, then the store
   virtual void load();               // vt+0x1c  0x00434580
+  // vt+0x28 (0x004b3d30): the mission load's "restored from a saved game?";
+  // true for every game but the campaign's (docs/save.md).
+  virtual bool restore() { return true; }
   virtual int32_t type() const { return -1; }  // vt+0x2c  0x004a5260
 
   Pilot* pilot;                      // +0x04
@@ -177,6 +183,7 @@ class CampaignGame : public Game {
   const char* path();                // vt+0x14  0x00434980: its saved game (into text)
   const char* path_for(const char* pilot_name);  // 0x00434950
   bool readable();                   // vt+0x20  0x00435330: its saved game exists
+  bool restore() override;           // vt+0x28  0x004352d0: its saved game's world read (zSave)
   void merge_salvage();              // 0x00434cb0, at the end of load
   int32_t operation() const { return campaign; }  // vt+0x48  0x00437870
   int32_t mission_number() const { return mission; }  // vt+0x4c  0x00437880
