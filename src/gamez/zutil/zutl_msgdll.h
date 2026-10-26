@@ -34,6 +34,8 @@ std::string format_message(int32_t id, std::initializer_list<const char*> args);
 // default %N type), as many as the text's highest %N (up to nine): zTwoD's
 // set_text_id (0x00409bf0 -> 0x00575ff0).
 std::string format_message_v(int32_t id, va_list args);
+// The same with the arguments given (ints and C strings by the text's types).
+std::string format_message_f(int32_t id, ...);
 // The same with numbers (%1!d!: the pilot screen's records), up to four.
 std::string format_message_ints(int32_t id, std::initializer_list<int32_t> args);
 

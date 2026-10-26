@@ -1,7 +1,6 @@
 #include "gamez/zutil/zutl_msgdll.h"
 
 #include <cstdio>
-
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -209,32 +208,40 @@ std::string format_message(int32_t id, std::initializer_list<const char*> args) 
     const char* a = args.begin()[k];
     s += a ? a : "";
     ++i;
-    if (i + 3 < in.size() && in[i + 1] == '!' && in[i + 3] == '!') i += 3;  // "%1!s!"
+    if (i + 1 < in.size() && in[i + 1] == '!') {  // "%1!s!", "%1!2d!": the spec skipped
+      const size_t end = in.find('!', i + 2);
+      if (end != std::string::npos) i = end;
+    }
   }
   return s;
 }
 
 // Each %N reads its argument by its printf type, as FormatMessage does: "!d!",
-// "!i!", "!u!" an int, "!x!" / "!X!" one in hex, "!s!" or none a C string;
-// they are taken in N's order (the exe's 32-bit stack slots).
+// "!i!", "!u!" an int, "!x!" / "!X!" one in hex (a width or flags before the
+// type kept, "!2d!"), "!s!" or none a C string; they are taken in N's order
+// (the exe's 32-bit stack slots).
 std::string format_message_v(int32_t id, va_list args) {
   const char* t = messages().get_text ? messages().get_text(id) : nullptr;
   int n = 0;
-  char type[9] = {};
+  std::string spec[9];
   for (const char* p = t; p && *p; ++p)
     if (p[0] == '%' && p[1] >= '1' && p[1] <= '9') {
       const int k = p[1] - '1';
       if (k + 1 > n) n = k + 1;
-      if (!type[k]) type[k] = p[2] == '!' && p[3] && p[4] == '!' ? p[3] : 's';
+      if (spec[k].empty()) {
+        const char* end = p[2] == '!' ? std::strchr(p + 3, '!') : nullptr;
+        spec[k] = end && end > p + 3 ? std::string(p + 3, end) : "s";
+      }
     }
   std::string num[9];
   const char* a[9] = {};
   for (int i = 0; i < n; ++i) {
-    char c = type[i] ? type[i] : 's';
+    const std::string& f = spec[i].empty() ? std::string("s") : spec[i];
+    const char c = f.back();
     if (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X') {
       const int v = va_arg(args, int);
-      char b[16];
-      std::snprintf(b, sizeof b, c == 'd' || c == 'i' ? "%d" : c == 'u' ? "%u" : c == 'x' ? "%x" : "%X", v);
+      char b[32];
+      std::snprintf(b, sizeof b, ("%" + f).c_str(), v);
       num[i] = b;
       a[i] = num[i].c_str();
     } else {
@@ -242,6 +249,14 @@ std::string format_message_v(int32_t id, va_list args) {
     }
   }
   return format_message(id, {a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]});
+}
+
+std::string format_message_f(int32_t id, ...) {
+  va_list args;
+  va_start(args, id);
+  std::string s = format_message_v(id, args);
+  va_end(args);
+  return s;
 }
 
 std::string format_message_ints(int32_t id, std::initializer_list<int32_t> args) {

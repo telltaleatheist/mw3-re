@@ -741,6 +741,71 @@ the structure's often at endo's limit): 80/80, 0xdd1 x59, 0xdd2 x6.
 Breaks 22 of 22 (the free slots drawn include 6, 7, 12 and 13, so the
 need of 14 or 7 shows).
 
+### LOADOUT_LIST and the armour panel (step 8b2)
+
+**LOADOUT_LIST** (0x0044b210, vtable 0x005c0f18; the chassis page's) is a
+FileList whose rows are never lit or chosen (+0x90 and +0x94 are
+0x0044f4e0, false). The page refresh fills it with the shown loadout
+(0x0044b230; empty without one):
+
+- Each weapon kind, 0..36, Clan before Inner Sphere: a probe item
+  (0x0044ec90) looked for in the loadout (0x004714c0, the first one like it)
+  and counted over all (0x00473510). A weapon that takes ammunition
+  (0x00484960) shows message 0x1c5 "%1!2d! %2  (%3!d! rounds)" with its
+  ammunition's rounds, counted the same way (0 when it has none aboard);
+  the others "%2d %s". The name is the first one's label (vt+0x1c).
+- A blank row, then the heat sinks: 0xf4b "%1!d! %2" with the loadout's
+  count (+0x68) and "Double Heat Sink" (0x1d0) or "Heat Sink" (0x1cf) by
+  +0x6c.
+- Each equipment kind, 0..14, Clan before Inner Sphere, "%2d %s" the same
+  way, but not armour (1, 2) or heat sinks (9, 10), which have their own
+  lines.
+
+**ARMOR_TITLES** (vtable 0x005c0ff0, new(0x31e0), made inline in the
+screen's constructor at 0x0044bd7e; the armour tab's) is a Control holding
+three kinds of control, each bound from the dialog by name by its read
+(0x004510a0) before the panel's own reading:
+
+- **ARMOR_REMOVE** (+0x14c, a push button, vtable 0x005c1080): its second
+  text in each state is "<tons> tons" (0x00450bd0: "%.1f", 0xf38; taken
+  unchecked). Its press (0x00450cc0) is step 8b3's.
+- **ARMOR_TOGGLE** x 11 (+0x2a4, 0x42c each, 0x0044fab0, CycleButtons,
+  vtable 0x005c1968): toggle k is section k (+0x424) with its most's text
+  (+0x428). All eleven read the same dialog entry (0x00450840) and are then
+  placed: the front column at the panel's x + 0x70 (the head, centre torso,
+  left and right torsos, arms, legs: sections 6, 0, 1, 2, 7, 8, 9, 10, the
+  panel's texts 19..26 their most), the rear column (3, 4, 5, no text)
+  at x + 0xac beside the torsos, rows 15 apart ([0x005e479c]) from y +
+  0x91. The three places are computed once and kept for the run
+  ([0x00605aac..0x00605ab8], guard bits [0x00605ab4]), so a panel read
+  later at another place keeps the first one's toggles. Each toggle's one
+  choice is its section's points (0x00450880, "%d"), its text twice the
+  internal structure (the head 9). The step (0x004509b0) is step 8b3's;
+  the first choice added steps it from none, which does nothing more.
+- **ARMOR_DISTRIBUTE** (+0x3088, 0x0044fad0, vtable 0x005c1a10): enabled
+  while points are left unassigned. Its press (0x00450c70) is step 8b3's.
+
+Its refresh (0x00450e00, with a loadout): REMOVE's tons, its texts 4 (the
+points the tons give, 0x00424760) and 6 (those on no section), both
+0xf37 "%1!d! pts", and 3 the type ("Clan F.Fibrous" 0xfb1 for armour of
+Clan tech, which only ferro-fibrous has, standard's being 3; else "Ferro
+Fibrous" 0x1b5 or "Standard" 0x2d2); DISTRIBUTE's enabling; the toggles. Texts 3, 4
+and 6 are taken unchecked (the exe crashes without them; the port skips
+a missing one). Showing it (0x00450fb0) turns the toggles' arrows and
+REMOVE on only while the lab may change things ([0x00605a84] clear);
+hiding it (0x00451050) hides all three kinds.
+
+Ported: `LabLoadoutList`, `LabArmorTitles`, `LabArmorRemove`,
+`LabArmorToggle`, `LabArmorDistribute` (the presses still the
+original's), `LabState`'s armour places. `zutl::format_message_v` reads a
+width in a message's type ("%1!2d!", 0x1c5's; it took the number as a
+string before), and `format_message_f` formats one directly. Tests:
+test_lab_screen.py runs the exe's LOADOUT_LIST and ARMOR_TITLES (their
+fakes and stubs gone; the loadouts given heat sinks and section points,
+some bare, and weapons with and without ammunition; an armour session
+shows the panel on other slots; the synthetic dialogs move the panel and
+cut its texts past 6): lab_screen 80/80 identical (43 seeds with rounds lines, 42 with plain weapon or equipment lines; the armour panel shown and hidden, moved, DISTRIBUTE on and off). Breaks 31 of 31 caught (12 on the loadout list, 19 on the armour panel; armour kinds in a loadout were added to catch the last).
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after
@@ -777,7 +842,7 @@ its list empty.
 Step 2 (`mech3/lab_screen.{h,cpp}`, `test_lab_screen.py`): the screen's
 making, destructor, page and slot switches and the press's shell (above).
 
-Not ported: ARMOR_TITLES and LOADOUT_LIST (step 8b2); the second saved-loadout
+Not ported: ARMOR_TITLES' three presses (step 8b3); the second saved-loadout
 loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
 0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
 
@@ -812,7 +877,9 @@ One sitting each; each with its differential test and break tests.
    ENGINE_TABLE with its presses (19..22; done, above; the exe has no sink
    presses), 8b1 MECH_DATA with ENDOSTEEL and CHASSIS_DATA (done, above;
    the dialog's armour type and mass toggles are never read), 8b2
-   ARMOR_TITLES (the armour by section) and LOADOUT_LIST.
+   LOADOUT_LIST and ARMOR_TITLES' making, reading, showing and refresh
+   (done, above), 8b3 ARMOR_TITLES' presses: REMOVE (0x00450cc0),
+   DISTRIBUTE (0x00450c70) and the section step (0x004509b0).
 9. **The 3D view**: the lab world and camera (0x0044ffc0, 0x00450390,
    0x00450690), CURRENT_CHASSIS's model, picking a part (0x004507c0..);
    with the render port's pieces it needs.

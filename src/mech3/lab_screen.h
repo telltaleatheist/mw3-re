@@ -115,14 +115,16 @@ class LabPart : public LabCheck {
   int32_t part = 0;                  // +0x16c
 };
 
-// LOADOUT_LIST (0x0044b210, vtable 0x005c0f18): step 8's.
-class LabLoadoutList : public FileList, public LabLater {
+// LOADOUT_LIST (0x0044b210, vtable 0x005c0f18): a FileList of the shown
+// loadout's contents, none of its rows lit or chosen (0x0044f4e0).
+class LabLoadoutList : public FileList {
  public:
   explicit LabLoadoutList(Engine& e) : FileList(e, -1) {}
-  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
-  void after_bind() override;        // +0x88
-  void show_for(float seconds) override;  // +0x60
-  void hide() override;              // +0x64
+  bool can_light(int32_t) override { return false; }   // +0x90  0x0044f4e0
+  bool can_choose(int32_t) override { return false; }  // +0x94  0x0044f4e0
+  // 0x0044b230: the weapons (with their ammunition), a blank, the heat
+  // sinks, then the equipment but armour and sinks; none for no loadout.
+  void refresh(Handle cfg);
 };
 
 // CHASSIS_LIST (0x004490d0, vtable 0x005c0cc0): the lab store's mechs, each
@@ -371,6 +373,51 @@ class LabChassisData : public LabTable {
   Engine& e_;
 };
 
+// ARMOR_TITLES' ARMOR_REMOVE (vtable 0x005c1080): half a ton of armour back
+// to the store; its texts show the tons.
+class LabArmorRemove : public ShellButton {
+ public:
+  explicit LabArmorRemove(Engine& e) : ShellButton(e, -1) {}
+  void on_left_up() override;        // +0x30  0x00450cc0 (step 8b3)
+  void set_tons(float tons);         // 0x00450bd0: the second normal, rollover and disabled texts
+};
+
+// ARMOR_TITLES' ARMOR_TOGGLE (0x0044fab0, vtable 0x005c1968): one section's
+// armour points, with the text of its most (none for the rear three).
+class LabArmorToggle : public CycleButton {
+ public:
+  explicit LabArmorToggle(Engine& e) : CycleButton(e, -1) {}
+  void step(int32_t by) override;    // +0xa4  0x004509b0 (step 8b3)
+  // 0x00450840: bound to ARMOR_TOGGLE and placed.
+  void place(ztwod::Dialog* dialog, int32_t section, ztwod::Text* most, int32_t px, int32_t py);
+  void refresh(Handle config);       // 0x00450880: its one choice the points
+  int32_t section = 0;               // +0x424  a part (0..10; 3..5 the rear torsos)
+  ztwod::Text* most = nullptr;       // +0x428
+};
+
+// ARMOR_TITLES' ARMOR_DISTRIBUTE (0x0044fad0, vtable 0x005c1a10): the armour
+// spread anew over the sections; enabled while points are unassigned.
+class LabArmorDistribute : public ShellButton {
+ public:
+  explicit LabArmorDistribute(Engine& e) : ShellButton(e, -1) {}
+  void on_left_up() override;        // +0x30  0x00450c70 (step 8b3)
+};
+
+// ARMOR_TITLES (vtable 0x005c0ff0, new(0x31e0), made inline in the screen's
+// constructor): the armour page's panel (docs/mechlab.md, The armour panel).
+class LabArmorTitles : public ztwod::Control {
+ public:
+  explicit LabArmorTitles(Engine& e);
+  void show_for(float seconds) override;  // +0x60  0x00450fb0: the arrows and REMOVE only while editable
+  void hide() override;              // +0x64  0x00451050
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x004510a0
+  void refresh(Handle config);       // 0x00450e00
+  Engine& e_;
+  LabArmorRemove remove;             // +0x14c  ARMOR_REMOVE
+  LabArmorToggle toggles[11];        // +0x2a4  by section
+  LabArmorDistribute distribute;     // +0x3088  ARMOR_DISTRIBUTE
+};
+
 // MESSAGE_AREA (0x0044e6d0, vtable 0x005c1740).
 class LabMessage : public ztwod::FontText {
  public:
@@ -417,7 +464,6 @@ class LabScreen : public MenuScreen {
   bool engine_editable();            // 0x0044dc80: a loadout shown and the flag [0x00605a84] clear
   void engine_press(int32_t id);     // 0x0044d4d0's 19..22: the engine faster, slower, its type
   static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90
-  void bind_later(Handle panel, const char* name);  // 0x0059f8b0 on a panel of a later step
 
   int32_t page = -1;                 // +0x111ec
   ztwod::Image temp_background{0};   // +0x111f0  TEMP_BACKGROUND
@@ -443,7 +489,7 @@ class LabScreen : public MenuScreen {
   LabWeaponList ungrouped;           // +0x1a36c
   LabWeaponList grouped;             // +0x1a570
   WinTitle current_chassis;          // +0x1a774  CURRENT_CHASSIS (vtable 0x005c11c0)
-  Handle armor_titles = 0;           // +0x1a8c0  ARMOR_TITLES (new(0x31e0); step 8)
+  LabArmorTitles* armor_titles = nullptr;  // +0x1a8c0  ARMOR_TITLES (new(0x31e0))
   LabChassisData* chassis_data = nullptr;  // +0x1a8c4  CHASSIS_DATA (new(0x188))
   LabEngineTable engine_table;             // +0x1a8c8
   LabMessage message;                // +0x1afb0  MESSAGE_AREA

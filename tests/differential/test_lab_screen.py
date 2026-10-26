@@ -68,12 +68,12 @@ MECHS = [0x122e4 + 0x64c * i for i in range(12)]
 PARTS = [0x18880, 0x189f0, 0x18b60, 0x18cd0, 0x18e40, 0x18fb0, 0x19120]
 PANELS = [0x112ac, 0x11374, 0x1143c]
 # The pages' controls' vtables and the slots left to their steps.
-LATER = {0x5c0f18: (0x84, 0x88, 0x60, 0x64)}  # LOADOUT_LIST's (step 8b)
-LATER[0x5c1d68] = (0xac,)  # UNASSIGNED_LIST's put-on (step 5b2's second half)
+LATER = {0x5c1d68: (0xac,)}  # UNASSIGNED_LIST's put-on (step 5b2's second half)
 UNASSIGNED, ASSIGNED, PART_HEAD = 0x19290, 0x1a13c, 0x18710
 UNGROUPED, GROUPED = 0x1a36c, 0x1a570
 ENGINE = 0x1a8c8
 MECH_DATA, CHASSIS_DATA = 0x11504, 0x1a8c4  # the screen's pointers to them (made with new)
+LOADOUTS, ARMOR = 0x11508, 0x1a8c0
 COUNTED = (0xf5b, 0x24c, 0x24d)  # ALIST_TITLES's messages: their texts show the count (probe_lab.cpp's too)
 CONFIGS, EDIT = 0x17548, 0x17ca8
 NAMES = ['Stock', 'Mine', 'Raider', 'Hunter', '']
@@ -85,7 +85,8 @@ ITEM_VT = {0: 0x5bc160, 1: 0x5c0fc0, 2: 0x5bd150, 3: 0x5bd180}
 test_twod.VT_KIND.update({0x5c0e98: 'I', 0x5c0e00: 'C', 0x5c0d70: 'C', 0x5c14f0: 'C', 0x5c1448: 'C',
                           0x5c1630: 'C', 0x5c13b0: 'K', 0x5c11c0: 'C', 0x5c1740: 'F', 0x5c0cc0: 'C', 0x5c5e30: 'C',
                           0x5c5da0: 'C', 0x5bc230: 'C', 0x5c5cf8: 'C', 0x5c1588: 'C',
-                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1300: 'C', 0x5c1250: 'C', 0x5c1130: 'C', 0x5c2130: 'C', 0x5c2270: 'C', 0x5c21c0: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
+                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1300: 'C', 0x5c1250: 'C', 0x5c1130: 'C', 0x5c2130: 'C', 0x5c2270: 'C', 0x5c21c0: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C', 0x5c0f18: 'C',
+                          0x5c0ff0: 'C', 0x5c1080: 'C', 0x5c1968: 'C', 0x5c1a10: 'C'})
 
 
 # 0x004846e0's table: each mech's most tons (10 out of range; mech_names.cpp's kMaxMass).
@@ -113,10 +114,15 @@ def synthetic(seed, tree):
             for j in range(0, len(v) - 1, 2):
                 name, entry = v[j], v[j + 1]
                 e = [list(x) if isinstance(x, list) else x for x in entry]
-                if name in ('CURRENT_CHASSIS', 'UNASSIGNED_LIST', 'ALIST_TITLES') or name.startswith('ICON_'):
+                if name == 'ARMOR_TITLES' and 'LABEL' in e and r.random() < 0.4:
+                    # its texts 3, 4 and 6 are used unchecked; past them the most texts may be missing
+                    li = e.index('LABEL') + 1
+                    e[li] = e[li][:r.choice([7, 19, 22, 26])]
+                if name in ('CURRENT_CHASSIS', 'UNASSIGNED_LIST', 'ALIST_TITLES', 'ARMOR_TITLES', 'ARMOR_REMOVE') or \
+                        name.startswith('ICON_'):
                     # CURRENT_CHASSIS's first label, the tabs, UNASSIGNED_LIST's DOWN
-                    # and ALIST_TITLES's three labels are used unchecked (the exe
-                    # crashes without them): kept, maybe moved.
+                    # ALIST_TITLES's three labels, ARMOR_TITLES's and ARMOR_REMOVE's are
+                    # used unchecked (the exe crashes without them): kept, maybe moved.
                     if 'POSITION' in e and r.random() < 0.3:
                         e[e.index('POSITION') + 1] = [r.randrange(20, 500), r.randrange(20, 400)]
                     nb += [name, e]
@@ -145,12 +151,12 @@ def loadout_items(r):
     for _ in range(r.choice([0, 1, 3, 6, 10])):
         k = r.choice([1, 1, 2, 3, 3])
         if k == 1:
-            out.append({'kind': 1, 'id': r.choice([0, 3, 9, 0x11, 19]), 'n': 1, 'tech': r.choice([1, 2]),
+            out.append({'kind': 1, 'id': r.choice([0, 3, 6, 9, 0x11, 19, 0x17, 0x24]), 'n': 1, 'tech': r.choice([1, 2]),
                         'part': r.randrange(-1, 7), 'group': r.choice([-1, -1, 0, 1, 2, 4])})
         elif k == 2:
             out.append({'kind': 2, 'id': r.choice([0, 9, 19]), 'n': r.choice([20, 200]), 'part': r.randrange(-1, 9)})
         else:
-            out.append({'kind': 3, 'id': r.choice([0, 3, 5, 9, 10, 11, 12]), 'n': r.choice([1, 2]),
+            out.append({'kind': 3, 'id': r.choice([0, 1, 2, 3, 5, 9, 10, 11, 12]), 'n': r.choice([1, 2]),
                         'tech': r.choice([1, 2]), 'part': r.randrange(-1, 9), 'group': r.choice([0, 0, -1])})
     return out
 
@@ -226,6 +232,12 @@ def make_plan(seed, accept=True, crit=True):
                 lines.append(f'B {r.choice([8, 9]):x}')  # another slot
             if r.random() < 0.4:
                 lines.append('E')
+        lines += ['G 3 0', 'E']
+    if accept and crit:  # an armour session: the armour tab (26) shows ARMOR_TITLES, refreshed on other slots
+        lines += ['R', 'G 3 1', 'B 1a', 'E']
+        for _ in range(r.randrange(2, 7)):
+            lines.append(r.choice(['R', 'B 8', 'B 9', 'B a', 'B 1a', 'B 18']))  # (24 the equipment tab hides it)
+            lines.append('E')
         lines += ['G 3 0', 'E']
     if accept and crit:  # a weapon groups session (its tab, 4): rows of both lists pressed
         lines += ['B 4', 'E']
@@ -359,6 +371,14 @@ class Original:
                 emu.cpu.write(buf, s_.encode('latin1')[:size - 1] + b'\0')
                 emu._ret(t.handle(key, (mid, '')), pop)
                 return
+            if mid in (0x1c5, 0xf4b):  # LOADOUT_LIST's: a count, a label (and the rounds)
+                esp = emu.uc.reg_read(UC_X86_REG_ESP)
+                lab_ = emu.cstr(emu.r32(esp + 0x14))
+                args = (mid, arg, lab_) + ((emu.r32(esp + 0x18),) if mid == 0x1c5 else ())
+                s_ = f'F{mid:x}:{i32(arg)}|{lab_}' + (f'|{i32(args[3])}' if mid == 0x1c5 else '')
+                emu.cpu.write(buf, s_.encode('latin1')[:size - 1] + b'\0')
+                emu._ret(t.handle(key, args), pop)
+                return
             if mid == 0x24b:
                 s_ = f'F{mid}:{i32(arg)}'
                 emu.cpu.write(buf, s_.encode('latin1')[:size - 1] + b'\0')
@@ -448,16 +468,6 @@ class Original:
             emu._ret(cfg['kind'], pop)
         e.w32(vt + 0x2c, e.new_stub('vt+0x2c', 'c', 0, kind))
 
-        # ARMOR_TITLES (made inline): a fake whose slots are recorded.
-        def armor(uc, address, size, user):  # new(0x31e0) and its inline making
-            t.handle('0x0044fad0', ())
-            o = self.fake_panel()
-            t.override('0x0044fad0', o)
-            uc.reg_write(UC_X86_REG_ESP, uc.reg_read(UC_X86_REG_ESP) + 4)  # the size pushed
-            uc.reg_write(UC_X86_REG_EAX, o)
-            uc.reg_write(UC_X86_REG_EIP, 0x44be16)
-        e.uc.hook_add(UC_HOOK_CODE, armor, begin=0x44bd8e, end=0x44bd8e)
-
         # The pages' controls' slots of later steps.
         for vtab, slots_ in LATER.items():
             for sl in slots_:
@@ -466,7 +476,7 @@ class Original:
                 e.w32(vtab + sl, e.new_stub(f'lab.vt+{sl:#x}', spec, POPS[sl], fn))
         e.stub(0x4504d0, '0x004504d0', 's0', 4)
         for addr, spec, pop in ((0x479440, 'c', 0), (0x425bd0, 'c', 0), (0x4254d0, 'c,s0', 4),
-                                (0x450e00, 'c,s0', 4), (0x44fd90, 'c,s0', 4),
+                                (0x44fd90, 'c,s0', 4),
                                 ):
             e.stub(addr, f'{addr:#010x}', spec, pop)
 
@@ -478,7 +488,6 @@ class Original:
             v = t.handle(key, args)
             emu._ret(v, pop)
         e.stub(0x4ac150, '0x004ac150', 's0,s1,s2', 0, box)
-        e.stub(0x44b230, '0x0044b230', 'c,s0', 4, self.later)
         e.stub(0x424010, '0x00424010', 'zc,d,s0,s1', 8, self.copy_config)
         e.stub(0x424350, '0x00424350', 'c', 0)
         e.stub(0x424f60, '0x00424f60', 'c', 0)
@@ -628,6 +637,14 @@ class Original:
         e.cpu.write(co + 0x20, bytes([c.get('endo', 0)]))
         e.w32(co + 0x24, c.get('engine', 20))
         e.cpu.write(co + 0x28, bytes([c.get('xl', 0)]))
+        # its heat sinks (+0x68) and whether double (+0x6c), for LOADOUT_LIST
+        rs = random.Random(f'sinks:{co}')
+        e.w32(co + 0x68, rs.choice([0, 10, 10, 12, 17]))
+        e.cpu.write(co + 0x6c, bytes([rs.choice([0, 0, 1])]))
+        # and its sections' armour points (+0x38, eleven), for ARMOR_TITLES
+        bare = rs.random() < 0.3  # none on (with no tons, none left: DISTRIBUTE disabled)
+        for k in range(11):
+            e.w32(co + 0x38 + 4 * k, 0 if bare else rs.choice([0, 0, 5, 12, 31]))
         self.item_list(co, c.get('items', []))
 
     def item_list(self, co, items):
@@ -680,18 +697,6 @@ class Original:
         e.world_w32(co + 8, head)
         self.t.override(key, co)
         emu._ret(co, pop)
-
-    def fake_panel(self):
-        e, w = self.e, self.w
-        o = w.emu.world_alloc(0x200)
-        vt = e.world_alloc(0x100)
-        for sl, spec, pop in ((0x0, 'c,s0', 4), (0x60, 'c,s0', 4), (0x64, 'c', 0), (0x84, 'c', 8), (0x88, 'c', 0)):
-            e.w32(vt + sl, e.new_stub(f'vt+{sl:#x}', spec, pop))
-        e.w32(o, vt)
-        sub = e.world_alloc(0x100)
-        e.w32(sub + 0x98, e.new_stub('vt+0x98', 'c,s0,s1', 8))
-        e.w32(o + 0x188, sub)
-        return o
 
     # The chassis row of the shown slot's loadout's mech, -1 none (probe_lab.cpp's too).
     def config_row(self):
@@ -789,7 +794,8 @@ class Original:
                 self.vcall(m + 0x17ca8, 0x0c, (pv[0], pv[1]))
             elif op == 'E':
                 dump += (test_twod.Original.dump(self) + self.dump_screen() + self.dump_unassigned() +
-                         self.dump_assigned() + self.dump_weapons() + self.dump_engine() + self.dump_data())
+                         self.dump_assigned() + self.dump_weapons() + self.dump_engine() + self.dump_data() +
+                         self.dump_loadouts() + self.dump_armor())
             elif op == 'U':
                 self.vcall(m, 0x08, (1,))
                 self.m = 0
@@ -866,6 +872,38 @@ class Original:
                    f'enabled={i32(e.r32(c + 0xc4))} arrows={i32(e.r32(c + 0x188 + 0xc4))},{i32(e.r32(c + 0x2d4 + 0xc4))} '
                    f'index={i32(e.r32(c + 0x16c))} items=' +
                    '|'.join(f'{e.cstr(e.r32(x)) if e.r32(x) else ""}={i32(e.r32(x + 4))}' for x in its) + '\n')
+        return ''.join(out)
+
+    def dump_armor(self):
+        """probe_lab.cpp's dump_armor: ARMOR_TITLES's buttons and toggles."""
+        e = self.e
+        a = e.r32(self.m + ARMOR)
+        r = lambda o: i32(e.r32(o))  # noqa: E731
+        out = [f'armor at={r(a + 0x14)},{r(a + 0x18)} flags={e.r32(a + 0xc):x} remove={r(a + 0x14c + 0xc4)}/'
+               f'{e.r32(a + 0x14c + 0xc):x} distribute={r(a + 0x3088 + 0xc4)}/{e.r32(a + 0x3088 + 0xc):x}\n']
+        for k in range(11):
+            c = a + 0x2a4 + 0x42c * k
+            first, last = e.r32(c + 0x15c), e.r32(c + 0x160)
+            its = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+            most = e.r32(c + 0x428)
+            out.append(f'atoggle{k} at={r(c + 0x14)},{r(c + 0x18)} flags={e.r32(c + 0xc):x} section={r(c + 0x424)} '
+                       f'most={chr(34) + e.cstr(most + 0x34) + chr(34) if most else "-"} '
+                       f'arrows={r(c + 0x188 + 0xc4)},{r(c + 0x2d4 + 0xc4)} index={r(c + 0x16c)} items=' +
+                       '|'.join(f'{e.cstr(e.r32(x)) if e.r32(x) else ""}={i32(e.r32(x + 4))}' for x in its) + '\n')
+        return ''.join(out)
+
+    def dump_loadouts(self):
+        """probe_lab.cpp's dump_loadouts: LOADOUT_LIST's items and rows."""
+        e, w = self.e, self.m + LOADOUTS
+
+        def vec(o):
+            first, last = e.r32(w + o), e.r32(w + o + 4)
+            return [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+        out = [f'loadouts sel={i32(e.r32(w + 0x17c))} top={i32(e.r32(w + 0x180))} flags={e.r32(w + 0xc):x} items=' +
+               '|'.join(f'{e.cstr(e.r32(x)) if e.r32(x) else ""}={i32(e.r32(x + 4))}' for x in vec(0x15c)) + '\n']
+        for i, row in enumerate(vec(0x16c)):
+            out.append(f'lrow{i} idx={i32(e.r32(row + 0x4d0))} at={i32(e.r32(row + 0x14))},{i32(e.r32(row + 0x18))}'
+                       f' "{e.cstr(row + 0x34)}"/{e.r32(row + 0xc):x}/{e.r32(row + 0x234):x}\n')
         return ''.join(out)
 
     def dump_assigned(self):
@@ -1092,6 +1130,11 @@ def main():
             1 if re.search(r'^uitems [^\n]*=', dump, re.M) else 0)
         stats['seeds with weapon groups'] = stats.get('seeds with weapon groups', 0) + (
             1 if '=0|' in dump and 'F587:1' in dump else 0)
+        stats['seeds with loadout rounds'] = stats.get('seeds with loadout rounds', 0) + (
+            1 if re.search(r'^loadouts [^\n]*F1c5:', dump, re.M) else 0)
+        stats['seeds with loadout weapons or equipment'] = stats.get('seeds with loadout weapons or equipment', 0) + (
+            1 if re.search(r'^loadouts [^\n]*=0\|[^\n]*Ff4b:[^\n]*\|[ \d]\d ', dump, re.M) or
+            re.search(r'^loadouts items=[ \d]\d ', dump, re.M) else 0)
         stats['seeds with weapon tags'] = stats.get('seeds with weapon tags', 0) + (1 if ' tag=' in dump else 0)
         stats['seeds with an XL engine shown'] = stats.get('seeds with an XL engine shown', 0) + (
             1 if 'F241:' in dump else 0)
