@@ -356,3 +356,23 @@ is in `README.md`.
   no fields scrolled); now only the maps' bitmaps. And the maps' read flag
   outlived a test (0x4584e0 keeps it, as the exe); reset_process_state
   clears the maps as a new process has none.
+
+## Front-end census and plan, docs/frontend-plan.md (2026-10-25)
+
+- Assigned (lead): a census and plan like hud-plan.md. The campaign loop as
+  a player sees it (main menu, pilot, campaign / Operation screen, briefing,
+  mission, debriefing, salvage, mech lab, next mission, save and load), then
+  Instant Action setup, training and the movies; per screen its object and
+  state, what is ported, what runs now (live), what is missing, the size;
+  a porting order in small items, the campaign loop first (c1m1 -> c1m2
+  with salvage and the lab), each with a test plan. For review before item
+  1. Also: the c1m2 parked vehicle's edge flicker (#22) as an open render
+  note. Branch mac4/frontend-plan off main 78b1f9b.
+- Wrote docs/frontend-plan.md: the loop's screens with their ports and
+  sizes, IA, training, the movies, a porting order of 13 items (salvage
+  first). Live through the menus with a new driver in mw3_main (ours):
+  `--click-at X,Y@N` (game pixels, zInput's 0x51b440), `--tap`, `--shot`
+  from the plain start (the stale "main menu not ported" line removed).
+  Seen: main menu, pilot screen, c1m1's briefing (MECHLAB and SALVAGE grey
+  on Op 1 Mission 1, as 0x408ef0 has it). render.md 6(c): c1m2's parked
+  vehicle edge flicker, open.

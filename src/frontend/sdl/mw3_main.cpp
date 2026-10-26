@@ -68,6 +68,8 @@ struct Args {
   int click = 0, click_up = 0, shot_series = 0;
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
+  struct ClickAt { int frame, x, y; };
+  std::vector<ClickAt> clicks_at;  // --click-at X,Y@N (the game's 640 x 480 pixels)
   bool walk = false;  // --walk: full throttle (THROTTLE0's key) at the start (ours)
   bool shot_any = false;
 };
@@ -77,7 +79,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N]\n"
-      "    [--click N[:M]] [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -105,6 +107,10 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
     else if (s == "--walk") a.walk = true;
+    else if (s == "--click-at" && next(1)) {
+      Args::ClickAt c{};
+      if (std::sscanf(argv[++i], "%d,%d@%d", &c.x, &c.y, &c.frame) == 3) a.clicks_at.push_back(c);
+    }
     else if (s == "--tap" && next(1)) {
       const char* v = argv[++i];
       const char* at = std::strchr(v, '@');
@@ -363,16 +369,61 @@ int run(const Args& a) {
                                                         a.dialog_name, a.shot, a.shot_frame);
     }
 
+    // The menus' driver (ours, for checking the front end): from the plain
+    // start, each frame shown counted; --tap keys, --click-at left clicks at a
+    // window pixel (the motion, then the press and the release a frame
+    // apart), --shot / --shot-series as in a mission.
+    int menu_frames = 0;
+    std::deque<std::string> menu_series;
+    if (!debug && !launch)
+      engine.on_present = [&](int) {
+        ++menu_frames;
+        auto key = [&](int dik, bool down) {
+          for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
+            if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == dik) {
+              SDL_Event ev{};
+              ev.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+              ev.key.scancode = static_cast<SDL_Scancode>(sc);
+              ev.key.down = down;
+              SDL_PushEvent(&ev);
+              return;
+            }
+        };
+        for (const Args::Tap& t : a.taps)
+          if (menu_frames == t.down || menu_frames == t.up) key(t.dik, menu_frames == t.down);
+        for (const Args::ClickAt& c : a.clicks_at) {
+          // The cursor put on the point (zInput's 0x0051b440, the game's
+          // 640 x 480 about its centre), then the press and the release.
+          if (menu_frames == c.frame) zin::mouse_set((c.x - 320) / 320.0f, (c.y - 240) / 240.0f);
+          if (menu_frames == c.frame + 1 || menu_frames == c.frame + 2) {
+            SDL_Event ev{};
+            ev.type = menu_frames == c.frame + 1 ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+            ev.button.button = SDL_BUTTON_LEFT;
+            ev.button.down = menu_frames == c.frame + 1;
+            ev.button.x = static_cast<float>(c.x), ev.button.y = static_cast<float>(c.y);
+            SDL_PushEvent(&ev);
+          }
+        }
+        if (!a.shot.empty() && a.shot_series > 1 && menu_frames >= a.shot_frame - a.shot_series &&
+            menu_frames < a.shot_frame - 1) {
+          std::string base = a.shot;
+          if (base.size() > 4 && base.compare(base.size() - 4, 4, ".bmp") == 0) base.resize(base.size() - 4);
+          menu_series.push_back(base + "_" + std::to_string(menu_frames + 1) + ".bmp");
+          window.render()->capture_next(menu_series.back().c_str());
+        }
+        if (!a.shot.empty() && menu_frames == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
+        if (!a.shot.empty() && menu_frames == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), menu_frames);
+      };
+
     if (app.init_instance()) {
       // The state after the intro (the app's +0x1dc): the debug start takes
       // the place the lobby launch gives the Load state.
       if (debug) app.post_intro_ = debug.get();
       if (launch) app.post_intro_ = &mech3::states().load;
-      if (!debug && !launch)
-        std::printf("mw3: the main menu (0x00486260) and the screens are not ported yet; the window stays "
-                    "dark. Start a world with --mission c1 or a dialog with --dialog dialog.zrd MAINMENU.\n");
+
       sdlfe::SdlPump pump(&input, &app);
-      if (!debug && !launch && a.frames > 0) pump.should_quit = [&] { return screen.frames >= a.frames; };
+      if (!debug && !launch && (a.frames > 0 || !a.shot.empty()))
+        pump.should_quit = [&] { return (a.frames > 0 && menu_frames >= a.frames) || (!a.shot.empty() && menu_frames > a.shot_frame); };
       if (launch) pump.should_quit = [&] { return launch_done; };
       result = app.run(pump);
       if (app.current() != &mech3::states().exit) app.stop_game();
