@@ -154,6 +154,14 @@ class GameEngine : public Engine {
   int32_t lab_config_endo_slots(Handle config) override;
   int32_t lab_config_sink_items(Handle config) override;
   int32_t lab_config_sink_limit(Handle config) override;
+  float lab_config_weight(Handle config) override;
+  int32_t lab_config_weapons(Handle config) override;
+  int32_t lab_config_equipment(Handle config, int32_t kind, int32_t tech) override;
+  int32_t lab_config_part_free(Handle config, int32_t part) override;
+  float lab_config_armor_tons(Handle config) override;
+  int32_t lab_config_armor_tech(Handle config) override;
+  uint8_t lab_config_armor_ferro(Handle config) override;
+  std::vector<int32_t> lab_dfn_firepoint_parts(Handle dfn) override;
   bool lab_config_valid(Handle config) override;
   Handle mech_dfn_handle(int32_t mech) override;
   void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) override;

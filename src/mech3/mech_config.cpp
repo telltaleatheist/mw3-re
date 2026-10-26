@@ -256,6 +256,26 @@ int32_t Config::sink_items() const {
   return n;
 }
 
+// Mech3.exe 1.2 @ 0x00425ea0: the weapons, TAG (equipment 13) counted as one.
+int32_t Config::weapon_count() const {
+  int32_t n = 0;
+  for (const ConfigItem* i : items)
+    if (i->kind() == 1 || (i->kind() == 3 && static_cast<const EquipmentItem*>(i)->equipment == 13)) ++n;
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00473570 (a Store method on the loadout's own list): the
+// equipment items of a kind, of a tech or (3) any; entries, not counts.
+int32_t Config::equipment_count(int32_t kind, int32_t tech) const {
+  int32_t n = 0;
+  for (const ConfigItem* i : items) {
+    if (i->kind() != 3) continue;
+    const auto* q = static_cast<const EquipmentItem*>(i);
+    if (q->equipment == kind && (tech == 3 || tech == q->tech)) ++n;
+  }
+  return n;
+}
+
 // Mech3.exe 1.2 @ 0x00425d80: the critical slots left for items.
 int32_t Config::slots_left() const { return free_slots_in(-1) - ferro_slots() - endo_slots() - engine_slots(); }
 

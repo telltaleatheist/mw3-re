@@ -398,8 +398,61 @@ of one tab, on the criticals page.
   0x00425e60 / 0x00432f70 (an XL engine 12, 10 on a Clan mech, else 6),
   0x00426070 (10), 0x00425e20 (a part's free slots).
 
-Left to 5b2: +0xa8 (0x00453840, whether an item may go on) and +0xac
-(0x00454600, putting it on), "lab.vt+0xa8" / "lab.vt+0xac".
+### The item rules (step 5b2)
+
+**May it go on** (+0xa8, 0x00453840; +0xa4 0x00453830 calls it, so a row
+it refuses is greyed). The row's item, the shown loadout (ASSIGNED_LIST's
++0x224: the screen's, through [0x00605a58] + 0x1a13c) and ASSIGNED_LIST's
+chosen part (0x00455eb0, its +0x160 through 0x00455ec0; -1 none; step 6).
+The shown slot (the game's vt+0x34 with [0x00605a28]) gives the mech's
+definition (0x004846a0). In order:
+
+- Never while the lab is read-only ([0x00605a84], the Lab State's flag).
+- Off the armour tab, the weight: the loadout's (0x00425300(-1)) plus one
+  of the item (ammo a ton) must not pass the mech's most (0x004846e0).
+- On the armour tab only armour (equipment 1, standard, or 2,
+  ferro-fibrous): its points (0x00424760 by its tech and kind, the
+  loadout's tons plus half a ton when it is the kind the mech has) within
+  the most the mech's parts take (0x00456750 over sections 3..10: twice the
+  internal structure, the head 9), the weight with that half ton, and the
+  slots left plus ferro-fibrous's at least ferro-fibrous's own (7 Clan, 14
+  Inner Sphere; standard 0). Nothing else goes on there.
+- Weapons and TAG (equipment 13) only while the loadout has fewer than 16
+  of them (0x00425ea0).
+- Equipment by kind, counting the loadout's entries of it (0x00473570, any
+  tech): AMS (0) and FCS (3) up to five; BAP (4), ECM (8), MASC (12), TAG
+  (13) and the targeting computer (14) one; C3 (6) and its slave (7) one,
+  and not both. The rest (sinks, CASE, jump jets) any number.
+- No part chosen: yes. With one: jump jets (11) never in the arms or the
+  head (parts 2, 3, 6); armour by the slots left less ferro-fibrous's
+  (standard any, ferro-fibrous its 7 or 14); sinks (9, 10) by the part's
+  free slots (0x00425e20) and the loadout's, after a test that never holds
+  (the engine's 10 sinks less 10, as the refill's); everything else by its
+  slots (vt+0x18) against both, and a weapon only in a part the mech's
+  definition has a firepoint on (+0x24, each firepoint's +0x0c).
+
+The refresh (0x0044cf50) refills UNASSIGNED_LIST before it gives
+ASSIGNED_LIST the new loadout, so a slot changed while the criticals page
+is up greys the rows by the previous slot's loadout until the next refill
+(the exe's order, kept). The exe reads the loadout and the definition
+unchecked: the criticals page is grey without a loadout and the lab's
+entry refreshes first, so in play both are there.
+
+Ported: `LabUnassignedList::can_xa8`, `part_armor_max` (0x00456750),
+`Config::weapon_count` (0x00425ea0) and `equipment_count` (0x00473570, a
+Store method the exe runs on the loadout's list); ASSIGNED_LIST's part is
+step 6's (`LabLaterList::part`, "0x00455eb0"). Engine hooks: the loadout's
+weight, weapons, equipment, a part's free slots, its armour fields, an
+item's tech, a definition's firepoint parts. Test: test_lab_screen.py
+runs the exe's rule (the loadout's helpers stubbed with answers, the
+loadout's weight often just under its mech's most; the loadouts' armour,
+the definitions' firepoints and C3, BAP, ECM and TAG in the store in the
+setup; the criticals page and its tabs only after a refresh with a
+loadout, as in play): 80/80, breaks 14 of 15. The one left cannot run:
+armour's slot test by a chosen part, since armour lists only on the
+armour tab, whose rule returns before the part.
+
+Left to 5b2's second half: +0xac (0x00454600, putting it on), "lab.vt+0xac".
 
 Tested in `test_lab_screen.py` (`tests/probe_lab.cpp`): the store now has
 ammo and equipment (armour, sinks, unlimited items) and the weapons'

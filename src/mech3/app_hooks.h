@@ -771,6 +771,26 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_config_endo_slots(Handle config) { return static_cast<int32_t>(unported("0x00425e80", {config})); }
   virtual int32_t lab_config_sink_items(Handle config) { return static_cast<int32_t>(unported("0x00425f30", {config})); }
   virtual int32_t lab_config_sink_limit(Handle config) { return static_cast<int32_t>(unported("0x00426070", {config})); }
+  // The unassigned list's rule (0x00453840, lab_screen.cpp): a loadout's
+  // weight (0x00425300(-1), a float), weapons (0x00425ea0), equipment of a
+  // kind (0x00473570), a part's free slots (0x00425e20), its armour (+0x2c
+  // tons, +0x30 tech, +0x34 ferro-fibrous); an equipment item's tech
+  // (+0x1c); the parts a definition has firepoints on (+0x24, each +0x0c).
+  virtual float lab_config_weight(Handle config) {
+    return zgame::from_bits(unported("0x00425300", {config, 0xffffffffu}));
+  }
+  virtual int32_t lab_config_weapons(Handle config) { return static_cast<int32_t>(unported("0x00425ea0", {config})); }
+  virtual int32_t lab_config_equipment(Handle config, int32_t kind, int32_t tech) {
+    return static_cast<int32_t>(unported("0x00473570", {config, static_cast<uint32_t>(kind), static_cast<uint32_t>(tech)}));
+  }
+  virtual int32_t lab_config_part_free(Handle config, int32_t part) {
+    return static_cast<int32_t>(unported("0x00425e20", {config, static_cast<uint32_t>(part)}));
+  }
+  virtual float lab_config_armor_tons(Handle config) { return zgame::from_bits(field32(config, 0x2c)); }
+  virtual int32_t lab_config_armor_tech(Handle config) { return static_cast<int32_t>(field32(config, 0x30)); }
+  virtual uint8_t lab_config_armor_ferro(Handle config) { return field8(config, 0x34); }
+  virtual int32_t lab_item_tech(Handle item);
+  virtual std::vector<int32_t> lab_dfn_firepoint_parts(Handle dfn);
   virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }

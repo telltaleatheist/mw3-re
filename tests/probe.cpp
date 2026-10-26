@@ -1572,6 +1572,9 @@ int probe_config_blob(const char* name, const uint8_t* blob, int n, uint8_t* out
   b.push_back(c.validate(false));
   for (int32_t v : {c.slots_left(), c.ferro_slots(), c.endo_slots(), c.engine_slots(), c.sink_limit(), c.sink_items()})
     put_i32(b, v);
+  put_i32(b, c.weapon_count());  // the mech lab's counts (0x00453840's)
+  for (int32_t kind = 0; kind < 15; ++kind)
+    for (int32_t tech = 1; tech <= 3; ++tech) put_i32(b, c.equipment_count(kind, tech));
   return finish(b, out, cap);
 }
 

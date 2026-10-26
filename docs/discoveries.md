@@ -2818,6 +2818,19 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   down to the weapons and ammo you actually have, and those items leave
   your inventory while they are equipped. At Operation 4 Mission 6 this is
   skipped: your lancemates keep whatever they had.
+- **The mech lab's rules for what goes on a mech.** At most 16 weapons,
+  TAG counted as one; up to five AMS and five Artemis FCS; one each of
+  Beagle Active Probe, ECM, MASC, TAG and targeting computer; a C3 or a C3
+  slave, not both. Jump jets never go in the arms or the head. A weapon
+  can only be fitted to a body part where the mech's definition has a
+  firepoint (the point its shots leave from). Armour is
+  capped at what the mech's parts can hold (twice their internal structure,
+  9 on the head) and goes on in half tons. (docs/mechlab.md, The item
+  rules)
+- **Switching slots on the criticals page greys the list by the previous
+  mech for a moment.** The lab refreshes the list of stored items before
+  it takes the newly chosen slot's loadout, so the greyed rows are those
+  the previous mech could not take, until the list refills.
 - **The salvage screen moves things with one click, in set amounts.** A
   click on a row moves it straight across; nothing is selected first. From
   the mission's salvage into your stockpile: a mech takes one of your bays

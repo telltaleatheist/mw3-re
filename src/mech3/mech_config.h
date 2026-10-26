@@ -118,6 +118,8 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   ConfigItem* add_item(ConfigItem* item, int32_t n);            // 0x004723c0
   EquipmentItem* add_equipment(int32_t kind, int32_t tech, int32_t n);  // 0x00471fb0
   int32_t sink_items() const;                                   // 0x00425f30
+  int32_t weapon_count() const;                                 // 0x00425ea0: weapons and TAG
+  int32_t equipment_count(int32_t kind, int32_t tech) const;    // 0x00473570: tech 3 any
   int32_t sink_limit() const { return 10; }                     // 0x00426070
   int32_t free_slots_in(int32_t part) const { return part == -1 ? free_slots : free_in[part]; }  // 0x00425e20
   int32_t slots_left() const;                                   // 0x00425d80
