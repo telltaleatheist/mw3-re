@@ -197,7 +197,8 @@ implements it:
   with the game's own `arial.ttf`, `impact.ttf` and `lucon.ttf` ("Lucida
   Console"), found through the mounts. GDI's rules where the game can see
   them: a negative height is the character height, a positive one the cell
-  height; text is drawn without antialiasing (GDI on a 16-bit DIB), so the
+  height, sized as GDI does (VDMX, hinted advances, no kerning; twod.md
+  section 6, Text widths); text is drawn without antialiasing (GDI on a 16-bit DIB), so the
   key-colour blit keeps clean edges; `DT_CALCRECT`, line breaks,
   `DT_WORDBREAK` in the box, `DT_CENTER` / `DT_RIGHT`, `&` prefixes; opaque
   and transparent background modes; `GetTextMetrics` (internal leading the

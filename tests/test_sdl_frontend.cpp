@@ -4,11 +4,13 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 #include "check.h"
+#include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zimage/zimg_library.h"
@@ -199,6 +201,57 @@ TEST(sdl_host_gdi_text_measures_and_draws) {
   h.DeleteDC(dc);
   h.DeleteObject(f);
   h.DeleteObject(cell);
+}
+
+// GDI's font sizes and widths (twod.md section 6, Text widths): a cell
+// height takes the largest VDMX size that fits (else the win metrics
+// scaled), the ascent and descent its record's; the advances are the
+// hinted ones the fonts' hdmx tables record for GDI, and nothing is kerned.
+TEST(sdl_host_fonts_take_gdis_sizes_and_widths) {
+  sdlfe::GdiFaceMetrics m;
+  m.upem = 2048, m.win_ascent = 1854, m.win_descent = 434;  // Arial's
+  m.vdmx = {{9, 9, -3}, {10, 10, -3}, {11, 11, -3}, {12, 12, -3}, {13, 13, -3}, {14, 13, -3}, {15, 14, -3}};
+  auto size = [&](int h) { return sdlfe::gdi_font_size(m, h); };
+  // 16: 13 and 14 both have a 16 cell; the first that matches (Wine's load_VDMX).
+  EXPECT(size(16).ppem == 13 && size(16).ascent == 13 && size(16).descent == 3);
+  EXPECT(size(12).ppem == 9 && size(12).ascent == 9 && size(12).descent == 3);  // as Windows (Wine's tests)
+  EXPECT(size(-10).ppem == 10 && size(-10).ascent == 10 && size(-10).descent == 3);
+  EXPECT(size(30).ppem == 27);  // past the table: scaled (30 x 2048 / 2288, rounded)
+  EXPECT(size(-40).ppem == 40 && size(-40).ascent == 36 && size(-40).descent == 8);
+  m.vdmx.clear();
+  EXPECT(size(16).ppem == 14 && size(12).ppem == 11);  // 12: 10.74 rounds to 11, 11's cell 12.3 -> 12
+  m.upem = 1000, m.win_ascent = 1150, m.win_descent = 350;
+  EXPECT(size(7).ppem == 4);  // 4.67 rounds to 5, whose cell (7.5 -> 8) is over 7: one less
+  if (!have_fonts()) return;
+  Mounted mnt;
+  zvid::set_pixel_format(5, 6, 5);
+  sdlfe::SdlTwodHost h(nullptr, nullptr, nullptr);
+  const zgame::Handle dc = h.CreateCompatibleDC(0);
+  auto extent = [&](int32_t height, const char* face, const char* text, int32_t* cy = nullptr) {
+    const zgame::Handle f = h.CreateFontA(height, 0, 0, 0, 400, 0, 0, 0, 0, 4, 0, 1, 0, face);
+    h.SelectObject(dc, f);
+    int32_t w = 0, hh = 0;
+    h.GetTextExtentPoint32A(dc, text, static_cast<int32_t>(std::strlen(text)), &w, &hh);
+    if (cy) *cy = hh;
+    h.SelectObject(dc, 0);
+    h.DeleteObject(f);
+    return w;
+  };
+  // Arial's hdmx at 11, 13, 15 and 16 pixels: "Current Tonnage" 81, 95, 110, 116.
+  EXPECT(extent(-11, "Arial", "Current Tonnage") == 81);
+  EXPECT(extent(-13, "Arial", "Current Tonnage") == 95);
+  EXPECT(extent(-15, "Arial", "Current Tonnage") == 110);
+  EXPECT(extent(-16, "Arial", "Current Tonnage") == 116);
+  EXPECT(extent(-16, "Arial", "AVATAR") == extent(-16, "Arial", "A") * 3 + extent(-16, "Arial", "V") +
+                                              extent(-16, "Arial", "T") + extent(-16, "Arial", "R"));  // no kerning
+  int32_t cy = 0;
+  extent(16, "Arial", "x", &cy);
+  EXPECT(cy == 16);  // the salvage screen's lab_large fonts: 13 pixels, a 16 cell
+  extent(12, "Arial", "x", &cy);
+  EXPECT(cy == 12);
+  extent(12, "Lucida Console", "x", &cy);
+  EXPECT(cy == 12);  // no VDMX: 1616 + 432 units scaled
+  h.DeleteDC(dc);
 }
 
 TEST(sdl_host_word_break_wraps_in_the_box) {

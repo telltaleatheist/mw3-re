@@ -101,6 +101,8 @@ class SdlTwodHost : public ztwod::Host {
     uint32_t italic = 0;
     TTF_Font* ttf = nullptr;
     int em = 0;  // pixels
+    int ascent = 0, descent = 0;  // GDI's tmAscent and tmDescent (gdi_font_size.h)
+    int shift = 0;                // GDI's ascent less SDL_ttf's: the baseline's move down
   };
   struct Dc {
     Handle font = 0;

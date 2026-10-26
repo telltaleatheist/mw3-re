@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_input.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zrender/zrndr_ripple.h"
@@ -399,18 +400,31 @@ TTF_Font* SdlTwodHost::open_ttf(Font& f) {
                  font_file(f.face).c_str());
     return nullptr;
   }
-  const int want = f.height == 0 ? 12 : std::abs(f.height);
-  f.ttf = TTF_OpenFont(path.c_str(), static_cast<float>(want));
-  if (!f.ttf) return nullptr;
-  f.em = want;
-  if (f.height > 0) {
-    const int cell = TTF_GetFontHeight(f.ttf);
-    if (cell > 0 && cell != want) {
-      f.em = static_cast<int>(std::lround(static_cast<double>(want) * want / cell));
-      TTF_SetFontSize(f.ttf, static_cast<float>(f.em));
+  // FIX (A): GDI's size, ascent and descent for the height (VDMX, else the
+  // win metrics scaled), and its widths: hinted advances (MONO matches the
+  // fonts' hdmx), no kerning (twod.md section 6, Text widths).
+  static std::map<std::string, GdiFaceMetrics> faces;
+  auto it = faces.find(path);
+  if (it == faces.end()) {
+    GdiFaceMetrics m;
+    if (std::FILE* fp = std::fopen(path.c_str(), "rb")) {
+      std::vector<uint8_t> bytes;
+      uint8_t buf[65536];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, fp)) > 0;) bytes.insert(bytes.end(), buf, buf + n);
+      std::fclose(fp);
+      gdi_face_metrics(bytes, &m);
     }
+    it = faces.emplace(path, m).first;
   }
+  const GdiSize size = gdi_font_size(it->second, f.height);
+  f.ttf = TTF_OpenFont(path.c_str(), static_cast<float>(size.ppem));
+  if (!f.ttf) return nullptr;
+  f.em = size.ppem;
+  f.ascent = size.ascent;
+  f.descent = size.descent;
   TTF_SetFontHinting(f.ttf, TTF_HINTING_MONO);
+  TTF_SetFontKerning(f.ttf, false);
+  f.shift = f.ascent - TTF_GetFontAscent(f.ttf);
   TTF_SetFontStyle(f.ttf, (f.weight >= 600 ? TTF_STYLE_BOLD : 0) | (f.italic ? TTF_STYLE_ITALIC : 0));
   return f.ttf;
 }
@@ -471,7 +485,7 @@ int32_t SdlTwodHost::GetTextExtentPoint32A(Handle d, const char* text, int32_t l
   int w = 0, h = 0;
   if (!s.empty()) TTF_GetStringSize(f->ttf, s.c_str(), s.size(), &w, &h);
   *cx = w;
-  *cy = TTF_GetFontHeight(f->ttf);
+  *cy = f->ascent + f->descent;
   return 1;
 }
 
@@ -519,7 +533,7 @@ int32_t SdlTwodHost::DrawTextA(Handle d, const char* text, int32_t length, ztwod
   const int box_w = rect->right - rect->left;
   std::vector<std::string> ls =
       (format & kSingleLine) ? std::vector<std::string>{s} : lines(*f, s, box_w, (format & kWordBreak) != 0);
-  const int lh = TTF_GetFontHeight(f->ttf);
+  const int lh = f->ascent + f->descent;
   const int total = lh * static_cast<int>(ls.size());
   if (format & kCalcRect) {
     int widest = 0;
@@ -566,7 +580,7 @@ int32_t SdlTwodHost::DrawTextA(Handle d, const char* text, int32_t length, ztwod
     const auto* p = static_cast<const uint8_t*>(surf->pixels);
     for (int yy = 0; yy < surf->h; ++yy)
       for (int xx = 0; xx < surf->w; ++xx)
-        if (p[yy * surf->pitch + xx]) put(x0 + xx, ly + yy, fg);
+        if (p[yy * surf->pitch + xx]) put(x0 + xx, ly + yy + f->shift, fg);
     SDL_DestroySurface(surf);
   }
   return total;
@@ -577,8 +591,8 @@ int32_t SdlTwodHost::GetTextMetricsA(Handle d, ztwod::TextMetrics* out) {
   Dc* x = dc(d);
   Font* f = x ? font(x->font) : nullptr;
   if (!f || !f->ttf) return 0;
-  out->height = TTF_GetFontHeight(f->ttf);
-  out->ascent = TTF_GetFontAscent(f->ttf);
+  out->height = f->ascent + f->descent;
+  out->ascent = f->ascent;
   out->internal_leading = out->height - f->em > 0 ? out->height - f->em : 0;
   const int skip = TTF_GetFontLineSkip(f->ttf);
   out->external_leading = skip > out->height ? skip - out->height : 0;
