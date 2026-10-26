@@ -120,6 +120,9 @@ const char* action_name(int i);   // 0x004316e0: 1 fallf .. 8 collapser
 // The engine's top speed (0x00433030 over 0x00433050 with the XL flag 1):
 // rating / mass x 1.5 x 10.8 km/h, x 0.2778 to m/s.
 float engine_speed(int32_t engine, float mass);
+// 0x00433050: the speed in km/h, rating / mass x 10.8, x 1.5 running (the
+// mech lab's figures).
+float engine_kph(int32_t engine, float mass, bool run);
 // The base speed of 0x00431350 (config 0's engine and mech, 0x00432950) and
 // of 0x004329c0 (config 0's engine, the roster's mass).
 float config_speed(MechData& p, bool roster_mass);

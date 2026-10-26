@@ -73,6 +73,7 @@ LATER[0x5c1d68] = (0xac,)  # UNASSIGNED_LIST's put-on (step 5b2's second half)
 UNASSIGNED, ASSIGNED, PART_HEAD = 0x19290, 0x1a13c, 0x18710
 UNGROUPED, GROUPED = 0x1a36c, 0x1a570
 ENGINE = 0x1a8c8
+MECH_DATA, CHASSIS_DATA = 0x11504, 0x1a8c4  # the screen's pointers to them (made with new)
 COUNTED = (0xf5b, 0x24c, 0x24d)  # ALIST_TITLES's messages: their texts show the count (probe_lab.cpp's too)
 CONFIGS, EDIT = 0x17548, 0x17ca8
 NAMES = ['Stock', 'Mine', 'Raider', 'Hunter', '']
@@ -84,7 +85,7 @@ ITEM_VT = {0: 0x5bc160, 1: 0x5c0fc0, 2: 0x5bd150, 3: 0x5bd180}
 test_twod.VT_KIND.update({0x5c0e98: 'I', 0x5c0e00: 'C', 0x5c0d70: 'C', 0x5c14f0: 'C', 0x5c1448: 'C',
                           0x5c1630: 'C', 0x5c13b0: 'K', 0x5c11c0: 'C', 0x5c1740: 'F', 0x5c0cc0: 'C', 0x5c5e30: 'C',
                           0x5c5da0: 'C', 0x5bc230: 'C', 0x5c5cf8: 'C', 0x5c1588: 'C',
-                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1300: 'C', 0x5c1250: 'C', 0x5c1130: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
+                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1300: 'C', 0x5c1250: 'C', 0x5c1130: 'C', 0x5c2130: 'C', 0x5c2270: 'C', 0x5c21c0: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
 
 
 # 0x004846e0's table: each mech's most tons (10 out of range; mech_names.cpp's kMaxMass).
@@ -219,6 +220,8 @@ def make_plan(seed, accept=True, crit=True):
         lines += ['R', 'G 3 1', 'B 18', 'B 12', 'E']  # the equipment tab (24), a part press (18: none)
         for _ in range(r.randrange(12, 32)):
             lines.append(f'J {r.choice([19, 19, 20, 20, 21, 21, 22, 22]):x}')
+            if r.random() < 0.3:  # ENDOSTEEL stepped either way
+                lines.append(f'D {r.choice([1, -1]) & 0xffffffff:x}')
             if r.random() < 0.1:
                 lines.append(f'B {r.choice([8, 9]):x}')  # another slot
             if r.random() < 0.4:
@@ -259,6 +262,27 @@ class Original:
             std = struct.unpack('<f', e.cpu.read(0x5e2f58 + 12 * i, 4))[0]
             xl = math.ceil(std) * 0.5
             return max_mass(i32(e.r32(co + 0x14))) - std + xl - rr.choice([0.0, xl / 2])
+        last_all = {}
+
+        def f32(v):
+            return struct.unpack('<f', struct.pack('<f', v))[0]
+
+        def weight_of(rr, k, a):  # 0x00425300(what): -1 the whole loadout, 8 the mech's most, 0..7 by kind
+            co, what = a[0], i32(a[1])
+            mech = i32(e.r32(co + 0x14))
+            if what == 8:
+                return fbits(max_mass(mech))
+            if 0 <= what < 8:
+                if what == 3 and co in last_all and rr.random() < 0.6:  # the structure: at (or about) endo's limit
+                    most = max_mass(mech)
+                    rest = f32(most - f32(most * f32(0.1)))
+                    return fbits(f32(last_all[co] - rest) + rr.choice([0.0, 0.0, 0.5, -0.5]))
+                return fbits(rr.choice([0.0, 0.5, 1.0, 2.5, 4.0, 7.5, 12.0, 19.5]))
+            v = (rr.choice([0.0, 5.0, 12.5, 20.0, 34.5, 49.75]) if rr.random() < 0.4
+                 else xl_edge(rr, co) if e.r8(co + 0x28) and rr.random() < 0.4
+                 else max_mass(mech) - rr.choice([0.5, 0.25, 1.5, 0.0, -0.5]))
+            last_all[co] = f32(v)
+            return fbits(v)
         t = self.t
         self.cfg = cfg
         tree = w.read_tree(data, start)
@@ -424,15 +448,7 @@ class Original:
             emu._ret(cfg['kind'], pop)
         e.w32(vt + 0x2c, e.new_stub('vt+0x2c', 'c', 0, kind))
 
-        # The panels made with new: fakes whose slots are recorded.
-        def fake(emu, key, a, pop):
-            t.handle(key, a)
-            o = self.fake_panel()
-            t.override(key, o)
-            emu._ret(o, pop)
-        e.stub(0x457600, '0x00457600', '', 0, fake)
-        e.stub(0x456cd0, '0x00456cd0', '', 0, fake)
-
+        # ARMOR_TITLES (made inline): a fake whose slots are recorded.
         def armor(uc, address, size, user):  # new(0x31e0) and its inline making
             t.handle('0x0044fad0', ())
             o = self.fake_panel()
@@ -449,8 +465,8 @@ class Original:
                 fn = self.later_fields if sl == 0xb8 else self.later
                 e.w32(vtab + sl, e.new_stub(f'lab.vt+{sl:#x}', spec, POPS[sl], fn))
         e.stub(0x4504d0, '0x004504d0', 's0', 4)
-        for addr, spec, pop in ((0x479440, 'c', 0), (0x425bd0, 'c', 0), (0x4254d0, 'c,s0', 4), (0x457940, 'c,s0', 4),
-                                (0x457330, 'c,s0', 4), (0x450e00, 'c,s0', 4), (0x44fd90, 'c,s0', 4),
+        for addr, spec, pop in ((0x479440, 'c', 0), (0x425bd0, 'c', 0), (0x4254d0, 'c,s0', 4),
+                                (0x450e00, 'c,s0', 4), (0x44fd90, 'c,s0', 4),
                                 ):
             e.stub(addr, f'{addr:#010x}', spec, pop)
 
@@ -534,7 +550,7 @@ class Original:
         w.answers.update({
             '0x00517680': lambda rr, n, a: 0 if a[0] in ('', None) else find_font(rr, n, a),  # no name
             '0x00575fd0': 1,
-            '0x00425d80': lambda rr, k, a: rr.choice([0, 1, 2, 3, 5, 8, 14, 20, 39]),
+            '0x00425d80': lambda rr, k, a: rr.choice([0, 1, 2, 3, 5, 6, 7, 8, 12, 13, 14, 20, 39]),
             '0x00425e40': lambda rr, k, a: rr.choice([0, 0, 7, 14]),
             '0x00425e80': lambda rr, k, a: rr.choice([0, 0, 7, 14]),
             '0x00426070': lambda rr, k, a: rr.choice([10, 10, 10, 12, 20]),
@@ -545,9 +561,7 @@ class Original:
             '0x00425e60': lambda rr, k, a: rr.choice([0, 6, 10, 12]),
             # (often just under the loadout's mech's most, 0x004846e0: the item's own ton or half ton decides;
             # at it or just over for the engine's presses)
-            '0x00425300': lambda rr, k, a: fbits(rr.choice([0.0, 5.0, 12.5, 20.0, 34.5, 49.75]) if rr.random() < 0.4
-                                                 else xl_edge(rr, a[0]) if e.r8(a[0] + 0x28) and rr.random() < 0.4
-                                                 else max_mass(i32(e.r32(a[0] + 0x14))) - rr.choice([0.5, 0.25, 1.5, 0.0, -0.5])),
+            '0x00425300': weight_of,
             '0x0040cec0': cfg['fast'],
             '0x0040d760': 640, '0x0040d770': 480,
             '0x00576040': lambda rr, k, a: e.world_string(f'M{a[0]:x}' + (' %d' if a[0] in COUNTED else '')),
@@ -757,6 +771,10 @@ class Original:
                 sh = i32(e.r32(SLOT))
                 if 0 <= sh < len(self.slots):
                     self.vcall(m, 0x14, (pv[0], 0, 0))
+            elif op == 'D':  # MECH_DATA's ENDOSTEEL stepped (+0xa4; 0x0044e680 with a slot shown, as J)
+                sh = i32(e.r32(SLOT))
+                if 0 <= sh < len(self.slots):
+                    self.vcall(e.r32(m + MECH_DATA) + 0x188, 0xa4, (pv[0],))
             elif op == 'O':  # WEAPONS_GROUPED's chosen row (+0x17c) set: a weapon's (0x0044e4e0's other case)
                 e.w32(m + GROUPED + 0x17c, pv[0])
             elif op == 'H':  # a weapon list's row pressed (+0x98): 0 ungrouped, 1 grouped
@@ -771,7 +789,7 @@ class Original:
                 self.vcall(m + 0x17ca8, 0x0c, (pv[0], pv[1]))
             elif op == 'E':
                 dump += (test_twod.Original.dump(self) + self.dump_screen() + self.dump_unassigned() +
-                         self.dump_assigned() + self.dump_weapons() + self.dump_engine())
+                         self.dump_assigned() + self.dump_weapons() + self.dump_engine() + self.dump_data())
             elif op == 'U':
                 self.vcall(m, 0x08, (1,))
                 self.m = 0
@@ -817,6 +835,37 @@ class Original:
             out.append(f'erow{i}' + text('l', row) + text('v', row + 0x4b0) + '\n')
         out.append('ebuttons' + ''.join(f' {i32(e.r32(t + o + 0x14))},{i32(e.r32(t + o + 0x18))}/{i32(e.r32(t + o + 0xc4))}/'
                                         f'{e.r32(t + o + 0xc):x}' for o in (0x188, 0x2e0, 0x438, 0x590)) + '\n')
+        return ''.join(out)
+
+    def dump_table(self, tag, t):
+        """probe_lab.cpp's dump_table: a data table, its rows."""
+        e = self.e
+        r = lambda o: i32(e.r32(t + o))  # noqa: E731
+        out = [f'{tag} at={r(0x14)},{r(0x18)} flags={e.r32(t + 0xc):x} fonts={e.r32(t + 0x14c):x},{e.r32(t + 0x150):x},'
+               f'{e.r32(t + 0x154):x} width={r(0x158)} offset={r(0x15c)},{r(0x160)} spacing={r(0x164)},{r(0x168)} '
+               f'pos={r(0x16c)},{r(0x170)}\n']
+
+        def text(k, f):
+            return (f' {k}={i32(e.r32(f + 0x14))},{i32(e.r32(f + 0x18))} "{e.cstr(f + 0x34)}"/{e.r32(f + 0xc):x}/'
+                    f'{e.r32(f + 0x234):x}/{e.r32(f + 0x4ac):x}')
+        first, last = e.r32(t + 0x178), e.r32(t + 0x17c)
+        for i in range((last - first) // 4 if first else 0):
+            row = e.r32(first + 4 * i)
+            out.append(f'{tag}row{i}' + text('l', row) + text('v', row + 0x4b0) + '\n')
+        return ''.join(out)
+
+    def dump_data(self):
+        """probe_lab.cpp's dump_data: MECH_DATA, CHASSIS_DATA and ENDOSTEEL."""
+        e, m = self.e, self.m
+        md = e.r32(m + MECH_DATA)
+        out = [self.dump_table('mdata', md), self.dump_table('cdata', e.r32(m + CHASSIS_DATA))]
+        c = md + 0x188
+        first, last = e.r32(c + 0x15c), e.r32(c + 0x160)
+        its = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+        out.append(f'endo at={i32(e.r32(c + 0x14))},{i32(e.r32(c + 0x18))} flags={e.r32(c + 0xc):x} '
+                   f'enabled={i32(e.r32(c + 0xc4))} arrows={i32(e.r32(c + 0x188 + 0xc4))},{i32(e.r32(c + 0x2d4 + 0xc4))} '
+                   f'index={i32(e.r32(c + 0x16c))} items=' +
+                   '|'.join(f'{e.cstr(e.r32(x)) if e.r32(x) else ""}={i32(e.r32(x + 4))}' for x in its) + '\n')
         return ''.join(out)
 
     def dump_assigned(self):
@@ -1052,7 +1101,7 @@ def main():
         for k, a_ in trace:
             if k == '0x004ac150':
                 stats[f'box {a_[2]:x}'] = stats.get(f'box {a_[2]:x}', 0) + 1
-            if k == '0x00575ff0' and a_[1] in (0xdce, 0xdcf, 0xdd0):  # the engine presses' refusals
+            if k == '0x00575ff0' and a_[1] in (0xdce, 0xdcf, 0xdd0, 0xdd1, 0xdd2):  # the engine's and endo steel's refusals
                 stats[f'engine msg {a_[1]:x}'] = stats.get(f'engine msg {a_[1]:x}', 0) + 1
             if k.startswith('lab.') or k.startswith('vt+') or k in ('0x004504d0', '0x0044dcf0', '0x00472a30',
                                                                       '0x00471c10', '0x00433df0', '0x004846a0', '0x0044fd90',

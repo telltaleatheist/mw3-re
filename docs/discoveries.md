@@ -2863,6 +2863,20 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   never shows its "tons" unit: the game's format drops it, leaving the
   number with a space in front. (docs/mechlab.md, The engine and the data
   tables)
+- **Endo steel in the mech lab.** Switching a mech to endo steel needs 14
+  free critical slots (7 on a Clan mech); switching back to standard
+  structure is refused if the standard structure (a tenth of the mech's
+  tonnage) would take the mech over its tonnage, and the message gives the
+  excess. The panel's speeds are the engine rating divided by the mech's
+  tonnage, times 10.8 for walking and 16.2 for running (in km/h, though the
+  "kph" unit never shows; neither does "tons" on any of the lab's weight
+  lines). The loadout's weight turns red only when it is over the limit,
+  not at it. (docs/mechlab.md, The data panels)
+- **The mech lab's dialog file has armour type and armour mass switches
+  the game never reads.** Next to the endo steel switch, dlgMechLabII.zrd
+  lays out two more (ARMORTYPE, ARMORMASS) with arrows and labels, but the
+  game's code never asks for them, so they never appear; armour is changed
+  through the item list's armour tab instead.
 - **The salvage screen moves things with one click, in set amounts.** A
   click on a row moves it straight across; nothing is selected first. From
   the mission's salvage into your stockpile: a mech takes one of your bays

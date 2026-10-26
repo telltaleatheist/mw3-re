@@ -589,3 +589,25 @@ sinks, armour controls) and 8b (the data panels); fold in a plan case for
 - Docs: mechlab.md step 8a section, the dialog table's ids corrected (the
   SELECT_* are 23..26, the parts all 18, ENGINE_TABLE's 19..22), porting
   order split; discoveries (the engine panel); symbols.csv (27 rows).
+
+## Lab 8b1 (2026-10-26): MECH_DATA, ENDOSTEEL and CHASSIS_DATA
+
+Assigned by the lead after 8a merged (561cf2a): 8b, split if large. Split
+(agreed): 8b1 MECH_DATA with its toggle and CHASSIS_DATA; 8b2 ARMOR_TITLES
+and LOADOUT_LIST.
+
+- Found: the dialog's ARMORTYPE / ARMORMASS toggles under MECH_DATA are
+  dead data (neither string is in the exe); MECH_DATA's one control is
+  ENDOSTEEL (a CycleButton at +0x188 whose step 0x457160 changes endo
+  steel, with refusals 0xdd1 / 0xdd2). ARMOR_TITLES is the armour-by-section
+  editor (11 section cycles 0x450880, a re-spread button 0x450c70).
+- Ported: LabMechData, LabEndoCycle, LabChassisData, LabRow::set_float(v,
+  unit) 0x457f90, engine_kph 0x433050; hooks lab_config_weight_of
+  (0x425300 by kind) and lab_config_set_endo.
+- Test: the panels are real on both sides now (the fakes and stubs gone);
+  dump_data; op D (ENDOSTEEL stepped); 0x425300 answered by kind (8 the
+  mech's most, 3 often at endo's limit). 80/80, 0xdd1 x59, 0xdd2 x6.
+- Breaks 22 of 22 (the first run missed the slot need 14 to 12: the plan
+  drew no 12 or 13 free slots; 6, 7, 12, 13 added). Related tests and both
+  suites pass (202, 12).
+- State: sent for review on mac4/lab-8b.

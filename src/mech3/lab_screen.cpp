@@ -31,6 +31,7 @@ int32_t equip_name_message(int32_t kind);                // 0x00484980's table (
 double engine_weight_of(int32_t index, uint8_t xl);      // 0x00432f40 (as on the x87)
 int32_t engine_rating_of(int32_t index);                 // 0x00432fa0
 int32_t engine_maker_message(int32_t index);             // 0x00432ec0's message (mech_salvage.h)
+float engine_kph(int32_t engine, float mass, bool run);  // 0x00433050 (mech_data.h)
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
@@ -1442,6 +1443,14 @@ void LabRow::set_float(const char* label, float v, const char* unit) {
   else value.set_text("");
 }
 
+// Mech3.exe 1.2 @ 0x00457f90
+void LabRow::set_float(float v, const char* unit) {
+  char b[16];
+  std::snprintf(b, sizeof b, "%.1f", static_cast<double>(v));
+  if (unit) value.set_text(" %s", b, unit);
+  else value.set_text("");
+}
+
 // Mech3.exe 1.2 @ 0x0044f530
 LabTable::~LabTable() {
   for (LabRow*& r : rows) {
@@ -1580,6 +1589,168 @@ void LabEngineTable::refresh(Handle cfg) {
     slower.enabled = rating > e.lab_dfn_engine_min(dfn) ? 1 : 0;
     slower.refresh();
   }
+}
+
+// ---------------------------------------------------------------------------
+// MECH_DATA and CHASSIS_DATA
+
+namespace {
+// 0x0044e680 twice, as the panels ask for the shown slot's loadout.
+Handle shown_config(Engine& e) {
+  const LabState& lab = states().lab;
+  return e.lab_slot(lab.pilot_, lab.slot_) ? e.lab_slot_cfg(e.lab_slot(lab.pilot_, lab.slot_)) : 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00457130
+void LabEndoCycle::show_config(Handle config) {
+  select(config && e_.lab_config_byte(config, 0x20) ? 1 : 0);
+}
+
+// Mech3.exe 1.2 @ 0x00457160: to endo steel needs 14 free critical slots (7
+// on a Clan mech; else 0xdd1 with both); back to standard the loadout must
+// stay within the mech's tons with standard structure, a tenth of them
+// (else 0xdd2 with the excess). Then the loadout changed and the page anew.
+void LabEndoCycle::step(int32_t by) {
+  Engine& e = e_;
+  LabScreen* s = e.lab_screen(states().lab.lab_screen_);
+  if (!s || index == -1) return;
+  const Handle cfg = shown_config(e);
+  if (!cfg) return;
+  if (!e.lab_config_byte(cfg, 0x20)) {
+    const int32_t free = e.lab_config_slots_left(cfg);
+    const int32_t need = mech_tech(e.config_mech(cfg)) != kClan ? 14 : 7;
+    if (free < need) {
+      s->message.set_text_id(0xdd1, need, free);
+      return;
+    }
+  } else {
+    const float all = e.lab_config_weight_of(cfg, -1);
+    const float rest = all - e.lab_config_weight_of(cfg, 3);  // without the structure
+    const float most = max_mass(e.config_mech(cfg));
+    const float over = most * 0.1f + rest - max_mass(e.config_mech(cfg));  // 0x005c2268
+    if (over > 0.0f) {  // (fcom: at it, or unordered, fits)
+      char b[32];
+      std::snprintf(b, sizeof b, "%.1f", static_cast<double>(over));
+      s->message.set_text_id(0xdd2, b);
+      return;
+    }
+  }
+  CycleButton::step(by);
+  e.lab_config_set_endo(cfg, index != 0 ? 1 : 0);
+  e.lab_config_set_modified(cfg, 1);
+  e.lab_config_recount(cfg);
+  s->refresh();
+}
+
+// Mech3.exe 1.2 @ 0x00456cd0: 0x0044f040(4), each row's label and 0.
+LabMechData::LabMechData(Engine& e) : e_(e), endo(e) {
+  const std::string kph = e.message_format(0x245, nullptr);
+  const std::string tons = e.message_format(0x244, nullptr);
+  add_rows(4);
+  static const struct {
+    int32_t label;
+    bool speed;
+  } kRows[] = {{0x247, true}, {0x246, true}, {0x25a, false}, {0x25b, false}};  // run, walk, tons, most
+  for (int i = 0; i < 4; ++i) {
+    rows[static_cast<size_t>(i)]->set_text(e.message(kRows[i].label));
+    rows[static_cast<size_t>(i)]->set_float(0.0f, (kRows[i].speed ? kph : tons).c_str());
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004570a0: the table's reading, then ENDOSTEEL with its
+// two choices (MECH_DATA's ARMORTYPE and ARMORMASS are not read).
+bool LabMechData::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  const bool r = LabTable::read_control(node, dialog);
+  if (zrdr::Node* n = zrdr::find(node, "ENDOSTEEL")) {
+    endo.read_control(n, dialog);
+    endo.after_bind();
+    endo.add_item(e_.message(0x2d2), 0);  // Standard
+    endo.add_item(e_.message(0x25c), 1);
+  }
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x004572e0
+void LabMechData::show_for(float seconds) {
+  ztwod::Control::show_for(seconds);
+  endo.show_for(seconds);
+}
+// Mech3.exe 1.2 @ 0x00457310
+void LabMechData::hide() {
+  ztwod::Control::hide();
+  endo.hide();
+}
+
+// Mech3.exe 1.2 @ 0x00457330: the speeds at the mech's most tons
+// (0x00425300(8)), the loadout's tons in the alternate font when over them.
+// The units go through " %s" and never show.
+void LabMechData::refresh(Handle config) {
+  Engine& e = e_;
+  float most = 0.0f, run = 0.0f, walk = 0.0f;
+  if (config) {
+    most = e.lab_config_weight_of(config, 8);
+    run = engine_kph(e.lab_config_engine(config), most, true);
+    walk = engine_kph(e.lab_config_engine(config), most, false);
+  }
+  const std::string kph = e.message_format(0x245, nullptr);
+  const std::string tons = e.message_format(0x244, nullptr);
+  endo.show_config(config);
+  rows[0]->set_float(run, kph.c_str());
+  rows[1]->set_float(walk, kph.c_str());
+  const float w = config ? e.lab_config_weight_of(config, -1) : 0.0f;
+  const bool over = !(w <= most || std::isnan(w) || std::isnan(most));  // (fcomp's C0 or C3)
+  rows[2]->set_font(font_label);
+  rows[2]->value.set_font(over ? font_alt : font_value);
+  rows[2]->set_float(w, tons.c_str());
+  rows[3]->set_float(most, tons.c_str());
+}
+
+// Mech3.exe 1.2 @ 0x00457600: 0x0044f040(10), each row's label and 0.
+LabChassisData::LabChassisData(Engine& e) : e_(e) {
+  const std::string tons = e.message_format(0x244, nullptr);
+  add_rows(10);
+  // engine, heat sinks, jump jets, structure, armour, weapons, ammunition
+  static const int32_t kLabels[] = {0x253, 0x25d, 0x2d6, 0x25e, 0x25f, 0x295, 0x296};
+  for (size_t i = 0; i < 7; ++i) {
+    rows[i]->set_text(e.message(kLabels[i]));
+    rows[i]->set_float(0.0f, tons.c_str());
+  }
+  rows[7]->set_float(e.message(0x297), 0.0f, tons.c_str());  // equipment
+  rows[8]->set_float(e.message(0x25a), 0.0f, tons.c_str());  // the total
+  rows[9]->set_float(e.message(0x260), 0.0f, tons.c_str());  // the mech's most
+}
+
+// Mech3.exe 1.2 @ 0x00457e80: as the table's, with half a SPACING more
+// before the total.
+void LabChassisData::set_pos(int32_t px, int32_t py) {
+  ztwod::Control::set_pos(px, py);
+  const int32_t rx = spacing[0] + offset[0] + px;
+  int32_t ry = offset[1] + py;
+  auto place = [&](LabRow* r) {
+    r->x = rx;
+    r->y = ry;
+    r->value.set_pos(width + rx, ry);
+  };
+  for (size_t i = 0; i < 8; ++i, ry += spacing[1]) place(rows[i]);
+  ry += spacing[1] / 2;
+  place(rows[8]);
+  ry += spacing[1];
+  place(rows[9]);
+}
+
+// Mech3.exe 1.2 @ 0x00457940: placed anew, then the tons by kind (0x00425300's
+// 0..7), the total (-1) and the mech's most (8). (The speeds are computed
+// and dropped.)
+void LabChassisData::refresh(Handle config) {
+  Engine& e = e_;
+  const float most = config ? e.lab_config_weight_of(config, 8) : 0.0f;
+  const std::string tons = e.message_format(0x244, nullptr);
+  set_pos(get_x(), get_y());
+  for (int32_t k = 0; k < 8; ++k)
+    rows[static_cast<size_t>(k)]->set_float(config ? e.lab_config_weight_of(config, k) : 0.0f, tons.c_str());
+  rows[8]->set_float(config ? e.lab_config_weight_of(config, -1) : 0.0f, tons.c_str());
+  rows[9]->set_float(most, tons.c_str());
 }
 
 // Mech3.exe 1.2 @ 0x0044dc80 (the shown slot asked once, unchecked)
@@ -1808,8 +1979,8 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
     uint32_t at;
   } later[] = {{&loadouts, 0x11508}, {&unassigned, 0x19290}};
   for (const auto& x : later) x.l->e = &e, x.l->at = x.at;
-  chassis_data = e.construct(0x457600, {});  // new(0x188)
-  mech_data = e.construct(0x456cd0, {});     // new(0x5ac)
+  chassis_data = new LabChassisData(e);  // new(0x188)
+  mech_data = new LabMechData(e);        // new(0x5ac)
   armor_titles = e.construct(0x44fad0, {});  // new(0x31e0), made inline
   if (load("dlgMechLabII.zrd", "LABMENU", true)) {
     bind_primitive(&temp_background, "TEMP_BACKGROUND");
@@ -1855,8 +2026,8 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
     bind_button(&unassigned, "UNASSIGNED_LIST");
     bind_button(&assigned, "ASSIGNED_LIST");
     bind_later(armor_titles, "ARMOR_TITLES");
-    bind_later(mech_data, "MECH_DATA");
-    bind_later(chassis_data, "CHASSIS_DATA");
+    bind_button(mech_data, "MECH_DATA");
+    bind_button(chassis_data, "CHASSIS_DATA");
     bind_button(&loadouts, "LOADOUT_LIST");
     unload();
   }
@@ -1875,8 +2046,8 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
 // members after (in the original's order, the reverse of their making).
 LabScreen::~LabScreen() {
   Engine& e = engine();
-  if (chassis_data) e.vcall(chassis_data, 0x00, {1});
-  if (mech_data) e.vcall(mech_data, 0x00, {1});
+  delete chassis_data;
+  delete mech_data;
   if (armor_titles) e.vcall(armor_titles, 0x00, {1});
 }
 
@@ -2044,8 +2215,8 @@ void LabScreen::refresh(Handle config) {
       if (e.lab_config_modified(cfg)) line->set_text_id(0xdcd, name.c_str(), cname.c_str());
       else line->set_text("%s: %s", name.c_str(), cname.c_str());
     }
-    e.unported("0x00457940", {chassis_data, cfg});  // step 8
-    e.unported("0x00457330", {mech_data, cfg});
+    chassis_data->refresh(cfg);
+    mech_data->refresh(cfg);
     loadouts.call_fn("0x0044b230", {cfg});
     unassigned.x224 = 0;
     unassigned.store = lab.store_;
@@ -2058,8 +2229,8 @@ void LabScreen::refresh(Handle config) {
     refresh_groups();
   } else {
     if (line) line->set_text_plain(e.message(0x249));
-    e.unported("0x00457940", {chassis_data, 0});
-    e.unported("0x00457330", {mech_data, 0});
+    chassis_data->refresh(0);
+    mech_data->refresh(0);
     loadouts.call_fn("0x0044b230", {0});
   }
   const int32_t has = cfg ? 1 : 0;
@@ -2121,8 +2292,8 @@ void LabScreen::show_page(int32_t p, bool show) {
   // slot's lookups (twice) remain.
   const LabState& lab = states().lab;
   if (e.lab_slot(lab.pilot_, lab.slot_)) e.lab_slot(lab.pilot_, lab.slot_);
-  e.vcall(mech_data, 0x60, {zgame::bits(-1.0f)});
-  e.vcall(mech_data + 0x188, 0x98, {0, 0});
+  mech_data->show_for(-1.0f);
+  mech_data->endo.set_arrows(0, 0);
   current_chassis.show_for(-1.0f);
   uint32_t text = 0;
   if (p == 0) {
@@ -2134,8 +2305,8 @@ void LabScreen::show_page(int32_t p, bool show) {
     else chassis.hide();
     if (show) configs.show_for(-1.0f);
     else configs.hide();
-    if (show) e.vcall(chassis_data, 0x60, {zgame::bits(-1.0f)});
-    else e.vcall(chassis_data, 0x64, {});
+    if (show) chassis_data->show_for(-1.0f);
+    else chassis_data->hide();
     if (show) loadouts.show_for(-1.0f);
     else loadouts.hide();
     const bool skins_on = show && e.vcall(e.field32(lab.pilot_, 0x6c), 0x2c, {}) != 3;
@@ -2151,7 +2322,7 @@ void LabScreen::show_page(int32_t p, bool show) {
       panel_left.show_look(1);
       panel_right.show_look(1);
       const uint8_t on = lab.flag_ == 0 ? 1 : 0;
-      e.vcall(mech_data + 0x188, 0x98, {on, on});
+      mech_data->endo.set_arrows(on, on);
     }
     e.vcall(armor_titles, 0x64, {});
     if (show) assigned.show_for(-1.0f);

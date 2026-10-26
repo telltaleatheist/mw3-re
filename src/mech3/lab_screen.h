@@ -296,6 +296,8 @@ class LabRow : public ztwod::FontText {
   // 0x0044ee80: the label and "%.1f" of v; with a unit the format is " %s",
   // so the unit is never shown (and the number gets a leading space).
   void set_float(const char* label, float v, const char* unit);
+  // 0x00457f90: the value alone, as set_float's.
+  void set_float(float v, const char* unit);
 };
 
 // The lab's data tables (0x004569c0, vtable 0x005c20a0), 0x188 bytes: rows
@@ -334,6 +336,39 @@ class LabEngineTable : public LabTable {
   LabButton slower;                  // +0x2e0  id 0x14, TOGGLE_LEFT
   LabButton type_right;              // +0x438  id 0x15, TOGGLE_RIGHT
   LabButton type_left;               // +0x590  id 0x16, TOGGLE_LEFT
+};
+
+// MECH_DATA's ENDOSTEEL (vtable 0x005c21c0): the internal structure,
+// Standard (0) or Endo Steel (1). A step changes the shown loadout's
+// (0x00457160; docs/mechlab.md, The data panels).
+class LabEndoCycle : public CycleButton {
+ public:
+  explicit LabEndoCycle(Engine& e) : CycleButton(e, -1) {}
+  void step(int32_t by) override;    // +0xa4  0x00457160
+  void show_config(Handle config);   // 0x00457130: the loadout's choice
+};
+
+// MECH_DATA (0x00456cd0, vtable 0x005c2130, new(0x5ac)): four rows, the
+// run and walk speeds, the loadout's tons and the mech's most; ENDOSTEEL.
+class LabMechData : public LabTable {
+ public:
+  explicit LabMechData(Engine& e);
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x004570a0
+  void show_for(float seconds) override;  // +0x60  0x004572e0
+  void hide() override;              // +0x64  0x00457310
+  void refresh(Handle config);       // 0x00457330
+  Engine& e_;
+  LabEndoCycle endo;                 // +0x188
+};
+
+// CHASSIS_DATA (0x00457600, vtable 0x005c2270, new(0x188)): ten rows, the
+// loadout's tons by kind (0x00425300's 0..7), the total and the mech's most.
+class LabChassisData : public LabTable {
+ public:
+  explicit LabChassisData(Engine& e);
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x00457e80: half a row before the last two
+  void refresh(Handle config);       // 0x00457940
+  Engine& e_;
 };
 
 // MESSAGE_AREA (0x0044e6d0, vtable 0x005c1740).
@@ -389,7 +424,7 @@ class LabScreen : public MenuScreen {
   LabPanel panel_center;             // +0x112ac
   LabPanel panel_left;               // +0x11374
   LabPanel panel_right;              // +0x1143c
-  Handle mech_data = 0;              // +0x11504  MECH_DATA (new(0x5ac), 0x00456cd0; step 8)
+  LabMechData* mech_data = nullptr;  // +0x11504  MECH_DATA (new(0x5ac))
   LabLoadoutList loadouts;           // +0x11508
   ztwod::Image icon_glow{0};         // +0x11708  ICON_GLOW
   InPlace<HelpButton, 7> tabs;       // +0x117c4  ICON_CHASSIS..ICON_ACCEPT, 0x17c each
@@ -409,7 +444,7 @@ class LabScreen : public MenuScreen {
   LabWeaponList grouped;             // +0x1a570
   WinTitle current_chassis;          // +0x1a774  CURRENT_CHASSIS (vtable 0x005c11c0)
   Handle armor_titles = 0;           // +0x1a8c0  ARMOR_TITLES (new(0x31e0); step 8)
-  Handle chassis_data = 0;           // +0x1a8c4  CHASSIS_DATA (new(0x188), 0x00457600; step 8)
+  LabChassisData* chassis_data = nullptr;  // +0x1a8c4  CHASSIS_DATA (new(0x188))
   LabEngineTable engine_table;             // +0x1a8c8
   LabMessage message;                // +0x1afb0  MESSAGE_AREA
 };

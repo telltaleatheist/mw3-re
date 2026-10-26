@@ -409,6 +409,12 @@ float engine_speed(int32_t engine, float mass) {
   return rating / mass * 1.5f * 10.8f * 0.2778f;  // 0x005bec10, 0x005bec04
 }
 
+// Mech3.exe 1.2 @ 0x00433050
+float engine_kph(int32_t engine, float mass, bool run) {
+  const float rating = static_cast<float>(engine_rating(Engine{engine, 0}));
+  return rating / mass * (run ? 1.5f : 1.0f) * 10.8f;  // 0x005bec10
+}
+
 float config_speed(MechData& p, bool roster_mass) {
   const Config* c = first_config(p);
   if (!c) return 0.0f;
