@@ -2818,6 +2818,20 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   down to the weapons and ammo you actually have, and those items leave
   your inventory while they are equipped. At Operation 4 Mission 6 this is
   skipped: your lancemates keep whatever they had.
+- **The salvage screen moves things with one click, in set amounts.** A
+  click on a row moves it straight across; nothing is selected first. From
+  the mission's salvage into your stockpile: a mech takes one of your bays
+  (two per Mobile Field Base, so six), ammunition comes over a ton's worth
+  of rounds at a time, armor and ferro-fibrous as much as the tonnage left
+  allows (in half tons), anything else one at a time, and nothing comes
+  over that would take you past 300 tons per field base (900). Back the
+  other way, armor goes in steps that grow with your stock (half a ton,
+  one ton, five, ten, twenty, fifty tons) and ammunition again a ton's
+  worth of rounds.
+- **Mechs weigh nothing in your stockpile.** The salvage screen's
+  "Current Tonnage" counts weapons, ammunition and equipment; a mech counts
+  only against your bays, never against the 900 tons. (docs/campaign.md
+  section 10)
 - **The debriefing's armor bars are scaled per card:** each lance card's
   little H-T-A-L display scales its bars to that mech's own thickest armor
   section, so a full bar on a light mech and on an assault mech mean

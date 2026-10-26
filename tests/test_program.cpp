@@ -86,6 +86,7 @@
 #include "mech3/briefing.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/debriefing.h"
+#include "mech3/salvage_screen.h"
 #include "mech3/pilot_menu.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
@@ -477,6 +478,8 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     size_t second_steps = 0;
     bool lab_up = false, lab_left = false;
     int32_t lab_mechs = -99;
+    const mech3::ConfigItem* salvage_weapon = nullptr;
+    bool salvage_layout = false, salvage_in = false, salvage_out = false, salvage_closed = false;
     mech3::LaunchedMech mech;
     engine.on_present = [&](int) {
       if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
@@ -552,6 +555,61 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         if (mech3::Pilot* p = mech3::current_pilot())
           if (auto* g = dynamic_cast<mech3::CampaignGame*>(p->current))
             for (const mech3::ConfigItem* it : g->store.items) ++store_kinds[std::min(it->kind(), 3)];
+        // The salvage screen (campaign.md section 10), with a weapon and a
+        // mech in the mission's salvage to move across.
+        if (mech3::CampaignGame* cg = mech3::current_pilot()->campaign()) {
+          salvage_weapon = cg->store3c.add_weapon(9, 1);
+          cg->store3c.add_mech(13);
+        }
+        b->on_button(mech3::BriefingScreen::kBtnSalvage, 0, 0);
+        stage = 50;
+      } else if (stage == 50 && app.current() == &mech3::states().briefing_salvage) {
+        auto* sv = dynamic_cast<mech3::SalvageScreen*>(engine.screen_of(mech3::states().briefing_salvage.screen_));
+        mech3::CampaignGame* cg = mech3::current_pilot()->campaign();
+        if (!sv || !cg) return;
+        auto row_of = [&](mech3::SalvageList& l, const mech3::ConfigItem* want) {
+          for (int32_t i = 0; i < l.item_count(); ++i)
+            if (engine.item_of(static_cast<mech3::Handle>(l.items[static_cast<size_t>(i)]->value)) == want) return i;
+          return -1;
+        };
+        auto mechs_in = [](const mech3::Store& st) {
+          int32_t n = 0;
+          for (const mech3::ConfigItem* it : st.items) n += it->kind() == 0 ? it->count : 0;
+          return n;
+        };
+        // c1m2: 3 field bases, 6 bays (all empty: the slot holds the
+        // Bushwhacker), the player's on the first lance card.
+        bool bays_shown = true;
+        for (const mech3::LanceCard& c : sv->bays) bays_shown = bays_shown && !(c.flags & ztwod::kHidden);
+        salvage_layout = cg->a8 == 3 && bays_shown && sv->bays[0].mech == -1 && sv->lance[0].mech == 3 &&
+                         sv->text.labels.size() > 5 &&
+                         std::strncmp(sv->text.labels[4]->text, "900.0 ", 6) == 0;
+        // Mission -> player: the weapon, then the mech (a free bay).
+        const int32_t wrow = row_of(sv->mission, salvage_weapon);
+        if (wrow > 0) sv->mission.select(wrow);
+        const mech3::ConfigItem* mech_item = nullptr;
+        for (const mech3::ConfigItem* it : cg->store3c.items)
+          if (it->kind() == 0) mech_item = it;
+        const int32_t mrow = row_of(sv->mission, mech_item);
+        if (mrow > 0) sv->mission.select(mrow);
+        salvage_in = wrow > 0 && mrow > 0 && mechs_in(cg->store) == 1 && mechs_in(cg->store3c) == 0 &&
+                     cg->store3c.find(salvage_weapon) == nullptr && sv->bays[0].mech == 13;
+        // Player -> mission: an ammo stock goes by the lab's rounds.
+        mech3::ConfigItem* ammo = nullptr;
+        for (mech3::ConfigItem* it : cg->store.items)
+          if (it->kind() == 2) ammo = it;
+        const int32_t before = ammo ? ammo->count : 0;
+        const int32_t arow = row_of(sv->player, ammo);
+        if (arow > 0) sv->player.select(arow);
+        salvage_out = arow > 0 && ammo && ammo->count < before && !cg->store3c.items.empty() &&
+                      cg->store3c.items.back()->kind() == 2 && cg->store3c.items.back()->count == before - ammo->count &&
+                      before - ammo->count > 1;  // a stock's lab rounds, not one
+        sv->on_button(mech3::SalvageScreen::kAccept, 0, 0);
+        stage = 51;
+      } else if (stage == 51 && app.current() == &mech3::states().load) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b) return;
+        salvage_closed = mech3::states().briefing_salvage.screen_ == 0;
         b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);  // the Lab State (mechlab.md item 1)
         stage = 6;
       } else if (stage == 6 && app.current() == &mech3::states().lab) {
@@ -579,6 +637,11 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     pump.limit = 1500;
     app.run(pump);
     EXPECT(stage == 8);
+    EXPECT(salvage_layout);  // the ported salvage screen: bays, lance, capacity
+    EXPECT(salvage_in);      // the mission's weapon and mech moved into the store
+    EXPECT(salvage_out);     // an ammo stock's lab rounds moved out
+    EXPECT(salvage_closed);  // ACCEPT popped the state, its leave freed the screen
+    EXPECT(engine.unported_counts().count("0x0047d2f0") == 0);
     EXPECT(lab_up && lab_left);  // MECHLAB opened the ported Lab State and screen, ACCEPT came back
     EXPECT(lab_mechs == 1);      // ACCEPT took the shown slot's mech back out of the lab's store
     EXPECT(engine.unported_counts().count("0x0044b920") == 0);  // the screen is the port
@@ -611,7 +674,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
       for (const mech3::ConfigItem* it : c->store.items) mechs_after += it->kind() == 0 ? it->count : 0;
     // ... and mission 2's briefing fits the lance to it: the player's slot
     // (mech 3 from the campaign's start, 0x004733b0) takes it back out.
-    EXPECT(mechs_after == mechs_before);
+    EXPECT(mechs_after == mechs_before + 1);  // and the salvaged mech 13
     EXPECT(c && c->slot.mech == 3 && c->slot.config);
     EXPECT(engine.peek32(0x60861c) == engine.handle_of(rec));  // the chosen pilot, not a stand-in
     // A game whose Load state is not ported (Instant Action): no mission

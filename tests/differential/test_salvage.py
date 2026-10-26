@@ -14,7 +14,8 @@ shared and empty bins, infinite ones, missing slots and items), its loadout
 its sinks; 0x0041df10 (the definition's tech) is stubbed, rand answers from
 the plan. The port (tests/probe_salvage.cpp: the ported store adds,
 `lance_salvage`) runs the same. Compared: the store's items, the bins left,
-the rand calls used. Since 8b2 also the briefing's reallocation: 0x00408b40
+the rand calls used. Since front-end item 1 also the salvage screen's moves (0x0047e110,
+0x0047e270) between a campaign's two stores. Since 8b2 also the briefing's reallocation: 0x00408b40
 and 0x00408bd0 on a fake briefing over a campaign (or another game) whose
 store and salvage the plan fills, with the mech lab's edits between
 (weapons' tons from weapons.zrd's MASS, test_mechsave.py's); compared: the
@@ -30,6 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import load_probe  # noqa: E402
+from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 from twod_world import IAT  # noqa: E402
 from test_pilot import FS, KIND_SIZE, KIND_VT, SALVAGE, Emulated, i32  # noqa: E402
@@ -41,11 +43,13 @@ probe = load_probe()
 probe.probe_salvage_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_realloc_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+probe.probe_moves_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_lance_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 LANCE, CONFIG_CTOR, CONFIG_ADD, DFN_CACHE = 0x408c30, 0x423d00, 0x4723c0, 0x5e60b0
 LAB_BUILD, LAB_REFRESH, REMOVE_ITEM, ADD_COPY_ITEM, FIND_WEAPON = 0x408b40, 0x408bd0, 0x471d20, 0x472630, 0x581ed0
 
 RESULTS, MECH_TECH = 0x47ae10, 0x41df10
+TO_MISSION, TO_PLAYER = 0x47e110, 0x47e270
 ADD_MECH, ADD_WEAPON, ADD_AMMO, ADD_EQUIP = 0x471c10, 0x471840, 0x471940, 0x471a20
 CURRENT, LIST = 0x60861c, 0x73655c
 RAND_IAT = 0x5bb668
@@ -277,6 +281,88 @@ class Realloc(Salvage):
         return '\n'.join(store_text(self.store(n, a)).replace('store', n, 1) for n, a in (
             ('game', game + 8), ('salvage', game + 0x3c), ('realloc', b + 0x111ec), ('lab', b + 0x11200))) + \
             f"\nlab_is {'lab' if lab == b + 0x11200 else 'game' if lab == game + 8 else hex(lab)}\n"
+
+
+class Moves(Realloc):
+    """The salvage screen's moves (campaign.md section 10): 0x0047e110 (the
+    player's store to the mission's) and 0x0047e270 (back, within the field
+    bases) on two fake lists whose +0x214 are the campaign's +0x08 and +0x3c."""
+
+    def run_moves(self, cfg):
+        cpu = self.cpu
+        # floor (an import, the shares' room): x87 rounding down (test_ai_repair.py's).
+        cpu.import_code(0x5bb66c, bytes.fromhex(
+            '83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3'))
+        cpu.import_code(IAT_FTOL, FTOL)
+        # 0x004b4900 (tested in test_weapons_run.py) as the probe has it, without
+        # zWeapon's definitions: 100 over 150 rounds, 20 over 20, else 1.
+        cpu.stub_function(0x4b4900, lambda c: 100 if i32(c.edx) > 150 else 20 if i32(c.edx) > 20 else 1)
+        game, gvt = self.alloc(0xd0), self.alloc(0x40)
+        cpu.u32(game, gvt)
+        cpu.u32(gvt + 0x2c, self.fn('b8%02x000000c3' % cfg['kind']))
+        for off in (0x8, 0x3c):
+            self.call(0x470ce0, ecx=game + off, stack=(0,))
+        cpu.u32(game + 0xa8, cfg['units'] & 0xffffffff)
+        pilot = self.alloc(0x84)
+        cpu.u32(pilot + 0x6c, game)
+        cpu.u32(CURRENT, pilot)
+        player, mission = game + 8, game + 0x3c
+        self.fill(player, cfg['player'])
+        self.fill(mission, cfg['mission'])
+        lists = {}
+        for name, st in (('p', player), ('m', mission)):
+            lists[name] = self.alloc(0x220)
+            cpu.u32(lists[name] + 0x214, st)
+        results = []
+        for side, i in cfg['moves']:
+            its = self.items_of(player if side == 'p' else mission)
+            item = its[i % len(its)] if its else 0
+            if side == 'p':
+                r = self.call(TO_MISSION, stack=(lists['m'], lists['p'], item))
+            else:
+                r = self.call(TO_PLAYER, stack=(lists['p'], lists['m'], item))
+            results.append(str(r & 0xff))
+        return '\n'.join(store_text(self.store(n, a)).replace('store', n, 1)
+                         for n, a in (('player', player), ('mission', mission))) + '\nmoved ' + ' '.join(results) + '\n'
+
+
+def shares(r):
+    """Equipment counted in shares (kinds 1 and 2) around 0x0047e110's steps
+    (half the count under 10, 20, 50, 200, 500)."""
+    return [('equip', r.choice([1, 2]), r.choice([1, 2]), r.choice([1, 19, 20, 39, 40, 99, 100, 101, 399, 400,
+                                                                   401, 999, 1000, 1001]))
+            for _ in range(r.randrange(0, 4))]
+
+
+def make_moves(seed):
+    r = random.Random(f'moves:{seed}')
+    return {'kind': r.choice([1, 1, 1, 2]), 'units': r.choice([0, 1, 1, 2, 3, 3, 8]),
+            'player': store_ops(r, r.randrange(0, 16)) + shares(r), 'mission': store_ops(r, r.randrange(0, 16)) + shares(r),
+            'moves': [(r.choice('pm'), r.randrange(16)) for _ in range(r.randrange(1, 24))]}
+
+
+def moves_setup(cfg):
+    out = [f"kind {cfg['kind']} {cfg['units']}"]
+    for where in ('player', 'mission'):
+        for op in cfg[where]:
+            out.append(where + ' ' + ' '.join(str(x) for x in op))
+    out += [f'move {side} {i}' for side, i in cfg['moves']]
+    return '\n'.join(out)
+
+
+def run_moves(seed, labs, verbose):
+    cfg = make_moves(seed)
+    want = Moves(seed, labs).run_moves(cfg)
+    buf = ctypes.create_string_buffer(1 << 16)
+    n = probe.probe_moves_run(moves_setup(cfg).encode(), buf, len(buf))
+    assert n >= 0, 'probe failed'
+    got = buf.value.decode()
+    if got.replace(' }', '}') != want.replace(' }', '}'):
+        print(f'moves seed {seed}: differ\n  original: {want}\n  rebuild:  {got}')
+        return False
+    if verbose:
+        print(f'moves seed {seed}: {want[:300]}')
+    return True
 
 
 def fake_parts(mech):
@@ -626,7 +712,9 @@ def main():
     print(f'realloc: {rpassed}/{runs} runs identical')
     lpassed = sum(run_lance(seed, labs, verbose) for seed in range(first, first + runs))
     print(f'lance: {lpassed}/{runs} runs identical')
-    return 0 if passed == runs and rpassed == runs and lpassed == runs else 1
+    mpassed = sum(run_moves(seed, labs, verbose) for seed in range(first, first + runs))
+    print(f'moves: {mpassed}/{runs} runs identical')
+    return 0 if passed == runs and rpassed == runs and lpassed == runs and mpassed == runs else 1
 
 
 if __name__ == '__main__':

@@ -184,10 +184,11 @@ class WinState : public ShellState {
                                       // (set by 0x0047abe0, so kept in the original's memory)
 };
 
-// 8 "Salvage State" (0x00608ee8, vtable 0x005c3ee8).
+// 8 "Salvage State" (0x00608ee8, vtable 0x005c3ee8; both made by 0x0047f220):
+// the state table's, and 0x00608bd8 the briefing's SALVAGE pushes (0x0047d2f0).
 class SalvageState : public ShellState {
  public:
-  SalvageState() : ShellState("Salvage State", 0x608ee8) {}
+  explicit SalvageState(Handle addr = 0x608ee8) : ShellState("Salvage State", addr) {}
   bool enter() override;              // 0x0047d310
   void leave() override;              // 0x0047d390
   void escape() override {}           // 0x0049bfd0
@@ -289,6 +290,7 @@ struct States {
   LoadState load;
   PreLabState pre_lab;
   SalvageState salvage;
+  SalvageState briefing_salvage{0x608bd8};
   WinState win;
   WinState end_win{0x6099a0};  // the missions object's (0x006098d0 +0xd0)
   KeyListState key_list;

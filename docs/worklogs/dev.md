@@ -409,6 +409,21 @@ is in `README.md`.
   357 units) stays a spare. The kinds' counts matched because they count
   entries, not units (corrected).
 
+## Front-end item 1: the salvage screen (2026-10-25)
+
+- Branch mac4/fe-salvage2 off main 8a5c6d4 (the notes below came across
+  from mac4/fe-salvage). Ported whole: `mech3/salvage_screen` (the screen,
+  its lists, the two moves), the second Salvage State 0x608bd8 and
+  `GameEngine::salvage_open`, construct 0x47d3b0.
+- Seen live: `--briefing c1m2 --click-at 420,435@2500`: the stockpile, 6
+  empty bays for 3 bases, the lance row; clicks moved 200 MG rounds, a heat
+  sink, a CASE. The tonnage values overlap their captions (right-aligned
+  font, the port's widths; for Owen).
+- Tests: test_salvage_screen.py (new, 100/100; found the destruction order
+  of BACKGROUND and SALVAGE_TEXT), test_salvage.py moves (200/200; floor,
+  ftol and 0x4b4900 stood in), the campaign test's salvage stage. Breaks:
+  screen 13/14, moves 4/5, headless 5/5 (the misses cannot show).
+
 ## Front-end item 1 (the salvage screen), mapped, set aside for 1a (2026-10-25)
 
 Notes for when it resumes (branch mac4/fe-salvage):
