@@ -85,21 +85,21 @@ ICON_GLOW, PILOT_GLOW, MESSAGE_AREA; buttons:
 | CONFIG_RENAME, CONFIG_SAVE, CONFIG_DELETE | buttons (0x005c1630, two ShellButtons) | 13..16 |
 | CONFIG_EDIT | an edit bar (0x005c14f0, like the pilot screen's) | 17 |
 | SKIN_LIST | a cycle button (0x005c1448) | |
-| PART_HEAD .. PART_RLEG | part buttons (0x005c13b0) | 18.. |
-| SELECT_WEAPON / AMMO / EQUIP / ARMOR | buttons | 19..22 |
+| PART_HEAD .. PART_RLEG | part buttons (0x005c13b0) | 18, all of them |
+| SELECT_WEAPON / AMMO / EQUIP / ARMOR | UNASSIGNED_LIST's tabs | 25, 23, 24, 26 |
 | UNASSIGNED_LIST | a list (0x005c1d68, ctor 0x004535d0) | |
 | ASSIGNED_LIST | a list (0x005c1fe0, ctor 0x004552e0) | |
 | WEAPONS_UNGROUPED, WEAPONS_GROUPED | lists (0x005c1300, 0x005c1250) | |
 | CURRENT_CHASSIS | a panel (0x005c11c0) | |
-| ENGINE_TABLE | the engine panel (0x005c1130, 0x0044f040) | |
+| ENGINE_TABLE | the engine panel (0x005c1130; faster, slower, the two type buttons) | 19..22 |
 | MECH_DATA, CHASSIS_DATA, ARMOR_TITLES, LOADOUT_LIST | texts and their panels (0x005c18b8, 0x005c1ac0) | |
 
 The ids 0..32 are the press's (0x0044d4d0, the screen's +0x14): 0..6 a page
 (0x0044ce30: 6 is ACCEPT, otherwise the old page's controls hidden and the
 new one's shown, 0x0044ca50), 8..11 the slot (0x00448f80: the old slot's
 mech back out of the store, the new one's put in, its controls refreshed),
-14..32 the pages' own (save, delete, the engine faster or slower, the
-sinks, the armor, the sorts; to be detailed with their items).
+14..32 the pages' own (the loadouts' buttons, 18 a part, 19..22 the
+engine, the sorts; there is no sink press).
 
 The screen (vtable 0x005c1110, new(0x1b468), destructor 0x0044c2f0) is a
 MenuScreen like the briefing's; its page is +0x111ec.
@@ -625,9 +625,74 @@ Tests: test_lab_screen.py runs the exe's lists (the loadouts' weapons of no
 group and in groups 0..4; a weapon groups session: the page's tab, rows of
 both lists pressed; both lists, their rows and tags dumped): 80/80, the
 groups in 22 runs and the tags in 12. Breaks 13 of 15: which group rows can
-be chosen shows only under the mouse; the first group chosen when none is
-(0x0044e4e0's out-of-range case) never differed in these runs (a refresh
-always found a group chosen by then; not traced further).
+be chosen shows only under the mouse. The first group chosen when none is
+(0x0044e4e0's out-of-range case) cannot happen in play (only a group's row
+can be chosen, and a row past the list counts as group 0); the test sets a
+weapon's row chosen and refreshes (step 8a), and its break shows there.
+
+### The engine and the data tables (step 8a)
+
+**The data tables' base** (vtable 0x005c20a0, ctor 0x004569c0, dtor
+0x00456a40): a Control holding rows (vtable 0x005c18b8, 0x960 bytes: a
+label with its value at +0x4b0) at +0x178. Its reading (0x00456a60) clears
+every flag but hidden and takes LABEL_FONT, VALUE_FONT, ALTERNATE_FONT
+(+0x14c..+0x154), WIDTH (+0x158, 130), OFFSET (+0x15c, 5 12), SPACING
+(+0x164, 0 14) and POSITION (+0x16c); its place (0x00456c30) puts each
+row's label at OFFSET (plus SPACING's x), its value WIDTH to the right,
+each next row SPACING lower. A row's value is set as "%d" or "%d %s"
+(0x0044ef50, with its label 0x0044ef00) or as a float (0x0044ee80, "%.1f";
+with a unit its format is " %s", so the unit never shows and the value is
+the number with a space before it; without one it is blank).
+
+**ENGINE_TABLE** (vtable 0x005c1130; seven rows, four buttons: faster
+0x13 and the right type button 0x15 read from TOGGLE_RIGHT, slower 0x14
+and the left type 0x16 from TOGGLE_LEFT, 0x0044b830; shown and hidden with
+its buttons, 0x0044b770 / 0x0044b7e0). Its refresh (0x0044b4b0, from the
+page refresh with a loadout shown) fills:
+
+| Row | Label | Value |
+|---|---|---|
+| 0 | 0x23f | the rating, 10 + 5 x the engine's index (0x00432fa0) |
+| 1 | 0x240 | the maker, message 0x210 + its table's (0x00432ec0) |
+| 2 | 0x242 | Extra Light 0x241 or Standard 0x2d2 |
+| 3 | 0x243 | the tons (0x00432f40: an XL's are ceil(t) / 2), the unit 0x244 dropped |
+| 4 | 0x248 | the engine's critical slots (0x00425e60) |
+
+("kph", 0x245, is fetched and not used; rows 5 and 6 stay empty.) Faster
+and slower sit 50 right and 10 left of the rating's value, 2 lower, the
+type buttons the same beside the type's. The type buttons are enabled on
+the player's own loadouts (+0x1c); faster while the rating is under the
+definition's most (+0x14), slower while over its least (+0x10).
+
+**The presses** (0x0044d4d0's cases 18..22; 0x0044dc80 first: a loadout
+on the shown slot and the flag 0x00605a84 clear):
+
+- 18: ASSIGNED_LIST's part chosen (0x00456130); no sink or armour press
+  goes through here.
+- 19 faster: the index one up (0x00432e70, to 78 at most), the loadout's
+  tons asked, back down; over the mech's most it stays and the message
+  box says "Need to free up %1 tons" (0xdce, "%.1f" over); at or under,
+  up again.
+- 20 slower: one down (0x00432e90, to 0).
+- 21 and 22 (the same) the type: to XL it needs n free slots in each side
+  torso (n = 3, 2 on a Clan mech; else 0xdcf with n) and 2n free in all
+  (else 0xdd0); back to standard the loadout's tons with a standard
+  engine must be under the mech's most (at it is refused, unlike faster;
+  0xdce).
+- After a change: the loadout marked changed (+0x1f), its slots counted
+  (0x00425bd0) and the page refreshed.
+
+Ported: `LabTable`, `LabRow`'s setters, `LabEngineTable`,
+`LabScreen::engine_editable`, `engine_press`; `engine_weight_of`,
+`engine_rating_of`, `engine_maker_message` (mech_names, mech_salvage).
+Tests: test_lab_screen.py runs the exe's table and presses (an engine
+session on the equipment tab: faster, slower and both type buttons, now
+and then another slot; ENGINE_TABLE's rows and buttons dumped, the
+loadout's engine and type after each step; the loadout's tons at, under
+and over the limits): 80/80, the XL type shown in 46 runs, the refusals
+0xdce x18, 0xdcf x72, 0xdd0 x7. Breaks 20 of 21, the groups' out-of-range
+case among them: the reading's flag clear shows nowhere (no flag but
+hidden is set before a table reads).
 
 ## 3. What the rest of the game needs from it
 
@@ -665,7 +730,7 @@ its list empty.
 Step 2 (`mech3/lab_screen.{h,cpp}`, `test_lab_screen.py`): the screen's
 making, destructor, page and slot switches and the press's shell (above).
 
-Not ported: the pages' contents (steps 3..8); the second saved-loadout
+Not ported: the data panels (step 8b); the second saved-loadout
 loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
 0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
 
@@ -696,9 +761,10 @@ One sitting each; each with its differential test and break tests.
 6. **The criticals page**: ASSIGNED_LIST (0x005c1fe0) and the part
    buttons: placing items in parts' slots.
 7. **The weapon groups page**: WEAPONS_UNGROUPED / WEAPONS_GROUPED.
-8. **The engine, sinks and armor** (ENGINE_TABLE, ids 14..30's engine,
-   sink and armor presses) and the data panels (MECH_DATA, CHASSIS_DATA,
-   ARMOR_TITLES, LOADOUT_LIST).
+8. **The engine and the data panels**, in two: 8a the tables' base and
+   ENGINE_TABLE with its presses (19..22; done, above; the exe has no sink
+   presses), 8b the data panels (MECH_DATA with the armour type and mass
+   buttons, CHASSIS_DATA, ARMOR_TITLES, LOADOUT_LIST).
 9. **The 3D view**: the lab world and camera (0x0044ffc0, 0x00450390,
    0x00450690), CURRENT_CHASSIS's model, picking a part (0x004507c0..);
    with the render port's pieces it needs.

@@ -558,3 +558,34 @@ Notes for when it resumes (branch mac4/fe-salvage):
   during the constructor); a weapon groups session in the plan.
 - Breaks 13/15 (the mouse-only can_choose; select_group's out-of-range
   case never differed in the runs, not traced further).
+
+## Lab 8a (2026-10-26): ENGINE_TABLE and the engine presses
+
+Assigned by the lead after lab 7 merged (8f5cd8c): split lab 8 into 8a (engine,
+sinks, armour controls) and 8b (the data panels); fold in a plan case for
+0x44e4e0's out-of-range branch.
+
+- Found: there are no sink presses; presses 19..22 are the engine (19 up, 20
+  down, 21/22 the XL toggle, both the same); 18 is a part button (ASSIGNED_LIST
+  0x456130). The armour controls live in MECH_DATA (ARMORTYPE/ARMORMASS
+  toggles) and ARMOR_TITLES, so they move to 8b. The data-table base
+  (vtable 0x5c20a0, `LabTable`) is ported here, shared with 8b.
+- Quirks: the weight row's format is " %s", so "tons" never shows; switching
+  XL off needs the result strictly under the mech's tons (engine up allows
+  equal).
+- 0x44e4e0's out-of-range case is unreachable by presses (the grouped list
+  only selects group rows; group_of maps rows outside the list to 0), so the
+  plan sets a weapon row as chosen directly (op O).
+- The fault was the XL weight's ceil (0x5bb61c, an unstubbed import); the
+  test now serves it as FLOOR's twin. test_lab_screen 80/80; the refusals
+  counted (0xdce x16, 0xdcf x18, 0xdd0 x3) and the XL type shown in 33 runs.
+  The message box's text goes through 0x575ff0 (buffer, id), not vt+0x98.
+- Plan widened after the first breaks: engine indices biased to the ends
+  (0, 1, 77, 78), the weight stub at, just over, and (for XL loadouts) at
+  the XL-to-standard limit and half an XL under it, XL loadouts half the
+  time, 12..31 engine presses a session. Final: 80/80, refusals 0xdce x18,
+  0xdcf x72, 0xdd0 x7; breaks 20/21 (the reading's flag clear is inert:
+  nothing but hidden is set before a table reads).
+- Docs: mechlab.md step 8a section, the dialog table's ids corrected (the
+  SELECT_* are 23..26, the parts all 18, ENGINE_TABLE's 19..22), porting
+  order split; discoveries (the engine panel); symbols.csv (27 rows).

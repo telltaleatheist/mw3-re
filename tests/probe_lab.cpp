@@ -200,7 +200,8 @@ void dump_screen(mech3::LabScreen& s, Dump& d) {
     const uint32_t c = call("peek32", {slot + 8});
     if (c)
       o << "slotcfg " << std::hex << c << std::dec << " \"" << g_engine->lab_config_name(c) << "\" mod="
-        << int(call("peek8", {c + 0x1f})) << '\n';
+        << int(call("peek8", {c + 0x1f})) << " engine=" << static_cast<int32_t>(call("peek32", {c + 0x24})) << '/'
+        << int(call("peek8", {c + 0x28})) << '\n';
   }
   for (const auto& d : g_engine->dfns) {
     if (!d.second) continue;
@@ -283,6 +284,31 @@ void dump_weapons(mech3::LabScreen& s, Dump& d) {
       o << '\n';
     }
   }
+}
+
+// ENGINE_TABLE (step 8a), as test_lab_screen.py's dump_engine.
+void dump_engine(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  const mech3::LabEngineTable& t = s.engine_table;
+  o << "engine at=" << t.x << ',' << t.y << std::hex << " flags=" << t.flags << " fonts=" << t.font_label << ','
+    << t.font_value << ',' << t.font_alt << std::dec << " width=" << t.width << " offset=" << t.offset[0] << ','
+    << t.offset[1] << " spacing=" << t.spacing[0] << ',' << t.spacing[1] << " pos=" << t.pos[0] << ',' << t.pos[1]
+    << '\n';
+  auto text = [&](const char* k, const ztwod::FontText& f) {
+    o << ' ' << k << '=' << f.x << ',' << f.y << " \"" << f.text << "\"/" << std::hex << f.flags << '/' << f.font << '/'
+      << f.named << std::dec;
+  };
+  for (size_t i = 0; i < t.rows.size(); ++i) {
+    o << "erow" << i;
+    text("l", *t.rows[i]);
+    text("v", t.rows[i]->value);
+    o << '\n';
+  }
+  const mech3::LabButton* bs[] = {&t.faster, &t.slower, &t.type_right, &t.type_left};
+  o << "ebuttons";
+  for (const mech3::LabButton* b : bs)
+    o << ' ' << b->x << ',' << b->y << '/' << b->enabled << '/' << std::hex << b->flags << std::dec;
+  o << '\n';
 }
 
 // ASSIGNED_LIST (step 6), as test_lab_screen.py's dump_assigned.
@@ -484,6 +510,12 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       mech3::states().lab.set_mech(static_cast<int32_t>(hex(ls)));
     } else if (op == "W") {
       s->unassigned.scroll(static_cast<int32_t>(hex(ls)));
+    } else if (op == "J") {  // an engine button, with a slot shown (as the test)
+      const uint32_t id = hex(ls);
+      const int32_t sh = mech3::states().lab.slot_;
+      if (sh >= 0 && sh < static_cast<int32_t>(g_slots.size())) s->on_button(static_cast<int32_t>(id), 0, 0);
+    } else if (op == "O") {  // WEAPONS_GROUPED's chosen row set
+      s->grouped.selected = static_cast<int32_t>(hex(ls));
     } else if (op == "H") {  // a weapon list's row pressed (+0x98)
       const uint32_t which = hex(ls), row = hex(ls);
       (which ? s->grouped : s->ungrouped).select(static_cast<int32_t>(row));
@@ -505,6 +537,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       dump_unassigned(*s, d);
       dump_assigned(*s, d);
       dump_weapons(*s, d);
+      dump_engine(*s, d);
       dump += d.o.str();
     } else if (op == "U") {
       engine.screen = nullptr;

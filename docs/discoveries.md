@@ -2852,6 +2852,17 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   mech for a moment.** The lab refreshes the list of stored items before
   it takes the newly chosen slot's loadout, so the greyed rows are those
   the previous mech could not take, until the list refills.
+- **The mech lab's engine panel.** The rating goes up and down in steps
+  of 5 within the mech's own range, and only your own saved loadouts can
+  switch between a standard and an XL engine. Raising the rating is refused
+  if the mech would go over its tonnage ("Need to free up ... tons"), but
+  landing exactly on the limit is allowed; switching an XL back to
+  standard is refused at exactly the limit too, so you need at least a
+  little spare weight. An XL engine needs 3 free critical slots in each
+  side torso (2 on a Clan mech) and twice that free overall. The tons line
+  never shows its "tons" unit: the game's format drops it, leaving the
+  number with a space in front. (docs/mechlab.md, The engine and the data
+  tables)
 - **The salvage screen moves things with one click, in set amounts.** A
   click on a row moves it straight across; nothing is selected first. From
   the mission's salvage into your stockpile: a mech takes one of your bays

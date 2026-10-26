@@ -283,27 +283,57 @@ class LabWeaponList : public FileList {
   Handle font_static = 0;            // +0x200  STATIC_FONT (the groups' rows)
 };
 
-// A row of a data panel (vtable 0x005c18b8), 0x960 bytes: a label and its value.
+// A row of a data table (vtable 0x005c18b8), 0x960 bytes: a label and its value.
 class LabRow : public ztwod::FontText {
  public:
   LabRow() : ztwod::FontText(nullptr, 0, 0) {}
+  void update(float dt) override;    // +0x24  0x0044f190: the value too
   ztwod::FontText value{nullptr, 0, 0};  // +0x4b0
+  // 0x0044ef50: the value "%d", or "%d %s" with a unit.
+  void set_int(int32_t v, const char* unit);
+  // 0x0044ef00: the label too (its text as the format).
+  void set_int(const char* label, int32_t v, const char* unit);
+  // 0x0044ee80: the label and "%.1f" of v; with a unit the format is " %s",
+  // so the unit is never shown (and the number gets a leading space).
+  void set_float(const char* label, float v, const char* unit);
 };
 
-// ENGINE_TABLE (0x004569c0's panel, vtable 0x005c1130), 0x6e8 bytes: seven
-// rows and the engine's four buttons (ids 19..22); step 8's.
-class LabEngineTable : public ztwod::Control, public LabLater {
+// The lab's data tables (0x004569c0, vtable 0x005c20a0), 0x188 bytes: rows
+// of a label and a value from POSITION, by OFFSET, SPACING and WIDTH
+// (docs/mechlab.md, The data tables).
+class LabTable : public ztwod::Control {
+ public:
+  LabTable() = default;              // 0x004569c0
+  ~LabTable() override;              // 0x0044f530: the rows deleted
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x00456c30
+  void update(float dt) override;    // +0x24  0x00456bc0: the rows while shown
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x00456a60
+  void add_rows(int32_t n);          // 0x0044f040: up to n rows
+  Handle font_label = 0;             // +0x14c  LABEL_FONT
+  Handle font_value = 0;             // +0x150  VALUE_FONT
+  Handle font_alt = 0;               // +0x154  ALTERNATE_FONT
+  int32_t width = 0x82;              // +0x158  WIDTH: the values' column
+  int32_t offset[2] = {5, 12};       // +0x15c  OFFSET: the first row
+  int32_t spacing[2] = {0, 14};      // +0x164  SPACING (its x is not stepped)
+  int32_t pos[2] = {};               // +0x16c  POSITION (not set by the constructor)
+  std::vector<LabRow*> rows;         // +0x178 (+0x184 points at it)
+};
+
+// ENGINE_TABLE (vtable 0x005c1130), 0x6e8 bytes: seven rows (five used) and
+// the engine's buttons: faster and slower (19, 20) beside the rating, and
+// the engine type's two (21, 22) beside it.
+class LabEngineTable : public LabTable {
  public:
   explicit LabEngineTable(Engine& e);  // 0x004569c0, the buttons, 0x0044f040(7)
   bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84  0x0044b830
-  void after_bind() override;        // +0x88
   void show_for(float seconds) override;  // +0x60  0x0044b770
   void hide() override;              // +0x64  0x0044b7e0
-  struct Rows : std::vector<LabRow*> {  // +0x174 (+0x184 points at it)
-    ~Rows();                         // 0x0044ef90: after the buttons
-  } rows;
-  LabButton faster;                  // +0x188  id 0x13
-  LabButton b2e0, b438, b590;        // +0x2e0, +0x438, +0x590  ids 0x14..0x16
+  void refresh(Handle config);       // 0x0044b4b0
+  Engine& e_;
+  LabButton faster;                  // +0x188  id 0x13, TOGGLE_RIGHT
+  LabButton slower;                  // +0x2e0  id 0x14, TOGGLE_LEFT
+  LabButton type_right;              // +0x438  id 0x15, TOGGLE_RIGHT
+  LabButton type_left;               // +0x590  id 0x16, TOGGLE_LEFT
 };
 
 // MESSAGE_AREA (0x0044e6d0, vtable 0x005c1740).
@@ -349,6 +379,8 @@ class LabScreen : public MenuScreen {
   HelpButton* tab(int32_t page);     // 0x0044ca20: null out of 0..6
   void check_part(int32_t part);     // 0x0044d3e0: the part buttons, that one checked
   void refresh_groups();             // 0x0044dcf0: on the weapon groups page, both lists anew
+  bool engine_editable();            // 0x0044dc80: a loadout shown and the flag [0x00605a84] clear
+  void engine_press(int32_t id);     // 0x0044d4d0's 19..22: the engine faster, slower, its type
   static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90
   void bind_later(Handle panel, const char* name);  // 0x0059f8b0 on a panel of a later step
 
