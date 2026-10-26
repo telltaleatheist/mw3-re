@@ -814,6 +814,15 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_item_group(Handle item);
   virtual double lab_item_weight(Handle item, int32_t n);
   virtual std::string lab_engine_name(Handle config);
+  // ENGINE_TABLE and the engine's presses (lab_screen.cpp): a loadout's
+  // engine (+0x24 its index, +0x28 XL), its engine's critical slots
+  // (0x00425e60), a definition's least and most rating (+0x10, +0x14).
+  virtual int32_t lab_config_engine(Handle config) { return static_cast<int32_t>(field32(config, 0x24)); }
+  virtual void lab_config_set_engine(Handle config, int32_t index) { set_field32(config, 0x24, static_cast<uint32_t>(index)); }
+  virtual void lab_config_set_xl(Handle config, uint8_t v) { set_field8(config, 0x28, v); }
+  virtual int32_t lab_config_engine_slots(Handle config) { return static_cast<int32_t>(unported("0x00425e60", {config})); }
+  virtual int32_t lab_dfn_engine_min(Handle dfn) { return static_cast<int32_t>(field32(dfn, 0x10)); }
+  virtual int32_t lab_dfn_engine_max(Handle dfn) { return static_cast<int32_t>(field32(dfn, 0x14)); }
   virtual std::string lab_item_label(Handle item);  // vt+0x1c (0x00473740 for weapons): "name (n)"
   virtual void lab_set_item_group(Handle item, int32_t group);  // +0x08
   virtual const char* part_text(int32_t part);

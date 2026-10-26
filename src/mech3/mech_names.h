@@ -49,6 +49,8 @@ struct Engine {
 float engine_weight(const Engine& e);      // 0x00432f40, XL: half the tons rounded up
 double engine_weight_x87(const Engine& e); // the same, as left on the x87 stack
 int32_t engine_rating(const Engine& e);    // 0x00432fa0
+double engine_weight_of(int32_t index, uint8_t xl);  // the same two on plain numbers
+int32_t engine_rating_of(int32_t index);
 
 // A weapon's mech-lab block: by default read from the loaded weapon
 // definitions (WeaponType, mech3/weapon.h); a test can set its own lookup.

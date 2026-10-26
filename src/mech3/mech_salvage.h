@@ -82,6 +82,7 @@ std::string item_name(const ConfigItem& it, const MessageText& msg);
 // 0x00432f00 on an engine (index, XL): the maker's name (0x00432ec0, the
 // table's message), the rating, " XL".
 std::string engine_name(int32_t engine, uint8_t xl, const MessageText& msg);
+int32_t engine_maker_message(int32_t engine);  // 0x00432ec0: the maker's message
 std::string item_label(const ConfigItem& it, const MessageText& msg);
 
 // The missions object's salvage store (+0xc0, [0x00609990]).

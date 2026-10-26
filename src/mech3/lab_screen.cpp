@@ -4,6 +4,7 @@
 #include "mech3/lab_screen.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <iterator>
 #include <string>
@@ -27,6 +28,9 @@ constexpr int32_t kClan = 1, kAnyTech = 3;               // mech_names.h's Tech
 int32_t lab_rounds(int32_t weapon, int32_t n);           // weapon.h (0x004b4900)
 int32_t mech_tech(int32_t mech);                         // 0x00484720
 int32_t equip_name_message(int32_t kind);                // 0x00484980's table (its text through message)
+double engine_weight_of(int32_t index, uint8_t xl);      // 0x00432f40 (as on the x87)
+int32_t engine_rating_of(int32_t index);                 // 0x00432fa0
+int32_t engine_maker_message(int32_t index);             // 0x00432ec0's message (mech_salvage.h)
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
@@ -1411,25 +1415,255 @@ void LabScreen::refresh_groups() {
   grouped.select_group(chosen);
 }
 
-// Mech3.exe 1.2 @ 0x004569c0 (the panel), the buttons, 0x0044f040(7) (its rows)
-LabEngineTable::LabEngineTable(Engine& e)
-    : faster(e, 0x13), b2e0(e, 0x14), b438(e, 0x15), b590(e, 0x16) {
-  for (int i = 0; i < 7; ++i) rows.push_back(new LabRow);
+// ---------------------------------------------------------------------------
+// The data tables and ENGINE_TABLE
+
+// Mech3.exe 1.2 @ 0x0044f190
+void LabRow::update(float dt) {
+  ztwod::Object2D::update(dt);
+  value.update(dt);
 }
-// Mech3.exe 1.2 @ 0x0044ef90
-LabEngineTable::Rows::~Rows() {
-  for (LabRow*& r : *this) {
+// Mech3.exe 1.2 @ 0x0044ef50
+void LabRow::set_int(int32_t v, const char* unit) {
+  if (unit) value.set_text("%d %s", v, unit);
+  else value.set_text("%d", v);
+}
+// Mech3.exe 1.2 @ 0x0044ef00
+void LabRow::set_int(const char* label, int32_t v, const char* unit) {
+  set_text(label);
+  set_int(v, unit);
+}
+// Mech3.exe 1.2 @ 0x0044ee80
+void LabRow::set_float(const char* label, float v, const char* unit) {
+  set_text(label);
+  char b[16];
+  std::snprintf(b, sizeof b, "%.1f", static_cast<double>(v));
+  if (unit) value.set_text(" %s", b, unit);
+  else value.set_text("");
+}
+
+// Mech3.exe 1.2 @ 0x0044f530
+LabTable::~LabTable() {
+  for (LabRow*& r : rows) {
     delete r;
     r = nullptr;
   }
 }
-bool LabEngineTable::read_control(zrdr::Node*, ztwod::Dialog*) {
-  call(0x84);
+
+// Mech3.exe 1.2 @ 0x0044f040
+void LabTable::add_rows(int32_t n) {
+  if (static_cast<int32_t>(rows.capacity()) < n) rows.reserve(static_cast<size_t>(n < 0 ? 0 : n));
+  while (static_cast<int32_t>(rows.size()) < n) rows.push_back(new LabRow);
+}
+
+// Mech3.exe 1.2 @ 0x00456c30: each row's label at OFFSET, its value WIDTH to
+// the right, the next SPACING lower.
+void LabTable::set_pos(int32_t px, int32_t py) {
+  ztwod::Control::set_pos(px, py);
+  const int32_t rx = spacing[0] + offset[0] + px;
+  int32_t ry = offset[1] + py;
+  for (LabRow* r : rows) {
+    r->x = rx;
+    r->y = ry;
+    r->value.set_pos(width + rx, ry);
+    ry += spacing[1];
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00456bc0
+void LabTable::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  ztwod::Object2D::update(dt);
+  for (LabRow* r : rows) r->update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00456a60: all flags but hidden cleared; the fonts, the
+// layout's numbers, then the rows' fonts and places.
+bool LabTable::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  ztwod::Control::read_control(node, dialog);
+  flags &= ztwod::kHidden;
+  const char* label = zrdr::get_string(node, "LABEL_FONT");
+  const char* val = zrdr::get_string(node, "VALUE_FONT");
+  const char* alt = zrdr::get_string(node, "ALTERNATE_FONT");
+  zrdr::get_int(node, "WIDTH", &width);
+  zrdr::get_ivec2(node, "SPACING", spacing);
+  zrdr::get_ivec2(node, "OFFSET", offset);
+  zrdr::get_ivec2(node, "POSITION", pos);
+  font_label = ztwod::host().font_find(label);
+  font_value = ztwod::host().font_find(val);
+  font_alt = ztwod::host().font_find(alt);
+  for (LabRow* r : rows) {
+    r->set_font(font_label);
+    r->value.set_font(font_value);
+  }
+  set_pos(pos[0], pos[1]);
   return true;
 }
-void LabEngineTable::after_bind() { call(0x88); }
-void LabEngineTable::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
-void LabEngineTable::hide() { call(0x64); }
+
+// Mech3.exe 1.2 @ 0x004569c0 (the table), the buttons, 0x0044f040(7)
+LabEngineTable::LabEngineTable(Engine& e)
+    : e_(e), faster(e, 0x13), slower(e, 0x14), type_right(e, 0x15), type_left(e, 0x16) {
+  add_rows(7);
+}
+
+// Mech3.exe 1.2 @ 0x0044b830: TOGGLE_RIGHT makes faster and the right type
+// button, TOGGLE_LEFT slower and the left one.
+bool LabEngineTable::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  if (!node || !dialog) return false;
+  const bool r = LabTable::read_control(node, dialog);
+  if (zrdr::Node* n = zrdr::find(node, "TOGGLE_RIGHT")) {
+    faster.read_control(n, dialog);
+    faster.after_bind();
+    type_right.read_control(n, dialog);
+    type_right.after_bind();
+  }
+  if (zrdr::Node* n = zrdr::find(node, "TOGGLE_LEFT")) {
+    slower.read_control(n, dialog);
+    slower.after_bind();
+    type_left.read_control(n, dialog);
+    type_left.after_bind();
+  }
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0044b770
+void LabEngineTable::show_for(float seconds) {
+  ztwod::Control::show_for(seconds);
+  for (LabButton* b : {&faster, &slower, &type_right, &type_left}) b->show_for(-1.0f);
+}
+// Mech3.exe 1.2 @ 0x0044b7e0
+void LabEngineTable::hide() {
+  ztwod::Control::hide();
+  for (LabButton* b : {&faster, &slower, &type_right, &type_left}) b->hide();
+}
+
+// Mech3.exe 1.2 @ 0x0044b4b0: the rating, maker, type, tons and critical
+// slots; the buttons beside the rating's and the type's values. The type's
+// are for the player's own loadouts, faster and slower within the
+// definition's ratings (+0x10 the least, +0x14 the most).
+void LabEngineTable::refresh(Handle cfg) {
+  if (!cfg) return;
+  Engine& e = e_;
+  const int32_t index = e.lab_config_engine(cfg);
+  const uint8_t xl = e.lab_config_byte(cfg, 0x28);
+  // (0x004846e0 asked and dropped)
+  const int32_t rating = engine_rating_of(index);
+  rows[0]->set_text(e.message(0x23f));
+  rows[0]->set_int(rating, nullptr);
+  const char* m = e.message(engine_maker_message(index));  // 0x00432ec0: copied out
+  const std::string maker = m ? m : "";
+  rows[1]->set_text(e.message(0x240));
+  rows[1]->value.set_text("%s", maker.c_str());
+  const std::string type = e.message_format(xl ? 0x241 : 0x2d2, nullptr);  // Extra Light, Standard
+  rows[2]->set_text(e.message(0x242));
+  rows[2]->value.set_text("%s", type.c_str());
+  const std::string tons = e.message_format(0x244, nullptr);
+  const float w = static_cast<float>(engine_weight_of(index, xl));
+  rows[3]->set_float(e.message(0x243), w, tons.c_str());
+  e.message_format(0x245, nullptr);  // "kph", unused
+  const int32_t slots = e.lab_config_engine_slots(cfg);
+  rows[4]->set_int(e.message(0x248), slots, nullptr);
+  const int32_t x = rows[0]->value.get_x(), y = rows[0]->value.get_y();
+  faster.set_pos(x + 50, y + 2);
+  slower.set_pos(x - 10, y + 2);
+  const int32_t y2 = rows[2]->value.get_y();
+  type_right.set_pos(x + 50, y2 + 2);
+  type_left.set_pos(x - 10, y2 + 2);
+  const uint8_t mine = e.lab_config_byte(cfg, 0x1c);
+  type_right.enabled = mine;
+  type_right.refresh();
+  type_left.enabled = mine;
+  type_left.refresh();
+  if (const Handle dfn = e.mech_dfn_handle(e.config_mech(cfg))) {
+    faster.enabled = rating < e.lab_dfn_engine_max(dfn) ? 1 : 0;
+    faster.refresh();
+    slower.enabled = rating > e.lab_dfn_engine_min(dfn) ? 1 : 0;
+    slower.refresh();
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0044dc80 (the shown slot asked once, unchecked)
+bool LabScreen::engine_editable() {
+  Engine& e = engine();
+  const LabState& lab = states().lab;
+  const Handle slot = e.lab_slot(lab.pilot_, lab.slot_);
+  return slot && e.lab_slot_cfg(slot) && !lab.flag_;
+}
+
+// Mech3.exe 1.2 @ 0x0044d4d0, its cases 19..22 (docs/mechlab.md, The
+// engine). Faster: one step up, kept only when the loadout is still within
+// the mech's tons (else "Need to free up %1 tons"); slower: one down. The
+// type: an XL engine needs room in both side torsos (3 slots each, 2 on a
+// Clan mech) and twice that free in all; back to standard it must weigh
+// under the mech's tons (at them is refused). Each change marks the loadout
+// changed, counts its slots and refreshes the page.
+void LabScreen::engine_press(int32_t id) {
+  Engine& e = engine();
+  const LabState& lab = states().lab;
+  auto cfg = [&]() {  // 0x0044e680 twice when there is a slot
+    return e.lab_slot(lab.pilot_, lab.slot_) ? e.lab_slot_cfg(e.lab_slot(lab.pilot_, lab.slot_)) : 0;
+  };
+  auto step = [&](Handle c, int32_t by) {  // 0x00432e70 (up to the table's last), 0x00432e90 (down to 0)
+    if (!c) return;
+    const int32_t v = e.lab_config_engine(c);
+    if (by > 0) e.lab_config_set_engine(c, v < 78 ? v + 1 : 78);
+    else e.lab_config_set_engine(c, v > 0 ? v - 1 : v);
+  };
+  if (!engine_editable()) return;
+  if (id == 19) {
+    step(cfg(), 1);
+    const float w = e.lab_config_weight(cfg());
+    const Handle c = cfg();
+    const float max = max_mass(c ? e.config_mech(c) : 0);
+    step(cfg(), -1);
+    if (!(w <= max || std::isnan(w) || std::isnan(max))) {  // (fcomp's C0 or C3: unordered fits too)
+      char b[32];
+      std::snprintf(b, sizeof b, "%.1f", static_cast<double>(w) - static_cast<double>(max));
+      message.set_text_id(0xdce, b);
+      return;
+    }
+    step(cfg(), 1);
+  } else if (id == 20) {
+    step(cfg(), -1);
+  } else {
+    Handle c = cfg();
+    if (!c) return;
+    bool ok;
+    if (!e.lab_config_byte(c, 0x28)) {
+      c = cfg();
+      const int32_t n = (mech_tech(e.config_mech(c)) != kClan) + 2;
+      if (e.lab_config_part_free(cfg(), 7) < n || e.lab_config_part_free(cfg(), 8) < n) {
+        message.set_text_id(0xdcf, n);
+        return;
+      }
+      ok = e.lab_config_slots_left(cfg()) >= 2 * n;
+      if (!ok) message.set_text_id(0xdd0, 2 * n);
+    } else {
+      const Handle a = cfg();
+      const Handle b = cfg();
+      float w = e.lab_config_weight(a);
+      w = static_cast<float>(static_cast<double>(w) - engine_weight_of(e.lab_config_engine(b), e.lab_config_byte(b, 0x28)));
+      int32_t index = e.lab_config_engine(cfg());
+      index = index > 79 ? 79 : index < 0 ? 0 : index;  // (79: past the table, 0 tons)
+      w = static_cast<float>(engine_weight_of(index, 0) + static_cast<double>(w));
+      const double over = static_cast<double>(w) - static_cast<double>(max_mass(e.config_mech(cfg())));
+      ok = over < 0.0 || std::isnan(over);  // (fcom's C0)
+      if (!ok) {
+        char t[32];
+        std::snprintf(t, sizeof t, "%.1f", over);
+        message.set_text_id(0xdce, t);
+      }
+    }
+    if (!ok) return;
+    const uint8_t xl = e.lab_config_byte(cfg(), 0x28);
+    e.lab_config_set_xl(cfg(), xl ? 0 : 1);
+  }
+  const Handle c = cfg();
+  if (!c) return;
+  e.lab_config_set_modified(c, 1);
+  e.lab_config_recount(c);
+  refresh();
+}
 
 // ---------------------------------------------------------------------------
 // CONFIG_EDIT
@@ -1572,8 +1806,7 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
   const struct {
     LabLater* l;
     uint32_t at;
-  } later[] = {{&loadouts, 0x11508}, {&unassigned, 0x19290},
-               {&engine_table, 0x1a8c8}};
+  } later[] = {{&loadouts, 0x11508}, {&unassigned, 0x19290}};
   for (const auto& x : later) x.l->e = &e, x.l->at = x.at;
   chassis_data = e.construct(0x457600, {});  // new(0x188)
   mech_data = e.construct(0x456cd0, {});     // new(0x5ac)
@@ -1661,7 +1894,7 @@ void LabScreen::bind_later(Handle h, const char* name) {
 // +0x38c) must finish first (0x0044a3a0, step 4) unless it is CONFIG_SAVE
 // (16). 0..6 the pages, 8..11 the lance's slots; the rest are the pages' own.
 void LabScreen::on_button(int32_t id, int32_t a, int32_t b) {
-  (void)a, (void)b;
+  (void)a;
   Engine& e = engine();
   if (id != 0x10 && config_edit.x38c != 0 && !config_edit.finish(false)) return;
   if (id >= 0 && id < 7) {
@@ -1725,9 +1958,12 @@ void LabScreen::on_button(int32_t id, int32_t a, int32_t b) {
     unassigned.set_sort(kSort[id - 27]);
     return;
   }
-  // 18..22 the pages' own (steps 6..8); 17 (CONFIG_EDIT's) and any other id
-  // the exe ignores (its jump table covers 14..32).
-  if (id >= 18 && id <= 22) e.unported("lab.press", {id});
+  if (id == 18) {  // a part button: its part chosen in ASSIGNED_LIST
+    assigned.choose(b);
+    return;
+  }
+  if (id >= 19 && id <= 22) engine_press(id);
+  // 17 (CONFIG_EDIT's) and any other id the exe ignores (its jump table covers 14..32).
 }
 
 // Mech3.exe 1.2 @ 0x0044ce30: ACCEPT takes the shown slot's mech back out of
@@ -1818,7 +2054,7 @@ void LabScreen::refresh(Handle config) {
     assigned.store = cfg;
     assigned.refill();
     if (armor_titles) e.unported("0x00450e00", {armor_titles, cfg});
-    engine_table.call_fn("0x0044b4b0", {cfg});
+    engine_table.refresh(cfg);
     refresh_groups();
   } else {
     if (line) line->set_text_plain(e.message(0x249));

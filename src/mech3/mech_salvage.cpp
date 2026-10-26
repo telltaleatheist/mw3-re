@@ -111,14 +111,21 @@ std::string item_name(const ConfigItem& it, const MessageText& msg) {
   }
 }
 
+// 0x005e2f50's makers (each entry's +0x04, less 0x210).
+const uint8_t kMaker[79] = {
+    0, 1, 2, 0, 6, 3, 1, 1, 4, 3, 5, 6, 0, 1, 3, 4, 4, 6, 7, 4, 1, 1, 1, 8, 9, 7, 5,
+    0, 1, 1, 10, 3, 4, 0, 1, 1, 4, 6, 6, 8, 1, 11, 4, 3, 5, 1, 2, 9, 9, 12, 9, 8, 1, 11,
+    3, 2, 0, 1, 8, 1, 9, 1, 2, 3, 3, 5, 3, 8, 9, 10, 7, 7, 9, 1, 1, 10, 9, 7, 10};
+
+// Mech3.exe 1.2 @ 0x00432ec0's message (the exe reads past the table out of range; 0..78 here)
+int32_t engine_maker_message(int32_t engine) {
+  return 0x210 + kMaker[engine > 78 ? 78 : engine < 0 ? 0 : engine];
+}
+
 // Mech3.exe 1.2 @ 0x00432f00
 std::string engine_name(int32_t engine, uint8_t xl, const MessageText& msg) {
-  static const uint8_t kMaker[79] = {
-      0, 1, 2, 0, 6, 3, 1, 1, 4, 3, 5, 6, 0, 1, 3, 4, 4, 6, 7, 4, 1, 1, 1, 8, 9, 7, 5,
-      0, 1, 1, 10, 3, 4, 0, 1, 1, 4, 6, 6, 8, 1, 11, 4, 3, 5, 1, 2, 9, 9, 12, 9, 8, 1, 11,
-      3, 2, 0, 1, 8, 1, 9, 1, 2, 3, 3, 5, 3, 8, 9, 10, 7, 7, 9, 1, 1, 10, 9, 7, 10};  // 0x005e2f54 - 0x210
   const int32_t index = engine > 78 ? 78 : engine < 0 ? 0 : engine;
-  const char* maker = msg(0x210 + kMaker[index]);
+  const char* maker = msg(engine_maker_message(index));
   char b[512];
   std::snprintf(b, sizeof b, "%s %d%s", maker ? maker : "(null)", engine_rating(Engine{index, xl}), xl ? " XL" : "");
   return b;

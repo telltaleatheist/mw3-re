@@ -706,6 +706,28 @@ std::string GameEngine::lab_engine_name(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c ? engine_name(c->engine, c->xl, [this](int32_t id) { return message(id); }) : std::string();
 }
+int32_t GameEngine::lab_config_engine(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->engine : 0;
+}
+void GameEngine::lab_config_set_engine(Handle config, int32_t index) {
+  if (auto* c = static_cast<Config*>(object_of(config))) c->engine = index;
+}
+void GameEngine::lab_config_set_xl(Handle config, uint8_t v) {
+  if (auto* c = static_cast<Config*>(object_of(config))) c->xl = v;
+}
+int32_t GameEngine::lab_config_engine_slots(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->engine_slots() : 0;
+}
+int32_t GameEngine::lab_dfn_engine_min(Handle dfn) {
+  const auto* d = static_cast<const MechDfn*>(object_of(dfn));
+  return d ? d->get<int32_t>(0x10) : 0;
+}
+int32_t GameEngine::lab_dfn_engine_max(Handle dfn) {
+  const auto* d = static_cast<const MechDfn*>(object_of(dfn));
+  return d ? d->get<int32_t>(0x14) : 0;
+}
 bool GameEngine::lab_config_valid(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && c->validate(false);

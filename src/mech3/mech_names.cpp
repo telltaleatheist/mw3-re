@@ -234,6 +234,10 @@ float engine_weight(const Engine& e) { return static_cast<float>(engine_weight_x
 // Mech3.exe 1.2 @ 0x00432fa0. FIX (A) as above: 0 past the table.
 int32_t engine_rating(const Engine& e) { return e.index >= 0 && e.index < 79 ? 10 + 5 * e.index : 0; }
 
+// For lab_screen.cpp, where the app's Engine hides this one.
+double engine_weight_of(int32_t index, uint8_t xl) { return engine_weight_x87(Engine{index, xl}); }
+int32_t engine_rating_of(int32_t index) { return engine_rating(Engine{index, 0}); }
+
 void set_weapon_lab(WeaponLabFn fn) { g_weapon_lab = fn; }
 
 // Mech3.exe 1.2 @ 0x00484b70
