@@ -810,6 +810,25 @@ HudRadar::HudRadar(float fov) : FilledBox(0, 0, 0, 0, nullptr), lines{clip_line(
   xbd8 = xbd4 = 0;
 }
 
+// Mech3.exe 1.2 @ 0x0043d920 (from the mission start, 0x00491696): the
+// polylines' point lists from the mission boundary's regions, the inner one
+// yellow, the outer red (hud.md section 15).
+void HudRadar::reset_boundary() {
+  HudHooks& h = *g_hooks;
+  xbd8 = xbd4 = 0;
+  xdb8 = xdb4 = 0;
+  xdb4 = h.radar_boundary(0);
+  xdb8 = h.radar_boundary(1);
+  if (xdb4) {
+    xbd4 = h.radar_point_count(xdb4);
+    polys[0].color = zvid::pack_bytes(0xc3, 0xad, 3) & 0xffff;
+  }
+  if (xdb8) {
+    xbd8 = h.radar_point_count(xdb8);
+    polys[1].color = zvid::pack_bytes(0xff, 0, 0) & 0xffff;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x0043dc00
 void HudRadar::hide() {
   to_r = 0;

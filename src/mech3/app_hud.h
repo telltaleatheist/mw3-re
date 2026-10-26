@@ -67,6 +67,10 @@ struct HudReport {
   // target) since the last report; the MFD camera's place (0x00442900) from
   // its mech: across the ground, above its place, and along its front.
   int node_draws = 0, target_shown = 0;
+  // The radar's boundary lines (0x0043d920): each outline's corners, its
+  // colour, the points its polyline holds now and whether it shows.
+  int boundary_points[2] = {}, boundary_drawn[2] = {}, boundary_shown[2] = {};
+  uint32_t boundary_color[2] = {};
   float mfd_cam_dist = 0, mfd_cam_height = 0, mfd_cam_front = 0;
   // The zoom window (6c2): shown, round, its mask fans since the last report,
   // its camera's place against the player camera's, its text.

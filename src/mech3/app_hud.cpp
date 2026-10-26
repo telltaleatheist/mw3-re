@@ -43,6 +43,8 @@
 #include "mech3/mech.h"
 #include "mech3/mech_command.h"
 #include "mech3/mech_control.h"
+#include "mech3/zai_params.h"
+#include "mech3/zainet_region.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
 #include "mech3/mech_names.h"
@@ -210,6 +212,40 @@ struct ProgramHudHooks : HudHooks {
     if (world) zcls::world_set_fog_type(world, 1);
   }
   int node_draws = 0;  // for the reports
+  // The radar's boundary lines (0x0043d920): the regions by handle (a pointer
+  // does not fit the hooks' 32 bits).
+  std::vector<ai::Region*> regions_kept;
+  ai::Region* region(uint32_t h) const {
+    const uint32_t i = h - 0x7d000001u;
+    return i < regions_kept.size() ? regions_kept[i] : nullptr;
+  }
+  // 0x004d92f0 / 0x004d9360 on the player's settings (PlayerControls'
+  // AiParams, the controls' vt+0x90 +0xd0): its vlist's last region whose name
+  // starts reg_inside_ (11 characters) or reg_outside_ (12).
+  uint32_t radar_boundary(int32_t outside) override {
+    auto* m = static_cast<Mech*>(mech_mission_player());
+    auto* c = m ? dynamic_cast<PlayerControls*>(m->controls) : nullptr;
+    if (!c || !c->settings.vlist) return 0;
+    ai::Region* found = nullptr;
+    for (const ai::VListEntry& e : *c->settings.vlist)
+      if (e.region && e.region->name() &&
+          std::strncmp(e.region->name(), outside ? "reg_outside_" : "reg_inside_", outside ? 12 : 11) == 0)
+        found = e.region;
+    if (!found) return 0;
+    for (size_t i = 0; i < regions_kept.size(); ++i)
+      if (regions_kept[i] == found) return 0x7d000001u + static_cast<uint32_t>(i);
+    regions_kept.push_back(found);
+    return 0x7d000000u + static_cast<uint32_t>(regions_kept.size());
+  }
+  uint32_t radar_point_count(uint32_t list) override {  // the net's vt+0x10
+    const ai::Region* r = region(list);
+    return r ? static_cast<uint32_t>(r->elems.size()) : 0;
+  }
+  void radar_point(uint32_t list, int32_t i, float out[3]) override {  // vt+0x0c(i), its vt+0x18: the edge's start
+    const ai::Region* r = region(list);
+    const ai::RegionEdge* e = r && i >= 0 && static_cast<size_t>(i) < r->elems.size() ? r->edge(i) : nullptr;
+    for (int k = 0; k < 3; ++k) out[k] = e ? e->point[k] : 0.0f;
+  }
   void dirty_rect(const ztwod::Rect* r) override {  // 0x00576ce0: the depth there cleared
     if (!r) return;
     const int32_t q[4] = {r->left, r->top, r->right, r->bottom};
@@ -840,6 +876,13 @@ bool program_hud_report(HudReport* r) {
   g_hooks.view_draws = g_hooks.view_depth_fills = 0;
   r->mfd_shown = h->mfd.shown_mode();
   r->target_shown = h->target.shown_mode();
+  const uint32_t corners[2] = {h->radar.xbd4, h->radar.xbd8};
+  for (int i = 0; i < 2; ++i) {
+    r->boundary_points[i] = static_cast<int>(corners[i]);
+    r->boundary_drawn[i] = h->radar.polys[i].count;
+    r->boundary_shown[i] = !(h->radar.polys[i].flags & ztwod::kHidden);
+    r->boundary_color[i] = h->radar.polys[i].color;
+  }
   r->node_draws = g_hooks.node_draws;
   g_hooks.node_draws = 0;
   if (zcls::Node* cn = h->mfd.view ? g_hooks.node(h->mfd.view->view.camera) : nullptr) {

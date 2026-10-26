@@ -1597,3 +1597,6 @@ address,name,source,notes
 0x0048fad0,Missions::FailIfDone,decomp,"+0x88 when it is done, else 0"
 0x005c04f8,vtable HudMfdView::ZView,objdump,"the MFD view's zView: +0x04 0x00442900 (the plain zView 0x005c9118 has 0x004b52c0)"
 0x004428b0,HudZView::DrawNodeAlone,objdump,"(node): the view's panel vt+0x24(0), the world's fog off (0x4f23e0 on [0x608c84]+4), 0x4f73f0 through its camera, fog type 1"
+0x0043d920,HudRadar::ResetBoundary,objdump,"the polylines' lists: the player's settings' reg_inside_ (yellow c3ad03) and reg_outside_ (red) regions, their corner counts"
+0x004d92f0,AiParams::InsideRegion,decomp,"(out): the vlist's last region whose vt+0x1c name starts reg_inside_ (11)"
+0x004d9360,AiParams::OutsideRegion,decomp,"(out): the vlist's last region whose name starts reg_outside_ (12)"

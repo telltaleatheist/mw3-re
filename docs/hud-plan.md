@@ -113,8 +113,9 @@ not the HUD's.
 8. **The radar's map mode**: the map object's draw under the contacts
    (0x43dc10, hud.md sections 15 and 19). Shows: Shift+R swaps the radar
    for the mission map with the contacts over it.
-9. **The radar's polylines** (needs zTwoD's PolyLine first, twod.md Left;
-   that may be its own sitting). Shows: the nav route's lines on the radar.
+9. (Done 2026-10-25) **The radar's polylines**: the mission boundary's
+   two outlines, yellow and red (0x43d920; hud.md section 15, playtest
+   #30). Shows: the boundary lines on the radar.
 
 Item 6 and items 7-9 are independent of each other.
 
