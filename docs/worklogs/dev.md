@@ -642,3 +642,22 @@ with nothing left to take off.
   ARMOR_REMOVE (moved, texts cut past 6). lab_screen 80/80 identical (43 seeds with rounds lines, 42 with plain weapon or equipment lines; the armour panel shown and hidden, moved, DISTRIBUTE on and off). Breaks 31 of 31 caught (12 on the loadout list, 19 on the armour panel; armour kinds in a loadout were added to catch the last).
 - State: done on mac4/lab-8b2, sent to the lead.
 
+
+## Lab 8b3 (2026-10-26): ARMOR_TITLES' presses
+
+Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at both ends
+(front at 0, rear at its cap) and a REMOVE press with nothing to take off.
+
+- Ported: the section step 0x4509b0 (down a point, none below 0; up under the most with
+  points left, else one from the torso's other side; at the most with that side empty a
+  return, no redraw), REMOVE 0x450cc0 (the click, then the mech's armour probe, half a ton
+  to the store and off the loadout, the spread when over) and DISTRIBUTE 0x450c70.
+  New hooks: lab_config_set_section, lab_config_spread_armor (Config::spread_armor),
+  lab_config_remove, lab_store_add_equipment; GameEngine's on Config and Store.
+- No changes from the original (no FIX).
+- Test: stubs for the spread (0x4247a0), the store's add (0x471a20) and the loadout's
+  remove (0x471de0, through a vtable the loadouts now have), none changing anything; half
+  the loadouts (70%) carry their armour as an item; the armour session runs first and
+  sets sections (A, the most from the front toggle's text), steps toggles (I) and presses
+  REMOVE/DISTRIBUTE (F), the lead's ends first, and sets a section so none are left (A 3). lab_screen 80/80 identical. Breaks 28 of 28 caught (13 on REMOVE, 3 on DISTRIBUTE, 12 on the step; a section set so none are left (A mode 3) was added to catch the last two)..
+- State: done on mac4/lab-8b3, sent to the lead. Related set: lab_list, salvage, mechsave, salvage_screen, field_cut, mw3tests 202, mw3sdltests 12 pass.

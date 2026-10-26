@@ -739,6 +739,19 @@ int32_t GameEngine::lab_config_section(Handle config, int32_t part) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && part >= 0 && part < 11 ? c->armor[part] : 0;
 }
+void GameEngine::lab_config_set_section(Handle config, int32_t part, int32_t v) {
+  if (auto* c = static_cast<Config*>(object_of(config)); c && part >= 0 && part < 11) c->armor[part] = v;
+}
+void GameEngine::lab_config_spread_armor(Handle config) {
+  if (auto* c = static_cast<Config*>(object_of(config))) c->spread_armor(c->mech);
+}
+void GameEngine::lab_config_remove(Handle config, Handle item, int32_t n) {
+  auto* c = static_cast<Config*>(object_of(config));
+  if (c) c->remove(const_cast<ConfigItem*>(item_of(item)), n);
+}
+void GameEngine::lab_store_add_equipment(Handle store, int32_t kind, int32_t tech, int32_t n) {
+  if (Store* s = store_of(store)) s->add_equipment(kind, tech, n);
+}
 int32_t GameEngine::lab_config_sinks(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c ? c->sinks : 0;

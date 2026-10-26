@@ -2884,6 +2884,20 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   as one line ("10 Heat Sink" or "Double Heat Sink", the count as the
   loadout keeps it); then the equipment. Armour is not listed there; it has
   its own panel on the armour tab. (docs/mechlab.md, LOADOUT_LIST)
+- **The mech lab's armour arrows can move armour between front and back.**
+  On the armour tab, each torso's front and rear share one limit (twice
+  the section's internal structure; the head alone takes up to 9). The up
+  arrow adds a point from those not yet placed while the pair is under
+  that limit. With the pair at the limit, or no points left to place,
+  it takes a point from the other side of the same torso instead. So with
+  every point placed you can still shift a torso's armour from back to
+  front, one click at a time. At the limit with the other side already
+  empty, the click does nothing. The arrows never take a section below 0.
+  "Remove" takes half a ton of armour off and returns it to your stock. If
+  more points are then placed than the remaining tons give, all the
+  sections are spread anew by their shares, which loses a hand-made
+  layout. With no armour on the loadout, "Remove" only clicks.
+  (docs/mechlab.md, The armour panel)
 - **The salvage screen moves things with one click, in set amounts.** A
   click on a row moves it straight across; nothing is selected first. From
   the mission's salvage into your stockpile: a mech takes one of your bays

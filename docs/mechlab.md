@@ -768,7 +768,15 @@ three kinds of control, each bound from the dialog by name by its read
 
 - **ARMOR_REMOVE** (+0x14c, a push button, vtable 0x005c1080): its second
   text in each state is "<tons> tons" (0x00450bd0: "%.1f", 0xf38; taken
-  unchecked). Its press (0x00450cc0) is step 8b3's.
+  unchecked). Its press (0x00450cc0; enabled only) clicks, then looks
+  for the mech's armour on the loadout (an equipment probe of kind 2 for
+  ferro-fibrous, else 1, at the armour's tech +0x30; the first like it,
+  0x004714c0). With none there the click is all. Else half a ton goes
+  back to the store (its vt+0x0c with 1) and off the loadout (its vt+0x14
+  with 1, which sets the tons, 0.5 an item), the sections are spread anew
+  (0x004247a0) when more points are on them than the tons now give, and
+  the loadout is marked changed (+0x1f), recounted (0x00425bd0) and the
+  page redrawn (0x0044cf50).
 - **ARMOR_TOGGLE** x 11 (+0x2a4, 0x42c each, 0x0044fab0, CycleButtons,
   vtable 0x005c1968): toggle k is section k (+0x424) with its most's text
   (+0x428). All eleven read the same dialog entry (0x00450840) and are then
@@ -780,10 +788,19 @@ three kinds of control, each bound from the dialog by name by its read
   ([0x00605aac..0x00605ab8], guard bits [0x00605ab4]), so a panel read
   later at another place keeps the first one's toggles. Each toggle's one
   choice is its section's points (0x00450880, "%d"), its text twice the
-  internal structure (the head 9). The step (0x004509b0) is step 8b3's;
-  the first choice added steps it from none, which does nothing more.
+  internal structure (the head 9). The step (0x004509b0) runs the
+  CycleButton's first; from no choice (the first one added) nothing more.
+  Down takes a point off (none below 0, 0x00426560). Up, with the most
+  (0x004264e0: twice the structure, the head 9) and the other side of a
+  torso (front 0, 1, 2 with rear 3, 4, 5; none for the rest): at the most
+  with nothing on the other side it stops there, no redraw; under the most
+  with points left, a point on; else (at or over the most, or none left)
+  one moved over from the other side when it has some, or nothing. Every
+  case but the stop marks the loadout changed, recounts and redraws.
 - **ARMOR_DISTRIBUTE** (+0x3088, 0x0044fad0, vtable 0x005c1a10): enabled
-  while points are left unassigned. Its press (0x00450c70) is step 8b3's.
+  while points are left unassigned. Its press (0x00450c70; not checked
+  for enabled, as the exe) spreads the sections anew (0x004247a0), marks
+  the loadout changed, recounts and redraws.
 
 Its refresh (0x00450e00, with a loadout): REMOVE's tons, its texts 4 (the
 points the tons give, 0x00424760) and 6 (those on no section), both
@@ -796,8 +813,8 @@ REMOVE on only while the lab may change things ([0x00605a84] clear);
 hiding it (0x00451050) hides all three kinds.
 
 Ported: `LabLoadoutList`, `LabArmorTitles`, `LabArmorRemove`,
-`LabArmorToggle`, `LabArmorDistribute` (the presses still the
-original's), `LabState`'s armour places. `zutl::format_message_v` reads a
+`LabArmorToggle`, `LabArmorDistribute` (the presses in step 8b3, below),
+`LabState`'s armour places. `zutl::format_message_v` reads a
 width in a message's type ("%1!2d!", 0x1c5's; it took the number as a
 string before), and `format_message_f` formats one directly. Tests:
 test_lab_screen.py runs the exe's LOADOUT_LIST and ARMOR_TITLES (their
@@ -805,6 +822,19 @@ fakes and stubs gone; the loadouts given heat sinks and section points,
 some bare, and weapons with and without ammunition; an armour session
 shows the panel on other slots; the synthetic dialogs move the panel and
 cut its texts past 6): lab_screen 80/80 identical (43 seeds with rounds lines, 42 with plain weapon or equipment lines; the armour panel shown and hidden, moved, DISTRIBUTE on and off). Breaks 31 of 31 caught (12 on the loadout list, 19 on the armour panel; armour kinds in a loadout were added to catch the last).
+
+Step 8b3 ported the three presses (above) through new hooks: a section
+set (`lab_config_set_section`), the spread (`lab_config_spread_armor`,
+`Config::spread_armor`), the loadout's remove (`lab_config_remove`) and
+the store's equipment add (`lab_store_add_equipment`). The test stubs
+the spread, the remove and the store's add (each recorded, none changing
+anything, so the tons stay as they were), gives the loadouts a vtable for
+the remove and half of them their armour as an item, and its armour
+session sets sections (plan op A: to 0, to the most, or so none are left; the most read from the front toggle's
+text) and steps toggles (I) and presses REMOVE and DISTRIBUTE (F). It
+covers both ends the lead asked for: a front at 0 stepped down, a rear
+and a front at the most with the other side empty and with some, and
+REMOVE with no armour on the loadout. lab_screen 80/80 identical. Breaks 28 of 28 caught (13 on REMOVE, 3 on DISTRIBUTE, 12 on the step; a section set so none are left (A mode 3) was added to catch the last two).
 
 ## 3. What the rest of the game needs from it
 
@@ -842,7 +872,7 @@ its list empty.
 Step 2 (`mech3/lab_screen.{h,cpp}`, `test_lab_screen.py`): the screen's
 making, destructor, page and slot switches and the press's shell (above).
 
-Not ported: ARMOR_TITLES' three presses (step 8b3); the second saved-loadout
+Not ported: the second saved-loadout
 loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
 0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
 
@@ -879,7 +909,8 @@ One sitting each; each with its differential test and break tests.
    the dialog's armour type and mass toggles are never read), 8b2
    LOADOUT_LIST and ARMOR_TITLES' making, reading, showing and refresh
    (done, above), 8b3 ARMOR_TITLES' presses: REMOVE (0x00450cc0),
-   DISTRIBUTE (0x00450c70) and the section step (0x004509b0).
+   DISTRIBUTE (0x00450c70) and the section step (0x004509b0) (done,
+   above).
 9. **The 3D view**: the lab world and camera (0x0044ffc0, 0x00450390,
    0x00450690), CURRENT_CHASSIS's model, picking a part (0x004507c0..);
    with the render port's pieces it needs.

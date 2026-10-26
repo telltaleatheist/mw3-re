@@ -23,6 +23,10 @@
 #include <map>
 #include "probe_twod.h"
 
+namespace mech3 {
+int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760 (mech_names.h)
+}
+
 namespace {
 using namespace probe_twod;
 using mech3::Arg;
@@ -355,6 +359,47 @@ void dump_armor(mech3::LabScreen& s, Dump& d) {
   }
 }
 
+// test_lab_screen.py's armor_op: a section set, a toggle stepped, REMOVE or DISTRIBUTE pressed.
+void armor_op(mech3::LabScreen& s, char op, uint32_t a, uint32_t b) {
+  mech3::LabArmorTitles& t = *s.armor_titles;
+  if (op == 'I') {
+    if (a < 11) t.toggles[a].step(static_cast<int32_t>(b));
+    return;
+  }
+  if (op == 'F') {
+    if (a == 0) t.remove.on_left_up();
+    else t.distribute.on_left_up();
+    return;
+  }
+  const mech3::LabState& lab = mech3::states().lab;
+  const uint32_t co = call("peek32", {g_slots[static_cast<size_t>(lab.slot_)] + 8});
+  const int32_t k = static_cast<int32_t>(a);
+  if (!co || k < 0 || k > 10) return;
+  const int32_t front = k >= 3 && k <= 5 ? k - 3 : k;
+  const ztwod::Text* most = t.toggles[front].most;
+  const std::string text = most ? most->text : "";
+  if (text.empty() || text.find_first_not_of("-0123456789") != std::string::npos) return;
+  const int32_t cap = std::stoi(text);
+  const int32_t other = k < 6 ? (k + 3) % 6 : -1;
+  auto sec = [&](int32_t j) { return static_cast<int32_t>(call("peek32", {co + 0x38 + 4 * static_cast<uint32_t>(j)})); };
+  auto set = [&](int32_t j, int32_t v) { call("poke32", {co + 0x38 + 4 * static_cast<uint32_t>(j), static_cast<uint32_t>(v)}); };
+  if (b == 3) {  // none left
+    const float tons = zgame::from_bits(call("peek32", {co + 0x2c}));
+    const bool ferro = (call("peek8", {co + 0x34}) & 0xff) != 0;
+    const int32_t pts = mech3::armor_points(static_cast<int32_t>(call("peek32", {co + 0x30})), ferro, tons);
+    int32_t on = 0;
+    for (int32_t j = 0; j < 11; ++j) on += sec(j);
+    set(k, std::max(0, pts - (on - sec(k))));
+  } else if (b == 0) {
+    set(k, 0);
+  } else if (b == 1) {
+    set(k, std::max(0, cap - (other >= 0 ? sec(other) : 0)));
+  } else {
+    set(k, cap);
+    if (other >= 0) set(other, 0);
+  }
+}
+
 // MECH_DATA and CHASSIS_DATA (step 8b1), as test_lab_screen.py's dump_data.
 void dump_table(std::ostringstream& o, const char* tag, const mech3::LabTable& t) {
   o << tag << " at=" << t.x << ',' << t.y << std::hex << " flags=" << t.flags << " fonts=" << t.font_label << ','
@@ -591,6 +636,10 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       const int32_t by = static_cast<int32_t>(hex(ls));
       const int32_t sh = mech3::states().lab.slot_;
       if (sh >= 0 && sh < static_cast<int32_t>(g_slots.size())) s->mech_data->endo.step(by);
+    } else if (op == "A" || op == "I" || op == "F") {  // ARMOR_TITLES (step 8b3), with a slot shown (as D)
+      const uint32_t a = hex(ls), b = hex(ls);
+      const int32_t sh = mech3::states().lab.slot_;
+      if (sh >= 0 && sh < static_cast<int32_t>(g_slots.size())) armor_op(*s, op[0], a, b);
     } else if (op == "O") {  // WEAPONS_GROUPED's chosen row set
       s->grouped.selected = static_cast<int32_t>(hex(ls));
     } else if (op == "H") {  // a weapon list's row pressed (+0x98)
