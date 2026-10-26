@@ -525,6 +525,13 @@ From the weapon code (weapons.md).
 - **A laser only fires from a full charge.** A click while its bar is still
   filling fires nothing and is not remembered (0x4b3fc0): click again once
   the bar is full. Holding the button instead fires the moment it is.
+- **Operation 2, Mission 2 has no mission boundary.** Every other campaign
+  mission draws its boundary on the radar (a yellow inner line, a red outer
+  one) and fails you for leaving it. In 2-2 the triggers that should watch
+  the boundary name no area, so they never fire: the radar shows no lines
+  and walking off never fails the mission (whatever the ground itself lets
+  you reach). (docs/hud.md, section 15)
+
 - **A quick click's laser beam hangs back.** A short laser fires on for a
   moment after you let go of the button, until its charge is spent, but only
   follows the arm while the button is held: after a quick click on a walking

@@ -55,6 +55,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
+#include "mech3/mission_map.h"
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
@@ -182,6 +183,11 @@ void reset_process_state() {
   // test's init makes anew. The campaign test's survive it otherwise, and E
   // (a callback command) then does nothing in the tests after it.
   mech3::player_controls_instance() = nullptr;
+  // The mission maps' list and read flag ([0x00605acc], [0x00605ad8]): the
+  // exit's 0x004584e0 empties the list but keeps the flag, so a second start
+  // in one process would read nothing; a new process has neither.
+  mech3::maps_free();
+  mech3::mission_maps() = mech3::MissionMaps{};
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -1373,6 +1379,93 @@ TEST(mission_c1m1_radar_shows_the_boundary_headless) {
         std::printf("  survey %s m%d: inside %d, outside %d corners\n", mech3::mission_dir(index), number,
                     s.boundary_points[0], s.boundary_points[1]);
       }
+}
+
+// HUD plan items 7-8, the mission maps: maps.zrd read at the start
+// (0x004583b0); the mission's map picked as the briefing does (0x004582a0 on
+// its MAP, c1m1's "c1m1"), its image loaded from images\maps and the mech's
+// place a pixel on it (0x004586e0); Shift+R (0x0043dc10) puts the radar over
+// it (the small map for the small radar, 0x0043da00) and again takes it off.
+TEST(mission_c1m1_maps_and_the_radar_map_mode_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_maps_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::HudReport start, on, off;
+  size_t maps = 0;
+  struct MapHost : ztwod::Host {  // the maps' images (the SDL host's library reads; here 640 x 640 stand-ins)
+    zimg::Texture tex[64] = {};
+    int n = 0;
+    std::string path;
+    void image_path(const char* p) override { path = p ? p : ""; }
+    zimg::Texture* image_get(const char* name) override {
+      if (!name || path.find("maps") == std::string::npos || n >= 64) return nullptr;
+      bool is_map = false;  // only the maps' bitmaps (the briefing's MAP image is one)
+      for (const mech3::MissionMap* m : mech3::mission_maps().list) is_map |= m->bitmap && std::strcmp(m->bitmap, name) == 0;
+      if (!is_map) return nullptr;
+      static std::vector<uint16_t> px(640 * 640);
+      tex[n].width = tex[n].height = tex[n].width_again = 640, tex[n].pixel_count = 640 * 640;
+      tex[n].pixels = px.data();
+      return &tex[n++];
+    }
+    zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
+  } host;
+  ztwod::set_host(&host);
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    maps = mech3::mission_maps().list.size();
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 5) mech3::program_hud_report(&start);
+      if (frames == 6) mech3::program_hud_map_toggle();  // Shift+R
+      if (frames == 12) mech3::program_hud_report(&on);
+      if (frames == 13) mech3::program_hud_map_toggle();
+      if (frames == 20) mech3::program_hud_report(&off);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 20; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  %zu maps read; at the start %s (%dx%d), the mech at (%d, %d); Shift+R: map mode %d on %s, then %d\n",
+              maps, start.map_name, start.map_w, start.map_h, start.map_px[0], start.map_px[1], on.radar_map,
+              on.map_name, off.radar_map);
+  ztwod::set_host(nullptr);
+  EXPECT(maps >= 40);  // two a mission (the large and the _small)
+  EXPECT(std::string(start.map_name) == "c1m1" && start.map_w > 0 && start.map_h > 0);
+  EXPECT(start.map_px[0] >= 0 && start.map_px[1] >= 0);  // the start lies on it
+  EXPECT(!start.radar_map && on.radar_map && std::string(on.map_name) == "c1m1_small" && !off.radar_map);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 // Playtest #29, the MFD's 3D view (mode 1) and TARGET's (hud-plan 6c3): the

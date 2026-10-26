@@ -12,6 +12,7 @@
 #include <map>
 
 #include "gamez/zclass/camera.h"
+#include "gamez/zimage/zimg_library.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
@@ -54,6 +55,7 @@
 #include "gamez/zmodel/gmod_screen.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_parts.h"
+#include "mech3/mission_map.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
 #include "mech3/weapon.h"
@@ -428,7 +430,20 @@ struct ProgramHudHooks : HudHooks {
     v[0] = d.x, v[1] = d.y, v[2] = d.z;
     return len;
   }
-  void* radar_map() override { return nullptr; }
+  // The mission's map (mission_map.h): 0x00491c80, the find 0x00458590 and
+  // [0x0060998c] by the engine's handles; its rect (+0xd8), scale (+0xd4),
+  // a world point on it (0x004586e0) and its draw (+0x24).
+  void* radar_map() override { return mission_map(); }
+  uint32_t map_find(const char* name) override { return mission_map_find(name); }
+  void set_radar_map(uint32_t m) override { mission_map_set(m); }
+  const ztwod::Rect* map_rect(void* map) override { return map ? static_cast<MissionMap*>(map)->rect : nullptr; }
+  float map_scale(void* map) override { return map ? static_cast<MissionMap*>(map)->inv_mpp : 0.0f; }
+  bool map_point(void* map, const float p[3], int32_t out[2]) override {
+    return map && static_cast<MissionMap*>(map)->point(p, out);
+  }
+  void map_update(void* map, float dt) override {
+    if (map) static_cast<MissionMap*>(map)->update(dt);
+  }
   float mech_sensor_range(Mech* m) override { return m->sensor_range; }
   uint8_t mech_bc(Mech* m) override { return m->xbc; }
   void mech_orientation(Mech* m, float q[4]) override { std::memcpy(q, m->orientation, sizeof m->orientation); }
@@ -876,6 +891,12 @@ bool program_hud_report(HudReport* r) {
   g_hooks.view_draws = g_hooks.view_depth_fills = 0;
   r->mfd_shown = h->mfd.shown_mode();
   r->target_shown = h->target.shown_mode();
+  if (auto* mm = static_cast<MissionMap*>(mission_map())) {
+    std::snprintf(r->map_name, sizeof r->map_name, "%s", mm->name ? mm->name : "");
+    r->map_w = mm->image ? mm->image->width : 0, r->map_h = mm->image ? mm->image->height : 0;
+    float p[3];
+    if (h->mech && mech_world_position(h->mech, p) && !mm->point(p, r->map_px)) r->map_px[0] = r->map_px[1] = -1;
+  }
   const uint32_t corners[2] = {h->radar.xbd4, h->radar.xbd8};
   for (int i = 0; i < 2; ++i) {
     r->boundary_points[i] = static_cast<int>(corners[i]);
@@ -1045,6 +1066,10 @@ bool program_hud_objectives(HudObjectivesReport* r) {
   r->panel_height = o.panel.rect.bottom - o.panel.rect.top;
   r->line_height = o.text_height();
   return true;
+}
+void program_hud_map_toggle() {
+  Mech* t = static_cast<Mech*>(program_view_target());
+  if (Hud* h = t && t->pilot ? pilot_hud(*t->pilot) : nullptr) h->radar.toggle_map();
 }
 void program_hud_objectives_toggle() {
   Mech* t = static_cast<Mech*>(program_view_target());

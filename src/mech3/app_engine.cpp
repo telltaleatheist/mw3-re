@@ -1,6 +1,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+#include "mech3/mission_map.h"
 #include "mech3/app.h"
 #include "mech3/message_panel.h"
 
@@ -611,6 +612,8 @@ void GameEngine::sound_free_playing(Handle l) {
   }
 }
 void GameEngine::mission_abort() { missions().abort_now(); }
+void GameEngine::maps_init(const char* name) { maps_read(name); }
+void GameEngine::mech_data_shutdown() { maps_free(); }
 void GameEngine::set_reopen_training(uint8_t v) { app().set_reopen_training(v); }
 // 0x0048ef00 on the missions object's +0xd0 (the pause screen's QUIT in
 // Instant Action): the debriefing's Win State after the fade.

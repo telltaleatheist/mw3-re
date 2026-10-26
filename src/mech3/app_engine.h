@@ -411,6 +411,9 @@ class GameEngine : public Engine {
   void sound_restore_playing(Handle l) override;
   void sound_free_playing(Handle l) override;
   void mission_abort() override;
+  void maps_init(const char* name) override;  // 0x004583b0: mech3::maps_read
+  void briefing_pick_map(const char* name);   // 0x00405160's 0x004582a0 -> 0x0040a0e0
+  void mech_data_shutdown() override;         // 0x004584e0: mech3::maps_free
   void set_reopen_training(uint8_t v) override;
   // The mission's quit box (0x0048dfe0, quit_box.h): one, the Core state's.
   Handle message_box_new(const char* file, const char* name) override;

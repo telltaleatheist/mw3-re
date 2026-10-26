@@ -71,6 +71,10 @@ struct HudReport {
   // colour, the points its polyline holds now and whether it shows.
   int boundary_points[2] = {}, boundary_drawn[2] = {}, boundary_shown[2] = {};
   uint32_t boundary_color[2] = {};
+  // The mission's map (hud-plan items 7-8): the one the radar shows, its
+  // image's size and the mech's pixel on it (0x004586e0; -1 off it).
+  char map_name[32] = {};
+  int map_w = 0, map_h = 0, map_px[2] = {-1, -1};
   float mfd_cam_dist = 0, mfd_cam_height = 0, mfd_cam_front = 0;
   // The zoom window (6c2): shown, round, its mask fans since the last report,
   // its camera's place against the player camera's, its text.
@@ -89,6 +93,8 @@ struct HudObjectivesReport {
 bool program_hud_objectives(HudObjectivesReport* r);
 // For checking: F12 on the view target's HUD (0x0041be80's case 0x43).
 void program_hud_objectives_toggle();
+// Tests only: Shift+R on it (0xa5, 0x0043dc10).
+void program_hud_map_toggle();
 // Tests only: the view target's HUD's zoom window locked open (keypad 0, 0x00442e00).
 void program_hud_zoom_show();
 // Tests only: the view target's HUD's MFD set to mode `m` (vt+0x7c).

@@ -68,6 +68,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
+#include "mech3/mission_map.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
@@ -1386,6 +1387,11 @@ struct WiredMissionHooks : MissionHooks {
   void view_fn_40adf0(Handle) override { program_view_detach(); }
   void fn_4b4ae0() override { radar_objects_destroy(); }
   void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
+  // 0x004582c0 on the mission's map (+0xbc): every map's image released; 0.
+  Handle fn_4582c0(Handle) override {
+    maps_unload();
+    return 0;
+  }
   void fn_4d71f0() override { engine_sounds_clear(); }  // 0x004d71f0 -> 0x004add10
   // 0x00459e80: the field bases' registry and the dock's states for the
   // mission (vehicles.md, The repair dock).
@@ -1964,6 +1970,22 @@ ObjectiveHooks& mission_objective_hooks() { return g_objective_hooks; }
 void* mission_sun() { return missions().world.sun ? missions().world.sun->node : nullptr; }
 int mission_game_type() { return g_mission_engine ? g_mission_engine->launch().type : 0; }
 uint8_t mission_aborting() { return missions().aborting; }
+// Mech3.exe 1.2 @ 0x00491c80
+void* mission_map() {
+  if (!g_mission_engine) return nullptr;
+  Missions& m = missions();
+  if (!m.xbc) {
+    if (!m.xb8) m.xb8 = g_mission_engine->handle_of(new MissionMap(nullptr));
+    m.xbc = m.xb8;
+  }
+  return g_mission_engine->object_of(m.xbc);
+}
+uint32_t mission_map_find(const char* name) {
+  MissionMap* m = maps_find(name);
+  return m && g_mission_engine ? g_mission_engine->handle_of(m) : 0;
+}
+void mission_map_set(uint32_t map) { missions().xbc = map; }  // [0x0060998c]
+void* mission_map_of(uint32_t map) { return g_mission_engine ? g_mission_engine->object_of(map) : nullptr; }
 // The campaign's vt+0x48 and vt+0x4c (0x00437870, 0x00437880), else the launch's.
 int32_t mission_operation() {
   if (!g_mission_engine) return 0;
@@ -2069,6 +2091,15 @@ void GameEngine::missions_start(uint32_t list) {
     zcls::camera_set_position(cam, launch_.eye[0], launch_.eye[1], launch_.eye[2]);
   }
   if (launch_.active && launch_.auto_launch && !m.failed) {
+    // The briefing's MAP pick (0x00405160 -> 0x004582a0), which a debug start
+    // has none of (our addition): the campaign briefings' MAP is the
+    // mission's name, c1m1 and so on.
+    if (!m.xbc) {
+      char map[32];
+      std::snprintf(map, sizeof map, "%sm%d", mission_dir(launch_.index), launch_.number);
+      ztwod::host().image_path("..\\data\\common\\images\\maps");
+      briefing_pick_map(map);
+    }
     // The briefing's Launch (0x0040500a): the player's mech (0x00491150).
     LaunchedMech s;
     if (!launch_player() || !launched_mech(&s)) {

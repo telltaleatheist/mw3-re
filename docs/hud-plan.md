@@ -107,10 +107,10 @@ not the HUD's.
    target drawn alone, its vt+0x68 around it; hud.md section 22), with the
    MFD's mode 1 (0x442900, its zView's own render: the player's mech from
    the front; playtest #29).
-7. **The mission maps** (0x4583b0 and family): maps.zrd read at the
-   start, freed at the end (the cleanup's 0x4582c0 is in mission-frame.md).
-   Shows: nothing yet.
-8. **The radar's map mode**: the map object's draw under the contacts
+7. (Done 2026-10-25) **The mission maps** (0x4583b0 and family; hud.md
+   section 25): maps.zrd read at the start, the mission's picked by the
+   briefing, its image released at the mission's end.
+8. (Done 2026-10-25) **The radar's map mode**: the map object's draw under the contacts
    (0x43dc10, hud.md sections 15 and 19). Shows: Shift+R swaps the radar
    for the mission map with the contacts over it.
 9. (Done 2026-10-25) **The radar's polylines**: the mission boundary's
