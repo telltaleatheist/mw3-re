@@ -63,6 +63,11 @@ struct HudReport {
   // The 3D views (hud-plan item 6c1): the camera and window nodes made, the
   // views drawn and the depth fills since the last report, the MFD's mode.
   int view_cameras = 0, view_windows = 0, views_drawn = 0, depth_fills = 0, mfd_shown = 0;
+  // A node drawn alone in a view (0x004428b0: the MFD's mech, TARGET's
+  // target) since the last report; the MFD camera's place (0x00442900) from
+  // its mech: across the ground, above its place, and along its front.
+  int node_draws = 0, target_shown = 0;
+  float mfd_cam_dist = 0, mfd_cam_height = 0, mfd_cam_front = 0;
   // The zoom window (6c2): shown, round, its mask fans since the last report,
   // its camera's place against the player camera's, its text.
   int zoom_shown_now = 0, zoom_round = 0, mask_fans = 0;

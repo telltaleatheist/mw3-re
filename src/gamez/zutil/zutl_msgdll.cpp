@@ -1,5 +1,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 
+#include <cstdio>
+
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -212,13 +214,33 @@ std::string format_message(int32_t id, std::initializer_list<const char*> args) 
   return s;
 }
 
+// Each %N reads its argument by its printf type, as FormatMessage does: "!d!",
+// "!i!", "!u!" an int, "!x!" / "!X!" one in hex, "!s!" or none a C string;
+// they are taken in N's order (the exe's 32-bit stack slots).
 std::string format_message_v(int32_t id, va_list args) {
   const char* t = messages().get_text ? messages().get_text(id) : nullptr;
   int n = 0;
+  char type[9] = {};
   for (const char* p = t; p && *p; ++p)
-    if (p[0] == '%' && p[1] >= '1' && p[1] <= '9' && p[1] - '0' > n) n = p[1] - '0';
+    if (p[0] == '%' && p[1] >= '1' && p[1] <= '9') {
+      const int k = p[1] - '1';
+      if (k + 1 > n) n = k + 1;
+      if (!type[k]) type[k] = p[2] == '!' && p[3] && p[4] == '!' ? p[3] : 's';
+    }
+  std::string num[9];
   const char* a[9] = {};
-  for (int i = 0; i < n; ++i) a[i] = va_arg(args, const char*);
+  for (int i = 0; i < n; ++i) {
+    char c = type[i] ? type[i] : 's';
+    if (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X') {
+      const int v = va_arg(args, int);
+      char b[16];
+      std::snprintf(b, sizeof b, c == 'd' || c == 'i' ? "%d" : c == 'u' ? "%u" : c == 'x' ? "%x" : "%X", v);
+      num[i] = b;
+      a[i] = num[i].c_str();
+    } else {
+      a[i] = va_arg(args, const char*);
+    }
+  }
   return format_message(id, {a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]});
 }
 

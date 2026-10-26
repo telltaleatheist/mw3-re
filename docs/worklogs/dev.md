@@ -289,3 +289,26 @@ is in `README.md`.
   model's faces, not the ground); c2m1 still (0-1 px). Code: D32 float
   reversed depth from the game's sz, cycled vertex uploads, no texture
   eviction in zRender or Render3D. Questions to Owen through the lead.
+
+## Playtest #29: the MFD's three modes, the mode-1 camera with 6c3 (2026-10-25)
+
+- Assigned (lead): the MFD's mode-1 camera caller (MFD vt+0x8c, 0x442900)
+  with hud-plan 6c3 (TARGET's object view 0x4428b0); check all three D
+  modes against Owen's description (1 the own mech in 3D from the front,
+  2 the parts damage diagram, 3 the armour bar graph, green, red where
+  damaged), a screenshot each. Branch mac4/playtest-mfd off
+  mac4/playtest-blink (its --tap).
+- Found the "caller": 0x442900 is no MFD slot but the MFD view's zView's
+  render: 0x442620 sets the view's +0x34 vtable to 0x5c04f8, whose +0x04 is
+  0x442900 (the plain zView 0x5c9118 has 0x4b52c0). It puts the camera 13 m
+  before the mech (local -z) at 1.25 x the centroid's height and draws the
+  mech alone (0x4428b0). Ported in ProgramHudHooks (zview_render dispatches
+  on HudMfdView; mfd_view; view_draw_node for 0x4428b0, also TARGET's 6c3).
+- Screenshots: mode 1 the Mad Cat from the front, 2 the parts diagram,
+  3 the armour bars; Owen's description. Pitfall: a reused --write-dir keeps
+  the view option a --tap of X set (the next runs start outside).
+- Found and fixed a crash: zutl::format_message_v read every %N as a string,
+  so the radar's nav line 0x229 "OP: %1 [%2!d!m]" crashed with the nav point
+  under 1 km. It now reads each by its !type! (msgdll_formats_each_argument_by_its_type).
+- Test mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless;
+  break: the MFD view as a plain zView (camera at the origin, no node).

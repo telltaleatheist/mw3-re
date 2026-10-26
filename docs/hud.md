@@ -1202,16 +1202,36 @@ reading the engine's video mode): three cameras and three windows made;
 with the MFD in mode 1, its view drawn each frame and its rect's depth
 filled (a break that drops the device's fill caught).
 
-**[open: Owen] The MFD's 3D view (mode 1).** Its draw (0x00442500) runs the
-view's whole zView (0x00442870), but nothing found places that camera: the
-only code that does is 0x00442900 (1.25 x the mech's height in front of the
-player's mech, then the mech's node drawn alone through 0x004428b0 with its
-vt+0x68 around it), the MFD's vt+0x8c, and no caller of that slot is found
-(no reference but the vtable's, no call through +0x8c near an MFD). As
-ported the view shows the world from about the world's origin. Owen is to
-say what the original's MFD shows in each mode (D cycles them); the
-placement is fixed then. (The binary starts the MFD in mode 1, headless in
-mode 3: the saved mode, [0x00605988].)
+**The MFD's 3D view (mode 1; playtest #29).** Its draw (0x00442500 ->
+0x00442870) runs the view's zView's vt+0x04, and the MFD view's zView is
+not the plain one: its constructor (0x00442620) gives it vtable 0x005c04f8,
+whose +0x04 is 0x00442900 (the plain zView's, 0x005c9118, is 0x004b52c0, the
+camera's scene walk). So 0x00442900 is that render, not a slot nothing
+calls: the camera 13 m before the HUD's mech (the mech's local -z,
+[0x005e3a08] -13) at 1.25 ([0x005c0124]) times its centroid's height over
+its place (0x00448600, 0x005a85e0), through the mech's world 3x4 (+0x0c),
+turned to the centroid (0x00523ac0, 0x004f36b0); then, with the mech's
+see-through flag (object3d flag 2, 0x004fbb90) and an attached cockpit model
+(MechData +0x228's node under the torso's) off, the mech's node drawn alone
+(0x004428b0) between its vt+0x68(1) and (0). Mode 1 shows the player's own
+mech from the front, as Owen describes; mode 2 is the damage diagram, mode
+3 the armour bars (section 16).
+
+**TARGET's view of its target (hud-plan 6c3).** 0x00441410 in mode 1
+draws the target alone the same way: 0x004428b0 (the view's panel, vt+0x24
+0; the world's fog off, 0x004f23e0 on [0x00608c84]+4 with 0, then 1; the
+node through the view's camera, 0x004f73f0, `zcls::render_subtree`)
+between the target's vt+0x68 tint. In the program `ProgramHudHooks`
+dispatches the zView render by the view's class (`zview_render`: the MFD
+view's 0x00442900, `mfd_view`) and draws a node alone (`view_draw_node`).
+
+Test: mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless: the
+MFD in mode 1 draws the mech alone each frame, its camera 13.0 m before it
+and 6.8 m up; with the Owens targeted and TARGET in mode 1 both draw (10
+nodes in 5 frames). Break: the MFD view rendered as a plain zView, its
+camera stays at the world's origin (2.2 km away) and draws no node.
+Screenshots (c1m1, `build/mw3 --tap 0x20@N`): mode 1 the Mad Cat from the
+front, mode 2 the parts diagram, mode 3 the armour bars.
 
 ## 23. The zoom window's 3D pass (hud-plan item 6c2)
 
