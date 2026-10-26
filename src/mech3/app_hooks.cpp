@@ -401,6 +401,35 @@ std::vector<Engine::LabFirepoint> Engine::lab_dfn_firepoints(Handle dfn) {
   }
   return out;
 }
+std::vector<Handle> Engine::lab_config_items(Handle config) {
+  std::vector<Handle> out;
+  const Handle head = config ? field32(config, 0x08) : 0;
+  if (!head) return out;
+  for (Handle n = field32(head, 0); n && n != head; n = field32(n, 0)) out.push_back(field32(n, 8));
+  return out;
+}
+int32_t Engine::lab_item_location(Handle h, int32_t mech) {
+  const ConfigItem* it = item_of(h);
+  if (!it) return -1;
+  if (it->kind() != 1) return it->location(mech);
+  // 0x00473220: the definition's firepoint at the weapon's +0x0c
+  const Handle dfn = mech_dfn_handle(mech);
+  if (!dfn) return -1;
+  const std::vector<LabFirepoint> fps = lab_dfn_firepoints(dfn);
+  return it->part >= 0 && it->part < static_cast<int32_t>(fps.size()) ? fps[static_cast<size_t>(it->part)].part : -1;
+}
+int32_t Engine::lab_item_group(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->group : 0;
+}
+double Engine::lab_item_weight(Handle h, int32_t n) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->weight(n) : 0.0;
+}
+std::string Engine::lab_engine_name(Handle config) {
+  return engine_name(static_cast<int32_t>(field32(config, 0x24)), field8(config, 0x28),
+                     [this](int32_t id) { return message(id); });
+}
 const char* Engine::part_text(int32_t part) {
   return part_display_name(part, [](void* c, int32_t id) { return static_cast<Engine*>(c)->message(id); }, this);
 }

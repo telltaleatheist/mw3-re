@@ -38,6 +38,9 @@ class LabItemRow : public ztwod::Text {
   int32_t hit(int32_t px, int32_t py) override;  // +0x5c  0x00451aa0: its text, 0xac wide
   void fill(int32_t i, const LabItem* item);  // 0x00451a50 with 0x004516a0
   int32_t panel_width() const;       // 0x00451b20
+  // 0x00451870 (ASSIGNED_LIST's part rows): the count "used/total" in the
+  // item's font, the line from after the name, the panel hidden.
+  void show_slots(int32_t used, int32_t total);
 
   LabItemList* list;                 // +0x4cc
   int32_t index = 0;                 // +0x4d0  (not set by the constructor)

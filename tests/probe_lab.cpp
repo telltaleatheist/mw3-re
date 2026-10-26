@@ -120,6 +120,7 @@ struct LabEngine : mech3::Engine {
     return f != names.end() ? f->second : mech3::Engine::lab_config_name(config);
   }
   std::vector<std::pair<int32_t, Handle>> dfns;
+  std::vector<std::unique_ptr<mech3::ConfigItem>> config_items;
 };
 
 std::vector<uint32_t> g_slots;  // the game's slots, by their address in the emulator
@@ -257,6 +258,35 @@ void dump_unassigned(mech3::LabScreen& s, Dump& d) {
   o << '\n';
 }
 
+// ASSIGNED_LIST (step 6), as test_lab_screen.py's dump_assigned.
+void dump_assigned(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  const mech3::LabAssignedList& a = s.assigned;
+  o << "assigned top=" << a.top << " end=" << a.end << " sel=" << a.selected << " listing=" << a.listing << std::hex
+    << " flags=" << a.flags << std::dec << " parts=" << s.part_head.checked;
+  for (const mech3::LabPart& p : s.parts) o << ',' << p.checked;
+  o << "\naitems ";
+  for (size_t i = 0; i < a.items.size(); ++i) {
+    const mech3::LabItem* it = a.items[i];
+    o << (i ? "|" : "") << (it->text ? it->text : "") << '=' << std::hex << it->object << '/' << it->count << '/'
+      << it->font << std::dec;
+  }
+  o << '\n';
+  auto text = [&](const char* k, const ztwod::Text& t) {
+    o << ' ' << k << "=\"" << t.text << "\"/" << std::hex << t.flags << '/' << t.font << std::dec;
+  };
+  for (size_t i = 0; i < a.rows.size(); ++i) {
+    const mech3::LabItemRow* r = a.rows[i];
+    o << "arow" << i << " idx=" << r->index;
+    text("t", *r);
+    text("c", r->count);
+    text("m", r->mass);
+    text("q", r->qty);
+    o << " line=" << r->line.x << ',' << r->line.y << ',' << r->line.end_x << ',' << r->line.end_y << std::hex << '/'
+      << r->line.color << '/' << r->line.flags << std::dec << '\n';
+  }
+}
+
 }  // namespace
 
 extern "C" {
@@ -321,6 +351,34 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       engine.store.items.push_back(it);
       engine.addr_of[it] = addr;
       engine.item_at[addr] = it;
+    }
+    // The loadouts' items (their lists in the emulator; mirrored by address).
+    uint32_t citems = 0;
+    ss >> citems;
+    for (uint32_t i = 0; i < citems; ++i) {
+      uint32_t addr = 0, kind = 0, id = 0, count = 0, unlimited = 0, tech = 0, group = 0, part = 0;
+      ss >> addr >> kind >> id >> count >> unlimited >> tech >> group >> part;
+      std::unique_ptr<mech3::ConfigItem> it;
+      if (kind == 1) {
+        auto w = std::make_unique<mech3::WeaponItem>();
+        w->weapon = static_cast<int32_t>(id), w->tech = static_cast<int32_t>(tech);
+        it = std::move(w);
+      } else if (kind == 2) {
+        auto a = std::make_unique<mech3::AmmoItem>();
+        a->weapon = static_cast<int32_t>(id);
+        it = std::move(a);
+      } else {
+        auto q = std::make_unique<mech3::EquipmentItem>();
+        q->equipment = static_cast<int32_t>(id), q->tech = static_cast<int32_t>(tech);
+        it = std::move(q);
+      }
+      it->count = static_cast<int32_t>(count);
+      it->b10 = static_cast<uint8_t>(unlimited);
+      it->group = static_cast<int32_t>(group);
+      it->part = static_cast<int32_t>(part);
+      engine.addr_of[it.get()] = addr;
+      engine.item_at[addr] = it.get();
+      engine.config_items.push_back(std::move(it));
     }
     mech3::states().lab.model_ = model;
     mech3::LabState& lab = mech3::states().lab;
@@ -398,6 +456,12 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       mech3::states().lab.set_mech(static_cast<int32_t>(hex(ls)));
     } else if (op == "W") {
       s->unassigned.scroll(static_cast<int32_t>(hex(ls)));
+    } else if (op == "V") {  // ASSIGNED_LIST's +0x9c: the chosen part stepped
+      s->assigned.scroll(static_cast<int32_t>(hex(ls)));
+    } else if (op == "P") {  // a part button pressed (+0x30), by its place (head first)
+      const uint32_t k = hex(ls);
+      mech3::LabPart* b = k == 0 ? &s->part_head : k <= 7 ? &s->parts[k - 1] : nullptr;
+      if (b) b->on_left_up();
     } else if (op == "X") {
       s->config_edit.x38c = hex(ls);
     } else if (op == "M") {
@@ -408,6 +472,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       dump_dialog(*s, d);
       dump_screen(*s, d);
       dump_unassigned(*s, d);
+      dump_assigned(*s, d);
       dump += d.o.str();
     } else if (op == "U") {
       engine.screen = nullptr;

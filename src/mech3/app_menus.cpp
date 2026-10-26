@@ -691,6 +691,21 @@ int32_t GameEngine::lab_assigned_part() {
   return s ? s->assigned.part() : -1;
 }
 void GameEngine::lab_put_on(LabUnassignedList& list, int32_t index) { mech3::lab_put_on(*this, list, index); }
+void GameEngine::lab_take_off(LabAssignedList& list, int32_t index) { mech3::lab_take_off(*this, list, index); }
+std::vector<Handle> GameEngine::lab_config_items(Handle config) {
+  std::vector<Handle> out;
+  if (const auto* c = static_cast<const Config*>(object_of(config)))
+    for (const ConfigItem* it : c->items) out.push_back(item_handle(it));
+  return out;
+}
+int32_t GameEngine::lab_item_location(Handle item, int32_t mech) {
+  const ConfigItem* it = item_of(item);
+  return it ? it->location(mech) : -1;
+}
+std::string GameEngine::lab_engine_name(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? engine_name(c->engine, c->xl, [this](int32_t id) { return message(id); }) : std::string();
+}
 bool GameEngine::lab_config_valid(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && c->validate(false);
@@ -739,7 +754,15 @@ void GameEngine::lab_config_set_modified(Handle config, uint8_t v) {
 uint8_t GameEngine::lab_config_byte(Handle config, uint32_t off) {
   const auto* c = static_cast<const Config*>(object_of(config));
   if (!c) return 0;
-  return off == 0x1c ? c->player_made : off == 0x1e ? c->training : off == 0x1f ? c->modified : 0;
+  switch (off) {
+    case 0x1c: return c->player_made;
+    case 0x1e: return c->training;
+    case 0x1f: return c->modified;
+    case 0x20: return c->endo_steel;
+    case 0x28: return c->xl;
+    case 0x34: return c->ferro;
+    default: return 0;
+  }
 }
 bool GameEngine::lab_store_has_config(Handle store, int32_t mech, Handle other, Handle config) {
   Store* s = store_of(store);

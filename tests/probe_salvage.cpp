@@ -493,6 +493,14 @@ struct PutOnEngine : Engine {
   }
   void lab_page_refresh(Handle h) override { events->push_back(h == kScreen ? "refresh True" : "refresh False"); }
   void lab_put_on(LabUnassignedList& list, int32_t index) override { mech3::lab_put_on(*this, list, index); }
+  void lab_take_off(LabAssignedList& list, int32_t index) override { mech3::lab_take_off(*this, list, index); }
+};
+
+struct TakeOffList : LabAssignedList {
+  std::vector<std::string>* events = nullptr;
+  explicit TakeOffList(Engine& e) : LabAssignedList(e) {}
+  void on_enter() override { events->push_back("enter"); }
+  void on_leave() override { events->push_back("leave"); }
 };
 
 struct PutOnList : LabUnassignedList {
@@ -551,10 +559,13 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
   {
     PutOnList list(e);
     list.events = &events;
+    TakeOffList alist(e);
+    alist.events = &events;
+    alist.sounds[0] = 7, alist.sounds[1] = 8;
     list.store = PutOnEngine::kStore;
     list.sounds[0] = 7, list.sounds[1] = 8;
     LabState& lab = states().lab;
-    lab.pilot_ = 1, lab.slot_ = 0, lab.lab_screen_ = PutOnEngine::kScreen;
+    lab.pilot_ = 1, lab.slot_ = 0, lab.lab_screen_ = PutOnEngine::kScreen, lab.store_ = PutOnEngine::kStore;
     std::string line;
     while (std::getline(ss, line)) {
       std::istringstream ls(line);
@@ -607,6 +618,30 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
           ls >> k >> tech >> n;
           store.add_equipment(k, tech, n);
         }
+      } else if (what == "take") {
+        int32_t row;
+        ls >> row;
+        for (LabItem* it : alist.items) delete it;
+        alist.items.clear();
+        auto* head = new LabItem;
+        head->object = 1;  // a part row
+        alist.items.push_back(head);
+        for (const ConfigItem* it : cfg->items) {
+          auto* li = new LabItem;
+          li->object = e.item_handle(it);
+          alist.items.push_back(li);
+        }
+        events.clear();
+        const int32_t n = static_cast<int32_t>(alist.items.size()) - 1;
+        const int32_t m = std::max(1, n);
+        alist.select(1 + ((row % m) + m) % m);  // (Python's modulo, as the test's)
+        std::string ev;
+        for (const std::string& x : events) ev += (ev.empty() ? "" : " ") + x;
+        o << ev << '\n';
+        o << armour_text(*cfg) << ' ' << config_text(cfg.get()) << '\n';
+        o << "store{n" << store.count() << ' ';
+        for (const ConfigItem* it : store.items) o << item_text(it);
+        o << "}\n";
       } else if (what == "put") {
         int32_t row, rule, part;
         ls >> row >> rule >> part;
@@ -632,6 +667,8 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
     }
     for (LabItem* it : list.items) delete it;
     list.items.clear();
+    for (LabItem* it : alist.items) delete it;
+    alist.items.clear();
   }
   ztwod::set_host(nullptr);
   if (dfn_mech >= 0) mech_dfn_slot(dfn_mech) = nullptr;

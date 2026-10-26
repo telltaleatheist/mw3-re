@@ -484,6 +484,7 @@ class Lance(Realloc):
 
 
 PUT_ON, LAB_SCREEN, LAB_PILOT, LAB_SLOT, LAB_FLAG, FP_TOGGLE = 0x454600, 0x605a58, 0x605a7c, 0x605a28, 0x605a84, 0x5e47d4
+TAKE_OFF, LAB_STORE, ASSIGNED_VT = 0x455fb0, 0x605a80, 0x5c1fe0
 UNASSIGNED_VT = 0x5c1d68
 
 
@@ -583,8 +584,33 @@ class PutOn(Lance):
         cpu.u32(lst + 0x220, store)
         cpu.u32(lst + 0x1fc, 7)
         cpu.u32(lst + 0x200, 8)  # the sounds (+0x1fc: rollover, select)
+        cpu.u32(LAB_STORE, store)
+        # ASSIGNED_LIST (its own vtable, +0x3c and +0x40 logged): a part row, then the loadout's items
+        avt = self.alloc(0x100)
+        cpu.write(avt, cpu.read(ASSIGNED_VT, 0x100))
+        for off, name in ((0x3c, 'enter'), (0x40, 'leave')):
+            cpu.u32(avt + off, self.thunk(name, lambda c, name=name: self.events.append(name) or 0, 0))
+        alst = self.alloc(0x230)
+        cpu.u32(alst, avt)
+        cpu.u32(alst + 0x1fc, 7)
+        cpu.u32(alst + 0x200, 8)
         out = []
         for row, rule, part in cfg['puts']:
+            if rule == 'take':  # (a take-off: `row` among the rows, 0 the part's)
+                rows_ = [1] + self.items_of(c)
+                arr = self.alloc(4 * len(rows_))
+                for i, o in enumerate(rows_):
+                    li = self.alloc(0x10)
+                    cpu.u32(li + 4, o)
+                    cpu.u32(arr + 4 * i, li)
+                cpu.u32(alst + 0x168, arr)
+                cpu.u32(alst + 0x16c, arr + 4 * len(rows_))
+                self.events = []
+                self.call(TAKE_OFF, ecx=alst, stack=((1 + row % max(1, len(rows_) - 1)) & 0xffffffff,))
+                out.append(' '.join(self.events))
+                out.append(self.armour_text(c) + ' ' + self.config_text(c))
+                out.append(store_text(self.store('s', store)))
+                continue
             # the rows: the store's items now, in its order (the refresh would list them)
             its = self.items_of(store)
             rows = self.alloc(4 * max(1, len(its)))
@@ -628,7 +654,7 @@ def make_puton(seed):
             'fps': [(r.randrange(-1, 9), r.choice([0.0, 0.0, 0.5, 1.0])) for _ in range(r.choice([0, 2, 5, 9]))],
             'flag': 1 if r.random() < 0.1 else 0, 'toggle': r.choice([0, 1]), 'full': 1 if r.random() < 0.15 else 0,
             'store': store,
-            'puts': [(r.randrange(-1, 20), r.choice([1, 1, 1, 0]), r.choice([-1, 0, 1, 2, 3, 4, 5, 6, 7]))
+            'puts': [(r.randrange(-1, 20), r.choice([1, 1, 1, 0, 'take']), r.choice([-1, 0, 1, 2, 3, 4, 5, 6, 7]))
                      for _ in range(r.randrange(1, 14))]}
 
 
@@ -639,7 +665,7 @@ def puton_setup(cfg):
            'fps ' + str(len(cfg['fps'])) + ' ' + ' '.join(f'{p} {struct.unpack("<I", struct.pack("<f", rad))[0]:x}'
                                                        for p, rad in cfg['fps'])]
     out += ['store ' + ' '.join(str(x) for x in op) for op in cfg['store']]
-    out += [f'put {row} {rule} {part}' for row, rule, part in cfg['puts']]
+    out += [f'take {row}' if rule == 'take' else f'put {row} {rule} {part}' for row, rule, part in cfg['puts']]
     return '\n'.join(out)
 
 
@@ -649,6 +675,8 @@ PUTON_SEEN = {}
 def run_puton(seed, labs, verbose):
     cfg = make_puton(seed)
     want = PutOn(seed, labs).run_puton(cfg)
+    PUTON_SEEN['taken off'] = PUTON_SEEN.get('taken off', 0) + sum(
+        1 for row, rule, part in cfg['puts'] if rule == 'take')
     for key, what in (('16 weapons', 'Only 16 weapons'), ('sink type', 'message MSG_3842'),
                       ('jump jets', 'message Ffc1'), ('put on', 'sound 8 '), ('refused', ' rule ')):
         PUTON_SEEN[key] = PUTON_SEEN.get(key, 0) + want.count(what)

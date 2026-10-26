@@ -79,6 +79,9 @@ void lance_salvage(Store& salvage, Store& own, std::vector<SalvageEntity>& list,
 // 0x004739d0 / 0x004738b0.
 using MessageText = std::function<const char*(int32_t)>;
 std::string item_name(const ConfigItem& it, const MessageText& msg);
+// 0x00432f00 on an engine (index, XL): the maker's name (0x00432ec0, the
+// table's message), the rating, " XL".
+std::string engine_name(int32_t engine, uint8_t xl, const MessageText& msg);
 std::string item_label(const ConfigItem& it, const MessageText& msg);
 
 // The missions object's salvage store (+0xc0, [0x00609990]).

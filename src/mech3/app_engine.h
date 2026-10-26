@@ -166,6 +166,10 @@ class GameEngine : public Engine {
   void lab_message(const char* text) override;
   int32_t lab_assigned_part() override;
   void lab_put_on(LabUnassignedList& list, int32_t index) override;
+  void lab_take_off(LabAssignedList& list, int32_t index) override;
+  std::vector<Handle> lab_config_items(Handle config) override;
+  int32_t lab_item_location(Handle item, int32_t mech) override;
+  std::string lab_engine_name(Handle config) override;
   bool lab_config_valid(Handle config) override;
   Handle mech_dfn_handle(int32_t mech) override;
   void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) override;

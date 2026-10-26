@@ -65,10 +65,10 @@ MECHS = [0x122e4 + 0x64c * i for i in range(12)]
 PARTS = [0x18880, 0x189f0, 0x18b60, 0x18cd0, 0x18e40, 0x18fb0, 0x19120]
 PANELS = [0x112ac, 0x11374, 0x1143c]
 # The pages' controls' vtables and the slots left to their steps.
-LATER = {v: (0x84, 0x88, 0x60, 0x64) + ((0xb8,) if v == 0x5c1fe0 else ())
-         for v in (0x5c0f18, 0x5c1fe0, 0x5c1300, 0x5c1250, 0x5c1130)}
+LATER = {v: (0x84, 0x88, 0x60, 0x64)
+         for v in (0x5c0f18, 0x5c1300, 0x5c1250, 0x5c1130)}
 LATER[0x5c1d68] = (0xac,)  # UNASSIGNED_LIST's put-on (step 5b2's second half)
-UNASSIGNED = 0x19290
+UNASSIGNED, ASSIGNED, PART_HEAD = 0x19290, 0x1a13c, 0x18710
 COUNTED = (0xf5b, 0x24c, 0x24d)  # ALIST_TITLES's messages: their texts show the count (probe_lab.cpp's too)
 CONFIGS, EDIT = 0x17548, 0x17ca8
 NAMES = ['Stock', 'Mine', 'Raider', 'Hunter', '']
@@ -80,7 +80,7 @@ ITEM_VT = {0: 0x5bc160, 1: 0x5c0fc0, 2: 0x5bd150, 3: 0x5bd180}
 test_twod.VT_KIND.update({0x5c0e98: 'I', 0x5c0e00: 'C', 0x5c0d70: 'C', 0x5c14f0: 'C', 0x5c1448: 'C',
                           0x5c1630: 'C', 0x5c13b0: 'K', 0x5c11c0: 'C', 0x5c1740: 'F', 0x5c0cc0: 'C', 0x5c5e30: 'C',
                           0x5c5da0: 'C', 0x5bc230: 'C', 0x5c5cf8: 'C', 0x5c1588: 'C',
-                          0x5c1d68: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
+                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
 
 
 # 0x004846e0's table: each mech's most tons (10 out of range; mech_names.cpp's kMaxMass).
@@ -131,6 +131,23 @@ def synthetic(seed, tree):
             v = nb
         out += [k, v]
     return [['LABMENU', out]]
+
+
+def loadout_items(r):
+    """A loadout's items: weapons on a firepoint (+0x0c its index), ammo and
+    equipment on a part (sinks sometimes of no group, -1)."""
+    out = []
+    for _ in range(r.choice([0, 1, 3, 6, 10])):
+        k = r.choice([1, 1, 2, 3, 3])
+        if k == 1:
+            out.append({'kind': 1, 'id': r.choice([0, 3, 9, 0x11, 19]), 'n': 1, 'tech': r.choice([1, 2]),
+                        'part': r.randrange(-1, 7), 'group': r.choice([0, 1, 2])})
+        elif k == 2:
+            out.append({'kind': 2, 'id': r.choice([0, 9, 19]), 'n': r.choice([20, 200]), 'part': r.randrange(-1, 9)})
+        else:
+            out.append({'kind': 3, 'id': r.choice([0, 3, 5, 9, 10, 11, 12]), 'n': r.choice([1, 2]),
+                        'tech': r.choice([1, 2]), 'part': r.randrange(-1, 9), 'group': r.choice([0, 0, -1])})
+    return out
 
 
 def make_plan(seed, accept=True, crit=True):
@@ -184,6 +201,11 @@ def make_plan(seed, accept=True, crit=True):
                 lines.append('R')
             if r.random() < 0.4:
                 lines.append(f'W {r.choice([1, 2, 5, -1, 30]) & 0xffffffff:x}')
+            if r.random() < 0.4:  # ASSIGNED_LIST: a part button, or its arrows stepping the part
+                if r.random() < 0.5:
+                    lines.append(f'P {r.randrange(8):x}')
+                else:  # the arrows pressed in a run (to the end of the list and past it)
+                    lines += [f'V {r.choice([1, -1]) & 0xffffffff:x}'] * r.randrange(1, 10)
             if r.random() < 0.5:
                 lines.append('E')
         lines += ['G 3 0', 'E']
@@ -225,6 +247,7 @@ class Original:
         e.w32(SLOTS, cfg['slots'])
         e.w32(MECH, 0x13)
         e.cpu.write(FLAG, bytes([cfg['flag']]))
+        self.citems = []  # the loadouts' items, for the probe
         slots = self.slots = []
         for m, c, sk in zip(cfg['mechs'], cfg['configs'], cfg['skins']):
             s = e.world_alloc(0x18)
@@ -272,8 +295,7 @@ class Original:
             emu.w32(wbuf, t.handle(key, tuple(a)))
             emu._ret(0, 0, then=wthunk)
         e.stub(0x425300, '0x00425300', 'c,s0', 4, weight)
-        e.stub(0x455eb0, '0x00455eb0', 'c', 0,
-               lambda emu, key, a, pop: emu._ret(t.handle(key, (a[0] - self.m,)), pop))
+
 
         def fmt(emu, key, a, pop):  # the ammo's message 0xf59 with its weapon's name
             buf, size, mid, arg = a
@@ -326,7 +348,8 @@ class Original:
                 e.cpu.write(co + 0x1e, bytes([1 if rr.random() < 0.15 else 0]))
                 e.cpu.write(co + 0x1f, bytes([1 if rr.random() < 0.2 else 0]))
                 self.armour(co, {'tons': rr.choice([0.0, 4.5, 10.0, 17.5]), 'tech': rr.choice([1, 2]),
-                                 'ferro': rr.choice([0, 0, 1])})
+                                 'ferro': rr.choice([0, 0, 1]), 'endo': rr.choice([0, 0, 1]),
+                                 'engine': rr.randrange(0, 79), 'xl': rr.choice([0, 0, 1]), 'items': loadout_items(rr)})
                 cfgs.append(co)
             arr = e.world_alloc(4 * max(1, len(cfgs)))
             for k, co in enumerate(cfgs):
@@ -490,7 +513,6 @@ class Original:
             # (often just under the loadout's mech's most, 0x004846e0: the item's own ton or half ton decides)
             '0x00425300': lambda rr, k, a: fbits(rr.choice([0.0, 5.0, 12.5, 20.0, 34.5, 49.75]) if rr.random() < 0.4
                                                  else max_mass(i32(e.r32(a[0] + 0x14))) - rr.choice([0.5, 0.25, 1.5])),
-            '0x00455eb0': lambda rr, k, a: rr.choice([-1, 0, 1, 2, 3, 4, 5, 6, 7, 1, 4]) & 0xffffffff,
             '0x0040cec0': cfg['fast'],
             '0x0040d760': 640, '0x0040d770': 480,
             '0x00576040': lambda rr, k, a: e.world_string(f'M{a[0]:x}' + (' %d' if a[0] in COUNTED else '')),
@@ -553,6 +575,43 @@ class Original:
         e.wf(co + 0x2c, c.get('tons', 0.0))
         e.w32(co + 0x30, c.get('tech', 2))
         e.cpu.write(co + 0x34, bytes([c.get('ferro', 0)]))
+        # its endo steel (+0x20), engine (+0x24 its index, +0x28 XL) and items (+0x08's list)
+        e.cpu.write(co + 0x20, bytes([c.get('endo', 0)]))
+        e.w32(co + 0x24, c.get('engine', 20))
+        e.cpu.write(co + 0x28, bytes([c.get('xl', 0)]))
+        self.item_list(co, c.get('items', []))
+
+    def item_list(self, co, items):
+        """A loadout's item list (+0x08, its count +0x0c): items with the exe's vtables."""
+        e = self.e
+        head = e.world_alloc(0xc)
+        e.w32(head, head)
+        e.w32(head + 4, head)
+        e.w32(co + 8, head)
+        e.w32(co + 0xc, len(items))
+        prev = head
+        for it in items:
+            o = e.world_alloc(0x20)
+            e.w32(o, ITEM_VT[it['kind']])
+            e.w32(o + 4, it['n'])
+            e.w32(o + 8, it.get('group', 0) & 0xffffffff)
+            e.w32(o + 0xc, it['part'] & 0xffffffff)
+            if it['kind'] == 3:
+                e.w32(o + 0x18, it['id'])
+                e.w32(o + 0x1c, it.get('tech', 2))
+            else:
+                e.w32(o + 0x14, it['id'] & 0xffffffff)
+                if it['kind'] == 1:
+                    e.w32(o + 0x18, it.get('tech', 1))
+            it['addr'] = o
+            self.citems.append(it)
+            node = e.world_alloc(0xc)
+            e.w32(node, head)
+            e.w32(node + 4, prev)
+            e.w32(node + 8, o)
+            e.w32(prev, node)
+            e.w32(head + 4, node)
+            prev = node
 
     # 0x00424010 (ECX the name, EDX the loadout; no store): a player's copy.
     def copy_config(self, emu, key, a, pop):
@@ -564,8 +623,12 @@ class Original:
         e.world_w32(co + 0x14, e.r32(a[1] + 0x14))
         e.world_w32(co + 0x18, self.wstring(a[0] if isinstance(a[0], str) else ''))  # ('zc': the name)
         e.world_w32(co + 0x1c, 1)
-        for off in (0x2c, 0x30, 0x34):  # the armour, as the copy's source has it
+        for off in (0x2c, 0x30, 0x34, 0x20, 0x24, 0x28):  # the armour and engine, as the copy's source has them
             e.world_w32(co + off, e.r32(a[1] + off))
+        head = e.world_alloc(0xc)  # (an empty list: the copy's items are its own, unread here)
+        e.world_w32(head, head)
+        e.world_w32(head + 4, head)
+        e.world_w32(co + 8, head)
         self.t.override(key, co)
         emu._ret(co, pop)
 
@@ -655,17 +718,44 @@ class Original:
                 e.call(0x449010, ecx=0x6059f8, stack=(pv[0],))
             elif op == 'W':  # UNASSIGNED_LIST scrolled (its +0x9c, as its arrows)
                 self.vcall(m + UNASSIGNED, 0x9c, (pv[0],))
+            elif op == 'V':  # ASSIGNED_LIST's +0x9c: the chosen part stepped
+                self.vcall(m + ASSIGNED, 0x9c, (pv[0],))
+            elif op == 'P':  # a part button pressed (+0x30), head first
+                self.vcall(m + ([PART_HEAD] + PARTS)[pv[0]], 0x30)
             elif op == 'X':  # a rename under way (CONFIG_EDIT's +0x38c)
                 e.w32(m + 0x18034, pv[0])
             elif op == 'M':  # CONFIG_EDIT moved (its set_pos, 0x0044a710)
                 self.vcall(m + 0x17ca8, 0x0c, (pv[0], pv[1]))
             elif op == 'E':
-                dump += test_twod.Original.dump(self) + self.dump_screen() + self.dump_unassigned()
+                dump += test_twod.Original.dump(self) + self.dump_screen() + self.dump_unassigned() + self.dump_assigned()
             elif op == 'U':
                 self.vcall(m, 0x08, (1,))
                 self.m = 0
                 dump += 'gone\n'
         return dump
+
+    def dump_assigned(self):
+        """probe_lab.cpp's dump_assigned."""
+        e, a = self.e, self.m + ASSIGNED
+        r = lambda o: i32(e.r32(a + o))  # noqa: E731
+
+        def vec(o):
+            first, last = e.r32(a + o), e.r32(a + o + 4)
+            return [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+        out = [f'assigned top={r(0x158)} end={r(0x15c)} sel={r(0x160)} listing={r(0x22c)} flags={e.r32(a + 0xc):x} '
+               'parts=' + ','.join(str(i32(e.r32(self.m + o + 0x150))) for o in [PART_HEAD] + PARTS) + '\n']
+        out.append('aitems ' + '|'.join(f'{e.cstr(e.r32(x)) if e.r32(x) else ""}={e.r32(x + 4):x}/'
+                                         f'{e.r32(x + 8):x}/{e.r32(x + 0xc):x}' for x in vec(0x168)) + '\n')
+
+        def text(k, t):
+            return f' {k}="{e.cstr(t + 0x34)}"/{e.r32(t + 0xc):x}/{e.r32(t + 0x234):x}'
+        for i, row in enumerate(vec(0x178)):
+            ln = row + 0x1440
+            out.append(f'arow{i} idx={i32(e.r32(row + 0x4d0))}' + text('t', row) + text('c', row + 0x5dc) +
+                       text('m', row + 0xaa8) + text('q', row + 0xf74) +
+                       f' line={i32(e.r32(ln + 0x14))},{i32(e.r32(ln + 0x18))},{i32(e.r32(ln + 0x34))},'
+                       f'{i32(e.r32(ln + 0x38))}/{e.r32(ln + 0x3c):x}/{e.r32(ln + 0xc):x}\n')
+        return ''.join(out)
 
     def dump_unassigned(self):
         """probe_lab.cpp's dump_unassigned."""
@@ -779,7 +869,11 @@ def run_case(seed, path, data, start, cfg, plan, verbose):
                      [len(orig.dfns)] + [v for mech in sorted(orig.dfns) for v in (mech, orig.dfns[mech])] +
                      [cfg['full'], orig.e.r32(MODEL), len(cfg['store'])] +
                      [v for x in cfg['store'] for v in (x['addr'], x['kind'], x['id'], x['n'], x.get('unl', 0),
-                                                        x.get('tech', 1 if x['kind'] == 1 else 2), x.get('group', 0))])
+                                                        x.get('tech', 1 if x['kind'] == 1 else 2), x.get('group', 0))] +
+                     [len(orig.citems)] +
+                     [v for x in orig.citems for v in (x['addr'], x['kind'], x['id'], x['n'], x.get('unl', 0),
+                                                       x.get('tech', 1 if x['kind'] == 1 else 2), x.get('group', 0),
+                                                       x['part'])])
     n = probe.probe_lab_run(str(path).encode(), setup.encode(), '\n'.join(plan).encode(), buf, len(buf))
     assert n >= 0, 'probe failed'
     dump_r = buf.value.decode('latin1')
@@ -802,7 +896,7 @@ def run_case(seed, path, data, start, cfg, plan, verbose):
             print(f'lab seed {seed}: dumps differ in length')
     if verbose and ok:
         print(f'lab seed {seed}: {len(to)} calls')
-    return ok, to
+    return ok, to, do
 
 
 def main():
@@ -841,7 +935,9 @@ def main():
                'configs': [None if r.random() < 0.3 else
                            {'mech': r.choice([0, 3, 7, 18]), 'name': r.choice(['Stock', 'Mine']),
                             'modified': r.choice([0, 0, 1]), 'tons': r.choice([0.0, 2.5, 4.5, 6.0, 7.5, 9.0, 10.0, 12.5, 17.5, 30.0]),
-                            'tech': r.choice([1, 2]), 'ferro': r.choice([0, 0, 1])} for _ in range(n)],
+                            'tech': r.choice([1, 2]), 'ferro': r.choice([0, 0, 1]), 'endo': r.choice([0, 0, 1]),
+                            'engine': r.randrange(0, 79), 'xl': r.choice([0, 0, 1]),
+                            'items': loadout_items(r)} for _ in range(n)],
                'skins': [r.choice([0, 0, 1, 2, 5, -1]) for _ in range(n)],
                'slots': n, 'mechs': [r.choice([0, 3, 7, 18, -1]) for _ in range(n)],
                'shown': r.choice([-1, 0, 0, 0, 0, 1, 1, 3, 7]), 'flag': r.choice([0, 0, 1]),
@@ -855,10 +951,12 @@ def main():
             path, fdata, fstart = READER, data, start
         shown = 0 <= cfg['shown'] < n and cfg['mechs'][cfg['shown']] is not None
         plan = make_plan(seed, shown, shown and cfg['configs'][cfg['shown']] is not None)
-        ok, trace = run_case(seed, path, fdata, fstart, cfg, plan, verbose)
+        ok, trace, dump = run_case(seed, path, fdata, fstart, cfg, plan, verbose)
         passed += ok
         stats['seeds with unassigned rows'] = stats.get('seeds with unassigned rows', 0) + (
-            1 if any(k == '0x00455eb0' for k, _ in trace) else 0)
+            1 if re.search(r'^uitems [^\n]*=', dump, re.M) else 0)
+        stats['seeds with part slot bars'] = stats.get('seeds with part slot bars', 0) + (
+            1 if re.search(r'c="[ \d]\d/[ \d]\d"', dump) else 0)
         calls += len(trace)
         for k, a_ in trace:
             if k == '0x004ac150':

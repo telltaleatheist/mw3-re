@@ -103,23 +103,25 @@ std::string item_name(const ConfigItem& it, const MessageText& msg) {
       if (e.tech == 1) s += " (CLAN)";
       return s;
     }
-    case 4: {
-      // 0x004739d0 -> 0x00432f00: the maker's name (the engine table's
-      // message id, 0x00432ec0), the rating, " XL".
-      static const uint8_t kMaker[79] = {
-          0, 1, 2, 0, 6, 3, 1, 1, 4, 3, 5, 6, 0, 1, 3, 4, 4, 6, 7, 4, 1, 1, 1, 8, 9, 7, 5,
-          0, 1, 1, 10, 3, 4, 0, 1, 1, 4, 6, 6, 8, 1, 11, 4, 3, 5, 1, 2, 9, 9, 12, 9, 8, 1, 11,
-          3, 2, 0, 1, 8, 1, 9, 1, 2, 3, 3, 5, 3, 8, 9, 10, 7, 7, 9, 1, 1, 10, 9, 7, 10};  // 0x005e2f54 - 0x210
+    case 4: {  // 0x004739d0 -> 0x00432f00
       auto& e = static_cast<const EngineItem&>(it);
-      const int32_t index = e.engine > 78 ? 78 : e.engine < 0 ? 0 : e.engine;
-      const char* maker = msg(0x210 + kMaker[index]);
-      char b[512];
-      std::snprintf(b, sizeof b, "%s %d%s", maker ? maker : "(null)", engine_rating(Engine{index, e.xl}),
-                    e.xl ? " XL" : "");
-      return b;
+      return engine_name(e.engine, e.xl, msg);
     }
     default: return std::string();
   }
+}
+
+// Mech3.exe 1.2 @ 0x00432f00
+std::string engine_name(int32_t engine, uint8_t xl, const MessageText& msg) {
+  static const uint8_t kMaker[79] = {
+      0, 1, 2, 0, 6, 3, 1, 1, 4, 3, 5, 6, 0, 1, 3, 4, 4, 6, 7, 4, 1, 1, 1, 8, 9, 7, 5,
+      0, 1, 1, 10, 3, 4, 0, 1, 1, 4, 6, 6, 8, 1, 11, 4, 3, 5, 1, 2, 9, 9, 12, 9, 8, 1, 11,
+      3, 2, 0, 1, 8, 1, 9, 1, 2, 3, 3, 5, 3, 8, 9, 10, 7, 7, 9, 1, 1, 10, 9, 7, 10};  // 0x005e2f54 - 0x210
+  const int32_t index = engine > 78 ? 78 : engine < 0 ? 0 : engine;
+  const char* maker = msg(0x210 + kMaker[index]);
+  char b[512];
+  std::snprintf(b, sizeof b, "%s %d%s", maker ? maker : "(null)", engine_rating(Engine{index, xl}), xl ? " XL" : "");
+  return b;
 }
 
 // Mech3.exe 1.2 @ 0x00473700 (a mech), 0x00473740 (a weapon): "name (n)"

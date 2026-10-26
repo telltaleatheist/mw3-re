@@ -11,6 +11,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod_host.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "mech3/app_states.h"
 #include "mech3/pilot.h"
 
@@ -23,6 +24,8 @@ int32_t internal_points(int32_t mech, int32_t column);    // 0x00485400..0x00485
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
 constexpr int32_t kClan = 1, kAnyTech = 3;               // mech_names.h's Tech
 int32_t lab_rounds(int32_t weapon, int32_t n);           // weapon.h (0x004b4900)
+int32_t mech_tech(int32_t mech);                         // 0x00484720
+int32_t equip_name_message(int32_t kind);                // 0x00484980's table (its text through message)
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
@@ -442,19 +445,13 @@ void LabConfigList::select(int32_t index) {
   if (s) s->refresh();
 }
 
-bool LabLaterList::read_control(zrdr::Node*, ztwod::Dialog*) {
-  call(0x84);
-  return true;
-}
-void LabLaterList::after_bind() { call(0x88); }
-// (Its hidden flag kept as the list's own show and hide leave it: the refill reads it.)
-void LabLaterList::show_for(float seconds) {
-  call(0x60, {zgame::bits(seconds)});
-  flags &= ~ztwod::kHidden;
-}
-void LabLaterList::hide() {
-  call(0x64);
-  flags |= ztwod::kHidden;
+// Mech3.exe 1.2 @ 0x0044f340
+void LabPart::on_left_up() {
+  if (enabled && active) {
+    ztwod::CheckButton::on_left_up();
+    notify(1, 0);
+  }
+  notify(1, part);
 }
 
 // Mech3.exe 1.2 @ 0x0044f2c0
@@ -618,6 +615,298 @@ bool LabUnassignedList::can_xa8(int32_t index) {
   for (const Engine::LabFirepoint& f : en.lab_dfn_firepoints(dfn))  // a weapon needs a firepoint in the part
     if (f.part == part) return true;
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// ASSIGNED_LIST (docs/mechlab.md, The criticals page)
+
+namespace {
+// Mech3.exe 1.2 @ 0x00425db0 (ECX the part): its critical slots, 12 for the
+// torsos and arms, 6 for the head and legs; 78 for the whole mech (-1).
+int32_t part_slots(int32_t part) {
+  switch (part) {
+    case 1: case 2: case 3: case 7: case 8: return 12;
+    case 4: case 5: case 6: return 6;
+    case -1: return 0x4e;
+    default: return 0;
+  }
+}
+}  // namespace
+
+bool LabAssignedList::editable() const {
+  return x224 && e_.lab_config_byte(x224, 0x1c) && !states().lab.flag_;
+}
+
+// Mech3.exe 1.2 @ 0x00455d70
+bool LabAssignedList::is_part_row(int32_t row) const {
+  const Handle o = object_at(row);
+  return o >= 1 && o <= 8;
+}
+// Mech3.exe 1.2 @ 0x00455df0
+bool LabAssignedList::is_item_row(int32_t row) const { return object_at(row) != 0 && !is_part_row(row); }
+// Mech3.exe 1.2 @ 0x00455e50
+Handle LabAssignedList::item_at_row(int32_t row) const { return is_item_row(row) ? object_at(row) : 0; }
+// Mech3.exe 1.2 @ 0x00455ec0
+int32_t LabAssignedList::part_of_row(int32_t row) const {
+  return is_part_row(row) ? static_cast<int32_t>(object_at(row)) : -1;
+}
+// Mech3.exe 1.2 @ 0x004560d0
+int32_t LabAssignedList::row_of_part(int32_t p) const {
+  if (!store || p == -1) return -1;
+  for (int32_t i = 0; i < item_count(); ++i)
+    if (part_of_row(i) == p) return i;
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x00455bf0: a text row in STATIC_FONT.
+int32_t LabAssignedList::add_text(const char* text, int32_t n) {
+  if (!text) return 0;
+  const int32_t i = LabItemList::add_text(text, n);
+  if (i >= 0 && i < item_count()) items[static_cast<size_t>(i)]->font = font_static;
+  return i;
+}
+
+// Mech3.exe 1.2 @ 0x00455b60: an item in NORMAL_FONT when it can come off
+// (STATIC_FONT otherwise).
+int32_t LabAssignedList::add_object(Handle item, int32_t n) {
+  const int32_t i = LabItemList::add_object(item, n);
+  if (i >= 0 && i < item_count()) items[static_cast<size_t>(i)]->font = editable() ? font_normal : font_static;
+  return i;
+}
+
+// Mech3.exe 1.2 @ 0x00455af0: SELECTED_FONT on the chosen row, else LARGE;
+// the part listed from now on.
+int32_t LabAssignedList::add_part(int32_t p) {
+  const int32_t i = LabItemList::add_part(p);
+  if (i >= 0 && i < item_count()) items[static_cast<size_t>(i)]->font = i == selected ? font_selected : font_large;
+  listing = p;
+  return i;
+}
+
+// Mech3.exe 1.2 @ 0x004559e0: the arrows step the chosen part in the list's
+// order, head, centre, left and right torso, arms, legs; no wrapping at
+// either end.
+void LabAssignedList::scroll(int32_t by) {
+  const bool down = by > 0;
+  switch (part()) {
+    case 1: choose(down ? 7 : 6); return;
+    case 2: choose(down ? 3 : 8); return;
+    case 3: choose(down ? 4 : 2); return;
+    case 4: choose(down ? 5 : 3); return;
+    case 5: choose(down ? 5 : 4); return;  // (the last: down stays)
+    case 6: choose(down ? 1 : 6); return;  // (the first: up stays)
+    case 7: choose(down ? 8 : 1); return;
+    case 8: choose(down ? 2 : 7); return;
+    default: choose(6); return;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00455f30: part rows, and item rows the player can take off.
+bool LabAssignedList::can_light(int32_t index) {
+  const bool edit = editable();
+  if (is_part_row(index)) return true;
+  return edit && is_item_row(index);
+}
+
+// Mech3.exe 1.2 @ 0x00456130
+void LabAssignedList::choose(int32_t p) { select(row_of_part(p)); }
+
+// Mech3.exe 1.2 @ 0x00456150: the row chosen, the 3D view's part, the part
+// buttons, and UNASSIGNED_LIST's rules again.
+void LabAssignedList::pick(int32_t p) {
+  selected = row_of_part(p);
+  Engine& en = e_;
+  en.lab_part_pick(p);
+  if (LabScreen* s = en.lab_screen(states().lab.lab_screen_)) {
+    s->check_part(p);
+    s->unassigned.refill();
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00455fb0: an item row takes the item back to the lab's
+// store; a part row is chosen (the list from it, the buttons, the 3D view).
+void LabAssignedList::select(int32_t index) {
+  on_leave();
+  on_enter();
+  Engine& en = e_;
+  const LabState& lab = states().lab;
+  if (!is_part_row(index)) {
+    if (is_item_row(index) && !lab.flag_) en.lab_take_off(*this, index);
+    return;
+  }
+  if (index < 0 || index >= item_count()) return;
+  top = index;
+  selected = index;
+  refill();
+  if (LabScreen* s = en.lab_screen(lab.lab_screen_)) s->check_part(part_of_row(index));
+  en.lab_part_pick(part_of_row(index));
+}
+
+// Mech3.exe 1.2 @ 0x004553f0 (and 0x00455360 on each item): with `spread`,
+// the part's free slots take ferro-fibrous and then endo steel rows from the
+// counts left; then the loadout's items on the part (sinks of no group none
+// of its slots).
+void LabAssignedList::add_part_items(bool spread, int32_t* ferro, int32_t* endo) {
+  Engine& en = e_;
+  if (spread) {
+    int32_t free = en.lab_config_part_free(x224, listing);
+    if (free != 0) {
+      if (*ferro != 0) {
+        const int32_t n = std::min(free, *ferro);
+        if (n != 0) {
+          free -= n;
+          *ferro -= n;
+          add_text(en.message(equip_name_message(2)), n);  // 0x00484980: ferro-fibrous's name
+        }
+      }
+      if (free != 0 && *endo != 0) {
+        const int32_t n = std::min(free, *endo);
+        if (n != 0) {
+          *endo -= n;
+          add_text("Endo-Steel Internals", n);
+        }
+      }
+    }
+  }
+  const int32_t mech = en.config_mech(x224);
+  for (Handle it : en.lab_config_items(x224)) {
+    if (!it || en.lab_item_location(it, mech) != listing) continue;
+    int32_t n = en.lab_item_slots(it);
+    if (en.lab_item_kind(it) == 3) {
+      const int32_t k = en.lab_item_equipment(it);
+      if ((k == 9 || k == 10) && en.lab_item_group(it) == -1) n = 0;
+    }
+    add_object(it, n);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00455c50: each part row's used and total slots (all
+// used when the loadout has none left), the line in the row's colour.
+void LabAssignedList::show_slots() {
+  Engine& en = e_;
+  const int32_t left = en.lab_config_slots_left(x224);
+  for (int32_t i = 0; i < item_count(); ++i) {
+    if (!is_part_row(i)) continue;
+    const int32_t p = part_of_row(i);
+    if (p == -1) continue;
+    LabItemRow* row = nullptr;  // 0x00452de0: the shown row of that item
+    for (LabItemRow* r : rows)
+      if (r->index >= 0 && r->index < item_count() && items[static_cast<size_t>(r->index)] == items[static_cast<size_t>(i)]) {
+        row = r;
+        break;
+      }
+    if (!row) continue;
+    const int32_t used = left == 0 ? part_slots(p) : part_slots(p) - en.lab_config_part_free(x224, p);  // 0x00425e00
+    row->show_slots(used, part_slots(p));
+    const uint32_t c = ztwod::host().font_fields(row->named).color_top;
+    row->line.color = zvid::pack_bytes(static_cast<uint8_t>(c), static_cast<uint8_t>(c >> 8), static_cast<uint8_t>(c >> 16));
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004554d0 (shown only). The chosen part (the head when
+// none) stays chosen; the parts in the exe's order, head first, each with
+// its fixed slots' rows; then the layout, the parts' slot counts and each
+// item row's mass and count.
+void LabAssignedList::refill() {
+  if (flags & ztwod::kHidden) return;
+  Engine& en = e_;
+  int32_t chosen = part();
+  if (chosen == -1) chosen = 6;
+  clear();  // 0x00455d60
+  if (!store) return;
+  listing = -1;
+  const Handle cfg = x224;
+  if (!cfg) return;
+  const LabState& lab = states().lab;
+  const bool clan = mech_tech(en.lab_slot_mech(en.lab_slot(lab.pilot_, lab.slot_))) == 1;
+  const int32_t xl = en.lab_config_byte(cfg, 0x28) ? (clan ? 2 : 3) : 0;  // an XL engine's side-torso slots
+  en.lab_config_recount(cfg);
+  const bool spread = en.lab_config_slots_left(cfg) == 0;
+  int32_t ferro = en.lab_config_byte(cfg, 0x34) ? (en.lab_config_armor_tech(cfg) == 1 ? 7 : 14) : 0;
+  int32_t endo = en.lab_config_byte(cfg, 0x20) ? (clan ? 7 : 14) : 0;
+  auto text = [&](int32_t id, int32_t n) { add_text(en.message(id), n); };
+  add_part(6);  // the head: cockpit, life support (2), sensors
+  text(0x24e, 2);
+  text(0x24f, 2);
+  text(0x250, 1);
+  add_part_items(spread, &ferro, &endo);
+  add_part(1);  // the centre torso: the engine, the gyro
+  {
+    const std::string name = en.lab_engine_name(cfg);
+    const char* t = en.message_format(0x251, name.c_str());  // (into 0x40 bytes)
+    add_text(t ? std::string(t).substr(0, 0x3f).c_str() : "", 6);
+  }
+  text(0x252, 4);
+  add_part_items(spread, &ferro, &endo);
+  for (int32_t side : {7, 8}) {  // the side torsos: an XL engine's slots
+    add_part(side);
+    if (xl) text(0x253, xl);
+    add_part_items(spread, &ferro, &endo);
+  }
+  for (int32_t arm : {2, 3}) {  // the arms: shoulder, upper arm
+    add_part(arm);
+    text(0x255, 1);
+    text(0x256, 1);
+    add_part_items(spread, &ferro, &endo);
+  }
+  for (int32_t leg : {4, 5}) {  // the legs: hip, upper leg, lower leg, foot
+    add_part(leg);
+    text(0x2d5, 1);
+    text(0x257, 1);
+    text(0x258, 1);
+    text(0x259, 1);
+    add_part_items(spread, &ferro, &endo);
+  }
+  pick(chosen);
+  layout();
+  show_slots();
+  const Handle font = lab.flag_ ? font_count : font_mass;
+  for (LabItemRow* row : rows) {
+    if (row->flags & ztwod::kHidden) continue;
+    if (is_part_row(row->index)) continue;
+    const Handle it = object_at(row->index);
+    if (!it) continue;
+    char b[32];
+    std::snprintf(b, sizeof b, "%.1f", en.lab_item_weight(it, -1));
+    row->mass.set_text("%s", b);
+    row->mass.set_font(font);
+    row->mass.show_for(-1.0f);
+    if (!en.lab_item_unlimited(it)) {
+      row->qty.set_text("%d", en.lab_item_count(it));
+      row->qty.set_font(font);
+      row->qty.show_for(-1.0f);
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0044d3e0
+void LabScreen::check_part(int32_t p) {
+  part_head.set_checked(p == 6);
+  for (LabPart& b : parts) b.set_checked(p == b.part);
+}
+
+// Engine's take-off by default: what the lab test leaves out (its loadouts
+// are stand-ins).
+void Engine::lab_take_off(LabAssignedList& list, int32_t index) {
+  (void)list;
+  unported("lab.take_off", {static_cast<uint32_t>(index)});
+}
+
+// Mech3.exe 1.2 @ 0x00455fb0's item row: all of the item back to the lab's
+// store ([0x00605a80]) and off the shown slot's loadout, then the refresh.
+void lab_take_off(Engine& en, LabAssignedList& list, int32_t index) {
+  const LabState& lab = states().lab;
+  const Handle slot = en.lab_slot(lab.pilot_, lab.slot_);  // 0x0044e680
+  Config* cfg = en.lab_config_of(slot ? en.lab_slot_cfg(slot) : 0);
+  auto* item = const_cast<ConfigItem*>(en.item_of(list.item_at_row(index)));
+  Store* store = en.store_of(lab.store_);
+  if (cfg && item && store && store->add_copy(item, item->count)) {
+    cfg->remove(item, item->count);
+    cfg->modified = 1;
+    cfg->recount();
+    list.play_sound(1, 1.0f);
+  }
+  en.lab_page_refresh(lab.lab_screen_);
 }
 
 // Engine's put-on by default: the lab test's stand-in for +0xac.
@@ -931,7 +1220,7 @@ void LabUnassignedList::refill() {
   }
   LabScreen* s = en.lab_screen(lab.lab_screen_);
   if (!s) return;  // FIX (bug): read unchecked by the exe
-  LabLaterList& as = s->assigned;
+  LabAssignedList& as = s->assigned;
   if ((as.flags & ztwod::kHidden) && !armor_tab) {
     as.show_for(-1.0f);
     as.refill();
@@ -1118,7 +1407,7 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
     LabLater* l;
     uint32_t at;
   } later[] = {{&loadouts, 0x11508}, {&unassigned, 0x19290},
-               {&assigned, 0x1a13c}, {&ungrouped, 0x1a36c}, {&grouped, 0x1a570}, {&engine_table, 0x1a8c8}};
+               {&ungrouped, 0x1a36c}, {&grouped, 0x1a570}, {&engine_table, 0x1a8c8}};
   for (const auto& x : later) x.l->e = &e, x.l->at = x.at;
   chassis_data = e.construct(0x457600, {});  // new(0x188)
   mech_data = e.construct(0x456cd0, {});     // new(0x5ac)

@@ -109,6 +109,9 @@ class LabCheck : public InvertCheck {
 class LabPart : public LabCheck {
  public:
   LabPart() { id = 0x12; }
+  // +0x30 0x0044f340: a checked one unchecks and reports none (0) first;
+  // then its part, to the screen's 0x12 (ASSIGNED_LIST's choice).
+  void on_left_up() override;
   int32_t part = 0;                  // +0x16c
 };
 
@@ -170,19 +173,40 @@ class LabSelect : public LabCheck {
   explicit LabSelect(int32_t i) { id = i; }
 };
 
-// An item list (lab_items.h) whose own reading, showing and refill belong to
-// a later step (5b UNASSIGNED_LIST, 6 ASSIGNED_LIST: 0x004552e0, vtable
-// 0x005c1fe0): those slots go out as "lab.vt+<slot>".
-class LabLaterList : public LabItemList, public LabLater {
+// ASSIGNED_LIST (0x004552e0, vtable 0x005c1fe0; the base's 0x22c bytes and
+// +0x22c): the shown loadout (+0x224) by part, each part a row (its object
+// the part's number, 1..8) with its fixed slots (cockpit, engine, gyro,
+// actuators...), ferro-fibrous and endo steel, then the loadout's items on
+// it; a part row shows "used/total". Choosing a part row picks the part
+// (the screen's buttons, the 3D view, the unassigned list's rules); an
+// item row takes the item back off to the lab's store (docs/mechlab.md,
+// The criticals page).
+class LabAssignedList : public LabItemList {
  public:
-  explicit LabLaterList(Engine& e) : LabItemList(e) {}
-  void refill() override { call(0xb8, {store, x224}); }  // +0xb8
-  // 0x00455eb0 (ASSIGNED_LIST's, 0x00455ec0 on its +0x160): the part chosen, -1 none.
-  int32_t part() const { return static_cast<int32_t>(ask("0x00455eb0")); }
-  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
-  void after_bind() override;        // +0x88
-  void show_for(float seconds) override;  // +0x60
-  void hide() override;              // +0x64
+  explicit LabAssignedList(Engine& e) : LabItemList(e) {}  // 0x004552e0
+  int32_t add_text(const char* text, int32_t n) override;  // +0x90  0x00455bf0: STATIC_FONT
+  int32_t add_object(Handle item, int32_t n) override;     // +0x94  0x00455b60
+  int32_t add_part(int32_t part) override;                 // +0x98  0x00455af0
+  void scroll(int32_t by) override;  // +0x9c  0x004559e0: the next or previous part
+  bool can_light(int32_t index) override;  // +0xa4  0x00455f30
+  void select(int32_t index) override;     // +0xac  0x00455fb0
+  bool can_roll(int32_t index) override { return !is_part_row(index); }  // +0xb0  0x00455f90
+  void refill() override;            // +0xb8  0x004554d0
+  bool is_part_row(int32_t row) const;   // 0x00455d70: its object a part's number
+  bool is_item_row(int32_t row) const;   // 0x00455df0
+  Handle item_at_row(int32_t row) const;  // 0x00455e50
+  int32_t part_of_row(int32_t row) const;  // 0x00455ec0: -1 not a part row
+  int32_t row_of_part(int32_t part) const;  // 0x004560d0: -1 none
+  int32_t part() const { return part_of_row(selected); }  // 0x00455eb0
+  void choose(int32_t part);         // 0x00456130: the part's row pressed
+  void pick(int32_t part);           // 0x00456150: the part chosen (no refill)
+  void show_slots();                 // 0x00455c50: each part row's used and total
+  bool editable() const;             // the loadout the player's (+0x1c) and the lab not read-only
+  // 0x004553f0: a part's ferro-fibrous and endo steel rows (from the two
+  // counts left) and its items.
+  void add_part_items(bool spread, int32_t* ferro, int32_t* endo);
+
+  int32_t listing = 0;               // +0x22c  the part being listed (not set by the constructor)
 };
 
 // UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68), 0xeac bytes: the lab
@@ -272,6 +296,8 @@ class LabMessage : public ztwod::FontText {
 // the row's item onto the shown slot's loadout from the lab's store, if the
 // rule allows it; then the screen refreshed.
 void lab_put_on(Engine& e, LabUnassignedList& list, int32_t index);
+// 0x00455fb0's item row (ASSIGNED_LIST's +0xac): the item back to the lab's store.
+void lab_take_off(Engine& e, LabAssignedList& list, int32_t index);
 // [0x005e47d4]: which end of the part's firepoints the next weapon takes
 // (1 at start: the last).
 uint8_t& lab_firepoint_toggle();
@@ -296,6 +322,7 @@ class LabScreen : public MenuScreen {
   void default_config(Handle slot, Handle store);
   void show_page(int32_t page, bool show);  // 0x0044ca50
   HelpButton* tab(int32_t page);     // 0x0044ca20: null out of 0..6
+  void check_part(int32_t part);     // 0x0044d3e0: the part buttons, that one checked
   static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90
   void bind_later(Handle panel, const char* name);  // 0x0059f8b0 on a panel of a later step
 
@@ -319,7 +346,7 @@ class LabScreen : public MenuScreen {
   LabPart part_head;                 // +0x18710
   LabPart parts[7];                  // +0x18880..+0x19120
   LabUnassignedList unassigned;      // +0x19290
-  LabLaterList assigned;             // +0x1a13c  (step 6)
+  LabAssignedList assigned;          // +0x1a13c  ASSIGNED_LIST
   LabWeaponList ungrouped;           // +0x1a36c
   LabWeaponList grouped;             // +0x1a570
   WinTitle current_chassis;          // +0x1a774  CURRENT_CHASSIS (vtable 0x005c11c0)
