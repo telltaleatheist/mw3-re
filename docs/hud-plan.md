@@ -103,8 +103,10 @@ not the HUD's.
 6c2. (Done 2026-10-25) **The zoom window's 3D pass** (the reticle's vt+0x28
    0x444230 -> 0x442f50 with 0x4436c0 and the zoom's own render 0x443320;
    hud.md section 23): the zoom camera's view in its box or circle.
-6c3. **TARGET's view of its target** (0x4428b0: the target drawn alone,
-   its vt+0x68 around it).
+6c3. (Done 2026-10-25) **TARGET's view of its target** (0x4428b0: the
+   target drawn alone, its vt+0x68 around it; hud.md section 22), with the
+   MFD's mode 1 (0x442900, its zView's own render: the player's mech from
+   the front; playtest #29).
 7. **The mission maps** (0x4583b0 and family): maps.zrd read at the
    start, freed at the end (the cleanup's 0x4582c0 is in mission-frame.md).
    Shows: nothing yet.

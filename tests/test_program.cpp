@@ -198,6 +198,28 @@ TEST(msgdll_reads_the_message_table_and_zlocgetid) {
   zutl::install_messages(nullptr);
 }
 
+// The va_list formatter (zTwoD's set_text_id, 0x00575ff0) reads each %N by
+// its type as FormatMessage does: the radar's nav line 0x229 "OP: %1
+// [%2!d!m]" takes a string and an int (read as a string it crashed, the
+// nav point under 1 km away); 0x228's %2 is a string.
+static std::string format_v(int32_t id, ...) {
+  va_list ap;
+  va_start(ap, id);
+  std::string s = zutl::format_message_v(id, ap);
+  va_end(ap);
+  return s;
+}
+TEST(msgdll_formats_each_argument_by_its_type) {
+  if (!have_game()) return;
+  zutl::MessageDll dll;
+  EXPECT(zutl::read_message_dll(std::string(MW3_GAME_DIR) + "/Mech3Msg.dll", dll));
+  zutl::install_messages(&dll);
+  EXPECT(format_v(0x229, "Able", 250) == "OP: Able [250m]");
+  EXPECT(format_v(0x228, "Able", "1.56") == "OP: Able [1.56km]");
+  EXPECT(format_v(0x177, 1, 2) == "Operation 1, Mission 2");  // %1!d!, %2!d!
+  zutl::install_messages(nullptr);
+}
+
 TEST(msgdll_rejects_a_file_that_is_not_a_dll) {
   const std::string d = temp_dir("msgdll");
   touch(d + "/fake.dll");
@@ -1270,6 +1292,118 @@ TEST(mission_c1m1_hud_views_drawn_headless) {
   EXPECT(at10.view_cameras >= 3 && at10.view_windows == at10.view_cameras);  // the zoom, the MFD's, TARGET's
   EXPECT(at10.mfd_shown == 1 && at10.views_drawn == 5 && at10.depth_fills >= 5);  // one a frame
   EXPECT(gpu_rects_from5 >= 5);  // the fills reach the device (DDBLT_DEPTHFILL)
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Playtest #29, the MFD's 3D view (mode 1) and TARGET's (hud-plan 6c3): the
+// MFD's zView has its own render (vtable 0x005c04f8, 0x00442900): the camera
+// 13 m before the player's mech at 1.25 times its centroid's height, the mech
+// drawn alone (0x004428b0) each frame; TARGET in its 3D mode draws its target
+// alone the same way (0x00441410).
+TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_mfd_view_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct DepthGpu : platform::Render3D {  // a device, so the Direct3D paths run
+    int depth_rects = 0;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override { ++depth_rects; }
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  mech3::HudReport r, mfd, both;
+  bool targeted = false;
+  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode and messages, the engine's (as the SDL host's)
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      if (frames == 3) {  // 60 m west of the Owens, facing it (+x: yaw -90)
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        mech3::LaunchedMech o;
+        mech3::describe_mech(made == 1 ? ai[0].mech : nullptr, &o);
+        const float x = o.pos[0] - 60.0f, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+      }
+      if (frames == 4) mech3::program_hud_mfd_mode(1);  // the 3D view (the game's saved mode may differ)
+      if (frames == 10) mech3::program_hud_report(&r);
+      if (frames == 15) mech3::program_hud_report(&mfd);  // frames 11-15: the MFD's mech only
+      if (frames == 16) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        targeted = made == 1 && mech3::program_hud_target(ai[0].mech, 1);  // TARGET's 3D view on it
+        mech3::program_hud_report(&r);
+      }
+      if (frames == 21) mech3::program_hud_report(&both);  // frames 17-21: both
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 21; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  MFD mode %d: %d nodes drawn in 5 frames, its camera %.1f m from the mech, %.1f m up, %.1f m in "
+              "front; TARGET mode %d (targeted %d): %d nodes drawn in 5 frames\n",
+              mfd.mfd_shown, mfd.node_draws, mfd.mfd_cam_dist, mfd.mfd_cam_height, mfd.mfd_cam_front, both.target_shown,
+              targeted, both.node_draws);
+  EXPECT(mfd.mfd_shown == 1 && mfd.node_draws == 5);                   // the mech alone, once a frame
+  EXPECT(std::fabs(mfd.mfd_cam_front - 13.0f) < 0.5f);                 // 13 m before it
+  EXPECT(mfd.mfd_cam_height > 2.0f && mfd.mfd_cam_dist < 13.5f);       // at 1.25 x its centroid's height
+  EXPECT(targeted && both.target_shown == 1 && both.node_draws == 10);  // and TARGET's target
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

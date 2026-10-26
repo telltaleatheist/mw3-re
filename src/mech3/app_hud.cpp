@@ -4,6 +4,7 @@
 #include "mech3/app_vehicle.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -15,6 +16,7 @@
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zclass/window.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zeffect/zeff_anim_run.h"
@@ -150,13 +152,64 @@ struct ProgramHudHooks : HudHooks {
   }
   void mask_fan(const float* xyz, int32_t count) override { ++fans, zvid::clear_fan(xyz, count); }
   int fans = 0;  // for the reports
-  // 0x00442870 -> the zView's vt+0x04 (0x004b52c0): its camera's scene walk
-  // (0x004f7030); 0x004f6dc0 without a device is the software path (not ported).
+  // 0x00442870 -> the zView's vt+0x04: the plain zView's (0x004b52c0) is its
+  // camera's scene walk (0x004f7030; 0x004f6dc0 without a device is the
+  // software path, not ported). The MFD view's zView (vtable 0x005c04f8, set
+  // by 0x00442620) has its own, 0x00442900: its mech alone, from the front.
   void zview_render(void* view, float) override {
-    const HudZView& v = static_cast<HudZoomView*>(view)->view;
+    auto* zv = static_cast<HudZoomView*>(view);
+    if (auto* mv = dynamic_cast<HudMfdView*>(zv)) return mfd_view(*mv);
+    const HudZView& v = zv->view;
     if (!v.hardware) return;
     if (zcls::Node* c = node(v.camera)) ++view_draws, zcls::render_world(c, 0);
   }
+  // Mech3.exe 1.2 @ 0x00442900: the camera 13 m before the HUD's mech (its
+  // local -z, [0x005e3a08]) at 1.25 times its centroid's height over its
+  // place, turned to the centroid; the mech's node drawn alone (0x004428b0,
+  // its vt+0x68 tint around), its see-through flag (object3d flag 2, the
+  // player's own mech outside) and an attached cockpit model off meanwhile.
+  void mfd_view(HudMfdView& v) {
+    Hud* hud = static_cast<Hud*>(v.source);
+    Mech* m = hud ? hud->mech : nullptr;
+    if (!m || !m->transform) return;  // the exe reads through a null
+    float c[3], base[3];
+    node_world_cached(m->centroid, c);  // 0x00448600, then its data +0x84
+    mech_world_position(m, base);       // 0x005a85e0
+    const float h = (c[1] - base[1]) * 1.25f, z = -13.0f;
+    const float* t = m->transform;
+    const float cam[3] = {z * t[6] + h * t[3] + 0.0f * t[0] + t[9], z * t[7] + h * t[4] + 0.0f * t[1] + t[10],
+                          z * t[8] + h * t[5] + 0.0f * t[2] + t[11]};
+    camera_set_position(v.view.camera, cam);  // 0x004f3870
+    float angles[3];
+    zmth::direction_angles(cam, c, angles);  // 0x00523ac0 from the camera's place
+    camera_set_angles(v.view.camera, angles);  // 0x004f36b0
+    auto* n = static_cast<zcls::Node*>(m->node);
+    const bool see_through = n && (static_cast<zcls::Object3d*>(n->data)->get<uint32_t>(0) & 2) != 0;
+    CockpitModel* cm = m->pilot ? m->pilot->cockpit_model : nullptr;
+    auto* cn = cm ? static_cast<zcls::Node*>(cm->node) : nullptr;
+    const bool cockpit = cn && (cn->flags() & 4) && cn->parent_count() > 0 && cn->parents && m->torso &&
+                         cn->parents[0] == m->torso->node;
+    if (see_through) zcls::object3d_use_opacity(n, 0);
+    if (cockpit) zcls::node_set_active(cn, 0);
+    hud_object_view_tint(m, true);  // vt+0x68
+    view_draw_node(&v, keep(n));
+    hud_object_view_tint(m, false);
+    if (see_through) zcls::object3d_use_opacity(n, 1);
+    if (cockpit) zcls::node_set_active(cn, 1);
+  }
+  // Mech3.exe 1.2 @ 0x004428b0: the view's panel (vt+0x24 0), then the node
+  // alone through its camera (0x004f73f0) with the world's fog off
+  // (0x004f23e0 on [0x00608c84]+4: 0, then 1).
+  void view_draw_node(void* view, uint32_t nh) override {
+    auto* v = static_cast<HudZoomView*>(view);
+    v->panel.update(0.0f);
+    zcls::Node* cam = node(v->view.camera);
+    zcls::Node* world = cam ? zcls::camera_world(cam) : nullptr;
+    if (world) zcls::world_set_fog_type(world, 0);
+    if (cam && node(nh)) ++view_draws, ++node_draws, zcls::render_subtree(cam, node(nh), v->view.hardware);
+    if (world) zcls::world_set_fog_type(world, 1);
+  }
+  int node_draws = 0;  // for the reports
   void dirty_rect(const ztwod::Rect* r) override {  // 0x00576ce0: the depth there cleared
     if (!r) return;
     const int32_t q[4] = {r->left, r->top, r->right, r->bottom};
@@ -786,6 +839,20 @@ bool program_hud_report(HudReport* r) {
   r->views_drawn = g_hooks.view_draws, r->depth_fills = g_hooks.view_depth_fills;
   g_hooks.view_draws = g_hooks.view_depth_fills = 0;
   r->mfd_shown = h->mfd.shown_mode();
+  r->target_shown = h->target.shown_mode();
+  r->node_draws = g_hooks.node_draws;
+  g_hooks.node_draws = 0;
+  if (zcls::Node* cn = h->mfd.view ? g_hooks.node(h->mfd.view->view.camera) : nullptr) {
+    const auto* c = static_cast<const zcls::Camera*>(cn->data);
+    float base[3];
+    if (c && h->mech && h->mech->transform && mech_world_position(h->mech, base)) {
+      const float d[3] = {c->get<float>(0x14) - base[0], c->get<float>(0x18) - base[1], c->get<float>(0x1c) - base[2]};
+      const float* t = h->mech->transform;
+      r->mfd_cam_dist = std::sqrt(d[0] * d[0] + d[2] * d[2]);
+      r->mfd_cam_height = d[1];
+      r->mfd_cam_front = -(d[0] * t[6] + d[1] * t[7] + d[2] * t[8]);  // along the mech's -z
+    }
+  }
   HudZoomWindow& z = h->reticle.zoom;
   r->zoom_shown_now = !(z.flags & ztwod::kHidden), r->zoom_round = z.round, r->mask_fans = g_hooks.fans;
   g_hooks.fans = 0;
