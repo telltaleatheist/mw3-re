@@ -222,6 +222,33 @@ def make_plan(seed, accept=True, crit=True):
             if r.random() < 0.5:
                 lines.append('E')
         lines += ['G 3 0', 'E']
+    if accept and crit:  # an armour session: the armour tab (26) shows ARMOR_TITLES, refreshed on other slots
+        lines += ['R', 'G 3 1', 'B 1a', 'E']
+        # Its presses (step 8b3), the ends first: a front at 0 stepped down; a
+        # rear, then a front, at the most with the other side none (no change,
+        # no redraw) and with some (one moved over); then any.
+        down = -1 & 0xffffffff
+        lines += ['A 0 0', f'I 0 {down:x}', 'E', 'A 3 2', 'I 3 1', 'E', 'A 1 2', 'I 4 1', 'E',
+                  'A 2 1', 'I 2 1', 'E', 'A 0 3', 'I 0 1', 'E', 'A 7 3', 'I 7 1', 'E',  # none left
+                  'F 0 0', 'E', 'F 0 0', 'F 1 0', 'E']  # REMOVE (none on, or some; none left after A 7 3), DISTRIBUTE
+        for _ in range(r.randrange(2, 7)):
+            lines.append(r.choice(['R', 'B 8', 'B 9', 'B a', 'B 1a', 'B 18']))  # (24 the equipment tab hides it)
+            lines.append('E')
+        for _ in range(r.randrange(4, 16)):
+            c = r.random()
+            if c < 0.55:
+                lines.append(f'I {r.randrange(11):x} {r.choice([1, 1, down]):x}')
+            elif c < 0.7:
+                lines.append('F 0 0')  # REMOVE
+            elif c < 0.8:
+                lines.append('F 1 0')  # DISTRIBUTE
+            elif c < 0.9:
+                lines.append(f'A {r.randrange(11):x} {r.choice([0, 1, 2, 3]):x}')
+            else:
+                lines.append(r.choice(['B 8', 'B 9', 'R']))
+            if r.random() < 0.4:
+                lines.append('E')
+        lines += ['E', 'G 3 0', 'E']
     if accept and crit:  # an engine session: the equipment tab's ENGINE_TABLE, its buttons pressed
         lines += ['R', 'G 3 1', 'B 18', 'B 12', 'E']  # the equipment tab (24), a part press (18: none)
         for _ in range(r.randrange(12, 32)):
@@ -232,12 +259,6 @@ def make_plan(seed, accept=True, crit=True):
                 lines.append(f'B {r.choice([8, 9]):x}')  # another slot
             if r.random() < 0.4:
                 lines.append('E')
-        lines += ['G 3 0', 'E']
-    if accept and crit:  # an armour session: the armour tab (26) shows ARMOR_TITLES, refreshed on other slots
-        lines += ['R', 'G 3 1', 'B 1a', 'E']
-        for _ in range(r.randrange(2, 7)):
-            lines.append(r.choice(['R', 'B 8', 'B 9', 'B a', 'B 1a', 'B 18']))  # (24 the equipment tab hides it)
-            lines.append('E')
         lines += ['G 3 0', 'E']
     if accept and crit:  # a weapon groups session (its tab, 4): rows of both lists pressed
         lines += ['B 4', 'E']
@@ -268,6 +289,9 @@ class Original:
         self.t = Trace(seed=seed)
         w = self.w = TwodWorld(self.t, seed)
         e = self.e = w.emu
+        # The loadouts' vtable: only its remove (vt+0x14, 0x00471de0; REMOVE's) is called.
+        self.cfg_vt = e.world_alloc(0x40)
+        e.w32(self.cfg_vt + 0x14, e.new_stub('0x00471de0', 'c,s0,s1', 8))
 
         def xl_edge(rr, co):  # an XL loadout's tons at (or half the XL's under) its mech's most with a standard engine
             i = min(max(i32(e.r32(co + 0x24)), 0), 79)
@@ -323,6 +347,7 @@ class Original:
             e.w32(s + 0x10, sk & 0xffffffff)
             if c:
                 co = e.world_alloc(0xd8)
+                e.w32(co, self.cfg_vt)
                 e.w32(co + 0x14, c['mech'] & 0xffffffff)
                 e.w32(co + 0x18, e.world_string(c['name']))
                 e.cpu.write(co + 0x1c, bytes([1]))
@@ -430,6 +455,7 @@ class Original:
             cfgs = []
             for k in range(rr.choice([0, 1, 2, 3, 4])):
                 co = e.world_alloc(0xd8)
+                e.w32(co, self.cfg_vt)
                 e.w32(co + 0x14, mech & 0xffffffff)
                 e.w32(co + 0x18, e.world_string(rr.choice(NAMES[:4]) + ('' if rr.random() < 0.6 else str(k))))
                 e.cpu.write(co + 0x1c, bytes([rr.choice([0, 1, 1])]))
@@ -493,6 +519,11 @@ class Original:
         e.stub(0x424f60, '0x00424f60', 'c', 0)
         e.stub(0x4735f0, '0x004735f0', 'c,s0,s1,s2', 12)
         e.stub(0x472a30, '0x00472a30', 'c,s0', 4)
+        # ARMOR_TITLES' presses (step 8b3): the store's equipment back (vt+0x0c) and
+        # the sections spread (ECX the armour at +0x2c: the loadout recorded).
+        e.stub(0x471a20, '0x00471a20', 'c,s0,s1,s2', 12)
+        e.stub(0x4247a0, '0x004247a0', 'c', 4,
+               lambda emu, k, a, p: (t.handle(k, (a[0] - 0x2c,)), emu._ret(0, p)))
         e.stub(0x471c10, '0x00471c10', 'c,s0', 4)
         # The slot takes the loadout (the exe takes a copy; the loadout itself
         # here, its name the same): the emulator's slot, and the probe's poke.
@@ -645,7 +676,11 @@ class Original:
         bare = rs.random() < 0.3  # none on (with no tons, none left: DISTRIBUTE disabled)
         for k in range(11):
             e.w32(co + 0x38 + 4 * k, 0 if bare else rs.choice([0, 0, 5, 12, 31]))
-        self.item_list(co, c.get('items', []))
+        items = c.get('items', [])
+        if c.get('tons', 0.0) > 0 and rs.random() < 0.7:  # its armour as an item, half a ton each (REMOVE's)
+            items = items + [{'kind': 3, 'id': 2 if c.get('ferro', 0) else 1, 'n': int(c['tons'] * 2),
+                              'tech': c.get('tech', 2), 'part': -1, 'group': 0}]
+        self.item_list(co, items)
 
     def item_list(self, co, items):
         """A loadout's item list (+0x08, its count +0x0c): items with the exe's vtables."""
@@ -686,6 +721,7 @@ class Original:
         co = e.world_alloc(0xd8)
         for off in range(0, 0x20, 4):
             e.world_w32(co + off, 0)
+        e.world_w32(co, self.cfg_vt)
         e.world_w32(co + 0x14, e.r32(a[1] + 0x14))
         e.world_w32(co + 0x18, self.wstring(a[0] if isinstance(a[0], str) else ''))  # ('zc': the name)
         e.world_w32(co + 0x1c, 1)
@@ -725,6 +761,46 @@ class Original:
             f = emu.r32(a[0] + 0xc)
             emu.w32(a[0] + 0xc, f & ~0x10 if key == 'lab.vt+0x60' else f | 0x10)
         emu._ret(v if key == 'lab.vt+0xa8' else 0, pop)  # (may the item go on: step 5b2's)
+
+    def armor_op(self, op, pv):
+        """A: section pv[0] set (0 none; 1 to its most less the other side's; 2 to
+        its most, the other side none; 3 so that none are left), the most read from its front's toggle
+        text; I: toggle pv[0] stepped by pv[1]; F: REMOVE (0) or DISTRIBUTE (1)
+        pressed. probe_lab.cpp's armor_op the same."""
+        e = self.e
+        a = e.r32(self.m + ARMOR)
+        if op == 'I':
+            self.vcall(a + 0x2a4 + 0x42c * pv[0], 0xa4, (pv[1],))
+        elif op == 'F':
+            self.vcall(a + (0x14c if pv[0] == 0 else 0x3088), 0x30)
+        else:
+            co = e.r32(self.slots[i32(e.r32(SLOT))] + 8)
+            k, mode = pv
+            if not co:
+                return
+            front = k - 3 if 3 <= k <= 5 else k
+            most = e.r32(a + 0x2a4 + 0x42c * front + 0x428)
+            text = e.cstr(most + 0x34) if most else ''
+            if not re.fullmatch(r'-?\d+', text):
+                return
+            cap = int(text)
+            other = (k + 3) % 6 if k < 6 else -1
+            sec = lambda j: i32(e.r32(co + 0x38 + 4 * j))  # noqa: E731
+            if mode == 3:  # none left: the points the tons give (0x00424760) all placed
+                tons = struct.unpack('<f', e.cpu.read(co + 0x2c, 4))[0]
+                per = 16.000099182128906
+                if e.cpu.read(co + 0x34, 1)[0]:
+                    per *= 1.2000000476837158 if i32(e.r32(co + 0x30)) == 1 else 1.12
+                pts = math.floor(per * tons)
+                e.w32(co + 0x38 + 4 * k, max(0, pts - (sum(sec(j) for j in range(11)) - sec(k))))
+            elif mode == 0:
+                e.w32(co + 0x38 + 4 * k, 0)
+            elif mode == 1:
+                e.w32(co + 0x38 + 4 * k, max(0, cap - (sec(other) if other >= 0 else 0)))
+            else:
+                e.w32(co + 0x38 + 4 * k, cap & 0xffffffff)
+                if other >= 0:
+                    e.w32(co + 0x38 + 4 * other, 0)
 
     def vcall(self, obj, slot, stack=()):
         return self.e.call(self.e.r32(self.e.r32(obj) + slot), ecx=obj, stack=stack)
@@ -780,6 +856,10 @@ class Original:
                 sh = i32(e.r32(SLOT))
                 if 0 <= sh < len(self.slots):
                     self.vcall(e.r32(m + MECH_DATA) + 0x188, 0xa4, (pv[0],))
+            elif op in ('A', 'I', 'F'):  # ARMOR_TITLES (step 8b3), with a slot shown (as D)
+                sh = i32(e.r32(SLOT))
+                if 0 <= sh < len(self.slots):
+                    self.armor_op(op, pv)
             elif op == 'O':  # WEAPONS_GROUPED's chosen row (+0x17c) set: a weapon's (0x0044e4e0's other case)
                 e.w32(m + GROUPED + 0x17c, pv[0])
             elif op == 'H':  # a weapon list's row pressed (+0x98): 0 ungrouped, 1 grouped
@@ -1135,6 +1215,9 @@ def main():
         stats['seeds with loadout weapons or equipment'] = stats.get('seeds with loadout weapons or equipment', 0) + (
             1 if re.search(r'^loadouts [^\n]*=0\|[^\n]*Ff4b:[^\n]*\|[ \d]\d ', dump, re.M) or
             re.search(r'^loadouts items=[ \d]\d ', dump, re.M) else 0)
+        keys = [k for k, _ in trace]
+        stats['seeds with armour taken off'] = stats.get('seeds with armour taken off', 0) + ('0x00471a20' in keys)
+        stats['seeds with armour spread'] = stats.get('seeds with armour spread', 0) + ('0x004247a0' in keys)
         stats['seeds with weapon tags'] = stats.get('seeds with weapon tags', 0) + (1 if ' tag=' in dump else 0)
         stats['seeds with an XL engine shown'] = stats.get('seeds with an XL engine shown', 0) + (
             1 if 'F241:' in dump else 0)

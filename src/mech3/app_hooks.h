@@ -793,6 +793,19 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_config_section(Handle config, int32_t part) {  // +0x38: a section's points
     return static_cast<int32_t>(field32(config, 0x38 + 4 * static_cast<uint32_t>(part)));
   }
+  virtual void lab_config_set_section(Handle config, int32_t part, int32_t v) {
+    set_field32(config, 0x38 + 4 * static_cast<uint32_t>(part), static_cast<uint32_t>(v));
+  }
+  // 0x004247a0 (ECX the armour at +0x2c, the mech pushed): the sections spread anew.
+  virtual void lab_config_spread_armor(Handle config) { unported("0x004247a0", {config}); }
+  // The loadout's vt+0x14 (0x00471de0): n fewer of the item.
+  virtual void lab_config_remove(Handle config, Handle item, int32_t n) {
+    unported("0x00471de0", {config, item, static_cast<uint32_t>(n)});
+  }
+  // The store's vt+0x0c (0x00471a20): n of the equipment back.
+  virtual void lab_store_add_equipment(Handle store, int32_t kind, int32_t tech, int32_t n) {
+    unported("0x00471a20", {store, static_cast<uint32_t>(kind), static_cast<uint32_t>(tech), static_cast<uint32_t>(n)});
+  }
   virtual int32_t lab_item_tech(Handle item);
   struct LabFirepoint {
     int32_t part;

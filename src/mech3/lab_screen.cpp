@@ -1924,17 +1924,90 @@ void LabArmorToggle::refresh(Handle config) {
   if (most) most->set_text("%d", part_armor_max(e.config_mech(config), section));
 }
 
-// The presses (step 8b3): the original's for now.
-void LabArmorRemove::on_left_up() { e_.unported("0x00450cc0", {}); }
-void LabArmorDistribute::on_left_up() { e_.unported("0x00450c70", {}); }
+// Mech3.exe 1.2 @ 0x00450cc0. Half a ton of the mech's armour back to the
+// store; the sections spread anew when more are on them than the tons give.
+// Nothing of it on the loadout: only the press itself.
+void LabArmorRemove::on_left_up() {
+  if (!enabled) return;
+  Engine& e = e_;
+  const Handle store = states().lab.store_;  // [0x00605a80]
+  const Handle cfg = shown_config(e);
+  if (!cfg || !store) return;
+  ShellButton::on_left_up();
+  const int32_t kind = e.lab_config_armor_ferro(cfg) ? 2 : 1;
+  const int32_t tech = e.lab_config_armor_tech(cfg);
+  EquipmentItem probe;  // 0x0041ec00's
+  probe.count = 1, probe.equipment = kind, probe.tech = tech;
+  Handle found = 0;  // 0x004714c0: the first like it
+  for (Handle h : e.lab_config_items(cfg)) {
+    const ConfigItem* it = e.item_of(h);
+    if (it && same_item(it, &probe)) {
+      found = h;
+      break;
+    }
+  }
+  if (!found) return;
+  e.lab_store_add_equipment(store, kind, tech, 1);
+  e.lab_config_remove(cfg, found, 1);
+  int32_t on = 0;  // (0x004513f0's sum, inline)
+  for (int32_t k = 0; k < 11; ++k) on += e.lab_config_section(cfg, k);
+  const float tons = e.lab_config_armor_tons(cfg);
+  if (armor_points(e.lab_config_armor_tech(cfg), e.lab_config_armor_ferro(cfg) != 0, tons) - on < 0)
+    e.lab_config_spread_armor(cfg);
+  e.lab_config_set_modified(cfg, 1);
+  e.lab_config_recount(cfg);
+  if (LabScreen* s = e.lab_screen(states().lab.lab_screen_)) s->refresh();  // 0x0044cf50
+}
 
-// Mech3.exe 1.2 @ 0x004509b0 (its start): the base's step; nothing more for
-// the first choice added (no choice before).
+// Mech3.exe 1.2 @ 0x00450c70: the points the tons give spread over the sections.
+void LabArmorDistribute::on_left_up() {
+  Engine& e = e_;
+  const Handle cfg = shown_config(e);
+  if (!cfg) return;
+  e.lab_config_spread_armor(cfg);
+  e.lab_config_set_modified(cfg, 1);
+  e.lab_config_recount(cfg);
+  if (LabScreen* s = e.lab_screen(states().lab.lab_screen_)) s->refresh();  // 0x0044cf50
+}
+
+// Mech3.exe 1.2 @ 0x004509b0 (docs/mechlab.md, The armour panel). Down: a
+// point off (none below 0). Up: a point from those left while the section
+// and its rear (or front) together are under the most; else, at the most or
+// with none left, one moved over from the other side. At the most with none
+// on the other side nothing changes and the page is not redrawn.
 void LabArmorToggle::step(int32_t by) {
   const int32_t old = index;
   CycleButton::step(by);
   if (old == -1) return;
-  e_.unported("0x004509b0", {static_cast<uint32_t>(section), static_cast<uint32_t>(by)});  // (step 8b3)
+  Engine& e = e_;
+  const Handle cfg = shown_config(e);
+  if (!cfg) return;
+  auto get = [&](int32_t k) { return k >= 0 && k < 11 ? e.lab_config_section(cfg, k) : 0; };
+  auto set = [&](int32_t k, int32_t v) {  // 0x00426560: none below 0
+    if (k >= 0 && k < 11) e.lab_config_set_section(cfg, k, v < 0 ? 0 : v);
+  };
+  const int32_t s = section;
+  if (by < 0) {
+    set(s, get(s) - 1);
+  } else {
+    const int32_t most = part_armor_max(e.config_mech(cfg), s);  // 0x004264e0: twice the structure, the head 9
+    const int32_t own = get(s);
+    const int32_t left = armor_points(e.lab_config_armor_tech(cfg), e.lab_config_armor_ferro(cfg) != 0,
+                                      e.lab_config_armor_tons(cfg)) -
+                         [&] { int32_t n = 0; for (int32_t k = 0; k < 11; ++k) n += get(k); return n; }();  // 0x004513f0
+    const int32_t other = s >= 0 && s < 6 ? (s + 3) % 6 : -1;  // the torsos' front and rear
+    const int32_t theirs = get(other);
+    if (own + theirs == most && theirs < 1) return;
+    if (own + theirs < most && left != 0) {
+      set(s, get(s) + 1);
+    } else if (other != -1 && theirs > 0) {
+      set(other, get(other) - 1);
+      set(s, get(s) + 1);
+    }
+  }
+  e.lab_config_set_modified(cfg, 1);
+  e.lab_config_recount(cfg);
+  if (LabScreen* sc = e.lab_screen(states().lab.lab_screen_)) sc->refresh();  // 0x0044cf50
 }
 
 // Mech3.exe 1.2 @ 0x0044dc80 (the shown slot asked once, unchecked)
