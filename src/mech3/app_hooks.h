@@ -823,6 +823,13 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_config_engine_slots(Handle config) { return static_cast<int32_t>(unported("0x00425e60", {config})); }
   virtual int32_t lab_dfn_engine_min(Handle dfn) { return static_cast<int32_t>(field32(dfn, 0x10)); }
   virtual int32_t lab_dfn_engine_max(Handle dfn) { return static_cast<int32_t>(field32(dfn, 0x14)); }
+  // The data panels (step 8b1): a loadout's tons of one kind (0x00425300:
+  // 0..7 by kind, 8 the mech's most, -1 all; a float) and its endo steel
+  // (+0x20).
+  virtual float lab_config_weight_of(Handle config, int32_t what) {
+    return zgame::from_bits(unported("0x00425300", {config, static_cast<uint32_t>(what)}));
+  }
+  virtual void lab_config_set_endo(Handle config, uint8_t v) { set_field8(config, 0x20, v); }
   virtual std::string lab_item_label(Handle item);  // vt+0x1c (0x00473740 for weapons): "name (n)"
   virtual void lab_set_item_group(Handle item, int32_t group);  // +0x08
   virtual const char* part_text(int32_t part);

@@ -728,6 +728,13 @@ int32_t GameEngine::lab_dfn_engine_max(Handle dfn) {
   const auto* d = static_cast<const MechDfn*>(object_of(dfn));
   return d ? d->get<int32_t>(0x14) : 0;
 }
+float GameEngine::lab_config_weight_of(Handle config, int32_t what) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? static_cast<float>(c->weight(what)) : 0.0f;
+}
+void GameEngine::lab_config_set_endo(Handle config, uint8_t v) {
+  if (auto* c = static_cast<Config*>(object_of(config))) c->endo_steel = v;
+}
 bool GameEngine::lab_config_valid(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && c->validate(false);

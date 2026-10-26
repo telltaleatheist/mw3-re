@@ -311,6 +311,35 @@ void dump_engine(mech3::LabScreen& s, Dump& d) {
   o << '\n';
 }
 
+// MECH_DATA and CHASSIS_DATA (step 8b1), as test_lab_screen.py's dump_data.
+void dump_table(std::ostringstream& o, const char* tag, const mech3::LabTable& t) {
+  o << tag << " at=" << t.x << ',' << t.y << std::hex << " flags=" << t.flags << " fonts=" << t.font_label << ','
+    << t.font_value << ',' << t.font_alt << std::dec << " width=" << t.width << " offset=" << t.offset[0] << ','
+    << t.offset[1] << " spacing=" << t.spacing[0] << ',' << t.spacing[1] << " pos=" << t.pos[0] << ',' << t.pos[1]
+    << '\n';
+  auto text = [&](const char* k, const ztwod::FontText& f) {
+    o << ' ' << k << '=' << f.x << ',' << f.y << " \"" << f.text << "\"/" << std::hex << f.flags << '/' << f.font << '/'
+      << f.named << std::dec;
+  };
+  for (size_t i = 0; i < t.rows.size(); ++i) {
+    o << tag << "row" << i;
+    text("l", *t.rows[i]);
+    text("v", t.rows[i]->value);
+    o << '\n';
+  }
+}
+void dump_data(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  dump_table(o, "mdata", *s.mech_data);
+  dump_table(o, "cdata", *s.chassis_data);
+  const mech3::LabEndoCycle& c = s.mech_data->endo;
+  o << "endo at=" << c.x << ',' << c.y << std::hex << " flags=" << c.flags << std::dec << " enabled=" << c.enabled
+    << " arrows=" << c.prev.enabled << ',' << c.next.enabled << " index=" << c.index << " items=";
+  for (size_t i = 0; i < c.items.size(); ++i)
+    o << (i ? "|" : "") << (c.items[i]->text ? c.items[i]->text : "") << '=' << c.items[i]->value;
+  o << '\n';
+}
+
 // ASSIGNED_LIST (step 6), as test_lab_screen.py's dump_assigned.
 void dump_assigned(mech3::LabScreen& s, Dump& d) {
   std::ostringstream& o = d.o;
@@ -514,6 +543,10 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       const uint32_t id = hex(ls);
       const int32_t sh = mech3::states().lab.slot_;
       if (sh >= 0 && sh < static_cast<int32_t>(g_slots.size())) s->on_button(static_cast<int32_t>(id), 0, 0);
+    } else if (op == "D") {  // MECH_DATA's ENDOSTEEL stepped (+0xa4), with a slot shown (as the test)
+      const int32_t by = static_cast<int32_t>(hex(ls));
+      const int32_t sh = mech3::states().lab.slot_;
+      if (sh >= 0 && sh < static_cast<int32_t>(g_slots.size())) s->mech_data->endo.step(by);
     } else if (op == "O") {  // WEAPONS_GROUPED's chosen row set
       s->grouped.selected = static_cast<int32_t>(hex(ls));
     } else if (op == "H") {  // a weapon list's row pressed (+0x98)
@@ -538,6 +571,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       dump_assigned(*s, d);
       dump_weapons(*s, d);
       dump_engine(*s, d);
+      dump_data(*s, d);
       dump += d.o.str();
     } else if (op == "U") {
       engine.screen = nullptr;

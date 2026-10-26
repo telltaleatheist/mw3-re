@@ -694,6 +694,53 @@ and over the limits): 80/80, the XL type shown in 46 runs, the refusals
 case among them: the reading's flag clear shows nowhere (no flag but
 hidden is set before a table reads).
 
+### The data panels: MECH_DATA and CHASSIS_DATA (step 8b1)
+
+Both are data tables (above), made with new before the dialog is read and
+deleted first in the screen's destructor; the page refresh fills them with
+the shown slot's loadout (or zeros without one). Every value goes through
+" %s" with its unit, so neither "kph" nor "tons" ever shows.
+
+**MECH_DATA** (0x00456cd0, vtable 0x005c2130, new(0x5ac); shown on every
+page): four rows, run speed (0x247), walk speed (0x246), the loadout's
+tons (0x25a) and the mech's most (0x25b). The refresh (0x00457330) takes
+the most from 0x00425300(8), the speeds from 0x00433050 (rating / most x
+10.8, x 1.5 running) and the tons from 0x00425300(-1), in ALTERNATE_FONT
+(lab_small_redR) when over the most (at it, the value font). Its reading
+(0x004570a0) makes one control besides the table's:
+
+- **ENDOSTEEL** (+0x188, a CycleButton, vtable 0x005c21c0; choices
+  Standard 0x2d2 = 0 and 0x25c = 1; the refresh selects the loadout's,
+  0x00457130). Its step (+0xa4, 0x00457160): to endo steel needs 14 free
+  critical slots (0x00425d80; 7 on a Clan mech), else the message box's
+  0xdd1 with both numbers; back to standard the loadout's tons without
+  its structure (0x00425300(-1) - 0x00425300(3)) plus a tenth of the
+  mech's most must not pass the most, else 0xdd2 with the excess ("%.1f").
+  Then the choice steps, the loadout's +0x20 follows it, the loadout is
+  marked changed, counted (0x00425bd0) and the page refreshed. Its arrows
+  are enabled only on the criticals page while the lab can change things
+  (0x0044ca50).
+- The dialog's MECH_DATA also has **ARMORTYPE** and **ARMORMASS**
+  toggles, laid out like ENDOSTEEL; neither name is in the exe, so they are
+  never read or shown. The armour's type and tons change through the item
+  list's armour tab (step 5b2).
+
+**CHASSIS_DATA** (0x00457600, vtable 0x005c2270, new(0x188); the chassis
+page's): ten rows, the loadout's tons by kind (0x00425300(0..7): engine
+0x253, heat sinks 0x25d, jump jets 0x2d6, structure 0x25e, armour 0x25f,
+weapons 0x295, ammunition 0x296, equipment 0x297), the total (0x25a, -1)
+and the mech's most (0x260, 8). Its place (0x00457e80) leaves half a
+SPACING before the total. Its refresh (0x00457940) places it anew first;
+it also computes both speeds and drops them.
+
+Ported: `LabMechData`, `LabEndoCycle`, `LabChassisData`, `LabRow::set_float`
+(0x00457f90), `engine_kph` (mech_data). Tests: test_lab_screen.py runs
+the exe's panels (dumped with their rows and ENDOSTEEL's state; the
+engine session steps ENDOSTEEL either way; 0x00425300 answered by kind,
+the structure's often at endo's limit): 80/80, 0xdd1 x59, 0xdd2 x6.
+Breaks 22 of 22 (the free slots drawn include 6, 7, 12 and 13, so the
+need of 14 or 7 shows).
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after
@@ -730,7 +777,7 @@ its list empty.
 Step 2 (`mech3/lab_screen.{h,cpp}`, `test_lab_screen.py`): the screen's
 making, destructor, page and slot switches and the press's shell (above).
 
-Not ported: the data panels (step 8b); the second saved-loadout
+Not ported: ARMOR_TITLES and LOADOUT_LIST (step 8b2); the second saved-loadout
 loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
 0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
 
@@ -761,10 +808,11 @@ One sitting each; each with its differential test and break tests.
 6. **The criticals page**: ASSIGNED_LIST (0x005c1fe0) and the part
    buttons: placing items in parts' slots.
 7. **The weapon groups page**: WEAPONS_UNGROUPED / WEAPONS_GROUPED.
-8. **The engine and the data panels**, in two: 8a the tables' base and
+8. **The engine and the data panels**, in three: 8a the tables' base and
    ENGINE_TABLE with its presses (19..22; done, above; the exe has no sink
-   presses), 8b the data panels (MECH_DATA with the armour type and mass
-   buttons, CHASSIS_DATA, ARMOR_TITLES, LOADOUT_LIST).
+   presses), 8b1 MECH_DATA with ENDOSTEEL and CHASSIS_DATA (done, above;
+   the dialog's armour type and mass toggles are never read), 8b2
+   ARMOR_TITLES (the armour by section) and LOADOUT_LIST.
 9. **The 3D view**: the lab world and camera (0x0044ffc0, 0x00450390,
    0x00450690), CURRENT_CHASSIS's model, picking a part (0x004507c0..);
    with the render port's pieces it needs.
