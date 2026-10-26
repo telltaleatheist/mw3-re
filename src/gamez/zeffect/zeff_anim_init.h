@@ -94,7 +94,7 @@ struct AnimHooks {
   void* (*create_puffer)();                                // 0x0054a710, gmod_puff
   void* (*find_sound)(const char* name);                   // 0x0056f6f0, zSound
   int32_t (*effect_index)(const char* name);               // 0x0050d9e0, zEffect
-  void (*register_entities)() = nullptr;                   // 0x005a8a20 x3 in 0x00508fc0
+  void (*register_entities)() = nullptr;                   // 0x005a8a20 x3 in 0x00508fc0: zSave's registrants (save 2)
 };
 AnimHooks& anim_hooks();
 

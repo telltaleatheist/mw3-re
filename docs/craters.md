@@ -129,8 +129,9 @@ the pit as on flat ground. The pit is only a picture. player.zrd's `qsd_gravity`
   (0). 0x00500c60 walks it with a crater and a quicksand callback, ECX the
   entry's order: multiplayer sends every crater to a joining player
   (0x0046d7e3).
-- zEntity's save and restore (registered in 0x00501ab0 as 0x005a8a20
-  ("zDEClient", 0x00500b50, 0x00500c20, 1000, 0)): the save writes a
+- zSave's save and restore (save.md; registered in 0x00501ab0 as 0x005a8a20
+  ("zDEClient", 0x00500b50, 0x00500c20, 1000, 0), only when [0x005eba1c] is
+  set, which MW3's InitInstance clears, so it never runs): the save writes a
   "Dummy" record with the reset flag, then "Crater<n>" / "QSand<n>" per
   entry (0x005a8a50); the restore of a flagged record resets the world and
   empties the history, others remake their crater (no dust) or pit.

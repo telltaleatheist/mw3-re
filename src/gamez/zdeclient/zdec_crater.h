@@ -131,8 +131,8 @@ int32_t decals_free();                                      // 0x00502020
 // Each crater's order to `crater`, each quicksand pit's to `quicksand`
 // (multiplayer sends them to a joining player, 0x0046d7e3).
 void history_each(void (*crater)(const uint32_t* order), void (*quicksand)(const uint32_t* order));  // 0x00500c60 ECX, EDX
-// zEntity's save and restore of the craters (0x005a8a20("zDEClient", 0x00500b50,
-// 0x00500c20, 1000, 0)): a "Dummy" record that resets, then one per crater
+// zSave's save and restore of the craters (0x005a8a20("zDEClient", 0x00500b50,
+// 0x00500c20, 1000, 0), switched off in MW3, docs/save.md): a "Dummy" record that resets, then one per crater
 // ("Crater<n>") or pit ("QSand<n>"), 0x34 bytes: type, order, the reset
 // flag at +0x30. Restoring remakes each without dust.
 void history_save(void* context);                           // 0x00500b50 ECX context

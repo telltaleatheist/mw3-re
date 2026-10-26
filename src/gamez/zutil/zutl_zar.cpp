@@ -16,6 +16,13 @@ uint32_t read_bytes(std::FILE* f, void* buffer, uint32_t n) {
   return static_cast<uint32_t>(std::fread(buffer, 1, n, f));
 }
 
+// SetFilePointer(start, FILE_BEGIN): its distance is a signed LONG, so a
+// start of 2 GB or more (a damaged table) is a negative move that fails and
+// keeps the position; the read then takes what follows it.
+void seek_to(std::FILE* f, uint32_t start) {
+  if (start <= 0x7fffffffu) std::fseek(f, static_cast<long>(start), SEEK_SET);
+}
+
 long file_size(std::FILE* f) {
   long here = std::ftell(f);
   std::fseek(f, 0, SEEK_END);
@@ -69,6 +76,10 @@ bool read_table(Archive& a) {
   read_bytes(a.file, &version, 4);
   read_bytes(a.file, &count, 4);
   if (version != 1) return false;
+  // FIX (bug): a count the file cannot hold (a damaged save) read the table
+  // from wherever the seek failed to, into a buffer of that size, and the
+  // entries' names from it crashed zSave (docs/save.md, fixes.md).
+  if (count < 0 || static_cast<int64_t>(count) * 0x94 > size - 8) return false;
   reserve(a, count);
   std::fseek(a.file, -static_cast<long>(count) * 0x94 - 8, SEEK_END);
   read_bytes(a.file, a.entries, static_cast<uint32_t>(count) * 0x94);
@@ -125,7 +136,7 @@ std::FILE* seek(Archive& a, int index, uint32_t* length) {
   const Entry* e = (index < 0 || a.count <= index) ? nullptr : &a.entries[index];
   if (!e) return nullptr;
   if (length) *length = e->length;
-  std::fseek(a.file, static_cast<long>(e->start), SEEK_SET);
+  seek_to(a.file, e->start);
   return a.file;
 }
 
@@ -137,7 +148,7 @@ uint32_t read(Archive& a, int index, void* buffer, uint32_t* size) {
   *size = e->length;
   if (have < e->length) return 0x10002;
   if (buffer) {
-    std::fseek(a.file, static_cast<long>(e->start), SEEK_SET);
+    seek_to(a.file, e->start);
     read_bytes(a.file, buffer, e->length);
   }
   return 0;

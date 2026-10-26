@@ -197,6 +197,8 @@ unusual happens.
   clickable area is empty instead of whatever was left in memory.
 - A damaged archive or script file is stopped at its end instead of making
   the game read or allocate gigabytes.
+- A damaged saved game (`pilots\games\*.mw3`) no longer crashes the
+  mission it is loaded into; the damaged parts are passed over.
 - Rare random rolls in equipment critical hits no longer crash.
 - Clearing every shot in flight no longer writes past a firing laser's
   memory (the original treated beams as missiles there).

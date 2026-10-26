@@ -219,7 +219,7 @@ class Engine : public zgame::AppHooks {
   virtual void reader_open_archive(const char* path, int32_t current) {
     unported("0x00557320", {path, current});
   }
-  virtual void entity_init() { unported("0x005a8b30", {}); }
+  virtual void save_init() { unported("0x005a8b30", {}); }  // zSave's start (docs/save.md)
   virtual void anim_enable(int32_t on) { unported("0x005090d0", {on}); }
   virtual void effects_set_a(int32_t v) { unported("0x0050d1e0", {v}); }
   virtual void effects_set_b(int32_t v) { unported("0x0050d1f0", {v}); }
@@ -288,7 +288,7 @@ class Engine : public zgame::AppHooks {
   virtual void video_shutdown() { unported("0x00579ef0", {}); }
   virtual void ai_targets_shutdown() { unported("0x004d72a0", {}); }
   virtual void list_pool_free() { unported("0x00555d90", {}); }
-  virtual void entity_shutdown() { unported("0x005a8bb0", {}); }
+  virtual void save_shutdown() { unported("0x005a8bb0", {}); }  // zSave's end
   // The app's destructor (0x0047fab0).
   virtual void message_dll_free() { unported("0x00575f70", {}); }
   virtual void input_maps_free() { unported("0x0051d0c0", {}); }

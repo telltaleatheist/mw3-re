@@ -190,7 +190,7 @@ bool Mech3App::init_instance() {
     }
   }
   set_defaults();
-  e.entity_init();
+  e.save_init();
   e.anim_enable(1);
   e.effects_set_a(0);
   e.effects_set_b(0);
@@ -221,7 +221,7 @@ int Mech3App::exit_instance() {
     e.network_shutdown();
     e.input_devices_shutdown();
     e.list_pool_free();
-    e.entity_shutdown();
+    e.save_shutdown();
   }
   return 0;
 }

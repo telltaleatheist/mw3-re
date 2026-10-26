@@ -35,6 +35,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_reg.cpp
   src/platform/reg_file.cpp
   src/gamez/zutil/zutl_zar.cpp
+  src/gamez/zsave/zsave.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
   src/gamez/zclass/cls_di.cpp
@@ -287,6 +288,7 @@ add_library(mw3probe SHARED
   tests/probe_ctlscreen.cpp
   tests/probe_loadsave.cpp
   tests/probe_pilot.cpp
+  tests/probe_zsave.cpp
   tests/probe_pilotscreen.cpp
   tests/probe_briefing.cpp
   tests/probe_debriefing.cpp

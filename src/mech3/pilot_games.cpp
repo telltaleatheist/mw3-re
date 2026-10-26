@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "gamez/zsave/zsave.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
@@ -32,6 +33,8 @@ PilotHooks& pilot_hooks() { return *g_hooks; }
 ActionSetup& action_setup() { return g_action_setup; }
 
 Config* PilotHooks::config_load(const char* name, std::FILE* f) { return Config::from_file(name, f); }
+void PilotHooks::save_world(const char* path, int32_t kind) { zsave::save(path, kind); }
+bool PilotHooks::load_world(const char* path, int32_t kind) { return zsave::load(path, kind); }
 void PilotHooks::config_save(Config* c, std::FILE* f) {
   if (c) c->save(f);
 }
@@ -662,6 +665,14 @@ const char* CampaignGame::path() { return path_for(pilot->name); }
 
 // Mech3.exe 1.2 @ 0x00435330 (0x00576080: _access)
 bool CampaignGame::readable() { return zutl::exists(path()); }
+
+// Mech3.exe 1.2 @ 0x004352d0: a game read from the pilot's file (not the one
+// the last mission's end made, +0xb0), past Op 1 Mission 1 and not Op 4
+// Mission 4, whose file is there: zSave reads it (kind 2) into the world.
+bool CampaignGame::restore() {
+  if (b0 || mission == 1 || (campaign == 4 && mission == 4) || !readable()) return false;
+  return pilot_hooks().load_world(path(), 2);
+}
 
 // Mech3.exe 1.2 @ 0x00434900: message 0x21d, "Op %1!d!, Mission %2!d!".
 const char* CampaignGame::name() {
