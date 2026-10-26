@@ -130,6 +130,7 @@ struct LaunchedMech {
   float heat = 0;          // +0x554
   int32_t group = -1;      // the manager's selected group (+0x28), -1 without one
   const void* weapon = nullptr;  // that group's current weapon (+0x10)
+  const void* config = nullptr;  // +0x3ec  the loadout it was given (0x00414430), a Config
   int32_t jets = 0;        // jump jets installed (equipment[11])
   int32_t jets_firing = 0; // +0x580
   bool jet_flame = false;  // +0x620: the jets' flame effect started (0x00432830)

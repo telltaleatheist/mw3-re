@@ -49,6 +49,7 @@
 #include "mech3/pilot.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
+#include "mech3/mech_config.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_control.h"
@@ -419,6 +420,15 @@ int run(const Args& a) {
         }
         if (!a.shot.empty() && menu_frames == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
         if (!a.shot.empty() && menu_frames == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), menu_frames);
+        // --verbose (ours, for checking the lab's loadout reaching the
+        // launch): the player's mech as built, 30 frames into a mission.
+        static int core_frames = 0;
+        mech3::LaunchedMech m;
+        if (a.verbose && app.current() == &mech3::states().core && ++core_frames == 30 && mech3::launched_mech(&m)) {
+          const auto* c = static_cast<const mech3::Config*>(m.config);
+          std::printf("mw3: launched mech: %d weapons, %d sinks, engine %d, %.2f m/s, centre torso armour %d\n",
+                      m.weapons, m.sinks, c ? c->engine : -1, m.max_speed, c ? c->armor[0] : -1);
+        }
       };
 
     if (app.init_instance()) {

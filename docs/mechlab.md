@@ -915,5 +915,12 @@ One sitting each; each with its differential test and break tests.
    0x00450690), CURRENT_CHASSIS's model, picking a part (0x004507c0..);
    with the render port's pieces it needs.
 10. **MECHLAB from the briefing opens the real lab, and ACCEPT comes back
-    with the loadout**: the program end to end (a mech and loadout changed
+    with the loadout** (done): the program end to end (a mech and loadout changed
     in the lab reach the launch), mw3tests' campaign loop through the lab.
+    The launch reads the slot as it is then (mission-start.md section 1);
+    the campaign test picks c1m2's loadout from LOADOUT_LIST, takes a
+    weapon off on the criticals page, slows the engine a step and takes a
+    point off the centre torso, ACCEPTs and LAUNCHes: the launched mech
+    has 5 weapons (6), engine 52 (53), 22.09 m/s (22.50) and 22 points on
+    the centre torso (23). Seen live with `--briefing c1m2 --verbose` and
+    the same clicks (mw3 dev's work log, Lab 9).

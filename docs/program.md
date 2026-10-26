@@ -30,7 +30,9 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
   ported command-line parser as the exe's command line.
 - `--window WxH` (default 1280x960: the game's 640x480 doubled),
   `--nosound` (a silent DirectSound stand-in), `--hidden`, `--verbose` (lists
-  every unported function reached, with call counts, at exit),
+  every unported function reached, with call counts, at exit; from the
+  menus, also the player's mech 30 frames into the mission: its weapons,
+  sinks, engine, speed and centre torso armour),
   `--frames N` (quit after N frames).
 
 Plain `mw3` runs the original start: the constructor, InitInstance, the

@@ -91,6 +91,9 @@ class GameEngine : public Engine {
     ActionGame* action = nullptr;
   };
   void set_launch(const Launch& l);
+  // The launch's mech, loadout and skin read again from the chosen pilot's
+  // game's slot; true when one changed (app_menus.cpp).
+  bool launch_slot_refresh();
   const Launch& launch() const { return launch_; }
   void missions_start(uint32_t list) override;   // 0x00490880: mech3::missions().start()
   void missions_update(uint32_t list, float dt) override;  // 0x0048f470: mech3::missions().update()

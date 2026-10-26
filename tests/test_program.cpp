@@ -480,6 +480,16 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     size_t second_steps = 0;
     bool lab_up = false, lab_left = false;
     int32_t lab_mechs = -99;
+    // Lab item 9: the shown loadout edited in the lab, then c1m2 launched with it.
+    const mech3::Config* edited = nullptr;
+    const mech3::Config* first_config = nullptr;
+    const mech3::Config* live_config = nullptr;
+    bool launch_current = false;
+    int32_t loadouts = 0;
+    int32_t weapons_before = -1, weapons_after = -1, engine_before = -1, ct_before = -1;
+    bool second_launched = false;
+    mech3::LaunchedMech mech2;
+    int core2_frames = 0;
     const mech3::ConfigItem* salvage_weapon = nullptr;
     bool salvage_layout = false, salvage_in = false, salvage_out = false, salvage_closed = false;
     mech3::LaunchedMech mech;
@@ -627,18 +637,59 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
           return n;
         };
         if (mech3::Store* st = engine.store_of(lab.store_)) lab_mechs = mechs_in(st);
+        // The loadout edited as a player would: a weapon taken off on the
+        // criticals page (its row pressed), the engine a step slower (20),
+        // the centre torso's armour (toggle 0) a point down.
+        mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr;
+        auto weapons_of = [](const mech3::Config* c) {
+          int32_t n = 0;
+          for (const mech3::ConfigItem* it : c->items) n += it->kind() == 1 ? it->count : 0;
+          return n;
+        };
+        if (ls && cg && cg->slot.config) {
+          // A loadout chosen from LOADOUT_LIST first: the slot's config is
+          // replaced by a copy (0x00433df0, the old one freed), one the
+          // Load state never saw.
+          first_config = cg->slot.config;
+          loadouts = ls->configs.item_count();
+          if (loadouts >= 1) ls->configs.select(ls->configs.selected > 0 ? ls->configs.selected : 0);
+          edited = cg->slot.config;
+          weapons_before = weapons_of(edited), engine_before = edited->engine, ct_before = edited->armor[0];
+          ls->on_button(3, 0, 0);  // CRITICALS
+          for (int32_t r = 0; r < ls->assigned.item_count(); ++r) {
+            const mech3::ConfigItem* it = engine.item_of(ls->assigned.item_at_row(r));
+            if (it && it->kind() == 1) {
+              ls->assigned.select(r);
+              break;
+            }
+          }
+          ls->on_button(20, 0, 0);  // slower
+          ls->armor_titles->toggles[0].step(-1);
+          weapons_after = weapons_of(edited);
+        }
         if (ls) ls->on_button(6, 0, 0);  // ACCEPT
         if (mech3::Store* st = engine.store_of(lab.store_)) lab_mechs -= mechs_in(st);
         stage = 7;
       } else if (stage == 7 && app.current() == &mech3::states().load) {
         lab_left = mech3::states().lab.pilot_ == 0 && mech3::states().lab.store_ == 0;
+        if (mech3::BriefingScreen* b = mech3::briefing_screen()) b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
         stage = 8;
+      } else if (stage == 8 && app.current() == &mech3::states().core) {
+        if (++core2_frames == 30) {
+          second_launched = mech3::launched_mech(&mech2);
+          // The slot as it is now, which the launch read (0x00491150).
+          if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr) {
+            live_config = cg->slot.config;
+            launch_current = live_config && engine.launch().config == engine.handle_of(const_cast<mech3::Config*>(live_config));
+          }
+          stage = 9;
+        }
       }
     };
     CountingPump pump;
-    pump.limit = 1500;
+    pump.limit = 2500;
     app.run(pump);
-    EXPECT(stage == 8);
+    EXPECT(stage == 9);
     EXPECT(salvage_layout);  // the ported salvage screen: bays, lance, capacity
     EXPECT(salvage_in);      // the mission's weapon and mech moved into the store
     EXPECT(salvage_out);     // an ammo stock's lab rounds moved out
@@ -646,6 +697,20 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(engine.unported_counts().count("0x0047d2f0") == 0);
     EXPECT(lab_up && lab_left);  // MECHLAB opened the ported Lab State and screen, ACCEPT came back
     EXPECT(lab_mechs == 1);      // ACCEPT took the shown slot's mech back out of the lab's store
+    // Lab item 9: c1m2's launch built the mech from the loadout as the lab
+    // left it: one weapon fewer, the slower engine, the centre torso's point.
+    std::printf("  c1m2's launch: %d weapons (%d before the lab), engine %d (%d), %.2f m/s (c1m1 %.2f), centre torso %d (%d), loadouts %d, %s\n",
+                mech2.weapons, weapons_before, edited ? edited->engine : -1, engine_before, mech2.max_speed, mech.max_speed,
+                edited ? edited->armor[0] : -1, ct_before, loadouts,
+                edited == first_config ? "the copy at the old address" : "the copy moved");
+    // The copy may land where the old loadout was freed (same address), so
+    // the check is on the slot as it is at the launch.
+    EXPECT(loadouts >= 1 && edited && live_config == edited && launch_current);
+    EXPECT(edited && second_launched && mech2.config == edited);
+    EXPECT(weapons_after == weapons_before - 1 && mech2.weapons == weapons_after);
+    EXPECT(edited && edited->engine == engine_before - 1 && mech2.max_speed < mech.max_speed);
+    EXPECT(edited && edited->armor[0] == ct_before - 1 && ct_before > 1 &&
+           std::fabs(mech2.torso_armor_scale - 100.0f / static_cast<float>(edited->armor[0])) < 1e-4f);
     EXPECT(engine.unported_counts().count("0x0044b920") == 0);  // the screen is the port
     EXPECT(engine.unported_counts().count("0x00448830") == 0);
     EXPECT(debrief_seen);   // the ported debriefing

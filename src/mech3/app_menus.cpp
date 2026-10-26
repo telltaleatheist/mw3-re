@@ -437,6 +437,16 @@ void GameEngine::load_state_enter() {
   set_launch(l);
 }
 
+bool GameEngine::launch_slot_refresh() {
+  Pilot* p = current_pilot();
+  Game* g = p ? p->current : nullptr;
+  if (!g) return false;
+  const Handle config = g->slot.config ? handle_of(g->slot.config) : 0;
+  if (launch_.mech == g->slot.mech && launch_.config == config && launch_.skin == g->slot.skin) return false;
+  launch_.mech = g->slot.mech, launch_.config = config, launch_.skin = g->slot.skin;
+  return true;
+}
+
 void GameEngine::briefing_script_start(Handle s) {
   if (BriefingScreen* b = briefing_of(*this, s)) b->script.start();
   else Engine::briefing_script_start(s);

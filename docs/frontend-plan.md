@@ -137,7 +137,7 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    14..30's presses, MECH_DATA, CHASSIS_DATA, ARMOR_TITLES, LOADOUT_LIST).
    Test: as 3; the weights and the tonnage limit against test_mechsave's
    table.
-6. **The lab to the launch** (mechlab.md 10): a mech and loadout changed in
+6. **(Done) The lab to the launch** (mechlab.md 10): a mech and loadout changed in
    the lab reach c1m2's launch. Test: headless campaign loop through the
    lab (a weapon swapped, the launched mech carries it); a screenshot of
    each lab page from `--briefing c1m2`.

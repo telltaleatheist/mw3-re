@@ -1061,6 +1061,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.sinks = m->heat_sinks.count;
   s.height = m->height;
   s.max_speed = m->max_speed;
+  s.config = m->config;
   s.torso_armor_scale = m->torso ? m->torso->armor_scale : 0;
   s.team = m->team;
   s.skis = m->skis != nullptr;
