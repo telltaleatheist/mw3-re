@@ -611,3 +611,34 @@ and LOADOUT_LIST.
   drew no 12 or 13 free slots; 6, 7, 12, 13 added). Related tests and both
   suites pass (202, 12).
 - State: sent for review on mac4/lab-8b.
+
+## Lab 8b2 (2026-10-26): LOADOUT_LIST and ARMOR_TITLES' display
+
+Assigned after 8b1 merged (48cc1e8). ARMOR_TITLES turned out bigger than
+mapped, so split again (agreed): 8b2 LOADOUT_LIST and ARMOR_TITLES' making,
+reading, show/hide and refresh; 8b3 its three presses (REMOVE 0x450cc0,
+DISTRIBUTE 0x450c70, the section step 0x4509b0). Lead for 8b3: the plan must
+step a section at both ends (front 0, rear at its cap) and press REMOVE
+with nothing left to take off.
+
+- Found: ARMOR_TITLES is a Control with ARMOR_REMOVE (+0x14c), eleven
+  ARMOR_TOGGLE cycles (+0x2a4, toggle k = section k, all reading the same
+  entry) and ARMOR_DISTRIBUTE (+0x3088); the toggles' places are function
+  statics ([0x605aac..0x605ab8], guard [0x605ab4]), kept in LabState.
+  LOADOUT_LIST lists by probe items (find_like/count_like), "(0 rounds)"
+  for an ammo weapon with no ammo (discoveries).
+- Ported: LabLoadoutList (0x44b230, can_light/choose false), LabArmorTitles,
+  LabArmorRemove (set_tons), LabArmorToggle (place, refresh, step's start),
+  LabArmorDistribute; the presses call the original for now. Hooks
+  lab_config_sinks/double_sinks/section, message_format_isi; GameEngine's
+  message_format_is was missing (the debriefing's 0xdc0 came out empty),
+  added with format_message_f. zutl::format_message_v now keeps a width
+  ("%1!2d!", 0x1c5): it read that number as a string.
+- FIX (bug): the panel's texts read unchecked (fixes.md); the summary loops
+  weapon_count() (the exe's 0x25; the plain PPC with zfix bugs).
+- Test: the fake ARMOR_TITLES and the 0x44b230 / 0x450e00 stubs gone; the
+  loadouts get sinks and section points (some bare); weapons with and
+  without ammo; an armour session; synthetic dialogs keep ARMOR_TITLES /
+  ARMOR_REMOVE (moved, texts cut past 6). lab_screen 80/80 identical (43 seeds with rounds lines, 42 with plain weapon or equipment lines; the armour panel shown and hidden, moved, DISTRIBUTE on and off). Breaks 31 of 31 caught (12 on the loadout list, 19 on the armour panel; armour kinds in a loadout were added to catch the last).
+- State: done on mac4/lab-8b2, sent to the lead.
+

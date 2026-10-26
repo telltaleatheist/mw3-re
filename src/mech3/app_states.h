@@ -232,6 +232,12 @@ class LabState : public ShellState {
   Handle store_ = 0;                  // +0x88  [0x00605a80]
   uint8_t flag_ = 0;                  // +0x8c  [0x00605a84] 0 from the briefing
   uint32_t result_ = 0;               // +0x90  [0x00605a88] update's result, never set
+  // ARMOR_TITLES' read (0x004510a0): its toggles' columns and first row,
+  // each set once from the first panel read (bits 1, 2, 4 of [0x00605ab4]).
+  uint8_t armor_set_ = 0;             // [0x00605ab4]
+  int32_t armor_front_x_ = 0;         // [0x00605ab0]
+  int32_t armor_rear_x_ = 0;          // [0x00605aac]
+  int32_t armor_y_ = 0;               // [0x00605ab8]
 };
 
 // Mech3.exe 1.2 @ 0x00448830: the lab opened on the pilot's game with `store`;

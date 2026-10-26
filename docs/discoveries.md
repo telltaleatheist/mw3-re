@@ -2877,6 +2877,13 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   lays out two more (ARMORTYPE, ARMORMASS) with arrows and labels, but the
   game's code never asks for them, so they never appear; armour is changed
   through the item list's armour tab instead.
+- **The mech lab's loadout summary.** The chassis page lists a loadout
+  as: each weapon with how many of it, a weapon that uses ammunition with
+  the rounds of its ammunition aboard ("0 rounds" when it carries none, an
+  easy way to spot a forgotten ammo bin); then a blank line, the heat sinks
+  as one line ("10 Heat Sink" or "Double Heat Sink", the count as the
+  loadout keeps it); then the equipment. Armour is not listed there; it has
+  its own panel on the armour tab. (docs/mechlab.md, LOADOUT_LIST)
 - **The salvage screen moves things with one click, in set amounts.** A
   click on a row moves it straight across; nothing is selected first. From
   the mission's salvage into your stockpile: a mech takes one of your bays

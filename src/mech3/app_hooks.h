@@ -790,6 +790,9 @@ class Engine : public zgame::AppHooks {
   virtual float lab_config_armor_tons(Handle config) { return zgame::from_bits(field32(config, 0x2c)); }
   virtual int32_t lab_config_armor_tech(Handle config) { return static_cast<int32_t>(field32(config, 0x30)); }
   virtual uint8_t lab_config_armor_ferro(Handle config) { return field8(config, 0x34); }
+  virtual int32_t lab_config_section(Handle config, int32_t part) {  // +0x38: a section's points
+    return static_cast<int32_t>(field32(config, 0x38 + 4 * static_cast<uint32_t>(part)));
+  }
   virtual int32_t lab_item_tech(Handle item);
   struct LabFirepoint {
     int32_t part;
@@ -830,6 +833,10 @@ class Engine : public zgame::AppHooks {
     return zgame::from_bits(unported("0x00425300", {config, static_cast<uint32_t>(what)}));
   }
   virtual void lab_config_set_endo(Handle config, uint8_t v) { set_field8(config, 0x20, v); }
+  // LOADOUT_LIST (step 8b2): a loadout's heat sinks (+0x68) and whether
+  // they are double (+0x6c).
+  virtual int32_t lab_config_sinks(Handle config) { return static_cast<int32_t>(field32(config, 0x68)); }
+  virtual uint8_t lab_config_double_sinks(Handle config) { return field8(config, 0x6c); }
   virtual std::string lab_item_label(Handle item);  // vt+0x1c (0x00473740 for weapons): "name (n)"
   virtual void lab_set_item_group(Handle item, int32_t group);  // +0x08
   virtual const char* part_text(int32_t part);
@@ -980,6 +987,11 @@ class Engine : public zgame::AppHooks {
   // 0x00575fd0 with a number and a string.
   virtual std::string message_format_is(int32_t id, int32_t a, const char* s) {
     unported("0x00575fd0", {id, a, s});
+    return std::string();
+  }
+  // The same with a number, a string and a number.
+  virtual std::string message_format_isi(int32_t id, int32_t a, const char* s, int32_t b) {
+    unported("0x00575fd0", {id, a, s, b});
     return std::string();
   }
   // Its press's: Instant Action's fade out (0x0048ef00: ECX the IA Dummy

@@ -735,6 +735,18 @@ float GameEngine::lab_config_weight_of(Handle config, int32_t what) {
 void GameEngine::lab_config_set_endo(Handle config, uint8_t v) {
   if (auto* c = static_cast<Config*>(object_of(config))) c->endo_steel = v;
 }
+int32_t GameEngine::lab_config_section(Handle config, int32_t part) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c && part >= 0 && part < 11 ? c->armor[part] : 0;
+}
+int32_t GameEngine::lab_config_sinks(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->sinks : 0;
+}
+uint8_t GameEngine::lab_config_double_sinks(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->double_sinks : 0;
+}
 bool GameEngine::lab_config_valid(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && c->validate(false);
@@ -819,6 +831,12 @@ Handle GameEngine::lab_slot_config(Handle, int32_t i) {
 }
 std::string GameEngine::message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) {
   return has_n ? zutl::format_message(id, {s, std::to_string(n).c_str()}) : zutl::format_message(id, s);
+}
+std::string GameEngine::message_format_is(int32_t id, int32_t a, const char* s) {
+  return zutl::format_message_f(id, a, s);
+}
+std::string GameEngine::message_format_isi(int32_t id, int32_t a, const char* s, int32_t b) {
+  return zutl::format_message_f(id, a, s, b);
 }
 void GameEngine::mission_cleanup(int32_t unload) { missions().cleanup(unload != 0); }
 void GameEngine::replace_state(int32_t n) { app().replace(app().state(n), 0); }

@@ -145,6 +145,7 @@ unusual happens.
 - A script that cycles the textures of a model with no material, or turns a scroll off, no longer crashes (neither happens with the shipped scripts).
 - An edited debriefing dialog missing its buttons' help, its title's, its lance cards' or its rank's lines no longer crashes.
 - An edited mech lab dialog missing the supply list's slot titles (ALIST_TITLES) no longer crashes.
+- An edited mech lab dialog missing the armour panel's texts (ARMOR_TITLES, ARMOR_REMOVE) no longer crashes.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
 - Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.
 - Losing a field base while carrying 64 or more spare mechs no longer overruns the game's list of them (which could crash).

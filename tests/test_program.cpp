@@ -224,6 +224,8 @@ TEST(msgdll_formats_each_argument_by_its_type) {
   EXPECT(format_v(0x229, "Able", 250) == "OP: Able [250m]");
   EXPECT(format_v(0x228, "Able", "1.56") == "OP: Able [1.56km]");
   EXPECT(format_v(0x177, 1, 2) == "Operation 1, Mission 2");  // %1!d!, %2!d!
+  // A width kept: the mech lab's loadout line 0x1c5 "%1!2d! %2  (%3!d! rounds)".
+  EXPECT(zutl::format_message_f(0x1c5, 3, "LRM 10", 24) == " 3 LRM 10  (24 rounds)");
   zutl::install_messages(nullptr);
 }
 

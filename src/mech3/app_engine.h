@@ -161,6 +161,7 @@ class GameEngine : public Engine {
   float lab_config_armor_tons(Handle config) override;
   int32_t lab_config_armor_tech(Handle config) override;
   uint8_t lab_config_armor_ferro(Handle config) override;
+  int32_t lab_config_section(Handle config, int32_t part) override;
   std::vector<LabFirepoint> lab_dfn_firepoints(Handle dfn) override;
   Config* lab_config_of(Handle config) override;
   void lab_message(const char* text) override;
@@ -178,6 +179,8 @@ class GameEngine : public Engine {
   int32_t lab_dfn_engine_max(Handle dfn) override;
   float lab_config_weight_of(Handle config, int32_t what) override;
   void lab_config_set_endo(Handle config, uint8_t v) override;
+  int32_t lab_config_sinks(Handle config) override;
+  uint8_t lab_config_double_sinks(Handle config) override;
   bool lab_config_valid(Handle config) override;
   Handle mech_dfn_handle(int32_t mech) override;
   void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) override;
@@ -206,6 +209,8 @@ class GameEngine : public Engine {
   void config_export(Handle config) override;
   Handle config_import() override;
   std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
+  std::string message_format_is(int32_t id, int32_t a, const char* s) override;
+  std::string message_format_isi(int32_t id, int32_t a, const char* s, int32_t b) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;
   bool vehicle_armor(Handle v, LanceArmor* a) override;

@@ -32,6 +32,8 @@ double engine_weight_of(int32_t index, uint8_t xl);      // 0x00432f40 (as on th
 int32_t engine_rating_of(int32_t index);                 // 0x00432fa0
 int32_t engine_maker_message(int32_t index);             // 0x00432ec0's message (mech_salvage.h)
 float engine_kph(int32_t engine, float mass, bool run);  // 0x00433050 (mech_data.h)
+bool weapon_uses_ammo(int32_t weapon);                   // 0x00484960
+int32_t weapon_count();                                  // 37, the plain PPC's 38th with zfix bugs
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
@@ -162,13 +164,63 @@ void LabEditBar::set_pos(int32_t px, int32_t py) {
 // ---------------------------------------------------------------------------
 // The pages' controls: their own steps
 
-bool LabLoadoutList::read_control(zrdr::Node*, ztwod::Dialog*) {
-  call(0x84);
-  return true;
+// Mech3.exe 1.2 @ 0x0044b230. Each kind is looked for by a probe item
+// (0x004714c0, the first like it) and counted over the loadout (0x00473510);
+// the row shows the first one's label (vt+0x1c).
+void LabLoadoutList::refresh(Handle cfg) {
+  clear_items();
+  layout();
+  if (!cfg) return;
+  Engine& en = e_;
+  const std::vector<Handle> items = en.lab_config_items(cfg);
+  auto find = [&](const ConfigItem& probe, int32_t* n) -> Handle {
+    Handle first = 0;
+    *n = 0;
+    for (Handle h : items) {
+      const ConfigItem* it = en.item_of(h);
+      if (!it || !same_item(it, &probe)) continue;
+      if (!first) first = h;
+      *n += it->count;
+    }
+    return first;
+  };
+  char line[0x100];
+  for (int32_t w = 0; w < weapon_count(); ++w)  // FIX (bug): 0x25 in the exe; the plain PPC too (fixes.md)
+    for (int32_t tech = 1; tech < 3; ++tech) {
+      WeaponItem probe;  // 0x0044ec90(1)
+      probe.count = 1, probe.weapon = w, probe.tech = tech;
+      int32_t n = 0;
+      const Handle it = find(probe, &n);
+      if (!it) continue;
+      if (weapon_uses_ammo(w)) {
+        AmmoItem ammo;
+        ammo.count = 1, ammo.weapon = w;
+        int32_t rounds = 0;
+        find(ammo, &rounds);  // (0 when none)
+        std::snprintf(line, sizeof line, "%s",
+                      en.message_format_isi(0x1c5, n, en.lab_item_label(it).c_str(), rounds).c_str());
+      } else {
+        std::snprintf(line, sizeof line, "%2d %s", n, en.lab_item_label(it).c_str());
+      }
+      add_item(line, 0);
+    }
+  add_item("", 0);
+  const char* kind = en.message(en.lab_config_double_sinks(cfg) ? 0x1d0 : 0x1cf);
+  std::snprintf(line, sizeof line, "%s", en.message_format_is(0xf4b, en.lab_config_sinks(cfg), kind ? kind : "").c_str());
+  add_item(line, 0);
+  for (int32_t k = 0; k < 0xf; ++k)
+    for (int32_t tech = 1; tech < 3; ++tech) {
+      EquipmentItem probe;
+      probe.count = 1, probe.part = -1, probe.equipment = k, probe.tech = tech;
+      int32_t n = 0;
+      const Handle it = find(probe, &n);
+      if (!it) continue;
+      const int32_t q = en.lab_item_equipment(it);
+      if (q == 1 || q == 2 || q == 9 || q == 10) continue;  // armour and sinks: their own lines
+      std::snprintf(line, sizeof line, "%2d %s", n, en.lab_item_label(it).c_str());
+      add_item(line, 0);
+    }
 }
-void LabLoadoutList::after_bind() { call(0x88); }
-void LabLoadoutList::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
-void LabLoadoutList::hide() { call(0x64); }
 
 // Mech3.exe 1.2 @ 0x00449180
 LabChassisList::~LabChassisList() {
@@ -1239,8 +1291,8 @@ void LabUnassignedList::refill() {
     if (armor_tab) p->hide();
     else p->show_for(-1.0f);
   }
-  if (armor_tab) en.vcall(s->armor_titles, 0x60, {zgame::bits(-1.0f)});
-  else en.vcall(s->armor_titles, 0x64, {});
+  if (armor_tab) s->armor_titles->show_for(-1.0f);
+  else s->armor_titles->hide();
 }
 
 // ---------------------------------------------------------------------------
@@ -1753,6 +1805,138 @@ void LabChassisData::refresh(Handle config) {
   rows[9]->set_float(most, tons.c_str());
 }
 
+// ---------------------------------------------------------------------------
+// ARMOR_TITLES (docs/mechlab.md, The armour panel)
+
+LabArmorTitles::LabArmorTitles(Engine& e)
+    : e_(e), remove(e),
+      toggles{LabArmorToggle(e), LabArmorToggle(e), LabArmorToggle(e), LabArmorToggle(e), LabArmorToggle(e),
+              LabArmorToggle(e), LabArmorToggle(e), LabArmorToggle(e), LabArmorToggle(e), LabArmorToggle(e),
+              LabArmorToggle(e)},
+      distribute(e) {}
+
+// Mech3.exe 1.2 @ 0x004510a0. Its buttons bound first, then itself; the
+// toggles in two columns (the front parts and, beside the torsos, the rear
+// three), a row apart, from places kept from the first panel read.
+bool LabArmorTitles::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  dialog->bind_button(&remove, "ARMOR_REMOVE");
+  dialog->bind_button(&distribute, "ARMOR_DISTRIBUTE");
+  ztwod::Control::read_control(node, dialog);
+  LabState& lab = states().lab;
+  if (!(lab.armor_set_ & 1)) lab.armor_set_ |= 1, lab.armor_front_x_ = get_x() + 0x70;
+  if (!(lab.armor_set_ & 2)) lab.armor_set_ |= 2, lab.armor_rear_x_ = get_x() + 0xac;
+  if (!(lab.armor_set_ & 4)) lab.armor_set_ |= 4, lab.armor_y_ = get_y() + 0x91;
+  constexpr int32_t kRow = 15;  // [0x005e479c]
+  auto most = [&](size_t i) { return i < labels.size() ? labels[i] : nullptr; };
+  const int32_t fx = lab.armor_front_x_, rx = lab.armor_rear_x_;
+  int32_t y = lab.armor_y_;
+  toggles[6].place(dialog, 6, most(0x13), fx, y);  // the head
+  y += kRow;
+  toggles[0].place(dialog, 0, most(0x14), fx, y);
+  toggles[3].place(dialog, 3, nullptr, rx, y);
+  y += kRow;
+  toggles[1].place(dialog, 1, most(0x15), fx, y);
+  toggles[4].place(dialog, 4, nullptr, rx, y);
+  y += kRow;
+  toggles[2].place(dialog, 2, most(0x16), fx, y);
+  toggles[5].place(dialog, 5, nullptr, rx, y);
+  for (int32_t k = 7; k < 11; ++k) {
+    y += kRow;
+    toggles[k].place(dialog, k, most(static_cast<size_t>(0x10 + k)), fx, y);
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00450840
+void LabArmorToggle::place(ztwod::Dialog* dialog, int32_t part, ztwod::Text* text, int32_t px, int32_t py) {
+  dialog->bind_button(this, "ARMOR_TOGGLE");
+  set_pos(px, py);
+  section = part;
+  most = text;
+}
+
+// Mech3.exe 1.2 @ 0x00450fb0. The toggles' arrows and REMOVE are on only
+// while the lab is editable ([0x00605a84] clear).
+void LabArmorTitles::show_for(float seconds) {
+  ztwod::Control::show_for(seconds);
+  remove.show_for(seconds);
+  distribute.show_for(seconds);
+  const uint8_t on = states().lab.flag_ == 0 ? 1 : 0;
+  for (LabArmorToggle& t : toggles) {
+    t.show_for(seconds);
+    t.set_arrows(on, on);
+  }
+  remove.enabled = on;
+  remove.refresh();
+}
+
+// Mech3.exe 1.2 @ 0x00451050
+void LabArmorTitles::hide() {
+  ztwod::Control::hide();
+  remove.hide();
+  distribute.hide();
+  for (LabArmorToggle& t : toggles) t.hide();
+}
+
+// Mech3.exe 1.2 @ 0x00450e00. Its texts 4 and 6 the points the tons give and
+// those not on a section, 3 the armour's type; DISTRIBUTE enabled while some
+// are left. FIX (bug): the texts are taken unchecked; a missing one is skipped.
+void LabArmorTitles::refresh(Handle config) {
+  if (!config) return;
+  Engine& e = e_;
+  const float tons = e.lab_config_armor_tons(config);
+  const int32_t points = armor_points(e.lab_config_armor_tech(config), e.lab_config_armor_ferro(config) != 0, tons);
+  int32_t on = 0;
+  for (int32_t k = 0; k < 11; ++k) on += e.lab_config_section(config, k);
+  const int32_t left = points - on;
+  remove.set_tons(tons);
+  auto text = [&](size_t i) { return i < labels.size() ? labels[i] : nullptr; };
+  if (ztwod::Text* t = text(4)) t->set_text_id(0xf37, points);
+  if (ztwod::Text* t = text(6)) t->set_text_id(0xf37, left);
+  const char* type = e.lab_config_armor_tech(config) == kClan ? e.message(0xfb1)
+                                                              : e.message(e.lab_config_armor_ferro(config) ? 0x1b5 : 0x2d2);
+  if (ztwod::Text* t = text(3)) t->set_text("%s", type ? type : "");
+  distribute.enabled = left != 0;
+  distribute.refresh();
+  for (LabArmorToggle& t : toggles) t.refresh(config);
+}
+
+// Mech3.exe 1.2 @ 0x00450bd0: "<tons> tons" in its second normal, rollover
+// and disabled texts. FIX (bug): taken unchecked; a missing one is skipped.
+void LabArmorRemove::set_tons(float tons) {
+  const char* unit = e_.message(0xf38);
+  char b[16];
+  std::snprintf(b, sizeof b, "%.1f", static_cast<double>(tons));
+  for (std::vector<ztwod::Text*>* v : {&labels, &rollover_labels, &disable_labels})
+    if (v->size() > 1) (*v)[1]->set_text("%s %s", b, unit ? unit : "");
+}
+
+// Mech3.exe 1.2 @ 0x00450880: the section's points its one choice; its most
+// (twice the internal structure, the head 9) in its text.
+void LabArmorToggle::refresh(Handle config) {
+  if (!config) return;
+  Engine& e = e_;
+  const int32_t v = section >= 0 && section < 11 ? e.lab_config_section(config, section) : 0;
+  clear_items();
+  char b[16];
+  std::snprintf(b, sizeof b, "%d", v);
+  add_item(b, v);
+  if (most) most->set_text("%d", part_armor_max(e.config_mech(config), section));
+}
+
+// The presses (step 8b3): the original's for now.
+void LabArmorRemove::on_left_up() { e_.unported("0x00450cc0", {}); }
+void LabArmorDistribute::on_left_up() { e_.unported("0x00450c70", {}); }
+
+// Mech3.exe 1.2 @ 0x004509b0 (its start): the base's step; nothing more for
+// the first choice added (no choice before).
+void LabArmorToggle::step(int32_t by) {
+  const int32_t old = index;
+  CycleButton::step(by);
+  if (old == -1) return;
+  e_.unported("0x004509b0", {static_cast<uint32_t>(section), static_cast<uint32_t>(by)});  // (step 8b3)
+}
+
 // Mech3.exe 1.2 @ 0x0044dc80 (the shown slot asked once, unchecked)
 bool LabScreen::engine_editable() {
   Engine& e = engine();
@@ -1977,11 +2161,11 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
   const struct {
     LabLater* l;
     uint32_t at;
-  } later[] = {{&loadouts, 0x11508}, {&unassigned, 0x19290}};
+  } later[] = {{&unassigned, 0x19290}};
   for (const auto& x : later) x.l->e = &e, x.l->at = x.at;
   chassis_data = new LabChassisData(e);  // new(0x188)
   mech_data = new LabMechData(e);        // new(0x5ac)
-  armor_titles = e.construct(0x44fad0, {});  // new(0x31e0), made inline
+  armor_titles = new LabArmorTitles(e);  // new(0x31e0), made inline
   if (load("dlgMechLabII.zrd", "LABMENU", true)) {
     bind_primitive(&temp_background, "TEMP_BACKGROUND");
     bind_primitive(&panel_left, "PANEL_LEFT");
@@ -2025,7 +2209,7 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
     bind_button(&skins, "SKIN_LIST");
     bind_button(&unassigned, "UNASSIGNED_LIST");
     bind_button(&assigned, "ASSIGNED_LIST");
-    bind_later(armor_titles, "ARMOR_TITLES");
+    bind_button(armor_titles, "ARMOR_TITLES");
     bind_button(mech_data, "MECH_DATA");
     bind_button(chassis_data, "CHASSIS_DATA");
     bind_button(&loadouts, "LOADOUT_LIST");
@@ -2045,20 +2229,9 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
 // Mech3.exe 1.2 @ 0x0044c600: the panels made with new deleted first, the
 // members after (in the original's order, the reverse of their making).
 LabScreen::~LabScreen() {
-  Engine& e = engine();
   delete chassis_data;
   delete mech_data;
-  if (armor_titles) e.vcall(armor_titles, 0x00, {1});
-}
-
-// 0x0059f8b0 on a panel the port does not have yet: its reading and the
-// after-bind are its own.
-void LabScreen::bind_later(Handle h, const char* name) {
-  zrdr::Node* buttons = node ? zrdr::find(node, "BUTTONS") : nullptr;
-  if (!buttons || !zrdr::find(buttons, name)) return;
-  Engine& e = engine();
-  e.vcall(h, 0x84, {});
-  e.vcall(h, 0x88, {});
+  delete armor_titles;
 }
 
 // Mech3.exe 1.2 @ 0x0044d4d0: a press. A rename under way (CONFIG_EDIT's
@@ -2217,21 +2390,21 @@ void LabScreen::refresh(Handle config) {
     }
     chassis_data->refresh(cfg);
     mech_data->refresh(cfg);
-    loadouts.call_fn("0x0044b230", {cfg});
+    loadouts.refresh(cfg);
     unassigned.x224 = 0;
     unassigned.store = lab.store_;
     unassigned.refill();
     assigned.x224 = cfg;
     assigned.store = cfg;
     assigned.refill();
-    if (armor_titles) e.unported("0x00450e00", {armor_titles, cfg});
+    armor_titles->refresh(cfg);
     engine_table.refresh(cfg);
     refresh_groups();
   } else {
     if (line) line->set_text_plain(e.message(0x249));
     chassis_data->refresh(0);
     mech_data->refresh(0);
-    loadouts.call_fn("0x0044b230", {0});
+    loadouts.refresh(0);
   }
   const int32_t has = cfg ? 1 : 0;
   tabs[4].enabled = has;  // WEAPON GROUPS
@@ -2324,7 +2497,7 @@ void LabScreen::show_page(int32_t p, bool show) {
       const uint8_t on = lab.flag_ == 0 ? 1 : 0;
       mech_data->endo.set_arrows(on, on);
     }
-    e.vcall(armor_titles, 0x64, {});
+    armor_titles->hide();
     if (show) assigned.show_for(-1.0f);
     else assigned.hide();
     if (show) part_head.show_for(-1.0f);

@@ -70,6 +70,15 @@ struct LabEngine : mech3::Engine {
     call("0x00575fd0", {id, static_cast<uint32_t>(n)});
     return keep("F" + std::to_string(id) + ":" + std::to_string(n));
   }
+  // LOADOUT_LIST's lines (0x1c5 a weapon with its rounds, 0xf4b the sinks), as the test's stub.
+  std::string message_format_isi(int32_t id, int32_t a, const char* s, int32_t b) override {
+    call("0x00575fd0", {id, static_cast<uint32_t>(a), s ? s : "", static_cast<uint32_t>(b)});
+    return "F" + hex_s(static_cast<uint32_t>(id)) + ":" + std::to_string(a) + "|" + (s ? s : "") + "|" + std::to_string(b);
+  }
+  std::string message_format_is(int32_t id, int32_t a, const char* s) override {
+    call("0x00575fd0", {id, static_cast<uint32_t>(a), s ? s : ""});
+    return "F" + hex_s(static_cast<uint32_t>(id)) + ":" + std::to_string(a) + "|" + (s ? s : "");
+  }
   const char* message_format(int32_t id, const char* arg) override {  // the test's stub's text
     call("0x00575fd0", {id, arg ? arg : ""});
     char buf[0x100];
@@ -309,6 +318,41 @@ void dump_engine(mech3::LabScreen& s, Dump& d) {
   for (const mech3::LabButton* b : bs)
     o << ' ' << b->x << ',' << b->y << '/' << b->enabled << '/' << std::hex << b->flags << std::dec;
   o << '\n';
+}
+
+// LOADOUT_LIST (step 8b2), as test_lab_screen.py's dump_loadouts.
+void dump_loadouts(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  const mech3::LabLoadoutList& w = s.loadouts;
+  o << "loadouts sel=" << w.selected << " top=" << w.top << std::hex << " flags=" << w.flags << std::dec << " items=";
+  for (size_t i = 0; i < w.items.size(); ++i)
+    o << (i ? "|" : "") << (w.items[i]->text ? w.items[i]->text : "") << '=' << w.items[i]->value;
+  o << '\n';
+  for (size_t i = 0; i < w.rows.size(); ++i) {
+    const mech3::FileRow* r = w.rows[i];
+    o << "lrow" << i << " idx=" << r->index << " at=" << r->x << ',' << r->y << " \"" << r->text << "\"/" << std::hex
+      << r->flags << '/' << r->font << std::dec << '\n';
+  }
+}
+
+// ARMOR_TITLES (step 8b2), as test_lab_screen.py's dump_armor.
+void dump_armor(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  const mech3::LabArmorTitles& a = *s.armor_titles;
+  o << "armor at=" << a.x << ',' << a.y << std::hex << " flags=" << a.flags << std::dec << " remove=" << a.remove.enabled
+    << '/' << std::hex << a.remove.flags << std::dec << " distribute=" << a.distribute.enabled << '/' << std::hex
+    << a.distribute.flags << std::dec << '\n';
+  for (int k = 0; k < 11; ++k) {
+    const mech3::LabArmorToggle& c = a.toggles[k];
+    o << "atoggle" << k << " at=" << c.x << ',' << c.y << std::hex << " flags=" << c.flags << std::dec
+      << " section=" << c.section << " most=";
+    if (c.most) o << '"' << c.most->text << '"';
+    else o << '-';
+    o << " arrows=" << c.prev.enabled << ',' << c.next.enabled << " index=" << c.index << " items=";
+    for (size_t i = 0; i < c.items.size(); ++i)
+      o << (i ? "|" : "") << (c.items[i]->text ? c.items[i]->text : "") << '=' << c.items[i]->value;
+    o << '\n';
+  }
 }
 
 // MECH_DATA and CHASSIS_DATA (step 8b1), as test_lab_screen.py's dump_data.
@@ -572,6 +616,8 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       dump_weapons(*s, d);
       dump_engine(*s, d);
       dump_data(*s, d);
+      dump_loadouts(*s, d);
+      dump_armor(*s, d);
       dump += d.o.str();
     } else if (op == "U") {
       engine.screen = nullptr;
