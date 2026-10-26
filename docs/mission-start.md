@@ -17,6 +17,14 @@ its skin through 0x00414390), the controls (0x00427280), the cockpit, and
 then per game type the campaign's lancemates (0x0049e5e0), instant action's
 whole line-up (0x0049dc80) or multiplayer's (0x0046da80). Section 8.
 
+The slot is read as it is at the launch, so whatever the mech lab did to it
+after the Load state began is what launches. The port keeps the slot's mech,
+loadout and skin in the engine's launch record from the Load state's start
+(`GameEngine::load_state_enter`); the slot block the launch asks for (the
+game's vcall 0x34) reads them again from the pilot's game
+(`launch_slot_refresh`), since choosing a loadout in the lab
+(LOADOUT_LIST, 0x00433df0) frees the slot's old copy and makes a new one.
+
 ## 2. 0x0049e810
 
 1. [0x005ea1d0] = 1 (zModel's zone mode, render-scenewalk.md; the ground

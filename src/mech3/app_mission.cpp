@@ -2319,8 +2319,10 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
     switch (slot) {
       case 0x2c: return static_cast<uint32_t>(launch_.type);
       case 0x34:  // the pilot's slot: the mech, its first configuration, skin 0
-        if (!slot_) {
-          slot_ = alloc_block(0x20);
+        // From the menus the pilot's game's slot as it is now (the mech lab
+        // may have given it another mech or loadout since the Load state).
+        if (const bool changed = launch_.keep_pilot && launch_slot_refresh(); !slot_ || changed) {
+          if (!slot_) slot_ = alloc_block(0x20);
           poke32(slot_ + 4, static_cast<uint32_t>(launch_.mech));
           poke32(slot_ + 8, launch_.config ? launch_.config
                                            : debug_slot_config(launch_.mech, this, [](void* p, const void* o) {

@@ -659,5 +659,33 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   remove (0x471de0, through a vtable the loadouts now have), none changing anything; half
   the loadouts (70%) carry their armour as an item; the armour session runs first and
   sets sections (A, the most from the front toggle's text), steps toggles (I) and presses
-  REMOVE/DISTRIBUTE (F), the lead's ends first, and sets a section so none are left (A 3). lab_screen 80/80 identical. Breaks 28 of 28 caught (13 on REMOVE, 3 on DISTRIBUTE, 12 on the step; a section set so none are left (A mode 3) was added to catch the last two)..
+  REMOVE/DISTRIBUTE (F), the lead's ends first, and sets a section so none are left (A 3). lab_screen 80/80 identical. Breaks 28 of 28 caught (13 on REMOVE, 3 on DISTRIBUTE, 12 on the step; a section set so none are left (A mode 3) was added to catch the last two).
 - State: done on mac4/lab-8b3, sent to the lead. Related set: lab_list, salvage, mechsave, salvage_screen, field_cut, mw3tests 202, mw3sdltests 12 pass.
+
+## Lab 9 (2026-10-26): the lab's loadout reaching the launch
+
+- Branch mac4/lab-9 off main 6832ebc.
+- Found: the engine's launch record took the slot's mech, loadout and skin at
+  the Load state's start (load_state_enter), and the slot block the launch
+  asks for (game vcall 0x34) was built from it. Choosing a loadout in the lab
+  (LOADOUT_LIST, 0x00433df0) frees the slot's config and makes a copy; when
+  the copy lands elsewhere the launch read the freed one (a crash in
+  Config::weight). The exe reads the slot at the launch (0x491150).
+- Changed: `GameEngine::launch_slot_refresh` reads the pilot's game's slot
+  again when the block is asked for (from the menus). LaunchedMech gains the
+  config (+0x3ec). `--verbose` from the menus prints the player's mech 30
+  frames into the mission. No FIX (the port's wiring).
+- Test: the campaign test's lab stage picks the loadout from LOADOUT_LIST,
+  takes a weapon off (criticals, its row), engine a step slower (20), centre
+  torso a point off (toggle 0), ACCEPT, LAUNCH; the launched mech has the
+  live slot's config with 5 weapons (6), engine 52 (53), 22.09 m/s (c1m1's
+  22.50), centre torso 22 (23), both passes. Break (the refresh off): the
+  fix=false pass crashes in the launch on the freed config; the fix=true pass's
+  copy lands at the old address, so its stale handle still names the new one.
+- Live: `--briefing c1m2 --nosound --hidden --verbose`, clicks MECHLAB
+  300,435@2500, CRITICALS 150,450, the ER Laser row 40,219, Armor 607,45,
+  centre torso front down 100,235, Equipment 557,45, rating down 572,363,
+  ACCEPT 590,450@3060, LAUNCH 556,435@3300: "5 weapons, 11 sinks, engine 52,
+  22.09 m/s, centre torso armour 22" against the unedited run's "6, 11, 53,
+  22.50, 23". Shots of the five pages in the outbox (2026-10-26/lab9).
+- 8b3's 26 older breaks against the final plan: all 26 still caught.
