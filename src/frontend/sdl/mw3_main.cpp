@@ -431,7 +431,7 @@ int run(const Args& a) {
       // newest save is the pilot's game), then the clicks a player makes:
       // CAMPAIGN, the pilot (the list's first row), ACCEPT. The Campaign state
       // goes on to the Load state and the mission's own briefing (MECHLAB and
-      // SALVAGE past Op 1 Mission 1). Its store is a new campaign's.
+      // SALVAGE past Op 1 Mission 1), its store a new campaign's carried on.
       if (!a.briefing.empty() && !debug && !launch) {
         std::string dir, variant;
         int number = 1;
@@ -442,8 +442,19 @@ int run(const Args& a) {
           std::fprintf(stderr, "mw3: --briefing %s: not a campaign mission (c1m1 .. c4bm7)\n", a.briefing.c_str());
           return 2;
         }
-        auto* c = new mech3::CampaignGame(p, op, number);  // as a mission's end saves the next (0x00478f10)
-        p->campaigns.push_back(c);
+        // The pilot's new campaign (Op 1 Mission 1, the starting store) stepped
+        // on as each won mission's end does (0x00434e00: the stores, the
+        // slots, the field bases), each kept as 0x00478f10 keeps it.
+        auto* c = p->campaigns.empty() ? nullptr : dynamic_cast<mech3::CampaignGame*>(p->campaigns.front());
+        while (c && (c->operation() != op || c->mission_number() != number)) {
+          mech3::CampaignGame* n = c->next_mission(true, false);
+          if (!n) c = nullptr;
+          else p->campaigns.push_back(n), c = n;
+        }
+        if (!c) {
+          std::fprintf(stderr, "mw3: --briefing %s: no such campaign mission\n", a.briefing.c_str());
+          return 2;
+        }
         p->current = c;
         p->save();
         auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320}};
