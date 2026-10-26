@@ -6,6 +6,8 @@
 // bins left, the rand calls used.
 #include <cstdint>
 #include <cstring>
+#include <map>
+#include <memory>
 #include <iterator>
 #include <tuple>
 #include <utility>
@@ -19,6 +21,10 @@
 #include "mech3/mech_salvage.h"
 #include "mech3/pilot.h"
 #include "mech3/salvage_screen.h"
+#include "mech3/app_states.h"
+#include "mech3/lab_screen.h"
+#include "gamez/ztwod/twod_host.h"
+#include "gamez/zgame/unported.h"
 
 namespace {
 using namespace mech3;
@@ -430,4 +436,208 @@ extern "C" int probe_lance_run(const char* setup, char* out, int size) {
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.data(), s.size() + 1);
   return static_cast<int>(s.size());
+}
+
+namespace {
+using namespace mech3;
+
+// The put-on's world for test_salvage.py's puton part: the shown slot's
+// loadout, the lab's store and the definition behind handles, the screen's
+// pieces and the list's stand-in slots logged as the test's stubs.
+struct PutOnEngine : Engine {
+  Config* cfg = nullptr;
+  Store* store = nullptr;
+  std::vector<LabFirepoint> fps;
+  std::vector<std::string>* events = nullptr;
+  int32_t part = -1;
+  std::vector<std::string> kept;
+  std::map<const ConfigItem*, Handle> handles;
+  std::map<Handle, const ConfigItem*> objects_;
+  static constexpr Handle kSlot = 0x100, kConfig = 0x200, kStore = 0x300, kDfn = 0x400, kScreen = 0x500;
+  uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
+    (void)args;
+    events->push_back(std::string("unported ") + key);
+    return 0;
+  }
+  Handle lab_slot(Handle, int32_t) override { return kSlot; }
+  Handle lab_slot_cfg(Handle) override { return kConfig; }
+  Config* lab_config_of(Handle h) override { return h == kConfig ? cfg : nullptr; }
+  Store* store_of(Handle h) override { return h == kStore ? store : nullptr; }
+  Handle item_handle(const ConfigItem* it) override {
+    auto f = handles.find(it);
+    if (f != handles.end()) return f->second;
+    const Handle h = 0x10000 + static_cast<Handle>(handles.size());
+    handles[it] = h;
+    objects_[h] = it;
+    return h;
+  }
+  const ConfigItem* item_of(Handle h) override {
+    auto f = objects_.find(h);
+    return f == objects_.end() ? nullptr : f->second;
+  }
+  Handle mech_dfn_handle(int32_t) override { return kDfn; }
+  std::vector<LabFirepoint> lab_dfn_firepoints(Handle h) override { return h == kDfn ? fps : std::vector<LabFirepoint>{}; }
+  const char* message(int32_t id) override {
+    kept.push_back("MSG_" + std::to_string(id));
+    return kept.back().c_str();
+  }
+  std::string message_format_sd(int32_t id, const char* s, int32_t n, bool) override {
+    char b[128];
+    std::snprintf(b, sizeof b, "F%x:%s,%d", static_cast<uint32_t>(id), s ? s : "", n);
+    return std::string(b).substr(0, 0x45);
+  }
+  void lab_message(const char* text) override { events->push_back(std::string("message ") + text); }
+  int32_t lab_assigned_part() override {
+    events->push_back("part");
+    return part;
+  }
+  void lab_page_refresh(Handle h) override { events->push_back(h == kScreen ? "refresh True" : "refresh False"); }
+  void lab_put_on(LabUnassignedList& list, int32_t index) override { mech3::lab_put_on(*this, list, index); }
+};
+
+struct PutOnList : LabUnassignedList {
+  std::vector<std::string>* events = nullptr;
+  int32_t rule = 1;
+  explicit PutOnList(Engine& e) : LabUnassignedList(e) {}
+  void on_enter() override { events->push_back("enter"); }
+  void on_leave() override { events->push_back("leave"); }
+  bool can_xa8(int32_t index) override {
+    events->push_back("rule " + std::to_string(index));
+    return rule != 0;
+  }
+};
+
+struct PutOnHost : ztwod::Host {
+  std::vector<std::string>* events = nullptr;
+  int32_t sound_play(int32_t sound, float volume) override {
+    char b[64];
+    std::snprintf(b, sizeof b, "sound %d %x", sound, zgame::bits(volume));
+    events->push_back(b);
+    return 0;
+  }
+};
+
+std::string armour_text(const Config& c) {
+  char b[64];
+  std::snprintf(b, sizeof b, "armour %g t%d f%d ", static_cast<double>(c.armor_tons), c.armor_tech, int(c.ferro));
+  std::string s = b;
+  for (int i = 0; i < 11; ++i) s += (i ? "," : "") + std::to_string(c.armor[i]);
+  return s;
+}
+}  // namespace
+
+// test_salvage.py's puton: the mech lab's put-on (0x00454600) on the test's
+// loadout and store, the list's rows the store's items each time.
+extern "C" int probe_puton_run(const char* setup, char* out, int size) {
+  std::istringstream ss(setup);
+  std::vector<std::string> events;
+  PutOnEngine e;
+  e.events = &events;
+  PutOnHost host;
+  host.events = &events;
+  ztwod::set_host(&host);
+  Store store(0);
+  e.store = &store;
+  std::unique_ptr<Config> cfg;
+  std::ostringstream o;
+  // The mech's definition as the test's: zeroed, its firepoints (+0x24) only.
+  static std::vector<Firepoint> fp_store;
+  static std::vector<Firepoint*> fp_ptrs;
+  fp_store.clear();
+  fp_ptrs.clear();
+  MechDfn* dfn = static_cast<MechDfn*>(::operator new(sizeof(MechDfn)));
+  std::memset(static_cast<void*>(dfn), 0, sizeof(MechDfn));
+  int32_t dfn_mech = -1;
+  {
+    PutOnList list(e);
+    list.events = &events;
+    list.store = PutOnEngine::kStore;
+    list.sounds[0] = 7, list.sounds[1] = 8;
+    LabState& lab = states().lab;
+    lab.pilot_ = 1, lab.slot_ = 0, lab.lab_screen_ = PutOnEngine::kScreen;
+    std::string line;
+    while (std::getline(ss, line)) {
+      std::istringstream ls(line);
+      std::string what;
+      ls >> what;
+      if (what == "mech") {
+        int32_t m, flag, toggle, full;
+        ls >> m >> flag >> toggle >> full;
+        lab.flag_ = static_cast<uint8_t>(flag);
+        lab_firepoint_toggle() = static_cast<uint8_t>(toggle);
+        cfg.reset(make_config(m, "slot", {}));
+        store.full = static_cast<uint8_t>(full);
+        e.cfg = cfg.get();
+      } else if (what == "config") {
+        cfg.reset(make_config(cfg->mech, "slot", read_items(ls)));
+        e.cfg = cfg.get();
+      } else if (what == "sections") {
+        for (int32_t& v : cfg->armor) ls >> v;
+      } else if (what == "fps") {
+        int32_t n;
+        ls >> n;
+        for (int32_t i = 0; i < n; ++i) {
+          int32_t part;
+          uint32_t bits;
+          ls >> part >> std::hex >> bits >> std::dec;
+          e.fps.push_back({part, zgame::from_bits(bits)});
+          fp_store.push_back(Firepoint{nullptr, zgame::from_bits(bits), 0, part});
+        }
+        for (Firepoint& f : fp_store) fp_ptrs.push_back(&f);
+        dfn->firepoints = &fp_ptrs;
+        dfn_mech = cfg->mech;
+        mech_dfn_slot(dfn_mech) = dfn;
+      } else if (what == "store") {
+        std::string op;
+        ls >> op;
+        if (op == "mech") {
+          int32_t t;
+          ls >> t;
+          store.add_mech(t);
+        } else if (op == "weapon") {
+          int32_t t, tech;
+          ls >> t >> tech;
+          store.add_weapon(t, tech);
+        } else if (op == "ammo") {
+          int32_t t, n;
+          ls >> t >> n;
+          store.add_ammo(t, n);
+        } else if (op == "equip") {
+          int32_t k, tech, n;
+          ls >> k >> tech >> n;
+          store.add_equipment(k, tech, n);
+        }
+      } else if (what == "put") {
+        int32_t row, rule, part;
+        ls >> row >> rule >> part;
+        for (LabItem* it : list.items) delete it;
+        list.items.clear();
+        for (const ConfigItem* it : store.items) {
+          auto* li = new LabItem;
+          li->object = e.item_handle(it);
+          list.items.push_back(li);
+        }
+        list.rule = rule;
+        e.part = part;
+        events.clear();
+        list.select(row);
+        std::string ev;
+        for (const std::string& x : events) ev += (ev.empty() ? "" : " ") + x;
+        o << ev << " toggle" << int(lab_firepoint_toggle()) << '\n';
+        o << armour_text(*cfg) << ' ' << config_text(cfg.get()) << '\n';
+        o << "store{n" << store.count() << ' ';
+        for (const ConfigItem* it : store.items) o << item_text(it);
+        o << "}\n";
+      }
+    }
+    for (LabItem* it : list.items) delete it;
+    list.items.clear();
+  }
+  ztwod::set_host(nullptr);
+  if (dfn_mech >= 0) mech_dfn_slot(dfn_mech) = nullptr;
+  ::operator delete(dfn);
+  const std::string str = o.str();
+  if (static_cast<int>(str.size()) >= size) return -1;
+  std::memcpy(out, str.data(), str.size() + 1);
+  return static_cast<int>(str.size());
 }

@@ -482,6 +482,13 @@ Kept:
 
 ## Candidates for Owen
 
+- A missile launcher put into a part with no firepoint that scatters
+  (dev, 2026-10-26, mechlab.md The item rules): 0x00454600 still fits it
+  but gives it the part's number as its firepoint index, so in play it
+  fires from whichever firepoint has that index, maybe on another part. The
+  intent is a guess (any of the part's firepoints, or refusing the
+  launcher), so it is kept as the exe does it.
+
 - A click during a beam's recharge (dev, 2026-10-25, playtest #23): a beam
   fires only from a full charge (0x4b3fc0) and the trigger is an edge, so
   a click while the bar is still filling does nothing and is forgotten;

@@ -452,7 +452,67 @@ loadout, as in play): 80/80, breaks 14 of 15. The one left cannot run:
 armour's slot test by a chosen part, since armour lists only on the
 armour tab, whose rule returns before the part.
 
-Left to 5b2's second half: +0xac (0x00454600, putting it on), "lab.vt+0xac".
+**Putting it on** (+0xac, 0x00454600; a row's left-up 0x00456820 calls
+it). The list left and entered; the row's item; the rule (+0xa8) again;
+0x0044dc80: the shown slot (0x0044e680, the game's vt+0x34 with
+[0x00605a28]) has a loadout and the lab is not read-only. Into that
+loadout (the slot's +0x08, not ASSIGNED_LIST's) from the lab's store
+(+0x220), `n` 1:
+
+- Ammo: `n` the lab's rounds (0x004b4900) of the store's count, or of
+  100000 when the store is the full one (+0x10).
+- Weapons: none past 16 (0x00425ea0), "Only 16 weapons are allowed" in
+  MESSAGE_AREA (its vt+0x7c, the text as the format).
+- Armour, dealt with here: the same kind and tech on the mech (0x004714c0
+  with a stand-in 0x0041ec00): one more half ton (the item's count and
+  +0x2c both), one out of the store; else the mech's own kind (its +0x34
+  ferro and +0x30 tech) found: all of it back to the store, out of the
+  loadout (0x00471de0), and as much of the new as there was of the old
+  (all of it when the store's item is unlimited, else its count at most)
+  onto the loadout and out of the store, the sections spread anew
+  (0x004247a0) when the points no longer cover them; none of the mech's:
+  one half ton on.
+- Sinks: only of the kind already on (or onto a mech with none),
+  else message 0xf02 ("Incompatable Heat Sink Type").
+- Jump jets: up to the loadout's limit (0x00425fb0, 0x00425ff0), else
+  0xfc1 "%1 can only carry %2!d! jump jets" with the mech's name
+  (0x00484670) into 0x46 bytes, then as CString::Format's format.
+- A weapon takes a firepoint of the chosen part (ASSIGNED_LIST's,
+  0x00455eb0) from the definition (+0x24): none there, it does not go on;
+  missiles (ids 0x11..0x14 and 0x1a..0x1f) only those whose +0x04 is over
+  0. The static [0x005e47d4] (1 at start) alternates: set, the last that
+  fits (and cleared); clear, the first (and set). Its place in the
+  definition's list is the item's +0x0c. When none fits, the weapon still
+  goes on and its +0x0c is the part's number (an exe bug, kept: the firepoint
+  of that index is used in play; a fixes.md candidate).
+- Then the item on (the loadout's vt+0x00, 0x004723c0), the select sound
+  (0x00452c80(1, 1.0)), its place (vt+0x04), out of the store, the
+  loadout modified and recounted; the list left and entered, the screen
+  refreshed (0x0044cf50), left and entered again.
+
+The armour spread (0x004247a0, on the loadout's +0x2c with the mech): no
+change when the tons' points pass what the mech's sections take (2 x the
+structure, 0x004264e0, the head 9) or already equal the sections' sum;
+none at all for 0 points. Else each section's share of the points kept,
+the head first (up to 9), the rest by share (rounded, 0x005bd400's -0.5)
+within each section's most; the rear torsos (3..5) cut to what their front
+(0..2) leaves; then a point at a time off round from the first section
+(never the head) while over, and on while under wherever the room left
+is not 0 (front and rear sharing one most). The room is never negative
+after the caps, so "not 0" is "over 0".
+
+Ported: `lab_put_on` (an Engine hook: the lab test keeps its stand-in),
+`lab_firepoint_toggle`, `Config::remove` (0x00471de0), `find_like`
+(0x004714c0 on the loadout), `spread_armor` (0x004247a0 with 0x004264e0,
+0x00426560, 0x00426540). Tests: test_salvage.py's puton part, the exe's
+0x00454600 over real loadouts and stores (0x00423d00, 0x004723c0, the
+recount native) with the list's +0x3c, +0x40, +0xa8, MESSAGE_AREA, the
+part, the refresh and the sound logged: 200/200, breaks 12 of 14 (the two
+left are the remove's: the put-on removes only old armour, then adds the
+new); test_mechsave.py adds the spread at seven tonnages and the remove of
+one of each item to every loaded loadout (breaks 6 of 7 and 3 of 4; the
+last of each cannot differ: the room after the caps, and standard
+armour's tech already 3 in the game's loadouts).
 
 Tested in `test_lab_screen.py` (`tests/probe_lab.cpp`): the store now has
 ammo and equipment (armour, sinks, unlimited items) and the weapons'

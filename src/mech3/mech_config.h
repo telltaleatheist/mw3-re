@@ -115,11 +115,19 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   ~Config();                                                    // 0x00424350
   Config(const Config&) = delete;
   Config& operator=(const Config&) = delete;
-  ConfigItem* add_item(ConfigItem* item, int32_t n);            // 0x004723c0
+  ConfigItem* add_item(ConfigItem* item, int32_t n);            // 0x004723c0  vt+0x00
+  // vt+0x14 0x00471de0: n fewer of the item (itself, else one like it; at
+  // least none); armour sets the tons (half a ton each) and kind, sinks the
+  // count; true only when it is gone from the list (and deleted).
+  bool remove(ConfigItem* item, int32_t n);
+  ConfigItem* find_like(const ConfigItem* item);                // 0x004714c0: by vt+0x24
   EquipmentItem* add_equipment(int32_t kind, int32_t tech, int32_t n);  // 0x00471fb0
   int32_t sink_items() const;                                   // 0x00425f30
   int32_t weapon_count() const;                                 // 0x00425ea0: weapons and TAG
   int32_t equipment_count(int32_t kind, int32_t tech) const;    // 0x00473570: tech 3 any
+  // 0x004247a0 (on the armour at +0x2c, the mech pushed): the sections
+  // spread anew to the points the tons give, by their shares.
+  void spread_armor(int32_t mech);
   int32_t sink_limit() const { return 10; }                     // 0x00426070
   int32_t free_slots_in(int32_t part) const { return part == -1 ? free_slots : free_in[part]; }  // 0x00425e20
   int32_t slots_left() const;                                   // 0x00425d80

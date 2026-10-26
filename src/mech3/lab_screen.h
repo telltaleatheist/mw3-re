@@ -190,8 +190,7 @@ class LabLaterList : public LabItemList, public LabLater {
 // SELECT_EQUIP 24 kind 3, SELECT_ARMOR 26 kind 3's armour), sorted by
 // SORT_ITEM/QTY/MASS/CRIT (27..30), each row greyed when it cannot go on
 // the mech (+0xa8, 0x00453840), with its mass and how many the store has.
-// Its +0xac (put it on, 0x00454600) is step 5b2's second half: "lab.vt+0xac"
-// (docs/mechlab.md, The unassigned list).
+// Its +0xac puts the row's item on (0x00454600, `lab_put_on`).
 class LabUnassignedList : public LabItemList, public LabLater {
  public:
   explicit LabUnassignedList(Engine& e);  // 0x004535d0
@@ -201,7 +200,7 @@ class LabUnassignedList : public LabItemList, public LabLater {
   int32_t add_object(Handle item, int32_t n) override;  // +0x94  0x00454f60: NORMAL_FONT
   bool can_light(int32_t index) override { return can_xa8(index); }  // +0xa4  0x00453830
   bool can_xa8(int32_t index) override;  // +0xa8  0x00453840: may the row's item go on the shown loadout
-  void select(int32_t index) override { call(0xac, {index}); }  // +0xac  0x00454600 (5b2)
+  void select(int32_t index) override { e_.lab_put_on(*this, index); }  // +0xac  0x00454600 (lab_put_on)
   void refill() override;            // +0xb8  0x00453f20
   void set_tab(int32_t kind, bool armor);  // 0x004550d0
   void set_sort(int32_t by);         // 0x00453f00: 0 id, 1 mass, 2 count, 3 slots
@@ -268,6 +267,14 @@ class LabMessage : public ztwod::FontText {
   uint32_t x4b0 = 0;                 // +0x4b0
   float x4b4 = 1.0f;                 // +0x4b4
 };
+
+// 0x00454600 (UNASSIGNED_LIST's +0xac, docs/mechlab.md, The item rules):
+// the row's item onto the shown slot's loadout from the lab's store, if the
+// rule allows it; then the screen refreshed.
+void lab_put_on(Engine& e, LabUnassignedList& list, int32_t index);
+// [0x005e47d4]: which end of the part's firepoints the next weapon takes
+// (1 at start: the last).
+uint8_t& lab_firepoint_toggle();
 
 // 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix bugs:
 // the exe compares the mechs' numbers) or 1 the tonnage, then the number.

@@ -161,7 +161,11 @@ class GameEngine : public Engine {
   float lab_config_armor_tons(Handle config) override;
   int32_t lab_config_armor_tech(Handle config) override;
   uint8_t lab_config_armor_ferro(Handle config) override;
-  std::vector<int32_t> lab_dfn_firepoint_parts(Handle dfn) override;
+  std::vector<LabFirepoint> lab_dfn_firepoints(Handle dfn) override;
+  Config* lab_config_of(Handle config) override;
+  void lab_message(const char* text) override;
+  int32_t lab_assigned_part() override;
+  void lab_put_on(LabUnassignedList& list, int32_t index) override;
   bool lab_config_valid(Handle config) override;
   Handle mech_dfn_handle(int32_t mech) override;
   void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) override;

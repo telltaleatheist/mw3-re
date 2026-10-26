@@ -22,6 +22,7 @@ float max_mass(int32_t mech);
 int32_t internal_points(int32_t mech, int32_t column);    // 0x00485400..0x00485490
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
 constexpr int32_t kClan = 1, kAnyTech = 3;               // mech_names.h's Tech
+int32_t lab_rounds(int32_t weapon, int32_t n);           // weapon.h (0x004b4900)
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
@@ -614,9 +615,145 @@ bool LabUnassignedList::can_xa8(int32_t index) {
   const int32_t n = en.lab_item_slots(item);
   if (free < n || left < n) return false;
   if (k != 1) return true;
-  for (int32_t p : en.lab_dfn_firepoint_parts(dfn))  // a weapon needs a firepoint in the part
-    if (p == part) return true;
+  for (const Engine::LabFirepoint& f : en.lab_dfn_firepoints(dfn))  // a weapon needs a firepoint in the part
+    if (f.part == part) return true;
   return false;
+}
+
+// Engine's put-on by default: the lab test's stand-in for +0xac.
+void Engine::lab_put_on(LabUnassignedList& list, int32_t index) { list.call(0xac, {static_cast<uint32_t>(index)}); }
+
+uint8_t& lab_firepoint_toggle() {
+  static uint8_t toggle = 1;
+  return toggle;
+}
+
+// Mech3.exe 1.2 @ 0x00454600. Ammo goes on by the lab's rounds; weapons
+// past 16 are refused with a message; armour goes on half a ton at a time,
+// or replaces the mech's other kind (the old back to the store, as much of
+// the new as there was of the old, the sections spread anew when over);
+// sinks of the other kind are refused, and jump jets past the mech's
+// limit; then a weapon takes a firepoint in the chosen part, alternately the
+// last and the first that fits (missiles only those that scatter).
+void lab_put_on(Engine& en, LabUnassignedList& list, int32_t index) {
+  list.on_leave();
+  list.on_enter();
+  const Handle ih = list.object_at(index);
+  if (!ih || !list.can_xa8(index)) return;
+  const LabState& lab = states().lab;
+  // 0x0044dc80: the shown slot (0x0044e680) has a loadout and the lab can change it.
+  const Handle shown = en.lab_slot(lab.pilot_, lab.slot_);
+  if (!shown || !en.lab_slot_cfg(shown) || lab.flag_) return;
+  Store* store = en.store_of(list.store);
+  Config* cfg = en.lab_config_of(en.lab_slot_cfg(en.lab_slot(lab.pilot_, lab.slot_)));
+  auto* item = const_cast<ConfigItem*>(en.item_of(ih));  // (the store's own item)
+  if (!store || !cfg || !item) return;  // (never: the rule passed)
+  int32_t n = 1;
+  bool put = true;
+  const int k = item->kind();
+  const int32_t equip = k == 3 ? static_cast<EquipmentItem*>(item)->equipment : -1;
+  const int32_t tech = k == 3 ? static_cast<EquipmentItem*>(item)->tech : 0;
+  if (k == 2) {
+    n = lab_rounds(static_cast<AmmoItem*>(item)->weapon, store->full ? 100000 : item->count);  // 0x004b4900
+  } else if (k == 1) {
+    if (cfg->weapon_count() >= 16) {
+      put = false;
+      en.lab_message("Only 16 weapons are allowed");
+    }
+  } else if (k == 3 && (equip == 1 || equip == 2)) {
+    put = false;
+    EquipmentItem probe;  // 0x0041ec00
+    probe.count = 1, probe.equipment = equip, probe.tech = tech;
+    if (ConfigItem* same = cfg->find_like(&probe)) {  // half a ton more
+      if (++same->count < 0) same->count = 0;
+      store->remove(item, 1);
+      cfg->armor_tons = cfg->armor_tons - -0.5f;
+      if (cfg->armor_tons < 0.0f) cfg->armor_tons = 0.0f;
+      cfg->modified = 1;
+      cfg->recount();
+    } else {
+      EquipmentItem old;  // 0x0044ec90(1), the mech's armour now
+      old.count = 1, old.equipment = cfg->ferro ? 2 : 1, old.tech = cfg->armor_tech;
+      if (ConfigItem* was = cfg->find_like(&old)) {
+        const int32_t had = was->count;
+        const int32_t take = item->b10 ? had : std::min(item->count, had);
+        store->add_copy(was, had);
+        cfg->remove(was, had);
+        if (cfg->add_item(item, take)) store->remove(item, take);
+        cfg->modified = 1;
+        cfg->recount();
+        int32_t sum = 0;  // 0x004513f0
+        for (int32_t v : cfg->armor) sum += v;
+        if (armor_points(cfg->armor_tech, cfg->ferro != 0, cfg->armor_tons) - sum < 0) cfg->spread_armor(cfg->mech);
+      } else if (cfg->add_item(item, 1)) {
+        store->remove(item, 1);
+        cfg->modified = 1;
+        cfg->recount();
+      }
+    }
+    item = nullptr;
+  } else if (k == 3 && (equip == 9 || equip == 10)) {
+    EquipmentItem probe;  // 0x0044ec90(1): one kind of sink on a mech
+    probe.count = 1, probe.equipment = equip, probe.tech = tech;
+    put = cfg->find_like(&probe) != nullptr || cfg->sink_items() == 0;
+    if (!put) en.lab_message(en.message(0xf02));  // "Incompatable Heat Sink Type"
+  } else if (k == 3 && equip == 11) {
+    put = cfg->jump_jets() < cfg->jump_jet_limit();
+    if (!put) {
+      const int32_t limit = cfg->jump_jet_limit();
+      const std::string name = display_name(en, cfg->mech);  // 0x00484670
+      // 0xfc1 "%1 can only carry %2!d! jump jets" into 0x46 bytes, then the
+      // text as CString::Format's format and the message's.
+      std::string s = en.message_format_sd(0xfc1, name.c_str(), limit, true).substr(0, 0x45);
+      en.lab_message(s.c_str());
+    }
+  }
+  const int32_t part = en.lab_assigned_part();
+  const Handle dfn = en.mech_dfn_handle(cfg->mech);
+  int32_t at = part;
+  if (item && item->kind() == 1) {
+    const std::vector<Engine::LabFirepoint> fps = en.lab_dfn_firepoints(dfn);
+    std::vector<int32_t> fit;  // the part's, by their place in the definition
+    for (size_t i = 0; i < fps.size(); ++i)
+      if (fps[i].part == part) fit.push_back(static_cast<int32_t>(i));
+    if (fit.empty()) {
+      put = false;
+    } else {
+      const int32_t w = static_cast<WeaponItem*>(item)->weapon;
+      const bool missile = (w >= 0x11 && w <= 0x14) || (w >= 0x1a && w <= 0x1f);
+      const auto ok = [&](int32_t i) { return !missile || fps[static_cast<size_t>(fit[static_cast<size_t>(i)])].radius > 0.0f; };
+      int32_t chosen = -1;
+      const int32_t count = static_cast<int32_t>(fit.size());
+      if (lab_firepoint_toggle()) {  // the last that fits
+        lab_firepoint_toggle() = 0;
+        for (int32_t i = 0; i < count; ++i)
+          if (ok(i)) chosen = i;
+      } else {  // the first
+        lab_firepoint_toggle() = 1;
+        for (int32_t i = count - 1; i >= 0; --i)
+          if (ok(i)) chosen = i;
+      }
+      // None that fits leaves the part as its "firepoint" (the exe's).
+      if (chosen != -1) {
+        put = true;
+        at = fit[static_cast<size_t>(chosen)];
+      }
+    }
+  }
+  if (put && item) {
+    if (ConfigItem* added = cfg->add_item(item, n)) {
+      list.play_sound(1, 1.0f);  // 0x00452c80
+      added->set_part(at);
+      store->remove(item, n);
+      cfg->modified = 1;
+      cfg->recount();
+    }
+  }
+  list.on_leave();
+  list.on_enter();
+  en.lab_page_refresh(lab.lab_screen_);  // 0x0044cf50
+  list.on_leave();
+  list.on_enter();
 }
 
 bool LabUnassignedList::call_bool(uint32_t slot, int32_t index) const {

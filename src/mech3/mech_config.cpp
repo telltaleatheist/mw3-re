@@ -104,6 +104,36 @@ ConfigItem* Config::add_item(ConfigItem* item, int32_t n) {
   return made;
 }
 
+// Mech3.exe 1.2 @ 0x004714c0 (the shared base's, on the loadout's list)
+ConfigItem* Config::find_like(const ConfigItem* item) {
+  for (ConfigItem* i : items)
+    if (same_item(i, item)) return i;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00471de0. Standard armour's kind is set to 3 (any tech).
+bool Config::remove(ConfigItem* item, int32_t n) {
+  if (!item || n < 1) return false;
+  ConfigItem* found = find_item(items, item);
+  if (!found) return false;
+  found->count -= n;
+  if (found->count < 0) found->count = 0;
+  if (found->kind() == 3) {
+    const auto* q = static_cast<const EquipmentItem*>(found);
+    if (q->equipment == 1 || q->equipment == 2) {
+      armor_tons = static_cast<float>(q->count) * 0.5f;  // [0x005c36d4]
+      ferro = q->equipment == 2;
+      armor_tech = ferro ? q->tech : 3;
+    } else if (q->equipment == 9 || q->equipment == 10) {
+      sinks -= n;
+    }
+  }
+  if (found->count != 0) return false;
+  items.remove(found);
+  delete found;
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00423e00 (the copy constructor) and 0x00424010's path
 // with no store. The items are added one by one (add_equipment recounting
 // the sinks), each keeping its place, then the fields copied over; it is
@@ -274,6 +304,76 @@ int32_t Config::equipment_count(int32_t kind, int32_t tech) const {
     if (q->equipment == kind && (tech == 3 || tech == q->tech)) ++n;
   }
   return n;
+}
+
+namespace {
+// Mech3.exe 1.2 @ 0x004264e0 (ECX the mech, EDX the section): its internal
+// structure (0x00485400..0x00485490); the head 3.
+int32_t section_structure(int32_t mech, int32_t s) {
+  switch (s) {
+    case 0: case 3: return internal_points(mech, 1);
+    case 1: case 2: case 4: case 5: return internal_points(mech, 2);
+    case 6: return 3;
+    case 7: case 8: return internal_points(mech, 3);
+    case 9: case 10: return internal_points(mech, 4);
+    default: return 0;
+  }
+}
+// A section's most: twice its structure, the head 9.
+int32_t section_most(int32_t mech, int32_t s) { return s == 6 ? 9 : 2 * section_structure(mech, s); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004247a0. The head first (up to 9), the rest by each
+// section's share rounded and capped, the rear torsos (3..5) cut to what
+// their front (0..2) leaves, then a point at a time off (round from the
+// first) while over and on while under; a point goes on wherever the room
+// left is not exactly 0, over the most included (the exe's test).
+void Config::spread_armor(int32_t mech) {
+  const auto points = [&] { return armor_points(armor_tech, ferro != 0, armor_tons); };  // 0x00424760
+  const auto sum = [&] {
+    int32_t n = 0;
+    for (int32_t v : armor) n += v;
+    return n;
+  };
+  const int32_t pts = points();
+  int32_t most = 0;
+  for (int32_t s = 3; s < 11; ++s) most += section_most(mech, s);
+  if (pts > most || pts == sum()) return;
+  if (static_cast<float>(pts) == 0.0f) {
+    for (int32_t& v : armor) v = 0;
+    return;
+  }
+  float share[11];
+  for (int32_t s = 0; s < 11; ++s) share[s] = static_cast<float>(armor[s]) / static_cast<float>(points());
+  const int32_t head = pts > 9 ? 9 : pts;
+  armor[6] = head;
+  const int32_t rest = pts - head;
+  for (int32_t s = 0; s < 11; ++s) {
+    if (s == 6) continue;
+    armor[s] = crt::msvc_ftol(std::floor(static_cast<double>(static_cast<float>(rest) * share[s] - -0.5f)));
+    const int32_t cap = 2 * section_structure(mech, s);
+    if (armor[s] > cap) armor[s] = cap;
+    else if (armor[s] < 0) armor[s] = 0;
+  }
+  for (int32_t s = 3; s <= 5; ++s)
+    if (section_most(mech, s) - armor[s - 3] - armor[s] < 0) armor[s] = section_most(mech, s) - armor[s - 3];
+  // 0x00426560 sets a section (negative to 0), 0x00426540 reads it back (unused).
+  auto set = [&](int32_t s, int32_t v) { armor[s] = v < 0 ? 0 : v; };
+  int32_t over = sum() - points();
+  for (int32_t s = 0; over > 0; s = (s + 1) % 11) {
+    if (s == 6) continue;
+    set(s, armor[s] - 1);
+    over = sum() - points();
+  }
+  static const int8_t kPair[6] = {3, 4, 5, 0, 1, 2};  // front and rear torsos share a section's most
+  for (int32_t s = 0; over < 0; s = (s + 1) % 11) {
+    int32_t room = section_most(mech, s) - armor[s];
+    if (s <= 5) room -= armor[kPair[s]];
+    if (room != 0) {
+      set(s, armor[s] + 1);
+      over = sum() - points();
+    }
+  }
 }
 
 // Mech3.exe 1.2 @ 0x00425d80: the critical slots left for items.

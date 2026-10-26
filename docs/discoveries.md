@@ -2827,6 +2827,21 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   capped at what the mech's parts can hold (twice their internal structure,
   9 on the head) and goes on in half tons. (docs/mechlab.md, The item
   rules)
+- **Fitting armour in the mech lab.** Each click adds half a ton of the
+  armour your mech already has. Clicking the other kind (standard against
+  ferro-fibrous, or another tech) swaps it: all the old armour goes back to
+  your stores and as much of the new comes on as the old weighed, as far as
+  you have it; if the new kind gives fewer points, the lab spreads them over
+  the body again, head first. Heat sinks must all be single or all double
+  ("Incompatable Heat Sink Type", the game's spelling), and each mech has its
+  own jump-jet limit.
+- **Weapons alternate between a part's firepoints.** Putting a weapon into
+  a part picks one of that part's firepoints (where its shots come from):
+  the first weapon you fit takes the part's last firepoint, the next the
+  first, and so on in turn, across all your mechs. Missile launchers only
+  take firepoints that spread their salvo; when a part has none of those, the
+  launcher still goes on but is given a wrong firepoint, the part's number
+  used as one. (docs/mechlab.md, The item rules)
 - **Switching slots on the criticals page greys the list by the previous
   mech for a moment.** The lab refreshes the list of stored items before
   it takes the newly chosen slot's loadout, so the greyed rows are those

@@ -489,3 +489,11 @@ Notes for when it resumes (branch mac4/fe-salvage):
   loadout and store (armour by half tons and swaps, 0x004513f0 and
   0x004247a0, sinks and jump jets with messages, the firepoint pick with
   the static toggle 0x005e47d4); its own differential with exe objects.
+- Second half done: the put-on 0x00454600 (`lab_put_on`, an Engine hook so
+  the lab test keeps its stand-in), Config::remove 0x00471de0, find_like,
+  spread_armor 0x004247a0. test_salvage.py's puton part runs the exe's
+  put-on on real loadouts and stores: 200/200, breaks 12/14 (the two left
+  are the remove's, unreachable from the put-on: test_mechsave covers the
+  remove, 3/4, and the spread, 6/7; the misses cannot differ). Finds: the
+  firepoint toggle (last, first, alternating, across mechs) and missiles
+  with no scattering firepoint getting the part number as their firepoint.

@@ -790,7 +790,19 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_config_armor_tech(Handle config) { return static_cast<int32_t>(field32(config, 0x30)); }
   virtual uint8_t lab_config_armor_ferro(Handle config) { return field8(config, 0x34); }
   virtual int32_t lab_item_tech(Handle item);
-  virtual std::vector<int32_t> lab_dfn_firepoint_parts(Handle dfn);
+  struct LabFirepoint {
+    int32_t part;
+    float radius;                    // +0x04: a missile weapon needs one over 0
+  };
+  virtual std::vector<LabFirepoint> lab_dfn_firepoints(Handle dfn);
+  // The put-on (0x00454600, lab_screen.cpp's lab_put_on): the loadout behind
+  // a handle, MESSAGE_AREA's text (its vt+0x7c, the text as the format),
+  // ASSIGNED_LIST's part (step 6's 0x00455eb0), and the put-on itself (by
+  // default the stand-in "lab.vt+0xac" of the lab test).
+  virtual struct Config* lab_config_of(Handle config) { (void)config; return nullptr; }
+  virtual void lab_message(const char* text) { unported("lab.message", {text}); }
+  virtual int32_t lab_assigned_part() { return static_cast<int32_t>(unported("0x00455eb0", {0x1a13cu})); }
+  virtual void lab_put_on(class LabUnassignedList& list, int32_t index);
   virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }
