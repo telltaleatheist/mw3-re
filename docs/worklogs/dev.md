@@ -399,6 +399,12 @@ is in `README.md`.
   the Bushwhacker. 0x470e30 is the lab / IA / MP / training store (item 12).
 - campaign_menus_to_c1m1 now checks c1m2's store: 0 mechs, 4 kind 1, 3
   ammo, 3 kind 3. Break (no new-campaign stock): a spare mech appears and
-  the lab's ACCEPT checks fail. The weapons and ammo counts are the same
-  either way, so they are not (only) the stock's: the player's loadout
-  moves between the slot and the store too; not traced further.
+  the lab's ACCEPT checks fail. Traced (the lead asked why that reads
+  backwards): with the stock the store is 1 Bushwhacker, 6463 units; each
+  briefing takes the player's mech and loadout into the slot (0 mechs, 6106
+  units) and 0x434e00 brings the lance back for the next mission (1, 6463)
+  before c1m2's briefing takes it again. Without the stock the store is
+  empty, the slot's take finds nothing (its mech -1, the player launches
+  without the store's), and the Bushwhacker returned after c1m1 (1 mech,
+  357 units) stays a spare. The kinds' counts matched because they count
+  entries, not units (corrected).

@@ -543,8 +543,12 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
         // The campaign's store at c1m2: no spare mech, the weapons, three
-        // ammo stocks and the equipment (with the new campaign's stock,
-        // 0x004345a0; without it the store would hold a spare mech).
+        // ammo stocks and the equipment. The new campaign's stock (0x004345a0)
+        // is 1 Bushwhacker and 6463 units; each briefing takes the player's
+        // mech and loadout out into the slot (0 mechs, 6106 units) and
+        // 0x00434e00 brings the lance back for the next mission. Without the
+        // stock the slot finds nothing to take (its mech -1), and the
+        // Bushwhacker the lance brings back after c1m1 stays a spare.
         if (mech3::Pilot* p = mech3::current_pilot())
           if (auto* g = dynamic_cast<mech3::CampaignGame*>(p->current))
             for (const mech3::ConfigItem* it : g->store.items) ++store_kinds[std::min(it->kind(), 3)];
