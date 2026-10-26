@@ -313,6 +313,10 @@ const char* Engine::message_format(int32_t id, const char* arg) {
   unported("0x00575fd0", {id, arg});
   return message(id);
 }
+const char* Engine::message_format_n(int32_t id, int32_t n) {
+  unported("0x00575fd0", {id, static_cast<uint32_t>(n)});
+  return message(id);
+}
 void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
   std::snprintf(out, static_cast<size_t>(size), "%d.%d", static_cast<int>(major), static_cast<int>(minor));
   unported("sprintf", {out});
@@ -425,6 +429,13 @@ int32_t Engine::lab_item_group(Handle h) {
 double Engine::lab_item_weight(Handle h, int32_t n) {
   const ConfigItem* it = item_of(h);
   return it ? it->weight(n) : 0.0;
+}
+std::string Engine::lab_item_label(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? item_label(*it, [this](int32_t id) { return message(id); }) : std::string();
+}
+void Engine::lab_set_item_group(Handle h, int32_t group) {
+  if (auto* it = const_cast<ConfigItem*>(item_of(h))) it->group = group;
 }
 std::string Engine::lab_engine_name(Handle config) {
   return engine_name(static_cast<int32_t>(field32(config, 0x24)), field8(config, 0x28),

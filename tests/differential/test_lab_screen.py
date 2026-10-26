@@ -66,9 +66,10 @@ PARTS = [0x18880, 0x189f0, 0x18b60, 0x18cd0, 0x18e40, 0x18fb0, 0x19120]
 PANELS = [0x112ac, 0x11374, 0x1143c]
 # The pages' controls' vtables and the slots left to their steps.
 LATER = {v: (0x84, 0x88, 0x60, 0x64)
-         for v in (0x5c0f18, 0x5c1300, 0x5c1250, 0x5c1130)}
+         for v in (0x5c0f18, 0x5c1130)}
 LATER[0x5c1d68] = (0xac,)  # UNASSIGNED_LIST's put-on (step 5b2's second half)
 UNASSIGNED, ASSIGNED, PART_HEAD = 0x19290, 0x1a13c, 0x18710
+UNGROUPED, GROUPED = 0x1a36c, 0x1a570
 COUNTED = (0xf5b, 0x24c, 0x24d)  # ALIST_TITLES's messages: their texts show the count (probe_lab.cpp's too)
 CONFIGS, EDIT = 0x17548, 0x17ca8
 NAMES = ['Stock', 'Mine', 'Raider', 'Hunter', '']
@@ -80,7 +81,7 @@ ITEM_VT = {0: 0x5bc160, 1: 0x5c0fc0, 2: 0x5bd150, 3: 0x5bd180}
 test_twod.VT_KIND.update({0x5c0e98: 'I', 0x5c0e00: 'C', 0x5c0d70: 'C', 0x5c14f0: 'C', 0x5c1448: 'C',
                           0x5c1630: 'C', 0x5c13b0: 'K', 0x5c11c0: 'C', 0x5c1740: 'F', 0x5c0cc0: 'C', 0x5c5e30: 'C',
                           0x5c5da0: 'C', 0x5bc230: 'C', 0x5c5cf8: 'C', 0x5c1588: 'C',
-                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
+                          0x5c1d68: 'C', 0x5c1fe0: 'C', 0x5c1300: 'C', 0x5c1250: 'C', 0x5c1f48: 'K', 0x5c1eb8: 'C', 0x5c1e28: 'C', 0x5c1cc0: 'C', 0x5c1c30: 'C'})
 
 
 # 0x004846e0's table: each mech's most tons (10 out of range; mech_names.cpp's kMaxMass).
@@ -141,7 +142,7 @@ def loadout_items(r):
         k = r.choice([1, 1, 2, 3, 3])
         if k == 1:
             out.append({'kind': 1, 'id': r.choice([0, 3, 9, 0x11, 19]), 'n': 1, 'tech': r.choice([1, 2]),
-                        'part': r.randrange(-1, 7), 'group': r.choice([0, 1, 2])})
+                        'part': r.randrange(-1, 7), 'group': r.choice([-1, -1, 0, 1, 2, 4])})
         elif k == 2:
             out.append({'kind': 2, 'id': r.choice([0, 9, 19]), 'n': r.choice([20, 200]), 'part': r.randrange(-1, 9)})
         else:
@@ -201,6 +202,8 @@ def make_plan(seed, accept=True, crit=True):
                 lines.append('R')
             if r.random() < 0.4:
                 lines.append(f'W {r.choice([1, 2, 5, -1, 30]) & 0xffffffff:x}')
+            if r.random() < 0.3:  # the weapon groups: a row of either list pressed
+                lines.append(f'H {r.choice([0, 1]):x} {r.randrange(-1, 12) & 0xffffffff:x}')
             if r.random() < 0.4:  # ASSIGNED_LIST: a part button, or its arrows stepping the part
                 if r.random() < 0.5:
                     lines.append(f'P {r.randrange(8):x}')
@@ -209,6 +212,13 @@ def make_plan(seed, accept=True, crit=True):
             if r.random() < 0.5:
                 lines.append('E')
         lines += ['G 3 0', 'E']
+    if accept and crit:  # a weapon groups session (its tab, 4): rows of both lists pressed
+        lines += ['B 4', 'E']
+        for _ in range(r.randrange(3, 12)):
+            lines.append(f'H {r.choice([0, 1, 1]):x} {r.choice([0, 0, 1, 1, 2, 2, 3, 4, 6, 9, -1]) & 0xffffffff:x}')
+            if r.random() < 0.4:
+                lines.append('E')
+        lines += ['E']
     if accept:  # a loadout session: the chassis page, a row, then SAVE / RENAME / DELETE with names
         lines += ['B 0', 'E']
         for _ in range(r.randrange(3, 10)):
@@ -297,8 +307,13 @@ class Original:
         e.stub(0x425300, '0x00425300', 'c,s0', 4, weight)
 
 
-        def fmt(emu, key, a, pop):  # the ammo's message 0xf59 with its weapon's name
+        def fmt(emu, key, a, pop):  # the ammo's message 0xf59 with its weapon's name; 0x24b a group's number
             buf, size, mid, arg = a
+            if mid == 0x24b:
+                s_ = f'F{mid}:{i32(arg)}'
+                emu.cpu.write(buf, s_.encode('latin1')[:size - 1] + b'\0')
+                emu._ret(t.handle(key, (mid, arg)), pop)
+                return
             s_ = f'F{mid:x}:{emu.cstr(arg)}'
             emu.cpu.write(buf, s_.encode('latin1')[:size - 1] + b'\0')
             emu._ret(t.handle(key, (mid, emu.cstr(arg))), pop)
@@ -405,7 +420,6 @@ class Original:
                 fn = self.later_fields if sl == 0xb8 else self.later
                 e.w32(vtab + sl, e.new_stub(f'lab.vt+{sl:#x}', spec, POPS[sl], fn))
         e.stub(0x4504d0, '0x004504d0', 's0', 4)
-        e.stub(0x44dcf0, '0x0044dcf0', '', 0)
         for addr, spec, pop in ((0x479440, 'c', 0), (0x425bd0, 'c', 0), (0x4254d0, 'c,s0', 4), (0x457940, 'c,s0', 4),
                                 (0x457330, 'c,s0', 4), (0x450e00, 'c,s0', 4), (0x44fd90, 'c,s0', 4),
                                 ):
@@ -718,6 +732,8 @@ class Original:
                 e.call(0x449010, ecx=0x6059f8, stack=(pv[0],))
             elif op == 'W':  # UNASSIGNED_LIST scrolled (its +0x9c, as its arrows)
                 self.vcall(m + UNASSIGNED, 0x9c, (pv[0],))
+            elif op == 'H':  # a weapon list's row pressed (+0x98): 0 ungrouped, 1 grouped
+                self.vcall(m + (GROUPED if pv[0] else UNGROUPED), 0x98, (pv[1],))
             elif op == 'V':  # ASSIGNED_LIST's +0x9c: the chosen part stepped
                 self.vcall(m + ASSIGNED, 0x9c, (pv[0],))
             elif op == 'P':  # a part button pressed (+0x30), head first
@@ -727,12 +743,35 @@ class Original:
             elif op == 'M':  # CONFIG_EDIT moved (its set_pos, 0x0044a710)
                 self.vcall(m + 0x17ca8, 0x0c, (pv[0], pv[1]))
             elif op == 'E':
-                dump += test_twod.Original.dump(self) + self.dump_screen() + self.dump_unassigned() + self.dump_assigned()
+                dump += (test_twod.Original.dump(self) + self.dump_screen() + self.dump_unassigned() +
+                         self.dump_assigned() + self.dump_weapons())
             elif op == 'U':
                 self.vcall(m, 0x08, (1,))
                 self.m = 0
                 dump += 'gone\n'
         return dump
+
+    def dump_weapons(self):
+        """probe_lab.cpp's dump_weapons: both weapon lists, their rows and the weapons' tags."""
+        e = self.e
+        out = []
+        for name, off in (('ungrouped', UNGROUPED), ('grouped', GROUPED)):
+            w = self.m + off
+            r = lambda o: i32(e.r32(w + o))  # noqa: E731
+
+            def vec(o):
+                first, last = e.r32(w + o), e.r32(w + o + 4)
+                return [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+            out.append(f'{name} sel={r(0x17c)} top={r(0x180)} flags={e.r32(w + 0xc):x} font={e.r32(w + 0x200):x} items=' +
+                       '|'.join(f'{e.cstr(e.r32(x)) if e.r32(x) else ""}={e.r32(x + 4):x}' for x in vec(0x15c)) + '\n')
+            for i, row in enumerate(vec(0x16c)):
+                tag = e.r32(row + 0x4cc)
+                t = (f' tag={i32(e.r32(tag + 0x14))},{i32(e.r32(tag + 0x18))}/{e.r32(tag + 0xc):x}'
+                     f' "{e.cstr(tag + 0x108 + 0x34)}"/{i32(e.r32(tag + 0x108 + 0x14))},{i32(e.r32(tag + 0x108 + 0x18))}'
+                     f'/{e.r32(tag + 0x108 + 0x234):x}/{i32(e.r32(tag + 0x108 + 0x244))}' if tag else '')
+                out.append(f'{name}{i} idx={i32(e.r32(row + 0x4d0))} at={i32(e.r32(row + 0x14))},{i32(e.r32(row + 0x18))}'
+                           f' "{e.cstr(row + 0x34)}"/{e.r32(row + 0xc):x}/{e.r32(row + 0x234):x}{t}\n')
+        return ''.join(out)
 
     def dump_assigned(self):
         """probe_lab.cpp's dump_assigned."""
@@ -955,6 +994,9 @@ def main():
         passed += ok
         stats['seeds with unassigned rows'] = stats.get('seeds with unassigned rows', 0) + (
             1 if re.search(r'^uitems [^\n]*=', dump, re.M) else 0)
+        stats['seeds with weapon groups'] = stats.get('seeds with weapon groups', 0) + (
+            1 if '=0|' in dump and 'F587:1' in dump else 0)
+        stats['seeds with weapon tags'] = stats.get('seeds with weapon tags', 0) + (1 if ' tag=' in dump else 0)
         stats['seeds with part slot bars'] = stats.get('seeds with part slot bars', 0) + (
             1 if re.search(r'c="[ \d]\d/[ \d]\d"', dump) else 0)
         calls += len(trace)

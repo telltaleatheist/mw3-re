@@ -545,3 +545,16 @@ Notes for when it resumes (branch mac4/fe-salvage):
   arrows stop at the ends (my first table wrapped: the test caught it), and
   ferro-fibrous / endo steel rows appear in the parts only with no slots
   left.
+
+## Lab 7: the weapon groups page (2026-10-26)
+
+- Assignment (lead): plan item 4 (mechlab.md step 7), WEAPONS_UNGROUPED /
+  WEAPONS_GROUPED. Branch mac4/lab-7 off main.
+- Done: both weapon lists (`LabWeaponList`), the rows' location tags
+  (`LabLocationTag`, vtable 0x5c16c0), LabScreen::refresh_groups 0x44dcf0
+  (the shown slot read six times, as the exe; the test caught the one
+  read I had), message_format_n for 0x24b. Harness: probe_lab sets the
+  lab screen handle after the screen is made (the exe's [0x605a58] is 0
+  during the constructor); a weapon groups session in the plan.
+- Breaks 13/15 (the mouse-only can_choose; select_group's out-of-range
+  case never differed in the runs, not traced further).

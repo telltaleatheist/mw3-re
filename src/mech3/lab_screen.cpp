@@ -11,6 +11,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod_host.h"
+#include "gamez/zimage/zimg_library.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app_states.h"
 #include "mech3/pilot.h"
@@ -1237,13 +1238,178 @@ void LabUnassignedList::refill() {
   else en.vcall(s->armor_titles, 0x64, {});
 }
 
-bool LabWeaponList::read_control(zrdr::Node*, ztwod::Dialog*) {
-  call(0x84);
-  return true;
+// ---------------------------------------------------------------------------
+// The weapon groups page (docs/mechlab.md, The weapon groups page)
+
+// Mech3.exe 1.2 @ 0x0044dfb0
+void LabLocationTag::set_pos(int32_t px, int32_t py) {
+  HudPanel::set_pos(px, py);
+  const int32_t w = image ? image->width : 0;
+  text.set_pos(px - 5 + w, py);
 }
-void LabWeaponList::after_bind() { call(0x88); }
-void LabWeaponList::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
-void LabWeaponList::hide() { call(0x64); }
+
+// Mech3.exe 1.2 @ 0x0044dff0
+void LabLocationTag::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  HudPanel::update(dt);
+  text.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0044dee0
+LabWeaponList::~LabWeaponList() {
+  for (FileRow* r : rows) {
+    delete r->attached;
+    r->attached = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0044df70
+bool LabWeaponList::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  const bool r = FileList::read_control(node, dialog);
+  font_static = ztwod::host().font_find(zrdr::get_string(node, "STATIC_FONT"));
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0044e630
+int32_t LabWeaponList::group_of(int32_t row) const {
+  const int32_t v = row >= 0 && row < item_count() ? items[static_cast<size_t>(row)]->value : 0;
+  return v < 0 || v > 4 ? -1 : v;
+}
+
+// Mech3.exe 1.2 @ 0x0044e560 (the grouped's; the other's 0x0040bad0)
+bool LabWeaponList::can_choose(int32_t i) { return !grouped || group_of(i) != -1; }
+// Mech3.exe 1.2 @ 0x0044e540
+bool LabWeaponList::can_roll(int32_t i) { return !grouped || !can_choose(i); }
+
+// Mech3.exe 1.2 @ 0x0044e450 (the ungrouped's: the row's value) and
+// 0x0044e5e0 (the grouped's: not a group's row)
+Handle LabWeaponList::weapon_at(int32_t row) const {
+  if (grouped && group_of(row) != -1) return 0;
+  return row >= 0 && row < item_count() ? static_cast<Handle>(items[static_cast<size_t>(row)]->value) : 0;
+}
+
+// Mech3.exe 1.2 @ 0x0044e3f0 (the ungrouped's: into the chosen group, -1
+// when none is) and 0x0044e490 (the grouped's: out of its group; a group's
+// row is chosen).
+void LabWeaponList::select(int32_t index) {
+  Engine& en = e_;
+  LabScreen* s = en.lab_screen(states().lab.lab_screen_);
+  if (!s) return;  // (the exe's [0x00605a58], always there)
+  const int32_t group = grouped ? -1 : s->grouped.group_of(s->grouped.selected);
+  const Handle it = weapon_at(index);
+  if (!it) {
+    if (grouped) FileList::select(index);
+    return;
+  }
+  play_sound(1, 1.0f);  // 0x0048d3b0
+  en.lab_set_item_group(it, group);
+  s->refresh_groups();
+}
+
+// Mech3.exe 1.2 @ 0x0044e3d0
+void LabWeaponList::add_weapon(Handle item) {
+  const std::string label = e_.lab_item_label(item);
+  add_item(label.c_str(), static_cast<int32_t>(item));
+}
+
+// Mech3.exe 1.2 @ 0x0044e580
+void LabWeaponList::add_group(int32_t g) {
+  const char* t = e_.message_format_n(0x24b, g + 1);  // (into 0x40 bytes)
+  add_item(t ? std::string(t).substr(0, 0x3f).c_str() : "", g);
+}
+
+// Mech3.exe 1.2 @ 0x0044e4e0
+void LabWeaponList::select_group(int32_t g) {
+  if (g < 0 || g > 4) g = 0;
+  for (int32_t i = 0; i < item_count(); ++i)
+    if (group_of(i) == g) select(i);
+}
+
+// Mech3.exe 1.2 @ 0x0044f240
+void LabWeaponList::layout() {
+  FileList::layout();
+  lay_rows();
+}
+
+// Mech3.exe 1.2 @ 0x0044e020: down from OFFSET, each shown row (or the
+// selected one's place) a row height and 5 apart: a weapon's row in
+// NORMAL_FONT with its tag (the part it is on, 172 x 12, 3 to the left), a
+// group's in STATIC_FONT, 5 lower after the first, the selected row's text
+// and BAR on it.
+void LabWeaponList::lay_rows() {
+  constexpr int32_t kTagW = 172, kTagH = 12;  // [0x005e42b8], [0x005e42bc]
+  int32_t y = get_y() + offset_y;
+  if (rows.empty()) return;
+  Engine& en = e_;
+  const LabState& lab = states().lab;
+  if (!lab.lab_screen_) return;
+  const Handle slot = en.lab_slot(lab.pilot_, lab.slot_);
+  if (!slot) return;
+  const int32_t mech = en.lab_slot_mech(en.lab_slot(lab.pilot_, lab.slot_));
+  int32_t i = 0;
+  for (FileRow* row : rows) {
+    const bool here = selected - top == i && selected_row && !(selected_row->flags & ztwod::kHidden);
+    if ((row->flags & ztwod::kHidden) && !here) continue;
+    const int32_t v = row->index >= 0 && row->index < item_count() ? items[static_cast<size_t>(row->index)]->value : 0;
+    if (v >= 5 && v != 0) {  // a weapon
+      row->set_pos(row->get_x(), y);
+      row->set_font(font_normal);
+      auto* tag = static_cast<LabLocationTag*>(row->attached);
+      if (!tag) {
+        tag = new LabLocationTag;
+        row->attached = tag;
+        tag->set_size(kTagW, kTagH);
+        tag->set_color(zvid::pack_bytes(0x19, 0x19, 0x19));  // 0x0043aae0
+        tag->set_opacity(1.0f);
+      }
+      tag->show_for(-1.0f);
+      tag->set_pos(row->get_x() - 3, row->get_y());
+      tag->text.set_font(font_normal);
+      tag->text.align = 2;
+      tag->text.set_text_plain(en.part_text(en.lab_item_location(static_cast<Handle>(v), mech)));  // 0x00484d70
+    } else {  // a group
+      row->set_font(font_static);
+      if (row->attached) row->attached->hide();
+      row->set_pos(row->get_x(), y + (i != 0 ? 5 : 0));
+      if (here) {
+        selected_row->set_pos(row->get_x(), row->get_y());
+        if (bar_image) bar_image->set_pos(row->get_x() + bar_dx, row->get_y() + bar_dy);
+      }
+    }
+    ++i;
+    y = row->get_y() + kTagH + 5;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0044dcf0: on the weapon groups page with a loadout
+// shown, both lists emptied and refilled: the weapons of no group, then
+// each group's row and its weapons; the chosen group kept.
+void LabScreen::refresh_groups() {
+  if (page != 4) return;
+  Engine& e = engine();
+  const LabState& lab = states().lab;
+  // The shown slot's loadout, asked for again each time (0x0044e680 twice a read).
+  auto shown = [&]() -> Handle {
+    return e.lab_slot(lab.pilot_, lab.slot_) ? e.lab_slot_cfg(e.lab_slot(lab.pilot_, lab.slot_)) : 0;
+  };
+  if (!shown()) return;
+  const Handle cfg = shown();
+  const int32_t chosen = grouped.group_of(grouped.selected);
+  shown();  // (its mech read, unused)
+  ungrouped.clear_items();
+  ungrouped.layout();
+  grouped.clear_items();
+  grouped.layout();
+  const std::vector<Handle> items = e.lab_config_items(cfg);
+  for (Handle it : items)
+    if (e.lab_item_kind(it) == 1 && e.lab_item_group(it) == -1) ungrouped.add_weapon(it);
+  for (int32_t g = 0; g < 5; ++g) {
+    grouped.add_group(g);
+    for (Handle it : items)
+      if (e.lab_item_kind(it) == 1 && e.lab_item_group(it) == g) grouped.add_weapon(it);
+  }
+  grouped.select_group(chosen);
+}
 
 // Mech3.exe 1.2 @ 0x004569c0 (the panel), the buttons, 0x0044f040(7) (its rows)
 LabEngineTable::LabEngineTable(Engine& e)
@@ -1400,14 +1566,14 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
       sort_mass(e, 0x20),
       unassigned(e),
       assigned(e),
-      ungrouped(e),
-      grouped(e),
+      ungrouped(e, false),
+      grouped(e, true),
       engine_table(e) {
   const struct {
     LabLater* l;
     uint32_t at;
   } later[] = {{&loadouts, 0x11508}, {&unassigned, 0x19290},
-               {&ungrouped, 0x1a36c}, {&grouped, 0x1a570}, {&engine_table, 0x1a8c8}};
+               {&engine_table, 0x1a8c8}};
   for (const auto& x : later) x.l->e = &e, x.l->at = x.at;
   chassis_data = e.construct(0x457600, {});  // new(0x188)
   mech_data = e.construct(0x456cd0, {});     // new(0x5ac)
@@ -1653,7 +1819,7 @@ void LabScreen::refresh(Handle config) {
     assigned.refill();
     if (armor_titles) e.unported("0x00450e00", {armor_titles, cfg});
     engine_table.call_fn("0x0044b4b0", {cfg});
-    e.lab_groups_refresh();
+    refresh_groups();
   } else {
     if (line) line->set_text_plain(e.message(0x249));
     e.unported("0x00457940", {chassis_data, 0});
@@ -1768,7 +1934,7 @@ void LabScreen::show_page(int32_t p, bool show) {
     if (show) {
       panel_left.show_look(1);
       panel_right.show_look(1);
-      e.lab_groups_refresh();
+      refresh_groups();
     }
     if (show) ungrouped.show_for(-1.0f);
     else ungrouped.hide();

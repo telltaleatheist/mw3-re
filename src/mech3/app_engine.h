@@ -308,6 +308,7 @@ class GameEngine : public Engine {
   uint32_t install_options(uint32_t mask) override { return mask & install_options_; }  // 0x00597d80
   int32_t pick_video_device(int32_t, int32_t) override { return 0; }
   const char* message_format(int32_t id, const char* arg) override;
+  const char* message_format_n(int32_t id, int32_t n) override;
   uint32_t message_box(int32_t a, int32_t caption, int32_t text, int32_t arg = 0) override;
   uint32_t game_message_box(int32_t style, int32_t caption, const std::string& text);  // 0x004ac150
   void pump_events();                // FIX (A): the window's events, inside the box's loop

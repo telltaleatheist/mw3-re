@@ -66,6 +66,10 @@ struct LabEngine : mech3::Engine {
     return keep("mech" + std::to_string(mech));
   }
   void pop_state(uint32_t arg) override { call("0x005905a0", {arg}); }
+  const char* message_format_n(int32_t id, int32_t n) override {  // the group rows' 0x24b
+    call("0x00575fd0", {id, static_cast<uint32_t>(n)});
+    return keep("F" + std::to_string(id) + ":" + std::to_string(n));
+  }
   const char* message_format(int32_t id, const char* arg) override {  // the test's stub's text
     call("0x00575fd0", {id, arg ? arg : ""});
     char buf[0x100];
@@ -258,6 +262,29 @@ void dump_unassigned(mech3::LabScreen& s, Dump& d) {
   o << '\n';
 }
 
+// The weapon lists (step 7), as test_lab_screen.py's dump_weapons.
+void dump_weapons(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  const std::pair<const char*, const mech3::LabWeaponList*> lists[] = {{"ungrouped", &s.ungrouped}, {"grouped", &s.grouped}};
+  for (const auto& [name, w] : lists) {
+    o << name << " sel=" << w->selected << " top=" << w->top << std::hex << " flags=" << w->flags << " font="
+      << w->font_static << std::dec << " items=";
+    for (size_t i = 0; i < w->items.size(); ++i)
+      o << (i ? "|" : "") << (w->items[i]->text ? w->items[i]->text : "") << '=' << std::hex
+        << static_cast<uint32_t>(w->items[i]->value) << std::dec;
+    o << '\n';
+    for (size_t i = 0; i < w->rows.size(); ++i) {
+      const mech3::FileRow* r = w->rows[i];
+      o << name << i << " idx=" << r->index << " at=" << r->x << ',' << r->y << " \"" << r->text << "\"/" << std::hex
+        << r->flags << '/' << r->font << std::dec;
+      if (const auto* t = static_cast<const mech3::LabLocationTag*>(r->attached))
+        o << " tag=" << t->x << ',' << t->y << '/' << std::hex << t->flags << std::dec << " \"" << t->text.text << "\"/"
+          << t->text.x << ',' << t->text.y << '/' << std::hex << t->text.font << std::dec << '/' << t->text.align;
+      o << '\n';
+    }
+  }
+}
+
 // ASSIGNED_LIST (step 6), as test_lab_screen.py's dump_assigned.
 void dump_assigned(mech3::LabScreen& s, Dump& d) {
   std::ostringstream& o = d.o;
@@ -388,7 +415,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
     lab.flag_ = static_cast<uint8_t>(flag);
     lab.slots_ = static_cast<int32_t>(slots);
     lab.mech_ = mech3::LabState::kNoMech;
-    lab.lab_screen_ = 0x7700;
+    lab.lab_screen_ = 0;  // (set once the screen is made, as the test's [0x00605a58])
   }
   const bool per_second = zfix::options().per_second;
   const bool bugs = zfix::options().bugs;
@@ -409,6 +436,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
     if (op == "S") {
       s = std::make_unique<mech3::LabScreen>(engine, static_cast<int32_t>(slots));
       engine.screen = s.get();
+      mech3::states().lab.lab_screen_ = 0x7700;
       g_kind[&s->message] = 'F';
     } else if (!s) {
       continue;
@@ -456,6 +484,9 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       mech3::states().lab.set_mech(static_cast<int32_t>(hex(ls)));
     } else if (op == "W") {
       s->unassigned.scroll(static_cast<int32_t>(hex(ls)));
+    } else if (op == "H") {  // a weapon list's row pressed (+0x98)
+      const uint32_t which = hex(ls), row = hex(ls);
+      (which ? s->grouped : s->ungrouped).select(static_cast<int32_t>(row));
     } else if (op == "V") {  // ASSIGNED_LIST's +0x9c: the chosen part stepped
       s->assigned.scroll(static_cast<int32_t>(hex(ls)));
     } else if (op == "P") {  // a part button pressed (+0x30), by its place (head first)
@@ -473,6 +504,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       dump_screen(*s, d);
       dump_unassigned(*s, d);
       dump_assigned(*s, d);
+      dump_weapons(*s, d);
       dump += d.o.str();
     } else if (op == "U") {
       engine.screen = nullptr;

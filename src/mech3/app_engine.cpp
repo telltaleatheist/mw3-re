@@ -214,6 +214,10 @@ const char* GameEngine::message_format(int32_t id, const char* arg) {
   formatted_ = zutl::format_message(id, arg);
   return formatted_.c_str();
 }
+const char* GameEngine::message_format_n(int32_t id, int32_t n) {
+  formatted_ = zutl::format_message_ints(id, {n});
+  return formatted_.c_str();
+}
 
 // Mech3.exe 1.2 @ 0x004ac150: the game's message box, dlgMessage.zrd's
 // MESSAGEBOX (the ported zTwoD box) over the screen, run in its own loop until
