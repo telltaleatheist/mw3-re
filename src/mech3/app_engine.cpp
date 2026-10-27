@@ -1,6 +1,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+#include "gamez/zfmv/fmv_script.h"
 #include "mech3/mission_map.h"
 #include "mech3/app.h"
 #include "mech3/message_panel.h"
@@ -120,6 +121,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   set_options_hooks(&g_options_hooks);
   wire_mission_hooks(this);
   wire_pilot_hooks(this);
+  wire_fmv(this);
   wire_frame_hooks(this);
   static ViewProgram vp;
   vp.ctx = this;
@@ -136,6 +138,7 @@ GameEngine::~GameEngine() {
     set_options_hooks(nullptr);
     wire_mission_hooks(nullptr);
     wire_pilot_hooks(nullptr);
+    wire_fmv(nullptr);
     wire_frame_hooks(nullptr);
     wire_view(nullptr);
   }
@@ -349,6 +352,14 @@ void GameEngine::light_init() { Engine::light_init(); }
 void GameEngine::fonts_init(const char* name, int32_t fonts) {
   zimg::register_image_library(1);
   if (fonts) unported("0x00519e50", {name});
+}
+// 0x00516f50: zImage's search directories. The start-up's "zbd" goes to the
+// 2D host's mounts (SdlTwodHost::image_path), so the intro's logos find the
+// image library; the missions' "zbd;zbd\<op>" and the lab's stay logged, as
+// those mounts would stay for the next mission's files.
+void GameEngine::geometry_init(const char* dir) {
+  if (dir && std::strcmp(dir, "zbd") == 0) return ztwod::host().image_path(dir);
+  Engine::geometry_init(dir);
 }
 void GameEngine::update_shadows() { update_mech_shadows(); }
 

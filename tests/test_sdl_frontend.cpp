@@ -422,6 +422,15 @@ struct StepClock : platform::Clock {
   uint32_t now = 0;
   uint32_t ticks_ms() override { return now += 16; }
 };
+// zFMV's clock: a second a call, so the Intro's SPLASH wait passes in a few frames.
+struct MovieClock : platform::Clock {
+  uint32_t now = 0;
+  uint32_t ticks_ms() override { return now += 1000; }
+};
+platform::Clock& fast_movie_clock() {
+  static MovieClock c;
+  return c;
+}
 struct KeepScreen : platform::Screen2D {
   std::vector<uint16_t> last;  // the 2D frame shown, or the layer laid over the 3D frame
   void keep(const uint16_t* px, int w, int h, int pitch) {
@@ -507,7 +516,7 @@ void weapon_list_run(bool d3d, BarRun& out) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   NoGpu gpu;
   if (d3d) p.render = &gpu;
@@ -609,7 +618,7 @@ static ClickRun click_run(int hold_frames, bool bugs) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &input;
   auto key = [&](uint8_t dik, bool down) {
     for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)

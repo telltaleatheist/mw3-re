@@ -137,6 +137,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- A movie script line with too few values reads the missing ones as 0 instead of reading past the line (no shipped script has one).
 - c2 mission 3's two Firefly objectives are real: the data named the wrong Fireflies, so the original ticked them off before the mission began.
 - The HUD no longer crashes drawing static on the TARGET display in a mode with nothing to show.
 - The rain's and snow's very first frame no longer draws its streaks from unset sizes (it used the screen's size from the second frame on anyway).
@@ -334,6 +335,8 @@ Details: [`docs/protection.md`](docs/protection.md).
 ## Running on modern machines
 
 These change how the game talks to the computer, not how it plays.
+
+- A movie that is not in the game's folder is not looked for on a CD drive; the importer copies the movies from the disc. Until the movie player is rebuilt, the movies are skipped (the logos, fades and waits around them play).
 
 - The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
 

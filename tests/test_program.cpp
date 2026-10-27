@@ -298,6 +298,16 @@ struct FakeClock : platform::Clock {
   uint32_t now = 0;
   uint32_t ticks_ms() override { return now += 16; }
 };
+// zFMV's clock in the tests: a second a call, so the movie scripts' waits
+// (the Intro's SPLASH, 4 s) pass in a few frames.
+struct MovieClock : platform::Clock {
+  uint32_t now = 0;
+  uint32_t ticks_ms() override { return now += 1000; }
+};
+platform::Clock& fast_movie_clock() {
+  static MovieClock c;
+  return c;
+}
 struct FakeScreen : platform::Screen2D {
   int frames = 0;
   void present_16(const uint16_t*, int w, int h, int, bool) override { frames += w == 640 && h == 480; }
@@ -340,7 +350,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -357,7 +367,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
     CountingPump pump;
     app.run(pump);
     EXPECT(app.current() == &mech3::states().main);  // Intro -> SPLASH -> Main
-    EXPECT(engine.unported_counts().count("0x00598cc0") == 1);  // the movies are hooked
+    EXPECT(engine.unported_counts().count("0x00598cc0") == 0);  // the movies are ported (zfmv)
     // The main menu's screen is ported (mainmenu.md): MAINMENU loaded, its
     // buttons bound, the version line set; the menus it opens are hooks.
     EXPECT(engine.unported_counts().count("0x00486260") == 0);
@@ -514,7 +524,7 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
     platform::SilentSoundOutput sound;
     mech3::MountFiles files;
     mech3::Platform p;
-    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
     {
       // Movies on: the ones asked for are recorded (zFMV is not ported, so
       // none plays; a made movie is a handle that never loads).
@@ -657,7 +667,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -1065,7 +1075,7 @@ TEST(mission_after_another_gets_its_own_regions_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -1133,7 +1143,7 @@ TEST(mission_end_frees_what_the_next_does_not_need_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   auto copies = [](bool own_tree) {
     int n = 0;
     const zeff::AnimState& a = zeff::anim();
@@ -1273,7 +1283,7 @@ TEST(missions_waynets_begin_in_the_registrys_order_headless) {
     platform::SilentSoundOutput sound;
     mech3::MountFiles files;
     mech3::Platform p;
-    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
     std::vector<std::string> labels;
     bool marker = false, on_nav = false;
     {
@@ -1342,7 +1352,7 @@ TEST(mission_c4m2_sun_flare_drawn_and_blocked_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   struct Seen {
     int listed = 0, squares_open = -1, squares_blocked = -1, squares = 0;
     bool cockpit_on_in_draw = false, cockpit_off_after = false, have_ai = false;
@@ -1453,7 +1463,7 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   static WeatherSeen seen;
   seen = WeatherSeen{};
   const ztwod::WeatherHooks keep_hooks = ztwod::weather_hooks();
@@ -1563,7 +1573,7 @@ TEST(mission_c1m1_hud_static_when_hurt_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   struct Seen {
     float most = 0.0f, after = 1.0f;
     int fills_hurt = 0, fills_after = -1;
@@ -1658,7 +1668,7 @@ TEST(mission_c1m1_hud_views_drawn_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.render = &gpu;
   mech3::HudReport r, at10;
   int gpu_rects_from5 = 0;
@@ -1734,7 +1744,7 @@ static bool radar_boundary_run(int32_t index, int32_t number, mech3::HudReport* 
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   int frames = 0;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -1812,7 +1822,7 @@ TEST(mission_c1m1_maps_and_the_radar_map_mode_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   mech3::HudReport start, on, off;
   size_t maps = 0;
   struct MapHost : ztwod::Host {  // the maps' images (the SDL host's library reads; here 640 x 640 stand-ins)
@@ -1914,7 +1924,7 @@ TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.render = &gpu;
   mech3::HudReport r, mfd, both;
   bool targeted = false;
@@ -2026,7 +2036,7 @@ TEST(mission_c1m1_hud_zoom_drawn_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.render = &gpu;
   mech3::HudReport r, at10;
   int gpu_rects_from5 = 0;
@@ -2100,7 +2110,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2283,7 +2293,7 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2363,7 +2373,7 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2446,7 +2456,7 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2563,7 +2573,7 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2665,7 +2675,7 @@ TEST(mission_c1m1_laser_leaves_its_glow_on_a_truck_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2807,7 +2817,7 @@ TEST(missions_game_time_starts_at_zero_each_mission_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2895,7 +2905,7 @@ TEST(mission_c1m1_powered_down_ai_mech_settles_once_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -2960,7 +2970,7 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -3157,7 +3167,7 @@ TEST(mission_c1m1_truck_nodes_name_the_truck_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   struct Seen {
     int trucks = 0, nodes = 0, bound = 0, turrets = 0, turrets_bound = 0, bases = 0, bases_bound = 0;
     bool entity = false, child_entity = false, pick = false, hit_truck = false, damaged = false, attacker = false;
@@ -3320,7 +3330,7 @@ TEST(mission_c1m2_landmines_go_off_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   struct Seen {
     size_t loaded = 0, listed_after = 0, after_cleanup = 99;
     std::string weapon;
@@ -3459,7 +3469,7 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -3627,7 +3637,7 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -3775,7 +3785,7 @@ TEST(mission_c1m1_turrets_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -3877,7 +3887,7 @@ TEST(mission_c1m1_shots_destroy_the_srm_turrets_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   struct Emplacement {
     const char* name;
     float side[2];  // the player's place from the turret
@@ -4015,7 +4025,7 @@ TEST(mission_c1m1_player_destroys_an_srm_turret_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   int on_at = -1, died_group = -1;
   float health = -1;
@@ -4118,7 +4128,7 @@ TEST(mission_c1_turret_woken_by_its_animation_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -4198,7 +4208,7 @@ TEST(mission_c1m1_a_destroy_animation_turns_its_valve_on_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -4276,7 +4286,7 @@ RadarStops radar_stops(int32_t index, int32_t number) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -4384,7 +4394,7 @@ TEST(mission_c1m1_horizon_scrolls_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -4479,7 +4489,7 @@ TEST(mission_c1m1_fog_mix_reaches_the_device_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.render = &gpu;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -4600,7 +4610,7 @@ TEST(mission_c1m1_models_are_lit_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.render = &gpu;
   static int mixes = 0;
   static void (*mix)(float*) = nullptr;
@@ -4694,7 +4704,7 @@ TEST(mission_c1m1_nav_waynet_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -4777,7 +4787,7 @@ TEST(mission_c1m1_field_base_lost_cuts_the_campaign_store_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -4877,7 +4887,7 @@ TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   const zvid::PixelFormat keep = zvid::pixel_format();
   zvid::set_pixel_format(5, 6, 5);
   {
@@ -4956,7 +4966,7 @@ TEST(mission_c1m1_camera_follows_the_cockpit_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -5040,7 +5050,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -5246,7 +5256,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -5400,7 +5410,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -5554,7 +5564,7 @@ TEST(mission_c1m1_command_marker_answers_as_an_aitarget_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -5631,7 +5641,7 @@ TEST(mission_c1m1_unported_survey_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -5745,7 +5755,7 @@ static LrmRun lrm_after_lock(bool turn_away) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -5891,7 +5901,7 @@ TEST(mission_c1m1_short_clicks_fire_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   int mouse_clicks = 0, mouse_volleys = 0, key_clicks = 0, key_volleys = 0;
   {
@@ -5995,7 +6005,7 @@ static LaserAim laser_on_the_reticle(bool turning) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   mech3::LaunchedMech before, after;
   float aim_pt[3] = {0, 0, 0}, aim_pt2[3] = {0, 0, 0};
@@ -6146,7 +6156,7 @@ TEST(mission_c1m1_arm_weapon_recoils_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   float most = 0.0f;
   int most_group = -1;
@@ -6258,7 +6268,7 @@ TEST(mission_c1m1_left_button_fires_after_focus_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -6407,7 +6417,7 @@ TEST(mission_c1m1_player_commands_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -6524,7 +6534,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -6844,7 +6854,7 @@ TEST(missions_c4b_m5_m6_fail_when_left_headless) {
       platform::SilentSoundOutput sound;
       mech3::MountFiles files;
       mech3::Platform p;
-      p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+      p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
       p.input = &keys;
       {
         mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -6950,7 +6960,7 @@ TEST(mission_ia1_waves_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -7080,7 +7090,7 @@ TEST(mission_c1m1_restarted_twice_keeps_no_ai_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -7191,7 +7201,7 @@ TEST(mission_c2m1_ai_pick_goes_to_the_hotter_mech_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -7312,7 +7322,7 @@ TEST(mission_c2m1_lancemate_made_from_his_slot_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -7467,7 +7477,7 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -7479,6 +7489,7 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
     l.number = 4;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;  // no SPLASH (zfmv): the counts below are from a start without its wait
     struct Seen {
       void* dominic = nullptr;
       void* player = nullptr;
@@ -7646,7 +7657,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -7658,6 +7669,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     l.number = 4;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;  // no SPLASH (zfmv): the counts below are from a start without its wait
     struct Seen {
       mech3::ai::Brain* brain = nullptr;
       void* dominic = nullptr;
@@ -7857,7 +7869,7 @@ TEST(mission_c1m4_a_wreck_is_deleted_and_forgotten_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -8023,7 +8035,7 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -8035,6 +8047,7 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     l.number = 4;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;  // no SPLASH (zfmv): the counts below are from a start without its wait
     struct Seen {
       mech3::ai::Brain* brain = nullptr;
       void* dominic = nullptr;
@@ -8175,7 +8188,7 @@ TEST(mission_c1m4_dominic_stops_at_a_no_go_patch_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -8187,6 +8200,7 @@ TEST(mission_c1m4_dominic_stops_at_a_no_go_patch_headless) {
     l.number = 4;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;  // no SPLASH (zfmv): the counts below are from a start without its wait
     // c1 m4's largest red patch of the mission boundary (ai.md section 11),
     // about 500 m across: the player in its middle, Dominic 230 m east of
     // it on open ground; his own order follows the player.
@@ -8326,7 +8340,7 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -8338,6 +8352,7 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
     l.number = 4;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;  // no SPLASH (zfmv): the counts below are from a start without its wait
     struct Seen {
       mech3::ai::Brain* brain = nullptr;
       void* dominic = nullptr;
@@ -8482,7 +8497,7 @@ TEST(mission_c1m1_owens_walks_to_its_node_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   const bool log = std::getenv("MW3_WALK_LOG") != nullptr;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -8663,7 +8678,7 @@ TEST(mission_c1m1_default_keys_fire_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   struct Row {
     int32_t cmd = 0;
@@ -8855,7 +8870,7 @@ TEST(mission_c1m1_heat_shutdown_stops_the_mech_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -8940,7 +8955,7 @@ TEST(mission_c1m1_cockpit_cracks_on_a_head_hit_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -9024,7 +9039,7 @@ TEST(mission_c1m1_owens_cockpit_screens_cycle_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -9121,7 +9136,7 @@ TEST(mission_c1m1_ceiling_crush_uses_the_box_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -9222,7 +9237,7 @@ TEST(mission_c1m1_view_ground_and_water_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -9320,7 +9335,7 @@ TEST(mission_c1m1_mech_wears_its_skin_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -9412,7 +9427,7 @@ TEST(mission_c1m1_owens_dies_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -9550,7 +9565,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -9749,7 +9764,7 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -9924,7 +9939,7 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -10062,7 +10077,7 @@ TEST(placements_on_every_campaign_mission_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   static const char* const kDir[] = {"c1", "c2", "c3", "c4", "c4b", "t1"};
   struct Leg {
     int32_t index, number;
@@ -10159,7 +10174,7 @@ TEST(playtest_delete_pilot_through_the_games_message_box_headless) {
     platform::SilentSoundOutput sound;
     mech3::MountFiles files;
     mech3::Platform p;
-    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
     {
       mech3::GameEngine engine(p, "mech3.exe -nofmv");
       engine.quiet = true;
@@ -10272,7 +10287,7 @@ TEST(playtest_escape_pauses_the_mission_and_resume_returns_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   p.render = &gpu;
   {
@@ -10440,7 +10455,7 @@ TEST(census_c1m1_unported_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   const int seconds = std::getenv("MW3_CENSUS_SECONDS") ? std::atoi(std::getenv("MW3_CENSUS_SECONDS")) : 180;
   const int total = seconds * 60;  // FakeClock: 16 ms a frame, about 60 a second
@@ -10574,7 +10589,7 @@ TEST(playtest_hud_keys_zoom_radar_mfd_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -10697,7 +10712,7 @@ TEST(playtest_hud_weapon_bars_recharge_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -10828,7 +10843,7 @@ TEST(survey_destroy_objectives_every_mission_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   static const char* const kDir[] = {"c1", "c2", "c3", "c4", "c4b", "t1"};
   struct Leg {
     int32_t index, number;
@@ -10921,7 +10936,7 @@ TEST(mission_c2m3_firefly_objectives_open_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   int found_open = 0, old_names = 0, frames = 0;
   std::function<void(const mech3::Objective*)> walk = [&](const mech3::Objective* o) {
     if (!o) return;
@@ -10982,7 +10997,7 @@ TEST(survey_c1m1_objectives_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -11059,7 +11074,7 @@ TEST(mission_c1m1_objectives_box_text_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
   mech3::HudObjectivesReport before, after, closed;
   bool got = false, got2 = false, got3 = false;
@@ -11167,7 +11182,7 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
     platform::SilentSoundOutput sound;
     mech3::MountFiles files;
     mech3::Platform p;
-    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
     {
       mech3::GameEngine engine(p, "mech3.exe -nofmv");
       engine.quiet = true;
@@ -11316,7 +11331,7 @@ TEST(options_effects_and_mech_detail_reach_their_modules) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   mech3::GameEngine engine(p, "mech3.exe -nofmv");
   engine.quiet = true;
   const int32_t level0 = zeff::anim().level;
@@ -11358,7 +11373,7 @@ TEST(mission_c1m1_mech_sun_shading_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -11436,7 +11451,7 @@ TEST(survey_world_sun_diffuse_headless) {
     platform::SilentSoundOutput sound;
     mech3::MountFiles files;
     mech3::Platform p;
-    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
     {
       mech3::GameEngine engine(p, "mech3.exe -nofmv");
       engine.quiet = true;
@@ -11491,7 +11506,7 @@ TEST(mission_second_world_loads_headless) {
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;

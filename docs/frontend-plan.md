@@ -75,15 +75,15 @@ fmv.zrd's script (reader.zbd): INTRO (intro.avi, then the SPLASH logos
 mech3splash / mech3unload as images), ATTRACT, `campaign` (campaign.avi
 after a new campaign's first pilot), one per mission played before its
 briefing (`c<op>m<n>`, each operation's first with its opener c<op>.avi),
-`c<op>win`, the demo blocks. Its verbs: PLAYAVI, LOADIMAGE, SHOWIMAGE,
-BLITIMAGE, FADEIN, FADEOUT, BLUR, WAIT, PLAYSOUND, UNLOAD. The install has
+`c<op>win`, the demo blocks, UNLOAD (unplayed). Its verbs: PLAYAVI, PLAYMCI,
+LOADIMAGE, SHOWIMAGE, BLITIMAGE, FADEIN, FADEOUT, BLUR, BLURH, BLURV, WAIT,
+PLAYSOUND. The install has
 19 of the AVIs (`video/`; c3m3, c1win..c3win are disc-only). zFMV
-(0x00598d80..0x0059b2f0, about 56 functions) is not ported. With
-`-nofmv` the states skip the movies (game-loop.md); without it the Intro
-state asks zFMV (0x00598cc0, 0x00598d80 with "fmv.zrd" "INTRO",
-0x005996d0), which answers 0 as unported, and goes on to the main menu; the
-Campaign and Load states skip theirs. Nothing plays and the splash logos
-are not shown.
+(0x00598d80..0x0059b2f0, about 56 functions): the scripts are ported
+(item 10, fmv.md), the AVI stream is not (item 11): PLAYAVI ends at once,
+so the scripts' logos, fades and waits play around movies that are
+skipped. With `-nofmv` the Intro state skips INTRO (game-loop.md); SPLASH
+plays either way.
 Indeo 5 (IV50) has no system decoder on macOS; FFmpeg's libavcodec decodes
 it. Decided (Owen, 2026-10-26): the first-run importer converts the AVIs
 once (libavcodec decodes the Indeo 5, only in the importer), and the game
@@ -163,10 +163,11 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    render port's pieces it needs. In two: 9a (done) the world, camera and the
    turning model (a screenshot per chassis, the turn and camera headless);
    9b (done) the section highlight (headless, against the exe).
-10. **zFMV's script without video**: fmv.zrd's reader and verbs other
-    than PLAYAVI (the SPLASH logos, fades, waits, sounds). Test: a
-    differential of the script's run (its calls) against the exe; the
-    intro's logos in screenshots.
+10. **(Done) zFMV's script without video** (fmv.md): fmv.zrd's reader and
+    every verb but PLAYAVI (a stub that ends at once) and PLAYMCI (unused),
+    the blur passes (the pause screen's too). Test: test_fmv.py, the calls
+    of every shipped block and random ones against the exe; the SPLASH
+    logos in a shot (`--shot-any --shot-frame 3`).
 11. **The movies' video** (PLAYAVI): the importer's one-time conversion
     (Owen's choice, section 3), drawn as zFMV draws. Test:
     the intro's first frames in screenshots; a movie's length in frames.
