@@ -57,6 +57,14 @@ PocketMarker* program_pocket_marker(zgame::Handle h) {
   return h && g_marker && h == pocket_globals().marker && object(h) == g_marker ? g_marker : nullptr;
 }
 
+// The mission's end on the marker's entry (vt+0x00): zEntity3d's base end
+// 0x004d58a0 frees its caster (0x004814e0 made one within 100 m).
+bool program_pocket_marker_end(zgame::Handle h) {
+  if (!h || !g_marker || object(h) != g_marker) return false;  // the panel's globals may be gone by then
+  g_marker->release_shadow();
+  return true;
+}
+
 void wire_pocket(const MechWiring* w) {
   PanelCalls& pc = panel_calls();
   FrameCalls& fc = frame_calls();

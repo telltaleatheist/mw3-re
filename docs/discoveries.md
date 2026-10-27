@@ -1255,6 +1255,13 @@ From the render path (render.md).
   shadow: a 64x64 picture for yours, 32x32 for the others, covering a
   quarter to half of it in the mechs' standing pose (more for a low sun, as
   on the second campaign's maps and the training map).
+- **Not only mechs: everything that moves casts the same shadow.** The
+  shadow code walks every entity in the mission, so tanks, APCs, mobile
+  HQs, field bases, turrets (the helicopters among them) and even the
+  pocket commander's spot marker get a 32x32 shadow within 100 m of you.
+  A mech's shadow lies on the ground under its middle foot probe; anything
+  else's lies at its own height, so a vehicle's shadow sits at its centre's
+  level rather than following the slope under it. (render-shadows.md)
 - **How dark a mech's shadow is depends on the sun, the clouds and the
   distance.** The shade is the share of the sunlight that is direct (a map
   with strong ambient light gets pale shadows), lighter where the cloud

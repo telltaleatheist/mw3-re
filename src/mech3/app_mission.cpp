@@ -1534,7 +1534,8 @@ struct WiredMissionHooks : MissionHooks {
     while (!list.empty()) {
       const Handle h = list.front();
       const size_t before = list.size();
-      if (!mech_free(e->object_of(h)) && !program_vehicle_free(e->object_of(h)) && !program_turret_free(e->object_of(h)))
+      if (!mech_free(e->object_of(h)) && !program_vehicle_free(e->object_of(h)) && !program_turret_free(e->object_of(h)) &&
+          !program_pocket_marker_end(h))
         e->unported("entity vt+0x0", {h, 1});
       // A mech without a node stays on the list (its destructor takes it off
       // only with one, as the exe's would): the front goes regardless, so the

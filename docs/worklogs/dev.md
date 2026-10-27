@@ -1043,3 +1043,24 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Checks: the c1m1 Owens test (0x004b4ab0 not reached unported) and the
   census (at most 100 shots listed); both fail unwired. 180 s census 91 s.
 - Note: mw3tests filters by MW3_TEST, not its argument.
+
+## Mission-plan item 4 (2026-10-27): the vehicles' shadows
+
+- Branch mac4/vehicle-shadows (main 1787227). The exe's vtables: vt+0x2c
+  itself and vt+0x50 0x40bae0 (0) for vehicles, field bases, turrets and
+  the pocket marker (0x5ccfe0), so all of them cast 32x32 at their own
+  height. `shadow_entity` resolves each zEntity entry through the
+  program's registries; `update_mech_shadows` keeps the exe's sums.
+- Test: the c1m1 shadows test moves the first vehicle 40 m from the player
+  (skipping the frame of the move: the upkeep runs in the draw before it)
+  and checks near/far casters, 32x32, drawn. Breaks: vehicles dropped from
+  the lookup (both checks fail).
+- `--vehicle-ahead M` (ours) for the shot; `move_mech` at frame 1 moves the
+  reported position but not what the camera follows (not chased).
+- Shots: outbox/2026-10-27/item4_c1m3_*.png (on, off, the crop).
+- The pocket marker is a plain AiTarget (no destructor): its caster would
+  outlive the mission. The mission's end (0x0049dc40) now frees it
+  (`program_pocket_marker_end`, the base end 0x004d58a0's part; matched by
+  the object: the panel's globals are reset first); the entry was the
+  unported "entity vt+0x0" before. The c1m4 pocket test moves the marker by
+  the player at the quit, checks it casts and that no caster is left.

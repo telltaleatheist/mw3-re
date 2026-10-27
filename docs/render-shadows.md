@@ -22,7 +22,7 @@ the caster lists inside `test_scenewalk.py`.
 | 0x55d010 the flat polygon filler, 0x557f90 its target | `zrndr::fill_polygon`, `set_target`, `soft_target` | `zrender/zrndr_span` (zreader.cpp .. zrndr_draw.c) |
 | 0x522ab0 box corners | `zmth::box_corners` (was inside class.cpp) | `zmath/zmth_matrix` |
 | 0x57baa0 reload ([0x72f374]), 0x57bb00 release ([0x72f378]), 0x579b70 caps | `zvid::reload_texture`, `release_texture`, `has_caps` | `zvideo/zvid_ddd3d` |
-| 0x4814e0 the per-mech upkeep | `mech3::update_shadows` (`Engine::update_shadows`, was the hook `hw_frame_effects`); on the program's mechs `mech3::update_mech_shadows` (`GameEngine::update_shadows`), the two sums shared (`app_shadows.h`) | `mech3/app_states`, `mech3/app_mech` |
+| 0x4814e0 the per-entity upkeep | `mech3::update_shadows` (`Engine::update_shadows`, was the hook `hw_frame_effects`); on the program's entities `mech3::update_mech_shadows` (`GameEngine::update_shadows`: mechs, vehicles and field bases, turrets, the pocket marker; mission-plan item 4), the two sums shared (`app_shadows.h`) | `mech3/app_states`, `mech3/app_mech` |
 | 0x4d58fc / 0x4d5907 in zEntity3d's base end 0x4d58a0: the caster freed | `AiTarget::release_shadow`, from `Mech::release` and `~CZAiTarget` | `mech3/zai_target` |
 
 `zvid::install_model_draw_table` now fills the five entries too
@@ -252,6 +252,16 @@ data's world translation, refreshed when dirty):
 - ground: the height at vt+0x50()'s +0x41c +0x13c when vt+0x50() is not
   null, else the mech's own height (position y).
 - position, draw (light +0x84, ground), upload.
+
+Which entries: every one in the list. vt+0x2c is the object itself for the
+vehicles and field bases (vtables 0x5c88e8, 0x5c23d8), the turrets
+(0x5c8770) and the pocket commander's marker (0x5ccfe0, a plain AiTarget);
+their vt+0x50 is 0x40bae0 (`xor eax, eax`), so they take 32x32 casters and
+their own height as the ground. Only a mech's vt+0x50 answers (itself),
+with its skis' centre ground. The program asks its registries the same
+(`shadow_entity` in app_mech.cpp); the stealth object is not ported. Each
+frees its caster at its end (0x4d58a0): the mechs', vehicles' and turrets'
+destructors, the pocket marker's at the mission's end (0x49dc40).
 
 So the shadow is as dark as the light the sun takes away: the share of
 diffuse light; under a cloud it is lighter; it fades to white from 50 to

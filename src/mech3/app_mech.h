@@ -33,6 +33,7 @@ void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 void wire_pocket(const MechWiring* w);
 struct PocketMarker;
 PocketMarker* program_pocket_marker(uint32_t h);
+bool program_pocket_marker_end(uint32_t h);  // the mission's end: its caster freed
 // The weapons' hooks (app_weapons.cpp): the manager's, zWeapon's, the
 // queries; and a mech's damage handler (0x005833b0 with 0x004161a0).
 void wire_weapons(uint32_t (*unported)(const char* key));  // what is not ported, logged once
@@ -191,7 +192,7 @@ struct MechControls;
 MechControls* mech_controls(void* mech);  // its +0x37c (vt+0x140's IControls)
 bool entity_is_mech(const void* o);  // a program mech (zEntity's entry answering vt+0x50 with itself); others and freed ones not
 void mech_entities_forget();         // the mechs' registry emptied with zEntity's list
-// 0x004814e0 on the program's mechs: each one's projected shadow kept, drawn
+// 0x004814e0 on the program's entities: each one's projected shadow kept, drawn
 // along the mission's sun (app_states' update_shadows is the handle version).
 void update_mech_shadows();
 void* mission_sun();                 // the mission's "sunlight" node ([0x006098d4] +4), or null
