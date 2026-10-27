@@ -831,3 +831,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   lead for the other tests using it). --lab-mech N (ours) for the shots: all
   19 chassis and a camo swap, outbox 2026-10-27/lab3d.
 
+## Compare (2026-10-27): integers exactly
+
+- test_anim_run's Compare (used by test_anim_run, test_anim_save) gave every
+  differing word the float tolerance, so small integers and flag words
+  (denormals as floats) passed: 1 against 0 within 1e-4. Now only words
+  that are zero or normal floats on both sides get it. test_puffers' own
+  compare already types its words; test_anim_binder does not use it.
+- Reruns: test_anim_run (6 worlds, 60 frames) and test_anim_save (6 worlds,
+  60 + 20) identical, the same counts within tolerance: nothing had been
+  hidden. test_anim_save's four uncaught breaks again: the active flag not
+  restored is now caught (it was the tolerance, not the replays as save.md
+  said); the three others stay unseen (data no world has). 24/27.
+- The breaks script's "stopped" match also took "running_stopped" in a
+  passing summary line: read rc with it.
+
