@@ -242,10 +242,10 @@ class ActionGame : public Game {
   // null when the ten are taken.
   GameSlot* add(int32_t mech, uint8_t side, const Config* config, int32_t paint);  // 0x00436840
   // 0x004368e0 (+0x38), 0x00436950 (+0x3c), 0x004369c0 (+0x40): a copy of
-  // `text` (the Action screen's scenario, its name and its description).
+  // `text` (the Action screen's world, the scenario's name and its description).
   void set_text(char** field, const char* text);
 
-  char* x38 = nullptr;               // +0x38  the scenario's row (malloc'd by the Action screen, freed here)
+  char* x38 = nullptr;               // +0x38  the world's name (malloc'd by the Action screen, freed here)
   char* x3c = nullptr;               // +0x3c  its name (vt+0x0c, 0x0040a840: the objectives' header)
   char* x40 = nullptr;               // +0x40  its description
   int32_t mode = 0;                  // +0x44  1 endless, 2 waves (the Action screen's; not set by the constructor)

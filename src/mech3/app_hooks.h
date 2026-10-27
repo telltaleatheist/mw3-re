@@ -505,9 +505,9 @@ class Engine : public zgame::AppHooks {
     (void)screen;
     unported("0x0048aac0", {});
   }
-  // The Action screen's: a mech's definition (0x004846a0, ported: mech3::mech_dfn)
-  // and _access (0x00576080).
-  virtual const struct MechDfn* mech_definition(int32_t mech);
+  // The Action screen's: a mech's loadouts, through its definition (0x004846a0,
+  // ported: mech3::mech_dfn; null without one), and _access (0x00576080).
+  virtual const struct ConfigList* mech_loadouts(int32_t mech);
   virtual bool file_exists(const char* path);
   virtual void network_set(int32_t on) { unported("0x0047fc40", {on}); }  // the app's network on or off
   virtual void network_leave() { unported("0x0046d100", {}); }  // the network session closed (the quit box's OK)

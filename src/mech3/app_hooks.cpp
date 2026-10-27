@@ -324,7 +324,10 @@ void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
 }
 const char* Engine::version_number() { return "1.2"; }
 const char* Engine::mission_dir(uint32_t n) { return mech3::mission_dir(static_cast<int32_t>(n)); }
-const MechDfn* Engine::mech_definition(int32_t mech) { return mech3::mech_dfn(mech); }
+const ConfigList* Engine::mech_loadouts(int32_t mech) {
+  const MechDfn* d = mech3::mech_dfn(mech);
+  return d ? d->configs : nullptr;
+}
 bool Engine::file_exists(const char* path) { return zutl::exists(path); }
 
 void Engine::cd_pause() { zsnd_cd::pause(); }

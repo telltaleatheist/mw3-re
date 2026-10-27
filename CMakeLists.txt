@@ -301,6 +301,7 @@ add_library(mw3probe SHARED
   tests/probe_pilot.cpp
   tests/probe_zsave.cpp
   tests/probe_pilotscreen.cpp
+  tests/probe_actionscreen.cpp
   tests/probe_briefing.cpp
   tests/probe_debriefing.cpp
   tests/probe_salvage_screen.cpp

@@ -5,7 +5,6 @@
 
 #include "gamez/zreader/zreader.h"
 #include "mech3/mech_config.h"
-#include "mech3/mech_reader.h"
 #include "mech3/pilot.h"
 #include "mech3/player.h"
 
@@ -132,8 +131,8 @@ void EnemyList::select(int32_t i) {
   const int32_t mech = value_at(index);
   set_label_font(mech != -1 ? font : inactive_font);  // 0x00489e40
   ConfigCycle& c = *configs;
-  const MechDfn* dfn = e_.mech_definition(mech);
-  if (!dfn || mech == -1) {
+  const ConfigList* loadouts = e_.mech_loadouts(mech);
+  if (!loadouts || mech == -1) {
     c.clear_items();
     c.configs.clear();
     c.hide();
@@ -143,8 +142,8 @@ void EnemyList::select(int32_t i) {
   c.clear_items();
   c.configs.clear();
   ActionScreen* s = screen_of(owner);
-  const std::vector<Config*>* list = dfn->configs ? &dfn->configs->configs : nullptr;
-  const int32_t n = list ? static_cast<int32_t>(list->size()) : 0;
+  const std::vector<Config*>* list = &loadouts->configs;
+  const int32_t n = static_cast<int32_t>(list->size());
   auto add = [&c](const Config* cfg) {
     c.configs.push_back(cfg);
     c.add_item(cfg->name, static_cast<int32_t>(c.configs.size()) - 1);
@@ -442,7 +441,7 @@ void ActionScreen::accept() {
     std::snprintf(paths[1], sizeof paths[1], ".\\zbd\\%s\\readeria%d", dir, kActionScenarios[sc].mission);
   }
   g->mode = kActionScenarios[sc].mode;
-  if (CycleButton::Item* it = scenarios.item(scenarios.index)) g->set_text(&g->x38, it->text);
+  if (CycleButton::Item* it = worlds.item(worlds.index)) g->set_text(&g->x38, it->text);  // (the exe reads it unchecked)
   g->set_text(&g->x3c, e.message(kActionScenarios[sc].name));
   g->set_text(&g->x40, e.message(kActionScenarios[sc].desc));
   g->field_bases = allies[1].value_at(allies[1].index) != -1;
