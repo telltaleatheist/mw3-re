@@ -1008,3 +1008,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Headless training_menus_to_lesson3_headless: 14 lessons, m11 done at
   frame 63, CMD_SHUTDOWN's key, m13 at 65, mission 1 passed, the pilot
   file, the pilot screen again.
+
+## Item 14 (2026-10-27): the mission plan
+
+- docs/mission-plan.md: the census (c1m1 with input, 30 s: 84 unported,
+  163 on 10-21; every campaign mission and t1 idle: all in c1m1's set but
+  c4b's three mech hooks), each system's state, an 11-item order.
+- `--mission c4m4` loads world c4 (no such mission: no mech); c4b's are
+  c4bm4..c4bm6. The 180 s census hangs (30 s is fine); one c1m1 quit
+  trapped (133) once in four; c4m2 is 8x slower headless.
