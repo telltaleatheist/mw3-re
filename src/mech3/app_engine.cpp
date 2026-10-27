@@ -2,7 +2,9 @@
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
 
+#if !defined(_WIN32)
 #include <execinfo.h>
+#endif
 #include "gamez/zfmv/fmv_script.h"
 #include "mech3/mission_map.h"
 #include "mech3/app.h"
@@ -173,6 +175,7 @@ uint32_t GameEngine::unported(const char* key, std::initializer_list<Arg> args) 
   }
   // Ours, for finding a hook's caller: MW3_TRACE_UNPORTED=<key> prints where
   // each of its first eight reaches comes from.
+#if !defined(_WIN32)  // execinfo is POSIX
   static const char* trace = std::getenv("MW3_TRACE_UNPORTED");
   if (trace && std::strcmp(trace, key) == 0 && n <= 8) {
     void* frames[16];
@@ -180,6 +183,7 @@ uint32_t GameEngine::unported(const char* key, std::initializer_list<Arg> args) 
     std::fprintf(stderr, "mw3: %s reached from:\n", key);
     backtrace_symbols_fd(frames, k, 2);
   }
+#endif
   return 0;
 }
 

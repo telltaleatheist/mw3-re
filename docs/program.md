@@ -249,7 +249,7 @@ holds), so the rebuild names the animation. `reports_fill_their_formats`
 checks it. A mission start prints five: the quit box's dialog lacks the
 YES, NO, ABORT, RETRY and IGNORE buttons the message box binds.
 
-`MW3_TRACE_UNPORTED=<key>` (ours) prints a backtrace for that unported
+`MW3_TRACE_UNPORTED=<key>` (ours, not on Windows) prints a backtrace for that unported
 key's first 8 reaches, to find which hook a census entry comes through.
 
 ## Tests
