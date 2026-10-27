@@ -116,6 +116,11 @@ Callers of 0x00558540: the fade state's step (0x0048f0b0), 0x00599b66 and
   that frame into the 16-bit buffer, and a 3D lock over a 2D picture that
   draws nothing gives the picture back (`GameEngine::video_lock`,
   `lock_back` / `unlock_back`). `tools/analysis/boxcheck.py`.
+- Fog is on from the device's setup (0x0057bb70(1): FOGENABLE, and the
+  light state FOGMODE linear, which Render3D's vertex fog stands for):
+  `zvid::set_fog(1)` in the program's stand-in for the setup. Before, only
+  the shadow passes turned it on, so a frame drawn before a mission's first
+  (the lab's view from the briefing) had no fog and no object3d tint.
 - The tint quad's vertices (the fades' colour, 0x0057dd80) are set up as
   unfogged (specular 0xff000000) by the screen mode's setup (0x00579c60) and
   given depth and 1/w 0.99 by the device's (0x0057dd40 from 0x0057a900);

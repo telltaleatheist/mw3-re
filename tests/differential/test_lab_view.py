@@ -17,7 +17,12 @@ briefing), both sides:
   and camera; the original's Lab State is a block holding the entry, the
   camera's wrapper and the camera, 0x44fd20 answers the object and the draw
   is recorded. Compared: the camera's data, the object's, the draw's
-  camera, node, hardware flag and zone mode, and the zone mode after.
+  camera, node, hardware flag and zone mode, and the zone mode after;
+- the armour section's highlight (0x4504d0 with 0x450470, item 9b) on a tree
+  of a random subset of the eight part names and some near misses under one
+  root (0x44fd20 answers it), one section then another (as switching
+  sections), every section and a few out of range:
+  each part's object3d data (its blend flag, colour and weight).
 Every word compared exactly (both sides are bit for bit).
 """
 import ctypes
@@ -31,11 +36,15 @@ from test_anim_run import Compare, Emu, Port, f2u, f32, probe  # noqa: E402
 from test_gamez import ZBD  # noqa: E402
 
 probe.lv_world.argtypes = [ctypes.c_float] * 6 + [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+probe.lv_highlight.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.lv_frame.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_float, ctypes.c_void_p, ctypes.c_int]
 
 WORLD_CREATE, ORIGIN, SIZE, GRID = 0x4f1bd0, 0x4f2500, 0x4f2530, 0x4f2560
 CAMERA_CREATE, OBJECT_CREATE, SET_ROTATION = 0x4f32e0, 0x4fb740, 0x4fbd80
-FRAME, MODEL_NODE, DRAW = 0x450690, 0x44fd20, 0x4f73f0
+FRAME, MODEL_NODE, DRAW, HIGHLIGHT = 0x450690, 0x44fd20, 0x4f73f0, 0x4504d0
+SET_NAME, ADD_CHILD = 0x4eb300, 0x4eb9b0
+PARTS = ['torso', 'larm', 'rarm', 'lthigh', 'lfoot', 'rthigh', 'rfoot', 'head']
+DECOYS = ['Torso', 'larm2', 'lfoo', 'rfoot_a', 'gun', 'o']
 ZONE_MODE, FROZEN, DOUBLED = 0x5ea1d0, 0x605aa4, 0x605aa8
 WORLD_POINTERS = (0x0c, 0x90, 0xa4, 0xa8, 0xb0, 0xb4)
 CELL_POINTERS = (0x3c, 0x44)
@@ -75,6 +84,32 @@ class LabEmu(Emu):
             row = self.u(grid + 4 * r)
             for c in range(cols):
                 out += self.words(row + 0x48 * c, 0x48, CELL_POINTERS)
+        return out
+
+    def named(self, name):
+        from unicorn.x86_const import UC_X86_REG_EAX
+        self.cpu.call(OBJECT_CREATE)
+        n = self.cpu.uc.reg_read(UC_X86_REG_EAX)
+        p = self.alloc_fixed(len(name) + 1)
+        self.cpu.write(p, name.encode() + b'\0')
+        self.cpu.call(SET_NAME, ecx=n, edx=p)
+        return n
+
+    def highlight(self, names, first, section):
+        root = self.named('root')
+        parts = []
+        for name in names:
+            n = self.named(name)
+            self.cpu.call(ADD_CHILD, ecx=root, edx=n)
+            parts.append(n)
+        self.obj = root
+        state = self.alloc_fixed(0x80)
+        self.cpu.u32(state + 0x2c, 1)  # an entry (0x44fd20 is stubbed: the root)
+        for s in (first, section):  # the section shown before, then this one
+            self.cpu.call(HIGHLIGHT, ecx=state, stack_args=(s & 0xffffffff,))
+        out = []
+        for n in parts:
+            out += self.words(self.u(n + 0x38), 0x90)
         return out
 
     def frame(self, cam, rot, dt):
@@ -144,6 +179,17 @@ def main():
         cmp(f'frame {k} cam {cam} rot {rot} dt {dt}', want, got)
         turns += 1
         wraps += rot[1] + 0.8 * dt > 3.1415927
+    lit = 0
+    for k in range(runs):  # the armour section's highlight (0x4504d0, item 9b)
+        names = rng.sample(PARTS, rng.randrange(0, len(PARTS) + 1)) + rng.sample(DECOYS, rng.randrange(0, 3))
+        rng.shuffle(names)
+        sections = (-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -2)
+        first, section = rng.choice(sections), rng.choice(sections)
+        want = emu.highlight(names, first, section)
+        got = port_words(probe.lv_highlight, '\n'.join(names).encode(), first, section)
+        cmp(f'highlight {k} sections {first} then {section} parts {names}', want, got)
+        lit += sum(1 for i in range(0, len(want), 0x90 // 4) if want[i] & 4)
+    print(f'lab view highlight: {runs}/{runs} runs identical ({lit} parts blending)')
     print(f'lab view: {runs}/{runs} runs identical ({cells} grid cells, {turns} frame steps, {wraps} past pi); '
           f'{cmp.words} words, {cmp.approx} within tolerance (worst {cmp.worst:.2e})')
 

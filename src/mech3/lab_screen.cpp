@@ -774,7 +774,7 @@ void LabAssignedList::choose(int32_t p) { select(row_of_part(p)); }
 void LabAssignedList::pick(int32_t p) {
   selected = row_of_part(p);
   Engine& en = e_;
-  en.lab_part_pick(p);
+  en.lab_section_highlight(p);
   if (LabScreen* s = en.lab_screen(states().lab.lab_screen_)) {
     s->check_part(p);
     s->unassigned.refill();
@@ -797,7 +797,7 @@ void LabAssignedList::select(int32_t index) {
   selected = index;
   refill();
   if (LabScreen* s = en.lab_screen(lab.lab_screen_)) s->check_part(part_of_row(index));
-  en.lab_part_pick(part_of_row(index));
+  en.lab_section_highlight(part_of_row(index));
 }
 
 // Mech3.exe 1.2 @ 0x004553f0 (and 0x00455360 on each item): with `spread`,
@@ -1283,7 +1283,7 @@ void LabUnassignedList::refill() {
     as.show_for(-1.0f);
     as.refill();
   } else if (armor_tab) {
-    en.lab_part_pick(-1);
+    en.lab_section_highlight(-1);
     as.hide();
   }
   for (LabPart* p : {&s->part_head, &s->parts[0], &s->parts[1], &s->parts[2], &s->parts[3], &s->parts[4],
@@ -2581,7 +2581,7 @@ void LabScreen::show_page(int32_t p, bool show) {
     }
     if (show) unassigned.show_for(-1.0f);
     else unassigned.hide();
-    if (!show) e.lab_part_pick(-1);
+    if (!show) e.lab_section_highlight(-1);
     text = 0x1aa;
   } else if (p == 4) {
     if (show) {

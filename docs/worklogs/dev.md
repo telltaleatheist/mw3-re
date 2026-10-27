@@ -831,6 +831,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   lead for the other tests using it). --lab-mech N (ours) for the shots: all
   19 chassis and a camo swap, outbox 2026-10-27/lab3d.
 
+## Item 9b (2026-10-27): the armour section's highlight
+
+- Branch mac4/lab-highlight off main cf36ef9. Ported 0x4504d0 / 0x450470
+  (lab_highlight, lab_highlight_part; the hook renamed lab_section_highlight).
+  test_lab_view.py adds the highlight: 300/300, breaks 9/9 (two sections in
+  a row so the off pass shows).
+- Live, the parts did not turn green: the tint reaches the GPU only through
+  the vertices' fog, and the port's FOGENABLE came on only in the shadow
+  passes (a mission frame). The exe's device setup turns fog on for good
+  (0x57bb70(1)): ported as zvid::set_fog, called in video_open. Then the
+  torso, arms and legs show green (outbox 2026-10-27/lab3d).
 ## Compare (2026-10-27): integers exactly
 
 - test_anim_run's Compare (used by test_anim_run, test_anim_save) gave every

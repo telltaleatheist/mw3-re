@@ -76,6 +76,8 @@ struct DeviceState {
   int32_t address_u = 0;           // 0x00809394  ADDRESSU (13)
   int32_t address_v = 0;           // 0x00809398  ADDRESSV (14)
   int32_t z_write = 0;             // 0x008093a8  ZWRITEENABLE (14)
+  int32_t fog = 0;                 // 0x008093b0  FOGENABLE (28) as 0x0057bb70 last sent it
+  int32_t fog_mode = 0;            // 0x008093b8  the light state FOGMODE (4)
 };
 DeviceState& device_state();
 
@@ -212,6 +214,10 @@ struct TintQuad {
   TLVertex verts[4] = {};            // 0x008095c0  left-top, right-top, right-bottom, left-bottom
 };
 TintQuad& tint_quad();
+// 0x0057bb70 (ECX on), from the device's setup with 1: FOGENABLE, and the
+// light state FOGMODE linear (3). FIX (A): the light state is Render3D's
+// own vertex fog; only the enable is sent.
+void set_fog(int32_t on);
 void reset_tint_quad();             // 0x00579c60's part: none pending, specular 0xff000000
 void set_tint_depth(float z);       // 0x0057dd40: sz and rhw of the four vertices
 // Mech3.exe 1.2 @ 0x0057dd80 (ECX colour, EDX rect or null; the alpha a double).

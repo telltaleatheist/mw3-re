@@ -307,6 +307,13 @@ TransparentQueue& transparent_queue() { return g_queue; }
 OverlayList& overlay_list() { return g_overlay; }
 TintQuad& tint_quad() { return g_tint; }
 
+// Mech3.exe 1.2 @ 0x0057bb70
+void set_fog(int32_t on) {
+  DeviceState& st = g_state;
+  if (st.fog != on) set_render_state(28, on), st.fog = on;
+  if (st.fog_mode != 3) st.fog_mode = 3;  // SetLightState(FOGMODE, LINEAR)
+}
+
 // Mech3.exe 1.2 @ 0x00579d66..0x00579d84, in the screen mode's setup
 // (0x00579c60): no quad pending, its vertices unfogged (specular alpha 255).
 void reset_tint_quad() {

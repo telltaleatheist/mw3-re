@@ -156,13 +156,13 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    0x0047a960, the credits flag, the next operation's first mission and
    its opener). Test: headless: c1m4 won leads to c2m1's briefing; c4m7
    (the last) to the Win Movie State and the main menu's credits.
-9. **The lab's 3D view** (labworld, labwindow, labcam: 0x0044ffc0,
+9. **(Done) The lab's 3D view** (labworld, labwindow, labcam: 0x0044ffc0,
    0x00450390, 0x00450690; the armour section's highlight 0x004504d0 /
    0x00450470: the parts of the section chosen blended on the model; the
    exe has no mouse picking, 0x004507c0 is the chassis lookup): with the
    render port's pieces it needs. In two: 9a (done) the world, camera and the
    turning model (a screenshot per chassis, the turn and camera headless);
-   9b the section highlight (headless, against the exe).
+   9b (done) the section highlight (headless, against the exe).
 10. **zFMV's script without video**: fmv.zrd's reader and verbs other
     than PLAYAVI (the SPLASH logos, fades, waits, sounds). Test: a
     differential of the script's run (its calls) against the exe; the
