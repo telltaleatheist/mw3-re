@@ -935,6 +935,10 @@ the world's fog type, the turn's sign and wrap, the field of view's order,
 the zone test, the camera's rotation). In the program (`--lab-mech N`, ours:
 the view is handed chassis N) every chassis is drawn turning in the lab
 (outbox 2026-10-27/lab3d), and SKINS swaps the camo on the model.
+Chassis 7 is the Elemental: battle armour at its true scale (about a fifth
+of a 'Mech's height) under the same fixed camera every chassis gets (the
+exe has no per-chassis framing), so it stands small at the bottom of the
+view, in its primary camo's yellow-orange (elemental02..14, rmechtex16.zbd).
 
 ## 5. Porting order
 
