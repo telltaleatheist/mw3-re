@@ -223,8 +223,16 @@ void save_node(uint8_t* p, zcls::Node* n, bool model) {
   wr<uint32_t>(p, 0x3c, bit);
 }
 
+// FIX (bug): a node index read from a saved game, as 0x004fe1d0 takes it,
+// but one past the pool (a damaged save) is no node instead of memory past it.
+zcls::Node* saved_node(int32_t i) {
+  const zcls::NodePool& p = zcls::nodes();
+  if (i >= static_cast<int32_t>(p.blocks.size()) * p.block_size) return nullptr;
+  return zcls::node_at(i);
+}
+
 void load_node(const uint8_t* p, bool model) {
-  zcls::Node* n = zcls::node_at(rd<int32_t>(p, 0));
+  zcls::Node* n = saved_node(rd<int32_t>(p, 0));
   if (!n || n->cls() != 5) return;
   const int32_t active = rd<int32_t>(p, 4);
   zerr::reportf(0x100, kSaveFile, model ? 0x208 : 0x41f, "Restore node: %s %d", n->name(), active);
@@ -267,7 +275,7 @@ AnimLogRecord* log_record(int32_t i) { return &g_log.records[i]; }
 
 // Mech3.exe 1.2 @ 0x0050ca60
 void log_reset_def(const AnimLogRecord* rec) {
-  anim_reset(anim_find(rec->name), zcls::node_at(rec->node), 1);
+  anim_reset(anim_find(rec->name), saved_node(rec->node), 1);
 }
 
 // Mech3.exe 1.2 @ 0x0050ca90. The def started again as logged (which logs it
@@ -276,15 +284,15 @@ AnimDef* log_replay(const AnimLogRecord* rec) {
   AnimDef* d = anim_find(rec->name);
   if (!d) return nullptr;
   const auto* f = reinterpret_cast<const float*>(rec->args);
-  zcls::Node* node = zcls::node_at(rec->node);
+  zcls::Node* node = saved_node(rec->node);
   switch (rec->type) {
     case 1: return anim_start_at(d, node, f, f + 3, f + 6);  // 0x00508aa0
     case 2: return anim_start(d, node, f[0], f[1], f[2]);    // 0x00508c10
     case 3:                                                  // 0x00508da0
-      return anim_start_connector(d, node, zcls::node_at(static_cast<int32_t>(rec->args[0])), f + 1, f + 4);
+      return anim_start_connector(d, node, saved_node(static_cast<int32_t>(rec->args[0])), f + 1, f + 4);
     case 4:                                                  // 0x00508ee0
-      return anim_start_connector_at(d, node, zcls::node_at(static_cast<int32_t>(rec->args[0])), f + 1,
-                                     zcls::node_at(static_cast<int32_t>(rec->args[4])), f + 5);
+      return anim_start_connector_at(d, node, saved_node(static_cast<int32_t>(rec->args[0])), f + 1,
+                                     saved_node(static_cast<int32_t>(rec->args[4])), f + 5);
     case 5: anim_restart(d, node); return nullptr;           // 0x00508460
     default: return nullptr;
   }
@@ -341,7 +349,7 @@ void activation_load(zsave::Context& /*ctx*/, const char* sub, const void* data,
   }
   if (!d) return;
   if (rec.node >= 0) {
-    zcls::Node* n = zcls::node_at(rec.node);
+    zcls::Node* n = saved_node(rec.node);
     while (d->instance && d->node != n) d = d->instance;
     anim_reset(d, n, 1);
     d = log_replay(&rec);
@@ -350,7 +358,7 @@ void activation_load(zsave::Context& /*ctx*/, const char* sub, const void* data,
   set_flags(d, flags(d) | 0x4000);
   const uint8_t want = b[0x54];
   if (want == 2 && status(d) != 2) {
-    anim_reset(d, zcls::node_at(rec.node), 1);
+    anim_reset(d, saved_node(rec.node), 1);
     d = log_replay(&rec);
     zerr::report(0x100, kSaveFile, 0x1d3, "zEffProcessActivationRecord");
   }
@@ -361,14 +369,14 @@ void activation_load(zsave::Context& /*ctx*/, const char* sub, const void* data,
     zerr::report(0x100, kSaveFile, 0x1df, "Set anim_state = ANIM_STATE_EXECUTED");
   }
   if (want == 1 && status(d) != 1) {
-    zcls::Node* n = zcls::node_at(rec.node);
+    zcls::Node* n = saved_node(rec.node);
     if (status(d) == 4) status(d) = 3;
     anim_reset(d, n, 1);
     zerr::report(0x100, kSaveFile, 0x1e9, "_zEffAnimReset");
     *log_new_record() = rec;
   }
   if (want == 6 && status(d) != 6) {
-    zcls::Node* n = zcls::node_at(rec.node);
+    zcls::Node* n = saved_node(rec.node);
     if (status(d) == 4) {
       status(d) = 3;
       anim_reset(d, n, 1);
@@ -482,7 +490,7 @@ void running_load(zsave::Context& /*ctx*/, const char* /*sub*/, const void* data
     return;
   }
   AnimDef* d = def_at(index);
-  zcls::Node* n = zcls::node_at(rd<int32_t>(h, 0x28));
+  zcls::Node* n = saved_node(rd<int32_t>(h, 0x28));
   if (rd<int32_t>(h, 4)) {
     while (d->instance && d->node != n) d = d->instance;
     if (d->node != n) {
@@ -491,9 +499,9 @@ void running_load(zsave::Context& /*ctx*/, const char* /*sub*/, const void* data
     }
   }
   set_flags(d, flags(d) | 0x4000);
-  d->at_node = zcls::node_at(rd<int32_t>(h, 0x2c));
+  d->at_node = saved_node(rd<int32_t>(h, 0x2c));
   std::memcpy(d->raw + 0x78, h + 0x30, 0xc);
-  d->at_node2 = zcls::node_at(rd<int32_t>(h, 0x3c));
+  d->at_node2 = saved_node(rd<int32_t>(h, 0x3c));
   std::memcpy(d->raw + 0x88, h + 0x40, 0xc);
   status(d) = h[0x4c];
   std::memcpy(d->raw + 0xa8, h + 0x50, 4);
@@ -528,7 +536,8 @@ void running_load(zsave::Context& /*ctx*/, const char* /*sub*/, const void* data
     auto* light = static_cast<zcls::Node*>(e.made);
     if (e.get<int32_t>(0x28) != 0 || !light) continue;
     zcls::node_set_active(light, 1);
-    if (parent >= 0 && light->parent_count() == 0) zcls::node_add_child(zcls::node_at(parent), light);
+    if (parent >= 0 && light->parent_count() == 0)
+      if (zcls::Node* at = saved_node(parent)) zcls::node_add_child(at, light);
     zcls::light_set_position(light, rd<float>(r, 0x28), rd<float>(r, 0x2c), rd<float>(r, 0x30));
     zcls::world_add_light(static_cast<zcls::Node*>(anim().world), light);
     e.put<int32_t>(0x28, 1);
@@ -545,7 +554,8 @@ void running_load(zsave::Context& /*ctx*/, const char* /*sub*/, const void* data
     auto* sound = static_cast<zcls::Node*>(e.made);
     if (e.get<int32_t>(0x28) != 0 || !sound) continue;
     zcls::node_set_active(sound, 1);
-    if (parent >= 0 && sound->parent_count() == 0) zcls::node_add_child(zcls::node_at(parent), sound);
+    if (parent >= 0 && sound->parent_count() == 0)
+      if (zcls::Node* at = saved_node(parent)) zcls::node_add_child(at, sound);
     if (rd<int32_t>(r, 0x28)) zcls::sound_set_translation(sound, rd<float>(r, 0x2c), rd<float>(r, 0x30), rd<float>(r, 0x34));
     zcls::world_add_sound(static_cast<zcls::Node*>(anim().world), sound);
     e.put<int32_t>(0x28, 1);

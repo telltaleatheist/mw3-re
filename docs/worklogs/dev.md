@@ -743,3 +743,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   reaches at a save on any world). The three damaged-entry fixes left out
   crash the port. Related set: test_anim_run, anim_binder, zsave, anim,
   anim_owner, puffers, pilot, mw3tests 202 and mw3sdltests 12, all pass.
+
+## Save 3 (2026-10-26): the live round trip and "Replace existing game?"
+
+- Branch mac4/save-3 off main 6712fbd.
+- First, save 2's follow-up (lead): test_anim_save forces the four states
+  random play never reached at a save (a def in error, a running copy at
+  another node, a resting copy, a nodeless reset record loaded onto an
+  invalid def). The running copy needed its def's last log record moved to
+  the def's own node: the activations' save otherwise binds the def onto the
+  copy's node, and the def and copy are saved at the same node. Breaks now
+  23/27 (the 4 left: data no world has, or a flag the replays restore).
+- The damaged loads, now on all six worlds, crashed the port on c4: a
+  running entry's sound parent index past the node pool. FIX (bug)
+  saved_node for every node index a load reads (fixes.md row extended).
+

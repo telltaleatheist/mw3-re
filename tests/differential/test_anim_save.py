@@ -46,6 +46,8 @@ from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 probe.ar_stop_all.argtypes = [ctypes.c_int]
 probe.ar_save_game.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+probe.ar_set_status.argtypes = [ctypes.c_int] * 3
+probe.ar_set_log_node.argtypes = [ctypes.c_int] * 2
 probe.ar_perturb.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float]
 
 IAT_FWRITE, IAT_FREAD = 0x5bb5a0, 0x5bb594
@@ -56,6 +58,7 @@ SAVERS = [('AnimActivation', 0x50b710, 0x50b970), ('RunningAnim', 0x50c190, 0x50
 FRAMES = {0x50b71a: 0x4484, 0x50c64a: 0x4480, 0x50be36: 0xcc, 0x50c256: 0xb0}
 TEMP_HANDLE = 0x7e000000
 HEADER = b'zSaveHeader'
+FORCED = os.environ.get('MW3_FORCED', '1') == '1'  # the forced states' save and load
 
 
 class SaveEmu(Emu):
@@ -275,6 +278,28 @@ def run_mission(mission, frames, after, seed, cmp, stats, folder):
         if label == 'mid':
             damaged(mission, want, seed2, emu2, folder, stats)
         del emu2
+    # The states random play does not reach, forced on both sides (a def
+    # in error, running and resting copies, a reset record), saved, and
+    # loaded into a world where the reset def is invalid (4).
+    if FORCED:
+        emu, port, rngf, nrngf = prepare(mission, seed ^ 0x50c640, cmp, stats, SaveEmu)
+        count = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0]
+        by_name = {emu.cpu.read(emu.defp(i), 0x20).split(b'\0')[0]: i for i in range(1, count)}
+        startup = {by_name.get(n) for n, _, _ in logged_names(emu)}
+        play(emu, port, mission, after, rngf, nrngf, cmp, stats, 'before forced save')
+        reset = force_save(emu, port, random.Random(seed ^ 0x50c190), stats, startup)
+        cmp(f'{mission} forced', emu.dump(True), port.dump(True))
+        want, name = save_both(emu, mission, 'forced', cmp, stats, folder)
+        del emu
+        seed4 = seed ^ 0x50c250
+        emu4, port5, rng4, nrng4 = prepare(mission, seed4, cmp, stats, SaveEmu)
+        set_status(emu4, reset, 0, 4)
+        emu4.build_ids()
+        emu4.load(want)
+        assert probe.ar_save_game(str(folder).encode(), name.encode(), 1) == 1
+        cmp(f'{mission} forced loaded', emu4.dump(True), port5.dump(True))
+        play(emu4, port5, mission, after, rng4, nrng4, cmp, stats, 'after forced load')
+        del emu4
     # The mid save loaded into a world already played (not a case MW3 makes:
     # it loads at the mission's start), so the restores' node states, statuses
     # and instances are seen against a world that differs from the save's.
@@ -289,6 +314,98 @@ def run_mission(mission, frames, after, seed, cmp, stats, folder):
     cmp(f'{mission} played loaded', emu3.dump(True), port4.dump(True))
     play(emu3, port4, mission, after, rng3, nrng3, cmp, stats, 'after played load')
     stats['played'] += 1
+
+
+def chain(emu, i):
+    d, out = emu.defp(i), []
+    while d:
+        out.append(d)
+        d = emu.u(d + 0x138)
+    return out
+
+
+def status(emu, p):
+    return emu.cpu.read(p + 0x98, 1)[0]
+
+
+def set_status(emu, i, depth, value):
+    emu.cpu.write(chain(emu, i)[depth] + 0x98, bytes([value]))
+    probe.ar_set_status(i, depth, value)
+
+
+def logged_names(emu):
+    recs, n = emu.u(0x60c708), struct.unpack('<i', emu.cpu.read(LOG_COUNT, 4))[0]
+    return [(emu.cpu.read(recs + 0x50 * k + 8, 0x20).split(b'\0')[0],
+             struct.unpack('<i', emu.cpu.read(recs + 0x50 * k + 0x28, 4))[0], emu.u(recs + 0x50 * k))
+            for k in range(n)]
+
+
+def force_save(emu, port, rng, stats, startup):
+    """States random play does not reach at a save, set on both sides: a def
+    in error (5), a running def with a running copy, one with a resting copy
+    (6), and a logged def (a record without a node) at reset (1). Returns the
+    last def's index, to be made invalid (4) in the world it is loaded into."""
+    count = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0]
+    logged = set()
+    recs, n = emu.u(0x60c708), struct.unpack('<i', emu.cpu.read(LOG_COUNT, 4))[0]
+    by_name = {emu.cpu.read(emu.defp(i), 0x20).split(b'\0')[0]: i for i in range(1, count)}
+    # The reset def: every record of it without a node (no replay moves it)
+    # and none in the log a freshly read world starts with (the first
+    # entry's reset would rebind it).
+    noded = set()
+    for name, node, kind in logged_names(emu):
+        i = by_name.get(name)
+        if i:
+            logged.add(i)
+            if node >= 0 or kind == 5:
+                noded.add(i)
+    nodeless = sorted(i for i in logged if i not in noded and i not in startup)
+    idle = [i for i in range(1, count) if i not in logged and status(emu, emu.defp(i)) in (0, 1, 3)
+            and not emu.u(emu.defp(i) + 0x138)]
+    rng.shuffle(idle)
+    roots = [emu.index(emu.u(emu.defp(i) + 0x64)) for i in range(1, count)]
+    roots = [r for r in roots if r > 0]
+    errors = idle.pop()
+    set_status(emu, errors, 0, 5)
+    copies = []
+    for i in idle:  # a def started, then started at another node: a running copy
+        if len(copies) == 2:
+            break
+        for s in (emu, port):
+            s.start(i, -1, 0.0, 0.0, 0.0)
+        if status(emu, emu.defp(i)) != 2:
+            continue
+        here = emu.index(emu.u(emu.defp(i) + 0x40))
+        node = rng.choice([r for r in roots if r != here])
+        for s in (emu, port):
+            s.start(i, node, 0.0, 0.0, 0.0)
+        c = chain(emu, i)
+        # The copy must sit at another node than the def, or a load's search
+        # by node cannot tell them apart.
+        if len(c) > 1 and status(emu, c[1]) == 2 and emu.u(c[0] + 0x40) != emu.u(c[1] + 0x40):
+            # Its last record (the copy's start) moved to its own node: the
+            # activations' save binds the def to it, not to the copy's.
+            name = emu.cpu.read(emu.defp(i), 0x20).split(b'\0')[0]
+            recs, n = emu.u(0x60c708), struct.unpack('<i', emu.cpu.read(LOG_COUNT, 4))[0]
+            mine = [k for k in range(n) if emu.cpu.read(recs + 0x50 * k + 8, 0x20).split(b'\0')[0] == name]
+            if not mine:  # a def its setting keeps out of the log: the next one
+                continue
+            last = mine[-1]
+            emu.cpu.write(recs + 0x50 * last + 0x28, struct.pack('<i', here))
+            probe.ar_set_log_node(last, here)
+            copies.append(i)
+    assert len(copies) == 2, 'no def made a running copy'
+    set_status(emu, copies[1], 1, 6)
+    if not nodeless:  # one made: an idle def started without a node
+        reset = next(i for i in idle if i not in copies and i not in startup and status(emu, emu.defp(i)) != 2)
+        for s in (emu, port):
+            s.start(reset, -1, 0.0, 0.0, 0.0)
+    else:
+        reset = rng.choice(nodeless)
+    set_status(emu, reset, 0, 1)
+    emu.build_ids()
+    stats['forced'] += 1
+    return reset
 
 
 def perturb(emu, rng, stats):
@@ -367,7 +484,7 @@ def main():
     cmp = Compare()
     stats = {k: 0 for k in ('frames', 'start', 'start_at', 'start_node', 'reset', 'reset_node', 'reset_cockpit',
                             'stop', 'invalidate', 'ram', 'hit', 'player', 'zone', 'running_mid', 'running_win', 'log_saved',
-                            'AnimActivation', 'RunningAnim', 'Anim', 'cross', 'damaged', 'played', 'perturbed')}
+                            'AnimActivation', 'RunningAnim', 'Anim', 'cross', 'damaged', 'played', 'perturbed', 'forced')}
     keep = os.environ.get('MW3_KEEP')  # a folder to keep the saves in
     with tempfile.TemporaryDirectory() as d:
         if keep:

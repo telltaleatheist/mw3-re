@@ -197,7 +197,9 @@ port:
   "/" keeps it ("x/y").
 - **An anim entry that does not fit** (shorter than its head, a def index
   outside the defs, an object count larger than the entry, more sequences
-  than the def has): the exe indexes and reads past them. **FIX (bug)**:
+  than the def has, a node index past the node pool): the exe indexes and
+  reads past them (a light or sound is added under whatever lies past the
+  pool: a crash). **FIX (bug)**:
   such an entry is passed over, or only what it holds is read.
 
 ## 5. The port
@@ -271,24 +273,32 @@ A third world is played first and every def's object nodes hidden or shown
 and moved (through 0x004eb170 / 0x004fc0b0 on both sides) before the mid
 save is loaded into it; entries cut short or given a def index, object
 count or sequence count that does not fit are loaded by the port, which
-must come through. On the six worlds (60 frames, 20 after): everything
+must come through. A fourth world has the states random play does not
+reach at a save set directly on both sides (a def in error, a running def
+with a running copy at another node, with the def's last record moved to
+its own node so the activations' save does not bind it onto the copy's,
+one with a resting copy, and a def logged only without a node set to reset),
+is saved, and the save is loaded into a world where the reset def is invalid
+(4). On the six worlds (60 frames, 20 after): everything
 identical, the win's saves holding 0 runs (RunningAnim reached by the mid
 saves: 407 runs).
 
-Breaking the port, on c1: 19 of 27 caught. Caught: the save's bind left
+Breaking the port, on c1: 23 of 27 caught. Caught: the save's bind left
 out, a reset's objects saved, every object restore left out, the first
 entry's reset, the 0x4000 mark, an executed record not logged again, a
-def's setting in RunningAnim, the current event's offset, the
-clocks, the made test, the tick, the status, the Anim numbering, the
-restored defs not skipped and running copies not reset in Anim's load, the
-registration order; and the three damaged-entry fixes left out (the port
-then crashes). Not seen, with the reason: the status read after the bind
-(the bind changes it only when a root is missing: no world has one), the
-model's morph flag (no saved object morphs), the matrix case (no saved
-object keeps a matrix), the active flag alone (the replays put every
-object's flag back themselves), and four states the random play never
-reaches at a save on any of the six worlds (a reset record on an invalid
-def, resting instances, running copies, defs in error).
+reset record on an invalid def left invalid, resting copies saved, a def's
+setting ignored in RunningAnim, the current event's offset, the clocks, the
+main flag inverted on the load, the made test, the tick, the status, the
+Anim numbering, defs in error saved, the restored defs not skipped and
+running copies not reset in Anim's load, the registration order; and the
+three damaged-entry fixes left out (the port then crashes). The node-pool
+check is the one damaged c4's test found (a light added under memory past
+the pool: a crash); left out, the port crashes only on some runs, as what
+lies past the pool is undefined. Not seen, with
+the reason: the status read after the bind (the bind changes it only when a
+root is missing: no world has one), the model's morph flag (no saved object
+morphs), the matrix case (no saved object keeps a matrix), and the active
+flag alone (the replays put every object's flag back themselves).
 
 ## 7. Left
 
