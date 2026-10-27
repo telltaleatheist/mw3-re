@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -39,6 +40,7 @@ uint32_t bits(float f) {
 class Fake : public ObjectiveHooks {
  public:
   std::string log;
+  std::set<Handle> entities, nodes;  // made so far (test_objective_check.py's dicts)
   int32_t type = 1;
   float pt[3] = {};
   std::string text[64];
@@ -80,7 +82,9 @@ class Fake : public ObjectiveHooks {
     ev("ent " + str(name));
     if (!name) return 0;
     const uint32_t h = fnv(name);
-    return h % 5 == 0 ? 0 : 0x6000000 | (h & 0xffffff);
+    if (h % 5 == 0) return 0;
+    entities.insert(0x6000000 | (h & 0xffffff));
+    return 0x6000000 | (h & 0xffffff);
   }
   const char* entity_label(Handle e) override {
     ev("label " + hex(e));
@@ -95,12 +99,16 @@ class Fake : public ObjectiveHooks {
   Handle node_find(const char* name) override {
     ev("node " + str(name));
     const uint32_t h = fnv(name);
-    return h % 6 == 0 ? 0 : 0x8000000 | (h & 0xffffff);
+    const Handle n = h % 6 == 0 ? 0 : 0x8000000 | (h & 0xffffff);
+    if (n) nodes.insert(n);
+    return n;
   }
   Handle subnode_find(Handle node, const char* name) override {
     ev("sub " + hex(node) + " " + str(name));
     const uint32_t h = fnv(name) ^ node;
-    return h % 6 == 0 ? 0 : 0x9000000 | (h & 0xffffff);
+    const Handle n = h % 6 == 0 ? 0 : 0x9000000 | (h & 0xffffff);
+    if (n) nodes.insert(n);
+    return n;
   }
   Handle valve_find(const char* name) override {
     ev("valve " + str(name));
@@ -194,7 +202,8 @@ class Fake : public ObjectiveHooks {
   static float coord(uint32_t h) { return static_cast<float>(static_cast<int>(h % 61) - 30); }
   void object_position(Handle o, float out[3]) override {
     ev("pos " + hex(o));
-    const uint32_t m = mix(seed, 0x1000 + static_cast<uint32_t>(frame));
+    const uint32_t m = o == vehicle ? mix(seed, 0x1000 + static_cast<uint32_t>(frame))
+                                    : mix(seed ^ o, 0x1100 + static_cast<uint32_t>(frame));
     out[0] = coord(m), out[1] = coord(m >> 8) / 4.0f, out[2] = coord(m >> 16);
   }
   void node_position(Handle n, float out[3]) override {
@@ -207,6 +216,68 @@ class Fake : public ObjectiveHooks {
     const uint32_t m = mix(nav, 1);
     out[0] = coord(m), out[1] = 0.5f, out[2] = coord(m >> 16);
   }
+  // Training's world (test_objective_check.py's set_training and stubs).
+  uint32_t tf(uint32_t k) const { return mix(seed, k * 0x100 + static_cast<uint32_t>(frame)); }
+  Handle node_parent(Handle n) override {
+    const uint32_t k = mix(seed ^ n, 0xd00 + static_cast<uint32_t>(frame));
+    std::vector<Handle> c;
+    for (Handle x : nodes)
+      if (x < n) c.push_back(x);
+    return !c.empty() && k % 3 ? c[(k >> 4) % c.size()] : 0;
+  }
+  Handle aim_hit_node(Handle s) override {
+    ev("aim " + hex(s) + " 0");
+    const uint32_t k = tf(2);
+    if (nodes.empty() || k % 3 == 0) return 0;
+    auto it = nodes.begin();
+    std::advance(it, (k >> 4) % nodes.size());
+    return *it;
+  }
+  float screen_speed(Handle) override {
+    const uint32_t k = tf(1);
+    static const float kV[4] = {0.0f, 5.0f, 12.5f, -3.0f};
+    return (k >> 8) % 3 == 0 ? kV[k % 4] : static_cast<float>(static_cast<int32_t>(k % 41) - 10);
+  }
+  float mission_time() override { return static_cast<float>(frame * 7 % 50) + 0.5f; }
+  void view_angles(float out[3]) override {
+    static const float kP[3] = {0.0f, 0.3f, -0.5f};
+    static const float kY[6] = {0.0f, 1.5708f, 3.14159f, -1.5708f, 0.7854f, 2.0f};
+    const uint32_t a = tf(10);
+    out[0] = kP[a % 3], out[1] = kY[(a >> 4) % 6], out[2] = 0.0f;
+  }
+  Handle vehicle_target_slot(Handle) override { return tf(3) % 4 == 0 ? 0 : 0x5107; }
+  Handle contact_entity(Handle) override {
+    ev("contact");
+    const uint32_t i = (tf(3) >> 4) % (entities.size() + 1);
+    if (i >= entities.size()) return 0;
+    auto it = entities.begin();
+    std::advance(it, i);
+    return *it;
+  }
+  int32_t vehicle_aimed_part(Handle) override { return static_cast<int32_t>(tf(4) % 9) - 1; }
+  void vehicle_facing(Handle, float out[3]) override {
+    static const float kF[8][3] = {{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f},
+                                   {0.6f, 0.0f, 0.8f}, {0.8f, 0.0f, -0.6f}, {-0.6f, 0.0f, 0.8f}, {0.28f, 0.0f, 0.96f}};
+    std::memcpy(out, kF[tf(5) % 8], sizeof kF[0]);
+  }
+  int32_t vehicle_heat_warning(Handle) override { return static_cast<int32_t>(tf(6) & 1); }
+  Handle vehicle_weapons(Handle) override { return tf(7) % 4 == 0 ? 0 : 0x3a3a; }
+  int32_t weapon_group(Handle) override { return static_cast<int32_t>((tf(7) >> 4) % 6); }
+  int32_t current_weapon_type(Handle) override {
+    ev("wcur");
+    return static_cast<int32_t>(tf(8) % 40) - 1;
+  }
+  uint8_t weapon_fired(Handle, int32_t w) override {
+    ev("fired " + hex(w));
+    return static_cast<uint8_t>(mix(seed ^ static_cast<uint32_t>(w), 0x900 + static_cast<uint32_t>(frame)) & 1);
+  }
+  uint8_t button(const char* what, uint32_t k, int32_t b) {
+    ev(std::string(what) + " " + hex(b));
+    return static_cast<uint8_t>(mix(seed ^ static_cast<uint32_t>(b), k + static_cast<uint32_t>(frame)) & 3);
+  }
+  uint8_t key_down(int32_t k) override { return button("keyd", 0xa00, k); }
+  uint8_t joy_button(int32_t b) override { return button("joyb", 0xb00, b); }
+  uint8_t mouse_button(int32_t b) override { return button("mouseb", 0xc00, b); }
   int32_t ia_mode() override { return mode; }
   int32_t ia_number() override { return number; }
   std::string message_number(int32_t id, bool has_n, int32_t n) override {
