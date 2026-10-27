@@ -934,7 +934,23 @@ choices, the pilot's ActionGame (its line-up with each loadout by name) and
 the pilot file's bytes. Even runs use the shipped dialog, odd runs a
 synthetic one (the line-up lists moved and re-offset, labels without
 `inactive_font`, buttons moved or missing). The fix above is applied to the
-original by a hook.
+original by a hook. 60 runs: 60/60, about 876,000 calls.
+
+Breaking the port showed the test catches it, 34 of 35 (40 runs each): the
+inactive font not read, OFFSET's two swapped, the line-up kept leaving
+Progression, the description not stepped, the best wave capped at 21, the
+enemies not stepped, none in the normal font, none read as mech 0 skipped,
+training loadouts listed, the wave's loadout from its first slot, arrows
+with one loadout, the wave step one off, 21 waves listed, arrows with one
+wave, the copies not offset, the worlds' values from 1, CANCEL popping 0,
+the enemies kept in Progression, a wave left choosable or with arrows, the
+first enemy offering none, the kept enemies ignored, the commander by row,
+mech 7 listed, the field base's value, the kept wave's maximum swapped, no
+fallback, the fallback with ".zbd", lancemates on the enemy side, the wave
+not plus one, enemies without loadouts, the field base always on, the
+mission from the row, the pilot not saved. Missed, and unobservable: the
+loadout lists shown at the making (the first enemy step hides or shows each
+again).
 
 ## 14. Left
 

@@ -942,3 +942,10 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Ported as action_menu.{h,cpp}; the program's construct(0x00488bc0) makes
   it, action_open resets it. Live: --click-at 60,180@40 (INSTANT ACTION),
   a pilot typed, ACCEPT: the screen as the original (outbox 2026-10-27/ia).
+- The decompile's 0x0048a140 read the world's row as the scenario's: the
+  emulator's crash (an out-of-range world, read unchecked) showed +0x38 is
+  the world's name. A wave outside the table (the best 20 at the reset, or
+  below 0) reads strings as mechs: FIX (bug), hooked in the test.
+- test_actionscreen.py: 60/60 (876k calls, the pilot file's bytes too);
+  breaks 34/35 (the miss unobservable). The first batch missed four: the
+  dump lacked the items' values, and the best wave 20 was rare (weighted).
