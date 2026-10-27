@@ -2736,6 +2736,15 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   straight on from the debriefing, and never for Op 1 Mission 1 or Op 4
   Mission 4). Instant Action, training and multiplayer read nothing but
   still print "Saved Game Loaded" while loading. (docs/save.md)
+- **Loading a saved campaign brings the last mission's animations into the
+  next one.** The missions of an operation share one world, and the saved
+  game holds how its animations ended: which ones had run, which were spent,
+  where their objects were left. Loaded from the pilot screen, the next
+  mission starts with those replayed, so what the last mission destroyed,
+  opened or set off stays that way. Going straight on from the debriefing
+  reads nothing, so the same mission then starts with the world fresh. The
+  world changes at Op 1 Mission 1 and Op 4 Mission 4 (the second Op 4 map),
+  which is why those two never read a save. (docs/save.md)
 - **The newest save is the one you play.** The pilot screen's campaign list
   shows every save as "Op N, Mission M" with the newest chosen; choosing
   another row plays that one. The fresh start (Op 1, Mission 1) is always

@@ -28,6 +28,8 @@
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zsave/zsave.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zweapon.h"
@@ -436,6 +438,34 @@ void ar_player(float x, float y, float z) {
   zeff::anim_set_player(p);
 }
 void ar_zone(const uint8_t* zone) { zeff::anim_set_zone(zone); }
+
+// The mission's end (0x0050ace0), and the anim registrants' save and load
+// (test_anim_save.py): zSave made and the three added as zEffect's start
+// adds them, `name` written or read in `dir` (kind 2).
+// A node's state changed outside the animations (test_anim_save's played
+// load): active or not, moved by (dx, dy, dz) from its translation.
+void ar_perturb(int node, int active, float dx, float dy, float dz) {
+  Node* n = zcls::node_at(node);
+  zcls::node_set_active(n, active);
+  float x, y, z;
+  zcls::object3d_get_translation(n, &x, &y, &z);
+  zcls::object3d_set_translation(n, x + dx, y + dy, z + dz);
+}
+void ar_stop_all(int keep) {
+  zeff::anim_stop_all(keep);
+  build_ids();
+}
+int ar_save_game(const char* dir, const char* name, int load) {
+  const zutl::Mounts kept = zutl::mounts();
+  zutl::mounts().read = {dir};
+  zutl::mounts().write = dir;
+  if (!zsave::manager()) zsave::init();
+  zeff::anim_register_savers();
+  const bool ok = load ? zsave::load(name, 2) : zsave::save(name, 2);
+  zutl::mounts() = kept;
+  build_ids();
+  return ok ? 1 : 0;
+}
 void ar_level(int level) { zeff::anim_set_level(level); }
 void ar_drawn(int node) {
   Node* n = zcls::node_at(node);

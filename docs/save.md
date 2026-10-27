@@ -1,4 +1,4 @@
-# zSave: the saved game's world (save 1 ported)
+# zSave: the saved game's world (ported)
 
 A campaign's saved game is two files: the pilot's (`pilots\<name>.mw3`,
 pilot.md: the games, their stores, slots and lancemates) and, for each saved
@@ -88,8 +88,80 @@ weapons in flight are not saved; their code is there, switched off.
   (0x004b3d30) answers true without reading anything, so Instant Action,
   training and multiplayer loads all say "Saved Game Loaded".
 
-What the read gives the new mission is the last mission's animations by
-name (save 2 will say what of it lands).
+What the read gives the new mission is the last mission's animation state,
+by def name and index and by node index. That is sound because a campaign
+operation's missions share one world (c1..c4; c4b from Op 4 Mission 4), and
+the two missions the restore leaves out, Op 1 Mission 1 and Op 4 Mission 4,
+are exactly where the world changes. So a reloaded campaign starts the next
+mission with the last one's animations as they ended: what had been
+destroyed, opened or triggered. Going straight on from the debriefing reads
+nothing (+0xb0), so the same mission then starts fresh.
+
+### The anim registrants (zeff_anim_save, ported)
+
+All three are registered by zEffect's start (0x00508fc0) when [0x005ebcc0]
+(0x005090d0, 1) is set, in the priority order 0x32, 0x33, 0x34. At the
+mission's end CoreState::leave runs 0x0050ace0(1) (every def and instance
+stopped, its reset clock kept) before the win's save, so the save sees the
+mission at rest.
+
+- **AnimActivation** (0x0050b710 / 0x0050b970): the animation call log
+  (anim-postload.md, the loggers) replayed. Each record is an entry
+  `Activation%04d`: the 0x50-byte record, then (+0x54) the def's status,
+  (+0x55) its object count and the objects' node states, 0x44 each (the
+  node's live index, -1 for none; active; whether it keeps a matrix; the
+  matrix or translation, rotation and scale; the model's flag 8 and its
+  +0x24). The save binds each def to the record's node first (0x00509eb0),
+  so saving moves defs. On the load the first entry (`Activation0000`)
+  resets every def the new mission has logged so far and empties the log;
+  every record then makes its call again (0x0050ca90: start at, start,
+  connector, connector at; a reset restarts), the def is marked restored
+  (+0x94 0x4000) and brought to the saved status: a reset (1) resets it and
+  logs the record again, executed (3) and invalid (4) stop it and log it, a
+  run (2) starts it again, a resting run (6) only from invalid. The objects
+  are put back as they were; the model's flag is only ever set back, never
+  cleared.
+- **RunningAnim** (0x0050c190 / 0x0050c250, the writer 0x0050be30): each def
+  running (2) or resting (6), and its running instances (only when the def
+  itself is saved), as `Running%03d` (the def's index: a def and its
+  instances share the name). Made in a temporary file: a 0x68-byte head (the
+  index, whether it is the def's own record, the name, its nodes as live
+  indices and their offsets, the status, the clocks +0xa8 / +0xb0, the start
+  vector, the three counts), each sequence (0x40, the current event as an
+  offset) with its events, the lights (0x38) and sounds (0x3c) with their
+  positions and parents. The load puts it back without starting anything:
+  the sequences' events replaced, the lights and sounds made then but not
+  now made where they were, the def's object ticking it again (0x00507de0).
+  A def's own record goes on the instance at the saved node; with none, a
+  running def is given a new instance that is left idle and the state goes
+  on the def. An instance's record goes on the def itself, so a def with
+  running copies ends with the last copy's run.
+- **Anim** (0x0050c640 / 0x0050c890): every def not in error (5), as
+  `Anim%04d` numbered after the activations (the def's index plus the log's
+  count): its index, status and objects' node states. Loaded only for a def
+  the activations did not restore: reset if it was reset (1), its running
+  copies reset, its objects put back.
+
+A def's own setting (+0x94 0x1000 with 0x2000 off) keeps it out of
+RunningAnim and Anim, as it keeps it out of the log; [0x005ebf0c] off keeps
+all of them out.
+
+**What the win's save holds** in practice (test_anim_save.py on the six
+worlds, after random play): the activations and every def's state; no runs,
+because the mission's end has stopped them all. RunningAnim's code only
+matters for a save made during a mission, which MW3 never makes.
+
+**Stack leftovers.** The exe builds each record on its stack and does not
+clear it: what a record does not set (the activations' +0x50, an object's
+tail when it has no node, a light or sound without its node, the Anim
+entries' +0x54 when the def has no objects, which keeps the last def's)
+holds whatever was there, and a running sequence's events are written as
+their address and the current event as cur - events (garbage for one never
+started). The port writes zeros, 0 for the address and -1 for an offset
+outside the events. The loads never read those bytes (a light or sound is
+remade only when its saved +0x24 says it was made, and then its fields were
+written), so a save written by the original loads in the port the same way
+(the test cross-loads every one), and the port's in the original.
 
 ## 4. Damaged and odd files
 
@@ -123,6 +195,10 @@ port:
 - **The same name registered twice**: the second is refused.
 - **A sub-name with a space**: it ends there ("a b" gives "a"); one with a
   "/" keeps it ("x/y").
+- **An anim entry that does not fit** (shorter than its head, a def index
+  outside the defs, an object count larger than the entry, more sequences
+  than the def has): the exe indexes and reads past them. **FIX (bug)**:
+  such an entry is passed over, or only what it holds is read.
 
 ## 5. The port
 
@@ -134,7 +210,8 @@ hooks `save_world` and `load_world` are zSave by default; GameEngine's
 they were misnamed `entity_init` / `entity_shutdown`) make and free the
 manager; the mission load's `game_saved` asks the pilot's game's
 `restore()` (vt+0x28) when the launch came from the menus. The anim
-registrants are save 2; until then a saved game holds only the header.
+registrants are `zeff_anim_save`'s (activation_save .. anim_load), added
+by `anim_init`; `GameEngine::anim_enable` is 0x005090d0.
 
 ## 6. Testing
 
@@ -177,10 +254,44 @@ it, 4 of 4: no world save (the pilot read back drops the save: c1m1 comes
 up), no manager (the same), the campaign's vt+0x28 never reading, the
 mission load not asking it.
 
+`test_anim_save.py` (the six worlds): the original's anim registrants in
+the emulator on test_anim_run's worlds after frames of random calls, zSave's
+calls caught (the entries kept as they are written; the temporary files over
+fwrite and fread), against the port's real saved game. Two saves per world:
+one in the middle (the runs as they are, to reach RunningAnim) and the win's
+(after 0x0050ace0(1)). Compared: every entry's name and words (floats within
+1e-4: the rotations come from the matrices), the state after each save;
+then the world read again on both sides, each save loaded (the original's
+entries given to its loads in the file's order), the whole state compared,
+the original's entries written as a file and loaded by the port in a third
+world (the cross-load) and compared, and frames of random calls run on to
+show the restored runs go on alike. The savers' stack frames are zeroed on
+entry (the port writes zeros), and the event addresses normalized as above.
+A third world is played first and every def's object nodes hidden or shown
+and moved (through 0x004eb170 / 0x004fc0b0 on both sides) before the mid
+save is loaded into it; entries cut short or given a def index, object
+count or sequence count that does not fit are loaded by the port, which
+must come through. On the six worlds (60 frames, 20 after): everything
+identical, the win's saves holding 0 runs (RunningAnim reached by the mid
+saves: 407 runs).
+
+Breaking the port, on c1: 19 of 27 caught. Caught: the save's bind left
+out, a reset's objects saved, every object restore left out, the first
+entry's reset, the 0x4000 mark, an executed record not logged again, a
+def's setting in RunningAnim, the current event's offset, the
+clocks, the made test, the tick, the status, the Anim numbering, the
+restored defs not skipped and running copies not reset in Anim's load, the
+registration order; and the three damaged-entry fixes left out (the port
+then crashes). Not seen, with the reason: the status read after the bind
+(the bind changes it only when a root is missing: no world has one), the
+model's morph flag (no saved object morphs), the matrix case (no saved
+object keeps a matrix), the active flag alone (the replays put every
+object's flag back themselves), and four states the random play never
+reaches at a save on any of the six worlds (a reset record on an invalid
+def, resting instances, running copies, defs in error).
+
 ## 7. Left
 
-- Save 2: the three anim registrants (0x0050b710..0x0050c890, with
-  0x0050be30) and their registration in zEffect's start.
 - Save 3: the round trip in the program (a campaign won, the app quit, the
   pilot's save chosen in a new run, the store, lance and loadouts as they
   were) and the "Replace existing game?" path.

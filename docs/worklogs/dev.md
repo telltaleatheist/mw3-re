@@ -715,3 +715,31 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   crashes); breaks 18/18. The campaign test's round trip (a new app reading
   the pilots back, the test registrant's entry restored, slot, loadout,
   lance and holdings as they were) in both zfix passes; breaks 4/4.
+
+## Save 2 (2026-10-26): the anim registrants
+
+- Branch mac4/save-2 off main fff16b0.
+- Found: the restore is by def and node index, which is sound: an
+  operation's missions share one world and the two missions the restore
+  skips (Op 1 M1, Op 4 M4) are the world changes. A reloaded campaign brings
+  the last mission's animation state into the next (discoveries). At the win
+  CoreState::leave has run 0x50ace0(1): on all six worlds no def is still
+  running, so the win's save holds the activations and Anim entries only;
+  RunningAnim only matters mid-mission (never in MW3).
+- Ported in zeff_anim_save: the three savers and loads, 0x50be30, the log's
+  accessors and replay (0x50b640/6f0/700, 0x50ca60, 0x50ca90), the switch
+  0x5090d0 (GameEngine::anim_enable) and the registration in anim_init
+  (anim_register_savers; the hook register_entities is gone). Quirks kept:
+  the save binds defs to their nodes; an instance's running record goes onto
+  the def; a missing instance is made idle; the model flag only set back.
+  FIX (bug) for damaged entries (short, index outside the defs, too many
+  sequences).
+- Tests: test_anim_save.py, all six worlds identical (mid and win saves,
+  entries compared as words, loads, the exe's entries cross-loaded by the
+  port, 20 frames after; damaged entries loaded by the port). test_anim_run
+  refactored into prepare/play (behaviour unchanged).
+- Breaks 19/27 caught on c1 (the 8 not seen are explained in save.md: data
+  no world has, a flag the replays restore anyway, states random play never
+  reaches at a save on any world). The three damaged-entry fixes left out
+  crash the port. Related set: test_anim_run, anim_binder, zsave, anim,
+  anim_owner, puffers, pilot, mw3tests 202 and mw3sdltests 12, all pass.
