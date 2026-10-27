@@ -147,7 +147,7 @@ struct ProbeActionState : mech3::GameMenuState {
 };
 
 // The dump test_actionscreen.py builds from the emulator's memory.
-void cycle(Dump& d, mech3::ActionCycle& c, bool lineup) {
+void cycle(Dump& d, mech3::ActionCycle& c, bool lineup, bool values = true) {
   d.control(&c);
   d.kv("index", c.index);
   d.kv("click", c.click_steps);
@@ -160,7 +160,10 @@ void cycle(Dump& d, mech3::ActionCycle& c, bool lineup) {
     d.kv("ox", l.offset_x);
     d.kv("oy", l.offset_y);
   }
-  for (mech3::CycleButton::Item* it : c.items) d.s("item", it->text);
+  for (mech3::CycleButton::Item* it : c.items) {
+    d.s("item", it->text);
+    if (values) d.kv("v", it->value);  // (a loadout's is its address in the exe)
+  }
 }
 
 void dump_setup(std::ostringstream& o) {
@@ -213,7 +216,7 @@ void dump_screen(mech3::ActionScreen& s, Dump& d) {
     d.o << "\nenemy" << i << ' ';
     cycle(d, s.enemies[i], true);
     d.o << "\nconfig" << i << ' ';
-    cycle(d, s.enemy_configs[i], true);
+    cycle(d, s.enemy_configs[i], true, false);
   }
   d.o << "\nwaves ";
   cycle(d, s.waves, true);

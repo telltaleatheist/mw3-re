@@ -181,7 +181,7 @@ def make_plan(seed, spots):
                 else r.randrange(-1, 7) if i == 22 else r.choice([0, 1, 2, 3, 4, 7, 19, 20, -1])
             lines.append(f'K {i:x} {v & 0xffffffff:x}')
     name = r.choice(PILOT_NAMES)
-    pilot = [f'C {hx(name)}', f'V 68 {r.choice([0, 0, 1, 3, 10, 19, 20, 25, -1]) & 0xffffffff:x}']
+    pilot = [f'C {hx(name)}', f'V 68 {r.choice([0, 0, 1, 3, 10, 19, 20, 20, 25, -1]) & 0xffffffff:x}']
     if r.random() < 0.8:
         pilot.append(f'V 24 {r.choice(list(range(-1, 20)) + [3, 3]) & 0xffffffff:x}')
     early = r.random() < 0.5  # the screen made before the pilot (as at the main menu)
@@ -520,7 +520,7 @@ class Original:
             labels('LA', o + 0x12c)
             labels('LD', o + 0x13c)
 
-        def cycle(c, lineup):
+        def cycle(c, lineup, values=True):
             control(c)
             kv('index', e.r32(c + 0x16c))
             kv('click', e.r8(c + 0x168))
@@ -534,6 +534,8 @@ class Original:
             first, last = e.r32(c + 0x15c), e.r32(c + 0x160)
             for it in [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []:
                 s('item', e.r32(it))
+                if values:
+                    kv('v', e.r32(it + 4))
 
         out.append(f'screen fixed={e.r8(m + FIXED)} wave={i32(e.r32(m + WAVE))} filling={i32(e.r32(m + FILLING))}')
         for name, off, lu in (('worlds', WORLDS, 0), ('scenarios', SCENARIOS, 0), ('desc', DESC, 0),
@@ -547,7 +549,7 @@ class Original:
             out.append(f'\nenemy{i} ')
             cycle(m + ENEMIES[i], 1)
             out.append(f'\nconfig{i} ')
-            cycle(m + CONFIGS[i], 1)
+            cycle(m + CONFIGS[i], 1, False)
         out.append('\nwaves ')
         cycle(m + WAVES, 1)
         out.append('\n')

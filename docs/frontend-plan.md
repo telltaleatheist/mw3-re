@@ -59,9 +59,9 @@ ACCEPT back).
   (0x00488bc0, its state 0x0048aac0; the line-up, the mode, the wave) ->
   Load (the briefing's IA layout: no SALVAGE or REPLAY) -> mission
   (`ia<n>` objectives, ported) -> debriefing -> IA Dummy State (0x0047ce80).
-  Not ported: the Action screen and its ActionGame filling (a debug start
-  makes the game itself), the IA Dummy State; the Instant Action header of
-  the objectives box (hud.md 24's open note). About 31 functions, 3 ported.
+  The Action screen and its ActionGame filling are ported (menus.md 13,
+  item 12a). Not ported: the IA Dummy State; the Instant Action header of
+  the objectives box (hud.md 24's open note).
 - **Training**: main menu -> pilot -> the training game (type 4, t1) ->
   Load (training's briefing: no MECHLAB, SALVAGE, REPLAY) -> the lessons:
   objectives.zrd's fourteen training condition types are unported
@@ -176,9 +176,12 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
     for pl_mpeg, the sound the AVI's own PCM, the headers in a sidecar).
     Test: test_fmv.py with movies (every call against the exe); `mw3 --movie`
     plays each block to its AVIs' length; the intro's first frames in shots.
-12. **Instant Action**: the Action screen 0x00488bc0 and its state, the
-    ActionGame from it, the IA Dummy State. Test: differential of the
-    screen; headless IA wave 1 played to the tallies.
+12. **Instant Action**, in two:
+    - 12a. **(Done) The Action screen** 0x00488bc0 and its state, the
+      ActionGame filled by ACCEPT (menus.md 13; test_actionscreen.py).
+    - 12b. **The launch from it**: the 0x00470e30 "everything" store, the
+      0x231 header's arguments (hud.md 24), the IA Dummy State. Test:
+      headless IA wave 1 played to the tallies.
 13. **Training**: the fourteen training condition types (objectives.md
     piece 5) and the training sequence's fade. Test: test_objectives.py's
     shipped t1 blocks; headless t1 lesson 1 completed.
