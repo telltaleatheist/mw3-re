@@ -46,6 +46,10 @@ int world_add_sound(Node* world, Node* sound);    // 0x004f2f90
 int world_remove_sound(Node* world, Node* sound);  // 0x004f3040
 int world_free_partitions(Node* world);           // 0x004f2770
 int world_delete(Node* world);                    // 0x004f1c60: its grid and lists, then released
+Node* world_create();                             // 0x004f1bd0: class 2, on list 13
+int world_set_origin(Node* world, float x, float z);  // 0x004f2500
+int world_set_size(Node* world, float x, float z);    // 0x004f2530
+int world_make_grid(Node* world, float x, float z);   // 0x004f2560: cells of x by z over the area
 
 // The cell a box (x and z) fits, with the world's margins, else (-1, -1).
 void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, float max_z,

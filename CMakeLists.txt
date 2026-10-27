@@ -212,6 +212,7 @@ add_library(mw3core STATIC
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
   src/mech3/mech_lab.cpp
+  src/mech3/lab_view.cpp
   src/mech3/lab_screen.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp

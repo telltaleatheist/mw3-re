@@ -111,7 +111,8 @@ They run inside the original main loop, after the original start-up.
   and as each briefing finds it once its mission has loaded
   (`tools/analysis/savecheck.py`, save.md), and each state the app moves to
   by name (`tools/analysis/opcheck.py`: an operation's end and the
-  campaign's).
+  campaign's). `--lab-mech N` hands the lab's 3D view chassis N (0..18) once
+  the lab is up, the slot keeping its mech (mechlab.md, the 3D view).
 
 ## What runs ported
 

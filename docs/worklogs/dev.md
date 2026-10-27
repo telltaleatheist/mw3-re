@@ -815,3 +815,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Breaks 5/5 headless, 3/5 live (the field bases and the movie names are not
   visible live). Discovery: the ending movie ignores -nofmv.
 
+## Item 9a (2026-10-27): the lab's 3D view
+
+- Branch mac4/lab3d off main 8a23e87. Split with the lead: 9a the world,
+  camera and turning model; 9b the armour section's highlight (0x4504d0 /
+  0x450470: there is no mouse picking; 0x4507c0 is the chassis lookup).
+- Ported: zcls world_create 0x4f1bd0, the area 0x4f2500 / 0x4f2530, the
+  grid 0x4f2560; mech3 lab_view.cpp: the load 0x44ffc0, unload 0x450390,
+  the window 0x450460/0x44fea0, the entries 0x44fcc0/ce0/d20, the camo
+  0x44fd90, the frame 0x450690 (lab_view_frame), the target 0x450810 and
+  clear 0x450800; GameEngine::node_frame_update (0x4f7f70, was a hook: the
+  copied tree never got its matrices). The turn is time-based (dt * 0.8).
+- test_lab_view.py 300/300 bit for bit, breaks 14/14 (Compare(tol=0): the
+  default tolerance let small integers pass as tiny floats; raised with the
+  lead for the other tests using it). --lab-mech N (ours) for the shots: all
+  19 chassis and a camo swap, outbox 2026-10-27/lab3d.
+
