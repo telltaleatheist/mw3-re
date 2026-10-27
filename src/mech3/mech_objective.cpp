@@ -1,10 +1,13 @@
 #include "mech3/mech_objective.h"
 
+#include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <functional>
 #include <utility>
 
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_msg.h"
@@ -42,7 +45,8 @@ void Objective::set_desc(const char* text) {
 }
 
 // Mech3.exe 1.2 @ 0x0045f2b0 (the named target), as 0x0045c920 inlines it.
-DestroyObjective::DestroyObjective(const char* d, const char* n, Handle e) : Objective(kDestroy, d), entity(e) {
+DestroyObjective::DestroyObjective(const char* d, const char* n, Handle e) : DestroyObjective(kDestroy, d, n, e) {}
+DestroyObjective::DestroyObjective(Kind k, const char* d, const char* n, Handle e) : Objective(k, d), entity(e) {
   if (n) name = n;
 }
 
@@ -106,12 +110,181 @@ uint8_t ReachAreaObjective::check(ObjectiveHooks& h) {
   return done;
 }
 
+// ---- training's checks (piece 5) ----
+
+namespace {
+// The player's mech's screen when the view is the player's (0x00430aa0 on
+// [0x0060861c] +0x14 when it is [0x005f4c8c] +0x64); the checks ask twice.
+Handle player_screen(ObjectiveHooks& h, Handle vehicle) {
+  return vehicle == h.view_vehicle() ? h.mech_screen(vehicle) : 0;
+}
+
+// zMath's 0x00522170: pitch and yaw to the direction they face.
+void angles_to_dir(const float a[3], float out[3]) {
+  const float s0 = static_cast<float>(std::sin(double{a[0]}));
+  const float c0 = static_cast<float>(std::cos(double{a[0]}));
+  out[1] = s0;
+  out[2] = static_cast<float>(std::cos(double{a[1]}));
+  out[0] = static_cast<float>(std::sin(double{a[1]}));
+  out[0] = -c0 * out[0];
+  out[2] = -c0 * out[2];
+}
+
+// The level direction from the player's vehicle to `e` (0x005a85e0 on both,
+// 0x004020d0 with y cleared).
+zmth::Vec3 level_dir(ObjectiveHooks& h, Handle vehicle, Handle e) {
+  float from[3], at[3];
+  h.object_position(vehicle, from);
+  h.object_position(e, at);
+  zmth::Vec3 v{at[0] - from[0], at[1] - from[1], at[2] - from[2]};
+  v.y = 0.0f;
+  zmth::normalize(v);
+  return v;
+}
+
+bool facing(float dot) { return dot > 0.98f; }  // 0x005c2694
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0045f630. Its test past 5 reads as GE.
+uint8_t ReachVelocityObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  const Handle vehicle = h.player_vehicle();
+  if (!vehicle || !player_screen(h, vehicle)) return done;
+  const float v = h.screen_speed(player_screen(h, vehicle));
+  bool met;
+  switch (test) {
+    case 0: met = velocity < v; break;
+    case 2: met = v == velocity; break;
+    case 3: met = v != velocity; break;
+    case 4: met = v <= velocity; break;
+    case 5: met = v < velocity; break;
+    default: met = velocity <= v; break;
+  }
+  complete(*this, met, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f800: the node the reticle hits, then each parent
+// while the node has exactly one.
+uint8_t AimAtObjective::check(ObjectiveHooks& h) {
+  if (done) return done;
+  const Handle vehicle = h.player_vehicle();
+  if (!vehicle || !player_screen(h, vehicle)) return done;
+  uint8_t found = 0;
+  for (Handle n = h.aim_hit_node(player_screen(h, vehicle)); n && !found; n = h.node_parent(n))
+    if (n == node) found = 1;
+  complete(*this, found, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f8f0
+uint8_t TargetObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  if (!entity) find_entity(h);  // vt+0x08: 0x0045e630
+  const Handle vehicle = h.player_vehicle();
+  if (!vehicle || !entity) return done;
+  const Handle slot = h.vehicle_target_slot(vehicle);
+  if (!slot) return done;
+  bool met = h.contact_entity(slot) == entity;
+  if (met && part != -1) met = h.vehicle_aimed_part(vehicle) == part;
+  complete(*this, met, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045e6c0
+uint8_t TimeLimitObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  complete(*this, seconds < h.mission_time(), h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f400 (view_object: the view camera's angles) and
+// 0x0045f520 (face_object: the player's mech's facing, not made level).
+uint8_t FacingObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  if (!entity) find_entity(h);  // vt+0x08: 0x0045e630
+  const Handle vehicle = h.player_vehicle();
+  // FIX (bug): view_object reads a null vehicle's position (face_object checks).
+  if (!vehicle || !entity) return done;
+  const zmth::Vec3 to = level_dir(h, vehicle, entity);
+  float d[3];
+  if (kind == kViewObject) {
+    float a[3];
+    h.view_angles(a);
+    angles_to_dir(a, d);
+    zmth::Vec3 v{d[0], 0.0f, d[2]};
+    zmth::normalize(v);
+    d[0] = v.x, d[2] = v.z;
+  } else {
+    h.vehicle_facing(vehicle, d);
+  }
+  const float dot = to.z * d[2] + to.x * d[0];
+  complete(*this, facing(dot), h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f7b0
+uint8_t HeatWarningObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  if (const Handle vehicle = h.player_vehicle()) complete(*this, h.vehicle_heat_warning(vehicle) != 0, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045e790 (User_Command: its key, else its joystick
+// button, else its mouse button), 0x0045e760 (joystick_press), 0x0045e700
+// (key_press), 0x0045e730 (mouse_press). Only the answers' low bit counts.
+uint8_t InputObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  switch (kind) {
+    case kUserCommand:
+      if (x34 >= 0) complete(*this, h.key_down(x34) & 1, h);
+      if (!done && x38 != 0) complete(*this, h.joy_button(x38) & 1, h);
+      if (!done && x3c != 0) complete(*this, h.mouse_button(x3c) & 1, h);
+      break;
+    case kJoystickPress:
+      if (x34 != 0) complete(*this, h.joy_button(x34) & 1, h);
+      break;
+    case kKeyPress:
+      if (x34 >= 0) complete(*this, h.key_down(x34) & 1, h);
+      break;
+    default:  // mouse_press
+      if (x34 != 0) complete(*this, h.mouse_button(x34) & 1, h);
+      break;
+  }
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f220 (weapon_fire), 0x0045e800 (weapon_select: the
+// current weapon's type), 0x0045e850 (weapon_group_select).
+uint8_t WeaponObjective::check(ObjectiveHooks& h) {
+  if (done) return done;
+  const Handle vehicle = h.player_vehicle();
+  if (kind == kWeaponFire) {
+    if (!vehicle || !player_screen(h, vehicle)) return done;
+    complete(*this, h.weapon_fired(player_screen(h, vehicle), id), h);
+    return done;
+  }
+  // FIX (bug): weapon_group_select reads a null vehicle's or manager's group.
+  const Handle wm = vehicle ? h.vehicle_weapons(vehicle) : 0;
+  if (!wm) return done;
+  complete(*this, id == (kind == kWeaponSelect ? h.current_weapon_type(wm) : h.weapon_group(wm)), h);
+  return done;
+}
+
 ReachAreaObjective::ReachAreaObjective(const char* d, Handle n, const float p[3], float r)
     : Objective(kReachArea, d), node(n), point{p[0], p[1], p[2]}, radius(r), radius_sq(r * r) {}
 
 namespace {
 
 bool is(const char* a, const char* b) { return a && std::strcmp(a, b) == 0; }
+
+// _stricmp (the CRT's, the "C" locale)
+int strcasecmp_(const char* a, const char* b) {
+  for (;; ++a, ++b) {
+    const int x = std::tolower(static_cast<unsigned char>(*a)), y = std::tolower(static_cast<unsigned char>(*b));
+    if (x != y || !x) return x - y;
+  }
+}
 
 int32_t count_of(const Node* list) { return list->list[0].i; }
 
@@ -145,19 +318,6 @@ std::unique_ptr<DestroyObjective> make_destroy(const char* desc, const char* nam
 
 std::unique_ptr<ObjectiveGroup> make_group(const char* desc) { return std::make_unique<ObjectiveGroup>(desc); }
 
-// Types the exe reads that the port does not yet (piece 5): reported, not read.
-const struct {
-  const char* type;
-  const char* key;
-} kUnported[] = {
-    {"reach_velocity", "0x0045c920 reach_velocity"}, {"aim_at_object", "0x0045c920 aim_at_object"},
-    {"target_object", "0x0045c920 target_object"},   {"time_limit", "0x0045c920 time_limit"},
-    {"view_object", "0x0045c920 view_object"},       {"face_object", "0x0045c920 face_object"},
-    {"heat_warning", "0x0045c920 heat_warning"},     {"User_Command", "0x0045c920 User_Command"},
-    {"joystick_press", "0x0045c920 joystick_press"}, {"key_press", "0x0045c920 key_press"},
-    {"mouse_press", "0x0045c920 mouse_press"},       {"weapon_fire", "0x0045c920 weapon_fire"},
-    {"weapon_select", "0x0045c920 weapon_select"},   {"weapon_group_select", "0x0045c920 weapon_group_select"},
-};
 
 }  // namespace
 
@@ -329,6 +489,114 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
     zrdr::get_int(args, "value", &value);
     obj = std::make_unique<ValveChangeObjective>(sh.desc, valve, value);
     if (Handle nav = nav_of(args, h)) obj->nav = nav;
+  } else if (is(type, "reach_velocity")) {
+    int32_t test = 1;  // GE
+    if (const char* t = zrdr::get_string(args, "test")) {
+      static const char* const kTests[] = {"GT", "GE", "EQ", "NE", "LE", "LT"};
+      for (int32_t i = 0; i < 6; ++i)
+        if (is(t, kTests[i])) test = i;
+    }
+    float v = 0.0f;
+    if (!zrdr::get_float(args, "velocity", &v)) return nullptr;
+    obj = std::make_unique<ReachVelocityObjective>(sh.desc, test, v);
+  } else if (is(type, "aim_at_object")) {
+    const Handle node = find_node(args, h);
+    if (!node) return nullptr;
+    obj = std::make_unique<AimAtObjective>(sh.desc, node);
+  } else if (is(type, "target_object")) {
+    const char* name = zrdr::get_string(args, "entity");
+    if (!name) return nullptr;
+    const Handle e = h.entity_find(name);
+    const int32_t part = part_id(zrdr::get_string(args, "part"));
+    auto t = std::make_unique<TargetObjective>(sh.desc, name, e, part);
+    t->find_entity(h);
+    obj = std::move(t);
+  } else if (is(type, "time_limit")) {
+    // The first number after the type, an int converted (none: 0).
+    float seconds = 0.0f;
+    for (int32_t i = 1; i < count_of(args); ++i) {
+      const Node& v = args->list[i];
+      if (v.type == zrdr::Float) {
+        seconds = v.f;
+        break;
+      }
+      if (v.type == zrdr::Int) {
+        seconds = static_cast<float>(v.i);
+        break;
+      }
+    }
+    obj = std::make_unique<TimeLimitObjective>(sh.desc, seconds);
+  } else if (is(type, "view_object") || is(type, "face_object")) {
+    const char* name = zrdr::get_string(args, "entity");
+    if (!name) return nullptr;
+    const Handle e = h.entity_find(name);
+    auto f = std::make_unique<FacingObjective>(is(type, "view_object") ? Objective::kViewObject
+                                                                       : Objective::kFaceObject,
+                                               sh.desc, name, e);
+    f->find_entity(h);
+    obj = std::move(f);
+  } else if (is(type, "heat_warning")) {
+    obj = std::make_unique<HeatWarningObjective>(sh.desc);
+  } else if (is(type, "User_Command")) {
+    int32_t key = -1, joy = 0, mouse = 0;
+    Node* v = zrdr::find(args, "cmd");
+    if (v && count_of(v) > 1 && v->list[1].type == zrdr::String) {
+      const int32_t cmd = h.command_find(v->list[1].s);
+      key = h.command_key(cmd);
+      joy = h.command_joy(cmd);
+      mouse = h.command_mouse(cmd);
+    }
+    if (key <= 0 && joy == 0 && mouse == 0) return nullptr;
+    obj = std::make_unique<InputObjective>(Objective::kUserCommand, sh.desc, key, joy, mouse);
+  } else if (is(type, "joystick_press")) {
+    int32_t button = 0;
+    Node* v = zrdr::find(args, "button");
+    if (v && count_of(v) > 1 && v->list[1].type == zrdr::Int) button = v->list[1].i;
+    if (button == 0) return nullptr;
+    obj = std::make_unique<InputObjective>(Objective::kJoystickPress, sh.desc, button);
+  } else if (is(type, "key_press")) {
+    // Each name a key (0x0051aee0), or KEY_CTRL / KEY_ALT / KEY_SHIFT's bit;
+    // the others (and other KEY_ names) count for nothing.
+    int32_t key = -1;
+    if (Node* v = zrdr::find(args, "key")) {
+      for (int32_t i = 1; i < count_of(v); ++i) {
+        if (v->list[i].type != zrdr::String) continue;
+        const char* s = v->list[i].s;
+        int32_t k;
+        if (std::strncmp(s, "KEY_", 4) != 0) k = h.key_by_name(s);
+        else if (is(s, "KEY_CTRL")) k = 0x200;
+        else if (is(s, "KEY_ALT")) k = 0x100;
+        else k = is(s, "KEY_SHIFT") ? 0x400 : -1;
+        if (k < 0) continue;
+        key = key < 0 ? k : key | k;
+      }
+    }
+    if (key < 0) return nullptr;
+    obj = std::make_unique<InputObjective>(Objective::kKeyPress, sh.desc, key);
+  } else if (is(type, "mouse_press")) {
+    int32_t button = 0;
+    Node* v = zrdr::find(args, "button");
+    if (v && count_of(v) > 1 && v->list[1].type == zrdr::String) {
+      const char* s = v->list[1].s;
+      if (strcasecmp_(s, "left") == 0) button = 1;
+      else if (strcasecmp_(s, "middle") == 0) button = 3;
+      else if (strcasecmp_(s, "right") == 0) button = 2;
+    }
+    if (button == 0) return nullptr;
+    obj = std::make_unique<InputObjective>(Objective::kMousePress, sh.desc, button);
+  } else if (is(type, "weapon_fire") || is(type, "weapon_select")) {
+    int32_t w = -1;
+    Node* v = zrdr::find(args, "weapon");
+    if (v && v->type == zrdr::List && count_of(v) > 1 && v->list[1].type == zrdr::String) w = weapon_index(v->list[1].s);
+    if (w <= -1 || w >= 0x25) return nullptr;  // (the exe's 37: the plain PPC is the rebuild's)
+    obj = std::make_unique<WeaponObjective>(is(type, "weapon_fire") ? Objective::kWeaponFire : Objective::kWeaponSelect,
+                                            sh.desc, w);
+  } else if (is(type, "weapon_group_select")) {
+    int32_t g = -1;
+    Node* v = zrdr::find(args, "group");
+    if (v && v->type == zrdr::List && count_of(v) > 1 && v->list[1].type == zrdr::Int) g = v->list[1].i - 1;
+    if (g <= -1 || g >= 5) return nullptr;
+    obj = std::make_unique<WeaponObjective>(Objective::kWeaponGroupSelect, sh.desc, g);
   } else if (is(type, "obj_list")) {
     Node* list = zrdr::find(args, "list");
     if (!list) return nullptr;  // FIX (bug): the exe reads through the null
@@ -346,11 +614,6 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
     if (nav) g->nav = nav;
     obj = std::move(g);
   } else {
-    for (const auto& u : kUnported)
-      if (is(type, u.type)) {
-        h.unported(u.key, {});
-        break;
-      }
     return nullptr;
   }
 

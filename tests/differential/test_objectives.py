@@ -12,8 +12,8 @@ multiplayer, then a few hundred made-up blocks that reach what the shipped
 ones do not. Both sides read the same bytes through the same fake engine
 (entities, nav points, nodes, valves, sounds, messages; tests/
 probe_objectives.cpp); the objects they make and their logs of calls must
-match. Training's (t1) types the port does not read yet: each must be
-reported as unported. Load-time code: the x87 at its power-on precision.
+match, training's (t1) types included. Load-time code: the x87 at its
+power-on precision.
 """
 import ctypes
 import os
@@ -34,19 +34,22 @@ probe.probe_objectives_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.
 WORK = ROOT / 'build' / 'objectives'
 CAP = 1 << 20
 PILOT, GAME, NAVS, POINT = 0x60861c, 0x6c, 0x609980, 0x63d870
-VT_KIND = {0x5c2678: 0, 0x5c2668: 1, 0x5c2730: 2, 0x5c2728: 3, 0x5c26f8: 4}
+VT_KIND = {0x5c2678: 0, 0x5c2668: 1, 0x5c2730: 2, 0x5c2728: 3, 0x5c26f8: 4,
+           # training's (piece 5)
+           0x5c2720: 5, 0x5c2718: 6, 0x5c2708: 7, 0x5c2700: 8, 0x5c26e8: 9, 0x5c26d8: 10, 0x5c26d0: 11,
+           0x5c26c8: 12, 0x5c26c0: 13, 0x5c26b8: 14, 0x5c26b0: 15, 0x5c26a8: 16, 0x5c26a0: 17, 0x5c2698: 18}
 ITEM_VT = {0x5bc160: 0, 0x5c0fc0: 1, 0x5bd150: 2, 0x5bd180: 3, 0x5c3700: 4}
-UNPORTED_VT = {0x5c2720: 'reach_velocity', 0x5c2718: 'aim_at_object', 0x5c2708: 'target_object',
-               0x5c2700: 'time_limit', 0x5c26e8: 'view_object', 0x5c26d8: 'face_object', 0x5c26d0: 'heat_warning',
-               0x5c26c8: 'User_Command', 0x5c26c0: 'joystick_press', 0x5c26b8: 'key_press',
-               0x5c26b0: 'mouse_press', 0x5c26a8: 'weapon_fire', 0x5c26a0: 'weapon_select',
-               0x5c2698: 'weapon_group_select'}
 COVER = {0x45ca93: 'destroy desc', 0x45cbf5: 'destroy group', 0x45ce47: 'node_change active',
          0x45cf0d: 'reach node', 0x45cf9a: 'reach nav', 0x45d034: 'reach point', 0x45d53d: 'mp valve reset',
          0x45dd40: 'obj_list child', 0x45ca22: 'set_valve', 0x45bcfa: 'mfb outer group',
          0x45be25: 'mfb part', 0x45c8a5: 'subnode missing', 0x45c858: 'node missing',
          0x4713e9: 'engines', 0x4712b0: 'weapons', 0x471254: 'mechs', 0x45eaef: 'node_state',
-         0x45c206: 'training free', 0x45c216: 'free'}
+         0x45c206: 'training free', 0x45c216: 'free',
+         0x45d2b3: 'reach_velocity', 0x45d343: 'aim_at_object', 0x45d41c: 'target_object', 0x45d4c7: 'time_limit',
+         0x45d67d: 'view_object', 0x45d735: 'face_object', 0x45d79f: 'heat_warning', 0x45d872: 'User_Command',
+         0x45d91e: 'joystick_press', 0x45daf4: 'key_press', 0x45dbef: 'mouse_press', 0x45de73: 'weapon_fire',
+         0x45df27: 'weapon_select', 0x45dfc9: 'weapon_group_select', 0x45d9fb: 'KEY_CTRL', 0x45da39: 'KEY_ALT',
+         0x45d494: 'time_limit int'}
 
 
 def h32(v):
@@ -68,9 +71,9 @@ class Run(Emulated):
             0x4d3c40: (self.valve_find, 0),
             0x4d3c00: (self.valve_set, 4),
             0x556820: (self.free_tree, 0),
-            # Training's lookups (types the port does not read yet): commands, keys.
-            0x410fe0: (lambda c: 1, 0), 0x51d1f0: (lambda c: 1, 0), 0x51d220: (lambda c: 1, 0),
-            0x51d230: (lambda c: 1, 0), 0x51aee0: (lambda c: 1, 0),
+            # Training's lookups: commands, keys (probe_objectives.cpp's).
+            0x410fe0: (self.command_find, 0), 0x51d1f0: (self.command_key, 0), 0x51d220: (self.command_joy, 0),
+            0x51d230: (self.command_mouse, 0), 0x51aee0: (self.key_by_name, 0),
         }
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
@@ -175,6 +178,28 @@ class Run(Emulated):
     def valve_set(self, c):
         return self.ev(f'vset {h32(self.handle(c.ecx))} {h32(c.arg(0))}')
 
+    def command_find(self, c):
+        self.ev(f'cmd {self.text(c.ecx)}')
+        return fnv(self.cstr(c.ecx)) % 40
+
+    def command_key(self, c):
+        v = c.ecx - (1 << 32) if c.ecx >> 31 else c.ecx
+        self.ev(f'ckey {h32(v)}')
+        return ((v * 3) % 5 - 1) & 0xffffffff  # C's % (v >= 0 here)
+
+    def command_joy(self, c):
+        self.ev(f'cjoy {h32(c.ecx)}')
+        return 0 if c.ecx % 3 == 0 else c.ecx
+
+    def command_mouse(self, c):
+        self.ev(f'cmouse {h32(c.ecx)}')
+        return c.ecx % 3 if c.ecx % 4 == 0 else 0
+
+    def key_by_name(self, c):
+        self.ev(f'key {self.text(c.ecx)}')
+        h = fnv(self.cstr(c.ecx))
+        return 0xffffffff if h % 5 == 0 else h % 200
+
     def game_type(self, c):
         self.ev('type')
         return self.type & 0xffffffff
@@ -249,12 +274,9 @@ class Run(Emulated):
 
     def obj(self, p, depth):
         vt = self.u32(p)
-        if vt in UNPORTED_VT:
-            self.unported_seen.add(UNPORTED_VT[vt])
-            return ' ' * (2 * depth) + f'unported {UNPORTED_VT[vt]}\n'
         k = VT_KIND[vt]
         u, b = self.u32, self.u8
-        o = (' ' * (2 * depth) + f'K{k} nav{h32(self.handle(u(p + 4)))} d{h32(b(p + 8))} {self.opt(u(p + 0xc))} '
+        o = (' ' * (2 * depth) + f'K{h32(k)} nav{h32(self.handle(u(p + 4)))} d{h32(b(p + 8))} {self.opt(u(p + 0xc))} '
              f'v{h32(self.handle(u(p + 0x24)))}={h32(u(p + 0x28))} snd{h32(u(p + 0x20))} vis{h32(b(p + 0x30))} '
              f'sil{h32(b(p + 0x31))} per{self.opt(u(p + 0x2c))}')
         o += self.store(u(p + 0x10))
@@ -271,8 +293,20 @@ class Run(Emulated):
             o += f' | {h32(self.handle(u(p + 0x34)))} {h32(b(p + 0x38))}'
         elif k == 3:
             o += f' | {h32(self.handle(u(p + 0x34)))} ' + ' '.join(h32(u(p + off)) for off in (0x38, 0x3c, 0x40, 0x44, 0x48))
-        else:
+        elif k == 4:
             o += f' | {h32(self.handle(u(p + 0x34)))} {h32(u(p + 0x38))}'
+        elif k in (5, 12):
+            o += ' | ' + ' '.join(h32(u(p + off)) for off in ((0x34, 0x38) if k == 5 else (0x34, 0x38, 0x3c)))
+        elif k == 6:
+            o += f' | {h32(self.handle(u(p + 0x34)))}'
+        elif k == 7:
+            o += f' | {self.opt(u(p + 0x34))} {h32(self.handle(u(p + 0x38)))} {h32(u(p + 0x3c))}'
+        elif k in (9, 10):
+            o += f' | {self.opt(u(p + 0x34))} {h32(self.handle(u(p + 0x38)))}'
+        elif k == 11:
+            o += ' |'
+        else:
+            o += f' | {h32(u(p + 0x34))}'
         return o + '\n'
 
 
@@ -367,8 +401,44 @@ def shared(r, a, names=False):
     return a
 
 
+TRAINING = ['reach_velocity', 'aim_at_object', 'target_object', 'time_limit', 'view_object', 'face_object',
+            'heat_warning', 'User_Command', 'joystick_press', 'key_press', 'mouse_press', 'weapon_fire',
+            'weapon_select', 'weapon_group_select']
+
+
+def training_args(r, t):
+    if t == 'reach_velocity':
+        return ((['test', [r.choice(['GT', 'GE', 'EQ', 'NE', 'LE', 'LE', 'LT', 'XX'])]] if r.random() < 0.8 else []) +
+                (['velocity', [r.choice([0, 5, 12.5, -3.0])]] if r.random() < 0.85 else []))
+    if t == 'aim_at_object':
+        return ['node', node_list(r)] if r.random() < 0.9 else []
+    if t in ('target_object', 'view_object', 'face_object'):
+        a = ['entity', [f'ent{r.randint(0, 40)}']] if r.random() < 0.9 else []
+        if t == 'target_object' and r.random() < 0.6:
+            a += ['part', [r.choice(['head', 'larm', 'rtorso', 'nopart'])]]
+        return a
+    if t == 'time_limit':
+        return ([r.choice([30, 12.5, 7.5, 'x', [4]])] + ([r.choice([2, 40.5])] if r.random() < 0.3 else [])
+                if r.random() < 0.85 else [])
+    if t == 'User_Command':
+        return ['cmd', [r.choice(['CMD_FIRE', 'CMD_JUMP', 'CMD_X', 'CMD_ZOOM'])]] if r.random() < 0.9 else ['cmd', [3]]
+    if t == 'joystick_press':
+        return ['button', [r.choice([0, 1, 4, 'one'])]] if r.random() < 0.9 else []
+    if t == 'key_press':
+        return ['key', [r.choice(['KEY_CTRL', 'KEY_ALT', 'KEY_SHIFT', 'KEY_FOO', 'a', 'F12', 'space', 7])
+                        for _ in range(r.randint(0, 3))]] if r.random() < 0.9 else []
+    if t == 'mouse_press':
+        return ['button', [r.choice(['left', 'LEFT', 'RIGHT', 'Middle', 'side', 2])]] if r.random() < 0.9 else []
+    if t in ('weapon_fire', 'weapon_select'):
+        return ['weapon', [r.choice(['ERPPC', 'LRM20', 'PPC', 'TAG', 'UltraAC20', 'nosuch', 3])]] if r.random() < 0.9 else []
+    if t == 'weapon_group_select':
+        return ['group', [r.choice([0, 1, 3, 5, 6, 'g'])]] if r.random() < 0.9 else []
+    return []
+
+
 def condition(r, depth=0):
-    t = r.choice(['destroy_entity'] * 3 + ['node_change', 'reach_area', 'valve_change', 'obj_list', 'bogus'])
+    t = r.choice(['destroy_entity'] * 3 + ['node_change', 'reach_area', 'valve_change', 'obj_list', 'bogus'] +
+                 TRAINING * (r.random() < 0.5))
     if depth > 2 and t == 'obj_list':
         t = 'destroy_entity'
     a = shared(r, [], t == 'destroy_entity')
@@ -391,6 +461,8 @@ def condition(r, depth=0):
             a += ['valve', [f'v{r.randint(0, 20)}']]
         if r.random() < 0.6:
             a += ['value', [r.randint(-1, 3)]]
+    elif t in TRAINING:
+        a += training_args(r, t)
     elif t == 'obj_list':
         if r.random() < 0.3:
             a += ['goal_count', [r.randint(0, 3)]]
@@ -445,7 +517,6 @@ def compare(emu, files, block, gtype, point, free, tag, must_match=True):
 
 def main():
     emu = Run()
-    emu.unported_seen = set()
     fails = 0
     checked = 0
     pt = (10.5, -3.0, 250.0)
@@ -455,21 +526,6 @@ def main():
         print(f'{mission}: {len(blocks)} blocks', flush=True)
         for b in blocks:
             for gt in types:
-                if mission == 't1':
-                    emu.unported_seen = set()
-                    try:
-                        _, etext, _, _, _, plog = compare(emu, files, b, gt, pt, False, '', must_match=False)
-                    except Exception as e:
-                        from unicorn.x86_const import UC_X86_REG_EIP
-                        print(f't1 {b}: {e} at {emu.cpu.uc.reg_read(UC_X86_REG_EIP):#x}; last {emu.lines[-3:]}')
-                        fails += 1
-                        continue
-                    missing = {u for u in emu.unported_seen if f'unported 0x0045c920 {u}' not in plog}
-                    if missing:
-                        print(f'MISMATCH t1 {b}: not reported {sorted(missing)}')
-                        fails += 1
-                    checked += 1
-                    continue
                 ok = compare(emu, files, b, gt, pt, gt == 3, f'{mission} {b} type {gt}')
                 fails += not ok
                 checked += 1

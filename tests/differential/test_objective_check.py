@@ -40,7 +40,19 @@ COVER = {0x45e5ad: 'announce voice', 0x45e608: 'simultaneous reset', 0x45e14a: '
          0x45c4f8: 'ia mode 1', 0x45c52d: 'ia mode 2', 0x45c643: 'enemy target', 0x45c71d: 'multiplayer group',
          0x45c725: 'new primary', 0x45f3c8: 'destroy refind', 0x45f3d6: 'destroy flag',
          0x45e8c4: 'reach nav', 0x45e962: 'reach node', 0x45e93a: 'reach nav met', 0x45f1da: 'valve value',
-         0x45f193: 'node_change flag'}
+         0x45f193: 'node_change flag',
+         # training's checks (piece 5)
+         0x45f630: 'reach_velocity', 0x45f6bc: 'velocity met', 0x45f800: 'aim_at_object', 0x45f88e: 'aim found',
+         0x45f8f0: 'target_object', 0x45f946: 'target part', 0x45e6c0: 'time_limit', 0x45f400: 'view_object',
+         0x45f4f3: 'view met', 0x45f520: 'face_object', 0x45f604: 'face met', 0x45f7b0: 'heat_warning',
+         0x45e7a5: 'command key', 0x45e7c2: 'command joystick', 0x45e7df: 'command mouse',
+         0x45e760: 'joystick_press', 0x45e700: 'key_press', 0x45e730: 'mouse_press', 0x45f220: 'weapon_fire',
+         0x45e800: 'weapon_select', 0x45e850: 'weapon_group_select'}
+
+
+# The player's facings (+0x24..+0x2c): float literals both sides round alike.
+FACINGS = [(1.0, 0.0, 0.0), (0.0, 0.0, 1.0), (-1.0, 0.0, 0.0), (0.0, 0.0, -1.0), (0.6, 0.0, 0.8), (0.8, 0.0, -0.6),
+           (-0.6, 0.0, 0.8), (0.28, 0.0, 0.96)]
 
 
 def mix(seed, k):
@@ -64,6 +76,15 @@ class CheckRun(T.Run):
             0x479460: (lambda c: self.ia, 0),
         }
         stubs[0x5a85e0] = (self.position, 0)
+        # Training's (piece 5): the reticle's hit, a contact's entity, the current
+        # weapon, a weapon fired, zInput's key, joystick and mouse buttons.
+        stubs[0x444330] = (self.aim_hit, 4)
+        stubs[0x4e6fe0] = (self.contact, 0)
+        stubs[0x4b04c0] = (self.current_weapon, 0)
+        stubs[0x4464d0] = (self.fired, 4)
+        stubs[0x51a9b0] = (lambda c: self.button('keyd', 0xa00, c.ecx), 0)
+        stubs[0x51dcf0] = (lambda c: self.button('joyb', 0xb00, c.ecx), 0)
+        stubs[0x51b6e0] = (lambda c: self.button('mouseb', 0xc00, c.ecx), 0)
         stubs[0x4ed530] = (self.node_position, 0)
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
@@ -84,6 +105,25 @@ class CheckRun(T.Run):
         r = cpu.code(b'\xc3')
         cpu.stub_function(r, lambda c: self.ent_obj[c.ecx], 0)
         cpu.u32(self.ent_vt + 0x2c, r)
+        # FIX (bug), as the port: view_object with no player vehicle reads its
+        # position (0x0045f43e), weapon_group_select its weapon manager's group.
+        from unicorn import UC_HOOK_CODE
+        from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ECX, UC_X86_REG_ESP, UC_X86_REG_EAX
+
+        def no_vehicle_view(uc, address, size, user):
+            if not self.u32(self.u32(PILOT) + 0x14):
+                uc.reg_write(UC_X86_REG_EIP, 0x45f514)
+        cpu.uc.hook_add(UC_HOOK_CODE, no_vehicle_view, begin=0x45f432, end=0x45f432)
+
+        def no_manager_group(uc, address, size, user):
+            obj = uc.reg_read(UC_X86_REG_ECX)
+            v = self.u32(self.u32(PILOT) + 0x14)
+            if self.u8(obj + 8) == 0 and (not v or not self.u32(v + 0xd4)):
+                esp = uc.reg_read(UC_X86_REG_ESP)
+                uc.reg_write(UC_X86_REG_EAX, 0)
+                uc.reg_write(UC_X86_REG_EIP, self.u32(esp))
+                uc.reg_write(UC_X86_REG_ESP, esp + 4)
+        cpu.uc.hook_add(UC_HOOK_CODE, no_manager_group, begin=0x45e850, end=0x45e850)
         self.heap0 = self.next
         self.cover(COVER)
 
@@ -92,8 +132,9 @@ class CheckRun(T.Run):
         if ident == 0:
             return 0
         if ident not in self.nodes:
-            o = self.calloc(0x40)
+            o = self.calloc(0x60)
             self.cpu.u32(o + 0x24, ((ident >> 5) & 1) << 2)
+            self.cpu.u32(o + 0x58, self.calloc(4))
             self.nodes[ident] = o
             self.addr_of[o] = ident
         return self.nodes[ident]
@@ -135,9 +176,14 @@ class CheckRun(T.Run):
         return buf
 
     def position(self, c):
-        self.ev(f'pos {h32(self.addr_of[c.ecx])}')
-        m = mix(self.seed, 0x1000 + self.frame)
-        return self.put3(self.buf3, (self.coord(m), self.coord(m >> 8) / 4.0, self.coord(m >> 16)))
+        who = self.addr_of[c.ecx]
+        self.ev(f'pos {h32(who)}')
+        # The player's vehicle where reach_area's tests had it; anything else its own.
+        m = mix(self.seed, 0x1000 + self.frame) if who == self.vehicle_id else mix(self.seed ^ who, 0x1100 + self.frame)
+        # Each object's own place (the exe's 0x005a85e0 returns its position's address).
+        if who not in self.pos_buf:
+            self.pos_buf[who] = self.calloc(0x10)
+        return self.put3(self.pos_buf[who], (self.coord(m), self.coord(m >> 8) / 4.0, self.coord(m >> 16)))
 
     def node_position(self, c):
         n = self.addr_of[c.ecx]
@@ -152,12 +198,76 @@ class CheckRun(T.Run):
         m = mix(nav, 1)
         return self.put3(self.buf3 + 0x10, (self.coord(m), 0.5, self.coord(m >> 16)))
 
+    # --- training's world (probe_objectives.cpp's Fake) ------------------------
+    def tf(self, k):
+        return mix(self.seed, k * 0x100 + self.frame)
+
+    def node_parent_id(self, ident):
+        k = mix(self.seed ^ ident, 0xd00 + self.frame)
+        cands = sorted(n for n in self.nodes if n < ident)
+        return cands[(k >> 4) % len(cands)] if cands and k % 3 else 0
+
+    def aim_hit(self, c):
+        self.ev(f'aim {h32(self.addr_of.get(c.ecx - 0x144c, c.ecx))} {h32(c.arg(0))}')  # (its +0x144c)
+        k = self.tf(2)
+        if not self.nodes or k % 3 == 0:
+            return 0
+        self.cpu.u32(self.hit_mem + 0x24, self.nodes[sorted(self.nodes)[(k >> 4) % len(self.nodes)]])
+        return self.hit_mem
+
+    def contact(self, c):
+        self.ev('contact')
+        k = self.tf(3) >> 4
+        ents = sorted(self.entities)
+        i = k % (len(ents) + 1)
+        return self.entities[ents[i]] if i < len(ents) else 0
+
+    def current_weapon(self, c):
+        self.ev('wcur')
+        self.cpu.u32(self.weapon_mem + 0x28, (self.tf(8) % 40 - 1) & 0xffffffff)
+        return self.weapon_mem
+
+    def fired(self, c):
+        w = c.arg(0)
+        self.ev(f'fired {h32(w)}')
+        return mix(self.seed ^ w, 0x900 + self.frame) & 1
+
+    def button(self, what, k, b):
+        self.ev(f'{what} {h32(b)}')
+        return mix(self.seed ^ b, k + self.frame) & 3
+
+    def set_training(self):
+        cpu = self.cpu
+        for ident, o in self.nodes.items():
+            p = self.node_parent_id(ident)
+            cpu.u32(o + 0x54, 1 if p else 0)
+            cpu.u32(self.u32(o + 0x58), self.nodes[p] if p else 0)
+        if self.screen_mem:
+            k = self.tf(1)
+            v = [0.0, 5.0, 12.5, -3.0][k % 4] if (k >> 8) % 3 == 0 else float(k % 41 - 10)
+            cpu.write(self.screen_mem + 0x1ddc, struct.pack('<f', v))
+        cpu.write(0x60991c, struct.pack('<f', float(self.frame * 7 % 50) + 0.5))
+        a = self.tf(10)
+        cpu.write(self.angles_mem, struct.pack('<3f', [0.0, 0.3, -0.5][a % 3],
+                                               [0.0, 1.5708, 3.14159, -1.5708, 0.7854, 2.0][(a >> 4) % 6], 0.0))
+        v = self.vehicle_mem
+        if not v:
+            return
+        cpu.u32(v + 0x6c, 0 if self.tf(3) % 4 == 0 else self.slot_mem)
+        cpu.u32(v + 0xf8, (self.tf(4) % 9 - 1) & 0xffffffff)
+        cpu.write(v + 0x24, struct.pack('<3f', *FACINGS[self.tf(5) % 8]))
+        cpu.u32(v + 0x69c, self.tf(6) & 1)
+        k = self.tf(7)
+        cpu.u32(v + 0xd4, 0 if k % 4 == 0 else self.wm_mem)
+        cpu.u32(self.wm_mem + 0x28, (k >> 4) % 6)
+
     def flag(self, e, base):
         if self.frame < 0:
             return base
         return 0 if self.frame >= mix(self.seed, e) % 6 else base
 
     def set_world(self):
+        self.set_training()
         for ident, o in self.entities.items():
             self.cpu.write(o + 8, bytes([self.flag(ident, int(ident & 0xf0 != 0))]))
         for ident, (active, _, _) in self.objs.items():
@@ -246,7 +356,7 @@ class CheckRun(T.Run):
         self.lines, self.entities, self.addr_of, self.type = [], {}, {}, gtype
         self.nodes, self.order, self.seed = {}, {}, seed
         self.navs, self.valves, self.inner_of, self.obj_addr, self.frame = {}, {}, {}, {}, -1
-        self.buf3 = self.calloc(0x20)
+        self.buf3, self.pos_buf = self.calloc(0x20), {}
         self.trees = {k.lower(): [self.build(v)] for k, v in files.items()}
         cpu.write(POINT, struct.pack('<3f', *point))
         cpu.u32(NAVS, 0x1000)
@@ -259,12 +369,18 @@ class CheckRun(T.Run):
             cpu.u32(self.vehicle_mem + 0xc8, 1)
             self.addr_of[self.vehicle_mem] = vehicle
         if screen:
-            self.screen_mem = self.calloc(0x10)
+            self.screen_mem = self.calloc(0x2000)
             self.addr_of[self.screen_mem] = screen
         cpu.u32(self.pilot + 0x14, self.vehicle_mem)
         holder = self.calloc(0x100)
         cpu.u32(VIEW, holder)
         cpu.u32(holder + 0x64, self.vehicle_mem if view == vehicle and vehicle else self.calloc(0x10))
+        cam, mat = self.calloc(0x40), self.calloc(0x40)
+        cpu.u32(holder + 4, cam)
+        cpu.u32(cam + 0x38, mat)
+        self.angles_mem = mat + 0x20
+        self.hit_mem, self.weapon_mem, self.wm_mem, self.slot_mem = (self.calloc(0x40), self.calloc(0x40),
+                                                                     self.calloc(0x40), self.calloc(0x10))
         store = self.calloc(0x14)
         cpu.call(0x470ce0, ecx=store, stack_args=[1])
         cpu.u32(SALVAGE, store)
@@ -342,7 +458,7 @@ def main():
     emu = CheckRun()
     emu.unported_seen = set()
     r = random.Random(int(os.environ.get('SEED', '1')))
-    n = int(os.environ.get('N', '300'))
+    n = int(os.environ.get('N', '600'))
     fails = 0
     for i in range(n):
         data = made_up(r)

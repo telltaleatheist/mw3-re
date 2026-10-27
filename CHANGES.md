@@ -303,6 +303,7 @@ unusual happens.
 - A lancemate AI pilot that would keep station on a vehicle with no driver no longer crashes the game.
 - A campaign lancemate slot left empty no longer risks crashing the launch when its mission entry cannot be read or there is no player mech to take over its duties (no shipped mission does either), and a lancemate's name with a `%` in it is no longer read as a format.
 - Instant Action's line-up no longer risks a crash on a mission entry it cannot read, a wave number below 1 or a very long entry name (none happens with the shipped files).
+- Two training objectives (looking at a target, choosing a weapon group) no longer read through a missing mech or weapon list; they simply wait (never the case in the shipped lessons).
 - The Instant Action screen, opened after all 20 progression waves are beaten, no longer reads past its list of waves for a moment (it read text as mechs before going back to Wave 1; nothing showed).
 - A vehicle hit by a laser and still alive when the mission ends no longer leaves the laser's light behind (the game could not free it).
 - A line-of-sight or shot query toward something at an undefined place no longer freezes the game.

@@ -97,6 +97,47 @@ class ObjectiveHooks : public zgame::Unported {
   // The player's vehicle's +0xc8 mask against the object's team (vt+0x28, +0xc0).
   virtual bool object_hostile(zgame::Handle o) { return unported("obj.vt+0x28", {o}) != 0; }
   virtual int32_t object_x48(zgame::Handle o) { return static_cast<int32_t>(unported("obj.vt+0x48", {o})); }
+  // Training's types (piece 5). Read: a command by its CMD_ name (0x00410fe0)
+  // and its key, joystick button and mouse button (0x0051d1f0, 0x0051d220,
+  // 0x0051d230); a key by name (0x0051aee0).
+  virtual int32_t command_find(const char* name) { return static_cast<int32_t>(unported("0x00410fe0", {name})); }
+  virtual int32_t command_key(int32_t cmd) { return static_cast<int32_t>(unported("0x0051d1f0", {cmd})); }
+  virtual int32_t command_joy(int32_t cmd) { return static_cast<int32_t>(unported("0x0051d220", {cmd})); }
+  virtual int32_t command_mouse(int32_t cmd) { return static_cast<int32_t>(unported("0x0051d230", {cmd})); }
+  virtual int32_t key_by_name(const char* name) { return static_cast<int32_t>(unported("0x0051aee0", {name})); }
+  // Checked: the screen's speed (+0x1ddc), the node its reticle's aim hits
+  // (0x00444330(0), +0x24; 0 for none) and a node's parent (+0x58's first
+  // when +0x54 is 1, else 0); a vehicle's target slot (+0x6c) and the slot's
+  // entity (0x004e6fe0), aimed part (+0xf8), facing (+0x24..+0x2c), heat warning (+0x69c),
+  // weapon manager (+0xd4); the manager's current weapon's type (0x004b04c0,
+  // +0x28) and group (+0x28); a weapon of the screen fired (0x004464d0); the
+  // mission's clock ([0x0060991c]); the view camera's angles (its +0x20);
+  // zInput's key, joystick and mouse buttons (0x0051a9b0, 0x0051dcf0, 0x0051b6e0).
+  virtual float screen_speed(zgame::Handle screen) { return zgame::from_bits(unported("screen+0x1ddc", {screen})); }
+  virtual zgame::Handle aim_hit_node(zgame::Handle screen) { return unported("0x00444330", {screen, 0}); }
+  virtual zgame::Handle node_parent(zgame::Handle node) { return unported("node+0x58", {node}); }
+  virtual zgame::Handle vehicle_target_slot(zgame::Handle v) { return unported("vehicle+0x6c", {v}); }
+  virtual zgame::Handle contact_entity(zgame::Handle slot) { return unported("0x004e6fe0", {slot}); }
+  virtual int32_t vehicle_aimed_part(zgame::Handle v) { return static_cast<int32_t>(unported("vehicle+0xf8", {v})); }
+  virtual void vehicle_facing(zgame::Handle v, float out[3]) {
+    unported("vehicle+0x24", {v});
+    out[0] = out[1] = out[2] = 0.0f;
+  }
+  virtual int32_t vehicle_heat_warning(zgame::Handle v) { return static_cast<int32_t>(unported("vehicle+0x69c", {v})); }
+  virtual zgame::Handle vehicle_weapons(zgame::Handle v) { return unported("vehicle+0xd4", {v}); }
+  virtual int32_t current_weapon_type(zgame::Handle wm) { return static_cast<int32_t>(unported("0x004b04c0", {wm})); }
+  virtual int32_t weapon_group(zgame::Handle wm) { return static_cast<int32_t>(unported("wm+0x28", {wm})); }
+  virtual uint8_t weapon_fired(zgame::Handle screen, int32_t weapon) {
+    return static_cast<uint8_t>(unported("0x004464d0", {screen, weapon}));
+  }
+  virtual float mission_time() { return zgame::from_bits(unported("[0x0060991c]", {})); }
+  virtual void view_angles(float out[3]) {
+    unported("view+0x20", {});
+    out[0] = out[1] = out[2] = 0.0f;
+  }
+  virtual uint8_t key_down(int32_t key) { return static_cast<uint8_t>(unported("0x0051a9b0", {key})); }
+  virtual uint8_t joy_button(int32_t b) { return static_cast<uint8_t>(unported("0x0051dcf0", {b})); }
+  virtual uint8_t mouse_button(int32_t b) { return static_cast<uint8_t>(unported("0x0051b6e0", {b})); }
 };
 
 // A node_state entry of cond_salvage (0x0045e9f0), 0x0c bytes.
@@ -113,7 +154,12 @@ struct NodeSalvage {
 class Objective {
  public:
   // Which vtable the original gives it.
-  enum Kind : uint8_t { kGroup, kDestroy, kNodeChange, kReachArea, kValveChange };
+  enum Kind : uint8_t {
+    kGroup, kDestroy, kNodeChange, kReachArea, kValveChange,
+    // training's (vtables 0x005c2720 .. 0x005c2698)
+    kReachVelocity, kAimAt, kTarget, kTimeLimit, kViewObject, kFaceObject, kHeatWarning, kUserCommand,
+    kJoystickPress, kKeyPress, kMousePress, kWeaponFire, kWeaponSelect, kWeaponGroupSelect
+  };
   Objective(Kind k, const char* desc);
   virtual ~Objective();
   Objective(const Objective&) = delete;
@@ -158,6 +204,7 @@ class ObjectiveGroup : public Objective {
 class DestroyObjective : public Objective {
  public:
   DestroyObjective(const char* desc, const char* name, zgame::Handle entity);  // 0x0045f2b0 inline
+  DestroyObjective(Kind k, const char* desc, const char* name, zgame::Handle entity);  // the same base, another type
   std::optional<std::string> name;      // +0x34
   zgame::Handle entity = 0;                    // +0x38
   uint8_t x3c = 0;                      // +0x3c
@@ -193,6 +240,88 @@ class ValveChangeObjective : public Objective {
   zgame::Handle watch;                         // +0x34
   int32_t target;                       // +0x38
   uint8_t check(ObjectiveHooks& h) override;  // 0x0045f1c0
+};
+
+// Training's types (piece 5, docs/objectives.md, Training's types). Each
+// completes as its test holds and clears again when it does not (complete's
+// argument), except where noted.
+
+// reach_velocity (vtable 0x005c2720, 0x3c bytes): the player's screen's speed
+// against `velocity` by `test` (0 GT, 1 GE, 2 EQ, 3 NE, 4 LE, 5 LT).
+class ReachVelocityObjective : public Objective {
+ public:
+  ReachVelocityObjective(const char* d, int32_t t, float v) : Objective(kReachVelocity, d), test(t), velocity(v) {}
+  int32_t test;                         // +0x34
+  float velocity;                       // +0x38
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045f630
+};
+
+// aim_at_object (vtable 0x005c2718, 0x38 bytes): the reticle's aim on the
+// node or a node under it.
+class AimAtObjective : public Objective {
+ public:
+  AimAtObjective(const char* d, zgame::Handle n) : Objective(kAimAt, d), node(n) {}
+  zgame::Handle node;                   // +0x34
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045f800
+};
+
+// target_object (vtable 0x005c2708 over the named target, 0x40 bytes): the
+// entity targeted, and its `part` aimed at when one is named.
+class TargetObjective : public DestroyObjective {
+ public:
+  TargetObjective(const char* d, const char* n, zgame::Handle e, int32_t p)
+      : DestroyObjective(kTarget, d, n, e), part(p) {}
+  int32_t part;                         // +0x3c  (over the destroy's byte)
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045f8f0
+};
+
+// time_limit (vtable 0x005c2700, 0x38 bytes): the mission's clock past `seconds`.
+class TimeLimitObjective : public Objective {
+ public:
+  TimeLimitObjective(const char* d, float s) : Objective(kTimeLimit, d), seconds(s) {}
+  float seconds;                        // +0x34
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045e6c0
+};
+
+// view_object and face_object (vtables 0x005c26e8, 0x005c26d8 over the named
+// target, 0x3c bytes): the view camera's, or the player's mech's, level
+// direction within about 11 degrees of the entity's (a dot product over 0.98).
+class FacingObjective : public DestroyObjective {
+ public:
+  FacingObjective(Kind k, const char* d, const char* n, zgame::Handle e) : DestroyObjective(k, d, n, e) {}
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045f400 (view), 0x0045f520 (face)
+};
+
+// heat_warning (vtable 0x005c26d0, 0x34 bytes): the player's heat warning on.
+class HeatWarningObjective : public Objective {
+ public:
+  explicit HeatWarningObjective(const char* d) : Objective(kHeatWarning, d) {}
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045f7b0
+};
+
+// User_Command, joystick_press, key_press, mouse_press (vtables 0x005c26c8,
+// 0x005c26c0, 0x005c26b8, 0x005c26b0): a key (-1 none), a joystick button
+// and a mouse button (0 none) down.
+class InputObjective : public Objective {
+ public:
+  InputObjective(Kind k, const char* d, int32_t a, int32_t b = 0, int32_t c = 0)
+      : Objective(k, d), x34(a), x38(b), x3c(c) {}
+  // User_Command: the key, the joystick button, the mouse button; the others
+  // their one (key_press's key, joystick_press's and mouse_press's button).
+  int32_t x34;                          // +0x34
+  int32_t x38;                          // +0x38  (User_Command only)
+  int32_t x3c;                          // +0x3c  (User_Command only)
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045e790, 0x0045e760, 0x0045e700, 0x0045e730
+};
+
+// weapon_fire, weapon_select, weapon_group_select (vtables 0x005c26a8,
+// 0x005c26a0, 0x005c2698, 0x38 bytes): the weapon (0..36) fired or chosen,
+// the group (0..4) chosen.
+class WeaponObjective : public Objective {
+ public:
+  WeaponObjective(Kind k, const char* d, int32_t v) : Objective(k, d), id(v) {}
+  int32_t id;                           // +0x34
+  uint8_t check(ObjectiveHooks& h) override;  // 0x0045f220, 0x0045e800, 0x0045e850
 };
 
 // The missions object's +0x78..+0x88.
