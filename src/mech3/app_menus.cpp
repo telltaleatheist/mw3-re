@@ -24,6 +24,7 @@
 #include "mech3/debriefing.h"
 #include "mech3/lab_screen.h"
 #include "mech3/mech_reader.h"
+#include "mech3/action_menu.h"
 #include "mech3/mech_skin.h"
 #include "mech3/controls_menu.h"
 #include "mech3/credits.h"
@@ -115,6 +116,8 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       menu_states_[h] = new PilotState(*this, h);
       return h;
     }
+    case 0x488bc0:  // the Action State's screen, new(0x17730)
+      return screen(0x17730, [](GameEngine& e, Handle s) -> MenuScreen* { return new ActionScreen(e, s); });
     case 0x48a6c0:
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kAction, h); });
     case 0x48aef0:
@@ -328,6 +331,11 @@ void GameEngine::push_state(Handle state, uint32_t arg) {
 }
 
 // ---- the pilot (mech3/pilot) ----
+
+void GameEngine::action_open(Handle screen) {
+  if (auto* a = dynamic_cast<ActionScreen*>(screen_of(screen))) a->reset();
+  else Engine::action_open(screen);
+}
 
 void GameEngine::pilot_state_set_mode(Handle state, int32_t mode) {
   if (auto* p = dynamic_cast<PilotState*>(menu_state_of(state))) p->set_mode(mode);

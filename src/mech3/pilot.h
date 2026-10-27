@@ -241,10 +241,13 @@ class ActionGame : public Game {
   // A slot appended: its mech, side, a copy of the loadout and its paint;
   // null when the ten are taken.
   GameSlot* add(int32_t mech, uint8_t side, const Config* config, int32_t paint);  // 0x00436840
+  // 0x004368e0 (+0x38), 0x00436950 (+0x3c), 0x004369c0 (+0x40): a copy of
+  // `text` (the Action screen's scenario, its name and its description).
+  void set_text(char** field, const char* text);
 
-  void* x38 = nullptr;               // +0x38, +0x3c, +0x40  malloc'd by the Action screen, freed here
-  void* x3c = nullptr;
-  void* x40 = nullptr;
+  char* x38 = nullptr;               // +0x38  the scenario's row (malloc'd by the Action screen, freed here)
+  char* x3c = nullptr;               // +0x3c  its name (vt+0x0c, 0x0040a840: the objectives' header)
+  char* x40 = nullptr;               // +0x40  its description
   int32_t mode = 0;                  // +0x44  1 endless, 2 waves (the Action screen's; not set by the constructor)
   uint8_t field_bases = 0;           // +0x48  the mission's mobile HQs made (the screen's)
   // +0x4c..+0x68, the pilot screen's lines (messages 0x184..0x18a, 0xdb7).

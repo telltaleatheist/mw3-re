@@ -89,6 +89,7 @@
 #include "gamez/zutil/zfix.h"
 #include "mech3/debriefing.h"
 #include "mech3/salvage_screen.h"
+#include "mech3/action_menu.h"
 #include "mech3/pilot_menu.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
@@ -380,7 +381,19 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       EXPECT(std::string(menu->version.text) == "MechWarrior 3 1.2");
       EXPECT(menu->head != nullptr && menu->active == 1);
     }
-    EXPECT(engine.unported_counts().count("0x00488bc0") == 1);  // the Action State's screen
+    // The Action State's screen (menus.md, The Action screen): ACTIONDIALOG,
+    // the four worlds and five scenarios, the line-up's copies placed apart.
+    {
+      auto* st = dynamic_cast<mech3::GameMenuState*>(engine.menu_state_of(engine.peek32(0x60985c)));
+      auto* as = st ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(st->screen_)) : nullptr;
+      EXPECT(as != nullptr);
+      if (as) {
+        EXPECT(as->worlds.dialog == as && as->worlds.count() == 4 && as->scenarios.count() == 5);
+        EXPECT(as->descriptions.count() == 5 && as->scenarios.index == 0 && as->fixed == 1);
+        EXPECT(as->allies[4].dialog == as && as->allies[1].get_y() != as->allies[0].get_y());
+        EXPECT(as->enemies[5].dialog == as && as->enemies[0].count() == 19 && as->enemies[1].count() == 20);
+      }
+    }
     // The pilot screen (menus.md, The pilot screen) is made with its state:
     // PILOTDIALOG of the main menu's tree, no pilots yet; a name typed makes one.
     auto* ps = dynamic_cast<mech3::PilotState*>(engine.menu_state_of(engine.peek32(0x609858)));

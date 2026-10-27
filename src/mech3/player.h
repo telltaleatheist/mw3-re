@@ -220,6 +220,12 @@ void assume_duties(const ai::AivRecord* rec, const char* name);  // 0x0049e540 (
 // the enemies first replaced by the wave's. `launch` 0: the next wave, its
 // enemies only (the win, 0x0048f740). 1 when it ran.
 bool action_lineup(bool launch);                               // 0x0049dc80
+// 0x005e33a8: Instant Action's 20 waves of six (mech, loadout index), -1 for
+// none; the line-up and the Action screen read it. Null past the table.
+struct ActionWaveSlot {
+  int32_t mech, config;
+};
+const ActionWaveSlot* action_wave(int32_t wave);
 Handle make_mech_controls(Handle net, ai::AivRecord* rec);     // 0x0049fe90
 Handle make_vehicle_controls(Handle net, ai::AivRecord* rec);  // 0x0049ff10
 void set_team_masks(Handle vehicle, uint32_t team);            // inline at 0x0049f924, 0x0049fbe1, 0x00491262

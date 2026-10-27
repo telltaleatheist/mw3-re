@@ -181,6 +181,7 @@ add_library(mw3core STATIC
   src/mech3/pilot.cpp
   src/mech3/pilot_games.cpp
   src/mech3/pilot_menu.cpp
+  src/mech3/action_menu.cpp
   src/mech3/briefing.cpp
   src/mech3/debriefing.cpp
   src/mech3/salvage_screen.cpp

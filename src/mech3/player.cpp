@@ -303,10 +303,7 @@ Handle create_ai_mech(const char* type, const char* name, int32_t mech, ai::AivR
 }
 
 namespace {
-// 0x005e33a8: wave mode's enemies, six (mech, configuration) a wave, -1 none.
-struct WaveMech {
-  int32_t mech, config;
-};
+using WaveMech = ActionWaveSlot;
 constexpr WaveMech kWaves[20][6] = {
     {{8, 0}, {11, 3}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},     {{8, 0}, {8, 0}, {3, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
     {{14, 2}, {14, 3}, {14, 0}, {-1, 0}, {-1, 0}, {-1, 0}},    {{12, 0}, {12, 2}, {11, 2}, {11, 0}, {-1, 0}, {-1, 0}},
@@ -337,6 +334,9 @@ Handle action_net(bool ally, const ai::AivRecord* rec) {
 // (bug): cut to fit (the exe copies it whole).
 void copy_name(char (&out)[0x50], const char* name) { std::snprintf(out, sizeof out, "%s", name); }
 }  // namespace
+
+// 0x005e33a8
+const ActionWaveSlot* action_wave(int32_t wave) { return wave >= 0 && wave < 20 ? kWaves[wave] : nullptr; }
 
 // Mech3.exe 1.2 @ 0x0049dc80 (CL `launch`). docs/mission-start.md section 13.
 bool action_lineup(bool launch) {

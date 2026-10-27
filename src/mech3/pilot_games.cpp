@@ -735,6 +735,18 @@ GameSlot* ActionGame::add(int32_t mech, uint8_t s, const Config* config, int32_t
   return &g;
 }
 
+// Mech3.exe 1.2 @ 0x004368e0, 0x00436950, 0x004369c0. FIX (bug): always
+// reallocated (the exe keeps an old buffer for a text of up to 4 bytes,
+// whatever the old buffer's size).
+void ActionGame::set_text(char** field, const char* text) {
+  if (!text) text = "";
+  const size_t n = std::strlen(text) + 1;
+  if (void* b = std::realloc(*field, n)) {
+    *field = static_cast<char*>(b);
+    std::memcpy(*field, text, n);
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00436b50
 void ActionGame::save() {
   Game::save();
