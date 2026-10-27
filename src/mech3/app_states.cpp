@@ -140,7 +140,7 @@ bool IaDummyState::enter() {
   if (p) p->save();  // (the exe saves the pilot unchecked)
   en.mission_cleanup(1);
   a().set_reopen_instant_action(1, 1);
-  a().replace(a().state(2), 0);
+  en.replace_state(2);  // 0x00590250 with 0x00482970(2)
   return true;
 }
 
