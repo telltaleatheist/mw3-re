@@ -3,6 +3,7 @@
 #include <string>
 
 #include "gamez/zgame/unported.h"
+#include "gamez/zfmv/fmv_stream.h"
 
 namespace zrdr { struct Node; }
 
@@ -71,6 +72,35 @@ class Host : public zgame::Unported {
   // The C runtime and Win32.
   virtual int32_t file_stat(const char* path);  // _stat: 0 found, -1 not
   virtual double now();                         // timeGetTime() x 0.001f, seconds
+
+  // Video for Windows (AVIFIL32, MSVFW32), the movie player's (fmv_stream.h).
+  // Results are HRESULTs (0 succeeded) unless named otherwise.
+  virtual void avi_file_init();                                      // AVIFileInit
+  virtual void avi_file_exit();                                      // AVIFileExit
+  virtual int32_t avi_open(Handle* stream, const char* path, uint32_t type);  // AVIStreamOpenFromFileA (OF_READ)
+  // AVIStreamReadFormat at position 0: with no buffer only *size, else up to *size bytes.
+  virtual int32_t avi_read_format(Handle stream, void* format, int32_t* size);
+  virtual int32_t avi_length(Handle stream);                         // AVIStreamLength
+  virtual int32_t avi_info(Handle stream, AviStreamInfo* info);      // AVIStreamInfoA (0x8c)
+  virtual int32_t avi_read(Handle stream, int32_t start, int32_t samples, void* buffer, int32_t bytes);  // AVIStreamRead
+  virtual int32_t avi_find_sample(Handle stream, int32_t pos, uint32_t flags);  // AVIStreamFindSample: the sample, -1
+  virtual void avi_release(Handle stream);                           // AVIStreamRelease
+  virtual Handle ic_locate(uint32_t type, uint32_t handler, const void* in, const void* out, uint32_t mode);
+  virtual int32_t ic_send(Handle hic, uint32_t message, const void* a, const void* b);  // ICSendMessage
+  // ICDecompress: the chunk read last into `image` (the 16-bit picture), 0 (ICERR_OK) when it worked.
+  virtual int32_t ic_decompress(Handle hic, uint32_t flags, const void* in, const void* chunk, const void* out,
+                                void* image);
+  virtual void ic_close(Handle hic);                                 // ICClose
+  virtual uint32_t display_bits();                                   // 0x00576c70: the 2D surfaces' bits per pixel
+  // The stream's picture as the image handle [0x0072f360] takes.
+  virtual Handle stream_image(class Stream* stream);
+  // zSound's streaming buffer (zsnd_create.cpp).
+  virtual Handle sound_stream_create(const void* format, const void* data, uint32_t bytes);  // 0x005758c0
+  virtual int32_t sound_stream_lock(Handle sound, uint32_t offset, uint32_t bytes, void** p1, uint32_t* n1,
+                                    void** p2, uint32_t* n2);       // 0x00575550: 1 when locked
+  virtual void sound_stream_unlock(Handle sound, void* p1, uint32_t n1, void* p2, uint32_t n2);  // 0x00575600
+  virtual uint32_t sound_stream_position(Handle sound);              // 0x00575690: the play cursor, bytes
+  virtual void sound_stream_free(Handle sound);                      // 0x00575980
 };
 Host& host();
 void set_host(Host* h);  // null: the default (every call unported)
@@ -132,17 +162,21 @@ class FadeAction : public Action {
   float alpha;                    // +0x24
 };
 
-// PLAYAVI (vtable 0x005cf880). Until the stream is ported (item 11) it ends
-// at once whether or not the file is there.
+// PLAYAVI (vtable 0x005cf880): the movie (fmv_stream.h) stretched over the
+// screen, frame by frame.
 class AviAction : public Action {
  public:
   AviAction(const char* dir, const char* name, bool flag);  // 0x00599c00
+  ~AviAction() override;          // 0x00599d80
   bool step(double t) override;   // 0x00599de0
   void start(double t) override;  // 0x00599ea0
   void end() override;            // 0x00599f40
   std::string path;               // +0x08  "<FMV_PATH>\<name>", empty when not found
-  bool flag;                      // +0x0c
-  int32_t frame = -1;             // +0x20
+  bool flag;                      // +0x0c  the sound streamed
+  Stream* stream = nullptr;       // +0x10
+  double started = 0;             // +0x18  the first step's time
+  int32_t frame = -1;             // +0x20  the frame last asked for
+  Rect rect;                      // +0x24  0, 0, the render target's size
 };
 
 // PLAYMCI (vtable 0x005cf8b0): a movie through MCI. No script uses it; it ends

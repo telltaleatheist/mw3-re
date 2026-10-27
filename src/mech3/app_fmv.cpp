@@ -2,6 +2,9 @@
 // play through the Engine's movie hooks, and the pause screen's blur, on
 // GameEngine's 16-bit buffer and Render3D. Our addition, not original code:
 // the zfmv::Host the exe's modules stood behind.
+#include <algorithm>
+#include <cstring>
+#include <map>
 #include <memory>
 
 #include "gamez/zfmv/fmv_script.h"
@@ -10,6 +13,8 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app_engine.h"
+#include "mech3/app_movie.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 namespace mech3 {
 
@@ -81,9 +86,107 @@ class GameFmvHost : public zfmv::Host {
   void sound_stop(Handle voice) override { e_->voice_stop(voice); }
   void input_clear() override { e_->input_clear(); }
   uint32_t key_state(int32_t dik) override { return e_->key_state(dik); }
-  // Until the movie player is ported (frontend-plan.md item 11) no movie is
-  // found, so PLAYAVI ends at once.
-  int32_t file_stat(const char*) override { return -1; }
+  // The movies are the importer's files (app_movie.h): "found" when the
+  // .fmv is mounted. FIX (A): the AVI is not opened.
+  int32_t file_stat(const char* path) override { return movie_base(path).empty() ? -1 : 0; }
+
+  // Video for Windows on the imported files (FIX (A), app_movie.h).
+  void avi_file_init() override {}
+  void avi_file_exit() override {}
+  int32_t avi_open(Handle* stream, const char* path, uint32_t type) override {
+    *stream = 0;
+    std::unique_ptr<MovieStream> m = MovieStream::open(movie_base(path), type);
+    if (!m) return -1;  // AVIERR_FILEOPEN
+    *stream = e_->handle_of(m.get());
+    streams_[*stream] = std::move(m);
+    return 0;
+  }
+  int32_t avi_read_format(Handle stream, void* format, int32_t* size) override {
+    MovieStream* m = movie(stream);
+    if (!m) return -1;
+    const std::vector<uint8_t>& f = m->video() ? m->info().video_format : m->info().audio_format;
+    if (!format) return *size = static_cast<int32_t>(f.size()), 0;
+    std::memcpy(format, f.data(), std::min(f.size(), static_cast<size_t>(*size < 0 ? 0 : *size)));
+    return 0;
+  }
+  int32_t avi_length(Handle stream) override {
+    MovieStream* m = movie(stream);
+    return m ? static_cast<int32_t>((m->video() ? m->info().video : m->info().audio).length) : 0;
+  }
+  int32_t avi_info(Handle stream, zfmv::AviStreamInfo* info) override {
+    MovieStream* m = movie(stream);
+    if (!m) return -1;
+    *info = m->video() ? m->info().video : m->info().audio;
+    return 0;
+  }
+  int32_t avi_read(Handle stream, int32_t start, int32_t samples, void* buffer, int32_t bytes) override {
+    MovieStream* m = movie(stream);
+    return m ? m->read(start, samples, buffer, bytes) : -1;
+  }
+  int32_t avi_find_sample(Handle stream, int32_t pos, uint32_t flags) override {
+    MovieStream* m = movie(stream);
+    return m ? m->find_sample(pos, flags) : -1;
+  }
+  void avi_release(Handle stream) override {
+    auto it = streams_.find(stream);
+    if (it == streams_.end()) return;
+    if (decoding_ == it->second.get()) decoding_ = nullptr;
+    e_->forget_object(it->second.get());
+    streams_.erase(it);
+  }
+  // The Indeo 5 codec: the picture stream opened last decodes.
+  Handle ic_locate(uint32_t, uint32_t, const void*, const void*, uint32_t) override {
+    for (auto& [h, m] : streams_)
+      if (m->video()) decoding_ = m.get();
+    return decoding_ ? 1 : 0;
+  }
+  int32_t ic_send(Handle, uint32_t, const void*, const void*) override { return 0; }
+  int32_t ic_decompress(Handle, uint32_t, const void*, const void*, const void* out, void* image) override {
+    if (!decoding_ || !out) return -1;
+    int32_t w = 0, h = 0;
+    uint16_t bits = 0;
+    std::memcpy(&w, static_cast<const uint8_t*>(out) + 4, 4);
+    std::memcpy(&h, static_cast<const uint8_t*>(out) + 8, 4);
+    std::memcpy(&bits, static_cast<const uint8_t*>(out) + 14, 2);
+    if (bits != 16) return -1;
+    const zvid::ChannelMasks& m = zvid::channel_masks();
+    return decoding_->decompress(static_cast<uint16_t*>(image), w, h < 0 ? -h : h, ((w + 3) & ~3) * 2, m.r, m.g, m.b);
+  }
+  void ic_close(Handle) override { decoding_ = nullptr; }
+  uint32_t display_bits() override { return 16; }
+  // Each frame drawn passes here: counted for --movie (ours, for checking).
+  Handle stream_image(zfmv::Stream* stream) override {
+    if (!stream) return 0;
+    GameEngine::MovieStats& st = e_->movie_stats;
+    ++st.drawn;
+    st.last = stream->shown, st.length = stream->length;
+    return e_->handle_of(&stream->image);
+  }
+  // zSound's streaming buffer (zsnd_create.cpp, ported).
+  Handle sound_stream_create(const void* format, const void* data, uint32_t bytes) override {
+    platform::WaveFormat wf;
+    std::memcpy(&wf, format, sizeof wf);
+    return e_->handle_of(zsnd::stream_create(&wf, data, bytes));
+  }
+  int32_t sound_stream_lock(Handle sound, uint32_t offset, uint32_t bytes, void** p1, uint32_t* n1, void** p2,
+                            uint32_t* n2) override {
+    *p1 = *p2 = nullptr, *n1 = *n2 = 0;
+    auto* s = static_cast<zsnd::Sound*>(e_->object_of(sound));
+    return s ? zsnd::stream_lock(s, offset, bytes, p1, n1, p2, n2) : 0;
+  }
+  void sound_stream_unlock(Handle sound, void* p1, uint32_t n1, void* p2, uint32_t n2) override {
+    if (auto* s = static_cast<zsnd::Sound*>(e_->object_of(sound))) zsnd::stream_unlock(s, p1, n1, p2, n2);
+  }
+  uint32_t sound_stream_position(Handle sound) override {
+    auto* s = static_cast<zsnd::Sound*>(e_->object_of(sound));
+    return s ? zsnd::stream_position(s) : 0;
+  }
+  void sound_stream_free(Handle sound) override {
+    if (auto* s = static_cast<zsnd::Sound*>(e_->object_of(sound))) {
+      e_->forget_object(s);
+      zsnd::stream_free(s);
+    }
+  }
   // timeGetTime() x 0.001f, the x87 at 24 bits (a float).
   double now() override {
     const mech3::Platform& p = e_->platform_parts();
@@ -94,7 +197,13 @@ class GameFmvHost : public zfmv::Host {
 
  private:
   zimg::Texture* texture(Handle h) const { return static_cast<zimg::Texture*>(e_->object_of(h)); }
+  MovieStream* movie(Handle h) const {
+    auto it = streams_.find(h);
+    return it == streams_.end() ? nullptr : it->second.get();
+  }
   GameEngine* e_;
+  std::map<Handle, std::unique_ptr<MovieStream>> streams_;
+  MovieStream* decoding_ = nullptr;
 };
 
 std::unique_ptr<GameFmvHost> g_host;

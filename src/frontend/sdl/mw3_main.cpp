@@ -15,6 +15,11 @@
 //     --variant BLOCK    the world.zrd block (default m1 or the first)
 //     --pos X Y Z, --look YAW PITCH (degrees): the camera's start
 //   --dialog FILE NAME   debug start showing one zTwoD dialog, e.g. dialog.zrd MAINMENU
+//   --movie NAME         debug start playing one fmv.zrd block (INTRO, c1m2 ...); with
+//                        --nosound on a clock stepping 1/60 s each poll, so each
+//                        frame is shown once (--shot F --shot-frame N: the movie's
+//                        N-th frame, numbered from 1);
+//                        the movies are the importer's (mw3import), in the write dir
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
 //   --frames N           quit after N frames of a debug start
@@ -84,7 +89,7 @@ std::string campaign_summary() {
 }
 
 struct Args {
-  std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot;
+  std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot, movie;
   std::vector<std::string> assets;
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   float pos[3] = {0, 60, 0};
@@ -125,6 +130,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--fly" && next(1)) a.mission = argv[++i], a.fly = true;
     else if (s == "--variant" && next(1)) a.variant = argv[++i];
     else if (s == "--dialog" && next(2)) a.dialog_file = argv[++i], a.dialog_name = argv[++i];
+    else if (s == "--movie" && next(1)) a.movie = argv[++i];
     else if (s == "--shot" && next(1)) a.shot = argv[++i];
     else if (s == "--shot-frame" && next(1)) a.shot_frame = std::atoi(argv[++i]);
     else if (s == "--shot-any") a.shot_any = true;
@@ -250,16 +256,33 @@ int run(const Args& a) {
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
+  // --movie with --nosound: the movie's clock steps a quarter frame (1/60 s)
+  // each time it is read, the silent sound's cursor follows the same time.
+  struct StepClock : platform::Clock {
+    double ms = 0;
+    uint32_t ticks_ms() override { return static_cast<uint32_t>(ms += 1000.0 / 60.0); }
+  } movie_clock;
+  struct ReadClock : platform::Clock {
+    const StepClock* c = nullptr;
+    uint32_t ticks_ms() override { return static_cast<uint32_t>(c->ms); }
+  } sound_clock;
+  sound_clock.c = &movie_clock;
+  const bool stepped = !a.movie.empty() && a.nosound;
   sdlfe::SdlAlert alert(window.sdl(), a.hidden);
   sdlfe::SdlScreen2D screen(window.render());
   std::unique_ptr<platform::SoundOutput> sound;
-  if (a.nosound) sound = std::make_unique<platform::SilentSoundOutput>();
+  if (a.nosound) {
+    auto silent = std::make_unique<platform::SilentSoundOutput>();
+    silent->clock = stepped ? static_cast<platform::Clock*>(&sound_clock) : &clock;  // the movies' sound sets their frame
+    sound = std::move(silent);
+  }
   else sound = std::make_unique<sdlfe::SdlSoundOutput>();
   sdlfe::SdlMusicOutput music;
   mech3::MountFiles files;
 
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.input = &input, p.sound = sound.get();
+  if (stepped) p.movie_clock = &movie_clock;
   p.music = &music, p.files = &files, p.render = window.render(), p.screen = &screen;
   p.window_width = a.win_w, p.window_height = a.win_h;
   // The registry's keys as a file in the write dir (docs/settings.md).
@@ -399,6 +422,8 @@ int run(const Args& a) {
     } else if (!a.dialog_file.empty()) {
       debug = std::make_unique<sdlfe::DebugDialogState>(&engine, &input, window.render(), a.dialog_file,
                                                         a.dialog_name, a.shot, a.shot_frame);
+    } else if (!a.movie.empty()) {
+      debug = std::make_unique<sdlfe::DebugMovieState>(&engine, window.render(), a.movie, a.shot, a.shot_frame);
     }
 
     // The menus' driver (ours, for checking the front end): from the plain
@@ -502,6 +527,7 @@ int run(const Args& a) {
       // The state after the intro (the app's +0x1dc): the debug start takes
       // the place the lobby launch gives the Load state.
       if (debug) app.post_intro_ = debug.get();
+      if (!a.movie.empty()) app.lobby_flow_ = 1;  // the Intro state's own movies skipped
       if (launch) app.post_intro_ = &mech3::states().load;
       // --briefing c1m2 (ours, for checking the front end): a pilot "Briefing"
       // whose newest saved campaign stands at that mission (pilot.md: the

@@ -3,13 +3,12 @@
 `C:\zipper\GameZMech3\zFMV\fmv_script.cpp` (0x00598cc0..0x0059a530) runs the
 named scripts of `fmv.zrd` (in `reader.zbd`): a list of actions played one
 after another, the images, waits, fades, blurs and sounds around the AVI
-movies. `fmv_stream.cpp` (0x0059a650..) is the AVI player (Video for Windows
-and Indeo 5), `fmv_main.cpp` (0x0059b040..) the MCI movie. Ported:
-`src/gamez/zfmv/fmv_script.{h,cpp}`, the blur passes in
-`src/gamez/zrender/zrndr_blur.{h,cpp}`, and the program's side in
-`src/mech3/app_fmv.cpp`. PLAYAVI is a stub until the stream is ported
-(frontend-plan.md item 11): it ends at once, as the original's does when the
-file is not there.
+movies. `fmv_stream.cpp` (0x0059a4a0..0x0059b040) is the AVI player
+(Video for Windows and Indeo 5), `fmv_main.cpp` (0x0059b040..) the MCI movie.
+Ported: `src/gamez/zfmv/fmv_script.{h,cpp}` and `fmv_stream.{h,cpp}`, the
+blur passes in `src/gamez/zrender/zrndr_blur.{h,cpp}`, and the program's side
+in `src/mech3/app_fmv.cpp` and `app_movie.{h,cpp}` (the imported movies,
+section 6). PLAYMCI is not ported (no script uses it).
 
 ## 1. Who plays what
 
@@ -54,7 +53,7 @@ first item is the verb, compared in this order, case-sensitive:
 | LOADIMAGE | name [x y] | image, drawn but not shown |
 | WAIT | seconds | wait |
 | FADEIN, FADEOUT | (r g b) seconds alpha | fade |
-| PLAYAVI | name [flag] | movie `<FMV_PATH>\<name>`; the flag (default 1) goes to the stream |
+| PLAYAVI | name [flag] | movie `<FMV_PATH>\<name>`; the flag (default 1) streams the sound (section 5) |
 | PLAYMCI | name | MCI movie (the window, the path) |
 | BLUR, BLURH, BLURV | passes | one blur step of `passes` passes, both ways, along the rows, down the columns |
 | PLAYSOUND | name | sound (the name strncpy'd into 0x32 bytes) |
@@ -157,16 +156,26 @@ name (0x0056f6f0), the last voice stopped (0x0056e9f0), played at volume 1
 
 ### Movies (vtable 0x005cf880)
 
-0x00599c00: +8 the path `<FMV_PATH>\<name>` (calloc'd), +0xc the flag. When
-`_stat` does not find it the exe looks for it on a CD-ROM drive (0x00575d40
-with ECX 5) and copies the found path over its own; without one the path is
-freed and the movie ends at once (step 0x00599de0 is false without a path).
-FIX (A): the drives are not searched (protection.md, the disc check): the
-movies come from the imported folder. Start (0x00599ea0): the stream
-(new(0x1e4), 0x0059a4a0) and the frame counter at -1. Step: the frame for
-the time (0x0059aaf0), drawn and shown. End (0x00599f40): the stream freed.
-Until item 11 the port finds no file (GameFmvHost::file_stat), so PLAYAVI
-ends at once.
+0x00599c00: +8 the path `<FMV_PATH>\<name>` (calloc'd), +0xc the flag (the
+sound streamed). When `_stat` does not find it the exe looks for it on a
+CD-ROM drive (0x00575d40 with ECX 5) and copies the found path over its
+own; without one the path is freed and the movie ends at once (step
+0x00599de0 is false without a path). FIX (A): the drives are not searched
+(protection.md, the disc check): the movies are the importer's (section 6),
+"found" when their `.fmv` is mounted.
+
+Start (0x00599ea0): the stream (new(0x1e4), 0x0059a4a0, section 5), a rect
+of the render target's size (0x00558080) at +0x24, the frame at -1. Step
+(0x00599de0): the first step's time is the movie's start; the frame is
+ftol((t - start) x fps) (the x87 at 24 bits); only when it changes, the
+stream shows its frame (0x0059aaf0, which with sound takes the sound's
+frame instead), stretched over the rect ([0x0072f360] with the stream as
+the image) and flipped. Mode 2 decodes outside the 2D lock and flips without
+the copy (0x00576ea0(0, 0, 1, 0)); the other modes decode inside it and
+flip with it. Done when the stream answers 0 (past its last frame). End
+(0x00599f40): the stream deleted. The destructor (0x00599d80) frees only
+the path: a movie whose script is rewound and deleted without its end keeps
+its stream, and the sound buffer loops on (kept).
 
 PLAYMCI (vtable 0x005cf8b0, 0x0059a220): an MCI movie in the window, played
 at start (0x0059b080), its end grabs and clears the screen (0x0059a3d0). No
@@ -199,7 +208,100 @@ along pass always: it does two pixels fewer) each "row" starts where the last
 ended, so the pass runs over the buffer as one line and mixes the ends of the
 rows. Nothing in the game blurs a rect.
 
-## 5. Tests
+## 5. The movie player (fmv_stream.cpp)
+
+The stream (new(0x1e4)) starts with an image header the 2D blits take: +0
+the bytes, +4 / +6 the width and height, +0x10 the pixels, +0x34 the width.
++0x38 the path. 0x0059a4a0: AVIFileInit, then the sound, then the picture.
+
+The picture (0x0059a650): AVIStreamOpenFromFileA('vids'), the format
+(AVIStreamReadFormat, its size asked first), the length, the stream info.
+The decompressor's output is the input BITMAPINFOHEADER (at least 0x6c
+bytes) at the 2D surfaces' depth (0x00576c70), BI_BITFIELDS with the
+display's masks (0x00579280) unless 24-bit, top down (the height negated).
+The read buffer is the frame's bytes, or the stream's suggested buffer size.
+ICLocate('vidc', the handler, ..., ICMODE_DECOMPRESS) and
+ICM_DECOMPRESS_BEGIN; +0xec the frames a second (rate / scale), +0xf0 the
+milliseconds a frame (rounded). A failure leaves (AVIFileExit) with nothing
+open.
+
+The sound (0x0059a900): AVIStreamOpenFromFileA('auds'), its WAVEFORMAT and
+info. Streamed (PLAYAVI's flag, 1 unless given): a buffer of two halves of
+the stream's suggested buffer size each (88,216 bytes for INTRO and C1,
+22,054 for the rest: about a second), the first half read now, made a zSound
+stream (0x005758c0); +0x1dc the samples read. Not streamed: the whole sound
+read and made one buffer.
+
+A frame (0x0059aaf0): with sound, the frame is the sound's (0x0059ad70);
+else the one asked. Below the length: the frames to it caught up
+(0x0059ae50); then, if that did not reach it, AVIStreamRead of that frame and
+ICDecompress, not a key frame (0x08000000) unless AVIStreamFindSample(...,
+FIND_PREV | FIND_KEY) says it is one. The answer is the next frame, 0 once
+past the last (the end).
+
+The sound's frame (0x0059ad70): the first call plays the buffer (0x0056e3d0)
+and answers 0. A whole sound always answers 0, so its picture stays on the
+first frame (no script asks for one). Streamed: from the play cursor
+(0x00575690), when the half to refill next is the second and the cursor is
+back in the first half, the second half is read (0x0059ac40); when it is the
+first and the cursor is in the second half, the first. The frame is (the
+samples read, less two halves, or three just after the first half's refill,
+plus the cursor's samples) x fps / the sample rate, unsigned: with the cursor
+still at 0 on the first poll after the start the frame is huge, the end.
+
+The refill (0x0059ac40): the buffer's part locked (0x00575550), the samples
+read into it at +0x1dc, which then moves on; unlocked (0x00575600). Quirk
+kept: a lock that wraps (two pieces) moves the count by the first piece's
+samples for the second too; the halves never wrap.
+
+The catch-up (0x0059ae50): when the next key frame after the frame asked for
+is that frame or the one after it, that key frame is decoded instead (so it
+shows a frame early; INTRO's frames are all key frames). Else, past frames
+skipped since the last decoded, they are decoded from the key frame before
+(or the last decoded, if later), with ICDECOMPRESS_HURRYUP (and NOTKEYFRAME
+from the last decoded), up to the frame before.
+
+The program's side (FIX (A)): the Video for Windows calls go to the
+zfmv::Host, which reads the importer's files (section 6, `app_movie.cpp`):
+AVIStreamReadFormat and AVIStreamInfoA give the AVI's own format and
+headers, AVIStreamFindSample its key frames, AVIStreamRead of the sound its
+own PCM bytes (silence past the end) and of the picture which frame
+ICDecompress then gives: pl_mpeg decodes the MPEG-1 picture to that frame
+(MPEG frame 2n), converted to the 16-bit display format. The zSound stream is
+the ported one (zsnd_create.cpp) on the platform's sound buffer, so the
+sound's play cursor sets the frame as on Windows. With `--nosound` the
+silent output's cursor moves with the clock (platform/silent_sound.h).
+
+## 6. The imported movies
+
+`mw3import` (tools/import, built when FFmpeg's libraries are found) writes,
+for each `video\*.AVI` of the install, into the write dir's `video` folder
+(never the repo):
+
+- `<name>.m1v`: the picture, an MPEG-1 video stream at 30 fps, each source
+  frame twice (MPEG-1 has no 15 fps rate code; 23.976 is its lowest),
+  exactly 2 x dwLength frames, intra every 30, no B-frames, quantiser 2.
+  Packets the Indeo decoder gives no picture for (its "drop" frames) repeat
+  the picture before. pl_mpeg (third_party/pl_mpeg, MIT) decodes it by
+  count, so its rate code never matters.
+- `<name>.wav`: the AVI's sound stream byte for byte, its strf (the
+  WAVEFORMAT) as the fmt chunk.
+- `<name>.fmv`: text, a line each:
+  - `fmv 1`
+  - `avih <us per frame> <frames> <suggested buffer> <width> <height>`
+  - `video vids <handler> <flags> <priority> <language> <initial frames>
+    <scale> <rate> <start> <length> <suggested buffer> <quality>
+    <sample size> <rcFrame left top right bottom>`: the strh, as
+    AVIStreamInfoA gives it (a FOURCC of NULs is `-`, a space `_`)
+  - `videof <bytes>`: the strf (the BITMAPINFOHEADER) in hex
+  - `audio auds ...` and `audiof <bytes>`: the same for the sound
+  - `keys <n> <frame> ...`: the video frames idx1 flags AVIIF_KEYFRAME
+
+The 19 movies of the install convert in about a minute (INTRO to 60 MB from
+82 MB). c3m3 and c1win..c3win are on the disc only (frontend-plan.md
+section 3).
+
+## 7. Tests
 
 `tests/differential/test_fmv.py` (probe `tests/probe_fmv.cpp`): every shipped
 block named above and random blocks with every verb (short and bad entries,
@@ -210,5 +312,22 @@ arguments, and each poll's answer and current action. The pause screen's
 blur (0x00599f70 run by 0x00599a70). The three passes bit for bit on random
 screens (with the rows around the target the walk reads), scratch buffers,
 pitches, rects and both 16-bit formats. Shots: `build/mw3 --nosound --hidden
---shot-any --shot-frame 3` is the SPLASH logos (frame 1 the start-up's clear,
-2 the INTRO wait's end).
+--shot-any --shot-frame 3` is the SPLASH logos without the movies (frame 1 the
+start-up's clear, 2 the INTRO wait's end).
+
+The movie player: PLAYAVI found on random movies (length, frame rate, key
+frames, sample size and rate, buffer size, the sound missing, any call
+failing, a lock split in two, the play cursor jumping) in the shipped movie
+blocks and random ones: every Video for Windows call, decompress (with its
+flags), lock, cursor read and play compared in order.
+
+The movies as played: `build/mw3 --nosound --hidden --write-dir <dir with the
+imported movies> --movie NAME` plays the block on a clock that steps 1/60 s a
+poll and reports the frames drawn and the last; every movie block draws
+exactly its AVIs' dwLength frames, the last dwLength - 1 (c1m1: 870 + 690).
+With `--shot FILE --shot-frame N` it saves the movie's N-th frame (from 1)
+and quits; `--movie` skips the Intro state's own movies (the lobby flow).
+Against FFmpeg's own decode of INTRO.AVI the shots are 37 to 42 dB (the 16-bit
+display format and MPEG-1 at quantiser 2), each closest to the AVI's frame
+after the one asked for: the catch-up's key frame one ahead (INTRO's frames
+are all key frames).

@@ -2,7 +2,9 @@
 // recorded, and zRender's blur passes on given buffers.
 #include <cstdint>
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include "gamez/zfmv/fmv_script.h"
 #include "gamez/zreader/zreader.h"
@@ -15,12 +17,51 @@
 
 namespace {
 
+// The movie the AVI calls read (test_fmv.py's, the same on the emulator's side).
+struct Movie {
+  zfmv::AviStreamInfo video, audio;
+  std::vector<uint8_t> video_format, audio_format;
+};
+
 struct Recording : zfmv::Host {
+  using Handle = zfmv::Handle;
   int32_t mode = 1;
+  Movie movie;
+  std::vector<uint8_t> sound_buffer = std::vector<uint8_t>(1 << 20);
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return probe_app::call(key, args);
   }
   int32_t video_mode() override { return mode; }  // a read in the original, not a call
+  // The streams as the emulator's stubs make them: the picture 0x100, the sound 0x200.
+  int32_t avi_open(Handle* stream, const char* path, uint32_t type) override {
+    const int32_t hr = static_cast<int32_t>(call("AVIStreamOpenFromFileA", {path, type}));
+    *stream = hr == 0 ? (type == 0x73646976 ? 0x100 : 0x200) : 0;
+    return hr;
+  }
+  int32_t avi_read_format(Handle stream, void* format, int32_t* size) override {
+    const int32_t hr = static_cast<int32_t>(call("AVIStreamReadFormat", {stream, format != nullptr, format ? *size : 0}));
+    if (hr) return hr;
+    const std::vector<uint8_t>& f = stream == 0x100 ? movie.video_format : movie.audio_format;
+    if (!format) *size = static_cast<int32_t>(f.size());
+    else std::memcpy(format, f.data(), std::min(f.size(), static_cast<size_t>(*size)));
+    return hr;
+  }
+  int32_t avi_info(Handle stream, zfmv::AviStreamInfo* info) override {
+    const int32_t hr = static_cast<int32_t>(call("AVIStreamInfoA", {stream}));
+    if (!hr) *info = stream == 0x100 ? movie.video : movie.audio;
+    return hr;
+  }
+  Handle stream_image(zfmv::Stream*) override { return 1; }  // the emulator's stretch names the stream 1
+  int32_t sound_stream_lock(Handle sound, uint32_t offset, uint32_t bytes, void** p1, uint32_t* n1, void** p2,
+                            uint32_t* n2) override {
+    const int32_t ok = static_cast<int32_t>(call("0x00575550", {sound, offset, bytes}));
+    *n1 = call("@lock_n1", {}), *n2 = call("@lock_n2", {});
+    *p1 = sound_buffer.data(), *p2 = sound_buffer.data() + sound_buffer.size() / 2;
+    return ok;
+  }
+
+ private:
+  static uint32_t call(const char* key, std::initializer_list<zgame::Arg> args) { return probe_app::call(key, args); }
 };
 
 Recording g_host;
@@ -49,6 +90,17 @@ void probe_fmv_reset(int32_t mode, int32_t r_bits, int32_t g_bits, int32_t b_bit
 }
 
 void probe_fmv_mode(int32_t mode) { g_host.mode = mode; }
+
+// The movie the AVI calls give: the two AVISTREAMINFOA (0x8c bytes each), the
+// BITMAPINFOHEADER and the WAVEFORMAT.
+void probe_fmv_movie(const uint8_t* video_info, const uint8_t* video_format, int32_t video_format_size,
+                     const uint8_t* audio_info, const uint8_t* audio_format, int32_t audio_format_size) {
+  Movie& m = g_host.movie;
+  std::memcpy(&m.video, video_info, sizeof m.video);
+  std::memcpy(&m.audio, audio_info, sizeof m.audio);
+  m.video_format.assign(video_format, video_format + video_format_size);
+  m.audio_format.assign(audio_format, audio_format + audio_format_size);
+}
 
 // 0x00598d80 on the binary tree in `data` (as zrdr::load reads one from an
 // archive), the block `name`.

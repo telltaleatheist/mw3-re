@@ -74,4 +74,27 @@ class DebugDialogState : public mech3::State {
   std::vector<ztwod::Object2D*> bound_;
 };
 
+// An fmv.zrd block played as the states play theirs (docs/fmv.md): made,
+// given the window, loaded, played and polled until it ends; then the frames
+// shown are reported. Escape skips it, as in the game.
+class DebugMovieState : public mech3::State {
+ public:
+  // With `shot`: the movie's `shot_frame`-th frame shown is saved there, then it quits.
+  DebugMovieState(mech3::GameEngine* engine, SdlRender3D* render, std::string name, std::string shot,
+                  int shot_frame)
+      : State("Debug Movie State", 0), engine_(engine), render_(render), name_(std::move(name)),
+        shot_(std::move(shot)), shot_frame_(shot_frame) {}
+  bool enter() override;
+  bool update() override;
+  void leave() override;
+
+ private:
+  mech3::GameEngine* engine_;
+  SdlRender3D* render_;
+  std::string name_, shot_;
+  int shot_frame_;
+  zgame::Handle movie_ = 0;
+  int shown_at_start_ = 0;
+};
+
 }  // namespace sdlfe
