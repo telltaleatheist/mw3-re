@@ -80,16 +80,18 @@ LOADIMAGE, SHOWIMAGE, BLITIMAGE, FADEIN, FADEOUT, BLUR, BLURH, BLURV, WAIT,
 PLAYSOUND. The install has
 19 of the AVIs (`video/`; c3m3, c1win..c3win are disc-only). zFMV
 (0x00598d80..0x0059b2f0, about 56 functions): the scripts are ported
-(item 10, fmv.md), the AVI stream is not (item 11): PLAYAVI ends at once,
-so the scripts' logos, fades and waits play around movies that are
-skipped. With `-nofmv` the Intro state skips INTRO (game-loop.md); SPLASH
-plays either way.
+(item 10, fmv.md) and the AVI player too (item 11), on the importer's
+files: without them (mw3import not run) PLAYAVI ends at once, as the
+original's without the file. With `-nofmv` the Intro state skips INTRO
+(game-loop.md); SPLASH plays either way.
 Indeo 5 (IV50) has no system decoder on macOS; FFmpeg's libavcodec decodes
 it. Decided (Owen, 2026-10-26): the first-run importer converts the AVIs
 once (libavcodec decodes the Indeo 5, only in the importer), and the game
-plays the converted files with a small built-in decoder; the plan is MPEG-1
-video and MP2 audio played with pl_mpeg (one header, MIT), to confirm at the
-zFMV item. Assets stay out of the repo.
+plays the converted files with a small built-in decoder: MPEG-1 video
+through pl_mpeg (one header, MIT), at 30 fps with every frame twice (MPEG-1
+has no 15 fps); the sound stays the AVI's own PCM (the lead, 2026-10-27: the
+refills then read the original's bytes). fmv.md section 6. Assets stay out
+of the repo.
 
 ## 4. Porting order
 
@@ -168,9 +170,12 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
     the blur passes (the pause screen's too). Test: test_fmv.py, the calls
     of every shipped block and random ones against the exe; the SPLASH
     logos in a shot (`--shot-any --shot-frame 3`).
-11. **The movies' video** (PLAYAVI): the importer's one-time conversion
-    (Owen's choice, section 3), drawn as zFMV draws. Test:
-    the intro's first frames in screenshots; a movie's length in frames.
+11. **(Done) The movies' video** (PLAYAVI, fmv.md sections 5 and 6): the
+    player (fmv_stream.cpp) ported on Video for Windows calls answered from
+    the importer's files (`mw3import`: the picture MPEG-1 at 30 fps doubled
+    for pl_mpeg, the sound the AVI's own PCM, the headers in a sidecar).
+    Test: test_fmv.py with movies (every call against the exe); `mw3 --movie`
+    plays each block to its AVIs' length; the intro's first frames in shots.
 12. **Instant Action**: the Action screen 0x00488bc0 and its state, the
     ActionGame from it, the IA Dummy State. Test: differential of the
     screen; headless IA wave 1 played to the tallies.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(mw3re LANGUAGES CXX)
+project(mw3re LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -108,6 +108,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_ripple.cpp
   src/gamez/zrender/zrndr_blur.cpp
   src/gamez/zfmv/fmv_script.cpp
+  src/gamez/zfmv/fmv_stream.cpp
   src/gamez/zrender/zrndr_prim2d.cpp
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
@@ -218,6 +219,8 @@ add_library(mw3core STATIC
   src/mech3/lab_screen.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_fmv.cpp
+  src/mech3/app_movie.cpp
+  third_party/pl_mpeg/pl_mpeg.c
   src/mech3/app_mission.cpp
   src/mech3/app_turret.cpp
   src/mech3/app_vehicle.cpp
@@ -239,6 +242,9 @@ add_library(mw3core STATIC
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
+target_include_directories(mw3core PRIVATE third_party)
+# pl_mpeg (third_party/pl_mpeg): as written, its warnings not ours.
+set_source_files_properties(third_party/pl_mpeg/pl_mpeg.c PROPERTIES COMPILE_OPTIONS "$<IF:$<C_COMPILER_ID:MSVC>,/w,-w>")
 # The x87 never fuses a multiply and an add; clang does by default on arm64,
 # which rounds differently from the original (CLAUDE.md, FPU precision).
 if(NOT MSVC)
@@ -444,6 +450,19 @@ if(SDL3_FOUND)
   target_link_libraries(mw3view PRIVATE mw3core mw3sdl SDL3::SDL3)
   target_include_directories(mw3view PRIVATE tools/viewer)
   target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+  # The importer's movies (docs/fmv.md, The imported movies): only with FFmpeg's
+  # libraries (Indeo 5 decoding, the MPEG-1 encoder); not needed to build the game.
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(FFMPEG IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
+  endif()
+  if(FFMPEG_FOUND)
+    add_executable(mw3import tools/import/mw3import.cpp)
+    target_link_libraries(mw3import PRIVATE PkgConfig::FFMPEG SDL3::SDL3)
+    target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+  else()
+    message(STATUS "FFmpeg's libraries not found: mw3import is not built (brew install ffmpeg)")
+  endif()
   # Plays one game sound through zSound and SDL audio (docs/sound.md).
   add_executable(mw3soundcheck tools/soundcheck/soundcheck.cpp)
   target_link_libraries(mw3soundcheck PRIVATE mw3core mw3sdl SDL3::SDL3)

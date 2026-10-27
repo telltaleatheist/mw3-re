@@ -895,3 +895,35 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   The start test now expects 0x00598cc0 ported. geometry_init forwards only
   the start-up's "zbd": the missions' "zbd;zbd\<op>" as mounts would stay
   for the next mission's files (kept as before: logged).
+
+## Pause check and item 11 (2026-10-27): the movies' video
+
+- Pause: --tap Escape in c1 did not pause because with --shot-any every
+  presented frame counts, and c1's loading and start fade present about 600
+  before the Core state's first frame; the taps landed before the mission
+  polled input, and the Core state's start unacquires the keyboard
+  (DirectInput's buffer goes with it). --tap 1@900:902 --shot-frame 960
+  pauses over the blurred battlefield (outbox 2026-10-27/fmv). No change.
+- Branch mac4/fmv-video off main 469bec8. The AVIs: 640x480 Indeo 5 at 15
+  fps, PCM 22,050 Hz (8-bit mono; INTRO and C1 16-bit stereo); INTRO all key
+  frames, the rest one every 15. pl_mpeg reads 22 kHz Layer II, but MPEG-1
+  has no 15 fps: the importer writes 30 fps with every frame twice and the
+  player decodes by count. The lead: keep the sound as the AVI's PCM.
+- mw3import (tools/import, optional, FFmpeg's libraries): .m1v (an MPEG-1
+  video stream: the program stream's muxer warned of buffer underflow at q
+  2), .wav (the AVI's PCM bytes), .fmv (the stream headers and idx1's key
+  frames, text). Indeo packets that decode to no picture repeat the last.
+- fmv_stream.cpp ported (0x0059a4a0..0x0059b040): the opens, the frame with
+  the key-frame catch-up, the sound's frame from the play cursor, the
+  refills (the second piece's count quirk kept). PLAYAVI's step and start
+  (0x00599de0 / 0x00599ea0) on it. Video for Windows goes to the Host:
+  app_movie.cpp answers from the importer's files, pl_mpeg vendored
+  (third_party/pl_mpeg, compiled as C).
+- --nosound's silent output kept the play cursor at 0, so the sound's frame
+  was the end at once: it moves with a clock now (FIX (A), fixes.md).
+- test_fmv.py: 200 movie runs among 628 scripts, 167k calls identical (every
+  decompress flag, both key searches, locks split, the cursor at the halves);
+  breaks 22/22 (two first missed: a format past 0x6c, the cursor exactly at
+  the half). mw3 --movie NAME (ours): on a clock stepping 1/60 s a poll each
+  frame is drawn once; every block drew its AVIs' dwLength frames, the last
+  dwLength - 1.

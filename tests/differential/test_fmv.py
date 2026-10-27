@@ -43,6 +43,14 @@ SCRATCH, SCREEN, WIDTH, HEIGHT, PITCH_PX = 0x72c1e0, 0x72c1e4, 0x72c1e8, 0x72c1e
 MASKS = 0x80272c
 IAT = {'malloc': 0x5bb664, 'calloc': 0x5bb60c, 'free': 0x5bb65c, 'strdup': 0x5bb670, 'strncpy': 0x5bb648,
        'readfile': 0x5bb0c4, 'sprintf': 0x5bb658, 'stat': 0x5bb588}
+# Video for Windows and the critical sections, by IAT slot: (name, stack bytes popped).
+VFW = {0x5bb01c: ('AVIFileInit', 0), 0x5bb018: ('AVIFileExit', 0), 0x5bb030: ('AVIStreamOpenFromFileA', 24),
+       0x5bb038: ('AVIStreamReadFormat', 16), 0x5bb02c: ('AVIStreamLength', 4), 0x5bb028: ('AVIStreamInfoA', 12),
+       0x5bb034: ('AVIStreamRead', 28), 0x5bb020: ('AVIStreamFindSample', 12), 0x5bb024: ('AVIStreamRelease', 4),
+       0x5bb684: ('ICLocate', 20), 0x5bb680: ('ICSendMessage', 16), 0x5bb688: ('ICDecompress', 0),
+       0x5bb67c: ('ICClose', 4)}
+SECTIONS = {0x5bb154: 4, 0x5bb158: 4, 0x5bb160: 4, 0x5bb168: 4}
+VIDS, AUDS = 0x73646976, 0x73647561
 FILE = 0x1234
 FORMATS = ((5, 6, 5), (5, 5, 5))
 SHIPPED = ['INTRO', 'SPLASH', 'UNLOAD', 'DEMO_INTRO', 'DEMO_EXIT', 'DEMO_SPLASH', 'ATTRACT', 'campaign', 'c1m1',
@@ -65,6 +73,8 @@ probe.probe_fmv_playing.restype = ctypes.c_int32
 probe.probe_fmv_current.restype = ctypes.c_int32
 probe.probe_fmv_count.restype = ctypes.c_int32
 probe.probe_fmv_actions.restype = ctypes.c_int32
+probe.probe_fmv_movie.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int32, ctypes.c_char_p, ctypes.c_char_p,
+                                  ctypes.c_int32]
 probe.probe_blur.argtypes = [ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p,
                              ctypes.c_void_p, ctypes.c_int32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
 probe.probe_blur.restype = None
@@ -113,6 +123,20 @@ def random_entry(r):
     if verb in ('BLUR', 'BLURH', 'BLURV'):
         return [verb, r.choice([1, 2, 3, 10])]
     return [verb, n]
+
+
+MOVIE_CALLS = {}
+MOVIE_BLOCKS = ['INTRO', 'ATTRACT', 'campaign', 'c1m1', 'c4win']
+
+
+def movie_tree(r):
+    block = []
+    for _ in range(r.randrange(1, 5)):
+        e = random_entry(r)
+        if r.random() < 0.6:
+            e = ['PLAYAVI', 'm.avi', r.choice([0, 1, 1])] if r.random() < 0.5 else ['PLAYAVI', 'm.avi']
+        block.append(e)
+    return encode([['FMV_PATH', ['.\\video'], 'IMAGE_PATH', ['..\\data\\common\\images'], 'BLOCK', block]])
 
 
 def random_tree(r):
@@ -169,6 +193,9 @@ class Side:
                 fn = lambda em, k, aa, p: em._ret(t.handle(k, rect(em, em.args('c')[0]) + rect(em, em.args('d')[0])), p)
             e.w32(slot, e.new_stub(key, '', pop, fn))
         e.w32(0x72f3ec, e.new_stub('[0x0072f3ec]', '', 0))
+        self.movie = None
+        self.streams = set()
+        self.movie_stubs()
         self.mode(1)
         r_bits, g_bits, b_bits = fmt
         for addr, v in ((0x802738, r_bits + g_bits + b_bits - 8), (0x80273c, g_bits + b_bits - 8),
@@ -182,6 +209,81 @@ class Side:
 
     def mode(self, m):
         self.e.w32(0x72f348, m)
+
+    def movie_stubs(self):
+        """The movie player's calls out (fmv_stream.cpp): Video for Windows on
+        the run's movie, zSound's streaming buffer, the stream's allocation."""
+        e, t, a = self.e, self.t, self.e.cpu.arg
+
+        def vfw(name):
+            def f(em, k, aa, pop):
+                m = self.movie
+                if name == 'AVIStreamOpenFromFileA':
+                    hr = t.handle(k, [em.cstr(a(1)), a(2)])
+                    if hr == 0:
+                        em.w32(a(0), 0x100 if a(2) == VIDS else 0x200)
+                elif name == 'AVIStreamReadFormat':
+                    h, buf, psize = a(0), a(2), a(3)
+                    hr = t.handle(k, [h, int(buf != 0), em.r32(psize) if buf else 0])  # the size asked for is unset
+                    if hr == 0:
+                        f = m['vfmt'] if h == 0x100 else m['afmt']
+                        if not buf:
+                            em.w32(psize, len(f))
+                        else:
+                            em.cpu.write(buf, f[:em.r32(psize)])
+                elif name == 'AVIStreamInfoA':
+                    hr = t.handle(k, [a(0)])
+                    if hr == 0:
+                        em.cpu.write(a(1), m['vinfo'] if a(0) == 0x100 else m['ainfo'])
+                elif name == 'AVIStreamRead':
+                    hr = t.handle(k, [a(0), a(1), a(2), a(4)])
+                elif name in ('AVIStreamLength', 'AVIStreamRelease', 'ICClose'):
+                    hr = t.handle(k, [a(0)])
+                elif name == 'AVIStreamFindSample':
+                    hr = t.handle(k, [a(0), a(1), a(2)])
+                elif name == 'ICLocate':
+                    out = a(3)
+                    hr = t.handle(k, [a(0), a(1), a(4), em.r32(out), em.r32(out + 0xc) >> 16, em.r32(out + 0x10),
+                                      em.r32(out + 0x14)])
+                elif name == 'ICSendMessage':
+                    hr = t.handle(k, [a(0), a(1), int(a(2) != 0), int(a(3) != 0)])
+                elif name == 'ICDecompress':
+                    hr = t.handle(k, [a(0), a(1)])
+                else:
+                    hr = t.handle(k, [])
+                em._ret(hr, pop)
+            return f
+        for iat, (name, pop) in VFW.items():
+            e.import_stub(iat, name, '', pop, vfw(name))
+        for iat, pop in SECTIONS.items():
+            e.import_stub(iat, f'section{iat:x}', '', pop)
+            t.silent.add(f'section{iat:x}')
+        e.stub(0x576c70, spec='')
+        e.stub(0x5758c0, fn=lambda em, k, aa, p: em._ret(t.handle(k, em.args('s0')), p))
+        self.lock_buf = e.alloc(0x10000)
+
+        def lock(em, k, aa, p):
+            c, d, nbytes, p1, p2, n1, n2 = em.args('c,d,s0,s1,s2,s3,s4')
+            ok = t.handle(k, [c, d, nbytes])
+            em.w32(p1, self.lock_buf), em.w32(p2, self.lock_buf + 0x8000)
+            em.w32(n1, t.handle('@lock_n1', [])), em.w32(n2, t.handle('@lock_n2', []))
+            em._ret(ok, p)
+        e.stub(0x575550, fn=lock)
+        e.stub(0x575600, fn=lambda em, k, aa, p: em._ret(t.handle(k, em.args('c,s1,s2')), p))
+        e.stub(0x575690, spec='c')
+        e.stub(0x575980, spec='c')
+
+        def new(em, k, aa, p):
+            n = em.args('s0')[0]
+            ptr = em.alloc(max(n, 4))
+            if n == 0x1e4:
+                self.streams.add(ptr)
+            em._ret(ptr, 0)
+        e.stub(0x5abd26, 'new', 's0', 0, new)
+        # The stretch names a stream's picture 1 (the probe's stream_image).
+        e.w32(0x72f360, e.new_stub('[0x0072f360]', '', 8, lambda em, k, aa, p: em._ret(t.handle(
+            k, [1 if em.args('c')[0] in self.streams else em.args('c')[0]] + em.args('d') +
+            rect(em, em.args('s0')[0]) + rect(em, em.args('s1')[0])), p)))
 
     def strncpy(self):
         e, a = self.e, self.e.cpu.arg
@@ -291,14 +393,92 @@ def dwords(t):
     return lo, hi
 
 
-def answers(seed, mode):
+def random_movie(r):
+    """A movie for the AVI calls: its two AVISTREAMINFOA, the BITMAPINFOHEADER,
+    the WAVEFORMAT and the key frames."""
+    w, h = r.choice(((640, 480), (64, 48), (32, 16))), None
+    w, h = w
+    vlen = r.choice((1, 2, 5, 30, r.randrange(3, 90)))
+    rate, scale = r.choice(((15, 1), (15, 1), (30, 2), (10, 1)))
+    block = r.choice((1, 1, 2, 4))
+    sr = r.choice((22050, 22050, 11025))
+    half = r.choice((block * sr, block * sr + 4, block * 2205, block * 735, 4000))
+    half -= half % block
+    alen = r.choice((vlen * sr // (rate // scale), r.randrange(100, 400000)))
+    every = r.choice((1, 15, 4, 1000))
+    keys = [k for k in range(vlen) if k % every == 0] or [0]
+    if r.random() < 0.2:
+        keys = sorted(set(keys + [r.randrange(vlen) for _ in range(3)]))
+    vsugg = r.choice((0, 3 * w * h, 1234))
+
+    def info(typ, sc, rt, length, sugg, ss):
+        b = struct.pack('<IIIIHHIIIIIIII4iII', typ, 0x30355649 if typ == VIDS else 0, 0, 0, 0, 0, sc, rt, 0, length,
+                        0, sugg, 10000, ss, 0, 0, w, h, 0, 0)
+        return b + bytes(0x8c - len(b))
+    vfmt = struct.pack('<IiiHHIIiiII', 40, w, h, 1, 24, 0x30355649, 3 * w * h, 0, 0, 0, 0)
+    if r.random() < 0.3:  # a format past 0x6c bytes (a header with extra data)
+        extra = r.choice((0x50, 0x400))
+        vfmt = struct.pack('<I', 40 + extra) + vfmt[4:] + bytes(r.randrange(256) for _ in range(extra))
+    afmt = struct.pack('<HHIIHH', 1, 2 if block == 4 else 1, sr, sr * block, block, 16 if block >= 2 else 8)
+    return {'vinfo': info(VIDS, scale, rate, vlen, vsugg, 0), 'ainfo': info(AUDS, 1, sr, alen, half, block),
+            'vfmt': vfmt, 'afmt': afmt, 'keys': keys, 'vlen': vlen, 'alen': alen, 'half': half, 'block': block,
+            'has_audio': r.random() < 0.9}
+
+
+def answers(seed, mode, movie=None):
     r = rnd(seed, 'answers')
     skip = r.random() < 0.25
     skip_rate = r.choice([0.002, 0.02, 0.1])
+    lock = {'bytes': 0}
+    step = r.choice((0.05, 0.1, 0.3, 0.6, 1.1)) * (movie['half'] if movie else 1000)
 
     def answer(key):
         def f(n, a):
             rr = rnd(seed, f'{key}#{n}')
+            m = movie
+            if key == 'AVIStreamOpenFromFileA':
+                if not m or (a[1] == AUDS and not m['has_audio']) or rr.random() < 0.02:
+                    return 0x80044103  # AVIERR_FILEOPEN
+                return 0
+            if key in ('AVIStreamReadFormat', 'AVIStreamInfoA', 'AVIStreamRead'):
+                return 0x80044066 if rr.random() < 0.01 else 0
+            if key == 'AVIStreamLength':
+                return m['vlen'] if a[0] == 0x100 else m['alen']
+            if key == 'AVIStreamFindSample':
+                pos, flags = a[1] - (1 << 32) if a[1] >= 1 << 31 else a[1], a[2]
+                if flags & 4:
+                    best = [k for k in m['keys'] if k <= pos]
+                    return best[-1] if best else 0xffffffff
+                nxt = [k for k in m['keys'] if k >= pos]
+                return nxt[0] if nxt else 0xffffffff
+            if key == 'ICLocate':
+                return 0x777
+            if key in ('ICSendMessage', 'AVIFileInit', 'AVIFileExit', 'AVIStreamRelease', 'ICClose'):
+                return 0
+            if key == 'ICDecompress':
+                return 0xffffffff if rr.random() < 0.01 else 0
+            if key == '0x00576c70':
+                return 24 if rr.random() < 0.1 else 16
+            if key == '0x005758c0':
+                return 0 if rr.random() < 0.05 else 0x4400
+            if key == '0x00575550':
+                lock['bytes'] = a[2]
+                return 0 if rr.random() < 0.03 else 1
+            if key == '@lock_n1':
+                b = lock['bytes']
+                lock['n1'] = b if rr.random() < 0.9 else b // 2 - (b // 2) % max(1, m['block'])
+                return lock['n1']
+            if key == '@lock_n2':
+                return lock['bytes'] - lock.get('n1', 0)
+            if key == '0x00575690':
+                if rr.random() < 0.05:
+                    return 0
+                if m and rr.random() < 0.05:
+                    return rr.choice((m['half'], m['half'] - 1, m['half'] + 1, 2 * m['half'] - 1))
+                size = 2 * m['half'] if m else 1
+                return int(n * step + rr.randrange(0, 64)) % max(size, 1)
+            if key == '0x00575980':
+                return 0
             if key == '0x0051a9b0':
                 return rr.choice((1, 2, 4)) if skip and rr.random() < skip_rate else 0
             if key in ('0x005179d0', '0x00579500', '0x0056f6f0'):
@@ -312,7 +492,7 @@ def answers(seed, mode):
             if key == '0x00558080.h':
                 return rr.choice((480, 600, 768, 960))
             if key == '_stat':
-                return 0xffffffff
+                return 0 if movie else 0xffffffff
             return rr.randrange(1, 0x10000)
         return f
     return answer
@@ -348,19 +528,23 @@ def nan_alike(log):
     return out
 
 
-def run(seed, data, name, verbose=False):
+def run(seed, data, name, verbose=False, movie=None):
     r = rnd(seed, 'run')
     fmt = r.choice(FORMATS)
     mode = r.choice((1, 1, 1, 0, 2))
     t = Trace()
-    t.script = Script(answers(seed, mode))
+    t.script = Script(answers(seed, mode, movie))
     o = Side(t, fmt)
     o.mode(mode)
+    o.movie = movie
     snap = o.e.snapshot()
     rep = Replay(t, o.e, snap)
     probe.probe_app_set_callback(rep.callback())
     probe.probe_fmv_reset(mode, *fmt)
-    label = f'seed {seed} block {name} mode {mode} format {fmt}'
+    if movie:
+        probe.probe_fmv_movie(movie['vinfo'], movie['vfmt'], len(movie['vfmt']), movie['ainfo'], movie['afmt'],
+                              len(movie['afmt']))
+    label = f'seed {seed} block {name} mode {mode} format {fmt}' + (' with a movie' if movie else '')
     results = []
 
     def both(what, want, got):
@@ -405,6 +589,14 @@ def run(seed, data, name, verbose=False):
         o.call(DTOR, ecx=o.obj)
         probe.probe_fmv_delete()
     ok = ok and compare(label, nan_alike(t.log), nan_alike(rep.log))
+    if movie:
+        for key, args in t.log:
+            k = key
+            if key == 'AVIStreamFindSample':
+                k = f'{key}({args[2]:#x})'
+            elif key == 'ICDecompress':
+                k = f'{key}({args[1]:#x})'
+            MOVIE_CALLS[k] = MOVIE_CALLS.get(k, 0) + 1
     if not ok:
         bad = [x for x in results if x[1] != x[2]]
         if bad:
@@ -512,11 +704,24 @@ def main():
     shipped = shipped_fmv()
     cases = [(seed, shipped, SHIPPED[seed % len(SHIPPED)]) for seed in range(2 * len(SHIPPED))]
     cases += [(seed, random_tree(rnd(seed, 'tree')), 'BLOCK') for seed in range(1000, 1000 + runs)]
+    # PLAYAVI found: the movie player on random movies, the shipped movie blocks and random ones.
+    movies = [(seed, shipped, MOVIE_BLOCKS[seed % len(MOVIE_BLOCKS)], random_movie(rnd(seed, 'movie')))
+              for seed in range(5000, 5000 + max(10, runs // 4))]
+    movies += [(seed, movie_tree(rnd(seed, 'tree')), 'BLOCK', random_movie(rnd(seed, 'movie')))
+               for seed in range(7000, 7000 + max(10, runs // 4))]
     broken = '--break' in sys.argv
     caught = 0
     calls = polls = 0
     for seed, data, name in cases:
         ok, n, p = run(seed, data, name, verbose='-v' in sys.argv)
+        if not ok:
+            if not broken:
+                sys.stdout.flush(); os._exit(1)
+            caught += 1
+        calls += n
+        polls += p
+    for seed, data, name, movie in movies:
+        ok, n, p = run(seed, data, name, verbose='-v' in sys.argv, movie=movie)
         if not ok:
             if not broken:
                 sys.stdout.flush(); os._exit(1)
@@ -539,7 +744,12 @@ def main():
     if broken:
         print(f'{caught} runs caught the break')
         sys.stdout.flush(); os._exit(0 if caught else 1)
-    print(f'fmv: {len(cases)} scripts ({2 * len(SHIPPED)} shipped), {polls} polls, {calls} calls identical; '
+    want = ('ICDecompress(0x0)', 'ICDecompress(0x8000000)', 'ICDecompress(0x80000000)', 'ICDecompress(0x88000000)',
+            'AVIStreamFindSample(0x11)', 'AVIStreamFindSample(0x14)', '0x00575550', '0x00575690', '0x005758c0',
+            '0x0056e3d0', 'AVIStreamRelease', 'ICClose')
+    print('movie calls: ' + ', '.join(f'{k} {MOVIE_CALLS.get(k, 0)}' for k in want))
+    print(f'fmv: {len(cases) + len(movies)} scripts ({2 * len(SHIPPED)} shipped, {len(movies)} with movies), '
+          f'{polls} polls, {calls} calls identical; '
           f'pause blur 40 runs, {pause} calls; blur passes {done} cases bit for bit ({changed} changed the screen)')
     sys.stdout.flush(); os._exit(0)
 

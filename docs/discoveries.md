@@ -2321,6 +2321,21 @@ From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
   up; they then stay up while the main menu loads. The 4 seconds show
   whatever was there before: the intro movie's last frame, or black with
   `-nofmv`. Not yet seen on the original. (docs/fmv.md, Images)
+- **A movie's picture follows its sound.** The player does not time the
+  frames itself: it asks the sound card how far the soundtrack has played
+  and shows the frame for that point, refilling the sound a second at a
+  time. So a stuttering sound card makes the picture jump to keep up, and
+  the movie ends when the soundtrack's clock passes the last frame.
+  (docs/fmv.md, The movie player)
+- **The intro movie runs one frame ahead.** Every one of INTRO.AVI's 2,737
+  frames is a full picture (a key frame); the other movies keep one every 15
+  frames (a second). The player shows the next key frame instead when it is
+  just one frame away, so in the intro every frame is shown a frame early
+  and its very first frame never appears; in the others it happens once a
+  second. (docs/fmv.md, The movie player)
+- **The movies are 15 frames a second** at 640x480, with 22 kHz sound
+  (mono 8-bit, except the intro and the first operation's opener, which are
+  16-bit stereo).
 - **The demo's opening is still in the 1.2 data.** fmv.zrd holds DEMO_INTRO
   (a sound, then three logos each faded in from black, held 2 seconds,
   blurred in one go of ten passes and faded out, then the MechWarrior 3 logos), DEMO_EXIT

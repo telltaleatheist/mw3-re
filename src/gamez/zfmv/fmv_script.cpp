@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "crt/msvc_math.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -106,6 +107,53 @@ void Host::input_clear() { unported("0x0051a300", {}); }
 uint32_t Host::key_state(int32_t dik) { return unported("0x0051a9b0", {dik}); }
 int32_t Host::file_stat(const char* path) { return static_cast<int32_t>(unported("_stat", {path})); }
 double Host::now() { return zgame::from_bits(unported("timeGetTime", {})); }
+void Host::avi_file_init() { unported("AVIFileInit", {}); }
+void Host::avi_file_exit() { unported("AVIFileExit", {}); }
+int32_t Host::avi_open(Handle* stream, const char* path, uint32_t type) {
+  *stream = 0;
+  return static_cast<int32_t>(unported("AVIStreamOpenFromFileA", {path, type}));
+}
+int32_t Host::avi_read_format(Handle stream, void* format, int32_t* size) {
+  return static_cast<int32_t>(unported("AVIStreamReadFormat", {stream, format != nullptr, format ? *size : 0}));
+}
+int32_t Host::avi_length(Handle stream) { return static_cast<int32_t>(unported("AVIStreamLength", {stream})); }
+int32_t Host::avi_info(Handle stream, AviStreamInfo*) { return static_cast<int32_t>(unported("AVIStreamInfoA", {stream})); }
+int32_t Host::avi_read(Handle stream, int32_t start, int32_t samples, void*, int32_t bytes) {
+  return static_cast<int32_t>(unported("AVIStreamRead", {stream, start, samples, bytes}));
+}
+int32_t Host::avi_find_sample(Handle stream, int32_t pos, uint32_t flags) {
+  return static_cast<int32_t>(unported("AVIStreamFindSample", {stream, pos, flags}));
+}
+void Host::avi_release(Handle stream) { unported("AVIStreamRelease", {stream}); }
+Handle Host::ic_locate(uint32_t type, uint32_t handler, const void*, const void* out, uint32_t mode) {
+  // The output format's size, depth, compression and image size.
+  uint32_t w[6] = {};
+  if (out) std::memcpy(w, out, sizeof w);
+  const uint16_t bits = static_cast<uint16_t>(w[3] >> 16);
+  return unported("ICLocate", {type, handler, mode, w[0], bits, w[4], w[5]});
+}
+int32_t Host::ic_send(Handle hic, uint32_t message, const void* a, const void* b) {
+  return static_cast<int32_t>(unported("ICSendMessage", {hic, message, a != nullptr, b != nullptr}));
+}
+int32_t Host::ic_decompress(Handle hic, uint32_t flags, const void*, const void*, const void*, void*) {
+  return static_cast<int32_t>(unported("ICDecompress", {hic, flags}));
+}
+void Host::ic_close(Handle hic) { unported("ICClose", {hic}); }
+uint32_t Host::display_bits() { return unported("0x00576c70", {}); }
+Handle Host::stream_image(Stream*) { return unported("@stream_image", {}); }
+Handle Host::sound_stream_create(const void*, const void*, uint32_t bytes) {
+  return unported("0x005758c0", {bytes});
+}
+int32_t Host::sound_stream_lock(Handle sound, uint32_t offset, uint32_t bytes, void** p1, uint32_t* n1, void** p2,
+                                uint32_t* n2) {
+  *p1 = *p2 = nullptr, *n1 = *n2 = 0;
+  return static_cast<int32_t>(unported("0x00575550", {sound, offset, bytes}));
+}
+void Host::sound_stream_unlock(Handle sound, void*, uint32_t n1, void*, uint32_t n2) {
+  unported("0x00575600", {sound, n1, n2});
+}
+uint32_t Host::sound_stream_position(Handle sound) { return unported("0x00575690", {sound}); }
+void Host::sound_stream_free(Handle sound) { unported("0x00575980", {sound}); }
 
 // ---------------------------------------------------------------------------
 // The images
@@ -236,18 +284,55 @@ AviAction::AviAction(const char* dir, const char* name, bool flag) : flag(flag) 
   if (host().file_stat(path.c_str()) == -1) path.clear();
 }
 
-// Mech3.exe 1.2 @ 0x00599ea0: the stream opened (0x0059a4a0, not ported yet).
+// Mech3.exe 1.2 @ 0x00599d80: the path only. Quirk kept: a movie deleted
+// without its end (the script rewound and deleted mid-way) keeps its stream,
+// and its sound buffer loops on (docs/fmv.md).
+AviAction::~AviAction() {}
+
+// Mech3.exe 1.2 @ 0x00599ea0: the stream opened (new(0x1e4)), the rect the
+// render target's size.
 void AviAction::start(double) {
   if (path.empty()) return;
+  stream = new Stream(path.c_str(), flag);
+  rect = {};
+  int32_t w = 0, h = 0, depth = 0, pitch = 0;
+  host().render_target(&w, &h, &depth, &pitch);
+  rect.right = w, rect.bottom = h;
   frame = -1;
 }
 
-// Mech3.exe 1.2 @ 0x00599de0. Not ported yet (item 11): ends at once, as the
-// original does without a file.
-bool AviAction::step(double) { return false; }
+// Mech3.exe 1.2 @ 0x00599de0: the frame for the time since the first step
+// (x87 at 24 bits, truncated), drawn and shown when it changes; done once the
+// stream has passed its last frame. In mode 2 the decode is outside the 2D
+// lock and the flip is without the copy.
+bool AviAction::step(double t) {
+  if (path.empty()) return false;
+  Host& h = host();
+  bool going = true;
+  if (frame < 0) started = t;
+  const float since = static_cast<float>(t - started);
+  const int32_t f = crt::msvc_ftol(since * static_cast<float>(stream ? stream->fps : 0));
+  if (f == frame) return going;
+  if (h.video_mode() == 2) {
+    if (!(stream ? stream->frame(f) : 0)) going = false;
+    h.image_stretch(h.stream_image(stream), 0, nullptr, &rect);
+    h.video_flip(0, 0, 1, 0);
+  } else {
+    h.video_lock();
+    if (!(stream ? stream->frame(f) : 0)) going = false;
+    h.video_unlock();
+    h.image_stretch(h.stream_image(stream), 0, nullptr, &rect);
+    h.video_flip(0, 0, 1, 1);
+  }
+  frame = f;
+  return going;
+}
 
 // Mech3.exe 1.2 @ 0x00599f40
-void AviAction::end() {}
+void AviAction::end() {
+  delete stream;
+  stream = nullptr;
+}
 
 // Mech3.exe 1.2 @ 0x0059a220. Not ported (no script plays one): ends at once.
 MciAction::MciAction(uint32_t hwnd, const char* dir, const char* name) : hwnd(hwnd) {

@@ -450,6 +450,9 @@ class GameEngine : public Engine {
   uint32_t wait_poll() override;
   void wait_end() override;
   void fmv_stretch(zimg::Texture* image, int32_t left, int32_t top, int32_t right, int32_t bottom);
+  struct MovieStats {  // ours, for checking: the PLAYAVI frames drawn, the last one, its movie's length
+    int drawn = 0, last = -1, length = 0;
+  } movie_stats;
   // The Direct3D frame: zvid's lock (0x00576d00 / 0x00576d60), scene nesting
   // (0x00579af0 / 0x00579b10), the quad ([0x0072f3ec]) and the finish (0x00558610).
   // 0x0040f8d0: the message panel's slide, then the view target's HUD data update.

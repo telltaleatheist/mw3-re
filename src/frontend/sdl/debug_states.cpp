@@ -183,4 +183,41 @@ void DebugDialogState::leave() {
   if (dialog_) dialog_->set_active(0);
 }
 
+bool DebugMovieState::enter() {
+  movie_ = engine_->movie_new();
+  const zgame::Handle frame = mech3::app().frame_;
+  if (const zgame::Handle hwnd = frame ? engine_->frame_hwnd(frame) : 0) engine_->movie_set_window(movie_, hwnd);
+  if (engine_->movie_load(movie_, "fmv.zrd", name_.c_str()) == -1) {
+    std::fprintf(stderr, "mw3: --movie %s: no fmv.zrd\n", name_.c_str());
+    return false;
+  }
+  shown_at_start_ = engine_->frames_presented;
+  engine_->movie_stats = {};
+  engine_->movie_play(movie_);
+  return true;
+}
+
+bool DebugMovieState::update() {
+  engine_->input_poll(0);
+  const int shown = engine_->frames_presented - shown_at_start_;
+  if (!shot_.empty() && shown == shot_frame_ - 1) render_->capture_next(shot_.c_str());
+  const bool playing = movie_ && engine_->movie_playing(movie_);
+  if (!shot_.empty() && engine_->frames_presented - shown_at_start_ >= shot_frame_) {
+    std::printf("mw3: wrote %s (frame %d)\n", shot_.c_str(), shot_frame_);
+    return true;
+  }
+  if (playing) return false;
+  const mech3::GameEngine::MovieStats& st = engine_->movie_stats;
+  std::printf("mw3: movie %s: %d frames shown, %d drawn, the last %d of %d\n", name_.c_str(),
+              engine_->frames_presented - shown_at_start_, st.drawn, st.last, st.length);
+  return true;
+}
+
+void DebugMovieState::leave() {
+  if (!movie_) return;
+  engine_->movie_stop(movie_, 0);
+  engine_->movie_delete(movie_);
+  movie_ = 0;
+}
+
 }  // namespace sdlfe

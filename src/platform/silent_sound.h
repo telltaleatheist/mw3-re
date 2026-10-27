@@ -2,11 +2,15 @@
 #include <map>
 #include <vector>
 
+#include "platform/platform.h"
 #include "platform/sound_output.h"
 
 // A platform::SoundOutput with no device: buffers keep their bytes and
 // settings, Play marks them playing until Stop (nothing ever reaches its end).
-// For tests and for running without audio (mw3 --nosound).
+// With a clock, a playing buffer's play cursor moves at its byte rate (and
+// wraps when looping), as DirectSound's does: the movie player's sound sets
+// the frame shown (docs/fmv.md). For tests and for running without audio
+// (mw3 --nosound).
 namespace platform {
 
 class SilentSoundOutput : public SoundOutput {
@@ -60,6 +64,7 @@ class SilentSoundOutput : public SoundOutput {
     Buffer* x = get(b);
     if (!x) return kInvalidParam;
     x->playing = true, x->looping = (flags & kPlayLooping) != 0;
+    x->started_ms = clock ? clock->ticks_ms() : 0;
     ++plays;
     return 0;
   }
@@ -67,9 +72,20 @@ class SilentSoundOutput : public SoundOutput {
     Buffer* x = get(b);
     return x ? (x->playing = false, 0) : kInvalidParam;
   }
-  int32_t set_current_position(SoundBuffer, uint32_t) override { return 0; }
-  int32_t get_current_position(SoundBuffer, uint32_t* play, uint32_t* write) override {
+  int32_t set_current_position(SoundBuffer b, uint32_t pos) override {
+    if (Buffer* x = get(b)) x->start_pos = pos, x->started_ms = clock ? clock->ticks_ms() : 0;
+    return 0;
+  }
+  int32_t get_current_position(SoundBuffer b, uint32_t* play, uint32_t* write) override {
     *play = 0, *write = 0;
+    Buffer* x = get(b);
+    if (!x || !clock || x->data.empty()) return 0;
+    uint64_t pos = x->start_pos;
+    if (x->playing) pos += static_cast<uint64_t>(clock->ticks_ms() - x->started_ms) * x->format.avg_bytes_per_sec / 1000;
+    const uint64_t size = x->data.size();
+    pos = x->looping ? pos % size : (pos < size ? pos : size);
+    if (x->format.block_align > 1) pos -= pos % x->format.block_align;
+    *play = *write = static_cast<uint32_t>(pos);
     return 0;
   }
   int32_t get_volume(SoundBuffer b, int32_t* v) override {
@@ -101,6 +117,7 @@ class SilentSoundOutput : public SoundOutput {
   }
 
   int plays = 0;  // Play calls, for tests
+  Clock* clock = nullptr;  // moves the play cursors; none: they stay at their start
 
  private:
   struct Buffer {
@@ -110,6 +127,7 @@ class SilentSoundOutput : public SoundOutput {
     bool playing = false, looping = false;
     int32_t volume = 0;
     uint32_t freq = 0;
+    uint32_t start_pos = 0, started_ms = 0;
   };
   Buffer* get(SoundBuffer b) {
     auto it = buffers_.find(b);
