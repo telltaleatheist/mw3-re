@@ -226,7 +226,10 @@ def make_plan(seed, spots):
                 lines.append(f'V {off:x} {r.choice([0, 1, 5, 99]):x}')
             lines.append('J')
         lines.append(mouse_line(r, spots, state))
-    lines += ['B 4', 'E']
+    lines += ['B 4']
+    if r.random() < 0.5:  # back from that game: the IA Dummy State saves the record last
+        lines += [f'Z {r.choice([0, 1]):x} {r.choice([0, 1]):x}', f'V 4c {r.randrange(9):x}', 'J']
+    lines.append('E')
     return lines
 
 

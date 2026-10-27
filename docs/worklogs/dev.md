@@ -949,3 +949,23 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - test_actionscreen.py: 60/60 (876k calls, the pilot file's bytes too);
   breaks 34/35 (the miss unobservable). The first batch missed four: the
   dump lacked the items' values, and the best wave 20 was rare (weighted).
+
+## Item 12b (2026-10-27): the launch from the Action screen
+
+- Branch mac4/ia-launch off main f8143ad. The store fill 0x00470e30 ported
+  (Store::fill_all, equip_has_tech 0x00484a00); test_store_fill.py 4/4,
+  124 items (125 with the plain PPC fix).
+- The program's Load state refused Instant Action (back to the main menu):
+  it now takes the world (vt+0x54, +0x74) as the directory and the ia
+  mission (vt+0x4c, +0x78).
+- The 0x231 header: %1!d! is vt+0x48 (world + 1), %2 vt+0x0c (+0x3c, the
+  scenario's name): hud.md 24's open note closed.
+- The IA Dummy State (0x0047ce80) and the wreck's tally wired to the
+  launch's ActionGame; CONTINUE's round (Engine::action_next_round, the
+  debriefing probe's model). test_actionscreen.py enters the state: 60/60.
+- Headless instant_action_menus_to_wave1_tallies_headless: menus, the
+  Action screen on Progression, the briefing, wave 1 killed, wave 2, the
+  header, Exit Mission, ABORT, the tallies (2/0/0, best 1), the pilot file,
+  the Action screen again with Wave 2. The test first acted inside the
+  Action State's resume (its flip presents a frame while the pilot's pop
+  is still running): it now waits for an empty queue.
