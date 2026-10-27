@@ -113,6 +113,9 @@ void set_vertex_precision(float v);            // 0x00538060
 // colinear points go, or the model full), 2 added as a fan of triangles
 // (not planar to 0.005) or in pieces (more than 48 points).
 int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);  // 0x0053c6c0 ECX m, EDX n
+// Every polygon's priority (+0x04) set; none on a null model. The exe returns
+// what EAX holds; callers ignore it (0 here, for the script's engine table).
+int model_set_priority(Model* m, int32_t priority);  // 0x0053bb20 ECX m, EDX priority
 // `kept` (optional) loses the index of each point dropped.
 int drop_colinear(int32_t* n, float* points, std::vector<int32_t>* kept = nullptr);  // 0x0053a530 ECX n, EDX points
 int32_t find_vertex(Model& m, const float p[3]);                     // 0x00539d80

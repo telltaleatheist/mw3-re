@@ -1255,6 +1255,12 @@ From the render path (render.md).
   shadow: a 64x64 picture for yours, 32x32 for the others, covering a
   quarter to half of it in the mechs' standing pose (more for a low sun, as
   on the second campaign's maps and the training map).
+- **Every mech carries two invisible "skis".** The code that keeps a mech
+  on the ground builds a ski under each side of the track, each with a
+  debug model of two quads in a random colour, and then hides them. The
+  colours are rolled with the game's random numbers as the mech is built,
+  so building a mech moves every random roll after it. (movement-ground.md,
+  The skis' debug quads)
 - **Not only mechs: everything that moves casts the same shadow.** The
   shadow code walks every entity in the mission, so tanks, APCs, mobile
   HQs, field bases, turrets (the helicopters among them) and even the

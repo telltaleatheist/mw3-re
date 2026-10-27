@@ -273,6 +273,13 @@ class WiredBuild : public MechBuildHooks {
     zcls::node_set_model(zn(node), static_cast<zmod::Model*>(model));
   }
   Handle model_new() override { return zmod::model_alloc(); }
+  void model_set_priority(Handle model, int32_t p) override {  // 0x0053bb20
+    zmod::model_set_priority(static_cast<zmod::Model*>(model), p);
+  }
+  void model_add_polygon(Handle model, int32_t n, const float* v) override {  // 0x004776d0
+    std::vector<float> points(v, v + 3 * n);  // the add drops colinear points in place
+    ski_polygon(static_cast<zmod::Model*>(model), n, points.data());
+  }
   void node_set_action(Handle node, uint32_t) override { zcls::node_set_action(zn(node), nullptr); }
   void node_set_flag8(Handle node, int32_t on) override { zcls::node_set_flag8(zn(node), on); }
   // 0x005a7f50: onto zEntity's list, the port's (mech3/sensors).

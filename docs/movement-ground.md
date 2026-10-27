@@ -34,6 +34,22 @@ centre. Forward is -z, so 0 and 3 are the front probes.
 | +0x2f4 | **never written** (read as the mid-probe width; heap garbage) |
 | +0x2f8, +0x2fc | 1/L, 1/L^2 |
 
+### The skis' debug quads (0x476090, 0x4776d0, 0x477730)
+
+Each ski's node gets a model of two quads along the ski, a 1 m wide flat
+one and an upright one (0x476090), never shown: the nodes are made
+inactive. The model's priority 1 is set before the quads are added, so it
+reaches no polygon (0x53bb20 writes each polygon's +0x04 and the model has
+none yet). Each quad (0x4776d0: refused under 3 points; zone list reset,
+0x53c6c0 with flag 1, priority 0) takes a material of its own (0x477730):
+`material_init`, then three `rand()`s times 255/32767 until they sum to
+150 (r is the second, g the first, b the third), packed into the 16-bit
+colour unscaled: `(r << 11) | (g & 0x3f) << 5 | (b & 0x1f)` of the 0..255
+values, so the colour is their low bits, not a 565 of the colour. Each
+mech build draws at least 12 `rand()`s here (two skis, two quads, three a
+try), which moves every later random number; the port draws them the same
+(`crt::msvc_rand`). `test_ski_polygon.py` (1,325 runs).
+
 ## Update (0x4765b0, from 0x4162c0, returns airborne)
 
 ```

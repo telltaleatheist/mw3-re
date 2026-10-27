@@ -8150,9 +8150,9 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     // only when the AI, the walk or the weapons do.
     if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
       EXPECT(seen.fired_before == 53 && seen.fired_after == 1009 && seen.on_enemy == 1139);
-      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 71.1886f) < 1e-3f);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 128.382f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
-      EXPECT(seen.on_player == 385);  // his next pick, once the player is 30 m off
+      EXPECT(seen.on_player == 219);  // his next pick, once the player is 30 m off
       EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 1009 && seen.phases[5] == 126);
     }
     mech3::missions().cleanup(false);
@@ -8473,11 +8473,13 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // with reset_process_state's fixed seed). His spot is in one of the
     // mission boundary's no-go patches (ai.md section 11), so he walks out of
     // it meanwhile. In the first second he counts as hit (the hit record
-    // starts at time 0), so scan_hit gives him a manoeuvre (ai.md 17.2): the
-    // first hut is down within the 40 s, untouched at 30.
-    EXPECT(seen.hut != 0 && seen.target_contacts == 2551 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 1062 && seen.aiming == 54 && seen.firing == 883);
-    EXPECT(seen.health0 == 30.0f && seen.health == 0.0f);
+    // starts at time 0), so scan_hit gives him a manoeuvre (ai.md 17.2). Since
+    // the skis' quads draw their rand()s (0x00477730, as the exe's) he turns
+    // from ghsD2 to ghsD3 within 2 s, and two of his hits land in the 40 s:
+    // 30 -> 16 -> 9.
+    EXPECT(seen.hut != 0 && seen.target_contacts == 2165 && seen.first_target == "ghsD2");
+    EXPECT(seen.on_target == 1064 && seen.aiming == 70 && seen.firing == 867);
+    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 9.01278f) < 1e-3f);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -8794,7 +8796,7 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
       // follow is pulled round its corner (ai.md section 11; 63.3 m without).
       EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 326 && seen.firing == 375);
       EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-      EXPECT(std::fabs(seen.moved - 70.3761f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      EXPECT(std::fabs(seen.moved - 69.9241f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);
     app.stop_game();

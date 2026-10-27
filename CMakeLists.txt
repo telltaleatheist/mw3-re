@@ -330,6 +330,7 @@ add_library(mw3probe SHARED
   tests/probe_weiler.cpp
   tests/probe_convexify.cpp
   tests/probe_gmod_add.cpp
+  tests/probe_ski.cpp
   tests/probe_crater.cpp
   tests/probe_sound_extra.cpp
   tests/probe_deaths.cpp

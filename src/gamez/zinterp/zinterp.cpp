@@ -83,6 +83,7 @@ Engine make_engine() {
   e.display_set_clear_color = zcls::display_set_clear_color;
   e.light_create = zcls::light_create;
   e.object3d_create = zcls::object3d_create;
+  e.model_set_priority = zmod::model_set_priority;  // Object3DSetPriority's
   e.object3d_add_child = zcls::object3d_add_child;
   e.world_set_fog_type = zcls::world_set_fog_type;
   e.world_set_fog_color = zcls::world_set_fog_color;
