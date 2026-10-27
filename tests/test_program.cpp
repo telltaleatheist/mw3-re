@@ -6776,6 +6776,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // trigger (phase 4) and the group's lasers fire (a beam running, or
     // recharging after).
     EXPECT(seen.group_volleys > 100 && seen.firing > 100 && seen.shooting > 0);
+    // The radar's shot list has its object, whose action empties it each frame
+    // (0x004b4ab0, from the mission's setup; unwired, every shot stayed listed).
+    EXPECT(seen.counts0.count("0x004b4ab0") == 0);
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
@@ -10699,6 +10702,11 @@ TEST(playtest_hud_images_the_data_lacks) {
 // Ctrl+Q at the end. Every unported address the engine logs, with its count,
 // goes to MW3_CENSUS_OUT (tab separated, the most frequent first). Runs only
 // with MW3_CENSUS=1: it takes a while.
+namespace mech3 {  // weapon.h's Handle clashes with mission.h's
+struct RadarBlip;
+std::list<RadarBlip*>& radar_blips();  // 0x0060b228
+}  // namespace mech3
+
 TEST(census_c1m1_unported_headless) {
   if (!have_game() || !std::getenv("MW3_CENSUS")) return;
   SavedMounts keep;
@@ -10742,6 +10750,7 @@ TEST(census_c1m1_unported_headless) {
   const int total = seconds * 60;  // FakeClock: 16 ms a frame, about 60 a second
   std::map<std::string, uint32_t> counts;
   int frames = 0, quit_at = 0;
+  size_t most_shots = 0;  // the radar's shot list, emptied each frame
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -10785,6 +10794,7 @@ TEST(census_c1m1_unported_headless) {
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       ++frames;
+      most_shots = std::max(most_shots, mech3::radar_blips().size());
       for (auto it = releases.begin(); it != releases.end();) {
         if (it->first == frames) press(it->second, false), it = releases.erase(it);
         else ++it;
@@ -10829,7 +10839,9 @@ TEST(census_c1m1_unported_headless) {
       std::fclose(f);
     }
   }
-  std::fprintf(stderr, "census: %d frames, %zu distinct unported, quit at %d\n", frames, rows.size(), quit_at);
+  std::fprintf(stderr, "census: %d frames, %zu distinct unported, quit at %d, at most %zu shots on the radar\n", frames,
+               rows.size(), quit_at, most_shots);
+  EXPECT(most_shots > 0 && most_shots < 100);  // the Thor's volleys, cleared each frame
   EXPECT(frames >= total);
 }
 

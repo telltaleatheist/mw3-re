@@ -1028,3 +1028,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - c4b's 0x0041aba0 / 0x0041ca30 / 0x0041cc30 came from `c4m4` (no mech).
 - `MW3_TRACE_UNPORTED` found 0x00430aa0's caller (MechCamera::set_look).
 - Census 84 -> 73; c4bm4 79; mw3tests 205/0.
+
+## Mission-plan item 2 (2026-10-27): the quit trap and the census hang
+
+- Branch mac4/quit (main 9188039). The crash reports (EXC_BREAKPOINT in
+  xzone malloc, in Metal's and CoreAudio's teardown) were heap damage;
+  build-asan/mw3 named it: mw3_main's stop_game after run's ExitInstance
+  (zsnd::unlock on freed voices). Dropped: the exe leaves the world to
+  the process's end on WM_QUIT.
+- The 180 s census: not a hang. sample showed HudRadar walking
+  radar_blips; 0x004b4ab0 (the list's clearing object) was unwired, and
+  so were WeaponCalls' object3d_create / set_action_priority / set_action
+  / node_destroy. 30 s: 2,500 entries before, at most 4 after.
+- Checks: the c1m1 Owens test (0x004b4ab0 not reached unported) and the
+  census (at most 100 shots listed); both fail unwired. 180 s census 91 s.
+- Note: mw3tests filters by MW3_TEST, not its argument.
