@@ -723,9 +723,8 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   operation's missions share one world and the two missions the restore
   skips (Op 1 M1, Op 4 M4) are the world changes. A reloaded campaign brings
   the last mission's animation state into the next (discoveries). At the win
-  CoreState::leave has run 0x50ace0(1): on all six worlds no def is still
-  running, so the win's save holds the activations and Anim entries only;
-  RunningAnim only matters mid-mission (never in MW3).
+  CoreState::leave has run 0x50ace0(1) (wrong, corrected in save 3: the
+  Win State's save comes before the Core state leaves).
 - Ported in zeff_anim_save: the three savers and loads, 0x50be30, the log's
   accessors and replay (0x50b640/6f0/700, 0x50ca60, 0x50ca90), the switch
   0x5090d0 (GameEngine::anim_enable) and the registration in anim_init
@@ -743,3 +742,35 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   reaches at a save on any world). The three damaged-entry fixes left out
   crash the port. Related set: test_anim_run, anim_binder, zsave, anim,
   anim_owner, puffers, pilot, mw3tests 202 and mw3sdltests 12, all pass.
+
+## Save 3 (2026-10-26): the live round trip and "Replace existing game?"
+
+- Branch mac4/save-3 off main 6712fbd.
+- First, save 2's follow-up (lead): test_anim_save forces the four states
+  random play never reached at a save (a def in error, a running copy at
+  another node, a resting copy, a nodeless reset record loaded onto an
+  invalid def). The running copy needed its def's last log record moved to
+  the def's own node: the activations' save otherwise binds the def onto the
+  copy's node, and the def and copy are saved at the same node. Breaks now
+  23/27 (the 4 left: data no world has, or a flag the replays restore).
+- The damaged loads, now on all six worlds, crashed the port on c4: a
+  running entry's sound parent index past the node pool. FIX (bug)
+  saved_node for every node index a load reads (fixes.md row extended).
+- Found live: the Win State's save runs with the mission as it is (the Core
+  state is only suspended under the end screen, fade and Win State), so the
+  win's save holds the runs going on (c1m1: 80 RunningAnim entries); save 2's
+  "stopped first" was wrong. test_anim_save's saves relabelled (the win's,
+  then one after 0x50ace0), save.md, discoveries corrected.
+- `--win N` (ours, program.md): Exit Mission once won, through the end
+  screen, fade, debriefing and Win State; `--verbose` prints the pilot's
+  game at the win and at each loaded briefing.
+- tools/analysis/savecheck.py: straight on and reloaded c1m2 briefings hold
+  the same (store and salvage, mech and loadout, lancemates), "Saved Game
+  Loaded" only on the reload, Replace No keeps the file, OK rewrites it.
+  8/8 checks; breaks 5/5. Clicks (game pixels): CAMPAIGN 70,60, the pilot
+  150,135, ACCEPT 470,320, the first saved game 467,46, LAUNCH 556,435, the
+  debriefing's checkmark 595,445, the Replace box's OK 246,290 and NO
+  392,290. Shots: outbox/2026-10-27/save3.
+- Open: the Replace box is drawn over a flat light grey screen (the end
+  screen's fade); whether the original looks the same is not checked.
+

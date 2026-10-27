@@ -2738,8 +2738,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   still print "Saved Game Loaded" while loading. (docs/save.md)
 - **Loading a saved campaign brings the last mission's animations into the
   next one.** The missions of an operation share one world, and the saved
-  game holds how its animations ended: which ones had run, which were spent,
-  where their objects were left. Loaded from the pilot screen, the next
+  game holds how its animations stood when you won: which ones had run,
+  which were spent, where their objects were left, and the ones still
+  running, which go on from where they were. Loaded from the pilot screen, the next
   mission starts with those replayed, so what the last mission destroyed,
   opened or set off stays that way. Going straight on from the debriefing
   reads nothing, so the same mission then starts with the world fresh. The

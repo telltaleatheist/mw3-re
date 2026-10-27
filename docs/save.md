@@ -100,10 +100,12 @@ nothing (+0xb0), so the same mission then starts fresh.
 ### The anim registrants (zeff_anim_save, ported)
 
 All three are registered by zEffect's start (0x00508fc0) when [0x005ebcc0]
-(0x005090d0, 1) is set, in the priority order 0x32, 0x33, 0x34. At the
-mission's end CoreState::leave runs 0x0050ace0(1) (every def and instance
-stopped, its reset clock kept) before the win's save, so the save sees the
-mission at rest.
+(0x005090d0, 1) is set, in the priority order 0x32, 0x33, 0x34. The win's
+save runs with the mission as it is: the Core state is only suspended under
+the end screen, its fade and the Win State, so its CoreState::leave and the
+mission's end there (0x0050ace0(1), every def and instance stopped) come
+later. The save holds the runs going on when the mission was won (a live
+c1m1 win: 80 RunningAnim entries among 1,849).
 
 - **AnimActivation** (0x0050b710 / 0x0050b970): the animation call log
   (anim-postload.md, the loggers) replayed. Each record is an entry
@@ -146,10 +148,9 @@ A def's own setting (+0x94 0x1000 with 0x2000 off) keeps it out of
 RunningAnim and Anim, as it keeps it out of the log; [0x005ebf0c] off keeps
 all of them out.
 
-**What the win's save holds** in practice (test_anim_save.py on the six
-worlds, after random play): the activations and every def's state; no runs,
-because the mission's end has stopped them all. RunningAnim's code only
-matters for a save made during a mission, which MW3 never makes.
+**What the win's save holds**: the activations, every def's state and the
+runs going on at the win (a live c1m1 win: 123 activations, 80 runs, 1,646
+Anim entries).
 
 **Stack leftovers.** The exe builds each record on its stack and does not
 clear it: what a record does not set (the activations' +0x50, an object's
@@ -197,7 +198,9 @@ port:
   "/" keeps it ("x/y").
 - **An anim entry that does not fit** (shorter than its head, a def index
   outside the defs, an object count larger than the entry, more sequences
-  than the def has): the exe indexes and reads past them. **FIX (bug)**:
+  than the def has, a node index past the node pool): the exe indexes and
+  reads past them (a light or sound is added under whatever lies past the
+  pool: a crash). **FIX (bug)**:
   such an entry is passed over, or only what it holds is read.
 
 ## 5. The port
@@ -258,8 +261,8 @@ mission load not asking it.
 the emulator on test_anim_run's worlds after frames of random calls, zSave's
 calls caught (the entries kept as they are written; the temporary files over
 fwrite and fread), against the port's real saved game. Two saves per world:
-one in the middle (the runs as they are, to reach RunningAnim) and the win's
-(after 0x0050ace0(1)). Compared: every entry's name and words (floats within
+the win's (the runs as they are) and one after the mission's end
+(0x0050ace0(1), every run stopped; MW3 makes none there). Compared: every entry's name and words (floats within
 1e-4: the rotations come from the matrices), the state after each save;
 then the world read again on both sides, each save loaded (the original's
 entries given to its loads in the file's order), the whole state compared,
@@ -268,30 +271,53 @@ world (the cross-load) and compared, and frames of random calls run on to
 show the restored runs go on alike. The savers' stack frames are zeroed on
 entry (the port writes zeros), and the event addresses normalized as above.
 A third world is played first and every def's object nodes hidden or shown
-and moved (through 0x004eb170 / 0x004fc0b0 on both sides) before the mid
+and moved (through 0x004eb170 / 0x004fc0b0 on both sides) before the win's
 save is loaded into it; entries cut short or given a def index, object
 count or sequence count that does not fit are loaded by the port, which
-must come through. On the six worlds (60 frames, 20 after): everything
-identical, the win's saves holding 0 runs (RunningAnim reached by the mid
-saves: 407 runs).
+must come through. A fourth world has the states random play does not
+reach at a save set directly on both sides (a def in error, a running def
+with a running copy at another node, with the def's last record moved to
+its own node so the activations' save does not bind it onto the copy's,
+one with a resting copy, and a def logged only without a node set to reset),
+is saved, and the save is loaded into a world where the reset def is invalid
+(4). On the six worlds (60 frames, 20 after): everything
+identical (the win's saves held 407 runs, the stopped ones none).
 
-Breaking the port, on c1: 19 of 27 caught. Caught: the save's bind left
+Breaking the port, on c1: 23 of 27 caught. Caught: the save's bind left
 out, a reset's objects saved, every object restore left out, the first
 entry's reset, the 0x4000 mark, an executed record not logged again, a
-def's setting in RunningAnim, the current event's offset, the
-clocks, the made test, the tick, the status, the Anim numbering, the
-restored defs not skipped and running copies not reset in Anim's load, the
-registration order; and the three damaged-entry fixes left out (the port
-then crashes). Not seen, with the reason: the status read after the bind
-(the bind changes it only when a root is missing: no world has one), the
-model's morph flag (no saved object morphs), the matrix case (no saved
-object keeps a matrix), the active flag alone (the replays put every
-object's flag back themselves), and four states the random play never
-reaches at a save on any of the six worlds (a reset record on an invalid
-def, resting instances, running copies, defs in error).
+reset record on an invalid def left invalid, resting copies saved, a def's
+setting ignored in RunningAnim, the current event's offset, the clocks, the
+main flag inverted on the load, the made test, the tick, the status, the
+Anim numbering, defs in error saved, the restored defs not skipped and
+running copies not reset in Anim's load, the registration order; and the
+three damaged-entry fixes left out (the port then crashes). The node-pool
+check is the one damaged c4's test found (a light added under memory past
+the pool: a crash); left out, the port crashes only on some runs, as what
+lies past the pool is undefined. Not seen, with
+the reason: the status read after the bind (the bind changes it only when a
+root is missing: no world has one), the model's morph flag (no saved object
+morphs), the matrix case (no saved object keeps a matrix), and the active
+flag alone (the replays put every object's flag back themselves).
+
+In the program (`tools/analysis/savecheck.py`, four runs of build/mw3 with
+`--nosound --hidden` on a scratch write dir): c1m1 won with `--win 60`
+(the end screen, the fade, the debriefing; the Win State's save writes
+`pilots\games\Briefing0102.mw3`: 1,849 entries, 123 activations, 80 runs,
+1,646 Anim), then straight on to c1m2's briefing; in a second dir the same
+win, the app quit at the debriefing, and a new run from the plain start
+(CAMPAIGN, the pilot, ACCEPT on the newest save): "Saved Game Loaded" at
+c1m2's load, and its briefing holds what the straight-on one did (the store
+and salvage by item, the mech and its loadout, the lancemates), its
+animation log the replayed one (140 records against 143 straight on). Then
+Op 1 Mission 1 chosen again and won: "Saved game already exists. Replace
+existing game?" answered No keeps the game's file as it was, OK rewrites it
+(the rebuild's order; the original's, which writes it first, is
+`test_pilot.py`'s and the campaign test's). Breaking the port, 5 of 5: the
+campaign's vt+0x28 never reading, no world save, the world written before
+the answer, No filing the new game, the anim registrants not registered.
 
 ## 7. Left
 
-- Save 3: the round trip in the program (a campaign won, the app quit, the
-  pilot's save chosen in a new run, the store, lance and loadouts as they
-  were) and the "Replace existing game?" path.
+- The original's order for "Replace existing game?" is not reachable in the
+  program (no switch for `zfix` bugs there); the headless tests cover it.

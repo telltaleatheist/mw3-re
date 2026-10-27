@@ -104,7 +104,12 @@ They run inside the original main loop, after the original start-up.
   so the Load state shows the mission's own briefing (frontend-plan.md item
   0). Its campaign is the pilot's new one stepped on mission by mission
   (0x00434e00), so the store, the slots and the field bases are a real
-  campaign's (without the earlier missions' salvage).
+  campaign's (without the earlier missions' salvage). `--win N` wins the
+  mission N frames in as a player does, by Exit Mission once won (the end
+  screen, its fade, the debriefing's Win State and its save); with
+  `--verbose` the program prints the pilot's game as the Win State saved it
+  and as each briefing finds it once its mission has loaded
+  (`tools/analysis/savecheck.py`, save.md).
 
 ## What runs ported
 

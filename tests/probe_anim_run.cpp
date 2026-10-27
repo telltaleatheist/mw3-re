@@ -451,6 +451,14 @@ void ar_perturb(int node, int active, float dx, float dy, float dz) {
   zcls::object3d_get_translation(n, &x, &y, &z);
   zcls::object3d_set_translation(n, x + dx, y + dy, z + dz);
 }
+// A def's (or its depth-th instance's) status set directly (test_anim_save's
+// forced states).
+void ar_set_status(int def, int depth, int value) {
+  zeff::AnimDef* d = &zeff::anim().defs[def];
+  for (int i = 0; i < depth && d; ++i) d = d->instance;
+  if (d) d->raw[0x98] = static_cast<uint8_t>(value);
+}
+void ar_set_log_node(int record, int node) { zeff::anim_log().records[record].node = node; }
 void ar_stop_all(int keep) {
   zeff::anim_stop_all(keep);
   build_ids();
