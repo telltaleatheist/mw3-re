@@ -263,7 +263,8 @@ calls caught (the entries kept as they are written; the temporary files over
 fwrite and fread), against the port's real saved game. Two saves per world:
 the win's (the runs as they are) and one after the mission's end
 (0x0050ace0(1), every run stopped; MW3 makes none there). Compared: every entry's name and words (floats within
-1e-4: the rotations come from the matrices), the state after each save;
+1e-4: the rotations come from the matrices; a word that is not a normal
+float on both sides exactly), the state after each save;
 then the world read again on both sides, each save loaded (the original's
 entries given to its loads in the file's order), the whole state compared,
 the original's entries written as a file and loaded by the port in a third
@@ -283,7 +284,7 @@ is saved, and the save is loaded into a world where the reset def is invalid
 (4). On the six worlds (60 frames, 20 after): everything
 identical (the win's saves held 407 runs, the stopped ones none).
 
-Breaking the port, on c1: 23 of 27 caught. Caught: the save's bind left
+Breaking the port, on c1: 24 of 27 caught. Caught: the save's bind left
 out, a reset's objects saved, every object restore left out, the first
 entry's reset, the 0x4000 mark, an executed record not logged again, a
 reset record on an invalid def left invalid, resting copies saved, a def's
@@ -291,14 +292,16 @@ setting ignored in RunningAnim, the current event's offset, the clocks, the
 main flag inverted on the load, the made test, the tick, the status, the
 Anim numbering, defs in error saved, the restored defs not skipped and
 running copies not reset in Anim's load, the registration order; and the
-three damaged-entry fixes left out (the port then crashes). The node-pool
+three damaged-entry fixes left out (the port then crashes), and an object's
+active flag not restored (seen since the comparison takes integer words
+exactly: test_anim_run's Compare had let a flag word pass as a tiny float
+within its tolerance). The node-pool
 check is the one damaged c4's test found (a light added under memory past
 the pool: a crash); left out, the port crashes only on some runs, as what
 lies past the pool is undefined. Not seen, with
 the reason: the status read after the bind (the bind changes it only when a
 root is missing: no world has one), the model's morph flag (no saved object
-morphs), the matrix case (no saved object keeps a matrix), and the active
-flag alone (the replays put every object's flag back themselves).
+morphs) and the matrix case (no saved object keeps a matrix).
 
 In the program (`tools/analysis/savecheck.py`, four runs of build/mw3 with
 `--nosound --hidden` on a scratch write dir): c1m1 won with `--win 60`

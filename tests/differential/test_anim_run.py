@@ -88,6 +88,13 @@ def s32(x):
     return x - (1 << 32) if x >= 1 << 31 else x
 
 
+def normal_float(u):
+    """A 32-bit word that reads as a finite float that is zero or normal (not a
+    denormal, as small integers are)."""
+    e = (u >> 23) & 0xff
+    return (u & 0x7fffffff) == 0 or 0 < e < 0xff
+
+
 def fnv(b):
     h = 2166136261
     for c in b:
@@ -714,7 +721,10 @@ class Compare:
             if a == b:
                 continue
             x, y = u2f(a), u2f(b)
-            if math.isfinite(x) and math.isfinite(y) and abs(x - y) <= self.tol * max(1.0, abs(x), abs(y)):
+            # The tolerance is for floats only: a word that is not a normal
+            # float on either side (an integer, a flag, an index reads as a
+            # denormal) must match exactly, or 1 against 0 would pass.
+            if normal_float(a) and normal_float(b) and abs(x - y) <= self.tol * max(1.0, abs(x), abs(y)):
                 self.approx += 1
                 self.worst = max(self.worst, abs(x - y) / max(1.0, abs(x), abs(y)))
                 continue
