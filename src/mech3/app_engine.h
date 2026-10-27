@@ -130,6 +130,8 @@ class GameEngine : public Engine {
   Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
   void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
   Handle mission_salvage_store() override;              // [0x00609990], the ported store
+  uint8_t briefing_has_movie() override;                // 0x0040a820
+  void briefing_play_movie(uint32_t state) override;    // 0x00409320
   void briefing_refresh(Handle s) override;             // 0x00408bd0 on the ported briefing
   void briefing_show(Handle s, int32_t a) override;     // 0x00404ae0
   // The mech lab (mech_lab.cpp): opened on the ported Lab State, its slots the
@@ -459,6 +461,7 @@ class GameEngine : public Engine {
   // The mission's quit box (0x0048dfe0, quit_box.h): one, the Core state's.
   Handle message_box_new(const char* file, const char* name) override;
   void message_box_quit_prompt(Handle box) override;
+  void replace_state_at(Handle state) override;   // 0x00590250 by address
   void fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds, uint8_t r,
                      uint8_t g, uint8_t b) override;
   void sound_reset() override;

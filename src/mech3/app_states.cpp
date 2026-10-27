@@ -87,6 +87,40 @@ void AttractState::leave() {
 }
 
 // ---------------------------------------------------------------------------
+// Win Movie
+
+// Mech3.exe 1.2 @ 0x0047a9b0: the movie whatever the -nofmv setting.
+bool WinMovieState::enter() {
+  movie_ = start_movie(e(), "c4win");
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0047aa50: once the movie is over (or there is none), the
+// main menu's credits flag [0x00608e4e] set and Main in this state's place.
+bool WinMovieState::update() {
+  Engine& en = e();
+  bool done = movie_ == 0;
+  if (movie_) {
+    done = !en.movie_playing(movie_);
+    if (done) {
+      end_movie(en, movie_);
+      movie_ = 0;
+    }
+  }
+  if (done) {
+    a().reopen_credits() = 1;
+    a().replace(a().state(2), 0);
+  }
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x0047aac0
+void WinMovieState::leave() {
+  if (movie_) end_movie(e(), movie_);
+  movie_ = 0;
+}
+
+// ---------------------------------------------------------------------------
 // Intro
 
 // Mech3.exe 1.2 @ 0x00482070. -nofmv skips INTRO only: the SPLASH logos in

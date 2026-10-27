@@ -655,6 +655,12 @@ void GameEngine::mission_abort() { missions().abort_now(); }
 void GameEngine::maps_init(const char* name) { maps_read(name); }
 void GameEngine::mech_data_shutdown() { maps_free(); }
 void GameEngine::set_reopen_training(uint8_t v) { app().set_reopen_training(v); }
+// 0x00590250 (the app's replace, arg 0) by a state's address: the Win Movie
+// State's the debriefing's after the campaign's last mission.
+void GameEngine::replace_state_at(Handle state) {
+  if (state == states().win_movie.addr()) app().replace(&states().win_movie, 0);
+  else Engine::replace_state_at(state);
+}
 // 0x0048ef00 on the missions object's +0xd0 (the pause screen's QUIT in
 // Instant Action): the debriefing's Win State after the fade.
 void GameEngine::fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,

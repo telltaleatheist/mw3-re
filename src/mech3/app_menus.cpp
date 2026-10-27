@@ -447,6 +447,25 @@ bool GameEngine::launch_slot_refresh() {
   return true;
 }
 
+// Mech3.exe 1.2 @ 0x0040a820: the app's movies-on flag (+0x1c1).
+uint8_t GameEngine::briefing_has_movie() { return app().fmv(); }
+
+// Mech3.exe 1.2 @ 0x00409320 (ECX the Load state): its movie (+0x18) given
+// the main window and fmv.zrd's "c<op>m<n>" of the pilot's game (0x004099c0),
+// played when it loads: the mission's briefing movie, an operation's opener
+// at its first mission. Nothing shows until zFMV is ported.
+void GameEngine::briefing_play_movie(uint32_t state) {
+  if (state != states().load.addr()) return Engine::briefing_play_movie(state);
+  const Handle m = states().load.movie_;
+  const Handle game = pilot_game(pilot());
+  char name[32];
+  std::snprintf(name, sizeof name, "c%dm%d", static_cast<int32_t>(vcall(game, 0x48, {})),
+                static_cast<int32_t>(vcall(game, 0x4c, {})));
+  const Handle frame = app().frame_;
+  if (const Handle hwnd = frame ? frame_hwnd(frame) : 0) movie_set_window(m, hwnd);  // 0x0040a7d0
+  if (movie_load(m, "fmv.zrd", name) != -1) movie_play(m);
+}
+
 void GameEngine::briefing_script_start(Handle s) {
   if (BriefingScreen* b = briefing_of(*this, s)) b->script.start();
   else Engine::briefing_script_start(s);

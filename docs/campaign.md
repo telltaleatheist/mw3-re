@@ -291,7 +291,27 @@ Ported (6a, 6b, `mech3/debriefing`): the screen, its texts and buttons,
 the press, the results and the rank, the cards' and the salvage list's
 shells (`MechButton`, `LanceCard`, `StoreList`'s reader, layout and
 update); hooks: the cards' mech display (6c), the store list's rows (the
-mech lab), the Win Movie and IA Dummy states.
+mech lab), the IA Dummy state.
+
+**An operation's end and the campaign's** (frontend-plan item 8). An
+operation's last mission passed is no different from any other: the Win
+State's save makes the next operation's first game (0x00434e00: the field
+bases +0xa8 back to 3 at a mission 1 and at Op 4 Mission 4), and CONTINUE
+briefs it. Its opener is the Load state's movie, the one every briefing
+asks for when movies are on (the app's +0x1c1, 0x0040a820): 0x00409320
+gives the Load state's movie (+0x18) the main window and fmv.zrd's
+"c<op>m<n>" (0x004099c0), so Op 2 Mission 1 asks for "c2m1" (and c4b's
+missions for "c4m4".."c4m6": the operation, not the world). Op 4 Mission 6
+won sets the Win State's +0x10 (0x0047ac20) and makes no next game; its
+CONTINUE replaces the state with the **Win Movie State** (0x00608be8,
+constructor 0x0047a960, vtable 0x005c3958; `WinMovieState`): enter
+(0x0047a9b0) makes a movie and starts fmv.zrd's "c4win" whatever -nofmv
+says; update (0x0047aa50), once it is over or there is none, sets the
+app's credits flag [0x00608e4e] (+0x1c6) and replaces the state with Main
+(state 2), whose enter presses Credits once; leave (0x0047aac0) frees the
+movie. The mission stays loaded through it (CONTINUE does no cleanup
+there). zFMV is not ported, so no movie plays: the Win Movie State gives
+Main at its first update.
 
 ## 4. The campaign's progress
 
@@ -391,7 +411,7 @@ need the menus' one scale or a centred 640x480 frame.
    0x00404ae0, 0x00408bd0, 0x00408b40); 8c the lancemates' loadouts
    0x00408c30 (Done, all three). The salvage screen 0x0047d3b0 and its
    state after.
-9. The Win Movie and IA Dummy states.
+9. (Done, the Win Movie State; frontend-plan item 8) The Win Movie and IA Dummy states.
 
 ## 8. Testing
 

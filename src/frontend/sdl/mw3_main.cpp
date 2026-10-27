@@ -79,7 +79,7 @@ std::string campaign_summary() {
   const mech3::Config* cf = c->slot.config;
   out += "; mech " + std::to_string(c->slot.mech) + " (" + (cf && cf->name ? cf->name : "-") + ", " +
          std::to_string(cf ? static_cast<int>(cf->items.size()) : 0) + " items)";
-  out += "; lancemates " + std::to_string(c->lancemates.size());
+  out += "; lancemates " + std::to_string(c->lancemates.size()) + "; field bases " + std::to_string(c->a8);
   return out;
 }
 
@@ -446,6 +446,12 @@ int run(const Args& a) {
         }
         if (!a.shot.empty() && menu_frames == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
         if (!a.shot.empty() && menu_frames == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), menu_frames);
+        // --verbose (ours): each state the app moves to, by name.
+        static const zgame::State* last_state = nullptr;
+        if (a.verbose && app.current() != last_state) {
+          last_state = app.current();
+          if (auto* st = dynamic_cast<const mech3::State*>(last_state)) std::printf("mw3: state %s\n", st->name());
+        }
         // --win N (ours, for checking the save): N frames into a mission it
         // is won as a player wins it, by Exit Mission once the objectives are
         // met (campaign.md section 1): the end screen, its fade to the

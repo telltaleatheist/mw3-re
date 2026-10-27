@@ -51,6 +51,9 @@ whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
   program: the quit box over the main menu, "Replace existing game?" on the
   black of a won mission's fade with the dialog under its buttons
   (render-frame.md, the back buffer's picture).
+- `opcheck.py [--keep DIR]`: an operation's end and the campaign's in the
+  program: c1m4 won to c2m1's briefing (field bases 3), Op 4 Mission 6 won
+  through the Win Movie State to the credits (campaign.md section 3).
 - `savecheck.py [--keep DIR]`: the saved campaign end to end in the program
   (`--nosound --hidden`, a scratch write dir): c1m1 won with `--win`,
   straight on and through a reload from the pilot screen to c1m2's briefing
