@@ -8,6 +8,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
+#include "mech3/mech_objective.h"
 #include "mech3/mech_reader.h"
 #include "mech3/pilot.h"
 
@@ -878,9 +879,11 @@ void MultiplayerGame::load() {
 }
 
 // Mech3.exe 1.2 @ 0x00436e30
-TrainingGame::TrainingGame(Pilot* p) : Game(p) { pilot_hooks().store_fill(store, kTraining); }
+TrainingGame::TrainingGame(Pilot* p) : Game(p), lessons(std::make_unique<TrainingLessons>()) {
+  pilot_hooks().store_fill(store, kTraining);
+}
 
-// Mech3.exe 1.2 @ 0x00436f10
+// Mech3.exe 1.2 @ 0x00436f10: its lessons freed (0x0045ef10).
 TrainingGame::~TrainingGame() = default;
 
 // Mech3.exe 1.2 @ 0x00437060, 0x004370d0

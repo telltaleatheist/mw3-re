@@ -252,6 +252,13 @@ ActionGame* launch_action(GameEngine* e) {
   if (e->launch().action) return e->launch().action;
   return current_pilot() ? current_pilot()->action_game : nullptr;
 }
+// Training's game of the launch: the chosen pilot's (training launches only
+// from the menus).
+TrainingGame* launch_training() {
+  if (!g_mission_engine || g_mission_engine->launch().type != 4) return nullptr;
+  Pilot* p = current_pilot();
+  return p ? p->training_game() : nullptr;
+}
 // Its fields by the exe's offsets (+0x44 mode, +0x48 field bases, +0x68 the
 // best wave, +0x6c the wave, +0x70 waves won, +0x7c slots).
 bool action_field(ActionGame* a, uint32_t off, uint32_t* get, const uint32_t* put) {
@@ -1224,6 +1231,53 @@ namespace {
 struct WiredObjectiveHooks : ObjectiveHooks {
   GameEngine* e = nullptr;
   Objectives objs;  // the missions object's +0x78..+0x88
+  // 0x0045c1d0 in training: the game's vt+0x44 (0x004379d0): its lessons freed.
+  void training_free() override {
+    if (TrainingGame* t = launch_training()) t->lessons->clear();
+  }
+  // Training's types (objectives.md, Training's types): the controls' command
+  // by name and its bindings, zInput's keys and buttons, the clock, the view
+  // camera's angles; the player's mech's and its HUD's fields.
+  int32_t command_find(const char* name) override { return controls_command(name); }
+  int32_t command_key(int32_t cmd) override { return zin::key_of(cmd); }
+  int32_t command_joy(int32_t cmd) override { return static_cast<int32_t>(zin::joy_of(cmd)); }
+  int32_t command_mouse(int32_t cmd) override { return static_cast<int32_t>(zin::mouse_of(cmd)); }
+  int32_t key_by_name(const char* name) override { return zin::key_by_name(name); }
+  uint8_t key_down(int32_t key) override { return static_cast<uint8_t>(zin::key_state(key)); }
+  uint8_t joy_button(int32_t b) override { return static_cast<uint8_t>(zin::joy_button(b)); }
+  uint8_t mouse_button(int32_t b) override { return static_cast<uint8_t>(zin::mouse_button(b)); }
+  float mission_time() override { return mech_game_time(); }
+  void view_angles(float out[3]) override {
+    zcls::Node* cam = mission_node(*e, e->mission_camera());
+    const float* a = cam && cam->data ? static_cast<zcls::Camera*>(cam->data)->floats(0x20) : nullptr;
+    for (int i = 0; i < 3; ++i) out[i] = a ? a[i] : 0.0f;
+  }
+  float screen_speed(Handle screen) override { return hud_speed(e->object_of(screen)); }
+  Handle aim_hit_node(Handle screen) override {
+    void* n = hud_aim_node(e->object_of(screen));
+    return n ? e->handle_of(n) : 0;
+  }
+  Handle node_parent(Handle node) override {
+    auto* n = static_cast<zcls::Node*>(e->object_of(node));
+    return n && n->parent_count() == 1 && n->parents ? e->handle_of(n->parents[0]) : 0;
+  }
+  Handle vehicle_target_slot(Handle v) override {
+    void* c = mech_target_contact(e->object_of(v));
+    return c ? e->handle_of(c) : 0;
+  }
+  Handle contact_entity(Handle slot) override {
+    return ai::brain_hooks().contact_entity(static_cast<const ai::Contact*>(e->object_of(slot)));
+  }
+  int32_t vehicle_aimed_part(Handle v) override { return mech_aimed_part(e->object_of(v)); }
+  void vehicle_facing(Handle v, float out[3]) override { mech_forward(e->object_of(v), out); }
+  int32_t vehicle_heat_warning(Handle v) override { return static_cast<int32_t>(mech_heat_state(e->object_of(v))); }
+  Handle vehicle_weapons(Handle v) override {
+    void* wm = mech_weapon_manager(e->object_of(v));
+    return wm ? e->handle_of(wm) : 0;
+  }
+  int32_t current_weapon_type(Handle wm) override { return weapons_current_index(e->object_of(wm)); }
+  int32_t weapon_group(Handle wm) override { return weapons_group(e->object_of(wm)); }
+  uint8_t weapon_fired(Handle screen, int32_t w) override { return hud_weapon_recycling(e->object_of(screen), w); }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
   }
@@ -1421,6 +1475,23 @@ struct WiredMissionHooks : MissionHooks {
     add_enemy_objectives(ob().objs.primary, ob().objs.secondary, ob());
     ob().sync();
   }
+  // Training's lessons (the training game's vt+0x40, 0x004794a0, 0x004373b0).
+  void game_objectives(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {
+    if (TrainingGame* t = launch_training()) {
+      training_load(*t->lessons, file, block, ob().objs, ob());
+      ob().sync();
+    } else {
+      MissionHooks::game_objectives(file, block, 0, 0, 0, 0, 0);
+    }
+  }
+  Handle training(Handle, Handle, Handle, Handle, Handle) override { return launch_training() ? 1 : 0; }
+  uint8_t training_next(Handle t) override {
+    TrainingGame* g = t ? launch_training() : nullptr;
+    if (!g) return 0;
+    const bool more = g->lessons->next(ob().objs) >= 0;
+    ob().sync();
+    return more;
+  }
   uint8_t objective_check(Handle g) override { return ob().group(g) ? ob().group(g)->check_group(ob(), 1) : 0; }
   uint8_t objective_done(Handle g) override { return ob().group(g) ? ob().group(g)->done : 0; }
   uint8_t condition_met(Handle g) override { return ob().group(g) ? ob().group(g)->check(ob()) : 0; }
@@ -1542,9 +1613,10 @@ struct WiredMissionHooks : MissionHooks {
     if (auto* d = static_cast<zeff::AnimDef*>(e->object_of(a))) zeff::anim_start(d, nullptr, 0, 0, 0);
   }
   // 0x0048ef00 of the end screen: the debriefing's Win State (the missions
-  // object's +0xd0) after a 2 s fade; training's sequence is not ported.
+  // object's +0xd0), or training's TR Dummy State, after a 2 s fade.
   void fade_out(Handle seq) override {
     if (seq == 0x6099a0) fade_replace(&states().end_win, 0, 1, 2, kFadeSeconds, 0, 0, 0);
+    else if (seq == states().tr_dummy.addr()) fade_replace(&states().tr_dummy, 0, 1, 2, kFadeSeconds, 0, 0, 0);
     else MissionHooks::fade_out(seq);
   }
   void progress_text(const char* s) override {

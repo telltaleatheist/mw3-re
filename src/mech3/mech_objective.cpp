@@ -742,6 +742,104 @@ void objectives_delete(Objectives& o) {
   o.desc.reset();
 }
 
+// ---- training's lessons ----
+
+namespace {
+// The lesson's objectives as the mission's (pointers, not copies).
+void alias(Objectives& to, const Objectives& from) {
+  to.primary.release(), to.secondary.release(), to.final.release(), to.fail.release();
+  to.primary.reset(from.primary.get());
+  to.secondary.reset(from.secondary.get());
+  to.final.reset(from.final.get());
+  to.fail.reset(from.fail.get());
+}
+void unalias(Objectives& to) {
+  to.primary.release(), to.secondary.release(), to.final.release(), to.fail.release();
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0045ed40
+int32_t TrainingLessons::add(std::unique_ptr<Objectives> o) {
+  const int32_t n = static_cast<int32_t>(list.size());
+  list.push_back(std::move(o));
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x0045efa0
+int32_t TrainingLessons::select(int32_t i) {
+  if (i >= 0 && i < static_cast<int32_t>(list.size())) current = i;
+  return current;
+}
+
+// Mech3.exe 1.2 @ 0x0045efd0. Without a current lesson the four groups are
+// cleared and the description left.
+int32_t TrainingLessons::get(Objectives& mission) {
+  if (current >= 0 && current < static_cast<int32_t>(list.size())) {
+    const Objectives& l = *list[static_cast<size_t>(current)];
+    mission.desc = l.desc;
+    alias(mission, l);
+  } else {
+    unalias(mission);
+  }
+  return current;
+}
+
+// Mech3.exe 1.2 @ 0x0045f080
+int32_t TrainingLessons::next(Objectives& mission) {
+  if (current >= 0 && current < static_cast<int32_t>(list.size()) - 1) {
+    ++current;
+    return get(mission);
+  }
+  unalias(mission);
+  mission.desc.reset();
+  current = -1;
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x0045ef10
+void TrainingLessons::clear() {
+  list.clear();
+  current = -1;
+}
+
+// Mech3.exe 1.2 @ 0x00437140
+bool training_load(TrainingLessons& t, const char* file, const char* block, Objectives& mission, ObjectiveHooks& h) {
+  Node* root = h.load(file);
+  if (!root) return false;
+  bool ok = false;
+  if (Node* b = zrdr::find(root, block)) ok = read_objectives(b, mission, h);
+  if (!ok) {
+    const std::string set = std::string(block) + "_set";
+    Node* v = zrdr::find(root, set.c_str());
+    if (v && v->type == zrdr::List) {
+      for (int32_t i = 1; i < count_of(v); ++i) {
+        if (v->list[i].type != zrdr::List) continue;
+        auto o = std::make_unique<Objectives>();
+        if (read_objectives(&v->list[i], *o, h)) {
+          ok = true;
+          t.add(std::move(o));
+        }
+      }
+    }
+    if (!ok) {
+      for (int32_t n = 1;; ++n) {
+        const std::string name = std::string(block) + std::to_string(n);
+        auto o = std::make_unique<Objectives>();
+        Node* b = zrdr::find(root, name.c_str());
+        if (!b || !read_objectives(b, *o, h)) break;
+        ok = true;
+        t.add(std::move(o));
+      }
+    }
+    if (ok) {
+      t.select(0);
+      t.get(mission);
+    }
+  }
+  h.free_tree(root);
+  return ok;
+}
+
 // Mech3.exe 1.2 @ 0x0045c1d0: training's game frees its own (they are its
 // lessons'); a game type below -1 leaks them.
 void objectives_free(Objectives& o, ObjectiveHooks& h) {

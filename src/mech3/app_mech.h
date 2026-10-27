@@ -275,6 +275,20 @@ void program_mech_wreck_gone(void* mech);                            // for the 
 // mech's kills (+0x3f4) to the Instant Action game's player (+0x4c), ally
 // (+0x50) or enemy (+0x54) count, then cleared.
 void program_action_tally();
+// The training checks' reads (objectives.md, Training's types): a mech's
+// target contact (+0x6c), aimed part (+0xf8), heat state (+0x69c) (its
+// forward and weapon manager are mech_forward's and mech_weapon_manager's); a manager's current weapon's index
+// (0x004b04c0, +0x28) and group (+0x28); a HUD's speed (+0x1ddc), the node
+// its reticle's hit names (+0x144c, 0x00444330, +0x24), whether a line of
+// its weapon list (+0x6520, 0x004464d0) shows that weapon recycling.
+void* mech_target_contact(void* mech);
+int32_t mech_aimed_part(void* mech);
+uint32_t mech_heat_state(void* mech);
+int32_t weapons_current_index(void* wm);
+int32_t weapons_group(void* wm);
+float hud_speed(void* hud);
+void* hud_aim_node(void* hud);
+bool hud_weapon_recycling(void* hud, int32_t weapon);
 // Instant Action's game of the launch (the Action screen's, or a debug
 // start's), null outside one; `kills` added to its field +0x4c, +0x50 or +0x54.
 class ActionGame* mission_action_game();

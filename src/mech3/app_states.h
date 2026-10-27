@@ -69,6 +69,18 @@ class IaDummyState : public State {
   uint32_t message(uint32_t, uint32_t) override { return 1; }  // 0x0042a130
 };
 
+// "TR Dummy State" (0x006098c8, constructor 0x00491a70, vtable 0x005c60e0):
+// after a training mission's end screen (through a fade): won, the mission
+// marked passed and the pilot saved; the mission unloaded, then the main
+// menu, which opens training again (app +0x1be).
+class TrDummyState : public State {
+ public:
+  TrDummyState() : State("TR Dummy State", 0x6098c8) {}
+  bool enter() override;              // 0x00491ab0
+  bool update() override { return false; }  // 0x0040bae0
+  uint32_t message(uint32_t, uint32_t) override { return 1; }  // 0x0042a130
+};
+
 // 1 "Intro State" (0x00608f58, vtable 0x005c40c8): INTRO, then the SPLASH logos.
 class IntroState : public State {
  public:
@@ -335,6 +347,7 @@ struct States {
   LabState lab;
   WinMovieState win_movie;
   IaDummyState ia_dummy;
+  TrDummyState tr_dummy;
 };
 States& states();
 void reset_states();
