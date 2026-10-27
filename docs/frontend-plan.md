@@ -49,9 +49,9 @@ ACCEPT back).
 | Debriefing | 0x0047b430, new(0x13bf4) | yes: shell, press, results and rank, the lance cards (campaign.md 3) | yes (headless; live needs a won mission) | its salvage list's rows are 8b's (done) | 17, 8 |
 | Salvage screen | 0x0047d3b0 (dlgSalvage.zrd), Salvage State 0x0047f220 (0x00608ee8, 0x00608bd8) | yes (item 1, campaign.md 10) | moves items both ways, ACCEPT back | | 28, 8 + 22, 1 |
 | Mech lab | Lab State 0x00448830, screen 0x0044b920 | steps 1-4, 5a, 5b1 (mechlab.md 5): the state, the shell, the chassis and loadouts pages, the item lists' base, the unassigned list's shell | from c1m2's briefing MECHLAB opens it, ACCEPT returns | 5b2 the item rules, 6 the criticals page, 7 the weapon groups, 8 engine, sinks, armour and the data panels, 9 the 3D view, 10 the loadout reaching the launch | 159, 66 (state and screen), 71, 43 (item lists), 9, 1 (3D world) |
-| Next mission | debriefing CONTINUE (0x0047d030) | yes | c1m1 -> c1m2's briefing | an operation's last mission: the op's win movie and the next op's opener | |
+| Next mission | debriefing CONTINUE (0x0047d030) | yes | c1m1 -> c1m2's briefing; c1m4 -> c2m1's (the opener asked for) | the movies themselves (zFMV) | |
 | Save / load | the pilot's games (pilot.md), 0x00478f10 after a mission, "Replace existing game?" | yes (the files and the question) | saves after each mission; the pilot screen lists the games | done: zSave, the anim registrants, the headless and live round trips, "Replace existing game?" (save.md) | 119, 44 + 33, 24 |
-| Win Movie, IA Dummy | 0x0047a960 (0x00608be8), 0x0047ce80 (0x00608bd0) | no | | the campaign's end (c4win, the credits flag [0x00608e4e]) and IA's tallies | small |
+| Win Movie, IA Dummy | 0x0047a960 (0x00608be8), 0x0047ce80 (0x00608bd0) | Win Movie yes (no movie until zFMV) | Op 4 Mission 6 won -> the credits | IA's tallies (the IA Dummy State) | small |
 
 ## 2. Instant Action, training, multiplayer
 
@@ -152,7 +152,7 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    campaign's read-back and the headless round trip in the campaign test;
    save 2 (done) the anim registrants (what a saved game holds in MW3); save 3 (done) the
    live round trip and the "Replace existing game?" path (`tools/analysis/savecheck.py`).
-8. **An operation's end and the campaign's** (the Win Movie State
+8. **(Done) An operation's end and the campaign's** (the Win Movie State
    0x0047a960, the credits flag, the next operation's first mission and
    its opener). Test: headless: c1m4 won leads to c2m1's briefing; c4m7
    (the last) to the Win Movie State and the main menu's credits.

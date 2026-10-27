@@ -109,7 +109,9 @@ They run inside the original main loop, after the original start-up.
   screen, its fade, the debriefing's Win State and its save); with
   `--verbose` the program prints the pilot's game as the Win State saved it
   and as each briefing finds it once its mission has loaded
-  (`tools/analysis/savecheck.py`, save.md).
+  (`tools/analysis/savecheck.py`, save.md), and each state the app moves to
+  by name (`tools/analysis/opcheck.py`: an operation's end and the
+  campaign's).
 
 ## What runs ported
 

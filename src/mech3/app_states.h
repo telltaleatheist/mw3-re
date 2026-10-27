@@ -43,6 +43,19 @@ class AttractState : public State {
   Handle movie_ = 0;                  // +0x08
 };
 
+// "Win Movie State" (0x00608be8, constructor 0x0047a960, vtable 0x005c3958):
+// the campaign's ending, fmv.zrd's c4win, then the main menu with its credits
+// (the debriefing's CONTINUE after Op 4 Mission 6, campaign.md).
+class WinMovieState : public State {
+ public:
+  WinMovieState() : State("Win Movie State", 0x608be8) {}
+  bool enter() override;              // 0x0047a9b0
+  bool update() override;             // 0x0047aa50
+  void leave() override;              // 0x0047aac0
+  uint32_t message(uint32_t, uint32_t) override { return 1; }  // 0x0042a130
+  Handle movie_ = 0;                  // +0x08
+};
+
 // 1 "Intro State" (0x00608f58, vtable 0x005c40c8): INTRO, then the SPLASH logos.
 class IntroState : public State {
  public:
@@ -302,6 +315,7 @@ struct States {
   KeyListState key_list;
   FadeState fade;
   LabState lab;
+  WinMovieState win_movie;
 };
 States& states();
 void reset_states();

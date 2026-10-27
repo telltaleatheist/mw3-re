@@ -487,6 +487,153 @@ void probe_load(zsave::Context&, const char* sub, const void* data, uint32_t siz
 // menu's NEW CAMPAIGN, a new pilot accepted, the Load state's ported
 // briefing (brief_c11: its script, its map, the buttons once the load ends),
 // LAUNCH, and c1 mission 1's Core frames with the pilot's own mech.
+// An operation's end and the campaign's (frontend-plan item 8, campaign.md
+// section 1): a pilot whose newest save stands at the operation's last
+// mission, chosen on the pilot screen, the mission launched and won (Exit
+// Mission), the debriefing's CONTINUE. Op 1 Mission 4 goes on to Op 2
+// Mission 1's briefing, the new operation's field bases at 3 (0x00434e00);
+// Op 4 Mission 6 (the campaign's last) to the Win Movie State (no movie
+// without zFMV), then the main menu, which presses Credits.
+TEST(campaign_operation_end_and_campaign_end_headless) {
+  if (!have_game()) return;
+  struct Case { int32_t op, mission; const char* name; };
+  for (const Case k : {Case{1, 4, "OpEnd"}, Case{4, 6, "CampaignEnd"}}) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir(k.op == 1 ? "op_end_write" : "campaign_end_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      // Movies on: the ones asked for are recorded (zFMV is not ported, so
+      // none plays; a made movie is a handle that never loads).
+      struct MovieEngine : mech3::GameEngine {
+        using GameEngine::GameEngine;
+        std::vector<std::string> asked;
+        mech3::Handle movie_new() override { return 0x7e000001; }
+        int32_t movie_load(mech3::Handle, const char*, const char* name) override {
+          asked.push_back(name ? name : "");
+          return -1;
+        }
+      } engine(p, "mech3.exe");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      // The pilot's campaign stepped on to the mission as each won one's end
+      // does (0x00434e00), each kept (as mw3's --briefing makes it).
+      mech3::Pilot* pilot = mech3::create_pilot(k.name);
+      auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::CampaignGame*>(pilot->campaigns.front()) : nullptr;
+      while (g && (g->operation() != k.op || g->mission_number() != k.mission)) {
+        mech3::CampaignGame* n = g->next_mission(true, false);
+        if (!n) g = nullptr;
+        else pilot->campaigns.push_back(n), g = n;
+      }
+      EXPECT(g != nullptr);
+      if (!g) return;
+      pilot->current = g;
+      pilot->save();
+      int stage = 0, core = 0, after = 0;
+      int32_t next_op = 0, next_mission = 0, field_bases = -1, bases_before = -1, launched_op = 0, launched_mission = 0;
+      bool debriefed = false, movie_state = false, credits = false, next_briefing = false;
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (stage == 0 && now == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // CAMPAIGN
+          stage = 1;
+        } else if (stage == 1) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(now);
+          if (!ps || !ps->screen) return;
+          ps->screen->refresh(false, pilot);  // the list again, this pilot chosen (others stay between tests)
+          ps->screen->on_button(0x18, 0, 0);  // ACCEPT: its newest save
+          stage = 2;
+        } else if (stage == 2) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || now != &mech3::states().load || !b->loaded) return;
+          if (mech3::CampaignGame* c = mech3::current_pilot()->campaign()) bases_before = c->a8;
+          engine.game_campaign(&launched_op, &launched_mission);
+          b->salvage_seen = 1;  // the stepped campaign's salvage looked at (else LAUNCH asks first)
+          b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+          stage = 3;
+        } else if (stage == 3 && now == &mech3::states().core) {
+          if (++core == 30) {
+            // A field base lost meanwhile (+0xa8 below 3), so the new
+            // operation's reset to 3 shows.
+            if (mech3::CampaignGame* c = mech3::current_pilot()->campaign()) c->a8 = 1, bases_before = 1;
+            mech3::missions().ended = 1;          // won
+            mech3::missions().on_command(0x71);   // Exit Mission: the end screen, its fade, the Win State
+            stage = 4;
+          }
+        } else if (stage == 4 && now == &mech3::states().end_win) {
+          auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
+          if (!d) return;
+          debriefed = true;
+          d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
+          stage = 5;
+        } else if (stage == 5) {
+          if (now == &mech3::states().load) {
+            mech3::BriefingScreen* b = mech3::briefing_screen();
+            if (!b || !b->loaded) return;
+            engine.game_campaign(&next_op, &next_mission);
+            if (mech3::CampaignGame* c = mech3::current_pilot()->campaign()) field_bases = c->a8;
+            next_briefing = true;
+            stage = 6;
+          } else if (dynamic_cast<mech3::CreditsState*>(now)) {
+            credits = true;  // the main menu entered and pressed Credits
+            stage = 6;
+          } else if (now == &mech3::states().main && ++after > 200) {
+            stage = 6;
+          }
+        }
+      };
+      CountingPump pump;
+      pump.limit = 9000;
+      pump.stop = [&] { return stage == 6; };
+      app.run(pump);
+      auto asked = [&](const char* n) { return std::find(engine.asked.begin(), engine.asked.end(), n) != engine.asked.end(); };
+      // The Win Movie State asks for c4win; with no movie it gives Main at once.
+      movie_state = asked("c4win");
+      std::string names;
+      for (const std::string& n : engine.asked) names += " " + n;
+      std::printf("  movies asked for:%s\n", names.c_str());
+      std::printf("  Op %d Mission %d won: debriefed %d; next Op %d Mission %d (briefing %d), field bases %d (were %d); "
+                  "Win Movie %d, credits %d\n",
+                  k.op, k.mission, debriefed, next_op, next_mission, next_briefing, field_bases, bases_before,
+                  movie_state, credits);
+      EXPECT(debriefed && launched_op == k.op && launched_mission == k.mission);
+      if (k.op == 1) {
+        EXPECT(next_briefing && next_op == 2 && next_mission == 1);  // Op 2 Mission 1's briefing
+        EXPECT(field_bases == 3);                                     // the new operation's field bases
+        EXPECT(asked("c1m4") && asked("c2m1"));  // each briefing's movie, the new operation's opener
+        EXPECT(!movie_state);
+      } else {
+        EXPECT(movie_state && credits);  // the ending, then the credits
+        EXPECT(!next_briefing);
+        EXPECT(app.reopen_credits() == 0);  // the flag pressed Credits once
+      }
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
 TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   if (!have_game()) return;
   // Twice: with zfix bugs on (the rebuild) and off around the win (the exe's

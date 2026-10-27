@@ -795,3 +795,23 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   frame already in the buffer. Related: twod_msgbox, fade, app_states,
   fadecheck, savecheck, mw3tests 202, mw3sdltests 12.
 
+## Item 8 (2026-10-27): an operation's end and the campaign's
+
+- Branch mac4/op-end off main 6ff2b6b. Not split: the operation's end is the
+  ordinary passed-mission path; the new pieces are the Win Movie State
+  (0x47a960/9b0/a50/ac0, `WinMovieState`, GameEngine::replace_state_at for
+  0x608be8) and the Load state's briefing movie (0x40a820 the app's +0x1c1,
+  0x409320 fmv.zrd c<op>m<n>: the opener), movies still not played (zFMV).
+- The campaign's last mission is Op 4 Mission 6 (c4bm6), not m7.
+- Headless `campaign_operation_end_and_campaign_end_headless`: c1m4 won ->
+  c2m1's briefing, the field bases lowered to 1 in the mission and back to
+  3, the movies asked for c1m4 then c2m1; Op 4 Mission 6 won -> c4win asked
+  for, Main, Credits. A movie-recording GameEngine subclass; the stepped
+  campaign's salvage marked seen (else LAUNCH's box answers no headless).
+- Live (`tools/analysis/opcheck.py`, --verbose now prints each state by
+  name): c1m4 -> Win State -> Load State, c2m1's briefing (a lancemate,
+  field bases 3); c4bm6 -> Win State -> Credits State (Win Movie and Main
+  replace within a frame). 5/5.
+- Breaks 5/5 headless, 3/5 live (the field bases and the movie names are not
+  visible live). Discovery: the ending movie ignores -nofmv.
+

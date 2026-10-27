@@ -2746,6 +2746,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   reads nothing, so the same mission then starts with the world fresh. The
   world changes at Op 1 Mission 1 and Op 4 Mission 4 (the second Op 4 map),
   which is why those two never read a save. (docs/save.md)
+- **The ending movie ignores "no movies".** Starting the game with -nofmv
+  skips the intro and every briefing movie, but winning the campaign's last
+  mission still plays the ending (c4win) before the credits. (docs/campaign.md)
 - **The newest save is the one you play.** The pilot screen's campaign list
   shows every save as "Op N, Mission M" with the newest chosen; choosing
   another row plays that one. The fresh start (Op 1, Mission 1) is always
