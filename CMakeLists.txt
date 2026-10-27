@@ -106,6 +106,8 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_span.cpp
   src/gamez/zrender/zrndr_tint.cpp
   src/gamez/zrender/zrndr_ripple.cpp
+  src/gamez/zrender/zrndr_blur.cpp
+  src/gamez/zfmv/fmv_script.cpp
   src/gamez/zrender/zrndr_prim2d.cpp
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
@@ -215,6 +217,7 @@ add_library(mw3core STATIC
   src/mech3/lab_view.cpp
   src/mech3/lab_screen.cpp
   src/mech3/app_engine.cpp
+  src/mech3/app_fmv.cpp
   src/mech3/app_mission.cpp
   src/mech3/app_turret.cpp
   src/mech3/app_vehicle.cpp
@@ -356,6 +359,7 @@ add_library(mw3probe SHARED
   tests/probe_mix_fog.cpp
   tests/probe_gfx_flags.cpp
   tests/probe_fade.cpp
+  tests/probe_fmv.cpp
   tests/probe_frame.cpp
   tests/probe_view.cpp
   tests/probe_hud.cpp

@@ -2306,6 +2306,36 @@ From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
   `blackhawk_01` has its bounds rebuilt, the game prints "haha" (0x4ecc00),
   to a console a Windows game does not have, so nobody ever saw it.
 
+## The movies and the logo screen
+
+- **Space, Escape, Enter or the keypad's Enter skip a whole movie
+  sequence,** not just the movie playing: a mission's opener (the
+  operation's movie and the mission's, c1.avi then c1m1.avi) goes in one
+  press, and every sound the sequence started stops. A key held from
+  before counts too, since a key that is down, pressed or just let go all
+  skip, but the game clears the keys as each sequence starts.
+  (docs/fmv.md, The run)
+- **The MechWarrior 3 logo screen only shows at the end of its own wait.**
+  In the code, the logos (mech3splash) are drawn to the game's off-screen
+  2D surface and nothing puts them on screen until their 4 seconds are
+  up; they then stay up while the main menu loads. The 4 seconds show
+  whatever was there before: the intro movie's last frame, or black with
+  `-nofmv`. Not yet seen on the original. (docs/fmv.md, Images)
+- **The demo's opening is still in the 1.2 data.** fmv.zrd holds DEMO_INTRO
+  (a sound, then three logos each faded in from black, held 2 seconds,
+  blurred in one go of ten passes and faded out, then the MechWarrior 3 logos), DEMO_EXIT
+  (the logos with a "demoexit" picture over them) and an UNLOAD logo screen
+  (mech3unload), none of which 1.2 ever plays. Its script language also
+  knows a horizontal-only and a vertical-only blur and MCI movies that no
+  script uses.
+- **The pause screen's backdrop is blurred,** four quick soft-focus passes
+  over the battlefield before the pause menu takes its picture of it (the
+  same blur the demo's logos used). (docs/fmv.md, Blurs)
+- **The movie scripts tell the time from Windows' uptime as a float,** so
+  on a PC left on for weeks their waits and fades would move in visible
+  steps (a quarter second after 24 days). The rebuild counts from the
+  game's start.
+
 ## Keyboard, mouse and joystick
 
 From the input module, zInput (details: `input.md`).

@@ -14,6 +14,8 @@
 #include "platform/platform.h"
 
 namespace zvid { struct Surface; }
+namespace zfmv { class BlurAction; }
+namespace zimg { struct Texture; }
 namespace ztwod { class MessageBox; }
 
 namespace platform {
@@ -38,6 +40,7 @@ struct Platform {
   platform::Window* window = nullptr;
   platform::Alert* alert = nullptr;
   platform::Clock* clock = nullptr;
+  platform::Clock* movie_clock = nullptr;  // zFMV's timeGetTime (ours: the tests' fast one); none: `clock`
   platform::Input* input = nullptr;
   platform::SoundOutput* sound = nullptr;
   platform::MusicOutput* music = nullptr;
@@ -56,6 +59,7 @@ class QuitBox;
 class MenuState;
 void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
 void wire_pilot_hooks(GameEngine* e);    // the pilot module's calls out (app_menus.cpp)
+void wire_fmv(GameEngine* e);            // zFMV's host (app_fmv.cpp)
 
 // The briefing screen open ([0x005f4c80]) hears the mission load's fraction
 // (0x004050d0) and lines (0x00405120); none open, nothing (app_menus.cpp).
@@ -378,6 +382,7 @@ class GameEngine : public Engine {
   void sound_shutdown() override;
   void light_init() override;
   void fonts_init(const char* name, int32_t fonts) override;  // 0x00516e90: zImage's start
+  void geometry_init(const char* dir) override;  // 0x00516f50: the start-up's "zbd" as the 2D host's mount
   void update_shadows() override;  // 0x004814e0 on the program's mechs (app_mech)
   // zInput (gamez/zinput, docs/input.md).
   void input_init(int32_t commands, const char* map) override;
@@ -431,6 +436,20 @@ class GameEngine : public Engine {
   void image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) override;
   void screen_tint(uint16_t colour, Handle rect, double alpha) override;
   void image_free(Handle image) override;
+  bool is_grab(Handle h) const { return grabs_.count(h) != 0; }
+  // zFMV's scripts and the pause screen's blur (app_fmv.cpp, docs/fmv.md).
+  Handle movie_new() override;
+  void movie_set_window(Handle m, uint32_t hwnd) override;
+  int32_t movie_load(Handle m, const char* file, const char* name) override;
+  void movie_play(Handle m) override;
+  uint32_t movie_playing(Handle m) override;
+  void movie_stop(Handle m, int32_t all) override;
+  void movie_delete(Handle m) override;
+  Handle wait_new(int32_t steps, int32_t passes) override;
+  void wait_start() override;
+  uint32_t wait_poll() override;
+  void wait_end() override;
+  void fmv_stretch(zimg::Texture* image, int32_t left, int32_t top, int32_t right, int32_t bottom);
   // The Direct3D frame: zvid's lock (0x00576d00 / 0x00576d60), scene nesting
   // (0x00579af0 / 0x00579b10), the quad ([0x0072f3ec]) and the finish (0x00558610).
   // 0x0040f8d0: the message panel's slide, then the view target's HUD data update.
@@ -528,6 +547,7 @@ class GameEngine : public Engine {
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
   std::unique_ptr<LabView> lab_view_;  // the Lab State's 3D view while it is up
+  std::unique_ptr<zfmv::BlurAction> pause_blur_;  // the pause screen's (wait_new)
   bool last_via_render_ = false;  // the frame just shown went through Render3D
   bool buffer_is_screen_ = true;  // the 16-bit buffer holds the frame shown (not the 3D lock's layer)
   std::vector<uint16_t> kept_screen_;  // that frame while a 3D lock has the buffer

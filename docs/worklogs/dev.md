@@ -857,3 +857,41 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - The breaks script's "stopped" match also took "running_stopped" in a
   passing summary line: read rc with it.
 
+
+## Item 10 (2026-10-27): zFMV's script without video
+
+- Branch mac4/fmv-script off main cfad444. Ported fmv_script.cpp
+  (0x00598cc0..0x0059a490: the script, its load, play and poll, the image,
+  wait, fade, blur and sound actions; PLAYAVI a stub that ends at once, as
+  the exe's without the file; PLAYMCI unused, not ported) to
+  src/gamez/zfmv, and the blur passes 0x0055a540 / 0x00559ec0 / 0x0055a1b0
+  / 0x0055a3b0 to zrender/zrndr_blur. GameEngine's movie hooks and the
+  pause screen's blur (wait_new / start / poll / end) run them
+  (mech3/app_fmv.cpp, a zfmv::Host on the Engine's hooks). docs/fmv.md.
+- test_fmv.py: 428 scripts (every shipped block named, random ones with
+  every verb and bad entries), 115k calls identical with each poll's answer,
+  the current action and every loaded action's fields; the pause blur; the
+  passes bit for bit (the target padded: a narrow rect's walk reads the rows
+  around it). Breaks 31/31 (the two first missed, a PLAYAVI flag default and
+  SHOWIMAGE with one coordinate, are caught by the fields check and
+  three-item entries).
+- Two 24-bit details: the poll's t - start is a float (the fade's alpha was
+  one bit off without it); a 0-second fade's NaN alpha is the x87's negative
+  NaN, ARM's positive (the test ignores the NaN's sign).
+- Live: the first image fetch at the intro marked zImage's library missing
+  for good: the shell's start-up 0x00516f50("zbd") was never wired in
+  GameEngine (the main menu mounted "zbd" itself later). Now
+  GameEngine::geometry_init gives it to the 2D host's mounts.
+- The SPLASH logos are stretched into the 2D surface and shown only by the
+  WAIT's end flip (frame 3 with --shot-any), i.e. while the main menu
+  loads; the 4 seconds before show the previous screen. In the port that
+  is black for 5 s at start (INTRO's WAIT 1 and SPLASH's 4, the movie
+  skipped). To check on the original.
+- mw3tests: the programs through the Intro now meet SPLASH's 4 s; the tests'
+  FakeClock (16 ms a call) took them past their pump limits. Platform gets a
+  `movie_clock` (zFMV's timeGetTime; none: the frame clock) and the tests a
+  second-a-call one. Five c1m4 AI tests with counts recorded from a start
+  without the wait set `lobby_flow_` (which only skips the Intro's movies).
+  The start test now expects 0x00598cc0 ported. geometry_init forwards only
+  the start-up's "zbd": the missions' "zbd;zbd\<op>" as mounts would stay
+  for the next mission's files (kept as before: logged).
