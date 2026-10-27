@@ -29,6 +29,9 @@
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zsave/zsave.h"
+#include "gamez/zclass/camera.h"
+#include "gamez/zclass/cls_world.h"
+#include "mech3/lab_view.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -459,6 +462,64 @@ void ar_set_status(int def, int depth, int value) {
   if (d) d->raw[0x98] = static_cast<uint8_t>(value);
 }
 void ar_set_log_node(int record, int node) { zeff::anim_log().records[record].node = node; }
+// test_lab_view.py: a world made and gridded (0x004f1bd0, 0x004f2500,
+// 0x004f2530, 0x004f2560), its data and cells as words (pointers 0); the
+// lab's frame step (0x00450690) on a new camera and object3d, the draw
+// recorded.
+int lv_world(float ox, float oz, float sx, float sz, float cx, float cz, int size_first, uint32_t* out, int len) {
+  Node* w = zcls::world_create();
+  if (size_first) zcls::world_set_size(w, sx, sz);
+  zcls::world_set_origin(w, ox, oz);
+  if (!size_first) zcls::world_set_size(w, sx, sz);
+  zcls::world_make_grid(w, cx, cz);
+  auto* d = static_cast<zcls::World*>(w->data);
+  std::vector<uint32_t> o;
+  auto words = [&](const uint8_t* p, int n) {
+    for (int i = 0; i < n; i += 4) {
+      uint32_t v;
+      std::memcpy(&v, p + i, 4);
+      o.push_back(v);
+    }
+  };
+  words(d->raw, 0xbc);
+  for (int32_t r = 0; r < d->get<int32_t>(0x8c); ++r)
+    for (int32_t c = 0; c < d->get<int32_t>(0x88); ++c) words(d->rows[r][c].raw, 0x48);
+  const int n = static_cast<int>(o.size());
+  if (n <= len) std::memcpy(out, o.data(), o.size() * 4);
+  return n;
+}
+namespace {
+uint32_t g_drawn[4];
+int lv_draw(Node* camera, Node* node, int32_t hw) {
+  g_drawn[0] = static_cast<uint32_t>(camera != nullptr), g_drawn[1] = static_cast<uint32_t>(node != nullptr);
+  g_drawn[2] = static_cast<uint32_t>(hw), g_drawn[3] = static_cast<uint32_t>(zmod::zones().mode);
+  return 0;
+}
+}  // namespace
+int lv_frame(const float* cam, const float* node_rot, float dt, uint32_t* out, int len) {
+  mech3::LabView v;
+  v.camera = zcls::camera_create();
+  v.hardware = 1;
+  Node* obj = zcls::object3d_create();
+  zcls::object3d_set_rotation(obj, node_rot[0], node_rot[1], node_rot[2]);
+  std::memset(g_drawn, 0xff, sizeof g_drawn);
+  mech3::lab_view_frame(v, obj, cam, cam + 3, dt, lv_draw);
+  std::vector<uint32_t> o;
+  auto words = [&](const uint8_t* p, int n) {
+    for (int i = 0; i < n; i += 4) {
+      uint32_t x;
+      std::memcpy(&x, p + i, 4);
+      o.push_back(x);
+    }
+  };
+  words(static_cast<zcls::Camera*>(v.camera->data)->raw, 0x1e8);
+  words(static_cast<zcls::Object3d*>(obj->data)->raw, 0x90);
+  for (uint32_t x : g_drawn) o.push_back(x);
+  o.push_back(static_cast<uint32_t>(zmod::zones().mode));
+  const int n = static_cast<int>(o.size());
+  if (n <= len) std::memcpy(out, o.data(), o.size() * 4);
+  return n;
+}
 void ar_stop_all(int keep) {
   zeff::anim_stop_all(keep);
   build_ids();

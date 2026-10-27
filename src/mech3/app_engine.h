@@ -2,12 +2,14 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "gamez/zutil/zutl_msgdll.h"
 #include "mech3/app_hooks.h"
+#include "mech3/lab_view.h"
 #include "mech3/options.h"
 #include "platform/platform.h"
 
@@ -142,7 +144,18 @@ class GameEngine : public Engine {
   Handle lab_slot(Handle pilot, int32_t i) override;
   void lab_slot_release(Handle pilot, int32_t i) override;
   Handle lab_slot_config(Handle pilot, int32_t i) override;
-  bool lab_world_load(Handle) override { return true; }
+  void node_frame_update() override;                       // 0x004f7f70: zcls::frame_update
+  // The lab's 3D view (lab_view.cpp, mechlab.md section 9).
+  bool lab_world_load(Handle state) override;              // 0x0044ffc0
+  void lab_world_unload(Handle state) override;            // 0x00450390
+  void lab_view_begin(Handle state) override;              // 0x00450810
+  void lab_view_end(Handle state) override;                // 0x00450800
+  void lab_world_frame(Handle state, float dt) override;   // 0x00450690
+  void lab_model_skin(Handle entry, int32_t skin) override;  // 0x0044fd90
+  zcls::Node* lab_model_node(Handle entry);                // 0x0044fd20
+  void lab_place_window();                                 // 0x00450460 with 0x0044fea0
+  void lab_clear();                                        // 0x00576cf0 in the lab's colour
+  LabView* lab_view() { return lab_view_.get(); }
   LabScreen* lab_screen(Handle h) override;            // the ported screen (0x0044b920)
   void lab_show_slot(Handle state, int32_t slot) override;  // 0x00448f80, the ported Lab State's
   void lab_page(Handle screen, int32_t page) override;     // 0x0044ce30
@@ -513,6 +526,7 @@ class GameEngine : public Engine {
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
+  std::unique_ptr<LabView> lab_view_;  // the Lab State's 3D view while it is up
   bool last_via_render_ = false;  // the frame just shown went through Render3D
   bool buffer_is_screen_ = true;  // the 16-bit buffer holds the frame shown (not the 3D lock's layer)
   std::vector<uint16_t> kept_screen_;  // that frame while a 3D lock has the buffer

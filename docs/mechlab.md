@@ -872,9 +872,69 @@ its list empty.
 Step 2 (`mech3/lab_screen.{h,cpp}`, `test_lab_screen.py`): the screen's
 making, destructor, page and slot switches and the press's shell (above).
 
-Not ported: the second saved-loadout
-loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
-0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
+Item 9a (`mech3/lab_view.cpp`, GameEngine's `lab_*` hooks; `zcls`
+`world_create` and the world's area and grid): the 3D view, below.
+
+Not ported: the second saved-loadout loader 0x004260c0; the armour
+section's highlight on the model (0x004504d0, 0x00450470; item 9b).
+
+### The 3D view (0x0044ffc0..0x00450810)
+
+The lab opens from a briefing, with the mission's world loaded: the view is
+a second world in the same node pool. Only when no pool is up does its load
+load a mission world (6) first and mark it (+0x10).
+
+- **The load** 0x0044ffc0 (ECX the Lab State): the video mode into +0x6c,
+  the frame clear's flag kept in +0x64 and turned off (0x0057a3c0), the
+  cursor's state kept in +0x68 and hidden (0x00579840, 0x0059fb80), the clear
+  colour black (0x00579250), the frame and the 16-bit buffer cleared. Then
+  three objects: the world wrapper (new(8), 0x004b5020: a world node,
+  0x004f1bd0, named "labworld"), the window wrapper (new(0x3c), 0x004b5440,
+  "labwindow", its area empty) and the camera wrapper (new(0x18), 0x004b5150,
+  "labcam": the window, the world, the hardware flag, the default zone). The
+  camera's clip 1 to 500 (0x004f3a70) and field of view 74 by 75 degrees
+  (0x004f3d90); the world's area from (-1024, 1024), 2048 by -2048
+  (0x004f2500, 0x004f2530) and a grid of one 2048 cell (0x004f2560); the
+  camera under the world (the wrapper's vt+0, 0x0040bab0: 0x004eb9b0); the
+  window over the lab dialog's hole, (210, 52) to (430, 288) (0x00450460,
+  0x0044fea0); +0x40 set; the frame update and the lists purged
+  (0x004f7f70, 0x004f7bd0); the 19 chassis' entries (0x0044fcc0, new(0x14):
+  +0x08 the mech, +0x10 -1) into the +0x20 vector; the camera's object test
+  off (0x004f3550; 0x004f3540 writes a word nothing reads); the camera's
+  place (0, 5, -11) and rotation (0.02, pi, 0) into +0x48 and +0x54.
+- **A chassis** 0x0044fd20: its tree copied from the mech's model (0x00484760,
+  variant 0; 0x004f9af0(1, 1)) the first time it is shown, the definition's
+  first camo on the model (0x00475780) and its copy on the tree (0x00475a80),
+  shown 0. **The camo** 0x0044fd90 (SKINS): the camo's copy for this tree
+  (with the damage skin's holes, 0x00475520, 0x00475870) swapped on
+  (0x004749e0) and the old copy freed.
+- **The frame** (the Lab State's update): the render target (0x00450810),
+  the frame cleared when the world is up (0x00450800), the screen drawn
+  under the 3D lock (0x00448f10), then 0x00450690: the shown chassis turned
+  about y by 0.8 radians a second of the frame's time (back by 2 pi past pi:
+  time-based, no per_second rule), the camera's field of view, place and
+  rotation set again, and the chassis drawn alone from the camera
+  (0x004f73f0) with the zone test off ([0x005ea1d0] 0 around it). Two flags
+  ([0x00605aa4] freezes the view, [0x00605aa8] doubles the pixels) are
+  never set.
+- **The unload** 0x00450390: each entry's tree destroyed (0x004f9050) and its
+  camo freed (0x0044fce0), the wrappers deleted (their nodes stay in the
+  pool, as the mission's cleanup frees it), the shown chassis forgotten, the
+  cursor back, the model cache purged.
+
+The port also needed the frame update the Lab State's update calls
+(0x004f7f70: `GameEngine::node_frame_update`, which was still a hook): without
+it the copied tree's matrices never formed and nothing was drawn.
+
+Test: `test_lab_view.py` (300 runs, bit for bit, every word compared exactly)
+runs the original's world calls and its frame step (0x00450690 on a Lab
+State block, 0x0044fd20 answering an object3d, the draw recorded) against the
+port on c1's node pool. Breaks 14 of 14 (the grid's counts, factors, cell
+boxes, flags and spheres, the far corner from the origin and from the size,
+the world's fog type, the turn's sign and wrap, the field of view's order,
+the zone test, the camera's rotation). In the program (`--lab-mech N`, ours:
+the view is handed chassis N) every chassis is drawn turning in the lab
+(outbox 2026-10-27/lab3d), and SKINS swaps the camo on the model.
 
 ## 5. Porting order
 
@@ -912,8 +972,10 @@ One sitting each; each with its differential test and break tests.
    DISTRIBUTE (0x00450c70) and the section step (0x004509b0) (done,
    above).
 9. **The 3D view**: the lab world and camera (0x0044ffc0, 0x00450390,
-   0x00450690), CURRENT_CHASSIS's model, picking a part (0x004507c0..);
-   with the render port's pieces it needs.
+   0x00450690), CURRENT_CHASSIS's model (9a); the armour section's
+   highlight on the model (0x004504d0 / 0x00450470: the section's parts
+   blended; 9b). There is no mouse picking: 0x004507c0 is the chassis
+   lookup (item 1). With the render port's pieces it needs.
 10. **MECHLAB from the briefing opens the real lab, and ACCEPT comes back
     with the loadout** (done): the program end to end (a mech and loadout changed
     in the lab reach the launch), mw3tests' campaign loop through the lab.

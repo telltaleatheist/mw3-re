@@ -93,6 +93,7 @@ struct Args {
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
+  int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
   struct ClickAt { int frame, x, y; };
@@ -106,7 +107,7 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
@@ -132,6 +133,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
+    else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
@@ -451,6 +453,14 @@ int run(const Args& a) {
         if (a.verbose && app.current() != last_state) {
           last_state = app.current();
           if (auto* st = dynamic_cast<const mech3::State*>(last_state)) std::printf("mw3: state %s\n", st->name());
+        }
+        // --lab-mech N (ours, for checking the lab's 3D view): once the lab is
+        // up its view is handed chassis N (0..18), as the slot switch hands it
+        // the slot's (+0x38); the slot itself keeps its mech.
+        static bool lab_mech_given = false;
+        if (a.lab_mech >= 0 && !lab_mech_given && app.current() == &mech3::states().lab) {
+          mech3::states().lab.mech_ = a.lab_mech;
+          lab_mech_given = true;
         }
         // --win N (ours, for checking the save): N frames into a mission it
         // is won as a player wins it, by Exit Mission once the objectives are

@@ -232,13 +232,18 @@ class LabState : public ShellState {
 
   static constexpr int32_t kNoMech = 0x13;  // +0x38 when no mech is waiting (the 19 mechs)
 
+  uint8_t own_world_ = 0;             // +0x10  the 3D world's load loaded a mission world (none was up)
   std::vector<Handle> models_;        // +0x20  the 3D view's mechs (each +0x08 its mech)
   Handle model_ = 0;                  // +0x2c  the one shown
   int32_t slot_ = -1;                 // +0x30  the slot shown [0x00605a28]
   int32_t slots_ = 0;                 // +0x34  the game's slot count
   int32_t mech_ = 0;                  // +0x38  the mech to show next; kNoMech none (from enter on)
   Handle lab_screen_ = 0;             // +0x60  [0x00605a58]
+  uint8_t x40_ = 0;                   // +0x40  set by 0x0044ffc0, never read
+  float cam_pos_[3] = {};             // +0x48  the 3D view's camera, from [0x005e4648]
+  float cam_rot_[3] = {};             // +0x54  and [0x005e4678]
   int32_t clear_ = 0;                 // +0x64  the frame clear's flag to put back (0x0057a3c0), kept by 0x0044ffc0
+  uint32_t cursor_ = 0;               // +0x68  the cursor's state, put back by 0x00450390
   uint32_t world_ = 0;                // +0x6c  the 3D world is up (set by 0x0044ffc0)
   Handle sounds_[4] = {};             // +0x70  select, move, rollover, error
   Handle pilot_ = 0;                  // +0x84  [0x00605a7c]

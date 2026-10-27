@@ -389,6 +389,79 @@ int world_free_partitions(Node* world) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f1bd0: a world node (class 2) with no grid, fog type
+// 1, unit fog factors and one virtual block (+0x54 / +0x58), on list 13.
+Node* world_create() {
+  Node* node = node_alloc();
+  node->put<int32_t>(0x34, 2);
+  auto* w = new World{};
+  std::memset(w->raw, 0, sizeof w->raw);
+  node->data = w;
+  w->put<float>(0x94, 1.0f), w->put<float>(0x98, 1.0f), w->put<float>(0x9c, 1.0f);
+  w->put<uint32_t>(0, 1);
+  w->raw[0x4c] = 0x10;
+  w->put<int32_t>(0x58, 1), w->put<int32_t>(0x54, 1);
+  push_front(kWorlds, node);
+  return node;
+}
+
+// Mech3.exe 1.2 @ 0x004f2500: the area's corner (+0x34, +0x38); its far
+// corner (+0x44, +0x48) follows the size.
+int world_set_origin(Node* world, float x, float z) {
+  World* w = world_of(world);
+  const float fx = w->get<float>(0x3c) + x, fz = w->get<float>(0x40) + z;
+  w->put(0x34, x), w->put(0x38, z), w->put(0x44, fx), w->put(0x48, fz);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f2530: the area's size (+0x3c, +0x40), the far corner
+// with it.
+int world_set_size(Node* world, float x, float z) {
+  World* w = world_of(world);
+  const float fx = w->get<float>(0x34) + x, fz = w->get<float>(0x38) + z;
+  w->put(0x3c, x), w->put(0x40, z), w->put(0x44, fx), w->put(0x48, fz);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f2560: the partition grid made afresh for cells of
+// (x, z): the cell sizes and their factors, enough cells to cover the area
+// (one more when the truncated count falls short), each cell's box from its
+// corner, its sphere (0x004f9bc0), no node list yet (+0x04 -1, flag 0x100).
+int world_make_grid(Node* world, float x, float z) {
+  World* w = world_of(world);
+  if (w->rows) world_free_partitions(world);
+  w->put(0x64, x), w->put(0x68, z);
+  w->put(0x80, x * 0.125f), w->put(0x84, z * -0.125f);   // [0x005cdb2c], [0x005cdb30]
+  w->put(0x6c, x * 0.5f), w->put(0x70, z * 0.5f);         // [0x005cdb28]
+  w->put(0x74, 1.0f / x), w->put(0x78, 1.0f / z);
+  w->put(0x7c, approx_sqrt(x * x + z * z) * -0.5f);       // [0x005cdb38]
+  int32_t cols = crt::msvc_ftol(w->get<float>(0x3c) / x);
+  if (static_cast<float>(cols) * x < w->get<float>(0x3c)) ++cols;
+  int32_t rows = crt::msvc_ftol(w->get<float>(0x40) / z);
+  if (static_cast<float>(rows) * z > w->get<float>(0x40)) ++rows;
+  w->put<int32_t>(0x88, cols), w->put<int32_t>(0x8c, rows);
+  w->rows = new Partition*[rows > 0 ? rows : 0]();
+  for (int32_t r = 0; r < rows; ++r) w->rows[r] = new Partition[cols > 0 ? cols : 0]();
+  for (int32_t r = 0; r < rows; ++r) {
+    for (int32_t c = 0; c < cols; ++c) {
+      Partition& p = w->rows[r][c];
+      p.put<uint32_t>(0, p.get<uint32_t>(0) | 0x100);
+      const float x0 = static_cast<float>(c) * x + w->get<float>(0x34);
+      const float z0 = static_cast<float>(r) * z + w->get<float>(0x38);
+      p.put(0x08, x0), p.put(0x0c, z0);
+      // The box (+0x10..+0x24): x from the corner, z from the far side.
+      p.put(0x10, x0), p.put(0x24, z0), p.put(0x1c, x0 + x), p.put(0x18, z0 + z);
+      float box[6], centre[3], radius;
+      std::memcpy(box, p.raw + 0x10, sizeof box);
+      box_sphere(box, centre, &radius);
+      std::memcpy(p.raw + 0x28, centre, sizeof centre);
+      p.put(0x34, radius);
+      p.put<int32_t>(0x04, -1);
+    }
+  }
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f1c60
 int world_delete(Node* world) {
   if (world_free_partitions(world) != 0) return 0;
