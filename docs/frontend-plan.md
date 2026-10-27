@@ -164,8 +164,8 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
     than PLAYAVI (the SPLASH logos, fades, waits, sounds). Test: a
     differential of the script's run (its calls) against the exe; the
     intro's logos in screenshots.
-11. **The movies' video** (PLAYAVI): Indeo 5 by Owen's choice (libavcodec
-    at run time, or the importer's conversion), drawn as zFMV draws. Test:
+11. **The movies' video** (PLAYAVI): the importer's one-time conversion
+    (Owen's choice, section 3), drawn as zFMV draws. Test:
     the intro's first frames in screenshots; a movie's length in frames.
 12. **Instant Action**: the Action screen 0x00488bc0 and its state, the
     ActionGame from it, the IA Dummy State. Test: differential of the
