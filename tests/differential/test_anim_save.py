@@ -6,9 +6,11 @@ the missions' real animation state.
     cmake --build build && .venv/bin/python -P tests/differential/test_anim_save.py [frames, 60] [after, 20] [missions...]
 
 For each mission both sides read the world and run test_anim_run's frames of
-random calls (starts, resets, stops, hits, ...), then the mission's end
-(0x50ace0(1), as CoreState::leave does before the win's save) and the three
-saves in zSave's order. The original's entries are caught at zSave's calls
+random calls (starts, resets, stops, hits, ...), then the three saves in
+zSave's order: the win's (the Win State's save runs with the mission as it
+is: the Core state is only suspended under the end screen, the fade and the
+Win State), then again after the mission's end (0x50ace0(1), CoreState::leave:
+every run stopped; MW3 saves nothing there). The original's entries are caught at zSave's calls
 (0x5a8a50 write, the temporary files 0x5a8ab0 / 0x5a8ad0 / 0x5a8af0 /
 0x5a8b10, fwrite and fread on them); the port writes a real saved game
 through zsave::save. Compared: every entry's name and bytes, and the state
@@ -245,19 +247,18 @@ def run_mission(mission, frames, after, seed, cmp, stats, folder):
 
     def runs():
         return sum(1 for i in range(1, count) if emu.cpu.read(base + 0x13c * i + 0x98, 1)[0] in (2, 6))
-    # A save in the middle of the mission (MW3 makes none, but the code is the
-    # same): the runs as they are.
-    stats['running_mid'] += runs()
-    saves = [('mid',) + save_both(emu, mission, 'mid', cmp, stats, folder)]
-    cmp(f'{mission} saved mid', emu.dump(True), port.dump(True))
-    # The win's: the mission's end first, as CoreState::leave.
+    # The win's save: the Win State's, with the mission's runs as they are.
+    stats['running_win'] += runs()
+    stats['log_saved'] += struct.unpack('<i', emu.cpu.read(LOG_COUNT, 4))[0]
+    saves = [('win',) + save_both(emu, mission, 'win', cmp, stats, folder)]
+    cmp(f'{mission} saved win', emu.dump(True), port.dump(True))
+    # After the mission's end (CoreState::leave), every run stopped.
     emu.stop_all(1)
     probe.ar_stop_all(1)
     cmp(f'{mission} stopped', emu.dump(True), port.dump(True))
-    stats['running_win'] += runs()
-    stats['log_saved'] += struct.unpack('<i', emu.cpu.read(LOG_COUNT, 4))[0]
-    saves.append(('win',) + save_both(emu, mission, 'win', cmp, stats, folder))
-    cmp(f'{mission} saved win', emu.dump(True), port.dump(True))
+    stats['running_stopped'] += runs()
+    saves.append(('stopped',) + save_both(emu, mission, 'stopped', cmp, stats, folder))
+    cmp(f'{mission} saved stopped', emu.dump(True), port.dump(True))
     del emu
     # The next mission of the operation: the world read again, each save loaded.
     for k, (label, want, name) in enumerate(saves):
@@ -275,7 +276,7 @@ def run_mission(mission, frames, after, seed, cmp, stats, folder):
         cmp(f'{mission} {label} cross-loaded', restored, port3.dump(True))
         stats['cross'] += 1
         play(emu2, port3, mission, after, rng2, nrng2, cmp, stats, f'after {label} load')
-        if label == 'mid':
+        if label == 'win':
             damaged(mission, want, seed2, emu2, folder, stats)
         del emu2
     # The states random play does not reach, forced on both sides (a def
@@ -300,7 +301,7 @@ def run_mission(mission, frames, after, seed, cmp, stats, folder):
         cmp(f'{mission} forced loaded', emu4.dump(True), port5.dump(True))
         play(emu4, port5, mission, after, rng4, nrng4, cmp, stats, 'after forced load')
         del emu4
-    # The mid save loaded into a world already played (not a case MW3 makes:
+    # The win's save loaded into a world already played (not a case MW3 makes:
     # it loads at the mission's start), so the restores' node states, statuses
     # and instances are seen against a world that differs from the save's.
     label, want, name = saves[0]
@@ -483,7 +484,7 @@ def main():
     missions = args or WORLDS
     cmp = Compare()
     stats = {k: 0 for k in ('frames', 'start', 'start_at', 'start_node', 'reset', 'reset_node', 'reset_cockpit',
-                            'stop', 'invalidate', 'ram', 'hit', 'player', 'zone', 'running_mid', 'running_win', 'log_saved',
+                            'stop', 'invalidate', 'ram', 'hit', 'player', 'zone', 'running_win', 'running_stopped', 'log_saved',
                             'AnimActivation', 'RunningAnim', 'Anim', 'cross', 'damaged', 'played', 'perturbed', 'forced')}
     keep = os.environ.get('MW3_KEEP')  # a folder to keep the saves in
     with tempfile.TemporaryDirectory() as d:

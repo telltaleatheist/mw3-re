@@ -47,6 +47,11 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
 whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
+- `savecheck.py [--keep DIR]`: the saved campaign end to end in the program
+  (`--nosound --hidden`, a scratch write dir): c1m1 won with `--win`,
+  straight on and through a reload from the pilot screen to c1m2's briefing
+  (the same holdings, "Saved Game Loaded" only on the reload), and
+  "Replace existing game?" answered No and OK (save.md section 6).
 - `fadecheck.py [mission] [frame ...]`: shoots frames of the mission-start
   fade with `mw3 --shot-any` and checks they show the picture, brighter each
   time (uses the GPU).

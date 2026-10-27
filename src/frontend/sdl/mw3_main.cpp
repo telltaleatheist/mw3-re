@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -42,6 +43,7 @@
 #include "frontend/sdl/sdl_sound.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/ztwod/twod_host.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
@@ -49,6 +51,7 @@
 #include "mech3/pilot.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
+#include "mech3/briefing.h"
 #include "mech3/mech_config.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zweapon/zweapon.h"
@@ -59,6 +62,27 @@
 
 namespace {
 
+// What the player's game holds (--verbose): its mission, the store and the
+// mission's salvage together by item, the player's mech and loadout, the
+// lancemates.
+std::string campaign_summary() {
+  mech3::Pilot* p = mech3::current_pilot();
+  auto* c = p ? p->campaign() : nullptr;
+  if (!c) return "no campaign";
+  std::map<std::pair<int, int32_t>, int32_t> held;
+  for (const mech3::Store* st : {&c->store, &c->store3c})
+    for (const mech3::ConfigItem* it : st->items) held[{it->kind(), it->id()}] += it->count;
+  std::string out = "Op " + std::to_string(c->operation()) + " Mission " + std::to_string(c->mission_number()) +
+                    ", " + std::to_string(held.size()) + " kinds held:";
+  for (const auto& [k, n] : held)
+    out += " " + std::to_string(k.first) + "/" + std::to_string(k.second) + "x" + std::to_string(n);
+  const mech3::Config* cf = c->slot.config;
+  out += "; mech " + std::to_string(c->slot.mech) + " (" + (cf && cf->name ? cf->name : "-") + ", " +
+         std::to_string(cf ? static_cast<int>(cf->items.size()) : 0) + " items)";
+  out += "; lancemates " + std::to_string(c->lancemates.size());
+  return out;
+}
+
 struct Args {
   std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot;
   std::vector<std::string> assets;
@@ -68,6 +92,7 @@ struct Args {
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
+  int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
   struct ClickAt { int frame, x, y; };
@@ -81,7 +106,7 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N]\n"
       "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
@@ -106,6 +131,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
+    else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
@@ -420,6 +446,31 @@ int run(const Args& a) {
         }
         if (!a.shot.empty() && menu_frames == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
         if (!a.shot.empty() && menu_frames == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), menu_frames);
+        // --win N (ours, for checking the save): N frames into a mission it
+        // is won as a player wins it, by Exit Mission once the objectives are
+        // met (campaign.md section 1): the end screen, its fade to the
+        // debriefing's Win State, whose save writes the next mission's game.
+        static int win_frames = 0;
+        if (a.win > 0 && app.current() == &mech3::states().core && ++win_frames == a.win) {
+          mech3::missions().ended = 1;
+          mech3::missions().on_command(0x71);
+        }
+        // --verbose (ours, for checking the save): the pilot's game as the
+        // Win State saved it, and as a briefing finds it once its mission
+        // has loaded (the saved game read back into it).
+        static const void* said = nullptr;
+        if (a.verbose && app.current() == &mech3::states().end_win && said != &mech3::states().end_win) {
+          said = &mech3::states().end_win;
+          std::printf("mw3: saved at the win: %s\n", campaign_summary().c_str());
+        }
+        if (a.verbose && app.current() == &mech3::states().load && said != &mech3::states().load) {
+          auto* b = dynamic_cast<mech3::BriefingScreen*>(engine.screen_of(mech3::states().load.screen_));
+          if (b && b->loaded) {
+            said = &mech3::states().load;
+            std::printf("mw3: at the briefing: %s; anim log %d\n", campaign_summary().c_str(),
+                        zeff::anim_log().count);
+          }
+        }
         // --verbose (ours, for checking the lab's loadout reaching the
         // launch): the player's mech as built, 30 frames into a mission.
         static int core_frames = 0;
