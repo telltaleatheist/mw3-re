@@ -1,6 +1,10 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+
+#if !defined(_WIN32)
+#include <execinfo.h>
+#endif
 #include "gamez/zfmv/fmv_script.h"
 #include "mech3/mission_map.h"
 #include "mech3/app.h"
@@ -87,6 +91,16 @@ struct WiredOptionsHooks : OptionsHooks {
   void controls_free() override { mech3::controls_free_groups(); }                 // 0x00410a80
   Handle player_view() override { return g_engine ? g_engine->player_view() : 0; }  // [0x005f4c8c]
   void view_set_camera_mode(Handle, int32_t mode) override { program_view_set_camera(mode); }  // 0x0040ae70
+  Handle find_node(int32_t kind, const char* name) override {  // 0x004f7fe0
+    zcls::Node* n = zcls::list_find_by_name(kind, name);
+    return n && g_engine ? g_engine->handle_of(n) : 0;
+  }
+  void node_set_active(Handle node, int32_t on) override {  // 0x004eb170
+    if (g_engine) zcls::node_set_active(static_cast<zcls::Node*>(g_engine->object_of(node)), on);
+  }
+  void camera_set_lod_scale(Handle cam, float s) override {  // 0x004f3ff0
+    if (g_engine) zcls::camera_set_lod_scale(static_cast<zcls::Node*>(g_engine->object_of(cam)), s);
+  }
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
     return g_engine ? g_engine->unported(key, args) : 0;
   }
@@ -159,6 +173,17 @@ uint32_t GameEngine::unported(const char* key, std::initializer_list<Arg> args) 
     }
     std::fprintf(stderr, "mw3: not ported: %s(%s ) -> 0 (logged once)\n", key, a.c_str());
   }
+  // Ours, for finding a hook's caller: MW3_TRACE_UNPORTED=<key> prints where
+  // each of its first eight reaches comes from.
+#if !defined(_WIN32)  // execinfo is POSIX
+  static const char* trace = std::getenv("MW3_TRACE_UNPORTED");
+  if (trace && std::strcmp(trace, key) == 0 && n <= 8) {
+    void* frames[16];
+    const int k = backtrace(frames, 16);
+    std::fprintf(stderr, "mw3: %s reached from:\n", key);
+    backtrace_symbols_fd(frames, k, 2);
+  }
+#endif
   return 0;
 }
 

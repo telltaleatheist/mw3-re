@@ -681,6 +681,9 @@ void program_hud_mfd_mode(int m) {
 void program_set_torso_internal(void* mech, float v) {
   if (Torso* t = mech ? static_cast<Mech*>(mech)->torso : nullptr) t->internal = t->side_internal[0] = t->side_internal[1] = v;
 }
+void program_hud_weapons_layout(void* hud) {
+  if (hud) static_cast<Hud*>(hud)->weapons.layout();
+}
 void* program_pilot_hud(void* data) { return data ? pilot_hud(*static_cast<MechData*>(data)) : nullptr; }
 void program_hud_zoom_pass(void* hud, float dt) {
   if (hud) static_cast<Hud*>(hud)->reticle.draw3d(dt);

@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "gamez/zclass/camera.h"
+#include "mech3/app_hud.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_di.h"
@@ -192,6 +193,13 @@ struct ProgramViewHooks : ViewHooks {
   uint8_t head_bob() override { return 1; }       // [0x005e2448]
   float head_bob_scale() override { return 0.15f; }  // [0x005e244c]
   Mech* player_target() override { return g_view ? g_view->target : nullptr; }
+  // 0x00430aa0 on the view's mech (its HUD; a token, only handed back) and
+  // the HUD's weapon list laid out again (0x00446240 on +0x6520).
+  uint32_t mech_screen(Mech& t) override { return program_pilot_hud(t.pilot) ? 1 : 0; }
+  void screen_look(uint32_t screen) override {
+    Mech* t = player_target();
+    if (screen && t) program_hud_weapons_layout(program_pilot_hud(t->pilot));
+  }
   uint32_t pilot_game() override { return 0; }
   uint8_t game_byte_8e(uint32_t) override { return 0; }
   const float* mission_fog(bool water) override { return program_mission_fog(water); }
