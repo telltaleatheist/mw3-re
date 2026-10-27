@@ -2799,6 +2799,23 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   another row plays that one. The fresh start (Op 1, Mission 1) is always
   the first row and is never saved itself.
 
+### Training's lessons
+
+The objectives the training missions use (details: `objectives.md`,
+Training's types).
+
+- **"Look at it" means within about 11 degrees,** on the level: the view
+  camera's (or, for "face", the mech's) direction and the direction to the
+  target, both flattened, must be closer than a dot product of 0.98.
+  Looking up or down does not matter.
+- **Aiming at a building counts its parts:** the reticle's aim on any part
+  under the named object counts, climbing up while each part has a single
+  parent.
+- **The game has unused lesson types:** a key press (with Ctrl, Alt or
+  Shift), a mouse button, a joystick button, a weapon group, and "look at"
+  with the view camera, none of which any shipped lesson uses. A time limit
+  takes the first number written anywhere in its entry.
+
 ### The Instant Action screen
 
 The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:

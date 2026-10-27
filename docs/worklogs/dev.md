@@ -969,3 +969,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   the Action screen again with Wave 2. The test first acted inside the
   Action State's resume (its flip presents a frame while the pilot's pop
   is still running): it now waits for an empty queue.
+
+## Item 13a (2026-10-27): training's fourteen condition types
+
+- Branch mac4/training off main 2b41549. Item 13 split: 13a the fourteen
+  types' reading (0x0045c920's other branches) and checks; 13b the lesson
+  list (the training game's vt+0x40 0x00437140, 0x0045ed40..0x0045f080,
+  0x004373b0), the TR Dummy State (0x006098c8, enter 0x00491ab0: the
+  mission passed, the pilot saved, Main with the training menu again), the
+  program's answers for the checks, headless t1 lesson 1 (m11: a 1 s
+  time_limit; m12 User_Command CMD_SHUTDOWN; m13 face_object).
+- Read from the asm (the decompile is mostly inlined strcmps): each
+  branch's keys, its object's size and vtable, its required values.
+  aim_at_object asks 0x00444330 on the screen's +0x144c.
+- test_objectives.py: the t1 blocks are compared whole now (were "must be
+  reported unported"), made-up training conditions, coverage of every
+  branch. test_objective_check.py: a training world from a shared mix
+  (speed, aim hit and node parents, target slot and entity, aimed part,
+  facing, heat, weapon manager and group, current weapon, weapon fired,
+  clock, view angles, buttons); the Python fake's 0x005a85e0 returned one
+  buffer for every object (entity - player was 0): each object its own.
+  FIX (bug)s hooked into the original: view_object and weapon_group_select
+  with no vehicle / weapon manager.

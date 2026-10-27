@@ -408,7 +408,7 @@ TRAINING = ['reach_velocity', 'aim_at_object', 'target_object', 'time_limit', 'v
 
 def training_args(r, t):
     if t == 'reach_velocity':
-        return ((['test', [r.choice(['GT', 'GE', 'EQ', 'NE', 'LE', 'LT', 'XX'])]] if r.random() < 0.8 else []) +
+        return ((['test', [r.choice(['GT', 'GE', 'EQ', 'NE', 'LE', 'LE', 'LT', 'XX'])]] if r.random() < 0.8 else []) +
                 (['velocity', [r.choice([0, 5, 12.5, -3.0])]] if r.random() < 0.85 else []))
     if t == 'aim_at_object':
         return ['node', node_list(r)] if r.random() < 0.9 else []
@@ -418,7 +418,8 @@ def training_args(r, t):
             a += ['part', [r.choice(['head', 'larm', 'rtorso', 'nopart'])]]
         return a
     if t == 'time_limit':
-        return [r.choice([30, 12.5, 'x', [4]])] if r.random() < 0.85 else []
+        return ([r.choice([30, 12.5, 7.5, 'x', [4]])] + ([r.choice([2, 40.5])] if r.random() < 0.3 else [])
+                if r.random() < 0.85 else [])
     if t == 'User_Command':
         return ['cmd', [r.choice(['CMD_FIRE', 'CMD_JUMP', 'CMD_X', 'CMD_ZOOM'])]] if r.random() < 0.9 else ['cmd', [3]]
     if t == 'joystick_press':
@@ -427,7 +428,7 @@ def training_args(r, t):
         return ['key', [r.choice(['KEY_CTRL', 'KEY_ALT', 'KEY_SHIFT', 'KEY_FOO', 'a', 'F12', 'space', 7])
                         for _ in range(r.randint(0, 3))]] if r.random() < 0.9 else []
     if t == 'mouse_press':
-        return ['button', [r.choice(['left', 'RIGHT', 'Middle', 'side', 2])]] if r.random() < 0.9 else []
+        return ['button', [r.choice(['left', 'LEFT', 'RIGHT', 'Middle', 'side', 2])]] if r.random() < 0.9 else []
     if t in ('weapon_fire', 'weapon_select'):
         return ['weapon', [r.choice(['ERPPC', 'LRM20', 'PPC', 'TAG', 'UltraAC20', 'nosuch', 3])]] if r.random() < 0.9 else []
     if t == 'weapon_group_select':

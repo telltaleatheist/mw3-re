@@ -458,7 +458,7 @@ def main():
     emu = CheckRun()
     emu.unported_seen = set()
     r = random.Random(int(os.environ.get('SEED', '1')))
-    n = int(os.environ.get('N', '300'))
+    n = int(os.environ.get('N', '600'))
     fails = 0
     for i in range(n):
         data = made_up(r)

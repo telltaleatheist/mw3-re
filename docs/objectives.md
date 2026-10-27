@@ -43,7 +43,7 @@ Under them:
 | `node_change` | c1, c2, c3, c4, c4b (85) |
 | `obj_list` | every mission (41) |
 | `reach_area` | c2, c4b, t1 (8) |
-| `weapon_fire`, `heat_warning`, `target_object`, `weapon_select`, `time_limit`, `face_object`, `reach_velocity`, `aim_at_object` | t1 (training) only |
+| `weapon_fire`, `heat_warning`, `target_object`, `weapon_select`, `time_limit`, `face_object`, `reach_velocity`, `aim_at_object` | t1 (training) only (piece 5, below) |
 | `view_object`, `key_press`, `mouse_press`, `joystick_press`, `weapon_group_select` | none shipped |
 
 ## Porting plan (pieces of a few hundred lines)
@@ -113,9 +113,8 @@ depth-first search, so a nested condition's key can answer for its parent.
 | `valve_change` | 0x3c, 0x005c26f8 | `valve` (multiplayer sets it to 0 as it reads), `value` (1) |
 | `obj_list` | 0x4c group, 0x005c2678 | `list` of conditions, `goal_count` (+0x38), `simultaneous` (+0x35) |
 
-The other fourteen types (training's and five no file uses) report
-themselves as unported (`ObjectiveHooks::unported`, key `0x0045c920
-<type>`) and give no objective; piece 5 ports them.
+The other fourteen types (training's and five no file uses) are piece 5's
+(below, Training's types).
 
 ### Quirks (all kept)
 
@@ -247,4 +246,54 @@ too: a data typo. Fixed (Owen, 2026-10-25): `fix_objective_data` points
 them at firefly_03 / 04 after the read (fixes.md, Data typos). Turrets made per world: c1 14, c2
 12, c3 21, c4 19, c4b 13, t1 none (the same loader as the exe's,
 test_turret.py, on the ported worlds).
+
+## Training's types (piece 5, ported 2026-10-27, frontend-plan item 13a)
+
+The fourteen other branches of 0x0045c920 and their checks (vt+0x04). None
+takes `nav`; each also reads the shared keys above. "None" means no
+objective.
+
+| Type | Object | Reads | Check (met when) |
+|---|---|---|---|
+| `reach_velocity` | 0x3c, 0x005c2720 | `test` GT 0, GE 1 (default, and any other word), EQ 2, NE 3, LE 4, LT 5; `velocity` (a float; none without) | 0x0045f630: the player's screen's speed (+0x1ddc) against it, while the view is the player's |
+| `aim_at_object` | 0x38, 0x005c2718 | `node` (0x0045c810; none without) | 0x0045f800: the node the reticle's aim hits (the screen's +0x144c, 0x00444330(0), its +0x24) is it, or a parent of it, climbing while a node has exactly one parent (+0x54 1, +0x58's first) |
+| `target_object` | 0x40 over the named target, 0x005c2708 | `entity` (a name; none without), `part` (0x00484e40, -1 none) | 0x0045f8f0: the player's target (+0x6c, 0x004e6fe0) is the entity, and with a part the aimed part (+0xf8) is it |
+| `time_limit` | 0x38, 0x005c2700 | the first number after the type (an int converted; none: 0 s) | 0x0045e6c0: the mission's clock ([0x0060991c]) past it |
+| `view_object` | 0x3c over the named target, 0x005c26e8 | `entity` | 0x0045f400: the view camera's direction (its angles, +0x20, through 0x00522170) and the level direction to the entity within about 11 degrees (dot product of the two level, normalised directions over 0.98) |
+| `face_object` | 0x3c, 0x005c26d8 | `entity` | 0x0045f520: the same with the player's mech's facing (+0x24..+0x2c, as it is) |
+| `heat_warning` | 0x34, 0x005c26d0 | nothing | 0x0045f7b0: the player's heat warning on (+0x69c) |
+| `User_Command` | 0x40, 0x005c26c8 | `cmd`: a CMD_ name (0x00410fe0), its key, joystick and mouse buttons (0x0051d1f0, 0x0051d220, 0x0051d230); none when it has no key above 0 and no buttons | 0x0045e790: the key down (0x0051a9b0), else the joystick button (0x0051dcf0), else the mouse button (0x0051b6e0) |
+| `joystick_press` | 0x38, 0x005c26c0 | `button` (an int, not 0) | 0x0045e760: the button down |
+| `key_press` | 0x38, 0x005c26b8 | `key`: names, each a key (0x0051aee0) or KEY_CTRL 0x200, KEY_ALT 0x100, KEY_SHIFT 0x400, OR'd (other KEY_ words count nothing); none without one | 0x0045e700: the key (with its modifiers) down |
+| `mouse_press` | 0x38, 0x005c26b0 | `button` left 1, right 2, middle 3 (any case) | 0x0045e730: the button down |
+| `weapon_fire` | 0x38, 0x005c26a8 | `weapon`: a weapon's name (0x004848a0), 0..36 | 0x0045f220: that weapon fired (0x004464d0 on the screen) |
+| `weapon_select` | 0x38, 0x005c26a0 | `weapon` | 0x0045e800: the current weapon (+0xd4, 0x004b04c0) of that type (+0x28) |
+| `weapon_group_select` | 0x38, 0x005c2698 | `group` 1..5 (kept as 0..4) | 0x0045e850: that group chosen (the manager's +0x28) |
+
+Each check completes its condition with what it found (0x0045e110), so a
+condition met counts as done for good: the checks stop at done. The input
+checks keep only the answer's low bit. Quirks kept: `time_limit` takes any
+number among its keys' values, the first; `weapon_*` refuse the plain PPC
+(37: the exe's limit; the rebuild's own weapon, fixes.md). Fixed (fixes.md):
+`view_object` reads the player vehicle's position without checking there is
+one (`face_object` checks); `weapon_group_select` reads the vehicle's and
+its weapon manager's group unchecked. Both give nothing without them.
+
+The port: the classes `ReachVelocityObjective` .. `WeaponObjective`
+(mech_objective.h), through `ObjectiveHooks`' training hooks (the engine's
+answers are the program's, item 13b). Checked: `test_objectives.py` reads
+every t1 block (as training and as a campaign) and made-up training
+conditions; `test_objective_check.py` runs them over frames of a world
+whose speed, aim and node parents, target and part, facing, heat, weapons,
+clock, camera angles and buttons change from a shared script (600
+scenarios). Breaking the port showed the tests catch it, 25 of 26: the
+velocity test's default, its words' order, the velocity optional, the aim
+node optional, the target's part dropped, time_limit's ints ignored or its
+last number taken, User_Command's key 0 kept, KEY_SHIFT as Alt, the keys not
+OR'd, mouse's right as 3 or its case, the group from 1; in the checks GT as
+GE, LE as LT, no node parents, the part ignored, the clock's <=, the facing
+at 0.9, the view not level or its yaw sign, the heat inverted, the input's
+whole answer, the mouse before the joystick, the group for the weapon.
+Missed, and unobservable on the original's path: the plain PPC accepted
+(it exists only with the rebuild's fixes on).
 
