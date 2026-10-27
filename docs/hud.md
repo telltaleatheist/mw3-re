@@ -800,7 +800,9 @@ circle by its distance times radius over range, turned into the mech's frame
   and the distance in km ("%.2f") past 1000 m, else 0x229, "OP: %1
   [%2!d!m]", with the metres rounded up.
 - **The shots in the air** (the weapons' radar list, weapon.h
-  `radar_blips`: the missiles, SHOW_ON_RADAR): a pixel each (Pixel2D,
+  `radar_blips`: the missiles, SHOW_ON_RADAR; each shot's tick lists it
+  again every frame and the list's object 0x004b4ab0, made at the
+  mission's setup, empties it at action priority 2): a pixel each (Pixel2D,
   0x005a6b80) inside the circle, red for the shots hostile to the player
   (0x4b4a40's flag: the player's team among the shooter's enemies), the HUD
   green for the rest; over the map only where the map takes the point.

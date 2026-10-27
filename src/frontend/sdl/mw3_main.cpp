@@ -567,8 +567,10 @@ int run(const Args& a) {
       if (!debug && !launch && (a.frames > 0 || !a.shot.empty()))
         pump.should_quit = [&] { return (a.frames > 0 && menu_frames >= a.frames) || (!a.shot.empty() && menu_frames > a.shot_frame); };
       if (launch) pump.should_quit = [&] { return launch_done; };
+      // A quit outside the Exit state returns through ExitInstance, as the exe's WM_QUIT does,
+      // and leaves the world to the process's end: stop_game after zSound's shutdown freed
+      // the sounds the world's nodes still held (the exit's SIGTRAP, docs/program.md).
       result = app.run(pump);
-      if (app.current() != &mech3::states().exit) app.stop_game();
     }
     app.destroy();  // the app's destructor: the settings saved
     if (a.verbose) engine.print_unported_summary();

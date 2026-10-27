@@ -154,6 +154,15 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return s ? zsnd::play_at(static_cast<zsnd::Object*>(s), &p->x, 1.0f, nullptr) : nullptr;
   };
   c.stop_sound = [](Handle v) { if (v) zsnd::stop(static_cast<zsnd::VoiceBase*>(v)); };  // 0x0056e9f0
+  // The radar list's object (0x004b4ab0): its action empties the shots' list each frame.
+  c.object3d_create = []() -> Handle { return zcls::object3d_create(); };
+  c.set_action_priority = [](Handle n, int32_t p) { zcls::node_set_priority(zn(n), p); };
+  c.set_action = [](Handle n, void (*fn)()) {
+    static void (*act)() = nullptr;  // the node action takes the node; the radar's takes nothing
+    act = fn;
+    zcls::node_set_action(zn(n), fn ? [](zcls::Node*) { act(); } : nullptr);
+  };
+  c.node_destroy = [](Handle n) { zcls::node_delete(zn(n)); };
   c.mech_sound = [](int32_t i) { cockpit_sound_play(i, 1.0f); };  // 0x0041e770
   c.destroyed_sounds = [](Handle, Handle) { unported("0x004e6dc0"); };
   c.voice_destroyed = [](int32_t) { unported("0x004853d0"); };

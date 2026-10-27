@@ -124,6 +124,13 @@ the state commands, every state (Intro, Main, Attract, Pause, Exit, Core,
 Load, Pre Lab, Salvage, Win, the key list), the stop 0x004808a0 and
 ExitInstance 0x0047fa10.
 
+The quit: the Exit state runs the stop (0x00482060), then the loop's
+WM_QUIT returns ExitInstance. A quit outside it (the window closed, a
+debug run's `--frames`) returns through ExitInstance alone, as the exe
+does, and the world stays until the process ends. mw3 once ran the stop
+after that; zSound had freed its sounds by then, and the world's sound
+nodes wrote into them (mission-plan.md item 2).
+
 Hooks wired to ports by `mech3::GameEngine` (`src/mech3/app_engine`):
 
 | Hook | Port |

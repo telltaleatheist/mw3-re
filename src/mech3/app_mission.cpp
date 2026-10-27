@@ -117,6 +117,7 @@ void engine_sounds_clear();  // mech3/veh_basic_object.h: 0x004add10
 void vehicle_markers_create();  // mech3/veh_basic_object.h: 0x004ac3d0
 void vehicle_markers_delete();  // 0x004ac4e0
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
+void radar_objects_create();                                 // 0x004b4ab0
 void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
 int32_t weight_class(int32_t mech);                          // 0x00484700 (mech3/mech_names.h)
@@ -1441,6 +1442,7 @@ struct WiredMissionHooks : MissionHooks {
   void fn_4eb030(Handle v) override { zcls::immediate_delete() = static_cast<int32_t>(v); }
   void view_fn_40ae70(Handle) override { program_view_set_camera(0); }
   void view_fn_40adf0(Handle) override { program_view_detach(); }
+  void fn_4b4ab0(Handle) override { radar_objects_create(); }
   void fn_4b4ae0() override { radar_objects_destroy(); }
   void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
   // 0x004582c0 on the mission's map (+0xbc): every map's image released; 0.

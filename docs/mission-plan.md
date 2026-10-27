@@ -86,8 +86,8 @@ and of c4m2 (the sun's flare and the rain): outbox 2026-10-27/mission.
   (`mission_c1m1_player_fires_on_the_owens`, `_lrm_homes_on_the_lock`,
   `_laser_*_on_the_reticle`, `_arm_weapon_recoils`,
   `mission_c1m2_landmines_go_off`, `_shots_destroy_the_srm_turrets`).
-- **Missing**: 0x004b4ab0 and 0x004b52e0 (weapon.cpp, 11 and 56 lines,
-  reached once at the start); the network registration (multiplayer).
+- **Missing**: 0x004b52e0 (weapon.cpp, 56 lines, reached once at the
+  start; 0x004b4ab0 wired in item 2); the network registration (multiplayer).
   Open in play: playtest #23 / #24 (a beam fires only from a full charge,
   so a click while it recharges is dropped and a held click fires late, as
   the original): a candidate for Owen (fixes.md), not a port.
@@ -242,9 +242,19 @@ Small items, each one sitting, in the order a player would notice them.
    already (its log was the debug start's stand-in pilot).
 2. **The quit**: the 180 s census's hang and the intermittent SIGTRAP at
    c1m1's exit. Test: the 180 s census finishes; 20 c1m1 runs with
-   `--verbose --shot` exit 0 (with AddressSanitizer once).
+   `--verbose --shot` exit 0 (with AddressSanitizer once). Done
+   (2026-10-27), two bugs of ours. The trap: mw3's main ran `stop_game`
+   after `App::run` had returned through ExitInstance, so the world's
+   sound nodes unlocked voices zSound had freed (AddressSanitizer: a
+   use after free in `zsnd::unlock`); malloc caught the damage at random
+   later (Metal's shader release, CoreAudio's close). The hang: 0x004b4ab0
+   (the radar list's object, whose action empties the list each frame)
+   was never wired, so every shot fired stayed listed and the radar's
+   walk grew without end (2,500 entries by 30 s); the AMS read the same
+   stale list. The 180 s census runs in 91 s now.
 3. **c4m2's slow frames**: profile the 8 times slower run. Test: c4m2's
-   1200 frames within twice c1m1's time.
+   1200 frames within twice c1m1's time. Met by item 2's radar list:
+   c4m2 25 s, c1m1 17 s (136 s before); nothing left to profile.
 4. **The vehicles' shadows**: the upkeep (0x004814e0) over the ported
    vehicles too. Test: `mission_c1m1_mechs_cast_shadows` extended to a
    vehicle within 100 m.
@@ -252,7 +262,7 @@ Small items, each one sitting, in the order a player would notice them.
    0x004776d0**: trace, port, differential (test_modeldraw.py's harness
    for the first; mech-build's for the second).
 6. **The start-up's leftovers that a player could see**: 0x004ab6b0 /
-   0x004ac860 (vehicles), 0x004b4ab0 / 0x004b52e0 (weapons), 0x00490720,
+   0x004ac860 (vehicles), 0x004b52e0 (weapons), 0x00490720,
    0x0047f2b0, 0x00413e60: identify each, port the ones with an effect.
    Test: a differential each (the families' existing tests), the census.
 7. **The script engine's live calls**: measure which null entries the
