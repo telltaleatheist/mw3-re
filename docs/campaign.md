@@ -18,7 +18,7 @@ briefing LAUNCH (0x00404f70) -> the launch 0x00491150 (mech-build.md 8)
   -> Replace with Core (5); a failed launch unloads and Replaces with Main
 Core (the mission) ... the end screen 0x00491bf0 (mission-frame.md):
   campaign / Instant Action fade out 2 s, Replace with the Win State at
-  0x006099a0; training with 0x006098c8
+  0x006099a0; training with the TR Dummy State 0x006098c8 (section 12)
 Win State 0x006099a0 (enter 0x0047ac20): results kept, the next mission
   saved (0x00478f10(1)), the debriefing screen 0x0047b430
 debriefing CONTINUE (0x0047d030(0)):
@@ -764,3 +764,22 @@ the world and mission swapped at the launch, the header's world from 0 or
 the description in it, the player's kills counted as an enemy's. Missed,
 and unobservable: the kills left on the mechs (nothing tallies them again
 before the mission is unloaded).
+
+## 12. Training's end: the TR Dummy State (0x006098c8)
+
+"TR Dummy State" (constructor 0x00491a70, vtable 0x005c60e0; its frame
+0x0040bae0 does nothing). The end screen of a training mission fades to it
+(2 s, as the campaign's); its enter (0x00491ab0): a mission won
+([0x00609925] and not [0x00609926]) marks the training game's chosen
+mission (+0x40) passed (+0x3b + it: the pilot screen's PASS) and saves the
+pilot; then, either way, the mission unloaded (0x00491780(1)), the app's
++0x1be set (0x0047fe00(1): the main menu opens training again, so the pilot
+screen) and Main in its place. The exe writes the passed byte for any value
+of +0x40 (the pilot screen keeps it within 1..4); the port within 1..4.
+
+The port: `TrDummyState` (app_states.h), the end screen's fade to it
+(app_mission.cpp). Checked: test_actionscreen.py enters it (0x00491ab0)
+after random ends and training missions, with the record, the app's flags,
+the calls and the pilot file compared; `training_menus_to_lesson3_headless`
+plays it through.
+

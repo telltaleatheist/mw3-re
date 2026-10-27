@@ -297,3 +297,57 @@ whole answer, the mouse before the joystick, the group for the weapon.
 Missed, and unobservable on the original's path: the plain PPC accepted
 (it exists only with the rebuild's fixes on).
 
+## Training's lessons (frontend-plan item 13b)
+
+A training mission's objectives are a list of lessons, each its own
+objectives (description, primary, secondary, final, fail), held by the
+training game (its +0x44 object: the list at +0x38..+0x40, 0x14 bytes each,
+the current one at +0x44). The mission start (type 4) asks the game's vt+0x40
+(0x00437140) for block `m<mission>` of objectives.zrd:
+
+1. The block itself, read straight into the mission's objectives: one
+   lesson, not in the list.
+2. Else `<block>_set`: each list in it read as a lesson (entries that are
+   not lists skipped; one that reads nothing not added).
+3. Else the blocks `<block>1`, `<block>2`... while they are found and read
+   (t1 has m11..m114, m21..m214, m31..m326, m41..m413).
+
+With lessons, the first is selected (0x0045efa0) and given to the mission
+(0x0045efd0: the mission's five slots point at the lesson's). The win
+(0x0048f740) asks for the next (0x004373b0, 0x0045f080): there is one, the
+mission's objectives become it and the mission goes on (no voice line);
+past the last, the mission's are cleared and it ends. The cleanup frees the
+lessons through the game's vt+0x44 (0x004379d0, 0x0045ef10), not the
+mission's (0x0045c1d0 in training).
+
+Quirk kept: lessons 2 and 3 read into the mission's slots, clearing only the
+four groups between `_set` entries, so a lesson without its own `desc` has
+the last read's (at first the block's own, read or not); without any lesson
+the mission keeps the last read's description. The numbered blocks clear it
+each time.
+
+The end screen (mission-frame.md) fades training to the "TR Dummy State"
+(0x006098c8, constructor 0x00491a70, vtable 0x005c60e0; campaign.md
+section 12).
+
+The port: `TrainingLessons` and `training_load` (mech_objective), the
+training game's `lessons`; the program's mission hooks (`game_objectives`,
+`training`, `training_next`, the objectives' `training_free`) and the
+training types' answers (app_mission.cpp: the controls' commands and
+zInput's keys and buttons, the clock, the view camera's angles; the player's
+mech's target, aimed part, forward, heat state and weapon manager, its HUD's
+speed, reticle hit and weapon list, through app_mech.cpp). Checked:
+`test_training_lessons.py` (t1's m0..m5 and 300 made-up files, each stepped
+past its last lesson: the lessons, where the mission points after each step,
+the calls); `training_menus_to_lesson3_headless` (through the menus: m11's
+1 s time_limit, m12's CMD_SHUTDOWN key pressed, m13 reached, then the TR
+Dummy State).
+Breaking the port showed the tests catch it, 17 of 18 (with the TR Dummy
+State's and the program's): the step past the last lesson, the description
+kept at the end, not copied, the block not read first, `_set` entries of any
+type, the description not carried, the numbering past a gap or after a
+`_set`, the first lesson not given; the TR Dummy State counting a loss, the
+wrong mission, no save, no reopen; in the program the lessons not stepped,
+no command key, the clock stopped, the fade lost. Missed, and unobservable:
+the select out of range (only 0 is asked, with lessons).
+

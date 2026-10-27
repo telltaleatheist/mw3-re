@@ -991,3 +991,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   buffer for every object (entity - player was 0): each object its own.
   FIX (bug)s hooked into the original: view_object and weapon_group_select
   with no vehicle / weapon manager.
+
+## Item 13b (2026-10-27): training's lessons and the TR Dummy State
+
+- Branch mac4/training-lessons off mac4/training (main 90765a1 merged in).
+- The lessons: TrainingLessons (0x0045ed40..0x0045f080) and training_load
+  (vt+0x40, 0x00437140) in mech_objective, the training game's `lessons`.
+  test_training_lessons.py found the shared description slot: the `_set`
+  lessons and the failed reads leave their desc in the mission's slot.
+- The TR Dummy State (0x00491ab0) in app_states; the end screen's fade to
+  it; test_actionscreen.py enters it (training selected first: 0x004794a0
+  answers only for the current game, the exe writes through null else).
+- The program answers the training checks (zInput, the controls, the
+  clock, the camera; the mech and HUD fields through app_mech.cpp helpers:
+  mech.h / hud.h / weapon.h clash with app_mission.cpp's Handle).
+- Headless training_menus_to_lesson3_headless: 14 lessons, m11 done at
+  frame 63, CMD_SHUTDOWN's key, m13 at 65, mission 1 passed, the pilot
+  file, the pilot screen again.

@@ -115,8 +115,8 @@ line's priorities), the screen's vt+0x60(-1).
 
 **The end screen** 0x00491bf0: by game type, campaign (0, 1)
 0x0040f0b0(0) then the fade sequence 0x0048ef00 on 0x006099a0 (1, 2,
-2.0 s), Instant Action the same without 0x0040f0b0, training the sequence
-0x006098c8; then 0x0040f0b0(0). Multiplayer gets no fade here.
+2.0 s), Instant Action the same without 0x0040f0b0, training the TR Dummy
+State 0x006098c8 (campaign.md 12); then 0x0040f0b0(0). Multiplayer gets no fade here.
 
 ## 5. The cleanup, 0x00491780(unload)
 
