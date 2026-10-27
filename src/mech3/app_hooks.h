@@ -885,10 +885,10 @@ class Engine : public zgame::AppHooks {
   virtual Handle mech_dfn_handle(int32_t mech) { return unported("0x004846a0", {mech}); }
   virtual void node_frame_update() { unported("0x004f7f70", {}); }
   virtual void model_purge(int32_t a, int32_t b) { unported("0x005394c0", {a, b}); }
-  // The lab screen's (lab_screen.cpp): the Lab State's part pick
-  // (0x004504d0, ECX the state) and the weapon groups' refresh (0x0044dcf0,
+  // The lab screen's (lab_screen.cpp): the Lab State's armour section
+  // highlight on the model (0x004504d0, ECX the state) and the weapon groups' refresh (0x0044dcf0,
   // ECX the screen).
-  virtual void lab_part_pick(int32_t part) { unported("0x004504d0", {part}); }
+  virtual void lab_section_highlight(int32_t part) { unported("0x004504d0", {part}); }
   // The slot switch's (0x00448f80, 0x00449010): a mech out of the lab's store
   // (0x00472a30) and into it (0x00471c10), a slot's loadout given back
   // (0x00433df0(0, store, 1)) and its mech set (0x005a2ba0, a +0x04 setter

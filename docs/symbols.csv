@@ -1776,4 +1776,7 @@ address,name,source,notes
 0x004f2500,zcls_world_set_origin,asm,"ported (zcls world_set_origin)"
 0x004f2530,zcls_world_set_size,asm,"ported (zcls world_set_size)"
 0x004f2560,zcls_world_make_grid,asm,"ported (zcls world_make_grid): the partition grid for a cell size"
+0x004504d0,LabState::HighlightSection,asm,"ported (mech3 lab_highlight): the armour section's parts in green 0.3 on the shown chassis"
+0x00450470,LabState::HighlightPart,asm,"ported (mech3 lab_highlight_part): a part by name blended green or off"
+0x0057bb70,zvid_set_fog,asm,"ported (zvid set_fog): FOGENABLE and FOGMODE linear; the device setup's (1)"
 

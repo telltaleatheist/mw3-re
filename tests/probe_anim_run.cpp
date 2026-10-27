@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "gamez/zclass/class.h"
@@ -516,6 +517,38 @@ int lv_frame(const float* cam, const float* node_rot, float dt, uint32_t* out, i
   words(static_cast<zcls::Object3d*>(obj->data)->raw, 0x90);
   for (uint32_t x : g_drawn) o.push_back(x);
   o.push_back(static_cast<uint32_t>(zmod::zones().mode));
+  const int n = static_cast<int>(o.size());
+  if (n <= len) std::memcpy(out, o.data(), o.size() * 4);
+  return n;
+}
+// The armour section's highlight (0x004504d0) on a tree of named parts: the
+// names a '\n'-separated list under one root, `first` then `section`
+// highlighted (switching sections); each part's object3d data out.
+int lv_highlight(const char* names, int first, int section, uint32_t* out, int len) {
+  Node* root = zcls::object3d_create();
+  zcls::node_set_name(root, "root");
+  std::vector<Node*> parts;
+  std::string all(names), one;
+  for (size_t i = 0; i <= all.size(); ++i) {
+    if (i < all.size() && all[i] != '\n') { one += all[i]; continue; }
+    if (one.empty()) continue;
+    Node* n = zcls::object3d_create();
+    zcls::node_set_name(n, one.c_str());
+    zcls::node_add_child(root, n);
+    parts.push_back(n);
+    one.clear();
+  }
+  mech3::lab_highlight(root, first);  // the section shown before
+  mech3::lab_highlight(root, section);
+  std::vector<uint32_t> o;
+  for (Node* n : parts) {
+    const uint8_t* d = static_cast<zcls::Object3d*>(n->data)->raw;
+    for (int i = 0; i < 0x90; i += 4) {
+      uint32_t x;
+      std::memcpy(&x, d + i, 4);
+      o.push_back(x);
+    }
+  }
   const int n = static_cast<int>(o.size());
   if (n <= len) std::memcpy(out, o.data(), o.size() * 4);
   return n;

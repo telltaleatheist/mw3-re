@@ -241,4 +241,49 @@ void lab_view_frame(const LabView& v, zcls::Node* node, const float pos[3], cons
   zones.mode = mode;
 }
 
+// Mech3.exe 1.2 @ 0x00450470
+void lab_highlight_part(zcls::Node* tree, const char* part, float weight, bool on) {
+  static const float kGreen[3] = {0.0f, 1.0f, 0.0f};  // [0x005e4758]
+  static const float kNone[3] = {0.0f, 0.0f, 0.0f};   // [0x00605a98]
+  if (!tree) return;
+  zcls::Node* n = zcls::node_find_in_tree(tree, part);
+  if (!n) return;
+  zcls::object3d_use_blend(n, on ? 1 : 0);
+  if (on) zcls::object3d_set_blend(n, kGreen, weight);
+  else zcls::object3d_set_blend(n, kNone, 0.0f);
+}
+
+// Mech3.exe 1.2 @ 0x004504d0
+void lab_highlight(zcls::Node* tree, int32_t section) {
+  constexpr float kOn = 0.3f;  // [0x005e4764]
+  static const char* const kParts[8] = {"torso", "larm", "rarm", "lthigh", "lfoot", "rthigh", "rfoot", "head"};
+  for (const char* p : kParts) lab_highlight_part(tree, p, 0.0f, false);
+  switch (section) {
+    case 1: case 7: case 8:
+      lab_highlight_part(tree, "torso", kOn, true);
+      lab_highlight_part(tree, "larm", 0.0f, true);
+      lab_highlight_part(tree, "rarm", 0.0f, true);
+      lab_highlight_part(tree, "head", 0.0f, true);
+      break;
+    case 2: lab_highlight_part(tree, "larm", kOn, true); break;
+    case 3: lab_highlight_part(tree, "rarm", kOn, true); break;
+    case 4:
+      lab_highlight_part(tree, "lthigh", kOn, true);
+      lab_highlight_part(tree, "lfoot", kOn, true);
+      break;
+    case 5:
+      lab_highlight_part(tree, "rthigh", kOn, true);
+      lab_highlight_part(tree, "rfoot", kOn, true);
+      break;
+    case 6: lab_highlight_part(tree, "head", kOn, true); break;
+    default: break;
+  }
+}
+
+// 0x004504d0 on the Lab State: its shown chassis' tree (0x0044fd20).
+void GameEngine::lab_section_highlight(int32_t section) {
+  LabState& ls = states().lab;
+  lab_highlight(ls.model_ ? lab_model_node(ls.model_) : nullptr, section);
+}
+
 }  // namespace mech3

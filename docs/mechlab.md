@@ -875,8 +875,7 @@ making, destructor, page and slot switches and the press's shell (above).
 Item 9a (`mech3/lab_view.cpp`, GameEngine's `lab_*` hooks; `zcls`
 `world_create` and the world's area and grid): the 3D view, below.
 
-Not ported: the second saved-loadout loader 0x004260c0; the armour
-section's highlight on the model (0x004504d0, 0x00450470; item 9b).
+Not ported: the second saved-loadout loader 0x004260c0.
 
 ### The 3D view (0x0044ffc0..0x00450810)
 
@@ -917,6 +916,21 @@ load a mission world (6) first and mark it (+0x10).
   (0x004f73f0) with the zone test off ([0x005ea1d0] 0 around it). Two flags
   ([0x00605aa4] freezes the view, [0x00605aa8] doubles the pixels) are
   never set.
+- **The section highlight** 0x004504d0 (ECX the Lab State; the armour
+  section, from the criticals page's rows and the section list under the
+  model, -1 when a page leaves): on the shown chassis' tree every part named
+  torso, larm, rarm, lthigh, lfoot, rthigh, rfoot, head is turned off
+  (0x00450470: found by name in the tree, 0x004f9d60, its blend off,
+  0x004fb840, and no colour, 0x004fb8c0 with [0x00605a98] and 0), then the
+  section's parts on in green ([0x005e4758], weight 0.3 [0x005e4764]):
+  1, 7 and 8 the torso (with the arms and the head blending at weight 0),
+  2 the left arm, 3 the right, 4 the left thigh and foot, 5 the right's, 6
+  the head; any other section none. The scene walk pushes a blending
+  object3d's colour for its subtree and the lighting folds it into the
+  vertices' fog, so the part shows green only with fog on: the device's
+  setup turns it on for good (0x0057bb70(1) from 0x0057a900, FOGENABLE and
+  linear vertex fog), which the port lacked until 9b (`zvid::set_fog`, called
+  where the program stands in for the setup).
 - **The unload** 0x00450390: each entry's tree destroyed (0x004f9050) and its
   camo freed (0x0044fce0), the wrappers deleted (their nodes stay in the
   pool, as the mission's cleanup frees it), the shown chassis forgotten, the
@@ -935,6 +949,16 @@ the world's fog type, the turn's sign and wrap, the field of view's order,
 the zone test, the camera's rotation). In the program (`--lab-mech N`, ours:
 the view is handed chassis N) every chassis is drawn turning in the lab
 (outbox 2026-10-27/lab3d), and SKINS swaps the camo on the model.
+9b: `lab_highlight` and `lab_highlight_part` (lab_view.cpp, the Lab State's
+`lab_section_highlight` hook, renamed from the guessed "part pick").
+`test_lab_view.py` runs the original's 0x004504d0 on a tree of a random
+subset of the eight part names and near misses (0x0044fd20 answering its
+root), one section then another, every section and some out of range, 300
+of 300 identical; breaks 9 of 9 (the off pass, the weight, the colour, the
+blend left on, the torso case's arms, sections 7 and 8, the arms swapped, a
+part name, section 0). Seen in the program: the torso, either arm and a leg
+in green (outbox 2026-10-27/lab3d).
+
 Chassis 7 is the Elemental: battle armour at its true scale (about a fifth
 of a 'Mech's height) under the same fixed camera every chassis gets (the
 exe has no per-chassis framing), so it stands small at the bottom of the

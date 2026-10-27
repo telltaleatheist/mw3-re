@@ -152,6 +152,7 @@ class GameEngine : public Engine {
   void lab_view_end(Handle state) override;                // 0x00450800
   void lab_world_frame(Handle state, float dt) override;   // 0x00450690
   void lab_model_skin(Handle entry, int32_t skin) override;  // 0x0044fd90
+  void lab_section_highlight(int32_t section) override;    // 0x004504d0
   zcls::Node* lab_model_node(Handle entry);                // 0x0044fd20
   void lab_place_window();                                 // 0x00450460 with 0x0044fea0
   void lab_clear();                                        // 0x00576cf0 in the lab's colour
