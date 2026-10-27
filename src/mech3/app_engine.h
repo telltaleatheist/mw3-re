@@ -511,6 +511,8 @@ class GameEngine : public Engine {
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
   bool last_via_render_ = false;  // the frame just shown went through Render3D
+  bool buffer_is_screen_ = true;  // the 16-bit buffer holds the frame shown (not the 3D lock's layer)
+  std::vector<uint16_t> kept_screen_;  // that frame while a 3D lock has the buffer
   std::unordered_map<void*, Handle> handles_;
   struct OpenScreen {
     MenuScreen* screen;

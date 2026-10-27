@@ -16,6 +16,7 @@
 #include "mech3/options.h"
 #include "mech3/pocket_panel.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -388,6 +389,11 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   height_ = d.h > 0 ? d.h : 480;
   buffer_.assign(static_cast<size_t>(width_) * height_, 0);
   if (p_.render) p_.render->set_viewport(0, 0, width_, height_);
+  // The tint quad as 0x00579c60 and the device's setup (0x0057a900, not
+  // ported) leave it: unfogged, at depth 0.99. Without them the fades'
+  // quad took the mission's fog colour.
+  zvid::reset_tint_quad();
+  zvid::set_tint_depth(0.99f);  // 0x3f7d70a4
   return 0;
 }
 
@@ -397,8 +403,23 @@ uint32_t GameEngine::video_card_memory(int32_t, uint32_t* total) {
   return 1;
 }
 
+namespace {
+bool read_frame(platform::Render3D* r, int width, int height, std::vector<uint16_t>* out);
+}
+
 // 0x00576de0: the 16-bit back buffer locked for the 2D blits.
 void GameEngine::video_lock() {
+  // FIX (A): the exe's back buffer still held the last frame shown; after a
+  // frame through Render3D the buffer holds only the layer, so the shown
+  // frame is read into it first (once: the buffer is then the screen). The
+  // message box over a mission's end draws on it, and its grabs see what it
+  // drew (twod.md, the message box).
+  if (last_via_render_ && !buffer_is_screen_) {
+    std::vector<uint16_t> shown;
+    if (read_frame(p_.render, width_, height_, &shown) && shown.size() == buffer_.size())
+      std::copy(shown.begin(), shown.end(), buffer_.begin());
+    buffer_is_screen_ = true;
+  }
   zrndr::Target2D& t = zrndr::target2d();
   t.base = reinterpret_cast<uint8_t*>(buffer_.data());
   t.width = static_cast<uint32_t>(width_);
@@ -415,6 +436,7 @@ void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
   else if (p_.screen) p_.screen->present_16(buffer_.data(), width_, height_, width_ * 2, true);
   last_drew_scene_ = scene_drawn_;
   last_via_render_ = (scene_drawn_ || layer_drawn_) && p_.render;
+  buffer_is_screen_ = !last_via_render_;
   scene_drawn_ = layer_drawn_ = false;
   ++frames_presented;
   if (on_present) on_present(frames_presented);
@@ -478,7 +500,7 @@ Handle GameEngine::video_grab(int32_t) {
   return h;
 }
 bool GameEngine::shown_frame(std::vector<uint16_t>* out) {
-  return last_via_render_ && read_frame(p_.render, width_, height_, out);
+  return last_via_render_ && !buffer_is_screen_ && read_frame(p_.render, width_, height_, out);
 }
 // 0x0055b1f0: the fade's still back over the buffer, whole, at 0, 0.
 void GameEngine::image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) {
@@ -538,7 +560,13 @@ void GameEngine::render_finish() { zrndr::finish(); }
 // The layer's alpha blends are recorded while it is locked, so they go over
 // the frame see-through instead of mixed with the key (zrndr::LayerCover).
 int32_t GameEngine::lock_back(zvid::Surface* s) {
+  // The 2D picture the buffer held, kept for a lock that draws nothing (the
+  // message box's 0x004ac150 locks and unlocks first): the exe's lock left
+  // the back buffer's picture as it was.
+  if (buffer_is_screen_) kept_screen_ = buffer_;
+  else kept_screen_.clear();
   std::fill(buffer_.begin(), buffer_.end(), kLayerKey);
+  buffer_is_screen_ = false;
   cover_alpha_.assign(buffer_.size(), 0);
   cover_colour_.resize(buffer_.size());
   zrndr::layer_cover() = {cover_alpha_.data(), cover_colour_.data(), kLayerKey};
@@ -547,6 +575,14 @@ int32_t GameEngine::lock_back(zvid::Surface* s) {
 }
 int32_t GameEngine::unlock_back(zvid::Surface*) {
   zrndr::layer_cover() = {};
+  if (!kept_screen_.empty() &&
+      std::all_of(buffer_.begin(), buffer_.end(), [](uint16_t p) { return p == kLayerKey; })) {
+    std::copy(kept_screen_.begin(), kept_screen_.end(), buffer_.begin());  // in place: the targets point at it
+    kept_screen_.clear();
+    buffer_is_screen_ = true;
+    return 0;
+  }
+  kept_screen_.clear();
   if (p_.screen)
     p_.screen->overlay_16(buffer_.data(), width_, height_, width_ * 2, true, kLayerKey, cover_alpha_.data(),
                           cover_colour_.data());

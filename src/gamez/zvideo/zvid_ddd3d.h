@@ -212,6 +212,8 @@ struct TintQuad {
   TLVertex verts[4] = {};            // 0x008095c0  left-top, right-top, right-bottom, left-bottom
 };
 TintQuad& tint_quad();
+void reset_tint_quad();             // 0x00579c60's part: none pending, specular 0xff000000
+void set_tint_depth(float z);       // 0x0057dd40: sz and rhw of the four vertices
 // Mech3.exe 1.2 @ 0x0057dd80 (ECX colour, EDX rect or null; the alpha a double).
 void set_tint_quad(uint16_t colour, const int32_t* rect, double alpha);
 void draw_tint_quad();     // 0x0057e380

@@ -107,6 +107,22 @@ Callers of 0x00558540: the fade state's step (0x0048f0b0), 0x00599b66 and
   locked back buffer (their DirectDraw surface path, 0x00576f90 keyed on
   black, only serves images made by [0x0072f360] = 0x005773e0).
   mw3tests `fix_layer_blend_keeps_its_alpha`.
+- The back buffer's picture between frames. The exe's back buffer kept the
+  last frame shown (the flip chain's other page), so a 2D lock (0x00576de0)
+  after a 3D frame, or a 3D lock that draws nothing, found the screen there:
+  the message box over a mission's end, or over the main menu (its
+  0x004ac150 locks and unlocks the back buffer first), draws over it and
+  grabs it. FIX (A): the first 2D lock after a frame through Render3D reads
+  that frame into the 16-bit buffer, and a 3D lock over a 2D picture that
+  draws nothing gives the picture back (`GameEngine::video_lock`,
+  `lock_back` / `unlock_back`). `tools/analysis/boxcheck.py`.
+- The tint quad's vertices (the fades' colour, 0x0057dd80) are set up as
+  unfogged (specular 0xff000000) by the screen mode's setup (0x00579c60) and
+  given depth and 1/w 0.99 by the device's (0x0057dd40 from 0x0057a900);
+  `zvid::reset_tint_quad` / `set_tint_depth`, called where the program
+  stands in for them. Without them the quad was fully fogged once a
+  mission had turned fog on: the end of a mission faded to its fog colour
+  (c1's light grey) instead of black.
 - The screen grab 0x00579500 (the fade's still, game-loop.md) does read it
   back, FIX (A): `Render3D::read_back` downloads the back-buffer texture
   (SDL GPU, waited on a fence), and `GameEngine::video_grab` scales it to the
