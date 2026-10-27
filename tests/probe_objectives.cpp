@@ -113,6 +113,28 @@ class Fake : public ObjectiveHooks {
     return type;
   }
   void training_free() override { ev("trainfree"); }
+  // Training's lookups (test_objectives.py's stubs).
+  int32_t command_find(const char* name) override {
+    ev("cmd " + str(name));
+    return static_cast<int32_t>(fnv(name) % 40);
+  }
+  int32_t command_key(int32_t c) override {
+    ev("ckey " + hex(c));
+    return (c * 3) % 5 - 1;
+  }
+  int32_t command_joy(int32_t c) override {
+    ev("cjoy " + hex(c));
+    return c % 3 == 0 ? 0 : c;
+  }
+  int32_t command_mouse(int32_t c) override {
+    ev("cmouse " + hex(c));
+    return c % 4 == 0 ? c % 3 : 0;
+  }
+  int32_t key_by_name(const char* name) override {
+    ev("key " + str(name));
+    const uint32_t h = fnv(name);
+    return h % 5 == 0 ? -1 : static_cast<int32_t>(h % 200);
+  }
   void report(int32_t level, int32_t line, const char*, const char*, Handle) override {
     ev("zerr " + hex(level) + " " + hex(line));
   }
@@ -270,7 +292,46 @@ void obj_text(std::string& o, const Objective* b, int depth) {
       auto* d = static_cast<const ValveChangeObjective*>(b);
       o += " | " + hex(d->watch) + " " + hex(d->target);
       break;
+    }    case Objective::kReachVelocity: {
+      auto* d = static_cast<const ReachVelocityObjective*>(b);
+      o += " | " + hex(d->test) + " " + hex(bits(d->velocity));
+      break;
     }
+    case Objective::kAimAt:
+      o += " | " + hex(static_cast<const AimAtObjective*>(b)->node);
+      break;
+    case Objective::kTarget: {
+      auto* d = static_cast<const TargetObjective*>(b);
+      o += " | " + opt(d->name) + " " + hex(d->entity) + " " + hex(d->part);
+      break;
+    }
+    case Objective::kTimeLimit:
+      o += " | " + hex(bits(static_cast<const TimeLimitObjective*>(b)->seconds));
+      break;
+    case Objective::kViewObject:
+    case Objective::kFaceObject: {
+      auto* d = static_cast<const FacingObjective*>(b);
+      o += " | " + opt(d->name) + " " + hex(d->entity);
+      break;
+    }
+    case Objective::kHeatWarning:
+      o += " |";
+      break;
+    case Objective::kUserCommand: {
+      auto* d = static_cast<const InputObjective*>(b);
+      o += " | " + hex(d->x34) + " " + hex(d->x38) + " " + hex(d->x3c);
+      break;
+    }
+    case Objective::kJoystickPress:
+    case Objective::kKeyPress:
+    case Objective::kMousePress:
+      o += " | " + hex(static_cast<const InputObjective*>(b)->x34);
+      break;
+    case Objective::kWeaponFire:
+    case Objective::kWeaponSelect:
+    case Objective::kWeaponGroupSelect:
+      o += " | " + hex(static_cast<const WeaponObjective*>(b)->id);
+      break;
   }
   o += "\n";
 }
