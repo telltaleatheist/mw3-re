@@ -2155,6 +2155,7 @@ void GameEngine::model_use_gfx_flags(const char* name, int32_t flags) {
 int32_t GameEngine::weapons_init() { return zwep::startup(); }
 void GameEngine::save_init() { zsave::init(); }
 void GameEngine::save_shutdown() { zsave::shutdown(); }
+void GameEngine::anim_enable(int32_t on) { zeff::anim_enable_save(on); }
 void GameEngine::weapons_set_mode(int32_t v) { zwep::set_network(v); }
 
 void GameEngine::timer_update() {

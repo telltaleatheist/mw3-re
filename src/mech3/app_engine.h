@@ -109,6 +109,7 @@ class GameEngine : public Engine {
   int32_t weapons_init() override;                // 0x00583750: zwep::startup
   void save_init() override;                      // 0x005a8b30: zsave::init
   void save_shutdown() override;                  // 0x005a8bb0: zsave::shutdown
+  void anim_enable(int32_t on) override;          // 0x005090d0: the anim registrants on
   // The GfxFlags (app_mission.cpp; docs/render-lighting.md).
   int32_t models_init() override;
   int32_t render_init() override;

@@ -18,6 +18,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zeffect/zeff_anim_save.h"
+#include "gamez/zsave/zsave.h"
 
 namespace zeff {
 
@@ -664,9 +665,8 @@ int32_t anim_shutdown() {
 
 // Mech3.exe 1.2 @ 0x00508fc0: zEffect's start (and its reset from the effect
 // table's 0x0050d270): what was loaded freed, the state cleared, gravity
-// -9.8, the random table filled from a seed of the time. The three anim
-// registrants' registration with zSave (0x005a8a20, priorities 0x32..0x34,
-// when [0x005ebcc0]; docs/save.md) is the hooks'.
+// -9.8, the random table filled from a seed of the time; the three anim
+// registrants given to zSave (docs/save.md).
 int32_t anim_init() {
   AnimState& a = g_anim;
   if (a.block.get<int32_t>(0) != 0) anim_free_all();
@@ -677,8 +677,18 @@ int32_t anim_init() {
   a.block.put<float>(0x1c, -9.8f);  // 0xc11ccccd
   crt::msvc_srand(static_cast<uint32_t>(std::time(nullptr)));
   for (float& r : a.random) r = static_cast<float>(crt::msvc_rand()) * 3.051851e-05f;
-  if (g_hooks.register_entities) g_hooks.register_entities();
+  if (a.save_on) anim_register_savers();
   return 0;
 }
+
+// 0x00509079..0x005090c1, inside zEffect's start.
+void anim_register_savers() {
+  zsave::add("AnimActivation", activation_save, activation_load, 0x32, nullptr);
+  zsave::add("RunningAnim", running_save, running_load, 0x33, nullptr);
+  zsave::add("Anim", anim_save, anim_load, 0x34, nullptr);
+}
+
+// Mech3.exe 1.2 @ 0x005090d0
+void anim_enable_save(int32_t on) { g_anim.save_on = on; }
 
 }  // namespace zeff

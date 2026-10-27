@@ -745,10 +745,12 @@ def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
 
-def run_mission(mission, frames, seed, cmp, stats):
+def prepare(mission, seed, cmp, stats, emu_class=None):
+    """Both sides read the mission and run the post-load pass (and c1's
+    cockpit reset); returns them with the call streams."""
     world, anim = ZBD / mission / 'gamez.zbd', ZBD / mission / 'anim.zbd'
     rng = random.Random(seed)
-    emu, port = Emu(), Port()
+    emu, port = (emu_class or Emu)(), Port()
     emu.open(world, anim)
     port.open(world, anim)
     table = random_table(rng)
@@ -759,20 +761,12 @@ def run_mission(mission, frames, seed, cmp, stats):
     want = emu.dump(True)
     cmp.marks = emu.marks
     cmp(f'{mission} load', want, port.dump(True))
-    count = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0]
-    base = emu.u(DEFS)
-    acts = {}
-    for i in range(1, count):
-        acts.setdefault(emu.cpu.read(base + 0x13c * i + 0x99, 1)[0], []).append(i)
-    gated = [i for i in range(1, count) if emu.cpu.read(base + 0x13c * i + 0x110, 1)[0]]  # with prerequisites
-    wd = emu.u(emu.u(WORLD) + 0x38)
-    x0, z0 = struct.unpack('<2f', emu.cpu.read(wd + 0x34, 8))
-    x1, z1 = struct.unpack('<f', emu.cpu.read(wd + 0x44, 4))[0], struct.unpack('<f', emu.cpu.read(wd + 0x48, 4))[0]
-    roots = [emu.index(emu.u(base + 0x13c * i + 0x64)) for i in range(1, count)]
-    both = (emu, port)
     # A reset with a node (EDX) moves the def onto it first. Its own stream,
     # so the other calls stay as they were.
     nrng = random.Random(seed ^ 0x508460)
+    count = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0]
+    base = emu.u(DEFS)
+    both = (emu, port)
     # c1's cockpit explosion, onto the world's dummy cockpit as 0x00430ad0
     # moves it onto the mech's: its cracks and dings hidden (cockpit-damage.md).
     names = {emu.cpu.read(base + 0x13c * i, 0x20).split(b'\0')[0]: i for i in range(1, count)}
@@ -785,6 +779,22 @@ def run_mission(mission, frames, seed, cmp, stats):
         assert node == hud, (node, hud)
         cmp(f'{mission} cockpit reset', emu.dump(True), port.dump(True))
         stats['reset_cockpit'] += 1
+    return emu, port, rng, nrng
+
+
+def play(emu, port, mission, frames, rng, nrng, cmp, stats, label='frame'):
+    """Frames of random calls on both sides, the state compared after each."""
+    count = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0]
+    base = emu.u(DEFS)
+    acts = {}
+    for i in range(1, count):
+        acts.setdefault(emu.cpu.read(base + 0x13c * i + 0x99, 1)[0], []).append(i)
+    gated = [i for i in range(1, count) if emu.cpu.read(base + 0x13c * i + 0x110, 1)[0]]  # with prerequisites
+    wd = emu.u(emu.u(WORLD) + 0x38)
+    x0, z0 = struct.unpack('<2f', emu.cpu.read(wd + 0x34, 8))
+    x1, z1 = struct.unpack('<f', emu.cpu.read(wd + 0x44, 4))[0], struct.unpack('<f', emu.cpu.read(wd + 0x48, 4))[0]
+    roots = [emu.index(emu.u(base + 0x13c * i + 0x64)) for i in range(1, count)]
+    both = (emu, port)
     for f in range(frames):
         for _ in range(rng.choice((0, 0, 1, 1, 2, 4))):
             k = rng.random()
@@ -857,8 +867,14 @@ def run_mission(mission, frames, seed, cmp, stats):
         full = (f + 1) % 25 == 0 or f == frames - 1 or f >= int(os.environ.get('MW3_FULL_FROM', '1000000'))
         want = emu.dump(full)
         cmp.marks = emu.marks
-        cmp(f'{mission} frame {f}', want, port.dump(full))
+        cmp(f'{mission} {label} {f}', want, port.dump(full))
         stats['frames'] += 1
+
+
+def run_mission(mission, frames, seed, cmp, stats):
+    emu, port, rng, nrng = prepare(mission, seed, cmp, stats)
+    play(emu, port, mission, frames, rng, nrng, cmp, stats)
+    count, base = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0], emu.u(DEFS)
     running = sum(1 for i in range(1, count) if emu.cpu.read(base + 0x13c * i + 0x98, 1)[0] == 2)
     stats['running_end'] += running
 

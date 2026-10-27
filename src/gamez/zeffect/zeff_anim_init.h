@@ -77,6 +77,7 @@ struct AnimState {
   int32_t stopped_elapsed = 0;     // 0x0060c1d4  0x00502d20: a stopped anim keeps its reset clock
   int32_t level = 0;               // 0x0060c1d0  0x00508fb0, the "if" event's level test
   int32_t sounds_on = 1;           // 0x005ebbf0
+  int32_t save_on = 1;             // 0x005ebcc0  0x005090d0: the registrants added at the start
   zcls::Node* player_node = nullptr;  // 0x0073f740 (block +0x20; the files hold 0, the setter is unknown)
   int16_t def_count() const { return block.get<int16_t>(0x0a); }
   int32_t message_count() const { return block.get<int32_t>(0x10); }
@@ -94,7 +95,6 @@ struct AnimHooks {
   void* (*create_puffer)();                                // 0x0054a710, gmod_puff
   void* (*find_sound)(const char* name);                   // 0x0056f6f0, zSound
   int32_t (*effect_index)(const char* name);               // 0x0050d9e0, zEffect
-  void (*register_entities)() = nullptr;                   // 0x005a8a20 x3 in 0x00508fc0: zSave's registrants (save 2)
 };
 AnimHooks& anim_hooks();
 
@@ -114,5 +114,7 @@ int32_t anim_free_all();                                  // 0x0050b380
 void anim_free_copies();                                  // 0x0050b2f0
 int32_t anim_shutdown();                                  // 0x0050b430
 int32_t anim_init();                                      // 0x00508fc0
+void anim_enable_save(int32_t on);                        // 0x005090d0
+void anim_register_savers();                              // the three zSave registrants (in 0x00508fc0)
 
 }  // namespace zeff

@@ -4,6 +4,8 @@
 
 #include "gamez/zclass/cls_node.h"
 
+namespace zsave { struct Context; }
+
 // zEffect\zeff_anim_save.c: the log of animation calls (a start, a start at
 // a node, a connector, a reset) that savegames and network play replay
 // (docs/anim-postload.md, start path). The loggers sit right after the file,
@@ -43,6 +45,23 @@ AnimLogRecord* log_connector(AnimDef* def, zcls::Node* node, zcls::Node* from, c
 AnimLogRecord* log_connector_at(AnimDef* def, zcls::Node* node, zcls::Node* from, const float* from_pos,
                                 zcls::Node* to, const float* to_pos);      // 0x0050cf40
 AnimLogRecord* log_reset(AnimDef* def, zcls::Node* node);               // 0x0050d0f0
+
+// The log's accessors and its replay, as the savegame uses them.
+void log_clear();                  // 0x0050b640: the count to 0
+int32_t log_count();               // 0x0050b6f0
+AnimLogRecord* log_record(int32_t i);  // 0x0050b700
+void log_reset_def(const AnimLogRecord* rec);  // 0x0050ca60: the def reset at the record's node
+AnimDef* log_replay(const AnimLogRecord* rec);  // 0x0050ca90: the call made again
+
+// zSave's three anim registrants (docs/save.md section 3), registered by
+// zEffect's start (0x00508fc0) when [0x005ebcc0].
+void activation_save(zsave::Context& ctx, void* user);  // 0x0050b710 "AnimActivation"
+void activation_load(zsave::Context& ctx, const char* sub, const void* data, uint32_t size, void* user);  // 0x0050b970
+void running_save(zsave::Context& ctx, void* user);     // 0x0050c190 "RunningAnim"
+void running_write(zsave::Context& ctx, AnimDef* def, int32_t index, int32_t main);  // 0x0050be30
+void running_load(zsave::Context& ctx, const char* sub, const void* data, uint32_t size, void* user);  // 0x0050c250
+void anim_save(zsave::Context& ctx, void* user);        // 0x0050c640 "Anim"
+void anim_load(zsave::Context& ctx, const char* sub, const void* data, uint32_t size, void* user);  // 0x0050c890
 
 int32_t node_index(const zcls::Node* node);       // 0x004fe100, -1 for null or not in the pool
 int32_t live_node_index(const zcls::Node* node);  // 0x004fe180, -1 unless live
