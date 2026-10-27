@@ -386,7 +386,7 @@ class GameEngine : public Engine {
   void light_init() override;
   void fonts_init(const char* name, int32_t fonts) override;  // 0x00516e90: zImage's start
   void geometry_init(const char* dir) override;  // 0x00516f50: the start-up's "zbd" as the 2D host's mount
-  void update_shadows() override;  // 0x004814e0 on the program's mechs (app_mech)
+  void update_shadows() override;  // 0x004814e0 on the program's entities (app_mech)
   // zInput (gamez/zinput, docs/input.md).
   void input_init(int32_t commands, const char* map) override;
   void input_start(uint32_t window, uint32_t cmd_show) override;

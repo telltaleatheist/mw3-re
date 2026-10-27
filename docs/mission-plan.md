@@ -257,7 +257,10 @@ Small items, each one sitting, in the order a player would notice them.
    c4m2 25 s, c1m1 17 s (136 s before); nothing left to profile.
 4. **The vehicles' shadows**: the upkeep (0x004814e0) over the ported
    vehicles too. Test: `mission_c1m1_mechs_cast_shadows` extended to a
-   vehicle within 100 m.
+   vehicle within 100 m. Done (2026-10-27): every entry the exe's casts
+   answer (vehicles, field bases, turrets, the pocket marker); a mobile HQ
+   moved 40 m from the player casts a drawn 32x32 caster, the far ones
+   none. `mw3 --mission c1m3 --vehicle-ahead 40 --shot` shows it.
 5. **The model priority 0x0053bb20 and the mech build's polygon
    0x004776d0**: trace, port, differential (test_modeldraw.py's harness
    for the first; mech-build's for the second).

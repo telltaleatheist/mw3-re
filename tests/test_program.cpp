@@ -2485,6 +2485,9 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
       bool sun = false, player = false, player_drawn = false, others_32 = true;
       bool cockpit = false, cockpit_parented = false;
       int view_id = -1;
+      // Item 4: a vehicle brought within 100 m casts too (32x32), the far ones not.
+      void* near_vehicle = nullptr;
+      int vehicle_frames = 0, vehicle_drawn = 0, vehicles_far = 0;
     } seen;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
@@ -2498,6 +2501,38 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
         seen.cockpit_parented = c->parent_count() > 0;
       }
       seen.view_id = mech3::program_view_mode_id();
+      if (!seen.near_vehicle) {
+        for (void* v : mech3::program_vehicles()) {
+          mech3::VehicleSummary s;
+          if (!mech3::describe_vehicle(v, &s) || !s.in_world) continue;
+          const float x = at[0] + 40.0f, z = at[2];
+          const float to[3] = {x, ground_under(x, at[1] + 50.0f, z), z};
+          mech3::program_vehicle_place(v, to, 0.0f);
+          seen.near_vehicle = v;
+          break;
+        }
+        return;  // moved after this frame's upkeep (0x004814e0 runs in the draw)
+      }
+      for (void* v : mech3::program_vehicles()) {
+        mech3::VehicleSummary s;
+        if (!mech3::describe_vehicle(v, &s) || !s.in_world) continue;
+        const auto* c = static_cast<mech3::ai::AiTarget*>(mech3::program_vehicle_target(v))->shadow;
+        const float dx = at[0] - s.pos[0], dy = at[1] - s.pos[1], dz = at[2] - s.pos[2];
+        const float d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 > 10100.0f) seen.vehicles_far += c == nullptr;
+        if ((d2 < 9900.0f && !c) || (d2 > 10100.0f && c)) ++seen.wrong;  // 100 m, an edge either side
+        if (!c || v != seen.near_vehicle) continue;
+        const auto* img = static_cast<const zimg::Texture*>(c->image);
+        if (!img || !c->enabled || img->width != 32 || img->height != 32) {
+          ++seen.wrong;
+          continue;
+        }
+        ++seen.vehicle_frames;
+        const auto* px = static_cast<const uint16_t*>(img->pixels);
+        int shaded = 0;
+        for (int k = 0; px && k < 32 * 32; ++k) shaded += px[k] != px[0];
+        seen.vehicle_drawn += shaded > 20;
+      }
       for (const auto h : mech3::ai::entity_list()) {
         void* m = engine.object_of(h);
         if (!mech3::entity_is_mech(m)) continue;
@@ -2536,6 +2571,7 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
     EXPECT(seen.player);
     EXPECT(seen.player_drawn);
     EXPECT(seen.others_32);
+    EXPECT(seen.near_vehicle && seen.vehicle_frames > 10 && seen.vehicle_drawn > 10 && seen.vehicles_far > 0);
     // Playtest #4: in the cockpit view (camera id 1) the type's cockpit model
     // (0x00430ad0) hangs under the torso, and the frame's cockpit passes ran
     // (0x004f73f0, 0x004eb170) on the program's objects instead of the hooks.
@@ -2548,7 +2584,7 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  EXPECT(zmod::caster_list() == nullptr);  // every caster freed with its mech
+  EXPECT(zmod::caster_list() == nullptr);  // every caster freed with its entity
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -7779,7 +7815,7 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
       void* player = nullptr;
       mech3::ai::Brain* brain = nullptr;
       zgame::Handle dv = 0, pv = 0, marker = 0;
-      int frames = 0, follows_marker = 0;
+      int frames = 0, follows_marker = 0, marker_cast = 0;
       bool mode = false, picked = false, placed = false, wired_pick = false, ordered = false;
       float d0 = 0, closest = 1e9f;
       uint32_t marker_team = 0, dominic_enemies = 0;
@@ -7876,16 +7912,30 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
         mech3::ai::Brain& b = *seen.brain;
         auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
         if (vp && vp->target && vp->target->vehicle == seen.marker) ++seen.follows_marker;
+        if (const mech3::PocketMarker* k = mech3::program_pocket_marker(seen.marker)) seen.marker_cast += k->shadow != nullptr;
         seen.closest = std::min(seen.closest, dist_to_spot());
       }
     };
     CountingPump pump;
     pump.limit = 1100;
+    // The marker within 100 m of the player casts (0x004814e0: vt+0x2c itself,
+    // vt+0x50 0): at the quit its node is moved by the player and the upkeep
+    // run once, before the mission's cleanup.
+    pump.on_quit = [&] {
+      if (const mech3::PocketMarker* k = mech3::program_pocket_marker(seen.marker)) {
+        float at[3] = {};
+        mech3::mech_world_position(seen.player, at);
+        zcls::object3d_set_translation(static_cast<zcls::Node*>(k->node), at[0] + 10.0f, at[1], at[2]);
+        mech3::update_mech_shadows();
+        seen.marker_cast = k->shadow != nullptr;
+      }
+      mech3::missions().cleanup(false);
+    };
     app.run(pump);
     if (std::getenv("MW3_LANCE_LOG"))
-      std::fprintf(stderr, "POCKET mode %d picked %d wired %d placed %d ordered %d team %x enemies %x follows %d d0 %g closest %g\n",
+      std::fprintf(stderr, "POCKET mode %d picked %d wired %d placed %d ordered %d team %x enemies %x follows %d d0 %g closest %g cast %d\n",
                    seen.mode, seen.picked, seen.wired_pick, seen.placed, seen.ordered, seen.marker_team,
-                   seen.dominic_enemies, seen.follows_marker, seen.d0, seen.closest);
+                   seen.dominic_enemies, seen.follows_marker, seen.d0, seen.closest, seen.marker_cast);
     EXPECT(seen.marker != 0);
     EXPECT(seen.mode && seen.picked && seen.wired_pick && seen.placed);
     EXPECT(seen.ordered && (seen.marker_team & seen.dominic_enemies));
@@ -7893,11 +7943,15 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
     // the run repeats with reset_process_state's fixed seed).
     EXPECT(seen.follows_marker == 902 && std::fabs(seen.d0 - 199.349f) < 1e-3f);
     EXPECT(std::fabs(seen.closest - 120.729f) < 1e-3f);
+    EXPECT(seen.marker_cast == 1);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
   }
+  // The marker's caster (0x004814e0 makes one within 100 m of the player)
+  // freed with its entry at the mission's end, as every entity's.
+  EXPECT(zmod::caster_list() == nullptr);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

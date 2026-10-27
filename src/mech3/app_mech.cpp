@@ -1297,11 +1297,43 @@ const void* mech_shadow(const void* mech) {
   return entity_is_mech(mech) ? static_cast<const Mech*>(mech)->shadow : nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x004814e0, on the program's mechs: within 100 m of the
-// player (the player's own always, 64x64; others 32x32) a mech keeps a caster
-// (+0xcc), redrawn along the sun onto its centre ski's ground; further away it
-// is freed. Entries that are not mechs are skipped until vehicles are ported
-// (they cast in the exe; docs/vehicles.md).
+namespace {
+// What 0x004814e0 reads of a zEntity entry: its vt+0x2c object's fields
+// (+0xcc the caster), its node, and vt+0x50 (the mech, for its skis'
+// ground; 0 for the vehicles, field bases, turrets and the pocket marker).
+struct ShadowEntity {
+  ai::AiTarget* fields = nullptr;
+  zcls::Node* node = nullptr;
+  Mech* mech = nullptr;
+};
+ShadowEntity shadow_entity(ai::Handle h) {
+  void* o = h ? g_w.object_of(g_w.engine, h) : nullptr;
+  if (Mech* m = entity_mech(h)) return {m, zn(m->node), m};
+  if (is_program_vehicle(o))  // field bases too
+    return {static_cast<ai::AiTarget*>(program_vehicle_target(o)), zn(program_vehicle_node(o)), nullptr};
+  if (tur::Turret* t = program_turret_by_handle(h)) return {t, zn(g_w.object_of(g_w.engine, t->node)), nullptr};
+  if (PocketMarker* k = program_pocket_marker(h)) return {k, zn(k->node), nullptr};
+  return {};
+}
+// 0x005a85e0 on a node: its world position, the world matrix refreshed when stale.
+const Vec3* node_world_position(zcls::Node* n) {
+  if (!n || !n->data || n->cls() != 5) return nullptr;
+  auto* d = static_cast<zcls::Object3d*>(n->data);
+  if (d->get<uint32_t>(0) & 0x20) {
+    zmth::Mat34 buf;
+    zmth::push(&buf);
+    zmth::load_identity();
+    zcls::node_to_world(n, 1);
+    zmth::pop();
+  }
+  return reinterpret_cast<const Vec3*>(d->floats(0x84));
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004814e0, on the program's entities: within 100 m of the
+// player (the player's own always, 64x64; others 32x32) an entity keeps a
+// caster (+0xcc), redrawn along the sun onto the ground: a mech's centre
+// ski's, any other's own height. Further away it is freed.
 void update_mech_shadows() {
   if (!zmod::shadows_on()) return;  // 0x00526a80
   auto* sun = static_cast<zcls::Node*>(mission_sun());
@@ -1309,12 +1341,12 @@ void update_mech_shadows() {
   auto* light = static_cast<zcls::Light*>(sun->data);
   Mech* player = world().mission_player;
   for (ai::Handle h : ai::entity_list()) {
-    Mech* m = entity_mech(h);
-    if (!m) continue;
-    const Vec3* pos = entity_position(*m);
+    const ShadowEntity e = shadow_entity(h);
+    if (!e.fields) continue;  // the stealth object (not ported)
+    const Vec3* pos = node_world_position(e.node);
     if (!pos) continue;
     float fade = 1.0f;
-    if (m != player) {
+    if (!player || e.mech != player) {
       const Vec3* p = player ? entity_position(*player) : nullptr;
       if (!p) {
         fade = 0.0f;  // no player to measure from (the exe always has one)
@@ -1325,27 +1357,28 @@ void update_mech_shadows() {
         fade = shadow_fade(xy + zz);
       }
     }
+    zmod::ShadowCaster*& caster = e.fields->shadow;
     if (!(fade > 0.0f)) {
-      m->release_shadow();
+      e.fields->release_shadow();
       continue;
     }
-    if (!m->shadow) {
-      const int32_t size = m != player ? 32 : 64;
-      m->shadow = zmod::shadow_new();
-      zmod::shadow_set_size(m->shadow, size, size);
-      zmod::shadow_set_node(m->shadow, zn(m->node));
-      zmod::shadow_enable(m->shadow, 1);
+    if (!caster) {
+      const int32_t size = player && e.mech == player ? 64 : 32;
+      caster = zmod::shadow_new();
+      zmod::shadow_set_size(caster, size, size);
+      zmod::shadow_set_node(caster, e.node);
+      zmod::shadow_enable(caster, 1);
     }
     const float clouds = zmod::clouds_at(pos->x, pos->z);
     const uint8_t g = shadow_grey(*light->floats(0xa0) * clouds, *light->floats(0x9c) * clouds,
                                   *light->floats(0x88), fade);
-    zmod::shadow_set_color(m->shadow, zvid::pack_bytes(g, g, g));
-    // vt+0x50 is the mech itself: its skis' +0x13c, the centre probe's ground.
-    const float ground = m->skis ? m->skis->ground[6] : pos->y;
+    zmod::shadow_set_color(caster, zvid::pack_bytes(g, g, g));
+    // vt+0x50: a mech's skis' +0x13c, the centre probe's ground; else the height.
+    const float ground = e.mech && e.mech->skis ? e.mech->skis->ground[6] : pos->y;
     const float at[3] = {pos->x, pos->y, pos->z};
-    zmod::shadow_set_position(m->shadow, at);
-    zmod::shadow_draw(m->shadow, light->floats(0x84), ground);
-    zmod::shadow_upload(m->shadow);
+    zmod::shadow_set_position(caster, at);
+    zmod::shadow_draw(caster, light->floats(0x84), ground);
+    zmod::shadow_upload(caster);
   }
 }
 
