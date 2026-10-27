@@ -47,6 +47,10 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
 whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
+- `boxcheck.py [--keep DIR]`: the message box over the screen in the
+  program: the quit box over the main menu, "Replace existing game?" on the
+  black of a won mission's fade with the dialog under its buttons
+  (render-frame.md, the back buffer's picture).
 - `savecheck.py [--keep DIR]`: the saved campaign end to end in the program
   (`--nosound --hidden`, a scratch write dir): c1m1 won with `--win`,
   straight on and through a reload from the pilot screen to c1m2's briefing

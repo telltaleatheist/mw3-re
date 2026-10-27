@@ -379,7 +379,9 @@ built and run, FastMenu set around it (0x0040ce90), destroyed.
 In the program (`GameEngine::game_message_box`, playtest #2) every engine
 message box goes through this: delete pilot, "Replace existing game?",
 discard changes, salvage on Launch, Quit and the rest. It is the ported
-box over the current screen, run in its own loop; the answer is the box's
+box over the current screen (the frame shown before it: the main menu, or
+black after a won mission's fade; render-frame.md, the back buffer's
+picture), run in its own loop; the answer is the box's
 (IDOK 1, IDCANCEL 2). FIX (A): the loop's input poll also pumps the
 window's events (`GameEngine::pump_events` through the app's message pump),
 since the program's mouse and keys arrive as window events where the

@@ -306,6 +306,19 @@ bool is_pow2(int32_t n) {  // 0x0057e9e0: starts at 2, so 1 is not a power of tw
 TransparentQueue& transparent_queue() { return g_queue; }
 OverlayList& overlay_list() { return g_overlay; }
 TintQuad& tint_quad() { return g_tint; }
+
+// Mech3.exe 1.2 @ 0x00579d66..0x00579d84, in the screen mode's setup
+// (0x00579c60): no quad pending, its vertices unfogged (specular alpha 255).
+void reset_tint_quad() {
+  g_tint.pending = 0;
+  for (TLVertex& v : g_tint.verts) v.specular = 0xff000000u;
+}
+
+// Mech3.exe 1.2 @ 0x0057dd40: the quad's depth and 1/w (0.99 from the
+// device's setup, 0x0057b05f).
+void set_tint_depth(float z) {
+  for (TLVertex& v : g_tint.verts) v.sz = z, v.rhw = z;
+}
 TLVertex* flat_buffer() { return g_flat; }
 DeviceState& device_state() { return g_state; }
 void set_render3d(platform::Render3D* render) { g_render = render; }

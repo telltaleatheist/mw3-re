@@ -10134,8 +10134,13 @@ TEST(playtest_escape_pauses_the_mission_and_resume_returns_headless) {
     struct GrabHost : BoxHost {
       bool shown = false;  // the grab found the 3D frame
       zimg::Texture* screen_grab(int32_t) override {
+        // The frame shown, read back, or already in the buffer (the 2D lock
+        // reads it there first after a 3D frame).
         std::vector<uint16_t> v;
-        shown = e->shown_frame(&v) && !v.empty() && v[0] == zvid::pack_bytes(0x33, 0x66, 0xcc);
+        const zrndr::Target2D& t = zrndr::target2d();
+        const uint16_t sky = zvid::pack_bytes(0x33, 0x66, 0xcc);
+        shown = (e->shown_frame(&v) && !v.empty() && v[0] == sky) ||
+                (t.base && *reinterpret_cast<const uint16_t*>(t.base) == sky);
         return nullptr;
       }
     } host;

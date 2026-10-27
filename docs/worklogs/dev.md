@@ -774,3 +774,24 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Open: the Replace box is drawn over a flat light grey screen (the end
   screen's fade); whether the original looks the same is not checked.
 
+## Message box backdrop (2026-10-27)
+
+- Branch mac4/msgbox off main b9931e9.
+- The Replace box's flat grey was the end fade's: the tint quad's vertices
+  never got the exe's setup (0x579c60: specular 0xff000000; 0x57dd40 from
+  the device setup: z/rhw 0.99), so the quad came out fully fogged (c1's
+  fog 214,211,214). The exe's call sites all fade to black.
+- The grey (then black) squares under the box's buttons: the dialog grabs
+  the screen after drawing its static parts and the buttons redraw from
+  that grab; after a 3D frame screen_grab returned the frame shown (pause
+  FIX (A)), which lacks the dialog. FIX (A): the first 2D lock after a
+  Render3D frame reads it into the buffer (the exe's back buffer kept the
+  last frame).
+- The quit box on the main menu stood on the key magenta: 0x004ac150's
+  empty lock/unlock of the back buffer key-filled the menu's picture. FIX
+  (A): an empty 3D lock over a 2D picture gives it back (copied in place:
+  the 2D targets point at the buffer).
+- tools/analysis/boxcheck.py 3/3, breaks 3/3. The pause test now accepts the
+  frame already in the buffer. Related: twod_msgbox, fade, app_states,
+  fadecheck, savecheck, mw3tests 202, mw3sdltests 12.
+
