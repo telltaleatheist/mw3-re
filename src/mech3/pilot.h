@@ -29,10 +29,7 @@ class PilotHooks : public zgame::Unported {
   // Fills a store with everything the mech lab offers (0x00470e30: every
   // mech, weapon, ammo and equipment the tech tables allow; marked `full`).
   // `game` is the kind of the game being made (GameType).
-  virtual void store_fill(class Store& s, int32_t game) {
-    (void)s;
-    unported("0x00470e30", {game});
-  }
+  virtual void store_fill(class Store& s, int32_t game);
   // A new campaign's starting mech (0x004733b0): `mech` with the dfn's
   // configuration named `config` added to the store; 1 on success.
   virtual int32_t store_add_mech(class Store& s, int32_t mech, const char* config);
@@ -103,6 +100,7 @@ class Store {
   bool take_config(int32_t mech, const Config* c);  // 0x00473440: the mech and the items out (not a full store)
   bool give_config(int32_t mech, const Config* c);  // 0x00473400: back in
   void clear();                             // the items deleted, the list emptied
+  void fill_all();                          // 0x00470e30: everything the lab offers, `full` set
   uint32_t save(std::FILE* f) const;        // 0x00471790 -> 0x004717a0
   void load(std::FILE* f);                  // 0x00471530 -> 0x00471540
   int32_t count() const { return static_cast<int32_t>(items.size()); }

@@ -146,6 +146,13 @@ bool weapon_has_tech(int32_t weapon, int32_t tech) {
   return weapon >= 0 && weapon < weapon_count() && (kTech[weapon] & tech) != 0;
 }
 
+// Mech3.exe 1.2 @ 0x00484a00: the techs an equipment kind comes in (1 Clan,
+// 2 Inner Sphere); BAP, C3 and its slave Inner Sphere only.
+bool equip_has_tech(int32_t kind, int32_t tech) {
+  static const uint8_t kTech[15] = {3, 3, 3, 3, 2, 3, 2, 2, 3, 3, 3, 3, 3, 3, 3};
+  return kind >= 0 && kind < 15 && (kTech[kind] & tech) != 0;
+}
+
 // Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's 0xd82.. in the mech table.
 int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < 19 ? 0xd82 + mech : -1; }
 

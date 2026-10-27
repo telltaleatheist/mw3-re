@@ -332,6 +332,8 @@ void GameEngine::push_state(Handle state, uint32_t arg) {
 
 // ---- the pilot (mech3/pilot) ----
 
+void GameEngine::action_tally() { program_action_tally(); }
+
 void GameEngine::action_open(Handle screen) {
   if (auto* a = dynamic_cast<ActionScreen*>(screen_of(screen))) a->reset();
   else Engine::action_open(screen);
@@ -411,8 +413,8 @@ int32_t campaign_dir(const CampaignGame& c) {
 }  // namespace
 
 // The Load state from the menus: its game is the chosen pilot's (the
-// launch's stand-in filled from it; a debug start keeps its own). Only a
-// campaign's and training's missions for now.
+// launch's stand-in filled from it; a debug start keeps its own). A
+// campaign's, training's and Instant Action's missions (not multiplayer).
 void GameEngine::load_state_enter() {
   if (launch_.active && launch_.auto_launch) return;
   Pilot* p = current_pilot();
@@ -428,11 +430,17 @@ void GameEngine::load_state_enter() {
   } else if (auto* t = dynamic_cast<TrainingGame*>(g)) {
     l.number = t->mission;
     l.index = 5;  // t1
+  } else if (auto* a = dynamic_cast<ActionGame*>(g)) {
+    // The Action screen's (menus.md 13): vt+0x54 the world (0x00437890), vt+0x4c
+    // the ia mission (0x004378f0), vt+0x48 the world as 1..4 (0x004378b0).
+    l.index = a->x74;
+    l.number = a->x78;
+    l.op = a->x74 >= 0 && a->x74 <= 3 ? a->x74 + 1 : 0;
   } else {
     l.index = -1;
   }
   if (l.index < 0) {
-    // Not ported (Instant Action, multiplayer), or no game: back to the
+    // Not ported (multiplayer), or no game: back to the
     // main menu rather than a mission left from before.
     unported("the Load state of this game", {l.type});
     launch_.active = false;

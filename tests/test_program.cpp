@@ -7061,6 +7061,154 @@ TEST(mission_ia1_waves_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Instant Action through the menus (frontend-plan item 12b): INSTANT ACTION,
+// a new pilot, the Action screen (menus.md 13) set to Battle Progression
+// with a Champion lancemate, ACCEPT, the briefing's LAUNCH. Wave 1 (a
+// Firefly and an Owens) destroyed by the player, its wrecks gone; the win
+// makes wave 2. Then the mission ended and left: the debriefing's ABORT
+// fades to the IA Dummy State (0x0047ce80), which tallies the player's two
+// kills into the record and saves the pilot; the main menu opens Instant
+// Action again, straight to the Action screen, which now offers Wave 2.
+TEST(instant_action_menus_to_wave1_tallies_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("ia_menus_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    int stage = 0, core_frames = 0, wave2_at = -1;
+    std::string wave_row, enemy_row, config_row, header;
+    int32_t store_items = -1, made_enemies = 0;
+    bool reopened = false, waves_offered = false, dummy_seen = false;
+    std::vector<void*> killed;
+    mech3::ActionGame* game = nullptr;
+    auto action_screen = [&]() -> mech3::ActionScreen* {
+      auto* st = dynamic_cast<mech3::GameMenuState*>(app.current());
+      if (!st || st->kind != mech3::GameMenuState::kAction) return nullptr;
+      return dynamic_cast<mech3::ActionScreen*>(engine.screen_of(st->screen_));
+    };
+    auto label = [](mech3::CycleButton& c) { return std::string(c.labels.empty() ? "" : c.labels[0]->text); };
+    engine.on_present = [&](int) {
+      if (std::getenv("MW3_IA_LOG") && app.current())
+        if (auto* ms = dynamic_cast<mech3::State*>(app.current())) std::fprintf(stderr, "stage %d state %s\n", stage, ms->name());
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[0].on_left_up();  // INSTANT ACTION
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        ps->screen->new_bar.set_text("Actioner");
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        mech3::ActionScreen* a = action_screen();
+        // (not inside the resume's own flip: the pilot screen's pop still running)
+        if (!a || !app.pending_list().empty()) return;
+        a->scenarios.step(2);   // Battle -> Battle Waves -> Battle Progression
+        a->allies[2].select(6);  // Lancemate: the Champion (mech 5; none is row 0)
+        wave_row = label(a->waves);
+        enemy_row = label(a->enemies[0]) + "|" + label(a->enemies[1]) + "|" + label(a->enemies[2]);
+        config_row = label(a->enemy_configs[1]);
+        a->on_button(4, 0, 0);  // ACCEPT
+        game = mech3::current_pilot() ? mech3::current_pilot()->action() : nullptr;
+        if (game) store_items = game->store.count();
+        stage = 3;
+      } else if (stage == 3) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || app.current() != &mech3::states().load || !b->loaded) return;
+        b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        stage = 4;
+      } else if (stage == 4 && app.current() == &mech3::states().core) {
+        ++core_frames;
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        void* player = mech3::mech_mission_player();
+        if (core_frames == 3) {
+          const mech3::ai::AiTarget* pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+          for (int32_t q = 0; q < made; ++q) {  // wave 1 destroyed by the player
+            const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[q].mech));
+            if (t && pt && !(pt->allies & t->team)) mech3::mech_kill(ai[q].mech, player), killed.push_back(ai[q].mech);
+          }
+          made_enemies = static_cast<int32_t>(killed.size());
+        } else if (core_frames == 63) {
+          for (void* m : killed) mech3::program_mech_wreck_gone(m);  // as at 180 s
+        } else if (core_frames > 3 && wave2_at < 0 && game && game->x6c == 2) {
+          wave2_at = core_frames;
+          mech3::program_hud_objectives_toggle();  // F12: the box, its Instant Action header (0x231)
+        } else if (wave2_at > 0 && core_frames == wave2_at + 2) {
+          mech3::HudObjectivesReport r;
+          if (mech3::program_hud_objectives(&r) && !r.lines.empty()) header = r.lines[0];
+          mech3::program_hud_objectives_toggle();
+          mech3::missions().ended = 1;  // left: Exit Mission to the debriefing
+          mech3::missions().on_command(0x71);
+          stage = 5;
+        }
+      } else if (stage == 5 && app.current() == &mech3::states().end_win) {
+        auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
+        if (!d) return;
+        d->on_button(mech3::DebriefScreen::kAbort, 0, 0);
+        dummy_seen = true;
+        stage = 6;
+      } else if (stage == 6) {
+        if (dynamic_cast<mech3::PilotState*>(app.current())) dummy_seen = false;  // (the reopen skips the pilot)
+        mech3::ActionScreen* a = action_screen();
+        if (!a) return;
+        reopened = true;
+        waves_offered = a->waves.count() == 2 && label(a->waves) == zutl::format_message_ints(0xdb8, {2});
+        stage = 7;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 1500;
+    pump.stop = [&] { return stage == 7; };
+    app.run(pump);
+    if (std::getenv("MW3_IA_LOG"))
+      std::fprintf(stderr, "IA stage %d wave [%s] enemies [%s] config [%s] store %d enemies %d wave2 %d header [%s] "
+                   "kills %d/%d/%d best %d reopened %d offered %d\n", stage, wave_row.c_str(), enemy_row.c_str(),
+                   config_row.c_str(), store_items, made_enemies, wave2_at, header.c_str(),
+                   game ? game->player_kills : -1, game ? game->lancemate_kills : -1, game ? game->enemy_kills : -1,
+                   game ? game->waves : -1, reopened, waves_offered);
+    EXPECT(stage == 7);
+    EXPECT(store_items == 125);  // the "everything" store (0x00470e30): 124, and the plain PPC (FIX (bug))
+    EXPECT(made_enemies == 2 && wave2_at > 3);
+    EXPECT(dummy_seen && reopened && waves_offered);  // back to the Action screen, not the pilot screen
+    EXPECT(std::filesystem::exists(zutl::write_path("pilots\\Actioner.mw3")));  // saved by the IA Dummy State
+    // "I N S T A N T  A C T I O N   %1!d!   %2": the world (+0x74 + 1) and the scenario's name.
+    EXPECT(header == zutl::format_message(0x231, {"1", zutl::messages().get_text(0x284)}));
+    EXPECT(game && game->player_kills == 2 && game->lancemate_kills == 0 && game->enemy_kills == 0);
+    EXPECT(game && game->waves == 1 && game->mode == 2 && game->x74 == 0 && game->x78 == 1);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // A mission restarted twice (its cleanup, then the Load state again): each
 // load has the fresh one's AI (zEntity's list, the AI mechs, the targets,
 // the basic vehicles, the AI controls alive, the four reset lists 0x004d8610

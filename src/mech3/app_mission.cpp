@@ -1998,6 +1998,22 @@ int32_t mission_operation() {
   const CampaignGame* c = launch_campaign(g_mission_engine);
   return c ? c->operation() : g_mission_engine->launch().op;
 }
+ActionGame* mission_action_game() { return g_mission_engine ? launch_action(g_mission_engine) : nullptr; }
+void mission_action_add(int32_t field, int32_t kills) {
+  ActionGame* a = mission_action_game();
+  if (!a) return;
+  (field == 0x4c ? a->player_kills : field == 0x50 ? a->lancemate_kills : a->enemy_kills) += kills;
+}
+
+// Mech3.exe 1.2 @ 0x004378b0
+int32_t mission_action_world() {
+  const ActionGame* a = g_mission_engine ? launch_action(g_mission_engine) : nullptr;
+  return a && a->x74 >= 0 && a->x74 <= 3 ? a->x74 + 1 : 0;
+}
+const char* mission_action_name() {  // 0x0040a840
+  const ActionGame* a = g_mission_engine ? launch_action(g_mission_engine) : nullptr;
+  return a ? a->x3c : nullptr;
+}
 int32_t mission_number_of_game() {
   if (!g_mission_engine) return 0;
   const CampaignGame* c = launch_campaign(g_mission_engine);

@@ -768,9 +768,7 @@ void wire_mech_parts() {
   dc.node_set_active = [](Handle n, int32_t on) { zcls::node_set_active(zn(n), on); };
   dc.use_opacity = [](Handle n, int32_t on) { zcls::object3d_use_opacity(zn(n), on); };
   dc.set_opacity = [](Handle n, float v) { zcls::object3d_set_opacity(zn(n), v); };
-  dc.ia_tally = [](int32_t field, int32_t kills) {  // the instant action game is not the program's
-    if (g_w.unported) g_w.unported(g_w.engine, "ia game +0x4c..+0x54", {field, kills});
-  };
+  dc.ia_tally = [](int32_t field, int32_t kills) { mission_action_add(field, kills); };  // 0x00479460's
   dc.sensors_forget = [](Mech& m) { ai::entities_forget(g_w.handle_of(g_w.engine, &m)); };  // 0x004aa6b0
   dc.free = [](Mech& m) { mech_free(&m); };  // vt+0x00(1), and off the program's registry
 
@@ -1549,6 +1547,22 @@ void program_mech_set_attacker(void* mech, void* attacker) {
   if (entity_is_mech(mech)) static_cast<Mech*>(mech)->attacker = attacker;
 }
 // For the tests: a dead mech hidden and deleted as instant action does at 180 s (0x0041e140).
+// Mech3.exe 1.2 @ 0x0047ce80 (its loop): as 0x0041e140's tally, for every
+// mech still in zEntity's list.
+void program_action_tally() {
+  const DeadCalls& dc = dead_calls();
+  Mech* player = world().mission_player;
+  for (const ai::Handle h : ai::entity_list()) {
+    Mech* m = entity_mech(h);
+    if (!m || !m->pilot || m->pilot->roster == -1) continue;
+    const int32_t kills = static_cast<int32_t>(m->x3f4[0]);
+    if (!kills) continue;
+    // `player &&`: the exe reads the player's +0xc4 unchecked
+    const int32_t field = m == player ? 0x4c : (player && (m->team & player->allies)) ? 0x50 : 0x54;
+    if (dc.ia_tally) dc.ia_tally(field, kills);
+    m->x3f4[0] = 0;
+  }
+}
 void program_mech_wreck_gone(void* mech) {
   if (entity_is_mech(mech)) dead_hide(*static_cast<Mech*>(mech), false);
 }

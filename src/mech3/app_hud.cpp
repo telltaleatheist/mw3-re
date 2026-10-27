@@ -551,6 +551,10 @@ struct ProgramHudHooks : HudHooks {
     s.game_type = mission_game_type();
     s.operation = mission_operation();
     s.mission = mission_number_of_game();
+    if (s.game_type == 2) {  // 0x00446bb4: the game's vt+0x48 and vt+0x0c
+      s.operation = mission_action_world();
+      s.action_name = mission_action_name();
+    }
     return s;
   }
   const char* nav_name(uint32_t nav) override { return mission_nav_name(nav); }

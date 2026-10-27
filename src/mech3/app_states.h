@@ -56,6 +56,19 @@ class WinMovieState : public State {
   Handle movie_ = 0;                  // +0x08
 };
 
+// "IA Dummy State" (0x00608bd0, constructor 0x0047ce40, vtable 0x005c3c60):
+// after Instant Action's debriefing (ABORT, through a fade): the mechs'
+// kills and Attack's or Defend's result into the pilot's record, the pilot
+// saved, the mission unloaded, then the main menu, which opens Instant
+// Action again (app +0x1bc, +0x1bf).
+class IaDummyState : public State {
+ public:
+  IaDummyState() : State("IA Dummy State", 0x608bd0) {}
+  bool enter() override;              // 0x0047ce80
+  bool update() override { return false; }  // 0x0040bae0
+  uint32_t message(uint32_t, uint32_t) override { return 1; }  // 0x0042a130
+};
+
 // 1 "Intro State" (0x00608f58, vtable 0x005c40c8): INTRO, then the SPLASH logos.
 class IntroState : public State {
  public:
@@ -321,6 +334,7 @@ struct States {
   FadeState fade;
   LabState lab;
   WinMovieState win_movie;
+  IaDummyState ia_dummy;
 };
 States& states();
 void reset_states();
