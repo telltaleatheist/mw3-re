@@ -292,6 +292,7 @@ class GameEngine : public Engine {
   void credits_restart(Handle screen) override;
   void pilot_state_set_mode(Handle state, int32_t mode) override;
   void action_open(Handle screen) override;
+  void action_tally() override;
   void pilot_chosen(Pilot* p) override;
   void pilot_record_mission(Handle p, int32_t a) override;
   void pilots_delete() override;

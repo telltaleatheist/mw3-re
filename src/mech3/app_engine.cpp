@@ -676,10 +676,12 @@ void GameEngine::replace_state_at(Handle state) {
   else Engine::replace_state_at(state);
 }
 // 0x0048ef00 on the missions object's +0xd0 (the pause screen's QUIT in
-// Instant Action): the debriefing's Win State after the fade.
+// Instant Action): the debriefing's Win State after the fade; on the IA
+// Dummy State (the debriefing's ABORT in Instant Action).
 void GameEngine::fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
                                uint8_t r, uint8_t g, uint8_t b) {
   if (next == 0x6099a0) fade_replace(&states().end_win, arg, direction, buffer, seconds, r, g, b);
+  else if (next == states().ia_dummy.addr()) fade_replace(&states().ia_dummy, arg, direction, buffer, seconds, r, g, b);
   else Engine::fade_to_state(next, arg, direction, buffer, seconds, r, g, b);
 }
 void GameEngine::sound_release_all(Handle s) {

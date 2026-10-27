@@ -4,6 +4,7 @@
 #include "crt/msvc_math.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app.h"
+#include "mech3/pilot.h"
 
 namespace mech3 {
 
@@ -118,6 +119,29 @@ bool WinMovieState::update() {
 void WinMovieState::leave() {
   if (movie_) end_movie(e(), movie_);
   movie_ = 0;
+}
+
+// ---------------------------------------------------------------------------
+// IA Dummy
+
+// Mech3.exe 1.2 @ 0x0047ce80. A mission won or lost ([0x00609925]) counts in
+// Attack and Defend only; left before its end (the pause screen's QUIT) it
+// counts nothing but the kills.
+bool IaDummyState::enter() {
+  Engine& en = e();
+  en.action_tally();
+  Pilot* p = current_pilot();
+  ActionGame* g = p ? p->action() : nullptr;
+  if (g && en.mission_ended()) {
+    const bool lost = en.mission_failed();  // [0x00609926]
+    if (g->mode == 3) ++(lost ? g->attack_losses : g->attack_wins);
+    else if (g->mode == 4) ++(lost ? g->defend_losses : g->defend_wins);
+  }
+  if (p) p->save();  // (the exe saves the pilot unchecked)
+  en.mission_cleanup(1);
+  a().set_reopen_instant_action(1, 1);
+  en.replace_state(2);  // 0x00590250 with 0x00482970(2)
+  return true;
 }
 
 // ---------------------------------------------------------------------------

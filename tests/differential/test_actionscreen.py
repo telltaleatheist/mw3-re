@@ -66,7 +66,7 @@ PARTS = [WORLDS, SCENARIOS, DESC, WAVES] + ALLIES + ENEMIES + CONFIGS + [CANCEL,
 FIXED, WAVE, FILLING = 0x16f9c, 0x16fa0, 0x16fa4
 STATE_NEW, STATE_ENTER, STATE_RESUME = 0x48a6c0, 0x48a750, 0x48a7b0
 RESET, SHOW_WAVE, SHOW_CUSTOM = 0x48aac0, 0x48a810, 0x48a930
-CREATE, SELECT_GAME, CONFIG_NEW = 0x4788b0, 0x478250, 0x423d00
+CREATE, SELECT_GAME, CONFIG_NEW, IA_DUMMY = 0x4788b0, 0x478250, 0x423d00, 0x47ce80
 APP_IA_ARG, CURRENT, MAIN_MENU, PILOT_STATE = 0x608e47, 0x60861c, 0x609854, 0x609858
 SETUP = 0x605820
 VT_GAME = test_pilotscreen.VT_GAME
@@ -219,8 +219,17 @@ def make_plan(seed, spots):
             lines.append(f'P {r.choice([21, 22]):x} 0')
         elif roll < 0.56:
             lines.append('E')
+        elif roll < 0.58:  # back from a game: its end, the record's numbers, the IA Dummy State
+            lines.append(f'Z {r.choice([0, 1, 1]):x} {r.choice([0, 0, 1]):x}')
+            lines.append(f'V 44 {r.choice([0, 1, 2, 3, 3, 4, 4, 7]):x}')
+            for off in r.sample(range(0x4c, 0x6c, 4), r.randrange(4)):
+                lines.append(f'V {off:x} {r.choice([0, 1, 5, 99]):x}')
+            lines.append('J')
         lines.append(mouse_line(r, spots, state))
-    lines += ['B 4', 'E']
+    lines += ['B 4']
+    if r.random() < 0.5:  # back from that game: the IA Dummy State saves the record last
+        lines += [f'Z {r.choice([0, 1]):x} {r.choice([0, 1]):x}', f'V 4c {r.randrange(9):x}', 'J']
+    lines.append('E')
     return lines
 
 
@@ -332,6 +341,9 @@ class Original:
         e.stub(0x4846a0, '0x004846a0', 'c', 0, dfn)
         e.stub(0x576080, '0x00576080', 'zc')
         e.stub(0x488ad0, '0x00488ad0', 'c,s0')
+        e.stub(0x491780, '0x00491780', 's0')  # the mission's cleanup (the IA Dummy State's)
+        e.w32(0x73655c, 0)  # zEntity's list: empty (the tally's loop is the program's, checked headless)
+        e.w32(0x736560, 0)
         e.stub(0x48ebf0, '@shell_enter', 'c')
         e.stub(0x48ec40, '@shell_leave', 'c')
         e.stub(0x48ecc0, '@shell_resume', 'c,s0')
@@ -418,6 +430,10 @@ class Original:
                     e.w32(e.r32(pl + 0x70) + pv[0], pv[1])
             elif op == 'K':
                 e.w32(SETUP + 4 * pv[0], pv[1])
+            elif op == 'Z':
+                e.cpu.write(0x609925, bytes([pv[0], pv[1]]))
+            elif op == 'J':
+                e.call(IA_DUMMY, ecx=0x608bd0)
             elif op == 'D':
                 self.make_dfn(pv[0], p[2:])
             elif op == 'S':
@@ -573,6 +589,8 @@ class Original:
         out = (f'game mode={e.r32(g + 0x44):x} fb={e.r8(g + 0x48)} x6c={e.r32(g + 0x6c):x} x70={e.r32(g + 0x70):x} '
                f'x74={e.r32(g + 0x74):x} x78={e.r32(g + 0x78):x} count={e.r32(g + 0x7c):x} '
                f'slot={e.r32(g + 0x24):x} cur={(VT_GAME.get(e.r32(cur), -9) if cur else -1) & 0xffffffff:x} '
+               f'stats={",".join(f"{e.r32(g + 0x4c + 4 * i):x}" for i in range(8))} '
+               f'app={e.r8(0x608e44):x},{e.r8(0x608e47):x} '
                f't38={text(e.r32(g + 0x38))} t3c={text(e.r32(g + 0x3c))} t40={text(e.r32(g + 0x40))}')
         for i in range(10):
             sl = g + 0x80 + 0x18 * i
@@ -660,7 +678,7 @@ def main():
         calls += len(trace)
         saves += bool(files)
         for k, _ in trace:
-            if k in ('0x005905a0', '0x00590250', '0x00575fd0', '0x004846a0', '0x00576080', '0x00488ad0',
+            if k in ('0x005905a0', '0x00590250', '0x00575fd0', '0x004846a0', '0x00576080', '0x00488ad0', '0x00491780',
                      '0x00590400', '0x00470e30'):
                 stats[k] = stats.get(k, 0) + 1
     print(f'actionscreen: {passed}/{runs} runs identical ({calls} calls, {saves} runs saved a pilot, the last '

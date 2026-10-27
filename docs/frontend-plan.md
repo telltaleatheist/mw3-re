@@ -59,9 +59,8 @@ ACCEPT back).
   (0x00488bc0, its state 0x0048aac0; the line-up, the mode, the wave) ->
   Load (the briefing's IA layout: no SALVAGE or REPLAY) -> mission
   (`ia<n>` objectives, ported) -> debriefing -> IA Dummy State (0x0047ce80).
-  The Action screen and its ActionGame filling are ported (menus.md 13,
-  item 12a). Not ported: the IA Dummy State; the Instant Action header of
-  the objectives box (hud.md 24's open note).
+  Ported end to end (items 12a and 12b): the Action screen and its
+  ActionGame, the store, the launch, the header, the IA Dummy State.
 - **Training**: main menu -> pilot -> the training game (type 4, t1) ->
   Load (training's briefing: no MECHLAB, SALVAGE, REPLAY) -> the lessons:
   objectives.zrd's fourteen training condition types are unported
@@ -179,9 +178,12 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
 12. **Instant Action**, in two:
     - 12a. **(Done) The Action screen** 0x00488bc0 and its state, the
       ActionGame filled by ACCEPT (menus.md 13; test_actionscreen.py).
-    - 12b. **The launch from it**: the 0x00470e30 "everything" store, the
-      0x231 header's arguments (hud.md 24), the IA Dummy State. Test:
-      headless IA wave 1 played to the tallies.
+    - 12b. **(Done) The launch from it**: the 0x00470e30 "everything"
+      store (pilot.md; test_store_fill.py), the Load state's Instant Action
+      mission (the world, the ia mission), the 0x231 header's arguments
+      (hud.md 24), the IA Dummy State and CONTINUE's round (campaign.md
+      11; test_actionscreen.py), the kill tallies; headless:
+      instant_action_menus_to_wave1_tallies_headless.
 13. **Training**: the fourteen training condition types (objectives.md
     piece 5) and the training sequence's fade. Test: test_objectives.py's
     shipped t1 blocks; headless t1 lesson 1 completed.

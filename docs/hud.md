@@ -1355,12 +1355,16 @@ In the program `ProgramHudHooks` gives the mission's objectives
 (`mission_objectives()`), +0x56, the launch's campaign's operation and
 mission, the nav points' names and the keys' names (zInput's 0x0051d200 /
 0x0051d330); the objective hooks give the cockpit (`program_mech_hud`) and
-its refill. Instant Action's and training's names and multiplayer's scores
-are not wired (no such launch yet). Open, for when Instant Action
-launches (lead's review): at 0x446bdd..0x446bee the 0x231 line's two
-arguments are vt+0x48 of [ecx+0x6c] (the pilot's game) and vt+0x0c of
-0x00479460's object; the port formats to_string(operation) and the name,
-so recheck that case then.
+its refill. Training's names and multiplayer's scores are not wired (no
+such launch yet). Instant Action's header (closed with frontend-plan item
+12b): at 0x446bb4..0x446bee the 0x231 line's %1!d! is vt+0x48 of the
+pilot's game ([0x0060861c] +0x6c; ActionGame's 0x004378b0: the world +0x74
+as 1..4, else 0) and its %2 vt+0x0c of 0x00479460's object (0x0040a840: +0x3c,
+the scenario's name the Action screen's ACCEPT set); without a name 0x232
+with the world alone. The program answers both from the launch's ActionGame
+(`mission_action_world`, `mission_action_name`); checked in
+`instant_action_menus_to_wave1_tallies_headless` ("I N S T A N T  A C T I O
+N   1   Battle Progression" on Big Lake).
 
 Test: `mission_c1m1_objectives_box_text_headless` (F12 on c1m1: "Operation
 1, Mission 1", "Primary Objectives", "Take Com. Center Offline  OP: Able"

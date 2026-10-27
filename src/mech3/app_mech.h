@@ -271,6 +271,14 @@ bool program_mech_lock_on(void* mech, void* target);                 // for the 
 std::vector<std::string> program_holders_of(uint32_t x, const void* gone);  // for the tests: who still holds it
 void program_mech_set_attacker(void* mech, void* attacker);  // for the tests
 void program_mech_wreck_gone(void* mech);                            // for the tests: 0x0041e140's delete  // vt+0xd4 0x004aeec0 (with the attacker FIX)
+// The IA Dummy State's tally (0x0047ce80's loop over zEntity's list): each
+// mech's kills (+0x3f4) to the Instant Action game's player (+0x4c), ally
+// (+0x50) or enemy (+0x54) count, then cleared.
+void program_action_tally();
+// Instant Action's game of the launch (the Action screen's, or a debug
+// start's), null outside one; `kills` added to its field +0x4c, +0x50 or +0x54.
+class ActionGame* mission_action_game();
+void mission_action_add(int32_t field, int32_t kills);
 bool program_mech_kill_credit(void* killer, void* victim);  // a mech killer's 0x0041b420; false: not a mech
 bool program_entity_zones(const void* e, uint8_t out[4]);  // a mech's or vehicle's +0x64; false: neither
 void* wm_group_weapon(void* wm);
@@ -370,6 +378,10 @@ uint32_t mission_map_find(const char* name);
 void mission_map_set(uint32_t map);
 void* mission_map_of(uint32_t map);
 int32_t mission_operation();
+// Instant Action's header (hud.md 24): the game's vt+0x48 (0x004378b0: the world
+// +0x74 as 1..4, else 0) and vt+0x0c (+0x3c, the scenario's name; null none).
+int32_t mission_action_world();
+const char* mission_action_name();
 int32_t mission_number_of_game();
 const char* mission_nav_name(uint32_t nav);
 

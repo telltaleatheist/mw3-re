@@ -19,6 +19,8 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/action_menu.h"
 #include "mech3/app.h"
+#include "mech3/app_states.h"
+#include "mech3/mission.h"
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
@@ -126,6 +128,7 @@ struct AsEngine : mech3::Engine {
     call("0x00488ad0", {state, static_cast<uint32_t>(mode)});
   }
   void push_state(Handle state, uint32_t arg) override { call("0x00590400", {state, arg}); }
+  void action_tally() override {}  // the original's loop runs over an empty zEntity list
 };
 
 // The pilot module's calls out, as the original's stubs (test_actionscreen.py).
@@ -188,7 +191,10 @@ void dump_game(std::ostringstream& o) {
     << " x6c=" << static_cast<uint32_t>(g->x6c) << " x70=" << static_cast<uint32_t>(g->x70)
     << " x74=" << static_cast<uint32_t>(g->x74) << " x78=" << static_cast<uint32_t>(g->x78)
     << " count=" << static_cast<uint32_t>(g->count) << " slot=" << static_cast<uint32_t>(g->slot.mech)
-    << " cur=" << (p->current ? p->current->type() : -1) << std::dec << " t38=" << str(g->x38)
+    << " cur=" << (p->current ? p->current->type() : -1) << " stats=" << g->player_kills << ',' << g->lancemate_kills
+    << ',' << g->enemy_kills << ',' << g->attack_wins << ',' << g->attack_losses << ',' << g->defend_wins << ','
+    << g->defend_losses << ',' << g->waves << " app=" << int(mech3::app().reopen_instant_action()) << ','
+    << int(mech3::app().instant_action_arg()) << std::dec << " t38=" << str(g->x38)
     << " t3c=" << str(g->x3c) << " t40=" << str(g->x40);
   for (int i = 0; i < 10; ++i) {
     const mech3::GameSlot& s = g->lineup[i];
@@ -259,6 +265,7 @@ int probe_actionscreen_run(const char* reader, const char* dir, uint32_t state, 
   ztwod::set_page_flip(true);
   mech3::current_pilot() = nullptr;
   mech3::action_setup() = mech3::ActionSetup{};
+  mech3::missions() = mech3::Missions{};
   std::unique_ptr<ProbeActionState> st;
   mech3::ActionScreen* s = nullptr;
   std::string dump;
@@ -278,8 +285,12 @@ int probe_actionscreen_run(const char* reader, const char* dir, uint32_t state, 
       const uint32_t off = hex(ls), v = hex(ls);
       mech3::Pilot* p = mech3::current_pilot();
       if (!p) continue;
-      if (off == 0x68) p->action_game->waves = static_cast<int32_t>(v);
-      if (off == 0x24) p->action_game->slot.mech = static_cast<int32_t>(v);
+      mech3::ActionGame* g = p->action_game;
+      int32_t* stats[] = {&g->player_kills, &g->lancemate_kills, &g->enemy_kills, &g->attack_wins,
+                          &g->attack_losses, &g->defend_wins, &g->defend_losses, &g->waves};
+      if (off >= 0x4c && off <= 0x68) *stats[(off - 0x4c) / 4] = static_cast<int32_t>(v);
+      if (off == 0x44) g->mode = static_cast<int32_t>(v);
+      if (off == 0x24) g->slot.mech = static_cast<int32_t>(v);
     } else if (op == "K") {  // the kept choices: index in [0x00605820..0x0060587f] by dword
       const uint32_t i = hex(ls), v = hex(ls);
       mech3::ActionSetup& k = mech3::action_setup();
@@ -303,6 +314,11 @@ int probe_actionscreen_run(const char* reader, const char* dir, uint32_t state, 
         l->configs.push_back(c);
       }
       engine.loadouts[mech] = std::move(l);
+    } else if (op == "Z") {  // the mission's end: won or lost ([0x00609925]), lost ([0x00609926])
+      mech3::missions().ended = static_cast<uint8_t>(hex(ls));
+      mech3::missions().aborting = static_cast<uint8_t>(hex(ls));
+    } else if (op == "J") {  // the IA Dummy State entered (0x0047ce80)
+      mech3::states().ia_dummy.enter();
     } else if (op == "S") {
       st = std::make_unique<ProbeActionState>(state);
       s = engine.screen;

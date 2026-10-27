@@ -7,6 +7,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/pilot.h"
 
@@ -51,6 +52,8 @@ std::string PilotHooks::format_ints(int32_t id, std::initializer_list<int32_t> a
 // Mech3.exe 1.2 @ 0x00484840: operations 1 and 2 have four missions, 3 and 4 six.
 // Mech3.exe 1.2 @ 0x004733b0: the dfn's loadout by that name into the store
 // (0x00473400, mech and items); a full store takes it as it is.
+void PilotHooks::store_fill(Store& s, int32_t) { s.fill_all(); }
+
 int32_t PilotHooks::store_add_mech(Store& s, int32_t mech, const char* config) {
   if (s.full) return 1;
   const MechDfn* d = mech_dfn(mech);
@@ -81,6 +84,52 @@ Store::~Store() { clear(); }
 void Store::clear() {
   for (ConfigItem*& i : items) delete i, i = nullptr;
   items.clear();
+}
+
+// Mech3.exe 1.2 @ 0x00470e30: emptied (the exe drops the list's nodes, its
+// items leaked), then one of each, unlimited (+0x10): every mech but the
+// Elemental (7); every weapon in each tech it comes in (Inner Sphere
+// first) and its ammo when it takes some; every equipment kind, armour in
+// any tech (3). FIX (bug) with the plain PPC (weapon_count).
+void Store::fill_all() {
+  clear();
+  full = 1;
+  auto put = [this](ConfigItem* it) {
+    it->count = 1;
+    it->b10 = 1;
+    items.push_back(it);
+  };
+  for (int32_t m = 0; m < 0x13; ++m) {
+    if (m == 7) continue;  // 0x00426080
+    auto* b = new BaseItem;
+    b->value = m;
+    put(b);
+  }
+  for (int32_t w = 0; w < weapon_count(); ++w) {
+    if (equipment_restricted(-1, w, 3)) continue;
+    for (int32_t tech : {2, 1}) {
+      if (!weapon_has_tech(w, tech)) continue;
+      auto* it = new WeaponItem;
+      it->weapon = w;
+      it->tech = tech;
+      put(it);
+    }
+    if (weapon_uses_ammo(w)) {
+      auto* a = new AmmoItem;
+      a->weapon = w;
+      put(a);
+    }
+  }
+  for (int32_t k = 0; k < 0xf; ++k) {
+    if (equipment_restricted(-1, k, 3)) continue;
+    for (int32_t tech : k == 1 ? std::initializer_list<int32_t>{3} : std::initializer_list<int32_t>{2, 1}) {
+      if (tech != 3 && !equip_has_tech(k, tech)) continue;
+      auto* it = new EquipmentItem;
+      it->equipment = k;
+      it->tech = tech;
+      put(it);
+    }
+  }
 }
 
 // Mech3.exe 1.2 @ 0x004714c0

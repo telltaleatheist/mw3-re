@@ -1031,7 +1031,11 @@ class Engine : public zgame::AppHooks {
   virtual void anim_reset() { unported("0x0050ad60", {}); }
   virtual void replace_state_at(Handle state) { unported("0x00590250", {state}); }
   virtual void campaign_set_b0(uint8_t v);
-  virtual void action_next_round() { unported("ia.next_round", {}); }
+  // CONTINUE in Instant Action (inline in 0x0047d030): the round again, from
+  // the kept wave + 1 in Progression, else 1; no waves won.
+  virtual void action_next_round();
+  // The IA Dummy State's tally of every mech's kills (0x0047ce80's loop).
+  virtual void action_tally() { unported("0x0047ce80 tally", {}); }
   virtual uint32_t list_head(Handle list) { return unported("0x0049ccb0", {list}); }
   virtual void format(const char* fmt, std::initializer_list<Arg> args, char* out, int size);  // CString::Format
 

@@ -2829,6 +2829,18 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   after the seventh (that one has no row).
 - **The mobile field base** is a choice of its own (on or off), not a
   lancemate.
+- **Your Instant Action record only counts when you leave with ABORT.**
+  The debriefing's CONTINUE plays the same setup again and counts nothing:
+  the kills of every mech still standing (yours included) and an Attack or
+  Defend win or loss are added to the pilot's record only on the way out to
+  the main menu. Wrecks removed at 180 s add their own kills as they go.
+  Quitting a mission before its end counts the kills but no win or loss.
+  (docs/campaign.md section 11)
+- **ABORT brings you straight back to the Instant Action screen**, skipping
+  the pilot screen, with your choices as you left them.
+- **Instant Action's store is everything**: every mech but the Elemental,
+  every weapon in each tech it comes in with its ammo, and every piece of
+  equipment, without limits.
 - **Training remembers which missions you passed** (PASS / INCOMPLETE) and
   opens on the first one not passed.
 - **Names that differ only in capitals share one file.** "Bob" and "BOB" are

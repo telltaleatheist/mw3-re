@@ -329,6 +329,14 @@ const ConfigList* Engine::mech_loadouts(int32_t mech) {
   return d ? d->configs : nullptr;
 }
 bool Engine::file_exists(const char* path) { return zutl::exists(path); }
+// Inline in 0x0047d030
+void Engine::action_next_round() {
+  Pilot* p = current_pilot();
+  ActionGame* g = p ? p->action() : nullptr;
+  if (!g) return;  // (the exe reads it unchecked)
+  g->x6c = g->mode == 2 ? action_setup().g87c + 1 : 1;
+  g->x70 = 0;
+}
 
 void Engine::cd_pause() { zsnd_cd::pause(); }
 void Engine::cd_resume(int32_t mode) { zsnd_cd::resume(mode); }

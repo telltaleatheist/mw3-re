@@ -34,7 +34,7 @@ There are two Win States (0x00608e70 in the state table, 0x006099a0 the
 end screen's fade target, the same class 0x0047ab10) and two Salvage
 States (0x00608ee8, 0x00608bd8 pushed by the briefing's SALVAGE; class
 0x0047f220). Instant Action's debriefing goes on to the "IA Dummy State"
-(0x00608bd0, 0x0047ce80: the kill tallies, then Main).
+(0x00608bd0, 0x0047ce80: the kill tallies, then Main; section 11).
 
 ## 2. The briefing screen (0x00405230, new(0x12e6c), briefing.cpp)
 
@@ -291,7 +291,7 @@ Ported (6a, 6b, `mech3/debriefing`): the screen, its texts and buttons,
 the press, the results and the rank, the cards' and the salvage list's
 shells (`MechButton`, `LanceCard`, `StoreList`'s reader, layout and
 update); hooks: the cards' mech display (6c), the store list's rows (the
-mech lab), the IA Dummy state.
+mech lab), the IA Dummy state (ported since: section 11).
 
 **An operation's end and the campaign's** (frontend-plan item 8). An
 operation's last mission passed is no different from any other: the Win
@@ -411,7 +411,8 @@ need the menus' one scale or a centred 640x480 frame.
    0x00404ae0, 0x00408bd0, 0x00408b40); 8c the lancemates' loadouts
    0x00408c30 (Done, all three). The salvage screen 0x0047d3b0 and its
    state after.
-9. (Done, the Win Movie State; frontend-plan item 8) The Win Movie and IA Dummy states.
+9. (Done: the Win Movie State, frontend-plan item 8; the IA Dummy State, item 12b) The Win Movie and IA Dummy states.
+
 
 ## 8. Testing
 
@@ -717,3 +718,49 @@ a mech in and an ammo stock out, and ACCEPTs (breaks 5 of 5). Seen with
 `build/mw3 --briefing c1m2 --click-at 420,435@2500`. The tonnage values
 overlapped their captions until the SDL host took GDI's font sizes and
 widths (twod.md section 6, Text widths).
+
+
+## 11. Instant Action's end: the IA Dummy State (0x00608bd0)
+
+"IA Dummy State" (constructor 0x0047ce40, vtable 0x005c3c60; its frame
+0x0040bae0 does nothing). The debriefing's ABORT in Instant Action fades to
+it (2 s); its enter (0x0047ce80):
+
+1. Every entry of zEntity's list ([0x0073655c..0x00736560]) whose mech
+   (vt+0x2c, then vt+0x50) has a roster mech (+0x684 +0x0c not -1) and
+   kills (+0x3f4): to the pilot's ActionGame's player kills (+0x4c) when it
+   is the player's mech ([0x0060861c] +0x14), else to lancemate kills
+   (+0x50) when its team (vt+0x28 +0xc0) is among the player's allies
+   (+0xc4), else enemy kills (+0x54); its kills cleared. The same rule as a
+   wreck deleted at 180 s (0x0041e140, damage.md), which counts the wreck's
+   own kills when it goes.
+2. A mission ended ([0x00609925]) in Attack (+0x44 3) counts a win (+0x58)
+   or, lost ([0x00609926]), a loss (+0x5c); in Defend (4) +0x60 / +0x64.
+   Other modes, and a mission left before its end, count nothing here.
+3. The pilot saved (open, header, write, close), the mission unloaded
+   (0x00491780(1)), the app's +0x1bc and +0x1bf set (0x0047fc20(1, 1)) so
+   the main menu opens Instant Action again at once and its state skips the
+   pilot screen, then Main in its place.
+
+The debriefing's CONTINUE in Instant Action (inline in 0x0047d030) plays
+the same setup again: the wave (+0x6c) the kept one ([0x0060587c]) + 1 in
+Progression, else 1, no waves won (+0x70), the mission cleaned up (0), the
+animations reset, the Load state. Nothing is tallied: the kills of the
+mechs still standing, the player's included, and an Attack or Defend
+result are counted only through ABORT.
+
+The port: `IaDummyState` (app_states.h), its tally `program_action_tally`
+(app_mech.cpp) and the wreck's (`dead_hide`'s `ia_tally`) into the launch's
+ActionGame (`mission_action_add`); CONTINUE's round is
+`Engine::action_next_round`. Checked: test_actionscreen.py enters the
+state (0x0047ce80) after random ends and modes, an empty zEntity list,
+comparing the record, the app's flags, the calls and the pilot file;
+`instant_action_menus_to_wave1_tallies_headless` plays it through (the
+player's two kills counted from the live mech). Breaking the port showed the tests catch it,
+17 of 18 (with the store's seven and the launch's): Attack's wins and
+losses swapped, Defend counted as Attack, a result counted unended, the
+pilot not saved, the mission kept loaded, the pilot screen opened again,
+the world and mission swapped at the launch, the header's world from 0 or
+the description in it, the player's kills counted as an enemy's. Missed,
+and unobservable: the kills left on the mechs (nothing tallies them again
+before the mission is unloaded).

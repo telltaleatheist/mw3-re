@@ -70,7 +70,12 @@ deleting it (a leak; deleted in the port).
 item list (mechdef-configs.md: base 0, weapon 1, ammo 2, equipment 3, engine
 4 items) with a flag at +0x10 that makes it save as an empty list. The mech
 lab's, Instant Action's, multiplayer's and training's stores are filled with
-everything the lab offers (0x00470e30, flag set: not saved); the campaign's
+everything the lab offers (0x00470e30, flag set: not saved: every mech but
+the Elemental, every weapon in each tech it comes in, Inner Sphere first,
+with its ammo, every equipment kind, armour in any tech; one of each, each
+marked unlimited, +0x10; 124 items, 125 with the plain PPC; ported as
+`Store::fill_all`, test_store_fill.py, breaks 7/7: the Elemental, Clan first,
+no ammo, armour by tech, not unlimited, not full, old items kept); the campaign's
 hold what the player owns. vt+0x00 (0x00472630) adds n of an item (merged
 with one like it, matched by vt+0x24: kind and id, the tech too for
 weapons, 0x00473480's rule for equipment; the merged one's place reset, 0 for
@@ -283,7 +288,8 @@ Breaking it: see docs/campaign.md section 8.
 
 - 0x004782c0 / 0x004782f0 / 0x004783c0 (the pilot's mech in a mission),
   with the mission.
-- The store fill 0x00470e30 (the mech lab's, Instant Action's, multiplayer's
+- (Ported since: `Store::fill_all`, frontend-plan item 12b.) The store
+  fill 0x00470e30 (the mech lab's, Instant Action's, multiplayer's
   and training's "everything" store); a campaign's is not it: a new
   campaign's stock (0x004345a0 with 0x004733b0, `store_add_mech`) is ported
   and carried on by 0x00434e00 (checked at c1m2's briefing in

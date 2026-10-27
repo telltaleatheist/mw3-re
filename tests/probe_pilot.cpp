@@ -10,6 +10,8 @@
 #include <string>
 
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zfix.h"
+#include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 
 namespace {
@@ -573,6 +575,31 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
   }
   const std::string all = g_log.out + "\n--\n" + d.o.str();
   if (static_cast<int>(all.size()) + 1 > size) return -1;
+  std::memcpy(out, all.c_str(), all.size() + 1);
+  return static_cast<int>(all.size());
+}
+
+// test_store_fill.py: a store with `before` mechs in it filled by 0x00470e30
+// (Store::fill_all), dumped as "full count" then "kind id tech count b10
+// group part" per item; `bugs` the zfix switch (the plain PPC).
+int probe_store_fill(int before, int bugs, char* out, int size) {
+  const bool saved = zfix::options().bugs;
+  zfix::options().bugs = bugs != 0;
+  mech3::Store st(0);
+  for (int i = 0; i < before; ++i) st.add_mech(i % 19);
+  st.fill_all();
+  std::ostringstream o;
+  o << int(st.full) << ' ' << st.count() << '\n';
+  for (const mech3::ConfigItem* it : st.items) {
+    int32_t tech = 0;
+    if (auto* w = dynamic_cast<const mech3::WeaponItem*>(it)) tech = w->tech;
+    if (auto* q = dynamic_cast<const mech3::EquipmentItem*>(it)) tech = q->tech;
+    o << it->kind() << ' ' << it->id() << ' ' << tech << ' ' << it->count << ' ' << int(it->b10) << ' ' << it->group
+      << ' ' << it->part << '\n';
+  }
+  zfix::options().bugs = saved;
+  const std::string all = o.str();
+  if (static_cast<int>(all.size()) >= size) return -1;
   std::memcpy(out, all.c_str(), all.size() + 1);
   return static_cast<int>(all.size());
 }
