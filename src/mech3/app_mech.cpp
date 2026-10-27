@@ -109,6 +109,11 @@ zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
 // has none (the cameras, the effects by name, the game type, the error box).
 class WiredData : public MechDataHooks {
  public:
+  // The pilot's game by type: 3 (0x00479480) or 2 (0x00479460), a non-zero
+  // handle when it is that one.
+  uint32_t game_multiplayer() override { return mission_game_type() == 3 ? 1 : 0; }
+  uint32_t game_instant_action() override { return mission_game_type() == 2 ? 1 : 0; }
+ public:
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
@@ -248,6 +253,8 @@ class WiredBuild : public MechBuildHooks {
     shade_level_reset(*static_cast<ShadeLevel*>(ref), WiredShade::id(n));
   }
   void entity_update(Mech& m) override { m.refresh_markers(); }  // 0x005a8500
+  // 0x004d9840 on +0x5c: the pilot's AI settings' defaults (ai::AiParams's).
+  void controls_brain_init(PlayerControls& c) override { c.settings = ai::AiParams{}; }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
@@ -300,6 +307,7 @@ class WiredLaunch : public LaunchHooks {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
   Handle missions() override { return h(0x6098d0); }
+  void fn_491d20(Handle) override { program_check_cheats(); }  // 0x00491d20, Missions::check_cheats
   Handle pilot() override { return h(g_w.pilot(g_w.engine)); }
   Handle view() override { return h(g_w.view(g_w.engine)); }
   uint32_t field32(Handle o, uint32_t off) override { return o ? g_w.peek32(g_w.engine, low(o) + off) : 0; }
@@ -319,7 +327,6 @@ class WiredLaunch : public LaunchHooks {
   void view_set_camera(Handle, uint32_t mode) override { program_view_set_camera(static_cast<int32_t>(mode)); }
   // The pilot's vehicle is the mech (as the exe's 0x004782c0 sets it).
   void pilot_set_mech(Handle p, Mech& m) override {
-    unported("0x004782c0", {low(p), 0});
     set_field32(p, 0x14, g_w.handle_of(g_w.engine, &m));
     // The mech's +0x684, its MechData, for the draw paths' HUD calls (0x00430aa0).
     if (m.pilot) g_w.poke32(g_w.engine, g_w.handle_of(g_w.engine, &m) + 0x684, g_w.handle_of(g_w.engine, m.pilot));
@@ -377,10 +384,9 @@ class WiredLaunch : public LaunchHooks {
     m.update(dt);
   }
   // 0x00478f10(0) at a campaign's launch: the pilot the screen chose, settled
-  // and saved (pilot.md section 7); a debug start's stand-in is logged.
-  void pilot_478f10(Handle p) override {
-    if (!program_record_mission(false)) LaunchHooks::pilot_478f10(p);
-  }
+  // and saved (pilot.md section 7); a debug start's stand-in has no campaign
+  // to settle.
+  void pilot_478f10(Handle) override { program_record_mission(false); }
   // 0x0049e5e0 at a campaign's launch: the lancemates' mechs (player.cpp).
   void lancemates() override { program_launch_lancemates(); }
   // 0x0049dc80(1) and 0x0045c4a0 at Instant Action's launch: its line-up,

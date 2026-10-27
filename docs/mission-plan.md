@@ -236,7 +236,10 @@ Small items, each one sitting, in the order a player would notice them.
    0x004d9840, 0x0040aca0, 0x004f7fe0, 0x00430aa0, 0x00479460 / 0x00479480,
    0x004d72a0, 0x00478f10 / 0x004782c0, and c4b's 0x0041aba0 / 0x0041ca30
    / 0x0041cc30. Test: the census and a c4bm4 `--verbose` run without
-   them; mw3tests.
+   them; mw3tests. Done (2026-10-27): the 30 s census is at 73, c4bm4
+   reaches 79, none of these listed. c4b's three were the `c4m4` runs
+   (world c4, no mech); c4bm4 never reaches them. 0x00478f10 was wired
+   already (its log was the debug start's stand-in pilot).
 2. **The quit**: the 180 s census's hang and the intermittent SIGTRAP at
    c1m1's exit. Test: the 180 s census finishes; 20 c1m1 runs with
    `--verbose --shot` exit 0 (with AddressSanitizer once).

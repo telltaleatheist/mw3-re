@@ -13,6 +13,7 @@ void wire_hud();                  // the hooks onto the ports; called with the m
 void unwire_hud();
 void* program_hud_node_object(void* node);  // for the tests: the HUD's reticle pick (0x0040e920 through its hooks)
 void program_hud_update(float dt);
+void program_hud_weapons_layout(void* hud);  // 0x00446240 on its +0x6520
 void* program_pilot_hud(void* mech_data);        // 0x00430aa0 on a MechData (null: null)
 void* program_mech_hud(void* mech);              // 0x00430aa0 on the mech's +0x684 (null: null)
 void program_hud_objectives_fill(void* hud);      // 0x00446ad0 on its +0x17964

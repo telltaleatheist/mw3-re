@@ -1017,3 +1017,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - `--mission c4m4` loads world c4 (no such mission: no mech); c4b's are
   c4bm4..c4bm6. The 180 s census hangs (30 s is fine); one c1m1 quit
   trapped (133) once in four; c4m2 is 8x slower headless.
+
+## Mission-plan item 1 (2026-10-27): the hooks still reached
+
+- Branch mac4/wire-hooks. Wired in the program's hooks (the defaults stay:
+  test_mech_build records 0x004d9840 / 0x00491d20 through them): the cheat
+  check, the brain's settings, the view's constructor log, find_node /
+  node_set_active / camera_set_lod_scale, the HUD screen (0x00430aa0) and
+  its weapons layout, the game-type answers, ai_targets_shutdown.
+- c4b's 0x0041aba0 / 0x0041ca30 / 0x0041cc30 came from `c4m4` (no mech).
+- `MW3_TRACE_UNPORTED` found 0x00430aa0's caller (MechCamera::set_look).
+- Census 84 -> 73; c4bm4 79; mw3tests 205/0.

@@ -1430,6 +1430,7 @@ struct WiredObjectiveHooks : ObjectiveHooks {
 WiredObjectiveHooks g_objective_hooks;
 
 struct WiredMissionHooks : MissionHooks {
+  Handle multiplayer() override { return e->launch().type == 3 ? 1 : 0; }  // 0x00479480
   WiredObjectiveHooks& ob() { return g_objective_hooks; }
   // The cleanup 0x00491780's calls that have ports (docs/mission-frame.md,
   // The cleanup): zClass's delete mode, the view let go of the player's mech
@@ -1855,8 +1856,8 @@ struct WiredMissionHooks : MissionHooks {
     e->poke32(mem + 4, window);
     return mem;
   }
-  Handle make_view(Handle mem, Handle camera, Handle window, Handle x) override {
-    unported("0x0040aca0", {mem, camera, window, x});
+  // 0x0040aca0 is PlayerView's constructor (player_view.cpp), the program's.
+  Handle make_view(Handle mem, Handle camera, Handle window, Handle) override {
     e->set_mission_view(mem, camera);
     program_view_make(mission_node(*e, camera));
     return mem;
@@ -2070,6 +2071,7 @@ int32_t mission_operation() {
   const CampaignGame* c = launch_campaign(g_mission_engine);
   return c ? c->operation() : g_mission_engine->launch().op;
 }
+void program_check_cheats() { missions().check_cheats(); }
 ActionGame* mission_action_game() { return g_mission_engine ? launch_action(g_mission_engine) : nullptr; }
 void mission_action_add(int32_t field, int32_t kills) {
   ActionGame* a = mission_action_game();
