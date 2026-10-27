@@ -183,7 +183,9 @@ patched in (above).
 
 Results (2026-10-20): 300 frames on each of the six missions identical
 (1.52 billion words compared, 48,406 floats within 1e-4 relative, worst
-3.6e-6), with 862 plain starts, 249 at a pose, 123 at a node (instances),
+3.6e-6; since 2026-10-27 only words that are normal floats on both sides
+get the tolerance, the rest are compared exactly: the six missions still
+match, the same words within it), with 862 plain starts, 249 at a pose, 123 at a node (instances),
 244 resets, 206 stops, 52 invalidations, 248 rams and 260 weapon hits. Event
 types run (default 60-frame run): 1, 2, 4..15, 17, 18, 22..25, 27, 30..35,
 41, 42. Never reached by the runs: 19 call connector and 26 reset (12 and 3
