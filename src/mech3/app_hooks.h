@@ -500,7 +500,15 @@ class Engine : public zgame::AppHooks {
     unported("0x00588a60", {session});
     return "";
   }
-  virtual void action_open() { unported("0x0048aac0", {}); }  // the Instant Action setup after the pilot
+  // The Action screen's reset (0x0048aac0 on the Action State's screen) after the pilot.
+  virtual void action_open(Handle screen) {
+    (void)screen;
+    unported("0x0048aac0", {});
+  }
+  // The Action screen's: a mech's loadouts, through its definition (0x004846a0,
+  // ported: mech3::mech_dfn; null without one), and _access (0x00576080).
+  virtual const struct ConfigList* mech_loadouts(int32_t mech);
+  virtual bool file_exists(const char* path);
   virtual void network_set(int32_t on) { unported("0x0047fc40", {on}); }  // the app's network on or off
   virtual void network_leave() { unported("0x0046d100", {}); }  // the network session closed (the quit box's OK)
   virtual void multiplayer_switch(Handle state) { unported("0x0049cb20", {state}); }

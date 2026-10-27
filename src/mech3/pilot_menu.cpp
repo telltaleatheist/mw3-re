@@ -489,7 +489,8 @@ const char* name_of(GameMenuState::Kind k) {
 
 // Mech3.exe 1.2 @ 0x0048a6c0 (its screen 0x00488bc0, new(0x17730)),
 // 0x0048aef0, 0x0048b120, 0x0049c900 (its three screens 0x00493260,
-// 0x00495f90, 0x0049bd80): the screens are not ported (0 here).
+// 0x00495f90, 0x0049bd80): the screens are the engine's to make (the
+// multiplayer ones not ported: 0 here).
 GameMenuState::GameMenuState(Kind k, Handle addr) : MenuState(name_of(k), addr), kind(k) {
   Engine& en = e();
   if (k == kAction) screen_ = en.construct(0x488bc0, {addr});
@@ -511,7 +512,7 @@ bool GameMenuState::enter() {
       if (ap.instant_action_arg()) {  // back from a game: straight on with the pilot
         if (current_pilot()) current_pilot()->select_game(mech3::kInstantAction);
         ap.instant_action_arg() = 0;
-        en.action_open();  // 0x0048aac0
+        en.action_open(screen_);  // 0x0048aac0
         return true;
       }
       break;
@@ -579,7 +580,7 @@ void GameMenuState::resume(uint32_t arg) {
       if (arg == 2) {
         if (p) p->select_game(mech3::kInstantAction);
         shell_resume(1);
-        en.action_open();
+        en.action_open(screen_);
       } else if (arg == 3) {
         shell_resume(0);
         en.pop_state(1);

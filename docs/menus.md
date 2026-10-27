@@ -30,7 +30,7 @@ screen.
 | [0x00609870] | Controls Configure State | 0x0042d9d0 | 0x005be3d8 | 0x0042a590 (0x16c94) | with the state |
 | [0x00609878] | Credits State | 0x004295e0 | 0x005bd938 | 0x004289a0 (0x11ae0) | on entering |
 | [0x00609858] | Pilot State | 0x00488910 | 0x005c54e8 | 0x00486f40 (0x13184) | with the state; pushed by the next four (section 10) |
-| [0x0060985c] | Action State | 0x0048a6c0 | 0x005c5b10 | 0x00488bc0 (0x17730) | with the state (not ported) |
+| [0x0060985c] | Action State | 0x0048a6c0 | 0x005c5b10 | 0x00488bc0 (0x17730) | with the state (section 13) |
 | [0x00609864] | Campaign State | 0x0048aef0 | 0x005c5b40 | none | |
 | [0x00609874] | Training State | 0x0048b120 | 0x005c5b70 | none | |
 | [0x00609860] | Multiplayer State | 0x0049c900 | 0x005c7fe8 | three: 0x00493260, 0x00495f90, 0x0049bd80 (not ported) | with the state |
@@ -581,7 +581,7 @@ goes on in its resume (+0x20):
 
 | State | 2 (a pilot) | 3 (cancelled) |
 |---|---|---|
-| Action (0x0048a7b0) | the pilot's Instant Action selected, the shell's resume (1), the Action screen (0x0048aac0, not ported) | resume (0), pop (1) to the main menu; 4: resume (1) |
+| Action (0x0048a7b0) | the pilot's Instant Action selected, the shell's resume (1), the Action screen's reset (0x0048aac0, section 13) | resume (0), pop (1) to the main menu; 4: resume (1) |
 | Campaign (0x0048b000) | when movies are on and the newest save is operation 1, mission 1: the "campaign" movie (fmv.zrd); the shell's resume (1). Its next frame (0x0048af20), the movie done, pops itself (0) and replaces the main menu with the briefing (the Load State, state 6) | pop (1) |
 | Training (0x0048b170) | resume (1), pop (0), the pilot's training selected, the briefing replaces the menu | resume (0), pop (1) |
 | Multiplayer (0x0049cbb0) | resume (1), the network on (0x0047fc40), a lobby pilot made when there is none, its multiplayer game selected, the screens told (0x00494920; not ported) | resume (0), the network off, pop (1); 4: resume (1), 0x0049b660 |
@@ -822,14 +822,143 @@ close with and without a command on the mouse, every bound button pressed,
 the destructor; 60 runs match; 19 of 19 planted breaks caught, once the
 dump took in the backdrop, which is not in the dialog's list).
 
-## 13. Left
+## 13. The Action screen (0x00488bc0, vtable 0x005c5518)
+
+Instant Action's setup, between the pilot screen and the briefing. The
+Action State (0x0048a6c0, "Action State", vtable 0x005c5b10) makes it with
+itself (new(0x17730)); its enter (0x0048a750) is the shell's, the pilot
+screen's game set to 2 and then, back from a game ([0x00608e47], the app's
++0x1bf), the pilot's Instant Action selected, the flag cleared and the
+screen reset, or else the pilot screen pushed. Its resume (0x0048a7b0): 2 (a
+pilot) selects the pilot's Instant Action, the shell's resume (1) and the
+reset; 3 the shell's resume (0) and a pop (1); 4 the shell's resume (1).
+
+**The screen**, ACTIONDIALOG of the main menu's dialog.zrd tree, with the
+main menu's BACKGROUND (as the pilot screen's), LINES, LINES1 (not in the
+shipped dialog), LINES2, LINES3, ALLY_TITLE (the INSTANT ACTION and ALLIES
+titles: one ShellButton with two labels), CANCEL and ACCEPT; FastMenu bakes
+those. Then the cycles (section 2's cycle button):
+
+| Offset | Name | Vtable | |
+|---|---|---|---|
+| +0x111ec | DATABASE_LIST | 0x005c5870 | the world: c1..c4 (0xe33..0xe36: Big Lake and the others), value 0..3 |
+| +0x11618 | SCENARIO_LIST | 0x005c5720 | the scenario (table below), value its row; stepping (0x00489390) refills the enemies |
+| +0x11a44 | SCENARIO_DESC | 0x005c57c8 | its description, stepped with it |
+| +0x11fc8 | ALLY_LIST x5 | 0x005c5918 | 0x434 apart: the commander's mech, the mobile field base, three lancemates |
+| +0x134cc | ENEMY_TITLE | 0x005c57c8 | a cycle with no choices |
+| +0x138f8 | ENEMY_LIST x6 | 0x005c59c0 | 0x868 apart, each with its ENEMY_CONFIG_LIST (0x005c5a68) at +0x434 |
+| +0x16b68 | ENEMY_WAVE | 0x005c5678 | the wave, in Progression only |
+| +0x16fa8, +0x17194 | CANCEL, ACCEPT | slide buttons, ids 3 and 4 | |
+
+The five ALLY_LIST, six ENEMY_LIST and six ENEMY_CONFIG_LIST are one control
+each in the dialog, bound again and again: each copy is placed at the first
+one's place plus its OFFSET (read as two ints, 0x00489580) times its number.
+Every cycle of the screen reads its LABEL's `font` and `inactive_font` (the
+second defaulting to the first; 0x00489320): a choice of none shows in the
+inactive one. The worlds and scenarios get their choices at once (whether
+or not the dialog loaded); the enemies' configurations are hidden.
+
+The scenarios (0x005e6fb0, 16 bytes; 0x005e7010 = 6, the first "None"):
+
+| Row | ia | Mode (ActionGame +0x44) | Name, description |
+|---|---|---|---|
+| 1 | ia1 | 0 | Battle (0x282, 0x283) |
+| 2 | ia1 | 1 | Battle Waves (0xdaf, 0xdb0) |
+| 3 | ia1 | 2 | Battle Progression (0x284, 0x285) |
+| 4 | ia2 | 3 | Attack (0x286, 0x287) |
+| 5 | ia3 | 4 | Defend (0x288, 0x289) |
+
+**The reset** (0x0048aac0, on entering): the world and scenario chosen as
+kept ([0x00605874], [0x00605878]: the row, the description too); the
+commander's list every mech but 7 ("Commander: %1", 0x18b), the field base
+off (-1) or on (10), each lancemate none or every mech but 7 ("Lancemate:
+%1"); in Progression the waves listed up to the pilot's best (+0x68, at most
+"Wave 20") and its wave shown, else every mech for the enemies (below); then
+the kept allies' rows ([0x00605820..]) and, in Progression, the wave: the
+best or the kept one ([0x0060587c]), whichever is higher, stepped by 0 (so
+shown). The kept choices are saved in the pilot's file with its Instant
+Action record (pilot.md).
+
+**The enemies.** A wave (0x0048a810, fixed): each enemy the wave's mech or
+none (0x005e33a8, the line-up's table), its arrows off, in the inactive
+font; its configuration list only the wave's loadout. Custom (0x0048a930):
+the first enemy every mech (no none; the player's mech chosen), the others
+none and every mech, arrows on, then the kept rows ([0x00605838] the mechs,
+[0x00605858] the loadouts). Choosing an enemy's mech (0x00489c10) lists
+that mech's loadouts from its definition (0x004846a0; none hides the list),
+never a training one; one loadout shows without arrows in the inactive
+font. ENEMY_WAVE's step (0x00489710) shows the chosen wave.
+
+**ACCEPT** (0x0048a140): the pilot's ActionGame emptied (+0x7c = 0); the
+scenario's mission is looked for (`..\data\<world>\zrdr\aipath\ia<n>` or
+`.\zbd\<world>\readeria<n>.zbd`, _access) and without it an earlier row
+taken; the mode (+0x44), the world's name (+0x38), the scenario's name
+(+0x3c, the objectives' Instant Action header) and description (+0x40); the
+field base (+0x48); the commander's mech on the player's slot; each
+lancemate added on the player's side; the wave (+0x6c): the chosen one + 1
+in Progression, else 1 and each enemy added with a copy of its loadout; the
+world (+0x74) and mission (+0x78); the choices kept, the pilot saved, a pop
+(0) and the briefing (Replace with the Load State, 6). CANCEL pops (1).
+Either button, and any other id, then draws everything again.
+
+Quirks kept: the commander is chosen by the mech's number, not its row
+(mech 7 has none), so past 7 the next mech would show; the kept row, set
+from the first ACCEPT on, replaces it. With no choice an enemy list reads
+as mech 0, so an empty one (at the screen's making) lists the Annihilator's
+loadouts. Stepping off a scenario keeps the line-up unless it was None or
+Progression, and the test for Progression's wave reads the same list, so
+the wave is kept only by ACCEPT. The fallback's reader is looked for without
+".zbd" (never there), so only its AI paths count. Fixed (fixes.md): after
+the 20th wave won, the reset shows the wave past the table (the strings
+after it as mechs) before stepping back to Wave 1; here none. ACCEPT reads
+the world's name unchecked (the shipped screen always has one).
+
+**The port.** `mech3::ActionScreen` and its cycles (action_menu.h); the
+program's `construct(0x00488bc0)` makes it and `action_open` (the Action
+State's enter and resume) resets it. The loadouts come through
+`Engine::mech_loadouts` (mech3::mech_dfn), the files through
+`Engine::file_exists`. A loadout choice's value is its index (FIX (A): the
+exe keeps the Config's address).
+
+**Testing.** `test_actionscreen.py` (40 runs: 40/40 identical, about
+595,000 calls): the Action State and its screen made before or after a
+pilot (the pilot module real over test_pilot.py's fake file system), each
+mech's loadouts made by the exe's own 0x00423d00 (some for training, some
+mechs without a definition), the kept choices and the pilot's best wave and
+mech at random, _access answering at random; then 30 to 90 frames of mouse
+input over the cycles and their arrows, presses, choices (in and out of
+range) and steps of every cycle, the wave and custom fills, the reset, the
+state's enter and resume, CANCEL and ACCEPT. Compared: every call, the
+dialog and its objects, every cycle, the screen's fill state, the kept
+choices, the pilot's ActionGame (its line-up with each loadout by name) and
+the pilot file's bytes. Even runs use the shipped dialog, odd runs a
+synthetic one (the line-up lists moved and re-offset, labels without
+`inactive_font`, buttons moved or missing). The fix above is applied to the
+original by a hook. 60 runs: 60/60, about 876,000 calls.
+
+Breaking the port showed the test catches it, 34 of 35 (40 runs each): the
+inactive font not read, OFFSET's two swapped, the line-up kept leaving
+Progression, the description not stepped, the best wave capped at 21, the
+enemies not stepped, none in the normal font, none read as mech 0 skipped,
+training loadouts listed, the wave's loadout from its first slot, arrows
+with one loadout, the wave step one off, 21 waves listed, arrows with one
+wave, the copies not offset, the worlds' values from 1, CANCEL popping 0,
+the enemies kept in Progression, a wave left choosable or with arrows, the
+first enemy offering none, the kept enemies ignored, the commander by row,
+mech 7 listed, the field base's value, the kept wave's maximum swapped, no
+fallback, the fallback with ".zbd", lancemates on the enemy side, the wave
+not plus one, enemies without loadouts, the field base always on, the
+mission from the row, the pilot not saved. Missed, and unobservable: the
+loadout lists shown at the making (the first enemy step hides or shows each
+again).
+
+## 14. Left
 
 - The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its lists
   (0x0044b215..0x0044bc5c), on the same widgets; the file list's layout with
   a font for the rows it may not light (0x0048ccf0, +0x6cc: a list of the
   mech lab's; the pilot screen's lists use the plain 0x0048cda0).
-- What follows the pilot screen: the Action screen (0x00488bc0, its state's
-  0x0048aac0), the multiplayer screens and their network (0x0047fc40,
+- What follows the pilot screen: the multiplayer screens and their network (0x0047fc40,
   0x00494920, 0x0049cb20, 0x0049b660); the campaign and training go on to the
   briefing (the Load State, ported), which reaches the pilot's game through
   the module-memory handle at [0x0060861c] (not yet bridged, pilot.md).

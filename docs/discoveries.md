@@ -2798,6 +2798,37 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   shows every save as "Op N, Mission M" with the newest chosen; choosing
   another row plays that one. The fresh start (Op 1, Mission 1) is always
   the first row and is never saved itself.
+
+### The Instant Action screen
+
+The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
+`menus.md` section 13).
+
+- **Five scenarios on three maps of each world.** Battle, Battle Waves and
+  Battle Progression all play the world's first Instant Action map (ia1),
+  Attack the second (ia2), Defend the third (ia3); the four worlds are the
+  four operations' maps.
+- **A scenario whose files are missing becomes an earlier one.** If the
+  world has no AI paths (nor reader) for the scenario's map, ACCEPT steps
+  back through the list until one has them. The step-back looks for the
+  reader without its ".zbd", so only the AI paths count. Every shipped
+  world has all three maps.
+- **Progression shows only the waves you have reached**, from Wave 1 up to
+  one past your best, and never past Wave 20. Its enemies and their
+  loadouts are fixed by the wave (grey, no arrows); the other scenarios let
+  you pick each of six enemies and its loadout.
+- **Training loadouts are never offered** for enemies, and a mech with a
+  single loadout shows it without arrows.
+- **The screen remembers your line-up**, world and scenario between games
+  (in the pilot file). Switching scenarios keeps what you set, except when
+  leaving Battle Progression: its wave is kept only when you press ACCEPT.
+- **Before any Instant Action is set up, the commander is the
+  Annihilator**, whatever mech the pilot has: the remembered choice (the
+  first row until one is saved) wins over the pilot's own mech. The code
+  meant to pick the pilot's mech would pick the wrong row anyway for mechs
+  after the seventh (that one has no row).
+- **The mobile field base** is a choice of its own (on or off), not a
+  lancemate.
 - **Training remembers which missions you passed** (PASS / INCOMPLETE) and
   opens on the first one not passed.
 - **Names that differ only in capitals share one file.** "Bob" and "BOB" are

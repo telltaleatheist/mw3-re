@@ -927,3 +927,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   the half). mw3 --movie NAME (ours): on a clock stepping 1/60 s a poll each
   frame is drawn once; every block drew its AVIs' dwLength frames, the last
   dwLength - 1.
+
+## Item 12a (2026-10-27): the Action screen
+
+- Branch mac4/instant-action off main 290b3af. Item 12 split: 12a the
+  Action screen and its state (0x00488bc0..0x0048aac0, the ACCEPT's
+  ActionGame fill); 12b the launch from it (the 0x00470e30 store, the 0x231
+  header, the IA Dummy State, headless wave 1 to the tallies).
+- Mapped from the asm (the decompile loses ECX in 0x0048aac0, 0x0048a810,
+  0x0048a930): the five scenarios (0x005e6fb0: ia mission, mode, name,
+  description), the worlds 0xe33..0xe36, the line-up's copies placed OFFSET
+  apart, the enemies' loadouts from the definitions (training ones never),
+  the progression waves (0x004897b0, at most 20).
+- Ported as action_menu.{h,cpp}; the program's construct(0x00488bc0) makes
+  it, action_open resets it. Live: --click-at 60,180@40 (INSTANT ACTION),
+  a pilot typed, ACCEPT: the screen as the original (outbox 2026-10-27/ia).
+- The decompile's 0x0048a140 read the world's row as the scenario's: the
+  emulator's crash (an out-of-range world, read unchecked) showed +0x38 is
+  the world's name. A wave outside the table (the best 20 at the reset, or
+  below 0) reads strings as mechs: FIX (bug), hooked in the test.
+- test_actionscreen.py: 60/60 (876k calls, the pilot file's bytes too);
+  breaks 34/35 (the miss unobservable). The first batch missed four: the
+  dump lacked the items' values, and the best wave 20 was rare (weighted).

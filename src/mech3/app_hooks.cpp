@@ -8,6 +8,7 @@
 
 #include "crt/msvc_rand.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_reader.h"
 #include "mech3/mech_salvage.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_light.h"
@@ -323,6 +324,11 @@ void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
 }
 const char* Engine::version_number() { return "1.2"; }
 const char* Engine::mission_dir(uint32_t n) { return mech3::mission_dir(static_cast<int32_t>(n)); }
+const ConfigList* Engine::mech_loadouts(int32_t mech) {
+  const MechDfn* d = mech3::mech_dfn(mech);
+  return d ? d->configs : nullptr;
+}
+bool Engine::file_exists(const char* path) { return zutl::exists(path); }
 
 void Engine::cd_pause() { zsnd_cd::pause(); }
 void Engine::cd_resume(int32_t mode) { zsnd_cd::resume(mode); }
