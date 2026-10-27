@@ -66,7 +66,7 @@ PARTS = [WORLDS, SCENARIOS, DESC, WAVES] + ALLIES + ENEMIES + CONFIGS + [CANCEL,
 FIXED, WAVE, FILLING = 0x16f9c, 0x16fa0, 0x16fa4
 STATE_NEW, STATE_ENTER, STATE_RESUME = 0x48a6c0, 0x48a750, 0x48a7b0
 RESET, SHOW_WAVE, SHOW_CUSTOM = 0x48aac0, 0x48a810, 0x48a930
-CREATE, SELECT_GAME, CONFIG_NEW, IA_DUMMY = 0x4788b0, 0x478250, 0x423d00, 0x47ce80
+CREATE, SELECT_GAME, CONFIG_NEW, IA_DUMMY, TR_DUMMY = 0x4788b0, 0x478250, 0x423d00, 0x47ce80, 0x491ab0
 APP_IA_ARG, CURRENT, MAIN_MENU, PILOT_STATE = 0x608e47, 0x60861c, 0x609854, 0x609858
 SETUP = 0x605820
 VT_GAME = test_pilotscreen.VT_GAME
@@ -228,7 +228,8 @@ def make_plan(seed, spots):
         lines.append(mouse_line(r, spots, state))
     lines += ['B 4']
     if r.random() < 0.5:  # back from that game: the IA Dummy State saves the record last
-        lines += [f'Z {r.choice([0, 1]):x} {r.choice([0, 1]):x}', f'V 4c {r.randrange(9):x}', 'J']
+        lines += [f'Z {r.choice([0, 1]):x} {r.choice([0, 1]):x}', f'V 4c {r.randrange(9):x}',
+                  r.choice(['J', f'TR {r.randrange(1, 5):x}'])]
     lines.append('E')
     return lines
 
@@ -434,6 +435,12 @@ class Original:
                 e.cpu.write(0x609925, bytes([pv[0], pv[1]]))
             elif op == 'J':
                 e.call(IA_DUMMY, ecx=0x608bd0)
+            elif op == 'TR':
+                pl = self.pilot()
+                if pl:
+                    e.call(SELECT_GAME, ecx=pl, stack=(4,))
+                    e.w32(e.r32(pl + 0x78) + 0x40, pv[0])
+                e.call(TR_DUMMY, ecx=0x6098c8)
             elif op == 'D':
                 self.make_dfn(pv[0], p[2:])
             elif op == 'S':
@@ -590,7 +597,8 @@ class Original:
                f'x74={e.r32(g + 0x74):x} x78={e.r32(g + 0x78):x} count={e.r32(g + 0x7c):x} '
                f'slot={e.r32(g + 0x24):x} cur={(VT_GAME.get(e.r32(cur), -9) if cur else -1) & 0xffffffff:x} '
                f'stats={",".join(f"{e.r32(g + 0x4c + 4 * i):x}" for i in range(8))} '
-               f'app={e.r8(0x608e44):x},{e.r8(0x608e47):x} '
+               f'app={e.r8(0x608e44):x},{e.r8(0x608e47):x},{e.r8(0x608e46):x} '
+               f'tr={"".join(str(e.r8(e.r32(pl + 0x78) + 0x3c + i)) for i in range(4))} '
                f't38={text(e.r32(g + 0x38))} t3c={text(e.r32(g + 0x3c))} t40={text(e.r32(g + 0x40))}')
         for i in range(10):
             sl = g + 0x80 + 0x18 * i

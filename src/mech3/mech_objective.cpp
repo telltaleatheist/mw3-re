@@ -812,21 +812,32 @@ bool training_load(TrainingLessons& t, const char* file, const char* block, Obje
     const std::string set = std::string(block) + "_set";
     Node* v = zrdr::find(root, set.c_str());
     if (v && v->type == zrdr::List) {
+      // Quirk kept: the exe reads each into the mission's slots and clears only
+      // the four groups between them, so a lesson without a description has
+      // the last read's (the block's own, read or not, at first); without
+      // any lesson the mission keeps the last read's.
+      std::optional<std::string> carry = mission.desc;
       for (int32_t i = 1; i < count_of(v); ++i) {
         if (v->list[i].type != zrdr::List) continue;
         auto o = std::make_unique<Objectives>();
-        if (read_objectives(&v->list[i], *o, h)) {
+        o->desc = carry;
+        const bool read = read_objectives(&v->list[i], *o, h);
+        carry = o->desc;
+        if (read) {
           ok = true;
           t.add(std::move(o));
         }
       }
+      mission.desc = carry;  // (the exe reads into the mission's slot)
     }
     if (!ok) {
       for (int32_t n = 1;; ++n) {
         const std::string name = std::string(block) + std::to_string(n);
         auto o = std::make_unique<Objectives>();
         Node* b = zrdr::find(root, name.c_str());
-        if (!b || !read_objectives(b, *o, h)) break;
+        const bool read = b && read_objectives(b, *o, h);
+        mission.desc = o->desc;  // cleared, then the read's (the mission's slot)
+        if (!read) break;
         ok = true;
         t.add(std::move(o));
       }
