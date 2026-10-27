@@ -194,7 +194,9 @@ void dump_game(std::ostringstream& o) {
     << " cur=" << (p->current ? p->current->type() : -1) << " stats=" << g->player_kills << ',' << g->lancemate_kills
     << ',' << g->enemy_kills << ',' << g->attack_wins << ',' << g->attack_losses << ',' << g->defend_wins << ','
     << g->defend_losses << ',' << g->waves << " app=" << int(mech3::app().reopen_instant_action()) << ','
-    << int(mech3::app().instant_action_arg()) << std::dec << " t38=" << str(g->x38)
+    << int(mech3::app().instant_action_arg()) << "," << int(mech3::app().reopen_training()) << " tr="
+    << int(p->training->passed[0]) << int(p->training->passed[1]) << int(p->training->passed[2])
+    << int(p->training->passed[3]) << std::dec << " t38=" << str(g->x38)
     << " t3c=" << str(g->x3c) << " t40=" << str(g->x40);
   for (int i = 0; i < 10; ++i) {
     const mech3::GameSlot& s = g->lineup[i];
@@ -319,6 +321,13 @@ int probe_actionscreen_run(const char* reader, const char* dir, uint32_t state, 
       mech3::missions().aborting = static_cast<uint8_t>(hex(ls));
     } else if (op == "J") {  // the IA Dummy State entered (0x0047ce80)
       mech3::states().ia_dummy.enter();
+    } else if (op == "TR") {  // the TR Dummy State entered (0x00491ab0) with that training mission
+      const uint32_t m = hex(ls);
+      if (mech3::Pilot* p = mech3::current_pilot()) {
+        p->select_game(mech3::kTraining);
+        p->training->mission = static_cast<int32_t>(m);
+      }
+      mech3::states().tr_dummy.enter();
     } else if (op == "S") {
       st = std::make_unique<ProbeActionState>(state);
       s = engine.screen;

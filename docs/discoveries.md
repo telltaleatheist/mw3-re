@@ -2811,6 +2811,12 @@ Training's types).
 - **Aiming at a building counts its parts:** the reticle's aim on any part
   under the named object counts, climbing up while each part has a single
   parent.
+- **A training mission is a chain of small lessons,** each its own
+  objectives: the first training mission has fourteen (start, power down
+  with S, turn to the instructor...). Winning one starts the next at once,
+  with no "mission complete" voice; only after the last does the mission
+  end. Passing a training mission is saved in the pilot file only when the
+  mission ends won; you then land back on the pilot screen for training.
 - **The game has unused lesson types:** a key press (with Ctrl, Alt or
   Shift), a mouse button, a joystick button, a weapon group, and "look at"
   with the view camera, none of which any shipped lesson uses. A time limit

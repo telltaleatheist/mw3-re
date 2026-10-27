@@ -62,10 +62,10 @@ ACCEPT back).
   Ported end to end (items 12a and 12b): the Action screen and its
   ActionGame, the store, the launch, the header, the IA Dummy State.
 - **Training**: main menu -> pilot -> the training game (type 4, t1) ->
-  Load (training's briefing: no MECHLAB, SALVAGE, REPLAY) -> the lessons:
-  objectives.zrd's fourteen training condition types are unported
-  (objectives.md: "piece 5"), so the lessons never complete; the training
-  sequence's fade (0x006098c8) is unported.
+  Load (training's briefing: no MECHLAB, SALVAGE, REPLAY) -> the lessons
+  (objectives.md, Training's types and lessons) -> the end screen's fade to
+  the TR Dummy State (campaign.md 12) -> Main, training again. Ported
+  (item 13).
 - **Multiplayer**: out of scope (the network work).
 
 ## 3. The movies (zFMV, Indeo 5)
@@ -184,8 +184,11 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
       (hud.md 24), the IA Dummy State and CONTINUE's round (campaign.md
       11; test_actionscreen.py), the kill tallies; headless:
       instant_action_menus_to_wave1_tallies_headless.
-13. **Training**: the fourteen training condition types (objectives.md
-    piece 5) and the training sequence's fade. Test: test_objectives.py's
-    shipped t1 blocks; headless t1 lesson 1 completed.
+13. **(Done) Training**, in two: 13a the fourteen training condition
+    types (objectives.md, Training's types; test_objectives.py's t1 blocks,
+    test_objective_check.py); 13b the lessons (objectives.md, Training's
+    lessons; test_training_lessons.py), the "training sequence's fade",
+    which is the TR Dummy State (campaign.md 12), the program's answers for
+    the checks; headless training_menus_to_lesson3_headless (m11, m12, m13).
 
 Multiplayer stays with the network work.

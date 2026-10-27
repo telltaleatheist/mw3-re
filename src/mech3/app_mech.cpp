@@ -1547,6 +1547,26 @@ void program_mech_set_attacker(void* mech, void* attacker) {
   if (entity_is_mech(mech)) static_cast<Mech*>(mech)->attacker = attacker;
 }
 // For the tests: a dead mech hidden and deleted as instant action does at 180 s (0x0041e140).
+void* mech_target_contact(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->target : nullptr; }
+int32_t mech_aimed_part(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->xf8 : -1; }
+uint32_t mech_heat_state(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->heat_state : 0; }
+// Mech3.exe 1.2 @ 0x004b04c0 and its +0x28 (the exe reads a null weapon's; -1 here).
+int32_t weapons_current_index(void* wm) {
+  const Weapon* w = wm ? static_cast<WeaponManager*>(wm)->current() : nullptr;
+  return w ? w->index : -1;
+}
+int32_t weapons_group(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->group : -1; }
+float hud_speed(void* hud) { return hud ? static_cast<Hud*>(hud)->gauges.speed : 0.0f; }
+void* hud_aim_node(void* hud) { return hud ? static_cast<Hud*>(hud)->reticle.hit.node : nullptr; }
+// Mech3.exe 1.2 @ 0x004464d0: a line shown, recycling (+0x111b) and of that weapon (+0x28).
+bool hud_weapon_recycling(void* hud, int32_t weapon) {
+  if (!hud) return false;
+  for (const HudWeaponLine& l : static_cast<Hud*>(hud)->weapons.lines)
+    if (!(l.flags & ztwod::kHidden) && l.x111b && l.weapon && static_cast<const Weapon*>(l.weapon)->index == weapon)
+      return true;
+  return false;
+}
+
 // Mech3.exe 1.2 @ 0x0047ce80 (its loop): as 0x0041e140's tally, for every
 // mech still in zEntity's list.
 void program_action_tally() {

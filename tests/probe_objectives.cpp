@@ -490,4 +490,60 @@ int probe_objective_check_run(const char* archive, const char* block, int type, 
   return 0;
 }
 
+// test_training_lessons.py: training's lessons (0x00437140) read from
+// `block` of `file`, dumped with where the mission's objectives point (the
+// lesson's index, or "own" for a block read straight into them), then
+// `steps` steps (0x004373b0, 0x0045f080), the mission's after each.
+int probe_training_run(const char* archive, const char* file, const char* block, int steps, char* out, int cap,
+                       char* log, int logcap) {
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  Fake h;
+  h.type = 4;
+  TrainingLessons t;
+  Objectives m;
+  const bool ok = training_load(t, file, block, m, h);
+  std::string text = "ok " + hex(ok) + " lessons " + hex(static_cast<uint32_t>(t.list.size())) + "\n";
+  auto mission = [&](const char* tag) {
+    text += std::string(tag) + " cur " + hex(t.current) + " desc " + opt(m.desc);
+    const ObjectiveGroup* g[] = {m.primary.get(), m.secondary.get(), m.final.get(), m.fail.get()};
+    for (const ObjectiveGroup* x : g) {
+      int at = -1;
+      for (size_t i = 0; i < t.list.size(); ++i) {
+        const Objectives& l = *t.list[i];
+        const ObjectiveGroup* lg[] = {l.primary.get(), l.secondary.get(), l.final.get(), l.fail.get()};
+        for (const ObjectiveGroup* y : lg)
+          if (x && x == y) at = static_cast<int>(i);
+      }
+      text += " " + (x ? (at >= 0 ? "L" + hex(at) : std::string("own")) : std::string("-"));
+    }
+    text += "\n";
+  };
+  for (size_t i = 0; i < t.list.size(); ++i) {
+    const Objectives& l = *t.list[i];
+    text += "lesson " + hex(static_cast<uint32_t>(i)) + " desc " + opt(l.desc) + "\n";
+    const ObjectiveGroup* lg[] = {l.primary.get(), l.secondary.get(), l.final.get(), l.fail.get()};
+    for (const ObjectiveGroup* y : lg) {
+      if (y) obj_text(text, y, 1);
+      else text += "  -\n";
+    }
+  }
+  mission("start");
+  for (int k = 0; k < steps; ++k) {
+    const int32_t r = t.next(m);
+    text += "next " + hex(r) + "\n";
+    mission("after");
+  }
+  // (the mission's are the lessons': released before the lessons go)
+  m.primary.release(), m.secondary.release(), m.final.release(), m.fail.release();
+  if (!t.list.empty() || !ok) {
+  } else {
+    // a block read straight in: the mission's own, as the exe leaks them
+  }
+  zrdr::close_archives(true);
+  if (put(text, out, cap) < 0 || put(h.log, log, logcap) < 0) return -1;
+  return 0;
+}
+
 }  // extern "C"

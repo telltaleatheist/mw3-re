@@ -61,6 +61,7 @@
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
+#include "mech3/controls_cfg.h"
 #include "mech3/mech_objective.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_target.h"
@@ -7198,6 +7199,125 @@ TEST(instant_action_menus_to_wave1_tallies_headless) {
     EXPECT(header == zutl::format_message(0x231, {"1", zutl::messages().get_text(0x284)}));
     EXPECT(game && game->player_kills == 2 && game->lancemate_kills == 0 && game->enemy_kills == 0);
     EXPECT(game && game->waves == 1 && game->mode == 2 && game->x74 == 0 && game->x78 == 1);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Training through the menus (frontend-plan item 13): TRAINING, a new pilot,
+// t1's briefing, LAUNCH. The lessons are objectives.zrd's m11.. (the
+// training game's vt+0x40, 0x00437140): m11's 1 s time_limit completes and
+// the win steps to m12 (0x004373b0), whose User_Command waits for
+// CMD_SHUTDOWN's key; pressed, m13 (face the instructor) comes. Then the
+// mission won and left: the end screen fades to the TR Dummy State
+// (0x00491ab0): training mission 1 passed, the pilot saved, the main menu
+// opening training again (the pilot screen).
+TEST(training_menus_to_lesson3_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("training_menus_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    int stage = 0, core_frames = 0, lesson2_at = -1, lesson3_at = -1, lessons = 0;
+    bool reopened = false;
+    mech3::TrainingGame* game = nullptr;
+    auto lesson = [&] { return game && game->lessons ? game->lessons->current : -9; };
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[3].on_left_up();  // TRAINING
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen || !app.pending_list().empty()) return;
+        ps->screen->new_bar.set_text("Trainee");
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || app.current() != &mech3::states().load || !b->loaded) return;
+        game = mech3::current_pilot() ? mech3::current_pilot()->training_game() : nullptr;
+        b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        stage = 3;
+      } else if (stage == 3 && app.current() == &mech3::states().core) {
+        ++core_frames;
+        if (core_frames == 1 && game) lessons = static_cast<int>(game->lessons->list.size());
+        if (lesson2_at < 0 && lesson() == 1) {
+          lesson2_at = core_frames;
+          const uint32_t k = zin::key1_of(mech3::controls_command("CMD_SHUTDOWN")) & 0xff;
+          keys.key(k, true);
+        } else if (lesson2_at > 0 && core_frames == lesson2_at + 1) {
+          keys.key(zin::key1_of(mech3::controls_command("CMD_SHUTDOWN")) & 0xff, false);
+        } else if (lesson3_at < 0 && lesson() == 2) {
+          lesson3_at = core_frames;
+          mech3::missions().ended = 1;  // won: Exit Mission to the end screen
+          mech3::missions().on_command(0x71);
+          stage = 4;
+        }
+      } else if (stage == 4) {
+        if (dynamic_cast<mech3::PilotState*>(app.current())) {
+          reopened = true;
+          stage = 5;
+        }
+      }
+    };
+    CountingPump pump;
+    pump.limit = 2500;
+    pump.stop = [&] { return stage == 5; };
+    app.run(pump);
+    if (std::getenv("MW3_TR_LOG"))
+      std::fprintf(stderr, "TR stage %d lessons %d lesson2 %d lesson3 %d passed %d reopened %d\n", stage, lessons,
+                   lesson2_at, lesson3_at, game ? game->passed[0] : -1, reopened);
+    EXPECT(lessons == 14);  // m11..m114
+    EXPECT(lesson2_at > 1 && lesson3_at > lesson2_at);
+    EXPECT(game && game->passed[0] == 1 && game->passed[1] == 0);
+    EXPECT(reopened);
+    EXPECT(std::filesystem::exists(zutl::write_path("pilots\\Trainee.mw3")));
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

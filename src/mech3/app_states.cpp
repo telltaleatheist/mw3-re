@@ -145,6 +145,26 @@ bool IaDummyState::enter() {
 }
 
 // ---------------------------------------------------------------------------
+// TR Dummy
+
+// Mech3.exe 1.2 @ 0x00491ab0: won ([0x00609925] and not [0x00609926]), the
+// training mission chosen (+0x40) passed (+0x3b + it) and the pilot saved.
+bool TrDummyState::enter() {
+  Engine& en = e();
+  if (en.mission_ended() && !en.mission_failed()) {
+    Pilot* p = current_pilot();
+    if (TrainingGame* t = p ? p->training_game() : nullptr) {
+      if (t->mission >= 1 && t->mission <= 4) t->passed[t->mission - 1] = 1;  // (the exe writes +0x3b + any value)
+      p->save();
+    }
+  }
+  en.mission_cleanup(1);
+  a().set_reopen_training(1);  // 0x0047fe00(1)
+  en.replace_state(2);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Intro
 
 // Mech3.exe 1.2 @ 0x00482070. -nofmv skips INTRO only: the SPLASH logos in

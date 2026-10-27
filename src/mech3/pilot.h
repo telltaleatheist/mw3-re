@@ -295,6 +295,9 @@ class TrainingGame : public Game {
   int32_t x38 = 0;                   // +0x38
   uint8_t passed[4] = {};            // +0x3c  each training mission's PASS (mission n at +0x3b + n)
   int32_t mission = 1;               // +0x40  the one chosen, 1..4
+  // +0x44: the mission's lessons (mech_objective.h), vt+0x40 0x00437140 reads
+  // them, vt+0x44 0x004379d0 frees them.
+  std::unique_ptr<struct TrainingLessons> lessons;
 };
 
 // The pilot (0x00477b20, vtable 0x005c37a0), 0x84 bytes; its file is

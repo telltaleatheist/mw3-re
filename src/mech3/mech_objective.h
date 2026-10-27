@@ -330,6 +330,25 @@ struct Objectives {
   std::unique_ptr<ObjectiveGroup> primary, secondary, final, fail;  // +0x7c..+0x88
 };
 
+// The training game's lessons (its +0x44 object: +0x38..+0x40 the list, 0x14
+// bytes each, +0x44 the current one). The mission's objectives point at the
+// current lesson's (training's objectives_free releases them, the lessons
+// own them).
+struct TrainingLessons {
+  std::vector<std::unique_ptr<Objectives>> list;
+  int32_t current = -1;
+  int32_t add(std::unique_ptr<Objectives> o);  // 0x0045ed40: the old count
+  int32_t select(int32_t i);                   // 0x0045efa0: when in range; the current one
+  int32_t get(Objectives& mission);            // 0x0045efd0: the current one's into the mission's
+  int32_t next(Objectives& mission);           // 0x0045f080: the next one, or none (-1)
+  void clear();                                // 0x0045ef10
+};
+// Mech3.exe 1.2 @ 0x00437140 (the training game's vt+0x40): `block` of
+// `file` as one lesson read into `mission`; else `<block>_set`'s lists, else
+// the blocks `<block>1`, `<block>2`... while they read, each a lesson, the
+// first one given to the mission. False when none reads.
+bool training_load(TrainingLessons& t, const char* file, const char* block, Objectives& mission, ObjectiveHooks& h);
+
 // Mech3.exe 1.2 @ 0x0045c2d0: `block` of `file` into `o`; false when the file
 // or block is missing or no group has an objective.
 // `dir` (the mission's directory, or null) picks the data typos fixed after
