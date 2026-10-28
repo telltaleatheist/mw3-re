@@ -13,6 +13,7 @@
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_twod_host.h"
+#include "gamez/zinterp/zinterp.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
@@ -569,6 +570,9 @@ void weapon_list_run(bool d3d, BarRun& out) {
   zrdr::close_archives(true);
   mech3::reset_states();
   mech3::options() = mech3::Options{};
+  // The interp's scroll list, which the world's unload (0x005964c0(1)) would
+  // empty: the next run's set-up resets its nodes (0x005964c0(0)).
+  zint::scroll_list_init();
 }
 
 TEST(sdl_program_weapon_list_shows_the_recharge) {
@@ -701,6 +705,7 @@ static ClickRun click_run(int hold_frames, bool bugs) {
   zrdr::close_archives(true);
   mech3::reset_states();
   mech3::options() = mech3::Options{};
+  zint::scroll_list_init();  // as the weapon list's run
   return out;
 }
 TEST(sdl_program_mouse_click_fires_the_laser) {

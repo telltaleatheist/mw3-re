@@ -19,6 +19,7 @@ class SdlRender3D : public platform::Render3D {
   SdlRender3D(SDL_GPUDevice* device, SDL_Window* window);
   ~SdlRender3D() override;
   bool ok() const { return ok_; }
+  const char* driver_name() const override;
 
   int32_t create_texture(int width, int height, const uint8_t* rgba, uint8_t type) override;
   void release_texture(int32_t handle) override;

@@ -1202,3 +1202,23 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Checks: the c1m1 Owens test (none of the nine keys reached, an option
   set mid-mission reaches the mech and back); shots of c1m1, t1, the main
   menu and c1m1's briefing ("Start" shown), all --nosound (stream day).
+
+## Mission-plan item 15 (2026-10-28): the rest traced
+
+- Branch mac4/trace-rest (off mac4/wire-ported d1bf611). Ported
+  camera_set_listener 0x004f3430 and display_set_size / _origin 0x004fa580
+  / 0x004fa600; wired them, the console's scroll clear, the texture group,
+  WiredBuild's view_set_camera (the options' control-mode path reached the
+  base) and the load screen's driver and mode lines (Render3D::driver_name,
+  new). The launch's camera handle is 0 in engine memory; camera_update
+  falls back to program_view()->camera.
+- Known now 36 (eight added, reasons in program.md). 0x00537520's
+  [0x0072f370] is 0x0057ba80, a Release of the record's system surface.
+- Left listed: 0x00526510, 0x005578f0, 0x00557b30, item 17.
+- Checks: the Owens test (item 15's keys absent, the listener within 15 of
+  the mech); breaks: the WiredBuild override removed, the texture group
+  removed, the listener set off: each fails it. All runs --nosound.
+- mw3sdltests crashed on its second run in one process once 0x005964c0(0)
+  was wired: the first run's nodes stayed on the scroll list (its teardown
+  skips the world's unload). Its two runs now reset the list as
+  mw3tests' reset_process_state does. Shots of c1m1, t1 and the menu draw.

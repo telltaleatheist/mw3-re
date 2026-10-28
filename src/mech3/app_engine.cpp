@@ -1,4 +1,5 @@
 #include "gamez/zeffect/zeff_anim_save.h"
+#include "gamez/zclass/display.h"
 #include "gamez/zclass/window.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
@@ -124,6 +125,13 @@ struct WiredOptionsHooks : OptionsHooks {
   void mech_set_jump_jet_mode(Handle m, int32_t mode) override {  // 0x0041cf30
     if (g_engine) program_mech_control_mode(g_engine->object_of(m), mode);
   }
+  // The display rect onto the mission's display (0x0040d6b0; item 15).
+  void display_set_size(Handle d, int32_t width, int32_t height) override {  // 0x004fa580
+    if (g_engine) zcls::display_set_size(static_cast<zcls::Node*>(g_engine->object_of(d)), width, height);
+  }
+  void display_set_origin(Handle d, int32_t x, int32_t y) override {  // 0x004fa600
+    if (g_engine) zcls::display_set_origin(static_cast<zcls::Node*>(g_engine->object_of(d)), x, y);
+  }
   // The render rect onto the mission's window (0x0040d670; item 12).
   void window_set_size(Handle w, int32_t width, int32_t height) override {  // 0x004f9fa0
     if (g_engine) zcls::window_set_size(static_cast<zcls::Node*>(g_engine->object_of(w)), width, height);
@@ -223,6 +231,14 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x004f8f20", "no effect: zClass's two values set to their defaults (update_frame 1, frozen 0)"},
       {"0x004f3540", "no effect: [0x005ea53c] is never read"},
       {"0x00558070", "no effect: [0x008007dc] / [0x008007e0] are only written"},
+      {"0x005a84c0", "deferred: the stealth object (its name; back burner, vehicles.md)"},
+      {"0x005a7e10", "own: CZAiTarget's defaults, the port's AiTarget initialisers (called with 0)"},
+      {"0x005a7f90", "own: ~CZAiTarget, the port's AiTarget destructor"},
+      {"0x00576c50", "own: zutl::crc32 builds its table on first use"},
+      {"0x00535ed0", "no effect: the threshold is read only by the software draw 0x0053e050"},
+      {"0x004f8f60", "no effect: zSave registration with flag 0; the port's classes_reset registers none either"},
+      {"0x00537520", "no effect: Releases the used textures' system surfaces; the port's record is one Render3D handle"},
+      {"0x00519e50", "deferred: zFont's bitmap fonts with TextBase's measure and draw (0x0051a0d0, 0x005ae170), unported"},
       {"0x005a8390", "own: a target's centroid and target nodes (zent::marker_nodes); its name is 0, its +0x0c unread"},
   };
   return k;
@@ -588,6 +604,12 @@ void GameEngine::effects_shutdown() { zeff::effects_shutdown(); }
 void GameEngine::decals_set_mode(int32_t v) { zdec::set_mode(static_cast<uint32_t>(v)); }
 void GameEngine::decals_shutdown() { zdec::decals_free(); }
 void GameEngine::missions_shutdown() { mech3::mech_types_close(); }
+const char* GameEngine::video_driver_label() const { return p_.render ? p_.render->driver_name() : "Default"; }
+const char* GameEngine::video_mode_label() {
+  static char buf[32];
+  std::snprintf(buf, sizeof buf, "%d x %d x 16", width_, height_);
+  return buf;
+}
 // 0x00576ce0 -> 0x00577770: a DDBLT_DEPTHFILL Blt over `rect`, the whole
 // depth surface for 0 (the Core state's start).
 void GameEngine::video_clear_a(Handle rect) {

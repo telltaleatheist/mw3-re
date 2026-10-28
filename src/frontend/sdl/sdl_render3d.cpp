@@ -1,3 +1,4 @@
+#include <string>
 #include "frontend/sdl/sdl_render3d.h"
 
 #include <cstddef>
@@ -198,6 +199,14 @@ void SdlRender3D::set_viewport(int x, int y, int w, int h) { vx_ = x, vy_ = y, v
 
 // FIX (A): the frame clear (0x005777f0) fills the back buffer once; here it
 // is kept for the next scene's pass, colour and depth (depth to 0).
+// The GPU driver SDL picked: "metal", "vulkan", "direct3d12".
+const char* SdlRender3D::driver_name() const {
+  static std::string name;
+  const char* d = dev_ ? SDL_GetGPUDeviceDriver(dev_) : nullptr;
+  name = std::string("SDL GPU (") + (d ? d : "none") + ")";
+  return name.c_str();
+}
+
 void SdlRender3D::clear(bool color, uint8_t r, uint8_t g, uint8_t b) {
   clear_pending_ = true;
   clear_color_ = color;

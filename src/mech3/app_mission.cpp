@@ -1449,6 +1449,8 @@ struct WiredMissionHooks : MissionHooks {
   void view_fn_40adf0(Handle) override { program_view_detach(); }
   void fn_4b4ab0(Handle) override { radar_objects_create(); }
   void keys_reset() override { zin::kbd_reset(); }  // 0x0051a300
+  // 0x005964c0: the scripts' ScrollAlways list, its offsets zeroed (0) or freed with its holder (1).
+  void interp_5964c0(int32_t v) override { zint::scroll_list_clear(v != 0); }
   void fn_4b4ae0() override { radar_objects_destroy(); }
   void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
   // 0x004582c0 on the mission's map (+0xbc): every map's image released; 0.
@@ -1697,12 +1699,8 @@ struct WiredMissionHooks : MissionHooks {
     e->poke32(h + off, v);
   }
   // The mission unload (Missions::unload, 0x00490480) on the ports.
-  void camera_flag_off(Handle camera) override {  // 0x004f3430(camera, 0): the camera's +0x10 bit 0
-    zcls::Node* n = mission_node(*e, camera);
-    if (n && n->data && n->cls() == 1) {
-      auto* c = static_cast<zcls::Camera*>(n->data);
-      c->put<uint32_t>(0x10, c->get<uint32_t>(0x10) & ~1u);
-    }
+  void camera_flag_off(Handle camera) override {  // 0x004f3430(camera, 0): no longer zSound's listener
+    if (zcls::Node* n = mission_node(*e, camera)) zcls::camera_set_listener(n, 0);
   }
   void mech_types_clear() override { mech3::mech_types_forget(); }  // 0x004318e0
   void mech_defs_clear() override { mech3::mech_types_close(); }    // 0x004844b0: mechlib and the definitions
@@ -1744,6 +1742,8 @@ struct WiredMissionHooks : MissionHooks {
   }
   Handle window_rect() override { return e->window_rect(); }
   Handle display_rect() override { return e->display_rect(); }
+  const char* video_driver_name() override { return e->video_driver_label(); }  // 0x005799f0 (ours)
+  const char* video_mode_name() override { return e->video_mode_label(); }      // 0x00579040 (ours)
   uint32_t video_texture_memory(int32_t dev, uint32_t* total, uint32_t* free_) override {
     const uint32_t r = e->video_card_memory(dev, total);
     *free_ = *total;
@@ -1756,8 +1756,11 @@ struct WiredMissionHooks : MissionHooks {
   // zImage's texture libraries (0x005182a0, 0x005190d0), found through the
   // mounts: each asset root's zbd/<mission>/ and zbd/ (FIX (A): the
   // original's search path "zbd;zbd\<dir>" set by the Load state).
-  void textures_begin(int32_t v) override {
-    unported("0x00516f20", {v});
+  // 0x00518f50: the current texture group.
+  void fn_518f50(int32_t v) override { zimg::textures().group = v; }
+  // 0x00516f20 -> 0x005184e0 with ECX 0 (the only call): the table cleared
+  // and, on Direct3D, the default record ([0x72f364], here g_fallback).
+  void textures_begin(int32_t) override {
     zimg::TextureTable& t = zimg::textures();
     std::memset(t.entries, 0, sizeof t.entries);
     t.count = 0, t.group = 0;
