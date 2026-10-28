@@ -1151,3 +1151,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   the lights' images, the reticle's four.
 - Breaks: hud_free empty (the mission-end test), the reticle's releases
   dropped (test_hud seed 0, call 4869).
+
+## Mission-plan item 10 (2026-10-27): the app's sound set
+
+- Branch mac4/app-sounds (main faefeba). The "sound set" is the app's
+  +0x1e4 passed to two empty functions (0x0040baf0 ret 8, 0x004a5bc0 ret
+  4) by the briefing's load (0x004096b0..); GameEngine answers them and
+  0x0040a7d0 / 0x0040a830. Check in the c1m1 Owens test (break: app_sounds
+  back to the hook).
