@@ -443,7 +443,9 @@ if(SDL3_FOUND)
     )
     target_link_libraries(mw3sdltests PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3sdltests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
-                                                 MW3_TEST_TMP="${CMAKE_BINARY_DIR}")
+                                                 MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
+                                                 MW3_BIN="$<TARGET_FILE:mw3>")
+    add_dependencies(mw3sdltests mw3)
     add_test(NAME mw3sdltests COMMAND mw3sdltests)
   else()
     message(STATUS "SDL3_ttf not found: mw3 is not built (brew install sdl3_ttf)")

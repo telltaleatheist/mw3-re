@@ -3,6 +3,7 @@
 // The program's pieces that run without a window (docs/program.md): the
 // message DLL, the mounts and write dir, the music lookup, and the start-up
 // through InitInstance and the original main loop to the main menu's state.
+#include <chrono>
 #include <cmath>
 #include <algorithm>
 #include <map>
@@ -10,6 +11,9 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
 #include <string>
 #include <tuple>
 #include <vector>
@@ -11022,6 +11026,38 @@ TEST(census_c1m1_unported_headless) {
   p.input = &keys;
   const int seconds = std::getenv("MW3_CENSUS_SECONDS") ? std::atoi(std::getenv("MW3_CENSUS_SECONDS")) : 180;
   const int total = seconds * 60;  // FakeClock: 16 ms a frame, about 60 a second
+  // MW3_CENSUS_MISSION (mission-plan item 22): another mission than c1m1, by
+  // its name (c1..c4 and c4b m<n>, t1).
+  const std::string where = std::getenv("MW3_CENSUS_MISSION") ? std::getenv("MW3_CENSUS_MISSION") : "c1m1";
+  int32_t where_index = -1, where_number = 1;
+  {
+    static const char* kDirs[] = {"c1", "c2", "c3", "c4", "c4b", "t"};
+    const size_t m = where.rfind('m');
+    const std::string dir = where[0] == 't' ? "t" : m == std::string::npos ? "" : where.substr(0, m);
+    for (int32_t i = 0; i < 6; ++i)
+      if (dir == kDirs[i]) where_index = i;
+    where_number = std::atoi(where.c_str() + (where[0] == 't' ? 1 : m + 1));
+  }
+  EXPECT(where_index >= 0 && where_number >= 1);
+  if (where_index < 0) return;
+  // Each 20 s cycle's line (MW3_CENSUS_STATS): its wall time, the process's
+  // memory footprint, the engine's handles, zClass's live nodes and blocks,
+  // the weapon pool's shots in flight.
+  const bool stats = std::getenv("MW3_CENSUS_STATS") != nullptr;
+  auto footprint_mb = [] {
+#if !defined(__APPLE__)
+    return 0.0;
+#else
+    task_vm_info_data_t info{};  // the footprint (compressed pages included), as Activity Monitor's Memory
+    mach_msg_type_number_t n = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&info), &n) != KERN_SUCCESS)
+      return 0.0;
+    return info.phys_footprint / 1048576.0;
+#endif
+  };
+  auto cycle_start = std::chrono::steady_clock::now();
+  double first_ms = 0, last_ms = 0, first_mb = 0, last_mb = 0;
+  size_t first_handles = 0, last_handles = 0;
   std::map<std::string, uint32_t> counts;
   int frames = 0, quit_at = 0;
   size_t most_shots = 0;  // the radar's shot list, emptied each frame
@@ -11031,8 +11067,9 @@ TEST(census_c1m1_unported_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
-    mech3::GameEngine::Launch l;  // c1, mission 1
-    l.mech = 17;                  // the Thor: jump jets
+    mech3::GameEngine::Launch l;
+    l.index = where_index, l.number = where_number;
+    l.mech = 17;  // the Thor: jump jets
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
     auto press = [&](int32_t cmd, bool down) {
@@ -11069,6 +11106,20 @@ TEST(census_c1m1_unported_headless) {
       if (app.current() != &mech3::states().core) return;
       ++frames;
       most_shots = std::max(most_shots, mech3::radar_blips().size());
+      if (frames % 1200 == 0) {
+        const auto now = std::chrono::steady_clock::now();
+        const double ms = std::chrono::duration<double, std::milli>(now - cycle_start).count();
+        cycle_start = now;
+        const double mb = footprint_mb();
+        zwep::PoolStats ps{};
+        zwep::pool_stats(&ps);
+        if (frames == 1200) first_ms = ms, first_mb = mb, first_handles = engine.handle_count();
+        last_ms = ms, last_mb = mb, last_handles = engine.handle_count();
+        if (stats)
+          std::fprintf(stderr, "census %s cycle %d: %.0f ms, %.1f MB, %zu handles, %d nodes in %zu blocks, %d shots\n",
+                       where.c_str(), frames / 1200, ms, mb, engine.handle_count(), zcls::nodes().live,
+                       zcls::nodes().blocks.size(), ps.flying);
+      }
       for (auto it = releases.begin(); it != releases.end();) {
         if (it->first == frames) press(it->second, false), it = releases.erase(it);
         else ++it;
@@ -11112,14 +11163,17 @@ TEST(census_c1m1_unported_headless) {
   std::sort(rows.rbegin(), rows.rend());
   if (const char* out = std::getenv("MW3_CENSUS_OUT")) {
     if (FILE* f = std::fopen(out, "w")) {
-      std::fprintf(f, "# c1m1, %d frames in the Core state (%d s asked), quit at %d\n", frames, seconds, quit_at);
+      std::fprintf(f, "# %s, %d frames in the Core state (%d s asked), quit at %d\n", where.c_str(), frames, seconds, quit_at);
       for (const auto& [n, k] : rows) std::fprintf(f, "%u\t%s\n", n, k.c_str());
       for (const auto& [k, why] : known) std::fprintf(f, "# known %s: %s\n", k.c_str(), why);
       std::fclose(f);
     }
   }
-  std::fprintf(stderr, "census: %d frames, %zu distinct unported (%zu more known), quit at %d, at most %zu shots on the radar\n",
-               frames, rows.size(), known.size(), quit_at, most_shots);
+  std::fprintf(stderr, "census %s: %d frames, %zu distinct unported (%zu more known), quit at %d, at most %zu shots on the radar\n",
+               where.c_str(), frames, rows.size(), known.size(), quit_at, most_shots);
+  if (stats)
+    std::fprintf(stderr, "census %s: cycle 1 %.0f ms, %.1f MB, %zu handles; last %.0f ms, %.1f MB, %zu handles\n",
+                 where.c_str(), first_ms, first_mb, first_handles, last_ms, last_mb, last_handles);
   EXPECT(most_shots > 0 && most_shots < 100);  // the Thor's volleys, cleared each frame
   EXPECT(frames >= total);
 }
