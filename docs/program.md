@@ -245,6 +245,16 @@ implements it:
   `cmp ebx, end`; 1,577 entries in 1.2's DLL). Missing, the program says so
   and exits, as the original does.
 
+## Ported calls wired late (mission-plan item 12)
+
+The options' setters reach the player's mech through `WiredOptionsHooks`
+(the pilot's +0x14, `program_mech_*` in app_mech.cpp), with the render
+rect onto the mission's window; the briefing map's waypoints come from
+`GameEngine::nav_find`, `mission_map`, `map_project` and `map_image` (the
+nav's place read from the nav itself, `nav_position` handing the nav
+through); `video_is_3d` answers zVideo's opened flag and `video_has_cap`
+1, a modern GPU having every cap 0x00579b70 tests.
+
 ## What the start-up changes from the data (mission-plan item 13)
 
 InitInstance (0x00480020) turns the animations' records for the save and

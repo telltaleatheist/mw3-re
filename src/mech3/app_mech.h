@@ -137,6 +137,7 @@ struct LaunchedMech {
   int32_t jets_firing = 0; // +0x580
   bool jet_flame = false;  // +0x620: the jets' flame effect started (0x00432830)
   bool crouched = false;   // +0x586
+  bool invincible = false, throttle_returns = false, torso_absolute = false;  // +0x630, controls +0x3f, torso +0xa0
   float alive = 0;         // +0x414  seconds of full updates
   int32_t anim_state = 0;  // +0x578
   bool blocked[4] = {};    // +0x374  the last collide: vehicle, mech or bump, ceiling, wall or touch
@@ -390,6 +391,15 @@ uint8_t mission_aborting();
 // +0xbc, else an empty map made once at +0xb8), a map by name (0x00458590) as
 // a handle, and +0xbc set ([0x0060998c], the radar's Shift+R).
 void* mission_map();
+// The options' setters on the player's mech (options.cpp; mission-plan
+// item 12): +0x630, the weapons' 0x004b0220, the torso's +0xa0, the
+// controls' +0x3f, the control mode 0x0041cf30.
+void program_mech_set_invincible(void* mech, bool on);
+void* program_mech_weapons(void* mech);
+void program_weapons_set_unlimited(void* weapons, bool on);
+void program_mech_set_torso_absolute(void* mech, bool on);
+void program_mech_set_throttle_returns(void* mech, bool on);
+void program_mech_control_mode(void* mech, int32_t mode);
 uint32_t mission_map_find(const char* name);
 void mission_map_set(uint32_t map);
 void* mission_map_of(uint32_t map);

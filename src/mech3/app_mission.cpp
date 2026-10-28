@@ -1104,16 +1104,20 @@ struct WiredTargetHooks : ai::TargetHooks {
     return a ? a->team : 0;
   }
   // 0x005a8390: the record's centroid and target subnodes found by name,
-  // else made under its node (zent::marker_nodes); the record itself is not
-  // ported.
-  void entity_set_node(Handle self, Handle n, Handle a, const char* centroid, const char* target,
+  // else made under its node (zent::marker_nodes). The rest is not needed
+  // here: the name passed is 0 (the targets name themselves by desc.name),
+  // the node's matrix (+0x0c) is read by nothing, and a node's place is
+  // refreshed when read.
+  void entity_set_node(Handle, Handle n, Handle, const char* centroid, const char* target,
                        Handle* target_node, Handle* centroid_node) override {
-    unported("0x005a8390", {self, n, a, centroid, target});
     zcls::Node* nd = node(n);
     zcls::Node *c = nullptr, *t = nullptr;
     zent::marker_nodes(nd, centroid, target, &c, &t);
     *target_node = nd ? e->handle_of(t ? t : nd) : 0;
     *centroid_node = nd ? e->handle_of(c ? c : nd) : 0;
+  }
+  void node_offset(Handle n, const float v[3]) override {  // 0x004fc1b0: the record's centroid / target offset
+    zcls::object3d_add_translation(node(n), v[0], v[1], v[2]);
   }
   bool have_pilot() override { return e->pilot() != 0; }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
@@ -1444,6 +1448,7 @@ struct WiredMissionHooks : MissionHooks {
   void view_fn_40ae70(Handle) override { program_view_set_camera(0); }
   void view_fn_40adf0(Handle) override { program_view_detach(); }
   void fn_4b4ab0(Handle) override { radar_objects_create(); }
+  void keys_reset() override { zin::kbd_reset(); }  // 0x0051a300
   void fn_4b4ae0() override { radar_objects_destroy(); }
   void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
   // 0x004582c0 on the mission's map (+0xbc): every map's image released; 0.

@@ -7,6 +7,7 @@
 #include "mech3/pocket_panel.h"
 #include "mech3/cockpit_sound.h"
 #include "gamez/zinput/zinput.h"
+#include "mech3/message_panel.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_turret.h"
@@ -395,6 +396,7 @@ class WiredLaunch : public LaunchHooks {
   // and saved (pilot.md section 7); a debug start's stand-in has no campaign
   // to settle.
   void pilot_478f10(Handle) override { program_record_mission(false); }
+  void fn_40f0a0() override { message_panel_clear(); }  // 0x0040f0a0: the message panel's lines
   // 0x0049e5e0 at a campaign's launch: the lancemates' mechs (player.cpp).
   void lancemates() override { program_launch_lancemates(); }
   // 0x0049dc80(1) and 0x0045c4a0 at Instant Action's launch: its line-up,
@@ -1055,6 +1057,9 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.jets = m->equipment[11];
   s.jets_firing = m->jump_jets_firing;
   s.jet_flame = m->jet_effect != nullptr;
+  s.invincible = m->invincible;
+  s.throttle_returns = m->controls && m->controls->throttle_returns;
+  s.torso_absolute = m->torso && m->torso->absolute;
   s.crouched = m->crouched;
   s.alive = m->alive_time;
   s.anim_state = m->anim_state;
@@ -1298,6 +1303,23 @@ void* mech_mission_player() { return world().mission_player; }
 bool entity_is_mech(const void* o) { return o && mech_objects().count(o) != 0; }
 
 void mech_entities_forget() { mech_objects().clear(); }
+
+void program_mech_set_invincible(void* mech, bool on) {
+  if (entity_is_mech(mech)) static_cast<Mech*>(mech)->invincible = on;  // +0x630
+}
+void* program_mech_weapons(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->ammo : nullptr; }
+void program_weapons_set_unlimited(void* weapons, bool on) {
+  if (weapons) static_cast<WeaponManager*>(weapons)->set_unlimited(on);  // 0x004b0220
+}
+void program_mech_set_torso_absolute(void* mech, bool on) {
+  if (entity_is_mech(mech) && static_cast<Mech*>(mech)->torso) static_cast<Mech*>(mech)->torso->absolute = on;
+}
+void program_mech_set_throttle_returns(void* mech, bool on) {
+  if (entity_is_mech(mech) && static_cast<Mech*>(mech)->controls) static_cast<Mech*>(mech)->controls->throttle_returns = on;
+}
+void program_mech_control_mode(void* mech, int32_t mode) {
+  if (entity_is_mech(mech)) mech_control_mode(*static_cast<Mech*>(mech), static_cast<uint32_t>(mode));  // 0x0041cf30
+}
 
 void* mech_shade_of(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->x68c : nullptr; }
 

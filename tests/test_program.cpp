@@ -6633,6 +6633,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
       int32_t save_on = -1, net_on = -1, clear_on = -1, hse = -1, hw = -1;
+      bool option_reached = false;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -6662,6 +6663,15 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         seen.save_on = zeff::anim_log().save_on, seen.net_on = zeff::anim_log().net_on;
         seen.clear_on = zvid::display().clear_on, seen.hse = zcls::scene_walk().hidden_surface;
         seen.hw = static_cast<int32_t>(engine.hw_card_flag());
+        // Item 12: an option changed in the mission reaches the player's mech
+        // (the pilot's +0x14 through OptionsHooks), then is put back.
+        mech3::set_invincible(1), mech3::set_throttle_const(0);
+        mech3::LaunchedMech pm;
+        mech3::describe_mech(player, &pm);
+        seen.option_reached = pm.invincible && pm.throttle_returns;
+        mech3::set_invincible(0), mech3::set_throttle_const(1);
+        mech3::describe_mech(player, &pm);
+        seen.option_reached = seen.option_reached && !pm.invincible && !pm.throttle_returns;
       } else if (seen.frames > 3 && seen.frames < 200) {
         // The Owens held still from frame 150 (it walks its net, ai.md
         // 17.4a): its speed share (brain +0xec, which bounds the node
@@ -6847,6 +6857,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // hidden-surface test off with a card (0x004f3550): mission-plan item 13.
     EXPECT(seen.save_on == 0 && seen.net_on == 0 && seen.clear_on == 0);
     EXPECT(seen.hse == (seen.hw != 0 ? 0 : 1));
+    // Item 12's wiring: none of these reached unported, and the options reach the mech.
+    for (const char* k : {"0x004f9fa0", "0x004fa0b0", "0x004fc1b0", "0x0051a300", "0x0040f0a0", "0x00576ce0",
+                          "[[0x0060861c]+0x14]", "0x00579ea0", "0x00579b70"})
+      EXPECT(seen.counts0.count(k) == 0);
+    EXPECT(seen.option_reached);
     // The briefing load's app accessors and its two empty calls (item 10:
     // 0x0040a7d0, 0x0040a800, 0x0040a830, 0x0040baf0, 0x004a5bc0) are the program's.
     for (const char* k : {"0x0040a7d0", "0x0040a800", "0x0040a830", "0x0040baf0", "0x004a5bc0"})
@@ -10808,7 +10823,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x0041ab90", "0x004ac860", "0x004a4de0", "0x004ab6b0", "0x0040e4b0", "vt+0x7c",
                         "hudline.vt+0x7c", "0x0040f7f0", "0x0040f890", "0x0040fef0", "0x004b52e0", "0x0047f2b0",
                         "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540", "0x00557f90", "0x00558290",
-                        "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070"}) {
+                        "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10817,8 +10832,8 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 28);
-  for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x005a8390", "0x00479be0", "0x0051a300",
+  EXPECT(n == 29);
+  for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0"})
     EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
 }

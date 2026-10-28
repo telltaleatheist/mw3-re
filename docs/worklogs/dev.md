@@ -1191,3 +1191,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   zvid::lock_3d) with the fillers' SoftTarget. The fillers read base and
   pitch only; 0x00558070's globals are write-only. Six keys moved to the
   known table (28 now).
+
+## Mission-plan item 12 (2026-10-28): ported but not wired
+
+- Branch mac4/wire-ported (main 1257bca). Each traced (MW3_TRACE_UNPORTED +
+  c++filt) and wired in the program's hooks; see mission-plan.md item 12.
+  Not straight but done here: the briefing waypoints (five hooks, all
+  ported) and video_is_3d (its flag is "opened"; with has_cap unwired it
+  would have turned the shadows off).
+- Checks: the c1m1 Owens test (none of the nine keys reached, an option
+  set mid-mission reaches the mech and back); shots of c1m1, t1, the main
+  menu and c1m1's briefing ("Start" shown), all --nosound (stream day).

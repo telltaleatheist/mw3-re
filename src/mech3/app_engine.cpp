@@ -1,4 +1,5 @@
 #include "gamez/zeffect/zeff_anim_save.h"
+#include "gamez/zclass/window.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
@@ -86,6 +87,9 @@ struct WiredOptionsHooks : OptionsHooks {
     if (g_engine) zcls::camera_set_fov_angles(static_cast<zcls::Node*>(g_engine->object_of(cam)), x, y);
   }
   int32_t video_mode() override { return g_engine ? static_cast<int32_t>(g_engine->peek32(0x72f348)) : 0; }
+  // [0x0080271c] is zVideo's "opened" (0x00579c60 sets it, 0x00579ef0 clears it).
+  uint32_t video_is_3d() override { return g_engine && g_engine->video_opened() ? 1 : 0; }  // 0x00579ea0
+  uint32_t video_has_cap(int32_t cap) override { return g_engine ? g_engine->video_has_cap(cap) : 0; }
   const char* message(int32_t id) override { return g_engine ? g_engine->message(id) : ""; }  // 0x00576040
   void controls_set_defaults() override { mech3::controls_set_defaults(); }        // 0x00411150
   void controls_load(const char* name) override { mech3::controls_load(name); }    // 0x004120a0
@@ -101,6 +105,31 @@ struct WiredOptionsHooks : OptionsHooks {
   }
   void camera_set_lod_scale(Handle cam, float s) override {  // 0x004f3ff0
     if (g_engine) zcls::camera_set_lod_scale(static_cast<zcls::Node*>(g_engine->object_of(cam)), s);
+  }
+  // The options' setters on the player's mech (item 12): the pilot's +0x14.
+  Handle player_mech() override { return g_engine && g_engine->pilot() ? g_engine->field32(g_engine->pilot(), 0x14) : 0; }
+  void mech_set_invincible(Handle m, uint8_t on) override { if (g_engine) program_mech_set_invincible(g_engine->object_of(m), on != 0); }
+  Handle mech_weapons(Handle m) override {
+    return g_engine ? g_engine->handle_of(program_mech_weapons(g_engine->object_of(m))) : 0;
+  }
+  void weapons_set_infinite_ammo(Handle w, uint8_t on) override {  // 0x004b0220
+    if (g_engine && w) program_weapons_set_unlimited(g_engine->object_of(w), on != 0);
+  }
+  void mech_set_torso_auto_return(Handle m, uint8_t on) override {  // [mech+0x39c]+0xa0
+    if (g_engine) program_mech_set_torso_absolute(g_engine->object_of(m), on != 0);
+  }
+  void mech_set_throttle_decay(Handle m, uint8_t on) override {  // [mech+0x37c]+0x3f
+    if (g_engine) program_mech_set_throttle_returns(g_engine->object_of(m), on != 0);
+  }
+  void mech_set_jump_jet_mode(Handle m, int32_t mode) override {  // 0x0041cf30
+    if (g_engine) program_mech_control_mode(g_engine->object_of(m), mode);
+  }
+  // The render rect onto the mission's window (0x0040d670; item 12).
+  void window_set_size(Handle w, int32_t width, int32_t height) override {  // 0x004f9fa0
+    if (g_engine) zcls::window_set_size(static_cast<zcls::Node*>(g_engine->object_of(w)), width, height);
+  }
+  void window_set_origin(Handle w, int32_t x, int32_t y) override {  // 0x004fa0b0
+    if (g_engine) zcls::window_set_origin(static_cast<zcls::Node*>(g_engine->object_of(w)), x, y);
   }
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
     return g_engine ? g_engine->unported(key, args) : 0;
@@ -194,6 +223,7 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x004f8f20", "no effect: zClass's two values set to their defaults (update_frame 1, frozen 0)"},
       {"0x004f3540", "no effect: [0x005ea53c] is never read"},
       {"0x00558070", "no effect: [0x008007dc] / [0x008007e0] are only written"},
+      {"0x005a8390", "own: a target's centroid and target nodes (zent::marker_nodes); its name is 0, its +0x0c unread"},
   };
   return k;
 }
@@ -484,6 +514,7 @@ void GameEngine::clock_init() { ztimer::init(); }
 int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   poke32(0x72f348, hw ? 1u : 0u);
   if (!hw) unported("0x00579c60 software", {});
+  video_opened_ = true;  // [0x0080271c]
   const Rect& d = mech3::display();
   width_ = d.w > 0 ? d.w : 640;
   height_ = d.h > 0 ? d.h : 480;
@@ -557,6 +588,15 @@ void GameEngine::effects_shutdown() { zeff::effects_shutdown(); }
 void GameEngine::decals_set_mode(int32_t v) { zdec::set_mode(static_cast<uint32_t>(v)); }
 void GameEngine::decals_shutdown() { zdec::decals_free(); }
 void GameEngine::missions_shutdown() { mech3::mech_types_close(); }
+// 0x00576ce0 -> 0x00577770: a DDBLT_DEPTHFILL Blt over `rect`, the whole
+// depth surface for 0 (the Core state's start).
+void GameEngine::video_clear_a(Handle rect) {
+  const zvid::Surface& b = zvid::surfaces().back;
+  int32_t r[4] = {0, 0, b.width, b.height};
+  if (rect)
+    for (int i = 0; i < 4; ++i) r[i] = static_cast<int32_t>(peek32(rect + 4 * i));
+  zvid::depth_fill(r);
+}
 // 0x00576cf0: the 3D window cleared before the Core state draws (the sky
 // colour of the debug viewer: the window's clear colour is not traced).
 void GameEngine::video_clear_b(Handle) {
