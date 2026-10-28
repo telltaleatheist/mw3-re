@@ -20,7 +20,9 @@ something else sets it:
   them before the first draw, and the lab's view reads mission world 6
   first. Measured with the exe's values put in (temporary): the fog at
   every model draw in c1m1, t1, c3m1 and c4m2, the same from the first
-  draw on with either start.
+  draw on with either start; in the lab (`--lab-mech 3`, item 16) off and
+  all 0 at its first draw with either (the lab's own world, made empty,
+  pushes all five groups as one of two worlds).
 - **The model clip rect** (320 x 200 in the exe, 0 in the port): set from
   the window per camera (0x00526e10, `zmod::set_camera`) before a draw.
 - **The GfxFlags masks' bases** (-1 in the exe, 0 in the port): the

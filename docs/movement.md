@@ -318,9 +318,14 @@ at 30 m with the player walking 0x1c and the full model.
    the heat warnings; the heat model's throttle; the collider's touch.
    The pilot's effects 0x00432830 (the jump jets' flames) run the port
    (`canned_effect`); the Thor's jump in mission_c1m1_player_commands_headless
-   shows them started and put out. Left: the HUD's zoom flags (+0x1514, the
-   torso's slow turn), force feedback. (The collider's box test,
+   shows them started and put out. The HUD's zoom flags (+0x1514, the
+   torso's slow turn at 0.3 while zoomed) are wired (app_hud.cpp,
+   `part_calls().screen_flags`). (The collider's box test,
    `CollideCalls::hit_box` 0x004ec9c0, is wired: movement-collision.md.)
-2. The AI brain 0x4e9710 the AI's controls run (`ControlsCalls::ai_brain`;
-   ai.md), the pilot's tick 0x4d9290 the player's run, mech3's controls
-   setup that fills the commands and the axis table (input.md, Open).
+   Left: force feedback, the collision's jolt (`ff_jolt`, 0x004335d0) and
+   the landing's (`ff_landing`, 0x00433800) on the device at
+   [0x00608620], null in the program until the SDL layer has haptics.
+2. Done (2026-10-28 check): the AI brain 0x4e9710 and the vlist triggers
+   0x4d9290 are ported (ai.md sections 16 and 17) and run by the program;
+   the player's controls 0x00427280, which fill the commands and the axis
+   table, are ported (mech_control.cpp; input.md).

@@ -1236,3 +1236,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   repeatable run to run (rain, timing), so no byte compare.
 - The three known; census 0 unported. Break: a reason without its prefix
   fails known_unported_keys_name_their_reason.
+
+## Mission-plan items 16 and 18 (2026-10-28): the docs, the lab's start
+
+- Branch mac4/docs-16 (main 319826f). ai.md section 6 (the boundary, the
+  sensors), damage.md (0x464ce0 is Torso::Steer; the jolt decays in
+  0x464e80, ported), movement.md Left (only force feedback left).
+- `--lab-mech N` alone: --briefing c1m2 and MECHLAB at 300,435@2500 (the
+  route item 9's shots used). The lab's fog checked with the item 17
+  print and switch (removed): off, all 0, either start.

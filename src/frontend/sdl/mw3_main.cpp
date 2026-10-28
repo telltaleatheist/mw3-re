@@ -100,7 +100,7 @@ struct Args {
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
-  int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N
+  int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
   struct ClickAt { int frame, x, y; };
@@ -181,6 +181,12 @@ bool parse(int argc, char** argv, Args& a) {
       std::fprintf(stderr, "mw3: unknown argument %s\n", s.c_str());
       return usage(), false;
     }
+  }
+  // --lab-mech alone (ours): the lab is reached from c1m2's briefing (MECHLAB,
+  // which Op 1 Mission 1 greys), so it takes that route and clicks MECHLAB.
+  if (a.lab_mech >= 0 && a.briefing.empty() && a.mission.empty()) {
+    a.briefing = "c1m2";
+    a.clicks_at.push_back({2500, 300, 435});
   }
   return true;
 }
