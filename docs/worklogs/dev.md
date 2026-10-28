@@ -1159,3 +1159,15 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   4) by the briefing's load (0x004096b0..); GameEngine answers them and
   0x0040a7d0 / 0x0040a830. Check in the c1m1 Owens test (break: app_sounds
   back to the hook).
+
+## Mission-plan item 11 (2026-10-27): the census's known keys
+
+- Branch mac4/plumbing (main 390007c). GameEngine::known_unported: 22 keys
+  with their reason (own 4, deferred 11, no effect 7); not logged, listed
+  apart by --verbose and the census; unported_counts unchanged (tests read
+  the stealth key's count). Census: 39 unported, 22 known.
+- The plan's "~45 plumbing" was too many: checked one by one, the rest are
+  ported-but-unwired calls, settings the exe changes from the data (the
+  HSE test, the animation records, the frame clear), the span target's
+  rect (the fade's tint), and ones still to trace: mission-plan items
+  12-15.

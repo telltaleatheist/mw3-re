@@ -159,11 +159,50 @@ GameEngine::~GameEngine() {
   zutl::install_messages(nullptr);
 }
 
+namespace {
+// What each known key is (mission-plan item 11; program.md, The census):
+// "own: ..." the program's equivalent, "deferred: ..." the decision,
+// "no effect: ..." why nothing is lost.
+const std::map<std::string, const char*>& known_keys() {
+  static const std::map<std::string, const char*> k = {
+      {"0x005561a0", "own: zrdr reads the archives through the mounts (zutl::mount); the loose-text path is unused"},
+      {"0x005561e0", "own: the same (RdrAddPath)"},
+      {"0x00516f50", "own: zutl::mount (the start-up's zbd through the 2D host's image_path); loose textures unused"},
+      {"[0x0072f3f0]", "own: the fog is zrndr::device_fog in the Render3D pass"},
+      {"0x00588930", "deferred: multiplayer (DirectPlay's poll; back burner)"},
+      {"0x00586c20", "deferred: multiplayer (its shutdown)"},
+      {"0x0041ab90", "deferred: multiplayer (the chat panel at mech +0x378, made by commands 0x76 / 0x77)"},
+      {"0x004ac860", "deferred: the stealth object (its block; back burner, vehicles.md)"},
+      {"0x004a4de0", "deferred: the stealth object"},
+      {"0x004ab6b0", "deferred: the mode switch (resolution.md step 3; one mode now)"},
+      {"0x0040e4b0", "deferred: developer only (the 25 lines' draw and hit test, hud.md section 20)"},
+      {"vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
+      {"hudline.vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
+      {"0x0040f7f0", "deferred: developer only (the 25 lines' Arial font)"},
+      {"0x0040f890", "deferred: developer only (the lines' and debug text's layers on)"},
+      {"0x0040fef0", "no effect: the timing marks act only with [0x005e14f0], 0 in the data"},
+      {"0x004b52e0", "no effect: the view's window object, its two rects the same (scale 1; item 6)"},
+      {"0x0047f2b0", "no effect: defaults the world reader sets again, the console's vars (item 6)"},
+      {"0x00518790", "no effect: zImage's flag set to 1, its default (zimg library enabled)"},
+      {"0x005269e0", "no effect: [0x0074a2d4] is set only in software (gmod_light single)"},
+      {"0x004f8f20", "no effect: zClass's two values set to their defaults (update_frame 1, frozen 0)"},
+      {"0x004f3540", "no effect: [0x005ea53c] is never read"},
+  };
+  return k;
+}
+}  // namespace
+
+const char* GameEngine::known_unported(const std::string& key) {
+  const auto& k = known_keys();
+  const auto it = k.find(key);
+  return it == k.end() ? nullptr : it->second;
+}
+
 uint32_t GameEngine::unported(const char* key, std::initializer_list<Arg> args) {
   // The base's records of calls it makes itself (for the call-trace tests).
   if (std::strcmp(key, "CString::Format") == 0 || std::strcmp(key, "sprintf") == 0) return 0;
   uint32_t& n = counts_[key];
-  if (n++ == 0 && !quiet) {
+  if (n++ == 0 && !quiet && !known_unported(key)) {
     std::string a;
     for (const Arg& x : args) {
       char buf[48];
@@ -188,10 +227,17 @@ uint32_t GameEngine::unported(const char* key, std::initializer_list<Arg> args) 
 }
 
 void GameEngine::print_unported_summary() const {
-  std::fprintf(stderr, "mw3: %zu original functions reached that are not ported:", counts_.size());
+  size_t gaps = 0;
+  for (const auto& [k, n] : counts_) gaps += known_unported(k) ? 0 : 1;
+  std::fprintf(stderr, "mw3: %zu original functions reached that are not ported:", gaps);
   int i = 0;
-  for (const auto& [k, n] : counts_) std::fprintf(stderr, "%s %s x%u", i++ % 6 ? "" : "\n ", k.c_str(), n);
+  for (const auto& [k, n] : counts_)
+    if (!known_unported(k)) std::fprintf(stderr, "%s %s x%u", i++ % 6 ? "" : "\n ", k.c_str(), n);
   std::fprintf(stderr, "\n");
+  std::fprintf(stderr, "mw3: %zu more reached, known (the program's own, deferred, or without effect):\n",
+               counts_.size() - gaps);
+  for (const auto& [k, n] : counts_)
+    if (const char* why = known_unported(k)) std::fprintf(stderr, "  %s x%u: %s\n", k.c_str(), n, why);
   const auto& nulls = zint::null_calls();  // the scripts' engine entries left null (ours)
   std::fprintf(stderr, "mw3: %zu script engine calls skipped (no port):", nulls.size());
   i = 0;

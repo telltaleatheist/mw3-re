@@ -10783,6 +10783,30 @@ TEST(playtest_hud_images_the_data_lacks) {
 // Ctrl+Q at the end. Every unported address the engine logs, with its count,
 // goes to MW3_CENSUS_OUT (tab separated, the most frequent first). Runs only
 // with MW3_CENSUS=1: it takes a while.
+// Mission-plan item 11: each known key says what it is (the program's own,
+// deferred by a decision, or without effect) and why; the gaps found while
+// checking (items 12-15) are not among them.
+TEST(known_unported_keys_name_their_reason) {
+  int n = 0;
+  for (const char* k : {"0x005561a0", "0x005561e0", "0x00516f50", "[0x0072f3f0]", "0x00588930", "0x00586c20",
+                        "0x0041ab90", "0x004ac860", "0x004a4de0", "0x004ab6b0", "0x0040e4b0", "vt+0x7c",
+                        "hudline.vt+0x7c", "0x0040f7f0", "0x0040f890", "0x0040fef0", "0x004b52e0", "0x0047f2b0",
+                        "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540"}) {
+    const char* why = mech3::GameEngine::known_unported(k);
+    EXPECT(why != nullptr);
+    if (!why) continue;
+    const std::string w = why;
+    EXPECT((w.rfind("own: ", 0) == 0 || w.rfind("deferred: ", 0) == 0 || w.rfind("no effect: ", 0) == 0) &&
+           w.size() > 20);
+    ++n;
+  }
+  EXPECT(n == 22);
+  for (const char* gap : {"0x004f3550", "0x0050d1e0", "0x0050d1f0", "0x0057a3c0", "0x00579ea0", "0x00557f90",
+                          "0x00558290", "0x004f9fa0", "0x004fa0b0", "0x005a8390", "0x00479be0", "0x0051a300",
+                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0"})
+    EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
+}
+
 namespace mech3 {  // weapon.h's Handle clashes with mission.h's
 struct RadarBlip;
 std::list<RadarBlip*>& radar_blips();  // 0x0060b228
@@ -10911,17 +10935,22 @@ TEST(census_c1m1_unported_headless) {
   mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
   std::vector<std::pair<uint32_t, std::string>> rows;
-  for (const auto& [k, n] : counts) rows.push_back({n, k});
+  std::vector<std::pair<std::string, const char*>> known;  // the program's own, deferred, no effect (item 11)
+  for (const auto& [k, n] : counts) {
+    if (const char* why = mech3::GameEngine::known_unported(k)) known.push_back({k, why});
+    else rows.push_back({n, k});
+  }
   std::sort(rows.rbegin(), rows.rend());
   if (const char* out = std::getenv("MW3_CENSUS_OUT")) {
     if (FILE* f = std::fopen(out, "w")) {
       std::fprintf(f, "# c1m1, %d frames in the Core state (%d s asked), quit at %d\n", frames, seconds, quit_at);
       for (const auto& [n, k] : rows) std::fprintf(f, "%u\t%s\n", n, k.c_str());
+      for (const auto& [k, why] : known) std::fprintf(f, "# known %s: %s\n", k.c_str(), why);
       std::fclose(f);
     }
   }
-  std::fprintf(stderr, "census: %d frames, %zu distinct unported, quit at %d, at most %zu shots on the radar\n", frames,
-               rows.size(), quit_at, most_shots);
+  std::fprintf(stderr, "census: %d frames, %zu distinct unported (%zu more known), quit at %d, at most %zu shots on the radar\n",
+               frames, rows.size(), known.size(), quit_at, most_shots);
   EXPECT(most_shots > 0 && most_shots < 100);  // the Thor's volleys, cleared each frame
   EXPECT(frames >= total);
 }
