@@ -346,7 +346,15 @@ int run(const Args& a) {
           return zin::command(cmd) | (s_fire && cmd == 0x3d ? 1u : 0u);
         };
       engine.on_present = [&, shots](int) mutable {
-        if (!a.shot_any && !engine.drew_scene()) return;
+        // --verbose (ours): each state the app moves to, by name, as the menus' driver prints them.
+        static const zgame::State* launch_state = nullptr;
+        if (a.verbose && app.current() != launch_state) {
+          launch_state = app.current();
+          if (auto* st = dynamic_cast<const mech3::State*>(launch_state)) std::printf("mw3: state %s (frame %d)\n", st->name(), shots);
+        }
+        // Counted from the first frame with the scene: then every frame shown
+        // (the pause and end screens draw none, and --frames must still end the run).
+        if (!a.shot_any && !engine.drew_scene() && shots == 0) return;
         ++shots;
         // --vehicle-ahead (ours, for checking a vehicle up close: its shadow, its model).
         if (a.vehicle_ahead > 0 && shots == 1)

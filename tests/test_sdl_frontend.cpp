@@ -6,6 +6,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <chrono>
+#include <csignal>
+#include <thread>
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#endif
 #include <string>
 #include <vector>
 
@@ -721,3 +729,56 @@ TEST(sdl_program_mouse_click_fires_the_laser) {
   EXPECT(r.max_stale < 0.05f);  // from the arm
   EXPECT(o.max_stale > 0.3f);   // the original's: left behind
 }
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+extern char** environ;
+
+// --frames through the pause (mission-plan item 22): a launched mission's
+// frames counted only those that drew the scene, so Escape's pause screen
+// stopped the count and the run never ended. The program itself, Escape at
+// frame 900 (the Core state's, after the fade's 500-odd) and --frames 1200,
+// must quit on its own (90 s allowed).
+TEST(sdl_program_frames_end_a_paused_mission) {
+  if (!have_fonts()) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_frames_pause_write";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  const std::string out = dir + "/mw3.log";
+  std::vector<std::string> args = {MW3_BIN, "--mission", "c1m1", "--tap", "0x01@900", "--frames", "1200",
+                                   "--verbose", "--nosound", "--hidden", "--write-dir", dir};
+  std::vector<char*> argv;
+  for (std::string& a : args) argv.push_back(a.data());
+  argv.push_back(nullptr);
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_addopen(&fa, 1, out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  posix_spawn_file_actions_adddup2(&fa, 1, 2);
+  pid_t pid = 0;
+  const int err = posix_spawn(&pid, MW3_BIN, &fa, nullptr, argv.data(), environ);
+  posix_spawn_file_actions_destroy(&fa);
+  EXPECT(err == 0);
+  if (err) return;
+  int status = 0;
+  bool quit = false;
+  const auto start = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - start < std::chrono::seconds(90)) {
+    if (waitpid(pid, &status, WNOHANG) == pid) {
+      quit = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  }
+  if (!quit) kill(pid, SIGKILL), waitpid(pid, &status, 0);
+  std::string log;
+  if (FILE* f = std::fopen(out.c_str(), "r")) {
+    char buf[4096];
+    for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) log.append(buf, n);
+    std::fclose(f);
+  }
+  const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+  std::printf("mw3 --mission c1m1 --tap 0x01@900 --frames 1200: %s after %.0f s, exit %d\n", quit ? "quit" : "killed",
+              secs, quit && WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+  EXPECT(quit && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  EXPECT(log.find("Pause State") != std::string::npos);  // Escape reached the pause
+}
+#endif

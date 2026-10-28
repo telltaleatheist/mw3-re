@@ -1290,10 +1290,10 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Training's lesson 1 had launched with the slot's default armed loadout;
   now with training1 (equipment only), as the exe. Without it the
   menus' training test never reaches lesson 2.
-- The first pause run used `--mission c1m1 --tap 0x01@200`: `--tap`
-  drives only the menus' frames, and the debug start's end (its shot) left
-  the app in the shell with nothing to quit it (ran 14 minutes, killed).
-  Redone through the menus.
+- The first pause run (`--mission c1m1 --tap 0x01@200`) ran 14 minutes
+  and was killed; redone through the menus. (The cause, found in item 22:
+  a launched mission's --frames counted only frames with the scene, and the
+  pause draws none.)
 - Tests: training_menus_to_lesson3_headless checks the loadout and the
   five keys; known_unported_keys_name_their_reason the 50 and the 15.
   Breaks: training's slot unwired fails 6 checks; 0x00586ce0 renamed in
@@ -1306,4 +1306,21 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   candidate rows, Decided's c4b m4 note) and the topic docs they cite.
 - playtest.md's rows #11, #18 and #26 are stale ("waiting", but ported).
   Left for the lead or Owen to close, as the item asked for no changes.
+## Mission-plan item 22 (2026-10-28): the 180 s runs
+
+- Branch mac4/long-runs (off main 4c2d7cf).
+- The census takes a mission (MW3_CENSUS_MISSION) and prints each
+  cycle's numbers (MW3_CENSUS_STATS). A first 360 s run overlapped my
+  hang tests, and macOS's resident size fell as pages were compressed
+  (79 to 21 MB), so I switched to the footprint (TASK_VM_INFO) and redid
+  the runs quietly.
+- c4m2: entity.vt+0x28+0xc0 from a field base hit by a turret (team 4,
+  unnamed); wired through hud_object_team.
+- The live nodes were found by walking the pool's free list. A node has
+  no live bit; its link field holds the free chain.
+- The hang: not a debug start's end (the free camera's update true quits
+  through zgameapp.cpp's post_quit), but a launched mission's frame count
+  stopping in the pause. Fixed and tested by the program itself, spawned
+  from mw3sdltests (MW3_BIN). Break: the old count is killed at 90 s.
+- Open: c4m2's last cycles are 12% slower.
 

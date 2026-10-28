@@ -30,6 +30,7 @@ void* hud_contact_vehicle(const void* contact);
 void* hud_contact_entity(const void* contact);
 float hud_contact_size(const void* contact);
 uint32_t hud_object_team(const void* o);
+bool hud_object_classed(const void* o);  // an entity class the sensors know (its vt+0x28 +0xc0 a team)
 void* hud_object_blip(const void* o, int32_t kind);
 bool hud_object_hidden(const void* o);
 void* hud_object_mech(const void* o);

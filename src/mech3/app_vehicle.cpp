@@ -16,6 +16,7 @@
 #include "gamez/ztwod/twod.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app_mech.h"
+#include "mech3/app_sensors.h"
 #include "mech3/entity_bind.h"
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
@@ -236,6 +237,8 @@ struct WiredFieldBases : FieldBaseHooks {
   Handle effects_start(Handle def, Handle node) override { return g_hooks.anim_run(def, node); }
   uint32_t entity_team(Handle e) override {
     if (entity_is_mech(e) || is_program_vehicle(e)) return static_cast<Vehicle*>(e)->team;
+    // Any other shooter (a turret's shot, c4m2): vt+0x28's +0xc0 as every class has it.
+    if (hud_object_classed(e)) return hud_object_team(e);
     return FieldBaseHooks::entity_team(e);
   }
   void controls_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount, Handle e) override {

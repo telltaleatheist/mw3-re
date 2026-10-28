@@ -456,6 +456,27 @@ Small items, each one sitting, in the order a player would notice them.
     loadout (vehicle.zrd's training1: equipment, no weapons); before, the
     slot's default (armed) one.
 22. **The 180 s runs** on c4m2 and c3m6: leaks, slowdowns, the quit.
+    Done (2026-10-28): the census takes MW3_CENSUS_MISSION and, with
+    MW3_CENSUS_STATS, prints each 20 s cycle's wall time, memory
+    footprint, engine handles, live zClass nodes and shots. Both end on
+    their own through the quit box, with 0 keys outside the table. c4m2
+    reached one first: a field base hit by a turret asked the shooter's
+    team (entity.vt+0x28+0xc0), now read as the sensors read it.
+    - Memory: c4m2 run for 360 s holds 73.8-74.7 MB from cycle 9 on;
+      c3m6 levels off at 73.4 MB. Handles: flat at 1,046 and 1,070.
+    - Nodes: +1,150 to +1,650 in each mission, in steps with each fight
+      (footprints `print`, mud, dust, wakes, impact effects). The exe
+      reuses a finished effect's copy (anim-run.md, Start), so the count
+      is the most ever alive at once: flat in quiet cycles, not a leak.
+    - Time: no slowdown in c3m6 (13.6 s, then 11.4 s per 1200 frames).
+      c4m2 runs 19.5-20.3 s per cycle until cycle 12, then 21-22.2 s in
+      cycles 13-18 (+12%, a quiet run). Node growth is 2%, so it does not
+      explain it. Open: likely where the walk has taken the player, not
+      checked.
+    - The quit: `--frames` and `--shot` on a launched mission now count
+      every frame from the first that drew the scene. Escape's pause
+      draws none, and the run never ended. Tested by
+      `sdl_program_frames_end_a_paused_mission`.
 23. **For Owen**: the playtest questions and the fixes.md Candidates in one
     place, each with its evidence and a recommendation; nothing changed.
     Done (2026-10-28): `docs/for-owen.md`. It covers ten playtest rows to
