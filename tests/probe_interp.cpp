@@ -482,7 +482,17 @@ void use_ported() {
                          offsetof(Engine, get_model), offsetof(Engine, texture_add),
                          offsetof(Engine, lens_flare_texture),
                          offsetof(Engine, cycle_set_on), offsetof(Engine, cycle_set_map),
-                         offsetof(Engine, cycle_set_looping), offsetof(Engine, cycle_set_speed)};
+                         offsetof(Engine, cycle_set_looping), offsetof(Engine, cycle_set_speed),
+                         // The support scripts' settings (item 7; test_script_setters.py,
+                         // test_gmod_add.py) and the ones wired as nothing: recorded as before.
+                         offsetof(Engine, bfe_tolerance), offsetof(Engine, get_bfe_tolerance),
+                         offsetof(Engine, coplanar_tolerance), offsetof(Engine, colinear_tolerance),
+                         offsetof(Engine, inverse_z_tolerance), offsetof(Engine, vertex_shading),
+                         offsetof(Engine, video_dither), offsetof(Engine, material_array_size),
+                         offsetof(Engine, model3d_array_size), offsetof(Engine, perspective_delta_x),
+                         offsetof(Engine, perspective_far_z), offsetof(Engine, perspective_inverse_z),
+                         offsetof(Engine, texture_directory), offsetof(Engine, rdr_set_path),
+                         offsetof(Engine, rdr_add_path)};
   for (size_t i = 0; i < n; ++i) {
     bool k = false;
     for (size_t o : keep) k |= o == i * sizeof(Fn);

@@ -192,6 +192,11 @@ void GameEngine::print_unported_summary() const {
   int i = 0;
   for (const auto& [k, n] : counts_) std::fprintf(stderr, "%s %s x%u", i++ % 6 ? "" : "\n ", k.c_str(), n);
   std::fprintf(stderr, "\n");
+  const auto& nulls = zint::null_calls();  // the scripts' engine entries left null (ours)
+  std::fprintf(stderr, "mw3: %zu script engine calls skipped (no port):", nulls.size());
+  i = 0;
+  for (const auto& [k, n] : nulls) std::fprintf(stderr, "%s %s x%u", i++ % 4 ? "" : "\n ", k.c_str() + (k.rfind("e.", 0) == 0 ? 2 : 0), n);
+  std::fprintf(stderr, "\n");
 }
 
 uint32_t GameEngine::peek32(uint32_t addr) {

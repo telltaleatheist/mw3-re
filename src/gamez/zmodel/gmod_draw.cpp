@@ -799,6 +799,12 @@ void draw_points(Model& m) {
 
 DrawBuffers& draw_buffers() { return g_buf; }
 DrawState& draw_state() { return g_state; }
+
+// Mech3.exe 1.2 @ 0x0053cef0, 0x0053cf00, 0x00526df0, 0x00526a00
+void set_bfe_tolerance(float v) { g_state.backface = v; }
+float bfe_tolerance() { return g_state.backface; }
+int set_inverse_z_tolerance(float v) { return g_state.priority_scale = v, 0; }
+int set_vertex_shading(int on) { return g_state.vertex_shading = on, 0; }
 DrawTable& draw_table() { return g_table; }
 DrawHooks& draw_hooks() { return g_hooks; }
 

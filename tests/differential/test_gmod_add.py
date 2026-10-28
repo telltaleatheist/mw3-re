@@ -14,7 +14,8 @@ counts, vertices, normals, morphs and every polygon.
 
     cmake --build build && .venv/bin/python tests/differential/test_gmod_add.py
 
-BREAK=<n> breaks the port's copy of the inputs in a known way (see main);
+Half the models are built at the scripts' tolerances (0x538070 / 0x538080,
+set on both sides). BREAK=<n> breaks the port's copy of the inputs in a known way (see main);
 each must fail.
 """
 import ctypes
@@ -30,9 +31,11 @@ from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 from test_weiler import BUF, CAP, Emulated, P, farr, got, probe  # noqa: E402
 
 probe.probe_gadd_begin.argtypes = [ctypes.c_float, ctypes.c_int]
+probe.probe_gadd_tolerances.argtypes = [ctypes.c_float, ctypes.c_float]
 probe.probe_gadd.argtypes = [ctypes.c_int, P, P, P, ctypes.c_int, P, P, ctypes.c_int, ctypes.c_int, ctypes.c_uint32,
                              P, P, P, ctypes.c_int]
 PRECISION = 0x5ee3e0
+PLANAR = 0x5ee3d0  # then the colinear tolerance at 0x5ee3d8
 
 
 class Original(Emulated):
@@ -46,7 +49,12 @@ class Original(Emulated):
         self.mats = [self.alloc(0x2c), self.alloc(0x2c)]
         self.cpu.write(self.mats[1] + 1, b'\x01')
         self.cpu.write(PRECISION, struct.pack('<f', precision))
+        self.cpu.write(PLANAR, struct.pack('<dd', 0.005, 0.001))  # the data's (0x5ee3d0, 0x5ee3d8)
         self.log_start = 0
+
+    def tolerances(self, coplanar, colinear):
+        self.call(0x538070, stack=(struct.unpack('<I', struct.pack('<f', coplanar))[0],))
+        self.call(0x538080, stack=(struct.unpack('<I', struct.pack('<f', colinear))[0],))
 
     def add(self, n, points, normals, uvs, morph, mpoints, muvs, material, priority, flag, zone, colors):
         self.out = bytearray()
@@ -147,6 +155,11 @@ def main():
         morph = 1 if rng.random() < 0.15 else 0
         probe.probe_gadd_begin(precision, 0)
         emu.begin_model(precision)
+        if rng.random() < 0.5:  # the shipped scripts' (tolerances.gw), or others
+            cop, col = rng.choice(((0.002, 0.00001), (0.002, 0.00001), (0.02, 0.01), (0.0001, 0.003)))
+            probe.probe_gadd_tolerances(cop, col + (0.01 if brk == 3 else 0))
+            emu.tolerances(cop, col)
+            kinds['tolerances'] = kinds.get('tolerances', 0) + 1
         shared = []  # earlier polygons' points, reused so vertices merge
         for _ in range(rng.randint(1, 14)):
             kind = rng.choice(('flat', 'flat', 'grid', 'bent', 'colinear', 'repeat', 'big' if rng.random() < 0.2

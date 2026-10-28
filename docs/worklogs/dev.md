@@ -1103,3 +1103,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - 0x00490720: GameEngine::missions_reset called the logging base first.
 - No effect: 0x004b52e0, 0x0047f2b0, 0x004ac860 (stealth), 0x004ab6b0
   (resolution step 3). symbols.csv has all six.
+
+## Mission-plan item 7 (2026-10-27): the script engine's live calls
+
+- Branch mac4/script-calls (main 5b457fa). The dispatcher's `call` became a
+  macro over `call_named`, counting null entries by field
+  (`zint::null_calls`); `--verbose` prints them. 21 missions, 600 frames
+  each: the same 14, all from the support scripts (interp_dump.py's
+  scripts.txt shows the values).
+- Ported: 0x53cef0 / 0x53cf00, 0x538070, 0x538080 (gmod_const's planar and
+  colinear became globals), 0x526df0, 0x526a00, 0x579240. Wired as nothing:
+  0x536a60 (empty), 0x5269a0 (gamez.zbd sets the pool), the three
+  software perspective setters, the three loose-file paths.
+- Tests: test_script_setters.py (400; the getter's st(0) stored by a stub
+  fstp; breaks: the backface, the getter), test_gmod_add.py at set
+  tolerances (break 3: the colinear), the c1m1 Owens test (none skipped,
+  the four settings; break: vertex shading unwired).

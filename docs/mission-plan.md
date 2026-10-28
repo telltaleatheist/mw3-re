@@ -282,7 +282,10 @@ Small items, each one sitting, in the order a player would notice them.
 7. **The script engine's live calls**: measure which null entries the
    shipped missions' scripts reach (an observer count in a headless run
    over every mission); port those. Test: test_interp.py's mission runs
-   with the entries real.
+   with the entries real. Done (2026-10-27): 14 reached, all from the
+   support scripts; six ported (the BFE, coplanar, colinear and inverse-Z
+   tolerances, vertex shading, dither), eight with no effect wired as
+   nothing (interp.md, The live calls).
 8. **AI hit rate at range**: in `mission_c1m4_dominic_fires_on_a_target`
    Dominic holds the trigger most of 40 s from about 80 m and lands two
    hits (the hut 30 -> 16 -> 9; item 5's rand()s moved the run). Find

@@ -54,6 +54,12 @@ struct DrawState {
   const float* camera_data = nullptr;  // [0x007402f4]  the camera data (+0x3c its yaw, facades)
 };
 DrawState& draw_state();
+// The scripts' setters (common.gw, tolerances.gw, c<n>.gw): BFE 0.00005,
+// InverseZ 0.01, vertex shading on. The exe returns what EAX holds (0 here).
+void set_bfe_tolerance(float v);               // 0x0053cef0 (backface)
+float bfe_tolerance();                         // 0x0053cf00
+int set_inverse_z_tolerance(float v);          // 0x00526df0 (priority_scale; its copy 0x0072f350 is never read)
+int set_vertex_shading(int on);                // 0x00526a00 ECX on
 
 // FIX (A): the Direct3D draw table [0x72f3b0].. (zvid_ddd3d, filled by
 // 0x579f50) as function pointers with a context. Arguments as the original

@@ -335,6 +335,9 @@ DrawBuffers& draw_buffers() { return g_buffers; }
 PointLight& point_light() { return g_light; }
 ChannelMasks& channel_masks() { return g_masks; }
 Display& display() { return g_display; }
+
+// Mech3.exe 1.2 @ 0x00579240
+int set_dither(int on) { return g_display.dither = on, 0; }
 D3DTexture*& default_texture() { return g_default; }
 
 // Inlined at each transparent draw (lines 0x591 and 0x599 of zvid_ddd3d.c).

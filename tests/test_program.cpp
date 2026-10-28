@@ -30,6 +30,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_blit.h"
@@ -199,6 +200,9 @@ void reset_process_state() {
   mech3::mission_maps() = mech3::MissionMaps{};
   // The hit factors 0x00413e60 sets at the mechs' set-up: the exe's data.
   mech3::hit_globals_reset();
+  // The scripts' tolerances (doubles in zModel's data) and the skipped calls' count.
+  zmod::tolerances_reset();
+  zint::null_calls().clear();
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -6821,6 +6825,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The radar's shot list has its object, whose action empties it each frame
     // (0x004b4ab0, from the mission's setup; unwired, every shot stayed listed).
     EXPECT(seen.counts0.count("0x004b4ab0") == 0);
+    // The support scripts' engine calls all real (mission-plan item 7), their
+    // settings in place: BFE, inverse z, vertex shading, dither.
+    EXPECT(zint::null_calls().empty());
+    EXPECT(zmod::draw_state().backface == 0.00005f && zmod::draw_state().priority_scale == 0.01f);
+    EXPECT(zmod::draw_state().vertex_shading == 1 && zvid::display().dither == 1);
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);

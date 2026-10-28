@@ -141,6 +141,7 @@ struct Display {
   uint32_t address_caps = 4;       // 0x00809454
 };
 Display& display();
+int set_dither(int on);  // 0x00579240 ECX on (VideoSetDither): [0x00802700] only
 // ECX which: bit 1 the multiply blend, bit 2 clamped addressing. 1 when the
 // display is not fullscreen.
 int32_t has_caps(int32_t which);  // 0x00579b70
