@@ -10837,7 +10837,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540", "0x00557f90", "0x00558290",
                         "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390", "0x005a84c0",
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
-                        "0x00519e50"}) {
+                        "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10846,10 +10846,9 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 37);
+  EXPECT(n == 40);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
-                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x00526510",
-                          "0x005578f0", "0x00557b30"})
+                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0"})
     EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
 }
 

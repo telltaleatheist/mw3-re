@@ -385,6 +385,15 @@ Small items, each one sitting, in the order a player would notice them.
     0 in the port, and the draw table's software entries). Each one
     against the port's field, a gap fixed where they differ. Test: the
     values after the start-up against the exe's, the census.
+    Done (2026-10-28): no change needed (module-starts.md, one line per
+    global, 157). None both differs and is read on the hardware path
+    before something sets it: the fog (exe on, (1, 0, 1), 500-700; port
+    0) is set whole by the world read before the first draw (measured:
+    the same fog at every draw in c1m1, t1, c3m1 and c4m2 with the exe's
+    values put in), the clip rect per camera, the masks by GfxFlags_HW,
+    the winding and bytes per pixel by their callers; the rest equal,
+    own, software only or unread. The three known; the 30 s census: 0
+    unported, 39 known.
 
 Decisions for Owen rather than ports: the beam's charge gate (playtest #23
 / #24, fixes.md Candidates), the subtitles, the other Candidates in

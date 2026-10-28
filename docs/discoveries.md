@@ -1237,6 +1237,11 @@ From the render path (render.md).
   500 to 750 m in the software renderer but from 32 m in hardware, and it is
   ground fog: thick below 80 m altitude, gone above 100.
 - **The fog is always the colour of the sky band**, in every world.
+- **The engine's own fog is magenta.** Before a world is loaded, the
+  renderer's built-in fog is on, bright magenta, from 500 to 700 m. It is
+  the classic "you forgot to set this" colour, and it never shows, because
+  every world sets its own fog before anything is drawn.
+  (docs/module-starts.md)
 - **The sun only darkens.** Lighting can make a surface darker than its
   texture, never brighter.
 - **Hardware mode may never have shown the moving cloud shadows.** The code

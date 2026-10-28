@@ -297,8 +297,11 @@ apart. Everything else is a real gap and stays listed.
   port), 0x00537520 (it Releases the used textures' system surfaces after
   the launch; the port's record is one Render3D handle, no system copy).
 
-The gaps found while checking are mission-plan.md items 12 to 15 and 17
-(the modules' starts 0x00526510, 0x005578f0, 0x00557b30, still listed). A key
+The modules' starts 0x00526510, 0x005578f0 and 0x00557b30 are the program's
+own: the port's struct initialisers hold the same state, and what differs
+is unread or set before use (module-starts.md). The gaps found while
+checking were mission-plan.md items 12 to 15 and 17; the 30 s c1m1 census
+now lists none. A key
 joins the table only with its equivalent or reason verified.
 
 ## The engine's reports (our addition)

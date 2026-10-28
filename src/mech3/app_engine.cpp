@@ -239,6 +239,9 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x004f8f60", "no effect: zSave registration with flag 0; the port's classes_reset registers none either"},
       {"0x00537520", "no effect: Releases the used textures' system surfaces; the port's record is one Render3D handle"},
       {"0x00519e50", "deferred: zFont's bitmap fonts with TextBase's measure and draw (0x0051a0d0, 0x005ae170), unported"},
+      {"0x00526510", "own: zModel's start, the port's struct initialisers; what differs is unread or set first (module-starts.md)"},
+      {"0x005578f0", "own: zRender's start, the same (module-starts.md)"},
+      {"0x00557b30", "own: zRender's reset, the software span table; the port's fillers are direct calls (module-starts.md)"},
       {"0x005a8390", "own: a target's centroid and target nodes (zent::marker_nodes); its name is 0, its +0x0c unread"},
   };
   return k;
