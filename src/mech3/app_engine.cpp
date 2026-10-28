@@ -555,6 +555,7 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   height_ = d.h > 0 ? d.h : 480;
   buffer_.assign(static_cast<size_t>(width_) * height_, 0);
   if (p_.render) p_.render->set_viewport(0, 0, width_, height_);
+  if (p_.window) p_.window->frame_size(width_, height_);  // the window's shape (ours, resolution.md step 2)
   // The tint quad as 0x00579c60 and the device's setup (0x0057a900, not
   // ported) leave it: unfogged, at depth 0.99 (without them the fades' quad
   // took the mission's fog colour); and fog enabled, as the setup leaves it

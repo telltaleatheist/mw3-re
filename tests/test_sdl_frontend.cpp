@@ -19,6 +19,7 @@
 
 #include "check.h"
 #include "frontend/sdl/gdi_font_size.h"
+#include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zinterp/zinterp.h"
@@ -782,3 +783,94 @@ TEST(sdl_program_frames_end_a_paused_mission) {
   EXPECT(log.find("Pause State") != std::string::npos);  // Escape reached the pause
 }
 #endif
+
+// The window's shape (resolution.md step 2, any_resolution): the frame keeps
+// its aspect in the window, pillarboxed where they differ, and the cursor
+// and the relative mouse map through that rect, not through 640.
+TEST(sdl_window_shape_maps_the_mouse_through_the_frame) {
+  auto near = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
+  float x = 0, y = 0;
+  // 4:3 in 4:3: the whole window, as without the fix.
+  const sdlfe::FrameShape v640{640, 480, true};
+  const sdlfe::FitRect r43 = sdlfe::fit_rect(1280, 960, v640);
+  EXPECT(r43.x == 0 && r43.y == 0 && r43.w == 1280 && r43.h == 960);
+  sdlfe::window_to_frame(640, 480, 1280, 960, v640, &x, &y);
+  EXPECT(near(x, 320) && near(y, 240));
+  EXPECT(near(sdlfe::mickey_scale(1280, 960, v640), 0.5f));
+  // 16:9 in 16:9 (mode 11, 1280x720, in a 1920x1080 window).
+  const sdlfe::FrameShape v720{1280, 720, true};
+  const sdlfe::FitRect r169 = sdlfe::fit_rect(1920, 1080, v720);
+  EXPECT(r169.x == 0 && r169.y == 0 && r169.w == 1920 && r169.h == 1080);
+  sdlfe::window_to_frame(960, 540, 1920, 1080, v720, &x, &y);
+  EXPECT(near(x, 640) && near(y, 360));
+  EXPECT(near(sdlfe::mickey_scale(1920, 1080, v720), 1280.0f / 1920.0f));
+  // 4:3 in 16:9: pillarboxed, 960x720 at x 160; the bars map outside the frame.
+  const sdlfe::FitRect rp = sdlfe::fit_rect(1280, 720, v640);
+  EXPECT(rp.x == 160 && rp.y == 0 && rp.w == 960 && rp.h == 720);
+  sdlfe::window_to_frame(160, 0, 1280, 720, v640, &x, &y);
+  EXPECT(near(x, 0) && near(y, 0));
+  sdlfe::window_to_frame(1120, 720, 1280, 720, v640, &x, &y);
+  EXPECT(near(x, 640) && near(y, 480));
+  sdlfe::window_to_frame(100, 360, 1280, 720, v640, &x, &y);
+  EXPECT(x < 0);
+  sdlfe::frame_to_window(320, 240, 1280, 720, v640, &x, &y);
+  EXPECT(near(x, 640) && near(y, 360));
+  EXPECT(near(sdlfe::mickey_scale(1280, 720, v640), 640.0f / 960.0f));
+  // 16:9 in 4:3: letterboxed.
+  const sdlfe::FitRect rl = sdlfe::fit_rect(1280, 960, v720);
+  EXPECT(rl.x == 0 && rl.y == 120 && rl.w == 1280 && rl.h == 720);
+  // Without the fix: stretched over the window, the old 640 / width.
+  const sdlfe::FrameShape off{640, 480, false};
+  const sdlfe::FitRect ro = sdlfe::fit_rect(1280, 720, off);
+  EXPECT(ro.x == 0 && ro.w == 1280 && ro.h == 720);
+  EXPECT(near(sdlfe::mickey_scale(1280, 720, off), 0.5f));
+  // The windows a frame opens: 640x480 at 1280x960 (as before), 1280x720 itself.
+  int w = 0, h = 0;
+  sdlfe::default_window(v640, &w, &h);
+  EXPECT(w == 1280 && h == 960);
+  sdlfe::default_window(v720, &w, &h);
+  EXPECT(w == 1280 && h == 720);
+
+  // Through the program's own pieces, in a hidden 1280x720 window: zInput's
+  // client mapping (SdlZinHost) and the relative mouse (SdlInput).
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  SDL_Window* win = SDL_CreateWindow("mw3 shape test", 1280, 720, SDL_WINDOW_HIDDEN);
+  EXPECT(win != nullptr);
+  if (!win) return;
+  int ww = 0, wh = 0;
+  SDL_GetWindowSize(win, &ww, &wh);
+  if (ww == 1280 && wh == 720) {
+    sdlfe::FrameShape shape{640, 480, true};
+    sdlfe::SdlInput input;
+    input.window = win;
+    input.shape = &shape;
+    sdlfe::SdlZinHost host(&input);
+    int32_t cx = 1120, cy = 720;
+    host.screen_to_client(&cx, &cy);
+    EXPECT(cx == 640 && cy == 480);
+    cx = 0, cy = 0;
+    host.client_to_screen(&cx, &cy);
+    EXPECT(cx == 160 && cy == 0);
+    int32_t fw = 0, fh = 0;
+    host.client_size(&fw, &fh);
+    EXPECT(fw == 640 && fh == 480);
+    EXPECT(input.open(platform::Input::kMouse));
+    input.acquire(platform::Input::kMouse);
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION;
+    e.motion.xrel = 96, e.motion.yrel = 48;
+    input.on_event(e);
+    platform::MouseState ms;
+    input.mouse_state(&ms);
+    std::printf("window shape: 96 x 48 window points of motion are %d x %d mickeys (pillarboxed 960 wide)\n", ms.x, ms.y);
+    EXPECT(ms.x == 64 && ms.y == 32);  // 640 / 960 of the motion
+    input.unacquire(platform::Input::kMouse);
+    input.close(platform::Input::kMouse);
+    shape.fit = false;  // the fix off: 640 stretched over the window, the old mapping
+    cx = 1280, cy = 720;
+    host.screen_to_client(&cx, &cy);
+    EXPECT(cx == 640 && cy == 480);
+  }
+  SDL_DestroyWindow(win);
+}
+

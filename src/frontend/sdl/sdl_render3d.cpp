@@ -1,6 +1,7 @@
 #include <string>
 #include "frontend/sdl/sdl_render3d.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -269,11 +270,14 @@ void SdlRender3D::ensure_buffer(uint32_t bytes) {
 
 // The back buffer: one colour target the size of the window's pixels, kept
 // across the scenes, 2D layers and quads of a frame (FIX (A): DirectDraw's
-// back buffer), shown by present().
+// back buffer), shown by present(). With any_resolution it is the frame's
+// shape inside the window (FIX (B), sdl_fit.h), placed at fit_.
 bool SdlRender3D::ensure_frame() {
   int pw = 0, ph = 0;
   SDL_GetWindowSizeInPixels(window_, &pw, &ph);
-  const Uint32 w = pw > 0 ? static_cast<Uint32>(pw) : 1280, h = ph > 0 ? static_cast<Uint32>(ph) : 960;
+  if (pw <= 0 || ph <= 0) pw = 1280, ph = 960;
+  fit_ = fit_rect(static_cast<float>(pw), static_cast<float>(ph), shape_ ? *shape_ : FrameShape{});
+  const Uint32 w = fit_.w >= 1 ? static_cast<Uint32>(fit_.w) : 1, h = fit_.h >= 1 ? static_cast<Uint32>(fit_.h) : 1;
   if (frame_ && frame_w_ == w && frame_h_ == h) return true;
   if (frame_) SDL_ReleaseGPUTexture(dev_, frame_);
   SDL_GPUTextureCreateInfo ti{};
@@ -390,6 +394,17 @@ void SdlRender3D::present() {
     std::vector<uint32_t> px;
     int w = 0, h = 0;
     if (read_back(&px, &w, &h)) {
+      // The window as shown: the back buffer at its place, black round it.
+      int pw = 0, ph = 0;
+      SDL_GetWindowSizeInPixels(window_, &pw, &ph);
+      if (pw > 0 && ph > 0 && (pw != w || ph != h) && fit_.w == w && fit_.h == h) {
+        std::vector<uint32_t> all(static_cast<size_t>(pw) * ph, 0xff000000u);
+        const int ox = static_cast<int>(fit_.x), oy = static_cast<int>(fit_.y);
+        for (int y = 0; y < h && oy + y < ph; ++y)
+          std::copy(px.begin() + static_cast<size_t>(y) * w, px.begin() + static_cast<size_t>(y) * w + std::min(w, pw - ox),
+                    all.begin() + static_cast<size_t>(oy + y) * pw + ox);
+        px.swap(all), w = pw, h = ph;
+      }
       SDL_Surface* sf = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_ARGB8888, px.data(), w * 4);
       SDL_SaveBMP(sf, capture_path_);
       SDL_DestroySurface(sf);
@@ -405,6 +420,13 @@ void SdlRender3D::present() {
     bi.source.texture = frame_, bi.source.w = frame_w_, bi.source.h = frame_h_;
     bi.destination.texture = sc, bi.destination.w = w, bi.destination.h = h;
     bi.load_op = SDL_GPU_LOADOP_DONT_CARE;
+    // With the frame's shape kept: into its rect (of the swapchain's size), the bars cleared black.
+    const FitRect r = fit_rect(static_cast<float>(w), static_cast<float>(h), shape_ ? *shape_ : FrameShape{});
+    if (r.x > 0 || r.y > 0 || r.w < w || r.h < h) {
+      bi.destination.x = static_cast<Uint32>(r.x), bi.destination.y = static_cast<Uint32>(r.y);
+      bi.destination.w = static_cast<Uint32>(r.w), bi.destination.h = static_cast<Uint32>(r.h);
+      bi.load_op = SDL_GPU_LOADOP_CLEAR, bi.clear_color = {0, 0, 0, 1};
+    }
     bi.filter = SDL_GPU_FILTER_LINEAR;
     SDL_BlitGPUTexture(cmd, &bi);
   }

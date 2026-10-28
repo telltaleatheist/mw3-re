@@ -61,6 +61,9 @@ class Window {
   virtual void set_title(const std::string& title) = 0;
   virtual void show() = 0;
   virtual void client_size(int* width, int* height) = 0;
+  // FIX (A) layer: the frame the game draws (the display rect), once the
+  // screen is open, so the window can take its shape (resolution.md step 2).
+  virtual void frame_size(int width, int height) { (void)width, (void)height; }
 };
 
 // Stands in for the DirectDraw primary surface the menus' 16-bit back buffer

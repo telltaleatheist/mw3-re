@@ -23,7 +23,8 @@
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
 //   --frames N           quit after N frames of a debug start
-//   --window WxH         window size (default 1280x960)
+//   --window WxH         window size (default 1280x960; with any_resolution the
+//                        frame's shape, and a given size pillarboxes the frame)
 //   --nosound            no audio device (a silent DirectSound stand-in)
 //   --hidden             keep the window hidden
 //   --verbose            list every unported function reached at exit
@@ -99,6 +100,7 @@ struct Args {
   float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first vehicle placed M m before the player
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
+  bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
@@ -143,7 +145,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
-    else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
+    else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h), a.window_given = true;
     else if (s == "--nosound") a.nosound = true;
     else if (s == "--walk") a.walk = true;
     else if (s == "--briefing" && next(1)) a.briefing = argv[++i];
@@ -263,6 +265,8 @@ int run(const Args& a) {
   sdlfe::SdlInput input;
   input.window = window.sdl();
   input.mickey_scale = a.win_w > 0 ? 640.0f / static_cast<float>(a.win_w) : 1.0f;
+  input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
+  window.set_auto_size(!a.window_given);
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;

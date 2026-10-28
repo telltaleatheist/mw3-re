@@ -4,13 +4,15 @@
 #include <map>
 #include <vector>
 
+#include "frontend/sdl/sdl_fit.h"
 #include "platform/render3d.h"
 
 // platform::Render3D on SDL3's GPU API (docs/render.md section 4): the
 // original's D3DTLVERTEX draws collected over a scene, fans and strips turned
 // into triangle lists, then drawn in order in one render pass with reversed
 // depth (cleared to 0, GREATER_OR_EQUAL). The game's viewport rect is stretched
-// over the whole window. Shaders are MSL for now (Metal);
+// over the whole back buffer, which is the window, or with any_resolution the
+// frame's shape inside it (sdl_fit.h, black bars round it). Shaders are MSL for now (Metal);
 // SPIR-V and DXIL come with the Windows build.
 namespace sdlfe {
 
@@ -41,6 +43,7 @@ class SdlRender3D : public platform::Render3D {
     if (!runs_.empty()) end_scene();
   }
   void viewport(int* x, int* y, int* w, int* h) const { *x = vx_, *y = vy_, *w = vw_, *h = vh_; }
+  void set_shape(const FrameShape* s) { shape_ = s; }
 
  private:
   void upload(SDL_GPUTexture* t, int width, int height, const uint8_t* rgba);
@@ -78,6 +81,8 @@ class SdlRender3D : public platform::Render3D {
   float clear_rgb_[3] = {0, 0, 0};
   float fog_rgb_[3] = {0, 0, 0};
   const char* capture_path_ = nullptr;
+  const FrameShape* shape_ = nullptr;  // the frame's shape in the window (null: the whole window)
+  FitRect fit_;                        // where the back buffer goes in the window's pixels
 };
 
 }  // namespace sdlfe

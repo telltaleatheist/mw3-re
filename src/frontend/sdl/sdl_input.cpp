@@ -249,7 +249,15 @@ void SdlInput::on_event(const SDL_Event& e) {
     case SDL_EVENT_MOUSE_MOTION:
       mouse_x = e.motion.x, mouse_y = e.motion.y;
       raw_dx_ += e.motion.xrel, raw_dy_ += e.motion.yrel;
-      if (acquired_[kMouse]) dx_ += e.motion.xrel * mickey_scale, dy_ += e.motion.yrel * mickey_scale;
+      if (acquired_[kMouse]) {
+        float k = mickey_scale;
+        if (fitted() && window) {
+          int w = 0, h = 0;
+          SDL_GetWindowSize(window, &w, &h);
+          k = sdlfe::mickey_scale(static_cast<float>(w), static_cast<float>(h), *shape);
+        }
+        dx_ += e.motion.xrel * k, dy_ += e.motion.yrel * k;
+      }
       break;
     case SDL_EVENT_MOUSE_WHEEL:
       if (acquired_[kMouse]) dz_ += e.wheel.y * 120.0f;  // WHEEL_DELTA a notch
@@ -286,14 +294,35 @@ void SdlZinHost::window_size(int* w, int* h) const {
   *w = fw_, *h = fh_;
   if (input_ && input_->window) SDL_GetWindowSize(input_->window, w, h);
 }
+// With any_resolution the client area is the frame (the display rect) and the
+// mapping goes through its rect in the window (sdl_fit.h); else the 640x480
+// frame stretched over the window.
+void SdlZinHost::client_size(int32_t* w, int32_t* h) {
+  *w = fw_, *h = fh_;
+  if (input_ && input_->fitted()) *w = input_->shape->frame_w, *h = input_->shape->frame_h;
+}
 void SdlZinHost::client_to_screen(int32_t* x, int32_t* y) {
   int w, h;
   window_size(&w, &h);
+  if (input_ && input_->fitted()) {
+    float wx, wy;
+    frame_to_window(static_cast<float>(*x), static_cast<float>(*y), static_cast<float>(w), static_cast<float>(h),
+                    *input_->shape, &wx, &wy);
+    *x = static_cast<int32_t>(std::lround(wx)), *y = static_cast<int32_t>(std::lround(wy));
+    return;
+  }
   *x = *x * w / fw_, *y = *y * h / fh_;
 }
 void SdlZinHost::screen_to_client(int32_t* x, int32_t* y) {
   int w, h;
   window_size(&w, &h);
+  if (input_ && input_->fitted() && w > 0 && h > 0) {
+    float fx, fy;
+    window_to_frame(static_cast<float>(*x), static_cast<float>(*y), static_cast<float>(w), static_cast<float>(h),
+                    *input_->shape, &fx, &fy);
+    *x = static_cast<int32_t>(std::floor(fx)), *y = static_cast<int32_t>(std::floor(fy));
+    return;
+  }
   if (w > 0 && h > 0) *x = *x * fw_ / w, *y = *y * fh_ / h;
 }
 // Windows' cursor follows the game's mouse; a captured (relative) mouse has none.

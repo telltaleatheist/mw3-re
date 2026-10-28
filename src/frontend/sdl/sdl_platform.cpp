@@ -5,6 +5,7 @@
 #include "frontend/sdl/sdl_input.h"
 #include "gamez/zgame/zgameapp.h"
 #include "gamez/zsound/zsnd_cd.h"
+#include "gamez/zutil/zfix.h"
 
 namespace sdlfe {
 
@@ -17,6 +18,7 @@ bool SdlWindow::init(bool hidden_for_good) {
   if (!SDL_ClaimWindowForGPUDevice(device_, window_))
     return std::fprintf(stderr, "mw3: SDL_ClaimWindowForGPUDevice: %s\n", SDL_GetError()), false;
   render_ = std::make_unique<SdlRender3D>(device_, window_);
+  render_->set_shape(&shape_);
   return render_->ok();
 }
 
@@ -39,6 +41,19 @@ void SdlWindow::set_title(const std::string& title) {
 }
 void SdlWindow::show() {
   if (window_ && !hidden_) SDL_ShowWindow(window_), SDL_RaiseWindow(window_);
+}
+// The display rect the game draws: with any_resolution its shape is kept
+// (pillarboxed in a window of another shape), and a window opened without
+// --window takes it (sdl_fit.h default_window).
+void SdlWindow::frame_size(int width, int height) {
+  shape_.frame_w = width, shape_.frame_h = height;
+  shape_.fit = zfix::options().any_resolution;
+  if (!window_ || !shape_.fit || !auto_size_) return;
+  int w = 0, h = 0;
+  default_window(shape_, &w, &h);
+  SDL_SetWindowSize(window_, w, h);
+  SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  SDL_SyncWindow(window_);
 }
 void SdlWindow::client_size(int* width, int* height) {
   *width = *height = 0;
