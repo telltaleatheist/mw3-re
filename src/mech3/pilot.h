@@ -148,6 +148,9 @@ class Game {
   // true for every game but the campaign's (docs/save.md).
   virtual bool restore() { return true; }
   virtual int32_t type() const { return -1; }  // vt+0x2c  0x004a5260
+  // vt+0x04 .. +0x10, the briefing's game_type, db_name, scenario_name and
+  // scenario_desc (campaign.md section 3): 0x0040bae0's 0 unless a game has its own.
+  virtual const char* game_text(int32_t slot) { (void)slot; return nullptr; }
 
   Pilot* pilot;                      // +0x04
   Store store;                       // +0x08
@@ -177,6 +180,7 @@ class CampaignGame : public Game {
   void save() override;              // vt+0x18  0x00434990
   void load() override;              // vt+0x1c  0x00434ae0
   int32_t type() const override { return kCampaign; }  // 0x00499270
+  const char* game_text(int32_t slot) override { return slot == 0x0c ? name() : nullptr; }
   const char* name();                // vt+0x0c  0x00434900: "Op N, Mission M" (into text)
   const char* path();                // vt+0x14  0x00434980: its saved game (into text)
   const char* path_for(const char* pilot_name);  // 0x00434950
@@ -228,6 +232,8 @@ class ActionGame : public Game {
   void save() override;              // vt+0x18  0x00436b50
   void load() override;              // vt+0x1c  0x00436cc0
   int32_t type() const override { return kInstantAction; }  // 0x004993e0
+  // 0x004378a0 (message 0x10c), 0x004487d0 (+0x38), 0x0040a840 (+0x3c), 0x00437970 (+0x40)
+  const char* game_text(int32_t slot) override;
 
   // The line-up (0x0049dc80's): slot i (vt+0x34; 0 the player's, then
   // lineup[i - 1]), allies first, then enemies (the screen keeps them so).
@@ -287,6 +293,10 @@ class TrainingGame : public Game {
   void save() override;              // vt+0x18  0x00436fe0
   void load() override;              // vt+0x1c  0x00437020
   int32_t type() const override { return kTraining; }  // 0x00473a20
+  // 0x00437980 (message 0x10b), 0x004487d0 (+0x38), 0x00437990 / 0x004379b0
+  // (the mission's name and description, vt+0x4c 0x00437970 the mission)
+  const char* game_text(int32_t slot) override { return text_of(slot, mission); }
+  static const char* text_of(int32_t slot, int32_t mission);
   // A training mission's name and description (0x00437060, 0x004370d0: the
   // message, i within 1..4).
   static int32_t name_id(int32_t i);

@@ -242,6 +242,12 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x00526510", "own: zModel's start, the port's struct initialisers; what differs is unread or set first (module-starts.md)"},
       {"0x005578f0", "own: zRender's start, the same (module-starts.md)"},
       {"0x00557b30", "own: zRender's reset, the software span table; the port's fillers are direct calls (module-starts.md)"},
+      {"0x00575f70", "own: Mech3Msg.dll's FreeLibrary; the port reads the DLL as a file (zutl::MessageDll), freed with the engine"},
+      {"0x00576c60", "own: zutl's search paths freed (0x00576250); the port's are the mounts, freed at the process's end"},
+      {"0x00516f00", "own: zImage's tables freed at the app's stop (memory only, no write); the port's free themselves"},
+      {"0x00526780", "own: zModel's materials and model pool freed at the app's stop (memory only); the port's free themselves"},
+      {"0x00557b10", "own: two zRender buffers ([0x0072c1dc], [0x0072c1e0], 0x00558250) freed at the app's stop (memory only)"},
+      {"0x005646d0", "own: the span fillers' two buffers freed at the app's stop (memory only)"},
       {"0x005a8390", "own: a target's centroid and target nodes (zent::marker_nodes); its name is 0, its +0x0c unread"},
   };
   return k;
@@ -438,6 +444,11 @@ void GameEngine::error_log_open(uint32_t, uint32_t, const char*) { zerr::set_sin
 void GameEngine::reader_init(const char*) { zrdr::init(); }
 void GameEngine::reader_open_archive(const char* path, int32_t current) { zrdr::open_archive(path, current != 0); }
 void GameEngine::reader_close_archives(int32_t all) { zrdr::close_archives(all != 0); }
+// The app's end (0x0047fab0): zInput's maps and names, then the reader.
+void GameEngine::input_maps_free() { zin::shutdown(); }
+// The app's stop (0x004808a0, the Exit state's): the mechs' module.
+void GameEngine::mechs_shutdown() { mech3::mechs_shutdown(); }
+void GameEngine::reader_shutdown() { zrdr::shutdown(); }
 
 // 0x00598210: the store's key, and the machine the detail settings are
 // picked for. FIX (A): the platform describes a modern machine instead of the

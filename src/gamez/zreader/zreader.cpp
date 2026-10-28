@@ -367,6 +367,15 @@ void close_archives(bool all) {
   if (!all && g_state.current) g_state.archives.push_back(g_state.current);
 }
 
+// Mech3.exe 1.2 @ 0x00556210, at the app's end: the search paths freed
+// (0x00576120; the port's are the mounts), every archive closed (a changed
+// table written, none for the read-only .zbd files) and the list freed.
+void shutdown() {
+  close_archives(true);
+  g_state.archives_created = false;  // [0x0072c1a0] = [0x0072c1a4] = 0
+  g_state.archives.clear();
+}
+
 // Mech3.exe 1.2 @ 0x005572c0
 std::FILE* find_in_archives(const char* name) {
   if (!g_state.archives_created) return nullptr;
