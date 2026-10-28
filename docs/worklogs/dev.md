@@ -1222,3 +1222,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   was wired: the first run's nodes stayed on the scroll list (its teardown
   skips the world's unload). Its two runs now reset the list as
   mw3tests' reset_process_state does. Shots of c1m1, t1 and the menu draw.
+
+## Mission-plan item 17 (2026-10-28): the modules' starts
+
+- Branch mac4/module-starts (main bc2c0ab). The 157 writes taken from the
+  decomp, every direct read from mech3.asm by containing function, a
+  reader counted as run when it has a port (script in the scratchpad;
+  the table in docs/module-starts.md).
+- No change: the fog differs but the world read sets it all before a draw;
+  checked with a temporary print of zmod::fog() at each draw where it
+  changed and a switch putting the exe's start values in (removed): one
+  identical line per mission (c1m1, t1, c3m1, c4m2). Shots are not
+  repeatable run to run (rain, timing), so no byte compare.
+- The three known; census 0 unported. Break: a reason without its prefix
+  fails known_unported_keys_name_their_reason.
