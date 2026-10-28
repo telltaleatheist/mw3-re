@@ -308,10 +308,19 @@ apart. Everything else is a real gap and stays listed.
   firing, c1m1 won through the debriefing, the lab through LAUNCH, the
   Instant Action, Training, options, credits and multiplayer menus,
   c1m1's pause, Training's lesson 1 from the menus: 0 keys outside the
-  table. A pause check goes through the menus (`--briefing c1m1
-  --click-at 556,435@2600 --tap 0x01@3200`): `--tap` drives the menus'
-  frames only, and a `--mission` start that ends (its shot) leaves the
-  app in the shell with nothing to quit it.
+  table.
+- The census's long runs (mission-plan item 22): `MW3_CENSUS_MISSION=c4m2`
+  (any mission by name) and `MW3_CENSUS_STATS=1` (each 20 s cycle's wall
+  time, memory footprint, handles, live nodes, shots) on
+  `census_c1m1_unported_headless`.
+- `--frames` and `--shot` on a launched mission (mission-plan item 22)
+  count every frame shown from the first that drew the scene, the pause
+  and end screens included. They counted only frames that drew the scene,
+  so Escape's pause stopped the count and the run never ended (item 21's
+  first pause run). `sdl_program_frames_end_a_paused_mission` runs
+  `build/mw3 --mission c1m1 --tap 0x01@900 --frames 1200` and expects it to
+  quit by itself. The fade into the mission is timed, so a hidden window
+  spends 500-odd frames in it: c1m1's Core state starts near frame 576.
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
   panel 0x0041ab90, the Multiplayer State's three screens 0x00493260,
   0x00495f90, 0x0049bd80, the lobby session's flag 0x00586ce0), the stealth object (0x004ac860, 0x004a4de0), the mode

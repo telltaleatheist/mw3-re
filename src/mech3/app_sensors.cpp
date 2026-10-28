@@ -395,6 +395,7 @@ void* hud_contact_vehicle(const void* c) { return object(contact_vehicle_of(stat
 void* hud_contact_entity(const void* c) { return object(static_cast<const ai::Contact*>(c)->entity); }
 float hud_contact_size(const void* c) { return contact_size_of(static_cast<const ai::Contact*>(c)->seen); }
 uint32_t hud_object_team(const void* o) { return entity_team(handle(o)); }
+bool hud_object_classed(const void* o) { return entity_facts().class_of(handle(o)) != EntityClass::none; }
 void* hud_object_blip(const void* o, int32_t kind) { return object(entity_blip(handle(o), kind)); }
 bool hud_object_hidden(const void* o) { return entity_hidden(handle(o)); }
 void* hud_object_mech(const void* o) { return object(entity_mech(handle(o))); }

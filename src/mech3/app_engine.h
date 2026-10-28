@@ -349,6 +349,7 @@ class GameEngine : public Engine {
   // The not-ported calls: logged the first time each key is reached.
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override;
   const std::map<std::string, uint32_t>& unported_counts() const { return counts_; }
+  size_t handle_count() const { return objects_.size(); }  // the handles given out (kept for good)
   // Ours (mission-plan item 11): a reached key the program answers its own
   // way, or leaves by a decision, or that has no effect: why, with the
   // program's equivalent; null for a real gap. Counted all the same; not
