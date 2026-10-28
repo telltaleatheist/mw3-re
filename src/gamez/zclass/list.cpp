@@ -347,7 +347,7 @@ int classes_reset() {
   }
   scene_walk().pre = nullptr, scene_walk().post = nullptr;  // 0x004f7630(0), 0x004f7650(0)
   zbd_path()[0] = 0;                                        // 0x004fe0f0: the first byte
-  return 0;  // [0x0060bf48] (0x004f8f70's periodic callback flag) has no port
+  return 0;  // [0x0060bf48] = 0: zClass down (0x004f8f70 sets it; the program reads the pool)
 }
 
 // Mech3.exe 1.2 @ 0x004f7d20

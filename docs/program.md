@@ -303,8 +303,18 @@ apart. Everything else is a real gap and stays listed.
   c4bm4..c4bm6, t1) launched as `--mission` does, 1200 Core frames each,
   then the stop, ExitInstance and the app's end; fails on any key outside
   the table or a mission without the player's mech.
+- With input (mission-plan item 21, by `build/mw3`'s `--click-at`,
+  `--tap`, `--walk`, `--fire`, `--win`, `--lab-mech`): walking and
+  firing, c1m1 won through the debriefing, the lab through LAUNCH, the
+  Instant Action, Training, options, credits and multiplayer menus,
+  c1m1's pause, Training's lesson 1 from the menus: 0 keys outside the
+  table. A pause check goes through the menus (`--briefing c1m1
+  --click-at 556,435@2600 --tap 0x01@3200`): `--tap` drives the menus'
+  frames only, and a `--mission` start that ends (its shot) leaves the
+  app in the shell with nothing to quit it.
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
-  panel 0x0041ab90), the stealth object (0x004ac860, 0x004a4de0), the mode
+  panel 0x0041ab90, the Multiplayer State's three screens 0x00493260,
+  0x00495f90, 0x0049bd80, the lobby session's flag 0x00586ce0), the stealth object (0x004ac860, 0x004a4de0), the mode
   switch 0x004ab6b0 (resolution.md step 3), the developer-only lines
   (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890), the
   stealth object's name 0x005a84c0, the bitmap fonts 0x00519e50 (with

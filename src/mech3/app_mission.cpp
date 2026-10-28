@@ -69,6 +69,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
+#include "mech3/hud.h"
 #include "mech3/mission_map.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
@@ -363,6 +364,16 @@ struct WiredPlayerHooks : PlayerHooks {
   int32_t campaign_slot_count(Handle c) override {
     CampaignGame* g = camp(c);
     return g ? g->slot_count() : PlayerHooks::campaign_slot_count(c);
+  }
+  // Mech3.exe 1.2 @ 0x00437800 (training's vt+0x34): slot 0 its one slot (+0x20), the player's.
+  Handle training_slot(Handle t) override {
+    TrainingGame* g = t ? launch_training() : nullptr;
+    return g ? slot_handle(&g->slot) : PlayerHooks::training_slot(t);
+  }
+  // Mech3.exe 1.2 @ 0x00433df0 as player_setup calls it (c, 0, 0): a copy of the record's loadout.
+  void slot_set_config(Handle slot, Handle config) override {
+    if (!slots.count(slot)) return PlayerHooks::slot_set_config(slot, config);
+    as<GameSlot>(slot)->set_config(as<Config>(config));
   }
   bool slot_field(Handle h, uint32_t off, uint32_t* get, const uint32_t* put) {
     if (!slots.count(h)) return false;
@@ -1442,6 +1453,22 @@ WiredObjectiveHooks g_objective_hooks;
 struct WiredMissionHooks : MissionHooks {
   Handle multiplayer() override { return e->launch().type == 3 ? 1 : 0; }  // 0x00479480
   WiredObjectiveHooks& ob() { return g_objective_hooks; }
+  // The end's cockpit (mission.cpp cockpit): 0x00430aa0 on the view's own mech's
+  // +0x684, and its objectives box (+0x17964) shown for a time (vt+0x60, -1 held).
+  Handle mech_screen(Handle data) override {
+    void* hud = program_pilot_hud(e->object_of(data));
+    return hud ? e->handle_of(hud) : 0;
+  }
+  void screen_flash(Handle obj, float v) override {
+    void* hud = program_mech_hud(mech_mission_player());
+    if (hud && obj == e->handle_of(hud) + 0x17964) static_cast<Hud*>(hud)->objectives.show_for(v);
+    else MissionHooks::screen_flash(obj, v);
+  }
+  void screen_reset(Handle obj) override {  // 0x00446ad0 on the box: its lines from the objectives again
+    void* hud = program_mech_hud(mech_mission_player());
+    if (hud && obj == e->handle_of(hud) + 0x17964) program_hud_objectives_fill(hud);
+    else MissionHooks::screen_reset(obj);
+  }
   // The cleanup 0x00491780's calls that have ports (docs/mission-frame.md,
   // The cleanup): zClass's delete mode, the view let go of the player's mech
   // before it is deleted and its camera mode 0, the radar objects, the

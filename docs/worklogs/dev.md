@@ -1274,3 +1274,27 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   a debug start answers by its launch (t1 the training lesson).
 - Break: game_text back to the logged base fails the census (game.vt in
   t1). The known table is 46 now.
+
+## Mission-plan item 21 (2026-10-28): the census with input
+
+- Branch mac4/census-input (off item 20, 3c7ac04).
+- Routes, each through `build/mw3 --verbose --nosound`: walking and
+  firing, c1m1 won (--win) through the debriefing, the lab through
+  LAUNCH, Instant Action's and Training's pilot screens, options,
+  credits, multiplayer, c1m1's pause, Training's lesson 1 launched.
+  All end at 0 keys outside the table.
+- 15 keys found: 11 wired (the debriefing's voice, the Core state's
+  anim stop, the 2D target's size, zClass's flag, zVideo's three device
+  queries, training's slot and 0x00433df0, the end's cockpit HUD and its
+  objectives box), 4 multiplayer known (deferred). The known table is 50.
+- Training's lesson 1 had launched with the slot's default armed loadout;
+  now with training1 (equipment only), as the exe. Without it the
+  menus' training test never reaches lesson 2.
+- The first pause run used `--mission c1m1 --tap 0x01@200`: `--tap`
+  drives only the menus' frames, and the debug start's end (its shot) left
+  the app in the shell with nothing to quit it (ran 14 minutes, killed).
+  Redone through the menus.
+- Tests: training_menus_to_lesson3_headless checks the loadout and the
+  five keys; known_unported_keys_name_their_reason the 50 and the 15.
+  Breaks: training's slot unwired fails 6 checks; 0x00586ce0 renamed in
+  the table fails 2.

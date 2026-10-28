@@ -38,6 +38,7 @@
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zrender/zrndr_span.h"
 #include "gamez/zrender/zrndr_flare.h"
 #include "gamez/ztwod/twod.h"
 #include "platform/platform.h"
@@ -212,6 +213,10 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x00576d90", "own: the back buffer's size, zvid's Surface (lock_3d); here only the targets' arguments"},
       {"0x00576da0", "own: the back buffer's height, the same (lock_3d)"},
       {"0x00576dc0", "own: the back buffer's pitch, the same"},
+      {"0x00586ce0", "deferred: multiplayer (a DirectPlay lobby session's flag; 0, none, as the exe without one)"},
+      {"0x00493260", "deferred: multiplayer (its first screen, made by the Multiplayer State's constructor)"},
+      {"0x00495f90", "deferred: multiplayer (its second screen)"},
+      {"0x0049bd80", "deferred: multiplayer (its third screen)"},
       {"0x00588930", "deferred: multiplayer (DirectPlay's poll; back burner)"},
       {"0x00586c20", "deferred: multiplayer (its shutdown)"},
       {"0x0041ab90", "deferred: multiplayer (the chat panel at mech +0x378, made by commands 0x76 / 0x77)"},
@@ -626,6 +631,20 @@ const char* GameEngine::video_mode_label() {
 }
 // 0x00576ce0 -> 0x00577770: a DDBLT_DEPTHFILL Blt over `rect`, the whole
 // depth surface for 0 (the Core state's start).
+// Mech3.exe 1.2 @ 0x00558010: the 16-bit target's size ([0x008007cc],
+// [0x008007d0]) from the rect, in both of the port's views of it.
+void GameEngine::render_flush(Handle rect) {
+  if (!rect) return;
+  const int32_t w = static_cast<int32_t>(peek32(rect + 8) - peek32(rect));
+  const int32_t h = static_cast<int32_t>(peek32(rect + 12) - peek32(rect + 4));
+  zrndr::soft_target().width = w, zrndr::soft_target().height = h;
+  zrndr::target2d().width = static_cast<uint32_t>(w), zrndr::target2d().height = static_cast<uint32_t>(h);
+}
+// Mech3.exe 1.2 @ 0x004f8f50: [0x0060bf48], set by zClass's set-up
+// (0x004f8f70) and cleared by its reset: the node pool live (as the weapons' pool_live).
+bool GameEngine::world_up() { return !zcls::nodes().blocks.empty(); }
+// 0x0050ace0 at the Core state's leave: every mission animation stopped.
+void GameEngine::anim_stop(int32_t a) { zeff::anim_stop_all(a); }
 void GameEngine::video_clear_a(Handle rect) {
   const zvid::Surface& b = zvid::surfaces().back;
   int32_t r[4] = {0, 0, b.width, b.height};

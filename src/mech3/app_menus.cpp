@@ -917,6 +917,16 @@ Handle GameEngine::voice_play(Handle s, float v) {
   auto* o = static_cast<zsnd::Object*>(object_of(s));
   return o ? handle_of(zsnd::play(o, v)) : 0;
 }
+// Mech3.exe 1.2 @ 0x0047abe0 (ECX the Win state): its voice (+0x1c) stopped,
+// then the sound named at +0x18 ("c%dm%dwin", loaded by the state's enter)
+// played at full volume into +0x1c, which the state's leave stops.
+void GameEngine::debrief_voice_play(Handle state) {
+  WinState& w = states().end_win;
+  if (state != w.addr()) return Engine::debrief_voice_play(state);
+  if (const Handle v = field32(state, 0x1c)) voice_stop(v);
+  set_field32(state, 0x1c, 0);
+  if (zsnd::Object* o = zsnd::find(w.voice_)) set_field32(state, 0x1c, handle_of(zsnd::play(o, 1.0f)));
+}
 int32_t GameEngine::voice_status(Handle v) { return zsnd::status(static_cast<zsnd::VoiceBase*>(object_of(v))); }
 void GameEngine::sound_cue_briefing(Handle s) {
   if (auto* o = static_cast<zsnd::Object*>(object_of(s)))
