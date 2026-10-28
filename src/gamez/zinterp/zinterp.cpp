@@ -27,6 +27,8 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_hit.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zrender/zrndr_flare.h"
@@ -34,6 +36,11 @@
 #include "gamez/zvideo/zvid_format.h"
 
 namespace zint {
+
+std::map<std::string, uint32_t>& null_calls() {
+  static std::map<std::string, uint32_t> m;
+  return m;
+}
 
 namespace {
 Globals g_globals;
@@ -84,6 +91,23 @@ Engine make_engine() {
   e.light_create = zcls::light_create;
   e.object3d_create = zcls::object3d_create;
   e.model_set_priority = zmod::model_set_priority;  // Object3DSetPriority's
+  // The support scripts' render settings (item 7's census: every mission).
+  e.bfe_tolerance = zmod::set_bfe_tolerance;
+  e.get_bfe_tolerance = zmod::bfe_tolerance;
+  e.coplanar_tolerance = zmod::set_coplanar_tolerance;
+  e.colinear_tolerance = zmod::set_colinear_tolerance;
+  e.inverse_z_tolerance = zmod::set_inverse_z_tolerance;
+  e.vertex_shading = zmod::set_vertex_shading;
+  e.video_dither = zvid::set_dither;
+  e.material_array_size = [](int) { return 0; };  // 0x00536a60 is empty
+  // No effect in the port, so done here as nothing (docs/interp.md, The live calls):
+  e.model3d_array_size = [](int) { return 0; };          // 0x005269a0: gamez.zbd sets the pool's size
+  e.perspective_delta_x = [](int) { return 0; };         // 0x005580d0: the software span's (not ported)
+  e.perspective_far_z = [](float) { return 0; };         // 0x00558140: the same
+  e.perspective_inverse_z = [](float) { return 0; };     // 0x00558170: the same
+  e.texture_directory = [](const char*) { return 0; };   // 0x00516f50: loose textures (the archives are read)
+  e.rdr_set_path = [](const char*) { return 0; };        // 0x005561a0: loose .zrd text (the same)
+  e.rdr_add_path = [](const char*) { return 0; };        // 0x005561e0
   e.object3d_add_child = zcls::object3d_add_child;
   e.world_set_fog_type = zcls::world_set_fog_type;
   e.world_set_fog_color = zcls::world_set_fog_color;

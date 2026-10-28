@@ -1,4 +1,6 @@
 #pragma once
+#include <map>
+#include <string>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -352,6 +354,8 @@ struct Engine {
   void (*print)(const char* text);                                // printf, formatted
 };
 Engine& engine();
+// Ours: the engine entries a script reached while null (skipped), by field.
+std::map<std::string, uint32_t>& null_calls();
 
 // Test seam (not in the exe): told of each line, each dispatch and each
 // line's end, to compare the port's run with the original's.

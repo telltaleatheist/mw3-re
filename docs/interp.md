@@ -642,3 +642,30 @@ plain node alloc (the c1 world run).
 
 Not ported: the debug console 0x5960a0 (needs a text window), the mission
 load around it (0x48faf0), and the engine functions still null in the table.
+
+### The live calls (mission-plan item 7, 2026-10-27)
+
+The dispatcher counts every call it skips because the program left the
+entry null (`zint::null_calls`, ours; `mw3 --verbose` lists them after the
+unported functions). Every shipped mission (c1m1..c4m3, c4bm4..6, t1; 600
+frames each) reached the same 14, all from the support scripts at the load:
+
+| Entry | Script value | What it is | Now |
+|---|---|---|---|
+| SetBFETolerance 0x53cef0 (getter 0x53cf00) | 0.00005 | the backface threshold 0x5ef73c (data 0.005) | `zmod::set_bfe_tolerance` |
+| SetCoplanarTolerance 0x538070 | 0.002 | the polygon add's planarity 0x5ee3d0 (data 0.005) | `zmod::set_coplanar_tolerance` |
+| SetColinearTolerance 0x538080 | 0.00001 | its colinear test 0x5ee3d8 (data 0.001) | `zmod::set_colinear_tolerance` |
+| SetInverseZTolerance 0x526df0 (twice) | 0.01 | the priority depth scale 0x74a284 (0.02 with a device) | `zmod::set_inverse_z_tolerance` |
+| SetVertexShading 0x526a00 | on | the draw's per-vertex normals 0x749808 (data off) | `zmod::set_vertex_shading` |
+| VideoSetDither 0x579240 | on | 0x802700 (the device's dither state) | `zvid::set_dither` |
+| SetMaterialArraySize 0x536a60 | 5000 | an empty function | nothing |
+| SetModel3DArraySize 0x5269a0 | 20000 (6000 dev) | the pool's size, which gamez.zbd then sets | nothing |
+| SetPerspectiveTextureDeltaX / FarZ / InverseZTolerance 0x5580d0, 0x558140, 0x558170 | 32, 10000, 0 | the software span's perspective steps | nothing (not ported) |
+| SetTextureDirectory 0x516f50 (x3), RdrSetPath / RdrAddPath 0x5561a0 / 0x5561e0 | directories | the loose-file search lists | nothing (the archives are read) |
+
+So the port had drawn with the data's settings: a 100 times larger backface
+threshold, twice the priority depth bias, flat shading where the models
+carry normals, and crater polygons merged at the data's tolerances. With the
+entries real none is skipped (`mission_c1m1_owens_runs_its_frames` checks
+it and the four draw settings). `test_script_setters.py` (400 runs) checks
+the setters; `test_gmod_add.py` builds half its models at set tolerances.

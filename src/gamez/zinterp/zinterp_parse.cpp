@@ -18,11 +18,15 @@ namespace {
 const char kFile[] = "C:\\zipper\\GameZMech3\\zInterp\\zinterp_parse.cpp";
 constexpr double kDegToRad = 0.01745329251994;  // 0x005cf668
 
+// An engine entry the program leaves null is skipped, as before, and counted
+// by name (null_calls, ours: which ones the shipped scripts reach).
 template <typename R, typename... P, typename... A>
-R call(R (*fn)(P...), A... a) {
+R call_named(const char* name, R (*fn)(P...), A... a) {
   if (fn) return fn(a...);
+  ++null_calls()[name];
   return R();
 }
+#define call(fn, ...) call_named(#fn, fn, ##__VA_ARGS__)
 
 // 0x0049bfd0, formatted here (zerr::report takes the finished message).
 void report(int line, const char* fmt, ...) {

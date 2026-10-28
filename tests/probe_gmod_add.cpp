@@ -8,6 +8,8 @@
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_draw.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zutil/zfix.h"
 
 namespace {
@@ -33,6 +35,7 @@ int32_t cnt(int off) { return static_cast<int32_t>(g_model.count(off)); }
 // `fixes`: the colinear drop's FIX (zfix bugs) on.
 extern "C" void probe_gadd_begin(float precision, int fixes) {
   zfix::options().bugs = fixes != 0;
+  zmod::tolerances_reset();
   zerr::set_sink(sink);
   std::memset(g_model.header, 0, sizeof g_model.header);
   g_model.polygons = nullptr, g_model.vertices = nullptr, g_model.normals = nullptr, g_model.morphs = nullptr;
@@ -40,6 +43,12 @@ extern "C" void probe_gadd_begin(float precision, int fixes) {
   g_materials[1] = zmod::Material{};
   g_materials[1].flags = 1;
   zmod::set_vertex_precision(precision);
+}
+
+// The scripts' tolerances (0x00538070, 0x00538080) on the model being built.
+extern "C" void probe_gadd_tolerances(float coplanar, float colinear) {
+  zmod::set_coplanar_tolerance(coplanar);
+  zmod::set_colinear_tolerance(colinear);
 }
 
 // One add; then the code, the reports and the model.
@@ -73,4 +82,22 @@ extern "C" int probe_gadd(int n, float* points, const float* normals, const floa
   const int n2 = static_cast<int>(g_out.size());
   if (n2 <= cap) std::memcpy(out, g_out.data(), g_out.size());
   return n2;
+}
+
+// The scripts' render setters for test_script_setters.py: from the
+// defaults, op 0 BFE (0x0053cef0) then its getter, 1 inverse z
+// (0x00526df0), 2 vertex shading (0x00526a00), 3 dither (0x00579240);
+// then the four globals.
+extern "C" void probe_script_setter(int op, float f, int i, float out[4]) {
+  zmod::draw_state() = zmod::DrawState{};
+  zvid::display() = zvid::Display{};
+  if (op == 0) zmod::set_bfe_tolerance(f), out[3] = zmod::bfe_tolerance();
+  if (op == 1) zmod::set_inverse_z_tolerance(f);
+  if (op == 2) zmod::set_vertex_shading(i);
+  if (op == 3) zvid::set_dither(i);
+  out[0] = zmod::draw_state().backface;
+  out[1] = zmod::draw_state().priority_scale;
+  int32_t vs = zmod::draw_state().vertex_shading, d = zvid::display().dither;
+  std::memcpy(&out[2], op == 3 ? &d : &vs, 4);
+  if (op != 0) out[3] = 0;
 }

@@ -446,9 +446,8 @@ void model_box(uint8_t* h, const float* vertices, const Light* lights, const flo
 
 namespace {
 float g_precision = 0.001f;                        // 0x005ee3e0
-constexpr double kPlanar = 0.005;                  // 0x005ee3d0 (the debug console sets it and 0x5ee3d8 through
-                                                   // 0x00538070 / 0x00538080, not ported)
-constexpr double kColinear = 0.001;                // 0x005ee3d8
+double g_planar = 0.005;                           // 0x005ee3d0  SetCoplanarTolerance (0.002 in play)
+double g_colinear = 0.001;                         // 0x005ee3d8  SetColinearTolerance (0.00001 in play)
 constexpr int32_t kMaxVerts = 48;                  // 0x005ee3e4
 constexpr double kMaxModelVerts = 921.6;           // 0x005ce180, 0.9 x 1024
 
@@ -472,6 +471,10 @@ std::string format(const char* f, ...) {
 
 float vertex_precision() { return g_precision; }      // 0x00538050
 void set_vertex_precision(float v) { g_precision = v; }  // 0x00538060
+// Mech3.exe 1.2 @ 0x00538070, 0x00538080: the support scripts' (tolerances.gw).
+void set_coplanar_tolerance(float v) { g_planar = v; }
+void set_colinear_tolerance(float v) { g_colinear = v; }
+void tolerances_reset() { g_planar = 0.005, g_colinear = 0.001; }
 
 // Mech3.exe 1.2 @ 0x00539d80. The vertex within the precision on every axis,
 // else a new one (-1 when the model is near full).
@@ -554,11 +557,11 @@ int drop_colinear(int32_t* n, float* p, std::vector<int32_t>* kept) {
       const float v0 = q[0] - b[0], v1 = q[1] - b[1], v2 = q[2] - b[2];
       float x = u2 * v1 - u1 * v2, y = u0 * v2 - u2 * v0, z = u1 * v0 - u0 * v1;
       float len = 0.0f;
-      if (std::fabs(x) > kColinear || std::fabs(y) > kColinear || std::fabs(z) > kColinear)
+      if (std::fabs(x) > g_colinear || std::fabs(y) > g_colinear || std::fabs(z) > g_colinear)
         len = std::sqrt(x * x + y * y + z * z);
-      const float inv = !(std::fabs(len) > kColinear) ? 0.0f : 1.0f / len;
+      const float inv = !(std::fabs(len) > g_colinear) ? 0.0f : 1.0f / len;
       x = inv * x, y = inv * y, z = inv * z;
-      if (!(std::fabs(x) >= kColinear) && !(std::fabs(y) >= kColinear) && !(std::fabs(z) >= kColinear)) {
+      if (!(std::fabs(x) >= g_colinear) && !(std::fabs(y) >= g_colinear) && !(std::fabs(z) >= g_colinear)) {
         std::memmove(p + 3 * i, p + 3 * (i + 1), 12 * static_cast<size_t>(count - 1 - i));
         if (kept) kept->erase(kept->begin() + i);
         --*n;
@@ -811,7 +814,7 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
     const float d = -(dot / nlen);
     for (int32_t i = 0; i < k; ++i) {
       const float* c = p + 3 * i;
-      if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > kPlanar) {
+      if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > g_planar) {
         zerr::report(0x100, kFile, 0x121c,
                      format("Attempting to add non-planar polygon (%d verts), triangulating...", k).c_str());
         add_fan(*m, k, use);

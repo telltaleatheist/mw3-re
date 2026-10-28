@@ -108,6 +108,11 @@ struct PolygonAdd {
 // The vertex merge distance (0x005ee3e0, 0.001; a crater sets 0.005 while
 // it is made).
 float vertex_precision();                      // 0x00538050
+// The planarity (0x005ee3d0) and colinear (0x005ee3d8) tolerances, doubles
+// in the exe; the shipped scripts set 0.002 and 0.00001 (tolerances.gw).
+void set_coplanar_tolerance(float v);          // 0x00538070
+void set_colinear_tolerance(float v);          // 0x00538080
+void tolerances_reset();                       // tests: the exe's data (0.005, 0.001)
 void set_vertex_precision(float v);            // 0x00538060
 // 0 added, 1 refused (fewer than 3 points, more than 57, fewer than 3 once
 // colinear points go, or the model full), 2 added as a fan of triangles

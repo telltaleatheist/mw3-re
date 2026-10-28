@@ -1140,6 +1140,11 @@ From the world files (gamez.md).
   `LoadGameGen`, a command the shipped exe doesn't have; they sit in a branch
   that only runs if `gamez.zbd` fails to load, so the fallback could never
   have worked. `SetModelDirectory` runs every mission and is silently ignored.
+- **The missions switch on smooth shading.** Out of the box the renderer
+  draws every polygon flat and culls back faces with a generous margin;
+  each mission's support scripts then turn per-vertex shading on, cut the
+  backface margin a hundredfold and halve the depth bias that keeps decals
+  above the surfaces they sit on. (interp.md, The live calls)
 - **Network games are tougher.** At start-up the game picks its damage
   factors by whether a network game is on: alone, damage is scaled by
   0.0062 and a leg always starts to limp once its structure is under 40 %;
