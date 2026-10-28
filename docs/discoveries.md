@@ -1140,6 +1140,12 @@ From the world files (gamez.md).
   `LoadGameGen`, a command the shipped exe doesn't have; they sit in a branch
   that only runs if `gamez.zbd` fails to load, so the fallback could never
   have worked. `SetModelDirectory` runs every mission and is silently ignored.
+- **A laser hits once per shot, however long the beam shows.** Unless a
+  weapon is marked for timed damage, its beam deals its whole damage on
+  the first frame it touches something and nothing for the rest of the
+  burst. And some targets take damage on one part only: the small huts
+  in Op 1 take it on their `bhealthy` part, while shots on the rest of the
+  hut do nothing to it. (ai.md 17.7a)
 - **The missions switch on smooth shading.** Out of the box the renderer
   draws every polygon flat and culls back faces with a generous margin;
   each mission's support scripts then turn per-vertex shading on, cut the

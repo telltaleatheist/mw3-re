@@ -1119,3 +1119,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   fstp; breaks: the backface, the getter), test_gmod_add.py at set
   tolerances (break 3: the colinear), the c1m1 Owens test (none skipped,
   the four settings; break: vertex shading unwired).
+
+## Mission-plan item 8 (2026-10-27): the AI's hit rate (diagnosis only)
+
+- Branch mac4/ai-hit-rate (main 5d1f7a2). Temporary traces (removed): the
+  firing's phase and aim, the manager's trigger and the beam's charge, the
+  beam's ray hits and their parents, zWeapon's apply_damage handler and the
+  target's on_hit. Findings in ai.md 17.7a: the exe's design at each step.
+- Open: the Gauss rifle (group 1) never fires in that run.
