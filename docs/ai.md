@@ -242,8 +242,9 @@ Clean boundaries for later work, each a piece with its own test:
    `ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0) is not this: it is the
    mission boundary from the world's `inout` polygons (render.md 6a), read
    at mission load (0x4c3b80 -> 0x4c3930) and asked by the behaviours
-   (0x4c3000, seven callers) to keep a destination inside; not ported
-   (section 11).
+   (0x4c3000, seven callers) to keep a destination inside; ported
+   (section 11: the reader, the query, the messages, wired in the
+   program's brain hooks).
 2. **The run-time net**: done (section 9), the builder and the compiled
    net of steps. The mission start's call (0x49e810, player.cpp) is ported
    (mission-start.md). Left: the ground snap and the multiplayer waynet (NetHooks), the built-in nets
@@ -255,9 +256,10 @@ Clean boundaries for later work, each a piece with its own test:
    ended by the cleanup (0x491780) (mission-frame.md).
 5. **Targeting**: done (section 14), AiTarget's fields, the pick
    0x4d6b90, set_target, the target keys, the ranges; CZAiTarget from
-   targets.zrd with its damage, triggers and end. Left: the sensors that
-   fill the contacts (0x4a8cd0), the entity sort 0x4d5ca0. (0x4ceb50 is
-   the steering's look at the contacts, the brain's.)
+   targets.zrd with its damage, triggers and end. The sensors that fill
+   the contacts (0x4a8cd0) and the entity sort 0x4d5ca0 are ported too
+   (section 15). (0x4ceb50 is the steering's look at the contacts, the
+   brain's.)
 6. **The behaviours** (0x4c8600 family): done (17.2, 17.4a, items 3a..3i):
    the plain, node, property and mode states, the jump, the attack and the
    fight, the station keeping, the manoeuvre, the repair (0x4d08d0..

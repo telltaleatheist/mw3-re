@@ -25,6 +25,10 @@ system docs; this file points to them.
 
 ## 1. The census today
 
+**Now (2026-10-28, after items 1 to 18):** c1m1 with input, 30 s: 0
+unported, 39 known (each with its reason, program.md, The census). The
+counts below are from 2026-10-27, before the items.
+
 **c1m1 with input, 30 s** (`MW3_CENSUS_SECONDS=30`): 84 distinct unported
 calls (163 on 2026-10-21). By what they are:
 
@@ -379,7 +383,11 @@ Small items, each one sitting, in the order a player would notice them.
     (deferred with zFont). The 30 s census: 3 unported, 36 known.
 16. **Docs**: ai.md section 6 (the boundary and the sensors are ported),
     damage.md's jolt decay (find its address), movement.md Left. Test:
-    none (docs).
+    none (docs). Done (2026-10-28): ai.md section 6 says the boundary and
+    the sensors are ported; the jolt's decay is in the torso's update
+    0x00464e80 (ported; 0x00464ce0, the old guess, is the torso's steer);
+    movement.md Left: the zoom flags, the brain, the vlist and the
+    controls done, force feedback left (no haptics in the SDL layer).
 17. **The modules' starts**: zModel's 0x00526510 and zRender's 0x005578f0
     / 0x00557b30 set some 60 globals each (the fog's defaults among them,
     0 in the port, and the draw table's software entries). Each one
@@ -394,6 +402,11 @@ Small items, each one sitting, in the order a player would notice them.
     the winding and bytes per pixel by their callers; the rest equal,
     own, software only or unread. The three known; the 30 s census: 0
     unported, 39 known.
+18. **The lab's debug start**: `--lab-mech N` alone stayed on the main
+    menu, so the lab's fog could not be checked live. Done (2026-10-28):
+    alone it takes `--briefing c1m2` and clicks MECHLAB (program.md); the
+    lab's fog seen off and 0 at its first draw with either start
+    (module-starts.md).
 
 Decisions for Owen rather than ports: the beam's charge gate (playtest #23
 / #24, fixes.md Candidates), the subtitles, the other Candidates in

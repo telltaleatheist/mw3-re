@@ -212,7 +212,11 @@ shove (+0x100) = R^T (k0 i.z x -0.5, k1 i.x x 0.5, k2 i.x x 0.5)
 R is the torso node's world rotation (0x461cf0, after the node update
 0x4ed530) and k0..k2 the torso's +0x14c..+0x154. The spin axis is horizontal and
 across the shot, so the torso rocks away from the hit, harder for heavier
-weapons; the shove moves it. Its per-frame decay (likely 0x464ce0) is not ported.
+weapons; the shove moves it. Its per-frame decay is in the torso's update
+0x464e80 (ported, `mech_part_update.cpp`): the spin falls by (1 - 0.9 dt)
+a frame and the rocking angle +0xe4 follows it by (1 - 2.5 dt), applied as
+the quaternion +0xf0; the shove +0x100 drives a spring on +0x10c in 1/15 s
+substeps (the def's `freq` and `damp_freq`, +0x158 / +0x15c).
 
 Torso, arm and head wrappers (0x464720, 0x466ba0, 0x467200) also play the
 weapon's `ZAPS_HUD` static (WeaponType +0x14) on the player's HUD (0x43be70,
@@ -697,7 +701,7 @@ The ported functions are in `symbols.csv`. Others proposed:
 | 0x4b2d50 | Weapon::AddDamage | +0x70, 1.0 = destroyed |
 | 0x485400/30/60/90 | is_ct / is_side / is_arm / is_leg | IS table lookups |
 | 0x41b420 | Mech::OnKill | Mech vtable +0x80: the killer's score |
-| 0x464ce0 | Torso::UpdateJolt | likely; the spin and shove decay |
+| 0x464ce0 | Torso::Steer | not the jolt (an earlier guess): the torso's yaw and pitch steering; the jolt's decay is in 0x464e80 |
 
 ## 4. The port
 
@@ -753,7 +757,8 @@ behaviour.
   (the network sends three 0-255 values per section).
 - Which end of `[0x9a0ec4]` is the shooter's for beams and splash (0x582e89,
   0x5829b0); for projectiles it is [0] (likely, above).
-- The torso jolt's decay (0x464ce0) and the knockback stagger (0x417a80).
+- (Answered 2026-10-28) The torso jolt's decay is in 0x464e80, and the
+  knockback stagger is in Move 0x417a80; both are ported.
 - Unported here: 0x4e66a0 (a part's node off the mech), the statistics, the
   network events, the controls' hit and stop, the cockpit HUD's death and the
   damage decals (0x474d90). In the game (c1m1 item 2, `app_mech.cpp`
