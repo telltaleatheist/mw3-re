@@ -922,6 +922,9 @@ void probe_hud_classes_clear() {
   mech3::set_entity_facts(&g_facts);
 }
 void probe_hud_entity_class(uint32_t o, int32_t cls) { g_classes[o] = cls; }
+// The next build's HUD destroyed after its dump (0x0043b860, test_hud.py's free).
+int32_t g_free_after = 0;
+void probe_hud_free_after(int32_t on) { g_free_after = on; }
 
 // Builds the HUD as the emulator did at `hud_addr` for `mech`, dumps it.
 // The options' rects as the emulator has them (render, display: **[0x005f4d1c],
@@ -1006,6 +1009,10 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   std::snprintf(saved, sizeof saved, "saved %x %x %x\n", call("peek32", {0x605988}), call("peek32", {0x60598c}),
                 call("peek32", {0x60998c}));
   const std::string s = d.o.str() + aims + g_leads + "lockshown " + (g_lock_shown ? "1" : "0") + "\n" + saved;
+  if (g_free_after) {
+    g_hud->~Hud();  // the storage stays (the emulator's block), as the exe's caller frees it after
+    g_hud = nullptr;
+  }
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.c_str(), s.size() + 1);
   zrdr::close_archives(true);

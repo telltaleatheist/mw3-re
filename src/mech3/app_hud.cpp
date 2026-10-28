@@ -604,6 +604,7 @@ struct ProgramHudHooks : HudHooks {
     navs[id] = std::make_unique<LanceDisplay>([this](int32_t m) { return message(m); }, x, y, h, w, sp);
     return id;
   }
+  void nav_list_free(uint32_t nav) override { navs.erase(nav); }  // the MFD's 0x004422b0
   void nav_list_place(uint32_t nav, int32_t x, int32_t y, int32_t h, int32_t w, int32_t sp) override {
     if (LanceDisplay* d = nav_of(nav)) d->place(x, y, h, w, sp);  // 0x0047eb60
   }
