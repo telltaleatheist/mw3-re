@@ -1245,3 +1245,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - `--lab-mech N` alone: --briefing c1m2 and MECHLAB at 300,435@2500 (the
   route item 9's shots used). The lab's fog checked with the item 17
   print and switch (removed): off, all 0, either start.
+
+## Mission-plan item 19 (2026-10-28): the lance state, three hooks
+
+- Branch mac4/lance-hooks (main 7bbc29a); items 19-23 added to the plan.
+- player_lance_state: 0x4cbeb0 calls the game's vt+0x48 (a getter in all
+  five game types, read from the exe's vtables) then vt+0x2c, the type;
+  4 only for Training (0x473a20). Wired as the launch's type. Test:
+  mission_c2m1_lancemate_forms_up_only_in_training_headless, c2m1 run as
+  launched (1) and with the type 4: following 262/262 frames, 29.6 m,
+  against the formation part 262/262, 0 m. Break: the hook back to -1
+  fails 3 checks.
+- The three mech hooks: my all-missions list had c1m5, c1m6, c2m5, c2m6
+  and c4bm7, which do not exist; the launch found no "player" record (no
+  reader archive loaded), made no mech, and the player hooks fell through.
+  --mission now refuses a mission without zbd\<op>\readermN.zbd.

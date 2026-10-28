@@ -407,6 +407,30 @@ Small items, each one sitting, in the order a player would notice them.
     alone it takes `--briefing c1m2` and clicks MECHLAB (program.md); the
     lab's fog seen off and 0 at its first draw with either start
     (module-starts.md).
+19. **The lance state and three mech hooks**: BrainHooks::player_lance_state
+    ([0x0060861c]+0x6c, 15 missions from c2: allies with flag 0x10 form
+    up on the formation net when the pilot's game answers 4) and
+    0x0041aba0 / 0x0041ca30 / 0x0041cc30 (c1m5, c1m6, c2m5, c2m6, c4bm7).
+    Test: a c2 mission headless, the flagged allies' positions before and
+    after; the all-missions run without these keys.
+    Done (2026-10-28): the hook answers the pilot's game's type (the
+    launch's; vt+0x48 before it is a getter in every type). 4 is
+    Training, so in a campaign nothing changes (1, like the old -1): c2m1's
+    Dominic follows the player's net every frame and walks 30 m in 260
+    frames; with the type 4 he is on the formation net, one stand step,
+    and stays put (ai.md section 17). The three mech hooks were not a
+    gap: c1m5, c1m6, c2m5, c2m6 and c4bm7 do not exist (c1 and c2 have
+    m1..m4, c4b m4..m6), so those debug starts loaded a world with no
+    player; `--mission` now refuses a mission without its reader archive.
+20. **The all-missions census as a test**: every campaign mission and t1,
+    1200 frames, failing on any key outside the known table; then the
+    ExitInstance shutdowns (0x00575f70, 0x0051d0c0, 0x00576c60,
+    0x00556210, each checked for a write or a save) and t1's game.vt.
+21. **The census with input**: walking, firing, a won mission through the
+    debriefing (--win), the lab (--lab-mech).
+22. **The 180 s runs** on c4m2 and c3m6: leaks, slowdowns, the quit.
+23. **For Owen**: the playtest questions and the fixes.md Candidates in one
+    place, each with its evidence and a recommendation; nothing changed.
 
 Decisions for Owen rather than ports: the beam's charge gate (playtest #23
 / #24, fixes.md Candidates), the subtitles, the other Candidates in

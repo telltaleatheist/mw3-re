@@ -89,8 +89,8 @@ class BrainHooks : public zgame::Unported {
   virtual AiTarget* targetable(zgame::Handle v) { (void)v; return nullptr; }
   // The plain states' questions (docs/ai.md 17.2): a net's nearest step to a
   // point (0x004d51d0 then vt+0x74; the port's nearest_step), a vehicle's
-  // AiTarget +0xbc, the player's pilot's lance state ([0x0060861c] +0x6c:
-  // vt+0x48, then vt+0x2c; -1 without a pilot), the formation net
+  // AiTarget +0xbc, the pilot's game's type ([0x0060861c] +0x6c:
+  // vt+0x48, a getter, then vt+0x2c; 4 Training; -1 without a pilot), the formation net
   // 0x00603fb8, the player's vehicle (the pilot's +0x14) and a vehicle's
   // own net's follow behaviour (0x004c0de0, item 10).
   virtual Behaviour* nearest(AiNet* n, const float p[3]);

@@ -885,6 +885,11 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   roster is made at launch on your own mech's "net" instead: everything it
   does is built around you (follow, attack your target, its own orders),
   and the path number in its mission entry is never used.
+- **In training, a lancemate stands still until told otherwise.** With no
+  order yet, a lancemate under your command asks what kind of game this
+  is: in the campaign and Instant Action it follows you; in training it
+  goes onto a "formation" path with one stop, standing, so it holds where
+  it started. (docs/ai.md, the shared order)
 - **Lancemates are matched to their mission entries by position.** The
   mission file's first lancemate entry goes to your first lancemate slot,
   the second to the second, whoever the entries name: the slot keeps its

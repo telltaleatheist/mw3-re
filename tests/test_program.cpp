@@ -7828,6 +7828,112 @@ TEST(mission_c2m1_lancemate_made_from_his_slot_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c2 mission 1's lancemate under the shared order (0x004cbeb0, mission-plan
+// item 19): Dominic (+0xbc bit 4) asks the pilot's game's type
+// ([0x0060861c]+0x6c vt+0x2c). A campaign answers 1: he follows the
+// player's own net, as with the hook's old -1. Training answers 4: he forms
+// up on the formation net 0x00603fb8 instead. Run once as the campaign
+// launches it and once with the launch's type 4.
+namespace {
+struct LanceRun {
+  int32_t answer = -2;
+  int frames = 0, on_formation = 0, following = 0;
+  float start[3] = {}, end[3] = {}, player_end[3] = {};
+};
+LanceRun c2m1_lance_run(int32_t type) {
+  LanceRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_state_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.op = 2, l.number = 1;
+    if (type >= 0) l.type = type;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void* dominic = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++out.frames;
+      void* player = mech3::mech_mission_player();
+      if (!dominic) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine")
+            dominic = ai[i].mech, brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+        if (!dominic || !player) return;
+        out.answer = mech3::ai::brain_hooks().player_lance_state();
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        std::copy(d.pos, d.pos + 3, out.start);
+        return;
+      }
+      if (!brain || brain->orders.empty()) return;
+      out.on_formation += dynamic_cast<mech3::ai::FormationPart*>(brain->current().net.get()) != nullptr;
+      auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(brain->current().net.get());
+      out.following += vp && vp->target && vp->target->vehicle == engine.handle_of(player);
+      mech3::LaunchedMech d, pm;
+      mech3::describe_mech(dominic, &d);
+      mech3::describe_mech(player, &pm);
+      std::copy(d.pos, d.pos + 3, out.end);
+      std::copy(pm.pos, pm.pos + 3, out.player_end);
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c2m1_lancemate_forms_up_only_in_training_headless) {
+  if (!have_game()) return;
+  const LanceRun campaign = c2m1_lance_run(-1), training = c2m1_lance_run(4);
+  auto moved = [](const LanceRun& r) { return std::hypot(r.end[0] - r.start[0], r.end[2] - r.start[2]); };
+  auto gap = [](const LanceRun& r) { return std::hypot(r.end[0] - r.player_end[0], r.end[2] - r.player_end[2]); };
+  if (std::getenv("MW3_LANCE_LOG"))
+    for (const LanceRun* r : {&campaign, &training})
+      std::fprintf(stderr, "LANCE answer %d frames %d formation %d following %d start %.1f %.1f end %.1f %.1f moved %.1f gap %.1f\n",
+                   r->answer, r->frames, r->on_formation, r->following, r->start[0], r->start[2], r->end[0], r->end[2],
+                   moved(*r), gap(*r));
+  EXPECT(campaign.answer == 1 && training.answer == 4);
+  EXPECT(campaign.on_formation == 0 && campaign.following > 0);
+  EXPECT(training.on_formation > 0 && training.following == 0);
+  // The formation net is one step, the stand behaviour: he stays put; on
+  // the player's net he walks off after the player.
+  EXPECT(moved(campaign) > 10.0f && moved(training) < 1.0f);
+}
+
 TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
   if (!have_game()) return;
   SavedMounts keep;

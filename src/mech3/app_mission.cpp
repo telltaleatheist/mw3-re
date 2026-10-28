@@ -939,6 +939,10 @@ struct WiredBrainHooks : ai::BrainHooks {
     const Handle p = e->pilot();
     return p ? e->field32(p, 0x14) : 0;
   }
+  // The pilot's game's type ([0x0060861c]+0x6c vt+0x2c, after vt+0x48, a
+  // getter): the launch's type. 4 (Training) puts the lancemates on the
+  // formation net; -1 without a pilot.
+  int32_t player_lance_state() override { return e->pilot() ? e->launch().type : -1; }
   // The hit handlers' (docs/ai.md 17.8b): a mech is its own vehicle's mech
   // (vt+0x50) and its controls are its +0x37c (vt+0x40, vt+0x140); what is
   // not a program mech (a target or a turret) is logged.
