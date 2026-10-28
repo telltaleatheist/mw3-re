@@ -296,8 +296,8 @@ void CoreState::start_mission() {
   en.input_reset();
   en.input_center_mouse();
   if (en.hw_card_flag() != 0) {
-    en.camera_set_near(0);
-    en.camera_set_far(0);
+    en.camera_set_5ea53c(0);
+    en.camera_set_hse_test(0);  // the objects' hidden-surface test off with a card
   }
   const float dt = en.frame_dt();
   en.lists_update();

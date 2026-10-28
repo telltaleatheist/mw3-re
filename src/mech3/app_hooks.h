@@ -561,8 +561,8 @@ class Engine : public zgame::AppHooks {
   virtual void view_camera_refresh(Handle view) { unported("0x004b51f0", {view}); }
   virtual void node_set_active(Handle node, int32_t on) { unported("0x004eb170", {node, on}); }
   virtual void node_set_shadow(Handle node, int32_t on) { unported("0x004eb6d0", {node, on}); }
-  virtual void camera_set_near(int32_t a) { unported("0x004f3540", {a}); }
-  virtual void camera_set_far(int32_t a) { unported("0x004f3550", {a}); }
+  virtual void camera_set_5ea53c(int32_t a) { unported("0x004f3540", {a}); }  // [0x005ea53c], read by nothing
+  virtual void camera_set_hse_test(int32_t on) { unported("0x004f3550", {on}); }  // CameraSetObjectHSETest
   virtual void camera_draw_scene(Handle cam, Handle scene) { unported("0x004f7350", {cam, scene}); }
   virtual void window_set_size(Handle w, int32_t width, int32_t height) {
     unported("0x004f9fa0", {w, width, height});

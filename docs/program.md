@@ -245,6 +245,18 @@ implements it:
   `cmp ebx, end`; 1,577 entries in 1.2's DLL). Missing, the program says so
   and exits, as the original does.
 
+## What the start-up changes from the data (mission-plan item 13)
+
+InitInstance (0x00480020) turns the animations' records for the save and
+the network off (0x0050d1e0(0), 0x0050d1f0(0): `zeff::anim_log`), and the
+Core state's start (0x00480df0) the frame clear (0x0057a3c0(0):
+`zvid::display().clear_on`) and, with a card, the objects'
+hidden-surface test (0x004f3550(0), CameraSetObjectHSETest:
+`zcls::scene_walk().hidden_surface`); the program answers them as the exe
+does. With the clear off the program's frame texture is loaded, not
+cleared, as the exe's back buffer was; the world's window draws its clear
+polygon each frame, and no trail shows (checked on c1m1, c3m1, c4bm4, t1).
+
 ## The census: known and not (mission-plan item 11)
 
 `GameEngine::known_unported` names each reached key the program answers
@@ -255,12 +267,15 @@ apart. Everything else is a real gap and stays listed.
 
 - **The program's own**: RdrSetPath / RdrAddPath 0x005561a0 / 0x005561e0
   and the image paths 0x00516f50 (the mounts and the archives; loose files
-  unused), the fog's [0x0072f3f0] (zrndr::device_fog in the Render3D pass).
+  unused), the fog's [0x0072f3f0] (zrndr::device_fog in the Render3D pass),
+  the fillers' and the tint's targets 0x00557f90 / 0x00558290 with the back
+  buffer's size and pitch 0x00576d90 / 0x00576da0 / 0x00576dc0
+  (`zvid::lock_3d` gives them the Surface's own each frame).
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
   panel 0x0041ab90), the stealth object (0x004ac860, 0x004a4de0), the mode
   switch 0x004ab6b0 (resolution.md step 3), the developer-only lines
   (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890).
-- **No effect**: 0x0040fef0 (its flag 0), 0x004b52e0 and 0x0047f2b0
+- **No effect**: 0x00558070 (its globals only written), 0x0040fef0 (its flag 0), 0x004b52e0 and 0x0047f2b0
   (item 6), 0x00518790, 0x004f8f20 (their defaults), 0x005269e0 (software
   only), 0x004f3540 (its global unread).
 

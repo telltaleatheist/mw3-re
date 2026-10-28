@@ -398,6 +398,12 @@ class GameEngine : public Engine {
   void light_init() override;
   void fonts_init(const char* name, int32_t fonts) override;  // 0x00516e90: zImage's start
   void geometry_init(const char* dir) override;  // 0x00516f50: the start-up's "zbd" as the 2D host's mount
+  // The settings the start-up and the Core state's start change from the
+  // data (mission-plan item 13).
+  void effects_set_a(int32_t v) override;    // 0x0050d1e0: the animations' records kept for the save
+  void effects_set_b(int32_t v) override;    // 0x0050d1f0: and handed to the network
+  void video_set_clear(int32_t on) override;  // 0x0057a3c0: the frame clear fills the colour
+  void camera_set_hse_test(int32_t on) override;  // 0x004f3550
   void update_shadows() override;  // 0x004814e0 on the program's entities (app_mech)
   // zInput (gamez/zinput, docs/input.md).
   void input_init(int32_t commands, const char* map) override;
