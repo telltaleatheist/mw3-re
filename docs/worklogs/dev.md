@@ -1128,6 +1128,15 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   target's on_hit. Findings in ai.md 17.7a: the exe's design at each step.
 - Open: the Gauss rifle (group 1) never fires in that run.
 
+## Mission-plan item 8b (2026-10-27): the Gauss rifle in fires_on_a_target
+
+- Branch mac4/gauss-pick (main 8558212). Traces (removed): the volley
+  pick's inputs and choice, phases 2-4 with the current weapon, the torso's
+  facing, the slug's flight, the target's lock point. The Gauss is picked
+  and fires once at 15.22 s, 80 degrees off (in_reach at facing > 0: the
+  firing's thresholds are the exe's 0s, read from 0x5e8868; nothing writes
+  them). The original's design; ai.md 17.7a corrected (the 10 m was the
+  beams' contact, the target 80.7 -> 31.5 m).
 ## Mission-plan item 9 (2026-10-27): the HUD's free
 
 - Branch mac4/hud-free (main 8558212; 8b is docs). WiredData::hud_free

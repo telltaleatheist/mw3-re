@@ -294,8 +294,10 @@ Small items, each one sitting, in the order a player would notice them.
    Diagnosed (2026-10-27, ai.md 17.7a): the original's design, no port
    fault. He fires from 10 m with a small aim error; both lasers fire once
    per full charge (3.1 s), a beam deals its damage once per firing, and
-   hits on a hut's `healthy` part go to another handler. Open: why the
-   Gauss rifle never fires there.
+   hits on a hut's `healthy` part go to another handler. 8b: the Gauss
+   fires once and misses: the AI fires when the target is within 90
+   degrees of the torso (the firing's thresholds are 0), while it turns
+   (ai.md 17.7a).
 9. **The HUD's free 0x0043b860** at the mission's end. Test:
    test_hud.py's free op; `mission_end_frees_what_the_next_does_not_need`.
    Done (2026-10-27): the HUD deleted with its type; the destructors of
