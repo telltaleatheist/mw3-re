@@ -301,6 +301,7 @@ class WiredBuild : public MechBuildHooks {
   Handle view() override { return h(g_w.view ? g_w.view(g_w.engine) : 0); }
   Handle view_camera(Handle v) override { return v ? h(g_w.peek32(g_w.engine, low(v) + 0x58)) : nullptr; }
   uint32_t camera_mode(Handle c) override { return g_w.peek32(g_w.engine, low(c) + 4); }
+  void view_set_camera(Handle, uint32_t mode) override { program_view_set_camera(static_cast<int32_t>(mode)); }  // 0x0040ae70
   Handle view_target(Handle v) override { return v ? h(g_w.peek32(g_w.engine, low(v) + 0x64)) : nullptr; }
   // vt+0xfc: the port's handler on the pilot's mech (mech_command.cpp).
   void view_target_command(Handle target, int32_t cmd) override {
@@ -397,6 +398,14 @@ class WiredLaunch : public LaunchHooks {
   // to settle.
   void pilot_478f10(Handle) override { program_record_mission(false); }
   void fn_40f0a0() override { message_panel_clear(); }  // 0x0040f0a0: the message panel's lines
+  // 0x004f3430(camera, 1): the view's camera is zSound's listener. The exe
+  // reads it at the view's +0x04; the program's PlayerView keeps it itself.
+  void camera_update(Handle camera) override {
+    auto* n = static_cast<zcls::Node*>(g_w.object_of(g_w.engine, low(camera)));
+    if (!n)
+      if (PlayerView* v = program_view()) n = zn(v->camera);
+    if (n) zcls::camera_set_listener(n, 1);
+  }
   // 0x0049e5e0 at a campaign's launch: the lancemates' mechs (player.cpp).
   void lancemates() override { program_launch_lancemates(); }
   // 0x0049dc80(1) and 0x0045c4a0 at Instant Action's launch: its line-up,

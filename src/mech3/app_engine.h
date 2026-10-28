@@ -319,6 +319,10 @@ class GameEngine : public Engine {
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
   void video_clear_a(Handle rect) override;  // 0x00576ce0: the depth filled (0: all of it)
   bool video_opened() const { return video_opened_; }  // [0x0080271c]
+  // The load screen's two lines (ours, for 0x005799f0 / 0x00579040's
+  // DirectDraw driver and Direct3D device names).
+  const char* video_driver_label() const;
+  const char* video_mode_label();
   // 0x00579b70: the card's caps for blended and modulated textures (1, 2):
   // a modern GPU, through Render3D, has them all.
   uint32_t video_has_cap(int32_t) override { return 1; }

@@ -280,16 +280,25 @@ apart. Everything else is a real gap and stays listed.
   unused), the fog's [0x0072f3f0] (zrndr::device_fog in the Render3D pass),
   the fillers' and the tint's targets 0x00557f90 / 0x00558290 with the back
   buffer's size and pitch 0x00576d90 / 0x00576da0 / 0x00576dc0
-  (`zvid::lock_3d` gives them the Surface's own each frame).
+  (`zvid::lock_3d` gives them the Surface's own each frame), the targets'
+  nodes 0x005a8390 (zent::marker_nodes), CZAiTarget's defaults and
+  destructor 0x005a7e10 / 0x005a7f90 (the port's AiTarget), crc32's table
+  0x00576c50 (built on first use).
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
   panel 0x0041ab90), the stealth object (0x004ac860, 0x004a4de0), the mode
   switch 0x004ab6b0 (resolution.md step 3), the developer-only lines
-  (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890).
+  (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890), the
+  stealth object's name 0x005a84c0, the bitmap fonts 0x00519e50 (with
+  zFont's measure and draw, which still log).
 - **No effect**: 0x00558070 (its globals only written), 0x0040fef0 (its flag 0), 0x004b52e0 and 0x0047f2b0
   (item 6), 0x00518790, 0x004f8f20 (their defaults), 0x005269e0 (software
-  only), 0x004f3540 (its global unread).
+  only), 0x004f3540 (its global unread), 0x00535ed0 (read only by the
+  software draw), 0x004f8f60 (zSave's registration off, none in the
+  port), 0x00537520 (it Releases the used textures' system surfaces after
+  the launch; the port's record is one Render3D handle, no system copy).
 
-The gaps found while checking are mission-plan.md items 12 to 15. A key
+The gaps found while checking are mission-plan.md items 12 to 15 and 17
+(the modules' starts 0x00526510, 0x005578f0, 0x00557b30, still listed). A key
 joins the table only with its equivalent or reason verified.
 
 ## The engine's reports (our addition)

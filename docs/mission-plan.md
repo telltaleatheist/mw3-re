@@ -364,10 +364,27 @@ Small items, each one sitting, in the order a player would notice them.
     0x00576c50, 0x005578f0, 0x00557b30, 0x00526510 (the modules' starts),
     0x00518f50 / 0x00516f20 (the texture group), 0x00519e50 (the bitmap
     fonts), 0x00537520, 0x00535ed0, 0x005964c0, 0x004f8f60 ([0x005ea82c],
-    read by zClass's reset).
+    read by zClass's reset). Done (2026-10-28): ported and wired, the
+    camera's listener bit (0x004f3430: the launch sets it on the player's
+    camera, so zSound's listener follows the view; the mission end's
+    clear uses it too), the display's size and place (0x004fa580 /
+    0x004fa600, with the window's), the console's scroll list clear
+    (0x005964c0), the texture group (0x00518f50) and the table's reset
+    (0x00516f20, the port's own already), the view's camera on a control
+    mode change (0x0040ae70, the options' path), and the load screen's
+    lines from the platform ("SDL GPU (metal)", "640 x 480 x 16"). Known:
+    0x005a84c0 (the stealth object), 0x005a7e10 / 0x005a7f90 (the port's
+    AiTarget), 0x00576c50 (crc32's table), 0x00535ed0 (software only),
+    0x004f8f60, 0x00537520 (the system surfaces' Release), 0x00519e50
+    (deferred with zFont). The 30 s census: 3 unported, 36 known.
 16. **Docs**: ai.md section 6 (the boundary and the sensors are ported),
     damage.md's jolt decay (find its address), movement.md Left. Test:
     none (docs).
+17. **The modules' starts**: zModel's 0x00526510 and zRender's 0x005578f0
+    / 0x00557b30 set some 60 globals each (the fog's defaults among them,
+    0 in the port, and the draw table's software entries). Each one
+    against the port's field, a gap fixed where they differ. Test: the
+    values after the start-up against the exe's, the census.
 
 Decisions for Owen rather than ports: the beam's charge gate (playtest #23
 / #24, fixes.md Candidates), the subtitles, the other Candidates in

@@ -766,6 +766,19 @@ int camera_set_lod_scale(Node* node, float f) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f3430
+int camera_set_listener(Node* node, int32_t on) {
+  if (int r = check_class(node, 1, kFile, 0x31e)) return r;
+  Camera* d = cam_of(node);
+  if (on) {
+    d->put<uint32_t>(0x10, d->get<uint32_t>(0x10) | 1u);
+    g_walk.listener_frame = 0;
+  } else {
+    d->put<uint32_t>(0x10, d->get<uint32_t>(0x10) & ~1u);
+  }
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f4090
 int camera_set_horizon(Node* node, Node* horizon) {
   if (int r = check_class(node, 1, kFile, 0x70e)) return r;

@@ -6634,6 +6634,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       std::map<std::string, uint32_t> counts0, counts1;
       int32_t save_on = -1, net_on = -1, clear_on = -1, hse = -1, hw = -1;
       bool option_reached = false;
+      float listener_d = -1;  // item 15: zSound's listener from the view's camera (0x004f3430)
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -6643,6 +6644,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       ++seen.frames;
       mech3::LaunchedMech o, m;
       if (seen.frames > 3) mech3::describe_mech(owens, &o), mech3::describe_mech(player, &m);
+      if (seen.frames == 20 && zsnd::state().listener_set) {
+        const float* l = zsnd::state().listener;
+        const float dx = l[9] - m.pos[0], dy = l[10] - m.pos[1], dz = l[11] - m.pos[2];
+        seen.listener_d = std::sqrt(dx * dx + dy * dy + dz * dz);
+      }
       if (seen.frames == 3) {
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
         int32_t made = 0;
@@ -6859,9 +6865,15 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.hse == (seen.hw != 0 ? 0 : 1));
     // Item 12's wiring: none of these reached unported, and the options reach the mech.
     for (const char* k : {"0x004f9fa0", "0x004fa0b0", "0x004fc1b0", "0x0051a300", "0x0040f0a0", "0x00576ce0",
-                          "[[0x0060861c]+0x14]", "0x00579ea0", "0x00579b70"})
+                          "[[0x0060861c]+0x14]", "0x00579ea0", "0x00579b70",
+                          // and item 15's
+                          "0x004f3430", "0x004fa580", "0x004fa600", "0x005964c0", "0x00518f50", "0x00516f20",
+                          "0x0040ae70", "0x005799f0", "0x00579040"})
       EXPECT(seen.counts0.count(k) == 0);
     EXPECT(seen.option_reached);
+    // The view's camera is zSound's listener (0x004f3430 at the launch): it
+    // stands at the player's cockpit, within a few metres of the mech's node.
+    EXPECT(seen.listener_d >= 0 && seen.listener_d < 15);
     // The briefing load's app accessors and its two empty calls (item 10:
     // 0x0040a7d0, 0x0040a800, 0x0040a830, 0x0040baf0, 0x004a5bc0) are the program's.
     for (const char* k : {"0x0040a7d0", "0x0040a800", "0x0040a830", "0x0040baf0", "0x004a5bc0"})
@@ -10823,7 +10835,9 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x0041ab90", "0x004ac860", "0x004a4de0", "0x004ab6b0", "0x0040e4b0", "vt+0x7c",
                         "hudline.vt+0x7c", "0x0040f7f0", "0x0040f890", "0x0040fef0", "0x004b52e0", "0x0047f2b0",
                         "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540", "0x00557f90", "0x00558290",
-                        "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390"}) {
+                        "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390", "0x005a84c0",
+                        "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
+                        "0x00519e50"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10832,9 +10846,10 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 29);
+  EXPECT(n == 37);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
-                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0"})
+                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x00526510",
+                          "0x005578f0", "0x00557b30"})
     EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
 }
 
