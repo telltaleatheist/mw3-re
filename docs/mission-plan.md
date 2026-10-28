@@ -440,6 +440,21 @@ Small items, each one sitting, in the order a player would notice them.
     training; multiplayer logged), t1's briefing naming its lesson.
 21. **The census with input**: walking, firing, a won mission through the
     debriefing (--win), the lab (--lab-mech).
+    Done (2026-10-28): the routes a player takes, each to 0 keys outside
+    the table: walking and firing, c1m1 won through the debriefing, the
+    lab through LAUNCH, Instant Action's and Training's pilot screens,
+    options, credits, the multiplayer menu, c1m1's pause (Escape), and
+    Training's lesson 1 launched from the menus. Fifteen keys found, all
+    wired or known: the debriefing's voice (0x0047abe0), the Core state's
+    stop of the mission's animations (0x0050ace0), the 2D target sized
+    from a rect (0x00558010), zClass's flag (0x004f8f50), zVideo's device
+    queries (0x00579a10, 0x00579a40, 0x00579aa0: one device, the driver's
+    label), training's slot and its loadout (vt+0x34 0x00437800,
+    0x00433df0), the end's cockpit HUD and its objectives box (0x00430aa0,
+    0x00446ad0, vt+0x60); four multiplayer screens and the lobby flag
+    known, deferred. Training's lesson 1 now launches with its own
+    loadout (vehicle.zrd's training1: equipment, no weapons); before, the
+    slot's default (armed) one.
 22. **The 180 s runs** on c4m2 and c3m6: leaks, slowdowns, the quit.
 23. **For Owen**: the playtest questions and the fixes.md Candidates in one
     place, each with its evidence and a recommendation; nothing changed.

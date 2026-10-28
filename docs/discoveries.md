@@ -3548,3 +3548,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   are turrets that the mission's animations fly along their paths; they
   aim and shoot from wherever they are at the time. (docs/vehicles.md, The
   turrets' frame)
+
+- **Training's first lesson gives you an unarmed 'Mech.** The lesson's
+  mission file sets the player's loadout to `training1`: six pieces of
+  equipment and no weapons. The lesson starts with powering up and
+  walking. (docs/mission-plan.md, item 21)

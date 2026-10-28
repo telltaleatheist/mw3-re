@@ -7370,7 +7370,8 @@ TEST(training_menus_to_lesson3_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
-    int stage = 0, core_frames = 0, lesson2_at = -1, lesson3_at = -1, lessons = 0;
+    int stage = 0, core_frames = 0, lesson2_at = -1, lesson3_at = -1, lessons = 0, weapons = -1;
+    std::string slot_config;
     bool reopened = false;
     mech3::TrainingGame* game = nullptr;
     auto lesson = [&] { return game && game->lessons ? game->lessons->current : -9; };
@@ -7394,6 +7395,14 @@ TEST(training_menus_to_lesson3_headless) {
       } else if (stage == 3 && app.current() == &mech3::states().core) {
         ++core_frames;
         if (core_frames == 1 && game) lessons = static_cast<int>(game->lessons->list.size());
+        // The lesson's loadout (the player record's p11, vehicle.zrd's training1:
+        // equipment only), set on training's one slot (0x00437800, 0x00433df0).
+        mech3::LaunchedMech m;
+        if (core_frames == 30 && mech3::launched_mech(&m)) {
+          weapons = m.weapons;
+          const mech3::Config* c = game ? game->slot.config : nullptr;
+          slot_config = c && c->name ? c->name : "";
+        }
         if (lesson2_at < 0 && lesson() == 1) {
           lesson2_at = core_frames;
           const uint32_t k = zin::key1_of(mech3::controls_command("CMD_SHUTDOWN")) & 0xff;
@@ -7425,6 +7434,10 @@ TEST(training_menus_to_lesson3_headless) {
     EXPECT(game && game->passed[0] == 1 && game->passed[1] == 0);
     EXPECT(reopened);
     EXPECT(std::filesystem::exists(zutl::write_path("pilots\\Trainee.mw3")));
+    EXPECT(slot_config == "training1" && weapons == 0);
+    // The slot, its loadout, the end's cockpit and its objectives box: wired.
+    for (const char* k : {"training.vt+0x34", "0x00433df0", "0x00430aa0", "0x00446ad0", "screen.vt+0x60"})
+      EXPECT(engine.unported_counts().count(k) == 0);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -10944,7 +10957,8 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390", "0x005a84c0",
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
-                        "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0"}) {
+                        "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
+                        "0x00495f90", "0x0049bd80"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10953,10 +10967,12 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 46);
+  EXPECT(n == 50);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
-                          "0x00556210", "game.vt", "0x00414000"})
+                          "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
+                          "0x0050ace0", "0x00558010", "0x00579a10", "0x00579a40", "0x00579aa0",
+                          "0x00433df0", "training.vt+0x34", "0x00430aa0", "0x00446ad0"})
     EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
 }
 

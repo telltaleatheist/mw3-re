@@ -408,6 +408,16 @@ class GameEngine : public Engine {
   void reader_close_archives(int32_t all) override;
   void input_maps_free() override;                 // 0x0051d0c0 (zin::shutdown)
   void mechs_shutdown() override;                  // 0x00414000 (app_mech.cpp)
+  void render_flush(Handle rect) override;         // 0x00558010
+  bool world_up() override;                        // 0x004f8f50
+  void debrief_voice_play(Handle state) override;  // 0x0047abe0
+  void anim_stop(int32_t a) override;              // 0x0050ace0 (zeff::anim_stop_all)
+  // zVideo's devices (0x00579a10, 0x00579a40, 0x00579aa0, 0x00579a70): one,
+  // the GPU, reported as 256 MB with none used (as video_card_memory).
+  int32_t video_memory_total() override { return 256 << 20; }
+  int32_t video_memory_used() override { return 0; }
+  uint32_t video_device_count() override { return 1; }
+  const char* video_device_name(uint32_t) override { return video_driver_label(); }
   void reader_shutdown() override;                 // 0x00556210 (zrdr::shutdown)
   int32_t options_load(const char* name) override;
   int32_t sound_init(uint32_t window) override;
