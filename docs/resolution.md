@@ -117,7 +117,7 @@ the original's formula unchanged, so 640x480 stays bit for bit.
    (2026-10-28), section 6.
 3. The mode switch 0x004ab6b0 and Shift+V 0x004ab910 on the port's zVideo:
    the 2D buffer, `Render3D`'s viewport, the HUD's text area 0x0040f330, the
-   cockpits 0x0041cdc0.
+   cockpits 0x0041cdc0. Done (2026-10-28), section 7.
 4. The HUD by anchors: the 640x480 block's pieces placed from the left,
    right and bottom edges of any size (hud.md section 5), with a scale for
    the art. The hud.zrd blocks stay for their own modes when the fix is
@@ -194,8 +194,68 @@ fix off. It also checks SdlZinHost's mapping and SdlInput's mickeys in a
 hidden 1280x720 window (96 points of motion are 64 mickeys). Break: a fit
 rect that always stretches fails 9 checks.
 
-A 16:9 frame itself waits on step 3. VMode is detail.zrd's, not the
-settings', and 5 on a modern PC, and the mission's InGameVMode comes in
-through the mode switch 0x004ab6b0, not ported yet. Until then every frame
-is 640x480, and a 16:9 window shows it pillarboxed.
+A 16:9 frame itself waited on step 3. VMode is detail.zrd's, not the
+settings', and 5 on a modern PC; the mission's InGameVMode comes in through
+the mode switch (section 7).
+
+## 7. The mode switch (step 3)
+
+The Core state's enter and resume switch to InGameVMode. Its leave and the
+options screen's enter switch back to 5, the menus' 640x480.
+
+- **0x004ab6b0** (`Engine::set_screen_mode`, app_hooks.cpp), as the exe:
+  - The same mode only restores the surfaces (0x00577cb0).
+  - Else, between the lock and the unlock, the software path keeps a still
+    of the screen (0x00579500). zVideo then takes the mode (0x00576c80); if
+    it refuses, the old mode stays.
+  - Then the options' rects (0x0040d810) and the two render targets
+    (0x00557f90, 0x00558290), as the Intro state sets them.
+  - The software path draws the still back ([0x0072f360], the flip between)
+    and remakes the spans, aborting with "Error opening HSE" if they fail.
+    The hardware path clears.
+  - Then the cursor, the message panel (0x0040f330: ECX the display rect,
+    EDX the render rect) and every mech's cockpit (0x0041cdc0) over zEntity's
+    list. The still is freed last.
+- **0x00576c80** (`GameEngine::video_set_mode`, FIX (A)): the 16-bit buffer,
+  Render3D's viewport and the window's shape at the mode's size, then the
+  defaults the device's setup leaves (as `video_open`). The sizes are
+  0x0057a1a0's for 5..10, and FIX (B) `vmode_size`'s for 11..16. A mode it
+  doesn't know keeps the size.
+- **0x0040f330** (`mech3::message_panel_place`): the panel centred across the
+  display, shown its height above the bottom, hidden just under it, and put
+  at its hidden place. The two rects go to 0x005fc34c..0x005fc374
+  (`panel_area`), which nothing reads. At the start the panel's constructor
+  stands in for 0x0040f870, reached only through the developer lines' font
+  set-up 0x0040f7f0 (deferred).
+- **0x0041cdc0** (`Engine::cockpit_refit`): the view's own mech's HUD
+  (0x00430aa0 on +0x684) set up again (0x0043bb80) for the new mode's
+  hud.zrd block. The program walks its own entity list
+  (`GameEngine::screen_mode_cockpits`).
+- **0x004ab910** (`Engine::vmode_toggle`, Shift+V): 3 to 5, 5 to 6, 6 to 7,
+  the rest to the range's lowest, and past its highest to the lowest; the
+  mode reached is saved as InGameVMode. FIX (B): with any_resolution, 7..15
+  step on to the next (the range is 5..16).
+
+Checked by test_app_states.py:
+- `screen mode`: ECX 3..7 and 11, the same mode, zVideo refusing,
+  software and hardware, the spans failing, zEntity's list with mechs.
+- `vmode toggle`: with 0x004ab860 run on both sides.
+- `cockpit refit`: the view's target, another mech, no HUD.
+
+test_hud.py's op 43 runs 0x0040f330 with each rect none or one of the
+options' three, and compares the panel and the six globals.
+
+Breaks:
+- the panel's two rects swapped fails `screen mode`;
+- 6 going to 6 fails `vmode toggle`;
+- the view check dropped fails `cockpit refit`;
+- the shown y one lower, or the centre without the area's x, fails
+  test_hud.
+
+In the program, c1m1 with InGameVMode 13 opens its window at 1920x1080
+(the frame's shape, step 2) and draws the 16:9 view, with 0 calls outside
+the known table. As expected, the HUD keeps its 640x480 block at the top
+left until step 4: hud.zrd has no block for 11..16, and the pieces' places
+are 640x480 ones. The message panel is centred across 1920, but its block
+is the only one placed for the size. Not fixed here.
 

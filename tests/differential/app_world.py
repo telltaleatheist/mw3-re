@@ -76,6 +76,9 @@ CALLS = {
     0x44ffc0: 'c', 0x450390: 'c', 0x450810: 'c', 0x450800: 'c', 0x450690: 'c,s0',
     0x448f80: 'c,s0', 0x44ce30: 'c,s0', 0x44cf40: 'c,s0', 0x44cf50: 'c', 0x426180: 'c,s0',
     0x426300: '', 0x4846a0: 'c', 0x5394c0: 'c,d', 0x4f7f70: '',
+    # The screen mode switch's (0x004ab6b0, Shift+V 0x004ab910; resolution.md step 3).
+    0x576c80: 'c', 0x579500: 'c', 0x517cc0: 'c', 0x40f330: 'c,d', 0x41cdc0: 'c', 0x43bb80: 'c,s0',
+    0x579a10: '', 0x579a40: '',
 }
 # Functions that return a string: the probe returns "<tag><answer>".
 STRINGS = {0x576040: 'msg', 0x4af280: 'ver', 0x4af290: 'num', 0x484c50: 'dir'}
@@ -166,6 +169,7 @@ class World:
         for slot, key, spec in ((0x72f390, '[0x0072f390]', 'c'), (0x72f3ec, '[0x0072f3ec]', ''),
                                 (0x72f358, '[0x0072f358]', 'c,d'), (0x72f3f0, '[0x0072f3f0]', '')):
             e.w32(slot, e.new_stub(key, spec, 0))
+        e.w32(0x72f360, e.new_stub('[0x0072f360]', 'c,d,s0,s1', 8))  # the software still's blit
         e.w32(0x72f38c, e.new_stub('[0x0072f38c]', 'c', 4, self._video_memory))
         # The wait object's methods (on the stack in the original).
         self.wait_vt = e.world_alloc(0x40)

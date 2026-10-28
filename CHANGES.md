@@ -361,6 +361,10 @@ These change how the game talks to the computer, not how it plays.
   sides (or top and bottom) when the window's shape differs, and the mouse
   moves the same distance whatever the window's size. A window opened
   without `--window` takes the picture's shape.
+- The in-mission screen size (InGameVMode) is used: a mission opens at the
+  size chosen in the graphics options, 16:9 sizes included, and the menus
+  go back to 640x480. Shift+V steps through every size the screen offers.
+  The HUD at the new sizes keeps its 640x480 layout for now.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 

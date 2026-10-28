@@ -112,6 +112,8 @@ def synthetic(seed):
 # (0x0043da40), 36 D's MFD mode (0x0043d240), 37 Ctrl+D's TARGET mode
 # (0x0043d250), 38 Shift+R's radar map (0x0043dc10).
 OPS = list(range(1, 20))
+# 0x0040f330's rects (op 43): the options' render, display and window, **[global].
+PANEL_RECTS = (0x5f4d1c, 0x5f4d20, 0x5f4d24)
 # The message panel's messages and times (ops 27, 28; probe_hud.cpp the same).
 MESSAGES = ['Objective complete', 'Nav Alpha reached', 'Lancemate destroyed: the rest of the lance falls back']
 MESSAGE_TIMES = [0.0, 0.5, 2.0, 6.0]
@@ -739,6 +741,8 @@ class Original:
                 self.ops.append((27, fr.randrange(len(MESSAGES)) | fr.randrange(4) << 8))
             if fr.random() < 0.15:
                 self.ops.append((28, fr.randrange(len(MESSAGES))))
+            if fr.random() < 0.1:  # the panel placed (0x0040f330: a mode change): ECX, EDX each none or an options rect
+                self.ops.append((43, fr.randrange(4) | fr.randrange(4) << 2))
             if fr.random() < 0.12:  # the zoom window shown through its show_for (0x004438d0)
                 self.ops.append((33, f32(fr.choice([-1.0, 0.0, 0.5, 3.0]))))
             # the zoom's 3D pass (shown, or still scaled), with a device only: the
@@ -1144,6 +1148,10 @@ class Original:
                                                f32(STATIC_MOST[v >> 12 & 3])))
             elif k == 41:
                 e.cpu.write(0x608e4c, bytes([v]))
+            elif k == 43:  # 0x0040f330: ECX and EDX none, or **[0x5f4d1c] / [0x5f4d20] / [0x5f4d24]
+                def rect(c):
+                    return e.r32(e.r32(PANEL_RECTS[c - 1])) if c else 0
+                e.call(0x40f330, ecx=rect(v & 3), edx=rect(v >> 2 & 3))
             elif k == 42:  # the reticle's +0x28 (0x00444230): the zoom's 3D pass
                 self.zoom_dt = v
                 e.call(0x444230, ecx=h + 0x144c, stack=(v,))
@@ -1517,6 +1525,9 @@ class Original:
             kv('in', e.r8(mp + 0x4d4))
             panel(mp + 0x4f0)
             flush('mpfields')
+        for a in range(0x5fc34c, 0x5fc378, 4):  # 0x0040f330's rects (mech3::panel_area)
+            kv('a', e.r32(a))
+        flush('parea')
         o = h + 0x188c0
         base(o)
         kv('hud', e.r32(o + 0x34))

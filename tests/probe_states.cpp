@@ -63,6 +63,11 @@ struct Recording : mech3::Engine {
   int32_t exchange_fast_menu(int32_t v) override { return static_cast<int32_t>(call("0x0040ce90", {v})); }
   void options_apply_all() override { call("0x0040cb30", {}); }
   void light_init() override { call("0x00542bb0", {}); }
+  // The screen mode switch and the cockpits' refit as calls; the cases for
+  // 0x004ab6b0 and 0x0041cdc0 run the ports (Engine::...).
+  int32_t set_screen_mode(int32_t m) override { return static_cast<int32_t>(call("0x004ab6b0", {m})); }
+  void cockpit_refit(Handle m) override { call("0x0041cdc0", {m}); }
+  void set_in_game_vmode(int32_t v) override { poke32(peek32(0x5f4d10), static_cast<uint32_t>(v)); }
   void update_shadows() override { call("0x004814e0", {}); }
   void exit_process(uint32_t code) override {
     call("ExitProcess", {code});
@@ -381,6 +386,9 @@ int32_t probe_states_call(uint32_t addr, uint32_t arg, uint32_t arg2, uint32_t* 
       case 0x481250: s.core.suspend(arg); break;
       case 0x481170: s.core.resume(arg); break;
       case 0x480bf0: s.core.pick_renderer(); break;
+      case 0x4ab6b0: r = static_cast<uint32_t>(g_engine->Engine::set_screen_mode(static_cast<int32_t>(arg))); break;
+      case 0x4ab910: g_engine->vmode_toggle(); break;
+      case 0x41cdc0: g_engine->Engine::cockpit_refit(arg); break;
       case 0x480df0: s.core.start_mission(); break;
       case 0x481290: r = s.core.draw_software(arg, arg2 != 0); break;
       case 0x481a10: r = s.core.draw_doubled(arg, arg2 != 0); break;

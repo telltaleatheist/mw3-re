@@ -1336,3 +1336,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   shots for Owen are 640x480 frames: at 1280x720 pillarboxed (c1m1 and the
   main menu) and at 640x480.
 
+## Resolution step 3 (2026-10-28): the mode switch
+
+- Branch mac4/mode-switch (off main 12be988).
+- 0x004ab6b0, 0x004ab910 and 0x0041cdc0 are ported on Engine (app_hooks.cpp)
+  and checked in test_app_states (three cases, 0x004ab6b0 and 0x0041cdc0
+  unstubbed for their own). 0x0040f330 is ported on the real panel and
+  checked in test_hud (op 43, with the six globals in the dump).
+- The asm's 0x0040f330 call passes ECX the display rect and EDX the render
+  rect. My first names for the hook's parameters had them the other way.
+- 0x004ab860 always returns 1 (`mov al, 1`), so Shift+V always goes on.
+- Program: c1m1 at InGameVMode 13 at 1920x1080, 0 calls outside the table.
+  The HUD keeps its 640x480 block (step 4). Its Core state started at frame
+  99 here, against 576 in item 22's runs (the fade is timed), so I
+  corrected program.md's claim.
+

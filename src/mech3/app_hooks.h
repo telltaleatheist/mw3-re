@@ -392,7 +392,24 @@ class Engine : public zgame::AppHooks {
   virtual void input_center_mouse() { unported("0x0051b560", {}); }
   virtual void mouse_set_pos(int32_t x, int32_t y) { unported("0x0051b4f0", {x, y}); }
   virtual void mouse_set_accel(float x, float y) { unported("0x0051b790", {zgame::bits(x), zgame::bits(y)}); }
-  virtual void set_screen_mode(int32_t mode) { unported("0x004ab6b0", {mode}); }
+  // The screen mode switch (resolution.md step 3): 0x004ab6b0 (ECX the mode;
+  // the mode it is in after, the old one when zVideo refuses), ported on the
+  // hooks below; Shift+V 0x004ab910, the next in the device's range.
+  virtual int32_t set_screen_mode(int32_t mode);
+  virtual void vmode_toggle();
+  // zVideo's mode (0x00576c80, ECX the mode: its sizes, the surfaces and the
+  // device made again; non-zero when that fails).
+  virtual int32_t video_set_mode(int32_t mode) { return static_cast<int32_t>(unported("0x00576c80", {mode})); }
+  // The software path's still drawn back (the display rect; [0x0072f360]: ECX image, EDX, then two words).
+  virtual void video_blit(Handle image, Handle a, Handle b, Handle rect) { unported("[0x0072f360]", {image, a, b, rect}); }
+  // 0x0040f330: the message panel placed; ECX a rect kept, EDX the rect it
+  // is centred in (the switch passes the display rect, then the render rect).
+  virtual void message_panel_place(Handle kept, Handle area) { unported("0x0040f330", {kept, area}); }
+  // The switch's loop over zEntity's list: each object's mech (vt+0x2c, vt+0x50)
+  // has its cockpit refitted (0x0041cdc0). The program keeps its own list.
+  virtual void screen_mode_cockpits();
+  virtual void cockpit_refit(Handle mech);   // 0x0041cdc0, ported
+  virtual void hud_setup(Handle hud, Handle mech) { unported("0x0043bb80", {hud, mech}); }
   // What the controls screen calls (docs/menus.md, The controls screen): zInput's
   // key and button capture and its command map (the current map's 0x0051d2xx
   // wrappers), the stick's reading and the controls setup (controls_cfg).

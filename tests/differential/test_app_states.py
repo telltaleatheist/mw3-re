@@ -151,6 +151,22 @@ def build_world(seed, t, case):
         '0x0040ce90': lambda rr, n, a: rr.choice([0, 1]),
         '0x00575f30': 1,  # Mech3Msg.dll loads (the rebuild has no other path, FIX (A))
     })
+    if case in ('screen mode', 'vmode toggle', 'cockpit refit'):
+        # zEntity's list: each entry's object (vt+0x2c) and its mech (vt+0x50).
+        n = r.randrange(4)
+        ents = [w.obj({0x2c: 0}) for _ in range(n)]
+        begin = e.world_alloc(4 * max(n, 1))
+        for i, o in enumerate(ents):
+            e.w32(begin + 4 * i, o)
+        e.w32(0x73655c, begin)
+        e.w32(0x736560, begin + 4 * n)
+        seen = w.obj({0x50: 0})
+        w.answers['vt+0x2c'] = seen
+        w.answers['0x00576c80'] = lambda rr, n_, a: rr.choice([0, 0, 0, 1])
+        w.answers['0x00579500'] = lambda rr, n_, a: rr.choice([w.obj(), 0])
+        w.answers['0x00430aa0'] = lambda rr, n_, a: rr.choice([ai, ai, 0])
+        w.answers['0x0040d9d0'] = lambda rr, n_, a: rr.choice([3, 4, 5, 6, 7, 11])
+        w.mech_arg = r.choice([target, target, veh, 0x77000])
     w.renderers = []
     for vt_ in RENDERERS:
         o = e.world_alloc(16)
@@ -380,6 +396,11 @@ CASES = [
     ('lab delete_screen', 0x448ef0, 0x448ef0, LAB, none),
     ('lab draw', 0x448f10, 0x448f10, LAB, lambda r: (lambda v: (v, 0, (v,), 0))(
         fbits(r.choice([0.0, 0.033, 0.5])))),
+    # The screen mode switch (ECX the mode), Shift+V, a mech's cockpit refit
+    # (ECX the mech: the view's target, another, or none; resolution.md step 3).
+    ('screen mode', 0x4ab6b0, 0x4ab6b0, 'mode', lambda r: (lambda v: (v, 0, (), 0))(r.choice([3, 4, 5, 5, 6, 7, 11]))),
+    ('vmode toggle', 0x4ab910, 0x4ab910, APP, none),
+    ('cockpit refit', 0x41cdc0, 0x41cdc0, 'mech', none),
 ]
 # Results compared as booleans (functions returning bool / BOOL / a byte).
 BOOL_RESULT = {0x438c90, 0x42da50, 0x429600, 0x482a20, 0x480570, 0x480970, 0x480000, 0x482330, 0x482430, 0x482070,
@@ -397,7 +418,7 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
     t.script = Script(make_script(seed, w))
     probe.probe_states_reset()
     probe.probe_states_set_menus(*(MENU[k] for k in MENU_VTABLES))
-    if ecx == 'pilot':
+    if ecx in ('pilot', 'mode', 'mech'):
         pass
     elif isinstance(ecx, str):
         ecx = MENU[ecx]
@@ -419,6 +440,12 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
         stack = (parg,)
     if paddr == 0x4803f0:
         pass
+    if paddr == 0x4ab6b0:  # the port runs the switch: the emulator too
+        del w.emu.slots[0x4ab6b0]
+        ecx = parg
+    if paddr == 0x41cdc0:
+        del w.emu.slots[0x41cdc0]
+        ecx = parg = w.mech_arg
     snap = w.emu.snapshot()
     w.emu.watch_writes([(w.emu.world_base, w.emu.world_base + w.emu.world_size),
                         (0x5e0000, 0x810000)], IGNORE + [(o, o + 0x10) for o in MENU.values()])
@@ -446,7 +473,7 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
         p = pret.value
         if paddr in BOOL_RESULT:
             e, p = (e & 0xff) != 0, p != 0
-        elif paddr in (0x482970, 0x4507c0):
+        elif paddr in (0x482970, 0x4507c0, 0x4ab6b0):
             pass
         else:
             e = p = 0

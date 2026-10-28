@@ -47,4 +47,18 @@ void message_panel_add(const char* format, ...);                     // 0x0040fe
 void message_panel_draw();           // 0x0040fb30: its quad while shown
 void message_panel_point(int32_t out[2]);  // 0x0040fed0
 
+// 0x0040f330's rects (0x005fc34c..0x005fc374, written and never read): the
+// first rect kept, the second (the one the panel is centred by) and its size.
+struct PanelArea {
+  int32_t kept[4] = {};              // 0x005fc34c  x, y, x_end, y_end
+  int32_t area[4] = {};              // 0x005fc35c
+  int32_t w = 0, h = 0, centre_x = 0;  // 0x005fc36c, 0x005fc370, 0x005fc374
+};
+PanelArea& panel_area();
+// 0x0040f330: ECX a rect kept (null: unchanged), EDX the area (null: the last
+// one); the panel centred across the display, shown its height above the
+// bottom, hidden just under it, and put at its hidden place (resolution.md
+// step 3: after a mode change).
+void message_panel_place(const int32_t* kept, const int32_t* area);
+
 }  // namespace mech3
