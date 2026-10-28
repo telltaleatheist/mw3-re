@@ -170,6 +170,11 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x005561e0", "own: the same (RdrAddPath)"},
       {"0x00516f50", "own: zutl::mount (the start-up's zbd through the 2D host's image_path); loose textures unused"},
       {"[0x0072f3f0]", "own: the fog is zrndr::device_fog in the Render3D pass"},
+      {"0x00557f90", "own: zvid::lock_3d gives the fillers the back buffer's base and pitch each frame; the rect is unread"},
+      {"0x00558290", "own: zvid::lock_3d sets the tint's buffer (zrndr::set_finish_target), 640x480"},
+      {"0x00576d90", "own: the back buffer's size, zvid's Surface (lock_3d); here only the targets' arguments"},
+      {"0x00576da0", "own: the back buffer's height, the same (lock_3d)"},
+      {"0x00576dc0", "own: the back buffer's pitch, the same"},
       {"0x00588930", "deferred: multiplayer (DirectPlay's poll; back burner)"},
       {"0x00586c20", "deferred: multiplayer (its shutdown)"},
       {"0x0041ab90", "deferred: multiplayer (the chat panel at mech +0x378, made by commands 0x76 / 0x77)"},
@@ -188,6 +193,7 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x005269e0", "no effect: [0x0074a2d4] is set only in software (gmod_light single)"},
       {"0x004f8f20", "no effect: zClass's two values set to their defaults (update_frame 1, frozen 0)"},
       {"0x004f3540", "no effect: [0x005ea53c] is never read"},
+      {"0x00558070", "no effect: [0x008007dc] / [0x008007e0] are only written"},
   };
   return k;
 }

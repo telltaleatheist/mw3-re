@@ -1182,3 +1182,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   calls in 300 frames, 0 hidden; records 74 against 132; no trails with
   the clear off (t1's rain does not smear over the black).
 - Check in the c1m1 Owens test; break: video_set_clear back to the hook.
+
+## Mission-plan item 14 (2026-10-27): the span target's rect (no change)
+
+- Branch mac4/fade-rect (off mac4/start-settings). Seen in the census's
+  quit (Ctrl+Q, Enter, the fade to the lobby): the tint's quad 0,0-640,480,
+  alpha 0.99 down. Item 11 confused zrndr_tint's FinishTarget (set by
+  zvid::lock_3d) with the fillers' SoftTarget. The fillers read base and
+  pitch only; 0x00558070's globals are write-only. Six keys moved to the
+  known table (28 now).

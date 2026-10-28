@@ -267,12 +267,15 @@ apart. Everything else is a real gap and stays listed.
 
 - **The program's own**: RdrSetPath / RdrAddPath 0x005561a0 / 0x005561e0
   and the image paths 0x00516f50 (the mounts and the archives; loose files
-  unused), the fog's [0x0072f3f0] (zrndr::device_fog in the Render3D pass).
+  unused), the fog's [0x0072f3f0] (zrndr::device_fog in the Render3D pass),
+  the fillers' and the tint's targets 0x00557f90 / 0x00558290 with the back
+  buffer's size and pitch 0x00576d90 / 0x00576da0 / 0x00576dc0
+  (`zvid::lock_3d` gives them the Surface's own each frame).
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
   panel 0x0041ab90), the stealth object (0x004ac860, 0x004a4de0), the mode
   switch 0x004ab6b0 (resolution.md step 3), the developer-only lines
   (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890).
-- **No effect**: 0x0040fef0 (its flag 0), 0x004b52e0 and 0x0047f2b0
+- **No effect**: 0x00558070 (its globals only written), 0x0040fef0 (its flag 0), 0x004b52e0 and 0x0047f2b0
   (item 6), 0x00518790, 0x004f8f20 (their defaults), 0x005269e0 (software
   only), 0x004f3540 (its global unread).
 

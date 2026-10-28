@@ -336,11 +336,13 @@ Small items, each one sitting, in the order a player would notice them.
     own texture, loaded; the world's window draws its clear polygon
     every frame), so no FIX (A).
 14. **The span target's rect**: the Core frame's 0x00557f90 / 0x00558290
-    / 0x00558070 (with 0x00576d90..dc0) set the fillers' and the tint's
-    rect; the program's `zvid::lock_3d` sets the buffer but no rect, so
-    the Fade state's whole-screen tint (rect 0) spans the last rect any
-    caller set (none: nothing; a shadow image: 64x64). Test: the fade's
-    quad in a headless run.
+    / 0x00558070 set the fillers' and the tint's targets. Checked in a run
+    (2026-10-27): no change needed, item 11 had it wrong. The tint reads
+    its own target (`FinishTarget`, which `zvid::lock_3d` sets to the back
+    buffer, 640x480), not the fillers'; the fade's quad covers 0,0-640,480
+    as its alpha falls from 0.99. The fillers read the base and pitch
+    `lock_3d` sets, never the rect; 0x00558070's two globals are only
+    written. All six now known (program.md, The census).
 15. **The rest to trace**: 0x004f3430 (the camera's +0x10 bit 0),
     0x004fa580 / 0x004fa600 (the display's size and place), 0x005a84c0,
     0x005a7e10 / 0x005a7f90 (zEntity for targets and turrets),
