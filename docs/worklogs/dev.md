@@ -1260,3 +1260,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   and c4bm7, which do not exist; the launch found no "player" record (no
   reader archive loaded), made no mech, and the player hooks fell through.
   --mission now refuses a mission without zbd\<op>\readermN.zbd.
+
+## Mission-plan item 20 (2026-10-28): the all-missions census
+
+- Branch mac4/census-all (off item 19, 34b25f7). The test runs 21
+  missions (not 20 as I first counted), 1200 frames each, then
+  stop_game, exit_instance and destroy (no test called destroy before).
+- Its first run found five more keys than the program's runs: the
+  program's own exit skips stop_game (item 2), but the Exit state (QUIT)
+  runs it. All five are frees; 0x00414000's archive close is the motion
+  archive's.
+- Game texts: the four slots per game type read from the exe's vtables;
+  a debug start answers by its launch (t1 the training lesson).
+- Break: game_text back to the logged base fails the census (game.vt in
+  t1). The known table is 46 now.

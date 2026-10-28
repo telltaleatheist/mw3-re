@@ -896,6 +896,28 @@ int32_t TrainingGame::text_id(int32_t i) {
   return kTexts[(i > 4 ? 4 : i < 1 ? 1 : i) - 1];
 }
 
+// Mech3.exe 1.2 @ 0x00437980, 0x00437990, 0x004379b0 (+0x38, 0x004487d0, is
+// 0 in every training game, 0x00436e30): the briefing's texts.
+const char* TrainingGame::text_of(int32_t slot, int32_t mission) {
+  switch (slot) {
+    case 0x04: return pilot_hooks().message(0x10b);
+    case 0x0c: return pilot_hooks().message(name_id(mission));
+    case 0x10: return pilot_hooks().message(text_id(mission));
+    default: return nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004378a0, 0x004487d0, 0x0040a840, 0x00437970
+const char* ActionGame::game_text(int32_t slot) {
+  switch (slot) {
+    case 0x04: return pilot_hooks().message(0x10c);
+    case 0x08: return x38;
+    case 0x0c: return x3c;
+    case 0x10: return x40;
+    default: return nullptr;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00436fe0
 void TrainingGame::save() {
   Game::save();

@@ -453,6 +453,20 @@ void GameEngine::load_state_enter() {
   set_launch(l);
 }
 
+// The briefing's game texts (game_type, db_name, scenario_name,
+// scenario_desc: the game's vt+0x04 .. +0x10). A debug start has no pilot's
+// game: the one its launch names answers (ours). Multiplayer's stay logged.
+const char* GameEngine::game_text(int32_t slot) {
+  Pilot* p = launch_.auto_launch ? nullptr : current_pilot();
+  if (Game* g = p ? p->current : nullptr) return g->type() == kMultiplayer ? Engine::game_text(slot) : g->game_text(slot);
+  if (launch_.action) return launch_.action->game_text(slot);
+  if (launch_.index == 5) return TrainingGame::text_of(slot, launch_.number);  // t1
+  if (slot != 0x0c) return nullptr;
+  static std::string name;  // 0x00434900's
+  name = pilot_hooks().format_ints(0x21d, {launch_.op, launch_.number});
+  return name.c_str();
+}
+
 bool GameEngine::launch_slot_refresh() {
   Pilot* p = current_pilot();
   Game* g = p ? p->current : nullptr;

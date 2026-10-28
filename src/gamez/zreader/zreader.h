@@ -86,6 +86,7 @@ State& state();
 void init();                                                  // 0x00556170
 bool open_archive(const char* path, bool make_current);      // 0x00557320
 void close_archives(bool all);                                // 0x005573d0
+void shutdown();                                              // 0x00556210
 std::FILE* find_in_archives(const char* name);                // 0x005572c0
 // 0x005563d0: a text file's tree, nullptr when its parentheses do not
 // balance. The root is a list of everything at the top level.

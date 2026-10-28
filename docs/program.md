@@ -287,7 +287,22 @@ apart. Everything else is a real gap and stays listed.
   (`zvid::lock_3d` gives them the Surface's own each frame), the targets'
   nodes 0x005a8390 (zent::marker_nodes), CZAiTarget's defaults and
   destructor 0x005a7e10 / 0x005a7f90 (the port's AiTarget), crc32's table
-  0x00576c50 (built on first use).
+  0x00576c50 (built on first use), and at the app's end Mech3Msg.dll's
+  FreeLibrary 0x00575f70 (the port reads the DLL as a file) and zutl's
+  search paths 0x00576c60 (the mounts). The end's other two are wired:
+  zInput's maps 0x0051d0c0 (`zin::shutdown`) and the reader 0x00556210
+  (`zrdr::shutdown`: every archive closed; a changed table would be written
+  there, 0x00576720, but the reader's .zbd files are only read). The
+  app's stop (0x004808a0, the Exit state's and the tests'): the mechs'
+  0x00414000 wired (`mechs_shutdown`; its archive close is the read-only
+  motion archive's), and four frees known: zImage's 0x00516f00, zModel's
+  0x00526780, zRender's 0x00557b10, the span buffers' 0x005646d0 (memory
+  only, no write in their calls five deep).
+- `census_every_mission_unported_headless` (MW3_CENSUS=1, about 6
+  minutes): the 21 missions (c1m1..c2m4, c3m1..c3m6, c4m1..c4m3,
+  c4bm4..c4bm6, t1) launched as `--mission` does, 1200 Core frames each,
+  then the stop, ExitInstance and the app's end; fails on any key outside
+  the table or a mission without the player's mech.
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
   panel 0x0041ab90), the stealth object (0x004ac860, 0x004a4de0), the mode
   switch 0x004ab6b0 (resolution.md step 3), the developer-only lines

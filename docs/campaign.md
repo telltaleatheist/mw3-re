@@ -125,7 +125,7 @@ brief_grey) and COLOR (else white) are read for every kind, AT defaults to
 |---|---|---|
 | circle | 0x005bbfb0: zTwoD's circle with a label (+0x54) and SOUND (+0x504) | at, radius (first, last; 10 3) |
 | text | 0x005bc030: a FontText (its move erases its old place) | at (else none), string (a message name) |
-| game_type, db_name, scenario_name, scenario_desc | the same, shown at once | at; the text is the game's vt+0x04 .. +0x10 (multiplayer's) |
+| game_type, db_name, scenario_name, scenario_desc | the same, shown at once | at; the text is the game's vt+0x04 .. +0x10 (`Game::game_text`: the campaign's name at +0x0c; Instant Action's message 0x10c, +0x38, +0x3c, +0x40; training's message 0x10b, -, the lesson's name and description; multiplayer's logged) |
 | bitmap | an image (0x005bbf30) | at, image |
 | waypoint | 0x005bbeb0: a circle on a nav point of the mission ([0x00609980], made by the Load state's 0x00490720), placed on the mission's map (0x00491c80, 0x004586e0), labelled with message 0x200 | label (the nav point's name and the label: NAME is not read), radius, color |
 | triangle | 0x005bbe30: zTwoD's triangle | at, height (size; the second value is kept, unused), sound |

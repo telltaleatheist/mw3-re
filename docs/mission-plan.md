@@ -426,6 +426,18 @@ Small items, each one sitting, in the order a player would notice them.
     1200 frames, failing on any key outside the known table; then the
     ExitInstance shutdowns (0x00575f70, 0x0051d0c0, 0x00576c60,
     0x00556210, each checked for a write or a save) and t1's game.vt.
+    Done (2026-10-28): `census_every_mission_unported_headless` over the
+    21 missions (c1 and c2 m1..m4, c3 m1..m6, c4 m1..m3, c4b m4..m6, t1),
+    through the stop and the app's end: 0 keys outside the table. Each
+    shutdown's calls read five deep for a file or registry write: only the
+    archive close's table write (0x00576720), which needs a changed
+    archive (the reader's and motion's are read-only). Wired: zInput's
+    0x0051d0c0, the reader's 0x00556210 (ported as `zrdr::shutdown`), the
+    mechs' 0x00414000; known: the message DLL's FreeLibrary, zutl's paths
+    and four frees of the stop (0x004808a0, which the Exit state runs).
+    t1's game.vt is the briefing's game texts (vt+0x04..+0x10), unported
+    for every game: now `Game::game_text` (campaign, Instant Action,
+    training; multiplayer logged), t1's briefing naming its lesson.
 21. **The census with input**: walking, firing, a won mission through the
     debriefing (--win), the lab (--lab-mech).
 22. **The 180 s runs** on c4m2 and c3m6: leaks, slowdowns, the quit.

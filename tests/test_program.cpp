@@ -10943,7 +10943,8 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540", "0x00557f90", "0x00558290",
                         "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390", "0x005a84c0",
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
-                        "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30"}) {
+                        "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
+                        "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10952,9 +10953,10 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 40);
+  EXPECT(n == 46);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
-                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0"})
+                          "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
+                          "0x00556210", "game.vt", "0x00414000"})
     EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
 }
 
@@ -11104,6 +11106,95 @@ TEST(census_c1m1_unported_headless) {
                frames, rows.size(), known.size(), quit_at, most_shots);
   EXPECT(most_shots > 0 && most_shots < 100);  // the Thor's volleys, cleared each frame
   EXPECT(frames >= total);
+}
+
+// Every mission, no input (mission-plan item 20): each campaign mission and
+// t1 launched as `--mission` does, 1200 Core frames, then the quit through
+// ExitInstance and the app's end (0x0047fab0, the module shutdowns). Fails
+// on any call reached outside GameEngine::known_unported, or a mission that
+// launches no mech. MW3_CENSUS=1 (about 6 minutes).
+TEST(census_every_mission_unported_headless) {
+  if (!have_game() || !std::getenv("MW3_CENSUS")) return;
+  struct M { int32_t index, number; const char* name; };
+  static const M kMissions[] = {
+      {0, 1, "c1m1"}, {0, 2, "c1m2"}, {0, 3, "c1m3"}, {0, 4, "c1m4"}, {1, 1, "c2m1"}, {1, 2, "c2m2"},
+      {1, 3, "c2m3"}, {1, 4, "c2m4"}, {2, 1, "c3m1"}, {2, 2, "c3m2"}, {2, 3, "c3m3"}, {2, 4, "c3m4"},
+      {2, 5, "c3m5"}, {2, 6, "c3m6"}, {3, 1, "c4m1"}, {3, 2, "c4m2"}, {3, 3, "c4m3"}, {4, 4, "c4bm4"},
+      {4, 5, "c4bm5"}, {4, 6, "c4bm6"}, {5, 1, "t1"}};
+  std::map<std::string, std::set<std::string>> gaps;  // key -> missions
+  for (const M& mission : kMissions) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("census_all_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    std::map<std::string, uint32_t> counts;
+    int frames = 0;
+    bool mech = false;
+    std::string scenario, want;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      l.index = mission.index, l.number = mission.number;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core) return;
+        if (++frames == 1) {
+          mech = mech3::mech_mission_player() != nullptr;
+          if (const char* t = engine.game_text(0x0c)) scenario = t;
+          if (const char* w = mission.index == 5 ? engine.message(mech3::TrainingGame::name_id(1)) : nullptr) want = w;
+        }
+      };
+      CountingPump pump;
+      pump.limit = 3200;
+      pump.stop = [&] { return frames >= 1200; };
+      app.run(pump);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      app.destroy();
+      counts = engine.unported_counts();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    if (!mech || frames < 1200) std::fprintf(stderr, "census %s: %d frames, mech %d\n", mission.name, frames, mech);
+    EXPECT(mech && frames >= 1200);
+    // t1's briefing names its lesson (the training game's vt+0x0c, 0x00437990).
+    if (mission.index == 5) EXPECT(!want.empty() && scenario == want);
+    for (const auto& [k, n] : counts)
+      if (!mech3::GameEngine::known_unported(k)) gaps[k].insert(mission.name);
+  }
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  for (const auto& [k, where] : gaps) {
+    std::string w;
+    for (const std::string& m : where) w += " " + m;
+    std::fprintf(stderr, "census every mission: %s in%s\n", k.c_str(), w.c_str());
+  }
+  std::fprintf(stderr, "census every mission: %zu missions, %zu keys outside the known table\n",
+               sizeof kMissions / sizeof kMissions[0], gaps.size());
+  EXPECT(gaps.empty());
 }
 
 TEST(playtest_hud_keys_zoom_radar_mfd_headless) {

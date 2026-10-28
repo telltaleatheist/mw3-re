@@ -133,6 +133,7 @@ class GameEngine : public Engine {
   // state's game from the pilot the pilot screen chose, the ported screen's
   // calls into the ported mission, launch, states and zSound.
   void load_state_enter() override;
+  const char* game_text(int32_t slot) override;  // the pilot's game's vt+0x04 .. +0x10
   Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
   void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
   Handle mission_salvage_store() override;              // [0x00609990], the ported store
@@ -405,6 +406,9 @@ class GameEngine : public Engine {
   void reader_init(const char* dir) override;
   void reader_open_archive(const char* path, int32_t current) override;
   void reader_close_archives(int32_t all) override;
+  void input_maps_free() override;                 // 0x0051d0c0 (zin::shutdown)
+  void mechs_shutdown() override;                  // 0x00414000 (app_mech.cpp)
+  void reader_shutdown() override;                 // 0x00556210 (zrdr::shutdown)
   int32_t options_load(const char* name) override;
   int32_t sound_init(uint32_t window) override;
   void sound_set_mode(int32_t v) override;
