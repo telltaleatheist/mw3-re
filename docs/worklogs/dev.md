@@ -1324,3 +1324,15 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   from mw3sdltests (MW3_BIN). Break: the old count is killed at 90 s.
 - Open: c4m2's last cycles are 12% slower.
 
+## Resolution step 2 (2026-10-28): the window's shape
+
+- Branch mac4/window-shape (off main a67d090).
+- sdl_fit.h (pure geometry), platform::Window::frame_size (from video_open),
+  SdlWindow's shape and auto size, the back buffer at the fit rect with the
+  black bars in present and in the capture, SdlZinHost and SdlInput through
+  the rect.
+- VMode can't be set from settings.reg (it is detail.zrd's, never saved),
+  so no 16:9 frame reaches the screen before step 3's mode switch. The
+  shots for Owen are 640x480 frames: at 1280x720 pillarboxed (c1m1 and the
+  main menu) and at 640x480.
+

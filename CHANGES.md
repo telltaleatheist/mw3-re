@@ -357,6 +357,10 @@ These change how the game talks to the computer, not how it plays.
   sides instead of stretching, keeping the original's look; 640x480 is
   exactly as before. The window, the HUD and the menus at those sizes come
   in later steps (docs/resolution.md).
+- The picture keeps its shape in a window of any size: black bars at the
+  sides (or top and bottom) when the window's shape differs, and the mouse
+  moves the same distance whatever the window's size. A window opened
+  without `--window` takes the picture's shape.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 

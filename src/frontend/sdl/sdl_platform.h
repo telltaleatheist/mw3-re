@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 
+#include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/sdl_render3d.h"
 #include "platform/platform.h"
 
@@ -30,6 +31,10 @@ class SdlWindow : public platform::Window {
   void set_title(const std::string& title) override;
   void show() override;
   void client_size(int* width, int* height) override;
+  void frame_size(int width, int height) override;
+  // --window not given: the window takes the frame's shape (sdl_fit.h).
+  void set_auto_size(bool on) { auto_size_ = on; }
+  const FrameShape& shape() const { return shape_; }
 
   SDL_Window* sdl() const { return window_; }
   SDL_GPUDevice* device() const { return device_; }
@@ -41,6 +46,8 @@ class SdlWindow : public platform::Window {
   SDL_GPUDevice* device_ = nullptr;
   std::unique_ptr<SdlRender3D> render_;
   bool hidden_ = false;
+  bool auto_size_ = false;
+  FrameShape shape_;
 };
 
 // The DirectDraw flip of the 16-bit back buffer (0x00576ea0): the pixels as a

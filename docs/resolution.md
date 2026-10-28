@@ -113,7 +113,8 @@ the original's formula unchanged, so 640x480 stays bit for bit.
    any shape. Headless.
 2. The window's shape: `--window` and the SDL window follow the mode's
    aspect (or pillarbox the back buffer); the mouse scale from the display
-   size, not 640. Platform only; Owen checks it on screen.
+   size, not 640. Platform only; Owen checks it on screen. Done
+   (2026-10-28), section 6.
 3. The mode switch 0x004ab6b0 and Shift+V 0x004ab910 on the port's zVideo:
    the 2D buffer, `Render3D`'s viewport, the HUD's text area 0x0040f330, the
    cockpits 0x0041cdc0.
@@ -162,3 +163,39 @@ does the modes test with 11..16 not gated by the fix. Removing the 4:3 guard
 changes nothing: on 20,000 vertical angles the new rule at 4:3 rounds to
 the original's float every time, since tan and atan cancel. The guard only
 keeps the original's own expression.
+
+## 6. The window (step 2)
+
+Platform only (the FIX (A) layer), behind `any_resolution`; the game's
+logic is untouched. `sdlfe::FrameShape` (`src/frontend/sdl/sdl_fit.h`) is
+the frame the game draws (the display rect, which `GameEngine::video_open`
+hands the window through `platform::Window::frame_size`), and `fit_rect` its
+place in the window: the largest centred rect of its shape.
+
+- **The back buffer** (`SdlRender3D::ensure_frame`) is that rect's size;
+  `present` blits it into the rect and clears the bars black. A shot is
+  the window as shown, bars included; the fade's still (`read_back`) is the
+  frame alone.
+- **The window**: without `--window` it takes the frame's shape when the
+  screen opens (`default_window`: the frame, doubled while under 1280
+  wide, so 640x480 opens at 1280x960 as before). A given `--window` stays,
+  with the frame pillarboxed or letterboxed in it.
+- **The mouse**: SdlZinHost's client area is the frame, and the cursor maps
+  through the rect (`window_to_frame`, `frame_to_window`; the bars map
+  outside the frame). The relative mouse is a frame pixel a mickey through
+  the rect's width (`mickey_scale`), where `mw3_main` had 640 / the window's
+  width.
+- **Off**: the frame is stretched over the whole window and the mouse's
+  scale is 640 / width, as before.
+
+`sdl_window_shape_maps_the_mouse_through_the_frame` (mw3sdltests) checks the
+rect and the mapping at 4:3, 16:9, pillarboxed and letterboxed, and with the
+fix off. It also checks SdlZinHost's mapping and SdlInput's mickeys in a
+hidden 1280x720 window (96 points of motion are 64 mickeys). Break: a fit
+rect that always stretches fails 9 checks.
+
+A 16:9 frame itself waits on step 3. VMode is detail.zrd's, not the
+settings', and 5 on a modern PC, and the mission's InGameVMode comes in
+through the mode switch 0x004ab6b0, not ported yet. Until then every frame
+is 640x480, and a 16:9 window shows it pillarboxed.
+

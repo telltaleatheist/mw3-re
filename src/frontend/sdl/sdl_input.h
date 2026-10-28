@@ -3,6 +3,7 @@
 
 #include <deque>
 
+#include "frontend/sdl/sdl_fit.h"
 #include "gamez/zinput/zinput.h"
 #include "platform/platform.h"
 
@@ -40,6 +41,10 @@ class SdlInput : public platform::Input {
   // mickeys a window pixel of motion makes (the game's 640 over the window's width).
   SDL_Window* window = nullptr;
   float mickey_scale = 1.0f;
+  // With any_resolution, the frame's shape in the window (sdl_fit.h): the
+  // scale is then a frame pixel a mickey, through the pillarboxed rect.
+  const FrameShape* shape = nullptr;
+  bool fitted() const { return shape && shape->fit; }
 
   // From the message pump: every SDL input event passes through here.
   void on_event(const SDL_Event& e);
@@ -85,7 +90,7 @@ class SdlZinHost : public zin::Host {
   void client_to_screen(int32_t* x, int32_t* y) override;
   void screen_to_client(int32_t* x, int32_t* y) override;
   void set_cursor_pos(int32_t x, int32_t y) override;
-  void client_size(int32_t* w, int32_t* h) override { *w = fw_, *h = fh_; }
+  void client_size(int32_t* w, int32_t* h) override;
   uint32_t map_virtual_key(uint32_t scan) override;
   bool keyboard_state(uint8_t* state) override;
   int32_t to_ascii(uint32_t vk, uint32_t scan, const uint8_t* state, uint16_t* out) override;
