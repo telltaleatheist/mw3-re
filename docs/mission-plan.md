@@ -479,6 +479,13 @@ Small items, each one sitting, in the order a player would notice them.
       `sdl_program_frames_end_a_paused_mission`.
 23. **For Owen**: the playtest questions and the fixes.md Candidates in one
     place, each with its evidence and a recommendation; nothing changed.
+    Done (2026-10-28): `docs/for-owen.md`. It covers ten playtest rows to
+    check in play; three rows (#11, #18, #26) still marked waiting but
+    ported since; two needing his repro (#22, #27); #23's firing lag, with
+    a comparison to make on the original; and 21 Candidates, grouped, each
+    with a recommendation (keep 10, change 8, one to try on a branch, two
+    to check in the original first). The decided ones are listed for
+    reference.
 
 Decisions for Owen rather than ports: the beam's charge gate (playtest #23
 / #24, fixes.md Candidates), the subtitles, the other Candidates in

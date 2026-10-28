@@ -1299,6 +1299,13 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   Breaks: training's slot unwired fails 6 checks; 0x00586ce0 renamed in
   the table fails 2.
 
+## Mission-plan item 23 (2026-10-28): the list for Owen
+
+- Branch mac4/owen-list (off main 4c2d7cf); docs only, nothing changed.
+- `docs/for-owen.md` from playtest.md, fixes.md (Candidates, the table's
+  candidate rows, Decided's c4b m4 note) and the topic docs they cite.
+- playtest.md's rows #11, #18 and #26 are stale ("waiting", but ported).
+  Left for the lead or Owen to close, as the item asked for no changes.
 ## Mission-plan item 22 (2026-10-28): the 180 s runs
 
 - Branch mac4/long-runs (off main 4c2d7cf).
