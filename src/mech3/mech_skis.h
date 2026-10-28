@@ -7,6 +7,11 @@
 // that find the ground under the mech each frame, move its body up and down,
 // slide it off steep slopes and decide whether it is airborne
 // (docs/movement-ground.md). Original file: mech3\mech_skis.cpp.
+namespace zmod {
+struct Material;
+struct Model;
+}  // namespace zmod
+
 namespace mech3 {
 
 struct Mech;
@@ -82,5 +87,11 @@ class Skis {
   static bool integrate(float* y, float* vy, float dt, float ground, float gravity);  // 0x00477940
   static bool slope_slide(const GroundHit& c, Vec3* push, float dt);                  // 0x00477620
 };
+
+// The skis' debug quads (0x00476090 adds two to each ski's model): a polygon
+// of n points (x y z each; colinear ones dropped in place) in a material of
+// its own, a random colour. False under 3 points or when the add fails.
+bool ski_polygon(zmod::Model* model, int32_t n, float* points);  // 0x004776d0 ECX model, EDX n
+zmod::Material* ski_material();                                  // 0x00477730
 
 }  // namespace mech3

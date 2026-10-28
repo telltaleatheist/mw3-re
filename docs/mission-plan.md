@@ -262,7 +262,9 @@ Small items, each one sitting, in the order a player would notice them.
    moved 40 m from the player casts a drawn 32x32 caster, the far ones
    none. `mw3 --mission c1m3 --vehicle-ahead 40 --shot` shows it.
 5. **The model priority 0x0053bb20 and the mech build's polygon
-   0x004776d0**: trace, port, differential (test_modeldraw.py's harness
+   0x004776d0** (done 2026-10-27: both ported with 0x00477730, wired in the
+   program and the script engine; test_ski_polygon.py; movement-ground.md,
+   The skis' debug quads): trace, port, differential (test_modeldraw.py's harness
    for the first; mech-build's for the second).
 6. **The start-up's leftovers that a player could see**: 0x004ab6b0 /
    0x004ac860 (vehicles), 0x004b52e0 (weapons), 0x00490720,

@@ -1064,3 +1064,26 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   the object: the panel's globals are reset first); the entry was the
   unported "entity vt+0x0" before. The c1m4 pocket test moves the marker by
   the player at the quit, checks it casts and that no caster is left.
+
+## Mission-plan item 5 (2026-10-27): the model priority and the skis' quads
+
+- Branch mac4/model-priority (main 63cb569). 0x0053bb20 in gmod_const
+  (`zmod::model_set_priority`), 0x004776d0 / 0x00477730 in mech_skis
+  (`ski_polygon`, `ski_material`); the program's WiredBuild and the script
+  engine's Object3DSetPriority wired; the hooks' defaults stay (test_mech_build
+  stubs both as calls out).
+- The ski model's priority is set before its quads exist (a no-op); the
+  quads and the feet's _shadow models are inactive, so nothing shows. What
+  changes in play: the build's rand()s (at least 12 a mech), as the exe's.
+- test_ski_polygon.py: 1,325 runs, the exe's rand() stubbed with MSVC's
+  LCG on the same seed; the material's flag bits 3..7 are stack garbage
+  in the exe (compared: bits 0..2). Breaks: the seed, the points, the
+  priority, r/g swapped, the threshold, the green mask.
+- The rand()s moved three c1m4 runs' exact values (port-only pins, not the
+  exe's): re-pinned. In "fires on a target" he turns from ghsD2 to ghsD3
+  and lands two hits in 40 s (30 -> 16 -> 9) where the hut was down
+  before; he holds the trigger most of the run.
+- Open: so few hits landing from 80 m (two in ~1,000 firing frames) may be
+  worth a look on its own (aim, line of sight, the lasers' recharge).
+- Open: `move_mech` on the first Core frame (item 4's shot) moves the
+  reported position but not what the camera follows.

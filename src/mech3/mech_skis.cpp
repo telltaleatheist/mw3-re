@@ -4,7 +4,12 @@
 #include <cstddef>
 #include <cstring>
 
+#include "crt/msvc_math.h"
+#include "crt/msvc_rand.h"
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -424,6 +429,42 @@ void skis_make_ski(Skis& s, int32_t side) {
   h.model_add_polygon(model, 4, upright);
   h.node_set_flag8(node, 0);
   h.ski_set(s, side);
+}
+
+// Mech3.exe 1.2 @ 0x004776d0
+bool ski_polygon(zmod::Model* model, int32_t n, float* points) {
+  uint8_t zone[4];
+  zmod::zone_reset(zone);
+  if (n < 3) return false;
+  zmod::PolygonAdd a;
+  a.points = points;
+  a.material = ski_material();
+  a.flag = 1;
+  a.zone = zone;
+  return zmod::model_add_polygon(model, n, a) == 0;
+}
+
+// Mech3.exe 1.2 @ 0x00477730: three rand()s scaled to 0..255 (0x005c3784),
+// drawn again until they sum to 150 (0x005c3788). The packing shifts the
+// 0..255 values into the 16-bit colour unscaled, so the shown colour is
+// their low bits (docs/movement-ground.md, The skis' debug quads).
+zmod::Material* ski_material() {
+  zmod::Material m;
+  zmod::material_init(m);
+  const float k = 0x1.fe03fcp-8f;  // 0x005c3784, 255 / 32767
+  float first, second, third;
+  do {
+    first = static_cast<float>(crt::msvc_rand()) * k;
+    second = static_cast<float>(crt::msvc_rand()) * k;
+    third = static_cast<float>(crt::msvc_rand()) * k;
+  } while ((second + first) + third < 150.0f);
+  m.r = second, m.g = first, m.b = third;
+  uint32_t w = m.rgb;
+  w = (static_cast<uint32_t>(crt::msvc_ftol(m.r)) << 11) | (w & 0x7ff);
+  w = (w & 0xf81f) | ((static_cast<uint32_t>(crt::msvc_ftol(m.g)) & 0x3f) << 5);
+  w = (w & ~0x1fu) | (static_cast<uint32_t>(crt::msvc_ftol(m.b)) & 0x1f);
+  m.rgb = static_cast<uint16_t>(w);
+  return zmod::material_add(m);
 }
 
 }  // namespace mech3

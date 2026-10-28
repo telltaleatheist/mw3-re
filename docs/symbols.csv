@@ -730,6 +730,8 @@ address,name,source,notes
 0x00462590,Foot::Foot,asm,"(ECX this; mech, slot) sole, shadow marker, toes"
 0x00476320,Skis::Skis,asm,"(ECX this; mech, half track, length)"
 0x00476090,Skis::make_ski,asm,"(ECX skis; side) the ski's node, probes and debug model"
+0x004776d0,ski_polygon,decomp,"(ECX model, EDX n; points) the skis' debug quad in a material of its own; false under 3 points"
+0x00477730,ski_material,asm,"three rand()s until they sum to 150, packed unscaled into the colour; material_add"
 0x00430c60,MechData::model_copy,asm,"(ECX data; &decals) a copy of the model's first child, the skins' decal state"
 0x00430c20,MechData::lod_copy,asm,"(ECX data; variant, unused) a copy of mechlib variant's grandchild"
 0x00432950,MechData::config,asm,"(ECX data; index) the definition's configuration"
@@ -1879,3 +1881,4 @@ address,name,source,notes
 0x00575600,zsnd_stream_unlock,asm,"ECX sound, EDX p1; p2, n1, n2; ported"
 0x00575690,zsnd_stream_position,asm,"ECX sound: the play cursor (bytes), 0 on failure; ported"
 0x00575980,zsnd_stream_free,decomp,"ported"
+0x0053bb20,model_set_priority,decomp,"(ECX model, EDX priority) every polygon's +0x04; Object3DSetPriority, the feet's _shadow models (10)"

@@ -744,6 +744,13 @@ void add_pieces(Model& m, int32_t n, const PolygonAdd& a, int32_t piece) {
 }
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x0053bb20
+int model_set_priority(Model* m, int32_t priority) {
+  if (!m) return 0;
+  for (int32_t i = 0; i < static_cast<int32_t>(m->count(0x10)); ++i) m->polygons[i].priority = priority;
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x0053c6c0. 0 added, 1 refused, 2 added in pieces. The
 // caller's points lose their colinear ones in place (the other arrays do
 // not follow, as in the exe).
