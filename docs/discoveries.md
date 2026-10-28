@@ -1140,6 +1140,12 @@ From the world files (gamez.md).
   `LoadGameGen`, a command the shipped exe doesn't have; they sit in a branch
   that only runs if `gamez.zbd` fails to load, so the fallback could never
   have worked. `SetModelDirectory` runs every mission and is silently ignored.
+- **Network games are tougher.** At start-up the game picks its damage
+  factors by whether a network game is on: alone, damage is scaled by
+  0.0062 and a leg always starts to limp once its structure is under 40 %;
+  in a network game damage is scaled by 0.0052 (about 84 %), legs take
+  half of that again, and the limp line is 35 %. (damage.md, The hit
+  factors)
 - **There is a hidden "GameZ Interpreter" console** (0x5960a0) where you could
   type commands like `var DamageScale = 0` or `PrintTree`, but in 1.2 it is
   likely unreachable (interp.md).

@@ -11,12 +11,12 @@
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech3_interp.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
 
 namespace {
-constexpr float kDamageScale = 0.0062f;   // 0x005e1f68
 constexpr float kCritArmor = 0.15f;       // 0x005c2774
 constexpr float kRandUnit = 3.051851e-05f;  // 0x005c2778
 constexpr int kMultiplayer = 3;           // docs/gametypes.md
@@ -93,7 +93,7 @@ FreeCalls& free_calls() { return g_free; }
 int MechPart::take_hit(WeaponDef* def, Collision*, float damage, Vec3* impulse) {
   World& w = world();
   Mech& m = *mech;
-  float d = damage * kDamageScale;
+  float d = damage * interp_globals().damage_scale;  // 0x005e1f68
   if (game_type() != kMultiplayer) {
     // Difficulty (0x0040cc20) scales what the player and its side take.
     if (&m == w.mission_player || (w.mission_player->allies & m.team) != 0) d = w.difficulty * d;
@@ -607,9 +607,9 @@ void Torso::destroy(int explode, int) {
 
 // Mech3.exe 1.2 @ 0x00463b40. After the hit, a chance to start limping:
 // (1 - h)(p - h) for structure h, p = 0.35 for the player and 1 for others,
-// and always below 30%.
+// and always below the limp structure (40% alone, hit_globals).
 int Leg::take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) {
-  const int r = MechPart::take_hit(def, coll, damage * 1.0f, impulse);  // 0x005e1f74
+  const int r = MechPart::take_hit(def, coll, damage * hit_globals().leg_scale, impulse);  // 0x005e1f74
   Mech* m = mech;
   if (!m) return r;
   // Mech vtable +0x5c (0x0040bae0) is 0 for every mech.
@@ -618,7 +618,7 @@ int Leg::take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) 
   const float k = p - -1.0f;  // 0x005c27b4
   const float h = internal;
   const float chance = (h * h + -k * h) + p;
-  if (!(rand_unit() >= chance) || !(get_internal(0) >= 0.3f)) {  // 0x005e1f78
+  if (!(rand_unit() >= chance) || !(get_internal(0) >= hit_globals().limp_structure)) {  // 0x005e1f78
     const bool fall = (crt::msvc_rand() & 1) != 0;
     m->start_limp(id != kLeftThigh, fall);
   }
@@ -992,6 +992,24 @@ void mech_view_tint(Mech& m, bool on) {
                       static_cast<MechPart*>(m.head)})
     if (p) part_view_tint(*p, on);
   if (m.torso) torso_view_tint(*m.torso, m, on);
+}
+
+namespace {
+HitGlobals g_hit;
+}  // namespace
+HitGlobals& hit_globals() { return g_hit; }
+
+// Mech3.exe 1.2 @ 0x00413e60, its first part (the radar blips, the motions
+// and the cockpit sounds are the program's mechs_init).
+void hit_globals_init(bool network) {
+  interp_globals().damage_scale = network ? 0.0052f : 0.0062f;  // [0x005e1f6c] / [0x005e1f70]
+  g_hit.leg_scale = network ? 0.5f : 1.0f;
+  g_hit.limp_structure = network ? 0.35f : 0.4f;
+}
+
+void hit_globals_reset() {
+  g_hit = HitGlobals{};
+  interp_globals().damage_scale = 0.0062f;
 }
 
 }  // namespace mech3
