@@ -8,10 +8,12 @@
 #include <filesystem>
 #include <chrono>
 #include <csignal>
+#include <thread>
+#if !defined(_WIN32)
 #include <fcntl.h>
 #include <spawn.h>
 #include <sys/wait.h>
-#include <thread>
+#endif
 #include <string>
 #include <vector>
 
@@ -728,6 +730,7 @@ TEST(sdl_program_mouse_click_fires_the_laser) {
   EXPECT(o.max_stale > 0.3f);   // the original's: left behind
 }
 
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 extern char** environ;
 
 // --frames through the pause (mission-plan item 22): a launched mission's
@@ -778,3 +781,4 @@ TEST(sdl_program_frames_end_a_paused_mission) {
   EXPECT(quit && WIFEXITED(status) && WEXITSTATUS(status) == 0);
   EXPECT(log.find("Pause State") != std::string::npos);  // Escape reached the pause
 }
+#endif
