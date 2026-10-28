@@ -312,8 +312,37 @@ Small items, each one sitting, in the order a player would notice them.
     app tests.
 11. **The plumbing**: mark the ~45 calls the program does its own way as
     such (silent, with a note in program.md) so the census lists only
-    what is left. Test: the census's count.
-12. **Docs**: ai.md section 6 (the boundary and the sensors are ported),
+    what is left. Test: the census's count. Done (2026-10-27): only 22
+    were plumbing, deferred or without effect (program.md, The census);
+    checked one by one, most of the rest are real: 39 left listed. The
+    30 s census: 39 unported, 22 known.
+12. **Ported but not wired**: 0x004f9fa0 / 0x004fa0b0 (the window's size
+    and place), 0x004fc1b0 (a node's offset), 0x005a8390 (zEntity's node),
+    0x00479be0 (the nav points by name), 0x0051a300 (zInput's clear),
+    0x0040f0a0 -> 0x005a24e0, 0x00576ce0 (zVideo's depth clear), the
+    options' `player_mech` ([[0x0060861c]+0x14]) and `video_is_3d`
+    (0x00579ea0: 1 with a card; the program answers 0). Test: each
+    family's differential where the call's effect is read, the census.
+13. **Settings the exe changes from the data**: 0x004f3550(0) with a card
+    (`CameraSetObjectHSETest` off; the port keeps zClass's 1), 0x0050d1e0
+    / 0x0050d1f0 (0: the animations' records for saves and the network
+    off; the port keeps 1, 1), 0x0057a3c0(0) (the frame clear off; the
+    port keeps 1). Test: the values after the start-up against the exe's.
+14. **The span target's rect**: the Core frame's 0x00557f90 / 0x00558290
+    / 0x00558070 (with 0x00576d90..dc0) set the fillers' and the tint's
+    rect; the program's `zvid::lock_3d` sets the buffer but no rect, so
+    the Fade state's whole-screen tint (rect 0) spans the last rect any
+    caller set (none: nothing; a shadow image: 64x64). Test: the fade's
+    quad in a headless run.
+15. **The rest to trace**: 0x004f3430 (the camera's +0x10 bit 0),
+    0x004fa580 / 0x004fa600 (the display's size and place), 0x005a84c0,
+    0x005a7e10 / 0x005a7f90 (zEntity for targets and turrets),
+    0x005799f0 / 0x00579040 (the load screen's driver and mode lines),
+    0x00576c50, 0x005578f0, 0x00557b30, 0x00526510 (the modules' starts),
+    0x00518f50 / 0x00516f20 (the texture group), 0x00519e50 (the bitmap
+    fonts), 0x00537520, 0x00535ed0, 0x005964c0, 0x004f8f60 ([0x005ea82c],
+    read by zClass's reset).
+16. **Docs**: ai.md section 6 (the boundary and the sensors are ported),
     damage.md's jolt decay (find its address), movement.md Left. Test:
     none (docs).
 

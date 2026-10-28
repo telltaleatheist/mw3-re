@@ -593,8 +593,12 @@ int run(const Args& a) {
     }
     app.destroy();  // the app's destructor: the settings saved
     if (a.verbose) engine.print_unported_summary();
-    else std::fprintf(stderr, "mw3: %zu original functions reached are not ported (--verbose lists them)\n",
-                      engine.unported_counts().size());
+    else {
+      size_t gaps = 0;
+      for (const auto& [k, n] : engine.unported_counts()) gaps += mech3::GameEngine::known_unported(k) ? 0 : 1;
+      std::fprintf(stderr, "mw3: %zu original functions reached are not ported (--verbose lists them and %zu known)\n",
+                   gaps, engine.unported_counts().size() - gaps);
+    }
     ztwod::set_host(nullptr);
     mech3::set_app(nullptr);
   }

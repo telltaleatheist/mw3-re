@@ -245,6 +245,28 @@ implements it:
   `cmp ebx, end`; 1,577 entries in 1.2's DLL). Missing, the program says so
   and exits, as the original does.
 
+## The census: known and not (mission-plan item 11)
+
+`GameEngine::known_unported` names each reached key the program answers
+its own way, leaves by a decision, or that has no effect, with the
+program's equivalent or the reason; it is counted as before
+(`unported_counts`), not logged, and `--verbose` and the census list it
+apart. Everything else is a real gap and stays listed.
+
+- **The program's own**: RdrSetPath / RdrAddPath 0x005561a0 / 0x005561e0
+  and the image paths 0x00516f50 (the mounts and the archives; loose files
+  unused), the fog's [0x0072f3f0] (zrndr::device_fog in the Render3D pass).
+- **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
+  panel 0x0041ab90), the stealth object (0x004ac860, 0x004a4de0), the mode
+  switch 0x004ab6b0 (resolution.md step 3), the developer-only lines
+  (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890).
+- **No effect**: 0x0040fef0 (its flag 0), 0x004b52e0 and 0x0047f2b0
+  (item 6), 0x00518790, 0x004f8f20 (their defaults), 0x005269e0 (software
+  only), 0x004f3540 (its global unread).
+
+The gaps found while checking are mission-plan.md items 12 to 15. A key
+joins the table only with its equivalent or reason verified.
+
 ## The engine's reports (our addition)
 
 The exe's error report (`zerr_report`, 0x0049bfd0) is empty in this build,
