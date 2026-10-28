@@ -1205,6 +1205,7 @@ TEST(mission_end_frees_what_the_next_does_not_need_headless) {
   bool blips_before = false, blips_after = true, motion_before = false, motion_after = true, path_after = true;
   bool blips_again = false, motion_again = false;
   bool path_before = false, unused_bool = false;
+  int huds_before = -1, huds_after = -1;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -1244,6 +1245,7 @@ TEST(mission_end_frees_what_the_next_does_not_need_headless) {
       copies_before = copies(true), others_before = copies(false), idle_before = idle_models(), unused_before = unused_materials();
       materials_before = zmod::materials().count;
       mech3::mechs_end_state(&blips_before, &motion_before, &path_before);
+      huds_before = mech3::Hud::live();
     };
     CountingPump pump;
     pump.stop = [&] { return frames >= 12; };
@@ -1254,6 +1256,7 @@ TEST(mission_end_frees_what_the_next_does_not_need_headless) {
     copies_after = copies(true), others_after = copies(false), idle_after = idle_models(), unused_after = unused_materials();
     materials_after = zmod::materials().count, bad_after = freed_but_used();
     mech3::mechs_end_state(&blips_after, &motion_after, &path_after);
+    huds_after = mech3::Hud::live();
     mech3::GameEngine::Launch second;  // then mission 2, loaded
     second.number = 2;
     engine.set_launch(second);
@@ -1275,6 +1278,9 @@ TEST(mission_end_frees_what_the_next_does_not_need_headless) {
   EXPECT(unused_before > 0 && unused_after == 0 && materials_after < materials_before && bad_after == 0);
   EXPECT(motion_before && !motion_after && blips_before && !blips_after && !path_after);
   EXPECT(frames2 == 1 && motion_again);
+  // The player's HUD (its type's, 0x00430aa0) freed with the type (0x0043b860, item 9).
+  if (std::getenv("MW3_END_LOG")) std::fprintf(stderr, "END huds %d/%d\n", huds_before, huds_after);
+  EXPECT(huds_before > 0 && huds_after == 0);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

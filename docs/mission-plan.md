@@ -300,6 +300,9 @@ Small items, each one sitting, in the order a player would notice them.
    (ai.md 17.7a).
 9. **The HUD's free 0x0043b860** at the mission's end. Test:
    test_hud.py's free op; `mission_end_frees_what_the_next_does_not_need`.
+   Done (2026-10-27): the HUD deleted with its type; the destructors of
+   the reticle, the lights, TARGET and the MFDs (their images, nav lists
+   and views) ported; hud.md section 1, The free.
 10. **The app's sound set 0x0040a800 / 0x0040baf0**. Test: test_app_states.
 11. **The plumbing**: mark the ~45 calls the program does its own way as
     such (silent, with a note in program.md) so the census lists only

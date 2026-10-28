@@ -32,6 +32,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 
 probe = load_probe()
 probe.probe_hud_entity_class.argtypes = [ctypes.c_uint32, ctypes.c_int32]
+probe.probe_hud_free_after.argtypes = [ctypes.c_int32]
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(ctypes.c_float),
                                   ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int,
                                   ctypes.c_char_p, ctypes.c_int]
@@ -260,7 +261,14 @@ class Original:
         # The MFDs: the nav list (0x0047e840, not ported) answers its object;
         # the title by the pilot's game; the last modes.
         e.stub(0x47e840, spec='s0,s1,s2,s3,s4')
-        w.answers['0x0047e840'] = lambda rr, n, a: e.uc.reg_read(UC_X86_REG_ECX)
+        nav_vt = e.world_alloc(0x40)
+        e.w32(nav_vt, e.new_stub('nav.vt+0', 'c,s0', 4))  # its deleting destructor (the MFD's 0x4422b0)
+
+        def nav_new(rr, n, a):
+            obj = e.uc.reg_read(UC_X86_REG_ECX)
+            e.w32(obj, nav_vt)
+            return obj
+        w.answers['0x0047e840'] = nav_new
         e.stub(0x479480, spec='')
         w.answers['0x00479480'] = lambda rr, n, a: rr.choice([0, 0x51000000])
         e.stub(0x576040, spec='c')
@@ -345,7 +353,12 @@ class Original:
                                                              struct.unpack('<I', struct.pack('<f', fy))[0]))
                 self.aim_lines.append(self.aim_dump())
         self.run_frames()
-        return self.dump()
+        d = self.dump()
+        # The mission's end (item 9): the HUD's destructor 0x43b860, after the dump.
+        self.free = rnd(self.seed, 'free').random() < 0.5
+        if self.free:
+            e.call(0x43b860, ecx=self.hud)
+        return d
 
     def frame_world(self, r):
         """The HUD frame's outside (0x0043c820): the unported pieces stubbed, the
@@ -1045,9 +1058,13 @@ class Original:
         e, h = self.e, self.hud
         if self.ops:
             vt = e.world_alloc(0x40)
-            e.w32(vt + 0x24, e.new_stub('nav.vt+0x24', 'c,s0', 4))
+            stub = e.new_stub('nav.vt+0x24', 'c,s0', 4)
             for m in (h + 0x3434, h + 0x410c):
                 if e.r32(m + 0x820):
+                    old = e.r32(e.r32(m + 0x820))  # its own slots kept (vt+0 its deleting destructor, item 9's free)
+                    for i in range(0, 0x40, 4):
+                        e.w32(vt + i, e.r32(old + i))
+                    e.w32(vt + 0x24, stub)
                     e.w32(e.r32(m + 0x820), vt)
         zoom = h + 0x144c + 0xbc
         for k, v in self.ops:
@@ -1798,6 +1815,7 @@ def run_case(seed, verbose=False):
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     probe.probe_hud_classes_clear()
+    probe.probe_hud_free_after(1 if orig.free else 0)
     for o, c in getattr(orig, 'classed', {}).items():
         probe.probe_hud_entity_class(o, c)
     buf = ctypes.create_string_buffer(1 << 20)

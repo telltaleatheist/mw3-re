@@ -733,7 +733,13 @@ HudGauges::HudGauges()
 // The original's calloc(4, n): n 32-bit pointers.
 HudLight::HudLight(int32_t n)
     : Image(0), count(n), images(static_cast<zimg::Texture**>(std::calloc(n, sizeof(zimg::Texture*)))) {}
-HudLight::~HudLight() { std::free(images); }
+// Mech3.exe 1.2 @ 0x00448640 (inlined in its owners' destructors, 0x00442d00,
+// 0x0043d810): each image let go, the last first, then the table.
+HudLight::~HudLight() {
+  while (count-- != 0) ztwod::host().image_release(images[count]);  // 0x00517b10
+  std::free(images);
+  images = nullptr;
+}
 
 void HudLight::select(int32_t i) {
   if (current == i) return;
@@ -1010,6 +1016,27 @@ HudDamageView::HudDamageView(int32_t px, int32_t py, bool t)
             {loaded(order(t)[3]), px, py}, {loaded(order(t)[4]), px, py}, {loaded(order(t)[5]), px, py},
             {loaded(order(t)[6]), px, py}, {loaded(order(t)[7]), px, py}} {
   rect = {px, py, px + g_damage.bg_w, py + g_damage.bg_h};
+}
+
+// Mech3.exe 1.2 @ 0x00444280: on, off, over, can't (+0x914, +0x910, +0x918,
+// +0x91c; +0x920 is ret_on again, not let go), each when there.
+HudReticle::~HudReticle() {
+  for (zimg::Texture** p : {&img_on, &img_off, &img_over, &img_cant})
+    if (*p) *p = ztwod::host().image_release(*p);  // 0x00517b10: 0
+}
+
+// Mech3.exe 1.2 @ 0x00440190: every arrow let go (0x00517b10, an empty one too).
+HudTarget::~HudTarget() {
+  for (zimg::Texture*& a : arrows) {
+    ztwod::host().image_release(a);
+    a = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004422b0
+HudMfd::~HudMfd() {
+  if (nav) g_hooks->nav_list_free(nav);
+  delete view;
 }
 
 // Mech3.exe 1.2 @ 0x00442060 (target false), 0x00441da0 (true)
@@ -2203,8 +2230,17 @@ void HudReticle::reset() {
   g_hooks->hud_sound_stop(0xc, 0);
 }
 
+namespace {
+int32_t g_huds = 0;
+}  // namespace
+int32_t Hud::live() { return g_huds; }
+
+// Mech3.exe 1.2 @ 0x0043b860: the members' destructors do the rest.
+Hud::~Hud() { --g_huds; }
+
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order.
 Hud::Hud(Mech* m) {
+  ++g_huds;
   if (zfix::options().bugs) block = nullptr;
   load_damage_set();
   mech = nullptr;

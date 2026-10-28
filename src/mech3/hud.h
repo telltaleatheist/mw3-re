@@ -393,6 +393,7 @@ class HudDamageView : public ztwod::Object2D {
 class HudMfd : public ztwod::Object2D {
  public:
   HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool target);  // 0x00442060 / 0x00441da0
+  ~HudMfd() override;                // 0x004422b0: the nav list, then the view, deleted
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442230 (MFD in hud.zrd)
   void attach(void* hud);            // 0x004423c0
   void update(float dt) override;    // +0x24  0x00442540: by the mode, then the title
@@ -419,6 +420,7 @@ class HudMfd : public ztwod::Object2D {
 class HudTarget : public HudMfd {
  public:
   HudTarget(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043fcb0
+  ~HudTarget() override;             // 0x00440190: the edge arrows let go, then the MFD's
   void hide() override;              // +0x64  0x004415f0
   void show_for(float seconds) override;  // +0x60  0x00441560: the lines and three texts too
   void set_mode(int32_t m) override;  // +0x7c  0x004400f0: kept for the next TARGET
@@ -485,6 +487,7 @@ class HudZoomWindow : public HudZoomView {
 class HudReticle : public ztwod::Image {
  public:
   HudReticle(const char* on, const char* off);  // 0x00443b60
+  ~HudReticle() override;            // 0x00444280: its four images let go, then the zoom window
   // +0x60 show_for 0x00443cf0: Object2D's.
   void hide() override;              // +0x64  0x00443d00: the zoom window too
   void attach(void* hud);            // 0x00444250
@@ -523,6 +526,8 @@ class HudHooks : public zgame::Unported {
   virtual uint32_t nav_list_new(int32_t x, int32_t y, int32_t w, int32_t a, int32_t b) {
     return unported("0x0047e840", {x, y, w, a, b});
   }
+  // Its deleting destructor, vt+0 with 1 (from the MFD's 0x004422b0).
+  virtual void nav_list_free(uint32_t nav) { unported("nav.vt+0", {nav, 1}); }
   // The pilot's game when it is multiplayer (0x00479480 on [0x0060861c]).
   virtual uint32_t multiplayer_game() { return unported("0x00479480", {}); }
   // What the objectives box (0x00446ad0) reads: the missions object
@@ -1046,6 +1051,8 @@ class HudTimer : public ztwod::FontText {
 class Hud : public ztwod::Layer {
  public:
   explicit Hud(Mech* mech);          // 0x0043b190
+  ~Hud() override;                   // 0x0043b860: the pieces', in the exe's order (members' reverse)
+  static int32_t live();             // ours, for the tests: the HUDs made and not freed
   void setup(Mech* m);               // 0x0043bb80: hud.zrd's layout for the video mode, the mech given out
   void set_active(int32_t on) override;  // +0x04  0x0043baf0: the radar shown or hidden
   void update(float dt) override;    // +0x00  0x0043c820: the HUD's frame

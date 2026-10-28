@@ -1137,3 +1137,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   firing's thresholds are the exe's 0s, read from 0x5e8868; nothing writes
   them). The original's design; ai.md 17.7a corrected (the 10 m was the
   beams' contact, the target 80.7 -> 31.5 m).
+## Mission-plan item 9 (2026-10-27): the HUD's free
+
+- Branch mac4/hud-free (main 8558212; 8b is docs). WiredData::hud_free
+  deletes the Hud; ~Hud, ~HudReticle (0x00444280), ~HudLight's release
+  loop (inlined in 0x00442d00 / 0x0043d810), ~HudTarget (0x00440190),
+  ~HudMfd (0x004422b0) with the new hook nav_list_free (the program's
+  LanceDisplay map). Hud::live counts HUDs (ours, tests).
+- test_hud.py: a free after the dump on half the seeds. Its fake nav
+  objects got a vtable (vt+0 recorded) and the MFD views' swapped vtable
+  keeps the real slots (vt+0 the deleting destructor). The first
+  differences found each missing release, in order: TARGET's arrows,
+  the lights' images, the reticle's four.
+- Breaks: hud_free empty (the mission-end test), the reticle's releases
+  dropped (test_hud seed 0, call 4869).

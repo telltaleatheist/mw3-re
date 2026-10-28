@@ -44,6 +44,18 @@ porting order is section 7. Status: mapped, nothing ported yet.
   ZAPS_HUD), the reset 0x0043d920 (from the mission's 0x00491696), the weapon
   HUD update 0x00446520 (from the weapons: 0x00415a48, 0x00460e83.., and the
   list itself), the ammo gauge 0x00443d20.
+- **The free** (0x0043b860, mission-plan item 9): the mech type's free
+  (0x00430580, when its last mech goes or the types are cleared) deletes
+  the HUD; its destructor runs each piece's, the members' reverse order.
+  Those with more than their zTwoD objects: the reticle (0x00444280) lets
+  its on, off, over and can't images go (not +0x920, ret_on again); the
+  zoom window (0x00442d00) and the radar (0x0043d810) let their lights'
+  images go, the last first, then the tables; TARGET (0x00440190) lets its
+  twelve edge arrows go, empty ones too; each MFD (0x004422b0) deletes its
+  nav list (vt+0, 1) and its view. The port had no free: each mission's
+  HUD stayed with its images. `test_hud.py` frees half its HUDs after the
+  dump, the traces compared; `mission_end_frees_what_the_next_does_not_need`
+  checks the player's HUD goes with the mission (`Hud::live`, ours).
 
 ## 2. The HUD object (0x22e40 bytes; vtable 0x005c01d8)
 
