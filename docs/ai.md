@@ -3176,6 +3176,42 @@ group's last weapon only, the LOCK_ON_LEAD bit, the current weapon's
 lock-on from the group's first, unlimited ammo not counted, zero ammo
 counted, group fire as mode 1.
 
+### 17.7a Why an AI lands few hits on a target (diagnosis, 2026-10-27)
+
+Mission-plan item 8: in `mission_c1m4_dominic_fires_on_a_target` Dominic
+(group 0 two ER Medium lasers, group 1 a Gauss rifle) took 40 s to bring
+the hut ghsD3 from 30 to 9. Traced frame by frame (temporary traces, not
+kept), the hits are few for reasons that are each the exe's code as ported
+and emulator-checked; no port fault was found:
+
+1. **Not range, not aim.** He walks to within about 10 m of the huts (his
+   spot is in a no-go patch, so he moves); the aim error (0x4b7060) stays at
+   0.2-0.8 m. The beams reach the huts.
+2. **The trigger is held, the lasers fire once per charge.** The firing is
+   in phase 4 (trigger down) on 78 of 87 sampled frames. The manager reads
+   every frame as a new press (0x4b0c30: a press that fires nothing clears
+   the trigger), and a beam fires only from a full charge (0x4b3fc0): the
+   bin of 1250 empties in about 0.15 s and refills at about 400 a second,
+   so both lasers fire together every 3.1 s or more (starts at 2.6, 5.9,
+   9.7, 15.2 s, then the rest and new plans).
+3. **A beam does its damage once per firing.** Without TIMED_DAMAGE,
+   `beam_damage` (0x5814b0's) gives the damage (about 7 here) on the first
+   frame it meets something and 0 after (beam flag 2), however long it
+   stays on.
+4. **Half the hut does not take it.** A target claims the weapon handler
+   only on its destroy animation's owner node (0x4d2xxx, `zai_target.cpp`
+   set_node): its `bhealthy` part. Hits on its `healthy` part go to another
+   live handler and leave the target's health alone; one firing hit the
+   player's Mad Cat's toe on the way.
+
+So in the 40 s six contacts carried damage, three reached ghsD3 (7 each:
+30 -> 23 -> 16 -> 9). The Gauss rifle never fired in the run; why the
+volley pick passes it over at 10 m is open. Playtest #23 is the same
+mechanism seen from the player's side (step 2): the AI is not delayed by
+it beyond the recharge, since it presses again every frame. Nothing here is
+a port change; whether the original plays the same scene alike can only be
+checked in play (no whole-mission emulation).
+
 ### 17.8 The switches
 
 [0x60b938] is the AI switch: on at the end of the mission start
