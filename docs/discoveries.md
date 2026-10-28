@@ -1140,6 +1140,10 @@ From the world files (gamez.md).
   `LoadGameGen`, a command the shipped exe doesn't have; they sit in a branch
   that only runs if `gamez.zbd` fails to load, so the fallback could never
   have worked. `SetModelDirectory` runs every mission and is silently ignored.
+- **AI pilots open fire before they have turned to you.** An AI mech
+  pulls the trigger as soon as its target is anywhere in the front half of
+  its torso's view, while the torso is still swinging round; weapons that
+  cannot aim that far fire straight ahead and miss. (ai.md 17.7a)
 - **A laser hits once per shot, however long the beam shows.** Unless a
   weapon is marked for timed damage, its beam deals its whole damage on
   the first frame it touches something and nothing for the rest of the

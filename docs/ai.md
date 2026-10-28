@@ -3184,9 +3184,10 @@ the hut ghsD3 from 30 to 9. Traced frame by frame (temporary traces, not
 kept), the hits are few for reasons that are each the exe's code as ported
 and emulator-checked; no port fault was found:
 
-1. **Not range, not aim.** He walks to within about 10 m of the huts (his
-   spot is in a no-go patch, so he moves); the aim error (0x4b7060) stays at
-   0.2-0.8 m. The beams reach the huts.
+1. **Not range, not aim.** The contact is 80.7 m off at the start and 31.5 m
+   by 15 s (his spot is in a no-go patch, so he moves); the beams meet the
+   huts' nearer parts about 10 m from the muzzle. The aim error (0x4b7060)
+   stays at 0.2-0.8 m.
 2. **The trigger is held, the lasers fire once per charge.** The firing is
    in phase 4 (trigger down) on 78 of 87 sampled frames. The manager reads
    every frame as a new press (0x4b0c30: a press that fires nothing clears
@@ -3205,8 +3206,23 @@ and emulator-checked; no port fault was found:
    player's Mad Cat's toe on the way.
 
 So in the 40 s six contacts carried damage, three reached ghsD3 (7 each:
-30 -> 23 -> 16 -> 9). The Gauss rifle never fired in the run; why the
-volley pick passes it over at 10 m is open. Playtest #23 is the same
+30 -> 23 -> 16 -> 9). The Gauss rifle fires once and misses (item 8b,
+below).
+
+**8b, the Gauss rifle.** The volley pick (0x4b1860) does not pass it over:
+with Dominic cool it takes either group at random (both in range, Gauss
+0..880 m, heat 0.034 of a 0.9 budget), and once he is hot (budget 0.18) the
+lasers' 0.38 is out and the Gauss alone is kept. The plan's track re-picks
+each frame, so the group changes while he turns. The Gauss reaches phase 4
+for 111 frames and fires once (t 15.22 s, ammo 16 -> 15, reload 2.5 s),
+and the slug flies about 80 degrees off the target and hits nothing:
+the firing's reach, track and fire thresholds (+0x18 / +0x1c / +0x20) are
+0 (the defaults 0x5e8868; nothing in the exe writes them after), so
+`in_reach` (vt+0x150, 0x41dba0: the torso's facing +0x98 strictly above
+the cosine) passes as soon as the target is within 90 degrees of the
+torso's front, while it is still turning; the weapon fires along its own
+arc-limited direction. The original's design; the item 8 trace sampled
+every 25 frames and missed the one shot. Playtest #23 is the same
 mechanism seen from the player's side (step 2): the AI is not delayed by
 it beyond the recharge, since it presses again every frame. Nothing here is
 a port change; whether the original plays the same scene alike can only be
