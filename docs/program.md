@@ -64,6 +64,8 @@ after the intro (the app's +0x1dc, where a lobby launch puts the Load state).
 They run inside the original main loop, after the original start-up.
 
 - `mw3 --mission c1m1` (`c1` is mission 1; `c2`, `c3`, `c4`, `c4b`, `t1`;
+  c1 and c2 have m1..m4, c3 m1..m6, c4 m1..m3, c4b m4..m6, t1 m1..m4; a
+  mission without its `zbd\<op>\readermN.zbd` is refused;
   `--pos X Y Z`, `--look YAW PITCH` in degrees place the camera):
   **through the original's states** (mission-load.md): the pilot's game
   answers a campaign mission (type 1, the number, the directory's index), the

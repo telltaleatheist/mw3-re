@@ -1754,7 +1754,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cadb0, 0x5cbad8 | 0x4cad70 (0x5cba20), given the target | 0x4cae90 (108) | resume 0x4cae10 |
 | 0x4cb330, 0x5cbbb0 | jump (0x5cbaf8) | 0x4cb4b0 (170) | ported (item 3d, below) |
 | 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | ported (17.4a) |
-| 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the player's state is 4, and follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
+| 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the pilot's game's type is 4 (Training), else follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
 | 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | ported (items 3b, 3c, below) |
 | 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | dead: the step is made by the brain's constructor (0x4cd770) and never given to an order (no other reference to +0x240, its vtable or its maker 0x4cd790); its run would turn the pilot on the spot toward the next step's place (0x4cdd40 inline) and hand on as the valve step. Not ported |
 | 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | ported (item 3c, below) |
@@ -1926,9 +1926,13 @@ the step of its net nearest the vehicle (0x4d51d0; the port's
 runs; the exe reads the order back through the new state's +0x04) and has
 the order run again (+0x104). The shared one's (0x4cbeb0) stops, then for a
 lancemate the player commands (+0xbc bit 4) pushes the formation net
-0x603fb8 when the player's lance state ([0x60861c] +0x6c: vt+0x48 then
-vt+0x2c) is 4, else the player's vehicle's own net with its follow
-behaviour (0x4c0de0); for any other pilot it keeps the vehicle's place
+0x603fb8 when the pilot's game's type ([0x60861c] +0x6c: vt+0x48, a getter
+in every game type, then vt+0x2c) is 4, Training, else the player's
+vehicle's own net with its follow behaviour (0x4c0de0); the formation net
+is one step of the stand behaviour, so in training such a lancemate holds
+where he is, and in the campaign (1) and Instant Action (2) he follows
+the player (`mission_c2m1_lancemate_forms_up_only_in_training_headless`:
+c2m1's Dominic follows 30 m in 260 frames; with the type 4 he stays); for any other pilot it keeps the vehicle's place
 (brain +0x298, the order's +0x24) and pushes the nearest step of its net
 on it (0x4e88c0, the default behaviour when there is none). Each class's
 vt+0x18 answers its own behaviour (the base's 0). The 0x4c8a30 base (three

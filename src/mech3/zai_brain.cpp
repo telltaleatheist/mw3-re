@@ -757,8 +757,8 @@ SharedState::SharedState(Order* o) : BehaviourState(o, shared_behaviour()) {}
 Behaviour* SharedState::behaviour() const { return shared_behaviour(); }
 
 // Mech3.exe 1.2 @ 0x004cbeb0: stopped; a lancemate the player commands
-// (+0xbc bit 4) forms up on the formation net when the player's lance state
-// is 4, else follows the player's vehicle's own net; any other pilot goes on
+// (+0xbc bit 4) forms up on the formation net when the pilot's game's type
+// is 4 (Training), else follows the player's vehicle's own net; any other pilot goes on
 // to the step of its net nearest it, the place kept (brain +0x298, the
 // order's +0x24).
 void SharedState::run(float dt) {
@@ -771,7 +771,7 @@ void SharedState::run(float dt) {
   if (!v) return;
   if (h.vehicle_flags(v) & 0x10) {
     if (h.player_lance_state() == 4) {
-      if (AiNet* f = h.formation_net()) b.push_net(f);  // 0x004e86a0; the port has no 0x00603fb8 yet
+      if (AiNet* f = h.formation_net()) b.push_net(f);  // 0x004e86a0 on 0x00603fb8
       return;
     }
     const zgame::Handle pv = h.player_vehicle();

@@ -324,6 +324,14 @@ int run(const Args& a) {
         std::fprintf(stderr, "mw3: --mission %s: not a mission (c1 c2 c3 c4 c4b t1)\n", a.mission.c_str());
         return 2;
       }
+      // The mission's reader archive (mission.cpp's reader_open): c1 and c2
+      // have m1..m4, c3 m1..m6, c4 m1..m3, c4b m4..m6. Without it the world
+      // loads with no player and no mech.
+      const std::string reader = "zbd\\" + dir + "\\readerm" + std::to_string(l.number) + ".zbd";
+      if (!zutl::exists(reader.c_str())) {
+        std::fprintf(stderr, "mw3: --mission %s: no such mission (%s not found)\n", a.mission.c_str(), reader.c_str());
+        return 2;
+      }
       l.have_pos = a.have_pos;
       for (int i = 0; i < 3; ++i) l.eye[i] = a.pos[i];
       l.yaw = a.look[0] * 0.0174533f, l.pitch = a.look[1] * 0.0174533f;
