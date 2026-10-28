@@ -245,6 +245,18 @@ implements it:
   `cmp ebx, end`; 1,577 entries in 1.2's DLL). Missing, the program says so
   and exits, as the original does.
 
+## What the start-up changes from the data (mission-plan item 13)
+
+InitInstance (0x00480020) turns the animations' records for the save and
+the network off (0x0050d1e0(0), 0x0050d1f0(0): `zeff::anim_log`), and the
+Core state's start (0x00480df0) the frame clear (0x0057a3c0(0):
+`zvid::display().clear_on`) and, with a card, the objects'
+hidden-surface test (0x004f3550(0), CameraSetObjectHSETest:
+`zcls::scene_walk().hidden_surface`); the program answers them as the exe
+does. With the clear off the program's frame texture is loaded, not
+cleared, as the exe's back buffer was; the world's window draws its clear
+polygon each frame, and no trail shows (checked on c1m1, c3m1, c4bm4, t1).
+
 ## The census: known and not (mission-plan item 11)
 
 `GameEngine::known_unported` names each reached key the program answers

@@ -1,3 +1,4 @@
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
@@ -438,6 +439,10 @@ void GameEngine::geometry_init(const char* dir) {
   Engine::geometry_init(dir);
 }
 void GameEngine::update_shadows() { update_mech_shadows(); }
+void GameEngine::effects_set_a(int32_t v) { zeff::anim_log().save_on = v; }
+void GameEngine::effects_set_b(int32_t v) { zeff::anim_log().net_on = v; }
+void GameEngine::video_set_clear(int32_t on) { zvid::display().clear_on = on; }
+void GameEngine::camera_set_hse_test(int32_t on) { zcls::scene_walk().hidden_surface = on; }
 Handle GameEngine::app_sounds() { return app().field_1e4_; }
 uint8_t GameEngine::app_flag_1c3() { return app().no_voices(); }
 

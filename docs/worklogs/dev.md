@@ -1171,3 +1171,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   HSE test, the animation records, the frame clear), the span target's
   rect (the fade's tint), and ones still to trace: mission-plan items
   12-15.
+
+## Mission-plan item 13 (2026-10-27): the start-up's settings
+
+- Branch mac4/start-settings (main 2a750f2). GameEngine: effects_set_a /
+  _b, video_set_clear, camera_set_hse_test (the hooks renamed from
+  camera_set_near / _far: 0x004f3540 writes [0x005ea53c], unread; 0x004f3550
+  is CameraSetObjectHSETest). reset_process_state restores the data's.
+- Measured with temporary switches and counters (removed): HSE 20k-81k
+  calls in 300 frames, 0 hidden; records 74 against 132; no trails with
+  the clear off (t1's rain does not smear over the black).
+- Check in the c1m1 Owens test; break: video_set_clear back to the hook.

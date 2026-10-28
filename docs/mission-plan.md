@@ -328,6 +328,13 @@ Small items, each one sitting, in the order a player would notice them.
     / 0x0050d1f0 (0: the animations' records for saves and the network
     off; the port keeps 1, 1), 0x0057a3c0(0) (the frame clear off; the
     port keeps 1). Test: the values after the start-up against the exe's.
+    Done (2026-10-27): all three answered by the program (GameEngine). The
+    effects, measured: the HSE test made 20,000 to 81,000 calls in 300
+    frames of c1m1, c3m1, c4bm4 and t1 and hid nothing (CPU only); the
+    records kept in 600 frames 74 instead of 132 (c1m1); the frame clear
+    off left no trail in those four missions (the frame is the program's
+    own texture, loaded; the world's window draws its clear polygon
+    every frame), so no FIX (A).
 14. **The span target's rect**: the Core frame's 0x00557f90 / 0x00558290
     / 0x00558070 (with 0x00576d90..dc0) set the fillers' and the tint's
     rect; the program's `zvid::lock_3d` sets the buffer but no rect, so

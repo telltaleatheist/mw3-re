@@ -19,6 +19,7 @@
 #include "gamez/zsave/zsave.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zinterp/zinterp.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/class.h"
@@ -203,6 +204,10 @@ void reset_process_state() {
   // The scripts' tolerances (doubles in zModel's data) and the skipped calls' count.
   zmod::tolerances_reset();
   zint::null_calls().clear();
+  // What the start-up and the Core state's start change (item 13): the data's.
+  zeff::anim_log().save_on = zeff::anim_log().net_on = 1;
+  zvid::display().clear_on = 1;
+  zcls::scene_walk().hidden_surface = 1;
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -6627,6 +6632,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       float fire_range = 0, fire_max = 0;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
+      int32_t save_on = -1, net_on = -1, clear_on = -1, hse = -1, hw = -1;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -6651,6 +6657,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         // the game's first second, 0x004aed40; play's bramp comes later).
         if (made == 1) static_cast<mech3::AiControls*>(ai[0].controls)->hit.last = -10.0f;
         seen.counts0 = engine.unported_counts();
+        // Item 13: what the start-up (0x00480020) and the Core state's start
+        // (0x00480df0) changed from the data.
+        seen.save_on = zeff::anim_log().save_on, seen.net_on = zeff::anim_log().net_on;
+        seen.clear_on = zvid::display().clear_on, seen.hse = zcls::scene_walk().hidden_surface;
+        seen.hw = static_cast<int32_t>(engine.hw_card_flag());
       } else if (seen.frames > 3 && seen.frames < 200) {
         // The Owens held still from frame 150 (it walks its net, ai.md
         // 17.4a): its speed share (brain +0xec, which bounds the node
@@ -6831,6 +6842,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The radar's shot list has its object, whose action empties it each frame
     // (0x004b4ab0, from the mission's setup; unwired, every shot stayed listed).
     EXPECT(seen.counts0.count("0x004b4ab0") == 0);
+    // The animations' records for saves and the network off (0x0050d1e0 /
+    // 0x0050d1f0), the frame clear off (0x0057a3c0), the objects'
+    // hidden-surface test off with a card (0x004f3550): mission-plan item 13.
+    EXPECT(seen.save_on == 0 && seen.net_on == 0 && seen.clear_on == 0);
+    EXPECT(seen.hse == (seen.hw != 0 ? 0 : 1));
     // The briefing load's app accessors and its two empty calls (item 10:
     // 0x0040a7d0, 0x0040a800, 0x0040a830, 0x0040baf0, 0x004a5bc0) are the program's.
     for (const char* k : {"0x0040a7d0", "0x0040a800", "0x0040a830", "0x0040baf0", "0x004a5bc0"})
