@@ -910,5 +910,24 @@ void GameEngine::sound_cue_briefing(Handle s) {
 }
 uint8_t GameEngine::app_flag_1ba() { return app().byte_at(0x1ba); }
 Handle GameEngine::mission_navs() { return missions().stations; }
-
+void* program_nav_find(const char* name);  // app_vehicle.h
+Handle GameEngine::nav_find(Handle navs, const char* name) {
+  if (!navs) return 0;
+  void* p = program_nav_find(name);  // the waynet behind [0x00609980] (missions().stations)
+  return p ? handle_of(p) : 0;
+}
+Handle GameEngine::mission_map() { return handle_of(mech3::mission_map()); }
+void program_waypoint_position(void* p, float out[3]);  // app_vehicle.h
+bool GameEngine::map_project(Handle map, Handle nav, int32_t xy[2]) {
+  xy[0] = xy[1] = 0;
+  auto* m = static_cast<MissionMap*>(object_of(map));
+  if (!m || !nav) return false;
+  float at[3];
+  program_waypoint_position(object_of(nav), at);
+  return m->point(at, xy);
+}
+zimg::Texture* GameEngine::map_image(Handle map) {
+  auto* m = static_cast<MissionMap*>(object_of(map));
+  return m ? m->image : nullptr;
+}
 }  // namespace mech3

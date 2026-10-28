@@ -266,6 +266,13 @@ class GameEngine : public Engine {
   void sound_cue_briefing(Handle s) override;
   uint8_t app_flag_1ba() override;
   Handle mission_navs() override;
+  // The briefing map's waypoints (briefing.cpp, "waypoint"; item 12): the nav
+  // point by label, its place on the mission's map, the map's image.
+  Handle nav_find(Handle navs, const char* name) override;  // 0x00479be0 on the nav waynet
+  Handle mission_map() override;                             // 0x00491c80
+  Handle nav_position(Handle nav) override { return nav; }   // nav.vt+0x18: map_project reads the nav itself
+  bool map_project(Handle map, Handle nav, int32_t xy[2]) override;  // 0x004586e0 at the nav's place
+  zimg::Texture* map_image(Handle map) override;             // map +0x3c
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
   // The cockpit view's frame on the program's objects (playtest #4).
   Handle vehicle_node(Handle veh) override;
@@ -310,6 +317,11 @@ class GameEngine : public Engine {
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
+  void video_clear_a(Handle rect) override;  // 0x00576ce0: the depth filled (0: all of it)
+  bool video_opened() const { return video_opened_; }  // [0x0080271c]
+  // 0x00579b70: the card's caps for blended and modulated textures (1, 2):
+  // a modern GPU, through Render3D, has them all.
+  uint32_t video_has_cap(int32_t) override { return 1; }
   void video_clear_b(Handle rect) override;
   void lists_update() override;  // 0x004f7d80: zcls::run_action_lists
   void classes_shutdown() override;   // 0x004f8f40: zcls::classes_reset
@@ -438,7 +450,7 @@ class GameEngine : public Engine {
   int32_t span_init(int32_t) override { return 0; }
   uint32_t video_card_fn_390(int32_t) override { return 0; }
   uint32_t video_card_memory(int32_t dev, uint32_t* total) override;
-  void video_shutdown() override {}
+  void video_shutdown() override { video_opened_ = false; }  // 0x00579ef0: [0x0080271c] 0
   void video_restore_window() override {}
 
   // zVideo's frame: the 16-bit buffer the 2D draws into, shown by the flip.
@@ -548,6 +560,7 @@ class GameEngine : public Engine {
  private:
   Platform p_;
   std::string command_line_;
+  bool video_opened_ = false;
   std::map<std::string, uint32_t> counts_;
   std::unordered_map<uint32_t, uint8_t> memory_;
   uint32_t hwnd_ = 0;

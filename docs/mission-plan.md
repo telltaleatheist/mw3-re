@@ -323,6 +323,20 @@ Small items, each one sitting, in the order a player would notice them.
     options' `player_mech` ([[0x0060861c]+0x14]) and `video_is_3d`
     (0x00579ea0: 1 with a card; the program answers 0). Test: each
     family's differential where the call's effect is read, the census.
+    Done (2026-10-28), each in the program's hooks: the window's size and
+    place (the options' render rect); the targets' centroid and target
+    offsets (0x004fc1b0: they sat on the node before); zInput's clear at
+    the mission's setup; the message panel's clear at the launch; the
+    depth fill (0x00576ce0, all of it for 0); the options' player mech and
+    with it invincibility, infinite ammo, the torso's absolute input, the
+    throttle's return and the control mode on the mech (a cheat or an
+    option changed in a mission had not reached it); `video_is_3d` as
+    zVideo's "opened" [0x0080271c] (not "3D") with `video_has_cap` 1 (else
+    the shadows went off and the graphics screen greyed its shadows box).
+    0x00479be0 brought the briefing map's waypoints, which also needed the
+    mission's map (0x00491c80), its projection (0x004586e0), its image and
+    the nav's place: "Start" now shows on c1m1's map. 0x005a8390 is the
+    program's own for the targets (known).
 13. **Settings the exe changes from the data**: 0x004f3550(0) with a card
     (`CameraSetObjectHSETest` off; the port keeps zClass's 1), 0x0050d1e0
     / 0x0050d1f0 (0: the animations' records for saves and the network
