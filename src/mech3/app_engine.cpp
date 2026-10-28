@@ -392,6 +392,8 @@ void GameEngine::geometry_init(const char* dir) {
   Engine::geometry_init(dir);
 }
 void GameEngine::update_shadows() { update_mech_shadows(); }
+Handle GameEngine::app_sounds() { return app().field_1e4_; }
+uint8_t GameEngine::app_flag_1c3() { return app().no_voices(); }
 
 // zInput, ported (gamez/zinput, docs/input.md) on the platform's input.
 void GameEngine::input_init(int32_t commands, const char* map) { zin::init(commands, map); }

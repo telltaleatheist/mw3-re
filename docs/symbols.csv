@@ -1902,3 +1902,7 @@ address,name,source,notes
 0x004422b0,HudMfd::~HudMfd,decomp,"the nav list (vt+0, 1) and the view (+0x824) deleted, then the pieces"
 0x00442d00,HudZoomWindow::~HudZoomWindow,decomp,"its light's images let go, the last first, the table freed"
 0x0043d810,HudRadar::~HudRadar,decomp,"its light's images let go, the last first, the table freed"
+0x0040a7d0,App::main_hwnd,decomp,"[app +0x20] +0x20: the frame's window, 0 without one"
+0x0040a800,App::sounds,decomp,"the app's +0x1e4 (a block ExitInstance frees)"
+0x0040a830,App::no_briefing_voices,decomp,"the app's +0x1c3"
+0x0040baf0,sounds_load_nop,asm,"ret 8: an empty function the briefing's load calls on the app's +0x1e4 (""briefing sounds"", ""briefing menu"")"

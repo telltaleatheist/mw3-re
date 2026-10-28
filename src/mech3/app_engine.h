@@ -137,6 +137,13 @@ class GameEngine : public Engine {
   void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
   Handle mission_salvage_store() override;              // [0x00609990], the ported store
   uint8_t briefing_has_movie() override;                // 0x0040a820
+  // The app's accessors the briefing's load reads (0x0040a7d0..0x0040a830) and
+  // the two empty functions it calls on the app's +0x1e4 (item 10).
+  uint32_t app_window() override { return hwnd_; }  // 0x0040a7d0: [app +0x20] +0x20, the frame's window
+  Handle app_sounds() override;                      // 0x0040a800: the app's +0x1e4
+  uint8_t app_flag_1c3() override;                   // 0x0040a830: the app's +0x1c3 (no briefing voices)
+  void sounds_nop(Handle, uint32_t) override {}      // 0x004a5bc0: ret 4
+  void sounds_load(Handle, const char*, int32_t) override {}  // 0x0040baf0: ret 8
   void briefing_play_movie(uint32_t state) override;    // 0x00409320
   void briefing_refresh(Handle s) override;             // 0x00408bd0 on the ported briefing
   void briefing_show(Handle s, int32_t a) override;     // 0x00404ae0

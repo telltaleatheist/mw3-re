@@ -304,6 +304,12 @@ Small items, each one sitting, in the order a player would notice them.
    the reticle, the lights, TARGET and the MFDs (their images, nav lists
    and views) ported; hud.md section 1, The free.
 10. **The app's sound set 0x0040a800 / 0x0040baf0**. Test: test_app_states.
+    Done (2026-10-27): no sound set behind them. 0x0040a800 hands out the
+    app's +0x1e4 to two empty functions (0x0040baf0 `ret 8` with "briefing
+    sounds" and "briefing menu", 0x004a5bc0 `ret 4`); with 0x0040a7d0 (the
+    frame's window) and 0x0040a830 (+0x1c3, no briefing voices) they are
+    answered by the program (GameEngine), the hooks' defaults kept for the
+    app tests.
 11. **The plumbing**: mark the ~45 calls the program does its own way as
     such (silent, with a note in program.md) so the census lists only
     what is left. Test: the census's count.

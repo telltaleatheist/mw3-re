@@ -6831,6 +6831,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The radar's shot list has its object, whose action empties it each frame
     // (0x004b4ab0, from the mission's setup; unwired, every shot stayed listed).
     EXPECT(seen.counts0.count("0x004b4ab0") == 0);
+    // The briefing load's app accessors and its two empty calls (item 10:
+    // 0x0040a7d0, 0x0040a800, 0x0040a830, 0x0040baf0, 0x004a5bc0) are the program's.
+    for (const char* k : {"0x0040a7d0", "0x0040a800", "0x0040a830", "0x0040baf0", "0x004a5bc0"})
+      EXPECT(seen.counts0.count(k) == 0);
     // The support scripts' engine calls all real (mission-plan item 7), their
     // settings in place: BFE, inverse z, vertex shading, dither.
     EXPECT(zint::null_calls().empty());
