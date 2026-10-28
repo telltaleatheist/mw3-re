@@ -10,6 +10,8 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/mech3_interp.h"
+#include "mech3/mech_parts.h"
 #include "mech3/mech_skis.h"
 
 namespace {
@@ -75,4 +77,14 @@ extern "C" int probe_ski_priority(int priority, int null_model, uint8_t* out, in
   zmod::model_set_priority(null_model ? nullptr : &g_model, priority);
   for (int32_t i = 0; i < cnt(0x10); ++i) u32(static_cast<uint32_t>(g_model.polygons[i].priority));
   return finish(out, cap);
+}
+
+// 0x00413e60's first part (mech_parts' hit globals) for test_hit_globals.py:
+// DamageScale, the leg scale and the limp structure after it.
+extern "C" void probe_hit_globals(int network, float out[3]) {
+  mech3::hit_globals_reset();
+  if (network >= 0) mech3::hit_globals_init(network != 0);  // -1: the values before it
+  out[0] = mech3::interp_globals().damage_scale;
+  out[1] = mech3::hit_globals().leg_scale;
+  out[2] = mech3::hit_globals().limp_structure;
 }

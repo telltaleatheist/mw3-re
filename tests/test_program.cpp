@@ -168,6 +168,10 @@ struct SavedMounts {
 // start (0x0050d270) and end (0x0050d2b0) free it.
 // The texture libraries likewise: the unload frees them (0x00518b70), the
 // start (0x005184e0) does not touch them.
+namespace mech3 {
+void hit_globals_reset();  // mech_parts.h (its Handle clashes with mission.h's)
+}  // namespace mech3
+
 void reset_process_state() {
   if (!zsnd::state().open) zsnd::state() = zsnd::State{};
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
@@ -193,6 +197,8 @@ void reset_process_state() {
   // in one process would read nothing; a new process has neither.
   mech3::maps_free();
   mech3::mission_maps() = mech3::MissionMaps{};
+  // The hit factors 0x00413e60 sets at the mechs' set-up: the exe's data.
+  mech3::hit_globals_reset();
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {

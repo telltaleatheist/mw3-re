@@ -118,6 +118,7 @@ void vehicle_markers_create();  // mech3/veh_basic_object.h: 0x004ac3d0
 void vehicle_markers_delete();  // 0x004ac4e0
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
 void radar_objects_create();                                 // 0x004b4ab0
+void hit_globals_init(bool network);                         // 0x00413e60's first part (mech_parts.h)
 void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
 int32_t weight_class(int32_t mech);                          // 0x00484700 (mech3/mech_names.h)
@@ -1637,14 +1638,14 @@ struct WiredMissionHooks : MissionHooks {
     return p && p->current && p->current->restore() ? 1 : 0;
   }
   void fn_484270(int32_t) override { mech3::mech_types_open(); }  // 0x00484270: mechlib and the voices
-  // 0x00413e60, the mechs' set-up: of it, the motions (0x005a9820, before
-  // the field bases' arms read theirs) and the cockpit sounds (0x004141a0).
-  // The radar blips are made when first needed; the three network-dependent
-  // globals ([0x005e1f68], +0x74, +0x78) stay unported.
+  // 0x00413e60, the mechs' set-up: the hit factors by the network flag
+  // ([0x00608e45]), the motions (0x005a9820, before the field bases' arms
+  // read theirs) and the cockpit sounds (0x004141a0). The radar blips are
+  // made when first needed.
   void mechs_init() override {
+    hit_globals_init(options().multiplayer != 0);
     program_motions_open();
     mech3::cockpit_sounds_load();
-    unported("0x00413e60 (the globals [0x005e1f68..0x005e1f78])", {});
   }
   void fn_4319a0() override { mech3::mech_types_refresh(); }    // 0x004319a0: the mech types' sounds again
   uint8_t app_rgb() override { return app().byte_at(0x1b9); }       // 0x00608e41
@@ -2294,8 +2295,7 @@ void GameEngine::missions_update(uint32_t list, float dt) {
 // the mission's nav waynet (0x004797c0 into +0xb0 / +0xb4) by the game type
 // (vt+0x2c): waynet_N for 0, 1 and 4, waynet_iaN for 2, waynet_mpN for 3.
 void GameEngine::missions_reset(uint32_t list) {
-  Engine::missions_reset(list);
-  if (list != 0x6098d0 || !pilot_) return;
+  if (list != 0x6098d0 || !pilot_) return void(Engine::missions_reset(list));  // the exe reads the pilot's game
   missions().number = launch_.number;
   missions().open_readers(mission_dir(launch_.index));  // 0x00490630
   if (launch_.index != 6 && !app().no_voices()) {

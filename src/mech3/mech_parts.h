@@ -452,4 +452,15 @@ float leg_view_tint(Leg& l, bool on);                  // 0x00463aa0
 float torso_view_tint(Torso& t, Mech& m, bool on);     // 0x004643d0
 void mech_view_tint(Mech& m, bool on);                 // 0x0041b9d0
 
+// The hit factors 0x00413e60 sets at the mechs' set-up by [0x00608e45] (a
+// network game): the damage scale is the scripts' DamageScale (0x005e1f68,
+// interp_globals()); these two are the legs'. As the exe's data until then.
+struct HitGlobals {
+  float leg_scale = 1.0f;        // 0x005e1f74  a leg's hit damage (0.5 networked)
+  float limp_structure = 0.3f;   // 0x005e1f78  a leg limps under it (0.4 alone, 0.35 networked)
+};
+HitGlobals& hit_globals();
+void hit_globals_init(bool network);                   // 0x00413e60's first part
+void hit_globals_reset();  // tests: a new process's (the exe's data), DamageScale too
+
 }  // namespace mech3

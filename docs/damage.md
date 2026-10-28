@@ -177,7 +177,8 @@ splash:      0x5829b0 (linear falloff, see below)             -> 0x583480
 Arguments: weapon def, collision, damage, impulse.
 
 1. `d = damage x 0.0062` (0x5e1f68). Legs multiply by 1.0 first (0x463b40,
-   0x5e1f74), so there are no per-location multipliers.
+   0x5e1f74), so there are no per-location multipliers. Both are set at the
+   mechs' set-up by the network flag (The hit factors, below).
 2. Difficulty: except in multiplayer (game type 3), damage to the player's mech
    (`[0x60861c] +0x14`, the mission's player), and to mechs that pass a
    team-mask test against the player's
@@ -555,12 +556,30 @@ kind): 1 armor, 2 armorff, 3 fcs (voice 7), 4 bap (2), 5 case (3), 6 c3 (4),
 After the normal leg hit, if the mech is not already limping (+0x5ac is -1,
 0x415ac7; 0/1 = limping leg):
 `p = 0.35` for the player, `1.0` for anyone else, h = leg internal;
-if `rand/32767 < h^2 - (p + 1) h + p` (= (1 - h)(p - h)) or `h < 0.3`, call
+if `rand/32767 < h^2 - (p + 1) h + p` (= (1 - h)(p - h)) or `h < 0.4` (0x5e1f78), call
 0x41d5f0(leg, random bit): not when invincible; with the random bit (50 %) the
 mech falls (0x41b660(3 or 4) by throttle sign), then +0x5ac = that leg if the
 mech has a limp animation for it (+0x424 table). AI mechs start limping with
 chance (1 - h)^2 per leg hit; the player only once the leg is below 35 %
-internal, and always below 30 %.
+internal, and always below 40 % (35 % in a network game).
+
+### The hit factors (0x413e60)
+
+The mechs' set-up (0x413e60, at the start) sets three globals by the
+network flag [0x608e45]:
+
+| Global | Alone | Network | Data before | Read by |
+|---|---|---|---|---|
+| 0x5e1f68 damage scale (the scripts' `DamageScale`) | 0.0062 | 0.0052 | 0.0062 | 0x460970, 0x41afdb (a mech-on-mech hit) |
+| 0x5e1f74 a leg's hit scale | 1.0 | 0.5 | 1.0 | 0x463b40 |
+| 0x5e1f78 the limp structure | 0.4 | 0.35 | 0.3 | 0x463b40 |
+
+So in a network game every hit does about 84 % of the damage and a leg hit
+half of that again. The port had the data's values (the differential tests
+run the readers without 0x413e60); `hit_globals()` (mech_parts) now holds
+them, `hit_globals_init` is 0x413e60's part, and the damage scale is
+`interp_globals().damage_scale`, the variable the scripts' console sets.
+`test_hit_globals.py`.
 
 ## Discoveries
 

@@ -1087,3 +1087,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   worth a look on its own (aim, line of sight, the lasers' recharge).
 - Open: `move_mech` on the first Core frame (item 4's shot) moves the
   reported position but not what the camera follows.
+
+## Mission-plan item 6 (2026-10-27): the start-up's leftovers
+
+- Branch mac4/startup-leftovers (main bb6d4b8). Also mission-plan.md's new
+  item 8, AI hit rate at range (lead).
+- MW3_TRACE_UNPORTED on each key (the frames need c++filt) named the
+  callers. 0x00413e60: alone, the limp structure 0x005e1f78 is 0.4, the
+  port read the data's 0.3; the damage scale is the scripts' DamageScale
+  (interp_globals), which mech_parts / mech_damage now read. HitGlobals in
+  mech_parts, hit_globals_init from the program's mechs_init,
+  hit_globals_reset in the tests' reset_process_state.
+- test_hit_globals.py: 0x413e60 with its other calls stubbed, both flags,
+  and the values before; breaks: the flag, the values before.
+- 0x00490720: GameEngine::missions_reset called the logging base first.
+- No effect: 0x004b52e0, 0x0047f2b0, 0x004ac860 (stealth), 0x004ab6b0
+  (resolution step 3). symbols.csv has all six.

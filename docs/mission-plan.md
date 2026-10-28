@@ -270,17 +270,31 @@ Small items, each one sitting, in the order a player would notice them.
    0x004ac860 (vehicles), 0x004b52e0 (weapons), 0x00490720,
    0x0047f2b0, 0x00413e60: identify each, port the ones with an effect.
    Test: a differential each (the families' existing tests), the census.
+   Done (2026-10-27). One had an effect: 0x00413e60 sets the hit factors
+   by the network flag, and alone the limp structure is 0.4 where the port
+   had the data's 0.3 (damage.md, The hit factors; test_hit_globals.py).
+   0x00490720 was the program's already (the base hook's log dropped). No
+   effect: 0x004b52e0 (the view's window object, its two rects the same:
+   scale 1), 0x0047f2b0 (defaults the world reader overwrites, the soil
+   table the program builds, the console's vars), 0x004ac860 (the
+   stealth object's block: back burner). 0x004ab6b0, the mode switch, is
+   resolution.md's step 3 (the port has one mode).
 7. **The script engine's live calls**: measure which null entries the
    shipped missions' scripts reach (an observer count in a headless run
    over every mission); port those. Test: test_interp.py's mission runs
    with the entries real.
-8. **The HUD's free 0x0043b860** at the mission's end. Test:
+8. **AI hit rate at range**: in `mission_c1m4_dominic_fires_on_a_target`
+   Dominic holds the trigger most of 40 s from about 80 m and lands two
+   hits (the hut 30 -> 16 -> 9; item 5's rand()s moved the run). Find
+   where the shots go (aim, line of sight, the lasers' recharge) against
+   the exe; it may be playtest #23's firing delay. Test bed: that run.
+9. **The HUD's free 0x0043b860** at the mission's end. Test:
    test_hud.py's free op; `mission_end_frees_what_the_next_does_not_need`.
-9. **The app's sound set 0x0040a800 / 0x0040baf0**. Test: test_app_states.
-10. **The plumbing**: mark the ~45 calls the program does its own way as
+10. **The app's sound set 0x0040a800 / 0x0040baf0**. Test: test_app_states.
+11. **The plumbing**: mark the ~45 calls the program does its own way as
     such (silent, with a note in program.md) so the census lists only
     what is left. Test: the census's count.
-11. **Docs**: ai.md section 6 (the boundary and the sensors are ported),
+12. **Docs**: ai.md section 6 (the boundary and the sensors are ported),
     damage.md's jolt decay (find its address), movement.md Left. Test:
     none (docs).
 

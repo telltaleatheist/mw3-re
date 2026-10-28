@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "crt/msvc_rand.h"
+#include "mech3/mech3_interp.h"
 #include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_data.h"
@@ -86,7 +87,7 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
       note_hit();
       return result;
     }
-    float d = damage * 0.143f * 0.0062f;  // 0x005bce4c, 0x005e1f68
+    float d = damage * 0.143f * interp_globals().damage_scale;  // 0x005bce4c, 0x005e1f68
     if (this == w.mission_player) d = w.difficulty * d;
     torso->apply_damage(d, 0);
     torso->apply_damage(d, 1);
