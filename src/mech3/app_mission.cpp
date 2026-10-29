@@ -981,6 +981,28 @@ WiredBrainHooks g_brain_hooks;
 // valves.zrd's actions (mech3/zrdrvalve) on what the program has: the AI
 // mechs by their records' names (the other vehicles are not ported), their
 // controls and brains, Mech::power, zSound. The rest is logged.
+// 0x004d7330: zEntity's list by name (0x005a8210: the AI mechs by their
+// records' names, the turrets and vehicles by their nodes'), then the
+// targets by their nodes' names; each's vt+0x2c (itself). The valves' and
+// the objectives' lookup both.
+Handle entity_by_name(GameEngine& e, const char* name) {
+  if (!name) return 0;
+  int32_t n = 0;
+  const AiMechMade* m = mission_ai_mechs(&n);
+  for (int32_t i = 0; i < n; ++i)
+    if (m[i].name && std::strcmp(m[i].name, name) == 0) return e.handle_of(m[i].mech);
+  for (tur::Turret* t : tur::turret_list()) {
+    zcls::Node* nd = mission_node(e, t->node);
+    if (nd && nd->name() && std::strcmp(nd->name(), name) == 0) return e.handle_of(t);
+  }
+  if (void* v = program_vehicle_named(name)) return e.handle_of(v);
+  for (ai::CZAiTarget* t : ai::target_list()) {
+    zcls::Node* nd = mission_node(e, t->node);
+    if (nd && std::strcmp(nd->name(), name) == 0) return e.handle_of(t);
+  }
+  return 0;
+}
+
 struct WiredValveHooks : ai::ValveHooks {
   GameEngine* e = nullptr;
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
@@ -993,14 +1015,8 @@ struct WiredValveHooks : ai::ValveHooks {
   void sound_play(Handle s) override {
     if (auto* o = static_cast<zsnd::Object*>(e->object_of(s))) zsnd::play_at(o, nullptr, 1.0f, nullptr);
   }
-  Handle target_find(const char* name) override {
-    int32_t n = 0;
-    const AiMechMade* m = mission_ai_mechs(&n);
-    for (int32_t i = 0; name && i < n; ++i)
-      if (std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
-    if (void* v = program_vehicle_named(name)) return e->handle_of(v);
-    return ValveHooks::target_find(name);
-  }
+  // 0x004d7330 (a turret or a target by name too: c1m1's kills reached it).
+  Handle target_find(const char* name) override { return entity_by_name(*e, name); }
   Handle entity_find(const char* name) override {
     const Handle h = target_find(name);
     return h ? h : ValveHooks::entity_find(name);
@@ -1349,32 +1365,17 @@ struct WiredObjectiveHooks : ObjectiveHooks {
       if (e->object_of(h) == t) return t;
     return nullptr;
   }
-  // 0x004d7330: zEntity's list by name (0x005a8210: the AI mechs by their
-  // records' names, the turrets and vehicles by their nodes'), then the
-  // targets by their nodes' names; each's vt+0x2c (itself).
-  Handle entity_find(const char* name) override {
-    if (!name) return 0;
-    int32_t n = 0;
-    const AiMechMade* m = mission_ai_mechs(&n);
-    for (int32_t i = 0; i < n; ++i)
-      if (m[i].name && std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
-    for (tur::Turret* t : tur::turret_list()) {
-      zcls::Node* nd = mission_node(*e, t->node);
-      if (nd && nd->name() && std::strcmp(nd->name(), name) == 0) return e->handle_of(t);
-    }
-    if (void* v = program_vehicle_named(name)) return e->handle_of(v);
-    for (ai::CZAiTarget* t : ai::target_list()) {
-      zcls::Node* nd = mission_node(*e, t->node);
-      if (nd && std::strcmp(nd->name(), name) == 0) return e->handle_of(t);
-    }
-    return 0;
-  }
-  // +0x08: a target's, a turret's or a vehicle's active flag; a mech's while
-  // it is in zEntity's list.
+  Handle entity_find(const char* name) override { return entity_by_name(*e, name); }  // 0x004d7330
+  // +0x08: a target's, a turret's, a vehicle's or a mech's active flag; for
+  // anything else, its being in zEntity's list.
   uint8_t entity_flag(Handle h) override {
     if (ai::CZAiTarget* t = target(h)) return t->active;
     if (tur::Turret* t = program_turret_by_handle(h)) return t->active;
     if (void* v = e->object_of(h); v && is_program_vehicle(v)) return program_vehicle_active(v);
+    // A mech's +0x08 too, cleared once its death fall ends (0x00419fc0): a
+    // campaign wreck stays on zEntity's list, so the list alone would keep a
+    // killed mech's destroy objective open (campaign.md section 14).
+    if (void* m = e->object_of(h); m && entity_is_mech(m)) return mech_active(m) ? 1 : 0;
     const auto& list = ai::entity_list();
     return std::find(list.begin(), list.end(), h) != list.end() ? 1 : 0;
   }

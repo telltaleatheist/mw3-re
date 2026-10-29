@@ -69,6 +69,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/controls_cfg.h"
 #include "mech3/mech_objective.h"
+#include "mech3/mech_salvage.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
@@ -11881,6 +11882,109 @@ TEST(mission_c1m1_objectives_box_text_headless) {
 // or the player's mech destroyed. The four SRM emplacements are
 // aiTurrets.zrd's turrets, found by the objectives (0x004d7330) and alive at
 // the start; the won scenario kills them as well.
+// c1m2's secondary objectives name its two mechs (destroy owens_01,
+// strider_01). Each is shot by the player's hits through zWeapon's impact
+// (chain_hit, the campaign chain's) until it dies; its objective is met once
+// its death fall ends and its +0x08 clears (0x0045f3b0), though the wreck
+// stays on zEntity's list (campaign.md section 14). Its salvage is its
+// weapons (the kill credit's 0x00472f00).
+TEST(mission_c1m2_destroy_objectives_met_by_mech_kills_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_mech_kills"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int killed = 0, met = 0, open_before = 0, weapons_ok = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 2;  // c1m2
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int core_frames = 0;
+    std::vector<const mech3::DestroyObjective*> objectives;
+    std::vector<std::pair<uint32_t, bool>> mechs;  // the two, killed
+    auto all_met = [&] {
+      int n = 0;
+      for (const auto* o : objectives) n += o->done ? 1 : 0;
+      return n;
+    };
+    void* gun = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core_frames;
+      if (core_frames == 30) {
+        const mech3::Objectives& o = mech3::mission_objectives();
+        std::function<void(const mech3::Objective&)> find = [&](const mech3::Objective& x) {
+          if (auto* d = dynamic_cast<const mech3::DestroyObjective*>(&x); d && d->name &&
+              (*d->name == "owens_01" || *d->name == "strider_01"))
+            objectives.push_back(d);
+          if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&x))
+            for (const auto& c : g->items) find(*c);
+        };
+        if (o.secondary) find(*o.secondary);
+        for (const mech3::ChainTarget& t : mech3::chain_hostiles())
+          if (std::string(t.kind) == "mech") mechs.push_back({t.h, false});
+        open_before = static_cast<int>(objectives.size()) - all_met();
+        gun = mech3::chain_weapon();
+      }
+      if (core_frames <= 30) return;
+      for (auto& [h, dead] : mechs) {
+        if (dead) continue;
+        std::vector<int32_t> carried = mech3::salvage_weapon_types(engine.object_of(h));
+        auto units = [] {
+          int32_t n = 0;
+          for (const mech3::ConfigItem* it : mech3::mission_salvage().items) n += it->kind() == 1 ? it->count : 0;
+          return n;
+        };
+        const int32_t before = units();
+        if (mech3::chain_hit(h, gun)) {
+          dead = true, ++killed;
+          // its weapons but TAG (32), which comes in no tech
+          const int32_t tag = static_cast<int32_t>(std::count(carried.begin(), carried.end(), 32));
+          weapons_ok += !carried.empty() && units() - before == static_cast<int32_t>(carried.size()) - tag ? 1 : 0;
+        }
+      }
+      met = all_met();
+    };
+    CountingPump pump;
+    pump.limit = 2400;
+    pump.stop = [&] { return core_frames > 30 && killed == 2 && met == 2; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c1m2: %d mechs killed (%d with salvage), destroy objectives %d open, then %d met\n", killed, weapons_ok,
+              open_before, met);
+  EXPECT(open_before == 2);
+  EXPECT(killed == 2 && weapons_ok == 2);
+  EXPECT(met == 2);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
   if (!have_game()) return;
   enum Scenario { kWon, kBoundary, kDeath };

@@ -3561,3 +3561,18 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   draw the bitmap fonts is in the game but nothing reaches it.
   (docs/twod.md, section 4)
 
+- **In Op 1 Mission 3 the raised buildings fall only once their legs do.**
+  Each of the three buildings on legs has a fall animation that waits for
+  both of its legs' own destruction animations. Hitting the building
+  first does nothing; once both legs are down, the next hit brings it
+  down. (docs/campaign.md, section 14)
+
+- **Some destruction animations play only while you look at them.** An
+  animation flagged to run when drawn (c1m3's building falls among them)
+  does not advance while its object is off screen. It carries on when you
+  turn back to it. (docs/campaign.md, section 14; docs/anim-run.md)
+
+- **A killed 'Mech gives back exactly the guns it carried.** Shooting
+  through all of Op 1, every 'Mech you destroy puts each of its weapons,
+  bar TAG, into the mission's salvage. A destroyed vehicle gives all of
+  its weapons or none, on a coin toss. (docs/campaign.md, section 14)

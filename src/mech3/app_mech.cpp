@@ -1824,4 +1824,17 @@ uint32_t debug_slot_config(int32_t mech, void* e, uint32_t (*handle_of)(void* e,
   return handle_of(e, d->configs->configs[0]);
 }
 
+// Ours (the campaign chain's kills): the weapon types a mech or a basic
+// vehicle carries, each weapon manager slot that holds one, as its salvage
+// (0x00472f00, 0x00472ec0) reads them.
+std::vector<int32_t> salvage_weapon_types(void* o) {
+  SalvageMech s;
+  if (entity_is_mech(o)) s = salvage_view(*static_cast<Mech*>(o));
+  else if (is_program_vehicle(o)) salvage_weapons(mech_weapon_manager(o), s);
+  std::vector<int32_t> out;
+  for (const SalvageWeapon& w : s.weapons)
+    if (w.present) out.push_back(w.type);
+  return out;
+}
+
 }  // namespace mech3
