@@ -1608,3 +1608,37 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
     (cliffs 20 vs 47). The fly viewer sets up the lighting its own way; the
     mission's baked look is close to its live one.
 
+## The chain's seed (2026-10-29)
+
+- Branch mac4/chain-seed (off main 94c739d).
+- Noted, left as is (the lead): in `--fly` the baked cliffs come out darker
+  than the live ones (c1 m2 at -1491 -5 -864: cliffs 20 baked, 47 live).
+  The fly viewer sets up the lighting its own way.
+- `--seed N` (mw3, ours) sets `crt::rand_fixed_seed`, which already existed
+  for the headless tests. The kills chain runs with `--seed 1999`.
+- The seed alone did not make runs repeat: the same seed gave c1m3 at 9351
+  and 16058. Two program-side causes, both ours (no exe change):
+  - **Stale handles.** `GameEngine` maps object addresses to handles. A
+    freed object whose handle was not forgotten passed its old (lower)
+    handle to the next object made at its address. The entities' sort
+    (0x004d5ca0 / 0x004d7360) breaks its ties on the address, which the
+    port reads as the handle. So a mech on a recycled handle jumped ahead
+    of the others, and the AI's order changed with allocation luck.
+    - Leaks fixed: the pocket commander's marker (deleted at the next
+      mission's start) and the AI controls with their brains' params
+      (`controls_delete`).
+    - The general guard: the exe's operator new hooks (`on_new`) in the
+      mech build, the basic vehicles, the field bases and the brain forget
+      any handle still mapped to a new address. Every new entity gets a
+      fresh handle, in creation order.
+  - **The clock.** `--frame-ms` stepped on every look at the message queue,
+    including passes that only took an event. Now only the passes that run
+    the game count. Before, a run alone gave 16779 and the same run beside
+    two others 7544.
+- Now with `--seed 1999`: three runs in parallel and one alone are
+  identical line for line (c1m3 at core frame 6636).
+- The bake's link, settled: this branch with and without the static bake's
+  fallback (NO_BAKE, a temporary switch) gives identical logs. The bake
+  doesn't reach the game's logic. c445a26 and 94c739d themselves can't be
+  compared with a seed, since they lack `--seed` and these fixes.
+

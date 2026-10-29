@@ -160,11 +160,16 @@ Uint32 SdlPump::music_event() {
 }
 
 bool SdlPump::peek() {
-  if (each_pass) each_pass();
+  // Only a pass that runs the game (no message waiting: the loop's idle
+  // branch) is one of --frame-ms's steps. A pass that only takes a window
+  // or SDL event counted too once, and as those come with the host's timing,
+  // the game's clock (and a seeded run) differed with the machine's load.
+  SDL_PumpEvents();
+  const bool waiting = !quit_ && SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0;
+  if (each_pass && !waiting) each_pass();
   if (!quit_ && should_quit && should_quit()) post_quit();
   if (quit_) return true;
-  SDL_PumpEvents();
-  return SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0;
+  return waiting;
 }
 
 bool SdlPump::pump() {

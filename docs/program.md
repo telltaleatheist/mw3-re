@@ -316,10 +316,17 @@ apart. Everything else is a real gap and stays listed.
   (MW3_CAMPAIGN=1): the campaign played through, campaign.md section 13.
   `kills:N` wins each mission by shooting every enemy through zWeapon's
   impact and follows the salvage into the store and the lab (section 14).
-- `--frame-ms N` (ours): each pass of the app's loop is N ms on the game's
-  clock (`SdlClock`, stepped by the pump), a sleep only adding its time:
-  scripted runs keep the same timing (rand is still seeded from the time
-  of day, as the exe) and run as fast as they draw.
+- `--frame-ms N` (ours): each pass of the app's loop that runs the game is
+  N ms on the game's clock (`SdlClock`, stepped by the pump when it finds
+  no message waiting), a sleep only adding its time. Scripted runs keep the
+  same timing and run as fast as they draw. Until 2026-10-29 a pass that
+  only took a window or SDL event counted too, so the clock depended on
+  the machine's load.
+- `--seed N` (ours): every srand the game does from the time of day
+  (0x00501ab0, 0x00508fc0, 0x0049aca0) takes N instead
+  (`crt::rand_fixed_seed`). With `--frame-ms` a run repeats line for line:
+  the kills chain (`--campaign-chain kills:4 --frame-ms 33 --seed 1999`)
+  wins c1m3 at core frame 6636 every time.
 - `sdl_program_screens_are_not_blank` (mw3sdltests, about 20 s; after item
   21's black lab, resolution.md section 9): the program itself, one run a
   screen, all at once, each shot through `--shot`. The screens: the main

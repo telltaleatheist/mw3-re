@@ -232,6 +232,13 @@ WiredShade g_shade_hooks;
 
 class WiredBuild : public MechBuildHooks {
  public:
+  // The exe's operator new (ours): an address just allocated has no handle
+  // yet, so one still mapped to it is a freed object's. Forgotten, the new
+  // object gets a fresh handle: the entities' sort (0x004d7360, which breaks
+  // ties on the address) then keeps their creation order, run after run.
+  void on_new(uint32_t, const void* p) override {
+    if (g_w.forget_object) g_w.forget_object(g_w.engine, p);
+  }
   // new(0x24) the mech's shade, new(0xc) a part's level (mech_shade.h).
   Handle alloc(uint32_t size) override {
     if (size == 0x24) return new SunShade;

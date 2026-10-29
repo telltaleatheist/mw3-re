@@ -54,6 +54,10 @@ struct WiredVehicles : VehBasicHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
+  // A new vehicle's address: a freed object's handle forgotten (WiredBuild's on_new).
+  void on_new(uint32_t, const void* p) override {
+    if (g_w.forget_object) g_w.forget_object(g_w.engine, p);
+  }
   Handle node_named(const char* name) override { return zcls::list_find_by_name(6, name); }  // 0x004f7fe0
   // Each vehicle its own tree, as the mechs' (models and materials copied).
   Handle node_clone(Handle node) override { return zcls::tree_copy(zn(node), 1, 1); }
@@ -195,6 +199,9 @@ WiredWaynets g_waynets;
 struct WiredFieldBases : FieldBaseHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
+  }
+  void on_new(uint32_t, const void* p) override {  // as WiredBuild's
+    if (g_w.forget_object) g_w.forget_object(g_w.engine, p);
   }
   int32_t game_type() override { return mission_game_type(); }
   int32_t campaign_bases() override { return program_campaign_bases(); }
