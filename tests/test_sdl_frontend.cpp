@@ -1040,8 +1040,12 @@ TEST(sdl_program_campaign_chain) {
   std::filesystem::create_directories(split);
   std::filesystem::create_directories(single);
   std::filesystem::create_directories(kills);
+  // Every run on a 33 ms frame clock with a fixed seed (--seed, ours): each
+  // mission's start reseeds rand (0x00501ab0, 0x00508fc0), so a mission plays
+  // the same in the split and the whole run.
   auto args = [](const std::string& chain, const std::string& dir) {
-    return std::vector<std::string>{"--campaign-chain", chain, "--verbose", "--nosound", "--hidden", "--write-dir", dir};
+    return std::vector<std::string>{"--campaign-chain", chain, "--verbose", "--nosound", "--hidden", "--write-dir", dir,
+                                    "--frame-ms", "33", "--seed", "1999"};
   };
   auto wait = [](pid_t pid) {
     int status = 0;
@@ -1057,12 +1061,9 @@ TEST(sdl_program_campaign_chain) {
   };
   const auto start = std::chrono::steady_clock::now();
   const pid_t whole = spawn_mw3(args("new:20", single), single + "/run.log");
-  // On a 33 ms frame clock: c1m3's bases drive about 2.5 km to Charlie.
-  std::vector<std::string> kill_args = args("kills:4", kills);
-  // A fixed seed (--seed, ours): rand is otherwise seeded from the time of
-  // day, and c1m3's bases' wander made its win frame vary from 7k to over 40k.
-  kill_args.insert(kill_args.end(), {"--frame-ms", "33", "--seed", "1999"});
-  const pid_t by_kills = spawn_mw3(kill_args, kills + "/run.log");
+  // c1m3's bases drive about 2.5 km to Charlie; unseeded, their wander made
+  // its win frame vary from 7k to over 40k.
+  const pid_t by_kills = spawn_mw3(args("kills:4", kills), kills + "/run.log");
   const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
   const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));
   const bool whole_ok = wait(whole);
@@ -1098,28 +1099,16 @@ TEST(sdl_program_campaign_chain) {
   // The resume starts at the mission and with the game the first run ended on.
   EXPECT(!b1.empty() && !b2.empty() && b1.back() == b2.front());
   if (!b2.empty()) std::printf("  resumed at %s: %s\n", b2.front().first.c_str(), b2.front().second.c_str());
-  // Every mission reads the same split and whole, but for the stores' unit
-  // totals: the missions run on the real clock, and ammunition (10 rounds of
-  // weapon 17's in c4m2) can be spent in one run and not the other; those
-  // are printed, not failed.
-  auto no_units = [](std::string l) {
-    for (size_t at = 0; (at = l.find(" units", at)) != std::string::npos; at += 6) {
-      size_t b = at;
-      while (b > 0 && std::isdigit(static_cast<unsigned char>(l[b - 1]))) --b;
-      l.replace(b, at - b, "*");
-      at = b + 1;
-    }
-    return l;
-  };
+  // Every mission reads the same split and whole, the stores' unit totals
+  // included: seeded on the frame clock, a mission spends the same ammunition
+  // either way (on the real clock 10 rounds of weapon 17's in c4m2 could go
+  // in one run and not the other).
   std::vector<std::pair<std::string, std::string>> joined(b1.begin(), b1.end());
   if (!b2.empty()) joined.insert(joined.end(), b2.begin() + 1, b2.end());
   int same = 0;
   for (size_t i = 0; i < joined.size() && i < bw.size(); ++i) {
-    if (joined[i].first == bw[i].first && no_units(joined[i].second) == no_units(bw[i].second)) ++same;
+    if (joined[i] == bw[i]) ++same;
     else std::printf("  differs at %s:\n    split %s\n    whole %s\n", bw[i].first.c_str(), joined[i].second.c_str(), bw[i].second.c_str());
-    if (joined[i].second != bw[i].second && no_units(joined[i].second) == no_units(bw[i].second))
-      std::printf("  units differ at %s (the real clock): split %s / whole %s\n", bw[i].first.c_str(),
-                  joined[i].second.substr(0, 40).c_str(), bw[i].second.substr(0, 40).c_str());
   }
   EXPECT(same == 20);
   for (const std::string* l : {&l1, &l2, &lw}) EXPECT(l->find("mw3: 0 original functions reached that are not ported") != std::string::npos);
