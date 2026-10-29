@@ -1705,3 +1705,16 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   difference outside the zone code. The camera lists now draw from their
   own generator, so the walks are the ones main tests, and it doesn't show.
 
+## The cockpit HUD's power down and up (2026-10-29)
+
+- Branch mac4/hud-power (off main 552b13f).
+- 0x0043bb20 / 0x0043bb50 ported as `Hud::power_down` / `Hud::power_up`
+  and wired (HeatCalls). The census stand-ins and the known entry are gone
+  (known_unported expects 54).
+- test_hud.py runs them on the built HUDs: 20 cases identical, with the
+  power step in about two of three. Breaks caught: the reticle left shown,
+  the kept state ignored.
+- In play (`mission_c1m1_power_down_turns_the_hud_off_and_back_headless`):
+  off with the reticle hidden in the frame the mech powers down, back the
+  frame after the power up. Before, the HUD stayed on.
+

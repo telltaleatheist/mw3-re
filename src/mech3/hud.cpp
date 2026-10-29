@@ -1760,6 +1760,20 @@ void Hud::set_active(int32_t on) {
     radar.hide();
 }
 
+// Mech3.exe 1.2 @ 0x0043bb20
+bool Hud::power_down() {
+  const bool was = active == 1;
+  set_active(0);
+  reticle.hide();  // +0x144c vt+0x64
+  return was;
+}
+
+// Mech3.exe 1.2 @ 0x0043bb50
+void Hud::power_up(uint8_t saved) {
+  set_active(saved);
+  reticle.show_for(-1.0f);  // +0x144c vt+0x60: for good
+}
+
 // Mech3.exe 1.2 @ 0x0043be10
 void Hud::reset() {
   for (Static& s : statics) s = Static{};

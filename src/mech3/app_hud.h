@@ -15,6 +15,9 @@ void* program_hud_node_object(void* node);  // for the tests: the HUD's reticle 
 void program_hud_update(float dt);
 void program_hud_weapons_layout(void* hud);  // 0x00446240 on its +0x6520
 void* program_pilot_hud(void* mech_data);        // 0x00430aa0 on a MechData (null: null)
+// For the tests: a mech's cockpit HUD on (its layer's +0x04) and its reticle
+// shown (+0x144c not hidden); false without a HUD.
+bool program_hud_power_state(void* mech, bool* on, bool* reticle_shown);
 void* program_mech_hud(void* mech);              // 0x00430aa0 on the mech's +0x684 (null: null)
 void program_hud_objectives_fill(void* hud);      // 0x00446ad0 on its +0x17964
 void program_hud_static(void* hud, float dt);    // 0x0043cd20 on a HUD

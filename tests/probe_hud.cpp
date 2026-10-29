@@ -947,6 +947,9 @@ void probe_hud_entity_class(uint32_t o, int32_t cls) { g_classes[o] = cls; }
 // The next build's HUD destroyed after its dump (0x0043b860, test_hud.py's free).
 int32_t g_free_after = 0;
 void probe_hud_free_after(int32_t on) { g_free_after = on; }
+int32_t g_power = 0, g_power_saved = 0;
+// After the dump: 1 the power down (0x0043bb20), 2 then the power up (0x0043bb50) with `saved`.
+void probe_hud_power_after(int32_t mode, int32_t saved) { g_power = mode, g_power_saved = saved; }
 
 // Builds the HUD as the emulator did at `hud_addr` for `mech`, dumps it.
 // The options' rects as the emulator has them (render, display: **[0x005f4d1c],
@@ -1026,12 +1029,20 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   mech3::radar_rect() = mech3::triangle_rect() = {1, 1, 639, 479};  // as each run's fresh exe holds them
   mech3::coolant_shown() = 1.0f;
   for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
-  Dump d;
-  dump_hud(d);
-  char saved[64];
-  std::snprintf(saved, sizeof saved, "saved %x %x %x\n", call("peek32", {0x605988}), call("peek32", {0x60598c}),
-                call("peek32", {0x60998c}));
-  const std::string s = d.o.str() + aims + g_leads + "lockshown " + (g_lock_shown ? "1" : "0") + "\n" + saved;
+  auto whole = [&] {
+    Dump d;
+    dump_hud(d);
+    char saved[64];
+    std::snprintf(saved, sizeof saved, "saved %x %x %x\n", call("peek32", {0x605988}), call("peek32", {0x60598c}),
+                  call("peek32", {0x60998c}));
+    return d.o.str() + aims + g_leads + "lockshown " + (g_lock_shown ? "1" : "0") + "\n" + saved;
+  };
+  std::string s = whole();
+  if (g_power) {
+    const bool was = g_hud->power_down();
+    if (g_power == 2) g_hud->power_up(static_cast<uint8_t>(g_power_saved));
+    s += std::string("power ") + (was ? "1" : "0") + "\n" + whole();
+  }
   if (g_free_after) {
     g_hud->~Hud();  // the storage stays (the emulator's block), as the exe's caller frees it after
     g_hud = nullptr;

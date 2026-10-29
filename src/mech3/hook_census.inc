@@ -18,8 +18,6 @@ SKIP(mech3::frame_calls, net_place, "FrameCalls.net_place")  // FrameCalls.net_p
 SKIP(mech3::free_calls, player_object_free, "0x0041e580")  // FreeCalls.player_object_free
 SKIP(mech3::heat_calls, heat_haze, "0x0043c1f0")  // HeatCalls.heat_haze
 SKIP(mech3::heat_calls, hud_message, "0x0040fe70")  // HeatCalls.hud_message
-SKIP(mech3::heat_calls, screen_power_down, "0x0043bb20")  // HeatCalls.screen_power_down
-SKIP(mech3::heat_calls, screen_power_up, "0x0043bb50")  // HeatCalls.screen_power_up
 SKIP(zdec::hooks, register_restore, "Hooks.register_restore")  // Hooks.register_restore
 SKIP(mech3::mech_hud_calls, zoom_camera, "MechHudCalls.zoom_camera")  // MechHudCalls.zoom_camera
 SKIP(mech3::move_calls, controls_landed, "0x005ac5c0")  // MoveCalls.controls_landed

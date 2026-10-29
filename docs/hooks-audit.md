@@ -119,7 +119,8 @@ the table, and the program's chain runs one more (the fall camera). Each is now 
   `zcls::node_find` the next time test_turret is touched.
 - **Also not ported:**
   - the damage decals (0x00414370 / 0x00474d90);
-  - the cockpit HUD's power down and up (0x0043bb20 / 0x0043bb50);
+  - the cockpit HUD's power down and up (0x0043bb20 / 0x0043bb50): ported
+    2026-10-29 (hud.md section 26);
   - the mech's zone record (0x00476550): ported 2026-10-29;
   - a mech's collisions with other entities' bodies
     (`CollideCalls.ai_reverses`, `entity_dead`, `entity_target`): ported
