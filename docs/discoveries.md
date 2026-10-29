@@ -273,8 +273,8 @@ From the port of the damage code, checked in an emulator against the original
 ## Movement
 
 - **Walking into a vehicle hurts it, even a friendly one.** A mech that
-  bumps a vehicle damages it by its speed: (speed / top speed)² × 20 points
-  at full speed. It also shoves it, harder the heavier the mech. The game
+  bumps a vehicle damages it by the square of its speed: 20 points at full
+  speed, 5 at half. It also shoves it, harder the heavier the mech. The game
   checks your team only for field bases. Every other vehicle, a convoy truck
   you escort included, takes the damage.
 - **AI mechs back off walls; you only slow down.** A mech that hits a wall
