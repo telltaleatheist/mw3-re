@@ -111,7 +111,7 @@ uint32_t mech_damage(zwep::Handle object, zwep::WeaponDef* def, zwep::HitRecord*
 }
 
 
-uint32_t g_zone;  // the spawn's zone word: the entity's +0x64 byte
+uint32_t g_zone;  // the spawn's zone word: the entity's +0x64 record (count, ids)
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x0040e9d0: a vehicle's node (+0x28 id 0xf000) its owner,
@@ -172,8 +172,12 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   c.vehicle_entity = [](Handle v) { return v; };                                          // vt+0x2c: itself
   c.vehicle_velocity = [](Handle v) { return reinterpret_cast<const Vec3f*>(&mech_of(v)->velocity); };
   c.entity_node = [](Handle e) { return mech_of(e)->node; };                              // +0x04
-  c.entity_x64 = [](Handle e) -> Handle {                                                  // &+0x64
-    g_zone = mech_of(e)->x64;
+  // &+0x64: the shooter's zone record, its count and up to three ids (a shot
+  // queries in those zones). Copied whole: the count alone left a vehicle's
+  // shots (its record set by its ground probe, 0x005a80d0) querying zone 0,
+  // so they crossed nothing.
+  c.entity_x64 = [](Handle e) -> Handle {
+    std::memcpy(&g_zone, &mech_of(e)->x64, 4);
     return &g_zone;
   };
   c.target_key = [](Handle t) { return t; };  // vt+0x24: a mech, vehicle, turret or target answers itself
@@ -442,10 +446,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   // and the turret; only a network game's classes answer otherwise.
   wc.owner_x58 = [](Handle) -> int32_t { return 0; };
   collide_calls().remote = [](Mech&) { return false; };
-  // Not wired yet: the vehicle builder's (0x004b4660) firepoint lookups,
-  // 0x004eb0d0 and 0x004abb60 (ported: zcls::node_find, node_find_prefix).
-  // With them the vehicles get weapons, whose update reads the manager's
-  // +0x80 (0 for a vehicle's in the exe, the port's owner): the next item.
+  // The vehicle builder's (0x004b4660) firepoint lookups.
+  wc.node_find = [](Handle node, const char* name) -> Handle {  // 0x004eb0d0
+    return zcls::node_find(static_cast<zcls::Node*>(node), name);
+  };
+  wc.node_by_name = [](Handle node, const char* name) -> Handle { return node_find_prefix(node, name); };  // 0x004abb60
   // The aim's view test (0x0041bc20): [0x005f4c8c] +0x64 is the mech and its
   // camera (+0x58) +4 is 1, the cockpit.
   aim_calls().cockpit_view = [](Mech& m) {

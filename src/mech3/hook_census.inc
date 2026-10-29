@@ -50,11 +50,10 @@ SKIP(mech3::damage_calls, force_variant0, "0x00586ce0")  // DamageCalls.force_va
 SKIP(mech3::damage_calls, player_died_hud, "0x0041b263")  // DamageCalls.player_died_hud
 SKIP(mech3::dead_calls, net_fade, "DeadCalls.net_fade")  // DeadCalls.net_fade
 SKIP(mech3::frame_calls, map_pick, "FrameCalls.map_pick")  // FrameCalls.map_pick
-SKIP(mech3::weapon_calls, node_find, "0x004eb0d0")  // WeaponCalls.node_find
-SKIP(mech3::weapon_calls, node_by_name, "0x004abb60")  // WeaponCalls.node_by_name
 SKIP(mech3::draw_calls, map_point, "0x004586e0")  // DrawCalls.map_point
 SKIP(mech3::pocket_calls, view_pocket, "0x004b5290")  // PocketCalls.view_pocket
 SKIP(mech3::skin_globals, fetch_texture, "0x005179d0")  // SkinGlobals.fetch_texture
 SKIP(mech3::skin_globals, release_texture, "0x00518b30")  // SkinGlobals.release_texture
+
 
 

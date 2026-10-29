@@ -94,9 +94,12 @@ They run inside the original main loop, after the original start-up.
   PRIMITIVES entry bound by name (check buttons when they have CHECKED, texts
   when they have TEXT), the window's mouse given to Window::update (the
   buttons do nothing: their screens are not ported).
-- `--vehicle-ahead M` (with `--mission`): the mission's first vehicle placed
-  M m in front of the player's mech on the first frame, at the player's
-  height (to look at a vehicle up close: its shadow, its model).
+- `--vehicle-ahead M` (with `--mission`): the mission's first armed vehicle
+  (else its first) placed M m in front of the player's mech on the first
+  frame, at the player's height (to look at a vehicle up close: its shadow,
+  its model, its weapons). `--vehicle-hold` also keeps the player where it
+  stood, turned to face that vehicle each frame, to watch it fire. Placing
+  the vehicle again each frame would reset its AI.
 - `--shot FILE.bmp [--shot-frame N] [--shot-any]` saves frame N (default 30;
   with `--shot-any` every frame shown counts, the fade's too) of either
   and quits, with the window hidden; `--shot-series K` also the K frames

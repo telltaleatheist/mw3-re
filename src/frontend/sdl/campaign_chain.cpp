@@ -355,8 +355,12 @@ void CampaignChain::shoot_hostiles() {
         ++killed_units_;
         if (!same) ++mismatched_units_;
       }
+      // A vehicle's: its weapons (the builder's, 0x004b4660), the coin's
+      // none, or none to carry (a truck).
+      const char* what = std::string(t.kind) == "mech" || vehicle ? (same ? ", its weapons" : ", NOT its weapons") : "";
+      if (vehicle && same) what = carried.empty() ? ", unarmed" : salvaged.empty() ? ", none (the coin)" : ", its weapons";
       std::printf("mw3: chain killed %s %s (core frame %d): salvage {%s}%s\n", t.kind, t.name.c_str(), core_frames_,
-                  line(got).c_str(), std::string(t.kind) == "mech" || vehicle ? (same ? ", its weapons" : ", NOT its weapons") : "");
+                  line(got).c_str(), what);
     }
   }
   // A hit that does not kill leaves the salvage alone; anything else this

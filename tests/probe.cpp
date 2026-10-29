@@ -838,6 +838,7 @@ int probe_read_zbd(const char* path, int size, uint8_t* out, int cap) {
 }  // extern "C"
 
 #include "gamez/zclass/class.h"
+#include "mech3/veh_basic.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/light.h"
@@ -863,6 +864,20 @@ int probe_destroy_load(const char* path) {
   zcls::immediate_delete() = 1;
   zcls::frames() = zcls::Frames{};
   return zcls::read_zbd(path);
+}
+
+// The finds by name (test_node_find.py), on a world loaded as above: a
+// node's name set (its 0x24 bytes), and 0x004eb0d0 (whole) or 0x004abb60
+// (prefix) from node `a` (-1 the null node), answered by pool index.
+void probe_node_name(int a, const char* name) {
+  zcls::Node* n = zcls::node_at(a);
+  std::memset(n->raw, 0, 0x24);
+  std::strncpy(reinterpret_cast<char*>(n->raw), name, 0x23);
+}
+int probe_node_find(int a, const char* name, int prefix) {
+  zcls::Node* n = a >= 0 ? zcls::node_at(a) : nullptr;
+  zcls::Node* r = prefix ? static_cast<zcls::Node*>(mech3::node_find_prefix(n, name)) : zcls::node_find(n, name);
+  return r ? idx(r) : -1;
 }
 
 int probe_destroy_op(int op, int a, int b, int c) {

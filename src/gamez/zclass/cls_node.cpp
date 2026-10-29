@@ -276,7 +276,8 @@ Node* node_find_in_tree(Node* node, const char* name) {
 }
 
 // Mech3.exe 1.2 @ 0x004eb0d0. The name matched whole, the node itself first,
-// then each child's tree in order (0x004f9d60 goes last to first).
+// then each child's tree, first to last (node_find_in_tree, 0x004f9d60, goes
+// last to first).
 Node* node_find(Node* node, const char* name) {
   if (!node) return zerr::report(0x400, kClassFile, 0x43b, "Null node pointer."), nullptr;
   if (std::strcmp(node->name(), name) == 0) return node;

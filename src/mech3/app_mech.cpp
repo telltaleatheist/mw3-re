@@ -949,16 +949,22 @@ void wire_mech_build(const MechWiring* w) {
   set_mech_build_hooks(&g_build);
   set_mech_data_hooks(&g_data);
   set_launch_hooks(&g_launch);
-  // The weapons a mech mounts look up its owner, firepoints and jump jets
-  // (weapon.h); the program's managers are all mechs' so far.
+  // The weapons a mech or a basic vehicle mounts look up its owner,
+  // firepoints and jump jets (weapon.h). +0x80 is the vehicle's mech (vt+0x2c
+  // then vt+0x50): 0 for a basic vehicle, whose weapons fire from their own
+  // nodes (0x004b4660's firepoints, weapons.md).
 
   wire_mech_frame();
   wire_mech_parts();
   wire_hud();
   wire_weapons([](const char* key) { return g_w.unported ? g_w.unported(g_w.engine, key, {}) : 0u; });
   WeaponCalls& c = weapon_calls();
-  c.vehicle_mech = [](Handle v) { return v; };
-  c.vehicle_node = [](Handle v) { return static_cast<Mech*>(v)->node; };
+  // (A mech's manager is made while the mech is built, before zEntity knows
+  // it: the basic vehicles are the ones told apart.)
+  c.vehicle_mech = [](Handle v) -> Handle { return is_program_vehicle(v) ? nullptr : v; };
+  c.vehicle_node = [](Handle v) -> Handle {  // +0x04
+    return is_program_vehicle(v) ? program_vehicle_node(v) : static_cast<Mech*>(v)->node;
+  };
   c.add_jump_jet = [](Handle m) { static_cast<Mech*>(m)->add_jump_jet(true); };
   c.firepoints = [](Handle m) -> std::vector<Firepoint*>* {
     const MechDfn* d = mech_dfn(static_cast<Mech*>(m)->pilot->roster);
@@ -1462,6 +1468,15 @@ bool mech_lead_point_at(void* mech, uint32_t target, float out[3]) {
   return c && c->seen == target && lead_point(m, out);
 }
 void* mech_weapon_manager(void* mech) { return mech ? static_cast<Vehicle*>(mech)->ammo : nullptr; }  // a vehicle's too
+int32_t wm_weapon_count(const void* wm) { return wm ? static_cast<int32_t>(static_cast<const WeaponManager*>(wm)->count) : 0; }
+void* wm_weapon_node(const void* wm, int32_t i) {
+  const auto* m = static_cast<const WeaponManager*>(wm);
+  return m && i >= 0 && static_cast<uint32_t>(i) < m->count ? m->weapons[i]->node : nullptr;
+}
+const void* wm_weapon_def(const void* wm, int32_t i) {
+  const auto* m = static_cast<const WeaponManager*>(wm);
+  return m && i >= 0 && static_cast<uint32_t>(i) < m->count ? m->weapons[i]->def : nullptr;
+}
 void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
 // FIX (bug): the exe's firing clears a missing manager's aim through null
 // (a vehicle without weapons standing down).
@@ -1496,13 +1511,15 @@ int32_t world_segment_first(const float from[3], const float to[3], uint32_t exc
 int32_t ai_volley_pick(void* wm, const float* dist2) {
   auto* m = static_cast<WeaponManager*>(wm);
   if (!m) return 0;
-  // The manager's owner is a mech or a vehicle (a truck, an APC); the brain
-  // behind either (the exe asks the owner's vtable, ai.md 17.7).
-  Mech* mech = entity_is_mech(m->owner) ? static_cast<Mech*>(m->owner) : nullptr;
+  // The manager's vehicle (+0x84) is a mech (also its +0x80) or a basic
+  // vehicle (a truck, an APC; +0x80 0); the brain behind either (the exe asks
+  // the vehicle's vtable, ai.md 17.7).
+  void* who = m->owner ? m->owner : m->vehicle;
+  Mech* mech = entity_is_mech(who) ? static_cast<Mech*>(who) : nullptr;
   auto* ctl = mech ? dynamic_cast<AiControls*>(mech->controls) : nullptr;
   ai::Brain* b = ctl ? ctl->brain.get() : nullptr;
-  if (!mech && is_program_vehicle(m->owner))
-    b = static_cast<ai::Brain*>(program_vehicle_brain(program_vehicle_controls(m->owner)));
+  if (!mech && is_program_vehicle(who))
+    b = static_cast<ai::Brain*>(program_vehicle_brain(program_vehicle_controls(who)));
   VolleyPilot p;
   if (b) p.hold = b->params.get<float>(0x34), p.chance = b->params.get<float>(0x90);
   const float heat = mech ? mech->heat : 0.0f;

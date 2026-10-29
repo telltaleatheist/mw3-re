@@ -215,6 +215,11 @@ From the port of the damage code, checked in an emulator against the original
   and the game has code to bring an aim back onto those limits, but the
   AI never uses its result: a tank aims straight at you however steep the
   angle (that code also has a slip that would put the aim off the limit).
+- **A vehicle's shots ignore which way its gun points.** A mech's shot
+  must leave within about 27 degrees of the way its arm or torso faces
+  (0x4b36e0), or it leaves straight along the part instead. A tank's or APC's
+  weapons skip that check: each shot leaves the gun and flies straight at
+  its target, even if the gun is turned away.
 - **Turrets swing half way to their target every eighth of a second**,
   however far they have to turn, so a turret is never caught facing the
   wrong way for long.

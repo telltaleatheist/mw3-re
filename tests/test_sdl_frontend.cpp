@@ -1172,6 +1172,16 @@ TEST(sdl_program_campaign_chain) {
   EXPECT(matches == 4 && matched == 4);
   EXPECT(moved == 3 && moved_ok == 3 && fitted == 3 && carried == 3);
   EXPECT(count(lk, "NOT its weapons") == 0 && count(lk, "mw3: chain killed mech ") >= 10);
+  // The vehicles carry their weapons (0x004b4660, weapons.md): an armed one's
+  // salvage is all of them or, on the coin, none; the trucks carry nothing.
+  int veh_weapons = 0, veh_coin = 0, veh_unarmed = 0;
+  for (size_t at = 0; (at = lk.find("mw3: chain killed vehicle ", at)) != std::string::npos; ++at) {
+    const std::string l = lk.substr(at, lk.find('\n', at) - at);
+    auto ends = [&](const std::string& e) { return l.size() >= e.size() && l.compare(l.size() - e.size(), e.size(), e) == 0; };
+    veh_weapons += ends(", its weapons"), veh_coin += ends(", none (the coin)"), veh_unarmed += ends(", unarmed");
+  }
+  std::printf("  vehicles killed: %d salvaged their weapons, %d none on the coin, %d unarmed\n", veh_weapons, veh_coin, veh_unarmed);
+  EXPECT(veh_weapons >= 5 && veh_weapons + veh_coin > veh_unarmed);
   EXPECT(lk.find("mw3: chain done at op 2 mission 1 after 4 wins") != std::string::npos);
   EXPECT(lk.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
   int shots = 0, lit_ok = 0;
