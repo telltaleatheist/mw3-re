@@ -499,7 +499,13 @@ int run(const Args& a) {
         for (const Args::ClickAt& c : clicks) {
           // The cursor put on the point (zInput's 0x0051b440, the game's
           // 640 x 480 about its centre), then the press and the release.
-          if (menu_frames == c.frame) zin::mouse_set((c.x - 320) / 320.0f, (c.y - 240) / 240.0f);
+          // A 640x480 frame pixel; on a canvas the dialogs' frame is centred (resolution.md step 5).
+          if (menu_frames == c.frame) {
+            const float dw = static_cast<float>(mech3::display().w > 0 ? mech3::display().w : 640);
+            const float dh = static_cast<float>(mech3::display().h > 0 ? mech3::display().h : 480);
+            const float px = static_cast<float>(c.x + ztwod::dialog_origin().x), py = static_cast<float>(c.y + ztwod::dialog_origin().y);
+            zin::mouse_set((px - dw / 2) / (dw / 2), (py - dh / 2) / (dh / 2));
+          }
           if (menu_frames == c.frame + 1 || menu_frames == c.frame + 2) {
             SDL_Event ev{};
             ev.type = menu_frames == c.frame + 1 ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;

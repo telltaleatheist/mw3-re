@@ -139,8 +139,8 @@ void Marquee::update(float dt) {
 
 // Mech3.exe 1.2 @ 0x0040a110
 MenuScreen::MenuScreen(Engine& e, Handle s) : e_(e), state(s), background(e) {
-  origin_x = 0;
-  origin_y = 0;
+  origin_x = ztwod::dialog_origin().x;  // FIX (B): 0 but on a canvas (resolution.md step 5)
+  origin_y = ztwod::dialog_origin().y;
 }
 
 // Mech3.exe 1.2 @ 0x0040a520

@@ -561,6 +561,9 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
 // for a mode): the 16-bit buffer, Render3D's viewport, the window's shape.
 void GameEngine::screen_size(int32_t w, int32_t h, int32_t frame_w, int32_t frame_h) {
   width_ = w, height_ = h;
+  // FIX (B): on a canvas (2D smaller than the frame) the dialogs' 640x480 frame centred on it.
+  const bool canvas = frame_w > 0 && (frame_w != w || frame_h != h) && w >= 640 && h >= 480;
+  ztwod::dialog_origin() = canvas ? ztwod::DialogOrigin{(w - 640) / 2, (h - 480) / 2} : ztwod::DialogOrigin{};
   buffer_.assign(static_cast<size_t>(width_) * height_, 0);
   buffer_is_screen_ = false;
   // The 3D's viewport the frame (the 2D layers set their own, the canvas's; resolution.md step 4).
@@ -673,10 +676,19 @@ const char* GameEngine::video_mode_label() {
 // depth surface for 0 (the Core state's start).
 // Mech3.exe 1.2 @ 0x00558010: the 16-bit target's size ([0x008007cc],
 // [0x008007d0]) from the rect, in both of the port's views of it.
+// The rect is a handle: the screen's (0x00579880, the 16-bit buffer's size)
+// or one of the options' three, not memory (reading it as memory gave 0 x 0,
+// and every 2D draw after the mech lab's call was clipped away).
 void GameEngine::render_flush(Handle rect) {
   if (!rect) return;
-  const int32_t w = static_cast<int32_t>(peek32(rect + 8) - peek32(rect));
-  const int32_t h = static_cast<int32_t>(peek32(rect + 12) - peek32(rect + 4));
+  int32_t w = width_, h = height_;
+  if (rect != kScreenRect) {
+    const Rect* r = rect == render_rect() ? &mech3::render()
+                    : rect == display_rect() ? &mech3::display()
+                    : rect == window_rect() ? &mech3::window() : nullptr;
+    if (!r) return;
+    w = r->w, h = r->h;
+  }
   zrndr::soft_target().width = w, zrndr::soft_target().height = h;
   zrndr::target2d().width = static_cast<uint32_t>(w), zrndr::target2d().height = static_cast<uint32_t>(h);
 }

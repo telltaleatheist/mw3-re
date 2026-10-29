@@ -124,7 +124,7 @@ the original's formula unchanged, so 640x480 stays bit for bit.
    off. Done (2026-10-28), section 8.
 5. The menus: one 640x480 frame scaled to the height and centred
    (pillarboxed), the cursor and clicks mapped through it; the backgrounds
-   tiled past 2560x1920 (menus.md section 7).
+   tiled past 2560x1920 (menus.md section 7). Done (2026-10-28), section 9.
 6. The rest of section 2's unported readers (0x00468900's aim, 0x00479dd0's
    timer) as their modules land.
 
@@ -328,4 +328,60 @@ Breaks:
 - the anchors never applied fails it twice.
 
 Shots: c1m1 at modes 13 and 15.
+
+## 9. The menus (step 5)
+
+**What step 2 already covered.** The front end, the mech lab and the
+briefing (its map and movies) always run at VMode 5: VMode is detail.zrd's
+and never saved, and InGameVMode reaches only a mission. They are one
+640x480 frame, which step 2's fit scales to the window's height and
+pillarboxes, with the cursor mapped through it. A 1920x1080 window draws it
+1440x1080 at x 240, and 3840x2160 2880x2160 at 480.
+`sdl_menu_clicks_land_on_the_same_buttons_at_any_window` puts each of the
+main menu's seven buttons through the mapping at 640x480, 1920x1080,
+3840x2160 and 2560x1080 (28 of 28).
+
+**What was left: the 2D over a mission at a canvas mode.** These are the
+pause screen (pushed over the Core state, which keeps the mission's mode)
+and the quit box (made at the Core state's enter, after the switch). They
+were made at their 640x480 places in the canvas's top-left corner. FIX (B),
+`ztwod::dialog_origin`: GameEngine sets it with the screen (`screen_size`),
+centring the 640x480 frame on a canvas ((160, 30) on 960x540) and (0, 0)
+otherwise. A Dialog (0x0059ec40) and a MenuScreen (0x0040a110) made then
+take it as their origin, so every piece the .zrd places, and every hit
+rect, moves together. The cursor is in canvas pixels (step 4), so clicks
+hit them without further mapping. The art is drawn at the canvas's whole
+scale: ×2 at 1080p, ×4 at 4K. The pause screen's own backdrop (the mission's
+frame) and MECH3TEXT's slide stay display-sized, as in the exe. Options from
+the pause switches back to mode 5 first (0x00438c90), so it is the 640x480
+front end.
+
+**The backgrounds past 2560x1920.** They are no longer needed: the 2D is
+never larger than a canvas (at most 960 by about 540 past mode 10), and
+the menus' scrolling backgrounds only run at mode 5.
+
+`--click-at X,Y@N` takes a 640x480 frame pixel and adds the dialogs' origin
+(mw3_main).
+
+Tests:
+- `mission_c1m1_pause_click_at_any_size_headless`: c1m1 at InGameVMode 5,
+  13 and 15, Escape, then a real mouse click (zInput's position and the
+  left button) on RESUME resumes. At 13 and 15 the button sits 160 and 30
+  further on. A click at 640x480's height misses.
+- Break: the origin left at (0, 0) on a canvas fails 4 checks.
+
+A regression found while taking the lab's shot. Item 21's port of
+0x00558010 (`render_flush`) read its rect argument as memory, but its
+callers pass handles: the lab passes the screen's (0x00579880) and the Core
+state's software paths an options rect. That gave the 2D target 0 x 0, and
+the mech lab drew black from merge 4c2d7cf on. Bisected: f28c712 and
+e737613 draw it, 4c2d7cf onwards don't. Now the handle is resolved
+(the 16-bit buffer's size, or the options' rect).
+`render_flush_takes_the_rect_by_its_handle` checks it; the memory read put
+back fails it twice.
+
+Shots:
+- the main menu in a 1920x1080 window;
+- the lab in a 1920x1080 window;
+- the pause at mode 13.
 

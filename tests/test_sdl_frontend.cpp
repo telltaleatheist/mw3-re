@@ -874,3 +874,27 @@ TEST(sdl_window_shape_maps_the_mouse_through_the_frame) {
   SDL_DestroyWindow(win);
 }
 
+
+// The front end at a 16:9 or 4K window (resolution.md step 5): the menus run
+// at mode 5, a 640x480 frame pillarboxed in the window (step 2's fit), so a
+// click on each main-menu button's window point lands on that button's
+// 640x480 pixel, as in a 640x480 window.
+TEST(sdl_menu_clicks_land_on_the_same_buttons_at_any_window) {
+  const sdlfe::FrameShape menus{640, 480, true};
+  const int32_t buttons[][2] = {{60, 60}, {132, 135}, {60, 210}, {132, 285}, {60, 360}, {400, 360}, {470, 435}};
+  const int32_t windows[][2] = {{640, 480}, {1920, 1080}, {3840, 2160}, {2560, 1080}};
+  int hits = 0;
+  for (const auto& w : windows)
+    for (const auto& b : buttons) {
+      float wx = 0, wy = 0, fx = 0, fy = 0;
+      sdlfe::frame_to_window(b[0] + 0.5f, b[1] + 0.5f, w[0], w[1], menus, &wx, &wy);
+      sdlfe::window_to_frame(wx, wy, w[0], w[1], menus, &fx, &fy);
+      if (static_cast<int32_t>(fx) == b[0] && static_cast<int32_t>(fy) == b[1]) ++hits;
+    }
+  std::printf("menu clicks: %d of %d land on their 640x480 buttons\n", hits, 28);
+  EXPECT(hits == 28);
+  // At 1920x1080 the frame is 1440x1080 at x 240: CAMPAIGN's 60,60 is the window's 375,135.
+  float wx = 0, wy = 0;
+  sdlfe::frame_to_window(60, 60, 1920, 1080, menus, &wx, &wy);
+  EXPECT(std::fabs(wx - 375) < 0.01f && std::fabs(wy - 135) < 0.01f);
+}

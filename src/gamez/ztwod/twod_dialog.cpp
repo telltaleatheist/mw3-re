@@ -98,7 +98,13 @@ Text** read_labels(Dialog* d, zrdr::Node* value, int32_t* count, const int32_t* 
 
 // Mech3.exe 1.2 @ 0x0059ec40
 // The constructor also looks up "VMode" (0x00597d10) and drops the result.
-Dialog::Dialog() : Window(1, 1) {}
+DialogOrigin& dialog_origin() {
+  static DialogOrigin o;
+  return o;
+}
+
+// FIX (B): the origin from dialog_origin (0 but on a canvas; resolution.md step 5).
+Dialog::Dialog() : Window(1, 1) { origin_x = dialog_origin().x, origin_y = dialog_origin().y; }
 
 // Mech3.exe 1.2 @ 0x0059edc0
 Dialog::~Dialog() {
