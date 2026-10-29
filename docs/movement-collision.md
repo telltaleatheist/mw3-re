@@ -111,6 +111,42 @@ Then the wall response.
 blocks; otherwise its body is shoved by v * tonnage * body +0x9b0 * 0.1,
 and the wall response runs. Dead units are ignored by the foot probes.
 
+**In the program (2026-10-29).** Until then a mech walked through every
+vehicle: the vehicle hooks were unset, so 0x4237c0 found no target.
+- What a hit node's entity answers, for the basic vehicle (vtable
+  0x5c88e8) and the field base (0x5c23d8):
+  - vt+0xec, what takes the damage: itself (0x4d2a70).
+  - vt+0x140: its controls at +0xe4 as IControls (0x4020b0). Their vt+0x5c
+    gives the body, which is the controls object itself (0x4a5c40, the
+    vehicle's own 0x4aead0, the AI's 0x4e7740).
+  - vt+0xf4, its team owner: none for a basic vehicle (0x40bae0), so a
+    basic vehicle is damaged allied or not; itself for a field base, whose
+    +0xc0 team is checked.
+  - vt+0x160, the damage: 0x4ad3f0, or the field base's 0x458f50.
+  - +0x08, alive.
+- The body: +0x64 its world velocity, +0x70 its local velocity, and +0x9b0
+  the motion block's inverse mass (+0x764 + 0x24c), so the shove is
+  v x tonnage x inverse mass x 0.1.
+- The mech's vt+0xec answers 0, so a mech never takes this path; the turret's
+  vtable ends before these slots, so its nodes must never reach it.
+- Anything else answers none and reports `0x004237c0 entity` to the census.
+  None of the 21 missions reaches it.
+- The wall's reverse (0x4231c0): the mech's vt+0x140 (0x426bf0, its controls
+  at +0x37c as IControls), then their vt+0x70 "on a path". The AI's controls
+  answer yes (0x4e7790 -> 0x4a5270, and the AiPilot's), so an AI mech
+  reverses its throttle off a wall. The player's answer no (0x40bae0), so
+  the player only slows to 10 %. `MechControls::on_path`.
+- Checked in play (`mission_c1m2_a_mech_bumps_a_vehicle_a_mech_and_a_wreck_headless`,
+  the player at full throttle from 25 m):
+  - Into a Bulldog held in place: stopped 6.4 m off. Its health 1.0 ->
+    0.876, and it is shoved. Before the wiring the player went through
+    (0.1 m) and nothing was shoved.
+  - Into an enemy mech: stopped 8.9 m off, both lose armour. This already
+    worked: the mech hooks were wired.
+  - Into a Bulldog's wreck: walked over it. Only foot probes 6 and 7 meet a
+    Bulldog, and a dead unit's foot hits are skipped. A live one is still
+    met by the feet.
+
 **Touch (0x423c90)**: buildings and animated objects with a damage handler
 take 20 per frame of contact (0x5836b0 -> node +0xbc slot 1); while they
 stand, the wall response blocks.

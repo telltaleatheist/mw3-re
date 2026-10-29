@@ -40,7 +40,12 @@ struct SkisCalls {
   float* (*node_matrix)(Handle node) = nullptr;      // 0x004fc3f0: the object3d's local 3x4
   void (*set_node_matrix)(Handle node, const float* m) = nullptr;  // 0x004fc300
   const Vec3* (*position)(Mech&) = nullptr;          // 0x005a85e0: the world position
-  void (*zone)(const uint8_t* zone_set) = nullptr;   // 0x00476550: the centre probe's zone
+  // 0x00476550's two outside reads and writes: the player view's camera's
+  // zone list ([0x005f4c8c] +4, its data +0x1e4; null without), and
+  // zEntity's 0x005a80d0 (the record into the mech's +0x64, the id onto its
+  // node's zone byte through 0x005a80c0 -> 0x004eb810).
+  const uint8_t* (*camera_zones)() = nullptr;
+  void (*set_zone)(Mech& m, const uint8_t record[4], uint8_t id) = nullptr;
 };
 SkisCalls& skis_calls();
 
@@ -80,6 +85,7 @@ class Skis {
   bool water_at(int side, float z, float* surface_y) const;  // 0x00475ea0
   void set_ski(int side, float angle, float lift);           // 0x004764a0
   void set_vy(float v);                                      // 0x00476590
+  void zone_update(const uint8_t record[4]);                 // 0x00476550
   void reset();  // 0x00475fb0: the six ski probes back under the skis, both skis level
 
   static float pick_ground(const GroundHits& hits, int* best, float probe_y, float step,

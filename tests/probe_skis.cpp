@@ -2,6 +2,7 @@
 // skis, the mech and its feet go back and forth as byte images laid out like
 // the original's; the ground query answers with the records the original's
 // query wrote in the emulator, and every call out is logged.
+#include "gamez/zmodel/gmod_cull.h"
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -102,7 +103,19 @@ int32_t bits(float f) {
 }
 }  // namespace
 
+namespace {
+uint8_t g_camera[4] = {};
+bool g_camera_on = false;
+}  // namespace
+
 extern "C" {
+
+// The view camera's zone list for 0x00476550 (null: no camera); the zones' mode.
+void probe_skis_camera(const uint8_t* list, int32_t mode) {
+  g_camera_on = list != nullptr;
+  if (list) std::memcpy(g_camera, list, 4);
+  zmod::zones().mode = mode;
+}
 
 // One MechSkis::Update (0x4765b0). `feet` is two 0x100 images (+0x48
 // destroyed, the translation at +0xf0); `soils` pairs material addresses with
@@ -161,7 +174,10 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
     for (int k = 0; k < 12; ++k) log({4, bits(mat[k])});
   };
   c.position = [](Mech&) -> const Vec3* { return &g->pos; };
-  c.zone = [](const uint8_t* z) { log({5, rd<int32_t>(z, 0), rd<int32_t>(z, 4)}); };
+  // 0x00476550 runs: the camera's list as the emulator's view chain holds it,
+  // zEntity's 0x005a80d0 recorded (the record's bytes, the id).
+  c.camera_zones = []() -> const uint8_t* { return g_camera_on ? g_camera : nullptr; };
+  c.set_zone = [](Mech&, const uint8_t* z, uint8_t id) { log({5, rd<int32_t>(z, 0), id}); };
   zmth::reset_stack();
   zmth::Mat34 base{};
   zmth::push(&base);

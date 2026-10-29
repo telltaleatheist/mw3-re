@@ -120,9 +120,11 @@ the table, and the program's chain runs one more (the fall camera). Each is now 
 - **Also not ported:**
   - the damage decals (0x00414370 / 0x00474d90);
   - the cockpit HUD's power down and up (0x0043bb20 / 0x0043bb50);
-  - the mech's zone record (0x00476550);
+  - the mech's zone record (0x00476550): ported 2026-10-29;
   - a mech's collisions with other entities' bodies
-    (`CollideCalls.ai_reverses`, `entity_dead`, `entity_target`);
+    (`CollideCalls.ai_reverses`, `entity_dead`, `entity_target`): ported
+    and wired 2026-10-29, with the vehicle path's other hooks and the zone
+    record 0x00476550 (movement-collision.md, In the program);
   - the static light bake's refresh (`DrawHooks.refresh_static`). This
     one mattered: its stand-in did nothing, so from 160 frames after
     loading, every static model was drawn from an empty light cache. The

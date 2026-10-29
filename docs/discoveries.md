@@ -272,6 +272,18 @@ From the port of the damage code, checked in an emulator against the original
 
 ## Movement
 
+- **Walking into a vehicle hurts it, even a friendly one.** A mech that
+  bumps a vehicle damages it by the square of its speed: 20 points at full
+  speed, 5 at half. It also shoves it, harder the heavier the mech. The game
+  checks your team only for field bases. Every other vehicle, a convoy truck
+  you escort included, takes the damage.
+- **AI mechs back off walls; you only slow down.** A mech that hits a wall
+  drops to a tenth of its throttle, but one driven by the AI reverses
+  instead.
+- **You can walk over wrecks.** A dead vehicle low enough that only your
+  feet touch it (a Bulldog's wreck) doesn't block you: the feet ignore
+  dead units.
+
 From the gait, the controls, the ground probes, the jump jets and the falls
 (details: `movement.md` and the `movement-*.md` files). The ones marked
 "code reading" have not been run in the emulator yet.

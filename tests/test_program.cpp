@@ -1,3 +1,4 @@
+#include "mech3/veh_controls.h"
 #include <array>
 #include <set>
 // The program's pieces that run without a window (docs/program.md): the
@@ -8140,7 +8141,8 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
     // He heads for it and stops at his reach of an enemy, as for any (exact:
     // the run repeats with reset_process_state's fixed seed).
     EXPECT(seen.follows_marker == 902 && std::fabs(seen.d0 - 199.349f) < 1e-3f);
-    EXPECT(std::fabs(seen.closest - 120.729f) < 1e-3f);
+    // 120.879 since the AI's wall reverse (0x004231c0, 2026-10-29): 120.729 before.
+    EXPECT(std::fabs(seen.closest - 120.879f) < 1e-3f);
     EXPECT(seen.marker_cast == 1);
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -8679,10 +8681,12 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // the skis' quads draw their rand()s (0x00477730, as the exe's) he turns
     // from ghsD2 to ghsD3 within 2 s; since the puffers tick (their rand()s,
     // 0x005490e0, hooks-audit.md) his hits bring it from 30 to 0 in the 40 s.
+    // Since the AI's wall reverse (0x004231c0, movement-collision.md) he backs
+    // off what he walks into: fewer contacts, longer aiming.
     std::printf("  dominic's target: contacts %d, first %s, on target %d, aiming %d, firing %d, health %.5f\n",
                 seen.target_contacts, seen.first_target.c_str(), seen.on_target, seen.aiming, seen.firing, seen.health);
-    EXPECT(seen.hut != 0 && seen.target_contacts == 2979 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 1062 && seen.aiming == 68 && seen.firing == 901);
+    EXPECT(seen.hut != 0 && seen.target_contacts == 2163 && seen.first_target == "ghsD2");
+    EXPECT(seen.on_target == 1062 && seen.aiming == 96 && seen.firing == 841);
     EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 0.0f) < 1e-3f);
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -9002,9 +9006,9 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
                   seen.targeted, seen.on_enemy, seen.aiming, seen.firing, seen.follows, seen.follows_player,
                   seen.enemy_contacts, seen.moved, seen.closest);
       // (The puffers' rand()s since they tick: hooks-audit.md.)
-      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 44 && seen.firing == 657);
+      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 43 && seen.firing == 658);
       EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-      EXPECT(std::fabs(seen.moved - 70.4463f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      EXPECT(std::fabs(seen.moved - 69.1506f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -10980,9 +10984,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
                         "0x00495f90", "0x0049bd80", "0x00414370", "0x0043bb50", "0x0046ef70",
-                        "0x0046f160", "0x00476550", "CollideCalls.ai_reverses",
-                        "CollideCalls.entity_dead", "CollideCalls.entity_target",
-                        "WeaponCalls.net_event", "0x00413af0"}) {
+                        "0x0046f160", "WeaponCalls.net_event", "0x00413af0"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10991,7 +10993,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 59);
+  EXPECT(n == 55);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
@@ -12181,6 +12183,144 @@ TEST(mission_c1m2_static_light_baked_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+}
+
+// A mech walking into another entity (mech_collide.cpp; 0x004237c0, 0x00423a20,
+// 0x004231c0): the player, 25 m off and facing it, at full throttle. kind 0 a
+// live vehicle (damaged by the speed and shoved), 1 an enemy mech (both take
+// a share, the player is stopped), 2 a wreck (a killed vehicle: still in the
+// way, nothing to damage).
+struct BumpSeen {
+  float closest = 1e9f, health0 = 0, health1 = 0, shove = 0, armor0 = 0, armor1 = 0, other_armor0 = 0, other_armor1 = 0;
+  int blocked = 0, frames = 0;
+  bool placed = false, killed = false;
+};
+static BumpSeen bump_run(int kind) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_bump"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  BumpSeen seen;
+  int core = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void* target = nullptr;
+    float tpos[3] = {}, held[3] = {};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      void* player = mech3::mech_mission_player();
+      if (!player) return;
+      float pp[3], f[3];
+      mech3::mech_world_position(player, pp);
+      if (core == 60) {
+        mech3::mech_forward(player, f);
+        const float at[3] = {pp[0] + f[0] * 25.0f, pp[1], pp[2] + f[2] * 25.0f};
+        if (kind == 1) {
+          for (const uint32_t h : mech3::ai::entity_list()) {
+            void* o = engine.object_of(h);
+            if (mech3::entity_is_mech(o) && o != player) { target = o; break; }
+          }
+          if (target) mech3::move_mech(target, at, std::atan2(f[0], f[2]));
+        } else {
+          for (void* v : mech3::program_vehicles()) {
+            mech3::VehicleSummary vs;
+            if (mech3::describe_vehicle(v, &vs) && vs.in_world && !vs.field_base) { target = v; break; }
+          }
+          if (target) {
+            mech3::program_vehicle_place(target, at, 0.0f);
+            if (kind == 2) seen.killed = mech3::program_vehicle_kill(target, player, "GaussRifle");
+            std::memcpy(held, at, 12);
+          }
+        }
+        seen.placed = target != nullptr;
+        mech3::LaunchedMech lm;
+        if (mech3::describe_mech(player, &lm)) seen.armor0 = lm.armor;
+        if (target && kind == 1 && mech3::describe_mech(target, &lm)) seen.other_armor0 = lm.armor;
+        if (target && kind != 1) seen.health0 = mech3::program_vehicle_health(target);
+      }
+      if (core <= 60 || !target) return;
+      mech3::mech_hold_throttle(player, 1.0f);
+      if (kind == 1) mech3::mech_world_position(target, tpos);
+      else {
+        mech3::VehicleSummary vs;
+        if (mech3::describe_vehicle(target, &vs)) std::memcpy(tpos, vs.pos, 12);
+      }
+      const float dx = tpos[0] - pp[0], dz = tpos[2] - pp[2];
+      seen.closest = std::min(seen.closest, std::sqrt(dx * dx + dz * dz));
+      mech3::LaunchedMech lm;
+      if (mech3::describe_mech(player, &lm)) {
+        seen.armor1 = lm.armor;
+        seen.blocked += lm.blocked[0] || lm.blocked[1];
+      }
+      if (kind == 1 && mech3::describe_mech(target, &lm)) seen.other_armor1 = lm.armor;
+      if (kind != 1) {
+        seen.health1 = mech3::program_vehicle_health(target);
+        // Held where it was put (its AI would drive it off): the shove read
+        // first, as the frame left it.
+        if (auto* c = static_cast<mech3::VehicleControls*>(mech3::program_vehicle_controls(target)))
+          seen.shove = std::max(seen.shove, std::sqrt(c->velocity.x * c->velocity.x + c->velocity.z * c->velocity.z));
+        if (kind == 0) mech3::program_vehicle_place(target, held, 0.0f);
+      }
+      ++seen.frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return core >= 60 + 240; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return seen;
+}
+
+TEST(mission_c1m2_a_mech_bumps_a_vehicle_a_mech_and_a_wreck_headless) {
+  if (!have_game()) return;
+  const char* names[] = {"a vehicle", "an enemy mech", "a wreck"};
+  for (int kind = 0; kind < 3; ++kind) {
+    const BumpSeen s = bump_run(kind);
+    std::printf("  into %s: closest %.1f m over %d frames, blocked %d frames; its health %.3f -> %.3f, its armour %.3f -> %.3f; "
+                "the player's armour %.3f -> %.3f; its speed at most %.2f%s\n",
+                names[kind], s.closest, s.frames, s.blocked, s.health0, s.health1, s.other_armor0, s.other_armor1, s.armor0,
+                s.armor1, s.shove, kind == 2 ? (s.killed ? " (killed first)" : " (NOT killed)") : "");
+    EXPECT(s.placed && s.frames > 200);
+    if (kind == 0) EXPECT(s.closest > 3.0f && s.blocked > 0 && s.health1 < s.health0 && s.shove > 0.0f);
+    if (kind == 1) EXPECT(s.closest > 3.0f && s.blocked > 0 && s.armor1 < s.armor0 && s.other_armor1 < s.other_armor0);
+    // Only the feet meet a Bulldog's wreck, and a dead unit's foot hits are
+    // skipped (0x004237c0): the mech walks over it, as in the exe.
+    if (kind == 2) EXPECT(s.killed && s.closest < 2.0f && s.blocked == 0);
+  }
+  // A wall's reverse (0x004231c0) asks the controls' IControls vt+0x70: the
+  // AI's yes (0x004e7790), the player's and the base's no (0x0040bae0).
+  EXPECT(!mech3::MechControls().on_path() && mech3::AiControls().on_path());
 }
 
 TEST(mission_c1m2_destroy_objectives_met_by_mech_kills_headless) {

@@ -251,6 +251,11 @@ bool program_view_look(int32_t* look) {
   return true;
 }
 void* program_view_target() { return g_view ? g_view->target : nullptr; }
+const uint8_t* program_view_camera_zones() {
+  const zcls::Node* c = g_view ? zn(g_view->camera) : nullptr;
+  if (!c || !c->data || c->cls() != 1) return nullptr;
+  return static_cast<const zcls::Camera*>(c->data)->raw + 0x1e4;
+}
 
 bool program_view_positions(float camera[3], float torso[3]) {
   if (!g_view || !g_view->target || !g_view->target->torso) return false;

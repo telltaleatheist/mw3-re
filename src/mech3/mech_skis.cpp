@@ -365,11 +365,23 @@ bool Skis::update(float dt) {
   m.vec_3c.y = body_vy;
   if (down[0] && down[1] && !air)
     for (float& x : vy) x = kStopOnGround ? 0.0f : body_vy;
-  if (g_calls.zone) g_calls.zone(contact[6].zone);
+  zone_update(contact[6].zone);
   if (m.impulse.y > 0.0f) return true;
   const float c6 = clearance[6];
   if (c6 < kOnGround && c6 > -kOnGround) return false;
   return !down[0] && !down[1];
+}
+
+// Mech3.exe 1.2 @ 0x00476550: the mech's zone record from the centre probe's
+// polygon. The id it is drawn under is the first of the record's the camera
+// can see, else the record's first (docs/movement-ground.md, The zone record).
+void Skis::zone_update(const uint8_t record[4]) {
+  if (!mech || !g_calls.set_zone) return;
+  static const uint8_t kNone[4] = {0, 0xff, 0xff, 0xff};
+  const uint8_t* cam = g_calls.camera_zones ? g_calls.camera_zones() : nullptr;
+  int32_t id = zmod::zone_common(cam ? cam : kNone, record);  // 0x0053cd20 (ECX the camera's, EDX the record)
+  if (id == -1) id = record[1];
+  g_calls.set_zone(*mech, record, static_cast<uint8_t>(id));
 }
 
 // Mech3.exe 1.2 @ 0x00476320: the skis a half track apart, `length` long,

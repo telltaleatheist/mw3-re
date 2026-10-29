@@ -167,9 +167,6 @@ DamageCalls.anim_speed	fallback: unset runs the port (0x0041ef90; test hook, uns
 DamageCalls.gait_speed	fallback: unset runs the port (0x004329c0 on +0x684 with +0x4a0; test hook, unset runs scale_gaits)
 CollideCalls.segments	fallback: unset runs the port
 CollideCalls.node_intersect	fallback: unset runs the port (0x004eb6d0; unset: the zcls node's flag 0x10)
-CollideCalls.entity_team	deferred: read with the entity collisions behind CollideCalls.entity_body (a census stand-in); 0 is no team
-CollideCalls.body_mass	deferred: a body only through CollideCalls.entity_body (a census stand-in, unwired)
-CollideCalls.entity_matrix	deferred: a body only through CollideCalls.entity_body (a census stand-in, unwired)
 CollideCalls.net_shove	fallback: unset runs the port (0x00470320)
 CollideCalls.crouch	fallback: unset runs the port (test hook (0x004622a0): unset runs Hip::duck)
 CommandCalls.own	fallback: unset runs the port

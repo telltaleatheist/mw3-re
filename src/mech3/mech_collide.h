@@ -74,8 +74,8 @@ struct CollideCalls {
   uint32_t (*entity_team)(Handle e) = nullptr;               // vt +0xf4, its vt +0x28, +0xc0 (0: none)
   int32_t (*entity_damage)(Handle target, float damage) = nullptr;  // vt +0x160(0, 0, damage): killed
   float* (*body_velocity)(Handle body) = nullptr;            // +0x64
-  float* (*body_spin)(Handle body) = nullptr;                // +0x70
-  float (*body_mass)(Handle body) = nullptr;                 // +0x9b0
+  float* (*body_spin)(Handle body) = nullptr;                // +0x70  the vehicle controls' local velocity
+  float (*body_mass)(Handle body) = nullptr;                 // +0x9b0  the motion block's inverse mass
   const float* (*entity_matrix)(Handle e) = nullptr;         // e +0x0c
   // Another mech.
   bool (*remote)(Mech& other) = nullptr;                     // vt +0x58
