@@ -3553,3 +3553,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   mission file sets the player's loadout to `training1`: six pieces of
   equipment and no weapons. The lesson starts with powering up and
   walking. (docs/mission-plan.md, item 21)
+
+- **The game ships bitmap fonts it never uses.** fonts.zrd lists bitmap
+  fonts (images of the 95 printable characters), and the game loads them
+  at start-up. Every text you see is drawn with Windows fonts instead
+  (Arial, Impact, Lucida Console), including the HUD's: the code that would
+  draw the bitmap fonts is in the game but nothing reaches it.
+  (docs/twod.md, section 4)
+

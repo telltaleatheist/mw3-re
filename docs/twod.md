@@ -220,7 +220,19 @@ Three layers:
 
 - **TextBase** (0x005a2da0): 0x200 characters at +0x34 drawn with a zFont
   bitmap font (fonts.zrd; measure 0x0051a0d0, draw 0x005ae170), optionally
-  centred between +0x23c and +0x240. The HUD's text.
+  centred between +0x23c and +0x240. Never drawn in 1.2 (checked
+  2026-10-28):
+  - TextBase's vtable 0x005cfed8 is stored only by its constructors
+    0x005a2da0 / 0x005a2e30, whose only callers are FontText's constructor
+    and copy (0x005a00f2, 0x005a0225), which then store FontText's.
+  - FontText overrides the two virtual users, the draw vt+0x04 0x005a3080
+    and vt+0x5c 0x005a30f0.
+  - The other users have no caller and no data reference: 0x005a3040, and
+    0x005ae240 (the font lookup 0x00519df0's third caller).
+  So zFont's reader 0x00519e50 (from zImage's start, 0x00516ef6) loads the
+  fonts and nothing draws or measures with them. Every text a player sees,
+  the HUD's included, is FontText's (below), which the SDL host's TTF faces
+  stand in for.
 - **FontText** (twod_wintext.cpp): a Windows font (`CreateFontA`, or a
   fonts.zrd font by name, 0x00517680, whose GDI font zImage makes) rendered
   by GDI into a 16-bit image (+0x248), blitted. render (0x005a0790): the
@@ -662,9 +674,9 @@ Mapped, not ported:
   the 8-bit blit 0x0055b250, the message lookup 0x00575fb0. Done: the
   message lookup (zutl_msg.cpp); the image cache, named fonts, zVideo's lock
   and grabs stand in on the SDL host and GameEngine (FIX (A), not ports).
-  Open: zFont (0x00519e50, the reader; TextBase's measure 0x0051a0d0 and
-  draw 0x005ae170: the next item), the DirectDraw path and the 8-bit blit
-  (software only).
+  Open: the DirectDraw path and the 8-bit blit (software only). zFont
+  (0x00519e50, 0x0051a0d0, 0x005ae170) is not to port: it loads fonts
+  nothing draws (section 4).
 - The front end's `ztwod::Host` on SDL3 is done (`SdlTwodHost`,
   program.md: TTF text into the 16-bit image, the 16-bit target presented,
   mouse from SDL; `mw3 --dialog dialog.zrd MAINMENU` shows a dialog).
