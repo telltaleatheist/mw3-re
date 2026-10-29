@@ -15,7 +15,9 @@ class Mech3App;
 // and CONTINUE, then the next briefing. Each briefing and debriefing is shot
 // to DIR/chain_<n>_<what>.bmp, each step printed as "mw3: chain ...". It
 // ends at the briefing after `wins` missions won (the game saved at each
-// debriefing), or back at the main menu after the campaign's end.
+// debriefing), or after the campaign's end: the win movie, the main menu
+// pressing its credits, CANCEL there, and the main menu's NEW CAMPAIGN
+// reaching the pilot screen again. Every state entered is printed.
 namespace sdlfe {
 
 class SdlRender3D;
@@ -30,6 +32,7 @@ class CampaignChain {
  public:
   CampaignChain(mech3::GameEngine& e, mech3::Mech3App& app, SdlRender3D* render, ChainOptions o)
       : e_(e), app_(app), render_(render), o_(std::move(o)) {}
+  ~CampaignChain();
   void frame();  // each frame shown
   bool done() const { return done_; }
 
@@ -47,6 +50,12 @@ class CampaignChain {
   // This briefing's steps: 0 loading, 1 shot, 2 lab done, 3 salvage done, 4 launched.
   int brief_step_ = 0, wait_ = 0;
   bool pilot_done_ = false;
+  // The campaign's end: every state the app enters, printed as it is entered
+  // (one that lasts a frame too), the credits entered, then the main menu.
+  void on_state(const void* s);
+  bool hooked_ = false, after_credits_ = false;
+  int frames_ = 0, credits_entered_ = 0;
+  const void* logged_state_ = nullptr;
   std::string launched_;  // the mission LAUNCH started
   std::string shot_path_;  // the shot asked for, alive until it is written
 };

@@ -1432,3 +1432,15 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - The store's 10 units at c4m2 are the real clock (both runs lost them
   once). The test compares the briefings without the unit totals.
 
+
+## The campaign's end (2026-10-29)
+
+- Branch mac4/campaign-end (off main be2040e).
+- zgame::App::on_state_change (ours): called after each run_command; the
+  chain prints "mw3: chain state X (frame N, credits flag F)" for each
+  state entered.
+- After c4bm6: Win Movie, Main, Credits in one frame (no movie yet);
+  credits entered once; the chain presses CANCEL at 120 frames, then
+  NEW CAMPAIGN at the main menu; done at the Pilot State.
+- sdl_program_campaign_chain checks the sequence on the whole and the
+  resumed run (campaign.md section 13).

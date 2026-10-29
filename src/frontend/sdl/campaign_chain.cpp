@@ -7,6 +7,7 @@
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
+#include "mech3/credits.h"
 #include "mech3/debriefing.h"
 #include "mech3/lab_screen.h"
 #include "mech3/mainmenu.h"
@@ -110,20 +111,45 @@ void CampaignChain::briefing() {
   }
 }
 
+CampaignChain::~CampaignChain() {
+  if (hooked_) app_.on_state_change = nullptr;
+}
+
+void CampaignChain::on_state(const void* s) {
+  if (s == logged_state_) return;
+  logged_state_ = s;
+  const auto* ms = static_cast<const mech3::State*>(s);
+  if (dynamic_cast<const mech3::CreditsState*>(ms)) ++credits_entered_;
+  std::printf("mw3: chain state %s (frame %d, credits flag %d)\n", ms ? ms->name() : "none", frames_,
+              app_.reopen_credits());
+}
+
 void CampaignChain::frame() {
   if (done_) return;
+  if (!hooked_) {
+    hooked_ = true;
+    app_.on_state_change = [this](const zgame::State* s) { on_state(s); };
+    on_state(app_.current());
+  }
+  ++frames_;
   mech3::States& st = mech3::states();
   const zgame::State* now = app_.current();
   if (now != last_state_) last_state_ = now, frames_in_state_ = 0;
   ++frames_in_state_;
   if (now == &st.main && mech3::main_menu() && frames_in_state_ == 30) {
-    if (wins_ > 0) {  // back at the main menu after the campaign's end
-      std::printf("mw3: chain main menu after %d wins\n", wins_);
+    if (wins_ > 0 && !after_credits_) {  // the main menu's enter should have pressed CREDITS
+      std::printf("mw3: chain main menu after %d wins without the credits\n", wins_);
       done_ = true;
       return;
     }
+    if (after_credits_) std::printf("mw3: chain main menu after the credits: NEW CAMPAIGN\n");
     mech3::main_menu()->buttons[1].on_left_up();  // NEW CAMPAIGN
   } else if (auto* ps = dynamic_cast<mech3::PilotState*>(app_.current())) {
+    if (after_credits_) {  // the main menu works after the campaign's end
+      std::printf("mw3: chain pilot screen again after the credits (credits entered %d)\n", credits_entered_);
+      done_ = true;
+      return;
+    }
     if (!ps->screen || pilot_done_ || frames_in_state_ < 20 || !app_.pending_list().empty()) return;
     if (o_.resume) {
       // The write dir's pilot; the screen then chooses its newest game
@@ -190,9 +216,12 @@ void CampaignChain::frame() {
         brief_step_ = 4;  // the next Load state is a new briefing
       }
     }
-  } else if (dynamic_cast<const mech3::CreditsState*>(now) && wins_ > 0 && frames_in_state_ == 30) {  // the campaign's end
-    std::printf("mw3: chain credits after %d wins\n", wins_);
-    done_ = true;
+  } else if (auto* cs = dynamic_cast<const mech3::CreditsState*>(now);
+             cs && wins_ > 0 && frames_in_state_ == 120) {  // the campaign's end
+    auto* scr = dynamic_cast<mech3::CreditsScreen*>(e_.screen_of(cs->screen_));
+    std::printf("mw3: chain credits after %d wins (entered %d): CANCEL\n", wins_, credits_entered_);
+    if (scr) scr->cancel.on_left_up();
+    after_credits_ = true;
   } else if (frames_in_state_ == 3000) {
     const auto* ms = dynamic_cast<const mech3::State*>(now);
     std::printf("mw3: chain stuck in %s\n", ms ? ms->name() : "?");

@@ -806,8 +806,8 @@ minutes) runs:
 Every briefing reads the same either way, but for ammunition counts the
 real clock decides (10 rounds of weapon 17's, spent in c4m2 or not). The
 resume starts at Op 2 Mission 1, with the store and the lance it ended on.
-Each run's census is 0 outside the known table, both end at the credits,
-and all 81 shots are lit.
+Each run's census is 0 outside the known table, both end through the
+credits back to a main menu that works (below), and all 81 shots are lit.
 
 Seen on the way:
 - **The lance**, as the missions' aiv.zrd give it: Dominic (mech 13) from
@@ -816,10 +816,23 @@ Seen on the way:
 - **Salvage**: a mission won by Exit Mission alone (no kills) leaves none.
   Only Op 1's end gives some: c1m4's salvage, 8 items with a mech, the one
   Dominic's slot takes at c2m1's briefing.
-- **Op 4** runs c4m1..c4m3 into c4bm4..c4bm6 with no branch; after the last
-  debriefing the program's state log shows the Credits State next (the Win
-  Movie State, with no movie imported, and the main menu between them are
-  not in the log: not checked further).
+- **Op 4** runs c4m1..c4m3 into c4bm4..c4bm6 with no branch.
+- **The campaign's end** (2026-10-29). The chain prints every state as the
+  app enters it (`zgame::App::on_state_change`, ours, called after each
+  command `run_command` applies, so a state that lasts one frame shows).
+  After c4bm6's CONTINUE, all in one frame: the Win Movie State
+  (0x0047a960); with no movie played yet (the movies are not ported,
+  `movie_playing` answers no) its first update (0x0047aa50) sets the main
+  menu's credits flag (+0x1c6) and replaces itself with Main; Main's enter
+  (0x00486990) clears the flag and presses CREDITS; the Credits State.
+  Credits are entered once. They scroll round until CANCEL (0x00428c60,
+  the state's Escape), which pops back to Main; Main's NEW CAMPAIGN then
+  reaches the Campaign and Pilot states again, so the menu works after the
+  end. The flag itself is set and cleared between two prints (it reads 0
+  at each); that it was set shows in Credits being entered with no press
+  of ours. `sdl_program_campaign_chain` checks this sequence on both the
+  whole run and the resumed one. Once the movies are ported the Win Movie
+  State lasts c4win's length; the sequence stays.
 
 A port bug the chain found (fixed). In one session, the briefing after a
 mission fitted the lance (0x00408c30 from set_loaded) before the mission

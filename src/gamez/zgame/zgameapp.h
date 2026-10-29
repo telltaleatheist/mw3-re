@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <cstdint>
 #include <deque>
 
@@ -50,6 +51,9 @@ class AppHooks : public Unported {
 
 class App {
  public:
+  // Ours, for checks (the campaign chain): after each state command run,
+  // the state then current, however briefly it stays.
+  std::function<void(const State*)> on_state_change;
   static constexpr int kMaxDepth = 16;
 
   explicit App(AppHooks* hooks = nullptr);                 // 0x0058fcd0 (the zGameApp part)
