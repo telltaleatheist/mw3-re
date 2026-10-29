@@ -498,6 +498,13 @@ bool canvas_scaled() {
   const Rect& dr = g_options.display;
   return zfix::options().any_resolution && dr.w > 0 && dr.h > 0 && (dr.w != rr.w || dr.h != rr.h);
 }
+void render_point_to_canvas(float* x, float* y) {
+  if (!canvas_scaled()) return;
+  const Rect& rr = g_options.render;
+  const Rect& dr = g_options.display;
+  *x = *x * static_cast<float>(dr.w) / static_cast<float>(rr.w);
+  *y = *y * static_cast<float>(dr.h) / static_cast<float>(rr.h);
+}
 void canvas_point_to_render(float* x, float* y) {
   if (!canvas_scaled()) return;
   const Rect& rr = g_options.render;

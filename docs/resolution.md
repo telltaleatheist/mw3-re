@@ -285,6 +285,25 @@ the display (`HudHooks::window_rect`). The 3D's viewport is the frame and
 the 2D layer's the canvas (`GameEngine::screen_size`). The window takes the
 frame (step 2), and the cursor is in canvas pixels (`FrameShape::canvas_w`).
 
+**Projected points (the audit, after the lead's review).** Every 2D piece
+placed from a 3D projection (0x0053cf10), and how it reaches the canvas:
+
+| Piece | Projection | On the canvas by |
+|---|---|---|
+| TARGET's bracket, its size and lead mark (0x00440b00) | the player's view | 0x0040da30, as the exe |
+| TARGET's radar line to the target (0x00440b00..) | the player's view, or the zoom window's | 0x0040da30, as the exe |
+| TARGET's bracket while the zoom window is up | the zoom camera, in the zoom window's frame pixels | FIX (B) `render_point_to_canvas`; the exe maps nothing |
+| The waypoint arrows (0x00479ef0, `hud_navarrow_*`) | the player's view | FIX (B) `render_point_to_canvas`; the exe maps nothing, as at mode 3 |
+| The pocket panel's markers and lines (0x00469d00..) | the player's view | 0x0040da30, as the exe |
+| The reticle | not projected: the display's centre and the look offset; its ray goes out through 0x0040d9e0 | as the exe |
+| The radar's contacts, the compass, the torso marker | not projected: world positions and angles on the radar and the tape | |
+
+The waypoint arrow had been placed in frame pixels on the canvas: at 0.91
+of the height at 1080p, and in the bottom corner at 4K, against 0.47 at
+640x480. `mission_c1m1_hud_anchored_at_any_size_headless` checks its share
+of the height at modes 13 and 15 against mode 5's (0.444 against 0.446).
+Without the mapping it reads 0.891 and 1.000.
+
 **The layout.** hud.md section 5's anchors on V640x480, at the canvas's
 size. At 960x540 the right-anchored pieces move 320 and the bottom-anchored
 60: the MFD at 850, 430, the weapons at 850, 30, the compass at 405.

@@ -1365,4 +1365,9 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   set-up never read hud.zrd, at any mode.
 - The panels' quads and the views' depth clears are canvas pixels drawn in
   the 3D pass: mapped onto the frame.
+- Review (the lead): the waypoint arrow was on the frame's scale. Every
+  0x0053cf10 projection is now audited (resolution.md section 8's table).
+  Two had no 0x0040da30 in the exe: the arrow, and TARGET through the zoom
+  window. Both are mapped. The headless arrow read takes frame 5; the
+  pump's 400 passes end before frame 30.
 

@@ -3012,9 +3012,11 @@ void HudTarget::triangle(int32_t team, float dt, bool zoomed) {
   float a[3];
   h.project(centre, a);
   if (!zoomed) render_to_screen(a);
+  else render_point_to_canvas(&a[0], &a[1]);  // FIX (B): the zoom window's frame pixels onto the canvas
   float top[3] = {centre[0], size + centre[1], centre[2]};
   h.project(top, top);
   if (!zoomed) render_to_screen(top);
+  else render_point_to_canvas(&top[0], &top[1]);
   size = std::fabs(top[1] - a[1]);
   if (x240c > 0.0f) {
     const float k = x240c * 3.3333333f;  // [0x005c010c]
@@ -3027,6 +3029,7 @@ void HudTarget::triangle(int32_t team, float dt, bool zoomed) {
   h.entity_position(h.contact_entity(contact), pos);
   h.project(pos, a);
   if (!zoomed) render_to_screen(a);
+  else render_point_to_canvas(&a[0], &a[1]);
   shape1.show_for(-1.0f);
   shape1.set_translation(a);
   shape1.set_scale(size * 1.1547010f);  // [0x005c0110]

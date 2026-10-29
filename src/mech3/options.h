@@ -250,6 +250,10 @@ bool vmode_canvas(int32_t mode, int32_t* w, int32_t* h);
 bool canvas_scaled();  // the display (2D) smaller than the render (3D) rect, the fix on
 void canvas_to_render(int32_t* x, int32_t* y, int32_t* w, int32_t* h);
 void canvas_point_to_render(float* x, float* y);
+// A projected point (frame pixels) onto the canvas, unclamped: for the 2D
+// pieces the exe places from 0x0053cf10 without 0x0040da30 (the waypoint
+// arrow; TARGET through the zoom window), which then sit on the frame's scale.
+void render_point_to_canvas(float* x, float* y);
 int32_t vmode();                            // 0x0040d9d0
 void set_sound_frequency(float v);             // 0x0040da80
 float sound_frequency();                       // 0x0040daa0

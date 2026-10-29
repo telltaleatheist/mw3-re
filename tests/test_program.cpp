@@ -12272,11 +12272,16 @@ TEST(mission_second_world_loads_headless) {
 // then the player's HUD read. At 5 its pieces sit where V640x480 puts them,
 // the fix on as off; at 13 and 15 (the 960x540 canvas) right-anchored pieces
 // move by 320, bottom-anchored by 60, the compass by 160.
+namespace mech3 {
+bool waynet_arrow_place(int32_t* x, int32_t* y);  // mech_waynet.h, not includable here (its Handle)
+}
 namespace {
 struct HudPlaces {
   int32_t display_w = 0, display_h = 0, render_w = 0;
   int32_t mfd[2] = {}, target[2] = {}, weapons[2] = {}, tape[2] = {}, timer[2] = {}, speed[2] = {}, heat[2] = {};
   bool seen = false;
+  int32_t arrow[2] = {};  // the waypoint arrow (projected from the 3D view)
+  bool arrow_shown = false;
 };
 HudPlaces c1m1_hud_places(int32_t mode, bool fix) {
   HudPlaces out;
@@ -12312,7 +12317,9 @@ HudPlaces c1m1_hud_places(int32_t mode, bool fix) {
     app.post_intro_ = &mech3::states().load;
     int frames = 0;
     engine.on_present = [&](int) {
-      if (app.current() != &mech3::states().core || ++frames != 5) return;
+      if (app.current() != &mech3::states().core) return;
+      if (++frames != 5) return;
+      out.arrow_shown = mech3::waynet_arrow_place(&out.arrow[0], &out.arrow[1]);
       auto* h = static_cast<mech3::Hud*>(mech3::program_mech_hud(mech3::mech_mission_player()));
       if (!h) return;
       out.seen = true;
@@ -12353,8 +12360,16 @@ TEST(mission_c1m1_hud_anchored_at_any_size_headless) {
     EXPECT(at(v.mfd, 530, 370) && at(v.target, 10, 370) && at(v.weapons, 530, 30) && at(v.tape, 245, 19) &&
            at(v.timer, 580, 15) && at(v.speed, 575, 256) && at(v.heat, 18, 163));
   }
+  // The waypoint arrow, projected from the 3D view (0x0053cf10): at the same
+  // share of the screen's height at every size (on the right edge at the start).
+  const HudPlaces v5 = c1m1_hud_places(5, true);
+  EXPECT(v5.arrow_shown && v5.arrow[1] > 0);
   for (const int32_t mode : {13, 15}) {  // the 960x540 canvas over 1920x1080 and 3840x2160
     const HudPlaces v = c1m1_hud_places(mode, true);
+    const double f5 = v5.arrow[1] / 480.0, f = v.arrow[1] / static_cast<double>(v.display_h);
+    std::printf("waypoint arrow at mode %d: %d %d on %dx%d (%.3f of the height; %.3f at 640x480)\n", mode, v.arrow[0],
+                v.arrow[1], v.display_w, v.display_h, f, f5);
+    EXPECT(v.arrow_shown && std::fabs(f - f5) < 0.01);
     std::printf("hud at mode %d: canvas %dx%d over %d wide; MFD %d %d, TARGET %d %d, weapons %d %d, compass %d %d, "
                 "timer %d %d, speed %d %d\n", mode, v.display_w, v.display_h, v.render_w, v.mfd[0], v.mfd[1],
                 v.target[0], v.target[1], v.weapons[0], v.weapons[1], v.tape[0], v.tape[1], v.timer[0], v.timer[1],
