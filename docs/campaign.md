@@ -904,9 +904,8 @@ beyond the kills:
   The program now wires these to the ports (app_mission.cpp,
   `wire_anim_run`). The events without a port send their address to the
   census: the "if" event's ray (0x00507220), events 3, 16, 20, 21, 37 and
-  38, and 36, the screen tint. 36 is reached in c1m2, c1m4 and c4bm5, and
-  is in the known table as deferred: its colour goes to the weather
-  manager [0x00736328] +0x60/+0x68, whose draw is not ported.
+  38. 36, the screen tint, reached in c1m2, c1m4 and c4bm5, is ported
+  since (anim-run.md, The screen tint).
 - **`--frame-ms N`** (ours): each pass of the app's loop is N ms on the
   game's clock, however fast it is drawn. The timing is then the same each
   run (rand is still seeded from the time of day, as the exe does, so the

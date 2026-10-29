@@ -2004,10 +2004,9 @@ struct WiredMissionHooks : MissionHooks {
     r.remove_child = [](void*, zeff::AnimDef*, uint8_t*) {
       if (GameEngine* g = engine_of_hooks()) g->unported("0x004ebb40", {});
     };
-    r.fbfx_color = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
-      if (GameEngine* g = engine_of_hooks()) g->unported("0x005074b0", {});
-      return 2;
-    };
+    // Event 36's tint to the weather manager's (0x005a6730), drawn by its
+    // next update (anim-run.md, The screen tint).
+    r.screen_tint = [](void*, uint16_t colour, double alpha) { ztwod::weather_tint(colour, alpha); };
     r.fbfx_wave = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
       if (GameEngine* g = engine_of_hooks()) g->unported("0x005076c0", {});
       return 2;

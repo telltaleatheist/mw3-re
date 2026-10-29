@@ -39,20 +39,39 @@ struct WeatherStreak {
   int32_t shown = 0;                       // +0x1c  1 once set (the draw's 1-pixel offset)
 };
 
+// What the weather manager's objects share (ours; the exe shares the code):
+// a draw 0x005a5360 that calls +0x7c once for each of the manager's rects,
+// with +0x34 pointing at that rect.
+class ManagerObject : public Object2D {
+ public:
+  using Object2D::Object2D;
+  void draw() override;                 // +0x04  0x005a5360
+  virtual void draw_in_rect() = 0;      // +0x7c
+  const Rect* rect = nullptr;           // +0x34  the rect drawn into (the manager's)
+};
+
+// The screen tint (vtable 0x005d0290, 0x48 bytes): the manager's +0x28,
+// hidden; the animations' event 36 shows it for a frame (0x005a6620).
+class ScreenTint : public ManagerObject {
+ public:
+  ScreenTint() : ManagerObject(0, 0) {}  // 0x0059fda0(0, 0), +0x34 0
+  void draw_in_rect() override;          // +0x7c  0x005a53c0
+  uint16_t colour = 0;                   // +0x38  display-packed
+  double alpha = 0;                      // +0x40
+};
+
 // The base (vtable 0x005d0528, 0x98 bytes).
-class Weather : public Object2D {
+class Weather : public ManagerObject {
  public:
   explicit Weather(int32_t particles);  // 0x005a5470
   ~Weather() override;                  // 0x005a5640
-  void draw() override;                 // +0x04  0x005a5360: the particles once per manager rect
-  virtual void draw_particles();        // +0x7c  0x005a57d0
+  void draw_in_rect() override;         // +0x7c  0x005a57d0: the particles
   void reset(int32_t i);                // 0x005a56e0: a fresh random place, both buffers
   // The shared start of the updates: false without a camera.
   bool motion(float dt, WeatherClock& clock, WeatherMotion& out);
   // A particle's streak from its current place (the head) and the tail.
   void project(int32_t i, const WeatherMotion& m, float& k_head);
 
-  const Rect* rect = nullptr;            // +0x34  the rect drawn into (the manager's)
   std::vector<WeatherStreak> streaks;    // +0x38
   int32_t capacity = 0;                  // +0x3c
   int32_t count = 0;                     // +0x40
@@ -92,12 +111,15 @@ class Snow : public Weather {
 };
 
 // The weather manager [0x00736328]: a Layer with two rects (+0x10, +0x14),
-// set each frame (0x005a6790), and the 2D text target (+0x18, zvid's).
+// set each frame (0x005a6790), the 2D text target (+0x18, zvid's) and the
+// screen tint (+0x28). Its five texts (+0x70) are not ported.
 struct WeatherLayer : Layer {
-  WeatherLayer() { set_active(1); }  // 0x005a4590's vt+0x04(1), at static init
+  WeatherLayer();  // 0x005a4590, at static init
   const Rect* rects[2] = {};
+  ScreenTint tint;
 };
 WeatherLayer& weather_layer();
+void weather_tint(uint16_t colour, double alpha);  // 0x005a6730 -> 0x005a6620
 void weather_rect(int32_t i, const Rect* r);  // 0x005a6790 -> 0x005a66b0: i < 2 only
 void weather_tick(float dt);                  // 0x005a67c0 -> 0x005a6600: the layer's update
 

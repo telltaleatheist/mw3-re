@@ -119,7 +119,8 @@ def's own node.
 | 30 loop | 0x506f60 | a count (-1 for ever) or a total time; else the sequence restarts. The anim clock is held under a day (86400 s) |
 | 31..34 if, else, elseif, endif | 0x507010, 0x5073b0, 0x5073e0 | random, hardware, block +0x3c, player distance, the ground under the player or a node (a ray, 0x507220), heights, the level (0x508fb0) |
 | 35 callback | 0x507410 | the def's callback hears +0x0c |
-| 36, 37 fbfx | 0x5074b0, 0x5076c0 | screen colour and wave (the 2D layer); hooked |
+| 36 fbfx colour | 0x5074b0 | the screen tint (below), ported |
+| 37 fbfx wave | 0x5076c0 | a screen wave (the 2D layer); hooked |
 | 38 | 0x507970 | a message (the 2D layer); hooked |
 | 39, 40 | 0x507960 | nothing |
 | 41 detonate | 0x507430 | the weapon named +0x0c goes off at +0x18 in node +0x16's frame; hooked |
@@ -161,6 +162,48 @@ the world, a nameless def or a node outside the pool is never logged. The
 connector logger (0x50cde0) ignores the defaults. A network record goes to
 the hook [0x60c714] (null in single play); unsaved ones are dropped again.
 
+## The screen tint (event 36, 0x5074b0; ported 2026-10-29)
+
+The event (0x40 bytes) holds four channels from +0x0c, red, green, blue
+and alpha, each as start, end and rate (3 floats), and +0x3c the time it
+lasts. With t the sequence's time (+0x28):
+- each channel is start + rate x t, or its end once t reaches the
+  duration (the event then answers 2, done; else 1);
+- t past the duration is the time left for the next event (block +0x40);
+- each is cut to 0..1. Red, green and blue go to bytes (x 255 + 0.5,
+  truncated) packed in the display's format (0x579370); alpha stays a
+  double.
+
+The colour and alpha go to the weather manager's tint object (0x5a6730 ->
+0x5a6620): the manager [0x736328] holds it at +0x28 (vtable 0x5d0290,
+colour +0x60, alpha +0x68 on the manager). It is in the manager's list from
+the start, hidden; the event shows it for 0 s (vt+0x60). The manager's next
+update (the Direct3D frame's weather tick, after the anims have run) draws
+it once for each rect (0x5a5360, shared with the rain and snow) through
+0x5a53c0 -> 0x558540, the full-screen colour (render-tint.md), then hides
+it. In Direct3D that is the quad drawn in the next frame's scene, under the
+cockpit and the HUD.
+
+Who uses it: the weapons' animations (weapon-effects.md).
+- `impact_missle_mech` / `_ams`: white to orange, alpha 0.85 to 0 in 0.35 s.
+- `impact_ppc_mech`: white to blue.
+- `impact_narc_mech`: short orange pulses.
+- `rocket_puff_m2`..`m20` (a launcher firing): a white flash that builds
+  up and fades, longer for the bigger racks (0.3 + 0.6 s for m2, 1 + 2 s
+  for m20).
+
+The event itself does not check for the player, so a hit far away flashes
+the screen as well, unless the def's own range test stops it. That is not
+checked.
+
+Port: `zeff::anim_fbfx_color` (`AnimRunHooks.screen_tint` for 0x5a6730),
+`ztwod::ScreenTint` and `weather_tint`.
+- `test_screen_tint.py`: 2000 events against the exe, through the draw's
+  quad, at 24-bit precision.
+- test_anim_run.py runs 0x5074b0 for real, with 0x5a6730 traced, but its
+  360 frames reach no event 36 (the weapon animations run only on hits).
+- c1m2's missile hits flash (outbox, 2026-10-29).
+
 ## Hooks (`AnimRunHooks`)
 
 zSound's play calls, the ground hits (0x4edab0, `cls_di.c`), the "if" ray
@@ -171,8 +214,8 @@ silent and the rest were skipped without the census seeing them
 (campaign.md section 14). The program (app_mission.cpp, `wire_anim_run`)
 now runs the ports for the ground (`zcls::ground_point`), the sounds
 (`zsnd::play`, `play_at`) and 41 (`zwep::find_def`, `burst_at`). The
-others send their address to the census; 36, the screen tint, is reached
-(c1m2, c1m4, c4bm5) and listed as deferred. zClass's frame update (0x4f7f70) and node
+others send their address to the census. 36, the screen tint, is ported
+(below). zClass's frame update (0x4f7f70) and node
 update (0x4f7e00) are ported (`action-lists.md`) and run for real on both
 sides of test_anim_run.py (`MW3_STUB_UPDATE=1` records them instead, as
 before). The tree copy 0x4f9b50 stays a hook

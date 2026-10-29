@@ -1537,8 +1537,9 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
       if (++frames != 3) return;
       seen.quads_at_3 = seen.quads;
       const ztwod::WeatherLayer& m = ztwod::weather_layer();
-      if (auto* w = dynamic_cast<Kind*>(m.head)) {
-        seen.made = m.head == m.tail;
+      // The tint first (0x005a4590), then the weather (world-params.md section 7).
+      if (auto* w = m.head == &m.tint ? dynamic_cast<Kind*>(m.tint.next) : nullptr) {
+        seen.made = m.tint.next == m.tail;
         seen.count = w->count;
         seen.gravity = w->gravity, seen.wind = w->wind_vel;
         seen.alpha_tail = w->alpha_tail, seen.alpha_head = w->alpha_head;
@@ -1552,7 +1553,7 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
     pump.limit = 3000;
     app.run(pump);
     mech3::missions().cleanup(false);
-    seen.gone_after = ztwod::weather_layer().head == nullptr;
+    seen.gone_after = ztwod::weather_layer().head == &ztwod::weather_layer().tint && ztwod::weather_layer().tail == &ztwod::weather_layer().tint;
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -10978,7 +10979,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
-                        "0x00495f90", "0x0049bd80", "0x005074b0", "0x00414370", "0x0043bb50", "0x0046ef70",
+                        "0x00495f90", "0x0049bd80", "0x00414370", "0x0043bb50", "0x0046ef70",
                         "0x0046f160", "0x00476550", "CollideCalls.ai_reverses",
                         "CollideCalls.entity_dead", "CollideCalls.entity_target", "DrawHooks.refresh_static",
                         "WeaponCalls.net_event", "0x00413af0"}) {
@@ -10990,7 +10991,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 61);
+  EXPECT(n == 60);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",

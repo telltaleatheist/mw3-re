@@ -114,6 +114,9 @@ the table, and the program's chain runs one more (the fall camera). Each is now 
   - The Op 1 salvage check had counted the vehicles' empty salvage as the
     coin's "none". The chain now tells the coin's none from an unarmed
     vehicle.
+- **A known duplicate.** `app_turret.cpp`'s `find_first` is a second copy
+  of 0x004eb0d0, without the null node's report. Fold it into
+  `zcls::node_find` the next time test_turret is touched.
 - **Also not ported:**
   - the damage decals (0x00414370 / 0x00474d90);
   - the cockpit HUD's power down and up (0x0043bb20 / 0x0043bb50);

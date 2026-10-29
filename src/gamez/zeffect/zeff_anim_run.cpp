@@ -6,6 +6,7 @@
 
 #pragma STDC FP_CONTRACT OFF
 
+#include "crt/msvc_math.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_world.h"
@@ -19,6 +20,7 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zutil/ztimer.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zweapon.h"
 
 namespace zeff {
@@ -103,7 +105,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
     case 32: case 33: return ev_else(s);
     case 34: case 39: case 40: return 2;
     case 35: return ev_callback(d, e);
-    case 36: return h.fbfx_color ? h.fbfx_color(h.ctx, def, seq, e) : 2;
+    case 36: return anim_fbfx_color(s, e);
     case 37: return h.fbfx_wave ? h.fbfx_wave(h.ctx, def, seq, e) : 2;
     case 38:
       if (h.message) h.message(h.ctx, e);
@@ -116,6 +118,41 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
   }
 }
 }  // namespace
+
+// Mech3.exe 1.2 @ 0x005074b0 (ECX the def, EDX the sequence): event 36, a
+// screen colour from +0x0c each channel's start, end and rate (red, green,
+// blue, alpha), +0x3c the time it lasts. Each is start + rate x t, its end
+// once the time is up (2: done), cut to 0..1; the time past the end is left
+// for the next event (block +0x40). docs/anim-run.md, The screen tint.
+int32_t anim_fbfx_color(SeqDef& s, uint8_t* e) {
+  const float dur = ev::get<float>(e, 0x3c);
+  const float now = seq_f(&s, 0x28);
+  float& left = A().time_left();
+  float t, f;
+  if (now <= dur) {
+    t = now, f = left;
+  } else {
+    t = dur, f = left - (now - dur);
+  }
+  left = left - f;
+  float c[4];  // red, green, blue, alpha
+  for (int k = 0; k < 4; ++k) c[k] = ev::get<float>(e, 0x14 + 0xc * k) * t + ev::get<float>(e, 0x0c + 0xc * k);
+  int32_t r = 1;
+  if (dur <= now) {
+    for (int k = 0; k < 4; ++k) c[k] = ev::get<float>(e, 0x10 + 0xc * k);
+    r = 2;
+  }
+  for (float& v : c) {
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+  }
+  // Each colour byte x 255 + 0.5, truncated (0x005ac340).
+  uint8_t b[3];
+  for (int k = 0; k < 3; ++k) b[k] = static_cast<uint8_t>(crt::msvc_ftol(c[k] * 255.0f + 0.5f));
+  const uint16_t colour = zvid::pack_bytes(b[0], b[1], b[2]);  // 0x00579370
+  if (g_run_hooks.screen_tint) g_run_hooks.screen_tint(g_run_hooks.ctx, colour, c[3]);
+  return r;
+}
 
 // Mech3.exe 1.2 @ 0x005079b0. Runs events while each finishes at once; a
 // sequence whose reset state is 3 restarts (and waits) after its last event.
