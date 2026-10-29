@@ -12379,3 +12379,177 @@ TEST(mission_c1m1_hud_anchored_at_any_size_headless) {
            at(v.timer, 900, 15) && at(v.speed, 895, 256) && at(v.heat, 18, 163));
   }
 }
+
+// The menus over a mission at any size (resolution.md step 5): c1m1 at
+// InGameVMode 5, 13 and 15, Escape, then a real click (zInput's mouse at the
+// button, the left button pressed and let go) on the pause screen's
+// RESUME. On the 960x540 canvas the 640x480 frame is centred, so the button
+// sits 160, 30 further on, and the click there resumes as at 640x480.
+namespace {
+struct PauseClick {
+  int32_t rect[4] = {};
+  int32_t origin[2] = {};
+  int resumes = 0;
+};
+PauseClick c1m1_pause_click(int32_t mode, int32_t shift_y = 0) {
+  PauseClick out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("pause_click_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    int left_reads = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device) override { return true; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState* m) override {
+      *m = platform::MouseState{};
+      if (left_reads > 0) --left_reads, m->buttons[0] = 0x80;
+      return 0;
+    }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    struct ClickHost : BoxHost {  // the menus' mouse as the program's host gives it (zInput's)
+      ztwod::MouseState mouse() override {
+        ztwod::MouseState m{};
+        std::memcpy(&m, zin::mouse_info(), sizeof m);
+        return m;
+      }
+    } host;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = mode;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::States& st = mech3::states();
+    int core = 0, paused = 0;
+    zgame::State* last = nullptr;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (now == &st.core && last == &st.pause) ++out.resumes;
+      if (now == &st.pause && last != &st.pause) paused = 0;
+      last = now;
+      if (now == &st.core) {
+        ++core;
+        if (core == 5 && !out.resumes) keys.key(1, true);  // Escape
+        if (core == 6 && !out.resumes) keys.key(1, false);
+      } else if (now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (!ps || ++paused != 4) return;
+        const ztwod::Rect* r = ps->resume.get_rect();
+        out.rect[0] = r->left, out.rect[1] = r->top, out.rect[2] = r->right, out.rect[3] = r->bottom;
+        out.origin[0] = ps->origin_x, out.origin[1] = ps->origin_y;
+        // Headless the buttons have no images: the rect is its text's line
+        // (top == bottom), which the inclusive hit still takes.
+        zin::mouse_from_cursor(r->right - 1, r->top + shift_y);
+        keys.left_reads = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return out.resumes > 0 && core > 2; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_pause_click_at_any_size_headless) {
+  if (!have_game()) return;
+  const PauseClick v5 = c1m1_pause_click(5);
+  std::printf("pause at mode 5: RESUME %d %d %d %d, origin %d %d, resumed %d\n", v5.rect[0], v5.rect[1], v5.rect[2],
+              v5.rect[3], v5.origin[0], v5.origin[1], v5.resumes);
+  EXPECT(v5.resumes == 1 && v5.origin[0] == 0 && v5.origin[1] == 0 && v5.rect[2] > v5.rect[0]);
+  for (const int32_t mode : {13, 15}) {
+    const PauseClick v = c1m1_pause_click(mode);
+    std::printf("pause at mode %d: RESUME %d %d %d %d, origin %d %d, resumed %d\n", mode, v.rect[0], v.rect[1],
+                v.rect[2], v.rect[3], v.origin[0], v.origin[1], v.resumes);
+    EXPECT(v.resumes == 1 && v.origin[0] == 160 && v.origin[1] == 30);
+    EXPECT(v.rect[1] == v5.rect[1] + 30 && v.rect[2] == v5.rect[2] + 160 && v.rect[3] == v5.rect[3] + 30);
+  }
+  // A click at 640x480's height on the canvas (no frame offset) misses.
+  const PauseClick miss = c1m1_pause_click(13, -30);
+  EXPECT(miss.resumes == 0);
+}
+
+// 0x00558010's rect is a handle (resolution.md section 9, found while taking
+// the lab's shot): the screen's (the lab's call, 0x00579880) or one of the
+// options' rects, not memory. Read as memory it gave the 2D target 0 x 0, and
+// the mech lab drew black.
+TEST(render_flush_takes_the_rect_by_its_handle) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("render_flush_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.render_flush(engine.video_screen_rect());
+    EXPECT(zrndr::target2d().width == 640 && zrndr::target2d().height == 480);
+    engine.render_flush(engine.window_rect());
+    EXPECT(static_cast<int32_t>(zrndr::target2d().width) == mech3::window().w &&
+           static_cast<int32_t>(zrndr::target2d().height) == mech3::window().h);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  reset_process_state();
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}

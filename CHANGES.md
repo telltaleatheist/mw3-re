@@ -368,6 +368,8 @@ These change how the game talks to the computer, not how it plays.
   list, the timer and the gauges keep to the right and bottom edges, as the
   original's larger layouts put them. It is drawn two or four times larger
   at 1080p and 4K, so its text stays readable.
+- The pause screen and the quit box over a mission at the new sizes are
+  centred and drawn at the same scale as the HUD.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 

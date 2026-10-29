@@ -1371,3 +1371,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   window. Both are mapped. The headless arrow read takes frame 5; the
   pump's 400 passes end before frame 30.
 
+## Resolution step 5 (2026-10-28): the menus
+
+- Branch mac4/menus-any-size (off main f5fc1c3).
+- The front end, lab and briefing run at VMode 5 always, so step 2's fit
+  covers them. What was left: the pause screen and the quit box over a
+  canvas mission. FIX (B) ztwod::dialog_origin centres the 640x480 frame on
+  the canvas, read by Dialog's and MenuScreen's constructors.
+- The real-click test needs a host whose mouse() is zInput's (the default
+  host answers none). Headless buttons have no images, so their rects are
+  lines (top == bottom).
+- My item 21 bug: render_flush read its rect handle as memory, and the mech
+  lab was black from that merge on. Found by bisecting the five merges in
+  a scratch worktree (scratchpad, wt-pre). Fixed and tested.
+

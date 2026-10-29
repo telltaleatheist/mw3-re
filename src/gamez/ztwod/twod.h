@@ -761,6 +761,16 @@ struct DialogSound {
   float volume = 1.0f;               // +0x0c
 };
 
+// FIX (B), any_resolution (resolution.md step 5): where a dialog's 640x480
+// frame sits on the 2D canvas, set by the program with the screen: centred
+// on a canvas past mode 10, else (0, 0) as the exe. A dialog made then takes
+// it as its origin (the constructors' 0).
+struct DialogOrigin {
+  int32_t x = 0, y = 0;
+};
+DialogOrigin& dialog_origin();
+
+
 // A screen read from a .zrd (vtable 0x005cfc78), 0x10fec bytes.
 class Dialog : public Window {
  public:
