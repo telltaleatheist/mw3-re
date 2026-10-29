@@ -389,6 +389,7 @@ bool Missions::begin() {
   h.bind_command(0x71, kMissionCommand);
   h.bind_command(0x72, kMissionCommand);
   check_cheats();
+  h.hooks_check();
   return true;
 }
 
@@ -413,6 +414,7 @@ void Missions::on_command(int32_t cmd) {
 // Mech3.exe 1.2 @ 0x0048f470: one frame. The game time [0x0060991c] is +0x4c.
 void Missions::update(float dt) {
   MissionHooks& h = *g_hooks;
+  h.hooks_check();
   time = dt + time;
   h.game_time_set(time);
   clock = clock_down ? clock - dt : dt + clock;

@@ -179,6 +179,10 @@ class MissionHooks : public zgame::Unported {
   // Silent: the game time [0x0060991c] (+0x4c) just written. The exe has the
   // one global; the ports' modules keep copies, set here with each write.
   virtual void game_time_set(float t) { (void)t; }
+  // Ours: at the mission's start (the end of 0x0048f400) and each mission
+  // frame (0x0048f470's start), for the program's own check of its hooks
+  // (the census stand-ins for those still unset; a wiring may reset them).
+  virtual void hooks_check() {}
   virtual void map_update(float dt) { unported("0x0045a270", {0x605ae0, zgame::bits(dt)}); }  // the field bases' dock
   virtual void stations_update(Handle st, float dt, Handle vehicle) {
     unported("stations.vt+0x6c", {st, zgame::bits(dt), vehicle});

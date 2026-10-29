@@ -17,4 +17,8 @@ namespace mech3 {
 float ground_pick(const zcls::GroundHits& hits, float y, float step, int32_t* best, int32_t water_not_ground,
                   int32_t* in_water, float* surface);  // 0x004abd90
 
+// 0x004abb60 (ECX the node, EDX the name): the node itself or the first in
+// its tree, children first to last, whose name starts with `name`.
+void* node_find_prefix(void* node, const char* name);
+
 }  // namespace mech3

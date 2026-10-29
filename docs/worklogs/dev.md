@@ -1482,3 +1482,29 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - --frame-ms N (SdlClock stepped by the pump): the kills chain wins all of
   Op 1 by objectives in about 105 s; on the real clock c1m3 alone took
   7.5 min.
+
+## The hooks audit (2026-10-29)
+
+- Branch mac4/hook-audit (off main 39343a8).
+- Tools and checks:
+  - tools/analysis/hookaudit.py: the hooks structs' fields and their
+    setters; it writes tests/hook_fields.inc.
+  - program_hooks_set_after_a_mission_load_headless: every field is set
+    after c1m1's load, or on tests/hook_allow.txt with a reason.
+  - src/mech3/hook_census.inc and app_hook_census.cpp: census stand-ins for
+    the pure skips, put in by MissionHooks::hooks_check (ours) at each
+    mission's start and frame.
+- 866 fields: 346 null before, 29 wired, 52 stand-ins, 265 null and allowed.
+- Wired:
+  - the puffers' tick node;
+  - the arm restriction's view and torso inputs;
+  - the view key;
+  - the heat-shutdown ammo explosion;
+  - the AI torso aim;
+  - the AI nets on the ground;
+  - the reticle aim state;
+  - and smaller ones (hooks-audit.md).
+- Found, not wired: vehicles get no weapons, because the 0x004b4660
+  firepoint lookups were null and the manager's +0x80 needs porting. This
+  is the next item.
+- The Dominic tests' exact counts were re-taken: the puffers' rand()s.

@@ -281,6 +281,19 @@ void wire_vehicles(const MechWiring* w) {
   set_field_cut_hooks(&g_field_cut);
   set_waynet_hooks(&g_waynets);
   ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
+  // 0x004bdec9..0x004bdf17, while a world is loaded: the ground from 10 m
+  // above the node (0x004edab0), the height picked by 0x004abd90 (a 10 m step,
+  // water not ground). Unset, the nodes kept the files' heights.
+  ai::net_hooks().ground = [](float p[3]) {
+    float ground_pick(const zcls::GroundHits&, float, float, int32_t*, int32_t, int32_t*, float*);  // veh_basic.cpp
+    zcls::Node* w = world_hooks().world;
+    if (!w) return;
+    zcls::GroundHits hits{};
+    if (zcls::ground_point(w, p[0], p[1] + 10.0f, p[2], &hits) != 0 || hits.count == 0) return;
+    int32_t best = 0, in_water = 0;
+    float surface = 0;
+    p[1] = ground_pick(hits, p[1], 10.0f, &best, 1, &in_water, &surface);
+  };
 }
 
 // Mech3.exe 1.2 @ 0x004aeec0 (a basic vehicle's vt+0xd4): its weapons' locks

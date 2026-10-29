@@ -1933,3 +1933,5 @@ address,name,source,notes
 0x0040f330,MessagePanel::Place,decomp,"ECX a rect kept, EDX the area: the panel's shown and hidden places"
 0x0040f870,MessagePanel::Init,asm,"0x0040f330 then 0x0040f040 (from the developer lines' 0x0040f7f0)"
 0x0041cdc0,Mech::RefitCockpit,decomp,"the view's own mech's HUD set up again (0x0043bb80)"
+0x004abb60,node_find_prefix,asm,"ported (veh_basic.cpp): the node or the first in its tree, children in order, whose name starts with the given one (strncmp); the vehicle builder 0x004b4660, not wired yet (hooks-audit.md)"
+0x004eb0d0,zcls::node_find,asm,"ported (cls_node.cpp): the node or the first in its tree, children in order, named exactly; the vehicle builder 0x004b4660, not wired yet (hooks-audit.md)"

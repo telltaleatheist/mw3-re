@@ -63,3 +63,7 @@ whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
   fade with `mw3 --shot-any` and checks they show the picture, brighter each
   time (uses the GPU).
 
+- `hookaudit.py [--unset] [--inc tests/hook_fields.inc]`: every hooks
+  struct's function-pointer and std::function fields and whether the
+  program (src/, outside tests/) sets them. `--inc` writes the list that
+  `program_hooks_set_after_a_mission_load_headless` checks (docs/hooks-audit.md).

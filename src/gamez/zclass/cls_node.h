@@ -88,6 +88,7 @@ void node_tree_unbind(Node* node, void* owner, uint32_t kind, uint32_t flags);
 int node_set_name(Node* node, const char* name);  // 0x004eb300
 void node_touch_frame();                        // 0x004ed960
 Node* node_find_in_tree(Node* node, const char* name);  // 0x004f9d60
+Node* node_find(Node* node, const char* name);          // 0x004eb0d0: itself, then the children first to last
 int node_add_child(Node* parent, Node* child);  // 0x004eb9b0
 int node_unlink(Node* parent, Node* child);     // 0x004ebc30, 1 when not its child
 

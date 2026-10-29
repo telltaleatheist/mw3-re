@@ -214,9 +214,9 @@ void CampaignChain::shoot_hostiles() {
   }
   // A guard: an objective nothing the chain does meets (c1m3's, before the
   // animations had ground, campaign.md section 14) gets the win as --win
-  // gives it. c1m3's bases take about 7800 frames of 33 ms to reach Charlie.
-  if (core_frames_ == 20000) {
-    std::printf("mw3: chain %s not won by its kills (%d) after 20000 frames: won as --win\n", launched_.c_str(), kills_);
+  // gives it. c1m3's bases take 6600 to 17500 frames of 33 ms to reach Charlie.
+  if (core_frames_ == 40000) {
+    std::printf("mw3: chain %s not won by its kills (%d) after 40000 frames: won as --win\n", launched_.c_str(), kills_);
     mech3::missions().ended = 1;
     mech3::missions().on_command(0x71);
     return;
