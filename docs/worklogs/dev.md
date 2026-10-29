@@ -1508,3 +1508,42 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   firepoint lookups were null and the manager's +0x80 needs porting. This
   is the next item.
 - The Dominic tests' exact counts were re-taken: the puffers' rand()s.
+
+## The vehicles' weapons (2026-10-29)
+
+- Branch mac4/vehicle-weapons (off main 385cfa6).
+- The builder 0x004b4660's finds by name are wired: `node_find` (0x004eb0d0)
+  and `node_by_name` (0x004abb60, `node_find_prefix`).
+  - test_node_find.py compares both with the exe on the six worlds, with
+    150 made-up nodes each and finds from the null node with its report:
+    7200 finds identical.
+  - Break tests: the children searched last to first, the prefix find
+    comparing whole names, and the null report dropped. All three are
+    caught.
+- The owner: the manager's +0x80 is 0 for a basic vehicle (vt+0x50), and
+  +0x84 is the vehicle.
+  - 0x004b3450 and 0x004b36e0 already read the two apart, so a vehicle's
+    shot leaves its weapon's node and 0x0040ef30 is never asked.
+  - `vehicle_mech` tells vehicles apart with `is_program_vehicle`. While a
+    mech is being built, zEntity doesn't know it yet.
+  - `ai_volley_pick` finds the brain through +0x84.
+- The zone: `entity_x64` copied only the +0x64 record's count byte, so
+  every shot queried zone 0. The vehicles' shots crossed nothing and flew
+  through the player. It now copies the whole record.
+- In play (`mission_c1m1_c1m2_vehicles_fire_at_the_player_headless`):
+  - c1m1: 150 shots, 41 hits.
+  - c1m2: 119 shots, 39 hits.
+  - Every shot leaves one of its vehicle's weapon nodes and is of a weapon
+    the vehicle carries.
+- The kills chain: of the 20 vehicles killed, 10 salvaged their weapons
+  (APC weapon 21 with 300 rounds; the Bulldogs' weapon 0 with 400), 8 came
+  up none on the coin, and 2 trucks carry nothing. The test checks the
+  three cases.
+- `--vehicle-hold` (ours) turns the player to face the placed vehicle, for
+  the outbox shots. Placing the vehicle each frame reset its AI, so it never
+  fired.
+- Not touched: app_turret.cpp keeps its own copy of 0x004eb0d0
+  (`find_first`), which has no null report. It could become
+  `zcls::node_find`.
+- Seen, not this item: c1m2's canyon floor goes black after about 4 s on
+  main too (the lighting).

@@ -10979,7 +10979,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
                         "0x00495f90", "0x0049bd80", "0x005074b0", "0x00414370", "0x0043bb50", "0x0046ef70",
-                        "0x0046f160", "0x00476550", "0x004abb60", "0x004eb0d0", "CollideCalls.ai_reverses",
+                        "0x0046f160", "0x00476550", "CollideCalls.ai_reverses",
                         "CollideCalls.entity_dead", "CollideCalls.entity_target", "DrawHooks.refresh_static",
                         "WeaponCalls.net_event", "0x00413af0"}) {
     const char* why = mech3::GameEngine::known_unported(k);
@@ -10990,7 +10990,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 63);
+  EXPECT(n == 61);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
@@ -11995,6 +11995,126 @@ TEST(program_hooks_set_after_a_mission_load_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+}
+
+// A mission's vehicles armed (the builder 0x004b4660 with its firepoint
+// lookups, 0x004eb0d0 / 0x004abb60) and firing at the player, who goes up to
+// each in turn (50 m off) and does not shoot back. Each shot a vehicle's node
+// owns spawns at one of its weapons' nodes and is of a weapon it carries
+// (+0x80 0: no part, weapons.md, The vehicles' weapons in the program); some
+// hit (a vehicle becomes the player's last attacker).
+static void vehicles_fire_run(int32_t number) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_vehicles_fire"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int armed = 0, vehicles = 0, weapons = 0, shots = 0, at_firepoint = 0, its_weapon = 0, hits = 0, core_frames = 0,
+      attackers = 0;
+  float health0 = 0, health = 0;
+  std::map<std::string, int> by_vehicle;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = number;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    std::set<std::pair<const void*, float>> seen;  // a pool slot and its spawn time
+    void* last_attacker = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core_frames;
+      std::map<const void*, void*> node_vehicle;
+      int v_n = 0, a_n = 0, w_n = 0;
+      for (const uint32_t h : mech3::ai::entity_list()) {
+        void* o = engine.object_of(h);
+        if (!mech3::is_program_vehicle(o)) continue;
+        ++v_n;
+        node_vehicle[mech3::program_vehicle_node(o)] = o;
+        if (const int32_t c = mech3::wm_weapon_count(mech3::mech_weapon_manager(o))) ++a_n, w_n += c;
+      }
+      if (core_frames == 30) vehicles = v_n, armed = a_n, weapons = w_n;
+      // The player goes up to each armed vehicle in turn (their sensors reach
+      // a few hundred metres; at the start the player is past them).
+      if (core_frames % 900 == 60) {
+        std::vector<void*> armed_nodes;
+        for (const uint32_t h : mech3::ai::entity_list()) {
+          void* o = engine.object_of(h);
+          if (mech3::is_program_vehicle(o) && mech3::program_vehicle_active(o) &&
+              mech3::wm_weapon_count(mech3::mech_weapon_manager(o)))
+            armed_nodes.push_back(mech3::program_vehicle_node(o));
+        }
+        if (!armed_nodes.empty()) mech3::chain_player_near(armed_nodes[static_cast<size_t>(core_frames / 900) % armed_nodes.size()], 50.0f);
+      }
+      for (zwep::WeaponDef& d : zwep::state().defs)
+        for (zwep::Projectile* q = d.active; q; q = q->next) {
+          const zwep::Projectile& pr = *q;
+          if (pr.state != 1) continue;
+          auto it = node_vehicle.find(pr.owner);
+          if (it == node_vehicle.end() || !seen.insert({&pr, pr.spawn_at.x + pr.spawn_at.z * 7.0f}).second) continue;
+          ++shots;
+          by_vehicle[static_cast<const zcls::Node*>(pr.owner)->name()]++;
+          void* wm = mech3::mech_weapon_manager(it->second);
+          bool from_node = false, carried = false;
+          for (int32_t i = 0; i < mech3::wm_weapon_count(wm); ++i) {
+            carried |= mech3::wm_weapon_def(wm, i) == &d;
+            float fp[3];
+            if (zcls::node_world_position(static_cast<zcls::Node*>(mech3::wm_weapon_node(wm, i)), fp) != 0) continue;
+            const float dx = fp[0] - pr.spawn_at.x, dy = fp[1] - pr.spawn_at.y, dz = fp[2] - pr.spawn_at.z;
+            from_node |= dx * dx + dy * dy + dz * dz < 4.0f;
+          }
+          at_firepoint += from_node, its_weapon += carried;
+        }
+      void* attacker = mech3::mech_last_attacker(mech3::mech_mission_player());
+      if (attacker && attacker != last_attacker && mech3::is_program_vehicle(attacker)) ++hits;
+      if (attacker && attacker != last_attacker) ++attackers;
+      last_attacker = attacker;
+      if (core_frames == 31) health0 = mech3::mech_health(mech3::mech_mission_player());
+      health = mech3::mech_health(mech3::mech_mission_player());
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    pump.stop = [&] { return core_frames >= 5400; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c1m%d: %d of %d vehicles armed (%d weapons); %d shots by vehicles, %d from a weapon's node, %d of a weapon it carries; %d hits on the player by a vehicle\n",
+              number, armed, vehicles, weapons, shots, at_firepoint, its_weapon, hits);
+  for (const auto& [n, k] : by_vehicle) std::printf("    %s: %d shots\n", n.c_str(), k);
+  std::printf("    the player's health %.3f -> %.3f, %d attackers seen\n", health0, health, attackers);
+  EXPECT(armed > 0 && weapons >= armed);
+  EXPECT(shots > 0 && at_firepoint == shots && its_weapon == shots);
+  EXPECT(hits > 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+TEST(mission_c1m1_c1m2_vehicles_fire_at_the_player_headless) {
+  if (!have_game()) return;
+  vehicles_fire_run(1);  // the APCs
+  vehicles_fire_run(2);  // the APCs and the Bulldogs
 }
 
 TEST(mission_c1m2_destroy_objectives_met_by_mech_kills_headless) {

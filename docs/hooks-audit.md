@@ -99,20 +99,21 @@ the whole class.
 
 ## What the census now shows (reached, in the known table)
 
-The every-mission census, with the stand-ins in, reaches 13 keys beyond
+The every-mission census, with the stand-ins in, reached 13 keys beyond
 the table, and the program's chain runs one more (the fall camera). Each is now listed with its reason:
 
-- **Vehicles get no weapons in the program.** This is the biggest find.
+- **Vehicles got no weapons in the program.** This was the biggest find.
   The vehicle builder 0x004b4660 looks up each weapon's firepoint node
   through `WeaponCalls.node_find` (0x004eb0d0) and `node_by_name`
   (0x004abb60). Both were unset, so every vehicle was built without its
   weapons, silently.
-  - Both are ported now (`zcls::node_find`, `node_find_prefix`).
-  - Wiring them reaches `Weapon::update`'s owner path, which crashed. The
-    exe reads the firepoint only when the manager's +0x80 is set (0 for a
-    vehicle's manager); the port keeps one `owner`.
-  - This is the next item. The Op 1 salvage check had counted the
-    vehicles' empty salvage as the coin's "none".
+  - Both are ported and wired now (2026-10-29), with the manager's +0x80
+    (0 for a vehicle) and the shooter's whole zone record: the vehicles
+    fire and hit (weapons.md, The vehicles' weapons in the program). Their
+    known-table entries are gone.
+  - The Op 1 salvage check had counted the vehicles' empty salvage as the
+    coin's "none". The chain now tells the coin's none from an unarmed
+    vehicle.
 - **Also not ported:**
   - the damage decals (0x00414370 / 0x00474d90);
   - the cockpit HUD's power down and up (0x0043bb20 / 0x0043bb50);

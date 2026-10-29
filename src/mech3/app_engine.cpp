@@ -249,8 +249,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x0046ef70", "no effect: a mech's network update (vt+0x158) tests the network game (0x00479480) first; a census stand-in"},
       {"0x0046f160", "no effect: a mech's network message (vt+0x168) returns at once without [0x00605fb4] (network game running); a census stand-in"},
       {"0x00476550", "deferred: the mech's zone record from the skis' centre probe (zEntity's 0x005a80d0), not wired; a census stand-in"},
-      {"0x004abb60", "deferred: the vehicle builder's (0x004b4660) firepoint by name (ported: node_find_prefix); vehicles get no weapons until the manager's +0x80 is ported (weapons.md)"},
-      {"0x004eb0d0", "deferred: the vehicle builder's (0x004b4660) firepoint node (ported: zcls::node_find); vehicles get no weapons until the manager's +0x80 is ported (weapons.md)"},
       {"CollideCalls.ai_reverses", "deferred: a mech's collision with another entity's body (vt+0x140 +0x70), not wired; a census stand-in"},
       {"CollideCalls.entity_dead", "deferred: a mech's collision with another entity (its +0x08), not wired; a census stand-in"},
       {"CollideCalls.entity_target", "deferred: a mech's collision with another entity (vt+0xec, what takes the damage), not wired; a census stand-in"},

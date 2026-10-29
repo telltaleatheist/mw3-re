@@ -229,6 +229,9 @@ bool mech_lead_point_at(void* mech, uint32_t target, float out[3]);
 // (0x004b4ba0), reload (+0x30), ammo (vt+0x14) and its type's flight hold
 // (0x004b4c90); the torso recentred (0x00465a00). Null-safe.
 void* mech_weapon_manager(void* mech);
+int32_t wm_weapon_count(const void* wm);        // for the tests: +0x24
+void* wm_weapon_node(const void* wm, int32_t i);  // its weapon i's node (+0x20)
+const void* wm_weapon_def(const void* wm, int32_t i);  // its weapon i's definition (+0x2c)
 // Ours (the campaign chain): a mech's or basic vehicle's weapon types, as its salvage reads them.
 std::vector<int32_t> salvage_weapon_types(void* object);
 void* wm_current_weapon(void* wm);

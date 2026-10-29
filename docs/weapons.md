@@ -797,6 +797,44 @@ See `docs/discoveries.md`, Weapons.
   real firepoint (an earlier note here guessed it had none; the emulator
   shows it has: `test_tag.py`).
 
+### The vehicles' weapons in the program (2026-10-29)
+
+Until the hooks audit (hooks-audit.md) the program built every vehicle
+without weapons, silently, because the builder's two finds by name were
+unset. Now:
+
+- **The finds.** `WeaponCalls.node_find` is 0x4eb0d0 (`zcls::node_find`: the
+  node, then each child's tree first to last, the name whole; a null node
+  reports "Null node pointer."). `node_by_name` is 0x4abb60
+  (`node_find_prefix`: the same walk, the name a prefix, strncmp to its
+  length). `test_node_find.py` checks both against the exe on the six
+  worlds, with made-up trees and the null node.
+- **The owner.** A manager's +0x80 is its vehicle's mech: vt+0x2c, then
+  vt+0x50, which is 0 for a basic vehicle. Its +0x84 is the vehicle itself.
+  - The fire 0x4b3450 takes the shot's owner node, zone and enemies from
+    +0x84's entity.
+  - The muzzle 0x4b36e0 asks for a firepoint's part only when the weapon's
+    firepoint and +0x80 are both set.
+  - So a vehicle's shot leaves its weapon's own node (the builder's), aimed
+    at the target, and 0x40ef30 is never asked about it.
+  - The port had one owner for both, so the update's part lookup crashed on
+    a vehicle. Now `vehicle_mech` answers 0 for a basic vehicle, as the
+    exe's vt+0x50 does, and `ai_volley_pick` finds the brain through +0x84.
+- **The zone.** A shot queries the zones in its shooter's +0x64 record (a
+  count, then up to three ids). `entity_x64` copied only the count byte, so
+  every shooter's shots queried zone 0 as many times. A shooter outside zone
+  0 shot through everything: the vehicles' shots flew through the player.
+  The mechs' shots still hit in play (c1m2's Clanner Alpha), so the zones
+  they fought in came out right; which shots it cost them is not checked.
+- **Checked in play** (`mission_c1m1_c1m2_vehicles_fire_at_the_player_headless`):
+  - c1m1: 2 of 7 vehicles armed (the APCs; the trucks carry nothing), 150
+    shots, 41 hits on the player.
+  - c1m2: 10 of 13 armed (APCs and Bulldogs), 119 shots, 39 hits.
+  - Every shot leaves one of its vehicle's weapon nodes (within 2 m) and is
+    of a weapon that vehicle carries.
+  - `mw3 --mission c1m1 --vehicle-ahead 40 --vehicle-hold` shows an APC
+    firing (the player faces it each frame).
+
 ## In the program (`mw3 --mission`)
 
 The player's weapons fire, fly and hit in the program (`mech3/app_weapons.cpp`,

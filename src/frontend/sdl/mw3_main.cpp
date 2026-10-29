@@ -102,7 +102,8 @@ struct Args {
   float pos[3] = {0, 60, 0};
   float look[2] = {0, -2.9f};
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
-  float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first vehicle placed M m before the player
+  float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first (armed) vehicle placed M m before the player
+  bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
@@ -122,7 +123,7 @@ struct Args {
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
-      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M] [--dialog FILE NAME]\n"
+      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
@@ -182,6 +183,8 @@ bool parse(int argc, char** argv, Args& a) {
       a.have_pos = true;
     } else if (s == "--vehicle-ahead" && next(1)) {
       a.vehicle_ahead = std::strtof(argv[++i], nullptr);
+    } else if (s == "--vehicle-hold") {
+      a.vehicle_hold = true;
     } else if (s == "--look" && next(2)) {
       for (float& v : a.look) v = std::strtof(argv[++i], nullptr);
     } else if (s.size() > 1 && s[0] == '-' && s[1] != '-') {
@@ -370,20 +373,33 @@ int run(const Args& a) {
         // (the pause and end screens draw none, and --frames must still end the run).
         if (!a.shot_any && !engine.drew_scene() && shots == 0) return;
         ++shots;
-        // --vehicle-ahead (ours, for checking a vehicle up close: its shadow, its model).
+        // --vehicle-ahead (ours, for checking a vehicle up close: its shadow, its model, its weapons).
+        static void* held = nullptr;
+        static float held_at[3];
+        mech3::VehicleSummary hs;
+        if (held && a.vehicle_hold && mech3::is_program_vehicle(held) && mech3::describe_vehicle(held, &hs))
+          if (void* m = mech3::mech_mission_player())  // the player kept where it was, facing it (yaw from -z)
+            mech3::move_mech(m, held_at, std::atan2(held_at[0] - hs.pos[0], held_at[2] - hs.pos[2]));
         if (a.vehicle_ahead > 0 && shots == 1)
           if (void* m = mech3::mech_mission_player()) {
             float p[3] = {}, f[3] = {};
             mech3::mech_world_position(m, p);
             mech3::mech_forward(m, f);
-            for (void* v : mech3::program_vehicles()) {
-              mech3::VehicleSummary vs;
-              if (!mech3::describe_vehicle(v, &vs) || !vs.in_world) continue;
-              const float to[3] = {p[0] + f[0] * a.vehicle_ahead, p[1], p[2] + f[2] * a.vehicle_ahead};
-              mech3::program_vehicle_place(v, to, 0.0f);
-              std::printf("mw3: %s placed %.0f m ahead\n", vs.name, a.vehicle_ahead);
-              break;
-            }
+            // An armed one first (its weapons, weapons.md), else the first.
+            bool placed = false;
+            for (int armed = 1; armed >= 0 && !placed; --armed)
+              for (void* v : mech3::program_vehicles()) {
+                mech3::VehicleSummary vs;
+                if (!mech3::describe_vehicle(v, &vs) || !vs.in_world) continue;
+                if (armed && mech3::wm_weapon_count(mech3::mech_weapon_manager(v)) == 0) continue;
+                const float to[3] = {p[0] + f[0] * a.vehicle_ahead, p[1], p[2] + f[2] * a.vehicle_ahead};
+                mech3::program_vehicle_place(v, to, 0.0f);
+                held = v, held_at[0] = p[0], held_at[1] = p[1], held_at[2] = p[2];
+                std::printf("mw3: %s placed %.0f m ahead (%d weapons)\n", vs.name, a.vehicle_ahead,
+                            mech3::wm_weapon_count(mech3::mech_weapon_manager(v)));
+                placed = true;
+                break;
+              }
           }
         if (a.fire > 0 && shots == a.fire) {
           s_fire = true;
