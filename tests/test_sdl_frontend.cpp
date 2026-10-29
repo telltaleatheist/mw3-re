@@ -1028,8 +1028,9 @@ TEST(sdl_program_screens_are_not_blank) {
 // through all 20 missions in one session. Every briefing the two reach must
 // read the same (the store, the salvage, the slot, the lance, the bases);
 // the resume starts where the first half ended; each run's census is 0
-// outside the known table; both end at the credits; every briefing and
-// debriefing shot is lit, and green.
+// outside the known table; both end through the win movie, the credits
+// pressed once by the main menu and back to a main menu that works; every
+// briefing and debriefing shot is lit, and green.
 TEST(sdl_program_campaign_chain) {
   if (!have_fonts() || !std::getenv("MW3_CAMPAIGN")) return;
   const std::string root = std::string(MW3_TEST_TMP) + "/sdl_campaign_chain";
@@ -1113,8 +1114,28 @@ TEST(sdl_program_campaign_chain) {
   }
   EXPECT(same == 20);
   for (const std::string* l : {&l1, &l2, &lw}) EXPECT(l->find("mw3: 0 original functions reached that are not ported") != std::string::npos);
-  EXPECT(l2.find("mw3: chain credits after 16 wins") != std::string::npos);
-  EXPECT(lw.find("mw3: chain credits after 20 wins") != std::string::npos);
+  EXPECT(l2.find("mw3: chain credits after 16 wins (entered 1)") != std::string::npos);
+  EXPECT(lw.find("mw3: chain credits after 20 wins (entered 1)") != std::string::npos);
+  // The campaign's end, state by state as the app entered them after c4bm6's
+  // CONTINUE: the win movie (none is played yet, so it lasts its one
+  // update), the main menu, whose enter presses CREDITS by the flag the
+  // movie set, the credits once; their CANCEL back to the main menu, whose
+  // NEW CAMPAIGN reaches the pilot screen.
+  auto end_states = [](const std::string& log) {
+    std::string out;
+    size_t at = log.rfind("CONTINUE (wins ");
+    while (at != std::string::npos && (at = log.find("mw3: chain state ", at)) != std::string::npos) {
+      at += 17;
+      out += (out.empty() ? "" : ", ") + log.substr(at, log.find(" (frame", at) - at);
+    }
+    return out;
+  };
+  const std::string end_seq = "Win Movie State, Main State, Credits State, Main State, Campaign State, Pilot State";
+  for (const std::string* l : {&l2, &lw}) {
+    std::printf("  the end: %s\n", end_states(*l).c_str());
+    EXPECT(end_states(*l) == end_seq);
+    EXPECT(l->find("mw3: chain pilot screen again after the credits (credits entered 1)") != std::string::npos);
+  }
   int shots = 0, lit_ok = 0;
   for (const std::string& dir : {split, single})
     for (const auto& f : std::filesystem::directory_iterator(dir)) {

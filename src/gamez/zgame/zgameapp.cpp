@@ -154,6 +154,7 @@ void App::run_command(const Pending& cmd, State* cur) {
       break;
     }
   }
+  if (on_state_change) on_state_change(current());
 }
 
 // Mech3.exe 1.2 @ 0x0058fc70
