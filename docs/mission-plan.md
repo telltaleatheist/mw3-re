@@ -52,11 +52,14 @@ or falling) reaches them through an unwired hook.
 
 - c4m2 runs about 8 times slower headless than the others (136 s for 1200
   frames against 17): to profile (rain, the sun's flare, or the lights).
+  (Fixed: item 3, the radar list of item 2; c4m2 25 s against c1m1's 17 s.)
 - One c1m1 run (with `--verbose --shot`) ended with exit 133 (SIGTRAP)
   after the census print; three plain reruns ended cleanly. Intermittent,
-  at the quit.
+  at the quit. (Fixed: item 2.)
 - The 180 s census run did not finish within 25 minutes (the 30 s one
-  takes 30 s): something late in the run, or its quit, hangs.
+  takes 30 s): something late in the run, or its quit, hangs. (Fixed: item
+  2. Left from the long runs: c4m2's last cycles 12% slower in item 22,
+  unexplained.)
 
 Shots of a live c1m1 (the start, firing, the objectives box open, walking)
 and of c4m2 (the sun's flare and the rain): outbox 2026-10-27/mission.

@@ -1,5 +1,13 @@
 # The front end: census and plan (2026-10-25)
 
+**Refreshed 2026-10-28.** Each "Missing" cell and each open item below was
+checked against the code (a `Mech3.exe 1.2 @` port of the address) and a
+live run: `sdl_program_screens_are_not_blank` shoots the main menu, pilot
+screen, briefing, the lab's three tabs, Instant Action, a mission, the pause
+and the debriefing. Everything the table listed is done except what is
+marked open. Still open on the front end: multiplayer (the network work)
+and nothing else.
+
 What a player meets outside a mission, screen by screen. For each: the
 original's object, what is ported, what runs in the program now, what is
 missing and its size, then a porting order in small items. Built from
@@ -40,18 +48,18 @@ ACCEPT back).
 
 | Screen | Original | Ported | In the program now | Missing | Size (fns, ported) |
 |---|---|---|---|---|---|
-| Main menu | 0x00486260, MenuScreen 0x005bc190; Main state | yes (mainmenu.md) | draws, every button opens its state | the ripple's draw 0x00558dd0 | 17, 6 (the rest the states') |
-| Pilot screen | 0x00486f40, vtable 0x005c5060 | yes (menus.md 10) | new pilot, list, rename, delete (the game's message box) | the Action screen after it (IA) | 35, 25 |
-| Campaign state / Operation | 0x0048b000, 0x0048af20 | yes | ACCEPT goes on to the Load state | the movie "campaign" (zFMV) | 12, 6 |
-| Briefing | 0x00405230 (BRIEFINGDIALOG, brief_c<op><n>) | shell, script, map, REPLAY, LAUNCH, ABORT, the reallocation list, the loadouts (campaign.md 2, 9) | yes: map, voice, markers, buttons by the game | its movie (c<op>m<n>.avi, zFMV); SALVAGE's screen (below) | 109, 51 (+52, 14 movie and load glue) |
+| Main menu | 0x00486260, MenuScreen 0x005bc190; Main state | yes (mainmenu.md) | draws, every button opens its state | (done: 0x00558dd0, zrndr_ripple; playtest #1) | 17, 6 (the rest the states') |
+| Pilot screen | 0x00486f40, vtable 0x005c5060 | yes (menus.md 10) | new pilot, list, rename, delete (the game's message box) | (done: the Action screen, item 12a) | 35, 25 |
+| Campaign state / Operation | 0x0048b000, 0x0048af20 | yes | ACCEPT goes on to the Load state | (done: zFMV and the movies, items 10 and 11) | 12, 6 |
+| Briefing | 0x00405230 (BRIEFINGDIALOG, brief_c<op><n>) | shell, script, map, REPLAY, LAUNCH, ABORT, the reallocation list, the loadouts (campaign.md 2, 9) | yes: map, voice, markers, buttons by the game | (done: the movies, item 11; SALVAGE, item 1) | 109, 51 (+52, 14 movie and load glue) |
 | Mission | Core state | yes | yes | (the HUD and mission work) | |
 | End screen, Win State | 0x00491bf0, 0x0047ab10 | yes: the fade, the results 0x0047ae10, the won salvage 0x00472f00 | yes | | 18, 11 |
-| Debriefing | 0x0047b430, new(0x13bf4) | yes: shell, press, results and rank, the lance cards (campaign.md 3) | yes (headless; live needs a won mission) | its salvage list's rows are 8b's (done) | 17, 8 |
+| Debriefing | 0x0047b430, new(0x13bf4) | yes: shell, press, results and rank, the lance cards (campaign.md 3) | yes, live with `--win` (the blank-screen guard shoots it) | (done) | 17, 8 |
 | Salvage screen | 0x0047d3b0 (dlgSalvage.zrd), Salvage State 0x0047f220 (0x00608ee8, 0x00608bd8) | yes (item 1, campaign.md 10) | moves items both ways, ACCEPT back | | 28, 8 + 22, 1 |
-| Mech lab | Lab State 0x00448830, screen 0x0044b920 | steps 1-4, 5a, 5b1 (mechlab.md 5): the state, the shell, the chassis and loadouts pages, the item lists' base, the unassigned list's shell | from c1m2's briefing MECHLAB opens it, ACCEPT returns | 5b2 the item rules, 6 the criticals page, 7 the weapon groups, 8 engine, sinks, armour and the data panels, 9 the 3D view, 10 the loadout reaching the launch | 159, 66 (state and screen), 71, 43 (item lists), 9, 1 (3D world) |
-| Next mission | debriefing CONTINUE (0x0047d030) | yes | c1m1 -> c1m2's briefing; c1m4 -> c2m1's (the opener asked for) | the movies themselves (zFMV) | |
+| Mech lab | Lab State 0x00448830, screen 0x0044b920 | steps 1-4, 5a, 5b1 (mechlab.md 5): the state, the shell, the chassis and loadouts pages, the item lists' base, the unassigned list's shell | from c1m2's briefing MECHLAB opens it, ACCEPT returns | (done: 5b2, 6, 7, 8, 9 and 10, mechlab.md section 5; the three tabs shot by the blank-screen guard) | 159, 66 (state and screen), 71, 43 (item lists), 9, 1 (3D world) |
+| Next mission | debriefing CONTINUE (0x0047d030) | yes | c1m1 -> c1m2's briefing; c1m4 -> c2m1's (the opener asked for) | (done: the movies, item 11) | |
 | Save / load | the pilot's games (pilot.md), 0x00478f10 after a mission, "Replace existing game?" | yes (the files and the question) | saves after each mission; the pilot screen lists the games | done: zSave, the anim registrants, the headless and live round trips, "Replace existing game?" (save.md) | 119, 44 + 33, 24 |
-| Win Movie, IA Dummy | 0x0047a960 (0x00608be8), 0x0047ce80 (0x00608bd0) | Win Movie yes (no movie until zFMV) | Op 4 Mission 6 won -> the credits | IA's tallies (the IA Dummy State) | small |
+| Win Movie, IA Dummy | 0x0047a960 (0x00608be8), 0x0047ce80 (0x00608bd0) | Win Movie yes, its movie too (item 11) | Op 4 Mission 6 won -> the credits | (done: IA's tallies, item 12b) | small |
 
 ## 2. Instant Action, training, multiplayer
 
@@ -107,6 +115,8 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    the lab (its bay, the chassis page), whose stockpile is empty: a new
    campaign's store fill (0x00470e30, its mechs 0x004733b0; pilot.md Left)
    is not ported, so this start's store has nothing. Added as item 1a.
+   (2026-10-28: the pilot screen leads on to the Action screen too, item
+   12; the menus' driver prints each state with its frame under --verbose.)
 1a. **(Done) A new campaign's store**: already ported. A new campaign
    (0x004345a0, Op 1 Mission 1) gets its stock through `store_add_mech`
    (0x004733b0) and 0x00434e00 carries the stores, the slots and the field
@@ -128,16 +138,16 @@ Owen can play c1m1 -> c1m2 with salvage and the lab.
    differential of the screen's making and presses against the exe (as
    test_debriefing.py does), break tests; headless: c1m2's briefing,
    SALVAGE, an item moved, ACCEPT, the store changed; a screenshot.
-2. **Lab 5b2, the item rules** (0x00453840 may it go on, 0x00454600 put
+2. **(Done) Lab 5b2, the item rules** (0x00453840 may it go on, 0x00454600 put
    it on, with the Config helpers they ask). Test: test_lab_screen.py's
    sessions with adds against the exe; breaks.
-3. **Lab 6, the criticals page** (ASSIGNED_LIST 0x005c1fe0, the part
+3. **(Done) Lab 6, the criticals page** (ASSIGNED_LIST 0x005c1fe0, the part
    buttons, items into parts' slots). Test: test_lab_screen.py criticals
    sessions; breaks.
-4. **Lab 7, the weapon groups** (WEAPONS_UNGROUPED / WEAPONS_GROUPED).
+4. **(Done) Lab 7, the weapon groups** (WEAPONS_UNGROUPED / WEAPONS_GROUPED).
    Test: as 3, plus the groups reaching the mech's weapon manager at the
    launch (headless).
-5. **Lab 8, engine, sinks, armour and the data panels** (ENGINE_TABLE, ids
+5. **(Done) Lab 8, engine, sinks, armour and the data panels** (ENGINE_TABLE, ids
    14..30's presses, MECH_DATA, CHASSIS_DATA, ARMOR_TITLES, LOADOUT_LIST).
    Test: as 3; the weights and the tonnage limit against test_mechsave's
    table.

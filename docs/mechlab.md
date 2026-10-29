@@ -987,10 +987,13 @@ One sitting each; each with its differential test and break tests.
    rows, the arrows; done, above), 5b1 the UNASSIGNED_LIST's shell
    (0x005c1d68: the tabs, sorts, refill; done, above), 5b2 its rules:
    whether an item may go on (0x00453840) and putting it on (0x00454600),
-   with the Config helpers they ask.
+   with the Config helpers they ask (done: lab_screen.cpp,
+   test_lab_screen.py's sessions; checked 2026-10-28).
 6. **The criticals page**: ASSIGNED_LIST (0x005c1fe0) and the part
-   buttons: placing items in parts' slots.
-7. **The weapon groups page**: WEAPONS_UNGROUPED / WEAPONS_GROUPED.
+   buttons: placing items in parts' slots (done: lab_screen.cpp,
+   test_lab_screen.py; shot live by `sdl_program_screens_are_not_blank`).
+7. **The weapon groups page**: WEAPONS_UNGROUPED / WEAPONS_GROUPED (done:
+   lab_screen.cpp, test_lab_screen.py's lists; shot live).
 8. **The engine and the data panels**, in three: 8a the tables' base and
    ENGINE_TABLE with its presses (19..22; done, above; the exe has no sink
    presses), 8b1 MECH_DATA with ENDOSTEEL and CHASSIS_DATA (done, above;
@@ -999,7 +1002,7 @@ One sitting each; each with its differential test and break tests.
    (done, above), 8b3 ARMOR_TITLES' presses: REMOVE (0x00450cc0),
    DISTRIBUTE (0x00450c70) and the section step (0x004509b0) (done,
    above).
-9. **The 3D view**: the lab world and camera (0x0044ffc0, 0x00450390,
+9. **The 3D view** (done, item 9 of frontend-plan.md): the lab world and camera (0x0044ffc0, 0x00450390,
    0x00450690), CURRENT_CHASSIS's model (9a); the armour section's
    highlight on the model (0x004504d0 / 0x00450470: the section's parts
    blended; 9b). There is no mouse picking: 0x004507c0 is the chassis

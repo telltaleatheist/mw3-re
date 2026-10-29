@@ -625,29 +625,46 @@ caret's place, colour and lines (0x00562940 recorded), set_text's cuts.
 
 ## 9. What is left
 
+Refreshed 2026-10-28 against the code: each item marked done (where its
+port is) or open.
+
 Mapped, not ported:
 
 - The LOGFONT and message-id setters 0x005961d0, 0x00409c40 and the text
   box's 0x005a1cd0 / 0x005a1cf0 (FontText's 0x00409bd0 / 0x00409bf0 are
   ported, the message table's FormatMessage 0x00575ff0 behind
   `Host::format_message`), the box's text thunk
-  0x005a22c0, the plain DrawTextA measure 0x005a0e20.
-- The game's message box call 0x004ac150 / 0x004ac050 (mech3).
+  0x005a22c0, the plain DrawTextA measure 0x005a0e20. Done: 0x00409c40 and
+  0x005a0e20 (twod_wintext.cpp). Open: 0x005961d0, 0x005a1cd0 / 0x005a1cf0,
+  0x005a22c0 (no caller in the ported screens).
+- The game's message box call 0x004ac150 / 0x004ac050 (mech3). Done:
+  0x004ac150 (app_engine.cpp, playtest #2). Open: 0x004ac050.
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
-  0x005a7d10 (zFMV is not ported).
+  0x005a7d10. Done: the open, colour key and start (twod_object.cpp; zFMV is
+  ported, fmv.md). Open: the update and the draw and erase (no shipped
+  dialog has a movie that plays in it).
 - The render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in
   it) and zRender's ripple 0x00558dd0 (Host::ripple), the text console
   0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4690, the
   key-list screen's other pieces (0x00482570). Shape's hit test 0x005a3440
-  and Frame's 0x005a3b30 (TARGET's 0x00440a30, hooked in the HUD).
-- Weather drawing 0x005a5470..0x005a6110 (world-params.md).
+  and Frame's 0x005a3b30 (TARGET's 0x00440a30, hooked in the HUD). Done:
+  the ripple's +0x04 0x005a5360 and zRender's 0x00558dd0, the key list
+  0x00482570, both hit tests. Open: the overlay 0x005a4590.., the text
+  console 0x005a3cd0.. and the interp debug console (developer only).
+- Weather drawing 0x005a5470..0x005a6110 (world-params.md). Done
+  (twod_weather.cpp).
 - Outside zTwoD, behind Host: zImage's image cache 0x005179d0 / 0x00517b10
   (a std::list of {strdup name, image, count}; release frees images it does
   not hold unless they are the default image, 0x005185f0) and named fonts
   (zimg_winfonts.cpp 0x00517280..0x00517680), zFont, zVideo's lock and grabs
   (0x00576de0, 0x00579500, 0x00579660), the DirectDraw path 0x00576f90 and
-  the 8-bit blit 0x0055b250, the message lookup 0x00575fb0.
+  the 8-bit blit 0x0055b250, the message lookup 0x00575fb0. Done: the
+  message lookup (zutl_msg.cpp); the image cache, named fonts, zVideo's lock
+  and grabs stand in on the SDL host and GameEngine (FIX (A), not ports).
+  Open: zFont (0x00519e50, the reader; TextBase's measure 0x0051a0d0 and
+  draw 0x005ae170: the next item), the DirectDraw path and the 8-bit blit
+  (software only).
 - The front end's `ztwod::Host` on SDL3 is done (`SdlTwodHost`,
   program.md: TTF text into the 16-bit image, the 16-bit target presented,
   mouse from SDL; `mw3 --dialog dialog.zrd MAINMENU` shows a dialog).
@@ -660,4 +677,5 @@ Mapped, not ported:
   button 0x0048b280 built of three Controls). Left: the controls screen,
   Instant Action, campaign, training and multiplayer, the pause, briefing,
   debriefing, salvage and mech lab screens, each still a `mech3::Engine`
-  hook.
+  hook. Done since (frontend-plan.md, items 1 to 13): every one of those but
+  multiplayer's, which stays with the network work.
