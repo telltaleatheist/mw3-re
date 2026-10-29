@@ -528,7 +528,8 @@ int run(const Args& a) {
         static const zgame::State* last_state = nullptr;
         if (a.verbose && app.current() != last_state) {
           last_state = app.current();
-          if (auto* st = dynamic_cast<const mech3::State*>(last_state)) std::printf("mw3: state %s\n", st->name());
+          if (auto* st = dynamic_cast<const mech3::State*>(last_state))
+            std::printf("mw3: state %s (frame %d)\n", st->name(), menu_frames);
         }
         // --lab-mech N (ours, for checking the lab's 3D view): once the lab is
         // up its view is handed chassis N (0..18), as the slot switch hands it

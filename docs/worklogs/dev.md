@@ -1385,3 +1385,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   lab was black from that merge on. Found by bisecting the five merges in
   a scratch worktree (scratchpad, wt-pre). Fixed and tested.
 
+## The blank-screen guard (2026-10-28)
+
+- Branch mac4/screen-guard (off main 8c305fc).
+- sdl_program_screens_are_not_blank: 11 program runs at once (21 s), lit
+  and green shares from each BMP. The menus' driver now prints each state
+  with its frame (--verbose), which is how the shot frames were picked:
+  Pilot 44, Action 104, Lab 2504, debriefing's Win 3915.
+- Break: the render_flush memory read fails the three lab tabs (lit 0.000).
+

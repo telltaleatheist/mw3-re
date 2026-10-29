@@ -309,6 +309,14 @@ apart. Everything else is a real gap and stays listed.
   Instant Action, Training, options, credits and multiplayer menus,
   c1m1's pause, Training's lesson 1 from the menus: 0 keys outside the
   table.
+- `sdl_program_screens_are_not_blank` (mw3sdltests, about 20 s; after item
+  21's black lab, resolution.md section 9): the program itself, one run a
+  screen, all at once, each shot through `--shot`. The screens: the main
+  menu, the pilot screen, the briefing, the lab's three tabs, Instant
+  Action, c1m1 at modes 5 and 13, the pause and the debriefing. Each shot's
+  share of lit pixels must be over 0.3 (the lowest seen 0.525). The lab
+  (0.2) and the briefing and debriefing (0.3) also need their green share.
+  With render_flush's memory read put back, the three lab checks fail.
 - The census's long runs (mission-plan item 22): `MW3_CENSUS_MISSION=c4m2`
   (any mission by name) and `MW3_CENSUS_STATS=1` (each 20 s cycle's wall
   time, memory footprint, handles, live nodes, shots) on
