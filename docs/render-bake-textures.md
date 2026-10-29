@@ -58,9 +58,13 @@ else baked = off
 - With the bake on, the draw passes polygon +0x18 to 0x545720 for polygons
   without flag 0x100 (two-sided ones are never baked: the bake skips them).
 
-For gmod_draw: `DrawHooks::refresh_static` is the place to call
-`zmod::bake_static_light(*model, draw_buffers().cam, draw_buffers().normals)`
-and then stamp the node (0x4ed980).
+In gmod_draw (2026-10-29): with `DrawHooks::refresh_static` unset the draw
+calls `zmod::bake_static_light` on its buffers and stamps the node (0x4ed980:
++0xc0 = [0x5e9e2c]), as 0x53fbc5..0x53fbce do; test_modeldraw still records
+the pair through the hook. Until then the program's census stand-in filled
+the hook with a call that did nothing. 160 frames after a node last changed,
+the draw read its unfilled cache, and the terrain went black from about 5 s
+in (c1m2, the fly view) (`mission_c1m2_static_light_baked_headless`).
 
 ### What it reads and writes
 

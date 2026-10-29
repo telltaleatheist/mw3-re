@@ -1939,3 +1939,4 @@ address,name,source,notes
 0x005a6730,ztwod::weather_tint,asm,"ported: the colour (CX) and alpha (double) to the manager's tint, 0x005a6620 on [0x736328]"
 0x005a6620,ztwod::weather_tint,asm,"ported: the tint's +0x38 colour, +0x40 alpha, shown for 0 s (vt+0x60)"
 0x005a53c0,ScreenTint::draw_in_rect,asm,"ported: vt+0x7c of 0x5d0290, the tint over +0x34's rect (0x00558540)"
+0x004ed980,node_stamp_light_cache,asm,"ported inline in gmod_draw: node +0xc0 = [0x5e9e2c] (update_frame) after the static bake"

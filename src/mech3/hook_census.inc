@@ -17,7 +17,6 @@ SKIP(mech3::damage_calls, stats_hit, "0x00433720")  // DamageCalls.stats_hit
 SKIP(mech3::damage_calls, voice, "0x00485370")  // DamageCalls.voice
 SKIP(mech3::damage_calls, zaps_hud, "0x0043be70")  // DamageCalls.zaps_hud
 SKIP(mech3::dead_calls, net_update, "0x0046ef70")  // DeadCalls.net_update
-SKIP(zmod::draw_hooks, refresh_static, "DrawHooks.refresh_static")  // DrawHooks.refresh_static
 SKIP(mech3::frame_calls, map_mouse, "FrameCalls.map_mouse")  // FrameCalls.map_mouse
 SKIP(mech3::frame_calls, net_entity, "FrameCalls.net_entity")  // FrameCalls.net_entity
 SKIP(mech3::frame_calls, net_place, "FrameCalls.net_place")  // FrameCalls.net_place

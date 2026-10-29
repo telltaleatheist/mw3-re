@@ -170,7 +170,8 @@ centre as stale normal (rare; it was found by an earlier run on c3).
 - The clippers keep separate copies of the shared buffers
   (`clip3d_buffers()` vs `clip2d()`); gmod_draw copies records, UVs and
   shadow sets around each camera-space clip. One set would remove that.
-- `gmod_bake` (0x544ed0) has landed meanwhile; `refresh_static` can call it.
+- `gmod_bake` (0x544ed0) has landed meanwhile; the draw calls it when
+  `refresh_static` is unset (render-bake-textures.md).
 
 ## For docs/discoveries.md
 

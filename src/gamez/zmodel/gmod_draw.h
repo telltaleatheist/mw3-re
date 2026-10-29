@@ -110,6 +110,7 @@ void collect_shadows(int32_t count, const float normal[3]);  // 0x00540552..0x00
 struct DrawHooks {
   void* ctx = nullptr;
   // 0x544ed0(model) then 0x4ed980(node): the static light cache is due.
+  // Unset: the ported bake and stamp (the tests record it instead).
   void (*refresh_static)(void* ctx, Model* model, zcls::Node* node) = nullptr;
   // 0x547540(ECX count): a strip's projected-light set.
   int32_t (*projected_strip)(void* ctx, int32_t count) = [](void*, int32_t n) { return projected_reach(n); };
