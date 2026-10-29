@@ -898,3 +898,126 @@ TEST(sdl_menu_clicks_land_on_the_same_buttons_at_any_window) {
   sdlfe::frame_to_window(60, 60, 1920, 1080, menus, &wx, &wy);
   EXPECT(std::fabs(wx - 375) < 0.01f && std::fabs(wy - 135) < 0.01f);
 }
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// No screen goes black unseen (after item 21's lab, resolution.md section 9):
+// the program itself, one run a screen, all at once, each shot through the
+// capture path the shots use (--shot). Each shot's share of lit pixels must be
+// over a floor, and where a screen has a known colour (the lab's and the
+// debriefing's green), that share too. About 20 s.
+namespace {
+struct ScreenShot {
+  const char* name;
+  std::vector<std::string> args;
+  bool vmode13 = false;
+  double lit_floor = 0.3, green_floor = 0.0;
+  int width = 1280, height = 960;
+};
+// The share of lit pixels (any channel over 24) and of green ones (G 40 over
+// R and B) in a 32-bit BMP, every 37th pixel; false when it cannot be read.
+bool bmp_shares(const std::string& path, int* w, int* h, double* lit, double* green) {
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return false;
+  std::vector<uint8_t> d;
+  uint8_t buf[65536];
+  for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) d.insert(d.end(), buf, buf + n);
+  std::fclose(f);
+  if (d.size() < 54 || d[0] != 'B' || d[1] != 'M') return false;
+  auto u32 = [&](size_t at) { return static_cast<uint32_t>(d[at] | d[at + 1] << 8 | d[at + 2] << 16 | d[at + 3] << 24); };
+  const uint32_t off = u32(10);
+  *w = static_cast<int32_t>(u32(18)), *h = std::abs(static_cast<int32_t>(u32(22)));
+  if (d[28] != 32 || off >= d.size()) return false;
+  size_t n = 0, l = 0, g = 0;
+  for (size_t i = off; i + 3 < d.size(); i += 4 * 37) {
+    const int b = d[i], gr = d[i + 1], r = d[i + 2];
+    ++n;
+    if (std::max({r, gr, b}) > 24) ++l;
+    if (gr > r + 40 && gr > b + 40) ++g;
+  }
+  if (!n) return false;
+  *lit = static_cast<double>(l) / n, *green = static_cast<double>(g) / n;
+  return true;
+}
+pid_t spawn_mw3(const std::vector<std::string>& args, const std::string& log) {
+  std::vector<std::string> a = {MW3_BIN};
+  a.insert(a.end(), args.begin(), args.end());
+  std::vector<char*> argv;
+  for (std::string& s : a) argv.push_back(s.data());
+  argv.push_back(nullptr);
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  posix_spawn_file_actions_adddup2(&fa, 1, 2);
+  pid_t pid = 0;
+  const int err = posix_spawn(&pid, MW3_BIN, &fa, nullptr, argv.data(), environ);
+  posix_spawn_file_actions_destroy(&fa);
+  return err == 0 ? pid : -1;
+}
+}  // namespace
+
+TEST(sdl_program_screens_are_not_blank) {
+  if (!have_fonts()) return;
+  const std::vector<std::string> ia = {"--click-at", "60,210@40", "--tap", "0x14@70", "--tap", "0x12@74", "--tap",
+                                       "0x1f@78",    "--tap",     "0x14@82", "--click-at", "470,320@100"};
+  auto with = [](std::vector<std::string> a, std::initializer_list<const char*> more) {
+    for (const char* m : more) a.push_back(m);
+    return a;
+  };
+  std::vector<ScreenShot> shots = {
+      {"main menu", {"--shot-frame", "300"}},
+      {"pilot", {"--click-at", "60,60@40", "--shot-frame", "200"}},
+      {"briefing", {"--briefing", "c1m1", "--shot-frame", "2500"}, false, 0.3, 0.3},
+      {"lab chassis", {"--lab-mech", "9", "--shot-frame", "2720"}, false, 0.3, 0.2},
+      {"lab criticals", {"--lab-mech", "9", "--click-at", "150,450@2700", "--shot-frame", "2900"}, false, 0.3, 0.2},
+      {"lab groups", {"--lab-mech", "9", "--click-at", "265,450@2700", "--shot-frame", "2900"}, false, 0.3, 0.2},
+      {"action", with(ia, {"--shot-frame", "300"})},
+      {"mission", {"--mission", "c1m1", "--shot-frame", "700"}},
+      {"mission mode 13", {"--mission", "c1m1", "--shot-frame", "700"}, true, 0.3, 0.0, 1920, 1080},
+      {"pause", {"--mission", "c1m1", "--tap", "0x01@750", "--shot-frame", "800"}},
+      {"debriefing", {"--briefing", "c1m1", "--click-at", "556,435@2600", "--win", "60", "--shot-frame", "4200"},
+       false, 0.3, 0.3},
+  };
+  const std::string root = std::string(MW3_TEST_TMP) + "/sdl_screens";
+  std::filesystem::remove_all(root);
+  std::vector<pid_t> pids;
+  for (size_t i = 0; i < shots.size(); ++i) {
+    const std::string dir = root + "/" + std::to_string(i);
+    std::filesystem::create_directories(dir);
+    if (shots[i].vmode13)  // the mission's screen mode 13 (1920x1080), as the graphics options save it
+      if (std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "w")) {
+        std::fputs("Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0]\n"
+                   "\"InGameVMode\"=dword:0000000d\n", f);
+        std::fclose(f);
+      }
+    std::vector<std::string> a = shots[i].args;
+    for (const char* x : {"--shot", "", "--nosound", "--hidden", "--write-dir", ""}) a.push_back(x);
+    a[a.size() - 5] = dir + "/shot.bmp";
+    a.back() = dir;
+    pids.push_back(spawn_mw3(a, dir + "/mw3.log"));
+  }
+  const auto start = std::chrono::steady_clock::now();
+  for (pid_t& pid : pids) {
+    if (pid <= 0) continue;
+    int status = 0;
+    while (waitpid(pid, &status, WNOHANG) != pid) {
+      if (std::chrono::steady_clock::now() - start > std::chrono::seconds(180)) {
+        kill(pid, SIGKILL), waitpid(pid, &status, 0);
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+  }
+  for (size_t i = 0; i < shots.size(); ++i) {
+    const ScreenShot& s = shots[i];
+    int w = 0, h = 0;
+    double lit = 0, green = 0;
+    const bool read = pids[i] > 0 && bmp_shares(root + "/" + std::to_string(i) + "/shot.bmp", &w, &h, &lit, &green);
+    std::printf("screen %-16s %dx%d lit %.3f green %.3f\n", s.name, w, h, lit, green);
+    EXPECT(read && w == s.width && h == s.height);
+    EXPECT(lit > s.lit_floor);
+    EXPECT(green >= s.green_floor);
+  }
+  std::printf("screens: %zu shot in %.0f s\n", shots.size(),
+              std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+}
+#endif
