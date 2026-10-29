@@ -81,6 +81,8 @@ std::vector<int32_t> chain_weapon_types(uint32_t h);
 bool chain_player_to(const char* name, float dist);
 // The same by a scene node, unless the player is within 1.5 x dist of it.
 bool chain_player_near(void* node, float dist);
+// Where the entity whose node is `name` is; false when none.
+bool chain_entity_at(const char* name, float out[3]);
 // The same at the middle of a loaded region (its corners' mean, on the
 // highest ground there that is not water); false when none is loaded.
 bool chain_player_to_region(const char* name);

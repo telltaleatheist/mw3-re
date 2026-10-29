@@ -161,11 +161,18 @@ the world, a nameless def or a node outside the pool is never logged. The
 connector logger (0x50cde0) ignores the defaults. A network record goes to
 the hook [0x60c714] (null in single play); unsaved ones are dropped again.
 
-## Not ported (hooks, `AnimRunHooks`)
+## Hooks (`AnimRunHooks`)
 
 zSound's play calls, the ground hits (0x4edab0, `cls_di.c`), the "if" ray
 (0x507220, `cls_di.c`), events 3, 16, 20, 21, 36, 37, 38 and the weapon
-lookup and detonation of 41. zClass's frame update (0x4f7f70) and node
+lookup and detonation of 41. The test records them. Until 2026-10-29 the
+program set none of them, so the falls found no ground, the sounds were
+silent and the rest were skipped without the census seeing them
+(campaign.md section 14). The program (app_mission.cpp, `wire_anim_run`)
+now runs the ports for the ground (`zcls::ground_point`), the sounds
+(`zsnd::play`, `play_at`) and 41 (`zwep::find_def`, `burst_at`). The
+others send their address to the census; 36, the screen tint, is reached
+(c1m2, c1m4, c4bm5) and listed as deferred. zClass's frame update (0x4f7f70) and node
 update (0x4f7e00) are ported (`action-lists.md`) and run for real on both
 sides of test_anim_run.py (`MW3_STUB_UPDATE=1` records them instead, as
 before). The tree copy 0x4f9b50 stays a hook

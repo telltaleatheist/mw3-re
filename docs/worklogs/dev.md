@@ -1466,3 +1466,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   break 0 of 2). 0x004d7330 is shared and covers turrets and targets.
 - Dead ends noted: the leg anims' handlers sit on their roots (the
   `healthy` child), and the building anims tick only when drawn.
+
+## c1m3 by its objectives (2026-10-29)
+
+- Branch mac4/c1m3-buildings (off main 19f6e43).
+- In the data, `gdbldg` goes off in the fall's BOUNCE_SEQUENCE
+  (bldg_to_land2 / bldghit3). The fall never landed because the program
+  never set zEffect's AnimRunHooks, so the ground was null. Sounds and
+  event 41 were also null.
+- Wired ground, sounds and 41; the rest report to the census. Event 36
+  (screen tint) is reached in c1m2, c1m4 and c4bm5: deferred, known key.
+- mfb_reach: the valve_assign on net_01's 77->32 link, the bases' drive
+  to MFB Charlie. The chain now gives the MFB command (two presses) from
+  Charlie's region, and goes by the MFB at most once after.
+- --frame-ms N (SdlClock stepped by the pump): the kills chain wins all of
+  Op 1 by objectives in about 105 s; on the real clock c1m3 alone took
+  7.5 min.

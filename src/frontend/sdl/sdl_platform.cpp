@@ -160,6 +160,7 @@ Uint32 SdlPump::music_event() {
 }
 
 bool SdlPump::peek() {
+  if (each_pass) each_pass();
   if (!quit_ && should_quit && should_quit()) post_quit();
   if (quit_) return true;
   SDL_PumpEvents();

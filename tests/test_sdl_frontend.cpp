@@ -1057,7 +1057,10 @@ TEST(sdl_program_campaign_chain) {
   };
   const auto start = std::chrono::steady_clock::now();
   const pid_t whole = spawn_mw3(args("new:20", single), single + "/run.log");
-  const pid_t by_kills = spawn_mw3(args("kills:4", kills), kills + "/run.log");
+  // On a 33 ms frame clock: c1m3's bases drive about 2.5 km to Charlie.
+  std::vector<std::string> kill_args = args("kills:4", kills);
+  kill_args.insert(kill_args.end(), {"--frame-ms", "33"});
+  const pid_t by_kills = spawn_mw3(kill_args, kills + "/run.log");
   const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
   const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));
   const bool whole_ok = wait(whole);
@@ -1141,13 +1144,16 @@ TEST(sdl_program_campaign_chain) {
     EXPECT(l->find("mw3: chain pilot screen again after the credits (credits entered 1)") != std::string::npos);
   }
   // Op 1 won by kills (campaign.md section 14): every enemy shot through
-  // zWeapon's impact until it dies, the mission won by its objectives then
-  // Exit Mission; c1m3 by --win's after its kills (two of its objectives'
-  // nodes nothing switches off). Each debriefing's salvage is the mission's
+  // zWeapon's impact until it dies, then the places the objectives' valves
+  // name, the MFB command (c1m3's bases to Charlie), Exit Mission once won. Each debriefing's salvage is the mission's
   // store, traced to the kills (each mech's and vehicle's its own weapons),
   // the objectives and the win's lance; SALVAGE moves its weapons into the
   // store; the lab fits one, and the next mission's mech carries it.
   const std::string lk = read(kills + "/run.log");
+  auto core_frame_of = [](const std::string& log, const char* what) {
+    const size_t at = log.find(what), f = at == std::string::npos ? at : log.find("core frame ", at);
+    return f == std::string::npos ? std::string("?") : log.substr(f + 11, log.find(')', f) - f - 11);
+  };
   auto count = [](const std::string& log, const char* what) {
     int n = 0;
     for (size_t at = 0; (at = log.find(what, at)) != std::string::npos; ++at) ++n;
@@ -1157,11 +1163,12 @@ TEST(sdl_program_campaign_chain) {
   const int matches = count(lk, "the win's lance"), matched = count(lk, "}: matches");
   const int moved = count(lk, "mw3: chain salvage weapons moved"), moved_ok = count(lk, "}: moved\n");
   const int fitted = count(lk, "mw3: chain lab: salvaged weapon"), carried = count(lk, "): fitted\n");
-  std::printf("  by kills: %d won by their objectives, %d as --win; %d of %d debriefings' salvage matched, %d of %d "
+  std::printf("  by kills: %d won by their objectives, %d as --win (c1m3 at core frame %s); %d of %d debriefings' salvage matched, %d of %d "
               "SALVAGE moved, %d fitted, %d carried; %d kills (%d not their weapons)\n",
-              won, by_win, matched, matches, moved_ok, moved, fitted, carried, count(lk, "mw3: chain killed "),
+              won, by_win, core_frame_of(lk, "mw3: chain won op 1 mission 3 by ").c_str(), matched, matches, moved_ok, moved, fitted, carried, count(lk, "mw3: chain killed "),
               count(lk, "NOT its weapons"));
-  EXPECT(won == 3 && by_win == 1 && lk.find("op 1 mission 3 not won by its kills") != std::string::npos);
+  EXPECT(won == 4 && by_win == 0);
+  EXPECT(lk.find("mw3: chain won op 1 mission 3 by ") != std::string::npos);
   EXPECT(matches == 4 && matched == 4);
   EXPECT(moved == 3 && moved_ok == 3 && fitted == 3 && carried == 3);
   EXPECT(count(lk, "NOT its weapons") == 0 && count(lk, "mw3: chain killed mech ") >= 10);

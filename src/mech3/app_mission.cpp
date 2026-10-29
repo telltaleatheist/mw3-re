@@ -1925,7 +1925,70 @@ struct WiredMissionHooks : MissionHooks {
     a.effect_index = zeff::effect_find;  // 0x0050d9e0
     zcls::set_find_sound(a.find_sound);
     zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };
+    wire_anim_run();
     zeff::anim_set_world(mission_node(*e, world));
+  }
+  // zEffect's calls while the animations run (zeff::AnimRunHooks), unset
+  // until now: an anim's sounds were silent, its falls found no ground
+  // (c1m3's buildings, campaign.md section 14), and the rest were skipped
+  // without the census seeing them. The ground (0x004edab0), zSound's plays
+  // and a weapon gone off (0x00581ed0, 0x005822c0) are the ports; the others
+  // go to the census by their address.
+  static void wire_anim_run() {
+    zeff::AnimRunHooks& r = zeff::anim_run_hooks();
+    r = zeff::AnimRunHooks{};
+    r.play_sound = [](void*, void* s, float v) {  // 0x0056e3d0
+      if (s) zsnd::play(static_cast<zsnd::Object*>(s), v);
+    };
+    r.play_sound_at = [](void*, void* s, const float p[3], float v) {  // 0x0056e7e0
+      if (s) zsnd::play_at(static_cast<zsnd::Object*>(s), p, v, nullptr);
+    };
+    r.ground = [](void*, zcls::Node* w, float x, float y, float z, zeff::GroundHits* out) {  // 0x004edab0
+      static zcls::GroundHits g;
+      out->count = 0;
+      if (!w || zcls::ground_point(w, x, y, z, &g) != 0) return;
+      for (int32_t i = 0; i < g.count && i < 36; ++i) {
+        const zcls::GroundHit& h = g.hit[i];
+        out->hit[i].y = h.height;
+        out->hit[i].has_surface = h.material != nullptr;  // +0x20, its +0x20 the soil
+        out->hit[i].surface = h.material ? static_cast<int32_t>(h.material->soil) : 0;
+        out->count = i + 1;
+      }
+    };
+    r.detonate = [](void*, uint8_t* name, const float p[3]) {  // 0x00581ed0, then 0x005822c0
+      if (zwep::WeaponDef* d = zwep::find_def(reinterpret_cast<const char*>(name))) {
+        const zwep::Vec3f3 at{p[0], p[1], p[2]};
+        zwep::burst_at(d, &at);
+      }
+    };
+    r.ray_down = [](void*, zcls::Node*, const float*, float, int32_t*) -> int32_t {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x00507220", {});
+      return 1;
+    };
+    r.effect = [](void*, zeff::AnimDef*, uint8_t*) {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x005031b0", {});
+    };
+    r.camera_state = [](void*, zeff::AnimDef*, uint8_t*) {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x00503c10", {});
+    };
+    r.camera_from_to = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x00503d50", {});
+      return 2;
+    };
+    r.remove_child = [](void*, zeff::AnimDef*, uint8_t*) {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x004ebb40", {});
+    };
+    r.fbfx_color = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x005074b0", {});
+      return 2;
+    };
+    r.fbfx_wave = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x005076c0", {});
+      return 2;
+    };
+    r.message = [](void*, uint8_t*) {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x00507970", {});
+    };
   }
   void anim_load(const char*) override { zeff::anim_load(); }
   void anim_cleanup() override { zeff::anim_stop_all(1); }  // 0x0050ace0(1)

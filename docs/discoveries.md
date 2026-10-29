@@ -3576,3 +3576,15 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   through all of Op 1, every 'Mech you destroy puts each of its weapons,
   bar TAG, into the mission's salvage. A destroyed vehicle gives all of
   its weapons or none, on a coin toss. (docs/campaign.md, section 14)
+
+- **Op 1 Mission 3 ends only when your Mobile Field Bases reach Charlie.**
+  The last objective waits for the bases to drive into the Charlie
+  deploy point. They only set off when you call them there with the MFB
+  command while standing near Charlie. Then they drive about 2.5 km
+  across the map, and the mission completes as they arrive.
+  (docs/campaign.md, section 14)
+
+- **Op 1 Mission 3's raised buildings count as destroyed when they hit
+  the ground.** Shooting out a building's legs makes it fall. The
+  objective is met only when the falling building lands and turns to
+  rubble, not when you shoot it. (docs/campaign.md, section 14)

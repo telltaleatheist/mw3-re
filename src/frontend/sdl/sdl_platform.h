@@ -70,15 +70,27 @@ class SdlScreen2D : public platform::Screen2D {
   std::vector<uint8_t> rgba_;
 };
 
-// GetTickCount from the game's start, and Sleep.
+// GetTickCount from the game's start, and Sleep. With `frame_ms` (ours,
+// --frame-ms): each pass of the app's loop is that long and a sleep only
+// adds its time, so a run's timing is the same however fast it draws.
 class SdlClock : public platform::Clock {
  public:
   SdlClock() : start_(SDL_GetTicks()) {}
-  uint32_t ticks_ms() override { return static_cast<uint32_t>(SDL_GetTicks() - start_); }
-  void sleep(uint32_t ms) override { SDL_Delay(ms); }
+  uint32_t ticks_ms() override {
+    if (frame_ms) return static_cast<uint32_t>(frames_ * frame_ms + slept_);
+    return static_cast<uint32_t>(SDL_GetTicks() - start_);
+  }
+  void sleep(uint32_t ms) override {
+    if (frame_ms) slept_ += ms;
+    else SDL_Delay(ms);
+  }
+  void frame() { ++frames_; }  // a pass of the app's loop
+
+  uint32_t frame_ms = 0;
 
  private:
   Uint64 start_;
+  uint64_t frames_ = 0, slept_ = 0;
 };
 
 // MessageBoxA: SDL's message box on the window.
@@ -108,6 +120,9 @@ class SdlPump : public platform::MessagePump {
 
   // Asked before each look at the queue: true posts the quit (mw3 --frames).
   std::function<bool()> should_quit;
+  // Ours: run at each look at the queue, once a pass of the app's loop
+  // (--frame-ms steps its clock there).
+  std::function<void()> each_pass;
   static Uint32 music_event();  // the user event SdlMusicOutput posts at a file's end
 
  private:
