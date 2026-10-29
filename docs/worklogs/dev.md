@@ -1580,3 +1580,31 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - In play: c1m2's missile hits (impact_missle_mech) flash white to orange
   for 11 frames, about every 10.8 s from frame 211. Shots are in the outbox.
 
+## The tint's range, then the black canyon floor (2026-10-29)
+
+- Branch mac4/canyon-floor (off main c445a26).
+- The flash's open point is closed (anim-run.md, The screen tint). c1m2's
+  flash every 10.8 s is turret tur_srm03's SRM2 hitting the player.
+  - Every event-36 tint sits inside an "if" on the player's distance to the
+    def's root: 20 m for missiles, 17 for NARC, 12 for PPC, 15 for launches.
+  - The port runs the same if (test_anim_run).
+  - Over 6000 frames each of c1m2, c1m4 and c2m1, far hits (on the ground
+    or on mechs, beyond 50 m) never started a flash. Nothing to fix.
+- The black canyon floor: it isn't the lighting, the hits or the clouds. It
+  is the static light bake's refresh.
+  - zClass marks a node settled 160 frames after it last changed (+0xc4 =
+    frame + 0xa0). The model draw 0x53f2e0 then bakes the model's static
+    light (0x544ed0), stamps the node (0x4ed980) and reads the bake.
+  - The program never set `DrawHooks.refresh_static`: the audit's census
+    stand-in filled it with a call that did nothing. So the draw read an
+    empty cache: black terrain from about 5 s in (frame 158 in --fly, 220
+    in c1m2), on main too; checked in c1m2 and the fly view, probably every mission.
+  - Fixed in gmod_draw: with the hook unset, the ported bake and the stamp
+    run, and the stand-in and known entry are gone. Now the floor is lit
+    at frame 240 (floor 56, cliffs 80; before 10 and 25).
+  - Test: `mission_c1m2_static_light_baked_headless`, 47 drawn models baked
+    by core frame 400. Break: without the fallback, 0.
+  - Seen: in --fly the baked cliffs come out darker than the live ones
+    (cliffs 20 vs 47). The fly viewer sets up the lighting its own way; the
+    mission's baked look is close to its live one.
+

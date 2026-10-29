@@ -252,7 +252,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"CollideCalls.ai_reverses", "deferred: a mech's collision with another entity's body (vt+0x140 +0x70), not wired; a census stand-in"},
       {"CollideCalls.entity_dead", "deferred: a mech's collision with another entity (its +0x08), not wired; a census stand-in"},
       {"CollideCalls.entity_target", "deferred: a mech's collision with another entity (vt+0xec, what takes the damage), not wired; a census stand-in"},
-      {"DrawHooks.refresh_static", "deferred: the static light bake's refresh (0x00544ed0, then 0x004ed980), not wired: the models' static lights; a census stand-in"},
       {"WeaponCalls.net_event", "no effect: a weapon's network message (vt+0x168, 0x0046f160) returns at once without [0x00605fb4]; a census stand-in"},
       {"0x00413af0", "deferred: the fall camera (0x00413af0, its restore 0x00413b70) when the viewed mech falls, not ported; a census stand-in"},
       {"0x00519e50", "no effect: zFont's bitmap fonts, loaded but never drawn in 1.2 (only TextBase's own vtable reaches its draw, and no object keeps it; twod.md section 4)"},

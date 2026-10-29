@@ -123,7 +123,12 @@ the table, and the program's chain runs one more (the fall camera). Each is now 
   - the mech's zone record (0x00476550);
   - a mech's collisions with other entities' bodies
     (`CollideCalls.ai_reverses`, `entity_dead`, `entity_target`);
-  - the static light bake's refresh (`DrawHooks.refresh_static`).
+  - the static light bake's refresh (`DrawHooks.refresh_static`). This
+    one mattered: its stand-in did nothing, so from 160 frames after
+    loading, every static model was drawn from an empty light cache. The
+    terrain went black about 5 s in (checked in c1m2 and the fly view). Fixed 2026-10-29: the
+    draw runs the ported bake when the hook is unset, and the stand-in is
+    gone.
   - the fall camera when the viewed mech falls (0x00413af0, its restore
     0x00413b70). The census reaches it once the chain's kills make mechs
     fall.

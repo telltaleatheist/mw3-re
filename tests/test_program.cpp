@@ -10981,7 +10981,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
                         "0x00495f90", "0x0049bd80", "0x00414370", "0x0043bb50", "0x0046ef70",
                         "0x0046f160", "0x00476550", "CollideCalls.ai_reverses",
-                        "CollideCalls.entity_dead", "CollideCalls.entity_target", "DrawHooks.refresh_static",
+                        "CollideCalls.entity_dead", "CollideCalls.entity_target",
                         "WeaponCalls.net_event", "0x00413af0"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
@@ -10991,7 +10991,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 60);
+  EXPECT(n == 59);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
@@ -12116,6 +12116,71 @@ TEST(mission_c1m1_c1m2_vehicles_fire_at_the_player_headless) {
   if (!have_game()) return;
   vehicles_fire_run(1);  // the APCs
   vehicles_fire_run(2);  // the APCs and the Bulldogs
+}
+
+// c1m2's static models get their baked light once they settle: 160 frames
+// after a node last changed (+0xc4) the draw bakes its model (0x00544ed0) and
+// stamps the node (+0xc0, 0x004ed980), then reads the bake. The program left
+// that refresh unset (a census stand-in), so the terrain was drawn from an
+// empty cache: black from about 5 s on (render-bake-textures.md).
+TEST(mission_c1m2_static_light_baked_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_static_bake"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int core_frames = 0, baked = 0, settled = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() == &mech3::states().core) ++core_frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return core_frames >= 400; };
+    app.run(pump);
+    const zcls::Frames& f = zcls::frames();
+    for (int32_t i = 0; i < zcls::nodes().capacity; ++i) {
+      const zcls::Node* n = zcls::node_at(i);
+      if (!n || !n->get<uint32_t>(0x3c)) continue;  // a model
+      if (n->get<uint32_t>(0xc4) > f.frame) continue;  // not settled yet
+      ++settled;
+      baked += n->get<uint32_t>(0xc0) >= f.update_frame;
+    }
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c1m2 after %d core frames: %d settled nodes with a model, %d drawn and baked\n", core_frames,
+              settled, baked);
+  EXPECT(core_frames >= 400 && settled > 0 && baked >= 20);  // only the drawn ones bake: 47 of about 16800
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 TEST(mission_c1m2_destroy_objectives_met_by_mech_kills_headless) {

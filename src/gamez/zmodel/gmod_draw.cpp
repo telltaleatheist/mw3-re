@@ -10,6 +10,7 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_bake.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
@@ -926,7 +927,14 @@ int32_t draw_model(zcls::Node* node, uint32_t mask) {
     if (node_field<uint32_t>(*node, 0xc0) >= zcls::frames().update_frame) {
       cache = true;
     } else if (node_field<uint32_t>(*node, 0xc4) <= zcls::frames().frame) {
-      if (g_hooks.refresh_static) g_hooks.refresh_static(g_hooks.ctx, &m, node);
+      // 0x00544ed0 then 0x004ed980: the bake into each polygon's +0x18, the
+      // node's cache stamped. Without it the cache is read unfilled: black.
+      if (g_hooks.refresh_static) {
+        g_hooks.refresh_static(g_hooks.ctx, &m, node);
+      } else {
+        bake_static_light(m, g_buf.cam, g_buf.normals);
+        node->put<uint32_t>(0xc0, zcls::frames().update_frame);
+      }
       cache = true;
     }
   }

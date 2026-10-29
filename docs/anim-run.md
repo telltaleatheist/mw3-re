@@ -192,9 +192,16 @@ Who uses it: the weapons' animations (weapon-effects.md).
   up and fades, longer for the bigger racks (0.3 + 0.6 s for m2, 1 + 2 s
   for m20).
 
-The event itself does not check for the player, so a hit far away flashes
-the screen as well, unless the def's own range test stops it. That is not
-checked.
+The event does not check for the player, and these defs run without a
+range test (flags 0x110020). Each one's tint sits inside an "if" (event 31,
+condition 2): the player within a squared distance of the def's root. So
+the screen flashes only for what happens close to you:
+- missile hits (and the LRM's minimum-range hit, impact_lrm_min): 20 m (400);
+- NARC: 17 m (289);
+- PPC: 12 m (144);
+- a missile launch: 15 m (225), your own racks or anyone's beside you.
+A hit on another mech farther off does not flash. In c1m2 the flash every
+10.8 s from frame 211 is turret tur_srm03's SRM2 hitting the player's torso.
 
 Port: `zeff::anim_fbfx_color` (`AnimRunHooks.screen_tint` for 0x5a6730),
 `ztwod::ScreenTint` and `weather_tint`.

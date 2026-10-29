@@ -267,3 +267,4 @@ WakeHooks.start	fallback: unset runs the port (zeff::anim_start_connector, 0x005
 SoundExtraHooks.play_fading	fallback: unset runs the port (zsnd::play_fading)
 RdrHooks.sound_find	fallback: unset runs the port (zsnd::find, 0x0056f6f0)
 RdrHooks.find_loose	never set: FIX (A), loose .zrd files are not read (zreader.md), so no path
+DrawHooks.refresh_static	fallback: unset runs the port (0x00544ed0 then 0x004ed980); test_modeldraw records it

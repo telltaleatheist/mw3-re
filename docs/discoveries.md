@@ -1602,8 +1602,12 @@ From the animation files (anim.md).
   - a PPC hit goes white to blue;
   - a NARC pod gives a few short orange pulses.
   A missile launch flashes white too, longer for bigger racks: from under
-  a second for the smallest to three seconds for the 20-tube one. The tint covers the world
-  behind the cockpit glass, not the cockpit or the HUD.
+  a second for the smallest to three seconds for the 20-tube one. The tint
+  covers the world behind the cockpit glass, not the cockpit or the HUD.
+  Only what happens close to you flashes: a missile hit within 20 m, a NARC
+  within 17 m, a PPC within 12 m, a launch within 15 m. So you see the
+  flash for hits on your own mech and on a mech right beside you, never
+  for a fight farther off.
 - **Your cockpit glass cracks one mark per head hit, from six.** Every
   cockpit carries three cracks and three dings, hidden until the head is
   hit. Each hit on the head shows one of the six, each about one time in six
