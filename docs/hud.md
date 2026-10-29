@@ -278,8 +278,11 @@ Small items, each with a differential test:
      mode and on crafted variants.
 2. **The HUD primitives** zTwoD has left: FilledBox / Frame, PolyLine and
    Shape with the transformed points and zRender's line list, the line clip
-   helpers, the key-list bars (twod.md, Left).
-3. **Compass** (0x0043f590, 0x0043f620) and the **timer**.
+   helpers, the key-list bars (twod.md, Left). Done (checked 2026-10-28):
+   0x005a3580, zRender's 0x00562cb0 / 0x005630c0 / 0x00563440
+   (zrndr_prim2d.cpp), the clips 0x0059b2f0.. (twod_shapes.cpp);
+   test_twod_prims.py.
+3. **Compass** (0x0043f590, 0x0043f620) and the **timer**. Done.
 4. **Gauges** (0x00444250, 0x00445450..0x004456f0, 0x004452c0): speed, jump
    fuel, heat, coolant.
 5. **Weapons list** (0x00445f80.., 0x00446520, 0x00446680, 0x00447c40) and
@@ -303,7 +306,10 @@ Small items, each with a differential test:
 - Which buttons and options show the large radar, the zoom window and the
   equipment list; what +0x70 of the HUD selects for the radar.
 - 0x0043be10, 0x00441800 (with the mech's +0x6c) and 0x0041bd80 are not
-  read yet.
+  read yet. (Done since: 0x0043be10 is Hud::reset, 0x00441800 TARGET's
+  set_target, 0x0041bd80 mech_hud's aim_at_point. What 0x0041df10 answers
+  is known too: the definition's kind, 2 rounding the zoom window. Still
+  open: the mech's +0xbc bit 2, and the buttons for the large radar.)
 
 ## 9. As ported (`mech3/hud`)
 
@@ -356,8 +362,10 @@ the set-up reads: item 1a's test).
 
 ### Left
 
-- The set-up with a target in the mech's slot (TARGET's 0x00441800 path).
-- The zoom views' drawing and camera work, with the render work: the zView
+Refreshed 2026-10-28 against the code: each item marked.
+
+- (Done) The set-up with a target in the mech's slot (TARGET's 0x00441800 path).
+- (Done, sections 22 and 23) The zoom views' drawing and camera work, with the render work: the zView
   and window creation (0x004b5150, 0x004b5440) and the camera setters stay
   recorded hooks until then (lead, 2026-10-20).
 - (Done) What this doc calls "the nav list" (0x0047e840, 0x2fb8 bytes) is
@@ -368,24 +376,28 @@ the set-up reads: item 1a's test).
   lay out (0x0047eba0, from the player's mech), fill (0x0047ef10, the
   target's) and update the ported display; mw3tests'
   `mission_c1m1_hud_weapon_lines_and_lock_headless` checks it is laid out.
-- The paths with a target or a mech: TARGET's 0x00441800 / 0x00441780 /
+- (Done) The paths with a target or a mech: TARGET's 0x00441800 / 0x00441780 /
   0x00441660 with a target, the weapon line's refresh 0x00445dc0 with a weapon,
   the equipment's and weapons' readers 0x00448200 / 0x00446120 with a HUD.
 - (Done) The zoom window's show_for 0x004438d0: the zoom view's (0x0043fc10),
   then its text hidden; test_hud.py op 33 shows it.
-- The show_for overrides 0x0043db70 (radar),
+- (Done) The show_for overrides 0x0043db70 (radar),
   0x00441560 (TARGET), and the objectives' and weapons' parts of theirs
   (0x00446ad0, 0x00446520).
-- TextBox's own message-id setters 0x005a1cd0 / 0x005a1cf0 (FontText's run).
-- The weapon group calls of the lock (section 12): 0x004b1bd0, 0x004b1c70,
+- (Open) TextBox's own message-id setters 0x005a1cd0 / 0x005a1cf0 (FontText's run).
+- (Done) The weapon group calls of the lock (section 12): 0x004b1bd0, 0x004b1c70,
   0x004b1cd0 stay recorded hooks: mac 4, the planner (they sit in the AI
-  weapon planner's range 0x004b1170..0x004b1d7f).
-- The mission maps' list (0x00458590 on [0x00605acc]) for Shift+R's map
+  weapon planner's range 0x004b1170..0x004b1d7f). Ported since in
+  weapon_planner.cpp; the HUD's tests keep the hooks.
+- (Done, section 25) The mission maps' list (0x00458590 on [0x00605acc]) for Shift+R's map
   mode (section 19).
 - The radar in the program (section 15): the mission map (its map mode),
   the nav route's polylines (+0xbd4.. lists), the network marker
   (0x0058b060) and the landmines (0x00413560's list) are not ported and
-  answer none. (Done, 2026-10-25) The contacts' objects are of every class
+  answer none. (2026-10-28: the mission map is done, section 25; the
+  +0xbd4 polylines are the mission boundary, done with playtest #30; the
+  landmines are done (landmines.cpp, the radar's mine_count). Open: the
+  network marker, multiplayer.) (Done, 2026-10-25) The contacts' objects are of every class
   (ai.md section 15, Radar contacts): their place, team and blip (vt+0x3c)
   by class, the basic vehicles', turrets' and targets.zrd's with their own
   markers, the field base's and command marker's none (never drawn); TARGET's

@@ -957,11 +957,16 @@ again).
 - The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its lists
   (0x0044b215..0x0044bc5c), on the same widgets; the file list's layout with
   a font for the rows it may not light (0x0048ccf0, +0x6cc: a list of the
-  mech lab's; the pilot screen's lists use the plain 0x0048cda0).
+  mech lab's; the pilot screen's lists use the plain 0x0048cda0). Done
+  (checked 2026-10-28): the bar is `LabEditBar` (CONFIG_EDIT, vtable
+  0x005c14f0), the lists lab_screen.cpp's, both layouts menu_widgets.cpp's.
 - What follows the pilot screen: the multiplayer screens and their network (0x0047fc40,
   0x00494920, 0x0049cb20, 0x0049b660); the campaign and training go on to the
   briefing (the Load State, ported), which reaches the pilot's game through
-  the module-memory handle at [0x0060861c] (not yet bridged, pilot.md).
+  the module-memory handle at [0x0060861c] (not yet bridged, pilot.md). The
+  bridge is done (the pilot's game through GameEngine's pilot and launch,
+  mission-plan items 19 and 20); the multiplayer screens stay open, with
+  the network work.
 - The menu objects' constructors and destructors run in the program but are
   not in a differential case (their calls are the screen's construct and
   delete, compared through the screens' tests).

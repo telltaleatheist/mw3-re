@@ -1394,3 +1394,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   Pilot 44, Action 104, Lab 2504, debriefing's Win 3915.
 - Break: the render_flush memory read fails the three lab tabs (lit 0.000).
 
+
+## The docs refresh (2026-10-28)
+
+- Branch mac4/docs-refresh (off main 29dc01f); docs only.
+- Every Missing and Left item in frontend-plan.md, twod.md section 9,
+  menus.md section 14, hud.md sections 7, 8 and 9 (Left), mechlab.md
+  section 5 and mission-plan.md section 1 checked: a port of the address
+  in src (grep of the Mech3.exe comments) and the live screens of the
+  blank-screen guard.
+- Still open: multiplayer; zFont (next); TextBox's 0x005a1cd0 / 0x005a1cf0,
+  0x005961d0, 0x005a22c0, 0x004ac050, Movie2D's update and draw, the
+  developer consoles, the software paths; the +0xbc bit 2 question; c4m2's
+  late +12%.
+- My "c4m2 8x" in the gap list was stale: item 3 closed it.
