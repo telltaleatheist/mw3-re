@@ -1642,3 +1642,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   doesn't reach the game's logic. c445a26 and 94c739d themselves can't be
   compared with a seed, since they lack `--seed` and these fixes.
 
+## c4m2's late cycles (#3), with the chain's split check (2026-10-29)
+
+- Branch mac4/c4m2-cycles (off main c20b229).
+- The campaign chain's save/resume runs (new:4 + resume:16 against new:20)
+  ran on the real clock, unseeded, so a store's unit total could differ by
+  ammunition spent (10 rounds in c4m2). All three runs, and the kills chain,
+  now take `--frame-ms 33 --seed 1999`. Every mission's start reseeds rand,
+  so a mission plays the same split or whole, and the check is strict:
+  every briefing line identical, units included. Two runs passed, and the
+  test takes 102 s instead of several minutes.
+
