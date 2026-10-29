@@ -121,7 +121,7 @@ the original's formula unchanged, so 640x480 stays bit for bit.
 4. The HUD by anchors: the 640x480 block's pieces placed from the left,
    right and bottom edges of any size (hud.md section 5), with a scale for
    the art. The hud.zrd blocks stay for their own modes when the fix is
-   off.
+   off. Done (2026-10-28), section 8.
 5. The menus: one 640x480 frame scaled to the height and centred
    (pillarboxed), the cursor and clicks mapped through it; the backgrounds
    tiled past 2560x1920 (menus.md section 7).
@@ -258,4 +258,55 @@ the known table. As expected, the HUD keeps its 640x480 block at the top
 left until step 4: hud.zrd has no block for 11..16, and the pieces' places
 are 640x480 ones. The message panel is centred across 1920, but its block
 is the only one placed for the size. Not fixed here.
+
+## 8. The HUD by anchors and the art's scale (step 4)
+
+Behind `any_resolution`, for the modes past 10 only. Modes 3..10 keep
+hud.zrd's blocks and the exe's sizes, with the fix on as off.
+
+**The canvas.** The 2D (the display rect: the HUD, the message panel, a
+pause menu's dialogs) is drawn on the frame divided by a whole art scale,
+the frame's height over 480 (`art_scale`, `vmode_canvas`). That is 960x540
+at 1920x1080 and at 3840x2160, 853x480 at 2560x1440, and the frame itself
+at 1280x720 and 1600x900. The render and window rects keep the whole frame
+(the 3D and its zClass window), as mode 3 keeps a render rect apart from
+its display. The 16-bit buffer is the canvas, and its layer is stretched
+over the frame by the scale, so 640x480 art and text are drawn at two or
+four times their size.
+
+**Between the two.** The exe already maps the HUD's screen points through
+0x0040d9e0 / 0x0040da30 (mode 3's halving and doubling). With a canvas
+they map by the render-to-display ratio: the reticle's ray, TARGET's
+tracking, the pocket panel. The pieces drawn in the 3D pass from canvas
+pixels go onto the frame the same way: the HUD views' zClass windows
+(`HudViewWindow::set_area`), the panels' quads and their depth clears, and
+the MFD's and TARGET's view clears. On a canvas, the HUD's own window rect is
+the display (`HudHooks::window_rect`). The 3D's viewport is the frame and
+the 2D layer's the canvas (`GameEngine::screen_size`). The window takes the
+frame (step 2), and the cursor is in canvas pixels (`FrameShape::canvas_w`).
+
+**The layout.** hud.md section 5's anchors on V640x480, at the canvas's
+size. At 960x540 the right-anchored pieces move 320 and the bottom-anchored
+60: the MFD at 850, 430, the weapons at 850, 30, the compass at 405.
+
+Found on the way: the program's HUD hooks answered the video mode with 0
+(`vmode()` read an unset `[[0x005f4d0c]]`), so the program's HUD never read
+a hud.zrd block. At 640x480 the constructor's defaults are V640x480's, so
+it never showed. Wired to the options' mode, so modes 6..10 now take their
+blocks, as the exe does.
+
+Tests:
+- `resolution_hud_anchors_make_the_original_blocks`: 70 of 70.
+- `resolution_canvas_past_mode_10`: the canvas sizes, the rects at mode 13,
+  the conversions, mode 3's doubling, the fix off.
+- `mission_c1m1_hud_anchored_at_any_size_headless`: c1m1 at InGameVMode 5
+  (with the fix on and off: V640x480's places) and at 13 and 15 (the
+  anchored places on 960x540).
+
+Breaks:
+- the compass anchored left fails both anchor tests;
+- an art scale of 1 fails the mission test 4 times;
+- the anchors never applied fails it twice.
+
+Shots: c1m1 at modes 13 and 15.
 

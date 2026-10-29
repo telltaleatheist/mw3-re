@@ -299,7 +299,7 @@ void SdlZinHost::window_size(int* w, int* h) const {
 // frame stretched over the window.
 void SdlZinHost::client_size(int32_t* w, int32_t* h) {
   *w = fw_, *h = fh_;
-  if (input_ && input_->fitted()) *w = input_->shape->frame_w, *h = input_->shape->frame_h;
+  if (input_ && input_->fitted()) *w = input_->shape->client_w(), *h = input_->shape->client_h();
 }
 void SdlZinHost::client_to_screen(int32_t* x, int32_t* y) {
   int w, h;

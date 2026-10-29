@@ -1351,3 +1351,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   99 here, against 576 in item 22's runs (the fade is timed), so I
   corrected program.md's claim.
 
+## Resolution step 4 (2026-10-28): the HUD by anchors
+
+- Branch mac4/hud-anchors (off main 013378d).
+- Anchors read from hud.zrd: every piece moves by w - 640, (w - 640) / 2 or
+  h - 480, or not at all. The speed and fuel frames hang from the top.
+- The scale: a canvas (the display rect) of the frame over a whole scale,
+  so the 16-bit layer and the HUD are drawn small and stretched. The
+  render and window rects keep the frame. A first try put the canvas in
+  the window rect too, and the 3D projected onto 960x540 inside 1920.
+- Two port gaps showed. screen_size set the 3D viewport to the buffer's
+  (now canvas) size. The program's HUD hooks answered vmode 0, so the
+  set-up never read hud.zrd, at any mode.
+- The panels' quads and the views' depth clears are canvas pixels drawn in
+  the 3D pass: mapped onto the frame.
+

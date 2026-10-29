@@ -1083,6 +1083,19 @@ class Hud : public ztwod::Layer {
   // +0x22e3c the resolution's block during it. Not set by the original's
   // constructor; FIX (bug), behind zfix bugs: cleared here (docs/hud.md).
   zrdr::Node* block;
+  // FIX (B), any_resolution (resolution.md step 4): past mode 10 hud.zrd has no
+  // block, so V640x480's positions are laid out on the display (the canvas)
+  // by each piece's anchor (hud_anchor); 0 while the block is read as it is.
+  int32_t anchor_w = 0, anchor_h = 0;
+  // A position from the block, anchored when anchor_w is set.
+  bool pos(zrdr::Node* n, const char* piece, const char* key, int32_t out[2]) const;
 };
+
+// FIX (B) (resolution.md step 4, hud.md section 5): a hud.zrd position of
+// V640x480 moved for a display of w x h by its piece's anchor, as the
+// original's larger blocks move it: from the right edge (x + w - 640), the
+// centre (x + (w - 640) / 2), the bottom (y + h - 480), else as it is. False
+// for a key that is not a position (sizes, widths).
+bool hud_anchor(const char* piece, const char* key, int32_t w, int32_t h, int32_t p[2]);
 
 }  // namespace mech3
