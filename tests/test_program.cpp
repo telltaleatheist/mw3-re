@@ -10955,7 +10955,7 @@ TEST(playtest_hud_images_the_data_lacks) {
 TEST(known_unported_keys_name_their_reason) {
   int n = 0;
   for (const char* k : {"0x005561a0", "0x005561e0", "0x00516f50", "[0x0072f3f0]", "0x00588930", "0x00586c20",
-                        "0x0041ab90", "0x004ac860", "0x004a4de0", "0x004ab6b0", "0x0040e4b0", "vt+0x7c",
+                        "0x0041ab90", "0x004ac860", "0x004a4de0", "0x0040e4b0", "vt+0x7c",
                         "hudline.vt+0x7c", "0x0040f7f0", "0x0040f890", "0x0040fef0", "0x004b52e0", "0x0047f2b0",
                         "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540", "0x00557f90", "0x00558290",
                         "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390", "0x005a84c0",
@@ -10971,12 +10971,13 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 50);
+  EXPECT(n == 49);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
                           "0x0050ace0", "0x00558010", "0x00579a10", "0x00579a40", "0x00579aa0",
-                          "0x00433df0", "training.vt+0x34", "0x00430aa0", "0x00446ad0"})
+                          "0x00433df0", "training.vt+0x34", "0x00430aa0", "0x00446ad0",
+                          "0x004ab6b0", "0x004ab910", "0x00576c80", "0x0040f330", "0x0043bb80"})
     EXPECT(mech3::GameEngine::known_unported(gap) == nullptr);
 }
 

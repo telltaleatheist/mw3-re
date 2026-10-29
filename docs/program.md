@@ -319,12 +319,12 @@ apart. Everything else is a real gap and stays listed.
   so Escape's pause stopped the count and the run never ended (item 21's
   first pause run). `sdl_program_frames_end_a_paused_mission` runs
   `build/mw3 --mission c1m1 --tap 0x01@900 --frames 1200` and expects it to
-  quit by itself. The fade into the mission is timed, so a hidden window
-  spends 500-odd frames in it: c1m1's Core state starts near frame 576.
+  quit by itself. The fade into the mission is timed, so the frames it
+  takes vary with the run's speed: c1m1's Core state has started at frames
+  99 to 576 in hidden runs, under the test's 900.
 - **Deferred by decision**: multiplayer (0x00588930, 0x00586c20, the chat
   panel 0x0041ab90, the Multiplayer State's three screens 0x00493260,
-  0x00495f90, 0x0049bd80, the lobby session's flag 0x00586ce0), the stealth object (0x004ac860, 0x004a4de0), the mode
-  switch 0x004ab6b0 (resolution.md step 3), the developer-only lines
+  0x00495f90, 0x0049bd80, the lobby session's flag 0x00586ce0), the stealth object (0x004ac860, 0x004a4de0), the developer-only lines
   (0x0040e4b0, the two vt+0x7c clears, 0x0040f7f0, 0x0040f890), the
   stealth object's name 0x005a84c0, the bitmap fonts 0x00519e50 (with
   zFont's measure and draw, which still log).

@@ -471,6 +471,11 @@ class GameEngine : public Engine {
   uint32_t video_card_memory(int32_t dev, uint32_t* total) override;
   void video_shutdown() override { video_opened_ = false; }  // 0x00579ef0: [0x0080271c] 0
   void video_restore_window() override {}
+  void video_restore() override {}  // 0x00577cb0: the lost surfaces restored; none in the port
+  int32_t video_set_mode(int32_t mode) override;  // 0x00576c80: the screen at the mode's size
+  void message_panel_place(Handle kept, Handle area) override;  // 0x0040f330
+  void screen_mode_cockpits() override;
+  void hud_setup(Handle hud, Handle mech) override;  // 0x0043bb80
 
   // zVideo's frame: the 16-bit buffer the 2D draws into, shown by the flip.
   Handle video_back_buffer() override { return kBackBuffer; }
@@ -577,6 +582,7 @@ class GameEngine : public Engine {
                           kGrabs = 0x00010100;  // the fade's stills, 0x10 apart
 
  private:
+  void screen_size(int32_t w, int32_t h);  // the 2D buffer, the viewport, the window (video_open, video_set_mode)
   Platform p_;
   std::string command_line_;
   bool video_opened_ = false;

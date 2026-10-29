@@ -236,6 +236,91 @@ void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
   // FIX (B) (resolution.md): a card offers every size; today's have the memory.
   if (device >= 0 && zfix::options().any_resolution) *hi = kLastVMode;
 }
+
+// Mech3.exe 1.2 @ 0x004ab6b0: the screen to `mode`. The same mode only
+// restores the surfaces; zVideo refusing it leaves the old one. Then the
+// options' rects, the render targets, the software spans (or the hardware
+// clears), the cursor, the message panel, and every mech's cockpit: the view's
+// own mech's HUD laid out for the mode (resolution.md step 3).
+int32_t Engine::set_screen_mode(int32_t mode) {
+  const int32_t old = vmode();
+  if (mode == old) {
+    video_restore();  // 0x00577cb0
+    return mode;
+  }
+  Handle still = 0;
+  video_lock();
+  if (!peek32(0x72f348)) still = video_grab(1);  // software: the screen kept to draw back
+  video_unlock();
+  if (video_set_mode(mode) != 0) return old;
+  set_vmode(mode);
+  {
+    const Handle back = video_back_buffer();
+    const Handle depth = display_depth();
+    const Handle rect = display_rect();
+    render_set_target(video_target(), rect, depth, back);
+  }
+  render_set_pitch(vstride());
+  {
+    const Handle back = video_back_buffer();
+    const Handle b = video_buffer_da0();
+    const Handle r = video_buffer_d90();
+    render_set_target2(video_target(), r, b, back);
+  }
+  if (!peek32(0x72f348)) {
+    video_blit(still, 0, 0, display_rect());
+    video_flip(0, 0, 1, 1);
+    video_blit(still, 0, 0, display_rect());
+    span_shutdown();  // 0x005646d0
+    if (span_init(window_h()) != 0) {  // 0x00564370
+      print("Error opening HSE... ABORTING RUN\n", nullptr);
+      flush_stdout();
+      return old;
+    }
+  } else {
+    video_clear_a(0);
+    video_clear_b(0);
+  }
+  video_show_cursor(static_cast<uint32_t>(pixel_double()));
+  twod_set_cursor(static_cast<uint32_t>(pixel_double()));
+  {
+    const Handle render = render_rect();
+    message_panel_place(display_rect(), render);
+  }
+  screen_mode_cockpits();
+  if (still) image_free(still);
+  return mode;
+}
+
+// 0x004ab6b0's loop: zEntity's list, each entry's object (vt+0x2c) and its
+// mech (vt+0x50), cockpits refitted.
+void Engine::screen_mode_cockpits() {
+  for (Handle it = peek32(0x73655c); it != peek32(0x736560); it += 4) {
+    const Handle o = vcall(peek32(it), 0x2c, {});
+    if (const Handle m = vcall(o, 0x50, {})) cockpit_refit(m);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0041cdc0: the view's own mech's HUD (0x00430aa0 on its
+// +0x684) set up again (0x0043bb80) for the screen mode.
+void Engine::cockpit_refit(Handle mech) {
+  const Handle hud = mech == field32(peek32(0x5f4c8c), 0x64) ? pilot_hud(field32(mech, 0x684)) : 0;
+  if (hud) hud_setup(hud, mech);
+}
+
+// Mech3.exe 1.2 @ 0x004ab910: Shift+V, the next mode in the device's range
+// (3 to 5, 5 to 6, 6 to 7, the rest to its lowest; past its highest, the
+// lowest), saved as InGameVMode. FIX (B): with any_resolution 7..15 step on
+// to the next (the range reaching 16), where the exe went back to the lowest.
+void Engine::vmode_toggle() {
+  int32_t lo = 0, hi = 0;
+  video_mode_range(hw_card_dev(), &lo, &hi);  // always true in the exe
+  const int32_t cur = vmode();
+  int32_t next = cur == 3 ? 5 : cur == 5 ? 6 : cur == 6 ? 7 : lo;
+  if (zfix::options().any_resolution && cur >= 7 && cur < hi) next = cur + 1;
+  if (next > hi) next = lo;
+  set_in_game_vmode(set_screen_mode(next));
+}
 void Engine::pop_state(uint32_t arg) { app().pop(arg); }
 std::string Engine::peek_string(Handle p) {
   std::string s;

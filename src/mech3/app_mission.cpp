@@ -2160,7 +2160,7 @@ void wire_mission_hooks(GameEngine* e) {
     keys.message_toggle = [] {  // 0x0040f070
       if (message_panel()) message_panel_toggle();
     };
-    keys.vmode_cycle = [] { g_mission_engine->unported("0x004ab910", {}); };  // resolution.md step 3
+    keys.vmode_cycle = [] { g_mission_engine->vmode_toggle(); };  // 0x004ab910 (resolution.md step 3)
     keys.debug_7e = [] { g_mission_engine->unported("0x004abbc0", {}); };
   }
   set_player_hooks(e ? &g_player_hooks : nullptr);

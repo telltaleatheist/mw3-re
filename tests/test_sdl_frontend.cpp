@@ -737,7 +737,7 @@ extern char** environ;
 // --frames through the pause (mission-plan item 22): a launched mission's
 // frames counted only those that drew the scene, so Escape's pause screen
 // stopped the count and the run never ended. The program itself, Escape at
-// frame 900 (the Core state's, after the fade's 500-odd) and --frames 1200,
+// frame 900 (the Core state's: the timed fade has taken 99 to 576) and --frames 1200,
 // must quit on its own (90 s allowed).
 TEST(sdl_program_frames_end_a_paused_mission) {
   if (!have_fonts()) return;

@@ -416,6 +416,20 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 40: h.add_static(kStaticStep[v >> 4 & 3], static_cast<int32_t>(v & 0xf), kStaticHold[v >> 8 & 3], kStaticMost[v >> 12 & 3]); break;
     case 41: call("poke32", {0x608e4c, v}); break;
     case 42: h.reticle.draw3d(zgame::from_bits(v)); break;
+    case 43: {  // 0x0040f330: ECX and EDX none or an options rect (test_hud.py PANEL_RECTS)
+      static const uint32_t kRects[3] = {0x5f4d1c, 0x5f4d20, 0x5f4d24};
+      int32_t kept[4], area[4];
+      auto read = [](uint32_t c, int32_t* out) -> const int32_t* {
+        if (!c) return nullptr;
+        const uint32_t r = Hooks::rect_ptr(kRects[c - 1]);
+        for (int i = 0; i < 4; ++i) out[i] = static_cast<int32_t>(call("peek32", {r + 4u * i}));
+        return out;
+      };
+      const int32_t* k = read(v & 3, kept);
+      const int32_t* a = read(v >> 2 & 3, area);
+      mech3::message_panel_place(k, a);
+      break;
+    }
     case 33: z.show_for(zgame::from_bits(v)); break;
     case 34: z.toggle_lock(); break;
     case 35: h.radar.toggle_zoom(); break;
@@ -651,6 +665,14 @@ void dump_hud(Dump& d) {
     panel(d, &mp->panel);
     d.o << "\n";
   }
+  d.o << "parea ";  // 0x0040f330's rects
+  {
+    const mech3::PanelArea& pa = mech3::panel_area();
+    for (int32_t x : pa.kept) d.kv("a", x);
+    for (int32_t x : pa.area) d.kv("a", x);
+    d.kv("a", pa.w), d.kv("a", pa.h), d.kv("a", pa.centre_x);
+  }
+  d.o << "\n";
   d.o << "equipment ";
   mech3::HudEquipment& eq = h.equipment;
   d.base(&eq);
@@ -992,6 +1014,7 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   }
   new (g_hud) mech3::Hud(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(mech)));
   mech3::message_panel_create();
+  mech3::panel_area() = mech3::PanelArea{};  // 0x005fc34c..: zero as the exe starts
   std::string aims;
   for (int i = 0; i < nplaces; ++i) {
     g_hud->reticle.place(places[2 * i], places[2 * i + 1]);

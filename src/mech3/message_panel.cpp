@@ -1,5 +1,7 @@
 #include "mech3/message_panel.h"
 
+#include <algorithm>
+
 #include "crt/msvc_math.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/zfix.h"
@@ -123,6 +125,31 @@ void message_panel_clear() { g_panel->clear(); }
 
 // Mech3.exe 1.2 @ 0x0040f0b0
 void message_panel_set(bool in) { g_panel->set_sliding(in); }
+
+PanelArea& panel_area() {
+  static PanelArea a;
+  return a;
+}
+
+// Mech3.exe 1.2 @ 0x0040f330. The exe makes the panel in the app's start
+// (0x0040f410 from 0x00480570) and uses it unchecked; without one, nothing.
+void message_panel_place(const int32_t* kept, const int32_t* area) {
+  PanelArea& a = panel_area();
+  if (kept) std::copy(kept, kept + 4, a.kept);
+  if (area) std::copy(area, area + 4, a.area);
+  a.w = a.area[2] - a.area[0];
+  a.h = a.area[3] - a.area[1];
+  a.centre_x = a.w / 2 + a.area[0];
+  MessagePanel* p = g_panel;
+  if (!p) return;
+  HudHooks& h = hud_hooks();
+  p->on_x = (h.display_w() - p->width) / 2;  // 0x0040d760
+  const int32_t text = p->total_height();     // 0x005a25f0
+  p->on_y = h.display_h() - text;              // 0x0040d770
+  p->off_x = p->on_x;
+  p->off_y = h.display_h() + 1;
+  p->set_pos(p->off_x, p->off_y);              // vt+0x0c
+}
 
 // Mech3.exe 1.2 @ 0x0040f040
 void message_panel_reset() {

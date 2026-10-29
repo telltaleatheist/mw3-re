@@ -11,7 +11,9 @@
 #include "gamez/zfmv/fmv_script.h"
 #include "mech3/mission_map.h"
 #include "mech3/app.h"
+#include "mech3/hud.h"
 #include "mech3/message_panel.h"
+#include "mech3/sensors.h"
 
 #include "gamez/zdeclient/zdec_crater.h"
 #include "mech3/sound_extra.h"
@@ -222,7 +224,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x0041ab90", "deferred: multiplayer (the chat panel at mech +0x378, made by commands 0x76 / 0x77)"},
       {"0x004ac860", "deferred: the stealth object (its block; back burner, vehicles.md)"},
       {"0x004a4de0", "deferred: the stealth object"},
-      {"0x004ab6b0", "deferred: the mode switch (resolution.md step 3; one mode now)"},
       {"0x0040e4b0", "deferred: developer only (the 25 lines' draw and hit test, hud.md section 20)"},
       {"vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
       {"hudline.vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
@@ -551,9 +552,16 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   if (!hw) unported("0x00579c60 software", {});
   video_opened_ = true;  // [0x0080271c]
   const Rect& d = mech3::display();
-  width_ = d.w > 0 ? d.w : 640;
-  height_ = d.h > 0 ? d.h : 480;
+  screen_size(d.w > 0 ? d.w : 640, d.h > 0 ? d.h : 480);
+  return 0;
+}
+
+// The screen at a size (FIX (A): DirectDraw's surfaces and the device made
+// for a mode): the 16-bit buffer, Render3D's viewport, the window's shape.
+void GameEngine::screen_size(int32_t w, int32_t h) {
+  width_ = w, height_ = h;
   buffer_.assign(static_cast<size_t>(width_) * height_, 0);
+  buffer_is_screen_ = false;
   if (p_.render) p_.render->set_viewport(0, 0, width_, height_);
   if (p_.window) p_.window->frame_size(width_, height_);  // the window's shape (ours, resolution.md step 2)
   // The tint quad as 0x00579c60 and the device's setup (0x0057a900, not
@@ -564,7 +572,35 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   zvid::reset_tint_quad();
   zvid::set_fog(1);             // 0x0057b05a: fog on from the device's setup
   zvid::set_tint_depth(0.99f);  // 0x3f7d70a4
+}
+
+// 0x00576c80: zVideo's sizes for the mode (0x0057a1a0: 5..10 as the options'
+// modes; FIX (B) 11..16 with any_resolution, mech3::vmode_size), then the
+// surfaces and the device made again (0x00577cd0), here the screen at that
+// size. A mode zVideo does not know keeps the size it had.
+int32_t GameEngine::video_set_mode(int32_t mode) {
+  int32_t w = width_, h = height_;
+  if (!mech3::vmode_size(mode, &w, &h)) w = width_, h = height_;
+  screen_size(w, h);
   return 0;
+}
+
+// 0x0040f330 on the options' rects by their handles (1 render, 2 display, 3 window).
+void GameEngine::message_panel_place(Handle kept, Handle area) {
+  auto rect = [](Handle r) -> const int32_t* {
+    const Rect* p = r == 1 ? &mech3::render() : r == 2 ? &mech3::display() : r == 3 ? &mech3::window() : nullptr;
+    return p ? &p->x : nullptr;
+  };
+  mech3::message_panel_place(rect(kept), rect(area));
+}
+
+// 0x004ab6b0's loop on the program's entities (zEntity's list is ours): every mech.
+void GameEngine::screen_mode_cockpits() {
+  for (const Handle e : ai::entity_list())
+    if (entity_is_mech(object_of(e))) cockpit_refit(e);
+}
+void GameEngine::hud_setup(Handle hud, Handle mech) {
+  if (auto* h = static_cast<Hud*>(object_of(hud))) h->setup(static_cast<Mech*>(object_of(mech)));
 }
 
 // [0x0072f38c]: the card's memory. A modern GPU, reported as 256 MB.
