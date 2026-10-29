@@ -125,3 +125,9 @@ exe when it is not MW3's, since `mech3.asm` is MW3's listing.
 MW3's, so a test runs on PM only where the function sits at the same
 address. The function-by-function diff that maps PM's addresses comes
 later. `test_exe_select.py` checks the choice.
+
+To check when the PM work starts (the lead, 2026-10-28): whether PM's
+TextBase is live. In MW3 1.2 its vtable is kept by no object, so zFont's
+bitmap fonts are loaded and never drawn (twod.md section 4); the same
+check on PM's exe says whether its reader 0x00519e50 needs porting there.
+

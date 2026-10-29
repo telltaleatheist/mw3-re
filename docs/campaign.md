@@ -783,3 +783,52 @@ after random ends and training missions, with the record, the app's flags,
 the calls and the pilot file compared; `training_menus_to_lesson3_headless`
 plays it through.
 
+## 13. The campaign played through (2026-10-28)
+
+`--campaign-chain new:N` / `resume:N` (ours, `frontend/sdl/campaign_chain`):
+a pilot driven through the real states by the presses a player makes. Each
+mission goes the same way:
+- NEW CAMPAIGN, a new pilot "Chain" (or, resuming, the write dir's pilot,
+  whose newest game the pilot screen chooses, 0x004882b0);
+- each briefing with the lab opened and accepted and SALVAGE's last mission
+  row moved over, then LAUNCH;
+- the mission won by Exit Mission as `--win` (60 frames in);
+- the debriefing and CONTINUE.
+
+Each briefing prints the store, the salvage, the slot, the lance (with
++0x9c) and the bases, and each briefing and debriefing is shot.
+`sdl_program_campaign_chain` (mw3sdltests, `MW3_CAMPAIGN=1`, about 2
+minutes) runs:
+- the whole campaign, 20 missions, in one session;
+- Op 1 in one session, then after the quit the same write dir resumed to
+  the end.
+
+Every briefing reads the same either way, but for ammunition counts the
+real clock decides (10 rounds of weapon 17's, spent in c4m2 or not). The
+resume starts at Op 2 Mission 1, with the store and the lance it ended on.
+Each run's census is 0 outside the known table, both end at the credits,
+and all 81 shots are lit.
+
+Seen on the way:
+- **The lance**, as the missions' aiv.zrd give it: Dominic (mech 13) from
+  Op 2, a Mad Cat (3) from Op 3 Mission 1, a third (15) from c3m3. c4bm5's
+  +0x9c is 0 (no lancemates in that mission).
+- **Salvage**: a mission won by Exit Mission alone (no kills) leaves none.
+  Only Op 1's end gives some: c1m4's salvage, 8 items with a mech, the one
+  Dominic's slot takes at c2m1's briefing.
+- **Op 4** runs c4m1..c4m3 into c4bm4..c4bm6 with no branch; after the last
+  debriefing the program's state log shows the Credits State next (the Win
+  Movie State, with no movie imported, and the main menu between them are
+  not in the log: not checked further).
+
+A port bug the chain found (fixed). In one session, the briefing after a
+mission fitted the lance (0x00408c30 from set_loaded) before the mission
+start had made the lancemates: `Missions::finished()` still answered the
+last mission's load. In the exe it is the load thread's event (0x00490930
+on +0x68), which the cleanup (0x00491780) closes and zeroes, so the next
+briefing waits for its own load. The port's `done` stood in for the event
+but was not cleared with it. So at c2m1, played on from c1m4, Dominic's
+slot took no mech from the store and c1m4's salvage kept a second mech 13
+for the taking; resumed from the save, his mech came out of the salvage.
+The cleanup now clears `done` (mission.cpp), and both paths agree.
+

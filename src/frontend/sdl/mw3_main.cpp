@@ -23,6 +23,8 @@
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
 //   --frames N           quit after N frames of a debug start
+//   --campaign-chain new:N|resume:N  a pilot through the campaign as a player (ours,
+//                        campaign_chain.h): N missions won, shots in --write-dir
 //   --window WxH         window size (default 1280x960; with any_resolution the
 //                        frame's shape, and a given size pillarboxes the frame)
 //   --nosound            no audio device (a silent DirectSound stand-in)
@@ -42,6 +44,7 @@
 #include <string>
 #include <vector>
 
+#include "frontend/sdl/campaign_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
@@ -101,6 +104,7 @@ struct Args {
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
+  std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
@@ -145,6 +149,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
+    else if (s == "--campaign-chain" && next(1)) a.chain = argv[++i];
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h), a.window_given = true;
     else if (s == "--nosound") a.nosound = true;
     else if (s == "--walk") a.walk = true;
@@ -478,9 +483,19 @@ int run(const Args& a) {
     int menu_frames = 0;
     std::vector<Args::ClickAt> auto_clicks;  // --briefing's own clicks
     std::deque<std::string> menu_series;
+    std::unique_ptr<sdlfe::CampaignChain> chain;
+    if (!a.chain.empty()) {
+      sdlfe::ChainOptions co;
+      co.resume = a.chain.rfind("resume", 0) == 0;
+      const size_t colon = a.chain.find(':');
+      if (colon != std::string::npos) co.wins = std::atoi(a.chain.c_str() + colon + 1);
+      co.dir = a.write_dir;
+      chain = std::make_unique<sdlfe::CampaignChain>(engine, app, window.render(), co);
+    }
     if (!debug && !launch)
       engine.on_present = [&](int) {
         ++menu_frames;
+        if (chain) chain->frame();
         auto key = [&](int dik, bool down) {
           for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
             if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == dik) {
@@ -619,6 +634,7 @@ int run(const Args& a) {
       if (!debug && !launch && (a.frames > 0 || !a.shot.empty()))
         pump.should_quit = [&] { return (a.frames > 0 && menu_frames >= a.frames) || (!a.shot.empty() && menu_frames > a.shot_frame); };
       if (launch) pump.should_quit = [&] { return launch_done; };
+      if (chain) pump.should_quit = [&] { return chain->done(); };
       // A quit outside the Exit state returns through ExitInstance, as the exe's WM_QUIT does,
       // and leaves the world to the process's end: stop_game after zSound's shutdown freed
       // the sounds the world's nodes still held (the exit's SIGTRAP, docs/program.md).

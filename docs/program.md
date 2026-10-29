@@ -309,6 +309,8 @@ apart. Everything else is a real gap and stays listed.
   Instant Action, Training, options, credits and multiplayer menus,
   c1m1's pause, Training's lesson 1 from the menus: 0 keys outside the
   table.
+- `--campaign-chain new:N` / `resume:N` and `sdl_program_campaign_chain`
+  (MW3_CAMPAIGN=1): the campaign played through, campaign.md section 13.
 - `sdl_program_screens_are_not_blank` (mw3sdltests, about 20 s; after item
   21's black lab, resolution.md section 9): the program itself, one run a
   screen, all at once, each shot through `--shot`. The screens: the main
