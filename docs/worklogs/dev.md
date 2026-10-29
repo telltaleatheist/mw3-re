@@ -1417,3 +1417,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   loads. The known reason for 0x00519e50 is now "no effect". My gap list's
   "bitmap fonts on every screen" was wrong.
 
+## The campaign chain (2026-10-28)
+
+- Branch mac4/campaign-chain (off main aaf668a).
+- --campaign-chain (campaign_chain.cpp): 20 missions in about 2 minutes.
+- Found the lance-fit order bug (campaign.md section 13): `done` not cleared
+  by the cleanup. Traced through the resume's lost salvage: a Store::clear
+  backtrace, then store_reallocate's inputs, then lance_slot's, then the
+  slot count at the briefing's first refresh.
+- Two driver bugs of my own on the way. Selecting row 0 of the game list
+  resumed the oldest game, while the screen itself chooses the newest. And
+  the shot path's buffer died before the frame: capture_next keeps the
+  pointer.
+- The store's 10 units at c4m2 are the real clock (both runs lost them
+  once). The test compares the briefings without the unit totals.
+

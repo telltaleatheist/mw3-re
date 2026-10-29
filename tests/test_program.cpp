@@ -712,6 +712,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     size_t steps = 0, objects = 0;
     std::string section_first;
     bool launch_enabled = false, lab_disabled = false, playing = false, debrief_seen = false, continue_help = false;
+    bool load_cleared = false;
     int store_kinds[4] = {};  // c1m2's briefing: the campaign store's items by kind (0 mechs .. 3)
     int32_t second_number = 0;
     mech3::Handle debrief_handle = 0;
@@ -791,6 +792,9 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         player_armor = d->cards[0].display && d->cards[0].display->most > 0;
         rank_text = !d->rank.labels.empty() && d->rank.labels[0]->text[0] != 0;
         d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
+        // CONTINUE's cleanup (0x00491780) closed the load's event (+0x68): the
+        // next briefing waits for its own load (campaign.md section 13).
+        load_cleared = !mech3::missions().finished();
         stage = 5;
       } else if (stage == 5 && app.current() == &mech3::states().load) {
         mech3::BriefingScreen* b = mech3::briefing_screen();
@@ -954,6 +958,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
            std::fabs(mech2.torso_armor_scale - 100.0f / static_cast<float>(edited->armor[0])) < 1e-4f);
     EXPECT(engine.unported_counts().count("0x0044b920") == 0);  // the screen is the port
     EXPECT(engine.unported_counts().count("0x00448830") == 0);
+    EXPECT(load_cleared);  // the last mission's load does not stand for the next one's
     EXPECT(debrief_seen);   // the ported debriefing
     EXPECT(continue_help);  // its texts (Mech3Msg.dll's)
     EXPECT(debrief_freed);  // the Win State's leave freed it (shell_clear on 0x006099a0)

@@ -625,6 +625,10 @@ bool Missions::cleanup(bool unload) {
     h.close_handle(event);
     event = 0;
   }
+  // `done` stands in for the event's signal (0x00490930): gone with it, so
+  // the next briefing waits for its own mission's load before fitting the
+  // lance (campaign.md section 13).
+  done = 0;
   if (thread) {
     h.close_handle(thread);
     thread = 0;

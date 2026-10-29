@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <cctype>
 #include <chrono>
 #include <csignal>
 #include <thread>
@@ -1019,5 +1020,118 @@ TEST(sdl_program_screens_are_not_blank) {
   }
   std::printf("screens: %zu shot in %.0f s\n", shots.size(),
               std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+}
+
+// The campaign as a player plays it (--campaign-chain, campaign_chain.h;
+// MW3_CAMPAIGN=1, about 2 minutes). A new pilot through Op 1 then, after
+// the app's quit, the same write dir resumed to the end; and a new pilot
+// through all 20 missions in one session. Every briefing the two reach must
+// read the same (the store, the salvage, the slot, the lance, the bases);
+// the resume starts where the first half ended; each run's census is 0
+// outside the known table; both end at the credits; every briefing and
+// debriefing shot is lit, and green.
+TEST(sdl_program_campaign_chain) {
+  if (!have_fonts() || !std::getenv("MW3_CAMPAIGN")) return;
+  const std::string root = std::string(MW3_TEST_TMP) + "/sdl_campaign_chain";
+  std::filesystem::remove_all(root);
+  const std::string split = root + "/split", single = root + "/single";
+  std::filesystem::create_directories(split);
+  std::filesystem::create_directories(single);
+  auto args = [](const std::string& chain, const std::string& dir) {
+    return std::vector<std::string>{"--campaign-chain", chain, "--verbose", "--nosound", "--hidden", "--write-dir", dir};
+  };
+  auto wait = [](pid_t pid) {
+    int status = 0;
+    const auto start = std::chrono::steady_clock::now();
+    while (pid > 0 && waitpid(pid, &status, WNOHANG) != pid) {
+      if (std::chrono::steady_clock::now() - start > std::chrono::seconds(900)) {
+        kill(pid, SIGKILL), waitpid(pid, &status, 0);
+        return false;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    return pid > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  };
+  const auto start = std::chrono::steady_clock::now();
+  const pid_t whole = spawn_mw3(args("new:20", single), single + "/run.log");
+  const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
+  const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));
+  const bool whole_ok = wait(whole);
+  EXPECT(first_ok && second_ok && whole_ok);
+  auto read = [](const std::string& path) {
+    std::string t;
+    if (std::FILE* f = std::fopen(path.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) t.append(buf, n);
+      std::fclose(f);
+    }
+    return t;
+  };
+  // "mw3: chain briefing <mission>: <state>, wins N": by mission, in order.
+  auto briefings = [](const std::string& log) {
+    std::vector<std::pair<std::string, std::string>> out;
+    size_t at = 0;
+    while ((at = log.find("mw3: chain briefing ", at)) != std::string::npos) {
+      const size_t end = log.find('\n', at), colon = log.find(": ", at + 20);
+      const size_t wins = log.rfind(", wins ", end);
+      if (end == std::string::npos || colon == std::string::npos || wins == std::string::npos || colon > end) break;
+      out.push_back({log.substr(at + 20, colon - at - 20), log.substr(colon + 2, wins - colon - 2)});
+      at = end;
+    }
+    return out;
+  };
+  const std::string l1 = read(split + "/run1.log"), l2 = read(split + "/run2.log"), lw = read(single + "/run.log");
+  const auto b1 = briefings(l1), b2 = briefings(l2), bw = briefings(lw);
+  std::printf("campaign chain: %zu + %zu briefings split, %zu in one session, in %.0f s\n", b1.size(), b2.size(),
+              bw.size(), std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+  EXPECT(b1.size() == 5 && b2.size() == 16 && bw.size() == 20);  // the resume's first is the first run's last
+  // The resume starts at the mission and with the game the first run ended on.
+  EXPECT(!b1.empty() && !b2.empty() && b1.back() == b2.front());
+  if (!b2.empty()) std::printf("  resumed at %s: %s\n", b2.front().first.c_str(), b2.front().second.c_str());
+  // Every mission reads the same split and whole, but for the stores' unit
+  // totals: the missions run on the real clock, and ammunition (10 rounds of
+  // weapon 17's in c4m2) can be spent in one run and not the other; those
+  // are printed, not failed.
+  auto no_units = [](std::string l) {
+    for (size_t at = 0; (at = l.find(" units", at)) != std::string::npos; at += 6) {
+      size_t b = at;
+      while (b > 0 && std::isdigit(static_cast<unsigned char>(l[b - 1]))) --b;
+      l.replace(b, at - b, "*");
+      at = b + 1;
+    }
+    return l;
+  };
+  std::vector<std::pair<std::string, std::string>> joined(b1.begin(), b1.end());
+  if (!b2.empty()) joined.insert(joined.end(), b2.begin() + 1, b2.end());
+  int same = 0;
+  for (size_t i = 0; i < joined.size() && i < bw.size(); ++i) {
+    if (joined[i].first == bw[i].first && no_units(joined[i].second) == no_units(bw[i].second)) ++same;
+    else std::printf("  differs at %s:\n    split %s\n    whole %s\n", bw[i].first.c_str(), joined[i].second.c_str(), bw[i].second.c_str());
+    if (joined[i].second != bw[i].second && no_units(joined[i].second) == no_units(bw[i].second))
+      std::printf("  units differ at %s (the real clock): split %s / whole %s\n", bw[i].first.c_str(),
+                  joined[i].second.substr(0, 40).c_str(), bw[i].second.substr(0, 40).c_str());
+  }
+  EXPECT(same == 20);
+  for (const std::string* l : {&l1, &l2, &lw}) EXPECT(l->find("mw3: 0 original functions reached that are not ported") != std::string::npos);
+  EXPECT(l2.find("mw3: chain credits after 16 wins") != std::string::npos);
+  EXPECT(lw.find("mw3: chain credits after 20 wins") != std::string::npos);
+  int shots = 0, lit_ok = 0;
+  for (const std::string& dir : {split, single})
+    for (const auto& f : std::filesystem::directory_iterator(dir)) {
+      const std::string name = f.path().filename().string();
+      if (name.rfind("chain_", 0) != 0) continue;
+      int w = 0, h = 0;
+      double lit = 0, green = 0;
+      ++shots;
+      // A briefing is its map: some are dark (c1m4's water) or grey-green
+      // (c3m6's); the debriefing is the green panels.
+      const bool debrief = name.find("debriefing") != std::string::npos;
+      if (bmp_shares(f.path().string(), &w, &h, &lit, &green) && lit > (debrief ? 0.3 : 0.15) &&
+          (!debrief || green > 0.3))
+        ++lit_ok;
+      else std::printf("  shot %s: lit %.3f green %.3f\n", name.c_str(), lit, green);
+    }
+  std::printf("  %d of %d briefing and debriefing shots lit\n", lit_ok, shots);
+  EXPECT(shots == 81 && lit_ok == shots);
 }
 #endif
