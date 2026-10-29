@@ -326,9 +326,10 @@ void install_hooks() {
     tr({10, fnv(reinterpret_cast<const char*>(name))});
     tr({11, bits(p[0]), bits(p[1]), bits(p[2])});
   };
-  r.fbfx_color = [](void*, AnimDef* d, zeff::SeqDef*, uint8_t*) -> int32_t {
-    tr({9, 36, static_cast<uint32_t>(did(d))});
-    return 2;
+  r.screen_tint = [](void*, uint16_t colour, double alpha) {
+    uint64_t q;
+    std::memcpy(&q, &alpha, sizeof q);
+    tr({9, 36, colour, static_cast<uint32_t>(q), static_cast<uint32_t>(q >> 32)});
   };
   r.fbfx_wave = [](void*, AnimDef* d, zeff::SeqDef*, uint8_t*) -> int32_t {
     tr({9, 37, static_cast<uint32_t>(did(d))});

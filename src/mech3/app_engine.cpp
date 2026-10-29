@@ -255,7 +255,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"DrawHooks.refresh_static", "deferred: the static light bake's refresh (0x00544ed0, then 0x004ed980), not wired: the models' static lights; a census stand-in"},
       {"WeaponCalls.net_event", "no effect: a weapon's network message (vt+0x168, 0x0046f160) returns at once without [0x00605fb4]; a census stand-in"},
       {"0x00413af0", "deferred: the fall camera (0x00413af0, its restore 0x00413b70) when the viewed mech falls, not ported; a census stand-in"},
-      {"0x005074b0", "deferred: the animations' screen tint (event 36: a colour faded on the weather manager [0x00736328] +0x60/+0x68, 0x005a6730), its draw not ported; c1m2, c1m4, c4bm5 (anim-run.md)"},
       {"0x00519e50", "no effect: zFont's bitmap fonts, loaded but never drawn in 1.2 (only TextBase's own vtable reaches its draw, and no object keeps it; twod.md section 4)"},
       {"0x00526510", "own: zModel's start, the port's struct initialisers; what differs is unread or set first (module-starts.md)"},
       {"0x005578f0", "own: zRender's start, the same (module-starts.md)"},

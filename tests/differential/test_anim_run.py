@@ -139,8 +139,13 @@ class Emu(WorldEmu):
             cpu.stub_function(0x4f7f70, lambda c: (self.trace.append(7), 0)[1])
         cpu.stub_function(0x5490e0, lambda c: (self.trace.append(8), 0)[1])
         for addr, kind, pop in ((0x5031b0, 3, 0), (0x505df0, 16, 0), (0x503c10, 20, 4), (0x503d50, 21, 4),
-                                (0x5074b0, 36, 4), (0x5076c0, 37, 4)):
+                                (0x5076c0, 37, 4)):
             cpu.stub_function(addr, lambda c, k=kind: (self.trace.extend([9, k, self.def_id(c.ecx)]), 2)[1], pop)
+        # Event 36 (0x5074b0) runs, with 0x579370's 565 format (the port's
+        # set_pixel_format(5, 6, 5)); its tint to the weather manager traced.
+        for a, v in ((0x802738, 8), (0x80273c, 3), (0x802740, 3), (0x802744, 0xf8), (0x802748, 0xfc)):
+            cpu.u32(a, v)
+        cpu.stub_function(0x5a6730, lambda c: (self.trace.extend([9, 36, c.ecx & 0xffff, c.arg(0), c.arg(1)]), 0)[1], 8)
         cpu.stub_function(0x507970, lambda c: (self.trace.extend([9, 38, 0]), 2)[1])
         cpu.stub_function(0x581ed0, lambda c: (self.trace.extend([10, fnv(self.cstr(c.ecx))]), FAKE_WEAPON)[1])
         cpu.stub_function(0x5822c0, lambda c: (self.trace.extend([11] + list(struct.unpack(

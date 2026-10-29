@@ -58,9 +58,11 @@ passes 0.
 
 The layer [0x00736328] is the render overlay (0x005a4590, built at static
 init by 0x005a6700): a Layer, active from the start, holding an object of
-its own at +0x28 (vtable 0x005d0290) and five 0x4c-byte texts at +0x70
-(0x005a53e0), all hidden; its +0x18..+0x24 are the 2D text target. Only the
-rects and the tick are ported (`WeatherLayer`); the texts are not.
+its own at +0x28 (vtable 0x005d0290: the screen tint, anim-run.md) and five
+0x4c-byte texts at +0x70 (0x005a53e0), all hidden; its +0x18..+0x24 are the
+2D text target. The rects, the tick and the tint are ported (`WeatherLayer`,
+`ScreenTint`); the texts are not. The tint and the weather share the draw
+0x005a5360 (`ManagerObject`, ours), and the tint is first in the list.
 
 The rain's update 0x005a6110, unless hidden:
 

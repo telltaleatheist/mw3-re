@@ -1539,6 +1539,13 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   (APC weapon 21 with 300 rounds; the Bulldogs' weapon 0 with 400), 8 came
   up none on the coin, and 2 trucks carry nothing. The test checks the
   three cases.
+- What the zone fix did for mechs (measured 2026-10-29 for event 36): the
+  player taken to each enemy mech in turn, the shots' impacts by owner,
+  one-byte zone vs whole record. Mechs' impacts: c1m1 0/0, c1m2 0/4, c1m3
+  9/4 (the runs split once vehicles fight), c1m4 163/163. Beams pass no
+  zone (zwep_beam.cpp), so lasers never depended on it. For mechs the fix
+  is nearly nothing; the vehicles' shots go from 2 to 51 impacts on c1m1
+  and from 0 to 104 on c1m2.
 - `--vehicle-hold` (ours) turns the player to face the placed vehicle, for
   the outbox shots. Placing the vehicle each frame reset its AI, so it never
   fired.
@@ -1546,4 +1553,30 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   (`find_first`), which has no null report. It could become
   `zcls::node_find`.
 - Seen, not this item: c1m2's canyon floor goes black after about 4 s on
-  main too (the lighting).
+  main too (the lighting). It's queued after event 36 and ahead of #3:
+  `mw3 --mission c1m2 --vehicle-ahead 45 --shot F --shot-frame 240` shows
+  it (bright at frame 120).
+
+## Event 36, the screen tint (2026-10-29)
+
+- Branch mac4/screen-tint (off main c2ae162).
+- Event 36 (0x005074b0) is ported as `zeff::anim_fbfx_color`.
+  `AnimRunHooks.fbfx_color` became `screen_tint` (0x005a6730). The census
+  stand-in and the known entry are gone; known_unported now expects 60.
+- The weather manager's tint object is ported as `ztwod::ScreenTint`, at
+  +0x28, vtable 0x005d0290:
+  - 0x005a6620 stores its colour and alpha and shows it for 0 s;
+  - its draw 0x005a53c0 goes to the ported 0x00558540;
+  - it shares 0x005a5360 with the rain and snow through `ManagerObject`
+    (ours);
+  - `WeatherLayer`'s constructor adds it hidden, first in the list, as
+    0x005a4590 does. The c4m2 rain and c4b snow tests now skip over it.
+- test_screen_tint.py: 2000 events identical, through the quad at
+  0x0057dd80, at 24-bit precision. Four break tests are caught: the
+  rounding, the time left, the tint never shown, and the end at the
+  duration.
+- test_anim_run.py now runs 0x005074b0 for real, with only 0x005a6730
+  traced. Its 360 frames reach no event 36, so it doesn't check the event.
+- In play: c1m2's missile hits (impact_missle_mech) flash white to orange
+  for 11 frames, about every 10.8 s from frame 211. Shots are in the outbox.
+

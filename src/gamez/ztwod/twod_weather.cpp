@@ -42,7 +42,7 @@ WeatherState& weather_state() { return g_state; }
 // 16-bit colours and an alpha plane (type 0xb, +9 |= 0x20), its record clamped
 // both ways. FIX (A): the planes are zeroed (malloc'd in the exe, and only the
 // first row is ever written, by the draw).
-Weather::Weather(int32_t particles) : Object2D(0, 0) {
+Weather::Weather(int32_t particles) : ManagerObject(0, 0) {
   capacity = count = particles;
   streaks.assign(static_cast<size_t>(particles > 0 ? particles : 0), WeatherStreak{});
   pos[0].assign(static_cast<size_t>(particles > 0 ? 3 * particles : 0), 0.0f);
@@ -95,18 +95,23 @@ void Weather::reset(int32_t i) {
 }
 
 // Mech3.exe 1.2 @ 0x005a5360. On the manager, with its 2D target set the
-// software finish is pointed at it (0x00558290), then the particles drawn for
-// each of its two rects; the first is kept.
-void Weather::draw() {
+// software finish is pointed at it (0x00558290), then +0x7c for each of its
+// two rects; the first is kept.
+void ManagerObject::draw() {
   Layer* o = owner;
   erase();
-  if (!o) return draw_particles();
+  if (!o) return draw_in_rect();
   auto* m = static_cast<WeatherLayer*>(o);
   const zvid::TextTarget& t = zvid::text_target();
   if (t.pixels) zrndr::set_finish_target(t.pixels, t.width, t.height, t.pitch);
   for (const Rect* r : m->rects)
-    if (r) rect = r, draw_particles();
+    if (r) rect = r, draw_in_rect();
   rect = m->rects[0];
+}
+
+// Mech3.exe 1.2 @ 0x005a53c0: the tint over the rect (0x00558540).
+void ScreenTint::draw_in_rect() {
+  zrndr::tint(colour, reinterpret_cast<const int32_t*>(rect), alpha, hardware());
 }
 
 namespace {
@@ -129,7 +134,7 @@ bool inside(int32_t n, const Rect* r) {
 // (16 texels of the first row, alpha i x 255 / 16), then each streak as a
 // quad its second edge a pixel along x (wider than tall) or y, white-textured, priority 1;
 // those reaching outside the rect are skipped.
-void Weather::draw_particles() {
+void Weather::draw_in_rect() {
   if (!hardware()) return;
   const bool locked = zvid::surfaces().back.locked != 0;  // 0x00576d70
   if (locked) zvid::unlock_3d();
@@ -302,6 +307,23 @@ void Snow::update(float dt) {
   }
   Object2D::update(dt);
   std::swap(cur, next);
+}
+
+// Mech3.exe 1.2 @ 0x005a4590: the tint added hidden (vt+0x64) and the
+// layer active. The five texts it adds after the tint are not ported.
+WeatherLayer::WeatherLayer() {
+  add(&tint);
+  tint.hide();
+  set_active(1);
+}
+
+// Mech3.exe 1.2 @ 0x005a6730 -> 0x005a6620: the colour and alpha kept and
+// the tint shown for this frame (vt+0x60(0): the next update draws it, then
+// hides it).
+void weather_tint(uint16_t colour, double alpha) {
+  g_layer.tint.colour = colour;
+  g_layer.tint.alpha = alpha;
+  g_layer.tint.show_for(0.0f);
 }
 
 // Mech3.exe 1.2 @ 0x005a6790 -> 0x005a66b0

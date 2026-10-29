@@ -1596,6 +1596,14 @@ From the mech definitions (mechdef-head.md).
 
 From the animation files (anim.md).
 
+- **Missile, PPC and NARC hits flash the screen, each in its own colour.**
+  The hit effects tint the whole view for a moment:
+  - a missile hit goes white to orange over about a third of a second;
+  - a PPC hit goes white to blue;
+  - a NARC pod gives a few short orange pulses.
+  A missile launch flashes white too, longer for bigger racks: from under
+  a second for the smallest to three seconds for the 20-tube one. The tint covers the world
+  behind the cockpit glass, not the cockpit or the HUD.
 - **Your cockpit glass cracks one mark per head hit, from six.** Every
   cockpit carries three cracks and three dings, hidden until the head is
   hit. Each hit on the head shows one of the six, each about one time in six
