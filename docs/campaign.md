@@ -520,8 +520,9 @@ fills it from a ported Mech in app_mech.cpp, the probe from the test's
 setup); `Store::add_weapon` and `Store::add_equipment`; `weapon_has_tech`
 (mech_names). In the program 0x0047ae10's won path runs on the ported
 mechs into the pilot's campaign and `mission_salvage()`, which the launch
-empties and the next mission's game takes. The kill credit's calls wait
-for the kill credit's port.
+empties and the next mission's game takes. The kill credit (damage.md)
+calls them on the ported mechs; section 14 follows its salvage through a
+campaign.
 
 Test: `test_salvage.py` (200/200): test_pilot.py's emulator, the store
 filled through its own adds and add_copy, 0x0047ae10 over fake mechs
@@ -844,4 +845,90 @@ but was not cleared with it. So at c2m1, played on from c1m4, Dominic's
 slot took no mech from the store and c1m4's salvage kept a second mech 13
 for the taking; resumed from the save, his mech came out of the salvage.
 The cleanup now clears `done` (mission.cpp), and both paths agree.
+
+## 14. Op 1 won by kills, the salvage followed (2026-10-29)
+
+`--campaign-chain kills:N` (ours, `frontend/sdl/campaign_chain`) runs the
+chain of section 13, but each mission is won by shooting. From Core frame
+60, every frame, each enemy gets one hit from the player
+(`mech3::chain_hit`, app_sensors.cpp). The enemies are the mechs, vehicles
+and turrets on another team than the player's or its allies', and every
+targets.zrd object but the allies' (team 0 too). A hit is zWeapon's impact
+(0x005826b0) with a stand-in projectile the player owns, landing on the
+target's aim node, or the first node under it with a damage handler. So
+these run as for a real shot:
+- the node's handler;
+- the victim's damage and death;
+- the kill credit (0x0041b420) and its salvage.
+
+The weapon is the first projectile weapon of weapons.zrd with damage over 1
+(no beam, no impact callback, no NARC).
+
+Once the primary and final objectives are met (the mission's own
+`complete`), the chain presses Exit Mission. What the objectives need
+beyond the kills:
+- **Valves set by a place**: c1m1's reach_mfb, c1m2's barracks. When no
+  enemy is left and a valve objective is open, the player is set down
+  (Mech vt+0xdc) in the region `reg_<valve>` if one is loaded, else by
+  mobilehq_01. This stands in for walking there; the regions' own test
+  trips the valve.
+- **Buildings an objective wants switched off** (node_change to off): they
+  are shot at, and the player goes up to them, 100 m off and facing them.
+  A destroyed target's destroy animation can wait on prerequisites. c1m3's
+  three buildings stand on legs: bldg_destroy1..3 each need two of
+  leg_01..06_destroy run. The legs' animations take hits on their roots
+  (the leg's `healthy` node, where 0x0050ae60 put their own handler), and
+  are shot first. Those animations tick only when their root was drawn
+  (flag 4, anim-run.md), so the player must face them.
+- **c1m3** is not won this way. Its first primary group wants `shado` and
+  two `gdbldg` nodes off. The three buildings fall (each bldg_destroy
+  switches its own `shado` off and plays its fall), but nothing switches
+  either `gdbldg` off: their animations only switch it on, in their reset
+  sequences, and no node flag write ever clears it. The exe's check
+  (0x0045f180) is the port's. Open: whether the original meets these two
+  another way (an anim we do not run, or a data quirk the players finish
+  around). After 1500 frames the chain gives c1m3 the win as `--win`
+  does; its kills' salvage still counts.
+
+The salvage, followed:
+- **Each kill**: the mission's store [0x00609990] before and after the
+  hit. A mech's salvage weapons are exactly the weapons it carried (its
+  weapon manager's slots as 0x00472f00 reads them, but TAG). A vehicle's
+  are all or none (the coin, 0x00472ec0). On Op 1: 20 vehicle and 11 mech
+  kills, none differing (with the turrets and targets, 63 kills).
+- **The debriefing**: SALVAGE_LIST's store is the mission's. It holds the
+  kills', the objectives' salvage groups' (c1m2, c1m4) and, at c1m4's win,
+  the lance's own mechs with their gear (0x0047ae10 with DL, section 9).
+- **SALVAGE**, at the next briefing, before the lab: every weapon row of
+  MISSION_SALVAGE chosen (within the bases' tons). The player's store
+  gains exactly what the salvage loses.
+- **The lab**: on the criticals page (3, where ASSIGNED_LIST and
+  UNASSIGNED_LIST are) with SELECT_WEAPON (25), a moved weapon goes onto
+  the first part it fits (UNASSIGNED_LIST's +0xac, 0x00454600). If none
+  fits, one of the mech's own weapons first comes off (ASSIGNED_LIST's
+  item row). c1m2's briefing: weapon 11 on the left arm after weapon 6
+  came off; c1m3: weapon 10; c1m4: a second 11. The next mission's
+  launched mech carries each.
+
+Port bugs the kills found (fixed):
+- **A killed mech's destroy objective stayed open.** The objective hooks'
+  entity flag (0x0045f3b0 reads the entity's +0x08) answered "in zEntity's
+  list" for a mech. A campaign wreck stays on that list (the dead list
+  frees only Instant Action's and the network's), so c1m2's owens_01 and
+  strider_01 never completed. A mech now answers its `active`, which its
+  update clears when the death fall ends (0x00419fc0), as the exe reads.
+  Test: `mission_c1m2_destroy_objectives_met_by_mech_kills_headless`;
+  with the list back, 0 of 2 met.
+- **The valves' entity lookup knew only mechs and vehicles.** 0x004d7330
+  (zEntity's list by name, then the targets) is now one function for the
+  valves and the objectives: mechs, turrets, vehicles, then targets. A
+  turret or target by name reached the unported stand-in before.
+
+`sdl_program_campaign_chain` (MW3_CAMPAIGN=1) runs `kills:4` beside the
+other two runs. It checks:
+- three missions won by their objectives and c1m3 by `--win`;
+- 4 of 4 debriefings matched and no kill's salvage differing;
+- 3 SALVAGE moves, 3 fits and 3 carried;
+- the census 0;
+- its 9 shots lit.
 

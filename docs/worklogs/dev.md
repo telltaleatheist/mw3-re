@@ -1444,3 +1444,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   NEW CAMPAIGN at the main menu; done at the Pilot State.
 - sdl_program_campaign_chain checks the sequence on the whole and the
   resumed run (campaign.md section 13).
+
+## The salvage chain by kills (2026-10-29)
+
+- Branch mac4/salvage-chain (off main 6936722).
+- `--campaign-chain kills:N`: each Core frame, one hit on every enemy.
+  The hit is zWeapon's impact with a stand-in shot of the player's
+  (chain_hit, app_sensors.cpp), so the death and kill credit are the real
+  ones. Then valves by region (reg_<valve>, else the MFB) and the
+  objectives' buildings, with the player set near and facing them.
+  Exit Mission once won.
+- c1m1, c1m2 and c1m4 are won by their objectives. c1m3's two gdbldg
+  nodes are never switched off (open, campaign.md section 14), so the
+  chain falls back to --win at 1500 frames.
+- Salvage: per kill against the victim's weapons; at the debriefing, the
+  list is the mission's store. SALVAGE moves the weapon rows; the lab's
+  criticals page fits one (taking a gun off if full); the next launch
+  carries it.
+- Fixed: the objectives' entity flag for mechs reads `active`, not list
+  membership (test mission_c1m2_destroy_objectives_met_by_mech_kills,
+  break 0 of 2). 0x004d7330 is shared and covers turrets and targets.
+- Dead ends noted: the leg anims' handlers sit on their roots (the
+  `healthy` child), and the building anims tick only when drawn.

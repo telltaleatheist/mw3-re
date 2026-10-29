@@ -23,7 +23,7 @@
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
 //   --frames N           quit after N frames of a debug start
-//   --campaign-chain new:N|resume:N  a pilot through the campaign as a player (ours,
+//   --campaign-chain new:N|resume:N|kills:N  a pilot through the campaign as a player (ours,
 //                        campaign_chain.h): N missions won, shots in --write-dir
 //   --window WxH         window size (default 1280x960; with any_resolution the
 //                        frame's shape, and a given size pillarboxes the frame)
@@ -487,6 +487,7 @@ int run(const Args& a) {
     if (!a.chain.empty()) {
       sdlfe::ChainOptions co;
       co.resume = a.chain.rfind("resume", 0) == 0;
+      co.kills = a.chain.rfind("kills", 0) == 0;
       const size_t colon = a.chain.find(':');
       if (colon != std::string::npos) co.wins = std::atoi(a.chain.c_str() + colon + 1);
       co.dir = a.write_dir;

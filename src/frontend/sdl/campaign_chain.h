@@ -1,5 +1,8 @@
 #pragma once
+#include <cstdint>
+#include <map>
 #include <string>
+#include <vector>
 
 namespace mech3 {
 class GameEngine;
@@ -25,6 +28,7 @@ class SdlRender3D;
 struct ChainOptions {
   bool resume = false;  // the existing pilot, not a new one
   int wins = 4;         // the missions to win
+  bool kills = false;   // won by shooting every enemy (kills:N), not Exit Mission at once
   std::string dir;      // where the shots go
 };
 
@@ -56,6 +60,17 @@ class CampaignChain {
   bool hooked_ = false, after_credits_ = false;
   int frames_ = 0, credits_entered_ = 0;
   const void* logged_state_ = nullptr;
+  void shoot_hostiles();  // kills: each Core frame's hits
+  int hits_ = 0, kills_ = 0, idle_frames_ = 0;
+  // The mission's salvage by where it came from: "kind/id" -> units.
+  using Counts = std::map<std::string, int32_t>;
+  Counts salvage_seen_, salvage_kills_, salvage_other_;
+  void debrief_salvage();   // kills: the debriefing's list against them
+  void salvage_weapons();   // kills: SALVAGE's weapon rows moved over
+  void lab_fit();           // kills: a salvaged weapon fitted in the lab
+  std::vector<int32_t> moved_weapons_;  // the weapons SALVAGE moved to the store
+  int32_t fitted_weapon_ = -1, fitted_count_ = 0;  // the lab's fit, checked in the next mission
+  int killed_units_ = 0, mismatched_units_ = 0;
   std::string launched_;  // the mission LAUNCH started
   std::string shot_path_;  // the shot asked for, alive until it is written
 };

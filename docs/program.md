@@ -311,6 +311,8 @@ apart. Everything else is a real gap and stays listed.
   table.
 - `--campaign-chain new:N` / `resume:N` and `sdl_program_campaign_chain`
   (MW3_CAMPAIGN=1): the campaign played through, campaign.md section 13.
+  `kills:N` wins each mission by shooting every enemy through zWeapon's
+  impact and follows the salvage into the store and the lab (section 14).
 - `sdl_program_screens_are_not_blank` (mw3sdltests, about 20 s; after item
   21's black lab, resolution.md section 9): the program itself, one run a
   screen, all at once, each shot through `--shot`. The screens: the main

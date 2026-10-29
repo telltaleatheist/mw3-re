@@ -16,6 +16,7 @@
 #include "mech3/pocket_panel.h"
 
 #include <cmath>
+#include <cstring>
 
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
@@ -25,6 +26,9 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zweapon/zweapon.h"
+#include "gamez/zweapon/zwep_init.h"
+#include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/sensors.h"
@@ -35,6 +39,11 @@
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_inout.h"
+#include "mech3/zainet_region.h"
+#include "gamez/zclass/cls_di.h"
+#include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zmodel/gmod_matl.h"
+#include "mech3/mission_world.h"
 
 namespace mech3 {
 
@@ -471,6 +480,179 @@ int32_t selected_contact(const void* mech) {
   for (size_t i = 0; i < m->contacts.size(); ++i)
     if (m->contacts[i] == m->target) return static_cast<int32_t>(i);
   return -1;
+}
+
+// ---- --campaign-chain's kills (ours) ----
+
+// Each class's zEntity active flag (+0x08); a mech also not in its dead
+// state (10).
+bool chain_alive(uint32_t h) {
+  if (const Mech* m = mech(h)) return m->active && m->anim_state != 10;
+  if (void* v = vehicle(h)) return program_vehicle_active(v) != 0;
+  if (const tur::Turret* t = program_turret_by_handle(h)) return t->active != 0;
+  if (const ai::CZAiTarget* t = target(h)) return t->active && !t->destroyed;
+  return false;
+}
+
+std::vector<ChainTarget> chain_hostiles() {
+  std::vector<ChainTarget> out;
+  const auto* player = static_cast<const Mech*>(mech_mission_player());
+  if (!player) return out;
+  const uint32_t friends = player->team | player->allies;
+  // Team 0's bit 0 is no one's enemy, but its targets.zrd objects are shot
+  // too: c1m3's buildings fall only once the legs (team 0) under them have.
+  auto add = [&](uint32_t h, const char* kind, bool neutral = false) {
+    const ai::AiTarget* a = g_sensors.fields(h);
+    if (!a || h == handle(player) || (a->team & friends) || !chain_alive(h)) return;
+    if ((a->team & 1u) && !neutral) return;
+    for (const ChainTarget& t : out)
+      if (t.h == h) return;
+    const zcls::Node* node = g_sensors.node(h, false);  // its node's name: the scripts' and objectives'
+    out.push_back({h, kind, node ? std::string(node->name()) : std::string("?")});
+  };
+  for (const uint32_t e : ai::entity_list())
+    add(e, mech(e) ? "mech" : vehicle(e) ? "vehicle" : program_turret_by_handle(e) ? "turret" : "entity");
+  for (tur::Turret* t : tur::turret_list()) add(handle(t), "turret");
+  for (ai::CZAiTarget* t : ai::target_list()) add(t->self, "target", true);
+  return out;
+}
+
+std::vector<int32_t> chain_weapon_types(uint32_t h) { return salvage_weapon_types(object(h)); }
+
+void* chain_weapon() {
+  for (zwep::WeaponDef& d : zwep::state().defs)
+    if (!(d.flags & (zwep::kBeam | zwep::kTargetHeat)) && !d.callback && d.type && !d.type->is_narc && d.damage > 1.0f)
+      return &d;
+  return nullptr;
+}
+
+namespace {
+// The highest ground at (x, z) that is not water, every zone's; `fallback`
+// when there is none.
+float ground_at(float x, float z, float fallback) {
+  zcls::Node* w = world_hooks().world;
+  if (!w) return fallback;
+  float probe[3] = {x, 2000.0f, z};
+  static zcls::GroundHits hits;
+  const int32_t mode = zmod::zones().mode;
+  zmod::zones().mode = 0;
+  zcls::ground_query(w, probe, 1, 2000.0f, &hits);
+  zmod::zones().mode = mode;
+  float y = fallback;
+  bool found = false;
+  for (int i = 0; i < hits.count; ++i) {
+    if (hits.hit[i].material && hits.hit[i].material->soil == 1) continue;
+    if (!found || hits.hit[i].height > y) y = hits.hit[i].height, found = true;
+  }
+  return y;
+}
+}  // namespace
+
+bool chain_player_near(void* node, float dist) {
+  auto* player = static_cast<Mech*>(mech_mission_player());
+  auto* n = static_cast<zcls::Node*>(node);
+  if (!player || !n) return false;
+  float at[3], from[3];
+  world_position(n, at);
+  world_position(static_cast<zcls::Node*>(player->node), from);
+  float dx = from[0] - at[0], dz = from[2] - at[2];
+  const float len = std::sqrt(dx * dx + dz * dz);
+  if (len <= dist * 1.5f) return true;  // near enough already
+  if (len > 0.001f) dx = dx / len, dz = dz / len;
+  else dx = 1.0f, dz = 0.0f;
+  const float x = at[0] + dist * dx, z = at[2] + dist * dz;
+  const float to[3] = {x, ground_at(x, z, at[1]), z};
+  move_mech(player, to, std::atan2(dx, dz));  // facing it: forward is -z
+  return true;
+}
+
+bool chain_player_to(const char* name, float dist) {
+  for (const uint32_t e : ai::entity_list()) {
+    zcls::Node* n = g_sensors.node(e, false);
+    if (n && std::strcmp(n->name(), name) == 0) return chain_player_near(n, dist);
+  }
+  return false;
+}
+
+bool chain_player_to_region(const char* name) {
+  auto* player = static_cast<Mech*>(mech_mission_player());
+  ai::Region* r = ai::region_named(name);
+  zcls::Node* w = world_hooks().world;
+  if (!player || !r || r->elems.empty() || !w) return false;
+  float mid[3] = {0, 0, 0};
+  for (size_t i = 0; i < r->elems.size(); ++i)
+    for (int k = 0; k < 3; ++k) mid[k] += r->edge(static_cast<int32_t>(i))->point[k];
+  for (float& v : mid) v = v / static_cast<float>(r->elems.size());
+  const float to[3] = {mid[0], ground_at(mid[0], mid[2], mid[1]), mid[2]};
+  move_mech(player, to, 0.0f);
+  return true;
+}
+
+namespace {
+bool shootable(const zcls::Node* n) {
+  const auto* t = n ? static_cast<const zwep::NodeHandlers*>(n->damage) : nullptr;
+  return t && t->slot[0].fn;
+}
+// The first node at or under n a shot can damage (a damage handler, its own
+// or handed down), depth first.
+zcls::Node* shootable_under(zcls::Node* n, int depth = 0) {
+  if (!n || depth > 16) return nullptr;
+  if (shootable(n)) return n;
+  for (int32_t i = 0; i < n->child_count(); ++i)
+    if (zcls::Node* c = shootable_under(n->children[i], depth + 1)) return c;
+  return nullptr;
+}
+}  // namespace
+
+bool chain_hit_node(void* node, void* def) {
+  auto* d = static_cast<zwep::WeaponDef*>(def);
+  auto* player = static_cast<Mech*>(mech_mission_player());
+  zcls::Node* n = shootable_under(static_cast<zcls::Node*>(node));
+  if (!d || !player || !n) return false;
+  float at[3], from[3];
+  world_position(n, at);
+  world_position(static_cast<zcls::Node*>(player->node), from);
+  // From 30 m off along the line to the player: the knockback's direction.
+  float dx = from[0] - at[0], dz = from[2] - at[2];
+  const float len = std::sqrt(dx * dx + dz * dz);
+  if (len > 0.001f) dx = dx / len, dz = dz / len;
+  else dx = 1.0f, dz = 0.0f;
+  zwep::HitRecord rec;
+  rec.normal = {0.0f, 1.0f, 0.0f};
+  rec.point = {at[0], at[1], at[2]};
+  rec.node = static_cast<zwep::Handle>(n);
+  static zwep::Projectile p;
+  p = zwep::Projectile{};
+  p.owner = player->node;
+  p.position = {at[0] + 30.0f * dx, at[1], at[2] + 30.0f * dz};
+  p.spawn_at = p.position;
+  p.damage_scale = 1.0f;
+  zwep::impact(d, &rec, &p, nullptr);
+  return true;
+}
+
+std::vector<void*> chain_prerequisite_nodes() {
+  std::vector<void*> out;
+  for (ai::CZAiTarget* t : ai::target_list()) {
+    auto* d = static_cast<zeff::AnimDef*>(object(t->desc.destroy_anim));
+    if (!t->destroyed || !d || d->raw[0x98] != 1) continue;  // its destroy animation never ran
+    for (int32_t k = 0; k < d->count(0x110); ++k) {
+      const zeff::Prerequisite& q = d->prereqs[k];
+      if (q.raw[4] != 1) continue;
+      zeff::AnimDef* p = q.def ? q.def : zeff::anim_find(reinterpret_cast<const char*>(q.raw + 8));
+      // Its root holds its own damage handler (0x0050ae60's set_damage_handler):
+      // where a shot of the mesh lands, under nodes handed the target's.
+      if (p && p->raw[0x98] == 1 && (p->root || p->node)) out.push_back(p->root ? p->root : p->node);
+    }
+  }
+  return out;
+}
+
+bool chain_hit(uint32_t h, void* def) {
+  zcls::Node* n = aim_node(h);
+  if (!shootable(n)) n = g_sensors.node(h, false);
+  if (!chain_hit_node(n, def)) return false;
+  return !chain_alive(h);
 }
 
 }  // namespace mech3

@@ -1030,14 +1030,16 @@ TEST(sdl_program_screens_are_not_blank) {
 // the resume starts where the first half ended; each run's census is 0
 // outside the known table; both end through the win movie, the credits
 // pressed once by the main menu and back to a main menu that works; every
-// briefing and debriefing shot is lit, and green.
+// briefing and debriefing shot is lit, and green. A third run wins Op 1 by
+// kills, its salvage followed into the store and the lab (below).
 TEST(sdl_program_campaign_chain) {
   if (!have_fonts() || !std::getenv("MW3_CAMPAIGN")) return;
   const std::string root = std::string(MW3_TEST_TMP) + "/sdl_campaign_chain";
   std::filesystem::remove_all(root);
-  const std::string split = root + "/split", single = root + "/single";
+  const std::string split = root + "/split", single = root + "/single", kills = root + "/kills";
   std::filesystem::create_directories(split);
   std::filesystem::create_directories(single);
+  std::filesystem::create_directories(kills);
   auto args = [](const std::string& chain, const std::string& dir) {
     return std::vector<std::string>{"--campaign-chain", chain, "--verbose", "--nosound", "--hidden", "--write-dir", dir};
   };
@@ -1055,10 +1057,12 @@ TEST(sdl_program_campaign_chain) {
   };
   const auto start = std::chrono::steady_clock::now();
   const pid_t whole = spawn_mw3(args("new:20", single), single + "/run.log");
+  const pid_t by_kills = spawn_mw3(args("kills:4", kills), kills + "/run.log");
   const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
   const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));
   const bool whole_ok = wait(whole);
-  EXPECT(first_ok && second_ok && whole_ok);
+  const bool kills_ok = wait(by_kills);
+  EXPECT(first_ok && second_ok && whole_ok && kills_ok);
   auto read = [](const std::string& path) {
     std::string t;
     if (std::FILE* f = std::fopen(path.c_str(), "r")) {
@@ -1136,8 +1140,35 @@ TEST(sdl_program_campaign_chain) {
     EXPECT(end_states(*l) == end_seq);
     EXPECT(l->find("mw3: chain pilot screen again after the credits (credits entered 1)") != std::string::npos);
   }
+  // Op 1 won by kills (campaign.md section 14): every enemy shot through
+  // zWeapon's impact until it dies, the mission won by its objectives then
+  // Exit Mission; c1m3 by --win's after its kills (two of its objectives'
+  // nodes nothing switches off). Each debriefing's salvage is the mission's
+  // store, traced to the kills (each mech's and vehicle's its own weapons),
+  // the objectives and the win's lance; SALVAGE moves its weapons into the
+  // store; the lab fits one, and the next mission's mech carries it.
+  const std::string lk = read(kills + "/run.log");
+  auto count = [](const std::string& log, const char* what) {
+    int n = 0;
+    for (size_t at = 0; (at = log.find(what, at)) != std::string::npos; ++at) ++n;
+    return n;
+  };
+  const int won = count(lk, "mw3: chain won op 1 mission "), by_win = count(lk, "not won by its kills");
+  const int matches = count(lk, "the win's lance"), matched = count(lk, "}: matches");
+  const int moved = count(lk, "mw3: chain salvage weapons moved"), moved_ok = count(lk, "}: moved\n");
+  const int fitted = count(lk, "mw3: chain lab: salvaged weapon"), carried = count(lk, "): fitted\n");
+  std::printf("  by kills: %d won by their objectives, %d as --win; %d of %d debriefings' salvage matched, %d of %d "
+              "SALVAGE moved, %d fitted, %d carried; %d kills (%d not their weapons)\n",
+              won, by_win, matched, matches, moved_ok, moved, fitted, carried, count(lk, "mw3: chain killed "),
+              count(lk, "NOT its weapons"));
+  EXPECT(won == 3 && by_win == 1 && lk.find("op 1 mission 3 not won by its kills") != std::string::npos);
+  EXPECT(matches == 4 && matched == 4);
+  EXPECT(moved == 3 && moved_ok == 3 && fitted == 3 && carried == 3);
+  EXPECT(count(lk, "NOT its weapons") == 0 && count(lk, "mw3: chain killed mech ") >= 10);
+  EXPECT(lk.find("mw3: chain done at op 2 mission 1 after 4 wins") != std::string::npos);
+  EXPECT(lk.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
   int shots = 0, lit_ok = 0;
-  for (const std::string& dir : {split, single})
+  for (const std::string& dir : {split, single, kills})
     for (const auto& f : std::filesystem::directory_iterator(dir)) {
       const std::string name = f.path().filename().string();
       if (name.rfind("chain_", 0) != 0) continue;
@@ -1153,6 +1184,6 @@ TEST(sdl_program_campaign_chain) {
       else std::printf("  shot %s: lit %.3f green %.3f\n", name.c_str(), lit, green);
     }
   std::printf("  %d of %d briefing and debriefing shots lit\n", lit_ok, shots);
-  EXPECT(shots == 81 && lit_ok == shots);
+  EXPECT(shots == 90 && lit_ok == shots);  // 81, and the kills run's 5 briefings and 4 debriefings
 }
 #endif

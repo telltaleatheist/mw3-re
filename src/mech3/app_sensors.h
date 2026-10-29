@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "mech3/app_mech.h"
 
@@ -44,5 +46,43 @@ const float* weapon_lock_point(const void* o);           // 0x005a8630, a live p
 const float* weapon_lock_velocity(void* o);              // vt+0xc, a pointer
 void* hud_target_marker(int32_t kind);                   // [0x0060b4f0 + 4 kind]
 void hud_object_view_tint(const void* o, bool on);      // vt+0x68: TARGET's view tint, by class
+
+// Ours, for --campaign-chain's kills (campaign.md section 14): what the
+// mission player could shoot, alive (zEntity's +0x08) on a team that is not
+// the player's or its allies': zEntity's mechs and vehicles and the turrets
+// (not team 0), and targets.zrd's objects (team 0 too).
+struct ChainTarget {
+  uint32_t h = 0;
+  const char* kind = "";
+  std::string name;  // its node's, before it dies (a dead mech's node is "deadmech")
+};
+std::vector<ChainTarget> chain_hostiles();
+bool chain_alive(uint32_t h);
+// One shot of the player's landing on h's aim node: zWeapon's impact
+// (0x005826b0) with a stand-in projectile the player owns, so the node's
+// damage handler, the victim's damage and death and the kill credit (with
+// its salvage) run as for a real shot. `def` the weapon's; true when killed.
+bool chain_hit(uint32_t h, void* def);
+// The same on a scene node (the first under it a shot can damage); false
+// when none can be.
+bool chain_hit_node(void* node, void* def);
+// The nodes of the animations a destroyed target's destroy animation still
+// waits for (its prerequisites, not yet run): what has to fall first, as
+// c1m3's legs under the buildings.
+std::vector<void*> chain_prerequisite_nodes();
+// A projectile weapon a mech carries in the game (not a beam, no impact
+// callback, not NARC): the chain's gun.
+void* chain_weapon();
+// The weapon types a mech or vehicle carries, as its salvage (0x00472f00)
+// reads them: each weapon manager slot that holds one.
+std::vector<int32_t> chain_weapon_types(uint32_t h);
+// The mission player set down `dist` m off the entity whose node is `name`
+// (Mech vt+0xdc, 0x00418f30), as if walked there; false when none.
+bool chain_player_to(const char* name, float dist);
+// The same by a scene node, unless the player is within 1.5 x dist of it.
+bool chain_player_near(void* node, float dist);
+// The same at the middle of a loaded region (its corners' mean, on the
+// highest ground there that is not water); false when none is loaded.
+bool chain_player_to_region(const char* name);
 
 }  // namespace mech3

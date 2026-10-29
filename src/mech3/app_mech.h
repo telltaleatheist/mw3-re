@@ -229,6 +229,8 @@ bool mech_lead_point_at(void* mech, uint32_t target, float out[3]);
 // (0x004b4ba0), reload (+0x30), ammo (vt+0x14) and its type's flight hold
 // (0x004b4c90); the torso recentred (0x00465a00). Null-safe.
 void* mech_weapon_manager(void* mech);
+// Ours (the campaign chain): a mech's or basic vehicle's weapon types, as its salvage reads them.
+std::vector<int32_t> salvage_weapon_types(void* object);
 void* wm_current_weapon(void* wm);
 void wm_clear_aim(void* wm);
 // The aim's (docs/ai.md 17.7): a targeting computer (+0x3e4) or a fire
