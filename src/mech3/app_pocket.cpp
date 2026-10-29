@@ -106,6 +106,9 @@ void wire_pocket(const MechWiring* w) {
     if (g_marker) {
       auto& list = ai::entity_list();
       for (auto it = list.begin(); it != list.end();) it = object(*it) == g_marker ? list.erase(it) : std::next(it);
+      // Its handle too (ours): else the next object at its address takes the
+      // old handle (the next mission's mechs did, by allocation luck).
+      if (g_w.forget_object) g_w.forget_object(g_w.engine, g_marker);
       delete g_marker;
     }
     g_marker = new PocketMarker;

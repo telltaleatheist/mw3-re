@@ -1059,7 +1059,9 @@ TEST(sdl_program_campaign_chain) {
   const pid_t whole = spawn_mw3(args("new:20", single), single + "/run.log");
   // On a 33 ms frame clock: c1m3's bases drive about 2.5 km to Charlie.
   std::vector<std::string> kill_args = args("kills:4", kills);
-  kill_args.insert(kill_args.end(), {"--frame-ms", "33"});
+  // A fixed seed (--seed, ours): rand is otherwise seeded from the time of
+  // day, and c1m3's bases' wander made its win frame vary from 7k to over 40k.
+  kill_args.insert(kill_args.end(), {"--frame-ms", "33", "--seed", "1999"});
   const pid_t by_kills = spawn_mw3(kill_args, kills + "/run.log");
   const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
   const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));

@@ -120,8 +120,8 @@ class SdlPump : public platform::MessagePump {
 
   // Asked before each look at the queue: true posts the quit (mw3 --frames).
   std::function<bool()> should_quit;
-  // Ours: run at each look at the queue, once a pass of the app's loop
-  // (--frame-ms steps its clock there).
+  // Ours: run at each look at the queue that finds no message, once a pass
+  // of the app's loop that runs the game (--frame-ms steps its clock there).
   std::function<void()> each_pass;
   static Uint32 music_event();  // the user event SdlMusicOutput posts at a file's end
 

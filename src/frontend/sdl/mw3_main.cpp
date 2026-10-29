@@ -27,11 +27,13 @@
 //                        campaign_chain.h): N missions won, shots in --write-dir
 //   --frame-ms N         each frame shown is N ms on the game's clock, however
 //                        fast it is drawn (ours: scripted runs keep their timing)
+//   --seed N             rand seeded with N where the game seeds it from the clock (ours)
 //   --window WxH         window size (default 1280x960; with any_resolution the
 //                        frame's shape, and a given size pillarboxes the frame)
 //   --nosound            no audio device (a silent DirectSound stand-in)
 //   --hidden             keep the window hidden
 //   --verbose            list every unported function reached at exit
+#include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
 
 #include <cstdio>
@@ -109,6 +111,7 @@ struct Args {
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
   int frame_ms = 0;           // --frame-ms N: each frame shown N ms on the game's clock (ours)
+  int64_t seed = -1;          // --seed N: rand seeded with N wherever the game seeds it from the clock (ours)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
@@ -125,7 +128,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -155,6 +158,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--campaign-chain" && next(1)) a.chain = argv[++i];
     else if (s == "--frame-ms" && next(1)) a.frame_ms = std::atoi(argv[++i]);
+    else if (s == "--seed" && next(1)) a.seed = std::strtoll(argv[++i], nullptr, 10);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h), a.window_given = true;
     else if (s == "--nosound") a.nosound = true;
     else if (s == "--walk") a.walk = true;
@@ -283,6 +287,11 @@ int run(const Args& a) {
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
   clock.frame_ms = static_cast<uint32_t>(a.frame_ms);
+  // --seed: every srand(time()) takes N instead (with --frame-ms a run repeats).
+  if (a.seed >= 0) {
+    crt::rand_fixed_seed() = static_cast<uint32_t>(a.seed);
+    std::printf("mw3: rand seeded with %lld\n", static_cast<long long>(a.seed));
+  }
   // --movie with --nosound: the movie's clock steps a quarter frame (1/60 s)
   // each time it is read, the silent sound's cursor follows the same time.
   struct StepClock : platform::Clock {

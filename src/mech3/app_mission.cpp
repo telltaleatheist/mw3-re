@@ -464,13 +464,23 @@ struct WiredPlayerHooks : PlayerHooks {
   void controls_delete(Handle ictl) override {
     auto it = controls.find(ictl);
     if (it == controls.end()) return PlayerHooks::controls_delete(ictl);
+    // Their handles go with them (ours): else the next object made at one of
+    // these addresses takes the old handle, and the entities' order (and the
+    // runs) differed by allocation luck.
+    const auto forget_params = [&](ai::Brain* b) {
+      if (!b) return;
+      params.erase(e->handle_of(&b->params));
+      e->forget_object(&b->params);
+    };
     if (it->second == 1) {
       AiControls* c = as<AiControls>(ictl);
-      if (c->brain) params.erase(e->handle_of(&c->brain->params));
+      forget_params(c->brain.get());
+      e->forget_object(c);
       delete c;
     } else {
       ai::AiVehicleControls* c = as<ai::AiVehicleControls>(ictl);
-      params.erase(e->handle_of(&c->brain->params));
+      forget_params(c->brain.get());
+      e->forget_object(c);
       delete c;
     }
     controls.erase(it);
@@ -713,6 +723,7 @@ namespace {
 // pilot's +0x14 (none until the launch makes it).
 struct WiredBrainHooks : ai::BrainHooks {
   GameEngine* e = nullptr;
+  void on_new(uint32_t, const void* p) override { e->forget_object(p); }  // as WiredBuild's (app_mech.cpp)
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
   }
