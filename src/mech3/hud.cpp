@@ -72,7 +72,8 @@ ztwod::Rect HudHooks::display_rect() {
   return {r.x, r.y, r.x_end, r.y_end};
 }
 ztwod::Rect HudHooks::window_rect() {
-  const Rect& r = window();
+  // FIX (B): on a canvas the 2D's window is the display (the window rect is the frame's; resolution.md step 4).
+  const Rect& r = canvas_scaled() ? display() : window();
   return {r.x, r.y, r.x_end, r.y_end};
 }
 
@@ -927,8 +928,10 @@ void HudViewWindow::set_area(const ztwod::Rect& r) {
     isx = 1.0f / sx;  // 0x005c91a0
     isy = 1.0f / sy;
   }
-  g_hooks->window_set_size(node, area.right - area.left, area.bottom - area.top);
-  g_hooks->window_set_pos(node, area.left, area.top);
+  int32_t x = area.left, y = area.top, w = area.right - area.left, h = area.bottom - area.top;
+  canvas_to_render(&x, &y, &w, &h);  // FIX (B): the 3D view's window on the frame, the box on the canvas (resolution.md step 4)
+  g_hooks->window_set_size(node, w, h);
+  g_hooks->window_set_pos(node, x, y);
 }
 
 // Mech3.exe 1.2 @ 0x004b5150
@@ -1665,11 +1668,46 @@ void HudReticle::hide() {
 namespace {
 // 0x00557110 on a key: (x, y) or (w, h).
 bool ivec2(zrdr::Node* n, const char* key, int32_t out[2]) { return zrdr::get_ivec2(n, key, out); }
+
+// The anchors (hud.md section 5, from V640x480 against V800x600 ..
+// V1600x1200): 'R' the right edge, 'C' the centre, 'L' the left; 'B' the
+// bottom, 'T' the top.
+struct Anchor {
+  const char* piece;
+  const char* key;
+  char x, y;
+};
+constexpr Anchor kAnchors[] = {
+    {"MFD", "position", 'R', 'B'},        {"TARGET", "position", 'L', 'B'},
+    {"WEAPONS", "position", 'R', 'T'},    {"EQUIPMENT", "position", 'R', 'T'},
+    {"COMPASS", "tape", 'C', 'T'},        {"COMPASS", "frame", 'C', 'T'},
+    {"TIMER", "position", 'R', 'T'},      {"GAUGES", "speed_frame", 'R', 'T'},
+    {"GAUGES", "fuel_frame", 'R', 'T'},   {"GAUGES", "heat_bar", 'L', 'T'},
+    {"GAUGES", "heat_meter", 'L', 'T'},   {"GAUGES", "heat_text", 'L', 'T'},
+    {"GAUGES", "heat_arrow", 'L', 'T'},   {"GAUGES", "coolant_frame", 'L', 'T'},
+};
 constexpr const char* kModeBlock[] = {nullptr, nullptr, nullptr, "V640x480", nullptr, "V640x480", "V800x600",
                                       "V1024x768", "V1152x864", "V1280x1024", "V1600x1200"};
 // The parts the equipment list counts, by mech +0x3ac index ([0x005e3a30..0x005e3a50]).
 constexpr int32_t kEquipParts[8] = {0, 12, 3, 8, 14, 6, 7, 4};
 }  // namespace
+
+bool hud_anchor(const char* piece, const char* key, int32_t w, int32_t h, int32_t p[2]) {
+  for (const Anchor& a : kAnchors) {
+    if (std::strcmp(a.piece, piece) != 0 || std::strcmp(a.key, key) != 0) continue;
+    if (a.x == 'R') p[0] += w - 640;
+    else if (a.x == 'C') p[0] += (w - 640) / 2;
+    if (a.y == 'B') p[1] += h - 480;
+    return true;
+  }
+  return false;
+}
+
+bool Hud::pos(zrdr::Node* n, const char* piece, const char* key, int32_t out[2]) const {
+  if (!ivec2(n, key, out)) return false;
+  if (anchor_w > 0) hud_anchor(piece, key, anchor_w, anchor_h, out);
+  return true;
+}
 
 // Mech3.exe 1.2 @ 0x0043bb80: an unlisted video mode keeps +0x22e3c as it
 // is (FIX (bug) in the constructor, hud.md section 3).
@@ -1680,15 +1718,20 @@ void Hud::setup(Mech* m) {
   if (reader) {
     const int32_t v = k.vmode();
     if (v >= 0 && v <= 10 && kModeBlock[v]) block = zrdr::find(reader, kModeBlock[v]);
+    anchor_w = anchor_h = 0;
+    if (zfix::options().any_resolution && v > 10) {  // FIX (B): V640x480 by the anchors (resolution.md step 4)
+      block = zrdr::find(reader, "V640x480");
+      anchor_w = k.display_w(), anchor_h = k.display_h();
+    }
   }
   if (block) {
     int32_t a[2], b[2];
     zrdr::Node* n = zrdr::find(block, "MFD");
-    if (n && ivec2(n, "size", b) && ivec2(n, "position", a)) mfd.place(a[0], a[1], b[0], b[1]);
+    if (n && ivec2(n, "size", b) && pos(n, "MFD", "position", a)) mfd.place(a[0], a[1], b[0], b[1]);
     n = zrdr::find(block, "TARGET");
-    if (n && ivec2(n, "size", b) && ivec2(n, "position", a)) target.place(a[0], a[1], b[0], b[1]);
+    if (n && ivec2(n, "size", b) && pos(n, "TARGET", "position", a)) target.place(a[0], a[1], b[0], b[1]);
     n = zrdr::find(block, "TIMER");
-    if (n && ivec2(n, "position", a)) timer.set_pos(a[0], a[1]);
+    if (n && pos(n, "TIMER", "position", a)) timer.set_pos(a[0], a[1]);
   }
   reset();
   reticle.attach(this);
@@ -1870,8 +1913,8 @@ void HudCompass::read_layout(const Hud* hud) {
   if (!hud || !hud->block) return;
   zrdr::Node* n = zrdr::find(hud->block, "COMPASS");
   int32_t a[2];
-  if (ivec2(n, "tape", a)) tape.set_pos(a[0], a[1]);
-  if (ivec2(n, "frame", a)) frame.set_pos(a[0], a[1]);
+  if (hud->pos(n, "COMPASS", "tape", a)) tape.set_pos(a[0], a[1]);
+  if (hud->pos(n, "COMPASS", "frame", a)) frame.set_pos(a[0], a[1]);
 }
 
 // Mech3.exe 1.2 @ 0x00444dc0: the frames moved, then the texts, bars and
@@ -1880,13 +1923,13 @@ void HudGauges::read_layout(const Hud* hud) {
   if (!hud || !hud->block) return;
   zrdr::Node* n = zrdr::find(hud->block, "GAUGES");
   int32_t a[2];
-  if (ivec2(n, "speed_frame", a)) speed_frame.set_pos(a[0], a[1]);
-  if (ivec2(n, "fuel_frame", a)) fuel_frame.set_pos(a[0], a[1]);
-  if (ivec2(n, "heat_bar", a)) heat_bar.set_pos(a[0], a[1]);
-  if (ivec2(n, "heat_meter", a)) heat_meter.set_pos(a[0], a[1]);
-  if (ivec2(n, "heat_text", a)) heat_text.set_pos(a[0], a[1]);
-  if (ivec2(n, "heat_arrow", a)) toggler.set_pos(a[0], a[1]);
-  if (ivec2(n, "coolant_frame", a)) coolant_frame.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "speed_frame", a)) speed_frame.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "fuel_frame", a)) fuel_frame.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "heat_bar", a)) heat_bar.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "heat_meter", a)) heat_meter.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "heat_text", a)) heat_text.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "heat_arrow", a)) toggler.set_pos(a[0], a[1]);
+  if (hud->pos(n, "GAUGES", "coolant_frame", a)) coolant_frame.set_pos(a[0], a[1]);
   speed_text.set_pos(speed_frame.get_x() + 0x1b, speed_frame.get_y() + 0x30);
   coolant_text.set_pos(coolant_frame.get_x() + 0x16, coolant_frame.get_y() + 0x21);
   speed_bar.set_box(speed_frame.get_x() + 0xf, speed_frame.get_y() + 5, 4, 0x2f);
@@ -2066,7 +2109,7 @@ void HudEquipment::read_layout(Hud* h) {
     if (zrdr::Node* n = zrdr::find(h->block, "EQUIPMENT")) {
       zrdr::get_int(n, "width", &column);
       int32_t a[2];
-      if (ivec2(n, "position", a)) place(a[0], a[1], 0);
+      if (h->pos(n, "EQUIPMENT", "position", a)) place(a[0], a[1], 0);
     }
   }
   hud = h;
@@ -2094,7 +2137,7 @@ void HudWeapons::read_layout(Hud* h) {
     if (zrdr::Node* n = zrdr::find(h->block, "WEAPONS")) {
       zrdr::get_int(n, "width", &column);
       int32_t a[2];
-      if (ivec2(n, "position", a)) set_pos(a[0], a[1]);
+      if (h->pos(n, "WEAPONS", "position", a)) set_pos(a[0], a[1]);
     }
   }
   hud = h;
@@ -2264,11 +2307,21 @@ void HudPanel::update(float dt) {
   if (ztwod::host().video_mode() == 0 || alpha == 0xff) Image::update(dt);
 }
 
+namespace {
+// FIX (B): a canvas rect onto the frame for the 3D pass (resolution.md step 4).
+ztwod::Rect frame_rect(const ztwod::Rect& r) {
+  int32_t x = r.left, y = r.top, w = r.right - r.left, h = r.bottom - r.top;
+  canvas_to_render(&x, &y, &w, &h);
+  return {x, y, x + w, y + h};
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x0043ad20
 void HudPanel::draw3d(float) {
   if ((flags & ztwod::kHidden) || ztwod::host().video_mode() == 0 || alpha >= 0xff) return;
   HudHooks& h = hud_hooks();
-  h.dirty_rect(&rect);
+  const ztwod::Rect fr = frame_rect(rect);
+  h.dirty_rect(&fr);
   h.scene_begin();
   draw_quad();
   h.flush_transparent();
@@ -2278,10 +2331,11 @@ void HudPanel::draw3d(float) {
 // Mech3.exe 1.2 @ 0x0043ad70: the corners go in from the last vertex back.
 void HudPanel::draw_quad() {
   if (ztwod::host().video_mode() == 0 || alpha == 0xff) return Image::draw();
-  const float v[4][3] = {{corners[3][0], corners[3][1], corners[3][2]},
-                         {corners[2][0], corners[2][1], corners[2][2]},
-                         {corners[1][0], corners[1][1], corners[1][2]},
-                         {corners[0][0], corners[0][1], corners[0][2]}};
+  float v[4][3] = {{corners[3][0], corners[3][1], corners[3][2]},
+                   {corners[2][0], corners[2][1], corners[2][2]},
+                   {corners[1][0], corners[1][1], corners[1][2]},
+                   {corners[0][0], corners[0][1], corners[0][2]}};
+  for (auto& p : v) canvas_point_to_render(&p[0], &p[1]);  // FIX (B): onto the frame
   hud_hooks().flat_quad(v, static_cast<int16_t>(color), alpha);
 }
 
@@ -2958,9 +3012,11 @@ void HudTarget::triangle(int32_t team, float dt, bool zoomed) {
   float a[3];
   h.project(centre, a);
   if (!zoomed) render_to_screen(a);
+  else render_point_to_canvas(&a[0], &a[1]);  // FIX (B): the zoom window's frame pixels onto the canvas
   float top[3] = {centre[0], size + centre[1], centre[2]};
   h.project(top, top);
   if (!zoomed) render_to_screen(top);
+  else render_point_to_canvas(&top[0], &top[1]);
   size = std::fabs(top[1] - a[1]);
   if (x240c > 0.0f) {
     const float k = x240c * 3.3333333f;  // [0x005c010c]
@@ -2973,6 +3029,7 @@ void HudTarget::triangle(int32_t team, float dt, bool zoomed) {
   h.entity_position(h.contact_entity(contact), pos);
   h.project(pos, a);
   if (!zoomed) render_to_screen(a);
+  else render_point_to_canvas(&a[0], &a[1]);
   shape1.show_for(-1.0f);
   shape1.set_translation(a);
   shape1.set_scale(size * 1.1547010f);  // [0x005c0110]
@@ -3181,8 +3238,14 @@ void Hud::draw3d(float dt) {
     HudHooks& h = hud_hooks();
     const bool mfd1 = mfd.shown_mode() == 1;
     const bool tgt1 = target.shown_mode() == 1;
-    if (on && tgt1) h.dirty_rect(target.shown_rect());
-    if (on && mfd1) h.dirty_rect(&mfd.view->rect);
+    if (on && tgt1) {
+      const ztwod::Rect r = frame_rect(*target.shown_rect());  // FIX (B): onto the frame
+      h.dirty_rect(&r);
+    }
+    if (on && mfd1) {
+      const ztwod::Rect r = frame_rect(mfd.view->rect);
+      h.dirty_rect(&r);
+    }
     h.scene_begin();
     if (on) {
       if (tgt1) target.view->panel.draw_quad();

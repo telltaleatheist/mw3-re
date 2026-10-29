@@ -65,6 +65,7 @@
 namespace mech3 {
 
 int32_t display_w();  // options.h (0x0040d760), not includable with mech.h
+int32_t vmode();      // options.h (0x0040d9d0)
 const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
 
 
@@ -81,6 +82,9 @@ zcls::Camera* camera_data() {
 // The HUD's outside on the ports. What is left unported answers 0 (the
 // layout's mech fields, the nav list, sounds; hud.md section 9).
 struct ProgramHudHooks : HudHooks {
+  // [[0x005f4d0c]], the video mode hud.zrd's block is picked by (0x0043bb80):
+  // unwired, it answered 0 and the program's HUD never read a block.
+  int32_t vmode() override { return mech3::vmode(); }
   uint32_t id(const void* p) override { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
   // The HUD's 3D views' nodes (hud-plan item 6c1): the cameras and windows it
   // makes, by handle (the hooks' 32-bit node handles; a pointer does not fit).

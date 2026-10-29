@@ -364,7 +364,10 @@ These change how the game talks to the computer, not how it plays.
 - The in-mission screen size (InGameVMode) is used: a mission opens at the
   size chosen in the graphics options, 16:9 sizes included, and the menus
   go back to 640x480. Shift+V steps through every size the screen offers.
-  The HUD at the new sizes keeps its 640x480 layout for now.
+- At the new sizes the HUD is laid out for the screen: the MFD, the weapons
+  list, the timer and the gauges keep to the right and bottom edges, as the
+  original's larger layouts put them. It is drawn two or four times larger
+  at 1080p and 4K, so its text stays readable.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 

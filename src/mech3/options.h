@@ -243,6 +243,17 @@ void set_vmode(int32_t mode);               // 0x0040d810
 constexpr int32_t kLastVMode = 16, kCustomVMode = 16;
 constexpr int32_t kMaxScreen[2] = {3840, 2160};  // lower to 1920x1080 if larger sizes are trouble
 bool vmode_size(int32_t mode, int32_t* w, int32_t* h);
+// FIX (B), any_resolution: the 2D canvas past mode 10 (the frame over
+// art_scale), and its rects onto the frame (resolution.md step 4).
+int32_t art_scale(int32_t frame_h);
+bool vmode_canvas(int32_t mode, int32_t* w, int32_t* h);
+bool canvas_scaled();  // the display (2D) smaller than the render (3D) rect, the fix on
+void canvas_to_render(int32_t* x, int32_t* y, int32_t* w, int32_t* h);
+void canvas_point_to_render(float* x, float* y);
+// A projected point (frame pixels) onto the canvas, unclamped: for the 2D
+// pieces the exe places from 0x0053cf10 without 0x0040da30 (the waypoint
+// arrow; TARGET through the zoom window), which then sit on the frame's scale.
+void render_point_to_canvas(float* x, float* y);
 int32_t vmode();                            // 0x0040d9d0
 void set_sound_frequency(float v);             // 0x0040da80
 float sound_frequency();                       // 0x0040daa0

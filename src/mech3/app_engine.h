@@ -582,7 +582,8 @@ class GameEngine : public Engine {
                           kGrabs = 0x00010100;  // the fade's stills, 0x10 apart
 
  private:
-  void screen_size(int32_t w, int32_t h);  // the 2D buffer, the viewport, the window (video_open, video_set_mode)
+  // The 2D buffer at the canvas (w x h), the viewport, the window at the 3D frame (video_open, video_set_mode).
+  void screen_size(int32_t w, int32_t h, int32_t frame_w, int32_t frame_h);
   Platform p_;
   std::string command_line_;
   bool video_opened_ = false;

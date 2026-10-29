@@ -10,8 +10,13 @@
 namespace sdlfe {
 
 struct FrameShape {
-  int frame_w = 640, frame_h = 480;  // the display rect the game draws
+  int frame_w = 640, frame_h = 480;  // the frame the game draws (its render rect)
   bool fit = false;                  // any_resolution: keep the frame's shape
+  // The 2D canvas over it (the display rect, resolution.md step 4: the frame
+  // over the art scale); 0: the frame's own size. The cursor is in its pixels.
+  int canvas_w = 0, canvas_h = 0;
+  int client_w() const { return canvas_w > 0 ? canvas_w : frame_w; }
+  int client_h() const { return canvas_h > 0 ? canvas_h : frame_h; }
 };
 
 struct FitRect {
@@ -26,23 +31,23 @@ inline FitRect fit_rect(float win_w, float win_h, const FrameShape& s) {
   return {std::floor((win_w - w) / 2), std::floor((win_h - h) / 2), w, h};
 }
 
-// A window position as a frame pixel, and back (the cursor's mapping).
+// A window position as a client (canvas) pixel, and back (the cursor's mapping).
 inline void window_to_frame(float wx, float wy, float win_w, float win_h, const FrameShape& s, float* fx, float* fy) {
   const FitRect r = fit_rect(win_w, win_h, s);
-  *fx = r.w > 0 ? (wx - r.x) * s.frame_w / r.w : 0;
-  *fy = r.h > 0 ? (wy - r.y) * s.frame_h / r.h : 0;
+  *fx = r.w > 0 ? (wx - r.x) * s.client_w() / r.w : 0;
+  *fy = r.h > 0 ? (wy - r.y) * s.client_h() / r.h : 0;
 }
 inline void frame_to_window(float fx, float fy, float win_w, float win_h, const FrameShape& s, float* wx, float* wy) {
   const FitRect r = fit_rect(win_w, win_h, s);
-  *wx = r.x + fx * r.w / s.frame_w;
-  *wy = r.y + fy * r.h / s.frame_h;
+  *wx = r.x + fx * r.w / s.client_w();
+  *wy = r.y + fy * r.h / s.client_h();
 }
 
-// The relative mouse's scale: window motion to frame pixels, so a mickey is
-// a frame pixel at any window size (the exe's 640x480 window: one to one).
+// The relative mouse's scale: window motion to client pixels, so a mickey is
+// a game pixel at any window size (the exe's 640x480 window: one to one).
 inline float mickey_scale(float win_w, float win_h, const FrameShape& s) {
   const FitRect r = fit_rect(win_w, win_h, s);
-  return r.w > 0 ? s.frame_w / r.w : 1.0f;
+  return r.w > 0 ? s.client_w() / r.w : 1.0f;
 }
 
 // The window a frame asks for when --window is not given: the frame itself,

@@ -6,12 +6,16 @@
 #include <string>
 #include <vector>
 
+#include <filesystem>
+
 #include "check.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zreader/zreader.h"
 #include "mech3/app_hooks.h"
+#include "mech3/hud.h"
 #include "mech3/options.h"
 #include "mech3/options_menu.h"
 
@@ -102,13 +106,15 @@ TEST(resolution_new_modes_only_with_the_fix) {
   for (const auto& s : sizes) {
     mech3::set_vmode(s[0]);
     EXPECT(mech3::render().w == s[1] && mech3::render().h == s[2]);
-    EXPECT(mech3::display().w == s[1] && mech3::display().h == s[2]);
+    int32_t cw = 0, ch = 0;  // the display: the 2D canvas over it (step 4, resolution_canvas_past_mode_10)
+    EXPECT(mech3::vmode_canvas(s[0], &cw, &ch) && mech3::display().w == cw && mech3::display().h == ch);
   }
   mech3::Options& o = mech3::options();
   const int32_t keep_w = o.screen_w, keep_h = o.screen_h;
   o.screen_w = 2560, o.screen_h = 1080;  // 21:9
   mech3::set_vmode(mech3::kCustomVMode);
-  EXPECT(mech3::display().w == 2560 && mech3::display().h == 1080);
+  EXPECT(mech3::render().w == 2560 && mech3::render().h == 1080);
+  EXPECT(mech3::display().w == 1280 && mech3::display().h == 540);  // the canvas, scale 2
   o.screen_w = 10000, o.screen_h = 100;  // clamped to 640x480 .. the cap
   mech3::set_vmode(mech3::kCustomVMode);
   EXPECT(mech3::display().w == mech3::kMaxScreen[0] && mech3::display().h == 480);
@@ -186,4 +192,93 @@ TEST(resolution_camera_angles_on_a_node) {
   EXPECT(cam.get<float>(0xe8) == 1.6825f);  // the angles setter does not cap at 80 degrees
   node.put<int32_t>(0x34, 5);
   EXPECT(zcls::camera_get_fov_angles(&node, &h, &v) == 3);  // not a camera
+}
+
+// The HUD by anchors (resolution.md step 4, hud.md section 5): V640x480's
+// positions, each moved by its piece's anchor, give every larger block
+// hud.zrd ships, piece for piece; sizes and widths have no anchor.
+TEST(resolution_hud_anchors_make_the_original_blocks) {
+  const std::string zbd = std::string(MW3_GAME_DIR) + "/zbd/reader.zbd";
+  if (!std::filesystem::exists(zbd)) return;
+  zrdr::init();
+  zrdr::close_archives(true);
+  EXPECT(zrdr::open_archive(zbd.c_str(), true));
+  zrdr::Node* hud = zrdr::load("hud.zrd");
+  EXPECT(hud != nullptr);
+  if (!hud) return;
+  zrdr::Node* base = zrdr::find(hud, "V640x480");
+  struct Block { const char* name; int32_t w, h; };
+  const Block blocks[] = {{"V800x600", 800, 600}, {"V1024x768", 1024, 768}, {"V1152x864", 1152, 864},
+                          {"V1280x1024", 1280, 1024}, {"V1600x1200", 1600, 1200}};
+  const char* keys[][2] = {{"MFD", "position"}, {"TARGET", "position"}, {"WEAPONS", "position"},
+                           {"EQUIPMENT", "position"}, {"COMPASS", "tape"}, {"COMPASS", "frame"},
+                           {"TIMER", "position"}, {"GAUGES", "speed_frame"}, {"GAUGES", "fuel_frame"},
+                           {"GAUGES", "heat_bar"}, {"GAUGES", "heat_meter"}, {"GAUGES", "heat_text"},
+                           {"GAUGES", "heat_arrow"}, {"GAUGES", "coolant_frame"}};
+  int same = 0, compared = 0;
+  for (const Block& b : blocks) {
+    zrdr::Node* blk = zrdr::find(hud, b.name);
+    EXPECT(blk != nullptr);
+    for (const auto& k : keys) {
+      int32_t p[2], want[2];
+      if (!zrdr::get_ivec2(zrdr::find(base, k[0]), k[1], p) || !zrdr::get_ivec2(zrdr::find(blk, k[0]), k[1], want))
+        continue;
+      ++compared;
+      EXPECT(mech3::hud_anchor(k[0], k[1], b.w, b.h, p));
+      if (p[0] == want[0] && p[1] == want[1]) ++same;
+      else std::printf("anchor %s %s at %s: %d %d, the block %d %d\n", k[0], k[1], b.name, p[0], p[1], want[0], want[1]);
+    }
+  }
+  std::printf("hud anchors: %d of %d positions in the five larger blocks made from V640x480\n", same, compared);
+  EXPECT(compared == 70 && same == 70);
+  int32_t q[2] = {75, 100};
+  EXPECT(!mech3::hud_anchor("MFD", "size", 1920, 1080, q) && q[0] == 75 && q[1] == 100);
+  zrdr::free_node(hud);
+  zrdr::close_archives(true);
+}
+
+// The canvas past mode 10 (resolution.md step 4): the frame over a whole art
+// scale (its height over 480), the display rect the canvas and the render and
+// window rects the frame, the points and rects between them; modes 3..10 and
+// the fix off as the original.
+TEST(resolution_canvas_past_mode_10) {
+  const mech3::Options keep = mech3::options();
+  {
+    FixOn on(true);
+    const int32_t sizes[][3] = {{5, 640, 480}, {10, 1600, 1200}, {11, 1280, 720}, {12, 1600, 900},
+                                {13, 960, 540}, {14, 853, 480}, {15, 960, 540}};
+    for (const auto& s : sizes) {
+      int32_t w = 0, h = 0;
+      EXPECT(mech3::vmode_canvas(s[0], &w, &h) && w == s[1] && h == s[2]);
+    }
+    mech3::set_vmode(13);
+    EXPECT(mech3::render().w == 1920 && mech3::render().h == 1080);
+    EXPECT(mech3::window().w == 1920 && mech3::window().h == 1080);
+    EXPECT(mech3::display().w == 960 && mech3::display().h == 540);
+    EXPECT(mech3::canvas_scaled());
+    float p[2] = {480, 270};
+    mech3::screen_to_render(p);
+    EXPECT(p[0] == 960 && p[1] == 540);
+    mech3::render_to_screen(p);
+    EXPECT(p[0] == 480 && p[1] == 270);
+    int32_t x = 850, y = 430, w = 75, h = 100;
+    mech3::canvas_to_render(&x, &y, &w, &h);
+    EXPECT(x == 1700 && y == 860 && w == 150 && h == 200);
+    mech3::set_vmode(5);
+    EXPECT(!mech3::canvas_scaled());
+    float q[2] = {100, 100};
+    mech3::screen_to_render(q);
+    EXPECT(q[0] == 100 && q[1] == 100);
+    mech3::set_vmode(3);  // the original's doubling stays
+    mech3::screen_to_render(q);
+    EXPECT(q[0] == 50 && q[1] == 50);
+  }
+  {
+    FixOn off(false);
+    int32_t w = 0, h = 0;
+    EXPECT(!mech3::vmode_canvas(13, &w, &h));
+    mech3::set_vmode(7);
+    EXPECT(mech3::display().w == 1024 && mech3::render().w == 1024 && !mech3::canvas_scaled());
+  }
+  mech3::options() = keep;
 }

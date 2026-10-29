@@ -294,6 +294,12 @@ void clamp_to(const Rect& r, float p[2]) {
 void screen_to_render(float p[2]) {
   const Rect& rr = g_options.render;
   const Rect& dr = g_options.display;
+  if (!pixel_double() && canvas_scaled()) {  // FIX (B): the canvas's point onto the frame (resolution.md step 4)
+    p[0] = static_cast<float>(rr.x) + (p[0] - static_cast<float>(dr.x)) * static_cast<float>(rr.w) / static_cast<float>(dr.w);
+    p[1] = static_cast<float>(rr.y) + (p[1] - static_cast<float>(dr.y)) * static_cast<float>(rr.h) / static_cast<float>(dr.h);
+    clamp_to(rr, p);
+    return;
+  }
   if (!pixel_double()) return;
   p[0] = p[0] * 0.5f;  // 0x005bc458
   p[1] = static_cast<float>(rr.y) + (p[1] - static_cast<float>(dr.y)) * 0.5f;
@@ -305,6 +311,13 @@ void screen_to_render(float p[2]) {
 void render_to_screen(float p[2]) {
   const Rect& rr = g_options.render;
   const Rect& wr = g_options.window;
+  if (!pixel_double() && canvas_scaled()) {  // FIX (B): a frame point onto the canvas (the display)
+    const Rect& dr = g_options.display;
+    p[0] = static_cast<float>(dr.x) + (p[0] - static_cast<float>(rr.x)) * static_cast<float>(dr.w) / static_cast<float>(rr.w);
+    p[1] = static_cast<float>(dr.y) + (p[1] - static_cast<float>(rr.y)) * static_cast<float>(dr.h) / static_cast<float>(rr.h);
+    clamp_to(dr, p);
+    return;
+  }
   if (!pixel_double()) return;
   p[0] = p[0] + p[0];
   const float d = p[1] - static_cast<float>(rr.y);
@@ -434,9 +447,14 @@ void set_vmode(int32_t mode) {
     set_display_size(640, 480);
     set_pixel_double(1);
   } else if (vmode_size(mode, &w, &h)) {
+    // FIX (B): past 10 the 2D (the display) is the canvas, the 3D (render and
+    // the window node) the whole frame (resolution.md step 4); else all three
+    // the mode's size.
+    int32_t cw = w, ch = h;
+    vmode_canvas(mode, &cw, &ch);
     set_render_size(w, h);
     set_window_size(w, h);
-    set_display_size(w, h);
+    set_display_size(cw, ch);
     set_pixel_double(0);
   }
   g_hooks->input_set_screen(display_w(), display_h());
@@ -461,6 +479,48 @@ bool vmode_size(int32_t mode, int32_t* w, int32_t* h) {
   *h = std::min(kSizes[mode - 5][1], kMaxScreen[1]);
   return true;
 }
+// FIX (B), any_resolution (resolution.md step 4): the modes past 10 draw the
+// 2D on a canvas of the frame over a whole art scale, the frame's height over
+// 480 (at least 1): 960x540 at 1920x1080 and at 3840x2160, so the 640x480
+// art and text stay readable, and the HUD is laid out on it by anchors.
+int32_t art_scale(int32_t frame_h) { return std::max(1, frame_h / 480); }
+bool vmode_canvas(int32_t mode, int32_t* w, int32_t* h) {
+  int32_t fw = 0, fh = 0;
+  if (!vmode_size(mode, &fw, &fh)) return false;
+  *w = fw, *h = fh;
+  if (!zfix::options().any_resolution || mode <= 10) return true;
+  const int32_t s = art_scale(fh);
+  *w = (fw + s / 2) / s, *h = fh / s;
+  return true;
+}
+bool canvas_scaled() {
+  const Rect& rr = g_options.render;
+  const Rect& dr = g_options.display;
+  return zfix::options().any_resolution && dr.w > 0 && dr.h > 0 && (dr.w != rr.w || dr.h != rr.h);
+}
+void render_point_to_canvas(float* x, float* y) {
+  if (!canvas_scaled()) return;
+  const Rect& rr = g_options.render;
+  const Rect& dr = g_options.display;
+  *x = *x * static_cast<float>(dr.w) / static_cast<float>(rr.w);
+  *y = *y * static_cast<float>(dr.h) / static_cast<float>(rr.h);
+}
+void canvas_point_to_render(float* x, float* y) {
+  if (!canvas_scaled()) return;
+  const Rect& rr = g_options.render;
+  const Rect& dr = g_options.display;
+  *x = *x * static_cast<float>(rr.w) / static_cast<float>(dr.w);
+  *y = *y * static_cast<float>(rr.h) / static_cast<float>(dr.h);
+}
+void canvas_to_render(int32_t* x, int32_t* y, int32_t* w, int32_t* h) {
+  if (!canvas_scaled()) return;
+  const Rect& rr = g_options.render;
+  const Rect& dr = g_options.display;
+  const int32_t x1 = (*x + *w) * rr.w / dr.w, y1 = (*y + *h) * rr.h / dr.h;
+  *x = *x * rr.w / dr.w, *y = *y * rr.h / dr.h;
+  *w = x1 - *x, *h = y1 - *y;
+}
+
 // Mech3.exe 1.2 @ 0x0040d9d0
 int32_t vmode() { return g_options.vmode; }
 

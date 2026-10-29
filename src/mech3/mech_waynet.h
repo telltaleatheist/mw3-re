@@ -132,6 +132,8 @@ void waynet_icons_unref();
 void waynet_icons_free();
 // 0x00479ed0 (the HUD's frame): the arrow drawn unless hidden.
 void waynet_arrow_draw();
+// For the tests (ours): the arrow's place and whether it is shown.
+bool waynet_arrow_place(int32_t* x, int32_t* y);
 // The radar's icons ([0x00608ba8] nav, [0x00608bac] MFB), null before the
 // first waynet.
 ztwod::Image* waynet_icon(bool mfb);

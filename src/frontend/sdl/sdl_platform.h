@@ -31,7 +31,7 @@ class SdlWindow : public platform::Window {
   void set_title(const std::string& title) override;
   void show() override;
   void client_size(int* width, int* height) override;
-  void frame_size(int width, int height) override;
+  void frame_size(int width, int height, int canvas_w = 0, int canvas_h = 0) override;
   // --window not given: the window takes the frame's shape (sdl_fit.h).
   void set_auto_size(bool on) { auto_size_ = on; }
   const FrameShape& shape() const { return shape_; }

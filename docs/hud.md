@@ -221,9 +221,34 @@ mech's 0x0041df10 is 2 (0x00442df0), hud.zrd released (+0x22e38 gets
   the left edge, as at 640x480).
 - Fonts are fixed sizes (Arial 8 for the heat text): text does not scale.
 
-For any resolution: lay the pieces out by anchor (the left and right edges,
-the bottom) from the 640x480 block rather than by a table per mode
-(fixes.md, Candidates).
+For any resolution (done 2026-10-28, resolution.md step 4): the pieces laid
+out by anchor from the 640x480 block. Each anchor is read from how the
+original's larger blocks move the piece. Every position of V800x600 ..
+V1600x1200 is V640x480's, moved by w - 640 (the right edge), (w - 640) / 2
+(the centre) or h - 480 (the bottom), and nothing else:
+
+| Piece | Key | x | y | 640x480 | 1600x1200 |
+|---|---|---|---|---|---|
+| MFD | position | right | bottom | 530, 370 | 1490, 1090 |
+| TARGET | position | left | bottom | 10, 370 | 10, 1090 |
+| WEAPONS | position | right | top | 530, 30 | 1490, 30 |
+| EQUIPMENT | position | right | top | 530, 30 | 1490, 30 |
+| COMPASS | tape, frame | centre | top | 245, 19 / 11 | 725, 19 / 11 |
+| TIMER | position | right | top | 580, 15 | 1540, 15 |
+| GAUGES | speed_frame | right | top | 575, 256 | 1535, 256 |
+| GAUGES | fuel_frame | right | top | 527, 296 | 1487, 296 |
+| GAUGES | heat_bar, heat_meter, heat_text, heat_arrow, coolant_frame | left | top | 18, 163 .. 8, 290 | the same |
+
+Sizes and widths are the same in every block, so they have no anchor. The
+speed and fuel frames stay at their y at every size: they hang from the
+top. Pieces hud.zrd does not place keep the constructor's place, as at the
+original's larger modes: the radar (0x37, 0x37), the message lines from y
+0x5f, and the zoom window at (10, 370). The message panel is centred by
+0x0040f330 across the display. `mech3::hud_anchor` holds the table.
+`Hud::pos` applies it to every position the set-up and the pieces' layout
+readers take, past mode 10 with any_resolution, where hud.zrd has no
+block and V640x480 is read. `resolution_hud_anchors_make_the_original_blocks`
+remakes all 70 positions of the five larger blocks.
 
 ## 6. Per-frame data flow (0x0043c390)
 

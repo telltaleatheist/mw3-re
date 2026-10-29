@@ -45,8 +45,9 @@ void SdlWindow::show() {
 // The display rect the game draws: with any_resolution its shape is kept
 // (pillarboxed in a window of another shape), and a window opened without
 // --window takes it (sdl_fit.h default_window).
-void SdlWindow::frame_size(int width, int height) {
+void SdlWindow::frame_size(int width, int height, int canvas_w, int canvas_h) {
   shape_.frame_w = width, shape_.frame_h = height;
+  shape_.canvas_w = canvas_w, shape_.canvas_h = canvas_h;
   shape_.fit = zfix::options().any_resolution;
   if (!window_ || !shape_.fit || !auto_size_) return;
   int w = 0, h = 0;

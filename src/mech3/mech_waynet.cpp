@@ -18,6 +18,7 @@
 namespace mech3 {
 
 int32_t display_w();  // options.h (0x0040d760), not includable here
+void render_point_to_canvas(float* x, float* y);  // options.h (FIX (B), resolution.md step 4)
 int32_t display_h();
 
 namespace {
@@ -70,6 +71,11 @@ ztwod::Image& arrow() {  // 0x00608ae0, 0x0059b970(0) at start-up
   return a;
 }
 }  // namespace
+
+bool waynet_arrow_place(int32_t* x, int32_t* y) {
+  *x = arrow().get_x(), *y = arrow().get_y();
+  return !(arrow().flags & ztwod::kHidden);
+}
 
 void WaynetHooks::image_path(const char* path) { ztwod::host().image_path(path); }
 Handle WaynetHooks::icon_make(const char* name) { return new ztwod::Image(name, 0, 0, 1); }
@@ -274,6 +280,7 @@ void Waynet::hud_arrow(bool active) {
   const float at[3] = {p[0], p[1], p[2]};
   float s[3];
   const uint32_t off = h.project(at, s);  // 0x0053cf10
+  render_point_to_canvas(&s[0], &s[1]);  // FIX (B): onto the canvas (resolution.md step 4); none before
   if (off & 1) return arrow_at(mfb, 0, 0, crt::msvc_ftol(s[1]));
   if (off & 2) {
     int32_t w = 0, ht = 0;

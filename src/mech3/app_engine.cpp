@@ -552,18 +552,21 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   if (!hw) unported("0x00579c60 software", {});
   video_opened_ = true;  // [0x0080271c]
   const Rect& d = mech3::display();
-  screen_size(d.w > 0 ? d.w : 640, d.h > 0 ? d.h : 480);
+  const Rect& r = mech3::render();
+  screen_size(d.w > 0 ? d.w : 640, d.h > 0 ? d.h : 480, r.w, r.h);
   return 0;
 }
 
 // The screen at a size (FIX (A): DirectDraw's surfaces and the device made
 // for a mode): the 16-bit buffer, Render3D's viewport, the window's shape.
-void GameEngine::screen_size(int32_t w, int32_t h) {
+void GameEngine::screen_size(int32_t w, int32_t h, int32_t frame_w, int32_t frame_h) {
   width_ = w, height_ = h;
   buffer_.assign(static_cast<size_t>(width_) * height_, 0);
   buffer_is_screen_ = false;
-  if (p_.render) p_.render->set_viewport(0, 0, width_, height_);
-  if (p_.window) p_.window->frame_size(width_, height_);  // the window's shape (ours, resolution.md step 2)
+  // The 3D's viewport the frame (the 2D layers set their own, the canvas's; resolution.md step 4).
+  if (p_.render) p_.render->set_viewport(0, 0, frame_w > 0 ? frame_w : w, frame_h > 0 ? frame_h : h);
+  // The window's shape (ours, resolution.md step 2): the 3D frame, the 2D canvas over it (step 4).
+  if (p_.window) p_.window->frame_size(frame_w > 0 ? frame_w : w, frame_h > 0 ? frame_h : h, w, h);
   // The tint quad as 0x00579c60 and the device's setup (0x0057a900, not
   // ported) leave it: unfogged, at depth 0.99 (without them the fades' quad
   // took the mission's fog colour); and fog enabled, as the setup leaves it
@@ -579,9 +582,9 @@ void GameEngine::screen_size(int32_t w, int32_t h) {
 // surfaces and the device made again (0x00577cd0), here the screen at that
 // size. A mode zVideo does not know keeps the size it had.
 int32_t GameEngine::video_set_mode(int32_t mode) {
-  int32_t w = width_, h = height_;
-  if (!mech3::vmode_size(mode, &w, &h)) w = width_, h = height_;
-  screen_size(w, h);
+  int32_t fw = 0, fh = 0, w = width_, h = height_;
+  if (!mech3::vmode_size(mode, &fw, &fh) || !mech3::vmode_canvas(mode, &w, &h)) fw = w = width_, fh = h = height_;
+  screen_size(w, h, fw, fh);
   return 0;
 }
 
