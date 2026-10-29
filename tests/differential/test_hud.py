@@ -33,6 +33,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 probe = load_probe()
 probe.probe_hud_entity_class.argtypes = [ctypes.c_uint32, ctypes.c_int32]
 probe.probe_hud_free_after.argtypes = [ctypes.c_int32]
+probe.probe_hud_power_after.argtypes = [ctypes.c_int32, ctypes.c_int32]
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(ctypes.c_float),
                                   ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int,
                                   ctypes.c_char_p, ctypes.c_int]
@@ -356,6 +357,16 @@ class Original:
                 self.aim_lines.append(self.aim_dump())
         self.run_frames()
         d = self.dump()
+        # The mech's power down (0x43bb20, its answer kept) and up (0x43bb50
+        # with a saved byte), then the HUD dumped again.
+        pr = rnd(self.seed, 'power')
+        self.power, self.power_saved = pr.randrange(3), pr.randrange(2)
+        if self.power:
+            e.call(0x43bb20, ecx=self.hud)
+            was = e.cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
+            if self.power == 2:
+                e.call(0x43bb50, ecx=self.hud, stack=(self.power_saved,))
+            d += 'power %d\n' % was + self.dump()
         # The mission's end (item 9): the HUD's destructor 0x43b860, after the dump.
         self.free = rnd(self.seed, 'free').random() < 0.5
         if self.free:
@@ -1827,6 +1838,7 @@ def run_case(seed, verbose=False):
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     probe.probe_hud_classes_clear()
     probe.probe_hud_free_after(1 if orig.free else 0)
+    probe.probe_hud_power_after(orig.power, orig.power_saved)
     for o, c in getattr(orig, 'classed', {}).items():
         probe.probe_hud_entity_class(o, c)
     buf = ctypes.create_string_buffer(1 << 20)

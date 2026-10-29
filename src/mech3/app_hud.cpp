@@ -740,6 +740,8 @@ void wire_hud() {
   // the weapons list's layout 0x00446240, refresh 0x00446520, the fire mark
   // 0x004464c0 (+0x11438 = 1) and the weapon it highlights (+0x1795c).
   heat_calls().screen = [](Mech& m) -> void* { return hud_of(m); };
+  heat_calls().screen_power_down = [](void* s) -> uint8_t { return static_cast<Hud*>(s)->power_down() ? 1 : 0; };
+  heat_calls().screen_power_up = [](void* s, uint8_t saved) { static_cast<Hud*>(s)->power_up(saved); };
   command_calls().hud_weapon = [](void* s) -> void* { return static_cast<Hud*>(s)->weapons.next_weapon; };
   // The HUD's keys (playtest #13, #20): the commands', and the zoom key held
   // (the controls' update: the zoom window +0x1508, its flags +0x1514 and
@@ -849,6 +851,7 @@ void wire_hud() {
 void unwire_hud() {
   set_hud_hooks(nullptr);
   heat_calls().screen = nullptr;
+  heat_calls().screen_power_down = nullptr, heat_calls().screen_power_up = nullptr;
   command_calls().hud_weapon = nullptr;
   command_calls().hud = nullptr, command_calls().hud_aimed_node = nullptr;
   controls_calls().screen_busy = nullptr, controls_calls().zoom = nullptr;
@@ -1132,4 +1135,10 @@ bool program_hud_look(float x, float y) {
   return true;
 }
 
+bool program_hud_power_state(void* mech, bool* on, bool* reticle_shown) {
+  const Hud* h = mech ? hud_of(*static_cast<Mech*>(mech)) : nullptr;
+  if (!h) return false;
+  *on = h->active == 1, *reticle_shown = !(h->reticle.flags & ztwod::kHidden);
+  return true;
+}
 }  // namespace mech3

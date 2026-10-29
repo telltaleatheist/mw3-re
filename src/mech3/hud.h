@@ -1055,6 +1055,10 @@ class Hud : public ztwod::Layer {
   static int32_t live();             // ours, for the tests: the HUDs made and not freed
   void setup(Mech* m);               // 0x0043bb80: hud.zrd's layout for the video mode, the mech given out
   void set_active(int32_t on) override;  // +0x04  0x0043baf0: the radar shown or hidden
+  // The mech's power down and up (Mech::finish_power_down, Mech::power):
+  // the HUD off with the reticle hidden, then back as it was.
+  bool power_down();             // 0x0043bb20: true when it was on
+  void power_up(uint8_t saved);  // 0x0043bb50
   void update(float dt) override;    // +0x00  0x0043c820: the HUD's frame
   void draw3d(float dt);             // 0x0043c6b0: the Direct3D pass (from the mech's 0x0041cd90)
   void data_update(float dt);        // 0x0043c390: the game's numbers into the pieces (from 0x0040f8d0)

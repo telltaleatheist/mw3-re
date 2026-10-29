@@ -1466,3 +1466,23 @@ and off again (the images 640 x 640 stand-ins: the headless host loads
 none). The live program draws c1m1_small in the radar's box with the mech's
 circle on it.
 
+## 26. The power down and up (0x0043bb20 / 0x0043bb50; ported 2026-10-29)
+
+When the player's mech powers down (Mech::finish_power_down 0x0041cac0),
+0x0043bb20:
+- keeps whether the HUD was on (+0x04 == 1);
+- turns it off (vt+0x04(0), 0x0043baf0, which also hides the radar);
+- hides the reticle (+0x144c vt+0x64).
+When it powers up again (Mech::power), 0x0043bb50 gives the HUD back the
+kept state (vt+0x04, the radar with it) and shows the reticle for good
+(vt+0x60(-1)). Until now neither ran: a census stand-in. So the cockpit HUD
+stayed on through a power down.
+- Port: `Hud::power_down` and `Hud::power_up`, through
+  `HeatCalls::screen_power_down` and `screen_power_up`.
+- test_hud.py runs both on the built HUD of each case (none, the down, or
+  the down then the up with a random kept byte) and compares the dump after.
+  Breaks caught: the reticle left shown, the kept state ignored.
+- `mission_c1m1_power_down_turns_the_hud_off_and_back_headless`: on at the
+  start; off with the reticle hidden in the frame the mech powers down; on
+  with the reticle in the frame after the power up.
+
