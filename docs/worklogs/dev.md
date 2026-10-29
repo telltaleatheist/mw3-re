@@ -1408,3 +1408,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   developer consoles, the software paths; the +0xbc bit 2 question; c4m2's
   late +12%.
 - My "c4m2 8x" in the gap list was stale: item 3 closed it.
+
+## zFont (2026-10-28): nothing to port
+
+- Branch mac4/zfont (off main). Narrowed as the lead asked, then further:
+  no object in 1.2 runs TextBase's draw or measure (twod.md section 4: the
+  vtable's stores, the callers, the data references). zFont's reader only
+  loads. The known reason for 0x00519e50 is now "no effect". My gap list's
+  "bitmap fonts on every screen" was wrong.
+
