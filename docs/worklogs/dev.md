@@ -1652,4 +1652,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   so a mission plays the same split or whole, and the check is strict:
   every briefing line identical, units included. Two runs passed, and the
   test takes 102 s instead of several minutes.
+- #3, c4m2's late +12%. The census on c4m2, 360 s, MW3_CENSUS_STATS; the
+  ratio is cycles 13-18 against 3-12.
+  - Today's main: level (0.997; 1.003 and 1.008 in later runs).
+  - Bisected over the merges since item 22:
+    - 346616a: 1.068. be2040e: 1.085. 39343a8: 1.091.
+    - 385cfa6 (the hooks audit): 1.013. c445a26: 0.991. 94c739d: 1.012.
+  - On 39343a8, `sample` early and late: the AI's `clear_line` sight-line
+    queries grew fourfold, from a fight the scripted walk met late. On
+    main the same checks are high early and low late. Game work, not a
+    leak.
+  - Ruled out on main, each switched off: the puffers' tick (0.989), the
+    AI nets' ground (1.009), the AI torso aim (1.009).
+  - Both builds are Debug, so the profiles are dominated by unoptimised
+    STL in the 16-bit layer's fill and copy (`unlock_back`), early and late
+    alike.
 

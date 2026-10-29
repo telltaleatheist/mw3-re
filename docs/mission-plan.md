@@ -472,10 +472,21 @@ Small items, each one sitting, in the order a player would notice them.
       reuses a finished effect's copy (anim-run.md, Start), so the count
       is the most ever alive at once: flat in quiet cycles, not a leak.
     - Time: no slowdown in c3m6 (13.6 s, then 11.4 s per 1200 frames).
-      c4m2 runs 19.5-20.3 s per cycle until cycle 12, then 21-22.2 s in
-      cycles 13-18 (+12%, a quiet run). Node growth is 2%, so it does not
-      explain it. Open: likely where the walk has taken the player, not
-      checked.
+      c4m2 ran 19.5-20.3 s per cycle until cycle 12, then 21-22.2 s in
+      cycles 13-18 (+12%). Node growth is 2%, so it did not explain it.
+      Closed 2026-10-29: the AI's line-of-sight checks.
+      - Profiled late against early on the slow commit (39343a8):
+        `ai::clear_line` (the brain's `segment_first`, a world segment
+        query each) grew from 151 samples to 614. The scripted walk met
+        a fight late in the run, and the engaged AI checked its sight
+        lines every frame. That is game work, not a leak.
+      - Gone since the hooks audit (385cfa6, ratio of late to early 1.013
+        against 1.091 one merge before). With the arm restriction, the
+        AI's torso aim and the rest wired, the scripted run's fight plays
+        out early: on main the checks are high early (236) and low late
+        (23), and the late cycles are level (0.99-1.01 in five runs).
+      - Not the puffers' tick, the AI nets' ground or the torso aim alone:
+        each switched off on main kept the ratio at 0.99-1.01.
     - The quit: `--frames` and `--shot` on a launched mission now count
       every frame from the first that drew the scene. Escape's pause
       draws none, and the run never ended. Tested by
