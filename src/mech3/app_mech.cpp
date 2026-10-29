@@ -577,6 +577,7 @@ void wire_mech_parts() {
   PartCalls& pc = part_calls();
   pc = PartCalls{};
   pc.register_part = [](Mech& m, MechPart& p) { m.parts.push_back(&p); };  // 0x0041b8d0
+  pc.tree_update = [](Handle n) { zcls::update_subtree(zn(n)); };           // 0x004f7db0, the legs' setup
   pc.foot_effect = []() -> Handle {                                         // 0x0045f980
     return foot_wake_new(world_hooks().world, "mech_leg_wake01", "mech_leg_wake02", "mech_leg_wake03");
   };
@@ -799,6 +800,7 @@ void wire_mech_parts() {
 
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420),
   // a basic vehicle's and a turret's 0x004a5bc0 do nothing.
+  d.networked = [] { return mission_game_type() == 3; };  // 0x00479480, as the dead list's
   d.killer_notify = [](Handle killer, Mech& victim) {
     if (entity_is_mech(killer)) return static_cast<Mech*>(killer)->on_kill(&victim);
     if (is_program_vehicle(killer) || program_turret(killer)) return;  // 0x004a5bc0: nothing

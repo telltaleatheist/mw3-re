@@ -275,6 +275,16 @@ Node* node_find_in_tree(Node* node, const char* name) {
   return nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x004eb0d0. The name matched whole, the node itself first,
+// then each child's tree in order (0x004f9d60 goes last to first).
+Node* node_find(Node* node, const char* name) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x43b, "Null node pointer."), nullptr;
+  if (std::strcmp(node->name(), name) == 0) return node;
+  for (int32_t i = 0; i < node->child_count(); ++i)
+    if (Node* hit = node_find(node->children[i], name)) return hit;
+  return nullptr;
+}
+
 namespace {
 // 0x004eb450 / 0x004eb500. The list push never fails, so the exe's free() of
 // the node on failure is dead.

@@ -223,6 +223,7 @@ add_library(mw3core STATIC
   src/mech3/app_movie.cpp
   third_party/pl_mpeg/pl_mpeg.c
   src/mech3/app_mission.cpp
+  src/mech3/app_hook_census.cpp
   src/mech3/app_turret.cpp
   src/mech3/app_vehicle.cpp
   src/mech3/app_view.cpp
@@ -396,12 +397,14 @@ add_executable(mw3tests
   tests/test_controls_cfg.cpp
   tests/test_pilot_names.cpp
   tests/test_program.cpp
+  tests/test_hooks.cpp
   tests/place_survey.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)
 # Tests that read the player's install skip themselves when it is not there.
 target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
-                                          MW3_TEST_TMP="${CMAKE_BINARY_DIR}")
+                                          MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
+                                          MW3_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME mw3tests COMMAND mw3tests)
 
 # The SDL3 front end and the programs on it.

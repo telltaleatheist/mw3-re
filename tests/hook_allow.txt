@@ -1,0 +1,269 @@
+# Hooks fields the program may leave null after start-up and a mission
+# load (program_hooks_set_after_a_mission_load_headless): Struct.field, a
+# tab, the reason. A reason starts with counted:, fallback:, default:,
+# multiplayer:, no effect:, never set:, deferred:, test: or data:.
+SceneWalk.pre	no effect: [0x005ea510] holds an empty default
+SceneWalk.post	no effect: [0x005ea514] holds an empty default
+CraterState.veto	multiplayer: [0x0060bf88], the network game's 0x0046fd30
+CraterState.quicksand_veto	multiplayer: [0x0060c0c8], set by the network game
+CraterHooks.write_record	no effect: the craters' records written only into a save that hooks it; none in the program
+Hooks.load	fallback: unset runs the port (0x00556740)
+Hooks.find_texture	fallback: unset runs the port (0x00518220)
+Hooks.add_texture	fallback: unset runs the port (0x00518c60)
+Hooks.load_textures	fallback: unset runs the port (0x005190d0)
+Hooks.anim_find	fallback: unset runs the port (0x0050b450)
+AnimLog.net	multiplayer: the call log's network copy [0x0060c714], set by the network game
+State.file_exists	fallback: unset runs the port (0x005762b0 search path; FIX (A))
+TextureHooks.fallback	never set: [0x00638520], never set in 1.2
+Engine.walk_prefix	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.list_print	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.delete_child	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.delete_tree	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.free_node	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.free_world	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_model	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_can_modify	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_overwrite	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_altitude_surface	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_intersect_surface	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_intersect_bbox	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_proximity	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_landmark	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.set_lighting	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.pool_alive	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.write_zbd	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_create	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_rotate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_get_translate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_dynamic_lod	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_fov	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_horizon_xz	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_horizon	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_lod_multiplier	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_get_clip	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_object_hse_test	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_window	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_world	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.camera_set_translate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.display_create	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.display_origin	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.display_resolution	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_create	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_add_clear_vertex	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_buffer	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_close_clear_polygon	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_origin	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_resolution	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.window_set_clear_polygon	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_ambient	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_color	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_diffuse	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_directed	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_directional	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_orientation	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_point	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_ranges	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_saturated	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_static	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_subdivide	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.light_set_translate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.lod_create	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.seq_create	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.seq_add_child	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.seq_set_active	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.seq_set_loop	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.seq_set_pause	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.seq_set_repeat	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.object3d_get_translate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.object3d_rotate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.object3d_scale	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.object3d_set_opacity_is_set	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.object3d_set_opacity	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.object3d_translate	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_create	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_add_light	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_extents	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_origin	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_partition_tolerance	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_partition_max_dec	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_partition	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_set_virtual_map_size	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.world_set_virtual_partition	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.matl_new	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.model_new	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.model_set_facade	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.model_do_shadows	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.polygon_material	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.polygon_prepare	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.polygon_add	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.model_set_color	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.model_set_show_backface	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.model_set_morph	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.texture_world_base	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.texture_world_per_meter	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.palette_name	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.palette_shading	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.small_polygon_reject	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.perspective_adaptive	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.clear_screen_buffer	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.video_wireframe	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.make_shadows	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.wind_max_speed	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.wind_accel	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.wind_ang_vel	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.wind_static_velocity	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Engine.anim_debug_frame	counted: a null script engine entry is skipped and counted (the script census, zinterp_parse.cpp)
+Observer.line	data: not a hook (the line's tokens)
+Observer.dispatched	test: the script interpreter's observer for tests
+Observer.line_done	test: the script interpreter's observer for tests
+CullHooks.hidden_surface	no effect: the software renderer's span-buffer occlusion (0x0053d750), not ported (the GPU's depth buffer hides what it would); unset passes everything
+DrawHooks.model_light	fallback: unset runs the port
+DrawHooks.flare	fallback: unset runs the port
+PuffHooks.node_euler	fallback: unset runs the port (0x004ed5d0)
+PuffHooks.node_position	fallback: unset runs the port (0x004ed530)
+FlareHooks.sprite	fallback: unset runs the port
+State.subtitle_hook	never set: [0x0072c4cc], never set in 1.2
+State.can_play_hook	never set: [0x0072c4d0], never set in 1.2 (0 refuses)
+WeatherHooks.rand	fallback: unset runs the port (the CRT's rand ([0x005bb668]))
+WeatherHooks.camera_place	fallback: unset runs the port
+WeatherHooks.camera_angles	fallback: unset runs the port
+WeatherHooks.screen_rect	fallback: unset runs the port (0x00579880)
+WeatherHooks.draw	fallback: unset runs the port
+WeatherHooks.reload	fallback: unset runs the port
+WeatherHooks.flush	fallback: unset runs the port
+HitState.pre_hit	no effect: [0x009a17a4] is only ever zeroed by the exe (0x005837c1)
+RunHooks.net_gate	multiplayer: [0x0072fcac], the network game's shot gate (0 refuses)
+CockpitSoundCalls.find	fallback: unset runs the port (0x0056f6f0)
+CockpitSoundCalls.play	fallback: unset runs the port (0x004e6d80(s, 0; volume, 0, -1))
+CockpitSoundCalls.stop	fallback: unset runs the port (0x0056e9f0)
+CockpitSoundCalls.fade	fallback: unset runs the port (0x00571d20)
+ControlsSetupCalls.message	fallback: unset runs the port (+0x00  its name's message id)
+ControlsSetupCalls.bind	fallback: unset runs the port
+ControlsSetupCalls.map_reset	fallback: unset runs the port (0x0051d1d0)
+ControlsSetupCalls.map_refresh	fallback: unset runs the port (0x0051d1c0)
+ControlsSetupCalls.binding	fallback: unset runs the port (0 key1, 1 key2, 2 joystick, 3 mouse: 0x0051d200..0x0051d230)
+UnbindCalls.trap_of	deferred: the targets bind their own (entity_unbind_calls is const; app_mech.h)
+UnbindCalls.target_of	deferred: the targets bind their own (entity_unbind_calls is const; app_mech.h)
+LanceCalls.brain	fallback: unset runs the port (vt+0x140, then vt+0x54)
+LandmineHooks.load	fallback: unset runs the port (0x00556740)
+LandmineHooks.free	fallback: unset runs the port (0x00556820)
+LandmineHooks.find_def	fallback: unset runs the port (0x00581ed0)
+LandmineHooks.impact	fallback: unset runs the port (0x005826b0)
+LandmineHooks.splash	fallback: unset runs the port (0x005829b0)
+HeatCalls.power	fallback: test hook; unset calls Mech::power
+HeatCalls.torso_hit	fallback: unset runs the port (test hook; unset: torso destroy (explode, 1))
+HeatCalls.stop_controls	fallback: unset runs the port (+0x37c vtable +0x4c (Stop))
+DamageCalls.controls_hit	fallback: unset runs the port
+DamageCalls.controls_stop	fallback: unset runs the port (+0x37c vtable +0xa8)
+DamageCalls.controls_killed	fallback: unset runs the port (+0x37c's second base, vt+0xb4)
+DamageCalls.stats	data: not a hook (bool stats, [0x00608620] exists)
+DamageCalls.last_hit	fallback: unset runs the port (0x0041d130)
+DamageCalls.fly_off	fallback: unset runs the port (part vtable +0x60)
+DamageCalls.free_part	fallback: unset runs the port (vtable +0 (1); unset deletes)
+DamageCalls.anim_ok	fallback: unset runs the port (0x00416780; test hook, unset runs Mech::queue_action)
+DamageCalls.hip_reset	fallback: unset runs the port (test hook (0x004621f0): unset runs Hip::set_crouch)
+DamageCalls.canned	fallback: unset runs the port (test hook (0x00432830 on +0x684): unset runs canned_effect)
+DamageCalls.anim_speed	fallback: unset runs the port (0x0041ef90; test hook, unset runs set_stride_speed)
+DamageCalls.gait_speed	fallback: unset runs the port (0x004329c0 on +0x684 with +0x4a0; test hook, unset runs scale_gaits)
+CollideCalls.segments	fallback: unset runs the port
+CollideCalls.node_intersect	fallback: unset runs the port (0x004eb6d0; unset: the zcls node's flag 0x10)
+CollideCalls.entity_team	deferred: read with the entity collisions behind CollideCalls.entity_body (a census stand-in); 0 is no team
+CollideCalls.body_mass	deferred: a body only through CollideCalls.entity_body (a census stand-in, unwired)
+CollideCalls.entity_matrix	deferred: a body only through CollideCalls.entity_body (a census stand-in, unwired)
+CollideCalls.net_shove	fallback: unset runs the port (0x00470320)
+CollideCalls.crouch	fallback: unset runs the port (test hook (0x004622a0): unset runs Hip::duck)
+CommandCalls.own	fallback: unset runs the port
+CommandCalls.torso_center	fallback: unset runs the port (0x00465a00 on the torso (1, 2))
+CommandCalls.lance_order	fallback: unset runs the port
+CommandCalls.target_part	fallback: unset runs the port (0x0041d810; unset: Mech::target_part)
+ControlsCalls.command	fallback: unset runs the port (0x0051d300; unset: zin::command)
+ControlsCalls.joy_state	fallback: unset runs the port (0x0051dce0 (a DIJOYSTATE2); unset: zin::joy_state)
+ControlsCalls.joy_config	fallback: unset runs the port (0x0051da90 (six zin::JoyAxis); unset: zin::joy_config)
+ControlsCalls.mouse_info	fallback: unset runs the port (0x0051b7b0 (a zin::MouseInfo); unset: zin::mouse_info)
+ControlsCalls.joy_present	fallback: unset runs the port (0x0051dc10; unset: zin::joy_present)
+ControlsCalls.run_command	fallback: unset runs the port (0x0051c440; unset: zin::run_callback)
+ControlsCalls.mouse_set	fallback: unset runs the port (0x0051b440; unset: zin::mouse_set)
+ControlsCalls.pilot_tick	fallback: unset runs the port (IControls +0xa4: unset, PlayerControls::pilot_tick 0x004d8990)
+ControlsCalls.ai_brain	fallback: unset runs the port (AI controls without a brain (the tests'); unset: the smoothing alone)
+ControlsCalls.joy_use	fallback: unset runs the port (0x0051b2c0; unset: zin::joy_use)
+MechDataCalls.dfn	fallback: unset runs the port (0x004846a0 on +0x0c)
+MechDataCalls.canned	fallback: unset runs the port (0x00431750: the canned effects (+0x14c + 0x14 i))
+DeadCalls.respawn	multiplayer: the network game's respawn (0x0046dde0); single player answers the dead list's own
+DeadCalls.update	fallback: unset runs the port
+DeadCalls.ground_step	fallback: unset runs the port
+DeadCalls.entity_step	fallback: unset runs the port
+DeadCalls.fade_debris	fallback: unset runs the port
+LodCalls.controls_answer	default: unset answers 1, as 0x004aee40 (header)
+MoveCalls.move	fallback: unset runs the port (test hook; unset runs Mech::move)
+MoveCalls.foot_ground	test: no caller in src/
+MoveCalls.gait_pose	fallback: unset runs the port (test hook (0x00417bbc..): unset runs Mech::pose_gait)
+MoveCalls.crouch	fallback: unset runs the port (test hook (0x0041bda0): unset runs Mech::crouch)
+MoveCalls.wading_effect	no effect: force feedback (0x00433930 on [0x00608620]), only with the stats object, which the program never makes
+MoveCalls.skis_update	fallback: unset runs the port (test hook; unset runs Skis::update)
+MoveCalls.ff_jets	no effect: force feedback (0x00433870 on [0x00608620]), only with the stats object, which the program never makes
+MoveCalls.jet_pose	fallback: unset runs the port (test hook (0x004177e7..0x004179fd): unset runs Mech::pose_jump)
+MoveCalls.landing_dust	fallback: unset runs the port (test hook (0x004164f3..0x0041660b): unset runs Mech::ground_dust)
+MoveCalls.landing_pose	fallback: unset runs the port (test hook (0x0041660b..): unset runs Mech::landing_pose)
+MoveCalls.action_dust	fallback: unset runs the port (test hook (0x00416d3a..0x00416e91): unset runs Mech::ground_dust)
+MoveCalls.action_pose	fallback: unset runs the port (test hook (0x00416fb8..0x00417293): unset runs Mech::pose_action)
+UpdateCalls.controls_update	fallback: unset runs the port (controls vt +0x0c (player 0x00427d60, AI 0x004e96f0, net 0x0046ef60); unset: the base 0x00426960)
+UpdateCalls.select_gait	fallback: unset runs the port
+UpdateCalls.update_action	fallback: unset runs the port
+UpdateCalls.turn	fallback: unset runs the port
+UpdateCalls.get_up	fallback: unset runs the port
+UpdateCalls.finish_power_down	fallback: unset runs the port
+UpdateCalls.update_heat	fallback: unset runs the port
+UpdateCalls.collide	fallback: unset runs the port
+UpdateCalls.dfn	fallback: unset runs the port (0x0041e9a0; unset: mech_dfn(pilot->roster))
+UpdateCalls.controls_view	fallback: unset runs the port (0x00426780)
+UpdateCalls.translate	fallback: unset runs the port (0x004fc1b0; unset: zcls::object3d_translate)
+UpdateCalls.equipment_update	fallback: unset runs the port (0x00419200)
+UpdateCalls.unwrap	fallback: unset runs the port (controls primary vt +0x04)
+PartCalls.world_position	fallback: unset runs the port (0x004ed530; unset: zcls::node_world_position)
+PartCalls.world_point	fallback: unset runs the port (0x004ed650; unset: zcls::node_world_point)
+PartCalls.node_to_world	fallback: unset runs the port (0x004ed280 onto the matrix stack; unset: zcls::node_to_world)
+PartCalls.dfn	fallback: unset runs the port (0x004846a0 on +0x684 +0x0c; unset: mech_dfn)
+PartCalls.init	fallback: unset runs the port (vtable +0x08 (0x0045fe00, armor and structure))
+PartCalls.node_angles	fallback: unset runs the port (0x004ed5d0: the node's world Euler angles; unset: zcls::node_world_euler)
+PartCalls.flag8	fallback: unset runs the port (0x004eb660 (get) / 0x004eb620 (set); unset: zcls's)
+PlaceCalls.ground	fallback: unset runs the port (0x004edab0 on [0x00608c84]+4)
+PlaceCalls.attach	fallback: unset runs the port ([0x00608c84] vtable +0 (0x0040bab0): 0x004eb9b0 under the world)
+PocketCalls.view_state	fallback: unset runs the port
+PocketCalls.player_keys	fallback: unset runs the port
+PocketCalls.panel_free	fallback: unset runs the port
+PocketCalls.panel_frame	fallback: unset runs the port
+PocketCalls.panel_pick	fallback: unset runs the port
+PocketCalls.panel_units	fallback: unset runs the port
+SkinGlobals.find_texture	fallback: unset runs the port (0x00518220)
+SkinGlobals.load_named	fallback: unset runs the port (0x00518d10)
+SkinGlobals.soil_index	fallback: unset runs the port (0x00535f20)
+SkisCalls.query	fallback: unset runs the port (test hook; unset: zcls::ground_query)
+WakeHooks.stop	fallback: unset runs the port (0x00506ca0)
+WakeHooks.set_active	fallback: unset runs the port (0x004eb170)
+PanelCalls.repair_bays	fallback: unset runs the port (0x0045a000 on 0x00605ae0)
+FrameCalls.map	fallback: unset runs the port
+FrameCalls.map_size	fallback: unset runs the port
+FrameCalls.route_mouse	fallback: unset runs the port (0x0051ba60 (unset: the zTwoD host's))
+SoundExtraHooks.play	fallback: unset runs the port (0x0056e3d0)
+SoundExtraHooks.subtitle	fallback: unset runs the port (+0x00  the message's text (0x0049d1c0 strdup))
+WeaponCalls.node_part	deferred: 0x0040ef30 answers a vehicle's node with the vehicle, which the exe reads as a part; the vehicle weapons item (with 0x004eb0d0, 0x004abb60)
+WeaponCalls.net_target	multiplayer: the network list's target (0x00605f84 by +0x6fc)
+WeaponCalls.normalize	test: no caller in src/
+WeaponCalls.spawn	fallback: unset runs the port
+WeaponCalls.radar_track	fallback: unset runs the port (+0x5d0 = 0x004b4a30 / 0x004b4a20)
+WeaponCalls.beam_create	fallback: unset runs the port
+WeaponCalls.beam_start	fallback: unset runs the port (0x00581230)
+WeaponCalls.beam_stop	fallback: unset runs the port (0x00581400)
+WeaponCalls.beam_free	fallback: unset runs the port (0x00584b40)
+NetHooks.rebuilt	no effect: the net's replacement keeps nothing to free (app_mission.cpp)
+RdrHooks.localize	fallback: unset runs the port (0x00575fb0; zutl::localize when null)
+LightHooks.node_to_world	fallback: unset runs the port (light_chain_to_world)
+LanceCalls.order	fallback: unset runs the port (Brain::lance_order, 0x004ea000..0x004ea230)
+LandmineHooks.splash_query	fallback: unset runs the port (zwep::splash_query, 0x00582920)
+PartCalls.material_soil	fallback: unset runs the port (zmod::Material::soil, +0x20)
+PartCalls.find_in_tree	fallback: unset runs the port (zcls::node_find_in_tree, 0x004f9d60)
+PocketCalls.panel_make	fallback: unset runs the port (a PocketPanel)
+WakeHooks.start	fallback: unset runs the port (zeff::anim_start_connector, 0x00508da0)
+SoundExtraHooks.play_fading	fallback: unset runs the port (zsnd::play_fading)
+RdrHooks.sound_find	fallback: unset runs the port (zsnd::find, 0x0056f6f0)
+RdrHooks.find_loose	never set: FIX (A), loose .zrd files are not read (zreader.md), so no path

@@ -8344,13 +8344,17 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     EXPECT(!(seen.allies_after & seen.player_team));
     // The run repeats bit for bit (reset_process_state's fixed seed: the
     // game's own seed is the clock), so its outcome is exact: these change
-    // only when the AI, the walk or the weapons do.
+    // only when the AI, the walk, the weapons or another rand() user do (the
+    // puffers' since they tick, 0x005490e0, as the exe's; hooks-audit.md).
+    std::printf("  dominic's order: fired %d / %d, on enemy %d, d0 %.3f, closest %.3f, on player %d, phases %d %d %d %d\n",
+                seen.fired_before, seen.fired_after, seen.on_enemy, seen.d0, seen.closest, seen.on_player, seen.phases[2],
+                seen.phases[3], seen.phases[4], seen.phases[5]);
     if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
-      EXPECT(seen.fired_before == 53 && seen.fired_after == 1009 && seen.on_enemy == 1139);
-      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 128.382f) < 1e-3f);
+      EXPECT(seen.fired_before == 53 && seen.fired_after == 951 && seen.on_enemy == 1139);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 58.075f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
-      EXPECT(seen.on_player == 219);  // his next pick, once the player is 30 m off
-      EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 1009 && seen.phases[5] == 126);
+      EXPECT(seen.on_player == 567);  // his next pick, once the player is 30 m off
+      EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 951 && seen.phases[5] == 184);
     }
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -8672,11 +8676,13 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // it meanwhile. In the first second he counts as hit (the hit record
     // starts at time 0), so scan_hit gives him a manoeuvre (ai.md 17.2). Since
     // the skis' quads draw their rand()s (0x00477730, as the exe's) he turns
-    // from ghsD2 to ghsD3 within 2 s, and two of his hits land in the 40 s:
-    // 30 -> 16 -> 9.
-    EXPECT(seen.hut != 0 && seen.target_contacts == 2165 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 1064 && seen.aiming == 70 && seen.firing == 867);
-    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 9.01278f) < 1e-3f);
+    // from ghsD2 to ghsD3 within 2 s; since the puffers tick (their rand()s,
+    // 0x005490e0, hooks-audit.md) his hits bring it from 30 to 0 in the 40 s.
+    std::printf("  dominic's target: contacts %d, first %s, on target %d, aiming %d, firing %d, health %.5f\n",
+                seen.target_contacts, seen.first_target.c_str(), seen.on_target, seen.aiming, seen.firing, seen.health);
+    EXPECT(seen.hut != 0 && seen.target_contacts == 2979 && seen.first_target == "ghsD2");
+    EXPECT(seen.on_target == 1062 && seen.aiming == 68 && seen.firing == 901);
+    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 0.0f) < 1e-3f);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -8991,9 +8997,13 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
       // Exact, the run repeating (reset_process_state's fixed seed). The
       // player is across a no-go patch of the mission boundary from him: the
       // follow is pulled round its corner (ai.md section 11; 63.3 m without).
-      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 326 && seen.firing == 375);
+      std::printf("  dominic unordered: targeted %d, on enemy %d, aiming %d, firing %d, follows %d %d, contacts %d, moved %.4f, closest %.4f\n",
+                  seen.targeted, seen.on_enemy, seen.aiming, seen.firing, seen.follows, seen.follows_player,
+                  seen.enemy_contacts, seen.moved, seen.closest);
+      // (The puffers' rand()s since they tick: hooks-audit.md.)
+      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 44 && seen.firing == 657);
       EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-      EXPECT(std::fabs(seen.moved - 69.9241f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      EXPECT(std::fabs(seen.moved - 70.4463f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -10968,7 +10978,10 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
-                        "0x00495f90", "0x0049bd80", "0x005074b0"}) {
+                        "0x00495f90", "0x0049bd80", "0x005074b0", "0x00414370", "0x0043bb50", "0x0046ef70",
+                        "0x0046f160", "0x00476550", "0x004abb60", "0x004eb0d0", "CollideCalls.ai_reverses",
+                        "CollideCalls.entity_dead", "CollideCalls.entity_target", "DrawHooks.refresh_static",
+                        "WeaponCalls.net_event", "0x00413af0"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10977,7 +10990,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 50);
+  EXPECT(n == 63);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
@@ -11888,6 +11901,102 @@ TEST(mission_c1m1_objectives_box_text_headless) {
 // its death fall ends and its +0x08 clears (0x0045f3b0), though the wreck
 // stays on zEntity's list (campaign.md section 14). Its salvage is its
 // weapons (the kill credit's 0x00472f00).
+// Every hooks field the ported code calls through (a function pointer or a
+// std::function, tests/hook_fields.inc from tools/analysis/hookaudit.py) is
+// set once the program has started and loaded a mission, unless the allow
+// list says why it may stay null: a null hook is skipped silently, and the
+// census cannot see it (zEffect's run hooks, campaign.md section 14).
+struct HookField {
+  const char* name;
+  bool (*null)();
+};
+const std::vector<HookField>& hook_fields();  // test_hooks.cpp
+
+TEST(program_hooks_set_after_a_mission_load_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("program_hooks"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  std::vector<std::string> nulls;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 1;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int core_frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() == &mech3::states().core && ++core_frames == 60)
+        for (const HookField& h : hook_fields())
+          if (h.null()) nulls.push_back(h.name);
+    };
+    CountingPump pump;
+    pump.limit = 2400;
+    pump.stop = [&] { return core_frames >= 60; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  hooks: %zu fields, %zu null in c1m1's Core\n", hook_fields().size(), nulls.size());
+  if (std::getenv("MW3_HOOKS_LIST"))
+    for (const std::string& n : nulls) std::printf("    null %s\n", n.c_str());
+  // tests/hook_allow.txt: each null with its reason; an entry not null is stale.
+  std::map<std::string, std::string> allow;
+  if (std::FILE* f = std::fopen(MW3_SOURCE_DIR "/tests/hook_allow.txt", "r")) {
+    char buf[512];
+    while (std::fgets(buf, sizeof buf, f)) {
+      std::string l = buf;
+      if (l.empty() || l[0] == '#') continue;
+      const size_t tab = l.find('\t');
+      if (tab == std::string::npos) continue;
+      allow[l.substr(0, tab)] = l.substr(tab + 1, l.find_last_not_of("\r\n") - tab);
+    }
+    std::fclose(f);
+  }
+  EXPECT(!allow.empty());
+  static const char* const kWhy[] = {"counted: ", "fallback: ", "default: ", "multiplayer: ", "no effect: ",
+                                     "never set: ", "deferred: ", "test: ", "data: "};
+  int unexplained = 0, stale = 0;
+  for (const std::string& n : nulls) {
+    const auto it = allow.find(n);
+    bool ok = it != allow.end() && it->second.size() > 14;
+    if (ok) {
+      ok = false;
+      for (const char* w : kWhy) ok |= it->second.rfind(w, 0) == 0;
+    }
+    if (!ok) ++unexplained, std::printf("    null without a reason: %s\n", n.c_str());
+  }
+  for (const auto& [n, why] : allow)
+    if (std::find(nulls.begin(), nulls.end(), n) == nulls.end()) ++stale, std::printf("    allowed but set: %s\n", n.c_str());
+  EXPECT(unexplained == 0);
+  EXPECT(stale == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m2_destroy_objectives_met_by_mech_kills_headless) {
   if (!have_game()) return;
   SavedMounts keep;

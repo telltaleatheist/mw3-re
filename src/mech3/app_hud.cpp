@@ -755,6 +755,7 @@ void wire_hud() {
   part_calls().screen_flags = [](void* s) { return static_cast<Hud*>(s)->reticle.zoom.flags; };
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
+  damage_calls().message = [](int id) { return hud_hooks().message(id); };  // 0x00576040: the NUKE's name (the kill by a nuke)
   // A hit on the player's head (playtest #19): the cockpit's explosion run on
   // the cockpit, a crack or a ding shown (0x00460bff, docs/cockpit-damage.md).
   damage_calls().head_hit_hud = [](Handle explosion, Handle cockpit) {
@@ -767,6 +768,15 @@ void wire_hud() {
   wc.hud_groups = [](Handle o) { if (Hud* h = hud_of(o)) h->weapons.layout(); };
   wc.hud_weapons = [](Handle o) { if (Hud* h = hud_of(o)) h->weapons.refresh_all(); };
   wc.hud_fire = [](Handle o) { if (Hud* h = hud_of(o)) h->weapons.shown = 1; };
+  // 0x004b0d80: the reticle's (+0x144c) place (vt+0x68, vt+0x6c), the target
+  // under it (0x00440a30) and its aim state (0x00443d20).
+  wc.gauge_68 = [](Handle s) { return static_cast<Hud*>(s)->reticle.get_x(); };
+  wc.gauge_6c = [](Handle s) { return static_cast<Hud*>(s)->reticle.get_y(); };
+  wc.hud_440a30 = [](Handle s, int32_t x, int32_t y) -> int32_t {
+    Hud* h = static_cast<Hud*>(s);
+    return hud_hooks().reticle_over_target(&h->target, x, y) ? 1 : 0;
+  };
+  wc.hud_443d20 = [](Handle s, int32_t v) { static_cast<Hud*>(s)->reticle.aim_state(v != 0); };
   wc.hud_highlight = [](Handle o) -> Weapon* {
     Hud* h = hud_of(o);
     return h ? static_cast<Weapon*>(h->weapons.next_weapon) : nullptr;
@@ -778,6 +788,10 @@ void wire_hud() {
   // equipment's hold), the HUD for the mode's zoom key; the view's pocket
   // 0x004b5290 is not ported.
   PocketCalls& pk = pocket_calls();
+  pk.unported = [](const char* key, uint32_t arg) -> uint32_t {  // the pocket's own calls not ported, to the census
+    if (command_calls().unported) command_calls().unported(key, static_cast<int32_t>(arg));
+    return 0;
+  };
   pk.camera_mode = [] { return program_view_camera_id(); };
   pk.set_camera_mode = [](int32_t id) { program_view_set_camera(id); };
   pk.display_width = [] { return display_w(); };

@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <cstring>
+#include <type_traits>
 #include <map>
 #include <memory>
 #include <set>
@@ -124,6 +125,20 @@ void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
 int32_t weight_class(int32_t mech);                          // 0x00484700 (mech3/mech_names.h)
 
+void hook_census_install();  // app_hook_census.cpp
+
+// The puffers' tick node (0x00549410): its priority (0x004eb5b0), its action
+// puff_tick (0x004eb450, 0x005490e0), its delete at shutdown (0x004eaea0).
+// Unset, the puffers never stepped: smoke, fire and trails stood still.
+void wire_puff_node() {
+  zmod::PuffHooks& h = zmod::puff_hooks();
+  h.set_priority = [](void*, zcls::Node* n, int32_t p) { return zcls::node_set_priority(n, p); };
+  h.set_callback = [](void*, zcls::Node* n, void (*tick)()) {
+    return zcls::node_set_action(n, tick ? +[](zcls::Node*) { zmod::puff_tick(); } : nullptr);
+  };
+  h.destroy_node = [](void*, zcls::Node* n) { zcls::node_delete(n); };
+}
+
 namespace {
 
 GameEngine* g_mission_engine = nullptr;
@@ -174,6 +189,7 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   h.world = camera ? zcls::camera_world(camera) : nullptr;
   h.camera = camera;
   zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };
+  wire_puff_node();
   h.puffer_tick_reset = zmod::puff_tick_reset;
   h.wind_velocity = zmod::wind_set_velocity;
   h.wind_max_speed = zmod::wind_set_max_speed;
@@ -1451,7 +1467,9 @@ struct WiredObjectiveHooks : ObjectiveHooks {
 };
 WiredObjectiveHooks g_objective_hooks;
 
+
 struct WiredMissionHooks : MissionHooks {
+  void hooks_check() override { hook_census_install(); }
   Handle multiplayer() override { return e->launch().type == 3 ? 1 : 0; }  // 0x00479480
   WiredObjectiveHooks& ob() { return g_objective_hooks; }
   // The end's cockpit (mission.cpp cockpit): 0x00430aa0 on the view's own mech's
@@ -1744,7 +1762,10 @@ struct WiredMissionHooks : MissionHooks {
     program_view_free();
     if (view) e->set_mission_view(0, 0);
   }
-  void delete_608c84(Handle) override {}  // [0x00608c84] (0x0047f2b0) is a block the program keeps nothing in
+  // [0x00608c84] (0x0047f2b0) is a block the program keeps nothing in, but
+  // its world goes with it: the next load's nets and waynets, built before
+  // the world parameters are read again, then see no world (as in the exe).
+  void delete_608c84(Handle) override { world_hooks().world = nullptr, world_hooks().camera = nullptr; }
   void classes_free() override { zcls::classes_reset(); }  // 0x004f8fb0
   void models_free() override {  // 0x00526920 with the materials' 0x005372c0
     zmod::ModelPool& p = zmod::models();
@@ -1815,6 +1836,10 @@ struct WiredMissionHooks : MissionHooks {
     zimg::texture_load() = zimg::TextureLoad{};
     zimg::texture_hooks() = zimg::TextureHooks{};
     zimg::texture_hooks().release = [](void* s) { zvid::release_texture(static_cast<zvid::D3DTexture*>(s)); };  // 0x0057bb00
+    zimg::texture_hooks().reload = [](void* s, zimg::Texture* img) {  // [0x0072f374] = 0x0057baa0: a changed image to its texture
+      zvid::reload_texture(static_cast<zvid::D3DTexture*>(s), img);
+    };
+    zimg::texture_hooks().release_all = [] {};  // [0x0072f37c] = 0x005ac5c0, which does nothing
     zimg::texture_hooks().projected = zmod::mark_is_map;  // 0x00542710: a mark image stays a software image
     zvid::set_pixel_format(5, 6, 5);
     zvid::channel_masks() = {0xf800, 0x07e0, 0x001f};
@@ -1925,6 +1950,7 @@ struct WiredMissionHooks : MissionHooks {
     a.effect_index = zeff::effect_find;  // 0x0050d9e0
     zcls::set_find_sound(a.find_sound);
     zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };
+    wire_puff_node();
     wire_anim_run();
     zeff::anim_set_world(mission_node(*e, world));
   }
@@ -2047,6 +2073,7 @@ struct WiredMissionHooks : MissionHooks {
     };
     w.find_node = [](int32_t list, const char* n) -> zwep::Handle { return zcls::list_find_by_name(list, n); };
     w.set_active = [](zwep::Handle n, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(n), on); };
+    w.node_destroy = [](zwep::Handle n) { zcls::node_delete(static_cast<zcls::Node*>(n)); };  // 0x004eaea0
     w.object3d_create = []() -> zwep::Handle { return zcls::object3d_create(); };
     w.pool_objects = [](int32_t create) { zwep::pool_objects(create); };  // 0x005847c0: the shots' nodes
     w.set_action_priority = [](zwep::Handle n, int32_t p) {
@@ -2398,6 +2425,10 @@ void GameEngine::missions_update(uint32_t list, float dt) {
 // the mission's nav waynet (0x004797c0 into +0xb0 / +0xb4) by the game type
 // (vt+0x2c): waynet_N for 0, 1 and 4, waynet_iaN for 2, waynet_mpN for 3.
 void GameEngine::missions_reset(uint32_t list) {
+  // Ours: the last mission's world is freed by now in the port (its cleanup's
+  // world_clear); the waynets built here see none, as the exe's do before
+  // the world parameters are read again.
+  if (list == 0x6098d0) world_hooks().world = nullptr, world_hooks().camera = nullptr;
   if (list != 0x6098d0 || !pilot_) return void(Engine::missions_reset(list));  // the exe reads the pilot's game
   missions().number = launch_.number;
   missions().open_readers(mission_dir(launch_.index));  // 0x00490630
@@ -2603,6 +2634,11 @@ Handle GameEngine::alloc_block(uint32_t size) {
   const Handle h = next_block_;
   next_block_ += (size + 0xff) & ~0xffu;
   return h;
+}
+
+// The census stand-ins' report (app_hook_census.cpp).
+void hook_census_report(const char* key) {
+  if (GameEngine* g = engine_of_hooks()) g->unported(key, {});
 }
 
 }  // namespace mech3

@@ -1,6 +1,9 @@
 #include "mech3/veh_basic.h"
 
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zclass/cls_node.h"
+
+#include <cstring>
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -33,6 +36,16 @@ float ground_pick(const zcls::GroundHits& hits, float y, float step, int32_t* be
   }
   if (step + *surface >= y) *in_water = water;
   return best_h > low ? best_h : low;
+}
+
+// Mech3.exe 1.2 @ 0x004abb60: strncmp to the name's length.
+void* node_find_prefix(void* node, const char* name) {
+  auto* n = static_cast<zcls::Node*>(node);
+  if (!n || !name) return nullptr;
+  if (std::strncmp(n->name(), name, std::strlen(name)) == 0) return n;
+  for (int32_t i = 0; i < n->child_count(); ++i)
+    if (void* hit = node_find_prefix(n->children[i], name)) return hit;
+  return nullptr;
 }
 
 }  // namespace mech3

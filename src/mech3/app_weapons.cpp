@@ -11,6 +11,7 @@
 #include "gamez/zdeclient/zdec_crater.h"
 #include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zeffect/zeff_init.h"
@@ -30,8 +31,10 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_view.h"
+#include "mech3/veh_basic.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/mech.h"
+#include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
 #include "mech3/mech_skis.h"
@@ -389,6 +392,60 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   };
 
   heat_calls().heat_option = [] { return heat() != 0; };  // 0x0040cfc0, the Heat option
+  // 0x004b0de0(-1, 1) on +0xd4 (0x00419b5a): riding out a heat shutdown, an
+  // ammo bin may cook off.
+  heat_calls().ammo_explosion = [](Mech& m) {
+    auto* wm = static_cast<WeaponManager*>(m.ammo);
+    return wm && wm->critical(-1, true);
+  };
+  // 0x00465ea0 on the torso (+0x39c): the aim (Mech::aim_at, the AI's).
+  aim_calls().torso_aim = [](Mech& m, const Vec3* dir, void* out, int on) -> int {
+    Vec3 scratch;  // the exe's callers pass a buffer; the AI's aim here passes none
+    return m.torso && m.torso->set_aim(dir, out ? static_cast<Vec3*>(out) : &scratch, on != 0) ? 1 : 0;
+  };
+  // The arm restriction's (0x004b2da0): the view, its camera's +0x40 (0 and
+  // 1 the side views), the controls' view state (+0x37c +0x0c, 1 free look),
+  // the torso's turned rotation (0x00465940) and its view (+0xa4 while +0xa2).
+  WeaponCalls& wc = weapon_calls();
+  wc.view = []() -> Handle {
+    int32_t look = 0;
+    static int32_t kept = 0;
+    return program_view_look(&look) ? (kept = look, static_cast<Handle>(&kept)) : nullptr;
+  };
+  wc.view_kind = [](Handle v) { return v ? *static_cast<const int32_t*>(v) : -1; };
+  wc.control_mode = [](Handle owner) -> int32_t {
+    const Mech* m = entity_is_mech(owner) ? static_cast<const Mech*>(owner) : nullptr;
+    return m && m->controls ? m->controls->view : 0;
+  };
+  wc.torso_aim = [](Handle owner) -> const zmth::Quat* {
+    static zmth::Quat q;
+    const Mech* m = entity_is_mech(owner) ? static_cast<const Mech*>(owner) : nullptr;
+    if (!m || !m->torso) return nullptr;
+    float f[4];
+    m->torso->shake_q(f);
+    q.w = f[0], q.x = f[1], q.y = f[2], q.z = f[3];
+    return &q;
+  };
+  wc.torso_look = [](Handle owner) -> const zmth::Quat* {
+    static zmth::Quat q;
+    const Mech* m = entity_is_mech(owner) ? static_cast<const Mech*>(owner) : nullptr;
+    if (!m || !m->torso || !m->torso->view_aim) return nullptr;
+    q.w = m->torso->view_q[0], q.x = m->torso->view_q[1], q.y = m->torso->view_q[2], q.z = m->torso->view_q[3];
+    return &q;
+  };
+  update_calls().weapons_changed = [](Mech& m) {  // 0x004b2da0 on +0xd4
+    auto* wm = static_cast<WeaponManager*>(m.ammo);
+    return wm && wm->arm_restriction();
+  };
+  wc.part_in_water = [](Handle part) { return static_cast<const MechPart*>(part)->submerged; };  // +0x49
+  // vt+0x58: 0x0040bae0 (0) for the mech, the basic vehicle, the field base
+  // and the turret; only a network game's classes answer otherwise.
+  wc.owner_x58 = [](Handle) -> int32_t { return 0; };
+  collide_calls().remote = [](Mech&) { return false; };
+  // Not wired yet: the vehicle builder's (0x004b4660) firepoint lookups,
+  // 0x004eb0d0 and 0x004abb60 (ported: zcls::node_find, node_find_prefix).
+  // With them the vehicles get weapons, whose update reads the manager's
+  // +0x80 (0 for a vehicle's in the exe, the port's owner): the next item.
   // The aim's view test (0x0041bc20): [0x005f4c8c] +0x64 is the mech and its
   // camera (+0x58) +4 is 1, the cockpit.
   aim_calls().cockpit_view = [](Mech& m) {
@@ -407,6 +464,7 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   d.attacker = [] { return node_entity(zwep::hit_state().attacker); };  // 0x0040eee0 on [0x009a0edc]
 
   UpdateCalls& u = update_calls();
+  u.key = [](int cmd) { return zin::command(cmd); };  // 0x0051d300: the view key (CMD 0x17), torso and free look
   u.weapons_fire = [](Mech& m, uint8_t fire) {  // 0x004b0c20 on +0xd4
     if (auto* w = static_cast<WeaponManager*>(m.ammo)) w->set_trigger(fire != 0);
   };
