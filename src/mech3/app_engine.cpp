@@ -244,6 +244,7 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x00535ed0", "no effect: the threshold is read only by the software draw 0x0053e050"},
       {"0x004f8f60", "no effect: zSave registration with flag 0; the port's classes_reset registers none either"},
       {"0x00537520", "no effect: Releases the used textures' system surfaces; the port's record is one Render3D handle"},
+      {"0x005074b0", "deferred: the animations' screen tint (event 36: a colour faded on the weather manager [0x00736328] +0x60/+0x68, 0x005a6730), its draw not ported; c1m2, c1m4, c4bm5 (anim-run.md)"},
       {"0x00519e50", "no effect: zFont's bitmap fonts, loaded but never drawn in 1.2 (only TextBase's own vtable reaches its draw, and no object keeps it; twod.md section 4)"},
       {"0x00526510", "own: zModel's start, the port's struct initialisers; what differs is unread or set first (module-starts.md)"},
       {"0x005578f0", "own: zRender's start, the same (module-starts.md)"},

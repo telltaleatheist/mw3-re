@@ -62,6 +62,8 @@ class CampaignChain {
   const void* logged_state_ = nullptr;
   void shoot_hostiles();  // kills: each Core frame's hits
   int hits_ = 0, kills_ = 0, idle_frames_ = 0;
+  int mcb_step_ = 0, mfb_visits_ = 0;            // the MFB command: 0 not given, 1 picked, 2 sent
+  float mfb_was_[3] = {};       // mobilehq_01 at the last idle look
   // The mission's salvage by where it came from: "kind/id" -> units.
   using Counts = std::map<std::string, int32_t>;
   Counts salvage_seen_, salvage_kills_, salvage_other_;

@@ -566,6 +566,14 @@ bool chain_player_near(void* node, float dist) {
   return true;
 }
 
+bool chain_entity_at(const char* name, float out[3]) {
+  for (const uint32_t e : ai::entity_list()) {
+    zcls::Node* n = g_sensors.node(e, false);
+    if (n && std::strcmp(n->name(), name) == 0) return world_position(n, out), true;
+  }
+  return false;
+}
+
 bool chain_player_to(const char* name, float dist) {
   for (const uint32_t e : ai::entity_list()) {
     zcls::Node* n = g_sensors.node(e, false);

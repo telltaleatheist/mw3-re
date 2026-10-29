@@ -880,15 +880,40 @@ beyond the kills:
   (the leg's `healthy` node, where 0x0050ae60 put their own handler), and
   are shot first. Those animations tick only when their root was drawn
   (flag 4, anim-run.md), so the player must face them.
-- **c1m3** is not won this way. Its first primary group wants `shado` and
-  two `gdbldg` nodes off. The three buildings fall (each bldg_destroy
-  switches its own `shado` off and plays its fall), but nothing switches
-  either `gdbldg` off: their animations only switch it on, in their reset
-  sequences, and no node flag write ever clears it. The exe's check
-  (0x0045f180) is the port's. Open: whether the original meets these two
-  another way (an anim we do not run, or a data quirk the players finish
-  around). After 1500 frames the chain gives c1m3 the win as `--win`
-  does; its kills' salvage still counts.
+- **c1m3**, its last group, wants two valves. reach_charlie is the
+  player's region (reg_reach_charlie). mfb_reach is a `valve_assign` on
+  net_01's link from node 77 to node 32, the last leg of the field bases'
+  drive to the deploy point "MFB Charlie" (node 21), about 2.5 km from
+  where they start (MFB 1). So the player has to call the bases there:
+  the chain, standing in Charlie's region, gives the MFB command
+  (MCB_COMMAND 0x73, 0x0047a910). The first press picks the nearest dock
+  point (MFB Charlie=1, mcbdeploy=1), the second sends the bases. They
+  drive net_01 and cross the link, and the mission is won (Core frame
+  7813 on a 33 ms clock in one run). Once the command is given, the chain goes by
+  mobilehq_01 at most once (c1m1's reach_mfb), then keeps out of the
+  bases' way.
+- **The port gap c1m3 showed** (fixed): zEffect's run-time hooks
+  (`zeff::AnimRunHooks`) were never set in the program. A null hook is
+  skipped, so nothing reported it:
+  - the falls' ground test (0x004edab0) found no ground. The buildings'
+    OBJECT_MOTION fell through the terrain and never landed, so their
+    BOUNCE_SEQUENCE (bldg_to_land2, bldghit3: `gdbldg` off, the scrap
+    on) never ran, and the first primary group could not be met;
+  - the animations' sounds never played (zSound's 0x0056e3d0, 0x0056e7e0);
+  - a weapon an animation sets off (event 41) did nothing.
+  The program now wires these to the ports (app_mission.cpp,
+  `wire_anim_run`). The events without a port send their address to the
+  census: the "if" event's ray (0x00507220), events 3, 16, 20, 21, 37 and
+  38, and 36, the screen tint. 36 is reached in c1m2, c1m4 and c4bm5, and
+  is in the known table as deferred: its colour goes to the weather
+  manager [0x00736328] +0x60/+0x68, whose draw is not ported.
+- **`--frame-ms N`** (ours): each pass of the app's loop is N ms on the
+  game's clock, however fast it is drawn. The timing is then the same each
+  run (rand is still seeded from the time of day, as the exe does, so the
+  AI's choices and the salvage coins vary: c1m3 was won at Core frame
+  7813 in one run and 12461 in another). The whole kills chain takes
+  about 2 minutes; on the real clock c1m3's wait alone took 7.5 (the
+  program draws a few hundred frames a second).
 
 The salvage, followed:
 - **Each kill**: the mission's store [0x00609990] before and after the
@@ -910,7 +935,7 @@ The salvage, followed:
   came off; c1m3: weapon 10; c1m4: a second 11. The next mission's
   launched mech carries each.
 
-Port bugs the kills found (fixed):
+Port bugs the kills found (fixed; the third above):
 - **A killed mech's destroy objective stayed open.** The objective hooks'
   entity flag (0x0045f3b0 reads the entity's +0x08) answered "in zEntity's
   list" for a mech. A campaign wreck stays on that list (the dead list
@@ -926,7 +951,7 @@ Port bugs the kills found (fixed):
 
 `sdl_program_campaign_chain` (MW3_CAMPAIGN=1) runs `kills:4` beside the
 other two runs. It checks:
-- three missions won by their objectives and c1m3 by `--win`;
+- all four missions won by their objectives (`--frame-ms 33`);
 - 4 of 4 debriefings matched and no kill's salvage differing;
 - 3 SALVAGE moves, 3 fits and 3 carried;
 - the census 0;

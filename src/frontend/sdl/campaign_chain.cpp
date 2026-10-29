@@ -1,6 +1,7 @@
 #include "frontend/sdl/campaign_chain.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 
@@ -9,6 +10,7 @@
 #include "mech3/app_engine.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
+#include "mech3/app_vehicle.h"
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
 #include "mech3/credits.h"
@@ -210,10 +212,11 @@ void CampaignChain::shoot_hostiles() {
     }
     return;
   }
-  // An objective nothing the chain does can meet (c1m3's two gdbldg nodes,
-  // campaign.md section 14): after 1500 frames, the win as --win gives it.
-  if (core_frames_ == 1500) {
-    std::printf("mw3: chain %s not won by its kills (%d) after 1500 frames: won as --win\n", launched_.c_str(), kills_);
+  // A guard: an objective nothing the chain does meets (c1m3's, before the
+  // animations had ground, campaign.md section 14) gets the win as --win
+  // gives it. c1m3's bases take about 7800 frames of 33 ms to reach Charlie.
+  if (core_frames_ == 20000) {
+    std::printf("mw3: chain %s not won by its kills (%d) after 20000 frames: won as --win\n", launched_.c_str(), kills_);
     mech3::missions().ended = 1;
     mech3::missions().on_command(0x71);
     return;
@@ -225,7 +228,7 @@ void CampaignChain::shoot_hostiles() {
     std::printf("mw3: chain %zu enemies in %s:", hostiles.size(), launched_.c_str());
     for (const mech3::ChainTarget& t : hostiles) std::printf(" %s %s;", t.kind, t.name.c_str());
     std::printf("\n");
-    hits_ = kills_ = idle_frames_ = 0;
+    hits_ = kills_ = idle_frames_ = mcb_step_ = mfb_visits_ = 0;
   }
   // The buildings the objectives want down (node_change to off: zAnim's
   // scene objects, not on zEntity's list) are shot at too.
@@ -270,27 +273,59 @@ void CampaignChain::shoot_hostiles() {
   // No one left to shoot and the mission not over: a valve the primary or
   // final objectives still wait for is a place, its region (reg_<valve>),
   // else the mobile field base ("return to the MFB"), the regions' own trip.
+  if (mcb_step_ == 1) {  // the MFB command's second press
+    mech3::program_mcb_command(mech3::mech_mission_player());
+    mcb_step_ = 2;
+    std::string valves;
+    for (const char* n : {"MFB 1", "MFB 2", "MFB 3", "MFB 4", "MFB Charlie", "mcbdeploy"})
+      if (const mech3::ai::Valve* v = mech3::ai::valve_find(n)) valves += std::string(" ") + n + "=" + std::to_string(v->get());
+    std::printf("mw3: chain MFB command sent (core frame %d):%s\n", core_frames_, valves.c_str());
+  }
   if (hostiles.empty() && shot_buildings == 0) {
     if (++idle_frames_ % 90 == 60) {
-      std::string valve;
+      // The open valves in order; the first with a region of its name is
+      // where the player goes, else the field base.
+      std::vector<std::string> valves;
       const mech3::Objectives& ob = mech3::mission_objectives();
       std::function<void(const mech3::Objective&)> find = [&](const mech3::Objective& o) {
-        if (!valve.empty() || o.done) return;
+        if (o.done) return;
         if (auto* v = dynamic_cast<const mech3::ValveChangeObjective*>(&o)) {
           const auto* x = static_cast<const mech3::ai::Valve*>(e_.object_of(v->watch));
-          if (x && x->name) valve = x->name;
+          if (x && x->name) valves.push_back(x->name);
         }
         if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
           for (const auto& c : g->items) find(*c);
       };
       for (const mech3::ObjectiveGroup* g : {ob.primary.get(), ob.final.get()})
         if (g) find(*g);
-      const std::string region = "reg_" + valve;
+      std::string valve = valves.empty() ? "" : valves.front(), region;
       const char* where = "nowhere";
-      if (!valve.empty() && mech3::chain_player_to_region(region.c_str())) where = region.c_str();
-      else if (mech3::chain_player_to("mobilehq_01", 40.0f)) where = "by mobilehq_01";
-      std::printf("mw3: chain no enemies left in %s (core frame %d), waiting for valve %s: the player set %s\n",
-                  launched_.c_str(), core_frames_, valve.empty() ? "none" : valve.c_str(), where);
+      for (const std::string& v : valves)
+        if (mech3::chain_player_to_region(("reg_" + v).c_str())) {
+          valve = v, region = "reg_" + v, where = region.c_str();
+          break;
+        }
+      float mfb[3] = {0, 0, 0};
+      const bool has_mfb = mech3::chain_entity_at("mobilehq_01", mfb);
+      const float moved = std::fabs(mfb[0] - mfb_was_[0]) + std::fabs(mfb[2] - mfb_was_[2]);
+      std::copy(mfb, mfb + 3, mfb_was_);
+      if (region.empty() && mcb_step_ == 0 && mech3::program_has_mcb()) {
+        // The player's MFB command (MCB_COMMAND, 0x0047a910), where the
+        // player stands: the first press picks the nearest dock point, the
+        // second (next frame) sends the bases (c1m3's "MFB Charlie").
+        mech3::program_mcb_command(mech3::mech_mission_player());
+        mcb_step_ = 1, where = "the MFB command's pick";
+      } else if (!region.empty()) {
+      } else if (mcb_step_ == 2 && mfb_visits_ == 0 && mech3::chain_player_to("mobilehq_01", 40.0f)) {
+        // once by the field base (c1m1's reach_mfb), then out of the bases' way
+        ++mfb_visits_, where = "by mobilehq_01";
+      } else {
+        where = moved > 0.5f ? "nowhere: the bases drive" : "nowhere";
+      }
+      std::printf("mw3: chain no enemies left in %s (core frame %d), waiting for valve %s: the player set %s "
+                  "(mobilehq_01 %s %.0f %.0f %.0f)\n",
+                  launched_.c_str(), core_frames_, valve.empty() ? "none" : valve.c_str(), where,
+                  has_mfb ? "at" : "none", mfb[0], mfb[1], mfb[2]);
     }
   } else {
     idle_frames_ = 0;
