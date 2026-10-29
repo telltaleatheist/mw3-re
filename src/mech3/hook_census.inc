@@ -4,11 +4,6 @@
 // Kept by hand from tools/analysis/hookaudit.py (hooks-audit.md);
 // put in at each mission's start and frame (MissionHooks::hooks_check).
 // SKIP(accessor, field, key)
-SKIP(mech3::collide_calls, ai_reverses, "CollideCalls.ai_reverses")  // CollideCalls.ai_reverses
-SKIP(mech3::collide_calls, body_spin, "CollideCalls.body_spin")  // CollideCalls.body_spin
-SKIP(mech3::collide_calls, body_velocity, "CollideCalls.body_velocity")  // CollideCalls.body_velocity
-SKIP(mech3::collide_calls, entity_body, "CollideCalls.entity_body")  // CollideCalls.entity_body
-SKIP(mech3::collide_calls, entity_target, "CollideCalls.entity_target")  // CollideCalls.entity_target
 SKIP(mech3::collide_calls, ff_jolt, "0x004335d0")  // CollideCalls.ff_jolt
 SKIP(mech3::damage_calls, equip_voice, "0x00485390")  // DamageCalls.equip_voice
 SKIP(mech3::damage_calls, net_event, "0x0046f160")  // DamageCalls.net_event
@@ -35,15 +30,12 @@ SKIP(mech3::part_calls, footstep_ff, "0x004337c0")  // PartCalls.footstep_ff
 SKIP(mech3::pocket_calls, net_element, "0x00609980")  // PocketCalls.net_element
 SKIP(zwep::run_hooks, net_detonated, "0x0072fcb4")  // RunHooks.net_detonated
 SKIP(mech3::skin_globals, release_cached, "0x00517b10")  // SkinGlobals.release_cached
-SKIP(mech3::skis_calls, zone, "0x00476550")  // SkisCalls.zone
 SKIP(mech3::update_calls, net_update, "0x0046ef70")  // UpdateCalls.net_update
 SKIP(mech3::weapon_calls, net_event, "WeaponCalls.net_event")  // WeaponCalls.net_event
 SKIP(mech3::weapon_calls, stats_shot, "0x00433630")  // WeaponCalls.stats_shot
 SKIP(mech3::weapon_calls, target_projectile, "WeaponCalls.target_projectile")  // WeaponCalls.target_projectile
 SKIP(zcls::world_render_hooks, after_scene, "0x005a67c0")  // WorldRenderHooks.after_scene
 SKIP(zcls::world_render_hooks, dirty_rect, "0x00576ce0")  // WorldRenderHooks.dirty_rect
-SKIP(mech3::collide_calls, entity_damage, "CollideCalls.entity_damage")  // CollideCalls.entity_damage
-SKIP(mech3::collide_calls, entity_dead, "CollideCalls.entity_dead")  // CollideCalls.entity_dead
 SKIP(mech3::damage_calls, damage_decal, "0x00474d90")  // DamageCalls.damage_decal
 SKIP(mech3::damage_calls, force_variant0, "0x00586ce0")  // DamageCalls.force_variant0
 SKIP(mech3::damage_calls, player_died_hud, "0x0041b263")  // DamageCalls.player_died_hud

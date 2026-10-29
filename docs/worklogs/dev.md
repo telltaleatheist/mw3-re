@@ -1668,3 +1668,40 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
     STL in the 16-bit layer's fill and copy (`unlock_back`), early and late
     alike.
 
+## A mech's collisions with other entities (2026-10-29)
+
+- Branch mac4/mech-collide (off main c5e5e49).
+- Wired the vehicle path of 0x004237c0: entity_dead, entity_target,
+  entity_body, entity_team, entity_damage, body_velocity, body_spin,
+  body_mass and entity_matrix (`wire_vehicle_collisions`, app_vehicle.cpp).
+  The slots were read from the vtables: the basic vehicle's 0x5c88e8, the
+  field base's 0x5c23d8, and the controls' IControls tables
+  (movement-collision.md, In the program).
+- `ai_reverses` is the controls' IControls vt+0x70: `MechControls::on_path`,
+  false for the player's and the base's, true for `AiControls` (0x004e7790).
+- 0x00476550 is ported as `Skis::zone_update`. The old `SkisCalls.zone`
+  became `camera_zones` + `set_zone`. test_skis.py runs it for real; its
+  made-up ground now holds valid zone records. A break is caught.
+- The census stand-ins and the four known entries are gone
+  (known_unported expects 55); hook_fields.inc is regenerated.
+- In play (`mission_c1m2_a_mech_bumps_a_vehicle_a_mech_and_a_wreck_headless`):
+  - A vehicle blocks (6.4 m), is damaged (1.0 -> 0.876) and is shoved.
+    Before, the player walked through it.
+  - An enemy mech blocks (8.9 m) and both take damage, as before.
+  - A Bulldog's wreck is walked over: only foot probes meet it.
+- The zone record against the shots: impacts by mechs and vehicles on c1m1-c1m4
+  are the same with and without it (0/0, 4/80, 4/10, 92/0).
+- The Dominic tests' exact numbers were re-taken. The change is the AI's
+  wall reverse: with ai_reverses off the old numbers come back, while the
+  zone record and the vehicle hooks change nothing there. Contacts 2979 ->
+  2163, aiming 68 -> 96, firing 901 -> 841; unordered: aiming 44 -> 43,
+  firing 657 -> 658, moved 70.446 -> 69.151; pocket: closest 120.729 ->
+  120.879.
+- The hooks allow list lost entity_team, body_mass and entity_matrix (set
+  now), and the census lost the vehicle path's inert stand-ins.
+- Seen, left: test_skis.py with the camera lists drawn from the walks' own
+  generator met a 2-ulp difference in a probe's height (c4b walk 3 frame
+  164, skis +0x98: 0.0529936 against 0.0529937). It's a rounding
+  difference outside the zone code. The camera lists now draw from their
+  own generator, so the walks are the ones main tests, and it doesn't show.
+

@@ -31,6 +31,7 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
+probe.probe_skis_camera.argtypes = [ctypes.c_char_p, ctypes.c_int]
 probe.probe_skis.argtypes = ([ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p,
                               ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float,
@@ -78,7 +79,12 @@ class Ground(Walk):
         cpu.stub_function(0x4fc3f0, lambda c: self.mats[self.nodes.index(c.ecx)])
         cpu.stub_function(0x4fc300, self.set_matrix)
         cpu.stub_function(0x5a85e0, lambda c: self.pos)
-        cpu.stub_function(0x476550, lambda c: self.log(5, *struct.unpack('<2i', cpu.read(c.ecx + 0x29c, 8))))
+        # 0x476550 runs: the view [0x5f4c8c] +4 its camera node, +0x38 its data,
+        # +0x1e4 the zone list (set per case); zEntity's 0x5a80d0 recorded.
+        self.view, self.cam_node, self.cam_data = a(8), a(0x40), a(0x200)
+        cpu.u32(self.view + 4, self.cam_node)
+        cpu.u32(self.cam_node + 0x38, self.cam_data)
+        cpu.stub_function(0x5a80d0, lambda c: self.log(5, struct.unpack('<i', cpu.read(c.arg(0), 4))[0], c.arg(1)), 8)
         cpu.stub_function(0x49bfd0, lambda c: self.fail('the original reported an error'))
         if name:
             cpu.uc.hook_add(UC_HOOK_CODE, self.query_in, begin=QUERY, end=QUERY)
@@ -124,7 +130,10 @@ class Ground(Walk):
                 mat = rng.choice(self.fake_mats + [0])
                 struct.pack_into('<3f', rec, 4 + 0x28 * j, nx, ny, 0.0)
                 struct.pack_into('<f', rec, 4 + 0x28 * j + 0x10, h)
-                struct.pack_into('<2I2I', rec, 4 + 0x28 * j + 0x18, rng.randrange(1 << 32), rng.randrange(1 << 16),
+                # A zone record as the worlds hold them: a count up to 3, then the ids.
+                zr = rng.randrange(1 << 32)
+                zone = bytes([zr % 4] + [(0, 1, 2, 3, 5, 8, 0xff)[(zr >> (8 * i)) % 7] for i in (1, 2, 3)])
+                struct.pack_into('<4s3I', rec, 4 + 0x28 * j + 0x18, zone, rng.randrange(1 << 16),
                                  mat, rng.choice([0, 0x5000000]))
             c.write(out + 0x504 * k, bytes(rec))
         return 0
@@ -188,6 +197,7 @@ def fresh_skis(rng, elemental):
 def main():
     frames = int(sys.argv[1]) if len(sys.argv) > 1 else 300
     rng = random.Random(1999)
+    cam_rng = random.Random(476550)
     total = airborne = water = slides = simple_frames = 0
     worlds = ['c1', 'c2', 'c3', 'c4', 'c4b', 't1', None]
     for wname in worlds:
@@ -271,6 +281,16 @@ def main():
                 transform = cpu.read(emu.transform, 48)
                 emu.events = []
                 emu.records = emu.after = None
+                # The camera's zones for 0x476550: none, some, all (0xff); the
+                # mode off now and then. The exe always has its view. Their own
+                # generator, so the walks stay the ones drawn before.
+                k = cam_rng.randrange(4)
+                cam = bytes([k] + [cam_rng.choice([0, 1, 2, 3, 5, 8, 0xff]) for _ in range(3)])
+                mode = 0 if cam_rng.random() < 0.05 else 1
+                cpu.u32(0x5f4c8c, emu.view)
+                cpu.write(emu.cam_data + 0x1e4, cam)
+                cpu.u32(0x5ea1d0, mode)
+                probe.probe_skis_camera(cam, mode)
                 try:
                     cpu.call(UPDATE, ecx=emu.skis, stack_args=(f2u(dt),), count=500_000_000)
                 except Exception:

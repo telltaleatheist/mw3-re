@@ -80,7 +80,7 @@ one ski down and the other not, clearance differs by > 1.5: push 1 sideways towa
 V = mean vy (simple: vy 6), capped at (jet ceiling [0x5e5d44] - y) / 4; probes y += V dt
 ski pitch asin(s) and offset to the ski nodes (0x4764a0), mech local vy (+0x40) = V
 both down and !air: every vy = 0
-zone 0x476550 (contact 6's zone set -> mech +0x64)
+zone 0x476550 (contact 6's zone set -> mech +0x64; The zone record below)
 airborne = jet impulse > 0 || (|clearance 6| >= 0.2 && neither ski down)
 ```
 
@@ -281,3 +281,22 @@ and landing effects, 4 seven probes, the full gait and the part animation,
   (0x41a88e), so it never plays where the water is at y = 0.
 - Distant mechs triple their push every frame while sliding (no dt); most
   pushes (step kick, ledge, slope clamp, jet impulse) are per frame.
+
+## The zone record (0x476550; ported 2026-10-29)
+
+After the skis' frame, the centre probe's polygon gives the mech its zones:
+- The record: its count, then up to three ids, at the skis' +0x29c.
+- The id it is drawn under: the first of the record's that the player
+  view's camera can see. The camera's list is `[0x5f4c8c]` +4 (the camera
+  node), data +0x1e4, picked by 0x53cd20 (`zmod::zone_common`); failing
+  that, the record's first id.
+- zEntity's 0x5a80d0 then copies the record into the mech's +0x64 and puts
+  the id on its node's zone byte (0x5a80c0 -> 0x4eb810).
+- Port: `Skis::zone_update`, with `SkisCalls::camera_zones` and `set_zone`.
+  test_skis.py runs 0x476550 for real, with 0x5a80d0 recorded and a random
+  camera list each frame; a break (the fallback's id) is caught.
+- Until now only the viewed mech got a record, through the camera's 0x40b080
+  (view.md section 1); the others kept count 0, which every zone test
+  passes. In play the record changed none of the shots' hits: the same
+  impact counts on c1m1-c1m4 with and without it.
+

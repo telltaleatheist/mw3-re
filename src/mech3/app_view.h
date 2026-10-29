@@ -24,6 +24,7 @@ void wire_view(const ViewProgram* p);       // null: unwired, the view dropped
 int32_t program_view_mode_id();             // the view's camera id, -1 without one
 bool program_view_look(int32_t* look);      // its camera's +0x40 (0, 1 the side views); false without one
 void* program_view_target();                // its target mech
+const uint8_t* program_view_camera_zones();  // its camera's zone list ([0x005f4c8c] +4, data +0x1e4), null without
 // For the tests: the camera node's world position and the target's torso
 // node's; false without a view, a target or a torso.
 bool program_view_positions(float camera[3], float torso[3]);

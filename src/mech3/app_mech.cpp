@@ -470,8 +470,18 @@ void wire_mech_frame() {
   s.soil = [](Handle mat) {  // [0x00608c00 + 4 * material +0x20]
     return static_cast<int>(game_soil(static_cast<const zmod::Material*>(mat)->soil));
   };
+  // The centre probe's zone record (0x00476550): the view's camera's list,
+  // and zEntity's 0x005a80d0 (the record at +0x64, the id on the node).
+  s.camera_zones = [] { return program_view_camera_zones(); };
+  s.set_zone = [](Mech& m, const uint8_t record[4], uint8_t id) {
+    std::memcpy(&m.x64, record, 4);
+    zcls::node_set_zone(zn(m.node), id);
+  };
   CollideCalls& c = collide_calls();
   c.refresh_box = [](Handle n) { zcls::node_children_box(zn(n)); };                         // 0x004ecf70
+  // A wall's reverse (0x004231c0): the mech's vt+0x140 (its controls at
+  // +0x37c as IControls, null without), then their vt+0x70.
+  c.ai_reverses = [](Mech& m) -> int32_t { return m.controls && m.controls->on_path() ? 1 : 0; };
   c.node_box = [](Handle n) { return reinterpret_cast<const float*>(zn(n)->raw + 0xa4); };
   c.set_position = [](Mech& m, const Vec3* at) {  // vtable +0x18, zEntity3d's 0x005a8550
     zcls::object3d_set_translation(zn(m.node), at->x, at->y, at->z);

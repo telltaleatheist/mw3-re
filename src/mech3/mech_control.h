@@ -80,6 +80,10 @@ struct MechControls {
   virtual bool release() { return false; }
   virtual void command(int32_t cmd) { (void)cmd; }
   virtual void on_kill(void* victim) { (void)victim; }  // 0x004bf620
+  // IControls vt+0x70, "on a path": the player's and the base's 0x0040bae0
+  // (no); the AI's yes. A mech that hits a wall reverses its throttle when
+  // it answers yes (0x004231c0, the mech's vt+0x140 its +0x37c).
+  virtual bool on_path() { return false; }
 
   virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
   int smooth(float dt) { return MechControls::update(dt); }  // 0x00426960 whatever the class
@@ -150,6 +154,7 @@ struct AiControls : MechControls, ai::BrainControls {
   AiControls(Mech* owner, ai::AiNet* net, const ai::AiParams& rec);  // 0x004d8750(owner, net, rec, 1)
   ~AiControls() override;          // IControls vt+0x00: 0x004d8bf0 -> 0x004d8c00
   int update(float dt) override;   // 0x004e96f0
+  bool on_path() override { return true; }  // IControls vt+0x70 0x004e7790 -> 0x004a5270
   std::unique_ptr<ai::Brain> brain;  // +0x5c
 
   // What the brain asks of them (ai::BrainControls).

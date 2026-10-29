@@ -1940,3 +1940,8 @@ address,name,source,notes
 0x005a6620,ztwod::weather_tint,asm,"ported: the tint's +0x38 colour, +0x40 alpha, shown for 0 s (vt+0x60)"
 0x005a53c0,ScreenTint::draw_in_rect,asm,"ported: vt+0x7c of 0x5d0290, the tint over +0x34's rect (0x00558540)"
 0x004ed980,node_stamp_light_cache,asm,"ported inline in gmod_draw: node +0xc0 = [0x5e9e2c] (update_frame) after the static bake"
+0x00476550,Skis::zone_update,asm,"ported: the centre probe's zone record to the mech's +0x64, the id the camera sees on its node (0x0053cd20, 0x005a80d0); test_skis.py"
+0x004020b0,vehicle_controls_interface,asm,"the basic vehicle's and field base's vt+0x140: +0xe4 as IControls (null without)"
+0x00426bf0,mech_controls_interface,asm,"Mech vt+0x140: +0x37c as IControls (null without)"
+0x004e7790,ai_on_path,asm,"the AI controls' IControls vt+0x70 -> 0x004a5270 (1): a wall reverses their throttle (MechControls::on_path)"
+0x004a5c40,vehicle_controls_body,asm,"the vehicle controls' IControls vt+0x5c: the controls object (velocity +0x64, local velocity +0x70, inverse mass +0x9b0)"

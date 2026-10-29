@@ -20,6 +20,7 @@
 #include "mech3/entity_bind.h"
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
+#include "mech3/mech_collide.h"
 #include "mech3/mech_fieldbase.h"
 #include "mech3/mech_fieldbase_cut.h"
 #include "mech3/mech_objective.h"
@@ -270,6 +271,50 @@ uint32_t vehicle_damage_handler(zwep::Handle object, zwep::WeaponDef* def, zwep:
 }
 }  // namespace
 
+namespace {
+// A mech walking into a vehicle (0x004237c0, mech_collide.cpp) asks the
+// entity a node belongs to. The basic vehicle's and the field base's slots:
+// vt+0xec itself (0x004d2a70), vt+0x140 its controls at +0xe4 (0x004020b0)
+// whose IControls vt+0x5c is the controls object (0x004a5c40, 0x004aead0,
+// the AI's 0x004e7740), vt+0xf4 none for a basic vehicle (0x0040bae0, so
+// always damaged) and itself for a field base, vt+0x160 the damage
+// (0x004ad3f0, 0x00458f50). Anything else: none, and the census told.
+BasicVehicle* hit_vehicle(Handle e) {
+  if (is_program_vehicle(e)) return static_cast<BasicVehicle*>(e);
+  if (e && g_w.unported) g_w.unported(g_w.engine, "0x004237c0 entity", {});
+  return nullptr;
+}
+void wire_vehicle_collisions() {
+  CollideCalls& c = collide_calls();
+  c.entity_dead = [](Handle e) {  // its +0x08 clear
+    const BasicVehicle* v = hit_vehicle(e);
+    return v && !v->active;
+  };
+  c.entity_target = [](Handle e) -> Handle { return hit_vehicle(e); };
+  c.entity_body = [](Handle e) -> Handle {
+    BasicVehicle* v = hit_vehicle(e);
+    return v ? v->controls : nullptr;
+  };
+  c.entity_team = [](Handle e) -> uint32_t {
+    const BasicVehicle* v = hit_vehicle(e);
+    return v && v->field_base ? v->team : 0;
+  };
+  c.entity_damage = [](Handle t, float damage) -> int32_t {  // vt+0x160(0, 0, damage): 1 killed
+    BasicVehicle* v = hit_vehicle(t);
+    if (!v) return 0;
+    return v->field_base ? field_base_damage(*static_cast<FieldBase*>(v), nullptr, 0, damage)
+                         : vehicle_damage(*v, nullptr, 0, damage);
+  };
+  c.body_velocity = [](Handle b) { return &static_cast<VehicleControls*>(b)->velocity.x; };  // +0x64
+  c.body_spin = [](Handle b) { return &static_cast<VehicleControls*>(b)->x70.x; };           // +0x70
+  c.body_mass = [](Handle b) { return static_cast<VehicleControls*>(b)->motion.inv_mass; };  // +0x9b0
+  c.entity_matrix = [](Handle e) -> const float* {  // +0x0c
+    const BasicVehicle* v = hit_vehicle(e);
+    return v ? v->transform : nullptr;
+  };
+}
+}  // namespace
+
 void wire_vehicles(const MechWiring* w) {
   if (!w) {
     g_w = MechWiring{};
@@ -287,6 +332,7 @@ void wire_vehicles(const MechWiring* w) {
   set_field_base_hooks(&g_field_bases);
   set_field_cut_hooks(&g_field_cut);
   set_waynet_hooks(&g_waynets);
+  wire_vehicle_collisions();
   ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
   // 0x004bdec9..0x004bdf17, while a world is loaded: the ground from 10 m
   // above the node (0x004edab0), the height picked by 0x004abd90 (a 10 m step,
