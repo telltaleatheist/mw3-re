@@ -18,7 +18,8 @@ Visual Studio's headers and libraries.
   `deps\SDL3_sound-3.2.0`; build.cmd hands it to CMake as
   `SDL3_sound_ROOT`, which an existing `build-win\` also picks up on its
   next configure. Its decoders are built in (stb_vorbis, dr_flac, dr_mp3).
-- For the movies' importer only: FFmpeg's shared libraries, BtbN's LGPL
+- For the movies' importer only (developers; the package has none):
+  FFmpeg's shared libraries, BtbN's LGPL
   build `ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip` (github.com/BtbN/
   FFmpeg-Builds, releases, "latest") unpacked into `deps\` as
   `deps\ffmpeg-n8.1-latest-win64-lgpl-shared-8.1` (its `include\`,
@@ -69,40 +70,25 @@ which `ir50*`, AVIFile and VfW DLLs the process loaded.
 
 `tools\windows\package.cmd` makes the package for other players:
 `build-win\dist\mw3-<git describe>-win64\` and its `.zip`. It configures
-its own tree, `build-win-pkg\`, from scratch with `-DMW3_PACKAGE=ON` (mw3 and
-mw3import then carry no development copy of the game: only the player's
-install, through the finder or mw3.cfg's `install=`, which `mw3import`
-reads too), builds `mw3` and `mw3import`, and collects:
+its own tree, `build-win-pkg\`, from scratch with `-DMW3_PACKAGE=ON` (mw3
+then carries no development copy of the game: only the player's install,
+through the finder or mw3.cfg's `install=`), builds `mw3` and, 32-bit,
+`mw3indeo` (build_indeo.cmd into the same tree), and collects:
 
-- `mw3.exe`, `mw3import.exe` and the DLLs their builds copied beside them
-  (SDL3, SDL3_ttf, SDL3_sound, FFmpeg's nine), plus the Visual C++
-  runtime from Visual Studio's redist folder (app-local);
+- `mw3.exe`, `mw3indeo.exe`, the DLLs mw3's build copied beside it (SDL3,
+  SDL3_ttf, SDL3_sound), and the Visual C++ runtime from Visual Studio's
+  redist folder (app-local; the helper links its CRT in);
 - `README.txt` and `THIRD-PARTY.txt` (`tools\windows\dist\`), each
-  `deps\*` folder's own `LICENSE*`/`COPYING*` files under `licenses\`,
-  pl_mpeg's, and `licenses\ffmpeg-configuration.txt` (`mw3import
-  --version`: FFmpeg's version and configure line, naming the libraries
-  built into its DLLs).
+  `deps\SDL3*` folder's own `LICENSE*`/`COPYING*` files under
+  `licenses\`, pl_mpeg's and miniz's.
 
-BtbN's LGPL build is configured with `--enable-version3` (it has
-opencore-amr, Apache-2.0), so its DLLs are LGPL v3, and it builds in some
-twenty other libraries (dav1d, libvpx, opus, vorbis, lame, openh264, rav1e,
-SVT-AV1, zimg, libxml2, libbluray and more) that mw3import never uses.
-`ffmpeg_notices.ps1` lists them from the configure line with their licences
-(`licenses\ffmpeg-libraries.txt`), and names any it has no licence for.
-
-Later (not done; Owen's approval first, as building FFmpeg's downloaded
-code was not allowed in the dev session that tried it): a minimal FFmpeg of
-FFmpeg's own code only, LGPL v2.1+, a few MB instead of about 60, with no
-other notices. mw3import needs only `--disable-everything
---disable-autodetect --disable-programs --disable-doc --disable-network
---disable-avdevice --disable-avfilter --disable-swresample
---enable-protocol=file --enable-demuxer=avi --enable-decoder=indeo5
---enable-encoder=mpeg1video --enable-muxer=mpeg1video --enable-swscale
---enable-shared --disable-static`, built in MSYS2's MINGW64 shell
-(`--target-os=mingw32`, `-static-libgcc`), the `.lib` import libraries
-moved from `bin\` to `lib\` for CMake. Source: ffmpeg.org's
-ffmpeg-8.1.2.tar.xz (sha256 464beb5e...b524c, signed by the FFmpeg release
-key).
+No FFmpeg and no mw3import (Owen, 2026-10-30: no FFmpeg to keep up unless
+it is needed): the movies play through the helper and the player's own
+Ir50_32.dll (fmv.md, The Indeo helper), and the disc image's music is
+`mw3 --cue` (fmv.md, Music). `mw3import` and FFmpeg stay for developers
+(the Mac's movies, and the fall-back where the helper fails), built when
+FFmpeg is found as before: BtbN's LGPL build in `deps\` (What it needs),
+whose notices `ffmpeg_notices.ps1` lists for a package that would carry it.
 
 `check_dist.ps1` then checks with `dumpbin /dependents` that every DLL the
 exes and DLLs import is in the folder or Windows' own (System32 or an
@@ -133,7 +119,8 @@ that the programs and every DLL load.
   game plays without movies, as before; `--import` runs it again after a
   failed try, `--no-import` skips it. A set made on another machine can be
   copied into `video\` instead.
-- The music: `mw3import --cue "D:\path\disc.cue" --music-only` writes a
+- The music: `mw3 --cue "D:\path\disc.cue"` (or `mw3import --cue ...
+  --music-only`) writes a
   disc image's audio tracks as `music\trackNN.wav` in the write dir
   (fmv.md section 6, Music).
 - Fullscreen by default (borderless, the desktop's size, the frame fitted);

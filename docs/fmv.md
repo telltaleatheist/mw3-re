@@ -351,8 +351,8 @@ same 475 frames drawn and the same picture. The helper itself (the codec in
 AVIFile) is checked on Windows with `mw3indeo --check` (docs/windows.md, The
 Indeo helper).
 
-**Music** (ours; `platform/cue_audio.h`): `mw3import --cue DISC.cue
-[--music-only]` writes each AUDIO track of a disc image's cue sheet as the
+**Music** (ours; `platform/cue_audio.h`): `mw3 --cue DISC.cue` (then
+quits), or `mw3import --cue DISC.cue [--music-only]`, writes each AUDIO track of a disc image's cue sheet as the
 write dir's `music\trackNN.wav` (CD audio as is: 44100 Hz, 16-bit
 stereo), which the music player finds (sdl_music.cpp, CLAUDE.md's track N
 rule). A track runs from its INDEX 01 (the pregap, INDEX 00 to 01, left

@@ -1,9 +1,10 @@
 @echo off
 rem Builds the package for other players (docs/windows.md, Packaging):
-rem build-win\dist\mw3-<git describe>-win64\ and its .zip, with mw3.exe,
-rem mw3import.exe, every DLL they load (SDL3, SDL3_ttf, SDL3_sound, FFmpeg's,
-rem the Visual C++ runtime), README.txt, THIRD-PARTY.txt and the libraries'
-rem licence files. Nothing from the game. Its own build tree, build-win-pkg,
+rem build-win\dist\mw3-<git describe>-win64\ and its .zip, with mw3.exe, the
+rem 32-bit Indeo helper mw3indeo.exe (the movies through the player's own
+rem codec: no FFmpeg, no importer), every DLL mw3 loads (SDL3, SDL3_ttf,
+rem SDL3_sound, the Visual C++ runtime), README.txt, THIRD-PARTY.txt and the
+rem libraries' licence files. Nothing from the game. Its own build tree, build-win-pkg,
 rem configured with MW3_PACKAGE (no development copy of the game in the exes).
 rem Usage: tools\windows\package.cmd
 setlocal
@@ -20,8 +21,9 @@ rem The build, from scratch each time so the version and the switches are this c
 if exist build-win-pkg rmdir /s /q build-win-pkg
 cmake -S . -B build-win-pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl ^
   -DMW3_PACKAGE=ON "-DSDL3_DIR=%SDL3_DIR%" "-DSDL3_ttf_DIR=%SDL3_ttf_DIR%" || exit /b 1
-cmake --build build-win-pkg --target mw3 mw3import || exit /b 1
-if not exist build-win-pkg\mw3import.exe (echo mw3import.exe was not built: FFmpeg's shared build is missing from deps\ ^(docs/windows.md^). & exit /b 1)
+cmake --build build-win-pkg --target mw3 || exit /b 1
+rem The helper, 32-bit (its own vcvarsall x86, in a child shell).
+cmd /c tools\windows\build_indeo.cmd build-win-pkg || exit /b 1
 
 for /f "usebackq delims=" %%v in (`git describe --tags --always --dirty`) do set VER=%%v
 set NAME=mw3-%VER%-win64
@@ -30,9 +32,9 @@ if exist "%DIST%" rmdir /s /q "%DIST%"
 if exist "build-win\dist\%NAME%.zip" del "build-win\dist\%NAME%.zip"
 mkdir "%DIST%\licenses" || exit /b 1
 
-rem The two programs and the DLLs their builds copied beside them.
+rem The two programs and the DLLs mw3's build copied beside it.
 copy /y build-win-pkg\mw3.exe "%DIST%\" >nul || exit /b 1
-copy /y build-win-pkg\mw3import.exe "%DIST%\" >nul || exit /b 1
+copy /y build-win-pkg\mw3indeo.exe "%DIST%\" >nul || exit /b 1
 copy /y build-win-pkg\*.dll "%DIST%\" >nul || exit /b 1
 rem The Visual C++ runtime, app-local (a player may not have the redistributable).
 for /d %%d in ("%VCToolsRedistDir%x64\Microsoft.VC*.CRT") do (
@@ -42,16 +44,15 @@ for /d %%d in ("%VCToolsRedistDir%x64\Microsoft.VC*.CRT") do (
 rem The read-me, the notices, and each library's own licence files.
 copy /y tools\windows\dist\README.txt "%DIST%\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
-for /d %%d in (deps\*) do (
+for /d %%d in (deps\SDL3*) do (
   mkdir "%DIST%\licenses\%%~nxd" 2>nul
   for %%f in ("%%d\LICENSE*" "%%d\COPYING*" "%%d\README-SDL.txt") do copy /y "%%f" "%DIST%\licenses\%%~nxd\" >nul
 )
-rem FFmpeg's version and configuration: the libraries built into its DLLs (THIRD-PARTY.txt).
-build-win-pkg\mw3import.exe --version > "%DIST%\licenses\ffmpeg-configuration.txt" || exit /b 1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\windows\ffmpeg_notices.ps1 "%DIST%" || exit /b 1
 for /d %%d in ("%DIST%\licenses\*") do dir /b /a-d "%%d" >nul 2>nul || echo Warning: no licence file found for %%~nxd: copy it into licenses\%%~nxd by hand.
 mkdir "%DIST%\licenses\pl_mpeg"
 copy /y third_party\pl_mpeg\README.md "%DIST%\licenses\pl_mpeg\" >nul || exit /b 1
+mkdir "%DIST%\licenses\miniz"
+copy /y third_party\miniz\LICENSE "%DIST%\licenses\miniz\" >nul || exit /b 1
 
 rem Every DLL the programs load is in the folder or part of Windows; no game file is.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\windows\check_dist.ps1 "%DIST%" || exit /b 1

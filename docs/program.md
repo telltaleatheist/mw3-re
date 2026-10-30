@@ -144,6 +144,9 @@ They run inside the original main loop, after the original start-up.
 - `--vfw-helper EXE` / `--no-vfw-helper` (ours): the movies through the
   Indeo helper (fmv.md, The Indeo helper; on Windows `mw3indeo.exe` beside
   `mw3.exe` by default), or never; without it, the importer's files.
+- `--cue DISC.cue` (ours): a disc image's CD audio as the write dir's
+  `music\trackNN.wav` (fmv.md, Music), then quits; what `mw3import --cue`
+  does, without the importer.
 - `--patch ZIP|DIR` (ours): the official 1.2 patch, read without running
   it, into the write dir's `patch12\` overlay (assets.md, The 1.2 patch),
   mounted in front of the install on this start and every later one. A

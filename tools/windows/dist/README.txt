@@ -25,10 +25,15 @@ On the first start:
    finds is remembered in mw3.cfg (see Settings below). You can also start
    it as:  mw3.exe "C:\path\to\MechWarrior 3"
 2. The original's movies use a video codec (Indeo 5) that modern Windows no
-   longer has. On the first start mw3.exe runs mw3import.exe to convert
-   them once, with a small progress window (about a minute). The game runs
-   without movies if this is skipped or fails. To run it again:
-   mw3.exe --import
+   longer installs. Your MechWarrior 3 folder has it (Ir50_32.dll), and
+   mw3indeo.exe, beside mw3.exe, plays the movies through it, exactly as
+   they looked. Nothing is converted or installed. Keep the two files
+   together; without mw3indeo.exe the game runs without movies.
+3. A 1.0 install plays as it is. To bring it to 1.2, give mw3.exe the
+   official 1.2 patch you have (its .zip, or the folder it unpacked to):
+       mw3.exe --patch "C:\path\to\the patch.zip"
+   It is read, not run; its files are checked and kept in the settings
+   folder below, and your install is not changed.
 
 Music
 -----
@@ -36,7 +41,7 @@ The original played its music from the CD's audio tracks, which an install
 does not contain. If you have a disc image of MechWarrior 3 (a .cue with its
 .bin), this writes its music tracks where the game finds them:
 
-    mw3import.exe --cue "C:\path\to\MechWarrior3.cue" --music-only
+    mw3.exe --cue "C:\path\to\MechWarrior3.cue"
 
 You can also put your own rip there as music\track02.wav, track03.wav and so
 on (or .ogg, .flac, .mp3), numbered as the CD's tracks.
@@ -47,7 +52,6 @@ Options
 - Alt+Enter switches between fullscreen and a window while you play.
 - mw3.exe --windowed starts in a window; windowed=1 in mw3.cfg makes that
   the default.
-- mw3.exe --no-import skips the movie conversion.
 - mw3.exe --version prints this build's version.
 
 Settings and saves
@@ -57,8 +61,8 @@ Everything the game writes goes to:
     %APPDATA%\MicroProse\MechWarrior 3\
 
 (paste that into Explorer's address bar). It holds mw3.cfg (the install
-folder, windowed=), your pilots and saves, the settings, and the converted
-movies (video\) and music (music\). Your MechWarrior 3 install is only read,
+folder, windowed=), your pilots and saves, the settings, the 1.2 patch's
+files if you gave it one (patch12\) and the music (music\). Your MechWarrior 3 install is only read,
 never changed. Deleting this folder resets everything.
 
 Licences

@@ -80,6 +80,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/data_version.h"
 #include "mech3/patch_import.h"
+#include "platform/cue_audio.h"
 #include "mech3/mission.h"
 #include "mech3/app_sensors.h"
 #include "mech3/turret.h"
@@ -125,6 +126,7 @@ struct Args {
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   std::string vfw_helper;     // --vfw-helper EXE (ours, sdl_vfw.h): the movies' Video for Windows helper; "-" none
+  std::string cue;            // --cue DISC.cue (ours, platform/cue_audio.h): its CD audio as the write dir's music, then quit
   std::string patch;          // --patch PATH (ours, patch_import.h): the official 1.2 patch into the write dir's overlay
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
@@ -149,7 +151,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--cue DISC.cue] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -215,6 +217,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-import") a.no_import = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];
+    else if (s == "--cue" && next(1)) a.cue = argv[++i];
     else if (s == "--vfw-helper" && next(1)) a.vfw_helper = argv[++i];
     else if (s == "--no-vfw-helper") a.vfw_helper = "-";
     else if (s == "--verbose") a.verbose = true;
@@ -346,6 +349,18 @@ int main(int argc, char** argv) {
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
+  // A disc image's CD audio as music\trackNN.wav (docs/fmv.md, Music), then quit.
+  if (!a.cue.empty()) {
+    std::string err;
+    const std::string out = (std::filesystem::path(a.write_dir) / "music").string();
+    const int32_t n = platform::write_cue_audio(a.cue, out, [](int32_t t, uint64_t bytes) {
+      std::printf("mw3: music track%02d.wav, %.1f s\n", t, static_cast<double>(bytes) / (44100.0 * 4));
+    }, &err);
+    if (n < 0 || !err.empty()) std::fprintf(stderr, "mw3: %s: %s\n", a.cue.c_str(), err.c_str());
+    std::printf("mw3: %d music tracks into %s\n", n < 0 ? 0 : n, out.c_str());
+    SDL_Quit();
+    return n > 0 && err.empty() ? 0 : 1;
+  }
   if (a.install.empty() && !find_install(a)) {
     SDL_Quit();
     return 1;

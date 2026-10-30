@@ -1,7 +1,8 @@
 Third-party software in this package
 ====================================
 
-mw3.exe and mw3import.exe use the libraries below. Each library's own licence
+mw3.exe uses the libraries below; mw3indeo.exe uses only Windows' own and
+the Indeo 5 codec in your MechWarrior 3 install (not included). Each library's own licence
 files, as its release shipped them, are in licenses\ under the folder the
 library came in. Thank you to all of their authors.
 
@@ -40,27 +41,11 @@ Its built-in decoders have their own terms:
   SDL_sound's source, src/timidity/, with its COPYING file.
 
 
-FFmpeg (avcodec, avformat, avutil, swscale and the other FFmpeg DLLs)
-----------------------------------------------------------------------
-https://ffmpeg.org/. This build of FFmpeg is licensed under the GNU Lesser
-General Public License (LGPL) version 3 or later: it was configured with
---enable-version3, because it includes Apache-2.0 code (opencore-amr).
-licenses\ffmpeg-*\ holds its licence files. Only mw3import.exe uses it, to
-convert the game's movies.
-- The DLLs are an unmodified LGPL build (BtbN's FFmpeg-Builds,
-  "win64-lgpl-shared", https://github.com/BtbN/FFmpeg-Builds), and
-  mw3import.exe links them dynamically. You may replace them with your own
-  build of the same FFmpeg version.
-- The exact version and the configuration it was built with (which names
-  every library built into the DLLs) are in
-  licenses\ffmpeg-configuration.txt. FFmpeg's source for that version is at
-  https://ffmpeg.org/download.html (git tag n<version>), and the build
-  scripts at the FFmpeg-Builds link above.
-- The DLLs also have other libraries built in (codecs and formats
-  mw3import does not use), each under its own licence. They are listed, with
-  their licences and where each project is, in
-  licenses\ffmpeg-libraries.txt; their licence texts are in each project's
-  source.
+miniz's inflate, tinfl (built into mw3.exe)
+-------------------------------------------
+Rich Geldreich, RAD Game Tools and Valve Software,
+https://github.com/richgel999/miniz. MIT licence (licenses\miniz\LICENSE).
+It reads the official 1.2 patch.
 
 
 pl_mpeg (built into mw3.exe)
