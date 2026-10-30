@@ -81,7 +81,8 @@ std::vector<int32_t> chain_weapon_types(uint32_t h);
 // (Mech vt+0xdc, 0x00418f30), as if walked there; false when none.
 bool chain_player_to(const char* name, float dist);
 // The same by a scene node, unless the player is within 1.5 x dist of it.
-bool chain_player_near(void* node, float dist);
+bool chain_player_near(void* node, float dist, bool at_its_level = false);
+// at_its_level: the ground at most 10 m above the node (a cave's floor, not the hill over it).
 // Where the entity whose node is `name` is; false when none.
 bool chain_entity_at(const char* name, float out[3]);
 // The same at the middle of a loaded region (its corners' mean, on the

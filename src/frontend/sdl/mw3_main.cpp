@@ -113,7 +113,7 @@ struct Args {
   float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first (armed) vehicle placed M m before the player
   bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
   float turret_ahead = 0;  // --turret-ahead M (ours): the player M m from the nearest live turret, facing it
-  float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the first enemy mech, facing it
+  float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the nearest enemy mech in play, facing it
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
@@ -135,8 +135,7 @@ struct Args {
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
-      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--dialog FILE NAME]\n"
-      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--mech-ahead M] [--dialog FILE NAME]\n"
+      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
@@ -408,6 +407,12 @@ int run(const Args& a) {
         std::fprintf(stderr, "mw3: --mission %s: no such mission (%s not found)\n", a.mission.c_str(), reader.c_str());
         return 2;
       }
+      // The operation the objectives box names ("Operation %d, Mission %d",
+      // playtest S2): a campaign start has it from the campaign; here by the
+      // directory, as --briefing's (c4b is operation 4's second half).
+      if (dir == "c2") l.op = 2;
+      else if (dir == "c3") l.op = 3;
+      else if (dir == "c4" || dir == "c4b") l.op = 4;
       l.have_pos = a.have_pos;
       for (int i = 0; i < 3; ++i) l.eye[i] = a.pos[i];
       l.yaw = a.look[0] * 0.0174533f, l.pitch = a.look[1] * 0.0174533f;
@@ -483,22 +488,29 @@ int run(const Args& a) {
             }
           }
         // --mech-ahead (ours, for checking a mech up close: its damage decals,
-        // docs/damage-decals.md): the player kept M to 1.5 M m from the first
-        // enemy mech, facing it.
+        // docs/damage-decals.md): the player kept M to 1.5 M m from the nearest
+        // enemy mech in play, facing it.
         static void* ahead = nullptr;
         if (a.mech_ahead > 0)
           if (void* m = mech3::mech_mission_player()) {
-            if (shots == 1)
-              for (const mech3::ChainTarget& t : mech3::chain_hostiles())
-                if (std::strcmp(t.kind, "mech") == 0) {
-                  ahead = engine.object_of(t.h);
-                  std::printf("mw3: the player %.0f m from %s\n", a.mech_ahead, t.name.c_str());
-                  break;
-                }
+            if (shots == 1) {  // the nearest enemy mech in play (one not yet in, hidden, stands anywhere)
+              float pp[3], best = 1e30f;
+              mech3::mech_world_position(m, pp);
+              std::string name;
+              for (const mech3::ChainTarget& t : mech3::chain_hostiles()) {
+                void* o = engine.object_of(t.h);
+                const uint8_t* in_play = std::strcmp(t.kind, "mech") == 0 ? mech3::entity_active_flag(o) : nullptr;
+                float at[3];
+                if (!in_play || !*in_play || !mech3::mech_world_position(o, at)) continue;
+                const float d = std::hypot(at[0] - pp[0], at[2] - pp[2]);
+                if (d < best) best = d, ahead = o, name = t.name;
+              }
+              if (ahead) std::printf("mw3: the player %.0f m from %s (it was %.0f m off)\n", a.mech_ahead, name.c_str(), best);
+            }
             if (ahead && mech3::entity_is_mech(ahead)) {
               float at[3], p[3];
               mech3::mech_world_position(ahead, at);
-              mech3::chain_player_near(mech3::mech_node(ahead), a.mech_ahead);  // moves only beyond 1.5 M
+              mech3::chain_player_near(mech3::mech_node(ahead), a.mech_ahead, true);  // moves only beyond 1.5 M; its floor, not a roof
               mech3::mech_world_position(m, p);
               mech3::move_mech(m, p, std::atan2(p[0] - at[0], p[2] - at[2]));  // facing it: forward is -z
             }
