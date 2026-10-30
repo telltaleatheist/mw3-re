@@ -766,6 +766,30 @@ int32_t anim_stop_all(int32_t keep_elapsed) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x0050ad60 (ECX restart): every def and instance stopped
+// (0x0050ace0 with 1, whatever ECX), then the executed and invalid ones
+// restarted (0x00508460). With `restart`, each not running: a reset on its
+// 0x20 flag (0x00508310 with 1), started when it starts with the mission
+// (+0x99 4). A def in error (5) is skipped with its instances.
+int32_t anim_reset_all(int32_t restart) {
+  anim_stop_all(1);
+  for (int32_t j = 1; j < A().def_count(); ++j) {
+    if (status(&A().defs[j]) == 5) continue;
+    for (AnimDef* d = &A().defs[j]; d; d = d->instance)
+      if (status(d) == 3 || status(d) == 4) anim_restart(d, nullptr);
+  }
+  if (!restart) return 0;
+  for (int32_t j = 1; j < A().def_count(); ++j) {
+    if (status(&A().defs[j]) == 5) continue;
+    for (AnimDef* d = &A().defs[j]; d; d = d->instance) {
+      if (status(d) == 2) continue;
+      if (d->raw[0x94] & 0x20) anim_reset(d, nullptr, 1);
+      if (d->raw[0x99] == 4) anim_start(d, nullptr, 0, 0, 0);
+    }
+  }
+  return 0;
+}
+
 void anim_keep_stopped_elapsed(int32_t on) { A().stopped_elapsed = on; }
 
 // Mech3.exe 1.2 @ 0x00506ae0 (ECX def, EDX node)

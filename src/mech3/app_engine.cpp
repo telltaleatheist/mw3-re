@@ -228,6 +228,7 @@ const std::map<std::string, const char*>& known_keys() {
       {"vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
       {"hudline.vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
       {"0x0040f7f0", "deferred: developer only (the 25 lines' Arial font)"},
+      {"0x0043c820.debug", "deferred: developer only (the HUD frame's debug numbers into the five debug texts, hud.md)"},
       {"0x0040f890", "deferred: developer only (the lines' and debug text's layers on)"},
       {"0x0040fef0", "no effect: the timing marks act only with [0x005e14f0], 0 in the data"},
       {"0x004b52e0", "no effect: the view's window object, its two rects the same (scale 1; item 6)"},
@@ -700,6 +701,9 @@ void GameEngine::render_flush(Handle rect) {
 bool GameEngine::world_up() { return !zcls::nodes().blocks.empty(); }
 // 0x0050ace0 at the Core state's leave: every mission animation stopped.
 void GameEngine::anim_stop(int32_t a) { zeff::anim_stop_all(a); }
+// 0x0050ad60 with ECX 1, the debriefing's retry (0x0047d030) and Instant
+// Action's next round: the mission's animations back to their start.
+void GameEngine::anim_reset() { zeff::anim_reset_all(1); }
 void GameEngine::video_clear_a(Handle rect) {
   const zvid::Surface& b = zvid::surfaces().back;
   int32_t r[4] = {0, 0, b.width, b.height};
@@ -796,6 +800,7 @@ void GameEngine::hud_update() {
 Handle GameEngine::pilot_hud(Handle data) { return handle_of(program_pilot_hud(object_of(data))); }
 void GameEngine::hud_static(Handle hud, float dt) { program_hud_static(object_of(hud), dt); }
 bool program_intensity_flag() { return options().intensity_flag[0] != 0; }
+bool program_cheated() { return options().cheated != 0; }
 void GameEngine::hud_zoom_pass(Handle hud, float dt) { program_hud_zoom_pass(object_of(hud), dt); }
 void GameEngine::render_reset() {
   zrndr::finish_init();

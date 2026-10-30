@@ -7,6 +7,9 @@
 
 #include "frontend/sdl/sdl_render3d.h"
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/cls_zbd.h"
+#include "gamez/zclass/list.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_mech.h"
@@ -216,6 +219,16 @@ void CampaignChain::shoot_hostiles() {
                   hits_, core_frames_);
       mech3::missions().on_command(0x71);
     }
+    return;
+  }
+  // retry: the first try ends as the pause's REPLAY ends it (0x0048fa80),
+  // 15 frames into the shooting (c1m4 is won at 94); CONTINUE briefs it again.
+  if (o_.retry && core_frames_ == 75 &&
+      std::find(failed_.begin(), failed_.end(), launched_) == failed_.end()) {
+    failed_.push_back(launched_), failing_ = true;
+    std::printf("mw3: chain fails %s on purpose (%d kills, core frame %d): the pause's REPLAY\n", launched_.c_str(),
+                kills_, core_frames_);
+    mech3::missions().abort_now();
     return;
   }
   // A guard: an objective nothing the chain does meets (c1m3's, before the
@@ -583,6 +596,36 @@ void CampaignChain::frame() {
     }
   } else if (now == &st.core) {
     if (frames_in_state_ == 1) core_frames_ = 0, objectives_done_.clear();
+    if (o_.retry && core_frames_ == 30) {  // every node's flags, the first try against the retry
+      std::map<int32_t, uint32_t> nodes;
+      for (zcls::ListItem* it = zcls::list_head(zcls::kAllNodes); it; it = it->next)
+        if (it->node) nodes[zcls::node_index_of(it->node)] = it->node->flags();
+      auto first = first_nodes_.find(launched_);
+      if (first == first_nodes_.end()) {
+        first_nodes_[launched_] = std::move(nodes);
+      } else {
+        // Without UNK25 (0x02000000, a mark the queries clear) and drawn (0x80000000).
+        constexpr uint32_t kTransient = 0x82000000u;
+        int active = 0, other = 0, gone = 0, made = 0;
+        for (const auto& [i, f] : first->second) {
+          auto r = nodes.find(i);
+          if (r == nodes.end()) {
+            ++gone;
+          } else if ((r->second ^ f) & 4) {
+            const zcls::Node* n = zcls::node_at(i);
+            if (++active <= 60)
+              std::printf("mw3: chain retry node %d %s: %s, first try %s\n", i, n && n->name() ? n->name() : "?",
+                          r->second & 4 ? "active" : "inactive", f & 4 ? "active" : "inactive");
+          } else if ((r->second ^ f) & ~kTransient) {
+            ++other;
+          }
+        }
+        for (const auto& [i, f] : nodes) made += !first->second.count(i);
+        std::printf("mw3: chain retry %s at core frame 30 against the first try: %d nodes' active flag differs, %d other "
+                    "flags, %d gone, %d new\n",
+                    launched_.c_str(), active, other, gone, made);
+      }
+    }
     {  // each objective as it completes, with its frame (a win's real end, not one met at the start)
       const mech3::Objectives& ob = mech3::mission_objectives();
       const char* names[] = {"primary", "secondary", "final", "fail"};
@@ -628,9 +671,10 @@ void CampaignChain::frame() {
     if (frames_in_state_ == 70) {
       auto* d = dynamic_cast<mech3::DebriefScreen*>(e_.screen_of(st.end_win.screen_));
       if (d) {
-        ++wins_;
-        std::printf("mw3: chain debriefing after %s: score %d, CONTINUE (wins %d; the game now at %s)\n",
-                    launched_.c_str(), d->score, wins_, mission_name().c_str());
+        if (!failing_) ++wins_;
+        std::printf("mw3: chain debriefing after %s: score %d, CONTINUE (%swins %d; the game now at %s)\n",
+                    launched_.c_str(), d->score, failing_ ? "failed on purpose; " : "", wins_, mission_name().c_str());
+        failing_ = false;
         d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
         brief_step_ = 4;  // the next Load state is a new briefing
       }

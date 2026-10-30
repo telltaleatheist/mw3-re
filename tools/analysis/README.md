@@ -67,3 +67,12 @@ whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
   struct's function-pointer and std::function fields and whether the
   program (src/, outside tests/) sets them. `--inc` writes the list that
   `program_hooks_set_after_a_mission_load_headless` checks (docs/hooks-audit.md).
+- `peeks.py [--all]`: the port's reads of exe globals by address
+  (`peek*`, `field*` on a constant, the hooks' `unported("peek32", {addr})`
+  and `unported("[0x...]")` stand-ins), each with its writes, the other
+  mentions of the address (a ported struct's field comment names its owner)
+  and, for a stand-in, whether the program overrides its method. A read with
+  no write gets 0 forever from the engine's memory map, and the census does
+  not see a peek: the Win State's [0x00609926] counted every lost mission as
+  won (docs/hud.md, The globals the HUD reads). Without `--all` only the
+  never-written ones are listed.

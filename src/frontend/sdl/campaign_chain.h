@@ -29,6 +29,7 @@ struct ChainOptions {
   bool resume = false;  // the existing pilot, not a new one
   int wins = 4;         // the missions to win
   bool kills = false;   // won by shooting every enemy (kills:N), not Exit Mission at once
+  bool retry = false;   // retry:N, kills with each mission failed once first (the pause's REPLAY), then won
   std::string dir;      // where the shots go
 };
 
@@ -50,6 +51,9 @@ class CampaignChain {
   ChainOptions o_;
   bool done_ = false;
   int wins_ = 0, shots_ = 0, frames_in_state_ = 0, core_frames_ = 0;
+  std::map<std::string, std::map<int32_t, uint32_t>> first_nodes_;  // retry: each mission's nodes at core frame 30, first try
+  std::vector<std::string> failed_;                                  // retry: the missions failed once
+  bool failing_ = false;                                             // retry: this debriefing is the failed try's
   std::vector<const void*> objectives_done_;  // this mission's objectives seen done, logged once
   const void* last_state_ = nullptr;
   // This briefing's steps: 0 loading, 1 shot, 2 lab done, 3 salvage done, 4 launched.
