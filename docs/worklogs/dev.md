@@ -2036,3 +2036,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   at the request; a base still 30 s short of its slot given up on.
   Test: mission_c2m2_field_bases_answer_a_second_call_headless (two seeds,
   the original, base 02 held both ways).
+## W18, the AMS (2026-10-30)
+
+- Branch mac4/w18 (off main). The mech's AMS frame 0x00419200 was only a
+  hook (UpdateCalls::equipment_update), never set and with no fallback:
+  ported as update_ams (mech.cpp) and run when unset. Test helpers in
+  app_weapons.cpp (program_mech_ams, _set, program_fire_at). Test:
+  mission_c1m1_ams_shoots_down_incoming_missiles_headless (break: the
+  fallback removed).

@@ -6,6 +6,7 @@
 #include "gamez/zclass/class.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/mech_skis.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
 
@@ -145,6 +146,25 @@ void Mech::flush_coolant() {
   heat -= spent;
   coolant = (c - spent) * 0.5f;
   if (this == g_world.mission_player && g_calls.play_mech_sound) g_calls.play_mech_sound(0x11);
+}
+
+// Mech3.exe 1.2 @ 0x00419200: the AMS's frame. With a player in play, an AMS
+// fitted (+0x3ac) and on: the nearest shot in range from the mech's place
+// raised by its height (+0x68), the shots not hostile to the player when the
+// player's enemies (+0xc8) hold this mech's team (an enemy's AMS), else the
+// hostile ones; one found is fired at, the period shared over the AMS
+// fitted (docs/weapons.md, The AMS). Playtest W18.
+bool update_ams(Mech& m) {
+  Mech* p = g_world.mission_player;
+  if (!p || !(m.equipment[0] > 0) || !m.ams || !m.ams->on) return false;
+  const Vec3 c = skis_calls().position ? *skis_calls().position(m)
+                 : m.transform           ? Vec3{m.transform[9], m.transform[10], m.transform[11]}
+                                         : Vec3{0, 0, 0};
+  const zwep::Vec3f3 at{c.x, m.height + c.y, c.z};
+  const int32_t side = (p->enemies & m.team) ? 0 : 1;  // vt+0x24's vt+0x28's +0xc0
+  if (!m.ams->find(side, &at)) return false;
+  m.ams->fire(m.equipment[0]);
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x004192f0. Walkthrough and thresholds: docs/heat.md.

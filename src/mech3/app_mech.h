@@ -74,6 +74,12 @@ std::vector<std::string>& mech_parts_fx_log();  // the first 4,096
 int32_t mech_hits_taken(void** attacker_node);
 void* mech_node(void* mech);
 bool mech_group_reloading(void* mech, int32_t group);
+// For the tests (playtest W18): a mech's AMS (fitted, on, rounds; false without
+// one), switched on or off (made as the loadout makes it when it has none), and
+// n shots of `weapon` fired at it from `dist` m away, hostile to the player.
+bool program_mech_ams(void* mech, int32_t* fitted, bool* on, int32_t* rounds);
+void program_mech_ams_set(void* mech, bool on);
+int32_t program_fire_at(void* mech, const char* weapon, int32_t n, float dist);
 void mech_after_tick(void* mech, uint32_t (*unported)(const char*));  // 0x0041aba0  // a group whose weapons heat (as F1..F5 would), -1 none  // [0x0072c52c] into the mech, weapon and zWeapon modules
 void mech_set_damage_handler(void* mech);
 

@@ -206,6 +206,7 @@ void Mech::update(float dt) {
     if (g_calls.weapons_fire) g_calls.weapons_fire(*this, controls->fire);
     if (g_calls.weapons_update) g_calls.weapons_update(*this, frame_dt);
     if (g_calls.equipment_update) g_calls.equipment_update(*this, frame_dt);
+    else update_ams(*this);  // 0x00419200 (unwired until W18: no mech's AMS ever fired)
     if (g_calls.update_heat) g_calls.update_heat(*this, frame_dt);
     else update_heat(*this, frame_dt);
     if (!powered_down) movement_sounds();
