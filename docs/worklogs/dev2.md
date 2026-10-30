@@ -187,3 +187,25 @@ works alongside it; stay out of its files.
   minimal LGPL v2.1 FFmpeg, is written up in windows.md for later: this
   session's permission check refused building the downloaded FFmpeg source,
   so it waits for Owen's approval.
+
+## 9. Release performance (2026-10-30)
+
+- `--frame-times N` and `--mission ia<N>[w<W>]` in mw3_main (measuring
+  only). Numbers, profiles and the candidates: docs/performance.md.
+- Release on the Mac: 2.6 to 4.5 ms a frame of CPU, the same at 1080p and
+  4K (the 2D canvas is 960x540 at both); vsync-bound at 60 in a window.
+  Hot spot: `overlay_16`, 53 to 61% of the frame (three overlays a frame,
+  two of them empty in c4m2, each a full 960x540 conversion and upload).
+  The AI's sight lines about 3%, collision and ground 2 to 3%.
+- Seen: the opening fade at 1920x1080 darkens only the top-left quarter.
+- Branch `mac5/perf` off main 46135f7; nothing changed but the two flags.
+- The fixes (the lead: 1, 3, 2, 4): 1 empty overlays skipped, 3 staging
+  buffers kept and cycled, 4 the RGBA table; 2 (the drawn box) made, pixel
+  identical, no gain (the HUD reaches every edge), not kept (patch in my
+  scratch). 1080p c4m2 4.51 -> 1.98 ms, c3m6 3.45 -> 1.92, IA 3.37 -> 1.75.
+  Nine guard shots pixel-identical after each; mw3sdltests' pause and
+  screen tests moved to --frame-ms 33 (speed-dependent before).
+- S14: the colour tint's quad (the opening fade) took the canvas's rect in
+  frame pixels; `tint_quad_on_frame` maps it (FIX (B)). The end fade (the
+  still) was right; menus are 640x480. Test `fix_tint_quad_covers_the_frame`
+  (test_program.cpp; the mapping's removal caught).

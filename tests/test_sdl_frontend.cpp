@@ -244,6 +244,36 @@ TEST(sdl_frame_maps_alike_in_points_and_pixels) {
       }
       EXPECT(std::fabs(rw.w * density - rp.w) <= density + 0.5f);
     }
+// The overlay's empty test (performance.md): an unlock whose layer is all key
+// draws nothing. Every pixel of every row counts, the row's padding does not.
+TEST(sdl_layer_empty_sees_any_drawn_pixel) {
+  const uint16_t key = 0xf81f;
+  for (int w : {1, 3, 4, 7, 960}) {
+    const int pitch_px = w + 3, h = 3;  // three pixels of padding a row
+    std::vector<uint16_t> px(static_cast<size_t>(pitch_px) * h, key);
+    for (int y = 0; y < h; ++y) px[static_cast<size_t>(y) * pitch_px + w] = 0x1234;  // padding, not the layer
+    EXPECT(sdlfe::SdlScreen2D::layer_empty(px.data(), w, h, pitch_px * 2, key));
+    for (int at : {0, w - 1, (h - 1) * pitch_px + w - 1, pitch_px + w / 2}) {
+      px[static_cast<size_t>(at)] = 0;
+      EXPECT(!sdlfe::SdlScreen2D::layer_empty(px.data(), w, h, pitch_px * 2, key));
+      px[static_cast<size_t>(at)] = key;
+    }
+  }
+}
+
+// The layer's 16-bit to RGBA8 table (performance.md): every value of both
+// formats, each channel widened by repeating its top bits, alpha opaque.
+TEST(sdl_layer_rgba_table_matches_the_bits) {
+  int bad = 0;
+  for (int f = 0; f < 2; ++f)
+    for (uint32_t p = 0; p < 65536; ++p) {
+      const bool rgb565 = f == 1;
+      const uint32_t r5 = rgb565 ? p >> 11 : (p >> 10) & 31, b5 = p & 31;
+      const uint32_t g6 = rgb565 ? (p >> 5) & 63 : ((p >> 5) & 31) << 1;
+      const uint32_t want = (r5 << 3 | r5 >> 2) | (g6 << 2 | g6 >> 4) << 8 | (b5 << 3 | b5 >> 2) << 16 | 0xff000000u;
+      bad += sdlfe::SdlScreen2D::rgba(static_cast<uint16_t>(p), rgb565) != want;
+    }
+  EXPECT(bad == 0);
 }
 
 namespace {
@@ -985,8 +1015,10 @@ TEST(sdl_program_frames_end_a_paused_mission) {
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
   const std::string out = dir + "/mw3.log";
-  std::vector<std::string> args = {MW3_BIN, "--mission", "c1m1", "--tap", "0x01@900", "--frames", "1200",
-                                   "--verbose", "--nosound", "--hidden", "--write-dir", dir};
+  // --frame-ms: frame 900 is the same game time however fast frames are drawn
+  // (a faster build was still in the loading fade at 900 without it).
+  std::vector<std::string> args = {MW3_BIN, "--mission", "c1m1", "--tap", "0x01@900", "--frames", "1200", "--frame-ms",
+                                   "33", "--verbose", "--nosound", "--hidden", "--write-dir", dir};
   std::vector<char*> argv;
   for (std::string& a : args) argv.push_back(a.data());
   argv.push_back(nullptr);
@@ -1273,10 +1305,11 @@ TEST(sdl_program_screens_are_not_blank) {
       {"lab criticals", {"--lab-mech", "9", "--click-at", "150,450@2700", "--shot-frame", "2900"}, false, 0.3, 0.2},
       {"lab groups", {"--lab-mech", "9", "--click-at", "265,450@2700", "--shot-frame", "2900"}, false, 0.3, 0.2},
       {"action", with(ia, {"--shot-frame", "300"})},
-      {"mission", {"--mission", "c1m1", "--shot-frame", "700"}},
-      {"mission mode 13", {"--mission", "c1m1", "--shot-frame", "700"}, true, 0.3, 0.0, 1920, 1080},
-      {"pause", {"--mission", "c1m1", "--tap", "0x01@750", "--shot-frame", "800"}},
-      {"debriefing", {"--briefing", "c1m1", "--click-at", "556,435@2600", "--win", "60", "--shot-frame", "4200"},
+      // The missions' frames at 33 ms of game time each, whatever the build's speed.
+      {"mission", {"--mission", "c1m1", "--frame-ms", "33", "--shot-frame", "700"}},
+      {"mission mode 13", {"--mission", "c1m1", "--frame-ms", "33", "--shot-frame", "700"}, true, 0.3, 0.0, 1920, 1080},
+      {"pause", {"--mission", "c1m1", "--frame-ms", "33", "--tap", "0x01@750", "--shot-frame", "800"}},
+      {"debriefing", {"--briefing", "c1m1", "--frame-ms", "33", "--click-at", "556,435@2600", "--win", "60", "--shot-frame", "4200"},
        false, 0.3, 0.3},
   };
   const std::string root = std::string(MW3_TEST_TMP) + "/sdl_screens";

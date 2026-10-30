@@ -71,6 +71,13 @@ class SdlRender3D : public platform::Render3D {
   uint32_t depth_w_ = 0, depth_h_ = 0;
   SDL_GPUBuffer* vbuf_ = nullptr;
   uint32_t vbuf_size_ = 0;
+  // The upload staging buffers, kept and cycled (performance.md): textures', vertices'.
+  struct Staging {
+    SDL_GPUTransferBuffer* buf = nullptr;
+    uint32_t size = 0;
+  };
+  Staging tex_staging_, vert_staging_;
+  void* map_staging(Staging& s, uint32_t bytes);  // mapped, cycled when the GPU may still read it
   std::vector<platform::TLVertex> vertices_;
   std::vector<Run> runs_;
   int vx_ = 0, vy_ = 0, vw_ = 640, vh_ = 480;

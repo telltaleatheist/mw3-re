@@ -37,6 +37,7 @@
 #include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <deque>
 #include <cstdlib>
@@ -124,6 +125,7 @@ struct Args {
   int frame_ms = 0;           // --frame-ms N: each frame shown N ms on the game's clock (ours)
   int64_t seed = -1;          // --seed N: rand seeded with N wherever the game seeds it from the clock (ours)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
+  int frame_times = 0;  // --frame-times N (ours): each frame's wall time from the N-th frame shown, summed up at the end
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
@@ -139,7 +141,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--import | --no-import] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--import | --no-import] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -168,6 +170,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--shot-frame" && next(1)) a.shot_frame = std::atoi(argv[++i]);
     else if (s == "--shot-any") a.shot_any = true;
     else if (s == "--shot-series" && next(1)) a.shot_series = std::atoi(argv[++i]);
+    else if (s == "--frame-times" && next(1)) a.frame_times = std::atoi(argv[++i]);
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
@@ -401,13 +404,28 @@ int run(const Args& a) {
     mech3::set_app(&app);
 
     std::unique_ptr<mech3::State> debug;
+    std::unique_ptr<mech3::ActionGame> ia_game;  // --mission ia<N>: the launch's game
+    std::vector<double> frame_ms;  // --frame-times: each frame's wall time
+    uint64_t frame_last = 0;
     bool launch = false, launch_done = false;
     if (!a.mission.empty() && !a.fly) {
       // Through the original's states: the Load state loads the mission
       // (mech3/mission), then the Core state runs it (docs/mission-load.md).
       std::string dir, variant;
       mech3::GameEngine::Launch l;
-      split_mission(a.mission, dir, variant, l.number);
+      // --mission ia<N>[w<W>] (ours, for measuring): Instant Action map N in
+      // wave mode from wave W (1), four allies (Champions) with the player,
+      // as the Action screen would set it (the AI survey's start).
+      int ia_map = 0, ia_wave = 1;
+      if (std::sscanf(a.mission.c_str(), "ia%dw%d", &ia_map, &ia_wave) >= 1 && ia_map > 0) {
+        ia_game = std::make_unique<mech3::ActionGame>(nullptr);
+        ia_game->mode = 2, ia_game->x6c = ia_wave, ia_game->slot.mech = 9;
+        for (int i = 0; i < 4; ++i) ia_game->add(5, 1, nullptr, 0);
+        l.type = 2, l.number = ia_map, l.action = ia_game.get();
+        dir = "c1";
+      } else {
+        split_mission(a.mission, dir, variant, l.number);
+      }
       l.index = -1;
       for (int32_t i = 0; i < 9; ++i)
         if (dir == mech3::mission_dir(i)) l.index = i;
@@ -419,7 +437,7 @@ int run(const Args& a) {
       // have m1..m4, c3 m1..m6, c4 m1..m3, c4b m4..m6. Without it the world
       // loads with no player and no mech.
       const std::string reader = "zbd\\" + dir + "\\readerm" + std::to_string(l.number) + ".zbd";
-      if (!zutl::exists(reader.c_str())) {
+      if (!ia_game && !zutl::exists(reader.c_str())) {
         std::fprintf(stderr, "mw3: --mission %s: no such mission (%s not found)\n", a.mission.c_str(), reader.c_str());
         return 2;
       }
@@ -453,6 +471,11 @@ int run(const Args& a) {
         // (the pause and end screens draw none, and --frames must still end the run).
         if (!a.shot_any && !engine.drew_scene() && shots == 0) return;
         ++shots;
+        if (a.frame_times > 0 && shots >= a.frame_times) {
+          const uint64_t now = SDL_GetPerformanceCounter();
+          if (frame_last) frame_ms.push_back(static_cast<double>(now - frame_last) * 1000.0 / SDL_GetPerformanceFrequency());
+          frame_last = now;
+        }
         // --vehicle-ahead (ours, for checking a vehicle up close: its shadow, its model, its weapons).
         static void* held = nullptr;
         static float held_at[3];
@@ -796,6 +819,15 @@ int run(const Args& a) {
       // and leaves the world to the process's end: stop_game after zSound's shutdown freed
       // the sounds the world's nodes still held (the exit's SIGTRAP, docs/program.md).
       result = app.run(pump);
+      if (!frame_ms.empty()) {  // --frame-times: the frames' wall times
+        std::vector<double> s = frame_ms;
+        std::sort(s.begin(), s.end());
+        double sum = 0;
+        for (double v : s) sum += v;
+        auto at = [&](double q) { return s[std::min(s.size() - 1, static_cast<size_t>(q * s.size()))]; };
+        std::printf("mw3: frame times over %zu frames: mean %.2f ms, median %.2f, p95 %.2f, p99 %.2f, max %.2f\n",
+                    s.size(), sum / s.size(), at(0.5), at(0.95), at(0.99), s.back());
+      }
     }
     app.destroy();  // the app's destructor: the settings saved
     if (a.verbose) engine.print_unported_summary();
