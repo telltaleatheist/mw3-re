@@ -2109,3 +2109,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   taking v2, not committed).
 - Found on the way: twod.md says 0x005a3040 has no caller; MW3 calls it
   four times (reported to the lead).
+## TextBase rechecked (2026-10-30)
+
+- Branch mac4/textbase (off main fa9aab7). aaf4c7c's conclusion stands:
+  0x005a3040 (the centring) has four callers (FontText's three set-texts,
+  TextBase's printf), all behind +0x238, which nothing in 1.2 sets (ctor
+  clears, copy/assign copy; the other +0x238 writes are other classes').
+  twod.md section 4 corrected; the census note for 0x00519e50 says
+  "drawn or measured". Nothing to port.
