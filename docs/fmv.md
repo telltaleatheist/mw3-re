@@ -301,7 +301,8 @@ The 19 movies of the install convert in about a minute (INTRO to 60 MB from
 82 MB). c3m3 and c1win..c3win are on the disc only (frontend-plan.md
 section 3). The `.fmv` is written last, so its presence marks a movie done;
 `--missing` converts only the movies without one, and prints `progress K N
-name` after each.
+name` after each. The `.fmv` is written in binary mode, so a Windows-made
+set is the Mac's (the `.m1v` alone differ, by FFmpeg build).
 
 **The first run** (ours, FIX (A); `frontend/sdl/first_run_import.cpp`): on a
 plain start (not `--hidden`, `--frames`, `--shot`, a chain, a debug start or
