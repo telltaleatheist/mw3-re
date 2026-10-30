@@ -244,6 +244,8 @@ TEST(sdl_frame_maps_alike_in_points_and_pixels) {
       }
       EXPECT(std::fabs(rw.w * density - rp.w) <= density + 0.5f);
     }
+}
+
 // The overlay's empty test (performance.md): an unlock whose layer is all key
 // draws nothing. Every pixel of every row counts, the row's padding does not.
 TEST(sdl_layer_empty_sees_any_drawn_pixel) {
