@@ -1821,3 +1821,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   their own slots (within 1 m) and the dock's places step done, in about
   half the time. Break (no position): 3 checks fail, base 02 169 m off,
   base 03 805 m off.
+
+## SDL3_sound on Windows (2026-10-30)
+
+- Branch mac4/sdl-sound-win (off main c2719e1).
+- build.cmd: SDL3_sound_ROOT from deps\SDL3_sound-* (the -devel-VC.zip);
+  CMake already finds it by config. On Windows mw3's runtime DLLs
+  ($<TARGET_RUNTIME_DLLS>) are copied beside mw3.exe after each build.
+- mw3soundcheck --music FILE: the music player on one file for 3 s; on the
+  Mac a 5 s .ogg and .flac both decode and play.
