@@ -6290,7 +6290,8 @@ TEST(mission_c1m1_lrm_homes_on_the_lock_headless) {
 // Playtest #23, short clicks: the Mad Cat's group 1 (its small ER laser, a
 // beam that fires only from a full charge, 0x004b3fc0) clicked as soon as it
 // is ready, by a mouse press seen for one read (the SDL latch's shortest)
-// and by a key pressed and released inside one frame: every click fires.
+// and by a key pressed and released inside one frame: every click fires, on
+// the frame after it.
 // (A click while it recharges is dropped and a held button fires when it is
 // charged, as in the original: hud.md / weapons.md, Beams.)
 TEST(mission_c1m1_short_clicks_fire_headless) {
@@ -6336,7 +6337,7 @@ TEST(mission_c1m1_short_clicks_fire_headless) {
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.input = &keys;
-  int mouse_clicks = 0, mouse_volleys = 0, key_clicks = 0, key_volleys = 0;
+  int mouse_clicks = 0, mouse_volleys = 0, key_clicks = 0, key_volleys = 0, slowest = 0;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -6360,7 +6361,10 @@ TEST(mission_c1m1_short_clicks_fire_headless) {
       if (!player || frames < 10 || (clicks >= 10 && clicked_at < 0)) return;
       const bool reloading = mech3::mech_group_reloading(player, 1);
       if (clicked_at >= 0) {  // the last click: fired once it reloads, within 10 frames
-        if (reloading) ++(clicks <= 5 ? mouse_volleys : key_volleys), clicked_at = -1;
+        if (reloading) {
+          if (frames - clicked_at > slowest) slowest = frames - clicked_at;
+          ++(clicks <= 5 ? mouse_volleys : key_volleys), clicked_at = -1;
+        }
         else if (frames - clicked_at > 10) clicked_at = -1;
         return;
       }
@@ -6378,10 +6382,11 @@ TEST(mission_c1m1_short_clicks_fire_headless) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  std::printf("  clicks: mouse %d / %d volleys, key %d / %d volleys\n", mouse_clicks, mouse_volleys, key_clicks,
-              key_volleys);
+  std::printf("  clicks: mouse %d / %d volleys, key %d / %d volleys, the slowest %d frame(s) after its click\n",
+              mouse_clicks, mouse_volleys, key_clicks, key_volleys, slowest);
   EXPECT(mouse_volleys == mouse_clicks);
   EXPECT(key_volleys == key_clicks);
+  EXPECT(slowest == 1);  // from a full charge the next frame fires (playtest #23's lag is not the game's)
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

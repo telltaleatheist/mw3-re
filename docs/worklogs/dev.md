@@ -1821,3 +1821,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   their own slots (within 1 m) and the dock's places step done, in about
   half the time. Break (no position): 3 checks fail, base 02 169 m off,
   base 03 805 m off.
+
+## Playtest #23/#24 again: the fire lag (2026-10-30)
+
+- Branch mac4/fire-lag (off main).
+- No lag in the port: from a full charge a click fires on the next frame,
+  headless (10/10, mouse and key) and in the program (--click in a visible
+  window: pressed after frame 300, fired at 301; --hidden has no focus, so
+  the mouse is refused there, as DirectInput's foreground mode).
+- The exe's rules (weapons.md, Trigger and modes): a press that fires
+  nothing is dropped; held, a beam fires when ready. The manager starts in
+  chain fire (mode 0): only the group's current weapon fires a press. That
+  is the likely "a charged weapon lags": another weapon full, the current
+  one charging. Asked Owen for the mode and group.
+- The short-click test asserts the one frame.
