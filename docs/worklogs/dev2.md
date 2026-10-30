@@ -251,3 +251,11 @@ works alongside it; stay out of its files.
   1440p and 4K, the objectives box at 1080p, and 1:1 crops of the weapon
   list at 1.5, 2.25 and 3.
 - Branch `mac5/hud-scale` off main 9b02519.
+
+## 13. 16:9 at most (2026-10-30)
+
+- Owen: no ultra-wide shots or geometry; 16:9 is the widest, pillarboxed
+  beyond. `vmode_size` caps mode 16 at 16:9 (3440x1440 -> 2560x1440,
+  3840x1080 -> 1920x1080); 5:4 unchanged. Tests: the sizes, the first start
+  at 21:9, the fit at 21:9 and 32:9; without the cap 6 checks fail.
+- Branch `mac5/wide-clamp` off main 9f68bfd.

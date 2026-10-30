@@ -42,6 +42,29 @@ the Mac's byte for byte, the `.m1v` differ by FFmpeg build but play either
 way; `--cue` on his MW3 disc image gives track02 (191.9 s) and track03
 (186.1 s).
 
+## The Indeo helper
+
+`tools\windows\build_indeo.cmd` builds `build-win\mw3indeo.exe`, the
+32-bit helper that plays the movies through the install's own Indeo 5
+codec (fmv.md, The Indeo helper): `clang-cl -m32` under `vcvarsall x86`,
+one file, Windows' own libraries, the CRT linked in, a GUI program (no
+console when mw3 starts it). With it beside `mw3.exe` the movies need no
+FFmpeg and no import. Its check, from the repo, with the install at
+`C:\Games\MW3` (any 1.0 or 1.2 install):
+
+    deps\ffmpeg-n8.1-latest-win64-lgpl-shared-8.1\bin\ffmpeg.exe -i C:\Games\MW3\video\C1M1.AVI -vf "fps=15,select=eq(n\,100)" -frames:v 1 -f rawvideo -pix_fmt rgb565le ref100.565
+    start /wait "" build-win\mw3indeo.exe --check C:\Games\MW3\Ir50_32.dll C:\Games\MW3\video\C1M1.AVI 100 c1m1-100 ref100.565 > check.txt
+
+`check.txt` says whether the codec loaded and ICOpen gave its driver (its
+name and description), the movie's size and frames, every frame decoded in
+order (key frames and the frames between, as the player decodes them) with
+the time a frame, frame 100 written as `c1m1-100.bmp` and `c1m1-100.565`,
+its PSNR against FFmpeg's decode of the same frame (the optional last
+argument; `fps=15` keeps FFmpeg's frame n the AVI's sample n, repeating the
+picture for the packets Indeo gives none for, 105 of C1M1's 690;
+FFmpeg's Indeo 5 is its own decoder, so close, not equal), and
+which `ir50*`, AVIFile and VfW DLLs the process loaded.
+
 ## Packaging
 
 `tools\windows\package.cmd` makes the package for other players:
@@ -101,7 +124,9 @@ that the programs and every DLL load.
   over older data (seen on one PC) is older data: 1.0's `reader.zbd` lacks
   hud.zrd's 1152x864, 1280x1024 and 1600x1200 blocks (it has 800x600 and
   1024x768), and its `interp.zbd` and campaign 3's missions differ.
-- The movies: on a player's first plain start, when the write dir's
+- The movies: through `mw3indeo.exe` beside `mw3.exe` and the install's
+  Ir50_32.dll (The Indeo helper), with nothing imported. Without the helper
+  (or when it fails), on a player's first plain start, when the write dir's
   `video\` lacks the install's movies and `mw3import.exe` is beside
   `mw3.exe`, mw3 runs it for the missing ones with a small progress window
   (about a minute for the 19; fmv.md section 6). Without the importer the

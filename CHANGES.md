@@ -395,6 +395,9 @@ These change how the game talks to the computer, not how it plays.
 - The first time the game starts, missions play at the desktop's own size
   (16:9 on most screens) instead of 640x480; a size chosen in the graphics
   options is kept from then on. The menus stay 640x480.
+- On screens wider than 16:9 (21:9, 32:9) the game plays 16:9 at the
+  screen's full height, with black bars at the sides: the cockpit was never
+  made wider than that.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
 
@@ -493,7 +496,11 @@ These change how the game talks to the computer, not how it plays.
   keeps the result in its own folder, leaving the install as it was.
 - On the first start the rebuild converts the game's movies itself (about a
   minute, with a progress window), when its importer is beside it; the
-  original played them from the disc. It can also turn a disc image's CD
+  original played them from the disc.
+- On Windows the movies play through the game's own Indeo 5 codec from your
+  install, in a small 32-bit helper beside the rebuild, so they look exactly
+  as they did and need no conversion; the converted copies are only the
+  fall-back. It can also turn a disc image's CD
   music into files the game plays.
 
 ## Kept as the original, on purpose

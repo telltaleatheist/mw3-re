@@ -1985,3 +1985,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Test: patch_import_upgrades_10_data_from_the_official_patch (on build and
   build-10). Breaks: the descriptor's data offset, the chunk length, the
   SHA-256, the ZIP CRC.
+
+## The Indeo helper (2026-10-30)
+
+- Branch mac4/indeo (off mac4/patch12).
+- mw3indeo.exe (tools/indeo, 32-bit, build_indeo.cmd): Ir50_32.dll loaded
+  and ICInstall'd as a function driver, AVIFIL32/MSVFW32 answering the
+  movie player's calls over a pipe (platform/vfw_protocol.h); `--check`
+  for the PC. Cross-compiled here with Homebrew's mingw-w64 (i686) only to
+  check it builds; never run here.
+- mw3: sdl_vfw.cpp (the client), app_fmv.cpp routing each stream to the
+  helper or the imported files; `--vfw-helper`/`--no-vfw-helper`; the
+  first-run import skipped while the helper is up.
+- Test: sdl_movies_through_the_indeo_helper_pipe with mw3indeo_fake (the
+  same messages answered from an imported movie).

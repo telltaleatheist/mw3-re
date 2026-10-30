@@ -473,6 +473,9 @@ bool vmode_size(int32_t mode, int32_t* w, int32_t* h) {
   if (mode == kCustomVMode) {  // FIX (B): the player's own size, kept inside the cap
     *w = std::clamp(g_options.screen_w, 640, kMaxScreen[0]);
     *h = std::clamp(g_options.screen_h, 480, kMaxScreen[1]);
+    // FIX (B), Owen 2026-10-30: 16:9 is the widest; a 21:9 or 32:9 screen
+    // gets a 16:9 frame at its height, pillarboxed (resolution.md section 10).
+    *w = std::min(*w, *h * 16 / 9);
     return true;
   }
   *w = std::min(kSizes[mode - 5][0], kMaxScreen[0]);

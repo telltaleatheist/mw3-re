@@ -6017,6 +6017,9 @@ TEST(settings_first_start_plays_at_the_desktop_size) {
   o = load("", 5120, 2880, true);  // a 5K desktop: the mode's size inside the cap
   mech3::options() = o;
   EXPECT(o.in_game_vmode == 16 && mech3::vmode_size(16, &w, &h) && w == 3840 && h == 2160);
+  o = load("", 3440, 1440, true);  // a 21:9 desktop: 16:9 at its height, pillarboxed
+  mech3::options() = o;
+  EXPECT(o.in_game_vmode == 16 && mech3::vmode_size(16, &w, &h) && w == 2560 && h == 1440);
   o = load("\"InGameVMode\"=dword:0000000d\r\n", 2560, 1440, true);  // a saved choice wins
   EXPECT(o.in_game_vmode == 13);
   o = load("\"InGameVMode\"=dword:00000010\r\n\"ScreenWidth\"=dword:00000500\r\n\"ScreenHeight\"=dword:000002d0\r\n",

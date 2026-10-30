@@ -457,6 +457,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/sdl_platform.cpp
     src/frontend/sdl/sdl_render3d.cpp
     src/frontend/sdl/sdl_sound.cpp
+    src/frontend/sdl/sdl_vfw.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
   # Windows: the Direct3D 12 shaders (sdl_render3d.hlsl), DXIL by the
@@ -520,6 +521,10 @@ if(SDL3_FOUND)
                          COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:mw3> $<TARGET_FILE_DIR:mw3>
                          COMMAND_EXPAND_LISTS)
     endif()
+    # The Indeo helper's stand-in for the tests (tools/indeo; the real
+    # mw3indeo.exe is 32-bit Windows, built by tools/windows/build.cmd).
+    add_executable(mw3indeo_fake tools/indeo/mw3indeo_fake.cpp)
+    target_link_libraries(mw3indeo_fake PRIVATE mw3core)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
@@ -527,7 +532,10 @@ if(SDL3_FOUND)
     target_link_libraries(mw3sdltests PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3sdltests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
                                                  MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
-                                                 MW3_BIN="$<TARGET_FILE:mw3>")
+                                                 MW3_BIN="$<TARGET_FILE:mw3>"
+                                                 MW3_FAKE_INDEO="$<TARGET_FILE:mw3indeo_fake>"
+                                                 MW3_IMPORT_BIN="$<TARGET_FILE_DIR:mw3>/mw3import")
+    add_dependencies(mw3sdltests mw3indeo_fake)
     add_dependencies(mw3sdltests mw3)
     add_test(NAME mw3sdltests COMMAND mw3sdltests)
   else()

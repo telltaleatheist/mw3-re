@@ -316,6 +316,41 @@ kept; the next start does the rest). A failed run leaves
 `--no-import` skips it. Without the importer the game plays without movies,
 as it did.
 
+**The Indeo helper** (ours, FIX (A); Windows): the install's own codec,
+`Ir50_32.dll`, is a 32-bit Video for Windows driver (it exports DriverProc
+and imports only WINMM, KERNEL32, USER32, GDI32, ADVAPI32 and ole32), which
+64-bit mw3 cannot load and Windows 11 no longer registers. `mw3indeo.exe`
+(tools/indeo, built 32-bit by `tools\windows\build_indeo.cmd`) loads it
+from the install and calls its DriverProc itself, as the ICM layer does
+(DRV_LOAD, DRV_ENABLE, DRV_OPEN with an ICOPEN for decompression, then
+ICM_DECOMPRESS_QUERY, _BEGIN and ICM_DECOMPRESS with the player's flags):
+no registry, no administrator. (Installed with ICInstall's
+ICINSTALL_FUNCTION and opened through MSVFW32 instead, it crashed on Windows
+11 in ICM_GETINFO, 0x5002, most likely as the codec's DRV_OPEN without an ICOPEN returns
+its configure instance 0xffff0000, and the messages after it read that as
+the instance, [0xffff0008].) The AVI comes from Windows' own AVIFIL32:
+AVIStreamOpenFromFile, ReadFormat, Info, Length, Read and FindSample, each
+call one message over its stdin and stdout
+(`platform/vfw_protocol.h`). So the picture is the codec's own, as the
+original showed it, decoded while the movie plays (nothing converted or
+stored). mw3 starts it at start-up when `mw3indeo.exe` is beside `mw3.exe`
+and the install has `Ir50_32.dll` (or `--vfw-helper EXE`;
+`--no-vfw-helper` skips it) and prints `movies through the Indeo helper`;
+the first-run import then does not run. A helper that does not start,
+lacks the codec or stops answering falls back to the importer's files
+(`movies not through the Indeo helper (why)`), as before. On macOS there is
+no 32-bit x86 to run the codec, so the movies stay the importer's (FFmpeg
+from Homebrew, for developers).
+
+Checked here: the pipe and the host's routing, through `mw3indeo_fake`
+(tools/indeo), which answers the same messages from one imported movie:
+`sdl_movies_through_the_indeo_helper_pipe` (mw3sdltests) compares each
+call with the imported stream in-process, then plays c1m2 through the pipe,
+through the files and with a helper that does not exist (the fallback): the
+same 475 frames drawn and the same picture. The helper itself (the codec in
+AVIFile) is checked on Windows with `mw3indeo --check` (docs/windows.md, The
+Indeo helper).
+
 **Music** (ours; `platform/cue_audio.h`): `mw3import --cue DISC.cue
 [--music-only]` writes each AUDIO track of a disc image's cue sheet as the
 write dir's `music\trackNN.wav` (CD audio as is: 44100 Hz, 16-bit
