@@ -1,0 +1,203 @@
+#include "frontend/sdl/sdl_install.h"
+
+#include <SDL3/SDL.h>
+
+#include <algorithm>
+#include <atomic>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#pragma comment(lib, "advapi32.lib")
+#endif
+
+namespace sdlfe {
+
+namespace fs = std::filesystem;
+
+namespace {
+std::string lower(std::string s) {
+  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+std::string trimmed(std::string s) {
+  while (!s.empty() && (s.back() == '/' || s.back() == '\\' || s.back() == ' ')) s.pop_back();
+  return s;
+}
+std::string parent(const std::string& p) { return fs::path(p).parent_path().string(); }
+}  // namespace
+
+bool install_valid(const std::string& dir, std::string* missing) {
+  std::error_code ec;
+  if (!dir.empty() && fs::is_regular_file(fs::path(dir) / "zbd" / "reader.zbd", ec)) return true;
+  if (missing) {
+    *missing = dir.empty() || !fs::is_directory(fs::path(dir) / "zbd", ec) ? "zbd\\" : "zbd\\reader.zbd";
+    if (dir.empty() || !fs::is_directory(fs::path(dir) / "video", ec)) *missing += " and video\\";
+  }
+  return false;
+}
+
+std::string install_of_pick(const std::string& file) {
+  std::string dir = trimmed(file);
+  std::error_code ec;
+  if (!fs::is_directory(dir, ec)) dir = parent(dir);  // a file: its folder
+  const std::string name = lower(fs::path(dir).filename().string());
+  if ((name == "zbd" || name == "video") && !install_valid(dir)) dir = parent(dir);
+  return dir;
+}
+
+std::string install_of_program_value(std::string value) {
+  if (value.size() >= 2 && value.front() == '"' && value.back() == '"') value = value.substr(1, value.size() - 2);
+  value = trimmed(value);
+  const std::string l = lower(value);
+  if (l.size() > 4 && l.compare(l.size() - 4, 4, ".exe") == 0) value = parent(value);
+  return value;
+}
+
+#if defined(_WIN32)
+namespace {
+// A string value, empty when the key or value is not there. `flags` picks the
+// registry view (RRF_SUBKEY_WOW6432KEY: the 32-bit installer's).
+std::string reg_string(HKEY root, const char* key, const char* name, DWORD flags) {
+  char buf[1024];
+  DWORD size = sizeof(buf);
+  if (RegGetValueA(root, key, name, RRF_RT_REG_SZ | flags, nullptr, buf, &size) != ERROR_SUCCESS) return {};
+  return buf;
+}
+}  // namespace
+#endif
+
+std::vector<std::string> install_candidates() {
+  std::vector<std::string> out;
+  auto add = [&](const std::string& d) {
+    if (!d.empty() && std::find(out.begin(), out.end(), d) == out.end()) out.push_back(d);
+  };
+#if defined(_WIN32)
+  // The original's InstallShield script (disc SETUP.INS, value.shl): SOFTWARE\
+  // PUBLISHER_NAME\PRODUCT_NAME\PRODUCT_VERSION gets "Program" and "Version",
+  // and InstallationInfo's App Paths entry for PRODUCT_KEY (mech3.exe). A
+  // 32-bit installer on 64-bit Windows wrote the WOW6432Node view, or, without
+  // admin rights, the user's VirtualStore copy.
+  const char* const mp = "SOFTWARE\\MicroProse\\MechWarrior 3\\1.0";
+  const char* const app = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\mech3.exe";
+  for (DWORD view : {static_cast<DWORD>(RRF_SUBKEY_WOW6432KEY), static_cast<DWORD>(RRF_SUBKEY_WOW6464KEY)}) {
+    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, mp, "Program", view)));
+    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, app, "Path", view)));
+    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, app, nullptr, view)));
+  }
+  for (const char* store : {"Software\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\MicroProse\\MechWarrior 3\\1.0",
+                            "Software\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0"})
+    add(install_of_program_value(reg_string(HKEY_CURRENT_USER, store, "Program", 0)));
+  // The installer's default, PROGRAMFILES\MicroProse\MechWarrior 3, and the
+  // usual hand-picked places.
+  for (const char* env : {"ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"})
+    if (const char* pf = std::getenv(env)) add(std::string(pf) + "\\MicroProse\\MechWarrior 3");
+  const char* sd = std::getenv("SystemDrive");
+  const std::string drive = sd ? sd : "C:";
+  for (const char* d : {"\\MicroProse\\MechWarrior 3", "\\MicroProse\\MechWarrior3", "\\Games\\MechWarrior 3",
+                        "\\MechWarrior 3", "\\MW3"})
+    add(drive + d);
+#endif
+  // This program's folder and the one above (mw3 beside or inside the
+  // install); on the Mac, beside the .app.
+  if (const char* base = SDL_GetBasePath()) {
+    const std::string b = trimmed(base);
+    add(b);
+    add(parent(b));
+    if (lower(b).size() > 19 && lower(b).find(".app/contents/resources") != std::string::npos)
+      add(parent(parent(parent(b))));
+  }
+  return out;
+}
+
+bool save_install(const std::string& write_dir, const std::string& install) {
+  if (write_dir.empty()) return false;
+  const fs::path cfg = fs::path(write_dir) / "mw3.cfg";
+  std::vector<std::string> lines;
+  {
+    std::ifstream f(cfg);
+    std::string line;
+    while (std::getline(f, line)) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.rfind("install=", 0) != 0) lines.push_back(line);
+    }
+  }
+  lines.insert(lines.begin(), "install=" + install);
+  std::ofstream o(cfg, std::ios::trunc);
+  for (const std::string& l : lines) o << l << '\n';
+  return static_cast<bool>(o);
+}
+
+namespace {
+// Two buttons: true for Browse.
+bool ask_browse(const std::string& text) {
+  const SDL_MessageBoxButtonData buttons[] = {
+      {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Quit"},
+      {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Browse..."},
+  };
+  SDL_MessageBoxData box{};
+  box.flags = SDL_MESSAGEBOX_INFORMATION;
+  box.title = "Find your MechWarrior 3 installation";
+  box.message = text.c_str();
+  box.numbuttons = 2;
+  box.buttons = buttons;
+  int pressed = 0;
+  return SDL_ShowMessageBox(&box, &pressed) && pressed == 1;
+}
+
+// SDL's open-file dialog, waited on (its answer comes through a callback while
+// events are pumped; on Windows from another thread). Empty when cancelled.
+std::string pick_file(const std::string& start) {
+  struct Wait {
+    std::atomic<bool> done{false};
+    std::string file;  // set before done
+  } w;
+  static const SDL_DialogFileFilter filters[] = {{"MechWarrior 3 (Mech3.exe)", "exe"}, {"All files", "*"}};
+  auto done = [](void* user, const char* const* list, int) {
+    auto* w = static_cast<Wait*>(user);
+    if (list && list[0]) w->file = list[0];
+    w->done = true;
+  };
+  SDL_ShowOpenFileDialog(done, &w, nullptr, filters, 2, start.empty() ? nullptr : start.c_str(), false);
+  while (!w.done) {
+    SDL_Event e;
+    SDL_WaitEventTimeout(&e, 50);
+  }
+  return w.file;
+}
+}  // namespace
+
+std::string find_install(const std::string& configured, const std::vector<std::string>& more, bool may_ask,
+                         bool* found_by_search) {
+  if (found_by_search) *found_by_search = false;
+  if (install_valid(configured)) return configured;
+  if (found_by_search) *found_by_search = true;
+  std::vector<std::string> all = install_candidates();
+  all.insert(all.end(), more.begin(), more.end());
+  for (const std::string& d : all)
+    if (install_valid(d)) return d;
+  if (!may_ask) return {};
+  std::string text =
+      "MechWarrior 3 needs the files of an installed MechWarrior 3, any version (its zbd folder).\n\n"
+      "Choose Mech3.exe in your MechWarrior 3 folder.";
+  if (!configured.empty()) text = "No MechWarrior 3 install at \"" + configured + "\" any more.\n\n" + text;
+  std::string start;
+  while (ask_browse(text)) {
+    const std::string file = pick_file(start);
+    if (file.empty()) return {};  // cancelled: quit
+    const std::string dir = install_of_pick(file);
+    std::string missing;
+    if (install_valid(dir, &missing)) return dir;
+    start = dir;
+    text = "\"" + dir + "\" is not a MechWarrior 3 install: " + missing +
+           (missing.find(" and ") != std::string::npos ? " are" : " is") + " missing there.\n\nChoose Mech3.exe in the folder MechWarrior 3 was installed to "
+           "(the one that holds zbd and video).";
+  }
+  return {};
+}
+
+}  // namespace sdlfe

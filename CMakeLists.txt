@@ -424,6 +424,7 @@ if(SDL3_FOUND)
   add_library(mw3sdl STATIC
     src/frontend/debug_world.cpp
     src/frontend/sdl/sdl_input.cpp
+    src/frontend/sdl/sdl_install.cpp
     src/frontend/sdl/sdl_music.cpp
     src/frontend/sdl/sdl_platform.cpp
     src/frontend/sdl/sdl_render3d.cpp
