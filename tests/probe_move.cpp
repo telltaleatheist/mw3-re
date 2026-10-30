@@ -132,7 +132,7 @@ int32_t probe_gait(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* feet, uint8
     m.anims[k] = (present >> k & 1) ? &g->anims[k] : nullptr;
   }
   world().mission_player = player ? &m : nullptr;
-  world().stats = ff != 0;
+  world().force_feedback = ff != 0;
   MoveCalls& c = move_calls();
   c.move = [](Mech&, float d, MechAnim* a, float speed) { log({1, bits(d), anim_index(a), bits(speed)}); };
   c.crouch = [](Mech&, int on) { log({2, on}); };

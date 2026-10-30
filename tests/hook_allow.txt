@@ -156,7 +156,7 @@ HeatCalls.stop_controls	fallback: unset runs the port (+0x37c vtable +0x4c (Stop
 DamageCalls.controls_hit	fallback: unset runs the port
 DamageCalls.controls_stop	fallback: unset runs the port (+0x37c vtable +0xa8)
 DamageCalls.controls_killed	fallback: unset runs the port (+0x37c's second base, vt+0xb4)
-DamageCalls.stats	data: not a hook (bool stats, [0x00608620] exists)
+DamageCalls.ff	no effect: force feedback on [0x00608620]; set with the object (app_force.cpp), made only when zInput's joystick has force feedback
 DamageCalls.last_hit	fallback: unset runs the port (0x0041d130)
 DamageCalls.fly_off	fallback: unset runs the port (part vtable +0x60)
 DamageCalls.free_part	fallback: unset runs the port (vtable +0 (1); unset deletes)
@@ -195,9 +195,9 @@ MoveCalls.move	fallback: unset runs the port (test hook; unset runs Mech::move)
 MoveCalls.foot_ground	test: no caller in src/
 MoveCalls.gait_pose	fallback: unset runs the port (test hook (0x00417bbc..): unset runs Mech::pose_gait)
 MoveCalls.crouch	fallback: unset runs the port (test hook (0x0041bda0): unset runs Mech::crouch)
-MoveCalls.wading_effect	no effect: force feedback (0x00433930 on [0x00608620]), only with the stats object, which the program never makes
+MoveCalls.wading_effect	no effect: force feedback (0x00433930 on [0x00608620]); set with the object (app_force.cpp), made only when zInput's joystick has force feedback
 MoveCalls.skis_update	fallback: unset runs the port (test hook; unset runs Skis::update)
-MoveCalls.ff_jets	no effect: force feedback (0x00433870 on [0x00608620]), only with the stats object, which the program never makes
+MoveCalls.ff_jets	no effect: force feedback (0x00433870 on [0x00608620]); set with the object (app_force.cpp), made only when zInput's joystick has force feedback
 MoveCalls.jet_pose	fallback: unset runs the port (test hook (0x004177e7..0x004179fd): unset runs Mech::pose_jump)
 MoveCalls.landing_dust	fallback: unset runs the port (test hook (0x004164f3..0x0041660b): unset runs Mech::ground_dust)
 MoveCalls.landing_pose	fallback: unset runs the port (test hook (0x0041660b..): unset runs Mech::landing_pose)

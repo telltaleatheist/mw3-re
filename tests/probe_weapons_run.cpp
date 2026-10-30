@@ -168,7 +168,7 @@ void set_calls() {
   c.add_heat = [](Handle m, float x) { log({5, static_cast<int32_t>(u(m)), fb(x)}); };
   c.recoil = [](Handle p, float r) { log({6, static_cast<int32_t>(u(p)), fb(r)}); };
   c.net_event = [](Handle o, int32_t k, mech3::Weapon* w) { log({7, static_cast<int32_t>(u(o)), k, slot_of(w)}); };
-  c.stats_shot = [](int32_t i) { log({8, i}); };
+  c.ff_weapon = [](int32_t i) { log({8, i}); };
   c.target_mech = [](Handle) { return h(g_w[kTargetMech]); };
   c.lock_notice = [](Handle tm, Handle v, mech3::WeaponDef* d) {
     log({9, static_cast<int32_t>(u(tm)), static_cast<int32_t>(u(v)), d->index});
@@ -276,7 +276,7 @@ void sync_world() {
   mech3::WeaponWorld& w = mech3::weapon_world();
   w.player = h(g_w[kPlayer]);
   w.mission_player = h(g_w[kMissionPlayer]);
-  w.stats = g_w[kStats] != 0;
+  w.force_feedback = g_w[kStats] != 0;
   w.lock_targets = g_w[kLockTargets] != 0;
   w.clock = bf(g_w[kClock]);
   w.dt = bf(g_w[kDt]);

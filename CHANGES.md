@@ -344,6 +344,16 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- **Gamepads work as they did on Windows.** A modern pad's sticks, triggers
+  and buttons arrive in the order the game knew from Windows: the left stick
+  steers and walks, the triggers are the throttle, the right stick looks.
+  Read the raw way, a pad's resting triggers held the torso twisted.
+- **Force feedback becomes rumble.** The original drove force-feedback
+  joysticks through Immersion's driver. The rebuild reads the same effect
+  file and plays the effects on your pad's or stick's rumble motors: weapon
+  recoil, laser buzz, hits, footsteps, landings, the jump jets, wading and
+  your death. The stick-centring springs have no rumble version.
+
 - The game finds your MechWarrior 3 installation by itself: where its installer put it (the registry, then Program Files), or it asks you once to point at Mech3.exe, then remembers the folder in `mw3.cfg`. The original simply ran from its own folder.
 - Alt+Enter switches between fullscreen and a window while you play (the original had no window). Your saved choice (`windowed=1` in `mw3.cfg`) is what the next start uses.
 - The mouse turns the view and moves the menu cursor at the same speed in a window and fullscreen, at any screen size, as the original's did at 640x480. Before, a bigger window or screen made the mouse slower.

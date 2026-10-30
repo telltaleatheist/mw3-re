@@ -31,6 +31,7 @@ class SdlInput : public platform::Input {
   int32_t joystick_state(platform::JoyState* out) override;
   void set_cooperative_level(Device d, uint32_t flags) override;
   int32_t joystick_caps(uint32_t* flags, uint32_t* axes) override;
+  SDL_Joystick* joystick() const { return joy_; }  // the force feedback's device (sdl_force.h)
   int32_t joystick_object_name(uint32_t ofs, char* name, uint32_t n) override;
   int32_t joystick_set_range(uint32_t ofs, int32_t min, int32_t max) override;
   int32_t joystick_get_range(uint32_t ofs, int32_t* min, int32_t* max) override;
@@ -67,6 +68,8 @@ class SdlInput : public platform::Input {
 
  private:
   void capture(bool on);
+  int axis_count() const;
+  double pad_axis(int i) const;
   bool opened_[3] = {};
   bool acquired_[3] = {};
   bool lost_[3] = {};
@@ -85,6 +88,13 @@ class SdlInput : public platform::Input {
   uint8_t buttons_[4] = {};
   uint8_t latched_[4] = {};  // a press not yet read (FIX (A): a click inside one frame)
   SDL_Joystick* joy_ = nullptr;
+  // FIX (A): a gamepad SDL knows (an XInput pad, a PlayStation one) is read
+  // as DirectInput showed an XInput pad on Windows: X, Y the left stick, Z the
+  // triggers on one centred axis (LT up, RT down), RX, RY the right stick, no
+  // RZ; buttons A B X Y LB RB Back Start LS RS; the d-pad the hat. SDL's raw
+  // order differs by platform and its triggers rest at one end, which pinned
+  // the game's throttle (Z) and twist (RZ). Other sticks keep the raw path.
+  SDL_Gamepad* pad_ = nullptr;
 };
 
 // zInput's Win32 calls on SDL (FIX (A), docs/input.md): the client area is

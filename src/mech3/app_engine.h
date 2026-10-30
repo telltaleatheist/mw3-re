@@ -11,6 +11,7 @@
 #include "mech3/app_hooks.h"
 #include "mech3/lab_view.h"
 #include "mech3/options.h"
+#include "platform/force_feedback.h"
 #include "platform/platform.h"
 
 namespace zvid { struct Surface; }
@@ -42,6 +43,7 @@ struct Platform {
   platform::Clock* clock = nullptr;
   platform::Clock* movie_clock = nullptr;  // zFMV's timeGetTime (ours: the tests' fast one); none: `clock`
   platform::Input* input = nullptr;
+  platform::ForceDevice* force = nullptr;  // FIX (A): IFORCE2's effects (none: no force feedback)
   platform::SoundOutput* sound = nullptr;
   platform::MusicOutput* music = nullptr;
   platform::Files* files = nullptr;     // what music/trackNN.* the "disc" holds
@@ -445,6 +447,9 @@ class GameEngine : public Engine {
   void input_unacquire() override;
   uint32_t joystick_present() override;
   uint32_t force_feedback_present() override;
+  Handle force_feedback_new() override;                 // 0x00433090 (mech3/force_feedback)
+  void force_feedback_delete(Handle f) override;        // 0x004333f0
+  void force_feedback_spring(Handle f, int32_t on) override;  // 0x004338a0
   void input_set_mode(uint32_t mode) override;
   void input_poll(uint8_t callbacks) override;
   uint32_t key_state(int32_t key) override;
@@ -611,6 +616,7 @@ class GameEngine : public Engine {
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
   std::unique_ptr<LabView> lab_view_;  // the Lab State's 3D view while it is up
+  std::unique_ptr<class ForceFeedback> force_;  // [0x00608620]
   std::unique_ptr<zfmv::BlurAction> pause_blur_;  // the pause screen's (wait_new)
   bool last_via_render_ = false;  // the frame just shown went through Render3D
   bool buffer_is_screen_ = true;  // the 16-bit buffer holds the frame shown (not the 3D lock's layer)

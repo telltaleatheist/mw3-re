@@ -196,7 +196,7 @@ int Mech::jump_jets(float dt) {
     if (firing && !s) s = g_calls.pilot_sound ? g_calls.pilot_sound(*this, kSoundJumpJet, 0.3f, 1.0f) : nullptr;
     else if (!firing && s) s = g_calls.fade_sound ? g_calls.fade_sound(s) : nullptr;
   }
-  const bool ff = this == world().mission_player && world().stats;
+  const bool ff = this == world().mission_player && world().force_feedback;
   if (firing) {
     if (!jet_effect && jet_node) {
       jet_effect = g_calls.pilot_effect ? g_calls.pilot_effect(*this, 1, jet_node) : nullptr;
@@ -227,7 +227,7 @@ void Mech::ground_step(float dt) {
   bool hard = false;
   if (jolt > 1.0f) jolt = 1.0f, hard = true;
   else if (jolt < 0.0f) jolt = 0.0f, hard = true;
-  if (this == world().mission_player && world().stats && g_calls.ff_landing) g_calls.ff_landing(jolt);
+  if (this == world().mission_player && world().force_feedback && g_calls.ff_landing) g_calls.ff_landing(jolt);
   const bool sideways = kLandingSideways < std::fabs(vec_3c.x);
   if (sideways) hard = true;
   const float thr = -vec_3c.z / max_speed;  // vtable +0x11c
@@ -347,7 +347,7 @@ void Mech::select_gait(float dt) {
   const float d0 = foot(0)->water_depth, d1 = foot(1)->water_depth;
   const float d = d0 < d1 ? d0 : d1;
   const float h = height;
-  const bool ff = this == world().mission_player && world().stats;
+  const bool ff = this == world().mission_player && world().force_feedback;
   if (d > h * kWadeStart) {
     if (zfix::options().deep_water) {
       // FIX (bug): from full speed at a tenth of the height down to 70% at
