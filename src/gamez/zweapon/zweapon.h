@@ -58,7 +58,7 @@ struct FireState {
   int32_t beam_ground_fx = 1;          // 0x009a17cc  0: the beam plays no ground impact
   float damage_scale = 1;              // 0x009a17d0
   float beam_range_scale = 1;          // 0x009a17d4  0.5 under water
-  float track_scale[2] = {1, 1};       // 0x009a17d8, 0x009a17dc  FCS: 2, 2 (read by nothing)
+  float track_scale[2] = {1, 1};       // 0x009a17d8, 0x009a17dc  FCS: 2, 2; [0] the homing's (spawn has reset it: 1)
   int32_t terrain_follow = 0;          // 0x009a17e0  FCS: 1
 };
 FireState& fire_state();

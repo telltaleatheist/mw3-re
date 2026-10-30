@@ -475,7 +475,8 @@ The wanted direction is to the target; LOCK_ON_LEAD (no shipped weapon)
 blends in the intercept (0x524247) from lead min to lead max of age (slerp
 0x51e460), then uses it. The turn allowed this frame is TURN_RATE x
 [0x9a17d8] (the global, which spawn has reset to 1: the FCS doubling never
-applies) x factor x dt, the factor 0 until TURN_SUSPEND_TIME, then
+applies; FIX (bug) behind `bugs`, the shot's own copy +0x5c0, 2 for a shot
+fired locked with FCS, fixes.md) x factor x dt, the factor 0 until TURN_SUSPEND_TIME, then
 (t - suspend) / LOCK_ON, or 1 when there is no suspend time; t is the homing
 time, which stops one frame past LOCK_ON, so with a suspend time the factor
 never reaches 1 (LRMs about 0.93 at 30 fps). Tethered shots and FCS shots

@@ -1413,3 +1413,57 @@ TEST(fix_waynet_arrow_lets_go_of_released_images) {
   set_waynet_hooks(nullptr);
   zfix::options().bugs = saved_bugs;
 }
+
+// Artemis IV's double tracking (FIX (bug); weapons.md, Homing): a shot fired
+// locked with FCS carries 2 in its +0x5c0, which the exe's homing never reads
+// (it reads the global, reset to 1 by the spawn). The same five-missile salvo
+// at a target moving across, plain and FCS-locked: with the fix the FCS
+// missiles turn twice as fast and pass closer; without it, alike.
+TEST(fix_artemis_fcs_doubles_the_turn_rate) {
+  zwep::WeaponDef def{};
+  def.turn_rate = 0.6f, def.lock_on = 1.0f, def.turn_suspend_time = 0.0f;
+  const float dt = 1.0f / 30.0f;
+  zwep::hit_state().dt = dt;
+  zwep::fire_state().track_scale[0] = zwep::fire_state().track_scale[1] = 1.0f;  // as spawn leaves it
+  auto salvo = [&](float track, float* first_turn) {
+    float miss = 0.0f;
+    for (int k = 0; k < 5; ++k) {
+      zwep::Vec3f3 target{60.0f, 0.0f, 300.0f};
+      const zwep::Vec3f3 target_v{-15.0f, 0.0f, 0.0f};
+      zwep::Projectile p{};
+      p.position = {0.4f * static_cast<float>(k - 2), 0.0f, 0.0f};
+      p.direction = {0.0f, 0.0f, 1.0f};
+      p.speed = p.max_speed = 100.0f;
+      p.target_at = &target, p.target_velocity = &target_v;
+      p.track_scale[0] = track;
+      p.terrain_follow = 0;  // (the FCS climb's ground probe left out)
+      float best = 1e9f;
+      for (int i = 0; i < 150; ++i) {
+        const zwep::Vec3f3 before = p.direction;
+        zwep::home(&def, &p);
+        if (i == 0 && k == 0 && first_turn)
+          *first_turn = std::acos(std::min(1.0f, before.x * p.direction.x + before.y * p.direction.y + before.z * p.direction.z));
+        p.age += dt;
+        p.position = {p.position.x + p.velocity.x * dt, p.position.y + p.velocity.y * dt, p.position.z + p.velocity.z * dt};
+        target = {target.x + target_v.x * dt, target.y, target.z + target_v.z * dt};
+        const float dx = p.position.x - target.x, dz = p.position.z - target.z;
+        best = std::min(best, std::sqrt(dx * dx + dz * dz));
+      }
+      miss += best / 5.0f;
+    }
+    return miss;
+  };
+  const bool bugs = zfix::options().bugs;
+  float turn_plain = 0, turn_fcs = 0;
+  zfix::options().bugs = false;  // the original: the shot's 2 never read
+  const float off_plain = salvo(1.0f, nullptr), off_fcs = salvo(2.0f, nullptr);
+  zfix::options().bugs = true;
+  const float on_plain = salvo(1.0f, &turn_plain), on_fcs = salvo(2.0f, &turn_fcs);
+  zfix::options().bugs = bugs;
+  std::printf("  salvo's mean closest pass: original %.2f / %.2f m, fixed %.2f (plain) / %.2f m (FCS); first turn %.4f / %.4f\n",
+              off_plain, off_fcs, on_plain, on_fcs, turn_plain, turn_fcs);
+  EXPECT(off_plain == off_fcs);
+  EXPECT(on_plain == off_plain);
+  EXPECT(on_fcs < on_plain);
+  EXPECT(std::fabs(turn_fcs - 2.0f * turn_plain) < 1e-4f);
+}

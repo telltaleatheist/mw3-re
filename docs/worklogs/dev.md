@@ -2026,3 +2026,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   to the census; now scaled (GameEngine::image_draw), tested in
   frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
   the old fall-through, 1 check). S16..S18 reported.
+
+## Artemis IV's double tracking (2026-10-30)
+
+- Branch mac4/artemis (off main). FIX (bug), behind bugs: the homing's two
+  reads of [0x9a17d8] (TURN_RATE 0x5859f5, the FCS climb's pitch rate
+  0x585b08) take the shot's +0x5c0 copy (zwep_shot.cpp home). +0x5c8 (the
+  terrain following) was always read from the shot; +0x5c4 by nothing.
+  Test: fix_artemis_fcs_doubles_the_turn_rate (breaks: the global always,
+  the copy always).
