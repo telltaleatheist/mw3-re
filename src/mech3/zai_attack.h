@@ -172,7 +172,7 @@ class FollowState : public BehaviourState {
   Behaviour* made_by;        // +0x18
 
   // Ours (W17, FIX (bug) behind bugs; ai.md section 17.6): round a wall.
-  // No progress toward a target past the follow range for 2 s (a wall, or a
+  // No progress toward a target past his follow range (+0x28) for 2 s (a wall, or a
   // contact holding his carrot back), he walks the
   // clear heading nearest the target (the wall kept on one side) until the
   // line to it is clear; after 20 s he gives up for 10.
@@ -187,7 +187,7 @@ class FollowState : public BehaviourState {
 
  private:
   void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);
-  bool detour_goal(const float pos[3], const float fwd[2], const float to[3], float range, float dt, float goal[3]);
+  bool detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]);
 };
 
 // For the tests: every detour heading taken as blocked (the give-up).

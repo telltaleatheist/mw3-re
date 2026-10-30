@@ -349,12 +349,12 @@ bool pick_heading(const float pos[3], const float to[3], int32_t* side, float ou
 // Ours (W17, FIX (bug) behind bugs): where to walk this frame when the
 // pilot has stopped short of the target (a wall, or a contact holding the
 // carrot back); false to follow as the exe.
-bool FollowState::detour_goal(const float pos[3], const float fwd[2], const float to[3], float range, float dt,
+bool FollowState::detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt,
                               float goal[3]) {
   Detour& d = detour;
   const float dx = to[0] - pos[0], dz = to[2] - pos[2];
   const float dist = std::sqrt(dx * dx + dz * dz);
-  const float far = range + 10.0f;
+  const float far = reach;  // past the far end of his follow range (+0x28): never where the follow settles
   if (d.cool > 0) d.cool -= dt;
   if (!d.on) {
     if (dist <= far || d.cool > 0) {
@@ -381,7 +381,7 @@ bool FollowState::detour_goal(const float pos[3], const float fwd[2], const floa
     const float lead = std::min(dist - 8.0f, 40.0f) / std::max(dist, 1.0f);
     const float ahead[3] = {pos[0] + dx * lead, pos[1] + kEye, pos[2] + dz * lead};
     const bool clear = d.time > 1.0f && !brain_hooks().wall_between(eye, ahead);
-    if (dist <= range || clear || d.time > 20.0f) {
+    if (dist <= reach - 2.0f || clear || d.time > 20.0f) {
       if (d.time > 20.0f) d.cool = 10.0f, ++d.gave_up;  // give up: the exe's straight follow for a while
       d.on = false, d.watch_t = 0, d.watch_d = dist, d.watch_fwd[0] = fwd[0], d.watch_fwd[1] = fwd[1];
       return false;
@@ -602,8 +602,7 @@ void FollowState::run(float dt) {
     if (!(pulled && same_or_nan(at[0], s.start[0]) && same_or_nan(at[2], s.start[2]))) aim(b, v, pos, at, 0.0f);
     pulled = 1;
     detour.on = false;
-  } else if (zfix::options().bugs && detour_goal(pos, ahead, to, (b.params.get<float>(0x2c) + b.params.get<float>(0x28)) * 0.5f,
-                                                 dt, goal)) {
+  } else if (zfix::options().bugs && detour_goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
     aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W17): round the wall
     slack_side = 2.0f;
     pulled = 0;

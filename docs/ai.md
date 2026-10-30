@@ -2659,7 +2659,9 @@ nearest Dominic and the player on either map.
 
 Ours (FIX (bug), behind `bugs`, Owen 2026-10-30): a detour inside the
 follow state (`FollowState::detour_goal`).
-- **Blocked:** past the follow range plus 10 m, with no 2 m of progress in
+- **Blocked:** past the far end of his follow range (+0x28, where the
+  follow never settles: it is content within the slack of the range's
+  middle), with no 2 m of progress in
   2 s and no turn of over 20 degrees (a turn on the spot is not being
   stuck).
 - **The heading:** flat probes of 25 m, from 4 m out at 4 m up. They use
@@ -2668,7 +2670,7 @@ follow state (`FollowState::detour_goal`).
   He takes the clear heading nearest the target, keeps to that side, and
   probes again every 0.5 s.
 - **Resume:** once the line to the target (up to 40 m) is clear, after
-  1 s.
+  1 s, or 2 m inside his range.
 - **Give up:** after 20 s, or with no heading clear. He then follows as the
   exe for 10 s.
 On open ground nothing changes. The probes turn `bugs` off.
@@ -2680,6 +2682,11 @@ Test `mission_c2m1_dominic_follows_round_walls_headless`:
 - c2m1 open ground: no detour, his walk identical with `bugs` off.
 - Every heading blocked (a test switch): he gives up and stands where the
   exe leaves him.
+The same holds for a pocket commander's spot on c1m4
+(`mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless`). His
+range there is 60 to 80 m, but at about 120 m he bounces off something and
+the exe leaves him there (120.879). That test had taken this for his reach.
+With the detour he works round it (114.758 by the run's end).
 
 ### 17.6a The pocket commander (mech_pocket.cpp)
 

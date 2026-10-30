@@ -8855,6 +8855,12 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
         if (vp && vp->target && vp->target->vehicle == seen.marker) ++seen.follows_marker;
         if (const mech3::PocketMarker* k = mech3::program_pocket_marker(seen.marker)) seen.marker_cast += k->shadow != nullptr;
         seen.closest = std::min(seen.closest, dist_to_spot());
+        if (std::getenv("MW3_LANCE_LOG") && seen.frames % 60 == 0) {
+          auto* fs = dynamic_cast<mech3::ai::FollowState*>(b.current().state.get());
+          std::fprintf(stderr, "POCKET frame %d: %.1f m to the spot, +0x28 %.1f +0x2c %.1f, throttle %.2f, detours %d\n", seen.frames,
+                       dist_to_spot(), b.params.get<float>(0x28), b.params.get<float>(0x2c), b.controls->throttle_now(),
+                       fs ? fs->detour.walked : -1);
+        }
       }
     };
     CountingPump pump;
@@ -8880,11 +8886,14 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
     EXPECT(seen.marker != 0);
     EXPECT(seen.mode && seen.picked && seen.wired_pick && seen.placed);
     EXPECT(seen.ordered && (seen.marker_team & seen.dominic_enemies));
-    // He heads for it and stops at his reach of an enemy, as for any (exact:
-    // the run repeats with reset_process_state's fixed seed).
+    // He heads for it (exact: the run repeats with reset_process_state's
+    // fixed seed).
     EXPECT(seen.follows_marker == 902 && std::fabs(seen.d0 - 199.349f) < 1e-3f);
-    // 120.879 since the AI's wall reverse (0x004231c0, 2026-10-29): 120.729 before.
-    EXPECT(std::fabs(seen.closest - 120.879f) < 1e-3f);
+    // His range is 60..80 m, but at about 120 m he bounces off something and
+    // the exe leaves him there (120.879; 120.729 before the AI's wall reverse,
+    // 0x004231c0): playtest W17. With W17's detour (bugs) he works round it,
+    // 114.758 by the run's end.
+    EXPECT(std::fabs(seen.closest - 114.758f) < 1e-3f);
     EXPECT(seen.marker_cast == 1);
     mech3::missions().cleanup(false);
     app.stop_game();
