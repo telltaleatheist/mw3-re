@@ -454,7 +454,8 @@ if(SDL3_FOUND)
     target_include_directories(mw3sdl PRIVATE ${dxil_dir})
     target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_DXIL=1)
   endif()
-  # Music files other than .wav decode with SDL3_sound (brew install sdl3_sound).
+  # Music files other than .wav decode with SDL3_sound (brew install sdl3_sound;
+  # Windows: its -devel-VC.zip in deps\, found through SDL3_sound_ROOT).
   find_package(SDL3_sound CONFIG QUIET)
   if(SDL3_sound_FOUND)
     target_link_libraries(mw3sdl PUBLIC SDL3_sound::SDL3_sound)
@@ -475,6 +476,12 @@ if(SDL3_FOUND)
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    # Windows: the DLLs mw3.exe links (SDL3, SDL3_ttf, SDL3_sound) copied beside it.
+    if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
+      add_custom_command(TARGET mw3 POST_BUILD
+                         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:mw3> $<TARGET_FILE_DIR:mw3>
+                         COMMAND_EXPAND_LISTS)
+    endif()
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp

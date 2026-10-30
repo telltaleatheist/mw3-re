@@ -11,6 +11,9 @@ if not defined VS (echo No Visual Studio with the C++ tools found. & exit /b 1)
 call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul || exit /b 1
 for /d %%d in (deps\SDL3-3*) do set SDL3_DIR=%CD%\%%d\cmake
 for /d %%d in (deps\SDL3_ttf-*) do set SDL3_ttf_DIR=%CD%\%%d\cmake
+rem SDL3_sound (optional: .ogg/.flac/.mp3 music; without it .wav only). A
+rem _ROOT is read on every configure, so an existing build-win finds it too.
+for /d %%d in (deps\SDL3_sound-*) do set SDL3_sound_ROOT=%CD%\%%d
 if not exist build-win\build.ninja (
   cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl ^
     -DCMAKE_C_FLAGS=/Z7 -DCMAKE_CXX_FLAGS=/Z7 "-DCMAKE_EXE_LINKER_FLAGS=/DEBUG /OPT:REF /OPT:ICF" ^

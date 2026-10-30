@@ -12,6 +12,12 @@ Visual Studio's headers and libraries.
   "C++ Clang tools" component).
 - SDL3 and SDL3_ttf: their `-VC.zip` development releases unpacked into
   `deps\` (git-ignored), e.g. `deps\SDL3-3.4.12`, `deps\SDL3_ttf-3.2.2`.
+- Optional, for .ogg, .flac and .mp3 music (without it the music plays
+  `.wav` tracks only): SDL3_sound's `SDL3_sound-devel-3.2.0-VC.zip`
+  (github.com/icculus/SDL_sound, releases) unpacked into `deps\` as
+  `deps\SDL3_sound-3.2.0`; build.cmd hands it to CMake as
+  `SDL3_sound_ROOT`, which an existing `build-win\` also picks up on its
+  next configure. Its decoders are built in (stb_vorbis, dr_flac, dr_mp3).
 - For the movies' importer only: FFmpeg's shared libraries, BtbN's LGPL
   build `ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip` (github.com/BtbN/
   FFmpeg-Builds, releases, "latest") unpacked into `deps\` as
@@ -24,8 +30,10 @@ Visual Studio's headers and libraries.
 ## Building
 
 `tools\windows\build.cmd` finds Visual Studio (vswhere), configures
-`build-win\` once and builds `mw3` (or the targets given). Copy `SDL3.dll`
-and `SDL3_ttf.dll` from the zips' `lib\x64` next to `mw3.exe`.
+`build-win\` once and builds `mw3` (or the targets given). The build copies
+the DLLs mw3.exe links (`SDL3.dll`, `SDL3_ttf.dll`, `SDL3_sound.dll`) next
+to it. `mw3soundcheck --music FILE` plays a music file through the game's
+music player for 3 s and says whether this build decodes it.
 `tools\windows\build.cmd mw3 mw3import` also builds the importer, and its
 build copies FFmpeg's DLLs next to `mw3import.exe`; give a player the two
 exes and all the DLLs in one folder (FFmpeg 8.1's are nine). On Owen's PC
