@@ -354,6 +354,13 @@ apart. Everything else is a real gap and stays listed.
   reach_area's nav point or to a valve's region, and gives the MFB
   command from the net link that sets the valve (c3m1, c3m3). It logs
   each objective's completion frame.
+- **`sdl_program_campaign_by_objectives`** (mw3sdltests,
+  MW3_CAMPAIGN_ALL=1, about 5 minutes). The kills chain runs a new pilot
+  through all 20 missions, seeded on the 33 ms clock. Each mission must
+  be won by its own objectives (no --win fallback), the census must be 0,
+  and the run must end at the credits. Each mission's win frame is
+  printed, not pinned. **Run it after any change to the AI, the
+  objectives, the mission scripts, the valves or the nets.**
 - `--frame-ms N` (ours): each pass of the app's loop that runs the game is
   N ms on the game's clock (`SdlClock`, stepped by the pump when it finds
   no message waiting), a sleep only adding its time. Scripted runs keep the

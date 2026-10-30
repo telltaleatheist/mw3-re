@@ -1075,6 +1075,7 @@ struct WiredValveHooks : ai::ValveHooks {
   }
   void vehicle_place(Handle v, const float pos[3], float yaw) override {
     if (veh(v)) return program_vehicle_place(e->object_of(v), pos, yaw);
+    if (mech(v)) return move_mech(e->object_of(v), pos, yaw);  // Mech vt+0xdc, 0x00418f30 (c2m1's teleport_thor)
     ValveHooks::vehicle_place(v, pos, yaw);
   }
   ai::Brain* brain(Handle c) const {
