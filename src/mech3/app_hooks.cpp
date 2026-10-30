@@ -254,6 +254,9 @@ int32_t Engine::set_screen_mode(int32_t mode) {
   video_unlock();
   if (video_set_mode(mode) != 0) return old;
   set_vmode(mode);
+  // FIX (B), playtest W13: the camera's angle across for the new shape. The
+  // exe sets it only at the mission's load (0x0040d590), its modes all 4:3.
+  if (zfix::options().any_resolution && mech3::camera()) mech3::set_camera(mech3::camera());
   {
     const Handle back = video_back_buffer();
     const Handle depth = display_depth();

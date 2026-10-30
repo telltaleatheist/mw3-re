@@ -290,3 +290,16 @@ works alongside it; stay out of its files.
   Fixed too: F6 / F7 on a non-mech vehicle (0x4e6fe0). MFB second M: the
   dock's 5 s quiet time and the line's MINDELAY, as the exe.
 - Branch `mac5/lance-orders` off main 96a5108.
+## 16. W13: a mode changed mid-mission (2026-10-30)
+
+- Owen's shots (from d02a386): RESOLUTION set to 1920x1080 in a mission
+  begun at 640x480. Two bugs (resolution.md section 11):
+  - The camera kept 80 degrees across. The mode switch now sets the angle
+    again.
+  - The menu screens Core made on the 853x480 canvas kept the 106 origin.
+    They are now made at 0, all but the pause screen.
+- Tests: `mission_c1m1_mode_change_keeps_the_camera_shape_headless` and
+  `mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`. Each
+  fails without its fix (1 and 4 checks).
+- Branch `mac5/w13-wide` off main d02a386.
+
