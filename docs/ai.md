@@ -1068,7 +1068,11 @@ update, the attack strategy one word off, canleave without +0xdc.
 `valves_load`; the actions find the AI mechs by their records' names (the
 other vehicles are not ported, so their lookups give none), power them
 through `Mech::power`, write their brains' settings, re-plan a teleported
-pilot (its placement is logged: not ported), play sounds through zSound;
+pilot, play sounds through zSound. A teleport places a basic vehicle
+through its place and a mech through Mech::set_place (0x00418f30, its
+vt+0xdc). Until 2026-10-30 a mech's placement went to the census, and
+c2m1's thor_01 stayed where it was
+(`mission_c2m1_teleport_valve_places_the_mech_headless`);
 animations and destroys are logged; the mission's abort is the port's loss
 (0x48f9e0). The missions' frame 0x48f470 ticks the timers each Core frame
 and the cleanup 0x491780 ends them (`valves_end`), mission-frame.md.

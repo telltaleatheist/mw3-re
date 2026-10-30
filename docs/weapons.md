@@ -899,10 +899,10 @@ craters.
 - Ported 2026-10-22: the AI's volley pick 0x4b1860 with 0x4b1370..0x4b17d0
   (`mech3/weapon_planner`, ai.md 17.7; with the HUD's three); 0x4b1170
   builds a static nothing reads.
-- The glow objects 0x5869d0 / 0x586a30 / 0x586af0 (the game's freeze and heat
-  effects, called from 0x4accb7..0x4ad4b5: the vehicles', vehicles.md), and the
-  startup 0x583750's network registration (0x5a8a20 with 0x583850, only in
-  the network mode 0x583740).
+- The startup 0x583750's network registration (0x5a8a20 with 0x583850,
+  only in the network mode 0x583740). The glow objects 0x5869d0 / 0x586a30
+  / 0x586af0 (the vehicles' freeze and heat effects) are ported in
+  gamez/zweapon and wired in app_vehicle.cpp (vehicles.md, The glow).
 - Ported 2026-10-21: the startup 0x583750 (`zwep::startup`: the globals
   back to their first values, the definitions and pool emptied; it returns
   0, the start's "zWepInit: PASSED"), the network mode 0x583740, and the
