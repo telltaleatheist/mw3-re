@@ -155,6 +155,8 @@ class OptionsHooks : public zgame::Unported {
     unported("0x004fa600", {d, x, y});
   }
   virtual void input_set_screen(int32_t w, int32_t h) { unported("0x0051b590", {w, h}); }
+  // Ours, FIX (B): the screen a first start plays at (the desktop's), or false.
+  virtual bool first_start_screen(int32_t* w, int32_t* h) { (void)w, (void)h; return false; }
   virtual zrdr::Node* reader_load(const char* name);               // 0x00556740, ported: zrdr::load
   virtual void reader_free(zrdr::Node* n);                         // 0x00556820, ported: zrdr::free_node
   virtual const char* message(int32_t id) {                        // 0x00576040, Mech3Msg.dll
@@ -243,9 +245,9 @@ void set_vmode(int32_t mode);               // 0x0040d810
 constexpr int32_t kLastVMode = 16, kCustomVMode = 16;
 constexpr int32_t kMaxScreen[2] = {3840, 2160};  // lower to 1920x1080 if larger sizes are trouble
 bool vmode_size(int32_t mode, int32_t* w, int32_t* h);
-// FIX (B), any_resolution: the 2D canvas past mode 10 (the frame over
-// art_scale), and its rects onto the frame (resolution.md step 4).
-int32_t art_scale(int32_t frame_h);
+// FIX (B), any_resolution: the 2D canvas past mode 10 (480 high, the frame
+// over art_scale), and its rects onto the frame (resolution.md step 4).
+float art_scale(int32_t frame_h);
 bool vmode_canvas(int32_t mode, int32_t* w, int32_t* h);
 bool canvas_scaled();  // the display (2D) smaller than the render (3D) rect, the fix on
 void canvas_to_render(int32_t* x, int32_t* y, int32_t* w, int32_t* h);

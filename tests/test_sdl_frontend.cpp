@@ -515,6 +515,42 @@ TEST(sdl_layer_empty_sees_any_drawn_pixel) {
 
 // The layer's 16-bit to RGBA8 table (performance.md): every value of both
 // formats, each channel widened by repeating its top bits, alpha opaque.
+// The 2D layer onto a larger frame (resolution.md step 4, the art's scale):
+// sharp bilinear, so at a whole scale every frame pixel is one texel's own
+// colour (nearest), a lone texel beside the key keeps its colour (the layer
+// is premultiplied), and at 1.5 a texel's first pixel is still its own.
+TEST(sdl_layer_scales_sharp) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  std::vector<uint16_t> px(640 * 480, 0xf81f);
+  for (int y = 100; y < 104; ++y)
+    for (int x = 100; x < 104; ++x) px[y * 640 + x] = (x & 1) ? 0xf800 : 0xffff;  // red and white columns
+  px[300 * 640 + 300] = 0xffff;                                                 // alone in the key
+  auto shot = [&](int fw, int fh, std::vector<uint32_t>* argb) {
+    w.create("mw3 layer test", fw, fh);
+    w.frame_size(fw, fh, 640, 480);
+    sdlfe::SdlScreen2D screen(w.render());
+    w.render()->set_viewport(0, 0, fw, fh);
+    w.render()->clear(true, 0, 0, 0);
+    screen.overlay_16(px.data(), 640, 480, 640 * 2, true, 0xf81f, nullptr, nullptr);
+    int rw = 0, rh = 0;
+    return w.render()->read_back(argb, &rw, &rh) && rw == fw && rh == fh;
+  };
+  std::vector<uint32_t> f;
+  if (!shot(1280, 960, &f)) return;  // a hidden window of that size (none on a headless runner)
+  int mixed = 0;
+  for (int y = 200; y < 208; ++y)
+    for (int x = 200; x < 208; ++x) mixed += f[y * 1280 + x] != ((x / 2) & 1 ? 0xffff0000u : 0xffffffffu);
+  std::printf("layer at 2x: %d of 64 pixels not their texel's; the lone texel %08x\n", mixed, f[600 * 1280 + 600]);
+  EXPECT(mixed == 0);
+  EXPECT(f[600 * 1280 + 600] == 0xffffffffu && f[601 * 1280 + 601] == 0xffffffffu && f[602 * 1280 + 602] == 0xff000000u);
+  EXPECT(shot(960, 720, &f));
+  const uint32_t first = f[450 * 960 + 450];
+  std::printf("layer at 1.5x: the lone texel's first pixel %08x\n", first);
+  EXPECT((first & 0xff) >= 0xf8 && (first >> 8 & 0xff) >= 0xf8 && (first >> 16 & 0xff) >= 0xf8);
+}
+
 TEST(sdl_layer_rgba_table_matches_the_bits) {
   int bad = 0;
   for (int f = 0; f < 2; ++f)
@@ -1452,6 +1488,16 @@ TEST(sdl_window_shape_maps_the_mouse_through_the_frame) {
     EXPECT(ms.x == 64 && ms.y == 32);  // 640 / 960 of the motion
     input.unacquire(platform::Input::kMouse);
     input.close(platform::Input::kMouse);
+    shape = sdlfe::FrameShape{1280, 720, true, 853, 480};  // a mission past mode 10: the 853x480 canvas
+    cx = 1280, cy = 720;
+    host.screen_to_client(&cx, &cy);
+    EXPECT(cx == 853 && cy == 480);
+    cx = 640, cy = 360;
+    host.screen_to_client(&cx, &cy);
+    EXPECT(std::abs(cx - 426) <= 1 && cy == 240);
+    host.client_size(&fw, &fh);
+    EXPECT(fw == 853 && fh == 480);
+    shape = sdlfe::FrameShape{640, 480, true};
     shape.fit = false;  // the fix off: 640 stretched over the window, the old mapping
     cx = 1280, cy = 720;
     host.screen_to_client(&cx, &cy);

@@ -84,6 +84,13 @@ struct WiredOptionsHooks : OptionsHooks {
   void mechs_set_lod_scale(float s) override { mech3::set_lod_scale(s); }          // 0x00430440
   void shadows_set(uint8_t on) override { shade_set_option(on); }                  // 0x004e6920
   void input_set_screen(int32_t w, int32_t h) override { zin::mouse_set_screen(w, h); }  // 0x0051b590
+  bool first_start_screen(int32_t* w, int32_t* h) override {
+    platform::Window* win = g_engine ? g_engine->platform_parts().window : nullptr;
+    int fw = 0, fh = 0;
+    if (!win || !win->first_start_size(&fw, &fh)) return false;
+    *w = fw, *h = fh;
+    return true;
+  }
   void camera_get_fov(Handle cam, float* x, float* y) override {  // 0x004f3ee0
     *x = *y = 1.0f;
     if (g_engine) zcls::camera_get_fov_angles(static_cast<zcls::Node*>(g_engine->object_of(cam)), x, y);

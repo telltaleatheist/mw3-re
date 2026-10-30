@@ -480,17 +480,17 @@ bool vmode_size(int32_t mode, int32_t* w, int32_t* h) {
   return true;
 }
 // FIX (B), any_resolution (resolution.md step 4): the modes past 10 draw the
-// 2D on a canvas of the frame over a whole art scale, the frame's height over
-// 480 (at least 1): 960x540 at 1920x1080 and at 3840x2160, so the 640x480
-// art and text stay readable, and the HUD is laid out on it by anchors.
-int32_t art_scale(int32_t frame_h) { return std::max(1, frame_h / 480); }
+// 2D on a canvas 480 high and as wide as the frame's shape, scaled onto the
+// frame by its height over 480 (1.5 at 720p, 2.25 at 1080p, 4.5 at 4K), so
+// the 640x480 art covers the screen as it did at 640x480; the HUD is laid
+// out on it by anchors.
+float art_scale(int32_t frame_h) { return std::max(1.0f, static_cast<float>(frame_h) / 480.0f); }
 bool vmode_canvas(int32_t mode, int32_t* w, int32_t* h) {
   int32_t fw = 0, fh = 0;
   if (!vmode_size(mode, &fw, &fh)) return false;
   *w = fw, *h = fh;
-  if (!zfix::options().any_resolution || mode <= 10) return true;
-  const int32_t s = art_scale(fh);
-  *w = (fw + s / 2) / s, *h = fh / s;
+  if (!zfix::options().any_resolution || mode <= 10 || fh <= 480) return true;
+  *w = (fw * 480 + fh / 2) / fh, *h = 480;
   return true;
 }
 bool canvas_scaled() {
@@ -730,7 +730,14 @@ int32_t load_options(const char* path) {
   if (make("VMode", kDword, &o.vmode, 0, zreg::kNotSaved)) set_vmode(d("VMode", 5));
   // The mode a mission starts in: saved, and read as any number, so 8..10
   // (1152x864, 1280x1024, 1600x1200, which the menu does not offer) work.
-  if (make("InGameVMode", kDword, &o.in_game_vmode)) o.in_game_vmode = d("InGameVMode", 5);
+  if (make("InGameVMode", kDword, &o.in_game_vmode)) {
+    o.in_game_vmode = d("InGameVMode", 5);
+    // FIX (B): a first start plays 16:9 (or the screen's shape) at the
+    // desktop's size, mode 16; a saved mode or size wins (resolution.md).
+    int32_t w = 0, h = 0;
+    if (zfix::options().any_resolution && g_hooks->first_start_screen(&w, &h))
+      o.in_game_vmode = kCustomVMode, o.screen_w = w, o.screen_h = h;
+  }
   if (make("ActiveCtlCfg", 3, o.active_ctl_cfg, sizeof o.active_ctl_cfg))
     std::strncpy(o.active_ctl_cfg, g_hooks->message(0xfc0), sizeof o.active_ctl_cfg);  // "DefaultCtlConfig"
   g_hooks->controls_set_defaults();

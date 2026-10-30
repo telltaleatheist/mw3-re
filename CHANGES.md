@@ -389,8 +389,12 @@ These change how the game talks to the computer, not how it plays.
   go back to 640x480. Shift+V steps through every size the screen offers.
 - At the new sizes the HUD is laid out for the screen: the MFD, the weapons
   list, the timer and the gauges keep to the right and bottom edges, as the
-  original's larger layouts put them. It is drawn two or four times larger
-  at 1080p and 4K, so its text stays readable.
+  original's larger layouts put them. It grows with the screen's height,
+  covering the same share of the screen as at 640x480 (1.5 times at 720p,
+  2.25 at 1080p, 4.5 at 4K), and stays sharp.
+- The first time the game starts, missions play at the desktop's own size
+  (16:9 on most screens) instead of 640x480; a size chosen in the graphics
+  options is kept from then on. The menus stay 640x480.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
 
