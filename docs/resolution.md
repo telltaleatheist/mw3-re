@@ -453,3 +453,39 @@ Narrower than 4:3 (5:4, 1280x1024) is unchanged. The fixed modes 11..15 are
 21:9, 32:9, 5:4 and 16:9, and the canvas), the first-start test (a 3440x1440
 desktop), `sdl_window_shape_maps_the_mouse_through_the_frame` (the fit at
 21:9 and 32:9). Break: without the clamp, 6 checks fail.
+
+## 11. Playtest W13: a mode changed mid-mission (2026-10-30)
+
+Owen's shots from his PC (d02a386, D3D12): after choosing RESOLUTION
+1920x1080 from a mission played at 640x480, two things were wrong.
+
+**The 3D picture stretched.** The exe sets the camera's angle across only
+at the mission's load (0x0040d590, called from 0x0048ffc6 and 0x00490503).
+Its modes were all 4:3, so a mode change never needed it. Ours are not:
+the mission kept 640x480's 80 degrees across, now drawn over a 16:9 frame,
+which is the 4:3 picture stretched 1.33 wide (Owen measured about 1.4 on
+his own mech). The mode switch 0x004ab6b0 (`Engine::set_screen_mode`) now
+sets the angle again for the new shape, with any_resolution: 96.4 degrees at
+16:9, 80 back at 640x480, the vertical 60 kept. My earlier checks all
+started the mission at its mode, so they never saw this.
+
+**The menus' widgets 106 pixels right of their art.** Core's start makes
+the menu screens the mission can reach (the options, the controls, the
+debriefing and others) while the screen is in the mission's mode. A
+dialog takes its frame's origin when it is made (section 9). On the 853x480
+canvas that origin is 106, but the options show at mode 5 (0x00438c90 sets
+it), on the 640x480 canvas. The art (a grab) was in place, while every label,
+value, slider and button, and their hit rects, sat 106 to the right. Now
+`GameEngine::construct` makes every menu screen with the origin at 0, except
+the pause screen, which shows over the mission on its canvas.
+
+Tests:
+- `mission_c1m1_mode_change_keeps_the_camera_shape_headless`: c1m1 at mode
+  5, then 13, then 5. The camera reads 80 by 60, then 96.42 by 60, then 80
+  by 60. Without the fix it stays at 80 at 1920x1080 (1 check fails).
+- `mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`: c1m1
+  at modes 5, 13 and 15. Escape, the pause screen's OPTIONS, then GRAPHICS &
+  AUDIO. Both screens have origin 0, and ACCEPT's and RESOLUTION's rects are
+  mode 5's. Without the fix, at 13 and 15 the origins are 106 and the rects
+  106 to the right (4 checks fail).
+

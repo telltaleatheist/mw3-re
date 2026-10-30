@@ -271,3 +271,17 @@ works alongside it; stay out of its files.
 - Test `sdl_window_lets_the_mouse_go` (headless, every path). Not tried in
   a shown window here (it would take the Mac's mouse); for Owen.
 - Branch `mac5/mouse-release` off main 9f68bfd.
+
+## 16. W13: a mode changed mid-mission (2026-10-30)
+
+- Owen's shots (from d02a386): RESOLUTION set to 1920x1080 in a mission
+  begun at 640x480. Two bugs (resolution.md section 11):
+  - The camera kept 80 degrees across. The mode switch now sets the angle
+    again.
+  - The menu screens Core made on the 853x480 canvas kept the 106 origin.
+    They are now made at 0, all but the pause screen.
+- Tests: `mission_c1m1_mode_change_keeps_the_camera_shape_headless` and
+  `mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`. Each
+  fails without its fix (1 and 4 checks).
+- Branch `mac5/w13-wide` off main d02a386.
+
