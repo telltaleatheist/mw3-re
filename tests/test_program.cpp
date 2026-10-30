@@ -10984,7 +10984,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
                         "0x00495f90", "0x0049bd80", "0x00414370", "0x0046ef70",
-                        "0x0046f160", "WeaponCalls.net_event", "0x00413af0"}) {
+                        "0x0046f160", "WeaponCalls.net_event"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
     if (!why) continue;
@@ -10993,7 +10993,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 54);
+  EXPECT(n == 53);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
@@ -12392,6 +12392,75 @@ TEST(mission_c1m1_power_down_turns_the_hud_off_and_back_headless) {
               "up again: on %d, reticle %d\n",
               on_before, reticle_before, down_at, off_when_down, reticle_hidden_down, on_after, reticle_after);
   EXPECT(on_before && down_at > 60 && off_when_down && reticle_hidden_down && up_at > 0 && on_after && reticle_after);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The fall camera (0x00413af0 / 0x00413b70): the player knocked down, the
+// cockpit camera stops turning with the mech (its +0x64, 0x00421d50) for the
+// fall, then turns with it again once it is up.
+TEST(mission_c1m1_a_fall_fixes_the_cockpit_camera_until_up_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_fall_camera"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int core = 0, mode_before = -2, fixed_at = -1, free_at = -1;
+  bool fixed_before = true;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      void* m = mech3::mech_mission_player();
+      bool fixed = false;
+      const int32_t mode = mech3::program_view_mode(&fixed);
+      if (core == 60) {
+        mode_before = mode, fixed_before = fixed;
+        mech3::mech_knock_down(m, 3);
+      } else if (core > 60 && fixed_at < 0 && fixed) {
+        fixed_at = core;
+      } else if (fixed_at > 0 && free_at < 0) {
+        mech3::mech_get_up(m);
+        if (!fixed) free_at = core;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 4000;
+    pump.stop = [&] { return core >= 900 || free_at > 0; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  the view's mode %d, fixed %d before; knocked down at 60: fixed at core frame %d, turning again at %d\n",
+              mode_before, fixed_before, fixed_at, free_at);
+  EXPECT(mode_before == 1 && !fixed_before && fixed_at > 60 && free_at > fixed_at);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

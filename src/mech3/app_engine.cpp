@@ -248,7 +248,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x0046ef70", "no effect: a mech's network update (vt+0x158) tests the network game (0x00479480) first; a census stand-in"},
       {"0x0046f160", "no effect: a mech's network message (vt+0x168) returns at once without [0x00605fb4] (network game running); a census stand-in"},
       {"WeaponCalls.net_event", "no effect: a weapon's network message (vt+0x168, 0x0046f160) returns at once without [0x00605fb4]; a census stand-in"},
-      {"0x00413af0", "deferred: the fall camera (0x00413af0, its restore 0x00413b70) when the viewed mech falls, not ported; a census stand-in"},
       {"0x00519e50", "no effect: zFont's bitmap fonts, loaded but never drawn in 1.2 (only TextBase's own vtable reaches its draw, and no object keeps it; twod.md section 4)"},
       {"0x00526510", "own: zModel's start, the port's struct initialisers; what differs is unread or set first (module-starts.md)"},
       {"0x005578f0", "own: zRender's start, the same (module-starts.md)"},

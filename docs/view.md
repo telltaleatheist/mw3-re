@@ -248,3 +248,25 @@ count of 0 setting, the ids read only to three, +0x1e0 not set, the
 target's zones or the animations' left, the probe's second word; the
 render's list left is not caught (the frame copies it anyway, above); and
 the NaN walk's stop (the test hangs without it).
+
+## 8. The fall camera (0x413af0 / 0x413b70; ported 2026-10-29)
+
+The mech's fall actions (1, 2, 7, 8, mech_move) call 0x413af0, and getting
+up (5, 6) calls 0x413b70, both with ECX the mech. Only the view's target
+([0x5f4c8c] +0x64) counts.
+- The fall: the torso centred (0x465a00(1) on +0x39c), then the current
+  mode's vt+0x20(view, 1). The cockpit camera's (0x421d50) detaches from the
+  mech's rotation (+0x64 set), so the view stays put while the mech goes
+  over. The other modes' slot is the base's no-op (0x40baf0).
+- Getting up: the mode's vt+0x20(view, 0), back with the mech.
+- A branch on the byte [0x605624] would instead switch the view's mode: to
+  2 (zippercam) from the cockpit, back to the saved mode (+0x5c) on getting
+  up. Nothing writes that byte (a zeroed .bss byte, read only here), so the
+  branch is dead in 1.2. Ported as a false constant.
+- Port: `PlayerView::mech_falls` / `mech_stands` through
+  `MoveCalls::fall_camera` / `restore_camera`. Until now a census stand-in,
+  so the cockpit camera turned with the falling mech.
+- `mission_c1m1_a_fall_fixes_the_cockpit_camera_until_up_headless`: the
+  player knocked down at core frame 60, the cockpit camera fixed at 61,
+  turning with the mech again at 441 when it is up.
+

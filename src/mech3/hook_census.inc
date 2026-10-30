@@ -21,9 +21,7 @@ SKIP(mech3::heat_calls, hud_message, "0x0040fe70")  // HeatCalls.hud_message
 SKIP(zdec::hooks, register_restore, "Hooks.register_restore")  // Hooks.register_restore
 SKIP(mech3::mech_hud_calls, zoom_camera, "MechHudCalls.zoom_camera")  // MechHudCalls.zoom_camera
 SKIP(mech3::move_calls, controls_landed, "0x005ac5c0")  // MoveCalls.controls_landed
-SKIP(mech3::move_calls, fall_camera, "0x00413af0")  // MoveCalls.fall_camera
 SKIP(mech3::move_calls, ff_landing, "0x00433800")  // MoveCalls.ff_landing
-SKIP(mech3::move_calls, restore_camera, "0x00413b70")  // MoveCalls.restore_camera
 SKIP(mech3::part_calls, footstep_ff, "0x004337c0")  // PartCalls.footstep_ff
 SKIP(mech3::pocket_calls, net_element, "0x00609980")  // PocketCalls.net_element
 SKIP(zwep::run_hooks, net_detonated, "0x0072fcb4")  // RunHooks.net_detonated

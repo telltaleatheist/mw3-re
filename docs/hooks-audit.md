@@ -134,7 +134,7 @@ the table, and the program's chain runs one more (the fall camera). Each is now 
     gone.
   - the fall camera when the viewed mech falls (0x00413af0, its restore
     0x00413b70). The census reaches it once the chain's kills make mechs
-    fall.
+    fall. Ported 2026-10-29 (view.md section 8).
 - **No effect in single player:** the mech's and weapons' network update
   and messages (0x0046ef70, 0x0046f160).
 

@@ -1204,6 +1204,12 @@ void mech_set_hud_fall(void* mech, int32_t v) {
 void move_mech(void* mech, const float pos[3], float yaw) {
   if (mech) static_cast<Mech*>(mech)->set_place(pos, yaw);
 }
+void mech_knock_down(void* mech, int32_t kind) {
+  if (mech) static_cast<Mech*>(mech)->knocked_down(kind);
+}
+void mech_get_up(void* mech) {
+  if (mech) static_cast<Mech*>(mech)->get_up();
+}
 void mech_power(void* mech, int32_t down) {
   if (mech) static_cast<Mech*>(mech)->power(down);
 }

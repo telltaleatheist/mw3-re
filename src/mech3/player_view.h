@@ -233,6 +233,11 @@ class PlayerView {
   void update(float dt);                                // +0x08 0x0040ada0
   bool attach(Mech* target, CameraMode* mode);          // 0x0040adf0
   void set_camera_mode(int32_t id);                     // 0x0040ae70
+  // The viewed mech falling (Mech's fall actions, mech_move) and standing
+  // again: its torso centred, the mode told (the cockpit camera stops
+  // turning with the mech, 0x00421d50). view.md, The fall camera.
+  void mech_falls(Mech& m);                             // 0x00413af0 (ECX the mech)
+  void mech_stands(Mech& m);                            // 0x00413b70
   void reset();                                         // 0x0040ad90
   void cycle_camera();                                  // 0x0040aed0
   bool follow_ground();                                 // 0x0040af30

@@ -941,6 +941,12 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
 
 ## Playing a mission
 
+- **A hidden fall camera.** When your mech is knocked over, the game can
+  switch the view to an outside camera for the fall and back when you're up.
+  Nothing in 1.2 turns that on. What happens instead: the cockpit view
+  stops turning with the mech while it falls, and the torso swings back to
+  centre.
+
 From mission.cpp's frame 0x48f470 and its neighbours (details:
 `mission-frame.md`).
 
