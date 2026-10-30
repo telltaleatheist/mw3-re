@@ -23,6 +23,7 @@ void program_hud_objectives_fill(void* hud);      // 0x00446ad0 on its +0x17964
 void program_hud_static(void* hud, float dt);    // 0x0043cd20 on a HUD
 void program_hud_zoom_pass(void* hud, float dt); // +0x144c vt+0x28 (0x00444230) on a HUD
 bool program_intensity_flag();                   // GameIntensity's flag [0x00608e4c] (options)  // 0x0040fac0's first call: the view target's 0x0041cd40
+bool program_cheated();                          // [0x00609994]: a cheat used this mission (options().cheated)
 // For the tests: the view target's reticle (x, y), its world point and
 // whether the ray hit something; false without a HUD.
 // Tests only: the player's HUD as it stands (hud.md sections 12, 13): the

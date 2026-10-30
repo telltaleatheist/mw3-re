@@ -1911,3 +1911,21 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   zeff::anim_reset_all; differential test_anim_reset.py. Op 1's four
   retries are won (c1m3 at 6490); a few effect nodes still differ, as
   the exe's reset leaves them.
+
+## The peek sweep (2026-10-30)
+
+- Branch mac4/peek-sweep (off mac4/restart-state d9f5bac).
+- tools/analysis/peeks.py: every read of an exe global (peek*, field* on a
+  constant, the hooks' peek and [0x...] stand-ins) with its writers, the
+  address's other mentions and whether a stand-in is overridden.
+- ProgramHudHooks' unported was the base's silent one: the census never
+  saw a HUD stand-in. Now it reports; Op 1 reached 7 keys, all answered.
+- Wired: the compass and radar flip on a scaled map, the MFD and TARGET
+  modes, the DISHONORABLE title, the one cheat byte [0x00609994], the
+  zoom's round for Clan mechs, the powered-down HUD, the radar amber.
+  Left with reasons: multiplayer's game (0), the HUD debug numbers.
+- False positives the script cannot fold: 0x00609858 (written through
+  the main menu's table); overridden in the program: 0x006098d4 and
+  0x0073655c (update_shadows), the screen-mode cockpits, frame_dt.
+- Test mission_c1m1_hud_reads_the_ported_globals_headless (break: all 6
+  checks fail). The campaign: 20 of 20 by objectives, the census 0.

@@ -228,6 +228,7 @@ const std::map<std::string, const char*>& known_keys() {
       {"vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
       {"hudline.vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
       {"0x0040f7f0", "deferred: developer only (the 25 lines' Arial font)"},
+      {"0x0043c820.debug", "deferred: developer only (the HUD frame's debug numbers into the five debug texts, hud.md)"},
       {"0x0040f890", "deferred: developer only (the lines' and debug text's layers on)"},
       {"0x0040fef0", "no effect: the timing marks act only with [0x005e14f0], 0 in the data"},
       {"0x004b52e0", "no effect: the view's window object, its two rects the same (scale 1; item 6)"},
@@ -799,6 +800,7 @@ void GameEngine::hud_update() {
 Handle GameEngine::pilot_hud(Handle data) { return handle_of(program_pilot_hud(object_of(data))); }
 void GameEngine::hud_static(Handle hud, float dt) { program_hud_static(object_of(hud), dt); }
 bool program_intensity_flag() { return options().intensity_flag[0] != 0; }
+bool program_cheated() { return options().cheated != 0; }
 void GameEngine::hud_zoom_pass(Handle hud, float dt) { program_hud_zoom_pass(object_of(hud), dt); }
 void GameEngine::render_reset() {
   zrndr::finish_init();

@@ -69,6 +69,7 @@
 #include "mech3/app_hud.h"
 #include "mech3/mission_map.h"
 #include "mech3/hud.h"
+#include "crt/msvc_math.h"
 #include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
 #include "mech3/controls_cfg.h"
@@ -802,7 +803,8 @@ TEST(campaign_lost_or_cheated_mission_is_briefed_again_headless) {
         } else if (stage == 3 && now == &mech3::states().core) {
           if (++core == 30) {
             if (cheat) {
-              mech3::missions().cheats = 1;  // as 0x00491d20 finds a cheat on
+              mech3::set_invincible(1);      // a cheat turned on mid-mission ([0x00609994])
+              mech3::set_invincible(0);
               mech3::missions().ended = 1;   // won
             } else {
               mech3::missions().abort_now();  // the pause's REPLAY: lost (0x0048fa80)
@@ -13782,6 +13784,125 @@ HudPlaces c1m1_hud_places(int32_t mode, bool fix) {
 }
 bool at(const int32_t* p, int32_t x, int32_t y) { return p[0] == x && p[1] == y; }
 }  // namespace
+
+// The HUD's reads of exe globals the port keeps in its own structs
+// (tools/analysis/peeks.py; until 2026-10-30 each read 0): with a scaled map
+// up (the briefing's MAP, the missions' +0xbc, mpp +0xd0 above 0) the
+// compass turns half round and the radar's cone points back (0x0043f590,
+// 0x0043f130); the MFD's and TARGET's last modes are kept ([0x00605988],
+// [0x0060598c]); the cheat flag [0x00609994] is one byte, set by a cheat
+// turned on mid-mission and read by the debriefing and the MFD's
+// DISHONORABLE title; a Clan mech's zoom window is round (0x0041df10); a
+// powered-down mech's HUD is off (vt+0xa0).
+TEST(mission_c1m1_hud_reads_the_ported_globals_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("hud_globals_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  bool seen = false, round = false, cheat_clear = false, cheat_on = false, title_on = false, title_off = false;
+  bool hud_off = false;
+  int32_t tape_plain = 0, tape_flipped = 0, want_flipped = 0, cone_plain = 0, cone_flipped = 0;
+  int32_t target_mode = 0, mfd_mode = 0, tech = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames != 5) return;
+      void* player = mech3::mech_mission_player();
+      auto* h = static_cast<mech3::Hud*>(mech3::program_mech_hud(player));
+      if (!h) return;
+      seen = true;
+      mech3::HudHooks& k = mech3::hud_hooks();
+      // The compass and the radar's cone, without a map's scale and with one.
+      mech3::MissionMap map(nullptr);
+      const mech3::Handle was = mech3::missions().xbc;
+      mech3::missions().xbc = engine.handle_of(&map);
+      const float heading = 0.3f;
+      const float dir[3] = {0.6f, 0.0f, 0.8f};
+      const uint8_t active = h->radar.active;
+      h->radar.active = 1;
+      map.mpp = 0.0f;
+      h->compass.set_heading(heading);
+      tape_plain = h->compass.src.left;
+      h->radar.set_dir(dir);
+      cone_plain = h->radar.lines[0].end_x - h->radar.get_x();
+      map.mpp = 4.0f;
+      h->compass.set_heading(heading);
+      tape_flipped = h->compass.src.left;
+      want_flipped = crt::msvc_ftol(h->compass.scale * (heading - 3.1415927f + 6.2831855f)) + h->compass.centre - h->compass.half;
+      h->radar.set_dir(dir);
+      cone_flipped = h->radar.lines[0].end_x - h->radar.get_x();
+      h->radar.active = active;
+      mech3::missions().xbc = was;
+      // The modes kept for the next MFD and TARGET.
+      h->target.set_mode(2);
+      target_mode = k.saved_target_mode();
+      h->mfd.set_mode(2);
+      mfd_mode = k.saved_mfd_mode();
+      // The cheat flag: cleared by the mission's check, set by a cheat on.
+      mech3::missions().check_cheats();
+      cheat_clear = !engine.mission_cheated();
+      title_off = !k.title_flag();
+      mech3::set_invincible(1);
+      cheat_on = engine.mission_cheated();
+      title_on = k.title_flag();
+      mech3::set_invincible(0);
+      // The zoom window's shape by the mech's tech; the HUD off powered down.
+      tech = k.mech_kind(static_cast<mech3::Mech*>(player));
+      round = h->reticle.zoom.round;
+      mech3::mech_power(player, 1);
+      hud_off = k.mech_dead(static_cast<mech3::Mech*>(player));
+      mech3::mech_power(player, 0);
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return frames >= 5; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c1m1 HUD: tape at %d, with a scaled map %d (want %d); cone x %d, flipped %d; modes kept MFD %d TARGET %d; "
+              "cheat clear %d, on %d (title off %d, on %d); tech %d, zoom round %d; powered down off %d\n",
+              tape_plain, tape_flipped, want_flipped, cone_plain, cone_flipped, mfd_mode, target_mode, cheat_clear,
+              cheat_on, title_off, title_on, tech, round, hud_off);
+  EXPECT(seen);
+  EXPECT(tape_flipped == want_flipped && tape_flipped != tape_plain);
+  EXPECT(cone_plain != 0 && cone_flipped == -cone_plain);
+  EXPECT(mfd_mode == 2 && target_mode == 2);
+  EXPECT(cheat_clear && cheat_on && title_off && title_on);
+  EXPECT(tech == 1 || tech == 2);  // Inner Sphere or Clan
+  EXPECT(round == (tech == 2));
+  EXPECT(hud_off);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
 
 TEST(mission_c1m1_hud_anchored_at_any_size_headless) {
   if (!have_game()) return;
