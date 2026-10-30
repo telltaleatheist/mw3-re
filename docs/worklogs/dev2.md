@@ -209,3 +209,16 @@ works alongside it; stay out of its files.
   frame pixels; `tint_quad_on_frame` maps it (FIX (B)). The end fade (the
   still) was right; menus are 640x480. Test `fix_tint_quad_covers_the_frame`
   (test_program.cpp; the mapping's removal caught).
+
+## 10. Sanitizer runs (2026-10-30)
+
+- build-asan (ASan + UBSan, recover). Runs, times and findings:
+  docs/sanitizers.md. Found: the waypoint arrow's freed image (FIX (bug),
+  the exe's read; a crash risk here), and uninitialised Mech fields in
+  tests' stack mechs (initialised in the struct).
+- New test `mission_c1m3_hud_views_follow_targets_as_they_die_headless`:
+  every kind of c1m3 hostile shot dead while TARGET shows it, the views
+  cycling; `chain_object` added for it.
+- No "action chain" exists; Instant Action ran as `--mission ia1w3` (the
+  perf branch's flag, cherry-picked here as its commit).
+- Branch `mac5/asan` off main 873bf47.

@@ -521,6 +521,8 @@ std::vector<ChainTarget> chain_hostiles() {
   return out;
 }
 
+void* chain_object(uint32_t h) { return object(h); }
+
 std::vector<int32_t> chain_weapon_types(uint32_t h) { return salvage_weapon_types(object(h)); }
 
 void* chain_weapon() {
