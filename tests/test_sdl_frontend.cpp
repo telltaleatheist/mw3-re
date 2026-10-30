@@ -22,6 +22,7 @@
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/sdl_input.h"
+#include "frontend/sdl/sdl_install.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zimage/zimg_library.h"
@@ -732,6 +733,51 @@ TEST(sdl_program_mouse_click_fires_the_laser) {
   EXPECT(o.max_stale > 0.3f);   // the original's: left behind
 }
 
+// Finding the install at start (ours, FIX (A); sdl_install.h): a folder with
+// zbd/reader.zbd; a picked Mech3.exe or reader.zbd stands for its install;
+// the installer's "Program" value is a folder or the exe's path; mw3.cfg's
+// install= replaced with the other lines kept; mw3.cfg's own first, then the
+// search, and nothing asked when asking is not allowed.
+TEST(sdl_install_is_found_and_saved) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR, tmp = std::string(MW3_TEST_TMP) + "/sdl_install";
+  fs::remove_all(tmp);
+  fs::create_directories(tmp + "/half/zbd");
+  std::string missing;
+  if (fs::exists(game + "/zbd/reader.zbd")) {
+    EXPECT(sdlfe::install_valid(game));
+    EXPECT(sdlfe::install_of_pick(game + "/Mech3.exe") == game);
+    EXPECT(sdlfe::install_of_pick(game + "/zbd/reader.zbd") == game);  // the zbd folder's file: the folder above
+    EXPECT(sdlfe::install_of_pick(game) == game);                        // a folder: itself
+    bool searched = true;
+    EXPECT(sdlfe::find_install(game, {}, false, &searched) == game && !searched);  // mw3.cfg's, still there
+    EXPECT(sdlfe::find_install(tmp + "/gone", {game}, false, &searched) == game && searched);
+  }
+  EXPECT(!sdlfe::install_valid(tmp, &missing) && missing == "zbd\\ and video\\");
+  EXPECT(!sdlfe::install_valid(tmp + "/half", &missing) && missing == "zbd\\reader.zbd and video\\");
+  EXPECT(sdlfe::find_install(tmp + "/gone", {tmp + "/half"}, false, nullptr).empty());  // none, and no dialog
+#if defined(_WIN32)
+  EXPECT(sdlfe::install_of_program_value("\"C:\\Games\\MW3\\MECH3.EXE\"") == "C:\\Games\\MW3");
+  EXPECT(sdlfe::install_of_program_value("C:\\Games\\MW3\\") == "C:\\Games\\MW3");
+#else
+  EXPECT(sdlfe::install_of_program_value("\"/g/MW3/MECH3.EXE\"") == "/g/MW3");
+  EXPECT(sdlfe::install_of_program_value("/g/MW3/") == "/g/MW3");
+#endif
+  if (std::FILE* f = std::fopen((tmp + "/mw3.cfg").c_str(), "w")) {
+    std::fputs("assets=/a\r\ninstall=/old\nwindowed=1\n", f);
+    std::fclose(f);
+  }
+  EXPECT(sdlfe::save_install(tmp, "/new"));
+  std::string cfg;
+  if (std::FILE* f = std::fopen((tmp + "/mw3.cfg").c_str(), "r")) {
+    char buf[256];
+    for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) cfg.append(buf, n);
+    std::fclose(f);
+  }
+  EXPECT(cfg == "install=/new\nassets=/a\nwindowed=1\n");
+  fs::remove_all(tmp);
+}
+
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 extern char** environ;
 
@@ -782,6 +828,68 @@ TEST(sdl_program_frames_end_a_paused_mission) {
               secs, quit && WIFEXITED(status) ? WEXITSTATUS(status) : -1);
   EXPECT(quit && WIFEXITED(status) && WEXITSTATUS(status) == 0);
   EXPECT(log.find("Pause State") != std::string::npos);  // Escape reached the pause
+}
+
+// A check run (--hidden --frames) with mw3.cfg's install gone and the search
+// finding none (MW3_FIND_INSTALL=1: not the development copy) quits with the
+// report, never a dialog; with the development copy it starts.
+TEST(sdl_program_check_runs_never_ask_for_the_install) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_find_install_write";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  if (std::FILE* f = std::fopen((dir + "/mw3.cfg").c_str(), "w")) {
+    std::fputs("install=/no/such/mw3\n", f);
+    std::fclose(f);
+  }
+  auto run = [&](bool search_only, std::string* log) {
+    const std::string out = dir + "/mw3.log";
+    std::vector<std::string> args = {MW3_BIN, "--frames", "5", "--nosound", "--hidden", "--write-dir", dir};
+    std::vector<char*> argv;
+    for (std::string& a : args) argv.push_back(a.data());
+    argv.push_back(nullptr);
+    std::vector<std::string> env_s;
+    for (char** e = environ; *e; ++e)
+      if (std::strncmp(*e, "MW3_FIND_INSTALL=", 17) != 0) env_s.push_back(*e);
+    if (search_only) env_s.push_back("MW3_FIND_INSTALL=1");
+    std::vector<char*> env;
+    for (std::string& e : env_s) env.push_back(e.data());
+    env.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    const int err = posix_spawn(&pid, MW3_BIN, &fa, nullptr, argv.data(), env.data());
+    posix_spawn_file_actions_destroy(&fa);
+    if (err) return -1;
+    int status = 0;
+    bool quit = false;
+    const auto start = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(60)) {
+      if (waitpid(pid, &status, WNOHANG) == pid) {
+        quit = true;
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (!quit) kill(pid, SIGKILL), waitpid(pid, &status, 0);
+    log->clear();
+    if (FILE* f = std::fopen(out.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) log->append(buf, n);
+      std::fclose(f);
+    }
+    return quit && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+  };
+  std::string log;
+  const int none = run(true, &log);
+  std::printf("  search only: exit %d\n", none);
+  EXPECT(none == 1 && log.find("No MechWarrior 3 1.2 install found") != std::string::npos);
+  if (!have_fonts()) return;
+  const int dev = run(false, &log);
+  std::printf("  with the development copy: exit %d\n", dev);
+  EXPECT(dev == 0 && log.find("mw3: install " MW3_GAME_DIR) != std::string::npos);
+  EXPECT(log.find("saved to mw3.cfg") == std::string::npos);  // the development copy is not saved
 }
 #endif
 

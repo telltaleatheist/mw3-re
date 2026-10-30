@@ -35,3 +35,26 @@ works alongside it; stay out of its files.
   so the overlay draws it as the translucent background. Green, yellow and
   red, and the right arm's 0x003f, differ from 0x001f. Fix: cover_opaque on
   every opaque write in blit16; extend `fix_layer_blend_keeps_its_alpha`.
+
+## Item 3: finding the install at start (2026-10-29)
+
+- Owen's request through the lead: mw3.cfg's install=, else the standard
+  places, else a message box and a file dialog; save to mw3.cfg; check runs
+  never ask. Ours, FIX (A).
+- The installer, read from the MW3 disc (Owen's backup ISO; SETUP.INS and
+  _USER1.CAB's value.shl): `SOFTWARE\MicroProse\MechWarrior 3\1.0` gets
+  "Program" and "Version" (PUBLISHER_NAME, PRODUCT_NAME, PRODUCT_VERSION),
+  InstallationInfo's App Paths for PRODUCT_KEY `mech3.exe`, and the default
+  folder PROGRAMFILES\MicroProse\MechWarrior 3. Whether "Program" is the
+  folder or the exe is not in the script, so both are taken.
+  Mech3Register.exe names nothing. Pirate's Moon's key is "MechWarrior 3 EP1".
+- `src/frontend/sdl/sdl_install.{h,cpp}` (in mw3sdl). In mw3_main.cpp only
+  `find_install(Args&)` and mw3.cfg's install= read into `cfg_install`, to
+  keep clear of mw3 dev's start-up item. `MW3_FIND_INSTALL=1` skips the
+  development copy (for checking the search and the dialog).
+- Tests: `sdl_install_is_found_and_saved` (4/4 breaks caught),
+  `sdl_program_check_runs_never_ask_for_the_install`. On the Mac the box
+  opened (a 260x352 window of mw3's, by CGWindowList; no accessibility or
+  screen-recording access to click or capture it). The dialog's pick flow
+  needs a person: the lead tests it on Owen's PC.
+- Branch `mac5/find-install` off main cd45f5f.

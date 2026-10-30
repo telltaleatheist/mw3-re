@@ -6,7 +6,7 @@
 //
 //   mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 //
-//   --install DIR        the MW3 1.2 folder (default: mw3.cfg's install=, else game/mw3-1.2)
+//   --install DIR        the MW3 1.2 folder (default: mw3.cfg's install=, else searched, else asked: sdl_install.h)
 //   --assets DIR         a folder of replacement files searched first (repeatable)
 //   --write-dir DIR      where saves and settings go (default: the user's app data)
 //   --mission NAME       debug start into a mission through the Load and Core
@@ -51,6 +51,7 @@
 
 #include "frontend/sdl/campaign_chain.h"
 #include "frontend/sdl/debug_states.h"
+#include "frontend/sdl/sdl_install.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
 #include "frontend/sdl/sdl_platform.h"
@@ -100,6 +101,7 @@ std::string campaign_summary() {
 
 struct Args {
   std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot, movie;
+  std::string cfg_install;  // mw3.cfg's install= (the command line's wins)
   std::vector<std::string> assets;
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   float pos[3] = {0, 60, 0};
@@ -218,7 +220,7 @@ void read_config(const std::string& dir, Args& a) {
   std::string line;
   while (std::getline(f, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (line.rfind("install=", 0) == 0 && a.install.empty()) a.install = line.substr(8);
+    if (line.rfind("install=", 0) == 0) a.cfg_install = line.substr(8);
     else if (line.rfind("assets=", 0) == 0) a.assets.push_back(line.substr(7));
     else if (line == "windowed=1") a.windowed = true;
   }
@@ -237,6 +239,29 @@ void split_mission(const std::string& name, std::string& dir, std::string& varia
 }
 
 int run(const Args& a);
+
+// No install named on the command line: mw3.cfg's, else the search and the
+// dialog (sdl_install.h; ours, FIX (A)); one found by search is saved to
+// mw3.cfg. Checks and shots never ask. False: quit (cancelled, or none found
+// with no dialog allowed, reported).
+bool find_install(Args& a) {
+  const bool may_ask = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty();
+  std::vector<std::string> dev;
+#ifdef MW3_GAME_DIR
+  if (!std::getenv("MW3_FIND_INSTALL")) dev.push_back(MW3_GAME_DIR);  // a development build's copy (not with MW3_FIND_INSTALL=1)
+#endif
+  bool searched = false;
+  a.install = sdlfe::find_install(a.cfg_install, dev, may_ask, &searched);
+  if (a.install.empty()) {
+    if (may_ask) std::printf("mw3: no install chosen\n");
+    else std::fprintf(stderr, "mw3: No MechWarrior 3 1.2 install found (mw3.cfg's install=, the installer's registry "
+                                "values and folders). Start mw3 with --install DIR (docs/program.md).\n");
+    return false;
+  }
+  if (searched && (dev.empty() || a.install != dev[0]) && sdlfe::save_install(a.write_dir, a.install))
+    std::printf("mw3: install %s saved to mw3.cfg\n", a.install.c_str());
+  return true;
+}
 
 }  // namespace
 
@@ -261,9 +286,10 @@ int main(int argc, char** argv) {
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
-#ifdef MW3_GAME_DIR
-  if (a.install.empty()) a.install = MW3_GAME_DIR;
-#endif
+  if (a.install.empty() && !find_install(a)) {
+    SDL_Quit();
+    return 1;
+  }
   for (const std::string& d : a.assets) zutl::mount(d);
   zutl::mount(a.install);
   zutl::set_write_dir(a.write_dir);
