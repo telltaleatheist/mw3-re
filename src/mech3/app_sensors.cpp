@@ -412,6 +412,7 @@ const char* hud_object_name(const void* o) { return o ? entity_name(handle(o)) :
 void hud_object_place(const void* o, float out[3]) { g_entity_facts.place(handle(o), out); }
 void hud_object_centre(const void* o, float out[3]) { entity_centre(handle(o), out); }
 void hud_object_centroid(const void* o, float out[3]) { world_position(g_sensors.node(handle(o), true), out); }
+void* hud_object_node(const void* o) { return g_sensors.node(handle(o), false); }
 // 0x005a8630: the target node's (+0x10) place; vt+0xc 0x005a82d0: zEntity's
 // velocity (+0x30), the basic vehicles' kept by them, the rest still.
 void hud_object_aim_place(const void* o, float out[3]) {

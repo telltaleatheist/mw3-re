@@ -1310,6 +1310,20 @@ camera stays at the world's origin (2.2 km away) and draws no node.
 Screenshots (c1m1, `build/mw3 --tap 0x20@N`): mode 1 the Mad Cat from the
 front, mode 2 the parts diagram, mode 3 the armour bars.
 
+**The target's node** (the object's +0x04, whatever its class). TARGET's
+mode 1 shows any target that is not hidden (vt+0xa8), so turrets as well
+as mechs and vehicles; targets.zrd's objects answer vt+0xa8 and show mode
+0. The program read every target's node as a mech's (`Mech::node`). A
+turret's `self` and `node` are 32-bit handles, so that read took the two
+handles for a pointer, and `render_subtree` crashed on it (Owen's Windows
+playtest, 2026-10-29: `Node::parent_count`). `object_node` now takes the
+node by class (`hud_object_node`, the sensors' lookup). A removed object
+resolves to null through its handle, and a dead mech keeps its node as
+the wreck. Test: mission_c1m1_target_views_a_turret_headless (40 m from a
+turret, the MFD on its nav list, TARGET in mode 1 on the turret: 5 nodes
+in 5 frames). Break: the mech read put back crashes in
+`Node::parent_count` under `render_subtree`, as in the playtest.
+
 ## 23. The zoom window's 3D pass (hud-plan item 6c2)
 
 The draw paths' `hud_zoom_pass` (the reticle's vt+0x28, 0x00444230) runs the

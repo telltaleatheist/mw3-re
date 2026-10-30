@@ -9,6 +9,7 @@ keeps its log here, so it can pick up after a compaction by reading it.
 | Session | Area | Log |
 |---|---|---|
 | mw3 dev | Every area, one item at a time (from 2026-10-25) | `dev.md` |
+| mw3 dev 2 | Every area, one item at a time, alongside mw3 dev (from 2026-10-29; worktree mac5) | `dev2.md` |
 | mw3 mac 4 (now mw3 dev) | The AI, to 2026-10-25: the brain, orders, behaviours, AI firing, lancemates; then render, vehicles, the cleanup | `ai.md` (history) |
 | mw3 mac 2 (paused) | Game systems: mechs, movement, weapons, effects, the world's queries | `game.md` |
 | mw3 mac 3 (paused) | Front end and presentation: fades, the HUD, screens, render glue | `frontend.md` |
