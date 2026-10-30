@@ -251,3 +251,16 @@ works alongside it; stay out of its files.
   1440p and 4K, the objectives box at 1080p, and 1:1 crops of the weapon
   list at 1.5, 2.25 and 3.
 - Branch `mac5/hud-scale` off main 9b02519.
+
+## 14. The mouse in a window (2026-10-30)
+
+- Owen: in a window (Alt+Enter) the mouse could not leave. `SdlInput`
+  (FIX (A), input.md section 8): in a shown window the menus never capture
+  (zInput's mouse put at the free cursor, 0x0051b4f0); a mission captures;
+  Ctrl+Alt alone (`kReleaseKeys`), the pause and the focus lost let go; a
+  click inside takes it back, unseen. Fullscreen and hidden runs unchanged.
+  mw3_main gives it `windowed`, `in_mission` (the Core state) and
+  `absolute_cursor`.
+- Test `sdl_window_lets_the_mouse_go` (headless, every path). Not tried in
+  a shown window here (it would take the Mac's mouse); for Owen.
+- Branch `mac5/mouse-release` off main 9f68bfd.

@@ -123,12 +123,12 @@ int32_t SdlInput::acquire(Device d) {
   if ((coop_[d] & 5) == 5 && !focused_) return kNotAcquired;
   acquired_[d] = true;
   lost_[d] = false;
-  if (d == kMouse && (coop_[d] & 1)) capture(true);
+  if (d == kMouse) refresh();
   return 0;
 }
 int32_t SdlInput::unacquire(Device d) {
-  if (d == kMouse && acquired_[d]) capture(false);
   acquired_[d] = false;
+  if (d == kMouse) refresh();
   if (d == kKeyboard) keys_.clear();  // a lost device's buffer is gone
   if (d == kMouse) dx_ = dy_ = dz_ = 0;
   return 0;
@@ -149,10 +149,81 @@ void SdlInput::capture(bool on) {
   if (window) SDL_SetWindowRelativeMouseMode(window, on);
 }
 
+// An exclusive mouse (DISCL_EXCLUSIVE) held while the window has the focus;
+// in a window only in a mission and not let go (sdl_input.h).
+void SdlInput::refresh() {
+  win_ = windowed && windowed();
+  const bool mission = in_mission && in_mission();
+  if (mission != mission_) {
+    mission_ = mission;
+    if (mission) released_ = win_ && !focused_;  // into the mission (or out of the pause): held
+  }
+  if (win_ && !mission_ && !absolute_) cursor_moved_ = false;
+  absolute_ = win_ && !mission_;
+  const bool want = acquired_[kMouse] && (coop_[kMouse] & 1) && focused_ && !(win_ && (!mission_ || released_));
+  if (want != captured_) capture(want);
+  const bool hide = absolute_;  // the menus draw their own cursor; outside the window the system's shows
+  if (window && hide != cursor_hidden_) {
+    if (hide) SDL_HideCursor();
+    else SDL_ShowCursor();
+    cursor_hidden_ = hide;
+  }
+}
+
+// kReleaseKeys pressed together and let go with no other key between them.
+void SdlInput::release_chord(SDL_Scancode s, bool down) {
+  SDL_Keymod m = SDL_KMOD_NONE;
+  switch (s) {
+    case SDL_SCANCODE_LCTRL: m = SDL_KMOD_LCTRL; break;
+    case SDL_SCANCODE_RCTRL: m = SDL_KMOD_RCTRL; break;
+    case SDL_SCANCODE_LALT: m = SDL_KMOD_LALT; break;
+    case SDL_SCANCODE_RALT: m = SDL_KMOD_RALT; break;
+    case SDL_SCANCODE_LSHIFT: m = SDL_KMOD_LSHIFT; break;
+    case SDL_SCANCODE_RSHIFT: m = SDL_KMOD_RSHIFT; break;
+    case SDL_SCANCODE_LGUI: m = SDL_KMOD_LGUI; break;
+    case SDL_SCANCODE_RGUI: m = SDL_KMOD_RGUI; break;
+    default: break;
+  }
+  if (!(m & kReleaseKeys)) {
+    if (down) chord_spoiled_ = true;  // another key between
+    return;
+  }
+  auto all_held = [this] {
+    for (const SDL_Keymod g : {SDL_KMOD_CTRL, SDL_KMOD_ALT, SDL_KMOD_SHIFT, SDL_KMOD_GUI})
+      if ((kReleaseKeys & g) && !(chord_held_ & g)) return false;
+    return true;
+  };
+  if (down) {
+    if (!(chord_held_ & kReleaseKeys)) chord_spoiled_ = false, chord_armed_ = false;  // a new chord
+    chord_held_ = static_cast<SDL_Keymod>(chord_held_ | m);
+    if (all_held() && !chord_spoiled_) chord_armed_ = true;
+    return;
+  }
+  chord_held_ = static_cast<SDL_Keymod>(chord_held_ & ~m);
+  if (chord_armed_ && !chord_spoiled_ && win_ && mission_ && !released_) {
+    released_ = true;
+    std::fill(std::begin(buttons_), std::end(buttons_), 0);
+    std::fill(std::begin(latched_), std::end(latched_), 0);
+    dx_ = dy_ = dz_ = 0;
+    refresh();
+  }
+  chord_armed_ = false;
+}
+
 void SdlInput::set_cooperative_level(Device d, uint32_t flags) { coop_[d] = flags; }
 
 int32_t SdlInput::mouse_state(platform::MouseState* out) {
+  refresh();
   if (!opened_[kMouse] || !acquired_[kMouse]) return lost_[kMouse] ? kInputLost : kNotAcquired;
+  if (muted()) {  // let go in a mission: no motion, no buttons
+    *out = platform::MouseState{};
+    dx_ = dy_ = dz_ = 0;
+    return 0;
+  }
+  if (absolute_ && absolute_cursor && cursor_moved_) {  // the menus in a window: zInput's mouse at the cursor
+    absolute_cursor(mouse_x, mouse_y);
+    dx_ = dy_ = 0;
+  }
   out->x = static_cast<int32_t>(dx_), out->y = static_cast<int32_t>(dy_), out->z = static_cast<int32_t>(dz_);
   dx_ -= out->x, dy_ -= out->y, dz_ -= out->z;  // the fractions carry over
   // FIX (A): DirectInput's device state caught a click shorter than a frame
@@ -271,9 +342,12 @@ void SdlInput::on_event(const SDL_Event& e) {
   switch (e.type) {
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
       focused_ = true;
+      refresh();  // in a window a mission stays let go until a click
       break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
       focused_ = false;
+      if (win_) released_ = true;
+      chord_held_ = SDL_KMOD_NONE, chord_armed_ = false;
       // FIX (A): what is let go while away never comes back as an event, and
       // DirectInput's state after the next Acquire was the device's as it
       // was: no button or key stays down from before.
@@ -283,17 +357,18 @@ void SdlInput::on_event(const SDL_Event& e) {
       mouse_buttons = 0;
       for (int d = 0; d < 3; ++d) {
         if (acquired_[d] && (coop_[d] & 5) == 5) {  // the system takes a foreground device away
-          if (d == kMouse) capture(false);
           acquired_[d] = false;
           lost_[d] = true;
         }
       }
+      refresh();
       break;
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
+      const bool down = e.type == SDL_EVENT_KEY_DOWN;
+      if (!e.key.repeat) release_chord(e.key.scancode, down);
       const uint8_t dik = dik_from_scancode(e.key.scancode);
       if (!dik) break;
-      const bool down = e.type == SDL_EVENT_KEY_DOWN;
       if (down && e.key.repeat) break;  // DirectInput reports a held key once
       held_[dik] = down;
       if (!acquired_[kKeyboard]) break;
@@ -306,8 +381,9 @@ void SdlInput::on_event(const SDL_Event& e) {
     }
     case SDL_EVENT_MOUSE_MOTION:
       mouse_x = e.motion.x, mouse_y = e.motion.y;
+      cursor_moved_ = true;
       raw_dx_ += e.motion.xrel, raw_dy_ += e.motion.yrel;
-      if (acquired_[kMouse]) {
+      if (acquired_[kMouse] && !muted()) {
         float k = captured_ ? 1.0f : mickey_scale;
         if (!captured_ && fitted() && window) {
           int w = 0, h = 0;
@@ -318,7 +394,7 @@ void SdlInput::on_event(const SDL_Event& e) {
       }
       break;
     case SDL_EVENT_MOUSE_WHEEL:
-      if (acquired_[kMouse]) dz_ += e.wheel.y * 120.0f;  // WHEEL_DELTA a notch
+      if (acquired_[kMouse] && !muted()) dz_ += e.wheel.y * 120.0f;  // WHEEL_DELTA a notch
       break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP: {
@@ -327,8 +403,16 @@ void SdlInput::on_event(const SDL_Event& e) {
                     : e.button.button == SDL_BUTTON_MIDDLE ? 2 : e.button.button == SDL_BUTTON_X1 ? 3 : -1;
       if (b < 0) break;
       const bool down = e.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
-      buttons_[b] = down ? 0x80 : 0;
-      if (down) latched_[b] = 0x80;
+      if (down && muted() && focused_) {  // a click inside takes the mouse back, unseen by the game
+        released_ = false;
+        swallow_[b] = true;
+        refresh();
+      } else if (swallow_[b] && !down) {
+        swallow_[b] = false;
+      } else if (!muted() && !swallow_[b]) {
+        buttons_[b] = down ? 0x80 : 0;
+        if (down) latched_[b] = 0x80;
+      }
       if (b < 3) mouse_buttons = down ? mouse_buttons | (1u << b) : mouse_buttons & ~(1u << b);
       mouse_x = e.button.x, mouse_y = e.button.y;
       break;
@@ -384,8 +468,9 @@ void SdlZinHost::screen_to_client(int32_t* x, int32_t* y) {
   if (w > 0 && h > 0) *x = *x * fw_ / w, *y = *y * fh_ / h;
 }
 // Windows' cursor follows the game's mouse; a captured (relative) mouse has none.
+// In a window the player's cursor is never moved (sdl_input.h).
 void SdlZinHost::set_cursor_pos(int32_t x, int32_t y) {
-  if (input_ && input_->window && !SDL_GetWindowRelativeMouseMode(input_->window))
+  if (input_ && input_->window && !input_->in_window() && !SDL_GetWindowRelativeMouseMode(input_->window))
     SDL_WarpMouseInWindow(input_->window, static_cast<float>(x), static_cast<float>(y));
 }
 // A virtual key for every key the DIK table knows (the scan code itself).

@@ -294,6 +294,45 @@ DIDC_FORCEFEEDBACK when SDL says the device rumbles. Tests:
   a recording device; in c1m1 the object made, the Spring, the water and
   the steps. Break: the calls unwired, none.
 
+## 8. The mouse in a window (2026-10-30)
+
+Owen, after trying Alt+Enter: in a window the mouse could not leave it (to
+resize it, say). FIX (A), platform only (`SdlInput`, sdl_input.h); the
+game's zInput is untouched. The exe's mouse is exclusive (DISCL_EXCLUSIVE |
+DISCL_FOREGROUND): DirectInput held and hid the cursor whenever it was
+acquired, menus included, which on a 1999 full screen was all there was.
+In a shown window (`windowed`: not fullscreen, not hidden):
+
+- **The menus never capture.** The cursor is free; the OS cursor is hidden
+  over the window (the menus draw their own) and shows outside it. zInput's
+  mouse is put at the cursor each read through the exe's own 0x0051b4f0
+  (`mouse_from_cursor`, the window mapped through the fit), with no motion
+  counted, so the menu cursor sits under the system's; once the cursor has
+  moved, so a screen's opening position stays until then. The clicks are the
+  game's as before. The menu cursor then moves at the system's speed, not
+  MouseAccel's.
+- **A mission captures** (the Core state, `in_mission`). `kReleaseKeys`
+  (Ctrl+Alt: both held, then let go, with no other key between; one
+  constant) lets go: the OS cursor shows, and the game sees no motion, wheel
+  or buttons. A click inside the window takes it back, and neither its press
+  nor its release reaches the game (no shot). The Ctrl and Alt keys
+  themselves still reach the game as keys.
+- **The pause** is a menu: it lets go; back in the mission it is held again.
+- **The focus lost** lets go (as before); back, the mission stays let go
+  until a click inside. Entering a mission without the focus starts let go.
+- The game's own cursor moves (SetCursorPos, `set_cursor_pos`) never move
+  the player's cursor in a window.
+
+Fullscreen, and hidden runs (checks, shots), are as before: the mouse held
+while acquired, Ctrl+Alt nothing, the focus's return held at once.
+
+`sdl_window_lets_the_mouse_go` drives `SdlInput` through each path: the
+menus (absolute, the clicks), a mission, Ctrl+Alt spoiled by a key between
+and then whole, the muted motion, wheel and button, the recapturing click
+unseen and the next one seen, the pause and back, the focus lost and back,
+and fullscreen. Breaks: the click passed to the game fails 2 checks; a key
+between not spoiling the chord fails 1.
+
 ## Open
 
 - The controls screen (0x0042be10 ..), which uses read_key and the wait

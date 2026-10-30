@@ -410,6 +410,13 @@ int run(const Args& a) {
     mech3::reset_states();
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
+    // FIX (A), ours: in a shown window the menus leave the mouse free and a
+    // mission's can be let go (sdl_input.h); fullscreen and hidden runs hold it.
+    input.windowed = [&window, hidden = a.hidden] { return !hidden && !window.fullscreen(); };
+    input.in_mission = [&app] { return app.current() == &mech3::states().core; };
+    input.absolute_cursor = [](float x, float y) {
+      zin::mouse_from_cursor(static_cast<int32_t>(std::lround(x)), static_cast<int32_t>(std::lround(y)));
+    };
 
     std::unique_ptr<mech3::State> debug;
     std::unique_ptr<mech3::ActionGame> ia_game;  // --mission ia<N>: the launch's game
@@ -864,6 +871,7 @@ int run(const Args& a) {
     }
     ztwod::set_host(nullptr);
     mech3::set_app(nullptr);
+    input.in_mission = nullptr;  // the app is gone
   }
   zin::set_host(nullptr);
   return result;
