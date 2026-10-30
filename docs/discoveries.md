@@ -2544,8 +2544,8 @@ From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
   called "impact fall". Patch 1.2 renamed the landing "impact land", added
   the slack-and-shake for dying, and added falling over: the game asks for
   "i_fall" while the patch's new effect file names it "impact fall", so the
-  one effect the patch added for falls has never played.
-  (`input.md` section 7)
+  one effect the patch added for falls has never played (the rebuild
+  finds it by its file's name). (`input.md` section 7)
 
 From the input module, zInput (details: `input.md`).
 

@@ -308,6 +308,9 @@ TEST(sdl_force_device_plays_the_ifr_effects_as_rumble) {
                 spin.size(), jets.size(), buzz.size(), fall.size(), spring.size());
     EXPECT(recoil.size() == 1 && spin.size() == 2 && jets.size() == 1 && buzz.size() == 1 && fall.empty() &&
            spring.size() == 1);
+    // The fall's effect as the file names it (FIX (bug), force_feedback.cpp). 1.0's file has
+    // one of that name too: its landing bump.
+    EXPECT(dev.create("impact_fall").size() == 1);
     // Recoil (a vector force, 9874) at gain 60: the slow motor, 200 ms.
     g_rumbled = {};
     dev.set_gain(recoil[0], 6000);

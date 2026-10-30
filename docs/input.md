@@ -260,7 +260,7 @@ Immersion's IFORCE2.dll, and twelve effects from it by name:
 | impact_force | a hit, 0x00433720 | the force x 100, from the hit's side |
 | footfall | each step, 0x004337c0 | the speed x 100 |
 | impact_land | a landing, 0x00433800 | the jolt x 100 |
-| i_fall | a fall, 0x00433840 | 100 (the file has no i_fall: nothing) |
+| i_fall | a fall, 0x00433840 | 100 (the file has no i_fall: nothing; FIX (bug) the port takes "impact fall") |
 | jets1 | the jump jets on and off, 0x00433870 | |
 | Spring | the mission's start, 0x004338a0 | |
 | dead_spring, dead_dance | the player's death, after every effect stopped | |

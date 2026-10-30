@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "crt/msvc_math.h"
+#include "gamez/zutil/zfix.h"
 
 namespace mech3 {
 
@@ -56,7 +57,7 @@ std::unique_ptr<FfEffect> make(const char* name, platform::ForceDevice* dev) {
 
 // Mech3.exe 1.2 @ 0x00433090: force_eff.ifr (0x00433960 on zInput's device,
 // 0x0051dda0) and, when it read, the twelve effects by their names. The
-// file has no "i_fall" ("impact fall"), so that slot stays empty.
+// file has no "i_fall": FIX (bug) it is "impact fall" there (fixes.md).
 ForceFeedback::ForceFeedback(platform::ForceDevice* dev) {
   project = dev && dev->load("force_eff.ifr");
   if (!project) return;
@@ -72,6 +73,7 @@ ForceFeedback::ForceFeedback(platform::ForceDevice* dev) {
   water_fx = make("water", dev);
   impact_land = make("impact_land", dev);
   i_fall = make("i_fall", dev);
+  if (!i_fall && zfix::options().bugs) i_fall = make("impact_fall", dev);
 }
 
 // Mech3.exe 1.2 @ 0x004333f0 (IFReleaseEffects each, the project's release)
