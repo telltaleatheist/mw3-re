@@ -1007,3 +1007,52 @@ other two runs. It checks:
 - the census 0;
 - its 9 shots lit.
 
+
+## 15. Instant Action played through (2026-10-30)
+
+`--action-chain all` (ours, `frontend/sdl/modes_chain`; also `cN` for one
+world, `cN:S` for one scenario, 1..5) drives a new pilot through the real
+states. INSTANT ACTION, the pilot screen's new pilot, then for each of the
+Action screen's (section 13 of menus.md) 4 worlds and 5 scenarios:
+
+- **The choices**: the world, the scenario (its step refills the enemies),
+  0..2 lancemates, the field base in Attack and Defend, and in a custom
+  line-up (+0x16f9c set) 1..4 enemies. ACCEPT, the briefing's LAUNCH.
+- **A won round**: the enemies shot (the campaign chain's direct hits)
+  until the objectives end the mission, then Exit Mission. Battle Waves
+  and Progression never end: two waves cleared, then the pause menu's
+  QUIT (the Pause State pushed as the Core State's Escape pushes it).
+- **A lost round**: the pause's REPLAY at core frame 90 (0x0048fa80).
+- **The debriefing**: round 1 CONTINUEs (the next round, the animations
+  reset 0x0050ad60), round 2 ABORTs. The IA Dummy State tallies it and
+  reopens the Action screen, where the case's tallies are checked: an
+  Attack or Defend won or lost counted once, nothing for the others.
+  Even cases end won, odd ones lost.
+
+Results (seed 1999, 33 ms frames; 111 s for the 20): every case as
+planned. The Battle and Defend rounds were won at core frame 190 or 191,
+the Attack rounds at 79 (the tower, the valve iatowv2), the wave rounds by
+frame 243..330. Progression starts each case at the best wave plus one
+(waves 1-2, 3-4, 5-6, 7-8). All 20 were tallied as the exe tallies; the
+census was 0.
+
+What the census showed on the way, now ported:
+- **The launch's pilot save** (0x00491150, Instant Action and multiplayer):
+  the pilot's file opened (0x00478ce0), its header (0x004794f0) and record
+  (vt+0x04) written, closed. The four went to the census; now
+  `program_pilot_file`. Checked in
+  `instant_action_menus_to_wave1_tallies_headless`: the file ACCEPT wrote,
+  taken away before LAUNCH, is back after it.
+- **zModel's material sweep** (0x00537f20, each Instant Action and
+  multiplayer frame with 10, `zmod::material_sweep`): the materials of 10
+  models marked a frame (flags 0x10); past the last model, each material
+  without 0x08, 0x10 or 0x20 freed (0x00537070), the marks cleared.
+- **zModel's model sweep** (0x005392c0, Instant Action's next wave,
+  `zmod::models_free_unused`): every model nothing holds released, as
+  0x005394c0's first part.
+  Both: differential `test_model_sweep.py` on the six worlds (a quarter of
+  the held models let go of on both sides, then the sweep to two passes):
+  3483 models and 193 materials freed in 6964 calls, identical.
+
+`sdl_program_action_chain` (MW3_CAMPAIGN=1) runs `--action-chain all`
+and asserts the 20 cases as above.

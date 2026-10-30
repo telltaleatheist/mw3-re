@@ -1458,4 +1458,54 @@ TEST(sdl_program_campaign_by_objectives) {
   EXPECT(log.find("mw3: chain credits after 20 wins (entered 1)") != std::string::npos);
   EXPECT(log.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
 }
+// Instant Action played through (MW3_CAMPAIGN=1, about 2 minutes;
+// --action-chain, modes_chain.h, campaign.md section 15): a new pilot from
+// the main menu's INSTANT ACTION, each of the Action screen's 4 worlds and 5
+// scenarios with a line-up, ACCEPT, LAUNCH. A round is won (the enemies shot
+// until the objectives end it; Battle Waves and Progression two waves
+// cleared, then the pause's QUIT) or lost (the pause's REPLAY); CONTINUE
+// plays the next round the other way, ABORT tallies it through the IA Dummy
+// State back to the Action screen. Every case tallied as the exe tallies
+// (Attack's and Defend's wins and losses), the census 0.
+TEST(sdl_program_action_chain) {
+  if (!have_fonts() || !std::getenv("MW3_CAMPAIGN")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_action_chain";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  const auto start = std::chrono::steady_clock::now();
+  const pid_t pid = spawn_mw3({"--action-chain", "all", "--verbose", "--nosound", "--hidden", "--write-dir", dir,
+                               "--frame-ms", "33", "--seed", "1999"},
+                              dir + "/run.log");
+  int status = 0;
+  bool done = pid > 0;
+  while (done && waitpid(pid, &status, WNOHANG) != pid) {
+    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(900)) {
+      kill(pid, SIGKILL), waitpid(pid, &status, 0);
+      done = false;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  EXPECT(done && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::string log;
+  if (std::FILE* f = std::fopen((dir + "/run.log").c_str(), "r")) {
+    char buf[4096];
+    for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) log.append(buf, n);
+    std::fclose(f);
+  }
+  auto count = [&](const char* what) {
+    int n = 0;
+    for (size_t at = 0; (at = log.find(what, at)) != std::string::npos; ++at) ++n;
+    return n;
+  };
+  const int won = count("won by its objectives at core frame"), cleared = count("cleared at core frame");
+  const int lost = count(" lost at core frame"), not_won = count("NOT won by its objectives");
+  std::printf("action chain: %d rounds won by their objectives, %d by two waves cleared, %d lost, %d not won, in %.0f s\n",
+              won, cleared, lost, not_won, std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+  for (size_t at = 0; (at = log.find("mw3: modes case ", at)) != std::string::npos; ++at)
+    if (log.compare(log.find(':', at + 16), 7, ": world") != 0) std::printf("  %s\n", log.substr(at + 11, log.find('\n', at) - at - 11).c_str());
+  EXPECT(won == 12 && cleared == 8 && lost == 20 && not_won == 0);  // 12 cases end on their objectives, 8 on waves
+  EXPECT(log.find("mw3: modes done: 20 cases, 20 tallied as expected, 0 not") != std::string::npos);
+  EXPECT(log.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
+}
 #endif
