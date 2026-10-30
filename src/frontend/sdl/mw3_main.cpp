@@ -6,7 +6,7 @@
 //
 //   mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 //
-//   --install DIR        the MW3 1.2 folder (default: mw3.cfg's install=, else game/mw3-1.2)
+//   --install DIR        the MW3 folder, any version (default: mw3.cfg's install=, else game/mw3-1.2)
 //   --assets DIR         a folder of replacement files searched first (repeatable)
 //   --write-dir DIR      where saves and settings go (default: the user's app data)
 //   --mission NAME       debug start into a mission through the Load and Core
@@ -71,6 +71,7 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_control.h"
+#include "mech3/data_version.h"
 #include "mech3/mission.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
@@ -269,7 +270,7 @@ int main(int argc, char** argv) {
   zutl::set_write_dir(a.write_dir);
   std::error_code ec;
   if (!std::filesystem::exists(a.install + "/zbd/reader.zbd", ec)) {
-    const std::string msg = "No MechWarrior 3 1.2 install at \"" + a.install +
+    const std::string msg = "No MechWarrior 3 install at \"" + a.install +
                             "\". Start mw3 with the folder that holds Mech3.exe and zbd/ (docs/program.md).";
     std::fprintf(stderr, "mw3: %s\n", msg.c_str());
     if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
@@ -277,6 +278,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   std::printf("mw3: install %s, write dir %s\n", a.install.c_str(), a.write_dir.c_str());
+  std::printf("mw3: %s\n", mech3::detect_data_version().describe().c_str());  // ours: assets.md, Data versions
 
   const int result = run(a);
   SDL_Quit();  // after every SDL object above is gone

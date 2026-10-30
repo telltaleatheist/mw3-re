@@ -196,7 +196,9 @@ TEST(resolution_camera_angles_on_a_node) {
 
 // The HUD by anchors (resolution.md step 4, hud.md section 5): V640x480's
 // positions, each moved by its piece's anchor, give every larger block
-// hud.zrd ships, piece for piece; sizes and widths have no anchor.
+// hud.zrd ships, piece for piece; sizes and widths have no anchor. 1.0's
+// hud.zrd has only V800x600 and V1024x768 of the five (1.2 adds the other
+// three; assets.md, Data versions); the blocks a version lacks are skipped.
 TEST(resolution_hud_anchors_make_the_original_blocks) {
   const std::string zbd = std::string(MW3_GAME_DIR) + "/zbd/reader.zbd";
   if (!std::filesystem::exists(zbd)) return;
@@ -215,10 +217,14 @@ TEST(resolution_hud_anchors_make_the_original_blocks) {
                            {"TIMER", "position"}, {"GAUGES", "speed_frame"}, {"GAUGES", "fuel_frame"},
                            {"GAUGES", "heat_bar"}, {"GAUGES", "heat_meter"}, {"GAUGES", "heat_text"},
                            {"GAUGES", "heat_arrow"}, {"GAUGES", "coolant_frame"}};
-  int same = 0, compared = 0;
+  int same = 0, compared = 0, found = 0;
   for (const Block& b : blocks) {
     zrdr::Node* blk = zrdr::find(hud, b.name);
-    EXPECT(blk != nullptr);
+    if (!blk) {
+      std::printf("hud anchors: no %s in this data\n", b.name);
+      continue;
+    }
+    ++found;
     for (const auto& k : keys) {
       int32_t p[2], want[2];
       if (!zrdr::get_ivec2(zrdr::find(base, k[0]), k[1], p) || !zrdr::get_ivec2(zrdr::find(blk, k[0]), k[1], want))
@@ -229,8 +235,8 @@ TEST(resolution_hud_anchors_make_the_original_blocks) {
       else std::printf("anchor %s %s at %s: %d %d, the block %d %d\n", k[0], k[1], b.name, p[0], p[1], want[0], want[1]);
     }
   }
-  std::printf("hud anchors: %d of %d positions in the five larger blocks made from V640x480\n", same, compared);
-  EXPECT(compared == 70 && same == 70);
+  std::printf("hud anchors: %d of %d positions in the %d larger blocks made from V640x480\n", same, compared, found);
+  EXPECT(found >= 2 && compared == 14 * found && same == compared);
   int32_t q[2] = {75, 100};
   EXPECT(!mech3::hud_anchor("MFD", "size", 1920, 1080, q) && q[0] == 75 && q[1] == 100);
   zrdr::free_node(hud);

@@ -23,10 +23,12 @@ and `SDL3_ttf.dll` from the zips' `lib\x64` next to `mw3.exe`.
 
 - The install: `mw3.exe C:\path\to\MechWarrior3`, or an `install=` line in
   `mw3.cfg` in the write dir (`%APPDATA%\MicroProse\MechWarrior 3\`).
-- Check the install is 1.2's data, not only its exe: an install with the
-  1.2 `Mech3.exe` copied over older data (seen on one PC) has a different
-  `reader.zbd` (the HUD blocks for the larger screens missing), `interp.zbd`
-  and campaign 3's missions. Compare against CLAUDE.md's install recipe.
+- Any version's data runs (assets.md, Data versions); `mw3` prints which at
+  start ("data version 1.2", "1.0", "1.0 with 1.2 files" with the counts, or
+  the files that are neither). An install with the 1.2 `Mech3.exe` copied
+  over older data (seen on one PC) is older data: 1.0's `reader.zbd` lacks
+  hud.zrd's 1152x864, 1280x1024 and 1600x1200 blocks (it has 800x600 and
+  1024x768), and its `interp.zbd` and campaign 3's missions differ.
 - The movies: `mw3import` (needs FFmpeg's libraries) writes them to the
   write dir's `video\` (fmv.md section 6); a set made on another machine
   can be copied there.

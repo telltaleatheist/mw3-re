@@ -452,6 +452,9 @@ These change how the game talks to the computer, not how it plays.
   ordinary file names on macOS.
 - In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
 
+- The rebuild runs on any MechWarrior 3 data, 1.0 as well as 1.2, and says
+  at start which it found. With 1.0's message file, the messages 1.2 added
+  read as blank text where the original would have crashed.
 
 ## Kept as the original, on purpose
 

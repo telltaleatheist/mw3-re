@@ -1732,3 +1732,22 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - No new differential: the two are a target check and one virtual call
   each, onto the already ported CockpitCamera::on_switch (0x00421d50).
 
+
+## Any data version (2026-10-30)
+
+- Branch mac4/data-versions (off main cd45f5f).
+- `mech3::detect_data_version` (ours, src/mech3/data_version.cpp): the 26 data
+  files the 1.2 patch changes plus Mech3Msg.dll, by size and CRC against
+  1.0's and 1.2's; `mw3` prints it at start. "No MechWarrior 3 install"
+  no longer says 1.2.
+- game/mw3-1.0 from the disc's DATA1.CAB + DATA1.HDR (unshield, the groups
+  merged; video linked to 1.2's). The two installs differ in exactly the
+  patch's files. No 1.1 in the backups.
+- MW3_GAME_DIR is a CMake cache variable; build-10 builds against 1.0. On
+  1.0: 222 tests pass, the SDL tests pass, the kills chain wins c1m1..c1m4
+  on 1.2's frames. The pinned outcomes (Dominic's three, the HUD anchors'
+  blocks) are checked on 1.2's data only.
+- FIX (bug): a message the table lacks reads as "" (the exe's null reached
+  strncpy for the default ActiveCtlCfg).
+- discoveries.md: what the 1.2 patch changed (weapons, torso twist, heat
+  sinks, c1m1's objective, the c2m2 jet ceiling, sounds, HUD layouts).
