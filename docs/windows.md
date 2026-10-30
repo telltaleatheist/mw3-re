@@ -31,6 +31,13 @@ and `SDL3_ttf.dll` from the zips' `lib\x64` next to `mw3.exe`.
 - It must run in a desktop session: over ssh there is no swapchain
   (`SDL_ClaimWindowForGPUDevice` fails with 0x887A0022).
 
+## A crash
+
+Windows' event log (Application, event 1000) gives the exception code and
+the fault offset in mw3.exe. The build keeps symbols (mw3.pdb beside the
+exe), so `llvm-symbolizer --obj=build-win\mw3.exe --inlining
+--relative-address 0x<offset>` names the function and line.
+
 ## The renderer
 
 `sdl_render3d.hlsl` is the Direct3D 12 twin of `sdl_render3d.cpp`'s Metal
