@@ -11,7 +11,7 @@ namespace sdlfe {
 
 bool SdlWindow::init(bool hidden_for_good) {
   hidden_ = hidden_for_good;
-  device_ = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL, false, nullptr);
+  device_ = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_DXIL, false, nullptr);  // Metal, or Direct3D 12
   if (!device_) return std::fprintf(stderr, "mw3: SDL_CreateGPUDevice: %s\n", SDL_GetError()), false;
   window_ = SDL_CreateWindow("MechWarrior 3", 1280, 960, SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
   if (!window_) return std::fprintf(stderr, "mw3: SDL_CreateWindow: %s\n", SDL_GetError()), false;
