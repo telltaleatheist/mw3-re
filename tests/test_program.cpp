@@ -1,3 +1,4 @@
+#include "mech3/data_version.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
@@ -169,6 +170,20 @@ struct SavedMounts {
   ~SavedMounts() { zutl::mounts() = saved; }
 };
 
+// Whether MW3_GAME_DIR holds 1.2's data (assets.md, Data versions): the runs
+// that pin exact outcomes took them on 1.2's; other data checks the behaviour
+// only (a build with -DMW3_GAME_DIR=game/mw3-1.0).
+bool data_is_12() {
+  static int v = -1;
+  if (v < 0) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    v = mech3::detect_data_version().name == "1.2" ? 1 : 0;
+  }
+  return v == 1;
+}
+
 }  // namespace
 
 // A new process starts with zSound not yet initialised. The exe's shutdown
@@ -216,6 +231,47 @@ void reset_process_state() {
   zeff::anim_log().save_on = zeff::anim_log().net_on = 1;
   zvid::display().clear_on = 1;
   zcls::scene_walk().hidden_surface = 1;
+}
+
+// The data version (ours; assets.md, Data versions): the install's, then a
+// mix and an unknown file made by putting another file in front of it.
+TEST(data_version_names_the_install) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const mech3::DataVersion own = mech3::detect_data_version();
+  std::printf("  %s: %s\n", MW3_GAME_DIR, own.describe().c_str());
+  EXPECT(own.name == "1.2" || own.name == "1.0");
+  const bool is_12 = own.name == "1.2";
+  EXPECT(is_12 ? own.of_12 == 27 : own.of_10 == 27);
+  // One file of the other version in front: a mix (on 1.0, one added wav).
+  const std::string front = temp_dir("data_version");
+  std::error_code ec;
+  std::filesystem::create_directories(front + "/zbd", ec);
+  const std::string other = std::string(MW3_SOURCE_DIR) + (is_12 ? "/game/mw3-1.0" : "/game/mw3-1.2");
+  if (std::filesystem::exists(other + "/zbd/reader.zbd")) {
+    std::filesystem::copy_file(other + (is_12 ? "/zbd/reader.zbd" : "/zbd/soil_mud_2s.wav"),
+                               front + (is_12 ? "/zbd/reader.zbd" : "/zbd/soil_mud_2s.wav"), ec);
+    zutl::mount_front(front);
+    const mech3::DataVersion mix = mech3::detect_data_version();
+    std::printf("  with one file of the other: %s\n", mix.describe().c_str());
+    EXPECT(mix.name == "1.0 with 1.2 files" && mix.of_12 == (is_12 ? 26 : 1) && mix.of_10 == (is_12 ? 1 : 26));
+    EXPECT(mix.from_12.size() == static_cast<size_t>(mix.of_12));
+    std::filesystem::remove_all(front + "/zbd", ec);
+    std::filesystem::create_directories(front + "/zbd", ec);
+  } else {
+    zutl::mount_front(front);
+  }
+  // A changed file: neither version's.
+  if (std::FILE* f = std::fopen((front + "/zbd/interp.zbd").c_str(), "wb")) std::fputs("not a zbd", f), std::fclose(f);
+  const mech3::DataVersion odd = mech3::detect_data_version();
+  std::printf("  with a changed interp.zbd: %s\n", odd.describe().c_str());
+  EXPECT(odd.name == "unknown" && odd.unknown.size() == 1 && odd.unknown[0] == "zbd/interp.zbd");
+  // Nothing mounted: the 15 files 1.0 already had are missing.
+  zutl::mounts() = zutl::Mounts{};
+  const mech3::DataVersion none = mech3::detect_data_version();
+  EXPECT(none.name == "incomplete" && none.missing == 15 && none.of_10 == 12);
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -8566,7 +8622,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     std::printf("  dominic's order: fired %d / %d, on enemy %d, d0 %.3f, closest %.3f, on player %d, phases %d %d %d %d\n",
                 seen.fired_before, seen.fired_after, seen.on_enemy, seen.d0, seen.closest, seen.on_player, seen.phases[2],
                 seen.phases[3], seen.phases[4], seen.phases[5]);
-    if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
+    if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR") && data_is_12()) {
       EXPECT(seen.fired_before == 53 && seen.fired_after == 951 && seen.on_enemy == 1139);
       EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 59.301f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
@@ -8899,9 +8955,12 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // off what he walks into: fewer contacts, longer aiming.
     std::printf("  dominic's target: contacts %d, first %s, on target %d, aiming %d, firing %d, health %.5f\n",
                 seen.target_contacts, seen.first_target.c_str(), seen.on_target, seen.aiming, seen.firing, seen.health);
-    EXPECT(seen.hut != 0 && seen.target_contacts == 2163 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 1062 && seen.aiming == 96 && seen.firing == 841);
-    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 0.0f) < 1e-3f);
+    EXPECT(seen.hut != 0 && seen.health0 == 30.0f && seen.on_target > 0 && seen.firing > 0 && seen.health < seen.health0);
+    if (data_is_12()) {
+      EXPECT(seen.target_contacts == 2163 && seen.first_target == "ghsD2");
+      EXPECT(seen.on_target == 1062 && seen.aiming == 96 && seen.firing == 841);
+      EXPECT(std::fabs(seen.health - 0.0f) < 1e-3f);
+    }
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -9220,9 +9279,12 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
                   seen.targeted, seen.on_enemy, seen.aiming, seen.firing, seen.follows, seen.follows_player,
                   seen.enemy_contacts, seen.moved, seen.closest);
       // (The puffers' rand()s since they tick: hooks-audit.md.)
-      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 43 && seen.firing == 658);
-      EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-      EXPECT(std::fabs(seen.moved - 69.1506f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      EXPECT(seen.targeted > 0 && seen.on_enemy > 0 && seen.firing > 0 && seen.follows > 0);
+      if (data_is_12()) {
+        EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 43 && seen.firing == 658);
+        EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
+        EXPECT(std::fabs(seen.moved - 69.1506f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      }
     }
     mech3::missions().cleanup(false);
     app.stop_game();

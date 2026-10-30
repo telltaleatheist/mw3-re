@@ -458,6 +458,9 @@ These change how the game talks to the computer, not how it plays.
   wore the reduced textures, took no holes and the audio screen offered no
   sound quality.
 
+- The rebuild runs on any MechWarrior 3 data, 1.0 as well as 1.2, and says
+  at start which it found. With 1.0's message file, the messages 1.2 added
+  read as blank text where the original would have crashed.
 
 ## Kept as the original, on purpose
 
