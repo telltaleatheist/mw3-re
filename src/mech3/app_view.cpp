@@ -1,4 +1,5 @@
 #include "mech3/app_view.h"
+#include "mech3/mech_move.h"
 
 #include "mech3/hud.h"
 #include "mech3/mech_hud.h"
@@ -231,6 +232,9 @@ void wire_view(const ViewProgram* p) {
   g_p = p ? *p : ViewProgram{};
   g_view.reset();
   set_view_hooks(p ? &g_hooks : nullptr);
+  // The viewed mech's falls and getting up (0x00413af0 / 0x00413b70).
+  move_calls().fall_camera = p ? +[](Mech& m) { if (g_view) g_view->mech_falls(m); } : nullptr;
+  move_calls().restore_camera = p ? +[](Mech& m) { if (g_view) g_view->mech_stands(m); } : nullptr;
   // The controls' view state (0x00426780) asks the view and the mech's cameras.
   ControlsCalls& k = controls_calls();
   k.mech_camera = p ? +[](Mech& m, int32_t id) -> CameraMode* { return g_hooks.mech_camera(m, id); } : nullptr;
@@ -251,6 +255,12 @@ bool program_view_look(int32_t* look) {
   return true;
 }
 void* program_view_target() { return g_view ? g_view->target : nullptr; }
+int32_t program_view_mode(bool* fixed) {
+  *fixed = false;
+  if (!g_view || !g_view->mode) return -1;
+  if (auto* c = dynamic_cast<const CockpitCamera*>(g_view->mode)) *fixed = c->fixed != 0;
+  return g_view->mode->id;
+}
 const uint8_t* program_view_camera_zones() {
   const zcls::Node* c = g_view ? zn(g_view->camera) : nullptr;
   if (!c || !c->data || c->cls() != 1) return nullptr;

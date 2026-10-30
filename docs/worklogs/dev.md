@@ -1718,3 +1718,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   off with the reticle hidden in the frame the mech powers down, back the
   frame after the power up. Before, the HUD stayed on.
 
+## The fall camera (2026-10-29)
+
+- Branch mac4/fall-camera (off main e13afa5).
+- 0x00413af0 / 0x00413b70 ported as `PlayerView::mech_falls` / `mech_stands`
+  and wired (MoveCalls). The [0x00605624] mode-switch branch is dead: the
+  byte is never written. The census stand-ins and the known entry are gone
+  (known_unported expects 53).
+- In play (`mission_c1m1_a_fall_fixes_the_cockpit_camera_until_up_headless`,
+  through the new test accessors mech_knock_down, mech_get_up and
+  program_view_mode): the cockpit camera is fixed from the fall's first
+  frame and turns again on getting up.
+- No new differential: the two are a target check and one virtual call
+  each, onto the already ported CockpitCamera::on_switch (0x00421d50).
+

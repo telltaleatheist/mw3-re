@@ -1947,3 +1947,5 @@ address,name,source,notes
 0x004a5c40,vehicle_controls_body,asm,"the vehicle controls' IControls vt+0x5c: the controls object (velocity +0x64, local velocity +0x70, inverse mass +0x9b0)"
 0x0043bb20,Hud::power_down,asm,"ported: the HUD off (vt+0x04(0)), the reticle (+0x144c) hidden; true when it was on; hud.md section 26"
 0x0043bb50,Hud::power_up,asm,"ported: the kept state back (vt+0x04), the reticle shown for good (vt+0x60(-1))"
+0x00413af0,PlayerView::mech_falls,asm,"ported: the viewed mech's fall: torso centred, the mode's vt+0x20(view, 1); the [0x605624] mode switch dead; view.md section 8"
+0x00413b70,PlayerView::mech_stands,asm,"ported: getting up: the mode's vt+0x20(view, 0)"

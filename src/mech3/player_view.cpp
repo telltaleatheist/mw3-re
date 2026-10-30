@@ -717,6 +717,31 @@ void AreaCamera::set_look(int32_t look) {
 }
 
 // Mech3.exe 1.2 @ 0x00421d50: on, the camera node becomes the torso node's
+// [0x00605624], read only by the two below and never written (a zeroed
+// byte): the camera-switch branch is dead in 1.2.
+constexpr bool kFallSwitchesMode = false;
+
+// Mech3.exe 1.2 @ 0x00413af0
+void PlayerView::mech_falls(Mech& m) {
+  if (&m != target) return;
+  view_hooks().torso_465a00(m, 1);  // 0x00465a00(1) on its +0x39c
+  if (kFallSwitchesMode) {
+    set_camera_mode(mode && mode->id == 1 ? 2 : mode ? mode->id : -1);
+    return;
+  }
+  if (mode) mode->on_switch(*this, true);
+}
+
+// Mech3.exe 1.2 @ 0x00413b70
+void PlayerView::mech_stands(Mech& m) {
+  if (&m != target) return;
+  if (kFallSwitchesMode) {
+    set_camera_mode(last_mode);
+    return;
+  }
+  if (mode) mode->on_switch(*this, false);
+}
+
 // child at the cockpit's offset; off, the world's again, put behind as reset.
 void CockpitCamera::on_switch(PlayerView& v, bool on) {
   if (static_cast<uint8_t>(on) == fixed) return;

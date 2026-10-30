@@ -180,6 +180,9 @@ bool program_vehicle_centre(void* vehicle, float out[3]);
 void* program_launch_campaign();   // app_mission.cpp: the launch's CampaignGame (the menus' or the debug start's)
 const void* mech_definition(void* mech);
 void mech_power(void* mech, int32_t down);       // 0x0041cc30 (Mech::power)
+// For the tests: knocked down (Mech::knocked_down: 3 back, 4 front) and asked to get up (0x0041b840).
+void mech_knock_down(void* mech, int32_t kind);
+void mech_get_up(void* mech);
 int32_t place_mech(void* mech, const float pos[3], uint32_t yaw);  // 0x004161c0 (Mech::place)
 void move_mech(void* mech, const float pos[3], float yaw);         // vtable +0xdc, 0x00418f30 (Mech::set_place)
 int32_t spawn_updates();                                           // the spawn's update steps run so far
