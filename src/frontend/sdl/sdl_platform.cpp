@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 #include "frontend/sdl/sdl_input.h"
 #include "gamez/zgame/zgameapp.h"
@@ -91,17 +92,37 @@ uint32_t rgba_of(uint16_t p, bool rgb565) {
   return static_cast<uint32_t>(r << 3 | r >> 2) | static_cast<uint32_t>(g << 2 | g >> 4) << 8 |
          static_cast<uint32_t>(b << 3 | b >> 2) << 16 | 0xff000000u;
 }
+// rgba_of for every 16-bit value, made once a format (performance.md).
+const uint32_t* rgba_table(bool rgb565) {
+  static const std::vector<uint32_t> t565 = [] {
+    std::vector<uint32_t> t(65536);
+    for (uint32_t p = 0; p < 65536; ++p) t[p] = rgba_of(static_cast<uint16_t>(p), true);
+    return t;
+  }();
+  static const std::vector<uint32_t> t555 = [] {
+    std::vector<uint32_t> t(65536);
+    for (uint32_t p = 0; p < 65536; ++p) t[p] = rgba_of(static_cast<uint16_t>(p), false);
+    return t;
+  }();
+  return rgb565 ? t565.data() : t555.data();
+}
 }  // namespace
+
+uint32_t SdlScreen2D::rgba(uint16_t pixel, bool rgb565) { return rgba_table(rgb565)[pixel]; }
 
 // The 16-bit pixels as RGBA8 into the layer's texture; `key` pixels (when
 // keyed) transparent, blended ones (`alpha`, zrndr::LayerCover) see-through.
 void SdlScreen2D::upload(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, bool keyed,
                          uint16_t key, const uint8_t* alpha, const uint16_t* colour) {
   rgba_.resize(static_cast<size_t>(width) * height * 4);
+  const uint32_t* table = rgba_table(rgb565);
   for (int y = 0; y < height; ++y) {
     const uint16_t* row = reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(pixels) + y * pitch);
     auto* o = reinterpret_cast<uint32_t*>(&rgba_[static_cast<size_t>(y) * width * 4]);
-    for (int x = 0; x < width; ++x) o[x] = keyed && row[x] == key ? 0u : rgba_of(row[x], rgb565);
+    if (keyed)
+      for (int x = 0; x < width; ++x) o[x] = row[x] == key ? 0u : table[row[x]];
+    else
+      for (int x = 0; x < width; ++x) o[x] = table[row[x]];
     if (alpha) {
       const size_t at = static_cast<size_t>(y) * (pitch / 2);
       for (int x = 0; x < width; ++x)
@@ -115,6 +136,23 @@ void SdlScreen2D::upload(const uint16_t* pixels, int width, int height, int pitc
   } else {
     render_->update_texture(texture_, width, height, rgba_.data());
   }
+}
+
+bool SdlScreen2D::layer_empty(const uint16_t* pixels, int width, int height, int pitch, uint16_t key) {
+  uint64_t k4 = key;
+  k4 |= k4 << 16, k4 |= k4 << 32;
+  for (int y = 0; y < height; ++y) {
+    const uint16_t* row = pixels + static_cast<size_t>(y) * (pitch / 2);
+    int x = 0;
+    for (; x + 4 <= width; x += 4) {  // four pixels a step
+      uint64_t v;
+      std::memcpy(&v, row + x, 8);
+      if (v != k4) return false;
+    }
+    for (; x < width; ++x)
+      if (row[x] != key) return false;
+  }
+  return true;
 }
 
 void SdlScreen2D::draw_layer(int width, int height, bool blend) {
@@ -145,6 +183,10 @@ void SdlScreen2D::overlay_16(const uint16_t* pixels, int width, int height, int 
                              const uint8_t* alpha, const uint16_t* colour) {
   if (!render_ || width <= 0 || height <= 0) return;
   render_->flush();
+  // Nothing drawn (every pixel still the key): nothing to lay over the frame.
+  // A frame's locks often draw nothing (performance.md); the conversion,
+  // upload and draw of the whole layer are skipped.
+  if (layer_empty(pixels, width, height, pitch, key)) return;
   upload(pixels, width, height, pitch, rgb565, true, key, alpha, colour);
   int vx, vy, vw, vh;
   render_->viewport(&vx, &vy, &vw, &vh);

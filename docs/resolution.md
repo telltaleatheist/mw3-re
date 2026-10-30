@@ -290,7 +290,11 @@ they map by the render-to-display ratio: the reticle's ray, TARGET's
 tracking, the pocket panel. The pieces drawn in the 3D pass from canvas
 pixels go onto the frame the same way: the HUD views' zClass windows
 (`HudViewWindow::set_area`), the panels' quads and their depth clears, and
-the MFD's and TARGET's view clears. On a canvas, the HUD's own window rect is
+the MFD's and TARGET's view clears, and the colour tint's quad (0x00558540
+-> 0x0057dd80: the mission's opening fade, the hit flashes; its rect is the
+canvas's, the finish target's; `tint_quad_on_frame`, playtest S14: until
+2026-10-30 the opening fade darkened only the canvas-sized top-left part of
+the frame). On a canvas, the HUD's own window rect is
 the display (`HudHooks::window_rect`). The 3D's viewport is the frame and
 the 2D layer's the canvas (`GameEngine::screen_size`). The window takes the
 frame (step 2), and the cursor is in canvas pixels (`FrameShape::canvas_w`).
