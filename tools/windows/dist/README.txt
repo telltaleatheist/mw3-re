@@ -30,6 +30,17 @@ On the first start:
    without movies if this is skipped or fails. To run it again:
    mw3.exe --import
 
+No install? Install from the disc
+---------------------------------
+You do not need the disc's own installer. With the disc in the drive (or a
+disc image: a .iso, or a .cue with its .bin files):
+
+    mw3.exe --install-from D:\ --patch "C:\path\to\the 1.2 patch.zip"
+
+copies the game into a folder of its own (in the settings folder below, or
+--install-to "C:\Games\MechWarrior 3") and remembers it. --patch is
+optional and makes it 1.2. From a .cue, its CD audio becomes the music too.
+
 Music
 -----
 The original played its music from the CD's audio tracks, which an install

@@ -60,6 +60,7 @@ add_library(mw3core STATIC
   src/platform/cue_audio.cpp
   src/mech3/data_version.cpp
   src/mech3/patch_import.cpp
+  src/mech3/disc_install.cpp
   third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zsave/zsave.cpp

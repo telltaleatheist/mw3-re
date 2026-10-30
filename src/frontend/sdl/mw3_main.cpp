@@ -7,6 +7,9 @@
 //   mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 //
 //   --install DIR        the MW3 folder, any version (default: mw3.cfg's install=, else searched, else asked: sdl_install.h)
+//   --install-from PATH  install from the disc first (ours, disc_install.h): a drive or folder, a .iso, or a
+//                        .cue/.bin (its audio tracks the music); --patch too makes it 1.2
+//     --install-to DIR   where (default: the write dir's install/); saved as mw3.cfg's install=
 //   --assets DIR         a folder of replacement files searched first (repeatable)
 //   --write-dir DIR      where saves and settings go (default: the user's app data)
 //   --mission NAME       debug start into a mission through the Load and Core
@@ -56,6 +59,7 @@
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
 #include "frontend/sdl/sdl_install.h"
+#include "mech3/disc_install.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
@@ -126,6 +130,7 @@ struct Args {
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   std::string vfw_helper;     // --vfw-helper EXE (ours, sdl_vfw.h): the movies' Video for Windows helper; "-" none
   std::string patch;          // --patch PATH (ours, patch_import.h): the official 1.2 patch into the write dir's overlay
+  std::string install_from, install_to;  // --install-from PATH, --install-to DIR (ours, disc_install.h)
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
@@ -146,7 +151,7 @@ struct Args {
 
 void usage() {
   std::printf(
-      "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
+      "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
@@ -215,6 +220,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-import") a.no_import = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];
+    else if (s == "--install-from" && next(1)) a.install_from = argv[++i];
+    else if (s == "--install-to" && next(1)) a.install_to = argv[++i];
     else if (s == "--vfw-helper" && next(1)) a.vfw_helper = argv[++i];
     else if (s == "--no-vfw-helper") a.vfw_helper = "-";
     else if (s == "--verbose") a.verbose = true;
@@ -274,6 +281,34 @@ void split_mission(const std::string& name, std::string& dir, std::string& varia
 }
 
 int run(const Args& a, platform::VideoForWindows* vfw);
+
+// --install-from (ours, disc_install.h): the disc's files into a folder of
+// our own, no Windows installer run, the patch with it when given (then not
+// the overlay), the folder saved as mw3.cfg's install=. False: reported.
+bool install_from_disc(Args& a) {
+  const std::string out = !a.install_to.empty() ? a.install_to : a.write_dir.empty() ? std::string() : a.write_dir + "/install";
+  mech3::DiscInstall r;
+  if (out.empty()) r.error = "no write dir: give --install-to DIR";
+  else {
+    std::printf("mw3: installing MechWarrior 3 from %s into %s\n", a.install_from.c_str(), out.c_str());
+    r = mech3::install_from_disc(a.install_from, out, a.patch, a.write_dir.empty() ? std::string() : a.write_dir + "/music",
+                                 [](const std::string& s) { std::printf("mw3: %s\n", s.c_str()); });
+  }
+  for (const std::string& w : r.warnings) std::printf("mw3: warning: %s\n", w.c_str());
+  if (!r.ok) {
+    const std::string msg = "MechWarrior 3 was not installed from " + a.install_from + ": " + r.error +
+                            " (docs/assets.md, Installing from the disc).";
+    std::fprintf(stderr, "mw3: %s\n", msg.c_str());
+    if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
+    return false;
+  }
+  std::printf("mw3: installed MechWarrior 3 %s: %d files, %d movies, %d music tracks, %.0f MB\n", r.version.c_str(), r.files,
+              r.movies, r.music, static_cast<double>(r.bytes) / (1 << 20));
+  a.install = out;
+  a.patch.clear();  // in the install now
+  if (!a.write_dir.empty() && sdlfe::save_install(a.write_dir, out)) std::printf("mw3: install %s saved to mw3.cfg\n", out.c_str());
+  return true;
+}
 
 // No install named on the command line: mw3.cfg's, else the search and the
 // dialog (sdl_install.h; ours, FIX (A)); one found by search is saved to
@@ -346,6 +381,10 @@ int main(int argc, char** argv) {
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
+  if (!a.install_from.empty() && !install_from_disc(a)) {
+    SDL_Quit();
+    return 1;
+  }
   if (a.install.empty() && !find_install(a)) {
     SDL_Quit();
     return 1;

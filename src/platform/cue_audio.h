@@ -15,6 +15,7 @@ namespace platform {
 struct CueTrack {
   int32_t number = 0;
   bool audio = false;
+  std::string mode;          // the TRACK line's type, upper case: AUDIO, MODE1/2352, MODE1/2048, MODE2/2352
   std::string file;          // as the cue names it, relative to the cue's folder
   int64_t index0 = -1;       // frames (1/75 s, 2352 bytes) into the file; -1 none
   int64_t index1 = -1;
