@@ -2049,6 +2049,113 @@ TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
 
 // TARGET's 3D view (mode 1) on a turret: its node by its class (hud.md
 // section 14). targets.zrd's objects never reach it (vt+0xa8: mode 0).
+// The reticle over each kind of object (playtest W6; hud.md section 12):
+// 0x00443d20 turns it over (yellow) for an object whose ZEntity +0x08 flag
+// is set with the aim in range, and leaves it off out of range or once the
+// object is dead; a building (a node with a damage record and no object) is
+// over at any range. Until W6 only a mech's flag was read: a turret, a
+// vehicle or a targets.zrd object stayed green.
+TEST(mission_c1m1_reticle_turns_yellow_over_each_kind_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_reticle_kinds"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Kind {
+    const char* name;
+    void* node = nullptr;
+    uint8_t* active = nullptr;  // the object's +0x08
+    int near = -2, far = -2, dead = -2;
+  };
+  Kind kinds[] = {{"turret"}, {"vehicle"}, {"mech"}, {"target"}};
+  int plain_near = -2, building_near = -2, building_far = -2;
+  std::string building;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 10) return;
+      void* player = mech3::mech_mission_player();
+      for (mech3::tur::Turret* t : mech3::tur::turret_list())
+        if (t->active && !kinds[0].node) kinds[0].node = engine.object_of(t->node), kinds[0].active = &t->active;
+      for (void* v : mech3::program_vehicles())
+        if (*mech3::entity_active_flag(v) && !kinds[1].node)
+          kinds[1].node = mech3::mech_node(v), kinds[1].active = mech3::entity_active_flag(v);
+      for (const uint32_t h : mech3::ai::entity_list()) {
+        void* o = engine.object_of(h);
+        if (o != player && mech3::entity_is_mech(o) && !kinds[2].node)
+          kinds[2].node = mech3::mech_node(o), kinds[2].active = mech3::entity_active_flag(o);
+      }
+      for (mech3::ai::CZAiTarget* t : mech3::ai::target_list())
+        if (t->active && t->node && !kinds[3].node) kinds[3].node = engine.object_of(t->node), kinds[3].active = &t->active;
+      for (Kind& k : kinds) {
+        if (!k.node) continue;
+        k.near = mech3::program_hud_aim_at(k.node, 30.0f);
+        k.far = mech3::program_hud_aim_at(k.node, 50000.0f);
+        const uint8_t was = *k.active;
+        *k.active = 0;
+        k.dead = mech3::program_hud_aim_at(k.node, 30.0f);
+        *k.active = was;
+      }
+      // A building: the first node with a damage record and no object.
+      for (const auto& b : zcls::nodes().blocks) {
+        for (int32_t i = 0; i < zcls::nodes().block_size && building.empty(); ++i) {
+          zcls::Node& n = b[static_cast<size_t>(i)];
+          if (!n.damage || mech3::node_entity(&n)) continue;
+          building = n.name();
+          building_near = mech3::program_hud_aim_at(&n, 30.0f);
+          building_far = mech3::program_hud_aim_at(&n, 50000.0f);
+        }
+      }
+      // The player's own node has no object for the pick (its own is left
+      // out of the ray) and no damage record of its own: off when near.
+      plain_near = mech3::program_hud_aim_at(nullptr, 30.0f);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 12; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  for (const Kind& k : kinds) {
+    std::printf("  reticle over a %s: in range %d, out of range %d, dead %d\n", k.name, k.near, k.far, k.dead);
+    EXPECT(k.node != nullptr);
+    EXPECT(k.near == 2 && k.far == 0 && k.dead == 0);
+  }
+  std::printf("  reticle over a building (%s): in range %d, out of range %d\n", building.c_str(), building_near, building_far);
+  EXPECT(!building.empty() && building_near == 2 && building_far == 2);
+  std::printf("  reticle over nothing: %d\n", plain_near);
+  EXPECT(plain_near == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_target_views_a_turret_headless) {
   if (!have_game()) return;
   SavedMounts keep;

@@ -100,6 +100,10 @@ They run inside the original main loop, after the original start-up.
   its model, its weapons). `--vehicle-hold` also keeps the player where it
   stood, turned to face that vehicle each frame, to watch it fire. Placing
   the vehicle again each frame would reset its AI.
+- `--turret-ahead M` (with `--mission`): the player taken M m from the
+  nearest live turret on the first frame and turned to face it each frame
+  (the reticle over a turret, playtest W6). With `--tap 12@150:175` (PITCH
+  UP, `-`) the reticle rises onto c1m1's nearest turret at 30 m.
 - `--mech-ahead M` (with `--mission`): the player kept M to 1.5 M m from
   the mission's first enemy mech (the chain's list) and turned to face it
   each frame, to watch a mech up close (its damage decals with `--fire`,

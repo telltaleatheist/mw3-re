@@ -1,6 +1,7 @@
 #include "mech3/app_hud.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_turret.h"
+#include "mech3/turret.h"
 #include "mech3/app_vehicle.h"
 
 #include <algorithm>
@@ -635,12 +636,14 @@ struct ProgramHudHooks : HudHooks {
     return &r;
   }
   // The aimed node's game object (0x0040e920, app_weapons.cpp's node_entity)
-  // and its +8 byte, ZEntity's active flag: a mech's; any other object's is
-  // not ported (logged, read as 0). The node's +0xbc is its damage
+  // and its +8 byte, ZEntity's active flag, by the object's class (the node's
+  // owner, entity_bind.cpp): a mech's or vehicle's, a turret's, a targets.zrd
+  // object's or trap's. Playtest W6: only a mech's was read, so a turret or
+  // vehicle never turned the reticle yellow. The node's +0xbc is its damage
   // callbacks' record (zwep_damage, a typed field here): "above 1" is "has one".
   void* node_object(void* n) override { return node_entity(n); }
   bool object_byte8(void* o) override {
-    if (entity_is_mech(o)) return mech_of(o)->active;
+    if (const uint8_t* a = entity_active_flag(o)) return *a != 0;
     unported("object+8", {id(o)});
     return false;
   }
@@ -875,6 +878,28 @@ void program_hud_update(float dt) {
 }
 
 void program_hud_force_over(bool on) { g_hooks.force_over = on; }
+
+uint8_t* entity_active_flag(void* o) {
+  if (!o) return nullptr;
+  if (entity_is_mech(o) || is_program_vehicle(o)) return reinterpret_cast<uint8_t*>(&static_cast<Vehicle*>(o)->active);
+  for (tur::Turret* t : tur::turret_list())
+    if (t == o) return &t->active;
+  for (ai::CZAiTarget* t : ai::target_list())
+    if (t == o) return &t->active;
+  return nullptr;
+}
+
+int program_hud_aim_at(void* node, float distance) {
+  auto* m = static_cast<Mech*>(mech_mission_player());
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  if (!h) return -1;
+  h->reticle.hit = zwep::HitRecord{};
+  h->reticle.hit.node = node;
+  h->reticle.aim_distance = distance;
+  h->reticle.lock = 0, h->reticle.state = -1;
+  h->reticle.aim_state(false);
+  return h->reticle.state;
+}
 
 // Mech3.exe 1.2 @ 0x0040f8d0's HUD part: the view target's HUD's data update
 // (the message panel's slide before it is not ported).
