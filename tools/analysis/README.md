@@ -43,6 +43,9 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 | `keycheck.py` | Reader keys the exe looks up that no data file contains: optional, dead or misspelt (`docs/discoveries.md`). |
 | `isols.py`, `isoget.py` | List or extract an ISO 9660 image (the disc), without mounting it. |
 | `peimports.py <exe>` | Lists a PE's imported DLLs and functions. |
+| `../ghidra/DumpFunctions.java <outdir> <label> [decompile]` | Ghidra headless post-script for another exe (Pirate's Moon): after the analysis, functions at the data sections' code pointers (as `vtscan.py`), then each function's facts to `<outdir>/functions.jsonl` and, with `decompile`, its pseudocode (`pirates-moon.md`, The function diff). |
+| `pmdiff.py` | Pairs every PM function with its MW3 1.2 twin (bytes, strings, calls, link order, structure) and sorts them identical / changed / new / MW3 only, into `analysis-output/pm-diff/` (`pairs.json`, `report.txt`) and `pm-func2file.json`. |
+| `pmdata.py [mw3_dir] [pm_dir] [-v]` | PM's `zbd/` against MW3 1.2's, file by file and zArchive entry by entry. |
 | `x87.py <start> <end> [reg=name ...]` | Traces a straight-line asm range's x87 code into C expressions in the exe's evaluation order (Ghidra's printed sums are not; a port that must match bit for bit needs the real order). Run from the repo root. |
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
