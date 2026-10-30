@@ -934,6 +934,12 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   your side has no allies in that mission's file, so W (target next ally)
   never picks him and the lance keys reach nobody. From his next mission
   on he is in your lance and answers. (docs/ai.md 17.6)
+- **In Op 1 Mission 4 Dominic waits off the edge of the map.** The
+  mission's map (Shift+R) ends about 1.5 km east of your start; Dominic
+  starts powered down about 2.6 km east of it, some 1.1 km past the map's
+  edge. A spot can be picked on the map
+  for your lance (the lancemate command screen with the map up), but not
+  where he waits. (docs/ai.md 17.6c)
 - **A lance order goes to the lancemate you have targeted, nobody else.**
   F6..F10 reach only the lancemate who is your current or last-targeted
   ally (W cycles allies), or the one you locked with Shift+F11; with none

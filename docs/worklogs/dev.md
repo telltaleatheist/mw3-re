@@ -2063,3 +2063,15 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   terrain following) was always read from the shot; +0x5c4 by nothing.
   Test: fix_artemis_fcs_doubles_the_turn_rate (breaks: the global always,
   the copy always).
+## The command map's pick (2026-10-30)
+
+- Branch mac4/map-pick (off main d02a386). A port gap, not a fix: none of
+  FrameCalls.map, map_size, map_mouse, map_pick was set (the audit missed
+  fc.map, a ternary to a census note), so with Shift+R's map up a click
+  ordered at the reticle's aim. Now MissionMap::pick (0x4587b0) and the
+  four hooks in app_pocket.cpp; ai.md 17.6c, symbols.csv.
+- test_map_pick.py: 3000 picks against the exe bit for bit (ground
+  stubbed at 0x4edab0, world or none); BREAK=1 (x and z swapped) 2583
+  differ. Play: mission_c1m4_pocket_commander_sends_dominic_to_a_map_spot
+  (the map up, Dominic brought onto the map, the cursor on the pixel 200 m west of him, the marker
+  on the ground there, order 10, he walks to it).

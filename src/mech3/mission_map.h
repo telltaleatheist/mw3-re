@@ -7,6 +7,10 @@
 namespace zrdr {
 struct Node;
 }
+namespace zcls {
+struct GroundHit;
+struct GroundHits;
+}
 
 // C:\zipper\Mech3\mech_map.cpp (its reports): the mission maps (docs/hud.md
 // section 25). maps.zrd's "maps" list is read once at the start (0x004583b0)
@@ -27,6 +31,13 @@ class MissionMap : public ztwod::Image {
   // 0x004586e0: the pixel of a world point, -(x, z) from the offset over the
   // metres per pixel; false off 0..640 (the release's report is empty).
   bool point(const float p[3], int32_t out[2]) const;
+  // 0x004587b0: the world spot under pixel (px, py): x and z back from the
+  // offset by the metres a pixel, the ground under it from 1000 m up
+  // (`ground`, 0x004edab0 on the world: 0 when it found some); hit, its
+  // height and the hit (its node +0x24). No world ([0x00608c84], `ground`
+  // null): nothing written.
+  bool pick(float px, float py, float place[3], zcls::GroundHit* out,
+            int32_t (*ground)(float x, float y, float z, zcls::GroundHits* hits)) const;
 
   char* bitmap = nullptr;      // +0xbc  "bitmap" (strdup'd)
   char* name = nullptr;        // +0xc0  "name"

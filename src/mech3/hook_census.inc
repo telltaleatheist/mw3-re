@@ -11,7 +11,6 @@ SKIP(mech3::damage_calls, ff_hit, "0x00433720")  // DamageCalls.ff_hit
 SKIP(mech3::damage_calls, voice, "0x00485370")  // DamageCalls.voice
 SKIP(mech3::damage_calls, zaps_hud, "0x0043be70")  // DamageCalls.zaps_hud
 SKIP(mech3::dead_calls, net_update, "0x0046ef70")  // DeadCalls.net_update
-SKIP(mech3::frame_calls, map_mouse, "FrameCalls.map_mouse")  // FrameCalls.map_mouse
 SKIP(mech3::frame_calls, net_entity, "FrameCalls.net_entity")  // FrameCalls.net_entity
 SKIP(mech3::frame_calls, net_place, "FrameCalls.net_place")  // FrameCalls.net_place
 SKIP(mech3::free_calls, player_object_free, "0x0041e580")  // FreeCalls.player_object_free
@@ -33,7 +32,6 @@ SKIP(zcls::world_render_hooks, dirty_rect, "0x00576ce0")  // WorldRenderHooks.di
 SKIP(mech3::damage_calls, force_variant0, "0x00586ce0")  // DamageCalls.force_variant0
 SKIP(mech3::damage_calls, player_died_hud, "0x0041b263")  // DamageCalls.player_died_hud
 SKIP(mech3::dead_calls, net_fade, "DeadCalls.net_fade")  // DeadCalls.net_fade
-SKIP(mech3::frame_calls, map_pick, "FrameCalls.map_pick")  // FrameCalls.map_pick
 SKIP(mech3::draw_calls, map_point, "0x004586e0")  // DrawCalls.map_point
 SKIP(mech3::pocket_calls, view_pocket, "0x004b5290")  // PocketCalls.view_pocket
 

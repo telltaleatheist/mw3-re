@@ -17,6 +17,8 @@
 #include "mech3/pocket_panel.h"
 #include "mech3/sensors.h"
 #include "probe_twod.h"
+#include "gamez/zclass/cls_di.h"
+#include "mech3/mission_map.h"
 
 namespace {
 using namespace probe_twod;
@@ -469,3 +471,40 @@ int probe_pocket_load_commands(const uint32_t* bound, const char* const* keys, c
 }
 
 }  // extern "C"
+
+// The mission map's pick 0x004587b0 (MissionMap::pick) for test_map_pick.py:
+// a map with `mpp` and `offset`; the ground (0x004edab0) answers `ground_ret`
+// and, when 0, `count` hits, hit[0] at `height` on `node`; `world` 0 is no
+// world ([0x00608c84] 0). Out: the answer, the place (as it starts: `place`
+// in), the node, the ground's x, y, z.
+namespace {
+struct MapPickGround {
+  int32_t ret = 0, count = 0;
+  float height = 0;
+  uint32_t node = 0;
+  float asked[3] = {};
+  int32_t calls = 0;
+} g_mp;
+}  // namespace
+extern "C" int probe_map_pick(float mpp, const float offset[3], float px, float py, int world, int ground_ret, int count,
+                              float height, uint32_t node, float place[3], uint32_t* out_node, float asked[3]) {
+  mech3::MissionMap m(nullptr);
+  m.mpp = mpp;
+  for (int i = 0; i < 3; ++i) m.offset[i] = offset[i];
+  g_mp = MapPickGround{};
+  g_mp.ret = ground_ret, g_mp.count = count, g_mp.height = height, g_mp.node = node;
+  auto ground = [](float x, float y, float z, zcls::GroundHits* h) -> int32_t {
+    g_mp.asked[0] = x, g_mp.asked[1] = y, g_mp.asked[2] = z, ++g_mp.calls;
+    if (g_mp.ret == 0) {
+      h->count = static_cast<uint8_t>(g_mp.count);
+      h->hit[0].height = g_mp.height;
+      h->hit[0].node = reinterpret_cast<zcls::Node*>(static_cast<uintptr_t>(g_mp.node));
+    }
+    return g_mp.ret;
+  };
+  zcls::GroundHit hit{};
+  const bool r = m.pick(px, py, place, &hit, world ? +ground : nullptr);
+  *out_node = r ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(hit.node)) : 0;
+  for (int i = 0; i < 3; ++i) asked[i] = g_mp.asked[i];
+  return r ? 1 + 2 * g_mp.calls : 2 * g_mp.calls;
+}

@@ -22,6 +22,8 @@
 #include "mech3/pocket_panel.h"
 #include "mech3/sensors.h"
 #include "mech3/mission_world.h"
+#include "gamez/zclass/cls_di.h"
+#include "mech3/mission_map.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_params.h"
 
@@ -135,6 +137,34 @@ void wire_pocket(const MechWiring* w) {
   fc.hud_map_up = [](zgame::Handle h) {
     const Hud* hud = static_cast<const Hud*>(object(h));
     return hud && hud->radar.active == 1;
+  };
+  // The map pick (0x00469d00 with the mission map up): the map (0x00491c80
+  // on the missions object, its +0xbc), its size (the rect's right and
+  // bottom), the cursor on it (0x00444670: the reticle's vt+0x68 / +0x6c)
+  // and the spot and node under it (0x004587b0 on the map). Until
+  // 2026-10-30 none was set: the panel never saw the map up, and a click on
+  // it ordered at the reticle's aim.
+  fc.map = []() -> zgame::Handle { return handle(mission_map()); };
+  fc.map_size = [](zgame::Handle map, int32_t* w, int32_t* h) {
+    const auto* m = static_cast<const MissionMap*>(object(map));
+    *w = m && m->rect ? m->rect->right : 0;  // +0xd8's +0x08, +0x0c
+    *h = m && m->rect ? m->rect->bottom : 0;
+  };
+  fc.map_mouse = [](zgame::Handle h, int32_t* x, int32_t* y) {
+    Hud* hud = static_cast<Hud*>(object(h));
+    *x = hud ? hud->reticle.get_x() : 0;
+    *y = hud ? hud->reticle.get_y() : 0;
+  };
+  fc.map_pick = [](float x, float y, float place[3], uint32_t* node) {
+    const auto* m = static_cast<const MissionMap*>(mission_map());
+    zcls::GroundHit hit{};
+    auto ground = [](float gx, float gy, float gz, zcls::GroundHits* out) -> int32_t {  // 0x004edab0 on [0x00608c84]+4
+      zcls::Node* w = world_hooks().world;
+      return w ? zcls::ground_point(w, gx, gy, gz, out) : 1;
+    };
+    const bool hit_it = m && m->pick(x, y, place, &hit, world_hooks().world ? +ground : nullptr);
+    if (node) *node = hit_it ? handle(hit.node) : 0;  // the record's +0x24
+    return hit_it;
   };
   fc.reticle_pick = [](zgame::Handle h) -> zgame::Handle {
     Hud* hud = static_cast<Hud*>(object(h));

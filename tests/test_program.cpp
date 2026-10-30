@@ -2101,6 +2101,25 @@ TEST(mission_c1m1_radar_shows_the_boundary_headless) {
       }
 }
 
+// The maps' images (the SDL host's library reads; here 640 x 640 stand-ins).
+struct MapHost : ztwod::Host {
+  zimg::Texture tex[64] = {};
+  int n = 0;
+  std::string path;
+  void image_path(const char* p) override { path = p ? p : ""; }
+  zimg::Texture* image_get(const char* name) override {
+    if (!name || path.find("maps") == std::string::npos || n >= 64) return nullptr;
+    bool is_map = false;  // only the maps' bitmaps (the briefing's MAP image is one)
+    for (const mech3::MissionMap* m : mech3::mission_maps().list) is_map |= m->bitmap && std::strcmp(m->bitmap, name) == 0;
+    if (!is_map) return nullptr;
+    static std::vector<uint16_t> px(640 * 640);
+    tex[n].width = tex[n].height = tex[n].width_again = 640, tex[n].pixel_count = 640 * 640;
+    tex[n].pixels = px.data();
+    return &tex[n++];
+  }
+  zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
+};
+
 // HUD plan items 7-8, the mission maps: maps.zrd read at the start
 // (0x004583b0); the mission's map picked as the briefing does (0x004582a0 on
 // its MAP, c1m1's "c1m1"), its image loaded from images\maps and the mech's
@@ -2127,23 +2146,7 @@ TEST(mission_c1m1_maps_and_the_radar_map_mode_headless) {
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   mech3::HudReport start, on, off;
   size_t maps = 0;
-  struct MapHost : ztwod::Host {  // the maps' images (the SDL host's library reads; here 640 x 640 stand-ins)
-    zimg::Texture tex[64] = {};
-    int n = 0;
-    std::string path;
-    void image_path(const char* p) override { path = p ? p : ""; }
-    zimg::Texture* image_get(const char* name) override {
-      if (!name || path.find("maps") == std::string::npos || n >= 64) return nullptr;
-      bool is_map = false;  // only the maps' bitmaps (the briefing's MAP image is one)
-      for (const mech3::MissionMap* m : mech3::mission_maps().list) is_map |= m->bitmap && std::strcmp(m->bitmap, name) == 0;
-      if (!is_map) return nullptr;
-      static std::vector<uint16_t> px(640 * 640);
-      tex[n].width = tex[n].height = tex[n].width_again = 640, tex[n].pixel_count = 640 * 640;
-      tex[n].pixels = px.data();
-      return &tex[n++];
-    }
-    zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
-  } host;
+  MapHost host;
   ztwod::set_host(&host);
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -9141,6 +9144,169 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
   // The marker's caster (0x004814e0 makes one within 100 m of the player)
   // freed with its entry at the mission's end, as every entity's.
   EXPECT(zmod::caster_list() == nullptr);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The same order given on the command map (0x00469d00 with the HUD's map up,
+// Shift+R): the cursor on a pixel of it picks the ground under that pixel
+// (0x004587b0), the marker goes there and Dominic is sent to it. Until
+// 2026-10-30 the frame never saw the map up and ordered at the reticle's aim.
+TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_map_spot_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_map_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  MapHost host;  // the briefing's map (the debug start's pick) has an image
+  ztwod::set_host(&host);
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1 mission 4: Dominic with the player
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;
+    struct Seen {
+      void* dominic = nullptr;
+      void* player = nullptr;
+      mech3::ai::Brain* brain = nullptr;
+      zgame::Handle dv = 0, marker = 0;
+      int frames = 0, follows_marker = 0;
+      bool map_up = false, on_map = false, placed = false, ordered = false;
+      int32_t pixel[2] = {};
+      float want[3] = {}, got[3] = {}, d0 = 0, closest = 1e9f;
+    } seen;
+    auto dist_to = [&](const float* at) {
+      mech3::LaunchedMech d;
+      mech3::describe_mech(seen.dominic, &d);
+      return std::hypot(d.pos[0] - at[0], d.pos[2] - at[2]);
+    };
+    auto hud_of = [&]() -> mech3::Hud* {
+      mech3::FrameCalls& f = mech3::frame_calls();
+      mech3::Mech& pm = *static_cast<mech3::Mech*>(seen.player);
+      return static_cast<mech3::Hud*>(engine.object_of(f.view_hud ? f.view_hud(pm) : 0));
+    };
+    mech3::ControlsCalls saved_controls;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            seen.dominic = ai[i].mech;
+            seen.brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        seen.player = mech3::mech_mission_player();
+        if (!seen.dominic || !seen.player) return;
+        seen.dv = engine.handle_of(seen.dominic);
+        seen.marker = mech3::pocket_globals().marker;
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);
+        // Dominic waits 2.6 km east of the start, past the map's east edge
+        // (its offset's x 1449.5): he is brought to the player's start, on
+        // the map, 40 m east of the player.
+        mech3::LaunchedMech s0;
+        mech3::describe_mech(seen.player, &s0);
+        const float dx = s0.pos[0] + 40.0f, dz = s0.pos[2];
+        const float dat[3] = {dx, ground_under(dx, s0.pos[1] + 100.0f, dz), dz};
+        mech3::move_mech(seen.dominic, dat, -1.5707964f);
+        return;
+      }
+      if (!seen.dominic || !seen.brain) return;
+      mech3::MechControls* pc = mech3::mech_controls(seen.player);
+      mech3::PocketControls* pocket = pc ? pc->pocket() : nullptr;
+      if (seen.frames == 58) {
+        mech3::player_command(0xa5);  // Shift+R: the radar's map (its image loaded)
+        mech3::Hud* h = hud_of();
+        seen.map_up = h && h->radar.active == 1;
+        // The pixel of the spot 200 m west of Dominic, and the ground the
+        // exe's pick finds under it (0x004587b0 on the same map).
+        const auto* m = static_cast<const mech3::MissionMap*>(mech3::mission_map());
+        mech3::LaunchedMech d;
+        mech3::describe_mech(seen.dominic, &d);
+        const float spot[3] = {d.pos[0] - 200.0f, d.pos[1], d.pos[2]};
+        seen.on_map = m && m->rect && m->point(spot, seen.pixel) && seen.pixel[0] < m->rect->right &&
+                      seen.pixel[1] < m->rect->bottom;
+        if (seen.on_map) {
+          seen.want[0] = -(seen.pixel[0] * m->mpp) + m->offset[0];
+          seen.want[2] = -(seen.pixel[1] * m->mpp) + m->offset[2];
+          seen.want[1] = ground_under(seen.want[0], 1000.0f, seen.want[2]);
+        }
+      } else if (!seen.on_map) {
+        return;
+      } else if (seen.frames == 60) {
+        mech3::player_command(0x4f);  // the command mode
+      } else if (seen.frames == 62 && pocket) {
+        pocket->command(0x1b);  // lancemate 1
+      } else if (seen.frames == 64 && pocket) {
+        // The cursor on the pixel, the trigger down for one frame.
+        if (mech3::Hud* h = hud_of()) h->reticle.set_pos(seen.pixel[0], seen.pixel[1]);
+        saved_controls = mech3::controls_calls();
+        mech3::controls_calls().command = [](int cmd) -> uint32_t { return cmd == 0x3d ? 4u : 0u; };
+      } else if (seen.frames == 65 && pocket) {
+        mech3::controls_calls() = saved_controls;
+        const mech3::PocketMarker* k = mech3::program_pocket_marker(seen.marker);
+        seen.placed = k && k->active && mech3::pocket_globals().cursor == seen.marker && pocket->x1b8 != 0;
+        std::memcpy(seen.got, pocket->place, sizeof seen.got);
+      } else if (seen.frames == 66 && pocket) {
+        seen.d0 = dist_to(seen.want);
+        mech3::player_command(0x54);  // "only an enemy" (order 10) on the cursor: the marker
+        mech3::ai::Brain& b = *seen.brain;
+        auto* fo = dynamic_cast<mech3::ai::FollowState*>(b.current().state.get());
+        auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
+        seen.ordered = fo && vp && vp->target && vp->target->vehicle == seen.marker;
+      } else if (seen.frames > 66) {
+        mech3::ai::Brain& b = *seen.brain;
+        auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
+        if (vp && vp->target && vp->target->vehicle == seen.marker) ++seen.follows_marker;
+        seen.closest = std::min(seen.closest, dist_to(seen.want));
+      }
+    };
+    CountingPump pump;
+    pump.limit = 1100;
+    pump.on_quit = [&] { mech3::missions().cleanup(false); };
+    app.run(pump);
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr, "MAP on %d pixel %d %d up %d placed %d want %g %g %g got %g %g %g ordered %d follows %d d0 %g closest %g\n",
+                   seen.on_map, seen.pixel[0], seen.pixel[1], seen.map_up, seen.placed, seen.want[0], seen.want[1],
+                   seen.want[2], seen.got[0], seen.got[1], seen.got[2], seen.ordered, seen.follows_marker, seen.d0,
+                   seen.closest);
+    EXPECT(seen.on_map && seen.map_up && seen.placed);
+    // (Within a millimetre: this file's -(px * mpp) + offset may fuse; the
+    // pick's own is checked bit for bit in test_map_pick.py.)
+    EXPECT(std::fabs(seen.got[0] - seen.want[0]) < 1e-3f && std::fabs(seen.got[1] - seen.want[1]) < 1e-3f &&
+           std::fabs(seen.got[2] - seen.want[2]) < 1e-3f);
+    EXPECT(seen.ordered && seen.follows_marker > 800);
+    // He walks to it and stops at his reach of an enemy (193 m to 58 m).
+    EXPECT(seen.d0 > 150.0f && seen.closest < 80.0f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  ztwod::set_host(nullptr);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
