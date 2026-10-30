@@ -1,7 +1,7 @@
 """zEffect's animations reset, 0x50ad60 (zeff::anim_reset_all), against the
 original x86 in Unicorn, on the missions' real animation state.
 
-    cmake --build build && .venv/bin/python -P tests/differential/test_anim_reset.py [frames, 60] [after, 20] [missions...]
+    cmake --build build && .venv/bin/python -P tests/differential/test_anim_reset.py [frames, 30] [after, 10] [missions...]
 
 The debriefing's retry of a failed campaign mission and Instant Action's
 next round call it with ECX 1 (0x47d1eb, 0x47d271): every def and instance
@@ -43,8 +43,9 @@ def run_mission(mission, frames, after, seed, cmp, stats):
 
 def main():
     args = sys.argv[1:]
-    frames = int(args.pop(0)) if args and args[0].isdigit() else 60
-    after = int(args.pop(0)) if args and args[0].isdigit() else 20
+    # (30 and 10 keep the six worlds within the related set's 15 minutes)
+    frames = int(args.pop(0)) if args and args[0].isdigit() else 30
+    after = int(args.pop(0)) if args and args[0].isdigit() else 10
     missions = args or WORLDS
     cmp = Compare()
     stats = {k: 0 for k in ('frames', 'start', 'start_at', 'start_node', 'reset', 'reset_node', 'reset_cockpit',
