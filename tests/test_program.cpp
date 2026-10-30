@@ -4428,6 +4428,10 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     mech3::MechWear worn, repaired;
     int frames = 0, asked_at = -1, contact_at = -1, deploy_at = -1, repair_at = -1, close_at = -1, idle_at = -1;
     int repairs_at_close = -1;
+    // W12: the bases' radar contacts and their blips, while they drive in and
+    // parked after the repair (the player powered up again: a shut-down mech
+    // senses nothing, ai.md section 15).
+    int driving_seen = 0, parked_frames = 0, parked_seen = 0, unmatched = 0, wrong_blips = 0, blips_given = 0;
     float repair_t = 0, close_t = 0;
     std::vector<int> fronts;
     float point[3] = {};
@@ -4454,6 +4458,10 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
         const char* l = nullptr;
         if (mech3::program_dock_point(&l, point)) label = l ? l : "";
       }
+      if (frames == 7) {  // waiting on the dock point, powered up, as the bases drive in (W12)
+        const float at[3] = {point[0], ground_under(point[0], point[1] + 100.0f, point[2]), point[2]};
+        mech3::move_mech(player, at, 0.0f);
+      }
       if (d.front == 2 && contact_at < 0) {  // the contact: onto the dock point, powered down
         contact_at = frames;
         const float at[3] = {point[0], ground_under(point[0], point[1] + 100.0f, point[2]), point[2]};
@@ -4473,11 +4481,26 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
         idle_at = frames;
         cleared = mech3::program_mission_waynet() == nav;
       }
+      if (idle_at == frames) mech3::mech_power(player, 0);
+      // (from frame 8: the first reports drain what earlier tests left in the counts)
+      mech3::HudReport hr;
+      if (frames >= 5 && mech3::program_hud_report(&hr) && frames > 7) {
+        // (TARGET's own contact is drawn on or off the radar: one blip more when it is a base)
+        if (hr.field_base_blips < hr.field_base_on_radar || hr.field_base_blips > hr.field_base_on_radar + 1) {
+          if (!unmatched++)
+            std::fprintf(stderr, "  first unmatched frame %d: %d blips, %d on the radar (contact %d deploy %d idle %d)\n", frames,
+                         hr.field_base_blips, hr.field_base_on_radar, contact_at, deploy_at, idle_at);
+        }
+        wrong_blips += hr.field_base_other_blips;
+        blips_given += hr.field_base_blips;
+        if (asked_at >= 0 && contact_at < 0) driving_seen += hr.field_base_on_radar > 0;
+        if (idle_at >= 0 && frames > idle_at + 5) ++parked_frames, parked_seen += hr.field_base_on_radar == 3;
+      }
       ++frames;
     };
     CountingPump pump;
     pump.limit = 6000;
-    pump.stop = [&] { return idle_at >= 0; };
+    pump.stop = [&] { return idle_at >= 0 && frames > idle_at + 60; };
     app.run(pump);
     std::fprintf(stderr, "  dock: asked %d contact %d deploy %d repair %d close %d idle %d; fronts", asked_at,
                  contact_at, deploy_at, repair_at, close_at, idle_at);
@@ -4489,6 +4512,13 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     EXPECT(asked_at == 6);
     EXPECT(cleared);
     EXPECT(contact_at > asked_at && deploy_at > contact_at && repair_at > deploy_at && close_at > repair_at);
+    // W12: every field base on the radar gets the vehicles' ally blip, driving
+    // in (once within range) and parked.
+    std::fprintf(stderr, "  radar: driving %d frames with a base on it, parked %d of %d frames with all three; %d blips, %d unmatched, %d not as allies\n",
+                 driving_seen, parked_seen, parked_frames, blips_given, unmatched, wrong_blips);
+    EXPECT(driving_seen > 0);
+    EXPECT(parked_frames > 0 && parked_seen == parked_frames);
+    EXPECT(unmatched == 0 && wrong_blips == 0 && blips_given > 0);
     // The repair: twelve seconds of game time, then Mech::repair (0x004154e0,
     // ported): armour, internals, ammo from the store, coolant back.
     std::fprintf(stderr, "  repair %.2f s\n", close_t - repair_t);
@@ -5681,6 +5711,23 @@ TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
     EXPECT(g1 && g2 && g1 != g2);
     engine.image_free(g1);
     EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
+
+    // A still taken at one size and drawn after a mode change (the mission's
+    // 16:9 canvas faded out at the menus' 640x480): scaled to the buffer.
+    const int w0 = engine.buffer_width(), h0 = engine.buffer_height();
+    for (int y = 0; y < h0; ++y)
+      for (int x = 0; x < w0; ++x) engine.buffer16()[y * w0 + x] = x < w0 / 2 ? 0x1111 : 0x2222;
+    const mech3::Handle still = engine.video_grab(0);
+    engine.video_set_mode(13);  // 1920x1080: the canvas 853x480
+    const int w1 = engine.buffer_width(), h1 = engine.buffer_height();
+    std::printf("  a %dx%d still drawn at %dx%d\n", w0, h0, w1, h1);
+    EXPECT(w1 != w0);
+    std::fill(engine.buffer16(), engine.buffer16() + w1 * h1, uint16_t{0});
+    engine.image_draw(still, 0, 0, 0, 0);
+    const uint16_t* b = engine.buffer16();
+    EXPECT(b[0] == 0x1111 && b[w1 / 2 - 2] == 0x1111 && b[w1 / 2 + 2] == 0x2222 && b[w1 - 1] == 0x2222 &&
+           b[(h1 - 1) * w1] == 0x1111 && b[h1 * w1 - 1] == 0x2222);
+    engine.image_free(still);
   }
   zvid::pixel_format() = keep;
 }

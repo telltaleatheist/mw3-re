@@ -2006,3 +2006,23 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   the recording device with bugs off and on, the real file's effect
   (sdl_force_device_plays_the_ifr_effects_as_rumble). Break: the lookup
   off, 2 checks fail.
+
+## W12, the field bases on the radar (2026-10-30)
+
+- Branch mac4/w12-radar (off main). A port bug: the field base's class was
+  given the vehicles' base class's vtable (0x5c8d48, no blip, no tint);
+  its own (0x5c23d8) has the vehicles' blip 0x45b970 and tint 0x4ad390.
+  entity_classes (blip table), app_sensors (the tint), ai.md's table,
+  vehicles.md. The report counts the field bases' blips and their on-radar
+  contacts; the repair test waits on the dock point powered up and checks
+  them driving in and parked. Break: field_base without a blip.
+## Visual pass 3 (2026-10-30)
+
+- Branch mac4/pass3 (off main 04aff71). 210 shots: 21 missions at 1080,
+  720 and 480 (start, outside, enemy), objectives and pause in three
+  missions, the c1m1 briefing and debriefing (playtest.md, Visual pass 3).
+- S15 fixed (ours, the HUD scale's regression): the fade's still taken at
+  the mission's canvas and drawn after the switch to 640x480 fell through
+  to the census; now scaled (GameEngine::image_draw), tested in
+  frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
+  the old fall-through, 1 check). S16..S18 reported.

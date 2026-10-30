@@ -15,13 +15,14 @@ enum class EntityClass : uint8_t {
   none,
   mech,        // 0x005bcef8
   net_mech,    // 0x005c3508 (the network's)
-  vehicle,     // 0x005c23d8, 0x005c8460 (the stealth object), 0x005c88e8 (the basic vehicles)
-  field_base,  // 0x005c8d48
+  vehicle,     // 0x005c88e8 (the basic vehicles), 0x005c8460 (the stealth object)
+  field_base,  // 0x005c23d8 (0x004589d0's)
   turret,      // 0x005c8770
   target,      // 0x005ccb90
   trap,        // 0x005ccc80
   marker,      // 0x005cced8 (the command marker)
   plain,       // 0x005ccfe0 (a plain AiTarget)
+  vehicle_base,  // 0x005c8d48, the vehicles' base class (0x004aeb00): no instance, each constructor puts its own
 };
 
 // The blip tables vt+0x3c reads (ally, enemy, other).

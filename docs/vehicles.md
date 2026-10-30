@@ -281,7 +281,7 @@ its own death and damage):
   blend's switch (0x4fb840) on or off. Both ported (zcls object3d_set_blend / use_blend, render.md
   section 3). app_hud's TARGET view asks for it (object_view_flag, vt+0x68
   by the class: a mech's 0x41b9d0, a turret's 0x4a75b0, a basic vehicle's
-  0x4ad390; a field base's, a target's and the marker's 0x4a5bc0 empty),
+  0x4ad390, a field base's the same; a target's and the marker's 0x4a5bc0 empty),
   and the red reaches the device as the model's fog colour.
 
 The controls' health fields were named the wrong way round until this

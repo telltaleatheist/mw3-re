@@ -16,7 +16,8 @@ BlipTable blip_table_of(EntityClass c) {
   switch (c) {
     case EntityClass::mech:
     case EntityClass::net_mech: return BlipTable::mech;       // 0x0041ec60
-    case EntityClass::vehicle: return BlipTable::vehicle;     // 0x0045b970
+    case EntityClass::vehicle:
+    case EntityClass::field_base: return BlipTable::vehicle;  // 0x0045b970
     case EntityClass::turret: return BlipTable::turret;       // 0x004a5fc0
     case EntityClass::target:
     case EntityClass::trap: return BlipTable::target;         // 0x004d2d70
@@ -51,7 +52,8 @@ const char* entity_name(zgame::Handle o) {
     }
     case EntityClass::net_mech: return f.net_name(o);
     case EntityClass::vehicle:
-    case EntityClass::field_base: return f.pilot_name(o);
+    case EntityClass::field_base:
+    case EntityClass::vehicle_base: return f.pilot_name(o);
     case EntityClass::target:
     case EntityClass::trap: return f.target_name(o);
     default: return nullptr;
