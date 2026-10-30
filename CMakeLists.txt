@@ -497,6 +497,7 @@ if(SDL3_FOUND)
     target_link_libraries(mw3text PUBLIC mw3sdl SDL3_ttf::SDL3_ttf)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
+      src/frontend/sdl/run_log.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
       src/frontend/sdl/modes_chain.cpp

@@ -1,9 +1,10 @@
 Third-party software in this package
 ====================================
 
-mw3.exe and mw3import.exe use the libraries below. Each library's own licence
-files, as its release shipped them, are in licenses\ under the folder the
-library came in. Thank you to all of their authors.
+mw3.exe and mw3import.exe use the libraries below; mw3indeo.exe uses only
+Windows' own and the Indeo 5 codec in your MechWarrior 3 install (not
+included). Each library's own licence files, as its release shipped them,
+are in licenses\ under the folder the library came in. Thank you to all of their authors.
 
 
 SDL 3 (SDL3.dll)
@@ -61,6 +62,13 @@ convert the game's movies.
   their licences and where each project is, in
   licenses\ffmpeg-libraries.txt; their licence texts are in each project's
   source.
+
+
+miniz's inflate, tinfl (built into mw3.exe)
+-------------------------------------------
+Rich Geldreich, RAD Game Tools and Valve Software,
+https://github.com/richgel999/miniz. MIT licence (licenses\miniz\LICENSE).
+It reads the official 1.2 patch.
 
 
 pl_mpeg (built into mw3.exe)

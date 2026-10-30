@@ -514,6 +514,11 @@ These change how the game talks to the computer, not how it plays.
   as they did and need no conversion; the converted copies are only the
   fall-back. It can also turn a disc image's CD
   music into files the game plays.
+- Each start writes everything the rebuild reports to `mw3.log` in the saves
+  folder (the start before kept as `mw3.old.log`), for bug reports. It also
+  says which version of the game's data it found, and on the first start
+  shows a note when the 1.2 patch would help or no music was found, with
+  what to do.
 
 ## Kept as the original, on purpose
 
