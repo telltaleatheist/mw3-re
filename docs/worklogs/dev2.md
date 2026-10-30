@@ -67,3 +67,21 @@ works alongside it; stay out of its files.
   screen-recording access to click or capture it). The dialog's pick flow
   needs a person: the lead tests it on Owen's PC.
 - Branch `mac5/find-install` off main cd45f5f.
+
+## 5. W9: the lab's skin change blinks (2026-10-30)
+
+- Reproduced: `--lab-mech 9 --click-at 362,304@2900 --shot-series 12`:
+  frame 2903 showed the 3D mech alone on black.
+- The skin swap 0x0044fd90 opens and closes the 3D lock (0x00576d00 /
+  0x00576d60) while the screen's draw holds it (checked: back.locked 1).
+  The exe: the inner lock is a no-op, the inner Unlock really unlocks, the
+  screen's unlock does nothing; DirectDraw's pointer stays writable, so the
+  2D drawn after it reaches the flip. Nothing holds or skips the frame.
+- Ours: `GameEngine::unlock_back` lays the layer over the frame at the
+  unlock, so the 2D drawn after the inner unlock was lost.
+- Fix (A) in `zvid::lock_3d` / `unlock_3d`: a lock of the locked back buffer
+  is counted and its unlock only counts down (`zfix::options().nested_lock`,
+  off in the probes). After: frames 2899..2909 all show the lab.
+- Tests: `fix_lock_inside_a_lock_keeps_the_outer` (both paths; 2 of 2
+  breaks), test_d3d_frame.py (2000 locks identical, the original's path).
+- Branch `mac5/lab-skin-blink` off main 730a01c.

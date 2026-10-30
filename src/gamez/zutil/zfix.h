@@ -18,6 +18,7 @@ struct Options {
   bool fpu53 = true;
   bool deep_water = true;  // FIX (bug): the gait's wading slowdown as a continuous curve (movement.md)
   bool any_resolution = true;  // FIX (B): any screen size and 16:9 (resolution.md)
+  bool nested_lock = true;     // FIX (A): a 3D lock inside a lock leaves the outer one (render-frame.md)
 };
 
 inline Options& options() {
