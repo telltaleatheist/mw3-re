@@ -1386,4 +1386,60 @@ TEST(sdl_program_campaign_chain) {
   std::printf("  %d of %d briefing and debriefing shots lit\n", lit_ok, shots);
   EXPECT(shots == 90 && lit_ok == shots);  // 81, and the kills run's 5 briefings and 4 debriefings
 }
+// The whole campaign by its own objectives (MW3_CAMPAIGN_ALL=1, about 5
+// minutes): a new pilot's kills chain through all 20 missions, seeded on the
+// 33 ms clock. Each is won by its objectives (campaign.md section 14: the
+// shooting, the reach_area walks, the valves' regions, the MFB command from
+// a valve's net link), never by the chain's --win fallback; the census 0;
+// the credits at the end. The frames are printed, not pinned: the check to
+// run after a change to the AI, the objectives, the scripts or the nets
+// (program.md).
+TEST(sdl_program_campaign_by_objectives) {
+  if (!have_fonts() || !std::getenv("MW3_CAMPAIGN_ALL")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_campaign_objectives";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  const auto start = std::chrono::steady_clock::now();
+  const pid_t pid = spawn_mw3({"--campaign-chain", "kills:20", "--verbose", "--nosound", "--hidden", "--write-dir", dir,
+                               "--frame-ms", "33", "--seed", "1999"},
+                              dir + "/run.log");
+  int status = 0;
+  bool done = pid > 0;
+  while (done && waitpid(pid, &status, WNOHANG) != pid) {
+    // a mission that misses its objectives runs to the chain's 40000-frame guard, about 5 minutes more each
+    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(3600)) {
+      kill(pid, SIGKILL), waitpid(pid, &status, 0);
+      done = false;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  EXPECT(done && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::string log;
+  if (std::FILE* f = std::fopen((dir + "/run.log").c_str(), "r")) {
+    char buf[4096];
+    for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) log.append(buf, n);
+    std::fclose(f);
+  }
+  // "mw3: chain won op O mission M by K kills (H hits, core frame F)": by mission, in order.
+  int won = 0;
+  std::string frames;
+  for (size_t at = 0; (at = log.find("mw3: chain won op ", at)) != std::string::npos; ++at) {
+    const size_t by = log.find(" by ", at), f = log.find("core frame ", at), end = log.find('\n', at);
+    if (by == std::string::npos || f == std::string::npos || f > end) break;
+    ++won;
+    frames += "  " + log.substr(at + 15, by - at - 15) + " at core frame " + log.substr(f + 11, log.find(')', f) - f - 11) + "\n";
+  }
+  int by_win = 0;
+  for (size_t at = 0; (at = log.find("not won by its kills", at)) != std::string::npos; ++at) {
+    const size_t b = log.rfind("mw3: chain ", at);
+    std::printf("  NOT by its objectives: %s\n", log.substr(b + 11, at - b - 11).c_str());
+    ++by_win;
+  }
+  std::printf("campaign by objectives: %d of 20 won, %d as --win, in %.0f s\n%s", won, by_win,
+              std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(), frames.c_str());
+  EXPECT(won == 20 && by_win == 0);
+  EXPECT(log.find("mw3: chain credits after 20 wins (entered 1)") != std::string::npos);
+  EXPECT(log.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
+}
 #endif

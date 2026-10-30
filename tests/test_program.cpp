@@ -12829,6 +12829,83 @@ TEST(mission_c1m1_a_fall_fixes_the_cockpit_camera_until_up_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c2m1's teleport_thor (a valve's "teleport", 0x004e3ba0): thor_01 set down
+// at (379.9, -10, -895.5) through the vehicle's vt+0xdc, a mech's
+// Mech::set_place (0x00418f30). Until 2026-10-30 the valve hooks placed
+// only the basic vehicles; a mech reached the census as veh.vt+0xdc and
+// stayed where it was.
+TEST(mission_c2m1_teleport_valve_places_the_mech_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_teleport"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int core = 0;
+  bool found = false, set = false;
+  float before[3] = {}, after[3] = {};
+  uint32_t census = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      auto thor = [] {
+        int32_t n = 0;
+        const mech3::AiMechMade* m = mech3::mission_ai_mechs(&n);
+        for (int32_t i = 0; i < n; ++i)
+          if (m[i].name && std::strcmp(m[i].name, "thor_01") == 0) return m[i].mech;
+        return static_cast<void*>(nullptr);
+      };
+      if (++core == 30) {
+        found = mech3::mech_world_position(thor(), before);
+        if (mech3::ai::Valve* v = mech3::ai::valve_find("teleport_thor")) v->set(1), set = true;
+      }
+      if (core == 31) mech3::mech_world_position(thor(), after);
+    };
+    CountingPump pump;
+    pump.limit = 100000;
+    pump.stop = [&] { return core >= 32; };
+    app.run(pump);
+    const auto& counts = engine.unported_counts();
+    census = counts.count("veh.vt+0xdc") ? counts.at("veh.vt+0xdc") : 0;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  const float off = std::hypot(after[0] - 379.9f, after[2] + 895.5f);
+  std::printf("  c2m1: thor_01 from (%.0f %.0f %.0f) to (%.1f %.1f %.1f), %.2f m off the valve's point; veh.vt+0xdc x%u\n",
+              before[0], before[1], before[2], after[0], after[1], after[2], off, census);
+  EXPECT(found && set);
+  EXPECT(off < 0.5f);
+  EXPECT(census == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // The damage decals in play (docs/damage-decals.md): c1m2's mechs and the
 // player in a fight on the GPU path, each 0x00474d90 that paints counted
 // through the cookie (0x00542730, run for real). The holes land at the hits'

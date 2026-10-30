@@ -1878,3 +1878,16 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   c3m5 66, c3m6 183, c4m1 65, c4m2 73, c4m3 190, c4bm4 207, c4bm5 193,
   c4bm6 207; the census 0. c4m3's tur_ult03 and tur_ams01 are met at
   frame 0 like c2m4's turret (killed in c4m1, same world).
+
+## The campaign regression test (2026-10-30)
+
+- Branch mac4/chain-test (off mac4/chain-ops 0a57bd3).
+- `sdl_program_campaign_by_objectives` (MW3_CAMPAIGN_ALL=1): kills:20
+  from a new pilot, 295 s; 20 of 20 by their objectives, the census 0,
+  the credits. Frames printed, not pinned. Break (no valve-link step):
+  c3m1 and c3m3 named as --win, 913 s, fails.
+- The full fresh run reached veh.vt+0xdc x4: c2m1's teleport_thor
+  places thor_01, a mech, and the valve hooks placed only basic
+  vehicles. Now Mech::set_place (0x00418f30). Test
+  `mission_c2m1_teleport_valve_places_the_mech_headless`; break: 1566 m
+  off and the census 1.
