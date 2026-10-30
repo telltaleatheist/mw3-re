@@ -4359,7 +4359,8 @@ TEST(mission_c1m1_dock_runs_with_the_player_waiting_headless) {
           }
         }
         if (d.front == 4 && repair_at < 0) repair_at = frames;
-        if (d.front == 0 && repair_at >= 0 && idle_at < 0) idle_at = frames;
+        // idle, or parked (7: the bases stay after a repair, behind bugs)
+        if ((d.front == 0 || d.front == 7) && repair_at >= 0 && idle_at < 0) idle_at = frames;
         ++frames;
       };
       CountingPump pump;
@@ -4477,7 +4478,7 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
         repairs_at_close = n.count("0x004154e0") ? static_cast<int>(n.at("0x004154e0")) : 0;
         repaired = mech3::program_mech_wear(player);
       }
-      if (d.front == 0 && close_at >= 0 && idle_at < 0) {
+      if ((d.front == 0 || d.front == 7) && close_at >= 0 && idle_at < 0) {  // idle, or parked (behind bugs)
         idle_at = frames;
         cleared = mech3::program_mission_waynet() == nav;
       }

@@ -271,3 +271,16 @@ works alongside it; stay out of its files.
 - Test `sdl_window_lets_the_mouse_go` (headless, every path). Not tried in
   a shown window here (it would take the Mac's mouse); for Owen.
 - Branch `mac5/mouse-release` off main 9f68bfd.
+
+## 18. The field bases stay after a repair (2026-10-30)
+
+- The exe: close, reset (bases released), idle. A lancemate's refit is
+  taken only while a player's call waits.
+- Ours behind `bugs` (Owen's rule: one switch): `DockParked`. vehicles.md,
+  After a repair; fixes.md, CHANGES, discoveries.
+- Test `mission_c2m1_field_bases_stay_after_a_repair_headless` (the
+  player, then Dominic by F10, then the player again, then M-M and the
+  third M; the exe's path with `bugs` off). The c1m1 dock tests take
+  either end.
+- Branch `mac5/mfb-stay` off main d02a386.
+

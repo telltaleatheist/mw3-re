@@ -3758,3 +3758,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   point and the HQ building is down. The bases go to the deploy point
   nearest you when you give the MFB command, so you have to call them
   from near Charlie. (docs/campaign.md, section 14)
+
+- **Lancemates can only use the field bases you have called.** "Repair at
+  the MFB" (F10) works only while the bases are already called (M, M) and
+  waiting for a mech. Otherwise the lancemate answers "disregard". After
+  every repair the bases pack up and leave, so each repair needs a new
+  call. The rebuild, with bug fixes on, keeps them where they are for the
+  next mech.
+
