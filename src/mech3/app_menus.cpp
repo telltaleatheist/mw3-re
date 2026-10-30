@@ -362,6 +362,16 @@ void GameEngine::pilot_record_mission(Handle p, int32_t a) {
   if (!program_record_mission(a != 0)) Engine::pilot_record_mission(p, a);
 }
 
+bool program_pilot_file(int op) {
+  Pilot* p = current_pilot();
+  if (!p) return false;
+  switch (op) {
+    case 0: return p->open();
+    case 1: return p->write_header();
+    case 2: return p->write();
+    default: p->close(); return true;
+  }
+}
 bool program_record_mission(bool next) {
   Pilot* pl = current_pilot();
   if (pl) pl->record_mission(next);

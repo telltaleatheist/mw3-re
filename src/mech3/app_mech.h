@@ -41,6 +41,7 @@ void unwire_weapons();
 void sync_frame_step(float dt, float clock);  // [0x0072c52c] and [0x0072c530] into the modules' copies
 // 0x00478f10 on the pilot the pilot screen chose (app_menus.cpp); false when none is.
 bool program_record_mission(bool next);
+bool program_pilot_file(int op);  // the current pilot's file: 0 open (0x00478ce0), 1 the header (0x004794f0), 2 the record (vt+0x04), 3 closed
 int32_t mech_select_hot_group(void* mech);
 int32_t mech_current_group(void* mech);  // the manager's +0x28, -1 none
 bool mech_select_group(void* mech, int32_t g);

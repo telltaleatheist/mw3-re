@@ -27,6 +27,7 @@
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/ztwod/twod.h"
+#include "gamez/ztwod/twod_weather.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zvideo/zvid_dd.h"
@@ -304,6 +305,17 @@ struct ProgramHudHooks : HudHooks {
   float player_camera_fov() override {
     const zcls::Camera* c = camera_data();
     return c ? c->get<float>(0xe8) : 1.0471976f;
+  }
+  // 0x004b51f0 on the zoom window's view (TARGET's triangle projected into
+  // it): its camera's matrices and the model renderer's camera set again.
+  void zview_prepare(void* v) override {
+    zcls::Node* n = v ? node(static_cast<HudZView*>(v)->camera) : nullptr;
+    if (!n || !n->data) return;
+    zmth::Mat34 m;
+    zmth::push(&m);
+    zcls::camera_update(n);
+    zmod::set_camera(static_cast<zcls::Camera*>(n->data));
+    zmth::pop();
   }
   void view_prepare() override {  // 0x004b51f0
     zcls::Node* n = camera_node();
@@ -786,6 +798,9 @@ void wire_hud() {
   // the weapons list's layout 0x00446240, refresh 0x00446520, the fire mark
   // 0x004464c0 (+0x11438 = 1) and the weapon it highlights (+0x1795c).
   heat_calls().screen = [](Mech& m) -> void* { return hud_of(m); };
+  heat_calls().heat_haze = [](void* s, float amount, int kind, float dt) {  // 0x0043c1f0: the heat's static
+    if (s) static_cast<Hud*>(s)->raise_static(amount, kind, dt);
+  };
   heat_calls().screen_power_down = [](void* s) -> uint8_t { return static_cast<Hud*>(s)->power_down() ? 1 : 0; };
   heat_calls().screen_power_up = [](void* s, uint8_t saved) { static_cast<Hud*>(s)->power_up(saved); };
   command_calls().hud_weapon = [](void* s) -> void* { return static_cast<Hud*>(s)->weapons.next_weapon; };
@@ -836,6 +851,17 @@ void wire_hud() {
   // equipment's hold), the HUD for the mode's zoom key; the view's pocket
   // 0x004b5290 is not ported.
   PocketCalls& pk = pocket_calls();
+  // 0x004b5290: the view's pocket on, its object [0x0060b270] on the layer
+  // the weather is on (0x0059fbe0 / 0x0059fc80): each update dims the
+  // screen in green (0x004b5280 -> 0x0055a740, its +0x34 rect 0: the whole).
+  pk.view_pocket = [](bool on) {
+    struct Dim : ztwod::Object2D {
+      Dim() : Object2D(0, 0) {}
+      void update(float) override { zrndr::dim(nullptr); }
+    };
+    static Dim dim;
+    on ? (void)ztwod::weather_layer().add(&dim) : (void)ztwod::weather_layer().remove(&dim);
+  };
   pk.unported = [](const char* key, uint32_t arg) -> uint32_t {  // the pocket's own calls not ported, to the census
     if (command_calls().unported) command_calls().unported(key, static_cast<int32_t>(arg));
     return 0;

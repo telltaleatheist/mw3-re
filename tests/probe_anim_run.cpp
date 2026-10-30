@@ -558,6 +558,36 @@ void ar_stop_all(int keep) {
   zeff::anim_stop_all(keep);
   build_ids();
 }
+// zModel's sweeps (0x00537f20, 0x005392c0) and their state: each model
+// slot's use count (+0x0c), polygon count (+0x10) and link (+0x5c), the
+// pool's count and free head; each material's first word (alpha, flags),
+// its links and the table's heads.
+int ar_material_sweep(int step) { return zmod::material_sweep(step); }
+void ar_material_sweep_reset() { zmod::material_sweep_reset(); }
+int ar_models_free_unused() { return zmod::models_free_unused(); }
+void ar_model_set_users(int i, int n) {
+  zmod::ModelPool& p = zmod::models();
+  if (i >= 0 && i < static_cast<int>(p.slots.size())) std::memcpy(p.slots[static_cast<size_t>(i)].header + 0xc, &n, 4);
+}
+int ar_pools(uint32_t* out, int len) {
+  std::vector<uint32_t> o;
+  zmod::ModelPool& p = zmod::models();
+  o.push_back(static_cast<uint32_t>(p.size)), o.push_back(static_cast<uint32_t>(p.count)), o.push_back(static_cast<uint32_t>(p.free_head));
+  for (int32_t i = 0; i < p.size && i < static_cast<int32_t>(p.slots.size()); ++i) {
+    const zmod::Model& m = p.slots[static_cast<size_t>(i)];
+    o.push_back(m.count(0xc)), o.push_back(m.count(0x10)), o.push_back(m.link);
+  }
+  zmod::MaterialTable& t = zmod::materials();
+  o.push_back(static_cast<uint32_t>(t.capacity)), o.push_back(static_cast<uint32_t>(t.free_head)), o.push_back(static_cast<uint32_t>(t.used_head));
+  for (int32_t i = 0; i < t.capacity; ++i) {
+    const zmod::Material& m = t.at(i);
+    o.push_back(static_cast<uint32_t>(m.alpha) | static_cast<uint32_t>(m.flags) << 8);
+    o.push_back(static_cast<uint16_t>(m.prev) | static_cast<uint32_t>(static_cast<uint16_t>(m.next)) << 16);
+  }
+  const int n = static_cast<int>(o.size());
+  if (n <= len) std::memcpy(out, o.data(), o.size() * 4);
+  return n;
+}
 void ar_reset_all(int restart) {
   zeff::anim_reset_all(restart);
   build_ids();

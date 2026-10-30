@@ -1929,3 +1929,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   0x0073655c (update_shadows), the screen-mode cockpits, frame_dt.
 - Test mission_c1m1_hud_reads_the_ported_globals_headless (break: all 6
   checks fail). The campaign: 20 of 20 by objectives, the census 0.
+
+## The game's other modes: Instant Action (2026-10-30)
+
+- Branch mac4/modes (off mac4/peek-sweep). `--action-chain all|cN|cN:S`
+  (frontend/sdl/modes_chain): 20 cases, each a lost and a won round,
+  CONTINUE then ABORT, the IA Dummy State's tallies checked. 111 s, all
+  20 as the exe tallies, census 0 (campaign.md section 15).
+- Ported from the census: the IA launch's pilot save (program_pilot_file),
+  0x00537f20 material_sweep, 0x005392c0 models_free_unused; differential
+  test_model_sweep.py (six worlds identical; breaks: the marks kept fails
+  at call 659, the use count test off frees 2231 for 684).
+- Tests: sdl_program_action_chain (MW3_CAMPAIGN, 114 s), the launch save
+  in instant_action_menus_to_wave1_tallies_headless (break: fails).
+- Chain bugs on the way (not the port's): the scenario rows have no
+  None, the custom flag is +0x16f9c set, the wave count read from frame 2.
+- Training (same branch): `--action-chain training`, t1's four missions by
+  their lessons in 47 s, census 0 (campaign.md section 16). Ported or
+  wired: the AI mechs' node names (0x005a8390's name), the heat's static
+  0x0043c1f0, the zoom view's prepare, the pocket view's green dim
+  0x0055a740; FIX (bug) the pocket mode at the mission's end (0x0046ab10,
+  a use after free: exit 139). Tests: mission_c1m1_training_pieces_headless
+  (break: 0 of 1 named), sdl_program_training_chain.
