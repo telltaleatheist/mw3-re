@@ -10,6 +10,7 @@
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_fieldbase.h"
 #include "mech3/zai_brain.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet.h"
 
@@ -76,6 +77,10 @@ Handle FieldBaseHooks::brain_order_net(Handle brain) {
   ai::Brain* b = static_cast<ai::Brain*>(brain);
   ai::Order& o = b->current();
   return o.net ? o.net->net() : nullptr;
+}
+Handle FieldBaseHooks::brain_behaviour(Handle brain) {
+  ai::Order& o = static_cast<ai::Brain*>(brain)->current();
+  return o.state ? o.state->behaviour() : nullptr;
 }
 // 0x0058b0a0: the first element whose name (vt+0x24) is `name`.
 Handle FieldBaseHooks::net_element(Handle net, const char* name) {
@@ -273,6 +278,11 @@ Handle DockIdle::message(Handle m) {
     if (!to) continue;
     h.brain_path_reset(brain);   // +0x238 0x004040d0
     h.brain_go_to(brain, net, to);  // 0x004c84b0
+    // FIX (bug): a base already in its slot's behaviour (called again to the
+    // point it docked at) has no way to drive and no node to enter, so its
+    // valve, set on arriving, never is and the places step waits for good
+    // (playtest W8, W16): it counts as arrived.
+    if (zfix::options().bugs && r.valves[i] && h.brain_behaviour(brain) == to) h.valve_set(r.valves[i], 1);
   }
   r.deploy_points(h.dock_point_position(r.dock_point));
   for (DockStep* st : {static_cast<DockStep*>(&r.places), static_cast<DockStep*>(&r.contact),
@@ -433,7 +443,15 @@ void DockContact::abort() {
 void DockPlaces::begin() {
   until = hk().frame() + 5;
   sound = reg->sounds[6];  // +0xa4 mcb_contact
+  for (int i = 0; i < 3; ++i) {
+    moved_at[i] = hk().game_time();
+    const FieldBase* b = reg->bases[i];
+    const float* p = b ? hk().entity_position(static_cast<Vehicle*>(const_cast<FieldBase*>(b))) : nullptr;
+    for (int k = 0; k < 3; ++k) mark[i][k] = p ? p[k] : 0.0f;
+  }
 }
+// FIX (bug): how long a base may stand still short of its slot (seconds).
+constexpr float kStuck = 30.0f;
 // Mech3.exe 1.2 @ 0x0045ac20
 bool DockPlaces::step(float) {
   FieldBaseHooks& h = hk();
@@ -442,6 +460,25 @@ bool DockPlaces::step(float) {
     field_bases_quiet_until() = h.game_time() + 5.0f;
     until = 0x7fffffff;
   }
+  // FIX (bug): the exe waits for every base's valve with no give-up, so a base
+  // that cannot drive on (no way, blocked) jams the dock for the mission
+  // (playtest W8, W16). One that has not moved 2 m in kStuck seconds short of
+  // its place counts as in place; the deploy then drives it from where it is.
+  if (zfix::options().bugs)
+    for (int i = 0; i < 3; ++i) {
+      FieldBase* b = reg->bases[i];
+      ai::Valve* v = reg->valves[i];
+      if (!b || !b->active || !v || h.valve_value(v) != 0) continue;
+      const float* p = h.entity_position(static_cast<Vehicle*>(b));
+      if (!p) continue;
+      const float dx = p[0] - mark[i][0], dz = p[2] - mark[i][2];
+      if (dx * dx + dz * dz > 4.0f) {
+        for (int k = 0; k < 3; ++k) mark[i][k] = p[k];
+        moved_at[i] = h.game_time();
+      } else if (h.game_time() - moved_at[i] > kStuck) {
+        h.valve_set(v, 1);
+      }
+    }
   return done();  // vt+0x18
 }
 // Mech3.exe 1.2 @ 0x0045ac70

@@ -93,6 +93,9 @@ struct DockContact : DockState {
 // +0xe0 (0x005c2620): the bases reach their places (their valves).
 struct DockPlaces : DockState {
   uint32_t until = 0;            // +0x10  a frame count
+  // FIX (bug) (ours, behind bugs): each base's place and the game time it last
+  // moved 2 m, so one that stands still short of its slot is given up on.
+  float mark[3][3] = {}, moved_at[3] = {};
   void begin() override;         // 0x0045ab50
   bool step(float) override;     // 0x0045ac20
   void end() override;           // 0x0045ac70
@@ -336,6 +339,7 @@ class FieldBaseHooks : public zgame::Unported {
   virtual ai::Valve* valve_find(const char* name);
   virtual Handle base_brain(FieldBase& b);
   virtual Handle brain_order_net(Handle brain);
+  virtual Handle brain_behaviour(Handle brain);  // its current order's state's behaviour (vt+0x18); FIX (bug)'s
   virtual Handle net_element(Handle net, const char* name);
   virtual Handle element_behaviour(Handle e);
   virtual int32_t link_count(Handle beh);

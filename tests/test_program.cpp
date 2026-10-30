@@ -14037,6 +14037,126 @@ TEST(mission_c1m3_field_bases_park_at_charlie_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtests W16 and W8 (vehicles.md, The request): c2m2's field bases called
+// to MFB 1, the repair, then called there again. After the repair the close
+// drives each base back onto its slot and the reset holds it there, still in
+// its slot's behaviour on the net; called again, its go-to has no way to
+// drive and no node to enter, so its valve (set on arriving) never is and the
+// dock's places step waits for good: the exe's own jam (W8). FIX (bug):
+// such a base counts as arrived. And a base that stands still short of its
+// slot for 30 s is given up on (here base 02 held where it waits).
+namespace {
+struct DockRun {
+  int first_places = -1, second_call = -1, second_places = -1, held_places = -1, calls = 0;
+};
+// mode 0: the repair and a second call; mode 1: one call, base 02 held still.
+DockRun c2m2_dock_run(int mode, uint32_t seed) {
+  DockRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_c2m2_dock"));
+  mech3::reset_states();
+  reset_process_state();
+  crt::rand_fixed_seed() = seed;
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int core = 0, contact = 0, idle = 0, call = 0;
+  float held[3] = {};
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      void* player = mech3::mech_mission_player();
+      if (core < 600)  // the enemies hit, as the campaign chain does
+        for (const mech3::ChainTarget& t : mech3::chain_hostiles()) mech3::chain_hit(t.h, mech3::chain_weapon());
+      const mech3::DockSummary d = mech3::program_dock_summary();
+      void* base = mech3::program_field_base(1);
+      if (core == 640 && mode == 1 && base) {  // base 02 held where it waits
+        mech3::chain_entity_at("mobilehq_02", held);
+      }
+      if (mode == 1 && core >= 640 && base) mech3::program_vehicle_place(base, held, 0.0f);
+      if (core == 640 || core == 641 || (idle && (core == idle + 60 || core == idle + 61))) {
+        mech3::program_mcb_command(player);
+        if (core == 641 || core == idle + 61) call = core, ++out.calls;
+        if (idle && core == idle + 61) out.second_call = core;
+      }
+      if (call && d.front >= 2 && out.first_places < 0) out.first_places = core;
+      if (out.second_call > 0 && d.front >= 2 && out.second_places < 0) out.second_places = core;
+      if (mode == 1 && out.first_places > 0 && out.held_places < 0) out.held_places = out.first_places;
+      if (mode == 0 && d.front == 2 && !contact) {  // the contact: onto the point, powered down
+        contact = core;
+        float dp[3];
+        if (mech3::program_dock_point(nullptr, dp)) mech3::chain_player_at(dp);
+        mech3::mech_power(player, 1);
+      }
+      if (mode == 0 && contact && !idle && d.front == 0) idle = core, mech3::mech_power(player, 0);
+    };
+    CountingPump pump;
+    pump.limit = 100000;
+    pump.stop = [&] {
+      if (mode == 1) return out.first_places > 0 || core >= 6000;
+      return out.second_places > 0 || (out.second_call > 0 && core > out.second_call + 1500) || core >= 9000;
+    };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c2m2_field_bases_answer_a_second_call_headless) {
+  if (!have_game()) return;
+  const bool bugs = zfix::options().bugs;
+  for (uint32_t seed : {1u, 7u}) {
+    zfix::options().bugs = true;
+    const DockRun r = c2m2_dock_run(0, seed);
+    std::printf("  seed %u: places done %d (first call), second call at %d, its places done %d\n", seed, r.first_places,
+                r.second_call, r.second_places);
+    EXPECT(r.first_places > 0 && r.second_call > 0 && r.second_places > 0 && r.second_places - r.second_call < 30);
+  }
+  zfix::options().bugs = false;  // the original: the second call waits for good (W8)
+  const DockRun orig = c2m2_dock_run(0, 1);
+  std::printf("  original: second call at %d, its places %s\n", orig.second_call, orig.second_places > 0 ? "done" : "never done (1500 frames)");
+  EXPECT(orig.second_call > 0 && orig.second_places < 0);
+  zfix::options().bugs = true;  // base 02 held: given up on after 30 s
+  const DockRun held = c2m2_dock_run(1, 1);
+  zfix::options().bugs = false;
+  const DockRun held_orig = c2m2_dock_run(1, 1);
+  zfix::options().bugs = bugs;
+  std::printf("  base 02 held: places done %d (fixed), %s (original)\n", held.held_places,
+              held_orig.held_places > 0 ? "done" : "never done by frame 6000");
+  // (30 s of game time after the call: past the other two's arrival at 1730)
+  EXPECT(held.held_places > 1730 && held.held_places < 4000);
+  EXPECT(held_orig.held_places < 0);
+}
+
 TEST(mission_c1m2_damage_decals_are_painted_headless) {
   if (!have_game()) return;
   SavedMounts keep;
