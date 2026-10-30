@@ -968,7 +968,7 @@ TEST(sdl_program_check_runs_never_ask_for_the_install) {
   std::string log;
   const int none = run(true, &log);
   std::printf("  search only: exit %d\n", none);
-  EXPECT(none == 1 && log.find("No MechWarrior 3 1.2 install found") != std::string::npos);
+  EXPECT(none == 1 && log.find("No MechWarrior 3 install found") != std::string::npos);
   if (!have_fonts()) return;
   const int dev = run(false, &log);
   std::printf("  with the development copy: exit %d\n", dev);
