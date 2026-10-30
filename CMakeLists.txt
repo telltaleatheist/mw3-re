@@ -251,6 +251,8 @@ set_source_files_properties(third_party/pl_mpeg/pl_mpeg.c PROPERTIES COMPILE_OPT
 # which rounds differently from the original (CLAUDE.md, FPU precision).
 if(NOT MSVC)
   target_compile_options(mw3core PRIVATE -ffp-contract=off)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # clang-cl
+  target_compile_options(mw3core PRIVATE /clang:-ffp-contract=off)
 endif()
 
 # A C interface over a few ported functions, for the differential tests that run
@@ -422,6 +424,27 @@ if(SDL3_FOUND)
     src/frontend/sdl/sdl_sound.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
+  # Windows: the Direct3D 12 shaders (sdl_render3d.hlsl), DXIL by the
+  # Windows SDK's dxc, as headers the renderer includes.
+  if(WIN32)
+    find_program(DXC dxc REQUIRED)
+    set(hlsl ${CMAKE_SOURCE_DIR}/src/frontend/sdl/sdl_render3d.hlsl)
+    set(dxil_dir ${CMAKE_BINARY_DIR}/dxil)
+    set(dxil_headers)
+    foreach(stage vs:vs_6_0 fs_tex:ps_6_0 fs_flat:ps_6_0)
+      string(REPLACE ":" ";" pair ${stage})
+      list(GET pair 0 entry)
+      list(GET pair 1 profile)
+      add_custom_command(OUTPUT ${dxil_dir}/${entry}.h
+                         COMMAND ${CMAKE_COMMAND} -E make_directory ${dxil_dir}
+                         COMMAND ${DXC} -nologo -T ${profile} -E ${entry} -Fh ${dxil_dir}/${entry}.h -Vn kDxil_${entry} ${hlsl}
+                         DEPENDS ${hlsl} VERBATIM)
+      list(APPEND dxil_headers ${dxil_dir}/${entry}.h)
+    endforeach()
+    target_sources(mw3sdl PRIVATE ${dxil_headers})
+    target_include_directories(mw3sdl PRIVATE ${dxil_dir})
+    target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_DXIL=1)
+  endif()
   # Music files other than .wav decode with SDL3_sound (brew install sdl3_sound).
   find_package(SDL3_sound CONFIG QUIET)
   if(SDL3_sound_FOUND)

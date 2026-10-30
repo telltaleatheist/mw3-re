@@ -60,12 +60,31 @@ bool same(const platform::DrawState& a, const platform::DrawState& b) {
          a.alpha_modulate == b.alpha_modulate && a.fog == b.fog && a.wireframe == b.wireframe;
 }
 
+#if defined(MW3_HAVE_DXIL)
+#include "fs_flat.h"  // sdl_render3d.hlsl, by dxc (CMakeLists.txt)
+#include "fs_tex.h"
+#include "vs.h"
+#endif
+
 SDL_GPUShader* make_shader(SDL_GPUDevice* dev, const char* entry, SDL_GPUShaderStage stage, int samplers) {
   SDL_GPUShaderCreateInfo info{};
-  info.code = reinterpret_cast<const Uint8*>(kShaders);
-  info.code_size = std::strlen(kShaders);
-  info.entrypoint = entry;
-  info.format = SDL_GPU_SHADERFORMAT_MSL;
+#if defined(MW3_HAVE_DXIL)
+  if (SDL_GetGPUShaderFormats(dev) & SDL_GPU_SHADERFORMAT_DXIL) {
+    const std::string e = entry;
+    const auto set = [&](const unsigned char* code, size_t n) { info.code = code, info.code_size = n; };
+    if (e == "vs") set(kDxil_vs, sizeof kDxil_vs);
+    else if (e == "fs_tex") set(kDxil_fs_tex, sizeof kDxil_fs_tex);
+    else set(kDxil_fs_flat, sizeof kDxil_fs_flat);
+    info.entrypoint = entry;
+    info.format = SDL_GPU_SHADERFORMAT_DXIL;
+  } else
+#endif
+  {
+    info.code = reinterpret_cast<const Uint8*>(kShaders);
+    info.code_size = std::strlen(kShaders);
+    info.entrypoint = entry;
+    info.format = SDL_GPU_SHADERFORMAT_MSL;
+  }
   info.stage = stage;
   info.num_samplers = samplers;
   info.num_uniform_buffers = 1;

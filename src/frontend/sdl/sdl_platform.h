@@ -34,6 +34,7 @@ class SdlWindow : public platform::Window {
   void frame_size(int width, int height, int canvas_w = 0, int canvas_h = 0) override;
   // --window not given: the window takes the frame's shape (sdl_fit.h).
   void set_auto_size(bool on) { auto_size_ = on; }
+  void set_fullscreen(bool on) { fullscreen_ = on; }  // ours: borderless, the desktop's size
   const FrameShape& shape() const { return shape_; }
 
   SDL_Window* sdl() const { return window_; }
@@ -47,6 +48,7 @@ class SdlWindow : public platform::Window {
   std::unique_ptr<SdlRender3D> render_;
   bool hidden_ = false;
   bool auto_size_ = false;
+  bool fullscreen_ = false;
   FrameShape shape_;
 };
 

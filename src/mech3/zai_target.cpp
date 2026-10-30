@@ -1,5 +1,6 @@
 #include "mech3/zai_target.h"
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <new>

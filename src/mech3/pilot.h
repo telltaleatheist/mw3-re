@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <initializer_list>
 #include <list>
+#include <memory>
 #include <string>
 #include <vector>
 

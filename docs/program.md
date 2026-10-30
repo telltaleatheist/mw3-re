@@ -430,4 +430,4 @@ through the MCI notify path.
   AI, weapons, effects, HUD; the briefing screen and its Launch button.
 - Movies (zFMV, Indeo 5).
 - The cursor (0x00579840) is not shown or hidden; the menus draw their own.
-- Shaders are MSL only (Metal); SPIR-V and DXIL come with the Windows build.
+- Shaders: MSL (Metal) and DXIL (Direct3D 12, windows.md); no SPIR-V (Vulkan) yet.
