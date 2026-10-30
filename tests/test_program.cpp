@@ -13440,6 +13440,93 @@ TEST(mission_c1m3_field_bases_park_at_charlie_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest W18 (weapons.md, The AMS): the mech's AMS frame (0x00419200, run
+// by the update, 0x0041a822) was a hook nothing set, so no mech's AMS ever
+// fired. c1m1's Mad Cat with an AMS on, and off: the same LRM10 salvos fired
+// at it from 400 m, hostile to the player (on the radar's list as such). On,
+// the AMS shoots missiles down (a round each, the shots gone from the air);
+// off, no round spent.
+namespace {
+struct AmsRun {
+  int32_t fitted = 0, rounds_before = 0, rounds_after = 0, fired = 0;
+  int32_t in_flight = 0;  // the LRM10s in the air, summed over the frames
+};
+AmsRun c1m1_ams_run(bool on) {
+  AmsRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_c1m1_ams"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int core = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      void* player = mech3::mech_mission_player();
+      bool is_on = false;
+      if (core == 30) {
+        mech3::program_mech_ams_set(player, on);
+        mech3::program_mech_ams(player, &out.fitted, &is_on, &out.rounds_before);
+      }
+      if (zwep::WeaponDef* d = zwep::find_def("LRM10"))
+        for (zwep::Projectile* q = d->active; q; q = q->next) ++out.in_flight;
+      if (core >= 40 && core <= 400 && core % 60 == 40) out.fired += mech3::program_fire_at(player, "LRM10", 5, 400.0f);
+      if (core == 600) {
+        mech3::program_mech_ams(player, &out.fitted, &is_on, &out.rounds_after);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 100000;
+    pump.stop = [&] { return core >= 600; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_ams_shoots_down_incoming_missiles_headless) {
+  if (!have_game()) return;
+  const AmsRun on = c1m1_ams_run(true), off = c1m1_ams_run(false);
+  std::printf("  AMS on: %d missiles fired, rounds %d -> %d, %d missile-frames in the air\n", on.fired, on.rounds_before,
+              on.rounds_after, on.in_flight);
+  std::printf("  AMS off: %d missiles fired, rounds %d -> %d, %d missile-frames in the air\n", off.fired, off.rounds_before,
+              off.rounds_after, off.in_flight);
+  EXPECT(on.fired == 35 && off.fired == 35);
+  EXPECT(on.rounds_after < on.rounds_before);     // missiles shot down, a round each
+  EXPECT(off.rounds_after == off.rounds_before);  // none
+  EXPECT(on.in_flight < off.in_flight);           // the downed ones gone from the air
+}
+
 TEST(mission_c1m2_damage_decals_are_painted_headless) {
   if (!have_game()) return;
   SavedMounts keep;

@@ -631,6 +631,17 @@ segments made (up to 8, 1 for DESIGNATE; the game asks for 1), +0x40 shown,
   (the player's foes' shots; an enemy's AMS the player side's) and shoots it
   down (health 0) once the period, shared over the AMS count, has passed.
   Only shots on the radar (SHOW_ON_RADAR: the missiles) can be shot down.
+  A mech's AMS frame is 0x00419200 (`update_ams`, mech.cpp), run by the
+  mech's update (0x0041a822): with a player in play, an AMS fitted and on,
+  from the mech's place raised by its height, the shots not hostile to the
+  player for a mech whose team the player's enemies hold, else the hostile
+  ones; a find is fired at. No sound or effect: 0x4b3bb0 only zeroes the
+  shot's health and spends a round. Until playtest W18 (2026-10-30) the
+  port's update called it through a hook nothing set (UpdateCalls'
+  equipment_update, whose "unset runs the port" was not so), so no mech's
+  AMS fired. Test: `mission_c1m1_ams_shoots_down_incoming_missiles_headless`
+  (35 LRM10s at the Mad Cat: on, 10 shot down, a round each; off, none;
+  break: the fallback removed).
 - The radar list (0x4b49c0..0x4b4b96): a std::list of {shot, hostile to the player}; every
   frame each radar shot's tick puts itself on it, and the radar object's
   action (priority 2) empties it.

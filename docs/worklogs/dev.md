@@ -2026,3 +2026,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   to the census; now scaled (GameEngine::image_draw), tested in
   frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
   the old fall-through, 1 check). S16..S18 reported.
+
+## W18, the AMS (2026-10-30)
+
+- Branch mac4/w18 (off main). The mech's AMS frame 0x00419200 was only a
+  hook (UpdateCalls::equipment_update), never set and with no fallback:
+  ported as update_ams (mech.cpp) and run when unset. Test helpers in
+  app_weapons.cpp (program_mech_ams, _set, program_fire_at). Test:
+  mission_c1m1_ams_shoots_down_incoming_missiles_headless (break: the
+  fallback removed).
