@@ -528,9 +528,9 @@ void* chain_weapon() {
 }
 
 namespace {
-// The highest ground at (x, z) that is not water, every zone's; `fallback`
-// when there is none.
-float ground_at(float x, float z, float fallback) {
+// The highest ground at (x, z) that is not water, every zone's, below `below`
+// when given (a cave's floor, not its roof); `fallback` when there is none.
+float ground_at(float x, float z, float fallback, float below = 1e30f) {
   zcls::Node* w = world_hooks().world;
   if (!w) return fallback;
   float probe[3] = {x, 2000.0f, z};
@@ -543,13 +543,14 @@ float ground_at(float x, float z, float fallback) {
   bool found = false;
   for (int i = 0; i < hits.count; ++i) {
     if (hits.hit[i].material && hits.hit[i].material->soil == 1) continue;
+    if (hits.hit[i].height > below) continue;
     if (!found || hits.hit[i].height > y) y = hits.hit[i].height, found = true;
   }
   return y;
 }
 }  // namespace
 
-bool chain_player_near(void* node, float dist) {
+bool chain_player_near(void* node, float dist, bool at_its_level) {
   auto* player = static_cast<Mech*>(mech_mission_player());
   auto* n = static_cast<zcls::Node*>(node);
   if (!player || !n) return false;
@@ -562,7 +563,7 @@ bool chain_player_near(void* node, float dist) {
   if (len > 0.001f) dx = dx / len, dz = dz / len;
   else dx = 1.0f, dz = 0.0f;
   const float x = at[0] + dist * dx, z = at[2] + dist * dz;
-  const float to[3] = {x, ground_at(x, z, at[1]), z};
+  const float to[3] = {x, at_its_level ? ground_at(x, z, at[1], at[1] + 10.0f) : ground_at(x, z, at[1]), z};
   move_mech(player, to, std::atan2(dx, dz));  // facing it: forward is -z
   return true;
 }
