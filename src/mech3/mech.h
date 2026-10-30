@@ -20,8 +20,8 @@ using Sound = void*;  // a playing sound (zSound voice), 0 when none
 
 struct HeatSinks {     // embedded at mech +0x658
   int32_t tech = 3;    // +0x000  the mech's tech (0x00484720), then the configuration's sink tech
-  int32_t count;       // +0x004  10 by default
-  bool doubles;        // +0x008
+  int32_t count{};     // +0x004  10 by default
+  bool doubles{};      // +0x008
   float rate() const;
   bool lose(int32_t n);  // 0x0045fbc0
 };
@@ -109,9 +109,9 @@ struct Vehicle : ai::AiTarget {
 };
 
 struct Mech : Vehicle {
-  bool power_down_pending;   // +0x0dc
-  bool heat_shutdown;        // +0x0dd
-  bool powered_down;         // +0x0de
+  bool power_down_pending{};   // +0x0dc
+  bool heat_shutdown{};        // +0x0dd
+  bool powered_down{};         // +0x0de
   float last_hit_time = 0;   // +0x0e0
   MechPart* last_hit_part = nullptr;  // +0x0e4
   Handle xe8 = nullptr;      // +0x0e8  zEntity's target node as the model is set (0x005a8690)
@@ -122,7 +122,7 @@ struct Mech : Vehicle {
   MechControls* controls = nullptr;  // +0x37c  (docs/controls.md)
   bool blocked[4] = {};      // +0x374  collider (+0xfc) resolved: vehicle, mech/bump, ceiling, wall/touch
   std::list<MechPart*> parts;  // +0x384, count +0x388
-  Leg* legs[2];              // +0x38c, +0x390
+  Leg* legs[2]{};              // +0x38c, +0x390
   Arm* arms[2] = {};         // +0x394, +0x398
   Torso* torso = nullptr;    // +0x39c
   Hip* hip = nullptr;        // +0x3a0
@@ -163,20 +163,20 @@ struct Mech : Vehicle {
   Vec3 knock_vec{};          // +0x540
   float lean = 0;            // +0x54c  roll of the display matrix (detail bit 5)
   float x550 = 1.0f;         // +0x550
-  float heat;                // +0x554  0..2
-  float heat_added;          // +0x558  this frame
-  float heat_dissipation;    // +0x55c  this frame
+  float heat{};                // +0x554  0..2
+  float heat_added{};          // +0x558  this frame
+  float heat_dissipation{};    // +0x55c  this frame
   float jet_burn = 0;        // +0x560  fuel per second firing: tonnage / (100 * jets)
   float jet_fuel = 1;        // +0x564  0..1
   bool infinite_fuel = false;  // +0x568  nothing sets it
   float coolant = 1.0f;      // +0x56c  the flush's (0x00419e60): doubled, spent on the heat, the rest halved
   float narc_time = 0;       // +0x570
-  float masc_time;           // +0x574  non-zero while MASC is on
-  int32_t anim_state;        // +0x578  1, 12, 13 let a power-down finish; 10 dead
+  float masc_time{};           // +0x574  non-zero while MASC is on
+  int32_t anim_state{};        // +0x578  1, 12, 13 let a power-down finish; 10 dead
   int32_t prev_state = 0;    // +0x57c
-  bool no_power_down;        // +0x584  airborne (vtable +0x144, 0x41ec70)
-  int32_t jump_jets_firing;  // +0x580
-  uint8_t hud_saved;         // +0x587  the screen state kept while powered down
+  bool no_power_down{};        // +0x584  airborne (vtable +0x144, 0x41ec70)
+  int32_t jump_jets_firing{};  // +0x580
+  uint8_t hud_saved{};         // +0x587  the screen state kept while powered down
   Vec3 impulse{};            // +0x594  this frame's; y is the jump jets' climb (+0x598)
   Vec3 push{};               // +0x5a0  outside push: slopes, walls, ledges; decays
   float lie_time = 0;        // +0x590  how long a fallen mech stays down before it gets up
@@ -193,7 +193,7 @@ struct Mech : Vehicle {
   uint32_t x624 = 0, x628 = 0, x62c = 0;  // +0x624..+0x62c
   int32_t hud_fall = 1;      // +0x638  0x0041ca30: the player's mech 0 while falling, others 1
   bool remote = false;       // vtable +0x5c: the network class's mechs (0x004d2a70), 0x0040bae0 here
-  bool invincible;           // +0x630  the Invincible cheat (docs/damage.md)
+  bool invincible{};           // +0x630  the Invincible cheat (docs/damage.md)
   uint32_t x634 = 0;         // +0x634
   float x63c = 1.0f;         // +0x63c
   Vec3 x640{};               // +0x640
@@ -204,14 +204,14 @@ struct Mech : Vehicle {
   uint32_t x680 = 0;         // +0x680
   MechData* pilot = nullptr;    // +0x684
   Handle x68c = nullptr;     // +0x68c  updated last each frame (0x004e6480)
-  uint32_t detail;           // +0x688  level-of-detail bits by distance (docs/movement.md): 0 sounds, 1 toes, 2 turn pivot, 3 landing effects, 4 full gait, 5 lean
+  uint32_t detail{};           // +0x688  level-of-detail bits by distance (docs/movement.md): 0 sounds, 1 toes, 2 turn pivot, 3 landing effects, 4 full gait, 5 lean
   uint32_t x690 = 0;         // +0x690
   Handle model_node = nullptr;  // +0x694  the model's root under the mech's node
   Handle lod_node = nullptr;  // +0x698  the low-detail model's copy (0x00430c20)
-  uint32_t heat_state;       // +0x69c  bits 0-2 beep, 3-5 shutdown, 24 override, 25 powered down
-  float shutdown_time;       // +0x6a0
-  float beep_time;           // +0x6a4
-  float voice_time;          // +0x6a8
+  uint32_t heat_state{};       // +0x69c  bits 0-2 beep, 3-5 shutdown, 24 override, 25 powered down
+  float shutdown_time{};       // +0x6a0
+  float beep_time{};           // +0x6a4
+  float voice_time{};          // +0x6a8
   uint32_t x6ac = 0;         // +0x6ac
   float frame_dt = 0;        // +0x6b0  dt accumulated until a full update
   float dead_time = 0;       // +0x6b4  when it joined the dead mechs' list (0x0041e350)
