@@ -109,6 +109,8 @@ SdlRender3D::~SdlRender3D() {
     if (t) SDL_ReleaseGPUTexture(dev_, t);
   if (depth_) SDL_ReleaseGPUTexture(dev_, depth_);
   if (vbuf_) SDL_ReleaseGPUBuffer(dev_, vbuf_);
+  for (Staging* s : {&tex_staging_, &vert_staging_})
+    if (s->buf) SDL_ReleaseGPUTransferBuffer(dev_, s->buf);
   if (frame_) SDL_ReleaseGPUTexture(dev_, frame_);
   for (SDL_GPUShader* s : {vs_, fs_tex_, fs_flat_})
     if (s) SDL_ReleaseGPUShader(dev_, s);
@@ -192,11 +194,25 @@ void SdlRender3D::update_texture(int32_t h, int width, int height, const uint8_t
   upload(textures_[h], width, height, rgba);
 }
 
+// A staging buffer of at least `bytes`, mapped. Kept between calls (made per
+// call, they were a quarter of a frame; performance.md); mapping with cycle
+// gives a fresh one while the GPU still reads the last.
+void* SdlRender3D::map_staging(Staging& s, uint32_t bytes) {
+  if (!s.buf || s.size < bytes) {
+    if (s.buf) SDL_ReleaseGPUTransferBuffer(dev_, s.buf);
+    s.size = bytes < 1u << 20 ? 1u << 20 : bytes;
+    SDL_GPUTransferBufferCreateInfo tbi{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, s.size, 0};
+    s.buf = SDL_CreateGPUTransferBuffer(dev_, &tbi);
+  }
+  return s.buf ? SDL_MapGPUTransferBuffer(dev_, s.buf, true) : nullptr;
+}
+
 void SdlRender3D::upload(SDL_GPUTexture* t, int width, int height, const uint8_t* rgba) {
   const auto size = static_cast<uint32_t>(width * height * 4);
-  SDL_GPUTransferBufferCreateInfo tbi{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size, 0};
-  SDL_GPUTransferBuffer* tb = SDL_CreateGPUTransferBuffer(dev_, &tbi);
-  std::memcpy(SDL_MapGPUTransferBuffer(dev_, tb, false), rgba, size);
+  void* to = map_staging(tex_staging_, size);
+  if (!to) return;
+  std::memcpy(to, rgba, size);
+  SDL_GPUTransferBuffer* tb = tex_staging_.buf;
   SDL_UnmapGPUTransferBuffer(dev_, tb);
   SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);
   SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
@@ -206,7 +222,6 @@ void SdlRender3D::upload(SDL_GPUTexture* t, int width, int height, const uint8_t
   SDL_UploadToGPUTexture(copy, &src, &dst, false);
   SDL_EndGPUCopyPass(copy);
   SDL_SubmitGPUCommandBuffer(cmd);
-  SDL_ReleaseGPUTransferBuffer(dev_, tb);
 }
 
 void SdlRender3D::release_texture(int32_t h) {
@@ -318,12 +333,11 @@ void SdlRender3D::end_scene() {
   if (!ensure_frame()) return;
   SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);
   const auto bytes = static_cast<uint32_t>(vertices_.size() * sizeof(platform::TLVertex));
-  SDL_GPUTransferBuffer* tb = nullptr;
-  if (bytes) {
+  void* to = bytes ? map_staging(vert_staging_, bytes) : nullptr;
+  if (to) {
     ensure_buffer(bytes);
-    SDL_GPUTransferBufferCreateInfo tbi{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, bytes, 0};
-    tb = SDL_CreateGPUTransferBuffer(dev_, &tbi);
-    std::memcpy(SDL_MapGPUTransferBuffer(dev_, tb, false), vertices_.data(), bytes);
+    std::memcpy(to, vertices_.data(), bytes);
+    SDL_GPUTransferBuffer* tb = vert_staging_.buf;
     SDL_UnmapGPUTransferBuffer(dev_, tb);
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
     SDL_GPUTransferBufferLocation src{tb, 0};
@@ -369,7 +383,6 @@ void SdlRender3D::end_scene() {
   }
   SDL_EndGPURenderPass(pass);
   SDL_SubmitGPUCommandBuffer(cmd);
-  if (tb) SDL_ReleaseGPUTransferBuffer(dev_, tb);
   vertices_.clear();
   runs_.clear();
 }
