@@ -41,6 +41,11 @@ struct Recording : mech3::Engine {
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override { return call(key, args); }
   void timer_update() override { call("0x00575a00", {}); }
   float frame_dt() override { return zgame::from_bits(peek32(0x72c52c)); }
+  // The loss and the cheat flag as the original reads them, the globals the
+  // test pokes ([0x00609926], [0x00609994]); the program reads them from the
+  // ported Missions and Options (0x0047ac20, campaign.md section 14).
+  bool mission_failed() override { return peek8(0x609926) != 0; }
+  bool mission_cheated() override { return peek8(0x609994) != 0; }
   int32_t in_game_vmode() override { return static_cast<int32_t>(peek32(peek32(0x5f4d10))); }
   float mouse_accel_x() override { return zgame::from_bits(peek32(peek32(0x5f4d2c))); }
   float mouse_accel_y() override { return zgame::from_bits(peek32(peek32(0x5f4d30))); }
