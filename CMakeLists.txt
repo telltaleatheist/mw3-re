@@ -440,7 +440,7 @@ add_executable(mw3tests
 target_link_libraries(mw3tests PRIVATE mw3core)
 # Tests that read the player's install skip themselves when it is not there.
 target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
-                                          MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
+                                          MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
                                           MW3_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME mw3tests COMMAND mw3tests)
 
@@ -532,7 +532,7 @@ if(SDL3_FOUND)
     )
     target_link_libraries(mw3sdltests PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3sdltests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
-                                                 MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
+                                                 MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
                                                  MW3_BIN="$<TARGET_FILE:mw3>"
                                                  MW3_FAKE_INDEO="$<TARGET_FILE:mw3indeo_fake>"
                                                  MW3_IMPORT_BIN="$<TARGET_FILE_DIR:mw3>/mw3import")

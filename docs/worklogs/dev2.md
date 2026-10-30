@@ -342,3 +342,16 @@ works alongside it; stay out of its files.
   second call jams, as before; the stuck-base give-up (a first call) is
   unchanged. No code change: the two fixes meet as designed.
 - Branch `mac5/w16-park` off lead/w17 8e2ea92.
+## 19. Suites at once: one scratch folder per process (2026-10-30)
+
+- Under load (three mw3tests and an mw3sdltests at once, all from one
+  build), two of three mw3tests failed
+  `campaign_menus_to_c1m1_through_the_briefing_headless` ("restored"). Every
+  run used the same `<build>/campaign_write`, which another run emptied and
+  rewrote. They also failed the c2m1 lance keys test (a state's address
+  reused; fixed in ab121b6 on the W17 branch).
+- `MW3_TEST_TMP` is now `mw3_test_tmp()` (tests/check.h, main.cpp):
+  `<build>/test-tmp/<pid>`, removed at exit; folders of dead runs are cleared
+  at the next start. The same load: 3 x 242/0 and 34/0, no folder left.
+- Branch `mac5/test-tmp` off main fa9aab7.
+

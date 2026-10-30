@@ -19,6 +19,12 @@ struct Register {
 
 }  // namespace check
 
+// The tests' scratch root (MW3_TEST_TMP): <build>/test-tmp/<pid>, one per
+// process, so suites run at once (two mw3tests, mw3sdltests and the runs it
+// spawns) never share a folder; made at the first ask, removed at exit.
+const char* mw3_test_tmp();
+#define MW3_TEST_TMP mw3_test_tmp()
+
 #define CHECK_CAT2(a, b) a##b
 #define CHECK_CAT(a, b) CHECK_CAT2(a, b)
 #define TEST(name)                                                     \
