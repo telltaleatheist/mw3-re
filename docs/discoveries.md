@@ -642,7 +642,11 @@ From the weapon code (weapons.md).
   crater and animation (0x4afc00); the damage is not reduced.
 - **The FCS "double tracking" does nothing.** Locking with FCS in the firing
   arm doubles a missile turn-rate setting, but the shot resets it before any
-  missile reads it (0x58518a).
+  missile reads it (0x58518a): each missile keeps its own copy of the 2,
+  which nothing reads. What does work is the FCS missiles' terrain
+  following: low over the ground (under 10 m) they climb when the line to
+  the target is blocked. The rebuild makes the double tracking work: FCS
+  missiles turn twice as fast (and climb twice as hard), as intended.
 - **SRM wobble is held within about a metre** of the line: the random drift
   is pushed back once it strays past 1 m sideways (0.75 m up and down).
 - **LB-X shells burst at 30 m** into three pellets each, in a cone of about one

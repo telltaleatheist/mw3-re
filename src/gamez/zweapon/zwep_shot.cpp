@@ -9,6 +9,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -526,8 +527,11 @@ void home(WeaponDef* def, Projectile* p) {
   else if (def->lock_on + def->turn_suspend_time > def->lock_on)
     factor = (p->homing_time - def->turn_suspend_time) / def->lock_on;
   else factor = 1.0f;
-  // The global, not the shot's copy: spawn has reset it to 1 (docs/weapons.md).
-  const float turn = def->turn_rate * f.track_scale[0] * factor * dt;
+  // The exe reads the global, which spawn has reset to 1, not the shot's copy
+  // (+0x5c0, 2 when fired locked with Artemis FCS): FIX (bug) the copy
+  // (fixes.md, docs/weapons.md Homing).
+  const float track = zfix::options().bugs ? p->track_scale[0] : f.track_scale[0];
+  const float turn = def->turn_rate * track * factor * dt;
   if ((def->flags & kTetherGuided) || p->terrain_follow) {
     HitList g;
     if (g_rh.ground) g_rh.ground(&p->position, &g);
@@ -545,7 +549,7 @@ void home(WeaponDef* def, Projectile* p) {
         if (def->flags & kFlyoutHealth) set_intersect(p->node, 1);
         const uintptr_t hd = hit_hooks().node_handler ? hit_hooks().node_handler(q.rec[q.count].node) : 0;
         if (r == 0 && hd <= 1) {
-          want.y = want.y - def->pitch_rate * f.track_scale[0] * -0.636619925f;
+          want.y = want.y - def->pitch_rate * track * -0.636619925f;
           zmth::normalize(want);
         }
       }

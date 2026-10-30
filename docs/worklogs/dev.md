@@ -2055,3 +2055,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   original (test_damage.py's 0x45fbc0 stub, test_puffers.py --fixed for the
   fixed path, probe_set_bugs); test_fixes fix_heat_sink_critical_is_called_out,
   sdl_program_bugfixes_switch.
+## Artemis IV's double tracking (2026-10-30)
+
+- Branch mac4/artemis (off main). FIX (bug), behind bugs: the homing's two
+  reads of [0x9a17d8] (TURN_RATE 0x5859f5, the FCS climb's pitch rate
+  0x585b08) take the shot's +0x5c0 copy (zwep_shot.cpp home). +0x5c8 (the
+  terrain following) was always read from the shot; +0x5c4 by nothing.
+  Test: fix_artemis_fcs_doubles_the_turn_rate (breaks: the global always,
+  the copy always).
