@@ -83,6 +83,10 @@ bool chain_player_to(const char* name, float dist);
 // The same by a scene node, unless the player is within 1.5 x dist of it.
 bool chain_player_near(void* node, float dist, bool at_its_level = false);
 // at_its_level: the ground at most 10 m above the node (a cave's floor, not the hill over it).
+bool chain_player_at(const float at[3]);  // the player set on the ground at a point (a reach_area's), at most 10 m above it
+// Where a net link that sets `valve` to `value` starts (a valve_assign edge, c3m1's m1mfbreach): the place to call
+// the bases from.
+bool chain_valve_link_at(const char* valve, int32_t value, float out[3]);
 // Where the entity whose node is `name` is; false when none.
 bool chain_entity_at(const char* name, float out[3]);
 // The same at the middle of a loaded region (its corners' mean, on the

@@ -6,6 +6,7 @@
 #include <functional>
 
 #include "frontend/sdl/sdl_render3d.h"
+#include "gamez/zclass/class.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_mech.h"
@@ -67,16 +68,16 @@ std::string store_line(const mech3::Store& st) {
 }  // namespace
 
 namespace {
-// One objective and what it names, indented by its depth.
-void print_objective(mech3::GameEngine& e, const mech3::Objective& o, int depth) {
+// One objective's kind and what it names.
+std::string describe(mech3::GameEngine& e, const mech3::Objective& o) {
   static const char* const kKinds[] = {"group", "destroy", "node_change", "reach_area", "valve_change"};
   const char* kind = o.kind < 5 ? kKinds[o.kind] : "training";
   std::string what;
   if (auto* d = dynamic_cast<const mech3::DestroyObjective*>(&o)) what = d->name ? *d->name : "?";
   if (auto* r = dynamic_cast<const mech3::ReachAreaObjective*>(&o)) {
     char buf[96];
-    std::snprintf(buf, sizeof buf, "(%.0f %.0f %.0f) r %.0f%s", r->point[0], r->point[1], r->point[2], r->radius,
-                  r->node ? " node" : "");
+    std::snprintf(buf, sizeof buf, "(%.0f %.0f %.0f) r %.0f%s%s", r->point[0], r->point[1], r->point[2], r->radius,
+                  r->node ? " node" : "", r->nav ? " nav" : "");
     what = buf;
   }
   if (auto* v = dynamic_cast<const mech3::ValveChangeObjective*>(&o)) {
@@ -90,7 +91,12 @@ void print_objective(mech3::GameEngine& e, const mech3::Objective& o, int depth)
   }
   if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o); g && g->goal_count)
     what += "(" + std::to_string(g->goal_count) + " of " + std::to_string(g->items.size()) + (g->simultaneous ? ", together" : "") + ")";
-  std::printf("mw3: chain objective %*s%s %s%s%s\n", depth * 2, "", kind, what.c_str(), o.done ? " done" : "",
+  return std::string(kind) + " " + what;
+}
+
+// One objective, indented by its depth, and its items.
+void print_objective(mech3::GameEngine& e, const mech3::Objective& o, int depth) {
+  std::printf("mw3: chain objective %*s%s%s%s\n", depth * 2, "", describe(e, o).c_str(), o.done ? " done" : "",
               o.salvage ? " +salvage" : "");
   if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
     for (const auto& c : g->items) print_objective(e, *c, depth + 1);
@@ -286,12 +292,13 @@ void CampaignChain::shoot_hostiles() {
       // The open valves in order; the first with a region of its name is
       // where the player goes, else the field base.
       std::vector<std::string> valves;
+      std::vector<int32_t> targets;  // the value each wants
       const mech3::Objectives& ob = mech3::mission_objectives();
       std::function<void(const mech3::Objective&)> find = [&](const mech3::Objective& o) {
         if (o.done) return;
         if (auto* v = dynamic_cast<const mech3::ValveChangeObjective*>(&o)) {
           const auto* x = static_cast<const mech3::ai::Valve*>(e_.object_of(v->watch));
-          if (x && x->name) valves.push_back(x->name);
+          if (x && x->name) valves.push_back(x->name), targets.push_back(v->target);
         }
         if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
           for (const auto& c : g->items) find(*c);
@@ -300,6 +307,22 @@ void CampaignChain::shoot_hostiles() {
         if (g) find(*g);
       std::string valve = valves.empty() ? "" : valves.front(), region;
       const char* where = "nowhere";
+      // An open reach_area (c2m2's nav Charlie): the player walks there.
+      const mech3::ReachAreaObjective* reach = nullptr;
+      std::function<void(const mech3::Objective&)> find_reach = [&](const mech3::Objective& o) {
+        if (o.done || reach) return;
+        if (auto* r = dynamic_cast<const mech3::ReachAreaObjective*>(&o)) reach = r;
+        if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
+          for (const auto& c : g->items) find_reach(*c);
+      };
+      for (const mech3::ObjectiveGroup* g : {ob.primary.get(), ob.final.get()})
+        if (g) find_reach(*g);
+      float reach_at[3] = {0, 0, 0};
+      if (reach) {
+        if (reach->nav) mech3::program_waypoint_position(e_.object_of(reach->nav), reach_at);
+        else if (reach->node) zcls::node_world_position(static_cast<zcls::Node*>(e_.object_of(reach->node)), reach_at);
+        else std::copy(reach->point, reach->point + 3, reach_at);
+      }
       for (const std::string& v : valves)
         if (mech3::chain_player_to_region(("reg_" + v).c_str())) {
           valve = v, region = "reg_" + v, where = region.c_str();
@@ -309,12 +332,18 @@ void CampaignChain::shoot_hostiles() {
       const bool has_mfb = mech3::chain_entity_at("mobilehq_01", mfb);
       const float moved = std::fabs(mfb[0] - mfb_was_[0]) + std::fabs(mfb[2] - mfb_was_[2]);
       std::copy(mfb, mfb + 3, mfb_was_);
-      if (region.empty() && mcb_step_ == 0 && mech3::program_has_mcb()) {
+      if (reach && region.empty() && mech3::chain_player_at(reach_at)) {
+        where = reach->nav ? "at the reach_area's nav point" : "at the reach_area";
+      } else if (region.empty() && mcb_step_ == 0 && mech3::program_has_mcb()) {
         // The player's MFB command (MCB_COMMAND, 0x0047a910), where the
         // player stands: the first press picks the nearest dock point, the
-        // second (next frame) sends the bases (c1m3's "MFB Charlie").
+        // second (next frame) sends the bases (c1m3's "MFB Charlie"). A valve
+        // a net link sets (c3m1's breach) is called for from that link.
+        float link[3];
+        const bool at_link = !valve.empty() && mech3::chain_valve_link_at(valve.c_str(), targets.front(), link) &&
+                             mech3::chain_player_at(link);
         mech3::program_mcb_command(mech3::mech_mission_player());
-        mcb_step_ = 1, where = "the MFB command's pick";
+        mcb_step_ = 1, where = at_link ? "at the valve's net link, the MFB command's pick" : "the MFB command's pick";
       } else if (!region.empty()) {
       } else if (mcb_step_ == 2 && mfb_visits_ == 0 && mech3::chain_player_to("mobilehq_01", 40.0f)) {
         // once by the field base (c1m1's reach_mfb), then out of the bases' way
@@ -553,7 +582,23 @@ void CampaignChain::frame() {
       sv->on_button(mech3::SalvageScreen::kAccept, 0, 0);
     }
   } else if (now == &st.core) {
-    if (frames_in_state_ == 1) core_frames_ = 0;
+    if (frames_in_state_ == 1) core_frames_ = 0, objectives_done_.clear();
+    {  // each objective as it completes, with its frame (a win's real end, not one met at the start)
+      const mech3::Objectives& ob = mech3::mission_objectives();
+      const char* names[] = {"primary", "secondary", "final", "fail"};
+      const mech3::ObjectiveGroup* groups[] = {ob.primary.get(), ob.secondary.get(), ob.final.get(), ob.fail.get()};
+      std::function<void(const mech3::Objective&, const char*)> seen = [&](const mech3::Objective& o, const char* in) {
+        if (o.done && std::find(objectives_done_.begin(), objectives_done_.end(), &o) == objectives_done_.end()) {
+          objectives_done_.push_back(&o);
+          std::printf("mw3: chain objective done in %s %s (core frame %d): %s\n", launched_.c_str(), in, core_frames_,
+                      describe(e_, o).c_str());
+        }
+        if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
+          for (const auto& c : g->items) seen(*c, in);
+      };
+      for (int i = 0; i < 4; ++i)
+        if (groups[i]) seen(*groups[i], names[i]);
+    }
     if (core_frames_ == 30 || (o_.kills && core_frames_ % 600 == 0 && !mech3::missions().ended)) {
       const mech3::Objectives& ob = mech3::mission_objectives();
       const char* names[] = {"primary", "secondary", "final", "fail"};

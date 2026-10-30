@@ -50,6 +50,7 @@ class CampaignChain {
   ChainOptions o_;
   bool done_ = false;
   int wins_ = 0, shots_ = 0, frames_in_state_ = 0, core_frames_ = 0;
+  std::vector<const void*> objectives_done_;  // this mission's objectives seen done, logged once
   const void* last_state_ = nullptr;
   // This briefing's steps: 0 loading, 1 shot, 2 lab done, 3 salvage done, 4 launched.
   int brief_step_ = 0, wait_ = 0;

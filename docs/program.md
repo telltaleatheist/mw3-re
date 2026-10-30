@@ -355,6 +355,10 @@ apart. Everything else is a real gap and stays listed.
   (MW3_CAMPAIGN=1): the campaign played through, campaign.md section 13.
   `kills:N` wins each mission by shooting every enemy through zWeapon's
   impact and follows the salvage into the store and the lab (section 14).
+  With no enemy left it does what a player would. It walks to an open
+  reach_area's nav point or to a valve's region, and gives the MFB
+  command from the net link that sets the valve (c3m1, c3m3). It logs
+  each objective's completion frame.
 - `--frame-ms N` (ours): each pass of the app's loop that runs the game is
   N ms on the game's clock (`SdlClock`, stepped by the pump when it finds
   no message waiting), a sleep only adding its time. Scripted runs keep the
