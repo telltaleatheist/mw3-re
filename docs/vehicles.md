@@ -901,6 +901,28 @@ behaviour to the target; when that behaviour is +0x23c's (none), the
 current order is dropped first and the new one's behaviour asked, its
 answer unused.
 
+**Playtest W8** (2026-10-30, from Owen's memory of the original:
+standing on the op point while the bases come in, the dock never moves on
+until he steps off). Not found in the exe's logic, and the port does not
+reproduce it:
+- The bases cannot be blocked by the player's mech: the vehicles'
+  collision count is never written (The collision count, above), so their
+  sweeps cross nothing but a slide's side points; a base drives through a
+  mech standing on its slot (in c1m1, centre to centre 0.4 m) and parks.
+- A field base gets no station keeping: its setup turns its three scans
+  off, so it has no contacts for 0x4cc150 to hold on.
+- The places step waits only for the bases' own valves, the contact only
+  for the requester within 12 m of the dock point and powered down; the
+  deploy puts the mech at rest on the point itself.
+In the port the dock ran to idle in every arrangement tried in c1m1: the
+player on the point (standing, or powered down before the bases came),
+on each of the three slots, or 11 m out toward a base's drive, and c1m3's
+slots (W10). mw3tests `mission_c1m1_dock_runs_with_the_player_waiting_headless`
+keeps the two closest to Owen's description. Open: what Owen did (the
+mission, standing or powered down, where); a standing player is the one
+case that waits, the contact asking for the power-down (the bases' "we have
+arrived and are ready to deploy").
+
 The dock point comes from the mcbwaynet and the request from the player's
 MFB command (below).
 

@@ -1790,3 +1790,18 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - `--mech-ahead M` (ours) keeps the player near the first enemy mech, for
   shots.
 - Known duplicate noted: SdlTwodHost's image cache is a second 0x005179d0.
+
+## Playtest W8: the dock never lets go while the player waits (2026-10-30)
+
+- Branch mac4/dock-release (off main aea13d3).
+- Not reproduced. In the exe's logic a player on the dock point or a slot
+  blocks nothing: the vehicles' collision count (+0x214) is never written,
+  so a base's sweep crosses nothing but a slide's side points (checked in
+  the port: zero hits all through c1m1, the base drives through the mech);
+  a field base scans for nothing, so no station keeping; the contact wants
+  the player within 12 m and powered down.
+- The port's dock ran to idle with the player on the point (standing, or
+  powered down early), on each slot, 11 m out on a base's drive, and on
+  c1m3's slots. Kept as `mission_c1m1_dock_runs_with_the_player_waiting_headless`.
+- Asked the lead for Owen's details; a standing (not powered-down) player
+  is the one wait, by design.
