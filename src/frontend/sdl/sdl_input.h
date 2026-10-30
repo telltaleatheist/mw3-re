@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 
 #include <deque>
+#include <functional>
 
 #include "frontend/sdl/sdl_fit.h"
 #include "gamez/zinput/zinput.h"
@@ -52,6 +53,21 @@ class SdlInput : public platform::Input {
   bool captured() const { return captured_; }
   bool fitted() const { return shape && shape->fit; }
 
+  // FIX (A), ours (docs/input.md, the mouse in a window): in a window the
+  // mouse is the player's to take out. The menus never capture: the cursor
+  // is free and zInput's mouse is put where it is (`absolute_cursor`, the
+  // exe's 0x0051b4f0). A mission captures; kReleaseKeys pressed together and
+  // let go with no other key between, the pause, or the focus lost let the
+  // mouse go (the game then sees no motion or buttons) until a click inside
+  // the window, which the game does not see. Fullscreen holds it as before.
+  static constexpr SDL_Keymod kReleaseKeys = SDL_KMOD_CTRL | SDL_KMOD_ALT;
+  std::function<bool()> windowed;    // shown, not fullscreen (unset: fullscreen's rules)
+  std::function<bool()> in_mission;  // the mission's own state (not a menu or the pause)
+  std::function<void(float, float)> absolute_cursor;  // window point -> zInput's mouse
+  bool released() const { return released_; }
+  bool in_window() const { return win_; }  // as of the last refresh
+  void refresh();  // the capture as the window, the state and the release say
+
   // From the message pump: every SDL input event passes through here.
   void on_event(const SDL_Event& e);
 
@@ -76,6 +92,15 @@ class SdlInput : public platform::Input {
   uint32_t coop_[3] = {};
   bool focused_ = true;
   bool captured_ = false;  // capture(true) asked: the relative mouse
+  bool muted() const { return released_ && win_ && mission_; }
+  void release_chord(SDL_Scancode s, bool down);
+  bool win_ = false, mission_ = false, absolute_ = false;
+  bool released_ = false;
+  bool cursor_hidden_ = false;
+  bool cursor_moved_ = false;  // the cursor moved since the menus took it (else zInput's place stays)
+  SDL_Keymod chord_held_ = SDL_KMOD_NONE;
+  bool chord_armed_ = false, chord_spoiled_ = false;
+  bool swallow_[4] = {};  // the recapturing click's buttons, kept from the game until let go
   int32_t range_[8][2] = {{0, 65535}, {0, 65535}, {0, 65535}, {0, 65535},
                           {0, 65535}, {0, 65535}, {0, 65535}, {0, 65535}};
   uint32_t deadzone_[8] = {};

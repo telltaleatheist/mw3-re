@@ -1999,3 +1999,10 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   first-run import skipped while the helper is up.
 - Test: sdl_movies_through_the_indeo_helper_pipe with mw3indeo_fake (the
   same messages answered from an imported movie).
+## The fall's force feedback (2026-10-30)
+
+- Branch mac4/ifall (off main 04aff71). FIX (bug), behind bugs: no
+  "i_fall" in the file, "impact fall" taken (force_feedback.cpp). Tests:
+  the recording device with bugs off and on, the real file's effect
+  (sdl_force_device_plays_the_ifr_effects_as_rumble). Break: the lookup
+  off, 2 checks fail.
