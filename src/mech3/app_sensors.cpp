@@ -15,7 +15,9 @@
 #include "mech3/mech_parts.h"
 #include "mech3/pocket_panel.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "gamez/zclass/class.h"
@@ -40,6 +42,7 @@
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_inout.h"
 #include "mech3/zainet_region.h"
+#include "mech3/zrdrainet.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_matl.h"
@@ -528,9 +531,9 @@ void* chain_weapon() {
 }
 
 namespace {
-// The highest ground at (x, z) that is not water, every zone's; `fallback`
-// when there is none.
-float ground_at(float x, float z, float fallback) {
+// The highest ground at (x, z) that is not water, every zone's, below `below`
+// when given (a cave's floor, not its roof); `fallback` when there is none.
+float ground_at(float x, float z, float fallback, float below = 1e30f) {
   zcls::Node* w = world_hooks().world;
   if (!w) return fallback;
   float probe[3] = {x, 2000.0f, z};
@@ -543,6 +546,7 @@ float ground_at(float x, float z, float fallback) {
   bool found = false;
   for (int i = 0; i < hits.count; ++i) {
     if (hits.hit[i].material && hits.hit[i].material->soil == 1) continue;
+    if (hits.hit[i].height > below) continue;
     if (!found || hits.hit[i].height > y) y = hits.hit[i].height, found = true;
   }
   return y;
@@ -564,6 +568,35 @@ bool chain_player_near(void* node, float dist) {
   const float x = at[0] + dist * dx, z = at[2] + dist * dz;
   const float to[3] = {x, ground_at(x, z, at[1]), z};
   move_mech(player, to, std::atan2(dx, dz));  // facing it: forward is -z
+  return true;
+}
+
+bool chain_valve_link_at(const char* valve, int32_t value, float out[3]) {
+  const ai::Valve* want = ai::valve_find(valve);
+  if (!want) return false;
+  bool found = false;
+  for (auto& [name, file] : ai::net_files()) {
+    if (!file || found) continue;
+    file->add_ref();  // the nets are built and their files unloaded; read again for a moment
+    for (int32_t i = 0; i < file->record_count() && !found; ++i) {
+      const char* key = nullptr;
+      const ai::NetNodeRec* r = file->node(i, &key);
+      if (!r || r->kind != 1 || !r->valve_assign || r->valve_assign->valve != want ||
+          r->valve_assign->value != value || r->links.empty()) continue;
+      char from_key[16];
+      std::snprintf(from_key, sizeof from_key, "node_%02d", r->links[0]);
+      if (const ai::NetNodeRec* from = file->node_named(from_key)) std::copy(from->pos, from->pos + 3, out), found = true;
+    }
+    file->release();
+  }
+  return found;
+}
+
+bool chain_player_at(const float at[3]) {
+  auto* player = static_cast<Mech*>(mech_mission_player());
+  if (!player) return false;
+  const float to[3] = {at[0], ground_at(at[0], at[2], at[1], at[1] + 10.0f), at[2]};  // its floor, not a roof over it
+  move_mech(player, to, 0.0f);
   return true;
 }
 

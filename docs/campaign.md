@@ -906,6 +906,31 @@ beyond the kills:
   census: the "if" event's ray (0x00507220), events 3, 16, 20, 21, 37 and
   38. 36, the screen tint, reached in c1m2, c1m4 and c4bm5, is ported
   since (anim-run.md, The screen tint).
+- **A place to reach** (c2m2's and c2m3's reach_area, 0x0045e890: the
+  player within the radius of a nav point's position, else its node's or
+  point's). With no enemy left, the chain sets the player down at the
+  first open one, on the ground within 10 m above it. c2m2's nav
+  "Charlie" is in a cave. The highest ground there is the roof (y 47
+  against the nav's -1), so the ground probe takes the highest ground
+  below a ceiling.
+- **A valve a net link sets** (c3m1's m1mfbreach): `valve_assign` edges
+  on net_01 (46->47, 46->48, 46->17), the field bases' last leg to the
+  dock point "MFB Charlie" near (996, 636). The MFB command picks the
+  dock point nearest the player. So before the first press, the chain
+  sets the player at the start node of the link that sets the open valve
+  (read from the loaded net files). Pressed where the player starts, it
+  picked MFB 1 and the bases never left.
+- **What an operation remembers.** c2m4's first primary group wants
+  `destroy mineturret01` and the valve vhammer. The chain killed
+  mineturret01 in c2m1, on the same c2 world, and the pilot save's
+  animation log restores its node in c2m4 (zeff_anim_save's "Restore
+  node: healthy 0 / destroyed 1"). With `healthy` off, aiTurrets.zrd's
+  scan (0x004a76b0) makes no turret on it, and a destroy objective whose
+  entity is never found counts as met (0x0045f3b0). So it is done at core
+  frame 0, as the exe would have it.
+- **Each objective's frame.** The chain logs every objective as it
+  completes ("chain objective done in ... (core frame N)"), so a fast
+  win can be checked for its real end.
 - **`--frame-ms N`** (ours): each pass of the app's loop is N ms on the
   game's clock, however fast it is drawn. The timing is then the same each
   run (rand is still seeded from the time of day, as the exe does, so the
