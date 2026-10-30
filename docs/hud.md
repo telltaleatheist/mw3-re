@@ -961,6 +961,25 @@ the Owens in mode 2 and fires: the hits wear a torso section's internal to
 intact. Headless runs load no 2D images, so the test gives the silhouette
 set distinct stand-ins first.
 
+**What it shows** (Owen's playtest, 2026-10-29: "only the left arm
+outlined (or the right one)"). Each part is an outline over the
+background's translucent fill (`dmg_bg_blue`, an alpha image of 0x001f;
+red or green for TARGET's enemy or neutral): blue at full health, green
+above 0.7, yellow above 0.4, red above 0, nothing when destroyed (the
+`_blk` images are not shipped). In the program seven of the eight blue
+outlines are the fill's own 0x001f (`dmg_rarm_blue` alone is 0x003f), and
+the layer's cover (render-frame.md, FIX (A)) took them for the fill and
+drew them see-through, so at full health only the right arm showed (the
+left of the silhouette, the player's own seen from behind); damaged parts'
+colours differ and showed. Fixed in the cover, not here: an opaque write
+ends a pixel's record. mw3sdltests
+`sdl_host_damage_diagram_shows_every_part` draws the view with the shipped
+images at every band for each part and checks every outline texel opaque;
+with the cover unfixed it shows Owen's picture (seven parts with 0 texels
+at full health). Shots: c1m1, `--tap 0x20@800` (all blue at frame 900);
+with `--vehicle-ahead 40 --vehicle-hold` the vehicle's hits turn the left
+arm and leg green by frame 2400.
+
 ## 17. The gauges' setters, the objectives' place, the equipment's update
 
 Run by the HUD's data update each frame (section 14 part 4).
