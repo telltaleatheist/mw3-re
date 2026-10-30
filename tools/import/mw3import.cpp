@@ -9,7 +9,12 @@
 //   <name>.fmv  the AVI's stream headers and the video's key frames, which
 //               the movie player's arithmetic reads (fmv_stream.cpp).
 //
-//   mw3import [--install DIR] [--write-dir DIR] [--only NAME]
+//   mw3import [--install DIR] [--write-dir DIR] [--only NAME] [--missing]
+//             [--cue DISC.cue [--music-only]]
+//
+// --missing: only the movies without a .fmv yet (mw3's first run asks for
+// these, following the "progress K N" lines). --cue: the disc image's CD
+// audio as music\trackNN.wav too (platform/cue_audio.h).
 //
 // Needs FFmpeg's libavformat, libavcodec, libswscale and libavutil (Indeo 5
 // decoding and the MPEG-1 encoder); built only when they are found.
@@ -20,9 +25,12 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <SDL3/SDL.h>
+
+#include "platform/cue_audio.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -281,14 +289,20 @@ bool write_m1v(const std::string& avi, const std::string& out_path, uint32_t fra
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string install = MW3_GAME_DIR, write_dir, only;
+  std::string install = MW3_GAME_DIR, write_dir, only, cue;
+  bool missing = false, music_only = false;
   for (int i = 1; i < argc; ++i) {
     const std::string s = argv[i];
     if (s == "--install" && i + 1 < argc) install = argv[++i];
     else if (s == "--write-dir" && i + 1 < argc) write_dir = argv[++i];
     else if (s == "--only" && i + 1 < argc) only = argv[++i];
+    else if (s == "--cue" && i + 1 < argc) cue = argv[++i];
+    else if (s == "--missing") missing = true;
+    else if (s == "--music-only") music_only = true;
     else {
-      std::fprintf(stderr, "usage: mw3import [--install DIR] [--write-dir DIR] [--only NAME]\n");
+      std::fprintf(stderr,
+                   "usage: mw3import [--install DIR] [--write-dir DIR] [--only NAME] [--missing]\n"
+                   "                 [--cue DISC.cue [--music-only]]\n");
       return 2;
     }
   }
@@ -296,11 +310,25 @@ int main(int argc, char** argv) {
     if (char* p = SDL_GetPrefPath("MicroProse", "MechWarrior 3")) write_dir = p, SDL_free(p);
   }
   if (write_dir.empty()) return std::fprintf(stderr, "mw3import: no write dir\n"), 1;
+  std::setvbuf(stdout, nullptr, _IONBF, 0);  // mw3 follows the progress lines as they come
+  int failed = 0;
+  // The disc's CD audio as music\trackNN.wav (docs/fmv.md, Music).
+  if (!cue.empty()) {
+    std::string err;
+    const int32_t n = platform::write_cue_audio(cue, (fs::path(write_dir) / "music").string(), [](int32_t t, uint64_t bytes) {
+      std::printf("mw3import: music track%02d.wav, %.1f s\n", t, static_cast<double>(bytes) / (44100.0 * 4));
+    }, &err);
+    if (n < 0 || !err.empty()) std::fprintf(stderr, "mw3import: %s: %s\n", cue.c_str(), err.c_str()), ++failed;
+    std::printf("mw3import: %d music tracks into %s\n", n < 0 ? 0 : n, (fs::path(write_dir) / "music").string().c_str());
+    if (music_only) return failed ? 1 : 0;
+  }
   const fs::path src = fs::path(install) / "video", dst = fs::path(write_dir) / "video";
   std::error_code ec;
   fs::create_directories(dst, ec);
   av_log_set_level(AV_LOG_ERROR);
-  int made = 0, failed = 0;
+  // The movies to make: every video\*.AVI (lower-cased), or with --missing
+  // the ones without a .fmv yet.
+  std::vector<std::pair<fs::path, std::string>> todo;
   for (const auto& e : fs::directory_iterator(src, ec)) {
     std::string ext = e.path().extension().string();
     for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -308,20 +336,28 @@ int main(int argc, char** argv) {
     std::string name = e.path().stem().string();
     for (char& c : name) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (!only.empty() && name != only) continue;
+    if (missing && fs::exists(dst / (name + ".fmv"), ec)) continue;
+    todo.emplace_back(e.path(), name);
+  }
+  std::sort(todo.begin(), todo.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+  std::printf("progress 0 %zu\n", todo.size());
+  int made = 0;
+  for (size_t k = 0; k < todo.size(); ++k) {
+    const auto& [path, name] = todo[k];
     Avi a;
     std::string err;
     const fs::path base = dst / name;
-    if (!parse_avi(e.path().string(), &a, &err) ||
-        !write_m1v(e.path().string(), base.string() + ".m1v", a.video.length, &err)) {
-      std::fprintf(stderr, "mw3import: %s: %s\n", e.path().string().c_str(), err.c_str());
+    if (!parse_avi(path.string(), &a, &err) || !write_m1v(path.string(), base.string() + ".m1v", a.video.length, &err)) {
+      std::fprintf(stderr, "mw3import: %s: %s\n", path.string().c_str(), err.c_str());
       ++failed;
-      continue;
+    } else {
+      if (a.has_audio) write_wav(base.string() + ".wav", a);
+      write_sidecar(base.string() + ".fmv", a);  // last: its presence marks the movie done
+      std::printf("mw3import: %s: %u frames (%zu keys), %zu sound bytes\n", name.c_str(), a.video.length,
+                  a.keys.size(), a.sound.size());
+      ++made;
     }
-    if (a.has_audio) write_wav(base.string() + ".wav", a);
-    write_sidecar(base.string() + ".fmv", a);
-    std::printf("mw3import: %s: %u frames (%zu keys), %zu sound bytes\n", name.c_str(), a.video.length,
-                a.keys.size(), a.sound.size());
-    ++made;
+    std::printf("progress %zu %zu %s\n", k + 1, todo.size(), name.c_str());
   }
   std::printf("mw3import: %d movies into %s%s\n", made, dst.string().c_str(), failed ? ", some failed" : "");
   return failed ? 1 : 0;

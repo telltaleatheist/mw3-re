@@ -299,7 +299,31 @@ for each `video\*.AVI` of the install, into the write dir's `video` folder
 
 The 19 movies of the install convert in about a minute (INTRO to 60 MB from
 82 MB). c3m3 and c1win..c3win are on the disc only (frontend-plan.md
-section 3).
+section 3). The `.fmv` is written last, so its presence marks a movie done;
+`--missing` converts only the movies without one, and prints `progress K N
+name` after each.
+
+**The first run** (ours, FIX (A); `frontend/sdl/first_run_import.cpp`): on a
+plain start (not `--hidden`, `--frames`, `--shot`, a chain, a debug start or
+`-nofmv`) mw3 compares the install's `video\*.AVI` with the write dir's
+`.fmv` files. With some missing and `mw3import` in mw3's own folder, it runs
+`mw3import --missing` (SDL's process API) and shows a small window with a
+bar and "converting the movies (K of N)" in its title, about a minute for
+the 19 (59 s on the Mac). Closing the window stops it (the done ones are
+kept; the next start does the rest). A failed run leaves
+`video\import-failed`, so later starts do not try again unless `--import`;
+`--no-import` skips it. Without the importer the game plays without movies,
+as it did.
+
+**Music** (ours; `platform/cue_audio.h`): `mw3import --cue DISC.cue
+[--music-only]` writes each AUDIO track of a disc image's cue sheet as the
+write dir's `music\trackNN.wav` (CD audio as is: 44100 Hz, 16-bit
+stereo), which the music player finds (sdl_music.cpp, CLAUDE.md's track N
+rule). A track runs from its INDEX 01 (the pregap, INDEX 00 to 01, left
+out) to the next track's start in the same file (its INDEX 00, else 01), or
+to its file's end: Redump's one bin per track as well as one bin for all.
+Pirate's Moon's track 2 (a 2 s pregap) is 562.8 s. A real CD drive is not
+read. Test: mw3tests `cue_audio_writes_each_audio_track_from_index_01`.
 
 ## 7. Tests
 

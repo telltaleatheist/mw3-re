@@ -38,6 +38,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_path.cpp
   src/gamez/zutil/zutl_reg.cpp
   src/platform/reg_file.cpp
+  src/platform/cue_audio.cpp
   src/mech3/data_version.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zsave/zsave.cpp
@@ -389,6 +390,7 @@ target_link_libraries(mw3probe PRIVATE mw3core)
 enable_testing()
 add_executable(mw3tests
   tests/main.cpp
+  tests/test_cue.cpp
   tests/test_mech.cpp
   tests/test_mech_reader.cpp
   tests/test_msvc_rand.cpp
@@ -469,6 +471,7 @@ if(SDL3_FOUND)
       src/frontend/sdl/mw3_main.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
+      src/frontend/sdl/first_run_import.cpp
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
@@ -492,16 +495,43 @@ if(SDL3_FOUND)
   target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
   # The importer's movies (docs/fmv.md, The imported movies): only with FFmpeg's
   # libraries (Indeo 5 decoding, the MPEG-1 encoder); not needed to build the game.
+  # pkg-config's (brew install ffmpeg), else a prebuilt shared build's include\
+  # and lib\ (Windows: deps\ffmpeg-*-shared*, or -DFFMPEG_DIR; docs/windows.md).
   find_package(PkgConfig QUIET)
   if(PkgConfig_FOUND)
     pkg_check_modules(FFMPEG IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
   endif()
+  set(MW3_FFMPEG "")
   if(FFMPEG_FOUND)
-    add_executable(mw3import tools/import/mw3import.cpp)
-    target_link_libraries(mw3import PRIVATE PkgConfig::FFMPEG SDL3::SDL3)
-    target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    set(MW3_FFMPEG PkgConfig::FFMPEG)
   else()
-    message(STATUS "FFmpeg's libraries not found: mw3import is not built (brew install ffmpeg)")
+    if(NOT FFMPEG_DIR)
+      file(GLOB _ffmpeg_dirs "${CMAKE_SOURCE_DIR}/deps/ffmpeg-*shared*")
+      if(_ffmpeg_dirs)
+        list(GET _ffmpeg_dirs 0 FFMPEG_DIR)
+      endif()
+    endif()
+    if(FFMPEG_DIR AND EXISTS "${FFMPEG_DIR}/include/libavformat/avformat.h")
+      add_library(mw3_ffmpeg INTERFACE)
+      target_include_directories(mw3_ffmpeg INTERFACE "${FFMPEG_DIR}/include")
+      foreach(_lib avformat avcodec swscale avutil)
+        find_library(_ffmpeg_${_lib} NAMES ${_lib} PATHS "${FFMPEG_DIR}/lib" NO_DEFAULT_PATH)
+        target_link_libraries(mw3_ffmpeg INTERFACE ${_ffmpeg_${_lib}})
+      endforeach()
+      set(MW3_FFMPEG mw3_ffmpeg)
+      file(GLOB MW3_FFMPEG_DLLS "${FFMPEG_DIR}/bin/*.dll")
+    endif()
+  endif()
+  if(MW3_FFMPEG)
+    add_executable(mw3import tools/import/mw3import.cpp)
+    target_link_libraries(mw3import PRIVATE mw3core ${MW3_FFMPEG} SDL3::SDL3)
+    target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    if(MW3_FFMPEG_DLLS)  # the DLLs beside mw3import.exe, as SDL3.dll is beside mw3.exe
+      add_custom_command(TARGET mw3import POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MW3_FFMPEG_DLLS}
+                         $<TARGET_FILE_DIR:mw3import>)
+    endif()
+  else()
+    message(STATUS "FFmpeg's libraries not found: mw3import is not built (brew install ffmpeg; Windows: docs/windows.md)")
   endif()
   # Plays one game sound through zSound and SDL audio (docs/sound.md).
   add_executable(mw3soundcheck tools/soundcheck/soundcheck.cpp)
