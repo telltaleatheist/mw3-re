@@ -37,13 +37,18 @@ class SdlInput : public platform::Input {
   int32_t joystick_set_deadzone(uint32_t ofs, uint32_t dz) override;
 
   // The window an exclusive mouse captures (relative mouse mode, as
-  // DirectInput's DISCL_EXCLUSIVE hides and holds the cursor), and the
-  // mickeys a window pixel of motion makes (the game's 640 over the window's width).
+  // DirectInput's DISCL_EXCLUSIVE hides and holds the cursor). Captured, a
+  // mickey is a count of the mouse's own, as DirectInput's were at any screen
+  // size (FIX (A); SDL's relative motion is raw, without the system's speed).
+  // Not captured, the mickeys a window pixel of motion makes (the game's 640
+  // over the window's width).
   SDL_Window* window = nullptr;
   float mickey_scale = 1.0f;
-  // With any_resolution, the frame's shape in the window (sdl_fit.h): the
-  // scale is then a frame pixel a mickey, through the pillarboxed rect.
+  // With any_resolution, the frame's shape in the window (sdl_fit.h): an
+  // uncaptured mouse's scale is then a frame pixel a mickey, through the
+  // pillarboxed rect.
   const FrameShape* shape = nullptr;
+  bool captured() const { return captured_; }
   bool fitted() const { return shape && shape->fit; }
 
   // From the message pump: every SDL input event passes through here.
@@ -67,6 +72,7 @@ class SdlInput : public platform::Input {
   bool lost_[3] = {};
   uint32_t coop_[3] = {};
   bool focused_ = true;
+  bool captured_ = false;  // capture(true) asked: the relative mouse
   int32_t range_[8][2] = {{0, 65535}, {0, 65535}, {0, 65535}, {0, 65535},
                           {0, 65535}, {0, 65535}, {0, 65535}, {0, 65535}};
   uint32_t deadzone_[8] = {};

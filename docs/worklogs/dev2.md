@@ -117,3 +117,73 @@ works alongside it; stay out of its files.
   crop (640 scale, origin about (330, 0)) matches this geometry with the
   mech side-on. The turn (0.8 rad/s) decides how it sits.
 - Branch `mac5/lab-view-s8-s10` off main 730a01c (docs only).
+## 7. Fullscreen polish (2026-10-30)
+
+- Alt+Enter: `SdlPump::handle` swallows Alt+Enter (and that Enter's release,
+  even after Alt is let go; repeats do not toggle) and calls
+  `SdlWindow::switch_fullscreen`. Back to a window: the frame's shape at its
+  opening size (default_window) or create()'s size, scaled into 90% of the
+  display's usable area, centred. Not saved: windowed= in mw3.cfg stays.
+- Focus: the exe's OnActivate (0x00590c00) idles the loop and suspends
+  zInput (0x0051b050); on return each suspended device's state is cleared
+  (0x0051b080). Already ported. Added: `SdlInput` drops buttons, the latch
+  and held keys on focus loss (a release outside the window never arrives,
+  so a held trigger kept firing); `SdlSoundOutput` mutes buffers without
+  DSBCAPS_GLOBALFOCUS (0x8000; 0x005752e0 never asks it) while unfocused,
+  their positions moving on, as DirectSound's did. Music (MCI CD) untouched.
+- Mickeys: DirectInput's relative mouse is raw device counts, unrelated to
+  the screen; zInput adds them to its cursor (0x0051b910) and the look reads
+  them. The port divided them by the window's width (fullscreen at 2560 wide:
+  a third of the speed). Captured now: 1 a count (SDL's relative motion is
+  raw; SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE defaults to 0). Uncaptured
+  keeps the frame mapping. On the Mac, relative motion is in accelerated
+  points, so the feel there is the OS's.
+- High DPI: mouse in window coordinates against SDL_GetWindowSize, the draw
+  in SDL_GetWindowSizeInPixels; on Windows SDL3 is per-monitor DPI aware
+  (density 1, 150% only the display scale). Geometry test at densities 1,
+  1.5, 2.
+- Tests: `sdl_fullscreen_keys_focus_and_mickeys` (breaks 4 of 4: the Enter
+  passed on, the captured scale, the buttons kept, no mute),
+  `sdl_frame_maps_alike_in_points_and_pixels`.
+- For Owen on Windows: Alt+Enter both ways in a mission and in a menu (no
+  menu button pressed); Alt+Tab mid-mission holding fire and W, release
+  outside, return: nothing held, sound back; mouse look the same speed
+  windowed and fullscreen; at 150% scaling the cursor on the buttons it
+  draws over, and the frame sharp at the display's pixels.
+- Branch `mac5/fullscreen-polish` off main 730a01c.
+
+## 8. The Windows package (2026-10-30)
+
+- `tools\windows\package.cmd`: its own tree `build-win-pkg` with
+  `MW3_PACKAGE=ON` (CMake: mw3 and mw3import without MW3_GAME_DIR), then
+  `build-win\dist\mw3-<describe>-win64\` and the zip (tar -a). Contents and
+  the dumpbin check (`check_dist.ps1`): docs/windows.md, Packaging.
+- `mw3 --version`, `mw3import --version` (with FFmpeg's configuration):
+  no window needed, so the load of every DLL is checkable over ssh.
+- `mw3import` in a package build takes the install from `--install`, else
+  mw3.cfg's `install=`.
+- The finder's usual folders gained `\Games\MechWarrior3`, `\Games\MW3` and
+  `\MechWarrior3` (Owen's install is C:\Games\MechWarrior3).
+- Version resource from `version.rc.in` (git describe, commit count);
+  placeholder icon `mw3.ico` from `make_icon.py` (ours: a reticle).
+- README.txt and THIRD-PARTY.txt in `tools\windows\dist\`. Licences
+  checked: SDL3 and SDL3_ttf zlib (SDL3_ttf's DLL has FreeType (FTL),
+  HarfBuzz and PlutoSVG/PlutoVG (MIT)); SDL3_sound zlib, its decoders dr_*
+  and stb_vorbis public domain or MIT(-0), libmodplug public domain,
+  TiMidity the Perl Artistic License (its header); FFmpeg LGPL 2.1+ (BtbN
+  lgpl-shared, dynamically linked, unmodified); pl_mpeg MIT; the VC++
+  runtime's redist terms.
+- On the Mac: a `MW3_PACKAGE=ON` tree builds; neither exe holds the dev
+  path; `mw3 --frames 1 --hidden` with a fresh write dir finds no install
+  and says so; `mw3import` without one says to give `--install` or start
+  mw3. The .cmd, .ps1 and .rc are untested here (Windows only).
+- Branch `mac5/windows-package` off main 46135f7.
+- The PC's run (lead, 63c3a5b): check_dist 17 files, both --version print
+  from a fresh folder with only Windows' DLLs on PATH, the finder found
+  C:\Games\MechWarrior3 and saved it; every licenses\ folder filled. Then:
+  BtbN's FFmpeg is --enable-version3 (LGPL v3) with ~20 libraries built in.
+  Done (a): THIRD-PARTY.txt says LGPL v3; `ffmpeg_notices.ps1` lists the
+  built-in libraries and their licences from the configure line. (b), a
+  minimal LGPL v2.1 FFmpeg, is written up in windows.md for later: this
+  session's permission check refused building the downloaded FFmpeg source,
+  so it waits for Owen's approval.

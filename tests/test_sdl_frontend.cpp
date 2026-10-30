@@ -23,6 +23,8 @@
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_install.h"
+#include "frontend/sdl/sdl_platform.h"
+#include "frontend/sdl/sdl_sound.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zimage/zimg_library.h"
@@ -135,6 +137,113 @@ TEST(sdl_input_mouse_counts_relative_motion) {
   EXPECT(in.mouse_buttons == 2);
   in.unacquire(platform::Input::kMouse);
   EXPECT(in.mouse_state(&s) == platform::Input::kNotAcquired);
+}
+
+// Ours, for playing fullscreen (FIX (A)): Alt+Enter toggles and the game never
+// sees that Enter; a captured mouse counts the device's own motion, as
+// DirectInput's mickeys did at any screen size; leaving the window lets go of
+// what was held, and the game's sounds play on silent.
+TEST(sdl_fullscreen_keys_focus_and_mickeys) {
+  sdlfe::SdlInput in;
+  in.set_cooperative_level(platform::Input::kKeyboard, 10);
+  EXPECT(in.open(platform::Input::kKeyboard) && in.acquire(platform::Input::kKeyboard) == 0);
+  sdlfe::SdlPump pump(&in, nullptr);
+  int toggles = 0, focus_lost = 0;
+  pump.toggle_fullscreen = [&] { ++toggles; };
+  pump.focus_changed = [&](bool on) { focus_lost += !on; };
+  auto key = [&](bool down, SDL_Keymod mod, bool repeat = false) {
+    SDL_Event e{};
+    e.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+    e.key.scancode = SDL_SCANCODE_RETURN, e.key.mod = mod, e.key.repeat = repeat;
+    pump.handle(e);
+  };
+  key(true, SDL_KMOD_LALT);
+  key(true, SDL_KMOD_LALT, true);  // held: no second toggle
+  key(false, SDL_KMOD_NONE);       // Alt let go first: the Enter's release goes too
+  platform::KeyEvent k[8];
+  uint32_t n = 8;
+  in.keyboard_data(k, &n);
+  EXPECT(toggles == 1 && n == 0);
+  key(true, SDL_KMOD_NONE);  // a plain Enter is the game's
+  key(false, SDL_KMOD_NONE);
+  n = 8;
+  in.keyboard_data(k, &n);
+  EXPECT(toggles == 1 && n == 2 && k[0].ofs == 0x1c && k[0].data == 0x80 && k[1].data == 0);
+
+  // The mouse as the game holds it (DISCL_EXCLUSIVE | DISCL_FOREGROUND): a
+  // count is a mickey whatever the window's size.
+  sdlfe::FrameShape shape{640, 480, true};
+  in.shape = &shape;
+  in.mickey_scale = 0.5f;
+  in.set_cooperative_level(platform::Input::kMouse, 5);
+  EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0 && in.captured());
+  SDL_Event m{};
+  m.type = SDL_EVENT_MOUSE_MOTION;
+  m.motion.xrel = 96, m.motion.yrel = -48;
+  pump.handle(m);
+  SDL_Event b{};
+  b.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+  b.button.button = SDL_BUTTON_LEFT;
+  pump.handle(b);
+  platform::MouseState ms;
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 96 && ms.y == -48 && ms.buttons[0] == 0x80);
+  pump.handle(b);  // held down when the player switches away; let go outside
+  SDL_Event f{};
+  f.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+  pump.handle(f);
+  EXPECT(focus_lost == 1 && !in.captured() && in.mouse_state(&ms) == platform::Input::kInputLost);
+  f.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+  pump.handle(f);
+  EXPECT(in.acquire(platform::Input::kMouse) == 0);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0] == 0 && in.mouse_buttons == 0);  // not stuck down
+
+  // A buffer the game made (no DSBCAPS_GLOBALFOCUS) is silent without the
+  // focus and plays on meanwhile; one with it is heard.
+  sdlfe::SdlSoundOutput out;
+  platform::WaveFormat wf{1, 1, 44100, 88200, 2, 16};
+  std::vector<int16_t> pcm(64, 16384);
+  platform::SoundBuffer quiet = 0, global = 0;
+  EXPECT(out.create_buffer({0x80, 128, &wf}, &quiet) == 0 && out.create_buffer({0x8080, 128, &wf}, &global) == 0);
+  for (platform::SoundBuffer sb : {quiet, global}) {
+    void *p1 = nullptr, *p2 = nullptr;
+    uint32_t n1 = 0, n2 = 0;
+    out.lock(sb, 0, 128, &p1, &n1, &p2, &n2);
+    std::memcpy(p1, pcm.data(), n1);
+    out.unlock(sb, p1, n1, p2, n2);
+  }
+  float mix[16] = {};
+  out.play(quiet, 0);
+  out.mix(mix, 8);
+  EXPECT(mix[0] > 0.4f);
+  out.set_focused(false);
+  std::fill(std::begin(mix), std::end(mix), 0.0f);
+  out.mix(mix, 8);
+  uint32_t at = 0;
+  out.get_current_position(quiet, &at, nullptr);
+  EXPECT(mix[0] == 0.0f && mix[15] == 0.0f && at == 32);  // 16 frames played, 8 of them silent
+  out.play(global, 0);
+  out.mix(mix, 8);
+  EXPECT(mix[0] > 0.4f);
+}
+
+// High DPI: the window's coordinates (the mouse's) and its pixels (the frame's
+// draw) differ by the density (2 on a Retina Mac; 1 on Windows, where SDL3 is
+// per-monitor DPI aware and 150% is only the display's scale). The frame's
+// rect is the same fraction of either, so a click lands on the pixel drawn.
+TEST(sdl_frame_maps_alike_in_points_and_pixels) {
+  const sdlfe::FrameShape shapes[] = {{640, 480, true}, {1280, 720, true}, {640, 480, true, 960, 540}};
+  for (const sdlfe::FrameShape& s : shapes)
+    for (float density : {1.0f, 1.5f, 2.0f}) {
+      const float pw = 2560, ph = 1440, ww = pw / density, wh = ph / density;  // fullscreen, 2560x1440 pixels
+      const sdlfe::FitRect rp = sdlfe::fit_rect(pw, ph, s), rw = sdlfe::fit_rect(ww, wh, s);
+      for (float fx : {0.0f, 100.5f, static_cast<float>(s.client_w()) - 1}) {
+        float wx = 0, wy = 0, px = 0, py = 0;
+        sdlfe::frame_to_window(fx, 40.0f, ww, wh, s, &wx, &wy);
+        sdlfe::frame_to_window(fx, 40.0f, pw, ph, s, &px, &py);
+        EXPECT(std::fabs(wx * density - px) < density + 0.5f && std::fabs(wy * density - py) < density + 0.5f);
+      }
+      EXPECT(std::fabs(rw.w * density - rp.w) <= density + 0.5f);
+    }
 }
 
 namespace {

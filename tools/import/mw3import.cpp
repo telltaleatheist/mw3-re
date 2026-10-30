@@ -289,10 +289,22 @@ bool write_m1v(const std::string& avi, const std::string& out_path, uint32_t fra
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string install = MW3_GAME_DIR, write_dir, only, cue;
+#ifdef MW3_GAME_DIR
+  std::string install = MW3_GAME_DIR, write_dir, only, cue;  // a development build's copy
+#else
+  std::string install, write_dir, only, cue;  // a player's build: --install, else mw3.cfg's
+#endif
+#ifndef MW3_VERSION
+#define MW3_VERSION "unknown"
+#endif
   bool missing = false, music_only = false;
   for (int i = 1; i < argc; ++i) {
     const std::string s = argv[i];
+    if (s == "--version") {  // the build and the FFmpeg it runs on (its configuration: the libraries in it)
+      std::printf("mw3import (MechWarrior 3 rebuild) %s\nFFmpeg libavcodec %s, %s\nconfiguration: %s\n", MW3_VERSION,
+                  av_version_info(), avcodec_license(), avcodec_configuration());
+      return 0;
+    }
     if (s == "--install" && i + 1 < argc) install = argv[++i];
     else if (s == "--write-dir" && i + 1 < argc) write_dir = argv[++i];
     else if (s == "--only" && i + 1 < argc) only = argv[++i];
@@ -302,7 +314,7 @@ int main(int argc, char** argv) {
     else {
       std::fprintf(stderr,
                    "usage: mw3import [--install DIR] [--write-dir DIR] [--only NAME] [--missing]\n"
-                   "                 [--cue DISC.cue [--music-only]]\n");
+                   "                 [--cue DISC.cue [--music-only]] [--version]\n");
       return 2;
     }
   }
@@ -322,6 +334,16 @@ int main(int argc, char** argv) {
     std::printf("mw3import: %d music tracks into %s\n", n < 0 ? 0 : n, (fs::path(write_dir) / "music").string().c_str());
     if (music_only) return failed ? 1 : 0;
   }
+  if (install.empty()) {  // the one mw3 found and saved (mw3.cfg's install=)
+    std::ifstream cfg(fs::path(write_dir) / "mw3.cfg");
+    std::string line;
+    while (std::getline(cfg, line)) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.rfind("install=", 0) == 0) install = line.substr(8);
+    }
+  }
+  if (install.empty())
+    return std::fprintf(stderr, "mw3import: no install: give --install DIR, or start mw3 once so it finds it\n"), 1;
   const fs::path src = fs::path(install) / "video", dst = fs::path(write_dir) / "video";
   std::error_code ec;
   fs::create_directories(dst, ec);

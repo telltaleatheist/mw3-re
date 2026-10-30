@@ -229,7 +229,8 @@ void SdlSoundOutput::mix(float* out, int frames) {
       b.playing = false;
       continue;
     }
-    const float g = gain(b.volume);
+    const bool heard = focused_ || (b.flags & 0x8000);  // DSBCAPS_GLOBALFOCUS
+    const float g = heard ? gain(b.volume) : 0.0f;
     const float gl = g * (b.pan > 0 ? gain(-b.pan) : 1.0f), gr = g * (b.pan < 0 ? gain(b.pan) : 1.0f);
     const double step = static_cast<double>(b.freq) / rate_;
     const uint8_t* d = b.data->data();

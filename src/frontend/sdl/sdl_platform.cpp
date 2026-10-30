@@ -1,5 +1,6 @@
 #include "frontend/sdl/sdl_platform.h"
 
+#include <cmath>
 #include <cstdio>
 
 #include "frontend/sdl/sdl_input.h"
@@ -31,6 +32,7 @@ SdlWindow::~SdlWindow() {
 
 uint32_t SdlWindow::create(const std::string& title, int width, int height) {
   if (!window_) return 0;
+  windowed_w_ = width, windowed_h_ = height;
   if (fullscreen_) return SDL_SetWindowTitle(window_, title.empty() ? "MechWarrior 3" : title.c_str()), kHwnd;
   SDL_SetWindowSize(window_, width, height);
   SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
@@ -57,6 +59,25 @@ void SdlWindow::frame_size(int width, int height, int canvas_w, int canvas_h) {
   default_window(shape_, &w, &h);
   SDL_SetWindowSize(window_, w, h);
   SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  SDL_SyncWindow(window_);
+}
+void SdlWindow::switch_fullscreen(bool on) {
+  if (!window_ || hidden_ || on == fullscreen_) return;
+  fullscreen_ = on;
+  if (on) {
+    SDL_SetWindowFullscreen(window_, true);
+  } else {
+    SDL_SetWindowFullscreen(window_, false);
+    int w = windowed_w_, h = windowed_h_;
+    if (shape_.fit && auto_size_) default_window(shape_, &w, &h);
+    SDL_Rect usable{};
+    if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(window_), &usable) && usable.w > 0 && usable.h > 0) {
+      const float k = std::fmin(1.0f, std::fmin(usable.w * 0.9f / w, usable.h * 0.9f / h));  // room for the title bar
+      w = static_cast<int>(w * k), h = static_cast<int>(h * k);
+    }
+    SDL_SetWindowSize(window_, w, h);
+    SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  }
   SDL_SyncWindow(window_);
 }
 void SdlWindow::client_size(int* width, int* height) {
@@ -183,6 +204,15 @@ bool SdlPump::pump() {
 }
 
 void SdlPump::handle(const SDL_Event& e) {
+  // Ours: Alt+Enter toggles fullscreen and a window. Neither key is the
+  // game's then: the Enter would press a menu's default button.
+  if ((e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_KEY_UP) &&
+      (e.key.scancode == SDL_SCANCODE_RETURN || e.key.scancode == SDL_SCANCODE_KP_ENTER) &&
+      (enter_swallowed_ || (e.type == SDL_EVENT_KEY_DOWN && (e.key.mod & SDL_KMOD_ALT)))) {
+    enter_swallowed_ = e.type == SDL_EVENT_KEY_DOWN;
+    if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat && toggle_fullscreen) toggle_fullscreen();
+    return;
+  }
   if (input_) input_->on_event(e);
   switch (e.type) {
     case SDL_EVENT_QUIT:
@@ -192,9 +222,11 @@ void SdlPump::handle(const SDL_Event& e) {
       post_quit();
       break;
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
+      if (focus_changed) focus_changed(true);
       if (app_ && !app_->active()) app_->on_window_activate(1);  // WA_ACTIVE
       break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
+      if (focus_changed) focus_changed(false);
       if (app_ && app_->active()) app_->on_window_activate(0);
       break;
     default:
