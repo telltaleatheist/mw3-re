@@ -899,7 +899,21 @@ reset. 0x4c84b0 (the brain's go-to, `Brain::go_to`): on the current
 order's net, the way finder (+0x238, 0x4c7c10) from the current state's
 behaviour to the target; when that behaviour is +0x23c's (none), the
 current order is dropped first and the new one's behaviour asked, its
-answer unused.
+answer unused. The way finder starts from the vehicle's position
+(0x5a85e0, read by 0x4c7e80): with none it finds no way.
+
+**Playtest W10** (c1m3, 2026-10-30; a port bug, not the exe's): the
+program's brain hooks gave the way finder no position (`pilot_of` left the
+pilot's `pos` null), so every go-to failed. The bases then followed net_01's
+links as any net walk does, round MFB 2, 3 and 4 before Charlie, and took
+whichever slot their link picks led to: in one run base 02 came up behind
+base 01 on node 22 and stopped 30 m short, its valve never set; in Owen's
+game one drove on past the slots (each slot links on toward nodes 32 and
+33) into the enemy. With the position, each base gets its way to its own
+slot (link i of "MFB Charlie": nodes 22, 23, 24), and all three park there.
+mw3tests `mission_c1m3_field_bases_park_at_charlie_headless` (the enemies
+taken out first, the MFB command from Charlie's region): all three on their
+slots and the dock's places step done; without the position, 3 checks fail.
 
 **Playtest W8** (2026-10-30, from Owen's memory of the original:
 standing on the op point while the bases come in, the dock never moves on

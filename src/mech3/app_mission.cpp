@@ -965,7 +965,11 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (void* b = veh(v)) return program_vehicle_place(b, p, yaw);  // 0x004a3630
     if (void* m = mech(v)) move_mech(m, p, yaw);
   }
+  // The way finder's pilot: 0x004c7e80 reads the vehicle's 0x005a85e0 (the
+  // port gave none until playtest W10: every search failed, so the field
+  // bases had no way to their places; vehicles.md, The request).
   void pilot_of(Handle v, ai::Pilot* p) override {
+    p->pos = vehicle_position(e->object_of(v));
     if (void* b = veh(v)) return void(p->name = program_vehicle_name(b));  // no mech: no jump jets
     int32_t n = 0;
     const AiMechMade* m = mission_ai_mechs(&n);

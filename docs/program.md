@@ -358,7 +358,8 @@ apart. Everything else is a real gap and stays listed.
   (0x00501ab0, 0x00508fc0, 0x0049aca0) takes N instead
   (`crt::rand_fixed_seed`). With `--frame-ms` a run repeats line for line:
   the kills chain (`--campaign-chain kills:4 --frame-ms 33 --seed 1999`)
-  wins c1m3 at core frame 6636 every time.
+  wins c1m3 at core frame 6491 every time (6636 before W10, when the
+  field bases had no way to Charlie and took the long one).
 - `sdl_program_screens_are_not_blank` (mw3sdltests, about 20 s; after item
   21's black lab, resolution.md section 9): the program itself, one run a
   screen, all at once, each shot through `--shot`. The screens: the main
