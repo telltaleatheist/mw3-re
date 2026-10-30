@@ -18,6 +18,14 @@ Visual Studio's headers and libraries.
   `deps\SDL3_sound-3.2.0`; build.cmd hands it to CMake as
   `SDL3_sound_ROOT`, which an existing `build-win\` also picks up on its
   next configure. Its decoders are built in (stb_vorbis, dr_flac, dr_mp3).
+- For the movies' importer only: FFmpeg's shared libraries, BtbN's LGPL
+  build `ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip` (github.com/BtbN/
+  FFmpeg-Builds, releases, "latest") unpacked into `deps\` as
+  `deps\ffmpeg-n8.1-latest-win64-lgpl-shared-8.1` (its `include\`,
+  `lib\*.lib` and `bin\*.dll`). Any shared build with those three folders
+  does (CMake takes the first `deps\ffmpeg-*shared*`, or `-DFFMPEG_DIR`).
+  It has FFmpeg's own Indeo 5 decoder and MPEG-1 encoder, which is all the
+  importer uses. Without it `mw3import` is not built; the game is.
 
 ## Building
 
@@ -26,6 +34,13 @@ Visual Studio's headers and libraries.
 the DLLs mw3.exe links (`SDL3.dll`, `SDL3_ttf.dll`, `SDL3_sound.dll`) next
 to it. `mw3soundcheck --music FILE` plays a music file through the game's
 music player for 3 s and says whether this build decodes it.
+`tools\windows\build.cmd mw3 mw3import` also builds the importer, and its
+build copies FFmpeg's DLLs next to `mw3import.exe`; give a player the two
+exes and all the DLLs in one folder (FFmpeg 8.1's are nine). On Owen's PC
+(2026-10-30): the 19 movies in 29 s; their `.wav` and `.fmv` files are
+the Mac's byte for byte, the `.m1v` differ by FFmpeg build but play either
+way; `--cue` on his MW3 disc image gives track02 (191.9 s) and track03
+(186.1 s).
 
 ## Running
 
@@ -37,9 +52,16 @@ music player for 3 s and says whether this build decodes it.
   over older data (seen on one PC) is older data: 1.0's `reader.zbd` lacks
   hud.zrd's 1152x864, 1280x1024 and 1600x1200 blocks (it has 800x600 and
   1024x768), and its `interp.zbd` and campaign 3's missions differ.
-- The movies: `mw3import` (needs FFmpeg's libraries) writes them to the
-  write dir's `video\` (fmv.md section 6); a set made on another machine
-  can be copied there.
+- The movies: on a player's first plain start, when the write dir's
+  `video\` lacks the install's movies and `mw3import.exe` is beside
+  `mw3.exe`, mw3 runs it for the missing ones with a small progress window
+  (about a minute for the 19; fmv.md section 6). Without the importer the
+  game plays without movies, as before; `--import` runs it again after a
+  failed try, `--no-import` skips it. A set made on another machine can be
+  copied into `video\` instead.
+- The music: `mw3import --cue "D:\path\disc.cue" --music-only` writes a
+  disc image's audio tracks as `music\trackNN.wav` in the write dir
+  (fmv.md section 6, Music).
 - Fullscreen by default (borderless, the desktop's size, the frame fitted);
   `--windowed`, `--window WxH` or `windowed=1` in `mw3.cfg` keep a window.
 - It must run in a desktop session: over ssh there is no swapchain
