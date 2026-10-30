@@ -1985,3 +1985,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Test: patch_import_upgrades_10_data_from_the_official_patch (on build and
   build-10). Breaks: the descriptor's data offset, the chunk length, the
   SHA-256, the ZIP CRC.
+
+## The fall's force feedback (2026-10-30)
+
+- Branch mac4/ifall (off main 04aff71). FIX (bug), behind bugs: no
+  "i_fall" in the file, "impact fall" taken (force_feedback.cpp). Tests:
+  the recording device with bugs off and on, the real file's effect
+  (sdl_force_device_plays_the_ifr_effects_as_rumble). Break: the lookup
+  off, 2 checks fail.

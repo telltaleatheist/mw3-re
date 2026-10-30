@@ -14313,11 +14313,22 @@ struct RecordingForce : platform::ForceDevice {
 }  // namespace
 TEST(force_feedback_effects_and_the_games_calls_headless) {
   {
+    // As the original: no "i_fall" in the file, so a fall plays nothing.
+    const bool bugs = zfix::options().bugs;
+    zfix::options().bugs = false;
+    RecordingForce rec;
+    mech3::ForceFeedback ff(&rec);
+    zfix::options().bugs = bugs;
+    EXPECT(!ff.i_fall);
+    ff.fall();
+    EXPECT(rec.log.size() == 1);
+  }
+  {
     RecordingForce rec;
     mech3::ForceFeedback ff(&rec);
     EXPECT(rec.log.size() == 1 && rec.log[0] == "load force_eff.ifr");
     EXPECT(ff.recoil && ff.spin_move && ff.laser_buzz && ff.impact_force && ff.footfall && ff.jets1 && ff.spring_fx &&
-           ff.dead_spring_fx && ff.dead_dance_fx && ff.water_fx && ff.impact_land && !ff.i_fall);
+           ff.dead_spring_fx && ff.dead_dance_fx && ff.water_fx && ff.impact_land && ff.i_fall);
     size_t at = rec.log.size();
     ff.weapon(4);  // a small laser: laser_buzz at 50
     EXPECT(rec.joined(at) == "stop laser_buzz; gain laser_buzz 5000; start laser_buzz");
@@ -14334,7 +14345,10 @@ TEST(force_feedback_effects_and_the_games_calls_headless) {
     ff.hit(0, from_right, 0.7f);  // pi - atan2(-1, -0): 270 degrees
     EXPECT(rec.joined(at) == "stop impact_force; gain impact_force 7000; dir impact_force 27000; start impact_force");
     at = rec.log.size();
-    ff.fall();  // no i_fall in the file: nothing
+    ff.fall();  // FIX (bug): the file's "impact fall" for the exe's "i_fall"
+    EXPECT(rec.joined(at).find("impact_fall") != std::string::npos);
+    std::printf("  a fall: %s\n", rec.joined(at).c_str());
+    at = rec.log.size();
     ff.jets(true);
     ff.jets(false);
     EXPECT(rec.joined(at) == "stop jets1; start jets1; stop jets1");
