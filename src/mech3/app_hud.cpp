@@ -83,9 +83,40 @@ zcls::Camera* camera_data() {
 // The HUD's outside on the ports. What is left unported answers 0 (the
 // layout's mech fields, the nav list, sounds; hud.md section 9).
 struct ProgramHudHooks : HudHooks {
+  // What is left unported reaches the census (before 2026-10-30 it answered
+  // 0 unseen: the MFD's saved modes and the title among them).
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    if (command_calls().unported) command_calls().unported(key, args.size() ? static_cast<int32_t>(args.begin()->v) : 0);
+    return 0;
+  }
   // [[0x005f4d0c]], the video mode hud.zrd's block is picked by (0x0043bb80):
   // unwired, it answered 0 and the program's HUD never read a block.
   int32_t vmode() override { return mech3::vmode(); }
+  // The exe's globals these read are the ported ones (tools/analysis/peeks.py
+  // lists the rest). The MFD's and TARGET's last modes ([0x00605988],
+  // [0x0060598c]): the process's, so a mission starts with the last one's.
+  int32_t mfd_mode = 0, target_mode = 0;
+  int32_t saved_mfd_mode() override { return mfd_mode; }
+  void save_mfd_mode(int32_t m) override { mfd_mode = m; }
+  int32_t saved_target_mode() override { return target_mode; }
+  void save_target_mode(int32_t m) override { target_mode = m; }
+  // The pilot's game when multiplayer (0x00479480): none, multiplayer is
+  // not ported (deferred); its screens reach the census themselves.
+  uint32_t multiplayer_game() override { return 0; }
+  // 0x0043c820's debug numbers while [0x005fc384] bit 4 is clear: developer
+  // only (the census's known table); the flags are not ported.
+  void hud_debug(void* hud) override { unported("0x0043c820.debug", {id(hud)}); }
+  // The MFD's title (DISHONORABLE) updates while [0x00609994], a cheat used.
+  bool title_flag() override { return program_cheated(); }
+  // The missions' map (0x00491c80, their +0xbc: the briefing's MAP) and its
+  // +0xd0 (mpp): above 0, the compass turned half round and the radar's
+  // direction reversed (0x0043f590, 0x0043f130). The handle is a token (the
+  // one map the hooks ask about is the current one).
+  uint32_t mission_entry() override { return mission_map() ? 1u : 0u; }
+  float entry_flip(uint32_t) override {
+    const auto* m = static_cast<const MissionMap*>(mission_map());
+    return m ? m->mpp : 0.0f;
+  }
   uint32_t id(const void* p) override { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
   // The HUD's 3D views' nodes (hud-plan item 6c1): the cameras and windows it
   // makes, by handle (the hooks' 32-bit node handles; a pointer does not fit).
@@ -317,6 +348,11 @@ struct ProgramHudHooks : HudHooks {
   }
   static Weapon* wp(void* p) { return static_cast<Weapon*>(p); }
   void* mech_weapons(Mech* m) override { return m ? m->ammo : nullptr; }
+  // vt+0xa0 (0x0041cc10): powered down, the HUD then off (its set-up, its frame).
+  bool mech_dead(Mech* m) override { return m && mech_powered_down(m); }
+  // 0x0041df10: the mech's tech (0x00484720 on its data's roster entry,
+  // +0x684 +0xc); a Clan mech's (2) zoom window is round.
+  int32_t mech_kind(Mech* m) override { return m && m->pilot ? mech_tech(m->pilot->roster) : 3; }
   int32_t weapons_count(void* w) override { return w ? static_cast<int32_t>(wm(w)->count) : 0; }
   void* mech_target_slot(Mech* m) override { return m ? &m->target : nullptr; }  // +0x6c
   bool target_valid(void* t) override { return t && *static_cast<ai::Contact**>(t); }
@@ -456,6 +492,7 @@ struct ProgramHudHooks : HudHooks {
   }
   float mech_sensor_range(Mech* m) override { return m->sensor_range; }
   uint8_t mech_bc(Mech* m) override { return m->xbc; }
+  bool mech_flag_bc4(Mech* m) override { return m && (m->xbc >> 2 & 1) != 0; }  // +0xbc bit 2: the radar amber
   void mech_orientation(Mech* m, float q[4]) override { std::memcpy(q, m->orientation, sizeof m->orientation); }
   int32_t mech_contact_count(Mech* m) override { return static_cast<int32_t>(m->contacts.size()); }
   void* mech_contact(Mech* m, int32_t i) override { return m->contacts[static_cast<size_t>(i)]; }

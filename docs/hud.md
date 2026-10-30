@@ -1544,3 +1544,46 @@ stayed on through a power down.
   start; off with the reticle hidden in the frame the mech powers down; on
   with the reticle in the frame after the power up.
 
+
+## 27. The globals the HUD reads (the peek sweep, 2026-10-30)
+
+The HUD's hooks (`HudHooks`) read some exe globals and mech fields through
+stand-ins: `unported("peek32", {addr})` and the like. The program's
+`ProgramHudHooks` overrode most of them; the rest answered 0. Its
+`unported` was the base's, which reports nothing, so the census never
+listed one. It now reports, and `tools/analysis/peeks.py` lists every read
+of a global with its writers and whether its stand-in is overridden. Wired
+to the ported fields:
+
+- **The compass and the radar on a scaled map.** 0x0043f590 turns the
+  compass's heading by π, and 0x0043f130 reverses the radar cone's
+  direction (while the map is up), when the missions' map (0x00491c80:
+  their +0xbc, the briefing's MAP, `mission_map()`) has its +0xd0 above 0.
+  That field is the map's `mpp`, so every real map does it. The port's 0
+  left the compass half a turn from the original's on every campaign
+  mission, and the cone pointing the other way.
+- **The MFD's and TARGET's last modes** ([0x00605988], [0x0060598c]): kept
+  for the process, so a mission's MFD and TARGET start in the last one's
+  mode. The port started them at their defaults each time.
+- **The MFD's title** (message 0xdbe, "DISHONORABLE"): in single player it
+  is drawn only while the cheat flag [0x00609994] is set (0x00442540). In
+  multiplayer, "You are alone." while [0x00605f88] is clear (not ported:
+  multiplayer). [0x00609994] is one byte in the exe. The cheat setters
+  (0x0040ced0..) set it, and the mission's check (0x00491d20) sets or
+  clears it at the start. The port kept two copies, so a cheat turned on
+  mid-mission was missed by the debriefing (the mission still counted).
+  `options().cheated` is now the one read, and `Missions::cheats` mirrors
+  it for the differential's layout.
+- **The zoom window's shape** (0x0041df10: the mech's tech, 0x00484720 on
+  its data's roster entry): round for a Clan mech (tech 2).
+- **A powered-down mech's HUD** (vt+0xa0, 0x0041cc10): off at its set-up
+  and its frame skipped.
+- **The radar's amber** (+0xbc bit 2) at the HUD's set-up.
+
+Left as they were, with their reasons: the pilot's multiplayer game
+(0x00479480, 0: no multiplayer game is ported) and the HUD frame's debug
+numbers (0x0043c820's, developer only, in the census's known table).
+
+Test `mission_c1m1_hud_reads_the_ported_globals_headless`. With the fixes
+out, every check fails: the tape and the cone unchanged, both modes 0, the
+mid-mission cheat not seen, tech 0, the powered-down HUD on.

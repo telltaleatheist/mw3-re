@@ -829,6 +829,11 @@ From the weapon code (weapons.md).
   "Replay Mission" instead of "Next Mission" and no score added. The mark
   lasts until the next mission starts: each mission's start looks again at
   the three settings and clears it when all are off (`mission-frame.md`).
+- **Cheat and your MFD calls you DISHONORABLE.** While the cheat mark is
+  on, the multi-function display in the cockpit shows the word
+  "DISHONORABLE" as its title; without a cheat that title is never drawn
+  in single player. (In multiplayer the same spot can read "You are
+  alone.") (`hud.md` section 27)
 - **In multiplayer the host re-checks the locked rules every 51 seconds**;
   changing them in memory (say, unlimited ammo after the lock) ends the game
   a minute or two later as if the clock ran out.
@@ -955,6 +960,13 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
 
 ## Playing a mission
 
+- **Your MFD and target display remember their mode.** Whatever view you
+  last chose on the multi-function display and the target display stays
+  chosen for the next mission, until you quit the game. (`hud.md`
+  section 27)
+- **Clan 'Mechs get a round zoom window.** The zoom view in the cockpit is
+  drawn round when you pilot a Clan 'Mech and square in an Inner Sphere
+  one. (`hud.md` section 27)
 - **A hidden fall camera.** When your mech is knocked over, the game can
   switch the view to an outside camera for the fall and back when you're up.
   Nothing in 1.2 turns that on. What happens instead: the cockpit view

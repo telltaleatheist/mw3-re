@@ -1,5 +1,7 @@
 #include "mech3/mission.h"
 
+#include "mech3/options.h"
+
 #include <cstdarg>
 #include <cstdio>
 #include <string>
@@ -397,11 +399,14 @@ bool Missions::begin() {
 // outside a network game.
 void Missions::check_cheats() {
   MissionHooks& h = *g_hooks;
+  // [0x00609994] is one byte in the exe, which the cheat setters also set
+  // (0x0040ced0..): the port's is options().cheated, +0xc4 its mirror here.
   if (h.app_network()) {
     cheats = 0;
-    return;
+  } else {
+    cheats = (h.invincible() || h.infinite_ammo() || !h.heat()) ? 1 : 0;
   }
-  cheats = (h.invincible() || h.infinite_ammo() || !h.heat()) ? 1 : 0;
+  options().cheated = cheats;
 }
 
 // Mech3.exe 1.2 @ 0x0048f440. Exit Mission (Ctrl+Q) works only once the

@@ -294,7 +294,7 @@ struct Missions {
   Handle stations = 0;           // +0xb0  multiplayer stations' list
   Handle xb4 = 0;                // +0xb4  the stations' owner (0x004797c0), deleted by the cleanup
   Handle xb8 = 0, xbc = 0;       // +0xb8 +0xbc  an object 0x00491c80 makes (0x004580c0) and its user
-  uint8_t cheats = 0;            // +0xc4  a cheat was on as the mission started (0x00491d20)
+  uint8_t cheats = 0;            // +0xc4  [0x00609994]: a cheat was on as the mission started (0x00491d20); options().cheated is the one read
   uint8_t done = 0;              // the event +0x68 (set when the load ends)
   uint8_t failed = 0;            // the thread's exit code
 

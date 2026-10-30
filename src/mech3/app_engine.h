@@ -413,6 +413,7 @@ class GameEngine : public Engine {
   bool world_up() override;                        // 0x004f8f50
   void debrief_voice_play(Handle state) override;  // 0x0047abe0
   void anim_stop(int32_t a) override;              // 0x0050ace0 (zeff::anim_stop_all)
+  void anim_reset() override;                      // 0x0050ad60 (zeff::anim_reset_all)
   // zVideo's devices (0x00579a10, 0x00579a40, 0x00579aa0, 0x00579a70): one,
   // the GPU, reported as 256 MB with none used (as video_card_memory).
   int32_t video_memory_total() override { return 256 << 20; }

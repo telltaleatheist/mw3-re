@@ -1891,3 +1891,41 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   vehicles. Now Mech::set_place (0x00418f30). Test
   `mission_c2m1_teleport_valve_places_the_mech_headless`; break: 1566 m
   off and the census 1.
+
+## A failed mission's retry (2026-10-30)
+
+- Branch mac4/restart-state (off mac4/chain-test 86099c3). Free item:
+  community-issues.md's "a restarted mission keeps state".
+- The exe's retry (0x0047d030, failed CONTINUE): cleanup (1 for the two
+  first missions, the world unloaded), anim reset 0x0050ad60(1), +0xb0
+  cleared (the save read back). A clean restart by design.
+- The chain's retry:N fails each mission at core frame 75 (the pause's
+  REPLAY) and compares every node's active flag at frame 30.
+- Port gap 1: the Win State read the loss and cheat flags through peek8
+  (never written), so a lost or cheated campaign mission counted as won.
+  Now the missions' fields. Test
+  campaign_lost_or_cheated_mission_is_briefed_again_headless (break: the
+  next briefing Op 1 Mission 3, 3 games).
+- Port gap 2: 0x0050ad60 was unported; c1m3's retry kept two destroyed
+  buildings that never fell again (unwinnable). Ported as
+  zeff::anim_reset_all; differential test_anim_reset.py. Op 1's four
+  retries are won (c1m3 at 6490); a few effect nodes still differ, as
+  the exe's reset leaves them.
+
+## The peek sweep (2026-10-30)
+
+- Branch mac4/peek-sweep (off mac4/restart-state d9f5bac).
+- tools/analysis/peeks.py: every read of an exe global (peek*, field* on a
+  constant, the hooks' peek and [0x...] stand-ins) with its writers, the
+  address's other mentions and whether a stand-in is overridden.
+- ProgramHudHooks' unported was the base's silent one: the census never
+  saw a HUD stand-in. Now it reports; Op 1 reached 7 keys, all answered.
+- Wired: the compass and radar flip on a scaled map, the MFD and TARGET
+  modes, the DISHONORABLE title, the one cheat byte [0x00609994], the
+  zoom's round for Clan mechs, the powered-down HUD, the radar amber.
+  Left with reasons: multiplayer's game (0), the HUD debug numbers.
+- False positives the script cannot fold: 0x00609858 (written through
+  the main menu's table); overridden in the program: 0x006098d4 and
+  0x0073655c (update_shadows), the screen-mode cockpits, frame_dt.
+- Test mission_c1m1_hud_reads_the_ported_globals_headless (break: all 6
+  checks fail). The campaign: 20 of 20 by objectives, the census 0.

@@ -1146,17 +1146,20 @@ bool WinState::enter() {
   Engine& en = e();
   const int32_t campaign = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x48, {}));
   const int32_t mission = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x4c, {}));
-  const bool clean = en.peek8(0x609994) == 0;
+  // [0x00609994] and [0x00609926] are the missions' +0xc4 (cheats) and +0x56
+  // (aborting), read from the ported Missions (peek8 is not them).
+  const bool clean = !en.mission_cheated();
+  const bool lost = en.mission_failed();
   campaign_won_ = 0;
   cursor_ = en.video_show_cursor(0) != 0 ? 1 : 0;
   en.twod_set_cursor(0);
   const int32_t type = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x2c, {}));
   if (type == 1) {
-    if (en.peek8(0x609926) == 0 && clean) campaign_won_ = (campaign == 4 && mission == 6) ? 1 : 0;
+    if (!lost && clean) campaign_won_ = (campaign == 4 && mission == 6) ? 1 : 0;
     else en.mission_results(1, 1);
   }
   screen_ = en.construct(0x47b430, {addr(), campaign, mission, addr() + 0x10});  // new(0x13bf4)
-  if (en.peek8(0x609926) == 0 && clean && type == 1) {
+  if (!lost && clean && type == 1) {
     en.mission_results(0, (campaign == 4 && mission == 4) ? 0 : 1);
     const int32_t n = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x38, {}));
     en.pilot_record_mission(en.pilot(), 1);

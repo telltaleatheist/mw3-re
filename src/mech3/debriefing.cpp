@@ -1,4 +1,5 @@
 #include "mech3/debriefing.h"
+#include "mech3/options.h"
 
 #include <cmath>
 #include <cstdio>
@@ -21,7 +22,7 @@ namespace mech3 {
 // ---- the engine's defaults (app_hooks.h) ----
 
 bool Engine::mission_failed() { return missions().aborting != 0; }
-bool Engine::mission_cheated() { return missions().cheats != 0; }
+bool Engine::mission_cheated() { return options().cheated != 0; }  // [0x00609994]: the setters' and 0x00491d20's
 float Engine::mission_time() { return missions().time; }
 void Engine::pilot_save_now() {
   if (Pilot* p = current_pilot()) p->save();
