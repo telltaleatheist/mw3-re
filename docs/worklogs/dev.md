@@ -1790,3 +1790,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - `--mech-ahead M` (ours) keeps the player near the first enemy mech, for
   shots.
 - Known duplicate noted: SdlTwodHost's image cache is a second 0x005179d0.
+
+## Playtest W10: c1m3's third MFB drives past the op point (2026-10-30)
+
+- Branch mac4/mfb-overshoot (off main e1bef87).
+- The exe parks all three: the request (0x0045a780) sends base i to link i
+  of "MFB Charlie" (nodes 22..24, each a deploy node naming its base) with
+  the brain's go-to (0x004c84b0), whose way finder starts from the vehicle's
+  position (0x005a85e0). The port's `pilot_of` never set that position, so
+  every go-to failed and the bases walked net_01's links by chance (the
+  tour through MFB 2..4), taking whichever slot they reached. A port bug,
+  not a FIX candidate.
+- Fix: `pilot_of` gives `vehicle_position` (app_mech.cpp, the node's data).
+  Only the dock's request calls go_to, so nothing else changes.
+- Test `mission_c1m3_field_bases_park_at_charlie_headless`: all three on
+  their own slots (within 1 m) and the dock's places step done, in about
+  half the time. Break (no position): 3 checks fail, base 02 169 m off,
+  base 03 805 m off.
