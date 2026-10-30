@@ -1796,7 +1796,7 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Branch mac4/first-run (off main aea13d3).
 - CMake finds FFmpeg by pkg-config, else a prebuilt shared build in
   deps\ffmpeg-*shared* (or -DFFMPEG_DIR) and copies its DLLs beside
-  mw3import.exe. windows.md names BtbN's LGPL 7.1 shared build.
+  mw3import.exe. windows.md names BtbN's LGPL 8.1 shared build (the Mac has 8.1.2).
 - mw3import: --missing (only movies without a .fmv; the .fmv written last),
   "progress K N name" lines, --cue DISC.cue [--music-only].
 - First run (first_run_import.cpp, ours, FIX (A)): a plain start with

@@ -13,9 +13,9 @@ Visual Studio's headers and libraries.
 - SDL3 and SDL3_ttf: their `-VC.zip` development releases unpacked into
   `deps\` (git-ignored), e.g. `deps\SDL3-3.4.12`, `deps\SDL3_ttf-3.2.2`.
 - For the movies' importer only: FFmpeg's shared libraries, BtbN's LGPL
-  build `ffmpeg-n7.1-latest-win64-lgpl-shared-7.1.zip` (github.com/BtbN/
+  build `ffmpeg-n8.1-latest-win64-lgpl-shared-8.1.zip` (github.com/BtbN/
   FFmpeg-Builds, releases, "latest") unpacked into `deps\` as
-  `deps\ffmpeg-n7.1-latest-win64-lgpl-shared-7.1` (its `include\`,
+  `deps\ffmpeg-n8.1-latest-win64-lgpl-shared-8.1` (its `include\`,
   `lib\*.lib` and `bin\*.dll`). Any shared build with those three folders
   does (CMake takes the first `deps\ffmpeg-*shared*`, or `-DFFMPEG_DIR`).
   It has FFmpeg's own Indeo 5 decoder and MPEG-1 encoder, which is all the
@@ -28,7 +28,11 @@ Visual Studio's headers and libraries.
 and `SDL3_ttf.dll` from the zips' `lib\x64` next to `mw3.exe`.
 `tools\windows\build.cmd mw3 mw3import` also builds the importer, and its
 build copies FFmpeg's DLLs next to `mw3import.exe`; give a player the two
-exes and all the DLLs in one folder.
+exes and all the DLLs in one folder (FFmpeg 8.1's are nine). On Owen's PC
+(2026-10-30): the 19 movies in 29 s; their `.wav` and `.fmv` files are
+the Mac's byte for byte, the `.m1v` differ by FFmpeg build but play either
+way; `--cue` on his MW3 disc image gives track02 (191.9 s) and track03
+(186.1 s).
 
 ## Running
 

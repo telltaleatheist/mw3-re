@@ -141,7 +141,7 @@ bool parse_avi(const std::string& path, Avi* out, std::string* err) {
 }
 
 void write_sidecar(const std::string& path, const Avi& a) {
-  std::FILE* f = std::fopen(path.c_str(), "w");
+  std::FILE* f = std::fopen(path.c_str(), "wb");  // "\n" lines on every system: the sets match
   if (!f) return;
   std::fprintf(f, "; mw3import: the AVI's stream headers (docs/fmv.md, The imported movies)\n");
   std::fprintf(f, "fmv 1\n");
