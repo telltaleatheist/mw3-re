@@ -2,11 +2,14 @@
 // not original code; docs/fmv.md, The Indeo helper). FIX (A): the install's
 // Indeo 5 codec, Ir50_32.dll, is a 32-bit Video for Windows driver that
 // 64-bit mw3 cannot load and that modern Windows no longer registers. This
-// helper loads it, installs it for itself alone (ICInstall with
-// ICINSTALL_FUNCTION: no registry, no administrator) and answers the movie
-// player's AVIFile and ICDecompress calls over its stdin and stdout
-// (vfw_protocol.h), with Windows' own AVIFIL32 and MSVFW32, so the frames are
-// the codec's own as the original showed them.
+// helper loads it and calls its DriverProc itself, as the ICM layer would
+// (DRV_LOAD, DRV_ENABLE, DRV_OPEN with an ICOPEN, the ICM_DECOMPRESS
+// messages): no registry, no administrator, and no MSVFW32 between (its ICM
+// opened the driver without an ICOPEN, whose "configure" instance
+// 0xffff0000 then crashed ICM_GETINFO: docs/fmv.md, The Indeo helper). The
+// AVI comes from Windows' own AVIFIL32. It answers the movie player's calls
+// over its stdin and stdout (vfw_protocol.h), so the frames are the codec's
+// own as the original showed them.
 //
 //   mw3indeo --serve DLL                  answer mw3 (it starts the helper)
 //   mw3indeo --check DLL AVI [N [OUT [REF]]]   the PC's check: the codec
@@ -32,6 +35,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -39,28 +43,55 @@
 
 namespace {
 
-constexpr DWORD kIV50 = mmioFOURCC('I', 'V', '5', '0'), kiv50 = mmioFOURCC('i', 'v', '5', '0');
+constexpr DWORD kIV50 = mmioFOURCC('I', 'V', '5', '0');
 
-// The codec loaded and installed for this process; the error text when not.
-bool install_codec(const char* dll, std::string* why) {
+using DriverProcFn = LRESULT(WINAPI*)(DWORD_PTR, HDRVR, UINT, LPARAM, LPARAM);
+DriverProcFn g_proc = nullptr;
+HDRVR const kDriver = reinterpret_cast<HDRVR>(1);  // the codec only hands it back to DefDriverProc
+
+// The codec loaded, DRV_LOAD and DRV_ENABLE sent; the error text when not.
+bool load_codec(const char* dll, std::string* why) {
   HMODULE m = LoadLibraryA(dll);
   if (!m) {
     *why = std::string("LoadLibrary ") + dll + " failed, error " + std::to_string(GetLastError());
     return false;
   }
-  FARPROC proc = GetProcAddress(m, "DriverProc");  // the driver function ICInstall takes as its lParam
-  if (!proc) {
+  g_proc = reinterpret_cast<DriverProcFn>(reinterpret_cast<void*>(GetProcAddress(m, "DriverProc")));
+  if (!g_proc) {
     *why = "no DriverProc in the codec";
     return false;
   }
-  const BOOL upper = ICInstall(ICTYPE_VIDEO, kIV50, reinterpret_cast<LPARAM>(proc), nullptr, ICINSTALL_FUNCTION);
-  const BOOL lower = ICInstall(ICTYPE_VIDEO, kiv50, reinterpret_cast<LPARAM>(proc), nullptr, ICINSTALL_FUNCTION);
-  if (!upper && !lower) {
-    *why = "ICInstall failed";
+  if (!g_proc(0, kDriver, DRV_LOAD, 0, 0)) {
+    *why = "the codec refused DRV_LOAD";
     return false;
   }
+  g_proc(0, kDriver, DRV_ENABLE, 0, 0);
   return true;
 }
+
+// One open instance of the codec, as ICOpen(vidc, handler, ICMODE_DECOMPRESS) gives it.
+struct Codec {
+  DWORD_PTR id = 0;
+  bool begun = false;
+  bool open(DWORD handler) {
+    ICOPEN o{};
+    o.dwSize = sizeof o, o.fccType = ICTYPE_VIDEO, o.fccHandler = handler, o.dwVersion = ICVERSION;
+    o.dwFlags = ICMODE_DECOMPRESS;
+    const LRESULT r = g_proc(0, kDriver, DRV_OPEN, 0, reinterpret_cast<LPARAM>(&o));
+    id = r == static_cast<LRESULT>(0xffff0000) ? 0 : static_cast<DWORD_PTR>(r);  // 0xffff0000: its configure instance
+    return id != 0;
+  }
+  LRESULT send(UINT msg, LPARAM a, LPARAM b) { return g_proc(id, kDriver, msg, a, b); }
+  void end() {
+    if (begun) send(ICM_DECOMPRESS_END, 0, 0);
+    begun = false;
+  }
+  ~Codec() {
+    if (!id) return;
+    end();
+    send(DRV_CLOSE, 0, 0);
+  }
+};
 
 // The image's bytes for a 16-bit BITMAPINFOHEADER: rows of DWORDs.
 size_t image_bytes(const BITMAPINFOHEADER& b) {
@@ -74,11 +105,11 @@ struct Stream {
   std::vector<uint8_t> format;  // AVIStreamReadFormat's
   std::vector<uint8_t> chunk;   // the picture's chunk read last
   LONG chunk_bytes = 0;
-  HIC hic = nullptr;
-  std::vector<uint8_t> out;     // the output format ICDecompressBegin was given
+  std::unique_ptr<Codec> codec;
+  std::vector<uint8_t> out;     // the output format ICM_DECOMPRESS_BEGIN was given
   std::vector<uint8_t> image;
   ~Stream() {
-    if (hic) ICDecompressEnd(hic), ICClose(hic);
+    codec.reset();
     if (avi) AVIStreamRelease(avi);
   }
 };
@@ -88,17 +119,30 @@ LRESULT decompress(Stream& s, DWORD flags, const std::vector<uint8_t>& out) {
   if (s.format.size() < sizeof(BITMAPINFOHEADER) || out.size() < sizeof(BITMAPINFOHEADER)) return ICERR_BADFORMAT;
   auto* in = reinterpret_cast<BITMAPINFOHEADER*>(s.format.data());
   const auto* o = reinterpret_cast<const BITMAPINFOHEADER*>(out.data());
-  if (!s.hic || s.out != out) {
-    if (s.hic) ICDecompressEnd(s.hic), ICClose(s.hic);
-    s.hic = ICLocate(ICTYPE_VIDEO, s.info.fccHandler, in, const_cast<BITMAPINFOHEADER*>(o), ICMODE_DECOMPRESS);
-    if (!s.hic) return ICERR_UNSUPPORTED;  // no driver takes this format
-    const LRESULT begun = ICDecompressBegin(s.hic, in, o);
+  if (!g_proc) return ICERR_UNSUPPORTED;
+  if (!s.codec) {
+    s.codec = std::make_unique<Codec>();
+    if (!s.codec->open(s.info.fccHandler) && !s.codec->open(kIV50)) {
+      s.codec.reset();
+      return ICERR_UNSUPPORTED;
+    }
+  }
+  const LPARAM lin = reinterpret_cast<LPARAM>(in), lout = reinterpret_cast<LPARAM>(o);
+  if (!s.codec->begun || s.out != out) {
+    s.codec->end();
+    const LRESULT q = s.codec->send(ICM_DECOMPRESS_QUERY, lin, lout);
+    if (q != ICERR_OK) return q;
+    const LRESULT begun = s.codec->send(ICM_DECOMPRESS_BEGIN, lin, lout);
     if (begun != ICERR_OK) return begun;
+    s.codec->begun = true;
     s.out = out;
   }
   s.image.assign(image_bytes(*o), 0);
   in->biSizeImage = static_cast<DWORD>(s.chunk_bytes);
-  return ICDecompress(s.hic, flags, in, s.chunk.data(), const_cast<BITMAPINFOHEADER*>(o), s.image.data());
+  ICDECOMPRESS d{};
+  d.dwFlags = flags, d.lpbiInput = in, d.lpInput = s.chunk.data();
+  d.lpbiOutput = const_cast<BITMAPINFOHEADER*>(o), d.lpOutput = s.image.data();
+  return s.codec->send(ICM_DECOMPRESS, reinterpret_cast<LPARAM>(&d), sizeof d);
 }
 
 bool open_stream(Stream& s, const char* path, DWORD type) {
@@ -115,7 +159,7 @@ int serve(const char* dll) {
   _setmode(_fileno(stdin), _O_BINARY);
   _setmode(_fileno(stdout), _O_BINARY);
   std::string why;
-  const bool codec = install_codec(dll, &why);
+  const bool codec = load_codec(dll, &why);
   AVIFileInit();
   std::map<uint32_t, Stream> streams;
   uint32_t next = 1;
@@ -278,18 +322,19 @@ void compare(const std::vector<uint8_t>& a, const std::string& ref_path, int w, 
 
 int check(const char* dll, const char* avi, int want, const std::string& out, const char* ref) {
   std::string why;
-  if (!install_codec(dll, &why)) return std::printf("codec: %s\n", why.c_str()), 1;
-  std::printf("codec: %s loaded, DriverProc installed (ICINSTALL_FUNCTION)\n", dll);
-  // DRV_OPEN through ICM: the driver's own name and description.
-  if (HIC h = ICOpen(ICTYPE_VIDEO, kIV50, ICMODE_DECOMPRESS)) {
+  std::printf("loading %s\n", dll);
+  if (!load_codec(dll, &why)) return std::printf("codec: %s\n", why.c_str()), 1;
+  std::printf("codec: loaded, DRV_LOAD and DRV_ENABLE sent\n");
+  // DRV_OPEN with an ICOPEN, then ICM_GETINFO: the driver's own name and description.
+  {
+    Codec c;
+    if (!c.open(kIV50)) return std::printf("DRV_OPEN(vidc, IV50, decompress) failed\n"), 1;
+    std::printf("DRV_OPEN: instance 0x%08lx\n", static_cast<unsigned long>(c.id));
     ICINFO info{};
     info.dwSize = sizeof info;
-    ICGetInfo(h, &info, sizeof info);
-    std::printf("ICOpen: %p, \"%ls\", \"%ls\", version %lu\n", static_cast<void*>(h), info.szName, info.szDescription,
-                static_cast<unsigned long>(info.dwVersion));
-    ICClose(h);
-  } else {
-    return std::printf("ICOpen(vidc, IV50) failed\n"), 1;
+    const LRESULT got = c.send(ICM_GETINFO, reinterpret_cast<LPARAM>(&info), sizeof info);
+    std::printf("ICM_GETINFO: %ld bytes, \"%ls\", \"%ls\", version 0x%lx\n", static_cast<long>(got), info.szName,
+                info.szDescription, static_cast<unsigned long>(info.dwVersion));
   }
   AVIFileInit();
   int status = 1;
@@ -321,7 +366,11 @@ int check(const char* dll, const char* avi, int want, const std::string& out, co
         s.chunk.assign(need > 0 ? static_cast<size_t>(need) : 1, 0);
         AVIStreamRead(s.avi, n, 1, s.chunk.data(), need, &s.chunk_bytes, nullptr);
         const DWORD flags = AVIStreamIsKeyFrame(s.avi, n) ? 0 : ICDECOMPRESS_NOTKEYFRAME;
-        if (decompress(s, flags, o) != ICERR_OK) ++failed;
+        const LRESULT e = decompress(s, flags, o);
+        if (e != ICERR_OK) ++failed;
+        if (n < 3 || (e != ICERR_OK && failed <= 3))
+          std::printf("frame %ld (%s, %ld bytes): %ld\n", static_cast<long>(n), flags ? "delta" : "key", static_cast<long>(s.chunk_bytes),
+                      static_cast<long>(e));
         if (n == want) kept = s.image;
       }
       QueryPerformanceCounter(&t1);
@@ -347,11 +396,13 @@ int check(const char* dll, const char* avi, int want, const std::string& out, co
 int main(int argc, char** argv) {
   if (argc >= 3 && std::strcmp(argv[1], "--serve") == 0) return serve(argv[2]);
   // A GUI program (no console window when mw3 starts it): --check, run from
-  // a console, writes to that console.
+  // a console, writes to that console, each line as it goes (a crash keeps
+  // what came before it).
   if (AttachConsole(ATTACH_PARENT_PROCESS) && _fileno(stdout) < 0) {
     std::freopen("CONOUT$", "w", stdout);
     std::freopen("CONOUT$", "w", stderr);
   }
+  if (argc >= 4 && std::strcmp(argv[1], "--check") == 0) std::setvbuf(stdout, nullptr, _IONBF, 0);
   if (argc >= 4 && std::strcmp(argv[1], "--check") == 0)
     return check(argv[2], argv[3], argc >= 5 ? std::atoi(argv[4]) : 30, argc >= 6 ? argv[5] : "mw3indeo-frame",
                  argc >= 7 ? argv[6] : nullptr);

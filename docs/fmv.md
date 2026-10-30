@@ -321,11 +321,16 @@ as it did.
 and imports only WINMM, KERNEL32, USER32, GDI32, ADVAPI32 and ole32), which
 64-bit mw3 cannot load and Windows 11 no longer registers. `mw3indeo.exe`
 (tools/indeo, built 32-bit by `tools\windows\build_indeo.cmd`) loads it
-from the install, installs it for its own process alone (ICInstall with
-ICINSTALL_FUNCTION: no registry, no administrator) and answers the movie
-player's calls with Windows' own AVIFIL32 and MSVFW32: AVIStreamOpenFromFile,
-ReadFormat, Info, Length, Read, FindSample and ICDecompress (with the
-player's flags), each one message over its stdin and stdout
+from the install and calls its DriverProc itself, as the ICM layer does
+(DRV_LOAD, DRV_ENABLE, DRV_OPEN with an ICOPEN for decompression, then
+ICM_DECOMPRESS_QUERY, _BEGIN and ICM_DECOMPRESS with the player's flags):
+no registry, no administrator. (Installed with ICInstall's
+ICINSTALL_FUNCTION and opened through MSVFW32 instead, it crashed on Windows
+11 in ICM_GETINFO, 0x5002, most likely as the codec's DRV_OPEN without an ICOPEN returns
+its configure instance 0xffff0000, and the messages after it read that as
+the instance, [0xffff0008].) The AVI comes from Windows' own AVIFIL32:
+AVIStreamOpenFromFile, ReadFormat, Info, Length, Read and FindSample, each
+call one message over its stdin and stdout
 (`platform/vfw_protocol.h`). So the picture is the codec's own, as the
 original showed it, decoded while the movie plays (nothing converted or
 stored). mw3 starts it at start-up when `mw3indeo.exe` is beside `mw3.exe`
