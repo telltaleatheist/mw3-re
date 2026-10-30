@@ -346,6 +346,8 @@ These change how the game talks to the computer, not how it plays.
 
 - The game's question boxes ("Ok to delete pilot?", "Replace existing game?" and the rest) keep reading the mouse and keyboard while they wait: the original's box read DirectInput directly, the rebuild's also handles the window's events while it waits.
 
+- Changing a mech's skin in the lab no longer blanks the lab's screen for a frame. The original's skin change briefly unlocked the screen while it was being drawn, which DirectDraw tolerated; the rebuild keeps the screen locked until it is finished.
+
 - The mech lab's hidden loadout export and import keys (Ctrl+X, Ctrl+I) opened Windows file dialogs. Ctrl+X now writes the loadout to the `export` folder (named as the dialog suggested, `<mech>_<loadout>.m3c`), and Ctrl+I reads the next `.m3c` file from the `import` folder, then marks it done.
 
 - The main menu's water ripple around a button builds its ring in a buffer

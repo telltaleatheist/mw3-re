@@ -906,7 +906,9 @@ load a mission world (6) first and mark it (+0x10).
   first camo on the model (0x00475780) and its copy on the tree (0x00475a80),
   shown 0. **The camo** 0x0044fd90 (SKINS): the camo's copy for this tree
   (with the damage skin's holes, 0x00475520, 0x00475870) swapped on
-  (0x004749e0) and the old copy freed.
+  (0x004749e0) and the old copy freed. It first locks and unlocks the 3D
+  (0x00576d00 / 0x00576d60) inside the screen's own lock: the port keeps the
+  outer lock (render-frame.md section 1, playtest W9).
 - **The frame** (the Lab State's update): the render target (0x00450810),
   the frame cleared when the world is up (0x00450800), the screen drawn
   under the 3D lock (0x00448f10), then 0x00450690: the shown chassis turned

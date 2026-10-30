@@ -80,6 +80,9 @@ struct HudReport {
   char map_name[32] = {};
   int map_w = 0, map_h = 0, map_px[2] = {-1, -1};
   float mfd_cam_dist = 0, mfd_cam_height = 0, mfd_cam_front = 0;
+  // TARGET's camera (0x00440b00) on a mech target: its height and the
+  // target's centroid's over that mech's place (W7: the camera at its feet).
+  float target_cam_height = 0, target_centroid_height = 0;
   // The zoom window (6c2): shown, round, its mask fans since the last report,
   // its camera's place against the player camera's, its text.
   int zoom_shown_now = 0, zoom_round = 0, mask_fans = 0;

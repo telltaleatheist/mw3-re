@@ -361,9 +361,11 @@ struct ProgramHudHooks : HudHooks {
   void* object_mech_ptr(void* o) override { return hud_object_mech(o); }
   const char* object_name(void* o) override { return hud_object_name(o); }   // vt+0xa4
   float contact_size(void* c) override { return hud_contact_size(c); }        // 0x004e7070
-  void entity_position(void* e, float out[3]) override {  // the centroid node's (+0x14)
+  // The centroid node's (+0x14), a mech's too: not its place (+0x04), which
+  // put TARGET's view and the target triangle at a mech's feet (W7).
+  void entity_position(void* e, float out[3]) override {
     if (!e) out[0] = out[1] = out[2] = 0.0f;
-    else if (entity_is_mech(e)) mech_pos(mech_of(e), out);
+    else if (entity_is_mech(e)) node_world_cached(mech_of(e)->centroid, out);
     else hud_object_centroid(e, out);
   }
   void vehicle_center(void* v, float out[3]) override {  // vt+0xbc
@@ -400,7 +402,8 @@ struct ProgramHudHooks : HudHooks {
   void mech_position(Mech* m, float out[3]) override { mech_pos(m, out); }
   void vehicle_position(void* v, float out[3]) override {  // 0x005a8630
     if (v && !entity_is_mech(v)) return hud_object_aim_place(v, out);
-    entity_position(v, out);
+    if (v) mech_pos(mech_of(v), out);
+    else out[0] = out[1] = out[2] = 0.0f;
   }
   void mech_velocity(Mech* m, float out[3]) override { out[0] = m->velocity.x, out[1] = m->velocity.y, out[2] = m->velocity.z; }
   void vehicle_velocity(void* v, float out[3]) override {  // vt+0xc
@@ -463,7 +466,8 @@ struct ProgramHudHooks : HudHooks {
   void object_view_flag(void* o, int32_t on) override { if (o) hud_object_view_tint(o, on != 0); }  // vt+0x68
   void object_position(void* o, float out[3]) override {  // 0x005a85e0
     if (o && !entity_is_mech(o)) return hud_object_place(o, out);
-    entity_position(o, out);
+    if (o) mech_pos(mech_of(o), out);
+    else out[0] = out[1] = out[2] = 0.0f;
   }
   void* object_blip(void* o, int32_t kind) override { return o ? hud_object_blip(o, kind) : nullptr; }  // vt+0x3c
   // For program_hud_report: the draws by the blip's class (its image).
@@ -972,6 +976,16 @@ bool program_hud_report(HudReport* r) {
       r->mfd_cam_height = d[1];
       r->mfd_cam_front = -(d[0] * t[6] + d[1] * t[7] + d[2] * t[8]);  // along the mech's -z
     }
+  }
+  void* to = g_hooks.target_valid(h->target.target) ? g_hooks.target_object(h->target.target) : nullptr;
+  zcls::Node* tc = h->target.view ? g_hooks.node(h->target.view->view.camera) : nullptr;
+  if (to && tc && tc->data && entity_is_mech(to)) {
+    const auto* c = static_cast<const zcls::Camera*>(tc->data);
+    float place[3], centroid[3];
+    ProgramHudHooks::mech_pos(static_cast<Mech*>(to), place);
+    node_world_cached(static_cast<Mech*>(to)->centroid, centroid);
+    r->target_cam_height = c->get<float>(0x18) - place[1];
+    r->target_centroid_height = centroid[1] - place[1];
   }
   HudZoomWindow& z = h->reticle.zoom;
   r->zoom_shown_now = !(z.flags & ztwod::kHidden), r->zoom_round = z.round, r->mask_fans = g_hooks.fans;
