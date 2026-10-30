@@ -13909,6 +13909,107 @@ TEST(mission_c1m1_hud_reads_the_ported_globals_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// What the training chain showed (campaign.md section 16), in c1m1:
+// each AI mech's node is named after its record (0x005a8390 through
+// 0x005a84c0), so the objectives and valves find it by that name (t1m2's
+// aim_at_object bushwacker_02 did not read); the heat's static
+// (0x0043c1f0) raises a channel to at least its level and hold, kind 0 the
+// radar's fade; the pocket commander's view (0x004b5290) puts its object on
+// the weather's layer, whose update dims the screen in the display's green
+// at 0.3 (0x0055a740), and takes it off again.
+namespace {
+int g_dims = 0;
+uint16_t g_dim_colour = 0;
+double g_dim_alpha = 0;
+}  // namespace
+TEST(mission_c1m1_training_pieces_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("training_pieces_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int named = 0, mechs = 0, dims_on = -1, dims_off = -1;
+  float target_level = 0, target_hold = 0, other_level = 0;
+  bool seen = false;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 5) return;
+      seen = true;
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      for (int32_t i = 0; i < n; ++i) {
+        if (!ai[i].name || !ai[i].mech) continue;
+        ++mechs;
+        zcls::Node* found = zcls::list_find_by_name(6, ai[i].name);
+        float a[3] = {}, b[3] = {};
+        if (found && mech3::mech_world_position(ai[i].mech, a)) {
+          zcls::node_world_position(found, b);
+          if (std::fabs(a[0] - b[0]) + std::fabs(a[2] - b[2]) < 0.01f) ++named;
+        }
+      }
+      auto* h = static_cast<mech3::Hud*>(mech3::program_mech_hud(mech3::mech_mission_player()));
+      if (h) {
+        h->statics[0] = {0.0f, 0.2f, 0.1f};
+        h->raise_static(0.7f, 2, 0.5f);  // kind 2: TARGET's, +0x22e08
+        h->raise_static(0.4f, 2, 0.2f);  // lower: kept
+        target_level = h->statics[0].level, target_hold = h->statics[0].hold, other_level = h->statics[1].level;
+      }
+      zrndr::TintHooks& t = zrndr::tint_hooks();
+      const auto was = t.quad;
+      t.quad = [](uint16_t c, const int32_t*, double a) { ++g_dims, g_dim_colour = c, g_dim_alpha = a; };
+      g_dims = 0;
+      mech3::pocket_calls().view_pocket(true);
+      ztwod::weather_layer().update(0.033f);
+      dims_on = g_dims;
+      mech3::pocket_calls().view_pocket(false);
+      ztwod::weather_layer().update(0.033f);
+      dims_off = g_dims - dims_on;
+      t.quad = was;
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return frames >= 5; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c1m1: %d of %d AI mechs found by their record's name; TARGET's static %.2f hold %.2f (the MFD's %.2f); "
+              "the pocket's dim %d on (colour %#x, alpha %.2f), %d off\n",
+              named, mechs, target_level, target_hold, other_level, dims_on, g_dim_colour, g_dim_alpha, dims_off);
+  EXPECT(seen && mechs > 0 && named == mechs);
+  EXPECT(std::fabs(target_level - 0.7f) < 1e-6f && std::fabs(target_hold - 0.5f) < 1e-6f && other_level == 0.0f);
+  EXPECT(dims_on == 1 && g_dim_colour == 0x07e0 && std::fabs(g_dim_alpha - 0.3) < 1e-9 && dims_off == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_hud_anchored_at_any_size_headless) {
   if (!have_game()) return;
   for (const bool fix : {false, true}) {  // 640x480: V640x480's places, the fix on as off

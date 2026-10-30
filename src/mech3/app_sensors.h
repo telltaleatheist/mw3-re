@@ -85,6 +85,9 @@ bool chain_player_near(void* node, float dist);
 bool chain_player_at(const float at[3]);  // the player set on the ground at a point (a reach_area's), at most 10 m above it
 // Where a net link that sets `valve` to `value` starts (a valve_assign edge, c3m1's m1mfbreach): the place to call
 // the bases from.
+bool chain_handle_at(uint32_t h, float out[3]);  // an entity's position by its handle
+bool chain_player_face(const float at[3]);       // the player turned where it stands to face a point
+uint32_t chain_entity_named(const char* name);   // 0x004d7330's lookup (app_mission.cpp): the AI mechs, turrets, vehicles, targets
 bool chain_valve_link_at(const char* valve, int32_t value, float out[3]);
 // Where the entity whose node is `name` is; false when none.
 bool chain_entity_at(const char* name, float out[3]);

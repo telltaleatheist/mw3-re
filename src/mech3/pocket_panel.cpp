@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "crt/msvc_math.h"
 #include "gamez/zmath/zmth_matrix.h"
@@ -141,7 +142,18 @@ void pocket_mission_end() {
   g.sure_sir = g.right_away = g.so_long = g.no_way = g.cannot = g.select = g.rollover = 0;
   g.sounds_loaded = false;
   if (g.active) {
-    delete g.active;  // vt+0x00(1) through its IControls
+    // FIX (bug): the exe deletes the mode while the mech still holds it as
+    // its controls (+0x37c); the mech's own delete then calls into the freed
+    // mode (0x0046ad80): a mission ended in the pocket mode (t1m4's
+    // CMD_DIRECT_POCKET lesson) crashed the port. Here the mode is left as
+    // its death leaves it, the old controls the mech's again, first.
+    PocketControls* p = g.active;
+    Mech* m = p->owner;
+    if (zfix::options().bugs && m && m->controls == p) {
+      MechControls* back = p->leave(false);
+      if (back && back != p) m->controls = back, back->set_owner(m);
+    }
+    delete p;  // vt+0x00(1) through its IControls
     g.active = nullptr;
   }
   g.x50 = g.x60 = 0;

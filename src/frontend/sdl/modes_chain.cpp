@@ -1,12 +1,22 @@
 #include "frontend/sdl/modes_chain.h"
 
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <vector>
 
+#include "gamez/zclass/class.h"
+#include "gamez/zinput/zinput.h"
+#include "gamez/zreader/zreader.h"
 #include "mech3/action_menu.h"
+#include "mech3/app_vehicle.h"
+#include "mech3/controls_cfg.h"
+#include "mech3/mech_objective.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/app_hud.h"
+#include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
@@ -16,6 +26,7 @@
 #include "mech3/pause_menu.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
+#include "mech3/zai_valve.h"
 
 namespace sdlfe {
 namespace {
@@ -39,6 +50,8 @@ Tally g_before;
 
 // "all", or "<world>:<scenario>" (c2:4), or a world alone (c3).
 ModesChain::ModesChain(mech3::GameEngine& e, mech3::Mech3App& app, std::string which) : e_(e), app_(app) {
+  training_ = which == "training";
+  if (training_) return;
   if (which != "all" && !which.empty()) {
     const int w = which.size() >= 2 && which[0] == 'c' ? which[1] - '1' : -1;
     if (w >= 0 && w <= 3) first_world_ = last_world_ = w;
@@ -54,14 +67,35 @@ void ModesChain::frame() {
   zgame::State* now = app_.current();
   if (now != last_) last_ = now, frames_in_state_ = 0;
   ++frames_in_state_;
+  ++frames_;
+  for (size_t i = 0; i < releases_.size();)
+    if (releases_[i].first <= frames_) {
+      if (key) key(releases_[i].second, false);
+      releases_.erase(releases_.begin() + static_cast<long>(i));
+    } else {
+      ++i;
+    }
   if (now == &st.main && mech3::main_menu() && frames_in_state_ == 30 && !pilot_done_) {
-    const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[0].on_left_up();  // INSTANT ACTION
+    const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[training_ ? 3 : 0].on_left_up();  // TRAINING, INSTANT ACTION
   } else if (auto* ps = dynamic_cast<mech3::PilotState*>(now)) {
-    if (!ps->screen || pilot_done_ || frames_in_state_ < 20 || !app_.pending_list().empty()) return;
-    ps->screen->new_bar.set_text("Actions");
-    ps->screen->new_bar.on_return();
+    if (!ps->screen || frames_in_state_ != 20 || !app_.pending_list().empty()) return;
+    if (training_) {  // the first mission not passed is chosen (0x004873d0's list)
+      mech3::Pilot* p = ps->screen->chosen;
+      mech3::TrainingGame* g = p ? p->training_game() : nullptr;
+      if (pilot_done_ && g && g->passed[0] && g->passed[1] && g->passed[2] && g->passed[3]) {
+        std::printf("mw3: modes training done: %d missions passed by their lessons\n", missions_done_);
+        done_ = true;
+        return;
+      }
+    } else if (pilot_done_) {
+      return;
+    }
+    if (!pilot_done_) {
+      ps->screen->new_bar.set_text(training_ ? "Trainee" : "Actions");
+      ps->screen->new_bar.on_return();
+    }
     ps->screen->on_button(0x18, 0, 0);  // ACCEPT
-    pilot_done_ = true;
+    pilot_done_ = true, accepted_ = false;
   } else if (auto* gs = dynamic_cast<mech3::GameMenuState*>(now); gs && gs->kind == mech3::GameMenuState::kAction) {
     if (frames_in_state_ == 20) action_screen();
   } else if (now == &st.load) {
@@ -71,8 +105,8 @@ void ModesChain::frame() {
       b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
     }
   } else if (now == &st.core) {
-    if (frames_in_state_ == 1) core_frames_ = 0, kills_ = hits_ = 0, ended_logged_ = quitting_ = false;
-    core();
+    if (frames_in_state_ == 1) core_frames_ = 0, kills_ = hits_ = 0, ended_logged_ = quitting_ = false, lesson_ = -2, stuck_ = 0;
+    training_ ? training_core() : core();
   } else if (now == &st.pause) {
     auto* p = dynamic_cast<mech3::PauseScreen*>(e_.screen_of(st.pause.screen_));
     if (p && frames_in_state_ == 5) p->on_button(mech3::PauseScreen::kQuit, 0, 0);
@@ -193,6 +227,229 @@ void ModesChain::debriefing() {
   } else {
     std::printf("mw3: modes %s debriefing round 2: score %d, ABORT\n", case_.c_str(), d->score);
     d->on_button(mech3::DebriefScreen::kAbort, 0, 0);
+  }
+}
+
+// A key code as zInput keeps it (zinput.h: DIK | 0x100 Alt | 0x200 Ctrl |
+// 0x400 Shift): the modifiers held around the key, `hold` frames.
+void ModesChain::press_key(int code, int hold) {
+  const int dik = code & 0xff;
+  if (!key || dik <= 0) return;
+  const int mods[3][2] = {{0x100, 0x38}, {0x200, 0x1d}, {0x400, 0x2a}};  // DIK_LMENU, DIK_LCONTROL, DIK_LSHIFT
+  for (const auto& m : mods)
+    if (code & m[0]) key(m[1], true);
+  key(dik, true);
+  releases_.push_back({frames_ + hold, dik});
+  for (const auto& m : mods)
+    if (code & m[0]) releases_.push_back({frames_ + hold, m[1]});
+}
+
+void ModesChain::press(const char* command, int hold) {
+  press_key(static_cast<int>(zin::key1_of(mech3::controls_command(command))), hold);
+}
+
+// A training mission: its lessons logged as they change, each acted on until
+// the mission is won (Exit Mission then, the end screen's TR Dummy State).
+void ModesChain::training_core() {
+  ++core_frames_;
+  mech3::Missions& m = mech3::missions();
+  mech3::Pilot* p = mech3::current_pilot();
+  mech3::TrainingGame* g = p ? p->training_game() : nullptr;
+  const int lesson = g && g->lessons ? g->lessons->current : -1;
+  if (m.ended) {
+    if (!ended_logged_) {
+      ended_logged_ = true;
+      std::printf("mw3: modes training mission %d %s at core frame %d (lesson %d)\n", g ? g->mission : 0,
+                  m.aborting ? "LOST" : "won by its lessons", core_frames_, lesson + 1);
+      if (!m.aborting) ++missions_done_, m.on_command(0x71);  // Exit Mission
+    }
+    return;
+  }
+  if (lesson != lesson_) {
+    if (lesson_ >= 0)
+      std::printf("mw3: modes training mission %d lesson %d done at core frame %d (%d frames)\n", g ? g->mission : 0,
+                  lesson_ + 1, core_frames_, core_frames_ - lesson_at_);
+    lesson_ = lesson, lesson_at_ = core_frames_, act_ = 0;
+  }
+  if (core_frames_ - lesson_at_ == 6000) {
+    std::printf("mw3: modes training mission %d lesson %d NOT met after 6000 frames: Exit Mission\n", g ? g->mission : 0,
+                lesson + 1);
+    ++stuck_;
+    m.ended = 1;
+    m.on_command(0x71);
+    return;
+  }
+  if (core_frames_ > 30 && core_frames_ % 20 == 0) lesson_act();
+}
+
+namespace {
+// The group's objectives not done, depth first (a group met together needs
+// them all at once: t1m4's place and shutdown).
+void open_leaves(const mech3::Objective* o, std::vector<const mech3::Objective*>& out) {
+  if (!o || o->done) return;
+  if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(o)) {
+    for (const auto& c : g->items) open_leaves(c.get(), out);
+    return;
+  }
+  out.push_back(o);
+}
+// An AI record's trigger ("vlist" in aiv.zrd) that sets `valve`: its record
+// (the entity), its region, and what it waits for, by the entry's fields as
+// the shipped ones read: 2 a weapon fired (fired_mgun), 5 the health below
+// 6 (mech_hit: the record's mech hit), 9 the player in the region
+// (inst_spotted: reg_instruct).
+struct Trigger {
+  std::string record, region;
+  bool fired = false, hit = false, inside = false;
+};
+bool find_trigger(const zrdr::Node* n, const char* valve, const std::string& record, Trigger* out, int depth = 0) {
+  if (!n || n->type != zrdr::List || !n->list) return false;
+  const int32_t count = zrdr::list_count(n);
+  auto i = [&](int32_t k) { return k < count && n->list[k].type == zrdr::Int ? n->list[k].i : 0; };
+  for (int32_t k = 1; k < count; ++k) {
+    const zrdr::Node& c = n->list[k];
+    if (c.type == zrdr::String && c.s && std::strcmp(c.s, valve) == 0 && k > 10 && n->list[10].type == zrdr::String) {
+      out->record = record, out->region = n->list[10].s ? n->list[10].s : "";
+      out->fired = i(2) == 1, out->hit = i(5) == 1, out->inside = i(9) == 1;
+      return true;
+    }
+    if (c.type == zrdr::List) {
+      // a record's value follows its name in the top list
+      const bool top = depth <= 1;  // the file's list: record names, then their values
+      const std::string rec = top && k > 1 && n->list[k - 1].type == zrdr::String && n->list[k - 1].s ? n->list[k - 1].s : record;
+      if (find_trigger(&c, valve, rec, out, depth + 1)) return true;
+    }
+  }
+  return false;
+}
+bool valve_trigger(const char* valve, Trigger* out) {
+  zrdr::Node* aiv = zrdr::load("aiv.zrd");
+  const bool found = find_trigger(aiv, valve, "", out);
+  if (aiv) zrdr::free_node(aiv);
+  return found;
+}
+bool named_at(const char* name, float out[3]) {
+  const uint32_t h = name ? mech3::chain_entity_named(name) : 0;
+  return h && mech3::chain_handle_at(h, out);
+}
+const char* const kKinds[] = {"group", "destroy", "node_change", "reach_area", "valve_change", "reach_velocity",
+                              "aim_at_object", "target_object", "time_limit", "view_object", "face_object",
+                              "heat_warning", "User_Command", "joystick_press", "key_press", "mouse_press",
+                              "weapon_fire", "weapon_select", "weapon_group_select"};
+}  // namespace
+
+// What a player does for the current lesson's first open primary objective.
+void ModesChain::lesson_act() {
+  using O = mech3::Objective;
+  const mech3::Objectives& ob = mech3::mission_objectives();
+  std::vector<const O*> open;
+  open_leaves(ob.primary.get(), open);
+  if (open.empty()) return;
+  ++act_;
+  if (act_ == 1) {
+    std::string kinds;
+    for (const O* o : open) kinds += std::string(kinds.empty() ? "" : ", ") + (o->kind < sizeof kKinds / sizeof kKinds[0] ? kKinds[o->kind] : "?");
+    std::printf("mw3: modes training lesson %d wants %s\n", lesson_ + 1, kinds.c_str());
+  }
+  bool fire = false;
+  for (const O* o : open) {
+    if (o->kind == O::kWeaponFire) {  // one press for every weapon_fire: fire, then the next weapon
+      fire = true;
+      continue;
+    }
+    act_on(o);
+  }
+  if (fire) press(act_ % 2 ? "CMD_TRIGGER1" : (act_ % 16 == 0 ? "CMD_WEPGRP_NEXT" : "CMD_WEP_NEXT"));
+}
+
+void ModesChain::act_on(const mech3::Objective* o) {
+  using O = mech3::Objective;
+  static void* gun = nullptr;
+  if (!gun) gun = mech3::chain_weapon();
+  switch (o->kind) {
+    case O::kUserCommand:
+    case O::kKeyPress:
+      if (auto* in = dynamic_cast<const mech3::InputObjective*>(o)) press_key(in->x34);
+      break;
+    case O::kWeaponSelect:  // the next weapon, the group's next every sixth press (next only cycles a group)
+      press(act_ % 6 ? "CMD_WEP_NEXT" : "CMD_WEPGRP_NEXT");
+      break;
+    case O::kWeaponGroupSelect:
+      if (auto* w = dynamic_cast<const mech3::WeaponObjective*>(o)) {
+        char cmd[16];
+        std::snprintf(cmd, sizeof cmd, "CMD_WEPGRP_%d", w->id + 1);
+        press(cmd);
+      }
+      break;
+    case O::kHeatWarning:
+      press("CMD_ALPHASTRIKE");
+      break;
+    case O::kReachVelocity:
+      if (auto* v = dynamic_cast<const mech3::ReachVelocityObjective*>(o))
+        v->test <= 1 ? press("CMD_THROTTLE_UP", 18) : press("CMD_THROTTLE0");  // held: the throttle climbs while it is down
+      break;
+    case O::kFaceObject:
+    case O::kViewObject:
+    case O::kTarget:
+    case O::kDestroy: {
+      auto* d = dynamic_cast<const mech3::DestroyObjective*>(o);
+      float at[3];
+      if (!d || !d->name || !named_at(d->name->c_str(), at)) break;
+      if (o->kind == O::kDestroy) {
+        ++hits_;
+        mech3::chain_hit(mech3::chain_entity_named(d->name->c_str()), gun);
+        break;
+      }
+      mech3::chain_player_face(at);
+      if (o->kind == O::kTarget) press("CMD_TARGET_CURSOR");
+      break;
+    }
+    case O::kAimAt:
+      if (auto* a = dynamic_cast<const mech3::AimAtObjective*>(o)) {
+        float at[3];
+        if (auto* n = static_cast<zcls::Node*>(e_.object_of(a->node))) zcls::node_world_position(n, at), mech3::chain_player_face(at);
+      }
+      break;
+    case O::kReachArea:
+      if (auto* r = dynamic_cast<const mech3::ReachAreaObjective*>(o)) {
+        float at[3] = {r->point[0], r->point[1], r->point[2]};
+        if (r->nav) mech3::program_waypoint_position(e_.object_of(r->nav), at);
+        else if (r->node) zcls::node_world_position(static_cast<zcls::Node*>(e_.object_of(r->node)), at);
+        mech3::chain_player_at(at);
+      }
+      break;
+    case O::kValveChange:
+      if (auto* v = dynamic_cast<const mech3::ValveChangeObjective*>(o)) {
+        const auto* x = static_cast<const mech3::ai::Valve*>(e_.object_of(v->watch));
+        const char* name = x && x->name ? x->name : "";
+        char target[32] = {};
+        if (mech3::chain_player_to_region(("reg_" + std::string(name)).c_str())) break;
+        Trigger t;  // an AI record's trigger
+        if (valve_trigger(name, &t)) {
+          if (act_ == 1)
+            std::printf("mw3: modes training lesson %d: valve %s from %s's trigger (%s%s%s%s)\n", lesson_ + 1, name,
+                        t.record.c_str(), t.region.c_str(), t.inside ? ", the player inside" : "",
+                        t.hit ? ", its mech hit" : "", t.fired ? ", a weapon fired" : "");
+          if (t.inside && mech3::chain_player_to_region(t.region.c_str())) break;
+          if (t.hit) {  // one hit on the record's entity, not a kill
+            if (act_ % 5 == 1) ++hits_, mech3::chain_hit(mech3::chain_entity_named(t.record.c_str()), gun);
+            break;
+          }
+          if (t.fired) {
+            press("CMD_TRIGGER1");
+            break;
+          }
+        }
+        if (std::sscanf(name, "%31[a-z0-9]_destroyed", target) == 1) {  // targ01_destroyed: the target shot
+          ++hits_;
+          mech3::chain_hit(mech3::chain_entity_named(target), gun);
+          break;
+        }
+        if (act_ == 1) std::printf("mw3: modes training lesson %d: valve %s, nothing to do for it\n", lesson_ + 1, name);
+      }
+      break;
+    default:
+      break;
   }
 }
 

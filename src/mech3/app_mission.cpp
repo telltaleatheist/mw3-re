@@ -2215,6 +2215,12 @@ uint32_t mission_map_find(const char* name) {
   return m && g_mission_engine ? g_mission_engine->handle_of(m) : 0;
 }
 void mission_map_set(uint32_t map) { missions().xbc = map; }  // [0x0060998c]
+
+// The chains' (ours): an entity by the valves' and objectives' name lookup
+// (0x004d7330: the AI mechs, turrets, vehicles, targets), as a handle.
+uint32_t chain_entity_named(const char* name) {
+  return g_mission_engine ? static_cast<uint32_t>(entity_by_name(*g_mission_engine, name)) : 0;
+}
 void* mission_map_of(uint32_t map) { return g_mission_engine ? g_mission_engine->object_of(map) : nullptr; }
 // The campaign's vt+0x48 and vt+0x4c (0x00437870, 0x00437880), else the launch's.
 int32_t mission_operation() {

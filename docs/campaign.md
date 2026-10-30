@@ -1056,3 +1056,55 @@ What the census showed on the way, now ported:
 
 `sdl_program_action_chain` (MW3_CAMPAIGN=1) runs `--action-chain all`
 and asserts the 20 cases as above.
+
+## 16. Training played through (2026-10-30)
+
+`--action-chain training` (`frontend/sdl/modes_chain`): a new pilot from
+the main menu's TRAINING. The pilot screen chooses the first training
+mission not passed (0x004873d0's list), so ACCEPT and LAUNCH take t1's
+missions in turn, and the TR Dummy State (section 12) brings the pilot
+screen back after each. In each mission every lesson (objectives.zrd's
+m11..m413, 53 in all) is acted on every 20 frames: each open leaf of its
+primary objectives, as a player meets it:
+
+- **User_Command / key_press**: the command's key (zInput's code: DIK |
+  0x100 Alt | 0x200 Ctrl | 0x400 Shift, the modifiers held around it).
+- **reach_velocity**: the throttle-up key held (the throttle climbs while it
+  is down), or throttle 0 for a "less than".
+- **face / view / target / aim_at**: the mech turned where it stands to face
+  the entity or node (target_object then the target-cursor key).
+- **weapon_select / weapon_fire**: the next weapon, the next group every
+  sixth press; fire, then the next weapon, once a pass for all the
+  lesson's weapon_fire objectives.
+- **heat_warning**: the alpha strike key.
+- **reach_area**: the player set at the nav point, node or point.
+- **valve_change**: `reg_<valve>`; else an AI record's trigger in aiv.zrd's
+  `vlist` that sets the valve. Its fields read as: 2, a weapon fired; 5,
+  the record's health below field 6 (its mech hit once); 9, the player in
+  the trigger's region. `targNN_destroyed` is `targNN` shot.
+- **destroy**: that entity shot, only when a lesson wants it (shooting the
+  instructor fails the lesson).
+
+Results (seed 1999, 33 ms frames, 47 s): all four missions won by their
+lessons (core frames 583, 1381, 1281, 616), none stuck, the census 0.
+
+What the training showed on the way, now ported:
+- **An AI mech's node is named after its record.** 0x004d6c90 hands
+  0x005a8390 the name, which names the node (0x005a84c0). The port's
+  `entity_set_node` dropped it, so a lookup by the record's name found
+  nothing. t1m2's `aim_at_object bushwacker_02` was never made ("Failed to
+  find node") and the lesson could not be met. The census's known entry
+  for 0x005a84c0 (the stealth object's name) hid it.
+  `mission_c1m1_training_pieces_headless`.
+- **The heat's static** (0x0043c1f0, `Hud::raise_static`): over the haze
+  heat a random HUD channel at least the haze's level.
+- **The zoom window's view prepared** (0x004b51f0 on it, TARGET's triangle
+  projected into the zoom): the HUD's `zview_prepare`.
+- **The pocket commander's view** (0x004b5290): its object on the weather's
+  layer dims the screen in the display's green at 0.3 (0x0055a740, the
+  Direct3D path) while the commander's panel is up.
+- **A mission ended in the pocket mode crashed** (0x0046ab10 deletes the
+  mode while the player's mech still holds it): FIX (bug), fixes.md.
+
+`sdl_program_training_chain` (MW3_CAMPAIGN=1) runs it and asserts the
+four missions, no lesson stuck, a clean exit and the census 0.

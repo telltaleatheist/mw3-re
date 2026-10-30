@@ -1944,3 +1944,10 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   in instant_action_menus_to_wave1_tallies_headless (break: fails).
 - Chain bugs on the way (not the port's): the scenario rows have no
   None, the custom flag is +0x16f9c set, the wave count read from frame 2.
+- Training (same branch): `--action-chain training`, t1's four missions by
+  their lessons in 47 s, census 0 (campaign.md section 16). Ported or
+  wired: the AI mechs' node names (0x005a8390's name), the heat's static
+  0x0043c1f0, the zoom view's prepare, the pocket view's green dim
+  0x0055a740; FIX (bug) the pocket mode at the mission's end (0x0046ab10,
+  a use after free: exit 139). Tests: mission_c1m1_training_pieces_headless
+  (break: 0 of 1 named), sdl_program_training_chain.

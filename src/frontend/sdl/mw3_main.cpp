@@ -631,7 +631,20 @@ int run(const Args& a) {
       chain = std::make_unique<sdlfe::CampaignChain>(engine, app, window.render(), co);
     }
     std::unique_ptr<sdlfe::ModesChain> modes;
-    if (!a.modes.empty()) modes = std::make_unique<sdlfe::ModesChain>(engine, app, a.modes);
+    if (!a.modes.empty()) {
+      modes = std::make_unique<sdlfe::ModesChain>(engine, app, a.modes);
+      modes->key = [](int dik, bool down) {  // as --tap presses: the scan code of the DIK
+        for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
+          if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == dik) {
+            SDL_Event ev{};
+            ev.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+            ev.key.scancode = static_cast<SDL_Scancode>(sc);
+            ev.key.down = down;
+            SDL_PushEvent(&ev);
+            return;
+          }
+      };
+    }
     if (!debug && !launch)
       engine.on_present = [&](int) {
         ++menu_frames;

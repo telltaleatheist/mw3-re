@@ -954,6 +954,9 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
 
 ## Playing a mission
 
+- **The lance command view tints the battlefield green.** When you give
+  your lancemates orders from the pocket command view, the whole screen is
+  washed over in green until you leave it. (`campaign.md` section 16)
 - **Your MFD and target display remember their mode.** Whatever view you
   last chose on the multi-function display and the target display stays
   chosen for the next mission, until you quit the game. (`hud.md`

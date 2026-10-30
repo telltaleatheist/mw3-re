@@ -73,6 +73,9 @@ uint32_t finish();
 // Mech3.exe 1.2 @ 0x005587b0: the kept tint dropped.
 void tint_clear();
 
+// Mech3.exe 1.2 @ 0x0055a740: the screen (or `rect`) dimmed in green, the pocket commander's view.
+void dim(const int32_t* rect);
+
 // The row routines (ECX row, EDX pixel count).
 void tint_row_555(uint16_t* row, int32_t count);      // 0x005582c0
 void tint_row_565(uint16_t* row, int32_t count);      // 0x00558320

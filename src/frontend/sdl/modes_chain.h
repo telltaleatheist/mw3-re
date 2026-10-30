@@ -1,9 +1,13 @@
 #pragma once
+#include <functional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace mech3 {
 class GameEngine;
 class Mech3App;
+class Objective;
 }
 namespace zgame {
 class State;
@@ -25,12 +29,24 @@ class ModesChain {
   ModesChain(mech3::GameEngine& e, mech3::Mech3App& app, std::string which);
   void frame();  // each frame shown
   bool done() const { return done_; }
+  std::function<void(int dik, bool down)> key;  // a key pressed as the keyboard does (mw3_main's)
 
  private:
   void action_screen();
   void core();
   void debriefing();
   void next_case();
+  // Training (`training`): t1's four missions from the pilot screen's
+  // TRAINING, each lesson's objectives met as a player meets them.
+  void training_core();
+  void lesson_act();
+  void act_on(const mech3::Objective* o);
+  void press(const char* command, int hold = 2);  // its first key, down now and up `hold` frames later
+  void press_key(int code, int hold = 2);
+  bool training_ = false;
+  int lesson_ = -2, lesson_at_ = 0, act_ = 0, missions_done_ = 0, stuck_ = 0;
+  std::vector<std::pair<int, int>> releases_;  // (frame, dik)
+  int frames_ = 0;
 
   mech3::GameEngine& e_;
   mech3::Mech3App& app_;

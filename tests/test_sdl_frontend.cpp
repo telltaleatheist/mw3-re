@@ -1508,4 +1508,52 @@ TEST(sdl_program_action_chain) {
   EXPECT(log.find("mw3: modes done: 20 cases, 20 tallied as expected, 0 not") != std::string::npos);
   EXPECT(log.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
 }
+// Training played through (MW3_CAMPAIGN=1, about a minute; --action-chain
+// training, modes_chain.h, campaign.md section 16): a new pilot from the main
+// menu's TRAINING, t1's four missions as the pilot screen offers them, each
+// lesson's primary objectives met as a player meets them (the commands'
+// keys with their modifiers, the throttle held, facing and aiming, the
+// weapons, the valves' regions and the AI records' triggers). All four
+// passed by their lessons, none stuck, the program's exit clean (m4's
+// pocket mode left at the mission's end crashed it), the census 0.
+TEST(sdl_program_training_chain) {
+  if (!have_fonts() || !std::getenv("MW3_CAMPAIGN")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_training_chain";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  const auto start = std::chrono::steady_clock::now();
+  const pid_t pid = spawn_mw3({"--action-chain", "training", "--verbose", "--nosound", "--hidden", "--write-dir", dir,
+                               "--frame-ms", "33", "--seed", "1999"},
+                              dir + "/run.log");
+  int status = 0;
+  bool done = pid > 0;
+  while (done && waitpid(pid, &status, WNOHANG) != pid) {
+    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(900)) {
+      kill(pid, SIGKILL), waitpid(pid, &status, 0);
+      done = false;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  const bool clean = done && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  std::string log;
+  if (std::FILE* f = std::fopen((dir + "/run.log").c_str(), "r")) {
+    char buf[4096];
+    for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) log.append(buf, n);
+    std::fclose(f);
+  }
+  auto count = [&](const char* what) {
+    int n = 0;
+    for (size_t at = 0; (at = log.find(what, at)) != std::string::npos; ++at) ++n;
+    return n;
+  };
+  const int won = count("won by its lessons"), lessons = count(" done at core frame"), stuck = count("NOT met after");
+  std::printf("training chain: %d missions won by their lessons, %d lessons met, %d stuck, exit %s, in %.0f s\n", won,
+              lessons, stuck, clean ? "clean" : "NOT clean",
+              std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+  EXPECT(clean);
+  EXPECT(won == 4 && stuck == 0 && lessons >= 40);
+  EXPECT(log.find("mw3: modes training done: 4 missions passed by their lessons") != std::string::npos);
+  EXPECT(log.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
+}
 #endif
