@@ -1,3 +1,4 @@
+#include "mech3/data_version.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
@@ -169,6 +170,20 @@ struct SavedMounts {
   ~SavedMounts() { zutl::mounts() = saved; }
 };
 
+// Whether MW3_GAME_DIR holds 1.2's data (assets.md, Data versions): the runs
+// that pin exact outcomes took them on 1.2's; other data checks the behaviour
+// only (a build with -DMW3_GAME_DIR=game/mw3-1.0).
+bool data_is_12() {
+  static int v = -1;
+  if (v < 0) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    v = mech3::detect_data_version().name == "1.2" ? 1 : 0;
+  }
+  return v == 1;
+}
+
 }  // namespace
 
 // A new process starts with zSound not yet initialised. The exe's shutdown
@@ -216,6 +231,47 @@ void reset_process_state() {
   zeff::anim_log().save_on = zeff::anim_log().net_on = 1;
   zvid::display().clear_on = 1;
   zcls::scene_walk().hidden_surface = 1;
+}
+
+// The data version (ours; assets.md, Data versions): the install's, then a
+// mix and an unknown file made by putting another file in front of it.
+TEST(data_version_names_the_install) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const mech3::DataVersion own = mech3::detect_data_version();
+  std::printf("  %s: %s\n", MW3_GAME_DIR, own.describe().c_str());
+  EXPECT(own.name == "1.2" || own.name == "1.0");
+  const bool is_12 = own.name == "1.2";
+  EXPECT(is_12 ? own.of_12 == 27 : own.of_10 == 27);
+  // One file of the other version in front: a mix (on 1.0, one added wav).
+  const std::string front = temp_dir("data_version");
+  std::error_code ec;
+  std::filesystem::create_directories(front + "/zbd", ec);
+  const std::string other = std::string(MW3_SOURCE_DIR) + (is_12 ? "/game/mw3-1.0" : "/game/mw3-1.2");
+  if (std::filesystem::exists(other + "/zbd/reader.zbd")) {
+    std::filesystem::copy_file(other + (is_12 ? "/zbd/reader.zbd" : "/zbd/soil_mud_2s.wav"),
+                               front + (is_12 ? "/zbd/reader.zbd" : "/zbd/soil_mud_2s.wav"), ec);
+    zutl::mount_front(front);
+    const mech3::DataVersion mix = mech3::detect_data_version();
+    std::printf("  with one file of the other: %s\n", mix.describe().c_str());
+    EXPECT(mix.name == "1.0 with 1.2 files" && mix.of_12 == (is_12 ? 26 : 1) && mix.of_10 == (is_12 ? 1 : 26));
+    EXPECT(mix.from_12.size() == static_cast<size_t>(mix.of_12));
+    std::filesystem::remove_all(front + "/zbd", ec);
+    std::filesystem::create_directories(front + "/zbd", ec);
+  } else {
+    zutl::mount_front(front);
+  }
+  // A changed file: neither version's.
+  if (std::FILE* f = std::fopen((front + "/zbd/interp.zbd").c_str(), "wb")) std::fputs("not a zbd", f), std::fclose(f);
+  const mech3::DataVersion odd = mech3::detect_data_version();
+  std::printf("  with a changed interp.zbd: %s\n", odd.describe().c_str());
+  EXPECT(odd.name == "unknown" && odd.unknown.size() == 1 && odd.unknown[0] == "zbd/interp.zbd");
+  // Nothing mounted: the 15 files 1.0 already had are missing.
+  zutl::mounts() = zutl::Mounts{};
+  const mech3::DataVersion none = mech3::detect_data_version();
+  EXPECT(none.name == "incomplete" && none.missing == 15 && none.of_10 == 12);
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -2049,6 +2105,113 @@ TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
 
 // TARGET's 3D view (mode 1) on a turret: its node by its class (hud.md
 // section 14). targets.zrd's objects never reach it (vt+0xa8: mode 0).
+// The reticle over each kind of object (playtest W6; hud.md section 12):
+// 0x00443d20 turns it over (yellow) for an object whose ZEntity +0x08 flag
+// is set with the aim in range, and leaves it off out of range or once the
+// object is dead; a building (a node with a damage record and no object) is
+// over at any range. Until W6 only a mech's flag was read: a turret, a
+// vehicle or a targets.zrd object stayed green.
+TEST(mission_c1m1_reticle_turns_yellow_over_each_kind_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_reticle_kinds"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Kind {
+    const char* name;
+    void* node = nullptr;
+    uint8_t* active = nullptr;  // the object's +0x08
+    int near = -2, far = -2, dead = -2;
+  };
+  Kind kinds[] = {{"turret"}, {"vehicle"}, {"mech"}, {"target"}};
+  int plain_near = -2, building_near = -2, building_far = -2;
+  std::string building;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 10) return;
+      void* player = mech3::mech_mission_player();
+      for (mech3::tur::Turret* t : mech3::tur::turret_list())
+        if (t->active && !kinds[0].node) kinds[0].node = engine.object_of(t->node), kinds[0].active = &t->active;
+      for (void* v : mech3::program_vehicles())
+        if (*mech3::entity_active_flag(v) && !kinds[1].node)
+          kinds[1].node = mech3::mech_node(v), kinds[1].active = mech3::entity_active_flag(v);
+      for (const uint32_t h : mech3::ai::entity_list()) {
+        void* o = engine.object_of(h);
+        if (o != player && mech3::entity_is_mech(o) && !kinds[2].node)
+          kinds[2].node = mech3::mech_node(o), kinds[2].active = mech3::entity_active_flag(o);
+      }
+      for (mech3::ai::CZAiTarget* t : mech3::ai::target_list())
+        if (t->active && t->node && !kinds[3].node) kinds[3].node = engine.object_of(t->node), kinds[3].active = &t->active;
+      for (Kind& k : kinds) {
+        if (!k.node) continue;
+        k.near = mech3::program_hud_aim_at(k.node, 30.0f);
+        k.far = mech3::program_hud_aim_at(k.node, 50000.0f);
+        const uint8_t was = *k.active;
+        *k.active = 0;
+        k.dead = mech3::program_hud_aim_at(k.node, 30.0f);
+        *k.active = was;
+      }
+      // A building: the first node with a damage record and no object.
+      for (const auto& b : zcls::nodes().blocks) {
+        for (int32_t i = 0; i < zcls::nodes().block_size && building.empty(); ++i) {
+          zcls::Node& n = b[static_cast<size_t>(i)];
+          if (!n.damage || mech3::node_entity(&n)) continue;
+          building = n.name();
+          building_near = mech3::program_hud_aim_at(&n, 30.0f);
+          building_far = mech3::program_hud_aim_at(&n, 50000.0f);
+        }
+      }
+      // The player's own node has no object for the pick (its own is left
+      // out of the ray) and no damage record of its own: off when near.
+      plain_near = mech3::program_hud_aim_at(nullptr, 30.0f);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 12; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  for (const Kind& k : kinds) {
+    std::printf("  reticle over a %s: in range %d, out of range %d, dead %d\n", k.name, k.near, k.far, k.dead);
+    EXPECT(k.node != nullptr);
+    EXPECT(k.near == 2 && k.far == 0 && k.dead == 0);
+  }
+  std::printf("  reticle over a building (%s): in range %d, out of range %d\n", building.c_str(), building_near, building_far);
+  EXPECT(!building.empty() && building_near == 2 && building_far == 2);
+  std::printf("  reticle over nothing: %d\n", plain_near);
+  EXPECT(plain_near == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_target_views_a_turret_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -8459,7 +8622,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     std::printf("  dominic's order: fired %d / %d, on enemy %d, d0 %.3f, closest %.3f, on player %d, phases %d %d %d %d\n",
                 seen.fired_before, seen.fired_after, seen.on_enemy, seen.d0, seen.closest, seen.on_player, seen.phases[2],
                 seen.phases[3], seen.phases[4], seen.phases[5]);
-    if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
+    if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR") && data_is_12()) {
       EXPECT(seen.fired_before == 53 && seen.fired_after == 951 && seen.on_enemy == 1139);
       EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 59.301f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
@@ -8792,9 +8955,12 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // off what he walks into: fewer contacts, longer aiming.
     std::printf("  dominic's target: contacts %d, first %s, on target %d, aiming %d, firing %d, health %.5f\n",
                 seen.target_contacts, seen.first_target.c_str(), seen.on_target, seen.aiming, seen.firing, seen.health);
-    EXPECT(seen.hut != 0 && seen.target_contacts == 2163 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 1062 && seen.aiming == 96 && seen.firing == 841);
-    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 0.0f) < 1e-3f);
+    EXPECT(seen.hut != 0 && seen.health0 == 30.0f && seen.on_target > 0 && seen.firing > 0 && seen.health < seen.health0);
+    if (data_is_12()) {
+      EXPECT(seen.target_contacts == 2163 && seen.first_target == "ghsD2");
+      EXPECT(seen.on_target == 1062 && seen.aiming == 96 && seen.firing == 841);
+      EXPECT(std::fabs(seen.health - 0.0f) < 1e-3f);
+    }
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -9113,9 +9279,12 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
                   seen.targeted, seen.on_enemy, seen.aiming, seen.firing, seen.follows, seen.follows_player,
                   seen.enemy_contacts, seen.moved, seen.closest);
       // (The puffers' rand()s since they tick: hooks-audit.md.)
-      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 43 && seen.firing == 658);
-      EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-      EXPECT(std::fabs(seen.moved - 69.1506f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      EXPECT(seen.targeted > 0 && seen.on_enemy > 0 && seen.firing > 0 && seen.follows > 0);
+      if (data_is_12()) {
+        EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 43 && seen.firing == 658);
+        EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
+        EXPECT(std::fabs(seen.moved - 69.1506f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      }
     }
     mech3::missions().cleanup(false);
     app.stop_game();

@@ -6,7 +6,7 @@
 //
 //   mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 //
-//   --install DIR        the MW3 1.2 folder (default: mw3.cfg's install=, else game/mw3-1.2)
+//   --install DIR        the MW3 folder, any version (default: mw3.cfg's install=, else searched, else asked: sdl_install.h)
 //   --assets DIR         a folder of replacement files searched first (repeatable)
 //   --write-dir DIR      where saves and settings go (default: the user's app data)
 //   --mission NAME       debug start into a mission through the Load and Core
@@ -51,6 +51,7 @@
 
 #include "frontend/sdl/campaign_chain.h"
 #include "frontend/sdl/debug_states.h"
+#include "frontend/sdl/sdl_install.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
 #include "frontend/sdl/sdl_platform.h"
@@ -71,8 +72,10 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_control.h"
+#include "mech3/data_version.h"
 #include "mech3/mission.h"
 #include "mech3/app_sensors.h"
+#include "mech3/turret.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
@@ -101,6 +104,7 @@ std::string campaign_summary() {
 
 struct Args {
   std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot, movie;
+  std::string cfg_install;  // mw3.cfg's install= (the command line's wins)
   std::vector<std::string> assets;
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   float pos[3] = {0, 60, 0};
@@ -108,6 +112,7 @@ struct Args {
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
   float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first (armed) vehicle placed M m before the player
   bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
+  float turret_ahead = 0;  // --turret-ahead M (ours): the player M m from the nearest live turret, facing it
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the first enemy mech, facing it
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
@@ -130,6 +135,7 @@ struct Args {
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
+      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--dialog FILE NAME]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
@@ -192,6 +198,8 @@ bool parse(int argc, char** argv, Args& a) {
       a.have_pos = true;
     } else if (s == "--vehicle-ahead" && next(1)) {
       a.vehicle_ahead = std::strtof(argv[++i], nullptr);
+    } else if (s == "--turret-ahead" && next(1)) {
+      a.turret_ahead = std::strtof(argv[++i], nullptr);
     } else if (s == "--mech-ahead" && next(1)) {
       a.mech_ahead = std::strtof(argv[++i], nullptr);
     } else if (s == "--vehicle-hold") {
@@ -222,7 +230,7 @@ void read_config(const std::string& dir, Args& a) {
   std::string line;
   while (std::getline(f, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (line.rfind("install=", 0) == 0 && a.install.empty()) a.install = line.substr(8);
+    if (line.rfind("install=", 0) == 0) a.cfg_install = line.substr(8);
     else if (line.rfind("assets=", 0) == 0) a.assets.push_back(line.substr(7));
     else if (line == "windowed=1") a.windowed = true;
   }
@@ -241,6 +249,29 @@ void split_mission(const std::string& name, std::string& dir, std::string& varia
 }
 
 int run(const Args& a);
+
+// No install named on the command line: mw3.cfg's, else the search and the
+// dialog (sdl_install.h; ours, FIX (A)); one found by search is saved to
+// mw3.cfg. Checks and shots never ask. False: quit (cancelled, or none found
+// with no dialog allowed, reported).
+bool find_install(Args& a) {
+  const bool may_ask = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty();
+  std::vector<std::string> dev;
+#ifdef MW3_GAME_DIR
+  if (!std::getenv("MW3_FIND_INSTALL")) dev.push_back(MW3_GAME_DIR);  // a development build's copy (not with MW3_FIND_INSTALL=1)
+#endif
+  bool searched = false;
+  a.install = sdlfe::find_install(a.cfg_install, dev, may_ask, &searched);
+  if (a.install.empty()) {
+    if (may_ask) std::printf("mw3: no install chosen\n");
+    else std::fprintf(stderr, "mw3: No MechWarrior 3 install found (mw3.cfg's install=, the installer's registry "
+                                "values and folders). Start mw3 with --install DIR (docs/program.md).\n");
+    return false;
+  }
+  if (searched && (dev.empty() || a.install != dev[0]) && sdlfe::save_install(a.write_dir, a.install))
+    std::printf("mw3: install %s saved to mw3.cfg\n", a.install.c_str());
+  return true;
+}
 
 }  // namespace
 
@@ -265,15 +296,16 @@ int main(int argc, char** argv) {
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
-#ifdef MW3_GAME_DIR
-  if (a.install.empty()) a.install = MW3_GAME_DIR;
-#endif
+  if (a.install.empty() && !find_install(a)) {
+    SDL_Quit();
+    return 1;
+  }
   for (const std::string& d : a.assets) zutl::mount(d);
   zutl::mount(a.install);
   zutl::set_write_dir(a.write_dir);
   std::error_code ec;
   if (!std::filesystem::exists(a.install + "/zbd/reader.zbd", ec)) {
-    const std::string msg = "No MechWarrior 3 1.2 install at \"" + a.install +
+    const std::string msg = "No MechWarrior 3 install at \"" + a.install +
                             "\". Start mw3 with the folder that holds Mech3.exe and zbd/ (docs/program.md).";
     std::fprintf(stderr, "mw3: %s\n", msg.c_str());
     if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
@@ -281,6 +313,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   std::printf("mw3: install %s, write dir %s\n", a.install.c_str(), a.write_dir.c_str());
+  std::printf("mw3: %s\n", mech3::detect_data_version().describe().c_str());  // ours: assets.md, Data versions
 
   const int result = run(a);
   SDL_Quit();  // after every SDL object above is gone
@@ -426,6 +459,28 @@ int run(const Args& a) {
                 placed = true;
                 break;
               }
+          }
+        // --turret-ahead (ours, for checking the reticle over a turret, playtest
+        // W6): the player taken M m from the nearest live turret on the first
+        // frame, then turned to face it each frame.
+        if (a.turret_ahead > 0)
+          if (void* m = mech3::mech_mission_player()) {
+            static mech3::tur::Turret* t = nullptr;
+            if (shots == 1) {
+              float p[3], best = 1e30f;
+              mech3::mech_world_position(m, p);
+              for (mech3::tur::Turret* x : mech3::tur::turret_list()) {
+                const float d = std::hypot(x->pos[0] - p[0], x->pos[2] - p[2]);
+                if (x->active && d < best) t = x, best = d;
+              }
+              if (t) mech3::chain_player_near(engine.object_of(t->node), a.turret_ahead);
+              if (t) std::printf("mw3: the player %.0f m from the nearest turret (%.0f m away)\n", a.turret_ahead, best);
+            }
+            if (t) {
+              float p[3];
+              mech3::mech_world_position(m, p);
+              mech3::move_mech(m, p, std::atan2(p[0] - t->pos[0], p[2] - t->pos[2]));  // facing it: forward is -z
+            }
           }
         // --mech-ahead (ours, for checking a mech up close: its damage decals,
         // docs/damage-decals.md): the player kept M to 1.5 M m from the first

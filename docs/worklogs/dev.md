@@ -1733,6 +1733,39 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   each, onto the already ported CockpitCamera::on_switch (0x00421d50).
 
 
+## Any data version (2026-10-30)
+
+- Branch mac4/data-versions (off main cd45f5f).
+- `mech3::detect_data_version` (ours, src/mech3/data_version.cpp): the 26 data
+  files the 1.2 patch changes plus Mech3Msg.dll, by size and CRC against
+  1.0's and 1.2's; `mw3` prints it at start. "No MechWarrior 3 install"
+  no longer says 1.2.
+- game/mw3-1.0 from the disc's DATA1.CAB + DATA1.HDR (unshield, the groups
+  merged; video linked to 1.2's). The two installs differ in exactly the
+  patch's files. No 1.1 in the backups.
+- MW3_GAME_DIR is a CMake cache variable; build-10 builds against 1.0. On
+  1.0: 222 tests pass, the SDL tests pass, the kills chain wins c1m1..c1m4
+  on 1.2's frames. The pinned outcomes (Dominic's three, the HUD anchors'
+  blocks) are checked on 1.2's data only.
+- FIX (bug): a message the table lacks reads as "" (the exe's null reached
+  strncpy for the default ActiveCtlCfg).
+- discoveries.md: what the 1.2 patch changed (weapons, torso twist, heat
+  sinks, c1m1's objective, the c2m2 jet ceiling, sounds, HUD layouts).
+## Playtest W6: the reticle stays green over turrets (2026-10-29)
+
+- Branch mac4/reticle-yellow (off main 9df3631).
+- 0x00443d20 turns the reticle over (yellow) when the picked node's object
+  has its ZEntity +0x08 flag set and the aim is in range. The hook read the
+  flag only for a mech, so turrets, vehicles and targets.zrd objects logged
+  "object+8" and stayed green. Red (the lock) has no such test, so it
+  worked. Now `entity_active_flag` answers by class: Vehicle (mechs and
+  vehicles), tur::Turret, ai::CZAiTarget (targets and traps).
+- Test `mission_c1m1_reticle_turns_yellow_over_each_kind_headless` through
+  `program_hud_aim_at`: turret, vehicle, mech, target each over in range,
+  off out of range and dead. Breaks: the mech-only read (3 fail, Owen's
+  bug), the flag ignored (4 fail).
+- Shot: `--turret-ahead 30 --tap 12@150:175`, c1m1's nearest turret,
+  before green, after yellow (outbox).
 ## The damage decals (2026-10-29)
 
 - Branch mac4/damage-decals (off main a3a6eb3).

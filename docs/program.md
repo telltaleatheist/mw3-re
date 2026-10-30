@@ -16,11 +16,35 @@ Needs SDL3 and SDL3_ttf (`brew install sdl3 sdl3_ttf`); SDL3_sound
 build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 ```
 
-- **The install**: the folder holding `Mech3.exe` and `zbd/` (MW3 1.2), as a
-  path argument, `--install DIR`, or `install=DIR` in `mw3.cfg` in the write
-  dir; the build's default is the repo's `game/mw3-1.2`. It is mounted
-  (assets-layer.md); `--assets DIR` (or `assets=DIR` lines) mounts folders of
-  replacement files in front of it.
+- **The install**: the folder holding `zbd/` (MW3 1.2; `Mech3.exe` is not
+  needed, the port never runs it), as a path argument or `--install DIR`
+  (used as given). Without one (ours; `sdl_install.cpp`, FIX (A)):
+  1. `install=DIR` in `mw3.cfg` in the write dir, while it still holds
+     `zbd/reader.zbd`;
+  2. else where the original's installer put it. Its InstallShield script
+     (the disc's SETUP.INS and value.shl) wrote
+     `HKLM\SOFTWARE\MicroProse\MechWarrior 3\1.0` with `Program` and
+     `Version`, and the App Paths entry for `mech3.exe` (the default value and
+     `Path`). These are read in the 32-bit and 64-bit views and the user's
+     VirtualStore copy. Then its default folder,
+     `PROGRAMFILES\MicroProse\MechWarrior 3` (Program Files (x86) on 64-bit
+     Windows), a few usual folders on the system drive, the program's own
+     folder and the one above it (on the Mac, beside the .app). A
+     development build then tries the repo's `game/mw3-1.2`, unless
+     `MW3_FIND_INSTALL=1` is set;
+  3. else a message box ("Find your MechWarrior 3 installation": Browse...
+     or Quit) and an open-file dialog for `Mech3.exe` (or All files). The
+     picked file's folder is the install (a file in `zbd/` or `video/`: the
+     folder above it). A folder without `zbd/reader.zbd` gets a message
+     saying what is missing (`zbd\`, and `video\` when that is gone too),
+     and the dialog opens again. Quit or Cancel ends the program.
+  An install found by the search or the dialog is saved as `install=` in
+  `mw3.cfg`, with its other lines kept. Check runs (`--hidden`, `--frames`,
+  `--shot`, `--campaign-chain`) never ask: with none found they quit with a
+  report. Tests: mw3sdltests `sdl_install_is_found_and_saved`,
+  `sdl_program_check_runs_never_ask_for_the_install`.
+  The install is mounted (assets-layer.md); `--assets DIR` (or `assets=DIR`
+  lines) mounts folders of replacement files in front of it.
 - **The write dir**: saves and settings, never the install. Default
   `SDL_GetPrefPath("MicroProse", "MechWarrior 3")` (on macOS
   `~/Library/Application Support/MicroProse/MechWarrior 3/`), or
@@ -100,6 +124,10 @@ They run inside the original main loop, after the original start-up.
   its model, its weapons). `--vehicle-hold` also keeps the player where it
   stood, turned to face that vehicle each frame, to watch it fire. Placing
   the vehicle again each frame would reset its AI.
+- `--turret-ahead M` (with `--mission`): the player taken M m from the
+  nearest live turret on the first frame and turned to face it each frame
+  (the reticle over a turret, playtest W6). With `--tap 12@150:175` (PITCH
+  UP, `-`) the reticle rises onto c1m1's nearest turret at 30 m.
 - `--mech-ahead M` (with `--mission`): the player kept M to 1.5 M m from
   the mission's first enemy mech (the chain's list) and turned to face it
   each frame, to watch a mech up close (its damage decals with `--fire`,

@@ -389,6 +389,8 @@ void Engine::print(const char* format, const char* arg) {
   else std::fputs(format, stdout);
 }
 
+// FIX (bug): a message the table lacks (1.0's Mech3Msg.dll has 38 fewer)
+// reads as "", where the original's null reached unchecked copies (fixes.md).
 const char* Engine::message(int32_t id) {
   const zutl::Messages& m = zutl::messages();
   const char* s = m.get_text ? m.get_text(id) : nullptr;

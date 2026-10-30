@@ -338,6 +338,7 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The game finds your MechWarrior 3 installation by itself: where its installer put it (the registry, then Program Files), or it asks you once to point at Mech3.exe, then remembers the folder in `mw3.cfg`. The original simply ran from its own folder.
 - The game opens fullscreen at your desktop's resolution, the picture fitted with bars at the sides if its shape differs, instead of switching the monitor to 640x480. `--windowed` (or `windowed=1` in `mw3.cfg`) plays in a window.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.
 
@@ -458,6 +459,9 @@ These change how the game talks to the computer, not how it plays.
   wore the reduced textures, took no holes and the audio screen offered no
   sound quality.
 
+- The rebuild runs on any MechWarrior 3 data, 1.0 as well as 1.2, and says
+  at start which it found. With 1.0's message file, the messages 1.2 added
+  read as blank text where the original would have crashed.
 
 ## Kept as the original, on purpose
 
