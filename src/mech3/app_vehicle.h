@@ -34,6 +34,8 @@ void* program_mission_waynet();
 // The mcbwaynet's points (count, without the default behaviour at 0) and the
 // dock's point after a request: its label and place; false without one.
 int32_t program_mcb_points();
+bool program_mcb_point(int32_t i, float pos[3]);  // point i (1..count) of the mcbwaynet, for the tests
+void* program_field_base(int32_t i);              // the registry's base i (0..2), for the tests
 bool program_dock_point(const char** label, float pos[3]);  // [0x00609980]: the mcbwaynet while the MFB command is picking
 int32_t program_field_bases_count();          // the registry's count (0x00605ae0 +0x10)
 int32_t program_field_bases_lines();          // the dock's radio lines found, and its effects (+1)
@@ -42,7 +44,8 @@ int32_t program_field_bases_lines();          // the dock's radio lines found, a
 struct DockSummary {
   int32_t states = -1;
   bool idle_first = false, begin_next = false, drive = true, deploy_valve = false;
-  // The front state: 0 idle, 1 places, 2 contact, 3 deploy, 4 repair, 5 close, 6 reset; -1 none.
+  // The front state: 0 idle, 1 places, 2 contact, 3 deploy, 4 repair, 5 close, 6 reset, 7 parked
+  // (ours, after a repair with bugs on); -1 none.
   int32_t front = -1;
   bool busy = false;
   void* requester = nullptr;

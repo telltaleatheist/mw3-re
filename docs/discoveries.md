@@ -1076,6 +1076,12 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   sound plays.
 - **The campaign starts underwater.** In Operation 1's first mission your
   Mad Cat stands on the seabed under almost 5 m of ocean and wades ashore.
+- **Call the mobile field bases to the same point twice and they never come.**
+  After a repair the bases drive back to their parking places at the point
+  and wait there. Call them to that point again and they have nowhere to
+  drive, so they never report in, and the dock waits for them for the rest
+  of the mission, refusing every new call. Calling them somewhere else
+  first works. (The rebuild fixes it.) (`vehicles.md`, The request)
 - **A destroyed section vanishes from the damage diagram instead of turning
   black.** The diagram colours each section blue, green, yellow or red as it
   takes damage, and asks for a black picture once the section is gone. No
@@ -3778,3 +3784,19 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   point and the HQ building is down. The bases go to the deploy point
   nearest you when you give the MFB command, so you have to call them
   from near Charlie. (docs/campaign.md, section 14)
+
+- **Lancemates do not path round walls.** "Follow me" and "attack my
+  target" make a lancemate walk straight at you or the target. A wall in
+  the way bounces him back. Then the way the AI avoids other units (it
+  pushes its aim point past anything near its line) can leave his aim point
+  exactly where he thinks he has arrived, and he stands there behind the
+  wall for good. The mission's AI nets are scripted routes for particular
+  units, not maps of the ground, so they cannot steer him round either. The
+  rebuild, with bug fixes on, has him walk round the wall.
+- **Lancemates can only use the field bases you have called.** "Repair at
+  the MFB" (F10) works only while the bases are already called (M, M) and
+  waiting for a mech. Otherwise the lancemate answers "disregard". After
+  every repair the bases pack up and leave, so each repair needs a new
+  call. The rebuild, with bug fixes on, keeps them where they are for the
+  next mech.
+

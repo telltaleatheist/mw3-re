@@ -100,7 +100,7 @@ the water, so the factor starts at 0.63 at a tenth of the height, falls to a
 standstill as the water nears the top, and jumps back to 0.7 deeper still: a
 mech crossing a river of its own height stops dead in it (Owen: game-breaking).
 The port draws the line it was meant to be, from full speed at 0.1 H to 0.7
-at H, then 0.7 (`FIX (bug)`, `zfix::options().deep_water`; the probes turn it
+at H, then 0.7 (`FIX (bug)`, behind `zfix::options().bugs`; the probes turn it
 off, so `test_gait.py` checks the exe's curve; `tests/test_fixes.cpp`
 checks the line). The step from 1 to 0.63 at 0.1 H goes with it.
 

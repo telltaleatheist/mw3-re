@@ -7,6 +7,13 @@ original address, the evidence, how each fix is tested) is
 [`docs/fixes.md`](docs/fixes.md). In the code each change is marked `FIX`
 next to the function it touches.
 
+**To play with every bug fix off:** start `mw3 --original`, or put
+`bugfixes=0` in `mw3.cfg` in your settings folder. That puts back every
+change under "Bug fixes that change play" below except the frame-rate ones
+(the game still plays at the same pace on any computer), and keeps the
+fixes that let the game run at all and the crash fixes. `bugfixes=1`, or no
+line, keeps them on.
+
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
 machines, what makes it behave differently on a fast computer, and bugs where
@@ -18,6 +25,7 @@ it is clear what the designers meant.
 - **Every nav point you pass on your objectives' list is ticked off.** The game marks a nav point an objective watches as reached (and says its line) when you come within 25 m, but once its check passed the currently selected nav point it skipped the rest of the list, so those were only ticked off once selected. Now all of them are checked.
 - **Turrets do not slow down mission after mission.** Each turret looks for a target, aims and fires on only one frame in so many, and the original counted that over every turret the game had made since it started: the more missions you had played in one sitting, the less often each mission's turrets acted. The count now starts again with each mission's turrets.
 - **Falling over is felt on a force feedback stick.** Patch 1.2 added a force feedback effect for a fall, but the game asked for it by another name than the effect file gives it, so it never played. The rebuild finds it.
+- **The mobile field bases always come when called.** Called back to the point where they last repaired you, the bases were already standing in place and never "arrived", so the dock waited for the rest of the mission and refused every new call; a base that got stuck on its way did the same. They now count as arrived, and a base that cannot move on for 30 seconds is left behind so the repair goes ahead.
 - **A turret's charging effect goes out when it dies.** The original's test for putting it out was the wrong way round (no shipped turret shows one, so nothing visible changes).
 - **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
@@ -516,4 +524,6 @@ Known quirks the rebuild deliberately keeps:
 - Elementals have one point of armor everywhere and die to a single hit.
 - Missiles that miss vanish at the end of their range without exploding.
 - Radio chatter plays the newest line first.
+- A lancemate told to follow you or attack walks round a wall in the way instead of standing behind it (bug fixes on).
+- The mobile field bases stay where you called them after a repair: the next mech (a lancemate told to repair, or you powering down on the spot again) is repaired without calling them again; the third MFB press still sends them away (bug fixes on).
 - Every mech's engine tops out at 400.

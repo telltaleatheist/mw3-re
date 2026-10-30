@@ -7,6 +7,37 @@ Windows without helpers such as DDrawCompat, plus real bugs that break play
 anti-tamper traps (Owen, 2026-10-20, `protection.md`), marked `FIX (trap)`.
 Each change is also marked `FIX` in the code next to the original address.
 
+## The bug fixes switch
+
+`zfix::options().bugs` holds every play-changing `FIX (bug)`: a player turns
+them all off with `bugfixes=0` in mw3.cfg or `mw3 --original` (which wins over
+mw3.cfg), and mw3 says so at the start (Owen, 2026-10-30; the probes run with
+it off, so the differential tests check the original's path). Off means the
+original's play: each fix that CHANGES.md lists under "Bug fixes that change
+play" goes back to the exe's way, except the frame-rate ones. What stays on
+either way:
+- the platform fixes the game needs to run at all, FIX (A) and FIX (B):
+  `nested_lock`, `any_resolution`, the 53-bit rounding (`fpu53`), and every
+  unflagged (A)/(B) row below;
+- the frame timings, `per_second` (Owen, 2026-10-20: per-frame steps go to
+  time at the 30 fps pace; not a bug fix and not switched);
+- the crash and memory fixes, where the exe would crash, read freed or stray
+  memory or loop for ever (a null checked, a buffer bounded, a freed record
+  kept: the vehicles' fire floor, the craters' overlap test, an animation
+  instance's borrowed tree), since the original's behaviour there is no
+  behaviour to restore.
+
+Folded into `bugs` on 2026-10-30 (until then on always):
+the deep-water curve (its own `deep_water` until then), the heat-sink
+critical's callout, the particle fade-in typo, the animations' last-def
+search, and the animations' missing-prerequisite fix (its own
+`fix_prerequisites` remains as a test seam, acting only with `bugs`). The
+in-game options screen has no line for it: its dialog comes from the
+player's own data (reader.zbd's dlgGameOptions), which the rebuild does not
+change.
+
+## The changes
+
 | Where | Original | Why it changes | Rebuild |
 |---|---|---|---|
 | zImage's release, 0x00517b10 (the SDL host's `image_release`) | Counts a named image down and frees it at 0 (0x00517760); frees an image not in its list (a grab) at once (0x005185f0) | (bug) a second release of a freed image would free it twice | Freed as the original; an image released again after its free is reported and left alone; `sdl_host_image_release_counts_and_frees` |
@@ -45,8 +76,11 @@ Each change is also marked `FIX` in the code next to the original address.
 | The mission waynet's selected element, 0x00479c50 / 0x00479ef0 / the radar 0x0043e879 | Its place (vt+0x18) read unchecked, its +0x0c read as a point's | (bug) the default behaviour (the mcbwaynet's element 0, which the MFB picking's N / Shift+N wraps onto) or a null step has no place: read through null (a crash) | Only a point with a place: no reached test, no arrow, no radar marker otherwise |
 | The nav waynet's build, 0x004be690 | Links translated through the slot map unchecked; an edge node's links into a buffer sized for the positioned nodes; points written from slot 0 without a bound | (bug) a link to a node that is not there reads the map at -1 or past its end, the buffer and the elements are written past their ends; no shipped file has any | -1 for such a link, a buffer for any node, a point past the slots dropped (`test_nav_waynet.py`) |
 | The fall's force feedback, 0x00433090 (input.md section 7) | Makes the fall's effect by the name "i_fall"; 1.2's force_eff.ifr names it "impact fall" (1.0's has none: its "impact fall" is the landing) | (bug) the effect patch 1.2 added for falling over never plays | When the file has no "i_fall", "impact fall" is taken; behind `bugs` (`force_feedback_effects_and_the_games_calls_headless`: off, nothing; on, the fall plays it). On 1.0's file that is its landing bump, the one effect of the name |
+| The dock's places step, 0x0045ab70 with the request 0x0045a780 (vehicles.md, The request) | Waits until every base's valve is set, which the base's net does when it arrives on its slot; no time limit | (bug) called to the point they last docked at, the bases already stand on their slots (the close drives them back, the reset holds them), their go-to has nothing to drive, the valves never set and the dock waits for the rest of the mission (playtest W8, W16); a base that cannot reach its slot jams it the same way | Behind `bugs`: a base already in its slot's behaviour at the request counts as arrived; a base that has not moved 2 m in 30 s short of its slot is given up on, the deploy driving it from where it stands (`mission_c2m2_field_bases_answer_a_second_call_headless`: the second call's places done 3 frames after it, the original's never; base 02 held still: done after 30 s, the original's never) |
 | The waypoint icons' free, 0x00479850 | Its loop releases two images and steps four slots on | (bug) the up and down arrows' images are never released (zImage keeps one reference more each mission) | All eight released; behind `bugs` |
 | The waypoint arrow's size, 0x00479ef0 after 0x00479850 | The arrow (one zTwoD image for the run) keeps the image it last showed; the icons' free releases the images; the next arrow at the right or bottom edge reads the arrow's image size before setting its own | (bug) the next mission's first such arrow reads a released image (AddressSanitizer: heap-use-after-free; the kills chain's second mission) | The free also clears the arrow's image, so that arrow is placed by a size of 0 for its first frame; behind `bugs` (`fix_waynet_arrow_lets_go_of_released_images`; sanitizers.md) |
+| An ordered lancemate's follow, 0x004d1980 (ai.md section 17.6, W17) | Steers straight at the target; a wall bounces it back, and the contacts' push (0x004ce780) can hold the carrot within the slack | (ours, Owen 2026-10-30; playtest W17) a lancemate told to follow or attack stands behind a wall, short of the target, for good | Stopped short for 2 s, he walks the clear heading nearest the target (flat segment probes of the world) until the line is clear, giving up after 20 s; behind `bugs` (`mission_c2m1_dominic_follows_round_walls_headless`) |
+| The repair dock after a repair, 0x0045b6c0 / 0x0045b6f0 (vehicles.md, After a repair) | The bases close, are released ("mcbdeploy" 0) and the dock goes idle; a lancemate's refit is taken only while the player's call waits | (ours, Owen 2026-10-30) every repair needs a new M-M at the same place, and a lancemate cannot use the bases after the player | After a completed repair the dock parks with the bases called: a lancemate's refit, or the player powered down on it, is the next mech; M-M still calls, the third M releases; behind `bugs` (`mission_c2m1_field_bases_stay_after_a_repair_headless`) |
 | A turret's setup, 0x004a6270 (vehicles.md, The turrets) | A WEAPON whose NAME finds no weapon (or is empty) and that has no DETECTION_RANGE takes the range from the definition unchecked | (bug) reads through null: a crash at load; no shipped turret has both (tur_ams, the one without a weapon, gives a range) | The range stays the constructor's 200 (`test_turret.py` runs such files on the port alone) |
 | The turrets' file, 0x004a76b0 / 0x004a6270 | List items read by position without the list's type or length (the TURRET pairs, GENERIC_DESTROY_ANIM, PARTS, DEACTIVATE, EFFECT, FIRE_LIMITS, SOUNDS) | (bug) a value that is not a list, or a list shorter than read, reads past it; no shipped file has one | Such an item reads as none |
 | The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | Takes turns by the frame count over the turrets made ([0x00609a48]), which only the constructor touches | (bug) the count runs on across missions: each later mission's turrets act once every as many frames as turrets have been made since the game started, so they fire and turn slower mission after mission | The count and the turn reset as each mission's turrets are made (0x004a76b0); behind `bugs` (`test_turret_frame.py` checks the original path, the count kept) |
@@ -170,7 +204,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Missing stand or step motion, 0x431350 | Frees the hip velocity keys of the loaded animation without checking it loaded | (bug) a crash; never with the shipped motions | Checked |
 | Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
 | Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80, the 20 damage to touched buildings 0x423c90 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s, a building takes 2,880 a second instead of 600 | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps, 600 dt damage; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
-| Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); `zfix::options().deep_water`, off in the probes, so `test_gait.py` checks the exe's curve |
+| Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); behind `bugs` (its own `deep_water` until 2026-10-30), off in the probes, so `test_gait.py` checks the exe's curve |
 | Throttle keys, 0x427d60 (and the lance command mode's own, 0x46b0a0) | CMD_THROTTLE_UP / DOWN move the throttle target 0.025 each frame they are held | (B) at 144 fps the throttle opens almost five times as fast (full in 0.28 s instead of 1.3 s) | 0.025 per 1/30 s (`zfix::frame_steps`), equal to the exe's at 30 fps; off in the probes; `tests/test_fixes.cpp` |
 | Beam recharge, 0x4b4230 | Adds ftol(rate x dt) (dt times the heat factor 0.5..1) to a beam's charge each frame it is not firing | (B) the fraction is lost every frame, so the faster the game runs the slower beams recharge: TAG (166.7 a second) refills in 67 s at 30 fps, 83 s at 60, 69 s at 144, and never above 166 fps, or at 144 fps once heat passes 0.58 (emulator, `test_tag.py`; weapons.md, "TAG, end to end"); plain lasers stop recharging above 420 fps | The 30 fps frame's whole units, ftol(rate x / (30 dt)), spread over the frame with the fraction carried (`mech3::beam_recharge`): the exe's amount at 30 fps, the same per second at any rate; `zfix::options().per_second`, off in the probes; `tests/test_fixes.cpp` |
 | The turrets' turns, 0x004a70d0 (vehicles.md, The turrets in the program) | A turret picks, aims and fires only on the frames whose number over the turrets made leaves its id | (B) how often turrets act follows the frame rate: at 60 fps twice as often as at 30 | The turn by game time in 1/30 s steps (`turn_due`, at most one a frame), so N turrets each act every N/30 s at any frame rate (Owen 2026-10-24); `per_second` (`fix_turret_turns_by_time`) |

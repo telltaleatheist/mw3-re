@@ -502,6 +502,35 @@ bool mech_group_reloading(void* mech, int32_t g) {
   return false;
 }
 
+bool program_mech_ams(void* mech, int32_t* fitted, bool* on, int32_t* rounds) {
+  auto* m = static_cast<Mech*>(mech);
+  if (!m || !m->ams) return false;
+  *fitted = m->equipment[0], *on = m->ams->on, *rounds = m->ams->rounds;
+  return true;
+}
+void program_mech_ams_set(void* mech, bool on) {
+  auto* m = static_cast<Mech*>(mech);
+  if (!m || !m->ams) return;
+  if (on && m->equipment[0] < 1) m->equipment[0] = 1, m->ams->rounds = 100;  // one fitted, as the loadout's (0x004b3ab0)
+  m->ams->on = on;
+}
+int32_t program_fire_at(void* mech, const char* weapon, int32_t n, float dist) {
+  auto* m = static_cast<Mech*>(mech);
+  zwep::WeaponDef* def = zwep::find_def(weapon);
+  if (!m || !def || !m->transform) return 0;
+  const float tx = m->transform[9], ty = m->transform[10] + m->height * 0.5f, tz = m->transform[11];
+  int32_t fired = 0;
+  for (int32_t i = 0; i < n; ++i) {
+    const Vec3f from{tx + 3.0f * static_cast<float>(i - n / 2), ty + 15.0f, tz + dist};
+    Vec3f dir{tx - from.x, ty - from.y, tz - from.z};
+    const float len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+    dir = {dir.x / len, dir.y / len, dir.z / len};
+    const Vec3f still{0, 0, 0};
+    if (spawn_projectile(def, nullptr, nullptr, &from, &dir, &still, 0, 0, true)) ++fired;  // hostile to the player
+  }
+  return fired;
+}
+
 // What F1..F5 select (CMD_WEPGRP_1..5 through the mech's command handler,
 // not ported): the first group holding a weapon that heats its mech; -1 none.
 std::string mech_group_names(void* mech, int32_t g) {

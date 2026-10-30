@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <tuple>
 
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
@@ -355,7 +356,8 @@ float touch_damage(float fps, bool per_second) {
 }
 
 float wading_speed(float depth, bool fixed) {
-  zfix::options().deep_water = fixed;
+  const bool bugs = zfix::options().bugs;
+  zfix::options().bugs = fixed;
   mech3::Mech& m = *bare_mech();
   m.foot(0)->water_depth = depth, m.foot(1)->water_depth = depth;
   m.anim_state = 1;
@@ -363,7 +365,7 @@ float wading_speed(float depth, bool fixed) {
   mech3::move_calls().move = [](mech3::Mech&, float, mech3::MechAnim*, float) {};
   m.select_gait(1.0f / 30);
   mech3::move_calls() = mech3::MoveCalls{};
-  zfix::options().deep_water = true;
+  zfix::options().bugs = bugs;
   return m.speed_target;
 }
 
@@ -420,6 +422,39 @@ TEST(fix_touch_damage_per_second) {
   EXPECT(std::fabs(touch_damage(144, true) - 600.0f) < 0.1f);
   EXPECT(touch_damage(30, false) == touch_damage(30, true));
   EXPECT(touch_damage(144, false) == 20.0f * 144);
+}
+
+// A heat sink lost to a critical hit (0x00460d50): the exe's 0x0045fbc0
+// always answers failure, so the "heat sink" callout never played; with zfix
+// bugs a sink actually lost counts (docs/fixes.md). The sink goes either way.
+TEST(fix_heat_sink_critical_is_called_out) {
+  static int voiced = 0;
+  auto crit = [](bool fixed) {
+    const bool bugs = zfix::options().bugs;
+    zfix::options().bugs = fixed;
+    mech3::Mech& m = *bare_mech();
+    m.active = true;
+    m.heat_sinks.count = 10;
+    mech3::Mech* was = mech3::world().player;
+    mech3::world().player = &m;
+    mech3::heat_calls().screen = [](mech3::Mech&) -> void* { return &voiced; };
+    mech3::damage_calls().equip_voice = [](int) { ++voiced; };
+    voiced = 0;
+    m.torso->mech = &m;
+    const bool ok = m.torso->critical(mech3::kCritSink, 0);
+    const int left = m.heat_sinks.count;
+    mech3::heat_calls().screen = nullptr;
+    mech3::damage_calls().equip_voice = nullptr;
+    mech3::world().player = was;
+    zfix::options().bugs = bugs;
+    return std::make_tuple(ok, voiced, left);
+  };
+  const auto [ok_off, voiced_off, left_off] = crit(false);
+  const auto [ok_on, voiced_on, left_on] = crit(true);
+  std::printf("  sink critical: original %d (%d callouts), fixed %d (%d callouts); sinks left %d / %d\n", ok_off, voiced_off, ok_on,
+              voiced_on, left_off, left_on);
+  EXPECT(!ok_off && voiced_off == 0 && left_off == 9);
+  EXPECT(ok_on && voiced_on == 1 && left_on == 9);
 }
 
 TEST(fix_deep_water_curve) {

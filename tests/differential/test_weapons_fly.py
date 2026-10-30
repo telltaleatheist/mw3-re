@@ -237,6 +237,7 @@ class Fly(zr.Emulated):
         self.arch = zr.WORK / 'fly.zbd'
         zr.write_archive(self.arch, real)
         self.cb = PYFN(self.port_call)
+        self.after_init = None  # the memory after the first session's reader run
 
     def sprintf(self, c):
         out = (self.cstr(c.arg(1)).decode() % c.arg(2)).encode()
@@ -260,7 +261,17 @@ class Fly(zr.Emulated):
         cpu = self.cpu
         cpu.stubs.update(self.zr_stubs)
         cpu.passthrough = set()
-        assert self.run(self.real, [0] * 10, 1, 1) == 0
+        # The reader 0x583880 on the real weapons.zrd once (4.5 s here under
+        # the hooks); each later session starts from a copy of the memory it
+        # left, so 200-400 sessions do not spend half an hour reading the file.
+        if self.after_init is None:
+            assert self.run(self.real, [0] * 10, 1, 1) == 0
+            self.after_init = ([(b, bytes(cpu.uc.mem_read(b, e - b + 1))) for b, e, _ in cpu.uc.mem_regions()],
+                               cpu.heap_next)
+        else:
+            regions, cpu.heap_next = self.after_init
+            for b, data in regions:
+                cpu.uc.mem_write(b, data)
         buf, n = (ctypes.c_int32 * 400000)(), ctypes.c_int()
         assert probe.probe_zwep_run(str(self.arch).encode(), (ctypes.c_uint32 * 10)(*[0] * 10), 1, 1, buf, 400000,
                                     ctypes.byref(n)) == 0

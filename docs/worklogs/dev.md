@@ -2026,3 +2026,32 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   to the census; now scaled (GameEngine::image_draw), tested in
   frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
   the old fall-through, 1 check). S16..S18 reported.
+
+## W16 and W8, the field bases' second call (2026-10-30)
+
+- Branch mac4/w16 (off main). c2m2's routing right (all four points
+  reached). The jam: called to the point they last docked at, the bases
+  stand on their slots, nothing to drive, the valves never set, the places
+  step waits for good (the exe's). FIX (bug) behind bugs: counted as arrived
+  at the request; a base still 30 s short of its slot given up on.
+  Test: mission_c2m2_field_bases_answer_a_second_call_headless (two seeds,
+  the original, base 02 held both ways).
+## W18, the AMS (2026-10-30)
+
+- Branch mac4/w18 (off main). The mech's AMS frame 0x00419200 was only a
+  hook (UpdateCalls::equipment_update), never set and with no fallback:
+  ported as update_ams (mech.cpp) and run when unset. Test helpers in
+  app_weapons.cpp (program_mech_ams, _set, program_fire_at). Test:
+  mission_c1m1_ams_shoots_down_incoming_missiles_headless (break: the
+  fallback removed).
+## The bug fixes switch (2026-10-30)
+
+- Branch mac4/bugfix-switch (off main). Audit: CHANGES' play list against
+  the code: folded into bugs the deep-water curve (its own flag), the
+  heat-sink callout, the fade-in typo, the animations' last-def search and
+  missing-prerequisite fix (with its seam). Crash fixes, (A)/(B) and
+  per_second stay on. mw3.cfg bugfixes=0/1 and --original (wins). The
+  differentials that patched the exe to match a fix now compare the
+  original (test_damage.py's 0x45fbc0 stub, test_puffers.py --fixed for the
+  fixed path, probe_set_bugs); test_fixes fix_heat_sink_critical_is_called_out,
+  sdl_program_bugfixes_switch.

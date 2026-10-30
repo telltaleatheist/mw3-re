@@ -303,3 +303,42 @@ works alongside it; stay out of its files.
   fails without its fix (1 and 4 checks).
 - Branch `mac5/w13-wide` off main d02a386.
 
+## 17. W17: a lancemate round a wall (2026-10-30)
+
+- The follow order steers straight. Behind a wall on c2m1, Dominic bounced
+  off, and the contacts' push held his carrot inside his slack: he stood at
+  73 m (the exe's). The mission nets are unit routes, so routing over them
+  was not possible (Owen's (b), changed to local wall-following with the
+  lead).
+- `FollowState::detour_goal` behind `bugs`, with the brain hook
+  `wall_between` (the world's segment query). ai.md section 17.6, fixes.md,
+  CHANGES, discoveries.
+- Test `mission_c2m1_dominic_follows_round_walls_headless` (the wall, the
+  exe's path, c2m2, open ground, the give-up). `test_ai_attack.py` and
+  `test_ai_node.py` pass.
+- Branch `mac5/w17-follow-path` off mac5/lance-orders (8861a16).
+## 18. The field bases stay after a repair (2026-10-30)
+
+- The exe: close, reset (bases released), idle. A lancemate's refit is
+  taken only while a player's call waits.
+- Ours behind `bugs` (Owen's rule: one switch): `DockParked`. vehicles.md,
+  After a repair; fixes.md, CHANGES, discoveries.
+- Test `mission_c2m1_field_bases_stay_after_a_repair_headless` (the
+  player, then Dominic by F10, then the player again, then M-M and the
+  third M; the exe's path with `bugs` off). The c1m1 dock tests take
+  either end.
+- Branch `mac5/mfb-stay` off main d02a386.
+
+
+## 20. W16 with the parked dock (2026-10-30)
+
+- On lead/w17, W16's test waited for a second places step that the parked
+  dock skips (the same point goes straight to the contact). The test now
+  takes the rest as idle or parked (0 or 7), counts the second call as
+  answered at the first front past the places that is not parked, does
+  the second contact, and checks the player (worn before the call) is
+  repaired: internals only, since the armour comes from the store and a
+  debug launch has none. With bugs off the dock rests at idle and the
+  second call jams, as before; the stuck-base give-up (a first call) is
+  unchanged. No code change: the two fixes meet as designed.
+- Branch `mac5/w16-park` off lead/w17 8e2ea92.

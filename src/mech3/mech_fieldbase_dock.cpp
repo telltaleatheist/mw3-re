@@ -8,8 +8,10 @@
 #include <cstring>
 
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/mech_fieldbase.h"
 #include "mech3/zai_brain.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet.h"
 
@@ -76,6 +78,10 @@ Handle FieldBaseHooks::brain_order_net(Handle brain) {
   ai::Brain* b = static_cast<ai::Brain*>(brain);
   ai::Order& o = b->current();
   return o.net ? o.net->net() : nullptr;
+}
+Handle FieldBaseHooks::brain_behaviour(Handle brain) {
+  ai::Order& o = static_cast<ai::Brain*>(brain)->current();
+  return o.state ? o.state->behaviour() : nullptr;
 }
 // 0x0058b0a0: the first element whose name (vt+0x24) is `name`.
 Handle FieldBaseHooks::net_element(Handle net, const char* name) {
@@ -273,6 +279,11 @@ Handle DockIdle::message(Handle m) {
     if (!to) continue;
     h.brain_path_reset(brain);   // +0x238 0x004040d0
     h.brain_go_to(brain, net, to);  // 0x004c84b0
+    // FIX (bug): a base already in its slot's behaviour (called again to the
+    // point it docked at) has no way to drive and no node to enter, so its
+    // valve, set on arriving, never is and the places step waits for good
+    // (playtest W8, W16): it counts as arrived.
+    if (zfix::options().bugs && r.valves[i] && h.brain_behaviour(brain) == to) h.valve_set(r.valves[i], 1);
   }
   r.deploy_points(h.dock_point_position(r.dock_point));
   for (DockStep* st : {static_cast<DockStep*>(&r.places), static_cast<DockStep*>(&r.contact),
@@ -433,7 +444,15 @@ void DockContact::abort() {
 void DockPlaces::begin() {
   until = hk().frame() + 5;
   sound = reg->sounds[6];  // +0xa4 mcb_contact
+  for (int i = 0; i < 3; ++i) {
+    moved_at[i] = hk().game_time();
+    const FieldBase* b = reg->bases[i];
+    const float* p = b ? hk().entity_position(static_cast<Vehicle*>(const_cast<FieldBase*>(b))) : nullptr;
+    for (int k = 0; k < 3; ++k) mark[i][k] = p ? p[k] : 0.0f;
+  }
 }
+// FIX (bug): how long a base may stand still short of its slot (seconds).
+constexpr float kStuck = 30.0f;
 // Mech3.exe 1.2 @ 0x0045ac20
 bool DockPlaces::step(float) {
   FieldBaseHooks& h = hk();
@@ -442,6 +461,25 @@ bool DockPlaces::step(float) {
     field_bases_quiet_until() = h.game_time() + 5.0f;
     until = 0x7fffffff;
   }
+  // FIX (bug): the exe waits for every base's valve with no give-up, so a base
+  // that cannot drive on (no way, blocked) jams the dock for the mission
+  // (playtest W8, W16). One that has not moved 2 m in kStuck seconds short of
+  // its place counts as in place; the deploy then drives it from where it is.
+  if (zfix::options().bugs)
+    for (int i = 0; i < 3; ++i) {
+      FieldBase* b = reg->bases[i];
+      ai::Valve* v = reg->valves[i];
+      if (!b || !b->active || !v || h.valve_value(v) != 0) continue;
+      const float* p = h.entity_position(static_cast<Vehicle*>(b));
+      if (!p) continue;
+      const float dx = p[0] - mark[i][0], dz = p[2] - mark[i][2];
+      if (dx * dx + dz * dz > 4.0f) {
+        for (int k = 0; k < 3; ++k) mark[i][k] = p[k];
+        moved_at[i] = h.game_time();
+      } else if (h.game_time() - moved_at[i] > kStuck) {
+        h.valve_set(v, 1);
+      }
+    }
   return done();  // vt+0x18
 }
 // Mech3.exe 1.2 @ 0x0045ac70
@@ -530,6 +568,7 @@ bool DockRepair::step(float dt) {
   if (timer <= 0.0f) {
     if (reg->requester) hk().mech_repair(reg->requester, dt);
     hk().marker_clear();
+    reg->park = zfix::options().bugs;  // FIX (bug), ours: the bases stay (DockParked)
     return true;
   }
   if (!reg->requester_ok()) {
@@ -575,14 +614,75 @@ Handle DockClose::message(Handle m) {  // 0x0045b770
   return reg->requester;
 }
 
-// Mech3.exe 1.2 @ 0x0045b6c0: the bases held again, "mcbdeploy" 0.
+// Mech3.exe 1.2 @ 0x0045b6c0: the bases held again, "mcbdeploy" 0. FIX
+// (bug), ours: after a completed repair they stay called (DockParked).
 void DockReset::begin() {
   finished = false;
   field_bases_contact() = false;
+  if (reg->park) return;
   field_bases_drive() = false;
   hk().valve_set(reg->deploy_valve, 0);
 }
 // Mech3.exe 1.2 @ 0x0045b6f0
-void DockReset::end() { reg->states.push_back(&reg->idle); }
+void DockReset::end() {
+  const bool park = reg->park;
+  reg->park = false;
+  reg->states.push_back(park ? static_cast<DockStep*>(&reg->parked) : &reg->idle);
+}
+
+namespace {
+// The player powered down within the dock point's 12 m.
+bool player_docked(const FieldBases& r) {
+  FieldBaseHooks& h = hk();
+  const Handle me = h.player_vehicle();
+  const float* at = r.dock_point ? h.dock_point_position(r.dock_point) : nullptr;
+  const float* p = me ? h.entity_position(me) : nullptr;
+  if (!at || !p) return false;
+  const float dx = p[0] - at[0], dy = p[1] - at[1], dz = p[2] - at[2];
+  return dz * dz + dy * dy + dx * dx < kNear2 && h.powered_down(me);
+}
+}  // namespace
+
+// Ours (FIX (bug), behind bugs; mech_fieldbase.h): the dock parked after a
+// repair, idle to the MFB command, no mech asking. A player still down on
+// the dock (just repaired) must power up or leave before asking again.
+void DockParked::begin() {
+  finished = false;
+  armed = !player_docked(*reg);
+  reg->requester = nullptr;
+  reg->idle_on = true;
+}
+// A lancemate's refit sets the requester (FieldBases::set_requester: the bases
+// may drive, not busy); the player asks by powering down within the dock's
+// 12 m.
+bool DockParked::step(float) {
+  if (reg->requester) return true;
+  if (!player_docked(*reg)) {
+    armed = true;
+    return false;
+  }
+  if (!armed) return false;
+  reg->requester = hk().player_vehicle();
+  return true;
+}
+// The next mech's turn: no places (the bases are on them).
+void DockParked::end() {
+  reg->idle_on = false;
+  for (DockStep* st : {static_cast<DockStep*>(&reg->contact), static_cast<DockStep*>(&reg->deploy),
+                       static_cast<DockStep*>(&reg->repair), static_cast<DockStep*>(&reg->close),
+                       static_cast<DockStep*>(&reg->reset)})
+    reg->states.push_back(st);
+}
+// M-M while parked: at this dock point, the caller is the next mech (the
+// bases are on their places); at another, a new call as from the idle state,
+// the parked state dropped unended.
+Handle DockParked::message(Handle m) {
+  if (hk().dock_point() == reg->dock_point) return reg->requester = m;
+  std::list<DockStep*>& l = reg->states;
+  l.clear();
+  l.push_back(&reg->idle);
+  reg->idle.begin();
+  return reg->idle.message(m);
+}
 
 }  // namespace mech3

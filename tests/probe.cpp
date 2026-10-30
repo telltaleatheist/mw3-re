@@ -34,7 +34,7 @@ namespace {
 // MW3_FPU53=1 keeps the 53-bit rounding, to compare with the original run at
 // full precision (MW3_X87=64).
 const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
-                          zfix::options().deep_water = false, zfix::options().any_resolution = false,
+                          zfix::options().any_resolution = false,
                           zfix::options().nested_lock = false,
                           zfix::options().fpu53 = std::getenv("MW3_FPU53") && *std::getenv("MW3_FPU53") == '1', true);
 struct ProbeClock : platform::Clock {
@@ -1150,6 +1150,8 @@ extern "C" {
 // 0 (default): the exe's prerequisite path; 1: the port's FIX (bug).
 int g_anim_fix = 0;
 void probe_anim_fix(int on) { g_anim_fix = on; }
+// The port's play-changing fixes on or off (zfix bugs), for a test's fixed path.
+void probe_set_bugs(int on) { zfix::options().bugs = on != 0; }
 
 // After probe_anim: def i's prerequisite count | the count to meet << 8, and
 // its entries' types (the FIX (bug) case in test_anim.py).
@@ -1175,12 +1177,15 @@ int probe_anim(const char* world, const char* path, int fail_at, int full, uint8
   g_reports.clear();
   zeff::anim() = zeff::AnimState{};
   zeff::anim().fix_prerequisites = g_anim_fix != 0;
+  const bool bugs = zfix::options().bugs;
+  zfix::options().bugs = g_anim_fix != 0;  // the fix acts with zfix bugs
   zeff::anim().fix_instance_tree = false;  // the exe's path
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(path);
   install_anim_hooks();
   g_trace.clear(), g_calls = 0, g_fail_at = fail_at;
   const int32_t r = zeff::anim_read_zbd();
+  zfix::options().bugs = bugs;
   zerr::set_sink(nullptr);
   std::vector<uint8_t> b;
   put_i32(b, r), put_i32(b, g_calls);

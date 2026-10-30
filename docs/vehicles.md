@@ -915,27 +915,26 @@ mw3tests `mission_c1m3_field_bases_park_at_charlie_headless` (the enemies
 taken out first, the MFB command from Charlie's region): all three on their
 slots and the dock's places step done; without the position, 3 checks fail.
 
-**Playtest W8** (2026-10-30, from Owen's memory of the original:
-standing on the op point while the bases come in, the dock never moves on
-until he steps off). Not found in the exe's logic, and the port does not
-reproduce it:
-- The bases cannot be blocked by the player's mech: the vehicles'
-  collision count is never written (The collision count, above), so their
-  sweeps cross nothing but a slide's side points; a base drives through a
-  mech standing on its slot (in c1m1, centre to centre 0.4 m) and parks.
-- A field base gets no station keeping: its setup turns its three scans
-  off, so it has no contacts for 0x4cc150 to hold on.
-- The places step waits only for the bases' own valves, the contact only
-  for the requester within 12 m of the dock point and powered down; the
-  deploy puts the mech at rest on the point itself.
-In the port the dock ran to idle in every arrangement tried in c1m1: the
-player on the point (standing, or powered down before the bases came),
-on each of the three slots, or 11 m out toward a base's drive, and c1m3's
-slots (W10). mw3tests `mission_c1m1_dock_runs_with_the_player_waiting_headless`
-keeps the two closest to Owen's description. Open: what Owen did (the
-mission, standing or powered down, where); a standing player is the one
-case that waits, the contact asking for the power-down (the bases' "we have
-arrived and are ready to deploy").
+**Playtests W8 and W16** (2026-10-30): the dock waits for good when the
+bases are called to the point they last docked at. The close drives each
+base back onto its slot and the reset holds it there (field_bases_drive
+off), still in its slot's behaviour on its net; the request then sends it
+to that same behaviour, the way finder has nothing to do, no node is
+entered, its valve is never set, and the places step (0x0045ab70) has no
+give-up. A base already on its slot stays while the others drive ("only one
+moved"); called to a new point all three drive. This is the exe's own flow.
+The port's routing is right: in c2m2 all three reach each of the four
+points (MFB 3 and 4 by a long way round through MFB 2's road). FIX (bug)
+behind `bugs`: at the request a base already in its slot's behaviour counts
+as arrived (its valve set); in the places step a base that has not moved 2
+m in 30 s short of its place is given up on. Test:
+`mission_c2m2_field_bases_answer_a_second_call_headless` (with `bugs`
+the dock is parked after the first repair, below, so the second call at
+the same point goes straight to the contact; the arrived valve still
+answers a call from the idle state, and the give-up a first call with a
+base stuck). Earlier, not
+reproduced: the player on the point, on a slot, standing or powered down
+(`mission_c1m1_dock_runs_with_the_player_waiting_headless`).
 
 The dock point comes from the mcbwaynet and the request from the player's
 MFB command (below).
@@ -1020,6 +1019,47 @@ original's own; 19 branches; 29 breaks) and c1m1's headless test (the
 player's Mad Cat worn to 25 % armour, 50 % internals, the ammo bins
 emptied, coolant 0: after the 12 s all back, 440 rounds from the store,
 18 half tons of armour).
+
+**After a repair, and the bases staying (2026-10-30, Owen; ours behind
+`bugs`).** In the exe a repair is followed by three steps:
+1. The close: the bases drive in to their far points and fold their arms.
+2. The reset: "drive" and "contact" cleared, "mcbdeploy" 0, the bases
+   released to their nets.
+3. The idle state.
+The repair step also clears the marker (0x47a720), so the MFB command
+starts over. A lancemate's refit (0x4ea260 through 0x47a730 and
+0x45b740) is taken only while the bases are called and driving
+([0x60b4d0]) and the dock is not busy (+0x78). So in the exe a lancemate
+can use only a dock the player has called, and only while it waits for its
+mech. Then the lancemate replaces the player as the requester. After a
+repair, his F10 is refused (disregard_order).
+
+Owen: the bases should stay. With `bugs` (FIX (bug), ours):
+- A completed repair marks the dock (`FieldBases::park`). The reset keeps
+  "drive" and "mcbdeploy" and queues `DockParked` in place of the idle
+  state.
+- Parked, the dock reads as idle to the MFB command and has no requester.
+  It ends when a mech asks: a lancemate's refit (set_requester, the bases
+  driving and not busy), or the player powered down within 12 m of the dock
+  point. A player still down on the dock from his own repair must power up
+  or leave first.
+- The next mech's contact, deploy, repair, close and reset follow (no
+  places: the bases are on them), and the dock parks again.
+- M-M while parked: at the same dock point the caller is taken. At another
+  point it is a new call, as from the idle state. The third M cancels as in
+  the exe (the contact's abort, then the reset unmarked), and the bases are
+  released.
+Test `mission_c2m1_field_bases_stay_after_a_repair_headless`:
+- With `bugs`:
+  - The player is repaired and the dock parks.
+  - The player leaves. Dominic, worn to 25 % armour, takes F10, walks in,
+    docks and is repaired to full with no second call. The dock parks
+    again.
+  - The player powers down on the dock again and is repaired a third time.
+  - M, M calls the bases back, and the third M releases them.
+- Without `bugs` (the exe's path): the dock goes idle after the player's
+  repair, and Dominic's F10 is refused.
+The c1m1 dock tests take either end.
 
 ## The AI at the dock (0x4ea260, 0x4d08d0..0x4d0ce0; step 4b6)
 
