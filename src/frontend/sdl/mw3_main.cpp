@@ -62,6 +62,7 @@
 #include "frontend/sdl/sdl_platform.h"
 #include "frontend/sdl/sdl_sound.h"
 #include "frontend/sdl/sdl_twod_host.h"
+#include "frontend/sdl/sdl_vfw.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zutil/zutl_path.h"
@@ -123,6 +124,7 @@ struct Args {
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
+  std::string vfw_helper;     // --vfw-helper EXE (ours, sdl_vfw.h): the movies' Video for Windows helper; "-" none
   std::string patch;          // --patch PATH (ours, patch_import.h): the official 1.2 patch into the write dir's overlay
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
@@ -147,7 +149,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -213,6 +215,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-import") a.no_import = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];
+    else if (s == "--vfw-helper" && next(1)) a.vfw_helper = argv[++i];
+    else if (s == "--no-vfw-helper") a.vfw_helper = "-";
     else if (s == "--verbose") a.verbose = true;
     else if (s == "--pos" && next(3)) {
       for (float& v : a.pos) v = std::strtof(argv[++i], nullptr);
@@ -269,7 +273,7 @@ void split_mission(const std::string& name, std::string& dir, std::string& varia
   }
 }
 
-int run(const Args& a);
+int run(const Args& a, platform::VideoForWindows* vfw);
 
 // No install named on the command line: mw3.cfg's, else the search and the
 // dialog (sdl_install.h; ours, FIX (A)); one found by search is saved to
@@ -292,6 +296,31 @@ bool find_install(Args& a) {
   if (searched && (dev.empty() || a.install != dev[0]) && sdlfe::save_install(a.write_dir, a.install))
     std::printf("mw3: install %s saved to mw3.cfg\n", a.install.c_str());
   return true;
+}
+
+// The Indeo helper: --vfw-helper's, else on Windows mw3indeo.exe beside mw3.
+std::string vfw_helper_path(const std::string& given) {
+  if (given == "-") return {};
+  if (!given.empty()) return given;
+#if defined(_WIN32)
+  if (const char* base = SDL_GetBasePath()) {
+    std::error_code ec;
+    const std::filesystem::path p = std::filesystem::path(base) / "mw3indeo.exe";
+    if (std::filesystem::exists(p, ec)) return p.string();
+  }
+#endif
+  return {};
+}
+
+// The install's Indeo 5 codec, any case.
+std::string codec_path(const std::string& install) {
+  std::error_code ec;
+  for (const auto& e : std::filesystem::directory_iterator(install, ec)) {
+    std::string n = e.path().filename().string();
+    for (char& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (n == "ir50_32.dll") return e.path().string();
+  }
+  return {};
 }
 
 }  // namespace
@@ -357,16 +386,28 @@ int main(int argc, char** argv) {
   // player's plain start, not on checks, shots or debug starts, nor -nofmv.
   const bool plain = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.modes.empty() && a.mission.empty() && !a.fly &&
                      a.dialog_file.empty() && a.movie.empty() && a.original.find("-nofmv") == std::string::npos;
-  if (a.force_import || (plain && !a.no_import)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
+  // The movies through Windows' own Video for Windows and the install's Indeo
+  // 5 codec in the 32-bit helper (ours, FIX (A): sdl_vfw.h); the importer's
+  // files only when it is missing or fails.
+  std::unique_ptr<sdlfe::SdlVfwHelper> vfw;
+  const std::string helper = vfw_helper_path(a.vfw_helper), codec = codec_path(a.install);
+  if (!helper.empty() && !codec.empty()) {
+    vfw = std::make_unique<sdlfe::SdlVfwHelper>(helper, codec);
+    const bool up = vfw->ready();
+    std::printf("mw3: movies %s (%s)\n", up ? "through the Indeo helper" : "not through the Indeo helper", vfw->hello().c_str());
+    if (!up) vfw.reset();
+  }
+  if (a.force_import || (plain && !a.no_import && !vfw)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 
-  const int result = run(a);
+  const int result = run(a, vfw.get());
+  vfw.reset();
   SDL_Quit();  // after every SDL object above is gone
   return result;
 }
 
 namespace {
 
-int run(const Args& a) {
+int run(const Args& a, platform::VideoForWindows* vfw) {
   sdlfe::SdlWindow window;
   if (!window.init(a.hidden)) return 1;
   sdlfe::SdlInput input;
@@ -412,7 +453,7 @@ int run(const Args& a) {
   mech3::MountFiles files;
 
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.input = &input, p.force = &force, p.sound = sound.get();
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.input = &input, p.force = &force, p.vfw = vfw, p.sound = sound.get();
   if (stepped) p.movie_clock = &movie_clock;
   p.music = &music, p.files = &files, p.render = window.render(), p.screen = &screen;
   p.window_width = a.win_w, p.window_height = a.win_h;

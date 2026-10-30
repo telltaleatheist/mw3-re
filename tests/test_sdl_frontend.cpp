@@ -28,6 +28,8 @@
 #include "frontend/sdl/sdl_platform.h"
 #include "frontend/sdl/sdl_sound.h"
 #include "frontend/sdl/sdl_twod_host.h"
+#include "frontend/sdl/sdl_vfw.h"
+#include "mech3/app_movie.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
@@ -1949,5 +1951,122 @@ TEST(sdl_program_training_chain) {
   EXPECT(won == 4 && stuck == 0 && lessons >= 40);
   EXPECT(log.find("mw3: modes training done: 4 missions passed by their lessons") != std::string::npos);
   EXPECT(log.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// The movies through the Indeo helper's pipe (ours; fmv.md, The Indeo
+// helper), its stand-in answering from one imported movie: the client's
+// calls give what the imported stream gives in-process, and mw3 plays the
+// movie through the pipe as through the files (the same frames drawn, the
+// same picture); a helper that does not start falls back to the files.
+TEST(sdl_movies_through_the_indeo_helper_pipe) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!std::filesystem::exists(MW3_IMPORT_BIN, ec) || !std::filesystem::exists(install + "/video/C1M2.AVI", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_indeo";
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  auto run = [&](std::vector<std::string> args, const std::string& name) {
+    std::vector<char*> argv;
+    for (std::string& s : args) argv.push_back(s.data());
+    argv.push_back(nullptr);
+    const std::string log = dir + "/" + name + ".log";
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    int status = -1;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) == 0) waitpid(pid, &status, 0);
+    posix_spawn_file_actions_destroy(&fa);
+    std::string text;
+    if (std::FILE* f = std::fopen(log.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+      std::fclose(f);
+    }
+    return text;
+  };
+  run({MW3_IMPORT_BIN, "--install", install, "--write-dir", dir, "--only", "c1m2"}, "import");
+  if (!std::filesystem::exists(dir + "/video/c1m2.fmv", ec)) return;  // no FFmpeg in this importer
+  setenv("MW3_FAKE_INDEO_DIR", (dir + "/video").c_str(), 1);
+  SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "MW3_FAKE_INDEO_DIR", (dir + "/video").c_str(), true);
+
+  // The client against the stream it stands for.
+  {
+    sdlfe::SdlVfwHelper h(MW3_FAKE_INDEO, "Ir50_32.dll");
+    EXPECT(h.ready());
+    std::printf("  helper: %s\n", h.hello().c_str());
+    auto local = mech3::MovieStream::open(dir + "/video/c1m2", 0x73646976);
+    auto local_a = mech3::MovieStream::open(dir + "/video/c1m2", 0x73647561);
+    uint32_t v = 0, s = 0;
+    EXPECT(h.open(install + "/video/C1M2.AVI", 0x73646976, &v) == 0 && v != 0);
+    EXPECT(h.open(install + "/video/C1M2.AVI", 0x73647561, &s) == 0 && s != 0 && s != v);
+    if (local && local_a && v && s) {
+      std::vector<uint8_t> f;
+      EXPECT(h.format(v, &f) == 0 && f == local->info().video_format);
+      zfmv::AviStreamInfo info;
+      EXPECT(h.info(v, &info) == 0 && std::memcmp(&info, &local->info().video, sizeof info) == 0);
+      EXPECT(h.length(v) == static_cast<int32_t>(local->info().video.length) && h.length(v) == 475);
+      EXPECT(h.find_sample(v, 100, 0x14) == local->find_sample(100, 0x14));
+      std::vector<uint8_t> sound(22054), sound_local(22054);
+      EXPECT(h.read(s, 1000, 22054, sound.data(), 22054) == 0);
+      local_a->read(1000, 22054, sound_local.data(), 22054);
+      EXPECT(sound == sound_local);
+      // Frame 30 as the movie player asks it: 640x480, 16 bits, 565 masks, top down.
+      uint8_t bih[52] = {};
+      const uint32_t words[] = {40, 640, static_cast<uint32_t>(-480)};
+      std::memcpy(bih, words, 12);
+      bih[12] = 1, bih[14] = 16, bih[16] = 3;
+      const uint32_t masks[3] = {0xf800, 0x07e0, 0x001f};
+      std::memcpy(bih + 40, masks, 12);
+      std::vector<uint16_t> img(640 * 480), img_local(640 * 480);
+      EXPECT(h.read(v, 30, 1, nullptr, 0) == 0);
+      EXPECT(h.decompress(v, 0, bih, sizeof bih, img.data(), img.size() * 2) == 0);
+      local->read(30, 1, nullptr, 0);
+      local->decompress(img_local.data(), 640, 480, 1280, masks[0], masks[1], masks[2]);
+      EXPECT(img == img_local);
+      size_t lit = 0;
+      for (uint16_t p : img) lit += p != 0;
+      EXPECT(lit > img.size() / 4);
+      h.release(v), h.release(s);
+    }
+  }
+  // mw3 plays the movie through the pipe as through the files.
+  auto play = [&](const std::string& helper, const std::string& name) {
+    std::vector<std::string> a = {MW3_BIN, "--install", install, "--write-dir", dir, "--movie", "c1m2", "--nosound", "--hidden"};
+    if (helper.empty()) a.push_back("--no-vfw-helper");
+    else a.push_back("--vfw-helper"), a.push_back(helper);
+    std::vector<std::string> b = a;
+    for (const std::string& x : {std::string("--shot"), dir + "/" + name + ".bmp", std::string("--shot-frame"), std::string("200")})
+      a.push_back(x);
+    const std::string shot = run(a, name + "-shot");
+    return std::make_pair(shot, run(b, name));
+  };
+  auto movie_line = [](const std::string& log) {
+    const size_t at = log.find("mw3: movie c1m2:");
+    return at == std::string::npos ? std::string() : log.substr(at, log.find('\n', at) - at);
+  };
+  auto bytes = [](const std::string& path) {
+    std::vector<uint8_t> d;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+      uint8_t buf[1 << 16];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) d.insert(d.end(), buf, buf + n);
+      std::fclose(f);
+    }
+    return d;
+  };
+  const auto files = play("", "files");
+  const auto pipe = play(MW3_FAKE_INDEO, "pipe");
+  const auto broken = play(dir + "/no-such-helper", "broken");
+  std::printf("  files:  %s\n  pipe:   %s\n  broken: %s\n", movie_line(files.second).c_str(), movie_line(pipe.second).c_str(),
+              movie_line(broken.second).c_str());
+  EXPECT(pipe.second.find("mw3: movies through the Indeo helper (the test helper on") != std::string::npos);
+  EXPECT(broken.second.find("mw3: movies not through the Indeo helper") != std::string::npos);
+  EXPECT(!movie_line(files.second).empty() && movie_line(files.second).find("475 drawn") != std::string::npos);
+  EXPECT(movie_line(pipe.second) == movie_line(files.second) && movie_line(broken.second) == movie_line(files.second));
+  const std::vector<uint8_t> shot_files = bytes(dir + "/files.bmp"), shot_pipe = bytes(dir + "/pipe.bmp");
+  EXPECT(shot_files.size() > 100000 && shot_files == shot_pipe);
 }
 #endif

@@ -141,6 +141,9 @@ They run inside the original main loop, after the original start-up.
   damage-decals.md). The mission's opening camera still runs first.
 - `--import` / `--no-import` (ours): the movies' first-run import
   (fmv.md section 6) run even after a failed try, or skipped.
+- `--vfw-helper EXE` / `--no-vfw-helper` (ours): the movies through the
+  Indeo helper (fmv.md, The Indeo helper; on Windows `mw3indeo.exe` beside
+  `mw3.exe` by default), or never; without it, the importer's files.
 - `--patch ZIP|DIR` (ours): the official 1.2 patch, read without running
   it, into the write dir's `patch12\` overlay (assets.md, The 1.2 patch),
   mounted in front of the install on this start and every later one. A

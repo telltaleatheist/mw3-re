@@ -12,6 +12,7 @@
 #include "mech3/lab_view.h"
 #include "mech3/options.h"
 #include "platform/force_feedback.h"
+#include "platform/vfw.h"
 #include "platform/platform.h"
 
 namespace zvid { struct Surface; }
@@ -44,6 +45,7 @@ struct Platform {
   platform::Clock* movie_clock = nullptr;  // zFMV's timeGetTime (ours: the tests' fast one); none: `clock`
   platform::Input* input = nullptr;
   platform::ForceDevice* force = nullptr;  // FIX (A): IFORCE2's effects (none: no force feedback)
+  platform::VideoForWindows* vfw = nullptr;  // FIX (A): the movies' AVIFile and Indeo 5 (none: the imported files)
   platform::SoundOutput* sound = nullptr;
   platform::MusicOutput* music = nullptr;
   platform::Files* files = nullptr;     // what music/trackNN.* the "disc" holds
