@@ -182,9 +182,19 @@ place in the window: the largest centred rect of its shape.
   with the frame pillarboxed or letterboxed in it.
 - **The mouse**: SdlZinHost's client area is the frame, and the cursor maps
   through the rect (`window_to_frame`, `frame_to_window`; the bars map
-  outside the frame). The relative mouse is a frame pixel a mickey through
-  the rect's width (`mickey_scale`), where `mw3_main` had 640 / the window's
-  width.
+  outside the frame). An uncaptured relative mouse is a frame pixel a
+  mickey through the rect's width (`mickey_scale`), where `mw3_main` had
+  640 / the window's width. The game's own mouse is captured (exclusive):
+  there a mickey is a count of the device's, as DirectInput's were at any
+  resolution (2026-10-30), so a bigger window or screen no longer slows the
+  look and the cursor.
+- **High DPI**: the mouse's mapping uses the window's coordinates
+  (`SDL_GetWindowSize`, the events') and the frame's draw the window's pixels
+  (`SDL_GetWindowSizeInPixels`); the fit rect is the same fraction of both.
+  On Windows SDL3 is per-monitor DPI aware: coordinates are pixels (density
+  1) and 150% is only the display's scale. On a Retina Mac the density is 2
+  (the window has no SDL_WINDOW_HIGH_PIXEL_DENSITY, so the frame draws at
+  the points' size). `sdl_frame_maps_alike_in_points_and_pixels`.
 - **Off**: the frame is stretched over the whole window and the mouse's
   scale is 640 / width, as before.
 

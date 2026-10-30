@@ -67,3 +67,38 @@ works alongside it; stay out of its files.
   screen-recording access to click or capture it). The dialog's pick flow
   needs a person: the lead tests it on Owen's PC.
 - Branch `mac5/find-install` off main cd45f5f.
+
+## 7. Fullscreen polish (2026-10-30)
+
+- Alt+Enter: `SdlPump::handle` swallows Alt+Enter (and that Enter's release,
+  even after Alt is let go; repeats do not toggle) and calls
+  `SdlWindow::switch_fullscreen`. Back to a window: the frame's shape at its
+  opening size (default_window) or create()'s size, scaled into 90% of the
+  display's usable area, centred. Not saved: windowed= in mw3.cfg stays.
+- Focus: the exe's OnActivate (0x00590c00) idles the loop and suspends
+  zInput (0x0051b050); on return each suspended device's state is cleared
+  (0x0051b080). Already ported. Added: `SdlInput` drops buttons, the latch
+  and held keys on focus loss (a release outside the window never arrives,
+  so a held trigger kept firing); `SdlSoundOutput` mutes buffers without
+  DSBCAPS_GLOBALFOCUS (0x8000; 0x005752e0 never asks it) while unfocused,
+  their positions moving on, as DirectSound's did. Music (MCI CD) untouched.
+- Mickeys: DirectInput's relative mouse is raw device counts, unrelated to
+  the screen; zInput adds them to its cursor (0x0051b910) and the look reads
+  them. The port divided them by the window's width (fullscreen at 2560 wide:
+  a third of the speed). Captured now: 1 a count (SDL's relative motion is
+  raw; SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE defaults to 0). Uncaptured
+  keeps the frame mapping. On the Mac, relative motion is in accelerated
+  points, so the feel there is the OS's.
+- High DPI: mouse in window coordinates against SDL_GetWindowSize, the draw
+  in SDL_GetWindowSizeInPixels; on Windows SDL3 is per-monitor DPI aware
+  (density 1, 150% only the display scale). Geometry test at densities 1,
+  1.5, 2.
+- Tests: `sdl_fullscreen_keys_focus_and_mickeys` (breaks 4 of 4: the Enter
+  passed on, the captured scale, the buttons kept, no mute),
+  `sdl_frame_maps_alike_in_points_and_pixels`.
+- For Owen on Windows: Alt+Enter both ways in a mission and in a menu (no
+  menu button pressed); Alt+Tab mid-mission holding fire and W, release
+  outside, return: nothing held, sound back; mouse look the same speed
+  windowed and fullscreen; at 150% scaling the cursor on the buttons it
+  draws over, and the frame sharp at the display's pixels.
+- Branch `mac5/fullscreen-polish` off main 730a01c.

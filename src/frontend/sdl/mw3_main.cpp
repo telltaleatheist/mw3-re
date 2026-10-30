@@ -777,6 +777,9 @@ int run(const Args& a) {
 
       sdlfe::SdlPump pump(&input, &app);
       if (clock.frame_ms) pump.each_pass = [&] { clock.frame(); };
+      // Ours: Alt+Enter, and the game's sounds silent while the window is away.
+      pump.toggle_fullscreen = [&] { window.switch_fullscreen(!window.fullscreen()); };
+      if (auto* s = dynamic_cast<sdlfe::SdlSoundOutput*>(sound.get())) pump.focus_changed = [s](bool on) { s->set_focused(on); };
       if (!debug && !launch && (a.frames > 0 || !a.shot.empty()))
         pump.should_quit = [&] { return (a.frames > 0 && menu_frames >= a.frames) || (!a.shot.empty() && menu_frames > a.shot_frame); };
       if (launch) pump.should_quit = [&] { return launch_done; };

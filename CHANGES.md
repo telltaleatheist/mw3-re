@@ -339,6 +339,9 @@ Details: [`docs/protection.md`](docs/protection.md).
 These change how the game talks to the computer, not how it plays.
 
 - The game finds your MechWarrior 3 installation by itself: where its installer put it (the registry, then Program Files), or it asks you once to point at Mech3.exe, then remembers the folder in `mw3.cfg`. The original simply ran from its own folder.
+- Alt+Enter switches between fullscreen and a window while you play (the original had no window). Your saved choice (`windowed=1` in `mw3.cfg`) is what the next start uses.
+- The mouse turns the view and moves the menu cursor at the same speed in a window and fullscreen, at any screen size, as the original's did at 640x480. Before, a bigger window or screen made the mouse slower.
+- Switching away from the game (Alt+Tab) mutes its sounds and pauses it, as the original did, and nothing you were holding (a key, a mouse button) stays held when you come back.
 - The game opens fullscreen at your desktop's resolution, the picture fitted with bars at the sides if its shape differs, instead of switching the monitor to 640x480. `--windowed` (or `windowed=1` in `mw3.cfg`) plays in a window.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.
 

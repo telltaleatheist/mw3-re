@@ -3,6 +3,7 @@
 
 #include <map>
 #include <memory>
+#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -48,6 +49,13 @@ class SdlSoundOutput : public platform::SoundOutput {
   int32_t set_frequency(platform::SoundBuffer b, uint32_t hz) override;
 
   int playing_count();  // buffers sounding now (for tools)
+  // The window has the focus. Without it a buffer made without
+  // DSBCAPS_GLOBALFOCUS (0x8000; the game asks it of none) plays on silent, as
+  // DirectSound's did (FIX (A): the pump tells it).
+  void set_focused(bool on) { focused_ = on; }
+  // The device's callback mixes through this (the tests call it): every
+  // playing buffer into `frames` stereo floats, added to what is there.
+  void mix(float* out, int frames);
 
  private:
   struct Buffer {
@@ -60,7 +68,6 @@ class SdlSoundOutput : public platform::SoundOutput {
     uint32_t freq = 0;
   };
   static void SDLCALL callback(void* self, SDL_AudioStream* stream, int additional, int total);
-  void mix(float* out, int frames);
   Buffer* get(platform::SoundBuffer b);
 
   std::mutex mutex_;
@@ -69,6 +76,7 @@ class SdlSoundOutput : public platform::SoundOutput {
   SDL_AudioStream* stream_ = nullptr;
   int rate_ = 44100;
   std::vector<float> scratch_;
+  std::atomic<bool> focused_{true};
 };
 
 }  // namespace sdlfe

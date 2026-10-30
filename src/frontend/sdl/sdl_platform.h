@@ -35,6 +35,11 @@ class SdlWindow : public platform::Window {
   // --window not given: the window takes the frame's shape (sdl_fit.h).
   void set_auto_size(bool on) { auto_size_ = on; }
   void set_fullscreen(bool on) { fullscreen_ = on; }  // ours: borderless, the desktop's size
+  // Ours (Alt+Enter): fullscreen or a window now, for this run only; the
+  // window takes the frame's shape at the size it would open with, kept
+  // inside the display's usable area.
+  void switch_fullscreen(bool on);
+  bool fullscreen() const { return fullscreen_; }
   const FrameShape& shape() const { return shape_; }
 
   SDL_Window* sdl() const { return window_; }
@@ -49,6 +54,7 @@ class SdlWindow : public platform::Window {
   bool hidden_ = false;
   bool auto_size_ = false;
   bool fullscreen_ = false;
+  int windowed_w_ = 1280, windowed_h_ = 960;  // the size create() asked for
   FrameShape shape_;
 };
 
@@ -126,12 +132,18 @@ class SdlPump : public platform::MessagePump {
   // of the app's loop that runs the game (--frame-ms steps its clock there).
   std::function<void()> each_pass;
   static Uint32 music_event();  // the user event SdlMusicOutput posts at a file's end
+  // Ours: the window gained (true) or lost the focus (the sound mutes).
+  std::function<void(bool)> focus_changed;
+  // Ours: Alt+Enter, swallowed before the game sees the Enter.
+  std::function<void()> toggle_fullscreen;
+
+  void handle(const SDL_Event& e);  // public for the tests
 
  private:
-  void handle(const SDL_Event& e);
   SdlInput* input_;
   zgame::App* app_;
   bool quit_ = false;
+  bool enter_swallowed_ = false;  // Alt+Enter's Enter is down: its release goes too
 };
 
 }  // namespace sdlfe
