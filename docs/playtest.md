@@ -187,3 +187,33 @@ pass. Crops: `visual-S8..S13*.png` in the same outbox.
 | S12 | Missions at 1280x720 (mode 11); **for Owen** (the HUD art scale decision, for-owen.md) | The HUD is drawn at 1x (the whole art scale of 720 / 480), so it covers less of the screen than at 640x480 or at 1920x1080 (2x); readable but small. A design choice for Owen (resolution.md section 8) | S12-hud-1280x720.png against S12-hud-640x480.png |
 | S13 | The chain's c1m3 briefing; **timing, ours**: `--briefing c1m3` at frame 2500 shows OP: Able, Baker and Start; the chain shoots as the briefing loads, before the nav points come up | The map shows no nav points or labels, where c1m1's shows OP: Able, Baker and Start (the chain shoots at the briefing's load: maybe before they are drawn) | S13-c1m3-briefing-no-labels.png |
 | S14 | Missions at 1280x720 and up (found in the release timing runs, dev 2); **fixed, ours** (FIX (B)): the colour tint's Direct3D quad (0x00558540 -> 0x0057dd80) took the 2D canvas's rect (960x540 at 1920x1080) in the frame's pixels; now through `canvas_to_render`, as the HUD's panels (resolution.md section 8). The end fade draws the still, not the tint, and was right; the menus run at 640x480 | The mission's opening fade darkens only the top-left quarter of the screen at 1920x1080 (a 960x540 rectangle) | outbox/2026-10-30/S14-fade-1080-{before,after}.png |
+
+### Visual pass 3 (2026-10-30): after the HUD scale and the 16:9 default
+
+A regression pass after dev 2's HUD scale (the 853x480 canvas at 16:9, the
+art at height/480, sharp filtering) and the 16:9 first start: the 20
+campaign missions and t1m1 at InGameVMode 13 (1920x1080), 11 (1280x720)
+and 5 (640x480), each with pass 1's three shots (the start at frame 200,
+outside with X at 220, 40 m from the first enemy mech at 420 with E, D and
+Ctrl+D), plus the objectives box (F12) and the pause menu (Esc) in c1m1,
+c3m2 and c4bm5, and c1m1's briefing and debriefing at each size: 210 runs,
+`--hidden --nosound --frame-ms 33 --seed 1999`, all exit 0. At every size
+the HUD's pieces keep to their corners and edges at the same share of the
+screen, nothing overlaps, the radar, nav text and arrows, compass, heat,
+speed, the damage views and TARGET read alike, the objectives box is
+centred at the bottom at its 480-high size, and the briefing and
+debriefing sit 4:3 in their pillarboxes. Crops: `visual-S15..S18*.png` in
+the same outbox.
+
+| # | Screen | What looks wrong | Crop |
+|---|---|---|---|
+| S15 | Any fade from a mission at 1280x720 or 1920x1080 (c3m2's death at frame 420; the debriefing's entry); **ours, fixed** (the HUD scale's regression): the fade's still (0x00579500) is grabbed at the mission's canvas (853x480) and drawn (0x0055b1f0) after the switch to the menus' 640x480; the draw took only a still of the buffer's own size, so it fell through to the census (`not ported: 0x0055b1f0( 0x10100 ...)`) and the fade showed nothing. The still now keeps its size and is scaled to the buffer (`GameEngine::image_draw`; `frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports`) | The frame is a flat dark grey where 640x480 shows the wrecked mech and the world fading | visual-S15-c3m2-death-fade-1080-before-after.png |
+| S16 | Every mission at 1280x720 (mode 11); **for Owen** (the HUD scale's filtering): the art is drawn at 1.5x with sharp (nearest) filtering, so one-pixel strokes come out one or two pixels wide by column; text and lines read slightly uneven ("M. Gun" letters of different weights). 1920x1080 (2.25x) shows it less, 640x480 not at all. Choices: as is, integer scaling (1x at 720 with a margin, S12), or a sharp-bilinear pass (nearest to the integer scale, then linear) | The weapon list's and the compass's letters uneven at 720 | visual-S16-weapon-list-720-vs-480.png |
+| S17 | t1m1, every shot and size; **likely as intended, to confirm**: since the training slot and its lesson loadout (b20f938) the debug launch runs training's own start, whose first lesson brings the HUD up piece by piece; pass 1 (before) showed the full HUD | Only the clock is drawn: no radar, weapons, heat or crosshair | visual-S17-t1m1-hud-now-vs-pass1.png |
+| S18 | The pause menu (Esc), every mission; **likely as the original at 640x480, for Owen at 16:9**: the dialog is 640 wide, centred in the canvas, over the whole frame's blur (no pillarbox); its MECHWARRIOR 3 logo is wider than 640, so at 640x480 the "3" and the last letter's edge are cut at the screen's edge, and at 16:9 the logo shows whole beyond the dialog's 640 | At 640x480 the logo reads "MECHWARRIO"; at 1920x1080 "MECHWARRIOR 3" | visual-S18-pause-480-vs-1080.png |
+
+Also seen, the same at every size (so not the scale's): the weapon list's
+last row (c1m1's tenth weapon, LRM 20) sits on the panel's bottom edge,
+and the compass's last label is cut at its strip's end ("2:"). The
+census's 0x004e6dc0 and 0x0041b263 in c3m2's death (the player wrecked
+by frame 420) at every size: left for the census owner.

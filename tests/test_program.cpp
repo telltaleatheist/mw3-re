@@ -5711,6 +5711,23 @@ TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
     EXPECT(g1 && g2 && g1 != g2);
     engine.image_free(g1);
     EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
+
+    // A still taken at one size and drawn after a mode change (the mission's
+    // 16:9 canvas faded out at the menus' 640x480): scaled to the buffer.
+    const int w0 = engine.buffer_width(), h0 = engine.buffer_height();
+    for (int y = 0; y < h0; ++y)
+      for (int x = 0; x < w0; ++x) engine.buffer16()[y * w0 + x] = x < w0 / 2 ? 0x1111 : 0x2222;
+    const mech3::Handle still = engine.video_grab(0);
+    engine.video_set_mode(13);  // 1920x1080: the canvas 853x480
+    const int w1 = engine.buffer_width(), h1 = engine.buffer_height();
+    std::printf("  a %dx%d still drawn at %dx%d\n", w0, h0, w1, h1);
+    EXPECT(w1 != w0);
+    std::fill(engine.buffer16(), engine.buffer16() + w1 * h1, uint16_t{0});
+    engine.image_draw(still, 0, 0, 0, 0);
+    const uint16_t* b = engine.buffer16();
+    EXPECT(b[0] == 0x1111 && b[w1 / 2 - 2] == 0x1111 && b[w1 / 2 + 2] == 0x2222 && b[w1 - 1] == 0x2222 &&
+           b[(h1 - 1) * w1] == 0x1111 && b[h1 * w1 - 1] == 0x2222);
+    engine.image_free(still);
   }
   zvid::pixel_format() = keep;
 }

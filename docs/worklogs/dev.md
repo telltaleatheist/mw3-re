@@ -2016,3 +2016,13 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   vehicles.md. The report counts the field bases' blips and their on-radar
   contacts; the repair test waits on the dock point powered up and checks
   them driving in and parked. Break: field_base without a blip.
+## Visual pass 3 (2026-10-30)
+
+- Branch mac4/pass3 (off main 04aff71). 210 shots: 21 missions at 1080,
+  720 and 480 (start, outside, enemy), objectives and pause in three
+  missions, the c1m1 briefing and debriefing (playtest.md, Visual pass 3).
+- S15 fixed (ours, the HUD scale's regression): the fade's still taken at
+  the mission's canvas and drawn after the switch to 640x480 fell through
+  to the census; now scaled (GameEngine::image_draw), tested in
+  frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
+  the old fall-through, 1 check). S16..S18 reported.
