@@ -1016,6 +1016,47 @@ player's Mad Cat worn to 25 % armour, 50 % internals, the ammo bins
 emptied, coolant 0: after the 12 s all back, 440 rounds from the store,
 18 half tons of armour).
 
+**After a repair, and the bases staying (2026-10-30, Owen; ours behind
+`bugs`).** In the exe a repair is followed by three steps:
+1. The close: the bases drive in to their far points and fold their arms.
+2. The reset: "drive" and "contact" cleared, "mcbdeploy" 0, the bases
+   released to their nets.
+3. The idle state.
+The repair step also clears the marker (0x47a720), so the MFB command
+starts over. A lancemate's refit (0x4ea260 through 0x47a730 and
+0x45b740) is taken only while the bases are called and driving
+([0x60b4d0]) and the dock is not busy (+0x78). So in the exe a lancemate
+can use only a dock the player has called, and only while it waits for its
+mech. Then the lancemate replaces the player as the requester. After a
+repair, his F10 is refused (disregard_order).
+
+Owen: the bases should stay. With `bugs` (FIX (bug), ours):
+- A completed repair marks the dock (`FieldBases::park`). The reset keeps
+  "drive" and "mcbdeploy" and queues `DockParked` in place of the idle
+  state.
+- Parked, the dock reads as idle to the MFB command and has no requester.
+  It ends when a mech asks: a lancemate's refit (set_requester, the bases
+  driving and not busy), or the player powered down within 12 m of the dock
+  point. A player still down on the dock from his own repair must power up
+  or leave first.
+- The next mech's contact, deploy, repair, close and reset follow (no
+  places: the bases are on them), and the dock parks again.
+- M-M while parked: at the same dock point the caller is taken. At another
+  point it is a new call, as from the idle state. The third M cancels as in
+  the exe (the contact's abort, then the reset unmarked), and the bases are
+  released.
+Test `mission_c2m1_field_bases_stay_after_a_repair_headless`:
+- With `bugs`:
+  - The player is repaired and the dock parks.
+  - The player leaves. Dominic, worn to 25 % armour, takes F10, walks in,
+    docks and is repaired to full with no second call. The dock parks
+    again.
+  - The player powers down on the dock again and is repaired a third time.
+  - M, M calls the bases back, and the third M releases them.
+- Without `bugs` (the exe's path): the dock goes idle after the player's
+  repair, and Dominic's F10 is refused.
+The c1m1 dock tests take either end.
+
 ## The AI at the dock (0x4ea260, 0x4d08d0..0x4d0ce0; step 4b6)
 
 A lancemate's way to the field bases: the player's refit order (lance

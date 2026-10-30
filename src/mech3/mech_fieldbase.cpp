@@ -47,7 +47,7 @@ FieldBases::FieldBases() {
   for (DockState* st : {static_cast<DockState*>(&idle), static_cast<DockState*>(&contact),
                         static_cast<DockState*>(&places), static_cast<DockState*>(&deploy),
                         static_cast<DockState*>(&repair), static_cast<DockState*>(&close),
-                        static_cast<DockState*>(&reset)})
+                        static_cast<DockState*>(&reset), static_cast<DockState*>(&parked)})
     st->reg = this;
   states.push_back(&idle);
   begin_next = true;
@@ -164,6 +164,7 @@ void field_bases_mission_start() {
   g_bases.states.clear();
   g_bases.states.push_back(&g_bases.idle);
   g_bases.begin_next = true;
+  g_bases.park = false;
   g_bases.deploy_valve = g_hooks->valve_get("mcbdeploy");  // 0x004d3c40
   if (g_bases.deploy_valve) g_hooks->valve_set(g_bases.deploy_valve, 0);
   g_drive = false;

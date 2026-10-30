@@ -3793,4 +3793,10 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   wall for good. The mission's AI nets are scripted routes for particular
   units, not maps of the ground, so they cannot steer him round either. The
   rebuild, with bug fixes on, has him walk round the wall.
+- **Lancemates can only use the field bases you have called.** "Repair at
+  the MFB" (F10) works only while the bases are already called (M, M) and
+  waiting for a mech. Otherwise the lancemate answers "disregard". After
+  every repair the bases pack up and leave, so each repair needs a new
+  call. The rebuild, with bug fixes on, keeps them where they are for the
+  next mech.
 

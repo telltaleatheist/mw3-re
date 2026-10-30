@@ -4361,7 +4361,8 @@ TEST(mission_c1m1_dock_runs_with_the_player_waiting_headless) {
           }
         }
         if (d.front == 4 && repair_at < 0) repair_at = frames;
-        if (d.front == 0 && repair_at >= 0 && idle_at < 0) idle_at = frames;
+        // idle, or parked (7: the bases stay after a repair, behind bugs)
+        if ((d.front == 0 || d.front == 7) && repair_at >= 0 && idle_at < 0) idle_at = frames;
         ++frames;
       };
       CountingPump pump;
@@ -4479,7 +4480,7 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
         repairs_at_close = n.count("0x004154e0") ? static_cast<int>(n.at("0x004154e0")) : 0;
         repaired = mech3::program_mech_wear(player);
       }
-      if (d.front == 0 && close_at >= 0 && idle_at < 0) {
+      if ((d.front == 0 || d.front == 7) && close_at >= 0 && idle_at < 0) {  // idle, or parked (behind bugs)
         idle_at = frames;
         cleared = mech3::program_mission_waynet() == nav;
       }
@@ -4547,6 +4548,194 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+}
+
+// The bases stay deployed after a repair (ours, FIX (bug) behind bugs; Owen:
+// "I shouldn't have to tell them to prepare at the same location again").
+// c2m1: the player calls the bases (M, M) and is repaired; then the player
+// leaves and Dominic, worn, is ordered to repair (F10). With bugs the dock
+// parks after the repair, Dominic's order is taken, and he docks and is
+// repaired with no second call; the player then powers down on the dock again
+// and is repaired a second time; parked, M, M calls them again and the third M
+// lets them go. Without bugs (the exe) the dock goes idle,
+// the bases are released and Dominic's order is refused (the bases not called).
+namespace {
+struct ParkRun {
+  int bases = 0, repairs = 0, parked = 0, idle_after = 0;
+  bool dominic = false, refit_taken = false, dominic_repaired = false, player_again = false;
+  bool called_again = false, dismissed = false;
+  std::vector<int> fronts;
+};
+ParkRun c2m1_park_run(bool bugs) {
+  ParkRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_park_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    // A store to repair from (the debug launch has none), as the c1m1 dock test's.
+    mech3::Pilot pilot("Repair");
+    mech3::Game game(&pilot);
+    pilot.current = &game;
+    for (int32_t w = 0; w < 0x25; ++w) game.store.add_ammo(w, 1)->count = 1000;
+    for (int32_t kind = 1; kind <= 2; ++kind)
+      for (int32_t tech = 0; tech <= 2; ++tech) game.store.add_equipment(kind, tech, 1)->count = 40;
+    mech3::Pilot* was_pilot = mech3::current_pilot();
+    mech3::current_pilot() = &pilot;
+    int frames = 0, phase = 0, at_phase = 0, repair_fronts = 0;
+    void* dominic = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    float point[3] = {};
+    int last_front = -2;
+    auto put = [&](void* m, float x, float z) {
+      const float at[3] = {x, ground_under(x, point[1] + 100.0f, z), z};
+      mech3::move_mech(m, at, 0.0f);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = mech3::mech_mission_player();
+      const mech3::DockSummary d = mech3::program_dock_summary();
+      if (d.front != last_front) {
+        out.fronts.push_back(d.front), last_front = d.front;
+        if (d.front == 4) ++repair_fronts;
+        if (d.front == 7) ++out.parked;
+      }
+      ++frames;
+      if (frames == 3) {
+        out.bases = mech3::program_bases_alive();
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        out.dominic = dominic && brain;
+      }
+      if (!out.bases || !out.dominic) return;
+      if (frames == 5 || frames == 6) mech3::program_mcb_command(player);  // the pick, then the call
+      if (frames == 7) {
+        const char* name = nullptr;
+        mech3::program_dock_point(&name, point);
+        put(player, point[0], point[2]);
+      }
+      switch (phase) {
+        case 0:  // the player's contact: on the dock point, powered down
+          if (d.front == 2) put(player, point[0], point[2]), mech3::mech_power(player, 1), phase = 1;
+          break;
+        case 1:  // repaired: the player up and 80 m off; Dominic worn and ordered to repair
+          if (d.front == (bugs ? 7 : 0) && repair_fronts == 1) {
+            mech3::mech_power(player, 0);
+            put(player, point[0] + 80.0f, point[2]);
+            out.idle_after = d.front == 0;
+            mech3::program_mech_wear_down(dominic, 0.25f, 0.5f);
+            out.refit_taken = brain->lance_order(12, nullptr) == 1;
+            phase = 2, at_phase = frames;
+          }
+          break;
+        case 2:  // Dominic docks and is repaired; parked again
+          if (!out.refit_taken || frames > at_phase + 3000) {
+            phase = 9;
+          } else if (repair_fronts == 2 && d.front == 7) {
+            const mech3::MechWear w = mech3::program_mech_wear(dominic);
+            std::printf("  Dominic after the dock: armour %.2f internals %.2f\n", w.armor, w.internal);
+            out.dominic_repaired = w.armor == 1.0f && w.internal == 1.0f;
+            put(player, point[0], point[2]);  // the player back on the dock, powered down
+            mech3::mech_power(player, 1);
+            phase = 3, at_phase = frames;
+          }
+          break;
+        case 3:  // parked again: the player up and off, then M, M (a new call here)
+          if (repair_fronts == 3 && d.front == 7) {
+            out.player_again = true;
+            mech3::mech_power(player, 0);
+            put(player, point[0] + 80.0f, point[2]);
+            phase = 4, at_phase = frames;
+          } else if (frames > at_phase + 2000) {
+            phase = 9;
+          }
+          break;
+        case 4:
+          if (frames == at_phase + 2 || frames == at_phase + 3) mech3::program_mcb_command(player);
+          if (frames > at_phase + 3 && d.front == 2) {  // the call's places done: waiting for a mech
+            out.called_again = true;
+            mech3::program_mcb_command(player);  // the third M: cancelled, the bases let go
+            phase = 5, at_phase = frames;
+          } else if (frames > at_phase + 6000) {
+            phase = 9;
+          }
+          break;
+        case 5:
+          if (d.front == 0 && !d.drive) out.dismissed = true, phase = 9;
+          else if (frames > at_phase + 300) phase = 9;
+          break;
+        default: break;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 20000;
+    pump.stop = [&] { return phase == 9 || frames > 18000 || (frames > 10 && (!out.bases || !out.dominic)); };
+    app.run(pump);
+    out.repairs = repair_fronts;
+    mech3::current_pilot() = was_pilot;
+    pilot.current = nullptr;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c2m1_field_bases_stay_after_a_repair_headless) {
+  if (!have_game()) return;
+  for (const bool bugs : {true, false}) {
+    const ParkRun r = c2m1_park_run(bugs);
+    std::printf("  bugs %d: bases %d, Dominic %d; repairs %d, parked %d, idle after the first %d; refit taken %d, "
+                "Dominic repaired %d, the player again %d, M-M again %d, dismissed %d; fronts",
+                bugs, r.bases, r.dominic, r.repairs, r.parked, r.idle_after, r.refit_taken, r.dominic_repaired, r.player_again,
+                r.called_again, r.dismissed);
+    for (int f : r.fronts) std::printf(" %d", f);
+    std::printf("\n");
+    EXPECT(r.bases == 3 && r.dominic);
+    if (bugs) {
+      EXPECT(r.refit_taken && r.dominic_repaired && r.player_again && r.repairs == 3 && r.parked == 3);
+      EXPECT(r.called_again && r.dismissed);
+    } else {
+      EXPECT(r.idle_after && !r.refit_taken && r.repairs == 1 && r.parked == 0);
+    }
+  }
 }
 
 // c1m1's nav waynet (vehicles.md, The nav waynet): waynet_1.zrd built at the

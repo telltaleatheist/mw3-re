@@ -317,4 +317,15 @@ works alongside it; stay out of its files.
   exe's path, c2m2, open ground, the give-up). `test_ai_attack.py` and
   `test_ai_node.py` pass.
 - Branch `mac5/w17-follow-path` off mac5/lance-orders (8861a16).
+## 18. The field bases stay after a repair (2026-10-30)
+
+- The exe: close, reset (bases released), idle. A lancemate's refit is
+  taken only while a player's call waits.
+- Ours behind `bugs` (Owen's rule: one switch): `DockParked`. vehicles.md,
+  After a repair; fixes.md, CHANGES, discoveries.
+- Test `mission_c2m1_field_bases_stay_after_a_repair_headless` (the
+  player, then Dominic by F10, then the player again, then M-M and the
+  third M; the exe's path with `bugs` off). The c1m1 dock tests take
+  either end.
+- Branch `mac5/mfb-stay` off main d02a386.
 

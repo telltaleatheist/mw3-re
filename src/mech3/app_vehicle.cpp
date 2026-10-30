@@ -236,6 +236,7 @@ struct WiredFieldBases : FieldBaseHooks {
     else FieldBaseHooks::mech_repair(mech, dt);
   }
   Handle view_vehicle() override { return program_view_target(); }
+  Handle player_vehicle() override { return mech_mission_player(); }  // the parked dock's (ours)
   int32_t view_camera() override { return program_view_camera_id(); }
   void view_set_camera(int32_t mode) override { program_view_set_camera(mode); }
   void mech_rest_at(Handle mech, const float* pos) override {
@@ -376,8 +377,8 @@ DockSummary program_dock_summary() {
   d.drive = field_bases_drive();
   d.deploy_valve = r.deploy_valve != nullptr;
   const DockStep* f = r.states.empty() ? nullptr : r.states.front();
-  const DockStep* order[7] = {&r.idle, &r.places, &r.contact, &r.deploy, &r.repair, &r.close, &r.reset};
-  for (int i = 0; i < 7; ++i)
+  const DockStep* order[8] = {&r.idle, &r.places, &r.contact, &r.deploy, &r.repair, &r.close, &r.reset, &r.parked};
+  for (int i = 0; i < 8; ++i)
     if (f == order[i]) d.front = i;
   d.busy = r.busy;
   d.requester = r.requester;
