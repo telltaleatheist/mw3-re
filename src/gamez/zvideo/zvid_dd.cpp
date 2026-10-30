@@ -3,6 +3,7 @@
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zrender/zrndr_span.h"
 #include "gamez/zrender/zrndr_tint.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 
 namespace zvid {
@@ -12,6 +13,7 @@ Surfaces g_surfaces;
 SurfaceHooks g_hooks;
 int32_t g_depth = 0;
 TextTarget g_text;
+int32_t g_nested_3d = 0;  // FIX (A): 3D locks taken inside a lock (unlock_3d)
 }  // namespace
 
 Surfaces& surfaces() { return g_surfaces; }
@@ -72,6 +74,8 @@ void set_text_target(uint16_t* pixels, int32_t width, int32_t height, int32_t pi
 // blit's (the port's two views of 0x008007c8): pixels and pitch, no rect.
 int32_t lock_3d() {
   Surface& b = g_surfaces.back;
+  if (!b.locked) g_nested_3d = 0;
+  else if (zfix::options().nested_lock) ++g_nested_3d;
   lock_surface(&b);
   auto* px = reinterpret_cast<uint8_t*>(b.pixels);
   zrndr::set_target(px, nullptr, 0, b.pitch);
@@ -82,7 +86,18 @@ int32_t lock_3d() {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x00576d60
-void unlock_3d() { unlock_surface(&g_surfaces.back); }
+// Mech3.exe 1.2 @ 0x00576d60. FIX (A): a pair inside a lock (the lab's skin
+// swap 0x0044fd90, inside the screen's draw) leaves the outer lock alone. The
+// exe's inner Unlock ended it, DirectDraw's pointer still writable, so the
+// rest of the 2D reached the flip; the port's layer goes over the frame at
+// the unlock, and the rest was lost: a frame without the 2D (playtest W9).
+void unlock_3d() {
+  if (g_nested_3d > 0 && g_surfaces.back.locked && zfix::options().nested_lock) {
+    --g_nested_3d;
+    return;
+  }
+  g_nested_3d = 0;
+  unlock_surface(&g_surfaces.back);
+}
 
 }  // namespace zvid

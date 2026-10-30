@@ -25,6 +25,19 @@ zVideo keeps three surface records of 0x24 bytes: the back buffer
   0x005a67a0 ([0x00736328] +0x18..+0x24). 0x00576d60 unlocks.
 - The Core state's Direct3D frame locks twice: around the particles, and
   around the HUD and radar; the fade's step locks to draw its still.
+- A lock inside a lock: the lab's skin swap (0x0044fd90, from SKIN_LIST's
+  select inside the screen's draw under the 3D lock) locks and unlocks
+  again. The inner lock leaves the locked record as it is, but the inner
+  unlock really unlocks, and the screen's own unlock then does nothing.
+  DirectDraw left the pointer writable, so the rest of the screen's 2D
+  still reached the back buffer and the flip. The port lays its layer over
+  the frame at the unlock, so that rest was lost: one frame with only the
+  3D mech, the lab's screen black (playtest W9). FIX (A)
+  (`zfix::options().nested_lock`, off in the probes): `lock_3d` on a locked
+  back buffer counts the lock, and its `unlock_3d` only counts it down, so
+  the screen's unlock hands the whole layer over. Test:
+  `fix_lock_inside_a_lock_keeps_the_outer` (both paths; breaks: no count, no
+  early return); test_d3d_frame.py still checks the original's.
 
 ## 2. Scene nesting
 

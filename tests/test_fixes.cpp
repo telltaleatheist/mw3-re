@@ -9,12 +9,15 @@
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zrender/zrndr_prim2d.h"
+#include "gamez/zrender/zrndr_span.h"
+#include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_hud.h"
@@ -1315,4 +1318,56 @@ TEST(fix_turret_turns_by_time) {
   for (int k : b) EXPECT(k >= 4 && k <= 5);  // 60 steps over 14 turrets, each in turn
   zfix::options().per_second = true;
   set_turret_hooks(nullptr);
+}
+
+// FIX (A), playtest W9: the lab's skin swap (0x0044fd90) locks and unlocks
+// the 3D inside the screen's own lock. The port's layer goes over the frame
+// at the unlock, so the inner unlock ending the lock lost the 2D drawn after
+// it: a frame without the lab's screen. The outer lock now stays.
+TEST(fix_lock_inside_a_lock_keeps_the_outer) {
+  struct Frame {
+    uint16_t px[2] = {0, 0};
+    int unlocks = 0;
+    uint16_t shown[2] = {};  // the layer as the last unlock handed it over
+  } f;
+  const zvid::SurfaceHooks saved_hooks = zvid::surface_hooks();
+  const zvid::Surface saved_back = zvid::surfaces().back;
+  const bool saved_fix = zfix::options().nested_lock;
+  const zrndr::SoftTarget saved_soft = zrndr::soft_target();
+  const zrndr::FinishTarget saved_finish = zrndr::finish_target();
+  const zrndr::Target2D saved_2d = zrndr::target2d();
+  const zvid::TextTarget saved_text = zvid::text_target();
+  zvid::surface_hooks() = {[](void* c, zvid::Surface* s) {
+                             auto* fr = static_cast<Frame*>(c);
+                             s->width = 2, s->height = 1, s->pitch = 4, s->pixels = fr->px;
+                             return 0;
+                           },
+                           [](void* c, zvid::Surface*) {
+                             auto* fr = static_cast<Frame*>(c);
+                             ++fr->unlocks, fr->shown[0] = fr->px[0], fr->shown[1] = fr->px[1];
+                             return 0;
+                           },
+                           &f};
+  for (int fix = 0; fix < 2; ++fix) {
+    zfix::options().nested_lock = fix != 0;
+    f = Frame{};
+    zvid::surfaces().back = zvid::Surface{};
+    zvid::lock_3d();      // the screen's draw
+    f.px[0] = 0x1234;     // 2D before the click
+    zvid::lock_3d();      // the skin swap's pair
+    zvid::unlock_3d();
+    f.px[1] = 0x5678;     // 2D after it
+    zvid::unlock_3d();    // the screen's unlock
+    if (fix) {
+      EXPECT(f.unlocks == 1 && f.shown[0] == 0x1234 && f.shown[1] == 0x5678);
+    } else {  // the original: the inner unlock ends the lock, the outer is a no-op
+      EXPECT(f.unlocks == 1 && f.shown[0] == 0x1234 && f.shown[1] == 0);
+    }
+    EXPECT(zvid::surfaces().back.locked == 0);
+  }
+  zfix::options().nested_lock = saved_fix;
+  zrndr::soft_target() = saved_soft, zrndr::finish_target() = saved_finish, zrndr::target2d() = saved_2d;
+  zvid::text_target() = saved_text;
+  zvid::surfaces().back = saved_back;
+  zvid::surface_hooks() = saved_hooks;
 }
