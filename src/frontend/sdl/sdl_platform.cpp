@@ -1,6 +1,7 @@
 #include "frontend/sdl/sdl_platform.h"
 
 #include <cstdio>
+#include <cstring>
 
 #include "frontend/sdl/sdl_input.h"
 #include "gamez/zgame/zgameapp.h"
@@ -96,6 +97,23 @@ void SdlScreen2D::upload(const uint16_t* pixels, int width, int height, int pitc
   }
 }
 
+bool SdlScreen2D::layer_empty(const uint16_t* pixels, int width, int height, int pitch, uint16_t key) {
+  uint64_t k4 = key;
+  k4 |= k4 << 16, k4 |= k4 << 32;
+  for (int y = 0; y < height; ++y) {
+    const uint16_t* row = pixels + static_cast<size_t>(y) * (pitch / 2);
+    int x = 0;
+    for (; x + 4 <= width; x += 4) {  // four pixels a step
+      uint64_t v;
+      std::memcpy(&v, row + x, 8);
+      if (v != k4) return false;
+    }
+    for (; x < width; ++x)
+      if (row[x] != key) return false;
+  }
+  return true;
+}
+
 void SdlScreen2D::draw_layer(int width, int height, bool blend) {
   platform::DrawState s;
   s.texture = texture_, s.address_u = s.address_v = 3;
@@ -124,6 +142,10 @@ void SdlScreen2D::overlay_16(const uint16_t* pixels, int width, int height, int 
                              const uint8_t* alpha, const uint16_t* colour) {
   if (!render_ || width <= 0 || height <= 0) return;
   render_->flush();
+  // Nothing drawn (every pixel still the key): nothing to lay over the frame.
+  // A frame's locks often draw nothing (performance.md); the conversion,
+  // upload and draw of the whole layer are skipped.
+  if (layer_empty(pixels, width, height, pitch, key)) return;
   upload(pixels, width, height, pitch, rgb565, true, key, alpha, colour);
   int vx, vy, vw, vh;
   render_->viewport(&vx, &vy, &vw, &vh);

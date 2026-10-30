@@ -23,6 +23,7 @@
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_install.h"
+#include "frontend/sdl/sdl_platform.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zimage/zimg_library.h"
@@ -135,6 +136,23 @@ TEST(sdl_input_mouse_counts_relative_motion) {
   EXPECT(in.mouse_buttons == 2);
   in.unacquire(platform::Input::kMouse);
   EXPECT(in.mouse_state(&s) == platform::Input::kNotAcquired);
+}
+
+// The overlay's empty test (performance.md): an unlock whose layer is all key
+// draws nothing. Every pixel of every row counts, the row's padding does not.
+TEST(sdl_layer_empty_sees_any_drawn_pixel) {
+  const uint16_t key = 0xf81f;
+  for (int w : {1, 3, 4, 7, 960}) {
+    const int pitch_px = w + 3, h = 3;  // three pixels of padding a row
+    std::vector<uint16_t> px(static_cast<size_t>(pitch_px) * h, key);
+    for (int y = 0; y < h; ++y) px[static_cast<size_t>(y) * pitch_px + w] = 0x1234;  // padding, not the layer
+    EXPECT(sdlfe::SdlScreen2D::layer_empty(px.data(), w, h, pitch_px * 2, key));
+    for (int at : {0, w - 1, (h - 1) * pitch_px + w - 1, pitch_px + w / 2}) {
+      px[static_cast<size_t>(at)] = 0;
+      EXPECT(!sdlfe::SdlScreen2D::layer_empty(px.data(), w, h, pitch_px * 2, key));
+      px[static_cast<size_t>(at)] = key;
+    }
+  }
 }
 
 namespace {

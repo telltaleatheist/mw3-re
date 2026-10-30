@@ -58,6 +58,8 @@ class SdlScreen2D : public platform::Screen2D {
  public:
   explicit SdlScreen2D(SdlRender3D* render) : render_(render) {}
   void present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) override;
+  // Every pixel of the layer still `key` (pitch in bytes): nothing to overlay.
+  static bool layer_empty(const uint16_t* pixels, int width, int height, int pitch, uint16_t key);
   void overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key,
                   const uint8_t* alpha, const uint16_t* colour) override;
   int frames = 0;  // frames shown
