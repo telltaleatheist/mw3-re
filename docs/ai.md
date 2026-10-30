@@ -2638,6 +2638,49 @@ when their hooks are unset). 0x49e540 is the `lance_lost` hook (L4).
 Tests: `test_sound_extra.py` runs 0x4e6c60 (600 cases), `test_ai_hits.py`
 0x4ea630 and 0x4ea6b0 on its cases.
 
+**Playtest W17 (2026-10-30): an ordered lancemate and walls.** Owen: told
+to follow or attack, Dominic "just runs into a wall" (Op 2). Both orders
+push the target's VehicleNet follow behaviour (0x4ea450), whose state
+0x4d1980 steers straight at the target with the carrot (walk_drive
+0x4cee80). It does not route over the AI net. The AI wall response
+(on_path 1, 0x4a5270) reverses the throttle and adds a yaw kick of speed x
+0.01. On c2m1, with the player 40 m past a wall, Dominic walked into it and
+backed off. The contacts' push (Steer::push_by_contacts, 0x4ce780) then
+held his carrot 10 m ahead, inside his slack ((+0x28 - +0x2c) / 2), so
+walk_drive gave him no throttle. He stood 73 m off for good, past his
+follow range (to +0x28, 60 m). The pieces are the exe's and are
+differential-tested (`test_ai_attack.py`, `test_ai_node.py`), so this is
+the original's behaviour.
+
+The mission's AI nets cannot route him. They are scripted unit routes, with
+9 to 62 placed nodes across a map and one-way links, not a navigation
+graph. The exe's way finder (0x4c7f70) found no way between the nodes
+nearest Dominic and the player on either map.
+
+Ours (FIX (bug), behind `bugs`, Owen 2026-10-30): a detour inside the
+follow state (`FollowState::detour_goal`).
+- **Blocked:** past the follow range plus 10 m, with no 2 m of progress in
+  2 s and no turn of over 20 degrees (a turn on the spot is not being
+  stuck).
+- **The heading:** flat probes of 25 m, from 4 m out at 4 m up. They use
+  the world's segment query (0x4efcd0, the brain hook `wall_between`, a
+  level face being a wall), in 15-degree steps off the line to the target.
+  He takes the clear heading nearest the target, keeps to that side, and
+  probes again every 0.5 s.
+- **Resume:** once the line to the target (up to 40 m) is clear, after
+  1 s.
+- **Give up:** after 20 s, or with no heading clear. He then follows as the
+  exe for 10 s.
+On open ground nothing changes. The probes turn `bugs` off.
+
+Test `mission_c2m1_dominic_follows_round_walls_headless`:
+- c2m1 behind the wall: he reaches 51.5 m, inside his range. With `bugs`
+  off he stands at 73 m, as the exe.
+- c2m2 behind a wall: he reaches his range.
+- c2m1 open ground: no detour, his walk identical with `bugs` off.
+- Every heading blocked (a test switch): he gives up and stands where the
+  exe leaves him.
+
 ### 17.6a The pocket commander (mech_pocket.cpp)
 
 The lance order 2 (key 0x4f) puts the player's controls in the "pocket

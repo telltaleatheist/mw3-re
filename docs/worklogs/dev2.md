@@ -278,3 +278,19 @@ works alongside it; stay out of its files.
   Fixed too: F6 / F7 on a non-mech vehicle (0x4e6fe0). MFB second M: the
   dock's 5 s quiet time and the line's MINDELAY, as the exe.
 - Branch `mac5/lance-orders` off main 96a5108.
+
+## 17. W17: a lancemate round a wall (2026-10-30)
+
+- The follow order steers straight. Behind a wall on c2m1, Dominic bounced
+  off, and the contacts' push held his carrot inside his slack: he stood at
+  73 m (the exe's). The mission nets are unit routes, so routing over them
+  was not possible (Owen's (b), changed to local wall-following with the
+  lead).
+- `FollowState::detour_goal` behind `bugs`, with the brain hook
+  `wall_between` (the world's segment query). ai.md section 17.6, fixes.md,
+  CHANGES, discoveries.
+- Test `mission_c2m1_dominic_follows_round_walls_headless` (the wall, the
+  exe's path, c2m2, open ground, the give-up). `test_ai_attack.py` and
+  `test_ai_node.py` pass.
+- Branch `mac5/w17-follow-path` off mac5/lance-orders (8861a16).
+
