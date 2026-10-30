@@ -241,7 +241,7 @@ int run(const Args& a);
 }  // namespace
 
 int main(int argc, char** argv) {
-  // in order with the log on stderr. Windows' CRT has no line buffering (and takes size 0 as
+  // In order with the log on stderr. Windows' CRT has no line buffering (and takes size 0 as
   // an invalid argument): unbuffered there.
 #if defined(_WIN32)
   std::setvbuf(stdout, nullptr, _IONBF, 0);

@@ -338,6 +338,7 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The game opens fullscreen at your desktop's resolution, the picture fitted with bars at the sides if its shape differs, instead of switching the monitor to 640x480. `--windowed` (or `windowed=1` in `mw3.cfg`) plays in a window.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.
 
 - The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
