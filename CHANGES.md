@@ -153,6 +153,7 @@ unusual happens.
 - Cycling the field bases' dock points (MFB, then N or Shift+N) onto the list's empty first entry no longer reads through nothing on the radar and the edge arrow (which could crash); no marker is shown there.
 - A nav point file linking to a node that is not there no longer reads or writes past the game's lists (no shipped file does).
 - The waypoint arrows' images are all released at the end of a mission (two of the four sides were kept, a small leak each mission).
+- The waypoint arrow no longer keeps an image the last mission let go: the next mission's first arrow at the screen's right or bottom edge read that freed image's size, which on today's systems can crash the game.
 - In Instant Action, a wreck taken away at 180 seconds no longer stays the "last attacker" of the mechs it hit: one of them dying later (a fall, its own ammo) credited the kill to the removed wreck, which could crash.
 - A hand-edited turret without parts, or without a gun, no longer crashes in play; it shuts down, or does not aim.
 - A mission animation that sends the unused "move the player through viaNode" message, in a world without that node, no longer throws the player's mech to a random place (no shipped animation or world does this).

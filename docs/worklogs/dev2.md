@@ -129,3 +129,16 @@ works alongside it; stay out of its files.
   The AI's sight lines about 3%, collision and ground 2 to 3%.
 - Seen: the opening fade at 1920x1080 darkens only the top-left quarter.
 - Branch `mac5/perf` off main 46135f7; nothing changed but the two flags.
+
+## 10. Sanitizer runs (2026-10-30)
+
+- build-asan (ASan + UBSan, recover). Runs, times and findings:
+  docs/sanitizers.md. Found: the waypoint arrow's freed image (FIX (bug),
+  the exe's read; a crash risk here), and uninitialised Mech fields in
+  tests' stack mechs (initialised in the struct).
+- New test `mission_c1m3_hud_views_follow_targets_as_they_die_headless`:
+  every kind of c1m3 hostile shot dead while TARGET shows it, the views
+  cycling; `chain_object` added for it.
+- No "action chain" exists; Instant Action ran as `--mission ia1w3` (the
+  perf branch's flag, cherry-picked here as its commit).
+- Branch `mac5/asan` off main 873bf47.
