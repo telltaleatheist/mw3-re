@@ -16,7 +16,6 @@ struct Options {
   // on Windows 11 in play (Owen, 2026-10-20: mechs cast shadows); false gives
   // the 24-bit result Direct3D 6's FPU setting would (CLAUDE.md, FPU precision).
   bool fpu53 = true;
-  bool deep_water = true;  // FIX (bug): the gait's wading slowdown as a continuous curve (movement.md)
   bool any_resolution = true;  // FIX (B): any screen size and 16:9 (resolution.md)
   bool nested_lock = true;     // FIX (A): a 3D lock inside a lock leaves the outer one (render-frame.md)
 };

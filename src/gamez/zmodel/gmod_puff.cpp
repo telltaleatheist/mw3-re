@@ -349,10 +349,10 @@ void particle_draw(Particle& p, const float m[12], float near_z, float fx_near) 
   else if (d >= p.near_end)
     fade = 1.0f;
   else
-    // FIX (bug): the exe subtracts far_start (+0x3c) here, not near_start
-    // (+0x34), so in the fade-in band the alpha is negative and the sprite is
-    // skipped. No shipped puffer has a fade-in (docs/fixes.md).
-    fade = (d - p.near_start) * p.near_inv;
+    // FIX (bug), behind bugs: the exe subtracts far_start (+0x3c) here, not
+    // near_start (+0x34), so in the fade-in band the alpha is negative and
+    // the sprite is skipped. No shipped puffer has a fade-in (docs/fixes.md).
+    fade = (d - (zfix::options().bugs ? p.near_start : p.far_start)) * p.near_inv;
   if (!(fade > 0.0f)) return;
   const float inv = 1.0f / v[2];
   const float screen[3] = {inv * v[0] + zmth::projection().cx, inv * v[1] + zmth::projection().cy, inv};

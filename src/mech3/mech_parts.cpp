@@ -8,6 +8,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
@@ -357,11 +358,12 @@ bool MechPart::critical(int kind, int) {
   bool ok = false;
   switch (kind) {
     case kCritSink: {
-      // FIX (bug): 0x0045fbc0 always reports failure, so the callout never
-      // played; a sink actually lost counts as success (docs/fixes.md).
+      // FIX (bug), behind bugs: 0x0045fbc0 always reports failure, so the
+      // callout never played; a sink actually lost counts as success
+      // (docs/fixes.md).
       const int32_t before = m.heat_sinks.count;
       m.heat_sinks.lose(1);
-      ok = m.heat_sinks.count < before;
+      ok = zfix::options().bugs && m.heat_sinks.count < before;
       if (!player) return ok;
       if (ok && g_calls.equip_voice) g_calls.equip_voice(kSink);
       break;

@@ -7,6 +7,37 @@ Windows without helpers such as DDrawCompat, plus real bugs that break play
 anti-tamper traps (Owen, 2026-10-20, `protection.md`), marked `FIX (trap)`.
 Each change is also marked `FIX` in the code next to the original address.
 
+## The bug fixes switch
+
+`zfix::options().bugs` holds every play-changing `FIX (bug)`: a player turns
+them all off with `bugfixes=0` in mw3.cfg or `mw3 --original` (which wins over
+mw3.cfg), and mw3 says so at the start (Owen, 2026-10-30; the probes run with
+it off, so the differential tests check the original's path). Off means the
+original's play: each fix that CHANGES.md lists under "Bug fixes that change
+play" goes back to the exe's way, except the frame-rate ones. What stays on
+either way:
+- the platform fixes the game needs to run at all, FIX (A) and FIX (B):
+  `nested_lock`, `any_resolution`, the 53-bit rounding (`fpu53`), and every
+  unflagged (A)/(B) row below;
+- the frame timings, `per_second` (Owen, 2026-10-20: per-frame steps go to
+  time at the 30 fps pace; not a bug fix and not switched);
+- the crash and memory fixes, where the exe would crash, read freed or stray
+  memory or loop for ever (a null checked, a buffer bounded, a freed record
+  kept: the vehicles' fire floor, the craters' overlap test, an animation
+  instance's borrowed tree), since the original's behaviour there is no
+  behaviour to restore.
+
+Folded into `bugs` on 2026-10-30 (until then on always):
+the deep-water curve (its own `deep_water` until then), the heat-sink
+critical's callout, the particle fade-in typo, the animations' last-def
+search, and the animations' missing-prerequisite fix (its own
+`fix_prerequisites` remains as a test seam, acting only with `bugs`). The
+in-game options screen has no line for it: its dialog comes from the
+player's own data (reader.zbd's dlgGameOptions), which the rebuild does not
+change.
+
+## The changes
+
 | Where | Original | Why it changes | Rebuild |
 |---|---|---|---|
 | zImage's release, 0x00517b10 (the SDL host's `image_release`) | Counts a named image down and frees it at 0 (0x00517760); frees an image not in its list (a grab) at once (0x005185f0) | (bug) a second release of a freed image would free it twice | Freed as the original; an image released again after its free is reported and left alone; `sdl_host_image_release_counts_and_frees` |
@@ -172,7 +203,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Missing stand or step motion, 0x431350 | Frees the hip velocity keys of the loaded animation without checking it loaded | (bug) a crash; never with the shipped motions | Checked |
 | Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
 | Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80, the 20 damage to touched buildings 0x423c90 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s, a building takes 2,880 a second instead of 600 | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps, 600 dt damage; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
-| Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); `zfix::options().deep_water`, off in the probes, so `test_gait.py` checks the exe's curve |
+| Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); behind `bugs` (its own `deep_water` until 2026-10-30), off in the probes, so `test_gait.py` checks the exe's curve |
 | Throttle keys, 0x427d60 (and the lance command mode's own, 0x46b0a0) | CMD_THROTTLE_UP / DOWN move the throttle target 0.025 each frame they are held | (B) at 144 fps the throttle opens almost five times as fast (full in 0.28 s instead of 1.3 s) | 0.025 per 1/30 s (`zfix::frame_steps`), equal to the exe's at 30 fps; off in the probes; `tests/test_fixes.cpp` |
 | Beam recharge, 0x4b4230 | Adds ftol(rate x dt) (dt times the heat factor 0.5..1) to a beam's charge each frame it is not firing | (B) the fraction is lost every frame, so the faster the game runs the slower beams recharge: TAG (166.7 a second) refills in 67 s at 30 fps, 83 s at 60, 69 s at 144, and never above 166 fps, or at 144 fps once heat passes 0.58 (emulator, `test_tag.py`; weapons.md, "TAG, end to end"); plain lasers stop recharging above 420 fps | The 30 fps frame's whole units, ftol(rate x / (30 dt)), spread over the frame with the fraction carried (`mech3::beam_recharge`): the exe's amount at 30 fps, the same per second at any rate; `zfix::options().per_second`, off in the probes; `tests/test_fixes.cpp` |
 | The turrets' turns, 0x004a70d0 (vehicles.md, The turrets in the program) | A turret picks, aims and fires only on the frames whose number over the turrets made leaves its id | (B) how often turrets act follows the frame rate: at 60 fps twice as often as at 30 | The turn by game time in 1/30 s steps (`turn_due`, at most one a frame), so N turrets each act every N/30 s at any frame rate (Owen 2026-10-24); `per_second` (`fix_turret_turns_by_time`) |

@@ -2044,3 +2044,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   app_weapons.cpp (program_mech_ams, _set, program_fire_at). Test:
   mission_c1m1_ams_shoots_down_incoming_missiles_headless (break: the
   fallback removed).
+## The bug fixes switch (2026-10-30)
+
+- Branch mac4/bugfix-switch (off main). Audit: CHANGES' play list against
+  the code: folded into bugs the deep-water curve (its own flag), the
+  heat-sink callout, the fade-in typo, the animations' last-def search and
+  missing-prerequisite fix (with its seam). Crash fixes, (A)/(B) and
+  per_second stay on. mw3.cfg bugfixes=0/1 and --original (wins). The
+  differentials that patched the exe to match a fix now compare the
+  original (test_damage.py's 0x45fbc0 stub, test_puffers.py --fixed for the
+  fixed path, probe_set_bugs); test_fixes fix_heat_sink_critical_is_called_out,
+  sdl_program_bugfixes_switch.

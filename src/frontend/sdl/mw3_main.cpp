@@ -65,6 +65,7 @@
 #include "frontend/sdl/sdl_vfw.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zeffect/zeff_anim_save.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
@@ -114,6 +115,10 @@ struct Args {
   std::string cfg_install;  // mw3.cfg's install= (the command line's wins)
   std::vector<std::string> assets;
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
+  // The bug fixes (zfix bugs; fixes.md, The bug fixes switch): mw3.cfg's
+  // bugfixes=0/1 (default 1), --original turns them off whatever it says.
+  bool play_original = false;
+  int cfg_bugfixes = 1;
   float pos[3] = {0, 60, 0};
   float look[2] = {0, -2.9f};
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
@@ -149,7 +154,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -213,6 +218,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--hidden") a.hidden = true;
     else if (s == "--windowed") a.windowed = true;
     else if (s == "--no-import") a.no_import = true;
+    else if (s == "--original") a.play_original = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];
     else if (s == "--vfw-helper" && next(1)) a.vfw_helper = argv[++i];
@@ -258,6 +264,8 @@ void read_config(const std::string& dir, Args& a) {
     if (line.rfind("install=", 0) == 0) a.cfg_install = line.substr(8);
     else if (line.rfind("assets=", 0) == 0) a.assets.push_back(line.substr(7));
     else if (line == "windowed=1") a.windowed = true;
+    else if (line == "bugfixes=0") a.cfg_bugfixes = 0;
+    else if (line == "bugfixes=1") a.cfg_bugfixes = 1;
   }
 }
 
@@ -346,6 +354,11 @@ int main(int argc, char** argv) {
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
+  // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
+  // platform fixes that let it run stay on: fixes.md, The bug fixes switch).
+  zfix::options().bugs = !a.play_original && a.cfg_bugfixes != 0;
+  if (!zfix::options().bugs)
+    std::printf("mw3: bug fixes off (%s): the original's play\n", a.play_original ? "--original" : "bugfixes=0 in mw3.cfg");
   if (a.install.empty() && !find_install(a)) {
     SDL_Quit();
     return 1;

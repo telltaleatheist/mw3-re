@@ -7,6 +7,13 @@ original address, the evidence, how each fix is tested) is
 [`docs/fixes.md`](docs/fixes.md). In the code each change is marked `FIX`
 next to the function it touches.
 
+**To play with every bug fix off:** start `mw3 --original`, or put
+`bugfixes=0` in `mw3.cfg` in your settings folder. That puts back every
+change under "Bug fixes that change play" below except the frame-rate ones
+(the game still plays at the same pace on any computer), and keeps the
+fixes that let the game run at all and the crash fixes. `bugfixes=1`, or no
+line, keeps them on.
+
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
 machines, what makes it behave differently on a fast computer, and bugs where

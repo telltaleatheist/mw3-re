@@ -139,6 +139,9 @@ They run inside the original main loop, after the original start-up.
   level (not a cave's roof: playtest S7), and turned to face it
   each frame, to watch a mech up close (its damage decals with `--fire`,
   damage-decals.md). The mission's opening camera still runs first.
+- `--original` (ours): every play-changing bug fix off (zfix bugs), as
+  `bugfixes=0` in mw3.cfg; it wins over the file (fixes.md, The bug fixes
+  switch).
 - `--import` / `--no-import` (ours): the movies' first-run import
   (fmv.md section 6) run even after a failed try, or skipped.
 - `--vfw-helper EXE` / `--no-vfw-helper` (ours): the movies through the

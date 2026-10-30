@@ -45,6 +45,9 @@ Options
 -------
 - The game opens fullscreen at your desktop's resolution.
 - Alt+Enter switches between fullscreen and a window while you play.
+- mw3.exe --original plays with every bug fix the rebuild makes turned off
+  (bugfixes=0 in mw3.cfg does the same; CHANGES list them). The frame-rate
+  fixes and the fixes the game needs to run stay on.
 - mw3.exe --windowed starts in a window; windowed=1 in mw3.cfg makes that
   the default.
 - mw3.exe --no-import skips the movie conversion.
