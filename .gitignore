@@ -26,3 +26,7 @@ docs/drafts/
 
 # Agent worktrees (Claude Code)
 .claude/
+
+# Windows: the SDL3 development zips and the build (tools/windows/build.cmd)
+/deps/
+/build-win/

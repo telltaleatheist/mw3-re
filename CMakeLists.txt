@@ -251,6 +251,8 @@ set_source_files_properties(third_party/pl_mpeg/pl_mpeg.c PROPERTIES COMPILE_OPT
 # which rounds differently from the original (CLAUDE.md, FPU precision).
 if(NOT MSVC)
   target_compile_options(mw3core PRIVATE -ffp-contract=off)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # clang-cl
+  target_compile_options(mw3core PRIVATE /clang:-ffp-contract=off)
 endif()
 
 # A C interface over a few ported functions, for the differential tests that run
