@@ -13879,3 +13879,29 @@ TEST(render_flush_takes_the_rect_by_its_handle) {
   mech3::reset_states();
   mech3::options() = mech3::Options{};
 }
+
+// FIX (B), playtest S14: the colour tint's Direct3D quad (the mission's opening
+// fade, the hit flashes) gets the 2D canvas's rect; past 640x480 the canvas is
+// smaller than the frame, and the fade darkened only its top-left part. The
+// rect goes onto the frame as the HUD's panels do.
+TEST(fix_tint_quad_covers_the_frame) {
+  mech3::Rect& rr = mech3::render();
+  mech3::Rect& dr = mech3::display();
+  const mech3::Rect saved_r = rr, saved_d = dr;
+  const bool saved_fix = zfix::options().any_resolution;
+  zfix::options().any_resolution = true;
+  mech3::set_render_size(1920, 1080), mech3::set_render_origin(0, 0);
+  mech3::set_display_size(960, 540), mech3::set_display_origin(0, 0);
+  const int32_t whole[4] = {0, 0, 960, 540}, part[4] = {100, 50, 200, 150};
+  mech3::tint_quad_on_frame(0, whole, 0.5);
+  const zvid::TintQuad& q = zvid::tint_quad();
+  EXPECT(q.verts[0].sx == 0 && q.verts[0].sy == 0 && q.verts[2].sx == 1920 && q.verts[2].sy == 1080);
+  mech3::tint_quad_on_frame(0, part, 0.5);
+  EXPECT(q.verts[0].sx == 200 && q.verts[0].sy == 100 && q.verts[2].sx == 400 && q.verts[2].sy == 300);
+  mech3::set_display_size(1920, 1080);  // a canvas the frame's size: the rect as given
+  mech3::tint_quad_on_frame(0, part, 0.5);
+  EXPECT(q.verts[0].sx == 100 && q.verts[2].sx == 200 && q.verts[2].sy == 150);
+  zvid::reset_tint_quad();
+  rr = saved_r, dr = saved_d;
+  zfix::options().any_resolution = saved_fix;
+}

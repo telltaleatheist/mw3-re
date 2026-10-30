@@ -843,6 +843,19 @@ int32_t GameEngine::unlock_back(zvid::Surface*) {
   return 0;
 }
 
+// 0x0057dd80 behind the colour tint (0x00558540). FIX (B): its rect is the 2D
+// canvas's (the finish target's, or the caller's), and the quad is drawn in the
+// frame's pixels; at a mode past 640x480 the canvas is smaller than the frame,
+// so the fades darkened only its top-left part (playtest S14). Scaled onto the
+// frame as the HUD's panels are (resolution.md step 4).
+void tint_quad_on_frame(uint16_t colour, const int32_t* rect, double alpha) {
+  if (!rect) return zvid::set_tint_quad(colour, nullptr, alpha);
+  int32_t x = rect[0], y = rect[1], w = rect[2] - rect[0], h = rect[3] - rect[1];
+  canvas_to_render(&x, &y, &w, &h);
+  const int32_t r[4] = {x, y, x + w, y + h};
+  zvid::set_tint_quad(colour, r, alpha);
+}
+
 void wire_frame_hooks(GameEngine* e) {
   zvid::surface_hooks() = e ? zvid::SurfaceHooks{[](void* c, zvid::Surface* s) {
                                                     return static_cast<GameEngine*>(c)->lock_back(s);
@@ -852,7 +865,7 @@ void wire_frame_hooks(GameEngine* e) {
                                                   },
                                                   e}
                             : zvid::SurfaceHooks{};
-  zrndr::tint_hooks().quad = e ? zvid::set_tint_quad : nullptr;
+  zrndr::tint_hooks().quad = e ? tint_quad_on_frame : nullptr;
   zvid::scene_depth() = 0;
 }
 

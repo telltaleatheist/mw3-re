@@ -628,5 +628,8 @@ class GameEngine : public Engine {
 
 // The frame's surface and tint hooks to `e`'s buffer and Render3D (null: none).
 void wire_frame_hooks(GameEngine* e);
+// The colour tint's Direct3D quad (0x0057dd80) with its canvas rect onto the
+// frame (FIX (B), playtest S14); wire_frame_hooks sets it as zrndr's hook.
+void tint_quad_on_frame(uint16_t colour, const int32_t* rect, double alpha);
 
 }  // namespace mech3
