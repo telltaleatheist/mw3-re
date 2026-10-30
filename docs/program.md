@@ -223,10 +223,19 @@ implements it:
   engine starts so the GPU device and Render3D exist; the game's
   `CreateEx` sizes and titles it ("MechWarrior 3 1.2", message 7 and the
   version), `UpdateWindow` shows it. The game's 640x480 is stretched over the
-  window.
+  window. Ours: fullscreen at the desktop's size by default (`--windowed` or
+  `windowed=1` in mw3.cfg for a window); Alt+Enter switches between the two
+  for the run (`switch_fullscreen`; the window takes the frame's shape at its
+  opening size, inside the display's usable area). The pump swallows that
+  Enter and its release, so a menu's default button never sees it.
 - **Message pump** (`SdlPump`): SDL's event queue for `zGameApp::Run`. Focus
   gained and lost are the frame's OnActivate (0x00590c00), so the loop idles
-  while the window is in the background, as the original's did. The window's
+  while the window is in the background, as the original's did, and the
+  game's sounds play on silent: no buffer asks DSBCAPS_GLOBALFOCUS (0x8000,
+  0x005752e0), so DirectSound muted them away from the focus; the music
+  (MCI's CD) plays on. On return zInput clears each device's state
+  (0x0051b080); `SdlInput` also drops the buttons and keys held when the
+  focus went, whose releases never arrive. The window's
   close posts the quit. A music file's end is MCI's notify (0x00590740).
 - **Clock** (`SdlClock`): `GetTickCount` counted from the start, `Sleep`.
 - **Input** (`SdlInput`): DirectInput as zInput opens it (0x0051b0a0): the
@@ -242,7 +251,10 @@ implements it:
   cooperative level (the mouse exclusive and foreground: SDL's relative mouse
   mode while acquired, so the cursor is hidden and held as DirectInput held
   it; taken away with the focus, reads then give DIERR_INPUTLOST), motion
-  scaled to the game's 640 pixels across the window, the joystick's
+  while captured a mickey a count, as DirectInput's raw counts were at any
+  resolution (SDL's relative motion is unscaled by the system's pointer
+  speed: SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE is 0), else scaled to the
+  frame across the window, the joystick's
   capabilities, axis names, ranges and dead zones. `SdlZinHost` gives zInput
   its Win32 calls (the client area is the 640x480 frame, characters from
   SDL's keymap). The debug states read DIK codes directly; the dialog one

@@ -2,9 +2,11 @@
 
 #include "gamez/zutil/zutl_reg.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 namespace sdlfe {
 
@@ -138,6 +140,7 @@ int32_t SdlInput::keyboard_data(platform::KeyEvent* out, uint32_t* count) {
 }
 
 void SdlInput::capture(bool on) {
+  captured_ = on;
   if (window) SDL_SetWindowRelativeMouseMode(window, on);
 }
 
@@ -223,6 +226,13 @@ void SdlInput::on_event(const SDL_Event& e) {
       break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
       focused_ = false;
+      // FIX (A): what is let go while away never comes back as an event, and
+      // DirectInput's state after the next Acquire was the device's as it
+      // was: no button or key stays down from before.
+      std::fill(std::begin(buttons_), std::end(buttons_), 0);
+      std::fill(std::begin(latched_), std::end(latched_), 0);
+      std::fill(std::begin(held_), std::end(held_), false);
+      mouse_buttons = 0;
       for (int d = 0; d < 3; ++d) {
         if (acquired_[d] && (coop_[d] & 5) == 5) {  // the system takes a foreground device away
           if (d == kMouse) capture(false);
@@ -250,8 +260,8 @@ void SdlInput::on_event(const SDL_Event& e) {
       mouse_x = e.motion.x, mouse_y = e.motion.y;
       raw_dx_ += e.motion.xrel, raw_dy_ += e.motion.yrel;
       if (acquired_[kMouse]) {
-        float k = mickey_scale;
-        if (fitted() && window) {
+        float k = captured_ ? 1.0f : mickey_scale;
+        if (!captured_ && fitted() && window) {
           int w = 0, h = 0;
           SDL_GetWindowSize(window, &w, &h);
           k = sdlfe::mickey_scale(static_cast<float>(w), static_cast<float>(h), *shape);
