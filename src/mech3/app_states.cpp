@@ -258,7 +258,7 @@ bool CoreState::enter() {
   message_box_ = en.message_box_new("dlgMessage.zrd", "MESSAGEBOX");
   en.vcall(message_box_, 0x04, {0});
   start_mission();
-  if (Handle game = en.network_game()) en.network_game_start(game, 1);
+  if (Handle ff = en.force_feedback()) en.force_feedback_spring(ff, 1);
   if (en.pixel_double() == 0) {
     en.fade(7, -1, 0, zgame::bits(kFadeSeconds), 0, 0, 0);
   } else {

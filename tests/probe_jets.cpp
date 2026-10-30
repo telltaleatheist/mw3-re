@@ -155,7 +155,7 @@ int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int3
   g->sky = flags & 32 ? 1 : 0;
   g->queue_ok = flags & 64 ? 1 : 0;
   world().mission_player = flags & 1 ? &m : nullptr;
-  world().stats = flags & 2;
+  world().force_feedback = flags & 2;
   world().player = flags & 128 ? &m : nullptr;
   g->gait.vz = vz;
   set_mw2_jump_jets(flags & 4 ? 1 : 0);
@@ -198,7 +198,7 @@ int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int3
     return g->queue_ok != 0;
   };
   dc.hip_reset = [](MechPart&, const Vec3*) { log({13}); };
-  dc.stats = [](uint32_t fn, int) { log({14, static_cast<int32_t>(fn)}); };
+  dc.ff = [](uint32_t fn, int) { log({14, static_cast<int32_t>(fn)}); };
 
   int32_t r = 0;
   if (op == 0) r = m.jump_jets(dt);

@@ -88,7 +88,8 @@ uint8_t dik_from_scancode(SDL_Scancode s) {
 }
 
 SdlInput::~SdlInput() {
-  if (joy_) SDL_CloseJoystick(joy_);
+  if (pad_) SDL_CloseGamepad(pad_);
+  else if (joy_) SDL_CloseJoystick(joy_);
 }
 
 bool SdlInput::open(Device d) {
@@ -96,7 +97,10 @@ bool SdlInput::open(Device d) {
     if (!joy_) {
       int n = 0;
       SDL_JoystickID* ids = SDL_GetJoysticks(&n);
-      if (ids && n > 0) joy_ = SDL_OpenJoystick(ids[0]);  // EnumDevices(DIDEVTYPE_JOYSTICK, attached only): the first
+      if (ids && n > 0) {  // EnumDevices(DIDEVTYPE_JOYSTICK, attached only): the first
+        if (SDL_IsGamepad(ids[0])) pad_ = SDL_OpenGamepad(ids[0]);
+        joy_ = pad_ ? SDL_GetGamepadJoystick(pad_) : SDL_OpenJoystick(ids[0]);
+      }
       SDL_free(ids);
     }
     if (!joy_) return false;
@@ -107,6 +111,7 @@ bool SdlInput::open(Device d) {
 
 void SdlInput::close(Device d) {
   opened_[d] = acquired_[d] = false;
+  if (d == kJoystick && pad_) SDL_CloseGamepad(pad_), pad_ = nullptr, joy_ = nullptr;
   if (d == kJoystick && joy_) SDL_CloseJoystick(joy_), joy_ = nullptr;
   if (d == kKeyboard) keys_.clear();
 }
@@ -162,32 +167,75 @@ int32_t SdlInput::joystick_state(platform::JoyState* out) {
   SDL_UpdateJoysticks();  // Poll (IDirectInputDevice2 +0x64)
   *out = platform::JoyState{};
   int32_t* axes[8] = {&out->x, &out->y, &out->z, &out->rx, &out->ry, &out->rz, &out->slider[0], &out->slider[1]};
-  const int na = SDL_GetNumJoystickAxes(joy_);
+  const int na = axis_count();
   for (int i = 0; i < 8; ++i) {
     // SDL's -32768..32767 into the range the game set (DIPROP_RANGE), with
     // its dead zone (DIPROP_DEADZONE, 1/10000 of the range) around the centre.
-    const double v = i < na ? (SDL_GetJoystickAxis(joy_, i) + 32768) / 65535.0 : 0.5;
-    double c = v * 2.0 - 1.0;
+    if (i >= na) continue;  // an axis the device lacks stays 0 in DIJOYSTATE2
+    const double c0 = pad_ ? pad_axis(i) : (SDL_GetJoystickAxis(joy_, i) + 32768) / 65535.0 * 2.0 - 1.0;
+    double c = c0;
     const double dz = deadzone_[i] / 10000.0;
     c = std::fabs(c) <= dz ? 0.0 : (c - std::copysign(dz, c)) / (1.0 - dz);
     const int32_t lo = range_[i][0], hi = range_[i][1];
     *axes[i] = static_cast<int32_t>(std::lround(lo + (c + 1.0) * 0.5 * (hi - lo)));
   }
-  const int nh = SDL_GetNumJoystickHats(joy_);
-  for (int i = 0; i < 4 && i < nh; ++i) {
-    static const int32_t kAngles[16] = {-1, 0, 9000, 4500, 18000, -1, 13500, -1,
-                                        27000, 31500, -1, -1, 22500, -1, -1, -1};
-    const int32_t a = kAngles[SDL_GetJoystickHat(joy_, i) & 15];  // up 1, right 2, down 4, left 8
-    out->pov[i] = a < 0 ? 0xffffffffu : static_cast<uint32_t>(a);
+  static const int32_t kAngles[16] = {-1, 0, 9000, 4500, 18000, -1, 13500, -1,
+                                      27000, 31500, -1, -1, 22500, -1, -1, -1};
+  for (int i = 0; i < 4; ++i) out->pov[i] = 0xffffffffu;
+  if (pad_) {
+    // DirectInput's XInput pad: its buttons in that order, the d-pad the hat.
+    static const SDL_GamepadButton kButtons[10] = {
+        SDL_GAMEPAD_BUTTON_SOUTH, SDL_GAMEPAD_BUTTON_EAST, SDL_GAMEPAD_BUTTON_WEST, SDL_GAMEPAD_BUTTON_NORTH,
+        SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, SDL_GAMEPAD_BUTTON_BACK,
+        SDL_GAMEPAD_BUTTON_START, SDL_GAMEPAD_BUTTON_LEFT_STICK, SDL_GAMEPAD_BUTTON_RIGHT_STICK};
+    for (int i = 0; i < 10; ++i) out->buttons[i] = SDL_GetGamepadButton(pad_, kButtons[i]) ? 0x80 : 0;
+    const int hat = (SDL_GetGamepadButton(pad_, SDL_GAMEPAD_BUTTON_DPAD_UP) ? 1 : 0) |
+                    (SDL_GetGamepadButton(pad_, SDL_GAMEPAD_BUTTON_DPAD_RIGHT) ? 2 : 0) |
+                    (SDL_GetGamepadButton(pad_, SDL_GAMEPAD_BUTTON_DPAD_DOWN) ? 4 : 0) |
+                    (SDL_GetGamepadButton(pad_, SDL_GAMEPAD_BUTTON_DPAD_LEFT) ? 8 : 0);
+    const int32_t a = kAngles[hat];
+    out->pov[0] = a < 0 ? 0xffffffffu : static_cast<uint32_t>(a);
+  } else {
+    const int nh = SDL_GetNumJoystickHats(joy_);
+    for (int i = 0; i < 4 && i < nh; ++i) {
+      const int32_t a = kAngles[SDL_GetJoystickHat(joy_, i) & 15];  // up 1, right 2, down 4, left 8
+      out->pov[i] = a < 0 ? 0xffffffffu : static_cast<uint32_t>(a);
+    }
+    const int nb = SDL_GetNumJoystickButtons(joy_);
+    for (int i = 0; i < 128 && i < nb; ++i) out->buttons[i] = SDL_GetJoystickButton(joy_, i) ? 0x80 : 0;
   }
-  const int nb = SDL_GetNumJoystickButtons(joy_);
-  for (int i = 0; i < 128 && i < nb; ++i) out->buttons[i] = SDL_GetJoystickButton(joy_, i) ? 0x80 : 0;
   return acquired_[kJoystick] ? 0 : kNotAcquired;
 }
 
+// The axes DirectInput's layout has: a gamepad's five (X, Y, Z, RX, RY),
+// else SDL's count.
+int SdlInput::axis_count() const {
+  if (pad_) return 5;
+  return joy_ ? SDL_GetNumJoystickAxes(joy_) : 0;
+}
+
+// A gamepad's axis i of DirectInput's XInput layout, -1..1: the sticks as
+// they are, Z the left trigger less the right one (each 0..1).
+double SdlInput::pad_axis(int i) const {
+  auto ax = [this](SDL_GamepadAxis a) { return (SDL_GetGamepadAxis(pad_, a) + 32768) / 65535.0 * 2.0 - 1.0; };
+  auto trig = [this](SDL_GamepadAxis a) { return SDL_GetGamepadAxis(pad_, a) / 32767.0; };
+  switch (i) {
+    case 0: return ax(SDL_GAMEPAD_AXIS_LEFTX);
+    case 1: return ax(SDL_GAMEPAD_AXIS_LEFTY);
+    case 2: return trig(SDL_GAMEPAD_AXIS_LEFT_TRIGGER) - trig(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+    case 3: return ax(SDL_GAMEPAD_AXIS_RIGHTX);
+    case 4: return ax(SDL_GAMEPAD_AXIS_RIGHTY);
+    default: return 0.0;
+  }
+}
+
 int32_t SdlInput::joystick_caps(uint32_t* flags, uint32_t* axes) {
-  *flags = 0;  // no force feedback
-  *axes = joy_ ? static_cast<uint32_t>(SDL_GetNumJoystickAxes(joy_)) : 0;
+  // DIDC_FORCEFEEDBACK (0x100) when the device rumbles (FIX (A): the effects
+  // are played as rumble, sdl_force.cpp); zInput then takes it exclusive.
+  *flags = joy_ && SDL_GetBooleanProperty(SDL_GetJoystickProperties(joy_), SDL_PROP_JOYSTICK_CAP_RUMBLE_BOOLEAN, false)
+               ? 0x100u
+               : 0u;
+  *axes = joy_ ? static_cast<uint32_t>(axis_count()) : 0;
   return 0;
 }
 
@@ -196,7 +244,7 @@ int32_t SdlInput::joystick_object_name(uint32_t ofs, char* name, uint32_t n) {
   static const char* kNames[8] = {"X Axis", "Y Axis", "Z Axis", "X Rotation", "Y Rotation", "Z Rotation",
                                   "Slider", "Slider"};
   const uint32_t i = ofs / 4;
-  if (!joy_ || i >= 8 || static_cast<int>(i) >= SDL_GetNumJoystickAxes(joy_)) {
+  if (!joy_ || i >= 8 || static_cast<int>(i) >= axis_count()) {
     if (n) name[0] = 0;
     return kObjectNotFound;
   }

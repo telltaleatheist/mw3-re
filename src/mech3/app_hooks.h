@@ -46,8 +46,8 @@ class Engine : public zgame::AppHooks {
   Handle pilot() { return peek32(0x60861c); }          // the current pilot ([0x0060861c])
   void set_pilot(Handle p) { poke32(0x60861c, p); }
   Handle player_view() { return peek32(0x5f4c8c); }    // the player's view ([0x005f4c8c])
-  Handle network_game() { return peek32(0x608620); }  // [0x00608620]
-  void set_network_game(Handle g) { poke32(0x608620, g); }
+  Handle force_feedback() { return peek32(0x608620); }  // [0x00608620] the force feedback (mech3/force_feedback)
+  void set_force_feedback(Handle f) { poke32(0x608620, f); }
   int32_t video_mode() { return static_cast<int32_t>(peek32(0x72f348)); }  // 0 software, 1 Direct3D
   int32_t fatal_error() { return static_cast<int32_t>(peek32(0x608d5c)); }
   virtual const char* pilot_name();                    // [0x0060861c]+0x18, null without a pilot
@@ -246,9 +246,11 @@ class Engine : public zgame::AppHooks {
   virtual void input_start(uint32_t window, uint32_t cmd_show) { unported("0x0051b0a0", {window, cmd_show}); }
   virtual uint32_t joystick_present() { return unported("0x0051dc10", {}); }
   virtual uint32_t force_feedback_present() { return unported("0x0051ddb0", {}); }
-  virtual Handle network_game_new() { return unported("0x00433090", {}); }  // new(0x34)
-  virtual void network_game_delete(Handle g) { unported("0x004333f0", {g}); }
-  virtual void network_game_start(Handle g, int32_t a) { unported("0x004338a0", {g, a}); }
+  // The force feedback object (mech3/force_feedback): new(0x34) + 0x00433090,
+  // its delete 0x004333f0, its Spring 0x004338a0 (the mission's start).
+  virtual Handle force_feedback_new() { return unported("0x00433090", {}); }
+  virtual void force_feedback_delete(Handle f) { unported("0x004333f0", {f}); }
+  virtual void force_feedback_spring(Handle f, int32_t on) { unported("0x004338a0", {f, on}); }
   // 0x0040f410: the message panel made (ECX, EDX the display and window
   // rects, unused; mech3/message_panel).
   virtual void message_panel_init(Handle display, Handle window) { unported("0x0040f410", {display, window}); }

@@ -70,7 +70,7 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
     pushed = &impulse;
     knock_vec = {knock_vec.x + impulse.x, knock_vec.y + impulse.y, knock_vec.z + impulse.z};
     knock = std::sqrt((knock_vec.x * knock_vec.x + knock_vec.y * knock_vec.y) + knock_vec.z * knock_vec.z);
-    if (this == w.mission_player && w.stats && type && c.stats_hit) c.stats_hit(type->id, &impulse, force);
+    if (this == w.mission_player && w.force_feedback && type && c.ff_hit) c.ff_hit(type->id, &impulse, force);
   }
   if (coll->x20 && c.roster_x1c) {
     if (Handle x1c = c.roster_x1c(*this); x1c && decals && c.damage_decal) c.damage_decal(x1c, decals, coll, damage);
@@ -198,10 +198,10 @@ void Mech::die() {
   World& w = world();
   if (attacker && c.killer_notify) c.killer_notify(attacker, *this);
   if (this == w.mission_player) {
-    if (w.stats && c.stats) {
-      c.stats(0x433530, 0);
-      c.stats(0x433900, 1);
-      c.stats(0x4338d0, 1);
+    if (w.force_feedback && c.ff) {
+      c.ff(0x433530, 0);
+      c.ff(0x433900, 1);
+      c.ff(0x4338d0, 1);
     }
     if (c.networked && c.networked() && c.net_event) c.net_event(*this, kNetDeath, reinterpret_cast<intptr_t>(attacker));
   }
@@ -330,7 +330,7 @@ bool Mech::knocked_down(int kind) {
     static const Vec3 zero{0, 0, 0};  // 0x0063d870
     if (c.hip_reset) c.hip_reset(*hip, &zero);
     else hip->set_crouch(&zero);
-    if (this == world().mission_player && world().stats && c.stats) c.stats(0x433840, 0);
+    if (this == world().mission_player && world().force_feedback && c.ff) c.ff(0x433840, 0);
   }
   knock = 0.0f;
   knock_vec = {0, 0, 0};

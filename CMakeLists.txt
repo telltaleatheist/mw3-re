@@ -244,6 +244,8 @@ add_library(mw3core STATIC
   src/mech3/lab_view.cpp
   src/mech3/lab_screen.cpp
   src/mech3/app_engine.cpp
+  src/mech3/app_force.cpp
+  src/mech3/force_feedback.cpp
   src/mech3/app_fmv.cpp
   src/mech3/app_movie.cpp
   third_party/pl_mpeg/pl_mpeg.c
@@ -445,6 +447,7 @@ if(SDL3_FOUND)
   add_library(mw3sdl STATIC
     src/frontend/debug_world.cpp
     src/frontend/sdl/sdl_input.cpp
+    src/frontend/sdl/sdl_force.cpp
     src/frontend/sdl/sdl_install.cpp
     src/frontend/sdl/sdl_music.cpp
     src/frontend/sdl/sdl_platform.cpp

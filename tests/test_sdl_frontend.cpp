@@ -21,7 +21,9 @@
 #include "check.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
+#include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
+#include "mech3/controls_cfg.h"
 #include "frontend/sdl/sdl_install.h"
 #include "frontend/sdl/sdl_platform.h"
 #include "frontend/sdl/sdl_sound.h"
@@ -91,6 +93,254 @@ SDL_Event key(SDL_Scancode s, bool down, bool repeat = false) {
   return e;
 }
 }  // namespace
+
+// The joystick as zInput's setup sets it (0x0051d700: every axis
+// -1000..1000, dead zones 10% on X and Y, none on Z, 25% on the rotations),
+// on SDL's virtual devices (docs/input.md section 5): a flight stick read
+// raw, its axes, dead zones, hat and buttons as DirectInput gave them; a
+// gamepad in DirectInput's XInput layout (FIX (A)): the left stick X, Y, the
+// triggers on one centred Z, the right stick RX, RY, no RZ, A..RS buttons
+// 0..9, the d-pad the hat.
+namespace {
+void joy_setup_as_zinput(sdlfe::SdlInput& in) {
+  for (uint32_t i = 0; i < 6; ++i) {
+    char name[64];
+    if (in.joystick_object_name(4 * i, name, sizeof name) != 0) continue;
+    in.joystick_set_range(4 * i, -1000, 1000);
+    in.joystick_set_deadzone(4 * i, i < 2 ? 1000 : i == 2 ? 0 : 2500);
+  }
+}
+}  // namespace
+
+TEST(sdl_input_virtual_stick_reads_as_directinput) {
+  EXPECT(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD));
+  SDL_VirtualJoystickDesc d;
+  SDL_INIT_INTERFACE(&d);
+  d.type = SDL_JOYSTICK_TYPE_FLIGHT_STICK, d.naxes = 6, d.nbuttons = 12, d.nhats = 1, d.name = "mw3 test stick";
+  const SDL_JoystickID id = SDL_AttachVirtualJoystick(&d);
+  EXPECT(id != 0);
+  SDL_Joystick* v = SDL_OpenJoystick(id);  // the test's handle, to move it
+  {
+    sdlfe::SdlInput in;
+    EXPECT(in.open(platform::Input::kJoystick));
+    uint32_t flags = 1, axes = 0;
+    in.joystick_caps(&flags, &axes);
+    EXPECT(axes == 6);
+    joy_setup_as_zinput(in);
+    in.set_cooperative_level(platform::Input::kJoystick, 9);
+    EXPECT(in.acquire(platform::Input::kJoystick) == 0);
+    platform::JoyState st;
+    // X a little off centre (inside 10%), Y full forward, Z (the throttle)
+    // three quarters, RZ (the twist) inside 25%; the hat right; button 1.
+    SDL_SetJoystickVirtualAxis(v, 0, 2000);
+    SDL_SetJoystickVirtualAxis(v, 1, -32768);
+    SDL_SetJoystickVirtualAxis(v, 2, 16384);
+    SDL_SetJoystickVirtualAxis(v, 5, -6000);
+    SDL_SetJoystickVirtualHat(v, 0, SDL_HAT_RIGHT);
+    SDL_SetJoystickVirtualButton(v, 1, true);
+    SDL_UpdateJoysticks();
+    EXPECT(in.joystick_state(&st) == 0);
+    std::printf("  stick: x %d y %d z %d rz %d pov %u buttons %x %x\n", st.x, st.y, st.z, st.rz, st.pov[0], st.buttons[0],
+                st.buttons[1]);
+    EXPECT(st.x == 0);                       // inside X's dead zone
+    EXPECT(st.y == -1000);                   // full
+    EXPECT(st.z >= 495 && st.z <= 505);      // no dead zone: 16384/32767 of the half range
+    EXPECT(st.rz == 0);                      // inside 25%
+    EXPECT(st.pov[0] == 9000 && st.pov[1] == 0xffffffffu);
+    EXPECT(st.buttons[0] == 0 && st.buttons[1] == 0x80);
+    // Past a dead zone the rest of the travel is scaled to the full range.
+    SDL_SetJoystickVirtualAxis(v, 0, 32767);
+    SDL_SetJoystickVirtualAxis(v, 5, 32767);
+    SDL_UpdateJoysticks();
+    in.joystick_state(&st);
+    EXPECT(st.x == 1000 && st.rz == 1000);
+    in.close(platform::Input::kJoystick);
+  }
+  SDL_CloseJoystick(v);
+  SDL_DetachVirtualJoystick(id);
+}
+
+TEST(sdl_input_virtual_gamepad_reads_as_directinput_xinput) {
+  EXPECT(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD));
+  SDL_VirtualJoystickDesc d;
+  SDL_INIT_INTERFACE(&d);
+  d.type = SDL_JOYSTICK_TYPE_GAMEPAD, d.naxes = SDL_GAMEPAD_AXIS_COUNT, d.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+  d.name = "mw3 test pad";
+  const SDL_JoystickID id = SDL_AttachVirtualJoystick(&d);
+  EXPECT(id != 0 && SDL_IsGamepad(id));
+  SDL_Joystick* v = SDL_OpenJoystick(id);
+  {
+    sdlfe::SdlInput in;
+    EXPECT(in.open(platform::Input::kJoystick));
+    uint32_t flags = 1, axes = 0;
+    in.joystick_caps(&flags, &axes);
+    char name[64];
+    const bool has_rz = in.joystick_object_name(0x14, name, sizeof name) == 0;
+    std::printf("  pad: %u axes, RZ %s\n", axes, has_rz ? "present" : "absent");
+    EXPECT(axes == 5 && !has_rz);
+    joy_setup_as_zinput(in);
+    in.set_cooperative_level(platform::Input::kJoystick, 9);
+    EXPECT(in.acquire(platform::Input::kJoystick) == 0);
+    platform::JoyState st;
+    // At rest (the triggers released): every axis centred.
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_LEFT_TRIGGER, -32768);
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, -32768);
+    SDL_UpdateJoysticks();
+    in.joystick_state(&st);
+    std::printf("  pad at rest: x %d y %d z %d rx %d ry %d rz %d\n", st.x, st.y, st.z, st.rx, st.ry, st.rz);
+    EXPECT(st.x == 0 && st.y == 0 && st.z == 0 && st.rx == 0 && st.ry == 0 && st.rz == 0);
+    // The right trigger down: Z to its low end (the default throttle, Z x
+    // -0.5 + 0.5, full); the left stick right; the right stick up.
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 32767);
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_LEFTX, 32767);
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_RIGHTY, -32768);
+    SDL_SetJoystickVirtualButton(v, SDL_GAMEPAD_BUTTON_SOUTH, true);
+    SDL_SetJoystickVirtualButton(v, SDL_GAMEPAD_BUTTON_START, true);
+    SDL_SetJoystickVirtualButton(v, SDL_GAMEPAD_BUTTON_DPAD_DOWN, true);
+    SDL_SetJoystickVirtualButton(v, SDL_GAMEPAD_BUTTON_DPAD_LEFT, true);
+    SDL_UpdateJoysticks();
+    in.joystick_state(&st);
+    std::printf("  pad: x %d z %d ry %d pov %u buttons A %x Start %x\n", st.x, st.z, st.ry, st.pov[0], st.buttons[0],
+                st.buttons[7]);
+    EXPECT(st.x == 1000 && st.z == -1000 && st.ry == -1000);
+    EXPECT(st.buttons[0] == 0x80 && st.buttons[7] == 0x80 && st.buttons[1] == 0);
+    EXPECT(st.pov[0] == 22500);  // down and left
+    in.close(platform::Input::kJoystick);
+  }
+  SDL_CloseJoystick(v);
+  SDL_DetachVirtualJoystick(id);
+}
+
+// The same pad through zInput's own joystick (0x0051d520's setup, 0x0051dc20's
+// read) and the controls' axis table (0x0042fe10 on its default throttle,
+// Z x -0.5 + 0.5): at rest half (it counts only once moved), the right
+// trigger full, the left trigger stopped; the turn (X x -1) and pitch (Y).
+TEST(sdl_input_virtual_gamepad_through_zinput_drives_the_axes) {
+  EXPECT(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD));
+  SDL_VirtualJoystickDesc d;
+  SDL_INIT_INTERFACE(&d);
+  d.type = SDL_JOYSTICK_TYPE_GAMEPAD, d.naxes = SDL_GAMEPAD_AXIS_COUNT, d.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+  d.name = "mw3 test pad";
+  const SDL_JoystickID id = SDL_AttachVirtualJoystick(&d);
+  SDL_Joystick* v = SDL_OpenJoystick(id);
+  sdlfe::SdlInput in;
+  platform::Input* was = zin::state().di;
+  zin::state().di = &in;
+  EXPECT(zin::joy_init(0) == 1 && zin::joy_present());
+  const mech3::AxisTable t;  // the defaults (0x00410950)
+  float values[3][4] = {};
+  const int16_t lt[3] = {-32768, -32768, 32767}, rt[3] = {-32768, 32767, -32768};
+  for (int k = 0; k < 3; ++k) {
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_LEFT_TRIGGER, lt[k]);
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, rt[k]);
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_LEFTX, k == 1 ? 32767 : 0);
+    SDL_SetJoystickVirtualAxis(v, SDL_GAMEPAD_AXIS_LEFTY, k == 2 ? -32768 : 0);
+    SDL_UpdateJoysticks();
+    const platform::JoyState* j = zin::joy_read(false);
+    EXPECT(j != nullptr);
+    for (int a = 0; a < 4; ++a) values[k][a] = t.axes[a].value(j, nullptr);
+  }
+  std::printf("  throttle %.2f %.2f %.2f; twist %.2f; pitch %.2f; turn %.2f\n", values[0][0], values[1][0],
+              values[2][0], values[0][1], values[2][2], values[1][3]);
+  EXPECT(std::fabs(values[0][0] - 0.5f) < 0.01f);  // at rest: half
+  EXPECT(std::fabs(values[1][0] - 1.0f) < 0.01f);  // the right trigger: full
+  EXPECT(std::fabs(values[2][0] - 0.0f) < 0.01f);  // the left trigger: stopped
+  EXPECT(values[0][1] == 0.0f);                    // no RZ: the twist still
+  EXPECT(values[2][2] < -0.99f);                   // the stick forward: pitch -1
+  EXPECT(values[1][3] < -0.99f);                   // the stick right: the turn x -1
+  zin::joy_close();
+  zin::state().di = was;
+  SDL_CloseJoystick(v);
+  SDL_DetachVirtualJoystick(id);
+}
+
+// Force feedback as rumble (FIX (A), sdl_force.h): the shipped force_eff.ifr
+// read as IFORCE2 reads it (18 records), the exe's names found with '_' for
+// ' ' ("i_fall" names nothing), a compound as its parts; a part on the slow
+// or the fast motor by its kind and period, at Magnitude x gain, for its
+// Duration; on SDL's virtual stick, whose Rumble the device drives.
+namespace {
+struct Rumbled {
+  int calls = 0;
+  uint16_t low = 0, high = 0;
+} g_rumbled;
+uint64_t g_ms = 1000;
+}  // namespace
+TEST(sdl_force_device_plays_the_ifr_effects_as_rumble) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/force_eff.ifr")) return;
+  EXPECT(SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD));
+  SDL_VirtualJoystickDesc d;
+  SDL_INIT_INTERFACE(&d);
+  d.type = SDL_JOYSTICK_TYPE_GAMEPAD, d.naxes = SDL_GAMEPAD_AXIS_COUNT, d.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+  d.name = "mw3 rumble pad";
+  d.Rumble = [](void*, Uint16 low, Uint16 high) {
+    ++g_rumbled.calls, g_rumbled.low = low, g_rumbled.high = high;
+    return true;
+  };
+  const SDL_JoystickID id = SDL_AttachVirtualJoystick(&d);
+  SDL_Joystick* j = SDL_OpenJoystick(id);
+  {
+    sdlfe::SdlInput in;
+    EXPECT(in.open(platform::Input::kJoystick));
+    uint32_t flags = 0, axes = 0;
+    in.joystick_caps(&flags, &axes);
+    EXPECT(flags & 0x100);  // DIDC_FORCEFEEDBACK: it rumbles
+    const zutl::Mounts kept = zutl::mounts();
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    sdlfe::SdlForceDevice dev([&in] { return in.joystick(); });
+    dev.now_ms = [] { return g_ms; };
+    EXPECT(dev.load("force_eff.ifr"));
+    std::vector<uint8_t> raw;
+    {
+      std::FILE* f = std::fopen((std::string(MW3_GAME_DIR) + "/force_eff.ifr").c_str(), "rb");
+      uint8_t b[4096];
+      for (size_t n; f && (n = std::fread(b, 1, sizeof b, f)) > 0;) raw.insert(raw.end(), b, b + n);
+      if (f) std::fclose(f);
+    }
+    std::vector<sdlfe::SdlForceDevice::Record> recs;
+    EXPECT(sdlfe::SdlForceDevice::parse(raw, &recs) && recs.size() == 18);
+    const auto recoil = dev.create("Recoil"), spin = dev.create("Spin_Move"), jets = dev.create("jets1");
+    const auto buzz = dev.create("laser_buzz"), fall = dev.create("i_fall"), spring = dev.create("Spring");
+    std::printf("  parts: Recoil %zu, Spin_Move %zu, jets1 %zu, laser_buzz %zu, i_fall %zu, Spring %zu\n", recoil.size(),
+                spin.size(), jets.size(), buzz.size(), fall.size(), spring.size());
+    EXPECT(recoil.size() == 1 && spin.size() == 2 && jets.size() == 1 && buzz.size() == 1 && fall.empty() &&
+           spring.size() == 1);
+    // Recoil (a vector force, 9874) at gain 60: the slow motor, 200 ms.
+    g_rumbled = {};
+    dev.set_gain(recoil[0], 6000);
+    dev.start(recoil[0]);
+    sdlfe::SdlForceDevice::Rumble r = dev.last();
+    std::printf("  Recoil: low %u high %u for %u ms (the stick asked %d time(s): %u %u)\n", r.low, r.high, r.ms,
+                g_rumbled.calls, g_rumbled.low, g_rumbled.high);
+    EXPECT(r.low == 9874u * 6000 / 10000 * 0xffff / 10000 && r.high == 0 && r.ms == 200);
+    EXPECT(g_rumbled.calls >= 1 && g_rumbled.low == r.low);
+    // laser_buzz (periodic, 50 ms period, 5000) at full gain: the fast motor
+    // with it; then 300 ms on, both over: nothing.
+    dev.set_gain(buzz[0], 10000);
+    dev.start(buzz[0]);
+    r = dev.last();
+    EXPECT(r.low > 0 && r.high == 5000u * 0xffff / 10000 && r.ms == 200);
+    g_ms += 300;
+    dev.stop(spin[0]);  // any change looks again
+    r = dev.last();
+    EXPECT(r.low == 0 && r.high == 0 && r.ms == 0);
+    // jets1 (infinite): on until stopped; the Spring (a condition) never rumbles.
+    dev.start(spring[0]);
+    EXPECT(dev.last().low == 0 && dev.last().high == 0);
+    dev.start(jets[0]);
+    EXPECT(dev.last().high > 0 && dev.last().ms == 0xffffffffu);
+    g_ms += 60000;
+    dev.stop(spring[0]);
+    EXPECT(dev.last().high > 0);
+    dev.stop(jets[0]);
+    EXPECT(dev.last().high == 0 && dev.last().low == 0);
+    zutl::mounts() = kept;
+    in.close(platform::Input::kJoystick);
+  }
+  SDL_CloseJoystick(j);
+  SDL_DetachVirtualJoystick(id);
+}
 
 TEST(sdl_input_keyboard_buffers_like_getdevicedata) {
   sdlfe::SdlInput in;

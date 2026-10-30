@@ -56,6 +56,7 @@
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
 #include "frontend/sdl/sdl_install.h"
+#include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
 #include "frontend/sdl/sdl_platform.h"
@@ -348,6 +349,7 @@ int run(const Args& a) {
   sdlfe::SdlWindow window;
   if (!window.init(a.hidden)) return 1;
   sdlfe::SdlInput input;
+  sdlfe::SdlForceDevice force([&input] { return input.joystick(); });  // FIX (A): IFORCE2 as rumble (sdl_force.h)
   input.window = window.sdl();
   input.mickey_scale = a.win_w > 0 ? 640.0f / static_cast<float>(a.win_w) : 1.0f;
   input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
@@ -389,7 +391,7 @@ int run(const Args& a) {
   mech3::MountFiles files;
 
   mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.input = &input, p.sound = sound.get();
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.input = &input, p.force = &force, p.sound = sound.get();
   if (stepped) p.movie_clock = &movie_clock;
   p.music = &music, p.files = &files, p.render = window.render(), p.screen = &screen;
   p.window_width = a.win_w, p.window_height = a.win_h;

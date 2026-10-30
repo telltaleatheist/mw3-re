@@ -228,7 +228,7 @@ void Mech::wall_response(const CollisionHit& h) {
   controls->throttle = flips ? -controls->throttle : crt::x87_mul_f24(controls->throttle, 0.1);  // 0x005bd378
   const float sign = (d.z * rs.x - d.x * rs.z) < 0.0f ? -1.0f : 1.0f;
   vec_58.y = sign * speed * collider.yaw_kick + vec_58.y;
-  if (this == world().mission_player && world().stats && g_calls.ff_jolt) {
+  if (this == world().mission_player && world().force_feedback && g_calls.ff_jolt) {
     const float nf[3] = {n.x, n.y, n.z};
     g_calls.ff_jolt(nf, speed / max_speed);
   }

@@ -2529,6 +2529,17 @@ From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
 
 ## Keyboard, mouse and joystick
 
+- **Force feedback felt most weapons, but not all.** On a force feedback
+  joystick each autocannon, missile and Gauss shot kicked (Recoil) and each
+  laser buzzed, harder for bigger lasers. The machine gun, the flamer, the
+  LB 20-X, NARC, TAG and the Ultra AC/2 gave nothing. Your 'Mech's steps,
+  hits (from the side they came), landings, the jump jets and wading could
+  be felt; a mission's start pulled the stick to centre, and when you died
+  it went slack and shook. (`input.md` section 7)
+- **The force feedback for falling over never played.** The game asks for
+  an effect named "i_fall", but the effect file calls it "impact fall", so
+  a fall had no feel even on a force feedback stick. (`input.md` section 7)
+
 From the input module, zInput (details: `input.md`).
 
 - **The keypad's part targeting needs a Targeting Computer.** Keypad 8, 5,

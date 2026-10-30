@@ -1951,3 +1951,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   0x0055a740; FIX (bug) the pocket mode at the mission's end (0x0046ab10,
   a use after free: exit 139). Tests: mission_c1m1_training_pieces_headless
   (break: 0 of 1 named), sdl_program_training_chain.
+
+## Joysticks and force feedback (2026-10-30)
+
+- Branch mac4/joystick (off mac4/modes 9bb4575).
+- Joystick: the raw path checked on a virtual flight stick (ranges, dead
+  zones as DirectInput's, hat, buttons). FIX (A): a gamepad SDL knows is
+  read in DirectInput's XInput layout (the raw one pinned the default
+  twist); missing axes read 0.
+- Force feedback: the object at [0x00608620] (misnamed the network game
+  and statistics before) ported (mech3/force_feedback, app_force.cpp), its
+  effects from force_eff.ifr. FIX (A): IFORCE2 as platform::ForceDevice,
+  SdlForceDevice playing the parts as rumble (input.md section 7).
+- Finds: the machine gun, flamer, LB 20-X, NARC, TAG, Ultra AC/2 had no
+  force feedback; i_fall never loaded (the file's "impact fall").
+- Tests: three virtual-device tests (stick, pad, pad through zInput), the
+  rumble device on the shipped file, the object on a recording device and
+  in c1m1. Breaks: the pad raw; the calls unwired.

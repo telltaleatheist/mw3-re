@@ -228,7 +228,7 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
   World& w = world();
   w.player = flags & 1 ? &m : nullptr;
   w.mission_player = flags & 2 ? &m : nullptr;
-  w.stats = flags & 4;
+  w.force_feedback = flags & 4;
   g->calls = 0;
   g->mech_node_flags = rd<uint32_t>(mech, 0x6d4);
   g_log.clear();

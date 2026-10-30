@@ -344,7 +344,7 @@ struct Mech : Vehicle {
 struct World {
   Mech* player = nullptr;           // 0x005f4c8c +0x64
   Mech* mission_player = nullptr;   // 0x0060861c +0x14  (the same mech in play)
-  bool stats = false;               // 0x00608620  the statistics object exists
+  bool force_feedback = false;      // [0x00608620] the force feedback object exists (mech3/force_feedback)
   float difficulty = 1.0f;          // 0x00608e5c  damage taken by your side: 0.7, 1.0, 1.3
   Vec3 shot[2] = {};                // 0x009a0ec4  the hitting shot: from, to
   bool death_anim_toggle = false;   // 0x00605cc0
@@ -399,8 +399,8 @@ struct DamageCalls {
   void (*controls_killed)(Mech& killer, Handle victim) = nullptr;  // +0x37c's second base, vt+0xb4
   void (*salvage_mech)(Handle mech) = nullptr;        // 0x00472f00 on the mission's store [0x00609990]
   void (*salvage_vehicle)(Handle vehicle) = nullptr;  // 0x00472ec0 on it
-  void (*stats)(uint32_t fn, int arg) = nullptr;     // [0x00608620] statistics, method fn
-  void (*stats_hit)(int weapon, const Vec3* impulse, float force) = nullptr;  // 0x00433720
+  void (*ff)(uint32_t fn, int arg) = nullptr;        // [0x00608620] the force feedback, its method fn
+  void (*ff_hit)(int weapon, const Vec3* impulse, float force) = nullptr;  // 0x00433720
   bool (*networked)() = nullptr;                     // 0x00479480 on [0x0060861c]
   int (*view_mode)() = nullptr;                      // [0x005f4c8c] +0x58 +4, -1 without a view
   void (*view_camera)(int mode) = nullptr;           // 0x0040ae70: the view to camera mode 2, outside

@@ -384,7 +384,7 @@ void unhook() {
   update_calls().turn = nullptr, update_calls().dfn = nullptr;
   skis_calls().position = nullptr, skis_calls().soil = nullptr;
   world().player = world().mission_player = nullptr;
-  world().stats = false;
+  world().force_feedback = false;
 }
 }  // namespace
 
@@ -443,7 +443,7 @@ void probe_parts_load(const uint8_t* mech, const uint8_t* parts, const float* no
   const uint32_t fl = env[kFlags];
   world().player = fl & 1 ? &w.m : nullptr;
   world().mission_player = fl & 2 ? &w.m : nullptr;
-  world().stats = fl & 4;
+  world().force_feedback = fl & 4;
   // The part aim's target (0x0041d810): a contact, what it sees, a TC.
   static ai::Contact contact;
   const uint32_t sel = env[kPartSel];
