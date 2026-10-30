@@ -372,6 +372,12 @@ apart. Everything else is a real gap and stays listed.
   same timing and run as fast as they draw. Until 2026-10-29 a pass that
   only took a window or SDL event counted too, so the clock depended on
   the machine's load.
+- `--frame-times N` (ours, for measuring; performance.md): from the N-th
+  frame shown, each frame's wall time (present to present), summed up at
+  the end: mean, median, p95, p99, max.
+- `--mission ia<N>[w<W>]` (ours, for measuring): Instant Action map N in
+  wave mode from wave W, four Champions with the player, as the Action
+  screen would set it (the AI survey's start).
 - `--seed N` (ours): every srand the game does from the time of day
   (0x00501ab0, 0x00508fc0, 0x0049aca0) takes N instead
   (`crt::rand_fixed_seed`). With `--frame-ms` a run repeats line for line:
