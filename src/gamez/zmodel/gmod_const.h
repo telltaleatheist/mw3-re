@@ -58,6 +58,7 @@ Model* model_alloc();                         // 0x00538fe0
 int read_models(std::FILE* f);                // 0x00538e30
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 int model_release(Model* m);                  // 0x00539150, 1 while used (+0xc)
+int32_t models_free_unused();                 // 0x005392c0: the models nothing holds released; their count
 void models_purge(bool models, bool materials);  // 0x005394c0 ECX, EDX
 Model* reread_model(std::FILE* f, int32_t index);  // 0x00538640, f at the models' table
 // A new pool model with m's arrays copied (its use count 0, its sphere at

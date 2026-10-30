@@ -301,6 +301,7 @@ bool action_field(ActionGame* a, uint32_t off, uint32_t* get, const uint32_t* pu
 struct WiredPlayerHooks : PlayerHooks {
   GameEngine* e = nullptr;
   void tick_41e3f0(float dt) override { mech_dead_tick(dt); }  // 0x0041e3f0 on 0x00605510
+  void tick_537f20(int32_t v) override { zmod::material_sweep(v); }  // 0x00537f20: the unused materials freed (IA, multiplayer)
   std::map<Handle, int> controls;  // the AI controllers made: 1 a mech's, 2 a vehicle's
   std::set<Handle> params;         // their brains' settings, as vt+0x90 gives them
   std::set<Handle> mechs;          // the AI mechs made
@@ -1751,6 +1752,7 @@ struct WiredMissionHooks : MissionHooks {
     ActionGame* a = launch_action(e);
     return a ? e->handle_of(a) : 0;
   }
+  void fn_5392c0() override { zmod::models_free_unused(); }  // 0x005392c0: the last wave's unused models freed
   void fn_49dc80(uint8_t v) override { action_lineup(v != 0); }
   void ai_list_reset(Handle list) override {  // 0x004d8610
     if (ai::ResetList* l = ai::reset_list(list)) l->reset();

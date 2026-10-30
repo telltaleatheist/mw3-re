@@ -393,4 +393,49 @@ int reset_soils() {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x00537f20 (ECX step), each Instant Action and multiplayer
+// frame with 10 (player.cpp, [0x005e8118]): the materials no model uses
+// freed, in steps. Clears every mark first (the cursor [0x005edd5c] -1),
+// then marks (+0x01 0x10) the materials of `step` models a call; once past
+// the last model, frees each material without 0x08, 0x10 or 0x20 (0x00537070)
+// and clears the marks, the freed count returned. The materials' slots past
+// the count are swept too ([0x0063fbc4], the capacity).
+namespace {
+int32_t g_sweep = -1;  // [0x005edd5c]
+}
+void material_sweep_reset() { g_sweep = -1; }
+int32_t material_sweep(int32_t step) {
+  MaterialTable& t = g_table;
+  ModelPool& pool = models();
+  if (g_sweep < 0) {
+    for (int32_t i = 0; i < t.capacity; ++i) t.at(i).flags &= static_cast<uint8_t>(~0x10);
+    g_sweep = 0;
+  }
+  int32_t at = g_sweep;
+  if (pool.size <= g_sweep) {
+    g_sweep = -1;
+    return 0;
+  }
+  while (g_sweep = at, step > 0) {
+    const Model& m = pool.slots[static_cast<size_t>(at)];
+    for (uint32_t k = 0; m.polygons && k < m.count(0x10); ++k)
+      if (Material* mat = m.polygons[k].material) mat->flags |= 0x10;
+    --step;
+    if (pool.size <= ++at) step = 0;
+  }
+  if (pool.size > at) return 0;
+  int32_t freed = 0;
+  for (int32_t i = 0; i < t.capacity; ++i) {
+    Material& mat = t.at(i);
+    if ((mat.flags & 0x38) == 0) {
+      material_free(&mat);
+      ++freed;
+    } else {
+      mat.flags &= static_cast<uint8_t>(~0x10);
+    }
+  }
+  g_sweep = 0;
+  return freed;
+}
+
 }  // namespace zmod

@@ -404,6 +404,12 @@ class WiredLaunch : public LaunchHooks {
   // and saved (pilot.md section 7); a debug start's stand-in has no campaign
   // to settle.
   void pilot_478f10(Handle) override { program_record_mission(false); }
+  // The Instant Action (and multiplayer) launch's pilot save: the file opened
+  // (0x00478ce0), its header (0x004794f0) and record (vt+0x04) written, closed.
+  void pilot_478ce0(Handle) override { program_pilot_file(0); }
+  uint8_t pilot_4794f0(Handle) override { return program_pilot_file(1) ? 1 : 0; }
+  void pilot_vt4(Handle) override { program_pilot_file(2); }
+  void close_handle(uint32_t) override { program_pilot_file(3); }  // the pilot's +0x10
   void fn_40f0a0() override { message_panel_clear(); }  // 0x0040f0a0: the message panel's lines
   // 0x004f3430(camera, 1): the view's camera is zSound's listener. The exe
   // reads it at the view's +0x04; the program's PlayerView keeps it itself.

@@ -7685,7 +7685,7 @@ TEST(instant_action_menus_to_wave1_tallies_headless) {
     int stage = 0, core_frames = 0, wave2_at = -1;
     std::string wave_row, enemy_row, config_row, header;
     int32_t store_items = -1, made_enemies = 0;
-    bool reopened = false, waves_offered = false, dummy_seen = false;
+    bool reopened = false, waves_offered = false, dummy_seen = false, saved_at_launch = false;
     std::vector<void*> killed;
     mech3::ActionGame* game = nullptr;
     auto action_screen = [&]() -> mech3::ActionScreen* {
@@ -7723,7 +7723,11 @@ TEST(instant_action_menus_to_wave1_tallies_headless) {
       } else if (stage == 3) {
         mech3::BriefingScreen* b = mech3::briefing_screen();
         if (!b || app.current() != &mech3::states().load || !b->loaded) return;
+        // The launch saves the pilot again (0x00478ce0, 0x004794f0, vt+0x04):
+        // the file ACCEPT wrote taken away, the launch writes it back.
+        std::filesystem::remove(zutl::write_path("pilots\\Actioner.mw3"));
         b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        saved_at_launch = std::filesystem::exists(zutl::write_path("pilots\\Actioner.mw3"));
         stage = 4;
       } else if (stage == 4 && app.current() == &mech3::states().core) {
         ++core_frames;
@@ -7779,6 +7783,7 @@ TEST(instant_action_menus_to_wave1_tallies_headless) {
     EXPECT(store_items == 125);  // the "everything" store (0x00470e30): 124, and the plain PPC (FIX (bug))
     EXPECT(made_enemies == 2 && wave2_at > 3);
     EXPECT(dummy_seen && reopened && waves_offered);  // back to the Action screen, not the pilot screen
+    EXPECT(saved_at_launch);
     EXPECT(std::filesystem::exists(zutl::write_path("pilots\\Actioner.mw3")));  // saved by the IA Dummy State
     // "I N S T A N T  A C T I O N   %1!d!   %2": the world (+0x74 + 1) and the scenario's name.
     EXPECT(header == zutl::format_message(0x231, {"1", zutl::messages().get_text(0x284)}));
