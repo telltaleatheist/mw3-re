@@ -2583,6 +2583,34 @@ controls given back) are L4c. Test `test_lance_dispatch.py` (the exe's
 real Mechs, `tests/probe_lance.cpp`): 3,000 cases, 492 orders given,
 identical, 4 branches; 7 of 7 breaks.
 
+**Playtest W11 (2026-10-30): the radio in the program.** 0x4e7e20 reads
+the player's vehicle through the pilot ([0x60861c] +0x14) while the
+mission loads, before the launch (0x491150) makes it: in the exe that is
+empty (the last cleanup, 0x491868, set it to 0), so every brain with a
+voice gets its radio. The program's launch had put a stand-in mech block
+there (from before the launch was ported), which answered allies 0: no
+lancemate had a radio, and no order was ever answered. Removed; the
+radio's lines then play (they draw on zSound's rand(), so seeded runs with
+a talking lancemate changed). The orders were taken all along, by the
+selected lancemate only (0x4d7240: the saved target, else the last ally
+targeted); none selected, the keys do nothing, as in the exe.
+Only brains built during the load were hit: a lance's mates from its
+slots are built after the launch and saw the real player. In c1m4 Dominic
+is built at the load, and the player's team there (the aiv record) has no
+allies, so W never selects him: orders reach him only in later missions,
+in the exe as here. Also fixed: 0x469650 takes the player's target's
+vehicle (0x4e6fe0); the port took its mech, so F6 / F7 on a vehicle were
+dropped (`test_lance_dispatch.py` now has non-mech targets). Open: a
+targets.zrd object as the target, whose vt+0x2c the program does not answer.
+`mission_c2m1_lance_order_keys_end_to_end_headless`: the player's keys, W
+until Dominic is the ally, E (the ally record kept), F6, F8, F9; E clearing
+the ally record fails 4 checks.
+`mission_c1m4_lance_orders_reach_dominic_and_he_answers_headless`: F8
+unselected (nothing), then selected F8 (follow, his walk to about 100 m
+of the player), F9 (stop), F6 (confirm_order, following the enemy), F7
+on an enemy (disregard_order), F10 (disregard or confirm_refit). Break:
+the stand-in back fails 6 checks. `radio_calls()` records each line.
+
 **A dead pilot's triggers** (0x4d8a00 -> 0x49e540 -> 0x49e4e0, ported:
 `player_takes_triggers`): when an AI pilot dies, its vlist entries that
 watch a region (+0x14) are appended (0x49e4c0 -> 0x4d9480) to the

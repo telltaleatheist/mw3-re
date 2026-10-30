@@ -59,14 +59,17 @@ void to_follow(Mech& player, int32_t order) {
 }
 
 // Mech3.exe 1.2 @ 0x00469650: the order on a contact from the lancemate on
-// the player's target's mech (+0x6c, 0x004e6fe0); 0x00468ca0 (a network
-// game's team change for orders 10 and 11) does nothing outside one.
+// the player's target's vehicle (+0x6c, 0x004e6fe0: what the contact sees,
+// any vehicle, a mech or not); 0x00468ca0 (a network game's team change for
+// orders 10 and 11) does nothing outside one. Until 2026-10-30 (playtest
+// W11) the port took the target's mech (0x004e6ff0), so an order on a
+// vehicle, a turret or a building was dropped.
 void to_target(Mech& player, int32_t order) {
   Mech* mate = nullptr;
   ai::Brain* b = selected_brain(player, &mate);
-  Mech* t = player.target && collide_calls().contact_mech ? collide_calls().contact_mech(player.target) : nullptr;
+  const zgame::Handle t = player.target ? ai::brain_hooks().contact_vehicle(player.target) : 0;
   if (!b || !t) return;
-  ai::Contact c = contact_on(*mate, ai::brain_hooks().vehicle_handle(t));
+  ai::Contact c = contact_on(*mate, t);
   give(*b, order, &c);
 }
 

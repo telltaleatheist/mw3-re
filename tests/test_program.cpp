@@ -8947,6 +8947,412 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest W11 (docs/ai.md 17.6): the lance order keys through the
+// command handler (0x00469930) to the selected lancemate's brain, the brain's
+// order and movement after, and the radio's answer (0x004e9fd0). Dominic's
+// brain is made while the mission loads; with no player's vehicle yet he gets
+// his radio (0x004e7e20), as the exe's cleanup leaves the pilot's +0x14
+// (0x00491868). Until 2026-10-30 the launch's stand-in mech there made him
+// see a player without allies: no radio, no answer to any order.
+// Playtest W11, the player's own keys end to end (c2m1, Dominic in the
+// lance): W until Dominic is the ally targeted (the record 0x004d7240 reads),
+// E onto an enemy (the ally record kept), then F6 (attack my target), F8
+// (follow me) and F9 (form on me), each through zInput's keys, the command
+// handler and 0x00469930. Each order must change Dominic's and be answered.
+TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_keys_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  static std::vector<int32_t> g_lines;
+  static mech3::ai::Brain* g_mate = nullptr;
+  g_lines.clear(), g_mate = nullptr;
+  mech3::ai::radio_calls().line = [](mech3::ai::Brain& b, int32_t ev) {
+    if (&b == g_mate) g_lines.push_back(ev);
+  };
+  struct Step {
+    std::string key, lines;
+    bool changed = false, follows_player = false, follows_target = false;
+  };
+  std::vector<Step> steps;
+  int w_presses = 0, e_presses = 0;
+  bool moved_by_e = false;
+  bool ally_kept = false, enemy_targeted = false, radio = false;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c2 mission 1: Dominic in the lance
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;
+    void *dominic = nullptr, *player = nullptr, *enemy = nullptr;
+    zgame::Handle dv = 0, pv = 0;
+    mech3::ai::AiTarget* pt = nullptr;
+    int frames = 0, phase = 0, wait = 0;
+    const void* state_before = nullptr;
+    size_t depth_before = 0;
+    std::string pending;
+    auto vehicle_of = [](const mech3::ai::Contact* c) {
+      return c ? mech3::ai::brain_hooks().contact_vehicle(c) : zgame::Handle{0};
+    };
+    auto tap = [&](uint32_t dik) { keys.key(dik, true), keys.key(dik, false); };
+    auto press = [&](const char* name, uint32_t dik) {  // an order key, read back two frames later
+      g_lines.clear();
+      state_before = g_mate->current().state.get();
+      depth_before = g_mate->orders.size();
+      pending = name;
+      tap(dik);
+      wait = frames + 2;
+    };
+    auto record = [&] {
+      Step st;
+      st.key = pending;
+      for (int32_t e : g_lines) st.lines += std::string(st.lines.empty() ? "" : ",") + mech3::ai::Radio::kEvents[e];
+      if (st.lines.empty()) st.lines = "-";
+      st.changed = g_mate->current().state.get() != state_before || g_mate->orders.size() != depth_before;
+      auto* fo = dynamic_cast<mech3::ai::FollowState*>(g_mate->current().state.get());
+      auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(g_mate->current().net.get());
+      const zgame::Handle tv = pt && pt->target ? vehicle_of(pt->target) : 0;
+      st.follows_player = fo && vp && vp->target && vp->target->vehicle == pv;
+      st.follows_target = fo && vp && vp->target && tv && vp->target->vehicle == tv;
+      steps.push_back(st);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        player = mech3::mech_mission_player();
+        for (int32_t i = 0; i < made; ++i) {
+          const std::string n = ai[i].name ? ai[i].name : "";
+          if (n == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            g_mate = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        }
+        if (!dominic || !player || !g_mate) return;
+        dv = engine.handle_of(dominic), pv = engine.handle_of(player);
+        pt = mech3::ai::brain_hooks().targetable(pv);
+        radio = g_mate->radio != nullptr;
+        // An enemy mech 30 m beyond Dominic from the player (in sight, as
+        // he is), for E.
+        for (int32_t i = 0; i < made && pt; ++i) {
+          const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[i].mech));
+          if (ai[i].mech != dominic && t && (pt->enemies & t->team)) {
+            enemy = ai[i].mech;
+            break;
+          }
+        }
+        if (std::getenv("MW3_LANCE_LOG")) {
+          for (int32_t i = 0; i < made; ++i) {
+            const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[i].mech));
+            const uint8_t* act = mech3::entity_active_flag(ai[i].mech);
+            std::fprintf(stderr, "W11 ai %s team %x enemy %d active %d\n", ai[i].name ? ai[i].name : "?", t ? t->team : 0,
+                         t && (pt->enemies & t->team) ? 1 : 0, act ? *act : -1);
+          }
+        }
+        if (enemy) {
+          mech3::LaunchedMech pl, dm;
+          mech3::describe_mech(player, &pl), mech3::describe_mech(dominic, &dm);
+          const float dx = dm.pos[0] - pl.pos[0], dz = dm.pos[2] - pl.pos[2];
+          const float len = std::max(1.0f, std::sqrt(dx * dx + dz * dz));
+          const float x = dm.pos[0] + dx / len * 30.0f, z = dm.pos[2] + dz / len * 30.0f;
+          const float at[3] = {x, ground_under(x, dm.pos[1] + 200.0f, z), z};
+          mech3::move_mech(enemy, at, 0.0f);
+        }
+        return;
+      }
+      if (!g_mate || !pt) return;
+      if (wait && frames < wait) return;
+      if (wait) {
+        wait = 0;
+        if (!pending.empty()) record(), pending.clear();
+      }
+      if (frames < 200) return;
+      switch (phase) {
+        case 0:  // W until Dominic is the ally targeted
+          if (vehicle_of(pt->ally_target) == dv) {
+            phase = 1;
+          } else if (w_presses < 8) {
+            ++w_presses, tap(0x11), wait = frames + 2;
+          } else {
+            phase = 99;
+          }
+          break;
+        case 1:  // E (target next enemy)
+          ++e_presses, tap(0x12), wait = frames + 2, phase = 2;
+          break;
+        case 2:
+          // E moved the target (whatever enemy it sees: here a non-mech one)
+          // and kept the ally record. The enemy mech is listed but out of
+          // sight (E takes only what is in sight): its own sensor contact is
+          // made the target, as E would make it, for F6.
+          moved_by_e = pt->target != nullptr;
+          for (mech3::ai::Contact* c : pt->contacts)
+            if (enemy && c && vehicle_of(c) == engine.handle_of(enemy)) pt->set_target(c, false);
+          if (const mech3::ai::AiTarget* tt = pt->target ? mech3::ai::brain_hooks().targetable(vehicle_of(pt->target)) : nullptr)
+            enemy_targeted = (pt->enemies & tt->team) != 0;
+          ally_kept = vehicle_of(pt->ally_target) == dv;
+          if (std::getenv("MW3_LANCE_LOG")) {
+            for (const mech3::ai::Contact* c : pt->contacts)
+              std::fprintf(stderr, "W11 contact seen %x vehicle %x flags %x\n", c ? c->seen : 0, vehicle_of(c), c ? c->flags : 0);
+          }
+          if (std::getenv("MW3_LANCE_LOG"))
+            std::fprintf(stderr, "W11 after E: target %p seen %x entity %x vehicle %x (enemy %x)\n", (void*)pt->target,
+                         pt->target ? pt->target->seen : 0, pt->target ? pt->target->entity : 0, vehicle_of(pt->target),
+                         enemy ? engine.handle_of(enemy) : 0);
+          press("F6", 0x40), phase = 3;
+          break;
+        case 3: press("F8", 0x42), phase = 4; break;
+        case 4: press("F9", 0x43), phase = 5; break;
+        default: break;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return phase >= 5 && !wait; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::ai::radio_calls().line = nullptr;
+  std::printf("  keys: W x%d (Dominic the ally %d), E x%d (a target %d; the enemy mech %d, the ally kept %d), radio %d\n",
+              w_presses, w_presses < 8, e_presses, moved_by_e, enemy_targeted, ally_kept, radio);
+  for (const Step& s : steps)
+    std::printf("  %s: radio %s%s%s%s\n", s.key.c_str(), s.lines.c_str(), s.changed ? ", a new order" : "",
+                s.follows_player ? ", follows the player" : "", s.follows_target ? ", follows the target" : "");
+  EXPECT(w_presses < 8 && moved_by_e && enemy_targeted && ally_kept && radio && steps.size() == 3);
+  if (steps.size() == 3) {
+    EXPECT(steps[0].lines == "confirm_order" && steps[0].changed && steps[0].follows_target);
+    EXPECT(steps[1].lines == "follow" && steps[1].follows_player);  // his own order followed the player already
+    EXPECT(steps[2].lines == "stop" && steps[2].changed && !steps[2].follows_player);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+TEST(mission_c1m4_lance_orders_reach_dominic_and_he_answers_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_radio_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  static std::vector<int32_t> g_lines;  // Dominic's radio lines (Radio::kEvents)
+  static mech3::ai::Brain* g_dominic = nullptr;
+  g_lines.clear(), g_dominic = nullptr;
+  mech3::ai::radio_calls().line = [](mech3::ai::Brain& b, int32_t ev) {
+    if (&b == g_dominic) g_lines.push_back(ev);
+  };
+  struct Step {
+    uint32_t cmd;
+    bool selected;
+    std::vector<int32_t> lines;
+    bool follows_player = false, follows_enemy = false, changed = false;
+  };
+  std::vector<Step> steps;
+  bool radio = false, lancemate = false;
+  float d_before = 0, d_after = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    app.lobby_flow_ = 1;
+    void *dominic = nullptr, *enemy = nullptr, *player = nullptr;
+    zgame::Handle dv = 0, ev = 0, pv = 0;
+    mech3::ai::AiTarget* pt = nullptr;
+    int frames = 0;
+    auto dist = [](void* a, void* b) {
+      mech3::LaunchedMech x, y;
+      mech3::describe_mech(a, &x), mech3::describe_mech(b, &y);
+      const float dx = x.pos[0] - y.pos[0], dz = x.pos[2] - y.pos[2];
+      return std::sqrt(dx * dx + dz * dz);
+    };
+    static mech3::ai::Contact on_dominic, on_enemy;
+    // An order key: its lines and the brain's order after.
+    auto order = [&](uint32_t cmd, bool select, bool on_target) {
+      Step st;
+      st.cmd = cmd, st.selected = select;
+      on_dominic = mech3::ai::Contact{}, on_enemy = mech3::ai::Contact{};
+      on_dominic.owner = on_enemy.owner = pv;
+      on_dominic.seen = on_dominic.entity = dv;
+      on_enemy.seen = on_enemy.entity = ev;
+      pt->saved_target = select ? &on_dominic : nullptr;
+      pt->ally_target = nullptr;
+      pt->target = on_target ? &on_enemy : nullptr;
+      g_lines.clear();
+      const void* before = g_dominic->current().state.get();
+      const size_t depth = g_dominic->orders.size();
+      mech3::player_command(cmd);
+      st.changed = g_dominic->current().state.get() != before || g_dominic->orders.size() != depth;
+      pt->saved_target = pt->target = nullptr;
+      st.lines = g_lines;
+      auto* fo = dynamic_cast<mech3::ai::FollowState*>(g_dominic->current().state.get());
+      auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(g_dominic->current().net.get());
+      st.follows_player = fo && vp && vp->target && vp->target->vehicle == pv;
+      st.follows_enemy = fo && vp && vp->target && vp->target->vehicle == ev;
+      steps.push_back(st);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i) {
+          const std::string n = ai[i].name ? ai[i].name : "";
+          if (n == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            g_dominic = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          } else if (!enemy && n.rfind("blackhawk", 0) == 0) {
+            enemy = ai[i].mech;
+          }
+        }
+        player = mech3::mech_mission_player();
+        if (!dominic || !enemy || !g_dominic || !player) return;
+        radio = g_dominic->radio != nullptr;
+        dv = engine.handle_of(dominic), ev = engine.handle_of(enemy), pv = engine.handle_of(player);
+        pt = mech3::ai::brain_hooks().targetable(pv);
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);
+        return;
+      }
+      if (!g_dominic || !pt) return;
+      if (frames == 60) {
+        const mech3::ai::AiTarget* dt = mech3::ai::brain_hooks().targetable(dv);
+        lancemate = dt && (dt->xbc & 0x10);
+        order(0x52, false, false);  // F8 with no lancemate selected: nobody hears it
+        // The player 150 m from Dominic, then F8 (follow me) to him.
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        const float x = d.pos[0] - 150.0f, z = d.pos[2];
+        const float at[3] = {x, ground_under(x, d.pos[1] + 100.0f, z), z};
+        mech3::move_mech(player, at, 1.5707964f);
+        order(0x52, true, false);
+        d_before = dist(dominic, player);
+      } else if (frames > 60 && frames < 700 && frames % 60 == 0 && std::getenv("MW3_LANCE_LOG")) {
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        const auto& state = *g_dominic->current().state;
+        std::fprintf(stderr, "W11 frame %d: %.1f m from the player, at %.1f %.1f, state %s\n", frames, dist(dominic, player),
+                     d.pos[0], d.pos[2], typeid(state).name());
+      } else if (frames == 700) {
+        d_after = dist(dominic, player);
+        order(0x51, true, false);  // F9 form on me
+        order(0x54, true, true);   // F6 attack my target (only an enemy)
+        order(0x55, true, true);   // F7 defend my target (only an ally): the enemy is none, refused
+        order(0x56, true, false);  // F10 repair
+      }
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 705; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::ai::radio_calls().line = nullptr;
+  auto lines = [](const Step& s) {
+    std::string out;
+    for (int32_t e : s.lines) out += std::string(out.empty() ? "" : ",") + mech3::ai::Radio::kEvents[e];
+    return out.empty() ? std::string("-") : out;
+  };
+  for (const Step& s : steps)
+    std::printf("  lance key %02x%s: radio %s%s%s%s\n", s.cmd, s.selected ? "" : " (none selected)", lines(s).c_str(),
+                s.changed ? ", a new order" : "", s.follows_player ? ", follows the player" : "",
+                s.follows_enemy ? ", follows the enemy" : "");
+  std::printf("  dominic: radio %d, a lancemate %d, %.1f m from the player after F8, %.1f m 640 frames later\n", radio,
+              lancemate, d_before, d_after);
+  EXPECT(radio && lancemate && steps.size() == 6);
+  if (steps.size() == 6) {
+    EXPECT(steps[0].lines.empty() && !steps[0].changed);  // his own (the mission's) order kept
+    // He already follows the player (step 0): the same target is taken without a new state.
+    EXPECT(lines(steps[1]) == "follow" && steps[1].follows_player);
+    EXPECT(d_after < d_before - 30.0f);  // he walks to the player (waking: slowly; his own order follows him too)
+    EXPECT(lines(steps[2]) == "stop" && !steps[2].follows_player);
+    EXPECT(lines(steps[3]) == "confirm_order" && steps[3].follows_enemy);
+    EXPECT(lines(steps[4]) == "disregard_order");
+    EXPECT(lines(steps[5]) == "confirm_refit" || lines(steps[5]) == "disregard_order");
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -9142,12 +9548,15 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     std::printf("  dominic's order: fired %d / %d, on enemy %d, d0 %.3f, closest %.3f, on player %d, phases %d %d %d %d\n",
                 seen.fired_before, seen.fired_after, seen.on_enemy, seen.d0, seen.closest, seen.on_player, seen.phases[2],
                 seen.phases[3], seen.phases[4], seen.phases[5]);
+    // Since 2026-10-30 Dominic has his radio (W11: no stand-in vehicle at the
+    // load), and its lines (call_help, friendly_fire) play through zSound,
+    // whose plays draw on rand(): before, 951 / 59.301 / 567 / 951, 184.
     if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR") && data_is_12()) {
-      EXPECT(seen.fired_before == 53 && seen.fired_after == 951 && seen.on_enemy == 1139);
-      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 59.301f) < 1e-3f);
+      EXPECT(seen.fired_before == 53 && seen.fired_after == 1009 && seen.on_enemy == 1139);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 71.189f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
-      EXPECT(seen.on_player == 567);  // his next pick, once the player is 30 m off
-      EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 951 && seen.phases[5] == 184);
+      EXPECT(seen.on_player == 385);  // his next pick, once the player is 30 m off
+      EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 1009 && seen.phases[5] == 126);
     }
     mech3::missions().cleanup(false);
     app.stop_game();
