@@ -772,6 +772,7 @@ Config* ConfigList::find(const char* name) const {
 }  // namespace mech3
 
 #include <cstdio>
+#include <filesystem>
 #include <string>
 
 #include "gamez/zutil/zutl_path.h"
@@ -809,7 +810,10 @@ Config* lab_import_config() {
     // is not its +0x88, as the saved ones' (docs/protection.md).
     const bool ok = c->load(f);
     std::fclose(f);
-    std::rename(zutl::write_path(path.c_str()).c_str(), zutl::write_path((path + ".done").c_str()).c_str());
+    // An earlier .done of the same name is replaced (Windows' rename keeps
+    // it and fails, and the file would be read again each time).
+    std::error_code ec;
+    std::filesystem::rename(zutl::write_path(path.c_str()), zutl::write_path((path + ".done").c_str()), ec);
     if (ok) return c;
     delete c;
   }

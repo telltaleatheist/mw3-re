@@ -1,6 +1,12 @@
 #include <csignal>
+#if defined(_WIN32)
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <execinfo.h>
 #include <unistd.h>
+#endif
 #include <string>
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +22,7 @@ std::vector<Test>& registry() {
 int failures = 0;
 }  // namespace check
 
+#if !defined(_WIN32)
 namespace {
 // A crash prints where it happened and leaves at once (no crash report to wait
 // on, which kept dying test processes stuck at exit).
@@ -28,6 +35,7 @@ void on_crash(int sig) {
   _exit(128 + sig);
 }
 }  // namespace
+#endif
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
@@ -36,7 +44,11 @@ void on_crash(int sig) {
 #endif
 
 int main() {
-#ifndef MW3_ASAN  // AddressSanitizer reports crashes itself
+#if defined(_WIN32)
+  // No crash dialogs: a test that crashes exits (the run is often headless, over ssh).
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#elif !defined(MW3_ASAN)  // AddressSanitizer reports crashes itself
   static char alt[1 << 16];
   stack_t ss{};
   ss.ss_sp = alt, ss.ss_size = sizeof alt;
@@ -48,8 +60,8 @@ int main() {
     sigaction(sig, &sa, nullptr);
   }
 #endif
-  // a test that crashes still shows where. Windows' CRT has no line buffering (and takes size 0 as
-  // an invalid argument): unbuffered there.
+  // A test that crashes still shows where. Windows' CRT has no line buffering
+  // (and takes size 0 as an invalid argument): unbuffered there.
 #if defined(_WIN32)
   std::setvbuf(stdout, nullptr, _IONBF, 0);
 #else
