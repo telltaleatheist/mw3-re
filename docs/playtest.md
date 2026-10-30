@@ -136,3 +136,29 @@ The Windows build (docs/windows.md) from a3a6eb3 on. Movies and menus fine.
 | W8 | From the original (Owen's memory): standing on the op point while the mobile field bases come, they arrive but the game never lets go (the repair or the next step never starts) until you step off | the MFBs' arrival, the op point's script or AI valve, mfb_reach | dev | not reproduced: nothing in the exe's dock lets a player on the point or a slot hold it (no vehicle collisions, no station keeping for the bases; vehicles.md, The repair dock, Playtest W8); the port runs the dock to idle in every arrangement tried. Open for Owen: which mission, standing or powered down, where; a standing player waits by design (the contact asks for the power-down) |
 | W9 | Mech lab: switching skins blinks the whole screen black for about a frame | the lab's skin change (texture reload, the lab view's draw that frame) | dev 2 | open: check whether the exe skips or holds that frame (a load inside the frame?); if it's ours, keep the last frame up |
 | W10 | c1m3 (probably): ordered to the op point, two MFBs parked there correctly, the third drove on toward the enemy and was destroyed | the MFBs' route and arrival on the AI net (net_01, mfb_reach; the chain's c1m3 notes: the 77->32 link), each base's stop at its slot | dev | fixed (a port bug; the exe parks all three): the way finder (0x004c7e80) had no position for the base, so the request's go-to (0x004c84b0) found no way and the bases followed net_01's links by chance; one could reach another's slot and go on (vehicles.md, The request) |
+
+## 2026-10-30, our own visual pass (S: shots, not yet triaged)
+
+The 20 campaign missions and t1, each in a scratch write dir with
+`--hidden --nosound --frame-ms 33`: the start (frame 200), outside with X
+(0x2D at 150, frame 220), and 40 m from the first enemy mech
+(`--mech-ahead 40`, then E, D and Ctrl+D, frame 420; t1 has none). Crops in
+`/Volumes/Callisto/claude-files/outbox/2026-10-30/visual-S*.png`. Nothing
+fixed yet.
+
+| # | Mission, shot | What looks wrong | Crop |
+|---|---|---|---|
+| S1 | c2m1, c3m5 and c3m1, near the enemy (frame 420) | The cockpit's struts and dashboard wear a mech's camouflage (c2m1, c3m5: tan or yellow camo) or a strong pink-red (c3m1), where every start and outside shot has them grey metal. Only in the near-enemy runs (combat, E, D and Ctrl+D): a shared texture or material changed? Candidates: the damage decals (new 5c1c5a9), an enemy's skin swap, TARGET's views | S1-*-cockpit-*.png, against S1-c1m1-cockpit-normal |
+| S2 | c4m1, c4m2, c4bm4, near the enemy (the mission-failure box) | The objectives box's title reads "Operation 1, Mission 1/2/4" in Operation 4 and 4b missions; the objectives under it are the mission's own. Maybe only the debug launch's operation number (to check on a campaign start) | S2-*-objectives-title.png |
+| S3 | t1m1, the start (frame 200, and every shot) | Beside the player a box shows a lit interior (walls with red lights) from outside, against open sky and ground: one-sided interior faces seen from outside, or the player started outside the hall it belongs to | S3-t1m1-interior-box.png |
+| S4 | c1m1, outside (X, frame 220) | The sky is a flat dark grey (fog) while the cockpit's, a moment earlier, is bright with clouds; the other missions' outside views are bright. The camera low over water: the water fog? To compare with the original | S4-c1m1-outside-dark-sky.png |
+| S5 | Every start in daylight (c1m1 shown) | The weapon list's green text on its translucent green panel is barely readable against a bright sky (fine on dark skies). Possibly as the original; to compare | S5-c1m1-weapon-list.png |
+| S6 | c1m2, the start (frame 200) | A small blue crystal with a bright lens-flare glint low on the left, on the ground near the player: an object or a light's flare, to identify | S6-c1m2-sparkle.png |
+| S7 | c2m4, near the enemy (frame 420) | Placed 40 m from a Firefly and turned to face it, the player looks at an empty grass field under a black sky, no mech and no target. Maybe the placement only (the cave mission's outside has no sky), or the mech not drawn | S7-c2m4-near-nothing.png |
+
+Also seen, likely as intended: c2m3's HUD static while being hit; c3m2's
+player mech wrecked within the 11 s (placed by an enemy); c4bm5's copper
+cockpit (the lava world's light); the mission failures from `--mech-ahead`
+taking the player out of bounds. Not a visual issue but ours: `mw3 --help`
+prints the `--mission` line twice (one with `--turret-ahead`, one with
+`--mech-ahead`, a merge's leftover).
