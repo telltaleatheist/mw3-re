@@ -3705,3 +3705,17 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   the ground.** Shooting out a building's legs makes it fall. The
   objective is met only when the falling building lands and turns to
   rubble, not when you shoot it. (docs/campaign.md, section 14)
+
+- **Kill Op 2 Mission 1's mine-pit turret and half of Mission 4's first
+  objective is already done.** The four Op 2 missions share one map, and
+  what you destroy stays destroyed for the rest of the operation (the
+  save keeps the map's animation log). Mission 4's first objective is
+  "destroy the mine turret and the ore crusher". If you killed the turret
+  back in Mission 1, it is still a wreck and counts at once. A destroy
+  objective whose target is gone is met. (docs/campaign.md, section 14)
+
+- **Op 3 Mission 1's breach is the MFB call to Charlie.** The mission is
+  won when the Mobile Field Bases drive through to the Charlie deploy
+  point and the HQ building is down. The bases go to the deploy point
+  nearest you when you give the MFB command, so you have to call them
+  from near Charlie. (docs/campaign.md, section 14)

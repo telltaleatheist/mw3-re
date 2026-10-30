@@ -1859,3 +1859,22 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   is the likely "a charged weapon lags": another weapon full, the current
   one charging. Asked Owen for the mode and group.
 - The short-click test asserts the one frame.
+
+## The campaign by its objectives, Ops 2-4 (2026-10-30)
+
+- Branch mac4/chain-ops (off main f26c451). Seed 1999, frame-ms 33.
+- The chain's two new steps (chain limitations, not port bugs):
+  - an open reach_area: the player is set on the ground at its nav point
+    (c2m2's Charlie, in a cave: ground_at below a ceiling);
+  - a valve a net link sets (valve_assign edge): the MFB command is given
+    from the link's start node, so the nearest dock point is that one
+    (c3m1's MFB Charlie, c3m3's MFB Able). The net files are unloaded
+    once built; add_ref/release around the read.
+- Each objective's completion frame is logged. c2m4's destroy
+  mineturret01 is met at frame 0: the chain killed it in c2m1, and the
+  op's animation log restores it destroyed. That is the exe's rule.
+- Every campaign mission won by its objectives (core frames): c2m1 3833,
+  c2m2 201, c2m3 135, c2m4 70, c3m1 5545, c3m2 204, c3m3 4305, c3m4 190,
+  c3m5 66, c3m6 183, c4m1 65, c4m2 73, c4m3 190, c4bm4 207, c4bm5 193,
+  c4bm6 207; the census 0. c4m3's tur_ult03 and tur_ams01 are met at
+  frame 0 like c2m4's turret (killed in c4m1, same world).
