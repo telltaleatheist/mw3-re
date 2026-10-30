@@ -111,13 +111,20 @@ TEST(resolution_new_modes_only_with_the_fix) {
   }
   mech3::Options& o = mech3::options();
   const int32_t keep_w = o.screen_w, keep_h = o.screen_h;
-  o.screen_w = 2560, o.screen_h = 1080;  // 21:9
+  // Wider than 16:9 (21:9, 32:9) plays 16:9 at the screen's height; 5:4 as asked.
+  const int32_t shapes[][4] = {{2560, 1080, 1920, 1080}, {3440, 1440, 2560, 1440}, {3840, 1080, 1920, 1080},
+                               {1280, 1024, 1280, 1024}, {1920, 1080, 1920, 1080}};
+  for (const auto& s : shapes) {
+    o.screen_w = s[0], o.screen_h = s[1];
+    mech3::set_vmode(mech3::kCustomVMode);
+    EXPECT(mech3::render().w == s[2] && mech3::render().h == s[3]);
+  }
+  o.screen_w = 2560, o.screen_h = 1080;
   mech3::set_vmode(mech3::kCustomVMode);
-  EXPECT(mech3::render().w == 2560 && mech3::render().h == 1080);
-  EXPECT(mech3::display().w == 1138 && mech3::display().h == 480);  // the canvas, scale 2.25
-  o.screen_w = 10000, o.screen_h = 100;  // clamped to 640x480 .. the cap
+  EXPECT(mech3::display().w == 853 && mech3::display().h == 480);  // the canvas, scale 2.25
+  o.screen_w = 10000, o.screen_h = 100;  // clamped to 640x480 .. the cap, then 16:9
   mech3::set_vmode(mech3::kCustomVMode);
-  EXPECT(mech3::display().w == mech3::kMaxScreen[0] && mech3::display().h == 480);
+  EXPECT(mech3::render().w == 853 && mech3::display().w == 853 && mech3::display().h == 480);
   o.screen_w = keep_w, o.screen_h = keep_h;
   mech3::set_vmode(5);
 }

@@ -441,3 +441,15 @@ the display's usable area, the frame fitted in it.
 gives 16 at the desktop's 2560x1440; a 5K desktop plays at 3840x2160; a
 saved 13, or a saved 16 at 1280x720, wins; no desktop (a check) or the fix
 off gives 5. Break: the mode not set fails it twice.
+
+**16:9 at most** (Owen, 2026-10-30, instead of extra cockpit geometry for
+wide screens). Mode 16's size (`vmode_size`) is at most 16:9: a 21:9 or 32:9
+screen gets a 16:9 frame at its height, which the window's fit (section 6)
+pillarboxes, centred. 3440x1440 plays at 2560x1440 at x 440, 2560x1080 and
+3840x1080 at 1920x1080. The first start's desktop size and RESOLUTION's own
+size ("2560x1440") both come from it; ScreenWidth keeps the desktop's.
+Narrower than 4:3 (5:4, 1280x1024) is unchanged. The fixed modes 11..15 are
+16:9 already. Tests: `resolution_new_modes_only_with_the_fix` (the sizes at
+21:9, 32:9, 5:4 and 16:9, and the canvas), the first-start test (a 3440x1440
+desktop), `sdl_window_shape_maps_the_mouse_through_the_frame` (the fit at
+21:9 and 32:9). Break: without the clamp, 6 checks fail.
