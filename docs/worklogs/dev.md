@@ -2026,3 +2026,13 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   to the census; now scaled (GameEngine::image_draw), tested in
   frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
   the old fall-through, 1 check). S16..S18 reported.
+
+## W16 and W8, the field bases' second call (2026-10-30)
+
+- Branch mac4/w16 (off main). c2m2's routing right (all four points
+  reached). The jam: called to the point they last docked at, the bases
+  stand on their slots, nothing to drive, the valves never set, the places
+  step waits for good (the exe's). FIX (bug) behind bugs: counted as arrived
+  at the request; a base still 30 s short of its slot given up on.
+  Test: mission_c2m2_field_bases_answer_a_second_call_headless (two seeds,
+  the original, base 02 held both ways).

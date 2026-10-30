@@ -1056,6 +1056,12 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   sound plays.
 - **The campaign starts underwater.** In Operation 1's first mission your
   Mad Cat stands on the seabed under almost 5 m of ocean and wades ashore.
+- **Call the mobile field bases to the same point twice and they never come.**
+  After a repair the bases drive back to their parking places at the point
+  and wait there. Call them to that point again and they have nowhere to
+  drive, so they never report in, and the dock waits for them for the rest
+  of the mission, refusing every new call. Calling them somewhere else
+  first works. (The rebuild fixes it.) (`vehicles.md`, The request)
 - **A destroyed section vanishes from the damage diagram instead of turning
   black.** The diagram colours each section blue, green, yellow or red as it
   takes damage, and asks for a black picture once the section is gone. No

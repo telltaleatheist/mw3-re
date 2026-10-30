@@ -915,27 +915,22 @@ mw3tests `mission_c1m3_field_bases_park_at_charlie_headless` (the enemies
 taken out first, the MFB command from Charlie's region): all three on their
 slots and the dock's places step done; without the position, 3 checks fail.
 
-**Playtest W8** (2026-10-30, from Owen's memory of the original:
-standing on the op point while the bases come in, the dock never moves on
-until he steps off). Not found in the exe's logic, and the port does not
-reproduce it:
-- The bases cannot be blocked by the player's mech: the vehicles'
-  collision count is never written (The collision count, above), so their
-  sweeps cross nothing but a slide's side points; a base drives through a
-  mech standing on its slot (in c1m1, centre to centre 0.4 m) and parks.
-- A field base gets no station keeping: its setup turns its three scans
-  off, so it has no contacts for 0x4cc150 to hold on.
-- The places step waits only for the bases' own valves, the contact only
-  for the requester within 12 m of the dock point and powered down; the
-  deploy puts the mech at rest on the point itself.
-In the port the dock ran to idle in every arrangement tried in c1m1: the
-player on the point (standing, or powered down before the bases came),
-on each of the three slots, or 11 m out toward a base's drive, and c1m3's
-slots (W10). mw3tests `mission_c1m1_dock_runs_with_the_player_waiting_headless`
-keeps the two closest to Owen's description. Open: what Owen did (the
-mission, standing or powered down, where); a standing player is the one
-case that waits, the contact asking for the power-down (the bases' "we have
-arrived and are ready to deploy").
+**Playtests W8 and W16** (2026-10-30): the dock waits for good when the
+bases are called to the point they last docked at. The close drives each
+base back onto its slot and the reset holds it there (field_bases_drive
+off), still in its slot's behaviour on its net; the request then sends it
+to that same behaviour, the way finder has nothing to do, no node is
+entered, its valve is never set, and the places step (0x0045ab70) has no
+give-up. A base already on its slot stays while the others drive ("only one
+moved"); called to a new point all three drive. This is the exe's own flow.
+The port's routing is right: in c2m2 all three reach each of the four
+points (MFB 3 and 4 by a long way round through MFB 2's road). FIX (bug)
+behind `bugs`: at the request a base already in its slot's behaviour counts
+as arrived (its valve set); in the places step a base that has not moved 2
+m in 30 s short of its place is given up on. Test:
+`mission_c2m2_field_bases_answer_a_second_call_headless`. Earlier, not
+reproduced: the player on the point, on a slot, standing or powered down
+(`mission_c1m1_dock_runs_with_the_player_waiting_headless`).
 
 The dock point comes from the mcbwaynet and the request from the player's
 MFB command (below).

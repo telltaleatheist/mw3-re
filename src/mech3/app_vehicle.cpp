@@ -491,6 +491,16 @@ void program_mission_waynet_clear() {  // 0x0047a720 on [0x0060b544], the missio
 void program_mcb_waynet_free() { mcb_waynet_free(); }  // 0x004d54f0
 void* program_mcb_waynet() { return mcb_waynet(); }
 int32_t program_mcb_points() { return mcb_waynet() ? mcb_waynet()->count() - 1 : -1; }
+void* program_field_base(int32_t i) {
+  return i >= 0 && i < 3 ? static_cast<BasicVehicle*>(field_bases().bases[i]) : nullptr;
+}
+bool program_mcb_point(int32_t i, float pos[3]) {
+  const Waynet* w = mcb_waynet();
+  if (!w || i < 1 || i >= w->count()) return false;
+  const float* p = w->position_of(i);
+  pos[0] = p[0], pos[1] = p[1], pos[2] = p[2];
+  return true;
+}
 bool program_dock_point(const char** label, float pos[3]) {
   const FieldBases& r = field_bases();
   const auto* pt = dynamic_cast<const WaynetPoint*>(static_cast<znet::Element*>(r.dock_point));
