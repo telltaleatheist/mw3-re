@@ -152,9 +152,9 @@ def f32(v):
 HUD_SIZE = 0x22e40
 # The entity classes' vtables (mech3/entity_classes: EntityClass's values),
 # for contacts whose objects carry a real one (the radar's and TARGET's).
-CLASSED = [(0x5bcef8, 1), (0x5c3508, 2), (0x5c23d8, 3), (0x5c8460, 3), (0x5c88e8, 3), (0x5c8d48, 4),
+CLASSED = [(0x5bcef8, 1), (0x5c3508, 2), (0x5c23d8, 4), (0x5c8460, 3), (0x5c88e8, 3), (0x5c8d48, 10),
            (0x5c8770, 5), (0x5ccb90, 6), (0x5ccc80, 7), (0x5cced8, 8), (0x5ccfe0, 9)]
-CLASSED_TARGET = [c for c in CLASSED if c[1] in (4, 6, 7, 8, 9)]  # their vt+0x68 is empty (0x4a5bc0)
+CLASSED_TARGET = [c for c in CLASSED if c[1] in (6, 7, 8, 9, 10)]  # their vt+0x68 is empty (0x4a5bc0)
 BLIP_TABLES = (0x605618, 0x60b120, 0x609a38, 0x60b4f0)
 # The classed objects' slot functions the cases must run: the blips of each
 # table and none, the target's hidden test, the centre, the names.
@@ -649,7 +649,7 @@ class Original:
         names = [e.world_string('Owens'), 0]
         w.answers['obj.vt+0xa4'] = lambda rr, n, a: rr.choice(names)
         self.classed = {}
-        if r.random() < 0.5:  # a target (twice as likely), a trap, the field base, a marker
+        if r.random() < 0.5:  # a target (twice as likely), a trap, a marker, the vehicles' base class
             self.classify(r, obj, r.choice(CLASSED_TARGET + [c for c in CLASSED_TARGET if c[1] == 6]))
         if self.mech and r.random() < 0.5:  # the player's target (the set-up's TARGET slot, 0x00441800)
             e.w32(self.mech + 0x6c, contact)

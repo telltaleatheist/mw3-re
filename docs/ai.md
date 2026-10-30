@@ -1452,8 +1452,9 @@ port's table of them, each answer the slot's function as written:
 |---|---|---|---|---|---|
 | mech 0x5bcef8 | 0x41ec60 [0x605618] | 0x41df30 (the player's pilot's, else 0x4aee70, else "") | 0 | itself | 0x5a85e0 |
 | network mech 0x5c3508 | 0x41ec60 | 0x4709c0 (not ported; no network) | 0 | itself | 0x5a85e0 |
-| vehicles 0x5c23d8, 0x5c8460 (the stealth), 0x5c88e8 | 0x45b970 [0x60b120] | 0x4aee70 | 0 | none | 0x5a85e0 |
-| field base 0x5c8d48 | none (0x410510) | 0x4aee70 | 0 | none | 0x5a85e0 |
+| vehicles 0x5c88e8 (the basic), 0x5c8460 (the stealth) | 0x45b970 [0x60b120] | 0x4aee70 | 0 | none | 0x5a85e0 |
+| field base 0x5c23d8 (0x4589d0's) | 0x45b970 [0x60b120] | 0x4aee70 | 0 | none | 0x5a85e0 |
+| the vehicles' base class 0x5c8d48 (0x4aeb00; no instance: every vehicle's constructor puts its own; the port's `vehicle_base`) | none (0x410510) | 0x4aee70 | 0 | none | 0x5a85e0 |
 | turret 0x5c8770 | 0x4a5fc0 [0x609a38] | none | 0 | none | 0x5a85e0 |
 | target 0x5ccb90, trap 0x5ccc80 | 0x4d2d70 [0x60b4f0] | +0xec (vt+0xc4) | not +0xe8 bit 0 (0x4d3350) | none | 0x4d84f0 (the centroid node's) |
 | command marker 0x5cced8 | none | none | 0 | none | 0x5a85e0 |
@@ -1467,8 +1468,12 @@ class (with none the exe returns what EAX held; the port none); its size
 0x5a8630 (the target node, +0x10) and velocity vt+0xc (a mech's 0x41d480,
 the rest zEntity's 0x5a82d0, +0x30). The tables are made by the mechs'
 HUD (0x413e60), the stealth object's constructor (vehicles.md), the turrets'
-load (0x4a76b0) and the targets' (0x4d2e20); a field base and the command
-marker never show on the radar.
+load (0x4a76b0) and the targets' (0x4d2e20); the command marker never shows
+on the radar. Until 2026-10-30 the port had the field base under the base
+class's vtable (0x5c8d48) and drew it no blip and no TARGET tint; the field
+base's own (0x5c23d8, stored by 0x4589d0 at 0x458adc) differs from the basic
+vehicles' only in its constructor, destructor, vt+0x34, +0x70, +0xf0/+0xf4
+(itself) and the field base's slots from +0x158 (playtest W12).
 
 What reaches the radar: a contact on it (in sight, +0x2c bit 0) or TARGET's
 own. A targets.zrd object without `radar` is never in sight (0x4d3380,

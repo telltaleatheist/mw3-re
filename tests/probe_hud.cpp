@@ -251,7 +251,7 @@ void Hooks::vehicle_velocity(void* v, float out[3]) {
   if (!classed(v)) return HudHooks::vehicle_velocity(v, out);
   for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(call("peek32", {id(v) + 0x30 + 4u * i}));
 }
-// vt+0x68: the classed TARGET objects' (targets, traps, field base, marker,
+// vt+0x68: the classed TARGET objects' (targets, traps, the vehicles' base class, marker,
 // plain) is 0x004a5bc0, empty.
 void Hooks::object_view_flag(void* o, int32_t on) {
   if (!classed(o)) HudHooks::object_view_flag(o, on);

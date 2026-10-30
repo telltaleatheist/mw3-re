@@ -450,13 +450,16 @@ const float* weapon_lock_velocity(void* o) {
 }
 void* hud_target_marker(int32_t kind) { return object(ai::target_marker(kind)); }
 // vt+0x68: a mech's 0x0041b9d0, a turret's 0x004a75b0, a basic vehicle's
-// 0x004ad390; a field base's, a target's and a marker's 0x004a5bc0 (empty).
+// and a field base's 0x004ad390; a target's and a marker's 0x004a5bc0 (empty).
 void hud_object_view_tint(const void* o, bool on) {
   const zgame::Handle h = handle(o);
   if (Mech* m = mech(h)) return mech_view_tint(*m, on);
   if (tur::Turret* t = program_turret_by_handle(h)) return t->tint(on);
-  if (void* v = vehicle(h))
-    if (!program_is_field_base(v)) program_vehicle_view_tint(v, on);
+  if (void* v = vehicle(h)) program_vehicle_view_tint(v, on);
+}
+bool hud_object_is_field_base(const void* o) {
+  void* v = vehicle(handle(o));
+  return v && program_is_field_base(v);
 }
 void hud_object_velocity(const void* o, float out[3]) {
   out[0] = out[1] = out[2] = 0.0f;

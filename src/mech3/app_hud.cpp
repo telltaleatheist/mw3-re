@@ -518,7 +518,12 @@ struct ProgramHudHooks : HudHooks {
     if (o) mech_pos(mech_of(o), out);
     else out[0] = out[1] = out[2] = 0.0f;
   }
-  void* object_blip(void* o, int32_t kind) override { return o ? hud_object_blip(o, kind) : nullptr; }  // vt+0x3c
+  void* object_blip(void* o, int32_t kind) override {  // vt+0x3c
+    void* b = o ? hud_object_blip(o, kind) : nullptr;
+    if (b && hud_object_is_field_base(o)) ++field_base_blips[kind == 0 ? 0 : 1];
+    return b;
+  }
+  int32_t field_base_blips[2] = {};  // the field bases' blips given (ally, not), for the report
   // For program_hud_report: the draws by the blip's class (its image).
   static int blip_class(void* b) {
     for (int32_t k = 0; k < 3; ++k) {
@@ -1089,6 +1094,8 @@ bool program_hud_report(HudReport* r) {
   r->vehicle_blips = g_hooks.drawn[1], r->turret_blips = g_hooks.drawn[2], r->target_blips = g_hooks.drawn[3];
   r->markers = g_hooks.drawn[4];
   for (int32_t& n : g_hooks.drawn) n = 0;
+  r->field_base_blips = g_hooks.field_base_blips[0], r->field_base_other_blips = g_hooks.field_base_blips[1];
+  g_hooks.field_base_blips[0] = g_hooks.field_base_blips[1] = 0;
   r->sensor_range = m->sensor_range;
   for (const HudDamagePart& p : h->target.damage.parts) r->target_damaged += p.image != p.images->image[0];
   for (const HudDamagePart& p : h->mfd.damage.parts) r->mfd_damaged += p.image != p.images->image[0];
@@ -1125,6 +1132,7 @@ bool program_hud_report(HudReport* r) {
     ++r->contacts;
     r->on_radar += c->flags & 1;
     r->vehicles += g_hooks.contact_vehicle(c) != nullptr;
+    r->field_base_on_radar += (c->flags & 1) && hud_object_is_field_base(g_hooks.contact_vehicle(c));
   }
   return true;
 }
