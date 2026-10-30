@@ -59,6 +59,8 @@ add_library(mw3core STATIC
   src/platform/reg_file.cpp
   src/platform/cue_audio.cpp
   src/mech3/data_version.cpp
+  src/mech3/patch_import.cpp
+  third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zsave/zsave.cpp
   src/gamez/zclass/camera.cpp
@@ -274,6 +276,8 @@ target_include_directories(mw3core PUBLIC src)
 target_include_directories(mw3core PRIVATE third_party)
 # pl_mpeg (third_party/pl_mpeg): as written, its warnings not ours.
 set_source_files_properties(third_party/pl_mpeg/pl_mpeg.c PROPERTIES COMPILE_OPTIONS "$<IF:$<C_COMPILER_ID:MSVC>,/w,-w>")
+# tinfl (third_party/miniz, miniz's inflate) likewise.
+set_source_files_properties(third_party/miniz/miniz_tinfl.c PROPERTIES COMPILE_OPTIONS "$<IF:$<C_COMPILER_ID:MSVC>,/w,-w>")
 # The x87 never fuses a multiply and an add; clang does by default on arm64,
 # which rounds differently from the original (CLAUDE.md, FPU precision).
 if(NOT MSVC)

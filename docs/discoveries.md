@@ -2539,6 +2539,13 @@ From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
 - **The force feedback for falling over never played.** The game asks for
   an effect named "i_fall", but the effect file calls it "impact fall", so
   a fall had no feel even on a force feedback stick. (`input.md` section 7)
+- **Patch 1.2 added the death shake, and a fall effect that never worked.**
+  On the 1.0 disc the stick had no feel for dying, and its landing bump was
+  called "impact fall". Patch 1.2 renamed the landing "impact land", added
+  the slack-and-shake for dying, and added falling over: the game asks for
+  "i_fall" while the patch's new effect file names it "impact fall", so the
+  one effect the patch added for falls has never played.
+  (`input.md` section 7)
 
 From the input module, zInput (details: `input.md`).
 

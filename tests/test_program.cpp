@@ -1,4 +1,5 @@
 #include "mech3/data_version.h"
+#include "mech3/patch_import.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
@@ -246,7 +247,7 @@ TEST(data_version_names_the_install) {
   std::printf("  %s: %s\n", MW3_GAME_DIR, own.describe().c_str());
   EXPECT(own.name == "1.2" || own.name == "1.0");
   const bool is_12 = own.name == "1.2";
-  EXPECT(is_12 ? own.of_12 == 27 : own.of_10 == 27);
+  EXPECT(is_12 ? own.of_12 == 28 : own.of_10 == 28);
   // One file of the other version in front: a mix (on 1.0, one added wav).
   const std::string front = temp_dir("data_version");
   std::error_code ec;
@@ -258,7 +259,7 @@ TEST(data_version_names_the_install) {
     zutl::mount_front(front);
     const mech3::DataVersion mix = mech3::detect_data_version();
     std::printf("  with one file of the other: %s\n", mix.describe().c_str());
-    EXPECT(mix.name == "1.0 with 1.2 files" && mix.of_12 == (is_12 ? 26 : 1) && mix.of_10 == (is_12 ? 1 : 26));
+    EXPECT(mix.name == "1.0 with 1.2 files" && mix.of_12 == (is_12 ? 27 : 1) && mix.of_10 == (is_12 ? 1 : 27));
     EXPECT(mix.from_12.size() == static_cast<size_t>(mix.of_12));
     std::filesystem::remove_all(front + "/zbd", ec);
     std::filesystem::create_directories(front + "/zbd", ec);
@@ -270,10 +271,92 @@ TEST(data_version_names_the_install) {
   const mech3::DataVersion odd = mech3::detect_data_version();
   std::printf("  with a changed interp.zbd: %s\n", odd.describe().c_str());
   EXPECT(odd.name == "unknown" && odd.unknown.size() == 1 && odd.unknown[0] == "zbd/interp.zbd");
-  // Nothing mounted: the 15 files 1.0 already had are missing.
+  // Nothing mounted: the 16 files 1.0 already had are missing.
   zutl::mounts() = zutl::Mounts{};
   const mech3::DataVersion none = mech3::detect_data_version();
-  EXPECT(none.name == "incomplete" && none.missing == 15 && none.of_10 == 12);
+  EXPECT(none.name == "incomplete" && none.missing == 16 && none.of_10 == 12);
+}
+
+// The official 1.2 patch read without running it (ours; assets.md, The 1.2
+// patch): its cabinet's 31 files are the 1.2 install's byte for byte (as
+// unshield extracts them), and the 28 the port reads, imported from the
+// unpacked folder or a ZIP of it into an overlay, make 1.0's data 1.2's.
+// Neither 1.0's files nor a damaged cabinet write anything.
+TEST(patch_import_upgrades_10_data_from_the_official_patch) {
+  const std::string root = std::string(MW3_SOURCE_DIR) + "/game";
+  const std::string folder = root + "/patch-1.2/MechWarrior-3_Patch_Win_EN_Patch-12-US";
+  const std::string v10 = root + "/mw3-1.0", v12 = root + "/mw3-1.2";
+  if (!std::filesystem::exists(folder + "/data1.cab") || !std::filesystem::exists(v10 + "/zbd/reader.zbd") ||
+      !std::filesystem::exists(v12 + "/zbd/reader.zbd"))
+    return;
+  auto slurp = [](const std::string& path) {
+    std::vector<uint8_t> d;
+    if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+      uint8_t buf[1 << 16];
+      size_t got;
+      while ((got = std::fread(buf, 1, sizeof buf, f)) > 0) d.insert(d.end(), buf, buf + got);
+      std::fclose(f);
+    }
+    return d;
+  };
+  // The cabinet whole.
+  std::vector<mech3::PatchEntry> all;
+  std::string error;
+  EXPECT(mech3::read_installshield(slurp(folder + "/data1.hdr"), slurp(folder + "/data1.cab"), &all, &error));
+  std::printf("  data1.cab: %zu files%s\n", all.size(), error.empty() ? "" : (" (" + error + ")").c_str());
+  EXPECT(all.size() == 31);
+  int same = 0;
+  for (const mech3::PatchEntry& e : all) same += slurp(v12 + "/" + e.path) == e.data;
+  EXPECT(same == 31);
+  EXPECT(mech3::sha256_hex(reinterpret_cast<const uint8_t*>("abc"), 3) ==
+         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+
+  SavedMounts keep;
+  const std::string tmp = temp_dir("patch_import");
+  auto version_with = [&](const std::string& overlay) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(overlay);
+    zutl::mount(v10);
+    return mech3::detect_data_version();
+  };
+  const auto v10_reader = std::filesystem::file_size(v10 + "/zbd/reader.zbd");
+  for (const std::string& source : {folder, folder + ".zip"}) {
+    const std::string out = tmp + "/patch12";
+    const mech3::PatchImport r = mech3::import_patch_12(source, out);
+    for (const std::string& l : r.log) std::printf("  %s\n", l.c_str());
+    EXPECT(r.ok && r.found == 28 && r.missing.empty());
+    const mech3::DataVersion v = version_with(out);
+    std::printf("  1.0 with the overlay: %s\n", v.describe().c_str());
+    EXPECT(v.name == "1.2" && v.of_12 == 28);
+    EXPECT(std::filesystem::exists(out + "/force_eff.ifr") && !std::filesystem::exists(out + "/Mech3.exe"));
+    EXPECT(!std::filesystem::exists(out + ".new"));
+  }
+  EXPECT(std::filesystem::file_size(v10 + "/zbd/reader.zbd") == v10_reader);  // the install untouched
+
+  // 1.0's own files are not 1.2's: nothing found, nothing written.
+  const mech3::PatchImport none = mech3::import_patch_12(v10, tmp + "/from10");
+  std::printf("  from the 1.0 install: %s\n", none.error.c_str());
+  EXPECT(!none.ok && none.found == 0 && none.missing.size() == 28 && !std::filesystem::exists(tmp + "/from10"));
+
+  // A damaged cabinet: one byte in its middle changed.
+  const std::string bad = tmp + "/damaged";
+  std::error_code ec;
+  std::filesystem::create_directories(bad, ec);
+  std::filesystem::copy_file(folder + "/data1.hdr", bad + "/data1.hdr", ec);
+  std::vector<uint8_t> cab = slurp(folder + "/data1.cab");
+  EXPECT(cab.size() > 4000000);
+  cab[cab.size() / 2] ^= 0x10;
+  if (std::FILE* f = std::fopen((bad + "/data1.cab").c_str(), "wb")) std::fwrite(cab.data(), 1, cab.size(), f), std::fclose(f);
+  const mech3::PatchImport broken = mech3::import_patch_12(bad, tmp + "/frombad");
+  std::printf("  from a damaged cabinet: %s\n", broken.error.c_str());
+  EXPECT(!broken.ok && !broken.missing.empty() && !std::filesystem::exists(tmp + "/frombad"));
+
+  // The backups' ZIP as it was downloaded, when it is at hand (MW3_PATCH_ZIP).
+  if (const char* z = std::getenv("MW3_PATCH_ZIP")) {
+    const mech3::PatchImport r = mech3::import_patch_12(z, tmp + "/fromzip");
+    for (const std::string& l : r.log) std::printf("  %s\n", l.c_str());
+    EXPECT(r.ok && version_with(tmp + "/fromzip").name == "1.2");
+  }
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {

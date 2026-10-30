@@ -141,6 +141,11 @@ They run inside the original main loop, after the original start-up.
   damage-decals.md). The mission's opening camera still runs first.
 - `--import` / `--no-import` (ours): the movies' first-run import
   (fmv.md section 6) run even after a failed try, or skipped.
+- `--patch ZIP|DIR` (ours): the official 1.2 patch, read without running
+  it, into the write dir's `patch12\` overlay (assets.md, The 1.2 patch),
+  mounted in front of the install on this start and every later one. A
+  source without all of 1.2's files writes nothing and mw3 exits with the
+  reason.
 - `--shot FILE.bmp [--shot-frame N] [--shot-any]` saves frame N (default 30;
   with `--shot-any` every frame shown counts, the fade's too) of either
   and quits, with the window hidden; `--shot-series K` also the K frames
