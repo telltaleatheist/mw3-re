@@ -128,8 +128,13 @@ They run inside the original main loop, after the original start-up.
   nearest live turret on the first frame and turned to face it each frame
   (the reticle over a turret, playtest W6). With `--tap 12@150:175` (PITCH
   UP, `-`) the reticle rises onto c1m1's nearest turret at 30 m.
+- `--mission`'s launch names the operation by its directory (c2 2, c3 3,
+  c4 and c4b 4, else 1), as a campaign's would (the objectives box's
+  "Operation N, Mission M"; playtest S2). t1 runs as a campaign mission
+  (type 1), not training (no training game behind it).
 - `--mech-ahead M` (with `--mission`): the player kept M to 1.5 M m from
-  the mission's first enemy mech (the chain's list) and turned to face it
+  the nearest enemy mech in play (the chain's list), on the ground at its
+  level (not a cave's roof: playtest S7), and turned to face it
   each frame, to watch a mech up close (its damage decals with `--fire`,
   damage-decals.md). The mission's opening camera still runs first.
 - `--import` / `--no-import` (ours): the movies' first-run import

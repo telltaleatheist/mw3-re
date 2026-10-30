@@ -148,17 +148,40 @@ fixed yet.
 
 | # | Mission, shot | What looks wrong | Crop |
 |---|---|---|---|
-| S1 | c2m1, c3m5 and c3m1, near the enemy (frame 420) | The cockpit's struts and dashboard wear a mech's camouflage (c2m1, c3m5: tan or yellow camo) or a strong pink-red (c3m1), where every start and outside shot has them grey metal. Only in the near-enemy runs (combat, E, D and Ctrl+D): a shared texture or material changed? Candidates: the damage decals (new 5c1c5a9), an enemy's skin swap, TARGET's views | S1-*-cockpit-*.png, against S1-c1m1-cockpit-normal |
-| S2 | c4m1, c4m2, c4bm4, near the enemy (the mission-failure box) | The objectives box's title reads "Operation 1, Mission 1/2/4" in Operation 4 and 4b missions; the objectives under it are the mission's own. Maybe only the debug launch's operation number (to check on a campaign start) | S2-*-objectives-title.png |
-| S3 | t1m1, the start (frame 200, and every shot) | Beside the player a box shows a lit interior (walls with red lights) from outside, against open sky and ground: one-sided interior faces seen from outside, or the player started outside the hall it belongs to | S3-t1m1-interior-box.png |
+| S1 | c2m1, c3m5 and c3m1, near the enemy (frame 420); **as the original**: the same texture, rivets and all, lit by the incoming fire's lights (zWeapon's shot and impact lights, IMPACT HEAT's colour) for a few frames (seed 1: partial at 380, full at 420, gone by 500, before the first hit lands at 410). The cage is drawn by the world draw with the world's lights (0x4f73f0, ported and matched); its textures, records and GPU textures never change. Not the decals (with InstallOptions 0x101 too), not the keys, not a second cage (only the player's exists) | The cockpit's struts and dashboard wear a mech's camouflage (c2m1, c3m5: tan or yellow camo) or a strong pink-red (c3m1), where every start and outside shot has them grey metal. Only in the near-enemy runs (combat, E, D and Ctrl+D): a shared texture or material changed? Candidates: the damage decals (new 5c1c5a9), an enemy's skin swap, TARGET's views | S1-*-cockpit-*.png, against S1-c1m1-cockpit-normal |
+| S2 | c4m1, c4m2, c4bm4, near the enemy (the mission-failure box); **ours, fixed**: only `--mission` showed it, its launch never set the operation (`launch().op`, 1); a campaign start takes it from the campaign. Now set by the directory as `--briefing`'s: c4m1 says "Operation 4, Mission 1" | The objectives box's title reads "Operation 1, Mission 1/2/4" in Operation 4 and 4b missions; the objectives under it are the mission's own. Maybe only the debug launch's operation number (to check on a campaign start) | S2-*-objectives-title.png |
+| S3 | t1m1, the start (frame 200, and every shot); **likely as intended**: the same start as training's own (type 4 starts at the same place; the debug launch cannot run training's objectives), the hall's open front showing its lit inside; Owen to compare | Beside the player a box shows a lit interior (walls with red lights) from outside, against open sky and ground: one-sided interior faces seen from outside, or the player started outside the hall it belongs to | S3-t1m1-interior-box.png |
 | S4 | c1m1, outside (X, frame 220) | The sky is a flat dark grey (fog) while the cockpit's, a moment earlier, is bright with clouds; the other missions' outside views are bright. The camera low over water: the water fog? To compare with the original | S4-c1m1-outside-dark-sky.png |
 | S5 | Every start in daylight (c1m1 shown) | The weapon list's green text on its translucent green panel is barely readable against a bright sky (fine on dark skies). Possibly as the original; to compare | S5-c1m1-weapon-list.png |
-| S6 | c1m2, the start (frame 200) | A small blue crystal with a bright lens-flare glint low on the left, on the ground near the player: an object or a light's flare, to identify | S6-c1m2-sparkle.png |
-| S7 | c2m4, near the enemy (frame 420) | Placed 40 m from a Firefly and turned to face it, the player looks at an empty grass field under a black sky, no mech and no target. Maybe the placement only (the cave mission's outside has no sky), or the mech not drawn | S7-c2m4-near-nothing.png |
+| S6 | c1m2, the start (frame 200); **likely an effect**: beside a smoke column, no lens flare in c1's world; Owen to compare | A small blue crystal with a bright lens-flare glint low on the left, on the ground near the player: an object or a light's flare, to identify | S6-c1m2-sparkle.png |
+| S7 | c2m4, near the enemy (frame 420); **ours, fixed**: `--mech-ahead` stood the player on the highest ground at the spot, the cave's roof (under the world's black sky), the Thor below; it now takes the ground within 10 m above the enemy (`chain_player_near`'s `at_its_level`) and the nearest enemy mech in play: the Thor 40 m ahead in the cave | Placed 40 m from a Firefly and turned to face it, the player looks at an empty grass field under a black sky, no mech and no target. Maybe the placement only (the cave mission's outside has no sky), or the mech not drawn | S7-c2m4-near-nothing.png |
 
 Also seen, likely as intended: c2m3's HUD static while being hit; c3m2's
 player mech wrecked within the 11 s (placed by an enemy); c4bm5's copper
 cockpit (the lava world's light); the mission failures from `--mech-ahead`
 taking the player out of bounds. Not a visual issue but ours: `mw3 --help`
 prints the `--mission` line twice (one with `--turret-ahead`, one with
-`--mech-ahead`, a merge's leftover).
+`--mech-ahead`, a merge's leftover): fixed. S4 and S5 wait for Owen's
+comparison with the original.
+
+### Visual pass 2 (2026-10-30): the front end and 16:9
+
+The main menu, pilot screen (Campaign; Training goes there too), Instant
+Action, game options, graphics and audio, controls, credits (frame 900:
+they scroll in), the c1m1 briefing, the lab's three tabs (`--lab-mech 9`),
+the debriefing (`--briefing c1m1 ... --win 60`) and the chain's briefings
+and debriefings; then c1m1, c2m2 and c4bm5 at InGameVMode 13 (1920x1080),
+11 (1280x720) and 5 (640x480), the start and near an enemy. The salvage
+page needs a second mission (c1m1's briefing greys it); the store is the
+lab's stockpile. At 16:9 the view widens, the cockpit keeps its shape and
+the HUD's pieces keep to their corners and edges; 640x480 matches the first
+pass. Crops: `visual-S8..S13*.png` in the same outbox.
+
+| # | Screen | What looks wrong | Crop |
+|---|---|---|---|
+| S8 | The lab, criticals tab (`--lab-mech 9`, the CRITICALS click) | "12 Criticals Available / 14 Reserved ... Ferro-Fibrous Armor" at the top runs under the 3D mech view: the view drawn over the text | S8-lab-criticals-text-under-mech.png |
+| S9 | The debriefing (both `--briefing` and the chain's); **as shipped**: the rank icon is `icon_rank<score / 100000>_green` (0x0047b2f0, 0..4) from rimage.zbd, and rank 0 (Sergeant) is that diagonal-stripe insignia; 1..5 are the bars and the stars | The rank badge beside "Sergeant" is a yellow hatched square, the same in every debriefing: a missing insignia image, or the art as shipped? | S9-debrief-rank-badge.png, S9-chain-debriefing.png |
+| S10 | The lab, criticals and groups tabs | The mech is framed low and to one side, cut off at the bottom, where the chassis tab shows it whole (a view still moving at frame 2900?) | S10-lab-groups-mech.png |
+| S11 | Controls setup; **as the original**: a ListBox (0x0059e430) shows the selected string at its POSITION with LISTSIZE's `above` entries stacked over it, hiding those past either end (twod.md, Sliders and list boxes); the first command selected leaves its three rows above empty | The list starts with three blank rows above "Forward throttle" (the selection kept mid-list?) | S11-controls-blank-rows.png |
+| S12 | Missions at 1280x720 (mode 11); **for Owen** (the HUD art scale decision, for-owen.md) | The HUD is drawn at 1x (the whole art scale of 720 / 480), so it covers less of the screen than at 640x480 or at 1920x1080 (2x); readable but small. A design choice for Owen (resolution.md section 8) | S12-hud-1280x720.png against S12-hud-640x480.png |
+| S13 | The chain's c1m3 briefing; **timing, ours**: `--briefing c1m3` at frame 2500 shows OP: Able, Baker and Start; the chain shoots as the briefing loads, before the nav points come up | The map shows no nav points or labels, where c1m1's shows OP: Able, Baker and Start (the chain shoots at the briefing's load: maybe before they are drawn) | S13-c1m3-briefing-no-labels.png |
