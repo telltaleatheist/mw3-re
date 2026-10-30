@@ -2224,3 +2224,37 @@ TEST(sdl_movies_through_the_indeo_helper_pipe) {
   EXPECT(shot_files.size() > 100000 && shot_files == shot_pipe);
 }
 #endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// The bug fixes switch (ours; fixes.md, The bug fixes switch): --original or
+// bugfixes=0 in mw3.cfg turn every play-changing fix off, said at the start;
+// bugfixes=1 and no line leave them on.
+TEST(sdl_program_bugfixes_switch) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_bugfixes";
+  std::error_code ec;
+  auto run = [&](const char* cfg, bool original) {
+    std::filesystem::remove_all(dir, ec);
+    std::filesystem::create_directories(dir, ec);
+    if (cfg)
+      if (std::FILE* f = std::fopen((dir + "/mw3.cfg").c_str(), "w")) std::fputs(cfg, f), std::fclose(f);
+    std::vector<std::string> a = {"--write-dir", dir, "--nosound", "--hidden", "--frames", "3"};
+    if (original) a.push_back("--original");
+    const std::string log = dir + "/../sdl_bugfixes.log";
+    const pid_t pid = spawn_mw3(a, log);
+    int status = 0;
+    if (pid > 0) waitpid(pid, &status, 0);
+    std::string text;
+    if (std::FILE* f = std::fopen(log.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+      std::fclose(f);
+    }
+    return text.find("mw3: bug fixes off") != std::string::npos;
+  };
+  EXPECT(!run(nullptr, false));
+  EXPECT(!run("bugfixes=1\n", false));
+  EXPECT(run("bugfixes=0\n", false));
+  EXPECT(run(nullptr, true));
+  EXPECT(run("bugfixes=1\n", true));  // --original wins
+}
+#endif

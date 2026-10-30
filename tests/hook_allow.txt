@@ -167,7 +167,7 @@ DamageCalls.anim_speed	fallback: unset runs the port (0x0041ef90; test hook, uns
 DamageCalls.gait_speed	fallback: unset runs the port (0x004329c0 on +0x684 with +0x4a0; test hook, unset runs scale_gaits)
 CollideCalls.segments	fallback: unset runs the port
 CollideCalls.node_intersect	fallback: unset runs the port (0x004eb6d0; unset: the zcls node's flag 0x10)
-CollideCalls.net_shove	fallback: unset runs the port (0x00470320)
+CollideCalls.net_shove	multiplayer: a remote (network) mech shoved, 0x00470320 (not ported); unset, the shove is skipped
 CollideCalls.crouch	fallback: unset runs the port (test hook (0x004622a0): unset runs Hip::duck)
 CommandCalls.own	fallback: unset runs the port
 CommandCalls.torso_center	fallback: unset runs the port (0x00465a00 on the torso (1, 2))
@@ -239,7 +239,7 @@ WakeHooks.stop	fallback: unset runs the port (0x00506ca0)
 WakeHooks.set_active	fallback: unset runs the port (0x004eb170)
 PanelCalls.repair_bays	fallback: unset runs the port (0x0045a000 on 0x00605ae0)
 FrameCalls.map	fallback: unset runs the port
-FrameCalls.map_size	fallback: unset runs the port
+FrameCalls.map_size	deferred: with map_mouse and map_pick (stand-ins, hook_census.inc), the command panel's map pick; unset, its size reads 0 and the pick falls to the reticle (0x00444330)
 FrameCalls.route_mouse	fallback: unset runs the port (0x0051ba60 (unset: the zTwoD host's))
 SoundExtraHooks.play	fallback: unset runs the port (0x0056e3d0)
 SoundExtraHooks.subtitle	fallback: unset runs the port (+0x00  the message's text (0x0049d1c0 strdup))

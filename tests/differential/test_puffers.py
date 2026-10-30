@@ -2,8 +2,8 @@
 x86 in Unicorn, the FPU at 24 bits as in play.
 
     cmake --build build && .venv/bin/python tests/differential/test_puffers.py [runs]
-      --unfixed   the original without the near-fade fix patched in (it then
-                  differs wherever a particle sits in a fade-in band)
+      --fixed     the original with the near-fade fix patched in, against the
+                  port with zfix bugs on (the port's FIX (bug))
       MW3_DUMP=1  the first difference in full
 
 Parts, each against the original function on the same inputs:
@@ -32,8 +32,9 @@ Parts, each against the original function on the same inputs:
    (zcls::node_world_euler / _position) on every node, then puffers at real
    nodes run frames with the real ones on both sides.
 
-The original runs with the near-fade fix patched in (0x548b4c: +0x3c ->
-+0x34, the port's FIX (bug)); --unfixed shows the difference.
+The original runs as shipped and the port with zfix bugs off; with --fixed
+the original has the near-fade fix patched in (0x548b4c: +0x3c -> +0x34) and
+the port its FIX (bug) on, so both paths are checked.
 """
 import ctypes
 import os
@@ -66,9 +67,10 @@ probe.pf_exp.restype = ctypes.c_float
 probe.pf_quat.argtypes = [ctypes.c_float] * 3 + [ctypes.c_void_p]
 probe.pf_node_world.argtypes = [ctypes.c_int32, ctypes.c_void_p]
 
-UNFIXED = '--unfixed' in sys.argv
-if UNFIXED:
-    sys.argv.remove('--unfixed')
+FIXED = '--fixed' in sys.argv
+if FIXED:
+    sys.argv.remove('--fixed')
+    probe.probe_set_bugs(1)  # the port's FIX (bug) on, against the patched original
 DUMP = os.environ.get('MW3_DUMP') == '1'
 
 IAT_RAND, IAT_REALLOC, IAT_STRNCPY = 0x5bb668, 0x5bb610, 0x5bb648
@@ -164,7 +166,7 @@ class Emu:
         cpu.stub_import(0x72f3c0, lambda c: self.draw(c, 0), 8)
         cpu.stub_import(0x72f3bc, lambda c: self.draw(c, 1), 12)
         cpu.stub_function(0x566620, lambda c: self.log.append(['software']))
-        if not UNFIXED:
+        if FIXED:
             cpu.write(0x548b4c, b'\x34')  # the port's FIX (bug): near_start, not far_start
         cpu.call(0x548d90)  # the two lists' static constructors
         cpu.call(0x548e60)

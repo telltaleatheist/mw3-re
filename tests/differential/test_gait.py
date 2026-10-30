@@ -13,7 +13,7 @@ near the gait thresholds, runs one call on both sides, and compares every
 field both sides keep and the call log, bit for bit at 24-bit precision.
 
 This checks the exe's path: the probes turn the fixes off. With them on the
-port departs in the wading slowdown (zfix deep_water: a straight line from 1
+port departs in the wading slowdown (zfix bugs: a straight line from 1
 at a tenth of the height to 0.7 at full depth instead of 0.7 (H - d) / H) and
 in the blend-in's frame count (per 1/30 s); tests/test_fixes.cpp checks those.
 """

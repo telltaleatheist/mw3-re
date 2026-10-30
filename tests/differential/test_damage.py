@@ -271,12 +271,14 @@ class Emulated:
         return b[:b.index(0)]
 
     def lose(self, c):
-        # FIX (bug) in the port: success when a sink was lost (docs/fixes.md).
+        # 0x0045fbc0 as the exe: the sinks lost, failure always (the port's
+        # FIX (bug) counting a lost sink as success is behind zfix bugs, off
+        # here; test_fixes.cpp checks it).
         p = c.ecx + 4
         n = struct.unpack('<i', self.cpu.read(p, 4))[0]
         m = max(n - s32(c.arg(0)), 0)
         self.cpu.u32(p, m)
-        return int(m < n)
+        return 0
 
     def mech_sound(self, c):
         self.check(c.arg(0) == 0x3f800000 and c.arg(1) == 0xbf800000)

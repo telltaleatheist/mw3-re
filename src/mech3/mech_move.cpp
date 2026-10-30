@@ -349,7 +349,7 @@ void Mech::select_gait(float dt) {
   const float h = height;
   const bool ff = this == world().mission_player && world().force_feedback;
   if (d > h * kWadeStart) {
-    if (zfix::options().deep_water) {
+    if (zfix::options().bugs) {
       // FIX (bug): from full speed at a tenth of the height down to 70% at
       // full depth, where the exe fell to a standstill and then jumped back
       // to 70% (movement.md, Speed and gait; fixes.md).

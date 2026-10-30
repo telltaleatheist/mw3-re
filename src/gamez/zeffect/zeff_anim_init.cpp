@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "gamez/zclass/light.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/sound.h"
@@ -129,8 +130,9 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
     if (e == -1) return false;
   }
   // Prerequisites: type 1 names a def; types 2/3 name a node, 3 under the
-  // node found before it. FIX (bug): the exe's def search stops one short and
-  // never finds the last def; this searches them all (docs/fixes.md).
+  // node found before it. FIX (bug), behind bugs: the exe's def search stops
+  // one short and never finds the last def; this searches them all
+  // (docs/fixes.md).
   Node* last = nullptr;
   for (int k = 0; k < d.count(0x110); ++k) {
     Prerequisite& p = d.prereqs[k];
@@ -138,7 +140,8 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
     if (type == 1) {
       p.def = nullptr;
       const char* want = reinterpret_cast<const char*>(p.raw + 8);
-      for (int32_t j = 0; j < g_anim.def_count(); ++j) {
+      const int32_t defs = zfix::options().bugs ? g_anim.def_count() : g_anim.def_count() - 1;
+      for (int32_t j = 0; j < defs; ++j) {
         if (std::strcmp(g_anim.defs[j].name(), want) == 0) {
           p.def = &g_anim.defs[j];
           break;
@@ -153,7 +156,7 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
                       "ACTIVATION_PREREQUISITE error; couldn't find node.\n  Animation: %s; node: %s\n",
                       d.name(), want);
         zerr::report(0x400, kFile, 0x33a0, msg);
-        if (!g_anim.fix_prerequisites) {
+        if (!g_anim.fix_prerequisites || !zfix::options().bugs) {
           d.raw[0x110] = 0;  // the exe: the def loses every prerequisite
           break;
         }
