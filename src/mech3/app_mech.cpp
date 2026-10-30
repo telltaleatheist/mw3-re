@@ -1853,6 +1853,10 @@ bool mech_ammo_value(void* mech, float* out) {
   *out = m->ammo_value_inv != 0 ? m->ammo_value * m->ammo_value_inv : 1.0f;
   return true;
 }
+const float* vehicle_position(void* vehicle) {
+  const Vec3* p = vehicle ? entity_position(*static_cast<Vehicle*>(vehicle)) : nullptr;
+  return p ? &p->x : nullptr;
+}
 bool mech_world_position(void* mech, float out[3]) {
   const Vec3* p = entity_position(*static_cast<Vehicle*>(mech));  // a vehicle's too
   out[0] = p ? p->x : 0, out[1] = p ? p->y : 0, out[2] = p ? p->z : 0;

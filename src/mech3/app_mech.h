@@ -211,6 +211,7 @@ bool mech_set_mask(void* mech, uint32_t off, uint32_t v);
 void* mech_controls_of(void* mech);              // +0x37c (a MechControls*)
 float mech_game_time();                          // [0x0060991c]
 bool mech_world_position(void* mech, float out[3]);  // 0x005a85e0; false (0, 0, 0) without a node
+const float* vehicle_position(void* vehicle);        // 0x005a85e0's pointer (a mech's or vehicle's node data); null without one
 float mech_health(void* mech);                   // vt+0x98, 0x0041ba40
 float mech_speed_at(void* mech, float share);    // vt+0x118, 0x0041d1c0
 float mech_stopping_distance(void* mech, float speed);  // vt+0x120, 0x0041d210

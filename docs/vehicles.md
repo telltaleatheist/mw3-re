@@ -899,7 +899,43 @@ reset. 0x4c84b0 (the brain's go-to, `Brain::go_to`): on the current
 order's net, the way finder (+0x238, 0x4c7c10) from the current state's
 behaviour to the target; when that behaviour is +0x23c's (none), the
 current order is dropped first and the new one's behaviour asked, its
-answer unused.
+answer unused. The way finder starts from the vehicle's position
+(0x5a85e0, read by 0x4c7e80): with none it finds no way.
+
+**Playtest W10** (c1m3, 2026-10-30; a port bug, not the exe's): the
+program's brain hooks gave the way finder no position (`pilot_of` left the
+pilot's `pos` null), so every go-to failed. The bases then followed net_01's
+links as any net walk does, round MFB 2, 3 and 4 before Charlie, and took
+whichever slot their link picks led to: in one run base 02 came up behind
+base 01 on node 22 and stopped 30 m short, its valve never set; in Owen's
+game one drove on past the slots (each slot links on toward nodes 32 and
+33) into the enemy. With the position, each base gets its way to its own
+slot (link i of "MFB Charlie": nodes 22, 23, 24), and all three park there.
+mw3tests `mission_c1m3_field_bases_park_at_charlie_headless` (the enemies
+taken out first, the MFB command from Charlie's region): all three on their
+slots and the dock's places step done; without the position, 3 checks fail.
+
+**Playtest W8** (2026-10-30, from Owen's memory of the original:
+standing on the op point while the bases come in, the dock never moves on
+until he steps off). Not found in the exe's logic, and the port does not
+reproduce it:
+- The bases cannot be blocked by the player's mech: the vehicles'
+  collision count is never written (The collision count, above), so their
+  sweeps cross nothing but a slide's side points; a base drives through a
+  mech standing on its slot (in c1m1, centre to centre 0.4 m) and parks.
+- A field base gets no station keeping: its setup turns its three scans
+  off, so it has no contacts for 0x4cc150 to hold on.
+- The places step waits only for the bases' own valves, the contact only
+  for the requester within 12 m of the dock point and powered down; the
+  deploy puts the mech at rest on the point itself.
+In the port the dock ran to idle in every arrangement tried in c1m1: the
+player on the point (standing, or powered down before the bases came),
+on each of the three slots, or 11 m out toward a base's drive, and c1m3's
+slots (W10). mw3tests `mission_c1m1_dock_runs_with_the_player_waiting_headless`
+keeps the two closest to Owen's description. Open: what Owen did (the
+mission, standing or powered down, where); a standing player is the one
+case that waits, the contact asking for the power-down (the bases' "we have
+arrived and are ready to deploy").
 
 The dock point comes from the mcbwaynet and the request from the player's
 MFB command (below).
