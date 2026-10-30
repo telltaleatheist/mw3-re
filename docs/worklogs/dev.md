@@ -1999,3 +1999,13 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   first-run import skipped while the helper is up.
 - Test: sdl_movies_through_the_indeo_helper_pipe with mw3indeo_fake (the
   same messages answered from an imported movie).
+
+## W12, the field bases on the radar (2026-10-30)
+
+- Branch mac4/w12-radar (off main). A port bug: the field base's class was
+  given the vehicles' base class's vtable (0x5c8d48, no blip, no tint);
+  its own (0x5c23d8) has the vehicles' blip 0x45b970 and tint 0x4ad390.
+  entity_classes (blip table), app_sensors (the tint), ai.md's table,
+  vehicles.md. The report counts the field bases' blips and their on-radar
+  contacts; the repair test waits on the dock point powered up and checks
+  them driving in and parked. Break: field_base without a blip.

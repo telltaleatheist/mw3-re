@@ -32,8 +32,8 @@ I32 = ctypes.c_int32
 PILOT = 0x60861c
 TABLES = {1: 0x605618, 2: 0x60b120, 3: 0x609a38, 4: 0x60b4f0}
 # vtable -> the port's EntityClass
-CLASSES = [(0x5bcef8, 1, 'mech'), (0x5bcef8, 1, 'mech2'), (0x5c3508, 2, 'net_mech'), (0x5c23d8, 3, 'vehicle'),
-           (0x5c8460, 3, 'stealth'), (0x5c88e8, 3, 'basic'), (0x5c8d48, 4, 'field_base'), (0x5c8770, 5, 'turret'),
+CLASSES = [(0x5bcef8, 1, 'mech'), (0x5bcef8, 1, 'mech2'), (0x5c3508, 2, 'net_mech'), (0x5c23d8, 4, 'field_base'),
+           (0x5c8460, 3, 'stealth'), (0x5c88e8, 3, 'basic'), (0x5c8d48, 10, 'vehicle_base'), (0x5c8770, 5, 'turret'),
            (0x5ccb90, 6, 'target'), (0x5ccc80, 7, 'trap'), (0x5cced8, 8, 'marker'), (0x5ccfe0, 9, 'plain')]
 SLOTS = (0x28, 0x3c, 0x50, 0xa4, 0xa8, 0xbc)
 COUNT = {'objects': 0, 'answers': 0, 'calls': 0, 'refreshes': 0}
