@@ -117,3 +117,15 @@ works alongside it; stay out of its files.
   crop (640 scale, origin about (330, 0)) matches this geometry with the
   mech side-on. The turn (0.8 rad/s) decides how it sits.
 - Branch `mac5/lab-view-s8-s10` off main 730a01c (docs only).
+
+## 9. Release performance (2026-10-30)
+
+- `--frame-times N` and `--mission ia<N>[w<W>]` in mw3_main (measuring
+  only). Numbers, profiles and the candidates: docs/performance.md.
+- Release on the Mac: 2.6 to 4.5 ms a frame of CPU, the same at 1080p and
+  4K (the 2D canvas is 960x540 at both); vsync-bound at 60 in a window.
+  Hot spot: `overlay_16`, 53 to 61% of the frame (three overlays a frame,
+  two of them empty in c4m2, each a full 960x540 conversion and upload).
+  The AI's sight lines about 3%, collision and ground 2 to 3%.
+- Seen: the opening fade at 1920x1080 darkens only the top-left quarter.
+- Branch `mac5/perf` off main 46135f7; nothing changed but the two flags.
