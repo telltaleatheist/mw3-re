@@ -3971,6 +3971,87 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
 // down; the bases back out and open; after twelve seconds the repair
 // (0x004154e0) and the bases close up; the dock is idle again, the mission's
 // waynet back to its nav waynet (waynet_1).
+// Playtest W8 (vehicles.md, The repair dock): the player already waiting,
+// powered down, while the field bases come in, on the dock point or on base
+// 01's slot. Neither holds the dock in the exe's logic: the vehicles'
+// collision count is never set (they cross the player's mech), a field base
+// scans for nothing (no station keeping), and the contact only asks for the
+// player within 12 m and powered down. So the bases park, the deploy and the
+// repair run, and the dock goes back to idle.
+TEST(mission_c1m1_dock_runs_with_the_player_waiting_headless) {
+  if (!have_game()) return;
+  static const float kSlot0[2] = {-1276.5f, -851.2f};  // net_02's node 1, mobilehq_01's
+  for (const bool on_slot : {false, true}) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("mission_dock_waiting"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FastClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    int frames = 0, contact_at = -1, repair_at = -1, idle_at = -1;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;  // c1m1
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      float point[3] = {};
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core) return;
+        void* player = mech3::mech_mission_player();
+        const mech3::DockSummary d = mech3::program_dock_summary();
+        if (frames == 5 || frames == 6) mech3::program_mcb_command(player);  // the pick, then the request
+        if (frames == 7) {
+          const char* name = nullptr;
+          mech3::program_dock_point(&name, point);
+          float at[3] = {on_slot ? kSlot0[0] : point[0], 0, on_slot ? kSlot0[1] : point[2]};
+          at[1] = ground_under(at[0], point[1] + 100.0f, at[2]);
+          mech3::move_mech(player, at, 0.0f);
+          mech3::mech_power(player, 1);
+        }
+        if (d.front == 2 && contact_at < 0) {
+          contact_at = frames;
+          if (on_slot) {  // the contact asks for the dock point: onto it, still powered down
+            const float at[3] = {point[0], ground_under(point[0], point[1] + 100.0f, point[2]), point[2]};
+            mech3::move_mech(player, at, 0.0f);
+          }
+        }
+        if (d.front == 4 && repair_at < 0) repair_at = frames;
+        if (d.front == 0 && repair_at >= 0 && idle_at < 0) idle_at = frames;
+        ++frames;
+      };
+      CountingPump pump;
+      pump.limit = 8000;
+      pump.stop = [&] { return idle_at >= 0 || frames > 6000; };
+      app.run(pump);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    std::printf("  dock with the player waiting %s: contact %d, repair %d, idle %d\n",
+                on_slot ? "on mobilehq_01's slot" : "on the dock point", contact_at, repair_at, idle_at);
+    EXPECT(contact_at > 7 && repair_at > contact_at && idle_at > repair_at);
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
 TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   if (!have_game()) return;
   SavedMounts keep;
