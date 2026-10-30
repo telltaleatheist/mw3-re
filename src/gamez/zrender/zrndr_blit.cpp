@@ -56,10 +56,15 @@ uint16_t cover_blend(uint16_t* dst, uint16_t s, uint32_t al, bool rgb565) {
   g_cover.alpha[i] = static_cast<uint8_t>(out);
   return g_cover.colour[i] = r;
 }
+}  // namespace
+
+// An opaque write ends a recorded blend there, whatever its colour: the cover
+// tells a blend apart by the colour it wrote, and an opaque pixel of that
+// same colour (the damage diagram's blue outlines over its blue fill, hud.md
+// section 16) was drawn see-through.
 void cover_opaque(uint16_t* dst) {
   if (g_cover.alpha) g_cover.alpha[dst - reinterpret_cast<uint16_t*>(g_target.base)] = 0;
 }
-}  // namespace
 
 Target2D& target2d() { return g_target; }
 LayerCover& layer_cover() { return g_cover; }
@@ -140,16 +145,16 @@ void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const 
     if (keyed) {
       for (int32_t r = 0; r < rows; ++r, dst += pitch, s += stride)
         for (int32_t c = 0; c < width; ++c)
-          if (s[c] != key) dst[c] = s[c];
+          if (s[c] != key) dst[c] = s[c], cover_opaque(dst + c);
       return;
     }
     if (full) {  // one copy by dwords: an odd last pixel is left out (as written)
       const int32_t n = (rows * width) >> 1;
-      for (int32_t i = 0; i < 2 * n; ++i) dst[i] = s[i];
+      for (int32_t i = 0; i < 2 * n; ++i) dst[i] = s[i], cover_opaque(dst + i);
       return;
     }
     for (int32_t r = 0; r < rows; ++r, dst += pitch, s += stride)
-      for (int32_t c = 0; c < width; ++c) dst[c] = s[c];
+      for (int32_t c = 0; c < width; ++c) dst[c] = s[c], cover_opaque(dst + c);
     return;
   }
 
@@ -172,15 +177,15 @@ void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const 
   if (keyed) {
     for (int32_t r = 0; r < rows; ++r, dst += pitch, s += stride)
       for (int32_t c = 0; c < width; ++c)
-        if (s[c] != key) dst[c] = pal[s[c]];
+        if (s[c] != key) dst[c] = pal[s[c]], cover_opaque(dst + c);
     return;
   }
   if (full) {
-    for (int32_t i = 0; i < rows * width; ++i) dst[i] = pal[s[i]];
+    for (int32_t i = 0; i < rows * width; ++i) dst[i] = pal[s[i]], cover_opaque(dst + i);
     return;
   }
   for (int32_t r = 0; r < rows; ++r, dst += pitch, s += stride)
-    for (int32_t c = 0; c < width; ++c) dst[c] = pal[s[c]];
+    for (int32_t c = 0; c < width; ++c) dst[c] = pal[s[c]], cover_opaque(dst + c);
 }
 
 // Mech3.exe 1.2 @ 0x00563b80
@@ -198,7 +203,8 @@ void line16(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t pixel) {
   auto put = [&](int32_t px, int32_t py) {
     if (!t.base || px < 0 || py < 0 || px >= static_cast<int32_t>(t.width) || py >= static_cast<int32_t>(t.height))
       return;
-    reinterpret_cast<uint16_t*>(t.base)[py * pitch + px] = pixel;
+    uint16_t* d = reinterpret_cast<uint16_t*>(t.base) + py * pitch + px;
+    *d = pixel, cover_opaque(d);
   };
   int32_t x = x0, y = y0;
   if (dx > dy) {

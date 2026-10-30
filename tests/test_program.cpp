@@ -2047,6 +2047,110 @@ TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// TARGET's 3D view (mode 1) on a turret: its node by its class (hud.md
+// section 14). targets.zrd's objects never reach it (vt+0xa8: mode 0).
+TEST(mission_c1m1_target_views_a_turret_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_target_other_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct DepthGpu : platform::Render3D {  // a device, so the Direct3D paths run
+    int depth_rects = 0;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override { ++depth_rects; }
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  mech3::HudReport r, mfd, both;
+  void* turret = nullptr;
+  int on = 0;
+  mech3::HudReport seen;
+  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode and messages, the engine's (as the SDL host's)
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      // 40 m west of a turret, the MFD on its nav list; TARGET in mode 1 on
+      // the turret once a contact, drawn 5 frames.
+      if (frames == 3) {
+        float at[3] = {};
+        for (mech3::tur::Turret* t : mech3::tur::turret_list())
+          if (!turret && t->active) turret = t, std::copy(t->pos, t->pos + 3, at);
+        const float x = at[0] - 40.0f, z = at[2];
+        const float pos[3] = {x, ground_under(x, at[1] + 100.0f, z), z};
+        if (turret) mech3::move_mech(player, pos, -1.5707964f);
+        mech3::program_hud_mfd_mode(3);
+      }
+      if (frames > 3 && turret && !on && mech3::program_hud_target_other(turret, 1)) {
+        on = frames;
+        mech3::program_hud_report(&r);
+      }
+      if (on && frames == on + 5) mech3::program_hud_report(&seen);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 60; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  TARGET on a turret %d (at frame %d, mode %d): %d nodes drawn in 5 frames\n", turret != nullptr, on,
+              seen.target_shown, seen.node_draws);
+  // Its node read as a mech's was two handles taken for a pointer: the
+  // view's draw crashed (Owen's Windows playtest, render_subtree).
+  EXPECT(on && seen.target_shown == 1 && seen.node_draws == 5);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
 // The reticle's zoom window (hud-plan item 6c2; 0x00444230 -> 0x00442f50,
 // 0x004436c0): shown, its camera is put at the player camera's place, turned
 // to the aim point, the player's own mech off while it draws; a box clears

@@ -961,6 +961,25 @@ the Owens in mode 2 and fires: the hits wear a torso section's internal to
 intact. Headless runs load no 2D images, so the test gives the silhouette
 set distinct stand-ins first.
 
+**What it shows** (Owen's playtest, 2026-10-29: "only the left arm
+outlined (or the right one)"). Each part is an outline over the
+background's translucent fill (`dmg_bg_blue`, an alpha image of 0x001f;
+red or green for TARGET's enemy or neutral): blue at full health, green
+above 0.7, yellow above 0.4, red above 0, nothing when destroyed (the
+`_blk` images are not shipped). In the program seven of the eight blue
+outlines are the fill's own 0x001f (`dmg_rarm_blue` alone is 0x003f), and
+the layer's cover (render-frame.md, FIX (A)) took them for the fill and
+drew them see-through, so at full health only the right arm showed (the
+left of the silhouette, the player's own seen from behind); damaged parts'
+colours differ and showed. Fixed in the cover, not here: an opaque write
+ends a pixel's record. mw3sdltests
+`sdl_host_damage_diagram_shows_every_part` draws the view with the shipped
+images at every band for each part and checks every outline texel opaque;
+with the cover unfixed it shows Owen's picture (seven parts with 0 texels
+at full health). Shots: c1m1, `--tap 0x20@800` (all blue at frame 900);
+with `--vehicle-ahead 40 --vehicle-hold` the vehicle's hits turn the left
+arm and leg green by frame 2400.
+
 ## 17. The gauges' setters, the objectives' place, the equipment's update
 
 Run by the HUD's data update each frame (section 14 part 4).
@@ -1309,6 +1328,20 @@ nodes in 5 frames). Break: the MFD view rendered as a plain zView, its
 camera stays at the world's origin (2.2 km away) and draws no node.
 Screenshots (c1m1, `build/mw3 --tap 0x20@N`): mode 1 the Mad Cat from the
 front, mode 2 the parts diagram, mode 3 the armour bars.
+
+**The target's node** (the object's +0x04, whatever its class). TARGET's
+mode 1 shows any target that is not hidden (vt+0xa8), so turrets as well
+as mechs and vehicles; targets.zrd's objects answer vt+0xa8 and show mode
+0. The program read every target's node as a mech's (`Mech::node`). A
+turret's `self` and `node` are 32-bit handles, so that read took the two
+handles for a pointer, and `render_subtree` crashed on it (Owen's Windows
+playtest, 2026-10-29: `Node::parent_count`). `object_node` now takes the
+node by class (`hud_object_node`, the sensors' lookup). A removed object
+resolves to null through its handle, and a dead mech keeps its node as
+the wreck. Test: mission_c1m1_target_views_a_turret_headless (40 m from a
+turret, the MFD on its nav list, TARGET in mode 1 on the turret: 5 nodes
+in 5 frames). Break: the mech read put back crashes in
+`Node::parent_count` under `render_subtree`, as in the playtest.
 
 ## 23. The zoom window's 3D pass (hud-plan item 6c2)
 

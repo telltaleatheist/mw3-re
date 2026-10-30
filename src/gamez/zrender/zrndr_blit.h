@@ -29,6 +29,7 @@ struct LayerCover {
   uint16_t key = 0;                // the layer's untouched colour
 };
 LayerCover& layer_cover();
+void cover_opaque(uint16_t* pixel);  // an opaque write into the 2D target: its recorded blend ended
 
 // A source rectangle, as a Win32 RECT.
 struct BlitRect {

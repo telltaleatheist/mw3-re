@@ -23,6 +23,10 @@ and `SDL3_ttf.dll` from the zips' `lib\x64` next to `mw3.exe`.
 
 - The install: `mw3.exe C:\path\to\MechWarrior3`, or an `install=` line in
   `mw3.cfg` in the write dir (`%APPDATA%\MicroProse\MechWarrior 3\`).
+- Check the install is 1.2's data, not only its exe: an install with the
+  1.2 `Mech3.exe` copied over older data (seen on one PC) has a different
+  `reader.zbd` (the HUD blocks for the larger screens missing), `interp.zbd`
+  and campaign 3's missions. Compare against CLAUDE.md's install recipe.
 - The movies: `mw3import` (needs FFmpeg's libraries) writes them to the
   write dir's `video\` (fmv.md section 6); a set made on another machine
   can be copied there.
@@ -30,6 +34,13 @@ and `SDL3_ttf.dll` from the zips' `lib\x64` next to `mw3.exe`.
   `--windowed`, `--window WxH` or `windowed=1` in `mw3.cfg` keep a window.
 - It must run in a desktop session: over ssh there is no swapchain
   (`SDL_ClaimWindowForGPUDevice` fails with 0x887A0022).
+
+## A crash
+
+Windows' event log (Application, event 1000) gives the exception code and
+the fault offset in mw3.exe. The build keeps symbols (mw3.pdb beside the
+exe), so `llvm-symbolizer --obj=build-win\mw3.exe --inlining
+--relative-address 0x<offset>` names the function and line.
 
 ## The renderer
 

@@ -40,6 +40,7 @@ const char* hud_object_name(const void* o);
 void hud_object_place(const void* o, float out[3]);
 void hud_object_centre(const void* o, float out[3]);
 void hud_object_centroid(const void* o, float out[3]);
+void* hud_object_node(const void* o);  // +0x04, by class (a turret's or target's a handle)
 void hud_object_aim_place(const void* o, float out[3]);  // 0x005a8630 (the lead point's)
 void hud_object_velocity(const void* o, float out[3]);   // vt+0xc
 const float* weapon_lock_point(const void* o);           // 0x005a8630, a live pointer
