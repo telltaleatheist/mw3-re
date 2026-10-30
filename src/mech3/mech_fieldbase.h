@@ -126,6 +126,22 @@ struct DockClose : DockState {
   Handle message(Handle m) override;  // 0x0045b770
   void abort() override {}       // 0x005ac5c0
 };
+// Ours, FIX (bug) behind zfix bugs (Owen, playtest: the bases stay deployed
+// after a repair): after a completed repair the reset keeps the bases called
+// and queues this in place of the idle state. It reads as idle to the MFB
+// command, so M-M still calls the bases (here or elsewhere), and ends when a
+// mech asks: a lancemate's refit (set_requester), or the player powered down
+// on the dock after powering up or leaving it. Then the contact, deploy,
+// repair, close and reset again for that mech (docs/vehicles.md, The repair
+// dock).
+struct DockParked : DockState {
+  bool armed = false;            // the player has been up or off the dock since
+  void begin() override;
+  bool step(float) override;
+  void end() override;
+  Handle message(Handle m) override;  // M-M: a new call, as the idle state's
+  void abort() override {}
+};
 // +0x140 (0x005c2560): the dock free again, the idle state queued.
 struct DockReset : DockState {
   void begin() override;         // 0x0045b6c0
@@ -194,6 +210,8 @@ struct FieldBases {
   DockRepair repair;                   // +0x110
   DockClose close;                     // +0x124
   DockReset reset;                     // +0x140
+  DockParked parked;                   // ours (FIX (bug), behind bugs): after a repair
+  bool park = false;                   // ours: the repair done, the reset parks
   FieldBases();                        // 0x00459b80 (the states' sounds: none, before zSound is up)
   FieldBases(const FieldBases&) = delete;
   FieldBases& operator=(const FieldBases&) = delete;
