@@ -571,6 +571,24 @@ bool chain_player_near(void* node, float dist, bool at_its_level) {
   return true;
 }
 
+bool chain_handle_at(uint32_t h, float out[3]) {
+  zcls::Node* n = g_sensors.node(h, false);
+  if (!n) return false;
+  world_position(n, out);
+  return true;
+}
+
+bool chain_player_face(const float at[3]) {
+  auto* player = static_cast<Mech*>(mech_mission_player());
+  if (!player) return false;
+  float from[3];
+  world_position(static_cast<zcls::Node*>(player->node), from);
+  const float dx = from[0] - at[0], dz = from[2] - at[2];
+  if (dx * dx + dz * dz < 1e-6f) return false;
+  move_mech(player, from, std::atan2(dx, dz));  // facing it, where it stands: forward is -z
+  return true;
+}
+
 bool chain_valve_link_at(const char* valve, int32_t value, float out[3]) {
   const ai::Valve* want = ai::valve_find(valve);
   if (!want) return false;

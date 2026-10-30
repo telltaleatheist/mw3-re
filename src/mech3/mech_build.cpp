@@ -96,8 +96,13 @@ void* MechBuildHooks::node_owner(Handle node) {
 // and a target node found or made under it) and the node's entity (0x0040eaa0:
 // bits 0x1000 and the owner, over the tree), which the mech's set-up gives it
 // too (0x00415ae0, mech_build's node_set_owner): the stand-in keeps the node,
-// its matrix and the two markers (zent::marker_nodes).
-void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char*) { vehicle_set_node(m, node); }
+// its matrix and the two markers (zent::marker_nodes). 0x005a8390 names the
+// node too (0x005a84c0: the AI record's name, else "<model>NN"), by which the
+// objectives and the valves find the mech (t1m2's aim_at_object bushwacker_02).
+void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char* name) {
+  vehicle_set_node(m, node);
+  if (node && name) node_set_name(node, name);
+}
 
 void vehicle_set_node(Vehicle& m, Handle node) {
   m.node = node;

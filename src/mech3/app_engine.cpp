@@ -229,6 +229,7 @@ const std::map<std::string, const char*>& known_keys() {
       {"hudline.vt+0x7c", "deferred: developer only (the 25 lines cleared)"},
       {"0x0040f7f0", "deferred: developer only (the 25 lines' Arial font)"},
       {"0x0043c820.debug", "deferred: developer only (the HUD frame's debug numbers into the five debug texts, hud.md)"},
+      {"0x00609980", "no effect: the pocket's network element ([0x00609980]'s by its +0x20), 0 outside a network game"},
       {"0x0040f890", "deferred: developer only (the lines' and debug text's layers on)"},
       {"0x0040fef0", "no effect: the timing marks act only with [0x005e14f0], 0 in the data"},
       {"0x004b52e0", "no effect: the view's window object, its two rects the same (scale 1; item 6)"},

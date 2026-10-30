@@ -214,4 +214,15 @@ void static_fill(const int32_t* rect, double level, uint16_t lo, uint16_t mid, u
   }
 }
 
+// Mech3.exe 1.2 @ 0x0055a740 (ECX a rect or null: the finish target's
+// whole): in Direct3D the display's green (0x00579280's second mask) over it
+// at 0.3 (0x0057dd80), the pocket commander's view (0x004b5280). The
+// software path, which masks the finish target's pixels, is not ported (the
+// software renderer is not).
+void dim(const int32_t* rect) {
+  int32_t r[4] = {0, 0, finish_target().width - 1, finish_target().height - 1};
+  if (rect) std::memcpy(r, rect, sizeof r);
+  if (tint_hooks().quad) tint_hooks().quad(static_cast<uint16_t>(zvid::channel_masks().g), r, 0.3);
+}
+
 }  // namespace zrndr

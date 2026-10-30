@@ -134,6 +134,11 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- **Finishing a mission while commanding your lance from the pocket view no
+  longer crashes.** The original threw the commander's view away at the
+  mission's end while your mech was still using it, then had the mech let
+  go of it again; the rebuild gives the mech its own controls back first.
+
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 

@@ -1803,6 +1803,26 @@ void Hud::add_static(float step, int32_t kind, float hold, float most) {
   if (kind == 0) radar.set_fade(s.level);
 }
 
+// Mech3.exe 1.2 @ 0x0043c1f0: the channel (kinds as add_static's) at least
+// `level`, its hold at least `hold`; the radar's fade set (0x0043dc70) for
+// kind 0. The heat's haze (mech.cpp): a random one over the haze's heat.
+void Hud::raise_static(float level, int32_t kind, float hold) {
+  static constexpr int kChannel[4] = {3, 1, 0, 2};
+  if (kind == 4) {
+    for (int32_t k = 0; k < 4; ++k) raise_static(level, k, hold);
+    return;
+  }
+  if (kind == 5) {
+    raise_static(level, crt::msvc_rand() & 3, hold);
+    return;
+  }
+  if (kind < 0 || kind > 3) return;
+  Static& s = statics[kChannel[kind]];
+  if (s.level < level) s.level = level;
+  if (s.hold < hold) s.hold = hold;
+  if (kind == 0) radar.set_fade(s.level);
+}
+
 // Mech3.exe 1.2 @ 0x0043cd20 (the frame's draw paths, after the HUD). Below
 // 0.4 of the internal structure of the player's torso (any of its three
 // sections) or head, a random panel gets static (GameIntensity's flag off):

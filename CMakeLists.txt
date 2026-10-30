@@ -491,6 +491,7 @@ if(SDL3_FOUND)
       src/frontend/sdl/mw3_main.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
+      src/frontend/sdl/modes_chain.cpp
       src/frontend/sdl/first_run_import.cpp
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)

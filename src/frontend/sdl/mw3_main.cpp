@@ -23,6 +23,7 @@
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
 //   --frames N           quit after N frames of a debug start
+//   --action-chain all|cN|cN:S  Instant Action played through, each world and scenario (ours, modes_chain.h)
 //   --campaign-chain new:N|resume:N|kills:N|retry:N  a pilot through the campaign as a player (ours,
 //                        campaign_chain.h): N missions won, shots in --write-dir
 //   --frame-ms N         each frame shown is N ms on the game's clock, however
@@ -51,6 +52,7 @@
 #include <vector>
 
 #include "frontend/sdl/campaign_chain.h"
+#include "frontend/sdl/modes_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
 #include "frontend/sdl/sdl_install.h"
@@ -122,6 +124,7 @@ struct Args {
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
+  std::string modes;          // --action-chain all / c2 / c2:4 (ours, modes_chain.h)
   int frame_ms = 0;           // --frame-ms N: each frame shown N ms on the game's clock (ours)
   int64_t seed = -1;          // --seed N: rand seeded with N wherever the game seeds it from the clock (ours)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
@@ -178,6 +181,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--campaign-chain" && next(1)) a.chain = argv[++i];
+    else if (s == "--action-chain" && next(1)) a.modes = argv[++i];
     else if (s == "--frame-ms" && next(1)) a.frame_ms = std::atoi(argv[++i]);
     else if (s == "--seed" && next(1)) a.seed = std::strtoll(argv[++i], nullptr, 10);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h), a.window_given = true;
@@ -268,7 +272,7 @@ int run(const Args& a);
 // mw3.cfg. Checks and shots never ask. False: quit (cancelled, or none found
 // with no dialog allowed, reported).
 bool find_install(Args& a) {
-  const bool may_ask = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty();
+  const bool may_ask = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.modes.empty();
   std::vector<std::string> dev;
 #ifdef MW3_GAME_DIR
   if (!std::getenv("MW3_FIND_INSTALL")) dev.push_back(MW3_GAME_DIR);  // a development build's copy (not with MW3_FIND_INSTALL=1)
@@ -329,7 +333,7 @@ int main(int argc, char** argv) {
   std::printf("mw3: %s\n", mech3::detect_data_version().describe().c_str());  // ours: assets.md, Data versions
   // The movies on a first run (ours, FIX (A): first_run_import.h): on a
   // player's plain start, not on checks, shots or debug starts, nor -nofmv.
-  const bool plain = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.mission.empty() && !a.fly &&
+  const bool plain = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.modes.empty() && a.mission.empty() && !a.fly &&
                      a.dialog_file.empty() && a.movie.empty() && a.original.find("-nofmv") == std::string::npos;
   if (a.force_import || (plain && !a.no_import)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 
@@ -350,7 +354,7 @@ int run(const Args& a) {
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it
   // (sdl_fit.h). Checks and shots stay in a window.
-  window.set_fullscreen(!a.windowed && !a.window_given && !a.hidden && a.frames == 0 && a.chain.empty());
+  window.set_fullscreen(!a.windowed && !a.window_given && !a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
@@ -668,10 +672,26 @@ int run(const Args& a) {
       co.dir = a.write_dir;
       chain = std::make_unique<sdlfe::CampaignChain>(engine, app, window.render(), co);
     }
+    std::unique_ptr<sdlfe::ModesChain> modes;
+    if (!a.modes.empty()) {
+      modes = std::make_unique<sdlfe::ModesChain>(engine, app, a.modes);
+      modes->key = [](int dik, bool down) {  // as --tap presses: the scan code of the DIK
+        for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
+          if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == dik) {
+            SDL_Event ev{};
+            ev.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+            ev.key.scancode = static_cast<SDL_Scancode>(sc);
+            ev.key.down = down;
+            SDL_PushEvent(&ev);
+            return;
+          }
+      };
+    }
     if (!debug && !launch)
       engine.on_present = [&](int) {
         ++menu_frames;
         if (chain) chain->frame();
+        if (modes) modes->frame();
         auto key = [&](int dik, bool down) {
           for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
             if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == dik) {
@@ -815,6 +835,7 @@ int run(const Args& a) {
         pump.should_quit = [&] { return (a.frames > 0 && menu_frames >= a.frames) || (!a.shot.empty() && menu_frames > a.shot_frame); };
       if (launch) pump.should_quit = [&] { return launch_done; };
       if (chain) pump.should_quit = [&] { return chain->done(); };
+      if (modes) pump.should_quit = [&] { return modes->done(); };
       // A quit outside the Exit state returns through ExitInstance, as the exe's WM_QUIT does,
       // and leaves the world to the process's end: stop_game after zSound's shutdown freed
       // the sounds the world's nodes still held (the exit's SIGTRAP, docs/program.md).

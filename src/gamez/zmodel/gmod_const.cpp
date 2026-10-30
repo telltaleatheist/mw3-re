@@ -221,11 +221,21 @@ int model_release(Model* m) {
 // slot) released as 0x00539150 does, then the materials no model uses
 // (0x00537e50).
 void models_purge(bool models, bool materials) {
-  static const uint8_t kEmpty[sizeof(Model::header)] = {};
-  if (models)
-    for (Model& m : g_pool.slots)
-      if (m.count(0xc) == 0 && std::memcmp(m.header, kEmpty, sizeof kEmpty) != 0) model_release(&m);
+  if (models) models_free_unused();
   if (materials) materials_purge();
+}
+
+// Mech3.exe 1.2 @ 0x005392c0: every model nothing holds (+0x0c 0, not an
+// empty slot) released as 0x00539150 does; their count. Instant Action's
+// next wave (0x0048f740) frees the last wave's mechs' models with it.
+int32_t models_free_unused() {
+  static const uint8_t kEmpty[sizeof(Model::header)] = {};
+  int32_t n = 0;
+  for (int32_t i = 0; i < g_pool.size && i < static_cast<int32_t>(g_pool.slots.size()); ++i) {
+    Model& m = g_pool.slots[static_cast<size_t>(i)];
+    if (m.count(0xc) == 0 && std::memcmp(m.header, kEmpty, sizeof kEmpty) != 0) model_release(&m), ++n;
+  }
+  return n;
 }
 
 namespace {
