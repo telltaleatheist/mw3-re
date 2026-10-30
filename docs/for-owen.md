@@ -192,3 +192,43 @@ or it changes balance. "Keep" means the original as played.
 1. The c1m1 check run (section 1), with #23's comparison on the original.
 2. B1 on a branch, to watch together.
 3. A5, B2, C1, D5 as small behind-`bugs` changes, if you agree.
+
+## 4. Questions from the night of 2026-10-29/30
+
+The night's fixes are in playtest.md (W1-W10, S1-S14). These need you:
+
+1. **W8, the field bases waiting at the op point**: the port and the exe's
+   logic both let the bases finish with you standing on the point or a slot.
+   Which mission was it (c1m1's Baker or c1m3's Charlie)? Were you powered
+   down or just standing? On the centre marker or where a base parks? What
+   did "step off" mean, and what happened then?
+2. **#23/#24, a full weapon that won't fire on a click**: likely chain fire
+   (the default: a press fires only the group's current weapon, the one with
+   the mark). Which fire mode (`\` cycles chain, single, group), which group
+   and weapons, fullscreen or windowed, and does it go away in group fire?
+3. **The first start on Windows** (only you can see these): start
+   `mw3.exe --write-dir C:\temp\x` (a fresh settings folder) and try the
+   install dialog (Browse, a wrong folder, the right one, Cancel) and the
+   movie conversion window. Alt+Enter both ways; Alt+Tab with the trigger
+   held (nothing should stay held, the sound mutes while away); mouse speed
+   windowed against fullscreen (it now matches the original, so it may feel
+   faster).
+4. **16:9 by default?** Fullscreen opens at the original's 640x480 (bars at
+   the sides). Should a first start pick your desktop's size (16:9 on most
+   screens) instead? Already selectable in the graphics options.
+5. **The HUD at 1280x720 (S12)**: the HUD art scales by whole steps, so at
+   720p it is drawn at 1x and looks smaller than at 640x480 or 1080p. With
+   the HUD art scale question above (section 3).
+6. **The movie importer's FFmpeg**: the package ships a ready-made FFmpeg
+   (LGPL v3, ~60 MB, many libraries listed in its notices). A minimal build
+   of only what the importer uses (LGPL 2.1, a few MB, no other notices)
+   means building FFmpeg from its source on the PC (MSYS2). Worth it?
+7. **The fog's start**: the software renderer kept the nearest 500 m clear
+   (its range 500..750); the Direct3D game fogs from 32 m. An option for the
+   software game's clearer near view?
+8. **To compare with the original when you play it**: S3 (t1's hall seen
+   from outside), S4 (c1m1's dark sky from the outside view), S5 (the weapon
+   list's green text on bright skies), S6 (c1m2's blue glint by a smoke
+   column).
+9. **The importer applying the 1.2 patch** for a 1.0 player (from the patch
+   file they supply): wanted?
