@@ -1732,3 +1732,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - No new differential: the two are a target check and one virtual call
   each, onto the already ported CockpitCamera::on_switch (0x00421d50).
 
+
+## Playtest W6: the reticle stays green over turrets (2026-10-29)
+
+- Branch mac4/reticle-yellow (off main 9df3631).
+- 0x00443d20 turns the reticle over (yellow) when the picked node's object
+  has its ZEntity +0x08 flag set and the aim is in range. The hook read the
+  flag only for a mech, so turrets, vehicles and targets.zrd objects logged
+  "object+8" and stayed green. Red (the lock) has no such test, so it
+  worked. Now `entity_active_flag` answers by class: Vehicle (mechs and
+  vehicles), tur::Turret, ai::CZAiTarget (targets and traps).
+- Test `mission_c1m1_reticle_turns_yellow_over_each_kind_headless` through
+  `program_hud_aim_at`: turret, vehicle, mech, target each over in range,
+  off out of range and dead. Breaks: the mech-only read (3 fail, Owen's
+  bug), the flag ignored (4 fail).
+- Shot: `--turret-ahead 30 --tap 12@150:175`, c1m1's nearest turret,
+  before green, after yellow (outbox).

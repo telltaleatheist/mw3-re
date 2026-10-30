@@ -585,9 +585,21 @@ slot is the mech's `target`, +0x6c) and the contact's mech and distance
 and +0x3cc its ECM count. "Over TARGET's box" (0x00440a30) waits for
 TARGET's tracking (0x00440b00), so the program never locks yet. The aimed
 node's object is mac 2's `node_entity` (0x0040e920, app_weapons.cpp); its
-+8 byte is ZEntity's active flag, read from a mech (another object's is
-logged as unported, 0); the node's +0xbc is its damage callbacks' record
-(zwep_damage), "above 1" meaning it has one.
++8 byte is ZEntity's active flag (set by the constructor, cleared at death),
+read by the object's class (`entity_active_flag`, app_hud.cpp: a mech's or
+vehicle's, a turret's, a targets.zrd object's or trap's); the node's +0xbc
+is its damage callbacks' record (zwep_damage), "above 1" meaning it has one.
+Each frame the image goes to off first; then an object with the flag and
+the aim in range shows over (yellow); no object but a damage record shows
+over at any range; neither, out of range, can't.
+
+Playtest W6 (2026-10-29): until then only a mech's flag was read, so a
+turret, vehicle or targets.zrd object never turned the reticle yellow
+(buildings with only a damage record did). mw3tests
+`mission_c1m1_reticle_turns_yellow_over_each_kind_headless` aims at one of
+each in c1m1 (in range: over; out of range or dead: off) and at a building
+(support00, a damage record and no object: over at any range); with the old
+mech-only read, the turret, vehicle and target checks fail.
 mw3tests `mission_c1m1_hud_weapon_lines_and_lock_headless` forces "over"
 (`program_hud_force_over`) with the Owens as the target and the LRM group:
 acquiring, waiting, locked 0.6 s later.
