@@ -171,9 +171,27 @@ class FollowState : public BehaviourState {
   uint8_t pulled = 0;        // +0x10  the last run's segment was to the boundary's point
   Behaviour* made_by;        // +0x18
 
+  // Ours (W17, FIX (bug) behind bugs; ai.md section 17.6): round a wall.
+  // No progress toward a target past his follow range (+0x28) for 2 s (a wall, or a
+  // contact holding his carrot back), he walks the
+  // clear heading nearest the target (the wall kept on one side) until the
+  // line to it is clear; after 20 s he gives up for 10.
+  struct Detour {
+    bool on = false;
+    int32_t side = 0;          // +1 or -1: the way he turns off the line
+    float dir[2] = {};         // the heading walked (x, z)
+    float watch_t = 0, watch_d = 0, time = 0, probe_t = 0, cool = 0;
+    float watch_fwd[2] = {};   // the heading at the window's start: a turn is not being stuck
+    int32_t walked = 0, gave_up = 0;  // detours begun, and given up (for the tests)
+  } detour;
+
  private:
   void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);
+  bool detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]);
 };
+
+// For the tests: every detour heading taken as blocked (the give-up).
+bool& follow_detour_blocked();
 
 // A vehicle net's mode 1 (slot 2) state: circling the target (0x004c9730 ->
 // 0x004c9750, 0x3c bytes, vtable 0x005cb3b0, over the waiting state

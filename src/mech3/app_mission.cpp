@@ -96,6 +96,7 @@
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mission_world.h"
+#include "gamez/zclass/cls_di.h"
 #include "mech3/options.h"
 #include "mech3/player.h"
 #include "mech3/sensors.h"
@@ -784,6 +785,16 @@ struct WiredBrainHooks : ai::BrainHooks {
   // 0x0056e7e0: a sound step's sound at the pilot's place.
   void sound_at(void* sound, const float pos[3], float volume) override {
     if (sound) zsnd::play_at(static_cast<zsnd::Object*>(sound), pos, volume, nullptr);
+  }
+  bool wall_between(const float from[3], const float to[3]) override {
+    zcls::Node* w = world_hooks().world;
+    if (!w) return false;
+    float seg[6] = {from[0], from[1], from[2], to[0], to[1], to[2]};
+    static zcls::SegmentHits hits[1];
+    zcls::segment_query(w, seg, 2, hits);
+    for (int i = 0; i < hits[0].count; ++i)
+      if (std::fabs(hits[0].hit[i].normal[1]) < 0.5f) return true;
+    return false;
   }
   // 0x004c3000: the mission's boundary, from the vehicle's place (0x005a85e0).
   bool inout_clamp(Handle v, const float in[3], float out[3]) override {

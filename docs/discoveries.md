@@ -3778,3 +3778,13 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   point and the HQ building is down. The bases go to the deploy point
   nearest you when you give the MFB command, so you have to call them
   from near Charlie. (docs/campaign.md, section 14)
+
+- **Lancemates do not path round walls.** "Follow me" and "attack my
+  target" make a lancemate walk straight at you or the target. A wall in
+  the way bounces him back. Then the way the AI avoids other units (it
+  pushes its aim point past anything near its line) can leave his aim point
+  exactly where he thinks he has arrived, and he stands there behind the
+  wall for good. The mission's AI nets are scripted routes for particular
+  units, not maps of the ground, so they cannot steer him round either. The
+  rebuild, with bug fixes on, has him walk round the wall.
+

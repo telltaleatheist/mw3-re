@@ -516,4 +516,5 @@ Known quirks the rebuild deliberately keeps:
 - Elementals have one point of armor everywhere and die to a single hit.
 - Missiles that miss vanish at the end of their range without exploding.
 - Radio chatter plays the newest line first.
+- A lancemate told to follow you or attack walks round a wall in the way instead of standing behind it (bug fixes on).
 - Every mech's engine tops out at 400.

@@ -1,8 +1,10 @@
 #include "mech3/zai_attack.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/zai_target.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -311,6 +313,92 @@ void FollowState::aim(Brain& b, zgame::Handle v, const float pos[3], const float
   if (unordered_or_less(s.along_at, s.along_min)) s.along_at = s.along_min;
 }
 
+bool& follow_detour_blocked() {
+  static bool blocked = false;
+  return blocked;
+}
+
+namespace {
+constexpr float kProbe = 25.0f;     // how far a heading must be clear
+constexpr float kEye = 4.0f;        // the probes' height over the pilot's place
+constexpr float kStep = 0.2617994f;  // 15 degrees between the headings tried
+// The heading `k` steps of 15 degrees to `side` off the way to the target
+// (x, z of a unit vector) clear of walls for kProbe from 4 m out.
+bool heading_clear(const float pos[3], float a0, int32_t side, int32_t k, float out[2]) {
+  const float a = a0 + static_cast<float>(side * k) * kStep;
+  const float x = std::sin(a), z = std::cos(a);
+  const float from[3] = {pos[0] + 4.0f * x, pos[1] + kEye, pos[2] + 4.0f * z};
+  const float to[3] = {pos[0] + kProbe * x, pos[1] + kEye, pos[2] + kProbe * z};
+  if (follow_detour_blocked() || brain_hooks().wall_between(from, to)) return false;
+  out[0] = x, out[1] = z;
+  return true;
+}
+// The clear heading nearest the target, turning to `side` (0: either, the
+// nearer), at most 150 degrees off; the side taken.
+bool pick_heading(const float pos[3], const float to[3], int32_t* side, float out[2]) {
+  const float a0 = std::atan2(to[0] - pos[0], to[2] - pos[2]);
+  for (int32_t k = 1; k <= 10; ++k)
+    for (const int32_t s : {1, -1}) {
+      if (*side && s != *side) continue;
+      if (heading_clear(pos, a0, s, k, out)) return *side = s, true;
+    }
+  return false;
+}
+}  // namespace
+
+// Ours (W17, FIX (bug) behind bugs): where to walk this frame when the
+// pilot has stopped short of the target (a wall, or a contact holding the
+// carrot back); false to follow as the exe.
+bool FollowState::detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt,
+                              float goal[3]) {
+  Detour& d = detour;
+  const float dx = to[0] - pos[0], dz = to[2] - pos[2];
+  const float dist = std::sqrt(dx * dx + dz * dz);
+  const float far = reach;  // past the far end of his follow range (+0x28): never where the follow settles
+  if (d.cool > 0) d.cool -= dt;
+  if (!d.on) {
+    if (dist <= far || d.cool > 0) {
+      d.watch_t = 0, d.watch_d = dist, d.watch_fwd[0] = fwd[0], d.watch_fwd[1] = fwd[1];
+      return false;
+    }
+    d.watch_t += dt;
+    if (d.watch_t < 2.0f) return false;
+    // No progress, not turning (cos 20 degrees): a wall, or the contacts'
+    // push (Steer::push_by_contacts) holding the carrot within his slack.
+    const bool turned = fwd[0] * d.watch_fwd[0] + fwd[1] * d.watch_fwd[1] < 0.9396926f;
+    const bool stuck = dist > d.watch_d - 2.0f && !turned;
+    d.watch_t = 0, d.watch_d = dist, d.watch_fwd[0] = fwd[0], d.watch_fwd[1] = fwd[1];
+    if (!stuck) return false;
+    d.side = 0;
+    if (!pick_heading(pos, to, &d.side, d.dir)) {
+      d.cool = 10.0f, ++d.gave_up;
+      return false;
+    }
+    d.on = true, d.time = 0, d.probe_t = 0.5f, ++d.walked;
+  } else {
+    d.time += dt;
+    const float eye[3] = {pos[0], pos[1] + kEye, pos[2]};
+    const float lead = std::min(dist - 8.0f, 40.0f) / std::max(dist, 1.0f);
+    const float ahead[3] = {pos[0] + dx * lead, pos[1] + kEye, pos[2] + dz * lead};
+    const bool clear = d.time > 1.0f && !brain_hooks().wall_between(eye, ahead);
+    if (dist <= reach - 2.0f || clear || d.time > 20.0f) {
+      if (d.time > 20.0f) d.cool = 10.0f, ++d.gave_up;  // give up: the exe's straight follow for a while
+      d.on = false, d.watch_t = 0, d.watch_d = dist, d.watch_fwd[0] = fwd[0], d.watch_fwd[1] = fwd[1];
+      return false;
+    }
+    d.probe_t -= dt;
+    if (d.probe_t <= 0) {
+      d.probe_t = 0.5f;
+      if (!pick_heading(pos, to, &d.side, d.dir)) {
+        d.on = false, d.cool = 10.0f, ++d.gave_up;
+        return false;
+      }
+    }
+  }
+  goal[0] = pos[0] + d.dir[0] * 20.0f, goal[1] = pos[1], goal[2] = pos[2] + d.dir[1] * 20.0f;
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x004c9750. Without a part or target the exe reads
 // through null; the port leaves the directions 0.
 CircleState::CircleState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) {
@@ -507,10 +595,17 @@ void FollowState::run(float dt) {
   }
   float slack_along = 0, slack_side = 0;
   float at[3] = {to[0], to[1], to[2]};
+  float goal[3], ahead[2] = {0, 0};
+  if (zfix::options().bugs) h.forward(v, &ahead[0], &ahead[1]);  // ours, for the detour
   if (h.inout_clamp(v, to, at)) {  // 0x004c3000: the boundary pulls the target's place
     const Steer& s = b.steer;
     if (!(pulled && same_or_nan(at[0], s.start[0]) && same_or_nan(at[2], s.start[2]))) aim(b, v, pos, at, 0.0f);
     pulled = 1;
+    detour.on = false;
+  } else if (zfix::options().bugs && detour_goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
+    aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W17): round the wall
+    slack_side = 2.0f;
+    pulled = 0;
   } else {
     const float p28 = b.params.get<float>(0x28), p2c = b.params.get<float>(0x2c);
     aim(b, v, pos, to, (p2c + p28) * 0.5f);  // 0x005cc564

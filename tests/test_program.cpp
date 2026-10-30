@@ -8904,6 +8904,12 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
         if (vp && vp->target && vp->target->vehicle == seen.marker) ++seen.follows_marker;
         if (const mech3::PocketMarker* k = mech3::program_pocket_marker(seen.marker)) seen.marker_cast += k->shadow != nullptr;
         seen.closest = std::min(seen.closest, dist_to_spot());
+        if (std::getenv("MW3_LANCE_LOG") && seen.frames % 60 == 0) {
+          auto* fs = dynamic_cast<mech3::ai::FollowState*>(b.current().state.get());
+          std::fprintf(stderr, "POCKET frame %d: %.1f m to the spot, +0x28 %.1f +0x2c %.1f, throttle %.2f, detours %d\n", seen.frames,
+                       dist_to_spot(), b.params.get<float>(0x28), b.params.get<float>(0x2c), b.controls->throttle_now(),
+                       fs ? fs->detour.walked : -1);
+        }
       }
     };
     CountingPump pump;
@@ -8929,11 +8935,14 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
     EXPECT(seen.marker != 0);
     EXPECT(seen.mode && seen.picked && seen.wired_pick && seen.placed);
     EXPECT(seen.ordered && (seen.marker_team & seen.dominic_enemies));
-    // He heads for it and stops at his reach of an enemy, as for any (exact:
-    // the run repeats with reset_process_state's fixed seed).
+    // He heads for it (exact: the run repeats with reset_process_state's
+    // fixed seed).
     EXPECT(seen.follows_marker == 902 && std::fabs(seen.d0 - 199.349f) < 1e-3f);
-    // 120.879 since the AI's wall reverse (0x004231c0, 2026-10-29): 120.729 before.
-    EXPECT(std::fabs(seen.closest - 120.879f) < 1e-3f);
+    // His range is 60..80 m, but at about 120 m he bounces off something and
+    // the exe leaves him there (120.879; 120.729 before the AI's wall reverse,
+    // 0x004231c0): playtest W17. With W17's detour (bugs) he works round it,
+    // 114.758 by the run's end.
+    EXPECT(std::fabs(seen.closest - 114.758f) < 1e-3f);
     EXPECT(seen.marker_cast == 1);
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -9165,6 +9174,7 @@ TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
     std::printf("  %s: radio %s%s%s%s\n", s.key.c_str(), s.lines.c_str(), s.changed ? ", a new order" : "",
                 s.follows_player ? ", follows the player" : "", s.follows_target ? ", follows the target" : "");
   EXPECT(w_presses < 8 && moved_by_e && enemy_targeted && ally_kept && radio && steps.size() == 3);
+  // (W17's follow walk: mission_c2m1_dominic_follows_round_walls_headless.)
   if (steps.size() == 3) {
     EXPECT(steps[0].lines == "confirm_order" && steps[0].changed && steps[0].follows_target);
     EXPECT(steps[1].lines == "follow" && steps[1].follows_player);  // his own order followed the player already
@@ -9174,6 +9184,169 @@ TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+}
+
+// Playtest W17: Dominic told to follow "just runs into a wall" (Op 2). The
+// follow order (0x004d1980) steers straight at the target; on c2m1 with the
+// player 40 m past a wall, Dominic walks into it, the wall response backs
+// him off, and the contacts' push (Steer::push_by_contacts) then holds his
+// carrot within his slack: he stands 73 m off for good, past his follow
+// range (40..60 m there). Ours, behind bugs: stopped short for 2 s he walks
+// the clear heading nearest the player until the line is clear, and reaches
+// the range. On open ground no detour begins and his walk is the exe's; with
+// every heading blocked he gives up and follows as the exe.
+namespace {
+struct FollowRun {
+  float d0 = 0, d_end = 0, range = 0;
+  int walked = 0, gave_up = 0;
+  bool placed = false;
+};
+FollowRun c2_follow_run(int mission, bool wall, bool bugs, bool blocked = false) {
+  FollowRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w17_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  mech3::ai::follow_detour_blocked() = blocked;
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = mission, l.op = 2, l.number = mission;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void *dominic = nullptr, *player = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    int frames = 0;
+    auto dist = [](void* a, void* b) {
+      mech3::LaunchedMech x, y;
+      mech3::describe_mech(a, &x), mech3::describe_mech(b, &y);
+      const float dx = x.pos[0] - y.pos[0], dz = x.pos[2] - y.pos[2];
+      return std::sqrt(dx * dx + dz * dz);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        player = mech3::mech_mission_player();
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        if (!dominic || !player || !brain) return;
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        float x = d.pos[0] + 250.0f, z = d.pos[2];  // open ground: 250 m east
+        if (wall) {  // the nearest wall round him (a level face 20..150 m out), the player 40 m past it
+          float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0;
+          for (int k = 0; k < 48; ++k) {
+            const float a = static_cast<float>(k) * 0.1308997f;
+            const float sx = std::sin(a), sz = std::cos(a);
+            float seg[6] = {d.pos[0] + 8 * sx, d.pos[1] + 4, d.pos[2] + 8 * sz, d.pos[0] + 150 * sx, d.pos[1] + 4, d.pos[2] + 150 * sz};
+            static zcls::SegmentHits hits[1];
+            if (zcls::Node* w = mech3::world_hooks().world) zcls::segment_query(w, seg, 2, hits);
+            for (int i = 0; i < hits[0].count; ++i) {
+              const zcls::SegmentHit& h = hits[0].hit[i];
+              const float r = std::hypot(h.point[0] - d.pos[0], h.point[2] - d.pos[2]);
+              if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best) best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz;
+            }
+          }
+          if (best > 1e8f) return;
+          x = bx + 40 * ux, z = bz + 40 * uz;
+        }
+        const float at[3] = {x, ground_under(x, d.pos[1] + 300.0f, z), z};
+        mech3::move_mech(player, at, 0.0f);
+        out.d0 = dist(dominic, player);
+        out.range = brain->params.get<float>(0x28);  // the far end of his follow range
+        out.placed = true;
+        return;
+      }
+      if (!out.placed) return;
+      if (auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get()))
+        out.walked = std::max(out.walked, fs->detour.walked), out.gave_up = std::max(out.gave_up, fs->detour.gave_up);
+      if (frames % 60 == 0 && std::getenv("MW3_W17_LOG")) {
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        std::fprintf(stderr, "W17 c2m%d frame %d: %.1f m, at %.1f %.1f, throttle %.2f\n", mission, frames, dist(dominic, player),
+                     d.pos[0], d.pos[2], brain->controls->throttle_now());
+      }
+      if (frames == 1500) out.d_end = dist(dominic, player);
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    pump.stop = [&] { return frames >= 1500 || (frames > 3 && !out.placed); };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::ai::follow_detour_blocked() = false;
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+void print_follow(const char* what, const FollowRun& r) {
+  std::printf("  %s: %.1f m to %.1f m in 1500 frames (range to %.0f m), detours %d, given up %d\n", what, r.d0, r.d_end,
+              r.range, r.walked, r.gave_up);
+}
+}  // namespace
+
+TEST(mission_c2m1_dominic_follows_round_walls_headless) {
+  if (!have_game()) return;
+  const FollowRun wall = c2_follow_run(1, true, true), wall_exe = c2_follow_run(1, true, false);
+  print_follow("c2m1 behind the wall", wall);
+  print_follow("c2m1 behind the wall, bugs off (the exe)", wall_exe);
+  EXPECT(wall.placed && wall.walked > 0 && wall.d_end <= wall.range);
+  EXPECT(wall_exe.placed && wall_exe.walked == 0 && wall_exe.d_end > wall_exe.range);
+  const FollowRun c2m2 = c2_follow_run(2, true, true);
+  print_follow("c2m2 behind a wall", c2m2);
+  EXPECT(c2m2.placed && c2m2.d_end <= c2m2.range);
+  // Open ground: no detour, the exe's walk to the same place.
+  const FollowRun open = c2_follow_run(1, false, true), open_exe = c2_follow_run(1, false, false);
+  print_follow("c2m1 open ground", open);
+  print_follow("c2m1 open ground, bugs off", open_exe);
+  EXPECT(open.placed && open.walked == 0 && open.gave_up == 0 && open.d_end <= open.range);
+  EXPECT(std::fabs(open.d_end - open_exe.d_end) < 0.01f);
+  // Every heading blocked: he gives up and stands where the exe leaves him.
+  const FollowRun blocked = c2_follow_run(1, true, true, true);
+  print_follow("c2m1 behind the wall, every heading blocked", blocked);
+  EXPECT(blocked.placed && blocked.walked == 0 && blocked.gave_up > 0 && blocked.d_end > blocked.range);
 }
 
 TEST(mission_c1m4_lance_orders_reach_dominic_and_he_answers_headless) {
