@@ -2090,13 +2090,17 @@ TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
     ztwod::set_host(nullptr);
   }
   std::printf("  MFD mode %d: %d nodes drawn in 5 frames, its camera %.1f m from the mech, %.1f m up, %.1f m in "
-              "front; TARGET mode %d (targeted %d): %d nodes drawn in 5 frames\n",
+              "front; TARGET mode %d (targeted %d): %d nodes drawn in 5 frames, its camera %.1f m up (the Owens' "
+              "centroid %.1f m)\n",
               mfd.mfd_shown, mfd.node_draws, mfd.mfd_cam_dist, mfd.mfd_cam_height, mfd.mfd_cam_front, both.target_shown,
-              targeted, both.node_draws);
+              targeted, both.node_draws, both.target_cam_height, both.target_centroid_height);
   EXPECT(mfd.mfd_shown == 1 && mfd.node_draws == 5);                   // the mech alone, once a frame
   EXPECT(std::fabs(mfd.mfd_cam_front - 13.0f) < 0.5f);                 // 13 m before it
   EXPECT(mfd.mfd_cam_height > 2.0f && mfd.mfd_cam_dist < 13.5f);       // at 1.25 x its centroid's height
   EXPECT(targeted && both.target_shown == 1 && both.node_draws == 10);  // and TARGET's target
+  // TARGET's camera level with its target's centroid (0x00440b00, the
+  // entity's +0x14), not at its feet (playtest W7).
+  EXPECT(both.target_centroid_height > 2.0f && std::fabs(both.target_cam_height - both.target_centroid_height) < 1.5f);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

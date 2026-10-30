@@ -1355,6 +1355,19 @@ turret, the MFD on its nav list, TARGET in mode 1 on the turret: 5 nodes
 in 5 frames). Break: the mech read put back crashes in
 `Node::parent_count` under `render_subtree`, as in the playtest.
 
+**TARGET's camera** (0x00440b00, each frame): the target's centroid (the
+entity's +0x14 node, its data +0x84) less the contact's direction times
+1.2 x its size, turned along the line from the player's centroid to the
+target's. Both are centroids, a mech's too. The program took a mech's place
+(its +0x04 node, on the ground) instead, so the view centred on the target's
+feet: legs halfway up the window, the head off its top, on every mech
+(playtest W7); the target triangle (0x00440510, centred on that point) sat at the feet
+too. `entity_position` reads the centroid now; the place stays
+`object_position` (0x005a85e0). Test:
+mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless, TARGET's
+camera 5.2 m above the Owens' place, level with its centroid. Break: the
+place read put back, the camera 0.0 m up.
+
 ## 23. The zoom window's 3D pass (hud-plan item 6c2)
 
 The draw paths' `hud_zoom_pass` (the reticle's vt+0x28, 0x00444230) runs the

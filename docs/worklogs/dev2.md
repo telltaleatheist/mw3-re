@@ -67,3 +67,21 @@ works alongside it; stay out of its files.
   screen-recording access to click or capture it). The dialog's pick flow
   needs a person: the lead tests it on Owen's PC.
 - Branch `mac5/find-install` off main cd45f5f.
+
+## 4. W7: TARGET's view of a mech (2026-10-30)
+
+- TARGET's camera (0x00440b00) is the target's centroid (entity +0x14) less
+  the contact direction x 1.2 x size, aimed along player centroid -> target
+  centroid. 0x00441410 itself places nothing. The program's
+  `ProgramHudHooks::entity_position` gave a mech's place (+0x04, the ground)
+  for both points, so the view centred on the feet of every mech; the target
+  triangle (0x00440510) too. The probe's hook read +0x14 already, so the
+  differential test never saw it.
+- Fix: `entity_position` reads the centroid node; `object_position` and
+  `vehicle_position` keep the place they meant.
+- Test: the MFD/TARGET mission test checks TARGET's camera height against
+  the Owens' centroid (5.2 m both); the place read put back gives 0.0 and
+  fails.
+- Shots: outbox/2026-10-30/W7-target-{owens,madcat}-{before,after}.png
+  (c1m1 Owens, c3m2 Mad Cat, `--mech-ahead 60 --tap 0x12@860`, frame 960).
+- Branch `mac5/target-camera` off main 730a01c.
