@@ -144,3 +144,12 @@ works alongside it; stay out of its files.
   and says so; `mw3import` without one says to give `--install` or start
   mw3. The .cmd, .ps1 and .rc are untested here (Windows only).
 - Branch `mac5/windows-package` off main 46135f7.
+- The PC's run (lead, 63c3a5b): check_dist 17 files, both --version print
+  from a fresh folder with only Windows' DLLs on PATH, the finder found
+  C:\Games\MechWarrior3 and saved it; every licenses\ folder filled. Then:
+  BtbN's FFmpeg is --enable-version3 (LGPL v3) with ~20 libraries built in.
+  Done (a): THIRD-PARTY.txt says LGPL v3; `ffmpeg_notices.ps1` lists the
+  built-in libraries and their licences from the configure line. (b), a
+  minimal LGPL v2.1 FFmpeg, is written up in windows.md for later: this
+  session's permission check refused building the downloaded FFmpeg source,
+  so it waits for Owen's approval.

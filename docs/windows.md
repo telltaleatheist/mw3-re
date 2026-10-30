@@ -60,6 +60,27 @@ reads too), builds `mw3` and `mw3import`, and collects:
   --version`: FFmpeg's version and configure line, naming the libraries
   built into its DLLs).
 
+BtbN's LGPL build is configured with `--enable-version3` (it has
+opencore-amr, Apache-2.0), so its DLLs are LGPL v3, and it builds in some
+twenty other libraries (dav1d, libvpx, opus, vorbis, lame, openh264, rav1e,
+SVT-AV1, zimg, libxml2, libbluray and more) that mw3import never uses.
+`ffmpeg_notices.ps1` lists them from the configure line with their licences
+(`licenses\ffmpeg-libraries.txt`), and names any it has no licence for.
+
+Later (not done; Owen's approval first, as building FFmpeg's downloaded
+code was not allowed in the dev session that tried it): a minimal FFmpeg of
+FFmpeg's own code only, LGPL v2.1+, a few MB instead of about 60, with no
+other notices. mw3import needs only `--disable-everything
+--disable-autodetect --disable-programs --disable-doc --disable-network
+--disable-avdevice --disable-avfilter --disable-swresample
+--enable-protocol=file --enable-demuxer=avi --enable-decoder=indeo5
+--enable-encoder=mpeg1video --enable-muxer=mpeg1video --enable-swscale
+--enable-shared --disable-static`, built in MSYS2's MINGW64 shell
+(`--target-os=mingw32`, `-static-libgcc`), the `.lib` import libraries
+moved from `bin\` to `lib\` for CMake. Source: ffmpeg.org's
+ffmpeg-8.1.2.tar.xz (sha256 464beb5e...b524c, signed by the FFmpeg release
+key).
+
 `check_dist.ps1` then checks with `dumpbin /dependents` that every DLL the
 exes and DLLs import is in the folder or Windows' own (System32 or an
 `api-ms-win-*` set; the VC++ runtime must be in the folder), and that no game
