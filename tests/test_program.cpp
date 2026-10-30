@@ -1,5 +1,6 @@
 #include "mech3/data_version.h"
 #include "mech3/patch_import.h"
+#include "mech3/disc_install.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
@@ -359,6 +360,205 @@ TEST(patch_import_upgrades_10_data_from_the_official_patch) {
     for (const std::string& l : r.log) std::printf("  %s\n", l.c_str());
     EXPECT(r.ok && version_with(tmp + "/fromzip").name == "1.2");
   }
+}
+
+// A disc made here (ours; assets.md, Installing from the disc): an ISO 9660
+// image whose root holds the 1.2 patch's DATA1.HDR/DATA1.CAB (a real
+// InstallShield 5 cabinet) and a VIDEO folder, then the same as a raw
+// MODE1/2352 .bin with a cue sheet and an audio track, then as a folder.
+// Each installs the cabinet's 31 files and the movies; the cue's audio is the
+// music. A foreign folder is refused, an earlier install replaced, and a
+// damaged cabinet (its MD5s) installs nothing.
+namespace {
+struct MadeDisc {
+  std::vector<std::pair<std::string, std::vector<uint8_t>>> root, video;  // name, bytes
+  // The image: PVD at 16, terminator at 17, the root at 18, VIDEO at 19, files from 20.
+  std::vector<uint8_t> iso() const {
+    std::vector<uint8_t> img(20 * 2048, 0);
+    auto put32 = [](uint8_t* p, uint32_t v) {
+      for (int k = 0; k < 4; ++k) p[k] = static_cast<uint8_t>(v >> (8 * k)), p[7 - k] = static_cast<uint8_t>(v >> (8 * k));
+    };
+    auto record = [&](std::vector<uint8_t>& dir, const std::string& name, uint32_t lba, uint32_t size, bool is_dir) {
+      const size_t n = name.size(), len = (33 + n + 1) & ~size_t{1};
+      if (dir.size() / 2048 != (dir.size() + len - 1) / 2048) dir.resize((dir.size() / 2048 + 1) * 2048, 0);
+      std::vector<uint8_t> r(len, 0);
+      r[0] = static_cast<uint8_t>(len), put32(&r[2], lba), put32(&r[10], size), r[25] = is_dir ? 2 : 0, r[32] = static_cast<uint8_t>(n);
+      std::memcpy(&r[33], name.data(), n);
+      dir.insert(dir.end(), r.begin(), r.end());
+    };
+    auto add = [&](const std::vector<uint8_t>& d) {
+      const uint32_t lba = static_cast<uint32_t>(img.size() / 2048);
+      img.insert(img.end(), d.begin(), d.end());
+      img.resize((img.size() + 2047) / 2048 * 2048, 0);
+      return lba;
+    };
+    std::vector<uint8_t> rd, vd;
+    record(rd, std::string(1, '\0'), 18, 2048, true), record(rd, std::string(1, '\1'), 18, 2048, true);
+    record(vd, std::string(1, '\0'), 19, 2048, true), record(vd, std::string(1, '\1'), 18, 2048, true);
+    for (const auto& [name, d] : root) record(rd, name + ";1", add(d), static_cast<uint32_t>(d.size()), false);
+    for (const auto& [name, d] : video) record(vd, name + ";1", add(d), static_cast<uint32_t>(d.size()), false);
+    record(rd, "VIDEO", 19, 2048, true);
+    rd.resize(2048, 0), vd.resize(2048, 0);
+    std::memcpy(&img[18 * 2048], rd.data(), 2048);
+    std::memcpy(&img[19 * 2048], vd.data(), 2048);
+    uint8_t* pvd = &img[16 * 2048];
+    pvd[0] = 1, std::memcpy(pvd + 1, "CD001", 5), pvd[6] = 1;
+    pvd[156] = 34, put32(pvd + 156 + 2, 18), put32(pvd + 156 + 10, 2048), pvd[156 + 25] = 2, pvd[156 + 32] = 1;
+    uint8_t* end = &img[17 * 2048];
+    end[0] = 255, std::memcpy(end + 1, "CD001", 5), end[6] = 1;
+    return img;
+  }
+};
+// Each 2048-byte sector as a raw MODE1 one: sync, header (mode 1), the data,
+// EDC/ECC left zero (nothing here checks them).
+std::vector<uint8_t> raw_mode1(const std::vector<uint8_t>& iso) {
+  std::vector<uint8_t> out;
+  out.reserve(iso.size() / 2048 * 2352);
+  for (size_t s = 0; s < iso.size() / 2048; ++s) {
+    uint8_t h[16] = {0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 1};
+    out.insert(out.end(), h, h + 16);
+    out.insert(out.end(), iso.begin() + s * 2048, iso.begin() + (s + 1) * 2048);
+    out.insert(out.end(), 288, 0);
+  }
+  return out;
+}
+std::vector<uint8_t> slurp_file(const std::string& path) {
+  std::vector<uint8_t> d;
+  if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+    uint8_t buf[1 << 16];
+    size_t got;
+    while ((got = std::fread(buf, 1, sizeof buf, f)) > 0) d.insert(d.end(), buf, buf + got);
+    std::fclose(f);
+  }
+  return d;
+}
+void spit_file(const std::string& path, const std::vector<uint8_t>& d) {
+  if (std::FILE* f = std::fopen(path.c_str(), "wb")) std::fwrite(d.data(), 1, d.size(), f), std::fclose(f);
+}
+}  // namespace
+
+TEST(disc_install_from_an_image_a_cue_and_a_folder) {
+  const std::string folder = std::string(MW3_SOURCE_DIR) + "/game/patch-1.2/MechWarrior-3_Patch_Win_EN_Patch-12-US";
+  if (!std::filesystem::exists(folder + "/data1.cab")) return;
+  const std::string tmp = temp_dir("disc_install");
+  MadeDisc disc;
+  disc.root = {{"DATA1.CAB", slurp_file(folder + "/data1.cab")}, {"DATA1.HDR", slurp_file(folder + "/data1.hdr")},
+               {"SETUP.EXE", std::vector<uint8_t>(3000, 7)}};
+  std::vector<uint8_t> movie(5000);
+  for (size_t i = 0; i < movie.size(); ++i) movie[i] = static_cast<uint8_t>(i * 31);
+  disc.video = {{"C1.AVI", movie}, {"INTRO.AVI", std::vector<uint8_t>(2048 * 3, 9)}};
+  const std::vector<uint8_t> iso = disc.iso();
+  spit_file(tmp + "/disc.iso", iso);
+  spit_file(tmp + "/disc (Track 1).bin", raw_mode1(iso));
+  std::vector<uint8_t> audio(2352 * 160);  // 2 s of pregap, then 10 frames
+  for (size_t i = 0; i < audio.size(); ++i) audio[i] = static_cast<uint8_t>(i < 2352 * 150 ? 0 : i * 7);
+  spit_file(tmp + "/disc (Track 2).bin", audio);
+  const std::string cue = "FILE \"disc (Track 1).bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n"
+                          "FILE \"disc (Track 2).bin\" BINARY\n  TRACK 02 AUDIO\n    INDEX 00 00:00:00\n    INDEX 01 00:02:00\n";
+  spit_file(tmp + "/disc.cue", std::vector<uint8_t>(cue.begin(), cue.end()));
+  std::error_code ec;
+  std::filesystem::create_directories(tmp + "/drive/VIDEO", ec);  // the disc as a mounted folder
+  for (const auto& [name, d] : disc.root) spit_file(tmp + "/drive/" + name, d);
+  for (const auto& [name, d] : disc.video) spit_file(tmp + "/drive/VIDEO/" + name, d);
+
+  std::vector<mech3::PatchEntry> want;
+  std::string error;
+  EXPECT(mech3::read_installshield(disc.root[1].second, disc.root[0].second, &want, &error) && want.size() == 31);
+  auto same_install = [&](const std::string& out) {
+    int same = 0;
+    for (const mech3::PatchEntry& e : want) same += slurp_file(out + "/" + e.path) == e.data;
+    return same == 31 && slurp_file(out + "/video/C1.AVI") == movie && std::filesystem::exists(out + "/mw3-install.txt") &&
+           !std::filesystem::exists(out + "/SETUP.EXE") && !std::filesystem::exists(out + ".new");
+  };
+  for (const char* src : {"/disc.iso", "/disc.cue", "/drive"}) {
+    const std::string out = tmp + "/out" + std::string(src).substr(1, 4), music = out + "-music";
+    const mech3::DiscInstall r = mech3::install_from_disc(tmp + src, out, "", music, nullptr);
+    std::printf("  %s: %s%s, %d files, %d movies, %d music, version %s, %zu warnings\n", src, r.ok ? "installed" : "failed: ",
+                r.error.c_str(), r.files, r.movies, r.music, r.version.c_str(), r.warnings.size());
+    EXPECT(r.ok && r.files == 31 && r.movies == 2 && same_install(out));
+    EXPECT(r.version == "unknown" && !r.warnings.empty());  // the patch's files are 1.2's, not the 1.0 disc's
+    const bool is_cue = std::string(src) == "/disc.cue";
+    EXPECT(r.music == (is_cue ? 1 : 0));
+    if (is_cue) {
+      const std::vector<uint8_t> wav = slurp_file(music + "/track02.wav");
+      EXPECT(wav.size() == 44 + 2352 * 10 && std::equal(wav.begin() + 44, wav.end(), audio.begin() + 2352 * 150));
+    }
+  }
+  // Again over the image's install: replaced; a foreign folder: refused.
+  EXPECT(mech3::install_from_disc(tmp + "/disc.iso", tmp + "/outdisc", "", "", nullptr).ok);
+  std::filesystem::create_directories(tmp + "/mine", ec);
+  spit_file(tmp + "/mine/letter.txt", {'h', 'i'});
+  const mech3::DiscInstall refused = mech3::install_from_disc(tmp + "/disc.iso", tmp + "/mine", "", "", nullptr);
+  std::printf("  into a foreign folder: %s\n", refused.error.c_str());
+  EXPECT(!refused.ok && slurp_file(tmp + "/mine/letter.txt").size() == 2 && !std::filesystem::exists(tmp + "/mine/zbd"));
+  // With the patch: its 28 checked and written over (here the same bytes).
+  const mech3::DiscInstall patched = mech3::install_from_disc(tmp + "/disc.iso", tmp + "/outp", folder, "", nullptr);
+  EXPECT(patched.ok && patched.version == "1.2" && same_install(tmp + "/outp") &&
+         !std::filesystem::exists(tmp + "/outp/.patch12"));
+  // A damaged cabinet: one bit of a file's data changed, at 20 places. Most
+  // flips break the deflate or the size; the rest inflate whole to wrong
+  // bytes of the right size, which only the MD5 sees (7 of the 20).
+  int md5_caught = 0, other = 0;
+  for (int k = 0; k < 20; ++k) {
+    MadeDisc bad = disc;
+    bad.root[0].second[bad.root[0].second.size() / 2 + 977 * k] ^= 0x10;
+    spit_file(tmp + "/bad.iso", bad.iso());
+    const mech3::DiscInstall broken = mech3::install_from_disc(tmp + "/bad.iso", tmp + "/outbad", "", "", nullptr);
+    EXPECT(!broken.ok && !std::filesystem::exists(tmp + "/outbad") && !std::filesystem::exists(tmp + "/outbad.new"));
+    if (broken.error.find("MD5") != std::string::npos) ++md5_caught;
+    else ++other;
+    if (k == 1) std::printf("  from a damaged cabinet: %s\n", broken.error.c_str());
+  }
+  std::printf("  20 damaged cabinets: %d caught by the MD5, %d by the deflate or the size\n", md5_caught, other);
+  EXPECT(md5_caught > 0 && md5_caught + other == 20);
+  // Not a disc at all.
+  EXPECT(!mech3::install_from_disc(tmp + "/disc.cue.none", tmp + "/x", "", "", nullptr).ok);
+  EXPECT(!mech3::install_from_disc(tmp + "/disc (Track 2).bin", tmp + "/x", "", "", nullptr).ok);
+  std::filesystem::remove_all(tmp, ec);
+}
+
+// The MechWarrior 3 disc itself, when given (MW3_DISC: its .iso, a .cue, or
+// the drive): the install is game/mw3-1.0's files byte for byte (unshield's,
+// every file group merged) with the disc's VIDEO, its data the 1.0 disc's by
+// assets.md's hashes; with the patch, 1.2's.
+TEST(disc_install_from_the_mw3_disc) {
+  const char* src = std::getenv("MW3_DISC");
+  const std::string root = std::string(MW3_SOURCE_DIR) + "/game";
+  if (!src || !std::filesystem::exists(root + "/mw3-1.0/zbd/reader.zbd")) return;
+  const std::string tmp = temp_dir("disc_install_mw3");
+  const mech3::DiscInstall r = mech3::install_from_disc(src, tmp + "/mw3", "", tmp + "/music", nullptr);
+  for (const std::string& l : r.log) std::printf("  %s\n", l.c_str());
+  for (const std::string& w : r.warnings) std::printf("  warning: %s\n", w.c_str());
+  EXPECT(r.ok && r.version == "1.0" && r.warnings.empty());
+  auto compare = [&](const std::string& ours, const std::string& ref, int* files, int* differ, int* absent) {
+    std::error_code ec;
+    *files = *differ = *absent = 0;
+    for (auto it = std::filesystem::recursive_directory_iterator(ref, std::filesystem::directory_options::follow_directory_symlink, ec);
+         it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+      if (ec || !it->is_regular_file(ec)) continue;
+      const std::string rel = it->path().lexically_relative(ref).generic_string();  // (video/ is a link here)
+      ++*files;
+      if (!std::filesystem::exists(ours + "/" + rel, ec)) ++*absent, std::printf("    absent: %s\n", rel.c_str());
+      else if (slurp_file(ours + "/" + rel) != slurp_file(it->path().string())) ++*differ, std::printf("    differs: %s\n", rel.c_str());
+    }
+  };
+  int files = 0, differ = 0, absent = 0;
+  compare(tmp + "/mw3", root + "/mw3-1.0", &files, &differ, &absent);
+  std::printf("  against game/mw3-1.0: %d files, %d differ, %d absent; %d movies, %d music tracks\n", files, differ, absent,
+              r.movies, r.music);
+  EXPECT(files > 100 && differ == 0 && absent == 0 && r.movies > 0);
+  const std::string patch = root + "/patch-1.2/MechWarrior-3_Patch_Win_EN_Patch-12-US";
+  if (std::filesystem::exists(patch + "/data1.cab")) {
+    const mech3::DiscInstall p = mech3::install_from_disc(src, tmp + "/mw3", patch, "", nullptr);
+    EXPECT(p.ok && p.version == "1.2");
+    int n = 0, same = 0;
+    const mech3::DataFile* d = mech3::data_files(&n);
+    for (int i = 0; i < n; ++i) same += slurp_file(tmp + "/mw3/" + d[i].path) == slurp_file(root + "/mw3-1.2/" + d[i].path);
+    std::printf("  with the patch: %s, %d of the %d data files 1.2's\n", p.version.c_str(), same, n);
+    EXPECT(same == n);
+  }
+  std::error_code ec;
+  std::filesystem::remove_all(tmp, ec);
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {

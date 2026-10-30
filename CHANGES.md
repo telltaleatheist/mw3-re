@@ -365,6 +365,7 @@ These change how the game talks to the computer, not how it plays.
   your death. The stick-centring springs have no rumble version.
 
 - The game finds your MechWarrior 3 installation by itself: where its installer put it (the registry, then Program Files), or it asks you once to point at Mech3.exe, then remembers the folder in `mw3.cfg`. The original simply ran from its own folder.
+- The game installs straight from its disc, with no Windows installer: `mw3 --install-from` takes the CD drive, a disc image (.iso) or a .cue/.bin, copies the game into a folder of its own and remembers it, so Mac and Linux players need no Windows to install it. Given the 1.2 patch too (`--patch`), it is installed as 1.2 in the same step, and a .cue's CD audio becomes the music.
 - Alt+Enter switches between fullscreen and a window while you play (the original had no window). Your saved choice (`windowed=1` in `mw3.cfg`) is what the next start uses.
 - The mouse turns the view and moves the menu cursor at the same speed in a window and fullscreen, at any screen size, as the original's did at 640x480. Before, a bigger window or screen made the mouse slower.
 - In a window, the menus leave the mouse free: the menu cursor follows the system's, and the mouse can leave the window (to resize it, or to use another program).

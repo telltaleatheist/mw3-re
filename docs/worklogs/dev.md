@@ -2075,3 +2075,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   differ. Play: mission_c1m4_pocket_commander_sends_dominic_to_a_map_spot
   (the map up, Dominic brought onto the map, the cursor on the pixel 200 m west of him, the marker
   on the ground there, order 10, he walks to it).
+## Installing from the disc (2026-10-30)
+
+- Branch mac4/disc-install (off main fa9aab7). `mw3 --install-from PATH
+  [--install-to DIR] [--patch P]`: a drive or folder, a .iso (2048 or raw
+  2352), a .cue (first data track; MODE1/2352, MODE2/2352, MODE1/2048).
+  mech3/disc_install (Disc: ISO 9660; install_from_disc), patch_import's
+  IS5 reader made streaming (each_installshield) with each file's MD5
+  (+0x2a; all 31 of the patch's match), DataFile.sha256_10, CueTrack.mode.
+  assets.md (Installing from the disc), program.md, README, the Windows
+  README, CHANGES.
+- Owen's ISO (from the backups' zip, 37 s): 126 cabinet files + 19 movies
+  identical to game/mw3-1.0, 16 of 16 1.0; patched 28 of 28 1.2; mw3
+  starts c1 on it. PM's Redump .cue: 102 files = game/pm, track02.wav.
+  Not done here: Owen's MW3 Redump .cue on the PC.
+- Tests: disc_install_from_an_image_a_cue_and_a_folder (breaks: no MD5,
+  20 checks; raw sectors without the 16-byte header, the cue fails);
+  disc_install_from_the_mw3_disc with MW3_DISC.

@@ -59,6 +59,7 @@ bool read_cue(const std::string& cue_path, std::vector<CueTrack>* tracks, std::s
       ls >> t.number >> type;
       for (char& c : type) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
       t.audio = type == "AUDIO";
+      t.mode = type;
       t.file = file;
       tracks->push_back(t);
     } else if (word == "INDEX" && !tracks->empty()) {

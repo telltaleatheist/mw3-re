@@ -92,6 +92,18 @@ Point it at a MechWarrior 3 install patched to 1.2:
 ./build/mw3 --fly c1                     # a free camera over a mission world
 ```
 
+No install? Install it from the disc, with no Windows needed (Mac and
+Linux too): give `--install-from` the CD drive, a disc image (`.iso`) or a
+`.cue`, and the 1.2 patch if you have it. The game is copied into a folder
+of its own (or `--install-to DIR`) and remembered; a `.cue`'s CD audio
+becomes the music. More in [`docs/assets.md`](docs/assets.md), Installing
+from the disc.
+
+```bash
+./build/mw3 --install-from /Volumes/MW3 --patch MechWarrior-3_Patch.zip     # the disc, macOS
+./build/mw3 --install-from "MechWarrior 3 (USA).cue"                       # a Redump image
+```
+
 Music: the original plays CD audio. Rip the disc's tracks to
 `music/track02.ogg`, `track03.ogg` and so on (ogg, flac, wav or mp3) in the
 game folder, numbered as on the disc. More in [`docs/program.md`](docs/program.md).

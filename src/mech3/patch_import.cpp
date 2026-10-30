@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <system_error>
 
@@ -272,9 +273,9 @@ struct Gather {
 // The layout as unshield (github.com/twogood/unshield, lib/) reads version 5:
 // the common header, the cab descriptor's file table (directories, then file
 // descriptors of 0x3a bytes), each compressed file as chunks of a 16-bit
-// length and raw deflate.
-bool read_installshield(const std::vector<uint8_t>& hdr, const std::vector<uint8_t>& cab, std::vector<PatchEntry>* out,
-                        std::string* error) {
+// length and raw deflate, its expanded bytes' MD5 at the descriptor's +0x2a.
+bool each_installshield(const std::vector<uint8_t>& hdr, uint64_t cab_size, const CabRead& read,
+                        const std::function<bool(PatchEntry&&)>& each, std::string* error) {
   auto fail = [&](const std::string& why) {
     *error = why;
     return false;
@@ -304,10 +305,11 @@ bool read_installshield(const std::vector<uint8_t>& hdr, const std::vector<uint8
     path = (path.empty() ? "" : path + "/") + str(table + name);
     std::replace(path.begin(), path.end(), '\\', '/');
     if (flags & 1) return fail(path + " is split across volumes");
+    if (flags & 2) return fail(path + " is obfuscated (not in MW3's cabinets)");
     const size_t stored = flags & 4 ? compressed : expanded;
-    if (offset + static_cast<size_t>(stored) > cab.size()) return fail(path + ": data past the cabinet's end");
-    std::vector<uint8_t> raw(cab.begin() + offset, cab.begin() + offset + stored);
-    if (flags & 2) return fail(path + " is obfuscated (not in MW3's patch)");
+    if (offset + static_cast<uint64_t>(stored) > cab_size) return fail(path + ": data past the cabinet's end");
+    std::vector<uint8_t> raw(stored);
+    if (stored && !read(offset, stored, raw.data())) return fail(path + ": cannot be read from the cabinet");
     PatchEntry e{path, {}};
     if (flags & 4) {
       e.data.reserve(expanded);
@@ -323,9 +325,27 @@ bool read_installshield(const std::vector<uint8_t>& hdr, const std::vector<uint8
       e.data = std::move(raw);
     }
     if (e.data.size() != expanded) return fail(path + ": " + std::to_string(e.data.size()) + " bytes, not " + std::to_string(expanded));
-    out->push_back(std::move(e));
+    uint8_t sum[16];
+    md5(e.data.data(), e.data.size(), sum);
+    if (std::memcmp(sum, d + 0x2a, 16) != 0) return fail(path + ": MD5 does not match (a damaged cabinet?)");
+    if (!each(std::move(e))) return fail(path + ": not taken");
   }
   return true;
+}
+
+bool read_installshield(const std::vector<uint8_t>& hdr, const std::vector<uint8_t>& cab, std::vector<PatchEntry>* out,
+                        std::string* error) {
+  return each_installshield(
+      hdr, cab.size(),
+      [&](uint64_t at, size_t n, uint8_t* to) {
+        std::memcpy(to, cab.data() + at, n);
+        return true;
+      },
+      [&](PatchEntry&& e) {
+        out->push_back(std::move(e));
+        return true;
+      },
+      error);
 }
 
 PatchImport import_patch_12(const std::string& source, const std::string& out_dir) {
@@ -409,6 +429,50 @@ std::string sha256_hex(const uint8_t* data, size_t n) {
   for (uint32_t v : h)
     for (int k = 28; k >= 0; k -= 4) s += hex[(v >> k) & 15];
   return s;
+}
+
+// MD5 (RFC 1321): the cabinets' file descriptors carry their files'.
+void md5(const uint8_t* data, size_t n, uint8_t out[16]) {
+  static const uint32_t K[64] = {
+      0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af,
+      0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821, 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
+      0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8, 0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8,
+      0x676f02d9, 0x8d2a4c8a, 0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+      0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665, 0xf4292244, 0x432aff97,
+      0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
+      0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
+  static const int R[64] = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9,  14, 20, 5, 9,
+                            14, 20, 5, 9,  14, 20, 5, 9,  14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+                            4,  11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21};
+  uint32_t h[4] = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
+  auto block = [&](const uint8_t* p) {
+    uint32_t w[16];
+    for (int i = 0; i < 16; ++i) w[i] = le32(p + 4 * i);
+    uint32_t a = h[0], b = h[1], c = h[2], d = h[3];
+    for (int i = 0; i < 64; ++i) {
+      uint32_t f;
+      int g;
+      if (i < 16) f = (b & c) | (~b & d), g = i;
+      else if (i < 32) f = (d & b) | (~d & c), g = (5 * i + 1) % 16;
+      else if (i < 48) f = b ^ c ^ d, g = (3 * i + 5) % 16;
+      else f = c ^ (b | ~d), g = (7 * i) % 16;
+      const uint32_t t = a + f + K[i] + w[g];
+      a = d, d = c, c = b, b = b + ((t << R[i]) | (t >> (32 - R[i])));
+    }
+    h[0] += a, h[1] += b, h[2] += c, h[3] += d;
+  };
+  size_t i = 0;
+  for (; i + 64 <= n; i += 64) block(data + i);
+  uint8_t last[128] = {};
+  const size_t rest = n - i;
+  if (rest) std::memcpy(last, data + i, rest);
+  last[rest] = 0x80;
+  const size_t len = rest < 56 ? 64 : 128;
+  const uint64_t bits = static_cast<uint64_t>(n) * 8;
+  for (int k = 0; k < 8; ++k) last[len - 8 + k] = static_cast<uint8_t>(bits >> (8 * k));
+  block(last);
+  if (len == 128) block(last + 64);
+  for (int k = 0; k < 16; ++k) out[k] = static_cast<uint8_t>(h[k / 4] >> (8 * (k % 4)));
 }
 
 }  // namespace mech3

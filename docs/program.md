@@ -18,7 +18,12 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 
 - **The install**: the folder holding `zbd/` (MW3 1.2; `Mech3.exe` is not
   needed, the port never runs it), as a path argument or `--install DIR`
-  (used as given). Without one (ours; `sdl_install.cpp`, FIX (A)):
+  (used as given). `--install-from PATH` (ours, `mech3/disc_install`)
+  first installs one from the disc, a disc image or a .cue/.bin into
+  `--install-to DIR` (default `<write dir>/install`), with the 1.2 patch
+  when `--patch` is given and the cue's music, and saves it as `install=`
+  (assets.md, Installing from the disc). Without one (ours;
+  `sdl_install.cpp`, FIX (A)):
   1. `install=DIR` in `mw3.cfg` in the write dir, while it still holds
      `zbd/reader.zbd`;
   2. else where the original's installer put it. Its InstallShield script
