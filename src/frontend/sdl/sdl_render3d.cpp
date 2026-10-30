@@ -34,14 +34,25 @@ vertex Out vs(In in [[stage_in]], constant V& v [[buffer(0)]]) {
   o.uv = in.uv;
   return o;
 }
-struct F { float4 fog; float4 opts; };  // opts.x fog on, opts.y alpha modulate
+// opts.x fog on, opts.y alpha modulate, opts.zw a sharp draw's frame pixels a texel
+struct F { float4 fog; float4 opts; };
 float4 finish(float4 c, Out in, constant F& f) {
   if (f.opts.x > 0.5) c.rgb = mix(f.fog.rgb, c.rgb, in.specular.a);
   return c;
 }
+// Sharp bilinear: each texel flat but for one frame pixel's blend at its
+// edges, so a whole scale is exactly nearest and a fractional one stays
+// crisp. The texels are premultiplied, so a key's clear texel blends no black.
+float4 sample_sharp(texture2d<float> t, sampler s, float2 uv, float2 scale) {
+  float2 size = float2(t.get_width(), t.get_height());
+  float2 texel = uv * size, base = floor(texel), d = texel - base - 0.5;
+  float2 r = 0.5 - 0.5 / scale;
+  float4 c = t.sample(s, (base + (d - clamp(d, -r, r)) * scale + 0.5) / size);
+  return c.a > 0.0 ? float4(c.rgb / c.a, c.a) : c;
+}
 fragment float4 fs_tex(Out in [[stage_in]], texture2d<float> t [[texture(0)]], sampler s [[sampler(0)]],
                        constant F& f [[buffer(0)]]) {
-  float4 tex = t.sample(s, in.uv);
+  float4 tex = f.opts.z > 0.0 ? sample_sharp(t, s, in.uv, f.opts.zw) : t.sample(s, in.uv);
   float4 c = float4(tex.rgb * in.diffuse.rgb, f.opts.y > 0.5 ? tex.a * in.diffuse.a : tex.a);
   return finish(c, in, f);
 }
@@ -57,7 +68,7 @@ uint32_t key_of(const platform::DrawState& s, bool textured) {
 bool same(const platform::DrawState& a, const platform::DrawState& b) {
   return a.texture == b.texture && a.address_u == b.address_u && a.address_v == b.address_v && a.blend == b.blend &&
          a.multiply == b.multiply && a.depth_write == b.depth_write && a.depth_always == b.depth_always &&
-         a.alpha_modulate == b.alpha_modulate && a.fog == b.fog && a.wireframe == b.wireframe;
+         a.alpha_modulate == b.alpha_modulate && a.fog == b.fog && a.wireframe == b.wireframe && a.sharp == b.sharp;
 }
 
 #if defined(MW3_HAVE_DXIL)
@@ -370,8 +381,11 @@ void SdlRender3D::end_scene() {
     if (!p) continue;
     SDL_BindGPUGraphicsPipeline(pass, p);
     SDL_PushGPUVertexUniformData(cmd, 0, vu, sizeof vu);
+    // A sharp draw's texel is a game pixel: the frame's pixels per game pixel.
+    const float sx = r.state.sharp && vw_ > 0 ? static_cast<float>(w) / static_cast<float>(vw_) : 0.0f;
+    const float sy = r.state.sharp && vh_ > 0 ? static_cast<float>(h) / static_cast<float>(vh_) : 0.0f;
     const float fu[8] = {fog_rgb_[0], fog_rgb_[1], fog_rgb_[2], 1, r.state.fog ? 1.0f : 0.0f,
-                         r.state.alpha_modulate ? 1.0f : 0.0f, 0, 0};
+                         r.state.alpha_modulate ? 1.0f : 0.0f, std::max(sx, 1.0f) * (sx > 0), std::max(sy, 1.0f) * (sy > 0)};
     SDL_PushGPUFragmentUniformData(cmd, 0, fu, sizeof fu);
     SDL_GPUBufferBinding vb{vbuf_, 0};
     SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);

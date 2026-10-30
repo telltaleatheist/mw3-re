@@ -5894,6 +5894,57 @@ TEST(settings_file_reads_an_export_and_keeps_what_the_game_saved) {
   mech3::options() = mech3::Options{};
 }
 
+// FIX (B), resolution.md (the first start): with no InGameVMode saved, a
+// mission plays at the desktop's size (mode 16, kept inside the cap); a saved
+// mode wins, and without the fix or a desktop (checks, shots) it is 5.
+TEST(settings_first_start_plays_at_the_desktop_size) {
+  struct Desktop : mech3::OptionsHooks {
+    int32_t w = 0, h = 0;
+    bool first_start_screen(int32_t* ow, int32_t* oh) override {
+      if (w <= 0) return false;
+      *ow = w, *oh = h;
+      return true;
+    }
+  } desk;
+  const bool keep_fix = zfix::options().any_resolution;
+  auto load = [&](const char* saved, int32_t w, int32_t h, bool fix) {
+    const std::string path = temp_dir("first_start") + "/settings.reg";
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    std::fprintf(f, "Windows Registry Editor Version 5.00\r\n\r\n"
+                    "[HKEY_CURRENT_USER\\Software\\MicroProse\\MechWarrior 3\\1.0]\r\n%s", saved);
+    std::fclose(f);
+    platform::RegFile reg(path);
+    zreg::Machine m;
+    zreg::init("MicroProse", "MechWarrior 3", "1.0", m, 0x101);
+    zreg::set_settings(&reg);
+    zfix::options().any_resolution = fix;
+    desk.w = w, desk.h = h;
+    mech3::set_options_hooks(&desk);
+    mech3::options() = mech3::Options{};
+    EXPECT(mech3::load_options(nullptr) == 1);
+    const mech3::Options o = mech3::options();
+    mech3::set_options_hooks(nullptr);
+    zreg::set_settings(nullptr);
+    zreg::shutdown();
+    return o;
+  };
+  mech3::Options o = load("", 2560, 1440, true);
+  EXPECT(o.in_game_vmode == mech3::kCustomVMode && o.screen_w == 2560 && o.screen_h == 1440);
+  int32_t w = 0, h = 0;
+  o = load("", 5120, 2880, true);  // a 5K desktop: the mode's size inside the cap
+  mech3::options() = o;
+  EXPECT(o.in_game_vmode == 16 && mech3::vmode_size(16, &w, &h) && w == 3840 && h == 2160);
+  o = load("\"InGameVMode\"=dword:0000000d\r\n", 2560, 1440, true);  // a saved choice wins
+  EXPECT(o.in_game_vmode == 13);
+  o = load("\"InGameVMode\"=dword:00000010\r\n\"ScreenWidth\"=dword:00000500\r\n\"ScreenHeight\"=dword:000002d0\r\n",
+           2560, 1440, true);  // and a saved size
+  EXPECT(o.in_game_vmode == 16 && o.screen_w == 1280 && o.screen_h == 720);
+  EXPECT(load("", 0, 0, true).in_game_vmode == 5);       // no desktop: a check or a shot
+  EXPECT(load("", 2560, 1440, false).in_game_vmode == 5);  // the fix off: the original's
+  zfix::options().any_resolution = keep_fix;
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1 driven from the keyboard (docs/movement.md): the spawn's step
 // and Core's power-up (0x0041cc30 from resume(7)) leave the Mad Cat powered
 // up; the throttle-up key, held through zInput, walks it forward along the
@@ -13840,10 +13891,10 @@ TEST(mission_second_world_loads_headless) {
 
 
 // The HUD by anchors in a mission (resolution.md step 4): c1m1 launched at
-// InGameVMode 5, 13 (1920x1080) and 15 (3840x2160), the Core state's switch,
-// then the player's HUD read. At 5 its pieces sit where V640x480 puts them,
-// the fix on as off; at 13 and 15 (the 960x540 canvas) right-anchored pieces
-// move by 320, bottom-anchored by 60, the compass by 160.
+// InGameVMode 5, 11 (1280x720), 13 (1920x1080) and 15 (3840x2160), the Core
+// state's switch, then the player's HUD read. At 5 its pieces sit where
+// V640x480 puts them, the fix on as off; past 10 (the 853x480 canvas)
+// right-anchored pieces move by 213, the compass by 106.
 namespace mech3 {
 bool waynet_arrow_place(int32_t* x, int32_t* y);  // mech_waynet.h, not includable here (its Handle)
 }
@@ -14298,7 +14349,7 @@ TEST(mission_c1m1_hud_anchored_at_any_size_headless) {
   // share of the screen's height at every size (on the right edge at the start).
   const HudPlaces v5 = c1m1_hud_places(5, true);
   EXPECT(v5.arrow_shown && v5.arrow[1] > 0);
-  for (const int32_t mode : {13, 15}) {  // the 960x540 canvas over 1920x1080 and 3840x2160
+  for (const int32_t mode : {11, 13, 15}) {  // the 853x480 canvas over 1280x720, 1920x1080 and 3840x2160
     const HudPlaces v = c1m1_hud_places(mode, true);
     const double f5 = v5.arrow[1] / 480.0, f = v.arrow[1] / static_cast<double>(v.display_h);
     std::printf("waypoint arrow at mode %d: %d %d on %dx%d (%.3f of the height; %.3f at 640x480)\n", mode, v.arrow[0],
@@ -14308,24 +14359,24 @@ TEST(mission_c1m1_hud_anchored_at_any_size_headless) {
                 "timer %d %d, speed %d %d\n", mode, v.display_w, v.display_h, v.render_w, v.mfd[0], v.mfd[1],
                 v.target[0], v.target[1], v.weapons[0], v.weapons[1], v.tape[0], v.tape[1], v.timer[0], v.timer[1],
                 v.speed[0], v.speed[1]);
-    EXPECT(v.seen && v.display_w == 960 && v.display_h == 540 && v.render_w == (mode == 13 ? 1920 : 3840));
-    EXPECT(at(v.mfd, 850, 430) && at(v.target, 10, 430) && at(v.weapons, 850, 30) && at(v.tape, 405, 19) &&
-           at(v.timer, 900, 15) && at(v.speed, 895, 256) && at(v.heat, 18, 163));
+    EXPECT(v.seen && v.display_w == 853 && v.display_h == 480 && v.render_w == (mode == 11 ? 1280 : mode == 13 ? 1920 : 3840));
+    EXPECT(at(v.mfd, 743, 370) && at(v.target, 10, 370) && at(v.weapons, 743, 30) && at(v.tape, 351, 19) &&
+           at(v.timer, 793, 15) && at(v.speed, 788, 256) && at(v.heat, 18, 163));
   }
 }
 
 // The menus over a mission at any size (resolution.md step 5): c1m1 at
 // InGameVMode 5, 13 and 15, Escape, then a real click (zInput's mouse at the
 // button, the left button pressed and let go) on the pause screen's
-// RESUME. On the 960x540 canvas the 640x480 frame is centred, so the button
-// sits 160, 30 further on, and the click there resumes as at 640x480.
+// RESUME. On the 853x480 canvas the 640x480 frame is centred, so the button
+// sits 106 further right, and the click there resumes as at 640x480.
 namespace {
 struct PauseClick {
   int32_t rect[4] = {};
   int32_t origin[2] = {};
   int resumes = 0;
 };
-PauseClick c1m1_pause_click(int32_t mode, int32_t shift_y = 0) {
+PauseClick c1m1_pause_click(int32_t mode, int32_t shift_x = 0) {
   PauseClick out;
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
@@ -14408,7 +14459,7 @@ PauseClick c1m1_pause_click(int32_t mode, int32_t shift_y = 0) {
         out.origin[0] = ps->origin_x, out.origin[1] = ps->origin_y;
         // Headless the buttons have no images: the rect is its text's line
         // (top == bottom), which the inclusive hit still takes.
-        zin::mouse_from_cursor(r->right - 1, r->top + shift_y);
+        zin::mouse_from_cursor(r->right - 1 + shift_x, r->top);
         keys.left_reads = 3;
       }
     };
@@ -14440,11 +14491,12 @@ TEST(mission_c1m1_pause_click_at_any_size_headless) {
     const PauseClick v = c1m1_pause_click(mode);
     std::printf("pause at mode %d: RESUME %d %d %d %d, origin %d %d, resumed %d\n", mode, v.rect[0], v.rect[1],
                 v.rect[2], v.rect[3], v.origin[0], v.origin[1], v.resumes);
-    EXPECT(v.resumes == 1 && v.origin[0] == 160 && v.origin[1] == 30);
-    EXPECT(v.rect[1] == v5.rect[1] + 30 && v.rect[2] == v5.rect[2] + 160 && v.rect[3] == v5.rect[3] + 30);
+    EXPECT(v.resumes == 1 && v.origin[0] == 106 && v.origin[1] == 0);
+    EXPECT(v.rect[1] == v5.rect[1] && v.rect[2] == v5.rect[2] + 106 && v.rect[3] == v5.rect[3]);
   }
-  // A click at 640x480's height on the canvas (no frame offset) misses.
-  const PauseClick miss = c1m1_pause_click(13, -30);
+  // A click a pixel past the button misses (headless its rect starts at 0,
+  // so 640x480's place is inside it; the origin is checked above).
+  const PauseClick miss = c1m1_pause_click(13, 2);
   EXPECT(miss.resumes == 0);
 }
 

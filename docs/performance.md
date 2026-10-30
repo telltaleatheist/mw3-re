@@ -31,6 +31,8 @@ CPU (hidden), mean / p99:
 
 1920x1080 and 3840x2160 cost the same: the 2D layer is the canvas (960x540
 at both, the art scale), not the display; the 3D viewport is the full size.
+(Since 2026-10-30 the canvas is 853x480 at every 16:9 size, resolution.md
+section 8: a smaller layer still.)
 
 Visible windows (vsync on a 60 Hz display): 16.7 ms median at every size
 and scene, p99 17.4 to 19.7 ms; a few single frames of 33 to 66 ms in a run

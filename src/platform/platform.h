@@ -67,6 +67,12 @@ class Window {
   virtual void frame_size(int width, int height, int canvas_w = 0, int canvas_h = 0) {
     (void)width, (void)height, (void)canvas_w, (void)canvas_h;
   }
+  // FIX (B) layer: the screen a first start (no InGameVMode saved) plays at,
+  // the desktop's; false keeps the original's default (checks, shots).
+  virtual bool first_start_size(int* width, int* height) {
+    (void)width, (void)height;
+    return false;
+  }
 };
 
 // Stands in for the DirectDraw primary surface the menus' 16-bit back buffer

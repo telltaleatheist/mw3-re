@@ -39,6 +39,7 @@ struct DrawState {
   bool wireframe = false;          // FILLMODE WIREFRAME (a debug mode)
   bool color_select = false;       // COLOROP SELECTARG1: the texture's colour alone (shadow passes)
   uint8_t texcoord = 0;            // TEXCOORDINDEX: which UV set of a draw_multi vertex
+  bool sharp = false;              // ours: the 2D layer, a texel a game pixel, premultiplied, scaled sharp
 };
 
 class Render3D {

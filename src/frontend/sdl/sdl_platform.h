@@ -41,6 +41,9 @@ class SdlWindow : public platform::Window {
   void switch_fullscreen(bool on);
   bool fullscreen() const { return fullscreen_; }
   const FrameShape& shape() const { return shape_; }
+  // A play run (not a check or a shot): a first start takes the desktop's size.
+  void set_first_start_desktop(bool on) { first_start_desktop_ = on; }
+  bool first_start_size(int* width, int* height) override;
 
   SDL_Window* sdl() const { return window_; }
   SDL_GPUDevice* device() const { return device_; }
@@ -54,6 +57,8 @@ class SdlWindow : public platform::Window {
   bool hidden_ = false;
   bool auto_size_ = false;
   bool fullscreen_ = false;
+  bool first_start_desktop_ = false;
+  void inside_usable(int* w, int* h) const;  // shrunk into the display's usable area
   int windowed_w_ = 1280, windowed_h_ = 960;  // the size create() asked for
   FrameShape shape_;
 };

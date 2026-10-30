@@ -1,8 +1,9 @@
 # Screen size and aspect (any size, 16:9)
 
 Mech3.exe 1.2, mapped 2026-10-21 (mac 2) for Owen's decision (fixes.md,
-Candidates and Decided): any size up to 4K, 16:9 included, 640x480 4:3 the
-default and identical to the original. 16:9 widens the view instead of
+Candidates and Decided): any size up to 4K, 16:9 included, 640x480 4:3
+identical to the original. A first start plays at the desktop's size
+(Owen, 2026-10-30; section 10). 16:9 widens the view instead of
 stretching it. The menus and HUD art are scaled, and the menus pillarboxed.
 If larger sizes are trouble, the cap is 1920x1080. A FIX (B), behind
 `zfix::options().any_resolution`.
@@ -275,14 +276,28 @@ Behind `any_resolution`, for the modes past 10 only. Modes 3..10 keep
 hud.zrd's blocks and the exe's sizes, with the fix on as off.
 
 **The canvas.** The 2D (the display rect: the HUD, the message panel, a
-pause menu's dialogs) is drawn on the frame divided by a whole art scale,
-the frame's height over 480 (`art_scale`, `vmode_canvas`). That is 960x540
-at 1920x1080 and at 3840x2160, 853x480 at 2560x1440, and the frame itself
-at 1280x720 and 1600x900. The render and window rects keep the whole frame
-(the 3D and its zClass window), as mode 3 keeps a render rect apart from
-its display. The 16-bit buffer is the canvas, and its layer is stretched
-over the frame by the scale, so 640x480 art and text are drawn at two or
-four times their size.
+pause menu's dialogs) is drawn on a canvas 480 high and of the frame's
+shape (`vmode_canvas`): 853x480 at every 16:9 size, 1138x480 at 2560x1080.
+The render and window rects keep the whole frame (the 3D and its zClass
+window), as mode 3 keeps a render rect apart from its display. The 16-bit
+buffer is the canvas, and its layer is stretched over the frame by the art
+scale, the frame's height over 480 (`art_scale`: 1.5 at 720p, 2.25 at
+1080p, 3 at 1440p, 4.5 at 4K), so the HUD covers the same share of the
+screen as the original's at 640x480 (Owen, 2026-10-30: "as big as it was").
+Until then the scale was whole (the height over 480, rounded down): at
+1280x720 the art drew at 1x, smaller than at 640x480, and at 1080p at 2x.
+
+**Sharp scaling.** The layer is drawn sharp bilinear (`DrawState::sharp`,
+`sample_sharp` in both shader sets): each texel flat but for one frame
+pixel's blend at its edges, so a whole scale (2x, 3x) is exactly nearest
+and a fractional one stays crisp without uneven pixel widths. The layer's
+texels are premultiplied, so a piece's edge blends toward the key's clear
+texels without a dark fringe. It is the layer's draw everywhere: the menus'
+640x480 frame in a 1280x960 window, until then plain bilinear (soft), is now
+nearest at 2x. `sdl_layer_scales_sharp` draws a layer onto a 1280x960 and a
+960x720 frame and reads it back: at 2x every pixel is its texel's colour, a
+lone texel beside the key keeps its own, and at 1.5 a texel's first pixel
+is its own. Plain bilinear fails it 3 times.
 
 **Between the two.** The exe already maps the HUD's screen points through
 0x0040d9e0 / 0x0040da30 (mode 3's halving and doubling). With a canvas
@@ -319,8 +334,9 @@ of the height at modes 13 and 15 against mode 5's (0.444 against 0.446).
 Without the mapping it reads 0.891 and 1.000.
 
 **The layout.** hud.md section 5's anchors on V640x480, at the canvas's
-size. At 960x540 the right-anchored pieces move 320 and the bottom-anchored
-60: the MFD at 850, 430, the weapons at 850, 30, the compass at 405.
+size. At 853x480 the right-anchored pieces move 213 and the centred ones
+106: the MFD at 743, 370, the weapons at 743, 30, the compass at 351. (On
+the earlier 960x540 canvas the bottom-anchored ones moved 60 as well.)
 
 Found on the way: the program's HUD hooks answered the video mode with 0
 (`vmode()` read an unset `[[0x005f4d0c]]`), so the program's HUD never read
@@ -333,15 +349,19 @@ Tests:
 - `resolution_canvas_past_mode_10`: the canvas sizes, the rects at mode 13,
   the conversions, mode 3's doubling, the fix off.
 - `mission_c1m1_hud_anchored_at_any_size_headless`: c1m1 at InGameVMode 5
-  (with the fix on and off: V640x480's places) and at 13 and 15 (the
-  anchored places on 960x540).
+  (with the fix on and off: V640x480's places) and at 11, 13 and 15 (the
+  anchored places on 853x480).
 
 Breaks:
 - the compass anchored left fails both anchor tests;
 - an art scale of 1 fails the mission test 4 times;
+- the whole scale (960x540 at 1080p) fails the canvas and mission tests 14
+  times;
 - the anchors never applied fails it twice.
 
-Shots: c1m1 at modes 13 and 15.
+Shots: c1m1 at modes 13 and 15; after the fractional scale, c1m1 with
+TARGET, the MFD, the radar and the weapon list at 640x480, 1280x720,
+1920x1080, 2560x1440 and 3840x2160, and the objectives box at 1080p.
 
 ## 9. The menus (step 5)
 
@@ -360,19 +380,20 @@ pause screen (pushed over the Core state, which keeps the mission's mode)
 and the quit box (made at the Core state's enter, after the switch). They
 were made at their 640x480 places in the canvas's top-left corner. FIX (B),
 `ztwod::dialog_origin`: GameEngine sets it with the screen (`screen_size`),
-centring the 640x480 frame on a canvas ((160, 30) on 960x540) and (0, 0)
+centring the 640x480 frame on a canvas ((106, 0) on 853x480) and (0, 0)
 otherwise. A Dialog (0x0059ec40) and a MenuScreen (0x0040a110) made then
 take it as their origin, so every piece the .zrd places, and every hit
 rect, moves together. The cursor is in canvas pixels (step 4), so clicks
-hit them without further mapping. The art is drawn at the canvas's whole
-scale: ×2 at 1080p, ×4 at 4K. The pause screen's own backdrop (the mission's
+hit them without further mapping. The art is drawn at the canvas's scale:
+2.25 at 1080p, 4.5 at 4K. The pause screen's own backdrop (the mission's
 frame) and MECH3TEXT's slide stay display-sized, as in the exe. Options from
 the pause switches back to mode 5 first (0x00438c90), so it is the 640x480
 front end.
 
 **The backgrounds past 2560x1920.** They are no longer needed: the 2D is
 never larger than a canvas (at most 960 by about 540 past mode 10), and
-the menus' scrolling backgrounds only run at mode 5.
+the menus' scrolling backgrounds only run at mode 5. (The canvas is 480
+high, wider only for shapes wider than 4:3.)
 
 `--click-at X,Y@N` takes a 640x480 frame pixel and adds the dialogs' origin
 (mw3_main).
@@ -380,8 +401,8 @@ the menus' scrolling backgrounds only run at mode 5.
 Tests:
 - `mission_c1m1_pause_click_at_any_size_headless`: c1m1 at InGameVMode 5,
   13 and 15, Escape, then a real mouse click (zInput's position and the
-  left button) on RESUME resumes. At 13 and 15 the button sits 160 and 30
-  further on. A click at 640x480's height misses.
+  left button) on RESUME resumes. At 13 and 15 the button sits 106
+  further right. A click a pixel past it misses.
 - Break: the origin left at (0, 0) on a canvas fails 4 checks.
 
 A regression found while taking the lab's shot. Item 21's port of
@@ -399,3 +420,24 @@ Shots:
 - the lab in a 1920x1080 window;
 - the pause at mode 13.
 
+## 10. The first start (2026-10-30)
+
+Owen: 16:9 by default. FIX (B), with any_resolution. With no InGameVMode
+saved, `load_options` (0x0040c420) makes the mission's mode 16 at the
+desktop's size (`OptionsHooks::first_start_screen`, the program's
+`platform::Window::first_start_size`: SDL's desktop mode, in points as the
+frame is on a Retina Mac, pixels on Windows), which `vmode_size` keeps
+inside 640x480 .. 3840x2160. The size goes to ScreenWidth / ScreenHeight,
+so RESOLUTION lists it ("2560x1440") and the next start reads it back. A
+saved InGameVMode (or a saved size) wins: the store reads the saved values
+over the defaults. The menus stay 640x480, pillarboxed (section 9).
+
+Only a play run asks: checks, shots, `--frames` and the chains keep the
+original's 5 (`set_first_start_desktop`), so the tests stay at their sizes.
+In a window (`--windowed`) a desktop-sized frame's window is shrunk into
+the display's usable area, the frame fitted in it.
+
+`settings_first_start_plays_at_the_desktop_size`: an empty settings file
+gives 16 at the desktop's 2560x1440; a 5K desktop plays at 3840x2160; a
+saved 13, or a saved 16 at 1280x720, wins; no desktop (a check) or the fix
+off gives 5. Break: the mode not set fails it twice.
