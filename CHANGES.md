@@ -493,7 +493,11 @@ These change how the game talks to the computer, not how it plays.
   keeps the result in its own folder, leaving the install as it was.
 - On the first start the rebuild converts the game's movies itself (about a
   minute, with a progress window), when its importer is beside it; the
-  original played them from the disc. It can also turn a disc image's CD
+  original played them from the disc.
+- On Windows the movies play through the game's own Indeo 5 codec from your
+  install, in a small 32-bit helper beside the rebuild, so they look exactly
+  as they did and need no conversion; the converted copies are only the
+  fall-back. It can also turn a disc image's CD
   music into files the game plays.
 
 ## Kept as the original, on purpose
