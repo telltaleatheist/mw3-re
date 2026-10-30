@@ -58,6 +58,7 @@ struct ChainTarget {
   std::string name;  // its node's, before it dies (a dead mech's node is "deadmech")
 };
 std::vector<ChainTarget> chain_hostiles();
+void* chain_object(uint32_t h);  // the object a hostile's handle names (tests)
 bool chain_alive(uint32_t h);
 // One shot of the player's landing on h's aim node: zWeapon's impact
 // (0x005826b0) with a stand-in projectile the player owns, so the node's
