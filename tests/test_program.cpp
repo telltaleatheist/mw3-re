@@ -8970,6 +8970,14 @@ TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
 // E onto an enemy (the ally record kept), then F6 (attack my target), F8
 // (follow me) and F9 (form on me), each through zInput's keys, the command
 // handler and 0x00469930. Each order must change Dominic's and be answered.
+// What a brain's current order follows (its vehicle net's vehicle), 0 when it
+// is not a follow: with the state's address and the stack's depth, whether an
+// order changed it (a new state can take the freed one's address).
+static zgame::Handle follow_target_of(const mech3::ai::Brain& b) {
+  auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.orders.back().net.get());
+  return dynamic_cast<mech3::ai::FollowState*>(b.orders.back().state.get()) && vp && vp->target ? vp->target->vehicle : 0;
+}
+
 TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -9039,6 +9047,7 @@ TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
     mech3::ai::AiTarget* pt = nullptr;
     int frames = 0, phase = 0, wait = 0;
     const void* state_before = nullptr;
+    zgame::Handle follow_before = 0;
     size_t depth_before = 0;
     std::string pending;
     auto vehicle_of = [](const mech3::ai::Contact* c) {
@@ -9048,6 +9057,7 @@ TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
     auto press = [&](const char* name, uint32_t dik) {  // an order key, read back two frames later
       g_lines.clear();
       state_before = g_mate->current().state.get();
+      follow_before = follow_target_of(*g_mate);
       depth_before = g_mate->orders.size();
       pending = name;
       tap(dik);
@@ -9058,7 +9068,8 @@ TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
       st.key = pending;
       for (int32_t e : g_lines) st.lines += std::string(st.lines.empty() ? "" : ",") + mech3::ai::Radio::kEvents[e];
       if (st.lines.empty()) st.lines = "-";
-      st.changed = g_mate->current().state.get() != state_before || g_mate->orders.size() != depth_before;
+      st.changed = g_mate->current().state.get() != state_before || g_mate->orders.size() != depth_before ||
+                   follow_target_of(*g_mate) != follow_before;
       auto* fo = dynamic_cast<mech3::ai::FollowState*>(g_mate->current().state.get());
       auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(g_mate->current().net.get());
       const zgame::Handle tv = pt && pt->target ? vehicle_of(pt->target) : 0;
@@ -9429,9 +9440,11 @@ TEST(mission_c1m4_lance_orders_reach_dominic_and_he_answers_headless) {
       pt->target = on_target ? &on_enemy : nullptr;
       g_lines.clear();
       const void* before = g_dominic->current().state.get();
+      const zgame::Handle follow_before = follow_target_of(*g_dominic);
       const size_t depth = g_dominic->orders.size();
       mech3::player_command(cmd);
-      st.changed = g_dominic->current().state.get() != before || g_dominic->orders.size() != depth;
+      st.changed = g_dominic->current().state.get() != before || g_dominic->orders.size() != depth ||
+                   follow_target_of(*g_dominic) != follow_before;
       pt->saved_target = pt->target = nullptr;
       st.lines = g_lines;
       auto* fo = dynamic_cast<mech3::ai::FollowState*>(g_dominic->current().state.get());
