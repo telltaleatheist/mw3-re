@@ -29,6 +29,7 @@
 #include "mech3/pocket_panel.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
+#include "mech3/mech_waynet.h"
 #include "mech3/zai_attack.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zrdraiv.h"
@@ -1370,4 +1371,45 @@ TEST(fix_lock_inside_a_lock_keeps_the_outer) {
   zvid::text_target() = saved_text;
   zvid::surfaces().back = saved_back;
   zvid::surface_hooks() = saved_hooks;
+}
+
+// FIX (bug), AddressSanitizer: the waypoint arrow (one zTwoD image for the
+// whole run) kept a pointer to the arrow image the last waynet's end
+// released, and the next mission's first edge arrow read its size
+// (hud_arrow reads the arrow's image before it sets this one). The arrow now
+// lets go of it with the images; the original path keeps it.
+TEST(fix_waynet_arrow_lets_go_of_released_images) {
+  using namespace mech3;
+  struct Hooks : WaynetHooks {
+    int released = 0;
+    void image_path(const char*) override {}
+    Handle icon_make(const char*) override { return nullptr; }
+    void icon_free(Handle) override {}
+    Handle image_get(const char*) override { return new zimg::Texture(); }
+    void image_release(Handle image) override { ++released, delete static_cast<zimg::Texture*>(image); }
+  } hooks;
+  const bool saved_bugs = zfix::options().bugs;
+  set_waynet_hooks(&hooks);
+  for (int fix = 0; fix < 2; ++fix) {
+    zfix::options().bugs = fix != 0;
+    waynet_icons_ref();
+    zimg::Texture* shown = new zimg::Texture();  // the arrow's image this mission (one the hooks do not free)
+    shown->width = 24, shown->height = 16;
+    hooks.arrow_image(shown);
+    int32_t w = 0, h = 0;
+    hooks.arrow_size(&w, &h);
+    EXPECT(w == 24 && h == 16);
+    hooks.released = 0;
+    waynet_icons_unref();  // the mission's last waynet: the images go
+    EXPECT(hooks.released == (fix ? 8 : 4));
+    w = h = -1;
+    if (fix) {
+      hooks.arrow_size(&w, &h);  // no image: 0 by 0
+      EXPECT(w == 0 && h == 0);
+    }
+    hooks.arrow_image(nullptr);
+    delete shown;
+  }
+  set_waynet_hooks(nullptr);
+  zfix::options().bugs = saved_bugs;
 }

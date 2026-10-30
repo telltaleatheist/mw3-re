@@ -462,6 +462,11 @@ void waynet_icons_free() {
     if (g_arrows[i]) h.image_release(g_arrows[i]);  // 0x00517b10
     g_arrows[i] = nullptr;
   }
+  // FIX (bug), behind `bugs`: the arrow kept the released image, and the next
+  // mission's first edge arrow reads its size before setting its own
+  // (hud_arrow): a read of freed memory (AddressSanitizer, 2026-10-30). The
+  // arrow lets go of it; that first arrow is then placed by a size of 0.
+  if (all) h.arrow_image(nullptr);
 }
 
 // Mech3.exe 1.2 @ 0x00479ed0
