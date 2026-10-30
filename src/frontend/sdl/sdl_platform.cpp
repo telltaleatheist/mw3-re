@@ -58,9 +58,27 @@ void SdlWindow::frame_size(int width, int height, int canvas_w, int canvas_h) {
   if (!window_ || !shape_.fit || !auto_size_ || fullscreen_) return;
   int w = 0, h = 0;
   default_window(shape_, &w, &h);
+  if (!hidden_) inside_usable(&w, &h);  // a desktop-sized frame (a first start) in a window
   SDL_SetWindowSize(window_, w, h);
   SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
   SDL_SyncWindow(window_);
+}
+void SdlWindow::inside_usable(int* w, int* h) const {
+  SDL_Rect usable{};
+  if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(window_), &usable) && usable.w > 0 && usable.h > 0) {
+    const float k = std::fmin(1.0f, std::fmin(usable.w * 0.9f / *w, usable.h * 0.9f / *h));  // room for the title bar
+    *w = static_cast<int>(*w * k), *h = static_cast<int>(*h * k);
+  }
+}
+// FIX (B): a first start (no InGameVMode saved) plays at the desktop's size,
+// in points as the frame is (resolution.md, the first start).
+bool SdlWindow::first_start_size(int* w, int* h) {
+  if (!window_ || !first_start_desktop_) return false;
+  SDL_DisplayID d = SDL_GetDisplayForWindow(window_);
+  const SDL_DisplayMode* m = SDL_GetDesktopDisplayMode(d ? d : SDL_GetPrimaryDisplay());
+  if (!m || m->w <= 0 || m->h <= 0) return false;
+  *w = m->w, *h = m->h;
+  return true;
 }
 void SdlWindow::switch_fullscreen(bool on) {
   if (!window_ || hidden_ || on == fullscreen_) return;
@@ -71,11 +89,7 @@ void SdlWindow::switch_fullscreen(bool on) {
     SDL_SetWindowFullscreen(window_, false);
     int w = windowed_w_, h = windowed_h_;
     if (shape_.fit && auto_size_) default_window(shape_, &w, &h);
-    SDL_Rect usable{};
-    if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(window_), &usable) && usable.w > 0 && usable.h > 0) {
-      const float k = std::fmin(1.0f, std::fmin(usable.w * 0.9f / w, usable.h * 0.9f / h));  // room for the title bar
-      w = static_cast<int>(w * k), h = static_cast<int>(h * k);
-    }
+    inside_usable(&w, &h);
     SDL_SetWindowSize(window_, w, h);
     SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
   }
@@ -106,6 +120,12 @@ const uint32_t* rgba_table(bool rgb565) {
   }();
   return rgb565 ? t565.data() : t555.data();
 }
+// The layer is premultiplied (its sharp scaling blends with the key's clear texels).
+uint32_t premultiplied(uint32_t rgba, uint32_t a) {
+  uint32_t out = a << 24;
+  for (int c = 0; c < 24; c += 8) out |= ((rgba >> c & 0xffu) * a + 127) / 255 << c;
+  return out;
+}
 }  // namespace
 
 uint32_t SdlScreen2D::rgba(uint16_t pixel, bool rgb565) { return rgba_table(rgb565)[pixel]; }
@@ -126,7 +146,7 @@ void SdlScreen2D::upload(const uint16_t* pixels, int width, int height, int pitc
     if (alpha) {
       const size_t at = static_cast<size_t>(y) * (pitch / 2);
       for (int x = 0; x < width; ++x)
-        if (alpha[at + x] && colour[at + x] == row[x]) o[x] = (o[x] & 0xffffffu) | uint32_t(alpha[at + x]) << 24;
+        if (alpha[at + x] && colour[at + x] == row[x]) o[x] = premultiplied(o[x], alpha[at + x]);
     }
   }
   if (texture_ < 0 || tw_ != width || th_ != height) {
@@ -158,7 +178,7 @@ bool SdlScreen2D::layer_empty(const uint16_t* pixels, int width, int height, int
 void SdlScreen2D::draw_layer(int width, int height, bool blend) {
   platform::DrawState s;
   s.texture = texture_, s.address_u = s.address_v = 3;
-  s.depth_write = false, s.depth_always = true, s.blend = blend;
+  s.depth_write = false, s.depth_always = true, s.blend = blend, s.sharp = true;
   const float w = static_cast<float>(width), h = static_cast<float>(height);
   const platform::TLVertex quad[4] = {{0, 0, 1, 1, 0xffffffffu, 0xff000000u, 0, 0},
                                       {w, 0, 1, 1, 0xffffffffu, 0xff000000u, 1, 0},

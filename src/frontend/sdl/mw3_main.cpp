@@ -357,6 +357,8 @@ int run(const Args& a) {
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it
   // (sdl_fit.h). Checks and shots stay in a window.
   window.set_fullscreen(!a.windowed && !a.window_given && !a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
+  // FIX (B): a first start's mission at the desktop's size; checks and shots keep 640x480.
+  window.set_first_start_desktop(!a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;

@@ -232,3 +232,22 @@ works alongside it; stay out of its files.
 - Method: the frames', walks' and model draws' call graphs diffed; the 83
   readers of [0x0072f348]; the anim scripts' if-hardware; the texture sets.
 - Branch `mac5/software-audit` off main 464a2e0.
+
+## 12. The HUD's scale and the first start's size (2026-10-30)
+
+- Owen: the HUD "as big as it was" at every size. The canvas is 480 high
+  and of the frame's shape (853x480 at 16:9), stretched by height / 480
+  (1.5, 2.25, 3, 4.5); was a whole scale (1x at 720p, 2x at 1080p). The
+  layer draws sharp bilinear (`DrawState::sharp`, Metal and HLSL), its
+  texels premultiplied; whole scales are exactly nearest. Test
+  `sdl_layer_scales_sharp` (GPU read-back; plain bilinear fails it 3 times).
+  The anchored, pause-click and canvas tests now expect 853x480.
+- Owen: 16:9 by default. A play run with no InGameVMode saved takes mode 16
+  at the desktop's size (`first_start_screen` / `first_start_size`); saved
+  wins; checks and shots keep 5. Test
+  `settings_first_start_plays_at_the_desktop_size`.
+- Shots (outbox 2026-10-30/hud-scale): c1m1 with TARGET, the MFD, the radar
+  and the weapon list at 640x480 (in its 1280x960 window), 720p, 1080p,
+  1440p and 4K, the objectives box at 1080p, and 1:1 crops of the weapon
+  list at 1.5, 2.25 and 3.
+- Branch `mac5/hud-scale` off main 9b02519.

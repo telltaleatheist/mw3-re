@@ -114,7 +114,7 @@ TEST(resolution_new_modes_only_with_the_fix) {
   o.screen_w = 2560, o.screen_h = 1080;  // 21:9
   mech3::set_vmode(mech3::kCustomVMode);
   EXPECT(mech3::render().w == 2560 && mech3::render().h == 1080);
-  EXPECT(mech3::display().w == 1280 && mech3::display().h == 540);  // the canvas, scale 2
+  EXPECT(mech3::display().w == 1138 && mech3::display().h == 480);  // the canvas, scale 2.25
   o.screen_w = 10000, o.screen_h = 100;  // clamped to 640x480 .. the cap
   mech3::set_vmode(mech3::kCustomVMode);
   EXPECT(mech3::display().w == mech3::kMaxScreen[0] && mech3::display().h == 480);
@@ -243,16 +243,16 @@ TEST(resolution_hud_anchors_make_the_original_blocks) {
   zrdr::close_archives(true);
 }
 
-// The canvas past mode 10 (resolution.md step 4): the frame over a whole art
-// scale (its height over 480), the display rect the canvas and the render and
+// The canvas past mode 10 (resolution.md step 4): 480 high and the frame's
+// shape (the art scale its height over 480), the display rect the canvas and the render and
 // window rects the frame, the points and rects between them; modes 3..10 and
 // the fix off as the original.
 TEST(resolution_canvas_past_mode_10) {
   const mech3::Options keep = mech3::options();
   {
     FixOn on(true);
-    const int32_t sizes[][3] = {{5, 640, 480}, {10, 1600, 1200}, {11, 1280, 720}, {12, 1600, 900},
-                                {13, 960, 540}, {14, 853, 480}, {15, 960, 540}};
+    const int32_t sizes[][3] = {{5, 640, 480}, {10, 1600, 1200}, {11, 853, 480}, {12, 853, 480},
+                                {13, 853, 480}, {14, 853, 480}, {15, 853, 480}};
     for (const auto& s : sizes) {
       int32_t w = 0, h = 0;
       EXPECT(mech3::vmode_canvas(s[0], &w, &h) && w == s[1] && h == s[2]);
@@ -260,16 +260,16 @@ TEST(resolution_canvas_past_mode_10) {
     mech3::set_vmode(13);
     EXPECT(mech3::render().w == 1920 && mech3::render().h == 1080);
     EXPECT(mech3::window().w == 1920 && mech3::window().h == 1080);
-    EXPECT(mech3::display().w == 960 && mech3::display().h == 540);
+    EXPECT(mech3::display().w == 853 && mech3::display().h == 480);
     EXPECT(mech3::canvas_scaled());
-    float p[2] = {480, 270};
+    float p[2] = {426.5f, 240};
     mech3::screen_to_render(p);
     EXPECT(p[0] == 960 && p[1] == 540);
     mech3::render_to_screen(p);
-    EXPECT(p[0] == 480 && p[1] == 270);
-    int32_t x = 850, y = 430, w = 75, h = 100;
+    EXPECT(p[0] == 426.5f && p[1] == 240);
+    int32_t x = 640, y = 240, w = 64, h = 48;  // whole frame pixels, the far edge rounded down
     mech3::canvas_to_render(&x, &y, &w, &h);
-    EXPECT(x == 1700 && y == 860 && w == 150 && h == 200);
+    EXPECT(x == 1440 && y == 540 && w == 144 && h == 108);
     mech3::set_vmode(5);
     EXPECT(!mech3::canvas_scaled());
     float q[2] = {100, 100};
