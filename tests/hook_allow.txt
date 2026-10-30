@@ -238,8 +238,6 @@ SkisCalls.query	fallback: unset runs the port (test hook; unset: zcls::ground_qu
 WakeHooks.stop	fallback: unset runs the port (0x00506ca0)
 WakeHooks.set_active	fallback: unset runs the port (0x004eb170)
 PanelCalls.repair_bays	fallback: unset runs the port (0x0045a000 on 0x00605ae0)
-FrameCalls.map	fallback: unset runs the port
-FrameCalls.map_size	fallback: unset runs the port
 FrameCalls.route_mouse	fallback: unset runs the port (0x0051ba60 (unset: the zTwoD host's))
 SoundExtraHooks.play	fallback: unset runs the port (0x0056e3d0)
 SoundExtraHooks.subtitle	fallback: unset runs the port (+0x00  the message's text (0x0049d1c0 strdup))

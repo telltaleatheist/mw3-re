@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod_host.h"
@@ -58,6 +59,26 @@ bool MissionMap::point(const float p[3], int32_t out[2]) const {
   out[0] = static_cast<int32_t>(-(dx * inv_mpp));  // 0x005ac340 (_ftol)
   out[1] = static_cast<int32_t>(-(dz * inv_mpp));
   return out[0] >= 0 && out[0] <= 0x280 && out[1] >= 0 && out[1] <= 0x280;
+}
+
+// Mech3.exe 1.2 @ 0x004587b0 (the lance command panel's pick on the map,
+// 0x00469d00; playtest: the map pick ported 2026-10-30).
+bool MissionMap::pick(float px, float py, float place[3], zcls::GroundHit* out,
+                      int32_t (*ground)(float x, float y, float z, zcls::GroundHits* hits)) const {
+  if (!ground) return false;
+  const float m = mpp;
+  place[0] = -(px * m) + offset[0];
+  const float z = -(py * m) + offset[2];
+  place[2] = z;
+  zcls::GroundHits hits;
+  hits.count = 0;
+  if (ground(place[0], 1000.0f, z, &hits) == 0 && hits.count != 0) {
+    place[1] = hits.hit[0].height;
+    if (out) *out = hits.hit[0];
+    return true;
+  }
+  place[1] = 0.0f;
+  return false;
 }
 
 // Mech3.exe 1.2 @ 0x004583b0: the file's "maps" list, its items after the key.

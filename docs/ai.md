@@ -2844,10 +2844,21 @@ camera 0x46b0a0, L4c2c) runs the panel. Ported (2026-10-22, item L4c2b:
 
 Program: the mission's start and end run through the load's listeners
 (0x4e7b40's slot +0x08, 0x4e7bc0's slot +0x10), and the orders' keys come
-from zInput (an action's first key and its name). Not wired yet (L4c2c):
-the HUD and map picks, the entities' names and places, the marker's
-making (0x468100) and moving, a network game's elements; unset, the mode
-runs without a cursor (its lines and the way out work).
+from zInput (an action's first key and its name). The frame's hooks are
+wired in `app_pocket.cpp`: the HUD's pick (the reticle's record, node and
+spot), the entities' names and places, the marker's making (0x468100) and
+moving, and since 2026-10-30 the map pick. With the radar's map up
+(Shift+R, the HUD's +0x70) the frame reads the mission map (0x491c80, the
+missions object's +0xbc), its size (the image rect's right and bottom),
+the cursor (0x444670: the reticle's vt+0x68 / +0x6c) and, when the cursor
+is inside it, the spot under that pixel (0x4587b0: x and z back from the
+map's offset by its metres a pixel, the ground from 1000 m up through
+0x4edab0 on the world [0x608c84], the hit's node). Before that none of the
+four was set, so the frame never saw the map up and a click on it gave the
+order at the reticle's aim. `test_map_pick.py` checks 0x4587b0 against the
+exe (3000 picks, bit for bit; swapping x and z breaks 2583);
+`test_program` mission_c1m4_pocket_commander_sends_dominic_to_a_map_spot
+orders Dominic to a pixel of c1m4's map.
 
 Test `test_pocket_frame.py` (the panel test's world plus the view, the
 HUD, the map, the pick records, four entities and the marker, the

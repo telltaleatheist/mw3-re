@@ -1651,6 +1651,7 @@ address,name,source,notes
 0x00458590,MissionMaps::Find,decomp,"(ECX s) the first loaded whose name holds s; null s: the first loaded"
 0x004582a0,MissionMaps::Pick,objdump,"(ECX s) load s's, then find large, else find(null)"
 0x004586e0,MissionMap::Point,objdump,"(p, out) -(x, z) from the offset x 1/mpp; false off 0..640"
+0x004587b0,MissionMap::Pick,decomp,"ported: MissionMap::pick (px, py, place) the ground under a pixel from 1000 m up (0x004edab0 on [0x00608c84]); test_map_pick.py"
 0x00491c80,Missions::Map,decomp,"+0xbc, else an empty map made once at +0xb8"
 0x0047d2f0,Briefing::OpenSalvage,objdump,"App::Push of the second Salvage State 0x00608bd8 (campaign.md 10)"
 0x0047d3b0,SalvageScreen::SalvageScreen,objdump,"(state) new(0x166a8), dlgSalvage.zrd SALVAGEDIALOG; vtable 0x005c3c88"
