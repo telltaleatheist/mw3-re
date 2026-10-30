@@ -1,0 +1,29 @@
+// The Windows version resource (and mw3.exe's icon), filled in by CMake from
+// git's describe and commit count. Ours: no MicroProse name or art.
+#include <winver.h>
+
+@MW3_RC_ICON@
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,1,0,@MW3_BUILD_NUMBER@
+ PRODUCTVERSION 0,1,0,@MW3_BUILD_NUMBER@
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "ProductName", "MechWarrior 3 rebuild"
+      VALUE "FileDescription", "@MW3_RC_NAME@"
+      VALUE "ProductVersion", "@MW3_VERSION@"
+      VALUE "FileVersion", "@MW3_VERSION@"
+      VALUE "OriginalFilename", "@MW3_RC_FILE@"
+      VALUE "Comments", "A fan rebuild that needs your own MechWarrior 3 install. Not sold; not affiliated with MicroProse or Microsoft."
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

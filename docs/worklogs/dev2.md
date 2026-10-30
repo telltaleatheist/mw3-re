@@ -151,3 +151,39 @@ works alongside it; stay out of its files.
   windowed and fullscreen; at 150% scaling the cursor on the buttons it
   draws over, and the frame sharp at the display's pixels.
 - Branch `mac5/fullscreen-polish` off main 730a01c.
+
+## 8. The Windows package (2026-10-30)
+
+- `tools\windows\package.cmd`: its own tree `build-win-pkg` with
+  `MW3_PACKAGE=ON` (CMake: mw3 and mw3import without MW3_GAME_DIR), then
+  `build-win\dist\mw3-<describe>-win64\` and the zip (tar -a). Contents and
+  the dumpbin check (`check_dist.ps1`): docs/windows.md, Packaging.
+- `mw3 --version`, `mw3import --version` (with FFmpeg's configuration):
+  no window needed, so the load of every DLL is checkable over ssh.
+- `mw3import` in a package build takes the install from `--install`, else
+  mw3.cfg's `install=`.
+- The finder's usual folders gained `\Games\MechWarrior3`, `\Games\MW3` and
+  `\MechWarrior3` (Owen's install is C:\Games\MechWarrior3).
+- Version resource from `version.rc.in` (git describe, commit count);
+  placeholder icon `mw3.ico` from `make_icon.py` (ours: a reticle).
+- README.txt and THIRD-PARTY.txt in `tools\windows\dist\`. Licences
+  checked: SDL3 and SDL3_ttf zlib (SDL3_ttf's DLL has FreeType (FTL),
+  HarfBuzz and PlutoSVG/PlutoVG (MIT)); SDL3_sound zlib, its decoders dr_*
+  and stb_vorbis public domain or MIT(-0), libmodplug public domain,
+  TiMidity the Perl Artistic License (its header); FFmpeg LGPL 2.1+ (BtbN
+  lgpl-shared, dynamically linked, unmodified); pl_mpeg MIT; the VC++
+  runtime's redist terms.
+- On the Mac: a `MW3_PACKAGE=ON` tree builds; neither exe holds the dev
+  path; `mw3 --frames 1 --hidden` with a fresh write dir finds no install
+  and says so; `mw3import` without one says to give `--install` or start
+  mw3. The .cmd, .ps1 and .rc are untested here (Windows only).
+- Branch `mac5/windows-package` off main 46135f7.
+- The PC's run (lead, 63c3a5b): check_dist 17 files, both --version print
+  from a fresh folder with only Windows' DLLs on PATH, the finder found
+  C:\Games\MechWarrior3 and saved it; every licenses\ folder filled. Then:
+  BtbN's FFmpeg is --enable-version3 (LGPL v3) with ~20 libraries built in.
+  Done (a): THIRD-PARTY.txt says LGPL v3; `ffmpeg_notices.ps1` lists the
+  built-in libraries and their licences from the configure line. (b), a
+  minimal LGPL v2.1 FFmpeg, is written up in windows.md for later: this
+  session's permission check refused building the downloaded FFmpeg source,
+  so it waits for Owen's approval.

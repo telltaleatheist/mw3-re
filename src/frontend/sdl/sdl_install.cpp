@@ -99,7 +99,7 @@ std::vector<std::string> install_candidates() {
   const char* sd = std::getenv("SystemDrive");
   const std::string drive = sd ? sd : "C:";
   for (const char* d : {"\\MicroProse\\MechWarrior 3", "\\MicroProse\\MechWarrior3", "\\Games\\MechWarrior 3",
-                        "\\MechWarrior 3", "\\MW3"})
+                        "\\Games\\MechWarrior3", "\\Games\\MW3", "\\MechWarrior 3", "\\MechWarrior3", "\\MW3"})
     add(drive + d);
 #endif
   // This program's folder and the one above (mw3 beside or inside the
