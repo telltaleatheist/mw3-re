@@ -329,3 +329,16 @@ works alongside it; stay out of its files.
   either end.
 - Branch `mac5/mfb-stay` off main d02a386.
 
+
+## 20. W16 with the parked dock (2026-10-30)
+
+- On lead/w17, W16's test waited for a second places step that the parked
+  dock skips (the same point goes straight to the contact). The test now
+  takes the rest as idle or parked (0 or 7), counts the second call as
+  answered at the first front past the places that is not parked, does
+  the second contact, and checks the player (worn before the call) is
+  repaired: internals only, since the armour comes from the store and a
+  debug launch has none. With bugs off the dock rests at idle and the
+  second call jams, as before; the stuck-base give-up (a first call) is
+  unchanged. No code change: the two fixes meet as designed.
+- Branch `mac5/w16-park` off lead/w17 8e2ea92.

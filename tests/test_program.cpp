@@ -14233,10 +14233,17 @@ TEST(mission_c1m3_field_bases_park_at_charlie_headless) {
 // drive and no node to enter, so its valve (set on arriving) never is and the
 // dock's places step waits for good: the exe's own jam (W8). FIX (bug):
 // such a base counts as arrived. And a base that stands still short of its
-// slot for 30 s is given up on (here base 02 held where it waits).
+// slot for 30 s is given up on (here base 02 held where it waits). With bugs
+// on the dock is parked after the repair (vehicles.md, After a repair), so
+// the second call at the same point is taken by the parked dock straight to
+// the contact; either way it is answered at once and the player, worn down
+// before it, is repaired again (its internals: the armour comes from the
+// store, and a debug launch has none).
 namespace {
 struct DockRun {
   int first_places = -1, second_call = -1, second_places = -1, held_places = -1, calls = 0;
+  int rest_front = -1, second_rest = -1;  // the dock's front after the first repair; back at rest after the second
+  bool second_repaired = false;
 };
 // mode 0: the repair and a second call; mode 1: one call, base 02 held still.
 DockRun c2m2_dock_run(int mode, uint32_t seed) {
@@ -14260,7 +14267,8 @@ DockRun c2m2_dock_run(int mode, uint32_t seed) {
   mech3::MountFiles files;
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
-  int core = 0, contact = 0, idle = 0, call = 0;
+  int core = 0, contact = 0, idle = 0, call = 0, prev_front = -1;
+  const bool bugs = zfix::options().bugs;
   float held[3] = {};
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -14290,21 +14298,31 @@ DockRun c2m2_dock_run(int mode, uint32_t seed) {
         if (idle && core == idle + 61) out.second_call = core;
       }
       if (call && d.front >= 2 && out.first_places < 0) out.first_places = core;
-      if (out.second_call > 0 && d.front >= 2 && out.second_places < 0) out.second_places = core;
+      if (mode == 0 && idle && core == idle + 59) mech3::program_mech_wear_down(player, 0.5f, 0.75f);
+      // the second call's places done: past them (2..6), not the parked dock (7)
+      if (out.second_call > 0 && d.front >= 2 && d.front != 7 && out.second_places < 0) out.second_places = core;
       if (mode == 1 && out.first_places > 0 && out.held_places < 0) out.held_places = out.first_places;
-      if (mode == 0 && d.front == 2 && !contact) {  // the contact: onto the point, powered down
-        contact = core;
+      if (mode == 0 && d.front == 2 && prev_front != 2) {  // each contact: onto the point, powered down
+        if (!contact) contact = core;
         float dp[3];
         if (mech3::program_dock_point(nullptr, dp)) mech3::chain_player_at(dp);
         mech3::mech_power(player, 1);
       }
-      if (mode == 0 && contact && !idle && d.front == 0) idle = core, mech3::mech_power(player, 0);
+      const bool rest = d.front == 0 || d.front == 7;
+      if (mode == 0 && contact && !idle && rest) idle = core, out.rest_front = d.front, mech3::mech_power(player, 0);
+      if (mode == 0 && out.second_places > 0 && out.second_rest < 0 && rest) {
+        out.second_rest = core;
+        const mech3::MechWear w = mech3::program_mech_wear(player);
+        out.second_repaired = w.internal == 1.0f;  // (armour comes from the store: a debug launch has none)
+        mech3::mech_power(player, 0);
+      }
+      prev_front = d.front;
     };
     CountingPump pump;
     pump.limit = 100000;
     pump.stop = [&] {
       if (mode == 1) return out.first_places > 0 || core >= 6000;
-      return out.second_places > 0 || (out.second_call > 0 && core > out.second_call + 1500) || core >= 9000;
+      return out.second_rest > 0 || (out.second_call > 0 && core > out.second_call + (bugs ? 3000 : 1500)) || core >= 12000;
     };
     app.run(pump);
     mech3::missions().cleanup(false);
@@ -14326,14 +14344,16 @@ TEST(mission_c2m2_field_bases_answer_a_second_call_headless) {
   for (uint32_t seed : {1u, 7u}) {
     zfix::options().bugs = true;
     const DockRun r = c2m2_dock_run(0, seed);
-    std::printf("  seed %u: places done %d (first call), second call at %d, its places done %d\n", seed, r.first_places,
-                r.second_call, r.second_places);
+    std::printf("  seed %u: places done %d (first call), at rest in front %d, second call at %d, its places done %d, "
+                "back at rest %d, the player repaired %d\n",
+                seed, r.first_places, r.rest_front, r.second_call, r.second_places, r.second_rest, r.second_repaired);
     EXPECT(r.first_places > 0 && r.second_call > 0 && r.second_places > 0 && r.second_places - r.second_call < 30);
+    EXPECT(r.rest_front == 7 && r.second_rest > 0 && r.second_repaired);
   }
   zfix::options().bugs = false;  // the original: the second call waits for good (W8)
   const DockRun orig = c2m2_dock_run(0, 1);
   std::printf("  original: second call at %d, its places %s\n", orig.second_call, orig.second_places > 0 ? "done" : "never done (1500 frames)");
-  EXPECT(orig.second_call > 0 && orig.second_places < 0);
+  EXPECT(orig.rest_front == 0 && orig.second_call > 0 && orig.second_places < 0);
   zfix::options().bugs = true;  // base 02 held: given up on after 30 s
   const DockRun held = c2m2_dock_run(1, 1);
   zfix::options().bugs = false;

@@ -928,7 +928,11 @@ points (MFB 3 and 4 by a long way round through MFB 2's road). FIX (bug)
 behind `bugs`: at the request a base already in its slot's behaviour counts
 as arrived (its valve set); in the places step a base that has not moved 2
 m in 30 s short of its place is given up on. Test:
-`mission_c2m2_field_bases_answer_a_second_call_headless`. Earlier, not
+`mission_c2m2_field_bases_answer_a_second_call_headless` (with `bugs`
+the dock is parked after the first repair, below, so the second call at
+the same point goes straight to the contact; the arrived valve still
+answers a call from the idle state, and the give-up a first call with a
+base stuck). Earlier, not
 reproduced: the player on the point, on a slot, standing or powered down
 (`mission_c1m1_dock_runs_with_the_player_waiting_headless`).
 
