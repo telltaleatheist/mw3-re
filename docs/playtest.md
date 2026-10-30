@@ -131,5 +131,5 @@ The Windows build (docs/windows.md) from a3a6eb3 on. Movies and menus fine.
 | W3 | No music | the install had no CD tracks (data-only ISO) | lead | fixed: tracks 2 and 3 from Owen's disc dump as music\track02/03.wav in the write dir (PC and Mac) |
 | W4 | The PC's install: the 1.2 exe over pre-1.2 data | reader.zbd, interp.zbd, c3 missions differ; patch files missing | lead, dev | the PC now uses the verified 1.2 set; any data version: dev's item (queued) |
 | W5 | Finding the install for other players | ours | dev 2 | the install finder (registry, folders, a Browse dialog), in review |
-| W6 | The crosshair turns yellow over a destructible target only sometimes | the aim pick (0x444330) and the reticle's colour | dev | in progress; which objects failed: Owen not sure |
+| W6 | The crosshair stays green over turrets where it should turn yellow (it does turn red on them); right on other targets, vehicles unsure | the aim pick (0x444330) and the reticle's colour | dev | in progress |
 | W7 | TARGET's view of the Owens: the camera too low, its legs halfway up the window and its head off the top (maybe other mechs too) | TARGET mode 1's camera (0x441410: 1.25 x the centroid's height over its place, hud.md section 26) | dev 2 | open |
