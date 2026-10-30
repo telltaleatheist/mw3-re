@@ -259,3 +259,15 @@ works alongside it; stay out of its files.
   3840x1080 -> 1920x1080); 5:4 unchanged. Tests: the sizes, the first start
   at 21:9, the fit at 21:9 and 32:9; without the cap 6 checks fail.
 - Branch `mac5/wide-clamp` off main 9f68bfd.
+## 14. The mouse in a window (2026-10-30)
+
+- Owen: in a window (Alt+Enter) the mouse could not leave. `SdlInput`
+  (FIX (A), input.md section 8): in a shown window the menus never capture
+  (zInput's mouse put at the free cursor, 0x0051b4f0); a mission captures;
+  Ctrl+Alt alone (`kReleaseKeys`), the pause and the focus lost let go; a
+  click inside takes it back, unseen. Fullscreen and hidden runs unchanged.
+  mw3_main gives it `windowed`, `in_mission` (the Core state) and
+  `absolute_cursor`.
+- Test `sdl_window_lets_the_mouse_go` (headless, every path). Not tried in
+  a shown window here (it would take the Mac's mouse); for Owen.
+- Branch `mac5/mouse-release` off main 9f68bfd.

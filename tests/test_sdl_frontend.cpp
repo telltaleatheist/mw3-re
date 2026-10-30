@@ -478,6 +478,105 @@ TEST(sdl_fullscreen_keys_focus_and_mickeys) {
   EXPECT(mix[0] > 0.4f);
 }
 
+// FIX (A), the mouse in a window (sdl_input.h, docs/input.md): the menus
+// never capture and put zInput's mouse at the cursor; a mission captures;
+// Ctrl+Alt alone lets go (the game then sees no motion or buttons), a click
+// inside takes it back unseen; the pause lets go and its end takes it back;
+// the focus lost lets go until a click. Fullscreen holds it as before.
+TEST(sdl_window_lets_the_mouse_go) {
+  sdlfe::SdlInput in;
+  sdlfe::SdlPump pump(&in, nullptr);
+  bool windowed = true, mission = false;
+  float cx = -1, cy = -1;
+  in.windowed = [&] { return windowed; };
+  in.in_mission = [&] { return mission; };
+  in.absolute_cursor = [&](float x, float y) { cx = x, cy = y; };
+  in.set_cooperative_level(platform::Input::kMouse, 5);  // DISCL_EXCLUSIVE | DISCL_FOREGROUND, as zInput
+  in.set_cooperative_level(platform::Input::kKeyboard, 10);
+  EXPECT(in.open(platform::Input::kKeyboard) && in.acquire(platform::Input::kKeyboard) == 0);
+  EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0);
+  platform::MouseState ms;
+  auto move = [&](float x, float y, float dx, float dy) {
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION;
+    e.motion.x = x, e.motion.y = y, e.motion.xrel = dx, e.motion.yrel = dy;
+    pump.handle(e);
+  };
+  auto button = [&](bool down) {
+    SDL_Event e{};
+    e.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+    e.button.button = SDL_BUTTON_LEFT, e.button.x = in.mouse_x, e.button.y = in.mouse_y;  // where the cursor is
+    pump.handle(e);
+  };
+  auto key = [&](SDL_Scancode sc, bool down) {
+    SDL_Event e{};
+    e.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+    e.key.scancode = sc;
+    pump.handle(e);
+  };
+  auto focus = [&](bool on) {
+    SDL_Event e{};
+    e.type = on ? SDL_EVENT_WINDOW_FOCUS_GAINED : SDL_EVENT_WINDOW_FOCUS_LOST;
+    pump.handle(e);
+  };
+  // 1) The menus: free, absolute; the clicks are the game's.
+  EXPECT(in.mouse_state(&ms) == 0 && !in.captured() && cx < 0);  // not moved yet: zInput's place stays
+  move(410, 250, 30, 20);
+  button(true);
+  EXPECT(in.mouse_state(&ms) == 0 && !in.captured() && cx == 410 && cy == 250 && ms.x == 0 && ms.buttons[0]);
+  button(false);
+  // 2) A mission: held; Ctrl+Alt alone lets go.
+  mission = true;
+  EXPECT(in.mouse_state(&ms) == 0 && in.captured() && !in.released());
+  move(0, 0, 12, -5);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 12 && ms.y == -5);
+  key(SDL_SCANCODE_LCTRL, true), key(SDL_SCANCODE_LALT, true), key(SDL_SCANCODE_W, true);  // another key between
+  key(SDL_SCANCODE_W, false), key(SDL_SCANCODE_LALT, false), key(SDL_SCANCODE_LCTRL, false);
+  EXPECT(in.captured() && !in.released());
+  key(SDL_SCANCODE_LCTRL, true), key(SDL_SCANCODE_RALT, true), key(SDL_SCANCODE_RALT, false);
+  EXPECT(!in.captured() && in.released());
+  key(SDL_SCANCODE_LCTRL, false);
+  move(500, 300, 40, 40);
+  SDL_Event wheel{};
+  wheel.type = SDL_EVENT_MOUSE_WHEEL, wheel.wheel.y = 1;
+  pump.handle(wheel);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 0 && ms.y == 0 && ms.z == 0 && !ms.buttons[0]);
+  // A click inside takes it back; the game sees neither its press nor its release.
+  button(true);
+  EXPECT(in.captured() && !in.released() && in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  button(false);
+  EXPECT(in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  button(true);  // the next click is the game's (fire)
+  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0]);
+  button(false);
+  // 3) The pause lets go (a menu: absolute); its end takes it back.
+  mission = false;
+  EXPECT(in.mouse_state(&ms) == 0 && !in.captured());
+  move(320, 240, 1, 1);
+  EXPECT(in.mouse_state(&ms) == 0 && cx == 320 && cy == 240);
+  mission = true;
+  EXPECT(in.mouse_state(&ms) == 0 && in.captured());
+  // 4) The focus lost lets go; back, it stays let go until a click inside.
+  focus(false);
+  EXPECT(!in.captured() && in.mouse_state(&ms) == platform::Input::kInputLost);
+  focus(true);
+  EXPECT(in.acquire(platform::Input::kMouse) == 0 && !in.captured() && in.released());
+  move(10, 10, 9, 9);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 0);
+  button(true);
+  EXPECT(in.captured() && in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  button(false);
+  // Fullscreen: held in the menus too, Ctrl+Alt does nothing, back from
+  // away it is held again at once (as before).
+  windowed = false, mission = false;
+  EXPECT(in.mouse_state(&ms) == 0 && in.captured());
+  mission = true;
+  key(SDL_SCANCODE_LCTRL, true), key(SDL_SCANCODE_LALT, true), key(SDL_SCANCODE_LALT, false), key(SDL_SCANCODE_LCTRL, false);
+  EXPECT(in.captured() && !in.released());
+  focus(false), focus(true);
+  EXPECT(in.acquire(platform::Input::kMouse) == 0 && in.captured());
+}
+
 // High DPI: the window's coordinates (the mouse's) and its pixels (the frame's
 // draw) differ by the density (2 on a Retina Mac; 1 on Windows, where SDL3 is
 // per-monitor DPI aware and 150% is only the display's scale). The frame's
