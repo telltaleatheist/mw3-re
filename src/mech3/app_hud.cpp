@@ -131,7 +131,9 @@ struct ProgramHudHooks : HudHooks {
     zcls::camera_set_rotation(node(c), a[0], a[1], a[2]);
   }
   // The zoom's 3D pass (0x00442f50, 0x004436c0, hud.md section 23).
-  uint32_t object_node(void* o) override { return keep(static_cast<zcls::Node*>(static_cast<Mech*>(o)->node)); }
+  // +0x04 of any class: TARGET's mode 1 views turrets and targets.zrd's objects
+  // too, whose node is a handle (read as a Mech's it was a bad pointer).
+  uint32_t object_node(void* o) override { return keep(static_cast<zcls::Node*>(hud_object_node(o))); }
   void player_camera_place(float out[3]) override {
     const zcls::Camera* c = camera_data();
     for (int i = 0; i < 3; ++i) out[i] = c ? c->get<float>(0x14 + 4 * i) : 0.0f;
@@ -1066,6 +1068,23 @@ bool program_hud_target(void* mech, int mode) {
   if (!h) return false;
   for (ai::Contact* c : m->contacts)
     if (collide_calls().contact_mech && collide_calls().contact_mech(c) == mech) {
+      m->target = c;
+      h->target.set_target(&m->target);
+      program_hud_target_set(m);
+      h->target.set_mode(mode);
+      return true;
+    }
+  return false;
+}
+
+// Tests only: TARGET on the player's contact on `want` (a turret or a
+// targets.zrd object), in `mode`.
+bool program_hud_target_other(const void* want, int mode) {
+  Mech* m = static_cast<Mech*>(program_view_target());
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  if (!h) return false;
+  for (ai::Contact* c : m->contacts)
+    if (hud_contact_vehicle(c) == want) {
       m->target = c;
       h->target.set_target(&m->target);
       program_hud_target_set(m);
