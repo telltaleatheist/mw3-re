@@ -48,7 +48,13 @@ int main() {
     sigaction(sig, &sa, nullptr);
   }
 #endif
-  std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
+  // a test that crashes still shows where. Windows' CRT has no line buffering (and takes size 0 as
+  // an invalid argument): unbuffered there.
+#if defined(_WIN32)
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+#else
+  std::setvbuf(stdout, nullptr, _IOLBF, 0);
+#endif
   // MW3_TEST=name runs only the tests whose names contain it; a,b,c any of them.
   // MW3_SKIP=name (the same form) leaves those out: MW3_SKIP=headless skips the
   // whole-mission runs, nearly all of the suite's time.
