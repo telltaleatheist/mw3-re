@@ -173,6 +173,14 @@ From the port of the damage code, checked in an emulator against the original
   impact type, but only once a mission script hands it the images with
   `WriteTextureSetMap`, and no mission in MechWarrior 3 or Pirate's Moon
   does, so the feature never shows.
+- **Mechs do get bullet holes, where you hit them.** Every hit on a mech
+  stamps one of seven hole shapes (8 or 16 pixels across) into the texture
+  it struck, at the exact spot, copying in that part of the mech's matching
+  "damaged" texture. An eighth hole shape is in the data but is picked only
+  once in 32,768 hits, because of how the random pick is scaled. The holes
+  only appear on a full install with a 3D card of 8 MB or more. With only
+  the 2 MB card textures installed (or a smaller card), the game loads the
+  reduced mech textures and skips the holes. (docs/damage-decals.md)
 - **Kill points come from a weight class that ignores tonnage.** A mech kill
   scores 300, 400, 500 or 700 by the class the roster gives it, and that
   class is often off: the 100-ton Annihilator scores as a heavy (500), the
@@ -2049,6 +2057,13 @@ file (docs/assets.md, Data versions):
   carries an active Beagle (BAP) and the hidden mech has no ECM. A mech
   shut down itself sees nothing in sight. Targets whose `radar` flag is off
   in targets.zrd (such as c1 mission 1's satellite dish) are never in sight.
+- **The Beagle Active Probe finds ambushes.** Two in three of the
+  campaign's enemy mechs (106 of 168) start a mission powered down and wait
+  for a script to wake them, usually as you come near. Until then they are
+  on your radar but the target keys skip them. A mech with a BAP and its
+  radar on active (not passive) can target them while they sleep, unless
+  they carry ECM: you see the ambush and can shoot first. That is all the
+  BAP does; it adds no range.
 - **Passive radar doesn't hide you from the AI.** The radar mode key
   (Alt+R) cycles 1000 m, then 500 m "passive" when at the top, 500 m, 1000
   m... Passive only stops your own Beagle and hides you from other passive

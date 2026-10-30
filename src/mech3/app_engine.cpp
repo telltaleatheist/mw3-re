@@ -244,7 +244,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x00535ed0", "no effect: the threshold is read only by the software draw 0x0053e050"},
       {"0x004f8f60", "no effect: zSave registration with flag 0; the port's classes_reset registers none either"},
       {"0x00537520", "no effect: Releases the used textures' system surfaces; the port's record is one Render3D handle"},
-      {"0x00414370", "deferred: the damage decals (0x00474d90 on the roster's +0x1c, 0x00414370), not ported; a census stand-in (hook_census.inc)"},
       {"0x0046ef70", "no effect: a mech's network update (vt+0x158) tests the network game (0x00479480) first; a census stand-in"},
       {"0x0046f160", "no effect: a mech's network message (vt+0x168) returns at once without [0x00605fb4] (network game running); a census stand-in"},
       {"WeaponCalls.net_event", "no effect: a weapon's network message (vt+0x168, 0x0046f160) returns at once without [0x00605fb4]; a census stand-in"},

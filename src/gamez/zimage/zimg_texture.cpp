@@ -2,6 +2,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <list>
+#include <string>
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
@@ -273,9 +275,48 @@ int32_t load_group_0() {
   return 0;
 }
 
+namespace {
+struct CacheEntry {  // 0x0c bytes (0x00517730): the name (strdup'd), the image, the uses
+  std::string name;
+  Texture* image = nullptr;
+  int32_t refs = 1;
+};
+bool g_cache_made = false;           // [0x006384ec] made
+std::list<CacheEntry> g_cache;
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005179d0 (ECX the name)
+Texture* cache_fetch(const char* name) {
+  if (!name) return nullptr;
+  g_cache_made = true;
+  for (CacheEntry& c : g_cache)  // 0x005177a0: by name
+    if (c.name == name) return ++c.refs, c.image;
+  Texture* t = fetch_image(name);  // 0x005176b0
+  if (!t) return nullptr;
+  g_cache.push_back({name, t, 1});
+  return t;
+}
+
+// Mech3.exe 1.2 @ 0x00517b10 (ECX the image)
+void cache_release(Texture* image) {
+  if (!g_cache_made) {
+    zerr::report(0x400, "C:\\zipper\\GameZMech3\\zImage\\zimg_library.cpp", 0xd0, "lazy programmer alert!");
+    return;
+  }
+  for (auto it = g_cache.begin(); it != g_cache.end(); ++it) {  // 0x00517840: by image
+    if (it->image != image) continue;
+    if (--it->refs == 0) {  // 0x00517790
+      free_texture(image);  // 0x00517760 -> 0x005185f0
+      g_cache.erase(it);
+    }
+    return;
+  }
+  free_texture(image);  // 0x005185f0
+}
+
 // Mech3.exe 1.2 @ 0x00518b30 (ECX the entry): a loaded one's image and
 // record freed, a waiting one forgotten; others (reload) left as they are.
-static void entry_free(TextureEntry& e) {
+void entry_free(TextureEntry& e) {
   if (e.state == 1) {
     if (e.image) {
       if (e.image != &default_image()) free_texture(static_cast<Texture*>(e.image));  // 0x005185f0

@@ -171,7 +171,29 @@ crashes.
 - **FIX (A)**: the machine is described by the front end (`GameEngine::
   settings_init`): CPU class 6, 2000 MHz, MMX, a 3D card, the real memory
   (capped at 4 GB as GlobalMemoryStatus caps it), 256 MB of video memory;
-  InstallOptions 0x101.
+  InstallOptions 0x070707, a full install (below; until 2026-10-29 0x101,
+  which loaded the reduced mech textures and no bullet holes).
+
+**InstallOptions** (HKLM, written by the installer, its components in
+`SETUP.INS`): one bit per installed component.
+
+| Bit | Component | Read by |
+|---|---|---|
+| 0x1 | HW Files\2MB Card | the card's texture choices (0x0043a310: 2 MB, with 2 MB or more); 0x004804f0: a card under 4 MB needs it |
+| 0x2 | HW Files\4MB Card | 0x0043a310 (4 MB, with 4 MB or more); the mission load 0x0048faf0 |
+| 0x4 | HW Files\8MB Card | 0x0043a310 (8 MB, with 8 MB or more); 0x0048faf0 |
+| 0x100 | SW Files\Low Detail | the software texture choices (0x0043a310: 2 MB) |
+| 0x200 | SW Files\Medium Detail | 0x0043a310 (4 MB) |
+| 0x400 | SW Files\High Detail | 0x0043a310 (MAX) |
+| 0x10000 | Sound\Low Fidelity | the sound quality list (0x00439570: Low) |
+| 0x20000 | Sound\Medium Fidelity | nothing (soundsM.zbd is not shipped) |
+| 0x40000 | Sound\High Fidelity | 0x00439570 (High) |
+| 0xff, 0xff00 | any card set, any software set | the device list (0x004394d0), HWCardFlag (0x0040c420), 0x0047fe10, 0x00480970, 0x005981c0 |
+
+In the mission load, neither 0x2 nor 0x4 (only the 2 MB card set) loads
+the mech textures as variant 0x11 (`rmechtex16.zbd` in place of
+`rmechtex.zbd`) and turns the RGB textures off, and with them HOLES
+(`mission-load.md` step 3, `damage-decals.md`).
 - **FIX (bug)**: a saved ActiveCtlCfg without its terminating 0 made the
   controls file's name run past the 0x104-byte buffer; the port stops at
   the buffer's end.

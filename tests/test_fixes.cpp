@@ -8,6 +8,7 @@
 
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
+#include "gamez/zrender/zrndr_prim2d.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zreader/zreader.h"
@@ -649,6 +650,66 @@ TEST(fix_layer_blend_keeps_its_alpha) {
   img.width = 1;
   zrndr::blit16(&img, 0, 0, 0, nullptr);
   EXPECT(plain[0] != grey && plain[0] != key);  // the original path: mixed with the key
+  t = saved;
+}
+
+// FIX (A): an opaque write over a blend ends the blend's record, also when it
+// writes the colour the blend recorded: the damage diagram's blue outlines
+// (dmg_<part>_blue, 0x001f) over its translucent blue fill (dmg_bg_blue) were
+// drawn see-through, all but the right arm's 0x003f (hud.md section 16).
+// Each writer into the 2D layer: keyed, plain and paletted images, lines and
+// pixels.
+TEST(fix_layer_opaque_ends_a_blend_of_its_colour) {
+  const uint16_t key = 0xf81f, blue = 0x001f;
+  zrndr::Target2D& t = zrndr::target2d();
+  const zrndr::Target2D saved = t;
+  uint16_t layer[2];
+  uint8_t cover_a[2];
+  uint16_t cover_c[2];
+  t.base = reinterpret_cast<uint8_t*>(layer), t.width = 2, t.height = 1, t.pitch = 4, t.format = 6;
+  uint16_t fill_px[2] = {blue, blue};
+  uint8_t fill_al[2] = {0x80, 0x80};
+  zimg::Texture fill{};
+  fill.width = fill.width_again = 2, fill.height = 1, fill.pixels = fill_px, fill.alpha = fill_al;
+  uint16_t px[2] = {blue, blue}, keyed_px[2] = {0, blue};
+  uint8_t idx[2] = {1, 1};
+  uint16_t pal[2] = {0, blue};
+  uint8_t keyed_idx[2] = {0, 1}, solid_al[2] = {0xff, 0xff};
+  zimg::Texture keyed{}, plain{}, half{}, paletted{}, pal_keyed{}, pal_half{}, solid{}, pal_solid{};
+  keyed.width = keyed.width_again = 2, keyed.height = 1, keyed.pixels = keyed_px, keyed.flags = zimg::kAlpha;
+  plain.width = plain.width_again = 2, plain.height = 1, plain.pixels = px;            // the full-width copy
+  half.width = half.width_again = 1, half.height = 1, half.pixels = px;               // the row copy
+  paletted.width = paletted.width_again = 2, paletted.height = 1, paletted.pixels = idx, paletted.palette = pal;
+  pal_keyed = paletted, pal_keyed.pixels = keyed_idx, pal_keyed.flags = zimg::kAlpha;
+  pal_half = paletted, pal_half.width = pal_half.width_again = 1;
+  solid = plain, solid.alpha = solid_al;          // an alpha plane, opaque
+  pal_solid = paletted, pal_solid.alpha = solid_al;
+  const char* names[] = {"keyed image",          "plain image", "plain image's rows", "paletted image", "line",
+                         "pixel",                "keyed paletted image", "paletted image's rows",
+                         "opaque alpha image",   "opaque alpha paletted image"};
+  for (int w = 0; w < 10; ++w) {
+    layer[0] = layer[1] = key;
+    cover_a[0] = cover_a[1] = 0;
+    zrndr::layer_cover() = {cover_a, cover_c, key};
+    zrndr::blit16(&fill, 0, 0, 0, nullptr);  // the translucent fill: recorded
+    const bool recorded = cover_a[1] == 0x80 && cover_c[1] == blue && layer[1] == blue;
+    switch (w) {
+      case 0: zrndr::blit16(&keyed, 0, 0, 0, nullptr); break;  // keyed on 0: only pixel 1 drawn
+      case 1: zrndr::blit16(&plain, 0, 0, 0, nullptr); break;
+      case 2: zrndr::blit16(&half, 1, 0, 0, nullptr); break;
+      case 3: zrndr::blit16(&paletted, 0, 0, 0, nullptr); break;
+      case 4: zrndr::line16(1, 0, 1, 0, blue); break;
+      case 5: zrndr::pixel16(1, 0, blue); break;
+      case 6: zrndr::blit16(&pal_keyed, 0, 0, 0, nullptr); break;  // keyed on index 0
+      case 7: zrndr::blit16(&pal_half, 1, 0, 0, nullptr); break;
+      case 8: zrndr::blit16(&solid, 0, 0, 0, nullptr); break;
+      default: zrndr::blit16(&pal_solid, 0, 0, 0, nullptr); break;
+    }
+    if (!recorded || cover_a[1] != 0) std::printf("  %s: the blend's record left\n", names[w]);
+    EXPECT(recorded && layer[1] == blue && cover_a[1] == 0);  // opaque blue
+    if (w == 0 || w == 6) EXPECT(cover_a[0] == 0x80);                     // the keyed-out pixel keeps the fill's
+  }
+  zrndr::layer_cover() = {};
   t = saved;
 }
 

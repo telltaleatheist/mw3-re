@@ -585,9 +585,21 @@ slot is the mech's `target`, +0x6c) and the contact's mech and distance
 and +0x3cc its ECM count. "Over TARGET's box" (0x00440a30) waits for
 TARGET's tracking (0x00440b00), so the program never locks yet. The aimed
 node's object is mac 2's `node_entity` (0x0040e920, app_weapons.cpp); its
-+8 byte is ZEntity's active flag, read from a mech (another object's is
-logged as unported, 0); the node's +0xbc is its damage callbacks' record
-(zwep_damage), "above 1" meaning it has one.
++8 byte is ZEntity's active flag (set by the constructor, cleared at death),
+read by the object's class (`entity_active_flag`, app_hud.cpp: a mech's or
+vehicle's, a turret's, a targets.zrd object's or trap's); the node's +0xbc
+is its damage callbacks' record (zwep_damage), "above 1" meaning it has one.
+Each frame the image goes to off first; then an object with the flag and
+the aim in range shows over (yellow); no object but a damage record shows
+over at any range; neither, out of range, can't.
+
+Playtest W6 (2026-10-29): until then only a mech's flag was read, so a
+turret, vehicle or targets.zrd object never turned the reticle yellow
+(buildings with only a damage record did). mw3tests
+`mission_c1m1_reticle_turns_yellow_over_each_kind_headless` aims at one of
+each in c1m1 (in range: over; out of range or dead: off) and at a building
+(support00, a damage record and no object: over at any range); with the old
+mech-only read, the turret, vehicle and target checks fail.
 mw3tests `mission_c1m1_hud_weapon_lines_and_lock_headless` forces "over"
 (`program_hud_force_over`) with the Owens as the target and the LRM group:
 acquiring, waiting, locked 0.6 s later.
@@ -960,6 +972,25 @@ the Owens in mode 2 and fires: the hits wear a torso section's internal to
 0.899 and its silhouette part changes image (at frame 89), the rest stay
 intact. Headless runs load no 2D images, so the test gives the silhouette
 set distinct stand-ins first.
+
+**What it shows** (Owen's playtest, 2026-10-29: "only the left arm
+outlined (or the right one)"). Each part is an outline over the
+background's translucent fill (`dmg_bg_blue`, an alpha image of 0x001f;
+red or green for TARGET's enemy or neutral): blue at full health, green
+above 0.7, yellow above 0.4, red above 0, nothing when destroyed (the
+`_blk` images are not shipped). In the program seven of the eight blue
+outlines are the fill's own 0x001f (`dmg_rarm_blue` alone is 0x003f), and
+the layer's cover (render-frame.md, FIX (A)) took them for the fill and
+drew them see-through, so at full health only the right arm showed (the
+left of the silhouette, the player's own seen from behind); damaged parts'
+colours differ and showed. Fixed in the cover, not here: an opaque write
+ends a pixel's record. mw3sdltests
+`sdl_host_damage_diagram_shows_every_part` draws the view with the shipped
+images at every band for each part and checks every outline texel opaque;
+with the cover unfixed it shows Owen's picture (seven parts with 0 texels
+at full health). Shots: c1m1, `--tap 0x20@800` (all blue at frame 900);
+with `--vehicle-ahead 40 --vehicle-hold` the vehicle's hits turn the left
+arm and leg green by frame 2400.
 
 ## 17. The gauges' setters, the objectives' place, the equipment's update
 

@@ -106,7 +106,16 @@ Callers of 0x00558540: the fade state's step (0x0048f0b0), 0x00599b66 and
   Direct3D the original's HUD images take this same software blit onto the
   locked back buffer (their DirectDraw surface path, 0x00576f90 keyed on
   black, only serves images made by [0x0072f360] = 0x005773e0).
-  mw3tests `fix_layer_blend_keeps_its_alpha`.
+  An opaque write ends the record (`zrndr::cover_opaque`: blit16's every
+  path, line16, prim2d's pixels). The overlay tells a blend by the colour it
+  recorded, so an opaque pixel of that same colour was drawn see-through:
+  the MFD's damage diagram lost seven of its eight blue outlines, which are
+  the blue fill's own 0x001f (only `dmg_rarm_blue` is 0x003f; hud.md
+  section 16).
+  mw3tests `fix_layer_blend_keeps_its_alpha`,
+  `fix_layer_opaque_ends_a_blend_of_its_colour` (each writer; breaks: each
+  of the ten calls taken out is caught); mw3sdltests
+  `sdl_host_damage_diagram_shows_every_part`.
 - The back buffer's picture between frames. The exe's back buffer kept the
   last frame shown (the flip chain's other page), so a 2D lock (0x00576de0)
   after a 3D frame, or a 3D lock that draws nothing, found the screen there:

@@ -265,3 +265,7 @@ SoundExtraHooks.play_fading	fallback: unset runs the port (zsnd::play_fading)
 RdrHooks.sound_find	fallback: unset runs the port (zsnd::find, 0x0056f6f0)
 RdrHooks.find_loose	never set: FIX (A), loose .zrd files are not read (zreader.md), so no path
 DrawHooks.refresh_static	fallback: unset runs the port (0x00544ed0 then 0x004ed980); test_modeldraw records it
+SkinGlobals.fetch_texture	fallback: unset runs the port (zimg::cache_fetch, 0x005179d0)
+SkinGlobals.release_cached	fallback: unset runs the port (zimg::cache_release, 0x00517b10)
+SkinGlobals.cookie	test: unset runs the port (zmod::cookie, 0x00542730)
+SkinGlobals.release_texture	fallback: unset runs the port (zimg::entry_free, 0x00518b30)
