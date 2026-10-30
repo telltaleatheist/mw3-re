@@ -232,3 +232,13 @@ The night's fixes are in playtest.md (W1-W10, S1-S14). These need you:
    column).
 9. **The importer applying the 1.2 patch** for a 1.0 player (from the patch
    file they supply): wanted?
+
+Owen's answers (2026-10-30): 1 W8 dropped (long ago, not reproduced);
+2 #23/#24 closed (working now); 3 pending his PC tries; 4 16:9 (the
+desktop's size) by default; 5 the HUD scaled to look as big as at 640x480
+at any size; 6 no FFmpeg in the package unless absolutely necessary (a
+32-bit helper on the install's own Ir50_32.dll is being looked at); 7 go
+with intent: the worlds' `hwrange` (32..750, the lava's 64..350) was
+written for the hardware game on purpose, separate from the software
+`range`, so the port keeps it; 9 the importer upgrades 1.0 data from the
+player's own 1.2 patch file.
