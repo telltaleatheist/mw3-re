@@ -19,6 +19,7 @@ float g_pos[4][3];
 Mech* g_mech[4];
 ai::Contact g_contact[4];  // 3 the player's contacts, then each mate's contact on the player (+0x98)
 ai::Contact g_pc[2];
+bool g_target_mech = true;
 int32_t g_brain_of[2];      // a mate's brain (its token 1, 2) or none (0)
 std::vector<uint32_t> g_log;
 
@@ -43,6 +44,8 @@ struct Hooks : ai::BrainHooks {
     const int i = index_of(static_cast<Mech*>(v));
     return i >= 0 ? g_handle[i] : 0;
   }
+  // 0x004e6fe0: what the contact sees (vt+0x2c); the made-up objects answer themselves.
+  zgame::Handle contact_vehicle(const ai::Contact* c) override { return c->seen; }
   void position(zgame::Handle v, float out[3]) override {
     const uint32_t i = handle_index(v);
     if (i) std::memcpy(out, g_pos[i - 1], 12);
@@ -64,9 +67,11 @@ extern "C" {
 // player (0/1); the four positions (12 floats). out: the log (each order
 // given: 0x1a, the order, the brain token, the contact (a player's contact
 // 1..3, a mate's on the player 0x11 / 0x12, else the temporary one's owner,
+// (in[13]: the target a mech, else a vehicle that is none, 0x004e6ff0's 0)
 // seen and entity as indices and its dist2 and delta)), its length.
 int32_t probe_lance_dispatch(const int32_t* in, const float* pos, const uint32_t* handles, uint32_t* out, int32_t cap) {
   g_log.clear();
+  g_target_mech = in[13] != 0;
   ai::set_brain_hooks(&g_hooks);
   Mech m[4];
   for (int i = 0; i < 4; ++i) {
@@ -91,6 +96,7 @@ int32_t probe_lance_dispatch(const int32_t* in, const float* pos, const uint32_t
   CollideCalls saved_collide = collide_calls();
   collide_calls().contact_mech = [](Handle c) -> Mech* {
     const uint32_t i = handle_index(static_cast<ai::Contact*>(c)->seen);
+    if (i == 4 && !g_target_mech) return nullptr;
     return i ? g_mech[i - 1] : nullptr;
   };
   LanceCalls& lc = lance_calls();

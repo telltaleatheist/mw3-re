@@ -11,7 +11,8 @@ their owner the player through the virtual base), the player (+0x6c, +0x70,
 +0x78), three contacts on the player, two would-be lancemates or the target
 (or none), the two mates (+0xbc, +0x98, vt+0x140 -> vt+0x54 their brain or
 none), the four mechs answering vt+0x24 / +0x2c / +0x50 with themselves,
-their places (0x5a85e0). Each case logs every order given (the order, the
+their places (0x5a85e0); the target sometimes a vehicle that is no mech
+(vt+0x50 none: the order on it is given all the same, playtest W11). Each case logs every order given (the order, the
 brain, the contact, a made one's fields) and the controls returned; the
 port's (mech3/lance_orders on real Mechs, tests/probe_lance.cpp) must match.
 Order 2 (the command mode, item L4c) is left out.
@@ -69,7 +70,10 @@ class Emulated:
             vt = next(a)
             cpu.u32(o, vt)
             for slot in (0x24, 0x2c, 0x50, 0x40):
-                cpu.u32(vt + slot, stub(lambda c: c.ecx))
+                if i == 3 and slot == 0x50:  # the target: a mech, or a vehicle that is none
+                    cpu.u32(vt + slot, stub(lambda c: c.ecx if self.target_mech else 0))
+                else:
+                    cpu.u32(vt + slot, stub(lambda c: c.ecx))
             ic, icv = next(a), next(a)
             cpu.u32(ic, icv)
             cpu.u32(icv + 0x54, stub(lambda c, i=i: self.brain_of(i)))
@@ -124,6 +128,7 @@ class Emulated:
         cpu.u32(p + 0x70, con(inp[2]))
         cpu.u32(p + 0x6c, con(inp[3]))
         self.has_brain = [inp[8], inp[11]]
+        self.target_mech = inp[13]
         for j in range(2):
             m = self.obj[1 + j]
             cpu.write(m + 0xbc, bytes([inp[7 + 3 * j]]))
@@ -140,6 +145,7 @@ def case(rng):
     inp += [rng.choice([0, 1, 2, 3, 4, 2]) for _ in range(3)]
     for _ in range(2):
         inp += [rng.choice([0x10, 0x10, 0, 0x14, 0xef]), int(rng.random() < 0.8), int(rng.random() < 0.85)]
+    inp.append(int(rng.random() < 0.7))  # the target a mech
     pos = [rng.uniform(-500, 500) for _ in range(12)]
     return inp, [struct.unpack('<f', struct.pack('<f', x))[0] for x in pos]
 

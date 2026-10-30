@@ -2476,8 +2476,12 @@ void GameEngine::missions_reset(uint32_t list) {
 }
 
 // The debug launch's pilot and game (our addition): [0x0060861c] a pilot
-// whose game (+0x6c) answers the type, number and index, with a mech handle
-// at +0x14 so the Core state stays (the player's mech is not built yet).
+// whose game (+0x6c) answers the type, number and index. Its vehicle (+0x14)
+// is none until the launch (0x00491150) makes the player's mech, as the
+// exe's cleanup leaves it (0x00491868): the AI brains made while the mission
+// loads see no player yet, so each with a voice gets its radio (0x004e7e20).
+// A stand-in mech block there until 2026-10-30 made them see a player
+// without allies: no lancemate ever answered an order (playtest W11).
 void GameEngine::set_launch(const Launch& l) {
   launch_ = l;
   launch_.active = true;
@@ -2487,11 +2491,10 @@ void GameEngine::set_launch(const Launch& l) {
   const Handle real = peek32(0x60861c);
   if (!stub_pilot_) stub_pilot_ = alloc_block(0x100);
   if (!game_) game_ = alloc_block(0x100);
-  if (!mech_block_) mech_block_ = alloc_block(0x700);
   pilot_ = l.keep_pilot && real ? real : stub_pilot_;
   poke32(0x60861c, pilot_);
   poke32(pilot_ + 0x6c, game_);
-  poke32(pilot_ + 0x14, mech_block_);
+  poke32(pilot_ + 0x14, 0);
 }
 Handle GameEngine::pilot_game(Handle p) { return p == pilot_ && pilot_ ? game_ : Engine::pilot_game(p); }
 uint32_t GameEngine::pilot_campaign_number(Handle p) {

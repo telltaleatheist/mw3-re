@@ -617,7 +617,7 @@ class GameEngine : public Engine {
   Launch launch_;
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
   std::map<int32_t, Handle> view_modes_;  // the view's camera ids' blocks (sync_view)
-  Handle stub_pilot_ = 0, mech_block_ = 0;  // the stand-ins' blocks, made once
+  Handle stub_pilot_ = 0;  // the stand-in's block, made once
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;

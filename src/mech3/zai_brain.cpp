@@ -89,8 +89,14 @@ void BrainHooks::forward(zgame::Handle e, float* x, float* z) {
   *x = *z = 0;
 }
 // 0x004e6d50(1.0) on the radio's sound for `event` (Radio::kEvents).
+RadioCalls& radio_calls() {
+  static RadioCalls c;
+  return c;
+}
 void BrainHooks::radio_line(Brain& b, int32_t event) {
-  if (b.radio && event >= 0 && event < 16) sound_say(static_cast<zsnd::Object*>(b.radio->sounds[event]), 1.0f);
+  if (!b.radio || event < 0 || event >= 16) return;
+  if (radio_calls().line) radio_calls().line(b, event);
+  sound_say(static_cast<zsnd::Object*>(b.radio->sounds[event]), 1.0f);
 }
 float BrainHooks::heat(zgame::Handle v) { return fbits(unported("vehicle.vt+0x9c", {v})); }
 Behaviour* BrainHooks::path_next(Brain& b, Behaviour* at) { return b.path.next(at); }
