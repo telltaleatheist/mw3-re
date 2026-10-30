@@ -1791,6 +1791,22 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   shots.
 - Known duplicate noted: SdlTwodHost's image cache is a second 0x005179d0.
 
+## A Windows player's first run: movies and music (2026-10-30)
+
+- Branch mac4/first-run (off main aea13d3).
+- CMake finds FFmpeg by pkg-config, else a prebuilt shared build in
+  deps\ffmpeg-*shared* (or -DFFMPEG_DIR) and copies its DLLs beside
+  mw3import.exe. windows.md names BtbN's LGPL 8.1 shared build (the Mac has 8.1.2).
+- mw3import: --missing (only movies without a .fmv; the .fmv written last),
+  "progress K N name" lines, --cue DISC.cue [--music-only].
+- First run (first_run_import.cpp, ours, FIX (A)): a plain start with
+  movies missing and mw3import beside mw3 runs it through SDL's process API
+  with a small progress window; import-failed marker; --import / --no-import.
+  Mac: 19 movies in 59 s into a fresh write dir.
+- Music: platform/cue_audio (read_cue, write_cue_audio): each AUDIO track
+  from INDEX 01 as music\trackNN.wav. PM's track 2 matches the bin past its
+  2 s pregap. Test cue_audio_writes_each_audio_track_from_index_01 (break:
+  the pregap kept, 3 checks fail).
 ## Playtest W8: the dock never lets go while the player waits (2026-10-30)
 
 - Branch mac4/dock-release (off main aea13d3).

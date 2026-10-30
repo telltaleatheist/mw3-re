@@ -51,6 +51,7 @@
 
 #include "frontend/sdl/campaign_chain.h"
 #include "frontend/sdl/debug_states.h"
+#include "frontend/sdl/first_run_import.h"
 #include "frontend/sdl/sdl_install.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
@@ -116,6 +117,7 @@ struct Args {
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the first enemy mech, facing it
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
+  bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
@@ -138,7 +140,7 @@ void usage() {
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--dialog FILE NAME]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--import | --no-import] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -192,6 +194,8 @@ bool parse(int argc, char** argv, Args& a) {
     }
     else if (s == "--hidden") a.hidden = true;
     else if (s == "--windowed") a.windowed = true;
+    else if (s == "--no-import") a.no_import = true;
+    else if (s == "--import") a.force_import = true;
     else if (s == "--verbose") a.verbose = true;
     else if (s == "--pos" && next(3)) {
       for (float& v : a.pos) v = std::strtof(argv[++i], nullptr);
@@ -314,6 +318,11 @@ int main(int argc, char** argv) {
   }
   std::printf("mw3: install %s, write dir %s\n", a.install.c_str(), a.write_dir.c_str());
   std::printf("mw3: %s\n", mech3::detect_data_version().describe().c_str());  // ours: assets.md, Data versions
+  // The movies on a first run (ours, FIX (A): first_run_import.h): on a
+  // player's plain start, not on checks, shots or debug starts, nor -nofmv.
+  const bool plain = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.mission.empty() && !a.fly &&
+                     a.dialog_file.empty() && a.movie.empty() && a.original.find("-nofmv") == std::string::npos;
+  if (a.force_import || (plain && !a.no_import)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 
   const int result = run(a);
   SDL_Quit();  // after every SDL object above is gone
