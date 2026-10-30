@@ -100,6 +100,10 @@ They run inside the original main loop, after the original start-up.
   its model, its weapons). `--vehicle-hold` also keeps the player where it
   stood, turned to face that vehicle each frame, to watch it fire. Placing
   the vehicle again each frame would reset its AI.
+- `--mech-ahead M` (with `--mission`): the player kept M to 1.5 M m from
+  the mission's first enemy mech (the chain's list) and turned to face it
+  each frame, to watch a mech up close (its damage decals with `--fire`,
+  damage-decals.md). The mission's opening camera still runs first.
 - `--shot FILE.bmp [--shot-frame N] [--shot-any]` saves frame N (default 30;
   with `--shot-any` every frame shown counts, the fade's too) of either
   and quits, with the window hidden; `--shot-series K` also the K frames

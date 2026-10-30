@@ -591,7 +591,7 @@ class GameEngine : public Engine {
   std::unordered_map<uint32_t, uint8_t> memory_;
   uint32_t hwnd_ = 0;
   int32_t device_ = -1;
-  uint32_t install_options_ = 0x0101;  // HKLM's InstallOptions: a 3D card (FIX (A), fixes.md)
+  uint32_t install_options_ = 0x070707;  // HKLM's InstallOptions: a full install (FIX (A), settings.md)
   int width_ = 640, height_ = 480;
   std::vector<uint16_t> buffer_;
   std::vector<uint8_t> cover_alpha_;   // the layer's blends (zrndr::LayerCover), FIX (A)

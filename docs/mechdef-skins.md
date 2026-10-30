@@ -320,7 +320,7 @@ finds a texture's slot, 0x474b70 its index).
   (0x004749e0). The copy shares the entries (one more reference each),
   but with HOLES an entry that has a damage partner is copied
   (0x00474210, 0x00473bb0), so its bullet holes can be painted into its
-  own texture (0x00474d90, not ported). The mech keeps the copy at +0x3e8.
+  own texture (0x00474d90, damage-decals.md). The mech keeps the copy at +0x3e8.
 - **A skin chosen later** (0x004757f0: the launch's slot skin, aiv.zrd's
   `skin`, 0x00414390): the chosen skin copied as above, swapped in on
   the model (+0x694) and its low-detail copy (+0x698), from the old copy's
@@ -330,8 +330,8 @@ finds a texture's slot, 0x474b70 its index).
   the new skin (0x00474b70) gives the new texture, loaded first when it has
   none (0x00473d40(1, NOHOLES)).
 - **The damage link** (0x00475520, once per set, with HOLES only): the
-  damage skin's textures from zImage's cache (0x005179d0, not ported, so
-  in the program every link reports "not loaded" and links nothing), then
+  damage skin's textures from zImage's cache (0x005179d0, ported
+  2026-10-29: until then every link reported "not loaded"), then
   every skin's entry j linked to damage entry j (0x00474740). Mismatched
   image sizes refuse the link, but at the first link no skin entry has a
   texture yet, so that check never runs in play.

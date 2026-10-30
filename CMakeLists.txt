@@ -366,6 +366,7 @@ add_library(mw3probe SHARED
   tests/probe_flares.cpp
   tests/probe_weather.cpp
   tests/probe_tint.cpp
+  tests/probe_decal.cpp
   tests/probe_static.cpp
   tests/probe_entity_classes.cpp
   tests/probe_model_fx.cpp

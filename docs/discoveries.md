@@ -173,6 +173,14 @@ From the port of the damage code, checked in an emulator against the original
   impact type, but only once a mission script hands it the images with
   `WriteTextureSetMap`, and no mission in MechWarrior 3 or Pirate's Moon
   does, so the feature never shows.
+- **Mechs do get bullet holes, where you hit them.** Every hit on a mech
+  stamps one of seven hole shapes (8 or 16 pixels across) into the texture
+  it struck, at the exact spot, copying in that part of the mech's matching
+  "damaged" texture. An eighth hole shape is in the data but is picked only
+  once in 32,768 hits, because of how the random pick is scaled. The holes
+  only appear on a full install with a 3D card of 8 MB or more. With only
+  the 2 MB card textures installed (or a smaller card), the game loads the
+  reduced mech textures and skips the holes. (docs/damage-decals.md)
 - **Kill points come from a weight class that ignores tonnage.** A mech kill
   scores 300, 400, 500 or 700 by the class the roster gives it, and that
   class is often off: the 100-ton Annihilator scores as a heavy (500), the

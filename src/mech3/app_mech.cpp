@@ -638,6 +638,16 @@ void wire_mech_parts() {
     if (zcls::Node* w = world_hooks().world) zcls::ground_point(w, x, y, z, static_cast<zcls::GroundHits*>(hits));
   };
   DamageCalls& d = damage_calls();
+  // The damage decals (docs/damage-decals.md): 0x00414370 the definition's
+  // skins (+0x1c of 0x004846a0), then 0x00474d90 on the mech's skin (+0x3e8)
+  // and the hit's material (the collision's +0x20).
+  d.roster_x1c = [](Mech& m) -> Handle {
+    const MechDfn* f = m.pilot ? mech_dfn(m.pilot->roster) : nullptr;
+    return f ? f->skins : nullptr;
+  };
+  d.damage_decal = [](Handle set, Handle skin, Collision* coll, float) {
+    static_cast<SkinSet*>(set)->damage_decal(static_cast<const Skin*>(skin), coll ? coll->x20 : nullptr);
+  };
   d.spawn_effect = [](Handle effect, Handle node, const float args[9]) -> Handle {  // 0x00508aa0
     if (!effect) return nullptr;
     auto* a = static_cast<zeff::AnimDef*>(effect);

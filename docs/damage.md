@@ -157,7 +157,8 @@ splash:      0x5829b0 (linear falloff, see below)             -> 0x583480
    below). Its direction is `shot[0] - shot[1]` flattened (0x51e210); a zero
    length leaves it 0.
 6. With a collision record +0x20, a roster entry +0x1c (0x414370) and decals
-   (+0x3e8), 0x474d90 marks the hit on the mech's damage textures.
+   (+0x3e8), 0x474d90 marks the hit on the mech's damage textures
+   (ported 2026-10-29, damage-decals.md).
 7. +0x411 = the weapon's military name (def +8) is message 0x305, `NUKE`; the
    torso's `Destroy(1)` sets it too. It picks the explosion death and, for the
    player, zeroes every armor value in `Die`.
@@ -760,8 +761,8 @@ behaviour.
 - (Answered 2026-10-28) The torso jolt's decay is in 0x464e80, and the
   knockback stagger is in Move 0x417a80; both are ported.
 - Unported here: 0x4e66a0 (a part's node off the mech), the statistics, the
-  network events, the controls' hit and stop, the cockpit HUD's death and the
-  damage decals (0x474d90). In the game (c1m1 item 2, `app_mech.cpp`
+  network events, the controls' hit and stop and the cockpit HUD's death
+  (the damage decals 0x474d90 are ported: damage-decals.md). In the game (c1m1 item 2, `app_mech.cpp`
   wire_mech_parts) the death's preparation and fall, the limp's blend, the
   action stop, the weapons' side (0x4b1110, 0x4b1040, 0x4b0de0), the effects'
   end callback, the part's world matrix, the view's camera and the player's

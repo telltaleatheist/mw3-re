@@ -72,6 +72,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_control.h"
 #include "mech3/mission.h"
+#include "mech3/app_sensors.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
@@ -107,6 +108,7 @@ struct Args {
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
   float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first (armed) vehicle placed M m before the player
   bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
+  float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the first enemy mech, facing it
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
@@ -128,7 +130,7 @@ struct Args {
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
-      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--dialog FILE NAME]\n"
+      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
@@ -190,6 +192,8 @@ bool parse(int argc, char** argv, Args& a) {
       a.have_pos = true;
     } else if (s == "--vehicle-ahead" && next(1)) {
       a.vehicle_ahead = std::strtof(argv[++i], nullptr);
+    } else if (s == "--mech-ahead" && next(1)) {
+      a.mech_ahead = std::strtof(argv[++i], nullptr);
     } else if (s == "--vehicle-hold") {
       a.vehicle_hold = true;
     } else if (s == "--look" && next(2)) {
@@ -422,6 +426,27 @@ int run(const Args& a) {
                 placed = true;
                 break;
               }
+          }
+        // --mech-ahead (ours, for checking a mech up close: its damage decals,
+        // docs/damage-decals.md): the player kept M to 1.5 M m from the first
+        // enemy mech, facing it.
+        static void* ahead = nullptr;
+        if (a.mech_ahead > 0)
+          if (void* m = mech3::mech_mission_player()) {
+            if (shots == 1)
+              for (const mech3::ChainTarget& t : mech3::chain_hostiles())
+                if (std::strcmp(t.kind, "mech") == 0) {
+                  ahead = engine.object_of(t.h);
+                  std::printf("mw3: the player %.0f m from %s\n", a.mech_ahead, t.name.c_str());
+                  break;
+                }
+            if (ahead && mech3::entity_is_mech(ahead)) {
+              float at[3], p[3];
+              mech3::mech_world_position(ahead, at);
+              mech3::chain_player_near(mech3::mech_node(ahead), a.mech_ahead);  // moves only beyond 1.5 M
+              mech3::mech_world_position(m, p);
+              mech3::move_mech(m, p, std::atan2(p[0] - at[0], p[2] - at[2]));  // facing it: forward is -z
+            }
           }
         if (a.fire > 0 && shots == a.fire) {
           s_fire = true;
