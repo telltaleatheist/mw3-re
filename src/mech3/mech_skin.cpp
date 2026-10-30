@@ -1,4 +1,10 @@
 #include "mech3/mech_skin.h"
+#include "crt/msvc_math.h"
+#include "crt/msvc_rand.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zimage/zimg_texture.h"
+#include "gamez/zmodel/gmod_hit.h"
+#include "gamez/zmodel/gmod_matl.h"
 
 #include <cstring>
 #include <string>
@@ -56,6 +62,8 @@ void SkinEntry::unload() {
   if (!texture || !b14) return;
   void (*fn)(void*) = cached ? g_skins.release_cached : g_skins.release_texture;
   if (fn) fn(texture);
+  else if (cached) zimg::cache_release(static_cast<zimg::Texture*>(texture));  // 0x00517b10
+  else zimg::entry_free(*static_cast<zimg::TextureEntry*>(texture));         // 0x00518b30
   texture = nullptr;
 }
 
@@ -115,7 +123,7 @@ SkinSet::SkinSet(int32_t count) {
     static const char* const kHoles[] = {"hole_8x8",   "hole_8x8a",   "hole_8x8b",   "hole_8x8c",
                                          "hole_16x16", "hole_16x16a", "hole_16x16b", "hole_16x16c"};
     for (const char* h : kHoles)
-      if (void* t = g_skins.fetch_texture ? g_skins.fetch_texture(h) : nullptr) g_skins.holes.push_back(t);
+      if (void* t = g_skins.fetch_texture ? g_skins.fetch_texture(h) : zimg::cache_fetch(h)) g_skins.holes.push_back(t);
   }
   ++g_skins.sets_built;
 }
@@ -129,6 +137,7 @@ SkinSet::~SkinSet() {
   if (--g_skins.sets_built == 0) {
     for (void* t : g_skins.holes)
       if (g_skins.release_cached) g_skins.release_cached(t);
+      else zimg::cache_release(static_cast<zimg::Texture*>(t));
     g_skins.holes.clear();
   }
 }
@@ -220,7 +229,7 @@ bool SkinEntry::load(bool by_name, bool use_alt) {
   const bool use = std::strcmp(name, "vult_d03_c") == 0 ? true : use_alt;  // 0x005e5790
   const char* n = use ? alt : name;
   if (!by_name) {
-    texture = g_skins.fetch_texture ? g_skins.fetch_texture(n) : nullptr;  // 0x005179d0
+    texture = g_skins.fetch_texture ? g_skins.fetch_texture(n) : zimg::cache_fetch(n);  // 0x005179d0
     cached = 1;
     return texture != nullptr;
   }
@@ -278,6 +287,13 @@ SkinEntry* Skin::find(const char* n, bool by_alt) const {
     const char* k = by_alt ? e->alt : e->name;
     if (k && std::strcmp(k, n) == 0) return e;
   }
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00474cd0
+SkinEntry* Skin::find_texture(const void* entry) const {
+  for (SkinEntry* e : entries)
+    if (e && (e->cached ? nullptr : e->texture) == entry) return e;
   return nullptr;
 }
 
@@ -382,6 +398,25 @@ Skin* SkinSet::mech_skin(int32_t index, void* node) {
   Skin* made = s ? s->clone(link_damage()) : nullptr;
   if (s && made) s->apply(node, made);
   return made;
+}
+
+// Mech3.exe 1.2 @ 0x00474d90
+void SkinSet::damage_decal(const Skin* skin, const void* material) {
+  if (!skin || !material) return;
+  if (!link_damage()) return;  // 0x00475520
+  std::vector<void*>& holes = g_skins.holes;
+  if (holes.empty()) return;
+  const auto* m = static_cast<const zmod::Material*>(material);
+  SkinEntry* e = skin->find_texture(m->texture);
+  if (!e || !e->damage || !e->damage->texture) return;
+  const int32_t n = static_cast<int32_t>(holes.size());
+  const int32_t pick = crt::msvc_ftol(static_cast<float>(crt::msvc_rand()) * static_cast<float>(n - 1) * 3.0518509e-05f);  // 0x005e5848
+  auto* hole = static_cast<const zimg::Texture*>(holes[static_cast<size_t>(pick)]);
+  auto* target = e->cached ? nullptr : static_cast<zimg::TextureEntry*>(e->texture);
+  const auto* from = static_cast<const zimg::Texture*>(e->damage->image());
+  if (!(g_skins.cookie ? g_skins.cookie(target, from, hole) : zmod::cookie(target, from, hole))) return;
+  if (target && target->surface && zimg::texture_hooks().reload)
+    zimg::texture_hooks().reload(target->surface, static_cast<zimg::Texture*>(target->image));
 }
 
 }  // namespace mech3

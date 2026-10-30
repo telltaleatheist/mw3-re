@@ -451,6 +451,12 @@ These change how the game talks to the computer, not how it plays.
   (Windows' own character set, as the original typed them) are stored as
   ordinary file names on macOS.
 - In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
+- Mechs use the full-resolution textures and show bullet holes, as a full
+  install on a good card did. The rebuild answers the installer's question
+  "what was installed" with everything (every texture set and sound
+  fidelity); before, it said only the smallest texture set, so the mechs
+  wore the reduced textures, took no holes and the audio screen offered no
+  sound quality.
 
 
 ## Kept as the original, on purpose

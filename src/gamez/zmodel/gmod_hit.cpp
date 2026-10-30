@@ -1,15 +1,25 @@
 #include "gamez/zmodel/gmod_hit.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
+#include "crt/msvc_math.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zmath/zmth_vector.h"
 
 #pragma STDC FP_CONTRACT OFF
 
 namespace zmod {
+namespace {
+constexpr const char* kCookieFile = "C:\\zipper\\GameZMech3\\zModel\\gmod_cookie.cpp";  // 0x005ef790
+}  // namespace
+
 
 namespace {
 // The scratch buffers: the morphed vertices (0x0074a288), the vertices
@@ -685,4 +695,70 @@ int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x00542730
+bool cookie(zimg::TextureEntry* target, const zimg::Texture* from, const zimg::Texture* hole) {
+  const auto* img = target ? static_cast<zimg::Texture*>(target->image) : nullptr;
+  char msg[160];
+  if (!target || !from || !hole || !from->pixels || !img || !img->pixels || !hole->alpha) {
+    std::snprintf(msg, sizeof msg, "cookie: texture=(0x%08x,0x%08x), underskin=(0x%08x), hole=(0x%08x)",
+                  static_cast<unsigned>(reinterpret_cast<uintptr_t>(target)), static_cast<unsigned>(reinterpret_cast<uintptr_t>(img)),
+                  static_cast<unsigned>(reinterpret_cast<uintptr_t>(from)), static_cast<unsigned>(reinterpret_cast<uintptr_t>(hole)));
+    zerr::report(0x200, kCookieFile, 0x54, msg);  // 0x005ef744
+    return false;
+  }
+  if (img->width != from->width || img->height != from->height || img->palette || from->palette) {
+    std::snprintf(msg, sizeof msg, "cookie: texture=(%s,%d x %d), underskin=(%d x %d), hole=(%d x %d)",
+                  target->name, img->width, img->height, from->width, from->height, hole->width, hole->height);
+    zerr::report(0x200, kCookieFile, 0x61, msg);  // 0x005ef7bc
+    return false;
+  }
+  float& u = g_uv.uv[0];
+  float& v = g_uv.uv[1];
+  // 1.01 and -0.01 (0x005ce228, 0x005ce230), stepped by 1; stored only when stepped.
+  while (u > 1.01f) u = u - 1.0f;
+  while (v > 1.01f) v = v - 1.0f;
+  while (u < -0.01f) u = u - -1.0f;
+  while (v < -0.01f) v = v - -1.0f;
+  const int32_t w = from->width, h = from->height;
+  int32_t x = crt::msvc_ftol(static_cast<float>(w) * u);
+  int32_t y = crt::msvc_ftol(static_cast<float>(h) * v);
+  const int32_t hw = hole->width >> 1, hh = hole->height >> 1;
+  if (x > w - hw) x = w - hw;
+  else if (x < hw) x = hw;
+  if (y > h - hh) y = h - hh;
+  else if (y < hh) y = hh;
+  auto* dst = static_cast<uint16_t*>(img->pixels);
+  const auto* src = static_cast<const uint16_t*>(from->pixels);
+  const uint8_t* mask = hole->alpha;
+  const bool rgb565 = zrndr::target2d().format == 6;  // [0x0074a738]
+  for (int32_t row = y - hh; row < y + hh; ++row) {
+    for (int32_t col = x - hw; col < x + hw; ++col, ++mask) {
+      const uint32_t a = *mask;
+      const int32_t i = row * img->width + col;
+      if (a <= (rgb565 ? 3u : 7u)) continue;
+      if (a >= 0xfc) {
+        dst[i] = src[i];
+        continue;
+      }
+      const int32_t d = dst[i], s = src[i], k = static_cast<int32_t>(a);
+      if (rgb565) {
+        const int32_t r = (((s & 0xf800) - (d & 0xf800)) * k >> 8) & static_cast<int32_t>(0xfffff800);
+        int32_t g = ((s & 0x7e0) - (d & 0x7e0)) * k >> 8;
+        g = (g & ~0x1f) & ~0x20;  // the low byte's bits 0-4 cleared, bit 5 the sign
+        if ((((s & 0x7e0) - (d & 0x7e0)) * k >> 8) < 0) g |= 0x20;
+        const int32_t d1 = d + r;
+        const int32_t b = ((s & 0x1f) - (d1 & 0x1f)) * k >> 8;
+        dst[i] = static_cast<uint16_t>(d1 + b + g);
+      } else {
+        const uint16_t d1 = static_cast<uint16_t>(d + ((((s & 0x7c00) - (d & 0x7c00)) * k >> 8) & static_cast<int32_t>(0xfffffc00)));
+        const int32_t g = (((s & 0x3e0) - (d & 0x3e0)) * k >> 8) & ~0x1f;
+        const int32_t b = ((s & 0x1f) - (d & 0x1f)) * k >> 8;
+        dst[i] = static_cast<uint16_t>(b + g + d1);
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace zmod
+

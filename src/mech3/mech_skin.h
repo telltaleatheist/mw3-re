@@ -4,6 +4,7 @@
 #include <vector>
 
 namespace zrdr { struct Node; }
+namespace zimg { struct Texture; struct TextureEntry; }
 
 // mech3\mech_skin.cpp: a mech's camos, each a list of texture slots
 // (docs/mechdef-skins.md).
@@ -42,6 +43,7 @@ struct Skin {                      // 0x18 bytes
   bool load_textures(bool by_name, bool use_alt);     // 0x00474430: every entry, +0x14 set
   void push(SkinEntry* entry, bool copy);              // 0x00474210: a copy, else the entry with one more reference
   SkinEntry* find(const char* name, bool alt) const;   // 0x00474bd0: by name (+0x08) or alternate name (+0x0c)
+  SkinEntry* find_texture(const void* entry) const;    // 0x00474cd0: by its texture-table entry (none for a cached one)
   int32_t index_of(const SkinEntry* entry) const;      // 0x00474b70: -1 when not there
   // 0x00475870 (ECX this, EDX the damage skin): a skin of the same name and
   // entries for one mech; with HOLES, an entry the damage skin has a match
@@ -71,6 +73,11 @@ struct SkinSet {                   // 0x14 bytes
   bool set_mech_skin(void** mech_skin, void* model, void* lod_model, Skin* skin);
   // 0x00475a80: skin `index`'s copy for one model tree, swapped onto it.
   Skin* mech_skin(int32_t index, void* node);
+  // 0x00474d90 (ECX this, the definition's; the mech's skin +0x3e8, the hit's
+  // material): a random bullet hole (0x006061ac) stamped from the damage
+  // skin into the hit texture at the captured UV (zmod::cookie 0x00542730),
+  // the device's copy refreshed ([0x0072f374]). docs/damage-decals.md.
+  void damage_decal(const Skin* mech_skin, const void* material);
 };
 
 struct SkinGlobals {
@@ -79,13 +86,15 @@ struct SkinGlobals {
   std::vector<void*> holes;        // 0x006061a8  the eight bullet-hole textures
   int32_t sets_built = 0;          // 0x006061c8
   uint8_t damage_mode = 0;         // 0x006061cc  set at mission load
-  void* (*fetch_texture)(const char* name) = nullptr;  // 0x005179d0, zImage's cache (not ported)
-  void (*release_cached)(void* texture) = nullptr;     // 0x00517b10, zImage's cache (not ported)
-  void (*release_texture)(void* texture) = nullptr;    // 0x00518b30 (not ported)
+  void* (*fetch_texture)(const char* name) = nullptr;  // 0x005179d0, zImage's cache (unset: zimg::cache_fetch)
+  void (*release_cached)(void* texture) = nullptr;     // 0x00517b10 (unset: zimg::cache_release)
+  void (*release_texture)(void* texture) = nullptr;    // 0x00518b30 (unset: zimg::entry_free)
   // The texture table (zimg; unset: its ports) and the soil names.
   void* (*find_texture)(const char* name) = nullptr;   // 0x00518220
   void* (*load_named)(const char* name, int32_t group, int32_t free_pixels) = nullptr;  // 0x00518d10
   int32_t (*soil_index)(const char* name) = nullptr;   // 0x00535f20
+  // Test hook: the decal's cookie (unset: zmod::cookie, 0x00542730).
+  bool (*cookie)(zimg::TextureEntry* target, const zimg::Texture* from, const zimg::Texture* hole) = nullptr;
 };
 SkinGlobals& skin_globals();
 

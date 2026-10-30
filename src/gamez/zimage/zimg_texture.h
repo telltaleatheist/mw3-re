@@ -61,6 +61,9 @@ Texture& default_image();    // 0x005ecbc0: 8x8 red/green checks, 565
 // libraries freed (0x005186b0) and the image library's files closed.
 int32_t textures_free();
 TextureEntry* default_entry();  // 0x00518210: the entry naming default_image()
+// 0x00518b30: a loaded entry's image and device record freed, a waiting one
+// forgotten (state 0); a reloading one left.
+void entry_free(TextureEntry& e);
 
 TextureEntry* find_texture(const char* name);  // 0x00518220: case-sensitive, in-use entries
 // 0x00518d10 (ECX name, EDX group): a free entry (not a found one) named,
@@ -76,6 +79,12 @@ void set_entry_name(const char* path, char* dst);  // 0x00519210: base name, ext
 // ECX name: the image from the current library list, else the other (which
 // then becomes current); an alpha texture's transparent texels are zeroed.
 Texture* fetch_image(const char* name);        // 0x00518ee0
+// zImage's image cache ([0x006384ec], made on the first fetch): images by
+// name, counted. 0x005179d0 one more use of the image under `name`, loaded
+// (fetch_image) when new; 0x00517b10 one less, freed (0x005185f0) when none
+// is left or when it was never cached.
+Texture* cache_fetch(const char* name);        // 0x005179d0
+void cache_release(Texture* image);            // 0x00517b10
 void clear_transparent(Texture& t);            // 0x00518e50
 void link_mips(TextureEntry& entry);           // 0x00519270: "<name>_1" -> _2, _3, ... by name
 // ECX entry, stack free_pixels (EDX unused): image, mips, then on Direct3D the
