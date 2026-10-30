@@ -1968,3 +1968,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Tests: three virtual-device tests (stick, pad, pad through zInput), the
   rumble device on the shipped file, the object on a recording device and
   in c1m1. Breaks: the pad raw; the calls unwired.
+
+## The 1.2 patch import (2026-10-30)
+
+- Branch mac4/patch12 (off main 8f59259).
+- The official patch: an InstallShield 5 setup folder; data1.cab holds the
+  31 files whole (all equal to game/mw3-1.2; unshield the cross-check).
+  `mw3 --patch ZIP|DIR` (mech3/patch_import, tinfl vendored in
+  third_party/miniz) writes the 28 the port reads (force_eff.ifr added to
+  the version table: it differs too) into <write dir>/patch12, mounted
+  before the install; checked by size, CRC and SHA-256; all or nothing.
+- The patch for the tests: game/patch-1.2/ (the folder and a ZIP of it).
+- Find: 1.0's exe and ifr have no death effects and call the landing
+  "impact fall"; 1.2 renamed it and added i_fall, which its own file names
+  "impact fall".
+- Test: patch_import_upgrades_10_data_from_the_official_patch (on build and
+  build-10). Breaks: the descriptor's data offset, the chunk length, the
+  SHA-256, the ZIP CRC.

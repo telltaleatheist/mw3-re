@@ -24,12 +24,12 @@ plain RIFF WAV too.
 The port needs no exe, only `zbd\`, `video\` and the message table
 `Mech3Msg.dll`, and runs on any version's data. At start `mw3` prints which
 data the mounts hold (`mech3::detect_data_version`, ours): each of the 26
-data files the official 1.2 patch replaces or adds, and `Mech3Msg.dll`, is
-matched by size and CRC (`zutl_zar::crc32` from 0) against 1.0's and
-1.2's. The result is one of:
+data files the official 1.2 patch replaces or adds, `Mech3Msg.dll` and
+`force_eff.ifr`, is matched by size and CRC (`zutl_zar::crc32` from 0)
+against 1.0's and 1.2's. The result is one of:
 
-- `1.2`: all 27 are 1.2's.
-- `1.0`: the 15 that 1.0 has are 1.0's, and the 12 that 1.2 adds are absent.
+- `1.2`: all 28 are 1.2's.
+- `1.0`: the 16 that 1.0 has are 1.0's, and the 12 that 1.2 adds are absent.
 - `1.0 with 1.2 files`: some files patched and some not, with the counts.
 - `unknown`: a file that is neither version's (a 1.1 install, whose data
   we don't have yet, or a mod), named.
@@ -41,7 +41,7 @@ How the two installs were made:
   `video` links to `game/mw3-1.2/video`; the disc's `VIDEO\` is the same in
   both.
 - `game/mw3-1.2` is that plus the patch's `Patch Files` (CLAUDE.md). The
-  two differ in exactly these 27 files, the exe and `force_eff.ifr`.
+  two differ in exactly these 28 files and the exe.
 
 Everything else (mechlib, motion, the textures, the sounds and the other
 missions) is the same in both.
@@ -93,3 +93,37 @@ build with `-DMW3_GAME_DIR=<install>` (for example `build-10` on
 | soil_snow_2s.wav | not in 1.0 | 124200, `3326788d`, `d647280939dbfd44a027f88412bc98b6010e1d6f0d1c34dd62007719b11586d2` |
 | soil_water_2s.wav | not in 1.0 | 124048, `a04c1e75`, `33320d09f4ea21889cd8d03d8dbc8ef82144670e41e7942df25c0bef05190ff4` |
 | ../Mech3Msg.dll | 120320, `04a9d33f`, `ceb29fa9b871fcf15fc94030e46b26d2df9ca02203859b36fbf057713bdbee01` | 123392, `e519c565`, `8899fabb7e57383a9a483cb048636bcc027334b48941aa49835cdcc1c4715b8c` |
+| ../force_eff.ifr | 2936, `d5f07541`, `9902299387d7c8767a62dced03d09bad85a68bc30ff714dffb572c80205add4c` | 4113, `4957166c`, `5d021f79378493302509ef3fad31282961e1f3c037367ae4f00faa154d3d2a26` |
+
+## The 1.2 patch
+
+The official patch ("MechWarrior3 Patch", DATA.TAG's Version=1.1, which
+installs 1.2) is an InstallShield 5 setup: `Setup.exe`, `setup.ins`,
+`_inst32i.ex_`, the `_sys1`/`_user1` cabinets and `data1.hdr` +
+`data1.cab`. Its data is `data1.cab`'s one file group, "Patch Files": 31
+whole files (not binary deltas): `Mech3.exe`, `force_eff.ifr`,
+`Mech3Msg.dll`, `readme.txt`, `readme.doc` and the 26 zbd\ files. All 31
+are the 1.2 install's byte for byte (unshield 1.6.2 extracts the same).
+
+`mw3 --patch PATH` (ours, `mech3/patch_import`) reads it without running
+it and puts the 28 files the port reads (the table above; not the exe or
+the readmes) into `<write dir>/patch12/`, which every later start mounts in
+front of the install. The install is never written. PATH may be the ZIP the
+patch came in (or a self-extracting exe with a ZIP appended), the unpacked
+folder or any folder above it, its `data1.hdr`, or loose 1.2 files (the
+backups' NoCD folder holds them too). Every candidate is kept only when its
+size, CRC and SHA-256 are 1.2's; nothing is written unless all 28 are
+found (into `patch12.new/`, then renamed), so a damaged download or 1.0's
+own files leave the data as it was.
+
+The cabinet, as unshield (github.com/twogood/unshield, `lib/`) reads
+version 5 (version word 0x01005201): the common header ("ISc(", the
+version, the cab descriptor's offset at +0x0c); the descriptor's file table
+(+0x0c), directory count (+0x1c) and file count (+0x28); the table's
+offsets, directories first, then file descriptors of 0x3a bytes (name,
+directory, flags at +8, expanded size at +0x0a, compressed at +0x0e, the
+data's offset in data1.cab at +0x26, an MD5); a compressed file is chunks
+of a 16-bit length and raw deflate. Inflate is miniz's tinfl
+(`third_party/miniz`). The test, `patch_import_upgrades_10_data_from_the_official_patch`,
+reads the patch from `game/patch-1.2/` (the unpacked folder and a ZIP of
+it, made from the backups) and, with `MW3_PATCH_ZIP`, the backups' ZIP.

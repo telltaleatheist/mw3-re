@@ -266,6 +266,15 @@ Immersion's IFORCE2.dll, and twelve effects from it by name:
 | dead_spring, dead_dance | the player's death, after every effect stopped | |
 | water | wading, 0x00433930 | |
 
+The 1.0 disc's force_eff.ifr (2936 bytes; 1.2's is 4113) has no dead
+spring or dead dance, and its "impact fall" has the parameters of 1.2's
+impact land; the 1.0 exe asks for "impact fall" and has no i_fall or
+death effects (its strings). 1.2 renamed the landing, added the death's
+two and the fall (0x00433840, "i_fall"), and its file added the fall as
+"impact fall", so the mismatch came with the patch. On 1.0's data the
+port, as the 1.2 exe, finds no landing or death effect. The 1.2 patch's
+import brings 1.2's file (assets.md, The 1.2 patch).
+
 The shot's table: the autocannons, LB 2/5/10-X and SRMs Recoil at 60;
 the small, medium and large lasers (plain, ER, pulse) laser_buzz at 50, 80,
 100; the ER PPC, Gauss, LRMs and Ultra AC/5..20 Recoil at 100; the Streak

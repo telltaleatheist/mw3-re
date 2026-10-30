@@ -78,6 +78,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_control.h"
 #include "mech3/data_version.h"
+#include "mech3/patch_import.h"
 #include "mech3/mission.h"
 #include "mech3/app_sensors.h"
 #include "mech3/turret.h"
@@ -122,6 +123,7 @@ struct Args {
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
+  std::string patch;          // --patch PATH (ours, patch_import.h): the official 1.2 patch into the write dir's overlay
   bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
@@ -145,7 +147,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--import | --no-import] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--import | --no-import] [--patch ZIP|DIR] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -210,6 +212,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--windowed") a.windowed = true;
     else if (s == "--no-import") a.no_import = true;
     else if (s == "--import") a.force_import = true;
+    else if (s == "--patch" && next(1)) a.patch = argv[++i];
     else if (s == "--verbose") a.verbose = true;
     else if (s == "--pos" && next(3)) {
       for (float& v : a.pos) v = std::strtof(argv[++i], nullptr);
@@ -319,6 +322,24 @@ int main(int argc, char** argv) {
     return 1;
   }
   for (const std::string& d : a.assets) zutl::mount(d);
+  // The 1.2 patch's files, imported (ours: patch_import.h), over the install's.
+  const std::string patch_dir = a.write_dir.empty() ? std::string() : a.write_dir + "/patch12";
+  if (!a.patch.empty()) {
+    const mech3::PatchImport r = patch_dir.empty() ? mech3::PatchImport{} : mech3::import_patch_12(a.patch, patch_dir);
+    if (a.verbose)
+      for (const std::string& l : r.log) std::printf("mw3: %s\n", l.c_str());
+    if (!r.ok) {
+      const std::string msg = "The 1.2 patch was not applied: " + (patch_dir.empty() ? std::string("no write dir") : r.error) +
+                              ". Give --patch the patch's ZIP or its folder (docs/assets.md, The 1.2 patch).";
+      std::fprintf(stderr, "mw3: %s\n", msg.c_str());
+      if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
+      SDL_Quit();
+      return 1;
+    }
+    std::printf("mw3: the 1.2 patch's %d files written to %s\n", r.found, patch_dir.c_str());
+  }
+  std::error_code patch_ec;
+  if (!patch_dir.empty() && std::filesystem::is_directory(patch_dir, patch_ec)) zutl::mount(patch_dir);
   zutl::mount(a.install);
   zutl::set_write_dir(a.write_dir);
   std::error_code ec;

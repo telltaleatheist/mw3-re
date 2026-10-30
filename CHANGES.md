@@ -483,6 +483,10 @@ These change how the game talks to the computer, not how it plays.
 - The rebuild runs on any MechWarrior 3 data, 1.0 as well as 1.2, and says
   at start which it found. With 1.0's message file, the messages 1.2 added
   read as blank text where the original would have crashed.
+- A 1.0 install can be brought to 1.2 with the official patch file you
+  already have (`--patch`, its ZIP or folder): the rebuild reads the patch
+  without running its installer, checks every file against 1.2's, and
+  keeps the result in its own folder, leaving the install as it was.
 - On the first start the rebuild converts the game's movies itself (about a
   minute, with a progress window), when its importer is beside it; the
   original played them from the disc. It can also turn a disc image's CD
