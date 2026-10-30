@@ -1,6 +1,6 @@
 #include "gamez/zsiscript/si_script.h"
 
-#include <strings.h>
+#include "crt/strcase.h"
 
 #include <cmath>
 #include <cstdlib>

@@ -13,6 +13,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "crt/strcase.h"
 
 #pragma STDC FP_CONTRACT OFF
 

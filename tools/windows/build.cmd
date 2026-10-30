@@ -16,4 +16,4 @@ if not exist build-win\build.ninja (
 )
 set TARGETS=%*
 if "%TARGETS%"=="" set TARGETS=mw3
-cmake --build build-win --target %TARGETS%
+cmake --build build-win --target %TARGETS% -- -k 0
