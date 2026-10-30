@@ -163,3 +163,25 @@ taking the player out of bounds. Not a visual issue but ours: `mw3 --help`
 prints the `--mission` line twice (one with `--turret-ahead`, one with
 `--mech-ahead`, a merge's leftover): fixed. S4 and S5 wait for Owen's
 comparison with the original.
+
+### Visual pass 2 (2026-10-30): the front end and 16:9
+
+The main menu, pilot screen (Campaign; Training goes there too), Instant
+Action, game options, graphics and audio, controls, credits (frame 900:
+they scroll in), the c1m1 briefing, the lab's three tabs (`--lab-mech 9`),
+the debriefing (`--briefing c1m1 ... --win 60`) and the chain's briefings
+and debriefings; then c1m1, c2m2 and c4bm5 at InGameVMode 13 (1920x1080),
+11 (1280x720) and 5 (640x480), the start and near an enemy. The salvage
+page needs a second mission (c1m1's briefing greys it); the store is the
+lab's stockpile. At 16:9 the view widens, the cockpit keeps its shape and
+the HUD's pieces keep to their corners and edges; 640x480 matches the first
+pass. Crops: `visual-S8..S13*.png` in the same outbox.
+
+| # | Screen | What looks wrong | Crop |
+|---|---|---|---|
+| S8 | The lab, criticals tab (`--lab-mech 9`, the CRITICALS click) | "12 Criticals Available / 14 Reserved ... Ferro-Fibrous Armor" at the top runs under the 3D mech view: the view drawn over the text | S8-lab-criticals-text-under-mech.png |
+| S9 | The debriefing (both `--briefing` and the chain's) | The rank badge beside "Sergeant" is a yellow hatched square, the same in every debriefing: a missing insignia image, or the art as shipped? | S9-debrief-rank-badge.png, S9-chain-debriefing.png |
+| S10 | The lab, criticals and groups tabs | The mech is framed low and to one side, cut off at the bottom, where the chassis tab shows it whole (a view still moving at frame 2900?) | S10-lab-groups-mech.png |
+| S11 | Controls setup | The list starts with three blank rows above "Forward throttle" (the selection kept mid-list?) | S11-controls-blank-rows.png |
+| S12 | Missions at 1280x720 (mode 11) | The HUD is drawn at 1x (the whole art scale of 720 / 480), so it covers less of the screen than at 640x480 or at 1920x1080 (2x); readable but small. A design choice for Owen (resolution.md section 8) | S12-hud-1280x720.png against S12-hud-640x480.png |
+| S13 | The chain's c1m3 briefing | The map shows no nav points or labels, where c1m1's shows OP: Able, Baker and Start (the chain shoots at the briefing's load: maybe before they are drawn) | S13-c1m3-briefing-no-labels.png |

@@ -173,6 +173,12 @@ From the port of the damage code, checked in an emulator against the original
   impact type, but only once a mission script hands it the images with
   `WriteTextureSetMap`, and no mission in MechWarrior 3 or Pirate's Moon
   does, so the feature never shows.
+- **Incoming fire lights up your cockpit in its colour.** Shots and their
+  impacts carry coloured lights, and the cockpit frame is lit by the world's
+  lights like everything else, so for a few frames as fire comes in the
+  struts flash the weapon's colour: yellow, orange or a deep red. It starts
+  before the hit lands, from the shot passing close.
+  (docs/playtest.md, S1)
 - **Mechs do get bullet holes, where you hit them.** Every hit on a mech
   stamps one of seven hole shapes (8 or 16 pixels across) into the texture
   it struck, at the exact spot, copying in that part of the mech's matching
