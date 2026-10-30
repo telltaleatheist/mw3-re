@@ -119,3 +119,17 @@ the hook is unwired), the launch's pilot calls 0x00478f10 (81) /
 0x004782c0 (16), the HUD's free 0x0043b860 (86) at the end, the maps'
 list 0x004583b0 (72; Shift+R), the app's sound set 0x0040a800 /
 0x0040baf0, the fog's apply [0x0072f3f0].
+
+## 2026-10-29, the first run on Windows (Owen's PC, fullscreen)
+
+The Windows build (docs/windows.md) from a3a6eb3 on. Movies and menus fine.
+
+| # | Seen | Area | Owner | State |
+|---|---|---|---|---|
+| W1 | Crash (access violation) during a mission | TARGET's mode-1 view of a turret: its node read as a mech's (app_hud object_node) | dev 2 | fixed cd45f5f |
+| W2 | D's damage diagram outlines only one arm at full health; damaged parts show | the 2D layer's cover took opaque 0x001f outlines for the translucent background | dev 2 | fixed 0d38d9a. Note: the bands are the exe's, blue, then green above 0.7, yellow above 0.4, red |
+| W3 | No music | the install had no CD tracks (data-only ISO) | lead | fixed: tracks 2 and 3 from Owen's disc dump as music\track02/03.wav in the write dir (PC and Mac) |
+| W4 | The PC's install: the 1.2 exe over pre-1.2 data | reader.zbd, interp.zbd, c3 missions differ; patch files missing | lead, dev | the PC now uses the verified 1.2 set; any data version: dev's item (queued) |
+| W5 | Finding the install for other players | ours | dev 2 | the install finder (registry, folders, a Browse dialog), in review |
+| W6 | The crosshair turns yellow over a destructible target only sometimes | the aim pick (0x444330) and the reticle's colour | dev | in progress; which objects failed: Owen not sure |
+| W7 | TARGET's view of the Owens: the camera too low, its legs halfway up the window and its head off the top (maybe other mechs too) | TARGET mode 1's camera (0x441410: 1.25 x the centroid's height over its place, hud.md section 26) | dev 2 | open |
