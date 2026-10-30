@@ -2026,3 +2026,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   to the census; now scaled (GameEngine::image_draw), tested in
   frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
   the old fall-through, 1 check). S16..S18 reported.
+
+## TextBase rechecked (2026-10-30)
+
+- Branch mac4/textbase (off main fa9aab7). aaf4c7c's conclusion stands:
+  0x005a3040 (the centring) has four callers (FontText's three set-texts,
+  TextBase's printf), all behind +0x238, which nothing in 1.2 sets (ctor
+  clears, copy/assign copy; the other +0x238 writes are other classes').
+  twod.md section 4 corrected; the census note for 0x00519e50 says
+  "drawn or measured". Nothing to port.
