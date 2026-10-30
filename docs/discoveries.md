@@ -1988,6 +1988,13 @@ are all "puffers": emitters that drop little textured squares.
   carries an active Beagle (BAP) and the hidden mech has no ECM. A mech
   shut down itself sees nothing in sight. Targets whose `radar` flag is off
   in targets.zrd (such as c1 mission 1's satellite dish) are never in sight.
+- **The Beagle Active Probe finds ambushes.** Two in three of the
+  campaign's enemy mechs (106 of 168) start a mission powered down and wait
+  for a script to wake them, usually as you come near. Until then they are
+  on your radar but the target keys skip them. A mech with a BAP and its
+  radar on active (not passive) can target them while they sleep, unless
+  they carry ECM: you see the ambush and can shoot first. That is all the
+  BAP does; it adds no range.
 - **Passive radar doesn't hide you from the AI.** The radar mode key
   (Alt+R) cycles 1000 m, then 500 m "passive" when at the top, 500 m, 1000
   m... Passive only stops your own Beagle and hides you from other passive
