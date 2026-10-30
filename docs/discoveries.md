@@ -926,6 +926,26 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   is: in the campaign and Instant Action it follows you; in training it
   goes onto a "formation" path with one stop, standing, so it holds where
   it started. (docs/ai.md, the shared order)
+- **In Op 1 Mission 4 Dominic takes no orders.** He fights beside you, but
+  your side has no allies in that mission's file, so W (target next ally)
+  never picks him and the lance keys reach nobody. From his next mission
+  on he is in your lance and answers. (docs/ai.md 17.6)
+- **A lance order goes to the lancemate you have targeted, nobody else.**
+  F6..F10 reach only the lancemate who is your current or last-targeted
+  ally (W cycles allies), or the one you locked with Shift+F11; with none
+  picked the key does nothing and nobody answers. To order the whole lance
+  at once, use the lancemate command screen (F11) and pick them there.
+  F8 (follow me) brings him to about 100 m from you, where he holds. Each
+  order he takes is answered on the radio ("follow", "stop", "confirm
+  order"); one he cannot take gets "disregard order". (docs/ai.md 17.6)
+- **The field bases answer the MFB command only while one is up.** The
+  first M asks them to wait for your position ("wait") when the dock is
+  free, "occupied" when it is busy; the second sends them, and their
+  "contact" comes about five frames later, but only if the bases have said
+  nothing for five seconds and no contact is still pending, so it is often
+  silent; a third cancels. With every
+  base destroyed or not yet deployed, M does nothing and says nothing.
+  (docs/vehicles.md, The repair dock)
 - **Lancemates are matched to their mission entries by position.** The
   mission file's first lancemate entry goes to your first lancemate slot,
   the second to the second, whoever the entries name: the slot keeps its

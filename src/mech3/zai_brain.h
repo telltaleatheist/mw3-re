@@ -491,6 +491,13 @@ struct Steer {
   void push_by_contacts(zgame::Handle owner, float dt);
 };
 
+// Ours, for the tests: each radio line said (a brain with a radio; the
+// event is Radio::kEvents'), before it plays. zSound is closed headless.
+struct RadioCalls {
+  void (*line)(Brain& b, int32_t event) = nullptr;
+};
+RadioCalls& radio_calls();
+
 // 0x004e7c40 (0x40 bytes): the lancemate radio, sixteen zSound lookups of
 // "<voice>_<event>" (0x004e7dc0) in this order.
 struct Radio {

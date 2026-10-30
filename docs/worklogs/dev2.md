@@ -259,3 +259,22 @@ works alongside it; stay out of its files.
   3840x1080 -> 1920x1080); 5:4 unchanged. Tests: the sizes, the first start
   at 21:9, the fit at 21:9 and 32:9; without the cap 6 checks fail.
 - Branch `mac5/wide-clamp` off main 9f68bfd.
+
+## 15. Playtest W11: lance orders and the radio (2026-10-30)
+
+- Found: the launch's stand-in mech at the pilot's +0x14 (set_launch) made
+  every brain see a player without allies at the load: no radio (0x4e7e20),
+  no answers. The exe's +0x14 is empty then (0x491868). Removed.
+- The orders reach the selected lancemate only (0x4d7240), as the exe; with
+  none selected, nothing. Selected, each changes his order (test). F8's
+  follow walks him to ~100 m.
+- MFB (M): as the exe (0x47a7a0): pos_wait or occupied, then contact; silent
+  without a base up. Checked in c1m1, c1m2, c2m1 by a temporary print.
+- c1m4's Dominic test: its exact numbers changed (his lines now play).
+- `--briefing` stops in the Load state (old and new binaries alike).
+- Owen's follow-ups: the key path end to end (c2m1 test); c1m4 is the
+  exe's (the player has no allies there); later missions were never hit by
+  the stand-in (mates built after the launch; checked with it put back).
+  Fixed too: F6 / F7 on a non-mech vehicle (0x4e6fe0). MFB second M: the
+  dock's 5 s quiet time and the line's MINDELAY, as the exe.
+- Branch `mac5/lance-orders` off main 96a5108.
