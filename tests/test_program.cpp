@@ -2429,6 +2429,135 @@ TEST(mission_c1m1_target_views_a_turret_headless) {
   reset_process_state();
   mech3::options() = mech3::Options{};
 }
+
+// TARGET and the MFD through every mode while their targets die (W1's
+// class: a view drawing an object as it goes; the sanitizer runs, 2026-10-30).
+// c1m3 by its hostiles in turn, each kind (mechs, vehicles, turrets,
+// targets.zrd's buildings): the player taken 60 m from it, TARGET put on it
+// once it is a contact, both views' modes stepped every 10 frames, the target
+// hit (zWeapon's impact, the chain's shot) every 3 frames until it dies,
+// then 20 frames more on its wreck before the next.
+TEST(mission_c1m3_hud_views_follow_targets_as_they_die_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_views_dying_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Gpu : platform::Render3D {  // a device, so the Direct3D paths (the 3D views) run
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  struct ModeHost : ztwod::Host {
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  std::map<std::string, int> killed, targeted;  // by kind
+  int frames = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 3;  // c1m3
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    std::vector<std::string> done;  // the hostiles' names already taken (a kind each round)
+    uint32_t cur = 0;
+    std::string cur_kind;
+    int phase_at = 0, mode = 0;
+    bool on = false, dead = false;
+    void* gun = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (!gun) gun = mech3::chain_weapon();
+      if (frames % 10 == 0) {  // both views' next mode
+        ++mode;
+        mech3::program_hud_mfd_mode(mode % 4);
+        if (on) mech3::program_hud_target_other(mech3::chain_object(cur), mode % 4);
+      }
+      if (!cur) {  // the next hostile, the kinds in turn
+        static const char* const kinds[] = {"mech", "vehicle", "turret", "target"};
+        const std::vector<mech3::ChainTarget> all = mech3::chain_hostiles();
+        for (int k = 0; k < 4 && !cur; ++k) {
+          const char* want = kinds[(static_cast<int>(done.size()) + k) % 4];
+          for (const mech3::ChainTarget& t : all)
+            if (std::string(t.kind) == want && std::find(done.begin(), done.end(), t.name + "#" + std::to_string(t.h)) == done.end()) {
+              cur = t.h, cur_kind = t.kind, done.push_back(t.name + "#" + std::to_string(t.h));
+              break;
+            }
+        }
+        if (!cur) return;
+        mech3::chain_player_near(mech3::hud_object_node(mech3::chain_object(cur)), 60.0f);
+        phase_at = frames, on = false, dead = false;
+        return;
+      }
+      if (!on && mech3::program_hud_target_other(mech3::chain_object(cur), mode % 4)) on = true, ++targeted[cur_kind];
+      if (!on && frames - phase_at > 60) {  // never a contact: the next
+        cur = 0;
+        return;
+      }
+      if (on && !dead && frames % 3 == 0 && gun) {
+        if (mech3::chain_hit(cur, gun) || !mech3::chain_alive(cur)) dead = true, ++killed[cur_kind], phase_at = frames;
+      }
+      if (dead && frames - phase_at > 20) cur = 0;  // its wreck shown 20 frames, then the next
+      if (on && !dead && frames - phase_at > 600) cur = 0;  // one that does not die: the next
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 2400; };
+    pump.limit = 40000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  c1m3, %d frames: targeted", frames);
+  for (const auto& [k, n] : targeted) std::printf(" %s %d", k.c_str(), n);
+  std::printf("; killed while targeted");
+  for (const auto& [k, n] : killed) std::printf(" %s %d", k.c_str(), n);
+  std::printf("\n");
+  // Every hostile goes (the mission is won, about frame 570), each kind shot dead while TARGET showed it.
+  EXPECT(killed["mech"] > 0 && killed["vehicle"] > 0 && killed["turret"] > 0 && killed["target"] > 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
 // The reticle's zoom window (hud-plan item 6c2; 0x00444230 -> 0x00442f50,
 // 0x004436c0): shown, its camera is put at the player camera's place, turned
 // to the aim point, the player's own mech off while it draws; a box clears
