@@ -209,3 +209,14 @@ works alongside it; stay out of its files.
   frame pixels; `tint_quad_on_frame` maps it (FIX (B)). The end fade (the
   still) was right; menus are 640x480. Test `fix_tint_quad_covers_the_frame`
   (test_program.cpp; the mapping's removal caught).
+
+## 11. What only the software renderer showed (2026-10-30)
+
+- Audit, no porting: docs/software-path.md. Nothing the Direct3D path
+  lacks; the software side is everywhere the reduced one (the 134 animation
+  ELSE branches are the plainer effects; its texture sets are the same names,
+  smaller; no shadows, no light points). Candidates for Owen: the fog's start
+  (software 500 m, Direct3D 32 m), the software look as a shader option.
+- Method: the frames', walks' and model draws' call graphs diffed; the 83
+  readers of [0x0072f348]; the anim scripts' if-hardware; the texture sets.
+- Branch `mac5/software-audit` off main 464a2e0.
