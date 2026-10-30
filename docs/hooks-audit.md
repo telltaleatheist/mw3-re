@@ -114,11 +114,19 @@ the table, and the program's chain runs one more (the fall camera). Each is now 
   - The Op 1 salvage check had counted the vehicles' empty salvage as the
     coin's "none". The chain now tells the coin's none from an unarmed
     vehicle.
+- **A known duplicate.** zImage's named image cache (0x005179d0 /
+  0x00517b10) is `zimg::cache_fetch` / `cache_release` for the skins and
+  also `SdlTwodHost::image_get` / `image_release` (with its double-release
+  FIX) for the 2D screens and the HUD. The exe has one cache; the two hold
+  different names, so nothing changes in play. Fold the host's into zImage's.
 - **A known duplicate.** `app_turret.cpp`'s `find_first` is a second copy
   of 0x004eb0d0, without the null node's report. Fold it into
   `zcls::node_find` the next time test_turret is touched.
 - **Also not ported:**
-  - the damage decals (0x00414370 / 0x00474d90);
+  - the damage decals (0x00414370 / 0x00474d90): ported 2026-10-29
+    (damage-decals.md), with zImage's image cache (0x005179d0 /
+    0x00517b10) and the skins' entry release (0x00518b30) as the
+    SkinGlobals fallbacks;
   - the cockpit HUD's power down and up (0x0043bb20 / 0x0043bb50): ported
     2026-10-29 (hud.md section 26);
   - the mech's zone record (0x00476550): ported 2026-10-29;

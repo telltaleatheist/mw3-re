@@ -21,7 +21,7 @@ works alongside it; stay out of its files.
   `program_hud_target_other`. Break: the old read crashes with Owen's stack.
 - Branch `mac5/target-view-crash`. hud.md section 22, The target's node.
 
-## Item 2: the damage diagram, mode 2 (assigned 2026-10-29, in progress)
+## Item 2: the damage diagram, mode 2 (2026-10-29)
 
 - Owen: at full health only one arm shows; every part should be blue
   when undamaged, yellow when slightly damaged, and so on.
@@ -34,6 +34,15 @@ works alongside it; stay out of its files.
   blit16's keyed path writes the part's 0x001f without clearing the cover,
   so the overlay draws it as the translucent background. Green, yellow and
   red, and the right arm's 0x003f, differ from 0x001f. Fix: cover_opaque on
+  every opaque write into the 2D layer (blit16's ten paths, line16,
+  prim2d's put), `zrndr::cover_opaque` now public.
+- Tests: `fix_layer_opaque_ends_a_blend_of_its_colour` (each writer, 10/10
+  breaks caught), mw3sdltests `sdl_host_damage_diagram_shows_every_part`
+  (the real silhouettes at each band; unfixed it shows Owen's picture).
+- Shots in the outbox (2026-10-29, mfd-damage-diagram-*): all blue at full
+  health; after `--vehicle-ahead 40 --vehicle-hold` hits, left arm and leg
+  green. The exe's first damage band is green (above 0.7), not yellow.
+- Branch `mac5/hud-damage-diagram` on main cd45f5f (item 1 merged).
   every opaque write in blit16; extend `fix_layer_blend_keeps_its_alpha`.
 
 ## Item 3: finding the install at start (2026-10-29)

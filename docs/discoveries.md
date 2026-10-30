@@ -173,6 +173,14 @@ From the port of the damage code, checked in an emulator against the original
   impact type, but only once a mission script hands it the images with
   `WriteTextureSetMap`, and no mission in MechWarrior 3 or Pirate's Moon
   does, so the feature never shows.
+- **Mechs do get bullet holes, where you hit them.** Every hit on a mech
+  stamps one of seven hole shapes (8 or 16 pixels across) into the texture
+  it struck, at the exact spot, copying in that part of the mech's matching
+  "damaged" texture. An eighth hole shape is in the data but is picked only
+  once in 32,768 hits, because of how the random pick is scaled. The holes
+  only appear on a full install with a 3D card of 8 MB or more. With only
+  the 2 MB card textures installed (or a smaller card), the game loads the
+  reduced mech textures and skips the holes. (docs/damage-decals.md)
 - **Kill points come from a weight class that ignores tonnage.** A mech kill
   scores 300, 400, 500 or 700 by the class the roster gives it, and that
   class is often off: the 100-ton Annihilator scores as a heavy (500), the
@@ -1802,6 +1810,67 @@ are all "puffers": emitters that drop little textured squares.
   them. The fade-in has a typo that would make the smoke vanish up close
   instead (fixed in the rebuild).
 
+## What the 1.2 patch changed
+
+The official 1.2 patch replaced 26 data files and the message table, on top
+of the new exe. Comparing the 1.0 disc's files with the patch's, file by
+file (docs/assets.md, Data versions):
+
+- **Missiles hit 25% harder.** LRM 5/10/15/20 went from 1, 2, 3.75 and 4
+  damage to 1.25, 2.5, 4.68 and 5. SRM 2/4
+  and Streak SRM 2/4 went from 1.2 to 1.5, and SRM 6 and Streak SRM 6 from
+  2.4 to 3. Missiles also knock harder (impact force up by half), and LRM 15
+  and 20 run cooler (0.075 to 0.0625 and 0.08 to 0.06 heat).
+- **Autocannons do less damage but shove harder.** AC 5/10/20 (and the
+  Ultra versions) dropped from 2, 4 and 8 to 1.625, 3.25 and 6.5; the AC 2
+  rose from 0.6 to 0.65. Their impact force went up, the AC 20's from 0.7
+  to 1.75.
+- **LB-X autocannons fire half as often, with twice the spread.** Every
+  LB-X went from one shot a second to one every two seconds, its pellet
+  cloud's radius roughly doubled (LB 10-X 3.3 to 6, LB 20-X 5 to 8), and
+  each pellet does about a quarter less damage (LB 10-X 1.67 to 1.25).
+- **The small and medium lasers run hotter.** Small laser 0.034 to 0.06
+  heat a shot, medium laser 0.102 to 0.13, ER small 0.043 to 0.10, ER medium
+  0.128 to 0.19, small pulse 0.034 to 0.07, medium pulse 0.102 to 0.15. The
+  large lasers are unchanged.
+- **PPC bolts fly faster:** 650 to 900 m/s for the PPC and the ER PPC.
+- **Most mechs twist their torsos further.** The torso's turn limit went
+  from 80 degrees to 100 (Annihilator, Bushwacker, Daishi, Mad Cat, Orion)
+  or 110 (Avatar, Shadow Cat, Sunder, Supernova, Thor, Vulture), and the
+  Champion's from 90 to 100. The light mechs that barely twisted got a
+  little more: Owens and Cauldron 5 to 15 degrees, Puma and Blackhawk 5 to
+  10. One went the other way: the Strider's limit dropped from 90 to 75.
+- **Double heat sinks on four stock mechs.** The Cauldron's and Vulture's
+  stock loadouts swap their heat sinks for double ones. The Supernova's
+  primary loadout goes from 16 single sinks to 12 doubles, and its four jump
+  jets move from the torso to the legs. The Puma's loadouts gain two double
+  sinks each, and its second alternate swaps a large pulse laser for a
+  medium one.
+- **Op 1 Mission 1 lost a secondary objective.** 1.0 had "Destroy Smoke
+  Jaguar Forces" (an Owens and two APCs); 1.2 has no secondary objective
+  there.
+- **Op 2 Mission 2's jump jet ceiling dropped** from a height of -15 to -90.
+  A jump's climb slows as it nears the ceiling (docs/movement-jump.md), so
+  in 1.2 the jets lift you far less high in that mission.
+- **Named buildings became translatable.** Targets like "Clan Factory",
+  "Hotel No_tell" and "Exit Vent" were English text in 1.0's mission files;
+  1.2 names them by message number, with the 30-odd new names in the
+  message table.
+- **New footstep and engine sounds.** 1.2 adds ten loose sound files
+  (`mech_footfall_2s.wav`, the soil footsteps, `mech_engine_np.wav`) and
+  points the mech sounds at them, and gives each sound quality its own
+  playback format.
+- **The HUD gained layouts for 1152x864, 1280x1024 and 1600x1200.** 1.0's
+  HUD file has 640x480, 800x600 and 1024x768 only.
+- **Smaller things:** new AI path networks and regions for Op 4b Missions 4
+  and 5 and Op 2 Mission 3; a second player region in Op 2 Mission 3; two
+  more start animations in the Op 2 multiplayer map; chat scroll buttons on
+  the multiplayer host screen; messages for "Alt", "Shift", joystick buttons
+  9 and 10, the mech lab's jump jet limit ("%1 can only carry %2 jump
+  jets"), and a multiplayer check that tells a player with an older version
+  to patch. Op 3's world and animations and the mission scripts changed too,
+  not yet compared in detail.
+
 ## Data files
 
 - **Every setting lives in `reader.zbd`**, 178 small files of nested lists
@@ -1988,6 +2057,13 @@ are all "puffers": emitters that drop little textured squares.
   carries an active Beagle (BAP) and the hidden mech has no ECM. A mech
   shut down itself sees nothing in sight. Targets whose `radar` flag is off
   in targets.zrd (such as c1 mission 1's satellite dish) are never in sight.
+- **The Beagle Active Probe finds ambushes.** Two in three of the
+  campaign's enemy mechs (106 of 168) start a mission powered down and wait
+  for a script to wake them, usually as you come near. Until then they are
+  on your radar but the target keys skip them. A mech with a BAP and its
+  radar on active (not passive) can target them while they sleep, unless
+  they carry ECM: you see the ambush and can shoot first. That is all the
+  BAP does; it adds no range.
 - **Passive radar doesn't hide you from the AI.** The radar mode key
   (Alt+R) cycles 1000 m, then 500 m "passive" when at the top, 500 m, 1000
   m... Passive only stops your own Beagle and hides you from other passive

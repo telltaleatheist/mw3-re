@@ -15,7 +15,8 @@ namespace {
 void put(int32_t x, int32_t y, uint16_t pixel) {
   const Target2D& t = target2d();
   if (!t.base || x < 0 || y < 0 || x >= static_cast<int32_t>(t.width) || y >= static_cast<int32_t>(t.height)) return;
-  reinterpret_cast<uint16_t*>(t.base)[y * static_cast<int32_t>(t.pitch >> 1) + x] = pixel;
+  uint16_t* d = reinterpret_cast<uint16_t*>(t.base) + y * static_cast<int32_t>(t.pitch >> 1) + x;
+  *d = pixel, cover_opaque(d);
 }
 bool inside(const int32_t* c, int32_t x, int32_t y) { return x >= c[0] && x <= c[2] && y >= c[1] && y <= c[3]; }
 void put_in(const int32_t* clip, int32_t x, int32_t y, uint16_t pixel) {

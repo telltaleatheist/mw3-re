@@ -182,7 +182,7 @@ std::string find_install(const std::string& configured, const std::vector<std::s
     if (install_valid(d)) return d;
   if (!may_ask) return {};
   std::string text =
-      "MechWarrior 3 needs the files of an installed MechWarrior 3 1.2 (its zbd folder).\n\n"
+      "MechWarrior 3 needs the files of an installed MechWarrior 3, any version (its zbd folder).\n\n"
       "Choose Mech3.exe in your MechWarrior 3 folder.";
   if (!configured.empty()) text = "No MechWarrior 3 install at \"" + configured + "\" any more.\n\n" + text;
   std::string start;

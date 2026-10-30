@@ -118,6 +118,14 @@ int program_hud_lock_on(void* mech, bool* target_set);
 // Tests only: the reticle counted over TARGET's box, so the lock can run
 // before TARGET's tracking (0x00440b00, 0x00440a30) is ported.
 void program_hud_force_over(bool on);
+// An object's ZEntity +0x08 byte (its active flag) by its class, the node's
+// owner (entity_bind.cpp): a mech's or vehicle's, a turret's, a targets.zrd
+// object's or trap's; null for another object.
+uint8_t* entity_active_flag(void* object);
+// Tests only: the player's reticle's hit set to `node` at `distance` and its
+// image worked out (0x00443d20, the lock reset first): the state, 0 off,
+// 1 on, 2 over (yellow), 3 can't; -1 without a HUD.
+int program_hud_aim_at(void* node, float distance);
 void program_hud_draw3d(float dt);   // the view target's vt+0xe4, 0x0041cd90: the HUD's Direct3D pass
 void program_hud_data(float dt);     // 0x0040f8d0's HUD part: the view target's HUD data update (0x0043c390)
 void program_hud_target_set(void* mech);  // 0x0041d890's HUD part: the view mech's TARGET on for its new target

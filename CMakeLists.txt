@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# The install the tests and the tools read (any MW3 data version; assets.md,
+# Data versions): -DMW3_GAME_DIR=... for another, e.g. game/mw3-1.0.
+set(MW3_GAME_DIR "${CMAKE_SOURCE_DIR}/game/mw3-1.2" CACHE PATH "The MechWarrior 3 install the tests and tools read")
+
 if(MSVC)
   add_compile_options(/W4)
 else()
@@ -34,6 +38,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_path.cpp
   src/gamez/zutil/zutl_reg.cpp
   src/platform/reg_file.cpp
+  src/mech3/data_version.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zsave/zsave.cpp
   src/gamez/zclass/camera.cpp
@@ -366,6 +371,7 @@ add_library(mw3probe SHARED
   tests/probe_flares.cpp
   tests/probe_weather.cpp
   tests/probe_tint.cpp
+  tests/probe_decal.cpp
   tests/probe_static.cpp
   tests/probe_entity_classes.cpp
   tests/probe_model_fx.cpp
@@ -405,7 +411,7 @@ add_executable(mw3tests
 )
 target_link_libraries(mw3tests PRIVATE mw3core)
 # Tests that read the player's install skip themselves when it is not there.
-target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
+target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
                                           MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
                                           MW3_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME mw3tests COMMAND mw3tests)
@@ -465,13 +471,13 @@ if(SDL3_FOUND)
       src/frontend/sdl/campaign_chain.cpp
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
-    target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+    target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
     )
     target_link_libraries(mw3sdltests PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
-    target_compile_definitions(mw3sdltests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
+    target_compile_definitions(mw3sdltests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
                                                  MW3_TEST_TMP="${CMAKE_BINARY_DIR}"
                                                  MW3_BIN="$<TARGET_FILE:mw3>")
     add_dependencies(mw3sdltests mw3)
@@ -483,7 +489,7 @@ if(SDL3_FOUND)
   add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp)
   target_link_libraries(mw3view PRIVATE mw3core mw3sdl SDL3::SDL3)
   target_include_directories(mw3view PRIVATE tools/viewer)
-  target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+  target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
   # The importer's movies (docs/fmv.md, The imported movies): only with FFmpeg's
   # libraries (Indeo 5 decoding, the MPEG-1 encoder); not needed to build the game.
   find_package(PkgConfig QUIET)
@@ -493,12 +499,12 @@ if(SDL3_FOUND)
   if(FFMPEG_FOUND)
     add_executable(mw3import tools/import/mw3import.cpp)
     target_link_libraries(mw3import PRIVATE PkgConfig::FFMPEG SDL3::SDL3)
-    target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+    target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
   else()
     message(STATUS "FFmpeg's libraries not found: mw3import is not built (brew install ffmpeg)")
   endif()
   # Plays one game sound through zSound and SDL audio (docs/sound.md).
   add_executable(mw3soundcheck tools/soundcheck/soundcheck.cpp)
   target_link_libraries(mw3soundcheck PRIVATE mw3core mw3sdl SDL3::SDL3)
-  target_compile_definitions(mw3soundcheck PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+  target_compile_definitions(mw3soundcheck PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
 endif()

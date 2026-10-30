@@ -1732,3 +1732,61 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - No new differential: the two are a target check and one virtual call
   each, onto the already ported CockpitCamera::on_switch (0x00421d50).
 
+
+## Any data version (2026-10-30)
+
+- Branch mac4/data-versions (off main cd45f5f).
+- `mech3::detect_data_version` (ours, src/mech3/data_version.cpp): the 26 data
+  files the 1.2 patch changes plus Mech3Msg.dll, by size and CRC against
+  1.0's and 1.2's; `mw3` prints it at start. "No MechWarrior 3 install"
+  no longer says 1.2.
+- game/mw3-1.0 from the disc's DATA1.CAB + DATA1.HDR (unshield, the groups
+  merged; video linked to 1.2's). The two installs differ in exactly the
+  patch's files. No 1.1 in the backups.
+- MW3_GAME_DIR is a CMake cache variable; build-10 builds against 1.0. On
+  1.0: 222 tests pass, the SDL tests pass, the kills chain wins c1m1..c1m4
+  on 1.2's frames. The pinned outcomes (Dominic's three, the HUD anchors'
+  blocks) are checked on 1.2's data only.
+- FIX (bug): a message the table lacks reads as "" (the exe's null reached
+  strncpy for the default ActiveCtlCfg).
+- discoveries.md: what the 1.2 patch changed (weapons, torso twist, heat
+  sinks, c1m1's objective, the c2m2 jet ceiling, sounds, HUD layouts).
+## Playtest W6: the reticle stays green over turrets (2026-10-29)
+
+- Branch mac4/reticle-yellow (off main 9df3631).
+- 0x00443d20 turns the reticle over (yellow) when the picked node's object
+  has its ZEntity +0x08 flag set and the aim is in range. The hook read the
+  flag only for a mech, so turrets, vehicles and targets.zrd objects logged
+  "object+8" and stayed green. Red (the lock) has no such test, so it
+  worked. Now `entity_active_flag` answers by class: Vehicle (mechs and
+  vehicles), tur::Turret, ai::CZAiTarget (targets and traps).
+- Test `mission_c1m1_reticle_turns_yellow_over_each_kind_headless` through
+  `program_hud_aim_at`: turret, vehicle, mech, target each over in range,
+  off out of range and dead. Breaks: the mech-only read (3 fail, Owen's
+  bug), the flag ignored (4 fail).
+- Shot: `--turret-ahead 30 --tap 12@150:175`, c1m1's nearest turret,
+  before green, after yellow (outbox).
+## The damage decals (2026-10-29)
+
+- Branch mac4/damage-decals (off main a3a6eb3).
+- 0x00474d90 `SkinSet::damage_decal`, 0x00474cd0 `Skin::find_texture`, the
+  cookie 0x00542730 (`zmod::cookie`) and zImage's named image cache
+  0x005179d0 / 0x00517b10 ported; 0x00414370 and the decal wired
+  (DamageCalls). The SkinGlobals fetch, release and entry release now fall
+  back to the ports (the entry release is zImage's 0x00518b30, which only
+  ran once the damage skin loaded). Census stand-ins and the known entry
+  gone (known_unported expects 52).
+- test_decal.py: 3000 cookies and 3000 decals identical. Breaks caught:
+  565 green's sign bit, the 555 threshold, the hole pick's n - 1, a cached
+  entry matched by its image.
+- Found on the way: the program never had holes. InstallOptions 0x101 (2 MB
+  card set only) made the mission load pick the reduced mech textures
+  (rmechtex16) and turn HOLES off. With the lead's go it is now 0x070707, a
+  full install; the bits are mapped from the exe's readers and SETUP.INS
+  (settings.md).
+- In play (`mission_c1m2_damage_decals_are_painted_headless`): 8 holes, about
+  150 decals at the hits' UVs on the Mad Cat's textures. My first guess, that
+  the UV stays 0,0, was wrong: flag-2 materials always store it.
+- `--mech-ahead M` (ours) keeps the player near the first enemy mech, for
+  shots.
+- Known duplicate noted: SdlTwodHost's image cache is a second 0x005179d0.

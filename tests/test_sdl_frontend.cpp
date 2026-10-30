@@ -40,6 +40,7 @@
 #include "mech3/app_hud.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
+#include "mech3/hud.h"
 #include "mech3/mech_control.h"
 #include "mech3/mission.h"
 #include "mech3/options.h"
@@ -363,6 +364,89 @@ TEST(sdl_host_image_release_counts_and_frees) {
     h.image_release(g);  // again: reported, not freed twice
     t = keep;
   }
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  zutl::mounts() = saved;
+}
+
+// The MFD's damage diagram (mode 2) with the shipped silhouettes, drawn into
+// the program's keyed layer as the HUD draws it: each part's pixels show
+// opaque by the overlay's rule (app_engine, sdl_platform's upload) at every
+// level, full health blue (hud.md section 16). Seven parts' blue outlines are
+// the colour of the translucent blue fill under them (0x001f); drawn
+// see-through until opaque writes ended the fill's record (Owen's playtest:
+// only the right arm, 0x003f, showed).
+TEST(sdl_host_damage_diagram_shows_every_part) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/rimage.zbd")) return;
+  zutl::Mounts saved = zutl::mounts();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(std::string(MW3_GAME_DIR) + "/zbd");
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  zimg::register_image_library(1);
+  zvid::set_pixel_format(5, 6, 5);
+  struct Levels : mech3::HudHooks {
+    float level[8] = {1, 1, 1, 1, 1, 1, 1, 1};  // by the view's parts' order (0x00447a50)
+    float part_internal(void*, uint32_t part, int32_t section) override {
+      const int i = part == 0x3a4 ? 0 : part == 0x39c ? (section == 1 ? 1 : section == 2 ? 2 : 3)
+                  : part == 0x394 ? 4 : part == 0x398 ? 5 : part == 0x38c ? 6 : 7;
+      return level[i];
+    }
+  } levels;
+  const mech3::DamageSet kept = mech3::damage_set();
+  mech3::damage_set() = mech3::DamageSet{};
+  {
+    sdlfe::SdlTwodHost h(nullptr, nullptr, nullptr);
+    ztwod::set_host(&h);
+    mech3::set_hud_hooks(&levels);
+    mech3::HudDamageView view(0, 0, false);
+    view.bg.set_image(mech3::damage_set().bg[0]);  // the MFD's (0x00442060)
+    view.bg.show_for(-1.0f);
+    static int fake_mech;
+    view.set_mech(&fake_mech);
+    const uint16_t key = mech3::GameEngine::kLayerKey;
+    const int w = 80, hgt = 100;
+    std::vector<uint16_t> layer(w * hgt);
+    std::vector<uint8_t> cover_a(w * hgt);
+    std::vector<uint16_t> cover_c(w * hgt);
+    zrndr::Target2D& t = zrndr::target2d();
+    const zrndr::Target2D keep = t;
+    t.base = reinterpret_cast<uint8_t*>(layer.data()), t.width = w, t.height = hgt, t.pitch = w * 2, t.format = 6;
+    // Full health, then every part at each damaged band: its outline's
+    // texels opaque in the layer, in the image's colour.
+    const float bands[] = {1.0f, 0.8f, 0.5f, 0.3f, 0.1f};
+    for (float b : bands)
+      for (int p = 0; p < 8; ++p) {
+        for (float& l : levels.level) l = 1.0f;
+        levels.level[p] = b;
+        view.update_levels();
+        std::fill(layer.begin(), layer.end(), key);
+        std::fill(cover_a.begin(), cover_a.end(), 0);
+        zrndr::layer_cover() = {cover_a.data(), cover_c.data(), key};
+        view.update(0.0f);
+        zrndr::layer_cover() = {};
+        for (int q = 0; q < 8; ++q) {
+          const mech3::HudDamagePart& part = view.parts[q];
+          const zimg::Texture* img = part.image;
+          int texels = 0, opaque = 0;
+          if (img)
+            for (int y = 0; y < img->height; ++y)
+              for (int x = 0; x < img->width; ++x) {
+                const uint16_t c = static_cast<const uint16_t*>(img->pixels)[y * img->width_again + x];
+                if (!c) continue;  // keyed (black)
+                ++texels;
+                const int at = (part.y + y) * w + part.x + x;
+                const bool shown = layer[at] == c && !(cover_a[at] && cover_c[at] == layer[at]);
+                opaque += shown;
+              }
+          if (!img || opaque != texels)
+            std::printf("  level %.1f on part %d: part %d shows %d of %d texels opaque\n", b, p, q, opaque, texels);
+          EXPECT(img && texels > 0 && opaque == texels);
+        }
+      }
+    t = keep;
+    mech3::set_hud_hooks(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  mech3::damage_set() = kept;
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   zutl::mounts() = saved;
 }
