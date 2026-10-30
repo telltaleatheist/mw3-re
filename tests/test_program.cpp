@@ -99,6 +99,7 @@
 #include "mech3/options.h"
 #include "mech3/mech_shade.h"
 #include "mech3/pause_menu.h"
+#include "mech3/zai_path.h"
 #include "mech3/pilot.h"
 #include "mech3/briefing.h"
 #include "gamez/zutil/zfix.h"
@@ -9219,6 +9220,31 @@ TEST(mission_c2m1_dominic_follows_round_walls_headless) {
           mech3::move_mech(player, at, 0.0f);
           std::fprintf(stderr, "W17 c2m%d: Dominic at %.1f %.1f, a wall %.1f m off at %.1f %.1f, the player at %.1f %.1f\n", dir,
                        d.pos[0], d.pos[2], best, bx, bz, x, z);
+          if (std::getenv("MW3_W17_LOG")) {
+            for (znet::Object* obj : znet::registry().list) {
+              auto* cn = dynamic_cast<mech3::ai::CompiledNet*>(obj);
+              if (!cn) continue;
+              int with_pos = 0;
+              for (znet::Element* e : cn->elems) {
+                mech3::ai::Behaviour* bh = e ? static_cast<mech3::ai::AiElem*>(e)->as_behaviour() : nullptr;
+                if (bh && bh->position()) ++with_pos;
+              }
+              std::fprintf(stderr, "W17 net %d %s: %zu elems, %d placed\n", cn->get_id(), typeid(*cn).name(), cn->elems.size(),
+                           with_pos);
+              if (with_pos < 2) continue;
+              mech3::ai::Behaviour* from = mech3::ai::nearest_step(*cn, d.pos);
+              mech3::ai::Behaviour* to = mech3::ai::nearest_step(*cn, at);
+              if (!from || !to || !from->position() || !to->position()) continue;
+              mech3::ai::PathFinder pf;
+              mech3::ai::Pilot pl;
+              pl.pos = d.pos;
+              const bool ok = pf.search(&pl, cn, from, to);
+              std::fprintf(stderr, "W17 path: from %.1f %.1f to %.1f %.1f: %d, %zu steps, %.1f m\n", from->position()[0],
+                           from->position()[2], to->position()[0], to->position()[2], ok, pf.best.size(), pf.best_length);
+              for (mech3::ai::Behaviour* st : pf.best)
+                if (st->position()) std::fprintf(stderr, "W17   via %.1f %.1f\n", st->position()[0], st->position()[2]);
+            }
+          }
           d0 = dist(dominic, player);
           return;
         }
