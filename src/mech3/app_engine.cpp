@@ -4,6 +4,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+#include "mech3/force_feedback.h"
 
 #if !defined(_WIN32)
 #include <execinfo.h>
@@ -187,6 +188,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
 }
 
 GameEngine::~GameEngine() {
+  if (force_) program_force_feedback(nullptr), force_.reset();  // an engine gone without the app's stop: its calls off
   delete_screens();
   if (g_engine == this) {
     g_engine = nullptr;
@@ -534,6 +536,22 @@ void GameEngine::input_acquire() { zin::resume(); }
 void GameEngine::input_unacquire() { zin::suspend(); }
 uint32_t GameEngine::joystick_present() { return zin::joy_present() ? 1 : 0; }
 uint32_t GameEngine::force_feedback_present() { return zin::force_feedback(); }
+
+// The force feedback (mech3/force_feedback): made by the app's start when
+// zInput's joystick has it, on the platform's device (FIX (A): IFORCE2);
+// the game's calls go to it while it is up (app_force.cpp).
+Handle GameEngine::force_feedback_new() {
+  force_ = std::make_unique<ForceFeedback>(p_.force);
+  program_force_feedback(force_.get());
+  return handle_of(force_.get());
+}
+void GameEngine::force_feedback_delete(Handle) {
+  program_force_feedback(nullptr);
+  force_.reset();
+}
+void GameEngine::force_feedback_spring(Handle, int32_t on) {
+  if (force_) force_->spring(on != 0);
+}
 void GameEngine::input_set_mode(uint32_t mode) { zin::set_mode(mode); }
 void GameEngine::input_poll(uint8_t callbacks) { zin::poll(callbacks != 0); }
 uint32_t GameEngine::key_state(int32_t key) { return zin::key_state(key); }

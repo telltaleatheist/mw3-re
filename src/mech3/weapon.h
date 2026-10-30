@@ -348,7 +348,7 @@ struct Ams {
 struct WeaponWorld {
   Handle player = nullptr;             // [0x005f4c8c] +0x64
   Handle mission_player = nullptr;     // [0x0060861c] +0x14
-  bool stats = false;                  // [0x00608620]
+  bool force_feedback = false;         // [0x00608620] the force feedback object exists
   bool lock_targets = false;           // [0x00605fb4]  missiles are given the locked target
   float clock = 0;                     // [0x0072c530]
   float time = 0;                      // [0x0060991c]  game time
@@ -387,7 +387,7 @@ struct WeaponCalls {
   void (*add_heat)(Handle owner, float h) = nullptr;          // 0x00419e40
   void (*recoil)(Handle part, float r) = nullptr;             // part vt+0x24
   void (*net_event)(Handle owner, int32_t kind, Weapon* w) = nullptr;  // vt+0x168 (0x16: a weapon)
-  void (*stats_shot)(int32_t index) = nullptr;                // 0x00433630 on [0x00608620]
+  void (*ff_weapon)(int32_t index) = nullptr;                // 0x00433630 on [0x00608620]
   Handle (*target_mech)(Handle target) = nullptr;             // vt+0x2c then vt+0x50
   void (*lock_notice)(Handle mech, Handle vehicle, WeaponDef* def) = nullptr;  // 0x0041abd0
   int32_t (*ecm_count)(Handle mech) = nullptr;                // +0x3cc

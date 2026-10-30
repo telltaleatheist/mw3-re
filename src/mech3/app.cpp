@@ -276,9 +276,9 @@ bool Mech3App::start_game(uint32_t window) {
     if (t.stock) t.ready = 1;
     e.set_use_joystick(0);
   } else {
-    if (Handle old = e.network_game()) e.network_game_delete(old);
-    e.set_network_game(0);
-    if (e.force_feedback_present()) e.set_network_game(e.network_game_new());
+    if (Handle old = e.force_feedback()) e.force_feedback_delete(old);
+    e.set_force_feedback(0);
+    if (e.force_feedback_present()) e.set_force_feedback(e.force_feedback_new());
   }
   const Handle win = e.window_rect();
   e.message_panel_init(e.display_rect(), win);
@@ -355,7 +355,7 @@ void Mech3App::stop_game() {
   e.mechs_shutdown();
   e.missions_shutdown();
   e.mech_data_shutdown();
-  if (Handle game = e.network_game()) e.network_game_delete(game);
+  if (Handle ff = e.force_feedback()) e.force_feedback_delete(ff);
   const bool fatal = e.fatal_error() != 0;
   if (!fatal) {
     e.message_panel_free();

@@ -1430,7 +1430,7 @@ bool Weapon::fire(const Vec3f* velocity) {
   spawn_projectile(def, g_calls.entity_node ? g_calls.entity_node(e) : nullptr,
                    g_calls.entity_x64 ? g_calls.entity_x64(e) : nullptr, &muzzle, &direction, velocity, 0, 0,
                    (team & enemies) != 0);  // hostile to the player
-  if (owner == g_world.mission_player && g_world.stats && g_calls.stats_shot) g_calls.stats_shot(index);
+  if (owner == g_world.mission_player && g_world.force_feedback && g_calls.ff_weapon) g_calls.ff_weapon(index);
   if (owner) net_event(owner, this);
   set_lock_globals(nullptr, nullptr);
   reload = def->period;
@@ -1631,7 +1631,7 @@ bool BeamWeapon::trigger() {
       net_event(owner, this);
       if (is_player(owner) && g_calls.hud_fire) g_calls.hud_fire(owner);
       if (part) weapon_fired(part, this);
-      if (owner == g_world.mission_player && g_world.stats && g_calls.stats_shot) g_calls.stats_shot(index);
+      if (owner == g_world.mission_player && g_world.force_feedback && g_calls.ff_weapon) g_calls.ff_weapon(index);
     }
   }
   return fired;

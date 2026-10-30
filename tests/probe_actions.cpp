@@ -148,7 +148,7 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
   m.remote = flags & 4;
   g->pos = {0, 0, 0};
   world().mission_player = flags & 1 ? &m : nullptr;
-  world().stats = flags & 2;
+  world().force_feedback = flags & 2;
   world().last_action = last_action;
   g_log.clear();
   g->next = 0x9000;
@@ -175,7 +175,7 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
   dc.net_event = [](Mech&, int kind, intptr_t a) { log({22, kind, static_cast<int32_t>(a)}); };
   dc.node_set_active = [](Handle node, int on) { log({23, static_cast<int32_t>(u(node)), on}); };
   dc.hip_reset = [](MechPart&, const Vec3*) { log({13}); };
-  dc.stats = [](uint32_t fn, int) { log({14, static_cast<int32_t>(fn)}); };
+  dc.ff = [](uint32_t fn, int) { log({14, static_cast<int32_t>(fn)}); };
 
   int32_t r = 0;
   switch (op) {
@@ -194,7 +194,7 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
   *nq = k;
   *last_out = world().last_action;
   world().mission_player = nullptr;
-  dc.net_event = nullptr, dc.node_set_active = nullptr, dc.hip_reset = nullptr, dc.stats = nullptr;
+  dc.net_event = nullptr, dc.node_set_active = nullptr, dc.hip_reset = nullptr, dc.ff = nullptr;
   const int32_t len = static_cast<int32_t>(g_log.size());
   std::memcpy(out, g_log.data(), 4 * (len < *n ? len : *n));
   *n = len;

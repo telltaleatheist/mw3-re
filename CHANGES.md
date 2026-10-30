@@ -343,6 +343,16 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- **Gamepads work as they did on Windows.** A modern pad's sticks, triggers
+  and buttons arrive in the order the game knew from Windows: the left stick
+  steers and walks, the triggers are the throttle, the right stick looks.
+  Read the raw way, a pad's resting triggers held the torso twisted.
+- **Force feedback becomes rumble.** The original drove force-feedback
+  joysticks through Immersion's driver. The rebuild reads the same effect
+  file and plays the effects on your pad's or stick's rumble motors: weapon
+  recoil, laser buzz, hits, footsteps, landings, the jump jets, wading and
+  your death. The stick-centring springs have no rumble version.
+
 - The game finds your MechWarrior 3 installation by itself: where its installer put it (the registry, then Program Files), or it asks you once to point at Mech3.exe, then remembers the folder in `mw3.cfg`. The original simply ran from its own folder.
 - The game opens fullscreen at your desktop's resolution, the picture fitted with bars at the sides if its shape differs, instead of switching the monitor to 640x480. `--windowed` (or `windowed=1` in `mw3.cfg`) plays in a window.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.

@@ -61,7 +61,7 @@ EXTRA = {TORSO: [(0x74, 'i'), (0x78, 'i'), (0x7c, 'f'), (0x80, 'f')] + vec(0xd8)
 EXTRA[FOOT1], EXTRA[ARM1] = EXTRA[FOOT0], EXTRA[ARM0]
 
 # The log codes of probe_damage.cpp; 'f' arguments print as floats.
-NAMES = {1: 'controls_hit', 2: 'stats_hit', 3: 'damage_decal', 4: 'last_hit', 5: 'zaps_hud', 6: 'head_hit_hud',
+NAMES = {1: 'controls_hit', 2: 'ff_hit', 3: 'damage_decal', 4: 'last_hit', 5: 'zaps_hud', 6: 'head_hit_hud',
          7: 'net_event', 8: 'weapons_lost', 9: 'weapons_critical', 10: 'weapons_stop', 11: 'hud_weapons',
          12: 'mech_sound', 13: 'equip_voice', 14: 'voice', 15: 'fly_off', 16: 'spawn_effect', 17: 'spawn_effect_at',
          18: 'on_effect_end', 19: 'node_unlink', 20: 'node_set_active', 21: 'node_set_name', 22: 'stop_foot_effect',

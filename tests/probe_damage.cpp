@@ -179,8 +179,8 @@ void install_hooks() {
     log({7, kind, static_cast<int32_t>(a)});
   };
   c.killer_notify = [](Handle k, Mech& v) { log({38, static_cast<int32_t>(to_emu(k)), static_cast<int32_t>(emu_mech(&v))}); };
-  c.stats = [](uint32_t fn, int arg) { log({33, static_cast<int32_t>(fn), arg}); };
-  c.stats_hit = [](int id, const Vec3* i, float f) { log({2, id, fbits(i->x), fbits(i->y), fbits(i->z), fbits(f)}); };
+  c.ff = [](uint32_t fn, int arg) { log({33, static_cast<int32_t>(fn), arg}); };
+  c.ff_hit = [](int id, const Vec3* i, float f) { log({2, id, fbits(i->x), fbits(i->y), fbits(i->z), fbits(f)}); };
   c.networked = [] { return g->s.networked != 0; };
   c.view_mode = [] { return g->s.view; };
   c.view_camera = [](int mode) { log({34, mode}); };
@@ -353,7 +353,7 @@ void probe_damage_world(const int32_t* world_v) {
   World& w = world();
   w.player = world_v[0] ? &m : &g->other;
   w.mission_player = world_v[1] ? &m : &g->other;
-  w.stats = world_v[2] != 0;
+  w.force_feedback = world_v[2] != 0;
   std::memcpy(&w.difficulty, &world_v[3], 4);
   std::memcpy(w.shot, &world_v[4], 24);
   w.death_anim_toggle = world_v[10] != 0;

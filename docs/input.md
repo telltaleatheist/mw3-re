@@ -224,6 +224,76 @@ and without a click at frame 20 is the same to the pixel while the click's
 shots are in flight; the shots (the Mad Cat's first group, its machine
 guns) draw nothing in the program yet (weapons' side).
 
+## 7. Gamepads and force feedback on SDL (2026-10-30)
+
+**Gamepads** (FIX (A), `SdlInput`). A device SDL knows as a gamepad (an
+XInput pad, a PlayStation or Switch pad) is read in the layout DirectInput
+gave an XInput pad on Windows. X and Y are the left stick. Z is the
+triggers on one centred axis, the left one up and the right one down. RX
+and RY are the right stick; there is no RZ. Buttons 0..9 are A, B, X, Y, LB,
+RB, Back, Start, LS and RS, and the d-pad is the hat. SDL's raw order
+differs by platform, and its triggers rest at one end. On the raw path the
+game's defaults (0x00410950: throttle Z x -0.5 + 0.5, twist RZ x -1)
+pinned the twist at full and the throttle at its end. Other sticks stay
+on the raw path. Either way an axis the device lacks reads 0, as in
+DirectInput's DIJOYSTATE2, and the dead zones are DirectInput's: the travel
+past the zone scaled to the whole range. Tests (mw3sdltests, SDL's virtual
+devices):
+- `sdl_input_virtual_stick_reads_as_directinput`: a flight stick's axes,
+  dead zones, hat and buttons;
+- `sdl_input_virtual_gamepad_reads_as_directinput_xinput`: the layout.
+  Break: the pad read raw, the twist pinned at -1000 and RZ present;
+- `sdl_input_virtual_gamepad_through_zinput_drives_the_axes`: through
+  zInput's setup and read and the axis table, the throttle half at rest,
+  full on the right trigger, stopped on the left; the twist still.
+
+**Force feedback.** The exe's object at [0x00608620] (0x00433090..0x00433c80;
+the port's `mech3/force_feedback`, once misnamed the network game and
+statistics) is made by the app's start (0x00480570) when zInput's joystick
+reports DIDC_FORCEFEEDBACK (0x0051ddb0). It loads force_eff.ifr through
+Immersion's IFORCE2.dll, and twelve effects from it by name:
+
+| Effect | Played by | Gain |
+|---|---|---|
+| Recoil, laser_buzz | a shot, 0x00433630 by the weapon's mech-lab index | the table below |
+| Spin_Move | a collision's jolt, 0x004335d0 | its amount (0..1) x 80 |
+| impact_force | a hit, 0x00433720 | the force x 100, from the hit's side |
+| footfall | each step, 0x004337c0 | the speed x 100 |
+| impact_land | a landing, 0x00433800 | the jolt x 100 |
+| i_fall | a fall, 0x00433840 | 100 (the file has no i_fall: nothing) |
+| jets1 | the jump jets on and off, 0x00433870 | |
+| Spring | the mission's start, 0x004338a0 | |
+| dead_spring, dead_dance | the player's death, after every effect stopped | |
+| water | wading, 0x00433930 | |
+
+The shot's table: the autocannons, LB 2/5/10-X and SRMs Recoil at 60;
+the small, medium and large lasers (plain, ER, pulse) laser_buzz at 50, 80,
+100; the ER PPC, Gauss, LRMs and Ultra AC/5..20 Recoil at 100; the Streak
+SRMs Recoil at 40; the machine gun, Flamer, LB 20-X, NARC, TAG and Ultra
+AC/2 nothing. Quirk kept: an effect's Stop (0x00433bc0) stops its first part
+once per part, so a compound's second part runs out by itself.
+
+The file (`SdlForceDevice::parse`): "ifpr", a count (18), then each record a
+size (from the size field), its name, its type, five bytes and key/value
+strings: Magnitude 0..10000; Duration, Period, the attack and fade in
+microseconds; InfiniteDuration; a compound's ContainedObjects by ID. The
+types are Vector Force, Periodic, Compound, Spring and Damper. The exe's
+names are the file's with '_' for ' '.
+
+FIX (A): IFORCE2 is `platform::ForceDevice`, and on SDL `SdlForceDevice`
+plays each part as rumble. A Periodic part at 100 ms or less goes on the
+fast motor, anything else on the slow one, at Magnitude x gain, for its
+Duration (an infinite one until stopped). The conditions (Spring, Damper:
+forces on a stick's axes) have no rumble equivalent and play nothing; a
+real force-feedback stick through SDL_Haptic could play them later. The
+directions are kept but unused, since a rumble has none. `SdlInput` reports
+DIDC_FORCEFEEDBACK when SDL says the device rumbles. Tests:
+- `sdl_force_device_plays_the_ifr_effects_as_rumble`: the shipped file on
+  a virtual pad's Rumble;
+- `force_feedback_effects_and_the_games_calls_headless`: every method on
+  a recording device; in c1m1 the object made, the Spring, the water and
+  the steps. Break: the calls unwired, none.
+
 ## Open
 
 - The controls screen (0x0042be10 ..), which uses read_key and the wait

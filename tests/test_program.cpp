@@ -90,6 +90,7 @@
 #include "mech3/controls_menu.h"
 #include "mech3/mainmenu.h"
 #include "mech3/mech_control.h"
+#include "mech3/force_feedback.h"
 #include "mech3/mission.h"
 #include "mech3/mission_world.h"
 #include "mech3/pocket_panel.h"
@@ -14004,6 +14005,148 @@ TEST(mission_c1m1_training_pieces_headless) {
   EXPECT(seen && mechs > 0 && named == mechs);
   EXPECT(std::fabs(target_level - 0.7f) < 1e-6f && std::fabs(target_hold - 0.5f) < 1e-6f && other_level == 0.0f);
   EXPECT(dims_on == 1 && g_dim_colour == 0x07e0 && std::fabs(g_dim_alpha - 0.3) < 1e-9 && dims_off == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The force feedback (mech3/force_feedback, docs/input.md section 6) on a
+// recording device: its twelve effects by name (i_fall none, the compounds
+// two parts), each method's gain and direction as 0x004335d0..0x00433930
+// give them (0..100 x 100, degrees x 100), Stop on the first part as many
+// times as there are parts (kept); then in c1m1, a joystick with force
+// feedback (DIDC_FORCEFEEDBACK) makes the object at the app's start
+// (0x00480570), the mission's start plays the Spring (0x004338a0) and the
+// player's held trigger the weapons' Recoil or laser_buzz (0x00433630).
+namespace {
+struct RecordingForce : platform::ForceDevice {
+  std::vector<std::string> names;  // by part
+  std::vector<std::string> log;
+  bool load(const std::string& path) override { log.push_back("load " + path); return true; }
+  std::vector<int32_t> create(const char* name) override {
+    const std::string n = name;
+    if (n == "i_fall") return {};
+    std::vector<int32_t> out;
+    for (int k = 0; k < (n == "Spin_Move" || n == "dead_dance" ? 2 : 1); ++k)
+      out.push_back(static_cast<int32_t>(names.size())), names.push_back(n + (k ? "#2" : ""));
+    return out;
+  }
+  void set_gain(int32_t p, int32_t g) override { log.push_back("gain " + names[size_t(p)] + " " + std::to_string(g)); }
+  void set_direction(int32_t p, int32_t d) override { log.push_back("dir " + names[size_t(p)] + " " + std::to_string(d)); }
+  void start(int32_t p) override { log.push_back("start " + names[size_t(p)]); }
+  void stop(int32_t p) override { log.push_back("stop " + names[size_t(p)]); }
+  std::string joined(size_t from = 0) const {
+    std::string r;
+    for (size_t i = from; i < log.size(); ++i) r += (r.empty() ? "" : "; ") + log[i];
+    return r;
+  }
+  int count(const std::string& what) const { return static_cast<int>(std::count(log.begin(), log.end(), what)); }
+};
+}  // namespace
+TEST(force_feedback_effects_and_the_games_calls_headless) {
+  {
+    RecordingForce rec;
+    mech3::ForceFeedback ff(&rec);
+    EXPECT(rec.log.size() == 1 && rec.log[0] == "load force_eff.ifr");
+    EXPECT(ff.recoil && ff.spin_move && ff.laser_buzz && ff.impact_force && ff.footfall && ff.jets1 && ff.spring_fx &&
+           ff.dead_spring_fx && ff.dead_dance_fx && ff.water_fx && ff.impact_land && !ff.i_fall);
+    size_t at = rec.log.size();
+    ff.weapon(4);  // a small laser: laser_buzz at 50
+    EXPECT(rec.joined(at) == "stop laser_buzz; gain laser_buzz 5000; start laser_buzz");
+    at = rec.log.size();
+    ff.weapon(0);  // a ballistic: Recoil at 60
+    ff.weapon(8);  // not in the table: nothing
+    EXPECT(rec.joined(at) == "stop Recoil; gain Recoil 6000; start Recoil");
+    at = rec.log.size();
+    const float n[3] = {0, 1, 0};
+    ff.jolt(n, 0.5f);  // Spin_Move at 0.5 x 80; its first part stopped twice (kept)
+    EXPECT(rec.joined(at) == "stop Spin_Move; stop Spin_Move; gain Spin_Move 4000; start Spin_Move; start Spin_Move#2");
+    at = rec.log.size();
+    const float from_right[3] = {1, 0, 0};
+    ff.hit(0, from_right, 0.7f);  // pi - atan2(-1, -0): 270 degrees
+    EXPECT(rec.joined(at) == "stop impact_force; gain impact_force 7000; dir impact_force 27000; start impact_force");
+    at = rec.log.size();
+    ff.fall();  // no i_fall in the file: nothing
+    ff.jets(true);
+    ff.jets(false);
+    EXPECT(rec.joined(at) == "stop jets1; start jets1; stop jets1");
+  }
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("force_feedback_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  mech3::axis_table() = mech3::AxisTable{};  // the defaults (0x00410950): a joystick's throttle, twist, pitch, turn
+  struct Stick : platform::Input {
+    bool open(Device d) override { return d == kKeyboard || d == kJoystick; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { *count = 0; return 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState* out) override { *out = platform::JoyState{}; return 0; }
+    int32_t joystick_caps(uint32_t* flags, uint32_t* axes) override { *flags = 0x100, *axes = 4; return 0; }
+  } stick;
+  RecordingForce rec;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &stick, p.force = &rec;
+  bool made = false;
+  int springs = 0, shots = 0;  // shots: water x 100 + footfall
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    made = engine.force_feedback() != 0;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    static bool fire = false;
+    const auto was = mech3::controls_calls().command;
+    // the trigger, and throttle 9 (0x23) so the mech walks: footsteps
+    mech3::controls_calls().command = [](int cmd) { return zin::command(cmd) | (fire && (cmd == 0x3d || cmd == 0x23) ? 1u : 0u); };
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      fire = frames >= 30 && frames < 300;
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return frames >= 300; };
+    app.run(pump);
+    fire = false;
+    mech3::controls_calls().command = was;
+    springs = rec.count("start Spring");
+    int stepped = 0;  // footfalls at a gain over 0: walking
+    for (const std::string& e : rec.log) stepped += e.rfind("gain footfall ", 0) == 0 && e != "gain footfall 0";
+    shots = rec.count("start water") * 100 + stepped;  // wading at the start; the steps
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c1m1 with a force feedback stick: made %d; Spring started %d; water %d, footfall %d (%zu calls in all)\n",
+              made, springs, shots / 100, shots % 100, rec.log.size());
+  // The Mad Cat's first group is the machine gun (the lab's 21), which the
+  // weapons' table (0x00433630) gives no effect: no Recoil, no buzz.
+  EXPECT(made && springs == 1 && shots / 100 >= 1 && shots % 100 >= 1);
+  EXPECT(rec.count("start Recoil") == 0 && rec.count("start laser_buzz") == 0);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

@@ -49,7 +49,7 @@ F = {'manager_ctor': 0x4b00d0, 'reset': 0x4b0290, 'find': 0x4b03c0, 'add': 0x4b0
      'bin_add': 0x4b4dc0, 'can_fire': 0x4b3a20, 'min_range': 0x4b3990, 'max_range': 0x4b39a0,
      'max_range_sq': 0x4b39e0}
 NAMES = {1: 'part_by_id', 2: 'node_part', 3: 'equipment_in_part', 4: 'heat', 5: 'add_heat', 6: 'recoil',
-         7: 'net_event', 8: 'stats_shot', 9: 'lock_notice', 10: 'entity_id', 11: 'node_position', 12: 'spawn',
+         7: 'net_event', 8: 'ff_weapon', 9: 'lock_notice', 10: 'entity_id', 11: 'node_position', 12: 'spawn',
          13: 'radar_track', 14: 'beam_create', 15: 'beam_start', 16: 'beam_stop', 17: 'beam_free',
          18: 'mech_sound', 19: 'play_loop', 20: 'play_at', 21: 'stop_sound', 22: 'destroyed_sounds',
          23: 'voice_destroyed', 24: 'hud_groups', 25: 'hud_weapons', 26: 'hud_fire', 27: 'torso_aim',

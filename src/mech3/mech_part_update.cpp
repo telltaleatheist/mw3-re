@@ -464,7 +464,7 @@ void Foot::update(float dt) {
   const int side = id != kLeftFoot;
   if (ground_state == 1) {
     ground_state = 2;
-    if (&m == wd.mission_player && wd.stats && g_calls.footstep_ff)
+    if (&m == wd.mission_player && wd.force_feedback && g_calls.footstep_ff)
       g_calls.footstep_ff(std::fabs(m.vec_3c.z) / m.max_speed);
     return;
   }
