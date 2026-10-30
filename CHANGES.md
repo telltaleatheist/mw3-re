@@ -401,6 +401,7 @@ These change how the game talks to the computer, not how it plays.
 - On screens wider than 16:9 (21:9, 32:9) the game plays 16:9 at the
   screen's full height, with black bars at the sides: the cockpit was never
   made wider than that.
+- Changing the resolution in the middle of a mission gives the view the new shape (the original never needed to: all its sizes were 4:3), and the options reached from a mission stay in their places at any resolution.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
 

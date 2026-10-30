@@ -99,6 +99,8 @@
 #include "mech3/options.h"
 #include "mech3/mech_shade.h"
 #include "mech3/pause_menu.h"
+#include "mech3/options_menu.h"
+#include "mech3/menu_states.h"
 #include "mech3/pilot.h"
 #include "mech3/briefing.h"
 #include "gamez/zutil/zfix.h"
@@ -15054,6 +15056,221 @@ TEST(mission_c1m1_pause_click_at_any_size_headless) {
   // so 640x480's place is inside it; the origin is checked above).
   const PauseClick miss = c1m1_pause_click(13, 2);
   EXPECT(miss.resumes == 0);
+}
+
+// Playtest W13 (Owen's 18/19): the options reached from a mission's pause
+// screen at 16:9 had every widget 106 to the right of the art. The pause
+// screen sits on the mission's 853x480 canvas, but the options show on the
+// menus' 640x480 one (0x00438c90 sets mode 5), so their 640x480 frame is at
+// 0: Escape, OPTIONS, then GRAPHICS & AUDIO, at modes 5, 13 and 15, each
+// screen's origin and a widget's rect as at mode 5.
+namespace {
+struct OptionsPlace {
+  int32_t game_origin = -1, gfx_origin = -1;
+  int32_t accept[4] = {}, resolution[4] = {};
+};
+OptionsPlace c1m1_options_place(int32_t mode) {
+  OptionsPlace out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("options_place_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device) override { return true; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState* m) override { return *m = platform::MouseState{}, 0; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    BoxHost host;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = mode;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::States& st = mech3::states();
+    int core = 0, step = 0, frames = 0;
+    auto rect = [](ztwod::Control& c, int32_t* o) {
+      const ztwod::Rect* r = c.get_rect();
+      o[0] = r->left, o[1] = r->top, o[2] = r->right, o[3] = r->bottom;
+    };
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      ++frames;
+      if (now == &st.core) {
+        ++core;
+        if (core == 5) keys.key(1, true);  // Escape
+        if (core == 6) keys.key(1, false);
+        return;
+      }
+      if (now == &st.pause && step == 0) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (ps) ps->on_button(mech3::PauseScreen::kOptions, 0, 0), step = 1;
+        return;
+      }
+      auto* os = dynamic_cast<mech3::OptionsState*>(now);
+      if (!os) return;
+      mech3::MenuScreen* scr = engine.screen_of(os->screen_);
+      if (os->kind == mech3::OptionsState::kGame && step == 1) {
+        auto* g = dynamic_cast<mech3::GameOptionsScreen*>(scr);
+        if (!g) return;
+        out.game_origin = g->origin_x;
+        rect(g->accept, out.accept);
+        g->gfx_audio.on_left_up();
+        step = 2;
+      } else if (os->kind == mech3::OptionsState::kGfxAudio && step == 2) {
+        auto* g = dynamic_cast<mech3::GfxAudioScreen*>(scr);
+        if (!g) return;
+        out.gfx_origin = g->origin_x;
+        rect(g->resolution, out.resolution);
+        step = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return step == 3; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
+  if (!have_game()) return;
+  const OptionsPlace v5 = c1m1_options_place(5);
+  for (const int32_t mode : {5, 13, 15}) {
+    const OptionsPlace v = mode == 5 ? v5 : c1m1_options_place(mode);
+    std::printf("options from the pause at mode %d: origins %d %d, ACCEPT %d %d %d %d, RESOLUTION %d %d %d %d\n", mode,
+                v.game_origin, v.gfx_origin, v.accept[0], v.accept[1], v.accept[2], v.accept[3], v.resolution[0],
+                v.resolution[1], v.resolution[2], v.resolution[3]);
+    EXPECT(v.game_origin == 0 && v.gfx_origin == 0);
+    EXPECT(std::equal(v.accept, v.accept + 4, v5.accept) && std::equal(v.resolution, v.resolution + 4, v5.resolution));
+  }
+  EXPECT(v5.accept[2] > 0 || v5.accept[0] > 0);
+}
+
+// Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to
+// 1920x1080 from the options (Core's resume, 0x004ab6b0) kept the camera's
+// 4:3 80 degrees across, the picture stretched 4:3 to 16:9. The exe sets
+// the angle only at the mission's load (0x0040d590, its only modes 4:3);
+// with any_resolution each mode change sets it again: 96.4 at 16:9, 80
+// back at 640x480, the vertical 60 kept.
+TEST(mission_c1m1_mode_change_keeps_the_camera_shape_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mode_camera_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  float fov[3][2] = {};
+  int got = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = 5;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int core = 0;
+    auto read = [&](int i) {
+      auto* cam = static_cast<zcls::Node*>(engine.object_of(mech3::camera()));
+      if (cam && zcls::camera_get_fov_angles(cam, &fov[i][0], &fov[i][1]) == 0) ++got;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      if (core == 5) read(0), engine.set_screen_mode(13);
+      if (core == 7) read(1), engine.set_screen_mode(5);
+      if (core == 9) read(2);
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return core >= 9; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  const double deg = 57.29577951308232;
+  for (int i = 0; i < 3; ++i)
+    std::printf("  camera %s: %.2f across, %.2f high\n", i == 1 ? "at 1920x1080" : "at 640x480", fov[i][0] * deg, fov[i][1] * deg);
+  EXPECT(got == 3);
+  EXPECT(std::fabs(fov[0][0] * deg - 80.0) < 0.05 && std::fabs(fov[0][1] * deg - 60.0) < 0.05);
+  EXPECT(std::fabs(fov[1][0] * deg - 96.4) < 0.1 && std::fabs(fov[1][1] * deg - 60.0) < 0.05);
+  EXPECT(std::fabs(fov[2][0] * deg - 80.0) < 0.05 && std::fabs(fov[2][1] * deg - 60.0) < 0.05);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 // 0x00558010's rect is a handle (resolution.md section 9, found while taking
