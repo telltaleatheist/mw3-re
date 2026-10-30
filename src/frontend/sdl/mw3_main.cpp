@@ -136,7 +136,7 @@ struct Args {
 
 void usage() {
   std::printf(
-      "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
+      "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--import | --no-import] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
@@ -149,6 +149,13 @@ bool parse(int argc, char** argv, Args& a) {
     const std::string s = argv[i];
     auto next = [&](int n) { return i + n < argc; };
     if (s == "--help" || s == "-h") return usage(), false;
+    if (s == "--version") {  // ours: the build, and (on Windows) that every DLL it needs loaded
+#ifndef MW3_VERSION
+#define MW3_VERSION "unknown"
+#endif
+      std::printf("mw3 (MechWarrior 3 rebuild) %s\n", MW3_VERSION);
+      std::exit(0);
+    }
     else if (s == "--install" && next(1)) a.install = argv[++i];
     else if (s == "--assets" && next(1)) a.assets.emplace_back(argv[++i]);
     else if (s == "--write-dir" && next(1)) a.write_dir = argv[++i];

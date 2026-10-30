@@ -1,0 +1,93 @@
+Third-party software in this package
+====================================
+
+mw3.exe and mw3import.exe use the libraries below. Each library's own licence
+files, as its release shipped them, are in licenses\ under the folder the
+library came in. Thank you to all of their authors.
+
+
+SDL 3 (SDL3.dll)
+----------------
+Simple DirectMedia Layer, https://www.libsdl.org/
+Copyright (C) 1997-2026 Sam Lantinga and others. zlib licence
+(licenses\SDL3-*\LICENSE.txt).
+
+
+SDL_ttf 3 (SDL3_ttf.dll)
+------------------------
+https://github.com/libsdl-org/SDL_ttf. Copyright (C) 1997-2025 Sam Lantinga
+and others. zlib licence (licenses\SDL3_ttf-*\LICENSE.txt).
+Its release DLL has these built in:
+- FreeType, under the FreeType License (FTL),
+  https://freetype.org/license.html.
+  Portions of this software are copyright (C) The FreeType Project
+  (www.freetype.org). All rights reserved.
+- HarfBuzz, MIT licence ("Old MIT"), https://github.com/harfbuzz/harfbuzz.
+- PlutoSVG and PlutoVG, MIT licence, https://github.com/sammycage/plutosvg.
+
+
+SDL_sound 3 (SDL3_sound.dll)
+----------------------------
+https://github.com/icculus/SDL_sound. Copyright (c) 2001-2026 Ryan C. Gordon
+and others. zlib licence (licenses\SDL3_sound-*\LICENSE.txt).
+Its built-in decoders have their own terms:
+- dr_mp3, dr_flac and dr_wav (David Reid): public domain (Unlicense), or
+  MIT-0.
+- stb_vorbis (Sean Barrett): public domain, or MIT.
+- libmodplug (Olivier Lapicque and others): public domain.
+- TiMidity (Copyright (C) 1995 Tuukka Toivonen): the Perl Artistic
+  License. The standard version, unmodified by this package, is in
+  SDL_sound's source, src/timidity/, with its COPYING file.
+
+
+FFmpeg (avcodec, avformat, avutil, swscale and the other FFmpeg DLLs)
+----------------------------------------------------------------------
+https://ffmpeg.org/. FFmpeg is licensed under the GNU Lesser General Public
+License (LGPL) version 2.1 or later (licenses\ffmpeg-*\: its licence files).
+Only mw3import.exe uses it, to convert the game's movies.
+- The DLLs are an unmodified LGPL build (BtbN's FFmpeg-Builds,
+  "win64-lgpl-shared", https://github.com/BtbN/FFmpeg-Builds), and
+  mw3import.exe links them dynamically. You may replace them with your own
+  build of the same FFmpeg version.
+- The exact version and the configuration it was built with (which names
+  every library built into the DLLs) are in
+  licenses\ffmpeg-configuration.txt. FFmpeg's source for that version is at
+  https://ffmpeg.org/download.html (git tag n<version>), and the build
+  scripts at the FFmpeg-Builds link above.
+- The libraries built into the DLLs carry their own licences, all
+  compatible with the LGPL; their texts are in each project's source, as
+  listed by the FFmpeg-Builds scripts.
+
+
+pl_mpeg (built into mw3.exe)
+----------------------------
+Dominic Szablewski, https://github.com/phoboslab/pl_mpeg. MIT licence
+(licenses\pl_mpeg\README.md):
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions: The above copyright
+notice and this permission notice shall be included in all copies or
+substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
+WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+Microsoft Visual C++ runtime (msvcp140.dll, vcruntime140*.dll)
+---------------------------------------------------------------
+Redistributable files of Microsoft Visual Studio, included as its licence
+allows for programs built with it. Copyright (C) Microsoft Corporation.
+
+
+MechWarrior 3
+-------------
+None of the game's files are in this package; the program reads your own
+install. MechWarrior is a trademark of its owner; this project is not
+affiliated with or endorsed by its owner.

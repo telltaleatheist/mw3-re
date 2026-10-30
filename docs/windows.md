@@ -42,7 +42,35 @@ the Mac's byte for byte, the `.m1v` differ by FFmpeg build but play either
 way; `--cue` on his MW3 disc image gives track02 (191.9 s) and track03
 (186.1 s).
 
-## Running
+## Packaging
+
+`tools\windows\package.cmd` makes the package for other players:
+`build-win\dist\mw3-<git describe>-win64\` and its `.zip`. It configures
+its own tree, `build-win-pkg\`, from scratch with `-DMW3_PACKAGE=ON` (mw3 and
+mw3import then carry no development copy of the game: only the player's
+install, through the finder or mw3.cfg's `install=`, which `mw3import`
+reads too), builds `mw3` and `mw3import`, and collects:
+
+- `mw3.exe`, `mw3import.exe` and the DLLs their builds copied beside them
+  (SDL3, SDL3_ttf, SDL3_sound, FFmpeg's nine), plus the Visual C++
+  runtime from Visual Studio's redist folder (app-local);
+- `README.txt` and `THIRD-PARTY.txt` (`tools\windows\dist\`), each
+  `deps\*` folder's own `LICENSE*`/`COPYING*` files under `licenses\`,
+  pl_mpeg's, and `licenses\ffmpeg-configuration.txt` (`mw3import
+  --version`: FFmpeg's version and configure line, naming the libraries
+  built into its DLLs).
+
+`check_dist.ps1` then checks with `dumpbin /dependents` that every DLL the
+exes and DLLs import is in the folder or Windows' own (System32 or an
+`api-ms-win-*` set; the VC++ runtime must be in the folder), and that no game
+file is in it. `mw3.exe` has a version resource (ProductName "MechWarrior 3
+rebuild", the version from `git describe`, the commit count as the build
+number; `tools\windows\version.rc.in`) and our placeholder icon
+(`tools\windows\mw3.ico`, a green reticle drawn by `make_icon.py`;
+nothing of the game's or MicroProse's). `mw3 --version` and `mw3import
+--version` print the version and need no window, so they show over ssh
+that the programs and every DLL load.
+
 
 - The install: `mw3.exe C:\path\to\MechWarrior3`, or an `install=` line in
   `mw3.cfg` in the write dir (`%APPDATA%\MicroProse\MechWarrior 3\`).

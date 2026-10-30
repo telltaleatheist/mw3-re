@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(mw3re LANGUAGES C CXX)
+if(WIN32)
+  enable_language(RC)  # the version resource and icon (tools/windows/version.rc.in)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,6 +12,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # The install the tests and the tools read (any MW3 data version; assets.md,
 # Data versions): -DMW3_GAME_DIR=... for another, e.g. game/mw3-1.0.
 set(MW3_GAME_DIR "${CMAKE_SOURCE_DIR}/game/mw3-1.2" CACHE PATH "The MechWarrior 3 install the tests and tools read")
+
+# A build for other players (tools/windows/package.cmd): mw3 and mw3import
+# get no development copy to fall back on, only the player's own install.
+option(MW3_PACKAGE "Build mw3 and mw3import for players: no MW3_GAME_DIR in them" OFF)
+# The version mw3 --version and the Windows version resource give: git's
+# describe (a tag, or the commit) and the commit count.
+execute_process(COMMAND git describe --tags --always --dirty WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE MW3_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+execute_process(COMMAND git rev-list --count HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE MW3_BUILD_NUMBER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(NOT MW3_VERSION)
+  set(MW3_VERSION "unknown")
+endif()
+if(NOT MW3_BUILD_NUMBER)
+  set(MW3_BUILD_NUMBER 0)
+endif()
 
 if(MSVC)
   add_compile_options(/W4)
@@ -475,7 +494,18 @@ if(SDL3_FOUND)
       src/frontend/sdl/first_run_import.cpp
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
-    target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    target_compile_definitions(mw3 PRIVATE MW3_VERSION="${MW3_VERSION}")
+    if(NOT MW3_PACKAGE)
+      target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    endif()
+    # Windows: the version resource and our placeholder icon (tools/windows).
+    if(WIN32)
+      set(MW3_RC_NAME "MechWarrior 3 rebuild")
+      set(MW3_RC_FILE "mw3.exe")
+      set(MW3_RC_ICON "ICON_MAIN ICON \"${CMAKE_SOURCE_DIR}/tools/windows/mw3.ico\"")
+      configure_file(tools/windows/version.rc.in ${CMAKE_BINARY_DIR}/mw3.rc)
+      target_sources(mw3 PRIVATE ${CMAKE_BINARY_DIR}/mw3.rc)
+    endif()
     # Windows: the DLLs mw3.exe links (SDL3, SDL3_ttf, SDL3_sound) copied beside it.
     if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
       add_custom_command(TARGET mw3 POST_BUILD
@@ -532,7 +562,17 @@ if(SDL3_FOUND)
   if(MW3_FFMPEG)
     add_executable(mw3import tools/import/mw3import.cpp)
     target_link_libraries(mw3import PRIVATE mw3core ${MW3_FFMPEG} SDL3::SDL3)
-    target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    target_compile_definitions(mw3import PRIVATE MW3_VERSION="${MW3_VERSION}")
+    if(NOT MW3_PACKAGE)
+      target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
+    endif()
+    if(WIN32)
+      set(MW3_RC_NAME "MechWarrior 3 rebuild: movie and music importer")
+      set(MW3_RC_FILE "mw3import.exe")
+      set(MW3_RC_ICON "")
+      configure_file(tools/windows/version.rc.in ${CMAKE_BINARY_DIR}/mw3import.rc)
+      target_sources(mw3import PRIVATE ${CMAKE_BINARY_DIR}/mw3import.rc)
+    endif()
     if(MW3_FFMPEG_DLLS)  # the DLLs beside mw3import.exe, as SDL3.dll is beside mw3.exe
       add_custom_command(TARGET mw3import POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MW3_FFMPEG_DLLS}
                          $<TARGET_FILE_DIR:mw3import>)

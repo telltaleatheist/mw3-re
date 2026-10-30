@@ -117,3 +117,30 @@ works alongside it; stay out of its files.
   crop (640 scale, origin about (330, 0)) matches this geometry with the
   mech side-on. The turn (0.8 rad/s) decides how it sits.
 - Branch `mac5/lab-view-s8-s10` off main 730a01c (docs only).
+
+## 8. The Windows package (2026-10-30)
+
+- `tools\windows\package.cmd`: its own tree `build-win-pkg` with
+  `MW3_PACKAGE=ON` (CMake: mw3 and mw3import without MW3_GAME_DIR), then
+  `build-win\dist\mw3-<describe>-win64\` and the zip (tar -a). Contents and
+  the dumpbin check (`check_dist.ps1`): docs/windows.md, Packaging.
+- `mw3 --version`, `mw3import --version` (with FFmpeg's configuration):
+  no window needed, so the load of every DLL is checkable over ssh.
+- `mw3import` in a package build takes the install from `--install`, else
+  mw3.cfg's `install=`.
+- The finder's usual folders gained `\Games\MechWarrior3`, `\Games\MW3` and
+  `\MechWarrior3` (Owen's install is C:\Games\MechWarrior3).
+- Version resource from `version.rc.in` (git describe, commit count);
+  placeholder icon `mw3.ico` from `make_icon.py` (ours: a reticle).
+- README.txt and THIRD-PARTY.txt in `tools\windows\dist\`. Licences
+  checked: SDL3 and SDL3_ttf zlib (SDL3_ttf's DLL has FreeType (FTL),
+  HarfBuzz and PlutoSVG/PlutoVG (MIT)); SDL3_sound zlib, its decoders dr_*
+  and stb_vorbis public domain or MIT(-0), libmodplug public domain,
+  TiMidity the Perl Artistic License (its header); FFmpeg LGPL 2.1+ (BtbN
+  lgpl-shared, dynamically linked, unmodified); pl_mpeg MIT; the VC++
+  runtime's redist terms.
+- On the Mac: a `MW3_PACKAGE=ON` tree builds; neither exe holds the dev
+  path; `mw3 --frames 1 --hidden` with a fresh write dir finds no install
+  and says so; `mw3import` without one says to give `--install` or start
+  mw3. The .cmd, .ps1 and .rc are untested here (Windows only).
+- Branch `mac5/windows-package` off main 46135f7.

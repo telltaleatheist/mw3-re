@@ -28,10 +28,12 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
      `Path`). These are read in the 32-bit and 64-bit views and the user's
      VirtualStore copy. Then its default folder,
      `PROGRAMFILES\MicroProse\MechWarrior 3` (Program Files (x86) on 64-bit
-     Windows), a few usual folders on the system drive, the program's own
-     folder and the one above it (on the Mac, beside the .app). A
-     development build then tries the repo's `game/mw3-1.2`, unless
-     `MW3_FIND_INSTALL=1` is set;
+     Windows), a few usual folders on the system drive (`\MicroProse\`,
+     `\Games\` and the root, as `MechWarrior 3`, `MechWarrior3` or `MW3`),
+     the program's own folder and the one above it (on the Mac, beside the
+     .app). A development build then tries the repo's `game/mw3-1.2`, unless
+     `MW3_FIND_INSTALL=1` is set; a package build (`MW3_PACKAGE`,
+     windows.md, Packaging) has no such copy;
   3. else a message box ("Find your MechWarrior 3 installation": Browse...
      or Quit) and an open-file dialog for `Mech3.exe` (or All files). The
      picked file's folder is the install (a file in `zbd/` or `video/`: the
