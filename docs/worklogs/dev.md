@@ -1891,3 +1891,23 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   vehicles. Now Mech::set_place (0x00418f30). Test
   `mission_c2m1_teleport_valve_places_the_mech_headless`; break: 1566 m
   off and the census 1.
+
+## A failed mission's retry (2026-10-30)
+
+- Branch mac4/restart-state (off mac4/chain-test 86099c3). Free item:
+  community-issues.md's "a restarted mission keeps state".
+- The exe's retry (0x0047d030, failed CONTINUE): cleanup (1 for the two
+  first missions, the world unloaded), anim reset 0x0050ad60(1), +0xb0
+  cleared (the save read back). A clean restart by design.
+- The chain's retry:N fails each mission at core frame 75 (the pause's
+  REPLAY) and compares every node's active flag at frame 30.
+- Port gap 1: the Win State read the loss and cheat flags through peek8
+  (never written), so a lost or cheated campaign mission counted as won.
+  Now the missions' fields. Test
+  campaign_lost_or_cheated_mission_is_briefed_again_headless (break: the
+  next briefing Op 1 Mission 3, 3 games).
+- Port gap 2: 0x0050ad60 was unported; c1m3's retry kept two destroyed
+  buildings that never fell again (unwinnable). Ported as
+  zeff::anim_reset_all; differential test_anim_reset.py. Op 1's four
+  retries are won (c1m3 at 6490); a few effect nodes still differ, as
+  the exe's reset leaves them.

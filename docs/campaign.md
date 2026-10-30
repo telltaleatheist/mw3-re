@@ -928,6 +928,32 @@ beyond the kills:
   scan (0x004a76b0) makes no turret on it, and a destroy objective whose
   entity is never found counts as met (0x0045f3b0). So it is done at core
   frame 0, as the exe would have it.
+- **The retry** (`--campaign-chain retry:N`, ours). Each mission's first
+  try is ended at core frame 75 the way the pause menu's REPLAY ends it
+  (0x0048fa80: lost at once). The debriefing's CONTINUE takes the failed
+  path (0x0047d030): the lancemates reset, the cleanup (1, the world
+  unloaded, for Op 1 Mission 1 and Op 4 Mission 4, else 0, the world
+  kept), every animation reset (0x0050ad60 with 1), and the campaign's
+  +0xb0 cleared so the next load reads the operation's save back. Then
+  the same mission is briefed and played to its win. At core frame 30 the
+  chain compares every node's active flag with the first try's. Two port
+  gaps showed:
+  - **A lost mission counted as won.** The Win State (0x0047ac20) reads
+    the loss [0x00609926] and the cheat flag [0x00609994]. The port read
+    them through peek8, which nothing writes, so every lost or cheated
+    campaign mission counted and the campaign went on to the next one.
+    They are the missions' +0x56 and +0xc4. Test
+    `campaign_lost_or_cheated_mission_is_briefed_again_headless`.
+  - **The retry's animation reset was not ported.** 0x0050ad60 went to
+    the census. A retried mission kept its first try's animation states:
+    c1m3's two buildings already destroyed stood again with `healthy`
+    on, took every hit, and never went down, so the retry could not be
+    won. Ported as `zeff::anim_reset_all` (differential
+    `test_anim_reset.py`). All four Op 1 retries are now won by their
+    objectives (c1m3 at core frame 6490).
+  What still differs at frame 30 is a few effect nodes (explosions,
+  splashes, dust) and the effect nodes made afresh in other slots. That
+  is the original's behaviour, as the reset is the exe's.
 - **Each objective's frame.** The chain logs every objective as it
   completes ("chain objective done in ... (core frame N)"), so a fast
   win can be checked for its real end.

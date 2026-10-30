@@ -91,6 +91,7 @@ void anim_set_player(const float pos[3]);              // 0x00502d40
 void anim_set_zone(const uint8_t zone[4]);             // 0x00502d70, ignored if an id is 0xff
 void anim_keep_stopped_elapsed(int32_t on);            // 0x00502d20
 int32_t anim_stop_all(int32_t keep_elapsed);           // 0x0050ace0: every def and instance, at the mission's end
+int32_t anim_reset_all(int32_t restart);               // 0x0050ad60: stopped, the done ones restarted (a retry, a new round)
 bool anim_uses_node(const AnimDef* def, const Node* node);  // 0x00506ae0: its node, root, objects or nodes
 void anim_forget_nodes(AnimDef* def);                  // 0x00506b60: its objects' and nodes' node pointers cleared
 // 0x00506bc0 (ECX node, EDX keep_elapsed): every def and instance using the

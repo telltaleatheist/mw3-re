@@ -700,6 +700,9 @@ void GameEngine::render_flush(Handle rect) {
 bool GameEngine::world_up() { return !zcls::nodes().blocks.empty(); }
 // 0x0050ace0 at the Core state's leave: every mission animation stopped.
 void GameEngine::anim_stop(int32_t a) { zeff::anim_stop_all(a); }
+// 0x0050ad60 with ECX 1, the debriefing's retry (0x0047d030) and Instant
+// Action's next round: the mission's animations back to their start.
+void GameEngine::anim_reset() { zeff::anim_reset_all(1); }
 void GameEngine::video_clear_a(Handle rect) {
   const zvid::Surface& b = zvid::surfaces().back;
   int32_t r[4] = {0, 0, b.width, b.height};

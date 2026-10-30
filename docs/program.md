@@ -353,7 +353,10 @@ apart. Everything else is a real gap and stays listed.
   With no enemy left it does what a player would. It walks to an open
   reach_area's nav point or to a valve's region, and gives the MFB
   command from the net link that sets the valve (c3m1, c3m3). It logs
-  each objective's completion frame.
+  each objective's completion frame. `retry:N` fails each mission once
+  first (the pause's REPLAY) and compares the retry's nodes with the
+  first try's (campaign.md section 14, The retry); `sdl_program_campaign_chain`
+  runs `retry:4`.
 - **`sdl_program_campaign_by_objectives`** (mw3sdltests,
   MW3_CAMPAIGN_ALL=1, about 5 minutes). The kills chain runs a new pilot
   through all 20 missions, seeded on the 33 ms clock. Each mission must

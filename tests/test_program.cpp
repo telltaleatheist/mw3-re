@@ -737,6 +737,115 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
   }
 }
 
+// A lost or cheated campaign mission is not counted (0x0047ac20: [0x00609926]
+// the loss, [0x00609994] a cheat): the debriefing's CONTINUE briefs the same
+// mission again. Until 2026-10-30 the Win State read both through peek8,
+// which nothing wrote: every lost mission counted as won and the campaign
+// went on (found by the chain's retry mode, campaign.md section 14).
+TEST(campaign_lost_or_cheated_mission_is_briefed_again_headless) {
+  if (!have_game()) return;
+  for (const bool cheat : {false, true}) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir(cheat ? "cheated_mission_write" : "lost_mission_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    int32_t next_op = 0, next_mission = 0, games_before = 0, games_after = 0;
+    bool debriefed = false, next_briefing = false;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::Pilot* pilot = mech3::create_pilot(cheat ? "Cheater" : "Loser");
+      auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::CampaignGame*>(pilot->campaigns.front()) : nullptr;
+      if (g) {  // Op 1 Mission 2, as a won Mission 1's end makes it
+        mech3::CampaignGame* n = g->next_mission(true, false);
+        if (n) pilot->campaigns.push_back(n), g = n;
+      }
+      EXPECT(g && g->operation() == 1 && g->mission_number() == 2);
+      if (!g) return;
+      pilot->current = g;
+      pilot->save();
+      games_before = static_cast<int32_t>(pilot->campaigns.size());
+      int stage = 0, core = 0;
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (stage == 0 && now == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // CAMPAIGN
+          stage = 1;
+        } else if (stage == 1) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(now);
+          if (!ps || !ps->screen) return;
+          ps->screen->refresh(false, pilot);
+          ps->screen->on_button(0x18, 0, 0);  // ACCEPT: its newest save
+          stage = 2;
+        } else if (stage == 2) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || now != &mech3::states().load || !b->loaded) return;
+          b->salvage_seen = 1;
+          b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+          stage = 3;
+        } else if (stage == 3 && now == &mech3::states().core) {
+          if (++core == 30) {
+            if (cheat) {
+              mech3::missions().cheats = 1;  // as 0x00491d20 finds a cheat on
+              mech3::missions().ended = 1;   // won
+            } else {
+              mech3::missions().abort_now();  // the pause's REPLAY: lost (0x0048fa80)
+            }
+            mech3::missions().on_command(0x71);
+            stage = 4;
+          }
+        } else if (stage == 4 && now == &mech3::states().end_win) {
+          auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
+          if (!d) return;
+          debriefed = true;
+          d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
+          stage = 5;
+        } else if (stage == 5 && now == &mech3::states().load) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || !b->loaded) return;
+          engine.game_campaign(&next_op, &next_mission);
+          next_briefing = true;
+          stage = 6;
+        }
+      };
+      CountingPump pump;
+      pump.limit = 9000;
+      pump.stop = [&] { return stage == 6; };
+      app.run(pump);
+      games_after = static_cast<int32_t>(mech3::current_pilot() ? mech3::current_pilot()->campaigns.size() : 0);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    std::printf("  Op 1 Mission 2 %s: debriefed %d; next briefing %d, Op %d Mission %d; the pilot's games %d -> %d\n",
+                cheat ? "won with a cheat" : "lost", debriefed, next_briefing, next_op, next_mission, games_before, games_after);
+    EXPECT(debriefed && next_briefing);
+    EXPECT(next_op == 1 && next_mission == 2);  // the same mission again
+    EXPECT(games_after == games_before);        // no next mission's game made
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
 TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   if (!have_game()) return;
   // Twice: with zfix bugs on (the rebuild) and off around the win (the exe's

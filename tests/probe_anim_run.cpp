@@ -558,6 +558,10 @@ void ar_stop_all(int keep) {
   zeff::anim_stop_all(keep);
   build_ids();
 }
+void ar_reset_all(int restart) {
+  zeff::anim_reset_all(restart);
+  build_ids();
+}
 int ar_save_game(const char* dir, const char* name, int load) {
   const zutl::Mounts kept = zutl::mounts();
   zutl::mounts().read = {dir};

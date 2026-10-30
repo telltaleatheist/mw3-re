@@ -1228,7 +1228,8 @@ TEST(sdl_program_campaign_chain) {
   if (!have_fonts() || !std::getenv("MW3_CAMPAIGN")) return;
   const std::string root = std::string(MW3_TEST_TMP) + "/sdl_campaign_chain";
   std::filesystem::remove_all(root);
-  const std::string split = root + "/split", single = root + "/single", kills = root + "/kills";
+  const std::string split = root + "/split", single = root + "/single", kills = root + "/kills", retry = root + "/retry";
+  std::filesystem::create_directories(retry);
   std::filesystem::create_directories(split);
   std::filesystem::create_directories(single);
   std::filesystem::create_directories(kills);
@@ -1256,11 +1257,14 @@ TEST(sdl_program_campaign_chain) {
   // c1m3's bases drive about 2.5 km to Charlie; unseeded, their wander made
   // its win frame vary from 7k to over 40k.
   const pid_t by_kills = spawn_mw3(args("kills:4", kills), kills + "/run.log");
+  // Op 1 with each mission failed once first (the pause's REPLAY), then won.
+  const pid_t by_retry = spawn_mw3(args("retry:4", retry), retry + "/run.log");
   const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
   const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));
   const bool whole_ok = wait(whole);
   const bool kills_ok = wait(by_kills);
-  EXPECT(first_ok && second_ok && whole_ok && kills_ok);
+  const bool retry_ok = wait(by_retry);
+  EXPECT(first_ok && second_ok && whole_ok && kills_ok && retry_ok);
   auto read = [](const std::string& path) {
     std::string t;
     if (std::FILE* f = std::fopen(path.c_str(), "r")) {
@@ -1367,6 +1371,18 @@ TEST(sdl_program_campaign_chain) {
   EXPECT(veh_weapons >= 5 && veh_weapons + veh_coin > veh_unarmed);
   EXPECT(lk.find("mw3: chain done at op 2 mission 1 after 4 wins") != std::string::npos);
   EXPECT(lk.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
+  // The retries (campaign.md section 14, The retry): a lost mission is
+  // briefed again (0x0047ac20 reads the loss), its animations reset
+  // (0x0050ad60), and each is then won by its objectives; c1m3's buildings
+  // stood again for it.
+  const std::string lr = read(retry + "/run.log");
+  const int failed = count(lr, "on purpose (");
+  const int retried_won = count(lr, "mw3: chain won op 1 mission "), retried_by_win = count(lr, "not won by its kills");
+  std::printf("  retries: %d failed on purpose, then %d won by their objectives, %d as --win (c1m3 at core frame %s)\n",
+              failed, retried_won, retried_by_win, core_frame_of(lr, "mw3: chain won op 1 mission 3 by ").c_str());
+  EXPECT(failed == 4 && retried_won == 4 && retried_by_win == 0);
+  EXPECT(lr.find("mw3: chain done at op 2 mission 1 after 4 wins") != std::string::npos);
+  EXPECT(lr.find("mw3: 0 original functions reached that are not ported") != std::string::npos);
   int shots = 0, lit_ok = 0;
   for (const std::string& dir : {split, single, kills})
     for (const auto& f : std::filesystem::directory_iterator(dir)) {
