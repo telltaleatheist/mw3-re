@@ -2026,3 +2026,21 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   to the census; now scaled (GameEngine::image_draw), tested in
   frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports (break:
   the old fall-through, 1 check). S16..S18 reported.
+
+## Pirate's Moon decompiled and sorted (2026-10-30)
+
+- Branch mac4/pm-diff (off main fa9aab7). No porting. Ghidra headless
+  (tools/ghidra/DumpFunctions.java) on PM into analysis-output/pm-decomp
+  (11,344 .c and functions.jsonl), the same dump of MW3 into
+  pm-diff/mw3; pm.asm, pm-func2file.json. tools/analysis/pmdiff.py pairs
+  them (6,875, 86% of MW3's 8,030 after the unwind funclets): 1,488
+  identical, 1,531 changed in calls/strings/constants/imports, 3,856 in
+  instructions only, 1,692 new, 1,155 MW3 only. PM was rebuilt with
+  VC6 (MW3: VC5), so instructions differ nearly everywhere.
+  tools/analysis/pmdata.py: the data. pirates-moon.md (two sections),
+  assets.md (Pirate's Moon), tools/analysis/README.md.
+- Readers on PM's data: archives v2, gamez 41, anim 50, mechlib 41
+  rejected; interp, textures, motions read (checked with a local build
+  taking v2, not committed).
+- Found on the way: twod.md says 0x005a3040 has no caller; MW3 calls it
+  four times (reported to the lead).

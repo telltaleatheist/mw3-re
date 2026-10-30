@@ -95,6 +95,21 @@ build with `-DMW3_GAME_DIR=<install>` (for example `build-10` on
 | ../Mech3Msg.dll | 120320, `04a9d33f`, `ceb29fa9b871fcf15fc94030e46b26d2df9ca02203859b36fbf057713bdbee01` | 123392, `e519c565`, `8899fabb7e57383a9a483cb048636bcc027334b48941aa49835cdcc1c4715b8c` |
 | ../force_eff.ifr | 2936, `d5f07541`, `9902299387d7c8767a62dced03d09bad85a68bc30ff714dffb572c80205add4c` | 4113, `4957166c`, `5d021f79378493302509ef3fad31282961e1f3c037367ae4f00faa154d3d2a26` |
 
+## Pirate's Moon
+
+Not ported yet (`pirates-moon.md`). Its data is in the same formats at
+newer versions, which the port's readers refuse: zArchives version 2 (a
+CRC after the count), `gamez.zbd` 41, `anim.zbd` 50 and `mechlib.zbd`'s
+`version` 41 (MW3: 1, 27, 39, 27); `interp.zbd`, the texture libraries and
+the motions keep MW3's (`pirates-moon.md`, PM's data against MW3 1.2's).
+
+Its disc is laid out as MW3's (DATA1.HDR/CAB, InstallShield 5), but its
+`Mech3.exe` is a loose `MECH3.EXE` on the disc beside the cabinet, not in
+it. The disc install (`mw3 --install-from`, Installing from the disc)
+reads PM's Redump image and installs its 102 cabinet files, identical to
+`game/pm`, and its CD audio, but not that exe; when PM is ported, its
+install copies the loose `MECH3.EXE` too (the port itself never runs it).
+
 ## The 1.2 patch
 
 The official patch ("MechWarrior3 Patch", DATA.TAG's Version=1.1, which
