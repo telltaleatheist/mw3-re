@@ -31,6 +31,7 @@ SdlWindow::~SdlWindow() {
 
 uint32_t SdlWindow::create(const std::string& title, int width, int height) {
   if (!window_) return 0;
+  if (fullscreen_) return SDL_SetWindowTitle(window_, title.empty() ? "MechWarrior 3" : title.c_str()), kHwnd;
   SDL_SetWindowSize(window_, width, height);
   SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
   if (!title.empty()) SDL_SetWindowTitle(window_, title.c_str());
@@ -40,7 +41,9 @@ void SdlWindow::set_title(const std::string& title) {
   if (window_) SDL_SetWindowTitle(window_, title.c_str());
 }
 void SdlWindow::show() {
-  if (window_ && !hidden_) SDL_ShowWindow(window_), SDL_RaiseWindow(window_);
+  if (!window_ || hidden_) return;
+  if (fullscreen_) SDL_SetWindowFullscreen(window_, true), SDL_SyncWindow(window_);
+  SDL_ShowWindow(window_), SDL_RaiseWindow(window_);
 }
 // The display rect the game draws: with any_resolution its shape is kept
 // (pillarboxed in a window of another shape), and a window opened without
@@ -49,7 +52,7 @@ void SdlWindow::frame_size(int width, int height, int canvas_w, int canvas_h) {
   shape_.frame_w = width, shape_.frame_h = height;
   shape_.canvas_w = canvas_w, shape_.canvas_h = canvas_h;
   shape_.fit = zfix::options().any_resolution;
-  if (!window_ || !shape_.fit || !auto_size_) return;
+  if (!window_ || !shape_.fit || !auto_size_ || fullscreen_) return;
   int w = 0, h = 0;
   default_window(shape_, &w, &h);
   SDL_SetWindowSize(window_, w, h);

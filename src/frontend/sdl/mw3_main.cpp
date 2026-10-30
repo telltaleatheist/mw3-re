@@ -32,6 +32,7 @@
 //                        frame's shape, and a given size pillarboxes the frame)
 //   --nosound            no audio device (a silent DirectSound stand-in)
 //   --hidden             keep the window hidden
+//   --windowed           a window, not fullscreen (also --window, or windowed=1 in mw3.cfg)
 //   --verbose            list every unported function reached at exit
 #include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
@@ -108,6 +109,7 @@ struct Args {
   bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
+  bool windowed = false;      // --windowed (or windowed=1 in mw3.cfg): not fullscreen
   bool window_given = false;  // --window: kept, the frame pillarboxed in it (else the frame's shape)
   std::string chain;          // --campaign-chain new:N / resume:N (ours, campaign_chain.h)
   int frame_ms = 0;           // --frame-ms N: each frame shown N ms on the game's clock (ours)
@@ -128,7 +130,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -181,6 +183,7 @@ bool parse(int argc, char** argv, Args& a) {
       a.click_up = c ? std::atoi(c + 1) : a.click + 3;
     }
     else if (s == "--hidden") a.hidden = true;
+    else if (s == "--windowed") a.windowed = true;
     else if (s == "--verbose") a.verbose = true;
     else if (s == "--pos" && next(3)) {
       for (float& v : a.pos) v = std::strtof(argv[++i], nullptr);
@@ -217,6 +220,7 @@ void read_config(const std::string& dir, Args& a) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
     if (line.rfind("install=", 0) == 0 && a.install.empty()) a.install = line.substr(8);
     else if (line.rfind("assets=", 0) == 0) a.assets.push_back(line.substr(7));
+    else if (line == "windowed=1") a.windowed = true;
   }
 }
 
@@ -283,6 +287,9 @@ int run(const Args& a) {
   input.mickey_scale = a.win_w > 0 ? 640.0f / static_cast<float>(a.win_w) : 1.0f;
   input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
   window.set_auto_size(!a.window_given);
+  // Fullscreen by default (ours): the desktop's size, the frame fitted in it
+  // (sdl_fit.h). Checks and shots stay in a window.
+  window.set_fullscreen(!a.windowed && !a.window_given && !a.hidden && a.frames == 0 && a.chain.empty());
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
