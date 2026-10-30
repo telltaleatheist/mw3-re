@@ -778,19 +778,30 @@ Handle GameEngine::video_grab(int32_t) {
   Handle h = kGrabs;
   while (grabs_.count(h)) h += 0x10;
   std::vector<uint16_t> still;
-  if (video_mode() != 0 && read_frame(p_.render, width_, height_, &still)) grabs_[h] = std::move(still);
-  else grabs_[h] = buffer_;
+  if (video_mode() != 0 && read_frame(p_.render, width_, height_, &still)) grabs_[h] = {width_, height_, std::move(still)};
+  else grabs_[h] = {width_, height_, buffer_};
   return h;
 }
 bool GameEngine::shown_frame(std::vector<uint16_t>* out) {
   return last_via_render_ && !buffer_is_screen_ && read_frame(p_.render, width_, height_, out);
 }
-// 0x0055b1f0: the fade's still back over the buffer, whole, at 0, 0.
+// 0x0055b1f0: the fade's still back over the buffer, whole, at 0, 0. A still
+// taken at another size (the mission's canvas, 853x480 at 16:9, faded out
+// after the switch to the menus' 640x480) is scaled to the buffer: ours
+// (fixes.md, The screen grab in Direct3D).
 void GameEngine::image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) {
   auto it = grabs_.find(image);
-  if (it == grabs_.end() || x || y || rect || it->second.size() != buffer_.size())
-    return (void)Engine::image_draw(image, x, y, key, rect);
-  buffer_ = it->second;
+  if (it == grabs_.end() || x || y || rect) return (void)Engine::image_draw(image, x, y, key, rect);
+  const Grab& g = it->second;
+  if (g.width == width_ && g.height == height_ && g.pixels.size() == buffer_.size()) {
+    buffer_ = g.pixels;
+    return;
+  }
+  if (g.width <= 0 || g.height <= 0 || g.pixels.size() != static_cast<size_t>(g.width) * g.height) return;
+  for (int yy = 0; yy < height_; ++yy) {
+    const uint16_t* src = g.pixels.data() + static_cast<size_t>(yy * g.height / height_) * g.width;
+    for (int xx = 0; xx < width_; ++xx) buffer_[static_cast<size_t>(yy) * width_ + xx] = src[xx * g.width / width_];
+  }
 }
 // 0x00558540, ported (zrndr::tint): kept for the software finish, or the
 // Direct3D quad. A rect is four ints in the modules' memory.

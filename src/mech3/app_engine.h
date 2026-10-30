@@ -602,7 +602,11 @@ class GameEngine : public Engine {
   std::vector<uint16_t> buffer_;
   std::vector<uint8_t> cover_alpha_;   // the layer's blends (zrndr::LayerCover), FIX (A)
   std::vector<uint16_t> cover_colour_;
-  std::map<Handle, std::vector<uint16_t>> grabs_;  // the fade's stills, by handle
+  struct Grab {
+    int width = 0, height = 0;  // the buffer's when it was taken
+    std::vector<uint16_t> pixels;
+  };
+  std::map<Handle, Grab> grabs_;  // the fade's stills, by handle
   uint32_t cursor_ = 1;
   zutl::MessageDll dll_;
   std::string formatted_;
