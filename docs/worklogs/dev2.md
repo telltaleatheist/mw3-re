@@ -67,3 +67,19 @@ works alongside it; stay out of its files.
   screen-recording access to click or capture it). The dialog's pick flow
   needs a person: the lead tests it on Owen's PC.
 - Branch `mac5/find-install` off main cd45f5f.
+
+## 6. S8 and S10: the lab view (2026-10-30)
+
+- Both as the original; no code change.
+- The 3D window is (210, 52)-(430, 288) ([0x005e4688], 0x00450460, its only
+  caller 0x0045015d) on every page; the camera's place and rotation are read
+  from [0x005e4648] / [0x005e4678] only at 0x00450321 and nothing else
+  writes them. The frame draws the screen under the 3D lock (0x00448f10),
+  then the mech (0x00450690), so the mech covers anything 2D in its window.
+- S8: the criticals line is the page's dialog text at (220, 60), inside
+  that window: covered whenever the head turns past.
+- S10: shots at frame 3000 of the chassis, criticals and groups tabs, at
+  1280x960 and at 1280x720, frame the Bushwacker alike; the visual pass's
+  crop (640 scale, origin about (330, 0)) matches this geometry with the
+  mech side-on. The turn (0.8 rad/s) decides how it sits.
+- Branch `mac5/lab-view-s8-s10` off main 730a01c (docs only).

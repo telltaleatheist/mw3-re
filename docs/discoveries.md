@@ -3714,6 +3714,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   back in Mission 1, it is still a wreck and counts at once. A destroy
   objective whose target is gone is met. (docs/campaign.md, section 14)
 
+- **The mech lab's turning mech covers the criticals count.** On the
+  criticals page the line "12 Criticals Available / 14 Reserved for
+  Ferro-Fibrous Armor" sits inside the 3D view's window, and the game draws
+  the mech after the page, so the mech's head passes over the text as it
+  turns. (docs/mechlab.md, The 3D view)
+
 - **Op 3 Mission 1's breach is the MFB call to Charlie.** The mission is
   won when the Mobile Field Bases drive through to the Charlie deploy
   point and the HQ building is down. The bases go to the deploy point
