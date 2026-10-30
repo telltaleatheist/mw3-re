@@ -1748,3 +1748,27 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   bug), the flag ignored (4 fail).
 - Shot: `--turret-ahead 30 --tap 12@150:175`, c1m1's nearest turret,
   before green, after yellow (outbox).
+## The damage decals (2026-10-29)
+
+- Branch mac4/damage-decals (off main a3a6eb3).
+- 0x00474d90 `SkinSet::damage_decal`, 0x00474cd0 `Skin::find_texture`, the
+  cookie 0x00542730 (`zmod::cookie`) and zImage's named image cache
+  0x005179d0 / 0x00517b10 ported; 0x00414370 and the decal wired
+  (DamageCalls). The SkinGlobals fetch, release and entry release now fall
+  back to the ports (the entry release is zImage's 0x00518b30, which only
+  ran once the damage skin loaded). Census stand-ins and the known entry
+  gone (known_unported expects 52).
+- test_decal.py: 3000 cookies and 3000 decals identical. Breaks caught:
+  565 green's sign bit, the 555 threshold, the hole pick's n - 1, a cached
+  entry matched by its image.
+- Found on the way: the program never had holes. InstallOptions 0x101 (2 MB
+  card set only) made the mission load pick the reduced mech textures
+  (rmechtex16) and turn HOLES off. With the lead's go it is now 0x070707, a
+  full install; the bits are mapped from the exe's readers and SETUP.INS
+  (settings.md).
+- In play (`mission_c1m2_damage_decals_are_painted_headless`): 8 holes, about
+  150 decals at the hits' UVs on the Mad Cat's textures. My first guess, that
+  the UV stays 0,0, was wrong: flag-2 materials always store it.
+- `--mech-ahead M` (ours) keeps the player near the first enemy mech, for
+  shots.
+- Known duplicate noted: SdlTwodHost's image cache is a second 0x005179d0.

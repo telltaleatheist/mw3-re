@@ -1,3 +1,5 @@
+#include "gamez/zmodel/gmod_hit.h"
+#include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
 #include <array>
 #include <set>
@@ -8559,13 +8561,14 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     // The run repeats bit for bit (reset_process_state's fixed seed: the
     // game's own seed is the clock), so its outcome is exact: these change
     // only when the AI, the walk, the weapons or another rand() user do (the
-    // puffers' since they tick, 0x005490e0, as the exe's; hooks-audit.md).
+    // puffers' since they tick, 0x005490e0, as the exe's; hooks-audit.md; the
+    // damage decals' hole pick, 0x00474d90, one draw a hit).
     std::printf("  dominic's order: fired %d / %d, on enemy %d, d0 %.3f, closest %.3f, on player %d, phases %d %d %d %d\n",
                 seen.fired_before, seen.fired_after, seen.on_enemy, seen.d0, seen.closest, seen.on_player, seen.phases[2],
                 seen.phases[3], seen.phases[4], seen.phases[5]);
     if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
       EXPECT(seen.fired_before == 53 && seen.fired_after == 951 && seen.on_enemy == 1139);
-      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 58.075f) < 1e-3f);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 59.301f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
       EXPECT(seen.on_player == 567);  // his next pick, once the player is 30 m off
       EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 951 && seen.phases[5] == 184);
@@ -11194,7 +11197,7 @@ TEST(known_unported_keys_name_their_reason) {
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
                         "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
-                        "0x00495f90", "0x0049bd80", "0x00414370", "0x0046ef70",
+                        "0x00495f90", "0x0049bd80", "0x0046ef70",
                         "0x0046f160", "WeaponCalls.net_event"}) {
     const char* why = mech3::GameEngine::known_unported(k);
     EXPECT(why != nullptr);
@@ -11204,7 +11207,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 53);
+  EXPECT(n == 52);
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",
@@ -12672,6 +12675,105 @@ TEST(mission_c1m1_a_fall_fixes_the_cockpit_camera_until_up_headless) {
   std::printf("  the view's mode %d, fixed %d before; knocked down at 60: fixed at core frame %d, turning again at %d\n",
               mode_before, fixed_before, fixed_at, free_at);
   EXPECT(mode_before == 1 && !fixed_before && fixed_at > 60 && free_at > fixed_at);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The damage decals in play (docs/damage-decals.md): c1m2's mechs and the
+// player in a fight on the GPU path, each 0x00474d90 that paints counted
+// through the cookie (0x00542730, run for real). The holes land at the hits'
+// UVs (a flag-2 material's crossing stores them), not at (0, 0).
+TEST(mission_c1m2_damage_decals_are_painted_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_decals"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  static int updates = 0;
+  updates = 0;
+  struct Gpu : platform::Render3D {  // a device, so the Direct3D paths (and HOLES, mission.cpp) run
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override { ++updates; }
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  static int painted = 0, at_corner = 0, holes_loaded = 0;
+  static std::set<std::string> textures;
+  painted = at_corner = holes_loaded = 0;
+  textures.clear();
+  mech3::skin_globals().cookie = [](zimg::TextureEntry* t, const zimg::Texture* f, const zimg::Texture* h) {
+    const bool r = zmod::cookie(t, f, h);
+    if (r) {
+      ++painted;
+      at_corner += zmod::uv_capture().uv[0] == 0.0f && zmod::uv_capture().uv[1] == 0.0f;
+      textures.insert(t->name);
+    }
+    return r;
+  };
+  int core = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 0, l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      if (core == 30) holes_loaded = static_cast<int>(mech3::skin_globals().holes.size()), updates = 0;
+      if (core % 900 == 60) {  // the player taken to the next enemy mech, as for the vehicles' shots
+        std::vector<void*> mechs;
+        for (const uint32_t h : mech3::ai::entity_list()) {
+          void* o = engine.object_of(h);
+          if (mech3::entity_is_mech(o) && o != mech3::mech_mission_player() && mech3::mech_health(o) > 0) mechs.push_back(mech3::mech_node(o));
+        }
+        if (!mechs.empty()) mech3::chain_player_near(mechs[static_cast<size_t>(core / 900) % mechs.size()], 60.0f);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    pump.stop = [&] { return core >= 3600; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::skin_globals().cookie = nullptr;
+  std::string names;
+  for (const std::string& t : textures) names += " " + t;
+  std::printf("  c1m2: %d bullet holes loaded; %d decals painted (%d at the UV's (0, 0)) on%s; %d texture updates\n",
+              holes_loaded, painted, at_corner, names.c_str(), updates);
+  EXPECT(holes_loaded == 8 && painted > 0);
+  EXPECT(at_corner < painted / 10);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
