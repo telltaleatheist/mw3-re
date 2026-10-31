@@ -21,7 +21,11 @@ the mockups were handed over in the outbox (launcher-sketch).
 4. **The launcher screen** (mockup 1). Entries:
    - **MechWarrior 3**: "Ready: version 1.2, <folder>", or "Not set up yet"
      (a click opens the setup screen), or for 1.0 data "Ready: version 1.0
-     (Setup can apply the 1.2 patch)".
+     (Setup can apply the 1.2 patch)". A folder too long for the plate is
+     shortened from the middle by its drawn width ("Ready: version 1.2, "
+     kept, more of the folder's end; `fit_middle`, text_fit.cpp): a long
+     path ran past both sides on Owen's PC (lead, 2026-10-31).
+     `launcher_long_path_fits_the_button`.
    - **Pirate's Moon**: greyed, "Coming later".
    - **MechWarrior (1989)**: only when the MW1 port is found beside ours
      (below).
@@ -79,14 +83,20 @@ filtered to .iso/.cue, .zip, or Mech3.exe.
 ## MechWarrior (1989)
 
 Elthial's MechWarrior SDL port (github.com/Elthial/Mechwarrior-sdl-port;
-MIT for its own code, credited in the launcher's line and
-THIRD-PARTY.txt; we ship none of it). Shown when `mechwarrior.exe`
-(`mechwarrior` elsewhere) is beside `mw3` or in a `MechWarrior1989\`
-folder beside it. It needs the player's MW1 folder (`BTECH.EXE`): found
-once by a folder picker and kept as `mw1_game=` in mw3.cfg. Started with
-`SDL_CreateProcess` as its own script does (`mechwarrior.exe <game dir>
-<capture dir>`, the capture dir `<write dir>/mw1`); the launcher's window
-hides until it exits, then comes back.
+MIT for its own code, credited on its entry's line, "Elthial's SDL port";
+we ship none of it, so no licence file goes with ours). Shown when
+`mechwarrior.exe` (`mechwarrior` elsewhere) is beside `mw3` or in a
+`MechWarrior1989\` folder beside it (`MW3_MW1_PORT` names it, for checks).
+It needs the player's MW1 folder (`BTECH.EXE`, any case): picked once with
+a folder picker and kept as `mw1_game=` in mw3.cfg (`save_config_value`).
+Started with `SDL_CreateProcess` as its own script (Run-MechWarrior.ps1)
+does: `mechwarrior <game dir> <capture dir>`, the capture dir
+`<write dir>/mw1/captures` (made first: the port wants it existing) and
+MECHWARRIOR_SAVE_DIRECTORY `<write dir>/mw1/saves`; its MechWarrior.ini
+is its own, beside it. The launcher's window hides until it exits, then
+comes back with a line saying how it closed. Built 2026-10-31;
+`--launcher-mw1` presses it at once (checks);
+`sdl_program_launcher_starts_mechwarrior_1989` (a stand-in script).
 
 ## Built (2026-10-30, mac5/launcher-ui)
 
@@ -95,14 +105,18 @@ hides until it exits, then comes back.
 `--shot`, a chain, `--mission`/`--fly`, `--movie`, `--dialog`, `-nofmv`, a
 named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 - Its own SDL_Renderer window (fullscreen unless `--windowed`/`--window`),
-  a 640x480 RGB565 canvas letterboxed into it; the game's window opens
-  after it closes (one window throughout is still to do).
+  a 640x480 RGB565 canvas letterboxed into it. PLAY hands the window to the
+  game (2026-10-31): the renderer is freed and `SdlWindow::init` claims the
+  same window for its GPU device instead of opening a second one. The
+  window is not high pixel density, as the game's never was (its sizes are
+  the window's points). `--launcher-play` presses MECHWARRIOR 3 at once
+  (for checks); `sdl_program_launcher_window_goes_on_to_the_game`.
 - The install found quietly: mw3.cfg's, `<write dir>/install` (the disc
   install's), the finder's places, a development copy; each through
   `setup::check_install`. None: the setup screen first.
 - The main screen: MechWarrior 3 (ready, its version and folder, or "not
-  set up yet"), Pirate's Moon greyed, SETUP, QUIT. MechWarrior (1989) is
-  not wired yet.
+  set up yet"), Pirate's Moon greyed, MechWarrior (1989) when its port is
+  there (below), SETUP, QUIT.
 - The setup screen: FIND (the finder, else a folder picker), INSTALL (a
   disc `find_discs` sees, else a .iso/.cue picker; `probe_source`'s line and
   INSTALL/BACK, then `install_from_disc` into `<write dir>/install`, a
@@ -115,11 +129,29 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
   when there is one, else a condensed system face (Bahnschrift on
   Windows, DIN Condensed on the Mac, DejaVu Sans Condensed on Linux): a
   placeholder, as is the title art's "MW3 REBUILD".
-- The hover ripple is `zrndr::ripple` on the canvas; no sounds yet.
+- The hover ripple is `zrndr::ripple` on the canvas. The sounds are the
+  main menu's own (2026-10-31): sounds.zrd's MAINMENU set, menu_rollover
+  (sfx_button2.wav at 0.7) when the hovered or focused button changes and
+  menu_select (sfx_button6.wav) on a press, read from the install's
+  soundsL.zbd (else soundsH.zbd) as zSnd reads them, through an SDL audio
+  stream. None without an install (loaded once one is known, after SETUP
+  too) or with `--nosound`; `MW3_LAUNCHER_MUTE` plays them at no volume
+  (checks). `sdl_program_launcher_plays_the_menus_sounds`.
 - Mouse, arrows/Tab, Enter/Space, Escape (back, or quit on the main
   screen).
-- `--launcher-shot FILE [--launcher-screen main|setup|work]` draws one
-  screen into a BMP; `sdl_program_launcher_screens` checks the three.
+- The first start's notes (2026-10-31): with no `install=` in mw3.cfg yet
+  (PLAY saves one) and something to say, the launcher opens on BEFORE YOU
+  PLAY, then OK to the main screen. The notes (`launcher_notes`,
+  launcher_notes.cpp) are the start's in the launcher's words: 1.0 data or
+  a mix (SETUP can apply the 1.2 patch), files of no known version, and no
+  music (SETUP's ADD THE MUSIC, or a rip as track02.ogg ... in the write
+  dir's music; the folder shortened to fit). Logged on every start. Before
+  this, a player who came through the launcher never saw them: the install
+  it hands over is not a searched one, so the message box after it
+  (mw3_main, still there for `--no-launcher`) did not show.
+  `launcher_first_start_notes`.
+- `--launcher-shot FILE [--launcher-screen main|setup|work|notes]` draws one
+  screen into a BMP; `sdl_program_launcher_screens` checks the four.
 
 ## Open
 

@@ -25,7 +25,9 @@ class SdlMusicOutput;
 // UpdateWindow shows it.
 class SdlWindow : public platform::Window {
  public:
-  bool init(bool hidden_for_good);  // the window and GPU device; false with SDL's error printed
+  // The window and GPU device; false with SDL's error printed. `adopt`: the
+  // launcher's window, taken instead of a new one (ours, docs/launcher.md).
+  bool init(bool hidden_for_good, SDL_Window* adopt = nullptr);
   ~SdlWindow() override;
   uint32_t create(const std::string& title, int width, int height) override;
   void set_title(const std::string& title) override;

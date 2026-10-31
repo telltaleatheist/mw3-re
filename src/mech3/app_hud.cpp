@@ -32,6 +32,7 @@
 #include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
+#include "crt/msvc_math.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "mech3/landmines.h"
@@ -68,6 +69,7 @@ namespace mech3 {
 
 int32_t display_w();  // options.h (0x0040d760), not includable with mech.h
 int32_t vmode();      // options.h (0x0040d9d0)
+void render_to_screen(float p[2]);  // options.h (0x0040da30)
 const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
 
 
@@ -975,6 +977,29 @@ int program_hud_aim_at(void* node, float distance) {
   h->reticle.hit = zwep::HitRecord{};
   h->reticle.hit.node = node;
   h->reticle.aim_distance = distance;
+  h->reticle.lock = 0, h->reticle.state = -1;
+  h->reticle.aim_state(false);
+  return h->reticle.state;
+}
+
+// For the tests: the reticle put over a world point and its pick run
+// (0x00444350), then its aim state (0x00443d20); the node hit, if any.
+int program_hud_pick_at(const float at[3], void** node, float* distance, float* range, float* far_clip) {
+  auto* m = static_cast<Mech*>(mech_mission_player());
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  if (!h) return -1;
+  HudHooks& k = hud_hooks();
+  k.view_prepare();
+  float s[3];
+  k.project(at, s);
+  render_to_screen(s);
+  h->reticle.set_pos(crt::msvc_ftol(s[0]), crt::msvc_ftol(s[1]));
+  h->reticle.aim();
+  *node = h->reticle.hit.node;
+  *distance = h->reticle.aim_distance;
+  *range = k.group_range(k.mech_weapons(m));
+  float near_z = 0.0f;
+  k.player_camera_clip(&near_z, far_clip);
   h->reticle.lock = 0, h->reticle.state = -1;
   h->reticle.aim_state(false);
   return h->reticle.state;
