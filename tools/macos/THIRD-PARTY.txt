@@ -1,0 +1,57 @@
+Third-party software in this app
+================================
+
+The app uses the libraries below, in Contents/Frameworks. Each library's own
+licence files are in Contents/Resources/licenses/<library>/. Thank you to all
+of their authors.
+
+
+SDL 3 (libSDL3)
+---------------
+Simple DirectMedia Layer, https://www.libsdl.org/
+Copyright (C) 1997-2026 Sam Lantinga and others. zlib licence.
+
+
+SDL_ttf 3 (libSDL3_ttf)
+-----------------------
+https://github.com/libsdl-org/SDL_ttf. Copyright (C) 1997-2025 Sam Lantinga
+and others. zlib licence. It loads:
+- FreeType (libfreetype), under the FreeType License (FTL),
+  https://freetype.org/license.html. Portions of this software are
+  copyright (C) The FreeType Project (www.freetype.org). All rights
+  reserved.
+- HarfBuzz (libharfbuzz), MIT licence ("Old MIT"),
+  https://github.com/harfbuzz/harfbuzz, which loads graphite2 (libgraphite2,
+  LGPL 2.1 or later, or MPL 2.0, https://github.com/silnrsi/graphite) and
+  GLib (libglib-2.0, LGPL 2.1 or later, https://gitlab.gnome.org/GNOME/glib),
+  which loads GNU gettext's libintl (LGPL 2.1 or later,
+  https://www.gnu.org/software/gettext/) and PCRE2 (libpcre2-8, BSD,
+  https://github.com/PCRE2Project/pcre2).
+- libpng (libpng16), the libpng licence, http://www.libpng.org/.
+The LGPL libraries are unmodified Homebrew builds, loaded dynamically from
+Contents/Frameworks; you may replace them with your own builds of the same
+versions. Their source: the project links above, and Homebrew's formulae
+(https://github.com/Homebrew/homebrew-core), which name the exact versions.
+
+
+SDL_sound 3 (libSDL3_sound)
+---------------------------
+https://github.com/icculus/SDL_sound. Copyright (c) 2001-2026 Ryan C. Gordon
+and others. zlib licence. Its built-in decoders have their own terms:
+- dr_mp3, dr_flac and dr_wav (David Reid): public domain (Unlicense), or
+  MIT-0.
+- stb_vorbis (Sean Barrett): public domain, or MIT.
+- libmodplug (Olivier Lapicque and others): public domain.
+- TiMidity (Copyright (C) 1995 Tuukka Toivonen): the Perl Artistic License.
+
+
+pl_mpeg (built into the program)
+--------------------------------
+Dominic Szablewski, https://github.com/phoboslab/pl_mpeg. MIT licence.
+
+
+MechWarrior 3
+-------------
+None of the game's files are in this app; the program reads your own copy.
+MechWarrior is a trademark of its owner; this project is not affiliated with
+or endorsed by its owner.
