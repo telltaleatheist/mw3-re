@@ -414,3 +414,18 @@ works alongside it; stay out of its files.
   held button is swallowed until let go. `sdl_mission_start_drops_the_launch_click`
   (3 checks fail without). Owen to confirm. Branch `mac5/w30-launch-fire`
   off main d1e5b9e6.
+
+## 32. 16:9 menus, in progress (2026-10-30)
+
+- Branch `mac5/menus-wide` (off main 98665790): `--wide-menus` (zfix
+  wide_menus, a display switch like any_resolution, off by default),
+  Engine::menu_vmode, GameEngine::widen_screen with per-screen group tables
+  (main menu 0x486260, game options 0x4379f0), the background widened from
+  its edges (Host::image_new). Lead approved tables (2026-10-30).
+- Next: the green underlines and the options' right box frame do not move
+  (fixed-rect primitives: move them by their rects); then graphics/audio,
+  controls, pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
+  message boxes; a test per screen (rects anchored), shots each.
+- Shots: scratch run with VMode irrelevant; `--wide-menus --window
+  1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas
+  (58,360).
