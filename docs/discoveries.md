@@ -563,6 +563,22 @@ From the weapon code (weapons.md).
   and walking off never fails the mission (whatever the ground itself lets
   you reach). (docs/hud.md, section 15)
 
+- **In Op 2 Mission 3 the tunnel is out of bounds.** The last objective
+  says "Enter Tunnel", but what it checks is that you come within 10 m of
+  the Charlie nav point at the tunnel's mouth. The tunnel itself is marked
+  as leaving the mission area: about 150 m in, "leaving mission area"
+  plays (though no boundary line is near on the radar), and the box at its
+  far end fails the mission like walking off the map. Walk to Charlie
+  itself. The warning plays only once a mission, so a second trip into the
+  tunnel is silent.
+
+- **In Op 2 Mission 3 "all Smoke Jaguar forces" are not all of them.**
+  The objective lists two Fireflies by names the mission does not use, so
+  they count as destroyed from the start, and it never lists the six
+  APCs. Once the Champion and the other listed mechs are down it says the
+  forces are destroyed, while two Fireflies and the APCs may still be out
+  there.
+
 - **A quick click's laser beam hangs back.** A short laser fires on for a
   moment after you let go of the button, until its charge is spent, but only
   follows the arm while the button is held: after a quick click on a walking

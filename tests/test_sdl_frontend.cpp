@@ -532,6 +532,44 @@ TEST(sdl_held_mouse_keeps_the_cursor_hidden) {
   SDL_ShowCursor();
 }
 
+// Playtest W30: "as soon as it started, a bunch of lasers fired ... I
+// hadn't fired anything" (c2m3, from the briefing's LAUNCH). A click from
+// the screen before the mission, still latched or still held, read as the
+// mission's first fire. Into the mission, a latched press is dropped and a
+// held button is the game's only after it is let go; the next click fires.
+TEST(sdl_mission_start_drops_the_launch_click) {
+  sdlfe::SdlInput in;
+  sdlfe::SdlPump pump(&in, nullptr);
+  bool mission = false;
+  in.windowed = [] { return false; };
+  in.in_mission = [&] { return mission; };
+  in.set_cooperative_level(platform::Input::kMouse, 5);
+  EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0);
+  platform::MouseState ms;
+  auto button = [&](bool down) {
+    SDL_Event e{};
+    e.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+    e.button.button = SDL_BUTTON_LEFT;
+    pump.handle(e);
+  };
+  // A click on LAUNCH within one frame: latched, unread.
+  button(true), button(false);
+  mission = true;
+  EXPECT(in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  // LAUNCH pressed and still held as the mission starts.
+  mission = false;
+  in.mouse_state(&ms);
+  button(true);
+  mission = true;
+  EXPECT(in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  EXPECT(in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  button(false);
+  EXPECT(in.mouse_state(&ms) == 0 && !ms.buttons[0]);
+  button(true);  // the next click is the game's
+  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0]);
+  button(false);
+}
+
 TEST(sdl_window_lets_the_mouse_go) {
   sdlfe::SdlInput in;
   sdlfe::SdlPump pump(&in, nullptr);

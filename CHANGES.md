@@ -371,12 +371,14 @@ These change how the game talks to the computer, not how it plays.
 - In a window, the menus leave the mouse free: the menu cursor follows the system's, and the mouse can leave the window (to resize it, or to use another program).
 - In a window during a mission, pressing Ctrl+Alt together (and letting go) frees the mouse; the game ignores it until you click inside the window again, and that click does not fire. The pause menu frees it too, and switching to another program leaves it free until you click back in. Fullscreen holds the mouse as before.
 - While the game holds the mouse (a mission, or fullscreen), the system's cursor stays hidden even if Windows or SDL let go of the mouse for a moment (it showed in the middle of the screen).
+- The click on LAUNCH (or RESUME) no longer fires your weapons as the mission starts.
 - Switching away from the game (Alt+Tab) mutes its sounds and pauses it, as the original did, and nothing you were holding (a key, a mouse button) stays held when you come back.
 - The game opens fullscreen at your desktop's resolution, the picture fitted with bars at the sides if its shape differs, instead of switching the monitor to 640x480. `--windowed` (or `windowed=1` in `mw3.cfg`) plays in a window.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.
 
 - The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
 - At 16:9, coming back from the pause menu no longer shows the top-left corner of the picture blown up over the whole screen (the menu's picture size stayed on the 3D view).
+- Changing the resolution in the options during a mission no longer leaves part of the HUD undrawn (the weapon list, the speed gauge's marks).
 
 - The game's question boxes ("Ok to delete pilot?", "Replace existing game?" and the rest) keep reading the mouse and keyboard while they wait: the original's box read DirectInput directly, the rebuild's also handles the window's events while it waits.
 
