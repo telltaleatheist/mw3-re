@@ -2138,6 +2138,119 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   once). W24: the objective's firefly_01/02 do not exist (the mission's
   are 03/04; missing names count as destroyed) and the APCs are on no
   list: a fixes.md candidate.
+## W31, jets that barely lift (2026-10-30)
+
+- Branch mac4/w31-jets (off main 98665790). Skis::integrate (0x477940)
+  sets a probe under the ground to (ground - y) / max(dt, 1/30 s); above
+  30 fps that is slower than the jets' climb it replaces, and walking up a
+  slope the probes stay under the ground every frame, so the mech skims.
+  The exe does the same. FIX (B) behind per_second: above 30 fps the
+  speed over the frame's own step (as 30 fps had it); the hard landing
+  still by the 1/30 s speed. A first version (the catch-up only raising
+  the speed) left a leftover climb at 60 fps and changed Dominic's c1m4
+  run more (his target survived); this one keeps it destroyed, his
+  aiming 96 -> 145 and firing 841 -> 792 frames. Test: 25 states with fixes on and off (frame steps
+  1..100 ms, a 400 ms hitch, fuel 0.1/0.26/0.3, hot, walking); the
+  original's path skims at 60 and 144 fps walking. Fuel just under 0.25
+  still lights: the ground refills it while the key's thrust ramps.
+  Destroying a leg (mech_destroy_part 9/10) did not change the gait in
+  the headless run, so it is not among the cases.
+
+## W32, c3m1 HQ arrow and TARGET view (2026-10-30)
+
+- As the original, docs only (on mac4/w31-jets). The yellow bottom arrow
+  is the nav point's (0x479ef0), Mission Start behind-left: behind the
+  camera 0x53cf10 returns the bottom code with x squeezed from +-5000.
+  TARGET's view for a targets.zrd object needs the record's `display`
+  (0x4d3350); no shipped record sets it.
+
+## W33, the reticle green past 800 m (2026-10-30)
+
+- Branch mac4/w33-reticle (on mac4/w31-jets). HudReticle::aim
+  (0x444350) queries near..far clip (800 m); ER large reaches 1000 m.
+  FIX (bug) behind bugs: the segment reaches group_range (0x4b1bd0)
+  when longer; the miss's point stays the far point. Test helper
+  program_hud_pick_at (project, reticle there, aim, aim_state). The
+  test needs the player 150 m up: at ground level c1m1's hills or
+  buildings block every 900 m line round the Owens.
+
+## W34, the AI's missiles (2026-10-30 night)
+
+- Branch mac4/w34-ally-missiles (on mac4/w33-reticle, after f27414ce, the
+  W31 revision). Firing's defaults: the exe's constructor 0x4b6570 copies
+  11 words from 0x5e8868, which the CRT initializer 0x4b6500 fills (time
+  FLT_MAX, waits 3/6/1 s, cosines of 20/30/45 degrees, range 50). The port
+  had 0 (the image's), so the AI fired at once and up to 90 degrees off;
+  the launcher clamp (0x4b36e0, 27 degrees) then sent shots along the
+  part's facing. Fixed in zai_firing.h. test_ai_brain.py runs 0x4b6500
+  and probe_ai_brain.cpp writes the fields (was hard-coded zeros); break
+  caught. Headless: c2m1, the strider facing the player 150 m off; 13 of
+  23 missiles past 27 degrees before, 0 of 5 after. Test-only hook
+  program_watch_shots (WeaponCalls::test_fired). Pinned AI runs re-pinned
+  where the slower firing moved them (see the commit).
+
+## State for the morning (2026-10-30 night)
+
+- Holding after W34 (the lead: one worker overnight; resume in the morning).
+- W32 reopened (not started): Owen Q-targets buildings (the HQ) that are
+  not on the radar unless targeted, and their radar blip (maybe Shift+R's
+  map too) sits in the wrong place. Check the radar position read for a
+  targeted building or targets.zrd object (node or centroid vs a mech's
+  +0x14, offsets, world vs local) against 0x43dd00. Test: c3m1 hqbuild
+  Q-targeted, its blip at its world bearing and range like a mech's.
+- Release work: tools/deps/build_deps.sh (mac4/deps) is waiting on Owen's
+  permission to build the downloaded code (the classifier denied it here;
+  not worked around). The WSL packages are installed (A, the lead ran the
+  apt command). C approved (appimagetool, linuxdeploy from GitHub
+  releases). Then: point make_app.sh at the prefix (universal, macOS 12),
+  bundle mw3import with FFmpeg, the Linux build, tests and AppImage.
+- Branches stacked: mac4/w31-jets (c967cb18) <- mac4/w33-reticle
+  (99c4f4af) <- mac4/w34-ally-missiles (f27414ce W31 revision, then W34);
+  merging w34 brings all three.
+- The full run on the W34 tree: 257 tests, 13 failed checks in 5 AI tests
+  (owens_runs_its_frames 8404/8410, lancemate_forms_up_only_in_training
+  9505, and the three c1m4 Dominic tests: takes_the_order 10661-10665,
+  fires_on_a_target 10997/10998, shoots_a_near_enemy_unordered (now aims_at_...)
+  11309-11323). Not only pins: the Owens no longer fires on the player 30 m
+  off, and Dominic no longer fires on a near enemy (11319: firing 0).
+  Traced (the Owens): its volley plan is on a field base about 500 m off
+  whose line is blocked (from y 8 to a centroid at y -12, through the
+  ground); the plan's phase 2 passes (phase 2 skips ready()), phase 3
+  waits on ready() = the clear line for the 6 s delay, then rests 1 s and
+  the pick takes the same field base again, so the player 30 m off is
+  never taken. With the old zeros the delay ran out each tick and the pick
+  ran each tick, which is why the tests saw it fire. Open: whether the
+  pick (0x4b6790) choosing a blocked target over a near clear one is the
+  original's (its differential test passes) or our world state (the field
+  base's centroid underground, its zones). Held for the lead's call
+  before any re-pin; tree clean, W34 commit c333cd9e unchanged.
+- Settled (the lead: finish W34 tonight, same item). The pick is right: under
+  40 m the distance term is 100 and a blocked line only multiplies by 10, so
+  the player 30 m off wins; the Owens' base plan was picked before the
+  player was moved, and phase 3 keeps a plan to its delay (6 s). The y -12
+  is the exe's: 0x458a70 -> 0x4d6c90(node, 0, 0, 0) -> 0x5a8390 finds or
+  makes the centroid at the node's origin and nothing raises it (mechs get
+  height / 2), and the base stands on ground at -12. Not a clear-intent
+  bug either way (the delay is the aim time; the low centroid may be
+  unintended, a candidate at most). The five tests re-read:
+  - owens_runs: phase 3 at frame 200 (the base plan waiting out the line);
+    in the bump window the base plan held to frame 379, the rest, the
+    player picked about 10 m off and turned to, no burst before 500; the
+    firing and shooting counts moved to the attack stage (500..2400:
+    bursts of about 157 frames, rests of 4 s).
+  - lancemate training: moved under 2 m (his feet shuffle 1.3 m turning in
+    place about 110 degrees in his rests; under the zeros under 1 m).
+  - Dominic's order and target runs: re-pinned (no shot before the order,
+    103 frames aiming, the player held 186 frames; the first hut ghsD5, the
+    hut still destroyed).
+  - shoots_a_near_enemy_unordered renamed aims_at_a_near_enemy_unordered:
+    his torso at its twist limit (1.92 rad) stays 55..68 degrees off the
+    enemy behind him, short of cos 45, so he aims (639 frames) and never
+    fires; under the zeros he fired 658 frames along the torso's facing.
+  Break: the zeros back in, 5 of the 6 firing tests fail (the lancemate's
+  is about the formation, not the firing). Full mw3tests 257 tests, 0
+  failed checks; test_ai_brain.py 1368 cases match. Docs: ai.md 17.7,
+  discoveries.md (two entries), playtest.md W34 row.
 
 ## W28, W29 (2026-10-30)
 
@@ -2166,3 +2279,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   /ENTRY:mainCRTStartup; with no console the output goes to mw3.log
   (sdl_child.cpp log_to_file) and the helpers start windowless
   (start_child, SDL's background process). mingw compile-checked only.
+
+## The W31/W33/W34 stack on main (2026-10-31)
+
+- main (ffef80f0) merged into mac4/w34-ally-missiles (49643747; playtest.md
+  and dev.md rows from both sides). Two checks failed there, both from W34's
+  real waits meeting main's newer runs, neither a game fault:
+  - mission_c3m1_field_bases_repair_the_player_twice, bugs 1: the repair
+    restores everything (1.00 / 1.00 the frame step 4 ends, both runs); the
+    test read the wear at the rest, about 5 s later, and c3m1's Clanners
+    (three, the "Clanner" pilots) fire on the player all through the dock.
+    With the zero waits they hit him even more while docking (internals
+    0.24) but no shot fell in that window; with the real ones one does (0.99
+    / 0.87). The test now reads the wear when step 4 ends and prints the
+    rest's beside it. Break: the repair skipping a torso section's internals
+    is caught.
+  - sdl_program_training_chain, t1m2 lesson 12 (target_object
+    bushwacker_02): the driver faces the target level at its origin and
+    presses Q; the reticle's centre line met its left calf with the zero
+    waits (yaw_sin -0.840) and with the real ones, the Bushwacker standing
+    about 30 degrees differently (-0.952), passed between its legs to the
+    ground behind (g8767, 393 m). The driver now alternates Q with the
+    next enemy (E), as a player would.

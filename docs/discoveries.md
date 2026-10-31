@@ -371,6 +371,12 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   full tank burns in `100 x jets / tonnage` seconds (a 50-ton mech with 4 jets:
   8 s), refilling at half that rate on the ground. Jets need a quarter tank to
   light from the ground. Losing jets later does not change the burn rate.
+- **Above 30 fps, jump jets could fail to lift you while walking uphill.**
+  The ground probes catch up with rising ground at a pace set for 30 fps;
+  run faster and the catch-up overwrote the jets' climb every frame, so the
+  mech skimmed the ground with the jets roaring. Even a slight slope at
+  walking speed did it, more often the higher the frame rate. Standing still,
+  or at 30 fps or below, the jets always lifted. Fixed in the rebuild.
 - **Your jets push you along your throttle; AI jets steer.** The player's jets
   push the mech forward (or back, in reverse) with no speed limit once it is
   half its height off the ground. With the MW2 jump-jet option, and for AI
@@ -1126,6 +1132,18 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   as the code spells it), so such a target gets no arrow. The game does
   ship arrows for nav points and mobile field bases that this display never
   uses.
+- **The reticle stops looking at 800 m.** It only turns yellow over what
+  it finds within the camera's 800 m view distance, but six weapons reach
+  further (the ER large laser and NARC 1000 m, the ER PPC 920, the Gauss
+  rifle 880, the LB 2-X 870, the Ultra AC/2 810): a mech past 800 m stays
+  under a green reticle (and never locks), though your shots still hit it. The rebuild looks out to
+  your selected weapons' range (bug fixes on).
+- **Buildings you target never show in the TARGET window.** Only their
+  name and range appear. The mission files can turn the picture on for a
+  building (a `display` flag), but none of the shipped missions do.
+- **An arrow at the bottom of the screen can mean "behind you".** A nav
+  point (or target) behind you always gets the arrow at the bottom edge,
+  near the middle, not at the side it is on.
 
 ## Multiplayer
 
@@ -2459,6 +2477,21 @@ file (docs/assets.md, Data versions):
   never loads the vehicle icons for the vehicles themselves: the hidden
   "stealth" object every mission makes (a debug fly camera) loads them when
   it is created and frees them when it goes.
+- **AI mechs wait for their torso before they fire.** An AI mech starts
+  tracking only once its torso is within 20 degrees of its target, and pulls
+  the trigger within 45 degrees; it waits 6 seconds before its first burst
+  (3 for a quick one) and rests a second between bursts. A missile or slug
+  fired more than about 27 degrees off a side launcher's facing leaves along
+  that facing instead, so with these limits the AI's shots go where it aims.
+- **An AI mech sticks with its plan.** Once it has picked a target it keeps
+  aiming at it until its 6 seconds run out, even if you walk right up to it
+  meanwhile; only then does it rest and pick again (and then it picks you,
+  the nearest). It also can't shoot what its torso can't turn to: a
+  lancemate following you with an enemy behind him aims but holds his fire.
+- **Field bases are aimed at their feet.** The point the AI aims at on a
+  mobile field base is at ground level (a mech's is half way up), so from far
+  off the line to it usually clips the ground and an AI mech waits out its
+  whole aim on a base it can't hit.
 
 ## The cameras
 
