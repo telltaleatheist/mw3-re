@@ -157,6 +157,15 @@ void SdlInput::refresh() {
   if (mission != mission_) {
     mission_ = mission;
     if (mission) released_ = win_ && !focused_;  // into the mission (or out of the pause): held
+    // FIX (A), playtest W30: a press from the screen before (LAUNCH, RESUME)
+    // is not the mission's fire. The exe's load took seconds, so the click
+    // was long let go; ours is at once. A latched press is dropped, and a
+    // button still held is kept from the game until it is let go.
+    if (mission)
+      for (int b = 0; b < 4; ++b) {
+        latched_[b] = 0;
+        if (buttons_[b]) buttons_[b] = 0, swallow_[b] = true;
+      }
   }
   if (win_ && !mission_ && !absolute_) cursor_moved_ = false;
   absolute_ = win_ && !mission_;
