@@ -449,7 +449,11 @@ works alongside it; stay out of its files.
   render target and shifted; pulled rects anchored by place; the left
   mirror fixed in extend_texture).
 - Instant Action done (table 0x488bc0, ALLY_TITLE stretched).
-- Next: the controls' popups,
+- Popups done (backdrops left in place); message boxes done (Object2D::read
+  takes the dialog origin: FIX (B) row extended).
+- Credits (lines stretched to the middle), salvage (block, shaded) done;
+  training and multiplayer are the pilot screen. All menu screens done;
+  the lead merges menus-wide. Old next list:
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

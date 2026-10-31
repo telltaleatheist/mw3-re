@@ -577,8 +577,19 @@ as the pilot screen): ALLIES and ENEMIES left, the mission's box, ACCEPT and
 CANCEL right, ALLY_TITLE's image (576 wide: the lines of both boxes)
 stretched at column 385, at the link between them. Its cycles' rects are
 pulled to 0, so they go by their own places (the worlds at 420: right).
-Left, one per sitting with a 4:3 and a 16:9 shot: the lab (its 3D view), Instant Action, message
-boxes.
+The controls' two popups (assign axis, load/save) are one centred block
+each; their backdrop, a grab of the canvas put in as each opens (prepare),
+is already the canvas's width and stays where it is. The message boxes
+(dlgMessage.zrd) are centred by the dialogs' origin (section 9); their
+TITLE and MESSAGE are primitives, whose POSITION (Object2D::read,
+0x0059feb0) had not taken the origin: they sat at their 640 places, left of
+the box. Now it does (fixes.md, the dialogs' row).
+The credits (0x4289a0) are one block, their lines (431 wide at 0,70) kept at
+the left edge and stretched at column 100 by half the extra width (the
+table's `to_middle`), so the line from the edge still reaches the box. The
+salvage screen (0x47d3b0) is one block on the debriefing's board, shaded as
+it. Training and multiplayer open on the pilot screen in their modes.
+`--click-at` in the menus is a canvas pixel now (the menus' origin is 0).
 
 Test: `menus_wide_spread_by_their_groups_headless`, with a saved
 InGameVMode of 13. With wide menus off, then on: main menu, OPTIONS, BACK.
@@ -606,7 +617,12 @@ moves 106 at both ends; without the end's move it is 331..414 (1 check
 fails). On the main menu's second visit the Instant Action screen (made at
 the start) is checked: ACCEPT and the worlds' cycle 213 right, an ally
 list stays, ALLY_TITLE 213 wider; without the pulled rects' rule the
-worlds stay at 420 (1 check fails). Before LAUNCH the mech lab is visited: its left panel 106 wider at
+worlds stay at 420 (1 check fails). A message box made there has its OK
+and its TITLE 106 right; with the primitive's place read without the
+origin, the TITLE stays at 230 (1 check fails). First of all the credits
+are opened: their lines 106 wider at 0, BACK 106 right (without the table,
+the lines move instead: 1 check fails). Before the lab the briefing's
+salvage screen is opened: its board 853 wide, ACCEPT 106 right. Before LAUNCH the mech lab is visited: its left panel 106 wider at
 0, the right 107 wider, ACCEPT 106 right, the 3D window at (210 + 106) x
 render / canvas; without the panels' and the window's changes, 3 checks
 fail.

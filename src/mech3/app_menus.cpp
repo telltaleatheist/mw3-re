@@ -171,6 +171,7 @@ struct Stretch {
   int32_t x, y, w;     // the image: its place in the frame and its width
   int32_t at;          // the column repeated, out to the right group
   int32_t from_y = 0;  // from this row down
+  bool to_middle = false;  // the part right of `at` goes to the middle group, not the right
 };
 struct ScreenGroups {
   uint32_t ctor;  // the screen's constructor (GameEngine::construct)
@@ -214,6 +215,11 @@ const std::vector<ScreenGroups>& screen_groups() {
       // and CANCEL right; the lines (a 576-wide ShellButton's image) taken
       // out to the box at the link between them.
       {0x488bc0, {{0, 0, 385, 480, kLeft}, {385, 0, 640, 480, kRight}}, {{0, 51, 576, 385}}},
+      // The credits: one block, but their lines (431 wide at 0,70) keep
+      // their start at the screen's left edge, lengthened to the box.
+      {0x4289a0, {{0, 70, 1, 71, kLeft}}, {{0, 70, 431, 100, 0, true}}},
+      // The salvage screen: one block on the debriefing's circuit board.
+      {0x47d3b0, {}, {}, 0, 256, 160},
   };
   return k;
 }
@@ -243,6 +249,11 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
       for (const Stretch& st : table->stretches) stretched |= left == st.x && top == st.y && im->image->width == st.w;
     // A plain opaque image the frame's size (the briefing's map), or anything 600 across.
     const int32_t img_w = im && !r && im->image && !im->image->alpha ? im->image->width : 0;
+    // The controls' popups' backdrops: a grab of the canvas put in as each
+    // opens (prepare), already the canvas's width: left where they are.
+    auto* lsp = dynamic_cast<LoadSavePopupScreen*>(s);
+    auto* axp = dynamic_cast<AxisPopupScreen*>(s);
+    if ((lsp && o == &lsp->backdrop) || (axp && o == &axp->background)) continue;
     if (im && !stretched && (right - left >= 600 || (img_w >= 600 && img_w <= 640))) {
       widen_background(*im, extra, table ? table->inset : 0, table ? table->shade0 : 150, table ? table->shade1 : 60);
       continue;
@@ -281,7 +292,8 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
     if (im && im->image && table)
       for (const Stretch& st : table->stretches)
-        if (left == st.x && top == st.y && im->image->width == st.w) stretch_image(*im, st.at, st.from_y, extra - off);
+        if (left == st.x && top == st.y && im->image->width == st.w)
+          stretch_image(*im, st.at, st.from_y, (st.to_middle ? extra / 2 : extra) - off);
     if (off) moves.push_back({o, o->get_x(), o->get_y(), off});
   }
   for (const bool controls : {true, false})

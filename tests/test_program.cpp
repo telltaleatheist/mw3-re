@@ -86,6 +86,7 @@
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
 #include "mech3/lab_view.h"
+#include "mech3/credits.h"
 #include "gamez/zclass/window.h"
 #include "mech3/app_view.h"
 #include "mech3/landmines.h"
@@ -16076,7 +16077,7 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 
 // Ours (16:9 menus, wide_menus with any_resolution; resolution.md): at mode
 // 13 (853x480) the menu screens spread over the canvas by their groups.
-// Off, then on: main menu, OPTIONS, BACK (the second
+// Off, then on: main menu, CREDITS and back, OPTIONS, BACK (the second
 // main menu is made on the wide canvas the options set). The left column
 // stays; CREDITS moves the whole extra width, its underline (the button's
 // own image) with it; ACCEPT and the screens' buttons move; the options'
@@ -16084,7 +16085,8 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 // GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
 // Last, CAMPAIGN's pilot screen, a pilot's c1m2 briefing, the mission
-// launched and won (the mech lab visited first), and its debriefing.
+// launched and won (its salvage and the mech lab visited first), and its
+// debriefing.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
@@ -16098,7 +16100,10 @@ struct WideMenus {
   int32_t win_bg = -1, win_continue = -1, win_abort = -1, win_card = -1, win_line = -1, win_line_end = -1;  // the debriefing
   int32_t lab_left_w = -1, lab_left_x = -1, lab_right_w = -1, lab_accept = -1, lab_view_x = -1, lab_view_w = -1;  // the lab
   int32_t lab_render_w = 0, lab_canvas_w = 0;
-  int32_t ia_accept = -1, ia_ally = -1, ia_worlds = -1, ia_box_w = -1;  // Instant Action (made at the start)  // the briefing (a waypoint: from its projection)
+  int32_t ia_accept = -1, ia_ally = -1, ia_worlds = -1, ia_box_w = -1;  // Instant Action (made at the start)
+  int32_t mb_title = -1, mb_ok = -1;  // a message box (the quit box's dlgMessage.zrd) made on the main menu
+  int32_t cr_lines_w = -1, cr_lines_x = -1, cr_back = -1;  // the credits (first from the main menu)
+  int32_t sv_back_w = -1, sv_accept = -1;  // the briefing's salvage screen  // the briefing (a waypoint: from its projection)
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -16165,6 +16170,19 @@ WideMenus wide_menus_run(bool wide) {
       zgame::State* now = app.current();
       auto* mm = const_cast<mech3::MainMenu*>(mech3::main_menu());
       if (stage == 0 && now == &st.main && mm) {
+        mm->buttons[mech3::MainMenuButton::kCredits].on_left_up();
+        stage = 40;
+      } else if (stage == 40) {
+        auto* cs = dynamic_cast<mech3::CreditsState*>(now);
+        auto* c = cs ? dynamic_cast<mech3::CreditsScreen*>(engine.screen_of(cs->screen_)) : nullptr;
+        if (!c) return;
+        if (c->lines.image) out.cr_lines_w = c->lines.image->width;
+        out.cr_lines_x = c->lines.get_x();
+        out.cr_back = c->cancel.get_rect()->left;
+        c->cancel.on_left_up();
+        stage = 41;
+      } else if (stage == 41 && now == &st.main && mm && ++wait > 3) {
+        wait = 0;
         mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
         stage = 1;
       } else if (stage == 20) {
@@ -16204,6 +16222,18 @@ WideMenus wide_menus_run(bool wide) {
           engine.map_project(w->map, engine.nav_position(w->nav), xy);
           out.waypoint_dx = w->get_x() - xy[0];
         }
+        b->on_button(mech3::BriefingScreen::kBtnSalvage, 0, 0);
+        stage = 35;
+      } else if (stage == 35 && now == &st.briefing_salvage) {
+        auto* sv = dynamic_cast<mech3::SalvageScreen*>(engine.screen_of(st.briefing_salvage.screen_));
+        if (!sv) return;
+        if (sv->back.image) out.sv_back_w = sv->back.image->width;
+        out.sv_accept = sv->accept.get_rect()->left;
+        sv->on_button(mech3::SalvageScreen::kAccept, 0, 0);
+        stage = 36;
+      } else if (stage == 36 && now == &st.load) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b) return;
         b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);
         stage = 33;
       } else if (stage == 33 && now == &st.lab) {
@@ -16294,6 +16324,11 @@ WideMenus wide_menus_run(bool wide) {
         out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
         out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
         out.width_after = engine.buffer_width();
+        {
+          ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", true);
+          out.mb_title = box.title.get_x();
+          out.mb_ok = box.buttons[0].get_rect() ? box.buttons[0].get_rect()->left : -1;
+        }
         auto* gs = dynamic_cast<mech3::GameMenuState*>(engine.menu_state_of(engine.peek32(0x60985c)));  // the Action State
         if (auto* as = gs ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(gs->screen_)) : nullptr) {
           out.ia_accept = as->accept_btn.get_rect()->left;
@@ -16386,6 +16421,19 @@ TEST(menus_wide_spread_by_their_groups_headless) {
   EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra && on.win_abort == off.win_abort);
   EXPECT(on.win_card == off.win_card);
   EXPECT(off.win_line_end > off.win_line && on.win_line == off.win_line + extra / 2 && on.win_line_end == off.win_line_end + extra / 2);
+  // The credits (one block): their lines kept at the left edge and 106
+  // longer to the box, BACK half the extra width right.
+  std::printf("credits: lines %d at %d / %d at %d, BACK %d / %d\n", off.cr_lines_w, off.cr_lines_x, on.cr_lines_w,
+              on.cr_lines_x, off.cr_back, on.cr_back);
+  EXPECT(off.cr_lines_w > 0 && on.cr_lines_w == off.cr_lines_w + extra / 2 && on.cr_lines_x == off.cr_lines_x);
+  EXPECT(off.cr_back > 0 && on.cr_back == off.cr_back + extra / 2);
+  // The salvage screen (one block): its board widened, ACCEPT with the block.
+  std::printf("salvage: board %d / %d, ACCEPT %d / %d\n", off.sv_back_w, on.sv_back_w, off.sv_accept, on.sv_accept);
+  EXPECT(off.sv_back_w == 640 && on.sv_back_w == 640 + extra && on.sv_accept == off.sv_accept + extra / 2);
+  // A message box on the wide canvas: centred by the dialogs' origin, its
+  // TITLE (a primitive: Object2D::read) with its OK.
+  std::printf("message box: TITLE %d / %d, OK %d / %d\n", off.mb_title, on.mb_title, off.mb_ok, on.mb_ok);
+  EXPECT(off.mb_title > 0 && on.mb_ok == off.mb_ok + extra / 2 && on.mb_title == off.mb_title + extra / 2);
   // Instant Action: ALLIES left, the mission's cycles and ACCEPT right, the
   // box's lines (ALLY_TITLE's image) stretched out to the right group.
   std::printf("instant action: ACCEPT %d / %d, an ally %d / %d, the worlds %d / %d, ALLY_TITLE %d / %d wide\n", off.ia_accept,
