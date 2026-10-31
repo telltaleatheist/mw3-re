@@ -16073,20 +16073,22 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 }
 
 // Ours (16:9 menus, wide_menus with any_resolution; resolution.md): at mode
-// 13 (853x480) the main menu and the game options spread over the canvas by
-// their screens' groups. Off, then on: main menu, OPTIONS, BACK (the second
+// 13 (853x480) the menu screens spread over the canvas by their groups.
+// Off, then on: main menu, OPTIONS, BACK (the second
 // main menu is made on the wide canvas the options set). The left column
 // stays; CREDITS moves the whole extra width, its underline (the button's
 // own image) with it; ACCEPT and the screens' buttons move; the options'
 // LINES overlay is stretched between its panel and the screens' box; on to
 // GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
+// Last, CAMPAIGN's pilot screen.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
   int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
   int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
   int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
+  int32_t pil_accept = -1, pil_bar_label_y = -1, pil_bar_label_x = -1, pil_up = -1, games_up = -1, pil_lines_w = -1;
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -16152,6 +16154,17 @@ WideMenus wide_menus_run(bool wide) {
       if (stage == 0 && now == &st.main && mm) {
         mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
         stage = 1;
+      } else if (stage == 20) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(now);
+        mech3::PilotScreen* p = ps ? ps->screen : nullptr;
+        if (!p) return;
+        out.pil_accept = p->accept.get_rect()->left;
+        if (!p->new_bar.labels.empty())
+          out.pil_bar_label_x = p->new_bar.labels[0]->get_x(), out.pil_bar_label_y = p->new_bar.labels[0]->get_y();
+        if (p->pilots.up) out.pil_up = p->pilots.up->get_x();
+        if (p->games.up) out.games_up = p->games.up->get_x();
+        if (p->lines2.image) out.pil_lines_w = p->lines2.image->width;
+        stage = 3;
       } else if (stage == 1) {
         auto* os = dynamic_cast<mech3::OptionsState*>(now);
         auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
@@ -16201,7 +16214,8 @@ WideMenus wide_menus_run(bool wide) {
         out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
         out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
         out.width_after = engine.buffer_width();
-        stage = 3;
+        mm->buttons[mech3::MainMenuButton::kNewCampaign].on_left_up();
+        stage = 20;
       }
     };
     CountingPump pump;
@@ -16248,6 +16262,16 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               on.ctl_accept, off.ctl_reset, on.ctl_reset, off.ctl_keys, on.ctl_keys, off.ctl_lines_w, on.ctl_lines_w);
   EXPECT(off.ctl_accept > 0 && on.ctl_accept == off.ctl_accept + extra && on.ctl_reset == off.ctl_reset);
   EXPECT(on.ctl_keys == off.ctl_keys + extra / 2 && on.ctl_lines_w == off.ctl_lines_w + extra - extra / 2);
+  // The pilots: the new name's bar and its label stay (the bar's own move
+  // would push the label down by the bar's place, 0x0048b220), the pilots'
+  // arrows stay, the games' move with OPERATION, ACCEPT right, LINES wider.
+  std::printf("pilots: ACCEPT %d / %d, the bar's label %d,%d / %d,%d, PILOTS' UP %d / %d, GAMES' UP %d / %d, LINES %d / %d\n",
+              off.pil_accept, on.pil_accept, off.pil_bar_label_x, off.pil_bar_label_y, on.pil_bar_label_x,
+              on.pil_bar_label_y, off.pil_up, on.pil_up, off.games_up, on.games_up, off.pil_lines_w, on.pil_lines_w);
+  EXPECT(off.pil_accept > 0 && on.pil_accept == off.pil_accept + extra);
+  EXPECT(off.pil_bar_label_y > 0 && on.pil_bar_label_x == off.pil_bar_label_x && on.pil_bar_label_y == off.pil_bar_label_y);
+  EXPECT(off.pil_up >= 0 && on.pil_up == off.pil_up && on.games_up == off.games_up + extra);
+  EXPECT(on.pil_lines_w == off.pil_lines_w + extra);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to

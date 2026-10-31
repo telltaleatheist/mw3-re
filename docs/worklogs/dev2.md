@@ -437,7 +437,10 @@ works alongside it; stay out of its files.
   now (log_to_file without a console, RunLog otherwise).
 - Controls done (0x42a590 had its own construct path, now widened; LINES
   stretched from row 300; CheckButton BOUNDS move).
-- Next: pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
+- Pilot screen done (adopt_screen widens the pilot screen and the controls'
+  two popups by size; file list arrows and rect; edit bars moved as images).
+  The popups have no table yet: check them with message boxes.
+- Next: campaign, briefing, debriefing, lab (its 3D view), IA,
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

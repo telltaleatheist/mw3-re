@@ -72,6 +72,10 @@ MenuState* GameEngine::popup_state_of(Handle h) const {
 Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
   const Handle h = alloc_block(size);
   screens_[h] = {screen, size, true};
+  // Ours (16:9 menus): spread like the others, by their constructors (the
+  // sizes their states new: the pilot screen, the controls' two popups).
+  const uint32_t ctor = size == 0x13184 ? 0x486f40 : size == 0x12194 ? 0x42da80 : size == 0x11cd4 ? 0x42e890 : 0;
+  if (ctor) widen_screen(screen, ctor);
   return h;
 }
 
@@ -178,6 +182,10 @@ const std::vector<ScreenGroups>& screen_groups() {
       // block in the middle; the two DEFAULT buttons left, ACCEPT and CANCEL
       // right, their lines in LINES (596 wide) stretched below the table.
       {0x42a590, {{0, 400, 340, 480, kLeft}, {380, 290, 640, 480, kRight}}, {{0, 0, 596, 400, 300}}},
+      // The pilot screen: PILOT ENTRY and the pilots left; OPERATION (the
+      // games, or training's cycles, their rects from x 0 but their middles
+      // past 200), ACCEPT and CANCEL right; LINES' top line lengthened.
+      {0x486f40, {{0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
   };
   return k;
 }
@@ -224,7 +232,16 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     for (const Move& m : moves) {
       if ((dynamic_cast<ztwod::Control*>(m.o) != nullptr) != controls) continue;
       if (!controls && (m.o->get_x() != m.x || m.o->get_y() != m.y)) continue;  // moved with its control
-      m.o->set_pos(m.x + m.off, m.y);
+      // An edit bar keeps its label's place, not its offset (0x0048b1d0), so
+      // its set_pos (0x0048b220) would add the bar's place again: moved as
+      // an image, its label (on the list) by itself.
+      if (auto* eb = dynamic_cast<ShellEditBar*>(m.o)) eb->ztwod::Image::set_pos(m.x + m.off, m.y);
+      else m.o->set_pos(m.x + m.off, m.y);
+      if (auto* fl = dynamic_cast<FileList*>(m.o)) {  // its arrows, and its rect when its image sets it (0x0048d2f0)
+        for (FileListArrow* ar : {fl->up, fl->down})
+          if (ar) ar->set_pos(ar->get_x() + m.off, ar->get_y());
+        if (fl->image) fl->rect.left += m.off, fl->rect.right += m.off;
+      }
       if (auto* b = dynamic_cast<MainMenuButton*>(m.o))  // its underline, drawn by the button
         b->line.set_pos(b->line.get_x() + m.off, b->line.get_y());
       auto* cb = dynamic_cast<ztwod::CheckButton*>(m.o);  // its rect is BOUNDS as read (a list box's rows)

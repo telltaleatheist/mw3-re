@@ -488,6 +488,11 @@ Tests:
   AUDIO. Both screens have origin 0, and ACCEPT's and RESOLUTION's rects are
   mode 5's. Without the fix, at 13 and 15 the origins are 106 and the rects
   106 to the right (4 checks fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
+Last, CAMPAIGN's pilot screen: ACCEPT moves 213, the new name's bar label
+and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
+Without the arrows' move the games' UP stays at 382 (1 check fails); the
+edit bar's case shows only where a bar moves (the centred shot), as the
+pilot screen's bars stay left.
 
 
 ## 12. 16:9 menus (in progress, 2026-10-30)
@@ -519,7 +524,12 @@ made, except the pause screen (it keeps the dialog origin, section 9):
   cycle's value went twice the distance: the graphics screen at a centre
   offset showed every value 106 right of its box.) A check button or list
   box's rect is BOUNDS as read, not its place, so it moves too (else the
-  controls' table drew moved and took clicks where it was);
+  controls' table drew moved and took clicks where it was); a file list's
+  UP and DOWN (its own, not on the list) move with it, and its rect when
+  its image set it (0x0048d2f0); an edit bar moves as an image: its
+  after_bind (0x0048b1d0) keeps its label's place, not its offset, so its
+  set_pos (0x0048b220) would put the label down by the bar's own place (the
+  pilot screen centred showed PILOT ENTRY's caret under its bar);
 - an overlay drawn as one image across two groups is stretched at a column
   between them, from a row down (that column repeated, alpha and flags
   kept, the new columns above that row left clear), by the right group's
@@ -533,8 +543,12 @@ Done: the main menu (0x486260), the game options (0x4379f0) and the
 graphics and audio options (0x438f60: the panel left, ACCEPT, BACK and their
 plate right) and the controls (0x42a590, which GameEngine::construct makes
 apart from the other screens: the table, its lines and the description one
-block in the middle, the DEFAULT buttons left, ACCEPT and CANCEL right).
-Left, one per sitting with a 4:3 and a 16:9 shot: pilot, campaign and briefing
+block in the middle, the DEFAULT buttons left, ACCEPT and CANCEL right) and
+the pilot screen (0x486f40, adopted by its state like the controls' two
+popups, which GameEngine::adopt_screen now widens by their sizes: PILOT
+ENTRY and the pilots left, OPERATION, ACCEPT and CANCEL right, LINES2 (619
+wide) stretched at column 320, which only its top line crosses).
+Left, one per sitting with a 4:3 and a 16:9 shot: campaign and briefing
 (its 3D map), debriefing, the lab (its 3D view), Instant Action, message
 boxes.
 
@@ -549,3 +563,8 @@ options leaves the menus at 853. Break: without the underline move and the
 stretch, 2 checks fail. Without the graphics table and with the old
 relative move, SHADOWS' value is 351 from its cycle instead of 245 (2 checks
 fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
+Last, CAMPAIGN's pilot screen: ACCEPT moves 213, the new name's bar label
+and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
+Without the arrows' move the games' UP stays at 382 (1 check fails); the
+edit bar's case shows only where a bar moves (the centred shot), as the
+pilot screen's bars stay left.
