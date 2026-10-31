@@ -371,6 +371,12 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   full tank burns in `100 x jets / tonnage` seconds (a 50-ton mech with 4 jets:
   8 s), refilling at half that rate on the ground. Jets need a quarter tank to
   light from the ground. Losing jets later does not change the burn rate.
+- **Above 30 fps, jump jets could fail to lift you while walking uphill.**
+  The ground probes catch up with rising ground at a pace set for 30 fps;
+  run faster and the catch-up overwrote the jets' climb every frame, so the
+  mech skimmed the ground with the jets roaring. Even a slight slope at
+  walking speed did it, more often the higher the frame rate. Standing still,
+  or at 30 fps or below, the jets always lifted. Fixed in the rebuild.
 - **Your jets push you along your throttle; AI jets steer.** The player's jets
   push the mech forward (or back, in reverse) with no speed limit once it is
   half its height off the ground. With the MW2 jump-jet option, and for AI
@@ -1120,6 +1126,12 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   as the code spells it), so such a target gets no arrow. The game does
   ship arrows for nav points and mobile field bases that this display never
   uses.
+- **Buildings you target never show in the TARGET window.** Only their
+  name and range appear. The mission files can turn the picture on for a
+  building (a `display` flag), but none of the shipped missions do.
+- **An arrow at the bottom of the screen can mean "behind you".** A nav
+  point (or target) behind you always gets the arrow at the bottom edge,
+  near the middle, not at the side it is on.
 
 ## Multiplayer
 

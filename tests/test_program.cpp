@@ -7637,6 +7637,176 @@ TEST(mission_c1m1_left_button_fires_after_focus_headless) {
   mech3::options() = mech3::Options{};
 }
 
+
+// Playtest W31 ("sometimes jump jets don't lift me at all ... I just hover
+// barely"): the Thor's jets held for the same game time in each state:
+// frame times (60, 30 and 20 fps, a hitch), fuel (full, just above and just
+// below the 0.25 a jump from the ground needs, 0x005bcdc0), standing or
+// walking, hot; each with the fixes on and off (bugs and per_second off: the
+// exe's path). The climb must not fall to a hover where the jets fire; above
+// 30 fps walking up even a gentle slope it did (Skis::integrate, fixes.md).
+namespace {
+struct JetCase {
+  const char* what;
+  uint32_t step_ms;     // the clock's step a frame
+  float fuel = 1.0f;
+  float heat = 0.0f;
+  bool walk = false;
+  bool fixes = true;
+  int hitch_at = -1;    // a frame of 400 ms
+};
+struct JetRun {
+  bool firing = false, airborne = false;
+  int state = 0;
+  float climb = 0, fuel_used = 0, secs = 0;
+};
+JetRun jets_run(const JetCase& jc) {
+  JetRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_jets_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const zfix::Options saved_fix = zfix::options();
+  zfix::options().bugs = jc.fixes, zfix::options().per_second = jc.fixes;
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  struct StepClock : platform::Clock {
+    uint32_t now = 0, step = 33, extra = 0;
+    uint32_t ticks_ms() override { now += step + extra; extra = 0; return now; }
+  } clock;
+  clock.step = jc.step_ms;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1, the Thor (its first configuration has jump jets)
+    l.mech = 17;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    // The jets held from the start frame for 1.5 s of game time (by the clock's step).
+    const int start = 120, held = static_cast<int>(1500 / jc.step_ms);
+    int frames = 0;
+    void* player = nullptr;
+    uint32_t jump = 0;
+    float y0 = 0, fuel0 = 0, peak = -1e9f;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        jump = zin::key1_of(0xc) & 0xff;
+      }
+      if (!player) return;
+      mech3::MechControls* c = mech3::mech_controls(player);
+      if (jc.walk && c && frames > 5) c->throttle_target = 1.0f;
+      if (frames == start - 1) {
+        mech3::program_mech_set_jet_fuel(player, jc.fuel);
+        if (jc.heat > 0) mech3::mech_set_heat(player, jc.heat);
+      }
+      mech3::LaunchedMech m;
+      mech3::describe_mech(player, &m);
+      if (frames == start) {
+        y0 = m.pos[1], fuel0 = mech3::mech_jet_fuel(player);
+        out.airborne = mech3::mech_airborne(player);
+        out.state = m.anim_state;
+        keys.key(jump, true);
+      } else if (frames > start && frames <= start + held) {
+        if (frames == start + jc.hitch_at) clock.extra = 400;
+        out.firing |= m.jets_firing != 0;
+        peak = std::max(peak, m.pos[1]);
+      } else if (frames == start + held + 1) {
+        keys.key(jump, false);
+        out.climb = peak - y0;
+        out.fuel_used = fuel0 - mech3::mech_jet_fuel(player);
+        out.secs = held * jc.step_ms / 1000.0f;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames > start + held + 2; };
+    pump.limit = 4000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options() = saved_fix;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_jump_jets_lift_in_every_state_headless) {
+  if (!have_game()) return;
+  const JetCase cases[] = {
+      {"60 fps", 16},
+      {"30 fps", 33},
+      {"20 fps", 50},
+      {"60 fps, a hitch", 16, 1.0f, 0, false, true, 3},
+      {"30 fps, walking", 33, 1.0f, 0, true},
+      {"60 fps, walking", 16, 1.0f, 0, true},
+      {"30 fps, hot", 33, 1.0f, 0.95f},
+      {"30 fps, fuel 0.3", 33, 0.3f},
+      {"30 fps, fuel 0.26", 33, 0.26f},
+      {"30 fps, fuel 0.1", 33, 0.1f},
+      {"60 fps, fuel 0.26", 16, 0.26f},
+      {"144 fps, walking", 7, 1.0f, 0, true},
+      {"144 fps", 7},
+      {"250 fps", 4},
+      {"500 fps", 2},
+      {"1000 fps", 1},
+      {"10 fps", 100},
+  };
+  int hovers = 0, original_hovers = 0;
+  for (const JetCase& jc : cases)
+    for (bool fixes : {true, false}) {
+      JetCase c = jc;
+      c.fixes = fixes;
+      const JetRun r = jets_run(c);
+      std::printf("  jets %-20s fixes %d: state %d air %d firing %d, climb %6.2f m in %.2f s, fuel used %.3f\n", c.what, fixes, r.state, r.airborne, r.firing,
+                  r.climb, r.secs, r.fuel_used);
+      EXPECT(r.firing == (c.fuel > 0.25f));
+      if (r.firing && r.climb < 3.0f) ++(fixes ? hovers : original_hovers);
+    }
+  // The original's path skims the ground walking at 144 fps (0x00477940).
+  EXPECT(hovers == 0);
+  EXPECT(original_hovers > 0);
+}
 // c1 mission 1's keys through the mech's command handler (0x0041be80,
 // docs/controls.md, The mech's commands): F2 selects the second weapon
 // group; the power key powers the Mad Cat down, and again back up; the jump

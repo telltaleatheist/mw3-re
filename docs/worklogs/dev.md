@@ -2138,3 +2138,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   once). W24: the objective's firefly_01/02 do not exist (the mission's
   are 03/04; missing names count as destroyed) and the APCs are on no
   list: a fixes.md candidate.
+## W31, jets that barely lift (2026-10-30)
+
+- Branch mac4/w31-jets (off main 98665790). Skis::integrate (0x477940)
+  sets a probe under the ground to (ground - y) / max(dt, 1/30 s); above
+  30 fps that is slower than the jets' climb it replaces, and walking up a
+  slope the probes stay under the ground every frame, so the mech skims.
+  The exe does the same. FIX (B) behind per_second: the catch-up only
+  raises the speed. Test: 25 states with fixes on and off (frame steps
+  1..100 ms, a 400 ms hitch, fuel 0.1/0.26/0.3, hot, walking); the
+  original's path skims at 60 and 144 fps walking. Fuel just under 0.25
+  still lights: the ground refills it while the key's thrust ramps.
+  Destroying a leg (mech_destroy_part 9/10) did not change the gait in
+  the headless run, so it is not among the cases.
+
+## W32, c3m1 HQ arrow and TARGET view (2026-10-30)
+
+- As the original, docs only (on mac4/w31-jets). The yellow bottom arrow
+  is the nav point's (0x479ef0), Mission Start behind-left: behind the
+  camera 0x53cf10 returns the bottom code with x squeezed from +-5000.
+  TARGET's view for a targets.zrd object needs the record's `display`
+  (0x4d3350); no shipped record sets it.
+

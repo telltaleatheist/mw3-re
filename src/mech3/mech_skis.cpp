@@ -176,9 +176,12 @@ bool Skis::integrate(float* y, float* vy, float dt, float ground, float gravity)
     return false;
   }
   const double span = dt < 0.0333 ? 0.0333 : dt;  // 0x005c3790
-  *vy = static_cast<float>(-(*y - ground) / span);
+  const float catch_up = static_cast<float>(-(*y - ground) / span);
+  // FIX (B): above 30 fps the catch-up can be slower than the speed it
+  // replaces; walking uphill it ate the jets' climb each frame (fixes.md).
+  if (!zfix::options().per_second || catch_up > *vy) *vy = catch_up;
   *y = ground;
-  return *vy > 20.0f;  // 0x005c3798
+  return catch_up > 20.0f;  // 0x005c3798
 }
 
 // Mech3.exe 1.2 @ 0x00477620: down a polygon steeper than about 32 degrees.

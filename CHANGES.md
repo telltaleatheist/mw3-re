@@ -533,3 +533,4 @@ Known quirks the rebuild deliberately keeps:
 - A lancemate told to follow you or attack walks round a wall in the way instead of standing behind it (bug fixes on).
 - The mobile field bases stay where you called them after a repair: the next mech (a lancemate told to repair, or you powering down on the spot again) is repaired without calling them again; the third MFB press still sends them away (bug fixes on).
 - Every mech's engine tops out at 400.
+- Jump jets lift you when you fire them walking uphill at more than 30 fps (the original could skim the ground with its jets burning).

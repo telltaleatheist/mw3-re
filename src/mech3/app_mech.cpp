@@ -1501,6 +1501,7 @@ float mech_forward_speed(void* mech) { return static_cast<Vehicle*>(mech)->vec_3
 void mech_set_local_velocity(void* mech, float x, float y, float z) { static_cast<Vehicle*>(mech)->vec_3c = {x, y, z}; }
 bool mech_airborne(void* mech) { return static_cast<Mech*>(mech)->airborne(); }
 float mech_jet_fuel(void* mech) { return static_cast<Mech*>(mech)->jet_fuel; }
+void program_mech_set_jet_fuel(void* mech, float fuel) { static_cast<Mech*>(mech)->jet_fuel = fuel; }
 bool mech_lead_point_at(void* mech, uint32_t target, float out[3]) {
   Mech* m = static_cast<Mech*>(mech);
   const ai::Contact* c = m->target;
