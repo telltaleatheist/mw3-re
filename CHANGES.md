@@ -420,6 +420,7 @@ These change how the game talks to the computer, not how it plays.
 - Changing the resolution in the middle of a mission gives the view the new shape (the original never needed to: all its sizes were 4:3), and the options reached from a mission stay in their places at any resolution.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
+- On screens refreshing at 120 Hz or more, the main menu's buttons' ripple spreads as it should (it stayed a dot: each frame's growth rounded down to nothing).
 - An option for 16:9 menus (`--wide-menus`, off by default, being built one
   screen at a time): the menus open at the in-mission size, their buttons
   spread to the sides of the screen with their labels and lines, and the

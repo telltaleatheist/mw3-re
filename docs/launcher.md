@@ -131,6 +131,20 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
   when there is one, else a condensed system face (Bahnschrift on
   Windows, DIN Condensed on the Mac, DejaVu Sans Condensed on Linux): a
   placeholder, as is the title art's "MW3 REBUILD".
+- The games are round badges (2026-10-31, Owen: the ripple is a circle's):
+  `badge_mw3.png`, `badge_pm.png`, `badge_mw1.png` (assets/launcher, ours,
+  their prompts in its README), each with its name and line beside it,
+  the ripple from the badge's centre.
+- The ripple is the main menu's own (Owen: "much slower than the original
+  ripple"): `mech3::menu_ripple_step` (menu_ripple.h), the one SlideButton
+  runs (0x00485650): from 20 pixels, 120 a second, the amplitude 7 less 0.3
+  a 30 fps frame; drawn by 0x00558dd0. `launcher_ripple_matches_the_main_menus`.
+- Paced by vsync (else a precise sleep to 60 a second). Timed on Owen's PC
+  (2026-10-31): the first frame drawn 306 ms after the start (art 86 ms,
+  the install search 197 ms), shown in a window at 339 ms; 55.9 frames a
+  second with vsync, 54.8 with the sleep, the draw 2.6 ms (direct3d11). The
+  start was never slow: the old ripple was (80 pixels a second, 2 s long).
+  The log gives these at every start and quit.
 - The hover ripple is `zrndr::ripple` on the canvas. The sounds are the
   main menu's own (2026-10-31): sounds.zrd's MAINMENU set, menu_rollover
   (sfx_button2.wav at 0.7) when the hovered or focused button changes and

@@ -28,6 +28,7 @@ namespace sdlfe {
 namespace {
 namespace fs = std::filesystem;
 constexpr int W = 640, H = 480;
+constexpr int kBadge = 76;  // a game's badge across, on the 640x480 canvas
 
 // ---- art ----
 
@@ -119,8 +120,9 @@ SDL_Surface* scaled(SDL_Surface* s, int w, int h) {
 
 struct Art {
   SDL_Surface *stars = nullptr, *metal = nullptr, *plate = nullptr, *title = nullptr, *emblem = nullptr;
+  SDL_Surface* badge[3] = {};  // the games' round badges: MechWarrior 3, Pirate's Moon, MechWarrior (1989)
   ~Art() {
-    for (SDL_Surface* s : {stars, metal, plate, title, emblem})
+    for (SDL_Surface* s : {stars, metal, plate, title, emblem, badge[0], badge[1], badge[2]})
       if (s) SDL_DestroySurface(s);
   }
   void load(const std::string& dir) {
@@ -131,6 +133,9 @@ struct Art {
     plate = cut_out(load_png(dir, "plate.png"), 24, false);
     if (SDL_Surface* t = cut_out(load_png(dir, "title.png"), 24, true)) title = scaled(t, 420, t->h * 420 / t->w), SDL_DestroySurface(t);
     if (SDL_Surface* e = cut_out(load_png(dir, "emblem.png"), 24, true)) emblem = scaled(e, 72, 72), SDL_DestroySurface(e);
+    const char* const badges[3] = {"badge_mw3.png", "badge_pm.png", "badge_mw1.png"};
+    for (int i = 0; i < 3; ++i)
+      if (SDL_Surface* b = cut_out(load_png(dir, badges[i]), 24, true)) badge[i] = scaled(b, kBadge, kBadge), SDL_DestroySurface(b);
   }
 };
 
@@ -281,6 +286,7 @@ struct Button {
   std::string label, sub;
   bool enabled = true;
   size_t sub_keep = 0;  // the sub's start kept whole when it is shortened to fit
+  int badge = -1;       // a game's entry: its round badge (Art::badge), the name beside it
 };
 
 enum Id {
@@ -382,7 +388,11 @@ class Launcher {
   double draw_ms_ = 0, present_ms_ = 0;
   int ring_for_ = -1, ring_radius_ = 0;
   float ring_carry_ = 0, ring_amp_ = 0, ring_phase_ = 0;
-  SDL_Point ring_centre(const Button& b) const { return {b.r.x + b.r.w / 2, b.r.y + b.r.h / 2}; }
+  // The ripple's centre: a game's badge, else the plate's middle.
+  SDL_Point ring_centre(const Button& b) const {
+    if (b.badge >= 0) return {b.r.x + kBadge / 2 + 4, b.r.y + b.r.h / 2};
+    return {b.r.x + b.r.w / 2, b.r.y + b.r.h / 2};
+  }
   Install install_;
   std::string mw1_exe_, mw1_game_;  // MechWarrior (1989): Elthial's port beside ours, the player's folder
   std::string status_;
@@ -501,16 +511,22 @@ void Launcher::layout() {
       std::string sub = install_.ok ? ready + install_.dir : "Not set up yet: click to set it up";
       if (install_.ok && (install_.version == "1.0" || install_.version.find("with") != std::string::npos))
         sub = "Ready: version " + install_.version + " (Setup can apply the 1.2 patch)";
-      add(kMw3, {150, 138, 340, 60}, "MECHWARRIOR 3", sub);
+      // The games as round badges (Owen: the ripple belongs to a circle),
+      // each name and line beside its badge, the ripple from its centre.
+      auto game = [&](int id, int row, int badge, const char* name, const std::string& line, bool on) {
+        add(id, {130, 118 + row * 84, 380, 80}, name, line, on);
+        buttons_.back().badge = badge;
+      };
+      game(kMw3, 0, 0, "MECHWARRIOR 3", sub, true);
       if (sub.rfind(ready, 0) == 0) buttons_.back().sub_keep = ready.size();
-      add(kPm, {150, 210, 340, 60}, "PIRATE'S MOON", "Coming later", false);
+      game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
       if (!mw1_exe_.empty()) {  // Elthial's port, credited on its line (MIT; THIRD-PARTY.txt)
         const std::string by = "Elthial's SDL port: ";
-        add(kMw1, {150, 282, 340, 60}, "MECHWARRIOR (1989)", by + (mw1_game_.empty() ? "click to pick your MechWarrior folder" : mw1_game_));
+        game(kMw1, 2, 2, "MECHWARRIOR (1989)", by + (mw1_game_.empty() ? "click to pick your MechWarrior folder" : mw1_game_), true);
         buttons_.back().sub_keep = by.size();
       }
-      add(kSetup, {196, 372, 120, 34}, "SETUP");
-      add(kQuit, {324, 372, 120, 34}, "QUIT");
+      add(kSetup, {196, 384, 120, 34}, "SETUP");
+      add(kQuit, {324, 384, 120, 34}, "QUIT");
       break;
     }
     case kSetupScreen: {
@@ -574,6 +590,27 @@ void Launcher::background(float dt) {
 
 void Launcher::plate(const Button& b, bool hot) {
   SDL_Rect r = b.r;
+  if (b.badge >= 0) {  // a game: its badge, the name and its line beside it
+    const SDL_Point c = ring_centre(b);
+    SDL_Surface* art = art_.badge[b.badge];
+    const uint8_t m = !b.enabled ? 80 : hot ? 255 : 205;
+    if (art) {
+      SDL_SetSurfaceColorMod(art, m, m, m);
+      SDL_Rect d{c.x - kBadge / 2, c.y - kBadge / 2, kBadge, kBadge};
+      SDL_BlitSurface(art, nullptr, canvas_, &d);
+    } else {  // no art: a plain disc
+      for (int y = -kBadge / 2; y <= kBadge / 2; ++y) {
+        const int half = static_cast<int>(std::sqrt(static_cast<float>(kBadge * kBadge / 4 - y * y)));
+        SDL_Rect row{c.x - half, c.y + y, half * 2, 1};
+        SDL_FillSurfaceRect(canvas_, &row, SDL_MapSurfaceRGB(canvas_, m / 3, m / 3, m / 3 + 8));
+      }
+    }
+    const SDL_Color col = !b.enabled ? kGrey : hot ? kAmber : kWhite;
+    const int tx = c.x + kBadge / 2 + 18, tw = r.x + r.w - tx;
+    text_.draw(canvas_, b.label, 22, col, tx, c.y - 9, -1);
+    text_.draw(canvas_, text_.fit(b.sub, 12, tw, b.sub_keep), 12, b.enabled ? kDim : kGrey, tx, c.y + 14, -1);
+    return;
+  }
   if (art_.plate) {
     const uint8_t m = !b.enabled ? 90 : hot ? 255 : 215;
     SDL_SetSurfaceColorMod(art_.plate, m, m, m);
@@ -874,6 +911,7 @@ LauncherChoice Launcher::run() {
     scroll_ = 120.0f;
     const Uint64 td = SDL_GetTicksNS();
     draw(0.0f);
+    for (int i = 0; i < 6; ++i) draw(1.0f / 30.0f);  // 0.2 s on: the hovered entry's ripple spreading
     std::printf("mw3: launcher: first frame drawn %.0f ms after the start (its draw %.1f ms)\n", ms(t0, SDL_GetTicksNS()),
                 ms(td, SDL_GetTicksNS()));
     SDL_SaveBMP(canvas_, o_.shot.c_str());
