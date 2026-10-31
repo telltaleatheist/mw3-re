@@ -1,6 +1,7 @@
 #include "mech3/data_version.h"
 #include "mech3/patch_import.h"
 #include "mech3/disc_install.h"
+#include "mech3/game_setup.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
@@ -517,6 +518,98 @@ TEST(disc_install_from_an_image_a_cue_and_a_folder) {
   std::filesystem::remove_all(tmp, ec);
 }
 
+
+// The setup screen's calls (game_setup.h) on the disc made above: the probe
+// says what a source is before the copy, the install reports rising
+// progress and ends at 1, a cancel in the movies or in the music leaves no
+// folder and the music as it was, and each failure has a plain sentence.
+TEST(setup_api_probes_installs_cancels_and_explains) {
+  const std::string root = std::string(MW3_SOURCE_DIR) + "/game";
+  const std::string folder = root + "/patch-1.2/MechWarrior-3_Patch_Win_EN_Patch-12-US";
+  if (!std::filesystem::exists(folder + "/data1.cab")) return;
+  const std::string tmp = temp_dir("setup_api");
+  MadeDisc disc;
+  disc.root = {{"DATA1.CAB", slurp_file(folder + "/data1.cab")}, {"DATA1.HDR", slurp_file(folder + "/data1.hdr")}};
+  disc.video = {{"C1.AVI", std::vector<uint8_t>(2048 * 40, 3)}, {"C2.AVI", std::vector<uint8_t>(2048 * 40, 4)}};
+  const std::vector<uint8_t> iso = disc.iso();
+  spit_file(tmp + "/disc.iso", iso);
+  spit_file(tmp + "/t1.bin", raw_mode1(iso));
+  spit_file(tmp + "/t2.bin", std::vector<uint8_t>(2352 * 400, 5));
+  const std::string cue = "FILE \"t1.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n"
+                          "FILE \"t2.bin\" BINARY\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n";
+  spit_file(tmp + "/disc.cue", std::vector<uint8_t>(cue.begin(), cue.end()));
+  spit_file(tmp + "/notes.txt", {'h', 'i'});
+  namespace su = mech3::setup;
+
+  // The probe.
+  const su::Result pi = su::probe_source(tmp + "/disc.iso"), pc = su::probe_source(tmp + "/disc.cue");
+  const su::Result pn = su::probe_source(tmp + "/notes.txt"), pg = su::probe_source(root + "/mw3-1.2");
+  std::printf("  probe: %s | %s | %s | %s\n", pi.summary.c_str(), pc.summary.c_str(), pn.summary.c_str(), pg.summary.c_str());
+  EXPECT(pi.ok && pi.version == "1.2" && pi.movies == 2 && pi.music_tracks == 0 && !pi.warnings.empty());
+  EXPECT(pc.ok && pc.music_tracks == 1 && pc.summary.find("1 music track") != std::string::npos);
+  EXPECT(!pn.ok && !pn.summary.empty());
+  EXPECT(!std::filesystem::exists(root + "/mw3-1.2/zbd") || (pg.ok && pg.summary.find("installed copy") != std::string::npos));
+
+  // The install: progress only rises, ends at 1, names its stages.
+  std::vector<double> fr;
+  std::vector<std::string> stages;
+  const su::Result ok = su::install_from_disc(tmp + "/disc.cue", tmp + "/game", "", tmp + "/music", [&](const su::Progress& p) {
+    fr.push_back(p.fraction);
+    if (stages.empty() || stages.back() != p.stage) stages.push_back(p.stage);
+    return true;
+  });
+  std::printf("  install: %s (%zu reports, stages:", ok.summary.c_str(), fr.size());
+  for (const std::string& s : stages) std::printf(" \"%s\"", s.c_str());
+  std::printf(")\n");
+  EXPECT(ok.ok && ok.files == 31 && ok.movies == 2 && ok.music_tracks == 1);
+  EXPECT(!fr.empty() && std::is_sorted(fr.begin(), fr.end()) && fr.back() == 1.0 && fr.front() == 0.0);
+  EXPECT(std::find(stages.begin(), stages.end(), "Copying the movies") != stages.end() &&
+         std::find(stages.begin(), stages.end(), "Writing the music") != stages.end());
+  EXPECT(std::filesystem::exists(tmp + "/music/track02.wav"));
+
+  // Cancels: in the movies, then in the music (an earlier track kept).
+  spit_file(tmp + "/music/track09.wav", {'o', 'l', 'd'});
+  for (const char* at : {"Copying the movies", "Writing the music"}) {
+    const std::string out = tmp + "/cancelled";
+    const su::Result c = su::install_from_disc(tmp + "/disc.cue", out, "", tmp + "/music",
+                                               [&](const su::Progress& p) { return p.stage != at; });
+    std::printf("  cancel in \"%s\": %s\n", at, c.summary.c_str());
+    EXPECT(!c.ok && c.cancelled && !std::filesystem::exists(out) && !std::filesystem::exists(out + ".new") &&
+           !std::filesystem::exists(tmp + "/music.new") && slurp_file(tmp + "/music/track09.wav").size() == 3);
+  }
+
+  // Failures in plain words.
+  std::filesystem::create_directories(tmp + "/busy");
+  spit_file(tmp + "/busy/letter.txt", {'x'});
+  const su::Result busy = su::install_from_disc(tmp + "/disc.iso", tmp + "/busy", "", "", nullptr);
+  const su::Result notdisc = su::install_from_disc(tmp + "/notes.txt", tmp + "/x", "", "", nullptr);
+  std::printf("  busy: %s\n  not a disc: %s\n", busy.summary.c_str(), notdisc.summary.c_str());
+  EXPECT(!busy.ok && busy.summary.find("already has other files") != std::string::npos);
+  EXPECT(!notdisc.ok && !notdisc.cancelled && !notdisc.summary.empty() && !notdisc.detail.empty());
+
+  // The patch, the music, the install check.
+  const su::Result pa = su::apply_patch(folder, tmp + "/wd", nullptr);
+  const su::Result pbad = su::apply_patch(tmp + "/busy", tmp + "/wd2", nullptr);
+  std::printf("  patch: %s | %s\n", pa.summary.c_str(), pbad.summary.c_str());
+  EXPECT(pa.ok && pa.files == 28 && std::filesystem::exists(tmp + "/wd/patch12/zbd/reader.zbd"));
+  EXPECT(!pbad.ok && pbad.summary.find("not the official") != std::string::npos && !std::filesystem::exists(tmp + "/wd2/patch12"));
+  const su::Result m = su::add_music(tmp + "/disc.cue", tmp + "/music2", nullptr);
+  const su::Result mcancel = su::add_music(tmp + "/disc.cue", tmp + "/music3", [](const su::Progress&) { return false; });
+  EXPECT(m.ok && m.music_tracks == 1 && std::filesystem::exists(tmp + "/music2/track02.wav"));
+  EXPECT(!mcancel.ok && mcancel.cancelled && !std::filesystem::exists(tmp + "/music3/track02.wav"));
+  if (std::filesystem::exists(root + "/mw3-1.0/zbd/reader.zbd")) {
+    const su::Result c12 = su::check_install(root + "/mw3-1.2", ""), c10 = su::check_install(root + "/mw3-1.0", "");
+    const su::Result c10p = su::check_install(root + "/mw3-1.0", tmp + "/wd"), none = su::check_install(tmp, "");
+    std::printf("  check: %s | %s | %s | %s\n", c12.summary.c_str(), c10.summary.c_str(), c10p.summary.c_str(), none.summary.c_str());
+    EXPECT(c12.ok && c12.version == "1.2" && c12.summary == "Found MechWarrior 3 1.2 at " + root + "/mw3-1.2.");
+    EXPECT(c10.ok && c10.version == "1.0" && !c10.warnings.empty());
+    EXPECT(c10p.ok && c10p.version == "1.2");  // with the patch's overlay in front
+    EXPECT(!none.ok);
+  }
+  (void)su::find_discs();  // no drive here holds the disc; it must not fail
+  std::error_code ec;
+  std::filesystem::remove_all(tmp, ec);
+}
 // The MechWarrior 3 disc itself, when given (MW3_DISC: its .iso, a .cue, or
 // the drive): the install is game/mw3-1.0's files byte for byte (unshield's,
 // every file group merged) with the disc's VIDEO, its data the 1.0 disc's by

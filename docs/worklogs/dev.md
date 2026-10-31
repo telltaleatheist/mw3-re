@@ -2117,3 +2117,15 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   clears, copy/assign copy; the other +0x238 writes are other classes').
   twod.md section 4 corrected; the census note for 0x00519e50 says
   "drawn or measured". Nothing to port.
+
+## The setup API (2026-10-30)
+
+- Branch mac4/setup-api (off lead/batch2 584d494). mech3/game_setup:
+  install_from_disc, apply_patch, add_music, check_install, probe_source,
+  find_discs (the last two asked for by dev 2). Progress by bytes,
+  cancellation leaving nothing (music via music.new), plain-words
+  results. disc_install gains failure kinds and a progress callback;
+  patch_import list_installshield (the header only); cue_audio a
+  progress/cancel callback. mw3 --install-from and --patch wrap them.
+  Test setup_api_probes_installs_cancels_and_explains; the real ISO
+  through mw3 (progress 0..100%, "MechWarrior 3 1.0 is installed ...").
