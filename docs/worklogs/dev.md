@@ -2366,3 +2366,32 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   475 frames in both slices. arm64's files byte-identical to the dev
   importer's; x86_64's video 0.1% smaller (no asm in its FFmpeg), sound and
   index identical.
+## W38, the intro's dropped frames (2026-10-31)
+
+- Branch mac4/movie-start (off main 2b315d3a). MW3_MOVIE_TRACE: per new
+  movie frame the clock frame, the frame shown, skips, gap, decode, flip;
+  the Indeo helper's start-up and calls over 20 ms, per-op totals; the
+  sound device's period and the first callbacks.
+- Measured on Owen's PC (a worktree build-devtree in the PC repo, git-ignored,
+  junctions to deps and game; bundles carried over in build-devxfer; runs as
+  one-off /it scheduled tasks, deleted after). Windowed, not fullscreen:
+  --frames keeps the window out of fullscreen (mw3_main), noticed after.
+  Before: through mw3indeo one frame in three repeated and one skipped for
+  the whole 180 s (2690 frames), the files path the same (131 of 452 in
+  30 s); decode 5-6 ms, steps an even 67 ms, the helper up in 4 ms with the
+  codec in 39 ms; the sound device 44100 Hz, 441 frames (10 ms) a period.
+  Mac with CoreAudio (1024): 16 skips in 198.
+- Cause: AviAction::step asks only when its own 15 fps clock changes frame;
+  the stream answers the sound's frame; both clocks start on the same step,
+  so each ask falls on the sound's frame change (a 10 ms cursor: just before
+  or after, a regular beat). FIX (bug) behind bugs: with a streamed sound,
+  ask each step, show once the sound's frame changes (Stream::sound_frame),
+  from the clock's frame 1 (cursor 0 just after the start reads as the end).
+- After, on the PC: helper 453 steps in 30 s, 0 repeats, 0 skipped; files
+  453, 1 repeat (the start), 0 skipped; gaps 60-70 ms (the 10 ms periods).
+  Test sdl_intro_follows_its_sound_without_a_beat (SDL dummy driver at 441
+  frames: fixed 1/0, --original 19/2; break caught). Owen's "10 seconds" not
+  seen: the beat is steady all through and nothing stalls at the start.
+- --frames during the intro counts the movie's flips (15 a second), so
+  3000 was 200 s: run 1 hit my 180 s watchdog. Not changed; its usage line
+  says so now.
