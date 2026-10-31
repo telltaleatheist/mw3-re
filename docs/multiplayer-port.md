@@ -109,8 +109,11 @@ connection screen's CONNECT_INFO_EDIT, the field the exe used for TCP/IP's
 address), and `--host` / `--join HOST[:PORT]` on the command line for tests
 and dedicated starts. The connection list shows "LAN / Internet (IP)" in
 place of DirectPlay's providers; IPX, modem and serial go (FIX (A)); the
-modem buttons (CALL, ANSWER, DIAL) stay hidden. No NAT traversal: internet
-games need a forwarded port on the host, as most DirectPlay games did.
+modem buttons (CALL, ANSWER, DIAL) stay hidden. No NAT traversal:
+internet play needs the host's UDP port forwarded, as most DirectPlay games
+did; a relay or hole punching can come later if Owen wants it (the lead,
+2026-10-31: ENet 1.3.x approved, IPX, modem, serial and the lobby launch
+dropped).
 
 **Host migration**: DirectPlay picked a new host (DPSYS_HOST, 0x00588ebb)
 and the game follows it (type 0xd). Ours: the lowest remaining player id
