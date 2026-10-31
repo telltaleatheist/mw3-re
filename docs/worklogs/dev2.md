@@ -543,3 +543,17 @@ works alongside it; stay out of its files.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas
   (58,360).
+
+## 33. Launcher follow-ups (2026-10-31)
+
+- Branch `mac5/launcher-path` (off main ffef80f0). The lead's list, in order:
+  1. the path overflow: done (fit_middle by pixel width, the "Ready" words
+     kept; text_fit.cpp in mw3text so the tests reach it);
+  2. one window from the launcher into the game: done (LauncherChoice::window,
+     SdlWindow::init(hidden, adopt), --launcher-play; not high-DPI);
+  3. the MW1 entry: done (find_mw1/run_mw1, mw1_game=, save_config_value,
+     --launcher-mw1; test with a stand-in script);
+  4. the menu sounds: done (Sounds in launcher.cpp from the install's archive,
+     --nosound, MW3_LAUNCHER_MUTE for the test);
+  5. the first-start notes inside it: done (kNotes screen, launcher_notes.cpp,
+     have_music; sounds load on any screen).

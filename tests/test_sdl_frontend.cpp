@@ -22,6 +22,8 @@
 #include "check.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
+#include "frontend/sdl/launcher_notes.h"
+#include "frontend/sdl/text_fit.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
 #include "mech3/controls_cfg.h"
@@ -2442,6 +2444,47 @@ TEST(sdl_program_bugfixes_switch) {
 #endif
 
 #if !defined(_WIN32)
+// The launcher's first-start notes (lead's launcher list, item 5): the
+// data's version and the music, in the launcher's words (SETUP's buttons);
+// nothing to say for 1.2 data with music. The music is any CD track's file.
+TEST(launcher_first_start_notes) {
+  const std::vector<std::string> none = sdlfe::launcher_notes("1.2", true, "M");
+  const std::vector<std::string> v10 = sdlfe::launcher_notes("1.0", false, "M");
+  const std::vector<std::string> mix = sdlfe::launcher_notes("1.0 with 1.2 files", true, "M");
+  const std::vector<std::string> odd = sdlfe::launcher_notes("unknown", true, "M");
+  const bool counts = none.empty() && v10.size() == 2 && mix.size() == 1 && odd.size() == 1;
+  EXPECT(counts);
+  if (counts) {
+    EXPECT(v10[0].find("version 1.0") != std::string::npos && v10[0].find("SETUP can apply it") != std::string::npos);
+    EXPECT(v10[1].find("ADD THE MUSIC") != std::string::npos && v10[1].find("rip in M as track02") != std::string::npos);
+    EXPECT(mix[0].find("part 1.0, part 1.2") != std::string::npos && odd[0].find("neither") != std::string::npos);
+  }
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_music";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  EXPECT(!sdlfe::have_music({dir, ""}));
+  std::ofstream(dir + "/track01.ogg") << "x";  // the data track's number: not music
+  EXPECT(!sdlfe::have_music({dir}));
+  std::ofstream(dir + "/track07.flac") << "x";
+  EXPECT(sdlfe::have_music({"", dir}));
+}
+
+// The launcher's MW3 line with a long install folder (lead, after the PC's
+// shot: it ran past the button's sides): shortened from the middle to the
+// width, "Ready: version 1.2, " kept whole, the folder's end kept longer.
+TEST(launcher_long_path_fits_the_button) {
+  auto chars = [](const std::string& t) { return static_cast<int>(t.size()); };  // a width per character
+  const std::string ready = "Ready: version 1.2, ";
+  const std::string path = "C:\\Users\\SomebodyWithALongName\\Documents\\My Games\\MicroProse\\game\\mw3-1.2";
+  const std::string fit = sdlfe::fit_middle(ready + path, ready.size(), 50, chars);
+  std::printf("  %s\n", fit.c_str());
+  EXPECT(static_cast<int>(fit.size()) <= 50 && fit.rfind(ready, 0) == 0 && fit.find("...") != std::string::npos);
+  EXPECT(fit.size() > 44 && fit.compare(fit.size() - 7, 7, "mw3-1.2") == 0);  // its name, and as much as fits
+  EXPECT(sdlfe::fit_middle("short", 0, 50, chars) == "short");
+  EXPECT(sdlfe::fit_middle(ready + path, ready.size(), 10, chars) == ready + "...");  // too narrow: the words alone
+}
+
 // The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
 // development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
 // an empty write dir), the setup screen; and the progress screen. Each a
@@ -2458,7 +2501,7 @@ TEST(sdl_program_launcher_screens) {
     const char* says;
   };
   for (const Shot& s : {Shot{"main", false, "launcher: Found MechWarrior 3"}, Shot{"setup", true, "no MechWarrior 3 install found"},
-                        Shot{"work", false, "launcher: Found MechWarrior 3"}}) {
+                        Shot{"work", false, "launcher: Found MechWarrior 3"}, Shot{"notes", false, "launcher: note: No music yet"}}) {
     const std::string bmp = dir + "/" + s.screen + ".bmp", log = dir + "/" + s.screen + ".log";
     if (s.none) setenv("MW3_FIND_INSTALL", "1", 1);
     const pid_t pid = spawn_mw3({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
@@ -2485,4 +2528,100 @@ TEST(sdl_program_launcher_screens) {
     if (img) SDL_DestroySurface(img);
   }
 }
+
+// One window from the launcher into the game (lead's launcher list, item
+// 2): PLAY (--launcher-play presses MECHWARRIOR 3 at once) hands the
+// launcher's window over, its renderer freed, and the game claims it for
+// its GPU device instead of opening a second window; the main menu draws
+// in it (--shot of the game's frame).
+TEST(sdl_program_launcher_window_goes_on_to_the_game) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_play";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  const std::string bmp = dir + "/menu.bmp", log = dir + "/play.log";
+  const pid_t pid = spawn_mw3({"--write-dir", dir + "/wd", "--launcher-play", "--window", "1280x960", "--nosound", "--shot", bmp,
+                               "--shot-frame", "40", "--shot-any"}, log);
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const bool handed = text.find("launcher: its window goes on to the game") != std::string::npos;
+  const bool took = text.find("the game took the launcher's window") != std::string::npos;
+  SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
+  std::printf("launcher play: handed %d, taken %d, the menu's frame %dx%d\n", handed, took, img ? img->w : 0, img ? img->h : 0);
+  EXPECT(handed && took && img && img->w > 0);
+  EXPECT(text.find("the menu's sounds") == std::string::npos);  // --nosound: none
+  if (img) SDL_DestroySurface(img);
+}
+
+// The launcher's sounds (lead's launcher list, item 4; docs/launcher.md):
+// the main menu's own rollover and select (sounds.zrd's MAINMENU set:
+// sfx_button2.wav, sfx_button6.wav) read from the install's sound archive,
+// none of ours. Skipped where the machine has no audio device.
+TEST(sdl_program_launcher_plays_the_menus_sounds) {
+  if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) return;
+  const bool device = SDL_GetNumAudioDrivers() > 0 && std::string(SDL_GetCurrentAudioDriver() ? SDL_GetCurrentAudioDriver() : "") != "dummy";
+  SDL_QuitSubSystem(SDL_INIT_AUDIO);
+  if (!device) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_sounds";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  const std::string log = dir + "/sounds.log";
+  setenv("MW3_LAUNCHER_MUTE", "1", 1);  // played at no volume (the machine may be streaming)
+  const pid_t pid = spawn_mw3({"--write-dir", dir + "/wd", "--launcher-play", "--window", "640x480", "--frames", "5"}, log);
+  unsetenv("MW3_LAUNCHER_MUTE");
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const size_t at = text.find("the menu's sounds from ");
+  std::printf("launcher sounds: %s\n", at == std::string::npos ? "none" : text.substr(at, text.find('\n', at) - at).c_str());
+  EXPECT(at != std::string::npos && text.find("(2 of 2)", at) != std::string::npos && text.find("/zbd/sounds", at) != std::string::npos);
+}
+
+#if !defined(_WIN32)
+// The MechWarrior (1989) entry (lead's launcher list, item 3;
+// docs/launcher.md): shown when Elthial's port is found (here a stand-in
+// script by MW3_MW1_PORT), started as its own script starts it
+// (`mechwarrior <game dir> <capture dir>`, the saves in
+// MECHWARRIOR_SAVE_DIRECTORY, both under the write dir's mw1) with the
+// folder mw3.cfg's mw1_game= keeps; the launcher waits for it.
+TEST(sdl_program_launcher_starts_mechwarrior_1989) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_mw1";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  std::filesystem::create_directories(dir + "/game", ec);
+  std::ofstream(dir + "/game/BTECH.EXE") << "x";
+  {
+    std::ofstream cfg(dir + "/wd/mw3.cfg");
+    cfg << "mw1_game=" << dir << "/game\n";
+  }
+  const std::string port = dir + "/mechwarrior";
+  {
+    std::ofstream sh(port);
+    sh << "#!/bin/sh\necho \"$1|$2|$MECHWARRIOR_SAVE_DIRECTORY\" > \"$2/args.txt\"\nexit 0\n";
+  }
+  std::filesystem::permissions(port, std::filesystem::perms::owner_all, ec);
+  setenv("MW3_MW1_PORT", port.c_str(), 1);
+  const std::string log = dir + "/mw1.log";
+  const pid_t pid = spawn_mw3({"--write-dir", dir + "/wd", "--launcher-mw1", "--window", "640x480", "--nosound"}, log);
+  unsetenv("MW3_MW1_PORT");
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  std::ifstream af(dir + "/wd/mw1/captures/args.txt");
+  std::string args;
+  std::getline(af, args);
+  std::printf("launcher mw1: found %d, started %d, exited %d; it was given \"%s\"\n",
+              text.find("MechWarrior (1989) port at") != std::string::npos, text.find("MechWarrior (1989) started") != std::string::npos,
+              text.find("MechWarrior (1989) exited (0)") != std::string::npos, args.c_str());
+  EXPECT(text.find("MechWarrior (1989) port at " + port) != std::string::npos);
+  EXPECT(text.find("MechWarrior (1989) exited (0)") != std::string::npos);
+  EXPECT(args == dir + "/game|" + dir + "/wd/mw1/captures|" + dir + "/wd/mw1/saves");
+}
+#endif
 #endif

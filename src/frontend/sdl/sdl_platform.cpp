@@ -11,7 +11,7 @@
 
 namespace sdlfe {
 
-bool SdlWindow::init(bool hidden_for_good) {
+bool SdlWindow::init(bool hidden_for_good, SDL_Window* adopt) {
   hidden_ = hidden_for_good;
   // Metal, Direct3D 12 or Vulkan (SPIR-V only where the build has it).
   SDL_GPUShaderFormat formats = SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_DXIL;
@@ -20,7 +20,8 @@ bool SdlWindow::init(bool hidden_for_good) {
 #endif
   device_ = SDL_CreateGPUDevice(formats, false, nullptr);
   if (!device_) return std::fprintf(stderr, "mw3: SDL_CreateGPUDevice: %s\n", SDL_GetError()), false;
-  window_ = SDL_CreateWindow("MechWarrior 3", 1280, 960, SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
+  window_ = adopt ? adopt : SDL_CreateWindow("MechWarrior 3", 1280, 960, SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
+  if (adopt) std::printf("mw3: the game took the launcher's window\n");
   if (!window_) return std::fprintf(stderr, "mw3: SDL_CreateWindow: %s\n", SDL_GetError()), false;
   if (!SDL_ClaimWindowForGPUDevice(device_, window_))
     return std::fprintf(stderr, "mw3: SDL_ClaimWindowForGPUDevice: %s\n", SDL_GetError()), false;
