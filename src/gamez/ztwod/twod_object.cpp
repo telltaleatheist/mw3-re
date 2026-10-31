@@ -150,10 +150,14 @@ void Object2D::rect_at(Rect* out) {
 }
 
 // Mech3.exe 1.2 @ 0x0059feb0
-bool Object2D::read(zrdr::Node* n, Dialog*) {
+// FIX (B), with the dialogs' origin (resolution.md step 5): a primitive's
+// place is in its dialog's frame too, as its controls' (read_control, 0x0059cdc0)
+// and its background pieces' are; the exe's origin was always 0. (Off it, a
+// message box's TITLE and MESSAGE on a wide canvas sat outside its box.)
+bool Object2D::read(zrdr::Node* n, Dialog* d) {
   if (!n) return false;
   int32_t p[2];
-  if (zrdr::get_ivec2(n, "POSITION", p)) set_pos(p[0], p[1]);
+  if (zrdr::get_ivec2(n, "POSITION", p)) set_pos(p[0] + (d ? d->origin_x : 0), p[1] + (d ? d->origin_y : 0));
   return true;
 }
 
