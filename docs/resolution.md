@@ -512,20 +512,31 @@ made, except the pause screen (it keeps the dialog origin, section 9):
   centred block;
 - a main menu button's underline (AUXBITMAP, the button's own image, not on
   the screen's list) moves with its button;
+- controls move first, each object to its start plus its offset; some move
+  pieces of their own that are on the list too (a cycle its value,
+  0x0048b9b0; an edit bar its label, 0x0048b220), and an object already
+  moved that way is left alone. (Moved relative to where it stood, a
+  cycle's value went twice the distance: the graphics screen at a centre
+  offset showed every value 106 right of its box.)
 - an overlay drawn as one image across two groups is stretched at a column
   between them (that column repeated, alpha and flags kept): the game
   options' LINES (483x346) at column 367, so the link from the settings'
   panel lengthens and the screens' box lands with GRAPHICS & AUDIO and
   CONTROLS.
 
-Done: the main menu (0x486260) and the game options (0x4379f0). Left, one per
-sitting with a shot: graphics/audio, controls, pilot, campaign and briefing
+Done: the main menu (0x486260), the game options (0x4379f0) and the
+graphics and audio options (0x438f60: the panel left, ACCEPT, BACK and their
+plate right). Left, one per sitting with a 4:3 and a 16:9 shot: controls, pilot, campaign and briefing
 (its 3D map), debriefing, the lab (its 3D view), Instant Action, message
 boxes.
 
 Test: `menus_wide_spread_by_their_groups_headless`, with a saved
 InGameVMode of 13. With wide menus off, then on: main menu, OPTIONS, BACK.
 CAMPAIGN and DIFFICULTY stay, while CREDITS (and its underline), ACCEPT and
-GRAPHICS & AUDIO move 213. LINES is 213 wider. A 640x480 picked from the
+GRAPHICS & AUDIO move 213. LINES is 213 wider. In GRAPHICS & AUDIO,
+RESOLUTION stays, ACCEPT moves 213, and SHADOWS' value keeps its place
+from its cycle. A 640x480 picked from the
 options leaves the menus at 853. Break: without the underline move and the
-stretch, 2 checks fail.
+stretch, 2 checks fail. Without the graphics table and with the old
+relative move, SHADOWS' value is 351 from its cycle instead of 245 (2 checks
+fail).

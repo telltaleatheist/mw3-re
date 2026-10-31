@@ -427,8 +427,10 @@ works alongside it; stay out of its files.
   at column 367, and menu_vmode is chosen once at start-up (screens are laid
   out when made). Test menus_wide_spread_by_their_groups_headless;
   resolution.md section 12.
-- Next: graphics/audio,
-  controls, pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
+- Graphics/audio done (table 0x438f60); widen_screen moves controls first
+  and sets absolute positions (a cycle's value moved twice before). Lead
+  wants a 4:3 original shot beside each 16:9 one.
+- Next: controls, pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

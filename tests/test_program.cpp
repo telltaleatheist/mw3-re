@@ -16078,12 +16078,14 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 // main menu is made on the wide canvas the options set). The left column
 // stays; CREDITS moves the whole extra width, its underline (the button's
 // own image) with it; ACCEPT and the screens' buttons move; the options'
-// LINES overlay is stretched between its panel and the screens' box. A
+// LINES overlay is stretched between its panel and the screens' box; on to
+// GRAPHICS & AUDIO, laid out the same way, and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
   int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
+  int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -16159,6 +16161,21 @@ WideMenus wide_menus_run(bool wide) {
         out.level = g->difficulty.get_rect()->right;
         for (ztwod::Image* im : {&g->lines, &g->lines1})
           if (im->image && im->get_x() == 0) out.lines_w = im->image->width, out.lines_x = im->get_x();
+        g->gfx_audio.on_left_up();
+        stage = 10;
+      } else if (stage == 10) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GfxAudioScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
+        out.gfx_accept = g->accept.get_rect()->left;
+        out.gfx_resolution = g->resolution.get_x();
+        if (!g->shadows.labels.empty()) out.shadows_value = g->shadows.labels[0]->get_x() - g->shadows.get_x();
+        g->back.on_left_up();
+        stage = 11;
+      } else if (stage == 11) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
         mech3::options().in_game_vmode = 5;  // 640x480 picked in the menus (GRAPHICS' ACCEPT): for the next start
         g->back.on_left_up();
         stage = 2;
@@ -16202,6 +16219,12 @@ TEST(menus_wide_spread_by_their_groups_headless) {
   EXPECT(on.credits == off.credits + extra && on.credits_line == off.credits_line + extra);
   EXPECT(on.accept == off.accept + extra && on.gfx == off.gfx + extra);
   EXPECT(on.lines_w == off.lines_w + extra && on.lines_x == off.lines_x);
+  // Graphics and audio: the panel stays, ACCEPT moves, and a cycle's value
+  // (which the cycle moves itself, 0x0048b9b0) stays in its box.
+  std::printf("graphics: ACCEPT %d / %d, RESOLUTION %d / %d, SHADOWS' value at %d / %d from its cycle\n", off.gfx_accept,
+              on.gfx_accept, off.gfx_resolution, on.gfx_resolution, off.shadows_value, on.shadows_value);
+  EXPECT(off.gfx_accept > 0 && on.gfx_accept == off.gfx_accept + extra && on.gfx_resolution == off.gfx_resolution);
+  EXPECT(off.shadows_value != -1 && on.shadows_value == off.shadows_value);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to

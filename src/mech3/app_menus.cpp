@@ -168,6 +168,9 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
+      // The graphics and audio options: the settings' panel left, ACCEPT and
+      // BACK (and the plate behind them) right.
+      {0x438f60, {{0, 0, 380, 420, kLeft}, {380, 0, 640, 480, kRight}}},
   };
   return k;
 }
@@ -179,6 +182,14 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
   const ScreenGroups* table = nullptr;
   for (const ScreenGroups& g : screen_groups())
     if (g.ctor == ctor) table = &g;
+  // Controls first: some move their own pieces that are on the list too (a
+  // cycle's value, 0x0048b9b0; an edit bar's label, 0x0048b220), so those go
+  // with them and are left alone after.
+  struct Move {
+    ztwod::Object2D* o;
+    int32_t x, y, off;
+  };
+  std::vector<Move> moves;
   for (ztwod::Object2D* o = s->head; o; o = o->next) {
     const ztwod::Rect* r = o->get_rect();
     const int32_t left = (r ? r->left : o->get_x()) - s->origin_x, right = (r ? r->right : o->get_x()) - s->origin_x;
@@ -206,11 +217,16 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
           break;
         }
     const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
-    if (!off) continue;
-    o->set_pos(o->get_x() + off, o->get_y());
-    if (auto* b = dynamic_cast<MainMenuButton*>(o))  // its underline, drawn by the button
-      b->line.set_pos(b->line.get_x() + off, b->line.get_y());
+    if (off) moves.push_back({o, o->get_x(), o->get_y(), off});
   }
+  for (const bool controls : {true, false})
+    for (const Move& m : moves) {
+      if ((dynamic_cast<ztwod::Control*>(m.o) != nullptr) != controls) continue;
+      if (!controls && (m.o->get_x() != m.x || m.o->get_y() != m.y)) continue;  // moved with its control
+      m.o->set_pos(m.x + m.off, m.y);
+      if (auto* b = dynamic_cast<MainMenuButton*>(m.o))  // its underline, drawn by the button
+        b->line.set_pos(b->line.get_x() + m.off, b->line.get_y());
+    }
 }
 
 Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
