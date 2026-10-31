@@ -14,15 +14,15 @@ every box here is ticked:
 
 - [ ] Multiplayer ported (`docs/multiplayer-port.md`, every piece), with
       the two-process and soak tests passing.
-- [ ] The 1.2 patch rebuilt from 1.0 data (`docs/patch12.md`), and SETUP's
-      patch button gone.
+- [x] The 1.2 patch rebuilt from 1.0 data (`docs/patch12.md`), and SETUP's
+      patch button gone (shown only for data of an unknown version).
 - [ ] The stealth object and BASIC mode on a debug key as a fly camera
       (CLAUDE.md, back burner).
-- [ ] The software renderer no longer offered anywhere in the menus.
+- [x] The software renderer no longer offered anywhere in the menus.
 - [ ] Every row in `docs/playtest.md` closed: fixed, by design or the
       original's, none open.
 - [ ] The community-reported problems (`docs/community-issues.md`) each
-      have a verdict.
+      have a verdict (done on mac5/issues; items 9 and 12 wait on Owen).
 - [ ] Owen has played the whole campaign through on the release build.
 - [ ] Every check in sections 1-4 below passes on all three platforms.
 
