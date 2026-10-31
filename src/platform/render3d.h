@@ -100,6 +100,11 @@ class Render3D {
     (void)argb, (void)width, (void)height;
     return false;
   }
+  // Ours (playtest W25): the frame just shown kept at its own size, put back
+  // as the next frame's start (a message box's 2D over it), and let go.
+  virtual bool hold_frame() { return false; }
+  virtual bool restore_frame() { return false; }
+  virtual void drop_frame() {}
 };
 
 }  // namespace platform
