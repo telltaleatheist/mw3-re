@@ -83,14 +83,20 @@ filtered to .iso/.cue, .zip, or Mech3.exe.
 ## MechWarrior (1989)
 
 Elthial's MechWarrior SDL port (github.com/Elthial/Mechwarrior-sdl-port;
-MIT for its own code, credited in the launcher's line and
-THIRD-PARTY.txt; we ship none of it). Shown when `mechwarrior.exe`
-(`mechwarrior` elsewhere) is beside `mw3` or in a `MechWarrior1989\`
-folder beside it. It needs the player's MW1 folder (`BTECH.EXE`): found
-once by a folder picker and kept as `mw1_game=` in mw3.cfg. Started with
-`SDL_CreateProcess` as its own script does (`mechwarrior.exe <game dir>
-<capture dir>`, the capture dir `<write dir>/mw1`); the launcher's window
-hides until it exits, then comes back.
+MIT for its own code, credited on its entry's line, "Elthial's SDL port";
+we ship none of it, so no licence file goes with ours). Shown when
+`mechwarrior.exe` (`mechwarrior` elsewhere) is beside `mw3` or in a
+`MechWarrior1989\` folder beside it (`MW3_MW1_PORT` names it, for checks).
+It needs the player's MW1 folder (`BTECH.EXE`, any case): picked once with
+a folder picker and kept as `mw1_game=` in mw3.cfg (`save_config_value`).
+Started with `SDL_CreateProcess` as its own script (Run-MechWarrior.ps1)
+does: `mechwarrior <game dir> <capture dir>`, the capture dir
+`<write dir>/mw1/captures` (made first: the port wants it existing) and
+MECHWARRIOR_SAVE_DIRECTORY `<write dir>/mw1/saves`; its MechWarrior.ini
+is its own, beside it. The launcher's window hides until it exits, then
+comes back with a line saying how it closed. Built 2026-10-31;
+`--launcher-mw1` presses it at once (checks);
+`sdl_program_launcher_starts_mechwarrior_1989` (a stand-in script).
 
 ## Built (2026-10-30, mac5/launcher-ui)
 
@@ -109,8 +115,8 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
   install's), the finder's places, a development copy; each through
   `setup::check_install`. None: the setup screen first.
 - The main screen: MechWarrior 3 (ready, its version and folder, or "not
-  set up yet"), Pirate's Moon greyed, SETUP, QUIT. MechWarrior (1989) is
-  not wired yet.
+  set up yet"), Pirate's Moon greyed, MechWarrior (1989) when its port is
+  there (below), SETUP, QUIT.
 - The setup screen: FIND (the finder, else a folder picker), INSTALL (a
   disc `find_discs` sees, else a .iso/.cue picker; `probe_source`'s line and
   INSTALL/BACK, then `install_from_disc` into `<write dir>/install`, a

@@ -115,6 +115,10 @@ std::vector<std::string> install_candidates() {
 }
 
 bool save_install(const std::string& write_dir, const std::string& install) {
+  return save_config_value(write_dir, "install", install);
+}
+
+bool save_config_value(const std::string& write_dir, const std::string& key, const std::string& value) {
   if (write_dir.empty()) return false;
   const fs::path cfg = fs::path(write_dir) / "mw3.cfg";
   std::vector<std::string> lines;
@@ -123,10 +127,10 @@ bool save_install(const std::string& write_dir, const std::string& install) {
     std::string line;
     while (std::getline(f, line)) {
       if (!line.empty() && line.back() == '\r') line.pop_back();
-      if (line.rfind("install=", 0) != 0) lines.push_back(line);
+      if (line.rfind(key + "=", 0) != 0) lines.push_back(line);
     }
   }
-  lines.insert(lines.begin(), "install=" + install);
+  lines.insert(lines.begin(), key + "=" + value);
   std::ofstream o(cfg, std::ios::trunc);
   for (const std::string& l : lines) o << l << '\n';
   return static_cast<bool>(o);

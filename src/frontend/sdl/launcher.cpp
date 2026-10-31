@@ -213,7 +213,7 @@ struct Button {
 };
 
 enum Id {
-  kMw3 = 1, kPm, kSetup, kQuit,
+  kMw3 = 1, kPm, kSetup, kQuit, kMw1,
   kFind = 10, kInstall, kPatch, kMusic, kBack,
   kGo = 20, kChooseFile, kCancel,
 };
@@ -279,6 +279,8 @@ class Launcher {
 
  private:
   void find_install();
+  void find_mw1();
+  void run_mw1();
   void layout();
   void draw(float dt);
   void background(float dt);
@@ -302,6 +304,7 @@ class Launcher {
   int hot_ = -1, focus_ = -1;
   float hot_t_ = 0, phase_ = 0, scroll_ = 0;
   Install install_;
+  std::string mw1_exe_, mw1_game_;  // MechWarrior (1989): Elthial's port beside ours, the player's folder
   std::string status_;
   bool status_good_ = true;
   std::unique_ptr<Work> work_;
@@ -332,6 +335,73 @@ void Launcher::find_install() {
   std::printf("mw3: launcher: no MechWarrior 3 install found\n");
 }
 
+namespace {
+// A MechWarrior (1989) folder: BTECH.EXE in it (any case).
+bool mw1_game_valid(const std::string& dir) {
+  std::error_code ec;
+  if (dir.empty() || !fs::is_directory(dir, ec)) return false;
+  for (const fs::directory_entry& e : fs::directory_iterator(dir, ec)) {
+    std::string n = e.path().filename().string();
+    for (char& c : n) c = static_cast<char>(c >= 'a' && c <= 'z' ? c - 32 : c);
+    if (n == "BTECH.EXE") return true;
+  }
+  return false;
+}
+}  // namespace
+
+// Elthial's MechWarrior (1989) SDL port (docs/launcher.md): its program
+// beside ours or in a MechWarrior1989 folder beside it (MW3_MW1_PORT for
+// checks); the entry shows only when it is there.
+void Launcher::find_mw1() {
+#if defined(_WIN32)
+  const char* name = "mechwarrior.exe";
+#else
+  const char* name = "mechwarrior";
+#endif
+  std::vector<fs::path> tries;
+  if (const char* env = SDL_getenv("MW3_MW1_PORT")) tries.emplace_back(env);
+  if (const char* base = SDL_GetBasePath()) tries.push_back(fs::path(base) / name), tries.push_back(fs::path(base) / "MechWarrior1989" / name);
+  std::error_code ec;
+  for (const fs::path& t : tries)
+    if (fs::is_regular_file(t, ec)) {
+      mw1_exe_ = t.string();
+      std::printf("mw3: launcher: MechWarrior (1989) port at %s\n", mw1_exe_.c_str());
+      break;
+    }
+  if (mw1_game_valid(o_.cfg_mw1_game)) mw1_game_ = o_.cfg_mw1_game;
+}
+
+// The port started as its own script starts it (`mechwarrior <game dir>
+// <capture dir>`, the saves in MECHWARRIOR_SAVE_DIRECTORY), both under the
+// write dir's mw1; this window hidden until it exits.
+void Launcher::run_mw1() {
+  const fs::path base = o_.write_dir.empty() ? fs::path("mw1") : fs::path(o_.write_dir) / "mw1";
+  std::error_code ec;
+  fs::create_directories(base / "captures", ec);
+  fs::create_directories(base / "saves", ec);
+  SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "MECHWARRIOR_SAVE_DIRECTORY", (base / "saves").string().c_str(), true);
+  const std::string game = mw1_game_, captures = (base / "captures").string();
+  const char* args[] = {mw1_exe_.c_str(), game.c_str(), captures.c_str(), nullptr};
+  SDL_Process* p = SDL_CreateProcess(args, false);
+  if (!p) {
+    status_ = std::string("MechWarrior (1989) did not start: ") + SDL_GetError(), status_good_ = false;
+    std::printf("mw3: launcher: %s\n", status_.c_str());
+    return;
+  }
+  std::printf("mw3: launcher: MechWarrior (1989) started\n");
+  if (win_) SDL_HideWindow(win_);
+  int code = 0;
+  while (!SDL_WaitProcess(p, false, &code)) {
+    SDL_PumpEvents();
+    SDL_Delay(50);
+  }
+  SDL_DestroyProcess(p);
+  std::printf("mw3: launcher: MechWarrior (1989) exited (%d)\n", code);
+  status_ = code == 0 ? "MechWarrior (1989) closed." : "MechWarrior (1989) closed with an error (" + std::to_string(code) + "): see its log.";
+  status_good_ = code == 0;
+  if (win_) SDL_ShowWindow(win_), SDL_RaiseWindow(win_);
+}
+
 void Launcher::layout() {
   buttons_.clear();
   auto add = [&](int id, SDL_Rect r, std::string label, std::string sub = {}, bool on = true) {
@@ -348,6 +418,11 @@ void Launcher::layout() {
       add(kMw3, {150, 138, 340, 60}, "MECHWARRIOR 3", sub);
       if (sub.rfind(ready, 0) == 0) buttons_.back().sub_keep = ready.size();
       add(kPm, {150, 210, 340, 60}, "PIRATE'S MOON", "Coming later", false);
+      if (!mw1_exe_.empty()) {  // Elthial's port, credited on its line (MIT; THIRD-PARTY.txt)
+        const std::string by = "Elthial's SDL port: ";
+        add(kMw1, {150, 282, 340, 60}, "MECHWARRIOR (1989)", by + (mw1_game_.empty() ? "click to pick your MechWarrior folder" : mw1_game_));
+        buttons_.back().sub_keep = by.size();
+      }
       add(kSetup, {196, 372, 120, 34}, "SETUP");
       add(kQuit, {324, 372, 120, 34}, "QUIT");
       break;
@@ -518,6 +593,18 @@ void Launcher::ask_folder(int what) {
 // A picked path: what the button that asked does with it.
 void Launcher::picked(int what, const std::string& path) {
   using namespace mech3::setup;
+  if (what == kMw1) {
+    const std::string dir = fs::is_regular_file(path) ? fs::path(path).parent_path().string() : path;
+    if (!mw1_game_valid(dir)) {
+      status_ = "That folder has no BTECH.EXE: it is not MechWarrior (1989).", status_good_ = false;
+      return;
+    }
+    mw1_game_ = dir;
+    save_config_value(o_.write_dir, "mw1_game", dir);
+    layout();
+    run_mw1();
+    return;
+  }
   if (what == kFind) {
     const std::string dir = fs::is_regular_file(path) ? fs::path(path).parent_path().string() : path;
     const Result r = check_install(dir, o_.write_dir);
@@ -590,6 +677,14 @@ void Launcher::activate(int id) {
       break;
     case kSetup: screen_ = kSetupScreen, status_.clear(), layout(); break;
     case kQuit: done_ = true; break;
+    case kMw1:
+      if (mw1_game_.empty()) {
+        status_ = "Pick your MechWarrior (1989) folder: the one with BTECH.EXE.", status_good_ = true;
+        ask_folder(kMw1);
+      } else {
+        run_mw1();
+      }
+      break;
     case kBack:
       screen_ = screen_ == kConfirm ? kSetupScreen : kMain, layout();
       break;
@@ -639,6 +734,7 @@ LauncherChoice Launcher::run() {
   text_.open(font_path(dir));
   canvas_ = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGB565);
   find_install();
+  find_mw1();
   if (shot) {
     if (o_.screen == "setup") screen_ = kSetupScreen;
     if (o_.screen == "work") {
@@ -671,6 +767,7 @@ LauncherChoice Launcher::run() {
   SDL_SetTextureScaleMode(tex_, SDL_SCALEMODE_LINEAR);
   Uint64 last = SDL_GetTicks();
   if (o_.play) activate(kMw3);
+  if (o_.play_mw1) activate(kMw1), done_ = !asking_;
   while (!done_) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
