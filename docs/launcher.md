@@ -88,6 +88,39 @@ once by a folder picker and kept as `mw1_game=` in mw3.cfg. Started with
 <capture dir>`, the capture dir `<write dir>/mw1`); the launcher's window
 hides until it exits, then comes back.
 
+## Built (2026-10-30, mac5/launcher-ui)
+
+`frontend/sdl/launcher.cpp` (`sdlfe::run_launcher`), called from
+`mw3_main.cpp` for a player's plain start (not `--hidden`, `--frames`,
+`--shot`, a chain, `--mission`/`--fly`, `--movie`, `--dialog`, `-nofmv`, a
+named install or `--install-from`/`--patch`; `--no-launcher` skips it):
+- Its own SDL_Renderer window (fullscreen unless `--windowed`/`--window`),
+  a 640x480 RGB565 canvas letterboxed into it; the game's window opens
+  after it closes (one window throughout is still to do).
+- The install found quietly: mw3.cfg's, `<write dir>/install` (the disc
+  install's), the finder's places, a development copy; each through
+  `setup::check_install`. None: the setup screen first.
+- The main screen: MechWarrior 3 (ready, its version and folder, or "not
+  set up yet"), Pirate's Moon greyed, SETUP, QUIT. MechWarrior (1989) is
+  not wired yet.
+- The setup screen: FIND (the finder, else a folder picker), INSTALL (a
+  disc `find_discs` sees, else a .iso/.cue picker; `probe_source`'s line and
+  INSTALL/BACK, then `install_from_disc` into `<write dir>/install`, a
+  .cue's music into `<write dir>/music`), the 1.2 PATCH (enabled for 1.0 or
+  a mix; a .zip picker, `apply_patch`), the MUSIC (a .cue picker,
+  `add_music`), BACK. Each operation on a worker thread with the bar, its
+  stage and file, and CANCEL; its summary on the main screen's line.
+- Art from `assets/launcher` (beside the exe in a package, the repo's in a
+  development build: `MW3_ASSETS_DIR`); the font `assets/launcher/font.ttf`
+  when there is one, else a condensed system face (Bahnschrift on
+  Windows, DIN Condensed on the Mac, DejaVu Sans Condensed on Linux): a
+  placeholder, as is the title art's "MW3 REBUILD".
+- The hover ripple is `zrndr::ripple` on the canvas; no sounds yet.
+- Mouse, arrows/Tab, Enter/Space, Escape (back, or quit on the main
+  screen).
+- `--launcher-shot FILE [--launcher-screen main|setup|work]` draws one
+  screen into a BMP; `sdl_program_launcher_screens` checks the three.
+
 ## Open
 
 - The working title ("MW3 REBUILD" on the title art) and the font: Owen's.

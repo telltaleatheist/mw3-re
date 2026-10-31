@@ -414,3 +414,13 @@ works alongside it; stay out of its files.
   held button is swallowed until let go. `sdl_mission_start_drops_the_launch_click`
   (3 checks fail without). Owen to confirm. Branch `mac5/w30-launch-fire`
   off main d1e5b9e6.
+
+## 31. The launcher, first build (2026-10-30)
+
+- Branch `mac5/launcher-ui`: main 98665790, mac4/setup-api merged locally
+  (dev.md's conflict as the union), the design commit, then the build.
+  What it does and what is left: launcher.md, Built.
+- Shots (`--launcher-shot`): main with the development copy found, setup
+  with none, the progress screen; `sdl_program_launcher_screens`.
+- Not yet: one window from launcher to game, MechWarrior (1989), sounds,
+  the release's first-start notes inside it.

@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <fstream>
 #endif
 #include <string>
 #include <vector>
@@ -2403,5 +2404,51 @@ TEST(sdl_program_bugfixes_switch) {
   EXPECT(run("bugfixes=0\n", false));
   EXPECT(run(nullptr, true));
   EXPECT(run("bugfixes=1\n", true));  // --original wins
+}
+#endif
+
+#if !defined(_WIN32)
+// The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
+// development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
+// an empty write dir), the setup screen; and the progress screen. Each a
+// lit 640x480 canvas, and the log says what it found.
+TEST(sdl_program_launcher_screens) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  std::filesystem::create_directories(dir + "/wd2", ec);
+  struct Shot {
+    const char* screen;
+    bool none;
+    const char* says;
+  };
+  for (const Shot& s : {Shot{"main", false, "launcher: Found MechWarrior 3"}, Shot{"setup", true, "no MechWarrior 3 install found"},
+                        Shot{"work", false, "launcher: Found MechWarrior 3"}}) {
+    const std::string bmp = dir + "/" + s.screen + ".bmp", log = dir + "/" + s.screen + ".log";
+    if (s.none) setenv("MW3_FIND_INSTALL", "1", 1);
+    const pid_t pid = spawn_mw3({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
+    if (s.none) unsetenv("MW3_FIND_INSTALL");
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
+    int lit = 0, n = 0;
+    if (img) {
+      SDL_Surface* c = SDL_ConvertSurface(img, SDL_PIXELFORMAT_ARGB8888);
+      for (int y = 0; c && y < c->h; y += 7)
+        for (int x = 0; x < c->w; x += 7) {
+          const uint32_t p = static_cast<const uint32_t*>(c->pixels)[y * (c->pitch / 4) + x];
+          ++n, lit += std::max({p >> 16 & 0xff, p >> 8 & 0xff, p & 0xff}) > 40;
+        }
+      std::printf("launcher %s: %dx%d, %d of %d lit, says \"%s\" %d\n", s.screen, img->w, img->h, lit, n, s.says,
+                  text.find(s.says) != std::string::npos);
+      if (c) SDL_DestroySurface(c);
+    }
+    EXPECT(img && img->w == 640 && img->h == 480 && lit > n / 4);
+    EXPECT(text.find(s.says) != std::string::npos);
+    if (img) SDL_DestroySurface(img);
+  }
 }
 #endif
