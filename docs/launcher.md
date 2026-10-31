@@ -110,7 +110,9 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
   same window for its GPU device instead of opening a second one. The
   window is not high pixel density, as the game's never was (its sizes are
   the window's points). `--launcher-play` presses MECHWARRIOR 3 at once
-  (for checks); `sdl_program_launcher_window_goes_on_to_the_game`.
+  (for checks); `sdl_program_launcher_window_goes_on_to_the_game`. The
+  window's events are flushed at the hand-over, so the launcher's lost
+  focus cannot reach the game as a deactivation (program.md, Message pump).
 - The install found quietly: mw3.cfg's, `<write dir>/install` (the disc
   install's), the finder's places, a development copy; each through
   `setup::check_install`. None: the setup screen first.

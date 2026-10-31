@@ -2581,6 +2581,43 @@ TEST(sdl_program_launcher_plays_the_menus_sounds) {
   EXPECT(at != std::string::npos && text.find("(2 of 2)", at) != std::string::npos && text.find("/zbd/sounds", at) != std::string::npos);
 }
 
+// A check that loses its window's focus still runs to its end (lead, after
+// the launcher hand-over test hung 28 min on a Mac with another app in front,
+// and a scheduled --shot run on the PC the same way): the original pauses on
+// deactivation (0x00590c00) and waits for the window again, which a run
+// that ends by itself never gets. MW3_FOCUS_LOST_AT puts the focus loss in
+// at a pass of the pump; --frames must still end the run.
+TEST(sdl_program_check_runs_on_without_focus) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/focus_lost";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  const std::string log = dir + "/run.log";
+  setenv("MW3_FOCUS_LOST_AT", "30", 1);
+  const pid_t pid = spawn_mw3({"--no-launcher", "--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--frames", "150"}, log);
+  unsetenv("MW3_FOCUS_LOST_AT");
+  int status = 0;
+  bool ended = false;
+  const auto start = std::chrono::steady_clock::now();
+  while (pid > 0) {
+    if (waitpid(pid, &status, WNOHANG) == pid) {
+      ended = true;
+      break;
+    }
+    if (std::chrono::steady_clock::now() - start > std::chrono::seconds(90)) {
+      kill(pid, SIGKILL);
+      waitpid(pid, &status, 0);
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const bool lost = text.find("focus lost (MW3_FOCUS_LOST_AT)") != std::string::npos;
+  std::printf("focus lost at pass 30: %s; the run %s\n", lost ? "yes" : "no", ended ? "ended by itself" : "hung (killed)");
+  EXPECT(lost && ended && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+
 #if !defined(_WIN32)
 // The MechWarrior (1989) entry (lead's launcher list, item 3;
 // docs/launcher.md): shown when Elthial's port is found (here a stand-in

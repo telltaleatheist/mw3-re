@@ -1082,6 +1082,23 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       if (launch) pump.should_quit = [&] { return launch_done; };
       if (chain) pump.should_quit = [&] { return chain->done(); };
       if (modes) pump.should_quit = [&] { return modes->done(); };
+      pump.stays_active = a.frames > 0 || !a.shot.empty() || chain || modes;  // a check: no pause for focus
+      // MW3_FOCUS_LOST_AT=N (checks): the window's focus lost at the pump's
+      // Nth pass, as when another app is in front.
+      int focus_lost_at = 0, passes = 0;
+      if (const char* f = SDL_getenv("MW3_FOCUS_LOST_AT")) focus_lost_at = std::atoi(f);
+      if (focus_lost_at > 0) {
+        auto before = pump.each_pass;
+        pump.each_pass = [&, before] {
+          if (before) before();
+          if (++passes != focus_lost_at) return;
+          SDL_Event ev{};
+          ev.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+          ev.window.windowID = SDL_GetWindowID(window.sdl());
+          SDL_PushEvent(&ev);
+          std::printf("mw3: focus lost (MW3_FOCUS_LOST_AT)\n");
+        };
+      }
       // A quit outside the Exit state returns through ExitInstance, as the exe's WM_QUIT does,
       // and leaves the world to the process's end: stop_game after zSound's shutdown freed
       // the sounds the world's nodes still held (the exit's SIGTRAP, docs/program.md).

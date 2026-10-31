@@ -943,6 +943,9 @@ LauncherChoice Launcher::run() {
     // drawn by an SDL renderer cannot be the GPU device's too).
     if (tex_) SDL_DestroyTexture(tex_), tex_ = nullptr;
     if (ren_) SDL_DestroyRenderer(ren_), ren_ = nullptr;
+    // Its window's events so far are the launcher's: a focus lost to another
+    // app would reach the game as a deactivation and leave it waiting.
+    SDL_FlushEvents(SDL_EVENT_WINDOW_FIRST, SDL_EVENT_WINDOW_LAST);
     choice_.window = win_;
     win_ = nullptr;
     if (choice_.window) std::printf("mw3: launcher: its window goes on to the game\n");
