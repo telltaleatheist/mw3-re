@@ -2138,3 +2138,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   once). W24: the objective's firefly_01/02 do not exist (the mission's
   are 03/04; missing names count as destroyed) and the APCs are on no
   list: a fixes.md candidate.
+
+## W28, W29 (2026-10-30)
+
+- W29 (mac4/w29-recentre, docs only): as the original; / is Center Legs,
+  either centring cancelled by any twist or look input (test_parts.py).
+- W28 (mac4/w28-lead): the HUD's mech_velocity hook took the raw +0x030;
+  the exe's vt+0xc is the lead velocity (0x0041d480). Fixed through
+  weapon_lock_velocity; test with a break. The part aim is the exe's.
