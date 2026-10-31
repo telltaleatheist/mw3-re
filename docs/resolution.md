@@ -397,8 +397,9 @@ high, wider only for shapes wider than 4:3.)
 
 `--click-at X,Y@N` takes a 640x480 frame pixel and adds the dialogs' origin
 over a mission (the Core and Pause states); the menus' frame is at 0. With
-wide menus a piece in a right group is the extra width further: `--briefing`
-marks its ACCEPT so (mw3_main).
+wide menus a piece in a middle group is half the extra width further and one
+in a right group all of it: the program's own clicks say which (`--briefing`'s
+ACCEPT right, `--lab-mech`'s MECHLAB middle; mw3_main).
 
 Tests:
 - `mission_c1m1_pause_click_at_any_size_headless`: c1m1 at InGameVMode 5,
@@ -489,17 +490,7 @@ Tests:
   at modes 5, 13 and 15. Escape, the pause screen's OPTIONS, then GRAPHICS &
   AUDIO. Both screens have origin 0, and ACCEPT's and RESOLUTION's rects are
   mode 5's. Without the fix, at 13 and 15 the origins are 106 and the rects
-  106 to the right (4 checks fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
-Last, CAMPAIGN's pilot screen: ACCEPT moves 213, the new name's bar label
-and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
-Without the arrows' move the games' UP stays at 382 (1 check fails). In
-CONTROLS, the load/save popup (no table, one centred block) has its name
-bar moved 106 and its label 10,6 from it; moved by the bar's own set_pos,
-the label is 260,122 from it (1 check fails). Then a pilot stepped on to
-c1m2 is accepted: the briefing's map is 853 wide, LAUNCH moves 106, a map
-line's points 106, and a waypoint sits 106 right of its nav point's
-projection. Without the points' move or the waypoint's shift, both checks
-fail.
+  106 to the right (4 checks fail).
 
 
 ## 12. 16:9 menus (in progress, 2026-10-30)
@@ -514,11 +505,15 @@ the next start, not screens already made for another width.
 
 `GameEngine::widen_screen` (app_menus.cpp) runs on each menu screen as it is
 made, except the pause screen (it keeps the dialog origin, section 9):
-- a background 600 or more across (its rect, or a plain image's width up to
-  640: the briefing's map) goes to the middle, its sides filled from its
-  own edges, mirrored and darkened, into a new image (the player's art on
-  disk is not touched); a screen can start the mirror further in (the
-  briefing's 40, past the grid's labels and the north arrow);
+- a background 600 or more across (its rect, or an opaque plain image's
+  width up to 640: the briefing's map; an overlay the table stretches is
+  never one) goes to the middle, its sides filled from its own edges,
+  mirrored about its edges and darkened, into a new image (the player's
+  art on disk is not touched; until the lab the left side was a copy of the
+  first columns, not a mirror, a seam at the art's edge); a screen can start the mirror further in (the briefing's 40,
+  past the grid's labels and the north arrow) and set the sides' shading
+  (150/256 at the art down to 60 at the canvas's edge; the debriefing's
+  dark circuit board 256 to 160, else its sides read black);
 - per-screen group tables (frame rects, anchored left, centre or right)
   move each object whose middle is in a group, so a sphere, its label, its
   ripple and its trap rect move together; the rest moves by half the extra
@@ -542,6 +537,10 @@ made, except the pause screen (it keeps the dialog origin, section 9):
   polyline's points are where it draws (0x005a38f0), so they move with it
   (the briefing's lines); a briefing waypoint is put back on its nav point
   every frame (0x004081a0), so it keeps the map's shift (ours, `shift_x`);
+  a Line2D draws from its place to its end, so its end moves too (the
+  debriefing's totals); a control whose rect runs from 0 to past its own
+  place (its bounds pulled to a label at 0: the lab's data and lists) is
+  placed in its group by its own place;
 - an overlay drawn as one image across two groups is stretched at a column
   between them, from a row down (that column repeated, alpha and flags
   kept, the new columns above that row left clear), by the right group's
@@ -562,7 +561,23 @@ ENTRY and the pilots left, OPERATION, ACCEPT and CANCEL right, LINES2 (619
 wide) stretched at column 320, which only its top line crosses).
 The briefing (0x405230) is one centred block on its widened map. Its
 script's objects are made with it (read_script), so the widening sees them.
-Left, one per sitting with a 4:3 and a 16:9 shot: debriefing, the lab (its 3D view), Instant Action, message
+The debriefing (0x47b430, made apart too): MECH STATUS and ABORT left,
+SALVAGE FOUND and CONTINUE right, MISSION SUCCESS and REPLAY in the middle.
+The mech lab (0x44b920, made apart too) is one centred block: its panels
+change looks as it goes (LabPanel::show_look, a double one across two
+columns), so its columns cannot be split once. Its edge panels' three
+looks are made wider outward (the left one stays at 0, its art half the
+extra width in), shaded as the debriefing's board. The 3D view's window
+(lab_place_window, the 640 rect 210,52..430,288 at [0x005e4688]) moves
+with the block and is scaled to the render target: at mode 13 the 3D
+target is the render size, not the canvas's (unscaled, the 'mech drew
+small at the top left).
+Instant Action (0x488bc0; its pilot screen first, in its IA mode, laid out
+as the pilot screen): ALLIES and ENEMIES left, the mission's box, ACCEPT and
+CANCEL right, ALLY_TITLE's image (576 wide: the lines of both boxes)
+stretched at column 385, at the link between them. Its cycles' rects are
+pulled to 0, so they go by their own places (the worlds at 420: right).
+Left, one per sitting with a 4:3 and a 16:9 shot: the lab (its 3D view), Instant Action, message
 boxes.
 
 Test: `menus_wide_spread_by_their_groups_headless`, with a saved
@@ -585,4 +600,13 @@ the label is 260,122 from it (1 check fails). Then a pilot stepped on to
 c1m2 is accepted: the briefing's map is 853 wide, LAUNCH moves 106, a map
 line's points 106, and a waypoint sits 106 right of its nav point's
 projection. Without the points' move or the waypoint's shift, both checks
+fail. The mission launched and won, the debriefing's circuit board is 853
+wide, CONTINUE moves 213, ABORT and the cards stay, and the totals' line
+moves 106 at both ends; without the end's move it is 331..414 (1 check
+fails). On the main menu's second visit the Instant Action screen (made at
+the start) is checked: ACCEPT and the worlds' cycle 213 right, an ally
+list stays, ALLY_TITLE 213 wider; without the pulled rects' rule the
+worlds stay at 420 (1 check fails). Before LAUNCH the mech lab is visited: its left panel 106 wider at
+0, the right 107 wider, ACCEPT 106 right, the 3D window at (210 + 106) x
+render / canvas; without the panels' and the window's changes, 3 checks
 fail.

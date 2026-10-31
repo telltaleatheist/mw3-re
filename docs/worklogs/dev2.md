@@ -443,7 +443,13 @@ works alongside it; stay out of its files.
 - Briefing done (widened after construction; plain-image backgrounds by
   width, mirror inset 40; polyline points; waypoint shift_x; --click-at
   origin only over a mission, --briefing's ACCEPT marked right).
-- Next: debriefing, lab (its 3D view), IA, the controls' popups,
+- Debriefing done (own construct path widened; per-screen side shading;
+  Line2D ends). Test goes on through LAUNCH, a win, the debriefing.
+- Lab done (one block; edge panels' looks extended; 3D window scaled to the
+  render target and shifted; pulled rects anchored by place; the left
+  mirror fixed in extend_texture).
+- Instant Action done (table 0x488bc0, ALLY_TITLE stretched).
+- Next: the controls' popups,
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

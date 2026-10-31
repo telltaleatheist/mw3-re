@@ -85,6 +85,8 @@
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
+#include "mech3/lab_view.h"
+#include "gamez/zclass/window.h"
 #include "mech3/app_view.h"
 #include "mech3/landmines.h"
 #include "mech3/player_view.h"
@@ -16081,7 +16083,8 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 // LINES overlay is stretched between its panel and the screens' box; on to
 // GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
-// Last, CAMPAIGN's pilot screen and a pilot's c1m2 briefing.
+// Last, CAMPAIGN's pilot screen, a pilot's c1m2 briefing, the mission
+// launched and won (the mech lab visited first), and its debriefing.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
@@ -16091,7 +16094,11 @@ struct WideMenus {
   int32_t popup_bar = -1, popup_label_dx = -1, popup_label_dy = -1;  // the load/save popup's name bar, its label from it
   int32_t pil_accept = -1, pil_bar_label_y = -1, pil_bar_label_x = -1, pil_up = -1, games_up = -1, pil_lines_w = -1;
   int32_t map_w = -1, launch = -1, line_x = -1, waypoint_dx = -99;
-  bool pil_lines_alpha = false;  // LINES2 stretched (its alpha kept), not taken for a background  // the briefing (a waypoint: from its projection)
+  bool pil_lines_alpha = false;  // LINES2 stretched (its alpha kept), not taken for a background
+  int32_t win_bg = -1, win_continue = -1, win_abort = -1, win_card = -1, win_line = -1, win_line_end = -1;  // the debriefing
+  int32_t lab_left_w = -1, lab_left_x = -1, lab_right_w = -1, lab_accept = -1, lab_view_x = -1, lab_view_w = -1;  // the lab
+  int32_t lab_render_w = 0, lab_canvas_w = 0;
+  int32_t ia_accept = -1, ia_ally = -1, ia_worlds = -1, ia_box_w = -1;  // Instant Action (made at the start)  // the briefing (a waypoint: from its projection)
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -16114,6 +16121,9 @@ WideMenus wide_menus_run(bool wide) {
   platform::RegFile settings(dir + "/settings.reg");
   mech3::reset_states();
   reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
   const zfix::Options saved_fix = zfix::options();
   zfix::options().any_resolution = true;
@@ -16194,6 +16204,41 @@ WideMenus wide_menus_run(bool wide) {
           engine.map_project(w->map, engine.nav_position(w->nav), xy);
           out.waypoint_dx = w->get_x() - xy[0];
         }
+        b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);
+        stage = 33;
+      } else if (stage == 33 && now == &st.lab) {
+        mech3::LabScreen* ls = engine.lab_screen(st.lab.lab_screen_);
+        if (!ls) return;
+        if (ls->panel_left.single) out.lab_left_w = ls->panel_left.single->width;
+        out.lab_left_x = ls->panel_left.get_x();
+        if (ls->panel_right.single) out.lab_right_w = ls->panel_right.single->width;
+        out.lab_accept = ls->tabs[6].get_rect()->left;
+        out.lab_render_w = mech3::render().w, out.lab_canvas_w = mech3::display().w;
+        if (mech3::LabView* v = engine.lab_view()) {
+          int32_t y = 0, h = 0;
+          zcls::window_origin(v->window, &out.lab_view_x, &y);
+          zcls::window_size(v->window, &out.lab_view_w, &h);
+        }
+        ls->on_button(6, 0, 0);  // ACCEPT: back to the briefing
+        stage = 34;
+      } else if (stage == 34 && now == &st.load) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b) return;
+        b->salvage_seen = 1;  // (else LAUNCH asks about the salvage first)
+        b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        stage = 31;
+      } else if (stage == 31 && now == &st.core && ++wait > 30) {
+        mech3::missions().ended = 1;  // won: Exit Mission, the end screen, the Win State's debriefing
+        mech3::missions().on_command(0x71);
+        stage = 32;
+      } else if (stage == 32 && now == &st.end_win) {
+        auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(st.end_win.screen_));
+        if (!d) return;
+        if (d->background.image) out.win_bg = d->background.image->width;
+        out.win_continue = d->continue_btn.get_rect()->left;
+        out.win_abort = d->abort_btn.get_rect()->left;
+        out.win_card = d->cards[0].get_rect()->left;
+        out.win_line = d->lines[0].get_x(), out.win_line_end = d->lines[0].end_x;
         stage = 3;
       } else if (stage == 1) {
         auto* os = dynamic_cast<mech3::OptionsState*>(now);
@@ -16249,14 +16294,23 @@ WideMenus wide_menus_run(bool wide) {
         out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
         out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
         out.width_after = engine.buffer_width();
+        auto* gs = dynamic_cast<mech3::GameMenuState*>(engine.menu_state_of(engine.peek32(0x60985c)));  // the Action State
+        if (auto* as = gs ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(gs->screen_)) : nullptr) {
+          out.ia_accept = as->accept_btn.get_rect()->left;
+          out.ia_ally = as->allies[0].get_x();
+          out.ia_worlds = as->worlds.get_x();
+          if (as->ally_title.image) out.ia_box_w = as->ally_title.image->width;
+        }
         mm->buttons[mech3::MainMenuButton::kNewCampaign].on_left_up();
         stage = 20;
       }
     };
     CountingPump pump;
-    pump.limit = 3000;
+    pump.limit = 6000;
     pump.stop = [&] { return stage == 3; };
     app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
     ztwod::set_host(nullptr);
@@ -16322,6 +16376,35 @@ TEST(menus_wide_spread_by_their_groups_headless) {
   EXPECT(off.map_w == 640 && on.map_w == 640 + extra && on.launch == off.launch + extra / 2);
   EXPECT(off.line_x >= 0 && on.line_x == off.line_x + extra / 2);
   EXPECT(off.waypoint_dx == 0 && on.waypoint_dx == extra / 2);
+  // The debriefing (c1m2 won): the circuit board widened, ABORT and the
+  // cards left, CONTINUE right, the totals' lines (from a place to an end)
+  // whole in the middle.
+  std::printf("debriefing: background %d / %d, CONTINUE %d / %d, ABORT %d / %d, a card %d / %d, a line %d..%d / %d..%d\n",
+              off.win_bg, on.win_bg, off.win_continue, on.win_continue, off.win_abort, on.win_abort, off.win_card,
+              on.win_card, off.win_line, off.win_line_end, on.win_line, on.win_line_end);
+  EXPECT(off.win_bg == 640 && on.win_bg == 640 + extra);
+  EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra && on.win_abort == off.win_abort);
+  EXPECT(on.win_card == off.win_card);
+  EXPECT(off.win_line_end > off.win_line && on.win_line == off.win_line + extra / 2 && on.win_line_end == off.win_line_end + extra / 2);
+  // Instant Action: ALLIES left, the mission's cycles and ACCEPT right, the
+  // box's lines (ALLY_TITLE's image) stretched out to the right group.
+  std::printf("instant action: ACCEPT %d / %d, an ally %d / %d, the worlds %d / %d, ALLY_TITLE %d / %d wide\n", off.ia_accept,
+              on.ia_accept, off.ia_ally, on.ia_ally, off.ia_worlds, on.ia_worlds, off.ia_box_w, on.ia_box_w);
+  EXPECT(off.ia_accept > 0 && on.ia_accept == off.ia_accept + extra && on.ia_ally == off.ia_ally);
+  EXPECT(on.ia_worlds == off.ia_worlds + extra && off.ia_box_w > 0 && on.ia_box_w == off.ia_box_w + extra);
+  // The mech lab (from the briefing, before LAUNCH; one block): its edge
+  // panels made wider outward (the left one staying at 0), ACCEPT half the
+  // extra width right, and the 3D view's window over the moved hole, in
+  // the render target's pixels (its 640 rect 210..430, [0x005e4688]).
+  std::printf("lab: left panel %d at %d / %d at %d, right panel %d / %d, ACCEPT %d / %d, the 3D window at %d, %d wide / at %d, %d wide\n",
+              off.lab_left_w, off.lab_left_x, on.lab_left_w, on.lab_left_x, off.lab_right_w, on.lab_right_w, off.lab_accept,
+              on.lab_accept, off.lab_view_x, off.lab_view_w, on.lab_view_x, on.lab_view_w);
+  EXPECT(off.lab_left_w > 0 && on.lab_left_w == off.lab_left_w + extra / 2 && on.lab_left_x == off.lab_left_x);
+  EXPECT(on.lab_right_w == off.lab_right_w + extra - extra / 2 && on.lab_accept == off.lab_accept + extra / 2);
+  EXPECT(off.lab_view_x == 210 && off.lab_view_w == 220);
+  const int32_t rw = on.lab_render_w, cw = on.lab_canvas_w;
+  EXPECT(cw == on.width && rw > 0 && on.lab_view_x == (210 + extra / 2) * rw / cw &&
+         on.lab_view_w == (430 + extra / 2) * rw / cw - (210 + extra / 2) * rw / cw);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to

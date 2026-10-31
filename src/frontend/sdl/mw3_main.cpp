@@ -147,7 +147,7 @@ struct Args {
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
-  struct ClickAt { int frame, x, y; bool right = false; };  // right: in a wide menu's right group (ours)
+  struct ClickAt { int frame, x, y, group = 0; };  // group: a wide menu's left (0), middle (1) or right (2) (ours)
   std::vector<ClickAt> clicks_at;  // --click-at X,Y@N (the game's 640 x 480 pixels)
   std::string briefing;  // --briefing NAME (ours): a campaign mission's briefing, as the menus reach it
   bool walk = false;  // --walk: full throttle (THROTTLE0's key) at the start (ours)
@@ -258,7 +258,7 @@ bool parse(int argc, char** argv, Args& a) {
   // which Op 1 Mission 1 greys), so it takes that route and clicks MECHLAB.
   if (a.lab_mech >= 0 && a.briefing.empty() && a.mission.empty()) {
     a.briefing = "c1m2";
-    a.clicks_at.push_back({2500, 300, 435});
+    a.clicks_at.push_back({2500, 300, 435, 1});  // MECHLAB (the briefing: one block)
   }
   return true;
 }
@@ -843,7 +843,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
             const float dw = static_cast<float>(mech3::display().w > 0 ? mech3::display().w : 640);
             const float dh = static_cast<float>(mech3::display().h > 0 ? mech3::display().h : 480);
             const bool over_mission = app.current() == &mech3::states().core || app.current() == &mech3::states().pause;
-            const int32_t ox = over_mission ? ztwod::dialog_origin().x : c.right ? std::max(0, mech3::display().w - 640) : 0;
+            const int32_t extra = std::max(0, mech3::display().w - 640);
+            const int32_t ox = over_mission ? ztwod::dialog_origin().x : c.group == 2 ? extra : c.group == 1 ? extra / 2 : 0;
             const int32_t oy = over_mission ? ztwod::dialog_origin().y : 0;
             const float px = static_cast<float>(c.x + ox), py = static_cast<float>(c.y + oy);
             zin::mouse_set((px - dw / 2) / (dw / 2), (py - dh / 2) / (dh / 2));
@@ -954,7 +955,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         }
         p->current = c;
         p->save();
-        auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320, true}};  // CAMPAIGN, the pilot, ACCEPT
+        auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320, 2}};  // CAMPAIGN, the pilot, ACCEPT
       }
 
       sdlfe::SdlPump pump(&input, &app);
