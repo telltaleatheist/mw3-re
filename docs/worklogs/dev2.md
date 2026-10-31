@@ -472,3 +472,22 @@ works alongside it; stay out of its files.
 - Test `instant_action_lab_has_the_players_mech_headless` (fails without);
   the instant_action, lab and briefing sets pass. Branch `mac5/w37-ia-lab`
   off main 98665790.
+
+## 21. The first playtest release's package (2026-10-30)
+
+- Branch `mac5/release-0.1` off main 48d694fe.
+- `package.cmd`: mw3, mw3import (FFmpeg, the fall-back) and the 32-bit
+  helper mw3indeo (`build_indeo.cmd build-win-pkg`); miniz's licence;
+  check_dist, ffmpeg_notices and ffmpeg-configuration kept. THIRD-PARTY
+  names the helper and miniz.
+- `mw3.log` (run_log.cpp): stdout and stderr teed by pipe and thread to
+  the write dir's log; the last start's is `mw3.old.log`. Checked on the
+  Mac (two starts: rotation, both streams, the console unchanged);
+  run_log.cpp compiles under mingw x86_64.
+- The start's notes: data not 1.2 (`--patch`), files odd or missing, no
+  music (`mw3import --cue ... --music-only`, or a rip), logged each start
+  and boxed on the first. The 1.0 note checked on game/mw3-1.0. The box
+  itself not seen here (a check run never shows it).
+- Player messages that pointed at docs/ now point at README.txt.
+- README.txt rewritten as the playtest guide (names `--install-from`
+  from the next batch); docs/release-notes-0.1.md drafted for Owen.
