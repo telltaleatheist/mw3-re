@@ -528,6 +528,8 @@ These change how the game talks to the computer, not how it plays.
   shows a note when the 1.2 patch would help or no music was found, with
   what to do.
 
+- A launcher opens first (ours): it finds your MechWarrior 3 by itself and, when it cannot, sets it up from buttons instead of command lines: find your install, install from the disc or a disc image (with a progress bar and Cancel), apply the official 1.2 patch, add the music from a disc image.
+
 ## Kept as the original, on purpose
 
 Known quirks the rebuild deliberately keeps:

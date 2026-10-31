@@ -48,6 +48,9 @@ for /d %%d in ("%VCToolsRedistDir%x64\Microsoft.VC*.CRT") do (
 
 rem The read-me, the notices, and each library's own licence files.
 copy /y tools\windows\dist\README.txt "%DIST%\" >nul || exit /b 1
+rem The launcher's art (ours, assets/launcher: generated, with its prompts).
+mkdir "%DIST%\assets\launcher"
+copy /y assets\launcher\*.png "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
 if exist LICENSE copy /y LICENSE "%DIST%\LICENSE.txt" >nul
 for /d %%d in (deps\*) do (
