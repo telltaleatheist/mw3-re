@@ -414,3 +414,13 @@ works alongside it; stay out of its files.
   held button is swallowed until let go. `sdl_mission_start_drops_the_launch_click`
   (3 checks fail without). Owen to confirm. Branch `mac5/w30-launch-fire`
   off main d1e5b9e6.
+
+## 30. W37: the lab from Instant Action (2026-10-30)
+
+- A port bug, not a fix of the exe: Engine::game_slot_count / game_slot
+  (briefing.cpp) asked the campaign only; the lab from Instant Action's
+  briefing got no slots, so no mech and nothing to edit. Now the current
+  game's (CampaignGame or ActionGame, the exe's vt+0x38/+0x34).
+- Test `instant_action_lab_has_the_players_mech_headless` (fails without);
+  the instant_action, lab and briefing sets pass. Branch `mac5/w37-ia-lab`
+  off main 98665790.
