@@ -39,16 +39,18 @@ masked.
 | `zbd/c2/readerm3.zbd` | 68,026 -> 73,391 | the boundary valves use new region pairs (`reg_inside2/outside2`, already in 1.0's archive); two target names to `MSG_`; new `net_14.zrd` (292 lines, a new path net) | bug fix; new content | edits: yes; net_14: no |
 | `zbd/c3/readerm2..m6` | +-30 bytes each | target names to `MSG_` ids; m3's two boundary regions' points moved (12 values) | text, bug fix | yes |
 | `zbd/c3/readermp3.zbd`, `readermp4.zbd` | new, 7,262 and 6,662 | two new multiplayer maps on the c3 world (paths, boundaries, map info) | new content | no (multiplayer is not ported yet) |
-| `zbd/c3/gamez.zbd` | 12,999,820 -> 12,994,852 | the world re-exported: about 180 models' geometry changed (terrain tiles g13841..g14972 and some buildings, ~1 MB), helipads and targets moved, one texture (`cpad07`) dropped, a node renamed, a soil type fixed (`dome12` 9 -> 0) | level fix | positions, names, soil: yes; the geometry: no |
+| `zbd/c3/gamez.zbd` | 12,999,820 -> 12,994,852 | the world re-exported: 153 of the 187 models that differ have the same faces stored in another order; 34 really change (277 faces out, 239 in): the dome complex's walls re-cut by about 1 m (gaps closed), a 6.3 m wall along one edge of all 7 helipads removed, three terrain corners raised 4.5 m and a map-edge tile given its missing point (seams you could see through), 6 small objects closed with 4 faces each, a damaged part's floating top removed, a feature on `base04` moved 11 m; also one texture (`cpad07`) dropped, a node renamed, a soil type fixed (`dome12` 9 -> 0) | level fixes | removals, moves, names, soil: yes; the 239 new faces (a few KB): Owen's call |
 | `zbd/c3/anim.zbd` | 3,879,480 both | re-saved only: saved pointers, uninitialised padding, floats off by an ulp or -0 -> 1e-8 | none | nothing to do |
 | `zbd/c4b/readerm4.zbd` | 34,205 -> 41,618 | five path nets the mission's orders use were missing in 1.0 (net_02, 05-08, 6.7 KB); one patrol point moved; a target name | bug fix (AI paths) | point and name: yes; the nets: no (see below) |
 | `zbd/c4b/readerm5.zbd` | 26,025 -> 50,984 | 1.0 shipped mission 5 with only six nets and c4's boundary; 1.2 adds 22 files: 11 are byte for byte 1.0's own c4b m6/m4 files, 5 more are those with 1-4 lines changed; 6 are new (net_20, reg_p2, the c4bm5 boundary pair); targets get `MSG_` names | bug fix (AI paths) | 16 of 22: yes, from the player's own archives (+ small edits); 6: no |
 
 ## What cannot be redone, by the rule
 
-- **c3's world geometry**: ~180 models (~1 MB) re-made. On 1.0 data c3
-  keeps 1.0's terrain there; the nodes moved, the soil type and the names
-  can still be fixed.
+- **c3's new faces**: 239 faces in 34 models (the dome walls re-cut, terrain
+  seams closed, six small objects closed). What a 1.0 player sees: cracks in
+  the dome's walls and at three terrain corners, a 6.3 m wall along one side
+  of each helipad, a part floating over a wreck. The removals and moves can
+  be done as edits; the new faces are a few KB of their geometry.
 - **New path nets and regions** (c2 m3 net_14; c4b m4's five nets; c4b m5's
   six): authored node lists. The small ones are 4-10 points each (400-800
   bytes); whether such a list counts as "small values" is Owen's call. Without
