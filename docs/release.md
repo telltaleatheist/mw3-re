@@ -4,6 +4,28 @@ A checklist for the three platforms' packages. Owen approves every tag and
 every GitHub release; nothing here publishes anything by itself. The
 packages are built from one commit, so every platform's version is the same.
 
+## MW3 v1.0: "done"
+
+Owen, 2026-10-31: MechWarrior 3 is declared done with the tag `v1.0`
+before any Pirate's Moon work reaches `main`. Until then Pirate's Moon
+lives on its own branch (`mac5/pm`); after `v1.0` it merges in, and later
+releases carry both games through the launcher. `v1.0` is tagged when
+every box here is ticked:
+
+- [ ] Multiplayer ported (`docs/multiplayer-port.md`, every piece), with
+      the two-process and soak tests passing.
+- [ ] The 1.2 patch rebuilt from 1.0 data (`docs/patch12.md`), and SETUP's
+      patch button gone.
+- [ ] The stealth object and BASIC mode on a debug key as a fly camera
+      (CLAUDE.md, back burner).
+- [ ] The software renderer no longer offered anywhere in the menus.
+- [ ] Every row in `docs/playtest.md` closed: fixed, by design or the
+      original's, none open.
+- [ ] The community-reported problems (`docs/community-issues.md`) each
+      have a verdict.
+- [ ] Owen has played the whole campaign through on the release build.
+- [ ] Every check in sections 1-4 below passes on all three platforms.
+
 ## 1. Before
 
 - [ ] `main` is the commit to release, with nothing uncommitted.
