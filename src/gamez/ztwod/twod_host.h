@@ -68,6 +68,7 @@ class Host : public zgame::Unported {
   virtual void video_lock();                                          // 0x00576de0
   virtual void video_unlock();                                        // 0x00576e70
   virtual zimg::Texture* screen_grab(int32_t buffer);                 // 0x00579500: ECX buffer
+  virtual zimg::Texture* image_new(int32_t w, int32_t h) { (void)w, (void)h; return nullptr; }  // ours: a blank 16-bit image
   // 0x00579660: the screen rectangle into `into` (a new image when null); 0 when off screen.
   virtual zimg::Texture* screen_grab_rect(int32_t buffer, Rect* r, zimg::Texture* into);
   // 0x0055b1f0: ECX image, EDX x; y, the colour key, the source rectangle

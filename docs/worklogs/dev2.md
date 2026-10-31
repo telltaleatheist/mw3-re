@@ -500,3 +500,30 @@ works alongside it; stay out of its files.
   with none, the progress screen; `sdl_program_launcher_screens`.
 - Not yet: one window from launcher to game, MechWarrior (1989), sounds,
   the release's first-start notes inside it.
+## 32. 16:9 menus, in progress (2026-10-30)
+
+- Branch `mac5/menus-wide` (off main 98665790): `--wide-menus` (zfix
+  wide_menus, a display switch like any_resolution, off by default),
+  Engine::menu_vmode, GameEngine::widen_screen with per-screen group tables
+  (main menu 0x486260, game options 0x4379f0), the background widened from
+  its edges (Host::image_new). Lead approved tables (2026-10-30).
+- The main menu and the game options are done: the underlines (the button's
+  AUXBITMAP) move with their buttons, the options' LINES overlay is stretched
+  at column 367, and menu_vmode is chosen once at start-up (screens are laid
+  out when made). Test menus_wide_spread_by_their_groups_headless;
+  resolution.md section 12.
+- Graphics/audio done (table 0x438f60); widen_screen moves controls first
+  and sets absolute positions (a cycle's value moved twice before). Lead
+  wants a 4:3 original shot beside each 16:9 one.
+- Launcher merged to main dd875bb9 (lead, 2026-10-31). When next on it:
+  the MW3 button's "Ready: version 1.2, <path>" overflows with a long path
+  (shorten from the middle with "..." or a second line); then one window
+  into the game, MW1, sounds, first-start notes. mw3.log has two writers
+  now (log_to_file without a console, RunLog otherwise).
+- Controls done (0x42a590 had its own construct path, now widened; LINES
+  stretched from row 300; CheckButton BOUNDS move).
+- Next: pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
+  message boxes; a test per screen (rects anchored), shots each.
+- Shots: scratch run with VMode irrelevant; `--wide-menus --window
+  1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas
+  (58,360).

@@ -740,7 +740,7 @@ bool CoreState::draw_doubled(Handle veh, bool flag) {
 void CoreState::leave() {
   Engine& en = e();
   en.mouse_set_accel(1.3f, 1.3f);
-  en.set_screen_mode(5);
+  en.set_screen_mode(en.menu_vmode());  // 5 (ours: the wide canvas with wide_menus)
   en.cd_stop();
   en.reader_close_archives(0);
   en.anim_stop(1);

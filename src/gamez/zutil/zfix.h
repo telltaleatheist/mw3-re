@@ -18,6 +18,7 @@ struct Options {
   bool fpu53 = true;
   bool any_resolution = true;  // FIX (B): any screen size and 16:9 (resolution.md)
   bool nested_lock = true;     // FIX (A): a 3D lock inside a lock leaves the outer one (render-frame.md)
+  bool wide_menus = false;     // ours, in trial: the menus on the mission's wide canvas (resolution.md; --wide-menus)
 };
 
 inline Options& options() {

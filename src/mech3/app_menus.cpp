@@ -6,6 +6,7 @@
 // button's +0x111ec) still lead to its parts; a menu object's handle is a block
 // of 0x10, its address for the hooks that name it.
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include "gamez/zreader/zreader.h"
@@ -15,6 +16,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
+#include "gamez/zimage/zimg_library.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/mission_map.h"
@@ -73,6 +75,163 @@ Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
   return h;
 }
 
+namespace {
+// Ours (16:9 menus, wide_menus with any_resolution; resolution.md section
+// 12): a menu screen on a canvas wider than its 640 frame. A full-width
+// background (600 or more across) goes to the middle, its sides filled from
+// its own edges, mirrored and darkened (made here, the player's art left as
+// it is); the other objects move by their screen's groups (below).
+void widen_background(ztwod::Image& im, int32_t extra) {
+  zimg::Texture* src = im.image;
+  if (!src || !src->pixels || src->palette_count) return;
+  const int w = src->width, h = src->height, half = extra / 2;
+  zimg::Texture* dst = ztwod::host().image_new(w + extra, h);
+  if (!dst) return;
+  auto* in = static_cast<const uint16_t*>(src->pixels);
+  auto* out = static_cast<uint16_t*>(dst->pixels);
+  auto dark = [](uint16_t p, int k) {  // 565, scaled by k/256
+    const int r = (p >> 11) * k >> 8, g = ((p >> 5) & 63) * k >> 8, b = (p & 31) * k >> 8;
+    return static_cast<uint16_t>(r << 11 | g << 5 | b);
+  };
+  for (int y = 0; y < h; ++y) {
+    const uint16_t* row = in + y * w;
+    uint16_t* o = out + y * (w + extra);
+    for (int x = 0; x < w; ++x) o[half + x] = row[x];
+    for (int x = 0; x < half; ++x) {  // the left side: the edge mirrored, darker outward
+      const int sx = std::min(w - 1, half - 1 - x);
+      o[half - 1 - x] = dark(row[sx], 150 - 90 * x / std::max(1, half));
+    }
+    const int right = extra - half;
+    for (int x = 0; x < right; ++x) {
+      const int sx = std::max(0, w - 1 - x);
+      o[half + w + x] = dark(row[sx], 150 - 90 * x / std::max(1, right));
+    }
+  }
+  im.set_image(dst);
+  im.set_pos(im.get_x(), im.get_y());
+}
+
+// An overlay drawn as one image across two groups (the game options' panel,
+// its link and the screens' box): made `extra` wider at column `at` from row
+// `from_y` down, that column repeated, so a line crossing it lengthens and
+// the part right of it lands with its group; above `from_y` the new columns
+// are left clear.
+void stretch_image(ztwod::Image& im, int32_t at, int32_t from_y, int32_t extra) {
+  zimg::Texture* src = im.image;
+  if (!src || !src->pixels || src->palette_count || at <= 0 || at >= src->width) return;
+  const int w = src->width, h = src->height;
+  zimg::Texture* dst = ztwod::host().image_new(w + extra, h);
+  if (!dst) return;
+  auto* in = static_cast<const uint16_t*>(src->pixels);
+  auto* out = static_cast<uint16_t*>(dst->pixels);
+  dst->flags = (src->flags & ~(zimg::kAlphaOwned | zimg::kPaletteOwned)) | zimg::kPixelsOwned;
+  if (src->alpha) {  // drawn see-through by its alpha (the panel's shade)
+    dst->alpha = static_cast<uint8_t*>(std::calloc(static_cast<size_t>(w + extra) * h, 1));
+    dst->flags |= zimg::kAlphaOwned;
+  }
+  auto from = [&](int x) { return x < at ? x : x < at + extra ? at : x - extra; };
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w + extra; ++x) {
+      const int sx = y >= from_y ? from(x) : x < w ? x : -1;
+      out[y * (w + extra) + x] = sx < 0 ? in[0] : in[y * w + sx];  // clear: the corner's (empty) colour
+      if (dst->alpha) dst->alpha[y * (w + extra) + x] = sx < 0 ? 0 : src->alpha[y * w + sx];
+    }
+  }
+  im.set_image(dst);
+  im.set_pos(im.get_x(), im.get_y());
+}
+}  // namespace
+
+namespace {
+// A screen's groups (in its 640x480 frame) and where each goes on a wide
+// canvas: an object whose middle is inside a group moves with it, the rest
+// stay one block in the middle with the background. Screens not listed are
+// all one block. Whole groups, so a button's sphere and its label (separate
+// objects) move together.
+enum Anchor { kLeft, kCentre, kRight };
+struct Group {
+  int32_t x0, y0, x1, y1;
+  Anchor anchor;
+};
+struct Stretch {
+  int32_t x, y, w;     // the image: its place in the frame and its width
+  int32_t at;          // the column repeated, out to the right group
+  int32_t from_y = 0;  // from this row down
+};
+struct ScreenGroups {
+  uint32_t ctor;  // the screen's constructor (GameEngine::construct)
+  std::vector<Group> groups;
+  std::vector<Stretch> stretches = {};
+};
+const std::vector<ScreenGroups>& screen_groups() {
+  static const std::vector<ScreenGroups> k = {
+      // The main menu: its column of buttons at the left edge, CREDITS and
+      // QUIT and the version line at the right.
+      {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
+      // The game options: the settings' panel left, the screens' box,
+      // ACCEPT and BACK right.
+      {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
+      // The graphics and audio options: the settings' panel left, ACCEPT and
+      // BACK (and the plate behind them) right.
+      {0x438f60, {{0, 0, 380, 420, kLeft}, {380, 0, 640, 480, kRight}}},
+      // The controls: the table, its lines and the description stay one
+      // block in the middle; the two DEFAULT buttons left, ACCEPT and CANCEL
+      // right, their lines in LINES (596 wide) stretched below the table.
+      {0x42a590, {{0, 400, 340, 480, kLeft}, {380, 290, 640, 480, kRight}}, {{0, 0, 596, 400, 300}}},
+  };
+  return k;
+}
+}  // namespace
+
+void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
+  const int32_t extra = buffer_width() - 640;
+  if (!s || extra <= 0 || !zfix::options().any_resolution || !zfix::options().wide_menus) return;
+  const ScreenGroups* table = nullptr;
+  for (const ScreenGroups& g : screen_groups())
+    if (g.ctor == ctor) table = &g;
+  // Controls first: some move their own pieces that are on the list too (a
+  // cycle's value, 0x0048b9b0; an edit bar's label, 0x0048b220), so those go
+  // with them and are left alone after.
+  struct Move {
+    ztwod::Object2D* o;
+    int32_t x, y, off;
+  };
+  std::vector<Move> moves;
+  for (ztwod::Object2D* o = s->head; o; o = o->next) {
+    const ztwod::Rect* r = o->get_rect();
+    const int32_t left = (r ? r->left : o->get_x()) - s->origin_x, right = (r ? r->right : o->get_x()) - s->origin_x;
+    const int32_t top = (r ? r->top : o->get_y()) - s->origin_y, bottom = (r ? r->bottom : o->get_y()) - s->origin_y;
+    auto* im = dynamic_cast<ztwod::Image*>(o);
+    if (im && right - left >= 600) {
+      widen_background(*im, extra);
+      continue;
+    }
+    Anchor a = kCentre;
+    const int32_t mx = (left + right) / 2, my = (top + bottom) / 2;
+    if (table)
+      for (const Group& g : table->groups)
+        if (mx >= g.x0 && mx < g.x1 && my >= g.y0 && my < g.y1) {
+          a = g.anchor;
+          break;
+        }
+    const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
+    if (im && im->image && table)
+      for (const Stretch& st : table->stretches)
+        if (left == st.x && top == st.y && im->image->width == st.w) stretch_image(*im, st.at, st.from_y, extra - off);
+    if (off) moves.push_back({o, o->get_x(), o->get_y(), off});
+  }
+  for (const bool controls : {true, false})
+    for (const Move& m : moves) {
+      if ((dynamic_cast<ztwod::Control*>(m.o) != nullptr) != controls) continue;
+      if (!controls && (m.o->get_x() != m.x || m.o->get_y() != m.y)) continue;  // moved with its control
+      m.o->set_pos(m.x + m.off, m.y);
+      if (auto* b = dynamic_cast<MainMenuButton*>(m.o))  // its underline, drawn by the button
+        b->line.set_pos(b->line.get_x() + m.off, b->line.get_y());
+      auto* cb = dynamic_cast<ztwod::CheckButton*>(m.o);  // its rect is BOUNDS as read (a list box's rows)
+      if (cb && cb->bounds.right > cb->bounds.left) cb->bounds.left += m.off, cb->bounds.right += m.off;
+    }
+}
+
 Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   const Handle a0 = args.size() ? args.begin()->v : 0;
   // FIX (B), playtest W13: every menu screen shows on the menus' 640x480
@@ -90,6 +249,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   auto screen = [&](uint32_t size, MenuScreen* (*make)(GameEngine&, Handle)) {
     const Handle h = alloc_block(size);
     screens_[h] = {make(*this, a0), size};
+    if (ctor != 0x492750) widen_screen(screens_[h].screen, ctor);
     return h;
   };
   auto state = [&](MenuState* (*make)(Handle)) {
@@ -117,6 +277,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};
       screens_[h].screen = new ControlsScreen(*this, a0, h);
+      widen_screen(screens_[h].screen, ctor);
       return h;
     }
     case 0x42d9d0:

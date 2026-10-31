@@ -487,5 +487,65 @@ Tests:
   at modes 5, 13 and 15. Escape, the pause screen's OPTIONS, then GRAPHICS &
   AUDIO. Both screens have origin 0, and ACCEPT's and RESOLUTION's rects are
   mode 5's. Without the fix, at 13 and 15 the origins are 106 and the rects
-  106 to the right (4 checks fail).
+  106 to the right (4 checks fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
 
+
+## 12. 16:9 menus (in progress, 2026-10-30)
+
+Ours, `--wide-menus` (`zfix::options().wide_menus`, a display switch beside
+any_resolution, off by default; it changes no play). `Engine::menu_vmode`
+gives the menus the in-mission mode when its canvas is wider than 640
+(853x480 at 16:9), else 5. It is chosen once, at the start-up: the screens
+are laid out when they are made (an OptionsState makes its screen in its
+constructor), so a mode picked in the graphics options reaches the menus at
+the next start, not screens already made for another width.
+
+`GameEngine::widen_screen` (app_menus.cpp) runs on each menu screen as it is
+made, except the pause screen (it keeps the dialog origin, section 9):
+- a background 600 or more across goes to the middle, its sides filled from
+  its own edges, mirrored and darkened, into a new image (the player's art
+  on disk is not touched);
+- per-screen group tables (frame rects, anchored left, centre or right)
+  move each object whose middle is in a group, so a sphere, its label, its
+  ripple and its trap rect move together; the rest moves by half the extra
+  width, as one block with the background. A screen with no table is one
+  centred block;
+- a main menu button's underline (AUXBITMAP, the button's own image, not on
+  the screen's list) moves with its button;
+- controls move first, each object to its start plus its offset; some move
+  pieces of their own that are on the list too (a cycle its value,
+  0x0048b9b0; an edit bar its label, 0x0048b220), and an object already
+  moved that way is left alone. (Moved relative to where it stood, a
+  cycle's value went twice the distance: the graphics screen at a centre
+  offset showed every value 106 right of its box.) A check button or list
+  box's rect is BOUNDS as read, not its place, so it moves too (else the
+  controls' table drew moved and took clicks where it was);
+- an overlay drawn as one image across two groups is stretched at a column
+  between them, from a row down (that column repeated, alpha and flags
+  kept, the new columns above that row left clear), by the right group's
+  offset less its own: the game options' LINES (483x346) at column 367, so
+  the link from the settings' panel lengthens and the screens' box lands
+  with GRAPHICS & AUDIO and CONTROLS; the controls' LINES (596 wide,
+  centred) at column 400 from row 300, so ACCEPT's and CANCEL's lines go
+  out to them.
+
+Done: the main menu (0x486260), the game options (0x4379f0) and the
+graphics and audio options (0x438f60: the panel left, ACCEPT, BACK and their
+plate right) and the controls (0x42a590, which GameEngine::construct makes
+apart from the other screens: the table, its lines and the description one
+block in the middle, the DEFAULT buttons left, ACCEPT and CANCEL right).
+Left, one per sitting with a 4:3 and a 16:9 shot: pilot, campaign and briefing
+(its 3D map), debriefing, the lab (its 3D view), Instant Action, message
+boxes.
+
+Test: `menus_wide_spread_by_their_groups_headless`, with a saved
+InGameVMode of 13. With wide menus off, then on: main menu, OPTIONS, BACK.
+CAMPAIGN and DIFFICULTY stay, while CREDITS (and its underline), ACCEPT and
+GRAPHICS & AUDIO move 213. LINES is 213 wider. In GRAPHICS & AUDIO,
+RESOLUTION stays, ACCEPT moves 213, and SHADOWS' value keeps its place
+from its cycle. In CONTROLS, ACCEPT moves 213, MOUSE/KEYBD DEFAULT stays,
+KEY A's rect moves 106 with the table, and LINES is 107 wider. A 640x480 picked from the
+options leaves the menus at 853. Break: without the underline move and the
+stretch, 2 checks fail. Without the graphics table and with the old
+relative move, SHADOWS' value is 351 from its cycle instead of 245 (2 checks
+fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
