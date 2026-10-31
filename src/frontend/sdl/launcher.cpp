@@ -51,8 +51,18 @@ std::string font_path(const std::string& dir) {
   tries.insert(tries.end(), {"C:/Windows/Fonts/bahnschrift.ttf", "C:/Windows/Fonts/arialbd.ttf",
                              "/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf",
                              "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                             // Linux (docs/linux.md): a narrow face first, at Debian/Ubuntu's,
+                             // Fedora's and Arch's places, then a plain bold one.
+                             "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf",
+                             "/usr/share/fonts/liberation-narrow/LiberationSansNarrow-Bold.ttf",
+                             "/usr/share/fonts/liberation/LiberationSansNarrow-Bold.ttf",
                              "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
-                             "/usr/share/fonts/TTF/DejaVuSansCondensed-Bold.ttf"});
+                             "/usr/share/fonts/dejavu-sans-fonts/DejaVuSansCondensed-Bold.ttf",
+                             "/usr/share/fonts/TTF/DejaVuSansCondensed-Bold.ttf",
+                             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                             "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf",
+                             "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+                             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"});
   for (const std::string& t : tries)
     if (fs::exists(t, ec)) return t;
   return {};

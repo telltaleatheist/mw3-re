@@ -191,8 +191,8 @@ class WiredShade : public ShadeHooks {
   }
   int32_t frame() override { return static_cast<int32_t>(zcls::frames().frame); }
   void walk_callbacks(bool on) override {
-    zcls::scene_walk().pre = on ? [](zcls::Node* n) { shade_before(id(n)); } : nullptr;
-    zcls::scene_walk().post = on ? [](zcls::Node* n) { shade_after(id(n)); } : nullptr;
+    zcls::scene_walk().pre = on ? +[](zcls::Node* n) { shade_before(id(n)); } : nullptr;
+    zcls::scene_walk().post = on ? +[](zcls::Node* n) { shade_after(id(n)); } : nullptr;
   }
   void static_lights(int32_t on) override { zmod::draw_state().static_lights = on; }
   void stamps_frozen(int32_t on) override { zcls::frames().frozen = on; }

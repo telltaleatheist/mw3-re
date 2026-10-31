@@ -288,6 +288,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # clang-cl
   target_compile_options(mw3core PRIVATE /clang:-ffp-contract=off)
 endif()
 
+# Linked into the shared probe below: position-independent (the Mac's default;
+# GCC on Linux needs it asked for, docs/linux.md).
+set_target_properties(mw3core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
 add_library(mw3probe SHARED
