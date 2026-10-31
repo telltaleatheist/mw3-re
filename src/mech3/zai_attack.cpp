@@ -403,20 +403,25 @@ namespace {
 constexpr float kCrumbStep = 8.0f;   // the leader's way, a point each 8 m
 constexpr size_t kCrumbs = 60;       // kept
 constexpr float kCrumbReached = 6.0f;
-constexpr float kBody = 3.0f;        // half a mech's width: the way must be clear of walls this far each side
+constexpr float kBody = 5.0f;        // half a mech's width: the way must be clear of walls this far each side
 constexpr float kSkip = 30.0f;       // the farthest crumb taken ahead of the next
+constexpr float kOut = 3.5f;         // the sight lines from this far out: past his own body
 // A mech's way from a to b clear: the line from knee height to over its
-// head, and its two sides kBody off it.
-bool sight(const float a[3], const float b[3]) {
-  float sx = b[2] - a[2], sz = -(b[0] - a[0]);
-  const float len = std::hypot(sx, sz);
-  if (len < 0.01f) return true;
-  sx = sx / len * kBody, sz = sz / len * kBody;
+// head, and its two sides kBody off it; from kOut out (the segments meet the
+// mechs too: his own body), to `stop` short of b (the leader's).
+bool sight(const float a[3], const float b[3], float stop = 0.0f) {
+  const float dx = b[0] - a[0], dz = b[2] - a[2];
+  const float len = std::hypot(dx, dz);
+  if (len < kOut + stop + 1.0f) return true;
+  const float ux = dx / len, uz = dz / len;
+  const float s0 = kOut, s1 = len - stop;
+  const float sx = uz * kBody, sz = -ux * kBody;
   const float lines[8][2] = {{0.0f, 1.5f}, {0.0f, 4.0f}, {0.0f, 6.5f}, {0.0f, 9.0f},
                              {1.0f, 2.5f}, {-1.0f, 2.5f}, {1.0f, 6.5f}, {-1.0f, 6.5f}};
   for (const auto& l : lines) {
-    const float from[3] = {a[0] + l[0] * sx, a[1] + l[1], a[2] + l[0] * sz};
-    const float to[3] = {b[0] + l[0] * sx, b[1] + l[1], b[2] + l[0] * sz};
+    const float y0 = a[1] + (b[1] - a[1]) * (s0 / len), y1 = a[1] + (b[1] - a[1]) * (s1 / len);
+    const float from[3] = {a[0] + ux * s0 + l[0] * sx, y0 + l[1], a[2] + uz * s0 + l[0] * sz};
+    const float to[3] = {a[0] + ux * s1 + l[0] * sx, y1 + l[1], a[2] + uz * s1 + l[0] * sz};
     if (brain_hooks().wall_between(from, to)) return false;
   }
   return true;
@@ -428,7 +433,9 @@ void FollowState::trail_record(const float to[3]) {
   Trail& t = trail;
   if (!t.crumbs.empty()) {
     const auto& last = t.crumbs.back();
-    if (std::hypot(to[0] - last[0], to[2] - last[2]) < kCrumbStep) return;
+    const float d = std::hypot(to[0] - last[0], to[2] - last[2]);
+    if (d < kCrumbStep) return;
+    if (d > 4.0f * kCrumbStep) t.crumbs.clear(), t.at = -1;  // a jump (a teleport): no way walked to it
   }
   t.crumbs.push_back({to[0], to[1], to[2]});
   if (t.crumbs.size() > kCrumbs) {
@@ -451,7 +458,7 @@ bool FollowState::trail_goal(const float pos[3], const float to[3], float reach,
   if (t.force_t > 0) t.force_t -= dt;
   t.look_t -= dt;
   const bool look = t.look_t <= 0;
-  if (look) t.look_t = 0.25f, t.sees = sight(pos, to);
+  if (look) t.look_t = 0.25f, t.sees = sight(pos, to, 6.0f);
   const int32_t n = static_cast<int32_t>(t.crumbs.size());
   if (t.at >= n) t.at = -1;
   auto far_to = [&](int32_t i) { return std::hypot(t.crumbs[i][0] - pos[0], t.crumbs[i][2] - pos[2]); };
@@ -687,6 +694,7 @@ void FollowState::run(float dt) {
     return;
   }
   float slack_along = 0, slack_side = 0;
+  bool on_crumb = false;
   float at[3] = {to[0], to[1], to[2]};
   float goal[3], ahead[2] = {0, 0};
   if (zfix::options().bugs) h.forward(v, &ahead[0], &ahead[1]), trail_record(to);  // ours, for the detour and the trail
@@ -700,6 +708,7 @@ void FollowState::run(float dt) {
     slack_side = 2.0f;
     pulled = 0;
     detour.on = false, detour.watch_t = 0;
+    on_crumb = true;
   } else if (zfix::options().bugs && detour_goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
     aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W17): round the wall
     slack_side = 2.0f;
@@ -718,6 +727,20 @@ void FollowState::run(float dt) {
   h.forward(v, &fwd[0], &fwd[2]);
   float turn = 0, throttle = 0;
   walk_drive(b, v, pos, fwd, away, sum, 2.0f, &turn, &throttle, 0.05f, slack_along, slack_side);  // 0x005e8be4, 0x005e8be8
+  if (on_crumb) {
+    // Ours (W27): straight at the crumb, as the veer state steers (the
+    // carrot's slack and the contacts' push would swing him round a near
+    // point); walking only while it is within 60 degrees ahead.
+    float dir[3] = {goal[0] - pos[0], 0.0f, goal[2] - pos[2]};
+    const float gl = std::hypot(dir[0], dir[2]);
+    if (gl > 0.01f) {
+      dir[0] /= gl, dir[2] /= gl;
+      float dot = 0, cross = 0;
+      crumb_turn = turn_toward(fwd, dir, &dot, &cross, crumb_turn, turn_params());
+      turn = crumb_turn;
+      throttle = dot >= 0.5f ? std::max(throttle, dot) : 0.0f;
+    }
+  }
   c.set_turn(turn);          // IControls vt+0x28
   c.set_throttle(throttle);  // vt+0x20
 }

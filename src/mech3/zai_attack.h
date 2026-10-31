@@ -202,6 +202,7 @@ class FollowState : public BehaviourState {
     float watch_t = 0, watch_d = 0;  // progress toward the crumb (or the leader)
     float force_t = 0;         // the leader "in sight" but no way on: the trail anyway
   } trail;
+  float crumb_turn = 0;        // the turn toward the crumb, kept frame to frame
 
  private:
   void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);

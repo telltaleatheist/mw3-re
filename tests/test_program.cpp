@@ -9934,8 +9934,9 @@ bool wall_between_seg(const float a[3], const float b[3]) {
   return false;
 }
 // A* on a grid of `cell` m round from and to (8 ways); a step counts when the
-// way between the cells' points is a mech's (knee and head height, 4 m each
-// side) and meets no wall, and the ground rises no more than 6 m. The cells' points, start to end; empty if none.
+// way between the cells' points is a mech's (knee and head height, 6 m each
+// side) and meets no wall, and the ground rises no more than 3 m a cell
+// (a slope a mech walks). The cells' points, start to end; empty if none.
 std::vector<std::array<float, 3>> grid_route(const float from[3], const float to[3], float top) {
   const float cell = 10.0f, margin = 160.0f;
   const float x0 = std::min(from[0], to[0]) - margin, z0 = std::min(from[2], to[2]) - margin;
@@ -9970,12 +9971,12 @@ std::vector<std::array<float, 3>> grid_route(const float from[3], const float to
         const int ni = ci + di, nk = ck + dk;
         if (ni < 0 || nk < 0 || ni >= nx || nk >= nz) continue;
         const float g0 = at(ci, ck), g1 = at(ni, nk);
-        if (std::fabs(g1 - g0) > 6.0f) continue;
+        if (std::fabs(g1 - g0) > 3.0f) continue;
         const float nc = cost[c] + std::hypot(float(di), float(dk)) * cell;
         if (nc >= cost[idx(ni, nk)]) continue;
         // A mech's width: the line at knee and head height and 4 m each side.
         const float len = std::hypot(float(di), float(dk));
-        const float sx = float(dk) / len * 4.0f, sz = -float(di) / len * 4.0f;
+        const float sx = float(dk) / len * 6.0f, sz = -float(di) / len * 6.0f;
         bool wall = false;
         for (const auto& l : {std::array<float, 2>{0, 1.5f}, {0, 4.0f}, {0, 6.5f}, {0, 9.0f}, {1, 2.5f}, {-1, 2.5f}, {1, 6.5f}, {-1, 6.5f}}) {
           const float a[3] = {x0 + ci * cell + l[0] * sx, g0 + l[1], z0 + ck * cell + l[0] * sz};
@@ -10092,7 +10093,14 @@ TrailRun c2_trail_run(int mission, bool bugs) {
         if (best > 1e8f) return;
         // The player starts beside him, on his side of the wall; the end 60 m past it.
         const float start[3] = {d[0] - 15 * ux, ground_under(d[0] - 15 * ux, top, d[2] - 15 * uz), d[2] - 15 * uz};
-        const float end[3] = {bx + 60 * ux, ground_under(bx + 60 * ux, top, bz + 60 * uz), bz + 60 * uz};
+        // 60 m past the wall, or nearer while that is outside the mission's
+        // boundary (the follow then walks to the boundary's point, 0x004c3000).
+        float end[3] = {};
+        for (const float past : {60.0f, 45.0f, 30.0f}) {
+          end[0] = bx + past * ux, end[2] = bz + past * uz, end[1] = ground_under(end[0], top, end[2]);
+          float at[3];
+          if (!mech3::ai::brain_hooks().inout_clamp(brain->controls->vehicle(), end, at)) break;
+        }
         route = grid_route(start, end, top);
         if (route.size() < 2) return;
         for (size_t i = 1; i < route.size(); ++i) {
@@ -10138,6 +10146,22 @@ TrailRun c2_trail_run(int mission, bool bugs) {
       }
       if (auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get()))
         out.crumbs = std::max(out.crumbs, fs->trail.used);
+      if (std::getenv("MW3_W27_PROBE") && frames == std::atoi(std::getenv("MW3_W27_PROBE"))) {  // what is round him
+        for (int k = 0; k < 16; ++k) {
+          const float a = k * 0.3926991f, sx = std::sin(a), sz = std::cos(a);
+          for (const float hgt : {0.5f, 1.5f, 3.0f, 6.0f, 9.0f, 12.0f}) {
+            float seg[6] = {dp[0], dp[1] + hgt, dp[2], dp[0] + 15 * sx, dp[1] + hgt, dp[2] + 15 * sz};
+            static zcls::SegmentHits hits[1];
+            zcls::segment_query(mech3::world_hooks().world, seg, 2, hits);
+            for (int i = 0; i < hits[0].count; ++i) {
+              const zcls::SegmentHit& h = hits[0].hit[i];
+              std::fprintf(stderr, "W27PROBE dir %d h %.1f: hit at %.1f m, normal %.2f %.2f %.2f\n", k, hgt,
+                           std::hypot(h.point[0] - dp[0], h.point[2] - dp[2]), h.normal[0], h.normal[1], h.normal[2]);
+            }
+          }
+        }
+        std::fprintf(stderr, "W27PROBE D at %.1f %.1f %.1f\n", dp[0], dp[1], dp[2]);
+      }
       if (std::getenv("MW3_W27_LOG") && frames % 30 == 0) {
         auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get());
         const int at = fs ? fs->trail.at : -9;
