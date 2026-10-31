@@ -355,3 +355,35 @@ works alongside it; stay out of its files.
   at the next start. The same load: 3 x 242/0 and 34/0, no folder left.
 - Branch `mac5/test-tmp` off main fa9aab7.
 
+
+## 22. W22: the picture after the pause at 16:9 (2026-10-30)
+
+- Reproduced on the Mac in the real program: `--briefing c1m1 --window
+  1920x1080` with InGameVMode 13 in a scratch settings.reg, L, X X (the
+  tether), Escape, Escape, shots at 1300 with and without the pause. At
+  640x480 no difference.
+- Not the camera: its place, angles, window, projection and the matrix
+  stack were the same before and after (printed each frame), and the W13
+  angle call off changed nothing.
+- `SdlScreen2D::present_16` set the GPU viewport to the 2D canvas
+  (853x480) and kept it; the resume is the same mode, so nothing set the
+  frame's back. Fix: the viewport restored after the layer, as overlay_16
+  did. Tests: `sdl_layers_keep_the_3d_viewport` (2 checks fail without),
+  `mission_c1m1_pause_keeps_the_view_at_16_9_headless` (camera and angles
+  across the pause in each view; the fake screen never draws the layer,
+  so it does not catch this one).
+- Branch `mac5/w22-camera` off main d7831d08.
+## 23. W19: the system cursor in the middle of a fullscreen mission (2026-10-30)
+
+- Not reproducible here (a hidden window has no visible cursor, and the
+  shots show no software cursor at the centre). Read from the code: since
+  bb64d484 `SdlInput::refresh` called `SDL_SetWindowRelativeMouseMode` only
+  when its `captured_` flag changed (before, every acquire did). A mode SDL
+  refused or dropped stayed off with the flag on: the cursor showed, the
+  game's SetCursorPos (0x0051b3c0, not relative) put it at the centre each
+  frame, and the motion's xrel still aimed.
+- Fix: refresh compares SDL's relative state and SDL_CursorVisible with
+  what it wants; a held mouse hides the system cursor itself.
+  `sdl_held_mouse_keeps_the_cursor_hidden` drops SDL's relative mode
+  behind SdlInput's back (3 checks fail without the fix).
+- Owen to confirm on the PC. Branch `mac5/w19-cursor-fix` off main d7831d08.

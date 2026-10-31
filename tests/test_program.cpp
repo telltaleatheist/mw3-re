@@ -16154,6 +16154,175 @@ TEST(mission_c1m1_mode_change_keeps_the_camera_shape_headless) {
   mech3::options() = mech3::Options{};
 }
 
+
+// Playtest W22: at 16:9 in a camera view, pause and resume (the pause at
+// mode 5 and back, 0x00438c90) put the picture off: "I can't see my mech,
+// like it went to the top left corner". The view's picture, its mean
+// vertex on the screen, the camera's place and its angles across and up,
+// before the pause and after, in each camera view.
+namespace {
+struct PauseView {
+  int view = -1, frames = 0;
+  float before[2] = {}, after[2] = {};   // the 3D frame's mean vertex (pixels)
+  int vp_before[4] = {}, vp_after[4] = {};
+  float cam_before[3] = {}, cam_after[3] = {};
+  float fov_before[2] = {}, fov_after[2] = {};
+  float mouse_after[2] = {};  // zInput's mouse (fx, fy) after the resume
+  bool resumed = false;
+};
+// `move`: the mouse moved during the pause, as to RESUME (mickeys).
+PauseView c1m1_pause_view(int32_t mode, int presses, int move = 0) {
+  PauseView out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("pause_view_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    void set_cooperative_level(Device, uint32_t) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t dx = 0, dy = 0;
+    bool mouse = false;
+    int32_t mouse_state(platform::MouseState* m) override {
+      if (!mouse) return kNotAcquired;
+      *m = platform::MouseState{};
+      m->x = dx, m->y = dy, dx = dy = 0;
+      return 0;
+    }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  keys.mouse = move != 0;
+  // A GPU that keeps each frame's mean vertex and its viewport.
+  struct Mean : platform::Render3D {
+    double sx = 0, sy = 0;
+    long n = 0;
+    float last[2] = {};
+    int vp[4] = {};
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int x, int y, int w, int h) override { vp[0] = x, vp[1] = y, vp[2] = w, vp[3] = h; }
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void begin_scene() override { sx = sy = 0, n = 0; }
+    void end_scene() override {
+      if (n) last[0] = static_cast<float>(sx / n), last[1] = static_cast<float>(sy / n);
+    }
+    void draw(platform::Primitive, const platform::TLVertex* v, int count, const platform::DrawState&) override {
+      for (int i = 0; i < count; ++i) sx += v[i].sx, sy += v[i].sy, ++n;
+    }
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  p.render = &gpu;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = mode;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::States& st = mech3::states();
+    int core = 0, paused = 0, resumed = 0;
+    zgame::State* last = nullptr;
+    auto cam = [&](float pos[3], float fov[2]) {
+      auto* c = static_cast<zcls::Node*>(engine.object_of(mech3::camera()));
+      if (!c) return;
+      zcls::node_world_position(c, pos);
+      zcls::camera_get_fov_angles(c, &fov[0], &fov[1]);
+    };
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (now == &st.core && last == &st.pause) out.resumed = true, resumed = 0;
+      last = now;
+      if (now == &st.core) {
+        ++core, ++resumed;
+        const int k = core - 10;  // the camera key (X, CYCLE_CAM) pressed `presses` times
+        if (!out.resumed && k >= 0 && k < 2 * presses) keys.key(0x2d, k % 2 == 0);
+        if (!out.resumed && core == 60) {
+          out.view = mech3::program_view_camera_id();
+          std::copy(gpu.last, gpu.last + 2, out.before), std::copy(gpu.vp, gpu.vp + 4, out.vp_before);
+          cam(out.cam_before, out.fov_before);
+          keys.key(1, true);  // Escape: the pause
+        }
+        if (!out.resumed && core == 61) keys.key(1, false);
+        if (out.resumed && resumed == 3) {
+          std::copy(gpu.last, gpu.last + 2, out.after), std::copy(gpu.vp, gpu.vp + 4, out.vp_after);
+          cam(out.cam_after, out.fov_after);
+          out.mouse_after[0] = zin::state().mouse.fx, out.mouse_after[1] = zin::state().mouse.fy;
+        }
+      } else if (now == &st.pause) {
+        if (move && paused < 3) keys.dx = -move, keys.dy = -move;
+        if (++paused == 4)
+          if (auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_)))
+            ps->on_button(mech3::PauseScreen::kResume, 0, 0);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 2000;
+    pump.stop = [&] { return (out.resumed && resumed >= 3) || core > 1500; };
+    app.run(pump);
+    out.frames = core;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_pause_keeps_the_view_at_16_9_headless) {
+  if (!have_game()) return;
+  const double deg = 57.29577951308232;
+  for (const int32_t mode : {5, 13})
+    for (const int presses : {0, 1, 2, 3}) {
+      const PauseView v = c1m1_pause_view(mode, presses, presses == 1 ? 60 : 0);
+      std::printf("  mode %d view %d: resumed %d; mean vertex %.0f,%.0f -> %.0f,%.0f; viewport %d %d %d %d -> %d %d %d %d; "
+                  "camera %.1f %.1f %.1f -> %.1f %.1f %.1f; fov %.2f %.2f -> %.2f %.2f; mouse after %.2f %.2f\n",
+                  mode, v.view, v.resumed, v.before[0], v.before[1], v.after[0], v.after[1], v.vp_before[0], v.vp_before[1],
+                  v.vp_before[2], v.vp_before[3], v.vp_after[0], v.vp_after[1], v.vp_after[2], v.vp_after[3], v.cam_before[0],
+                  v.cam_before[1], v.cam_before[2], v.cam_after[0], v.cam_after[1], v.cam_after[2], v.fov_before[0] * deg,
+                  v.fov_before[1] * deg, v.fov_after[0] * deg, v.fov_after[1] * deg, v.mouse_after[0], v.mouse_after[1]);
+      EXPECT(v.resumed);
+      EXPECT(std::equal(v.vp_before, v.vp_before + 4, v.vp_after));
+      EXPECT(std::fabs(v.before[0] - v.after[0]) < 0.1f * v.vp_before[2] && std::fabs(v.before[1] - v.after[1]) < 0.1f * v.vp_before[3]);
+      EXPECT(std::fabs(v.fov_before[0] - v.fov_after[0]) < 1e-4f && std::fabs(v.fov_before[1] - v.fov_after[1]) < 1e-4f);
+    }
+}
 // 0x00558010's rect is a handle (resolution.md section 9, found while taking
 // the lab's shot): the screen's (the lab's call, 0x00579880) or one of the
 // options' rects, not memory. Read as memory it gave the 2D target 0 x 0, and

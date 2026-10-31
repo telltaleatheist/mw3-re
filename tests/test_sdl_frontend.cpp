@@ -486,6 +486,52 @@ TEST(sdl_fullscreen_keys_focus_and_mickeys) {
 // Ctrl+Alt alone lets go (the game then sees no motion or buttons), a click
 // inside takes it back unseen; the pause lets go and its end takes it back;
 // the focus lost lets go until a click. Fullscreen holds it as before.
+// Playtest W19: "the mouse cursor sits in the centre of the screen" in a
+// fullscreen mission, the aim working. SdlInput asked SDL for the relative
+// mouse only when its own flag changed; one SDL refused or let go was never
+// asked for again, so the system's cursor showed where the game puts it each
+// frame (SetCursorPos, the centre) while the motion still aimed. Each read
+// now asks SDL for its state: held means relative and no cursor, in the
+// menus too (the game draws its own); let go in a window, the cursor shows.
+TEST(sdl_held_mouse_keeps_the_cursor_hidden) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 cursor test", 640, 480);
+  sdlfe::SdlInput in;
+  sdlfe::SdlPump pump(&in, nullptr);
+  in.window = w.sdl();
+  bool windowed = false, mission = true;
+  in.windowed = [&] { return windowed; };
+  in.in_mission = [&] { return mission; };
+  in.set_cooperative_level(platform::Input::kMouse, 5);
+  EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0);
+  platform::MouseState ms;
+  in.mouse_state(&ms);
+  if (!SDL_GetWindowRelativeMouseMode(w.sdl())) {
+    std::printf("no relative mouse for a hidden window here: not checked\n");
+    return;
+  }
+  EXPECT(in.captured() && !SDL_CursorVisible());
+  // Fullscreen, a mission: SDL lets go behind SdlInput's back.
+  SDL_SetWindowRelativeMouseMode(w.sdl(), false);
+  SDL_ShowCursor();
+  in.mouse_state(&ms);
+  std::printf("after SDL let go: relative %d, cursor %d\n", SDL_GetWindowRelativeMouseMode(w.sdl()), SDL_CursorVisible());
+  EXPECT(SDL_GetWindowRelativeMouseMode(w.sdl()) && !SDL_CursorVisible());
+  // Fullscreen menus: still held, no system cursor.
+  mission = false;
+  in.mouse_state(&ms);
+  EXPECT(in.captured() && !SDL_CursorVisible());
+  // A window, a mission, the focus lost: let go, the system's cursor shown.
+  windowed = true, mission = true;
+  SDL_Event f{};
+  f.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+  pump.handle(f);
+  EXPECT(!in.captured() && !SDL_GetWindowRelativeMouseMode(w.sdl()) && SDL_CursorVisible());
+  SDL_ShowCursor();
+}
+
 TEST(sdl_window_lets_the_mouse_go) {
   sdlfe::SdlInput in;
   sdlfe::SdlPump pump(&in, nullptr);
@@ -655,6 +701,69 @@ TEST(sdl_layer_scales_sharp) {
   EXPECT((first & 0xff) >= 0xf8 && (first >> 8 & 0xff) >= 0xf8 && (first >> 16 & 0xff) >= 0xf8);
 }
 
+// Playtest W22: the menus' whole-screen layer (present_16, the pause screen)
+// on a 16:9 canvas set the 3D's viewport to the canvas and left it there;
+// the mission resumed (the same mode: nothing set it again) drew its
+// 1920x1080 frame's top-left 853x480 over the whole window. The 3D's
+// viewport is the frame's again after either layer.
+TEST(sdl_layers_keep_the_3d_viewport) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 viewport test", 1920, 1080);
+  w.frame_size(1920, 1080, 853, 480);
+  sdlfe::SdlScreen2D screen(w.render());
+  std::vector<uint16_t> px(853 * 480, 0x1234);
+  int v[4] = {};
+  auto read = [&] { w.render()->viewport(&v[0], &v[1], &v[2], &v[3]); };
+  w.render()->set_viewport(0, 0, 1920, 1080);
+  screen.present_16(px.data(), 853, 480, 853 * 2, true);
+  read();
+  std::printf("after the whole-screen layer: %d %d %d %d\n", v[0], v[1], v[2], v[3]);
+  EXPECT(v[0] == 0 && v[1] == 0 && v[2] == 1920 && v[3] == 1080);
+  screen.overlay_16(px.data(), 853, 480, 853 * 2, true, 0xf81f, nullptr, nullptr);
+  read();
+  EXPECT(v[0] == 0 && v[1] == 0 && v[2] == 1920 && v[3] == 1080);
+}
+
+
+// W20 (FIX (A)): FOGCOLOR applies per draw, as in Direct3D. A saturated
+// point light (the jump jets' flicker lights) sets the device fog colour for
+// its polygons and the world's fog colour is set again for the next fogged
+// ones; the GPU layer used the frame's last colour for every fogged draw,
+// tinting the whole scene. Two fully fogged quads in red and blue, then green
+// set with nothing drawn: red and blue they stay.
+TEST(sdl_render3d_fog_colour_is_per_draw) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 fog test", 640, 480);
+  w.frame_size(640, 480, 640, 480);
+  platform::Render3D* r = w.render();
+  r->set_viewport(0, 0, 640, 480);
+  r->clear(true, 0, 0, 0);
+  r->begin_scene();
+  platform::DrawState st;
+  st.fog = true;
+  auto quad = [&](float x0, float x1) {
+    const uint32_t white = 0xffffffffu, fogged = 0x00000000u;  // specular alpha 0: all fog
+    const platform::TLVertex v[4] = {{x0, 100, 0.5f, 1, white, fogged, 0, 0}, {x1, 100, 0.5f, 1, white, fogged, 0, 0},
+                                     {x1, 380, 0.5f, 1, white, fogged, 0, 0}, {x0, 380, 0.5f, 1, white, fogged, 0, 0}};
+    r->draw(platform::Primitive::kFan, v, 4, st);
+  };
+  r->set_fog_color(255, 0, 0);
+  quad(40, 280);
+  r->set_fog_color(0, 0, 255);
+  quad(360, 600);
+  r->set_fog_color(0, 255, 0);  // the frame's last colour, on no draw
+  r->end_scene();
+  std::vector<uint32_t> f;
+  int rw = 0, rh = 0;
+  if (!r->read_back(&f, &rw, &rh) || rw != 640 || rh != 480) return;  // no window here (a headless runner)
+  const uint32_t left = f[240 * 640 + 160], right = f[240 * 640 + 480];
+  std::printf("fogged quads: left %08x, right %08x\n", left, right);
+  EXPECT((left & 0xffffff) == 0xff0000u && (right & 0xffffff) == 0x0000ffu);
+}
 TEST(sdl_layer_rgba_table_matches_the_bits) {
   int bad = 0;
   for (int f = 0; f < 2; ++f)
