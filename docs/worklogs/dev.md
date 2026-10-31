@@ -2129,3 +2129,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   progress/cancel callback. mw3 --install-from and --patch wrap them.
   Test setup_api_probes_installs_cancels_and_explains; the real ISO
   through mw3 (progress 0..100%, "MechWarrior 3 1.0 is installed ...").
+- The installer: tools/windows/installer.iss (Inno Setup: Program Files\
+  MechWarrior 3 Rebuild or per-user, Start-menu and desktop shortcuts,
+  uninstaller keeping %APPDATA%), package.cmd's last step (iscc found on
+  the PATH or its folders; skipped with a warning without it). Not run
+  here (no Windows); the commands for the PC are in windows.md.
+- The GUI build: MW3_PACKAGE on Windows links /SUBSYSTEM:WINDOWS
+  /ENTRY:mainCRTStartup; with no console the output goes to mw3.log
+  (sdl_child.cpp log_to_file) and the helpers start windowless
+  (start_child, SDL's background process). mingw compile-checked only.

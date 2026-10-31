@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "platform/vfw_protocol.h"
+#include "frontend/sdl/sdl_child.h"
 
 namespace sdlfe {
 namespace {
@@ -57,7 +58,7 @@ bool SdlVfwHelper::ready() {
   if (tried_) return ok_;
   tried_ = true;
   const char* args[] = {helper_.c_str(), "--serve", codec_.c_str(), nullptr};
-  proc_ = SDL_CreateProcess(args, true);
+  proc_ = start_child(args);
   if (!proc_) {
     hello_ = std::string("the helper did not start: ") + SDL_GetError();
     return false;

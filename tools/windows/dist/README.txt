@@ -15,7 +15,9 @@ prints which data version it found). Pirate's Moon is not supported yet.
 
 Starting
 --------
-Unzip this folder anywhere and run mw3.exe.
+Run MW3-Rebuild-Setup.exe and start "MechWarrior 3 Rebuild" from the Start
+menu or the desktop. (Or, from the zip: unzip this folder anywhere and run
+mw3.exe.)
 
 On the first start:
 1. It looks for your MechWarrior 3 install: where the original installer put
@@ -71,8 +73,10 @@ Everything the game writes goes to:
     %APPDATA%\MicroProse\MechWarrior 3\
 
 (paste that into Explorer's address bar). It holds mw3.cfg (the install
-folder, windowed=), your pilots and saves, the settings, and the converted
-movies (video\) and music (music\). Your MechWarrior 3 install is only read,
+folder, windowed=), your pilots and saves, the settings, the converted
+movies (video\) and music (music\), and mw3.log, what the game reported
+while it ran (mw3-previous.log is the start before; send it with a bug
+report). Uninstalling the rebuild keeps this folder. Your MechWarrior 3 install is only read,
 never changed. Deleting this folder resets everything.
 
 Licences

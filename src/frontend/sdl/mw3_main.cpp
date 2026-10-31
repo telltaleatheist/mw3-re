@@ -58,6 +58,7 @@
 #include "frontend/sdl/modes_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
+#include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/sdl_install.h"
 #include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
@@ -396,6 +397,7 @@ int main(int argc, char** argv) {
     if (char* p = SDL_GetPrefPath("MicroProse", "MechWarrior 3")) a.write_dir = p, SDL_free(p);
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
+  if (sdlfe::log_to_file(a.write_dir)) std::printf("mw3 %s: %s\n", MW3_VERSION, argc > 1 ? "started with arguments" : "started");
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
   // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
   // platform fixes that let it run stay on: fixes.md, The bug fixes switch).

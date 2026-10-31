@@ -1,4 +1,5 @@
 #include "frontend/sdl/first_run_import.h"
+#include "frontend/sdl/sdl_child.h"
 
 #include <SDL3/SDL.h>
 
@@ -88,7 +89,7 @@ bool first_run_import(const std::string& install, const std::string& write_dir, 
   std::printf("mw3: converting %d movies (about 3 s each)\n", missing);
   const char* args[] = {importer.c_str(), "--install", install.c_str(), "--write-dir", write_dir.c_str(), "--missing",
                         nullptr};
-  SDL_Process* proc = SDL_CreateProcess(args, true);
+  SDL_Process* proc = start_child(args);
   if (!proc) {
     std::printf("mw3: the import could not start: %s\n", SDL_GetError());
     return false;
