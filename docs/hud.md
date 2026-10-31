@@ -855,6 +855,13 @@ circle by its distance times radius over range, turned into the mech's frame
   0x00413e60; `mech_radar_blip` 0x0041ec60). TARGET's own contact is drawn
   instead as a small triangle (a Shape scaled 5.77, clipped to the screen
   0x00579880) in blue, red or the HUD green by the same sides.
+  The place is the object's (0x005a85e0, its node's world position +0x84,
+  refreshed when stale): for a targets.zrd building that is the world's
+  origin, the building's mesh being in world co-ordinates (c3m1's hqbuild:
+  node at 0, 0, 0, centroid at -860, 24, 193), so the exe points its
+  triangle at the origin at the contact's range (they are on the radar only
+  when targeted). With the bug fixes the port takes a targets.zrd object's
+  centroid (W32, fixes.md); `mission_c3m1_hq_targeted_is_ahead_on_the_radar_headless`.
 - **The waypoint marker** ([0x00609980]'s selected element, 0x0058b060:
   the mission waynet's point, vehicles.md, The nav waynet; first taken for a
   network player's): its image by its +0xc (hud_mfbwaypoint_icon

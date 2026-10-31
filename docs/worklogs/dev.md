@@ -2301,3 +2301,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
     about 30 degrees differently (-0.952), passed between its legs to the
     ground behind (g8767, 393 m). The driver now alternates Q with the
     next enemy (E), as a player would.
+
+## W32 reopened, the radar's targeted buildings (2026-10-31)
+
+- Branch mac4/w32-radar (on 60b438ba). The radar places a contact by its
+  object's 0x005a85e0 (node +4, data +0x84; called straight at 0x43e503
+  after 0x4e6fe0): a targets.zrd building's node is at the world origin
+  (hqbuild: node 0, 0, 0, class 5, not stale; centroid -860, 24, 193), the
+  exe's attach 0x4d3390 -> 0x4d8250 sets that node too, so the original
+  points the triangle at the origin, at the contact's own range. FIX (bug)
+  behind bugs: HudHooks::object_radar_place gives a targets.zrd object's
+  (or trap's) centroid; radar and map both. HudRadar keeps the triangle's
+  last place for the report (radar_target_x/y). Test
+  mission_c3m1_hq_targeted_is_ahead_on_the_radar_headless: c3 (index 2) m1,
+  the player 400 m south facing the HQ, Q until targeted; with bugs +0 -20
+  (400/1000 of the 50 px radius), without +16 -12 (55 degrees right);
+  break (the hook off) caught. The field-base centroid candidate went into
+  fixes.md's candidates (the lead: not behind bugs).

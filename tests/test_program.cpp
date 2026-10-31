@@ -5236,6 +5236,117 @@ TEST(mission_c3m1_field_bases_repair_the_player_twice_headless) {
     if (bugs) EXPECT(r.done == 2 && r.after[1].internal == 1.0f && r.after[1].armor == 1.0f);
   }
 }
+// W32 (Owen, c3m1): the Clan HQ Q-targeted, its radar triangle out of place.
+// A targets.zrd building's node is at the world's origin (its mesh in world
+// co-ordinates); the radar's place for a contact is the node's (0x005a85e0,
+// the exe's too), so its triangle pointed at the origin. With the bug fixes
+// the record's centroid. The player 400 m south of the HQ facing it, Q.
+namespace {
+struct HqRadar {
+  bool targeted = false;
+  mech3::HudReport r;
+  float centroid[3] = {}, me[3] = {};
+};
+HqRadar c3m1_hq_radar(bool bugs) {
+  HqRadar out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w32_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c3, mission 1: the Clan HQ (targets.zrd's hqbuild)
+    l.index = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, done_at = 0;
+    zgame::Handle hq = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      void* player = mech3::mech_mission_player();
+      if (frames == 3) {
+        for (mech3::ai::CZAiTarget* x : mech3::ai::target_list()) {
+          auto* n = static_cast<zcls::Node*>(engine.object_of(x->node));
+          if (n && std::string(n->name()) == "hqbuild") hq = x->self, mech3::hud_object_centroid(engine.object_of(x->self), out.centroid);
+        }
+        if (!hq) return;
+        const float x = out.centroid[0], z = out.centroid[2] + 400.0f;
+        const float at[3] = {x, ground_under(x, out.centroid[1] + 200.0f, z), z};
+        mech3::move_mech(player, at, 0.0f);
+        mech3::chain_player_face(out.centroid);
+        return;
+      }
+      if (!hq || frames < 20 || done_at) {
+        if (done_at && frames == done_at + 5) mech3::program_hud_report(&out.r), mech3::mech_world_position(player, out.me);
+        return;
+      }
+      const mech3::ai::AiTarget* pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+      if (pt && pt->target && pt->target->seen == hq) {
+        out.targeted = true, done_at = frames;
+        return;
+      }
+      if (frames % 10 == 0) mech3::player_command(0x48);  // Q: the object under the reticle
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return (done_at && frames > done_at + 5) || frames > 400 || (frames > 3 && !hq); };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c3m1_hq_targeted_is_ahead_on_the_radar_headless) {
+  if (!have_game()) return;
+  for (const bool bugs : {true, false}) {
+    const HqRadar h = c3m1_hq_radar(bugs);
+    const int dx = h.r.radar_target_x - h.r.radar_x, dy = h.r.radar_target_y - h.r.radar_y;
+    std::printf("  bugs %d: targeted %d, the HQ's centroid %.0f %.0f %.0f, the player %.0f %.0f %.0f; radar r %d, its triangle %d draws at "
+                "%+d %+d from the centre\n",
+                bugs, h.targeted, h.centroid[0], h.centroid[1], h.centroid[2], h.me[0], h.me[1], h.me[2], h.r.radar_r,
+                h.r.radar_target_draws, dx, dy);
+    EXPECT(h.targeted && h.r.radar_target_draws > 0);
+    if (bugs) {
+      // Straight ahead, up from the centre, at its range's share of the radius.
+      EXPECT(std::abs(dx) <= 1 && dy < -2);
+    } else {
+      // The exe's: towards the world's origin, 860 m east and 593 m north of
+      // the player facing north, about 55 degrees right of ahead (+16 -12 of
+      // the 20 px its range gives).
+      EXPECT(dx > 10 && dy < -5 && dx > -dy);
+    }
+  }
+}
 TEST(mission_c2m1_field_bases_stay_after_a_repair_headless) {
   if (!have_game()) return;
   for (const bool bugs : {true, false}) {
