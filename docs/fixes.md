@@ -75,6 +75,7 @@ change.
 | The nav waynet's frame, 0x00479c50 (vehicles.md, The nav waynet) | The watched points' loop compares the point before with the selected one | (bug) once past the selected point the rest of the list is skipped: those nav points are not marked reached (their voice line unsaid) until selected | Only the selected point is left to the end; behind `bugs` (`test_nav_hud.py` checks the original's path) |
 | The mission waynet's selected element, 0x00479c50 / 0x00479ef0 / the radar 0x0043e879 | Its place (vt+0x18) read unchecked, its +0x0c read as a point's | (bug) the default behaviour (the mcbwaynet's element 0, which the MFB picking's N / Shift+N wraps onto) or a null step has no place: read through null (a crash) | Only a point with a place: no reached test, no arrow, no radar marker otherwise |
 | The reticle's pick, 0x00444350 (hud.md section 10) | The ray runs from the player camera's near plane to its far clip, 800 m | (bug) six weapons reach past it (ER large laser and NARC 1000 m, ER PPC 920, Gauss 880, LB 2-X 870, Ultra AC/2 810): a mech beyond 800 m, in the selected group's range, is never picked, so the reticle stays green and never locks, though the shot hits (W33; Owen: the original did it too) | The query reaches the selected group's longest range (0x004b1bd0) when that is past the far clip; a miss still aims at the far point, so the shots' convergence is unchanged; behind `bugs`. `mission_c1m1_reticle_picks_out_to_the_weapons_range_headless`: the Owens 854 m off, green without, yellow with |
+| The radar's contacts, 0x0043dd00 (from 0x0043e445; hud.md section 15) | A contact's place on the radar and the map is its object's node (0x005a85e0, +0x04's world position) | (bug) a targets.zrd building's node is at the world's origin, its mesh in world co-ordinates, so a targeted building's triangle (they are on the radar only when targeted) points at the origin, at the contact's range; c3m1's Clan HQ 400 m ahead showed 55 degrees to the right (W32, Owen) | A targets.zrd object (or trap) is placed by the record's centroid (the HUD's, +0x14; its node without one); behind `bugs`. `mission_c3m1_hq_targeted_is_ahead_on_the_radar_headless`: straight ahead with, the exe's 55 degrees right without |
 | The nav waynet's build, 0x004be690 | Links translated through the slot map unchecked; an edge node's links into a buffer sized for the positioned nodes; points written from slot 0 without a bound | (bug) a link to a node that is not there reads the map at -1 or past its end, the buffer and the elements are written past their ends; no shipped file has any | -1 for such a link, a buffer for any node, a point past the slots dropped (`test_nav_waynet.py`) |
 | The fall's force feedback, 0x00433090 (input.md section 7) | Makes the fall's effect by the name "i_fall"; 1.2's force_eff.ifr names it "impact fall" (1.0's has none: its "impact fall" is the landing) | (bug) the effect patch 1.2 added for falling over never plays | When the file has no "i_fall", "impact fall" is taken; behind `bugs` (`force_feedback_effects_and_the_games_calls_headless`: off, nothing; on, the fall plays it). On 1.0's file that is its landing bump, the one effect of the name |
 | The dock's places step, 0x0045ab70 with the request 0x0045a780 (vehicles.md, The request) | Waits until every base's valve is set, which the base's net does when it arrives on its slot; no time limit | (bug) called to the point they last docked at, the bases already stand on their slots (the close drives them back, the reset holds them), their go-to has nothing to drive, the valves never set and the dock waits for the rest of the mission (playtest W8, W16); a base that cannot reach its slot jams it the same way | Behind `bugs`: a base already in its slot's behaviour at the request counts as arrived; a base that has not moved 2 m in 30 s short of its slot is given up on, the deploy driving it from where it stands (`mission_c2m2_field_bases_answer_a_second_call_headless`: the second call's places done 3 frames after it, the original's never; base 02 held still: done after 30 s, the original's never) |
@@ -558,6 +559,17 @@ Kept:
   held back; pilots leave a fight as they always have).
 
 ## Candidates for Owen
+
+- A mobile field base's centroid is on the ground (dev, 2026-10-31, W34,
+  ai.md 17.7): its constructor 0x00458a70 sets its node with 0x004d6c90(node,
+  0, 0, 0), whose 0x005a8390 finds or makes the centroid child at the node's
+  origin, and nothing raises it (a mech's set-up puts its centroid at half
+  its height; the base's 16 m height is set after and moves nothing). The AI's
+  line to a base (0x004d5980, centroid to centroid) grazes the ground from far
+  off, so an AI mech can hold a plan on a base it cannot hit for its whole 6 s
+  delay (c1m1: the Owens 534 m off). Raising it to half the height (8 m)
+  would be the mechs' rule; the intent is a guess, so kept as the exe has it
+  (the lead, 2026-10-31: not behind the bugs switch).
 
 - A missile launcher put into a part with no firepoint that scatters
   (dev, 2026-10-26, mechlab.md The item rules): 0x00454600 still fits it

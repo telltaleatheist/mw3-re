@@ -2301,3 +2301,68 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
     about 30 degrees differently (-0.952), passed between its legs to the
     ground behind (g8767, 393 m). The driver now alternates Q with the
     next enemy (E), as a player would.
+
+## W32 reopened, the radar's targeted buildings (2026-10-31)
+
+- Branch mac4/w32-radar (on 60b438ba). The radar places a contact by its
+  object's 0x005a85e0 (node +4, data +0x84; called straight at 0x43e503
+  after 0x4e6fe0): a targets.zrd building's node is at the world origin
+  (hqbuild: node 0, 0, 0, class 5, not stale; centroid -860, 24, 193), the
+  exe's attach 0x4d3390 -> 0x4d8250 sets that node too, so the original
+  points the triangle at the origin, at the contact's own range. FIX (bug)
+  behind bugs: HudHooks::object_radar_place gives a targets.zrd object's
+  (or trap's) centroid; radar and map both. HudRadar keeps the triangle's
+  last place for the report (radar_target_x/y). Test
+  mission_c3m1_hq_targeted_is_ahead_on_the_radar_headless: c3 (index 2) m1,
+  the player 400 m south facing the HQ, Q until targeted; with bugs +0 -20
+  (400/1000 of the 50 px radius), without +16 -12 (55 degrees right);
+  break (the hook off) caught. The field-base centroid candidate went into
+  fixes.md's candidates (the lead: not behind bugs).
+
+## The Mac libraries and the universal app (2026-10-31)
+
+- Branch mac4/deps-build (on mac4/w32-radar, with c1f34115 cherry-picked as
+  5e539289). Owen allowed build_deps.sh in this session. JOBS env caps -j
+  (the lead's batch shares the Mac). FreeType 2.13.2 needs
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 under CMake 4.2. 2.6 min at JOBS=4;
+  all pins match; seven dylibs universal, min 12.0, @rpath ids.
+- make_app.sh --deps: the prefix, arm64;x86_64, deployment 12.0,
+  PKG_CONFIG_LIBDIR the prefix's; the bundler follows @rpath names into the
+  prefix, takes licences from the source trees (FreeType's FTL.TXT too),
+  deletes the build's absolute rpath (once: a universal binary lists it per
+  arch) and parses otool -L without its per-arch headers (they had been read
+  as libraries, mw3 itself copied into Frameworks). Without --deps it warns
+  it is not the release form. THIRD-PARTY.txt now the --deps build's; the
+  README says macOS 12, Apple silicon and Intel.
+- Checked: three dylibs bundled, every binary x86_64 + arm64 min 12.0,
+  LSMinimumSystemVersion 12.0, only @executable_path/../Frameworks, ad hoc,
+  no team; DMG verifies (8.2 MB); with /opt/homebrew unreadable both slices
+  run c1m1 60 frames (arch -arm64, arch -x86_64 under Rosetta), exit 0.
+  Not run on a real macOS 12 or Intel Mac. Seen on the way: an explicit
+  --write-dir that does not exist is not created (dev build alike; the
+  default SDL_GetPrefPath one is), so settings.reg is not written there.
+
+## mw3import in the Mac app (2026-10-31)
+
+- Branch mac4/mac-import (on mac4/deps-build). make_app.sh --deps builds
+  mw3import, puts it in Contents/MacOS, bundles both executables' libraries
+  (seven dylibs), gives each only the bundle's rpath and signs it before the
+  app; the launcher's art into Contents/Resources/assets/launcher;
+  THIRD-PARTY.txt's FFmpeg section (LGPL), the README's first-start line.
+- first_run_import: in a Mac app SDL's base is Contents/Resources, so the
+  importer is looked for in ../MacOS too. mw3_main makes an explicit
+  --write-dir that does not exist (the lead's small fix).
+- The in-app import first failed "no MPEG-1 encoder": an FFmpeg 7 in
+  /usr/local/include (root-owned, Dec 2024) won over the prefix's -isystem
+  headers, so mw3import's AVCodecContext layout was 7's (the decoder's size
+  read 480x640). NO_SYSTEM_FROM_IMPORTED on mw3import: -I.
+- The package build had MW3_ASSETS_DIR (the source tree's path) compiled in:
+  this Mac's path in the release binary, and the art found there. Now
+  development builds only. Checked by a launcher shot from the app against a
+  copy without its assets (324 vs 37 colours sampled); strings: no
+  /Volumes or /Users path in either binary.
+- Checked, /opt/homebrew unreadable, fresh write dir, --import: arm64 19
+  movies in 75 s, x86_64 (Rosetta) in 104 s, then c1m1; c1m2 plays 475 of
+  475 frames in both slices. arm64's files byte-identical to the dev
+  importer's; x86_64's video 0.1% smaller (no asm in its FFmpeg), sound and
+  index identical.

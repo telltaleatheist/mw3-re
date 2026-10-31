@@ -551,3 +551,4 @@ Known quirks the rebuild deliberately keeps:
 - Every mech's engine tops out at 400.
 - Jump jets lift you when you fire them walking uphill at more than 30 fps (the original could skim the ground with its jets burning).
 - The reticle turns yellow over a target out to your selected weapons' range, past 800 m (the ER large laser, ER PPC, Gauss rifle and others reach further); the original stopped looking at 800 m (bug fixes on).
+- A targeted building such as the Clan HQ in mission c3m1 shows on the radar and the map where it stands; the original pointed it at the map's zero point instead (bug fixes on).

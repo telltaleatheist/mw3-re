@@ -2617,6 +2617,10 @@ void HudRadar::update_contacts(float dt, float static_px) {
     if (!selected && !h.contact_on_radar(c)) continue;
     float p[3];
     h.object_position(o, p);
+    // FIX (bug): a targets.zrd building's node sits at the world's origin, its
+    // mesh in world co-ordinates, so the exe's place (0x005a85e0) put its
+    // blip towards the origin; the record's centroid instead (fixes.md, W32).
+    if (zfix::options().bugs) h.object_radar_place(o, p);
     radar_jitter(p, static_px);
     float v[3] = {};
     if (!active) {
@@ -2661,6 +2665,7 @@ void HudRadar::update_contacts(float dt, float static_px) {
       pt[0] = radar_px(get_x(), v[0]);
     }
     tri.set_pos(pt[0], pt[1]);
+    target_at[0] = pt[0], target_at[1] = pt[1], ++target_draws;
     tri.color = colour;
     tri.set_scale(5.773503f);  // 0x40b8c08e
     tri.update(dt);

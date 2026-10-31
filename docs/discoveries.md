@@ -2488,6 +2488,12 @@ file (docs/assets.md, Data versions):
   meanwhile; only then does it rest and pick again (and then it picks you,
   the nearest). It also can't shoot what its torso can't turn to: a
   lancemate following you with an enemy behind him aims but holds his fire.
+- **Targeted buildings point the wrong way on the radar.** Buildings you
+  can target (the Clan HQ in c3m1, for one) only appear on the radar once you
+  target them, and then the radar's triangle points at the map's zero point
+  rather than at the building: the game reads the building's position from
+  a point that, for buildings, sits at the map's origin. The distance is
+  right; only the direction is wrong. The rebuild fixes it (bug fixes on).
 - **Field bases are aimed at their feet.** The point the AI aims at on a
   mobile field base is at ground level (a mech's is half way up), so from far
   off the line to it usually clips the ground and an AI mech waits out its

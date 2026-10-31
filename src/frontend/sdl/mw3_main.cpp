@@ -469,6 +469,12 @@ int main(int argc, char** argv) {
     if (char* p = SDL_GetPrefPath("MicroProse", "MechWarrior 3")) a.write_dir = p, SDL_free(p);
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
+  // A --write-dir that does not exist is made, as SDL_GetPrefPath makes the default.
+  if (!a.write_dir.empty()) {
+    std::error_code ec;
+    std::filesystem::create_directories(a.write_dir, ec);
+    if (ec) std::fprintf(stderr, "mw3: cannot make the write dir %s: %s\n", a.write_dir.c_str(), ec.message().c_str());
+  }
   // Everything printed from here also goes to <write dir>/mw3.log, the last
   // start's kept as mw3.old.log (ours): with no console (the Windows package
   // build) stdout and stderr go to the file (log_to_file), else they are
