@@ -86,9 +86,9 @@ bool on(uint16_t type, Handler fn, int32_t arg) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00587b20 (std::remove then erase). While a dispatch runs
-// the entries are marked and erased after it (ours: the exe's list walk read
-// a deleted node).
+// Mech3.exe 1.2 @ 0x00587b20 (std::remove then erase). FIX (bug): while a
+// dispatch runs the entries are marked and erased after it; the exe's walk
+// (0x00587c40) read the deleted node.
 bool off(uint16_t type, Handler fn) {
   Session& s = session();
   for (HandlerEntry& e : s.handlers)

@@ -383,6 +383,7 @@ change.
 | The objectives box's lines, 0x00446970 / 0x00446a20 (hud.md section 24) | An objective's text is handed to the line as its sprintf format, with nothing behind it on the stack | (bug) a '%' in a text would read the stack (no shipped text has one) | The text goes in as the format's argument; `mission_c1m1_objectives_box_text_headless` |
 | A beam after its button is let go, 0x004b4230 (weapons.md, Beams) | Re-aims the beam's muzzle only on the trigger and the held frames, so a short laser fires on after a click from the last held frame's muzzle | (bug) the beam trails a moving mech by a metre or more, and its ray starts there (playtest #24) | Behind bugs, a firing beam is re-aimed each frame as when held; `sdl_program_mouse_click_fires_the_laser` runs both |
 | zNetwork's send, 0x005888a0 (multiplayer-port.md piece 1) | Reads the local player's id at [0x0073075c]+4 | (bug) through null when there is no local player (a send after the session ended) | Nothing is sent and 0 answered; not a play change |
+| zNetwork's handlers, 0x00587b20 and 0x00587a00 during the dispatch 0x00587c40 (multiplayer-port.md piece 2) | A handler that removes handlers (its own, or the list cleared) frees their list nodes at once | (bug) the dispatch's walk then reads the freed node for the next one (a crash or a skipped handler, by what the heap held) | Removed entries are marked during a dispatch and erased after it; one added meanwhile is still reached, as in the exe. Not a play change; `znet_dispatch_while_handlers_change` |
 
 Notes on the fixes:
 
