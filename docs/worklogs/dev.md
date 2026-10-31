@@ -2182,3 +2182,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   arguments; 0x58a880 stubbed: 0 for an error), 56 identical; BREAK=1/2
   caught. mw3tests znet_session_* (3; the hub delivering to its sender
   caught).
+
+## Multiplayer, piece 2: the handlers and the poll (2026-10-31)
+
+- znet::on / off / clear_handlers / dispatch / poll; Session::handlers (a
+  vector for the exe's list), dispatching depth, system_message (piece 3's).
+  AppHooks::network_poll now znet::poll (ported, out of line like
+  timer_update); the census's deferred 0x00588930 gone, known-keys test 49.
+- test_znet_dispatch.py: the exe's list via 0x587aa0/0x587b20/0x587a00/
+  0x587c40 with a made sentinel node ([0x730794]), new/delete stubbed
+  (0x5abd26 / 0x5abd1a), handlers as logging code stubs (ECX sender, EDX the
+  message); the poll with a fake Receive at [0x730724]+0x64 growing the
+  buffer through DPERR_BUFFERTOOSMALL and the IAT realloc. Pitfalls met: the
+  emulator's heap rewinds at begin(), so the fake object goes after it; and
+  0x49bfd0 is Emulated's ZERR stub already (a second hook returns twice).

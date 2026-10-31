@@ -275,6 +275,25 @@ Then the two-process and soak tests over the whole flow, menus included.
   24 against the exe, SendEx's arguments included; two breaks caught),
   `znet_session_*` in mw3tests (the hub; a break caught).
 
+- **Piece 2** (2026-10-31): the handlers and the poll in `znet_session`.
+  0x00587aa0 `on` (added at the end), 0x00587b20 `off` (every entry of that
+  type and handler, std::remove and erase), 0x00587a00 `clear_handlers`,
+  0x00587c40 `dispatch` (each handler of the message's type in order, with
+  the sender and the message; ours, its size too), 0x00588930 `poll` (until
+  the queue is empty or `max` handled, -1 all; under 4 bytes dropped and not
+  counted; the system's to `Session::system_message`, the translation that
+  comes with piece 3; the rest dispatched). DirectPlay's growing receive
+  buffer is the transport's. Ours: a handler removed during a dispatch is
+  marked and erased after it (the exe read the deleted node); one added
+  meanwhile is reached, as the exe's walk reaches the list's new end. The
+  shutdown now polls and clears the handlers first, as 0x00586c20 does.
+  zGameApp's per-frame poll (`AppHooks::network_poll`, 0x0058fdf3) calls it.
+  Tests: `test_znet_dispatch.py` (300 random handler sequences, 1,584
+  calls, and 200 polls through a stand-in Receive with the buffer's growth,
+  identical; two breaks caught), `znet_dispatch_while_handlers_change` and
+  `znet_poll_over_the_hub` (a break caught). The system translation and the
+  player and team lists moved into piece 3 (they are one function, 0x00588a70).
+
 ## Open
 
 - The COM object at [0x007307e0] (CLSID 3faf0afe-...): what it is and

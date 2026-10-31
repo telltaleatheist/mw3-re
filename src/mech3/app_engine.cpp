@@ -227,7 +227,6 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x00493260", "deferred: multiplayer (its first screen, made by the Multiplayer State's constructor)"},
       {"0x00495f90", "deferred: multiplayer (its second screen)"},
       {"0x0049bd80", "deferred: multiplayer (its third screen)"},
-      {"0x00588930", "deferred: multiplayer (DirectPlay's poll; back burner)"},
       {"0x0041ab90", "deferred: multiplayer (the chat panel at mech +0x378, made by commands 0x76 / 0x77)"},
       {"0x004ac860", "deferred: the stealth object (its block; back burner, vehicles.md)"},
       {"0x004a4de0", "deferred: the stealth object"},

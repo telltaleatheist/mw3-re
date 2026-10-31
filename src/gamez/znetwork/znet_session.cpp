@@ -1,5 +1,6 @@
 #include "gamez/znetwork/znet_session.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <deque>
@@ -79,11 +80,82 @@ uint32_t send(const void* msg, uint32_t size, bool guaranteed, uint32_t to) {
   return s.async ? id : 0;
 }
 
-// Mech3.exe 1.2 @ 0x00586c20. The poll first and the handlers cleared come
-// with the dispatcher (piece 2); the players' and teams' lists with piece 3.
+// Mech3.exe 1.2 @ 0x00587aa0
+bool on(uint16_t type, Handler fn, int32_t arg) {
+  session().handlers.push_back(HandlerEntry{type, fn, arg});
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00587b20 (std::remove then erase). While a dispatch runs
+// the entries are marked and erased after it (ours: the exe's list walk read
+// a deleted node).
+bool off(uint16_t type, Handler fn) {
+  Session& s = session();
+  for (HandlerEntry& e : s.handlers)
+    if (e.type == type && e.fn == fn) e.fn = nullptr;
+  if (!s.dispatching)
+    s.handlers.erase(std::remove_if(s.handlers.begin(), s.handlers.end(), [](const HandlerEntry& e) { return !e.fn; }),
+                     s.handlers.end());
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00587a00
+void clear_handlers() {
+  Session& s = session();
+  if (s.dispatching) {
+    for (HandlerEntry& e : s.handlers) e.fn = nullptr;
+    return;
+  }
+  s.handlers.clear();
+}
+
+// Mech3.exe 1.2 @ 0x00587c40. A handler added meanwhile is reached too (the
+// list's end moves on), as in the exe.
+void dispatch(uint32_t from, const uint8_t* msg, size_t size) {
+  Session& s = session();
+  if (size < 2) return;
+  uint16_t type;
+  std::memcpy(&type, msg, 2);
+  ++s.dispatching;
+  for (size_t i = 0; i < s.handlers.size(); ++i) {
+    const HandlerEntry e = s.handlers[i];
+    if (e.fn && e.type == type) e.fn(from, msg, size);
+  }
+  if (--s.dispatching == 0)
+    s.handlers.erase(std::remove_if(s.handlers.begin(), s.handlers.end(), [](const HandlerEntry& e) { return !e.fn; }),
+                     s.handlers.end());
+}
+
+// Mech3.exe 1.2 @ 0x00588930. DirectPlay's Receive into the growing buffer
+// [0x007307d8] (its size [0x007307dc]) is the transport's; `free_buffer`
+// freed it, so here it does nothing.
+int32_t poll(int32_t max, bool free_buffer) {
+  (void)free_buffer;
+  if (!active()) return 0;
+  Session& s = session();
+  int32_t handled = 0;
+  Packet p;
+  while (s.transport && s.transport->receive(&p)) {
+    if (p.data.size() > 3) {
+      --max, ++handled;
+      if (p.from == 0) {
+        if (s.system_message) s.system_message(p);
+      } else {
+        dispatch(p.from, p.data.data(), p.data.size());
+      }
+    }
+    if (max == 0) break;
+    if (!active()) break;  // ours: a handler ended the session
+  }
+  return handled;
+}
+
+// Mech3.exe 1.2 @ 0x00586c20. The players' and teams' lists with piece 3.
 void shutdown() {
   Session& s = session();
   if (!s.initialised) return;
+  poll(-1);
+  clear_handlers();
   if (s.transport) s.transport->close();  // DestroyPlayer(local) and Close
   s.initialised = false;
   s.open = false;

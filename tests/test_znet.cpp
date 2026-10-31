@@ -74,3 +74,65 @@ TEST(znet_session_join_needs_a_host) {
   EXPECT(znet::join_session("loopback") && znet::active() && znet::local_id() == 2 && !znet::is_host());
   znet::shutdown();
 }
+
+// Piece 2: the dispatch's own cases the exe comparison leaves out (a handler
+// removed while a dispatch runs, which read a deleted node in the exe; one
+// added meanwhile, which the exe's walk reaches), and the poll over the hub.
+namespace {
+std::vector<int> g_calls;
+void h_a(uint32_t, const uint8_t*, size_t) { g_calls.push_back(1); }
+void h_b(uint32_t, const uint8_t*, size_t) { g_calls.push_back(2); }
+void h_removes_a(uint32_t, const uint8_t*, size_t) {
+  g_calls.push_back(3);
+  znet::off(0x1f, &h_a);
+}
+void h_adds_b(uint32_t, const uint8_t*, size_t) {
+  g_calls.push_back(4);
+  znet::on(0x1f, &h_b);
+}
+uint32_t g_from = 0;
+size_t g_size = 0;
+void h_keep(uint32_t from, const uint8_t*, size_t size) { g_from = from, g_size = size; }
+int g_sys = 0;
+}  // namespace
+
+TEST(znet_dispatch_while_handlers_change) {
+  znet::session() = znet::Session{};
+  const uint8_t m[4] = {0x1f, 0, 4, 0};
+  g_calls.clear();
+  znet::on(0x1f, &h_removes_a);
+  znet::on(0x1f, &h_a);  // removed by the first before its turn: not called
+  znet::on(0x1f, &h_adds_b);
+  znet::dispatch(9, m, 4);
+  EXPECT((g_calls == std::vector<int>{3, 4, 2}));  // b, added meanwhile at the end, is reached
+  EXPECT(znet::session().handlers.size() == 3);  // a erased after the dispatch
+  g_calls.clear();
+  znet::dispatch(9, m, 4);
+  EXPECT((g_calls == std::vector<int>{3, 4, 2, 2}));  // a second b added this time
+  znet::clear_handlers();
+  EXPECT(znet::session().handlers.empty());
+}
+
+TEST(znet_poll_over_the_hub) {
+  znet::Hub hub;
+  znet::session() = znet::Session{};
+  znet::initialise(hub.endpoint());
+  znet::SessionDesc d;
+  EXPECT(znet::host_session(d));
+  EXPECT(znet::poll(-1) == 0);  // nothing waiting
+  znet::Transport* b = hub.endpoint();
+  EXPECT(b->join("loopback") == 2);
+  znet::session().system_message = [](const znet::Packet&) { ++g_sys; };
+  znet::on(0x1f, &h_keep);
+  const uint8_t chat[12] = {0x1f, 0, 12, 0, 0, 0, 0, 0, 'h', 'i', 0, 0};
+  const uint8_t tiny[3] = {0x1f, 0, 3};
+  EXPECT(b->send(0, chat, 12, true, nullptr) && b->send(0, tiny, 3, true, nullptr) && b->send(1, chat, 8, false, nullptr));
+  g_sys = 0, g_from = 0, g_size = 0;
+  EXPECT(znet::poll(2) == 2);  // the join's event, then the chat; the rest left for the next poll
+  EXPECT(g_sys == 1 && g_from == 2 && g_size == 12);
+  EXPECT(znet::poll(-1) == 1);  // the 3-byte one dropped, the 8-byte one handled
+  EXPECT(g_size == 8);
+  znet::shutdown();  // the handlers cleared with it
+  EXPECT(znet::session().handlers.empty() && !znet::active());
+  EXPECT(znet::poll(-1) == 0);
+}

@@ -67,6 +67,16 @@ struct Player {
   uint32_t id = 0;  // +0x04
 };
 
+// A message handler: the sender and the message (its type word first, then
+// its size word; the exe's fastcall ECX, EDX). The size is ours, for the
+// handlers' checks (multiplayer-port.md section 3).
+using Handler = void (*)(uint32_t from, const uint8_t* msg, size_t size);
+struct HandlerEntry {
+  uint16_t type = 0;  // +0
+  Handler fn = nullptr;  // +4
+  int32_t arg = 0;    // +8  (2 at every registration; unread)
+};
+
 // zNetwork's globals.
 struct Session {
   bool initialised = false;   // [0x007306c8]
@@ -76,6 +86,11 @@ struct Session {
   uint32_t host_id = 0;       // [0x00730760]  the host's player id
   std::unique_ptr<Player> local;  // [0x0073075c]
   Transport* transport = nullptr;  // [0x00730724]'s place
+  std::vector<HandlerEntry> handlers;  // [0x00730794] (a std::list), its count [0x00730798]
+  int dispatching = 0;                 // ours: handlers removed meanwhile are erased after
+  // The system events' translation into MW3 messages 2..0xe (0x00588a70,
+  // with the players' lists: piece 3); null drops them.
+  void (*system_message)(const Packet& p) = nullptr;
 };
 Session& session();
 
@@ -92,6 +107,16 @@ bool is_host();         // 0x00586d20: the local player is the host
 // 0x005888a0: a message from the local player to `to` (0 all); the async
 // send's id, else 0 (also on a failure, which is reported).
 uint32_t send(const void* msg, uint32_t size, bool guaranteed, uint32_t to);
+// The handlers (network-messages.md, Plumbing).
+bool on(uint16_t type, Handler fn, int32_t arg = 2);  // 0x00587aa0: added at the end
+bool off(uint16_t type, Handler fn);                  // 0x00587b20: every entry of that type and handler
+void clear_handlers();                                // 0x00587a00
+void dispatch(uint32_t from, const uint8_t* msg, size_t size);  // 0x00587c40: each handler of its type, in order
+// 0x00588930: the waiting messages, at most `max` (-1: all) handled; under
+// 4 bytes dropped, the system's (from 0) to its translation, the rest
+// dispatched. How many were handled; 0 without a network game.
+int32_t poll(int32_t max, bool free_buffer = false);
+
 // 0x00586c20: the session left and zNetwork down (the handlers cleared,
 // the local player destroyed, the transport closed, the globals cleared).
 void shutdown();

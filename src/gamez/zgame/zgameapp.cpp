@@ -1,3 +1,4 @@
+#include "gamez/znetwork/znet_session.h"
 #include "gamez/zgame/zgameapp.h"
 
 #include "gamez/zerror/zerr.h"
@@ -12,6 +13,7 @@ const char kFile[] = "C:\\zipper\\GameZMech3\\zGame\\zGameApp.cpp";
 AppHooks g_default_hooks;
 }  // namespace
 
+void AppHooks::network_poll(int32_t a, uint8_t b) { znet::poll(a, b != 0); }
 void AppHooks::timer_update() { ztimer::update(); }
 
 // The original checks wParam == MCI_NOTIFY_SUCCESSFUL and lParam == its device id;
