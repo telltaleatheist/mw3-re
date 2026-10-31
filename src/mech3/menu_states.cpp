@@ -29,7 +29,7 @@ OptionsState::OptionsState(Kind k, Handle addr) : MenuState(name_of(k), addr), k
 // Mech3.exe 1.2 @ 0x00438c90, 0x0042da50
 bool OptionsState::enter() {
   Engine& en = e();
-  if (kind == kGame) en.set_screen_mode(5);
+  if (kind == kGame) en.set_screen_mode(en.menu_vmode());  // 5 (ours: wide_menus)
   ShellState::enter();
   en.vcall(screen_, 0x10, {0});
   return true;

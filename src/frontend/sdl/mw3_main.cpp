@@ -232,6 +232,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-launcher") a.no_launcher = true;
     else if (s == "--launcher-shot" && next(1)) a.launcher_shot = argv[++i];
     else if (s == "--launcher-screen" && next(1)) a.launcher_screen = argv[++i];
+    else if (s == "--wide-menus") zfix::options().wide_menus = true;
     else if (s == "--original") a.play_original = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];

@@ -289,6 +289,7 @@ void SdlTwodHost::texture_free(zimg::Texture* t) {
   }
   ztwod::Host::texture_free(t);
 }
+zimg::Texture* SdlTwodHost::image_new(int32_t w, int32_t h) { return made(new_image(w, h)); }
 
 zimg::Texture* SdlTwodHost::screen_grab_rect(int32_t, ztwod::Rect* r, zimg::Texture* into) {
   const zrndr::Target2D& t = zrndr::target2d();

@@ -548,6 +548,7 @@ class GameEngine : public Engine {
   static constexpr uint16_t kLayerKey = 0xf81f;
   uint16_t* buffer16() { return buffer_.data(); }
   int buffer_width() const { return width_; }
+  void widen_screen(class MenuScreen* s, uint32_t ctor);  // ours: a menu screen spread over a wide canvas (app_menus.cpp)
   int buffer_height() const { return height_; }
 
   // Sound: zsnd objects by handle.
