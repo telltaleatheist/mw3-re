@@ -527,3 +527,13 @@ works alongside it; stay out of its files.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas
   (58,360).
+
+## 33. Launcher follow-ups (2026-10-31)
+
+- Branch `mac5/launcher-path` (off main ffef80f0). The lead's list, in order:
+  1. the path overflow: done (fit_middle by pixel width, the "Ready" words
+     kept; text_fit.cpp in mw3text so the tests reach it);
+  2. one window from the launcher into the game;
+  3. the MW1 entry;
+  4. the menu sounds;
+  5. the first-start notes inside it.

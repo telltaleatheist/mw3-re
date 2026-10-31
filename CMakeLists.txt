@@ -524,7 +524,8 @@ if(SDL3_FOUND)
   # The game, and its front end's tests: the 2D text needs SDL3_ttf.
   find_package(SDL3_ttf CONFIG QUIET)
   if(SDL3_ttf_FOUND)
-    add_library(mw3text STATIC src/frontend/sdl/sdl_twod_host.cpp src/frontend/sdl/gdi_font_size.cpp)
+    add_library(mw3text STATIC src/frontend/sdl/sdl_twod_host.cpp src/frontend/sdl/gdi_font_size.cpp
+                src/frontend/sdl/text_fit.cpp)
     target_link_libraries(mw3text PUBLIC mw3sdl SDL3_ttf::SDL3_ttf)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp

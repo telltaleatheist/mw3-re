@@ -21,7 +21,11 @@ the mockups were handed over in the outbox (launcher-sketch).
 4. **The launcher screen** (mockup 1). Entries:
    - **MechWarrior 3**: "Ready: version 1.2, <folder>", or "Not set up yet"
      (a click opens the setup screen), or for 1.0 data "Ready: version 1.0
-     (Setup can apply the 1.2 patch)".
+     (Setup can apply the 1.2 patch)". A folder too long for the plate is
+     shortened from the middle by its drawn width ("Ready: version 1.2, "
+     kept, more of the folder's end; `fit_middle`, text_fit.cpp): a long
+     path ran past both sides on Owen's PC (lead, 2026-10-31).
+     `launcher_long_path_fits_the_button`.
    - **Pirate's Moon**: greyed, "Coming later".
    - **MechWarrior (1989)**: only when the MW1 port is found beside ours
      (below).

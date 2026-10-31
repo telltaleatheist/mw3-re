@@ -22,6 +22,7 @@
 #include "check.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
+#include "frontend/sdl/text_fit.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
 #include "mech3/controls_cfg.h"
@@ -2442,6 +2443,21 @@ TEST(sdl_program_bugfixes_switch) {
 #endif
 
 #if !defined(_WIN32)
+// The launcher's MW3 line with a long install folder (lead, after the PC's
+// shot: it ran past the button's sides): shortened from the middle to the
+// width, "Ready: version 1.2, " kept whole, the folder's end kept longer.
+TEST(launcher_long_path_fits_the_button) {
+  auto chars = [](const std::string& t) { return static_cast<int>(t.size()); };  // a width per character
+  const std::string ready = "Ready: version 1.2, ";
+  const std::string path = "C:\\Users\\SomebodyWithALongName\\Documents\\My Games\\MicroProse\\game\\mw3-1.2";
+  const std::string fit = sdlfe::fit_middle(ready + path, ready.size(), 50, chars);
+  std::printf("  %s\n", fit.c_str());
+  EXPECT(static_cast<int>(fit.size()) <= 50 && fit.rfind(ready, 0) == 0 && fit.find("...") != std::string::npos);
+  EXPECT(fit.size() > 44 && fit.compare(fit.size() - 7, 7, "mw3-1.2") == 0);  // its name, and as much as fits
+  EXPECT(sdlfe::fit_middle("short", 0, 50, chars) == "short");
+  EXPECT(sdlfe::fit_middle(ready + path, ready.size(), 10, chars) == ready + "...");  // too narrow: the words alone
+}
+
 // The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
 // development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
 // an empty write dir), the setup screen; and the progress screen. Each a

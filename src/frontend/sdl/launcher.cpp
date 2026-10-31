@@ -1,4 +1,5 @@
 #include "frontend/sdl/launcher.h"
+#include "frontend/sdl/text_fit.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -157,6 +158,18 @@ struct Text {
     SDL_BlitSurface(t, nullptr, dst, &r);
     SDL_DestroySurface(t);
   }
+  // `s` shortened from the middle with "..." until it is `width` across; its
+  // first `keep` characters stay whole (a folder's start and end both show).
+  std::string fit(const std::string& s, int size, int width, size_t keep = 0) {
+    TTF_Font* f = font(size);
+    if (!f) return s;
+    auto w_of = [&](const std::string& t) {
+      int w = 0, h = 0;
+      TTF_GetStringSize(f, t.c_str(), 0, &w, &h);
+      return w;
+    };
+    return fit_middle(s, keep, width, w_of);
+  }
   // Wrapped to `width`, lines centred on x from y.
   void draw_wrapped(SDL_Surface* dst, const std::string& s, int size, SDL_Color c, int x, int y, int width) {
     TTF_Font* f = font(size);
@@ -196,6 +209,7 @@ struct Button {
   SDL_Rect r{};
   std::string label, sub;
   bool enabled = true;
+  size_t sub_keep = 0;  // the sub's start kept whole when it is shortened to fit
 };
 
 enum Id {
@@ -325,13 +339,14 @@ void Launcher::layout() {
   };
   switch (screen_) {
     case kMain: {
-      // A long folder kept to the plate: its start and end round an ellipsis.
-      std::string where = install_.dir;
-      if (where.size() > 44) where = where.substr(0, 14) + "..." + where.substr(where.size() - 27);
-      std::string sub = install_.ok ? "Ready: version " + install_.version + ", " + where : "Not set up yet: click to set it up";
+      // A long folder is shortened to the plate when drawn (Text::fit), the
+      // words before it kept.
+      const std::string ready = "Ready: version " + install_.version + ", ";
+      std::string sub = install_.ok ? ready + install_.dir : "Not set up yet: click to set it up";
       if (install_.ok && (install_.version == "1.0" || install_.version.find("with") != std::string::npos))
         sub = "Ready: version " + install_.version + " (Setup can apply the 1.2 patch)";
       add(kMw3, {150, 138, 340, 60}, "MECHWARRIOR 3", sub);
+      if (sub.rfind(ready, 0) == 0) buttons_.back().sub_keep = ready.size();
       add(kPm, {150, 210, 340, 60}, "PIRATE'S MOON", "Coming later", false);
       add(kSetup, {196, 372, 120, 34}, "SETUP");
       add(kQuit, {324, 372, 120, 34}, "QUIT");
@@ -409,7 +424,7 @@ void Launcher::plate(const Button& b, bool hot) {
     text_.draw(canvas_, b.label, big, c, cx, cy + 1);
   } else {
     text_.draw(canvas_, b.label, big, c, cx, cy - 8);
-    text_.draw(canvas_, b.sub, 12, b.enabled ? kDim : kGrey, cx, cy + 13);
+    text_.draw(canvas_, text_.fit(b.sub, 12, r.w - 20, b.sub_keep), 12, b.enabled ? kDim : kGrey, cx, cy + 13);
   }
 }
 
