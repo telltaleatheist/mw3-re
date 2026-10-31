@@ -11,6 +11,7 @@
 #include "gamez/zclass/window.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
@@ -114,8 +115,19 @@ void GameEngine::node_frame_update() { zcls::frame_update(); }
 // dialog's hole, its area its target (no scaling), the node sized and placed.
 void GameEngine::lab_place_window() {
   if (!lab_view_) return;
-  zcls::window_set_size(lab_view_->window, kViewRect[2] - kViewRect[0], kViewRect[3] - kViewRect[1]);
-  zcls::window_set_origin(lab_view_->window, kViewRect[0], kViewRect[1]);
+  int32_t r[4] = {kViewRect[0], kViewRect[1], kViewRect[2], kViewRect[3]};
+  // Ours (16:9 menus, resolution.md section 12): on a wide canvas the hole
+  // is in the screen's middle, half the extra width right, and the 3D
+  // target is the render size, not the canvas's: the rect scaled to it.
+  const Rect& rd = render();
+  const Rect& dp = display();
+  if (zfix::options().any_resolution && zfix::options().wide_menus && dp.w > 640 && dp.h > 0) {
+    const int32_t shift = (dp.w - 640) / 2;
+    for (int i = 0; i < 4; i += 2) r[i] = (r[i] + shift) * rd.w / dp.w;
+    for (int i = 1; i < 4; i += 2) r[i] = r[i] * rd.h / dp.h;
+  }
+  zcls::window_set_size(lab_view_->window, r[2] - r[0], r[3] - r[1]);
+  zcls::window_set_origin(lab_view_->window, r[0], r[1]);
 }
 
 // Mech3.exe 1.2 @ 0x00450390: the entries freed (0x0044fce0: the tree, the

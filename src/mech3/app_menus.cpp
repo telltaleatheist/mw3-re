@@ -72,6 +72,10 @@ MenuState* GameEngine::popup_state_of(Handle h) const {
 Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
   const Handle h = alloc_block(size);
   screens_[h] = {screen, size, true};
+  // Ours (16:9 menus): spread like the others, by their constructors (the
+  // sizes their states new: the pilot screen, the controls' two popups).
+  const uint32_t ctor = size == 0x13184 ? 0x486f40 : size == 0x12194 ? 0x42da80 : size == 0x11cd4 ? 0x42e890 : 0;
+  if (ctor) widen_screen(screen, ctor);
   return h;
 }
 
@@ -81,32 +85,42 @@ namespace {
 // background (600 or more across) goes to the middle, its sides filled from
 // its own edges, mirrored and darkened (made here, the player's art left as
 // it is); the other objects move by their screen's groups (below).
-void widen_background(ztwod::Image& im, int32_t extra) {
-  zimg::Texture* src = im.image;
-  if (!src || !src->pixels || src->palette_count) return;
-  const int w = src->width, h = src->height, half = extra / 2;
-  zimg::Texture* dst = ztwod::host().image_new(w + extra, h);
-  if (!dst) return;
+// `src` made `left` and `right` columns wider, each side its edge mirrored
+// (from `inset` in) and dimmed outward, shade0 to shade1 (/256); its alpha
+// mirrored with it. Null when it cannot (an 8-bit image).
+zimg::Texture* extend_texture(zimg::Texture* src, int32_t left, int32_t right, int32_t inset, int32_t shade0,
+                              int32_t shade1) {
+  if (!src || !src->pixels || src->palette_count) return nullptr;
+  const int w = src->width, h = src->height, nw = w + left + right;
+  zimg::Texture* dst = ztwod::host().image_new(nw, h);
+  if (!dst) return nullptr;
   auto* in = static_cast<const uint16_t*>(src->pixels);
   auto* out = static_cast<uint16_t*>(dst->pixels);
+  if (src->alpha) {
+    dst->flags = (src->flags & ~(zimg::kAlphaOwned | zimg::kPaletteOwned)) | zimg::kPixelsOwned | zimg::kAlphaOwned;
+    dst->alpha = static_cast<uint8_t*>(std::calloc(static_cast<size_t>(nw) * h, 1));
+  }
   auto dark = [](uint16_t p, int k) {  // 565, scaled by k/256
     const int r = (p >> 11) * k >> 8, g = ((p >> 5) & 63) * k >> 8, b = (p & 31) * k >> 8;
     return static_cast<uint16_t>(r << 11 | g << 5 | b);
   };
   for (int y = 0; y < h; ++y) {
-    const uint16_t* row = in + y * w;
-    uint16_t* o = out + y * (w + extra);
-    for (int x = 0; x < w; ++x) o[half + x] = row[x];
-    for (int x = 0; x < half; ++x) {  // the left side: the edge mirrored, darker outward
-      const int sx = std::min(w - 1, half - 1 - x);
-      o[half - 1 - x] = dark(row[sx], 150 - 90 * x / std::max(1, half));
-    }
-    const int right = extra - half;
-    for (int x = 0; x < right; ++x) {
-      const int sx = std::max(0, w - 1 - x);
-      o[half + w + x] = dark(row[sx], 150 - 90 * x / std::max(1, right));
-    }
+    auto put = [&](int ox, int sx, int k) {
+      out[y * nw + ox] = k < 256 ? dark(in[y * w + sx], k) : in[y * w + sx];
+      if (dst->alpha) dst->alpha[y * nw + ox] = src->alpha[y * w + sx];
+    };
+    for (int x = 0; x < w; ++x) put(left + x, x, 256);
+    for (int x = 0; x < left; ++x)  // outward from the left edge
+      put(left - 1 - x, std::min(w - 1, inset + x), shade0 - (shade0 - shade1) * x / std::max(1, left));
+    for (int x = 0; x < right; ++x)
+      put(left + w + x, std::max(0, w - 1 - inset - x), shade0 - (shade0 - shade1) * x / std::max(1, right));
   }
+  return dst;
+}
+
+void widen_background(ztwod::Image& im, int32_t extra, int32_t inset, int32_t shade0, int32_t shade1) {
+  zimg::Texture* dst = extend_texture(im.image, extra / 2, extra - extra / 2, inset, shade0, shade1);
+  if (!dst) return;
   im.set_image(dst);
   im.set_pos(im.get_x(), im.get_y());
 }
@@ -157,11 +171,14 @@ struct Stretch {
   int32_t x, y, w;     // the image: its place in the frame and its width
   int32_t at;          // the column repeated, out to the right group
   int32_t from_y = 0;  // from this row down
+  bool to_middle = false;  // the part right of `at` goes to the middle group, not the right
 };
 struct ScreenGroups {
   uint32_t ctor;  // the screen's constructor (GameEngine::construct)
   std::vector<Group> groups;
   std::vector<Stretch> stretches = {};
+  int32_t inset = 0;  // the background's sides mirrored from this far in (past a map's marks)
+  int32_t shade0 = 150, shade1 = 60;  // the sides' brightness (/256), at the art and at the canvas's edge
 };
 const std::vector<ScreenGroups>& screen_groups() {
   static const std::vector<ScreenGroups> k = {
@@ -178,6 +195,31 @@ const std::vector<ScreenGroups>& screen_groups() {
       // block in the middle; the two DEFAULT buttons left, ACCEPT and CANCEL
       // right, their lines in LINES (596 wide) stretched below the table.
       {0x42a590, {{0, 400, 340, 480, kLeft}, {380, 290, 640, 480, kRight}}, {{0, 0, 596, 400, 300}}},
+      // The pilot screen: PILOT ENTRY and the pilots left; OPERATION (the
+      // games, or training's cycles, their rects from x 0 but their middles
+      // past 200), ACCEPT and CANCEL right; LINES' top line lengthened.
+      {0x486f40, {{0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      // The briefing: one block, the map in the middle, its sides from its
+      // terrain, past the grid's labels and the north arrow at its edges.
+      {0x405230, {}, {}, 40},
+      // The debriefing: MECH STATUS left, SALVAGE FOUND right, MISSION
+      // SUCCESS in the middle, each with the button under it; its dark
+      // circuit board's sides barely dimmed (dimmed as the others, black).
+      {0x47b430, {{0, 0, 213, 480, kLeft}, {427, 0, 640, 480, kRight}}, {}, 0, 256, 160},
+      // The mech lab: one block (its panels change looks as it goes, a
+      // double one across two columns), the 3D view's hole with it
+      // (lab_place_window); the sides from its edge panels, its board as
+      // the debriefing's.
+      {0x44b920, {}, {}, 0, 256, 160},
+      // Instant Action: ALLIES and ENEMIES left; the mission's box, ACCEPT
+      // and CANCEL right; the lines (a 576-wide ShellButton's image) taken
+      // out to the box at the link between them.
+      {0x488bc0, {{0, 0, 385, 480, kLeft}, {385, 0, 640, 480, kRight}}, {{0, 51, 576, 385}}},
+      // The credits: one block, but their lines (431 wide at 0,70) keep
+      // their start at the screen's left edge, lengthened to the box.
+      {0x4289a0, {{0, 70, 1, 71, kLeft}}, {{0, 70, 431, 100, 0, true}}},
+      // The salvage screen: one block on the debriefing's circuit board.
+      {0x47d3b0, {}, {}, 0, 256, 160},
   };
   return k;
 }
@@ -202,12 +244,45 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     const int32_t left = (r ? r->left : o->get_x()) - s->origin_x, right = (r ? r->right : o->get_x()) - s->origin_x;
     const int32_t top = (r ? r->top : o->get_y()) - s->origin_y, bottom = (r ? r->bottom : o->get_y()) - s->origin_y;
     auto* im = dynamic_cast<ztwod::Image*>(o);
-    if (im && right - left >= 600) {
-      widen_background(*im, extra);
+    bool stretched = false;  // an overlay the table stretches (checked first: some are 600 across)
+    if (im && im->image && table)
+      for (const Stretch& st : table->stretches) stretched |= left == st.x && top == st.y && im->image->width == st.w;
+    // A plain opaque image the frame's size (the briefing's map), or anything 600 across.
+    const int32_t img_w = im && !r && im->image && !im->image->alpha ? im->image->width : 0;
+    // The controls' popups' backdrops: a grab of the canvas put in as each
+    // opens (prepare), already the canvas's width: left where they are.
+    auto* lsp = dynamic_cast<LoadSavePopupScreen*>(s);
+    auto* axp = dynamic_cast<AxisPopupScreen*>(s);
+    if ((lsp && o == &lsp->backdrop) || (axp && o == &axp->background)) continue;
+    if (im && !stretched && (right - left >= 600 || (img_w >= 600 && img_w <= 640))) {
+      widen_background(*im, extra, table ? table->inset : 0, table ? table->shade0 : 150, table ? table->shade1 : 60);
       continue;
     }
     Anchor a = kCentre;
-    const int32_t mx = (left + right) / 2, my = (top + bottom) / 2;
+    // A rect from 0 to past its place was pulled there by a label at 0 (the
+    // lab's data and lists): such an object goes by its own place.
+    const bool pulled = r && left == 0 && o->get_x() - s->origin_x > 0;
+    if (auto* lp = dynamic_cast<LabPanel*>(o); lp && (lp->single || lp->image)) {
+      // A lab panel at a frame's edge: each of its looks made wider on that
+      // side (the left one then stays, its art half the extra width in).
+      const int32_t pw = (lp->single ? lp->single : lp->image)->width;  // (its look is chosen later: show_look)
+      const bool at_left = o->get_x() - s->origin_x == 0, at_right = o->get_x() - s->origin_x + pw == 640;
+      if (at_left || at_right) {
+        const int32_t l = at_left ? extra / 2 : 0, rr = at_right ? extra - extra / 2 : 0;
+        const int32_t k0 = table ? table->shade0 : 150, k1 = table ? table->shade1 : 60;
+        zimg::Texture* shown = lp->image;
+        for (zimg::Texture** t : {&lp->single, &lp->twice, &lp->twice2}) {
+          zimg::Texture* wide = extend_texture(*t, l, rr, 0, k0, k1);
+          if (!wide) continue;
+          if (shown == *t) lp->set_image(wide);
+          ztwod::host().image_release(*t);
+          *t = wide;
+        }
+        if (at_left) continue;
+      }
+    }
+    const int32_t mx = pulled ? o->get_x() - s->origin_x : (left + right) / 2;
+    const int32_t my = pulled ? o->get_y() - s->origin_y : (top + bottom) / 2;
     if (table)
       for (const Group& g : table->groups)
         if (mx >= g.x0 && mx < g.x1 && my >= g.y0 && my < g.y1) {
@@ -217,14 +292,29 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
     if (im && im->image && table)
       for (const Stretch& st : table->stretches)
-        if (left == st.x && top == st.y && im->image->width == st.w) stretch_image(*im, st.at, st.from_y, extra - off);
+        if (left == st.x && top == st.y && im->image->width == st.w)
+          stretch_image(*im, st.at, st.from_y, (st.to_middle ? extra / 2 : extra) - off);
     if (off) moves.push_back({o, o->get_x(), o->get_y(), off});
   }
   for (const bool controls : {true, false})
     for (const Move& m : moves) {
       if ((dynamic_cast<ztwod::Control*>(m.o) != nullptr) != controls) continue;
       if (!controls && (m.o->get_x() != m.x || m.o->get_y() != m.y)) continue;  // moved with its control
-      m.o->set_pos(m.x + m.off, m.y);
+      // An edit bar keeps its label's place, not its offset (0x0048b1d0), so
+      // its set_pos (0x0048b220) would add the bar's place again: moved as
+      // an image, its label (on the list) by itself.
+      if (auto* eb = dynamic_cast<ShellEditBar*>(m.o)) eb->ztwod::Image::set_pos(m.x + m.off, m.y);
+      else m.o->set_pos(m.x + m.off, m.y);
+      auto* pl = dynamic_cast<ztwod::PolyLine*>(m.o);  // its points are where it draws (0x005a38f0)
+      if (pl && !dynamic_cast<ztwod::Shape*>(pl) && !dynamic_cast<ztwod::Caret*>(pl))
+        for (int32_t i = 0; i < pl->count; ++i) pl->pts[i][0] += m.off;
+      if (auto* ln = dynamic_cast<ztwod::Line2D*>(m.o)) ln->end_x += m.off;  // drawn from its place to its end
+      if (auto* w = dynamic_cast<MapWaypoint*>(m.o)) w->shift_x += m.off;  // put back on its nav point each frame
+      if (auto* fl = dynamic_cast<FileList*>(m.o)) {  // its arrows, and its rect when its image sets it (0x0048d2f0)
+        for (FileListArrow* ar : {fl->up, fl->down})
+          if (ar) ar->set_pos(ar->get_x() + m.off, ar->get_y());
+        if (fl->image) fl->rect.left += m.off, fl->rect.right += m.off;
+      }
       if (auto* b = dynamic_cast<MainMenuButton*>(m.o))  // its underline, drawn by the button
         b->line.set_pos(b->line.get_x() + m.off, b->line.get_y());
       auto* cb = dynamic_cast<ztwod::CheckButton*>(m.o);  // its rect is BOUNDS as read (a list box's rows)
@@ -310,6 +400,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       const uint8_t* won = st == ss.end_win.addr() ? &ss.end_win.campaign_won_ : &ss.win.campaign_won_;
       const Handle h = alloc_block(0x13bf4);
       screens_[h] = {new DebriefScreen(*this, st, op, mission, won), 0x13bf4};
+      widen_screen(screens_[h].screen, ctor);
       return h;
     }
     case 0x47d3b0:  // the salvage screen, new(0x166a8)
@@ -319,12 +410,14 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
     case 0x44b920: {  // the mech lab's screen, new(0x1b468): the lance's slot count
       const Handle h = alloc_block(0x1b468);
       screens_[h] = {new LabScreen(*this, static_cast<int32_t>(a0)), 0x1b468};
+      widen_screen(screens_[h].screen, ctor);
       return h;
     }
     case 0x405230: {  // the briefing, new(0x12e6c): its section's name
       const char* name = args.size() && args.begin()->s ? args.begin()->s : "default";
       const Handle h = alloc_block(0x12e6c);
       auto* b = new BriefingScreen(*this, name);
+      widen_screen(b, ctor);  // its script's objects are made with it (read_script)
       screens_[h] = {b, 0x12e6c};
       briefing_screen() = b;
       return h;

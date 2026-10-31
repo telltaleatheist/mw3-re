@@ -86,6 +86,9 @@
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
+#include "mech3/lab_view.h"
+#include "mech3/credits.h"
+#include "gamez/zclass/window.h"
 #include "mech3/app_view.h"
 #include "mech3/landmines.h"
 #include "mech3/player_view.h"
@@ -17067,20 +17070,34 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 }
 
 // Ours (16:9 menus, wide_menus with any_resolution; resolution.md): at mode
-// 13 (853x480) the main menu and the game options spread over the canvas by
-// their screens' groups. Off, then on: main menu, OPTIONS, BACK (the second
+// 13 (853x480) the menu screens spread over the canvas by their groups.
+// Off, then on: main menu, CREDITS and back, OPTIONS, BACK (the second
 // main menu is made on the wide canvas the options set). The left column
 // stays; CREDITS moves the whole extra width, its underline (the button's
 // own image) with it; ACCEPT and the screens' buttons move; the options'
 // LINES overlay is stretched between its panel and the screens' box; on to
 // GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
+// Last, CAMPAIGN's pilot screen, a pilot's c1m2 briefing, the mission
+// launched and won (its salvage and the mech lab visited first), and its
+// debriefing.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
   int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
   int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
   int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
+  int32_t popup_bar = -1, popup_label_dx = -1, popup_label_dy = -1;  // the load/save popup's name bar, its label from it
+  int32_t pil_accept = -1, pil_bar_label_y = -1, pil_bar_label_x = -1, pil_up = -1, games_up = -1, pil_lines_w = -1;
+  int32_t map_w = -1, launch = -1, line_x = -1, waypoint_dx = -99;
+  bool pil_lines_alpha = false;  // LINES2 stretched (its alpha kept), not taken for a background
+  int32_t win_bg = -1, win_continue = -1, win_abort = -1, win_card = -1, win_line = -1, win_line_end = -1;  // the debriefing
+  int32_t lab_left_w = -1, lab_left_x = -1, lab_right_w = -1, lab_accept = -1, lab_view_x = -1, lab_view_w = -1;  // the lab
+  int32_t lab_render_w = 0, lab_canvas_w = 0;
+  int32_t ia_accept = -1, ia_ally = -1, ia_worlds = -1, ia_box_w = -1;  // Instant Action (made at the start)
+  int32_t mb_title = -1, mb_ok = -1;  // a message box (the quit box's dlgMessage.zrd) made on the main menu
+  int32_t cr_lines_w = -1, cr_lines_x = -1, cr_back = -1;  // the credits (first from the main menu)
+  int32_t sv_back_w = -1, sv_accept = -1;  // the briefing's salvage screen  // the briefing (a waypoint: from its projection)
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -17103,6 +17120,9 @@ WideMenus wide_menus_run(bool wide) {
   platform::RegFile settings(dir + "/settings.reg");
   mech3::reset_states();
   reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
   const zfix::Options saved_fix = zfix::options();
   zfix::options().any_resolution = true;
@@ -17144,8 +17164,106 @@ WideMenus wide_menus_run(bool wide) {
       zgame::State* now = app.current();
       auto* mm = const_cast<mech3::MainMenu*>(mech3::main_menu());
       if (stage == 0 && now == &st.main && mm) {
+        mm->buttons[mech3::MainMenuButton::kCredits].on_left_up();
+        stage = 40;
+      } else if (stage == 40) {
+        auto* cs = dynamic_cast<mech3::CreditsState*>(now);
+        auto* c = cs ? dynamic_cast<mech3::CreditsScreen*>(engine.screen_of(cs->screen_)) : nullptr;
+        if (!c) return;
+        if (c->lines.image) out.cr_lines_w = c->lines.image->width;
+        out.cr_lines_x = c->lines.get_x();
+        out.cr_back = c->cancel.get_rect()->left;
+        c->cancel.on_left_up();
+        stage = 41;
+      } else if (stage == 41 && now == &st.main && mm && ++wait > 3) {
+        wait = 0;
         mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
         stage = 1;
+      } else if (stage == 20) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(now);
+        mech3::PilotScreen* p = ps ? ps->screen : nullptr;
+        if (!p) return;
+        out.pil_accept = p->accept.get_rect()->left;
+        if (!p->new_bar.labels.empty())
+          out.pil_bar_label_x = p->new_bar.labels[0]->get_x(), out.pil_bar_label_y = p->new_bar.labels[0]->get_y();
+        if (p->pilots.up) out.pil_up = p->pilots.up->get_x();
+        if (p->games.up) out.games_up = p->games.up->get_x();
+        if (p->lines2.image) out.pil_lines_w = p->lines2.image->width, out.pil_lines_alpha = p->lines2.image->alpha != nullptr;
+        // A pilot stepped on to Op 1 Mission 2 (its briefing has the
+        // script's lines), chosen and accepted, as the campaign tests do.
+        mech3::Pilot* pilot = mech3::create_pilot("Wide");
+        auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::CampaignGame*>(pilot->campaigns.front()) : nullptr;
+        if (mech3::CampaignGame* n = g ? g->next_mission(true, false) : nullptr) pilot->campaigns.push_back(n), g = n;
+        EXPECT(g && g->mission_number() == 2);
+        if (!g) return void(stage = 3);
+        pilot->current = g;
+        pilot->save();
+        p->refresh(false, pilot);
+        p->on_button(0x18, 0, 0);  // ACCEPT: c1m2's briefing
+        stage = 30;
+      } else if (stage == 30) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || now != &st.load || !b->loaded) return;
+        if (b->images[0].image) out.map_w = b->images[0].image->width;
+        out.launch = b->launch_btn.get_rect()->left;
+        for (ztwod::Object2D* o = b->head; o; o = o->next) {
+          if (auto* l = dynamic_cast<mech3::MapLine*>(o); l && out.line_x < 0 && l->count > 0) out.line_x = l->pts[0][0];
+          auto* w = dynamic_cast<mech3::MapWaypoint*>(o);
+          if (!w || out.waypoint_dx != -99 || !w->nav || !engine.mission_map()) continue;
+          w->show_for(-1.0f);
+          w->update(0.0f);  // put on its nav point, as each frame does
+          int32_t xy[2];
+          engine.map_project(w->map, engine.nav_position(w->nav), xy);
+          out.waypoint_dx = w->get_x() - xy[0];
+        }
+        b->on_button(mech3::BriefingScreen::kBtnSalvage, 0, 0);
+        stage = 35;
+      } else if (stage == 35 && now == &st.briefing_salvage) {
+        auto* sv = dynamic_cast<mech3::SalvageScreen*>(engine.screen_of(st.briefing_salvage.screen_));
+        if (!sv) return;
+        if (sv->back.image) out.sv_back_w = sv->back.image->width;
+        out.sv_accept = sv->accept.get_rect()->left;
+        sv->on_button(mech3::SalvageScreen::kAccept, 0, 0);
+        stage = 36;
+      } else if (stage == 36 && now == &st.load) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b) return;
+        b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);
+        stage = 33;
+      } else if (stage == 33 && now == &st.lab) {
+        mech3::LabScreen* ls = engine.lab_screen(st.lab.lab_screen_);
+        if (!ls) return;
+        if (ls->panel_left.single) out.lab_left_w = ls->panel_left.single->width;
+        out.lab_left_x = ls->panel_left.get_x();
+        if (ls->panel_right.single) out.lab_right_w = ls->panel_right.single->width;
+        out.lab_accept = ls->tabs[6].get_rect()->left;
+        out.lab_render_w = mech3::render().w, out.lab_canvas_w = mech3::display().w;
+        if (mech3::LabView* v = engine.lab_view()) {
+          int32_t y = 0, h = 0;
+          zcls::window_origin(v->window, &out.lab_view_x, &y);
+          zcls::window_size(v->window, &out.lab_view_w, &h);
+        }
+        ls->on_button(6, 0, 0);  // ACCEPT: back to the briefing
+        stage = 34;
+      } else if (stage == 34 && now == &st.load) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b) return;
+        b->salvage_seen = 1;  // (else LAUNCH asks about the salvage first)
+        b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        stage = 31;
+      } else if (stage == 31 && now == &st.core && ++wait > 30) {
+        mech3::missions().ended = 1;  // won: Exit Mission, the end screen, the Win State's debriefing
+        mech3::missions().on_command(0x71);
+        stage = 32;
+      } else if (stage == 32 && now == &st.end_win) {
+        auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(st.end_win.screen_));
+        if (!d) return;
+        if (d->background.image) out.win_bg = d->background.image->width;
+        out.win_continue = d->continue_btn.get_rect()->left;
+        out.win_abort = d->abort_btn.get_rect()->left;
+        out.win_card = d->cards[0].get_rect()->left;
+        out.win_line = d->lines[0].get_x(), out.win_line_end = d->lines[0].end_x;
+        stage = 3;
       } else if (stage == 1) {
         auto* os = dynamic_cast<mech3::OptionsState*>(now);
         auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
@@ -17181,6 +17299,11 @@ WideMenus wide_menus_run(bool wide) {
         out.ctl_reset = c->reset_mouse.get_rect()->left;
         out.ctl_keys = c->key_a.get_rect() ? c->key_a.get_rect()->left : c->key_a.get_x();
         if (c->lines.image) out.ctl_lines_w = c->lines.image->width;
+        if (mech3::LoadSavePopupScreen* pop = c->load_save_popup.popup; pop && !pop->bar.labels.empty()) {
+          out.popup_bar = pop->bar.get_x();
+          out.popup_label_dx = pop->bar.labels[0]->get_x() - pop->bar.get_x();
+          out.popup_label_dy = pop->bar.labels[0]->get_y() - pop->bar.get_y();
+        }
         c->cancel.on_left_up();
         stage = 13;
       } else if (stage == 13) {
@@ -17195,13 +17318,28 @@ WideMenus wide_menus_run(bool wide) {
         out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
         out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
         out.width_after = engine.buffer_width();
-        stage = 3;
+        {
+          ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", true);
+          out.mb_title = box.title.get_x();
+          out.mb_ok = box.buttons[0].get_rect() ? box.buttons[0].get_rect()->left : -1;
+        }
+        auto* gs = dynamic_cast<mech3::GameMenuState*>(engine.menu_state_of(engine.peek32(0x60985c)));  // the Action State
+        if (auto* as = gs ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(gs->screen_)) : nullptr) {
+          out.ia_accept = as->accept_btn.get_rect()->left;
+          out.ia_ally = as->allies[0].get_x();
+          out.ia_worlds = as->worlds.get_x();
+          if (as->ally_title.image) out.ia_box_w = as->ally_title.image->width;
+        }
+        mm->buttons[mech3::MainMenuButton::kNewCampaign].on_left_up();
+        stage = 20;
       }
     };
     CountingPump pump;
-    pump.limit = 900;
+    pump.limit = 6000;
     pump.stop = [&] { return stage == 3; };
     app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
     ztwod::set_host(nullptr);
@@ -17242,6 +17380,73 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               on.ctl_accept, off.ctl_reset, on.ctl_reset, off.ctl_keys, on.ctl_keys, off.ctl_lines_w, on.ctl_lines_w);
   EXPECT(off.ctl_accept > 0 && on.ctl_accept == off.ctl_accept + extra && on.ctl_reset == off.ctl_reset);
   EXPECT(on.ctl_keys == off.ctl_keys + extra / 2 && on.ctl_lines_w == off.ctl_lines_w + extra - extra / 2);
+  // The load/save popup (no table: one centred block): its name bar moves
+  // and its label stays on it (the bar's own set_pos, 0x0048b220, would put
+  // the label down by the bar's place).
+  std::printf("load/save popup: the name bar at %d / %d, its label at %d,%d / %d,%d from it\n", off.popup_bar, on.popup_bar,
+              off.popup_label_dx, off.popup_label_dy, on.popup_label_dx, on.popup_label_dy);
+  EXPECT(off.popup_bar > 0 && on.popup_bar == off.popup_bar + extra / 2);
+  EXPECT(on.popup_label_dx == off.popup_label_dx && on.popup_label_dy == off.popup_label_dy);
+  // The pilots: the new name's bar and its label stay (the bar's own move
+  // would push the label down by the bar's place, 0x0048b220), the pilots'
+  // arrows stay, the games' move with OPERATION, ACCEPT right, LINES wider.
+  std::printf("pilots: ACCEPT %d / %d, the bar's label %d,%d / %d,%d, PILOTS' UP %d / %d, GAMES' UP %d / %d, LINES %d / %d\n",
+              off.pil_accept, on.pil_accept, off.pil_bar_label_x, off.pil_bar_label_y, on.pil_bar_label_x,
+              on.pil_bar_label_y, off.pil_up, on.pil_up, off.games_up, on.games_up, off.pil_lines_w, on.pil_lines_w);
+  EXPECT(off.pil_accept > 0 && on.pil_accept == off.pil_accept + extra);
+  EXPECT(off.pil_bar_label_y > 0 && on.pil_bar_label_x == off.pil_bar_label_x && on.pil_bar_label_y == off.pil_bar_label_y);
+  EXPECT(off.pil_up >= 0 && on.pil_up == off.pil_up && on.games_up == off.games_up + extra);
+  EXPECT(on.pil_lines_w == off.pil_lines_w + extra && off.pil_lines_alpha && on.pil_lines_alpha);
+  // The briefing (one block): the map widened from its terrain, LAUNCH, the
+  // script's lines and the waypoints (put back on their nav points each
+  // frame, 0x004081a0) half the extra width right.
+  std::printf("briefing: map %d / %d wide, LAUNCH %d / %d, a line at %d / %d, a waypoint %d / %d from its nav point\n",
+              off.map_w, on.map_w, off.launch, on.launch, off.line_x, on.line_x, off.waypoint_dx, on.waypoint_dx);
+  EXPECT(off.map_w == 640 && on.map_w == 640 + extra && on.launch == off.launch + extra / 2);
+  EXPECT(off.line_x >= 0 && on.line_x == off.line_x + extra / 2);
+  EXPECT(off.waypoint_dx == 0 && on.waypoint_dx == extra / 2);
+  // The debriefing (c1m2 won): the circuit board widened, ABORT and the
+  // cards left, CONTINUE right, the totals' lines (from a place to an end)
+  // whole in the middle.
+  std::printf("debriefing: background %d / %d, CONTINUE %d / %d, ABORT %d / %d, a card %d / %d, a line %d..%d / %d..%d\n",
+              off.win_bg, on.win_bg, off.win_continue, on.win_continue, off.win_abort, on.win_abort, off.win_card,
+              on.win_card, off.win_line, off.win_line_end, on.win_line, on.win_line_end);
+  EXPECT(off.win_bg == 640 && on.win_bg == 640 + extra);
+  EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra && on.win_abort == off.win_abort);
+  EXPECT(on.win_card == off.win_card);
+  EXPECT(off.win_line_end > off.win_line && on.win_line == off.win_line + extra / 2 && on.win_line_end == off.win_line_end + extra / 2);
+  // The credits (one block): their lines kept at the left edge and 106
+  // longer to the box, BACK half the extra width right.
+  std::printf("credits: lines %d at %d / %d at %d, BACK %d / %d\n", off.cr_lines_w, off.cr_lines_x, on.cr_lines_w,
+              on.cr_lines_x, off.cr_back, on.cr_back);
+  EXPECT(off.cr_lines_w > 0 && on.cr_lines_w == off.cr_lines_w + extra / 2 && on.cr_lines_x == off.cr_lines_x);
+  EXPECT(off.cr_back > 0 && on.cr_back == off.cr_back + extra / 2);
+  // The salvage screen (one block): its board widened, ACCEPT with the block.
+  std::printf("salvage: board %d / %d, ACCEPT %d / %d\n", off.sv_back_w, on.sv_back_w, off.sv_accept, on.sv_accept);
+  EXPECT(off.sv_back_w == 640 && on.sv_back_w == 640 + extra && on.sv_accept == off.sv_accept + extra / 2);
+  // A message box on the wide canvas: centred by the dialogs' origin, its
+  // TITLE (a primitive: Object2D::read) with its OK.
+  std::printf("message box: TITLE %d / %d, OK %d / %d\n", off.mb_title, on.mb_title, off.mb_ok, on.mb_ok);
+  EXPECT(off.mb_title > 0 && on.mb_ok == off.mb_ok + extra / 2 && on.mb_title == off.mb_title + extra / 2);
+  // Instant Action: ALLIES left, the mission's cycles and ACCEPT right, the
+  // box's lines (ALLY_TITLE's image) stretched out to the right group.
+  std::printf("instant action: ACCEPT %d / %d, an ally %d / %d, the worlds %d / %d, ALLY_TITLE %d / %d wide\n", off.ia_accept,
+              on.ia_accept, off.ia_ally, on.ia_ally, off.ia_worlds, on.ia_worlds, off.ia_box_w, on.ia_box_w);
+  EXPECT(off.ia_accept > 0 && on.ia_accept == off.ia_accept + extra && on.ia_ally == off.ia_ally);
+  EXPECT(on.ia_worlds == off.ia_worlds + extra && off.ia_box_w > 0 && on.ia_box_w == off.ia_box_w + extra);
+  // The mech lab (from the briefing, before LAUNCH; one block): its edge
+  // panels made wider outward (the left one staying at 0), ACCEPT half the
+  // extra width right, and the 3D view's window over the moved hole, in
+  // the render target's pixels (its 640 rect 210..430, [0x005e4688]).
+  std::printf("lab: left panel %d at %d / %d at %d, right panel %d / %d, ACCEPT %d / %d, the 3D window at %d, %d wide / at %d, %d wide\n",
+              off.lab_left_w, off.lab_left_x, on.lab_left_w, on.lab_left_x, off.lab_right_w, on.lab_right_w, off.lab_accept,
+              on.lab_accept, off.lab_view_x, off.lab_view_w, on.lab_view_x, on.lab_view_w);
+  EXPECT(off.lab_left_w > 0 && on.lab_left_w == off.lab_left_w + extra / 2 && on.lab_left_x == off.lab_left_x);
+  EXPECT(on.lab_right_w == off.lab_right_w + extra - extra / 2 && on.lab_accept == off.lab_accept + extra / 2);
+  EXPECT(off.lab_view_x == 210 && off.lab_view_w == 220);
+  const int32_t rw = on.lab_render_w, cw = on.lab_canvas_w;
+  EXPECT(cw == on.width && rw > 0 && on.lab_view_x == (210 + extra / 2) * rw / cw &&
+         on.lab_view_w == (430 + extra / 2) * rw / cw - (210 + extra / 2) * rw / cw);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to

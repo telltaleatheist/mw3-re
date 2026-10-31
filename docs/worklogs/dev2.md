@@ -522,7 +522,23 @@ works alongside it; stay out of its files.
   now (log_to_file without a console, RunLog otherwise).
 - Controls done (0x42a590 had its own construct path, now widened; LINES
   stretched from row 300; CheckButton BOUNDS move).
-- Next: pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
+- Pilot screen done (adopt_screen widens the pilot screen and the controls'
+  two popups by size; file list arrows and rect; edit bars moved as images).
+  The popups have no table yet: check them with message boxes.
+- Briefing done (widened after construction; plain-image backgrounds by
+  width, mirror inset 40; polyline points; waypoint shift_x; --click-at
+  origin only over a mission, --briefing's ACCEPT marked right).
+- Debriefing done (own construct path widened; per-screen side shading;
+  Line2D ends). Test goes on through LAUNCH, a win, the debriefing.
+- Lab done (one block; edge panels' looks extended; 3D window scaled to the
+  render target and shifted; pulled rects anchored by place; the left
+  mirror fixed in extend_texture).
+- Instant Action done (table 0x488bc0, ALLY_TITLE stretched).
+- Popups done (backdrops left in place); message boxes done (Object2D::read
+  takes the dialog origin: FIX (B) row extended).
+- Credits (lines stretched to the middle), salvage (block, shaded) done;
+  training and multiplayer are the pilot screen. All menu screens done;
+  the lead merges menus-wide. Old next list:
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

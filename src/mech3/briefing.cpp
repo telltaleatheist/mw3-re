@@ -212,7 +212,7 @@ void MapWaypoint::update(float dt) {
   if ((flags & ztwod::kHidden) || !nav || !e_.mission_map() || !e_.world_up()) return;
   int32_t xy[2];
   e_.map_project(map, e_.nav_position(nav), xy);
-  set_pos(xy[0], xy[1]);
+  set_pos(xy[0] + shift_x, xy[1]);
   shrink(dt);
 }
 

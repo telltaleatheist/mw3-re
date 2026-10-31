@@ -102,6 +102,7 @@ class MapWaypoint : public MapCircle {
 
   Handle map = 0;                    // +0x50c  the mission's map (0x00491c80)
   Handle nav = 0;                    // +0x510
+  int32_t shift_x = 0;               // ours (16:9 menus): the map moved this far right on a wide canvas
 };
 
 // A triangle (vtable 0x005bbe30), 300 bytes.
