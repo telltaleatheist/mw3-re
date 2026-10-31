@@ -88,6 +88,36 @@ collects:
   --version`: FFmpeg's version and configure line, naming the libraries
   built into its DLLs).
 
+**The installer**: then `MW3-Rebuild-Setup-<git describe>.exe` beside the
+zip, made by Inno Setup's compiler from `tools\windows\installer.iss`
+(`iscc /DAppVersion=... /DDist=<the folder> /O<out>`). It installs the
+package folder to `Program Files\MechWarrior 3 Rebuild` (or, for a player
+without administrator rights, "only for me" in the user's Programs folder),
+with a Start-menu shortcut (and one to the read-me), a desktop shortcut
+(ticked by default), the rebuild's `LICENSE.txt` as its licence page, and
+an uninstaller. The game writes nothing in that folder, so the uninstaller
+leaves `%APPDATA%\MicroProse\MechWarrior 3` (settings, pilots, saves, the
+imported movies and music, a disc install) and says so. The same AppId
+every version: a new installer upgrades in place. Without Inno Setup
+`package.cmd` still makes the folder and zip and says no installer was
+made. Inno Setup without administrator rights, through scoop (its extras
+bucket unpacks it into the user's folder, `iscc` on the PATH):
+
+    scoop bucket add extras
+    scoop install extras/inno-setup
+    iscc /?
+
+**The package exe is a GUI program**: `-DMW3_PACKAGE=ON` on Windows links
+`mw3.exe` for the Windows subsystem (`/SUBSYSTEM:WINDOWS
+/ENTRY:mainCRTStartup`, so `main` stays the entry), and no console window
+opens beside the game. With no console, its output goes to `mw3.log` in
+the write dir, the start before's kept as `mw3.old.log`
+(`sdlfe::log_to_file`), and the helpers it starts (mw3import, the Video for
+Windows helper; console programs) start without a window of their own
+(`sdlfe::start_child`: SDL's background process, `CREATE_NO_WINDOW`). The
+development build stays a console program. `mw3import.exe` stays one too,
+for `mw3import --cue` from a prompt.
+
 BtbN's LGPL build is configured with `--enable-version3` (it has
 opencore-amr, Apache-2.0), so its DLLs are LGPL v3, and it builds in some
 twenty other libraries (dav1d, libvpx, opus, vorbis, lame, openh264, rav1e,

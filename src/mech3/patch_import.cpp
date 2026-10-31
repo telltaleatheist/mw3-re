@@ -333,6 +333,35 @@ bool each_installshield(const std::vector<uint8_t>& hdr, uint64_t cab_size, cons
   return true;
 }
 
+bool list_installshield(const std::vector<uint8_t>& hdr, std::vector<std::pair<std::string, uint64_t>>* out,
+                        std::string* error) {
+  if (hdr.size() < 20 || le32(hdr.data()) != 0x28635349) return *error = "not an InstallShield header", false;
+  const uint32_t version = le32(&hdr[4]);
+  if ((version >> 24) != 1 || ((version >> 12) & 0xf) != 5) return *error = "not InstallShield 5", false;
+  const size_t desc = le32(&hdr[12]);
+  if (desc + 0x30 > hdr.size()) return *error = "cab descriptor out of the header", false;
+  const size_t table = desc + le32(&hdr[desc + 0x0c]);
+  const uint32_t dirs = le32(&hdr[desc + 0x1c]), files = le32(&hdr[desc + 0x28]);
+  if (table + 4ull * (dirs + files) > hdr.size()) return *error = "file table out of the header", false;
+  auto str = [&](size_t at) {
+    std::string s;
+    while (at < hdr.size() && hdr[at]) s += static_cast<char>(hdr[at++]);
+    return s;
+  };
+  for (uint32_t i = 0; i < files; ++i) {
+    const size_t at = table + le32(&hdr[table + 4 * (dirs + i)]);
+    if (at + 0x3a > hdr.size()) return *error = "file descriptor out of the header", false;
+    const uint8_t* d = &hdr[at];
+    const uint32_t name = le32(d), dir = le32(d + 4), flags = le16(d + 8);
+    if ((flags & 8) || !name || !le32(d + 0x26) || dir >= dirs) continue;
+    std::string path = str(table + le32(&hdr[table + 4 * dir]));
+    path = (path.empty() ? "" : path + "/") + str(table + name);
+    std::replace(path.begin(), path.end(), '\\', '/');
+    out->emplace_back(path, le32(d + 10));
+  }
+  return true;
+}
+
 bool read_installshield(const std::vector<uint8_t>& hdr, const std::vector<uint8_t>& cab, std::vector<PatchEntry>* out,
                         std::string* error) {
   return each_installshield(

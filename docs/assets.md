@@ -182,6 +182,23 @@ install may replace a folder holding that file; any other non-empty folder
 is refused. The folder is `--install-to DIR`, else `<write dir>/install`,
 and it is saved as `mw3.cfg`'s `install=`.
 
+**For the setup screen** (`mech3/game_setup.h`, `mech3::setup`): the
+same operations as plain calls for a UI, each with a progress callback
+(stage, fraction of the whole, the current file; returning false cancels)
+and a result in plain words (a summary, warnings, the technical detail
+apart): `install_from_disc`, `apply_patch` (the overlay, as `--patch`),
+`add_music` (a .cue's audio), `check_install` ("Found MechWarrior 3 1.2
+at ..."), `probe_source` (a quick look at a picked drive, folder, .iso or
+.cue before the copy: version, movies, music tracks, or why it is not the
+disc, Pirate's Moon's named) and `find_discs` (the drives holding the disc:
+Windows' CD drives, `/Volumes`, `/media/$USER`, `/run/media/$USER`). The
+fraction counts the cabinet's bytes read, the movies' copied and the
+music's written; a cancel at any point, the music included (written to
+`music.new` and moved in last), leaves the folder and the music as they
+were. `--install-from` and `--patch` are wrappers over them. Test:
+`setup_api_probes_installs_cancels_and_explains` (break: the movies' copy
+ignoring a cancel, 2 checks).
+
 On Owen's disc image (`MechWarrior 3.zip`'s `Mechwarrior 3.iso`, sha256
 `08c26c0d71375d6130df7716abc2c282147494d869bd48ce13bd5f972f763e49`):
 126 files from the cabinet (404 MB) and 19 movies, all 145 identical to

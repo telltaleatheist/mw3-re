@@ -17,8 +17,9 @@ image. Pirate's Moon is not supported yet.
 
 Installing
 ----------
-1. Unzip this folder anywhere (not inside your MechWarrior 3 folder).
-2. Run mw3.exe.
+Run MW3-Rebuild-Setup.exe and start "MechWarrior 3 Rebuild" from the Start
+menu or the desktop. (Or, from the zip: unzip this folder anywhere (not
+inside your MechWarrior 3 folder) and run mw3.exe.)
 
 On the first start:
 - It looks for your MechWarrior 3 install (where the original installer put
@@ -84,10 +85,11 @@ Everything the game writes goes to:
 
     %APPDATA%\MicroProse\MechWarrior 3\
 
-(paste that into Explorer's address bar). It holds mw3.cfg, your pilots and
-saves, the settings, the converted movies and music, and mw3.log. Your
-MechWarrior 3 install is only read, never changed. Deleting this folder
-resets everything.
+(paste that into Explorer's address bar). It holds mw3.cfg (the install
+folder, windowed=), your pilots and saves, the settings, the converted
+movies (video\) and music (music\), and mw3.log. Uninstalling the rebuild
+keeps this folder. Your MechWarrior 3 install is only read, never changed.
+Deleting this folder resets everything.
 
 mw3.log is written new at every start; the start before it is kept as
 mw3.old.log, so after a crash the crash's log is mw3.old.log if you have
