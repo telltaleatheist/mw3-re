@@ -61,6 +61,7 @@ add_library(mw3core STATIC
   src/mech3/data_version.cpp
   src/mech3/patch_import.cpp
   src/mech3/disc_install.cpp
+  src/mech3/game_setup.cpp
   third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zsave/zsave.cpp
@@ -459,6 +460,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/sdl_render3d.cpp
     src/frontend/sdl/sdl_sound.cpp
     src/frontend/sdl/sdl_vfw.cpp
+    src/frontend/sdl/sdl_child.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
   # Windows: the Direct3D 12 shaders (sdl_render3d.hlsl), DXIL by the
@@ -482,6 +484,34 @@ if(SDL3_FOUND)
     target_include_directories(mw3sdl PRIVATE ${dxil_dir})
     target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_DXIL=1)
   endif()
+  # Vulkan (Linux; anywhere glslangValidator is found): the shaders'
+  # GLSL twin (sdl_render3d.glsl), SPIR-V by Khronos's glslangValidator, as
+  # headers of uint32_t words. Linux has no other GPU format, so there it
+  # is required.
+  if(UNIX AND NOT APPLE)
+    find_program(GLSLANG glslangValidator REQUIRED)
+  else()
+    find_program(GLSLANG glslangValidator)
+  endif()
+  if(GLSLANG)
+    set(glsl ${CMAKE_SOURCE_DIR}/src/frontend/sdl/sdl_render3d.glsl)
+    set(spv_dir ${CMAKE_BINARY_DIR}/spirv)
+    set(spv_headers)
+    foreach(stage vs:vert:VS fs_tex:frag:FS_TEX fs_flat:frag:FS_FLAT)
+      string(REPLACE ":" ";" parts ${stage})
+      list(GET parts 0 entry)
+      list(GET parts 1 kind)
+      list(GET parts 2 define)
+      add_custom_command(OUTPUT ${spv_dir}/spv_${entry}.h
+                         COMMAND ${CMAKE_COMMAND} -E make_directory ${spv_dir}
+                         COMMAND ${GLSLANG} -V -S ${kind} -D${define} --quiet --vn kSpv_${entry} -o ${spv_dir}/spv_${entry}.h ${glsl}
+                         DEPENDS ${glsl} VERBATIM)
+      list(APPEND spv_headers ${spv_dir}/spv_${entry}.h)
+    endforeach()
+    target_sources(mw3sdl PRIVATE ${spv_headers})
+    target_include_directories(mw3sdl PRIVATE ${spv_dir})
+    target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_SPIRV=1)
+  endif()
   # Music files other than .wav decode with SDL3_sound (brew install sdl3_sound;
   # Windows: its -devel-VC.zip in deps\, found through SDL3_sound_ROOT).
   find_package(SDL3_sound CONFIG QUIET)
@@ -498,6 +528,8 @@ if(SDL3_FOUND)
     target_link_libraries(mw3text PUBLIC mw3sdl SDL3_ttf::SDL3_ttf)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
+      src/frontend/sdl/run_log.cpp
+      src/frontend/sdl/launcher.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
       src/frontend/sdl/modes_chain.cpp
@@ -505,6 +537,9 @@ if(SDL3_FOUND)
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3 PRIVATE MW3_VERSION="${MW3_VERSION}")
+    # The launcher's art (assets/launcher) in a development build; a package
+    # carries it beside the exe (tools/windows/package.cmd).
+    target_compile_definitions(mw3 PRIVATE MW3_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
     if(NOT MW3_PACKAGE)
       target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
     endif()
@@ -515,6 +550,16 @@ if(SDL3_FOUND)
       set(MW3_RC_ICON "ICON_MAIN ICON \"${CMAKE_SOURCE_DIR}/tools/windows/mw3.ico\"")
       configure_file(tools/windows/version.rc.in ${CMAKE_BINARY_DIR}/mw3.rc)
       target_sources(mw3 PRIVATE ${CMAKE_BINARY_DIR}/mw3.rc)
+    endif()
+    # A package build is a Windows GUI program: no console window beside the
+    # game, its output in the write dir's mw3.log (mw3_main.cpp); `main` stays
+    # the entry. The development build keeps its console.
+    if(WIN32 AND MW3_PACKAGE)
+      if(MSVC)
+        target_link_options(mw3 PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
+      else()
+        target_link_options(mw3 PRIVATE -mwindows)
+      endif()
     endif()
     # Windows: the DLLs mw3.exe links (SDL3, SDL3_ttf, SDL3_sound) copied beside it.
     if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)

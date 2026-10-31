@@ -1,5 +1,7 @@
 #pragma once
+#include <array>
 #include <cstdint>
+#include <deque>
 
 #include "mech3/zai_brain.h"
 #include "mech3/zai_node.h"
@@ -130,6 +132,22 @@ class AttackReturnState : public BehaviourState {
 bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3], float* turn, float* throttle,
               bool back);
 
+// Ours (W17, FIX (bug) behind bugs; ai.md section 17.6): round a wall. No
+// progress toward a target past `reach` for 2 s (a wall, or a contact holding
+// the carrot back), the clear heading nearest the target (the wall kept on
+// one side) is walked until the line to it is clear; after 20 s it gives up
+// for 10, then may try again. The follow's, and (W27) the fight's approach.
+struct WallDetour {
+  bool on = false;
+  int32_t side = 0;          // +1 or -1: the way he turns off the line
+  float dir[2] = {};         // the heading walked (x, z)
+  float watch_t = 0, watch_d = 0, time = 0, probe_t = 0, cool = 0;
+  float watch_fwd[2] = {};   // the heading at the window's start: a turn is not being stuck
+  int32_t walked = 0, gave_up = 0;  // detours begun, and given up (for the tests)
+  // Where to walk this frame; false to go as the exe.
+  bool goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float out[3]);
+};
+
 // The fight (0x004d1ca0 -> 0x004d1cc0, vtable 0x005ccb60, over the waiting
 // state 0x004c8a30): what the target vehicle net's attack behaviour (slot 1)
 // makes in the order the brain pushes on that net. Run (0x004d1d10): the
@@ -148,6 +166,7 @@ class FightState : public BehaviourState {
   float turn = 0;            // +0x0c
   uint8_t x10 = 0;           // +0x10
   Behaviour* made_by;        // +0x18
+  WallDetour detour;         // ours (W27): round a wall to the enemy
 };
 
 // The follow (0x004c89f0 -> 0x004d1870, vtable 0x005cca88, over the waiting
@@ -171,23 +190,29 @@ class FollowState : public BehaviourState {
   uint8_t pulled = 0;        // +0x10  the last run's segment was to the boundary's point
   Behaviour* made_by;        // +0x18
 
-  // Ours (W17, FIX (bug) behind bugs; ai.md section 17.6): round a wall.
-  // No progress toward a target past his follow range (+0x28) for 2 s (a wall, or a
-  // contact holding his carrot back), he walks the
-  // clear heading nearest the target (the wall kept on one side) until the
-  // line to it is clear; after 20 s he gives up for 10.
-  struct Detour {
-    bool on = false;
-    int32_t side = 0;          // +1 or -1: the way he turns off the line
-    float dir[2] = {};         // the heading walked (x, z)
-    float watch_t = 0, watch_d = 0, time = 0, probe_t = 0, cool = 0;
-    float watch_fwd[2] = {};   // the heading at the window's start: a turn is not being stuck
-    int32_t walked = 0, gave_up = 0;  // detours begun, and given up (for the tests)
-  } detour;
+  WallDetour detour;           // ours (W17): round a wall
+
+  // Ours (W27, FIX (bug) behind bugs; ai.md section 17.6): the leader's way
+  // as breadcrumbs, a point each 8 m he walks (the last 60). Past his
+  // follow range with the leader out of sight (a wall between their eyes),
+  // he walks to the newest point he can see, then on to newer ones; the
+  // leader in sight again, the exe's straight follow.
+  struct Trail {
+    std::deque<std::array<float, 3>> crumbs;
+    int32_t at = -1;           // the crumb walked to; -1 none
+    float look_t = 0;          // to the next sight check
+    bool sees = true;          // the leader in sight at the last check
+    int32_t used = 0;          // crumbs walked to (for the tests)
+    float cap_t = 0;           // after a crumb he could not reach: step by step, no skipping
+    float watch_t = 0, watch_d = 0;  // progress toward the crumb (or the leader)
+    float force_t = 0;         // the leader "in sight" but no way on: the trail anyway
+  } trail;
+  float crumb_turn = 0;        // the turn toward the crumb, kept frame to frame
 
  private:
   void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);
-  bool detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]);
+  void trail_record(const float to[3]);
+  bool trail_goal(const float pos[3], const float to[3], float reach, float dt, float goal[3]);
 };
 
 // For the tests: every detour heading taken as blocked (the give-up).

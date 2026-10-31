@@ -180,19 +180,26 @@ bool Disc::open(const std::string& path, std::string* error) {
 }
 
 DiscInstall install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
-                              const std::string& music_dir, const std::function<void(const std::string&)>& progress) {
+                              const std::string& music_dir, const DiscProgress& progress) {
   DiscInstall r;
-  auto say = [&](const std::string& s) {
-    r.log.push_back(s);
-    if (progress) progress(s);
-  };
-  auto fail = [&](const std::string& why) {
+  auto say = [&](const std::string& s) { r.log.push_back(s); };
+  auto fail = [&](DiscInstall::Failure f, const std::string& why) {
+    r.failure = f;
     r.error = why;
     return r;
   };
+  // The fraction: the cabinet's bytes read, the movies' bytes copied and the
+  // music's, of their sum; false from `progress` cancels.
+  uint64_t total = 1, done = 0;
+  auto step = [&](const std::string& stage, const std::string& message) {
+    if (progress && !progress(stage, static_cast<double>(std::min(done, total)) / static_cast<double>(total), message))
+      r.cancelled = true;
+    return !r.cancelled;
+  };
   Disc disc;
   std::string error;
-  if (!disc.open(source, &error)) return fail(error);
+  if (!step("Reading the disc", source)) return fail(DiscInstall::kCancelled, "cancelled");
+  if (!disc.open(source, &error)) return fail(DiscInstall::kUnreadable, error);
   say(source + ": " + disc.kind() + ", " + std::to_string(disc.files().size()) + " files");
 
   // DATA1.HDR and its DATA1.CAB, at the root or the shallowest folder.
@@ -201,74 +208,94 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
     if (lower(fs::path(f.path).filename().string()) == "data1.hdr" &&
         (!hdr || std::count(f.path.begin(), f.path.end(), '/') < std::count(hdr->path.begin(), hdr->path.end(), '/')))
       hdr = &f;
-  if (!hdr) return fail(source + ": no DATA1.HDR (not the MechWarrior 3 disc?)");
+  if (!hdr) return fail(DiscInstall::kNotMw3, source + ": no DATA1.HDR (not the MechWarrior 3 disc?)");
   const std::string dir = fs::path(hdr->path).parent_path().generic_string();
   const Disc::File* cab = disc.find(dir.empty() ? "DATA1.CAB" : dir + "/DATA1.CAB");
-  if (!cab) return fail(source + ": " + hdr->path + " without its DATA1.CAB");
+  if (!cab) return fail(DiscInstall::kNotMw3, source + ": " + hdr->path + " without its DATA1.CAB");
   std::vector<uint8_t> hdr_bytes(static_cast<size_t>(hdr->size));
-  if (!disc.read(*hdr, 0, hdr_bytes.size(), hdr_bytes.data())) return fail(source + ": cannot read " + hdr->path);
+  if (!disc.read(*hdr, 0, hdr_bytes.size(), hdr_bytes.data()))
+    return fail(DiscInstall::kUnreadable, source + ": cannot read " + hdr->path);
+  std::vector<const Disc::File*> movies;
+  for (const Disc::File& f : disc.files()) {
+    const std::string p = lower(f.path);
+    if (p.rfind("video/", 0) == 0 && p.find('/', 6) == std::string::npos) movies.push_back(&f);
+  }
+  total = cab->size;
+  for (const Disc::File* f : movies) total += f->size;
+  std::vector<platform::CueTrack> tracks;
+  if (!disc.cue.empty() && !music_dir.empty() && platform::read_cue(disc.cue, &tracks, &error))
+    for (const platform::CueTrack& t : tracks)
+      if (t.audio) total += 10u << 20;  // about the share of a track; the copy reports its own fraction
 
   const fs::path out(out_dir), tmp(out_dir + ".new");
   std::error_code ec;
   if (fs::exists(out, ec) && !fs::exists(out / kMarker, ec) && !fs::is_empty(out, ec))
-    return fail(out_dir + " is not empty and not an earlier disc install: name another folder");
+    return fail(DiscInstall::kFolderInUse, out_dir + " is not empty and not an earlier disc install: name another folder");
   fs::remove_all(tmp, ec);
+  auto abandon = [&](DiscInstall::Failure f, const std::string& why) {
+    fs::remove_all(tmp, ec);
+    return fail(r.cancelled ? DiscInstall::kCancelled : f, r.cancelled ? "cancelled" : why);
+  };
 
   // Every file group into one folder; the same path twice must be the
   // same bytes (MW3's disc has none twice).
   std::map<std::string, std::pair<uint64_t, uint32_t>> seen;  // lower-cased path: size, CRC
-  int k = 0;
+  DiscInstall::Failure why = DiscInstall::kDamaged;
   say("reading " + cab->path + " (" + std::to_string(cab->size >> 20) + " MB)");
   const bool read_ok = each_installshield(
-      hdr_bytes, cab->size, [&](uint64_t at, size_t n, uint8_t* to) { return disc.read(*cab, at, n, to); },
+      hdr_bytes, cab->size,
+      [&](uint64_t at, size_t n, uint8_t* to) {
+        if (!disc.read(*cab, at, n, to)) return false;
+        done += n;
+        return true;
+      },
       [&](PatchEntry&& e) {
+        if (!step("Copying the game files", e.path)) return false;
         const uint32_t crc = zutl_zar::crc32(0, e.data.data(), e.data.size());
         auto [it, fresh] = seen.emplace(lower(e.path), std::make_pair(static_cast<uint64_t>(e.data.size()), crc));
         if (!fresh) {
           if (it->second.first == e.data.size() && it->second.second == crc) return true;
           error = e.path + " is in two file groups with different contents";
+          why = DiscInstall::kNotMw3;
           return false;
         }
         if (!write_file(tmp / e.path, e.data.data(), e.data.size())) {
           error = "cannot write " + (tmp / e.path).string();
+          why = DiscInstall::kCannotWrite;
           return false;
         }
         ++r.files, r.bytes += e.data.size();
-        if (++k % 50 == 0) say(std::to_string(k) + " files");
         return true;
       },
       &error);
-  if (!read_ok) {
-    fs::remove_all(tmp, ec);
-    return fail(source + ": " + error);
-  }
+  if (!read_ok) return abandon(why, source + ": " + error);
+  done = cab->size;
   say(cab->path + ": " + std::to_string(r.files) + " files, " + std::to_string(r.bytes >> 20) + " MB");
 
   // VIDEO\ as video/, its file names as the disc has them.
   std::vector<uint8_t> buf(1 << 20);
-  for (const Disc::File& f : disc.files()) {
-    const std::string p = lower(f.path);
-    if (p.rfind("video/", 0) != 0 || p.find('/', 6) != std::string::npos) continue;
-    std::FILE* o = nullptr;
-    const fs::path to = tmp / "video" / fs::path(f.path).filename();
+  for (const Disc::File* f : movies) {
+    const fs::path to = tmp / "video" / fs::path(f->path).filename();
     fs::create_directories(to.parent_path(), ec);
-    o = std::fopen(to.string().c_str(), "wb");
-    bool ok = o != nullptr;
-    for (uint64_t at = 0; ok && at < f.size;) {
-      const size_t n = static_cast<size_t>(std::min<uint64_t>(buf.size(), f.size - at));
-      ok = disc.read(f, at, n, buf.data()) && std::fwrite(buf.data(), 1, n, o) == n;
-      at += n;
+    std::FILE* o = std::fopen(to.string().c_str(), "wb");
+    bool ok = o != nullptr, wrote = ok;
+    for (uint64_t at = 0; ok && at < f->size;) {
+      if (!step("Copying the movies", f->path)) break;
+      const size_t n = static_cast<size_t>(std::min<uint64_t>(buf.size(), f->size - at));
+      const bool got = disc.read(*f, at, n, buf.data());
+      wrote = got && std::fwrite(buf.data(), 1, n, o) == n;
+      ok = got && wrote;
+      at += n, done += n;
     }
-    if (o && std::fclose(o) != 0) ok = false;
-    if (!ok) {
-      fs::remove_all(tmp, ec);
-      return fail(source + ": cannot copy " + f.path);
-    }
-    ++r.movies, r.bytes += f.size;
+    if (o && std::fclose(o) != 0) ok = wrote = false;
+    if (!ok || r.cancelled)
+      return abandon(wrote ? DiscInstall::kDamaged : DiscInstall::kCannotWrite, source + ": cannot copy " + f->path);
+    ++r.movies, r.bytes += f->size;
   }
   say("video: " + std::to_string(r.movies) + " files");
 
   // The data files against 1.0's (assets.md, Data versions).
+  if (!step("Checking the files", "")) return abandon(DiscInstall::kCancelled, "cancelled");
   int n = 0, of_10 = 0, in_10 = 0;
   const DataFile* files = data_files(&n);
   std::vector<uint8_t> data;
@@ -289,19 +316,18 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
     r.warnings.push_back("Mech3.exe is not the 1.0 disc's");
   r.version = of_10 == in_10 && r.warnings.empty() ? "1.0" : "unknown";
   say("data: " + std::to_string(of_10) + " of the 1.0 disc's " + std::to_string(in_10) + " files");
-  if (!fs::exists(tmp / "zbd" / "reader.zbd", ec)) {
-    fs::remove_all(tmp, ec);
-    return fail(source + ": the cabinet has no zbd\\reader.zbd (not the MechWarrior 3 disc?)");
-  }
+  if (!fs::exists(tmp / "zbd" / "reader.zbd", ec))
+    return abandon(DiscInstall::kNotMw3, source + ": the cabinet has no zbd\\reader.zbd (not the MechWarrior 3 disc?)");
 
   // The 1.2 patch's 28, over them.
   if (!patch.empty()) {
+    if (!step("Applying the 1.2 patch", patch)) return abandon(DiscInstall::kCancelled, "cancelled");
     const std::string pdir = (tmp / ".patch12").string();
     const PatchImport p = import_patch_12(patch, pdir);
     for (const std::string& l : p.log) say(l);
     if (!p.ok) {
-      fs::remove_all(tmp, ec);
-      return fail("the 1.2 patch: " + p.error);
+      r.patch_error = p.error;
+      return abandon(DiscInstall::kPatch, "the 1.2 patch: " + p.error);
     }
     for (auto it = fs::recursive_directory_iterator(pdir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
       if (ec || !it->is_regular_file(ec)) continue;
@@ -309,10 +335,7 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
       fs::create_directories(to.parent_path(), ec);
       fs::remove(to, ec);
       fs::rename(it->path(), to, ec);
-      if (ec) {
-        fs::remove_all(tmp, ec);
-        return fail("cannot move the patch's " + it->path().string());
-      }
+      if (ec) return abandon(DiscInstall::kCannotWrite, "cannot move the patch's " + it->path().string());
     }
     fs::remove_all(pdir, ec);
     r.version = "1.2";
@@ -320,28 +343,54 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
     say("the 1.2 patch: " + std::to_string(p.found) + " files");
   }
 
+  // A cue sheet's CD audio as the music (platform/cue_audio.h), into
+  // music_dir.new first: a cancel there leaves the music as it was.
+  const std::string music_tmp = music_dir + ".new";
+  if (!disc.cue.empty() && !music_dir.empty()) {
+    fs::remove_all(music_tmp, ec);
+    std::string err;
+    const uint64_t music_at = done;
+    const int32_t m = platform::write_cue_audio(
+        disc.cue, music_tmp, nullptr, &err, [&](uint64_t got, uint64_t all) {
+          done = music_at + (all ? (total - music_at) * got / all : 0);
+          return step("Writing the music", "");
+        });
+    if (r.cancelled) {
+      fs::remove_all(music_tmp, ec);
+      return abandon(DiscInstall::kCancelled, "cancelled");
+    }
+    if (m < 0 || !err.empty()) r.warnings.push_back("music: " + err);
+    r.music = m < 0 ? 0 : m;
+  }
+
   {
     const std::string note = "Installed by mw3 --install-from (docs/assets.md, Installing from the disc).\nsource=" +
                              source + "\nversion=" + r.version + "\nfiles=" + std::to_string(r.files) +
                              "\nmovies=" + std::to_string(r.movies) + "\n";
-    if (!write_file(tmp / kMarker, reinterpret_cast<const uint8_t*>(note.data()), note.size())) {
-      fs::remove_all(tmp, ec);
-      return fail("cannot write " + (tmp / kMarker).string());
-    }
+    if (!write_file(tmp / kMarker, reinterpret_cast<const uint8_t*>(note.data()), note.size()))
+      return abandon(DiscInstall::kCannotWrite, "cannot write " + (tmp / kMarker).string());
+  }
+  if (!step("Finishing", "")) {
+    fs::remove_all(music_tmp, ec);
+    return abandon(DiscInstall::kCancelled, "cancelled");
   }
   fs::remove_all(out, ec);
   fs::create_directories(out.parent_path(), ec);
   fs::rename(tmp, out, ec);
-  if (ec) return fail("cannot rename " + tmp.string() + " to " + out_dir + ": " + ec.message());
-
-  // A cue sheet's CD audio as the music (platform/cue_audio.h).
-  if (!disc.cue.empty() && !music_dir.empty()) {
-    std::string err;
-    const int32_t m = platform::write_cue_audio(disc.cue, music_dir, nullptr, &err);
-    if (m < 0 || !err.empty()) r.warnings.push_back("music: " + err);
-    r.music = m < 0 ? 0 : m;
+  if (ec) return abandon(DiscInstall::kCannotWrite, "cannot rename " + tmp.string() + " to " + out_dir + ": " + ec.message());
+  if (r.music) {  // the tracks over the music folder's (other files there kept)
+    fs::create_directories(music_dir, ec);
+    for (const auto& e : fs::directory_iterator(music_tmp, ec)) {
+      const fs::path to = fs::path(music_dir) / e.path().filename();
+      fs::remove(to, ec);
+      fs::rename(e.path(), to, ec);
+    }
+    fs::remove_all(music_tmp, ec);
     say("music: " + std::to_string(r.music) + " tracks into " + music_dir);
   }
+  done = total;
+  step("Done", "");
+  r.cancelled = false;  // past the point of no return: it is installed
   r.ok = true;
   return r;
 }

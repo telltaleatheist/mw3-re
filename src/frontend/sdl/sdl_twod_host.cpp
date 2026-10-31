@@ -253,7 +253,17 @@ void SdlTwodHost::video_unlock() {}
 
 // FIX (A): after a 3D frame the buffer holds only the 2D layer over its key
 // colour, so the frame shown is read back (the pause screen's backdrop).
-zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
+zimg::Texture* SdlTwodHost::screen_grab(int32_t buffer) {
+  // FIX (B), playtest W25: the message box's backdrop (buffer 2, 0x005a6e60)
+  // over a GPU frame: the frame kept at its own size behind the box
+  // (GameEngine::hold_shown_frame), the backdrop the layer's key colour.
+  if (buffer == 2 && engine_ && engine_->hold_shown_frame()) {
+    const int w = engine_->buffer_width(), h = engine_->buffer_height();
+    zimg::Texture* img = new_image(w, h);
+    std::fill(static_cast<uint16_t*>(img->pixels), static_cast<uint16_t*>(img->pixels) + w * h, mech3::GameEngine::kLayerKey);
+    held_grab_ = img;
+    return made(img);
+  }
   std::vector<uint16_t> shown;
   if (engine_ && engine_->shown_frame(&shown)) {
     const zrndr::Target2D& t = zrndr::target2d();
@@ -271,6 +281,15 @@ zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
     std::memcpy(static_cast<uint16_t*>(img->pixels) + y * t.width, t.base + y * t.pitch, t.width * 2);
   return made(img);
 }
+
+void SdlTwodHost::texture_free(zimg::Texture* t) {
+  if (t && t == held_grab_) {  // the box gone: the kept frame let go
+    held_grab_ = nullptr;
+    if (engine_) engine_->drop_held();
+  }
+  ztwod::Host::texture_free(t);
+}
+zimg::Texture* SdlTwodHost::image_new(int32_t w, int32_t h) { return made(new_image(w, h)); }
 
 zimg::Texture* SdlTwodHost::screen_grab_rect(int32_t, ztwod::Rect* r, zimg::Texture* into) {
   const zrndr::Target2D& t = zrndr::target2d();

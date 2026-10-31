@@ -190,6 +190,7 @@ class PauseState : public ShellState {
   bool enter() override;              // 0x00493040
   void leave() override;              // 0x004931e0
   void escape() override;             // 0x00493250
+  void resume(uint32_t arg) override;  // ShellState's; ours first: the mission's mode back (W36)
 };
 
 // 6 "Load State" (0x00608f18, vtable 0x005c4148): the briefing (briefing.cpp).

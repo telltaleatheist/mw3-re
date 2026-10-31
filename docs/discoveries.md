@@ -584,6 +584,12 @@ From the weapon code (weapons.md).
   APCs. Once the Champion and the other listed mechs are down it says the
   forces are destroyed, while two Fireflies and the APCs may still be out
   there.
+- **The slash key centres the legs, not the torso.** `/` turns your legs to
+  where the torso is facing; Shift+`/` brings the torso back over the legs.
+  Either is cancelled the moment you twist or look: holding a twist key,
+  or the slightest mouse movement when the mouse moves the torso. Centring
+  the legs also stops while you steer. Let go of the mouse and the turn
+  keys, then press it.
 
 - **A quick click's laser beam hangs back.** A short laser fires on for a
   moment after you let go of the button, until its charge is spent, but only

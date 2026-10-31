@@ -1,6 +1,7 @@
 #include "mech3/data_version.h"
 #include "mech3/patch_import.h"
 #include "mech3/disc_install.h"
+#include "mech3/game_setup.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "mech3/mech_skin.h"
 #include "mech3/veh_controls.h"
@@ -517,6 +518,98 @@ TEST(disc_install_from_an_image_a_cue_and_a_folder) {
   std::filesystem::remove_all(tmp, ec);
 }
 
+
+// The setup screen's calls (game_setup.h) on the disc made above: the probe
+// says what a source is before the copy, the install reports rising
+// progress and ends at 1, a cancel in the movies or in the music leaves no
+// folder and the music as it was, and each failure has a plain sentence.
+TEST(setup_api_probes_installs_cancels_and_explains) {
+  const std::string root = std::string(MW3_SOURCE_DIR) + "/game";
+  const std::string folder = root + "/patch-1.2/MechWarrior-3_Patch_Win_EN_Patch-12-US";
+  if (!std::filesystem::exists(folder + "/data1.cab")) return;
+  const std::string tmp = temp_dir("setup_api");
+  MadeDisc disc;
+  disc.root = {{"DATA1.CAB", slurp_file(folder + "/data1.cab")}, {"DATA1.HDR", slurp_file(folder + "/data1.hdr")}};
+  disc.video = {{"C1.AVI", std::vector<uint8_t>(2048 * 40, 3)}, {"C2.AVI", std::vector<uint8_t>(2048 * 40, 4)}};
+  const std::vector<uint8_t> iso = disc.iso();
+  spit_file(tmp + "/disc.iso", iso);
+  spit_file(tmp + "/t1.bin", raw_mode1(iso));
+  spit_file(tmp + "/t2.bin", std::vector<uint8_t>(2352 * 400, 5));
+  const std::string cue = "FILE \"t1.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n"
+                          "FILE \"t2.bin\" BINARY\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n";
+  spit_file(tmp + "/disc.cue", std::vector<uint8_t>(cue.begin(), cue.end()));
+  spit_file(tmp + "/notes.txt", {'h', 'i'});
+  namespace su = mech3::setup;
+
+  // The probe.
+  const su::Result pi = su::probe_source(tmp + "/disc.iso"), pc = su::probe_source(tmp + "/disc.cue");
+  const su::Result pn = su::probe_source(tmp + "/notes.txt"), pg = su::probe_source(root + "/mw3-1.2");
+  std::printf("  probe: %s | %s | %s | %s\n", pi.summary.c_str(), pc.summary.c_str(), pn.summary.c_str(), pg.summary.c_str());
+  EXPECT(pi.ok && pi.version == "1.2" && pi.movies == 2 && pi.music_tracks == 0 && !pi.warnings.empty());
+  EXPECT(pc.ok && pc.music_tracks == 1 && pc.summary.find("1 music track") != std::string::npos);
+  EXPECT(!pn.ok && !pn.summary.empty());
+  EXPECT(!std::filesystem::exists(root + "/mw3-1.2/zbd") || (pg.ok && pg.summary.find("installed copy") != std::string::npos));
+
+  // The install: progress only rises, ends at 1, names its stages.
+  std::vector<double> fr;
+  std::vector<std::string> stages;
+  const su::Result ok = su::install_from_disc(tmp + "/disc.cue", tmp + "/game", "", tmp + "/music", [&](const su::Progress& p) {
+    fr.push_back(p.fraction);
+    if (stages.empty() || stages.back() != p.stage) stages.push_back(p.stage);
+    return true;
+  });
+  std::printf("  install: %s (%zu reports, stages:", ok.summary.c_str(), fr.size());
+  for (const std::string& s : stages) std::printf(" \"%s\"", s.c_str());
+  std::printf(")\n");
+  EXPECT(ok.ok && ok.files == 31 && ok.movies == 2 && ok.music_tracks == 1);
+  EXPECT(!fr.empty() && std::is_sorted(fr.begin(), fr.end()) && fr.back() == 1.0 && fr.front() == 0.0);
+  EXPECT(std::find(stages.begin(), stages.end(), "Copying the movies") != stages.end() &&
+         std::find(stages.begin(), stages.end(), "Writing the music") != stages.end());
+  EXPECT(std::filesystem::exists(tmp + "/music/track02.wav"));
+
+  // Cancels: in the movies, then in the music (an earlier track kept).
+  spit_file(tmp + "/music/track09.wav", {'o', 'l', 'd'});
+  for (const char* at : {"Copying the movies", "Writing the music"}) {
+    const std::string out = tmp + "/cancelled";
+    const su::Result c = su::install_from_disc(tmp + "/disc.cue", out, "", tmp + "/music",
+                                               [&](const su::Progress& p) { return p.stage != at; });
+    std::printf("  cancel in \"%s\": %s\n", at, c.summary.c_str());
+    EXPECT(!c.ok && c.cancelled && !std::filesystem::exists(out) && !std::filesystem::exists(out + ".new") &&
+           !std::filesystem::exists(tmp + "/music.new") && slurp_file(tmp + "/music/track09.wav").size() == 3);
+  }
+
+  // Failures in plain words.
+  std::filesystem::create_directories(tmp + "/busy");
+  spit_file(tmp + "/busy/letter.txt", {'x'});
+  const su::Result busy = su::install_from_disc(tmp + "/disc.iso", tmp + "/busy", "", "", nullptr);
+  const su::Result notdisc = su::install_from_disc(tmp + "/notes.txt", tmp + "/x", "", "", nullptr);
+  std::printf("  busy: %s\n  not a disc: %s\n", busy.summary.c_str(), notdisc.summary.c_str());
+  EXPECT(!busy.ok && busy.summary.find("already has other files") != std::string::npos);
+  EXPECT(!notdisc.ok && !notdisc.cancelled && !notdisc.summary.empty() && !notdisc.detail.empty());
+
+  // The patch, the music, the install check.
+  const su::Result pa = su::apply_patch(folder, tmp + "/wd", nullptr);
+  const su::Result pbad = su::apply_patch(tmp + "/busy", tmp + "/wd2", nullptr);
+  std::printf("  patch: %s | %s\n", pa.summary.c_str(), pbad.summary.c_str());
+  EXPECT(pa.ok && pa.files == 28 && std::filesystem::exists(tmp + "/wd/patch12/zbd/reader.zbd"));
+  EXPECT(!pbad.ok && pbad.summary.find("not the official") != std::string::npos && !std::filesystem::exists(tmp + "/wd2/patch12"));
+  const su::Result m = su::add_music(tmp + "/disc.cue", tmp + "/music2", nullptr);
+  const su::Result mcancel = su::add_music(tmp + "/disc.cue", tmp + "/music3", [](const su::Progress&) { return false; });
+  EXPECT(m.ok && m.music_tracks == 1 && std::filesystem::exists(tmp + "/music2/track02.wav"));
+  EXPECT(!mcancel.ok && mcancel.cancelled && !std::filesystem::exists(tmp + "/music3/track02.wav"));
+  if (std::filesystem::exists(root + "/mw3-1.0/zbd/reader.zbd")) {
+    const su::Result c12 = su::check_install(root + "/mw3-1.2", ""), c10 = su::check_install(root + "/mw3-1.0", "");
+    const su::Result c10p = su::check_install(root + "/mw3-1.0", tmp + "/wd"), none = su::check_install(tmp, "");
+    std::printf("  check: %s | %s | %s | %s\n", c12.summary.c_str(), c10.summary.c_str(), c10p.summary.c_str(), none.summary.c_str());
+    EXPECT(c12.ok && c12.version == "1.2" && c12.summary == "Found MechWarrior 3 1.2 at " + root + "/mw3-1.2.");
+    EXPECT(c10.ok && c10.version == "1.0" && !c10.warnings.empty());
+    EXPECT(c10p.ok && c10p.version == "1.2");  // with the patch's overlay in front
+    EXPECT(!none.ok);
+  }
+  (void)su::find_discs();  // no drive here holds the disc; it must not fail
+  std::error_code ec;
+  std::filesystem::remove_all(tmp, ec);
+}
 // The MechWarrior 3 disc itself, when given (MW3_DISC: its .iso, a .cue, or
 // the drive): the install is game/mw3-1.0's files byte for byte (unshield's,
 // every file group merged) with the disc's VIDEO, its data the 1.0 disc's by
@@ -2320,6 +2413,75 @@ struct MapHost : ztwod::Host {
   zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
 };
 
+
+// Playtest W28: TARGET's lead circle (0x0041d940) leads each mech by its
+// vt+0xc (0x0041d480: the lead velocity 0x0041d400 kept at +0x64c), on the
+// ground the forward at the throttle's share of the top speed. The HUD's hook
+// read the raw velocity (+0x030), so a mech speeding up, turning or slowed
+// was led wrong. At the start, the throttle full and the mech not yet moving:
+// the exe's answer is the forward at top speed, not 0.
+TEST(mission_c1m1_lead_circle_leads_by_the_lead_velocity_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lead_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  float hook[3] = {}, lead[3] = {}, speed = 0;
+  bool seen = false;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames != 5) return;
+      void* player = mech3::mech_mission_player();
+      mech3::MechControls* c = player ? mech3::mech_controls(player) : nullptr;
+      if (!c) return;
+      c->throttle = 1.0f;  // full ahead, the mech still standing
+      mech3::hud_hooks().mech_velocity(static_cast<mech3::Mech*>(player), hook);
+      mech3::mech_lead_velocity(player, lead);
+      speed = std::sqrt(lead[0] * lead[0] + lead[1] * lead[1] + lead[2] * lead[2]);
+      c->throttle = 0.0f;
+      seen = true;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 6; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  lead velocity (%.2f %.2f %.2f), %.2f m/s; the HUD's hook (%.2f %.2f %.2f)\n", lead[0], lead[1], lead[2],
+              speed, hook[0], hook[1], hook[2]);
+  EXPECT(seen && speed > 5.0f);
+  EXPECT(hook[0] == lead[0] && hook[1] == lead[1] && hook[2] == lead[2]);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
 // HUD plan items 7-8, the mission maps: maps.zrd read at the start
 // (0x004583b0); the mission's map picked as the briefing does (0x004582a0 on
 // its MAP, c1m1's "c1m1"), its image loaded from images\maps and the mech's
@@ -4921,6 +5083,150 @@ ParkRun c2m1_park_run(bool bugs) {
 }
 }  // namespace
 
+
+// Playtest W35 (c3m1, Op 3 Mission 1, "Escort Mobile Field Base, OP:
+// Charlie"): "I'm repairing at the MFBs right now but they aren't repairing
+// my damage. I've repaired twice". The player worn (armour and internals at
+// half), the bases called, the player powered down on the dock point; the
+// wear after; then a second repair (the parked dock with bugs on, a new
+// call with them off), worn again first. With a store holding armour.
+namespace {
+struct RepairRun {
+  bool bases = false;
+  int repairs = 0;
+  std::vector<int> fronts;
+  mech3::MechWear worn, after[2];
+  int done = 0;
+};
+RepairRun c3m1_repair_run(bool bugs) {
+  RepairRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w35_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.op = 3, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::Pilot pilot("Repair");
+    mech3::Game game(&pilot);
+    pilot.current = &game;
+    for (int32_t w = 0; w < 0x25; ++w) game.store.add_ammo(w, 1)->count = 1000;
+    for (int32_t kind = 1; kind <= 2; ++kind)
+      for (int32_t tech = 0; tech <= 2; ++tech) game.store.add_equipment(kind, tech, 1)->count = 40;
+    mech3::Pilot* was_pilot = mech3::current_pilot();
+    mech3::current_pilot() = &pilot;
+    int frames = 0, phase = 0, at = 0, last_front = -2;
+    float point[3] = {};
+    auto put = [&](void* m, float x, float z) {
+      const float a[3] = {x, ground_under(x, point[1] + 100.0f, z), z};
+      mech3::move_mech(m, a, 0.0f);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = mech3::mech_mission_player();
+      const mech3::DockSummary d = mech3::program_dock_summary();
+      if (d.front != last_front) {
+        out.fronts.push_back(d.front), last_front = d.front;
+        if (d.front == 4) ++out.repairs;
+      }
+      ++frames;
+      if (frames == 3) {
+        out.bases = mech3::program_bases_alive();
+        mech3::program_mech_wear_down(player, 0.5f, 0.5f);
+        out.worn = mech3::program_mech_wear(player);
+      }
+      if (!out.bases) return;
+      const bool rest = d.front == 0 || d.front == 7;
+      switch (phase) {
+        case 0:  // the call: M (the pick), M (the call); onto the point
+          if (frames == 5 || frames == 6) mech3::program_mcb_command(player);
+          if (frames == 7) {
+            mech3::program_dock_point(nullptr, point);
+            put(player, point[0], point[2]);
+          }
+          if (frames > 7 && d.front == 2) put(player, point[0], point[2]), mech3::mech_power(player, 1), phase = 1;
+          break;
+        case 1:  // the first repair done
+          if (out.repairs == 1 && rest) {
+            out.after[0] = mech3::program_mech_wear(player), out.done = 1;
+            mech3::mech_power(player, 0);
+            put(player, point[0] + 40.0f, point[2]);  // off the point
+            mech3::program_mech_wear_down(player, 0.5f, 0.5f);
+            phase = 2, at = frames;
+          }
+          break;
+        case 2:  // the second: parked (back on the point, powered down), else a new call
+          if (frames == at + 60) {
+            if (d.front == 7) {
+              put(player, point[0], point[2]), mech3::mech_power(player, 1);
+            } else {
+              put(player, point[0], point[2]);
+              mech3::program_mcb_command(player);
+            }
+          }
+          if (frames == at + 61 && d.front != 7) mech3::program_mcb_command(player);
+          if (frames > at + 61 && d.front == 2) put(player, point[0], point[2]), mech3::mech_power(player, 1);
+          if (out.repairs == 2 && rest) out.after[1] = mech3::program_mech_wear(player), out.done = 2, phase = 9;
+          break;
+        default: break;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 30000;
+    pump.stop = [&] { return phase == 9 || frames > 12000 || (frames > 3 && !out.bases); };
+    app.run(pump);
+    mech3::current_pilot() = was_pilot;
+    pilot.current = nullptr;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c3m1_field_bases_repair_the_player_twice_headless) {
+  if (!have_game()) return;
+  for (const bool bugs : {true, false}) {
+    const RepairRun r = c3m1_repair_run(bugs);
+    std::printf("  bugs %d: bases %d, repairs %d, worn armour %.2f internals %.2f; after 1: %.2f %.2f; after 2: %.2f %.2f; fronts",
+                bugs, r.bases, r.repairs, r.worn.armor, r.worn.internal, r.after[0].armor, r.after[0].internal, r.after[1].armor,
+                r.after[1].internal);
+    for (int f : r.fronts) std::printf(" %d", f);
+    std::printf("\n");
+    EXPECT(r.bases && r.done >= 1 && r.after[0].internal == 1.0f && r.after[0].armor == 1.0f);
+    if (bugs) EXPECT(r.done == 2 && r.after[1].internal == 1.0f && r.after[1].armor == 1.0f);
+  }
+}
 TEST(mission_c2m1_field_bases_stay_after_a_repair_headless) {
   if (!have_game()) return;
   for (const bool bugs : {true, false}) {
@@ -10291,6 +10597,567 @@ TEST(mission_c2m1_dominic_follows_round_walls_headless) {
   const FollowRun blocked = c2_follow_run(1, true, true, true);
   print_follow("c2m1 behind the wall, every heading blocked", blocked);
   EXPECT(blocked.placed && blocked.walked == 0 && blocked.gave_up > 0 && blocked.d_end > blocked.range);
+}
+
+
+// Playtest W27: "when I turn a corner he just runs into a wall
+// perpetually". The player walks a way round a wall (a route found on a
+// 10 m grid, each step clear of walls at body height, walked at about 8 m/s,
+// not a jump) while Dominic follows. The exe steers straight at him and
+// stops against the wall; ours, behind bugs, keeps the player's way as
+// breadcrumbs and walks to the newest one in sight while the player is not.
+namespace {
+bool wall_between_seg(const float a[3], const float b[3]) {
+  zcls::Node* w = mech3::world_hooks().world;
+  if (!w) return false;
+  float seg[6] = {a[0], a[1], a[2], b[0], b[1], b[2]};
+  static zcls::SegmentHits hits[1];
+  zcls::segment_query(w, seg, 2, hits);
+  for (int i = 0; i < hits[0].count; ++i)
+    if (std::fabs(hits[0].hit[i].normal[1]) < 0.5f) return true;
+  return false;
+}
+// A* on a grid of `cell` m round from and to (8 ways); a step counts when the
+// way between the cells' points is a mech's (knee and head height, 6 m each
+// side) and meets no wall, and the ground rises no more than 3 m a cell
+// (a slope a mech walks). The cells' points, start to end; empty if none.
+std::vector<std::array<float, 3>> grid_route(const float from[3], const float to[3], float top) {
+  const float cell = 10.0f, margin = 160.0f;
+  const float x0 = std::min(from[0], to[0]) - margin, z0 = std::min(from[2], to[2]) - margin;
+  const int nx = static_cast<int>((std::fabs(from[0] - to[0]) + 2 * margin) / cell) + 1;
+  const int nz = static_cast<int>((std::fabs(from[2] - to[2]) + 2 * margin) / cell) + 1;
+  auto idx = [&](int i, int k) { return k * nx + i; };
+  std::vector<float> ground(static_cast<size_t>(nx) * nz, NAN);
+  auto at = [&](int i, int k) {
+    float& g = ground[idx(i, k)];
+    if (std::isnan(g)) g = ground_under(x0 + i * cell, top, z0 + k * cell);
+    return g;
+  };
+  const int si = static_cast<int>((from[0] - x0) / cell + 0.5f), sk = static_cast<int>((from[2] - z0) / cell + 0.5f);
+  const int ei = static_cast<int>((to[0] - x0) / cell + 0.5f), ek = static_cast<int>((to[2] - z0) / cell + 0.5f);
+  std::vector<float> cost(ground.size(), 1e30f);
+  std::vector<int> prev(ground.size(), -1);
+  using Q = std::pair<float, int>;
+  std::vector<Q> open;
+  auto h = [&](int i, int k) { return std::hypot(float(i - ei), float(k - ek)) * cell; };
+  cost[idx(si, sk)] = 0;
+  open.push_back({h(si, sk), idx(si, sk)});
+  std::make_heap(open.begin(), open.end(), std::greater<Q>());
+  while (!open.empty()) {
+    std::pop_heap(open.begin(), open.end(), std::greater<Q>());
+    const int c = open.back().second;
+    open.pop_back();
+    const int ci = c % nx, ck = c / nx;
+    if (ci == ei && ck == ek) break;
+    for (int di = -1; di <= 1; ++di)
+      for (int dk = -1; dk <= 1; ++dk) {
+        if (!di && !dk) continue;
+        const int ni = ci + di, nk = ck + dk;
+        if (ni < 0 || nk < 0 || ni >= nx || nk >= nz) continue;
+        const float g0 = at(ci, ck), g1 = at(ni, nk);
+        if (std::fabs(g1 - g0) > 3.0f) continue;
+        const float nc = cost[c] + std::hypot(float(di), float(dk)) * cell;
+        if (nc >= cost[idx(ni, nk)]) continue;
+        // A mech's width: the line at knee and head height and 4 m each side.
+        const float len = std::hypot(float(di), float(dk));
+        const float sx = float(dk) / len * 6.0f, sz = -float(di) / len * 6.0f;
+        bool wall = false;
+        for (const auto& l : {std::array<float, 2>{0, 1.5f}, {0, 4.0f}, {0, 6.5f}, {0, 9.0f}, {1, 2.5f}, {-1, 2.5f}, {1, 6.5f}, {-1, 6.5f}}) {
+          const float a[3] = {x0 + ci * cell + l[0] * sx, g0 + l[1], z0 + ck * cell + l[0] * sz};
+          const float b[3] = {x0 + ni * cell + l[0] * sx, g1 + l[1], z0 + nk * cell + l[0] * sz};
+          if ((wall = wall_between_seg(a, b))) break;
+        }
+        if (wall) continue;
+        cost[idx(ni, nk)] = nc, prev[idx(ni, nk)] = c;
+        open.push_back({nc + h(ni, nk), idx(ni, nk)});
+        std::push_heap(open.begin(), open.end(), std::greater<Q>());
+      }
+  }
+  std::vector<std::array<float, 3>> out;
+  for (int c = idx(ei, ek); c >= 0 && prev[idx(ei, ek)] >= 0; c = prev[c]) {
+    const int i = c % nx, k = c / nx;
+    out.push_back({x0 + i * cell, at(i, k), z0 + k * cell});
+    if (c == idx(si, sk)) break;
+  }
+  std::reverse(out.begin(), out.end());
+  return out;
+}
+struct TrailRun {
+  bool placed = false;
+  float route_len = 0, range = 0, d_end = 0;
+  int corners = 0, arrived = -1, reached = -1, stuck_s = 0, crumbs = 0, frames = 0;
+};
+// The player walks round the wall nearest Dominic to 60 m past it.
+TrailRun c2_trail_run(int mission, bool bugs, bool corner = false) {
+  TrailRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w27_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = mission, l.op = 2, l.number = mission;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void *dominic = nullptr, *player = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    std::vector<std::array<float, 3>> route;
+    size_t leg = 0;
+    float along = 0, mark[2] = {}, top = 0;
+    int frames = 0, mark_f = 0;
+    std::FILE* trace = nullptr;
+    auto pos_of = [](void* m, float out[3]) {
+      mech3::LaunchedMech x;
+      mech3::describe_mech(m, &x);
+      out[0] = x.pos[0], out[1] = x.pos[1], out[2] = x.pos[2];
+    };
+    auto dist = [&] {
+      float a[3], b[3];
+      pos_of(dominic, a), pos_of(player, b);
+      return std::hypot(a[0] - b[0], a[2] - b[2]);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        player = mech3::mech_mission_player();
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        if (!dominic || !player || !brain) return;
+        float d[3];
+        pos_of(dominic, d);
+        top = d[1] + 300.0f;
+        float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0, nx = 0, nz = 0;
+        for (int k = 0; k < 48; ++k) {  // the nearest wall round him, 20..150 m out
+          const float a = static_cast<float>(k) * 0.1308997f, sx = std::sin(a), sz = std::cos(a);
+          float seg[6] = {d[0] + 8 * sx, d[1] + 4, d[2] + 8 * sz, d[0] + 150 * sx, d[1] + 4, d[2] + 150 * sz};
+          static zcls::SegmentHits hits[1];
+          if (zcls::Node* w = mech3::world_hooks().world) zcls::segment_query(w, seg, 2, hits);
+          for (int i = 0; i < hits[0].count; ++i) {
+            const zcls::SegmentHit& h = hits[0].hit[i];
+            const float r = std::hypot(h.point[0] - d[0], h.point[2] - d[2]);
+            const float nl = std::hypot(h.normal[0], h.normal[2]);
+            if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best && nl > 0.5f)
+              best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz, nx = -sx, nz = -sz;
+          }
+        }
+        if (best > 1e8f) return;
+        if (corner) {
+          // A sharp corner (W27): the player walks along the wall's face to
+          // its end, 12 m past it, turns 90 degrees behind it (14 m past its
+          // back face) and walks 90 m along its far side, well out of
+          // Dominic's range; Dominic starts 25 m behind him. The face's
+          // end: where a probe into it from 10 m out meets nothing.
+          auto clear_leg = [&](const float a[3], const float b[3]) {
+            const float dx = b[0] - a[0], dz = b[2] - a[2], len = std::hypot(dx, dz);
+            const float sx = dz / len * 6.0f, sz = -dx / len * 6.0f;
+            for (const auto& l : {std::array<float, 2>{0, 1.5f}, {0, 4.0f}, {0, 6.5f}, {0, 9.0f}, {1, 2.5f}, {-1, 2.5f}, {1, 6.5f}, {-1, 6.5f}}) {
+              const float p0[3] = {a[0] + l[0] * sx, a[1] + l[1], a[2] + l[0] * sz}, p1[3] = {b[0] + l[0] * sx, b[1] + l[1], b[2] + l[0] * sz};
+              if (wall_between_seg(p0, p1)) return false;
+            }
+            return true;
+          };
+          const float tx = -nz, tz = nx;  // along the face
+          for (const float side : {1.0f, -1.0f}) {
+            float ex = 0, ez = 0;
+            bool found = false;
+            for (int k = 1; k <= 30 && !found; ++k) {
+              const float qx = bx + side * tx * 3.0f * k, qz = bz + side * tz * 3.0f * k;
+              const float g = ground_under(qx + nx * 10, top, qz + nz * 10);
+              const float a[3] = {qx + nx * 10, g + 4, qz + nz * 10}, b[3] = {qx - nx * 10, g + 4, qz - nz * 10};
+              if (!wall_between_seg(a, b)) ex = qx, ez = qz, found = true;
+            }
+            if (!found) continue;
+            auto at = [&](float x, float z) { return std::array<float, 3>{x, ground_under(x, top, z), z}; };
+            // The building's depth: its back face, by a probe from 80 m behind.
+            float depth = 20.0f;
+            {
+              const float mx = bx - side * tx * 3, mz = bz - side * tz * 3, g = ground_under(mx, top, mz);
+              float seg[6] = {mx - nx * 80, g + 4, mz - nz * 80, mx - nx * 0.5f, g + 4, mz - nz * 0.5f};
+              static zcls::SegmentHits hits[1];
+              zcls::segment_query(mech3::world_hooks().world, seg, 2, hits);
+              float far = 0;
+              for (int i = 0; i < hits[0].count; ++i)
+                far = std::max(far, 80.0f - std::hypot(hits[0].hit[i].point[0] - seg[0], hits[0].hit[i].point[2] - seg[2]));
+              if (far > 1.0f) depth = far;
+            }
+            const auto p0 = at(bx + nx * 14 - side * tx * 10, bz + nz * 14 - side * tz * 10);
+            const auto p1 = at(ex + side * tx * 12 + nx * 14, ez + side * tz * 12 + nz * 14);
+            const float back = depth + 14.0f;
+            const auto p2 = at(ex + side * tx * 12 - nx * back, ez + side * tz * 12 - nz * back);
+            const auto p3 = at(ex - side * tx * 78 - nx * back, ez - side * tz * 78 - nz * back);
+            if (!clear_leg(p0.data(), p1.data()) || !clear_leg(p1.data(), p2.data()) || !clear_leg(p2.data(), p3.data())) continue;
+            route = {p0, p1, p2, p3};
+            const auto dm = at(p0[0] - side * tx * 25, p0[2] - side * tz * 25);
+            mech3::move_mech(dominic, dm.data(), std::atan2(side * tx, side * tz));
+            break;
+          }
+          if (route.size() < 2) return;
+          out.corners = 2;
+          for (size_t i = 1; i < route.size(); ++i) out.route_len += std::hypot(route[i][0] - route[i - 1][0], route[i][2] - route[i - 1][2]);
+          mech3::move_mech(player, route[0].data(), 0.0f);
+          out.range = brain->params.get<float>(0x28);
+          out.placed = true;
+          return;
+        }
+        // The player starts beside him, on his side of the wall; the end 60 m past it.
+        const float start[3] = {d[0] - 15 * ux, ground_under(d[0] - 15 * ux, top, d[2] - 15 * uz), d[2] - 15 * uz};
+        // 60 m past the wall, or nearer while that is outside the mission's
+        // boundary (the follow then walks to the boundary's point, 0x004c3000).
+        float end[3] = {};
+        for (const float past : {60.0f, 45.0f, 30.0f}) {
+          end[0] = bx + past * ux, end[2] = bz + past * uz, end[1] = ground_under(end[0], top, end[2]);
+          float at[3];
+          if (!mech3::ai::brain_hooks().inout_clamp(brain->controls->vehicle(), end, at)) break;
+        }
+        route = grid_route(start, end, top);
+        if (route.size() < 2) return;
+        for (size_t i = 1; i < route.size(); ++i) {
+          out.route_len += std::hypot(route[i][0] - route[i - 1][0], route[i][2] - route[i - 1][2]);
+          if (i + 1 < route.size()) {
+            const float ax = route[i][0] - route[i - 1][0], az = route[i][2] - route[i - 1][2];
+            const float bx2 = route[i + 1][0] - route[i][0], bz2 = route[i + 1][2] - route[i][2];
+            out.corners += std::fabs(ax * bz2 - az * bx2) > 1.0f;
+          }
+        }
+        mech3::move_mech(player, route[0].data(), 0.0f);
+        out.range = brain->params.get<float>(0x28);
+        out.placed = true;
+        if (const char* dir = std::getenv("MW3_W27_TRACE")) {  // the walls round the route, for a map
+          trace = std::fopen((std::string(dir) + "/c2m" + std::to_string(mission) + (bugs ? "_on" : "_off") + ".csv").c_str(), "w");
+          float lo[2] = {1e9f, 1e9f}, hi[2] = {-1e9f, -1e9f};
+          for (const auto& r : route) lo[0] = std::min(lo[0], r[0]), lo[1] = std::min(lo[1], r[2]), hi[0] = std::max(hi[0], r[0]), hi[1] = std::max(hi[1], r[2]);
+          for (float x = lo[0] - 60; x < hi[0] + 60; x += 2)
+            for (float z = lo[1] - 60; z < hi[1] + 60; z += 2) {
+              const float g = ground_under(x, top, z);
+              if (trace) std::fprintf(trace, "g,%.1f,%.1f,%.1f\n", x, z, g);
+              for (const float up : {1.5f, 4.0f, 7.0f}) {
+                const float a[3] = {x, g + up, z}, b[3] = {x + 2.0f, g + up, z}, c[3] = {x, g + up, z + 2.0f};
+                if (trace && (wall_between_seg(a, b) || wall_between_seg(a, c))) {
+                  std::fprintf(trace, "w,%.1f,%.1f\n", x, z);
+                  break;
+                }
+              }
+            }
+          for (const auto& r : route)
+            if (trace) std::fprintf(trace, "r,%.1f,%.1f\n", r[0], r[2]);
+        }
+        return;
+      }
+      if (!out.placed || frames < 90) return;  // he settles by the player first
+      // The player along the route, 0.27 m a frame (8 m/s at 30 fps).
+      if (leg + 1 < route.size()) {
+        along += 0.27f;
+        float len = std::hypot(route[leg + 1][0] - route[leg][0], route[leg + 1][2] - route[leg][2]);
+        while (leg + 1 < route.size() && along >= len) {
+          along -= len, ++leg;
+          if (leg + 1 < route.size()) len = std::hypot(route[leg + 1][0] - route[leg][0], route[leg + 1][2] - route[leg][2]);
+        }
+        if (leg + 1 < route.size()) {
+          const float f = along / len;
+          const float x = route[leg][0] + (route[leg + 1][0] - route[leg][0]) * f;
+          const float z = route[leg][2] + (route[leg + 1][2] - route[leg][2]) * f;
+          const float at[3] = {x, ground_under(x, top, z), z};
+          mech3::move_mech(player, at, std::atan2(route[leg + 1][0] - route[leg][0], route[leg + 1][2] - route[leg][2]));
+        } else {
+          out.arrived = frames;
+        }
+      }
+      const float dd = dist();
+      if (out.arrived > 0 && out.reached < 0 && dd <= out.range) {
+        // In range, and (round a corner) in sight of him too, not behind it.
+        float a[3], b[3];
+        pos_of(dominic, a), pos_of(player, b);
+        a[1] += 4, b[1] += 4;
+        if (!corner || !wall_between_seg(a, b)) out.reached = frames;
+      }
+      // Stuck: past his range and moved under 2 m in 2 s.
+      float dp[3];
+      pos_of(dominic, dp);
+      if (frames - mark_f >= 60) {
+        if (dd > out.range && std::hypot(dp[0] - mark[0], dp[2] - mark[1]) < 2.0f) out.stuck_s += 2;
+        mark[0] = dp[0], mark[1] = dp[2], mark_f = frames;
+      }
+      if (auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get()))
+        out.crumbs = std::max(out.crumbs, fs->trail.used);
+      if (std::getenv("MW3_W27_PROBE") && frames == std::atoi(std::getenv("MW3_W27_PROBE"))) {  // what is round him
+        for (int k = 0; k < 16; ++k) {
+          const float a = k * 0.3926991f, sx = std::sin(a), sz = std::cos(a);
+          for (const float hgt : {0.5f, 1.5f, 3.0f, 6.0f, 9.0f, 12.0f}) {
+            float seg[6] = {dp[0], dp[1] + hgt, dp[2], dp[0] + 15 * sx, dp[1] + hgt, dp[2] + 15 * sz};
+            static zcls::SegmentHits hits[1];
+            zcls::segment_query(mech3::world_hooks().world, seg, 2, hits);
+            for (int i = 0; i < hits[0].count; ++i) {
+              const zcls::SegmentHit& h = hits[0].hit[i];
+              std::fprintf(stderr, "W27PROBE dir %d h %.1f: hit at %.1f m, normal %.2f %.2f %.2f\n", k, hgt,
+                           std::hypot(h.point[0] - dp[0], h.point[2] - dp[2]), h.normal[0], h.normal[1], h.normal[2]);
+            }
+          }
+        }
+        std::fprintf(stderr, "W27PROBE D at %.1f %.1f %.1f\n", dp[0], dp[1], dp[2]);
+      }
+      if (std::getenv("MW3_W27_LOG") && frames % 30 == 0) {
+        auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get());
+        const int at = fs ? fs->trail.at : -9;
+        float cx = 0, cz = 0;
+        if (fs && at >= 0 && at < (int)fs->trail.crumbs.size()) cx = fs->trail.crumbs[at][0], cz = fs->trail.crumbs[at][2];
+        std::fprintf(stderr, "W27 c2m%d frame %d: %.1f m, D %.1f %.1f, leg %zu/%zu, follow %d sees %d crumb %d/%d at %.1f %.1f (%.1f m) detour %d thr %.2f\n",
+                     mission, frames, dd, dp[0], dp[2], leg, route.size(), fs != nullptr, fs ? fs->trail.sees : -1, at,
+                     fs ? (int)fs->trail.crumbs.size() : -1, cx, cz, std::hypot(cx - dp[0], cz - dp[2]), fs ? (int)fs->detour.on : -1,
+                     brain->controls->throttle_now());
+      }
+      out.d_end = dd;
+      if (trace && frames % 10 == 0) {
+        float pp[3];
+        pos_of(player, pp);
+        std::fprintf(trace, "f,%d,%.1f,%.1f,%.1f,%.1f\n", frames, pp[0], pp[2], dp[0], dp[2]);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 20000;
+    pump.stop = [&] {
+      return (frames > 3 && !out.placed) || (out.arrived > 0 && (out.reached > 0 || frames > out.arrived + 1800)) ||
+             frames > 9000;
+    };
+    app.run(pump);
+    if (trace) std::fclose(trace);
+    out.frames = frames;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+void print_trail(const char* what, const TrailRun& r) {
+  std::printf("  %s: route %.0f m, %d corners; player there at %d, Dominic in range (%.0f m) at %d, at the end %.1f m; "
+              "stuck %d s; crumbs walked to %d\n",
+              what, r.route_len, r.corners, r.arrived, r.range, r.reached, r.d_end, r.stuck_s, r.crumbs);
+}
+}  // namespace
+
+TEST(mission_c2_dominic_follows_the_players_way_round_corners_headless) {
+  if (!have_game()) return;
+  // The lead's sharp corner: round the end of a building's wall at close
+  // range, a 90-degree turn behind it.
+  for (const int m : {1, 4}) {
+    const TrailRun r = c2_trail_run(m, true, true), exe = c2_trail_run(m, false, true);
+    char what[64];
+    std::snprintf(what, sizeof what, "c2m%d round a corner", m);
+    print_trail(what, r);
+    std::snprintf(what, sizeof what, "c2m%d round a corner, bugs off (the exe)", m);
+    print_trail(what, exe);
+    EXPECT(r.placed && r.arrived > 0);
+    EXPECT(r.reached > 0 && r.reached - r.arrived < 900);
+  }
+  for (const int m : {1, 4}) {
+    const TrailRun r = c2_trail_run(m, true), exe = c2_trail_run(m, false);
+    char what[64];
+    std::snprintf(what, sizeof what, "c2m%d", m);
+    print_trail(what, r);
+    std::snprintf(what, sizeof what, "c2m%d, bugs off (the exe)", m);
+    print_trail(what, exe);
+    EXPECT(r.placed && r.corners > 0 && r.arrived > 0);
+    EXPECT(r.reached > 0 && r.reached - r.arrived < 900 && r.crumbs > 0);
+  }
+}
+
+// W27's attack case ("Dominic ... spent the entire mission ramming into a
+// wall"): told to attack an enemy 80 m past the wall nearest him (powered
+// down, so it stays): the order is the target's follow (0x004ea450), which
+// drives straight at it, and the exe stops him at the wall; ours, behind
+// bugs, walks round (the W17 detour; the fight's approach, 0x004d1d10, has
+// it too, for the AI's own attacks) and closes to his range.
+namespace {
+struct AttackRun {
+  bool placed = false, ordered = false;
+  float d0 = 0, d_min = 1e9f, range = 0;
+  int walked = 0, gave_up = 0, reached = -1;
+};
+AttackRun c2m1_attack_run(bool bugs) {
+  AttackRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w27_attack_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void *dominic = nullptr, *player = nullptr, *enemy = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    mech3::ai::AiTarget* pt = nullptr;
+    int frames = 0;
+    auto dist = [](void* a, void* b) {
+      mech3::LaunchedMech x, y;
+      mech3::describe_mech(a, &x), mech3::describe_mech(b, &y);
+      return std::hypot(x.pos[0] - y.pos[0], x.pos[2] - y.pos[2]);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        player = mech3::mech_mission_player();
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        if (!dominic || !player || !brain) return;
+        pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+        for (int32_t i = 0; i < made && pt; ++i) {
+          const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[i].mech));
+          if (ai[i].mech != dominic && t && (pt->enemies & t->team)) {
+            enemy = ai[i].mech;
+            break;
+          }
+        }
+        if (!enemy) return;
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0;
+        for (int k = 0; k < 48; ++k) {  // the nearest wall round him, 20..150 m out
+          const float a = static_cast<float>(k) * 0.1308997f, sx = std::sin(a), sz = std::cos(a);
+          float seg[6] = {d.pos[0] + 8 * sx, d.pos[1] + 4, d.pos[2] + 8 * sz, d.pos[0] + 150 * sx, d.pos[1] + 4, d.pos[2] + 150 * sz};
+          static zcls::SegmentHits hits[1];
+          if (zcls::Node* w = mech3::world_hooks().world) zcls::segment_query(w, seg, 2, hits);
+          for (int i = 0; i < hits[0].count; ++i) {
+            const zcls::SegmentHit& h = hits[0].hit[i];
+            const float r = std::hypot(h.point[0] - d.pos[0], h.point[2] - d.pos[2]);
+            if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best) best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz;
+          }
+        }
+        if (best > 1e8f) return;
+        const float x = bx + 80 * ux, z = bz + 80 * uz;
+        const float at[3] = {x, ground_under(x, d.pos[1] + 300.0f, z), z};
+        mech3::move_mech(enemy, at, 0.0f);
+        mech3::mech_power(enemy, 1);  // stays where it is
+        out.placed = true;
+        return;
+      }
+      if (!out.placed) return;
+      if (frames == 30) {  // the player's target the enemy (its contact), then "attack my target"
+        for (mech3::ai::Contact* c : pt->contacts)
+          if (c && mech3::ai::brain_hooks().contact_vehicle(c) == engine.handle_of(enemy)) pt->set_target(c, false);
+        out.ordered = pt->target && brain->lance_order(0, pt->target) == 1;
+        out.d0 = dist(dominic, enemy);
+        out.range = brain->params.get<float>(0x28);
+        return;
+      }
+      if (!out.ordered || frames < 30) return;
+      const float dd = dist(dominic, enemy);
+      out.d_min = std::min(out.d_min, dd);
+      if (out.reached < 0 && dd <= out.range) out.reached = frames;
+      // "Attack my target" (0x004ea450) is the target's follow; the AI's own
+      // attacks the fight. Either's detour.
+      const mech3::ai::WallDetour* wd = nullptr;
+      if (auto* fs = dynamic_cast<mech3::ai::FightState*>(brain->current().state.get())) wd = &fs->detour;
+      if (auto* fo = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get())) wd = &fo->detour;
+      if (wd) out.walked = std::max(out.walked, wd->walked), out.gave_up = std::max(out.gave_up, wd->gave_up);
+    };
+    CountingPump pump;
+    pump.limit = 8000;
+    pump.stop = [&] { return frames >= 1800 || (frames > 3 && !out.placed) || (frames > 30 && !out.ordered) || out.reached > 0; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c2m1_dominic_attacks_round_a_wall_headless) {
+  if (!have_game()) return;
+  const AttackRun r = c2m1_attack_run(true), exe = c2m1_attack_run(false);
+  for (const AttackRun* a : {&r, &exe})
+    std::printf("  %s: placed %d ordered %d; %.1f m, nearest %.1f m (range %.0f), in range at %d; detours %d, given up %d\n",
+                a == &r ? "bugs on" : "bugs off (the exe)", a->placed, a->ordered, a->d0, a->d_min, a->range, a->reached,
+                a->walked, a->gave_up);
+  EXPECT(r.placed && r.ordered && exe.ordered);
+  EXPECT(r.reached > 0 && r.walked > 0);
+  EXPECT(exe.reached < 0);
 }
 
 TEST(mission_c1m4_lance_orders_reach_dominic_and_he_answers_headless) {
@@ -16325,13 +17192,140 @@ TEST(mission_c1m1_pause_click_at_any_size_headless) {
     const PauseClick v = c1m1_pause_click(mode);
     std::printf("pause at mode %d: RESUME %d %d %d %d, origin %d %d, resumed %d\n", mode, v.rect[0], v.rect[1],
                 v.rect[2], v.rect[3], v.origin[0], v.origin[1], v.resumes);
-    EXPECT(v.resumes == 1 && v.origin[0] == 106 && v.origin[1] == 0);
-    EXPECT(v.rect[1] == v5.rect[1] && v.rect[2] == v5.rect[2] + 106 && v.rect[3] == v5.rect[3]);
+    // W36: the pause at 16:9 at 0 too, its buttons against the left edge.
+    EXPECT(v.resumes == 1 && v.origin[0] == 0 && v.origin[1] == 0);
+    EXPECT(v.rect[0] == v5.rect[0] && v.rect[1] == v5.rect[1] && v.rect[2] == v5.rect[2] && v.rect[3] == v5.rect[3]);
   }
   // A click a pixel past the button misses (headless its rect starts at 0,
   // so 640x480's place is inside it; the origin is checked above).
   const PauseClick miss = c1m1_pause_click(13, 2);
   EXPECT(miss.resumes == 0);
+}
+
+// Playtest W36 (Owen at 16:9): the pause's buttons where they were at 4:3,
+// and after the options "it's in 4:3 now as well", 16:9 again only back in
+// the mission. The pause at 16:9 at 0 (its buttons at the left edge, its
+// title a marquee across the display), and back from the options in the
+// mission's mode with the same places.
+namespace {
+struct PauseTrip {
+  int got = 0;
+  int32_t mode[2] = {}, resume[2][4] = {}, quit[2][4] = {}, title_x[2] = {}, width[2] = {};
+};
+PauseTrip c1m1_pause_trip(int32_t mode) {
+  PauseTrip out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("pause_trip_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    void set_cooperative_level(Device, uint32_t) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = mode;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::States& st = mech3::states();
+    int core = 0, paused = 0, opts = 0, step = 0;
+    zgame::State* last = nullptr;
+    auto rect = [](ztwod::Object2D& o, int32_t r[4]) {
+      const ztwod::Rect* q = o.get_rect();
+      r[0] = q->left, r[1] = q->top, r[2] = q->right, r[3] = q->bottom;
+    };
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (now == &st.pause && last != &st.pause) paused = 0;
+      last = now;
+      if (now == &st.core) {
+        ++core;
+        if (core == 5 && step == 0) keys.key(1, true);  // Escape
+        if (core == 6 && step == 0) keys.key(1, false);
+        return;
+      }
+      if (now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (!ps || ++paused != 4 || step > 1) return;
+        const int i = step;
+        out.mode[i] = engine.vmode(), out.width[i] = engine.buffer_width();
+        rect(ps->resume, out.resume[i]), rect(ps->quit, out.quit[i]);
+        out.title_x[i] = ps->title.x;
+        ++out.got;
+        if (step == 0) ps->on_button(mech3::PauseScreen::kOptions, 0, 0), step = 1, opts = 0;
+        else step = 2;
+        return;
+      }
+      if (auto* os = dynamic_cast<mech3::OptionsState*>(now); os && step == 1 && ++opts == 4) os->escape();  // back to the pause
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return step == 2; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_pause_at_16_9_is_the_same_after_the_options_headless) {
+  if (!have_game()) return;
+  const PauseTrip v5 = c1m1_pause_trip(5), v = c1m1_pause_trip(13);
+  for (const PauseTrip* t : {&v5, &v}) {
+    for (int i = 0; i < 2; ++i)
+      std::printf("  %s, %s: mode %d (%d wide), RESUME %d %d %d %d, QUIT %d %d %d %d, title x %d\n", t == &v5 ? "mode 5" : "mode 13",
+                  i ? "back from the options" : "opened", t->mode[i], t->width[i], t->resume[i][0], t->resume[i][1],
+                  t->resume[i][2], t->resume[i][3], t->quit[i][0], t->quit[i][1], t->quit[i][2], t->quit[i][3], t->title_x[i]);
+  }
+  EXPECT(v5.got == 2 && v.got == 2);
+  // Back from the options: the mission's mode, and every place as opened.
+  EXPECT(v.mode[0] == 13 && v.mode[1] == 13 && v.width[1] == 853);
+  EXPECT(std::equal(v.resume[0], v.resume[0] + 4, v.resume[1]) && std::equal(v.quit[0], v.quit[0] + 4, v.quit[1]));
+  // Against the left edge as at 640x480 (the title is a marquee across the
+  // display's width, 0x0042fb30, wider at 16:9 by itself).
+  EXPECT(std::equal(v.resume[0], v.resume[0] + 4, v5.resume[0]));
 }
 
 // Playtest W13 (Owen's 18/19): the options reached from a mission's pause
@@ -16465,6 +17459,184 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
     EXPECT(std::equal(v.accept, v.accept + 4, v5.accept) && std::equal(v.resolution, v.resolution + 4, v5.resolution));
   }
   EXPECT(v5.accept[2] > 0 || v5.accept[0] > 0);
+}
+
+// Ours (16:9 menus, wide_menus with any_resolution; resolution.md): at mode
+// 13 (853x480) the main menu and the game options spread over the canvas by
+// their screens' groups. Off, then on: main menu, OPTIONS, BACK (the second
+// main menu is made on the wide canvas the options set). The left column
+// stays; CREDITS moves the whole extra width, its underline (the button's
+// own image) with it; ACCEPT and the screens' buttons move; the options'
+// LINES overlay is stretched between its panel and the screens' box; on to
+// GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
+// mode picked in the menus leaves them on the canvas they were laid out for.
+namespace {
+struct WideMenus {
+  int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
+  int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
+  int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
+  int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
+};
+WideMenus wide_menus_run(bool wide) {
+  WideMenus out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::mount(std::string(MW3_GAME_DIR) + "/zbd");
+  const std::string dir = temp_dir("wide_menus_write");
+  zutl::set_write_dir(dir);
+  {  // a saved InGameVMode of 13 (853x480), as regedit writes it
+    const char text[] =
+        "Windows Registry Editor Version 5.00\r\n\r\n"
+        "[HKEY_CURRENT_USER\\Software\\MicroProse\\MechWarrior 3\\1.0]\r\n"
+        "\"InGameVMode\"=dword:0000000d\r\n";
+    std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "wb");
+    std::fputc(0xff, f), std::fputc(0xfe, f);
+    for (const char* c = text; *c; ++c) std::fputc(*c, f), std::fputc(0, f);
+    std::fclose(f);
+  }
+  platform::RegFile settings(dir + "/settings.reg");
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  const zfix::Options saved_fix = zfix::options();
+  zfix::options().any_resolution = true;
+  zfix::options().wide_menus = wide;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.settings = &settings;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    struct ImageHost : BoxHost {  // the shipped images, so the backgrounds and overlays are there to widen
+      zimg::Texture* image_get(const char* n) override { return n && *n ? zimg::fetch_image(n) : nullptr; }
+      zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
+      void image_path(const char*) override {}
+      void texture_free(zimg::Texture*) override {}
+      zimg::Texture* image_new(int32_t w, int32_t h) override {
+        auto* t = static_cast<zimg::Texture*>(std::calloc(1, sizeof(zimg::Texture)));
+        t->flags = 1, t->width = static_cast<int16_t>(w), t->height = static_cast<int16_t>(h), t->width_again = t->width;
+        t->pixel_count = w * h;
+        t->pixels = std::calloc(static_cast<size_t>(w) * h, 2);
+        return t;
+      }
+    } host;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    EXPECT(mech3::options().in_game_vmode == 13);
+    mech3::States& st = mech3::states();
+    int stage = 0, wait = 0;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      auto* mm = const_cast<mech3::MainMenu*>(mech3::main_menu());
+      if (stage == 0 && now == &st.main && mm) {
+        mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
+        stage = 1;
+      } else if (stage == 1) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
+        out.width = engine.buffer_width();
+        out.accept = g->accept.get_rect()->left;
+        out.gfx = g->gfx_audio.get_rect()->left;
+        out.level = g->difficulty.get_rect()->right;
+        for (ztwod::Image* im : {&g->lines, &g->lines1})
+          if (im->image && im->get_x() == 0) out.lines_w = im->image->width, out.lines_x = im->get_x();
+        g->gfx_audio.on_left_up();
+        stage = 10;
+      } else if (stage == 10) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GfxAudioScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
+        out.gfx_accept = g->accept.get_rect()->left;
+        out.gfx_resolution = g->resolution.get_x();
+        if (!g->shadows.labels.empty()) out.shadows_value = g->shadows.labels[0]->get_x() - g->shadows.get_x();
+        g->back.on_left_up();
+        stage = 11;
+      } else if (stage == 11) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
+        g->controls.on_left_up();
+        stage = 12;
+      } else if (stage == 12) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* c = os ? dynamic_cast<mech3::ControlsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!c) return;
+        out.ctl_accept = c->accept.get_rect()->left;
+        out.ctl_reset = c->reset_mouse.get_rect()->left;
+        out.ctl_keys = c->key_a.get_rect() ? c->key_a.get_rect()->left : c->key_a.get_x();
+        if (c->lines.image) out.ctl_lines_w = c->lines.image->width;
+        c->cancel.on_left_up();
+        stage = 13;
+      } else if (stage == 13) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
+        mech3::options().in_game_vmode = 5;  // 640x480 picked in the menus (GRAPHICS' ACCEPT): for the next start
+        g->back.on_left_up();
+        stage = 2;
+      } else if (stage == 2 && now == &st.main && mm && ++wait > 3) {
+        out.campaign = mm->buttons[mech3::MainMenuButton::kNewCampaign].get_rect()->left;
+        out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
+        out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
+        out.width_after = engine.buffer_width();
+        stage = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zfix::options() = saved_fix;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(menus_wide_spread_by_their_groups_headless) {
+  if (!have_game()) return;
+  const WideMenus off = wide_menus_run(false), on = wide_menus_run(true);
+  for (const WideMenus* v : {&off, &on})
+    std::printf("wide menus %s: canvas %d; CAMPAIGN %d, CREDITS %d (line %d); ACCEPT %d, GRAPHICS %d, DIFFICULTY's "
+                "right %d, LINES %d wide at %d\n",
+                v == &off ? "off" : "on", v->width, v->campaign, v->credits, v->credits_line, v->accept, v->gfx,
+                v->level, v->lines_w, v->lines_x);
+  EXPECT(off.width == 640 && on.width == 853 && off.width_after == 640 && on.width_after == 853);
+  const int32_t extra = on.width - 640;
+  EXPECT(off.credits > 0 && off.lines_w > 0 && off.accept > 0);
+  EXPECT(on.campaign == off.campaign && on.level == off.level);  // the left groups stay
+  EXPECT(on.credits == off.credits + extra && on.credits_line == off.credits_line + extra);
+  EXPECT(on.accept == off.accept + extra && on.gfx == off.gfx + extra);
+  EXPECT(on.lines_w == off.lines_w + extra && on.lines_x == off.lines_x);
+  // Graphics and audio: the panel stays, ACCEPT moves, and a cycle's value
+  // (which the cycle moves itself, 0x0048b9b0) stays in its box.
+  std::printf("graphics: ACCEPT %d / %d, RESOLUTION %d / %d, SHADOWS' value at %d / %d from its cycle\n", off.gfx_accept,
+              on.gfx_accept, off.gfx_resolution, on.gfx_resolution, off.shadows_value, on.shadows_value);
+  EXPECT(off.gfx_accept > 0 && on.gfx_accept == off.gfx_accept + extra && on.gfx_resolution == off.gfx_resolution);
+  EXPECT(off.shadows_value != -1 && on.shadows_value == off.shadows_value);
+  // Controls: the table one block in the middle, ACCEPT right, the DEFAULT
+  // buttons left, LINES stretched below the table out to ACCEPT and CANCEL.
+  std::printf("controls: ACCEPT %d / %d, MOUSE/KEYBD DEFAULT %d / %d, KEY A %d / %d, LINES %d / %d wide\n", off.ctl_accept,
+              on.ctl_accept, off.ctl_reset, on.ctl_reset, off.ctl_keys, on.ctl_keys, off.ctl_lines_w, on.ctl_lines_w);
+  EXPECT(off.ctl_accept > 0 && on.ctl_accept == off.ctl_accept + extra && on.ctl_reset == off.ctl_reset);
+  EXPECT(on.ctl_keys == off.ctl_keys + extra / 2 && on.ctl_lines_w == off.ctl_lines_w + extra - extra / 2);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to
@@ -16946,3 +18118,38 @@ TEST(mission_c1m1_mode_change_moves_the_2d_target_headless) {
   mech3::options() = mech3::Options{};
 }
 
+
+// Playtest W37: the mech lab from Instant Action's briefing "shows no mech
+// and no ability to edit anything". The lab asks the game for its slots
+// (vt+0x38, vt+0x34); the port asked the campaign's only, so Instant
+// Action's game (0x00436a30, 0x004368b0) gave none. Its slots now: the
+// player's mech first, then the line-up.
+TEST(instant_action_lab_has_the_players_mech_headless) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(temp_dir("ia_lab_write"));  // the pilot saves itself
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  mech3::Pilot pilot("IA");
+  mech3::ActionGame game(&pilot);
+  pilot.current = &game;
+  game.slot.mech = 9;
+  game.add(5, 1, nullptr, 0);   // a lancemate
+  game.add(14, 0, nullptr, 0);  // an enemy
+  mech3::Pilot* was = mech3::current_pilot();
+  mech3::current_pilot() = &pilot;
+  const int32_t n = engine.lab_slot_count(0);
+  const zgame::Handle s0 = engine.lab_slot(0, 0), s1 = engine.lab_slot(0, 1);
+  std::printf("  Instant Action's lab: %d slots, the first's mech %d, the second's %d; the store %zu items\n", n,
+              s0 ? engine.lab_slot_mech(s0) : -1, s1 ? engine.lab_slot_mech(s1) : -1, game.store.items.size());
+  EXPECT(n == 3 && s0 && engine.lab_slot_mech(s0) == 9 && s1 && engine.lab_slot_mech(s1) == 5);
+  mech3::current_pilot() = was;
+  pilot.current = nullptr;
+}

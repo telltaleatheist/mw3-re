@@ -72,16 +72,51 @@ which `ir50*`, AVIFile and VfW DLLs the process loaded.
 its own tree, `build-win-pkg\`, from scratch with `-DMW3_PACKAGE=ON` (mw3 and
 mw3import then carry no development copy of the game: only the player's
 install, through the finder or mw3.cfg's `install=`, which `mw3import`
-reads too), builds `mw3` and `mw3import`, and collects:
+reads too), builds `mw3` and `mw3import`, then the 32-bit Indeo helper
+(`build_indeo.cmd build-win-pkg`, in a child shell for its x86 vcvars), and
+collects:
 
-- `mw3.exe`, `mw3import.exe` and the DLLs their builds copied beside them
+- `mw3.exe`, `mw3indeo.exe` (the movies through the install's own codec;
+  mw3 starts it when it is beside it), `mw3import.exe` (the fall-back:
+  the movies converted when the helper cannot play them, and a disc
+  image's music) and the DLLs their builds copied beside them
   (SDL3, SDL3_ttf, SDL3_sound, FFmpeg's nine), plus the Visual C++
   runtime from Visual Studio's redist folder (app-local);
 - `README.txt` and `THIRD-PARTY.txt` (`tools\windows\dist\`), each
   `deps\*` folder's own `LICENSE*`/`COPYING*` files under `licenses\`,
-  pl_mpeg's, and `licenses\ffmpeg-configuration.txt` (`mw3import
+  pl_mpeg's, miniz's, and `licenses\ffmpeg-configuration.txt` (`mw3import
   --version`: FFmpeg's version and configure line, naming the libraries
   built into its DLLs).
+
+**The installer**: then `MW3-Rebuild-Setup-<git describe>.exe` beside the
+zip, made by Inno Setup's compiler from `tools\windows\installer.iss`
+(`iscc /DAppVersion=... /DDist=<the folder> /O<out>`). It installs the
+package folder to `Program Files\MechWarrior 3 Rebuild` (or, for a player
+without administrator rights, "only for me" in the user's Programs folder),
+with a Start-menu shortcut (and one to the read-me), a desktop shortcut
+(ticked by default), the rebuild's `LICENSE.txt` as its licence page, and
+an uninstaller. The game writes nothing in that folder, so the uninstaller
+leaves `%APPDATA%\MicroProse\MechWarrior 3` (settings, pilots, saves, the
+imported movies and music, a disc install) and says so. The same AppId
+every version: a new installer upgrades in place. Without Inno Setup
+`package.cmd` still makes the folder and zip and says no installer was
+made. Inno Setup without administrator rights, through scoop (its extras
+bucket unpacks it into the user's folder, `iscc` on the PATH):
+
+    scoop bucket add extras
+    scoop install extras/inno-setup
+    iscc /?
+
+**The package exe is a GUI program**: `-DMW3_PACKAGE=ON` on Windows links
+`mw3.exe` for the Windows subsystem (`/SUBSYSTEM:WINDOWS
+/ENTRY:mainCRTStartup`, so `main` stays the entry), and no console window
+opens beside the game. With no console, its output goes to `mw3.log` in
+the write dir, the start before's kept as `mw3.old.log`
+(`sdlfe::log_to_file`), and the helpers it starts (mw3import, the Video for
+Windows helper; console programs) start without a window of their own
+(`sdlfe::start_child`: SDL's background process, `CREATE_NO_WINDOW`). The
+development build stays a console program. `mw3import.exe` stays one too,
+for `mw3import --cue` from a prompt.
 
 BtbN's LGPL build is configured with `--enable-version3` (it has
 opencore-amr, Apache-2.0), so its DLLs are LGPL v3, and it builds in some
@@ -153,6 +188,18 @@ exe), so `llvm-symbolizer --obj=build-win\mw3.exe --inlining
 `sdl_render3d.hlsl` is the Direct3D 12 twin of `sdl_render3d.cpp`'s Metal
 shaders; CMake runs `dxc` on it for each entry point and the renderer takes
 DXIL when the device offers it. The viewer (`tools/viewer`) is Metal only.
+
+`sdl_render3d.glsl` is the Vulkan twin (Linux, and anywhere
+`glslangValidator` is found): the same maths in GLSL 450, compiled per
+stage (`-DVS`, `-DFS_TEX`, `-DFS_FLAT`) to SPIR-V headers in
+`build/spirv/`, with SDL GPU's Vulkan sets (vertex uniforms 1, fragment
+combined image-samplers 2, fragment uniforms 3). GLSL rather than the HLSL
+through glslang because SDL's Vulkan backend wants combined image-samplers,
+which HLSL's separate texture and sampler do not give. The renderer takes
+DXIL, then SPIR-V, then MSL, whichever the device accepts. Checked on the
+Mac through MoltenVK (`brew install molten-vk`;
+`SDL_GPU_DRIVER=vulkan SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libMoltenVK.dylib`):
+c1m1's frame 60 identical to Metal's, every pixel.
 
 ## Not yet built on Windows
 

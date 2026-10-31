@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <fstream>
 #endif
 #include <string>
 #include <vector>
@@ -802,6 +803,40 @@ TEST(sdl_render3d_fog_colour_is_per_draw) {
   std::printf("fogged quads: left %08x, right %08x\n", left, right);
   EXPECT((left & 0xffffff) == 0xff0000u && (right & 0xffffff) == 0x0000ffu);
 }
+// Playtest W25: a message box over the lab's (or a mission's) GPU frame at
+// 16:9 showed over the 16-bit buffer's 640x480 copy of it, low-res until
+// answered. The frame shown is kept at its own size (hold_frame) and put
+// back under each of the box's frames (restore_frame): after another frame
+// drawn over, the kept one returns pixel for pixel at the frame's size.
+TEST(sdl_render_keeps_a_shown_frame) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 hold test", 1280, 720);
+  w.frame_size(1280, 720, 853, 480);
+  sdlfe::SdlRender3D* r = w.render();
+  auto frame = [&](uint8_t red) {
+    r->set_viewport(0, 0, 1280, 720);
+    r->clear(true, red, 40, 200);
+    r->begin_scene();
+    r->end_scene();
+    r->present();
+  };
+  frame(10);
+  std::vector<uint32_t> a, b, c;
+  int aw = 0, ah = 0, bw = 0, bh = 0, cw = 0, ch = 0;
+  if (!r->read_back(&a, &aw, &ah)) return;  // no GPU on this runner
+  EXPECT(r->hold_frame());
+  frame(250);
+  EXPECT(r->read_back(&b, &bw, &bh) && b != a);
+  EXPECT(r->restore_frame());
+  EXPECT(r->read_back(&c, &cw, &ch));
+  std::printf("kept %dx%d, back %dx%d, same %d\n", aw, ah, cw, ch, c == a);
+  EXPECT(cw == aw && ch == ah && c == a);
+  r->drop_frame();
+  EXPECT(!r->restore_frame());
+}
+
 TEST(sdl_layer_rgba_table_matches_the_bits) {
   int bad = 0;
   for (int f = 0; f < 2; ++f)
@@ -2403,5 +2438,51 @@ TEST(sdl_program_bugfixes_switch) {
   EXPECT(run("bugfixes=0\n", false));
   EXPECT(run(nullptr, true));
   EXPECT(run("bugfixes=1\n", true));  // --original wins
+}
+#endif
+
+#if !defined(_WIN32)
+// The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
+// development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
+// an empty write dir), the setup screen; and the progress screen. Each a
+// lit 640x480 canvas, and the log says what it found.
+TEST(sdl_program_launcher_screens) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  std::filesystem::create_directories(dir + "/wd2", ec);
+  struct Shot {
+    const char* screen;
+    bool none;
+    const char* says;
+  };
+  for (const Shot& s : {Shot{"main", false, "launcher: Found MechWarrior 3"}, Shot{"setup", true, "no MechWarrior 3 install found"},
+                        Shot{"work", false, "launcher: Found MechWarrior 3"}}) {
+    const std::string bmp = dir + "/" + s.screen + ".bmp", log = dir + "/" + s.screen + ".log";
+    if (s.none) setenv("MW3_FIND_INSTALL", "1", 1);
+    const pid_t pid = spawn_mw3({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
+    if (s.none) unsetenv("MW3_FIND_INSTALL");
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
+    int lit = 0, n = 0;
+    if (img) {
+      SDL_Surface* c = SDL_ConvertSurface(img, SDL_PIXELFORMAT_ARGB8888);
+      for (int y = 0; c && y < c->h; y += 7)
+        for (int x = 0; x < c->w; x += 7) {
+          const uint32_t p = static_cast<const uint32_t*>(c->pixels)[y * (c->pitch / 4) + x];
+          ++n, lit += std::max({p >> 16 & 0xff, p >> 8 & 0xff, p & 0xff}) > 40;
+        }
+      std::printf("launcher %s: %dx%d, %d of %d lit, says \"%s\" %d\n", s.screen, img->w, img->h, lit, n, s.says,
+                  text.find(s.says) != std::string::npos);
+      if (c) SDL_DestroySurface(c);
+    }
+    EXPECT(img && img->w == 640 && img->h == 480 && lit > n / 4);
+    EXPECT(text.find(s.says) != std::string::npos);
+    if (img) SDL_DestroySurface(img);
+  }
 }
 #endif

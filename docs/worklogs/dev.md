@@ -2251,3 +2251,31 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   is about the formation, not the firing). Full mw3tests 257 tests, 0
   failed checks; test_ai_brain.py 1368 cases match. Docs: ai.md 17.7,
   discoveries.md (two entries), playtest.md W34 row.
+
+## W28, W29 (2026-10-30)
+
+- W29 (mac4/w29-recentre, docs only): as the original; / is Center Legs,
+  either centring cancelled by any twist or look input (test_parts.py).
+- W28 (mac4/w28-lead): the HUD's mech_velocity hook took the raw +0x030;
+  the exe's vt+0xc is the lead velocity (0x0041d480). Fixed through
+  weapon_lock_velocity; test with a break. The part aim is the exe's.
+## The setup API (2026-10-30)
+
+- Branch mac4/setup-api (off lead/batch2 584d494). mech3/game_setup:
+  install_from_disc, apply_patch, add_music, check_install, probe_source,
+  find_discs (the last two asked for by dev 2). Progress by bytes,
+  cancellation leaving nothing (music via music.new), plain-words
+  results. disc_install gains failure kinds and a progress callback;
+  patch_import list_installshield (the header only); cue_audio a
+  progress/cancel callback. mw3 --install-from and --patch wrap them.
+  Test setup_api_probes_installs_cancels_and_explains; the real ISO
+  through mw3 (progress 0..100%, "MechWarrior 3 1.0 is installed ...").
+- The installer: tools/windows/installer.iss (Inno Setup: Program Files\
+  MechWarrior 3 Rebuild or per-user, Start-menu and desktop shortcuts,
+  uninstaller keeping %APPDATA%), package.cmd's last step (iscc found on
+  the PATH or its folders; skipped with a warning without it). Not run
+  here (no Windows); the commands for the PC are in windows.md.
+- The GUI build: MW3_PACKAGE on Windows links /SUBSYSTEM:WINDOWS
+  /ENTRY:mainCRTStartup; with no console the output goes to mw3.log
+  (sdl_child.cpp log_to_file) and the helpers start windowless
+  (start_child, SDL's background process). mingw compile-checked only.

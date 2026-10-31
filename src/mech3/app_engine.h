@@ -345,6 +345,13 @@ class GameEngine : public Engine {
   // scene, or the 2D layer over it), read back at the buffer's size; false
   // otherwise (the buffer is the frame then). The pause screen's grab.
   bool shown_frame(std::vector<uint16_t>* out);
+  // Ours (playtest W25): a message box over a frame the GPU drew keeps that
+  // frame at its own size behind the box (Render3D::hold_frame), the 16-bit
+  // buffer then holding only the box over the layer's key; false when the
+  // frame shown was the buffer's own. drop_held lets it go.
+  bool hold_shown_frame();
+  void drop_held();
+  bool held() const { return held_; }
   int frames_presented = 0;
 
   GameEngine(const Platform& p, std::string command_line);
@@ -541,6 +548,7 @@ class GameEngine : public Engine {
   static constexpr uint16_t kLayerKey = 0xf81f;
   uint16_t* buffer16() { return buffer_.data(); }
   int buffer_width() const { return width_; }
+  void widen_screen(class MenuScreen* s, uint32_t ctor);  // ours: a menu screen spread over a wide canvas (app_menus.cpp)
   int buffer_height() const { return height_; }
 
   // Sound: zsnd objects by handle.
@@ -625,6 +633,7 @@ class GameEngine : public Engine {
   std::unique_ptr<class ForceFeedback> force_;  // [0x00608620]
   std::unique_ptr<zfmv::BlurAction> pause_blur_;  // the pause screen's (wait_new)
   bool last_via_render_ = false;  // the frame just shown went through Render3D
+  bool held_ = false;             // a shown frame kept behind a message box (hold_shown_frame)
   bool buffer_is_screen_ = true;  // the 16-bit buffer holds the frame shown (not the 3D lock's layer)
   std::vector<uint16_t> kept_screen_;  // that frame while a 3D lock has the buffer
   std::unordered_map<void*, Handle> handles_;

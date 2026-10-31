@@ -372,12 +372,14 @@ These change how the game talks to the computer, not how it plays.
 - In a window during a mission, pressing Ctrl+Alt together (and letting go) frees the mouse; the game ignores it until you click inside the window again, and that click does not fire. The pause menu frees it too, and switching to another program leaves it free until you click back in. Fullscreen holds the mouse as before.
 - While the game holds the mouse (a mission, or fullscreen), the system's cursor stays hidden even if Windows or SDL let go of the mouse for a moment (it showed in the middle of the screen).
 - The click on LAUNCH (or RESUME) no longer fires your weapons as the mission starts.
+- A yes/no question over the mech lab or a mission (saving over a config, quitting) keeps the picture behind it sharp instead of dropping to low resolution until you answer.
 - Switching away from the game (Alt+Tab) mutes its sounds and pauses it, as the original did, and nothing you were holding (a key, a mouse button) stays held when you come back.
 - The game opens fullscreen at your desktop's resolution, the picture fitted with bars at the sides if its shape differs, instead of switching the monitor to 640x480. `--windowed` (or `windowed=1` in `mw3.cfg`) plays in a window.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.
 
 - The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
 - At 16:9, coming back from the pause menu no longer shows the top-left corner of the picture blown up over the whole screen (the menu's picture size stayed on the 3D view).
+- At 16:9 the pause menu fills the screen with its buttons at the left edge, and stays that way after visiting the options.
 - Changing the resolution in the options during a mission no longer leaves part of the HUD undrawn (the weapon list, the speed gauge's marks).
 
 - The game's question boxes ("Ok to delete pilot?", "Replace existing game?" and the rest) keep reading the mouse and keyboard while they wait: the original's box read DirectInput directly, the rebuild's also handles the window's events while it waits.
@@ -418,6 +420,12 @@ These change how the game talks to the computer, not how it plays.
 - Changing the resolution in the middle of a mission gives the view the new shape (the original never needed to: all its sizes were 4:3), and the options reached from a mission stay in their places at any resolution.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
+- An option for 16:9 menus (`--wide-menus`, off by default, being built one
+  screen at a time): the menus open at the in-mission size, their buttons
+  spread to the sides of the screen with their labels and lines, and the
+  backgrounds filled out to the edges from the player's own art as the game
+  runs (nothing on disk changes). A size picked in the menus takes effect
+  for the menus at the next start.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 
@@ -520,6 +528,13 @@ These change how the game talks to the computer, not how it plays.
   as they did and need no conversion; the converted copies are only the
   fall-back. It can also turn a disc image's CD
   music into files the game plays.
+- Each start writes everything the rebuild reports to `mw3.log` in the saves
+  folder (the start before kept as `mw3.old.log`), for bug reports. It also
+  says which version of the game's data it found, and on the first start
+  shows a note when the 1.2 patch would help or no music was found, with
+  what to do.
+
+- A launcher opens first (ours): it finds your MechWarrior 3 by itself and, when it cannot, sets it up from buttons instead of command lines: find your install, install from the disc or a disc image (with a progress bar and Cancel), apply the official 1.2 patch, add the music from a disc image.
 
 ## Kept as the original, on purpose
 
@@ -531,6 +546,7 @@ Known quirks the rebuild deliberately keeps:
 - Missiles that miss vanish at the end of their range without exploding.
 - Radio chatter plays the newest line first.
 - A lancemate told to follow you or attack walks round a wall in the way instead of standing behind it (bug fixes on).
+- A lancemate following you takes the way you walked, round corners and buildings and along canyons, instead of stopping against a wall or short of you (bug fixes on).
 - The mobile field bases stay where you called them after a repair: the next mech (a lancemate told to repair, or you powering down on the spot again) is repaired without calling them again; the third MFB press still sends them away (bug fixes on).
 - Every mech's engine tops out at 400.
 - Jump jets lift you when you fire them walking uphill at more than 30 fps (the original could skim the ground with its jets burning).

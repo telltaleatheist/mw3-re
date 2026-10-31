@@ -57,6 +57,20 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
   `~/Library/Application Support/MicroProse/MechWarrior 3/`), or
   `--write-dir DIR`. It is searched before the mounts, so what the game wrote
   wins.
+- **The log** (ours, `run_log.cpp`): from the moment the write dir is
+  known, everything on stdout and stderr also goes to `<write dir>/mw3.log`
+  (first line: the build's version and the log's path), made new at each
+  start; the previous start's is renamed `mw3.old.log`, so a crash's log
+  survives the restart a player makes before reporting it. Each stream
+  goes through a pipe and a thread that writes the console's own handle and
+  the file; at exit the handles are put back and the threads drained.
+- **The start's notes** (ours, `start_notes` in `mw3_main.cpp`): after the
+  data version, a note when it is not 1.2's (1.0, a mix: `--patch`; files
+  of neither version; files missing) and when no `music/trackNN` is found
+  (`mw3import --cue ... --music-only`, or a rip), printed as
+  `mw3: note: ...` each start and shown in one box on a player's first
+  start (the install found by the search, not `mw3.cfg`'s; never on check
+  runs).
 - **The original's switches** (`-nofmv`, `-seasick`, `-cdN`) go on to the
   ported command-line parser as the exe's command line.
 - `--window WxH` (default 1280x960: the game's 640x480 doubled),
