@@ -2166,3 +2166,19 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   /ENTRY:mainCRTStartup; with no console the output goes to mw3.log
   (sdl_child.cpp log_to_file) and the helpers start windowless
   (start_child, SDL's background process). mingw compile-checked only.
+
+## Multiplayer, piece 1: zNetwork's session (2026-10-31)
+
+- Plan accepted (mac4/mp-plan, 8d4e7936 with the NAT note); ENet approved.
+  Branch mac4/mp on it. znet_session.{h,cpp}: the globals, active / local_id
+  / is_host / send / shutdown, initialise / host_session / join_session, the
+  in-process Hub. The engine's network_lobby_active, lobby_session and
+  network_shutdown overrides; damage_calls().force_variant0 = znet::active
+  (its SKIP gone from hook_census.inc); the census's deferred 0x00586ce0 and
+  0x00586c20 lines gone. The shutdown's poll, handler clear and lists come
+  with pieces 2 and 3.
+- test_znet_session.py: the exe's three checks over 32 global states and
+  0x5888a0 with a fake IDirectPlay4A (SendEx at +0xc4 keeping its ten
+  arguments; 0x58a880 stubbed: 0 for an error), 56 identical; BREAK=1/2
+  caught. mw3tests znet_session_* (3; the hub delivering to its sender
+  caught).

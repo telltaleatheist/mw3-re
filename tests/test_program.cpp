@@ -13793,14 +13793,14 @@ TEST(playtest_hud_images_the_data_lacks) {
 // checking (items 12-15) are not among them.
 TEST(known_unported_keys_name_their_reason) {
   int n = 0;
-  for (const char* k : {"0x005561a0", "0x005561e0", "0x00516f50", "[0x0072f3f0]", "0x00588930", "0x00586c20",
+  for (const char* k : {"0x005561a0", "0x005561e0", "0x00516f50", "[0x0072f3f0]", "0x00588930",
                         "0x0041ab90", "0x004ac860", "0x004a4de0", "0x0040e4b0", "vt+0x7c",
                         "hudline.vt+0x7c", "0x0040f7f0", "0x0040f890", "0x0040fef0", "0x004b52e0", "0x0047f2b0",
                         "0x00518790", "0x005269e0", "0x004f8f20", "0x004f3540", "0x00557f90", "0x00558290",
                         "0x00576d90", "0x00576da0", "0x00576dc0", "0x00558070", "0x005a8390", "0x005a84c0",
                         "0x005a7e10", "0x005a7f90", "0x00576c50", "0x00535ed0", "0x004f8f60", "0x00537520",
                         "0x00519e50", "0x00526510", "0x005578f0", "0x00557b30", "0x00575f70", "0x00576c60",
-                        "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00586ce0", "0x00493260",
+                        "0x00516f00", "0x00526780", "0x00557b10", "0x005646d0", "0x00493260",
                         "0x00495f90", "0x0049bd80", "0x0046ef70",
                         "0x0046f160", "WeaponCalls.net_event"}) {
     const char* why = mech3::GameEngine::known_unported(k);
@@ -13811,7 +13811,7 @@ TEST(known_unported_keys_name_their_reason) {
            w.size() > 20);
     ++n;
   }
-  EXPECT(n == 52);
+  EXPECT(n == 50);  // 0x00586ce0 and 0x00586c20 ported (multiplayer-port.md piece 1)
   for (const char* gap : {"0x00579ea0", "0x004f9fa0", "0x004fa0b0", "0x00479be0", "0x0051a300",
                           "[[0x0060861c]+0x14]", "0x004f3430", "0x005799f0", "0x0051d0c0",
                           "0x00556210", "game.vt", "0x00414000", "0x0047abe0", "0x004f8f50",

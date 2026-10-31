@@ -256,6 +256,25 @@ functions (about 4,050 lines of pseudocode), the game's network code at
 
 Then the two-process and soak tests over the whole flow, menus included.
 
+## Progress
+
+- **Piece 1** (2026-10-31, mac4/mp): `gamez/znetwork/znet_session` holds
+  zNetwork's globals (`znet::Session`: [0x007306c8] up, [0x00730764] a session,
+  [0x0073072c] a lobby's, [0x00730765] async sends, [0x00730760] the host,
+  [0x0073075c] the local player) over a `znet::Transport`, with 0x00586ce0
+  `active`, 0x00586d10 `local_id`, 0x00586d20 `is_host`, 0x005888a0 `send`
+  (from the local player; guaranteed; async with its send's id) and
+  0x00586c20 `shutdown`, plus ours: `initialise`, `host_session`,
+  `join_session`. `znet::Hub` is the in-process transport for the tests
+  (every endpoint in one session, the first to host the host, ids from 1;
+  system events as from 0: the kind, then the player). The program's
+  `network_lobby_active`, `lobby_session`, `network_shutdown` and the damage
+  code's `force_variant0` (a destroyed part's effect, 0x00586ce0) are wired;
+  without a session they answer as the exe without one. Tests:
+  `test_znet_session.py` (the three checks over 32 states and the send over
+  24 against the exe, SendEx's arguments included; two breaks caught),
+  `znet_session_*` in mw3tests (the hub; a break caught).
+
 ## Open
 
 - The COM object at [0x007307e0] (CLSID 3faf0afe-...): what it is and

@@ -12,6 +12,7 @@
 #include <memory>
 #include <map>
 
+#include "gamez/znetwork/znet_session.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zclass/cls_data.h"
@@ -830,7 +831,10 @@ void wire_hud() {
   part_calls().screen_flags = [](void* s) { return static_cast<Hud*>(s)->reticle.zoom.flags; };
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
-  damage_calls().message = [](int id) { return hud_hooks().message(id); };  // 0x00576040: the NUKE's name (the kill by a nuke)
+  damage_calls().message = [](int id) { return hud_hooks().message(id); };
+  // 0x00586ce0: in a network game a destroyed part always takes the first
+  // effect (every machine alike), else rand()'s.
+  damage_calls().force_variant0 = [] { return znet::active(); };  // 0x00576040: the NUKE's name (the kill by a nuke)
   // A hit on the player's head (playtest #19): the cockpit's explosion run on
   // the cockpit, a crack or a ding shown (0x00460bff, docs/cockpit-damage.md).
   damage_calls().head_hit_hud = [](Handle explosion, Handle cockpit) {
