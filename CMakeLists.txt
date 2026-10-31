@@ -484,6 +484,34 @@ if(SDL3_FOUND)
     target_include_directories(mw3sdl PRIVATE ${dxil_dir})
     target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_DXIL=1)
   endif()
+  # Vulkan (Linux; anywhere glslangValidator is found): the shaders'
+  # GLSL twin (sdl_render3d.glsl), SPIR-V by Khronos's glslangValidator, as
+  # headers of uint32_t words. Linux has no other GPU format, so there it
+  # is required.
+  if(UNIX AND NOT APPLE)
+    find_program(GLSLANG glslangValidator REQUIRED)
+  else()
+    find_program(GLSLANG glslangValidator)
+  endif()
+  if(GLSLANG)
+    set(glsl ${CMAKE_SOURCE_DIR}/src/frontend/sdl/sdl_render3d.glsl)
+    set(spv_dir ${CMAKE_BINARY_DIR}/spirv)
+    set(spv_headers)
+    foreach(stage vs:vert:VS fs_tex:frag:FS_TEX fs_flat:frag:FS_FLAT)
+      string(REPLACE ":" ";" parts ${stage})
+      list(GET parts 0 entry)
+      list(GET parts 1 kind)
+      list(GET parts 2 define)
+      add_custom_command(OUTPUT ${spv_dir}/spv_${entry}.h
+                         COMMAND ${CMAKE_COMMAND} -E make_directory ${spv_dir}
+                         COMMAND ${GLSLANG} -V -S ${kind} -D${define} --quiet --vn kSpv_${entry} -o ${spv_dir}/spv_${entry}.h ${glsl}
+                         DEPENDS ${glsl} VERBATIM)
+      list(APPEND spv_headers ${spv_dir}/spv_${entry}.h)
+    endforeach()
+    target_sources(mw3sdl PRIVATE ${spv_headers})
+    target_include_directories(mw3sdl PRIVATE ${spv_dir})
+    target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_SPIRV=1)
+  endif()
   # Music files other than .wav decode with SDL3_sound (brew install sdl3_sound;
   # Windows: its -devel-VC.zip in deps\, found through SDL3_sound_ROOT).
   find_package(SDL3_sound CONFIG QUIET)
