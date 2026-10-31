@@ -19,6 +19,7 @@
 #include "frontend/sdl/sdl_install.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zrender/zrndr_ripple.h"
+#include "mech3/menu_ripple.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
 
@@ -374,6 +375,14 @@ class Launcher {
   std::vector<Button> buttons_;
   int hot_ = -1, focus_ = -1;
   float hot_t_ = 0, phase_ = 0, scroll_ = 0;
+  // The ripple (mech3::menu_ripple_step's state) and the button it is for.
+  int frames_ = 0;                    // frames shown, and their draw and present times (the log)
+  bool vsync_ = false;
+  int quit_after_ = SDL_getenv("MW3_LAUNCHER_FRAMES") ? std::atoi(SDL_getenv("MW3_LAUNCHER_FRAMES")) : 0;
+  double draw_ms_ = 0, present_ms_ = 0;
+  int ring_for_ = -1, ring_radius_ = 0;
+  float ring_carry_ = 0, ring_amp_ = 0, ring_phase_ = 0;
+  SDL_Point ring_centre(const Button& b) const { return {b.r.x + b.r.w / 2, b.r.y + b.r.h / 2}; }
   Install install_;
   std::string mw1_exe_, mw1_game_;  // MechWarrior (1989): Elthial's port beside ours, the player's folder
   std::string status_;
@@ -639,17 +648,22 @@ void Launcher::draw(float dt) {
   }
   const int hot = focus_ >= 0 ? focus_ : hot_;
   for (size_t i = 0; i < buttons_.size(); ++i) plate(buttons_[i], static_cast<int>(i) == hot && buttons_[i].enabled);
-  // The main menu's ripple round the plate under the mouse (0x00558dd0).
-  if (hot >= 0 && hot < static_cast<int>(buttons_.size()) && buttons_[hot].enabled) {
-    hot_t_ += dt, phase_ += dt * 10.0f;
-    const SDL_Rect& r = buttons_[hot].r;
-    const int outer = static_cast<int>(std::min(70.0f, 14.0f + 80.0f * hot_t_));
-    const int inner = std::max(0, outer - 26);
-    const int amp = static_cast<int>(std::lround(3.0f * std::max(0.0f, 1.0f - hot_t_ / 2.0f)));
-    if (amp > 0) {
-      zrndr::set_finish_target(static_cast<uint16_t*>(canvas_->pixels), W, H, canvas_->pitch);
-      zrndr::ripple(r.x + r.w / 2, r.y + r.h / 2, inner, outer, amp, 3.0f, phase_, nullptr, zrndr::X87::k53);
-    }
+  // The main menu's own ripple (its step, mech3::menu_ripple_step, and its
+  // draw 0x00558dd0) round the button under the mouse, started afresh on
+  // each new one as SlideButton's on_enter does.
+  hot_t_ += dt;
+  if (hot != ring_for_) {
+    ring_for_ = hot, ring_radius_ = mech3::MenuRipple::kStartRadius, ring_carry_ = 0.0f;
+    ring_amp_ = mech3::MenuRipple::kStartAmplitude, ring_phase_ = 0.0f;
+  }
+  if (hot >= 0 && hot < static_cast<int>(buttons_.size()) && buttons_[hot].enabled &&
+      mech3::menu_ripple_step(ring_radius_, ring_carry_, ring_amp_, ring_phase_, mech3::MenuRipple::kSpeed,
+                              mech3::MenuRipple::kWavelength, mech3::MenuRipple::kMaxRadius, dt)) {
+    const SDL_Point c = ring_centre(buttons_[hot]);
+    const float wl = mech3::MenuRipple::kWavelength;
+    zrndr::set_finish_target(static_cast<uint16_t*>(canvas_->pixels), W, H, canvas_->pitch);
+    zrndr::ripple(c.x, c.y, static_cast<int32_t>(static_cast<float>(ring_radius_) - wl * 3.0f), ring_radius_,
+                  static_cast<int32_t>(ring_amp_), wl, ring_phase_, nullptr, zrndr::X87::k53);
   }
 }
 
@@ -821,12 +835,20 @@ void Launcher::activate(int id) {
 
 LauncherChoice Launcher::run() {
   const bool shot = !o_.shot.empty();
+  // Where the start's time goes (Owen: "pretty slow"), in the log.
+  const Uint64 t0 = SDL_GetTicksNS();
+  auto ms = [](Uint64 a, Uint64 b) { return static_cast<double>(b - a) / 1e6; };
   const std::string dir = assets_dir();
   art_.load(dir);
+  const Uint64 t_art = SDL_GetTicksNS();
   text_.open(font_path(dir));
   canvas_ = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGB565);
+  const Uint64 t_font = SDL_GetTicksNS();
   find_install();
+  const Uint64 t_install = SDL_GetTicksNS();
   find_mw1();
+  std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the install search %.0f ms\n", ms(t0, t_art), ms(t_art, t_font),
+              ms(t_font, t_install));
   sounds_on_ = o_.sound && !shot;
   // The first start's notes (no install= in mw3.cfg yet: PLAY saves one),
   // on their own screen before the main one; logged on every start.
@@ -850,7 +872,10 @@ LauncherChoice Launcher::run() {
     layout();
     if (!buttons_.empty()) hot_ = 0, hot_t_ = 0.4f;
     scroll_ = 120.0f;
+    const Uint64 td = SDL_GetTicksNS();
     draw(0.0f);
+    std::printf("mw3: launcher: first frame drawn %.0f ms after the start (its draw %.1f ms)\n", ms(t0, SDL_GetTicksNS()),
+                ms(td, SDL_GetTicksNS()));
     SDL_SaveBMP(canvas_, o_.shot.c_str());
     work_.reset();
     return {};
@@ -868,6 +893,10 @@ LauncherChoice Launcher::run() {
     return install_.ok ? LauncherChoice{LauncherChoice::kPlay, install_.dir} : LauncherChoice{};
   }
   SDL_SetRenderLogicalPresentation(ren_, W, H, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  // Paced by the display (Owen: "pretty slow"): a fixed SDL_Delay(15) was
+  // 16 to 31 ms on Windows' 15.6 ms timer, and no vsync let frames tear.
+  // MW3_LAUNCHER_NOVSYNC (checks): the timed sleep instead, to compare.
+  vsync_ = !SDL_getenv("MW3_LAUNCHER_NOVSYNC") && SDL_SetRenderVSync(ren_, 1);
   tex_ = SDL_CreateTexture(ren_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, W, H);
   SDL_SetTextureScaleMode(tex_, SDL_SCALEMODE_LINEAR);
   Uint64 last = SDL_GetTicks();
@@ -932,9 +961,24 @@ LauncherChoice Launcher::run() {
     const Uint64 now = SDL_GetTicks();
     const float dt = std::min(0.1f, static_cast<float>(now - last) / 1000.0f);
     last = now;
+    const Uint64 ta = SDL_GetTicksNS();
     draw(dt);
+    const Uint64 tb = SDL_GetTicksNS();
     present();
-    SDL_Delay(15);
+    const Uint64 tc = SDL_GetTicksNS();
+    if (!frames_) std::printf("mw3: launcher: first frame shown %.0f ms after the start\n", ms(t0, tc));
+    ++frames_, draw_ms_ += ms(ta, tb), present_ms_ += ms(tb, tc);
+    if (quit_after_ > 0 && frames_ >= quit_after_) done_ = true;  // MW3_LAUNCHER_FRAMES (checks)
+    if (!vsync_) {  // no vsync: the rest of a 60th of a second, to the nanosecond
+      const Uint64 spent = SDL_GetTicksNS() - ta, frame = 1000000000ull / 60;
+      if (spent < frame) SDL_DelayPrecise(frame - spent);
+    }
+  }
+  if (frames_) {
+    const double secs = ms(t0, SDL_GetTicksNS()) / 1000.0;
+    std::printf("mw3: launcher: %d frames, %.1f a second; the draw %.2f ms, the present %.2f ms a frame (%s)\n", frames_,
+                frames_ / std::max(secs, 0.001), draw_ms_ / frames_, present_ms_ / frames_, ren_ ? SDL_GetRendererName(ren_) : "-");
+    std::printf("mw3: launcher: paced by %s\n", vsync_ ? "vsync" : "a timed sleep to 60 a second");
   }
   if (work_) work_->cancel = true;
   if (choice_.kind == LauncherChoice::kPlay) {
