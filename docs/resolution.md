@@ -490,9 +490,10 @@ Tests:
   106 to the right (4 checks fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
 Last, CAMPAIGN's pilot screen: ACCEPT moves 213, the new name's bar label
 and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
-Without the arrows' move the games' UP stays at 382 (1 check fails); the
-edit bar's case shows only where a bar moves (the centred shot), as the
-pilot screen's bars stay left.
+Without the arrows' move the games' UP stays at 382 (1 check fails). In
+CONTROLS, the load/save popup (no table, one centred block) has its name
+bar moved 106 and its label 10,6 from it; moved by the bar's own set_pos,
+the label is 260,122 from it (1 check fails).
 
 
 ## 12. 16:9 menus (in progress, 2026-10-30)
@@ -565,6 +566,7 @@ relative move, SHADOWS' value is 351 from its cycle instead of 245 (2 checks
 fail). Without moving BOUNDS, KEY A's rect stays at 206 (1 check fails).
 Last, CAMPAIGN's pilot screen: ACCEPT moves 213, the new name's bar label
 and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
-Without the arrows' move the games' UP stays at 382 (1 check fails); the
-edit bar's case shows only where a bar moves (the centred shot), as the
-pilot screen's bars stay left.
+Without the arrows' move the games' UP stays at 382 (1 check fails). In
+CONTROLS, the load/save popup (no table, one centred block) has its name
+bar moved 106 and its label 10,6 from it; moved by the bar's own set_pos,
+the label is 260,122 from it (1 check fails).

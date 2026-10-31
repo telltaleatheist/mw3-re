@@ -16088,6 +16088,7 @@ struct WideMenus {
   int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
   int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
   int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
+  int32_t popup_bar = -1, popup_label_dx = -1, popup_label_dy = -1;  // the load/save popup's name bar, its label from it
   int32_t pil_accept = -1, pil_bar_label_y = -1, pil_bar_label_x = -1, pil_up = -1, games_up = -1, pil_lines_w = -1;
 };
 WideMenus wide_menus_run(bool wide) {
@@ -16200,6 +16201,11 @@ WideMenus wide_menus_run(bool wide) {
         out.ctl_reset = c->reset_mouse.get_rect()->left;
         out.ctl_keys = c->key_a.get_rect() ? c->key_a.get_rect()->left : c->key_a.get_x();
         if (c->lines.image) out.ctl_lines_w = c->lines.image->width;
+        if (mech3::LoadSavePopupScreen* pop = c->load_save_popup.popup; pop && !pop->bar.labels.empty()) {
+          out.popup_bar = pop->bar.get_x();
+          out.popup_label_dx = pop->bar.labels[0]->get_x() - pop->bar.get_x();
+          out.popup_label_dy = pop->bar.labels[0]->get_y() - pop->bar.get_y();
+        }
         c->cancel.on_left_up();
         stage = 13;
       } else if (stage == 13) {
@@ -16262,6 +16268,13 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               on.ctl_accept, off.ctl_reset, on.ctl_reset, off.ctl_keys, on.ctl_keys, off.ctl_lines_w, on.ctl_lines_w);
   EXPECT(off.ctl_accept > 0 && on.ctl_accept == off.ctl_accept + extra && on.ctl_reset == off.ctl_reset);
   EXPECT(on.ctl_keys == off.ctl_keys + extra / 2 && on.ctl_lines_w == off.ctl_lines_w + extra - extra / 2);
+  // The load/save popup (no table: one centred block): its name bar moves
+  // and its label stays on it (the bar's own set_pos, 0x0048b220, would put
+  // the label down by the bar's place).
+  std::printf("load/save popup: the name bar at %d / %d, its label at %d,%d / %d,%d from it\n", off.popup_bar, on.popup_bar,
+              off.popup_label_dx, off.popup_label_dy, on.popup_label_dx, on.popup_label_dy);
+  EXPECT(off.popup_bar > 0 && on.popup_bar == off.popup_bar + extra / 2);
+  EXPECT(on.popup_label_dx == off.popup_label_dx && on.popup_label_dy == off.popup_label_dy);
   // The pilots: the new name's bar and its label stay (the bar's own move
   // would push the label down by the bar's place, 0x0048b220), the pilots'
   // arrows stay, the games' move with OPERATION, ACCEPT right, LINES wider.
