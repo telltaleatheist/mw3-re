@@ -442,6 +442,7 @@ add_executable(mw3tests
   tests/test_fixes.cpp
   tests/test_lance.cpp
   tests/test_patch12.cpp
+  tests/test_video_device.cpp
   tests/test_resolution.cpp
   tests/test_zreader.cpp
   tests/test_controls_cfg.cpp
