@@ -378,6 +378,7 @@ These change how the game talks to the computer, not how it plays.
 
 - The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
 - At 16:9, coming back from the pause menu no longer shows the top-left corner of the picture blown up over the whole screen (the menu's picture size stayed on the 3D view).
+- At 16:9 the pause menu fills the screen with its buttons at the left edge, and stays that way after visiting the options.
 - Changing the resolution in the options during a mission no longer leaves part of the HUD undrawn (the weapon list, the speed gauge's marks).
 
 - The game's question boxes ("Ok to delete pilot?", "Replace existing game?" and the rest) keep reading the mouse and keyboard while they wait: the original's box read DirectInput directly, the rebuild's also handles the window's events while it waits.

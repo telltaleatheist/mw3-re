@@ -414,3 +414,15 @@ works alongside it; stay out of its files.
   held button is swallowed until let go. `sdl_mission_start_drops_the_launch_click`
   (3 checks fail without). Owen to confirm. Branch `mac5/w30-launch-fire`
   off main d1e5b9e6.
+
+## 29. W36: the pause at 16:9 (2026-10-30)
+
+- The pause was W13's exception (made at the canvas's origin 106); now at 0
+  like every menu, so its buttons are at the left edge over the full
+  backdrop; its title is a marquee wrapping at the display's width, so no
+  move. Back from the options (mode 5), PauseState::resume sets the
+  mission's mode again (behind any_resolution).
+- Tests: the new round trip (opened, options, back: mode 13, 853 wide,
+  RESUME and QUIT the same) and the click test's 16:9 origin now 0; the
+  pause set 7/0. Shot in the outbox (w36-pause). Branch `mac5/w36-pause`
+  off main 98665790.

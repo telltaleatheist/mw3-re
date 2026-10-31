@@ -1,4 +1,5 @@
 #include "mech3/app_states.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/app_shadows.h"
 
 #include "crt/msvc_math.h"
@@ -1048,6 +1049,15 @@ void PauseState::leave() {
 
 // Mech3.exe 1.2 @ 0x00493250: Escape returns to the mission (resume arg 6).
 void PauseState::escape() { a().pop(6); }
+
+// FIX (B), playtest W36: back from the options (which switch to the menus'
+// mode 5, 0x00438c90), the pause shows over the mission again in its mode,
+// not the menus' 640x480 until the mission resumes (the exe's modes were all
+// 4:3, the jump unseen).
+void PauseState::resume(uint32_t arg) {
+  if (zfix::options().any_resolution) e().set_screen_mode(e().in_game_vmode());
+  ShellState::resume(arg);
+}
 
 // ---------------------------------------------------------------------------
 // Load (the briefing)
