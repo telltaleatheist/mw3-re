@@ -61,6 +61,7 @@ add_library(mw3core STATIC
   src/mech3/data_version.cpp
   src/mech3/patch_import.cpp
   src/mech3/disc_install.cpp
+  src/mech3/game_setup.cpp
   third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zsave/zsave.cpp
@@ -459,6 +460,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/sdl_render3d.cpp
     src/frontend/sdl/sdl_sound.cpp
     src/frontend/sdl/sdl_vfw.cpp
+    src/frontend/sdl/sdl_child.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
   # Windows: the Direct3D 12 shaders (sdl_render3d.hlsl), DXIL by the
@@ -516,6 +518,16 @@ if(SDL3_FOUND)
       set(MW3_RC_ICON "ICON_MAIN ICON \"${CMAKE_SOURCE_DIR}/tools/windows/mw3.ico\"")
       configure_file(tools/windows/version.rc.in ${CMAKE_BINARY_DIR}/mw3.rc)
       target_sources(mw3 PRIVATE ${CMAKE_BINARY_DIR}/mw3.rc)
+    endif()
+    # A package build is a Windows GUI program: no console window beside the
+    # game, its output in the write dir's mw3.log (mw3_main.cpp); `main` stays
+    # the entry. The development build keeps its console.
+    if(WIN32 AND MW3_PACKAGE)
+      if(MSVC)
+        target_link_options(mw3 PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
+      else()
+        target_link_options(mw3 PRIVATE -mwindows)
+      endif()
     endif()
     # Windows: the DLLs mw3.exe links (SDL3, SDL3_ttf, SDL3_sound) copied beside it.
     if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)

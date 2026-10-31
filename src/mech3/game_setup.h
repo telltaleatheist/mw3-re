@@ -1,0 +1,68 @@
+#pragma once
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
+
+// The first-start setup's operations for a UI (ours, not original code;
+// docs/assets.md): install from the disc, apply the 1.2 patch, add the music,
+// check an install. Each takes a progress callback and returns what a player
+// is told in plain words; the command-line flags (--install-from, --patch)
+// are wrappers over these. Each runs to the end on the calling thread: a UI
+// runs it on a worker thread and cancels by returning false from `progress`.
+namespace mech3::setup {
+
+struct Progress {
+  std::string stage;      // "Reading the disc", "Copying the game files", "Copying the movies", ...
+  double fraction = 0;    // of the whole operation, 0..1
+  std::string message;    // the current file or step, for a second line
+};
+// False cancels: the operation stops as soon as it can and changes nothing.
+using ProgressFn = std::function<bool(const Progress&)>;
+
+struct Result {
+  bool ok = false;
+  bool cancelled = false;
+  std::string summary;                // one or two sentences for the player
+  std::string detail;                 // the technical reason (a log, a "details" box)
+  std::vector<std::string> warnings;  // plain words, each a sentence
+  std::string install_dir;            // install_from_disc and check_install: the folder
+  std::string version;                // "1.0", "1.2", "1.0 with 1.2 files", "unknown"
+  int files = 0, movies = 0, music_tracks = 0;
+  uint64_t bytes = 0;
+};
+
+// The disc (a drive or a folder holding its files), a .iso, or a .cue/.bin,
+// installed into `out_dir` (to `out_dir`.new, then renamed: a failure or a
+// cancel leaves nothing). With `patch` (the patch's ZIP, folder, data1.hdr or
+// loose files) its data becomes 1.2's in the same step. A .cue's CD audio
+// becomes music_dir/trackNN.wav when `music_dir` is given.
+Result install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
+                         const std::string& music_dir, const ProgressFn& progress);
+
+// The official 1.2 patch's 28 data files into `write_dir`/patch12, mounted in
+// front of the install at every start (the install is never written).
+Result apply_patch(const std::string& source, const std::string& write_dir, const ProgressFn& progress);
+
+// A disc image's CD audio (its .cue) as music_dir/trackNN.wav.
+Result add_music(const std::string& cue, const std::string& music_dir, const ProgressFn& progress);
+
+// A quick look at a picked drive, folder, .iso or .cue, writing nothing:
+// whether it is the MechWarrior 3 disc (ok), its version ("1.0" by the
+// cabinet's reader.zbd, or an installed folder's), its movies and a cue's
+// audio tracks; a summary to show before the long copy, or why it is not one.
+Result probe_source(const std::string& path);
+
+struct DiscSource {
+  std::string path;   // the drive's root: "D:\\", "/Volumes/MW3", "/media/<user>/MW3"
+  std::string label;  // its volume name, else the folder's
+};
+// The mounted drives holding an MW3 disc (DATA1.HDR at the root): Windows'
+// CD drives, macOS's /Volumes, Linux's /media/$USER and /run/media/$USER.
+std::vector<DiscSource> find_discs();
+
+// Whether `dir` holds MechWarrior 3 (zbd/reader.zbd), and which data
+// version: 1.2 with `write_dir`/patch12 in front of it when that exists.
+Result check_install(const std::string& dir, const std::string& write_dir);
+
+}  // namespace mech3::setup

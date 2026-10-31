@@ -26,7 +26,11 @@ bool read_cue(const std::string& cue_path, std::vector<CueTrack>* tracks, std::s
 
 // Each AUDIO track into `out_dir`/trackNN.wav; `done` hears each one (its
 // number and the bytes of sound). The tracks written, -1 on a bad cue.
+// `progress` (optional) hears the bytes written of all the tracks'; false
+// from it stops (the track being written is left partial, the count so far
+// returned).
 int32_t write_cue_audio(const std::string& cue_path, const std::string& out_dir,
-                        const std::function<void(int32_t track, uint64_t bytes)>& done, std::string* err);
+                        const std::function<void(int32_t track, uint64_t bytes)>& done, std::string* err,
+                        const std::function<bool(uint64_t written, uint64_t total)>& progress = nullptr);
 
 }  // namespace platform
