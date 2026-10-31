@@ -2320,6 +2320,75 @@ struct MapHost : ztwod::Host {
   zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
 };
 
+
+// Playtest W28: TARGET's lead circle (0x0041d940) leads each mech by its
+// vt+0xc (0x0041d480: the lead velocity 0x0041d400 kept at +0x64c), on the
+// ground the forward at the throttle's share of the top speed. The HUD's hook
+// read the raw velocity (+0x030), so a mech speeding up, turning or slowed
+// was led wrong. At the start, the throttle full and the mech not yet moving:
+// the exe's answer is the forward at top speed, not 0.
+TEST(mission_c1m1_lead_circle_leads_by_the_lead_velocity_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lead_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  float hook[3] = {}, lead[3] = {}, speed = 0;
+  bool seen = false;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames != 5) return;
+      void* player = mech3::mech_mission_player();
+      mech3::MechControls* c = player ? mech3::mech_controls(player) : nullptr;
+      if (!c) return;
+      c->throttle = 1.0f;  // full ahead, the mech still standing
+      mech3::hud_hooks().mech_velocity(static_cast<mech3::Mech*>(player), hook);
+      mech3::mech_lead_velocity(player, lead);
+      speed = std::sqrt(lead[0] * lead[0] + lead[1] * lead[1] + lead[2] * lead[2]);
+      c->throttle = 0.0f;
+      seen = true;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 6; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  lead velocity (%.2f %.2f %.2f), %.2f m/s; the HUD's hook (%.2f %.2f %.2f)\n", lead[0], lead[1], lead[2],
+              speed, hook[0], hook[1], hook[2]);
+  EXPECT(seen && speed > 5.0f);
+  EXPECT(hook[0] == lead[0] && hook[1] == lead[1] && hook[2] == lead[2]);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
 // HUD plan items 7-8, the mission maps: maps.zrd read at the start
 // (0x004583b0); the mission's map picked as the briefing does (0x004582a0 on
 // its MAP, c1m1's "c1m1"), its image loaded from images\maps and the mech's

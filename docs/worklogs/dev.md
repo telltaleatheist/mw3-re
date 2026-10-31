@@ -2128,3 +2128,11 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   frame in c1m1/c2m1/c3m1 with a Thor's jets, cockpit and outside): asked
   for his view and mission. The Mad Cat (the debug start's default) has
   no jets; the jets' key is J (0x24).
+
+## W28, W29 (2026-10-30)
+
+- W29 (mac4/w29-recentre, docs only): as the original; / is Center Legs,
+  either centring cancelled by any twist or look input (test_parts.py).
+- W28 (mac4/w28-lead): the HUD's mech_velocity hook took the raw +0x030;
+  the exe's vt+0xc is the lead velocity (0x0041d480). Fixed through
+  weapon_lock_velocity; test with a break. The part aim is the exe's.

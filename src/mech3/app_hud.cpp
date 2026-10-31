@@ -453,7 +453,14 @@ struct ProgramHudHooks : HudHooks {
     if (v) mech_pos(mech_of(v), out);
     else out[0] = out[1] = out[2] = 0.0f;
   }
-  void mech_velocity(Mech* m, float out[3]) override { out[0] = m->velocity.x, out[1] = m->velocity.y, out[2] = m->velocity.z; }
+  // vt+0xc (0x0041d480): the lead velocity (0x0041d400: airborne the world
+  // velocity, on the ground the forward at the throttle's share of the top
+  // speed) kept at +0x64c. Until 2026-10-30 the raw +0x030, so TARGET's lead
+  // circle led a mech by its measured motion, not the exe's (playtest W28).
+  void mech_velocity(Mech* m, float out[3]) override {
+    const float* v = weapon_lock_velocity(m);
+    out[0] = v[0], out[1] = v[1], out[2] = v[2];
+  }
   void vehicle_velocity(void* v, float out[3]) override {  // vt+0xc
     if (v && !entity_is_mech(v)) return hud_object_velocity(v, out);
     mech_velocity(mech_of(v), out);
