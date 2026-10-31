@@ -16704,13 +16704,140 @@ TEST(mission_c1m1_pause_click_at_any_size_headless) {
     const PauseClick v = c1m1_pause_click(mode);
     std::printf("pause at mode %d: RESUME %d %d %d %d, origin %d %d, resumed %d\n", mode, v.rect[0], v.rect[1],
                 v.rect[2], v.rect[3], v.origin[0], v.origin[1], v.resumes);
-    EXPECT(v.resumes == 1 && v.origin[0] == 106 && v.origin[1] == 0);
-    EXPECT(v.rect[1] == v5.rect[1] && v.rect[2] == v5.rect[2] + 106 && v.rect[3] == v5.rect[3]);
+    // W36: the pause at 16:9 at 0 too, its buttons against the left edge.
+    EXPECT(v.resumes == 1 && v.origin[0] == 0 && v.origin[1] == 0);
+    EXPECT(v.rect[0] == v5.rect[0] && v.rect[1] == v5.rect[1] && v.rect[2] == v5.rect[2] && v.rect[3] == v5.rect[3]);
   }
   // A click a pixel past the button misses (headless its rect starts at 0,
   // so 640x480's place is inside it; the origin is checked above).
   const PauseClick miss = c1m1_pause_click(13, 2);
   EXPECT(miss.resumes == 0);
+}
+
+// Playtest W36 (Owen at 16:9): the pause's buttons where they were at 4:3,
+// and after the options "it's in 4:3 now as well", 16:9 again only back in
+// the mission. The pause at 16:9 at 0 (its buttons at the left edge, its
+// title a marquee across the display), and back from the options in the
+// mission's mode with the same places.
+namespace {
+struct PauseTrip {
+  int got = 0;
+  int32_t mode[2] = {}, resume[2][4] = {}, quit[2][4] = {}, title_x[2] = {}, width[2] = {};
+};
+PauseTrip c1m1_pause_trip(int32_t mode) {
+  PauseTrip out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("pause_trip_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    void set_cooperative_level(Device, uint32_t) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = mode;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::States& st = mech3::states();
+    int core = 0, paused = 0, opts = 0, step = 0;
+    zgame::State* last = nullptr;
+    auto rect = [](ztwod::Object2D& o, int32_t r[4]) {
+      const ztwod::Rect* q = o.get_rect();
+      r[0] = q->left, r[1] = q->top, r[2] = q->right, r[3] = q->bottom;
+    };
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (now == &st.pause && last != &st.pause) paused = 0;
+      last = now;
+      if (now == &st.core) {
+        ++core;
+        if (core == 5 && step == 0) keys.key(1, true);  // Escape
+        if (core == 6 && step == 0) keys.key(1, false);
+        return;
+      }
+      if (now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (!ps || ++paused != 4 || step > 1) return;
+        const int i = step;
+        out.mode[i] = engine.vmode(), out.width[i] = engine.buffer_width();
+        rect(ps->resume, out.resume[i]), rect(ps->quit, out.quit[i]);
+        out.title_x[i] = ps->title.x;
+        ++out.got;
+        if (step == 0) ps->on_button(mech3::PauseScreen::kOptions, 0, 0), step = 1, opts = 0;
+        else step = 2;
+        return;
+      }
+      if (auto* os = dynamic_cast<mech3::OptionsState*>(now); os && step == 1 && ++opts == 4) os->escape();  // back to the pause
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return step == 2; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c1m1_pause_at_16_9_is_the_same_after_the_options_headless) {
+  if (!have_game()) return;
+  const PauseTrip v5 = c1m1_pause_trip(5), v = c1m1_pause_trip(13);
+  for (const PauseTrip* t : {&v5, &v}) {
+    for (int i = 0; i < 2; ++i)
+      std::printf("  %s, %s: mode %d (%d wide), RESUME %d %d %d %d, QUIT %d %d %d %d, title x %d\n", t == &v5 ? "mode 5" : "mode 13",
+                  i ? "back from the options" : "opened", t->mode[i], t->width[i], t->resume[i][0], t->resume[i][1],
+                  t->resume[i][2], t->resume[i][3], t->quit[i][0], t->quit[i][1], t->quit[i][2], t->quit[i][3], t->title_x[i]);
+  }
+  EXPECT(v5.got == 2 && v.got == 2);
+  // Back from the options: the mission's mode, and every place as opened.
+  EXPECT(v.mode[0] == 13 && v.mode[1] == 13 && v.width[1] == 853);
+  EXPECT(std::equal(v.resume[0], v.resume[0] + 4, v.resume[1]) && std::equal(v.quit[0], v.quit[0] + 4, v.quit[1]));
+  // Against the left edge as at 640x480 (the title is a marquee across the
+  // display's width, 0x0042fb30, wider at 16:9 by itself).
+  EXPECT(std::equal(v.resume[0], v.resume[0] + 4, v5.resume[0]));
 }
 
 // Playtest W13 (Owen's 18/19): the options reached from a mission's pause
