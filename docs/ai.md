@@ -3335,6 +3335,27 @@ it beyond the recharge, since it presses again every frame. Nothing here is
 a port change; whether the original plays the same scene alike can only be
 checked in play (no whole-mission emulation).
 
+What the real waits do (W34, from the tests that had been pinned on the
+zeros):
+
+- A plan is kept to its end. Phase 3 waits for a clear line (the plan's
+  ready, 0x4d5980) until the delay (6 s, 3 for a quick plan) runs out; the
+  pick (0x4b6790) does not run meanwhile, so a nearer enemy that turns up
+  waits for it. The pick itself prefers the near one (under 40 m the
+  distance term is 100; a blocked line multiplies the score by 10).
+- A field base's centroid is its node's origin, on the ground: the
+  constructor 0x458a70 calls 0x4d6c90(node, 0, 0, 0), whose 0x5a8390
+  finds or makes the centroid child at the origin, and nothing raises it
+  (a mech's set-up puts its centroid at half its height). The line from
+  an AI's centroid to a base far off grazes the ground, so a plan on a
+  base often waits out its whole delay (c1m1: the Owens 534 m off, 6 s,
+  then a 1 s rest and the same base again).
+- The fire threshold (cos 45) is against the torso's facing (+0x98), and
+  the torso stops at its twist limit (Dominic's 1.92 rad): an enemy behind
+  a mech walking away from it is aimed at but never fired on (c1m4,
+  Dominic following the player). Under the zeros (90 degrees) he fired,
+  his shots along the torso's facing.
+
 ### 17.8 The switches
 
 [0x60b938] is the AI switch: on at the end of the mission start

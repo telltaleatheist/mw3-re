@@ -2210,7 +2210,7 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - The full run on the W34 tree: 257 tests, 13 failed checks in 5 AI tests
   (owens_runs_its_frames 8404/8410, lancemate_forms_up_only_in_training
   9505, and the three c1m4 Dominic tests: takes_the_order 10661-10665,
-  fires_on_a_target 10997/10998, shoots_a_near_enemy_unordered
+  fires_on_a_target 10997/10998, shoots_a_near_enemy_unordered (now aims_at_...)
   11309-11323). Not only pins: the Owens no longer fires on the player 30 m
   off, and Dominic no longer fires on a near enemy (11319: firing 0).
   Traced (the Owens): its volley plan is on a field base about 500 m off
@@ -2224,3 +2224,30 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   original's (its differential test passes) or our world state (the field
   base's centroid underground, its zones). Held for the lead's call
   before any re-pin; tree clean, W34 commit c333cd9e unchanged.
+- Settled (the lead: finish W34 tonight, same item). The pick is right: under
+  40 m the distance term is 100 and a blocked line only multiplies by 10, so
+  the player 30 m off wins; the Owens' base plan was picked before the
+  player was moved, and phase 3 keeps a plan to its delay (6 s). The y -12
+  is the exe's: 0x458a70 -> 0x4d6c90(node, 0, 0, 0) -> 0x5a8390 finds or
+  makes the centroid at the node's origin and nothing raises it (mechs get
+  height / 2), and the base stands on ground at -12. Not a clear-intent
+  bug either way (the delay is the aim time; the low centroid may be
+  unintended, a candidate at most). The five tests re-read:
+  - owens_runs: phase 3 at frame 200 (the base plan waiting out the line);
+    in the bump window the base plan held to frame 379, the rest, the
+    player picked about 10 m off and turned to, no burst before 500; the
+    firing and shooting counts moved to the attack stage (500..2400:
+    bursts of about 157 frames, rests of 4 s).
+  - lancemate training: moved under 2 m (his feet shuffle 1.3 m turning in
+    place about 110 degrees in his rests; under the zeros under 1 m).
+  - Dominic's order and target runs: re-pinned (no shot before the order,
+    103 frames aiming, the player held 186 frames; the first hut ghsD5, the
+    hut still destroyed).
+  - shoots_a_near_enemy_unordered renamed aims_at_a_near_enemy_unordered:
+    his torso at its twist limit (1.92 rad) stays 55..68 degrees off the
+    enemy behind him, short of cos 45, so he aims (639 frames) and never
+    fires; under the zeros he fired 658 frames along the torso's facing.
+  Break: the zeros back in, 5 of the 6 firing tests fail (the lancemate's
+  is about the formation, not the firing). Full mw3tests 257 tests, 0
+  failed checks; test_ai_brain.py 1368 cases match. Docs: ai.md 17.7,
+  discoveries.md (two entries), playtest.md W34 row.

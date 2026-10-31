@@ -2477,6 +2477,15 @@ file (docs/assets.md, Data versions):
   (3 for a quick one) and rests a second between bursts. A missile or slug
   fired more than about 27 degrees off a side launcher's facing leaves along
   that facing instead, so with these limits the AI's shots go where it aims.
+- **An AI mech sticks with its plan.** Once it has picked a target it keeps
+  aiming at it until its 6 seconds run out, even if you walk right up to it
+  meanwhile; only then does it rest and pick again (and then it picks you,
+  the nearest). It also can't shoot what its torso can't turn to: a
+  lancemate following you with an enemy behind him aims but holds his fire.
+- **Field bases are aimed at their feet.** The point the AI aims at on a
+  mobile field base is at ground level (a mech's is half way up), so from far
+  off the line to it usually clips the ground and an AI mech waits out its
+  whole aim on a base it can't hit.
 
 ## The cameras
 

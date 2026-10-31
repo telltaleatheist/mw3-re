@@ -8176,6 +8176,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
       int32_t fire_phase = -1, look_phase = -1, group_volleys = 0, firing = 0, shooting = 0;
+      int32_t base_wait = 0, near_plan = 0, near_firing = 0;
       int32_t attacked = 0, home_done = 0, home_orders = 0, own_on = 0, let_go = 0;
       bool dodged = false, alongside = false, backed = false;
       float gw_from[2] = {}, gw_closest = 1e9f, let_go_at = 0, gw_moved = 0, gw_close = 0, gw_range = 0;
@@ -8263,12 +8264,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         if (seen.brain) {
           const auto& f = seen.brain->firing;
           if (f.plan && f.plan->kind == 2) ++seen.group_volleys;
-          if (f.phase == 4) ++seen.firing;
-          for (int32_t g = 0; g < 5; ++g)
-            if (mech3::mech_group_reloading(owens, g)) {
-              ++seen.shooting;
-              break;
-            }
+          const float d = f.plan && f.plan->target && *f.plan->target ? std::sqrt((*f.plan->target)->dist2) : -1.0f;
+          if (f.phase == 3 && d > 400.0f) ++seen.base_wait;
+          if (f.phase == 2 && d >= 0 && d < 40.0f) ++seen.near_plan;
+          if (f.phase == 4) ++seen.near_firing;
         }
         if (seen.frames == 450) seen.near = o;  // walking at it, 30 m off
         seen.mech_block |= m.blocked[1];
@@ -8293,6 +8292,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         }
       } else if (seen.frames > 500 && seen.brain) {
         auto& br = *seen.brain;
+        if (br.firing.phase == 4) ++seen.firing;
+        for (int32_t g = 0; g < 5; ++g)
+          if (mech3::mech_group_reloading(owens, g)) {
+            ++seen.shooting;
+            break;
+          }
         // The attack's orders under the fight: end, rearm, the way home.
         const size_t n = br.orders.size();
         const float pdx = m.pos[0] - o.pos[0], pdz = m.pos[2] - o.pos[2];
@@ -8396,18 +8401,25 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The brain's frame ran on every tick since, the AI switch on, the
     // orders kept.
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
-    // Awake (the player in sight) each tick. The firing
-    // (ai.md 17.7) picks a plan each tick: the player, 1.4 km off, is past
-    // its range, but the field bases (team 2, 530..600 m off) are within
-    // its sensor range (aiv +0x30, 1000 m): it has a plan on one (phase 2),
-    // its range the plan's, its look-around going.
-    EXPECT(seen.fire_phase == 2 && seen.look_phase >= 1);
+    // Awake (the player in sight) each tick. The firing (ai.md 17.7): the
+    // player, 1.4 km off, is past its range, but the field bases (team 2,
+    // 530..600 m off) are within its sensor range (aiv +0x30, 1000 m): it
+    // has a plan on one, its range the plan's, its look-around going. Phase 3
+    // (W34: 2 with the port's zero waits): a field base's centroid is its
+    // node's origin on the ground (0x00458a70 never raises it), so the line
+    // to it grazes the ground and the plan waits out its 6 s delay.
+    EXPECT(seen.fire_phase == 3 && seen.look_phase >= 1);
     EXPECT(seen.fire_max > 0 && seen.fire_range < seen.fire_max);
-    // 30 m off, the plan pick takes the player and the volley (0x004b1860)
-    // a weapon group; the line clear (0x004d5980), the firing holds the
-    // trigger (phase 4) and the group's lasers fire (a beam running, or
-    // recharging after).
-    EXPECT(seen.group_volleys > 100 && seen.firing > 100 && seen.shooting > 0);
+    // W34, with the real waits (3/6/1 s): the field base's plan is kept
+    // until its delay runs out (frames 201..379), the rest after it, then
+    // the pick takes the player, by then about 10 m off, and the torso turns
+    // to him (phase 2) until frame 500; no burst before. (With the port's
+    // zero waits the pick ran each tick and it fired at once.)
+    EXPECT(seen.group_volleys > 100 && seen.base_wait > 150 && seen.near_plan > 30 && seen.near_firing == 0);
+    // From 160 m east (frames 500..2400) the volley's group fires at him: the
+    // line clear (0x004d5980), the firing holds the trigger (phase 4) and the
+    // lasers fire (recharging after), a burst each rest.
+    EXPECT(seen.firing > 500 && seen.shooting > 30);
     // The radar's shot list has its object, whose action empties it each frame
     // (0x004b4ab0, from the mission's setup; unwired, every shot stayed listed).
     EXPECT(seen.counts0.count("0x004b4ab0") == 0);
@@ -9501,8 +9513,11 @@ TEST(mission_c2m1_lancemate_forms_up_only_in_training_headless) {
   EXPECT(campaign.on_formation == 0 && campaign.following > 0);
   EXPECT(training.on_formation > 0 && training.following == 0);
   // The formation net is one step, the stand behaviour: he stays put; on
-  // the player's net he walks off after the player.
-  EXPECT(moved(campaign) > 10.0f && moved(training) < 1.0f);
+  // the player's net he walks off after the player. W34 (the firing's real
+  // 1 s rests, its picks finding nobody): standing, he turns in place about
+  // 110 degrees in his first 6 s, his feet shuffling 1.3 m; with the port's
+  // zero waits he never rested and stood still (under 1 m then).
+  EXPECT(moved(campaign) > 10.0f && moved(training) < 2.0f);
 }
 
 TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
@@ -10657,12 +10672,17 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     // Since 2026-10-30 Dominic has his radio (W11: no stand-in vehicle at the
     // load), and its lines (call_help, friendly_fire) play through zSound,
     // whose plays draw on rand(): before, 951 / 59.301 / 567 / 951, 184.
+    // W34 (the firing's real waits, 3/6/1 s, for the port's zeros): no shot
+    // in the 2 s before the order (was 53 frames), 103 frames aiming (phase 2,
+    // was 2) before each burst, and the player taken for 186 frames, not 385,
+    // the plan in hand kept to its end before the next pick; before, 53 / 1009
+    // / 1139, 71.189, 385, phases 2 2 1009 126.
     if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR") && data_is_12()) {
-      EXPECT(seen.fired_before == 53 && seen.fired_after == 1009 && seen.on_enemy == 1139);
-      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 71.189f) < 1e-3f);
+      EXPECT(seen.fired_before == 0 && seen.fired_after == 901 && seen.on_enemy == 1133);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 86.592f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
-      EXPECT(seen.on_player == 385);  // his next pick, once the player is 30 m off
-      EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 1009 && seen.phases[5] == 126);
+      EXPECT(seen.on_player == 186);  // his next pick, once the player is 30 m off
+      EXPECT(seen.phases[2] == 103 && seen.phases[3] == 3 && seen.phases[4] == 901 && seen.phases[5] == 132);
     }
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -10990,12 +11010,15 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // off what he walks into: fewer contacts, longer aiming.
     // Since the probes land in the frame's own step above 30 fps (W31,
     // Skis::integrate) his walk differs: longer aiming, fewer firing frames.
+    // Since the firing's real waits (W34, 3/6/1 s for the port's zeros) he
+    // keeps a plan to its end and rests between bursts: his first pick is
+    // ghsD5 (was ghsD2), his walk and contacts differ, the hut still falls.
     std::printf("  dominic's target: contacts %d, first %s, on target %d, aiming %d, firing %d, health %.5f\n",
                 seen.target_contacts, seen.first_target.c_str(), seen.on_target, seen.aiming, seen.firing, seen.health);
     EXPECT(seen.hut != 0 && seen.health0 == 30.0f && seen.on_target > 0 && seen.firing > 0 && seen.health < seen.health0);
     if (data_is_12()) {
-      EXPECT(seen.target_contacts == 2163 && seen.first_target == "ghsD2");
-      EXPECT(seen.on_target == 1062 && seen.aiming == 145 && seen.firing == 792);
+      EXPECT(seen.target_contacts == 4869 && seen.first_target == "ghsD5");
+      EXPECT(seen.on_target == 938 && seen.aiming == 72 && seen.firing == 804);
       EXPECT(std::fabs(seen.health - 0.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);
@@ -11161,7 +11184,9 @@ TEST(mission_c1m4_dominic_stops_at_a_no_go_patch_headless) {
   mech3::options() = mech3::Options{};
 }
 
-TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
+// W34: was ..._shoots_a_near_enemy_unordered_; with the firing's real
+// thresholds he aims at it and holds his fire (below).
+TEST(mission_c1m4_dominic_aims_at_a_near_enemy_unordered_headless) {
   if (!have_game()) return;
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
@@ -11301,12 +11326,16 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
                    seen.enemy_name.c_str(), seen.engage, seen.attacks, seen.targeted, seen.on_enemy,
                    seen.aiming, seen.firing, seen.moved, seen.down, seen.ai_on, seen.contacts, seen.enemy_contacts, seen.phase, seen.follows,
                    seen.follows_player, seen.closest);
-    // The firing picked the enemy itself (0x004b6790) and fired at it, with
+    // The firing picked the enemy itself (0x004b6790) and aims at it, with
     // engaging off all along and no attack: his order the whole time the
     // follow on the player (0x004d1980), never a step nearer the enemy
-    // (ai.md 17.8b).
+    // (ai.md 17.8b). He never fires (W34): walking after the player, the
+    // enemy nearly behind him, his torso twisted to its limit (1.92 rad) is
+    // still 55..68 degrees off it, short of the firing's 45 degrees (cos
+    // 0.707, 0x004b6500). With the port's zero thresholds (90 degrees) he
+    // fired 658 frames, his shots along the torso's facing, not at it.
     if (!std::getenv("MW3_LANCE_AT")) {
-      EXPECT(seen.down == 0 && seen.on_enemy > 600 && seen.firing > 300);
+      EXPECT(seen.down == 0 && seen.on_enemy > 600 && seen.aiming > 600 && seen.firing == 0);
       EXPECT(seen.engage == 0 && seen.attacks == 0);
       EXPECT(seen.follows_player > 600 && seen.closest > 59.0f);
       // Exact, the run repeating (reset_process_state's fixed seed). The
@@ -11316,11 +11345,12 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
                   seen.targeted, seen.on_enemy, seen.aiming, seen.firing, seen.follows, seen.follows_player,
                   seen.enemy_contacts, seen.moved, seen.closest);
       // (The puffers' rand()s since they tick: hooks-audit.md.)
-      EXPECT(seen.targeted > 0 && seen.on_enemy > 0 && seen.firing > 0 && seen.follows > 0);
+      EXPECT(seen.targeted > 0 && seen.on_enemy > 0 && seen.follows > 0);
       if (data_is_12()) {
-        EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 43 && seen.firing == 658);
+        // W34: before, 764 / 764, aiming 43, firing 658, moved 69.1506.
+        EXPECT(seen.targeted == 702 && seen.on_enemy == 702 && seen.aiming == 639 && seen.firing == 0);
         EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-        EXPECT(std::fabs(seen.moved - 69.1506f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+        EXPECT(std::fabs(seen.moved - 69.3653f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
       }
     }
     mech3::missions().cleanup(false);
