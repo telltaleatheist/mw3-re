@@ -491,3 +491,12 @@ works alongside it; stay out of its files.
 - Player messages that pointed at docs/ now point at README.txt.
 - README.txt rewritten as the playtest guide (names `--install-from`
   from the next batch); docs/release-notes-0.1.md drafted for Owen.
+## 31. The launcher, first build (2026-10-30)
+
+- Branch `mac5/launcher-ui`: main 98665790, mac4/setup-api merged locally
+  (dev.md's conflict as the union), the design commit, then the build.
+  What it does and what is left: launcher.md, Built.
+- Shots (`--launcher-shot`): main with the development copy found, setup
+  with none, the progress screen; `sdl_program_launcher_screens`.
+- Not yet: one window from launcher to game, MechWarrior (1989), sounds,
+  the release's first-start notes inside it.

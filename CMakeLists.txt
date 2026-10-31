@@ -529,6 +529,7 @@ if(SDL3_FOUND)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
       src/frontend/sdl/run_log.cpp
+      src/frontend/sdl/launcher.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
       src/frontend/sdl/modes_chain.cpp
@@ -536,6 +537,9 @@ if(SDL3_FOUND)
     )
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3 PRIVATE MW3_VERSION="${MW3_VERSION}")
+    # The launcher's art (assets/launcher) in a development build; a package
+    # carries it beside the exe (tools/windows/package.cmd).
+    target_compile_definitions(mw3 PRIVATE MW3_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
     if(NOT MW3_PACKAGE)
       target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
     endif()
