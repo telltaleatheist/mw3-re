@@ -53,6 +53,23 @@ void network_error(const std::string& text);
 // 0x00586d50, 0xd's handler from zNetwork's set-up: the sender is the host.
 void on_host(uint32_t from, const uint8_t* msg, size_t size);
 
+// The teams' and the data's calls (piece 3b). A failed call is reported as
+// a network error (0x0058a8c0's name for it, 0x0058ae10).
+uint32_t create_team(const char* name);              // 0x00588390: the team's id, its record kept
+bool add_to_team(uint32_t team, uint32_t player);    // 0x005884c0
+bool remove_from_team(uint32_t team, uint32_t player);  // 0x00588500: the record's team cleared
+bool destroy_team(uint32_t team);                    // 0x00588590
+int32_t enum_teams();                                // 0x00588200: the teams' list made again; their count
+bool enum_team_players();                            // 0x00588300: each team's players' records given it
+int32_t enum_players();                              // 0x005885c0: records for new players; their count
+bool leave();                                        // 0x00588660: the local player destroyed
+bool kick(uint32_t player);                          // 0x005886a0
+bool get_player_data(uint32_t id, void* data, uint32_t* size);  // 0x00589770
+uint32_t player_data_size(uint32_t id);              // 0x00589750
+bool set_player_data(uint32_t id, const void* data, uint32_t size);  // 0x00589830
+bool get_team_data(uint32_t id, void* data, uint32_t* size);    // 0x005897f0
+bool set_team_data(uint32_t id, const void* data, uint32_t size);   // 0x005897b0
+
 // Ours: zNetwork's set-up's registrations and slots (0x00586bfc: 0xd's
 // handler; the translation as the poll's), and the lists emptied.
 void wire_players();

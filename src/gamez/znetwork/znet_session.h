@@ -79,6 +79,32 @@ class Transport {
   }
   // Whether a player is the session's host (GetPlayerCaps' DPCAPS_ISHOST).
   virtual bool is_host(uint32_t id) const { (void)id; return false; }
+
+  // Teams, players and their data (piece 3b; DirectPlay's groups and its
+  // replicated "remote" data, every player told by a system event).
+  struct Member {
+    uint32_t id = 0;
+    std::string short_name, long_name;
+  };
+  virtual uint32_t create_group(const std::string& name) { (void)name; return 0; }  // the team's id, 0 failed
+  virtual bool destroy_group(uint32_t group) { (void)group; return false; }
+  virtual bool add_to_group(uint32_t group, uint32_t player) { (void)group, (void)player; return false; }
+  virtual bool delete_from_group(uint32_t group, uint32_t player) { (void)group, (void)player; return false; }
+  virtual bool destroy_player(uint32_t player) { (void)player; return false; }  // leave (ourselves) or kick
+  virtual bool players(std::vector<Member>* out) { out->clear(); return true; }
+  virtual bool groups(std::vector<Member>* out) { out->clear(); return true; }
+  virtual bool group_players(uint32_t group, std::vector<uint32_t>* out) { (void)group; out->clear(); return true; }
+  // Set replicates to every player (DPSET_GUARANTEED); get answers DirectPlay's
+  // way: false with *size the data's when the buffer is null or short.
+  virtual bool set_data(bool group, uint32_t id, const void* data, uint32_t size) {
+    (void)group, (void)id, (void)data, (void)size;
+    return false;
+  }
+  virtual bool get_data(bool group, uint32_t id, void* data, uint32_t* size) {
+    (void)group, (void)id, (void)data;
+    *size = 0;
+    return false;
+  }
 };
 
 // The local player's record, [0x0073075c] (0xec bytes in the exe; its id at

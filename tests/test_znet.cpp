@@ -214,3 +214,63 @@ TEST(znet_players_as_a_joiner) {
   znet::shutdown();
   EXPECT(znet::lists().players.empty() && znet::lists().teams.empty());
 }
+
+// Piece 3b over the hub: the host (the hub's) makes a team and puts us in
+// it, sets its data and ours, and kicks us; zNetwork (ours) sees each.
+TEST(znet_teams_data_and_a_kick) {
+  znet::Hub hub;
+  znet::Transport* h = hub.endpoint();
+  h->set_name("Host", "The host");
+  znet::SessionDesc d;
+  EXPECT(h->host(d) == 1);
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Transport* mine = hub.endpoint();
+  mine->set_name("Me", "Myself");
+  znet::initialise(mine);
+  EXPECT(znet::join_session("loopback"));
+  for (uint16_t t = 2; t <= 0xc; ++t) znet::on(t, &h_types);
+  znet::poll(-1);
+  // Our own record, as the session's opening enumerates (0x005886c0, piece 4).
+  EXPECT(znet::enum_players() == 2 && znet::player(2) && znet::player(2)->short_name == "Me");
+  // A team, and us in it: type 4 (the team made), then 5, our record's team.
+  const uint32_t team = h->create_group("Red");
+  EXPECT(team != 0 && h->add_to_group(team, 2));
+  g_types.clear();
+  znet::poll(-1);
+  EXPECT((g_types == std::vector<int>{4, 5}));
+  EXPECT(znet::team(team) && znet::team(team)->name == "Red" && znet::player(2) && znet::player(2)->team == team);
+  // Our own calls: a second team, joined and left (our record follows the events).
+  const uint32_t blue = znet::create_team("Blue");
+  EXPECT(blue != 0 && znet::team(blue) && znet::add_to_team(blue, 2));
+  znet::poll(-1);
+  EXPECT(znet::player(2)->team == blue);
+  EXPECT(znet::remove_from_team(blue, 2) && znet::player(2)->team == 0);
+  // The enumerations made again from the transport: both teams, Red's member.
+  EXPECT(znet::enum_teams() == 2 && znet::enum_team_players());
+  EXPECT(znet::player(2)->team == team);
+  EXPECT(znet::enum_players() == 2);
+  // Data: the host's, set there; type 9 here, and read back (its size first).
+  znet::poll(-1);  // our removal's type 2 first
+  const uint8_t rec[6] = {1, 2, 3, 4, 5, 6};
+  EXPECT(h->set_data(false, 1, rec, 6));
+  g_types.clear();
+  znet::poll(-1);
+  EXPECT((g_types == std::vector<int>{9}));
+  EXPECT(znet::player_data_size(1) == 6);
+  uint8_t got[8] = {};
+  uint32_t size = 4;
+  EXPECT(!znet::get_player_data(1, got, &size) && size == 6);  // too short: its size
+  size = 8;
+  EXPECT(znet::get_player_data(1, got, &size) && size == 6 && got[5] == 6);
+  // A failed call is a network error (type 0xc).
+  g_types.clear();
+  EXPECT(!znet::destroy_team(999));
+  EXPECT((g_types == std::vector<int>{0xc}));
+  // The host kicks us: type 7.
+  EXPECT(h->destroy_player(2));
+  g_types.clear();
+  znet::poll(-1);
+  EXPECT((g_types == std::vector<int>{7}));
+  znet::shutdown();
+}

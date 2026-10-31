@@ -60,6 +60,22 @@ void say_host() {
 std::string clipped(const std::string& s, size_t n) { return s.size() > n ? s.substr(0, n) : s; }
 }  // namespace
 
+namespace {
+Transport* tp() { return session().transport; }
+// The record a player's arrival or the players' enumeration makes (0x00588a70,
+// 0x005893f0 alike).
+PlayerRecord* add_record(uint32_t id, const std::string& short_name, const std::string& long_name) {
+  auto r = std::make_unique<PlayerRecord>();
+  r->id = id;
+  r->short_name = clipped(short_name, 0x50);
+  r->long_name = clipped(long_name, 0x50);
+  r->caps_flags = tp() && tp()->is_host(id) ? 2u : 0u;  // 0x00589870(1)
+  r->is_host = (r->caps_flags >> 1) & 1;
+  lists().players.push_back(std::move(r));
+  return lists().players.back().get();
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x00588a70. The exe's local types 2 and 0xe carried a
 // pointer to DirectPlay's message at +4; here their words (ours, section 3):
 // 2 the player (8 bytes, as the exe's), 0xe the send's id and its time (12).
@@ -99,13 +115,7 @@ void system_message(const Packet& p) {
     case kSysCreatePlayerOrGroup:
       if (e.player_type == 1) {
         if (!player(e.id)) {
-          auto r = std::make_unique<PlayerRecord>();
-          r->id = e.id;
-          r->short_name = clipped(e.short_name, 0x50);
-          r->long_name = clipped(e.long_name, 0x50);
-          r->caps_flags = s.transport && s.transport->is_host(e.id) ? 2u : 0u;  // 0x00589870(1)
-          r->is_host = (r->caps_flags >> 1) & 1;
-          l.players.push_back(std::move(r));
+          add_record(e.id, e.short_name, e.long_name);
           local(3, e.id);
         }
         if (is_host()) say_host();
@@ -157,6 +167,134 @@ void network_error(const std::string& text) {
 
 // Mech3.exe 1.2 @ 0x00586d50
 void on_host(uint32_t from, const uint8_t*, size_t) { session().host_id = from; }
+
+
+// Mech3.exe 1.2 @ 0x00588390: DPNAME's short and long names both the name.
+uint32_t create_team(const char* name) {
+  if (!tp()) return 0;
+  const uint32_t id = tp()->create_group(name ? name : "");
+  if (!id) {  // reported, no record
+    network_error(zutl::localize("MSG_DPERR_GENERIC"));
+    return 0;
+  }
+  auto t = std::make_unique<TeamRecord>();
+  t->id = id;
+  t->name = clipped(name ? name : "", 0x4f);
+  lists().teams.push_back(std::move(t));
+  return id;
+}
+
+// Mech3.exe 1.2 @ 0x005884c0
+bool add_to_team(uint32_t team, uint32_t player) {
+  if (!tp()) return false;
+  if (!tp()->add_to_group(team, player)) {
+    network_error(zutl::localize("MSG_DPERR_GENERIC"));
+    return false;
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00588500
+bool remove_from_team(uint32_t team, uint32_t player) {
+  if (!tp()) return false;
+  if (!tp()->delete_from_group(team, player)) {
+    network_error(zutl::localize("MSG_DPERR_GENERIC"));
+    return false;
+  }
+  if (PlayerRecord* r = znet::player(player)) r->team = 0;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00588590
+bool destroy_team(uint32_t team) {
+  if (!tp()) return false;
+  if (!tp()->destroy_group(team)) {
+    network_error(zutl::localize("MSG_DPERR_GENERIC"));
+    return false;
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00588200 with its callback 0x00589300: the long name
+// (DPNAME +0xc) here, where the arrival takes the short one.
+int32_t enum_teams() {
+  if (!tp()) return 0;
+  lists().teams.clear();
+  std::vector<Transport::Member> gs;
+  if (!tp()->groups(&gs)) {
+    network_error(zutl::localize("MSG_DPERR_GENERIC"));
+    return 0;
+  }
+  for (const Transport::Member& g : gs) {
+    if (team(g.id)) continue;
+    auto t = std::make_unique<TeamRecord>();
+    t->id = g.id;
+    t->name = clipped(g.long_name, 0x4f);
+    lists().teams.push_back(std::move(t));
+  }
+  return static_cast<int32_t>(lists().teams.size());
+}
+
+// Mech3.exe 1.2 @ 0x00588300 with its callback 0x005892c0
+bool enum_team_players() {
+  if (!tp()) return false;
+  for (auto& t : lists().teams) {
+    std::vector<uint32_t> ids;
+    if (!tp()->group_players(t->id, &ids)) {
+      network_error(zutl::localize("MSG_DPERR_GENERIC"));
+      continue;
+    }
+    for (uint32_t id : ids)
+      if (PlayerRecord* r = player(id)) r->team = t->id;
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x005885c0 with its callback 0x005893f0; a failure the
+// error report's (0x0058a880, line 0x163): 0.
+int32_t enum_players() {
+  if (!tp()) return 0;
+  std::vector<Transport::Member> ps;
+  if (!tp()->players(&ps)) return 0;
+  for (const Transport::Member& p : ps)
+    if (!player(p.id)) add_record(p.id, p.short_name, p.long_name);
+  return static_cast<int32_t>(lists().players.size());
+}
+
+// Mech3.exe 1.2 @ 0x00588660
+bool leave() {
+  Session& s = session();
+  if (!s.local || !tp()) return false;
+  return tp()->destroy_player(s.local->id);
+}
+
+// Mech3.exe 1.2 @ 0x005886a0
+bool kick(uint32_t player) { return tp() && tp()->destroy_player(player); }
+
+// Mech3.exe 1.2 @ 0x00589770 (DPGET_REMOTE)
+bool get_player_data(uint32_t id, void* data, uint32_t* size) {
+  return id && tp() && tp()->get_data(false, id, data, size);
+}
+
+// Mech3.exe 1.2 @ 0x00589750
+uint32_t player_data_size(uint32_t id) {
+  uint32_t size = 0;
+  get_player_data(id, nullptr, &size);
+  return size;
+}
+
+// Mech3.exe 1.2 @ 0x00589830 (DPSET_GUARANTEED)
+bool set_player_data(uint32_t id, const void* data, uint32_t size) {
+  return id && tp() && tp()->set_data(false, id, data, size);
+}
+
+// Mech3.exe 1.2 @ 0x005897f0
+bool get_team_data(uint32_t id, void* data, uint32_t* size) { return id && tp() && tp()->get_data(true, id, data, size); }
+
+// Mech3.exe 1.2 @ 0x005897b0
+bool set_team_data(uint32_t id, const void* data, uint32_t size) {
+  return id && tp() && tp()->set_data(true, id, data, size);
+}
 
 void wire_players() {
   session().system_message = &system_message;

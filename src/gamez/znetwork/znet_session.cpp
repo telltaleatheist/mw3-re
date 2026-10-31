@@ -175,17 +175,131 @@ void shutdown() {
 
 struct Hub::Impl {
   struct End;
+  struct Group {
+    uint32_t id = 0;
+    std::string name;
+    std::vector<uint32_t> members;
+    std::vector<uint8_t> data;
+  };
   std::vector<std::unique_ptr<End>> ends;
-  uint32_t next_id = 1, next_msg = 1, host_id = 0;
+  std::vector<Group> groups;
+  uint32_t next_id = 1, next_msg = 1, host_id = 0, next_group = 1000;
   bool hosted = false;
   void system(End* to, const SystemEvent& e);
+  void to_all(const SystemEvent& e, const End* but = nullptr);
+  Group* group(uint32_t id) {
+    for (Group& g : groups)
+      if (g.id == id) return &g;
+    return nullptr;
+  }
+  End* end_of(uint32_t id);
 };
 
 struct Hub::Impl::End : Transport {
   Hub::Impl* hub = nullptr;
   uint32_t id = 0;
   std::string short_name, long_name;
+  std::vector<uint8_t> data;  // the player's replicated data
   std::deque<Packet> inbox;
+  uint32_t create_group(const std::string& name) override {
+    if (!id) return 0;
+    Group g;
+    g.id = hub->next_group++, g.name = name;
+    hub->groups.push_back(g);
+    SystemEvent e;
+    e.kind = kSysCreatePlayerOrGroup, e.player_type = 0, e.id = g.id, e.short_name = e.long_name = name;
+    hub->to_all(e, this);
+    return g.id;
+  }
+  bool destroy_group(uint32_t gid) override {
+    Group* g = hub->group(gid);
+    if (!id || !g) return false;
+    hub->groups.erase(hub->groups.begin() + (g - hub->groups.data()));
+    SystemEvent e;
+    e.kind = kSysDestroyPlayerOrGroup, e.player_type = 0, e.id = gid;
+    hub->to_all(e);
+    return true;
+  }
+  bool add_to_group(uint32_t gid, uint32_t player) override {
+    Group* g = hub->group(gid);
+    if (!id || !g || !hub->end_of(player)) return false;
+    if (std::find(g->members.begin(), g->members.end(), player) == g->members.end()) g->members.push_back(player);
+    SystemEvent e;
+    e.kind = kSysAddPlayerToGroup, e.group = gid, e.id = player;
+    hub->to_all(e);
+    return true;
+  }
+  bool delete_from_group(uint32_t gid, uint32_t player) override {
+    Group* g = hub->group(gid);
+    if (!id || !g) return false;
+    auto it = std::find(g->members.begin(), g->members.end(), player);
+    if (it == g->members.end()) return false;
+    g->members.erase(it);
+    SystemEvent e;
+    e.kind = kSysDeletePlayerFromGroup, e.group = gid, e.id = player;
+    hub->to_all(e);
+    return true;
+  }
+  bool destroy_player(uint32_t player) override {
+    End* who = hub->end_of(player);
+    if (!id || !who) return false;
+    who->close();  // the others hear it (and its inbox is emptied)
+    if (who != this) {  // a kick: then it hears its own end
+      SystemEvent e;
+      e.kind = kSysDestroyPlayerOrGroup, e.player_type = 1, e.id = player;
+      hub->system(who, e);
+    }
+    return true;
+  }
+  bool players(std::vector<Member>* out) override {
+    out->clear();
+    for (auto& o : hub->ends)
+      if (o->id) out->push_back(Member{o->id, o->short_name, o->long_name});
+    return id != 0;
+  }
+  bool groups(std::vector<Member>* out) override {
+    out->clear();
+    for (const Group& g : hub->groups) out->push_back(Member{g.id, g.name, g.name});
+    return id != 0;
+  }
+  bool group_players(uint32_t gid, std::vector<uint32_t>* out) override {
+    out->clear();
+    const Group* g = hub->group(gid);
+    if (!g) return false;
+    *out = g->members;
+    return true;
+  }
+  bool set_data(bool is_group, uint32_t who, const void* d, uint32_t size) override {
+    std::vector<uint8_t>* into = nullptr;
+    if (is_group) {
+      if (Group* g = hub->group(who)) into = &g->data;
+    } else if (End* e = hub->end_of(who)) {
+      into = &e->data;
+    }
+    if (!id || !into) return false;
+    into->assign(static_cast<const uint8_t*>(d), static_cast<const uint8_t*>(d) + size);
+    SystemEvent e;
+    e.kind = kSysSetPlayerOrGroupData, e.player_type = is_group ? 0 : 1, e.id = who;
+    hub->to_all(e, this);
+    return true;
+  }
+  bool get_data(bool is_group, uint32_t who, void* d, uint32_t* size) override {
+    const std::vector<uint8_t>* from = nullptr;
+    if (is_group) {
+      if (Group* g = hub->group(who)) from = &g->data;
+    } else if (End* e = hub->end_of(who)) {
+      from = &e->data;
+    }
+    if (!from) {
+      *size = 0;
+      return false;
+    }
+    const uint32_t have = *size;
+    *size = static_cast<uint32_t>(from->size());
+    if (!d || have < from->size()) return false;  // DPERR_BUFFERTOOSMALL
+    std::memcpy(d, from->data(), from->size());
+    return true;
+  }
   void set_name(const std::string& s, const std::string& l) override { short_name = s, long_name = l; }
   bool is_host(uint32_t who) const override { return who && who == hub->host_id; }
   uint32_t host(const SessionDesc&) override {
@@ -241,6 +355,17 @@ struct Hub::Impl::End : Transport {
     return true;
   }
 };
+
+void Hub::Impl::to_all(const SystemEvent& e, const End* but) {
+  for (auto& o : ends)
+    if (o->id && o.get() != but) system(o.get(), e);
+}
+
+Hub::Impl::End* Hub::Impl::end_of(uint32_t id) {
+  for (auto& o : ends)
+    if (id && o->id == id) return o.get();
+  return nullptr;
+}
 
 void Hub::Impl::system(End* to, const SystemEvent& e) {
   Packet p;

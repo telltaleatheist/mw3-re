@@ -210,3 +210,128 @@ extern "C" int32_t probe_znet_events(const int32_t* ev, int32_t n, uint32_t loca
   std::copy(log.begin(), log.begin() + m, out);
   return m;
 }
+
+// The teams' and data's calls (piece 3b) through a transport that answers as
+// told and keeps each call: ops of four words (op, a, b, c); the log: for each
+// transport call (10 + kind, its arguments), each answer (20, value), each
+// 0xc network error (30, its text's length), then the lists as
+// probe_znet_events gives them. Ops: 0 create_team(name a; the transport's
+// id b), 1 add_to_team(a, b; ok c), 2 remove_from_team(a, b; c), 3
+// destroy_team(a; c), 4 kick(a; c), 5 leave(; c), 6 set_player_data(a, size
+// b; c), 7 get_player_data(a, buffer b; the data's size c), 8
+// player_data_size(a; c), 9 set_team_data(a, b; c), 10 get_team_data(a, b;
+// c), 11 the players enumerated (ids a.. a+b-1, names a+100..), 12 the teams
+// enumerated (ids a.., names), 13 team c's players a.. a+b-1.
+namespace {
+struct Told : znet::Transport {
+  std::vector<int32_t>* log = nullptr;
+  int32_t ok = 1, id = 0, size = 0, first = 0, count = 0;
+  void put(std::initializer_list<int32_t> v) { log->insert(log->end(), v); }
+  uint32_t host(const znet::SessionDesc&) override { return 0; }
+  uint32_t join(const std::string&) override { return 0; }
+  void close() override {}
+  bool send(uint32_t, const void*, size_t, bool, uint32_t*) override { return true; }
+  bool receive(znet::Packet*) override { return false; }
+  uint32_t create_group(const std::string& n) override {
+    put({10, number(n)});
+    return static_cast<uint32_t>(id);
+  }
+  bool add_to_group(uint32_t g, uint32_t p) override { put({11, int32_t(g), int32_t(p)}); return ok; }
+  bool delete_from_group(uint32_t g, uint32_t p) override { put({12, int32_t(g), int32_t(p)}); return ok; }
+  bool destroy_group(uint32_t g) override { put({13, int32_t(g)}); return ok; }
+  bool destroy_player(uint32_t p) override { put({14, int32_t(p)}); return ok; }
+  bool set_data(bool g, uint32_t who, const void*, uint32_t n) override {
+    put({g ? 16 : 15, int32_t(who), int32_t(n)});
+    return ok;
+  }
+  bool get_data(bool g, uint32_t who, void* d, uint32_t* n) override {
+    put({g ? 18 : 17, int32_t(who), d ? 1 : 0, int32_t(*n)});
+    const uint32_t have = *n;
+    *n = static_cast<uint32_t>(size);
+    return d && have >= static_cast<uint32_t>(size);
+  }
+  bool players(std::vector<Member>* out) override {
+    out->clear();
+    for (int32_t i = 0; i < count; ++i) out->push_back(Member{uint32_t(first + i), "P" + std::to_string(first + i + 100), "Player " + std::to_string(first + i + 100)});
+    return true;
+  }
+  bool groups(std::vector<Member>* out) override {
+    out->clear();
+    for (int32_t i = 0; i < count; ++i) out->push_back(Member{uint32_t(first + i), "P" + std::to_string(first + i), "Player " + std::to_string(first + i + 50)});
+    return true;
+  }
+  int32_t members_team = 0;
+  bool group_players(uint32_t g, std::vector<uint32_t>* out) override {
+    out->clear();
+    if (int32_t(g) == members_team)
+      for (int32_t i = 0; i < count; ++i) out->push_back(uint32_t(first + i));
+    return true;
+  }
+};
+std::vector<int32_t>* g_calls_log = nullptr;
+void on_error(uint32_t, const uint8_t* m, size_t size) {
+  (void)m;
+  g_calls_log->insert(g_calls_log->end(), {30, static_cast<int32_t>(size) - 5});
+}
+}  // namespace
+
+extern "C" int32_t probe_znet_calls(const int32_t* ops, int32_t n, int32_t* out, int32_t cap) {
+  std::vector<int32_t> log;
+  Told t;
+  t.log = &log;
+  g_calls_log = &log;
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 1;
+  znet::on(0xc, &on_error);
+  uint8_t buf[64] = {};
+  const int brk = std::getenv("MW3_PROBE_BREAK") ? std::atoi(std::getenv("MW3_PROBE_BREAK")) : 0;
+  for (int32_t i = 0; i < n; ++i) {
+    const int32_t op = ops[4 * i], a = ops[4 * i + 1], b = ops[4 * i + 2], c = ops[4 * i + 3];
+    t.ok = c;
+    int32_t r = 0;
+    switch (op) {
+      case 0: t.id = b; r = static_cast<int32_t>(znet::create_team(("P" + std::to_string(a)).c_str())); break;
+      case 1: r = znet::add_to_team(a, b); break;
+      case 2: {
+        const znet::PlayerRecord* rec = znet::player(b);
+        const uint32_t was = rec ? rec->team : 0;
+        r = znet::remove_from_team(a, b);
+        if (brk == 2 && r && znet::player(b)) znet::player(b)->team = was;  // the break: the team kept
+        break;
+      }
+      case 3: r = znet::destroy_team(a); break;
+      case 4: r = znet::kick(a); break;
+      case 5: r = znet::leave(); break;
+      case 6: r = znet::set_player_data(a, buf, b); break;
+      case 7: { t.size = c; uint32_t sz = b; r = znet::get_player_data(a, b ? buf : nullptr, &sz); log.insert(log.end(), {21, int32_t(sz)}); break; }
+      case 8: t.size = c; r = static_cast<int32_t>(znet::player_data_size(a)); break;
+      case 9: r = znet::set_team_data(a, buf, b); break;
+      case 10: { t.size = c; uint32_t sz = b; r = znet::get_team_data(a, b ? buf : nullptr, &sz); log.insert(log.end(), {21, int32_t(sz)}); break; }
+      case 11: t.first = a, t.count = b; r = znet::enum_players(); break;
+      case 12:
+        t.first = a, t.count = b;
+        r = znet::enum_teams();
+        if (brk == 1)  // the break: the short name taken
+          for (auto& tm : znet::lists().teams) tm->name = "P" + std::to_string(tm->id);
+        break;
+      case 13: t.first = a, t.count = b, t.members_team = c; r = znet::enum_team_players(); break;
+      default: break;
+    }
+    log.insert(log.end(), {20, r});
+  }
+  log.insert(log.end(), {3, static_cast<int32_t>(znet::lists().players.size())});
+  for (auto& rec : znet::lists().players)
+    log.insert(log.end(), {static_cast<int32_t>(rec->id), rec->is_host, static_cast<int32_t>(rec->team),
+                           number(rec->short_name), number(rec->long_name)});
+  log.insert(log.end(), {4, static_cast<int32_t>(znet::lists().teams.size())});
+  for (auto& tm : znet::lists().teams) log.insert(log.end(), {static_cast<int32_t>(tm->id), number(tm->name)});
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(log.size(), static_cast<size_t>(cap)));
+  std::copy(log.begin(), log.begin() + m, out);
+  return m;
+}

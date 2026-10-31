@@ -324,6 +324,29 @@ Then the two-process and soak tests over the whole flow, menus included.
   0x00589750 / 0x00589770 / 0x00589830 / 0x005897b0 / 0x005897f0) over the
   transport.
 
+- **Piece 3b** (2026-10-31): the teams' and data's calls in `znet_dplay`:
+  0x00588390 `create_team` (DPNAME's short and long names the name; the
+  record kept; a failure reported, no record), 0x005884c0 `add_to_team`,
+  0x00588500 `remove_from_team` (the record's team cleared), 0x00588590
+  `destroy_team`, 0x00588200 `enum_teams` (the list made again; its callback
+  0x00589300 takes the long name, DPNAME +0xc), 0x00588300 `enum_team_players`
+  (0x005892c0: each member's record given the team), 0x005885c0
+  `enum_players` (0x005893f0: records for the new), 0x00588660 `leave`,
+  0x005886a0 `kick`, 0x00589770 / 0x00589750 / 0x00589830 a player's data
+  (got, its size, set; DPGET_REMOTE, DPSET_GUARANTEED) and 0x005897f0 /
+  0x005897b0 a team's. An add, removal or destroy changes the lists through
+  its system event, as in the exe; a failed call is MSG_DPERR_GENERIC as
+  local 0xc (the transport answers yes or no, not DirectPlay's code). The
+  transport gains groups, kicks, enumerations and replicated data; the hub
+  does them (the events to everyone, the setter not told of its own data, a
+  kicked player told last). 0x00588600 (the players of a listed session) is
+  the game list's (piece 10); 0x005886c0, the session's opening (its lists,
+  our own record), piece 4's. Tests: `test_znet_teams.py` (250 call
+  sequences through the exe's calls and its enumerations' own callbacks:
+  every DirectPlay call and argument, answer, error message and list
+  identical; two breaks caught), `znet_teams_data_and_a_kick` (a break
+  caught).
+
 ## Open
 
 - The COM object at [0x007307e0] (CLSID 3faf0afe-...): what it is and

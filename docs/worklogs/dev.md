@@ -2214,3 +2214,17 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   and SendEx, strncpy stubbed at its IAT slot 0x5bb648, 0x575fb0 answering
   its name; 250 sequences identical. My probe's first name parse was wrong
   ("Player N" starts with P too); fixed in the probe.
+
+## Multiplayer, piece 3b: teams, data, kicks (2026-10-31)
+
+- znet_dplay: create/add/remove/destroy team, enum teams / team players /
+  players, leave, kick, player and team data. Transport::Member, the group
+  and data operations; the hub's. Read from the disassembly (Ghidra loses
+  the register arguments): add (ECX team, EDX player), the data calls (ECX
+  id, EDX data, the size or its pointer on the stack; 0x5897f0 passes its
+  own argument slot's address, so its caller never sees the size).
+- test_znet_teams.py: the enumerations' callbacks are labels, called
+  directly after the fake Enum* (no re-entry into Unicorn); the team
+  enumeration's answer read as [0x7307c0] after them. A prefix gives the
+  teams members so the removal break shows. create_team on failure: no
+  record (0x5883fb), fixed after the first version kept one.
