@@ -3,7 +3,8 @@ rem Builds the package for other players (docs/windows.md, Packaging):
 rem build-win\dist\mw3-<git describe>-win64\ and its .zip, with mw3.exe,
 rem mw3import.exe, every DLL they load (SDL3, SDL3_ttf, SDL3_sound, FFmpeg's,
 rem the Visual C++ runtime), README.txt, THIRD-PARTY.txt and the libraries'
-rem licence files. Nothing from the game. Its own build tree, build-win-pkg,
+rem licence files, and the installer MW3-Rebuild-Setup-<git describe>.exe
+rem (Inno Setup, tools\windows\installer.iss). Nothing from the game. Its own build tree, build-win-pkg,
 rem configured with MW3_PACKAGE (no development copy of the game in the exes).
 rem Usage: tools\windows\package.cmd
 setlocal
@@ -42,6 +43,7 @@ for /d %%d in ("%VCToolsRedistDir%x64\Microsoft.VC*.CRT") do (
 rem The read-me, the notices, and each library's own licence files.
 copy /y tools\windows\dist\README.txt "%DIST%\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
+if exist LICENSE copy /y LICENSE "%DIST%\LICENSE.txt" >nul
 for /d %%d in (deps\*) do (
   mkdir "%DIST%\licenses\%%~nxd" 2>nul
   for %%f in ("%%d\LICENSE*" "%%d\COPYING*" "%%d\README-SDL.txt") do copy /y "%%f" "%DIST%\licenses\%%~nxd\" >nul
@@ -57,5 +59,21 @@ rem Every DLL the programs load is in the folder or part of Windows; no game fil
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\windows\check_dist.ps1 "%DIST%" || exit /b 1
 
 tar -a -c -f "build-win\dist\%NAME%.zip" -C build-win\dist "%NAME%" || exit /b 1
+
+rem The installer, MW3-Rebuild-Setup-<version>.exe (tools\windows\installer.iss),
+rem with Inno Setup's compiler: iscc on the PATH (scoop's shim), else its usual folders.
+set ISCC=
+for %%i in (iscc.exe) do if not "%%~$PATH:i"=="" set "ISCC=%%~$PATH:i"
+for %%d in ("%LOCALAPPDATA%\Programs\Inno Setup 7" "%LOCALAPPDATA%\Programs\Inno Setup 6" "%ProgramFiles(x86)%\Inno Setup 7" "%ProgramFiles(x86)%\Inno Setup 6" "%ProgramFiles%\Inno Setup 7") do (
+  if not defined ISCC if exist "%%~d\ISCC.exe" set "ISCC=%%~d\ISCC.exe"
+)
+if not defined ISCC (
+  echo Warning: Inno Setup's ISCC.exe not found, so no installer was made ^(docs/windows.md, Packaging^).
+  goto :done
+)
+"%ISCC%" /Qp "/DAppVersion=%VER%" "/DDist=%CD%\%DIST%" "/O%CD%\build-win\dist" tools\windows\installer.iss || exit /b 1
+echo Setup:   build-win\dist\MW3-Rebuild-Setup-%VER%.exe
+
+:done
 echo Package: %DIST%
 echo Zip:     build-win\dist\%NAME%.zip

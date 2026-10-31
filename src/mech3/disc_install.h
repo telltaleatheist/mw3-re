@@ -44,7 +44,11 @@ class Disc {
 
 struct DiscInstall {
   bool ok = false;
+  bool cancelled = false;
+  enum Failure { kNone, kUnreadable, kNotMw3, kDamaged, kFolderInUse, kCannotWrite, kPatch, kCancelled };
+  Failure failure = kNone;        // for a plain-words message (game_setup.h)
   std::string error;              // why nothing was installed
+  std::string patch_error;        // kPatch: the import's
   std::vector<std::string> log;   // what was read and found
   std::vector<std::string> warnings;
   int files = 0, movies = 0, music = 0;
@@ -58,8 +62,11 @@ struct DiscInstall {
 // earlier disc install there is replaced, any other non-empty folder is
 // refused). With `patch` (anything import_patch_12 takes) the 28 data files
 // become 1.2's in the same step. With a cue sheet and `music_dir`, its AUDIO
-// tracks as music_dir/trackNN.wav. `progress` hears each step.
+// tracks as music_dir/trackNN.wav. `progress` hears each step; false from it
+// cancels, and a cancel or a failure leaves the folder and the music as they were.
+// The stage, the fraction of the whole (0..1) and the current file; false cancels.
+using DiscProgress = std::function<bool(const std::string& stage, double fraction, const std::string& message)>;
 DiscInstall install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
-                              const std::string& music_dir, const std::function<void(const std::string&)>& progress);
+                              const std::string& music_dir, const DiscProgress& progress);
 
 }  // namespace mech3

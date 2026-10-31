@@ -79,7 +79,8 @@ bool read_cue(const std::string& cue_path, std::vector<CueTrack>* tracks, std::s
 }
 
 int32_t write_cue_audio(const std::string& cue_path, const std::string& out_dir,
-                        const std::function<void(int32_t, uint64_t)>& done, std::string* err) {
+                        const std::function<void(int32_t, uint64_t)>& done, std::string* err,
+                        const std::function<bool(uint64_t, uint64_t)>& progress) {
   namespace fs = std::filesystem;
   std::vector<CueTrack> tracks;
   if (!read_cue(cue_path, &tracks, err)) return -1;
@@ -87,6 +88,26 @@ int32_t write_cue_audio(const std::string& cue_path, const std::string& out_dir,
   std::error_code ec;
   fs::create_directories(out_dir, ec);
   int32_t written = 0;
+  // Each audio track's span: from its INDEX 01 to the next track's start in
+  // the same file, or the file's end.
+  auto span = [&](size_t i, int64_t size) {
+    const CueTrack& t = tracks[i];
+    int64_t start = t.index1 * kSector, end = size;
+    if (i + 1 < tracks.size() && tracks[i + 1].file == t.file) {
+      const CueTrack& n = tracks[i + 1];
+      end = (n.index0 >= 0 ? n.index0 : n.index1) * kSector;
+    }
+    if (end > size) end = size;
+    return std::make_pair(start, end);
+  };
+  uint64_t total = 0, so_far = 0;
+  for (size_t i = 0; i < tracks.size(); ++i) {
+    if (!tracks[i].audio) continue;
+    const auto size = static_cast<int64_t>(fs::file_size(dir / tracks[i].file, ec));
+    if (ec) continue;
+    const auto [a, b] = span(i, size);
+    if (b > a) total += static_cast<uint64_t>(b - a);
+  }
   for (size_t i = 0; i < tracks.size(); ++i) {
     const CueTrack& t = tracks[i];
     if (!t.audio) continue;
@@ -96,12 +117,7 @@ int32_t write_cue_audio(const std::string& cue_path, const std::string& out_dir,
       *err = "cannot read " + bin.string();
       continue;
     }
-    int64_t start = t.index1 * kSector, end = size;
-    if (i + 1 < tracks.size() && tracks[i + 1].file == t.file) {  // the next track in the same file
-      const CueTrack& n = tracks[i + 1];
-      end = (n.index0 >= 0 ? n.index0 : n.index1) * kSector;
-    }
-    if (end > size) end = size;
+    const auto [start, end] = span(i, size);
     if (start >= end) continue;
     std::ifstream src(bin, std::ios::binary);
     src.seekg(start);
@@ -120,6 +136,8 @@ int32_t write_cue_audio(const std::string& cue_path, const std::string& out_dir,
       o.write(buf.data(), src.gcount());
       if (src.gcount() < n) break;
       left -= n;
+      so_far += static_cast<uint64_t>(n);
+      if (progress && !progress(so_far, total)) return written;
     }
     if (!o) {
       *err = "cannot write " + (fs::path(out_dir) / name).string();

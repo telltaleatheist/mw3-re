@@ -58,8 +58,9 @@
 #include "frontend/sdl/modes_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
+#include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/sdl_install.h"
-#include "mech3/disc_install.h"
+#include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_music.h"
@@ -295,23 +296,31 @@ int run(const Args& a, platform::VideoForWindows* vfw);
 // the overlay), the folder saved as mw3.cfg's install=. False: reported.
 bool install_from_disc(Args& a) {
   const std::string out = !a.install_to.empty() ? a.install_to : a.write_dir.empty() ? std::string() : a.write_dir + "/install";
-  mech3::DiscInstall r;
-  if (out.empty()) r.error = "no write dir: give --install-to DIR";
-  else {
+  mech3::setup::Result r;
+  if (out.empty()) {
+    r.summary = "There is no settings folder: give --install-to DIR.";
+  } else {
     std::printf("mw3: installing MechWarrior 3 from %s into %s\n", a.install_from.c_str(), out.c_str());
-    r = mech3::install_from_disc(a.install_from, out, a.patch, a.write_dir.empty() ? std::string() : a.write_dir + "/music",
-                                 [](const std::string& s) { std::printf("mw3: %s\n", s.c_str()); });
+    std::string stage;
+    int tenth = -1;
+    r = mech3::setup::install_from_disc(a.install_from, out, a.patch, a.write_dir.empty() ? std::string() : a.write_dir + "/music",
+                                        [&](const mech3::setup::Progress& p) {
+                                          const int t = static_cast<int>(p.fraction * 10);
+                                          if (p.stage != stage || t != tenth)
+                                            std::printf("mw3: %s (%d%%)\n", p.stage.c_str(), static_cast<int>(p.fraction * 100));
+                                          stage = p.stage, tenth = t;
+                                          return true;
+                                        });
   }
-  for (const std::string& w : r.warnings) std::printf("mw3: warning: %s\n", w.c_str());
+  if (a.verbose) std::printf("%s", r.detail.c_str());
+  for (const std::string& w : r.warnings) std::printf("mw3: %s\n", w.c_str());
   if (!r.ok) {
-    const std::string msg = "MechWarrior 3 was not installed from " + a.install_from + ": " + r.error +
-                            " (docs/assets.md, Installing from the disc).";
-    std::fprintf(stderr, "mw3: %s\n", msg.c_str());
-    if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
+    std::fprintf(stderr, "mw3: %s\n", r.summary.c_str());
+    if (!a.verbose && !r.detail.empty()) std::fprintf(stderr, "%s", r.detail.c_str());
+    if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", r.summary.c_str(), nullptr);
     return false;
   }
-  std::printf("mw3: installed MechWarrior 3 %s: %d files, %d movies, %d music tracks, %.0f MB\n", r.version.c_str(), r.files,
-              r.movies, r.music, static_cast<double>(r.bytes) / (1 << 20));
+  std::printf("mw3: %s\n", r.summary.c_str());
   a.install = out;
   a.patch.clear();  // in the install now
   if (!a.write_dir.empty() && sdlfe::save_install(a.write_dir, out)) std::printf("mw3: install %s saved to mw3.cfg\n", out.c_str());
@@ -388,6 +397,7 @@ int main(int argc, char** argv) {
     if (char* p = SDL_GetPrefPath("MicroProse", "MechWarrior 3")) a.write_dir = p, SDL_free(p);
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
+  if (sdlfe::log_to_file(a.write_dir)) std::printf("mw3 %s: %s\n", MW3_VERSION, argc > 1 ? "started with arguments" : "started");
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
   // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
   // platform fixes that let it run stay on: fixes.md, The bug fixes switch).
@@ -406,18 +416,15 @@ int main(int argc, char** argv) {
   // The 1.2 patch's files, imported (ours: patch_import.h), over the install's.
   const std::string patch_dir = a.write_dir.empty() ? std::string() : a.write_dir + "/patch12";
   if (!a.patch.empty()) {
-    const mech3::PatchImport r = patch_dir.empty() ? mech3::PatchImport{} : mech3::import_patch_12(a.patch, patch_dir);
-    if (a.verbose)
-      for (const std::string& l : r.log) std::printf("mw3: %s\n", l.c_str());
+    const mech3::setup::Result r = mech3::setup::apply_patch(a.patch, a.write_dir, nullptr);
+    if (a.verbose) std::printf("%s", r.detail.c_str());
     if (!r.ok) {
-      const std::string msg = "The 1.2 patch was not applied: " + (patch_dir.empty() ? std::string("no write dir") : r.error) +
-                              ". Give --patch the patch's ZIP or its folder (docs/assets.md, The 1.2 patch).";
-      std::fprintf(stderr, "mw3: %s\n", msg.c_str());
-      if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
+      std::fprintf(stderr, "mw3: %s\n", r.summary.c_str());
+      if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", r.summary.c_str(), nullptr);
       SDL_Quit();
       return 1;
     }
-    std::printf("mw3: the 1.2 patch's %d files written to %s\n", r.found, patch_dir.c_str());
+    std::printf("mw3: %s\n", r.summary.c_str());
   }
   std::error_code patch_ec;
   if (!patch_dir.empty() && std::filesystem::is_directory(patch_dir, patch_ec)) zutl::mount(patch_dir);

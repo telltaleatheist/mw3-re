@@ -2138,3 +2138,23 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   once). W24: the objective's firefly_01/02 do not exist (the mission's
   are 03/04; missing names count as destroyed) and the APCs are on no
   list: a fixes.md candidate.
+## The setup API (2026-10-30)
+
+- Branch mac4/setup-api (off lead/batch2 584d494). mech3/game_setup:
+  install_from_disc, apply_patch, add_music, check_install, probe_source,
+  find_discs (the last two asked for by dev 2). Progress by bytes,
+  cancellation leaving nothing (music via music.new), plain-words
+  results. disc_install gains failure kinds and a progress callback;
+  patch_import list_installshield (the header only); cue_audio a
+  progress/cancel callback. mw3 --install-from and --patch wrap them.
+  Test setup_api_probes_installs_cancels_and_explains; the real ISO
+  through mw3 (progress 0..100%, "MechWarrior 3 1.0 is installed ...").
+- The installer: tools/windows/installer.iss (Inno Setup: Program Files\
+  MechWarrior 3 Rebuild or per-user, Start-menu and desktop shortcuts,
+  uninstaller keeping %APPDATA%), package.cmd's last step (iscc found on
+  the PATH or its folders; skipped with a warning without it). Not run
+  here (no Windows); the commands for the PC are in windows.md.
+- The GUI build: MW3_PACKAGE on Windows links /SUBSYSTEM:WINDOWS
+  /ENTRY:mainCRTStartup; with no console the output goes to mw3.log
+  (sdl_child.cpp log_to_file) and the helpers start windowless
+  (start_child, SDL's background process). mingw compile-checked only.
