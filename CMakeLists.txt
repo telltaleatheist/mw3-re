@@ -59,6 +59,13 @@ add_library(mw3core STATIC
   src/platform/reg_file.cpp
   src/platform/cue_audio.cpp
   src/mech3/data_version.cpp
+  src/mech3/patch12.cpp
+  src/mech3/patch12_edits.cpp
+  src/mech3/patch12_force.cpp
+  src/mech3/patch12_hud.cpp
+  src/mech3/patch12_text.cpp
+  src/mech3/patch12_tree.cpp
+  src/mech3/patch12_world.cpp
   src/mech3/patch_import.cpp
   src/mech3/disc_install.cpp
   src/mech3/game_setup.cpp
@@ -434,6 +441,7 @@ add_executable(mw3tests
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp
   tests/test_lance.cpp
+  tests/test_patch12.cpp
   tests/test_resolution.cpp
   tests/test_zreader.cpp
   tests/test_controls_cfg.cpp

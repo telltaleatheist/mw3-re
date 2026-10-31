@@ -515,8 +515,21 @@ These change how the game talks to the computer, not how it plays.
   sound quality.
 
 - The rebuild runs on any MechWarrior 3 data, 1.0 as well as 1.2, and says
-  at start which it found. With 1.0's message file, the messages 1.2 added
-  read as blank text where the original would have crashed.
+  at start which it found. On 1.0's files it makes the 1.2 patch's changes
+  itself as the data loads, in its own words and numbers, without the patch's
+  files: so far the messages 1.2 added (target names, the new resolutions,
+  the jump-jet limit), the HUD layouts for 1152x864, 1280x1024 and
+  1600x1200, 1.2's weapon balance, the mechs' torso twist, heat sinks and
+  loadouts, its force feedback effects (a fall and a death shake), the
+  mission fixes (objectives, boundaries, a jump-jet ceiling, patrol points),
+  the named targets, the footstep and engine sounds (the engine loop
+  without its click, made from 1.0's own sound), and the AI paths and
+  regions 1.0 left out of Op 4b Mission 5 (taken from your own Mission 6
+  and 4 files, as 1.2 did), the other new AI paths, and 1.2's fixes to Op
+  3's world (the dome's gaps, the helipads' stray wall, the terrain holes).
+  Only Op 3's two new multiplayer maps are left out until multiplayer is
+  ported. Your files are not changed, and data that is neither 1.0's nor
+  1.2's (a mod) is left as it is. Details in `docs/patch12.md`.
 - A 1.0 install can be brought to 1.2 with the official patch file you
   already have (`--patch`, its ZIP or folder): the rebuild reads the patch
   without running its installer, checks every file against 1.2's, and
