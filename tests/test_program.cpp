@@ -10004,7 +10004,7 @@ struct TrailRun {
   int corners = 0, arrived = -1, reached = -1, stuck_s = 0, crumbs = 0, frames = 0;
 };
 // The player walks round the wall nearest Dominic to 60 m past it.
-TrailRun c2_trail_run(int mission, bool bugs) {
+TrailRun c2_trail_run(int mission, bool bugs, bool corner = false) {
   TrailRun out;
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
@@ -10079,7 +10079,7 @@ TrailRun c2_trail_run(int mission, bool bugs) {
         float d[3];
         pos_of(dominic, d);
         top = d[1] + 300.0f;
-        float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0;
+        float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0, nx = 0, nz = 0;
         for (int k = 0; k < 48; ++k) {  // the nearest wall round him, 20..150 m out
           const float a = static_cast<float>(k) * 0.1308997f, sx = std::sin(a), sz = std::cos(a);
           float seg[6] = {d[0] + 8 * sx, d[1] + 4, d[2] + 8 * sz, d[0] + 150 * sx, d[1] + 4, d[2] + 150 * sz};
@@ -10088,10 +10088,70 @@ TrailRun c2_trail_run(int mission, bool bugs) {
           for (int i = 0; i < hits[0].count; ++i) {
             const zcls::SegmentHit& h = hits[0].hit[i];
             const float r = std::hypot(h.point[0] - d[0], h.point[2] - d[2]);
-            if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best) best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz;
+            const float nl = std::hypot(h.normal[0], h.normal[2]);
+            if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best && nl > 0.5f)
+              best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz, nx = -sx, nz = -sz;
           }
         }
         if (best > 1e8f) return;
+        if (corner) {
+          // A sharp corner (W27): the player walks along the wall's face to
+          // its end, 12 m past it, turns 90 degrees behind it (14 m past its
+          // back face) and walks 90 m along its far side, well out of
+          // Dominic's range; Dominic starts 25 m behind him. The face's
+          // end: where a probe into it from 10 m out meets nothing.
+          auto clear_leg = [&](const float a[3], const float b[3]) {
+            const float dx = b[0] - a[0], dz = b[2] - a[2], len = std::hypot(dx, dz);
+            const float sx = dz / len * 6.0f, sz = -dx / len * 6.0f;
+            for (const auto& l : {std::array<float, 2>{0, 1.5f}, {0, 4.0f}, {0, 6.5f}, {0, 9.0f}, {1, 2.5f}, {-1, 2.5f}, {1, 6.5f}, {-1, 6.5f}}) {
+              const float p0[3] = {a[0] + l[0] * sx, a[1] + l[1], a[2] + l[0] * sz}, p1[3] = {b[0] + l[0] * sx, b[1] + l[1], b[2] + l[0] * sz};
+              if (wall_between_seg(p0, p1)) return false;
+            }
+            return true;
+          };
+          const float tx = -nz, tz = nx;  // along the face
+          for (const float side : {1.0f, -1.0f}) {
+            float ex = 0, ez = 0;
+            bool found = false;
+            for (int k = 1; k <= 30 && !found; ++k) {
+              const float qx = bx + side * tx * 3.0f * k, qz = bz + side * tz * 3.0f * k;
+              const float g = ground_under(qx + nx * 10, top, qz + nz * 10);
+              const float a[3] = {qx + nx * 10, g + 4, qz + nz * 10}, b[3] = {qx - nx * 10, g + 4, qz - nz * 10};
+              if (!wall_between_seg(a, b)) ex = qx, ez = qz, found = true;
+            }
+            if (!found) continue;
+            auto at = [&](float x, float z) { return std::array<float, 3>{x, ground_under(x, top, z), z}; };
+            // The building's depth: its back face, by a probe from 80 m behind.
+            float depth = 20.0f;
+            {
+              const float mx = bx - side * tx * 3, mz = bz - side * tz * 3, g = ground_under(mx, top, mz);
+              float seg[6] = {mx - nx * 80, g + 4, mz - nz * 80, mx - nx * 0.5f, g + 4, mz - nz * 0.5f};
+              static zcls::SegmentHits hits[1];
+              zcls::segment_query(mech3::world_hooks().world, seg, 2, hits);
+              float far = 0;
+              for (int i = 0; i < hits[0].count; ++i)
+                far = std::max(far, 80.0f - std::hypot(hits[0].hit[i].point[0] - seg[0], hits[0].hit[i].point[2] - seg[2]));
+              if (far > 1.0f) depth = far;
+            }
+            const auto p0 = at(bx + nx * 14 - side * tx * 10, bz + nz * 14 - side * tz * 10);
+            const auto p1 = at(ex + side * tx * 12 + nx * 14, ez + side * tz * 12 + nz * 14);
+            const float back = depth + 14.0f;
+            const auto p2 = at(ex + side * tx * 12 - nx * back, ez + side * tz * 12 - nz * back);
+            const auto p3 = at(ex - side * tx * 78 - nx * back, ez - side * tz * 78 - nz * back);
+            if (!clear_leg(p0.data(), p1.data()) || !clear_leg(p1.data(), p2.data()) || !clear_leg(p2.data(), p3.data())) continue;
+            route = {p0, p1, p2, p3};
+            const auto dm = at(p0[0] - side * tx * 25, p0[2] - side * tz * 25);
+            mech3::move_mech(dominic, dm.data(), std::atan2(side * tx, side * tz));
+            break;
+          }
+          if (route.size() < 2) return;
+          out.corners = 2;
+          for (size_t i = 1; i < route.size(); ++i) out.route_len += std::hypot(route[i][0] - route[i - 1][0], route[i][2] - route[i - 1][2]);
+          mech3::move_mech(player, route[0].data(), 0.0f);
+          out.range = brain->params.get<float>(0x28);
+          out.placed = true;
+          return;
+        }
         // The player starts beside him, on his side of the wall; the end 60 m past it.
         const float start[3] = {d[0] - 15 * ux, ground_under(d[0] - 15 * ux, top, d[2] - 15 * uz), d[2] - 15 * uz};
         // 60 m past the wall, or nearer while that is outside the mission's
@@ -10156,7 +10216,13 @@ TrailRun c2_trail_run(int mission, bool bugs) {
         }
       }
       const float dd = dist();
-      if (out.arrived > 0 && out.reached < 0 && dd <= out.range) out.reached = frames;
+      if (out.arrived > 0 && out.reached < 0 && dd <= out.range) {
+        // In range, and (round a corner) in sight of him too, not behind it.
+        float a[3], b[3];
+        pos_of(dominic, a), pos_of(player, b);
+        a[1] += 4, b[1] += 4;
+        if (!corner || !wall_between_seg(a, b)) out.reached = frames;
+      }
       // Stuck: past his range and moved under 2 m in 2 s.
       float dp[3];
       pos_of(dominic, dp);
@@ -10229,6 +10295,18 @@ void print_trail(const char* what, const TrailRun& r) {
 
 TEST(mission_c2_dominic_follows_the_players_way_round_corners_headless) {
   if (!have_game()) return;
+  // The lead's sharp corner: round the end of a building's wall at close
+  // range, a 90-degree turn behind it.
+  for (const int m : {1, 4}) {
+    const TrailRun r = c2_trail_run(m, true, true), exe = c2_trail_run(m, false, true);
+    char what[64];
+    std::snprintf(what, sizeof what, "c2m%d round a corner", m);
+    print_trail(what, r);
+    std::snprintf(what, sizeof what, "c2m%d round a corner, bugs off (the exe)", m);
+    print_trail(what, exe);
+    EXPECT(r.placed && r.arrived > 0);
+    EXPECT(r.reached > 0 && r.reached - r.arrived < 900);
+  }
   for (const int m : {1, 4}) {
     const TrailRun r = c2_trail_run(m, true), exe = c2_trail_run(m, false);
     char what[64];

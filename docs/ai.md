@@ -2730,6 +2730,15 @@ Tests:
 - `mission_c2m1_dominic_attacks_round_a_wall_headless`: told to attack an
   enemy 80 m past the wall nearest him, he walks round (2 detours) into
   range by frame 1547; the exe stops at 98 m.
+- The same test's sharp corner (the lead's): the player walks along the
+  face of the wall nearest Dominic, 12 m past its end, turns 90 degrees
+  behind the building (14 m past its back face, found by a probe from
+  behind) and on 90 m along its far side; Dominic starts 25 m behind him.
+  Done when he is in range with the player in sight. c2m1: 6 s after the
+  player stops (the exe at once); c2m4: at once, both. On these buildings
+  the exe's straight follow cuts round them too: the test keeps ours from
+  standing at a corner, but it does not make the exe's perpetual push
+  against a wall.
 - The W17 test unchanged.
 
 "He popped straight through it" once the enemies were dead: not
