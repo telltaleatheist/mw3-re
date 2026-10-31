@@ -45,10 +45,18 @@ if [ -n "$DEPS" ]; then
 fi
 cmake -S . -B build-mac-pkg "${CONF[@]}" >/dev/null
 cmake --build build-mac-pkg --target mw3 >/dev/null
+# The movie importer beside mw3 (the first start converts the movies with it,
+# first_run_import.h), on the FFmpeg build_deps.sh built; Homebrew's FFmpeg
+# would bring dozens of libraries, so without --deps there is none.
+if [ -n "$DEPS" ]; then cmake --build build-mac-pkg --target mw3import >/dev/null; fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$APP/Contents/Resources"
 cp build-mac-pkg/mw3 "$APP/Contents/MacOS/mw3"
+if [ -n "$DEPS" ]; then cp build-mac-pkg/mw3import "$APP/Contents/MacOS/mw3import"; fi
+# The launcher's art (ours, assets/launcher), where SDL's base path is: Resources.
+mkdir -p "$APP/Contents/Resources/assets/launcher"
+cp assets/launcher/*.png "$APP/Contents/Resources/assets/launcher/"
 
 # Every library outside the system, followed through the ones they load:
 # copied by their real file, named by their install name's file, and every
@@ -57,7 +65,8 @@ python3 - "$APP" "$DEPS" <<'EOF'
 import glob, os, shutil, subprocess, sys
 app = sys.argv[1]
 prefix = sys.argv[2] if len(sys.argv) > 2 else ''
-exe = os.path.join(app, 'Contents/MacOS/mw3')
+exes = [os.path.join(app, 'Contents/MacOS', n) for n in ('mw3', 'mw3import')]
+exes = [e for e in exes if os.path.exists(e)]
 fw = os.path.join(app, 'Contents/Frameworks')
 def deps(f):
     out = subprocess.run(['otool', '-L', f], capture_output=True, text=True, check=True).stdout.splitlines()
@@ -96,7 +105,7 @@ def licences(real, name):
     for n in os.listdir(keg):
         if n.upper().startswith(('LICEN', 'COPYING')):
             shutil.copy2(os.path.join(keg, n), lic)
-copied, todo = {}, [exe]
+copied, todo = {}, list(exes)
 while todo:
     f = todo.pop()
     for d in deps(f):
@@ -113,24 +122,25 @@ while todo:
                 licences(real, name)
             copied[d] = name
             todo.append(dst)
-for f in [exe] + [os.path.join(fw, n) for n in set(copied.values())]:
+for f in exes + [os.path.join(fw, n) for n in set(copied.values())]:
     args = []
     for d in deps(f):
         if d in copied:
             args += ['-change', d, '@rpath/' + copied[d]]
-    if f != exe:
+    if f not in exes:
         args += ['-id', '@rpath/' + os.path.basename(f)]
     if args:
         subprocess.run(['install_name_tool'] + args + [f], check=True, stderr=subprocess.DEVNULL)
 # Only the bundle's rpath: a build against a prefix keeps its absolute lib path.
-lc = subprocess.run(['otool', '-l', exe], capture_output=True, text=True, check=True).stdout.split('\n')
-stale = {lc[i + 2].strip().split(' ')[1] for i, l in enumerate(lc) if 'cmd LC_RPATH' in l}  # each arch lists it
-for path in sorted(p for p in stale if not p.startswith('@')):
-    subprocess.run(['install_name_tool', '-delete_rpath', path, exe], check=True)
-subprocess.run(['install_name_tool', '-add_rpath', '@executable_path/../Frameworks', exe], check=True)
+for exe in exes:
+    lc = subprocess.run(['otool', '-l', exe], capture_output=True, text=True, check=True).stdout.split('\n')
+    stale = {lc[i + 2].strip().split(' ')[1] for i, l in enumerate(lc) if 'cmd LC_RPATH' in l}  # each arch lists it
+    for path in sorted(p for p in stale):
+        subprocess.run(['install_name_tool', '-delete_rpath', path, exe], check=True)
+    subprocess.run(['install_name_tool', '-add_rpath', '@executable_path/../Frameworks', exe], check=True)
 def outside(p):
     return not (p.startswith('/System/') or p.startswith('/usr/lib/') or p.startswith('@'))
-left = [d for f in [exe] + [os.path.join(fw, n) for n in set(copied.values())] for d in deps(f) if outside(d)]
+left = [d for f in exes + [os.path.join(fw, n) for n in set(copied.values())] for d in deps(f) if outside(d)]
 if left:
     sys.exit('still outside the bundle: ' + ', '.join(sorted(set(left))))
 print(f'{len(set(copied.values()))} libraries bundled:', ' '.join(sorted(set(copied.values()))))
@@ -187,6 +197,10 @@ if [ "$ID" = "-" ]; then SIGN=(--force --sign -); else SIGN=(--force --timestamp
 for f in "$APP"/Contents/Frameworks/*.dylib; do
   codesign "${SIGN[@]}" "$f"
 done
+# The importer, a second program in Contents/MacOS, before the app that seals it.
+if [ -f "$APP/Contents/MacOS/mw3import" ]; then
+  codesign "${SIGN[@]}" --entitlements tools/macos/mw3.entitlements "$APP/Contents/MacOS/mw3import"
+fi
 codesign "${SIGN[@]}" --entitlements tools/macos/mw3.entitlements "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 

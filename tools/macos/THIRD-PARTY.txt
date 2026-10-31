@@ -36,6 +36,19 @@ and others. zlib licence. Its built-in decoders have their own terms:
 - TiMidity (Copyright (C) 1995 Tuukka Toivonen): the Perl Artistic License.
 
 
+FFmpeg (libavformat, libavcodec, libswscale, libavutil), version 8.1.2
+---------------------------------------------------------------------
+https://ffmpeg.org/. The FFmpeg developers. GNU Lesser General Public
+License, version 2.1 or later (licenses/<library>/ffmpeg-8.1.2/). Used by
+mw3import, which converts your disc's movies on the first start. Built
+unmodified from ffmpeg.org's release tarball ffmpeg-8.1.2.tar.xz, with only
+the AVI demuxer, the Indeo 5 decoder, the MPEG-1 video encoder and muxer,
+swscale and the file protocol enabled (no GPL or non-free parts); the
+configure line is in the project's docs/deps.md. The libraries are loaded
+dynamically from Contents/Frameworks: you may replace them with your own
+build of the same version.
+
+
 pl_mpeg (built into the program)
 --------------------------------
 Dominic Szablewski, https://github.com/phoboslab/pl_mpeg. MIT licence.

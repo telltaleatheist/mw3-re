@@ -2341,3 +2341,28 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   Not run on a real macOS 12 or Intel Mac. Seen on the way: an explicit
   --write-dir that does not exist is not created (dev build alike; the
   default SDL_GetPrefPath one is), so settings.reg is not written there.
+
+## mw3import in the Mac app (2026-10-31)
+
+- Branch mac4/mac-import (on mac4/deps-build). make_app.sh --deps builds
+  mw3import, puts it in Contents/MacOS, bundles both executables' libraries
+  (seven dylibs), gives each only the bundle's rpath and signs it before the
+  app; the launcher's art into Contents/Resources/assets/launcher;
+  THIRD-PARTY.txt's FFmpeg section (LGPL), the README's first-start line.
+- first_run_import: in a Mac app SDL's base is Contents/Resources, so the
+  importer is looked for in ../MacOS too. mw3_main makes an explicit
+  --write-dir that does not exist (the lead's small fix).
+- The in-app import first failed "no MPEG-1 encoder": an FFmpeg 7 in
+  /usr/local/include (root-owned, Dec 2024) won over the prefix's -isystem
+  headers, so mw3import's AVCodecContext layout was 7's (the decoder's size
+  read 480x640). NO_SYSTEM_FROM_IMPORTED on mw3import: -I.
+- The package build had MW3_ASSETS_DIR (the source tree's path) compiled in:
+  this Mac's path in the release binary, and the art found there. Now
+  development builds only. Checked by a launcher shot from the app against a
+  copy without its assets (324 vs 37 colours sampled); strings: no
+  /Volumes or /Users path in either binary.
+- Checked, /opt/homebrew unreadable, fresh write dir, --import: arm64 19
+  movies in 75 s, x86_64 (Rosetta) in 104 s, then c1m1; c1m2 plays 475 of
+  475 frames in both slices. arm64's files byte-identical to the dev
+  importer's; x86_64's video 0.1% smaller (no asm in its FFmpeg), sound and
+  index identical.

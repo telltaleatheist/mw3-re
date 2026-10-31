@@ -62,30 +62,31 @@ run on a real macOS 12 or an Intel Mac. (The bundling follows `@rpath`
 names into the prefix; a universal binary's `otool -L` lists each arch under
 its own header, and its rpath once per arch.)
 
-## Open: the movies
+## The movies
 
-The first-run import (`mw3import`) needs FFmpeg's libavformat, libavcodec,
-libswscale and libavutil: the Indeo 5 decoder and the MPEG-1 encoder. The
-app does not include it yet, so on the Mac the game plays without its
-movies unless a player converts them. Two ways:
+With `--deps` (2026-10-31) the app carries `mw3import` in `Contents/MacOS`
+beside `mw3`, on the minimal FFmpeg 8.1.2 build_deps.sh builds (LGPL 2.1;
+four dylibs in `Contents/Frameworks`, their licence files under
+`licenses/`, THIRD-PARTY.txt's FFmpeg section with the configure line's
+place). The first start converts the movies the way Windows does
+(first_run_import.h): SDL's base path in an app is `Contents/Resources`, so
+the importer is looked for in `../MacOS` there too. Without `--deps`
+(Homebrew's FFmpeg would bring dozens of libraries) there is no importer.
 
-Since 2026-10-31 the minimal FFmpeg below is built (build_deps.sh: universal,
-macOS 12, LGPL, four dylibs in build-deps/mac/prefix); bundling `mw3import`
-with them into the app is the step left.
+Checked with `/opt/homebrew` unreadable, a fresh write dir and `--import`:
+both slices convert all 19 movies (arm64 75 s, x86_64 under Rosetta 104 s)
+and then start c1m1; c1m2 then plays its 475 frames in either. The arm64
+slice's files are byte for byte the development importer's (Homebrew's
+FFmpeg); the x86_64 slice's video differs by 0.1% in size (its FFmpeg has no
+hand-written assembly), its sound and index identical.
 
-- **Bundle a minimal FFmpeg** (LGPL 2.1, dynamic, FFmpeg's own code only):
-  `--disable-everything` plus the AVI demuxer, the Indeo 5 decoder, the
-  MPEG-1 video encoder and muxer, swscale and the file protocol (the
-  configure line is in windows.md, Packaging). A few MB, built once per
-  FFmpeg release we pick; the LGPL then asks for its notice, the source
-  offer and replaceable dylibs, which the bundle already does for SDL. The
-  inputs are only the player's own disc movies, so a pinned version needs no
-  updates for features, and its exposure is small. It needs a go to build
-  FFmpeg's downloaded source.
-- **Ask Mac players to `brew install ffmpeg`**: nothing for us to build, but
-  every player needs Homebrew, and `mw3import` would then link the
-  installed version by its major soname (libavcodec.62): each FFmpeg major
-  release in Homebrew would break it until we rebuilt it. That is a
-  maintenance burden of its own, and the harder one for players.
+A stray FFmpeg 7 in `/usr/local/include` (a root-owned install on this Mac)
+won over the prefix's `-isystem` headers and gave mw3import another
+`AVCodecContext` layout (the decoder's size read as 480x640, "no MPEG-1
+encoder"); mw3import takes FFmpeg's headers by `-I`
+(`NO_SYSTEM_FROM_IMPORTED`).
 
-The first is the less work over time.
+The launcher's art goes in `Contents/Resources/assets/launcher` (SDL's base
+path). Package builds no longer compile in the source tree's `assets` path
+(`MW3_ASSETS_DIR`, development builds only), which had put this Mac's path in
+the release binary and found the art there instead of in the app.
