@@ -1,5 +1,7 @@
 #pragma once
+#include <array>
 #include <cstdint>
+#include <deque>
 
 #include "mech3/zai_brain.h"
 #include "mech3/zai_node.h"
@@ -185,9 +187,27 @@ class FollowState : public BehaviourState {
     int32_t walked = 0, gave_up = 0;  // detours begun, and given up (for the tests)
   } detour;
 
+  // Ours (W27, FIX (bug) behind bugs; ai.md section 17.6): the leader's way
+  // as breadcrumbs, a point each 8 m he walks (the last 60). Past his
+  // follow range with the leader out of sight (a wall between their eyes),
+  // he walks to the newest point he can see, then on to newer ones; the
+  // leader in sight again, the exe's straight follow.
+  struct Trail {
+    std::deque<std::array<float, 3>> crumbs;
+    int32_t at = -1;           // the crumb walked to; -1 none
+    float look_t = 0;          // to the next sight check
+    bool sees = true;          // the leader in sight at the last check
+    int32_t used = 0;          // crumbs walked to (for the tests)
+    float cap_t = 0;           // after a crumb he could not reach: step by step, no skipping
+    float watch_t = 0, watch_d = 0;  // progress toward the crumb (or the leader)
+    float force_t = 0;         // the leader "in sight" but no way on: the trail anyway
+  } trail;
+
  private:
   void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);
   bool detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]);
+  void trail_record(const float to[3]);
+  bool trail_goal(const float pos[3], const float to[3], float reach, float dt, float goal[3]);
 };
 
 // For the tests: every detour heading taken as blocked (the give-up).
