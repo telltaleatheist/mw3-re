@@ -545,10 +545,10 @@ These change how the game talks to the computer, not how it plays.
 - Each start writes everything the rebuild reports to `mw3.log` in the saves
   folder (the start before kept as `mw3.old.log`), for bug reports. It also
   says which version of the game's data it found, and on the first start
-  shows a note when the 1.2 patch would help or no music was found, with
-  what to do.
+  shows a note when no music was found or the game files are of an unknown
+  version, with what to do (1.0's need nothing: they play as 1.2).
 
-- A launcher opens first (ours): it finds your MechWarrior 3 by itself and, when it cannot, sets it up from buttons instead of command lines: find your install, install from the disc or a disc image (with a progress bar and Cancel), apply the official 1.2 patch, add the music from a disc image.
+- A launcher opens first (ours): it finds your MechWarrior 3 by itself and, when it cannot, sets it up from buttons instead of command lines: find your install, install from the disc or a disc image (with a progress bar and Cancel), apply the official 1.2 patch (offered only for game files of an unknown version), add the music from a disc image.
 
 ## Kept as the original, on purpose
 

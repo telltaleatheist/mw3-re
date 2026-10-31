@@ -2446,18 +2446,19 @@ TEST(sdl_program_bugfixes_switch) {
 #if !defined(_WIN32)
 // The launcher's first-start notes (lead's launcher list, item 5): the
 // data's version and the music, in the launcher's words (SETUP's buttons);
-// nothing to say for 1.2 data with music. The music is any CD track's file.
+// nothing to say for 1.2 data with music. 1.0's data and a mix need no note
+// either: they load as 1.2 (docs/patch12.md); only data of an unknown
+// version is told about the patch. The music is any CD track's file.
 TEST(launcher_first_start_notes) {
   const std::vector<std::string> none = sdlfe::launcher_notes("1.2", true, "M");
   const std::vector<std::string> v10 = sdlfe::launcher_notes("1.0", false, "M");
   const std::vector<std::string> mix = sdlfe::launcher_notes("1.0 with 1.2 files", true, "M");
   const std::vector<std::string> odd = sdlfe::launcher_notes("unknown", true, "M");
-  const bool counts = none.empty() && v10.size() == 2 && mix.size() == 1 && odd.size() == 1;
+  const bool counts = none.empty() && v10.size() == 1 && mix.empty() && odd.size() == 1;
   EXPECT(counts);
   if (counts) {
-    EXPECT(v10[0].find("version 1.0") != std::string::npos && v10[0].find("SETUP can apply it") != std::string::npos);
-    EXPECT(v10[1].find("ADD THE MUSIC") != std::string::npos && v10[1].find("rip in M as track02") != std::string::npos);
-    EXPECT(mix[0].find("part 1.0, part 1.2") != std::string::npos && odd[0].find("neither") != std::string::npos);
+    EXPECT(v10[0].find("ADD THE MUSIC") != std::string::npos && v10[0].find("rip in M as track02") != std::string::npos);
+    EXPECT(odd[0].find("neither") != std::string::npos && odd[0].find("SETUP can apply it") != std::string::npos);
   }
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_music";
   std::error_code ec;

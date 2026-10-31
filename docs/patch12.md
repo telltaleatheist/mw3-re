@@ -66,6 +66,27 @@ message table extended in code; the force-feedback records added; the engine
 loop trimmed. The test: each patched file on 1.0 data parses equal to 1.2's,
 and the list above is what does not.
 
+## What is taken from 1.2's files
+
+Real sizes (the plan's "a few KB" for c3's geometry was low). Values put in
+by the edit table (weapons, mechs, missions; about 18 KB of table text in
+all) and the force-feedback values are not counted here: they are single
+values, not whole records.
+
+| Taken whole | From | Bytes (as stored in 1.2's file) |
+|---|---|---|
+| c3: 28 models' new polygons, points, headers | `zbd/c3/gamez.zbd` | 48,640 |
+| c3: one grey material | `zbd/c3/gamez.zbd` | 44 |
+| c2 m3 `net_14.zrd` | `zbd/c2/readerm3.zbd` | 5,045 |
+| c4b m4 `net_02/05/06/07/08.zrd` | `zbd/c4b/readerm4.zbd` | 6,669 |
+| c1 `envlights.zrd`, `intro.zrd` | `zbd/c1/reader.zbd` | 2,614 |
+| c2 `mobilerepair.zrd` | `zbd/c2/reader.zbd` | 8 |
+| **Total** | | **63,020** |
+
+Not counted because they come from the player's own 1.0 files: c4b m5's 22
+paths and regions (from m6 and m4), the footstep and engine sounds, the HUD
+blocks (from the 1024x768 block), the messages (ours, or names).
+
 ## Built
 
 `mech3/patch12*` with `zrdr::set_load_hook` (zreader.h, ours): the hook
