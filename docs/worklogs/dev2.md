@@ -430,7 +430,14 @@ works alongside it; stay out of its files.
 - Graphics/audio done (table 0x438f60); widen_screen moves controls first
   and sets absolute positions (a cycle's value moved twice before). Lead
   wants a 4:3 original shot beside each 16:9 one.
-- Next: controls, pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
+- Launcher merged to main dd875bb9 (lead, 2026-10-31). When next on it:
+  the MW3 button's "Ready: version 1.2, <path>" overflows with a long path
+  (shorten from the middle with "..." or a second line); then one window
+  into the game, MW1, sounds, first-start notes. mw3.log has two writers
+  now (log_to_file without a console, RunLog otherwise).
+- Controls done (0x42a590 had its own construct path, now widened; LINES
+  stretched from row 300; CheckButton BOUNDS move).
+- Next: pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

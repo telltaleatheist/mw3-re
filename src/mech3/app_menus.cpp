@@ -111,11 +111,12 @@ void widen_background(ztwod::Image& im, int32_t extra) {
   im.set_pos(im.get_x(), im.get_y());
 }
 
-// An overlay drawn as one image across a left and a right group (the game
-// options' panel, its link and the screens' box): made wider at column `at`,
-// that column repeated, so a line crossing it lengthens and the right part
-// lands with its group.
-void stretch_image(ztwod::Image& im, int32_t at, int32_t extra) {
+// An overlay drawn as one image across two groups (the game options' panel,
+// its link and the screens' box): made `extra` wider at column `at` from row
+// `from_y` down, that column repeated, so a line crossing it lengthens and
+// the part right of it lands with its group; above `from_y` the new columns
+// are left clear.
+void stretch_image(ztwod::Image& im, int32_t at, int32_t from_y, int32_t extra) {
   zimg::Texture* src = im.image;
   if (!src || !src->pixels || src->palette_count || at <= 0 || at >= src->width) return;
   const int w = src->width, h = src->height;
@@ -131,8 +132,9 @@ void stretch_image(ztwod::Image& im, int32_t at, int32_t extra) {
   auto from = [&](int x) { return x < at ? x : x < at + extra ? at : x - extra; };
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w + extra; ++x) {
-      out[y * (w + extra) + x] = in[y * w + from(x)];
-      if (dst->alpha) dst->alpha[y * (w + extra) + x] = src->alpha[y * w + from(x)];
+      const int sx = y >= from_y ? from(x) : x < w ? x : -1;
+      out[y * (w + extra) + x] = sx < 0 ? in[0] : in[y * w + sx];  // clear: the corner's (empty) colour
+      if (dst->alpha) dst->alpha[y * (w + extra) + x] = sx < 0 ? 0 : src->alpha[y * w + sx];
     }
   }
   im.set_image(dst);
@@ -152,8 +154,9 @@ struct Group {
   Anchor anchor;
 };
 struct Stretch {
-  int32_t x, y, w;  // the image: its place in the frame and its width
-  int32_t at;       // the column repeated
+  int32_t x, y, w;     // the image: its place in the frame and its width
+  int32_t at;          // the column repeated, out to the right group
+  int32_t from_y = 0;  // from this row down
 };
 struct ScreenGroups {
   uint32_t ctor;  // the screen's constructor (GameEngine::construct)
@@ -171,6 +174,10 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The graphics and audio options: the settings' panel left, ACCEPT and
       // BACK (and the plate behind them) right.
       {0x438f60, {{0, 0, 380, 420, kLeft}, {380, 0, 640, 480, kRight}}},
+      // The controls: the table, its lines and the description stay one
+      // block in the middle; the two DEFAULT buttons left, ACCEPT and CANCEL
+      // right, their lines in LINES (596 wide) stretched below the table.
+      {0x42a590, {{0, 400, 340, 480, kLeft}, {380, 290, 640, 480, kRight}}, {{0, 0, 596, 400, 300}}},
   };
   return k;
 }
@@ -199,15 +206,6 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
       widen_background(*im, extra);
       continue;
     }
-    if (im && im->image && table) {
-      bool stretched = false;
-      for (const Stretch& st : table->stretches)
-        if (left == st.x && top == st.y && im->image->width == st.w) {
-          stretch_image(*im, st.at, extra);
-          stretched = true;
-        }
-      if (stretched) continue;
-    }
     Anchor a = kCentre;
     const int32_t mx = (left + right) / 2, my = (top + bottom) / 2;
     if (table)
@@ -217,6 +215,9 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
           break;
         }
     const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
+    if (im && im->image && table)
+      for (const Stretch& st : table->stretches)
+        if (left == st.x && top == st.y && im->image->width == st.w) stretch_image(*im, st.at, st.from_y, extra - off);
     if (off) moves.push_back({o, o->get_x(), o->get_y(), off});
   }
   for (const bool controls : {true, false})
@@ -226,6 +227,8 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
       m.o->set_pos(m.x + m.off, m.y);
       if (auto* b = dynamic_cast<MainMenuButton*>(m.o))  // its underline, drawn by the button
         b->line.set_pos(b->line.get_x() + m.off, b->line.get_y());
+      auto* cb = dynamic_cast<ztwod::CheckButton*>(m.o);  // its rect is BOUNDS as read (a list box's rows)
+      if (cb && cb->bounds.right > cb->bounds.left) cb->bounds.left += m.off, cb->bounds.right += m.off;
     }
 }
 
@@ -273,6 +276,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};
       screens_[h].screen = new ControlsScreen(*this, a0, h);
+      widen_screen(screens_[h].screen, ctor);
       return h;
     }
     case 0x42d9d0:

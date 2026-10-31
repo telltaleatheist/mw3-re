@@ -16079,13 +16079,14 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 // stays; CREDITS moves the whole extra width, its underline (the button's
 // own image) with it; ACCEPT and the screens' buttons move; the options'
 // LINES overlay is stretched between its panel and the screens' box; on to
-// GRAPHICS & AUDIO, laid out the same way, and back. A
+// GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
   int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
   int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
+  int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -16176,6 +16177,22 @@ WideMenus wide_menus_run(bool wide) {
         auto* os = dynamic_cast<mech3::OptionsState*>(now);
         auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
         if (!g) return;
+        g->controls.on_left_up();
+        stage = 12;
+      } else if (stage == 12) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* c = os ? dynamic_cast<mech3::ControlsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!c) return;
+        out.ctl_accept = c->accept.get_rect()->left;
+        out.ctl_reset = c->reset_mouse.get_rect()->left;
+        out.ctl_keys = c->key_a.get_rect() ? c->key_a.get_rect()->left : c->key_a.get_x();
+        if (c->lines.image) out.ctl_lines_w = c->lines.image->width;
+        c->cancel.on_left_up();
+        stage = 13;
+      } else if (stage == 13) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
         mech3::options().in_game_vmode = 5;  // 640x480 picked in the menus (GRAPHICS' ACCEPT): for the next start
         g->back.on_left_up();
         stage = 2;
@@ -16225,6 +16242,12 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               on.gfx_accept, off.gfx_resolution, on.gfx_resolution, off.shadows_value, on.shadows_value);
   EXPECT(off.gfx_accept > 0 && on.gfx_accept == off.gfx_accept + extra && on.gfx_resolution == off.gfx_resolution);
   EXPECT(off.shadows_value != -1 && on.shadows_value == off.shadows_value);
+  // Controls: the table one block in the middle, ACCEPT right, the DEFAULT
+  // buttons left, LINES stretched below the table out to ACCEPT and CANCEL.
+  std::printf("controls: ACCEPT %d / %d, MOUSE/KEYBD DEFAULT %d / %d, KEY A %d / %d, LINES %d / %d wide\n", off.ctl_accept,
+              on.ctl_accept, off.ctl_reset, on.ctl_reset, off.ctl_keys, on.ctl_keys, off.ctl_lines_w, on.ctl_lines_w);
+  EXPECT(off.ctl_accept > 0 && on.ctl_accept == off.ctl_accept + extra && on.ctl_reset == off.ctl_reset);
+  EXPECT(on.ctl_keys == off.ctl_keys + extra / 2 && on.ctl_lines_w == off.ctl_lines_w + extra - extra / 2);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to
