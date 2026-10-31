@@ -60,7 +60,12 @@ cmake_build() {  # source dir, then its options
 }
 
 unpack SDL3-3.4.12.tar.gz
-cmake_build "$WORK/src/SDL3-3.4.12" -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+# Linux: XTest only feeds synthetic input; without its headers SDL refuses
+# to configure X11 (docs/linux.md).
+SDL_EXTRA=()
+[ "$PLATFORM" = linux ] && SDL_EXTRA+=(-DSDL_X11_XTEST=OFF)
+cmake_build "$WORK/src/SDL3-3.4.12" -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
+  ${SDL_EXTRA[@]+"${SDL_EXTRA[@]}"}
 echo "built SDL3"
 
 # FreeType inside SDL3_ttf (static, position-independent), with none of its
@@ -117,7 +122,9 @@ if [ "$PLATFORM" = mac ]; then
     sed "s|$WORK/ffmpeg-arm64|$PREFIX|g" "$f" > "$PREFIX/lib/pkgconfig/$(basename "$f")"
   done
 else
-  ff_build "$PREFIX" --enable-pic --extra-ldflags='-Wl,-rpath,$$ORIGIN'
+  # Without nasm FFmpeg's x86 assembly is left out (the Indeo decoder a little slower).
+  asm=(); command -v nasm >/dev/null || asm=(--disable-x86asm)
+  ff_build "$PREFIX" --enable-pic --extra-ldflags='-Wl,-rpath,$$ORIGIN' ${asm[@]+"${asm[@]}"}
 fi
 echo "built FFmpeg"
 echo "prefix: $PREFIX"

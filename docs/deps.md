@@ -10,7 +10,7 @@ x86_64 + arm64, minimum macOS 12.0, named `@rpath/<file>`, loading only the
 system and each other. The app (`make_app.sh --deps`) bundles SDL3,
 SDL3_ttf and SDL3_sound for mw3 and the four FFmpeg dylibs for mw3import. FreeType 2.13.2's `cmake_minimum_required` predates
 3.5, which CMake 4 refuses, so its build raises the policy floor
-(`-DCMAKE_POLICY_VERSION_MINIMUM=3.5`). Linux: not run yet.
+(`-DCMAKE_POLICY_VERSION_MINIMUM=3.5`). Linux: run in WSL (Ubuntu 24.04) on 2026-10-31 at `JOBS=6`, all pins matched (docs/linux.md).
 
 | Source | sha256 (pinned) | Checked against |
 |---|---|---|

@@ -145,6 +145,11 @@ class SdlPump : public platform::MessagePump {
   static Uint32 music_event();  // the user event SdlMusicOutput posts at a file's end
   // Ours: the window gained (true) or lost the focus (the sound mutes).
   std::function<void(bool)> focus_changed;
+  // Ours: a run that ends by itself (--frames, --shot, a chain) stays active
+  // when its window loses focus; the original's pause on deactivation
+  // (0x00590c00) is for play. A check started behind another app, or on a
+  // window the launcher handed over unfocused, idled for good otherwise.
+  bool stays_active = false;
   // Ours: Alt+Enter, swallowed before the game sees the Enter.
   std::function<void()> toggle_fullscreen;
 

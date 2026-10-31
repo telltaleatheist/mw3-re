@@ -420,12 +420,13 @@ These change how the game talks to the computer, not how it plays.
 - Changing the resolution in the middle of a mission gives the view the new shape (the original never needed to: all its sizes were 4:3), and the options reached from a mission stay in their places at any resolution.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
-- An option for 16:9 menus (`--wide-menus`, off by default, being built one
-  screen at a time): the menus open at the in-mission size, their buttons
-  spread to the sides of the screen with their labels and lines, and the
-  backgrounds filled out to the edges from the player's own art as the game
-  runs (nothing on disk changes). A size picked in the menus takes effect
-  for the menus at the next start.
+- On screens refreshing at 120 Hz or more, the main menu's buttons' ripple spreads as it should (it stayed a dot: each frame's growth rounded down to nothing).
+- 16:9 menus: at a widescreen in-mission size the menus open at that size
+  too, their buttons spread to the sides of the screen with their labels and
+  lines, and the backgrounds filled out to the edges from the player's own
+  art as the game runs (nothing on disk changes). On by default; `widemenus=0`
+  in mw3.cfg or `--no-wide-menus` keeps the original's 4:3 menus. A size
+  picked in the menus takes effect for the menus at the next start.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 

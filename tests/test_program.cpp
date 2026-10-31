@@ -17464,6 +17464,9 @@ struct OptionsPlace {
 };
 OptionsPlace c1m1_options_place(int32_t mode) {
   OptionsPlace out;
+  // The 4:3 menus' frame is what this pins (wide menus, on by default, off).
+  const bool wide = zfix::options().wide_menus;
+  zfix::options().wide_menus = false;
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3_GAME_DIR);
@@ -17566,6 +17569,7 @@ OptionsPlace c1m1_options_place(int32_t mode) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+  zfix::options().wide_menus = wide;
   return out;
 }
 }  // namespace
@@ -17867,6 +17871,32 @@ WideMenus wide_menus_run(bool wide) {
   return out;
 }
 }  // namespace
+
+// 16:9 menus are on by default (Owen, 2026-10-31): with nothing set, the
+// menus take a wide in-mission mode (13: 853x480), and stay 640x480 (mode 5)
+// when that mode is 4:3 (5, or 10: 1600x1200); widemenus=0 or
+// --no-wide-menus turn it off.
+TEST(menus_wide_by_default_at_16_9_only) {
+  const zfix::Options keep = zfix::options();
+  zfix::options() = zfix::Options{};
+  EXPECT(zfix::options().wide_menus);
+  struct ModeEngine : mech3::Engine {
+    int32_t mode = 5;
+    int32_t in_game_vmode() override { return mode; }
+  };
+  auto menus_at = [](int32_t m) {
+    ModeEngine e;
+    e.mode = m;
+    return e.menu_vmode();
+  };
+  zfix::options().any_resolution = true;
+  const int32_t wide = menus_at(13), plain = menus_at(5), tall = menus_at(10);
+  zfix::options().wide_menus = false;
+  const int32_t off = menus_at(13);
+  std::printf("menus' mode with the in-mission 13: %d (off: %d); with 5: %d; with 10: %d\n", wide, off, plain, tall);
+  EXPECT(wide == 13 && plain == 5 && tall == 5 && off == 5);
+  zfix::options() = keep;
+}
 
 TEST(menus_wide_spread_by_their_groups_headless) {
   if (!have_game()) return;
