@@ -2207,7 +2207,20 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - Branches stacked: mac4/w31-jets (c967cb18) <- mac4/w33-reticle
   (99c4f4af) <- mac4/w34-ally-missiles (f27414ce W31 revision, then W34);
   merging w34 brings all three.
-- Pending at the compaction: the full mw3tests run on the W34 tree (output
-  in the session scratchpad, w34-all.txt). Any pinned AI test it fails is
-  moved by the slower firing: check that it still means what it says,
-  re-pin it, commit, then report W34 to the lead and hold.
+- The full run on the W34 tree: 257 tests, 13 failed checks in 5 AI tests
+  (owens_runs_its_frames 8404/8410, lancemate_forms_up_only_in_training
+  9505, and the three c1m4 Dominic tests: takes_the_order 10661-10665,
+  fires_on_a_target 10997/10998, shoots_a_near_enemy_unordered
+  11309-11323). Not only pins: the Owens no longer fires on the player 30 m
+  off, and Dominic no longer fires on a near enemy (11319: firing 0).
+  Traced (the Owens): its volley plan is on a field base about 500 m off
+  whose line is blocked (from y 8 to a centroid at y -12, through the
+  ground); the plan's phase 2 passes (phase 2 skips ready()), phase 3
+  waits on ready() = the clear line for the 6 s delay, then rests 1 s and
+  the pick takes the same field base again, so the player 30 m off is
+  never taken. With the old zeros the delay ran out each tick and the pick
+  ran each tick, which is why the tests saw it fire. Open: whether the
+  pick (0x4b6790) choosing a blocked target over a near clear one is the
+  original's (its differential test passes) or our world state (the field
+  base's centroid underground, its zones). Held for the lead's call
+  before any re-pin; tree clean, W34 commit c333cd9e unchanged.
