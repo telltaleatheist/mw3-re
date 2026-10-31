@@ -387,3 +387,16 @@ works alongside it; stay out of its files.
   `sdl_held_mouse_keeps_the_cursor_hidden` drops SDL's relative mode
   behind SdlInput's back (3 checks fail without the fix).
 - Owen to confirm on the PC. Branch `mac5/w19-cursor-fix` off main d7831d08.
+
+## 25. W30: lasers at c2m3's start (2026-10-30)
+
+- Not reproduced on the Mac: `--briefing c2m3`, LAUNCH clicked at
+  (565,437); the first 35 frames show no shot. A scripted click lets go
+  the next frame. Read from the code: a press stays latched until a
+  mouse read takes it (the one-frame click fix), and a held button reads
+  down; either at the mission's first read is its fire. The exe's load
+  took seconds; ours is at once.
+- Fix: into a mission (SdlInput::refresh) a latched press is dropped and a
+  held button is swallowed until let go. `sdl_mission_start_drops_the_launch_click`
+  (3 checks fail without). Owen to confirm. Branch `mac5/w30-launch-fire`
+  off main d1e5b9e6.
