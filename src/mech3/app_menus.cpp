@@ -112,20 +112,58 @@ void widen_background(ztwod::Image& im, int32_t extra) {
 }
 }  // namespace
 
-void GameEngine::widen_screen(MenuScreen* s) {
+namespace {
+// A screen's groups (in its 640x480 frame) and where each goes on a wide
+// canvas: an object whose middle is inside a group moves with it, the rest
+// stay one block in the middle with the background. Screens not listed are
+// all one block. Whole groups, so a button's sphere and its label (separate
+// objects) move together.
+enum Anchor { kLeft, kCentre, kRight };
+struct Group {
+  int32_t x0, y0, x1, y1;
+  Anchor anchor;
+};
+struct ScreenGroups {
+  uint32_t ctor;  // the screen's constructor (GameEngine::construct)
+  std::vector<Group> groups;
+};
+const std::vector<ScreenGroups>& screen_groups() {
+  static const std::vector<ScreenGroups> k = {
+      // The main menu: its column of buttons at the left edge, CREDITS and
+      // QUIT and the version line at the right.
+      {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
+      // The game options: the settings' panel left, the screens' box,
+      // ACCEPT and BACK right.
+      {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}},
+  };
+  return k;
+}
+}  // namespace
+
+void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
   const int32_t extra = buffer_width() - 640;
-  if (!s || extra <= 0 || !zfix::options().any_resolution) return;
+  if (!s || extra <= 0 || !zfix::options().any_resolution || !zfix::options().wide_menus) return;
+  const ScreenGroups* table = nullptr;
+  for (const ScreenGroups& g : screen_groups())
+    if (g.ctor == ctor) table = &g;
   for (ztwod::Object2D* o = s->head; o; o = o->next) {
     const ztwod::Rect* r = o->get_rect();
-    if (!r) continue;
-    const int32_t left = r->left - s->origin_x, right = r->right - s->origin_x;
+    const int32_t left = (r ? r->left : o->get_x()) - s->origin_x, right = (r ? r->right : o->get_x()) - s->origin_x;
+    const int32_t top = (r ? r->top : o->get_y()) - s->origin_y, bottom = (r ? r->bottom : o->get_y()) - s->origin_y;
     auto* im = dynamic_cast<ztwod::Image*>(o);
     if (im && right - left >= 600) {
       widen_background(*im, extra);
       continue;
     }
-    const int32_t mid = (left + right) / 2;
-    const int32_t off = mid < 213 ? 0 : mid > 427 ? extra : extra / 2;
+    Anchor a = kCentre;
+    const int32_t mx = (left + right) / 2, my = (top + bottom) / 2;
+    if (table)
+      for (const Group& g : table->groups)
+        if (mx >= g.x0 && mx < g.x1 && my >= g.y0 && my < g.y1) {
+          a = g.anchor;
+          break;
+        }
+    const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
     if (off) o->set_pos(o->get_x() + off, o->get_y());
   }
 }
@@ -146,7 +184,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   auto screen = [&](uint32_t size, MenuScreen* (*make)(GameEngine&, Handle)) {
     const Handle h = alloc_block(size);
     screens_[h] = {make(*this, a0), size};
-    if (ctor != 0x492750) widen_screen(screens_[h].screen);
+    if (ctor != 0x492750) widen_screen(screens_[h].screen, ctor);
     return h;
   };
   auto state = [&](MenuState* (*make)(Handle)) {
