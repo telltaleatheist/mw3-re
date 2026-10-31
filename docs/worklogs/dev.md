@@ -2279,3 +2279,25 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   /ENTRY:mainCRTStartup; with no console the output goes to mw3.log
   (sdl_child.cpp log_to_file) and the helpers start windowless
   (start_child, SDL's background process). mingw compile-checked only.
+
+## The W31/W33/W34 stack on main (2026-10-31)
+
+- main (ffef80f0) merged into mac4/w34-ally-missiles (49643747; playtest.md
+  and dev.md rows from both sides). Two checks failed there, both from W34's
+  real waits meeting main's newer runs, neither a game fault:
+  - mission_c3m1_field_bases_repair_the_player_twice, bugs 1: the repair
+    restores everything (1.00 / 1.00 the frame step 4 ends, both runs); the
+    test read the wear at the rest, about 5 s later, and c3m1's Clanners
+    (three, the "Clanner" pilots) fire on the player all through the dock.
+    With the zero waits they hit him even more while docking (internals
+    0.24) but no shot fell in that window; with the real ones one does (0.99
+    / 0.87). The test now reads the wear when step 4 ends and prints the
+    rest's beside it. Break: the repair skipping a torso section's internals
+    is caught.
+  - sdl_program_training_chain, t1m2 lesson 12 (target_object
+    bushwacker_02): the driver faces the target level at its origin and
+    presses Q; the reticle's centre line met its left calf with the zero
+    waits (yaw_sin -0.840) and with the real ones, the Bushwacker standing
+    about 30 degrees differently (-0.952), passed between its legs to the
+    ground behind (g8767, 393 m). The driver now alternates Q with the
+    next enemy (E), as a player would.

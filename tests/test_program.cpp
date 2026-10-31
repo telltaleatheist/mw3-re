@@ -5097,6 +5097,7 @@ struct RepairRun {
   std::vector<int> fronts;
   mech3::MechWear worn, after[2];
   int done = 0;
+  mech3::MechWear rest[2];  // at the rest after each (c3m1's Clanners fire on him meanwhile)
 };
 RepairRun c3m1_repair_run(bool bugs) {
   RepairRun out;
@@ -5149,6 +5150,10 @@ RepairRun c3m1_repair_run(bool bugs) {
       void* player = mech3::mech_mission_player();
       const mech3::DockSummary d = mech3::program_dock_summary();
       if (d.front != last_front) {
+        // The repair done (step 4 over): the wear then, before anyone's next
+        // shot; read at the rest after it, c3m1's enemies hit him meanwhile.
+        if (last_front == 4 && out.repairs >= 1 && out.repairs <= 2)
+          out.after[out.repairs - 1] = mech3::program_mech_wear(player);
         out.fronts.push_back(d.front), last_front = d.front;
         if (d.front == 4) ++out.repairs;
       }
@@ -5171,7 +5176,7 @@ RepairRun c3m1_repair_run(bool bugs) {
           break;
         case 1:  // the first repair done
           if (out.repairs == 1 && rest) {
-            out.after[0] = mech3::program_mech_wear(player), out.done = 1;
+            out.rest[0] = mech3::program_mech_wear(player), out.done = 1;
             mech3::mech_power(player, 0);
             put(player, point[0] + 40.0f, point[2]);  // off the point
             mech3::program_mech_wear_down(player, 0.5f, 0.5f);
@@ -5189,7 +5194,7 @@ RepairRun c3m1_repair_run(bool bugs) {
           }
           if (frames == at + 61 && d.front != 7) mech3::program_mcb_command(player);
           if (frames > at + 61 && d.front == 2) put(player, point[0], point[2]), mech3::mech_power(player, 1);
-          if (out.repairs == 2 && rest) out.after[1] = mech3::program_mech_wear(player), out.done = 2, phase = 9;
+          if (out.repairs == 2 && rest) out.rest[1] = mech3::program_mech_wear(player), out.done = 2, phase = 9;
           break;
         default: break;
       }
@@ -5218,11 +5223,15 @@ TEST(mission_c3m1_field_bases_repair_the_player_twice_headless) {
   if (!have_game()) return;
   for (const bool bugs : {true, false}) {
     const RepairRun r = c3m1_repair_run(bugs);
-    std::printf("  bugs %d: bases %d, repairs %d, worn armour %.2f internals %.2f; after 1: %.2f %.2f; after 2: %.2f %.2f; fronts",
-                bugs, r.bases, r.repairs, r.worn.armor, r.worn.internal, r.after[0].armor, r.after[0].internal, r.after[1].armor,
-                r.after[1].internal);
+    std::printf("  bugs %d: bases %d, repairs %d, worn armour %.2f internals %.2f; after 1: %.2f %.2f (rest %.2f %.2f); after 2: "
+                "%.2f %.2f (rest %.2f %.2f); fronts",
+                bugs, r.bases, r.repairs, r.worn.armor, r.worn.internal, r.after[0].armor, r.after[0].internal, r.rest[0].armor,
+                r.rest[0].internal, r.after[1].armor, r.after[1].internal, r.rest[1].armor, r.rest[1].internal);
     for (int f : r.fronts) std::printf(" %d", f);
     std::printf("\n");
+    // Full the frame each repair ends. At the rest after it (the dock's last
+    // steps, about 5 s) c3m1's Clanners may have hit him again: since the AI's
+    // real waits (W34) a shot lands there after the second (0.99 / 0.87).
     EXPECT(r.bases && r.done >= 1 && r.after[0].internal == 1.0f && r.after[0].armor == 1.0f);
     if (bugs) EXPECT(r.done == 2 && r.after[1].internal == 1.0f && r.after[1].armor == 1.0f);
   }
