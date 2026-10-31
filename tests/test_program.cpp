@@ -16558,6 +16558,9 @@ TEST(mission_c1m1_mode_change_moves_the_2d_target_headless) {
 // Action's game (0x00436a30, 0x004368b0) gave none. Its slots now: the
 // player's mech first, then the line-up.
 TEST(instant_action_lab_has_the_players_mech_headless) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(temp_dir("ia_lab_write"));  // the pilot saves itself
   FakeWindow window;
   FakeAlert alert;
   FakeClock clock;
