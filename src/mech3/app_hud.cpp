@@ -527,6 +527,11 @@ struct ProgramHudHooks : HudHooks {
     if (o) mech_pos(mech_of(o), out);
     else out[0] = out[1] = out[2] = 0.0f;
   }
+  bool object_radar_place(void* o, float out[3]) override {  // ours (W32)
+    if (!o || !hud_object_is_target(o)) return false;
+    hud_object_centroid(o, out);
+    return true;
+  }
   void* object_blip(void* o, int32_t kind) override {  // vt+0x3c
     void* b = o ? hud_object_blip(o, kind) : nullptr;
     if (b && hud_object_is_field_base(o)) ++field_base_blips[kind == 0 ? 0 : 1];
@@ -1122,6 +1127,7 @@ bool program_hud_report(HudReport* r) {
   r->shape_x = h->target.shape1.translation[0];
   r->radar_shown = !(h->radar.flags & ztwod::kHidden);
   r->radar_r = h->radar.radius, r->radar_x = h->radar.get_x(), r->radar_y = h->radar.get_y();
+  r->radar_target_x = h->radar.target_at[0], r->radar_target_y = h->radar.target_at[1], r->radar_target_draws = h->radar.target_draws;
   r->blips = g_hooks.drawn[0], r->blip_x = g_hooks.blip_at[0], r->blip_y = g_hooks.blip_at[1];
   r->vehicle_blips = g_hooks.drawn[1], r->turret_blips = g_hooks.drawn[2], r->target_blips = g_hooks.drawn[3];
   r->markers = g_hooks.drawn[4];

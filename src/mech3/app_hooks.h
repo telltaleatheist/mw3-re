@@ -55,7 +55,7 @@ class Engine : public zgame::AppHooks {
   // The options ([0x005f4d10], [0x005f4d2c], [0x005f4d30]), ported.
   virtual int32_t in_game_vmode();
   // Ours: the menus' mode, 5 (the exe's 640x480), or with wide_menus the
-  // mission's mode when it has a wider canvas (16:9). Chosen once, at the
+  // mission's mode when its canvas is wider than 4:3 (16:9). Chosen once, at the
   // start-up: the menu screens are laid out for it when made, so a mode
   // picked in the menus applies to them at the next start.
   int32_t menu_vmode();

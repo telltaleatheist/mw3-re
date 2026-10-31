@@ -420,12 +420,13 @@ These change how the game talks to the computer, not how it plays.
 - Changing the resolution in the middle of a mission gives the view the new shape (the original never needed to: all its sizes were 4:3), and the options reached from a mission stay in their places at any resolution.
 - The pause screen and the quit box over a mission at the new sizes are
   centred and drawn at the same scale as the HUD.
-- An option for 16:9 menus (`--wide-menus`, off by default, being built one
-  screen at a time): the menus open at the in-mission size, their buttons
-  spread to the sides of the screen with their labels and lines, and the
-  backgrounds filled out to the edges from the player's own art as the game
-  runs (nothing on disk changes). A size picked in the menus takes effect
-  for the menus at the next start.
+- On screens refreshing at 120 Hz or more, the main menu's buttons' ripple spreads as it should (it stayed a dot: each frame's growth rounded down to nothing).
+- 16:9 menus: at a widescreen in-mission size the menus open at that size
+  too, their buttons spread to the sides of the screen with their labels and
+  lines, and the backgrounds filled out to the edges from the player's own
+  art as the game runs (nothing on disk changes). On by default; `widemenus=0`
+  in mw3.cfg or `--no-wide-menus` keeps the original's 4:3 menus. A size
+  picked in the menus takes effect for the menus at the next start.
 
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 
@@ -551,3 +552,4 @@ Known quirks the rebuild deliberately keeps:
 - Every mech's engine tops out at 400.
 - Jump jets lift you when you fire them walking uphill at more than 30 fps (the original could skim the ground with its jets burning).
 - The reticle turns yellow over a target out to your selected weapons' range, past 800 m (the ER large laser, ER PPC, Gauss rifle and others reach further); the original stopped looking at 800 m (bug fixes on).
+- A targeted building such as the Clan HQ in mission c3m1 shows on the radar and the map where it stands; the original pointed it at the map's zero point instead (bug fixes on).

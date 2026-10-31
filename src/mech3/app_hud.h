@@ -38,6 +38,7 @@ struct HudReport {
   // The radar: shown, its radius and centre, the blips drawn since the last
   // report and the last one's place, the sensor range.
   int radar_shown = 0, radar_r = 0, radar_x = 0, radar_y = 0, blips = 0, blip_x = 0, blip_y = 0;
+  int radar_target_x = 0, radar_target_y = 0, radar_target_draws = 0;  // the selected target's triangle
   int markers = 0;  // the waypoint marker's draws (its icon, not a contact's blip)
   // The other classes' blips drawn (blips counts the mechs'), by their images:
   // the basic vehicles' 0x004ac3d0, the turrets' and targets.zrd's markers.

@@ -288,6 +288,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")  # clang-cl
   target_compile_options(mw3core PRIVATE /clang:-ffp-contract=off)
 endif()
 
+# Linked into the shared probe below: position-independent (the Mac's default;
+# GCC on Linux needs it asked for, docs/linux.md).
+set_target_properties(mw3core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
 add_library(mw3probe SHARED
@@ -539,9 +543,10 @@ if(SDL3_FOUND)
     target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3 PRIVATE MW3_VERSION="${MW3_VERSION}")
     # The launcher's art (assets/launcher) in a development build; a package
-    # carries it beside the exe (tools/windows/package.cmd).
-    target_compile_definitions(mw3 PRIVATE MW3_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+    # carries it beside the exe (tools/windows/package.cmd) or in the app's
+    # Resources (tools/macos/make_app.sh), and keeps no path of this machine.
     if(NOT MW3_PACKAGE)
+      target_compile_definitions(mw3 PRIVATE MW3_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
       target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")
     endif()
     # Windows: the version resource and our placeholder icon (tools/windows).
@@ -625,6 +630,9 @@ if(SDL3_FOUND)
   if(MW3_FFMPEG)
     add_executable(mw3import tools/import/mw3import.cpp)
     target_link_libraries(mw3import PRIVATE mw3core ${MW3_FFMPEG} SDL3::SDL3)
+    # FFmpeg's headers by -I, not -isystem: a stray FFmpeg in /usr/local/include
+    # (another major version) otherwise wins over them and the structs disagree.
+    set_target_properties(mw3import PROPERTIES NO_SYSTEM_FROM_IMPORTED ON)
     target_compile_definitions(mw3import PRIVATE MW3_VERSION="${MW3_VERSION}")
     if(NOT MW3_PACKAGE)
       target_compile_definitions(mw3import PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}")

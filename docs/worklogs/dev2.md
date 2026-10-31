@@ -557,3 +557,21 @@ works alongside it; stay out of its files.
      --nosound, MW3_LAUNCHER_MUTE for the test);
   5. the first-start notes inside it: done (kNotes screen, launcher_notes.cpp,
      have_music; sounds load on any screen).
+
+## 34. Linux (2026-10-31, mac5/linux)
+
+- Built in WSL2 (Ubuntu 24.04) on Owen's PC, all under ~/mw3-linux (src,
+  prefix, deps, build, game copy). GCC fixes, PIC mw3core, the finder's
+  Wine/Proton/Lutris places, Linux launcher fonts, make-appimage.sh,
+  docs/linux.md. mw3tests 262/262, mw3sdltests 46/46 (one at a time,
+  run_capped --mem-gb 5, 7 for the screens test).
+- The hidden-frame fence in SdlRender3D::present (software Vulkan fell
+  behind, 200 MB/s); SDL_SyncWindow after a resize.
+- build_deps.sh linux (minimal LGPL FFmpeg, Owen's permission rule) into
+  src/build-deps/linux/prefix; the AppImage bundles mw3import; --import
+  --movie INTRO converted 19 movies and played the intro.
+- My unthrottled SDL run OOM'd WSL (13 GB cap) and broke WSL's service until
+  Owen's wsl --shutdown. WSL stops a distro with no wsl.exe client attached:
+  run jobs attached, never nohup.
+- Then the README for players, docs/building.md, docs/release.md. Queue
+  empty: waiting for Owen's playtest or a merge problem.
