@@ -2117,3 +2117,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   clears, copy/assign copy; the other +0x238 writes are other classes').
   twod.md section 4 corrected; the census note for 0x00519e50 says
   "drawn or measured". Nothing to port.
+
+## W20, the jump jets' lighting (2026-10-30)
+
+- Branch mac4/w20-jet-fog (off main d7831d0). The jets' anim (jumpjets)
+  decoded: puffs and two saturated flicker lights only outside the
+  cockpit (anim block +0x3c) or for a mech over 13 m away. Found and fixed
+  the GPU layer's fog colour: per draw (Run::fog), not the frame's last;
+  test with a break. Owen's case not reproduced (one fog colour every
+  frame in c1m1/c2m1/c3m1 with a Thor's jets, cockpit and outside): asked
+  for his view and mission. The Mad Cat (the debug start's default) has
+  no jets; the jets' key is J (0x24).
