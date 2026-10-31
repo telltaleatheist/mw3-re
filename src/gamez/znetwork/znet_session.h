@@ -11,13 +11,35 @@
 // puts a Transport of ours under them (FIX (A): DirectPlay is gone).
 namespace znet {
 
+// The session a host makes and the others join (DPSESSIONDESC2's parts the
+// game reads: its name, the player limit and the lobby's words).
+struct SessionDesc {
+  std::string name;
+  uint32_t max_players = 8;
+  uint32_t user[4] = {};  // dwUser1..4: the lobby's settings (0x00586ed0, 0x00586f20)
+};
+
+// One of DirectPlay's system events as the transport gives it (the DPMSG_*
+// fields the translation 0x00588a70 reads; multiplayer-port.md section 3:
+// fields, not the exe's struct with its pointers).
+struct SystemEvent {
+  uint32_t kind = 0;         // a SystemKind
+  uint32_t player_type = 0;  // DPPLAYERTYPE_: 1 a player, 2 a team
+  uint32_t id = 0;           // the player or team (add / delete from a team: the player)
+  uint32_t group = 0;        // add / delete from a team: the team
+  std::string short_name, long_name;  // create: DPNAME's
+  uint32_t msg_id = 0, send_time = 0;  // send done
+  SessionDesc desc;          // set session desc
+};
+
 // What a transport hands up: a message from a player, or (from 0) one of
 // DirectPlay's system events, which the poll turns into MW3 messages 2..0xe
 // (network-messages.md, Local only).
 struct Packet {
   uint32_t from = 0;  // the sender's player id; 0 a system event
   uint32_t to = 0;    // 0 every player (DPID_ALLPLAYERS), else one player or a team
-  std::vector<uint8_t> data;
+  std::vector<uint8_t> data;  // a system event's: its kind and id words (so the poll's size check passes)
+  SystemEvent sys;
 };
 
 // A system event's payload (ours; from 0): its kind, then the player or
@@ -33,14 +55,6 @@ enum SystemKind : uint32_t {
   kSysSetPlayerOrGroupName = 0x0103,
   kSysSetSessionDesc = 0x0104,
   kSysSendComplete = 0x010d,
-};
-
-// The session a host makes and the others join (DPSESSIONDESC2's parts the
-// game reads: its name, the player limit and the lobby's words).
-struct SessionDesc {
-  std::string name;
-  uint32_t max_players = 8;
-  uint32_t user[4] = {};  // dwUser1..4: the lobby's settings (0x00586ed0, 0x00586f20)
 };
 
 // The platform's side: one machine's place in a session.
@@ -59,12 +73,19 @@ class Transport {
   virtual bool receive(Packet* out) = 0;
   // Whether sends may be asynchronous (DPCAPS's, [0x00730765]).
   virtual bool async_sends() const { return true; }
+  // The local player's names, before host or join (CreatePlayer's DPNAME).
+  virtual void set_name(const std::string& short_name, const std::string& long_name) {
+    (void)short_name, (void)long_name;
+  }
+  // Whether a player is the session's host (GetPlayerCaps' DPCAPS_ISHOST).
+  virtual bool is_host(uint32_t id) const { (void)id; return false; }
 };
 
 // The local player's record, [0x0073075c] (0xec bytes in the exe; its id at
 // +4, the rest with the players' lists, multiplayer-port.md piece 3).
 struct Player {
-  uint32_t id = 0;  // +0x04
+  uint8_t is_host = 0;  // +0x00  set on DPSYS_HOST (0x00588ec9)
+  uint32_t id = 0;      // +0x04
 };
 
 // A message handler: the sender and the message (its type word first, then
@@ -85,6 +106,7 @@ struct Session {
   bool async = false;         // [0x00730765]  sends asynchronous
   uint32_t host_id = 0;       // [0x00730760]  the host's player id
   std::unique_ptr<Player> local;  // [0x0073075c]
+  SessionDesc desc;               // [0x00730730]'s description (DPSYS_SETSESSIONDESC, 0x00587740)
   Transport* transport = nullptr;  // [0x00730724]'s place
   std::vector<HandlerEntry> handlers;  // [0x00730794] (a std::list), its count [0x00730798]
   int dispatching = 0;                 // ours: handlers removed meanwhile are erased after

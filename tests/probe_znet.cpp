@@ -1,5 +1,6 @@
 // zNetwork's session checks and its send (multiplayer-port.md piece 1) for
 // tests/differential/test_znet_session.py.
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -132,4 +133,80 @@ extern "C" int32_t probe_znet_poll(int32_t max, const int32_t* queue, int32_t n,
   const int32_t logged_n = g_logged;
   znet::session() = znet::Session{};
   return logged_n + 2;
+}
+
+// The system events' translation (piece 3): events of six words (kind,
+// player type, id, team, name number, the id's DPCAPS_ISHOST) applied in
+// order with the local player `local_id`; the log: (1, type, size, sender)
+// for each local message, (2, to, guaranteed, size, type) for each send,
+// then (3, count) and each player (id, is_host, team, short and long names'
+// numbers), (4, count) and each team (id, name number).
+#include "gamez/znetwork/znet_dplay.h"
+namespace {
+struct Caps : znet::Transport {
+  std::vector<uint32_t> hosts;
+  std::vector<int32_t>* log = nullptr;
+  uint32_t host(const znet::SessionDesc&) override { return 0; }
+  uint32_t join(const std::string&) override { return 0; }
+  void close() override {}
+  bool send(uint32_t to, const void* d, size_t n, bool g, uint32_t*) override {
+    uint16_t type = 0;
+    std::memcpy(&type, d, 2);
+    log->insert(log->end(), {2, static_cast<int32_t>(to), g ? 1 : 0, static_cast<int32_t>(n), type});
+    return true;
+  }
+  bool receive(znet::Packet*) override { return false; }
+  bool is_host(uint32_t id) const override {
+    for (uint32_t h : hosts)
+      if (h == id) return true;
+    return false;
+  }
+};
+std::vector<int32_t>* g_events_log = nullptr;
+void any(uint32_t from, const uint8_t* msg, size_t size) {
+  uint16_t type, sz;
+  std::memcpy(&type, msg, 2);
+  std::memcpy(&sz, msg + 2, 2);
+  (void)size;
+  g_events_log->insert(g_events_log->end(), {1, type, sz, static_cast<int32_t>(from)});
+}
+int32_t number(const std::string& s) { return std::atoi(s.c_str() + (s.rfind("Player ", 0) == 0 ? 7 : 1)); }
+}  // namespace
+
+extern "C" int32_t probe_znet_events(const int32_t* ev, int32_t n, uint32_t local_id, uint32_t host_id, int32_t* out,
+                                     int32_t cap) {
+  std::vector<int32_t> log;
+  Caps t;
+  t.log = &log;
+  for (int32_t i = 0; i < n; ++i)
+    if (ev[6 * i + 5]) t.hosts.push_back(static_cast<uint32_t>(ev[6 * i + 2]));
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.host_id = host_id;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = local_id;
+  g_events_log = &log;
+  for (uint16_t ty = 2; ty <= 0xe; ++ty) znet::on(ty, &any);
+  for (int32_t i = 0; i < n; ++i) {
+    znet::Packet p;
+    znet::SystemEvent& e = p.sys;
+    e.kind = static_cast<uint32_t>(ev[6 * i]), e.player_type = static_cast<uint32_t>(ev[6 * i + 1]);
+    e.id = static_cast<uint32_t>(ev[6 * i + 2]), e.group = static_cast<uint32_t>(ev[6 * i + 3]);
+    e.short_name = "P" + std::to_string(ev[6 * i + 4]);
+    e.long_name = "Player " + std::to_string(ev[6 * i + 4]);
+    znet::system_message(p);
+  }
+  log.insert(log.end(), {3, static_cast<int32_t>(znet::lists().players.size())});
+  for (auto& r : znet::lists().players)
+    log.insert(log.end(), {static_cast<int32_t>(r->id), r->is_host, static_cast<int32_t>(r->team), number(r->short_name),
+                           number(r->long_name)});
+  log.insert(log.end(), {4, static_cast<int32_t>(znet::lists().teams.size())});
+  for (auto& tm : znet::lists().teams) log.insert(log.end(), {static_cast<int32_t>(tm->id), number(tm->name)});
+  log.push_back(s.local ? s.local->is_host : -1);
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(log.size(), static_cast<size_t>(cap)));
+  std::copy(log.begin(), log.begin() + m, out);
+  return m;
 }

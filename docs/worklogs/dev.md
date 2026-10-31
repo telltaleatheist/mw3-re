@@ -2196,3 +2196,21 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   buffer through DPERR_BUFFERTOOSMALL and the IAT realloc. Pitfalls met: the
   emulator's heap rewinds at begin(), so the fake object goes after it; and
   0x49bfd0 is Emulated's ZERR stub already (a second hook returns twice).
+
+## Multiplayer, piece 3a: players, teams, the translation (2026-10-31)
+
+- znet_dplay.{h,cpp}: PlayerRecord / TeamRecord / lists(), player,
+  player_name, each_player / each_team, system_message (0x588a70, read from
+  the disassembly: Ghidra folds the local message's words), network_error
+  (0x58ae10), on_host (0x586d50). Session gains desc, Player is_host; the
+  transport gains set_name and is_host; Packet a SystemEvent (the hub fills
+  it; its old words kept). initialise wires 0xd and the translation; the
+  shutdown empties the lists. The engine's lobby_player_name wired.
+- 0x588a70's details: DPMSG_CREATEPLAYERORGROUP's DPNAME at +0x18 (short
+  +0x20, long +0x24), add/delete group +4 / player +8; the host's 0xd on
+  every arrival (even a known one); destroy dispatches before unlinking;
+  SESSIONLOST is "MSG_DPERR_SESSIONLOST" by 0x575fb0 (zutl::localize).
+- test_znet_players.py: DPMSG structs in the emulator, fake GetPlayerCaps
+  and SendEx, strncpy stubbed at its IAT slot 0x5bb648, 0x575fb0 answering
+  its name; 250 sequences identical. My probe's first name parse was wrong
+  ("Player N" starts with P too); fixed in the probe.

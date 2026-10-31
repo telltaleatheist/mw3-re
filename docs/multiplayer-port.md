@@ -294,6 +294,36 @@ Then the two-process and soak tests over the whole flow, menus included.
   `znet_poll_over_the_hub` (a break caught). The system translation and the
   player and team lists moved into piece 3 (they are one function, 0x00588a70).
 
+- **Piece 3a** (2026-10-31): `gamez/znetwork/znet_dplay` (the exe's
+  znet_dplay.cpp): the player records (0xec bytes: byte 0 DPCAPS_ISHOST from
+  GetPlayerCaps 0x00589870, the id, the names at +0x44 and +0x94, the team at
+  +0xe4, -1 at +0xe8) and team records (0x54: the name, the id at +0x50) in
+  their lists ([0x007307ac], [0x007307bc]), 0x00589700 `player`, 0x00588a60
+  `player_name`, 0x005898b0 / 0x00589910 the walks, 0x00586d50 0xd's handler
+  (the sender is the host; registered at the set-up), 0x0058ae10
+  `network_error` (local type 0xc), and the translation 0x00588a70:
+  create (a player's record and type 3, then the host's 0xd, then 4; a team's
+  record and 4), destroy (6, or 7 for ourselves, then the record; a team's
+  players' team cleared, its record, 8), into a team (the record's team, 5),
+  out of one (2), data (9 a player, 0xa a team), name (0xb), host (the local
+  record's byte, 0xd to all and to ourselves), the session description,
+  send done (0xe), session lost (MSG_DPERR_SESSIONLOST as 0xc). System events
+  come from the transport as `SystemEvent` fields (section 3), not DPMSG
+  structs. Local type 2 carries the player (8 bytes as the exe's); 0xe the
+  send's id and time (12 bytes, the exe's 8 a pointer). The hub gives names,
+  the host's caps and a joiner the players already there. The program's
+  `lobby_player_name` is `player_name` ("" for none). Tests:
+  `test_znet_players.py` (250 random event sequences through the exe's own
+  translation, lists and dispatcher: every local message, send and list
+  after identical; two breaks caught), `znet_players_as_the_host`,
+  `znet_players_as_a_joiner` (a break caught).
+- Piece 3 was split: **3b** is the teams' and the data's calls (create,
+  join, leave and destroy a team 0x00588390 / 0x005884c0 / 0x00588500 /
+  0x00588590, the enumerations 0x00588200 / 0x00588300 / 0x005885c0 /
+  0x00588600, kicks 0x00588660 / 0x005886a0, the players' and teams' data
+  0x00589750 / 0x00589770 / 0x00589830 / 0x005897b0 / 0x005897f0) over the
+  transport.
+
 ## Open
 
 - The COM object at [0x007307e0] (CLSID 3faf0afe-...): what it is and

@@ -1,5 +1,7 @@
 #include "gamez/znetwork/znet_session.h"
 
+#include "gamez/znetwork/znet_dplay.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +19,7 @@ void initialise(Transport* t) {
   s.transport = t;
   s.initialised = t != nullptr;
   s.async = t && t->async_sends();
+  if (t) wire_players();  // 0x00586bfc's registration of 0xd, the translation
 }
 
 namespace {
@@ -164,6 +167,7 @@ void shutdown() {
   s.host_id = 0;
   s.local.reset();
   s.transport = nullptr;
+  clear_lists();  // 0x00587db0, 0x00587e30, 0x00587ed0
 }
 
 // ---------------------------------------------------------------------------
@@ -172,45 +176,61 @@ void shutdown() {
 struct Hub::Impl {
   struct End;
   std::vector<std::unique_ptr<End>> ends;
-  uint32_t next_id = 1, next_msg = 1;
+  uint32_t next_id = 1, next_msg = 1, host_id = 0;
   bool hosted = false;
-  void system(End* to, uint32_t kind, uint32_t about);
+  void system(End* to, const SystemEvent& e);
 };
 
 struct Hub::Impl::End : Transport {
   Hub::Impl* hub = nullptr;
   uint32_t id = 0;
+  std::string short_name, long_name;
   std::deque<Packet> inbox;
+  void set_name(const std::string& s, const std::string& l) override { short_name = s, long_name = l; }
+  bool is_host(uint32_t who) const override { return who && who == hub->host_id; }
   uint32_t host(const SessionDesc&) override {
     if (hub->hosted || id) return 0;
     hub->hosted = true;
-    return id = hub->next_id++;
+    return hub->host_id = id = hub->next_id++;
   }
   uint32_t join(const std::string&) override {
     if (!hub->hosted || id) return 0;
     id = hub->next_id++;
-    for (auto& e : hub->ends)
-      if (e.get() != this && e->id) hub->system(e.get(), kSysCreatePlayerOrGroup, id);
+    SystemEvent e;
+    e.kind = kSysCreatePlayerOrGroup, e.player_type = 1, e.id = id, e.short_name = short_name, e.long_name = long_name;
+    for (auto& o : hub->ends)
+      if (o.get() != this && o->id) hub->system(o.get(), e);
+    // The joiner hears of everyone already there, as DirectPlay's join does.
+    for (auto& o : hub->ends)
+      if (o.get() != this && o->id) {
+        SystemEvent k;
+        k.kind = kSysCreatePlayerOrGroup, k.player_type = 1, k.id = o->id, k.short_name = o->short_name,
+        k.long_name = o->long_name;
+        hub->system(this, k);
+      }
     return id;
   }
   void close() override {
     if (!id) return;
-    const uint32_t gone = id;
+    SystemEvent e;
+    e.kind = kSysDestroyPlayerOrGroup, e.player_type = 1, e.id = id;
     id = 0;
     inbox.clear();
-    for (auto& e : hub->ends)
-      if (e->id) hub->system(e.get(), kSysDestroyPlayerOrGroup, gone);
+    for (auto& o : hub->ends)
+      if (o->id) hub->system(o.get(), e);
   }
   bool send(uint32_t to, const void* data, size_t size, bool, uint32_t* msg_id) override {
     if (!id) return false;
     Packet p;
     p.from = id, p.to = to;
     p.data.assign(static_cast<const uint8_t*>(data), static_cast<const uint8_t*>(data) + size);
-    for (auto& e : hub->ends)
-      if (e.get() != this && e->id && (to == 0 || to == e->id)) e->inbox.push_back(p);
+    for (auto& o : hub->ends)
+      if (o.get() != this && o->id && (to == 0 || to == o->id)) o->inbox.push_back(p);
     if (msg_id) {
       *msg_id = hub->next_msg++;
-      hub->system(this, kSysSendComplete, *msg_id);
+      SystemEvent e;
+      e.kind = kSysSendComplete, e.id = id, e.msg_id = *msg_id;
+      hub->system(this, e);
     }
     return true;
   }
@@ -222,10 +242,12 @@ struct Hub::Impl::End : Transport {
   }
 };
 
-void Hub::Impl::system(End* to, uint32_t kind, uint32_t about) {
+void Hub::Impl::system(End* to, const SystemEvent& e) {
   Packet p;
+  p.sys = e;
+  const uint32_t about = e.kind == kSysSendComplete ? e.msg_id : e.id;
   p.data.resize(8);
-  std::memcpy(p.data.data(), &kind, 4);
+  std::memcpy(p.data.data(), &e.kind, 4);
   std::memcpy(p.data.data() + 4, &about, 4);
   to->inbox.push_back(std::move(p));
 }

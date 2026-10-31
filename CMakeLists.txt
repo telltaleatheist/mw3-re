@@ -53,6 +53,7 @@ add_library(mw3core STATIC
   src/gamez/zinput/zin_joy.cpp
   src/gamez/znetwork/znet_object.cpp
   src/gamez/znetwork/znet_session.cpp
+  src/gamez/znetwork/znet_dplay.cpp
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp

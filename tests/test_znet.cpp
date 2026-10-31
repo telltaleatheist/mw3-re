@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/znetwork/znet_dplay.h"
 #include "gamez/znetwork/znet_session.h"
 
 namespace {
@@ -43,6 +44,9 @@ TEST(znet_session_host_join_send_and_leave) {
   znet::Packet p;
   EXPECT(a->receive(&p) && p.from == 0 && word(p.data, 0) == znet::kSysCreatePlayerOrGroup && word(p.data, 4) == 2);
   EXPECT(!a->receive(&p));
+  // The joiner hears of the host, already there.
+  EXPECT(b->receive(&p) && p.from == 0 && p.sys.kind == znet::kSysCreatePlayerOrGroup && p.sys.id == 1 &&
+         p.sys.player_type == 1);
   // To all from the host (async: its send's id, and the send-done event).
   const uint8_t m[8] = {0x14, 0, 8, 0, 9, 9, 9, 9};
   const uint32_t id = znet::send(m, 8, true, 0);
@@ -135,4 +139,78 @@ TEST(znet_poll_over_the_hub) {
   znet::shutdown();  // the handlers cleared with it
   EXPECT(znet::session().handlers.empty() && !znet::active());
   EXPECT(znet::poll(-1) == 0);
+}
+
+// Piece 3a: the lists through the translation, over the hub. One process
+// holds one zNetwork, so the host is zNetwork's and the others the hub's;
+// then the roles swap (a joiner's zNetwork with the host on the hub).
+namespace {
+std::vector<int> g_types;
+void h_types(uint32_t, const uint8_t* m, size_t) { g_types.push_back(m[0]); }
+}  // namespace
+
+TEST(znet_players_as_the_host) {
+  znet::Hub hub;
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Transport* mine = hub.endpoint();
+  mine->set_name("Host", "The host");
+  znet::initialise(mine);
+  znet::SessionDesc d;
+  EXPECT(znet::host_session(d) && znet::is_host());
+  for (uint16_t t = 3; t <= 7; ++t) znet::on(t, &h_types);
+  znet::Transport* b = hub.endpoint();
+  b->set_name("Bob", "Bob the pilot");
+  EXPECT(b->join("loopback") == 2);
+  g_types.clear();
+  EXPECT(znet::poll(-1) == 2);  // Bob's arrival, then our 0xd's send done (the sends are async)
+  // A record for Bob, his names, not the host; types 3 then 4.
+  const znet::PlayerRecord* r = znet::player(2);
+  EXPECT(r && r->short_name == "Bob" && r->long_name == "Bob the pilot" && !r->is_host && r->team == 0);
+  EXPECT(znet::player_name(2) && std::string(znet::player_name(2)) == "Bob");
+  EXPECT((g_types == std::vector<int>{3, 4}));
+  // The host says so (0xd, guaranteed, to all) on each arrival: Bob gets it.
+  znet::Packet p;
+  bool told = false;
+  while (b->receive(&p))
+    if (p.from == 1 && p.data.size() == 4 && p.data[0] == 0x0d) told = true;
+  EXPECT(told);
+  // Bob leaves: type 6, his record gone.
+  b->close();
+  g_types.clear();
+  znet::poll(-1);
+  EXPECT((g_types == std::vector<int>{6}) && !znet::player(2) && znet::lists().players.empty());
+  znet::shutdown();
+}
+
+TEST(znet_players_as_a_joiner) {
+  znet::Hub hub;
+  znet::Transport* h = hub.endpoint();
+  h->set_name("Host", "The host");
+  znet::SessionDesc d;
+  EXPECT(h->host(d) == 1);
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Transport* mine = hub.endpoint();
+  mine->set_name("Me", "Myself");
+  znet::initialise(mine);
+  EXPECT(znet::join_session("loopback") && znet::local_id() == 2 && !znet::is_host());
+  znet::poll(-1);
+  // The host's record (its caps say host), the host id still unknown.
+  const znet::PlayerRecord* r = znet::player(1);
+  EXPECT(r && r->short_name == "Host" && r->is_host && znet::session().host_id == 0);
+  // The host's 0xd names it (0x00586d50).
+  const uint8_t m[4] = {0x0d, 0, 4, 0};
+  EXPECT(h->send(0, m, 4, true, nullptr));
+  znet::poll(-1);
+  EXPECT(znet::session().host_id == 1);
+  // The team walk and the players' walk.
+  int n = 0;
+  znet::each_player([](bool host, const char* name, void* c) {
+    if (host && std::string(name) == "Host") ++*static_cast<int*>(c);
+  }, &n);
+  EXPECT(n == 1 && znet::each_team([](bool, const char*, void*) {}, nullptr) == 0);
+  // The shutdown empties the lists.
+  znet::shutdown();
+  EXPECT(znet::lists().players.empty() && znet::lists().teams.empty());
 }
