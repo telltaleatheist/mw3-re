@@ -2117,3 +2117,14 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   clears, copy/assign copy; the other +0x238 writes are other classes').
   twod.md section 4 corrected; the census note for 0x00519e50 says
   "drawn or measured". Nothing to port.
+
+## W23 and W24, c2m3 (2026-10-30)
+
+- Branch mac4/w23-w24 (off main d7831d0). Both as the original (data);
+  docs only. W23: the tunnel is the second warning region
+  (reg_inside2_c2m3 sets inside_c2m3, its far-end box reg_outside2 the
+  fail), the final "Enter Tunnel" is reach_area 10 m (3D) round Charlie,
+  150 m west of the region; the warning valve is never cleared (plays
+  once). W24: the objective's firefly_01/02 do not exist (the mission's
+  are 03/04; missing names count as destroyed) and the APCs are on no
+  list: a fixes.md candidate.
