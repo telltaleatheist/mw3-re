@@ -29,8 +29,9 @@ cmake --build build
 ```
 
 `mw3import` (the movies' and the music's importer) needs FFmpeg's shared
-libraries (libavformat, libavcodec, libswscale, libavutil and their -dev
-packages); without them it is not built and the game is. On Linux the
+libraries (libavformat, libavcodec, libswscale, libavutil); without them it
+is not built and the game is. The package's come from build_deps.sh (FFmpeg,
+below). On Linux the
 movies need it: the 32-bit Indeo helper (`mw3indeo`) is Windows-only.
 
 ### What GCC needed that clang did not
@@ -111,8 +112,17 @@ runs the tools (and the AppImage) without FUSE, as in WSL or a container.
 - WSLg gives a Wayland and X display (`WAYLAND_DISPLAY=wayland-0`), so a
   window and a shot can be tried there.
 
-## Open
+## FFmpeg (mw3import)
 
-- FFmpeg for the package's `mw3import`: Ubuntu's FFmpeg is built with GPL
-  parts; the Windows package uses an LGPL build (docs/windows.md). Which one
-  the AppImage bundles is Owen's call.
+The package's FFmpeg is a minimal LGPL 2.1 build from its pinned release
+source (Owen, 2026-10-31): `tools/deps/build_deps.sh linux` (docs/deps.md)
+builds it with SDL3, SDL3_ttf (FreeType inside) and SDL3_sound into
+`build-deps/linux/prefix`, which `make-appimage.sh` takes as PREFIX
+(pkg-config finds FFmpeg there; the licence files come from the sources).
+Only what mw3import uses is in it: the AVI demuxer, the Indeo 5 decoder, the
+MPEG-1 video encoder and muxer, swscale, the file protocol. For WSL the
+script leaves out SDL's XTest (no libXtst headers) and, where nasm is
+missing, FFmpeg's x86 assembly.
+
+Checked under WSL (2026-10-31): the AppImage's `--import --movie INTRO`
+converted the 19 movies in 35 s (0.22 GB) and played the intro.
