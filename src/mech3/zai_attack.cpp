@@ -249,7 +249,7 @@ bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3],
 // Mech3.exe 1.2 @ 0x004d1d10. The exe takes the order's part as the vehicle
 // net's (its vt+0x0c), as it always is: the brain pushes the fight on that
 // net; any other part here gives up.
-void FightState::run(float) {
+void FightState::run(float dt) {
   BrainHooks& h = brain_hooks();
   Brain& b = *order->owner;
   const zgame::Handle v = b.controls->vehicle();
@@ -268,6 +268,15 @@ void FightState::run(float) {
     return;
   }
   float throttle;
+  // FIX (bug), ours (W27): stuck short of the enemy behind a wall, round it.
+  float ahead[2] = {0, 0}, goal[3];
+  if (zfix::options().bugs) {
+    h.forward(v, &ahead[0], &ahead[1]);
+    if (detour.goal(from, ahead, to, b.params.get<float>(0x28), dt, goal)) {
+      drive_to(b, v, from, goal, &turn, &throttle, false);
+      return;
+    }
+  }
   if (drive_to(b, v, from, to, &turn, &throttle, true) && mode) order->set_behaviour(mode);  // 0x004e8120
 }
 
@@ -349,9 +358,8 @@ bool pick_heading(const float pos[3], const float to[3], int32_t* side, float ou
 // Ours (W17, FIX (bug) behind bugs): where to walk this frame when the
 // pilot has stopped short of the target (a wall, or a contact holding the
 // carrot back); false to follow as the exe.
-bool FollowState::detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt,
-                              float goal[3]) {
-  Detour& d = detour;
+bool WallDetour::goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]) {
+  WallDetour& d = *this;
   const float dx = to[0] - pos[0], dz = to[2] - pos[2];
   const float dist = std::sqrt(dx * dx + dz * dz);
   const float far = reach;  // past the far end of his follow range (+0x28): never where the follow settles
@@ -709,7 +717,7 @@ void FollowState::run(float dt) {
     pulled = 0;
     detour.on = false, detour.watch_t = 0;
     on_crumb = true;
-  } else if (zfix::options().bugs && detour_goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
+  } else if (zfix::options().bugs && detour.goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
     aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W17): round the wall
     slack_side = 2.0f;
     pulled = 0;
