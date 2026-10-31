@@ -539,4 +539,5 @@ works alongside it; stay out of its files.
      --launcher-mw1; test with a stand-in script);
   4. the menu sounds: done (Sounds in launcher.cpp from the install's archive,
      --nosound, MW3_LAUNCHER_MUTE for the test);
-  5. the first-start notes inside it.
+  5. the first-start notes inside it: done (kNotes screen, launcher_notes.cpp,
+     have_music; sounds load on any screen).

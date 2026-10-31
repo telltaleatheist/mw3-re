@@ -139,8 +139,19 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
   (checks). `sdl_program_launcher_plays_the_menus_sounds`.
 - Mouse, arrows/Tab, Enter/Space, Escape (back, or quit on the main
   screen).
-- `--launcher-shot FILE [--launcher-screen main|setup|work]` draws one
-  screen into a BMP; `sdl_program_launcher_screens` checks the three.
+- The first start's notes (2026-10-31): with no `install=` in mw3.cfg yet
+  (PLAY saves one) and something to say, the launcher opens on BEFORE YOU
+  PLAY, then OK to the main screen. The notes (`launcher_notes`,
+  launcher_notes.cpp) are the start's in the launcher's words: 1.0 data or
+  a mix (SETUP can apply the 1.2 patch), files of no known version, and no
+  music (SETUP's ADD THE MUSIC, or a rip as track02.ogg ... in the write
+  dir's music; the folder shortened to fit). Logged on every start. Before
+  this, a player who came through the launcher never saw them: the install
+  it hands over is not a searched one, so the message box after it
+  (mw3_main, still there for `--no-launcher`) did not show.
+  `launcher_first_start_notes`.
+- `--launcher-shot FILE [--launcher-screen main|setup|work|notes]` draws one
+  screen into a BMP; `sdl_program_launcher_screens` checks the four.
 
 ## Open
 

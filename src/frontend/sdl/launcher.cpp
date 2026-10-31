@@ -1,4 +1,5 @@
 #include "frontend/sdl/launcher.h"
+#include "frontend/sdl/launcher_notes.h"
 #include "frontend/sdl/text_fit.h"
 
 #include <SDL3/SDL.h>
@@ -171,10 +172,10 @@ struct Text {
     };
     return fit_middle(s, keep, width, w_of);
   }
-  // Wrapped to `width`, lines centred on x from y.
-  void draw_wrapped(SDL_Surface* dst, const std::string& s, int size, SDL_Color c, int x, int y, int width) {
+  // Wrapped to `width`, lines centred on x from y; the height drawn.
+  int draw_wrapped(SDL_Surface* dst, const std::string& s, int size, SDL_Color c, int x, int y, int width) {
     TTF_Font* f = font(size);
-    if (!f) return;
+    if (!f) return 0;
     std::vector<std::string> lines;
     std::string line, word;
     auto fits = [&](const std::string& t) {
@@ -198,6 +199,7 @@ struct Text {
     if (!line.empty()) lines.push_back(line);
     const int lh = TTF_GetFontLineSkip(f);
     for (size_t i = 0; i < lines.size(); ++i) draw(dst, lines[i], size, c, x, y + static_cast<int>(i) * lh);
+    return static_cast<int>(lines.size()) * lh;
   }
 };
 
@@ -273,7 +275,7 @@ struct Button {
 enum Id {
   kMw3 = 1, kPm, kSetup, kQuit, kMw1,
   kFind = 10, kInstall, kPatch, kMusic, kBack,
-  kGo = 20, kChooseFile, kCancel,
+  kGo = 20, kChooseFile, kCancel, kNotesOk,
 };
 
 struct Install {
@@ -357,7 +359,8 @@ class Launcher {
   SDL_Surface* canvas_ = nullptr;
   Art art_;
   Text text_;
-  enum Screen { kMain, kSetupScreen, kConfirm, kWorking } screen_ = kMain;
+  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes } screen_ = kMain;
+  std::vector<std::string> notes_;  // the first start's (launcher_notes)
   std::vector<Button> buttons_;
   int hot_ = -1, focus_ = -1;
   float hot_t_ = 0, phase_ = 0, scroll_ = 0;
@@ -467,12 +470,12 @@ void Launcher::layout() {
   auto add = [&](int id, SDL_Rect r, std::string label, std::string sub = {}, bool on = true) {
     buttons_.push_back({id, r, std::move(label), std::move(sub), on});
   };
+  if (sounds_on_ && install_.ok && !sounds_tried_) {  // any screen, once there is an install
+    sounds_tried_ = true;
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO)) sounds_.load(install_.dir);
+  }
   switch (screen_) {
     case kMain: {
-      if (sounds_on_ && install_.ok && !sounds_tried_) {
-        sounds_tried_ = true;
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO)) sounds_.load(install_.dir);
-      }
       // A long folder is shortened to the plate when drawn (Text::fit), the
       // words before it kept.
       const std::string ready = "Ready: version " + install_.version + ", ";
@@ -507,6 +510,9 @@ void Launcher::layout() {
       break;
     case kWorking:
       add(kCancel, {250, 372, 140, 34}, "CANCEL");
+      break;
+    case kNotes:
+      add(kNotesOk, {250, 380, 140, 34}, "OK");
       break;
   }
   hot_ = focus_ = -1;
@@ -586,6 +592,14 @@ void Launcher::draw(float dt) {
                                             : "No MechWarrior 3 install was found on this computer.";
       text_.draw(canvas_, s, 13, kWhite, W / 2, 124);
       text_.draw(canvas_, "Your MechWarrior 3 files are only read, never changed.", 12, kDim, 16, H - 24, -1);
+      break;
+    }
+    case kNotes: {
+      text_.draw(canvas_, "BEFORE YOU PLAY", 24, kAmber, W / 2, 128);
+      int y = 162;
+      for (const std::string& n : notes_) {
+        y += text_.draw_wrapped(canvas_, n, 14, kWhite, W / 2, y, 470) + 14;
+      }
       break;
     }
     case kConfirm:
@@ -753,6 +767,9 @@ void Launcher::activate(int id) {
     case kBack:
       screen_ = screen_ == kConfirm ? kSetupScreen : kMain, layout();
       break;
+    case kNotesOk:
+      screen_ = kMain, layout();
+      break;
     case kFind:
       find_install();
       if (install_.ok) {
@@ -801,8 +818,19 @@ LauncherChoice Launcher::run() {
   find_install();
   find_mw1();
   sounds_on_ = o_.sound && !shot;
+  // The first start's notes (no install= in mw3.cfg yet: PLAY saves one),
+  // on their own screen before the main one; logged on every start.
+  if (install_.ok) {
+    const fs::path music = o_.write_dir.empty() ? fs::path("music") : fs::path(o_.write_dir) / "music";
+    const bool have = have_music({music.string(), (fs::path(install_.dir) / "music").string()});
+    const std::string dir = fs::path(music).make_preferred().string();
+    for (const std::string& n : launcher_notes(install_.version, have, dir)) std::printf("mw3: launcher: note: %s\n", n.c_str());
+    notes_ = launcher_notes(install_.version, have, text_.fit(dir, 14, 440));  // shown: a long folder shortened (one word)
+  }
+  const bool first_start = o_.cfg_install.empty() && !notes_.empty();
   if (shot) {
     if (o_.screen == "setup") screen_ = kSetupScreen;
+    if (o_.screen == "notes") screen_ = kNotes;
     if (o_.screen == "work") {
       screen_ = kWorking;
       work_ = std::make_unique<Work>();
@@ -818,6 +846,7 @@ LauncherChoice Launcher::run() {
     return {};
   }
   if (!install_.ok) screen_ = kSetupScreen;
+  else if (first_start) screen_ = kNotes;
   layout();
   // Not high pixel density: the game takes this window (one window into the
   // game), and its sizes are the window's points (SdlWindow, SdlInput).

@@ -22,6 +22,7 @@
 #include "check.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
+#include "frontend/sdl/launcher_notes.h"
 #include "frontend/sdl/text_fit.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
@@ -2443,6 +2444,32 @@ TEST(sdl_program_bugfixes_switch) {
 #endif
 
 #if !defined(_WIN32)
+// The launcher's first-start notes (lead's launcher list, item 5): the
+// data's version and the music, in the launcher's words (SETUP's buttons);
+// nothing to say for 1.2 data with music. The music is any CD track's file.
+TEST(launcher_first_start_notes) {
+  const std::vector<std::string> none = sdlfe::launcher_notes("1.2", true, "M");
+  const std::vector<std::string> v10 = sdlfe::launcher_notes("1.0", false, "M");
+  const std::vector<std::string> mix = sdlfe::launcher_notes("1.0 with 1.2 files", true, "M");
+  const std::vector<std::string> odd = sdlfe::launcher_notes("unknown", true, "M");
+  const bool counts = none.empty() && v10.size() == 2 && mix.size() == 1 && odd.size() == 1;
+  EXPECT(counts);
+  if (counts) {
+    EXPECT(v10[0].find("version 1.0") != std::string::npos && v10[0].find("SETUP can apply it") != std::string::npos);
+    EXPECT(v10[1].find("ADD THE MUSIC") != std::string::npos && v10[1].find("rip in M as track02") != std::string::npos);
+    EXPECT(mix[0].find("part 1.0, part 1.2") != std::string::npos && odd[0].find("neither") != std::string::npos);
+  }
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_music";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  EXPECT(!sdlfe::have_music({dir, ""}));
+  std::ofstream(dir + "/track01.ogg") << "x";  // the data track's number: not music
+  EXPECT(!sdlfe::have_music({dir}));
+  std::ofstream(dir + "/track07.flac") << "x";
+  EXPECT(sdlfe::have_music({"", dir}));
+}
+
 // The launcher's MW3 line with a long install folder (lead, after the PC's
 // shot: it ran past the button's sides): shortened from the middle to the
 // width, "Ready: version 1.2, " kept whole, the folder's end kept longer.
@@ -2474,7 +2501,7 @@ TEST(sdl_program_launcher_screens) {
     const char* says;
   };
   for (const Shot& s : {Shot{"main", false, "launcher: Found MechWarrior 3"}, Shot{"setup", true, "no MechWarrior 3 install found"},
-                        Shot{"work", false, "launcher: Found MechWarrior 3"}}) {
+                        Shot{"work", false, "launcher: Found MechWarrior 3"}, Shot{"notes", false, "launcher: note: No music yet"}}) {
     const std::string bmp = dir + "/" + s.screen + ".bmp", log = dir + "/" + s.screen + ".log";
     if (s.none) setenv("MW3_FIND_INSTALL", "1", 1);
     const pid_t pid = spawn_mw3({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
