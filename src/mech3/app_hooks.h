@@ -185,6 +185,10 @@ class Engine : public zgame::AppHooks {
   virtual void run_dir() { unported("0x004828d0", {}); }    // RunDir from the registry
   virtual uint32_t message_dll_load(const char* name) { return unported("0x00575f30", {name}); }
   virtual uint32_t directx_version() { return unported("0x0057a3d0", {}); }
+  // Ours: whether the menus offer the software renderer (VIDEO DEVICE's
+  // "software" entry). FIX (A): it is not ported, so no; the differential
+  // tests' engines say yes to check the original's cycle.
+  virtual bool software_renderer() { return false; }
   virtual uint32_t install_options(uint32_t mask) {    // 0x00597d80, InstallOptions & mask
     return unported("0x00597d80", {mask});
   }

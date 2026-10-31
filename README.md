@@ -18,8 +18,9 @@ Microsoft or MicroProse.
 ## What you need
 
 - **Your own MechWarrior 3**, any of these:
-  - an installed copy, version 1.2 (best) or 1.0 (plays; the rebuild can
-    apply the official 1.2 patch for you, without changing your install);
+  - an installed copy, version 1.2 or 1.0 (the rebuild makes the 1.2
+    patch's changes itself as 1.0's data loads, so it plays as 1.2; your
+    files are not changed);
   - the original disc;
   - a disc image: an `.iso`, or a `.cue` with its `.bin` files (a `.cue`
     also gives you the music).
@@ -63,11 +64,12 @@ The rebuild opens on its launcher.
   - **Install from my disc or disc image**: copies the game from the disc
     or an `.iso`/`.cue` into a folder of the rebuild's own. No Windows and
     no original installer needed.
-  - **Apply the 1.2 patch**: give it the official patch's `.zip`. Your
-    install is not changed; the patched files go to the rebuild's own folder.
+  - **Apply the 1.2 patch**: only for game data of another version than
+    1.0 or 1.2 (or a mod). Give it the official patch's `.zip`; your install
+    is not changed.
   - **Add the music from my disc image**: see below.
 - On the first start it also tells you anything worth knowing about your
-  copy (version 1.0, no music yet).
+  copy (no music yet, or game files of an unknown version).
 - **The movies** play from your own copy. Where they cannot be played
   directly, the rebuild converts them once, the first time (about a minute).
 
