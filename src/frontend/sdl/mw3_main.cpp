@@ -223,6 +223,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--hidden") a.hidden = true;
     else if (s == "--windowed") a.windowed = true;
     else if (s == "--no-import") a.no_import = true;
+    else if (s == "--wide-menus") zfix::options().wide_menus = true;
     else if (s == "--original") a.play_original = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];

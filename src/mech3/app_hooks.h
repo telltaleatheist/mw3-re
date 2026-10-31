@@ -54,6 +54,9 @@ class Engine : public zgame::AppHooks {
   virtual float frame_dt();                            // [0x0072c52c], ported: ztimer
   // The options ([0x005f4d10], [0x005f4d2c], [0x005f4d30]), ported.
   virtual int32_t in_game_vmode();
+  // Ours: the menus' mode, 5 (the exe's 640x480), or with wide_menus the
+  // mission's mode when it has a wider canvas (16:9).
+  int32_t menu_vmode();
   virtual float mouse_accel_x();
   virtual float mouse_accel_y();
 

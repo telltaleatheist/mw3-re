@@ -117,7 +117,7 @@ void Mech3App::restore_video(bool hw, bool pick) {
   e.select_hw(1);
   e.set_hw_card_dev(dev);
   if (e.vmode() < 5) e.set_vmode(5);
-  e.set_vmode(e.vmode());
+  e.set_vmode(e.menu_vmode() != 5 ? e.menu_vmode() : e.vmode());  // ours: wide menus
   byte_at(0x1c7) = 1;
 }
 

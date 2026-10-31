@@ -15,6 +15,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
+#include "gamez/zimage/zimg_library.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/mission_map.h"
@@ -73,6 +74,62 @@ Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
   return h;
 }
 
+namespace {
+// Ours (16:9 menus, behind any_resolution; resolution.md): a menu screen on a
+// canvas wider than its 640 frame. A full-width background (600 or more
+// across) goes to the middle, its sides filled from its own edges, mirrored
+// and darkened (made here, the player's art left as it is); every other
+// object moves by its place in the frame: the left third stays, the middle
+// third by half the extra width, the right third by all of it.
+void widen_background(ztwod::Image& im, int32_t extra) {
+  zimg::Texture* src = im.image;
+  if (!src || !src->pixels || src->palette_count) return;
+  const int w = src->width, h = src->height, half = extra / 2;
+  zimg::Texture* dst = ztwod::host().image_new(w + extra, h);
+  if (!dst) return;
+  auto* in = static_cast<const uint16_t*>(src->pixels);
+  auto* out = static_cast<uint16_t*>(dst->pixels);
+  auto dark = [](uint16_t p, int k) {  // 565, scaled by k/256
+    const int r = (p >> 11) * k >> 8, g = ((p >> 5) & 63) * k >> 8, b = (p & 31) * k >> 8;
+    return static_cast<uint16_t>(r << 11 | g << 5 | b);
+  };
+  for (int y = 0; y < h; ++y) {
+    const uint16_t* row = in + y * w;
+    uint16_t* o = out + y * (w + extra);
+    for (int x = 0; x < w; ++x) o[half + x] = row[x];
+    for (int x = 0; x < half; ++x) {  // the left side: the edge mirrored, darker outward
+      const int sx = std::min(w - 1, half - 1 - x);
+      o[half - 1 - x] = dark(row[sx], 150 - 90 * x / std::max(1, half));
+    }
+    const int right = extra - half;
+    for (int x = 0; x < right; ++x) {
+      const int sx = std::max(0, w - 1 - x);
+      o[half + w + x] = dark(row[sx], 150 - 90 * x / std::max(1, right));
+    }
+  }
+  im.set_image(dst);
+  im.set_pos(im.get_x(), im.get_y());
+}
+}  // namespace
+
+void GameEngine::widen_screen(MenuScreen* s) {
+  const int32_t extra = buffer_width() - 640;
+  if (!s || extra <= 0 || !zfix::options().any_resolution) return;
+  for (ztwod::Object2D* o = s->head; o; o = o->next) {
+    const ztwod::Rect* r = o->get_rect();
+    if (!r) continue;
+    const int32_t left = r->left - s->origin_x, right = r->right - s->origin_x;
+    auto* im = dynamic_cast<ztwod::Image*>(o);
+    if (im && right - left >= 600) {
+      widen_background(*im, extra);
+      continue;
+    }
+    const int32_t mid = (left + right) / 2;
+    const int32_t off = mid < 213 ? 0 : mid > 427 ? extra : extra / 2;
+    if (off) o->set_pos(o->get_x() + off, o->get_y());
+  }
+}
+
 Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   const Handle a0 = args.size() ? args.begin()->v : 0;
   // FIX (B), playtest W13: every menu screen but the pause screen shows on
@@ -89,6 +146,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   auto screen = [&](uint32_t size, MenuScreen* (*make)(GameEngine&, Handle)) {
     const Handle h = alloc_block(size);
     screens_[h] = {make(*this, a0), size};
+    if (ctor != 0x492750) widen_screen(screens_[h].screen);
     return h;
   };
   auto state = [&](MenuState* (*make)(Handle)) {

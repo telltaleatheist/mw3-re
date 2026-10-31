@@ -272,6 +272,8 @@ zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
   return made(img);
 }
 
+zimg::Texture* SdlTwodHost::image_new(int32_t w, int32_t h) { return made(new_image(w, h)); }
+
 zimg::Texture* SdlTwodHost::screen_grab_rect(int32_t, ztwod::Rect* r, zimg::Texture* into) {
   const zrndr::Target2D& t = zrndr::target2d();
   if (!t.base) return nullptr;

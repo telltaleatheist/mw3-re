@@ -42,6 +42,7 @@ class SdlTwodHost : public ztwod::Host {
   void video_lock() override;
   void video_unlock() override;
   zimg::Texture* screen_grab(int32_t buffer) override;
+  zimg::Texture* image_new(int32_t w, int32_t h) override;
   zimg::Texture* screen_grab_rect(int32_t buffer, ztwod::Rect* r, zimg::Texture* into) override;
   Handle image_dc(zimg::Texture* image) override;
   void image_dc_release(zimg::Texture* image, Handle dc) override;
