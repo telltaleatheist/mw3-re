@@ -1953,10 +1953,17 @@ file (docs/assets.md, Data versions):
   "Hotel No_tell" and "Exit Vent" were English text in 1.0's mission files;
   1.2 names them by message number, with the 30-odd new names in the
   message table.
-- **New footstep and engine sounds.** 1.2 adds ten loose sound files
-  (`mech_footfall_2s.wav`, the soil footsteps, `mech_engine_np.wav`) and
-  points the mech sounds at them, and gives each sound quality its own
+- **The "new" footstep and engine sounds are the old ones.** 1.2 adds ten
+  loose sound files (`mech_footfall_2s.wav`, the soil footsteps,
+  `mech_engine_np.wav`) and points the mech sounds at them. The footsteps are
+  1.0's own sounds at 16 bits instead of 8 (the same samples, to within the
+  rounding). The engine is 1.0's loop with its last 176 samples cut: in 1.0
+  the loop ends on a ramp up to near full volume, so it clicks every time it
+  starts over ("np": no pop). 1.2 also gives each sound quality its own
   playback format.
+- **Room 4's sound has always been silent.** `env_room04.wav` in 1.0's
+  sound archives has no samples, and 1.2 points the sound at
+  `env_room04_p2.wav`, a file no version ships.
 - **The HUD gained layouts for 1152x864, 1280x1024 and 1600x1200.** 1.0's
   HUD file has 640x480, 800x600 and 1024x768 only.
 - **Smaller things:** new AI path networks and regions for Op 4b Missions 4
@@ -1965,8 +1972,20 @@ file (docs/assets.md, Data versions):
   the multiplayer host screen; messages for "Alt", "Shift", joystick buttons
   9 and 10, the mech lab's jump jet limit ("%1 can only carry %2 jump
   jets"), and a multiplayer check that tells a player with an older version
-  to patch. Op 3's world and animations and the mission scripts changed too,
-  not yet compared in detail.
+  to patch.
+- **Op 4b Mission 5 shipped with the wrong mission's paths.** In 1.0 its
+  data has only six AI path networks and Op 4's mission boundary; 1.2 adds
+  22 files, all from Missions 6 and 4: 13 copied byte for byte, the other
+  9 with a few points moved. Mission 4 gets five path networks its orders name but
+  1.0 never shipped.
+- **Op 3's world got a clean-up.** The world file was saved again: most of
+  the 187 models that differ hold the same faces in another order, but 34
+  really change. The dome complex's wall panels are re-cut to close the gaps
+  between them, a 6.3 m wall along one side of each of the seven helipads is
+  gone, three terrain corners that sat 4.5 m too low (holes you could see
+  through) are raised, a map-edge tile gets its missing point, and a few
+  small objects are closed. Op 3's animations and the mission scripts did
+  not change: those files were only saved again.
 
 ## Data files
 

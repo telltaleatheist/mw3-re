@@ -509,8 +509,6 @@ void Launcher::layout() {
       // words before it kept.
       const std::string ready = "Ready: version " + install_.version + ", ";
       std::string sub = install_.ok ? ready + install_.dir : "Not set up yet: click to set it up";
-      if (install_.ok && (install_.version == "1.0" || install_.version.find("with") != std::string::npos))
-        sub = "Ready: version " + install_.version + " (Setup can apply the 1.2 patch)";
       // The games as round badges (Owen: the ripple belongs to a circle),
       // each name and line beside its badge, the ripple from its centre.
       auto game = [&](int id, int row, int badge, const char* name, const std::string& line, bool on) {
@@ -530,9 +528,9 @@ void Launcher::layout() {
       break;
     }
     case kSetupScreen: {
-      // The patch only for an install whose data is not 1.2 already (1.0, a
-      // mix or an unknown version; Owen, 2026-10-31): hidden on 1.2.
-      const bool patchable = install_.ok && install_.version != "1.2";
+      // The patch only for data of an unknown version: 1.0's and a mix load
+      // as 1.2 anyway (mech3/patch12.h, docs/patch12.md).
+      const bool patchable = install_.ok && install_.version == "unknown";
       int y = 152;
       add(kFind, {130, y, 380, 44}, "FIND MY INSTALLED MECHWARRIOR 3"), y += 52;
       add(kInstall, {130, y, 380, 44}, "INSTALL FROM MY DISC OR DISC IMAGE"), y += 52;

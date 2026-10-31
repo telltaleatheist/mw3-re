@@ -2395,3 +2395,64 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
 - --frames during the intro counts the movie's flips (15 a second), so
   3000 was 200 s: run 1 hit my 180 s watchdog. Not changed; its usage line
   says so now.
+## Multiplayer, piece 1: zNetwork's session (2026-10-31)
+
+- Plan accepted (mac4/mp-plan, 8d4e7936 with the NAT note); ENet approved.
+  Branch mac4/mp on it. znet_session.{h,cpp}: the globals, active / local_id
+  / is_host / send / shutdown, initialise / host_session / join_session, the
+  in-process Hub. The engine's network_lobby_active, lobby_session and
+  network_shutdown overrides; damage_calls().force_variant0 = znet::active
+  (its SKIP gone from hook_census.inc); the census's deferred 0x00586ce0 and
+  0x00586c20 lines gone. The shutdown's poll, handler clear and lists come
+  with pieces 2 and 3.
+- test_znet_session.py: the exe's three checks over 32 global states and
+  0x5888a0 with a fake IDirectPlay4A (SendEx at +0xc4 keeping its ten
+  arguments; 0x58a880 stubbed: 0 for an error), 56 identical; BREAK=1/2
+  caught. mw3tests znet_session_* (3; the hub delivering to its sender
+  caught).
+
+## Multiplayer, piece 2: the handlers and the poll (2026-10-31)
+
+- znet::on / off / clear_handlers / dispatch / poll; Session::handlers (a
+  vector for the exe's list), dispatching depth, system_message (piece 3's).
+  AppHooks::network_poll now znet::poll (ported, out of line like
+  timer_update); the census's deferred 0x00588930 gone, known-keys test 49.
+- test_znet_dispatch.py: the exe's list via 0x587aa0/0x587b20/0x587a00/
+  0x587c40 with a made sentinel node ([0x730794]), new/delete stubbed
+  (0x5abd26 / 0x5abd1a), handlers as logging code stubs (ECX sender, EDX the
+  message); the poll with a fake Receive at [0x730724]+0x64 growing the
+  buffer through DPERR_BUFFERTOOSMALL and the IAT realloc. Pitfalls met: the
+  emulator's heap rewinds at begin(), so the fake object goes after it; and
+  0x49bfd0 is Emulated's ZERR stub already (a second hook returns twice).
+
+## Multiplayer, piece 3a: players, teams, the translation (2026-10-31)
+
+- znet_dplay.{h,cpp}: PlayerRecord / TeamRecord / lists(), player,
+  player_name, each_player / each_team, system_message (0x588a70, read from
+  the disassembly: Ghidra folds the local message's words), network_error
+  (0x58ae10), on_host (0x586d50). Session gains desc, Player is_host; the
+  transport gains set_name and is_host; Packet a SystemEvent (the hub fills
+  it; its old words kept). initialise wires 0xd and the translation; the
+  shutdown empties the lists. The engine's lobby_player_name wired.
+- 0x588a70's details: DPMSG_CREATEPLAYERORGROUP's DPNAME at +0x18 (short
+  +0x20, long +0x24), add/delete group +4 / player +8; the host's 0xd on
+  every arrival (even a known one); destroy dispatches before unlinking;
+  SESSIONLOST is "MSG_DPERR_SESSIONLOST" by 0x575fb0 (zutl::localize).
+- test_znet_players.py: DPMSG structs in the emulator, fake GetPlayerCaps
+  and SendEx, strncpy stubbed at its IAT slot 0x5bb648, 0x575fb0 answering
+  its name; 250 sequences identical. My probe's first name parse was wrong
+  ("Player N" starts with P too); fixed in the probe.
+
+## Multiplayer, piece 3b: teams, data, kicks (2026-10-31)
+
+- znet_dplay: create/add/remove/destroy team, enum teams / team players /
+  players, leave, kick, player and team data. Transport::Member, the group
+  and data operations; the hub's. Read from the disassembly (Ghidra loses
+  the register arguments): add (ECX team, EDX player), the data calls (ECX
+  id, EDX data, the size or its pointer on the stack; 0x5897f0 passes its
+  own argument slot's address, so its caller never sees the size).
+- test_znet_teams.py: the enumerations' callbacks are labels, called
+  directly after the fake Enum* (no re-entry into Unicorn); the team
+  enumeration's answer read as [0x7307c0] after them. A prefix gives the
+  teams members so the removal break shows. create_team on failure: no
+  record (0x5883fb), fixed after the first version kept one.

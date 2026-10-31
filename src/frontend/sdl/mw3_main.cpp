@@ -407,14 +407,10 @@ std::vector<std::string> start_notes(const mech3::DataVersion& d, const std::str
     if (v.size() > 6) s += ", ...";
     return s;
   };
-  if (d.name == "1.0")
-    out.push_back("Your MechWarrior 3 data is version 1.0. It plays, but the rebuild is made and tested on 1.2's. " + patch);
-  else if (d.name == "1.0 with 1.2 files")
-    out.push_back("Your MechWarrior 3 data is part 1.0, part 1.2 (" + std::to_string(d.of_12) + " of " +
-                  std::to_string(d.of_10 + d.of_12) + " files patched). " + patch);
-  else if (d.name == "unknown")
+  // 1.0's data and a mix need no note: they load as 1.2 (docs/patch12.md).
+  if (d.name == "unknown")
     out.push_back("Some MechWarrior 3 files are neither version 1.0's nor 1.2's (another version or a mod): " + list(d.unknown) +
-                  ". They may not play right.");
+                  ". They may not play right. " + patch);
   else if (d.name == "incomplete")
     out.push_back("Some MechWarrior 3 files are missing from the install: " + list(d.unknown) +
                   ". Reinstall MechWarrior 3 from its disc.");

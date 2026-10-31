@@ -11,6 +11,7 @@
 #endif
 #include "gamez/zfmv/fmv_script.h"
 #include "mech3/mission_map.h"
+#include "mech3/patch12.h"
 #include "mech3/app.h"
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
@@ -192,6 +193,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   vp.hardware = [](void* c) { return static_cast<GameEngine*>(c)->video_mode(); };
   vp.sync = [](void* c) { static_cast<GameEngine*>(c)->sync_view(); };
   wire_view(&vp);
+  patch12::install();  // 1.0's data read as 1.2's (docs/patch12.md)
 }
 
 GameEngine::~GameEngine() {
@@ -207,6 +209,7 @@ GameEngine::~GameEngine() {
     wire_view(nullptr);
   }
   zutl::install_messages(nullptr);
+  if (!g_engine) patch12::uninstall();
 }
 
 namespace {
@@ -224,12 +227,9 @@ const std::map<std::string, const char*>& known_keys() {
       {"0x00576d90", "own: the back buffer's size, zvid's Surface (lock_3d); here only the targets' arguments"},
       {"0x00576da0", "own: the back buffer's height, the same (lock_3d)"},
       {"0x00576dc0", "own: the back buffer's pitch, the same"},
-      {"0x00586ce0", "deferred: multiplayer (a DirectPlay lobby session's flag; 0, none, as the exe without one)"},
       {"0x00493260", "deferred: multiplayer (its first screen, made by the Multiplayer State's constructor)"},
       {"0x00495f90", "deferred: multiplayer (its second screen)"},
       {"0x0049bd80", "deferred: multiplayer (its third screen)"},
-      {"0x00588930", "deferred: multiplayer (DirectPlay's poll; back burner)"},
-      {"0x00586c20", "deferred: multiplayer (its shutdown)"},
       {"0x0041ab90", "deferred: multiplayer (the chat panel at mech +0x378, made by commands 0x76 / 0x77)"},
       {"0x004ac860", "deferred: the stealth object (its block; back burner, vehicles.md)"},
       {"0x004a4de0", "deferred: the stealth object"},
@@ -368,6 +368,7 @@ uint32_t GameEngine::message_dll_load(const char* name) {
       return 0;
     }
   }
+  patch12::messages(dll_);
   zutl::install_messages(&dll_);
   return 1;
 }

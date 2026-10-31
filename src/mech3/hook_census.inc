@@ -29,7 +29,6 @@ SKIP(mech3::weapon_calls, ff_weapon, "0x00433630")  // WeaponCalls.ff_weapon
 SKIP(mech3::weapon_calls, target_projectile, "WeaponCalls.target_projectile")  // WeaponCalls.target_projectile
 SKIP(zcls::world_render_hooks, after_scene, "0x005a67c0")  // WorldRenderHooks.after_scene
 SKIP(zcls::world_render_hooks, dirty_rect, "0x00576ce0")  // WorldRenderHooks.dirty_rect
-SKIP(mech3::damage_calls, force_variant0, "0x00586ce0")  // DamageCalls.force_variant0
 SKIP(mech3::damage_calls, player_died_hud, "0x0041b263")  // DamageCalls.player_died_hud
 SKIP(mech3::dead_calls, net_fade, "DeadCalls.net_fade")  // DeadCalls.net_fade
 SKIP(mech3::draw_calls, map_point, "0x004586e0")  // DrawCalls.map_point

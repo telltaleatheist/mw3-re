@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "gamez/znetwork/znet_dplay.h"
+#include "gamez/znetwork/znet_session.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "mech3/app_hooks.h"
 #include "mech3/lab_view.h"
@@ -377,6 +379,14 @@ class GameEngine : public Engine {
 
   // Windows (FIX (A)).
   uint32_t lobby_connection() override { return 0; }
+  // zNetwork (multiplayer-port.md piece 1): the session's checks and its end.
+  uint32_t network_lobby_active() override { return znet::active() ? 1 : 0; }  // 0x00586ce0
+  Handle lobby_session() override { return znet::local_id(); }                   // 0x00586d10
+  void network_shutdown() override { znet::shutdown(); }                         // 0x00586c20
+  const char* lobby_player_name(Handle id) override {  // 0x00588a60; an unknown player "" (the exe's null)
+    const char* n = znet::player_name(id);
+    return n ? n : "";
+  }
   uint32_t activate_running_copy() override { return 1; }
   uint32_t register_window_class() override { return 1; }
   void unregister_window_class() override {}

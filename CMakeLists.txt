@@ -52,6 +52,8 @@ add_library(mw3core STATIC
   src/gamez/zinput/zin_cmdmap.cpp
   src/gamez/zinput/zin_joy.cpp
   src/gamez/znetwork/znet_object.cpp
+  src/gamez/znetwork/znet_session.cpp
+  src/gamez/znetwork/znet_dplay.cpp
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
@@ -59,6 +61,13 @@ add_library(mw3core STATIC
   src/platform/reg_file.cpp
   src/platform/cue_audio.cpp
   src/mech3/data_version.cpp
+  src/mech3/patch12.cpp
+  src/mech3/patch12_edits.cpp
+  src/mech3/patch12_force.cpp
+  src/mech3/patch12_hud.cpp
+  src/mech3/patch12_text.cpp
+  src/mech3/patch12_tree.cpp
+  src/mech3/patch12_world.cpp
   src/mech3/patch_import.cpp
   src/mech3/disc_install.cpp
   src/mech3/game_setup.cpp
@@ -411,6 +420,7 @@ add_library(mw3probe SHARED
   tests/probe_gfx_flags.cpp
   tests/probe_fade.cpp
   tests/probe_fmv.cpp
+  tests/probe_znet.cpp
   tests/probe_frame.cpp
   tests/probe_view.cpp
   tests/probe_hud.cpp
@@ -421,6 +431,7 @@ target_link_libraries(mw3probe PRIVATE mw3core)
 enable_testing()
 add_executable(mw3tests
   tests/main.cpp
+  tests/test_znet.cpp
   tests/test_cue.cpp
   tests/test_mech.cpp
   tests/test_mech_reader.cpp
@@ -434,6 +445,8 @@ add_executable(mw3tests
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp
   tests/test_lance.cpp
+  tests/test_patch12.cpp
+  tests/test_video_device.cpp
   tests/test_resolution.cpp
   tests/test_zreader.cpp
   tests/test_controls_cfg.cpp

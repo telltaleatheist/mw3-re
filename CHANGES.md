@@ -354,6 +354,7 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The graphics options no longer offer the software renderer, which the rebuild does not have: the video device list shows your graphics card only, and a setting saved by the original or an older rebuild that chose software starts on the card.
 - **Gamepads work as they did on Windows.** A modern pad's sticks, triggers
   and buttons arrive in the order the game knew from Windows: the left stick
   steers and walks, the triggers are the throttle, the right stick looks.
@@ -515,8 +516,21 @@ These change how the game talks to the computer, not how it plays.
   sound quality.
 
 - The rebuild runs on any MechWarrior 3 data, 1.0 as well as 1.2, and says
-  at start which it found. With 1.0's message file, the messages 1.2 added
-  read as blank text where the original would have crashed.
+  at start which it found. On 1.0's files it makes the 1.2 patch's changes
+  itself as the data loads, in its own words and numbers, without the patch's
+  files: so far the messages 1.2 added (target names, the new resolutions,
+  the jump-jet limit), the HUD layouts for 1152x864, 1280x1024 and
+  1600x1200, 1.2's weapon balance, the mechs' torso twist, heat sinks and
+  loadouts, its force feedback effects (a fall and a death shake), the
+  mission fixes (objectives, boundaries, a jump-jet ceiling, patrol points),
+  the named targets, the footstep and engine sounds (the engine loop
+  without its click, made from 1.0's own sound), and the AI paths and
+  regions 1.0 left out of Op 4b Mission 5 (taken from your own Mission 6
+  and 4 files, as 1.2 did), the other new AI paths, and 1.2's fixes to Op
+  3's world (the dome's gaps, the helipads' stray wall, the terrain holes).
+  Only Op 3's two new multiplayer maps are left out until multiplayer is
+  ported. Your files are not changed, and data that is neither 1.0's nor
+  1.2's (a mod) is left as it is. Details in `docs/patch12.md`.
 - A 1.0 install can be brought to 1.2 with the official patch file you
   already have (`--patch`, its ZIP or folder): the rebuild reads the patch
   without running its installer, checks every file against 1.2's, and
@@ -532,10 +546,10 @@ These change how the game talks to the computer, not how it plays.
 - Each start writes everything the rebuild reports to `mw3.log` in the saves
   folder (the start before kept as `mw3.old.log`), for bug reports. It also
   says which version of the game's data it found, and on the first start
-  shows a note when the 1.2 patch would help or no music was found, with
-  what to do.
+  shows a note when no music was found or the game files are of an unknown
+  version, with what to do (1.0's need nothing: they play as 1.2).
 
-- A launcher opens first (ours): it finds your MechWarrior 3 by itself and, when it cannot, sets it up from buttons instead of command lines: find your install, install from the disc or a disc image (with a progress bar and Cancel), apply the official 1.2 patch, add the music from a disc image.
+- A launcher opens first (ours): it finds your MechWarrior 3 by itself and, when it cannot, sets it up from buttons instead of command lines: find your install, install from the disc or a disc image (with a progress bar and Cancel), apply the official 1.2 patch (offered only for game files of an unknown version), add the music from a disc image.
 
 ## Kept as the original, on purpose
 
