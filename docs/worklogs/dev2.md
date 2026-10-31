@@ -422,8 +422,12 @@ works alongside it; stay out of its files.
   Engine::menu_vmode, GameEngine::widen_screen with per-screen group tables
   (main menu 0x486260, game options 0x4379f0), the background widened from
   its edges (Host::image_new). Lead approved tables (2026-10-30).
-- Next: the green underlines and the options' right box frame do not move
-  (fixed-rect primitives: move them by their rects); then graphics/audio,
+- The main menu and the game options are done: the underlines (the button's
+  AUXBITMAP) move with their buttons, the options' LINES overlay is stretched
+  at column 367, and menu_vmode is chosen once at start-up (screens are laid
+  out when made). Test menus_wide_spread_by_their_groups_headless;
+  resolution.md section 12.
+- Next: graphics/audio,
   controls, pilot, campaign, briefing, debriefing, lab (its 3D view), IA,
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window

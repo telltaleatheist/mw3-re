@@ -16072,6 +16072,138 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
   EXPECT(v5.accept[2] > 0 || v5.accept[0] > 0);
 }
 
+// Ours (16:9 menus, wide_menus with any_resolution; resolution.md): at mode
+// 13 (853x480) the main menu and the game options spread over the canvas by
+// their screens' groups. Off, then on: main menu, OPTIONS, BACK (the second
+// main menu is made on the wide canvas the options set). The left column
+// stays; CREDITS moves the whole extra width, its underline (the button's
+// own image) with it; ACCEPT and the screens' buttons move; the options'
+// LINES overlay is stretched between its panel and the screens' box. A
+// mode picked in the menus leaves them on the canvas they were laid out for.
+namespace {
+struct WideMenus {
+  int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
+  int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
+};
+WideMenus wide_menus_run(bool wide) {
+  WideMenus out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::mount(std::string(MW3_GAME_DIR) + "/zbd");
+  const std::string dir = temp_dir("wide_menus_write");
+  zutl::set_write_dir(dir);
+  {  // a saved InGameVMode of 13 (853x480), as regedit writes it
+    const char text[] =
+        "Windows Registry Editor Version 5.00\r\n\r\n"
+        "[HKEY_CURRENT_USER\\Software\\MicroProse\\MechWarrior 3\\1.0]\r\n"
+        "\"InGameVMode\"=dword:0000000d\r\n";
+    std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "wb");
+    std::fputc(0xff, f), std::fputc(0xfe, f);
+    for (const char* c = text; *c; ++c) std::fputc(*c, f), std::fputc(0, f);
+    std::fclose(f);
+  }
+  platform::RegFile settings(dir + "/settings.reg");
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  const zfix::Options saved_fix = zfix::options();
+  zfix::options().any_resolution = true;
+  zfix::options().wide_menus = wide;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.settings = &settings;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    struct ImageHost : BoxHost {  // the shipped images, so the backgrounds and overlays are there to widen
+      zimg::Texture* image_get(const char* n) override { return n && *n ? zimg::fetch_image(n) : nullptr; }
+      zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
+      void image_path(const char*) override {}
+      void texture_free(zimg::Texture*) override {}
+      zimg::Texture* image_new(int32_t w, int32_t h) override {
+        auto* t = static_cast<zimg::Texture*>(std::calloc(1, sizeof(zimg::Texture)));
+        t->flags = 1, t->width = static_cast<int16_t>(w), t->height = static_cast<int16_t>(h), t->width_again = t->width;
+        t->pixel_count = w * h;
+        t->pixels = std::calloc(static_cast<size_t>(w) * h, 2);
+        return t;
+      }
+    } host;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    EXPECT(mech3::options().in_game_vmode == 13);
+    mech3::States& st = mech3::states();
+    int stage = 0, wait = 0;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      auto* mm = const_cast<mech3::MainMenu*>(mech3::main_menu());
+      if (stage == 0 && now == &st.main && mm) {
+        mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
+        stage = 1;
+      } else if (stage == 1) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+        if (!g) return;
+        out.width = engine.buffer_width();
+        out.accept = g->accept.get_rect()->left;
+        out.gfx = g->gfx_audio.get_rect()->left;
+        out.level = g->difficulty.get_rect()->right;
+        for (ztwod::Image* im : {&g->lines, &g->lines1})
+          if (im->image && im->get_x() == 0) out.lines_w = im->image->width, out.lines_x = im->get_x();
+        mech3::options().in_game_vmode = 5;  // 640x480 picked in the menus (GRAPHICS' ACCEPT): for the next start
+        g->back.on_left_up();
+        stage = 2;
+      } else if (stage == 2 && now == &st.main && mm && ++wait > 3) {
+        out.campaign = mm->buttons[mech3::MainMenuButton::kNewCampaign].get_rect()->left;
+        out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
+        out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
+        out.width_after = engine.buffer_width();
+        stage = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zfix::options() = saved_fix;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(menus_wide_spread_by_their_groups_headless) {
+  if (!have_game()) return;
+  const WideMenus off = wide_menus_run(false), on = wide_menus_run(true);
+  for (const WideMenus* v : {&off, &on})
+    std::printf("wide menus %s: canvas %d; CAMPAIGN %d, CREDITS %d (line %d); ACCEPT %d, GRAPHICS %d, DIFFICULTY's "
+                "right %d, LINES %d wide at %d\n",
+                v == &off ? "off" : "on", v->width, v->campaign, v->credits, v->credits_line, v->accept, v->gfx,
+                v->level, v->lines_w, v->lines_x);
+  EXPECT(off.width == 640 && on.width == 853 && off.width_after == 640 && on.width_after == 853);
+  const int32_t extra = on.width - 640;
+  EXPECT(off.credits > 0 && off.lines_w > 0 && off.accept > 0);
+  EXPECT(on.campaign == off.campaign && on.level == off.level);  // the left groups stay
+  EXPECT(on.credits == off.credits + extra && on.credits_line == off.credits_line + extra);
+  EXPECT(on.accept == off.accept + extra && on.gfx == off.gfx + extra);
+  EXPECT(on.lines_w == off.lines_w + extra && on.lines_x == off.lines_x);
+}
+
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to
 // 1920x1080 from the options (Core's resume, 0x004ab6b0) kept the camera's
 // 4:3 80 degrees across, the picture stretched 4:3 to 16:9. The exe sets

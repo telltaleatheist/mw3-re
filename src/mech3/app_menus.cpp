@@ -6,6 +6,7 @@
 // button's +0x111ec) still lead to its parts; a menu object's handle is a block
 // of 0x10, its address for the hooks that name it.
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include "gamez/zreader/zreader.h"
@@ -75,12 +76,11 @@ Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
 }
 
 namespace {
-// Ours (16:9 menus, behind any_resolution; resolution.md): a menu screen on a
-// canvas wider than its 640 frame. A full-width background (600 or more
-// across) goes to the middle, its sides filled from its own edges, mirrored
-// and darkened (made here, the player's art left as it is); every other
-// object moves by its place in the frame: the left third stays, the middle
-// third by half the extra width, the right third by all of it.
+// Ours (16:9 menus, wide_menus with any_resolution; resolution.md section
+// 12): a menu screen on a canvas wider than its 640 frame. A full-width
+// background (600 or more across) goes to the middle, its sides filled from
+// its own edges, mirrored and darkened (made here, the player's art left as
+// it is); the other objects move by their screen's groups (below).
 void widen_background(ztwod::Image& im, int32_t extra) {
   zimg::Texture* src = im.image;
   if (!src || !src->pixels || src->palette_count) return;
@@ -110,6 +110,34 @@ void widen_background(ztwod::Image& im, int32_t extra) {
   im.set_image(dst);
   im.set_pos(im.get_x(), im.get_y());
 }
+
+// An overlay drawn as one image across a left and a right group (the game
+// options' panel, its link and the screens' box): made wider at column `at`,
+// that column repeated, so a line crossing it lengthens and the right part
+// lands with its group.
+void stretch_image(ztwod::Image& im, int32_t at, int32_t extra) {
+  zimg::Texture* src = im.image;
+  if (!src || !src->pixels || src->palette_count || at <= 0 || at >= src->width) return;
+  const int w = src->width, h = src->height;
+  zimg::Texture* dst = ztwod::host().image_new(w + extra, h);
+  if (!dst) return;
+  auto* in = static_cast<const uint16_t*>(src->pixels);
+  auto* out = static_cast<uint16_t*>(dst->pixels);
+  dst->flags = (src->flags & ~(zimg::kAlphaOwned | zimg::kPaletteOwned)) | zimg::kPixelsOwned;
+  if (src->alpha) {  // drawn see-through by its alpha (the panel's shade)
+    dst->alpha = static_cast<uint8_t*>(std::calloc(static_cast<size_t>(w + extra) * h, 1));
+    dst->flags |= zimg::kAlphaOwned;
+  }
+  auto from = [&](int x) { return x < at ? x : x < at + extra ? at : x - extra; };
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w + extra; ++x) {
+      out[y * (w + extra) + x] = in[y * w + from(x)];
+      if (dst->alpha) dst->alpha[y * (w + extra) + x] = src->alpha[y * w + from(x)];
+    }
+  }
+  im.set_image(dst);
+  im.set_pos(im.get_x(), im.get_y());
+}
 }  // namespace
 
 namespace {
@@ -123,9 +151,14 @@ struct Group {
   int32_t x0, y0, x1, y1;
   Anchor anchor;
 };
+struct Stretch {
+  int32_t x, y, w;  // the image: its place in the frame and its width
+  int32_t at;       // the column repeated
+};
 struct ScreenGroups {
   uint32_t ctor;  // the screen's constructor (GameEngine::construct)
   std::vector<Group> groups;
+  std::vector<Stretch> stretches = {};
 };
 const std::vector<ScreenGroups>& screen_groups() {
   static const std::vector<ScreenGroups> k = {
@@ -134,7 +167,7 @@ const std::vector<ScreenGroups>& screen_groups() {
       {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
-      {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}},
+      {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
   };
   return k;
 }
@@ -155,6 +188,15 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
       widen_background(*im, extra);
       continue;
     }
+    if (im && im->image && table) {
+      bool stretched = false;
+      for (const Stretch& st : table->stretches)
+        if (left == st.x && top == st.y && im->image->width == st.w) {
+          stretch_image(*im, st.at, extra);
+          stretched = true;
+        }
+      if (stretched) continue;
+    }
     Anchor a = kCentre;
     const int32_t mx = (left + right) / 2, my = (top + bottom) / 2;
     if (table)
@@ -164,7 +206,10 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
           break;
         }
     const int32_t off = a == kLeft ? 0 : a == kRight ? extra : extra / 2;
-    if (off) o->set_pos(o->get_x() + off, o->get_y());
+    if (!off) continue;
+    o->set_pos(o->get_x() + off, o->get_y());
+    if (auto* b = dynamic_cast<MainMenuButton*>(o))  // its underline, drawn by the button
+      b->line.set_pos(b->line.get_x() + off, b->line.get_y());
   }
 }
 

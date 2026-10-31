@@ -148,10 +148,11 @@ std::string Engine::message_format_ints(int32_t id, std::initializer_list<int32_
 float Engine::frame_dt() { return ztimer::state().dt; }
 int32_t Engine::in_game_vmode() { return options().in_game_vmode; }
 int32_t Engine::menu_vmode() {
+  if (menu_vmode_ >= 0) return menu_vmode_;
   int32_t w = 0, h = 0;
   const int32_t m = in_game_vmode();
-  if (zfix::options().any_resolution && zfix::options().wide_menus && mech3::vmode_canvas(m, &w, &h) && w > 640) return m;
-  return 5;
+  const bool wide = zfix::options().any_resolution && zfix::options().wide_menus && mech3::vmode_canvas(m, &w, &h) && w > 640;
+  return menu_vmode_ = wide ? m : 5;
 }
 float Engine::mouse_accel_x() { return options().mouse_accel[0]; }
 float Engine::mouse_accel_y() { return options().mouse_accel[1]; }

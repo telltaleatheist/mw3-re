@@ -489,3 +489,43 @@ Tests:
   mode 5's. Without the fix, at 13 and 15 the origins are 106 and the rects
   106 to the right (4 checks fail).
 
+
+## 12. 16:9 menus (in progress, 2026-10-30)
+
+Ours, `--wide-menus` (`zfix::options().wide_menus`, a display switch beside
+any_resolution, off by default; it changes no play). `Engine::menu_vmode`
+gives the menus the in-mission mode when its canvas is wider than 640
+(853x480 at 16:9), else 5. It is chosen once, at the start-up: the screens
+are laid out when they are made (an OptionsState makes its screen in its
+constructor), so a mode picked in the graphics options reaches the menus at
+the next start, not screens already made for another width.
+
+`GameEngine::widen_screen` (app_menus.cpp) runs on each menu screen as it is
+made, except the pause screen (it keeps the dialog origin, section 9):
+- a background 600 or more across goes to the middle, its sides filled from
+  its own edges, mirrored and darkened, into a new image (the player's art
+  on disk is not touched);
+- per-screen group tables (frame rects, anchored left, centre or right)
+  move each object whose middle is in a group, so a sphere, its label, its
+  ripple and its trap rect move together; the rest moves by half the extra
+  width, as one block with the background. A screen with no table is one
+  centred block;
+- a main menu button's underline (AUXBITMAP, the button's own image, not on
+  the screen's list) moves with its button;
+- an overlay drawn as one image across two groups is stretched at a column
+  between them (that column repeated, alpha and flags kept): the game
+  options' LINES (483x346) at column 367, so the link from the settings'
+  panel lengthens and the screens' box lands with GRAPHICS & AUDIO and
+  CONTROLS.
+
+Done: the main menu (0x486260) and the game options (0x4379f0). Left, one per
+sitting with a shot: graphics/audio, controls, pilot, campaign and briefing
+(its 3D map), debriefing, the lab (its 3D view), Instant Action, message
+boxes.
+
+Test: `menus_wide_spread_by_their_groups_headless`, with a saved
+InGameVMode of 13. With wide menus off, then on: main menu, OPTIONS, BACK.
+CAMPAIGN and DIFFICULTY stay, while CREDITS (and its underline), ACCEPT and
+GRAPHICS & AUDIO move 213. LINES is 213 wider. A 640x480 picked from the
+options leaves the menus at 853. Break: without the underline move and the
+stretch, 2 checks fail.
