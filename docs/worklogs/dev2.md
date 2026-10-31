@@ -373,3 +373,17 @@ works alongside it; stay out of its files.
   across the pause in each view; the fake screen never draws the layer,
   so it does not catch this one).
 - Branch `mac5/w22-camera` off main d7831d08.
+## 23. W19: the system cursor in the middle of a fullscreen mission (2026-10-30)
+
+- Not reproducible here (a hidden window has no visible cursor, and the
+  shots show no software cursor at the centre). Read from the code: since
+  bb64d484 `SdlInput::refresh` called `SDL_SetWindowRelativeMouseMode` only
+  when its `captured_` flag changed (before, every acquire did). A mode SDL
+  refused or dropped stayed off with the flag on: the cursor showed, the
+  game's SetCursorPos (0x0051b3c0, not relative) put it at the centre each
+  frame, and the motion's xrel still aimed.
+- Fix: refresh compares SDL's relative state and SDL_CursorVisible with
+  what it wants; a held mouse hides the system cursor itself.
+  `sdl_held_mouse_keeps_the_cursor_hidden` drops SDL's relative mode
+  behind SdlInput's back (3 checks fail without the fix).
+- Owen to confirm on the PC. Branch `mac5/w19-cursor-fix` off main d7831d08.

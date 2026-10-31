@@ -486,6 +486,52 @@ TEST(sdl_fullscreen_keys_focus_and_mickeys) {
 // Ctrl+Alt alone lets go (the game then sees no motion or buttons), a click
 // inside takes it back unseen; the pause lets go and its end takes it back;
 // the focus lost lets go until a click. Fullscreen holds it as before.
+// Playtest W19: "the mouse cursor sits in the centre of the screen" in a
+// fullscreen mission, the aim working. SdlInput asked SDL for the relative
+// mouse only when its own flag changed; one SDL refused or let go was never
+// asked for again, so the system's cursor showed where the game puts it each
+// frame (SetCursorPos, the centre) while the motion still aimed. Each read
+// now asks SDL for its state: held means relative and no cursor, in the
+// menus too (the game draws its own); let go in a window, the cursor shows.
+TEST(sdl_held_mouse_keeps_the_cursor_hidden) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 cursor test", 640, 480);
+  sdlfe::SdlInput in;
+  sdlfe::SdlPump pump(&in, nullptr);
+  in.window = w.sdl();
+  bool windowed = false, mission = true;
+  in.windowed = [&] { return windowed; };
+  in.in_mission = [&] { return mission; };
+  in.set_cooperative_level(platform::Input::kMouse, 5);
+  EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0);
+  platform::MouseState ms;
+  in.mouse_state(&ms);
+  if (!SDL_GetWindowRelativeMouseMode(w.sdl())) {
+    std::printf("no relative mouse for a hidden window here: not checked\n");
+    return;
+  }
+  EXPECT(in.captured() && !SDL_CursorVisible());
+  // Fullscreen, a mission: SDL lets go behind SdlInput's back.
+  SDL_SetWindowRelativeMouseMode(w.sdl(), false);
+  SDL_ShowCursor();
+  in.mouse_state(&ms);
+  std::printf("after SDL let go: relative %d, cursor %d\n", SDL_GetWindowRelativeMouseMode(w.sdl()), SDL_CursorVisible());
+  EXPECT(SDL_GetWindowRelativeMouseMode(w.sdl()) && !SDL_CursorVisible());
+  // Fullscreen menus: still held, no system cursor.
+  mission = false;
+  in.mouse_state(&ms);
+  EXPECT(in.captured() && !SDL_CursorVisible());
+  // A window, a mission, the focus lost: let go, the system's cursor shown.
+  windowed = true, mission = true;
+  SDL_Event f{};
+  f.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+  pump.handle(f);
+  EXPECT(!in.captured() && !SDL_GetWindowRelativeMouseMode(w.sdl()) && SDL_CursorVisible());
+  SDL_ShowCursor();
+}
+
 TEST(sdl_window_lets_the_mouse_go) {
   sdlfe::SdlInput in;
   sdlfe::SdlPump pump(&in, nullptr);

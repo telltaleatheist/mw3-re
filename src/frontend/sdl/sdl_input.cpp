@@ -161,9 +161,14 @@ void SdlInput::refresh() {
   if (win_ && !mission_ && !absolute_) cursor_moved_ = false;
   absolute_ = win_ && !mission_;
   const bool want = acquired_[kMouse] && (coop_[kMouse] & 1) && focused_ && !(win_ && (!mission_ || released_));
-  if (want != captured_) capture(want);
-  const bool hide = absolute_;  // the menus draw their own cursor; outside the window the system's shows
-  if (window && hide != cursor_hidden_) {
+  // Playtest W19: SDL's own state, not only ours; a relative mode refused or
+  // dropped (a fullscreen switch, the focus) is asked for again, else the
+  // system's cursor showed at the centre the game puts it each frame.
+  if (want != captured_ || (window && SDL_GetWindowRelativeMouseMode(window) != want)) capture(want);
+  // The menus and a held mouse draw the game's own cursor or none; a mouse let
+  // go in a window shows the system's.
+  const bool hide = absolute_ || captured_;
+  if (window && (hide != cursor_hidden_ || SDL_CursorVisible() == hide)) {
     if (hide) SDL_HideCursor();
     else SDL_ShowCursor();
     cursor_hidden_ = hide;
