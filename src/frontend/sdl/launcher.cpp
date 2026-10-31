@@ -530,11 +530,14 @@ void Launcher::layout() {
       break;
     }
     case kSetupScreen: {
-      const bool patchable = install_.ok && (install_.version == "1.0" || install_.version.find("with") != std::string::npos);
-      add(kFind, {130, 152, 380, 44}, "FIND MY INSTALLED MECHWARRIOR 3");
-      add(kInstall, {130, 204, 380, 44}, "INSTALL FROM MY DISC OR DISC IMAGE");
-      add(kPatch, {130, 256, 380, 44}, "APPLY THE 1.2 PATCH", patchable ? "" : "For version 1.0's data", patchable);
-      add(kMusic, {130, 308, 380, 44}, "ADD THE MUSIC FROM MY DISC IMAGE");
+      // The patch only for an install whose data is not 1.2 already (1.0, a
+      // mix or an unknown version; Owen, 2026-10-31): hidden on 1.2.
+      const bool patchable = install_.ok && install_.version != "1.2";
+      int y = 152;
+      add(kFind, {130, y, 380, 44}, "FIND MY INSTALLED MECHWARRIOR 3"), y += 52;
+      add(kInstall, {130, y, 380, 44}, "INSTALL FROM MY DISC OR DISC IMAGE"), y += 52;
+      if (patchable) add(kPatch, {130, y, 380, 44}, "APPLY THE 1.2 PATCH"), y += 52;
+      add(kMusic, {130, y, 380, 44}, "ADD THE MUSIC FROM MY DISC IMAGE");
       add(kBack, {250, 372, 140, 34}, "BACK");
       break;
     }

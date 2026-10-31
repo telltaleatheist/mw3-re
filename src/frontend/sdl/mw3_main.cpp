@@ -122,6 +122,7 @@ struct Args {
   std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot, movie;
   std::string cfg_install;  // mw3.cfg's install= (the command line's wins)
   std::string cfg_mw1_game;  // mw3.cfg's mw1_game= (ours: the launcher's MechWarrior 1989 folder)
+  int wide_menus = -1, cfg_wide_menus = -1;  // --wide-menus / --no-wide-menus, mw3.cfg's widemenus= (ours)
   std::vector<std::string> assets;
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   // The bug fixes (zfix bugs; fixes.md, The bug fixes switch): mw3.cfg's
@@ -169,7 +170,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--launcher-shot FILE [--launcher-screen main|setup|work|notes]] [--launcher-play] [--launcher-mw1] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--launcher-shot FILE [--launcher-screen main|setup|work|notes]] [--launcher-play] [--launcher-mw1] [--wide-menus | --no-wide-menus] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -238,7 +239,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--launcher-play") a.launcher_play = true;
     else if (s == "--launcher-mw1") a.launcher_mw1 = true;
     else if (s == "--launcher-screen" && next(1)) a.launcher_screen = argv[++i];
-    else if (s == "--wide-menus") zfix::options().wide_menus = true;
+    else if (s == "--wide-menus") a.wide_menus = 1;
+    else if (s == "--no-wide-menus") a.wide_menus = 0;
     else if (s == "--original") a.play_original = true;
     else if (s == "--import") a.force_import = true;
     else if (s == "--patch" && next(1)) a.patch = argv[++i];
@@ -290,6 +292,8 @@ void read_config(const std::string& dir, Args& a) {
     else if (line == "windowed=1") a.windowed = true;
     else if (line == "bugfixes=0") a.cfg_bugfixes = 0;
     else if (line == "bugfixes=1") a.cfg_bugfixes = 1;
+    else if (line == "widemenus=0") a.cfg_wide_menus = 0;
+    else if (line == "widemenus=1") a.cfg_wide_menus = 1;
   }
 }
 
@@ -482,6 +486,9 @@ int main(int argc, char** argv) {
   // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
   // platform fixes that let it run stay on: fixes.md, The bug fixes switch).
   zfix::options().bugs = !a.play_original && a.cfg_bugfixes != 0;
+  // The menus' 16:9 (a display choice, kept by --original): the command
+  // line's, else mw3.cfg's widemenus=, else on.
+  zfix::options().wide_menus = a.wide_menus >= 0 ? a.wide_menus != 0 : a.cfg_wide_menus != 0;
   if (!zfix::options().bugs)
     std::printf("mw3: bug fixes off (%s): the original's play\n", a.play_original ? "--original" : "bugfixes=0 in mw3.cfg");
   // The launcher (ours: launcher.h, docs/launcher.md): a player's plain

@@ -27,6 +27,8 @@ the mockups were handed over in the outbox (launcher-sketch).
      path ran past both sides on Owen's PC (lead, 2026-10-31).
      `launcher_long_path_fits_the_button`.
    - **Pirate's Moon**: greyed, "Coming later".
+  - SETUP's APPLY THE 1.2 PATCH shows only when the install found is not
+    1.2 already (1.0, a mix or an unknown version; Owen, 2026-10-31).
    - **MechWarrior (1989)**: only when the MW1 port is found beside ours
      (below).
    - **Setup** and **Quit**.

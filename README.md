@@ -91,6 +91,8 @@ installed copy does not have. Two ways to get it back:
 - In a window, press and release **Ctrl+Alt** to free the mouse; click in
   the window to take it back.
 - Gamepads work as they did on Windows 98, and force feedback becomes rumble.
+- On a widescreen the menus use the whole width too. For the original's 4:3
+  menus, put `widemenus=0` in `mw3.cfg` (or start with `--no-wide-menus`).
 
 ### Bug fixes, and playing exactly like the original
 
