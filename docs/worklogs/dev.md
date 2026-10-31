@@ -2173,3 +2173,41 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   program_hud_pick_at (project, reticle there, aim, aim_state). The
   test needs the player 150 m up: at ground level c1m1's hills or
   buildings block every 900 m line round the Owens.
+
+## W34, the AI's missiles (2026-10-30 night)
+
+- Branch mac4/w34-ally-missiles (on mac4/w33-reticle, after f27414ce, the
+  W31 revision). Firing's defaults: the exe's constructor 0x4b6570 copies
+  11 words from 0x5e8868, which the CRT initializer 0x4b6500 fills (time
+  FLT_MAX, waits 3/6/1 s, cosines of 20/30/45 degrees, range 50). The port
+  had 0 (the image's), so the AI fired at once and up to 90 degrees off;
+  the launcher clamp (0x4b36e0, 27 degrees) then sent shots along the
+  part's facing. Fixed in zai_firing.h. test_ai_brain.py runs 0x4b6500
+  and probe_ai_brain.cpp writes the fields (was hard-coded zeros); break
+  caught. Headless: c2m1, the strider facing the player 150 m off; 13 of
+  23 missiles past 27 degrees before, 0 of 5 after. Test-only hook
+  program_watch_shots (WeaponCalls::test_fired). Pinned AI runs re-pinned
+  where the slower firing moved them (see the commit).
+
+## State for the morning (2026-10-30 night)
+
+- Holding after W34 (the lead: one worker overnight; resume in the morning).
+- W32 reopened (not started): Owen Q-targets buildings (the HQ) that are
+  not on the radar unless targeted, and their radar blip (maybe Shift+R's
+  map too) sits in the wrong place. Check the radar position read for a
+  targeted building or targets.zrd object (node or centroid vs a mech's
+  +0x14, offsets, world vs local) against 0x43dd00. Test: c3m1 hqbuild
+  Q-targeted, its blip at its world bearing and range like a mech's.
+- Release work: tools/deps/build_deps.sh (mac4/deps) is waiting on Owen's
+  permission to build the downloaded code (the classifier denied it here;
+  not worked around). The WSL packages are installed (A, the lead ran the
+  apt command). C approved (appimagetool, linuxdeploy from GitHub
+  releases). Then: point make_app.sh at the prefix (universal, macOS 12),
+  bundle mw3import with FFmpeg, the Linux build, tests and AppImage.
+- Branches stacked: mac4/w31-jets (c967cb18) <- mac4/w33-reticle
+  (99c4f4af) <- mac4/w34-ally-missiles (f27414ce W31 revision, then W34);
+  merging w34 brings all three.
+- Pending at the compaction: the full mw3tests run on the W34 tree (output
+  in the session scratchpad, w34-all.txt). Any pinned AI test it fails is
+  moved by the slower firing: check that it still means what it says,
+  re-pin it, commit, then report W34 to the lead and hold.

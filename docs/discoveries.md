@@ -2471,6 +2471,12 @@ file (docs/assets.md, Data versions):
   never loads the vehicle icons for the vehicles themselves: the hidden
   "stealth" object every mission makes (a debug fly camera) loads them when
   it is created and frees them when it goes.
+- **AI mechs wait for their torso before they fire.** An AI mech starts
+  tracking only once its torso is within 20 degrees of its target, and pulls
+  the trigger within 45 degrees; it waits 6 seconds before its first burst
+  (3 for a quick one) and rests a second between bursts. A missile or slug
+  fired more than about 27 degrees off a side launcher's facing leaves along
+  that facing instead, so with these limits the AI's shots go where it aims.
 
 ## The cameras
 

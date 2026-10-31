@@ -7902,6 +7902,104 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
   EXPECT(picks[1].on_owens && picks[1].distance > 850.0f && picks[1].state == 2);  // yellow
 }
 
+// Playtest W34: the AI's missiles ("sometimes they come from the side or the
+// back of the mech and shoot behind them, sometimes they just hit
+// hillsides"). The firing state's defaults are a template the start-up
+// fills (0x004b6500: the waits, and the torso's cosines to track and fire,
+// 20, 30 and 45 degrees); the port had them 0, so the AI fired at once with
+// its torso still turning, up to 90 degrees off, and each shot past 27
+// degrees of its launcher's facing left along that facing (0x004b36e0).
+// c2m1 with the strider (LRMs) facing the player 150 m to its east: every
+// AI shot in 6000 frames leaves within 27 degrees of its aim point.
+namespace {
+struct AiShots {
+  int missiles = 0, off = 0, all = 0;
+  float worst = 0;
+};
+AiShots* g_ai_shots = nullptr;
+}  // namespace
+
+TEST(mission_c2m1_ai_missiles_leave_toward_their_aim_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_ai_missiles"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  AiShots shots;
+  g_ai_shots = &shots;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c2 mission 1
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::program_watch_shots([](const mech3::FiredShot& w) {
+      if (!g_ai_shots || !w.owner || w.owner == mech3::mech_mission_player()) return;
+      const float t[3] = {w.target[0] - w.muzzle[0], w.target[1] - w.muzzle[1], w.target[2] - w.muzzle[2]};
+      const float n = std::sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+      const float c = n > 0 ? (t[0] * w.dir[0] + t[1] * w.dir[1] + t[2] * w.dir[2]) / n : 1.0f;
+      const float deg = std::acos(std::max(-1.0f, std::min(1.0f, c))) * 57.29578f;
+      ++g_ai_shots->all;
+      const std::string name = w.weapon;
+      if (name.find("RM") == std::string::npos) return;  // LRM, SRM, Streak SRM
+      ++g_ai_shots->missiles;
+      g_ai_shots->worst = std::max(g_ai_shots->worst, deg);
+      if (deg > 27.0f) ++g_ai_shots->off;
+    });
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 3) return;
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      void* strider = nullptr;
+      for (int32_t i = 0; i < made; ++i)
+        if (ai[i].name && std::string(ai[i].name) == "strider_01") strider = ai[i].mech;
+      if (!strider) return;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(strider, &d);
+      const float ex = d.pos[0] + 150.0f, ez = d.pos[2];
+      const float at[3] = {ex, ground_under(ex, d.pos[1] + 200.0f, ez), ez};
+      mech3::move_mech(mech3::mech_mission_player(), at, 1.5707964f);
+      mech3::move_mech(strider, d.pos, -1.5707964f);  // facing it (+x)
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    app.run(pump);
+    mech3::program_watch_shots(nullptr);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  g_ai_shots = nullptr;
+  std::printf("  AI shots %d, missiles %d: %d past 27 degrees of their aim point, the worst %.1f\n", shots.all,
+              shots.missiles, shots.off, shots.worst);
+  EXPECT(shots.missiles >= 3);
+  EXPECT(shots.off == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1's keys through the mech's command handler (0x0041be80,
 // docs/controls.md, The mech's commands): F2 selects the second weapon
 // group; the power key powers the Mad Cat down, and again back up; the jump
