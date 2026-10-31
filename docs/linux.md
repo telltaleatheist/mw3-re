@@ -44,6 +44,21 @@ movies need it: the 32-bit Indeo helper (`mw3indeo`) is Windows-only.
   built position-independent (`POSITION_INDEPENDENT_CODE`; the Mac's
   default).
 
+### What the platform layer needed
+
+- A hidden window's frames paced: with no swapchain image to wait on
+  (`--hidden`, every test), nothing made the program wait for the GPU, and
+  on WSL's software Vulkan the frames fell behind by hundreds, each holding
+  its cycled staging buffers: a mission's run grew 200 MB a second (3 GB in
+  14 s; 0.2 GB on the Mac's Metal), and the tests that start several games
+  at once ran WSL out of memory (2026-10-31, the VM's 13 GB cap; WSL's
+  service then needed a `wsl --shutdown`). `SdlRender3D::present` now keeps
+  one such frame in flight (a fence waited on before the next submit): the
+  same run peaks at 0.28 GB.
+- A window's new size synced (`SDL_SyncWindow` in `SdlWindow::create`): X11
+  and Wayland apply it later, and the next frame read back at the old size
+  (`sdl_layer_scales_sharp` at 1.5x).
+
 ## Where things go
 
 - The write dir (settings, pilots, saves, the imported movies and music):
@@ -84,8 +99,13 @@ runs the tools (and the AppImage) without FUSE, as in WSL or a container.
 
 ## Checking
 
-- `mw3tests` and `mw3sdltests` run headless under WSL (`SDL_VIDEO_DRIVER=dummy`
-  where no window is needed).
+- Under WSL2 (2026-10-31): `mw3tests` 262 tests, 0 failed; `mw3sdltests`
+  each test on its own under `run_capped.py --mem-gb 5` (7 for
+  `sdl_program_screens_are_not_blank`, which starts ten games at once;
+  3 GB peak). Run them one at a time with a cap there: WSL's VM is shared
+  and capped, and a run that outgrows it takes the whole distro down.
+- WSL stops a distro once no wsl.exe client is attached, so a long job is
+  run attached (in the foreground of the session), not left with nohup.
 - The differential tests (tests/differential, Python with Unicorn) need a
   Python with `unicorn` installed; WSL's system Python has none.
 - WSLg gives a Wayland and X display (`WAYLAND_DISPLAY=wayland-0`), so a

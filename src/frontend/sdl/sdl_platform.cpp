@@ -43,6 +43,7 @@ uint32_t SdlWindow::create(const std::string& title, int width, int height) {
   if (fullscreen_) return SDL_SetWindowTitle(window_, title.empty() ? "MechWarrior 3" : title.c_str()), kHwnd;
   SDL_SetWindowSize(window_, width, height);
   SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  SDL_SyncWindow(window_);  // X11 and Wayland apply a size later: the next frame's is this one (docs/linux.md)
   if (!title.empty()) SDL_SetWindowTitle(window_, title.c_str());
   return kHwnd;
 }
