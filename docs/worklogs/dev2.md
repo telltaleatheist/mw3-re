@@ -537,5 +537,6 @@ works alongside it; stay out of its files.
      SdlWindow::init(hidden, adopt), --launcher-play; not high-DPI);
   3. the MW1 entry: done (find_mw1/run_mw1, mw1_game=, save_config_value,
      --launcher-mw1; test with a stand-in script);
-  4. the menu sounds;
+  4. the menu sounds: done (Sounds in launcher.cpp from the install's archive,
+     --nosound, MW3_LAUNCHER_MUTE for the test);
   5. the first-start notes inside it.

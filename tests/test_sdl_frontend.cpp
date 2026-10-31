@@ -2524,7 +2524,34 @@ TEST(sdl_program_launcher_window_goes_on_to_the_game) {
   SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
   std::printf("launcher play: handed %d, taken %d, the menu's frame %dx%d\n", handed, took, img ? img->w : 0, img ? img->h : 0);
   EXPECT(handed && took && img && img->w > 0);
+  EXPECT(text.find("the menu's sounds") == std::string::npos);  // --nosound: none
   if (img) SDL_DestroySurface(img);
+}
+
+// The launcher's sounds (lead's launcher list, item 4; docs/launcher.md):
+// the main menu's own rollover and select (sounds.zrd's MAINMENU set:
+// sfx_button2.wav, sfx_button6.wav) read from the install's sound archive,
+// none of ours. Skipped where the machine has no audio device.
+TEST(sdl_program_launcher_plays_the_menus_sounds) {
+  if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) return;
+  const bool device = SDL_GetNumAudioDrivers() > 0 && std::string(SDL_GetCurrentAudioDriver() ? SDL_GetCurrentAudioDriver() : "") != "dummy";
+  SDL_QuitSubSystem(SDL_INIT_AUDIO);
+  if (!device) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_sounds";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  const std::string log = dir + "/sounds.log";
+  setenv("MW3_LAUNCHER_MUTE", "1", 1);  // played at no volume (the machine may be streaming)
+  const pid_t pid = spawn_mw3({"--write-dir", dir + "/wd", "--launcher-play", "--window", "640x480", "--frames", "5"}, log);
+  unsetenv("MW3_LAUNCHER_MUTE");
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const size_t at = text.find("the menu's sounds from ");
+  std::printf("launcher sounds: %s\n", at == std::string::npos ? "none" : text.substr(at, text.find('\n', at) - at).c_str());
+  EXPECT(at != std::string::npos && text.find("(2 of 2)", at) != std::string::npos && text.find("/zbd/sounds", at) != std::string::npos);
 }
 
 #if !defined(_WIN32)

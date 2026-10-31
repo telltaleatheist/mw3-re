@@ -16,6 +16,7 @@
 #include <thread>
 
 #include "frontend/sdl/sdl_install.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "gamez/zrender/zrndr_ripple.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
@@ -202,6 +203,63 @@ struct Text {
 
 const SDL_Color kWhite{228, 230, 232, 255}, kAmber{255, 176, 64, 255}, kGrey{120, 124, 130, 255}, kDim{190, 190, 180, 255};
 
+// The main menu's own sounds (sounds.zrd's MAINMENU set: menu_rollover,
+// sfx_button2.wav at 0.7; menu_select, sfx_button6.wav), read from the
+// player's sound archive as zSnd reads it; none without an install (we ship
+// no sounds of our own).
+struct Sounds {
+  enum { kRollover, kSelect };
+  SDL_AudioStream* stream[2] = {};
+  Uint8* audio[2] = {};
+  Uint32 len[2] = {};
+  ~Sounds() {
+    for (int i = 0; i < 2; ++i) {
+      if (stream[i]) SDL_DestroyAudioStream(stream[i]);
+      SDL_free(audio[i]);
+    }
+  }
+  bool load(const std::string& install) {
+    static const char* const kFiles[2] = {"sfx_button2.wav", "sfx_button6.wav"};
+    static const float kGain[2] = {0.7f, 1.0f};
+    for (const char* arc : {"soundsL.zbd", "soundsH.zbd"}) {
+      zutl_zar::Archive a;
+      zutl_zar::init(a);
+      const std::string path = (fs::path(install) / "zbd" / arc).string();
+      if (!fs::is_regular_file(path) || !zutl_zar::open(a, path.c_str())) {
+        zutl_zar::destroy(a);
+        continue;
+      }
+      int got = 0;
+      for (int i = 0; i < 2; ++i) {
+        const int e = zutl_zar::find(a, kFiles[i]);
+        uint32_t size = 0;
+        if (e < 0) continue;
+        zutl_zar::read(a, e, nullptr, &size);
+        std::vector<Uint8> bytes(size);
+        if (!size || zutl_zar::read(a, e, bytes.data(), &size) != 0) continue;
+        SDL_AudioSpec spec{};
+        if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(bytes.data(), bytes.size()), true, &spec, &audio[i], &len[i])) continue;
+        stream[i] = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+        // MW3_LAUNCHER_MUTE (checks): loaded and played at no volume.
+        if (stream[i]) SDL_SetAudioStreamGain(stream[i], SDL_getenv("MW3_LAUNCHER_MUTE") ? 0.0f : kGain[i]), ++got;
+      }
+      zutl_zar::close(a);
+      zutl_zar::destroy(a);
+      if (got) {
+        std::printf("mw3: launcher: the menu's sounds from %s (%d of 2)\n", path.c_str(), got);
+        return true;
+      }
+    }
+    return false;
+  }
+  void play(int i) {
+    if (!stream[i]) return;
+    SDL_ClearAudioStream(stream[i]);
+    SDL_PutAudioStreamData(stream[i], audio[i], static_cast<int>(len[i]));
+    SDL_ResumeAudioStreamDevice(stream[i]);
+  }
+};
+
 // ---- the screens ----
 
 struct Button {
@@ -315,6 +373,8 @@ class Launcher {
   bool after_install_music_ = false;
   LauncherChoice choice_;
   bool done_ = false;
+  Sounds sounds_;
+  bool sounds_on_ = false, sounds_tried_ = false;  // loaded once there is an install (at the start or after SETUP)
 };
 
 void Launcher::find_install() {
@@ -409,6 +469,10 @@ void Launcher::layout() {
   };
   switch (screen_) {
     case kMain: {
+      if (sounds_on_ && install_.ok && !sounds_tried_) {
+        sounds_tried_ = true;
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO)) sounds_.load(install_.dir);
+      }
       // A long folder is shortened to the plate when drawn (Text::fit), the
       // words before it kept.
       const std::string ready = "Ready: version " + install_.version + ", ";
@@ -663,6 +727,7 @@ void Launcher::finish_work() {
 }
 
 void Launcher::activate(int id) {
+  sounds_.play(Sounds::kSelect);
   static const SDL_DialogFileFilter kDisc[] = {{"Disc images (.iso, .cue)", "iso;cue"}, {"All files", "*"}};
   static const SDL_DialogFileFilter kCue[] = {{"Cue sheets (.cue)", "cue"}, {"All files", "*"}};
   static const SDL_DialogFileFilter kZip[] = {{"The 1.2 patch (.zip, .exe)", "zip;exe"}, {"All files", "*"}};
@@ -735,6 +800,7 @@ LauncherChoice Launcher::run() {
   canvas_ = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGB565);
   find_install();
   find_mw1();
+  sounds_on_ = o_.sound && !shot;
   if (shot) {
     if (o_.screen == "setup") screen_ = kSetupScreen;
     if (o_.screen == "work") {
@@ -785,7 +851,10 @@ LauncherChoice Launcher::run() {
           const SDL_Rect& r = buttons_[i].r;
           if (e.motion.x >= r.x && e.motion.x < r.x + r.w && e.motion.y >= r.y && e.motion.y < r.y + r.h) h = static_cast<int>(i);
         }
-        if (h != hot_) hot_ = h, hot_t_ = 0, focus_ = -1;
+        if (h != hot_) {
+          hot_ = h, hot_t_ = 0, focus_ = -1;
+          if (h >= 0 && buttons_[h].enabled) sounds_.play(Sounds::kRollover);
+        }
       } else if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) {
         if (hot_ >= 0 && buttons_[hot_].enabled) activate(buttons_[hot_].id);
       } else if (e.type == SDL_EVENT_KEY_DOWN) {
@@ -798,6 +867,7 @@ LauncherChoice Launcher::run() {
             if (buttons_[f].enabled) break;
           }
           focus_ = f, hot_t_ = 0;
+          if (f >= 0) sounds_.play(Sounds::kRollover);
         };
         if (k == SDLK_DOWN || k == SDLK_TAB) step(1);
         else if (k == SDLK_UP) step(-1);

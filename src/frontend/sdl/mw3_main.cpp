@@ -497,6 +497,7 @@ int main(int argc, char** argv) {
     if (!std::getenv("MW3_FIND_INSTALL")) lo.more_installs.push_back(MW3_GAME_DIR);
 #endif
     lo.fullscreen = !a.windowed && !a.window_given;
+    lo.sound = !a.nosound;
     lo.win_w = a.win_w, lo.win_h = a.win_h;
     lo.shot = a.launcher_shot, lo.screen = a.launcher_screen, lo.play = a.launcher_play, lo.play_mw1 = a.launcher_mw1;
     const sdlfe::LauncherChoice c = sdlfe::run_launcher(lo);
