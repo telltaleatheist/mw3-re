@@ -426,3 +426,17 @@ works alongside it; stay out of its files.
 - The test's maps (MW3_W27_TRACE): the exe's stop on these routes is the
   standstill on open ground, not a wall contact.
 - Branch `mac5/w27-breadcrumbs` off main d1e5b9e6.
+## 27. W25: the message box over the lab or a mission (2026-10-30)
+
+- The box (0x004ac150, ztwod::MessageBox) grabs buffer 2 as its backdrop
+  and runs its own loop of lock, draw, flip; our 16-bit buffer is the
+  menus' 640x480 while the lab's and a 16:9 mission's 3D are full size, so
+  the picture behind the box was the buffer's copy, low-res.
+- Fix: SdlTwodHost::screen_grab(2) over a GPU frame holds that frame on the
+  GPU (SdlRender3D::hold_frame, a texture copy) and returns a key-coloured
+  backdrop; GameEngine::video_flip restores the kept frame and lays the
+  box's layer over it; the backdrop's free lets it go.
+- Tested: `sdl_render_keeps_a_shown_frame` (the kept frame back pixel for
+  pixel at 1280x720). The lab's overwrite and Ctrl+Q's box were not driven
+  here (Ctrl+Q before a win opens none). Owen to confirm.
+- Branch `mac5/w25-box-backdrop` off main 98665790.

@@ -35,6 +35,9 @@ class SdlRender3D : public platform::Render3D {
   void set_fog_color(uint8_t r, uint8_t g, uint8_t b) override;
   void present() override;
   bool read_back(std::vector<uint32_t>* argb, int* width, int* height) override;
+  bool hold_frame() override;
+  bool restore_frame() override;
+  void drop_frame() override;
 
   // Saves the next presented frame as a BMP instead of showing it.
   void capture_next(const char* bmp_path) { capture_path_ = bmp_path; }
@@ -87,6 +90,8 @@ class SdlRender3D : public platform::Render3D {
   bool clear_color_ = true;
   bool clear_pending_ = true;
   SDL_GPUTexture* frame_ = nullptr;  // the back buffer
+  SDL_GPUTexture* held_ = nullptr;   // a shown frame kept (hold_frame), the back buffer's size
+  Uint32 held_w_ = 0, held_h_ = 0;
   Uint32 frame_w_ = 0, frame_h_ = 0;
   float clear_rgb_[3] = {0, 0, 0};
   float fog_rgb_[3] = {0, 0, 0};
