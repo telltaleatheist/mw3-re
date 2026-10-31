@@ -440,3 +440,16 @@ works alongside it; stay out of its files.
   pixel at 1280x720). The lab's overwrite and Ctrl+Q's box were not driven
   here (Ctrl+Q before a win opens none). Owen to confirm.
 - Branch `mac5/w25-box-backdrop` off main 98665790.
+## 28. W35: armour not repaired at c3m1 (2026-10-30)
+
+- The paths repair: a c3m1 test (worn to half, two repairs, bugs on: the
+  first call then the parked dock; off: two calls) brings armour and
+  internals to full each time with a store holding armour.
+- Owen's save (Deathstalker0301, loaded in the program through the pilot
+  screen with a temporary print): the store holds standard armour tech 3
+  x108 (and ferro tech 1 and 2), his mech is standard tech 3. The MFD's
+  armour bars (the lance display, mode 3) are refilled each frame from
+  the mech. So by the exe's rule his armour comes back; not reproduced.
+- Added: each repair logs what it did with the armour (mech_repair.cpp),
+  so the next one in his mw3.log says. Branch `mac5/w35-repair` off main
+  98665790.

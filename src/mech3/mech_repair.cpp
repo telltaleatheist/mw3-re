@@ -3,6 +3,8 @@
 // the motions' set-up 0x00415ca0).
 #include "mech3/mech_repair.h"
 
+#include <cstdio>
+
 #include <cmath>
 
 #include "gamez/zweapon/zwep_init.h"
@@ -78,6 +80,11 @@ bool Mech::repair(float dt) {
   want.tech = config->armor_tech;
   want.count = 1;
   ConfigItem* found = store ? repair_store_find(store, want) : nullptr;
+  // Ours (playtest W35): what the repair did with the armour, in the log.
+  std::printf("mw3: repair: %s armour (%s, tech %d): %s\n", h.viewed(*this) ? "the player's" : "a mech's",
+              config->ferro ? "ferro-fibrous" : "standard", static_cast<int>(config->armor_tech),
+              !store ? "no store (not a campaign): not restored"
+                     : found ? "restored from the store" : "none of that kind in the store: not restored");
   if (found) {
     // The armour left in points (each part's share times 100), summed as
     // the exe does, in play's single precision (docs/vehicles.md).

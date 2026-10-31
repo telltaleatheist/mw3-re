@@ -4990,6 +4990,150 @@ ParkRun c2m1_park_run(bool bugs) {
 }
 }  // namespace
 
+
+// Playtest W35 (c3m1, Op 3 Mission 1, "Escort Mobile Field Base, OP:
+// Charlie"): "I'm repairing at the MFBs right now but they aren't repairing
+// my damage. I've repaired twice". The player worn (armour and internals at
+// half), the bases called, the player powered down on the dock point; the
+// wear after; then a second repair (the parked dock with bugs on, a new
+// call with them off), worn again first. With a store holding armour.
+namespace {
+struct RepairRun {
+  bool bases = false;
+  int repairs = 0;
+  std::vector<int> fronts;
+  mech3::MechWear worn, after[2];
+  int done = 0;
+};
+RepairRun c3m1_repair_run(bool bugs) {
+  RepairRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w35_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.op = 3, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::Pilot pilot("Repair");
+    mech3::Game game(&pilot);
+    pilot.current = &game;
+    for (int32_t w = 0; w < 0x25; ++w) game.store.add_ammo(w, 1)->count = 1000;
+    for (int32_t kind = 1; kind <= 2; ++kind)
+      for (int32_t tech = 0; tech <= 2; ++tech) game.store.add_equipment(kind, tech, 1)->count = 40;
+    mech3::Pilot* was_pilot = mech3::current_pilot();
+    mech3::current_pilot() = &pilot;
+    int frames = 0, phase = 0, at = 0, last_front = -2;
+    float point[3] = {};
+    auto put = [&](void* m, float x, float z) {
+      const float a[3] = {x, ground_under(x, point[1] + 100.0f, z), z};
+      mech3::move_mech(m, a, 0.0f);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = mech3::mech_mission_player();
+      const mech3::DockSummary d = mech3::program_dock_summary();
+      if (d.front != last_front) {
+        out.fronts.push_back(d.front), last_front = d.front;
+        if (d.front == 4) ++out.repairs;
+      }
+      ++frames;
+      if (frames == 3) {
+        out.bases = mech3::program_bases_alive();
+        mech3::program_mech_wear_down(player, 0.5f, 0.5f);
+        out.worn = mech3::program_mech_wear(player);
+      }
+      if (!out.bases) return;
+      const bool rest = d.front == 0 || d.front == 7;
+      switch (phase) {
+        case 0:  // the call: M (the pick), M (the call); onto the point
+          if (frames == 5 || frames == 6) mech3::program_mcb_command(player);
+          if (frames == 7) {
+            mech3::program_dock_point(nullptr, point);
+            put(player, point[0], point[2]);
+          }
+          if (frames > 7 && d.front == 2) put(player, point[0], point[2]), mech3::mech_power(player, 1), phase = 1;
+          break;
+        case 1:  // the first repair done
+          if (out.repairs == 1 && rest) {
+            out.after[0] = mech3::program_mech_wear(player), out.done = 1;
+            mech3::mech_power(player, 0);
+            put(player, point[0] + 40.0f, point[2]);  // off the point
+            mech3::program_mech_wear_down(player, 0.5f, 0.5f);
+            phase = 2, at = frames;
+          }
+          break;
+        case 2:  // the second: parked (back on the point, powered down), else a new call
+          if (frames == at + 60) {
+            if (d.front == 7) {
+              put(player, point[0], point[2]), mech3::mech_power(player, 1);
+            } else {
+              put(player, point[0], point[2]);
+              mech3::program_mcb_command(player);
+            }
+          }
+          if (frames == at + 61 && d.front != 7) mech3::program_mcb_command(player);
+          if (frames > at + 61 && d.front == 2) put(player, point[0], point[2]), mech3::mech_power(player, 1);
+          if (out.repairs == 2 && rest) out.after[1] = mech3::program_mech_wear(player), out.done = 2, phase = 9;
+          break;
+        default: break;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 30000;
+    pump.stop = [&] { return phase == 9 || frames > 12000 || (frames > 3 && !out.bases); };
+    app.run(pump);
+    mech3::current_pilot() = was_pilot;
+    pilot.current = nullptr;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c3m1_field_bases_repair_the_player_twice_headless) {
+  if (!have_game()) return;
+  for (const bool bugs : {true, false}) {
+    const RepairRun r = c3m1_repair_run(bugs);
+    std::printf("  bugs %d: bases %d, repairs %d, worn armour %.2f internals %.2f; after 1: %.2f %.2f; after 2: %.2f %.2f; fronts",
+                bugs, r.bases, r.repairs, r.worn.armor, r.worn.internal, r.after[0].armor, r.after[0].internal, r.after[1].armor,
+                r.after[1].internal);
+    for (int f : r.fronts) std::printf(" %d", f);
+    std::printf("\n");
+    EXPECT(r.bases && r.done >= 1 && r.after[0].internal == 1.0f && r.after[0].armor == 1.0f);
+    if (bugs) EXPECT(r.done == 2 && r.after[1].internal == 1.0f && r.after[1].armor == 1.0f);
+  }
+}
 TEST(mission_c2m1_field_bases_stay_after_a_repair_headless) {
   if (!have_game()) return;
   for (const bool bugs : {true, false}) {
