@@ -76,6 +76,11 @@ bool same(const platform::DrawState& a, const platform::DrawState& b) {
 #include "fs_tex.h"
 #include "vs.h"
 #endif
+#if defined(MW3_HAVE_SPIRV)
+#include "spv_fs_flat.h"  // sdl_render3d.glsl, by glslangValidator (CMakeLists.txt)
+#include "spv_fs_tex.h"
+#include "spv_vs.h"
+#endif
 
 SDL_GPUShader* make_shader(SDL_GPUDevice* dev, const char* entry, SDL_GPUShaderStage stage, int samplers) {
   SDL_GPUShaderCreateInfo info{};
@@ -88,6 +93,17 @@ SDL_GPUShader* make_shader(SDL_GPUDevice* dev, const char* entry, SDL_GPUShaderS
     else set(kDxil_fs_flat, sizeof kDxil_fs_flat);
     info.entrypoint = entry;
     info.format = SDL_GPU_SHADERFORMAT_DXIL;
+  } else
+#endif
+#if defined(MW3_HAVE_SPIRV)
+  if (SDL_GetGPUShaderFormats(dev) & SDL_GPU_SHADERFORMAT_SPIRV) {
+    const std::string e = entry;
+    const auto set = [&](const uint32_t* code, size_t n) { info.code = reinterpret_cast<const Uint8*>(code), info.code_size = n; };
+    if (e == "vs") set(kSpv_vs, sizeof kSpv_vs);
+    else if (e == "fs_tex") set(kSpv_fs_tex, sizeof kSpv_fs_tex);
+    else set(kSpv_fs_flat, sizeof kSpv_fs_flat);
+    info.entrypoint = "main";
+    info.format = SDL_GPU_SHADERFORMAT_SPIRV;
   } else
 #endif
   {

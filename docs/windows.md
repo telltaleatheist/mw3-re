@@ -154,6 +154,18 @@ exe), so `llvm-symbolizer --obj=build-win\mw3.exe --inlining
 shaders; CMake runs `dxc` on it for each entry point and the renderer takes
 DXIL when the device offers it. The viewer (`tools/viewer`) is Metal only.
 
+`sdl_render3d.glsl` is the Vulkan twin (Linux, and anywhere
+`glslangValidator` is found): the same maths in GLSL 450, compiled per
+stage (`-DVS`, `-DFS_TEX`, `-DFS_FLAT`) to SPIR-V headers in
+`build/spirv/`, with SDL GPU's Vulkan sets (vertex uniforms 1, fragment
+combined image-samplers 2, fragment uniforms 3). GLSL rather than the HLSL
+through glslang because SDL's Vulkan backend wants combined image-samplers,
+which HLSL's separate texture and sampler do not give. The renderer takes
+DXIL, then SPIR-V, then MSL, whichever the device accepts. Checked on the
+Mac through MoltenVK (`brew install molten-vk`;
+`SDL_GPU_DRIVER=vulkan SDL_VULKAN_LIBRARY=/opt/homebrew/lib/libMoltenVK.dylib`):
+c1m1's frame 60 identical to Metal's, every pixel.
+
 ## Not yet built on Windows
 
 The tests (`mw3tests`, `mw3sdltests`; several use POSIX process calls,
