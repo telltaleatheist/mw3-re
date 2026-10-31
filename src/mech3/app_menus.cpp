@@ -85,7 +85,7 @@ namespace {
 // background (600 or more across) goes to the middle, its sides filled from
 // its own edges, mirrored and darkened (made here, the player's art left as
 // it is); the other objects move by their screen's groups (below).
-void widen_background(ztwod::Image& im, int32_t extra) {
+void widen_background(ztwod::Image& im, int32_t extra, int32_t inset) {
   zimg::Texture* src = im.image;
   if (!src || !src->pixels || src->palette_count) return;
   const int w = src->width, h = src->height, half = extra / 2;
@@ -102,12 +102,12 @@ void widen_background(ztwod::Image& im, int32_t extra) {
     uint16_t* o = out + y * (w + extra);
     for (int x = 0; x < w; ++x) o[half + x] = row[x];
     for (int x = 0; x < half; ++x) {  // the left side: the edge mirrored, darker outward
-      const int sx = std::min(w - 1, half - 1 - x);
+      const int sx = std::min(w - 1, inset + half - 1 - x);
       o[half - 1 - x] = dark(row[sx], 150 - 90 * x / std::max(1, half));
     }
     const int right = extra - half;
     for (int x = 0; x < right; ++x) {
-      const int sx = std::max(0, w - 1 - x);
+      const int sx = std::max(0, w - 1 - inset - x);
       o[half + w + x] = dark(row[sx], 150 - 90 * x / std::max(1, right));
     }
   }
@@ -166,6 +166,7 @@ struct ScreenGroups {
   uint32_t ctor;  // the screen's constructor (GameEngine::construct)
   std::vector<Group> groups;
   std::vector<Stretch> stretches = {};
+  int32_t inset = 0;  // the background's sides mirrored from this far in (past a map's marks)
 };
 const std::vector<ScreenGroups>& screen_groups() {
   static const std::vector<ScreenGroups> k = {
@@ -186,6 +187,9 @@ const std::vector<ScreenGroups>& screen_groups() {
       // games, or training's cycles, their rects from x 0 but their middles
       // past 200), ACCEPT and CANCEL right; LINES' top line lengthened.
       {0x486f40, {{0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      // The briefing: one block, the map in the middle, its sides from its
+      // terrain, past the grid's labels and the north arrow at its edges.
+      {0x405230, {}, {}, 40},
   };
   return k;
 }
@@ -210,8 +214,13 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     const int32_t left = (r ? r->left : o->get_x()) - s->origin_x, right = (r ? r->right : o->get_x()) - s->origin_x;
     const int32_t top = (r ? r->top : o->get_y()) - s->origin_y, bottom = (r ? r->bottom : o->get_y()) - s->origin_y;
     auto* im = dynamic_cast<ztwod::Image*>(o);
-    if (im && right - left >= 600) {
-      widen_background(*im, extra);
+    bool stretched = false;  // an overlay the table stretches (checked first: some are 600 across)
+    if (im && im->image && table)
+      for (const Stretch& st : table->stretches) stretched |= left == st.x && top == st.y && im->image->width == st.w;
+    // A plain opaque image the frame's size (the briefing's map), or anything 600 across.
+    const int32_t img_w = im && !r && im->image && !im->image->alpha ? im->image->width : 0;
+    if (im && !stretched && (right - left >= 600 || (img_w >= 600 && img_w <= 640))) {
+      widen_background(*im, extra, table ? table->inset : 0);
       continue;
     }
     Anchor a = kCentre;
@@ -237,6 +246,10 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
       // an image, its label (on the list) by itself.
       if (auto* eb = dynamic_cast<ShellEditBar*>(m.o)) eb->ztwod::Image::set_pos(m.x + m.off, m.y);
       else m.o->set_pos(m.x + m.off, m.y);
+      auto* pl = dynamic_cast<ztwod::PolyLine*>(m.o);  // its points are where it draws (0x005a38f0)
+      if (pl && !dynamic_cast<ztwod::Shape*>(pl) && !dynamic_cast<ztwod::Caret*>(pl))
+        for (int32_t i = 0; i < pl->count; ++i) pl->pts[i][0] += m.off;
+      if (auto* w = dynamic_cast<MapWaypoint*>(m.o)) w->shift_x += m.off;  // put back on its nav point each frame
       if (auto* fl = dynamic_cast<FileList*>(m.o)) {  // its arrows, and its rect when its image sets it (0x0048d2f0)
         for (FileListArrow* ar : {fl->up, fl->down})
           if (ar) ar->set_pos(ar->get_x() + m.off, ar->get_y());
@@ -341,6 +354,7 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       const char* name = args.size() && args.begin()->s ? args.begin()->s : "default";
       const Handle h = alloc_block(0x12e6c);
       auto* b = new BriefingScreen(*this, name);
+      widen_screen(b, ctor);  // its script's objects are made with it (read_script)
       screens_[h] = {b, 0x12e6c};
       briefing_screen() = b;
       return h;

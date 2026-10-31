@@ -147,7 +147,7 @@ struct Args {
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
-  struct ClickAt { int frame, x, y; };
+  struct ClickAt { int frame, x, y; bool right = false; };  // right: in a wide menu's right group (ours)
   std::vector<ClickAt> clicks_at;  // --click-at X,Y@N (the game's 640 x 480 pixels)
   std::string briefing;  // --briefing NAME (ours): a campaign mission's briefing, as the menus reach it
   bool walk = false;  // --walk: full throttle (THROTTLE0's key) at the start (ours)
@@ -836,11 +836,16 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         for (const Args::ClickAt& c : clicks) {
           // The cursor put on the point (zInput's 0x0051b440, the game's
           // 640 x 480 about its centre), then the press and the release.
-          // A 640x480 frame pixel; on a canvas the dialogs' frame is centred (resolution.md step 5).
+          // A 640x480 frame pixel; over a mission on a canvas the dialogs' frame
+          // is centred (resolution.md step 5); the menus' frame is at 0, and
+          // with wide menus a right group's piece is the extra width further.
           if (menu_frames == c.frame) {
             const float dw = static_cast<float>(mech3::display().w > 0 ? mech3::display().w : 640);
             const float dh = static_cast<float>(mech3::display().h > 0 ? mech3::display().h : 480);
-            const float px = static_cast<float>(c.x + ztwod::dialog_origin().x), py = static_cast<float>(c.y + ztwod::dialog_origin().y);
+            const bool over_mission = app.current() == &mech3::states().core || app.current() == &mech3::states().pause;
+            const int32_t ox = over_mission ? ztwod::dialog_origin().x : c.right ? std::max(0, mech3::display().w - 640) : 0;
+            const int32_t oy = over_mission ? ztwod::dialog_origin().y : 0;
+            const float px = static_cast<float>(c.x + ox), py = static_cast<float>(c.y + oy);
             zin::mouse_set((px - dw / 2) / (dw / 2), (py - dh / 2) / (dh / 2));
           }
           if (menu_frames == c.frame + 1 || menu_frames == c.frame + 2) {
@@ -949,7 +954,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         }
         p->current = c;
         p->save();
-        auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320}};
+        auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320, true}};  // CAMPAIGN, the pilot, ACCEPT
       }
 
       sdlfe::SdlPump pump(&input, &app);

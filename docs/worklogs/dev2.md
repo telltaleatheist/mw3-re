@@ -440,7 +440,10 @@ works alongside it; stay out of its files.
 - Pilot screen done (adopt_screen widens the pilot screen and the controls'
   two popups by size; file list arrows and rect; edit bars moved as images).
   The popups have no table yet: check them with message boxes.
-- Next: campaign, briefing, debriefing, lab (its 3D view), IA,
+- Briefing done (widened after construction; plain-image backgrounds by
+  width, mirror inset 40; polyline points; waypoint shift_x; --click-at
+  origin only over a mission, --briefing's ACCEPT marked right).
+- Next: debriefing, lab (its 3D view), IA, the controls' popups,
   message boxes; a test per screen (rects anchored), shots each.
 - Shots: scratch run with VMode irrelevant; `--wide-menus --window
   1920x1080`, InGameVMode 13 in a scratch settings.reg; OPTIONS at canvas

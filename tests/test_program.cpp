@@ -16081,7 +16081,7 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
 // LINES overlay is stretched between its panel and the screens' box; on to
 // GRAPHICS & AUDIO, laid out the same way, and back; CONTROLS and back. A
 // mode picked in the menus leaves them on the canvas they were laid out for.
-// Last, CAMPAIGN's pilot screen.
+// Last, CAMPAIGN's pilot screen and a pilot's c1m2 briefing.
 namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
@@ -16090,6 +16090,8 @@ struct WideMenus {
   int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
   int32_t popup_bar = -1, popup_label_dx = -1, popup_label_dy = -1;  // the load/save popup's name bar, its label from it
   int32_t pil_accept = -1, pil_bar_label_y = -1, pil_bar_label_x = -1, pil_up = -1, games_up = -1, pil_lines_w = -1;
+  int32_t map_w = -1, launch = -1, line_x = -1, waypoint_dx = -99;
+  bool pil_lines_alpha = false;  // LINES2 stretched (its alpha kept), not taken for a background  // the briefing (a waypoint: from its projection)
 };
 WideMenus wide_menus_run(bool wide) {
   WideMenus out;
@@ -16164,7 +16166,34 @@ WideMenus wide_menus_run(bool wide) {
           out.pil_bar_label_x = p->new_bar.labels[0]->get_x(), out.pil_bar_label_y = p->new_bar.labels[0]->get_y();
         if (p->pilots.up) out.pil_up = p->pilots.up->get_x();
         if (p->games.up) out.games_up = p->games.up->get_x();
-        if (p->lines2.image) out.pil_lines_w = p->lines2.image->width;
+        if (p->lines2.image) out.pil_lines_w = p->lines2.image->width, out.pil_lines_alpha = p->lines2.image->alpha != nullptr;
+        // A pilot stepped on to Op 1 Mission 2 (its briefing has the
+        // script's lines), chosen and accepted, as the campaign tests do.
+        mech3::Pilot* pilot = mech3::create_pilot("Wide");
+        auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::CampaignGame*>(pilot->campaigns.front()) : nullptr;
+        if (mech3::CampaignGame* n = g ? g->next_mission(true, false) : nullptr) pilot->campaigns.push_back(n), g = n;
+        EXPECT(g && g->mission_number() == 2);
+        if (!g) return void(stage = 3);
+        pilot->current = g;
+        pilot->save();
+        p->refresh(false, pilot);
+        p->on_button(0x18, 0, 0);  // ACCEPT: c1m2's briefing
+        stage = 30;
+      } else if (stage == 30) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || now != &st.load || !b->loaded) return;
+        if (b->images[0].image) out.map_w = b->images[0].image->width;
+        out.launch = b->launch_btn.get_rect()->left;
+        for (ztwod::Object2D* o = b->head; o; o = o->next) {
+          if (auto* l = dynamic_cast<mech3::MapLine*>(o); l && out.line_x < 0 && l->count > 0) out.line_x = l->pts[0][0];
+          auto* w = dynamic_cast<mech3::MapWaypoint*>(o);
+          if (!w || out.waypoint_dx != -99 || !w->nav || !engine.mission_map()) continue;
+          w->show_for(-1.0f);
+          w->update(0.0f);  // put on its nav point, as each frame does
+          int32_t xy[2];
+          engine.map_project(w->map, engine.nav_position(w->nav), xy);
+          out.waypoint_dx = w->get_x() - xy[0];
+        }
         stage = 3;
       } else if (stage == 1) {
         auto* os = dynamic_cast<mech3::OptionsState*>(now);
@@ -16225,7 +16254,7 @@ WideMenus wide_menus_run(bool wide) {
       }
     };
     CountingPump pump;
-    pump.limit = 900;
+    pump.limit = 3000;
     pump.stop = [&] { return stage == 3; };
     app.run(pump);
     app.exit_instance();
@@ -16284,7 +16313,15 @@ TEST(menus_wide_spread_by_their_groups_headless) {
   EXPECT(off.pil_accept > 0 && on.pil_accept == off.pil_accept + extra);
   EXPECT(off.pil_bar_label_y > 0 && on.pil_bar_label_x == off.pil_bar_label_x && on.pil_bar_label_y == off.pil_bar_label_y);
   EXPECT(off.pil_up >= 0 && on.pil_up == off.pil_up && on.games_up == off.games_up + extra);
-  EXPECT(on.pil_lines_w == off.pil_lines_w + extra);
+  EXPECT(on.pil_lines_w == off.pil_lines_w + extra && off.pil_lines_alpha && on.pil_lines_alpha);
+  // The briefing (one block): the map widened from its terrain, LAUNCH, the
+  // script's lines and the waypoints (put back on their nav points each
+  // frame, 0x004081a0) half the extra width right.
+  std::printf("briefing: map %d / %d wide, LAUNCH %d / %d, a line at %d / %d, a waypoint %d / %d from its nav point\n",
+              off.map_w, on.map_w, off.launch, on.launch, off.line_x, on.line_x, off.waypoint_dx, on.waypoint_dx);
+  EXPECT(off.map_w == 640 && on.map_w == 640 + extra && on.launch == off.launch + extra / 2);
+  EXPECT(off.line_x >= 0 && on.line_x == off.line_x + extra / 2);
+  EXPECT(off.waypoint_dx == 0 && on.waypoint_dx == extra / 2);
 }
 
 // Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to

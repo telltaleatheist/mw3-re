@@ -396,7 +396,9 @@ the menus' scrolling backgrounds only run at mode 5. (The canvas is 480
 high, wider only for shapes wider than 4:3.)
 
 `--click-at X,Y@N` takes a 640x480 frame pixel and adds the dialogs' origin
-(mw3_main).
+over a mission (the Core and Pause states); the menus' frame is at 0. With
+wide menus a piece in a right group is the extra width further: `--briefing`
+marks its ACCEPT so (mw3_main).
 
 Tests:
 - `mission_c1m1_pause_click_at_any_size_headless`: c1m1 at InGameVMode 5,
@@ -493,7 +495,11 @@ and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
 Without the arrows' move the games' UP stays at 382 (1 check fails). In
 CONTROLS, the load/save popup (no table, one centred block) has its name
 bar moved 106 and its label 10,6 from it; moved by the bar's own set_pos,
-the label is 260,122 from it (1 check fails).
+the label is 260,122 from it (1 check fails). Then a pilot stepped on to
+c1m2 is accepted: the briefing's map is 853 wide, LAUNCH moves 106, a map
+line's points 106, and a waypoint sits 106 right of its nav point's
+projection. Without the points' move or the waypoint's shift, both checks
+fail.
 
 
 ## 12. 16:9 menus (in progress, 2026-10-30)
@@ -508,9 +514,11 @@ the next start, not screens already made for another width.
 
 `GameEngine::widen_screen` (app_menus.cpp) runs on each menu screen as it is
 made, except the pause screen (it keeps the dialog origin, section 9):
-- a background 600 or more across goes to the middle, its sides filled from
-  its own edges, mirrored and darkened, into a new image (the player's art
-  on disk is not touched);
+- a background 600 or more across (its rect, or a plain image's width up to
+  640: the briefing's map) goes to the middle, its sides filled from its
+  own edges, mirrored and darkened, into a new image (the player's art on
+  disk is not touched); a screen can start the mirror further in (the
+  briefing's 40, past the grid's labels and the north arrow);
 - per-screen group tables (frame rects, anchored left, centre or right)
   move each object whose middle is in a group, so a sphere, its label, its
   ripple and its trap rect move together; the rest moves by half the extra
@@ -530,7 +538,10 @@ made, except the pause screen (it keeps the dialog origin, section 9):
   its image set it (0x0048d2f0); an edit bar moves as an image: its
   after_bind (0x0048b1d0) keeps its label's place, not its offset, so its
   set_pos (0x0048b220) would put the label down by the bar's own place (the
-  pilot screen centred showed PILOT ENTRY's caret under its bar);
+  pilot screen centred showed PILOT ENTRY's caret under its bar); a plain
+  polyline's points are where it draws (0x005a38f0), so they move with it
+  (the briefing's lines); a briefing waypoint is put back on its nav point
+  every frame (0x004081a0), so it keeps the map's shift (ours, `shift_x`);
 - an overlay drawn as one image across two groups is stretched at a column
   between them, from a row down (that column repeated, alpha and flags
   kept, the new columns above that row left clear), by the right group's
@@ -549,8 +560,9 @@ the pilot screen (0x486f40, adopted by its state like the controls' two
 popups, which GameEngine::adopt_screen now widens by their sizes: PILOT
 ENTRY and the pilots left, OPERATION, ACCEPT and CANCEL right, LINES2 (619
 wide) stretched at column 320, which only its top line crosses).
-Left, one per sitting with a 4:3 and a 16:9 shot: campaign and briefing
-(its 3D map), debriefing, the lab (its 3D view), Instant Action, message
+The briefing (0x405230) is one centred block on its widened map. Its
+script's objects are made with it (read_script), so the widening sees them.
+Left, one per sitting with a 4:3 and a 16:9 shot: debriefing, the lab (its 3D view), Instant Action, message
 boxes.
 
 Test: `menus_wide_spread_by_their_groups_headless`, with a saved
@@ -569,4 +581,8 @@ and PILOTS' UP stay, the games' UP moves 213 and LINES2 is 213 wider.
 Without the arrows' move the games' UP stays at 382 (1 check fails). In
 CONTROLS, the load/save popup (no table, one centred block) has its name
 bar moved 106 and its label 10,6 from it; moved by the bar's own set_pos,
-the label is 260,122 from it (1 check fails).
+the label is 260,122 from it (1 check fails). Then a pilot stepped on to
+c1m2 is accepted: the briefing's map is 853 wide, LAUNCH moves 106, a map
+line's points 106, and a waypoint sits 106 right of its nav point's
+projection. Without the points' move or the waypoint's shift, both checks
+fail.
