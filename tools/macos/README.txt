@@ -12,6 +12,7 @@ from a Windows PC.
 
 Installing
 ----------
+It runs on macOS 12 (Monterey) or later, on Apple silicon and Intel Macs.
 Drag "MechWarrior 3 Rebuild" into Applications and start it.
 
 The first time, macOS says it cannot check the app for malicious software

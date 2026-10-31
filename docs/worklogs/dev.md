@@ -2318,3 +2318,26 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   (400/1000 of the 50 px radius), without +16 -12 (55 degrees right);
   break (the hook off) caught. The field-base centroid candidate went into
   fixes.md's candidates (the lead: not behind bugs).
+
+## The Mac libraries and the universal app (2026-10-31)
+
+- Branch mac4/deps-build (on mac4/w32-radar, with c1f34115 cherry-picked as
+  5e539289). Owen allowed build_deps.sh in this session. JOBS env caps -j
+  (the lead's batch shares the Mac). FreeType 2.13.2 needs
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 under CMake 4.2. 2.6 min at JOBS=4;
+  all pins match; seven dylibs universal, min 12.0, @rpath ids.
+- make_app.sh --deps: the prefix, arm64;x86_64, deployment 12.0,
+  PKG_CONFIG_LIBDIR the prefix's; the bundler follows @rpath names into the
+  prefix, takes licences from the source trees (FreeType's FTL.TXT too),
+  deletes the build's absolute rpath (once: a universal binary lists it per
+  arch) and parses otool -L without its per-arch headers (they had been read
+  as libraries, mw3 itself copied into Frameworks). Without --deps it warns
+  it is not the release form. THIRD-PARTY.txt now the --deps build's; the
+  README says macOS 12, Apple silicon and Intel.
+- Checked: three dylibs bundled, every binary x86_64 + arm64 min 12.0,
+  LSMinimumSystemVersion 12.0, only @executable_path/../Frameworks, ad hoc,
+  no team; DMG verifies (8.2 MB); with /opt/homebrew unreadable both slices
+  run c1m1 60 frames (arch -arm64, arch -x86_64 under Rosetta), exit 0.
+  Not run on a real macOS 12 or Intel Mac. Seen on the way: an explicit
+  --write-dir that does not exist is not created (dev build alike; the
+  default SDL_GetPrefPath one is), so settings.reg is not written there.

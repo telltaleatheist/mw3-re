@@ -3,9 +3,13 @@
 `tools/deps/build_deps.sh mac|linux` builds the libraries the releases
 bundle from their official release tarballs (Owen, 2026-10-30: universal
 arm64 + x86_64 for macOS 12 and later on the Mac, and on Linux), into
-`build-deps/<platform>/prefix`. **Not run yet**: this session's permission
-rules refused building downloaded code; the user allows it (a permission
-rule) or runs it.
+`build-deps/<platform>/prefix`. `JOBS=4` caps the parallel jobs (the
+default is every core). First run on the Mac 2026-10-31 (Owen allowed it):
+all five downloads match their pins; 2.6 minutes at `JOBS=4`; every dylib
+x86_64 + arm64, minimum macOS 12.0, named `@rpath/<file>`, loading only the
+system and each other. FreeType 2.13.2's `cmake_minimum_required` predates
+3.5, which CMake 4 refuses, so its build raises the policy floor
+(`-DCMAKE_POLICY_VERSION_MINIMUM=3.5`). Linux: not run yet.
 
 | Source | sha256 (pinned) | Checked against |
 |---|---|---|

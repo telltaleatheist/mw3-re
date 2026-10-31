@@ -18,7 +18,7 @@ ROOT="$PWD/build-deps"
 DL="$ROOT/downloads"
 PREFIX="$ROOT/$PLATFORM/prefix"
 WORK="$ROOT/$PLATFORM/work"
-JOBS="$( (sysctl -n hw.ncpu 2>/dev/null || nproc) )"
+JOBS="${JOBS:-$( (sysctl -n hw.ncpu 2>/dev/null || nproc) )}"  # JOBS=4 to share the machine
 
 # name | url | sha256
 PINS=(
@@ -66,7 +66,8 @@ echo "built SDL3"
 # FreeType inside SDL3_ttf (static, position-independent), with none of its
 # optional libraries: the game's TrueType fonts need none of them.
 unpack freetype-2.13.2.tar.xz
-cmake_build "$WORK/src/freetype-2.13.2" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+# Its cmake_minimum_required predates 3.5, which CMake 4 refuses: the policy floor raised.
+cmake_build "$WORK/src/freetype-2.13.2" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DFT_DISABLE_ZLIB=ON -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_PNG=ON -DFT_DISABLE_HARFBUZZ=ON -DFT_DISABLE_BROTLI=ON
 echo "built FreeType"
 
