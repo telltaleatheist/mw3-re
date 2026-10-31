@@ -428,6 +428,9 @@ Every weapon aims at one world point the HUD works out each frame.
    material's game soil is 1 (water); with several, the nearest by squared
    distance from the near point among the non-water ones. A failed query or
    no hit: the far point.
+   The far clip is 800 m, short of the ER large laser's 1000 m (W33): with
+   the bug fixes on the query reaches the selected group's longest range
+   instead, the miss's point unchanged (fixes.md).
 3. **Kept** at reticle +0x8fc (the aim point, = HUD +0x1d48), +0x924 its
    distance from the near point (the far plane's when nothing was hit), and
    +0x928 the hit's record (0x00444710; 0x004446a0 builds one facing up at

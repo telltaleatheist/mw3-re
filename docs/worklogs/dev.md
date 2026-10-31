@@ -2160,3 +2160,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   TARGET's view for a targets.zrd object needs the record's `display`
   (0x4d3350); no shipped record sets it.
 
+## W33, the reticle green past 800 m (2026-10-30)
+
+- Branch mac4/w33-reticle (on mac4/w31-jets). HudReticle::aim
+  (0x444350) queries near..far clip (800 m); ER large reaches 1000 m.
+  FIX (bug) behind bugs: the segment reaches group_range (0x4b1bd0)
+  when longer; the miss's point stays the far point. Test helper
+  program_hud_pick_at (project, reticle there, aim, aim_state). The
+  test needs the player 150 m up: at ground level c1m1's hills or
+  buildings block every 900 m line round the Owens.

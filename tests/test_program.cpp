@@ -7807,6 +7807,101 @@ TEST(mission_c1m1_jump_jets_lift_in_every_state_headless) {
   EXPECT(hovers == 0);
   EXPECT(original_hovers > 0);
 }
+// Playtest W33: the reticle's pick (0x00444350) ran from the camera's near
+// to its far clip (800 m), short of an ER large laser's 1000 m: aimed at a
+// mech 860 m off, in the selected group's range, the reticle stayed green.
+// With the fixes it reaches the group's range and turns yellow (over).
+TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
+  if (!have_game()) return;
+  struct Pick {
+    int state = -2;
+    void* node = nullptr;
+    float distance = 0, range = 0, far = 0;
+    bool on_owens = false;
+  };
+  Pick picks[2];  // the fixes off, on
+  void* owens = nullptr;
+  for (int fixes = 0; fixes < 2; ++fixes) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("mission_reticle_range"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    const zfix::Options saved_fix = zfix::options();
+    zfix::options().bugs = fixes != 0;
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;  // c1m1, the Mad Cat
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      int frames = 0;
+      float at[3] = {};
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core) return;
+        ++frames;
+        void* player = mech3::mech_mission_player();
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        if (made != 1) return;
+        if (frames == 3) {  // 850 m west of the Owens and 150 m up, clear of the hills, facing it
+          mech3::LaunchedMech o;
+          mech3::describe_mech(ai[0].mech, &o);
+          const float x = o.pos[0] - 850.0f, z = o.pos[2];
+          const float to[3] = {x, ground_under(x, o.pos[1] + 300.0f, z) + 150.0f, z};
+          mech3::move_mech(player, to, -1.5707964f);
+        }
+        if (frames == 4) EXPECT(mech3::mech_select_group(player, 3));  // ERLaser_Large x2, PulseLaser_Medium
+        if (frames == 40) {
+          mech3::LaunchedMech o;
+          mech3::describe_mech(ai[0].mech, &o);
+          at[0] = o.pos[0], at[1] = o.pos[1] + o.height * 0.6f, at[2] = o.pos[2];
+          owens = ai[0].mech;
+          Pick& k = picks[fixes];
+          k.state = mech3::program_hud_pick_at(at, &k.node, &k.distance, &k.range, &k.far);
+          k.on_owens = k.node && mech3::program_hud_node_object(k.node) == owens;
+        }
+      };
+      CountingPump pump;
+      pump.stop = [&] { return frames >= 40; };
+      pump.limit = 3000;
+      app.run(pump);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zfix::options() = saved_fix;
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+  for (int f = 0; f < 2; ++f)
+    std::printf("  fixes %d: the pick %s at %.0f m (far clip %.0f m, the group's range %.0f m); the reticle's state %d\n", f,
+                picks[f].on_owens ? "on the Owens" : picks[f].node ? "on something else" : "missed",
+                picks[f].distance, picks[f].far, picks[f].range, picks[f].state);
+  EXPECT(picks[0].range >= 1000.0f && picks[0].far < 850.0f);
+  EXPECT(!picks[0].node && picks[0].state == 0);  // the original: green
+  EXPECT(picks[1].on_owens && picks[1].distance > 850.0f && picks[1].state == 2);  // yellow
+}
+
 // c1 mission 1's keys through the mech's command handler (0x0041be80,
 // docs/controls.md, The mech's commands): F2 selects the second weapon
 // group; the power key powers the Mad Cat down, and again back up; the jump

@@ -132,6 +132,7 @@ uint8_t* entity_active_flag(void* object);
 // image worked out (0x00443d20, the lock reset first): the state, 0 off,
 // 1 on, 2 over (yellow), 3 can't; -1 without a HUD.
 int program_hud_aim_at(void* node, float distance);
+int program_hud_pick_at(const float at[3], void** node, float* distance, float* range, float* far_clip);  // for the tests: 0x00444350 there
 void program_hud_draw3d(float dt);   // the view target's vt+0xe4, 0x0041cd90: the HUD's Direct3D pass
 void program_hud_data(float dt);     // 0x0040f8d0's HUD part: the view target's HUD data update (0x0043c390)
 void program_hud_target_set(void* mech);  // 0x0041d890's HUD part: the view mech's TARGET on for its new target

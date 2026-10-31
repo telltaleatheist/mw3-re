@@ -1598,11 +1598,21 @@ void HudReticle::aim() {
   k.unproject_world(s, a);
   s[2] = 1.0f / far_z;
   k.unproject_world(s, b);
+  // FIX (bug): the pick ended at the far clip (800 m), short of an ER large
+  // laser's 1000 m: in range, the reticle stayed green (W33; fixes.md).
+  float e[3] = {b[0], b[1], b[2]};
+  if (zfix::options().bugs) {
+    const float range = k.group_range(k.mech_weapons(m));
+    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float len = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (len > 0.0f && range > len)
+      for (int i = 0; i < 3; ++i) e[i] = a[i] + d[i] * (range / len);
+  }
   const uint32_t node = k.mech_node(m);
   k.node_set_intersect(node, false);
   int32_t best = -1;
   bool missed = true;
-  if (k.segment_list(k.world_node(k.world()), a, b, &hits) == 0) {
+  if (k.segment_list(k.world_node(k.world()), a, e, &hits) == 0) {
     if (hits.count == 1) {
       if (k.material_soil(hits.rec[0].material) != 1) best = 0;
     } else if (hits.count != 0) {
