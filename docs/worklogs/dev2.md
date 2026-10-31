@@ -426,3 +426,68 @@ works alongside it; stay out of its files.
 - The test's maps (MW3_W27_TRACE): the exe's stop on these routes is the
   standstill on open ground, not a wall contact.
 - Branch `mac5/w27-breadcrumbs` off main d1e5b9e6.
+## 27. W25: the message box over the lab or a mission (2026-10-30)
+
+- The box (0x004ac150, ztwod::MessageBox) grabs buffer 2 as its backdrop
+  and runs its own loop of lock, draw, flip; our 16-bit buffer is the
+  menus' 640x480 while the lab's and a 16:9 mission's 3D are full size, so
+  the picture behind the box was the buffer's copy, low-res.
+- Fix: SdlTwodHost::screen_grab(2) over a GPU frame holds that frame on the
+  GPU (SdlRender3D::hold_frame, a texture copy) and returns a key-coloured
+  backdrop; GameEngine::video_flip restores the kept frame and lays the
+  box's layer over it; the backdrop's free lets it go.
+- Tested: `sdl_render_keeps_a_shown_frame` (the kept frame back pixel for
+  pixel at 1280x720). The lab's overwrite and Ctrl+Q's box were not driven
+  here (Ctrl+Q before a win opens none). Owen to confirm.
+- Branch `mac5/w25-box-backdrop` off main 98665790.
+## 28. W35: armour not repaired at c3m1 (2026-10-30)
+
+- The paths repair: a c3m1 test (worn to half, two repairs, bugs on: the
+  first call then the parked dock; off: two calls) brings armour and
+  internals to full each time with a store holding armour.
+- Owen's save (Deathstalker0301, loaded in the program through the pilot
+  screen with a temporary print): the store holds standard armour tech 3
+  x108 (and ferro tech 1 and 2), his mech is standard tech 3. The MFD's
+  armour bars (the lance display, mode 3) are refilled each frame from
+  the mech. So by the exe's rule his armour comes back; not reproduced.
+- Added: each repair logs what it did with the armour (mech_repair.cpp),
+  so the next one in his mw3.log says. Branch `mac5/w35-repair` off main
+  98665790.
+## 29. W36: the pause at 16:9 (2026-10-30)
+
+- The pause was W13's exception (made at the canvas's origin 106); now at 0
+  like every menu, so its buttons are at the left edge over the full
+  backdrop; its title is a marquee wrapping at the display's width, so no
+  move. Back from the options (mode 5), PauseState::resume sets the
+  mission's mode again (behind any_resolution).
+- Tests: the new round trip (opened, options, back: mode 13, 853 wide,
+  RESUME and QUIT the same) and the click test's 16:9 origin now 0; the
+  pause set 7/0. Shot in the outbox (w36-pause). Branch `mac5/w36-pause`
+## 30. W37: the lab from Instant Action (2026-10-30)
+
+- A port bug, not a fix of the exe: Engine::game_slot_count / game_slot
+  (briefing.cpp) asked the campaign only; the lab from Instant Action's
+  briefing got no slots, so no mech and nothing to edit. Now the current
+  game's (CampaignGame or ActionGame, the exe's vt+0x38/+0x34).
+- Test `instant_action_lab_has_the_players_mech_headless` (fails without);
+  the instant_action, lab and briefing sets pass. Branch `mac5/w37-ia-lab`
+  off main 98665790.
+
+## 21. The first playtest release's package (2026-10-30)
+
+- Branch `mac5/release-0.1` off main 48d694fe.
+- `package.cmd`: mw3, mw3import (FFmpeg, the fall-back) and the 32-bit
+  helper mw3indeo (`build_indeo.cmd build-win-pkg`); miniz's licence;
+  check_dist, ffmpeg_notices and ffmpeg-configuration kept. THIRD-PARTY
+  names the helper and miniz.
+- `mw3.log` (run_log.cpp): stdout and stderr teed by pipe and thread to
+  the write dir's log; the last start's is `mw3.old.log`. Checked on the
+  Mac (two starts: rotation, both streams, the console unchanged);
+  run_log.cpp compiles under mingw x86_64.
+- The start's notes: data not 1.2 (`--patch`), files odd or missing, no
+  music (`mw3import --cue ... --music-only`, or a rip), logged each start
+  and boxed on the first. The 1.0 note checked on game/mw3-1.0. The box
+  itself not seen here (a check run never shows it).
+- Player messages that pointed at docs/ now point at README.txt.
+- README.txt rewritten as the playtest guide (names `--install-from`
+  from the next batch); docs/release-notes-0.1.md drafted for Owen.

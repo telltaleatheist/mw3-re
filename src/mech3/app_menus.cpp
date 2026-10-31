@@ -75,17 +75,18 @@ Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
 
 Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   const Handle a0 = args.size() ? args.begin()->v : 0;
-  // FIX (B), playtest W13: every menu screen but the pause screen shows on
-  // the menus' 640x480 (mode 5: 0x00438c90, Core's leave), so its frame is at
-  // 0 even when Core makes it on the mission's wide canvas; the pause screen
-  // shows over the mission, on its canvas (resolution.md section 9).
+  // FIX (B), playtest W13: every menu screen shows on the menus' 640x480
+  // (mode 5: 0x00438c90, Core's leave), so its frame is at 0 even when Core
+  // makes it on the mission's wide canvas. The pause screen shows over the
+  // mission on its canvas: at 0 too, its buttons against the left edge (W36;
+  // its title is a marquee across the display's whole width already).
   struct MenuFrame {
     ztwod::DialogOrigin keep = ztwod::dialog_origin();
     explicit MenuFrame(bool menus) {
       if (menus) ztwod::dialog_origin() = {};
     }
     ~MenuFrame() { ztwod::dialog_origin() = keep; }
-  } frame(ctor != 0x492750);
+  } frame(true);
   auto screen = [&](uint32_t size, MenuScreen* (*make)(GameEngine&, Handle)) {
     const Handle h = alloc_block(size);
     screens_[h] = {make(*this, a0), size};

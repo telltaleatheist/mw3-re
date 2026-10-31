@@ -1,34 +1,46 @@
-MechWarrior 3 rebuild for Windows (64-bit)
-==========================================
+MechWarrior 3 rebuild: playtest build for Windows (64-bit)
+==========================================================
 
 What this is
 ------------
-A fan rebuild of MechWarrior 3's program: the original game's logic, rewritten
-to run on modern Windows (and macOS) without DDrawCompat, dgVoodoo or other
-helpers. It is a personal learning project. It is free, not sold, and not
-affiliated with or endorsed by MicroProse, Microsoft or anyone who holds the
-MechWarrior name.
+An unofficial fan rebuild of MechWarrior 3's program: the original game's
+logic, rewritten to run on modern Windows without DDrawCompat, dgVoodoo or
+other helpers. It is a personal learning project, free and not sold, and is
+not affiliated with or endorsed by Microsoft or MicroProse. MechWarrior is a
+trademark of Microsoft.
 
-It contains no part of the game. It needs your own MechWarrior 3 install,
-any version: 1.0 and 1.2 are tested, and the 1.2 patch is best (mw3.exe
-prints which data version it found). Pirate's Moon is not supported yet.
+This is a playtest build: expect bugs, and please report them (below).
 
-Starting
---------
-Unzip this folder anywhere and run mw3.exe.
+It contains no part of the game. You need your own MechWarrior 3: an
+installed copy (version 1.2 is best; 1.0 plays), or the disc or a disc
+image. Pirate's Moon is not supported yet.
+
+Installing
+----------
+1. Unzip this folder anywhere (not inside your MechWarrior 3 folder).
+2. Run mw3.exe.
 
 On the first start:
-1. It looks for your MechWarrior 3 install: where the original installer put
-   it (the registry, then Program Files\MicroProse\MechWarrior 3 and a few
-   usual folders such as C:\Games\MechWarrior3). If it cannot find one, it
-   asks you to choose Mech3.exe in your MechWarrior 3 folder. The folder it
-   finds is remembered in mw3.cfg (see Settings below). You can also start
-   it as:  mw3.exe "C:\path\to\MechWarrior 3"
-2. The original's movies use a video codec (Indeo 5) that modern Windows no
-   longer has. On the first start mw3.exe runs mw3import.exe to convert
-   them once, with a small progress window (about a minute). The game runs
-   without movies if this is skipped or fails. To run it again:
-   mw3.exe --import
+- It looks for your MechWarrior 3 install (where the original installer put
+  it, then Program Files\MicroProse\MechWarrior 3 and usual folders such as
+  C:\Games\MechWarrior3). If none is found, it asks you to choose Mech3.exe
+  in your MechWarrior 3 folder. The folder is remembered. You can also name
+  it:  mw3.exe "C:\path\to\MechWarrior 3"
+- Only a disc or a disc image (.iso, or .cue with its .bin), nothing
+  installed? Install from it with:
+      mw3.exe --install-from "D:\"          (the disc's drive)
+      mw3.exe --install-from "C:\path\to\MechWarrior3.iso"
+  A .cue also gives the music. Add --patch (below) to patch it too.
+- It names the data version it found. With 1.0's data it says so once:
+  the official 1.2 patch is better, and the rebuild reads it without
+  running its installer. Start once with:
+      mw3.exe --patch "C:\path\to\the patch.zip"
+  (the ZIP the patch came in, or its unpacked folder). Your install is not
+  changed; the patched files go to the saves folder below.
+- The movies play through the Indeo 5 codec in your own install, by the
+  small helper mw3indeo.exe. If that cannot play them, mw3import.exe
+  converts them once instead, with a progress window (about a minute). The
+  game runs without movies if both fail.
 
 No install? Install from the disc
 ---------------------------------
@@ -44,36 +56,59 @@ optional and makes it 1.2. From a .cue, its CD audio becomes the music too.
 Music
 -----
 The original played its music from the CD's audio tracks, which an install
-does not contain. If you have a disc image of MechWarrior 3 (a .cue with its
-.bin), this writes its music tracks where the game finds them:
+does not have. With a disc image (a .cue and its .bin), this writes the
+music where the game finds it:
 
     mw3import.exe --cue "C:\path\to\MechWarrior3.cue" --music-only
 
-You can also put your own rip there as music\track02.wav, track03.wav and so
-on (or .ogg, .flac, .mp3), numbered as the CD's tracks.
+Or put your own rip in the saves folder's music\ folder as track02.ogg,
+track03.ogg and so on (or .wav, .flac, .mp3), numbered as the CD's tracks.
 
-Options
--------
-- The game opens fullscreen at your desktop's resolution.
-- Alt+Enter switches between fullscreen and a window while you play.
-- mw3.exe --original plays with every bug fix the rebuild makes turned off
-  (bugfixes=0 in mw3.cfg does the same; CHANGES list them). The frame-rate
-  fixes and the fixes the game needs to run stay on.
-- mw3.exe --windowed starts in a window; windowed=1 in mw3.cfg makes that
-  the default.
-- mw3.exe --no-import skips the movie conversion.
-- mw3.exe --version prints this build's version.
+Keys and options that differ from the original
+-----------------------------------------------
+- The game opens fullscreen at your desktop's resolution, widescreen
+  included. Alt+Enter switches between fullscreen and a window.
+- In a window, press and let go of Ctrl+Alt to free the mouse; click in the
+  window to take it back (that click does not fire).
+- The rebuild fixes some of the original's bugs (the list is CHANGES.md in
+  the project on GitHub). To play exactly as the original did, start with
+      mw3.exe --original
+  or put the line  bugfixes=0  in mw3.cfg. The fixes the game needs to run
+  on a modern PC stay on.
+- mw3.exe --windowed starts in a window (windowed=1 in mw3.cfg makes that
+  the default).
 
-Settings and saves
-------------------
+Saves, settings and the log
+---------------------------
 Everything the game writes goes to:
 
     %APPDATA%\MicroProse\MechWarrior 3\
 
-(paste that into Explorer's address bar). It holds mw3.cfg (the install
-folder, windowed=), your pilots and saves, the settings, and the converted
-movies (video\) and music (music\). Your MechWarrior 3 install is only read,
-never changed. Deleting this folder resets everything.
+(paste that into Explorer's address bar). It holds mw3.cfg, your pilots and
+saves, the settings, the converted movies and music, and mw3.log. Your
+MechWarrior 3 install is only read, never changed. Deleting this folder
+resets everything.
+
+mw3.log is written new at every start; the start before it is kept as
+mw3.old.log, so after a crash the crash's log is mw3.old.log if you have
+started the game again since.
+
+Known gaps
+----------
+- No multiplayer.
+- Pirate's Moon is not supported yet.
+- Widescreen: missions use the whole width; the menus, the mech lab and the
+  briefings keep the original's 4:3 picture, centred. Resizing the window
+  in the middle of a mission may put the HUD out of place (we could not
+  make that happen here; a report with your window size helps).
+
+Reporting a bug
+---------------
+Open an issue at https://github.com/telltaleatheist/mw3-re/issues
+Please include:
+- what you did and what happened (a screenshot helps),
+- the mission, and whether --original plays the same way,
+- mw3.log from the folder above (mw3.old.log if you started again since).
 
 Licences
 --------

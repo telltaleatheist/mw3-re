@@ -802,6 +802,40 @@ TEST(sdl_render3d_fog_colour_is_per_draw) {
   std::printf("fogged quads: left %08x, right %08x\n", left, right);
   EXPECT((left & 0xffffff) == 0xff0000u && (right & 0xffffff) == 0x0000ffu);
 }
+// Playtest W25: a message box over the lab's (or a mission's) GPU frame at
+// 16:9 showed over the 16-bit buffer's 640x480 copy of it, low-res until
+// answered. The frame shown is kept at its own size (hold_frame) and put
+// back under each of the box's frames (restore_frame): after another frame
+// drawn over, the kept one returns pixel for pixel at the frame's size.
+TEST(sdl_render_keeps_a_shown_frame) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 hold test", 1280, 720);
+  w.frame_size(1280, 720, 853, 480);
+  sdlfe::SdlRender3D* r = w.render();
+  auto frame = [&](uint8_t red) {
+    r->set_viewport(0, 0, 1280, 720);
+    r->clear(true, red, 40, 200);
+    r->begin_scene();
+    r->end_scene();
+    r->present();
+  };
+  frame(10);
+  std::vector<uint32_t> a, b, c;
+  int aw = 0, ah = 0, bw = 0, bh = 0, cw = 0, ch = 0;
+  if (!r->read_back(&a, &aw, &ah)) return;  // no GPU on this runner
+  EXPECT(r->hold_frame());
+  frame(250);
+  EXPECT(r->read_back(&b, &bw, &bh) && b != a);
+  EXPECT(r->restore_frame());
+  EXPECT(r->read_back(&c, &cw, &ch));
+  std::printf("kept %dx%d, back %dx%d, same %d\n", aw, ah, cw, ch, c == a);
+  EXPECT(cw == aw && ch == ah && c == a);
+  r->drop_frame();
+  EXPECT(!r->restore_frame());
+}
+
 TEST(sdl_layer_rgba_table_matches_the_bits) {
   int bad = 0;
   for (int f = 0; f < 2; ++f)

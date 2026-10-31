@@ -58,6 +58,7 @@
 #include "frontend/sdl/modes_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
+#include "frontend/sdl/run_log.h"
 #include "frontend/sdl/sdl_install.h"
 #include "mech3/disc_install.h"
 #include "frontend/sdl/sdl_force.h"
@@ -123,6 +124,7 @@ struct Args {
   // bugfixes=0/1 (default 1), --original turns them off whatever it says.
   bool play_original = false;
   int cfg_bugfixes = 1;
+  bool first_start = false;   // the install found by the search, not mw3.cfg's (ours: the first start's notes)
   float pos[3] = {0, 60, 0};
   float look[2] = {0, -2.9f};
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
@@ -330,10 +332,11 @@ bool find_install(Args& a) {
 #endif
   bool searched = false;
   a.install = sdlfe::find_install(a.cfg_install, dev, may_ask, &searched);
+  a.first_start = searched;
   if (a.install.empty()) {
     if (may_ask) std::printf("mw3: no install chosen\n");
     else std::fprintf(stderr, "mw3: No MechWarrior 3 install found (mw3.cfg's install=, the installer's registry "
-                                "values and folders). Start mw3 with --install DIR (docs/program.md).\n");
+                                "values and folders). Start mw3 with the folder: mw3 \"DIR\" (README.txt).\n");
     return false;
   }
   if (searched && (dev.empty() || a.install != dev[0]) && sdlfe::save_install(a.write_dir, a.install))
@@ -353,6 +356,61 @@ std::string vfw_helper_path(const std::string& given) {
   }
 #endif
   return {};
+}
+
+#if defined(_WIN32)
+constexpr const char* kSelf = "mw3.exe";
+constexpr const char* kImporter = "mw3import.exe";
+#else
+constexpr const char* kSelf = "mw3";
+constexpr const char* kImporter = "mw3import";
+#endif
+
+// The notes for a player's start (ours): the data's version when it is not
+// 1.2's, and no music. Lines for a box; flat() makes one for the log.
+std::vector<std::string> start_notes(const mech3::DataVersion& d, const std::string& write_dir) {
+  std::vector<std::string> out;
+  const std::string patch = std::string("If you have the official 1.2 patch, start once with:\n    ") + kSelf +
+                            " --patch \"<the patch's ZIP or folder>\"\nYour install is not changed (README.txt).";
+  auto list = [](const std::vector<std::string>& v) {
+    std::string s;
+    for (size_t i = 0; i < v.size() && i < 6; ++i) s += (i ? ", " : "") + v[i];
+    if (v.size() > 6) s += ", ...";
+    return s;
+  };
+  if (d.name == "1.0")
+    out.push_back("Your MechWarrior 3 data is version 1.0. It plays, but the rebuild is made and tested on 1.2's. " + patch);
+  else if (d.name == "1.0 with 1.2 files")
+    out.push_back("Your MechWarrior 3 data is part 1.0, part 1.2 (" + std::to_string(d.of_12) + " of " +
+                  std::to_string(d.of_10 + d.of_12) + " files patched). " + patch);
+  else if (d.name == "unknown")
+    out.push_back("Some MechWarrior 3 files are neither version 1.0's nor 1.2's (another version or a mod): " + list(d.unknown) +
+                  ". They may not play right.");
+  else if (d.name == "incomplete")
+    out.push_back("Some MechWarrior 3 files are missing from the install: " + list(d.unknown) +
+                  ". Reinstall MechWarrior 3 from its disc.");
+  bool music = false;
+  for (int t = 2; t <= 20 && !music; ++t)
+    for (const char* ext : {"ogg", "flac", "wav", "mp3"}) {
+      char name[32];
+      std::snprintf(name, sizeof name, "music/track%02d.%s", t, ext);
+      if (zutl::exists(name)) music = true;
+    }
+  if (!music)
+    out.push_back(std::string("No music: the original played it from the CD's audio tracks, which an install does not have. "
+                              "With a disc image (a .cue and its .bin):\n    ") +
+                  kImporter + " --cue \"<the disc's .cue>\" --music-only\nor put your own rip in " +
+                  (write_dir.empty() ? std::string("music") : (std::filesystem::path(write_dir) / "music").make_preferred().string()) +
+                  " as track02.ogg, track03.ogg and so on (README.txt, Music).");
+  return out;
+}
+std::string flat(const std::string& s) {
+  std::string out;
+  for (char c : s) {
+    if (c == '\n') c = ' ';
+    if (c != ' ' || out.empty() || out.back() != ' ') out += c;
+  }
+  return out;
 }
 
 // The install's Indeo 5 codec, any case.
@@ -388,6 +446,11 @@ int main(int argc, char** argv) {
     if (char* p = SDL_GetPrefPath("MicroProse", "MechWarrior 3")) a.write_dir = p, SDL_free(p);
   }
   while (a.write_dir.size() > 1 && a.write_dir.back() == '/') a.write_dir.pop_back();
+  // Everything printed from here also goes to <write dir>/mw3.log, the last
+  // start's kept as mw3.old.log (ours: run_log.h).
+  sdlfe::RunLog run_log;
+  if (!a.write_dir.empty() && run_log.open(a.write_dir))
+    std::printf("mw3 (MechWarrior 3 rebuild) %s, log %s\n", MW3_VERSION, run_log.path().c_str());
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
   // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
   // platform fixes that let it run stay on: fixes.md, The bug fixes switch).
@@ -411,7 +474,7 @@ int main(int argc, char** argv) {
       for (const std::string& l : r.log) std::printf("mw3: %s\n", l.c_str());
     if (!r.ok) {
       const std::string msg = "The 1.2 patch was not applied: " + (patch_dir.empty() ? std::string("no write dir") : r.error) +
-                              ". Give --patch the patch's ZIP or its folder (docs/assets.md, The 1.2 patch).";
+                              ". Give --patch the patch's ZIP or its folder (README.txt, Installing).";
       std::fprintf(stderr, "mw3: %s\n", msg.c_str());
       if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
       SDL_Quit();
@@ -426,14 +489,15 @@ int main(int argc, char** argv) {
   std::error_code ec;
   if (!std::filesystem::exists(a.install + "/zbd/reader.zbd", ec)) {
     const std::string msg = "No MechWarrior 3 install at \"" + a.install +
-                            "\". Start mw3 with the folder that holds Mech3.exe and zbd/ (docs/program.md).";
+                            "\". Start mw3 with the folder that holds Mech3.exe and zbd (README.txt).";
     std::fprintf(stderr, "mw3: %s\n", msg.c_str());
     if (!a.hidden) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", msg.c_str(), nullptr);
     SDL_Quit();
     return 1;
   }
   std::printf("mw3: install %s, write dir %s\n", a.install.c_str(), a.write_dir.c_str());
-  std::printf("mw3: %s\n", mech3::detect_data_version().describe().c_str());  // ours: assets.md, Data versions
+  const mech3::DataVersion data = mech3::detect_data_version();
+  std::printf("mw3: %s\n", data.describe().c_str());  // ours: assets.md, Data versions
   // The movies on a first run (ours, FIX (A): first_run_import.h): on a
   // player's plain start, not on checks, shots or debug starts, nor -nofmv.
   const bool plain = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.modes.empty() && a.mission.empty() && !a.fly &&
@@ -448,6 +512,15 @@ int main(int argc, char** argv) {
     const bool up = vfw->ready();
     std::printf("mw3: movies %s (%s)\n", up ? "through the Indeo helper" : "not through the Indeo helper", vfw->hello().c_str());
     if (!up) vfw.reset();
+  }
+  // What a player may want to do about the data and the music: in the log
+  // each start, in a box on the first (ours).
+  const std::vector<std::string> notes = start_notes(data, a.write_dir);
+  for (const std::string& n : notes) std::printf("mw3: note: %s\n", flat(n).c_str());
+  if (plain && a.first_start && !notes.empty()) {
+    std::string text;
+    for (const std::string& n : notes) text += (text.empty() ? "" : "\n\n") + n;
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "MechWarrior 3: first start", text.c_str(), nullptr);
   }
   if (a.force_import || (plain && !a.no_import && !vfw)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 

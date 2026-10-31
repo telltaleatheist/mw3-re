@@ -683,6 +683,17 @@ void GameEngine::video_clear(Handle) { std::fill(buffer_.begin(), buffer_.end(),
 // 0x00576ea0: the back buffer to the screen.
 // A frame whose 3D scene was drawn (the Core state's) shows that instead.
 void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
+  // FIX (B), playtest W25: a message box over a GPU frame shows over that
+  // frame at its own size, not over the 16-bit buffer's copy of it (the
+  // buffer's size: the menus' 640x480, low-res at 16:9 or in the lab).
+  if (held_ && !scene_drawn_ && !layer_drawn_ && p_.render && p_.screen && p_.render->restore_frame()) {
+    p_.screen->overlay_16(buffer_.data(), width_, height_, width_ * 2, true, kLayerKey, nullptr, nullptr);
+    p_.render->present();
+    ++frames_presented;
+    if (on_present) on_present(frames_presented);
+    return;
+  }
+  if (held_) drop_held();
   if ((scene_drawn_ || layer_drawn_) && p_.render) p_.render->present();
   else if (p_.screen) p_.screen->present_16(buffer_.data(), width_, height_, width_ * 2, true);
   last_drew_scene_ = scene_drawn_;
@@ -790,6 +801,19 @@ Handle GameEngine::video_grab(int32_t) {
   if (video_mode() != 0 && read_frame(p_.render, width_, height_, &still)) grabs_[h] = {width_, height_, std::move(still)};
   else grabs_[h] = {width_, height_, buffer_};
   return h;
+}
+bool GameEngine::hold_shown_frame() {
+  if (held_) return true;
+  if (!p_.render || !p_.screen || !last_via_render_ || buffer_is_screen_ || !p_.render->hold_frame()) return false;
+  held_ = true;
+  std::fill(buffer_.begin(), buffer_.end(), kLayerKey);
+  buffer_is_screen_ = true;  // no read-back into it at the next lock: it is the box's layer
+  return true;
+}
+void GameEngine::drop_held() {
+  if (!held_) return;
+  held_ = false;
+  if (p_.render) p_.render->drop_frame();
 }
 bool GameEngine::shown_frame(std::vector<uint16_t>* out) {
   return last_via_render_ && !buffer_is_screen_ && read_frame(p_.render, width_, height_, out);

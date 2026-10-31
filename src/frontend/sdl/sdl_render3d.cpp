@@ -434,6 +434,45 @@ bool SdlRender3D::read_back(std::vector<uint32_t>* argb, int* width, int* height
 
 // Flip (0x0057a850): the back buffer onto the window's swapchain (vsync), or
 // into the capture file. With the window hidden there is no swapchain to wait on.
+// Ours (playtest W25): the back buffer copied on the GPU, at its size, and back.
+namespace {
+void copy_texture(SDL_GPUDevice* dev, SDL_GPUTexture* from, SDL_GPUTexture* to, Uint32 w, Uint32 h) {
+  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev);
+  if (!cmd) return;
+  SDL_GPUCopyPass* cp = SDL_BeginGPUCopyPass(cmd);
+  SDL_GPUTextureLocation src{}, dst{};
+  src.texture = from, dst.texture = to;
+  SDL_CopyGPUTextureToTexture(cp, &src, &dst, w, h, 1, false);
+  SDL_EndGPUCopyPass(cp);
+  SDL_SubmitGPUCommandBuffer(cmd);
+}
+}  // namespace
+bool SdlRender3D::hold_frame() {
+  if (!frame_) return false;
+  if (!held_ || held_w_ != frame_w_ || held_h_ != frame_h_) {
+    if (held_) SDL_ReleaseGPUTexture(dev_, held_);
+    SDL_GPUTextureCreateInfo ti{};
+    ti.type = SDL_GPU_TEXTURETYPE_2D, ti.format = color_format_;
+    ti.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    ti.width = frame_w_, ti.height = frame_h_, ti.layer_count_or_depth = 1, ti.num_levels = 1;
+    held_ = SDL_CreateGPUTexture(dev_, &ti);
+    held_w_ = frame_w_, held_h_ = frame_h_;
+  }
+  if (!held_) return false;
+  copy_texture(dev_, frame_, held_, frame_w_, frame_h_);
+  return true;
+}
+bool SdlRender3D::restore_frame() {
+  if (!held_ || !ensure_frame() || held_w_ != frame_w_ || held_h_ != frame_h_) return false;
+  copy_texture(dev_, held_, frame_, frame_w_, frame_h_);
+  clear_pending_ = false;  // the next pass draws over it
+  return true;
+}
+void SdlRender3D::drop_frame() {
+  if (held_) SDL_ReleaseGPUTexture(dev_, held_);
+  held_ = nullptr, held_w_ = held_h_ = 0;
+}
+
 void SdlRender3D::present() {
   if (!frame_) return;
   SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);

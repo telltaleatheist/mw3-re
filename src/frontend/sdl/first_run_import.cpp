@@ -82,7 +82,7 @@ bool first_run_import(const std::string& install, const std::string& write_dir, 
   }
   const std::string importer = importer_path();
   if (importer.empty()) {
-    std::printf("mw3: %d movies not imported: mw3import beside mw3 converts them (docs/fmv.md section 6)\n", missing);
+    std::printf("mw3: %d movies not converted: mw3import is not beside mw3 (README.txt)\n", missing);
     return false;
   }
   std::printf("mw3: converting %d movies (about 3 s each)\n", missing);

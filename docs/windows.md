@@ -72,14 +72,19 @@ which `ir50*`, AVIFile and VfW DLLs the process loaded.
 its own tree, `build-win-pkg\`, from scratch with `-DMW3_PACKAGE=ON` (mw3 and
 mw3import then carry no development copy of the game: only the player's
 install, through the finder or mw3.cfg's `install=`, which `mw3import`
-reads too), builds `mw3` and `mw3import`, and collects:
+reads too), builds `mw3` and `mw3import`, then the 32-bit Indeo helper
+(`build_indeo.cmd build-win-pkg`, in a child shell for its x86 vcvars), and
+collects:
 
-- `mw3.exe`, `mw3import.exe` and the DLLs their builds copied beside them
+- `mw3.exe`, `mw3indeo.exe` (the movies through the install's own codec;
+  mw3 starts it when it is beside it), `mw3import.exe` (the fall-back:
+  the movies converted when the helper cannot play them, and a disc
+  image's music) and the DLLs their builds copied beside them
   (SDL3, SDL3_ttf, SDL3_sound, FFmpeg's nine), plus the Visual C++
   runtime from Visual Studio's redist folder (app-local);
 - `README.txt` and `THIRD-PARTY.txt` (`tools\windows\dist\`), each
   `deps\*` folder's own `LICENSE*`/`COPYING*` files under `licenses\`,
-  pl_mpeg's, and `licenses\ffmpeg-configuration.txt` (`mw3import
+  pl_mpeg's, miniz's, and `licenses\ffmpeg-configuration.txt` (`mw3import
   --version`: FFmpeg's version and configure line, naming the libraries
   built into its DLLs).
 
