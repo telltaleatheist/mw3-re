@@ -2499,6 +2499,14 @@ file (docs/assets.md, Data versions):
   off the line to it usually clips the ground and an AI mech waits out its
   whole aim on a base it can't hit.
 
+- **The movies stutter in a steady beat.** The game shows a movie's
+  picture for wherever its sound has got to, but only checks when its own
+  15-frames-a-second clock ticks. Both start at the same moment and run at the
+  same speed, so each check lands just as the sound moves on to the next
+  frame: one frame shows twice and the next is skipped, about every third
+  frame, all through the intro. The rebuild checks the sound every time
+  (bug fixes on), so each frame shows once.
+
 ## The cameras
 
 From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).

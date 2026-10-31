@@ -25,7 +25,9 @@
 //                        the movies are the importer's (mw3import), in the write dir
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
-//   --frames N           quit after N frames of a debug start
+//   --frames N           quit after N frames shown (a debug start's; from the menus each flip counts,
+//                        a movie's at its own rate: the intro's 15 a second); also keeps the window
+//                        out of fullscreen
 //   --action-chain all|cN|cN:S  Instant Action played through, each world and scenario (ours, modes_chain.h)
 //   --campaign-chain new:N|resume:N|kills:N|retry:N  a pilot through the campaign as a player (ours,
 //                        campaign_chain.h): N missions won, shots in --write-dir

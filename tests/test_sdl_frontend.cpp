@@ -2407,6 +2407,76 @@ TEST(sdl_movies_through_the_indeo_helper_pipe) {
   const std::vector<uint8_t> shot_files = bytes(dir + "/files.bmp"), shot_pipe = bytes(dir + "/pipe.bmp");
   EXPECT(shot_files.size() > 100000 && shot_files == shot_pipe);
 }
+
+// The intro's picture follows its sound without a beat (fmv.md section 5):
+// with the sound's play cursor moving in WASAPI's 10 ms periods (SDL's dummy
+// driver at 441 frames: no sound out, the callback on its schedule), the
+// exe's way, asking for the sound's frame only when the movie's own 15 fps
+// clock changes, repeats or skips a frame every few; with the bug fixes each
+// frame shows once (one repeat at the start, the first two steps).
+TEST(sdl_intro_follows_its_sound_without_a_beat) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!std::filesystem::exists(MW3_IMPORT_BIN, ec) || !std::filesystem::exists(install + "/video/INTRO.AVI", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_intro_beat";
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  auto run = [&](std::vector<std::string> args, const std::string& name) {
+    std::vector<char*> argv;
+    for (std::string& s : args) argv.push_back(s.data());
+    argv.push_back(nullptr);
+    const std::string log = dir + "/" + name + ".log";
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    int status = -1;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) == 0) waitpid(pid, &status, 0);
+    posix_spawn_file_actions_destroy(&fa);
+    std::string text;
+    if (std::FILE* f = std::fopen(log.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+      std::fclose(f);
+    }
+    return text;
+  };
+  run({MW3_IMPORT_BIN, "--install", install, "--write-dir", dir, "--only", "intro"}, "import");
+  if (!std::filesystem::exists(dir + "/video/intro.fmv", ec)) return;  // no FFmpeg in this importer
+  const char* const kEnv[][2] = {{"SDL_AUDIO_DRIVER", "dummy"}, {"SDL_AUDIO_DEVICE_SAMPLE_FRAMES", "441"}, {"MW3_MOVIE_TRACE", "1"}};
+  for (const auto& e : kEnv) setenv(e[0], e[1], 1);
+  struct Beat {
+    int steps = 0, repeats = 0, skipped = 0;
+    bool device = false;
+  };
+  auto play = [&](bool original) {
+    std::vector<std::string> a = {MW3_BIN, "--install", install, "--write-dir", dir, "--no-launcher", "--frames", "200", "--hidden"};
+    if (original) a.push_back("--original");
+    const std::string log = run(a, original ? "original" : "fixed");
+    Beat b;
+    b.device = log.find("sound device 44100 Hz, 2 channels, 441 sample frames") != std::string::npos;
+    int last = -1;
+    for (size_t at = 0; (at = log.find("clock frame ", at)) != std::string::npos; ++at) {
+      const size_t s = log.find("shown ", at);
+      if (s == std::string::npos) break;
+      const int shown = std::atoi(log.c_str() + s + 6);
+      if (b.steps++ > 0) {
+        if (shown == last) ++b.repeats;
+        if (shown > last + 1) b.skipped += shown - last - 1;
+      }
+      last = shown;
+    }
+    return b;
+  };
+  const Beat fixed = play(false), original = play(true);
+  for (const auto& e : kEnv) unsetenv(e[0]);
+  std::printf("  the intro, 10 ms sound periods: fixed %d steps, %d repeated, %d skipped; the exe's %d steps, %d repeated, %d skipped\n",
+              fixed.steps, fixed.repeats, fixed.skipped, original.steps, original.repeats, original.skipped);
+  EXPECT(fixed.device && original.device);
+  EXPECT(fixed.steps >= 150 && fixed.repeats <= 1 && fixed.skipped == 0);
+  EXPECT(original.steps >= 150 && original.repeats + original.skipped >= 10);
+}
 #endif
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
