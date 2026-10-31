@@ -726,6 +726,44 @@ TEST(sdl_layers_keep_the_3d_viewport) {
   EXPECT(v[0] == 0 && v[1] == 0 && v[2] == 1920 && v[3] == 1080);
 }
 
+
+// W20 (FIX (A)): FOGCOLOR applies per draw, as in Direct3D. A saturated
+// point light (the jump jets' flicker lights) sets the device fog colour for
+// its polygons and the world's fog colour is set again for the next fogged
+// ones; the GPU layer used the frame's last colour for every fogged draw,
+// tinting the whole scene. Two fully fogged quads in red and blue, then green
+// set with nothing drawn: red and blue they stay.
+TEST(sdl_render3d_fog_colour_is_per_draw) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 fog test", 640, 480);
+  w.frame_size(640, 480, 640, 480);
+  platform::Render3D* r = w.render();
+  r->set_viewport(0, 0, 640, 480);
+  r->clear(true, 0, 0, 0);
+  r->begin_scene();
+  platform::DrawState st;
+  st.fog = true;
+  auto quad = [&](float x0, float x1) {
+    const uint32_t white = 0xffffffffu, fogged = 0x00000000u;  // specular alpha 0: all fog
+    const platform::TLVertex v[4] = {{x0, 100, 0.5f, 1, white, fogged, 0, 0}, {x1, 100, 0.5f, 1, white, fogged, 0, 0},
+                                     {x1, 380, 0.5f, 1, white, fogged, 0, 0}, {x0, 380, 0.5f, 1, white, fogged, 0, 0}};
+    r->draw(platform::Primitive::kFan, v, 4, st);
+  };
+  r->set_fog_color(255, 0, 0);
+  quad(40, 280);
+  r->set_fog_color(0, 0, 255);
+  quad(360, 600);
+  r->set_fog_color(0, 255, 0);  // the frame's last colour, on no draw
+  r->end_scene();
+  std::vector<uint32_t> f;
+  int rw = 0, rh = 0;
+  if (!r->read_back(&f, &rw, &rh) || rw != 640 || rh != 480) return;  // no window here (a headless runner)
+  const uint32_t left = f[240 * 640 + 160], right = f[240 * 640 + 480];
+  std::printf("fogged quads: left %08x, right %08x\n", left, right);
+  EXPECT((left & 0xffffff) == 0xff0000u && (right & 0xffffff) == 0x0000ffu);
+}
 TEST(sdl_layer_rgba_table_matches_the_bits) {
   int bad = 0;
   for (int f = 0; f < 2; ++f)

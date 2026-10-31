@@ -288,10 +288,12 @@ void SdlRender3D::draw(platform::Primitive type, const platform::TLVertex* v, in
   }
   const auto n = static_cast<uint32_t>(vertices_.size()) - first;
   if (n == 0) return;
-  if (!runs_.empty() && same(runs_.back().state, state) && runs_.back().first + runs_.back().count == first)
+  const bool same_fog = !runs_.empty() && runs_.back().fog[0] == fog_rgb_[0] && runs_.back().fog[1] == fog_rgb_[1] &&
+                        runs_.back().fog[2] == fog_rgb_[2];
+  if (same_fog && same(runs_.back().state, state) && runs_.back().first + runs_.back().count == first)
     runs_.back().count += n;
   else
-    runs_.push_back({state, first, n});
+    runs_.push_back({state, first, n, {fog_rgb_[0], fog_rgb_[1], fog_rgb_[2]}});
 }
 
 void SdlRender3D::ensure_depth(uint32_t w, uint32_t h) {
@@ -384,7 +386,7 @@ void SdlRender3D::end_scene() {
     // A sharp draw's texel is a game pixel: the frame's pixels per game pixel.
     const float sx = r.state.sharp && vw_ > 0 ? static_cast<float>(w) / static_cast<float>(vw_) : 0.0f;
     const float sy = r.state.sharp && vh_ > 0 ? static_cast<float>(h) / static_cast<float>(vh_) : 0.0f;
-    const float fu[8] = {fog_rgb_[0], fog_rgb_[1], fog_rgb_[2], 1, r.state.fog ? 1.0f : 0.0f,
+    const float fu[8] = {r.fog[0], r.fog[1], r.fog[2], 1, r.state.fog ? 1.0f : 0.0f,
                          r.state.alpha_modulate ? 1.0f : 0.0f, std::max(sx, 1.0f) * (sx > 0), std::max(sy, 1.0f) * (sy > 0)};
     SDL_PushGPUFragmentUniformData(cmd, 0, fu, sizeof fu);
     SDL_GPUBufferBinding vb{vbuf_, 0};

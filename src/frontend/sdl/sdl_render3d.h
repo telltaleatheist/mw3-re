@@ -50,6 +50,9 @@ class SdlRender3D : public platform::Render3D {
   struct Run {
     platform::DrawState state;
     uint32_t first, count;
+    // FIX (A): FOGCOLOR as it was at these draws, as Direct3D applies it per
+    // draw (a saturated light's colour on its polygons only; W20).
+    float fog[3];
   };
   SDL_GPUGraphicsPipeline* pipeline(const platform::DrawState& s, bool textured);
   SDL_GPUSampler* sampler(uint8_t u, uint8_t v);
