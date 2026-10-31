@@ -375,6 +375,7 @@ These change how the game talks to the computer, not how it plays.
 - The movies play from files the importer makes from the game's own (the picture as MPEG-1, the sound as it was), since Indeo 5 video does not play outside old Windows; a movie that is not in the game's folder is not looked for on a CD drive. Timing, skipping and the end are the original's: the picture still follows the sound.
 
 - The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
+- At 16:9, coming back from the pause menu no longer shows the top-left corner of the picture blown up over the whole screen (the menu's picture size stayed on the 3D view).
 
 - The game's question boxes ("Ok to delete pilot?", "Replace existing game?" and the rest) keep reading the mouse and keyboard while they wait: the original's box read DirectInput directly, the rebuild's also handles the window's events while it waits.
 

@@ -193,10 +193,16 @@ void SdlScreen2D::present_16(const uint16_t* pixels, int width, int height, int 
   if (!render_ || width <= 0 || height <= 0) return;
   ++frames;
   upload(pixels, width, height, pitch, rgb565, false, 0);
+  // FIX (B), playtest W22: the 3D's viewport back after the layer. On a canvas
+  // (16:9 past mode 10) the menus' 853x480 left on it made the mission after
+  // the pause draw the frame's top-left corner over the whole window.
+  int vx, vy, vw, vh;
+  render_->viewport(&vx, &vy, &vw, &vh);
   render_->set_viewport(0, 0, width, height);
   render_->clear(true, 0, 0, 0);
   draw_layer(width, height, false);
   render_->present();
+  render_->set_viewport(vx, vy, vw, vh);
 }
 
 void SdlScreen2D::overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key,

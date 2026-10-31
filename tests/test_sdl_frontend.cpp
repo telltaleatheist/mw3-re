@@ -655,6 +655,31 @@ TEST(sdl_layer_scales_sharp) {
   EXPECT((first & 0xff) >= 0xf8 && (first >> 8 & 0xff) >= 0xf8 && (first >> 16 & 0xff) >= 0xf8);
 }
 
+// Playtest W22: the menus' whole-screen layer (present_16, the pause screen)
+// on a 16:9 canvas set the 3D's viewport to the canvas and left it there;
+// the mission resumed (the same mode: nothing set it again) drew its
+// 1920x1080 frame's top-left 853x480 over the whole window. The 3D's
+// viewport is the frame's again after either layer.
+TEST(sdl_layers_keep_the_3d_viewport) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 viewport test", 1920, 1080);
+  w.frame_size(1920, 1080, 853, 480);
+  sdlfe::SdlScreen2D screen(w.render());
+  std::vector<uint16_t> px(853 * 480, 0x1234);
+  int v[4] = {};
+  auto read = [&] { w.render()->viewport(&v[0], &v[1], &v[2], &v[3]); };
+  w.render()->set_viewport(0, 0, 1920, 1080);
+  screen.present_16(px.data(), 853, 480, 853 * 2, true);
+  read();
+  std::printf("after the whole-screen layer: %d %d %d %d\n", v[0], v[1], v[2], v[3]);
+  EXPECT(v[0] == 0 && v[1] == 0 && v[2] == 1920 && v[3] == 1080);
+  screen.overlay_16(px.data(), 853, 480, 853 * 2, true, 0xf81f, nullptr, nullptr);
+  read();
+  EXPECT(v[0] == 0 && v[1] == 0 && v[2] == 1920 && v[3] == 1080);
+}
+
 TEST(sdl_layer_rgba_table_matches_the_bits) {
   int bad = 0;
   for (int f = 0; f < 2; ++f)
