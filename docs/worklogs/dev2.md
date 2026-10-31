@@ -387,3 +387,15 @@ works alongside it; stay out of its files.
   `sdl_held_mouse_keeps_the_cursor_hidden` drops SDL's relative mode
   behind SdlInput's back (3 checks fail without the fix).
 - Owen to confirm on the PC. Branch `mac5/w19-cursor-fix` off main d7831d08.
+
+## 26. W27: the follow along the leader's way (2026-10-30)
+
+- Breadcrumbs in FollowState (trail_record, trail_goal), the W17 detour
+  made WallDetour and given to the fight's approach. Details, the numbers
+  and the open pop-through: ai.md 17.6, W27.
+- What it took on the walked routes: sight as wide and tall as a mech and
+  past his own body (the segment queries hit his model), crumb by crumb,
+  straight steering to a crumb, a teleport starting the trail afresh.
+- The test's maps (MW3_W27_TRACE): the exe's stop on these routes is the
+  standstill on open ground, not a wall contact.
+- Branch `mac5/w27-breadcrumbs` off main d1e5b9e6.
