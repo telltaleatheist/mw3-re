@@ -355,3 +355,18 @@ works alongside it; stay out of its files.
   at the next start. The same load: 3 x 242/0 and 34/0, no folder left.
 - Branch `mac5/test-tmp` off main fa9aab7.
 
+
+## 24. W21: the HUD cut off after the options' resolution (2026-10-30)
+
+- Reproduced on the Mac: `--briefing c1m1 --window 1920x1080` at
+  640x480, Escape, `--click-at` OPTIONS (133,309), GRAPHICS & AUDIO
+  (420,78), RESOLUTION's arrow (325,290) eight times, ACCEPT twice,
+  Escape. Everything right of x 640 on the 853x480 canvas gone. Shift+V
+  through the modes did not show it.
+- Printed each frame: the buffer 853x480 but zrndr::target2d 640x480 for
+  good. 0x004ab6b0 locks before the switch, so the target took the old
+  mode's size and pointer; `screen_size` remade the buffer under it.
+  Shift+V passes mode 12 (the same canvas), hiding it.
+- Fix: `screen_size` sets the 2D and finish targets on the new buffer.
+  Test `mission_c1m1_mode_change_moves_the_2d_target_headless` (4 checks
+  fail without). Branch `mac5/w21-hud` off main d7831d08.

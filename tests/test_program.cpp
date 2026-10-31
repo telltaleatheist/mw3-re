@@ -16154,6 +16154,80 @@ TEST(mission_c1m1_mode_change_keeps_the_camera_shape_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest W21: "some of the HUD items are missing" at 16:9 after the
+// options' RESOLUTION mid-mission: the weapon names, the speed gauge's ticks
+// and numbers, everything past x 640 of the 853x480 canvas. The mode switch
+// (0x004ab6b0) locks before it changes, so the 2D target kept the old
+// mode's 640x480 (the options') and the freed buffer. The target is the new
+// buffer at once, at each switch.
+TEST(mission_c1m1_mode_change_moves_the_2d_target_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mode_target_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Seen {
+    int mode, buf_w, t_w, t_h;
+    bool same_base;
+  };
+  std::vector<Seen> seen;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().in_game_vmode = 5;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int core = 0;
+    auto look = [&](int mode) {
+      const zrndr::Target2D& t = zrndr::target2d();
+      seen.push_back({mode, engine.buffer_width(), static_cast<int>(t.width), static_cast<int>(t.height),
+                      t.base == reinterpret_cast<uint8_t*>(engine.buffer16())});
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++core;
+      if (core == 5) engine.set_screen_mode(13), look(13);  // as from the options' 640x480 to 16:9
+      if (core == 7) engine.set_screen_mode(5), look(5);
+      if (core == 9) engine.set_screen_mode(12), look(12);
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return core >= 9; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  for (const Seen& v : seen)
+    std::printf("  mode %d: buffer %d wide, 2D target %dx%d, on the buffer %d\n", v.mode, v.buf_w, v.t_w, v.t_h, v.same_base);
+  EXPECT(seen.size() == 3);
+  for (const Seen& v : seen) EXPECT(v.t_w == v.buf_w && v.same_base);
+  EXPECT(seen.size() == 3 && seen[0].t_w == 853 && seen[0].t_h == 480 && seen[1].t_w == 640);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // 0x00558010's rect is a handle (resolution.md section 9, found while taking
 // the lab's shot): the screen's (the lab's call, 0x00579880) or one of the
 // options' rects, not memory. Read as memory it gave the 2D target 0 x 0, and

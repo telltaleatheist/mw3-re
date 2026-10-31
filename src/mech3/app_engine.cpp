@@ -596,6 +596,15 @@ void GameEngine::screen_size(int32_t w, int32_t h, int32_t frame_w, int32_t fram
   ztwod::dialog_origin() = canvas ? ztwod::DialogOrigin{(w - 640) / 2, (h - 480) / 2} : ztwod::DialogOrigin{};
   buffer_.assign(static_cast<size_t>(width_) * height_, 0);
   buffer_is_screen_ = false;
+  // FIX (B), playtest W21: the 2D target on the new buffer at once. The mode
+  // switch (0x004ab6b0) locks before it, so the target kept the old mode's
+  // size and the freed buffer; after the options' 640x480 a 16:9 mission's
+  // HUD past x 640 (the weapon names, the speed gauge's ticks) was cut off.
+  zrndr::Target2D& t = zrndr::target2d();
+  t.base = reinterpret_cast<uint8_t*>(buffer_.data());
+  t.width = static_cast<uint32_t>(width_), t.height = static_cast<uint32_t>(height_);
+  t.pitch = static_cast<uint32_t>(width_ * 2);
+  zrndr::set_finish_target(buffer_.data(), width_, height_, width_ * 2);
   // The 3D's viewport the frame (the 2D layers set their own, the canvas's; resolution.md step 4).
   if (p_.render) p_.render->set_viewport(0, 0, frame_w > 0 ? frame_w : w, frame_h > 0 ? frame_h : h);
   // The window's shape (ours, resolution.md step 2): the 3D frame, the 2D canvas over it (step 4).
