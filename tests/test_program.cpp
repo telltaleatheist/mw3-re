@@ -10890,12 +10890,14 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // 0x005490e0, hooks-audit.md) his hits bring it from 30 to 0 in the 40 s.
     // Since the AI's wall reverse (0x004231c0, movement-collision.md) he backs
     // off what he walks into: fewer contacts, longer aiming.
+    // Since the probes land in the frame's own step above 30 fps (W31,
+    // Skis::integrate) his walk differs: longer aiming, fewer firing frames.
     std::printf("  dominic's target: contacts %d, first %s, on target %d, aiming %d, firing %d, health %.5f\n",
                 seen.target_contacts, seen.first_target.c_str(), seen.on_target, seen.aiming, seen.firing, seen.health);
     EXPECT(seen.hut != 0 && seen.health0 == 30.0f && seen.on_target > 0 && seen.firing > 0 && seen.health < seen.health0);
     if (data_is_12()) {
       EXPECT(seen.target_contacts == 2163 && seen.first_target == "ghsD2");
-      EXPECT(seen.on_target == 1062 && seen.aiming == 96 && seen.firing == 841);
+      EXPECT(seen.on_target == 1062 && seen.aiming == 145 && seen.firing == 792);
       EXPECT(std::fabs(seen.health - 0.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);

@@ -2144,8 +2144,12 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   sets a probe under the ground to (ground - y) / max(dt, 1/30 s); above
   30 fps that is slower than the jets' climb it replaces, and walking up a
   slope the probes stay under the ground every frame, so the mech skims.
-  The exe does the same. FIX (B) behind per_second: the catch-up only
-  raises the speed. Test: 25 states with fixes on and off (frame steps
+  The exe does the same. FIX (B) behind per_second: above 30 fps the
+  speed over the frame's own step (as 30 fps had it); the hard landing
+  still by the 1/30 s speed. A first version (the catch-up only raising
+  the speed) left a leftover climb at 60 fps and changed Dominic's c1m4
+  run more (his target survived); this one keeps it destroyed, his
+  aiming 96 -> 145 and firing 841 -> 792 frames. Test: 25 states with fixes on and off (frame steps
   1..100 ms, a 400 ms hitch, fuel 0.1/0.26/0.3, hot, walking); the
   original's path skims at 60 and 144 fps walking. Fuel just under 0.25
   still lights: the ground refills it while the key's thrust ramps.
