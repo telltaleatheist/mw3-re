@@ -657,7 +657,9 @@ LauncherChoice Launcher::run() {
   }
   if (!install_.ok) screen_ = kSetupScreen;
   layout();
-  SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+  // Not high pixel density: the game takes this window (one window into the
+  // game), and its sizes are the window's points (SdlWindow, SdlInput).
+  SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
   if (o_.fullscreen) flags |= SDL_WINDOW_FULLSCREEN;
   win_ = SDL_CreateWindow("MechWarrior 3", o_.win_w, o_.win_h, flags);
   if (!win_ || !(ren_ = SDL_CreateRenderer(win_, nullptr))) {
@@ -668,6 +670,7 @@ LauncherChoice Launcher::run() {
   tex_ = SDL_CreateTexture(ren_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, W, H);
   SDL_SetTextureScaleMode(tex_, SDL_SCALEMODE_LINEAR);
   Uint64 last = SDL_GetTicks();
+  if (o_.play) activate(kMw3);
   while (!done_) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -728,7 +731,16 @@ LauncherChoice Launcher::run() {
     SDL_Delay(15);
   }
   if (work_) work_->cancel = true;
-  if (choice_.kind == LauncherChoice::kPlay) save_install(o_.write_dir, choice_.install);
+  if (choice_.kind == LauncherChoice::kPlay) {
+    save_install(o_.write_dir, choice_.install);
+    // The window goes on to the game, its renderer freed first (a window
+    // drawn by an SDL renderer cannot be the GPU device's too).
+    if (tex_) SDL_DestroyTexture(tex_), tex_ = nullptr;
+    if (ren_) SDL_DestroyRenderer(ren_), ren_ = nullptr;
+    choice_.window = win_;
+    win_ = nullptr;
+    if (choice_.window) std::printf("mw3: launcher: its window goes on to the game\n");
+  }
   return choice_;
 }
 

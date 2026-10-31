@@ -2501,4 +2501,29 @@ TEST(sdl_program_launcher_screens) {
     if (img) SDL_DestroySurface(img);
   }
 }
+
+// One window from the launcher into the game (lead's launcher list, item
+// 2): PLAY (--launcher-play presses MECHWARRIOR 3 at once) hands the
+// launcher's window over, its renderer freed, and the game claims it for
+// its GPU device instead of opening a second window; the main menu draws
+// in it (--shot of the game's frame).
+TEST(sdl_program_launcher_window_goes_on_to_the_game) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_play";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  const std::string bmp = dir + "/menu.bmp", log = dir + "/play.log";
+  const pid_t pid = spawn_mw3({"--write-dir", dir + "/wd", "--launcher-play", "--window", "1280x960", "--nosound", "--shot", bmp,
+                               "--shot-frame", "40", "--shot-any"}, log);
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const bool handed = text.find("launcher: its window goes on to the game") != std::string::npos;
+  const bool took = text.find("the game took the launcher's window") != std::string::npos;
+  SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
+  std::printf("launcher play: handed %d, taken %d, the menu's frame %dx%d\n", handed, took, img ? img->w : 0, img ? img->h : 0);
+  EXPECT(handed && took && img && img->w > 0);
+  if (img) SDL_DestroySurface(img);
+}
 #endif

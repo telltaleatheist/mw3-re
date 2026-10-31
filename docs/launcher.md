@@ -99,8 +99,12 @@ hides until it exits, then comes back.
 `--shot`, a chain, `--mission`/`--fly`, `--movie`, `--dialog`, `-nofmv`, a
 named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 - Its own SDL_Renderer window (fullscreen unless `--windowed`/`--window`),
-  a 640x480 RGB565 canvas letterboxed into it; the game's window opens
-  after it closes (one window throughout is still to do).
+  a 640x480 RGB565 canvas letterboxed into it. PLAY hands the window to the
+  game (2026-10-31): the renderer is freed and `SdlWindow::init` claims the
+  same window for its GPU device instead of opening a second one. The
+  window is not high pixel density, as the game's never was (its sizes are
+  the window's points). `--launcher-play` presses MECHWARRIOR 3 at once
+  (for checks); `sdl_program_launcher_window_goes_on_to_the_game`.
 - The install found quietly: mw3.cfg's, `<write dir>/install` (the disc
   install's), the finder's places, a development copy; each through
   `setup::check_install`. None: the setup screen first.

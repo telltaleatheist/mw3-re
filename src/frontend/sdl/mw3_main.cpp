@@ -118,6 +118,7 @@ std::string campaign_summary() {
 }
 
 struct Args {
+  SDL_Window* launcher_window = nullptr;  // the launcher's, for the game to take (one window; ours)
   std::string install, write_dir, mission, variant, dialog_file, dialog_name, shot, movie;
   std::string cfg_install;  // mw3.cfg's install= (the command line's wins)
   std::vector<std::string> assets;
@@ -139,6 +140,7 @@ struct Args {
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   bool no_launcher = false;   // --no-launcher (ours: launcher.h): a plain start straight to the game
   std::string launcher_shot, launcher_screen = "main";  // --launcher-shot FILE [--launcher-screen NAME]
+  bool launcher_play = false;  // --launcher-play: the launcher shown, MECHWARRIOR 3 pressed at once (checks)
   std::string vfw_helper;     // --vfw-helper EXE (ours, sdl_vfw.h): the movies' Video for Windows helper; "-" none
   std::string patch;          // --patch PATH (ours, patch_import.h): the official 1.2 patch into the write dir's overlay
   std::string install_from, install_to;  // --install-from PATH, --install-to DIR (ours, disc_install.h)
@@ -165,7 +167,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--launcher-shot FILE [--launcher-screen main|setup|work]] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--launcher-shot FILE [--launcher-screen main|setup|work]] [--launcher-play] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -231,6 +233,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-import") a.no_import = true;
     else if (s == "--no-launcher") a.no_launcher = true;
     else if (s == "--launcher-shot" && next(1)) a.launcher_shot = argv[++i];
+    else if (s == "--launcher-play") a.launcher_play = true;
     else if (s == "--launcher-screen" && next(1)) a.launcher_screen = argv[++i];
     else if (s == "--wide-menus") zfix::options().wide_menus = true;
     else if (s == "--original") a.play_original = true;
@@ -483,7 +486,7 @@ int main(int argc, char** argv) {
   const bool player_start = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.modes.empty() &&
                             a.mission.empty() && !a.fly && a.dialog_file.empty() && a.movie.empty() && a.install.empty() &&
                             a.install_from.empty() && a.patch.empty() && a.original.find("-nofmv") == std::string::npos;
-  if (!a.launcher_shot.empty() || (player_start && !a.no_launcher)) {
+  if (!a.launcher_shot.empty() || a.launcher_play || (player_start && !a.no_launcher)) {
     sdlfe::LauncherOptions lo;
     lo.write_dir = a.write_dir, lo.cfg_install = a.cfg_install;
 #ifdef MW3_GAME_DIR
@@ -491,13 +494,14 @@ int main(int argc, char** argv) {
 #endif
     lo.fullscreen = !a.windowed && !a.window_given;
     lo.win_w = a.win_w, lo.win_h = a.win_h;
-    lo.shot = a.launcher_shot, lo.screen = a.launcher_screen;
+    lo.shot = a.launcher_shot, lo.screen = a.launcher_screen, lo.play = a.launcher_play;
     const sdlfe::LauncherChoice c = sdlfe::run_launcher(lo);
     if (c.kind != sdlfe::LauncherChoice::kPlay) {
       SDL_Quit();
       return 0;
     }
     a.install = c.install;
+    a.launcher_window = c.window;
   }
   if (!a.install_from.empty() && !install_from_disc(a)) {
     SDL_Quit();
@@ -573,7 +577,7 @@ namespace {
 
 int run(const Args& a, platform::VideoForWindows* vfw) {
   sdlfe::SdlWindow window;
-  if (!window.init(a.hidden)) return 1;
+  if (!window.init(a.hidden, a.launcher_window)) return 1;
   sdlfe::SdlInput input;
   sdlfe::SdlForceDevice force([&input] { return input.joystick(); });  // FIX (A): IFORCE2 as rumble (sdl_force.h)
   input.window = window.sdl();

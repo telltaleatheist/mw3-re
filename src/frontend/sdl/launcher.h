@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+struct SDL_Window;
+
 namespace sdlfe {
 
 struct LauncherOptions {
@@ -20,11 +22,15 @@ struct LauncherOptions {
   // For checking (--launcher-shot FILE [--launcher-screen main|setup|work]):
   // the screen drawn once into FILE (a BMP of the 640x480 canvas), no window shown.
   std::string shot, screen = "main";
+  bool play = false;  // --launcher-play: MECHWARRIOR 3 pressed once the window is up (checks)
 };
 
 struct LauncherChoice {
   enum Kind { kQuit, kPlay } kind = kQuit;
   std::string install;  // kPlay: MechWarrior 3's folder (saved to mw3.cfg)
+  // kPlay: the launcher's window, its renderer gone, for the game to take
+  // (SdlWindow::init): one window from the launcher into the game.
+  SDL_Window* window = nullptr;
 };
 
 LauncherChoice run_launcher(const LauncherOptions& o);
