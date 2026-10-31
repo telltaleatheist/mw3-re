@@ -531,5 +531,6 @@ Known quirks the rebuild deliberately keeps:
 - Missiles that miss vanish at the end of their range without exploding.
 - Radio chatter plays the newest line first.
 - A lancemate told to follow you or attack walks round a wall in the way instead of standing behind it (bug fixes on).
+- A lancemate following you takes the way you walked, round corners and buildings and along canyons, instead of stopping against a wall or short of you (bug fixes on).
 - The mobile field bases stay where you called them after a repair: the next mech (a lancemate told to repair, or you powering down on the spot again) is repaired without calling them again; the third MFB press still sends them away (bug fixes on).
 - Every mech's engine tops out at 400.

@@ -2693,6 +2693,52 @@ range there is 60 to 80 m, but at about 120 m he bounces off something and
 the exe leaves him there (120.879). That test had taken this for his reach.
 With the detour he works round it (114.758 by the run's end).
 
+**Playtest W27 (2026-10-30): the leader's way.** Owen, on a build with the
+detour: "When I turn a corner he just runs into a wall perpetually", and
+in c2m4 Dominic "spent the entire mission ramming into a wall". The probes
+see only the straight way's sides, so a leader who walks round a building
+or along a canyon leaves him behind. Ours (FIX (bug), behind `bugs`,
+`FollowState::trail_goal`):
+- **Breadcrumbs:** each follow keeps its leader's places a point each 8 m
+  (the last 60). A jump of more than 32 m (a teleport) starts them afresh.
+- **When:** past his range (+0x28), with the leader out of sight, or in
+  sight but no 2 m of progress in 3 s (the standstill above; then for 6 s).
+- **Sight** is a mech's: eight segment queries, the line at 1.5, 4, 6.5 and
+  9 m up and its two sides 5 m off at 2.5 and 6.5 m, from 3.5 m out (the
+  queries meet the mechs, his own body too), to 6 m short of the leader.
+  A thin line at 4 m said clear where a ledge over 6 m, or a corner past
+  his width, stopped him.
+- **Which crumb:** the nearest in sight first, then crumb by crumb,
+  skipping ahead only to one in sight within 30 m; reached at 6 m. No
+  progress toward it in 3 s: back one, and no skipping for 6 s.
+- **Steering** to a crumb is straight, as the veer state's (0x4d16f0's
+  turn, walking only within 60 degrees): the carrot's slack and the
+  contacts' push swung him round a near point.
+- The W17 detour (now `WallDetour`) stays the fallback with no crumb in
+  sight, and also runs in the fight's approach (0x4d1d10, the AI's own
+  attacks). "Attack my target" is the target's follow (0x4ea450), so it
+  has both.
+
+Tests:
+- `mission_c2_dominic_follows_the_players_way_round_corners_headless`: the
+  player walks a mech-wide route (A* on a 10 m grid, each step clear by
+  the same lines 6 m each side, rising at most 3 m a cell) round the
+  nearest wall, about 8 m/s. c2m1: in range 7 s after the player stops
+  (the exe never, 88 m at the end); c2m4: 11 s (the exe never, 92 m). On
+  these routes the exe's stop is the standstill on open ground, not a wall
+  contact (the maps of the run: `MW3_W27_TRACE=dir`).
+- `mission_c2m1_dominic_attacks_round_a_wall_headless`: told to attack an
+  enemy 80 m past the wall nearest him, he walks round (2 detours) into
+  range by frame 1547; the exe stops at 98 m.
+- The W17 test unchanged.
+
+"He popped straight through it" once the enemies were dead: not
+reproduced. c2m4 has no teleport valve (the shipped files' five are in
+c2m1, thor_01, and c3m2's ambush). The contacts' bump (Mech::collide,
+0x4225c0) moves a mech within 9 m of another with no look at walls; a
+setup with Dominic at a wall and the player behind him did not push him
+through (the wall response held him). Open: Owen's place and what he did.
+
 ### 17.6a The pocket commander (mech_pocket.cpp)
 
 The lance order 2 (key 0x4f) puts the player's controls in the "pocket
