@@ -781,13 +781,21 @@ void BriefingScreen::show_realloc(bool on) {
 
 // ---- the lance's loadouts (0x00408c30) ----
 
+// The game's vt+0x38 and vt+0x34: the campaign's (0x00435180, 0x00435110)
+// or Instant Action's (0x00436a30, 0x004368b0). The port had the campaign's
+// only, so the lab opened from Instant Action's briefing had no mech
+// (playtest W37).
 int32_t Engine::game_slot_count() {
-  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
-  return c ? c->slot_count() : 0;
+  Pilot* p = current_pilot();
+  if (CampaignGame* c = p ? p->campaign() : nullptr) return c->slot_count();
+  if (ActionGame* a = p ? p->action() : nullptr) return a->slot_count();
+  return 0;
 }
 GameSlot* Engine::game_slot(int32_t i) {
-  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
-  return c ? c->slot_at(i) : nullptr;
+  Pilot* p = current_pilot();
+  if (CampaignGame* c = p ? p->campaign() : nullptr) return c->slot_at(i);
+  if (ActionGame* a = p ? p->action() : nullptr) return a->slot_at(i);
+  return nullptr;
 }
 
 void lance_slot(GameSlot& s, Store& store, bool keep) {

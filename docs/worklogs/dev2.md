@@ -463,4 +463,12 @@ works alongside it; stay out of its files.
 - Tests: the new round trip (opened, options, back: mode 13, 853 wide,
   RESUME and QUIT the same) and the click test's 16:9 origin now 0; the
   pause set 7/0. Shot in the outbox (w36-pause). Branch `mac5/w36-pause`
+## 30. W37: the lab from Instant Action (2026-10-30)
+
+- A port bug, not a fix of the exe: Engine::game_slot_count / game_slot
+  (briefing.cpp) asked the campaign only; the lab from Instant Action's
+  briefing got no slots, so no mech and nothing to edit. Now the current
+  game's (CampaignGame or ActionGame, the exe's vt+0x38/+0x34).
+- Test `instant_action_lab_has_the_players_mech_headless` (fails without);
+  the instant_action, lab and briefing sets pass. Branch `mac5/w37-ia-lab`
   off main 98665790.

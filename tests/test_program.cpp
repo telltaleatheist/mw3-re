@@ -17452,3 +17452,38 @@ TEST(mission_c1m1_mode_change_moves_the_2d_target_headless) {
   mech3::options() = mech3::Options{};
 }
 
+
+// Playtest W37: the mech lab from Instant Action's briefing "shows no mech
+// and no ability to edit anything". The lab asks the game for its slots
+// (vt+0x38, vt+0x34); the port asked the campaign's only, so Instant
+// Action's game (0x00436a30, 0x004368b0) gave none. Its slots now: the
+// player's mech first, then the line-up.
+TEST(instant_action_lab_has_the_players_mech_headless) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(temp_dir("ia_lab_write"));  // the pilot saves itself
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  mech3::Pilot pilot("IA");
+  mech3::ActionGame game(&pilot);
+  pilot.current = &game;
+  game.slot.mech = 9;
+  game.add(5, 1, nullptr, 0);   // a lancemate
+  game.add(14, 0, nullptr, 0);  // an enemy
+  mech3::Pilot* was = mech3::current_pilot();
+  mech3::current_pilot() = &pilot;
+  const int32_t n = engine.lab_slot_count(0);
+  const zgame::Handle s0 = engine.lab_slot(0, 0), s1 = engine.lab_slot(0, 1);
+  std::printf("  Instant Action's lab: %d slots, the first's mech %d, the second's %d; the store %zu items\n", n,
+              s0 ? engine.lab_slot_mech(s0) : -1, s1 ? engine.lab_slot_mech(s1) : -1, game.store.items.size());
+  EXPECT(n == 3 && s0 && engine.lab_slot_mech(s0) == 9 && s1 && engine.lab_slot_mech(s1) == 5);
+  mech3::current_pilot() = was;
+  pilot.current = nullptr;
+}
