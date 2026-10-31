@@ -9915,6 +9915,489 @@ TEST(mission_c2m1_dominic_follows_round_walls_headless) {
   EXPECT(blocked.placed && blocked.walked == 0 && blocked.gave_up > 0 && blocked.d_end > blocked.range);
 }
 
+
+// Playtest W27: "when I turn a corner he just runs into a wall
+// perpetually". The player walks a way round a wall (a route found on a
+// 10 m grid, each step clear of walls at body height, walked at about 8 m/s,
+// not a jump) while Dominic follows. The exe steers straight at him and
+// stops against the wall; ours, behind bugs, keeps the player's way as
+// breadcrumbs and walks to the newest one in sight while the player is not.
+namespace {
+bool wall_between_seg(const float a[3], const float b[3]) {
+  zcls::Node* w = mech3::world_hooks().world;
+  if (!w) return false;
+  float seg[6] = {a[0], a[1], a[2], b[0], b[1], b[2]};
+  static zcls::SegmentHits hits[1];
+  zcls::segment_query(w, seg, 2, hits);
+  for (int i = 0; i < hits[0].count; ++i)
+    if (std::fabs(hits[0].hit[i].normal[1]) < 0.5f) return true;
+  return false;
+}
+// A* on a grid of `cell` m round from and to (8 ways); a step counts when the
+// way between the cells' points is a mech's (knee and head height, 6 m each
+// side) and meets no wall, and the ground rises no more than 3 m a cell
+// (a slope a mech walks). The cells' points, start to end; empty if none.
+std::vector<std::array<float, 3>> grid_route(const float from[3], const float to[3], float top) {
+  const float cell = 10.0f, margin = 160.0f;
+  const float x0 = std::min(from[0], to[0]) - margin, z0 = std::min(from[2], to[2]) - margin;
+  const int nx = static_cast<int>((std::fabs(from[0] - to[0]) + 2 * margin) / cell) + 1;
+  const int nz = static_cast<int>((std::fabs(from[2] - to[2]) + 2 * margin) / cell) + 1;
+  auto idx = [&](int i, int k) { return k * nx + i; };
+  std::vector<float> ground(static_cast<size_t>(nx) * nz, NAN);
+  auto at = [&](int i, int k) {
+    float& g = ground[idx(i, k)];
+    if (std::isnan(g)) g = ground_under(x0 + i * cell, top, z0 + k * cell);
+    return g;
+  };
+  const int si = static_cast<int>((from[0] - x0) / cell + 0.5f), sk = static_cast<int>((from[2] - z0) / cell + 0.5f);
+  const int ei = static_cast<int>((to[0] - x0) / cell + 0.5f), ek = static_cast<int>((to[2] - z0) / cell + 0.5f);
+  std::vector<float> cost(ground.size(), 1e30f);
+  std::vector<int> prev(ground.size(), -1);
+  using Q = std::pair<float, int>;
+  std::vector<Q> open;
+  auto h = [&](int i, int k) { return std::hypot(float(i - ei), float(k - ek)) * cell; };
+  cost[idx(si, sk)] = 0;
+  open.push_back({h(si, sk), idx(si, sk)});
+  std::make_heap(open.begin(), open.end(), std::greater<Q>());
+  while (!open.empty()) {
+    std::pop_heap(open.begin(), open.end(), std::greater<Q>());
+    const int c = open.back().second;
+    open.pop_back();
+    const int ci = c % nx, ck = c / nx;
+    if (ci == ei && ck == ek) break;
+    for (int di = -1; di <= 1; ++di)
+      for (int dk = -1; dk <= 1; ++dk) {
+        if (!di && !dk) continue;
+        const int ni = ci + di, nk = ck + dk;
+        if (ni < 0 || nk < 0 || ni >= nx || nk >= nz) continue;
+        const float g0 = at(ci, ck), g1 = at(ni, nk);
+        if (std::fabs(g1 - g0) > 3.0f) continue;
+        const float nc = cost[c] + std::hypot(float(di), float(dk)) * cell;
+        if (nc >= cost[idx(ni, nk)]) continue;
+        // A mech's width: the line at knee and head height and 4 m each side.
+        const float len = std::hypot(float(di), float(dk));
+        const float sx = float(dk) / len * 6.0f, sz = -float(di) / len * 6.0f;
+        bool wall = false;
+        for (const auto& l : {std::array<float, 2>{0, 1.5f}, {0, 4.0f}, {0, 6.5f}, {0, 9.0f}, {1, 2.5f}, {-1, 2.5f}, {1, 6.5f}, {-1, 6.5f}}) {
+          const float a[3] = {x0 + ci * cell + l[0] * sx, g0 + l[1], z0 + ck * cell + l[0] * sz};
+          const float b[3] = {x0 + ni * cell + l[0] * sx, g1 + l[1], z0 + nk * cell + l[0] * sz};
+          if ((wall = wall_between_seg(a, b))) break;
+        }
+        if (wall) continue;
+        cost[idx(ni, nk)] = nc, prev[idx(ni, nk)] = c;
+        open.push_back({nc + h(ni, nk), idx(ni, nk)});
+        std::push_heap(open.begin(), open.end(), std::greater<Q>());
+      }
+  }
+  std::vector<std::array<float, 3>> out;
+  for (int c = idx(ei, ek); c >= 0 && prev[idx(ei, ek)] >= 0; c = prev[c]) {
+    const int i = c % nx, k = c / nx;
+    out.push_back({x0 + i * cell, at(i, k), z0 + k * cell});
+    if (c == idx(si, sk)) break;
+  }
+  std::reverse(out.begin(), out.end());
+  return out;
+}
+struct TrailRun {
+  bool placed = false;
+  float route_len = 0, range = 0, d_end = 0;
+  int corners = 0, arrived = -1, reached = -1, stuck_s = 0, crumbs = 0, frames = 0;
+};
+// The player walks round the wall nearest Dominic to 60 m past it.
+TrailRun c2_trail_run(int mission, bool bugs) {
+  TrailRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w27_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = mission, l.op = 2, l.number = mission;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void *dominic = nullptr, *player = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    std::vector<std::array<float, 3>> route;
+    size_t leg = 0;
+    float along = 0, mark[2] = {}, top = 0;
+    int frames = 0, mark_f = 0;
+    std::FILE* trace = nullptr;
+    auto pos_of = [](void* m, float out[3]) {
+      mech3::LaunchedMech x;
+      mech3::describe_mech(m, &x);
+      out[0] = x.pos[0], out[1] = x.pos[1], out[2] = x.pos[2];
+    };
+    auto dist = [&] {
+      float a[3], b[3];
+      pos_of(dominic, a), pos_of(player, b);
+      return std::hypot(a[0] - b[0], a[2] - b[2]);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        player = mech3::mech_mission_player();
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        if (!dominic || !player || !brain) return;
+        float d[3];
+        pos_of(dominic, d);
+        top = d[1] + 300.0f;
+        float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0;
+        for (int k = 0; k < 48; ++k) {  // the nearest wall round him, 20..150 m out
+          const float a = static_cast<float>(k) * 0.1308997f, sx = std::sin(a), sz = std::cos(a);
+          float seg[6] = {d[0] + 8 * sx, d[1] + 4, d[2] + 8 * sz, d[0] + 150 * sx, d[1] + 4, d[2] + 150 * sz};
+          static zcls::SegmentHits hits[1];
+          if (zcls::Node* w = mech3::world_hooks().world) zcls::segment_query(w, seg, 2, hits);
+          for (int i = 0; i < hits[0].count; ++i) {
+            const zcls::SegmentHit& h = hits[0].hit[i];
+            const float r = std::hypot(h.point[0] - d[0], h.point[2] - d[2]);
+            if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best) best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz;
+          }
+        }
+        if (best > 1e8f) return;
+        // The player starts beside him, on his side of the wall; the end 60 m past it.
+        const float start[3] = {d[0] - 15 * ux, ground_under(d[0] - 15 * ux, top, d[2] - 15 * uz), d[2] - 15 * uz};
+        // 60 m past the wall, or nearer while that is outside the mission's
+        // boundary (the follow then walks to the boundary's point, 0x004c3000).
+        float end[3] = {};
+        for (const float past : {60.0f, 45.0f, 30.0f}) {
+          end[0] = bx + past * ux, end[2] = bz + past * uz, end[1] = ground_under(end[0], top, end[2]);
+          float at[3];
+          if (!mech3::ai::brain_hooks().inout_clamp(brain->controls->vehicle(), end, at)) break;
+        }
+        route = grid_route(start, end, top);
+        if (route.size() < 2) return;
+        for (size_t i = 1; i < route.size(); ++i) {
+          out.route_len += std::hypot(route[i][0] - route[i - 1][0], route[i][2] - route[i - 1][2]);
+          if (i + 1 < route.size()) {
+            const float ax = route[i][0] - route[i - 1][0], az = route[i][2] - route[i - 1][2];
+            const float bx2 = route[i + 1][0] - route[i][0], bz2 = route[i + 1][2] - route[i][2];
+            out.corners += std::fabs(ax * bz2 - az * bx2) > 1.0f;
+          }
+        }
+        mech3::move_mech(player, route[0].data(), 0.0f);
+        out.range = brain->params.get<float>(0x28);
+        out.placed = true;
+        if (const char* dir = std::getenv("MW3_W27_TRACE")) {  // the walls round the route, for a map
+          trace = std::fopen((std::string(dir) + "/c2m" + std::to_string(mission) + (bugs ? "_on" : "_off") + ".csv").c_str(), "w");
+          float lo[2] = {1e9f, 1e9f}, hi[2] = {-1e9f, -1e9f};
+          for (const auto& r : route) lo[0] = std::min(lo[0], r[0]), lo[1] = std::min(lo[1], r[2]), hi[0] = std::max(hi[0], r[0]), hi[1] = std::max(hi[1], r[2]);
+          for (float x = lo[0] - 60; x < hi[0] + 60; x += 2)
+            for (float z = lo[1] - 60; z < hi[1] + 60; z += 2) {
+              const float g = ground_under(x, top, z);
+              if (trace) std::fprintf(trace, "g,%.1f,%.1f,%.1f\n", x, z, g);
+              for (const float up : {1.5f, 4.0f, 7.0f}) {
+                const float a[3] = {x, g + up, z}, b[3] = {x + 2.0f, g + up, z}, c[3] = {x, g + up, z + 2.0f};
+                if (trace && (wall_between_seg(a, b) || wall_between_seg(a, c))) {
+                  std::fprintf(trace, "w,%.1f,%.1f\n", x, z);
+                  break;
+                }
+              }
+            }
+          for (const auto& r : route)
+            if (trace) std::fprintf(trace, "r,%.1f,%.1f\n", r[0], r[2]);
+        }
+        return;
+      }
+      if (!out.placed || frames < 90) return;  // he settles by the player first
+      // The player along the route, 0.27 m a frame (8 m/s at 30 fps).
+      if (leg + 1 < route.size()) {
+        along += 0.27f;
+        float len = std::hypot(route[leg + 1][0] - route[leg][0], route[leg + 1][2] - route[leg][2]);
+        while (leg + 1 < route.size() && along >= len) {
+          along -= len, ++leg;
+          if (leg + 1 < route.size()) len = std::hypot(route[leg + 1][0] - route[leg][0], route[leg + 1][2] - route[leg][2]);
+        }
+        if (leg + 1 < route.size()) {
+          const float f = along / len;
+          const float x = route[leg][0] + (route[leg + 1][0] - route[leg][0]) * f;
+          const float z = route[leg][2] + (route[leg + 1][2] - route[leg][2]) * f;
+          const float at[3] = {x, ground_under(x, top, z), z};
+          mech3::move_mech(player, at, std::atan2(route[leg + 1][0] - route[leg][0], route[leg + 1][2] - route[leg][2]));
+        } else {
+          out.arrived = frames;
+        }
+      }
+      const float dd = dist();
+      if (out.arrived > 0 && out.reached < 0 && dd <= out.range) out.reached = frames;
+      // Stuck: past his range and moved under 2 m in 2 s.
+      float dp[3];
+      pos_of(dominic, dp);
+      if (frames - mark_f >= 60) {
+        if (dd > out.range && std::hypot(dp[0] - mark[0], dp[2] - mark[1]) < 2.0f) out.stuck_s += 2;
+        mark[0] = dp[0], mark[1] = dp[2], mark_f = frames;
+      }
+      if (auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get()))
+        out.crumbs = std::max(out.crumbs, fs->trail.used);
+      if (std::getenv("MW3_W27_PROBE") && frames == std::atoi(std::getenv("MW3_W27_PROBE"))) {  // what is round him
+        for (int k = 0; k < 16; ++k) {
+          const float a = k * 0.3926991f, sx = std::sin(a), sz = std::cos(a);
+          for (const float hgt : {0.5f, 1.5f, 3.0f, 6.0f, 9.0f, 12.0f}) {
+            float seg[6] = {dp[0], dp[1] + hgt, dp[2], dp[0] + 15 * sx, dp[1] + hgt, dp[2] + 15 * sz};
+            static zcls::SegmentHits hits[1];
+            zcls::segment_query(mech3::world_hooks().world, seg, 2, hits);
+            for (int i = 0; i < hits[0].count; ++i) {
+              const zcls::SegmentHit& h = hits[0].hit[i];
+              std::fprintf(stderr, "W27PROBE dir %d h %.1f: hit at %.1f m, normal %.2f %.2f %.2f\n", k, hgt,
+                           std::hypot(h.point[0] - dp[0], h.point[2] - dp[2]), h.normal[0], h.normal[1], h.normal[2]);
+            }
+          }
+        }
+        std::fprintf(stderr, "W27PROBE D at %.1f %.1f %.1f\n", dp[0], dp[1], dp[2]);
+      }
+      if (std::getenv("MW3_W27_LOG") && frames % 30 == 0) {
+        auto* fs = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get());
+        const int at = fs ? fs->trail.at : -9;
+        float cx = 0, cz = 0;
+        if (fs && at >= 0 && at < (int)fs->trail.crumbs.size()) cx = fs->trail.crumbs[at][0], cz = fs->trail.crumbs[at][2];
+        std::fprintf(stderr, "W27 c2m%d frame %d: %.1f m, D %.1f %.1f, leg %zu/%zu, follow %d sees %d crumb %d/%d at %.1f %.1f (%.1f m) detour %d thr %.2f\n",
+                     mission, frames, dd, dp[0], dp[2], leg, route.size(), fs != nullptr, fs ? fs->trail.sees : -1, at,
+                     fs ? (int)fs->trail.crumbs.size() : -1, cx, cz, std::hypot(cx - dp[0], cz - dp[2]), fs ? (int)fs->detour.on : -1,
+                     brain->controls->throttle_now());
+      }
+      out.d_end = dd;
+      if (trace && frames % 10 == 0) {
+        float pp[3];
+        pos_of(player, pp);
+        std::fprintf(trace, "f,%d,%.1f,%.1f,%.1f,%.1f\n", frames, pp[0], pp[2], dp[0], dp[2]);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 20000;
+    pump.stop = [&] {
+      return (frames > 3 && !out.placed) || (out.arrived > 0 && (out.reached > 0 || frames > out.arrived + 1800)) ||
+             frames > 9000;
+    };
+    app.run(pump);
+    if (trace) std::fclose(trace);
+    out.frames = frames;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+void print_trail(const char* what, const TrailRun& r) {
+  std::printf("  %s: route %.0f m, %d corners; player there at %d, Dominic in range (%.0f m) at %d, at the end %.1f m; "
+              "stuck %d s; crumbs walked to %d\n",
+              what, r.route_len, r.corners, r.arrived, r.range, r.reached, r.d_end, r.stuck_s, r.crumbs);
+}
+}  // namespace
+
+TEST(mission_c2_dominic_follows_the_players_way_round_corners_headless) {
+  if (!have_game()) return;
+  for (const int m : {1, 4}) {
+    const TrailRun r = c2_trail_run(m, true), exe = c2_trail_run(m, false);
+    char what[64];
+    std::snprintf(what, sizeof what, "c2m%d", m);
+    print_trail(what, r);
+    std::snprintf(what, sizeof what, "c2m%d, bugs off (the exe)", m);
+    print_trail(what, exe);
+    EXPECT(r.placed && r.corners > 0 && r.arrived > 0);
+    EXPECT(r.reached > 0 && r.reached - r.arrived < 900 && r.crumbs > 0);
+  }
+}
+
+// W27's attack case ("Dominic ... spent the entire mission ramming into a
+// wall"): told to attack an enemy 80 m past the wall nearest him (powered
+// down, so it stays): the order is the target's follow (0x004ea450), which
+// drives straight at it, and the exe stops him at the wall; ours, behind
+// bugs, walks round (the W17 detour; the fight's approach, 0x004d1d10, has
+// it too, for the AI's own attacks) and closes to his range.
+namespace {
+struct AttackRun {
+  bool placed = false, ordered = false;
+  float d0 = 0, d_min = 1e9f, range = 0;
+  int walked = 0, gave_up = 0, reached = -1;
+};
+AttackRun c2m1_attack_run(bool bugs) {
+  AttackRun out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_w27_attack_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const bool bugs_was = zfix::options().bugs;
+  zfix::options().bugs = bugs;
+  struct NoInput : platform::Input {
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent*, uint32_t* count) override { return *count = 0, 0; }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } input;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void *dominic = nullptr, *player = nullptr, *enemy = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    mech3::ai::AiTarget* pt = nullptr;
+    int frames = 0;
+    auto dist = [](void* a, void* b) {
+      mech3::LaunchedMech x, y;
+      mech3::describe_mech(a, &x), mech3::describe_mech(b, &y);
+      return std::hypot(x.pos[0] - y.pos[0], x.pos[2] - y.pos[2]);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        player = mech3::mech_mission_player();
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            dominic = ai[i].mech;
+            brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        if (!dominic || !player || !brain) return;
+        pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+        for (int32_t i = 0; i < made && pt; ++i) {
+          const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[i].mech));
+          if (ai[i].mech != dominic && t && (pt->enemies & t->team)) {
+            enemy = ai[i].mech;
+            break;
+          }
+        }
+        if (!enemy) return;
+        mech3::LaunchedMech d;
+        mech3::describe_mech(dominic, &d);
+        float best = 1e9f, bx = 0, bz = 0, ux = 0, uz = 0;
+        for (int k = 0; k < 48; ++k) {  // the nearest wall round him, 20..150 m out
+          const float a = static_cast<float>(k) * 0.1308997f, sx = std::sin(a), sz = std::cos(a);
+          float seg[6] = {d.pos[0] + 8 * sx, d.pos[1] + 4, d.pos[2] + 8 * sz, d.pos[0] + 150 * sx, d.pos[1] + 4, d.pos[2] + 150 * sz};
+          static zcls::SegmentHits hits[1];
+          if (zcls::Node* w = mech3::world_hooks().world) zcls::segment_query(w, seg, 2, hits);
+          for (int i = 0; i < hits[0].count; ++i) {
+            const zcls::SegmentHit& h = hits[0].hit[i];
+            const float r = std::hypot(h.point[0] - d.pos[0], h.point[2] - d.pos[2]);
+            if (std::fabs(h.normal[1]) < 0.5f && r > 20 && r < best) best = r, bx = h.point[0], bz = h.point[2], ux = sx, uz = sz;
+          }
+        }
+        if (best > 1e8f) return;
+        const float x = bx + 80 * ux, z = bz + 80 * uz;
+        const float at[3] = {x, ground_under(x, d.pos[1] + 300.0f, z), z};
+        mech3::move_mech(enemy, at, 0.0f);
+        mech3::mech_power(enemy, 1);  // stays where it is
+        out.placed = true;
+        return;
+      }
+      if (!out.placed) return;
+      if (frames == 30) {  // the player's target the enemy (its contact), then "attack my target"
+        for (mech3::ai::Contact* c : pt->contacts)
+          if (c && mech3::ai::brain_hooks().contact_vehicle(c) == engine.handle_of(enemy)) pt->set_target(c, false);
+        out.ordered = pt->target && brain->lance_order(0, pt->target) == 1;
+        out.d0 = dist(dominic, enemy);
+        out.range = brain->params.get<float>(0x28);
+        return;
+      }
+      if (!out.ordered || frames < 30) return;
+      const float dd = dist(dominic, enemy);
+      out.d_min = std::min(out.d_min, dd);
+      if (out.reached < 0 && dd <= out.range) out.reached = frames;
+      // "Attack my target" (0x004ea450) is the target's follow; the AI's own
+      // attacks the fight. Either's detour.
+      const mech3::ai::WallDetour* wd = nullptr;
+      if (auto* fs = dynamic_cast<mech3::ai::FightState*>(brain->current().state.get())) wd = &fs->detour;
+      if (auto* fo = dynamic_cast<mech3::ai::FollowState*>(brain->current().state.get())) wd = &fo->detour;
+      if (wd) out.walked = std::max(out.walked, wd->walked), out.gave_up = std::max(out.gave_up, wd->gave_up);
+    };
+    CountingPump pump;
+    pump.limit = 8000;
+    pump.stop = [&] { return frames >= 1800 || (frames > 3 && !out.placed) || (frames > 30 && !out.ordered) || out.reached > 0; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options().bugs = bugs_was;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+}  // namespace
+
+TEST(mission_c2m1_dominic_attacks_round_a_wall_headless) {
+  if (!have_game()) return;
+  const AttackRun r = c2m1_attack_run(true), exe = c2m1_attack_run(false);
+  for (const AttackRun* a : {&r, &exe})
+    std::printf("  %s: placed %d ordered %d; %.1f m, nearest %.1f m (range %.0f), in range at %d; detours %d, given up %d\n",
+                a == &r ? "bugs on" : "bugs off (the exe)", a->placed, a->ordered, a->d0, a->d_min, a->range, a->reached,
+                a->walked, a->gave_up);
+  EXPECT(r.placed && r.ordered && exe.ordered);
+  EXPECT(r.reached > 0 && r.walked > 0);
+  EXPECT(exe.reached < 0);
+}
+
 TEST(mission_c1m4_lance_orders_reach_dominic_and_he_answers_headless) {
   if (!have_game()) return;
   SavedMounts keep;

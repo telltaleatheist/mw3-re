@@ -249,7 +249,7 @@ bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3],
 // Mech3.exe 1.2 @ 0x004d1d10. The exe takes the order's part as the vehicle
 // net's (its vt+0x0c), as it always is: the brain pushes the fight on that
 // net; any other part here gives up.
-void FightState::run(float) {
+void FightState::run(float dt) {
   BrainHooks& h = brain_hooks();
   Brain& b = *order->owner;
   const zgame::Handle v = b.controls->vehicle();
@@ -268,6 +268,15 @@ void FightState::run(float) {
     return;
   }
   float throttle;
+  // FIX (bug), ours (W27): stuck short of the enemy behind a wall, round it.
+  float ahead[2] = {0, 0}, goal[3];
+  if (zfix::options().bugs) {
+    h.forward(v, &ahead[0], &ahead[1]);
+    if (detour.goal(from, ahead, to, b.params.get<float>(0x28), dt, goal)) {
+      drive_to(b, v, from, goal, &turn, &throttle, false);
+      return;
+    }
+  }
   if (drive_to(b, v, from, to, &turn, &throttle, true) && mode) order->set_behaviour(mode);  // 0x004e8120
 }
 
@@ -349,9 +358,8 @@ bool pick_heading(const float pos[3], const float to[3], int32_t* side, float ou
 // Ours (W17, FIX (bug) behind bugs): where to walk this frame when the
 // pilot has stopped short of the target (a wall, or a contact holding the
 // carrot back); false to follow as the exe.
-bool FollowState::detour_goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt,
-                              float goal[3]) {
-  Detour& d = detour;
+bool WallDetour::goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]) {
+  WallDetour& d = *this;
   const float dx = to[0] - pos[0], dz = to[2] - pos[2];
   const float dist = std::sqrt(dx * dx + dz * dz);
   const float far = reach;  // past the far end of his follow range (+0x28): never where the follow settles
@@ -396,6 +404,106 @@ bool FollowState::detour_goal(const float pos[3], const float fwd[2], const floa
     }
   }
   goal[0] = pos[0] + d.dir[0] * 20.0f, goal[1] = pos[1], goal[2] = pos[2] + d.dir[1] * 20.0f;
+  return true;
+}
+
+namespace {
+constexpr float kCrumbStep = 8.0f;   // the leader's way, a point each 8 m
+constexpr size_t kCrumbs = 60;       // kept
+constexpr float kCrumbReached = 6.0f;
+constexpr float kBody = 5.0f;        // half a mech's width: the way must be clear of walls this far each side
+constexpr float kSkip = 30.0f;       // the farthest crumb taken ahead of the next
+constexpr float kOut = 3.5f;         // the sight lines from this far out: past his own body
+// A mech's way from a to b clear: the line from knee height to over its
+// head, and its two sides kBody off it; from kOut out (the segments meet the
+// mechs too: his own body), to `stop` short of b (the leader's).
+bool sight(const float a[3], const float b[3], float stop = 0.0f) {
+  const float dx = b[0] - a[0], dz = b[2] - a[2];
+  const float len = std::hypot(dx, dz);
+  if (len < kOut + stop + 1.0f) return true;
+  const float ux = dx / len, uz = dz / len;
+  const float s0 = kOut, s1 = len - stop;
+  const float sx = uz * kBody, sz = -ux * kBody;
+  const float lines[8][2] = {{0.0f, 1.5f}, {0.0f, 4.0f}, {0.0f, 6.5f}, {0.0f, 9.0f},
+                             {1.0f, 2.5f}, {-1.0f, 2.5f}, {1.0f, 6.5f}, {-1.0f, 6.5f}};
+  for (const auto& l : lines) {
+    const float y0 = a[1] + (b[1] - a[1]) * (s0 / len), y1 = a[1] + (b[1] - a[1]) * (s1 / len);
+    const float from[3] = {a[0] + ux * s0 + l[0] * sx, y0 + l[1], a[2] + uz * s0 + l[0] * sz};
+    const float to[3] = {a[0] + ux * s1 + l[0] * sx, y1 + l[1], a[2] + uz * s1 + l[0] * sz};
+    if (brain_hooks().wall_between(from, to)) return false;
+  }
+  return true;
+}
+}  // namespace
+
+// Ours (W27, FIX (bug) behind bugs): the leader's place kept each 8 m.
+void FollowState::trail_record(const float to[3]) {
+  Trail& t = trail;
+  if (!t.crumbs.empty()) {
+    const auto& last = t.crumbs.back();
+    const float d = std::hypot(to[0] - last[0], to[2] - last[2]);
+    if (d < kCrumbStep) return;
+    if (d > 4.0f * kCrumbStep) t.crumbs.clear(), t.at = -1;  // a jump (a teleport): no way walked to it
+  }
+  t.crumbs.push_back({to[0], to[1], to[2]});
+  if (t.crumbs.size() > kCrumbs) {
+    t.crumbs.pop_front();
+    if (t.at >= 0) --t.at;
+  }
+}
+
+// Ours (W27, FIX (bug) behind bugs): where to walk this frame when the
+// leader is out of reach past the follow range: out of sight (a mech's
+// width), or in sight with no way on for 3 s. His way, crumb by crumb: the
+// nearest one in sight first, then on, skipping ahead only to one in sight
+// within 30 m. A crumb not neared for 3 s: back one, and no skipping for 6 s.
+// False to follow as the exe (or the W17 detour).
+bool FollowState::trail_goal(const float pos[3], const float to[3], float reach, float dt, float goal[3]) {
+  Trail& t = trail;
+  const float dist = std::hypot(to[0] - pos[0], to[2] - pos[2]);
+  if (dist <= reach) return t.at = -1, t.sees = true, t.force_t = 0, t.watch_t = 0, false;
+  if (t.cap_t > 0) t.cap_t -= dt;
+  if (t.force_t > 0) t.force_t -= dt;
+  t.look_t -= dt;
+  const bool look = t.look_t <= 0;
+  if (look) t.look_t = 0.25f, t.sees = sight(pos, to, 6.0f);
+  const int32_t n = static_cast<int32_t>(t.crumbs.size());
+  if (t.at >= n) t.at = -1;
+  auto far_to = [&](int32_t i) { return std::hypot(t.crumbs[i][0] - pos[0], t.crumbs[i][2] - pos[2]); };
+  // Progress toward what he walks to: the crumb, or the leader.
+  const float d_aim = t.at >= 0 ? far_to(t.at) : dist;
+  t.watch_t += dt;
+  if (t.watch_t >= 3.0f) {
+    if (d_aim > t.watch_d - 2.0f) {
+      if (t.at >= 0) t.at = std::max(t.at - 1, 0), t.cap_t = 6.0f;  // back one, then step by step
+      else if (t.sees) t.force_t = 6.0f;                           // in sight, no way on
+    }
+    t.watch_t = 0, t.watch_d = t.at >= 0 ? far_to(t.at) : dist;
+  }
+  if (t.sees && t.force_t <= 0) return t.at = -1, false;
+  if (t.at < 0) {  // the nearest crumb in sight
+    std::vector<std::pair<float, int32_t>> near;
+    for (int32_t i = 0; i < n; ++i) near.push_back({far_to(i), i});
+    std::sort(near.begin(), near.end());
+    for (const auto& c : near)
+      if (sight(pos, t.crumbs[c.second].data())) {
+        t.at = c.second, ++t.used, t.watch_t = 0, t.watch_d = c.first;
+        break;
+      }
+    if (t.at < 0) return false;
+  } else if (far_to(t.at) < kCrumbReached || (look && t.cap_t <= 0)) {
+    const bool reached = far_to(t.at) < kCrumbReached;
+    int32_t next = -1;
+    if (t.cap_t <= 0)
+      for (int32_t i = n - 1; i > t.at; --i)
+        if (far_to(i) < kSkip && sight(pos, t.crumbs[i].data())) {
+          next = i;
+          break;
+        }
+    if (next < 0 && reached && t.at + 1 < n) next = t.at + 1;
+    if (next >= 0) t.at = next, ++t.used, t.watch_t = 0, t.watch_d = far_to(next);
+  }
+  goal[0] = t.crumbs[t.at][0], goal[1] = t.crumbs[t.at][1], goal[2] = t.crumbs[t.at][2];
   return true;
 }
 
@@ -594,15 +702,22 @@ void FollowState::run(float dt) {
     return;
   }
   float slack_along = 0, slack_side = 0;
+  bool on_crumb = false;
   float at[3] = {to[0], to[1], to[2]};
   float goal[3], ahead[2] = {0, 0};
-  if (zfix::options().bugs) h.forward(v, &ahead[0], &ahead[1]);  // ours, for the detour
+  if (zfix::options().bugs) h.forward(v, &ahead[0], &ahead[1]), trail_record(to);  // ours, for the detour and the trail
   if (h.inout_clamp(v, to, at)) {  // 0x004c3000: the boundary pulls the target's place
     const Steer& s = b.steer;
     if (!(pulled && same_or_nan(at[0], s.start[0]) && same_or_nan(at[2], s.start[2]))) aim(b, v, pos, at, 0.0f);
     pulled = 1;
     detour.on = false;
-  } else if (zfix::options().bugs && detour_goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
+  } else if (zfix::options().bugs && trail_goal(pos, to, b.params.get<float>(0x28), dt, goal)) {
+    aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W27): along the leader's way
+    slack_side = 2.0f;
+    pulled = 0;
+    detour.on = false, detour.watch_t = 0;
+    on_crumb = true;
+  } else if (zfix::options().bugs && detour.goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
     aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W17): round the wall
     slack_side = 2.0f;
     pulled = 0;
@@ -620,6 +735,20 @@ void FollowState::run(float dt) {
   h.forward(v, &fwd[0], &fwd[2]);
   float turn = 0, throttle = 0;
   walk_drive(b, v, pos, fwd, away, sum, 2.0f, &turn, &throttle, 0.05f, slack_along, slack_side);  // 0x005e8be4, 0x005e8be8
+  if (on_crumb) {
+    // Ours (W27): straight at the crumb, as the veer state steers (the
+    // carrot's slack and the contacts' push would swing him round a near
+    // point); walking only while it is within 60 degrees ahead.
+    float dir[3] = {goal[0] - pos[0], 0.0f, goal[2] - pos[2]};
+    const float gl = std::hypot(dir[0], dir[2]);
+    if (gl > 0.01f) {
+      dir[0] /= gl, dir[2] /= gl;
+      float dot = 0, cross = 0;
+      crumb_turn = turn_toward(fwd, dir, &dot, &cross, crumb_turn, turn_params());
+      turn = crumb_turn;
+      throttle = dot >= 0.5f ? std::max(throttle, dot) : 0.0f;
+    }
+  }
   c.set_turn(turn);          // IControls vt+0x28
   c.set_throttle(throttle);  // vt+0x20
 }
