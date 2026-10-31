@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,13 @@ struct PatchEntry {
 bool read_installshield(const std::vector<uint8_t>& hdr, const std::vector<uint8_t>& cab,
                         std::vector<PatchEntry>* out, std::string* error);
 
+// The same, file by file, from a cabinet read where it lies (a disc's
+// DATA1.CAB, 198 MB): `read` gives `n` bytes at `at`; `each` takes each file
+// (false stops with an error). Every file is checked against its MD5.
+using CabRead = std::function<bool(uint64_t at, size_t n, uint8_t* out)>;
+bool each_installshield(const std::vector<uint8_t>& hdr, uint64_t cab_size, const CabRead& read,
+                        const std::function<bool(PatchEntry&&)>& each, std::string* error);
+
 struct PatchImport {
   bool ok = false;
   std::string error;               // why nothing was written
@@ -37,5 +45,6 @@ struct PatchImport {
 PatchImport import_patch_12(const std::string& source, const std::string& out_dir);
 
 std::string sha256_hex(const uint8_t* data, size_t n);
+void md5(const uint8_t* data, size_t n, uint8_t out[16]);
 
 }  // namespace mech3

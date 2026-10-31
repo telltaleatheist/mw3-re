@@ -16,6 +16,7 @@ struct DataFile {
   uint32_t size_10, crc_10;  // 0, 0: not in 1.0 (the patch adds it)
   uint32_t size_12, crc_12;
   const char* sha256_12;     // 1.2's, the patch import's check (patch_import.h)
+  const char* sha256_10 = nullptr;  // 1.0's (a disc install's check, disc_install.h); null: not in 1.0
 };
 const DataFile* data_files(int* count);  // the 28
 

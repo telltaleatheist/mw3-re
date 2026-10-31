@@ -5,8 +5,13 @@
 #include <windows.h>
 #else
 #include <execinfo.h>
+#include <signal.h>
 #include <unistd.h>
 #endif
+#if defined(_WIN32)
+#include <process.h>
+#endif
+#include <filesystem>
 #include <string>
 #include <cstdio>
 #include <cstdlib>
@@ -21,6 +26,35 @@ std::vector<Test>& registry() {
 }
 int failures = 0;
 }  // namespace check
+
+const char* mw3_test_tmp() {
+  // Never freed: the exit's cleanup runs after the statics are gone.
+  static const std::string* dir = new std::string([] {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::path(MW3_TEST_TMP_ROOT) / "test-tmp";
+    std::error_code ec;
+#if !defined(_WIN32)
+    // The folders of runs that died (no process of that id) cleared.
+    for (const fs::directory_entry& e : fs::directory_iterator(root, ec)) {
+      const long pid = std::strtol(e.path().filename().string().c_str(), nullptr, 10);
+      if (pid > 0 && kill(static_cast<pid_t>(pid), 0) != 0) fs::remove_all(e.path(), ec);
+    }
+    const long me = static_cast<long>(getpid());
+#else
+    const long me = static_cast<long>(_getpid());
+#endif
+    const fs::path d = root / std::to_string(me);
+    fs::remove_all(d, ec);
+    fs::create_directories(d, ec);
+    return d.string();
+  }());
+  static const bool cleanup = (std::atexit([] {
+    std::error_code ec;
+    std::filesystem::remove_all(*dir, ec);
+  }), true);
+  (void)cleanup;
+  return dir->c_str();
+}
 
 #if !defined(_WIN32)
 namespace {

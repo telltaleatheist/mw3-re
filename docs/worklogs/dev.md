@@ -2055,3 +2055,65 @@ Assigned after 8b2 merged (fd3f05f). The lead asked for a section stepped at bot
   original (test_damage.py's 0x45fbc0 stub, test_puffers.py --fixed for the
   fixed path, probe_set_bugs); test_fixes fix_heat_sink_critical_is_called_out,
   sdl_program_bugfixes_switch.
+## Artemis IV's double tracking (2026-10-30)
+
+- Branch mac4/artemis (off main). FIX (bug), behind bugs: the homing's two
+  reads of [0x9a17d8] (TURN_RATE 0x5859f5, the FCS climb's pitch rate
+  0x585b08) take the shot's +0x5c0 copy (zwep_shot.cpp home). +0x5c8 (the
+  terrain following) was always read from the shot; +0x5c4 by nothing.
+  Test: fix_artemis_fcs_doubles_the_turn_rate (breaks: the global always,
+  the copy always).
+## The command map's pick (2026-10-30)
+
+- Branch mac4/map-pick (off main d02a386). A port gap, not a fix: none of
+  FrameCalls.map, map_size, map_mouse, map_pick was set (the audit missed
+  fc.map, a ternary to a census note), so with Shift+R's map up a click
+  ordered at the reticle's aim. Now MissionMap::pick (0x4587b0) and the
+  four hooks in app_pocket.cpp; ai.md 17.6c, symbols.csv.
+- test_map_pick.py: 3000 picks against the exe bit for bit (ground
+  stubbed at 0x4edab0, world or none); BREAK=1 (x and z swapped) 2583
+  differ. Play: mission_c1m4_pocket_commander_sends_dominic_to_a_map_spot
+  (the map up, Dominic brought onto the map, the cursor on the pixel 200 m west of him, the marker
+  on the ground there, order 10, he walks to it).
+## Installing from the disc (2026-10-30)
+
+- Branch mac4/disc-install (off main fa9aab7). `mw3 --install-from PATH
+  [--install-to DIR] [--patch P]`: a drive or folder, a .iso (2048 or raw
+  2352), a .cue (first data track; MODE1/2352, MODE2/2352, MODE1/2048).
+  mech3/disc_install (Disc: ISO 9660; install_from_disc), patch_import's
+  IS5 reader made streaming (each_installshield) with each file's MD5
+  (+0x2a; all 31 of the patch's match), DataFile.sha256_10, CueTrack.mode.
+  assets.md (Installing from the disc), program.md, README, the Windows
+  README, CHANGES.
+- Owen's ISO (from the backups' zip, 37 s): 126 cabinet files + 19 movies
+  identical to game/mw3-1.0, 16 of 16 1.0; patched 28 of 28 1.2; mw3
+  starts c1 on it. PM's Redump .cue: 102 files = game/pm, track02.wav.
+  Not done here: Owen's MW3 Redump .cue on the PC.
+- Tests: disc_install_from_an_image_a_cue_and_a_folder (breaks: no MD5,
+  20 checks; raw sectors without the 16-byte header, the cue fails);
+  disc_install_from_the_mw3_disc with MW3_DISC.
+## Pirate's Moon decompiled and sorted (2026-10-30)
+
+- Branch mac4/pm-diff (off main fa9aab7). No porting. Ghidra headless
+  (tools/ghidra/DumpFunctions.java) on PM into analysis-output/pm-decomp
+  (11,344 .c and functions.jsonl), the same dump of MW3 into
+  pm-diff/mw3; pm.asm, pm-func2file.json. tools/analysis/pmdiff.py pairs
+  them (6,875, 86% of MW3's 8,030 after the unwind funclets): 1,488
+  identical, 1,531 changed in calls/strings/constants/imports, 3,856 in
+  instructions only, 1,692 new, 1,155 MW3 only. PM was rebuilt with
+  VC6 (MW3: VC5), so instructions differ nearly everywhere.
+  tools/analysis/pmdata.py: the data. pirates-moon.md (two sections),
+  assets.md (Pirate's Moon), tools/analysis/README.md.
+- Readers on PM's data: archives v2, gamez 41, anim 50, mechlib 41
+  rejected; interp, textures, motions read (checked with a local build
+  taking v2, not committed).
+- Found on the way: twod.md says 0x005a3040 has no caller; MW3 calls it
+  four times (reported to the lead).
+## TextBase rechecked (2026-10-30)
+
+- Branch mac4/textbase (off main fa9aab7). aaf4c7c's conclusion stands:
+  0x005a3040 (the centring) has four callers (FontText's three set-texts,
+  TextBase's printf), all behind +0x238, which nothing in 1.2 sets (ctor
+  clears, copy/assign copy; the other +0x238 writes are other classes').
+  twod.md section 4 corrected; the census note for 0x00519e50 says
+  "drawn or measured". Nothing to port.

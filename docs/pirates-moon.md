@@ -131,3 +131,166 @@ TextBase is live. In MW3 1.2 its vtable is kept by no object, so zFont's
 bitmap fonts are loaded and never drawn (twod.md section 4); the same
 check on PM's exe says whether its reader 0x00519e50 needs porting there.
 
+
+## The function diff (2026-10-30)
+
+PM's exe decompiled as MW3's was (no porting yet). Outputs, git-ignored in
+`analysis-output/`, MW3's own left as they were:
+
+- `pm-decomp/`: Ghidra 12.1.4's pseudocode of every PM function
+  (`<addr>.c`, 11,344) and `functions.jsonl` (each function's ranges,
+  callees, callers, strings, imports, constants). Made by
+  `tools/ghidra/DumpFunctions.java` in the headless project
+  `pm-ghidra-project` after Ghidra's analysis, with functions created at the
+  data sections' code pointers as `vtscan.py` did for MW3 (1,012 in PM,
+  957 in MW3). `pm-diff/mw3/functions.jsonl` is the same dump of MW3 1.2
+  (no pseudocode), so both sides of the diff come from one analysis.
+- How: `analyzeHeadless <main checkout>/analysis-output/pm-ghidra-project pm
+  -import game/pm/Mech3.exe -scriptPath tools/ghidra -postScript
+  DumpFunctions.java analysis-output/pm-decomp "Mech3.exe PM 1.0" decompile`
+  (about 20 minutes, the MW3 dump without pseudocode 2; give the main checkout's paths, Ghidra refuses a
+  `.claude` component), and the same with `mw3` and `pm-diff/mw3` for MW3.
+- `pm.asm`: the objdump listing (`pm-diff/mw3/mech3-bytes.asm` is MW3's
+  with instruction bytes, which `mech3.asm` leaves out).
+- `pm-func2file.json`: each function's source file by link order, from the
+  assert paths, as `modmap.py` made MW3's.
+- `pm-diff/pairs.json` and `report.txt`: `tools/analysis/pmdiff.py`'s pairs
+  and summary (about a minute).
+
+**The compiler changed.** MW3 1.0 and 1.2 were linked by Visual C++ 5.0
+(linker 5.10, compiler build 7303 in the Rich header); PM by Visual C++ 6.0
+(linker 6.00, builds 8168 and 8447, VC6 SP3). PM was rebuilt from source
+with the newer compiler, so nearly every function's instructions differ
+(register choice, inlining, scheduling) even where its source did not
+change, and the raw bytes match only where the code is simple. The matcher
+therefore pairs on what the compiler does not change and measures a change
+by it: the calls, strings, constants (immediates and `.rdata` values) and
+imports a function adds or removes. VC6's different inlining still moves
+calls (a function that loses calls and gains none, such as 0x5079b0's 41,
+is most likely inlining), so strings and imports are the firmest evidence.
+
+**Matching** (`pmdiff.py`), on the 8,030 MW3 and 8,567 PM functions left
+after setting aside the compiler's exception-unwind funclets (2,864 and
+2,777, Ghidra's `Unwind@...`):
+
+1. unique masked bytes (the operands' image addresses and the calls' and
+   jumps' displacements leaving the function masked; neither exe has a
+   `.reloc`): 916 pairs;
+2. a string found in one function on each side (assert paths by file
+   name): 412;
+3. repeated: each pair's calls aligned in order (1,642), the unpaired runs
+   between pairs in link order aligned by score (3,709), mutual best within
+   a source file or link-order range (99);
+4. the rest of each group, mutual best at a lower threshold (97).
+
+Of the pairs whose functions both hold strings, 7 of about 790 share none,
+so the matching is right well over 99 times in 100 where it can be checked;
+the loose stage's pairs are mostly two-to-four-instruction functions and
+are the least certain.
+
+**The counts:**
+
+| | functions |
+|---|---|
+| paired | 6,875 (86% of MW3's) |
+| identical (the same instructions once addresses are named by what they point at) | 1,488 |
+| changed in calls, strings, constants or imports | 1,531 |
+| changed in their instructions only (most likely the compiler) | 3,856 |
+| new in PM (unpaired PM functions) | 1,692 |
+| MW3 only (unpaired MW3 functions) | 1,155 |
+
+"MW3 only" is an upper bound: it holds functions PM removed, small ones
+VC6 inlined (`TurnLimits*::Within`, `inout_side`), and some whose rewrite
+the matcher did not recognise (`FollowState::Run` and `Mech::Die` must
+exist in PM). By module, paired with feature changes / new / unpaired:
+Mech3's game code 876 / 1,074 / 766 (of 5,011 MW3 functions); GameZ
+zClass 240 / 180 / 60, zModel 84 / 183 / 104, zTwoD 43 / 42 / 18, zSound
+30 / 38 / 31, zVideo 36 / 40 / 13, zFMV 17 / 9 / 33 (PM has no movies),
+zDecal 21 / 16 / 40; the rest of GameZ (input, network, geometry, reader,
+render, weapons) changed little beyond the compiler.
+
+**The biggest changes** (MW3 address, then PM's):
+
+- 0x00591300 -> 0x005b2d10, the script interpreter's dispatcher
+  (`zinterp_parse.cpp`): 97 calls and 23 strings added, PM's new script
+  commands (`LightSetLightMap`, `NodeSetOverrideAmbient`, the clutter).
+- 0x00497720 -> 0x0049a3c0, the multiplayer game types (`mpinfo.zrd`):
+  64 calls added, the new types' names ("Deathmatch with Teams",
+  "Attack/Defend - One Base" and "Two Bases").
+- 0x004e44b0 -> 0x004f5f50 (`ZRdrValve.cpp`): the AI valves' new keys
+  (`retreat_dist`, `retreat_health`, `retreat_time`, `scan_delay_min/max`,
+  `scan_duration_min/max`, `approachRange`, `attack_radius`, `minRange`).
+- 0x0048faf0 -> 0x00492830, the mission load (`mission_load_world`): 33
+  calls and 20 strings added; 0x00490ab0 (`mission_setup`) and 0x00491150
+  (`mission_launch`) changed with it.
+- 0x00491de0 -> 0x00495250, the world parameters' reader (`mission.cpp`):
+  new keys `ambient_color`, `diffuse_color`, `cloud_cover`, `ai_headlights`,
+  `nearfar_clip`, `camera`, `death`, `depth`.
+- 0x0046ba40 -> 0x0046d690, the mech definition reader (`mech_dfn_read`):
+  14 calls and 9 strings added (PM's weapons, the firepoint fix-up).
+- 0x00570af0 -> 0x00592170, the sound syntax reader: 21 calls and 11
+  strings fewer, rewritten smaller; 0x00446ad0 `HudObjectives::Fill` lost
+  18 calls and 6 imports the same way.
+- 0x00580550 -> 0x005a1740, the DirectDraw/Direct3D error names: 58
+  constants fewer (DirectX 7's table).
+- The front end: `MultiplayerScreen1/2::Create`, `PilotScreen::FillGames`
+  (PM's saved games, `%s%02d.mw3`), `ActionScreen`, the briefing dialog
+  0x00405230 (`brief_%s%s`).
+- The readers: `zcls_read_zbd` 0x004ff520 and `zcls_read_node` 0x004feaf0
+  (gamez.zbd version 41), `zeff_anim_read_zbd` 0x0050a0e0 (anim.zbd
+  version 50), `AivRecord::Parse` 0x004df730 and `valves_read` 0x004e2330.
+
+**New in PM** (by link-order range; `report.txt` lists them all): the
+AI's new behaviours beside `zainetmechinout.cpp` (177 functions, 12,000
+instructions, "mcbdeploy"), the front end's new screens (load/save,
+`BTN_ACCEPT`), the light maps and graphics flags (`LIGHT MAPS`,
+`GfxFlags_HW`), the new AI movement modes ("Circle", "Direct", "Random
+Move"), `cls_clutter.cpp` (32), `promote1.cpp` and the firepoint fix-up
+(`CZMechFirePoint::CFixup`, 32), the saved mech configurations
+(`%s\%s.m3c`, "Incomplete Configuration"), the spotlights and headlights,
+the Nvidia RIVA 128 workaround (`nv3dd32.dll`, `texel_pixel_offset`), the
+CD autorun switch (`QueryCancelAutoplay`, `NoDriveTypeAutoRun`), and the
+renamed reader `zrdr_main.cpp` (its 122 new functions pair with the 61 of
+MW3's `zreader.cpp` range that are left unpaired, a rewrite).
+
+**MW3 only**, beyond the inlined and the unrecognised: the movie player
+(`fmv_stream.cpp`, `FmvAvi`, `FmvMci`: PM has no movies), the salvage
+range, MW3's text reader functions (`zrdr_parse_text`, the vector keys:
+`zreader.cpp` was rewritten as `zrdr_main.cpp`), and the fog
+(`zmod_fog_set_on`, `zmod_fog_apply`: PM's lighting replaced it).
+
+TextBase (the open check above): in PM, too, TextBase's constructors
+(0x005c3940, 0x005c39d0) are called only by FontText's constructor and
+copy, as in MW3, so its bitmap-font drawing is most likely dead there as
+well. (The fresh MW3 dump shows four callers of 0x005a3040, which twod.md
+section 4 lists as having none: 0x005a1219, 0x005a12b9, 0x005a1354,
+0x005a2f7d.)
+
+## PM's data against MW3 1.2's (2026-10-30)
+
+`tools/analysis/pmdata.py` compares `game/pm/zbd` with `game/mw3-1.2/zbd`
+file by file (and a zArchive entry by entry): 91 files in PM, 122 in MW3;
+none the same, 71 in both by name, 20 new, 51 only in MW3. PM's `c1`..`c4`
+are its own worlds under MW3's folder names, so "changed" there means a
+different world. PM adds `c1/readerm5`, `c2/readerm8`, `readeria4` and the
+standalone missions `readersa1..4` per world; MW3's other mission readers
+are gone. `reader.zbd`: 101 entries the same, 71 changed, 26 new, 6 gone;
+`mechlib.zbd` 60 -> 79 entries; `motion.zbd` 258 -> 364;
+`soundsh/l.zbd` 931 -> 768 sounds (339 new, 502 gone).
+
+What the port's readers make of PM's files (`mw3 --install game/pm`, and
+with a local build that also took archive version 2):
+
+| Format | MW3 1.2 | PM 1.0 | The port |
+|---|---|---|---|
+| zArchive (`reader*.zbd`, `mechlib`, `motion`, `sounds*`) | version 1 | version 2 (a CRC after the count) | rejected (`zutl_zar` read_table takes 1 only): "Cannot read required data" at the start |
+| `gamez.zbd` | version 27 | version 41 (and a time stamp, 1999-11-12) | rejected (`cls_zbd` 0x004ff520: "incompatible file version") |
+| `anim.zbd` | version 39 | version 50 (and a time stamp) | rejected (`zeff_anim_init` 0x0050a0e0's check) |
+| `mechlib.zbd`'s `version` | 27 | 41 | rejected (`cls_mechlib`'s check) |
+| `interp.zbd` | 0x08971119, version 7 | the same | read |
+| texture libraries (`rimage`, `rmechtex*`, `rtexture*`, `texture*`) | type 1 | type 1 | read (the world's `texture.zbd` has a new third field, 0x19) |
+| `motion.zbd`'s motions | format 4 | format 4 | read |
+| the mech definitions (`dfn_*.zrd`) | | new weapons | "Unrecognized Weapon" (`XPulseLaser_Large`, `HeavyLaser_Large`, `TBOLT5`), and the shadowcat and thor not built |
+
+A side effect seen: `mw3 --fly` on a world that fails to load retries the
+load every frame (ours, the debug start), so it never quits.

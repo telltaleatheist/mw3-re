@@ -227,8 +227,20 @@ Three layers:
     and copy (0x005a00f2, 0x005a0225), which then store FontText's.
   - FontText overrides the two virtual users, the draw vt+0x04 0x005a3080
     and vt+0x5c 0x005a30f0.
-  - The other users have no caller and no data reference: 0x005a3040, and
-    0x005ae240 (the font lookup 0x00519df0's third caller).
+  - 0x005ae240 (the font lookup 0x00519df0's third caller) has no caller
+    and no data reference.
+  - 0x005a3040, the centring, has four callers, none reached: FontText's
+    set-text in its three forms (printf 0x005a11b0, vprintf 0x005a1250,
+    a string 0x005a12f0; the calls at 0x005a1219, 0x005a12b9,
+    0x005a1354) and TextBase's printf 0x005a2f40 (0x005a2f7d). Each calls
+    it only when +0x238 is set, and nothing in 1.2 sets it: the
+    constructor clears it (0x005a2dda), the copy and assign (0x005a2e30,
+    0x005a2ed0) copy it, and the exe's other writes at +0x238 are other
+    classes' fields (0x00454fc0, 0x0051d700). Rechecked 2026-10-30. Had
+    it been set, the centring would measure the string with zFont's bitmap
+    font 0 (0x005a3010 -> 0x0051a0d0, FontText's +0x234 is 0) though the
+    text is drawn in a Windows font; the port's `font_measure` stand-in
+    answers 0 there.
   So zFont's reader 0x00519e50 (from zImage's start, 0x00516ef6) loads the
   fonts and nothing draws or measures with them. Every text a player sees,
   the HUD's included, is FontText's (below), which the SDL host's TTF faces

@@ -642,7 +642,11 @@ From the weapon code (weapons.md).
   crater and animation (0x4afc00); the damage is not reduced.
 - **The FCS "double tracking" does nothing.** Locking with FCS in the firing
   arm doubles a missile turn-rate setting, but the shot resets it before any
-  missile reads it (0x58518a).
+  missile reads it (0x58518a): each missile keeps its own copy of the 2,
+  which nothing reads. What does work is the FCS missiles' terrain
+  following: low over the ground (under 10 m) they climb when the line to
+  the target is blocked. The rebuild makes the double tracking work: FCS
+  missiles turn twice as fast (and climb twice as hard), as intended.
 - **SRM wobble is held within about a metre** of the line: the random drift
   is pushed back once it strays past 1 m sideways (0.75 m up and down).
 - **LB-X shells burst at 30 m** into three pellets each, in a cone of about one
@@ -930,6 +934,12 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   your side has no allies in that mission's file, so W (target next ally)
   never picks him and the lance keys reach nobody. From his next mission
   on he is in your lance and answers. (docs/ai.md 17.6)
+- **In Op 1 Mission 4 Dominic waits off the edge of the map.** The
+  mission's map (Shift+R) ends about 1.5 km east of your start; Dominic
+  starts powered down about 2.6 km east of it, some 1.1 km past the map's
+  edge. A spot can be picked on the map
+  for your lance (the lancemate command screen with the map up), but not
+  where he waits. (docs/ai.md 17.6c)
 - **A lance order goes to the lancemate you have targeted, nobody else.**
   F6..F10 reach only the lancemate who is your current or last-targeted
   ally (W cycles allies), or the one you locked with Shift+F11; with none

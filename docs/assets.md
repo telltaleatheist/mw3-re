@@ -95,6 +95,21 @@ build with `-DMW3_GAME_DIR=<install>` (for example `build-10` on
 | ../Mech3Msg.dll | 120320, `04a9d33f`, `ceb29fa9b871fcf15fc94030e46b26d2df9ca02203859b36fbf057713bdbee01` | 123392, `e519c565`, `8899fabb7e57383a9a483cb048636bcc027334b48941aa49835cdcc1c4715b8c` |
 | ../force_eff.ifr | 2936, `d5f07541`, `9902299387d7c8767a62dced03d09bad85a68bc30ff714dffb572c80205add4c` | 4113, `4957166c`, `5d021f79378493302509ef3fad31282961e1f3c037367ae4f00faa154d3d2a26` |
 
+## Pirate's Moon
+
+Not ported yet (`pirates-moon.md`). Its data is in the same formats at
+newer versions, which the port's readers refuse: zArchives version 2 (a
+CRC after the count), `gamez.zbd` 41, `anim.zbd` 50 and `mechlib.zbd`'s
+`version` 41 (MW3: 1, 27, 39, 27); `interp.zbd`, the texture libraries and
+the motions keep MW3's (`pirates-moon.md`, PM's data against MW3 1.2's).
+
+Its disc is laid out as MW3's (DATA1.HDR/CAB, InstallShield 5), but its
+`Mech3.exe` is a loose `MECH3.EXE` on the disc beside the cabinet, not in
+it. The disc install (`mw3 --install-from`, Installing from the disc)
+reads PM's Redump image and installs its 102 cabinet files, identical to
+`game/pm`, and its CD audio, but not that exe; when PM is ported, its
+install copies the loose `MECH3.EXE` too (the port itself never runs it).
+
 ## The 1.2 patch
 
 The official patch ("MechWarrior3 Patch", DATA.TAG's Version=1.1, which
@@ -127,3 +142,61 @@ of a 16-bit length and raw deflate. Inflate is miniz's tinfl
 (`third_party/miniz`). The test, `patch_import_upgrades_10_data_from_the_official_patch`,
 reads the patch from `game/patch-1.2/` (the unpacked folder and a ZIP of
 it, made from the backups) and, with `MW3_PATCH_ZIP`, the backups' ZIP.
+
+## Installing from the disc
+
+`mw3 --install-from PATH` (ours, `mech3/disc_install`) installs the game
+without running the disc's Windows installer, so Mac and Linux players can
+install it, and on Windows it saves a step. PATH is the CD drive's root or
+any folder holding the disc's files, an ISO 9660 image (`.iso`: 2048-byte
+sectors, or a raw image of 2352-byte ones), or a cue sheet (`.cue` with its
+`.bin`s, as Redump dumps the disc). From a cue the first data track is read
+(MODE1/2352: each sector's 2048 user bytes after its 16-byte sync and
+header; MODE2/2352 form 1 after 24; MODE1/2048 as is), and its AUDIO
+tracks become the music, `<write dir>/music/trackNN.wav`, as `mw3import
+--cue` writes them (`platform/cue_audio`).
+
+The image's file system (ECMA-119): the primary volume descriptor at sector
+16 ("CD001"), its root directory's record at +156, each directory's records
+(a zero length byte ends a sector's), ";1" dropped from the names. The MW3
+disc's root holds the InstallShield setup (`SETUP.EXE`, `DATA1.HDR`,
+`DATA1.CAB` of 189 MB, `_SYS1`/`_USER1`), `VIDEO\` (the 19 movies),
+`EXTRAS\` and `REDIST\`.
+
+`DATA1.CAB` is read by the patch's reader (The 1.2 patch, above), now from
+where it lies, a file at a time (`each_installshield`), and every file
+checked against the MD5 its descriptor carries (+0x2a): a damaged disc
+writes nothing. Every file group goes into one folder, as unshield's
+extraction made `game/mw3-1.0` (a path twice must be the same bytes; MW3's
+disc has none twice). `VIDEO\` is copied as `video/`, its file names as on
+the disc. The 16 data files of the table above are checked against the
+1.0 disc's size, CRC and SHA-256, and `Mech3.exe` against 1.0's; anything
+else is reported as a warning (another release, a mod) and the version
+"unknown". With `--patch` too, the patch's 28 files (each checked by the
+import) go over them in the same step, and the install is 1.2 (the exe
+stays 1.0's: the port never runs it).
+
+Everything is written to `<folder>.new` and renamed when whole; the folder
+gets `mw3-install.txt` (the source, the version, the counts). A later
+install may replace a folder holding that file; any other non-empty folder
+is refused. The folder is `--install-to DIR`, else `<write dir>/install`,
+and it is saved as `mw3.cfg`'s `install=`.
+
+On Owen's disc image (`MechWarrior 3.zip`'s `Mechwarrior 3.iso`, sha256
+`08c26c0d71375d6130df7716abc2c282147494d869bd48ce13bd5f972f763e49`):
+126 files from the cabinet (404 MB) and 19 movies, all 145 identical to
+`game/mw3-1.0`, all 16 data files 1.0's; with the patch all 28 are
+`game/mw3-1.2`'s, and `mw3` starts c1 on it. Pirate's Moon's Redump image
+(`game/pm-disc`, its .cue) reads through the raw sectors the same way:
+its 102 cabinet files are `game/pm`'s and its track 2 the music (PM's exe
+is a loose `MECH3.EXE` beside the cabinet, not in it).
+
+Tests: `disc_install_from_an_image_a_cue_and_a_folder` makes a disc (the
+patch's real cabinet and a VIDEO folder) as an image, as a raw MODE1/2352
+.bin with a cue and an audio track, and as a folder; each installs the same
+files, the cue's audio is the music, a foreign folder is refused, and of 20
+one-bit damages to the cabinet 7 are caught only by the MD5 (breaks: no
+MD5 check, 20 checks; the raw sectors read without their 16-byte header, the
+cue fails). `disc_install_from_the_mw3_disc` (with `MW3_DISC` set to the
+disc's .iso, .cue or drive) compares the install with `game/mw3-1.0` and,
+patched, with `game/mw3-1.2`.
