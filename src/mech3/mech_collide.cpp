@@ -346,10 +346,12 @@ void Mech::crash(Mech& other, int32_t part) {
   const float t_other = other.tonnage();
   const float inv = 1.0f / (tonnage() + t_other);
   const float mine = tonnage() * inv, theirs = t_other * inv;
-  const float steps = zfix::frame_steps(frame_dt);  // FIX (B): per 1/30 s
+  // FIX (B): the damage per 1/30 s. The shove stays: the other's update sets its
+  // velocity anew (0x0041b2ea from 0x00423590), so it never adds up over frames.
+  const float steps = zfix::frame_steps(frame_dt);
   crash_part(&other, theirs * sq * steps, part);
   if (g_calls.remote && g_calls.remote(other)) {
-    const float s = theirs * collider.restitution * steps;
+    const float s = theirs * collider.restitution;
     if (g_calls.net_shove) g_calls.net_shove(*this, other, mine * sq * steps, s * v.x, s * v.z);
   } else {
     other.crash_part(this, mine * sq * steps, part);

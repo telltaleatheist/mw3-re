@@ -79,6 +79,25 @@ TEST(pm_collide_crash_damage_per_second) {
   }
 }
 
+// The other's update replaces its velocity, so the remote shove is no rate: the same at any dt.
+TEST(pm_collide_remote_shove_is_not_scaled) {
+  static float got_damage, got_x, got_z;
+  CollideCalls& c = collide_calls();
+  const CollideCalls saved = c;
+  c.remote = [](Mech&) { return true; };
+  c.net_shove = [](Mech&, Mech&, float d, float x, float z) { got_damage = d, got_x = x, got_z = z; };
+  zfix::options().per_second = true;
+  Pair slow, fast;
+  slow.a.collider.restitution = fast.a.collider.restitution = 0.5f;
+  slow.step(1, 1 / 30.0f, crash);
+  const float d30 = got_damage, z30 = got_z;
+  fast.step(1, 1 / 120.0f, crash);
+  c = saved;
+  EXPECT(z30 != 0.0f);
+  EXPECT(near(got_z, z30));
+  EXPECT(near(got_damage * 4.0f, d30));  // the damage is the rate
+}
+
 TEST(pm_collide_original_path_is_per_frame) {
   Pair once, twice;
   zfix::options().per_second = false;

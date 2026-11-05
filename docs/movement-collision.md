@@ -33,7 +33,7 @@ tons, takes the first that passes, throttle x0.7, and when the contact is a heav
 0x425030: nothing without a mech behind the node; only a live one blocks; damage is the crash 0x4253f0: speed
 (pending velocity + other's)^2 x 0.2 / (top speeds together)^2, each taking its share by the other's tons; part 1
 (probes under 6 and the top) is the torso, 0.5 / 0.25 / 0.25, parts 4 and 5 (foot probes) the leg by the probe's low
-bit on both mechs. The other mech's velocity is not touched; a remote one gets the shove message as before. Ceiling
+bit on both mechs. The other mech's velocity is not touched; a remote one gets the shove message as before. The shove is not scaled by frame rate: the mech's update replaces its velocity each frame, so it never adds up (Update 0x41b2ea from the prediction 0x423590). Ceiling
 0x424ba0: on foot, only what 0x424d80 allows crushes (node +0xc4 at least the frame, and an owner that is gone or
 none); anything else is a wall response. Per-frame amounts go to time behind `per_second` (`fixes.md`).
 
