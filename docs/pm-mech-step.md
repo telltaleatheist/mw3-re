@@ -278,6 +278,136 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 
 **Waiting for a break in this table (2026-11-05):** a player can't keep a PM campaign without the pilot file's format, the starting store 0x4351b0, `lance_keeps`' twin, restore of a saved world, and type 5 unrun (`pm-map.md`, step 6). They take the first natural break here.
 
+## The true size, normalized (2026-11-05, an estimate)
+
+The table's *changed* came from pseudocode alike-ness, which counts argument passing, field offsets and compiler rearrangement as change. Here each row's instructions are compared after mapping registers, stack slots, field offsets, moved data and calls through the address map, and reading constants by value (`norm.py`, not in the repo):
+
+| | functions | instructions |
+|---|---:|---:|
+| identical (bytes) | 64 | 1219 |
+| same (nothing left after mapping) | 84 | 2536 |
+| reordered (the same instructions in another order) | 8 | 249 |
+| integers only, 95% alike (ids, sizes, an assert's line) | 6 | 896 |
+| shape (the same calls and constants, other instructions) | 131 | 8939 |
+| logic at most (calls or constants differ) | 135 | 22571 |
+| new | 89 | 5393 |
+
+So of the 364 "changed" and "changed\*", at most 135 show a difference in calls or constants; 98 are layout or numbering; 131 are probably layout, unproven. Both edges are soft. By hand, of 15 read: the 3 known same (#49, #64, 0x4617a0) class as shape, not same, so *same* is small; 0x4184f0 and 0x464610 in shape are the same maths; `logic` holds real changes (0x460f00's new clamp, 0x467800) and false ones (0x474e10 and 0x473e70's differ in renumbered ids, 0x416560's in an assert's line, 0x4285d0's in one direct call made virtual). Shape can hide logic: field offsets and vtable slots are wildcards, and a new use of a constant the function already has is not seen, so a swapped field or #47's twist key 1.0 would not show by themselves.
+
+## The frame's 107: executed is not compared (2026-11-05, an estimate)
+
+From a hook on each row's address under every `test_pm_*`, a stub's address not counted as run. *Ran; compared inferred*: the exe's function ran, a port of it exists, and the test compares the state after; nothing shows this function's own result is seen, only a break could. *Through its caller*: it ran, there is no port function of that name, its effect is inlined or unported. Breaks are recorded only for the functions marked. `test_pm_anim`, `gamez`, `sound`, `zreader` and two HUD tests are not in these numbers (see below). *Class* is the normalized comparison below.
+
+| # | PM | Class | Instr | State | Ran under, or stubbed in |
+|---:|---|---|---:|---|---|
+| 8 | 0x41ae00 | logic | 805 | ran; compared inferred | update |
+| 9 | 0x477f90 | logic | 1347 | ran; compared inferred | skis |
+| 10 | 0x41a100 | logic | 803 | ran; compared inferred | heat |
+| 11 | 0x418850 | logic | 635 | ran; compared inferred | jets |
+| 12 | 0x417f50 | logic | 410 | ran; compared inferred | jets |
+| 13 | 0x418fc0 | logic | 817 | ran; compared inferred | gait |
+| 14 | 0x423730 | logic | 708 | ran; compared inferred | collide |
+| 15 | 0x417350 | logic | 796 | ran; compared inferred | actions |
+| 16 | 0x425030 | logic | 280 | ran; compared inferred | collide |
+| 17 | 0x423590 | new | 153 | ran; through its caller only | actions,jets |
+| 18 | 0x416d70 | logic | 311 | ran; compared inferred | actions,jets |
+| 19 | 0x4253f0 | new | 197 | ran; through its caller only | collide |
+| 20 | 0x424030 | new | 160 | ran; through its caller only | collide |
+| 24 | 0x424730 | logic | 360 | ran; compared inferred | collide |
+| 25 | 0x4186f0 | new | 115 | ran; through its caller only | actions,jets |
+| 33 | 0x41d920 | logic | 109 | ran; compared inferred | power |
+| 35 | 0x424dd0 | logic | 204 | ran; compared inferred | collide |
+| 41 | 0x479a40 | new | 93 | ran; compared inferred | headlight |
+| 42 | 0x464060 | shape | 276 | ran; compared inferred | jets,parts,pose |
+| 44 | 0x424ba0 | logic | 142 | ran; compared inferred | collide |
+| 46 | 0x465360 | shape | 117 | ran; compared inferred | pose |
+| 51 | 0x467a90 | new | 51 | ran; through its caller only | parts |
+| 53 | 0x425370 | new | 59 | ran; through its caller only | collide |
+| 56 | 0x415e90 | new | 50 | ran; through its caller only | health,heat |
+| 62 | 0x41dab0 | shape | 67 | ran; compared inferred | power |
+| 65 | 0x477ef0 | new | 32 | ran; through its caller only | skis |
+| 69 | 0x4777f0 | shape | 60 | **not run** |  |
+| 76 | 0x41c9f0 | logic | 59 | ran; compared inferred | parts |
+| 78 | 0x464450 | logic | 141 | ran; compared inferred | parts |
+| 82 | 0x479190 | shape | 98 | ran; compared inferred | skis |
+| 86 | 0x419de0 | logic | 143 | ran; compared inferred | gait |
+| 98 | 0x41c3f0 | shape | 65 | ran; compared inferred | actions,damage,hit,jets |
+| 99 | 0x424d80 | new | 36 | ran; through its caller only | collide |
+| 103 | 0x4790c0 | new | 23 | ran; through its caller only | skis |
+| 106 | 0x41ade0 | new | 16 | ran; through its caller only | damage,heat,hit,jets |
+| 109 | 0x4792b0 | shape | 48 | ran; compared inferred | skis |
+| 112 | 0x4243f0 | logic | 101 | ran; compared inferred | collide |
+| 115 | 0x41de30 | new | 24 | ran; through its caller only | damage,health,heat |
+| 116 | 0x4799b0 | new | 27 | ran; compared inferred | headlight |
+| 119 | 0x41f740 | new | 19 | **stubbed, not compared** | stub: actions,jets,parts,update |
+| 124 | 0x424520 | logic | 148 | ran; compared inferred | collide |
+| 128 | 0x41fb70 | logic | 30 | ran; compared inferred | gait,mechanim |
+| 133 | 0x4790f0 | logic | 58 | ran; compared inferred | skis |
+| 135 | 0x4615b0 | new | 22 | ran; through its caller only | parts,pose |
+| 136 | 0x472420 | reordered | 26 | **stubbed, not compared** | stub: collide |
+| 137 | 0x4778a0 | shape | 65 | ran; compared inferred | parts |
+| 144 | 0x465da0 | new | 18 | ran; through its caller only | damage,hit |
+| 145 | 0x4638f0 | shape | 75 | ran; compared inferred | parts |
+| 146 | 0x4255f0 | logic | 34 | ran; compared inferred | collide |
+| 153 | 0x41f8d0 | new | 14 | ran; through its caller only | lod |
+| 159 | 0x41c570 | shape | 34 | ran; compared inferred | actions |
+| 181 | 0x467770 | shape | 31 | ran; compared inferred | parts |
+| 187 | 0x41dcd0 | shape | 40 | **stubbed, not compared** | stub: update |
+| 190 | 0x477760 | reordered | 38 | ran; compared inferred | skis |
+| 191 | 0x414370 | shape | 46 | **stubbed, not compared** | stub: actions |
+| 204 | 0x460eb0 | logic | 17 | **stubbed, not compared** | stub: damage,deaths,hit,parts |
+| 206 | 0x477e40 | same | 68 | ran; compared inferred | mech_build,skis |
+| 215 | 0x460f00 | logic | 16 | ran; compared inferred | heat |
+| 235 | 0x466550 | same | 25 | ran; compared inferred | parts |
+| 238 | 0x41f340 | shape | 22 | **stubbed, not compared** | stub: update |
+| 239 | 0x477960 | shape | 44 | ran; compared inferred | parts |
+| 247 | 0x467b70 | shape | 11 | ran; compared inferred | update |
+| 251 | 0x4283f0 | shape | 158 | ran; compared inferred | parts |
+| 263 | 0x41f310 | shape | 14 | **stubbed, not compared** | stub: command,damage,health,heat |
+| 271 | 0x419d90 | same | 14 | ran; compared inferred | collide |
+| 272 | 0x41f770 | shape | 12 | ran; compared inferred | jets |
+| 282 | 0x417e00 | logic | 14 | ran; through its caller only | parts |
+| 284 | 0x424220 | same | 156 | ran; compared inferred | collide |
+| 290 | 0x477f30 | same | 23 | ran; compared inferred | skis |
+| 293 | 0x41f390 | shape | 13 | **not run** |  |
+| 298 | 0x417290 | shape | 67 | ran; compared inferred | actions |
+| 303 | 0x4675e0 | shape | 150 | ran; compared inferred | parts |
+| 304 | 0x417e30 | same | 10 | ran; compared inferred | actions |
+| 310 | 0x467b30 | shape | 11 | ran; compared inferred | update |
+| 311 | 0x41a020 | shape | 67 | **stubbed, not compared** | stub: update |
+| 312 | 0x4654e0 | same | 64 | ran; compared inferred | pose |
+| 321 | 0x4672d0 | shape | 63 | ran; compared inferred | parts |
+| 323 | 0x4616c0 | same | 71 | ran; compared inferred | parts,pose |
+| 324 | 0x419bb0 | shape | 64 | ran; compared inferred | gait |
+| 325 | 0x4779e0 | same | 50 | ran; through its caller only | pose |
+| 329 | 0x463840 | shape | 51 | ran; compared inferred | parts |
+| 332 | 0x41e2d0 | same | 39 | ran; compared inferred | collide,damage,health,heat |
+| 334 | 0x417170 | shape | 47 | ran; compared inferred | actions |
+| 338 | 0x461650 | same | 34 | ran; compared inferred | pose |
+| 341 | 0x467490 | reordered | 64 | ran; compared inferred | parts |
+| 342 | 0x461430 | shape | 29 | ran; through its caller only | damage,deaths,hit,mech_build |
+| 364 | 0x41d880 | logic | 7 | ran; through its caller only | actions |
+| 371 | 0x41f940 | shape | 23 | ran; through its caller only | actions,skis |
+| 384 | 0x4143f0 | shape | 20 | **stubbed, not compared** | stub: actions |
+| 392 | 0x4643f0 | same | 17 | ran; compared inferred | damage,hit |
+| 397 | 0x41e2b0 | same | 8 | ran; compared inferred | collide,damage,gait,heat |
+| 405 | 0x417220 | shape | 11 | ran; compared inferred | actions |
+| 432 | 0x41e4c0 | same | 3 | ran; through its caller only | damage,gait,health,hit |
+| 433 | 0x424710 | same | 4 | ran; through its caller only | collide |
+| 434 | 0x424720 | same | 4 | ran; through its caller only | collide |
+| 436 | 0x41f760 | same | 3 | ran; through its caller only | jets |
+| 452 | 0x417e50 | identical | 7 | ran; through its caller only | parts |
+| 454 | 0x41c520 | identical | 29 | ran; compared inferred | actions,jets |
+| 474 | 0x422040 | identical | 15 | ran; compared inferred | actions,mechanim |
+| 475 | 0x422140 | identical | 26 | ran; compared inferred | actions,mechanim |
+| 477 | 0x4221c0 | identical | 25 | **stubbed, not compared** | stub: pose |
+| 478 | 0x422210 | identical | 25 | **stubbed, not compared** | stub: pose |
+| 489 | 0x460ef0 | identical | 5 | **stubbed, not compared** | stub: parts |
+| 494 | 0x463fb0 | identical | 2 | ran; through its caller only | gait |
+| 495 | 0x464430 | identical | 4 | ran; compared inferred | gait |
+| 500 | 0x4677e0 | identical | 10 | ran; compared inferred | parts |
+| 517 | 0x477f70 | identical | 7 | ran; compared inferred | collide |
+
 ## The order
 
 The lead's rule (2026-11-05): what the frame runs for every mech ranks above what it runs for the player only, unless the player-only one changes how the game feels. The score below cannot see that, so it is applied by reading each function as the order reaches it.
