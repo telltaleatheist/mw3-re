@@ -29,7 +29,7 @@ os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
+LIB = next((ROOT / 'build').glob(os.environ.get('MW3_PROBE_LIB', 'libmw3probe') + '.*'))  # test_pm_update: pmprobe
 probe = ctypes.CDLL(str(LIB))
 P, F, I, U = ctypes.c_void_p, ctypes.c_float, ctypes.c_int32, ctypes.c_uint32
 probe.probe_update.argtypes = [P, P, P, U, P, U, I, F, F, F, I, F, F, F, F, U, I, I, U, P, F, P, P, P]

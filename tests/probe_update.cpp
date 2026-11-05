@@ -68,6 +68,7 @@ struct State {
   MechControls c;
   MechData pilot;
   Skis skis;
+  uint32_t ents[3] = {};
   LogPart torso;
   LogHip hip;
   LogLeg legs[2];
@@ -110,6 +111,11 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   io.hd(0x68c, m.x68c);
   io.u32(0x688, m.detail);
   io.f(0x6b0, m.frame_dt);
+  // Pirate's Moon's, at their PM offsets + 0x100 (test_pm_update.py).
+  io.f(0x7d0, m.jet_burn), io.f(0x7d4, m.jet_fuel);
+  for (int k = 0; k < 4; ++k) io.f(0x7dc + 4 * k, m.pending_q[k]);
+  io.v3(0x7ec, m.pending_velocity);
+  for (int k = 0; k < 12; ++k) io.f(0x7f8 + 4 * k, m.pending_m[k]);
   // the part as the emulator's address: the torso's, else what came in
   uint32_t part = m.last_hit_part == g->m.torso ? g->torso_addr : g->hit_raw;
   io.u32(0xe4, part);
@@ -170,6 +176,8 @@ void probe_update(uint8_t* mech, uint8_t* ctl, uint8_t* torso, uint32_t torso_ad
   g->skis.surface[1] = surf1;
   g->skis.surface[4] = surf4;
   m.skis = &g->skis;
+  std::memcpy(g->ents, mech + 0x7c0, sizeof g->ents);
+  for (int i = 0; i < 2; ++i) std::memcpy(&g->feet[i].ground_state, mech + 0x7b0 + 4 * i, 4);
   g->torso = LogPart{};
   g->torso.code = 23;
   torso_io(g->torso, torso, false);
@@ -254,13 +262,18 @@ void probe_update(uint8_t* mech, uint8_t* ctl, uint8_t* torso, uint32_t torso_ad
   c.collide = [](Mech& mm) {
     log({17});
     for (int k = 0; k < 4; ++k) mm.blocked[k] = g->blocked[k] != 0;
-    return g->held == 1;
+    return g->held != 0;
   };
   c.dfn = [](Mech&) -> const MechDfn* { return &g->dfn; };
   c.translate = [](Handle node, float x, float y, float z) {
     log({18, static_cast<int32_t>(u(node)), bits(x), bits(y), bits(z)});
   };
   c.moved = [](Mech&) { log({19}); };
+  c.ground_entity = [](Mech&, int rec) -> Handle {
+    const uint32_t e = g->ents[rec == 1 ? 0 : rec == 4 ? 1 : 2];
+    return reinterpret_cast<void*>(uintptr_t{e});
+  };
+  c.stood_on = [](Handle e, Mech&) { log({41, static_cast<int32_t>(u(e))}); };
   c.landmines = [](const Vec3* p) { log({20, bits(p->x)}); };
   c.weapons_changed = [](Mech&) {
     log({21});

@@ -4225,6 +4225,13 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **In Pirate's Moon only you can fall over from a hard landing.** In
+  MechWarrior 3 any mech that came down hard or fast sideways could fall. In
+  Pirate's Moon the roll is made only for the player, so enemies always land
+  on their feet.
+- **Pirate's Moon's mechs lean into things they stand on.** What a mech stands
+  on is told about its weight each frame, a new call MechWarrior 3 did not make.
+
 - **Pirate's Moon's jump jets are stronger and ignore the mission's gravity.**
   MechWarrior 3 pushes up with 8 times the thrust plus the mission's gravity,
   capped at a limit each frame. Pirate's Moon pushes with a fixed 38 times the

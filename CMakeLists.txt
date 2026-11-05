@@ -620,6 +620,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_hud.cpp)
   target_sources(pmprobe PRIVATE tests/probe_command.cpp)
   target_sources(pmprobe PRIVATE tests/probe_jets.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_update.cpp)
 endif()
 
 # The SDL3 front end and the programs on it.

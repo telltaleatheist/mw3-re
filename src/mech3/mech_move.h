@@ -44,6 +44,9 @@ struct MechDfn;
 // ported pieces (unset runs the port); the rest are code not ported yet,
 // which does nothing when unset.
 struct UpdateCalls {
+  // Pirate's Moon's: the owner of a ground record's node (0x0040f760), and 0x004e2e30 on it (unset until that is ported).
+  Handle (*ground_entity)(Mech& m, int record) = nullptr;
+  void (*stood_on)(Handle entity, Mech& m) = nullptr;
   int (*controls_update)(Mech&, float dt) = nullptr;  // controls vt +0x0c (player 0x00427d60, AI 0x004e96f0, net 0x0046ef60); unset: the base 0x00426960
   void (*select_gait)(Mech&, float dt) = nullptr;
   void (*update_action)(Mech&, float dt) = nullptr;

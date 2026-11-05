@@ -55,8 +55,7 @@ void Mech::update(float dt) {
   } back{head, dt};
   if (head) head->detach();
   World& w = world();
-  dt = dt + frame_dt;
-  frame_dt = dt;
+  frame_dt = dt;  // Pirate's Moon: a skipped frame's time is not carried over, as MW3's was
   impulse = {0, 0, 0};
   if (!zent::budget().allows()) return;
   if (g_calls.finish_power_down) g_calls.finish_power_down(*this);
@@ -64,7 +63,7 @@ void Mech::update(float dt) {
   alive_time = alive_time + frame_dt;
   bool acting = !actions.empty();
   if (anim_state == kSuspended) return;
-  if (!(narc_time < 0.0f)) narc_time = narc_time - frame_dt;
+  if (narc_time > 0.0f) narc_time = narc_time - frame_dt;  // Pirate's Moon (MW3 ran on to below 0)
   const bool dying = anim_state == kDead && acting;  // the death fall still plays
   if (anim_state == kDead && !dying) {
     active = false;
@@ -143,6 +142,8 @@ void Mech::update(float dt) {
     if (collides) {
       held = g_calls.collide ? g_calls.collide(*this) : collide();
       stopped = blocked[0] || blocked[1] || blocked[2] || blocked[3];
+    } else {
+      blocked[0] = blocked[1] = blocked[2] = blocked[3] = false;
     }
     const bool slid = skis->slid;
     if (!stopped || !held) {
@@ -162,6 +163,12 @@ void Mech::update(float dt) {
       push = {push.x + t.x, push.y + t.y, push.z + t.z};
       if (std::fabs(push.x) < 0.01) push.x = 0.0f;
       if (std::fabs(push.z) < 0.01) push.z = 0.0f;
+    }
+    // Pirate's Moon: what the mech stands on takes its weight (0x004e2e30), through the planted foot's ground record.
+    if (!airborne()) {
+      const int rec = legs[0]->foot->ground_state == 3 ? 1 : legs[1]->foot->ground_state == 3 ? 4 : 6;
+      if (g_calls.ground_entity && g_calls.stood_on)
+        if (const Handle e = g_calls.ground_entity(*this, rec)) g_calls.stood_on(e, *this);
     }
     const Vec3* at = skis_calls().position ? skis_calls().position(*this) : nullptr;
     if (g_calls.landmines) g_calls.landmines(at);
@@ -185,8 +192,7 @@ void Mech::update(float dt) {
       if (g_calls.unwrap) controls = g_calls.unwrap(*controls);
       else controls = controls->unwrap();  // primary vt+0x04
     }
-    if (g_calls.x68c_update) g_calls.x68c_update(x68c, frame_dt);
-    frame_dt = 0.0f;
+    if (x68c && g_calls.x68c_update) g_calls.x68c_update(x68c, frame_dt);  // Pirate's Moon asks first
   }
 tail:
   if (g_calls.net_update) g_calls.net_update(*this, dt);
@@ -201,7 +207,7 @@ tail:
       knock_vec = {knock_vec.x * r, knock_vec.y * r, knock_vec.z * r};
     }
   }
-  if (g_calls.purge) g_calls.purge(*this, frame_dt);  // 0 after a full update
+  if (g_calls.purge) g_calls.purge(*this, frame_dt);
 }
 
 // Pirate's Moon 1.0 @ 0x004186f0: the lean rolls the display matrix into turns (detail bit 5).
@@ -305,7 +311,7 @@ void Mech::movement_sounds() {
     if (g_calls.set_volume) g_calls.set_volume(wade, vol);
   }
   if (which != -1 && sounds[which]) place(sounds[which]);
-  if (limp == 0 || limp == 1) {
+  if ((limp == 0 || limp == 1) && !airborne()) {  // Pirate's Moon: no limp in the air
     if (!limping) {
       limping = play(kLimpSound, vol);
     } else {
