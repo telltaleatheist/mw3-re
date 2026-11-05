@@ -1,3 +1,4 @@
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "mech3/zainet_inout.h"
 
 #include <cfloat>
@@ -137,11 +138,12 @@ void edge_count(InOutQuery& c, const InOutVertex* prev, const InOutVertex* v) {
 
 bool colour_is(const zmod::Material* m, float r, float g, float b) { return m->r == r && m->g == g && m->b == b; }
 
-// Mech3.exe 1.2 @ 0x004c32c0: polygons of three corners or more, not
-// morphing (flag 0x400), into the area.
-void add_polygon(InOutArea& area, const char* name, const zmod::Polygon& poly, const float* verts) {
-  if ((poly.flags >> 10) & 1) return;
-  if ((poly.flags & 0xff) <= 2) return;
+// Pirate's Moon 1.0 @ 0x004cced0 (MW3's 0x004c32c0): polygons of three corners
+// or more (PM's count is ten bits), not strips (0x2000; MW3 skipped 0x400), into
+// the area.
+void add_polygon(InOutArea& area, const char* name, const pm::zmod::Polygon& poly, const float* verts) {
+  if ((poly.flags >> 13) & 1) return;
+  if ((poly.flags & 0x3ff) <= 2) return;
   area.polygons.push_back(std::make_unique<InOutPolygon>(name, poly, verts, kWidth));
 }
 
@@ -150,8 +152,8 @@ void add_polygon(InOutArea& area, const char* name, const zmod::Polygon& poly, c
 // polygons. The name kept is the node's past its first seven characters when
 // it starts "inout" and is longer than that.
 void read_model(InOutArea& area, zcls::Node* node) {
-  zmod::Model* m = node->model;
-  const int32_t nv = static_cast<int32_t>(m->count(0x14));
+  pm::zmod::Model* m = node->pm_model;  // PM's world nodes hold theirs here (cls_node.h)
+  const int32_t nv = m->count(0x14);
   if (nv <= 0) return;
   const char* name = node->name();
   if (std::strncmp(name, "inout", 5) == 0 && std::strlen(name) > 7) name += 7;
@@ -171,7 +173,7 @@ void read_model(InOutArea& area, zcls::Node* node) {
   }
   if (kGroundCorners && g_hooks.ground)
     for (int32_t i = 0; i < nv; ++i) g_hooks.ground(buf.data() + 3 * i);  // 0x004c5440 over 0x004c4240
-  const int32_t np = static_cast<int32_t>(m->count(0x10));
+  const int32_t np = m->count(0x10);
   for (int32_t i = 0; i < np; ++i) add_polygon(area, name, m->polygons[i], buf.data());  // 0x004c5470
 }
 
@@ -210,7 +212,7 @@ void walk(zcls::Node* n, InOutArea& area) {
           zmth::push(world);
         }
       }
-      if (n->model) read_model(area, n);  // 0x004c3600 through [0x0060b39c]
+      if (n->pm_model) read_model(area, n);  // 0x004c3600 through [0x0060b39c]
       walk_children(n, area);
       if (pushed) zmth::pop();
       break;
@@ -219,7 +221,7 @@ void walk(zcls::Node* n, InOutArea& area) {
       float range;
       std::memcpy(&range, static_cast<uint8_t*>(n->data) + 4, 4);
       if (!(n->flags() & 4) || !(range <= 0.0f)) return;
-      if (n->model) read_model(area, n);
+      if (n->pm_model) read_model(area, n);
       walk_children(n, area);
       break;
     }
@@ -232,20 +234,21 @@ void walk(zcls::Node* n, InOutArea& area) {
 InOutHooks& inout_hooks() { return g_hooks; }
 InOut& inout() { return g_inout; }
 
-// Mech3.exe 1.2 @ 0x004c1ab0
-InOutPolygon::InOutPolygon(const char* name_, const zmod::Polygon& poly, const float* v, float width_)
+// Pirate's Moon 1.0 @ 0x004c9af0 (MW3's 0x004c1ab0)
+InOutPolygon::InOutPolygon(const char* name_, const pm::zmod::Polygon& poly, const float* v, float width_)
     : width(width_) {
   min[0] = min[1] = min[2] = FLT_MAX;     // 0x0060b3b8
   max[0] = max[1] = max[2] = -FLT_MAX;    // 0x0060b3a8
   if (name_) name = strdup(name_);
-  const zmod::Material* m = poly.material;
-  if (colour_is(m, 0, 0, 255)) kind = 2;         // 0x005e8a20
-  else if (colour_is(m, 0, 255, 255)) kind = 3;  // 0x005e8a40
-  else if (colour_is(m, 255, 0, 0)) kind = 0;    // 0x005e8a30
-  else if (colour_is(m, 255, 255, 0)) kind = 1;  // 0x005e8a50
+  const zmod::Material* m = poly.material_count > 0 && poly.materials ? poly.materials[0] : nullptr;
+  if (!m) zerr::reportf(0x200, kFile, 0x5a5, "Net without color");
+  else if (colour_is(m, 0, 0, 255)) kind = 2;         // 0x0060b958
+  else if (colour_is(m, 0, 255, 255)) kind = 3;  // 0x0060b978
+  else if (colour_is(m, 255, 0, 0)) kind = 0;    // 0x0060b968
+  else if (colour_is(m, 255, 255, 0)) kind = 1;  // 0x0060b988
   tested = kind == 0 || kind == 2;
   inverted = kind >= 2;
-  const uint32_t n = poly.flags & 0xff;
+  const uint32_t n = poly.flags & 0x3ff;  // PM's 0x004c9af0
   verts.reserve(n);
   for (uint32_t k = 0; k < n; ++k) {
     const uint32_t i = kReverse[kind] ? n - 1 - k : k;
@@ -416,28 +419,24 @@ const float* InOutArea::query(const float* from, const float* to) {
   return got;
 }
 
-// Mech3.exe 1.2 @ 0x004c36c0
+// Pirate's Moon 1.0 @ 0x004cdb30 (MW3's 0x004c36c0): a campaign's and a
+// standalone mission's area is the mission's, of ten (0x00435db0).
 InOutVariant inout_variant() {
   InOutVariant v;
   if (!g_hooks.have_game || !g_hooks.have_game()) return v;
   const char* suffix = nullptr;
-  v.operation = g_hooks.operation ? g_hooks.operation() : 0;
   v.game = g_hooks.game_type ? g_hooks.game_type() : -1;
-  if (v.game == 1) {
+  if (v.game == 1 || v.game == 5) {
     v.numbered = 1;
     v.index = (g_hooks.mission_number ? g_hooks.mission_number() : 0) - 1;
-    switch (v.operation) {  // 0x00484840
-      case 1: case 2: v.count = 4; break;
-      case 3: case 4: v.count = 6; break;
-      default: v.count = 0;
-    }
-    suffix = "m";  // 0x005e8acc
+    v.count = 10;
+    suffix = v.game == 1 ? "m" : "sa";  // 0x0060ba5c, 0x0060ba58
   } else if (v.game == 2) {
     v.count = 1;
-    suffix = "ia";  // 0x005e8ac8
+    suffix = "ia";  // 0x0060ba54
   } else if (v.game == 4) {
     v.count = 1;
-    suffix = "t";  // 0x005e8ac4
+    suffix = "t";  // 0x0060ba50
   }
   if (suffix) {
     v.valid = 1;
@@ -446,7 +445,7 @@ InOutVariant inout_variant() {
   return v;
 }
 
-// Mech3.exe 1.2 @ 0x004c3850
+// Pirate's Moon 1.0 @ 0x004cdce0 (MW3's 0x004c3850)
 int32_t InOutVariant::match(const char* child) const {
   long n = 0;
   if (valid) {
@@ -472,7 +471,7 @@ void inout_read_tree(zcls::Node* node, InOutArea& area) {
   zmth::pop();
 }
 
-// Mech3.exe 1.2 @ 0x004c3930
+// Pirate's Moon 1.0 @ 0x004cddb0 (MW3's 0x004c3930)
 void inout_mission_load() {
   g_inout.areas.reset();
   zcls::Node* root = zcls::list_find_by_name(6, "inout");
@@ -484,8 +483,7 @@ void inout_mission_load() {
     for (int32_t i = 0; i < root->child_count(); ++i) {
       zcls::Node* c = root->children[i];
       const int32_t at = v.match(c->name());
-      // FIX (bug): the exe writes past the vector for a child numbered beyond
-      // the operation's missions; none is shipped (docs/ai.md section 11).
+      // Past the vector: skipped, as PM's own check (0x004cddb0).
       if (at >= 0 && static_cast<size_t>(at) < g_inout.areas->size()) inout_read_tree(c, (*g_inout.areas)[size_t(at)]);
     }
   }
@@ -493,12 +491,11 @@ void inout_mission_load() {
   zcls::tree_destroy(root);  // 0x004f9050
 }
 
-// Mech3.exe 1.2 @ 0x004c3b80
+// Pirate's Moon 1.0 @ 0x004ce290 (MW3's 0x004c3b80)
 void inout_select() {
   if (!g_inout.areas) return;
   const int32_t i = inout_variant().index;
-  // FIX (bug): unchecked in the exe (0x004c50e0); a campaign mission past the
-  // operation's count would point past the vector.
+  // FIX (bug): unchecked in the exe; a mission past ten would point past the vector.
   if (i >= 0 && static_cast<size_t>(i) < g_inout.areas->size()) g_inout.current = &(*g_inout.areas)[size_t(i)];
 }
 

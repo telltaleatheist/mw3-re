@@ -1362,20 +1362,29 @@ functions PM changed, and PM's new ones.
    (Circle, Direct, Random Move).
    **Mapped 2026-11-04** (read-only unless marked).
    - **Baseline, measured:** `mw3pm` runs c1m1 on MW3's AI and PM's data with no unported function reached in
-     9,000 frames at 33 ms. The Thor wakes near frame 1400, walks 2 km, and fights the idle player at 50-150 m;
-     armor falls both ways; 545 shots by frame 6600. So an enemy already walks and shoots; the order below is
-     by what differs from PM, not by what is missing. The two Shadow Cats stayed powered down throughout.
+     1,800 frames at 33 ms (a 7,500-frame run shows the same behaviour). The Thor wakes near frame 1400, walks 2 km and
+     closes to 50-150 m of the idle player; 680 shots by frame 7500. Armor falls on the Thor and on Epona, the ally
+     beside the player; **the player's own stays 12.0**, unexplained. So an enemy already walks and shoots; the order
+     below is by what differs from PM. The two Shadow Cats stayed powered down throughout.
    - **`on_mission_start`: ported** (0x4944e0, with 0x4e4b00's `bapon`; both slot +0x10 of the listeners, walked by
      0x4f9960 from 0x483de0's case 9, MW3's 0x481170 case 7; `valves_mission_started`, `test_pm_ai_start.py`). Named
      108 times, in the standalone missions' valves (`readersa*`), not the campaign's. Measured on c1sa1 over 100 s:
      without it the allied `pirate_mate_1` falls to 4.2 of 12 armor (its turrets still hostile, their `setteam` never
      run); with it 12. c1m1 is unchanged, and its Shadow Cats stay powered down, so that is something else.
      0x483de0's case 8 (0x5349d0, then the player's +0x38c vt+0x1c) is not in the port; its caller is not traced.
-   - **The boundary** (the variant 0x4cdb30, the loader 0x4cddb0, the container 0x4cd740, the fill 0x4cdff0 ->
-     0x4ce450, the select 0x4ce290): names by game type: 1 `inoutm` and 5 `inoutsa` (ten areas by 0x435db0, the index
-     the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Child match 0x4cdce0. Areas 0xc0 bytes (MW3 0x88). The clamp
-     0x4ccaf0 (MW3 0x4c3000) is rewritten: a 0x54-byte record per vehicle (0x4c7f30, at its +0xd8), and it reads the
-     mech's jump jets (+0x3e8). Its body and the area's new fields are not read yet.
+   - **The boundary's areas: ported** (the variant 0x4cdb30, the loader 0x4cddb0, the match 0x4cdce0, the add 0x4cced0,
+     the select 0x4ce290; `zainet_inout`, `test_pm_ai_inout.py`, 798 cases, 5 breaks): names by game type: 1 `inoutm` and
+     5 `inoutsa` (ten areas by 0x435db0, the index the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Before this every
+     area on `pm` was empty, standalone or not: PM's nodes hold their model in `pm_model`, `model` stays null. Polygons
+     skip 0x2000 (MW3 0x400), count 0x3ff (MW3 0xff; the largest here has 313 corners). Measured: c1m1 43 polygons, c1m2
+     81, c1m5 81, c1sa1 82, c2m3 121, c2m8 124, c3m6 30, c4m10 73, c4sa2 73; the Thor still walks and fights. The add and
+     polygon's reading are checked only by those counts, not against the exe.
+   - **The boundary's query and clamp: not ported, still MW3's** (piece 4). PM's polygon (0x4c9af0, 100 bytes, corners 0x54
+     with a list each) runs a side pass 0x4c9600: the corners' summed distance picks its parameters: to 20,000 width 3,
+     +0x34 15000, +0x38 1000, +0x3c 50, +0x40 2, +0x44 0; to 35,000 width 12, 3500, 500, 10, 4, 1; past it width 12, 10000,
+     500, 10, 4, 1. Three more passes (0x4c8570, 0x4c86e0, 0x4c8940) fill the corners. Areas 0xc0 bytes (MW3 0x88). The clamp
+     0x4ccaf0 (MW3 0x4c3000) keeps a 0x54-byte record per vehicle (0x4c7f30, at its +0xd8) and reads the mech's jump jets
+     (+0x3e8). Until then the port keeps MW3's width 3 and query on all polygons.
    - **The data's new words** (PM only, every AI file of the four worlds compared with MW3's): valves `on_mission_start`,
      `play_dead`; nets' `valve_assign` of `jumping` / `jumped` (189 each), `via` / `terminus` (626 each; `terminus` is
      read by the aiv record, 0x4ec240 +0xa4). `setteam` and `any_zero` are not new in the exe (the port has them) but

@@ -2419,7 +2419,6 @@ void wire_mission_hooks(GameEngine* e) {
   if (e) {
     io.have_game = [] { return g_mission_engine != nullptr; };
     io.game_type = [] { return g_mission_engine->launch().type; };
-    io.operation = [] { return g_mission_engine->launch().op; };
     io.mission_number = [] { return g_mission_engine->launch().number; };
     io.ground = [](float p[3]) {
       zcls::Node* w = world_hooks().world;
