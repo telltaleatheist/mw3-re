@@ -99,6 +99,7 @@
 #include "mech3/weapon.h"
 
 namespace mech3 {
+int32_t object_lod();  // mech3/options.h (its Handle clashes with mech.h's)
 
 int32_t invincible();  // 0x0040cf20, mech3/options.h
 
@@ -419,6 +420,9 @@ class WiredLaunch : public LaunchHooks {
   // and saved (pilot.md section 7); a debug start's stand-in has no campaign
   // to settle.
   void pilot_478f10(Handle) override { program_record_mission(false); }
+  int32_t object_lod() override { return mech3::object_lod(); }
+  Handle node_named(int32_t list, const char* name) override { return zcls::list_find_by_name(list, name); }
+  void node_set_active(Handle n, int32_t on) override { zcls::node_set_active(zn(n), on); }
   void multiplayer(Handle) override {  // 0x0046da80 on the pilot
     NetLaunchGame g;
     Mech* m = launched_mech();

@@ -114,6 +114,7 @@ struct MechControls {
 // IControls base sits at +0x14c here (its owner at +0x15c); +0x5c is a base
 // of the AI's (0x004d9840), not ported.
 struct PlayerControls : MechControls {
+  void* timed_events_head[2] = {};  // PM: IControls +8, the head of a timed list (0x004b2580); only made for now
   float look_dx = 0, look_dy = 0;  // +0x138, +0x13c  the mouse look's motion (view 2)
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
   void zero() override;           // 0x004289a0: the look's too

@@ -123,7 +123,9 @@ bool launch_player() {
   h.set_camera_mode(h.camera_mode());
   const int32_t type = h.game_type(game);
   // The cockpit's animated parts: each cpit_ani<x> node found runs its cycle script.
-  if (const CockpitModel* cockpit = m->pilot->cockpit_model) {
+  // Pirate's Moon: not at the lowest object detail.
+  const CockpitModel* cockpit = m->pilot->cockpit_model;
+  if (cockpit && h.object_lod() != 2) {
     const Handle root = cockpit->node;
     static const char* const kNodes[3] = {"cpit_ania", "cpit_anib", "cpit_anic"};
     static const char* const kScripts[3] = {"support\\cpit_cycleA.gw", "support\\cpit_cycleB.gw",
@@ -140,13 +142,34 @@ bool launch_player() {
   }
   h.set_field8(pilot, 0x59, type != 3 && (r->get<uint8_t>(0xcc) & 0x20) ? 1 : 0);
   h.clear_60b570();
+  // Pirate's Moon: in instant action and multiplayer the first world (number 0) has
+  // the base under its PPC turret shown.
+  const auto show_base = [&] {
+    if (h.field32(missions, 0x64) != 0) return;  // +0x64, PM's +0x9c
+    const Handle turret = h.node_named(6, "tur_ppc02");
+    const Handle base = turret ? b.node_find(turret, "dbase") : nullptr;
+    if (!base) return;
+    h.node_set_active(base, 1);
+    if (const Handle g3 = b.node_find(base, "g3")) h.node_set_active(g3, 1);
+  };
   switch (type) {
     case 1:
       h.lancemates();
       h.pilot_478f10(pilot);
       break;
+    case 5:  // Pirate's Moon: its own line-up, as a campaign's with no record
+      h.lancemates();
+      h.pilot_478ce0(pilot);
+      if (h.pilot_4794f0(pilot)) h.pilot_vt4(pilot);
+      {
+        const uint32_t handle = h.field32(pilot, 0x10);
+        if (handle != 0xffffffff) h.close_handle(handle);
+        h.set_field32(pilot, 0x10, 0xffffffff);
+      }
+      break;
     case 2:
     case 3: {
+      show_base();
       if (type == 2) {
         h.instant_action();
         const uint8_t* o = static_cast<const uint8_t*>(missions);
@@ -194,6 +217,7 @@ bool launch_player() {
     h.set_field32(list, 0x0c, h.field32(list, 0x0c) - 1);
     n = next;
   }
+  h.set_field8(list, 0x10, 0);  // Pirate's Moon 0x00473240
   h.fn_40f0a0();
   h.fn_537520();
   return true;

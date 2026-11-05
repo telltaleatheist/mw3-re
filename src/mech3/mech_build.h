@@ -89,9 +89,9 @@ class MechBuildHooks : public zgame::Unported {
   virtual void entity_set_node(Mech& m, Handle node, const char* name);  // 0x004d6c90(node, name, 0, 0)
   virtual void entity_register(Mech& m) { unported("0x005a7f50", {ref(&m)}); }  // zEntity's list 0x00736558
   virtual void entity_update(Mech& m) { unported("0x005a8500", {ref(&m)}); }
-  virtual void touch_handler(Mech& m, Handle node) { unported("0x005833b0", {ref(&m), low(node), 1, 0x004161a0}); }
-  virtual Handle x68c_init(Handle mem, Mech& m) {   // 0x004e61e0(mech, &mech+0x380)
-    return h(unported("0x004e61e0", {low(mem), ref(&m), ref(&m) + 0x380}));
+  virtual void touch_handler(Mech& m, Handle node) { unported("0x005833b0", {ref(&m), low(node), 1, 0x00416c50}); }
+  virtual Handle x68c_init(Handle mem, Mech& m) {   // 0x004e61e0(mech, &mech+0x390)
+    return h(unported("0x004e61e0", {low(mem), ref(&m), ref(&m) + 0x390}));
   }
   virtual void x68c_unlink(Handle x68c) { unported("0x004e67c0", {low(x68c)}); }
   virtual Handle node_ref_init(Handle mem) { return h(unported("0x004e6250", {low(mem)})); }

@@ -124,11 +124,11 @@ struct Hooks : m3::MechBuildHooks {
   int32_t node_class(Handle n) override { return static_cast<int32_t>(peek32(lo(n) + 0x34)); }
   Handle node_data(Handle n) override { return hd(peek32(lo(n) + 0x38)); }
   Handle node_model(Handle n) override { return hd(peek32(lo(n) + 0x3c)); }
-  int32_t node_child_count(Handle n) override { return static_cast<int32_t>(peek32(lo(n) + 0x5c)); }
-  Handle node_child(Handle n, int32_t i) override { return hd(peek32(peek32(lo(n) + 0x60) + 4 * i)); }
-  int32_t node_parent_count(Handle n) override { return static_cast<int32_t>(peek32(lo(n) + 0x54)); }
+  int32_t node_child_count(Handle n) override { return static_cast<int32_t>(peek32(lo(n) + 0x54) >> 16); }  // PM: two shorts
+  Handle node_child(Handle n, int32_t i) override { return hd(peek32(peek32(lo(n) + 0x5c) + 4 * i)); }
+  int32_t node_parent_count(Handle n) override { return static_cast<int32_t>(peek32(lo(n) + 0x54) & 0xffff); }
   Handle node_parent(Handle n, int32_t i) override { return hd(peek32(peek32(lo(n) + 0x58) + 4 * i)); }
-  float node_min_y(Handle n) override { return zgame::from_bits(peek32(lo(n) + 0x78)); }
+  float node_min_y(Handle n) override { return zgame::from_bits(peek32(peek32(lo(n) + 0x70) + 4)); }  // PM: the box by pointer
   int32_t node_id(Handle n) override { return static_cast<int32_t>(peek32(lo(n) + 0x28)); }
   void node_set_owner(Handle n, int32_t id, void* owner) override {
     poke32(lo(n) + 0x40, addr_of(owner));
@@ -157,7 +157,7 @@ struct Hooks : m3::MechBuildHooks {
   }
   uint32_t controls_ref(m3::MechControls* c) override {
     auto it = g_ictl.find(c);
-    return it != g_ictl.end() ? it->second : addr_of(c) + 0x14c;
+    return it != g_ictl.end() ? it->second : addr_of(c) + 0x16c;
   }
   m3::MechAnim* gait_copy(m3::MechData& p, int32_t i) override {
     return obj_at<m3::MechAnim>(call("0x00431fb0", {addr_of(&p), i}));
@@ -172,7 +172,7 @@ struct Hooks : m3::MechBuildHooks {
   void part_init(m3::MechPart& p, m3::Config* cfg) override {
     if (p.init(cfg)) g_inited.insert(&p);
   }
-  void collider_setup(m3::Mech& m) override { call("0x00422360", {addr_of(&m) + 0xfc, addr_of(&m)}); }
+  void collider_setup(m3::Mech& m) override { call("0x00422360", {addr_of(&m) + 0x10c, addr_of(&m)}); }
   void ski_set(m3::Skis& s, int32_t side) override { call("0x004764a0", {addr_of(&s), side, 0, 0}); }
   bool config_valid(m3::Config* cfg) override { return (call("0x004254d0", {addr_of(cfg), 0}) & 0xff) != 0; }
   void config_ungroup_equipment(m3::Config* cfg) override { call("0x00425960", {addr_of(cfg)}); }
@@ -184,12 +184,13 @@ struct Hooks : m3::MechBuildHooks {
     for (uint32_t i = 0; i < 5; ++i) wm->groups[i]->count = call("@wgroup", {i});
   }
   void weapons_select(m3::WeaponManager* wm, int32_t g) override { call("0x004b0730", {addr_of(wm), g}); }
-  void set_command_callback(int32_t cmd) override { call("0x0051d2f0", {cmd, 0x00426cb0}); }
+  void set_command_callback(int32_t cmd) override { call("0x0051d2f0", {cmd, 0x00428970}); }
   bool joy_present() override { return call("0x0051dc10", {}) != 0; }
   int32_t torso_auto_return() override { return static_cast<int32_t>(call("0x0040d010", {})); }
   Handle view() override { return hd(g_view); }
   Handle view_camera(Handle v) override { return hd(peek32(lo(v) + 0x58)); }
   uint32_t camera_mode(Handle c) override { return peek32(lo(c) + 4); }
+  void report(int32_t level, int32_t line, const char*) override { call("0x0049bfd0", {level, line}); }
   void message_box(int32_t message, const char* name) override { call("0x004ac150", {0, 0x1e0, message, name}); }
 };
 
@@ -204,7 +205,7 @@ struct Launch : m3::LaunchHooks {
   void set_field8(Handle o, uint32_t off, uint8_t v) override { poke8(lo(o) + off, v); }
   m3::Config* config_of(uint32_t h) override { return obj_at<m3::Config>(h); }
   Handle rec_ref(const m3::ai::AivRecord*) override { return hd(g_rec); }
-  void clear_60b570() override { poke8(0x60b570, 0); }
+  void clear_60b570() override { poke8(0x62fc41, 0); }
   void mech_attach_view(m3::Mech& m) override {
     call("0x0041ce30", {addr_of(&m), static_cast<uint32_t>(zmod::zones().mode)});
   }
@@ -231,7 +232,7 @@ void classify() {
   g_kind.clear();
   g_toes.clear();
   m3::Mech* m = g_mech;
-  if (m3::PlayerControls* pc = m3::player_controls_instance()) g_kind[pc] = kControls;
+  if (m3::PlayerControls* pc = m3::player_controls_instance()) g_kind[pc] = kControls, g_kind[&pc->timed_events_head] = kListHead;
   if (!m) return;
   g_kind[m] = kMech;
   g_kind[&m->parts] = g_kind[&m->actions] = g_kind[&m->net_shots] = g_kind[&m->x6d0] = kListHead;
@@ -304,7 +305,7 @@ void part_image(Img& o, const m3::MechPart& p, uint32_t vtable) {
 }
 
 void mech_image(Img& o, const m3::Mech& m) {
-  o.u(0, 0x005bcef8);
+  o.u(0, 0x005dfaac);
   o.p(4, m.node), o.b8(8, m.active), o.b8(9, m.x09), o.p(0xc, m.transform);
   o.p(0x10, m.target_node), o.p(0x14, m.centroid);
   o.v3(0x18, m.x18), o.v3(0x24, m.forward), o.v3(0x30, m.velocity), o.v3(0x3c, m.vec_3c);
@@ -320,51 +321,52 @@ void mech_image(Img& o, const m3::Mech& m) {
   o.p(0xb8, m.touching);
   o.u(0xc0, m.team), o.u(0xc4, m.allies), o.u(0xc8, m.enemies), o.u(0xcc, m.shadow ? 1u : 0u), o.p(0xd0, m.net);
   o.p(0xd4, m.ammo), o.p(0xd8, m.net_collision);
-  o.b8(0xdc, m.power_down_pending), o.b8(0xdd, m.heat_shutdown), o.b8(0xde, m.powered_down);
-  o.f(0xe0, m.last_hit_time), o.p(0xe4, m.last_hit_part), o.p(0xe8, m.xe8), o.i(0xf8, m.xf8);
+  o.b8(0xe0, m.power_down_pending), o.b8(0xe1, m.heat_shutdown), o.b8(0xe2, m.powered_down);
+  o.f(0xe4, m.last_hit_time), o.p(0xe8, m.last_hit_part), o.p(0xec, m.xe8), o.i(0xfc, m.xf8), o.v3(0x100, m.target_velocity);
   const m3::Collider& c = m.collider;
-  o.i(0xfc, c.clear);
-  for (uint32_t k = 0; k < 6; ++k) o.u(0x100 + 4 * k, 0);  // the five lists, empty
-  o.f(0x118, c.restitution), o.f(0x11c, c.yaw_kick), o.i(0x120, c.count);
-  for (int k = 0; k < 15; ++k) o.v3(0x124 + 12 * k, c.local[k]), o.v3(0x1d8 + 12 * k, c.world[k]),
-                               o.v3(0x28c + 12 * k, c.last[k]);
-  o.fs(0x340, c.matrix, 12);
-  o.u(0x370, c.x370);
-  for (int k = 0; k < 4; ++k) o.b8(0x374 + k, m.blocked[k]);
-  o.p(0x378, m.chat), o.p(0x37c, m.controls);
-  o.list(0x380, &m.parts);
-  o.p(0x38c, m.legs[0]), o.p(0x390, m.legs[1]), o.p(0x394, m.arms[0]), o.p(0x398, m.arms[1]);
-  o.p(0x39c, m.torso), o.p(0x3a0, m.hip), o.p(0x3a4, m.head), o.p(0x3a8, m.jet_node);
-  for (int k = 0; k < 15; ++k) o.i(0x3ac + 4 * k, m.equipment[k]);
-  o.p(0x3e8, m.decals), o.p(0x3ec, m.config), o.p(0x3f0, m.ams);
-  for (int k = 0; k < 6; ++k) o.u(0x3f4 + 4 * k, m.x3f4[k]);
-  o.f(0x40c, m.x40c), o.b8(0x410, m.damaged), o.b8(0x411, m.killed_by_nuke), o.f(0x414, m.alive_time);
-  o.p(0x41c, m.skis), o.i(0x420, m.anim_index);
-  for (int k = 0; k < 13; ++k) o.p(0x424 + 4 * k, m.anims[k]);
-  for (int k = 0; k < 9; ++k) o.p(0x458 + 4 * k, m.action_objects[k]);
-  o.list(0x47c, &m.actions);
-  o.f(0x510, m.walk_speed), o.f(0x514, m.x514), o.f(0x518, m.max_speed);
-  o.u(0x51c, m.x51c), o.f(0x520, m.turn_rate), o.u(0x524, m.x524);
-  o.f(0x528, m.speed_factor), o.f(0x52c, m.speed_target);
-  if (g_configured) o.f(0x530, m.throttle_up), o.f(0x534, m.throttle_down), o.f(0x538, m.turn_accel);
-  o.f(0x53c, m.knock), o.v3(0x540, m.knock_vec), o.f(0x54c, m.lean), o.f(0x550, m.x550);
-  o.f(0x554, m.heat), o.f(0x558, m.heat_added), o.f(0x55c, m.heat_dissipation), o.f(0x560, m.jet_burn);
-  o.f(0x564, m.jet_fuel), o.b8(0x568, m.infinite_fuel), o.f(0x56c, m.coolant), o.f(0x570, m.narc_time);
-  o.f(0x574, m.masc_time), o.i(0x578, m.anim_state), o.i(0x57c, m.prev_state), o.i(0x580, m.jump_jets_firing);
-  o.b8(0x584, m.no_power_down), o.b8(0x585, m.knee_back), o.b8(0x586, m.crouched), o.b8(0x587, m.hud_saved);
-  o.b8(0x588, m.wading), o.u(0x58c, m.gait_frames), o.f(0x590, m.lie_time), o.v3(0x594, m.impulse);
-  o.v3(0x5a0, m.push), o.i(0x5ac, m.limp), o.b8(0x5b0, m.collides);
-  for (int k = 0; k < 25; ++k) o.p(0x5b8 + 4 * k, m.sounds[k]);
-  o.u(0x61c, m.x61c), o.p(0x620, m.jet_effect), o.u(0x624, m.x624), o.u(0x628, m.x628), o.u(0x62c, m.x62c);
-  o.b8(0x630, m.invincible), o.u(0x634, m.x634), o.i(0x638, m.hud_fall), o.f(0x63c, m.x63c), o.v3(0x640, m.x640);
-  o.i(0x658, m.heat_sinks.tech), o.i(0x65c, m.heat_sinks.count);
-  if (g_configured) o.u(0x660, m.heat_sinks.doubles ? 1 : 0);  // the configuration's dword
-  else o.b8(0x660, m.heat_sinks.doubles);
-  o.p(0x664, m.attacker), o.list(0x674, &m.net_shots), o.u(0x680, m.net_damaged), o.p(0x684, m.pilot);
-  o.u(0x688, m.detail), o.p(0x68c, m.x68c), o.u(0x690, m.x690), o.p(0x694, m.model_node), o.p(0x698, m.lod_node);
-  o.u(0x69c, m.heat_state), o.f(0x6a0, m.shutdown_time), o.f(0x6a4, m.beep_time), o.f(0x6a8, m.voice_time);
-  o.u(0x6ac, m.x6ac), o.f(0x6b0, m.frame_dt), o.f(0x6b4, m.dead_time), o.fs(0x6b8, m.knockdown, 5);
-  o.list(0x6cc, &m.x6d0);
+  o.i(0x10c, c.clear);
+  for (uint32_t k = 0; k < 6; ++k) o.u(0x110 + 4 * k, 0);  // the five lists, empty
+  o.f(0x128, c.restitution), o.f(0x12c, c.yaw_kick), o.i(0x130, c.count);
+  for (int k = 0; k < 15; ++k) o.v3(0x134 + 12 * k, c.local[k]), o.v3(0x1e8 + 12 * k, c.world[k]),
+                               o.v3(0x29c + 12 * k, c.last[k]);
+  o.fs(0x350, c.matrix, 12);
+  o.u(0x380, c.x370);
+  for (int k = 0; k < 4; ++k) o.b8(0x384 + k, m.blocked[k]);
+  o.p(0x388, m.chat), o.p(0x38c, m.controls);
+  o.list(0x390, &m.parts);
+  o.p(0x39c, m.legs[0]), o.p(0x3a0, m.legs[1]), o.p(0x3a4, m.arms[0]), o.p(0x3a8, m.arms[1]);
+  o.p(0x3ac, m.torso), o.p(0x3b0, m.hip), o.p(0x3b4, m.head), o.p(0x3b8, m.jet_node);
+  for (int k = 0; k < 15; ++k) o.i(0x3bc + 4 * k, m.equipment[k]);
+  o.p(0x3f8, m.decals), o.p(0x3fc, m.config), o.p(0x400, m.ams);
+  for (int k = 0; k < 6; ++k) o.u(0x404 + 4 * k, m.x3f4[k]);
+  o.f(0x41c, m.x40c), o.b8(0x420, m.damaged), o.b8(0x421, m.killed_by_nuke), o.f(0x424, m.alive_time);
+  o.p(0x42c, m.skis), o.i(0x430, m.anim_index);
+  for (int k = 0; k < 13; ++k) o.p(0x434 + 4 * k, m.anims[k]);
+  for (int k = 0; k < 9; ++k) o.p(0x468 + 4 * k, m.action_objects[k]);
+  o.list(0x48c, &m.actions);
+  o.f(0x520, m.walk_speed), o.f(0x524, m.x514), o.f(0x528, m.max_speed);
+  o.u(0x52c, m.x51c), o.f(0x530, m.turn_rate), o.u(0x534, m.x524);
+  o.f(0x538, m.speed_factor), o.f(0x53c, m.speed_target);
+  o.f(0x540, m.limp_amount);
+  if (g_configured) o.f(0x544, m.throttle_up), o.f(0x548, m.throttle_down), o.f(0x54c, m.turn_accel);
+  o.f(0x550, m.knock), o.v3(0x554, m.knock_vec), o.f(0x560, m.lean), o.f(0x564, m.x550);
+  o.f(0x578, m.heat), o.f(0x57c, m.heat_added), o.f(0x580, m.heat_dissipation), o.f(0x584, m.jet_burn);
+  o.f(0x588, m.jet_fuel), o.b8(0x58c, m.infinite_fuel), o.f(0x590, m.coolant), o.f(0x594, m.narc_time);
+  o.f(0x598, m.masc_time), o.i(0x59c, m.anim_state), o.i(0x5a0, m.prev_state), o.i(0x5a4, m.jump_jets_firing);
+  o.b8(0x5a8, m.no_power_down), o.b8(0x5aa, m.knee_back), o.b8(0x5ab, m.crouched), o.b8(0x5ac, m.hud_saved); o.b8(0x5ae, m.salvage_mech);
+  o.b8(0x5ad, m.wading), o.u(0x5b0, m.gait_frames), o.f(0x5b4, m.lie_time), o.v3(0x5b8, m.impulse);
+  o.v3(0x5c4, m.push), o.i(0x5d0, m.limp), o.b8(0x5d4, m.collides);
+  for (int k = 0; k < 25; ++k) o.p(0x5dc + 4 * k, m.sounds[k]);
+  o.u(0x640, m.x61c), o.p(0x644, m.jet_effect), o.u(0x648, m.x624), o.u(0x64c, m.x628), o.u(0x650, m.x62c);
+  o.b8(0x654, m.invincible), o.u(0x658, m.x634), o.i(0x65c, m.hud_fall), o.f(0x660, m.x63c), o.v3(0x664, m.x640);
+  o.i(0x67c, m.heat_sinks.tech), o.i(0x680, m.heat_sinks.count);
+  if (g_configured) o.u(0x684, m.heat_sinks.doubles ? 1 : 0);  // the configuration's dword
+  else o.b8(0x684, m.heat_sinks.doubles);
+  o.p(0x688, m.attacker), o.list(0x698, &m.net_shots), o.u(0x6a4, m.net_damaged), o.p(0x6a8, m.pilot);
+  o.u(0x6ac, m.detail), o.p(0x6b0, m.x68c), o.u(0x6b4, m.x690), o.p(0x6b8, m.model_node), o.p(0x6bc, m.lod_node);
+  o.u(0x6c0, m.heat_state), o.f(0x6c4, m.shutdown_time), o.f(0x6c8, m.beep_time), o.f(0x6cc, m.voice_time);
+  o.u(0x6d0, m.x6ac), o.f(0x6d4, m.frame_dt), o.f(0x6d8, m.dead_time), o.fs(0x728, m.knockdown, 5);
+  o.list(0x73c, &m.x6d0);
 }
 
 void image(Img& o, const void* obj, Kind k) {
@@ -373,69 +375,72 @@ void image(Img& o, const void* obj, Kind k) {
     case kMech: mech_image(o, *static_cast<const Mech*>(obj)); break;
     case kHip: {
       const auto& p = *static_cast<const Hip*>(obj);
-      part_image(o, p, 0x005c28a8);
+      part_image(o, p, 0x005e4e30);
       o.q(0x74, p.rot), o.f(0x94, p.track), o.v3(0x98, p.offset);
       o.f(0xa4, p.target_x), o.f(0xa8, p.crouch_target), o.f(0xac, p.target_z);
       break;
     }
     case kTorso: {
       const auto& p = *static_cast<const Torso*>(obj);
-      part_image(o, p, 0x005c29e0);
-      o.p(0x74, p.death_effect), o.p(0x78, p.death_effect2), o.f(0x7c, p.half_width), o.f(0x80, p.half_depth);
-      o.i(0x84, p.mode), o.i(0x88, p.aim_local), o.f(0x98, p.facing), o.i(0x9c, p.aim);
-      o.b8(0xa0, p.absolute), o.b8(0xa1, p.pitch_lock), o.b8(0xa2, p.view_aim), o.q(0xa4, p.view_q);
-      o.f(0xb4, p.look_yaw_angle), o.f(0xb8, p.look_pitch_angle), o.f(0xbc, p.twist_in), o.f(0xc0, p.pitch_in);
-      o.f(0xd0, p.kick), o.f(0xd4, p.kick_twist), o.v3(0xd8, p.jolt_spin), o.v3(0xe4, p.jolt_turn);
-      o.q(0xf0, p.jolt_q), o.v3(0x100, p.jolt), o.v3(0x10c, p.jolt_pos), o.q(0x118, p.turn_q), o.q(0x128, p.rot);
-      o.f(0x138, p.pitch), o.f(0x13c, p.yaw), o.f(0x140, p.min_pitch), o.f(0x144, p.max_pitch);
-      o.f(0x148, p.max_yaw), o.v3(0x160, p.front), o.v3(0x16c, p.flat_front);
+      part_image(o, p, 0x005e4f60);
+      o.p(0x74, p.death_effect), o.p(0x78, p.death_effect2), o.p(0x7c, p.headlight), o.u(0x80, 0), o.f(0x84, p.half_width), o.f(0x88, p.half_depth);
+      o.i(0x8c, p.mode), o.i(0x90, p.aim_local), o.f(0xa0, p.facing), o.i(0xa4, p.aim);
+      o.b8(0xa8, p.absolute), o.b8(0xa9, p.pitch_lock), o.b8(0xaa, p.view_aim), o.q(0xac, p.view_q);
+      o.f(0xbc, p.look_yaw_angle), o.f(0xc0, p.look_pitch_angle), o.f(0xc4, p.twist_in), o.f(0xc8, p.pitch_in);
+      o.f(0xd8, p.kick), o.f(0xdc, p.kick_twist), o.v3(0xe0, p.jolt_spin), o.v3(0xec, p.jolt_turn);
+      o.q(0xf8, p.jolt_q), o.v3(0x108, p.jolt), o.v3(0x114, p.jolt_pos), o.q(0x120, p.turn_q), o.q(0x130, p.rot);
+      o.f(0x140, p.pitch), o.f(0x144, p.yaw), o.f(0x148, p.min_pitch), o.f(0x14c, p.max_pitch);
+      o.f(0x150, p.max_yaw), o.v3(0x168, p.front), o.v3(0x174, p.flat_front);
       if (g_inited.count(&p) && p.mech->config)
-        for (int s = 1; s <= 5; ++s) o.f(0x174 + 4 * s, p.sec_armor[s]), o.f(0x188 + 4 * s, p.sec_armor_scale[s]);
-      o.f(0x1a0, p.side_internal[0]), o.f(0x1a4, p.side_internal[1]);
-      if (g_inited.count(&p)) o.f(0x1a8, p.side_internal_scale[0]), o.f(0x1ac, p.side_internal_scale[1]);
-      o.i(0x1b0, p.centring);
+        for (int s = 1; s <= 5; ++s) o.f(0x17c + 4 * s, p.sec_armor[s]), o.f(0x190 + 4 * s, p.sec_armor_scale[s]);
+      o.f(0x1a8, p.side_internal[0]), o.f(0x1ac, p.side_internal[1]);
+      if (g_inited.count(&p)) o.f(0x1b0, p.side_internal_scale[0]), o.f(0x1b4, p.side_internal_scale[1]);
+      o.i(0x1b8, p.centring);
       break;
     }
-    case kHead: part_image(o, *static_cast<const Head*>(obj), 0x005c2b80); break;
-    case kCalf: part_image(o, *static_cast<const Calf*>(obj), 0x005c2b18); break;
+    case kHead: part_image(o, *static_cast<const Head*>(obj), 0x005e510c); break;
+    case kCalf: part_image(o, *static_cast<const Calf*>(obj), 0x005e50a8); break;
     case kArm: {
       const auto& p = *static_cast<const Arm*>(obj);
-      part_image(o, p, 0x005c2a48);
+      part_image(o, p, 0x005e4fe0);
       o.p(0x74, p.hand), o.f(0x78, p.length), o.f(0x7c, p.recoil_hold);
       o.f(0x98, p.aim_pitch), o.f(0x9c, p.aim_yaw), o.f(0xa0, p.xa0), o.q(0xa4, p.aim_q);
+      o.f(0xb8, p.min_pitch), o.f(0xbc, p.max_pitch), o.f(0xc0, p.min_yaw), o.f(0xc4, p.max_yaw);
       break;
     }
     case kHand: {
       const auto& p = *static_cast<const Hand*>(obj);
-      part_image(o, p, 0x005c2ab0);
+      part_image(o, p, 0x005e5044);
       o.q(0x74, p.rot);
       break;
     }
     case kLeg: {
       const auto& p = *static_cast<const Leg*>(obj);
-      part_image(o, p, 0x005c2978);
+      part_image(o, p, 0x005e4efc);
       o.p(0x74, p.calf), o.p(0x78, p.foot), o.q(0x88, p.thigh_q), o.q(0x98, p.calf_q);
       o.f(0xa8, p.rest_x), o.f(0xac, p.thigh_len), o.f(0xb0, p.ik_b0), o.f(0xb4, p.hip_x);
       break;
     }
     case kFoot: {
       const auto& p = *static_cast<const Foot*>(obj);
-      part_image(o, p, 0x005c2910);
+      part_image(o, p, 0x005e4e94);
       o.f(0x74, p.sole), o.p(0x78, p.shadow), o.f(0x8c, p.clearance), o.f(0x90, p.last_clearance);
       o.i(0x94, p.ground_state), o.u(0x98, p.x98), o.u(0x9c, p.x9c), o.u(0xa0, p.toe_count);
       o.p(0xa4, p.toe_nodes), o.p(0xa8, p.toe_q), o.b8(0xac, p.in_water), o.u(0xb0, p.xb0), o.u(0xb4, p.xb4);
       o.u(0xb8, p.xb8), o.f(0xbc, p.xbc), o.b8(0xc0, p.pivot), o.q(0xc4, p.rot), o.f(0xd4, p.pivot_rate);
       o.f(0xd8, p.spin), o.f(0xdc, p.water_depth), o.f(0xe0, p.water_surface), o.p(0xe4, p.effect);
+      o.i(0xe8, p.soil);
       break;
     }
     case kManager: {
       const auto& w = *static_cast<const WeaponManager*>(obj);
       o.b8(0, w.trigger_down), o.b8(1, w.trigger_was), o.f(8, w.alpha_end);
       o.f(0xc, w.aim.x), o.f(0x10, w.aim.y), o.f(0x14, w.aim.z), o.b8(0x18, w.aim_valid);
-      o.i(0x1c, w.mode), o.i(0x20, w.destroyed), o.u(0x24, w.count), o.i(0x28, w.group);
-      for (int g = 0; g < 5; ++g) o.p(0x2c + 4 * g, w.groups[g]);
-      o.p(0x80, w.owner), o.p(0x84, w.vehicle), o.b8(0x88, w.has_target), o.b8(0x89, w.online);
-      o.f(0x8c, w.ammo_value), o.f(0x90, w.ammo_value_inv);
+      o.u(0x1c, 0);  // PM's new field
+      o.i(0x20, w.mode), o.i(0x24, w.destroyed), o.u(0x28, w.count), o.i(0x2c, w.group);  // PM: each 4 further than MW3's
+      for (int g = 0; g < 5; ++g) o.p(0x30 + 4 * g, w.groups[g]);
+      o.p(0x84, w.owner), o.p(0x88, w.vehicle), o.b8(0x8c, w.has_target), o.b8(0x8d, w.online);
+      o.f(0x90, w.ammo_value), o.f(0x94, w.ammo_value_inv);
       break;
     }
     case kGroup: {
@@ -456,19 +461,20 @@ void image(Img& o, const void* obj, Kind k) {
       o.f(0x78, s.half_track);
       for (int k = 0; k < 7; ++k) {
         o.v3(0x7c + 12 * k, s.world[k]), o.v3(0xd0 + 12 * k, s.local[k]);
-        o.f(0x124 + 4 * k, s.ground[k]), o.f(0x140 + 4 * k, s.vy[k]), o.f(0x2ac + 4 * k, s.clearance[k]);
-        o.b8(0x2e4 + k, s.landed[k]);
+        o.f(0x124 + 4 * k, s.ground[k]), o.f(0x140 + 4 * k, s.vy[k]), o.f(0x2c8 + 4 * k, s.clearance[k]);
+        o.b8(0x300 + k, s.landed[k]);
         const GroundHit& c = s.contact[k];
-        const uint32_t at = 0x194 + 0x28 * k;
+        const uint32_t at = 0x194 + 0x2c * k;
         o.v3(at, c.normal), o.f(at + 0xc, c.x), o.f(at + 0x10, c.height), o.f(at + 0x14, c.z);
         o.put(at + 0x18, c.zone, 8), o.p(at + 0x20, c.material), o.p(at + 0x24, c.node);
+        o.u(at + 0x28, 0);  // PM's record is longer
       }
-      o.f(0x2ec, s.length), o.f(0x2f0, s.half), o.f(0x2f8, s.inv_half), o.f(0x2fc, s.inv_half2);
+      o.f(0x308, s.length), o.f(0x30c, s.half), o.f(0x310, s.mid_width), o.f(0x314, s.inv_half), o.f(0x318, s.inv_half2);
       break;
     }
     case kListHead: o.p(0, obj), o.p(4, obj); break;
     case kPair: o.u(0, 0), o.u(4, 0); break;
-    case kWrapper: o.u(0, 0x005bd2f4), o.p(4, *static_cast<const Handle*>(obj)); break;
+    case kWrapper: o.u(0, 0x005dff38), o.p(4, *static_cast<const Handle*>(obj)); break;
     case kToeNodes: {
       const Foot* f = g_toes[obj];
       for (uint32_t t = 0; t < f->toe_count; ++t) o.p(4 * t, f->toe_nodes[t]);
@@ -481,16 +487,19 @@ void image(Img& o, const void* obj, Kind k) {
     }
     case kControls: {
       const auto& c = *static_cast<const PlayerControls*>(obj);
-      o.u(0, 0x005bd710), o.u(4, 0x005bd730), o.u(8, c.flags), o.i(0xc, c.view);
+      o.u(0, 0x005e0194), o.u(4, 0x005e01bc), o.u(8, c.flags), o.i(0xc, c.view);
       o.f(0x10, c.throttle), o.f(0x14, c.turn), o.f(0x18, c.pitch), o.f(0x1c, c.twist), o.f(0x20, c.jump);
       o.f(0x24, c.jj_strafe), o.f(0x28, c.jj_forward), o.f(0x2c, c.axis_2c), o.f(0x30, c.axis_30);
       o.b8(0x34, c.fire), o.i(0x38, c.wrapped), o.b8(0x3c, c.joy_throttle_set), o.b8(0x3d, c.jump_held);
       o.b8(0x3e, c.throttle_held), o.b8(0x3f, c.throttle_returns), o.f(0x40, c.joy_throttle);
       o.f(0x44, c.throttle_target), o.f(0x48, c.turn_target), o.f(0x4c, c.jump_target), o.b8(0x50, c.reverse);
       o.u(0x54, c.last_pov), o.b8(0x58, c.moves[0]), o.b8(0x59, c.moves[1]), o.b8(0x5a, c.x5a);
-      o.u(0x5c, 0x005bd708);
-      o.f(0x138, c.look_dx), o.f(0x13c, c.look_dy), o.f(0x140, c.look_x), o.f(0x144, c.look_y);
-      o.u(0x148, 0), o.u(0x14c, 0x005bd650), o.u(0x150, 0), o.u(0x154, 0), o.u(0x158, 0), o.p(0x15c, c.owner);
+      o.u(0x5c, 0x005e0188);
+      o.f(0x158, c.look_dx), o.f(0x15c, c.look_dy), o.f(0x160, c.look_x), o.f(0x164, c.look_y);
+      // PM's IControls: its timed list at +4, by the constructor 0x004b2580(0.3, 5), then the owner.
+      o.u(0x168, 0), o.u(0x16c, 0x005e00d8);
+      o.b8(0x170, 0x9a), o.p(0x174, &c.timed_events_head), o.u(0x178, 0), o.u(0x17c, 0x3e99999a), o.u(0x180, 0x40a00000);
+      o.u(0x184, 0), o.p(0x188, c.owner);
       break;
     }
   }
@@ -533,7 +542,7 @@ void config_image(Layout& l, uint32_t a, const m3::Config& c) {
 
 int dfn_layout(m3::MechDfn& d, uint32_t base, uint8_t* out, int cap, bool bind_objects) {
   Layout l{{}, base};
-  const uint32_t a = l.take(0x1a8);
+  const uint32_t a = l.take(0x1b0);
   std::memcpy(&l.b[0], d.raw, 0x1a8);
   l.u(a + 0x08, 0);  // the reader tree is not read from here
   if (bind_objects) bind(&d, a);
@@ -575,12 +584,15 @@ int dfn_layout(m3::MechDfn& d, uint32_t base, uint8_t* out, int cap, bool bind_o
     l.u(v + 4, arr), l.u(v + 8, arr + 4 * n), l.u(v + 0xc, arr + 4 * n);
     for (uint32_t k = 0; k < n; ++k) {
       const m3::Firepoint& fp = *(*fps)[k];
-      const uint32_t fa = l.take(0x20);
+      const uint32_t fa = l.take(0x80);  // Pirate's Moon's layout
       l.u(arr + 4 * k, fa);
-      l.u(fa, fp.name ? l.str(fp.name) : 0);
-      l.f(fa + 4, fp.radius), l.f(fa + 8, fp.share), l.u(fa + 0xc, static_cast<uint32_t>(fp.part));
-      l.u(fa + 0x10, static_cast<uint32_t>(fp.model_part));
-      for (int c = 0; c < 3; ++c) l.f(fa + 0x14 + 4 * c, fp.position[c]);
+      for (int c = 0; c < 5; ++c) l.f(fa + 4 * c, fp.aim[c]);
+      for (int c = 0; c < 18; ++c) l.f(fa + 0x14 + 4 * c, fp.cone[c]);
+      l.u(fa + 0x5c, fp.name ? l.str(fp.name) : 0);
+      l.f(fa + 0x60, fp.radius), l.f(fa + 0x64, fp.share), l.u(fa + 0x68, static_cast<uint32_t>(fp.part));
+      l.u(fa + 0x6c, static_cast<uint32_t>(fp.model_part));
+      for (int c = 0; c < 3; ++c) l.f(fa + 0x70 + 4 * c, fp.position[c]);
+      l.b8(fa + 0x7c, fp.fixed);
       if (bind_objects) bind(&fp, fa);
     }
     l.u(a + 0x24, v);
@@ -624,7 +636,7 @@ void probe_mb_reset(uint32_t missions, uint32_t pilot, uint32_t view, uint32_t i
   m3::DamageCalls& d = m3::damage_calls();
   d = m3::DamageCalls{};
   d.anim_speed = [](Handle a, float v) { call("0x0041ef90", {addr_of(a), fb(v)}); };
-  d.gait_speed = [](m3::Mech& m, float v) { call("0x004329c0", {addr_of(m.pilot), addr_of(&m) + 0x4a0, fb(v)}); };
+  d.gait_speed = [](m3::Mech& m, float v) { call("0x004329c0", {addr_of(m.pilot), addr_of(&m) + 0x4b0, fb(v)}); };
   m3::weapon_calls() = m3::WeaponCalls{};
   m3::weapon_calls().vehicle_mech = [](Handle v) { return v; };
   zfix::options().bugs = false;
@@ -760,16 +772,16 @@ int probe_mb_image(uint32_t addr, uint32_t size, uint8_t* buf, uint8_t* mask) {
 // mechlib.zbd's tree `entry`: the node count, then probe_mb_tree_node for each
 // (depth first, the root first).
 int probe_mb_tree(const char* zbd, const char* entry) {
-  static zutl_zar::Archive a{};
-  zutl_zar::init(a);
-  if (!zutl_zar::open(a, zbd)) return -1;
-  std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, entry), nullptr);
-  if (!f) return -2;
-  zcls::nodes() = zcls::NodePool{};
-  zmod::models() = zmod::ModelPool{};
-  zmod::reset_pool();
-  zcls::TreeReader reader;
-  zcls::Node* root = zcls::read_tree(reader, f, nullptr);
+  // PM's mechlib goes through its open and load (the file's form differs from MW3's).
+  static zcls::MechLib* lib = nullptr;
+  if (!lib) {
+    zcls::nodes() = zcls::NodePool{};
+    zmod::models() = zmod::ModelPool{};
+    zmod::reset_pool();
+    lib = new zcls::MechLib;
+    if (!zcls::mechlib_open(*lib, zbd)) return -1;
+  }
+  zcls::Node* root = zcls::mechlib_load(*lib, entry);
   g_tree.clear();
   if (root) walk(root);
   return static_cast<int>(g_tree.size());

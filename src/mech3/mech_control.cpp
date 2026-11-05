@@ -654,7 +654,7 @@ PlayerControls* player_controls(uint32_t mode) {
   if (!g_player) {
     register_player_commands();
     auto* pc = new PlayerControls();
-    mech_build_hooks().on_new(0x160, pc);
+    mech_build_hooks().on_new(0x18c, pc);  // PM: MW3's 0x160, the pilot's block and IControls larger
     pc->construct(mode);
     g_player = pc;
   } else {
@@ -666,7 +666,8 @@ PlayerControls* player_controls(uint32_t mode) {
 // Mech3.exe 1.2 @ 0x00427320 (most derived), over 0x004265a0(0, 0): at rest,
 // view state 2, ThrottleConst off (the throttle returns), the hat centred.
 void PlayerControls::construct(uint32_t mode) {
-  owner = nullptr;  // the IControls base (0x004aec00 on +0x150; owner +0x15c)
+  owner = nullptr;  // the IControls base (PM 0x004b2950 on +0x16c; owner +0x188)
+  mech_build_hooks().on_new(0x18, &timed_events_head);  // PM: its list 0x004b2580, for the AI (pm-mech-step.md)
   init();
   mech_build_hooks().controls_brain_init(*this);
   flags = 0;

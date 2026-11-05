@@ -107,7 +107,7 @@ Hip* make_hip(Mech& m, const PartSlot& s) {
 // look limits' defaults (-12, 20 and 100 degrees) until the setup reads the
 // definition's.
 Torso* make_torso(Mech& m, const PartSlot& s) {
-  Torso* p = made(0x1b4, new Torso);
+  Torso* p = made(0x1bc, new Torso);
   part_construct(*p, m, s);
   p->death_effect = p->death_effect2 = nullptr;
   p->half_width = p->half_depth = 0;

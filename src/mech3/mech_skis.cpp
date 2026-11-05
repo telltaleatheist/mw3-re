@@ -415,7 +415,7 @@ void Skis::zone_update(const uint8_t record[4]) {
 Skis* make_skis(Mech& m, float half_track, float length) {
   MechBuildHooks& h = mech_build_hooks();
   auto* s = new Skis();
-  h.on_new(0x300, s);
+  h.on_new(0x31c, s);  // MW3: 0x300
   s->mech = &m;
   s->slid = false;
   s->half_track = half_track;
@@ -425,6 +425,7 @@ Skis* make_skis(Mech& m, float half_track, float length) {
   h.node_set_name(s->base, "ski base");
   h.node_add_child(m.node, s->base);
   s->half = s->length * 0.5f;
+  s->mid_width = s->half * 0.5f;
   s->inv_half = 1.0f / s->half;
   s->inv_half2 = s->inv_half * s->inv_half;
   for (int i = 0; i < 7; ++i) {
@@ -444,9 +445,9 @@ Skis* make_skis(Mech& m, float half_track, float length) {
   return s;
 }
 
-// Mech3.exe 1.2 @ 0x00476090: a ski's three probes (front, middle, back) at
-// its side of the track, and its node with a debug model (a 1 m wide flat
-// quad and an upright one along the ski), the flag cleared, the ski level.
+// Pirate's Moon 1.0 @ 0x00477b50: a ski's three probes (front, middle, back) at
+// its side of the track and its node, the ski level. MW3 gave the node a debug
+// model and cleared its flag; PM has neither.
 void skis_make_ski(Skis& s, int32_t side) {
   MechBuildHooks& h = mech_build_hooks();
   h.on_new(8, &s.ski[side]);  // the ski's wrapper
@@ -457,15 +458,6 @@ void skis_make_ski(Skis& s, int32_t side) {
   const float x = side ? s.half_track : -s.half_track;
   Vec3* p = &s.local[3 * side];
   p[0] = {x, 0, -s.half}, p[1] = {x, 0, 0}, p[2] = {x, 0, s.half};
-  const Handle model = h.model_new();
-  h.node_set_model(node, model);
-  h.model_set_priority(model, 1);
-  const float X = p[0].x, H = s.half;
-  const float flat[12] = {X + 0.5f, 0, H, X + 0.5f, 0, -H, X - 0.5f, 0, -H, X - 0.5f, 0, H};
-  h.model_add_polygon(model, 4, flat);
-  const float upright[12] = {X, 0.5f, H, X, 0.5f, -H, X, -0.5f, -H, X, -0.5f, H};
-  h.model_add_polygon(model, 4, upright);
-  h.node_set_flag8(node, 0);
   h.ski_set(s, side);
 }
 

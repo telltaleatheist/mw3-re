@@ -54,8 +54,8 @@ class LaunchHooks : public zgame::Unported {
   virtual void mech_update(Mech& m, float dt);                // vtable +0x34, 0x00419fc0
   virtual int32_t mech_place(Mech& m, const float pos[3], float yaw) { return m.place(pos, yaw); }  // 0x004161c0
   virtual Handle mech_screen(MechData* data);                    // 0x00430aa0
-  virtual void hud_reset(Handle screen) { unported("hud.vt+0x64", {low(screen) + 0x17964}); }
-  virtual void hud_zoom(Handle screen, float v) { unported("hud.vt+0x60", {low(screen) + 0x17964, zgame::bits(v)}); }
+  virtual void hud_reset(Handle screen) { unported("hud.vt+0x64", {low(screen) + 0x17b50}); }
+  virtual void hud_zoom(Handle screen, float v) { unported("hud.vt+0x60", {low(screen) + 0x17b50, zgame::bits(v)}); }
   virtual void controls_set_record(MechControls* c, const ai::AivRecord* rec);  // IControls vt+0x88
   virtual void interp_set_cycle_node(Handle interp, Handle node) { set_field32(interp, 0xb8, low(node)); }
   virtual uint8_t interp_source(Handle interp, const char* path) {
@@ -64,6 +64,10 @@ class LaunchHooks : public zgame::Unported {
   virtual void textures_load() { unported("0x005190d0", {}); }
   // The rest of the line-up, by game type.
   virtual void lancemates() { unported("0x0049e5e0", {}); }
+  // Pirate's Moon's: the graphics option, the base by the first mission's turret.
+  virtual int32_t object_lod() { return static_cast<int32_t>(unported("0x0040d3b0", {})); }
+  virtual Handle node_named(int32_t list, const char* name) { return h(unported("0x004f7fe0", {static_cast<uint32_t>(list), name})); }
+  virtual void node_set_active(Handle n, int32_t on) { unported("0x004eb170", {low(n), static_cast<uint32_t>(on)}); }
   virtual void pilot_478f10(Handle pilot) { unported("0x00478f10", {low(pilot), 0}); }
   virtual void instant_action() { unported("0x0049dc80", {1}); }
   virtual void objectives(Handle a, Handle b, Handle c, Handle d) {

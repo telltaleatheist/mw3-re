@@ -1,4 +1,4 @@
-"""Building a mech against the original (docs/mech-build.md): the launch
+"""Building a mech against PM's exe, its addresses here MW3's and mapped (docs/mech-build.md): the launch
 0x491150 (the player's controls 0x427280 with 0x427320 and 0x426ce0, the mech
 0x4140c0, its skin, teams, control mode 0x41cf30, the view, the cockpit's
 cycles, the game type's line-up) and an AI mech's 0x414150, both down the
@@ -23,27 +23,32 @@ shipped dfn_*.zrd read by the ported reader (test_mechdef.py checks it), their
 configurations the shipped loadouts and crafted ones; the node trees are the
 shipped mechlib.zbd models. Launch-time code: the x87 at 24 bits.
 
-    cmake --build build && .venv/bin/python tests/differential/test_mech_build.py [cases]
+    cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_mech_build.py [cases]
 """
+import bisect
 import collections
 import ctypes
+import json
+import os
 import random
 import re
 import struct
 import sys
 from pathlib import Path
 
+os.environ['MW3_EXE'] = 'pm'
 sys.path.insert(0, str(Path(__file__).parent))
-from calltrace import CALLBACK, ROOT, Emu, Replay, Trace, compare, load_probe  # noqa: E402
-from test_mission_load import c_format  # noqa: E402
+import pm_floors  # noqa: E402
+import test_pm_zar  # noqa: E402
+from test_pm_mechdef import MECHS as _MECHS  # noqa: E402
+from calltrace import CALLBACK, ROOT, Emu as BaseEmu, Replay, Trace, compare  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EBP, UC_X86_REG_EIP, UC_X86_REG_ESI  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EBX, UC_X86_REG_EIP, UC_X86_REG_ESI  # noqa: E402
 
 LAUNCH, CREATE = 0x491150, 0x414150
-MECHS = ['annihilator', 'avatar', 'blackhawk', 'bushwacker', 'cauldron', 'champion', 'daishi', 'elemental',
-         'firefly', 'madcat', 'orion', 'owens', 'puma', 'shadowcat', 'strider', 'sunder', 'supernova', 'thor',
-         'vulture']
-GAME = ROOT / 'game' / 'mw3-1.2' / 'zbd'
+ICTL_THUNK, POLYGON = 0x42a3f0, 0x477e40
+MECHS = _MECHS
+GAME = ROOT / 'game' / 'pm' / 'zbd'
 FILL = 0xcd
 SETUPS = (0x464290, 0x462130, 0x4663e0, 0x4637b0, 0x45fdd0)  # the parts' vt+0x04 (torso, hip, arm, leg, head)
 P = ctypes.c_void_p
@@ -56,7 +61,7 @@ CALLS = {
     0x478f10: 'c,s0', 0x49dc80: 'cl', 0x45c4a0: 'c,d,s0,s1', 0x46da80: 'c', 0x478ce0: 'c', 0x4794f0: 'c',
     0x4d6d20: 'c,s0', 0x43d920: 'c', 0x40f0a0: '', 0x537520: '',
     0x4f9af0: 'c,d,s0', 0x475a80: 'c,s0,s1', 0x5a7f50: 'c', 0x4eb450: 'c,d', 0x4f9d60: 'c,zd',
-    0x4e6250: 'c', 0x4f7db0: 'c', 0x4fc0b0: 'c,s0,s1,s2', 0x53bb20: 'c,d', 0x4eb170: 'c,d', 0x4f7e50: '',
+    0x40d3b0: '', 0x4f7fe0: 's0,zs1', 0x4e6250: 'c', 0x4f7db0: 'c', 0x4fc0b0: 'c,s0,s1,s2', 0x53bb20: 'c,d', 0x4eb170: 'c,d', 0x4f7e50: '',
     0x4eb620: 'c,d', 0x5a8500: 'c', 0x4eb9b0: 'c,d', 0x5833b0: 'c,d,s0,s1', 0x4ebb40: 'c,d',
     0x431fb0: 'c,s0', 0x432030: 'c,s0', 0x41ff30: 'c,d', 0x4fb740: '', 0x4eb300: 'c,zd', 0x538fe0: '',
     0x4eb370: 'c,d', 0x4764a0: 'c,s0,s1,s2', 0x422360: 'c,s0', 0x4254d0: 'c,s0', 0x41ef90: 'c,s0',
@@ -69,7 +74,7 @@ def fbits(x):
 
 
 def setup_probe():
-    probe = load_probe()
+    probe = test_pm_zar.load_pm_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
     probe.probe_mb_reset.argtypes = [U, U, U, U]
     probe.probe_mb_open.argtypes = [ctypes.c_char_p]
@@ -121,8 +126,11 @@ class World:
         self.kids = {}   # node address -> children
         # The mission's objects.
         self.missions = a(0x100)
-        lst, head = a(0x10), a(0xc)
+        lst, head = a(0x20), a(0xc)
+        w(self.missions + 0xf8, lst)  # PM's offsets are MW3's + 0x38; the port's object keeps MW3's
         w(self.missions + 0xc0, lst)
+        w(self.missions + 0x9c, case['number'])
+        w(self.missions + 0x64, case['number'])
         w(lst + 8, head)
         nodes = [a(0xc) for _ in range(case['list_entries'])]
         ring = [head] + nodes
@@ -132,23 +140,25 @@ class World:
             if n != head:
                 w(n + 8, a(0x10))
         w(lst + 0xc, len(nodes))
-        self.game = e.object('game', slots={0x34: ('c,s0', 4), 0x2c: ('c', 0)})
+        self.game = e.object('game')  # PM's slots, MW3's keys (the port's calls use them)
+        e.w32(e.r32(self.game) + 0x30, e.new_stub('game.vt+0x34', 'c,s0', 4))
+        e.w32(e.r32(self.game) + 0x28, e.new_stub('game.vt+0x2c', 'c', 0))
         self.pilot = e.object('pilot', 0x100, slots={0x4: ('c', 0)})
         w(self.pilot + 0x6c, self.game)
         w(self.pilot + 0x10, case['pilot_handle'])
-        w(0x60861c, self.pilot)
+        w(0x62c40c, self.pilot)
         self.view = a(0x100)
         w(self.view + 4, a(0x40))
         if case['view_camera']:
             cam = a(0x10)
             w(cam + 4, case['view_camera'])
             w(self.view + 0x58, cam)
-        w(0x5f4c8c, self.view)
+        w(0x61874c, self.view)
         self.interp = a(0x100)
-        w(0x6040b0, self.interp)
+        w(0x627d08, self.interp)
         hud = e.object('hud', 0x40, slots={0x60: ('c,s0', 4), 0x64: ('c', 0)})
         self.screen = a(0x18000)
-        w(self.screen + 0x17964, e.r32(hud))
+        w(self.screen + 0x17b50, e.r32(hud))
         # The definitions (the probe's layout of the port's).
         self.dfn_base = a(0x8000)
         self.dfn_size = probe.probe_mb_dfn_image(case['roster'], self.dfn_base, case['dfn_buf'], 0x8000, 0)
@@ -187,6 +197,9 @@ class World:
         ivt = a(0x100)
         e.w32(ivt + 8, e.new_stub('ictl.vt+0x8', 'c,s0', 4))
         w(self.ctl + 0x100, ivt)
+        self.turret = self.lay_tree([(b'tur_ppc02', 5, -1, 0, [1], bytes(24), bytes(0x30)),
+                                     (b'dbase', 5, 0, 0, [2], bytes(24), bytes(0x30)),
+                                     (b'g3', 5, 1, 0, [], bytes(24), bytes(0x30))])
         self.anims = [a(0x10) for _ in range(40)]
         self.models = [a(0x10) for _ in range(8)]
 
@@ -236,16 +249,18 @@ class World:
             if parent >= 0:
                 arr = a(4)
                 e.w32(arr, addrs[parent])
-                e.w32(n + 0x54, 1)
+                e.cpu.write(n + 0x54, struct.pack('<H', 1))  # PM: two shorts, then the two arrays
                 e.w32(n + 0x58, arr)
             if kids:
                 arr = a(4 * len(kids))
                 for k, c in enumerate(kids):
                     e.w32(arr + 4 * k, addrs[c])
-                e.w32(n + 0x5c, len(kids))
-                e.w32(n + 0x60, arr)
+                e.cpu.write(n + 0x56, struct.pack('<H', len(kids)))
+                e.w32(n + 0x5c, arr)
             self.kids[n] = [addrs[c] for c in kids]
-            e.cpu.write(n + 0x74, box)
+            bx = a(24)  # PM's node holds its box by pointer
+            e.cpu.write(bx, box)
+            e.w32(n + 0x70, bx)
         return addrs[0]
 
     def find(self, root, name):
@@ -317,6 +332,8 @@ def make_script(case, world, e):
         '0x004fb740': lambda n, a: world.models[3 + n % 5],
         '0x00538fe0': lambda n, a: world.models[(n + 1) % 8],
         '0x004254d0': case['valid'],
+        '0x0040d3b0': case['object_lod'],
+        '0x004f7fe0': lambda n, a: world.turret if case['turret'] else 0,
         '@wcount': case['wcount'], '@wgroup': lambda n, a: case['wgroups'][a[0]],
     }
 
@@ -327,18 +344,122 @@ def rng(seed):
     return f
 
 
+_MAP = json.load(open(ROOT / 'analysis-output' / 'pm-diff' / 'addrmap.json'))
+_M = {**_MAP['instructions'], **_MAP['functions']}
+EXTRA = {0x40d3b0: 0x40b1e0, 0x4f7fe0: 0x50b920, 0x4764a0: 0x477e40, 0x464290: 0x465a60, 0x462130: 0x463770, 0x4663e0: 0x467d10, 0x4637b0: 0x464e70, 0x45fdd0: 0x4611c0, 0x430d10: 0x431080, 0x430c60: 0x431020, 0x4b0730: 0x4b4560, 0x51d2f0: 0x536c30, 0x428700: ICTL_THUNK}
+_ASM = {}
+for _l in open(ROOT / 'analysis-output' / 'pm.asm', errors='replace'):
+    _m = re.match(r'\s*([0-9a-f]+):\s*(?:[0-9a-f]{2} )*\s*(.*)', _l)
+    if _m and _m.group(2).strip():
+        _ASM[int(_m.group(1), 16)] = re.sub(r'\s+', ' ', _m.group(2)).strip()
+_KEYS = sorted(_ASM)
+
+
+def pm_of(addr):
+    return EXTRA.get(addr) or int(_M[hex(addr)], 0)
+
+
+def pm_conv(pm):
+    """(thiscall, fastcall, pop) of a PM function, from Ghidra's header and its first ret."""
+    f = ROOT / 'analysis-output' / 'pm-decomp' / f'{pm:#x}.c'
+    head = ''
+    if f.exists():
+        head = next((x for x in open(f) if re.match(r'^[a-zA-Z_].*\(', x)), '')
+    i = bisect.bisect_left(_KEYS, pm)
+    pop = 0
+    for k in _KEYS[i:i + 4000]:
+        t = _ASM[k]
+        if t.startswith('ret'):
+            pop = int(t.split()[1], 16) if len(t.split()) > 1 else 0
+            break
+    return '__thiscall' in head or '(void)' in head or not head, '__fastcall' in head, pop
+
+
+def pm_spec(spec, pm):
+    """MW3's argument list as PM passes it: cdecl unless Ghidra says otherwise."""
+    this, fast, _ = pm_conv(pm)
+    toks = spec.split(',') if spec else []
+    if this or fast or pm == 0x4773e0:  # Ghidra missed its ECX
+        return spec
+    out = []
+    for i, t in enumerate(toks):
+        z = 'z' if t.startswith('z') else ''
+        out.append(f'{z}s{i}')
+    return ','.join(out)
+
+
+class RawCpu:
+    """PM's addresses as they are: pointers the exe hands out are PM's, and Original's read and write
+    would take them for MW3's."""
+
+    def __init__(self, o):
+        self.o = o
+        self.uc = o._uc
+        self.thunks = {}
+
+    def __getattr__(self, name):
+        return getattr(self.o, name)
+
+    def read(self, a, n):
+        return bytes(self.uc.mem_read(a, n))
+
+    def write(self, a, b):
+        self.uc.mem_write(a, bytes(b))
+
+    def u32(self, a, v):
+        self.uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
+
+    def call(self, addr, ecx=0, edx=0, stack_args=(), count=200_000_000):
+        if addr not in self.thunks:  # mov eax, addr; jmp eax
+            self.thunks[addr] = self.o.code(b'\xb8' + struct.pack('<I', addr) + b'\xff\xe0')
+        self.o.call(self.thunks[addr], ecx=ecx, edx=edx, stack_args=stack_args, count=count)
+
+
+class Emu(BaseEmu):
+    """Stubs on PM's addresses, under MW3's keys (the port's calls use them)."""
+
+    def __init__(self, trace):
+        super().__init__(trace)
+        self.orig = self.cpu
+        self.cpu = RawCpu(self.orig)
+        self.uc = self.orig._uc
+
+    def import_stub(self, iat, key, spec='', pop=0, fn=None):
+        self.w32(self.orig.tr(iat, 4), self.new_stub(key, spec, pop, fn))
+
+    def call(self, addr, ecx=0, edx=0, stack=(), count=200_000_000):
+        return super().call(pm_of(addr), ecx=ecx, edx=edx, stack=stack, count=count)
+
+    def stub(self, addr, key=None, spec='', pop=None, fn=None):
+        pm = pm_of(addr)
+        key = key or f'{addr:#010x}'
+        if pop is None:
+            pop = pm_conv(pm)[2]
+        if fn is None:
+            spec = pm_spec(spec, pm)
+        if pm not in self.slots:
+            self.cpu._uc.hook_add(UC_HOOK_CODE, self._hit, begin=pm, end=pm)
+        self.slots[pm] = (key, spec, pop, fn)
+
+
 # --- the original ---------------------------------------------------------------
 def run_original(probe, case):
     t = Trace()
     t.silent |= {'sprintf', 'strncmp', 'cs', 'cs~', 'Format', '0x004e0490', '0x004e04f0', '@rec'}
     e = Emu(t)
-    e.cpu.fpu_control(0x007f)
+    e.orig.fpu_control(0x007f)
     world = World(e, probe, case)
     t.script = make_script(case, world, e)
     for addr, spec in CALLS.items():
         e.stub(addr, spec=spec)
-    for addr in SETUPS:
-        e.stub(addr, 'part.vt+0x4', 'c')
+    def setup(limits):
+        def f(em, key, a, pop):
+            for off in limits:  # what the firepoints read, as the port's part has them
+                em.w32(a[0] + off, 0)
+            em._ret(t.handle(key, a), pop)
+        return f
+    for addr, limits in zip(SETUPS, ((), (), (0xb8, 0xbc, 0xc0, 0xc4), (), ())):
+        e.stub(addr, 'part.vt+0x4', 'c', fn=setup(limits))
     e.stub(0x428700, 'ictl.vt+0x88', 'c,s0', 4)  # a this-adjusting thunk into 0x428440 (ret 4)
     rec_addr = [0]
 
@@ -353,6 +474,7 @@ def run_original(probe, case):
         ok = t.handle(key, [this, name])
         if ok:
             em.cpu.write(this + 4, bytes(case['record'][4:0xd0]))
+            em.cpu.write(this + 0xec, bytes(case['record'][0xcc:0xcd]))  # PM's record keeps the flags further on
         em._ret(this if ok else 0, 4)
     e.stub(0x4e0680, '0x004e0680', '', 4, read_named)
 
@@ -424,7 +546,7 @@ def run_original(probe, case):
     e.stub(0x4d6c90, '0x004d6c90', '', 0x10, entity)
 
     def box(em, key, a, pop):
-        node, out = em.args('c,d')
+        node, out = em.args('s0,s1')
         res = t.handle(key, [node])
         if res == 0:
             for i in range(6):
@@ -433,12 +555,12 @@ def run_original(probe, case):
     e.stub(0x4ebd50, '0x004ebd50', '', 0, box)
 
     def translation(em, key, a, pop):
-        node, px, py, pz = em.args('c,d,s0,s1')
+        node, px, py, pz = em.args('s0,s1,s2,s3')
         t.handle(key, [node])
         for i, p in enumerate((px, py, pz)):
             em.world_w32(p, t.handle('@tx', [i]))
-        em._ret(0, 8)
-    e.stub(0x4fc020, '0x004fc020', '', 8, translation)
+        em._ret(0, 0)
+    e.stub(0x4fc020, '0x004fc020', '', 0, translation)
 
     def pilot_mech(em, key, a, pop):
         pilot, mech = em.args('c,s0')
@@ -449,7 +571,7 @@ def run_original(probe, case):
 
     def attach(em, key, a, pop):  # zModel's zone mode as the view attaches, too
         mech = em.args('c')[0]
-        t.handle(key, [mech, em.r32(0x5ea1d0)])
+        t.handle(key, [mech, em.r32(0x60d5e8)])
         if case['view_on_mech']:
             em.world_w32(world.view + 0x64, mech)
         em._ret(0, 0)
@@ -461,13 +583,16 @@ def run_original(probe, case):
     e.stub(0x4782f0, '0x004782f0', '', 8, place)
 
     def polygon(em, key, a, pop):
-        model, n, v = em.args('c,d,s0')
-        em._ret(t.handle(key, [model, n] + [em.r32(v + 4 * i) for i in range(12)]), 4)
-    e.stub(0x4776d0, '0x004776d0', '', 4, polygon)
+        model, n, v = em.args('s0,s1,s2')
+        em._ret(t.handle(key, [model, n] + [em.r32(v + 4 * i) for i in range(12)]), 0)
+
+    def objectives(em, key, a, pop):  # the exe's offsets are 0x38 past the port's
+        em._ret(t.handle(key, [v - 0x38 for v in em.args('s0,s1,s2,s3')]), 0)
+    e.stub(0x45c4a0, '0x0045c4a0', '', 0, objectives)
 
     def report(em, key, a, pop):
         level, file, line, text = em.args('s0,zs1,s2,zs3')
-        em._ret(t.handle(key, [level, file, line, text]), 0)
+        em._ret(t.handle(key, [level, line]), 0)  # the exe's words are its own
     e.stub(0x49bfd0, '0x0049bfd0', '', 0, report)
 
     def msgbox(em, key, a, pop):
@@ -478,31 +603,30 @@ def run_original(probe, case):
     # The weapons of the configuration (0x414501..0x414732, test_weapons_run.py):
     # one call here, the manager's counts from the script.
     def weapons(uc, address, size, user):
-        mech, cfg = uc.reg_read(UC_X86_REG_ESI), uc.reg_read(UC_X86_REG_EBP)
+        mech, cfg = uc.reg_read(UC_X86_REG_ESI), uc.reg_read(UC_X86_REG_EBX)
         t.handle('weapons', [mech, cfg])
         wm = e.r32(mech + 0xd4)
-        e.w32(wm + 0x24, t.handle('@wcount', []))
+        e.w32(wm + 0x28, t.handle('@wcount', []))
         for i in range(5):
-            e.w32(e.r32(wm + 0x2c + 4 * i) + 8, t.handle('@wgroup', [i]))
-        uc.reg_write(UC_X86_REG_EIP, 0x414732)
-    e.uc.hook_add(UC_HOOK_CODE, weapons, begin=0x414501, end=0x414501)
+            e.w32(e.r32(wm + 0x30 + 4 * i) + 8, t.handle('@wgroup', [i]))
+        uc.reg_write(UC_X86_REG_EIP, 0x414fc8)
+    e.cpu._uc.hook_add(UC_HOOK_CODE, weapons, begin=0x414dbe, end=0x414dbe)
 
-    # The globals before: the made-mechs counter, [0x60b56c] set, the zone mode.
-    e.w32(0x605628, case['made'])
-    e.cpu.write(0x60b56c, b'\x01')
-    e.cpu.write(0x60b570, b'\x01')
-    e.w32(0x5ea1d0, case['zone'])
+    # The globals before: the made-mechs counter, [0x62fc40] set, the zone mode.
+    e.w32(0x6293ac, case['made'])
+    e.cpu.write(0x62fc40, b'\x01')
+    e.cpu.write(0x62fc41, b'\x01')
+    e.w32(0x60d5e8, case['zone'])
     snap = e.snapshot()
-    e.watch_writes([(e.world_base, e.world_base + e.world_size), (0x60b570, 0x60b571)])
+    e.watch_writes([(e.world_base, e.world_base + e.world_size), (0x62fc41, 0x62fc42)])
     try:
         if case['entry'] == 'launch':
             if case['again']:  # the controls made before (a second launch): only their mode set
-                e.call(0x427280, ecx=case['mode0'])
+                e.call(0x427280, stack=(case['mode0'],))
             result = e.call(LAUNCH, ecx=world.missions) & 0xff  # al
         else:
             name = e.world_string(case['name']) if case['name'] else 0
-            result = e.call(CREATE, ecx=case['roster_arg'], edx=world.ctl if case['ctl'] else 0,
-                            stack=(case['config'], name))
+            result = e.call(CREATE, stack=(case['roster_arg'], world.ctl if case['ctl'] else 0, case['config'], name))
     except Exception:
         print(f'  at {e.uc.reg_read(UC_X86_REG_EIP):#x}; the last calls: {t.log[-4:]}')
         raise
@@ -536,7 +660,7 @@ def run_port(probe, case, t, e, world, snap, rec_addr):
 # --- the comparison --------------------------------------------------------------
 KINDS = ['mech', 'hip', 'torso', 'head', 'arm', 'hand', 'leg', 'calf', 'foot', 'manager', 'group', 'ams', 'skis',
          'list', 'pair', 'wrapper', 'toes', 'toe quats', 'controls']
-LIST_ALLOC = {0x380, 0x47c, 0x674, 0x6cc}  # the mech's lists' allocator bytes: whatever the register held
+LIST_ALLOC = {0x390, 0x48c, 0x698, 0x73c}  # the mech's lists' allocator bytes: whatever the register held
 
 
 def compare_blocks(probe, name, case, e):
@@ -581,7 +705,21 @@ def compare_world(probe, name, case, e, world, rep):
     n = probe.probe_mb_dfn_image(case['roster'], world.dfn_base, after, 0x8000, 0)
     lo, hi = world.dfn_base, world.dfn_base + n
     bad = []
+    # A firepoint's aim cone comes from the x87's fsin and fcos, the port's from the C library's: floats within 1e-5.
+    cone = set()
+    vec = e.r32(world.dfn_base + 0x24)
+    if vec:
+        for k in range((e.r32(vec + 8) - e.r32(vec + 4)) // 4):
+            fp = e.r32(e.r32(vec + 4) + 4 * k)
+            for f in range(fp + 0x14, fp + 0x5c, 4):
+                x = struct.unpack('<f', e.cpu.read(f, 4))[0]
+                y = struct.unpack('<f', bytes(after[f - lo:f - lo + 4]))[0]
+                if not (x == y or abs(x - y) <= 1e-5 * max(1.0, abs(x))):
+                    bad.append(f'cone at firepoint {k} +{f - fp:#x}: original {x} port {y}')
+                cone.update(range(f, f + 4))
     for a, v in sorted(written.items()):
+        if a in cone:
+            continue
         if a in rep.shadow:
             got = rep.shadow[a]
         elif lo <= a < hi:
@@ -590,9 +728,9 @@ def compare_world(probe, name, case, e, world, rep):
             bad.append(f'{a:#x}: the original writes {v:#04x}, the port nothing')
             continue
         if got != v:
-            bad.append(f'{a:#x}: original {v:#04x} port {got:#04x}')
+            bad.append(f'{a:#x}{" dfn+%#x" % (a - lo) if lo <= a < hi else ""}: original {v:#04x} port {got:#04x}')
     for a, v in rep.shadow.items():
-        if a not in written and (a >= e.world_base or a == 0x60b570) and not (lo <= a < hi):
+        if a not in written and (a >= e.world_base or a == 0x62fc41) and not (lo <= a < hi):
             bad.append(f'{a:#x}: the port writes {v:#04x}, the original nothing')
     for a in range(lo, hi):  # the definitions' bytes the port changed without the original
         if a not in written and after[a - lo] != e.cpu.read(a, 1)[0]:
@@ -609,8 +747,8 @@ def compare_world(probe, name, case, e, world, rep):
 # --- cases ------------------------------------------------------------------------
 def make_case(probe, seed):
     r = random.Random(seed)
-    roster = seed % 19
-    shipped = seed < 19 * 4
+    roster = seed % 25
+    shipped = seed < 25 * 4
     n_cfg = probe.probe_mb_config_count(roster)
     assert n_cfg > 0, (roster, n_cfg)
     case = {'seed': seed, 'roster': roster, 'rng': rng(seed), 'blocks': [], 'dfn_buf': (ctypes.c_uint8 * 0x8000)()}
@@ -634,7 +772,7 @@ def make_case(probe, seed):
             elif field in (5, 6, 7, 8):
                 v = fbits(r.choice([0.0, 0.5, 1.25663686, 3.0, 2.5e-5, -1.0]))
             elif field == 9:
-                v = r.choice([roster, roster, (roster + 1) % 19])
+                v = r.choice([roster, roster, (roster + 1) % 25])
             else:
                 v = r.getrandbits(32)
             case['mods'].append((field, v))
@@ -686,6 +824,9 @@ def make_case(probe, seed):
     case['ctl'] = r.random() < 0.97
     case['name'] = r.choice(['owens_01', None, 'madcat_mech01', 'x'])
     case['again'] = case['entry'] == 'launch' and r.random() < 0.2
+    case['number'] = r.choice([0, 0, 1, 5])
+    case['object_lod'] = r.choice([0, 1, 2])
+    case['turret'] = r.random() < 0.7
     case['mode0'] = r.choice([0, 1, 3, 4, 6, 7])
     case['skins'] = True
     if case['entry'] == 'create':
@@ -723,9 +864,9 @@ def main():
             raise SystemExit(1)
         if not compare_blocks(probe, name, case, e) or not compare_world(probe, name, case, e, world, rep):
             raise SystemExit(1)
-        orig = [e.r32(0x605628), e.cpu.read(0x60b56c, 1)[0], e.r32(0x5ea1d0)]
+        orig = [e.r32(0x6293ac), e.cpu.read(0x62fc40, 1)[0], e.r32(0x60d5e8)]
         if orig != glob:
-            print(f'{name}: globals (made, 0x60b56c, zone) original {orig} port {glob}')
+            print(f'{name}: globals (made, 0x62fc40, zone) original {orig} port {glob}')
             raise SystemExit(1)
         calls += len(t.log)
         blocks += len(case['blocks'])
@@ -736,9 +877,11 @@ def main():
         stats[case['entry'] + (' again' if case['again'] else '')] += 1
         if case['entry'] == 'launch':
             stats[f"type {case['type']}"] += 1
-        stats['mechs built'] += any(k == 'new' and a == (0x6d8,) for k, a in t.log)
+        stats['mechs built'] += any(k == 'new' and a == (0x748,) for k, a in t.log)
         stats['configured'] += any(k == 'weapons' for k, _ in t.log)
         stats['crafted'] += bool(case['mods'])
+    pm_floors.floors(mechs_built=(stats['mechs built'], count // 2), configured=(stats['configured'], count // 3),
+                     launches=(stats['launch'], count // 3), calls=(calls, count * 100))
     print('  ' + ', '.join(f'{k} {v}' for k, v in sorted(stats.items())))
     print(f'{count} cases, {calls} calls, {blocks} blocks: the rebuilt mech build matches the original')
 

@@ -170,7 +170,7 @@ int32_t mechs_alive() { return g_alive; }
 
 Mech* mech_new(MechData* data, MechControls* ctl, Config* cfg, const char* name) {
   if (!cfg || !data || !ctl) return nullptr;
-  Mech* m = made(0x6d8, new Mech());
+  Mech* m = made(0x748, new Mech());  // MW3: 0x6d8
   ++g_alive;
   mech_construct(*m, data, ctl, cfg, name);
   return m;
@@ -384,7 +384,7 @@ void mech_construct(Mech& m, MechData* data, MechControls* ctl, Config* cfg, con
   m.controls = ctl;
   h.controls_set_owner(ctl, m);
   auto* wm = new WeaponManager(&m);  // 0x004b00d0: its five groups
-  h.on_new(0x94, wm);
+  h.on_new(0x98, wm);  // MW3: 0x94
   for (WeaponGroup* g : wm->groups) h.on_new(0x54, g);
   m.ammo = wm;
   m.x63c = 1.0f;
@@ -483,9 +483,9 @@ bool mech_parts(Mech& m) {
   h.entity_update(m);
   h.node_set_translation(m.target_node, 0.0f, m.height * 0.65f, 0.0f);  // 0x005bcd7c
   h.entity_update(m);
-  h.node_add_child(m.node, m.lod_node);
+  if (m.lod_node) h.node_add_child(m.node, m.lod_node);  // PM asks first: not every mech has one
   h.touch_handler(m, m.node);
-  h.node_remove_child(m.node, m.lod_node);
+  if (m.lod_node) h.node_remove_child(m.node, m.lod_node);
   mech_motions(m);
   h.collider_setup(m);
   mech_configure(m, m.config);
@@ -509,12 +509,13 @@ void mech_motions(Mech& m) {
   m.skis = make_skis(m, d * 0.5f, length);
 }
 
-// Mech3.exe 1.2 @ 0x00414430: the configuration's speeds, top speed and
+// Pirate's Moon 1.0 @ 0x00414cb0: the configuration's speeds, top speed and
 // heat sinks, its weapons and equipment, each part's armor, the model's
 // firepoint markers removed, the first weapon group that has weapons.
 bool mech_configure(Mech& m, Config* cfg) {
   MechBuildHooks& h = *g_hooks;
   if (!cfg || !h.config_valid(cfg) || m.pilot->roster != cfg->mech) return false;
+  h.dfn(cfg->mech);  // Pirate's Moon 0x00414cb0: looks up the engine's limits, then drops the answer
   m.x51c = cfg->g70;
   std::memcpy(&m.turn_rate, &cfg->turn_rate, 4);
   m.x524 = cfg->g78;

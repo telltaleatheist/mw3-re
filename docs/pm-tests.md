@@ -1,6 +1,6 @@
 # Tests that load libmw3probe, for `pm` (2026-11-05)
 
-Every `test_pm_*` ends through `pm_floors.floors`: what it loaded or reached against a floor, because an empty pass is worse than no test (the lead, 2026-11-05). Data counts are exact; what depends on random cases is about half of what a run reaches. With arguments only zero fails.
+Every `test_pm_*` ends through `pm_floors.floors`: what it loaded or reached against a floor, because an empty pass is worse than no test (the lead, 2026-11-05). Data counts are exact; what depends on random cases is about half of what a run reaches. With arguments only zero fails. `test_pm_mechlib` and `test_pm_zar` also load MW3's data on purpose, to compare: some of their counts are not PM's.
 
 `mw3probe` is not built on `pm`, so none of these test this branch. Each row: what becomes of it. *Fns* is how many mapped
 functions it names, *in PM tests* how many of those a `test_pm_*` also names. That is a count of names, not proof a case is
@@ -48,6 +48,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
 | `test_objectives.py` | gone | 24 | 8 | to move |  |
 | (new) `test_pm_mechsave.py` | PM | | | new, part of `test_mechsave.py` | a saved loadout's save and load, both formats |
+| `test_mech_build.py` | changed | | | moved to `test_pm_mech_build.py` | launch and mech construction, every block; the weapons loop stubbed |
 | (new) `test_pm_firepoints.py` | PM | | | new | the firepoint fix-up 0x46ea40 and its aim cone |
 | `test_parts.py` | gone | 75 | 16 | moved to `test_pm_parts.py` | setups, updates, the arm's clamp, the torso's mode, the part aim; floats within 1e-5 |
 | `test_player.py` | gone | 17 | 3 | to move, rank 14 | the player controls |
