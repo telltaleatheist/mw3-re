@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "crt/msvc_rand.h"
 #include "mech3/mech_config.h"
 #include "mech3/briefing.h"
 #include "mech3/mech_reader.h"
@@ -677,4 +678,109 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
   if (static_cast<int>(str.size()) >= size) return -1;
   std::memcpy(out, str.data(), str.size() + 1);
   return static_cast<int>(str.size());
+}
+
+// test_pm_puton.py: the put-on on a real loadout and store, one put at a time.
+namespace {
+struct PutOnRun {
+  std::vector<std::string> events;
+  PutOnEngine e;
+  PutOnHost host;
+  Store store{0};
+  std::unique_ptr<PutOnList> list;
+};
+PutOnRun* g_put = nullptr;
+}  // namespace
+
+extern "C" void probe_pm_puton_begin(void* config, int flag, int full, int n, const int32_t* parts, const float* radii) {
+  delete g_put;
+  g_put = new PutOnRun;
+  PutOnRun& r = *g_put;
+  r.e.events = &r.events, r.host.events = &r.events;
+  ztwod::set_host(&r.host);
+  r.e.store = &r.store, r.e.cfg = static_cast<Config*>(config);
+  for (int i = 0; i < n; ++i) r.e.fps.push_back({parts[i], radii[i]});
+  r.store.full = static_cast<uint8_t>(full);
+  r.list = std::make_unique<PutOnList>(r.e);
+  r.list->events = &r.events;
+  r.list->store = PutOnEngine::kStore;
+  r.list->sounds[0] = 7, r.list->sounds[1] = 8;
+  LabState& lab = states().lab;
+  lab.pilot_ = 1, lab.slot_ = 0, lab.lab_screen_ = PutOnEngine::kScreen, lab.store_ = PutOnEngine::kStore;
+  lab.flag_ = static_cast<uint8_t>(flag);
+}
+
+extern "C" void probe_pm_puton_store(int kind, int a, int b, int c) {
+  Store& s = g_put->store;
+  if (kind == 1) s.add_weapon(a, b);
+  else if (kind == 2) s.add_ammo(a, b);
+  else s.add_equipment(a, b, c);
+}
+
+extern "C" int probe_pm_puton_put(int row, int rule, int part, uint32_t seed, char* out, int size) {
+  PutOnRun& r = *g_put;
+  crt::msvc_srand(seed);
+  for (LabItem* it : r.list->items) delete it;
+  r.list->items.clear();
+  for (const ConfigItem* it : r.store.items) {
+    auto* li = new LabItem;
+    li->object = r.e.item_handle(it);
+    r.list->items.push_back(li);
+  }
+  r.list->rule = rule;
+  r.e.part = part;
+  r.events.clear();
+  r.list->select(row);
+  std::ostringstream o;
+  for (const std::string& x : r.events) o << x << ' ';
+  const Config& c = *r.e.cfg;
+  o << '\n' << armour_text(c) << " m" << int(c.modified) << '\n';
+  for (const ConfigItem* it : c.items) o << item_text(it);
+  o << '\n';
+  for (const ConfigItem* it : r.store.items) o << item_text(it);
+  o << '\n';
+  const std::string str = o.str();
+  if (static_cast<int>(str.size()) >= size) return -1;
+  std::memcpy(out, str.data(), str.size() + 1);
+  return static_cast<int>(str.size());
+}
+
+extern "C" void probe_pm_puton_end() {
+  if (!g_put) return;
+  for (LabItem* it : g_put->list->items) delete it;
+  g_put->list->items.clear();
+  ztwod::set_host(nullptr);
+  delete g_put;
+  g_put = nullptr;
+}
+
+// test_pm_puton.py's chassis rows (0x0044a660): the empty row by game type and shown slot.
+namespace {
+struct ChassisEngine : PutOnEngine {
+  int32_t type = 0;
+  Handle pilot_campaign(Handle) override { return type == kCampaign ? 1 : 0; }
+  bool pilot_standalone() override { return type == kStandalone; }
+  int32_t lab_slot_mech(Handle) override { return 0; }
+  uint32_t peek32(uint32_t a) override { return a == 0x60861c ? 1 : 0; }  // the current pilot
+};
+}  // namespace
+
+extern "C" int probe_pm_chassis_rows(int type, int slot) {
+  std::vector<std::string> events;
+  ChassisEngine e;
+  e.events = &events, e.type = type;
+  PutOnHost host;
+  host.events = &events;
+  ztwod::set_host(&host);
+  LabState& lab = states().lab;
+  lab.pilot_ = 1, lab.slot_ = slot;
+  int rows;
+  {
+    LabChassisList list(e);
+    list.refill();
+    rows = list.item_count();
+    list.clear_items();
+  }
+  ztwod::set_host(nullptr);
+  return rows;
 }
