@@ -1,6 +1,7 @@
 // The pilot, its file and the pilot list (docs/pilot.md).
 #include "mech3/pilot.h"
 
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -45,6 +46,33 @@ std::FILE* open_always(const std::string& path) {
   std::error_code ec;
   fs::create_directories(fs::path(w).parent_path(), ec);
   return std::fopen(w.c_str(), "w+b");
+}
+
+// FIX (bug): the exe's wipe on a header that does not match would destroy a player's
+// file (another version, or damage) just by starting the game. A copy first, beside it,
+// `<name>.old-<n>`, never over an earlier one, not a name load_pilots lists; no copy, no wipe.
+bool keep_before_wipe(const std::string& path) {
+  const std::string w = zutl::write_path(path.c_str());
+  std::string base = w;
+  const size_t dot = base.rfind('.');
+  if (dot != std::string::npos) base.erase(dot);
+  std::error_code ec;
+  const auto size = fs::file_size(w, ec);
+  if (!ec)
+    for (int n = 1; n < 10000; ++n) {
+      const std::string keep = base + ".old-" + std::to_string(n);
+      if (fs::exists(keep, ec)) continue;
+      if (fs::copy_file(w, keep, ec) && fs::file_size(keep, ec) == size && !ec) {
+        std::printf("mw3: pilot file %s has another version or a damaged header: kept as %s, starting it empty\n",
+                    w.c_str(), keep.c_str());
+        return true;
+      }
+      fs::remove(keep, ec);  // a copy of ours cut short
+      break;
+    }
+  std::printf("mw3: pilot file %s has another version or a damaged header and could not be copied: left alone\n",
+              w.c_str());
+  return false;
 }
 
 // FIX (A) for MoveFileA and DeleteFileA: in the write dir; MoveFileA fails
@@ -130,8 +158,9 @@ bool Pilot::open() {
     std::fseek(file, 0, SEEK_SET);
     int32_t m = 0, v = 0, x = 0;
     if (!rd4(file, &m) || !rd4(file, &v) || !rd4(file, &x) || m != magic || v != version) {
-      create = true;
       close();
+      if (!keep_before_wipe(path)) return false;
+      create = true;
     }
   }
   if (create) {

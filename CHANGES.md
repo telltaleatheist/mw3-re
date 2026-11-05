@@ -105,6 +105,7 @@ it is clear what the designers meant.
 - **Pilot names ignore capitals, as their files do.** Making "BOB" when
   "bob" exists picks bob instead of a second pilot sharing (and
   overwriting) bob's file, and renaming onto another pilot's name is refused.
+- **A pilot file the game cannot use is kept.** A file of another version or with a damaged header is copied beside itself as `<name>.old-1` before the game starts that pilot empty; the original wiped it with no copy. If the copy fails, the file is left alone.
 - **A shove slows your throttle at the same speed at any frame rate** (Pirate's Moon: the original took 40 % off each frame).
 - **The plain PPC is in the mech lab.** The game defines and names it, but it
   was left out of the mech lab's weapon list. It can now be mounted (Inner

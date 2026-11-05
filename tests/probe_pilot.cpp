@@ -642,3 +642,21 @@ extern "C" void probe_pm_pilot_new(const char* dir, const char* name) {
   p->dirty = 0;
   delete p;
 }
+// The listing as the game makes it, each file's pilot opened (and wiped, if it must be).
+extern "C" int probe_pm_pilot_list(const char* dir, char* out, int size) {
+  zutl::mounts().read = {dir};
+  zutl::mounts().write = dir;
+  set_pilot_hooks(&real_hooks());
+  auto clear = [] {
+    for (Pilot* p : pilots()) p->dirty = 0, delete p;
+    pilots().clear();
+  };
+  clear();
+  load_pilots();
+  std::string names;
+  for (Pilot* p : pilots()) names += std::string(p->name) + "\n";
+  std::snprintf(out, static_cast<size_t>(size), "%s", names.c_str());
+  const int n = static_cast<int>(pilots().size());
+  clear();
+  return n;
+}

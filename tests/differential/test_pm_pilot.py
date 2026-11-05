@@ -10,7 +10,8 @@ unchanged, since saving must not lose it while the mode is not ported; and a rea
 pilot of Owen's where there is one, played on PM (its standalone record is empty, so
 that record rests on the crafted files and what the exe's read and write do). Reading
 merges a campaign's salvage (0x435990), so a read and write is not byte-equal in
-general: the exe is the reference. Damaged files run on the port only: no crash, no
+general: the exe is the reference. The port's copy before a wipe (FIX (bug)) is beside the file, outside
+this comparison, and has its own cases, port only. Damaged files run on the port only: no crash, no
 hang; the exe has no stops at a file's end (FIX (bug), fixes.md). The whole `test_pilot`
 (the screens' calls on stores and games) stays to move.
 """
@@ -196,6 +197,62 @@ def standalone(rng):
     return b
 
 
+def keeps(rng):
+    """A file the header check refuses leaves a byte-identical copy; none of it reaches the exe's comparison."""
+    d = Path(tempfile.mkdtemp(prefix='pm_keep_', dir=ROOT / 'build')).resolve()
+    pil = d / 'pilots'
+    (pil / 'games').mkdir(parents=True)
+    out = ctypes.create_string_buffer(4096)
+    listing = lambda: (probe.probe_pm_pilot_list(str(d).encode(), out, 4096), out.value.decode().split())  # noqa: E731
+    count = 0
+    try:
+        for what, data in (('another version', struct.pack('<3i', 1, 0x2f, 0) + rng.randbytes(1000)),
+                           ('a damaged header', struct.pack('<3i', 77, 0x3e, 0) + rng.randbytes(1000)),
+                           ('a short file', b'\x01\0\0')):
+            f = pil / 'Old.mw3'
+            f.write_bytes(data)
+            n, names = listing()
+            if names != ['Old'] or n != 1:
+                raise SystemExit(f'{what}: listed {names}')
+            if (pil / 'Old.old-1').read_bytes() != data:
+                raise SystemExit(f'{what}: the copy is not the file')
+            if f.read_bytes()[:12] != HEADER:
+                raise SystemExit(f'{what}: not started empty')
+            second = data[:12] + rng.randbytes(40) if len(data) > 12 else data + b'x'
+            f.write_bytes(second)
+            listing()
+            if (pil / 'Old.old-1').read_bytes() != data or (pil / 'Old.old-2').read_bytes() != second:
+                raise SystemExit(f'{what}: a second wipe touched the first copy')
+            n, names = listing()  # now a good file: no third copy, and the copies are no pilots
+            if names != ['Old'] or (pil / 'Old.old-3').exists():
+                raise SystemExit(f'{what}: copies listed or made again: {names}')
+            (pil / 'Old.old-1').unlink(), (pil / 'Old.old-2').unlink()
+            count += 1
+        # A good file makes no copy at all.
+        f = pil / 'Old.mw3'
+        good = f.read_bytes()
+        listing()
+        if f.read_bytes() != good or list(pil.glob('Old.old-*')):
+            raise SystemExit('a good file was copied or changed')
+        # No copy, no wipe: the folder refuses the new file.
+        data = struct.pack('<3i', 1, 0x2f, 0) + rng.randbytes(500)
+        f.write_bytes(data)
+        os.chmod(pil, 0o555)
+        try:
+            n, names = listing()
+            kept = f.read_bytes()
+        finally:
+            os.chmod(pil, 0o755)
+        if kept != data or list(pil.glob('Old.old-*')):
+            raise SystemExit('a failed copy: the file was not left alone')
+        if names:
+            raise SystemExit(f'a failed copy: listed {names}')
+        count += 1
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    return count
+
+
 def check(what, a, b):
     if a == b:
         return
@@ -254,11 +311,12 @@ def main():
             damaged += 1
     finally:
         shutil.rmtree(port.dir, ignore_errors=True)
-    pm_floors.floors(kept=(kept, 100), dropped=(dropped, 50), records=(records, 100), damaged=(damaged, 100),
+    copies = keeps(rng)
+    pm_floors.floors(copies=(copies, 4), kept=(kept, 100), dropped=(dropped, 50), records=(records, 100), damaged=(damaged, 100),
                      wiped=(wiped, 1))
     print(f'ok: {runs} crafted files the same as the exe ({kept} campaigns kept, {dropped} dropped, {records} with '
           f'standalone progress, unchanged), a new pilot, another version wiped; Owen\'s save: {owen} campaigns; '
-          f'{damaged} damaged files read by the port')
+          f'{damaged} damaged files read by the port; {copies} cases of a file kept before its wipe')
     return 0
 
 
