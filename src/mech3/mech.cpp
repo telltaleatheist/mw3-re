@@ -61,9 +61,10 @@ uint32_t next_shutdown(uint32_t s, int step) { return (s & ~0x38u) | ((s + 8 * s
 World& world() { return g_world; }
 HeatCalls& heat_calls() { return g_calls; }
 
-// Mech3.exe 1.2 @ 0x0045fb90
+// Pirate's Moon 1.0 @ 0x00460f00 (MW3 0x0045fb90). New in PM: never below 1, so few sinks still cool as eight.
 float HeatSinks::rate() const {
-  return static_cast<float>(count * 0.1 * (doubles ? 2.5f : 1.25f));  // 0x005e4ee8, 0x005e4eec
+  const double r = count * 0.1f * (doubles ? 2.5f : 1.25f);  // 0x00606db8, 0x00606dbc
+  return r < 1.0 ? 1.0f : static_cast<float>(r);
 }
 
 // Mech3.exe 1.2 @ 0x0045fbc0. Always false, so the "heat sink lost" callout

@@ -254,7 +254,7 @@ def scenario(rng):
     """A random mech situation: inputs that change now and then over the run."""
     s = {n: 0 for n in NAMES}
     s.update(surface1=-300.0, surface4=-300.0, pos_y=rng.uniform(0, 40), health=1.0, active=1, salvage_mech=1,
-             height=rng.choice([8.0, 12.0, 15.5]), sinks=rng.choice([10, 14, 22]),
+             height=rng.choice([8.0, 12.0, 15.5]), sinks=rng.choice([0, 1, 3, 4, 7, 8, 10, 14, 22]),
              doubles=rng.random() < 0.4, player=rng.random() < 0.6, full_all=rng.random() < 0.85,
              option=rng.random() < 0.9, mission=rng.choice([0, 0, 0, 3]),
              invincible=rng.random() < 0.15, dt=rng.choice([1 / 30, 1 / 60, 0.1]))
