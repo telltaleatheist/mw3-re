@@ -880,8 +880,8 @@ functions PM changed, and PM's new ones.
        0x5003a0, 0x502360) also visit a cell's clutter records, which the port's `cls_di` skips on PM (see the
        mission load's note), so the grid sees no props; (2) the boundary: PM's `inout` loader (0x4cddb0, MW3
        0x4c3930) has its own area container (0xc0-byte areas), counts standalone missions (type 5, by 0x435db0)
-       and training, and MW3's selection call 0x4c3b80 has no twin in PM's setup (PM picks the area while it
-       loads, 0x4cdff0). The port's `inout` is still MW3's, so on PM a standalone mission has no boundary and
+       and training; the area is selected by 0x4ce290, a listener slot (not "while it loads": corrected
+       2026-11-04, step 5). The port's `inout` is still MW3's, so on PM a standalone mission has no boundary and
        the grid none to keep to. The `inout` loader is the AI step's first item; the clutter queries go with
        collision. W58 is off for enemies and multiplayer anyway.
      - **The draw, piece 1: the type dispatch ported** (2026-11-03,
@@ -1360,6 +1360,35 @@ functions PM changed, and PM's new ones.
    (`zaitarget.cpp`, 162 new), the net editor and
    in/out nets (85 and 73 new), the valves' new keys, the movement modes
    (Circle, Direct, Random Move).
+   **Mapped 2026-11-04** (read-only unless marked).
+   - **Baseline, measured:** `mw3pm` runs c1m1 on MW3's AI and PM's data with no unported function reached in
+     9,000 frames at 33 ms. The Thor wakes near frame 1400, walks 2 km, and fights the idle player at 50-150 m;
+     armor falls both ways; 545 shots by frame 6600. So an enemy already walks and shoots; the order below is
+     by what differs from PM, not by what is missing. The two Shadow Cats stayed powered down throughout.
+   - **`on_mission_start`** (0x4944e0, not ported): a valve of that name is set on at mission start. Named 108 times
+     in PM's valves.zrd files; absent from MW3's exe and data.
+   - **The boundary** (the variant 0x4cdb30, the loader 0x4cddb0, the container 0x4cd740, the fill 0x4cdff0 ->
+     0x4ce450, the select 0x4ce290): names by game type: 1 `inoutm` and 5 `inoutsa` (ten areas by 0x435db0, the index
+     the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Child match 0x4cdce0. Areas 0xc0 bytes (MW3 0x88). The clamp
+     0x4ccaf0 (MW3 0x4c3000) is rewritten: a 0x54-byte record per vehicle (0x4c7f30, at its +0xd8), and it reads the
+     mech's jump jets (+0x3e8). Its body and the area's new fields are not read yet.
+   - **The data's new words** (PM only, every AI file of the four worlds compared with MW3's): valves `on_mission_start`,
+     `play_dead`; nets' `valve_assign` of `jumping` / `jumped` (189 each), `via` / `terminus` (626 each; `terminus` is
+     read by the aiv record, 0x4ec240 +0xa4). `setteam` and `any_zero` are not new in the exe (the port has them) but
+     MW3's data never used them, so they are untested on real files. Most of PM's data-only names are mission
+     valves, not code.
+   - **Valves' new keys** (0x4f5f50): of retreat_*, scan_*, approachRange, attack_radius, minRange, the shipped AI files
+     use only `retreat_time` (one file, c3 m6). Low priority. **Movement modes** (0x4c31c0): 0 Direct, 1 Zig Zag, 2
+     Circle, 4 Random Move, 5 Strafe, and two more names; no text use in the shipped files I searched; nets give the
+     mode as a number, so its use is not settled.
+   - **New code by address** (356 new, 801 changed in 0x4bd000..0x4f9000, attribution by neighbour only): largest runs
+     0x4ca4e0-0x4cbbb0 (2,337 instructions), 0x4c72a0-0x4c8be0 (1,458), 0x4d91e0-0x4d9d00 (1,276), 0x4df320-0x4dffb0
+     (1,256), 0x4daa70-0x4db0e0 (1,213), 0x4ea070-0x4eaff0 (1,169). Not yet read; `zaitarget`'s and the net editor's
+     functions are mapped only to here.
+   - **Order:** (1) `on_mission_start`; (2) the boundary's loader, variant, select; (3) the AI readers compared with
+     PM's exe on every shipped file (`test_ai_readers` on `pm`: aiv, valves, nets, targets), which shows what the data
+     needs; (4) the clamp; (5) the new behaviours and targets by the runs above, c1 first; (6) the clutter in W58's grid
+     with `cls_di`'s PM queries (with dev 1, who owns collision); (7) movement modes and valve keys as the data asks.
 6. **The front end**: the load/save screens and saved games
    (`%s%02d.mw3`), the saved configurations (`.m3c`), the pilot and
    briefing screens; no movies (zFMV's 21 ported functions are gone).
