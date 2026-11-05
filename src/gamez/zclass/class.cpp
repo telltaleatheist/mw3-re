@@ -322,7 +322,7 @@ int node_box_xz(Node* node, float out[8][2]) {
   zmth::MatrixStack& s = zmth::matrix_stack();
   const bool top_identity = s.slot[s.top] ? s.is_identity() != 0 : true;
   float box[6];
-  std::memcpy(box, node->raw + 0x74, sizeof box);
+  std::memcpy(box, node->pm_box ? node->pm_box : reinterpret_cast<const float*>(node->raw + 0x74), sizeof box);  // PM's +0x70
   if (top_identity && local_identity) {
     static const int kPick[8][2] = {{0, 5}, {3, 5}, {3, 2}, {0, 2}, {0, 5}, {3, 5}, {3, 2}, {0, 2}};
     for (int i = 0; i < 8; ++i) out[i][0] = box[kPick[i][0]], out[i][1] = box[kPick[i][1]];
@@ -375,7 +375,7 @@ int node_box_extent_xz(Node* node, float out[6]) {
   if (!local) local_identity = true;
   zmth::MatrixStack& s = zmth::matrix_stack();
   const bool top_identity = s.slot[s.top] ? s.is_identity() != 0 : true;
-  const float* box = reinterpret_cast<const float*>(node->raw + 0x74);
+  const float* box = node->pm_box ? node->pm_box : reinterpret_cast<const float*>(node->raw + 0x74);  // PM's +0x70
   if (top_identity && local_identity) {
     std::memcpy(&out[0], box + 0, 4);
     std::memcpy(&out[3], box + 3, 4);
@@ -432,7 +432,7 @@ int node_box_extent(Node* node, float out[6]) {
   if (!local) local_identity = true;
   zmth::MatrixStack& s = zmth::matrix_stack();
   const bool top_identity = s.slot[s.top] ? s.is_identity() != 0 : true;
-  const float* box = reinterpret_cast<const float*>(node->raw + 0x74);
+  const float* box = node->pm_box ? node->pm_box : reinterpret_cast<const float*>(node->raw + 0x74);  // PM's +0x70
   if (top_identity && local_identity) {
     std::memcpy(out, box, 24);
     return status;

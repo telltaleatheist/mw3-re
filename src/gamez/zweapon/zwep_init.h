@@ -143,6 +143,7 @@ struct HitRecord {
   float distance_sq = 0;       // +0x1c
   Handle material = nullptr;   // +0x20  its +0x20 is the soil kind (1 water)
   Handle node = nullptr;       // +0x24  the node hit
+  void* owner = nullptr;           // Pirate's Moon's +0x28: a clutter record
 };
 
 // What a query found: the exe's 0x504-byte buffer, a count byte then

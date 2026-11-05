@@ -16,6 +16,14 @@
 #pragma STDC FP_CONTRACT OFF
 
 namespace zmod {
+
+// Pirate's Moon's hit records also name an owner: the node's, or with flag 0x200000 the first up its parents to have one.
+void* hit_owner(const zcls::Node* node) {
+  if (!node) return nullptr;
+  const zcls::Node* n = node;
+  while ((n->flags() & 0x200000) && !n->owner && n->parent_count() != 0 && n->parents[0]) n = n->parents[0];
+  return n->owner;
+}
 namespace {
 constexpr const char* kCookieFile = "C:\\zipper\\GameZMech3\\zModel\\gmod_cookie.cpp";  // 0x005ef790
 }  // namespace
@@ -27,11 +35,35 @@ namespace {
 // what the last model left past its own count, as the exe's do.
 struct Scratch {
   std::vector<float> morphed, world;
-  float poly[256 * 3];
+  float poly[1024 * 3];  // Pirate's Moon's count goes to 0x3ff
 };
 Scratch g_s;
 
-uint32_t hdr(const Model& m, int off) {
+// A polygon's parts in each game's layout. Pirate's Moon's count has ten bits, its strip flag is 0x2000, its first
+// material and UVs are the ones tested, and a strip's degenerate triangles are passed over.
+uint32_t poly_n(const Polygon& p) { return p.flags & 0xff; }
+uint32_t poly_n(const pm::zmod::Polygon& p) { return p.flags & 0x3ff; }
+uint32_t n_mask(const Polygon&) { return 0xff; }
+uint32_t n_mask(const pm::zmod::Polygon&) { return 0x3ff; }
+bool poly_strip(const Polygon& p) { return (p.flags & 0x400) != 0; }
+bool poly_strip(const pm::zmod::Polygon& p) { return (p.flags & 0x2000) != 0; }
+Material* poly_material(const Polygon& p) { return p.material; }
+Material* poly_material(const pm::zmod::Polygon& p) { return p.materials ? p.materials[0] : nullptr; }
+const float* poly_uvs(const Polygon& p) { return p.uvs; }
+const float* poly_uvs(const pm::zmod::Polygon& p) { return p.uvs ? p.uvs[0] : nullptr; }
+bool poly_degenerate(const Polygon&, uint32_t, uint32_t, uint32_t) { return false; }
+bool poly_degenerate(const pm::zmod::Polygon& p, uint32_t a, uint32_t b, uint32_t c) {
+  const uint32_t* v = p.vertex_indices;
+  return v[a] == v[b] || v[a] == v[c] || v[b] == v[c];
+}
+
+// A point through a matrix's row: Pirate's Moon's code sums z first, which can change the last bit.
+template <class M> float row3(float x, float y, float z, float a, float b, float c) { return (x * a + y * b) + z * c; }
+template <> float row3<pm::zmod::Model>(float x, float y, float z, float a, float b, float c) {
+  return (z * c + y * b) + x * a;
+}
+
+template <class M> uint32_t hdr(const M& m, int off) {
   uint32_t v;
   std::memcpy(&v, m.header + off, 4);
   return v;
@@ -43,7 +75,7 @@ float* sized(std::vector<float>& v, uint32_t n) {
 }
 
 // The model's vertices through the top of the matrix stack (0x0054c655..0x0054c704).
-const float* place_vertices(Model& m) {
+template <class M> const float* place_vertices(M& m) {
   const float* src = m.vertices;
   float f;
   std::memcpy(&f, m.header + 0x24, 4);
@@ -63,38 +95,42 @@ const float* place_vertices(Model& m) {
   const float* t = s.matrix().m;
   for (uint32_t i = 0; i < n; ++i, src += 3) {
     const float x = src[0], y = src[1], z = src[2];
-    out[3 * i] = ((x * t[0] + y * t[3]) + z * t[6]) + t[9];
-    out[3 * i + 1] = ((x * t[1] + y * t[4]) + z * t[7]) + t[10];
-    out[3 * i + 2] = ((x * t[2] + y * t[5]) + z * t[8]) + t[11];
+    out[3 * i] = row3<M>(x, y, z, t[0], t[3], t[6]) + t[9];
+    out[3 * i + 1] = row3<M>(x, y, z, t[1], t[4], t[7]) + t[10];
+    out[3 * i + 2] = row3<M>(x, y, z, t[2], t[5], t[8]) + t[11];
   }
   return out;
 }
 
 void copy_vertex(float* dst, const float* world, uint32_t index) { std::memcpy(dst, world + 3 * index, 12); }
 
+template <class P>
+int32_t ground_core(zcls::Node* node, zcls::GroundHits* out, const float* probes, const int32_t* mask, int32_t count,
+                    float top, const float* v, const P& poly);
+
 // One polygon of the model: a strip is tested as its triangles (the count
 // byte set to 3 while they are), a plain polygon whole. `degenerate` is
 // what a strip of two vertices or fewer leaves as the result.
-int32_t test_polygon(zcls::Node* node, Polygon& p, const float* world, const float* probes, const int32_t* mask,
+template <class P> int32_t test_polygon(zcls::Node* node, P& p, const float* world, const float* probes, const int32_t* mask,
                      int32_t count, float top, zcls::GroundHits* out, int32_t degenerate) {
-  const uint32_t flags = p.flags;
-  const uint32_t n = flags & 0xff;
-  if (!(flags & 0x400)) {
+  const uint32_t n = poly_n(p);
+  if (!poly_strip(p)) {
     for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[i]);
-    return polygon_ground(node, out, probes, mask, count, top, g_s.poly, p);
+    return ground_core(node, out, probes, mask, count, top, g_s.poly, p);
   }
-  p.flags = (flags & ~0xffu) | 3;
+  p.flags = (p.flags & ~n_mask(p)) | 3;
   int32_t r = degenerate;
   if (static_cast<int32_t>(n) - 2 > 0) {
     for (uint32_t s = 2; static_cast<int32_t>(s - 2) < static_cast<int32_t>(n) - 2; ++s) {
+      if (poly_degenerate(p, s - 2, (s - 1) | 1, s & ~1u)) continue;
       copy_vertex(g_s.poly, world, p.vertex_indices[s - 2]);
       copy_vertex(g_s.poly + 3, world, p.vertex_indices[(s - 1) | 1]);
       copy_vertex(g_s.poly + 6, world, p.vertex_indices[s & ~1u]);
-      r = polygon_ground(node, out, probes, mask, count, top, g_s.poly, p);
+      r = ground_core(node, out, probes, mask, count, top, g_s.poly, p);
       if (r) break;
     }
   }
-  p.flags = (p.flags & ~0xffu) | n;
+  p.flags = (p.flags & ~n_mask(p)) | n;
   return r;
 }
 }  // namespace
@@ -121,8 +157,9 @@ float dot_from(const float* p, const float* v0, const float* n) {
 
 // 0x0054e2b0 and 0x0054ea30: the same test; the textured one differs in
 // the one-side case and records texture coordinates.
+template <class P>
 int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* segs, const int32_t* mask,
-                      int32_t count, const float* v, const Polygon& poly, int32_t* all, bool textured,
+                      int32_t count, const float* v, const P& poly, int32_t* all, bool textured,
                       const float* uvs, float* uv_out) {
   *all = 1;
   int32_t in[24];
@@ -165,7 +202,7 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
   if (!at_most(std::fabs(n[2]), m)) axis = 2;
   int32_t any = 1;
   int32_t j = 0;
-  for (int32_t i = static_cast<int32_t>(poly.flags & 0xff) - 1; i >= 0; j = i, --i) {
+  for (int32_t i = static_cast<int32_t>(poly_n(poly)) - 1; i >= 0; j = i, --i) {
     if (!any) return 0;
     const float* c = v + 3 * i;
     const float* a = v + 3 * j;
@@ -214,7 +251,8 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
     }
     std::memcpy(h.normal, n, 12);
     h.node = node;
-    h.material = poly.material;
+    h.owner = hit_owner(node);
+    h.material = poly_material(poly);
     ++out[k].count;
   }
   return any;
@@ -285,38 +323,40 @@ int32_t box_segments(zcls::Node* node, zcls::SegmentHits* out, const float* segs
 // Mech3.exe 1.2 @ 0x0054f450. A strip's triangles carry their own corners'
 // texture coordinates. A strip of two vertices or fewer at the cached index
 // reads an unset stack slot as its result in the exe; 0 here.
-void model_segments(zcls::Node* node, Model* model, const float* segs, const int32_t* mask, int32_t count,
+template <class M>
+void segments_of(zcls::Node* node, M* model, const float* segs, const int32_t* mask, int32_t count,
                     zcls::SegmentHits* out) {
   if (!model || hdr(*model, 0x10) == 0) return;
   const float* world = place_vertices(*model);
   float uv_out[2];
-  auto test = [&](Polygon& p) {
+  auto test = [&](auto& p) {
     int32_t all = 0;
-    const uint32_t flags = p.flags;
-    const uint32_t n = flags & 0xff;
-    const bool textured = p.material && (p.material->flags & 1);
-    if (!(flags & 0x400)) {
+    const uint32_t n = poly_n(p);
+    const Material* mat = poly_material(p);
+    const bool textured = mat && (mat->flags & 1);
+    if (!poly_strip(p)) {
       for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[i]);
-      if (textured) polygon_segments_uv(node, out, segs, mask, count, g_s.poly, p.uvs, uv_out, p, &all);
-      else polygon_segments(node, out, segs, mask, count, g_s.poly, p, &all);
+      segments_core(node, out, segs, mask, count, g_s.poly, p, &all, textured, poly_uvs(p), uv_out);
       return all;
     }
-    p.flags = (flags & ~0xffu) | 3;
+    p.flags = (p.flags & ~n_mask(p)) | 3;
     if (static_cast<int32_t>(n) - 2 > 0) {
       for (uint32_t s = 2; static_cast<int32_t>(s - 2) < static_cast<int32_t>(n) - 2; ++s) {
         const uint32_t k[3] = {s - 2, (s - 1) | 1, s & ~1u};
+        if (poly_degenerate(p, k[0], k[1], k[2])) continue;
         for (int i = 0; i < 3; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[k[i]]);
         if (textured) {
           float uv[6];
-          for (int i = 0; i < 3; ++i) uv[2 * i] = p.uvs[2 * k[i]], uv[2 * i + 1] = p.uvs[2 * k[i] + 1];
-          polygon_segments_uv(node, out, segs, mask, count, g_s.poly, uv, uv_out, p, &all);
+          const float* u = poly_uvs(p);
+          for (int i = 0; i < 3; ++i) uv[2 * i] = u[2 * k[i]], uv[2 * i + 1] = u[2 * k[i] + 1];
+          segments_core(node, out, segs, mask, count, g_s.poly, p, &all, true, uv, uv_out);
         } else {
-          polygon_segments(node, out, segs, mask, count, g_s.poly, p, &all);
+          segments_core(node, out, segs, mask, count, g_s.poly, p, &all, false, nullptr, nullptr);
         }
         if (all) break;
       }
     }
-    p.flags = (p.flags & ~0xffu) | n;
+    p.flags = (p.flags & ~n_mask(p)) | n;
     return all;
   };
   if (test(model->polygons[hdr(*model, 0x58)])) return;
@@ -328,19 +368,31 @@ void model_segments(zcls::Node* node, Model* model, const float* segs, const int
   }
 }
 
+void model_segments(zcls::Node* node, Model* model, const float* segs, const int32_t* mask, int32_t count,
+                    zcls::SegmentHits* out) {
+  segments_of(node, model, segs, mask, count, out);
+}
+// Pirate's Moon 1.0 @ 0x0056a600 (0x00569290, 0x00569b00)
+void model_segments(zcls::Node* node, pm::zmod::Model* model, const float* segs, const int32_t* mask, int32_t count,
+                    zcls::SegmentHits* out) {
+  segments_of(node, model, segs, mask, count, out);
+}
+
 // Mech3.exe 1.2 @ 0x0054c330. Inside means on the inner side of every edge,
 // walked backwards, within 0.0001; the height is the polygon's plane at the
 // probe. A record's next slot gets the normal and height even when the
 // probe is above top (and so not counted).
-int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* probes, const int32_t* mask,
-                       int32_t count, float top, const float* v, const Polygon& poly) {
+namespace {
+template <class P>
+int32_t ground_core(zcls::Node* node, zcls::GroundHits* out, const float* probes, const int32_t* mask, int32_t count,
+                    float top, const float* v, const P& poly) {
   int32_t all_in = 1, any = 1;
   float n[3];
   zmth::poly_normal(v, v + 3, v + 6, n);
   if (!(n[1] > 0.0f)) return 0;
   int32_t in[24];
   for (int32_t k = count - 1; k >= 0; --k) in[k] = mask[k];
-  int32_t i = static_cast<int32_t>(poly.flags & 0xff) - 1;
+  int32_t i = static_cast<int32_t>(poly_n(poly)) - 1;
   int32_t j = 0;
   for (; i >= 0 && any; j = i, --i) {
     const float* c = v + 3 * i;
@@ -385,16 +437,24 @@ int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* pro
       continue;
     }
     h.node = node;
+    h.owner = hit_owner(node);
     h.zone[0] = poly.zone_set;
-    h.material = poly.material;
+    h.material = poly_material(poly);
     ++rec.count;
   }
   return all_in;
 }
+}  // namespace
+
+int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* probes, const int32_t* mask,
+                       int32_t count, float top, const float* v, const Polygon& poly) {
+  return ground_core(node, out, probes, mask, count, top, v, poly);
+}
 
 // Mech3.exe 1.2 @ 0x0054c5f0
-void model_ground(zcls::Node* node, Model* model, const float* probes, const int32_t* mask, int32_t count,
-                  float top, zcls::GroundHits* out) {
+template <class M>
+void ground_of(zcls::Node* node, M* model, const float* probes, const int32_t* mask, int32_t count, float top,
+               zcls::GroundHits* out) {
   if (!model || hdr(*model, 0x10) == 0) return;
   const float* world = place_vertices(*model);
   int32_t top_bits;
@@ -407,6 +467,15 @@ void model_ground(zcls::Node* node, Model* model, const float* probes, const int
     r = test_polygon(node, model->polygons[i], world, probes, mask, count, top, out, 0);
     if (r) std::memcpy(model->header + 0x58, &i, 4);
   }
+}
+void model_ground(zcls::Node* node, Model* model, const float* probes, const int32_t* mask, int32_t count, float top,
+                  zcls::GroundHits* out) {
+  ground_of(node, model, probes, mask, count, top, out);
+}
+// Pirate's Moon 1.0 @ 0x005675a0 (0x00567290)
+void model_ground(zcls::Node* node, pm::zmod::Model* model, const float* probes, const int32_t* mask, int32_t count,
+                  float top, zcls::GroundHits* out) {
+  ground_of(node, model, probes, mask, count, top, out);
 }
 
 // Mech3.exe 1.2 @ 0x0054d640. Inside means on the inner side of every
@@ -433,14 +502,15 @@ namespace {
 // One polygon of 0x0054be40: a strip as its triangles, the count byte left
 // alone. A strip of fewer than two vertices would read past its list in the
 // exe; none ships, and the port skips it.
-int32_t point_polygon(const Polygon& p, const float* world, zcls::GroundHit* slot, const float* pt) {
-  const uint32_t n = p.flags & 0xff;
-  if (!(p.flags & 0x400)) {
+template <class P> int32_t point_polygon(const P& p, const float* world, zcls::GroundHit* slot, const float* pt) {
+  const uint32_t n = poly_n(p);
+  if (!poly_strip(p)) {
     for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[i]);
     return polygon_ground_point(slot, g_s.poly, pt[0], pt[2], static_cast<int32_t>(n)) && !(slot->height > pt[1]);
   }
   if (n < 3) return 0;
   for (uint32_t s = 2; s < n; ++s) {
+    if (poly_degenerate(p, s - 2, (s - 1) | 1, s & ~1u)) continue;
     copy_vertex(g_s.poly, world, p.vertex_indices[s - 2]);
     copy_vertex(g_s.poly + 3, world, p.vertex_indices[(s - 1) | 1]);
     copy_vertex(g_s.poly + 6, world, p.vertex_indices[s & ~1u]);
@@ -451,7 +521,7 @@ int32_t point_polygon(const Polygon& p, const float* world, zcls::GroundHit* slo
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x0054be40
-int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float point[3]) {
+template <class M> int32_t ground_point_of(M* model, zcls::GroundHit* slot, const float point[3]) {
   if (hdr(*model, 0x10) == 0) return 0;
   const float* world = place_vertices(*model);
   uint32_t hit = hdr(*model, 0x58);
@@ -462,10 +532,17 @@ int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float poin
   }
   if (!found) return 0;
   std::memcpy(model->header + 0x58, &hit, 4);
-  const Polygon& p = model->polygons[hit];
+  const auto& p = model->polygons[hit];
   slot->zone[0] = p.zone_set;
-  slot->material = p.material;
+  slot->material = poly_material(p);
   return 1;
+}
+int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float point[3]) {
+  return ground_point_of(model, slot, point);
+}
+// Pirate's Moon 1.0 @ 0x00566d60
+int32_t model_ground_point(pm::zmod::Model* model, zcls::GroundHit* slot, const float point[3]) {
+  return ground_point_of(model, slot, point);
 }
 
 namespace {
@@ -591,7 +668,7 @@ int32_t box_segment(const float c[8][3], zcls::LineHit* slot, const float a[3], 
 
 namespace {
 // A model's vertices in its own space, morphed when the node set a morph.
-const float* model_vertices(Model& m) {
+template <class M> const float* model_vertices(M& m) {
   float f;
   std::memcpy(&f, m.header + 0x24, 4);
   if ((hdr(m, 8) & 8) && f != 0.0f && hdr(m, 0x1c) != 0) {
@@ -605,28 +682,30 @@ const float* model_vertices(Model& m) {
 
 // One polygon of 0x0054cad0: -1 for a strip of two vertices (the exe reads
 // its unset result as a hit at the cached index, nothing elsewhere).
-int32_t segment_polygon(const Polygon& p, const float* verts, zcls::LineHit* slot, const float* a, const float* b) {
-  const uint32_t flags = p.flags;
-  const uint32_t n = flags & 0xff;
-  const int32_t two = (flags >> 8) & 1;
-  const bool textured = p.material && (p.material->flags & 2);
+template <class P>
+int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, const float* a, const float* b) {
+  const uint32_t n = poly_n(p);
+  const int32_t two = (p.flags >> 8) & 1;
+  const Material* mat = poly_material(p);
+  const bool textured = mat && (mat->flags & 2);
+  const float* uvs = poly_uvs(p);
   float uv_out[2];
-  if (!(flags & 0x400)) {
+  if (!poly_strip(p)) {
     for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, verts, p.vertex_indices[i]);
-    return textured ? polygon_segment_uv(slot, a, b, g_s.poly, p.uvs, uv_out, static_cast<int32_t>(n), two)
+    return textured ? polygon_segment_uv(slot, a, b, g_s.poly, uvs, uv_out, static_cast<int32_t>(n), two)
                     : polygon_segment(slot, a, b, g_s.poly, static_cast<int32_t>(n), two);
   }
   if (n == 2) return -1;
   if (n < 2) return 0;  // the exe walks past its list; none ships
   for (uint32_t s = 2; s < n; ++s) {
     const uint32_t i0 = s - 2, i1 = (s - 1) | 1, i2 = s & ~1u;
+    if (poly_degenerate(p, i0, i1, i2)) continue;
     copy_vertex(g_s.poly, verts, p.vertex_indices[i0]);
     copy_vertex(g_s.poly + 3, verts, p.vertex_indices[i1]);
     copy_vertex(g_s.poly + 6, verts, p.vertex_indices[i2]);
     int32_t r;
     if (textured) {
-      const float uv[6] = {p.uvs[2 * i0], p.uvs[2 * i0 + 1], p.uvs[2 * i1], p.uvs[2 * i1 + 1], p.uvs[2 * i2],
-                           p.uvs[2 * i2 + 1]};
+      const float uv[6] = {uvs[2 * i0], uvs[2 * i0 + 1], uvs[2 * i1], uvs[2 * i1 + 1], uvs[2 * i2], uvs[2 * i2 + 1]};
       r = polygon_segment_uv(slot, a, b, g_s.poly, uv, uv_out, 3, two);
     } else {
       r = polygon_segment(slot, a, b, g_s.poly, 3, two);
@@ -638,23 +717,23 @@ int32_t segment_polygon(const Polygon& p, const float* verts, zcls::LineHit* slo
 
 // The hit back in world space: the point through the top, the normal through
 // its 3x3, normalised.
-void hit_to_world(zcls::LineHit* slot) {
+template <class M> void hit_to_world(zcls::LineHit* slot) {
   const float* m = zmth::matrix_stack().matrix().m;
   const float* q = slot->point;
-  const float px = ((q[0] * m[0] + q[1] * m[3]) + q[2] * m[6]) + m[9];
-  const float py = ((q[0] * m[1] + q[1] * m[4]) + q[2] * m[7]) + m[10];
-  const float pz = ((q[0] * m[2] + q[1] * m[5]) + q[2] * m[8]) + m[11];
+  const float px = row3<M>(q[0], q[1], q[2], m[0], m[3], m[6]) + m[9];
+  const float py = row3<M>(q[0], q[1], q[2], m[1], m[4], m[7]) + m[10];
+  const float pz = row3<M>(q[0], q[1], q[2], m[2], m[5], m[8]) + m[11];
   slot->point[0] = px, slot->point[1] = py, slot->point[2] = pz;
   const float* nn = slot->normal;
-  zmth::Vec3 w{(nn[0] * m[0] + nn[1] * m[3]) + nn[2] * m[6], (nn[0] * m[1] + nn[1] * m[4]) + nn[2] * m[7],
-               (nn[0] * m[2] + nn[1] * m[5]) + nn[2] * m[8]};
+  zmth::Vec3 w{row3<M>(nn[0], nn[1], nn[2], m[0], m[3], m[6]), row3<M>(nn[0], nn[1], nn[2], m[1], m[4], m[7]),
+               row3<M>(nn[0], nn[1], nn[2], m[2], m[5], m[8])};
   zmth::normalize(w);
   slot->normal[0] = w.x, slot->normal[1] = w.y, slot->normal[2] = w.z;
 }
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x0054cad0
-int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const float b[3]) {
+template <class M> int32_t segment_of(M* model, zcls::LineHit* slot, const float a[3], const float b[3]) {
   if (hdr(*model, 0x10) == 0) return 0;
   const float* verts = model_vertices(*model);
   zmth::MatrixStack& st = zmth::matrix_stack();
@@ -667,32 +746,39 @@ int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const
     for (int k = 0; k < 2; ++k) {
       const float* q = k ? b : a;
       float* o = k ? sb : sa;
-      o[0] = ((q[0] * m[0] + q[1] * m[3]) + q[2] * m[6]) + m[9];
-      o[2] = ((q[0] * m[2] + q[1] * m[5]) + q[2] * m[8]) + m[11];
-      o[1] = ((q[0] * m[1] + q[1] * m[4]) + q[2] * m[7]) + m[10];
+      o[0] = row3<M>(q[0], q[1], q[2], m[0], m[3], m[6]) + m[9];
+      o[2] = row3<M>(q[0], q[1], q[2], m[2], m[5], m[8]) + m[11];
+      o[1] = row3<M>(q[0], q[1], q[2], m[1], m[4], m[7]) + m[10];
     }
   } else {
     std::memcpy(sa, a, 12);
     std::memcpy(sb, b, 12);
   }
   const uint32_t cached = hdr(*model, 0x58);
-  const Polygon& c = model->polygons[cached];
+  const auto& c = model->polygons[cached];
   if (segment_polygon(c, verts, slot, sa, sb)) {
-    slot->material = c.material;
-    if (!identity) hit_to_world(slot);
+    slot->material = poly_material(c);
+    if (!identity) hit_to_world<M>(slot);
     return 1;
   }
   for (uint32_t i = 0; i < hdr(*model, 0x10); ++i) {
     if (i == hdr(*model, 0x58)) continue;
-    const Polygon& p = model->polygons[i];
+    const auto& p = model->polygons[i];
     if (segment_polygon(p, verts, slot, sa, sb) > 0) {
-      slot->material = p.material;
-      if (!identity) hit_to_world(slot);
+      slot->material = poly_material(p);
+      if (!identity) hit_to_world<M>(slot);
       std::memcpy(model->header + 0x58, &i, 4);
       return 1;
     }
   }
   return 0;
+}
+int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const float b[3]) {
+  return segment_of(model, slot, a, b);
+}
+// Pirate's Moon 1.0 @ 0x00567b20
+int32_t model_segment(pm::zmod::Model* model, zcls::LineHit* slot, const float a[3], const float b[3]) {
+  return segment_of(model, slot, a, b);
 }
 
 // Mech3.exe 1.2 @ 0x00542730

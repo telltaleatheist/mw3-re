@@ -1437,6 +1437,15 @@ functions PM changed, and PM's new ones.
    - **To start mission N by editing**: with the game closed and a backup kept, change a record's 4-byte mission
      field, no length change. N in 1, 3, 5, 6, 8, 9 needs nothing else. N in 2, 4, 7, 10 needs `<name>%02d.mw3` to
      exist, from having won N - 1. Not traced: how the pilot screen picks among the records. Not tried in the game.
+   **The geometry queries: ported (2026-11-05)** (`zclass/cls_di`, `zmodel/gmod_hit`, `test_pm_di.py`). The ground 0x5003a0,
+   point 0x4ff8d0, segments 0x502360 and shots 0x501030, 0x500f80 reach PM's models (0x5675a0, 0x566d60, 0x56a600 with
+   0x569290, 0x569b00, 0x567b20): count 0x3ff, strip 0x2000, the first material and UVs, a strip's degenerate triangles
+   passed over. Before this `line_node` and the others tested only `node->model`, null on PM, and three of the four box
+   helpers read +0x74 for PM's +0x70: no triangle hit anything. A hit's slot is 0x2c bytes: +0x28 the owner, the node's
+   +0x40 (0x200000 walks up its parents): a clutter record while a query visits it. The records' four walks: 0x4ffb40,
+   0x5007d0, 0x502a90, 0x501a30, through the cell's tree by 0x503c20, 0x503ce0, 0x504100, 0x503ea0. Tested on crafted records,
+   not on laid ones. Unreached by the test: a count over 255, the 0x200000 walk, the sphere query's box. Clutter's
+   `ground_heights` hook stays null: a mission's load sets the laying's skip first (0x492f9a).
    **Headlights go with the mech step (4), as the expansion's headline feature: the player's ported (2026-11-04)**
    (`mech3/mech_headlight`, `test_pm_headlight.py`, the setters in `test_pm_light_setters.py`). In the game: the dfn's
    config, the torso's setup, the key 0x3c, the mech's frame detaching and reattaching it (PM's vt+0x34, +0x3c), the

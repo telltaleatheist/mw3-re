@@ -22,6 +22,7 @@ struct GroundHit {
   uint32_t zone[2];              // +0x18  the polygon's +0x20 in [0]
   zmod::Material* material;      // +0x20
   Node* node;                    // +0x24
+  void* owner = nullptr;         // Pirate's Moon's +0x28 (a 0x2c-byte slot): the node's or a parent's
 };
 struct GroundHits {              // 0x504 bytes in the exe
   uint8_t count;
@@ -36,6 +37,7 @@ struct SegmentHit {
   uint32_t zone[2];              // +0x18  not written
   zmod::Material* material;      // +0x20  0 for a box face
   Node* node;                    // +0x24
+  void* owner = nullptr;         // Pirate's Moon's +0x28
 };
 struct SegmentHits {
   uint8_t count;
@@ -69,6 +71,7 @@ struct LineHit {
   float dist2;                   // +0x1c
   zmod::Material* material;      // +0x20  0 for a box face
   Node* node;                    // +0x24
+  void* owner = nullptr;         // Pirate's Moon's +0x28
 };
 struct LineHits {                // the exe's 0x504-byte buffer
   uint8_t count;                 // +0  (after 0x004eece0: the nearest one's index)

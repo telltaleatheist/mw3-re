@@ -3,6 +3,7 @@
 
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 // A model's polygons against the world queries' probes and segments
 // (zclass/cls_di.c calls these per node). Original file unknown: the code
@@ -11,6 +12,9 @@
 namespace zimg { struct TextureEntry; }
 
 namespace zmod {
+
+// Pirate's Moon's hit's +0x28: the node's owner (+0x40), with flag 0x200000 the first up its parents to have one.
+void* hit_owner(const zcls::Node* node);
 
 // ECX node, EDX its model; the probes (x, y, z each), their mask (0 skips a
 // probe), count, top and the out records. The model's vertices go through
@@ -21,6 +25,8 @@ namespace zmod {
 // there ends the search.
 void model_ground(zcls::Node* node, Model* model, const float* probes, const int32_t* mask, int32_t count,
                   float top, zcls::GroundHits* out);  // 0x0054c5f0
+void model_ground(zcls::Node* node, pm::zmod::Model* model, const float* probes, const int32_t* mask, int32_t count,
+                  float top, zcls::GroundHits* out);  // Pirate's Moon 0x005675a0
 
 // One polygon (its vertices in world space, `poly` for the flags, zone and
 // material): 1 when every masked probe is inside it and under top.
@@ -33,6 +39,7 @@ int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* pro
 // material and becomes the cached one: 1. Facing down counts too; a slot a
 // polygon held above y keeps that polygon's normal and height.
 int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float point[3]);  // 0x0054be40
+int32_t model_ground_point(pm::zmod::Model* model, zcls::GroundHit* slot, const float point[3]);  // Pirate's Moon 0x00566d60
 
 // One polygon of n vertices (world space) at (x, z): 1 when inside, with
 // the slot's normal and height (the plane at x, z; a vertical polygon's
@@ -47,6 +54,7 @@ int32_t polygon_ground_point(zcls::GroundHit* slot, const float* verts, float x,
 // space) and material. Polygons whose material has flag 2 are tested with
 // their texture coordinates.
 int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const float b[3]);  // 0x0054cad0
+int32_t model_segment(pm::zmod::Model* model, zcls::LineHit* slot, const float a[3], const float b[3]);  // Pirate's Moon 0x00567b20
 
 // One polygon of n vertices against the segment a-b, crossed from its front
 // (either side when two_sided): 1 with the slot's unit normal and point.
@@ -93,6 +101,8 @@ bool cookie(zimg::TextureEntry* target, const zimg::Texture* from, const zimg::T
 // the polygon all of them crossed is cached as in model_ground.
 void model_segments(zcls::Node* node, Model* model, const float* segs, const int32_t* mask, int32_t count,
                     zcls::SegmentHits* out);  // 0x0054f450
+void model_segments(zcls::Node* node, pm::zmod::Model* model, const float* segs, const int32_t* mask, int32_t count,
+                    zcls::SegmentHits* out);  // Pirate's Moon 0x0056a600
 
 // One polygon against the segments; *all is set when every segment crossed
 // it. Returns whether any did. The textured form (0x0054ea30) also clears

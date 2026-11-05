@@ -15,6 +15,7 @@
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_hit.h"
+#include "pm/gamez/zclass/cls_clutter.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -47,6 +48,66 @@ SegmentOptions g_opt;
 
 bool stop_early() { return g_opt.first_hit && g_sq.out[0].count > 0; }
 
+// Pirate's Moon's clutter records (a cell's +0x44, docs/pm-map.md): each query takes a record's node where the
+// record lies, its owner the record for the hit's +0x28, then back to none. Through the cell's tree once it has one.
+struct NoMask {};
+struct Mask {
+  int32_t m[kMaxProbes];
+};
+using ClutterRecord = pm::zcls::ClutterRecord;
+using CellClutter = pm::zcls::CellClutter;
+
+void clutter_place(const ClutterRecord& r) {
+  Node* n = r.node;
+  std::memcpy(n->raw + 0x64, r.matrix.m + 9, 12);
+  if (n->cls() != 5) return;
+  auto* o = static_cast<Object3d*>(n->data);
+  o->put<uint32_t>(0, o->get<uint32_t>(0) & ~8u);
+  std::memcpy(o->raw + 0x30, r.matrix.m, 48);
+  std::memcpy(o->raw + 0x60, r.matrix.m, 48);
+  float corners[8][3];
+  zmth::box_corners(r.matrix.m, n->pm_box, corners);  // 0x0053c510
+  float radius;
+  corners_sphere(corners, reinterpret_cast<float*>(n->raw + 0x64), &radius);  // 0x0050d930
+  n->put(0x70, radius);
+}
+
+template <class M, class Gate, class Leaf, class Stop>
+void clutter_tree(CellClutter& c, int32_t i, const M& in, Gate gate, Leaf leaf, Stop stop) {
+  const pm::zcls::ClutterTreeNode& t = c.tree[static_cast<size_t>(i)];
+  if (t.records.empty() && t.first_child < 0) return;
+  M m = in;
+  if (!gate(t.box, m)) return;
+  if (t.first_child < 0) {
+    for (const int32_t r : t.records) {
+      leaf(c[static_cast<size_t>(r)], m);
+      if (stop()) return;
+    }
+    return;
+  }
+  for (int32_t k = 0; k < 4; ++k) {
+    clutter_tree(c, t.first_child + k, m, gate, leaf, stop);
+    if (stop()) return;
+  }
+}
+
+template <class M, class Gate, class Leaf, class Stop>
+void clutter_walk(Partition& p, const M& m, Gate gate, Leaf leaf, Stop stop) {
+  auto* c = static_cast<CellClutter*>(p.pm_clutter);
+  if (!c) return;
+  if (!c->tree.empty()) return clutter_tree(*c, 0, m, gate, leaf, stop);
+  for (ClutterRecord& r : *c) {
+    M copy = m;
+    leaf(r, copy);
+    if (stop()) return;
+  }
+}
+
+int32_t clutter_count(Partition& p) {
+  const auto* c = static_cast<const CellClutter*>(p.pm_clutter);
+  return c ? static_cast<int32_t>(c->size()) : 0;
+}
+
 template <typename T> T at(const void* base, int off) {
   T v;
   std::memcpy(&v, static_cast<const uint8_t*>(base) + off, sizeof v);
@@ -61,7 +122,8 @@ zmth::Mat34* mat(uint8_t* d, int off) { return reinterpret_cast<zmth::Mat34*>(d 
 int ground_node(Node* node, int32_t siblings, const int32_t* mask);
 
 void model_test(Node* node, const int32_t* mask) {
-  if (node->model) zmod::model_ground(node, node->model, g_q.probes, mask, g_q.count, g_q.top, g_q.out);
+  if (node->pm_model) zmod::model_ground(node, node->pm_model, g_q.probes, mask, g_q.count, g_q.top, g_q.out);
+  else if (node->model) zmod::model_ground(node, node->model, g_q.probes, mask, g_q.count, g_q.top, g_q.out);
 }
 
 void ground_children(Node* node, const int32_t* mask, bool all) {
@@ -248,7 +310,8 @@ int box_segments_test(Node* node, int32_t* mask) {
 int segment_node(Node* node, int32_t siblings, const int32_t* mask);
 
 void model_segments_of(Node* node, const int32_t* mask) {
-  if (node->model) zmod::model_segments(node, node->model, g_sq.segs, mask, g_sq.count, g_sq.out);
+  if (node->pm_model) zmod::model_segments(node, node->pm_model, g_sq.segs, mask, g_sq.count, g_sq.out);
+  else if (node->model) zmod::model_segments(node, node->model, g_sq.segs, mask, g_sq.count, g_sq.out);
 }
 
 void segment_children(Node* node, const int32_t* mask, bool all) {
@@ -439,7 +502,35 @@ void segment_cells(Node* world, const int32_t* valid) {
         segment_node(n, p.get<int16_t>(0x3a) + 1, valid);
         if (stop_early()) break;
       }
-      // Pirate's Moon: +0x40 is the cell's clutter records; its queries (0x004ffb40 and siblings) are still to port.
+      // Pirate's Moon 0x00502a90, 0x00502bd0 (0x00504100), 0x00502b00.
+      {
+        Mask m;
+        std::memcpy(m.m, valid, sizeof m.m);
+        const int32_t many = clutter_count(p) + 1;
+        clutter_walk(
+            p, m,
+            [](const float* b, Mask& q) {
+              bool any = false;
+              for (int32_t k = 0; k < g_sq.count; ++k) {
+                if (!q.m[k]) continue;
+                const float* v = g_sq.box[k];
+                if (b[0] < v[3] && v[0] < b[3] && b[1] < v[4] && v[1] < b[4] && b[2] < v[5] && v[2] < b[5]) any = true;
+                else q.m[k] = 0;
+              }
+              return any;
+            },
+            [many](ClutterRecord& r, Mask& q) {
+              if ((r.flags & 1) || !(r.node->flags() & kActive) || !(r.node->flags() & kFade)) return;
+              clutter_place(r);
+              r.node->owner = &r;
+              r.node->raw[0x30] = r.zone;
+              segment_node(r.node, many, q.m);
+              r.node->owner = nullptr;
+            },
+            [] { return stop_early(); });
+        if (stop_early()) break;
+      }
+      // MW3's fading records (Pirate's Moon's +0x40 are the clutter's, above).
       for (int32_t i = 0; zgame::game().cell_fades && i < p.get<int32_t>(0x40); ++i) {
         uint8_t* e = p.fades + 0x44 * i;
         Node* n;
@@ -546,9 +637,12 @@ int point_node(Node* node, int32_t siblings);
 // entry checks); the port stops there.
 void point_model(Node* node) {
   GroundHits& r = *g_pq.out;
-  if (!node->model || r.count >= 32) return;
-  if (!zmod::model_ground_point(node->model, &r.hit[r.count], g_pq.p)) return;
+  if ((!node->model && !node->pm_model) || r.count >= 32) return;
+  if (!(node->pm_model ? zmod::model_ground_point(node->pm_model, &r.hit[r.count], g_pq.p)
+                       : zmod::model_ground_point(node->model, &r.hit[r.count], g_pq.p)))
+    return;
   r.hit[r.count].node = node;
+  r.hit[r.count].owner = zmod::hit_owner(node);
   ++r.count;
 }
 
@@ -727,7 +821,26 @@ int ground_point(Node* world, float x, float y, float z, GroundHits* out) {
       if ((n->flags() & kZoned) && !zmod::zone_visible(n->raw[0x30])) continue;
       point_node(n, p.get<int16_t>(0x3a) + 1);
     }
-    // Pirate's Moon: +0x40 is the cell's clutter records; its queries (0x004ffb40 and siblings) are still to port.
+    // Pirate's Moon 0x004ffb40, 0x004ffc80 (0x00503c20), 0x004ffb90.
+    {
+      const int32_t many = clutter_count(p) + 1;
+      clutter_walk(
+          p, NoMask{},
+          [](const float* b, NoMask&) {
+            return b[0] <= g_pq.p[0] && g_pq.p[0] <= b[3] && b[2] <= g_pq.p[2] && g_pq.p[2] <= b[5];
+          },
+          [many](ClutterRecord& r, NoMask&) {
+            if ((r.flags & 1) || !(r.node->flags() & kActive) || !(r.node->flags() & kFade)) return;
+            r.node->raw[0x30] = r.zone;
+            if ((r.node->flags() & kZoned) && !zmod::zone_visible(r.node->raw[0x30])) return;
+            clutter_place(r);
+            r.node->owner = &r;
+            point_node(r.node, many);
+            r.node->owner = nullptr;
+          },
+          [] { return false; });
+    }
+    // MW3's fading records (Pirate's Moon's +0x40 are the clutter's, above).
     for (int32_t i = 0; zgame::game().cell_fades && i < p.get<int32_t>(0x40); ++i) {
       uint8_t* e = p.fades + 0x44 * i;
       Node* n;
@@ -841,7 +954,34 @@ int ground_query(Node* world, float* probes, int32_t count, float top, GroundHit
     for (int32_t i = 0; i < count; ++i) mask[i] = valid[i] && cell[i] == &p;
     for (int32_t i = 0; i < p.get<int16_t>(0x3a); ++i)
       if (tested(p.nodes[i])) ground_node(p.nodes[i], p.get<int16_t>(0x3a) + 1, mask);
-    // Pirate's Moon: +0x40 is the cell's clutter records; its queries (0x004ffb40 and siblings) are still to port.
+    // Pirate's Moon 0x005007d0, 0x00500900 (0x00503ce0), 0x00500830.
+    {
+      Mask m;
+      std::memcpy(m.m, mask, sizeof m.m);
+      const int32_t many = clutter_count(p) + 1;
+      clutter_walk(
+          p, m,
+          [](const float* b, Mask& q) {
+            int32_t any = 0;
+            for (int32_t k = 0; k < g_q.count; ++k) {
+              if (!q.m[k]) continue;
+              const float* v = g_q.probes + 3 * k;
+              if (v[0] < b[0] || b[3] < v[0] || v[2] < b[2] || b[5] < v[2]) q.m[k] = 0;
+              else any = 1;
+            }
+            return any != 0;
+          },
+          [many](ClutterRecord& r, Mask& q) {
+            if ((r.flags & 1) || !(r.node->flags() & kActive) || !(r.node->flags() & kFade)) return;
+            clutter_place(r);
+            r.node->owner = &r;
+            r.node->raw[0x30] = r.zone;
+            ground_node(r.node, many, q.m);
+            r.node->owner = nullptr;
+          },
+          [] { return false; });
+    }
+    // MW3's fading records (Pirate's Moon's +0x40 are the clutter's, above).
     for (int32_t i = 0; zgame::game().cell_fades && i < p.get<int32_t>(0x40); ++i) {
       uint8_t* e = p.fades + 0x44 * i;
       Node* n;
@@ -894,15 +1034,18 @@ int line_result() { return g_lq.out->count == 0; }
 void line_take(Node* node) {
   LineHits& r = *g_lq.out;
   r.hit[r.count].node = node;
+  r.hit[r.count].owner = zmod::hit_owner(node);
   ++r.count;
 }
 
 // The node's model crossed: its slot filled, the node recorded.
 void line_model(Node* node) {
   LineHits& r = *g_lq.out;
-  if (!node->model || !(g_opt.since < node->get<int32_t>(0xc4))) return;
+  if ((!node->model && !node->pm_model) || !(g_opt.since < node->get<int32_t>(0xc4))) return;
   if (r.count >= 32) return;  // FIX (A): the exe's record has no room past 32
-  if (zmod::model_segment(node->model, &r.hit[r.count], g_lq.a, g_lq.b)) line_take(node);
+  if (node->pm_model ? zmod::model_segment(node->pm_model, &r.hit[r.count], g_lq.a, g_lq.b)
+                     : zmod::model_segment(node->model, &r.hit[r.count], g_lq.a, g_lq.b))
+    line_take(node);
 }
 
 int line_node(Node* node, int32_t siblings);
@@ -1143,7 +1286,29 @@ void line_cells(Node* world) {
         line_node(n, p.get<int16_t>(0x3a) + 1);
         if (line_done()) return;
       }
-      // Pirate's Moon: +0x40 is the cell's clutter records; its queries (0x004ffb40 and siblings) are still to port.
+      // Pirate's Moon 0x00501a30, 0x00501920 (0x00503ea0), 0x00501840.
+      {
+        const int32_t many = clutter_count(p) + 1;
+        clutter_walk(
+            p, NoMask{},
+            [](const float* b, NoMask&) {
+              const float* q = g_lq.box;
+              return !(q[3] <= b[0] || b[3] <= q[0] || q[4] <= b[1] || b[4] <= q[1] || q[5] <= b[2] || b[5] <= q[2]);
+            },
+            [many](ClutterRecord& r, NoMask&) {
+              if ((r.flags & 1) || !(r.node->flags() & kActive) || !(r.node->flags() & kIntersect) ||
+                  !line_static_ok(r.node))
+                return;
+              clutter_place(r);
+              r.node->owner = &r;
+              r.node->raw[0x30] = r.zone;
+              line_node(r.node, many);
+              r.node->owner = nullptr;
+            },
+            [] { return line_done(); });
+        if (line_done()) return;
+      }
+      // MW3's fading records (Pirate's Moon's +0x40 are the clutter's, above).
       for (int32_t i = 0; zgame::game().cell_fades && i < p.get<int32_t>(0x40); ++i) {
         uint8_t* e = p.fades + 0x44 * i;
         Node* n;
@@ -1271,7 +1436,7 @@ bool name_matches(const Node* n) {
 // its world matrix (0x004ed280, 0x005227a0), as a sphere (0x004f9c40),
 // tested and recorded; 0 recorded, else why not.
 int sphere_leaf(Node* node) {
-  const float* b = reinterpret_cast<const float*>(node->raw + 0x74);
+  const float* b = node->pm_box ? node->pm_box : reinterpret_cast<const float*>(node->raw + 0x74);  // PM's +0x70
   float c[8][3] = {{b[0], b[1], b[5]}, {b[3], b[1], b[5]}, {b[3], b[1], b[2]}, {b[0], b[1], b[2]},
                    {b[0], b[4], b[5]}, {b[3], b[4], b[5]}, {b[3], b[4], b[2]}, {b[0], b[4], b[2]}};
   zmth::Mat34 buf;

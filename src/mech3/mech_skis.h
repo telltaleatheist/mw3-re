@@ -26,6 +26,7 @@ struct GroundHit {
   uint8_t zone[8] = {};    // +0x18  the polygon's zone set
   Handle material = nullptr;  // +0x20  its +0x20 indexes the soil table 0x00608c00
   Handle node = nullptr;   // +0x24
+  Handle owner = nullptr;  // Pirate's Moon's +0x28
 };
 struct GroundHits {        // 0x504 bytes per probe, at 0x006061d0
   uint8_t count = 0;

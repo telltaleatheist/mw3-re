@@ -23,6 +23,7 @@
 #include "gamez/zclass/camera.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zclass/cls_di.h"
 #include "mech3/mech_headlight.h"
 #include "gamez/zrender/zrndr_span.h"
 #include "gamez/zmodel/gmod_light.h"
@@ -733,6 +734,117 @@ int probe_pm_headlight_op(int op, int a, int b, float f, uint8_t* out, int cap) 
   if (static_cast<int>(s.size()) > cap) return -1;
   std::memcpy(out, s.data(), s.size());
   return static_cast<int>(s.size());
+}
+
+// test_pm_di.py: the world queries on the world test_pm_mechlib's or probe_pm_draw_load's stack made. The records
+// as int32s: per record its count, then per hit the normal, x, height, z, zones, the material's and the node's
+// slots and whether it has an owner.
+namespace {
+int32_t di_node(const ::zcls::Node* n) {
+  if (!n) return -1;
+  const ::zcls::NodePool& p = ::zcls::nodes();
+  for (size_t k = 0; k < p.blocks.size(); ++k)
+    if (n >= p.blocks[k].get() && n < p.blocks[k].get() + p.block_size) return static_cast<int32_t>(k) * p.block_size + static_cast<int32_t>(n - p.blocks[k].get());
+  return -2;
+}
+extern "C++" template <class H> void di_put(std::vector<int32_t>& o, const H& h) {
+  int32_t w[6];
+  std::memcpy(w, &h, 24);
+  o.insert(o.end(), w, w + 6);
+  o.push_back(static_cast<int32_t>(h.zone[0]));
+  o.push_back(static_cast<int32_t>(h.zone[1]));
+  o.push_back(h.material ? ::zmod::materials().index_of(h.material) : -1);
+  o.push_back(di_node(h.node));
+  o.push_back(h.owner ? 1 : 0);
+}
+::zcls::GroundHits g_di_g[24];
+::zcls::SegmentHits g_di_s[24];
+::zcls::LineHits g_di_l;
+}  // namespace
+// Records in a cell, the test's: per record 13 floats (the matrix, then zone as a float) and a flag word; `tree` makes
+// a root over four leaves split at the records' middle, as the test's exe side does.
+void probe_pm_di_clutter(int world, int cx, int cz, int node, const float* rec, const uint32_t* flags, int n, const float* boxes, const int32_t* leaf_of) {
+  auto* w = static_cast<::zcls::World*>(::zcls::node_at(world)->data);
+  ::zcls::Partition& cell = w->rows[cz][cx];
+  if (!cell.pm_clutter) cell.pm_clutter = new pm::zcls::CellClutter;
+  auto& c = *pm::zcls::cell_clutter(cell);
+  c.clear();
+  c.tree.clear();
+  for (int i = 0; i < n; ++i) {
+    pm::zcls::ClutterRecord r;
+    r.node = ::zcls::node_at(node);
+    std::memcpy(r.matrix.m, rec + 13 * i, 48);
+    r.zone = static_cast<uint8_t>(rec[13 * i + 12]);
+    r.flags = flags[i];
+    c.push_back(r);
+  }
+  if (!boxes) return;
+  c.tree.resize(5);
+  std::memcpy(c.tree[0].box, boxes, 24);
+  c.tree[0].first_child = 1;
+  for (int k = 0; k < 4; ++k) {
+    std::memcpy(c.tree[static_cast<size_t>(k + 1)].box, boxes + 6 * (k + 1), 24);
+    for (int i = 0; i < n; ++i)
+      if (leaf_of[i] == k) c.tree[static_cast<size_t>(k + 1)].records.push_back(i);
+  }
+}
+void probe_pm_di_centre(int node, float* out) { std::memcpy(out, ::zcls::node_at(node)->raw + 0x64, 16); }
+void probe_pm_di_flag(int node, uint32_t or_flags) { ::zcls::node_at(node)->set_flags(::zcls::node_at(node)->flags() | or_flags); }
+int probe_pm_di_ground(int world, float* probes, int n, float top, int32_t* out, int cap) {
+  std::memset(static_cast<void*>(g_di_g), 0, sizeof g_di_g);
+  std::vector<int32_t> o;
+  o.push_back(::zcls::ground_query(::zcls::node_at(world), probes, n, top, g_di_g));
+  for (int i = 0; i < n && i < 24; ++i) {
+    o.push_back(g_di_g[i].count);
+    for (int k = 0; k < g_di_g[i].count; ++k) di_put(o, g_di_g[i].hit[k]);
+  }
+  if (static_cast<int>(o.size()) > cap) return -1;
+  std::memcpy(out, o.data(), o.size() * 4);
+  return static_cast<int>(o.size());
+}
+int probe_pm_di_point(int world, float x, float y, float z, int32_t* out, int cap) {
+  std::memset(static_cast<void*>(g_di_g), 0, sizeof g_di_g);
+  std::vector<int32_t> o;
+  o.push_back(::zcls::ground_point(::zcls::node_at(world), x, y, z, g_di_g));
+  o.push_back(g_di_g[0].count);
+  for (int k = 0; k < g_di_g[0].count; ++k) di_put(o, g_di_g[0].hit[k]);
+  if (static_cast<int>(o.size()) > cap) return -1;
+  std::memcpy(out, o.data(), o.size() * 4);
+  return static_cast<int>(o.size());
+}
+int probe_pm_di_segments(int world, float* segs, int points, int32_t* out, int cap) {
+  std::memset(static_cast<void*>(g_di_s), 0, sizeof g_di_s);
+  std::vector<int32_t> o;
+  ::zcls::segment_query(::zcls::node_at(world), segs, points, g_di_s);
+  for (int i = 0; i < points / 2 && i < 12; ++i) {
+    o.push_back(g_di_s[i].count);
+    for (int k = 0; k < g_di_s[i].count; ++k) di_put(o, g_di_s[i].hit[k]);
+  }
+  if (static_cast<int>(o.size()) > cap) return -1;
+  std::memcpy(out, o.data(), o.size() * 4);
+  return static_cast<int>(o.size());
+}
+int probe_pm_di_line(int world, const float* a, const float* b, int nearest, int32_t* out, int cap) {
+  std::memset(static_cast<void*>(&g_di_l), 0, sizeof g_di_l);
+  std::vector<int32_t> o;
+  const int r = nearest ? ::zcls::segment_nearest(::zcls::node_at(world), a, b, &g_di_l) : ::zcls::segment_list(::zcls::node_at(world), a, b, &g_di_l);
+  o.push_back(r), o.push_back(g_di_l.count), o.push_back(g_di_l.total);
+  const int shown = nearest ? g_di_l.total : g_di_l.count;
+  for (int k = 0; k < shown && k < 32; ++k) {
+    const ::zcls::LineHit& h = g_di_l.hit[k];
+    int32_t w[6];
+    std::memcpy(w, &h, 24);
+    o.insert(o.end(), w, w + 6);
+    int32_t d;
+    std::memcpy(&d, &h.dist2, 4);
+    o.push_back(d);
+    o.push_back(h.material ? ::zmod::materials().index_of(h.material) : -1);
+    o.push_back(di_node(h.node));
+    o.push_back(h.owner ? 1 : 0);
+  }
+  if (static_cast<int>(o.size()) > cap) return -1;
+  std::memcpy(out, o.data(), o.size() * 4);
+  return static_cast<int>(o.size());
 }
 
 // test_pm_modeldraw.py: a world loaded (nodes and models, as the exe's), a view
