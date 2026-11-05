@@ -129,6 +129,7 @@ void vehicle_markers_create();  // mech3/veh_basic_object.h: 0x004ac3d0
 void vehicle_markers_delete();  // 0x004ac4e0
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
 void radar_objects_create();                                 // 0x004b4ab0
+void lod_setup(int32_t object_lod, float far_clip);  // mech_lod.h: 0x00414430's bands
 void hit_globals_init(bool network);                         // 0x00413e60's first part (mech_parts.h)
 void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
@@ -1758,6 +1759,10 @@ struct WiredMissionHooks : MissionHooks {
   // made when first needed.
   void mechs_init() override {
     hit_globals_init(options().multiplayer != 0);
+    float near_clip = 1.0f, far_clip = 800.0f;
+    if (PlayerView* v = program_view(); v && v->camera)
+      zcls::camera_get_clip(static_cast<zcls::Node*>(v->camera), &near_clip, &far_clip);
+    lod_setup(mech3::object_lod(), far_clip);
     program_motions_open();
     mech3::cockpit_sounds_load();
   }
@@ -2297,6 +2302,8 @@ void mission_win() { missions().complete(); }
 Objectives& mission_objectives() { return g_objective_hooks.objs; }
 ObjectiveHooks& mission_objective_hooks() { return g_objective_hooks; }
 void* mission_sun() { return missions().world.sun ? missions().world.sun->node : nullptr; }
+bool mission_ai_headlights() { return missions().world.ai_headlights != 0; }
+
 int mission_game_type() { return g_mission_engine ? g_mission_engine->launch().type : 0; }
 uint8_t mission_aborting() { return missions().aborting; }
 // Mech3.exe 1.2 @ 0x00491c80

@@ -925,8 +925,7 @@ def main():
         mine = list(w)
         if brk == 12:
             mine[15] = 1 - mine[15]
-        n2 = probe.probe_lod(arr(U, mine), BUF, CAP)
-        check('lod', BUF.raw[:n2], lodding.lod(w))
+        # On pm the port is PM's 0x41f4d0, not this exe's: test_pm_lod.py.
     for _ in range(300):
         kind = rng.randint(0, 1)
         w = [rng.randint(0, 1), rng.choice((0, 0x9100, 0x9200)), rng.choice((0, 0x9100)), rng.choice((0, 0x9200)),

@@ -21,6 +21,8 @@ int camera_set_window(Node* node, Node* window);                   // 0x004f3620
 int camera_set_fov_angles(Node* node, float h, float v);           // 0x004f3d90
 int camera_get_fov_angles(Node* node, float* h, float* v);         // 0x004f3ee0
 int camera_add_child(Node* node, Node* child);                     // 0x004f33a0
+const float* camera_axis(Node* node);  // the view's axis, its data +0x74
+int camera_get_clip(Node* node, float* near_clip, float* far_clip);
 int camera_set_clip(Node* node, float near_clip, float far_clip);  // 0x004f3a70
 int camera_set_fov(Node* node, float h, float v);                  // 0x004f3b90
 

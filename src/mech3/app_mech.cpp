@@ -76,6 +76,9 @@
 #include "mech3/mech_lib.h"
 #include "mech3/mech_shade.h"
 #include "gamez/zclass/camera.h"
+#include "mech3/mech_headlight.h"
+#include "mech3/mech_lod.h"
+#include "pm/gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
@@ -838,6 +841,18 @@ void wire_mech_parts() {
     return seen ? entity_mech(seen) : nullptr;
   };
   lc.remove_child = [](Handle p, Handle c) { zcls::node_remove_child(zn(p), zn(c)); };
+  lc.camera_axis = []() -> const float* {
+    PlayerView* v = program_view();
+    return v && v->camera ? zcls::camera_axis(zn(v->camera)) : nullptr;
+  };
+  lc.mission_lights = mission_ai_headlights;
+  lc.light_map_option = [] { return pm::zmod::draw_state().light_map_option; };
+  lc.light_turn = [](Mech& m, bool on) {
+    if (m.torso && m.torso->headlight) m.torso->headlight->turn(on, true);  // 0x00465da0
+  };
+  lc.light_lod = [](Mech& m, float d2) {
+    if (m.torso && m.torso->headlight) m.torso->headlight->set_lod(d2);  // 0x00465e00
+  };
   lc.add_child = [](Handle p, Handle c) { zcls::node_add_child(zn(p), zn(c)); };
   lc.find = [](Handle n, const char* name) -> Handle { return zcls::node_find_in_tree(zn(n), name); };  // 0x004f9d60
   lc.node_set_active = [](Handle n, int32_t on) { zcls::node_set_active(zn(n), on); };

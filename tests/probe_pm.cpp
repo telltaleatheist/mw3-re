@@ -25,6 +25,9 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zclass/cls_di.h"
 #include "mech3/mech_headlight.h"
+#include "mech3/mech_lod.h"
+#include "mech3/mech_parts.h"
+#include "mech3/zai_target.h"
 #include "gamez/zrender/zrndr_span.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zutil/ztimer.h"
@@ -620,6 +623,76 @@ int probe_pm_mechlib(const char* world, const char* path, const char* names, uin
   if (static_cast<int>(b.size()) > cap) return -1;
   std::memcpy(out, b.data(), b.size());
   return static_cast<int>(b.size());
+}
+
+// test_pm_lod.py: the port of 0x00414430's table, then 0x0041f4d0 on made-up mechs.
+int probe_pm_lod_setup(int32_t option, uint32_t far_bits, uint32_t* out) {
+  float f;
+  std::memcpy(&f, &far_bits, 4);
+  ::mech3::lod_setup(option, f);
+  const ::mech3::LodTable& t = ::mech3::lod_table();
+  out[0] = t.low;
+  std::memcpy(out + 1, &t.near_sq, 4), std::memcpy(out + 2, &t.mid_sq, 4), std::memcpy(out + 3, &t.far_sq, 4);
+  out[4] = t.near_bits, out[5] = t.mid_bits, out[6] = t.far_bits, out[7] = t.player_bits;
+  out[8] = static_cast<uint32_t>(t.sound_limit);
+  return 0;
+}
+
+// 0x0041f3d5: throttle bits, the mission's flag, the option. Out: both budgets.
+int probe_pm_lod_budget(uint32_t throttle, int32_t flag, int32_t option, uint32_t* out) {
+  static float s_t;
+  static bool s_flag;
+  static int32_t s_option;
+  std::memcpy(&s_t, &throttle, 4);
+  s_flag = flag != 0, s_option = option;
+  ::mech3::heat_calls().throttle = [](::mech3::Mech&) { return s_t; };
+  ::mech3::lod_calls().mission_lights = [] { return s_flag; };
+  ::mech3::lod_calls().light_map_option = [] { return s_option; };
+  ::mech3::Mech player;
+  ::mech3::lod_budget(player);
+  out[0] = static_cast<uint32_t>(::mech3::lod_spent()), out[1] = static_cast<uint32_t>(::mech3::lod_lights_spent());
+  return 0;
+}
+
+// w: 0 is the player, 1 has a contact, 2 dist2, 3 the player has a target, 4 it is this mech, 5 x690, 6 active,
+// 7 anim state, 8 allies, 9 powered down, 10 power-down pending, 11 the player's team, 12 spent, 13 lights spent,
+// 14 range0, 15 range1, 16..18 the contact's delta, 19..21 the camera's axis (floats by their bits).
+// Out: detail, spent, lights, the swap (-1 none), the turn (-1 none), the lod's bits (0 none).
+int probe_pm_lod(const uint32_t* w, uint32_t* out) {
+  static int32_t s_swap, s_turn;
+  static uint32_t s_lod;
+  static float s_axis[3];
+  static ::mech3::Mech* s_target;
+  const auto f = [](uint32_t b) { float v; std::memcpy(&v, &b, 4); return v; };
+  ::mech3::Mech m, player;
+  ::mech3::MechData data;
+  ::mech3::ai::Contact contact, target;
+  contact.dist2 = f(w[2]);
+  for (int i = 0; i < 3; ++i) contact.delta[i] = f(w[16 + i]), s_axis[i] = f(w[19 + i]);
+  m.player_contact = w[1] ? &contact : nullptr;
+  player.target = w[3] ? &target : nullptr;
+  s_target = w[4] ? &m : &player;
+  m.x690 = w[5], m.active = w[6] != 0, m.anim_state = static_cast<int32_t>(w[7]);
+  m.allies = w[8], m.powered_down = w[9] != 0, m.power_down_pending = w[10] != 0, player.team = w[11];
+  data.range_sq[0] = f(w[14]), data.range_sq[1] = f(w[15]);
+  m.pilot = &data;
+  ::mech3::world().mission_player = w[0] ? &m : &player;
+  ::mech3::lod_spent() = static_cast<int32_t>(w[12]), ::mech3::lod_lights_spent() = static_cast<int32_t>(w[13]);
+  s_swap = -1, s_turn = -1, s_lod = 0;
+  ::mech3::LodCalls& c = ::mech3::lod_calls();
+  c.camera_axis = [] { return static_cast<const float*>(s_axis); };
+  c.switch_model = [](::mech3::Mech&, int32_t lod) { s_swap = lod; };
+  c.light_turn = [](::mech3::Mech&, bool on) { s_turn = on; };
+  c.light_lod = [](::mech3::Mech&, float d2) { std::memcpy(&s_lod, &d2, 4); };
+  c.player_target = [](::mech3::Mech&) { return s_target; };
+  c.controls_answer = nullptr;
+  ::mech3::lod_update(m);
+  out[0] = m.detail, out[1] = static_cast<uint32_t>(::mech3::lod_spent());
+  out[2] = static_cast<uint32_t>(::mech3::lod_lights_spent());
+  out[3] = static_cast<uint32_t>(s_swap), out[4] = static_cast<uint32_t>(s_turn), out[5] = s_lod;
+  m.pilot = nullptr, m.player_contact = nullptr, player.target = nullptr;
+  ::mech3::world().mission_player = nullptr;
+  return 0;
 }
 
 // test_pm_shadows.py: the projected-shadow casters (zmod shadow_*, Pirate's Moon 0x0055d740..0x0055dec0) on

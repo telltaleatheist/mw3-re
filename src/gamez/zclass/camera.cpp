@@ -599,6 +599,16 @@ int camera_set_zone(Node* node, const uint8_t zone[4]) {
   return 0;
 }
 
+const float* camera_axis(Node* node) { return static_cast<Camera*>(node->data)->floats(0x74); }
+
+// Mech3.exe 1.2 @ 0x004f3b00
+int camera_get_clip(Node* node, float* near_clip, float* far_clip) {
+  if (int r = check_class(node, 1, kFile, 0x412)) return r;
+  auto* c = static_cast<Camera*>(node->data);
+  *near_clip = c->get<float>(0xb0), *far_clip = c->get<float>(0xb4);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f3a70
 int camera_set_clip(Node* node, float near_clip, float far_clip) {
   if (int r = check_class(node, 1, kFile, 0x5ca)) return r;
