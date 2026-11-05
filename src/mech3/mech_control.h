@@ -97,7 +97,7 @@ struct MechControls {
     jump_target = v;
     jump_held = hold;
   }
-  void zero();                   // 0x00426c80
+  virtual void zero();           // vt+0x18, 0x00428910
   void stop();                   // 0x00428490 (IControls +0x14): throttle, turn, jump and both jump-jet axes 0
   // 0x00426c10 (IControls +0x4c, Stop; its argument unused): the turn, pitch
   // and jump-jet axes zeroed at once, the throttle, turn and jump targets 0,
@@ -116,6 +116,7 @@ struct MechControls {
 struct PlayerControls : MechControls {
   float look_dx = 0, look_dy = 0;  // +0x138, +0x13c  the mouse look's motion (view 2)
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
+  void zero() override;           // 0x004289a0: the look's too
   // +0x5c: the pilot's AI settings (0x004d9840: the defaults, vtable
   // 0x005cd348), the launch's aiv.zrd "player" record (IControls vt+0x88);
   // only its vlist (+0x12c) is read, by the tick.

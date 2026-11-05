@@ -1,5 +1,5 @@
 // The action queue and its state machine (mech3/mech_move: falls, landing
-// from a fall, getting up) for tests/differential/test_actions.py. State goes
+// from a fall, getting up) for tests/differential/test_pm_actions.py. State goes
 // back and forth as byte images laid out like the original's; the actions'
 // root sample is a fixed function of their time on both sides; every call
 // out is logged as (count, code, args...).
@@ -9,6 +9,7 @@
 
 #include "mech3/mech.h"
 #include "mech3/mech_move.h"
+#include "mech3/mech_reader.h"
 
 using namespace mech3;
 
@@ -47,7 +48,7 @@ struct LogLeg : Leg {
   int index = 0;
   void apply_damage(float d, int section) override { log({11, index, bits(d), section}); }
 };
-// The root sample stand-in, as test_actions.py's: (1.5 t, 0.25 t + k, -2 t).
+// The root sample stand-in, as test_pm_actions.py's: (1.5 t, 0.25 t + k, -2 t).
 struct TestAction : MechAction {
   int kind = 0;
   void hip(float* pp, float q[4]) override {
@@ -77,17 +78,17 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   Io io{b, store};
   io.bo(0x8, m.active);
   io.v3(0x24, m.forward), io.v3(0x30, m.velocity), io.v3(0x3c, m.vec_3c), io.v3(0x58, m.vec_58);
-  io.bo(0xdc, m.power_down_pending), io.bo(0xde, m.powered_down);
-  io.v3(0x488, m.momentum), io.v3(0x494, m.action_root);
-  io.f(0x53c, m.knock), io.v3(0x540, m.knock_vec);
-  io.i(0x578, m.anim_state), io.i(0x57c, m.prev_state);
-  io.bo(0x584, m.no_power_down);
-  io.f(0x590, m.lie_time);
-  io.v3(0x594, m.impulse), io.v3(0x5a0, m.push);
-  io.hd(0x600, m.sounds[0x12]), io.hd(0x604, m.sounds[0x13]);
-  io.i(0x638, m.hud_fall);
+  io.bo(0xe0, m.power_down_pending), io.bo(0xe2, m.powered_down);
+  io.v3(0x498, m.momentum), io.v3(0x4a4, m.action_root);
+  io.f(0x550, m.knock), io.v3(0x554, m.knock_vec);
+  io.i(0x59c, m.anim_state), io.i(0x5a0, m.prev_state);
+  io.bo(0x5a8, m.no_power_down);
+  io.f(0x5b4, m.lie_time);
+  io.v3(0x5b8, m.impulse), io.v3(0x5c4, m.push);
+  io.hd(0x624, m.sounds[0x12]), io.hd(0x628, m.sounds[0x13]);
+  io.i(0x65c, m.hud_fall);
   int32_t d = static_cast<int32_t>(m.detail);
-  io.i(0x688, d);
+  io.i(0x6ac, d);
   m.detail = static_cast<uint32_t>(d);
 }
 
@@ -170,6 +171,10 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
   c.action_pose = [](Mech&, MechAction&, const Vec3& hip, const float q[4]) {
     log({17, bits(hip.x), bits(hip.y), bits(hip.z), bits(q[0]), bits(q[1]), bits(q[2]), bits(q[3])});
   };
+  static MechDfn s_dfn(0, nullptr);
+  const float lean[2] = {0.436f, 0.5f};
+  std::memcpy(s_dfn.raw + 0x154, lean, 8);
+  update_calls().dfn = [](Mech&) -> const MechDfn* { return &s_dfn; };
   DamageCalls& dc = damage_calls();
   dc.anim_ok = nullptr;  // the real queue
   dc.net_event = [](Mech&, int kind, intptr_t a) { log({22, kind, static_cast<int32_t>(a)}); };

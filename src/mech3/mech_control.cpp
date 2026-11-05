@@ -130,6 +130,12 @@ void MechControls::zero() {
   throttle_target = throttle = turn_target = turn = jump_target = jump = 0;
 }
 
+// Pirate's Moon 1.0 @ 0x004289a0
+void PlayerControls::zero() {
+  MechControls::zero();
+  look_dx = look_dy = look_x = look_y = 0;
+}
+
 namespace {
 ControlsCalls g_calls;
 

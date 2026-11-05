@@ -566,7 +566,7 @@ void Mech::get_up() {
   queue_action(anim_state == kFallenBack ? 6 : 5, false);
 }
 
-// Mech3.exe 1.2 @ 0x00416860. Plays the queue's front action; when it ends,
+// Pirate's Moon 1.0 @ 0x00417350. Plays the queue's front action; when it ends,
 // its effect lands and the next one that fits starts (docs/movement-jump.md).
 void Mech::update_action(float dt) {
   int kind = actions.front();
@@ -575,6 +575,9 @@ void Mech::update_action(float dt) {
   if (act->done) {
     world().last_action = kind;
     switch (kind) {
+      case 1: case 2:
+        controls->zero();  // its vt+0x18 (0x00428910)
+        break;
       case 3: case 4:
         if (!remote) {
           float s = static_cast<float>((100.0 - tonnage()) * 0.0099999998);  // 0x005bcda8, 0x005bcdb0
@@ -640,10 +643,10 @@ void Mech::update_action(float dt) {
       const int id = sound_for_action(kind);
       sounds[id] = g_calls.pilot_sound ? g_calls.pilot_sound(*this, id, 1.0f, -1.0f) : nullptr;
     }
-    controls->set_throttle(0.0f);
     switch (kind) {
       case 1: case 2: case 7: case 8:
         if (g_calls.fall_camera) g_calls.fall_camera(*this);
+        controls->set_throttle(0.0f);
         legs[0]->foot->show_shadow(false);
         legs[1]->foot->show_shadow(false);
         if (g_calls.weapons_enable) g_calls.weapons_enable(*this, 0);

@@ -12,7 +12,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `calltrace.py` | - | 0 | 0 | not applicable | a helper: goes with whichever test uses it |
 | `pose_world.py` | - | 7 | 0 | not applicable | a helper for the pose tests: goes with them |
 | `test_action_lists.py` | changed | 42 | 14 | to move |  |
-| `test_actions.py` | gone | 19 | 3 | to move, rank 8 | the falls and getting up |
+| `test_actions.py` | gone | 19 | 3 | moved to `test_pm_actions.py` | the falls and getting up |
 | `test_ai_nets.py` | changed | 33 | 0 | to move | with PM AI |
 | `test_ai_paths.py` | gone | 20 | 0 | to move | with PM AI |
 | `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |

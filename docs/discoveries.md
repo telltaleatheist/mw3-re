@@ -4462,3 +4462,7 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **Mechs turn more slowly in the air in Pirate's Moon:** the turn counts as if
   at full throttle, a fifth of the turn rate; in MechWarrior 3 it counted as 85%
   throttle, about a third. (From the code.)
+- **In Pirate's Moon only a fall cuts your throttle:** MechWarrior 3 sets the throttle to
+  zero at the start of every fall, landing and getting-up animation. Pirate's Moon does it
+  only when the fall starts, and clears all your controls when the falling part ends. (From
+  the code.)
