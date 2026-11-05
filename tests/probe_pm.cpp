@@ -929,6 +929,33 @@ int probe_pm_cfg_blob(const char* path, const char* name, int32_t* out) {
   return k;
 }
 void* probe_pm_cfg_ptr(int k) { return g_cfg_dfn->configs->configs[k]; }
+// The saved archive: the shown mech's list with `mine` marking the player's own, written
+// (0x00426bd0) in `dir`; then a new list read from it (0x004267f0) and dumped.
+int probe_pm_archive_save(const char* dir, const uint8_t* mine, int n) {
+  using namespace ::mech3;
+  zutl::set_write_dir(dir);
+  std::vector<Config*>& all = g_cfg_dfn->configs->configs;
+  for (int k = 0; k < n && k < static_cast<int>(all.size()); ++k) all[static_cast<size_t>(k)]->player_made = mine[k];
+  return g_cfg_dfn->configs->save_all();
+}
+int probe_pm_archive_load(const char* dir, int mech, int32_t* out) {
+  using namespace ::mech3;
+  zutl::set_write_dir(dir);
+  ConfigList list(mech, 0);
+  int k = 0;
+  out[k++] = list.load_saved();
+  out[k++] = static_cast<int32_t>(list.configs.size());
+  for (const Config* c : list.configs) {
+    int32_t sum = 0;
+    for (const char* q = c->name; q && *q; ++q) sum = sum * 31 + static_cast<unsigned char>(*q);
+    out[k++] = sum, out[k++] = c->mech, out[k++] = static_cast<int32_t>(c->crc), out[k++] = c->sinks, out[k++] = c->engine;
+    std::memcpy(&out[k++], &c->armor_tons, 4);
+    out[k++] = c->player_made;
+    for (ConfigItem* i : c->items) out[k++] = i->kind(), out[k++] = i->id(), out[k++] = i->count, out[k++] = i->part;
+    out[k++] = -999;
+  }
+  return k;
+}
 int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
   using namespace ::mech3;
   Config& c = *g_cfg_dfn->configs->configs[k];

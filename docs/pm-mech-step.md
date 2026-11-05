@@ -288,7 +288,7 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 - The campaign's flag 0x10 on a record (0x4a19c0): a vehicle with it is made only if its name is in the campaign's string list (0x4356c0, filled at 0x45fcf0). The port makes it regardless. Not changed: which shipped records have it isn't looked at yet.
 - PM's new 0x4095e0: its own node out of a line query from the camera, not ported or looked at further.
 - 0x41f8d0's `+0xe2` on the way to the lod's light: read only.
-- **Outside the frame, with the mech lab's tests:** the saved archives, player files, against the exe: the loader 0x4267f0, the writer 0x426bd0, the second loader 0x427e80. Nothing on `pm` compares them yet; `test_mechsave` (unmoved) is the source.
+- **Outside the frame, with the mech lab's tests:** the saved archives: done, see The mech lab. Player files: `test_pm_pilot`. `test_lab_list` and `test_lab_screen`: not moved, see The mech lab.
 
 **The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
 
@@ -515,7 +515,7 @@ The mech and weapon count sweep (2026-11-05, grep and read): lance, lab, salvage
 
 Before this pass, 9 of the 26 notes named what a break hit and not a PM difference (0x460f00, 0x41fb70, 0x4255f0, 0x4790f0, 0x41c9f0, 0x464450, 0x4243f0, 0x419de0, 0x424730). This table is read from the compare and the two sides' decompiled code, not each line run; the constants were also searched for in the port by value.
 
-## The mech lab (2026-11-05, in progress)
+## The mech lab (2026-11-05)
 
 The account compares each row's assembly with MW3's (immediates and mapped calls), since the decompiler's view of MW3 hides register arguments. 219 lab rows; the differences that are more than offsets are read below as they are reached.
 
@@ -526,6 +526,11 @@ The account compares each row's assembly with MW3's (immediates and mapped calls
 - The weight function's callers, every one (the store's sibling check): in the exe 0x427130 has 7 callers: its own sum, 0x427360 validate, 0x44f740 and 0x454bc0 (-1), 0x4581b0 (-1, 3), and the two panels. None in salvage, the AI's build, the HUD or multiplayer; those take the item's weight or the engine's, other functions. The port's callers match in mode: only the two panels had the old 8. Read, from the call sites; the two panels and validate are also run (`test_pm_lab_data`, `test_pm_config`).
 - 0x44cec0 the screen's constructor: PM no longer sets MW3's opening message 0xdcc. Removed; read only.
 - 0x44b390, 0x44c620, 0x44c930, 0x44f220, 0x44ed20, 0x451c20, 0x44f740's copy (case 0x10): read against the port, no logic differs; the new calls are inlined or moved helpers.
+
+- 0x426bd0 and 0x4267f0, the saved archives, `configs\\<mech>.mw3`: `test_pm_archives.py`, 25 archives written alike by the exe and the port (entries' flags, comment and time masked, the exe fills them from its stack), 100 reads of the exe's file as written, with another version, cut, and with no file; 5 breaks caught (the version check, from entry 1, the player's own only, version 16, each under its name). 0x427e50 and 0x427e80, the developer keys' file bodies: read only; they match the stand-in's order (name, then the loadout), and the checksum trap stays out.
+- Compared with MW3's by assembly and not run here: the rest of the 219 rows. 92 differ at all, most in offsets alone or by inlining; those are constants and calls compared, not results. The port's own 2D classes call no exe vtable, so the moved slots don't reach them; a 2D row's text, placing and mouse are unchecked on PM.
+
+**Not moved: `test_lab_list`, `test_lab_screen`.** Both need the 2D world (`twod_world`, `test_twod`) on PM, and no test has it. A try through `MW3_EXE=pm` got as far as the screen: PM inlines MW3's menu screen constructor 0x40a110 (no twin to call), its node reader takes other arguments, and its 2D objects are larger (texts and buttons by 8, `0x4b0`→`0x4b8`, panels by more), so every dump's offsets change. What they alone would check on PM: the screen's construction, the pages, the list's rows, scrolling and mouse.
 
 **Shots (+0xcc, 0x471ad4):** the exe's network sender counts each shot on the network game; the port did not. `shot_fired` in `NetCalls`, `test_pm_net_shot.py` against the exe's sender kind 0x16, 40 shots, record and count; a break removing the call is caught. The hook's wiring to the game (`mission_multiplayer_count_shot`) is read only: no multiplayer run reads it back.
 

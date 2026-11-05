@@ -6,8 +6,7 @@ Each loadout is also damaged, in both formats: a bit flipped anywhere but the na
 the item count (a huge one crashes or hangs the exe, both fixed in the port and only run there
 here), and cut short.
 
-Not here: MW3's test_mechsave.py's whole archives. The version check is the exe's own read:
-0x425660 returns 0x10, written at 0x426bd0, compared at 0x4267f0.
+The whole archives: test_pm_archives.py.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_mechsave.py [cases per loadout]
 """
