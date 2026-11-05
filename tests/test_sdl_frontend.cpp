@@ -39,6 +39,7 @@
 #include "frontend/sdl/sdl_vfw.h"
 #include "mech3/app_movie.h"
 #include "mech3/movie_shape.h"
+#include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
@@ -994,6 +995,21 @@ TEST(sdl_render3d_fog_colour_is_per_draw) {
 // through draw(), so the texture's colour alone darkens what is there. A white texture under a dark
 // diffuse leaves the ground as it was; a black one makes it black. (Through draw() the backend once
 // modulated by the diffuse, and an empty shadow became a dark quad.)
+// FIX (bug), Owen 2026-11-04: what no draw covers in a mission takes the fog's colour; black with fog off.
+TEST(mission_frame_fill_is_the_fogs_colour) {
+  const zmod::Fog kept = zmod::fog();
+  const float tan[3] = {0.8f, 0.5f, 0.25f};
+  zmod::fog().on = 1;
+  for (int i = 0; i < 3; ++i) zmod::fog().color[i] = tan[i];
+  uint8_t r = 1, g = 1, b = 1;
+  zmod::fog_frame_fill(&r, &g, &b);
+  EXPECT(r == 204 && g == 127 && b == 63);
+  zmod::fog().on = 0;
+  zmod::fog_frame_fill(&r, &g, &b);
+  EXPECT(r == 0 && g == 0 && b == 0);
+  zmod::fog() = kept;
+}
+
 TEST(sdl_render_shadow_set_takes_the_texture_alone) {
   if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
   sdlfe::SdlWindow w;

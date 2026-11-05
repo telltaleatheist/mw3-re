@@ -19,6 +19,7 @@
 #include "gamez/zmodel/gmod_clip2d.h"
 #include "gamez/zmodel/gmod_clip3d.h"
 #include "gamez/zmodel/gmod_draw.h"
+#include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
@@ -37,6 +38,7 @@
 #include "pm/gamez/zmodel/gmod_draw.h"
 #include "pm/gamez/zvideo/zvid_tl.h"
 #include "mech3/mission_world.h"
+#include "gamez/zutil/zfix.h"
 
 namespace frontend {
 namespace {
@@ -195,7 +197,9 @@ void pm_world_frame(const float eye[3], float yaw, float pitch, platform::Render
   zcls::world_push_fog(zcls::camera_world(cam));  // the world's update, not ported here
   // A mission's clear colour is 0 (0x0045129a) and its colour clear off (0x00451282, 0x004838db):
   // depth only, over a back buffer that starts black.
-  render->clear(false, 0, 0, 0);
+  uint8_t r, g, b;
+  zmod::fog_frame_fill(&r, &g, &b);  // FIX (bug), as the mission's (GameEngine::video_clear_b)
+  render->clear(zfix::options().bugs, r, g, b);
   zcls::render_world(cam, 0);
   render->present();
 }
