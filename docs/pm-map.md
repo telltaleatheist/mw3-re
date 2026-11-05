@@ -1556,6 +1556,7 @@ functions PM changed, and PM's new ones.
      - Test: `test_pm_sound.py` (PM's exe at its own addresses, the shared sound probe in pmprobe), with breaks.
      - Left: mw3pm opening sound at its start (with the mission); the range scale's callers 0x00482ca0,
        0x00408120 (object detail).
+7b. **The second campaign, "P I R A T E  M I S S I O N S"** (the exe's "standalone", type 5; `pirates-moon.md`): 11 of the 21 story missions, unported, after the frame's rows in `pm-mech-step.md`. Read all of 0x40d000..0x40fa00 first and give the real size; the lead's go before porting. The port's main menu does not bind `STANDALONE` (nothing to press, no crash): bind it when this lands. The pilot file keeps its record whole meanwhile.
 8. **Multiplayer**: PM's game types (Mw3 dev has multiplayer).
    Left, from other pieces: a multiplayer game's jet keys are gated by its own +0xa7 (vt+0x44, 0x4365f0), the port has no
    such field and reads the player's option; `mp_lobby`'s missing-world box still uses MW3's message 0xfe0 (`pirates-moon.md`).

@@ -5,7 +5,7 @@
 (0xdc0 is "Instant Action %1", the name only: MW3's number and name was a crash),
 the ranks (0x47e5da a fifth of the waves in the wave modes, else hidden) and one
 round's lines with its wave points.
-`--campaign-chain new:10`: all ten missions in PM's order (0x435de0: 1, 2, 5 c1;
+`--campaign-chain new:10`: the first campaign's ten missions in PM's order (the second, the exe's standalone, is not ported) (0x435de0: 1, 2, 5 c1;
 3, 4, 8 c2; 6, 7 c3; 9, 10 c4), the titles ("Mission %1!d!", 0x21d), mission 10
 ending it (0x435db0) in the Win Movie State, then the credits.
 `--campaign-chain kills:1`: mission 1 won by shooting: the objectives' rows, the

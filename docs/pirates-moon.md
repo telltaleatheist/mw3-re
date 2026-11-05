@@ -321,3 +321,9 @@ Gone and used:
 
 The other gone ids are only in `patch12_text`'s 1.0 table. Text that changed with the same arguments follows by itself, but PM's lobby is still MW3's otherwise (its world list, limits and scoreboard, map item 8).
 
+
+## The second campaign: "P I R A T E  M I S S I O N S" (2026-11-05)
+
+The exe calls it standalone (game type 5, `Standalone State`, `sa<n>`); it is the game's second campaign, where you play the other side (Owen): 11 of PM's 21 story missions, on the main menu as `MSG_STANDALONE_BTN` 0x1027. Its order by the descriptions in `Mech3Msg.dll`, as the lead read them, runs across worlds and is not the `readersa` numbering: c1sa1, c2sa1, c1sa2, c1sa3, c3sa1, c3sa2, c3sa3, c2sa2, c4sa1, c4sa2, then c1sa4 "Bonus Mission". To check against the exe when 0x40d000..0x40fa00 is read.
+
+**Not ported.** "All ten missions play to the credits" (`test_pm_debrief_chain`) covers the first campaign only. PM cannot be called finished without this one. Today `mw3pm`'s menu does not bind the button, so it does not show and cannot be pressed (to bring back when it lands). `mw3pm --mission c1sa1` and the other ten load and reach the Core State for 300 frames, with no objectives of their own wired beyond the world's `sa<n>` block; the reports are those of any start. To answer when it is read: how missions unlock or chain, what the bonus needs, whether the record tracks each mission, the win, the credits and the rank.
