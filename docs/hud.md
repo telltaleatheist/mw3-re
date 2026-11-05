@@ -453,6 +453,16 @@ torso until the reticle's ray ends on the Owens 80 m away and checks the
 weapons, with no other aim, take its armor down. Breaking the aim: 10 of 10
 caught.
 
+**Pirate's Moon (0x00445cf0 for MW3's 0x00444350).** Two changes:
+- The far point is unprojected at the farther of the far clip and the
+  selected group's longest range (0x004b5a20): PM's own answer to W33, so the
+  port's FIX (bug) is PM's code on `pm`. It differs from the fix in where the
+  end lies (at that depth through the reticle, not that distance along the ray).
+- Around the query, the mech's contacts nearer than that reach (nearest
+  first) are tested by their meshes: each active one's node loses its box test
+  (0x00445c60, 0x004fd2c0 flag 0x20 off, then on). A contact's entity is its
+  vt+0x48 (a mech returns itself; the program takes every class the same).
+  `test_pm_hud_aim.py` (the pass; the ray itself is not run in the emulator).
 
 ## 11. The frame (0x0043c820) and the pieces' updates
 
@@ -611,6 +621,24 @@ stubbed (the range and distance on the x87 stack), the hits' nodes real
 blocks with +0xbc; the weapon manager's +0x88 compared after. Breaking it:
 12 of 12 caught.
 
+**Pirate's Moon's reticle update (0x00445a50 for MW3's 0x004441a0;
+`test_pm_hud_reticle.py`).** With the radar over the large map the zoom window
+is hidden and its scale reset (0x00445110) and the reticle hidden; a hidden
+reticle whose image is kept is shown again (and Shift+R back, section 15).
+
+**Pirate's Moon (0x004455e0 for MW3's 0x00443d20; `test_pm_hud_lock.py`).** The
+same states, tones and timings (0.6 s, 1.2 with ECM, now the target's +0x3dc;
+3.5 s held), with the reticle's fields 8 bytes on. What changed:
+- The lock needs the **target itself in range**; MW3 also took the aim point's
+  distance, so aiming at near ground let a far target lock. Lost the same way:
+  out of range and not locked.
+- Elementals still cannot be locked (PM's roster index 11, MW3's 7), and
+  **powered-down mechs** cannot either (the mech's vt+0xac, MW3's vt+0xa0).
+- The image: locked; over while the lock builds; then **beyond the aim range
+  always can't**, and within it over when the aimed node allows it (an object
+  with its +0x08 set, or no object and +0xbc over 1), else off. MW3 set off
+  first every frame and could show over beyond the aim range.
+
 ## 13. The weapon lines (0x00446520, 0x00446240, 0x00446540, 0x00445dc0)
 
 Refreshed (0x00446520: layout, then looks) when the list is shown
@@ -633,6 +661,16 @@ weapons and the camera's look from outside (hud.md section 1).
   the rest (chain fire); none outside the current group. Then the refresh;
   the list keeps refreshing every frame while any line recycles. +0x1143c:
   the weapon after the current one (else the first line's).
+  Pirate's Moon (0x004480c0, +0x115bc): the first weapon after the current
+  that can fire (0x004b7bd0, MW3's 0x004b3a20), else the first that can, else
+  none; so the NEXT_WEAPON key (0x27) skips weapons that are out of ammo or
+  destroyed, and does nothing when none can fire.
+- **Layout, Pirate's Moon** (0x00447da0, `test_pm_hud_layout.py`): the current
+  group's bracket sits 2 pixels lower and the panel is 3 taller when any weapon
+  is listed.
+- **Refresh, Pirate's Moon** (0x004478f0, `test_pm_hud_refresh.py`): a
+  recharging weapon's bar shows 0.87 of its fraction, so it jumps to full when
+  ready, and its light is yellow while it recharges, as well as over 0.5 damage.
 - **Refresh** (0x00445dc0): the weapon's vt+8, then the bar at its recycle
   fraction (vt+0x34, clamped to 0..1; +0x111b when it drops from full), the
   light by damage (0x004b3010: green, yellow over 0.5, red over 0.8), the
@@ -758,8 +796,10 @@ The pieces, ported in order (the lead's plan, 2026-10-20):
    always the mission timer ("%02d:%02d:%02d" of the game time, a network
    game's own), the objectives, TARGET's tracking, the network's. Hooked:
    the gauges' setters, the radar's parts, TARGET's text, the equipment,
-   MFD and objectives updates (items 4, 6, 7, 9 of section 7). FIX (bug):
-   the timer's seconds past an hour (`fix_hud_timer_past_an_hour`). In the
+   MFD and objectives updates (items 4, 6, 7, 9 of section 7). MW3's timer
+   left the hours in the seconds past an hour (01:01:3640); Pirate's Moon
+   (0x0043d440) splits whole seconds through 0x00597c30 instead, so the
+   port's FIX (bug) is PM's own code there (`test_pm_hud_timer.py`). In the
    program the camera update (GameEngine::camera_update) runs it for the
    view's mech; the message panel's slide before it is not ported.
    In the program (`app_hud`) the tracking's and the lead point's outside
@@ -928,6 +968,10 @@ what differs:
   the ally's sensor range (+0x9c) on the map's scale, in the ally's colour; round
   the selected target's triangle with the radar's radius. Its clip is the radar's
   (set on a change).
+- **Shift+R and the map choice** (0x0043f090, 0x0043ee50; MW3's 0x0043dc10,
+  0x0043da00): the marker's text is placed and shown on every toggle, as on a
+  change; turning the map off, and choosing the "small" map, show the reticle
+  again. `test_pm_hud_toggle.py`.
 The polylines' clip from the radar's square and the shots' squared distances,
 which the first reading took for PM's, are MW3's too.
 The rest (colours by team, the triangle on the selected target, the jitter of
@@ -980,6 +1024,9 @@ Else shown, then:
   part aimed at (+0xf8, 0x0041d510; its name 0x00484d70).
 - The third text: message 0xdd4 with the name of the mech the player's
   saved or ally contact holds (0x004d7240), else empty.
+  Pirate's Moon (0x00442fd0, 0x004e76e0): empty in a network game; else the
+  saved target, or the selected target when it is a lancemate under orders
+  (its +0xbc bit 0x10), not the last ally chosen.
 - By the target's side (its team +0xc0 against the player's allies +0xc4,
   enemies +0xc8): the 3D view's box blue, red or the HUD green (none: a
   yellow-brown 0xc3, 0xad, 3); the texts all blue for an ally; red, red, blue

@@ -1,3 +1,4 @@
+#include "gamez/zimage/zimg_library.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zmath/zmth_vector.h"
 #include <cmath>
@@ -304,6 +305,330 @@ struct RadarHooks : Hooks {
   int32_t mine_count() override { return 0; }
 };
 }  // namespace
+
+// test_pm_hud_toggle.py: PM's Shift+R (0x0043f090) with its map choice
+// (0x0043ee50). The maps by name: 1 large, 2 small, 3 any (0 for none).
+struct ToggleIn {
+  int32_t active, zoomed, cx, cy, r, to_r, to_x, to_y, large, small, any, map_h, reticle_hidden, map_before;
+};
+struct ToggleOut {
+  int32_t active, radius, radius_sq, x, y, text2_x, text2_y, text2_shown, reticle_shown, changed, map;
+};
+namespace {
+struct ToggleHooks : Hooks {
+  ToggleIn in{};
+  uint32_t map = 0;
+  uint32_t map_find(const char* name) override {
+    if (!name) return static_cast<uint32_t>(in.any);
+    return static_cast<uint32_t>(std::strcmp(name, "large") == 0 ? in.large : in.small);
+  }
+  void set_radar_map(uint32_t m) override { map = m; }
+  void* radar_map() override { return map ? reinterpret_cast<void*>(static_cast<uintptr_t>(map)) : nullptr; }
+  int32_t map_image_height(void*) override { return in.map_h; }
+  zrdr::Node* load_hud_zrd() override { return nullptr; }
+};
+}  // namespace
+
+extern "C" void probe_pm_radar_toggle(const ToggleIn* in, ToggleOut* out) {
+  static Host host;
+  ztwod::set_host(&host);
+  static ToggleHooks hooks;
+  hooks.in = *in;
+  hooks.map = static_cast<uint32_t>(in->map_before);
+  mech3::set_hud_hooks(&hooks);
+  static mech3::Hud* hud = new (std::calloc(1, sizeof(mech3::Hud))) mech3::Hud(nullptr);
+  mech3::HudRadar& r = hud->radar;
+  r.active = static_cast<uint8_t>(in->active);
+  r.zoomed = static_cast<uint16_t>(in->zoomed);
+  r.cx[0] = in->cx, r.cy[0] = in->cy, r.r[0] = in->r;
+  r.to_r = in->to_r, r.to_x = in->to_x, r.to_y = in->to_y;
+  r.radius = 7, r.radius_sq = 49;
+  r.set_pos(3, 4);
+  r.changed = 0;
+  r.text2.set_pos(-1, -1);
+  r.text2.flags |= ztwod::kHidden;
+  if (in->reticle_hidden) hud->reticle.flags |= ztwod::kHidden;
+  else hud->reticle.flags &= ~ztwod::kHidden;
+  r.toggle_map();
+  out->active = r.active, out->radius = r.radius, out->radius_sq = r.radius_sq, out->x = r.get_x(), out->y = r.get_y();
+  out->text2_x = r.text2.get_x(), out->text2_y = r.text2.get_y();
+  out->text2_shown = (r.text2.flags & ztwod::kHidden) ? 0 : 1;
+  out->reticle_shown = (hud->reticle.flags & ztwod::kHidden) ? 0 : 1;
+  out->changed = r.changed, out->map = static_cast<int32_t>(hooks.map);
+  mech3::set_hud_hooks(nullptr);
+  ztwod::set_host(nullptr);
+}
+
+// test_pm_hud_lock.py: PM's missile lock and reticle image (0x004455e0).
+struct LockIn {
+  int32_t over, locks, b20, has_contact, has_mech, roster, down, ecm;
+  float range, dist, aim;
+  int32_t lock;
+  float timer;
+  int32_t state, locked, has_node, node_obj, obj_b8, node_bc, playing_c, playing_0;
+};
+struct LockOut {
+  int32_t lock;
+  float timer;
+  int32_t state, image, lock_shown, n, events[8][2];  // events: 1 play, 2 stop (channel)
+};
+namespace {
+struct LockHooks : Hooks {
+  LockIn in{};
+  LockOut* out = nullptr;
+  char wm = 0, contact = 0, mech = 0, node = 0, object = 0, slot = 0;
+  void ev(int32_t k, int32_t c) {
+    if (out->n < 8) out->events[out->n][0] = k, out->events[out->n][1] = c, ++out->n;
+  }
+  void* mech_weapons(mech3::Mech*) override { return &wm; }
+  float group_range(void*) override { return in.range; }
+  bool group_locks(void*) override { return in.locks != 0; }
+  bool group_4b1cd0(void*) override { return in.b20 != 0; }
+  void set_lock_shown(void*, bool on) override { out->lock_shown = on ? 1 : 0; }
+  void* slot_contact(void*) override { return in.has_contact ? &contact : nullptr; }
+  void* contact_mech(void*) override { return in.has_mech ? &mech : nullptr; }
+  float contact_distance(void*) override { return in.dist; }
+  int32_t mech_pm_roster(void*) override { return in.roster; }
+  bool mech_powered_down(void*) override { return in.down != 0; }
+  int32_t mech_3cc(void*) override { return in.ecm; }
+  void* node_object(void*) override { return in.node_obj ? &object : nullptr; }
+  bool object_byte8(void*) override { return in.obj_b8 != 0; }
+  uint32_t node_bc(void*) override { return static_cast<uint32_t>(in.node_bc); }
+  bool hud_sound_playing(int32_t c) override { return c == 0xc ? in.playing_c != 0 : in.playing_0 != 0; }
+  void hud_sound_play(int32_t c) override { ev(1, c); }
+  void hud_sound_stop(int32_t c, int32_t) override { ev(2, c); }
+  zrdr::Node* load_hud_zrd() override { return nullptr; }
+};
+}  // namespace
+
+extern "C" void probe_pm_lock(const LockIn* in, LockOut* out) {
+  static Host host;
+  ztwod::set_host(&host);
+  static LockHooks hooks;
+  hooks.in = *in;
+  hooks.out = out;
+  mech3::set_hud_hooks(&hooks);
+  static mech3::Hud* hud = new (std::calloc(1, sizeof(mech3::Hud))) mech3::Hud(nullptr);
+  out->n = 0, out->lock_shown = -1;  // after the HUD's set-up, which stops the tones
+  static char fake_mech[0x800];
+  hud->mech = reinterpret_cast<mech3::Mech*>(fake_mech);
+  hud->target.target = reinterpret_cast<decltype(hud->target.target)>(&hooks.slot);
+  mech3::HudReticle& r = hud->reticle;
+  static zimg::Texture imgs[4];
+  r.img_off = &imgs[0], r.img_on = &imgs[1], r.img_over = &imgs[2], r.img_cant = &imgs[3];
+  r.image = nullptr;
+  r.source = hud;
+  r.lock = in->lock, r.lock_timer = in->timer, r.state = in->state, r.locked = static_cast<uint8_t>(in->locked);
+  r.aim_distance = in->aim;
+  r.hit.node = in->has_node ? &hooks.node : nullptr;
+  r.aim_state(in->over != 0);
+  out->lock = r.lock, out->timer = r.lock_timer, out->state = r.state;
+  out->image = -1;
+  for (int i = 0; i < 4; ++i)
+    if (r.image == &imgs[i]) out->image = i;
+  mech3::set_hud_hooks(nullptr);
+  ztwod::set_host(nullptr);
+}
+
+// test_pm_hud_lock.py's neighbour, test_pm_hud_aim.py: PM's aim ray's contact
+// pass (0x00445c60). Contacts: squared distance, has a vehicle, active.
+struct AimContact { float dist_sq; int32_t vehicle, active; };
+namespace {
+struct AimHooks : Hooks {
+  const AimContact* cs = nullptr;
+  int32_t n = 0, *log = nullptr, logged = 0;
+  int32_t index(void* p) const { return static_cast<int32_t>(static_cast<const AimContact*>(p) - cs); }
+  int32_t mech_contact_count(mech3::Mech*) override { return n; }
+  void* mech_contact(mech3::Mech*, int32_t i) override { return const_cast<AimContact*>(&cs[i]); }
+  float contact_dist_sq(void* c) override { return static_cast<AimContact*>(c)->dist_sq; }
+  void* contact_vehicle(void* c) override { return static_cast<AimContact*>(c)->vehicle ? c : nullptr; }
+  void* vehicle_entity(void* v) override { return v; }
+  bool entity_active(void* e) override { return static_cast<AimContact*>(e)->active != 0; }
+  uint32_t object_node(void* o) override { return static_cast<uint32_t>(index(o)); }
+  void node_set_intersect_bbox(uint32_t node, bool on) override { log[logged++] = static_cast<int32_t>(node) * 2 + on; }
+};
+}  // namespace
+
+extern "C" uint32_t probe_pm_contacts_mesh(const AimContact* cs, int32_t n, int32_t on, float reach_sq, int32_t* log,
+                                           int32_t* logged) {
+  static AimHooks hooks;
+  hooks.cs = cs, hooks.n = n, hooks.log = log, hooks.logged = 0;
+  mech3::set_hud_hooks(&hooks);
+  static mech3::HudReticle* r = new mech3::HudReticle("ret_on", "ret_off");
+  const uint32_t seen = r->contacts_by_mesh(nullptr, on != 0, reach_sq);
+  *logged = hooks.logged;
+  mech3::set_hud_hooks(nullptr);
+  return seen;
+}
+
+// test_pm_hud_looks.py: PM's weapon list looks (0x004480c0). Lines: a weapon
+// (1-based id, 0 none), hidden, its group, can fire.
+struct LooksLine { int32_t weapon, hidden, group, ready; };
+namespace {
+struct LooksHooks : Hooks {
+  const LooksLine* ls = nullptr;
+  int32_t gi = 0, mode = 0, current = 0, has_group = 1;
+  char wm = 0, group = 0;
+  static intptr_t id_of(void* w) { return reinterpret_cast<intptr_t>(w); }
+  const LooksLine* line(void* w) const {
+    for (int i = 0; i < 16; ++i) if (ls[i].weapon == id_of(w)) return &ls[i];
+    return nullptr;
+  }
+  int32_t wm_mode(void*) override { return mode; }
+  int32_t wm_group_index(void*) override { return gi; }
+  void* wm_group(void*, int32_t) override { return has_group ? &group : nullptr; }
+  void* wm_current(void*) override { return reinterpret_cast<void*>(static_cast<intptr_t>(current)); }
+  int32_t weapon_group(void* w) override { return line(w) ? line(w)->group : -1; }
+  bool weapon_can_fire(void* w) override { return line(w) && line(w)->ready; }
+  float weapon_recycle(void*) override { return 1.0f; }
+};
+}  // namespace
+
+extern "C" void probe_pm_looks(const LooksLine* ls, int32_t gi, int32_t mode, int32_t current, int32_t has_group,
+                               int32_t* next, int32_t* marks) {
+  static Host host;
+  ztwod::set_host(&host);
+  static LooksHooks hooks;
+  hooks.ls = ls, hooks.gi = gi, hooks.mode = mode, hooks.current = current, hooks.has_group = has_group;
+  mech3::set_hud_hooks(&hooks);
+  static mech3::HudWeapons* w = new (std::calloc(1, sizeof(mech3::HudWeapons))) mech3::HudWeapons();
+  static zimg::Texture sel, chn;
+  w->select = &sel, w->chain = &chn;
+  w->weapons = &hooks.wm;
+  for (int i = 0; i < 16; ++i) {
+    mech3::HudWeaponLine& l = w->lines[i];
+    l.weapon = reinterpret_cast<void*>(static_cast<intptr_t>(ls[i].weapon));
+    if (ls[i].hidden) l.flags |= ztwod::kHidden;
+    else l.flags &= ~ztwod::kHidden;
+    l.mark.image = reinterpret_cast<zimg::Texture*>(1);
+  }
+  w->looks();
+  *next = static_cast<int32_t>(reinterpret_cast<intptr_t>(w->next_weapon));
+  for (int i = 0; i < 16; ++i) {
+    const zimg::Texture* m = w->lines[i].mark.image;
+    marks[i] = ls[i].hidden || !ls[i].weapon ? -1 : m == &sel ? 1 : m == &chn ? 2 : m == nullptr ? 0 : 9;
+  }
+  mech3::set_hud_hooks(nullptr);
+  ztwod::set_host(nullptr);
+}
+
+// test_pm_hud_refresh.py: PM's weapon line refresh (0x004478f0).
+struct RefreshIn {
+  float recycle, damage, value;
+  int32_t enabled, ammo, count;
+};
+struct RefreshOut {
+  int32_t ret;
+  float value;
+  int32_t x111b, light, count, look_r, look_g;
+};
+namespace {
+struct RefreshHooks : Hooks {
+  RefreshIn in{};
+  float weapon_recycle(void*) override { return in.recycle; }
+  float weapon_damage(void*) override { return in.damage; }
+  bool weapon_enabled(void*) override { return in.enabled != 0; }
+  int32_t weapon_ammo(void*) override { return in.ammo; }
+};
+}  // namespace
+
+extern "C" void probe_pm_refresh(const RefreshIn* in, RefreshOut* out) {
+  static Host host;
+  ztwod::set_host(&host);
+  static RefreshHooks hooks;
+  hooks.in = *in;
+  mech3::set_hud_hooks(&hooks);
+  static mech3::HudWeaponLine* l = new (std::calloc(1, sizeof(mech3::HudWeaponLine))) mech3::HudWeaponLine();
+  static zimg::Texture lights[3];
+  for (int i = 0; i < 3; ++i) mech3::weapon_set().light[i] = &lights[i];
+  static char weapon = 0;
+  l->weapon = &weapon;
+  l->value = in->value, l->count = in->count;
+  l->red = 2, l->grey = 2;  // neither: set_look always applies the new pair
+  out->ret = l->refresh_line(nullptr) ? 1 : 0;
+  out->value = l->value, out->x111b = l->x111b, out->count = l->count;
+  out->light = -1;
+  for (int i = 0; i < 3; ++i)
+    if (l->light.image == &lights[i]) out->light = i;
+  out->look_r = l->red, out->look_g = l->grey;
+  mech3::set_hud_hooks(nullptr);
+  ztwod::set_host(nullptr);
+}
+
+// test_pm_hud_layout.py: PM's weapon list layout (0x00447da0). The five groups'
+// counts, the current one and the list's place; out: the bracket and the height.
+namespace {
+struct LayoutHooks : Hooks {
+  const int32_t* counts = nullptr;
+  int32_t current = 0;
+  char wm = 0;
+  int32_t wm_group_index(void*) override { return current; }
+  void* wm_group(void*, int32_t i) override { return counts[i] >= 0 ? const_cast<int32_t*>(&counts[i]) : nullptr; }
+  int32_t group_count(void* g) override { return *static_cast<int32_t*>(g); }
+  void* group_weapon(void*, int32_t) override { return nullptr; }
+};
+}  // namespace
+
+extern "C" void probe_pm_layout(const int32_t* counts, int32_t current, int32_t x, int32_t y, int32_t* pts,
+                                int32_t* height, int32_t* poly_shown) {
+  static Host host;
+  ztwod::set_host(&host);
+  static LayoutHooks hooks;
+  hooks.counts = counts, hooks.current = current;
+  mech3::set_hud_hooks(&hooks);
+  static mech3::HudWeapons* w = new (std::calloc(1, sizeof(mech3::HudWeapons))) mech3::HudWeapons();
+  w->weapons = &hooks.wm;
+  w->hud = nullptr;
+  w->x = x, w->y = y;
+  w->panel.image = nullptr;
+  w->poly.flags |= ztwod::kHidden;
+  for (int i = 0; i < 4; ++i) w->poly.set_point(i, -1, -1);
+  w->layout();
+  *height = static_cast<int32_t>(w->panel.corners[1][1] - w->panel.corners[0][1]);
+  *poly_shown = (w->poly.flags & ztwod::kHidden) ? 0 : 1;
+  for (int i = 0; i < 4; ++i) pts[i * 2] = w->poly.pts[i][0], pts[i * 2 + 1] = w->poly.pts[i][1];
+  mech3::set_hud_hooks(nullptr);
+  ztwod::set_host(nullptr);
+}
+
+// test_pm_hud_reticle.py: PM's reticle update (0x00445a50).
+struct ReticleIn { int32_t map, zoomed, hidden, locked, dead, hud_active; float timer, dt, scale; };
+struct ReticleOut { int32_t hidden, zoom_hidden; float timer, scale; };
+namespace {
+struct ReticleHooks : Hooks {
+  int32_t dead = 0;
+  bool mech_dead(mech3::Mech*) override { return dead != 0; }
+};
+}  // namespace
+
+extern "C" void probe_pm_reticle(const ReticleIn* in, ReticleOut* out) {
+  static Host host;
+  ztwod::set_host(&host);
+  static ReticleHooks hooks;
+  hooks.dead = in->dead;
+  mech3::set_hud_hooks(&hooks);
+  static mech3::Hud* hud = new (std::calloc(1, sizeof(mech3::Hud))) mech3::Hud(nullptr);
+  static char fake_mech[0x800];
+  hud->mech = reinterpret_cast<mech3::Mech*>(fake_mech);
+  hud->active = static_cast<uint8_t>(in->hud_active);
+  hud->radar.active = static_cast<uint8_t>(in->map), hud->radar.zoomed = static_cast<uint16_t>(in->zoomed);
+  mech3::HudReticle& r = hud->reticle;
+  r.source = hud;
+  r.locked = static_cast<uint8_t>(in->locked), r.lock_timer = in->timer;
+  if (in->hidden) r.flags |= ztwod::kHidden;
+  else r.flags &= ~ztwod::kHidden;
+  r.zoom.flags |= ztwod::kHidden;
+  r.zoom.zoom = in->scale;
+  r.update(in->dt);
+  out->hidden = (r.flags & ztwod::kHidden) ? 1 : 0, out->zoom_hidden = (r.zoom.flags & ztwod::kHidden) ? 1 : 0;
+  out->timer = r.lock_timer, out->scale = r.zoom.zoom;
+  hud->mech = nullptr;
+  mech3::set_hud_hooks(nullptr);
+  ztwod::set_host(nullptr);
+}
+
+// test_pm_hud_timer.py: PM's time split (0x00597c30).
+extern "C" void probe_pm_time_split(float t, int32_t* out) { mech3::time_split(t, &out[0], &out[1], &out[2]); }
 
 extern "C" uint32_t probe_pm_pack(int r, int g, int b) { return zvid::pack_bytes(r, g, b); }
 

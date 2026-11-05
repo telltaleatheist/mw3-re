@@ -219,11 +219,13 @@ struct ProgramHudHooks : HudHooks {
     if (!v.hardware) return;
     if (zcls::Node* c = node(v.camera)) ++view_draws, zcls::render_world(c, 0);
   }
-  // Mech3.exe 1.2 @ 0x00442900: the camera 13 m before the HUD's mech (its
-  // local -z, [0x005e3a08]) at 1.25 times its centroid's height over its
-  // place, turned to the centroid; the mech's node drawn alone (0x004428b0,
-  // its vt+0x68 tint around), its see-through flag (object3d flag 2, the
-  // player's own mech outside) and an attached cockpit model off meanwhile.
+  // Pirate's Moon 1.0 @ 0x004440b0 (MW3's 0x00442900): the camera 13 m before
+  // the HUD's mech (its local -z), 14 m for roster 17 (the Puma) and 4.5 m for
+  // 11 (the Elemental) ([0x006058a8..b0]; MW3 13 for all), at 1.25 times its
+  // centroid's height over its place, turned to the centroid; the mech's node
+  // drawn alone (0x004428b0, its vt+0x68 tint around), its see-through flag
+  // (object3d flag 2, the player's own mech outside), an attached cockpit
+  // model and (PM) the torso's +0x7c attachment off meanwhile.
   void mfd_view(HudMfdView& v) {
     Hud* hud = static_cast<Hud*>(v.source);
     Mech* m = hud ? hud->mech : nullptr;
@@ -231,7 +233,8 @@ struct ProgramHudHooks : HudHooks {
     float c[3], base[3];
     node_world_cached(m->centroid, c);  // 0x00448600, then its data +0x84
     mech_world_position(m, base);       // 0x005a85e0
-    const float h = (c[1] - base[1]) * 1.25f, z = -13.0f;
+    const int32_t roster = pm_roster_index(m);
+    const float h = (c[1] - base[1]) * 1.25f, z = roster == 17 ? -14.0f : roster == 11 ? -4.5f : -13.0f;
     const float* t = m->transform;
     const float cam[3] = {z * t[6] + h * t[3] + 0.0f * t[0] + t[9], z * t[7] + h * t[4] + 0.0f * t[1] + t[10],
                           z * t[8] + h * t[5] + 0.0f * t[2] + t[11]};
@@ -245,14 +248,33 @@ struct ProgramHudHooks : HudHooks {
     auto* cn = cm ? static_cast<zcls::Node*>(cm->node) : nullptr;
     const bool cockpit = cn && (cn->flags() & 4) && cn->parent_count() > 0 && cn->parents && m->torso &&
                          cn->parents[0] == m->torso->node;
+    const bool extra = torso_attachment(m);  // PM: 0x0041f930
     if (see_through) zcls::object3d_use_opacity(n, 0);
     if (cockpit) zcls::node_set_active(cn, 0);
     hud_object_view_tint(m, true);  // vt+0x68
+    if (extra) torso_attachment_show(m, false);  // its +0x20's vt+0xc(0) (0x00479c20)
     view_draw_node(&v, keep(n));
     hud_object_view_tint(m, false);
     if (see_through) zcls::object3d_use_opacity(n, 1);
     if (cockpit) zcls::node_set_active(cn, 1);
+    if (extra) torso_attachment_show(m, true);
   }
+  // PM's roster index (its table 0x00608238, 0x3c bytes each: 25 mechs, the
+  // Elemental 11, the Puma 17) by the mech's name: the port's is still MW3's 19.
+  static int32_t pm_roster_index(Mech* m) {
+    static const char* const kPm[25] = {"annihilator", "atlas", "avatar", "awesome", "blackhawk", "bushwacker",
+                                        "cauldron", "centurion", "champion", "clint", "daishi", "elemental",
+                                        "firefly", "madcat", "masakari", "orion", "owens", "puma", "ryoken",
+                                        "shadowcat", "strider", "sunder", "supernova", "thor", "vulture"};
+    const char* name = m->pilot ? m->pilot->name : nullptr;
+    for (int32_t i = 0; name && i < 25; ++i)
+      if (std::strcmp(name, kPm[i]) == 0) return i;
+    return m->pilot ? m->pilot->roster : -1;
+  }
+  // PM's torso attachment (the torso's +0x7c, 0x0041f930; shown and hidden by
+  // 0x00479c30/0x00479c60): not ported yet, so none.
+  static bool torso_attachment(Mech*) { return false; }
+  static void torso_attachment_show(Mech*, bool) {}
   // Mech3.exe 1.2 @ 0x004428b0: the view's panel (vt+0x24 0), then the node
   // alone through its camera (0x004f73f0) with the world's fog off
   // (0x004f23e0 on [0x00608c84]+4: 0, then 1).
@@ -346,6 +368,14 @@ struct ProgramHudHooks : HudHooks {
     out[0] = o.x, out[1] = o.y, out[2] = o.z;
   }
   void node_set_intersect(uint32_t, bool) override {}  // handles are 64-bit here: see mech_node
+  // PM's aim ray (0x00445c60): a contact's entity is its object (a mech's
+  // vt+0x48 returns itself; the other classes taken the same), its zEntity flag.
+  float contact_dist_sq(void* c) override { return static_cast<ai::Contact*>(c)->dist2; }
+  void* vehicle_entity(void* v) override { return v; }
+  bool entity_active(void* e) override { return hud_object_active(e); }
+  void node_set_intersect_bbox(uint32_t h, bool on) override {
+    if (zcls::Node* n = node(h)) zcls::node_set_intersect_bbox(n, on ? 1 : 0);
+  }
   uint32_t mech_node(Mech*) override { return 0; }
   int32_t segment_list(uint32_t, const float a[3], const float b[3], zwep::HitList* out) override {
     static zcls::LineHits r;
@@ -372,9 +402,13 @@ struct ProgramHudHooks : HudHooks {
     return force_over || HudHooks::reticle_over_target(t, x, y);
   }
   static Weapon* wp(void* p) { return static_cast<Weapon*>(p); }
+  bool weapon_can_fire(void* w) override { return wp(w)->can_fire(); }  // PM's 0x004b7bd0 (MW3's 0x004b3a20)
   void* mech_weapons(Mech* m) override { return m ? m->ammo : nullptr; }
   // vt+0xa0 (0x0041cc10): powered down, the HUD then off (its set-up, its frame).
-  bool mech_dead(Mech* m) override { return m && mech_powered_down(m); }
+  bool mech_dead(Mech* m) override { return m && mech3::mech_powered_down(m); }
+  // PM's lock (0x004455e0): PM's roster index and the power-down (vt+0xac).
+  int32_t mech_pm_roster(void* m) override { return pm_roster_index(static_cast<Mech*>(m)); }
+  bool mech_powered_down(void* m) override { return mech3::mech_powered_down(m); }
   // 0x0041df10: the mech's tech (0x00484720 on its data's roster entry,
   // +0x684 +0xc); a Clan mech's (2) zoom window is round.
   int32_t mech_kind(Mech* m) override { return m && m->pilot ? mech_tech(m->pilot->roster) : 3; }
@@ -710,6 +744,14 @@ struct ProgramHudHooks : HudHooks {
         part, [](void* c, int32_t id) { return static_cast<decltype(this)>(c)->message(id); }, this);
   }
   void* saved_or_ally(Mech* m) override { return m->saved_or_ally(); }
+  // PM's 0x004e76e0: the saved target, else the selected one when its vehicle's
+  // +0xbc has 0x10 (a lancemate under orders; only mechs carry it here).
+  void* saved_or_lancemate(Mech* m) override {
+    if (m->saved_target) return m->saved_target;
+    ai::Contact* t = m->target;
+    const Mech* tm = t ? static_cast<const Mech*>(hud_object_mech(hud_contact_vehicle(t))) : nullptr;
+    return tm && (tm->xbc & 0x10) ? t : nullptr;
+  }
   const char* message_arg(int32_t msg, const char* arg) override {  // 0x00575fd0
     formatted = zutl::format_message(msg, arg);
     return formatted.c_str();

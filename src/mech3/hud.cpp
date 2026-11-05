@@ -609,10 +609,11 @@ void HudWeapons::layout() {
     if (n == 0) continue;
     if (current == i) {
       poly.show_for(-1.0f);
-      poly.set_point(0, px + kWeaponBracket, py);
-      poly.set_point(1, px - kWeaponBracket, py);
-      poly.set_point(2, px - kWeaponBracket, n * kWeaponLine + py);
-      poly.set_point(3, px + kWeaponBracket, n * kWeaponLine + py);
+      // PM: the bracket 2 lower ([0x006058cc]) and the panel 3 taller, below.
+      poly.set_point(0, px + kWeaponBracket, py + 2);
+      poly.set_point(1, px - kWeaponBracket, py + 2);
+      poly.set_point(2, px - kWeaponBracket, n * kWeaponLine + 2 + py);
+      poly.set_point(3, px + kWeaponBracket, n * kWeaponLine + 2 + py);
     }
     for (int32_t k = 0; k < n; ++k) {
       void* w = k < h.group_count(g) ? h.group_weapon(g, k) : nullptr;
@@ -621,7 +622,7 @@ void HudWeapons::layout() {
     }
     total += n;
   }
-  const int32_t height = kWeaponLine * total;
+  const int32_t height = kWeaponLine * total + (total > 0 ? 3 : 0);
   for (int32_t i = total; i < 16; ++i) lines[i].hide();
   panel.set_pos(get_x(), get_y());
   panel.set_size(column, height);
@@ -634,21 +635,28 @@ void HudWeapons::layout() {
   shown = 1;
 }
 
-// Mech3.exe 1.2 @ 0x00446540: the current group's lines get the select mark
-// (or chain for the others in chain fire), the rest none.
+// Pirate's Moon 1.0 @ 0x004480c0 (MW3's 0x00446540): the current group's
+// lines get the select mark (or chain for the others in chain fire), the rest
+// none; the next weapon is the first after the current that can fire, else
+// the first that can (PM's; MW3 the line after the current, else the first).
 void HudWeapons::looks() {
   HudHooks& h = *g_hooks;
   const int32_t gi = h.wm_group_index(weapons);
   void* group = gi == -1 ? nullptr : h.wm_group(weapons, gi);
   shown = 0;
   next_weapon = 0;
+  void* first_ready = nullptr;
+  bool past_current = false;
   bool after_current = false;
   for (HudWeaponLine& l : lines) {
     if (l.flags & ztwod::kHidden) continue;
     void* w = l.weapon;
     zimg::Texture* mark = nullptr;
-    if (after_current) next_weapon = w;
+    const bool ready = w && h.weapon_can_fire(w);  // 0x004b7bd0
+    if (ready && !first_ready) first_ready = w;
+    if (past_current && !next_weapon && ready) next_weapon = w;
     after_current = w == h.wm_current(weapons);
+    if (after_current) past_current = true;
     if (w && group && h.weapon_group(w) == gi) {
       const int32_t mode = h.wm_mode(weapons);
       if (mode == 0) mark = after_current ? select : chain;
@@ -657,7 +665,7 @@ void HudWeapons::looks() {
     const bool recycling = l.refresh_line(mark);
     shown = shown || recycling;
   }
-  if (!next_weapon) next_weapon = lines[0].weapon;
+  if (!next_weapon) next_weapon = first_ready;
 }
 
 // Mech3.exe 1.2 @ 0x00446220
@@ -836,12 +844,19 @@ void HudRadar::hide() {
   changed = 1;
 }
 
-// Mech3.exe 1.2 @ 0x0043da00: over the mission map, the map named for the
-// size ("large" zoomed, else "small"), else any.
+// Pirate's Moon 1.0 @ 0x0043ee50 (MW3's 0x0043da00): over the mission map,
+// the map named for the size ("large" zoomed, else "small", the reticle then
+// shown again: PM's), else any.
 uint32_t HudRadar::select_map() {
   if (!active) return 0;
   HudHooks& k = *g_hooks;
-  uint32_t m = k.map_find(zoomed == 1 ? "large" : "small");
+  uint32_t m;
+  if (zoomed == 1) {
+    m = k.map_find("large");
+  } else {
+    m = k.map_find("small");
+    static_cast<Hud*>(source)->reticle.show_for(-1.0f);  // its +0x1464, vt+0x60
+  }
   if (!m) m = k.map_find(nullptr);
   k.set_radar_map(m);
   return m;
@@ -850,17 +865,36 @@ uint32_t HudRadar::select_map() {
 // Mech3.exe 1.2 @ 0x0043da40
 void HudRadar::toggle_zoom() { set_zoom(zoomed == 0); }
 
-// Mech3.exe 1.2 @ 0x0043dc10: turned back off when no map is found; off,
-// straight to the size and place it steps toward.
+// Pirate's Moon 1.0 @ 0x0043f090 (MW3's 0x0043dc10): turned back off when no
+// map is found; off, the reticle shown again and straight to the size and
+// place it steps toward; either way the marker's text placed (PM's).
 void HudRadar::toggle_map() {
   active = !active;
   if (active && !select_map()) active = !active;
   if (!active) {
+    static_cast<Hud*>(source)->reticle.show_for(-1.0f);  // the HUD's +0x1464
     radius = to_r;
     radius_sq = to_r * to_r;
     set_pos(to_x, to_y);
   }
+  place_marker_text();
   changed = 1;
+}
+
+// Pirate's Moon 1.0's (inlined in 0x0043f090 and 0x0043f220): the network
+// marker's text (TEXT2) placed and shown: below the radar off the map; over
+// it, by the map's top edge (x 10 with the map on the left).
+void HudRadar::place_marker_text() {
+  if (active) {
+    void* map = g_hooks->radar_map();
+    int32_t tx = cx[0], ty = 15;
+    if (zoomed == 1) tx = 10;
+    else ty = (map ? g_hooks->map_image_height(map) : 0) + 15;
+    text2.set_pos(tx, ty);  // vt+0x0c
+  } else {
+    text2.set_pos(cx[0] - r[0], cy[0] + 15 + r[0]);
+  }
+  text2.show_for(-1.0f);
 }
 
 // Mech3.exe 1.2 @ 0x0043da50: the size to move to and the steps there.
@@ -941,6 +975,10 @@ HudZView::HudZView(const char* name, HudViewWindow* w, uint32_t wd) {
   hardware = ztwod::host().video_mode();
   k.camera_set_zone(camera, 0xffffff01);  // [0x005e8854]: the default zone
 }
+
+// Mech3.exe 1.2 @ 0x0043f9c0: the window the constructor made is freed (the
+// port had left it, one each zoom view; MW3 frees it too).
+HudZoomView::~HudZoomView() { delete view.window; }
 
 // Mech3.exe 1.2 @ 0x0043f660
 HudZoomView::HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h)
@@ -1263,7 +1301,9 @@ void HudTarget::data_text() {
     a += buf;
   }
   texts[1].set_text_plain(a.c_str());
-  void* sc = h.saved_or_ally(me);
+  // PM (0x004e76e0): none in a network game; the saved target, else the
+  // selected one if it is a lancemate under orders (MW3: the last ally chosen).
+  void* sc = h.multiplayer_game() == 0 ? h.saved_or_lancemate(me) : nullptr;
   void* sm = sc ? h.contact_mech(sc) : nullptr;
   const char* sn = sm ? h.mech_object_name(sm) : nullptr;
   const char* t2 = sn ? h.message_arg(0xdd4, sn) : nullptr;
@@ -1573,10 +1613,32 @@ void HudReticle::place(float fx, float fy) {
   zoom.follow(get_x(), get_y());
 }
 
-// Mech3.exe 1.2 @ 0x00444350: the reticle's point unprojected at the player
-// camera's near and far planes, the segment between queried with the mech
-// left out; the nearest hit counts unless its ground is soil kind 1 (one
-// hit alone: kept unless so). No hit: the far point (hud.md section 10).
+// Pirate's Moon 1.0 @ 0x00445c60: the mech's contacts nearer than `reach_sq`
+// (the list is nearest first), each active one's node set to be hit by its
+// mesh (`on` false: its box test off, 0x004fd2c0) or back; the count seen.
+uint32_t HudReticle::contacts_by_mesh(Mech* m, bool on, float reach_sq) {
+  HudHooks& k = *g_hooks;
+  const int32_t n = k.mech_contact_count(m);
+  if (n <= 0) return 0;
+  uint32_t i = 0;
+  for (; static_cast<int32_t>(i) < n; ++i) {
+    void* c = k.mech_contact(m, static_cast<int32_t>(i));
+    if (k.contact_dist_sq(c) > reach_sq) break;
+    if (void* v = k.contact_vehicle(c)) {
+      void* e = k.vehicle_entity(v);  // vt+0x48
+      if (e && k.entity_active(e)) k.node_set_intersect_bbox(k.object_node(e), on);
+    }
+  }
+  return i;
+}
+
+// Pirate's Moon 1.0 @ 0x00445cf0 (MW3's 0x00444350): the reticle's point
+// unprojected at the player camera's near plane and at the farther of its far
+// clip and the selected group's range (PM's; MW3 stopped at the far clip, W33),
+// the segment between queried with the mech left out and the contacts in that
+// reach tested by their meshes (PM's: 0x00445c60); the nearest hit counts
+// unless its ground is soil kind 1 (one hit alone: kept unless so). No hit:
+// the far point (hud.md section 10).
 void HudReticle::aim() {
   HudHooks& k = *g_hooks;
   float s[3] = {static_cast<float>(get_x()), static_cast<float>(get_y()), 0.0f};
@@ -1586,22 +1648,17 @@ void HudReticle::aim() {
   hits = zwep::HitList{};
   float near_z = 0.0f, far_z = 0.0f;
   k.player_camera_clip(&near_z, &far_z);
+  const float range = k.group_range(k.mech_weapons(m));  // 0x004b5a20
+  if (far_z <= range) far_z = range;
+  const float reach_sq = far_z * far_z;
+  contacts_by_mesh(m, false, reach_sq);
   k.view_prepare();
   float a[3], b[3];
-  s[2] = 1.0f / near_z;  // 0x005c0074
+  s[2] = 1.0f / near_z;
   k.unproject_world(s, a);
   s[2] = 1.0f / far_z;
   k.unproject_world(s, b);
-  // FIX (bug): the pick ended at the far clip (800 m), short of an ER large
-  // laser's 1000 m: in range, the reticle stayed green (W33; fixes.md).
-  float e[3] = {b[0], b[1], b[2]};
-  if (zfix::options().bugs) {
-    const float range = k.group_range(k.mech_weapons(m));
-    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
-    const float len = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    if (len > 0.0f && range > len)
-      for (int i = 0; i < 3; ++i) e[i] = a[i] + d[i] * (range / len);
-  }
+  const float* e = b;
   const uint32_t node = k.mech_node(m);
   k.node_set_intersect(node, false);
   int32_t best = -1;
@@ -1625,6 +1682,7 @@ void HudReticle::aim() {
     if (best >= 0) missed = false;
   }
   k.node_set_intersect(node, true);
+  contacts_by_mesh(m, true, reach_sq);
   const float* p;
   if (!missed) {
     const zwep::HitRecord& h = hits.rec[hits.count];
@@ -2273,9 +2331,11 @@ void HudWeaponLine::set_weapon(void* w, zimg::Texture* mark) {
   refresh_line(mark);
 }
 
-// Mech3.exe 1.2 @ 0x00445dc0: the bar the recycle fraction (clamped to 0..1;
-// +0x111b set when it drops from full), the light by damage (green, yellow
-// over 0.5, red over 0.8), the count the ammo, grey when destroyed.
+// Pirate's Moon 1.0 @ 0x004478f0 (MW3's 0x00445dc0): the bar the recycle
+// fraction (clamped to 0..1; +0x111b set when it drops from full), shown at
+// 0.87 of it while recharging (PM's, [0x006058c0]); the light by damage (green,
+// yellow over 0.5 or while recharging (PM's), red over 0.8), the count the
+// ammo, grey when destroyed.
 bool HudWeaponLine::refresh_line(zimg::Texture* mark_image) {
   HudHooks& h = *g_hooks;
   if (!weapon) {
@@ -2289,10 +2349,11 @@ bool HudWeaponLine::refresh_line(zimg::Texture* mark_image) {
   else if (f < 0.0f) f = 0.0f;
   const bool recycling = f != 1.0f;
   x111b = value == 1.0f && f != 1.0f;
+  if (f < 1.0f) f = 0.87f * f;
   set_value(f);  // vt+0x8c
   int32_t light_index = 0;
   if (h.weapon_damage(w) > 0.8f) light_index = 2;
-  else if (h.weapon_damage(w) > 0.5f) light_index = 1;
+  else if (h.weapon_damage(w) > 0.5f || recycling) light_index = 1;
   const bool destroyed = h.weapon_damage(w) == 1.0f;
   const bool live = !destroyed && h.weapon_enabled(w);
   mark.set_image(mark_image);
@@ -2514,20 +2575,14 @@ void HudRadar::update(float dt) {
     const ztwod::Rect* rect = nullptr;
     // PM (0x0043f220): the marker's text placed and shown here, below the
     // radar, or over the map by its top edge (x 10 with the map on the left).
+    place_marker_text();
     if (active) {
       void* map = h.radar_map();
-      int32_t tx = cx[0], ty = 15;
-      if (zoomed == 1) tx = 10;
-      else ty = (map ? h.map_image_height(map) : 0) + 15;
-      text2.set_pos(tx, ty);  // vt+0x0c
-      text2.show_for(-1.0f);
       rect = map ? h.map_rect(map) : nullptr;
       mapped = rect != nullptr;
       polys[0].hide();
       polys[1].hide();
     } else {
-      text2.set_pos(cx[0] - r[0], cy[0] + 15 + r[0]);
-      text2.show_for(-1.0f);
       if (xbd4 > 3) polys[0].show_for(-1.0f);
       if (xbd8 > 3) polys[1].show_for(-1.0f);
     }
@@ -3002,11 +3057,19 @@ void HudZoomWindow::update(float dt) {
   else box.update(dt);
 }
 
-// Mech3.exe 1.2 @ 0x004441a0: the reticle itself only while the zoom window
-// is away; nothing more once the HUD is off and its mech dead.
+// Pirate's Moon 1.0 @ 0x00445a50 (MW3's 0x004441a0): PM's first: with the radar
+// over the large map the zoom window (reset, 0x00445110) and reticle are hidden,
+// and a hidden reticle whose image is kept is shown. Then the reticle itself only
+// while the zoom window is away; nothing more once the HUD is off and its mech dead.
 void HudReticle::update(float dt) {
-  zoom.update(dt);
   Hud* h = static_cast<Hud*>(source);
+  if (h && h->radar.active && h->radar.zoomed == 1) {
+    zoom.hide();
+    zoom.zoom = 0.0f;
+    hide();
+  }
+  if ((flags & ztwod::kHidden) && locked) show_for(-1.0f);
+  zoom.update(dt);
   if (h && h->mech && hud_hooks().mech_dead(h->mech) && h->active == 0) return;
   if (zoom.flags & ztwod::kHidden) Image::update(dt);
   lock_timer -= dt;
@@ -3015,10 +3078,13 @@ void HudReticle::update(float dt) {
 
 void HudHooks::reticle_aim_state(void* r, bool over) { static_cast<HudReticle*>(r)->aim_state(over); }
 
-// Mech3.exe 1.2 @ 0x00443d20: the missile lock (hud.md section 12). Over a
-// target with a group that locks, in range and not of kind 7, the lock
-// starts (tone 0xc, 0.6 s, 1.2 when the target's +0x3cc is above 0), then
-// holds (tone 0, 3.5 s past the last good frame) or is lost.
+// Pirate's Moon 1.0 @ 0x004455e0 (MW3's 0x00443d20): the missile lock
+// (hud.md section 12). Over a target with a group that locks, the target in
+// range (MW3: or the aim point), not an Elemental (PM's roster 11) and not
+// powered down (PM's: vt+0xac), the lock starts (tone 0xc, 0.6 s, 1.2 with ECM
+// on the target), then holds (tone 0, 3.5 s past the last good frame) or is
+// lost. The image: locked, over while the lock builds; within the aim range
+// over when the aimed node allows it, else off; beyond it, can't.
 void HudReticle::aim_state(bool over) {
   HudHooks& h = hud_hooks();
   Hud* hud = static_cast<Hud*>(source);
@@ -3027,11 +3093,11 @@ void HudReticle::aim_state(bool over) {
   const bool lockable = h.group_locks(wm) && h.group_4b1cd0(wm);
   void* contact = h.slot_contact(hud->target.target);
   void* mech = contact ? h.contact_mech(contact) : nullptr;
-  const bool kind7 = mech && h.mech_kind_of(mech) == 7;
+  const bool elemental = mech && h.mech_pm_roster(mech) == 11;
+  const bool down = mech && h.mech_powered_down(mech);
   const bool in_range = contact && h.contact_distance(contact) < range;
-  const bool aim_close = aim_distance < range;
-  const bool near = in_range || aim_close;
-  const bool good = over && lockable && near && contact && !kind7;
+  const bool aim_close = aim_distance < range;  // 0x00446080
+  const bool good = over && lockable && in_range && contact && !elemental && !down;
   switch (lock) {
     case 0:
     case 4: lock = good ? 1 : 0; break;
@@ -3044,14 +3110,14 @@ void HudReticle::aim_state(bool over) {
     default: break;
   }
   const bool is_locked = lock == 3;
-  if (!near && !is_locked) lock = 4;
+  if (!in_range && !is_locked) lock = 4;
   switch (lock) {
     case 1:
       if (!h.hud_sound_playing(0xc)) h.hud_sound_play(0xc);
-      lock_timer = mech && h.mech_3cc(mech) > 0 ? kLockWait + kLockWait : kLockWait;
+      lock_timer = mech && h.mech_3cc(mech) > 0 ? kLockWait + kLockWait : kLockWait;  // ECM, PM's +0x3dc
       break;
     case 3:
-      if (good) lock_timer = 3.5f;  // [0x005e3a10]
+      if (good) lock_timer = 3.5f;  // [0x006058b8]
       h.hud_sound_stop(0xc, 0);
       if (!h.hud_sound_playing(0)) h.hud_sound_play(0);
       break;
@@ -3066,22 +3132,18 @@ void HudReticle::aim_state(bool over) {
     state = s;
     if (!locked) set_image(img);
   };
-  show(is_locked ? 1 : 0, is_locked ? img_on : img_off);
   h.set_lock_shown(wm, is_locked);
-  if (is_locked) return;
+  if (is_locked) return show(1, img_on);
   if (lock == 2) return show(2, img_over);
-  void* node = hit.node;
-  if (!node) {
-    if (!aim_close) show(3, img_cant);
-    return;
+  if (!aim_close) return show(3, img_cant);
+  if (void* node = hit.node) {
+    if (h.node_object(node)) {  // asked twice, as written
+      if (h.object_byte8(h.node_object(node))) return show(2, img_over);
+    } else if (h.node_bc(node) > 1) {
+      return show(2, img_over);
+    }
   }
-  if (h.node_object(node)) {  // asked twice, as written
-    if (h.object_byte8(h.node_object(node)) && aim_close) show(2, img_over);
-  } else if (h.node_bc(node) > 1) {
-    show(2, img_over);
-  } else if (!aim_close) {
-    show(3, img_cant);
-  }
+  show(0, img_off);
 }
 
 // Mech3.exe 1.2 @ 0x00446680
@@ -3462,7 +3524,16 @@ void Hud::draw3d(float dt) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0043c390: the game's numbers into the pieces each
+// Pirate's Moon 1.0 @ 0x00597c30 (new in PM; zvid_buff.c's neighbour): whole
+// seconds as hours, minutes and seconds.
+void time_split(float t, int32_t* h, int32_t* m, int32_t* s) {
+  const int32_t n = crt::msvc_ftol(t);
+  *s = n % 60;
+  *m = n / 60 % 60;
+  *h = n / 60 / 60;
+}
+
+// Pirate's Moon 1.0 @ 0x0043d440 (MW3's 0x0043c390): the game's numbers into the pieces each
 // frame, from the camera update (0x0040f8d0) for the view's target. With the
 // HUD on: the radar's positions, the compass's heading (the mech's flat
 // forward), the gauges, TARGET's text, the equipment and MFD; always the
@@ -3502,14 +3573,10 @@ void Hud::data_update(float dt) {
   float t = h.mission_time(h.multiplayer_game() != 0);
   const bool negative = t < 0.0f;
   if (negative) t = -t;
-  const float minutes = t * 0.016666668f;  // [0x005c0098]
-  float hours = std::floor(minutes * 0.016666668f);
-  const float mins = std::floor(minutes - hours * 60.0f);  // [0x005c009c]
-  // FIX (bug): the original's seconds are t less the minutes alone, so past
-  // an hour they run on into the thousands ("01:01:3640"); the hours too here.
-  const float secs = zfix::options().bugs ? std::floor(t - mins * 60.0f - hours * 3600.0f) : std::floor(t - mins * 60.0f);
+  int32_t hours, mins, secs;
+  time_split(t, &hours, &mins, &secs);  // PM's 0x00597c30 (MW3 left the hours in the seconds)
   if (negative) hours = -hours;
-  timer.set_text("%02d:%02d:%02d", crt::msvc_ftol(hours), crt::msvc_ftol(mins), crt::msvc_ftol(secs));  // [0x005e3d88]
+  timer.set_text("%02d:%02d:%02d", hours, mins, secs);  // [0x00605c3c]
   objectives.data_update(dt);
   target.track(dt);
   h.network_data(active, dt);

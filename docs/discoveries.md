@@ -1201,6 +1201,10 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   rifle 880, the LB 2-X 870, the Ultra AC/2 810): a mech past 800 m stays
   under a green reticle (and never locks), though your shots still hit it. The rebuild looks out to
   your selected weapons' range (bug fixes on).
+- **Pirate's Moon fixed the 800 m reticle and sharpened it:** its reticle
+  looks as far as your selected weapons reach, and it tests the units near
+  you by their actual shapes rather than their boxes, so aiming past a mech's
+  legs or arms no longer counts as on it. (From the code: 0x00445cf0.)
 - **Buildings you target never show in the TARGET window.** Only their
   name and range appear. The mission files can turn the picture on for a
   building (a `display` flag), but none of the shipped missions do.
@@ -3708,6 +3712,17 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   lock is on and the reticle lights up. It holds for 3.5 seconds after the
   reticle leaves the target. Either the target or the aim point has to be
   within the group's longest range.
+- **Pirate's Moon's weapon list shows what's charging:** a recharging weapon's
+  light turns yellow, and its bar stops at 87% until it snaps full when ready,
+  so a full bar always means it can fire. (From the code: 0x004478f0.)
+- **Pirate's Moon's next-weapon key skips dead weapons:** it jumps to the
+  next weapon that can fire (not empty, not destroyed), where MechWarrior 3's
+  went to the next line whatever its state. (From the code: 0x004480c0.)
+- **Pirate's Moon tightened the missile lock:** the target itself must be in
+  range (in MechWarrior 3, aiming at closer ground let a far target lock), and
+  a powered-down mech cannot be locked at all; Elementals still cannot. The
+  reticle shows "can't" whenever what you aim at is out of range. (From the
+  code: 0x004455e0.)
 - **Elementals can't be missile-locked:** the lock skips any target whose
   pilot is an Elemental.
 - **A NARCed target locks without aiming at it:** while a NARC beacon is on
@@ -3735,6 +3750,9 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **The mission timer breaks after an hour:** the HUD's clock works out the
   seconds without taking the hours off, so an hour and 40 seconds in it
   reads 01:01:3640 (the rebuild shows 01:01:40).
+- **Pirate's Moon fixed the mission timer:** its HUD clock splits the time
+  into hours, minutes and seconds properly, so past an hour it reads
+  01:01:40 where MechWarrior 3's read 01:01:3640. (From the code: 0x00597c30.)
 - **A hidden debug readout:** the HUD fills five debug texts every frame
   (the mech's gait, speeds and more) while a debug text is shown; a debug
   switch toggles it, and which key or option reaches that switch is not

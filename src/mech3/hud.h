@@ -287,6 +287,7 @@ class HudRadar : public ztwod::FilledBox {
   void set_zoom(bool zoomed);        // 0x0043da50
   void toggle_zoom();                // 0x0043da40: R, small or large
   void toggle_map();                 // 0x0043dc10: Shift+R, over the mission map when there is one
+  void place_marker_text();          // PM's, inlined in 0x0043f090 and 0x0043f220
   void reset_boundary();             // 0x0043d920: the mission boundary's two outlines for the polylines
   uint32_t select_map();             // 0x0043da00: the mission map for the size, kept at [0x0060998c]
   void set_fov(float radians);       // 0x0043f0c0
@@ -342,6 +343,9 @@ struct HudZView {
 class HudZoomView : public ztwod::Object2D {
  public:
   HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043f660
+  ~HudZoomView() override;           // 0x0043f9c0: its window freed
+  HudZoomView(const HudZoomView&) = delete;
+  HudZoomView& operator=(const HudZoomView&) = delete;
   void show_for(float seconds) override;  // +0x60  0x0043fc10: the camera on too
   void hide() override;              // +0x64  0x0043fc60: the camera off too
   HudZView view;                     // +0x34 (its vtable 0x005c0360)
@@ -517,6 +521,7 @@ class HudReticle : public ztwod::Image {
   int32_t lock = 0;                  // +0x950 the missile lock: 0 none, 1 acquiring, 2 waiting, 3 locked, 4 lost
   float lock_timer = 0.0f;           // +0x954 0.6 after a reset ([0x005e3a0c]); counts down in update
   void aim_state(bool over);         // 0x00443d20: the lock and the reticle's image
+  uint32_t contacts_by_mesh(Mech* m, bool on, float reach_sq);  // Pirate's Moon 1.0 @ 0x00445c60
   void* source = nullptr;            // +0x958 (not set by the constructor)
 };
 
@@ -531,6 +536,8 @@ struct HudStaticChannel {
 int32_t static_add(HudStaticChannel* statics, float step, int32_t kind, float hold, float most);  // Pirate's Moon 1.0 @ 0x0043d0b0
 bool static_warn(HudStaticChannel* statics, bool on, float health, float dt);  // Pirate's Moon 1.0 @ 0x0043e1f0, its start
 void static_ease(HudStaticChannel* statics, float dt);                        // 0x0043e1f0, its end
+void time_split(float t, int32_t* h, int32_t* m, int32_t* s);  // Pirate's Moon 1.0 @ 0x00597c30
+
 struct HudStaticNoise {
   static constexpr int kSize = 256;
   std::vector<uint16_t> pixels;  // the display's format (0x005983e0)
@@ -620,6 +627,13 @@ class HudHooks : public zgame::Unported {
   // material's game soil ([0x00608c00]), the mech's node (+4).
   virtual void view_prepare() { unported("0x004b51f0", {}); }
   virtual void unproject_world(const float screen[3], float out[3]);
+  // PM's aim ray (0x00445c60): a contact's squared distance (+0x0c), a
+  // vehicle's entity (vt+0x48: a mech itself), its active flag (+0x08), and a
+  // node's box test (0x004fd2c0, flag 0x20).
+  virtual float contact_dist_sq(void* c) { return zgame::from_bits(unported("peek32", {id(c) + 0xc})); }
+  virtual void* vehicle_entity(void* v) { return ptr(unported("veh.vt+0x48", {id(v)})); }
+  virtual bool entity_active(void* e) { return (unported("peek8", {id(e) + 8}) & 0xff) != 0; }
+  virtual void node_set_intersect_bbox(uint32_t node, bool on) { unported("0x004fd2c0", {node, on ? 1u : 0u}); }
   virtual void node_set_intersect(uint32_t node, bool on) { unported("0x004eb6d0", {node, on ? 1u : 0u}); }
   virtual int32_t segment_list(uint32_t world, const float a[3], const float b[3], zwep::HitList* out);
   virtual uint32_t material_soil(zwep::Handle material);
@@ -719,6 +733,10 @@ class HudHooks : public zgame::Unported {
   virtual void* slot_contact(void* slot) { return ptr(unported("peek32", {id(slot)})); }
   virtual void* contact_mech(void* c) { return ptr(unported("0x004e6ff0", {id(c)})); }
   virtual float contact_distance(void* c) { return zgame::from_bits(unported("0x004e7030", {id(c)})); }
+  // PM's lock (0x004455e0): a mech's roster index in PM's roster (its pilot's
+  // +0x0c; the Elemental 11) and its power-down (vt+0xac, MW3's vt+0xa0).
+  virtual int32_t mech_pm_roster(void* m) { return static_cast<int32_t>(unported("pilot+0xc", {id(m)})); }
+  virtual bool mech_powered_down(void* m) { return unported("mech.vt+0xac", {id(m)}) == 1; }
   virtual int32_t mech_kind_of(void* m) {
     return static_cast<int32_t>(unported("peek32", {unported("peek32", {id(m) + 0x684}) + 0xc}));
   }
@@ -858,7 +876,9 @@ class HudHooks : public zgame::Unported {
     unported("0x00484d70", {static_cast<uint32_t>(part)});
     return nullptr;
   }
+  virtual bool weapon_can_fire(void* w) { return (unported("0x004b3a20", {id(w)}) & 0xff) != 0; }  // PM's 0x004b7bd0
   virtual void* saved_or_ally(Mech* m) { return ptr(unported("0x004d7240", {id(m)})); }
+  virtual void* saved_or_lancemate(Mech* m) { return ptr(unported("0x004e76e0", {id(m)})); }  // PM's
   virtual const char* message_arg(int32_t msg, const char* arg) {
     unported("0x00575fd0", {static_cast<uint32_t>(msg)});
     (void)arg;
