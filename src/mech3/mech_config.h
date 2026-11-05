@@ -154,6 +154,7 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   void load_items(std::FILE* f);           // 0x00471540
   std::vector<uint32_t> packed() const;    // 0x00425650
   uint32_t checksum() const;               // 0x004255b0
+  int32_t slots_unused() const;            // Pirate's Moon 0x00427310: 57 less every item's, ferro's, endo's and the engine's
   bool validate(bool check_crc) const;     // 0x004254d0
   double weight(int32_t what) const;       // 0x00425300, -1 for the whole mech; x87 st0
   bool unplaced_item() const;              // 0x00424220

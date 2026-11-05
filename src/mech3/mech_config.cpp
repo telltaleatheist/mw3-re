@@ -699,23 +699,21 @@ bool in_category(const ConfigItem* i, int32_t what) {
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00425300. 0 engine, 1 heat sinks past the free 10, 2 jump
-// jets, 3 structure, 4 armor, 5 weapons, 6 ammo, 7 other equipment, 8 max
-// mass; -1 sums 0..7 with the 3 t cockpit and the engine's own shielding.
+// Pirate's Moon 1.0 @ 0x00427130. 0 engine, 1 heat sinks past the free 10, 2 jump jets, 3 structure, 4 armor, 5 weapons,
+// 6 ammo, 7 other equipment, 8 the cockpit and engine shielding (none on the Elemental), 9 max mass; -1 sums 0..8.
 // Running sums are stored as floats, as the exe's local is.
 double Config::weight(int32_t what) const {
   switch (what) {
     case -1: {
       float sum = 0.0f;
-      for (int32_t i = 0; i < 8; ++i) sum = static_cast<float>(weight(i) + sum);
-      // Pirate's Moon 0x00427130 (its case 8): the Elemental is charged no engine shielding.
-      double t = static_cast<double>(sum) + 3.0;  // 0x00604668
-      if (mech != kElemental) {
-        const Engine e{engine, xl};
-        t += static_cast<float>(std::ceil(engine_rating(e) * static_cast<double>(0.009999f)));
-        if (mech == kMadCat) t -= 0.5;  // the Mad Cat is half a ton lighter
-      }
-      return t;
+      for (int32_t i = 0; i < 9; ++i) sum = static_cast<float>(weight(i) + sum);
+      return sum;
+    }
+    case 8: {
+      if (mech == kElemental) return 3.0;  // 0x00604668
+      const Engine e{engine, xl};
+      const double t = 3.0 + std::ceil(engine_rating(e) * static_cast<double>(0.009999f));
+      return mech == kMadCat ? t - 0.5 : t;  // the Mad Cat is half a ton lighter
     }
     case 0: return engine_weight_x87(Engine{engine, xl});
     case 1: {
@@ -727,7 +725,7 @@ double Config::weight(int32_t what) const {
       return endo_steel ? std::floor(w + 0.5) * 0.5 : w;
     }
     case 4: return armor_tons;
-    case 8: return max_mass(mech);
+    case 9: return max_mass(mech);
     default: {
       float sum = 0.0f;
       for (const ConfigItem* i : items)
@@ -759,6 +757,13 @@ int32_t Config::jump_jet_limit() const {
   return m > 65.0f ? 4 : 3;
 }
 
+// Pirate's Moon 1.0 @ 0x00427310
+int32_t Config::slots_unused() const {
+  int32_t n = 0x4e - 0x15;
+  for (const ConfigItem* i : items) n -= i->slots();
+  return n - ferro_slots() - endo_slots() - engine_slots();
+}
+
 // Pirate's Moon 1.0 @ 0x00427360 (MW3's 0x004254d0 never checked Elementals; docs/mechdef-head.md).
 // The checksum test stays for callers that ask; load no longer does.
 bool Config::validate(bool check_crc) const {
@@ -766,6 +771,7 @@ bool Config::validate(bool check_crc) const {
   if (static_cast<float>(weight(-1) - 0.24f) > max_mass(mech)) return false;
   if (unplaced_item()) return false;
   if (jump_jets() > jump_jet_limit()) return false;
+  if (slots_unused() < 0) return false;
   int32_t points = 0;
   for (int32_t a : armor) points += a;
   return points <= armor_points(armor_tech, ferro != 0, armor_tons);

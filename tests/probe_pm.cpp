@@ -25,6 +25,9 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zclass/cls_di.h"
 #include "mech3/mech_headlight.h"
+#include <map>
+#include <string>
+#include <cctype>
 #include "mech3/mech_lod.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_config.h"
@@ -859,6 +862,61 @@ int probe_pm_dfn(const char* dir, const char* entry, int index, char* out, int c
   if (n > cap) return -2;
   std::memcpy(out, b.data(), b.size());
   return n;
+}
+
+// test_pm_config.py: the weapons' masses by name, a definition through read_dfn with the real validate, and one loadout changed
+// and evaluated: weight -1..9, unplaced, jets, their limit, slots left, validate.
+namespace {
+std::map<std::string, ::mech3::WeaponLab> g_cfg_labs;
+::mech3::MechDfn* g_cfg_dfn = nullptr;
+}  // namespace
+void probe_pm_cfg_lab(const char* name, float clan, int cslots, float sphere, int sslots, float ammo) {
+  std::string n(name);
+  for (char& c : n) c = static_cast<char>(std::tolower(c));
+  g_cfg_labs[n] = ::mech3::WeaponLab{{clan, sphere}, {cslots, sslots}, ammo};
+}
+int probe_pm_cfg_load(const char* dir, const char* entry, int index) {
+  using namespace ::mech3;
+  if (probe_pm_zrdr_load(dir, "zbd/reader.zbd", entry) != 1) return -1;
+  set_weapon_lab([](const char* name) -> const WeaponLab* {
+    std::string n(name);
+    for (char& c : n) c = static_cast<char>(std::tolower(c));
+    auto it = g_cfg_labs.find(n);
+    return it == g_cfg_labs.end() ? nullptr : &it->second;
+  });
+  set_load_saved([](ConfigList*) {});
+  set_save_all([](ConfigList*) {});
+  set_config_check([](const Config& c) { return c.validate(false); });
+  skin_globals() = SkinGlobals{};
+  g_cfg_dfn = new MechDfn(index, g_root);  // kept, as the tree is, for the test's life
+  read_dfn(*g_cfg_dfn);
+  return g_cfg_dfn->configs ? static_cast<int>(g_cfg_dfn->configs->configs.size()) : 0;
+}
+int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
+  using namespace ::mech3;
+  Config& c = *g_cfg_dfn->configs->configs[k];
+  std::vector<ConfigItem*> items(c.items.begin(), c.items.end());
+  switch (op) {
+    case 1: c.armor_tons = static_cast<float>(v) / 2; break;
+    case 2: c.sinks = v; break;
+    case 3: c.double_sinks = v & 1; break;
+    case 4: c.endo_steel = v & 1; break;
+    case 5: if (!items.empty()) items[v % items.size()]->part = -1; break;
+    case 6: c.armor[v % 11] = v * 3; break;
+    case 7: if (!items.empty()) items[v % items.size()]->count = 1 + v % 4; break;
+    case 8: c.engine = v % 79; break;
+    case 9: c.xl = v & 1; break;
+    default: break;
+  }
+  for (int w = -1; w <= 9; ++w) {
+    const auto f = static_cast<float>(c.weight(w));
+    std::memcpy(&out[w + 1], &f, 4);
+  }
+  out[11] = c.unplaced_item();
+  out[12] = static_cast<uint32_t>(c.jump_jets()), out[13] = static_cast<uint32_t>(c.jump_jet_limit());
+  out[14] = static_cast<uint32_t>(c.slots_unused());
+  out[15] = c.validate(false);
+  return 0;
 }
 
 // test_pm_names.py. fn: 0 name, 1 tech, 2 message, 3 mass bits, 4 class, 5 weapon name, 6 weapon message,
