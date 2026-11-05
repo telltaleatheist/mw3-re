@@ -1,4 +1,4 @@
-// The pose on a mech's parts (mech3/mech_pose.cpp) for tests/differential/test_pose.py.
+// The pose on a mech's parts (mech3/mech_pose.cpp) for tests/differential/test_pm_pose.py.
 // The mech and its twelve parts go back and forth as byte images laid out
 // like the original's (pose_world.py has the same offsets), each part's node
 // as its 3x4 matrix; calls out (node sets, the feet's ground update) are
@@ -49,7 +49,7 @@ void log(std::initializer_list<int32_t> v) {
 
 // Parts in pose_world.py's order.
 enum { kLeg0, kLeg1, kCalf0, kCalf1, kFoot0, kFoot1, kHip, kTorso, kArm0, kArm1, kHand0, kHand1, kParts };
-constexpr int kImage = 0x1b4;
+constexpr int kImage = 0x1c0;
 constexpr int kToe0 = 12, kSki0 = 20, kNodes = 22, kTable = 120;
 void log_ski(int leg, const float* m);
 
@@ -142,7 +142,7 @@ void part_io(int k, uint8_t* b, bool store) {
   } else if (k == kHip) {
     io.q(0x74, g->hip.rot), io.q(0x84, g->hip.inv), io.v3(0x98, g->hip.offset), io.f(0xa8, g->hip.crouch_target);
   } else if (k == kTorso) {
-    io.q(0x128, g->torso.rot);
+    io.q(0x130, g->torso.rot);
   }
 }
 
@@ -150,8 +150,8 @@ void mech_io(uint8_t* b, bool store) {
   Io io{b, store};
   Mech& m = g->m;
   int32_t d = static_cast<int32_t>(m.detail);
-  io.v3(0x3c, m.vec_3c), io.i(0x578, m.anim_state), io.u32(0x58c, m.gait_frames);
-  io.i(0x688, d);
+  io.v3(0x3c, m.vec_3c), io.i(0x59c, m.anim_state), io.u32(0x5b0, m.gait_frames);
+  io.i(0x6ac, d);
   m.detail = static_cast<uint32_t>(d);
 }
 }  // namespace

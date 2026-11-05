@@ -2,7 +2,7 @@
 
 Mech3.exe 1.2, 2026-10-20 (part of `movement.md`). How a sampled animation
 becomes the parts' node matrices. Ported in `mech3/mech_pose.cpp`, checked
-by `test_pose.py`.
+by `test_pm_pose.py`.
 
 ## set_pose (part vtable +0x2c)
 

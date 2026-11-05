@@ -1,45 +1,45 @@
-"""A mech's parts in emulator memory for the pose tests (test_pose.py and the
-gait, jump and action pose tests), with the same layout tests/probe_pose.cpp
+"""A mech's parts in emulator memory for the pose tests (test_pm_pose.py and the
+gait, jump and action pose tests, Pirate's Moon's), with the same layout tests/probe_pose.cpp
 reads and writes: the mech, its twelve parts with their real vtables, and a
 node per part (an object3d stand-in, class 5) whose 3x4 matrix the part's
-+0x14 / +0x18 point into. Node sets (0x4fc300) and the feet's ground update
-(0x462a10) are logged as (count, code, args...).
++0x14 / +0x18 point into. Node sets (0x510540) and the feet's ground update
+(0x464060) are logged as (count, code, args...).
 """
 import ctypes
 import struct
 
-from original import FTOL, IAT_FTOL, ROOT, Original
+import test_pm_zar
+from original import FTOL, IAT_FTOL
 from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import (UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX,
                                UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP)
 from original import RETURN, STACK_TOP
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
-probe = ctypes.CDLL(str(LIB))
+probe = test_pm_zar.load_pm_probe()
 probe.probe_pose_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_uint32,
                                   ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 probe.probe_pose_op.argtypes = [ctypes.c_int, ctypes.c_void_p]
 probe.probe_pose_store.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
 
-MECH_VT, MECH_SIZE, IMAGE = 0x5bcef8, 0x6e0, 0x1b4
+MECH_VT, MECH_SIZE, IMAGE = 0x5dfaac, 0x800, 0x1c0
 LEG0, LEG1, CALF0, CALF1, FOOT0, FOOT1, HIP, TORSO, ARM0, ARM1, HAND0, HAND1 = range(12)
 NPARTS = 12
 TOE0, SKI0, NNODES, TABLE = 12, 20, 22, 120
 # The scripted animation's table: hip 0, feet 7 / 14, torso 21, torso rotation 28, arms 32 (ok, q),
 # hands 42, toes 52 + 20 leg + 5 toe (ok, q), thighs 92 + 7 leg, calves 106 + 7 leg.
 AVT_SIZE = 0x50
-VTABLES = [0x5c2978, 0x5c2978, 0x5c2b18, 0x5c2b18, 0x5c2910, 0x5c2910, 0x5c28a8, 0x5c29e0, 0x5c2a48, 0x5c2a48,
-           0x5c2ab0, 0x5c2ab0]
-MECH_SLOTS = {LEG0: 0x38c, LEG1: 0x390, ARM0: 0x394, ARM1: 0x398, TORSO: 0x39c, HIP: 0x3a0}
-NODE_SET, FOOT_GROUND = 0x4fc300, 0x462a10
+VTABLES = [0x5e4efc, 0x5e4efc, 0x5e50a8, 0x5e50a8, 0x5e4e94, 0x5e4e94, 0x5e4e30, 0x5e4f60, 0x5e4fe0, 0x5e4fe0,
+           0x5e5044, 0x5e5044]
+MECH_SLOTS = {LEG0: 0x39c, LEG1: 0x3a0, ARM0: 0x3a4, ARM1: 0x3a8, TORSO: 0x3ac, HIP: 0x3b0}
+NODE_SET, NODE_MATRIX, FOOT_GROUND = 0x510540, 0x510630, 0x464060
 
 BASE = [(0x48, 'b'), (0x4a, 'b')] + [(0x4c + 4 * k, 'f') for k in range(7)]
 LEG = BASE + [(0x7c, 'b')] + [(0x80 + 4 * k, 'f') for k in range(2 + 8 + 11)]
 FOOT = BASE + [(0x8c, 'f'), (0x94, 'i')] + [(0xc4 + 4 * k, 'f') for k in range(4)]
 HIP_F = BASE + [(0x74 + 4 * k, 'f') for k in range(8)] + [(0x98 + 4 * k, 'f') for k in range(3)] + [(0xa8, 'f')]
-TORSO_F = BASE + [(0x128 + 4 * k, 'f') for k in range(4)]
+TORSO_F = BASE + [(0x130 + 4 * k, 'f') for k in range(4)]
 FIELDS = [LEG, LEG, BASE, BASE, FOOT, FOOT, HIP_F, TORSO_F, BASE, BASE, BASE, BASE]
-MECH_FIELDS = [(0x3c, 'f'), (0x40, 'f'), (0x44, 'f'), (0x578, 'i'), (0x58c, 'i'), (0x688, 'i')]
+MECH_FIELDS = [(0x3c, 'f'), (0x40, 'f'), (0x44, 'f'), (0x59c, 'i'), (0x5b0, 'i'), (0x6ac, 'i')]
 
 
 def f2u(x):
@@ -67,19 +67,51 @@ def pick(img, fields):
     return bytes(out)
 
 
+class Mem:
+    """PM's addresses as they are: the bench's u32, write and read translate MW3's."""
+
+    def __init__(self, emu):
+        self.emu, self.uc = emu, emu.cpu._uc
+
+    def u32(self, a, v):
+        self.uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
+
+    def write(self, a, b):
+        self.uc.mem_write(a, bytes(b))
+
+    def read(self, a, n):
+        return bytes(self.uc.mem_read(a, n))
+
+    def alloc(self, n):
+        return self.emu.alloc(n)
+
+    def code(self, b):
+        return self.emu.cpu.code(b)
+
+    def call(self, addr, ecx=0, stack_args=()):
+        self.emu.call(addr, ecx=ecx, args=stack_args)
+
+    @property
+    def ecx(self):
+        return self.emu.cpu.ecx
+
+
 class World:
     """The original's side."""
 
-    def __init__(self, cpu=None):
-        cpu = self.cpu = cpu or Original()
-        cpu.import_code(IAT_FTOL, FTOL)
+    def __init__(self):
+        self.emu = test_pm_zar.Emulated()
+        cpu = self.cpu = Mem(self.emu)
+        self.emu.cpu.import_code(IAT_FTOL, FTOL)
+        self.emu.cpu.stubs[0x406cb0] = (lambda c: 0, 0)
         a = cpu.alloc
+        stub = self.emu.native_stub
         self.mech = a(MECH_SIZE)
         self.parts = [a(IMAGE) for _ in range(NPARTS)]
         self.nodes = [a(0x100) for _ in range(NNODES)]
         self.data = [a(0x60) for _ in range(NNODES)]
         self.anim, self.avt, self.table = a(0xf0), a(AVT_SIZE * 4), a(TABLE * 4)
-        self.skis, self.wraps = a(0x300), [a(8), a(8)]
+        self.skis, self.wraps = a(0x340), [a(8), a(8)]
         self.toe_nodes, self.toe_q = [a(16), a(16)], [a(64), a(64)]
         self.scratch = a(0x40)
         self.view, self.camera = a(0x10), a(0x80)
@@ -93,46 +125,47 @@ class World:
         for off, (fn, pop) in stubs.items():
             addr = cpu.code(b'\xc3')
             vt[off // 4] = addr
-            cpu.stub_function(addr, fn, pop)
+            stub(addr, fn, pop)
         cpu.write(self.avt, struct.pack(f'<{AVT_SIZE}I', *vt))
-        cpu.stub_function(0x4210d0, lambda c: self.a_copy(c, 92 + 7 * c.arg(0), 1, 2, False), 12)
-        cpu.stub_function(0x421080, lambda c: self.a_copy(c, 106 + 7 * c.arg(0), 1, 2, False), 12)
+        stub(0x422210, lambda c: self.a_copy(c, 92 + 7 * c.arg(0), 1, 2, False), 12)
+        stub(0x4221c0, lambda c: self.a_copy(c, 106 + 7 * c.arg(0), 1, 2, False), 12)
         self.events = []
-        cpu.stub_function(NODE_SET, self.node_set)
+        stub(NODE_SET, self.node_set)
+        stub(NODE_MATRIX, lambda c: self.data[self.nodes.index(c.arg(0))] + 0x30)
         self.fldz_ret4 = cpu.code(b'\xd9\xee\xc2\x04\x00')
-        cpu.uc.hook_add(UC_HOOK_CODE, self.foot_ground, begin=FOOT_GROUND, end=FOOT_GROUND)
+        self.emu.cpu._uc.hook_add(UC_HOOK_CODE, self.foot_ground, begin=FOOT_GROUND, end=FOOT_GROUND)
 
     def tab(self, i, n):
         return self.cpu.read(self.table + 4 * i, 4 * n)
 
     def a_copy(self, c, o, ip, iq, _):
-        c.write(c.arg(ip), self.tab(o, 3))
-        c.write(c.arg(iq), self.tab(o + 3, 4))
+        self.cpu.write(c.arg(ip), self.tab(o, 3))
+        self.cpu.write(c.arg(iq), self.tab(o + 3, 4))
         return 0
 
     def a_rot(self, c, o, iq):
-        c.write(c.arg(iq), self.tab(o, 4))
+        self.cpu.write(c.arg(iq), self.tab(o, 4))
         return 0
 
     def a_part(self, c, o):
         if struct.unpack('<f', self.tab(o, 1))[0] == 0:
             return 0
         if c.arg(1):
-            c.write(c.arg(1), bytes(12))
+            self.cpu.write(c.arg(1), bytes(12))
         if c.arg(2):
-            c.write(c.arg(2), self.tab(o + 1, 4))
+            self.cpu.write(c.arg(2), self.tab(o + 1, 4))
         return 1
 
     def a_toe(self, c):
         o = 52 + 20 * c.arg(0) + 5 * c.arg(1)
         if struct.unpack('<f', self.tab(o, 1))[0] == 0:
             return 0
-        c.write(c.arg(2), self.tab(o + 1, 4))
+        self.cpu.write(c.arg(2), self.tab(o + 1, 4))
         return 1
 
     def a_ski(self, c):
         m = c.arg(1)
-        self.log(16, c.arg(0), 1 if m else 0, *(struct.unpack('<12I', c.read(m, 48)) if m else [0] * 12))
+        self.log(16, c.arg(0), 1 if m else 0, *(struct.unpack('<12I', self.cpu.read(m, 48)) if m else [0] * 12))
         return 0
 
     def log(self, *e):
@@ -140,8 +173,8 @@ class World:
         self.events.extend(v & 0xffffffff for v in e)
 
     def node_set(self, c):
-        n = self.nodes.index(c.ecx) if c.ecx in self.nodes else -1
-        m = struct.unpack('<12I', c.read(c.uc.reg_read(UC_X86_REG_EDX), 48))
+        n = self.nodes.index(c.arg(0)) if c.arg(0) in self.nodes else -1
+        m = struct.unpack('<12I', self.cpu.read(c.arg(1), 48))
         self.log(14, n, *m)
         return 0
 
@@ -180,12 +213,12 @@ class World:
         cpu.write(self.anim, bytes(0xf0))
         cpu.u32(self.anim, self.avt)
         for a in range(13):
-            cpu.u32(self.mech + 0x424 + 4 * a, 0)
-        cpu.u32(self.mech + 0x42c, self.anim)
+            cpu.u32(self.mech + 0x434 + 4 * a, 0)
+        cpu.u32(self.mech + 0x43c, self.anim)
         if s['present'] >> 31 & 1:
-            cpu.u32(self.mech + 0x454, self.anim)
-        cpu.u32(self.mech + 0x41c, self.skis)
-        cpu.u32(0x5f4c8c, self.camera)
+            cpu.u32(self.mech + 0x464, self.anim)
+        cpu.u32(self.mech + 0x42c, self.skis)
+        cpu.u32(0x61874c, self.camera)
         cpu.u32(self.camera + 0x58, self.view)
         cpu.u32(self.view + 4, 1 if s['present'] >> 30 & 1 else 0)
         cpu.u32(self.camera + 0x64, self.mech if s['present'] >> 29 & 1 else 0)
@@ -226,26 +259,26 @@ class World:
             raise RuntimeError(f'{start:#x} did not return')
 
     def gait_pose(self, jets, saved):
-        """Move 0x417a80 from its pose block 0x417bbc: EDI the mech, EBX the
-        animation, ESI 0, [ebp+8] the jets, [ebp-0x40] the saved velocity."""
+        """Move 0x418850 from its pose block 0x418989: ESI the mech, EDI the
+        animation, EBX 0, [ebp+8] the jets, [ebp-0x50] the saved velocity."""
         cpu = self.cpu
         ebp = STACK_TOP - 0x2000
         cpu.u32(ebp + 4, RETURN)
         cpu.u32(ebp + 8, jets)
-        cpu.u32(ebp + 0xc, self.anim)  # Move's animation argument, reloaded in the toe loop
-        cpu.write(ebp - 0x40, struct.pack('<3f', *saved))
-        self.run_at(0x417bbc, ebp - 0x98 - 12, {UC_X86_REG_EBP: ebp, UC_X86_REG_EDI: self.mech,
-                                               UC_X86_REG_EBX: self.anim, UC_X86_REG_ESI: 0})
+        cpu.u32(ebp + 0xc, self.anim)
+        cpu.write(ebp - 0x50, struct.pack('<3f', *saved))
+        self.run_at(0x418989, ebp - 0x94 - 12, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESI: self.mech,
+                                               UC_X86_REG_EDI: self.anim, UC_X86_REG_EBX: 0})
 
     def jump_pose(self):
-        """JumpJets 0x4173b0 from 0x4177e7: ESI the mech, EBP firing; the four
-        saved registers under its 0x80 bytes of locals."""
+        """JumpJets 0x417f50 from 0x4182ba: ESI the mech, EDI 0; the three saved
+        registers over its 0x80 bytes of locals."""
         esp = STACK_TOP - 0x2000
-        self.cpu.u32(esp + 0x90, RETURN)
-        self.run_at(0x4177e7, esp, {UC_X86_REG_ESI: self.mech, UC_X86_REG_EBP: 1})
+        self.cpu.u32(esp + 0x8c, RETURN)
+        self.run_at(0x4182ba, esp, {UC_X86_REG_ESI: self.mech, UC_X86_REG_EDI: 0})
 
     def action_pose(self, hip, q):
-        """ActionUpdate 0x416860 from 0x416fb8: ESI the mech, EDI the action,
+        """ActionUpdate 0x417350 from 0x417a2b: ESI the mech, EDI the action,
         the hip at [ebp-0x30] and its rotation at [ebp-0x90]; the left foot's
         sample call's three arguments already pushed."""
         cpu = self.cpu
@@ -254,9 +287,9 @@ class World:
         cpu.write(ebp - 0x30, struct.pack('<3f', *hip))
         cpu.write(ebp - 0x90, struct.pack('<4f', *q))
         cpu.u32(ebp - 0x14, self.anim)  # the toe loop reloads the action from here
-        esp = ebp - 0x5c4 - 12 - 12
+        esp = ebp - 0x644 - 12 - 12
         cpu.write(esp, struct.pack('<III', 0, ebp - 0x74, ebp - 0x40))
-        self.run_at(0x416fb8, esp, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESI: self.mech, UC_X86_REG_EDI: self.anim,
+        self.run_at(0x417a2b, esp, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESI: self.mech, UC_X86_REG_EDI: self.anim,
                                     UC_X86_REG_ECX: self.anim})
 
 

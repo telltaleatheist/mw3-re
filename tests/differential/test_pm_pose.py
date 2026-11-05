@@ -1,16 +1,16 @@
 """The parts' set_pose and the leg IK against the original x86
 (docs/movement-pose.md).
 
-    cmake --build build && .venv/bin/python tests/differential/test_pose.py
+    cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_pose.py
 
 The mech's twelve parts sit in emulator memory with their real vtables
 (pose_world.py), each on a node whose matrix they write. Each trial gives
 the legs a random geometry (thigh and calf lengths, the IK constants as
-0x4637b0 makes them, the hip joint's place, the knee's direction), then one
-call: a leg's IK 0x463e40 (with the solve 0x463c90, the thigh's and calf's
-base set_pose 0x460280 and the foot's 0x4629b0), the solve alone, or a
+0x464e70 makes them, the hip joint's place, the knee's direction), then one
+call: a leg's IK 0x4654e0 (with the solve 0x465360, the thigh's and calf's
+base set_pose 0x4616c0 and the foot's 0x463ff0), the solve alone, or a
 part's set_pose (the base with and without a pending pose, the hip's
-0x4624b0 with its inverse and the feet's ground updates, the foot's).
+0x463af0 with its inverse and the feet's ground updates, the foot's).
 Every field both sides keep, every node matrix and every call out must
 match bit for bit at 24-bit x87, ankles out of reach included.
 """
@@ -78,9 +78,9 @@ def scenario(rng):
     mech = bytearray(W.MECH_SIZE)
     for j in range(3):
         W.put(mech, 0x3c + 4 * j, 'f', f32(rng.uniform(-10, 10)))
-    W.put(mech, 0x578, 'i', rng.choice([1, 3, 4, 5, 6, 7, 9]))
-    W.put(mech, 0x58c, 'i', rng.choice([0, 1, 5, 10, 19, 20, 25]))
-    W.put(mech, 0x688, 'i', rng.choice([0xffffffff, 0x1d, 0x1c, 0x10, 0x12]))
+    W.put(mech, 0x59c, 'i', rng.choice([1, 3, 4, 5, 6, 7, 9]))
+    W.put(mech, 0x5b0, 'i', rng.choice([0, 1, 5, 10, 19, 20, 25]))
+    W.put(mech, 0x6ac, 'i', rng.choice([0xffffffff, 0x1d, 0x1c, 0x10, 0x12]))
     present = (1 << W.NPARTS) - 1
     if rng.random() < 0.1:
         present &= ~(1 << rng.randrange(W.NPARTS))
@@ -133,7 +133,7 @@ def main():
         elif r < 0.6:
             op, leg = 0, rng.randrange(2)
             args = [float(leg)] + target(rng, s, leg) + unit_q(rng)
-            fn, regs = 0x463e40, None
+            fn, regs = 0x4654e0, None
         elif r < 0.7:
             op, leg = 2, rng.randrange(2)
             args = [float(leg)] + target(rng, s, leg)
@@ -154,10 +154,10 @@ def main():
             world.action_pose(args[0:3], args[3:7])
         elif op == 0:
             cpu.write(sp, struct.pack('<7f', *args[1:8]))
-            cpu.call(0x463e40, ecx=world.parts[W.LEG0 + leg], stack_args=(sp, sp + 12))
+            cpu.call(0x4654e0, ecx=world.parts[W.LEG0 + leg], stack_args=(sp, sp + 12))
         elif op == 2:
             cpu.write(sp, struct.pack('<3f', *args[1:4]))
-            cpu.call(0x463c90, ecx=world.parts[W.LEG0 + leg], stack_args=(sp, 0))
+            cpu.call(0x465360, ecx=world.parts[W.LEG0 + leg], stack_args=(sp, 0))
         else:
             k = int(args[0])
             cpu.write(sp, struct.pack('<3f', *args[2:5]) + struct.pack('<4f', *args[6:10]))

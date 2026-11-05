@@ -626,6 +626,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_collide.cpp)
   target_sources(pmprobe PRIVATE tests/probe_heat.cpp)
   target_sources(pmprobe PRIVATE tests/probe_move.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pose.cpp)
 endif()
 
 # The SDL3 front end and the programs on it.
