@@ -431,47 +431,49 @@ void BriefingScreen::on_button(int32_t id, int32_t a, int32_t b) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00408ef0. LAUNCH follows the load; the others by the
-// game: a campaign's MECHLAB and SALVAGE not at Op 1 Mission 1; Instant
-// Action has no SALVAGE or REPLAY, training no MECHLAB either, multiplayer
-// only LAUNCH, and launches by itself.
-void BriefingScreen::set_loaded(bool on) {
-  if ((loaded != 0) == on) return;
-  Engine& e = engine();
-  bool lab = on, abort_on = on, replay = on, salvage = false, auto_launch = false;
-  switch (e.game_kind()) {
+// Pirate's Moon 1.0 @ 0x00407cc0's switch. LAUNCH follows the load; the others by the
+// game: Instant Action has no SALVAGE or REPLAY, training no MECHLAB either, multiplayer
+// only LAUNCH, and launches by itself. MW3's locks MECHLAB and SALVAGE at Op 1 Mission 1;
+// Pirate's Moon doesn't.
+BriefingButtons briefing_buttons(int32_t kind, bool on) {
+  BriefingButtons b;
+  b.lab = b.abort_on = b.replay = on;
+  switch (kind) {
     case kMechLab:
-      salvage = on;
+    case kCampaign:
+      b.salvage = on;
       break;
-    case kCampaign: {
-      int32_t op = 0, mission = 0;
-      e.game_campaign(&op, &mission);
-      if (op == 1 && mission == 1) lab = false;
-      salvage = lab;
-      if (on) salvage_seen = 0;
-      break;
-    }
     case kInstantAction:
-      salvage_btn.hide();
-      replay_btn.hide();
-      replay = false;
+      b.hide_salvage = b.hide_replay = true;
+      b.replay = false;
       break;
     case kMultiplayer:
-      lab_btn.hide();
-      salvage_btn.hide();
-      replay_btn.hide();
-      abort_btn.hide();
-      lab = abort_on = replay = false;
-      auto_launch = on;
+      b.hide_lab = b.hide_salvage = b.hide_replay = b.hide_abort = true;
+      b.lab = b.abort_on = b.replay = false;
+      b.auto_launch = on;
       break;
     case kTraining:
-      salvage_btn.hide();
-      lab_btn.hide();
-      replay_btn.hide();
-      lab = replay = false;
+      b.hide_salvage = b.hide_lab = b.hide_replay = true;
+      b.lab = b.replay = false;
       break;
     default: break;
   }
+  return b;
+}
+
+// Pirate's Moon 1.0 @ 0x00407cc0
+void BriefingScreen::set_loaded(bool on) {
+  if ((loaded != 0) == on) return;
+  Engine& e = engine();
+  const int32_t kind = e.game_kind();
+  const BriefingButtons plan = briefing_buttons(kind, on);
+  const bool lab = plan.lab, abort_on = plan.abort_on, replay = plan.replay, salvage = plan.salvage;
+  const bool auto_launch = plan.auto_launch;
+  if (kind == kCampaign && on) salvage_seen = 0;
+  if (plan.hide_salvage) salvage_btn.hide();
+  if (plan.hide_lab) lab_btn.hide();
+  if (plan.hide_replay) replay_btn.hide();
+  if (plan.hide_abort) abort_btn.hide();
   if (on) cursor_obj.show_for(-1.0f);  // 0x00409a90
   else cursor_obj.hide();
   abort_btn.enable(abort_on);

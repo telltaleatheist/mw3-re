@@ -178,6 +178,7 @@ struct Args {
   int64_t seed = -1;          // --seed N: rand seeded with N wherever the game seeds it from the clock (ours)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
   int frame_times = 0;  // --frame-times N (ours): each frame's wall time from the N-th frame shown, summed up at the end
+  int briefing_wait = 0;
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik, ingame = 0; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
@@ -298,6 +299,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--nosound") a.nosound = true;
     else if (s == "--walk") a.walk = true;
     else if (s == "--briefing" && next(1)) a.briefing = argv[++i];
+    else if (s == "--briefing-wait" && next(1)) a.briefing_wait = std::atoi(argv[++i]);  // ours: past the movies
     else if (s == "--click-at" && next(1)) {
       Args::ClickAt c{};
       if (std::sscanf(argv[++i], "%d,%d@%d", &c.x, &c.y, &c.frame) == 3) a.clicks_at.push_back(c);
@@ -1570,7 +1572,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         }
         p->current = c;
         p->save();
-        auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320, 2}};  // CAMPAIGN, the pilot, ACCEPT
+        auto_clicks = {{40 + a.briefing_wait, 70, 60}, {80 + a.briefing_wait, 150, 135},
+                       {100 + a.briefing_wait, 470, 320, 2}};  // CAMPAIGN, the pilot, ACCEPT
       }
 
       sdlfe::SdlPump pump(&input, &app);

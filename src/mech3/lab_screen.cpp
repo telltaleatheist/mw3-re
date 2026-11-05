@@ -2193,29 +2193,70 @@ bool LabEditBar::finish(bool cancel) {
 // ---------------------------------------------------------------------------
 // MESSAGE_AREA
 
-// Mech3.exe 1.2 @ 0x0044e700: SOUND, played with each text.
+// Pirate's Moon 1.0 @ 0x00450950, 0x005c2320: SOUND, played with each text, and FLASH.
+// The base's other mode, no COLOR (blinking), has no data in any dialog and isn't here.
 bool LabMessage::read(zrdr::Node* node, ztwod::Dialog* dialog) {
   x4b0 = static_cast<uint32_t>(ztwod::host().sound_find(zrdr::get_string(node, "SOUND")));
   x4b4 = 1.0f;
+  if (zrdr::Node* f = zrdr::find(node, "FLASH")) {
+    float rate = 0.0f;
+    int32_t rgb[3] = {0, 0, 0};
+    if (zrdr::get_float(f, "RATE", &rate) && zrdr::get_ivec3(f, "COLOR", rgb))
+      flash_start(static_cast<uint32_t>((rgb[2] & 0xff) << 16 | (rgb[1] & 0xff) << 8 | (rgb[0] & 0xff)), rate);
+  }
   return ztwod::FontText::read(node, dialog);
 }
 
-// Mech3.exe 1.2 @ 0x0044e770
+// Pirate's Moon 1.0 @ 0x005c2430, 0x005c23e0
+void LabMessage::flash_start(uint32_t colorref, float rate) {
+  if (flash_mode == 2) return;
+  flashing = true;
+  if (rate > 0.0f) flash_rate = rate * 0.5f;
+  flash_timer = flash_rate;
+  flash_dir = 1;
+  flash_mode = 2;
+  flash_top = flash_bottom = colorref;
+}
+
+// Pirate's Moon 1.0 @ 0x005c24e0: the two colours swap each half RATE.
+void LabMessage::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  if ((flags & ztwod::kTimed) && (timer -= dt) <= 0.0f) hide();
+  if (flashing && !(flags & ztwod::kHidden)) {
+    flash_timer -= dt;
+    if (flash_timer < 0.0f) {
+      flash_dir = -flash_dir;
+      flash_timer = flash_rate;
+      std::swap(color_top, flash_top);
+      std::swap(color_bottom, flash_bottom);
+      needs_render = 1;
+    }
+  }
+  draw();
+}
+
+// Pirate's Moon 1.0 @ 0x004509f0: the sound, and a message shows for 3 seconds (MW3's stays).
+void LabMessage::after_text() {
+  if (x4b0) ztwod::host().sound_play(static_cast<int32_t>(x4b0), x4b4);
+  show_for(3.0f);
+}
+
+// Pirate's Moon 1.0 @ 0x004509c0
 void LabMessage::set_text_id(uint32_t id, ...) {
   va_list args;
   va_start(args, id);
   set_text_id_v(id, args);
   va_end(args);
-  if (x4b0) ztwod::host().sound_play(static_cast<int32_t>(x4b0), x4b4);
+  after_text();
 }
 
-// Mech3.exe 1.2 @ 0x0044e740
+// Pirate's Moon 1.0 @ 0x00450990
 void LabMessage::set_text(const char* format, ...) {
   va_list args;
   va_start(args, format);
   set_text_v(format, args);
   va_end(args);
-  if (x4b0) ztwod::host().sound_play(static_cast<int32_t>(x4b0), x4b4);
+  after_text();
 }
 
 // ---------------------------------------------------------------------------

@@ -427,8 +427,18 @@ class LabMessage : public ztwod::FontText {
   bool read(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x78  0x0044e700: SOUND
   void set_text(const char* format, ...) override;  // +0x7c  0x0044e740: with the sound
   void set_text_id(uint32_t id, ...) override;      // +0x98  0x0044e770: likewise
-  uint32_t x4b0 = 0;                 // +0x4b0
-  float x4b4 = 1.0f;                 // +0x4b4
+  void update(float dt) override;    // +0x24  Pirate's Moon 0x005c24e0: the flash
+  void flash_start(uint32_t colorref, float rate);  // Pirate's Moon 0x005c2430
+  void after_text();                // Pirate's Moon 0x004509f0
+  uint32_t x4b0 = 0;                 // +0x4d4 in Pirate's Moon
+  float x4b4 = 1.0f;                 // +0x4d8
+  // Pirate's Moon's flashing text (ctor 0x005c2230), of which MESSAGE_AREA is the one with data.
+  float flash_timer = 0.0f;          // +0x4b8
+  float flash_rate = 0.35f;          // +0x4bc  half of the file's RATE
+  uint32_t flash_top = 0, flash_bottom = 0;  // +0x4c0, +0x4c4  the other colour
+  bool flashing = false;             // +0x4c8
+  int32_t flash_mode = 0;            // +0x4cc  2 colours
+  int32_t flash_dir = 1;             // +0x4d0
 };
 
 // 0x00454600 (UNASSIGNED_LIST's +0xac, docs/mechlab.md, The item rules):

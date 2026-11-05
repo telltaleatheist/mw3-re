@@ -150,6 +150,13 @@ Handle& briefing_voice();
 void briefing_cue(int32_t marker);
 
 // The screen (vtable 0x005bbc70), 0x12e6c bytes.
+// What a game's briefing offers once loaded (Pirate's Moon 0x00407cc0's switch).
+struct BriefingButtons {
+  bool lab = false, abort_on = false, replay = false, salvage = false, auto_launch = false;
+  bool hide_lab = false, hide_salvage = false, hide_replay = false, hide_abort = false;
+};
+BriefingButtons briefing_buttons(int32_t kind, bool on);
+
 class BriefingScreen : public MenuScreen {
  public:
   enum Button : int32_t { kBtnAbort = 0, kBtnLaunch = 1, kBtnMechLab = 2, kBtnReplay = 3, kBtnSalvage = 4,
@@ -162,7 +169,7 @@ class BriefingScreen : public MenuScreen {
   void update(float dt) override;    // +0x00  0x00406440
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x00404c30
 
-  void set_loaded(bool loaded);      // 0x00408ef0: the buttons for the game, once the load ends
+  void set_loaded(bool loaded);      // Pirate's Moon 0x00407cc0: the buttons for the game, once the load ends
   void abort();                      // 0x00405050
   void launch();                     // 0x00404f70
   void progress(float f) { target = f; }  // 0x004050d0 on [0x005f4c80]
