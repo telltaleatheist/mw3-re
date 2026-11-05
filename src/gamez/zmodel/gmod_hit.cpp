@@ -45,6 +45,8 @@ uint32_t poly_n(const Polygon& p) { return p.flags & 0xff; }
 uint32_t poly_n(const pm::zmod::Polygon& p) { return p.flags & 0x3ff; }
 uint32_t n_mask(const Polygon&) { return 0xff; }
 uint32_t n_mask(const pm::zmod::Polygon&) { return 0x3ff; }
+bool poly_two_sided(const Polygon& p) { return (p.flags & 0x100) != 0; }
+bool poly_two_sided(const pm::zmod::Polygon& p) { return (p.flags & 0x400) != 0; }
 bool poly_strip(const Polygon& p) { return (p.flags & 0x400) != 0; }
 bool poly_strip(const pm::zmod::Polygon& p) { return (p.flags & 0x2000) != 0; }
 Material* poly_material(const Polygon& p) { return p.material; }
@@ -175,7 +177,7 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
       continue;
     }
     const float e1 = dot_from(to, v, n);
-    if (!(poly.flags & 0x100) && !less(e1, 0.0f)) {
+    if (!poly_two_sided(poly) && !less(e1, 0.0f)) {
       in[k] = 0;
       *all = 0;
       continue;
@@ -685,7 +687,7 @@ template <class M> const float* model_vertices(M& m) {
 template <class P>
 int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, const float* a, const float* b) {
   const uint32_t n = poly_n(p);
-  const int32_t two = (p.flags >> 8) & 1;
+  const int32_t two = poly_two_sided(p) ? 1 : 0;
   const Material* mat = poly_material(p);
   const bool textured = mat && (mat->flags & 2);
   const float* uvs = poly_uvs(p);

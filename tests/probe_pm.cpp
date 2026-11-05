@@ -789,6 +789,24 @@ void probe_pm_di_clutter(int world, int cx, int cz, int node, const float* rec, 
   }
 }
 void probe_pm_di_centre(int node, float* out) { std::memcpy(out, ::zcls::node_at(node)->raw + 0x64, 16); }
+int probe_pm_di_sphere(int world, const float* centre, float radius, const char* prefix, int ranged, int sighted, int32_t* out, int cap) {
+  std::memset(static_cast<void*>(&g_di_l), 0, sizeof g_di_l);
+  std::vector<int32_t> o;
+  o.push_back(::zcls::sphere_query(::zcls::node_at(world), centre, radius, prefix, ranged, sighted, &g_di_l));
+  o.push_back(g_di_l.count), o.push_back(0);
+  for (int k = 0; k < g_di_l.count && k < 32; ++k) {
+    const ::zcls::LineHit& h = g_di_l.hit[k];
+    int32_t w[3], d;
+    std::memcpy(w, h.point, 12);
+    std::memcpy(&d, &h.dist2, 4);
+    o.insert(o.end(), w, w + 3);
+    o.push_back(d);
+    o.push_back(di_node(h.node));
+  }
+  if (static_cast<int>(o.size()) > cap) return -1;
+  std::memcpy(out, o.data(), o.size() * 4);
+  return static_cast<int>(o.size());
+}
 void probe_pm_di_flag(int node, uint32_t or_flags) { ::zcls::node_at(node)->set_flags(::zcls::node_at(node)->flags() | or_flags); }
 int probe_pm_di_ground(int world, float* probes, int n, float top, int32_t* out, int cap) {
   std::memset(static_cast<void*>(g_di_g), 0, sizeof g_di_g);
