@@ -23,7 +23,8 @@ struct Hooks : PilotHooks {
     return s.c_str();
   }
   const char* message_named(const char* name) override { return name; }
-  int32_t store_add_mech(Store&, int32_t mech, const char* config) override {
+  int32_t store_add_mech(Store& store, int32_t mech, const char* config) override {
+    store.add_mech(mech);
     g_log.push_back(1), g_log.push_back(mech);
     for (const char* c = config; c && *c; ++c) g_log.push_back(*c);
     g_log.push_back(0);
@@ -68,6 +69,19 @@ void probe_pm_sa_lancemate(int32_t i, int32_t mech, int32_t record, const void* 
   auto* s = new GameSlot(mech);
   s->x14 = record;
   g_game->set_lancemate(i, s, static_cast<const Config*>(config));
+}
+
+// The same with the exe's slot stood in (test_pm_standalone's 0x434880): the slot holds the loadout, the store untouched.
+void probe_pm_sa_lancemate_notake(int32_t i, int32_t mech, int32_t record, const void* config) {
+  auto* s = new GameSlot(mech);
+  s->x14 = record;
+  auto& l = g_game->lineups[static_cast<size_t>(g_game->lineup)];
+  if (static_cast<int32_t>(l.size()) == i + 1) {
+    s->set_config(static_cast<const Config*>(config));
+    l.push_back(s);
+  } else {
+    delete s;
+  }
 }
 
 // The player's slot given a mech and loadout (0x004a19c0's first-time branch).

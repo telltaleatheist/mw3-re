@@ -84,7 +84,7 @@ bool StandaloneGame::set_mission(int32_t i) {
 }
 
 // Pirate's Moon 1.0 @ 0x0040e3f0 (0x0040da00 opening the reader, 0x0040de60 the lineup): the
-// store holds only this mission's salvage and what the lance brings to it.
+// store holds this mission's salvage less what the lance already has.
 bool StandaloneGame::start() {
   if (g_missions.empty()) return false;
   x40 = g_missions[static_cast<size_t>(x38)];
@@ -99,10 +99,8 @@ bool StandaloneGame::start() {
   for (int32_t i = 0, n = slot_count(); i < n; ++i) {
     GameSlot* s = slot_at(i);
     if (!s || !s->config) continue;
-    store.add_config(s->config);
-    BaseItem probe;  // 0x00474b40: one more of a mech the store has
-    probe.set_id(s->mech);
-    if (ConfigItem* found = store.find_like(&probe)) store.add_copy(found, 1);
+    store.remove_config(s->config);  // 0x00474dd0
+    store.remove_mech(s->mech);      // 0x00474b40
   }
   return false;
 }
@@ -153,16 +151,18 @@ int32_t StandaloneGame::slot_count() const {
 }
 
 // Pirate's Moon 1.0 @ 0x0040e6c0: lancemate i (slot i + 1) of this mission. A new one gets the
-// mission's loadout and its mech goes in the store; one already in the lineup keeps its own,
-// taking only the new one's record index. The new one is the caller's to give up.
+// mission's loadout, taken from the store with its mech; one already in the lineup keeps its
+// own, taking only the new one's record index, and the new one is deleted.
 void StandaloneGame::set_lancemate(int32_t i, GameSlot* s, const Config* config) {
   auto& l = lineups[static_cast<size_t>(lineup)];
   if (static_cast<int32_t>(l.size()) == i + 1) {
     s->set_config(config, &store, true);
-    BaseItem probe;
-    probe.set_id(config ? config->mech : -1);
-    if (ConfigItem* found = store.find_like(&probe)) store.add_copy(found, 1);
+    if (config) store.remove_mech(config->mech);
     l.push_back(s);
+    return;
+  }
+  if (static_cast<size_t>(i + 1) >= l.size()) {  // FIX (bug): past the lineup the exe reads through nothing
+    delete s;
     return;
   }
   GameSlot* have = l[static_cast<size_t>(i + 1)];

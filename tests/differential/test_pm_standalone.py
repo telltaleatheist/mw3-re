@@ -5,7 +5,7 @@ mission's start 0x40e3f0 with the salvage block 0x473690 on every mission, the l
 
 Messages stand in on both sides: 0x596db0 answers the message's name, 0x596e50 "MSG_<id>", so names are compared and not
 the text. A mech with a loadout from the salvage block is compared as the call out (0x4752c0, store_add_mech); the loadout's
-parts going in the store are test_pm_config's and Store's.
+parts going in the store are test_pm_config's and Store's: the loadout is empty here, the mech real on both sides.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_standalone.py
 """
@@ -23,6 +23,8 @@ import test_pm_config as tc  # noqa: E402
 import test_pm_mechdef as md  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import ROOT  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 LIST, MISSION, UNLOCKED, NEXT, START, SLOT, COUNT, MATE, CTOR = (
     0x40def0, 0x40e340, 0x40e4d0, 0x40e510, 0x40e3f0, 0x40e760, 0x40e830, 0x40e6c0, 0x40e100)
@@ -54,7 +56,13 @@ class Bench(tc.Emulated):
         n(0x596db0, lambda k: k.arg(0))                          # the message of that name: the name
         n(0x596e50, lambda k: self.string('MSG_%d' % k.arg(0)))
         n(0x47af50, lambda k: 0)                                 # the pilot's file opened
-        n(0x4752c0, self.sa_add_config, 8)
+        # A salvage mech with a loadout: the mech goes in (0x4752c0, 0x475310 real), its loadout empty here.
+        empty_cfg = self.alloc(0x40)
+        head = self.alloc(12)
+        self.sa_w(head, head), self.sa_w(head + 4, head), self.sa_w(empty_cfg + 8, head)
+        n(0x4867f0, lambda k: empty_cfg)
+        n(0x426af0, lambda k: empty_cfg, 4)
+        c._uc.hook_add(UC_HOOK_CODE, self.sa_add_config, begin=0x4752c0, end=0x4752c0)
         def imp(slot, fn, pop=0):  # PM's own import slots, as they are
             addr = c.code(b'\xc3')
             self.sa_w(slot, addr)
@@ -108,10 +116,10 @@ class Bench(tc.Emulated):
         self.sa_found(k.arg(1))
         return 1
 
-    def sa_add_config(self, k):
-        name = self.cstr(k.arg(1))
-        self.sa_log += [1, k.arg(0)] + list(name) + [0]
-        return 1
+    def sa_add_config(self, uc, address, size, user):
+        sp = uc.reg_read(UC_X86_REG_ESP)
+        mech, name = struct.unpack('<II', bytes(uc.mem_read(sp + 4, 8)))
+        self.sa_log += [1, mech] + list(self.cstr(name)) + [0]
 
     def sa_missions(self):
         b, e = self.r32(LIST_BEGIN), self.r32(LIST_END)
@@ -173,6 +181,9 @@ def main():
 
     def check(what, a, b):
         if a != b:
+            if isinstance(a, list) and isinstance(b, list):
+                i = next((j for j, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+                raise SystemExit(f'{what}: lengths {len(a)} {len(b)}, at {i}: exe {a[max(0, i - 5):i + 10]} port {b[max(0, i - 5):i + 10]}')
             raise SystemExit(f'{what}: exe {a} port {b}')
 
     rng = random.Random(0x40e340)
@@ -218,9 +229,10 @@ def main():
     p.probe_pm_cfg_at.restype = ctypes.c_void_p
     p.probe_pm_sa_lancemate.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p]
     p.probe_pm_sa_player.argtypes = [ctypes.c_int32, ctypes.c_void_p]
+    p.probe_pm_sa_lancemate_notake.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p]
     emu.call(MISSION, ecx=g, args=[3]), p.probe_pm_sa_op(0, 3)
     emu.call(START, ecx=g), p.probe_pm_sa_op(3, 0), p.probe_pm_sa_log(buf)
-    slots = 0
+    slots = replays = 0
 
     # 0x434880 (the slot's set_config) and 0x474b40 stand in: the store's side of taking a loadout needs the weapons' whole
     # tables in the emulator; GameSlot::set_config is compared by the campaign's tests. So the store isn't compared here.
@@ -232,7 +244,7 @@ def main():
         return 1
 
     emu.native_stub(0x434880, take, 12)
-    emu.native_stub(0x474b40, lambda k: takes.append(('mech', emu.sa_s32(k.ecx - 8 + 8) and 0, k.arg(0))) or 0, 4)
+    real_remove = [False]
 
     def compare_slots(what):
         nonlocal slots
@@ -259,11 +271,28 @@ def main():
             p.probe_pm_sa_lancemate(i, index, 100 + 10 * pass_ + i, p.probe_pm_cfg_at(k))
         emu.sa_w(g + 0x48, 3 - pass_), p.probe_pm_sa_op(8, 3 - pass_)
         compare_slots(f'lancemates, pass {pass_}')
-        # First: taken once each and the mech added. Then: the slots kept their loadouts, nothing taken.
-        check(f'pass {pass_}: the takes', [t[0] for t in takes if t[0] == 'mech'], ['mech'] * 3 if pass_ == 0 else [])
         takes.clear()
-    # The lancemates' slots stay for a replay of the mission (0x40e3f0 adds their loadouts: 0x474dd0, not run here).
     compare_slots('the lineup stays')
+    # A replay's start: the salvage again, less what the lance has (0x474dd0, 0x474b40, real on both sides). The lineup's
+    # mechs and loadouts are in the mission's block or not: this mission's has Atlases' parts in part.
+    for row in (3, 8, 10):
+        emu.call(MISSION, ecx=g, args=[row]), p.probe_pm_sa_op(0, row)
+        emu.call(START, ecx=g), p.probe_pm_sa_op(3, 0), p.probe_pm_sa_log(buf)
+        emu.call(SLOT, ecx=g, args=[0]), p.probe_pm_sa_slot(0, buf)  # the player's, made on asking
+        for i in range(3):  # this mission's lancemates, as above
+            s_ = emu.alloc(0x18)
+            emu.sa_uc.mem_write(s_, bytes(0x18))
+            emu.call(0x434780, ecx=s_, args=[index, 0, 0])
+            emu.call(MATE, ecx=g, args=[i, s_, emu.r32(first + 4 * (i % cfgs))])
+            p.probe_pm_sa_lancemate_notake(i, index, 0, p.probe_pm_cfg_at(i % cfgs))
+        emu.sa_w(g + 0x48, 3), p.probe_pm_sa_op(8, 3)
+        k = p.probe_pm_sa_store(buf)
+        before = list(buf[:k])
+        emu.sa_log = []
+        emu.call(START, ecx=g), p.probe_pm_sa_op(3, 0), p.probe_pm_sa_log(buf)
+        k = p.probe_pm_sa_store(buf)
+        check(f'row {row}: the store less the lance', emu.sa_store(g), list(buf[:k]))
+        replays += list(buf[:k]) != []
 
     # Moving on: each win up to past the last; the best kept across a replay's earlier row.
     emu.call(MISSION, ecx=g, args=[0])
@@ -281,7 +310,7 @@ def main():
         check(f'step {step}: at', emu.sa_s32(g + 0x38), p.probe_pm_sa_op(6, 0))
         check(f'step {step}: best', emu.sa_s32(g + 0x3c), p.probe_pm_sa_op(7, 0))
         past += a
-    pm_floors.floors(trials=(trials, 600), moved=(moved, 100), starts=(starts, 22), with_block=(with_block, 22), past=(past, 2), slots=(slots, 10))
+    pm_floors.floors(trials=(trials, 600), moved=(moved, 100), starts=(starts, 22), with_block=(with_block, 22), past=(past, 2), slots=(slots, 10), replays=(replays, 3))
     print(f'ok: the list of {n} in the pinned order; {trials} missions set ({moved} moved); {starts} starts, the stores and '
           f'calls identical; moved on past the end {past} times')
 
