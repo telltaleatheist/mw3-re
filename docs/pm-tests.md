@@ -47,7 +47,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_motion.py` | unchanged | 2 | 0 | to move |  |
 | `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
 | `test_objectives.py` | gone | 24 | 8 | to move |  |
-| (new) `test_pm_mechsave.py` | PM | | | new, part of `test_mechsave.py` | a saved loadout's save and load, both formats |
+| (new) `test_pm_mechsave.py` | PM | | | new, replaces `test_mechsave.py`'s loadouts | a saved loadout's save and load, both formats, with byte damage. `test_mechsave` retired on `pm` (MW3's exe, MW3's probe); `main` keeps it. Its whole archives have no PM test yet: 0x4267f0, 0x426bd0, 0x427e80 |
 | `test_mech_build.py` | changed | | | moved to `test_pm_mech_build.py` | launch and mech construction, every block; the weapons loop stubbed |
 | (new) `test_pm_firepoints.py` | PM | | | new | the firepoint fix-up 0x46ea40 and its aim cone |
 | `test_parts.py` | gone | 75 | 16 | moved to `test_pm_parts.py` | setups, updates, the arm's clamp, the torso's mode, the part aim; floats within 1e-5 |
