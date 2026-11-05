@@ -1,5 +1,6 @@
 #include "mech3/pilot_menu.h"
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -363,8 +364,21 @@ void PilotScreen::fill_games() {
       line(0xdb7, {action->waves});
       break;
     case kMultiplayer:
+      // Pirate's Moon 0x00491a1e: the pilot's statistics, in plain text in the exe.
       label(0x27d);
-      if (multi) line(0x27e, {multi->kills, multi->deaths});
+      if (multi) {
+        games.add_item("Pilot Statistics", 0);
+        games.add_item(" ", 0);
+        char text[64];
+        std::snprintf(text, sizeof text, "Total Kills: %d", multi->kills);
+        games.add_item(text, 0);
+        std::snprintf(text, sizeof text, "Total Shots: %d", multi->pmcc);
+        games.add_item(text, 0);
+        if (multi->pmcc != 0) {
+          std::snprintf(text, sizeof text, "Kills per 1k Shots: %6.2f", static_cast<float>(multi->kills) * 1000.0f / static_cast<float>(multi->pmcc));
+          games.add_item(text, 0);
+        }
+      }
       break;
     case kStandalone: {  // Pirate's Moon 0x00491bdb: those reached, by name; its mission chosen
       label(0x1027);

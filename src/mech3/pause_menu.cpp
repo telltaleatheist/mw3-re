@@ -28,6 +28,7 @@ PauseScreen::PauseScreen(Engine& e, Handle s)
   backdrop.set_pos(0, 0);
   backdrop.set_image(ztwod::host().screen_grab(1));
   add(&backdrop);
+  e.voice_start("MENU");  // Pirate's Moon 0x00495ec0: the menu's sounds, released at 0x00496120
   if (load("dlgPause.zrd", "PAUSEDIALOG", false)) {
     bind_primitive(&title, "PAUSETEXT");
     bind_button(&quit, "QUIT");
@@ -48,6 +49,7 @@ PauseScreen::PauseScreen(Engine& e, Handle s)
 
 // Mech3.exe 1.2 @ 0x00492ae0
 PauseScreen::~PauseScreen() {
+  engine().voice_release("MENU");
   if (zimg::Texture* grab = backdrop.image) {
     backdrop.set_image(static_cast<zimg::Texture*>(nullptr));
     ztwod::host().image_release(grab);

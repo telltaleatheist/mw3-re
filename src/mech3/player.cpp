@@ -140,6 +140,8 @@ void player_setup(bool full) {
     }
     // Training: the player's mech takes the record's configuration (p11).
     if (training) {
+      // Pirate's Moon 0x004a1a5e: its mech too (5bfdd0).
+      h.set_field32(h.training_slot(training), 4, static_cast<uint32_t>(player->get<int32_t>(0xc4)));
       if (const Handle dfn = h.mech_dfn(player->get<int32_t>(0xc4))) {
         const uint32_t i = player->get<uint32_t>(0xbc);
         const uint32_t configs = static_cast<uint32_t>(h.dfn_config_count(dfn));
@@ -178,7 +180,7 @@ void player_setup(bool full) {
     if (suffix) *suffix++ = '\0';
     if (!whole) std::memcpy(r->raw + 4, frame + 0x34, 0xcc);
     int32_t mech = r->get<int32_t>(0xc4);
-    mech = mech > 0x12 ? 0x12 : (mech < -1 ? -1 : mech);
+    mech = mech > 0x18 ? 0x18 : (mech < -1 ? -1 : mech);  // Pirate's Moon 0x004a1c9b: 25 mechs (MW3: 0x12)
     // A campaign's lancemate the player configures (pilot can_configure,
     // +0xcc bit 7) on the player's team is a slot of the campaign, kept
     // from mission to mission; the mech is made at launch.

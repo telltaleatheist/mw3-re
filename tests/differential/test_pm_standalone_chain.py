@@ -76,6 +76,9 @@ def main():
         bad += check('no credits state', 'chain state Credits' in out, False)
         bad += check('nothing refused at the briefing', 'chain stuck' in out, False)
         bad += check('its buttons', set(re.findall(r'chain buttons: (.*)$', out, re.M)), {'lab 1 salvage 0 replay 1 abort 1'})
+        # The lancemates' mechs: PM's 25, not clamped to MW3's 19 (0x4a19c0).
+        mates = [int(m) for line in re.findall(r'slots \[ (.*?) \]', out) for m in re.findall(r'(-?\d+)\+cfg', line)[1:]]
+        bad += check('a lancemate past MW3\'s roster', max(mates) > 18, True)
         whole_titles = len(titles(out))
 
         # Saved and read back partway, a reached mission replayed, the rest played from the file.

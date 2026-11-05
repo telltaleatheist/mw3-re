@@ -97,7 +97,7 @@ class Store {
   ConfigItem* find_like(const ConfigItem* item);  // 0x004714c0: by vt+0x24
   void add_all(const Store& from);          // 0x004732b0: each of its items, by count
   void assign(const Store& from);           // 0x00473300: emptied, then add_all
-  BaseItem* add_mech(int32_t mech);         // 0x00471c10: one of the mech (not -1 or 0x13)
+  BaseItem* add_mech(int32_t mech);         // 0x00471c10: one of the mech (not -1 or PM's 0x19)
   bool add_config(const Config* c);         // 0x00472cf0: each item of the loadout, by count (false: none)
   bool remove_config(const Config* c);      // 0x00472d40: each item of the loadout, by count
   ConfigItem* has_mech(int32_t mech);       // 0x00409f00: the mech's item, or none

@@ -462,6 +462,26 @@ The 45 not caught, by reading:
 
 **The second campaign's rows (2026-11-05, breaks in the function itself):** 0x40def0 3 of 3, 0x40d920 1 of 1, 0x40e340 3 of 3, 0x40e3f0 1 of 2 (the missing block, no shipped mission lacks one), 0x40e4d0 1 of 1, 0x40e510 2 of 2, 0x473690 4 of 4, 0x40e6c0 2 of 3 (the kept loadout's take is stood in), 0x40e760 2 of 2, 0x40e830 1 of 1. Read and run only through the chain, the exe not run: the Win State's branch 0x47cf20, 0x47ee40, the menu 0x4912f0, 0x4916c0 and its state 0x489b40, 0x489b70, the pause's REPLAY 0x495ec0, the end 0x494fa0, the player's setup 0x4a19c0 and the lance 0x407c20 (`keep` for types 5 and 2 now, for all slots; MW3's Op 4 Mission 6 rule isn't in PM), the warnings 0x404a20. The last is the campaign's missions 2 and 5, not game types: vt+0x48 is the mission's number there.
 
+**The second campaign's rows: what the compare says differs, and where the port has it (2026-11-05).** Read from both sides' code unless it says run; the vtables used are PM's (Game -4 from MW3's, Store's engine slot gone).
+
+| Row | Differs from MW3, or new | Where the port has it |
+|---|---|---|
+| 0x47cf20 Win State | type 5: 0x47b770, 0x40e510, 0x47ee40 after the screen is made, not networked and no cheat | `WinState::enter`, `win_standalone`. Read, and run by the chain |
+| 0x47ee40 | new: writes the Win State's flag; help 0xfb8, else 0x173 + no cheat | `standalone_won`. Help read back in the chain |
+| 0x4912f0 | new: type 1 chooses a saved game, type 5 0x40e340 | `GameList::select`. Run by the chain's replay |
+| 0x4916c0 pilot list (0x4882b0) | 5: 0x1027, the reached rows, 0x48bce0, else mission 0. 3: **"Pilot Statistics", kills, shots, kills per 1k: the port had MW3's line, fixed**. 4: **one training mission, not MW3's four: not changed, PM's menu doesn't reach it** | `fill_games` |
+| 0x489b40, 0x489b70 state | new: mode 5, then Load | `GameMenuState`. Run by the chain |
+| 0x495ec0 pause (0x492750) | **starts the MENU sounds, 0x496120 releases them: the port lacked it, fixed**; REPLAY for types 1, 2, 5; four buttons | `PauseScreen`. Read; REPLAY for 5 not run |
+| 0x494fa0 end | case 5 with 0 and 1 | `end_screen`: **was missing, found by the chain**. Run by the chain |
+| 0x4a19c0 setup (0x49e810) | 0x18 clamp: **the port had MW3's 0x12: lancemates past 18 became mech 18, fixed**. 0x5bfdd0 on training: **added**. 0x40e6c0, 0x40e6a0 with a bad index report 0x24a: ported. The record flag 0x10 and 0x4356c0: not ported, 0 of 335 shipped records have it | `player_setup`. Read; the clamp shown by the chain |
+| 0x407c20, 0x4079b0 lance | new: `keep` for 5 and 2, all slots; **the search over 25: the port had 19, fixed** | `lance_keeps`, `lance_slot`. Run: `test_pm_lance` |
+| 0x4cdb30 inout | 0x435db0 | 10 and "sa", already |
+| 0x4486e0 objectives box | case 5 with 1, 2; 0x448520 | already; the box's call not read further |
+| 0x47d890 debriefing | types 5 and 2 | ported earlier (`test_pm_debrief_chain`); 5 is the chain's |
+| 0x40e3f0, 0x40e6c0 | **the store's vt+0x10 is remove: the port added, fixed** | `test_pm_standalone` on real lineups |
+
+The mech and weapon count sweep (2026-11-05, grep and read): lance, lab, salvage, pilot, Instant Action, player, names. Wrong: the two above. Everything else already uses `kMechCount` 25, `kWeaponCount` 56; `kTable[19]` in mech_names is by tonnage, not mechs. Vtables in the account: Game and Store checked here. The 2D objects come with the lab; controls and parts get a line in the table when a read-only row reaches them.
+
 **A logic row isn't finished without its account (the lead, 2026-11-05).** Every constant and call the normalized compare says differs gets a line: where the port has it, or why it doesn't apply. A break that hits a line is not that account: two real differences were found by doing it, in rows already marked compared, and the compare had listed both all along. Rows outside the frame the same, when reached.
 
 | Row | The compare says | Where the port has it |
