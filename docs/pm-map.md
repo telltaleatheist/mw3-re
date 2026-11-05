@@ -1430,6 +1430,11 @@ functions PM changed, and PM's new ones.
 6. **The front end**: the load/save screens and saved games
    (`%s%02d.mw3`), the saved configurations (`.m3c`), the pilot and
    briefing screens; no movies (zFMV's 21 ported functions are gone).
+   **To keep a PM campaign (open, 2026-11-05; their own place in the order, after a natural break in the mech step):**
+   the pilot file's PM format (below: the header, the record, a campaign's fields, not ported, the port still writes its own);
+   a new campaign's starting store 0x4351b0 (the port starts with MW3's); `lance_keeps`' twin (MW3's operation 4 mission 6,
+   never true now, PM's not read); restore of an existing saved world never exercised (0x435d30, the chains only start new);
+   type 5, standalone, unrun: its game object 0x40e1b0 with 0x40e510, 0x47ee40, 0x40e6b0, and the debriefing's title, press and rank.
    **The pilot and save files: mapped** (2026-11-04, read-only, not ported; checked against one real save):
    - **Files.** `pilots\<name>.mw3` the pilot; `pilots//games//<name>%02d.mw3` (0x60559c) a saved world, by the
      mission alone (MW3: `%02d%02d`, operation and mission). `.m3c` is not a campaign file: `configs\<mech>\*.m3c`
