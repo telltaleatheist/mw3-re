@@ -458,6 +458,7 @@ struct DamageCalls {
   void (*weapons_lost)(Mech&, int part) = nullptr;   // 0x004b1040 on +0xd4: the part's weapons are destroyed
   bool (*weapons_critical)(Mech&, int part, int ammo) = nullptr;  // 0x004b0de0 on +0xd4
   void (*weapons_stop)(Mech&) = nullptr;             // 0x004b1110 on +0xd4
+  void (*light_off)(Mech&) = nullptr;                // Pirate's Moon 0x00465da0(0); unset: the torso's headlight
   Handle (*fly_off)(MechPart&, Vec3* from, Vec3* x, Vec3* velocity, int flag) = nullptr;  // part vtable +0x60
   Handle (*spawn_effect)(Handle effect, Handle node, const float args[9]) = nullptr;  // 0x00508aa0
   Handle (*spawn_effect_at)(Handle effect, Handle node, float x, float y, float z) = nullptr;  // 0x00508c10

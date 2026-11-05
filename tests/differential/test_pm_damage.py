@@ -28,6 +28,7 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDI  # noqa: E402
 
 probe = test_pm_zar.load_pm_probe()
+probe.probe_damage_log_light(1)
 
 IAT_RAND = 0x5bb668
 FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
@@ -219,6 +220,7 @@ class Emulated:
             0x4b4f10: (lambda c: self.log(8, s32(c.arg(0))), 4),
             0x4b4cd0: (lambda c: self.log(9, s32(c.arg(0)), c.arg(1)) or self.sc['wcrit'], 8),
             0x4b4fe0: (lambda c: self.log(10), 0),
+            0x465da0: (lambda c: self.log(39) if c.arg(0) == 0 else self.log(390), 4),  # the headlight at a death
             0x4480a0: (lambda c: self.log(11, (c.ecx - 0x658c) & 0xffffffff), 0),
             0x41f310: (self.mech_sound, 0),
             0x487570: (lambda c: self.log(13, c.arg(0)), 0),

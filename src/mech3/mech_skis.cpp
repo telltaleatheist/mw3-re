@@ -238,12 +238,19 @@ bool Skis::update(float dt) {
   // read the land over it as a wall ahead (fixes.md). Its own feet read them all.
   const int32_t zone_mode = zmod::zones().mode;
   if (zfix::options().bugs && &m != mech3::world().mission_player) zmod::zones().mode = 0;
+  // Pirate's Moon 0x004fcf70, 0x004fcf20: the mech's own node out of the query, its flag 8 back after.
+  int32_t own_flag = 0;
+  auto* own = static_cast<Node*>(m.node);
+  if (g_calls.node_get_flag8) g_calls.node_get_flag8(m.node, &own_flag), g_calls.node_set_flag8(m.node, 0);
+  else if (own) zcls::node_get_flag8(own, &own_flag), zcls::node_set_flag8(own, 0);
   if (g_calls.query) {
     g_calls.query(&world[start], count, matrix[10] - kQueryTop, &hits[start]);
   } else if (Node* w = world_hooks().world) {
     zcls::ground_query(w, &world[start].x, count, matrix[10] - kQueryTop,
                        reinterpret_cast<zcls::GroundHits*>(&hits[start]));
   }
+  if (g_calls.node_set_flag8) g_calls.node_set_flag8(m.node, own_flag);
+  else if (own) zcls::node_set_flag8(own, own_flag);
   zmod::zones().mode = zone_mode;
 
   float g = environment().gravity;

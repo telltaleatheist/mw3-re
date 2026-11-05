@@ -109,7 +109,12 @@ uint8_t g_camera[4] = {};
 bool g_camera_on = false;
 }  // namespace
 
+namespace { zcls::Node* g_real_world = nullptr; int32_t g_flag8 = 0; }
+
 extern "C" {
+
+void probe_skis_flag8(int32_t v) { g_flag8 = v; }
+void probe_skis_real_world(int32_t slot) { g_real_world = slot >= 0 ? zcls::node_at(slot) : nullptr; }
 
 // The view camera's zone list for 0x00476550 (null: no camera); the zones' mode.
 void probe_skis_camera(const uint8_t* list, int32_t mode) {
@@ -158,7 +163,8 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
   environment().jet_ceiling = ceiling;
   g->log.clear();
   SkisCalls& c = skis_calls();
-  c.query = [](Vec3* p, int count, float top, GroundHits* out) {
+  world_hooks().world = g_real_world;  // test_pm_skis_world.py: the real query, on no recorded answers
+  c.query = g_real_world ? nullptr : +[](Vec3* p, int count, float top, GroundHits* out) {
     const int start = static_cast<int>(p - g->s.world);
     log({1, start, count, bits(top)});
     for (int k = 0; k < count; ++k) {
@@ -170,9 +176,12 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
     }
   };
   c.soil = [](Handle mat) {
+    if (g_real_world) return 0;
     auto it = g->soils.find(u(mat));
     return it == g->soils.end() ? 0 : it->second;
   };
+  c.node_get_flag8 = [](Handle, int32_t* out) { log({6}); *out = g_flag8; };
+  c.node_set_flag8 = [](Handle, int32_t on) { log({7, on}); };
   c.node_matrix = [](Handle node) { return g->ski_mats[node == g->s.ski[1] ? 1 : 0]; };
   c.set_node_matrix = [](Handle node, const float* mat) {
     log({3, node == g->s.ski[1] ? 1 : 0});
@@ -192,6 +201,8 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
   skis_io(g->s, skis, true);
   std::memcpy(transform, m.pending_m, sizeof m.pending_m);
   lod_table().low = false;
+  c.node_get_flag8 = nullptr, c.node_set_flag8 = nullptr;
+  world_hooks().world = nullptr;
   std::memcpy(ski_mats, g->ski_mats, sizeof g->ski_mats);
   const int32_t len = static_cast<int32_t>(g->log.size());
   std::memcpy(out, g->log.data(), 4 * (len < *n ? len : *n));

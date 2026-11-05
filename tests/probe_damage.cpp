@@ -87,6 +87,7 @@ uint32_t to_emu(Handle v) { return v == static_cast<Handle>(&g->mech) ? g->emu_m
 
 AmmoBin g_bins[3];
 float g_bin_weight[3];
+int g_log_light = 0;  // test_pm_damage.py: the headlight's call at a death, logged
 void log(std::initializer_list<int32_t> v) {
   g->log.push_back(static_cast<int32_t>(v.size()));
   g->log.insert(g->log.end(), v);
@@ -221,6 +222,7 @@ void install_hooks() {
     return g->s.wcrit != 0;
   };
   c.weapons_stop = [](Mech&) { log({10}); };
+  c.light_off = g_log_light ? [](Mech&) { log({39}); } : static_cast<void (*)(Mech&)>(nullptr);
   c.fly_off = [](MechPart& p, Vec3* a, Vec3* x, Vec3* v, int flag) {
     log({15, static_cast<int32_t>(emu_of(&p)), flag});
     *a = g->s.fly[0], *x = g->s.fly[1], *v = g->s.fly[2];
@@ -381,6 +383,8 @@ void probe_damage_load(const uint8_t* mech_img, const uint8_t* part_imgs, const 
 // test_pm_hit.py: a forced roll and forced values, the same on the exe's side.
 void probe_damage_srand(uint32_t seed) { crt::msvc_srand(seed); }
 void probe_damage_part_armor(int part, float armor) { g->parts[part]->armor = armor; }
+void probe_damage_log_light(int on) { g_log_light = on; }
+
 void probe_damage_torso_sides(int torso, float side0, float side1, float centre) {
   auto* t = static_cast<Torso*>(g->parts[torso].get());
   t->side_internal[0] = side0, t->side_internal[1] = side1, t->internal = centre;

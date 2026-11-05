@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "mech3/app_mech.h"
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
 
@@ -63,5 +64,28 @@ int probe_power(int op, float* f, int32_t* i, int32_t* log, int cap) {
   const int n = static_cast<int>(g_log.size());
   for (int k = 0; k < n && k < cap; ++k) log[k] = g_log[k];
   return n;
+}
+// test_pm_power.py: 0x0041d880 and 0x00419fb0 alone.
+int32_t probe_pm_hud_fall(int32_t player, int32_t v) {
+  g_m = Mech{};
+  world().mission_player = player ? &g_m : &g_player;
+  mech_set_hud_fall(&g_m, v);
+  world().mission_player = nullptr;
+  return g_m.hud_fall;
+}
+
+int32_t probe_pm_heat_override(int32_t viewed, int32_t on, int32_t state, int32_t* sound) {
+  g_m = Mech{};
+  g_m.heat_state = static_cast<uint32_t>(state);
+  world().player = viewed ? &g_m : &g_player;
+  g_next = 100, g_log.clear();
+  HeatCalls& c = heat_calls();
+  const HeatCalls c0 = c;
+  c.play_sound = [](Mech&, int id) { log3(2, id, g_next); return snd(g_next++); };
+  g_m.heat_override(on != 0);
+  *sound = snd(g_m.sounds[22]);
+  c = c0;
+  world().player = nullptr;
+  return static_cast<int32_t>(g_m.heat_state);
 }
 }  // extern "C"

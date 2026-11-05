@@ -220,7 +220,8 @@ void Mech::die() {
   velocity = vec_58;
   vec_3c = vec_58;
   if (c.weapons_stop) c.weapons_stop(*this);
-  if (torso && torso->headlight) torso->headlight->turn(false, true);  // Pirate's Moon 0x0041be50 (0x00465da0)
+  if (c.light_off) c.light_off(*this);
+  else if (torso && torso->headlight) torso->headlight->turn(false, true);  // Pirate's Moon 0x0041be50 (0x00465da0)
   if (this == w.player && c.view_mode && c.view_mode() == 1 && c.view_camera) c.view_camera(2);
   for (Sound& s : sounds) {
     if (s) {

@@ -5,6 +5,7 @@ the landing's dust and pose are skipped by a jump and logged, as test_jets does;
     cmake --build build --target pmprobe
     .venv/bin/python -P tests/differential/test_pm_jets.py [trials]
 """
+import ctypes
 import os
 import random
 import struct
@@ -19,6 +20,8 @@ import test_pm_zar  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
+ROOT_PROBE = test_pm_zar.load_pm_probe().probe_jets_root
+ROOT_PROBE.argtypes = [ctypes.c_float, ctypes.c_float]
 JETS, ADD, LAND, MECH_VT, SIZE, EXT = 0x417f50, 0x417ea0, 0x416d70, 0x5dfaac, 0x800, 0x900
 DUST_AT, DUST_TO = 0x416fdb, 0x417136
 POSE_AT, POSE_TO = 0x4182ba, 0x4184d9
@@ -126,7 +129,7 @@ class Emulated(test_pm_zar.Emulated):
 
     def velocity(self, c):
         self.log(35)
-        self.cpu._uc.mem_write(c.arg(0) + 8, struct.pack('<f', self.vz))
+        self.cpu._uc.mem_write(c.arg(0), struct.pack('<3f', *self.root, self.vz))
         return 0
 
     def w32(self, a, v):
@@ -231,6 +234,8 @@ def main():
         s = scenario(rng)
         s['roster'] = rng.randrange(25)
         s['flags'] |= 256 if rng.random() < 0.3 else 0
+        emu.root = (struct.unpack('<f', struct.pack('<f', rng.uniform(-6, 6)))[0], struct.unpack('<f', struct.pack('<f', rng.uniform(-2, 2)))[0])
+        ROOT_PROBE(*emu.root)
         want, got = emu.run(op, s), tj.port(op, s)
         for k, name in enumerate(('mech', 'controls', 'result', 'calls')):
             if want[k] != got[k]:

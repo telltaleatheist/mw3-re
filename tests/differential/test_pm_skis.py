@@ -70,8 +70,9 @@ class Emulated(test_pm_zar.Emulated):
         self.native_stub(0x510540, self.set_matrix, 0)
         self.native_stub(0x5cb260, lambda c: self.pos, 0)
         self.native_stub(0x5cad40, lambda c: self.log(5, struct.unpack('<i', self.raw(c.arg(0), 4))[0], c.arg(1) & 0xff), 8)
-        self.native_stub(0x4fcf70, lambda c: 0, 0)
-        self.native_stub(0x4fcf20, lambda c: 0, 0)
+        self.flag8 = 0
+        self.native_stub(0x4fcf70, self.get_flag8, 0)
+        self.native_stub(0x4fcf20, lambda c: self.log(7, c.arg(1)) or 0, 0)
         self.cpu.stubs[0x406cb0] = (lambda c: 0, 0)
 
     def raw(self, a, n):
@@ -86,6 +87,11 @@ class Emulated(test_pm_zar.Emulated):
     def log(self, *e):
         self.events.append(len(e))
         self.events.extend(v & 0xffffffff for v in e)
+
+    def get_flag8(self, c):
+        self.log(6)
+        self.w32(c.arg(1), self.flag8)
+        return 0
 
     def set_matrix(self, c):
         self.log(3, self.nodes.index(c.arg(0)))
@@ -222,6 +228,10 @@ def main():
             emu.w32(vt + 0x64, 0x402250 if remote else 0x406ce0)
             emu.wr(emu.transform, struct.pack('<12f', *[f32(rng.uniform(-9, 9)) for _ in range(12)]))
             emu.w32(emu.mech + 0xc, emu.transform)
+            for i in range(2):  # what the frame overwrites: not 0 going in
+                emu.wr(emu.mats[i] + 36, struct.pack('<3f', f32(rng.uniform(-9, 9)), f32(rng.uniform(-9, 9)), f32(rng.uniform(-9, 9))))
+            emu.flag8 = rng.randrange(2)
+            p.probe_skis_flag8(emu.flag8)
             skis_in, feet_in, mats_in = emu.raw(emu.skis, SKIS), b''.join(emu.raw(f, FOOT) for f in emu.feet), b''.join(emu.raw(m, 48) for m in emu.mats)
             mech_raw = emu.raw(emu.mech, 0x800)
             emu.events, emu.records, emu.after = [], {}, None

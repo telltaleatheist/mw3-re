@@ -60,12 +60,12 @@ struct LogAnim : MechAnim {
 };
 // The gait animation Move plays: logs its calls, its velocity is scripted.
 struct GaitAnim : MechAnim {
-  float vz = 0;
+  float vx = 0, vy = 0, vz = 0;
   void set_speed(float s) override { log({33, bits(s)}); }
   void advance(float d) override { log({34, bits(d)}); }
   void velocity(Vec3* v) override {
     log({35});
-    v->z = vz;
+    v->x = vx, v->y = vy, v->z = vz;
   }
 };
 
@@ -125,7 +125,11 @@ void controls_io(MechControls& c, uint8_t* b, bool store) {
 }
 }  // namespace
 
+namespace { float g_vx, g_vy; }
+
 extern "C" {
+void probe_jets_root(float x, float y) { g_vx = x, g_vy = y; }
+
 
 void probe_jets_seed(uint32_t seed) { crt::msvc_srand(seed); }
 
@@ -168,7 +172,7 @@ int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int3
   world().mission_player = flags & 1 ? &m : nullptr;
   world().force_feedback = flags & 2;
   world().player = flags & 128 ? &m : nullptr;
-  g->gait.vz = vz;
+  g->gait.vx = g_vx, g->gait.vy = g_vy, g->gait.vz = vz;
   set_mw2_jump_jets(flags & 4 ? 1 : 0);
   environment().gravity = gravity;
   g_log.clear();

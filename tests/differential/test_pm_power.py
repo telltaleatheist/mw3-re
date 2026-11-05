@@ -106,7 +106,32 @@ def main():
             if want != got:
                 raise SystemExit(f'op {op} case {i}:\n  original {want}\n  port     {got}')
             cases += 1
-    pm_floors.floors(cases=(cases, 9216))
+    other = 0
+    for player, v in itertools.product((0, 1), (0, 1, 2, -1)):  # 0x41d880
+        m = emu.mech
+        emu.w(emu.mission + 0x14, m if player else emu.player)
+        emu.uc.mem_write(m + 0x65c, bytes(4))
+        emu.e.call(0x41d880, ecx=m, args=(v & 0xffffffff,))
+        want = struct.unpack('<i', bytes(emu.uc.mem_read(m + 0x65c, 4)))[0]
+        got = probe.probe_pm_hud_fall(player, v)
+        if want != got:
+            raise SystemExit(f'hud fall {player} {v}: original {want} port {got}')
+        other += 1
+    emu.w(emu.mission + 0x14, emu.player)
+    for viewed, on, state in itertools.product((0, 1), (0, 1), (0, 1, 2, 3, 4, 0x1000000, 0x1000001, 0x1000004)):  # 0x419fb0
+        m = emu.mech
+        emu.w(emu.pl + 0x64, m if viewed else 0)
+        emu.uc.mem_write(m + 0x6c0, struct.pack('<i', state))
+        emu.uc.mem_write(m + 0x634, bytes(4))
+        emu.events, emu.next_sound = [], 100
+        emu.e.call(0x419fb0, ecx=m, args=(on,))
+        want = (struct.unpack('<i', bytes(emu.uc.mem_read(m + 0x6c0, 4)))[0], struct.unpack('<i', bytes(emu.uc.mem_read(m + 0x634, 4)))[0])
+        snd = ctypes.c_int32()
+        got = (probe.probe_pm_heat_override(viewed, on, state, ctypes.byref(snd)), snd.value)
+        if want != got:
+            raise SystemExit(f'override {viewed} {on} {state:#x}: original {want} port {got}')
+        other += 1
+    pm_floors.floors(cases=(cases, 9216), others=(other, 40))
     print(f'ok: {cases} power cases agree')
 
 
