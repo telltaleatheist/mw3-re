@@ -859,7 +859,7 @@ void lance_slot(GameSlot& s, Store& store, bool keep) {
   const Config* cfg = s.config;
   if (!keep) {
     while (!store.has_mech(mech)) {  // 0x00409f00
-      mech = (mech + 1) % 19;
+      mech = (mech + 1) % 25;  // Pirate's Moon 0x004079b0: 0x19, its roster (MW3: 19)
       if (mech == s.mech) {
         mech = -1;
         break;
