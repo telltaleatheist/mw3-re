@@ -677,3 +677,4 @@ Known quirks the rebuild deliberately keeps:
 - With no joystick attached, a saved controls file with axes on the stick no longer makes your mech walk or its torso turn by itself (bug fixes on). The original moved the axes off the stick only for a file exactly like the defaults; a slider, or just a changed deadzone, kept them. The binding is kept for when the stick is back.
 - On fast machines, small bumps throw vehicles much less: the suspension's reaction to the ground is capped at what it is at 30 fps. On rough ground they still tip more than at 30 fps, and they still jump off steep banks at full speed now and then, as in the original.
 - A controls file whose first axis names no source, with no key list, gets no axis source; Pirate's Moon took the file name's address as one.
+- From high up, no dark band between the far ground and the sky: what nothing draws takes the fog's colour (bug fixes on).
