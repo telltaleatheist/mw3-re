@@ -4490,3 +4490,7 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **A number Pirate's Moon works out and never uses:** every frame a mech with a target eases a copy of that target's
   velocity toward the real one (at a rate from the AI's record, y always at a quarter), and clears it on a new target.
   We found nothing in the exe that reads it. It looks like a leading-the-target idea that was left unfinished. (From the code.)
+- **Every weapon port has its own aim limits in Pirate's Moon:** each firepoint in a mech's file has its own aim tolerance and
+  pitch and yaw limits, widened by how far the torso (and the arm, for one on an arm) can turn. MechWarrior 3 has none of
+  this. A firepoint attached to a leg or a side torso makes the game complain that it "must be moved" and counts it as the
+  torso's. (From the code; what the weapons do with the limits we have not reached yet.)

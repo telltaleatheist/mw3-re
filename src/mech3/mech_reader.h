@@ -1,4 +1,5 @@
 #pragma once
+#include <cfloat>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -23,6 +24,9 @@ struct Firepoint {                 // 0x20 bytes
   float position[3] = {};          // +0x14
   // Pirate's Moon's (0x80 bytes): at +0 aimTolerance, aimMinPitch, aimMaxPitch, aimMinYaw, aimMaxYaw (radians).
   float aim[5] = {};
+  // Pirate's Moon's aim cone at +0x14 (0x004a6ee0): two yaw bands, the pitch band at [14]; [8..13] are not set here.
+  float cone[18] = {0, 0, 0, FLT_MAX, 0, 0, 0, FLT_MAX, 0, 0, 0, 0, 0, 0, FLT_MAX, 0, 0, 0};
+  bool fixed = false;              // +0x7c  the fix-up runs once for each definition
 };
 
 struct PartSlot {                  // 0x10 bytes

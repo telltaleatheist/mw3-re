@@ -681,3 +681,4 @@ Known quirks the rebuild deliberately keeps:
 - Leaning on a wall, ramming a mech or a vehicle, or being crushed does the same damage and slows you the same at any frame rate.
 - A mech under deep water drowns at the same speed at any frame rate.
 - Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).
+- Pirate's Moon: a firepoint whose aim range runs past straight up or down keeps its real top limit (bug fixes on).

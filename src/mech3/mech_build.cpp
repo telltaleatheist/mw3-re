@@ -3,6 +3,8 @@
 #include "gamez/zentity/zent_init.h"
 #include "mech3/mech_parts.h"
 
+#include <cfloat>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <new>
@@ -10,6 +12,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
@@ -622,18 +625,136 @@ Config* mech_data_config(MechData& p, int32_t i) {
 
 // --- mech_reader.cpp ---------------------------------------------------------
 
-// Mech3.exe 1.2 @ 0x0046cb80: each firepoint's part (the id of the part that
-// owns its node) and its place in the part. FIX (bug): a firepoint whose node
-// is missing, or has no part, reads through a null part in the exe (a crash);
-// it keeps -1 here.
+namespace {
+constexpr float kHalfPi = 1.5707964f;  // 0x005ea7b0
+
+// Pirate's Moon 1.0 @ 0x004a6d40: a yaw band as its middle's direction and the cosine of its half width.
+void cone_yaw(float* o, float lo, float hi) {
+  if (lo > hi) {
+    o[3] = FLT_MAX;
+    return;
+  }
+  o[1] = 0.0f;
+  const double mid = (static_cast<double>(lo) + hi) * 0.5;
+  const float half = (hi - lo) * 0.5f;
+  o[0] = static_cast<float>(-std::sin(mid));
+  o[2] = static_cast<float>(-std::cos(mid));
+  o[3] = half < 3.14159265359 ? static_cast<float>(std::cos(static_cast<double>(half))) : -1.0f;
+}
+
+// Pirate's Moon 1.0 @ 0x004a6e30
+void cone_pitch(float* o, float lo, float hi) {
+  if (!(lo < hi)) {
+    o[0] = o[1] = FLT_MAX;
+    o[2] = o[3] = 0.0f;
+    return;
+  }
+  const double a = kHalfPi;
+  o[0] = static_cast<float>(std::cos(a - lo));
+  o[1] = static_cast<float>(std::cos(a - hi));
+  o[2] = static_cast<float>(std::sin(a - lo));
+  o[3] = static_cast<float>(std::sin(a - hi));
+}
+
+// Pirate's Moon 1.0 @ 0x004a6ee0: a band that crosses 0 is split there.
+void cone_set(Firepoint& fp) {
+  float min_pitch = fp.aim[1], max_pitch = fp.aim[2];
+  const float min_yaw = fp.aim[3], max_yaw = fp.aim[4];
+  if (max_yaw < 0.0f) {
+    cone_yaw(fp.cone + 4, min_yaw, max_yaw);
+    cone_yaw(fp.cone, 0.0f, max_yaw);
+  } else if (min_yaw > 0.0f) {
+    cone_yaw(fp.cone + 4, min_yaw, 0.0f);
+    cone_yaw(fp.cone, min_yaw, max_yaw);
+  } else {
+    cone_yaw(fp.cone + 4, min_yaw, 0.0f);
+    cone_yaw(fp.cone, 0.0f, max_yaw);
+  }
+  if (!(-kHalfPi <= min_pitch && max_pitch <= kHalfPi)) {
+    g_hooks->report(0x100, 0x72, "Requires version of CZValidateDir that handles angles outside the range");
+    if (min_pitch < -kHalfPi) min_pitch = -kHalfPi;
+    // FIX (bug): the exe compares with -pi/2 here (0x005ea7b4), so any top is taken to pi/2.
+    if (max_pitch > (zfix::options().bugs ? kHalfPi : -kHalfPi)) max_pitch = kHalfPi;
+  }
+  cone_pitch(fp.cone + 14, min_pitch, max_pitch);
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x0046ea40, CZMechFirePoint::CFixup, once for each
+// definition: each firepoint's part and place, and its aim limits made whole
+// by what the torso, and for an arm's the arm, can turn (the right arm's yaw
+// mirrored), then its aim cone. A firepoint on a leg or a side torso is
+// reported and counted as the torso's.
 void mech_firepoints(const MechDfn& dfn, Mech& m) {
   MechBuildHooks& h = *g_hooks;
   if (!dfn.firepoints) return;
+  char msg[160];
   for (Firepoint* fp : *dfn.firepoints) {
     const Handle node = h.node_find(m.node, fp->name);
     auto* part = static_cast<MechPart*>(h.node_owner(node));
-    fp->model_part = part && part->node ? h.node_id(part->node) : -1;
+    if (fp->fixed) continue;
+    fp->fixed = true;
+    if (!part) {
+      std::snprintf(msg, sizeof msg, "CZMechFirePoint::CFixup: mech: no mech part for firepoint %s", fp->name);
+      h.report(0x100, 0xb2, msg);
+      continue;
+    }
+    fp->model_part = part->node ? h.node_id(part->node) : -1;
     h.node_get_translation(node, &fp->position[0], &fp->position[1], &fp->position[2]);
+    const Torso& t = *m.torso;
+    const auto torso_limits = [&] {
+      fp->aim[1] = t.min_pitch + fp->aim[1];
+      fp->aim[2] = t.max_pitch + fp->aim[2];
+      fp->aim[3] = fp->aim[3] - t.max_yaw;
+      fp->aim[4] = t.max_yaw + fp->aim[4];
+    };
+    switch (fp->model_part) {
+      case 2:
+      case 9: {
+        torso_limits();
+        const Arm& a = *m.arms[0];
+        fp->aim[1] = a.min_pitch + fp->aim[1];
+        fp->aim[2] = a.max_pitch + fp->aim[2];
+        fp->aim[3] = a.min_yaw + fp->aim[3];
+        fp->aim[4] = a.max_yaw + fp->aim[4];
+        break;
+      }
+      case 3:
+      case 10: {
+        torso_limits();
+        const Arm& a = *m.arms[1];
+        fp->aim[1] = a.min_pitch + fp->aim[1];
+        fp->aim[2] = a.max_pitch + fp->aim[2];
+        fp->aim[3] = fp->aim[3] - a.max_yaw;
+        fp->aim[4] = fp->aim[4] - a.min_yaw;
+        break;
+      }
+      case 4:
+      case 5:
+      case 0xb:
+      case 0xc:
+      case 0xd:
+      case 0xe:
+      case 0xf:
+      case 0x10:
+        std::snprintf(msg, sizeof msg, "CZMechFirePoint::CFixup: firepoint (%s) attached to part %d must be moved",
+                      fp->name, fp->model_part);
+        h.report(0x100, 0xee, msg);
+        fp->model_part = 1;
+        torso_limits();
+        break;
+      case 1:
+      case 6:
+      case 7:
+      case 8:
+      case 0x11:
+        torso_limits();
+        break;
+      default:
+        std::snprintf(msg, sizeof msg, "CZMechFirePoint::CFixup: unhandled mech part: %d", fp->model_part);
+        h.report(0x100, 0xf7, msg);
+    }
+    cone_set(*fp);
   }
 }
 
