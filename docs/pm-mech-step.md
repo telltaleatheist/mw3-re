@@ -283,9 +283,33 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 - `test_pilot`'s 1,136 lines: move with the pilot and campaign screens, at the latest with the Pirate Missions, whose screens read the fifth game.
 - The starting store 0x4351b0's mech and store calls are stubbed on both sides: not compared. The restored world (0x435d30) runs, not compared with the exe's.
 - 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
-- The roof pin at 33 ms in c1m1 (the lead's list): exe or port, why it stays, what frees it, the heading split, the 0.6's counts.
+- The corrupt mark on c4's four `radiotower` animations (below): where it comes from, and whether the exe does it too.
+- c2m3's stop at (2636, -1528): not reached by this walk, which stops first at a wall at (1365, -6.8, -824) by another route.
 
 **The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
+
+## The stop in c1m1 at 33 ms (2026-11-05, was "the roof pin")
+
+It is not the roof. Walking with `--tap 0x0b@69`, the mech ends at (4529.2, 28, -4517.0) with the throttle at 0.05..0.09 for as long as forward stays on. Measured with temporary counters, none committed.
+
+- **The roof does nothing.** The top probe (y 38.87) runs under a roof at y 35.38, normal (0, -1, 0), from about (4518, -4385). That goes ceiling, can't crush, wall response, which returns at once on a normal with no x or z: the call counts, nothing changes. What dropped the throttle first was a real wall, normal (-0.85, 0.41, 0.32).
+- **A ledge holds it.** At the stop no wall responds. The ground under the two front probes is 3.50..3.55 above the middle's, over `kStepUp` 3.5, so each ski kicks the push back 0.5 along forward (0x607a20; MW3's is 1), 1.0 a frame. Moving against that push fires Update's 0.6 (0x41b35f), and the throttle regrows about 0.011 a frame between. Slopes (ny 0.64) slow the last metres.
+- **Exe or port.** All 1,043 frames of the walk through exe 0x423730 and the port on the captured segment answers: identical. `test_pm_skis` now has ledge walks, the same numbers scripted, through exe 0x477f90: 3.52 kicks, 3.4 doesn't, port equal; five breaks caught (the kick's size, the height 3.6 and 3.3, the direction, the slid flag). The 0.6's condition was read in the exe: velocity dot push below zero. Not run: the exe's own ground and segment queries at this place, so the geometry is the port's; test_pm_di compares those queries elsewhere.
+- **What frees it.** Key 1 (stop): stands still. Reverse held 90 frames: back 25 m. Backspace: reverses away at -0.98. Left held 60 frames: walks off at speed, until the next wall. Jump not tested: J did nothing in this mission even on open ground, and why wasn't checked.
+- **Not tied to 33 ms.** With the heading forced at frame 60, 33, 16, 8 and 5 ms all stop at the same ledge line, z about -4517. The rate only decides who gets there: in the plain walk one hit from another mech gives -32.79 at 33 ms, -33.72 at 16, -34.13 at 8, with the same kick and hit normals of 0.071, 0.103, 0.112, and about a degree decides it. That is a one-hit kick decayed at different steps. MW3's first wall was not checked.
+
+The 0.6, frames fired in the stop (per_second on, so each firing costs 0.6^(dt/33 ms)):
+
+| ms a frame | fired / frames | throttle held |
+|---|---|---|
+| 33 | 23/61, 11-12/31 | 0.05..0.09 |
+| 16 | 43-44/125 | 0.06 |
+| 8 | 70/250, 85/250 | 0.063..0.069 |
+| 5 | 98/400, 142/400 | 0.066..0.128 (few samples) |
+
+A real wall at fast rates (heading forced to 50, one heading only), walls a 2 s window at its worst: 33 ms 31/61, still there after 23 s; 16 ms 83/125 and 8 ms 209/251, both away after about 8 s; 5 ms 357/400, then 36..97/400, throttle 0.002..0.05, still there after 25 s. Close to MW3's fast-frame pin (contact on most frames, the throttle low), but not on every frame and with no steady 0.0198.
+
+Reports at a plain start: c1m1's `player.cpp:727`, `:742` (0x800) and `:974` (0x200) are for the `stealth` object, which has no support or collision points. c4's anim.zbd gives four more 0x400 in every c4 mission run (c4sa1, c4sa2, c4m9): `Corrupt animation loaded: radiotower1..4`. The file's status byte at +0x98 is 0 and neither of the port's messages that go with setting 5 prints, so where the 5 comes from is open, and the exe was not run on it.
 
 ## The true size, normalized (2026-11-05, an estimate)
 

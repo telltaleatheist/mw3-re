@@ -47,6 +47,7 @@ def u2f(x):
 
 class Emulated(test_pm_zar.Emulated):
     def __init__(self, rng):
+        self.step = None
         super().__init__()
         a = self.alloc
         self.cpu.import_code(IAT_FTOL, FTOL)
@@ -102,6 +103,14 @@ class Emulated(test_pm_zar.Emulated):
             self.log(2, *struct.unpack('<3I', self.raw(probes + 12 * k, 12)))
             p = struct.unpack('<3f', self.raw(probes + 12 * k, 12))
             rec = bytearray(REC)
+            if self.step is not None:  # one hit under each probe: a ledge under the two front ones
+                high = start + k in (0, 3)
+                struct.pack_into('<3f', rec, 4, *((-0.37, 0.93, 0.0) if high else (0.0, 1.0, 0.0)))
+                struct.pack_into('<f', rec, 4 + 0x10, f32(self.ground_y + (self.step if high else 0.0)))
+                rec[0] = 1
+                self.wr(out + REC * k, rec)
+                recs[start + k] = bytes(rec)
+                continue
             hits = rng.choice([0, 1, 1, 2, 3, 5])
             rec[0] = hits
             for j in range(hits):
@@ -150,9 +159,11 @@ def main():
                              ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float, P, P]
     rng = random.Random(1999)
     emu = Emulated(rng)
-    total = airborne = slides = simple = 0
-    for walk in range(24):
-        elemental = rng.random() < 0.2
+    total = airborne = slides = simple = kicks = 0
+    # The last walks stand at a ledge, the stop in c1m1 (docs/pm-mech-step.md): 3.52 up ahead, level behind, creeping.
+    for walk in range(28):
+        emu.step = (3.52 if walk % 2 else 3.4) if walk >= 24 else None
+        elemental = rng.random() < 0.2 and emu.step is None
         emu.wr(emu.skis, fresh_skis(rng, elemental))
         emu.w32(emu.skis, emu.mech)
         for i in range(2):
@@ -175,10 +186,12 @@ def main():
         for k in range(32):  # the world pointer follows
             emu.w32(SOIL_TABLE + 4 * k, rng.choice([0, 2, 3, 5, 1, 1, 10, 10, 8, 7]))
         emu.wr(GRAVITY, struct.pack('<f', gravity)), emu.wr(CEILING, struct.pack('<f', ceiling))
+        if emu.step is not None:
+            y, emu.ground_y, speed, dt = 28.0, 28.0, 1.0, f32(1 / 30)
         for frame in range(frames):
-            if rng.random() < 0.05:
+            if rng.random() < 0.05 and emu.step is None:
                 emu.ground_y = f32(y + rng.choice([-2.0, 0.0, 0.0, 1.0, -10.0]))
-            if rng.random() < 0.05:
+            if rng.random() < 0.05 and emu.step is None:
                 speed = rng.choice([0.0, 5.0, 12.0, 25.0, 40.0])
             vy = struct.unpack('<f', emu.raw(emu.mech + 0x40, 4))[0]
             push = struct.unpack('<3f', emu.raw(emu.mech + 0x5c4, 12))
@@ -191,20 +204,20 @@ def main():
             emu.wr(emu.mech + 0x3c, struct.pack('<3f', f32(rng.uniform(-1, 1)), vy, f32(-speed)))
             emu.wr(emu.mech + 0x48, struct.pack('<4f', f32(math.cos(yaw / 2)), 0.0, f32(math.sin(yaw / 2)), 0.0))
             emu.wr(emu.mech + 0x5c4, struct.pack('<3f', *[f32(v - v * 4.5 * dt) for v in push]))
-            jet = rng.random() < 0.03 or (frame % 97 < 12 and walk == 1)
+            jet = (rng.random() < 0.03 or (frame % 97 < 12 and walk == 1)) and emu.step is None
             emu.wr(emu.mech + 0x5b8, struct.pack('<3f', 0.0, f32(38 * 0.9 * dt) if jet else 0.0, 0.0))
             emu.wr(emu.mech + 0x384, bytes(rng.random() < 0.03 for _ in range(4)))
-            detail = 0xffffffff if rng.random() < 0.9 else rng.choice([0, 0x10, 0x1c])
+            detail = 0xffffffff if rng.random() < 0.9 or emu.step is not None else rng.choice([0, 0x10, 0x1c])
             emu.w32(emu.mech + 0x6ac, detail)
-            emu.wr(emu.mech + 8, bytes([rng.random() > 0.02]))
+            emu.wr(emu.mech + 8, bytes([rng.random() > 0.02 or emu.step is not None]))
             for i in range(2):
-                emu.wr(emu.feet[i] + 0x48, bytes([rng.random() < 0.01]))
+                emu.wr(emu.feet[i] + 0x48, bytes([rng.random() < 0.01 and emu.step is None]))
                 emu.wr(emu.feet[i] + 0xf0, struct.pack('<3f', 0.0, 0.0, f32(math.sin(frame * 0.3 + i * math.pi) * 2.0)))
             cam = bytes([rng.randrange(4)] + [rng.choice([0, 1, 2, 3, 5, 8, 0xff]) for _ in range(3)])
             mode = 0 if rng.random() < 0.05 else 1
             emu.wr(emu.cam_data + 0x1e4, cam), emu.w32(MODE, mode)
             p.probe_skis_camera(cam, mode)
-            low, remote = rng.random() < 0.1, rng.random() < 0.3
+            low, remote = rng.random() < 0.1 and emu.step is None, rng.random() < 0.3 and emu.step is None
             emu.wr(0x6293a8, bytes([low]))
             emu.w32(vt + 0x64, 0x402250 if remote else 0x406ce0)
             emu.wr(emu.transform, struct.pack('<12f', *[f32(rng.uniform(-9, 9)) for _ in range(12)]))
@@ -282,11 +295,12 @@ def main():
                     print(f'{where}: calls differ at {i}: exe {emu.events[max(0, i - 6):i + 4]} port {glog[max(0, i - 6):i + 4]}')
                     sys.exit(1)
             total += 1
+            kicks += emu.step is not None and skis_out[5] != 0
             airborne += want_air
             slides += skis_out[5]
             simple += not (detail & 0x10)
-    pm_floors.floors(frames=(total, 4800), airborne=(airborne, 600), slides=(slides, 1800), one_probe=(simple, 80))
-    print(f'ok: {total} frames; {airborne} airborne, {slides} slides, {simple} one-probe')
+    pm_floors.floors(frames=(total, 4800), airborne=(airborne, 600), slides=(slides, 1800), one_probe=(simple, 80), ledge=(kicks, 100))
+    print(f'ok: {total} frames; {airborne} airborne, {slides} slides, {simple} one-probe, {kicks} at a ledge')
 
 
 if __name__ == '__main__':
