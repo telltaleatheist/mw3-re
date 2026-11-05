@@ -237,6 +237,7 @@ struct WeaponManager {                 // 0x94 bytes, Vehicle +0xd4
   Vec3f aim{};                         // +0x0c
   bool aim_valid = false;              // +0x18
   int32_t mode = 0;                    // +0x1c  0 chain, 1 single, 2 group
+  float mode_until = 0;                // Pirate's Moon's +0x20
   int32_t destroyed = 0;               // +0x20
   uint32_t count = 0;                  // +0x24
   int32_t group = 0;                   // +0x28  -1 none

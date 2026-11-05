@@ -695,6 +695,90 @@ int probe_pm_lod(const uint32_t* w, uint32_t* out) {
   return 0;
 }
 
+// test_pm_command.py: the lancemate keys. kind 0 next, 1 first, 2 prev. w: 0 target (-1), 1 ally_target, 2 enemy_target
+// (-1), 3 players' side, 4 count, then per contact (6): the seen vehicle index 0..3, its entity token, in sight;
+// then 4 vehicles' +0xbc. Out: the contact's index, -1 none.
+namespace {
+struct LanceHooks : ::mech3::ai::TargetHooks {
+  const uint32_t* flags = nullptr;
+  zgame::Handle seen_vehicle(zgame::Handle s) override { return s; }
+  zgame::Handle ai_target(zgame::Handle v) override { return v; }
+  uint8_t flags_of(zgame::Handle t) override { return static_cast<uint8_t>(flags[t - 1]); }
+};
+}  // namespace
+int probe_pm_lance_keys(int kind, const int32_t* w) {
+  static LanceHooks hooks;
+  hooks.flags = reinterpret_cast<const uint32_t*>(w + 5 + 3 * 6);
+  ::mech3::ai::set_target_hooks(&hooks);
+  ::mech3::ai::AiTarget t;
+  ::mech3::ai::Contact c[6];
+  const auto at = [&](int i) { return i >= 0 ? &c[i] : nullptr; };
+  for (int i = 0; i < 6; ++i) {
+    c[i].seen = static_cast<zgame::Handle>(w[5 + 3 * i] + 1), c[i].entity = static_cast<zgame::Handle>(w[6 + 3 * i]);
+    c[i].flags = static_cast<uint8_t>(w[7 + 3 * i]);
+    if (i < w[4]) t.contacts.push_back(&c[i]);
+  }
+  t.target = at(w[0]), t.ally_target = at(w[1]), t.enemy_target = at(w[2]);
+  int out;
+  if (kind >= 3) {  // the save keys: w[27] saved, w[28] +0xbc. Out: saved + 1 in the second byte, +0xbc.
+    t.saved_target = at(w[27]), t.xbc = static_cast<uint8_t>(w[28]);
+    if (kind == 3) t.save_target();
+    else t.unsave_target();
+    out = (t.saved_target ? static_cast<int>(t.saved_target - c) + 1 : 0) << 8 | t.xbc;
+    t.saved_target = nullptr;
+  } else {
+    const ::mech3::ai::Contact* r = kind == 0 ? t.next_lancemate(w[3] != 0) : kind == 1 ? t.first_lancemate() : t.prev_lancemate(w[3] != 0);
+    out = r ? static_cast<int>(r - c) : -1;
+  }
+  t.contacts.clear();
+  t.target = t.ally_target = t.enemy_target = nullptr;
+  ::mech3::ai::set_target_hooks(nullptr);
+  return out;
+}
+
+// test_pm_command.py: 0x0041de60. Out: canned's call (slot), the duck's bits (0 none), the sound id (-1 none), the
+// player's end (0, 1), sounds[10] (the token), and the position passed.
+int probe_pm_death_prep(int state, int low, int player, uint32_t detail, uint32_t canned, uint32_t sound, uint32_t* out) {
+  static uint32_t s_canned, s_sound;
+  static uint32_t* s_out;
+  s_canned = canned, s_sound = sound, s_out = out;
+  out[0] = 0xffffffffu, out[1] = 0, out[2] = 0xffffffffu, out[3] = 0;
+  ::mech3::Mech m;
+  ::mech3::Hip hip;
+  hip.node = reinterpret_cast<void*>(uintptr_t{0x6000});
+  m.hip = &hip;
+  m.anim_state = state, m.detail = detail;
+  ::mech3::World& w = ::mech3::world();
+  ::mech3::Mech* keep = w.mission_player;
+  w.mission_player = player ? &m : nullptr;
+  ::mech3::lod_table().low = low != 0;
+  auto& pc = ::mech3::part_calls();
+  auto& dc = ::mech3::damage_calls();
+  auto& cc = ::mech3::collide_calls();
+  auto& hc = ::mech3::heat_calls();
+  const auto p0 = pc; const auto d0 = dc; const auto c0 = cc; const auto h0 = hc;
+  pc.world_position = [](::mech3::Handle, ::mech3::Vec3* o) { *o = {1.0f, 2.0f, 3.0f}; return 0; };
+  dc.canned = [](::mech3::Mech&, int slot, ::mech3::Handle, const float*, const float*) -> ::mech3::Handle {
+    s_out[0] = static_cast<uint32_t>(slot);
+    return reinterpret_cast<void*>(uintptr_t{s_canned});
+  };
+  cc.crouch = [](::mech3::Hip&, float v) { std::memcpy(&s_out[1], &v, 4); };
+  hc.play_sound = [](::mech3::Mech&, int id) -> ::mech3::Sound {
+    s_out[2] = static_cast<uint32_t>(id);
+    return reinterpret_cast<void*>(uintptr_t{s_sound});
+  };
+  dc.mission_player_died = [] { s_out[3] = 1; };
+  m.death_prep();
+  out[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(m.sounds[10]));
+  pc = p0, dc = d0, cc = c0, hc = h0;
+  w.mission_player = keep;
+  ::mech3::lod_table().low = false;
+  m.hip = nullptr;
+  for (auto& s : m.sounds) s = nullptr;
+  hip.node = nullptr;
+  return 0;
+}
+
 // test_pm_shadows.py: the projected-shadow casters (zmod shadow_*, Pirate's Moon 0x0055d740..0x0055dec0) on
 // the trees probe_pm_mechlib loaded. One call: 0 init, 1 new (its id), 2 size(w, h), 3 node(a: a loaded root,
 // -1 none), 4 enable, 5 colour, 6 position(f), 7 draw(f light, f[3] ground); 8 precision (a: 0 24 bits, 1 53).

@@ -36,6 +36,7 @@ struct CommandCalls {
   uint32_t (*node_entity)(void* node) = nullptr;
   uint32_t (*entity_team)(uint32_t entity) = nullptr;
   bool (*entity_refuses)(uint32_t entity, bool zoom) = nullptr;
+  bool (*entity_down)(uint32_t entity) = nullptr;  // Pirate's Moon: its vt+0xac, nonzero not targetable
   void* (*hud_weapon)(void* screen) = nullptr;         // +0x1795c: the weapon the HUD highlights
   // 0x00479480 on [0x0060861c] (multiplayer: none) then 0x00469930 on +0x37c:
   // the controls an order makes, null when none.

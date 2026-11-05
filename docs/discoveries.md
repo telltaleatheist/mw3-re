@@ -4225,6 +4225,13 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon's eject takes your head off.** The eject key fires the
+  pilot out and then destroys your own head, with you credited as your own
+  killer.
+- **Small rule changes hidden in Pirate's Moon's keys.** The MASC key does
+  nothing on a limping leg. Target-under-reticle skips a mech that is shut
+  down. Changing fire mode no longer makes a sound. The "await command"
+  key only remembers a lancemate.
 - **Only one enemy has its headlight on at a time.** On Pirate's Moon's
   missions that turn them on, enemy mechs carry headlights, but the game gives
   out just one a frame: the first enemy in its list within 250 metres of

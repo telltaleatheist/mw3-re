@@ -618,6 +618,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai.cpp)
   # The HUD (pm-map step 7): the objectives box (test_pm_hud_objectives.py)
   target_sources(pmprobe PRIVATE tests/probe_pm_hud.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_command.cpp)
 endif()
 
 # The SDL3 front end and the programs on it.

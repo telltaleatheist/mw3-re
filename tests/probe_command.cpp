@@ -26,7 +26,7 @@ enum : int32_t {
 enum In {
   kCmd, kActive, kViewed, kScreen, kPowered, kCrouched, kAms, kXbc, kRange, kEq6, kEq12, kMasc, kTarget, kSaved,
   kView, kMode, kGroup, kCurrent, kSelect, kJettison, kHudWeapon, kHudWeaponGroup, kLanceBusy, kAllies, kAim,
-  kEntity, kTeamIn, kRefuse, kContacts, kSeen0, kStations = kSeen0 + 4, kInCount
+  kEntity, kTeamIn, kRefuse, kContacts, kSeen0, kStations = kSeen0 + 4, kLimp, kDown, kInCount
 };
 enum Tok {
   tWm, tWeapon, tGroup0, tScreen = tGroup0 + 5, tCurrent, tMech, tSound, tControls, tNode, tContact0,
@@ -104,6 +104,7 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
     g_contacts[k].seen = in[kSeen0 + k] ? t[tEntity0 + in[kSeen0 + k] - 1] : kElse;
     if (k < in[kContacts]) m.contacts.push_back(&g_contacts[k]);
   }
+  m.limp = in[kLimp];
   m.saved_target = ptr<ai::Contact>(static_cast<uint32_t>(in[kSaved]));
   m.ammo = &wm;
   ams.on = in[kAms] == 2;
@@ -124,7 +125,7 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   c.hud = [](void* s, int32_t cmd) { log(kHud, reinterpret_cast<uintptr_t>(s), static_cast<uint32_t>(cmd)); };
   c.hud_weapon = [](void*) -> void* { return g_in[kHudWeapon] ? g_weapon : nullptr; };
   c.hud_aimed_node = [](void* s) -> void* {
-    log(kHud, reinterpret_cast<uintptr_t>(s), g_in[kCmd] == 0x48 ? 0x48u : 0x14u);
+    log(kHud, reinterpret_cast<uintptr_t>(s), g_in[kCmd] == 0x50 ? 0x50u : 0x14u);
     return g_in[kAim] ? ptr<void>(g_tok[tNode]) : nullptr;
   };
   c.node_entity = [](void* node) -> uint32_t {
@@ -138,6 +139,12 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   c.entity_refuses = [](uint32_t e, bool zoom) {
     log(kRefuses, e, zoom ? 1 : 0);
     return ((zoom ? g_in[kRefuse] : g_in[kRefuse] >> 1) & 1) != 0;
+  };
+  const float saved_time = world().time;
+  world().time = 2.5f;
+  c.entity_down = [](uint32_t e) {
+    log(kTeam + 2, e, 0);
+    return g_in[kDown] != 0;
   };
   c.lance_order = [](Mech&, int32_t order) -> MechControls* {
     if (g_in[kLanceBusy]) return nullptr;
@@ -166,6 +173,9 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   out[4] = option;
   out[5] = m.controls == &controls ? 0 : static_cast<int32_t>(reinterpret_cast<uintptr_t>(m.controls));
   out[6] = static_cast<int32_t>(reinterpret_cast<uintptr_t>(m.sounds[23]));
+  out[7] = m.attacker == &m ? 1 : 0;
+  std::memcpy(&out[8], &wm.mode_until, 4);
+  m.attacker = nullptr;
 
   // Nothing here is the mech's or the manager's to free.
   m.target = m.saved_target = nullptr;
@@ -176,6 +186,7 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   heat_calls() = saved_heat;
   update_calls().controls_view = saved_view;
   world().player = saved_player;
+  world().time = saved_time;
   const int32_t n = static_cast<int32_t>(g_log.size()) < cap ? static_cast<int32_t>(g_log.size()) : cap;
   std::memcpy(log_out, g_log.data(), sizeof(int32_t) * n);
   return n;

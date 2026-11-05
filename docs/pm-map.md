@@ -1348,10 +1348,22 @@ functions PM changed, and PM's new ones.
      docs/controls.md. The dispatched ids against the exe (2026-11-05): all 103 of the mech's registrar in order; the app keys 0x69, 0x78,
      0x86, 0x74; the mission's 0x79, 0x7a; the pockets' 0x5d..0x60, from the table 0x606f90 by 0x469b71 (the same ids as
      in the registrar). The switch's cases match but for the three lancemate keys below. Ours: 0xa2, 0xa5.
-     **Not done:** PM's new cases in 0x41cad0 (headlight 0x41f900, lancemate target keys
-     0x4e6ca0, 0x4e6fb0, 0x4e6710, eject's extra vtable call): their keys bind and do nothing yet. `test_command.py`
-     (MW3's exe with MW3's ids) is retired on `pm`: 0x41cad0 gets its own differential with its new cases, the
-     headlight among the first.
+     **0x41cad0 is ported with its new cases (2026-11-05, `test_pm_command.py`, 103 commands, every key's call log and
+     writes):** eject (0x3f) makes the mech its own attacker (+0x688), runs 0x41de60 and destroys its own head (+0x3b4
+     vt+0x20 (0, 1)); the lancemate keys 0x49, 0x4c, 0x4f (0x4e6ca0, 0x4e6fb0, 0x4e6710, run for real against the port:
+     a contact in sight whose vehicle's +0xbc has bit 4). The differential also found what the id check could not:
+     0x41de60 no longer clears +0x634's bit 0 and in the low detail table acts only for the player; MASC's key
+     refuses a limping leg (+0x5d0 0 or 1); Z and Q pass over an entity whose vt+0xac is nonzero (a mech's 0x41da90,
+     shut down or shutting; 0x5ead98's 0x4aafc0 is +0x294 == 1, that class is not checked in the port); DIRECT_AWAITCMD
+     (0x4e7680) saves only a lancemate and keeps +0xbc bit 5 saying one is held, and 0x4e76d0 clears only that bit;
+     the fire mode key has no sound and writes time + 1 at the manager's +0x20 (no reader found yet). Stubbed there,
+     not checked: the heat keys, which `test_command.py` also covered; 0x41f900's toggle has `test_pm_headlight`.
+     `test_command.py` stays retired. **MW3-exe tests on `pm`:** `mw3probe` is not a target here (`MW3_BUILD_MW3`), so
+     `test_deaths.py` loads whatever `build/libmw3probe` a checkout last had (here 2026-11-04 15:37): its pass does not
+     test this tree, its results say nothing about `pm`. Its lod check is gone since lod is PM's own on this branch
+     (`test_pm_lod.py`), and `test_pm_command.py` now has 0x41de60; its other sections (dead_step, dead_update, on_kill,
+     marks, end, release, fly, fade, free, anim_nodes, canned, cockpit, part_lod) have no PM test yet, and neither has the
+     same goes for the 62 tests in `tests/differential` that load `libmw3probe`: to do, a list by test, before they can be claimed for PM.
 4. **Mechs and weapons**. The command table is done (above). Dev 2 and the lead's notes: PM's weapon roster has
    56 entries against the port's 38, and its mech roster 25 against 19.
    Then the definition reader and its new weapons

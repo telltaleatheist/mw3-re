@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "crt/msvc_rand.h"
+#include "mech3/mech_lod.h"
 #include "mech3/mech_headlight.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/weapon.h"
@@ -173,12 +174,13 @@ void Mech::on_kill(Handle victim) {
 // torso's node instead of the marker 0.65 up (docs/damage.md).
 void Mech::aim_at_last_hit() { set_target_node(last_hit_part ? last_hit_part->node : xe8); }
 
-// Mech3.exe 1.2 @ 0x0041d070, as the torso's destruction starts the fall:
+// Pirate's Moon 1.0 @ 0x0041de60 (MW3's 0x0041d070), as the torso's destruction starts the fall:
 // the pilot ejects (the canned "eject" effect at the hip), the hip sinks,
 // the eject sound plays. A mech lying down does neither.
 void Mech::death_prep() {
-  x634 &= ~1u;  // 0x0041ca60(0)
+  // Pirate's Moon drops MW3's 0x0041ca60(0), and in the low detail table only the player's pilot gets out.
   if (anim_state == kFallenBack || anim_state == kFallenFront) return;
+  if (lod_table().low && this != world().mission_player) return;
   Vec3 at{};
   if (part_calls().world_position) part_calls().world_position(hip->node, &at);  // 0x004ed530
   else zcls::node_world_position(static_cast<zcls::Node*>(hip->node), &at.x);

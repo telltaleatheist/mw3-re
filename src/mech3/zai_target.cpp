@@ -200,6 +200,61 @@ void AiTarget::prev_enemy(int32_t side) {
   nearest_enemy(side);
 }
 
+// Pirate's Moon's lancemate keys: a contact in sight whose vehicle is a lancemate the player commands.
+bool AiTarget::is_lancemate(const Contact* c) const {
+  return (g_hooks->flags_of(g_hooks->ai_target(vehicle_of(c))) & 0x10) != 0;
+}
+
+// Pirate's Moon 1.0 @ 0x004e7680
+void AiTarget::save_target() {
+  if (target && vehicle_of(target) && is_lancemate(target)) saved_target = target;
+  xbc = static_cast<uint8_t>((saved_target ? 0x20 : 0) | (xbc & 0xdf));
+}
+
+// Pirate's Moon 1.0 @ 0x004e6fb0
+Contact* AiTarget::first_lancemate() {
+  for (Contact* c : contacts)
+    if ((c->flags & 1) && is_lancemate(c)) return c;
+  return nullptr;
+}
+
+// Pirate's Moon 1.0 @ 0x004e6ca0: the one after the target, wrapping round to before it.
+Contact* AiTarget::next_lancemate(bool players_side) {
+  Contact* last = players_side ? ally_target : enemy_target;
+  if (last != target && last && is_lancemate(last)) return last;
+  if (target) {
+    const size_t n = contacts.size();
+    size_t p = 0;
+    while (p != n && !same(contacts[p], target)) ++p;
+    if (p != n) {
+      for (size_t q = p + 1; q != n; ++q)
+        if ((contacts[q]->flags & 1) && is_lancemate(contacts[q])) return contacts[q];
+      for (size_t q = 0; q != p; ++q)
+        if ((contacts[q]->flags & 1) && is_lancemate(contacts[q])) return contacts[q];
+      return nullptr;
+    }
+  }
+  return first_lancemate();
+}
+
+// Pirate's Moon 1.0 @ 0x004e6710: the one before the target, wrapping round to after it.
+Contact* AiTarget::prev_lancemate(bool players_side) {
+  Contact* last = players_side ? ally_target : enemy_target;
+  if (last != target && last && is_lancemate(last)) return last;
+  if (target) {
+    size_t p = contacts.size();  // one past the match, as the exe walks from the end
+    while (p != 0 && !same(contacts[p - 1], target)) --p;
+    if (p != 0) {
+      for (size_t q = p - 1; q != 0; --q)
+        if ((contacts[q - 1]->flags & 1) && is_lancemate(contacts[q - 1])) return contacts[q - 1];
+      for (size_t q = contacts.size(); q != p; --q)
+        if ((contacts[q - 1]->flags & 1) && is_lancemate(contacts[q - 1])) return contacts[q - 1];
+      return nullptr;
+    }
+  }
+  return first_lancemate();
+}
+
 // Mech3.exe 1.2 @ 0x004d64b0 (W) and 0x004d6710 (E): the one after the
 // current target that is wanted, else the first one wanted before it.
 void AiTarget::next_ally(int32_t side) {

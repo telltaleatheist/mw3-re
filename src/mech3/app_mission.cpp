@@ -1192,6 +1192,10 @@ struct WiredTargetHooks : ai::TargetHooks {
     const ai::AiTarget* a = ai::sensor_hooks().fields(t);
     return a ? a->team : 0;
   }
+  uint8_t flags_of(Handle t) override {
+    const ai::AiTarget* a = ai::sensor_hooks().fields(t);
+    return a ? a->xbc : 0;
+  }
   // 0x005a8390: the record's centroid and target subnodes found by name,
   // else made under its node (zent::marker_nodes). The rest is not needed
   // here: the name passed is 0 (the targets name themselves by desc.name),

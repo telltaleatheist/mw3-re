@@ -122,7 +122,7 @@ void Mech::target_part(int32_t id) {
 // takes only the second group (the controls' view, the HUD's zoom, the lock
 // cleared). Every command ends in the controls' vtable +0 with it, which
 // does nothing (0x004a5bc0) for each controls class: left out. The ids are
-// Pirate's Moon's (0x0041cad0); its new cases not here yet: the lancemate target keys 0x49, 0x4c, 0x4f (0x004e6ca0, 0x004e6fb0, 0x004e6710).
+// Pirate's Moon's (0x0041cad0, its new cases marked).
 void Mech::command(int32_t cmd) {
   HeatCalls& hc = heat_calls();
   const bool viewed = this == world().player;
@@ -146,6 +146,16 @@ void Mech::command(int32_t cmd) {
       return uintptr_t{0};
     });
   };
+  // Pirate's Moon's lancemate keys: what they pick goes through vtable +0xcc as above. The first test: this is
+  // the player or the player's ally.
+  auto lancemate = [&](uint32_t addr, int dir) {
+    Mech* player = world().mission_player;
+    const bool players_side = this == player || (player && (player->team & allies));
+    const uintptr_t c = own(addr, 0, 0, [&] {
+      return reinterpret_cast<uintptr_t>(dir > 0 ? next_lancemate(players_side) : dir < 0 ? prev_lancemate(players_side) : first_lancemate());
+    });
+    if (c) target_set(reinterpret_cast<ai::Contact*>(c));
+  };
   // Z and Q: the object under the reticle becomes the target when it is among
   // the contacts, else the target is cleared (0x004a7b40); Z skips allies.
   auto pick_aimed = [&](bool zoom) {
@@ -156,6 +166,7 @@ void Mech::command(int32_t cmd) {
     if (!e) return;
     if (zoom && ((g_calls.entity_team ? g_calls.entity_team(e) : 0) & allies)) return;
     if (g_calls.entity_refuses && g_calls.entity_refuses(e, zoom)) return;
+    if (g_calls.entity_down && g_calls.entity_down(e)) return;  // Pirate's Moon: a mech shut down is passed over
     if (target && target->seen == e) return;  // 0x004a7b40
     ai::Contact* found = nullptr;
     for (ai::Contact* c : contacts)
@@ -198,7 +209,9 @@ void Mech::command(int32_t cmd) {
       case 0x28:  // the fire mode: chain, single, group
         wm->mode = (wm->mode + 1) % 3;
         select(wm->group);
-        own(0x4b0830, p(wm), 0, [&] { return wm->mode_sound(), uintptr_t{0}; });
+        // Pirate's Moon drops MW3's sound (0x004b0830) for this time, a second on (0x004b4690; nothing reads it that
+        // has been found, docs/pm-map.md).
+        wm->mode_until = world().time + 1.0f;
         break;
       case 0x2a:
         own(0x4b04f0, p(wm), 0, [&] { return uintptr_t{wm->next_group()}; });
@@ -232,10 +245,15 @@ void Mech::command(int32_t cmd) {
           if (hc.play_mech_sound) hc.play_mech_sound(kSoundJettison);
         break;
       case 0x3c:  // CMD_HEADLIGHT_TOGGLE (Pirate's Moon 0x0041f900, 0x00465dc0): not while powered down
-        if (!powered_down && torso && torso->headlight) torso->headlight->turn(!torso->headlight->active(), true);
+        own(0x41f900, 0, 0, [&] {
+          if (!powered_down && torso && torso->headlight) torso->headlight->turn(!torso->headlight->active(), true);
+          return uintptr_t{0};
+        });
         break;
-      case 0x3f:  // CMD_EJECT (Pirate's Moon 0x0041de60, unported)
-        other(*this, cmd, "0x0041d070");
+      case 0x3f:  // CMD_EJECT (Pirate's Moon 0x0041de60): credited to itself, the pilot out, the head off
+        attacker = this;
+        own(0x41d070, 0, 0, [&] { return death_prep(), uintptr_t{0}; });
+        own(0x4671e0, 0, 1, [&] { return head->destroy(0, 1), uintptr_t{0}; });  // +0x3b4 vt+0x20
         break;
       case 0x40: {  // power down / up
         const int32_t pd = down() ? 0 : 1;
@@ -256,6 +274,9 @@ void Mech::command(int32_t cmd) {
       case 0x47: own(0x4d64b0, 0, 0, [&] { return next_ally(0), uintptr_t{0}; }); break;      // W
       case 0x4a: own(0x4d6970, 0, 0, [&] { return nearest_ally(0), uintptr_t{0}; }); break;   // Ctrl+W
       case 0x4b: own(0x4d6a80, 0, 0, [&] { return nearest_enemy(0), uintptr_t{0}; }); break;  // Ctrl+E
+      case 0x49: lancemate(0x4e6ca0, 1); break;   // NEXT_L
+      case 0x4c: lancemate(0x4e6fb0, 0); break;   // the nearest
+      case 0x4f: lancemate(0x4e6710, -1); break;  // PREV_L
       case 0x4e: own(0x4d6260, 0, 0, [&] { return prev_enemy(0), uintptr_t{0}; }); break;     // Shift+E
       case 0x4d: own(0x4d5ee0, 0, 0, [&] { return prev_ally(0), uintptr_t{0}; }); break;      // Shift+W
       case 0x50:  // TARGET_CURSOR
@@ -271,8 +292,8 @@ void Mech::command(int32_t cmd) {
         }
         break;
       }
-      case 0x5b: saved_target = target; break;   // 0x004d7220 DIRECT_AWAITCMD
-      case 0x5c: saved_target = nullptr; break;  // 0x004d7230
+      case 0x5b: own(0x4d7220, 0, 0, [&] { return save_target(), uintptr_t{0}; }); break;    // DIRECT_AWAITCMD
+      case 0x5c: own(0x4d7230, 0, 0, [&] { return unsave_target(), uintptr_t{0}; }); break;
       case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67: case 0x68: {  // the target's part
         static const int32_t kPart[8] = {6, 1, 7, 8, 2, 3, 0xb, 0xc};
         if (g_calls.target_part) g_calls.target_part(*this, kPart[cmd - 0x61]);
@@ -312,7 +333,7 @@ void Mech::command(int32_t cmd) {
         if (!down() && screen) hud(screen, cmd);
         break;
       case 0x76:  // MASC, with the equipment
-        if (equipment[12] > 0) {
+        if (equipment[12] > 0 && limp != 0 && limp != 1) {  // Pirate's Moon: not on a limping leg
           const bool on = masc_time == 0.0f;  // 0x005bcd3c
           own(0x41df50, on, 0, [&] { return masc(on), uintptr_t{0}; });
         }

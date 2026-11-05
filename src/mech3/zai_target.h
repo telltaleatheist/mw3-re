@@ -91,16 +91,24 @@ struct AiTarget {
   void prev_enemy(int32_t side);     // 0x004d6260  Shift+E
   void next_ally(int32_t side);      // 0x004d64b0  W
   void next_enemy(int32_t side);     // 0x004d6710  E
+  // Pirate's Moon's lancemate keys: the contact to target, or null to leave it (mech_command's target_set).
+  // players_side: this is the player or his ally (the keys' first test).
+  Contact* prev_lancemate(bool players_side);  // Pirate's Moon 0x004e6710  PREV_L
+  Contact* next_lancemate(bool players_side);  // Pirate's Moon 0x004e6ca0  NEXT_L
+  Contact* first_lancemate();        // Pirate's Moon 0x004e6fb0
   void nearest_ally(int32_t side);   // 0x004d6970  Ctrl+W
   void nearest_enemy(int32_t side);  // 0x004d6a80  Ctrl+E
   void set_range(float r);           // 0x004d6d00
   void set_sensor_range(Handle self, float r);       // 0x004d6d20
-  void save_target() { saved_target = target; }      // 0x004d7220
+  // Pirate's Moon 0x004e7680 (MW3's 0x004d7220 saved any target): only a lancemate, with +0xbc bit 5 saying one is held.
+  void save_target();
+  void unsave_target() { xbc &= 0xdf; }              // Pirate's Moon 0x004e76d0 (the contact stays)
   Contact* saved_or_ally() const { return saved_target ? saved_target : ally_target; }  // 0x004d7240
   void clear_contacts();             // 0x004a7be0: the contacts deleted (and +0x7c, +0x94)
   void release_shadow();             // 0x004d58fc: the caster's texture and the caster freed
 
  private:
+  bool is_lancemate(const Contact* c) const;         // the vehicle's +0xbc bit 4
   Handle vehicle_of(const Contact* c) const;         // 0x004d6fe0's 0x004e6fe0
   uint32_t team_of(Handle vehicle) const;            // vt+0x28's +0xc0
   bool same(const Contact* a, const Contact* b) const { return a->entity == b->entity && a->owner == b->owner; }
@@ -192,6 +200,7 @@ class TargetHooks : public zgame::Unported {
   virtual Handle seen_vehicle(Handle seen) { return unported("seen.vt+0x2c", {seen}); }
   virtual Handle ai_target(Handle vehicle) { return unported("veh.vt+0x28", {vehicle}); }
   virtual uint32_t team_of(Handle target) { (void)target; return 0; }  // +0xc0, a field
+  virtual uint8_t flags_of(Handle target) { (void)target; return 0; }  // +0xbc, a field
   virtual void contact_delete(Contact* c) { delete c; }
   // 0x004d6d20.
   virtual Handle self_vehicle(Handle self) { return unported("self.vt+0x50", {self}); }

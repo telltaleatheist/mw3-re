@@ -565,6 +565,11 @@ void wire_mech_frame() {
       if (t->self == e) return t->team;
     return 0;
   };
+  // Pirate's Moon's vt+0xac: a mech's 0x0041da90. The other classes' are 0, but for 0x005ead98's (0x004aafc0; docs/pm-map.md).
+  k.entity_down = [](uint32_t e) {
+    const Mech* m = entity_mech(e);
+    return m && (m->power_down_pending || m->powered_down);
+  };
   k.entity_refuses = [](uint32_t e, bool zoom) {
     for (const ai::CZAiTarget* t : ai::target_list())
       if (t->self == e) return !(t->desc.flags & (zoom ? 8 : 4));
