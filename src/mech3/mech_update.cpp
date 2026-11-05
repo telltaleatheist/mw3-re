@@ -119,6 +119,7 @@ void Mech::update(float dt) {
         else get_up();
       }
     }
+    jet_fuel_step(dt);
     const Vec3 saved = vec_3c;
     bool stopped = false, held = false;  // held: Collide reports the mech blocked
     if (!acting) {

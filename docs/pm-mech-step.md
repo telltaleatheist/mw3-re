@@ -22,6 +22,8 @@ categories) found about 1 in 15 of the "compiler only" pairs changed logic. Inst
 for new functions, counted from the listing. *Depth* is calls from the frame's roots; *callers* are direct call sites.
 MW3 functions the port has with no PM twin (69 or so: inlined or rewritten) are not rows; their callers are.
 
+**"New" overstates it.** Reading Update showed some are MW3's inline code moved into a function: 0x4186f0 is the lean and 0x423590 the orientation step, both inline in MW3's Update, with PM's real change being when they run (ahead of collision, committed after it). Done so far: the loadouts (`test_pm_config`), jets 0x417f50 with the fuel moved into Update (`test_pm_jets`).
+
 ## The order
 
 The lead's rule (2026-11-05): what the frame runs for every mech ranks above what it runs for the player only, unless the player-only one changes how the game feels. The score below cannot see that, so it is applied by reading each function as the order reaches it.

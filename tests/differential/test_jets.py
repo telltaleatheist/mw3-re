@@ -30,7 +30,7 @@ from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EIP  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
+LIB = next((ROOT / 'build').glob(os.environ.get('MW3_PROBE_LIB', 'libmw3probe') + '.*'))  # test_pm_jets: pmprobe
 probe = ctypes.CDLL(str(LIB))
 probe.probe_jets.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_int,
                              ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int,

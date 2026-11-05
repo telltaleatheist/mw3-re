@@ -4225,6 +4225,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon's jump jets are stronger and ignore the mission's gravity.**
+  MechWarrior 3 pushes up with 8 times the thrust plus the mission's gravity,
+  capped at a limit each frame. Pirate's Moon pushes with a fixed 38 times the
+  thrust and no cap, so low-gravity missions no longer change your climb.
+
 - **Pirate's Moon is stricter about overweight loadouts.** MechWarrior 3 lets
   a loadout go about a quarter of a ton over its mech's limit; Pirate's Moon
   allows only a tenth of a ton, and also rejects one with too few critical

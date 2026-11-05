@@ -34,12 +34,10 @@ constexpr float kStepScale = 2.5f;    // 0x005e1fc8
 constexpr float kTurnSlow = 0.8f;     // 0x005e1fcc
 constexpr float kCreep = 0.99f;       // 0x005bce04, of walk.lo
 constexpr float kAirTurn = 0.85f;     // the turn's throttle when airborne
-constexpr float kJetClimb = 8.0f;     // 0x005e1f8c, per unit of thrust
-constexpr float kJetPush = 5.0f;      // 0x005e1f90
-constexpr float kJetPushShare = 0.7f; // 0x005bcd98
-constexpr float kJetSteer = 5.5f;     // 0x005e1f94
+constexpr float kJetClimb = 38.0f;    // [0x00629314] = 0x005dfa18 (30) + 0x005dfa1c (8)
+constexpr float kJetPush = 5.0f;      // 0x006040ec
+constexpr float kJetPushShare = 0.9f; // 0x005dfcd4
 constexpr float kJetStrafeMax = 40.0f;  // 0x005bcdd0
-constexpr float kJetImpulseMax = 6.0f;  // 0x005e1f98
 constexpr float kLandingScale = 80.0f;  // 0x005e1f84
 constexpr float kLandingSideways = 20.0f;  // 0x005e1f88
 constexpr int kStateStand = 1, kDead = 10, kFalling = 11, kFallenBack = 12, kFallenFront = 13;
@@ -133,6 +131,16 @@ void Mech::add_jump_jet(bool add) {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x0041ae00 (its first part; in MW3 the jets' own, 0x004173b0): burn while firing, refill at half the
+// rate on the ground; the firing is last frame's, since the jets run later.
+void Mech::jet_fuel_step(float dt) {
+  if (jump_jets_firing) jet_fuel = jet_fuel - dt * jet_burn;
+  else if (!airborne() && jet_fuel < 1.0f) jet_fuel = dt * jet_burn * 0.5f + jet_fuel;
+  if (jet_fuel > 1.0f) jet_fuel = 1.0f;
+  else if (jet_fuel < 0.0f) jet_fuel = 0.0f;
+  if (infinite_fuel) jet_fuel = 1.0f;
+}
+
 // Mech3.exe 1.2 @ 0x0041e9c0
 float Mech::altitude() const {
   const Vec3* p = skis_calls().position ? skis_calls().position(const_cast<Mech&>(*this)) : nullptr;
@@ -154,28 +162,28 @@ int Mech::jump_jets(float dt) {
     }
     return 0;
   }
-  const bool assist = this == world().mission_player && mw2_jump_jets() == 0;
+  const bool assist = this == world().mission_player && mw2_jump_jets() == 0;  // the game's vt+0x44, 0x00435070
   const float thrust = controls->jump;  // GetJumpThrust
   int firing = 0;
-  const double need = jump_jets_firing == 0 && !no_power_down ? 0.25 : 0.0;  // 0x005bcdc0
+  const double need = jump_jets_firing == 0 && !no_power_down ? 0.25 : 0.0;  // 0x005dfce0
   if (jet_fuel > need) {
     if (thrust > 0.0) {
       firing = 1;
-      impulse.y = (thrust * kJetClimb + environment().gravity) * dt;
+      impulse.y = kJetClimb * thrust * dt;  // [0x00629314]: gravity and 8 as built, not the mission's
     }
     if (assist) {
-      if (firing && height * 0.5f < altitude()) {
+      if (firing && height * 0.3f < altitude()) {  // 0x005dfcd8
         const float dir = controls->throttle < 0.0f ? -1.0f : 1.0f;
-        vec_3c.z = vec_3c.z - thrust * kJetPush * dt * dir * kJetPushShare;
+        vec_3c.z = vec_3c.z - dir * kJetPush * thrust * dt * kJetPushShare;
       }
     } else if (no_power_down) {
       if (controls->jj_forward != 0.0f) {
         firing = 1;
-        vec_3c.z = vec_3c.z - kJetSteer * dt * controls->jj_forward;
+        vec_3c.z = vec_3c.z - kJetPush * controls->jj_forward * dt;
       }
       if (controls->jj_strafe != 0.0f) {
         firing = 1;
-        vec_3c.x = kJetSteer * dt * controls->jj_strafe + vec_3c.x;
+        vec_3c.x = kJetPush * dt * controls->jj_strafe + vec_3c.x;
       }
       if (vec_3c.z > max_speed) vec_3c.z = max_speed;
       else if (vec_3c.z < -max_speed) vec_3c.z = -max_speed;
@@ -183,15 +191,6 @@ int Mech::jump_jets(float dt) {
       else if (vec_3c.x < -kJetStrafeMax) vec_3c.x = -kJetStrafeMax;
     }
   }
-  // A cap of 6 a frame. FIX (B): 6 per 1/30 s.
-  const float cap = kJetImpulseMax * zfix::frame_steps(dt);
-  if (impulse.y > cap) impulse.y = cap;
-  else if (impulse.y < 0.0f) impulse.y = 0.0f;
-  if (firing) jet_fuel = jet_fuel - jet_burn * dt;
-  else if (!airborne() && jet_fuel < 1.0f) jet_fuel = jet_fuel - jet_burn * dt * -0.5f;  // 0x005bcdd8
-  if (jet_fuel > 1.0f) jet_fuel = 1.0f;
-  else if (jet_fuel < 0.0f) jet_fuel = 0.0f;
-  if (infinite_fuel) jet_fuel = 1.0f;
 
   if (detail & 1) {
     Sound& s = sounds[kJetSound];

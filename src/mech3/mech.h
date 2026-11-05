@@ -264,6 +264,7 @@ struct Mech : Vehicle {
   int jump_jets(float dt);            // 0x004173b0, returns +0x580
   void add_jump_jet(bool add);        // 0x00417300
   void ground_step(float dt);         // 0x004162c0: the skis, then a landing
+  void jet_fuel_step(float dt);
   float altitude() const;             // 0x0041e9c0: above the centre probe's ground
   bool queue_action(int kind, bool force);  // 0x00416780
   int state_for_action(int kind) const;     // 0x00416660
