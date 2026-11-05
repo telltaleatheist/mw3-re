@@ -1,7 +1,7 @@
 // The mech's animation objects and the zSIScript samplers (mech3/mech_anim,
-// gamez/zsiscript) for tests/differential/test_mechanim.py. Objects are
+// gamez/zsiscript) for tests/differential/test_pm_mechanim.py. Objects are
 // made from the real motion archive and kept by handle; each op takes and
-// returns floats, the state goes out laid out as test_mechanim.py reads it.
+// returns floats, the state goes out laid out as test_pm_mechanim.py reads it.
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -95,7 +95,7 @@ int probe_ma_state(int h, int keys, uint8_t* out, int cap) {
 }
 
 // One call; in: the op's arguments, out: what it returns (the op's own
-// layout, as test_mechanim.py's `run`).
+// layout, as test_pm_mechanim.py's `run`).
 int probe_ma_op(int h, int op, const float* in, float* out) {
   MechAnim& a = *g_objs[h];
   auto i0 = [&] { return static_cast<int>(in[0]); };
@@ -142,7 +142,7 @@ int probe_ma_op(int h, int op, const float* in, float* out) {
 
 // The rotation keys of part slot `slot` (probe_ma_state's order) replaced:
 // the mirror's Euler round trip is a last bit apart from the emulator's
-// x87 asin stand-in, so test_mechanim.py checks it within a bound and syncs.
+// x87 asin stand-in, so test_pm_mechanim.py checks it within a bound and syncs.
 int probe_ma_set_rotations(int h, int slot, const float* keys, float* old) {
   MechAnim& a = *g_objs[h];
   zsis::Part* slots[] = {a.feet[0], a.feet[1], a.hip_part, a.torso_part, a.arms[0], a.arms[1], a.hands[0],

@@ -1,20 +1,19 @@
-"""The mech's animation objects and the zSIScript samplers against the
-original x86 (docs/motion.md, Playback; docs/movement.md, The animation
+"""PM's mech animation objects and zSIScript samplers against the exe (docs/motion.md, Playback; docs/movement.md, The animation
 objects).
 
-    cmake --build build && .venv/bin/python tests/differential/test_mechanim.py
+    cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_mechanim.py
 
 Every shipped mech's gait motions (stand, step, walk, trot, run, limp and
 its mirror, limpb) and leg one-shots (fall, land, get up, collapse) are
 loaded on both sides from motion.zbd: the original's script reader runs in
-the emulator and its factories 0x41f000 / 0x420d00 do the rest (parts by
+the emulator and its factories 0x41fc70 / 0x421e00 do the rest (parts by
 name, stride, hip velocity keys, the start at the left foot forward, the
-resample to 60 frames; 0x41f680 the mirror), the port through load_anim /
+resample to 60 frames; 0x420390 the mirror), the port through load_anim /
 load_action. The whole state, every key array included, must match. Then
-the blends (0x41ff30) of neighbouring gaits, copies (0x41f180), and random
-calls of every sampler and setter (vtables 0x5bd1f0, 0x5bd240, 0x5bd290;
-slerp 0x525ce0, the phase 0x5abae0 / 0x432a80, translation, rotation and
-velocity samples with and without the ski frames, the footfalls 0x41fd30),
+the blends (0x420f40) of neighbouring gaits, copies (0x41fde0), and random
+calls of every sampler and setter (vtables 0x5dfe48, 0x5dfea0, 0x5dfeec;
+slerp 0x53f630, the phase 0x5ce7b0 / 0x420e40, translation, rotation and
+velocity samples with and without the ski frames, the footfalls 0x420aa0),
 each output and the state after it identical bit for bit at 24-bit x87.
 """
 import ctypes
@@ -26,13 +25,13 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
-from test_motion import MOTION, entries  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
-probe = ctypes.CDLL(str(LIB))
+MOTION = ROOT / 'game' / 'pm' / 'zbd' / 'motion.zbd'
+probe = test_pm_zar.load_pm_probe()
 probe.probe_ma_open.argtypes = [ctypes.c_char_p]
 probe.probe_ma_load.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_float, ctypes.c_uint32, ctypes.c_int]
 probe.probe_ma_blend.argtypes = [ctypes.c_int, ctypes.c_int]
@@ -50,10 +49,10 @@ ASIN = bytes.fromhex('d9c0 d8c8 d9e8 dee1 d9fa d9f3 c3')
 COPYSIGN = bytes.fromhex('8b442410 2500000080 8b4c2408 81e1ffffff7f 0bc8 894c2408 dd442404 c3')
 IAT_READFILE, IAT_MALLOC, IAT_CALLOC, IAT_NEW, IAT_FREE = 0x5bb0c4, 0x5bb664, 0x5bb60c, 0x5bb4bc, 0x5bb65c
 IAT_STRICMP, IAT_STRNICMP, IAT_SPRINTF = 0x5bb580, 0x5bb604, 0x5bb658
-DELETE, REPORT, BASE_CTOR = 0x5abd1a, 0x49bfd0, 0x41ed70
-SCRIPT_CTOR, SCRIPT_READ, SCRIPT_VT, SET_FPS = 0x5a9920, 0x5a9c70, 0x5d0f20, 0x5aa450
-LOAD_ANIM, LOAD_ACTION, MAKE_BLEND, COPY = 0x41f000, 0x420d00, 0x41ff30, 0x41f180
-COPY_PHASE, STRIDE_SPEED, FOOTFALLS, STOP, RESET, STARTED = 0x41ef00, 0x41ef90, 0x41fd30, 0x421060, 0x420f40, 0x421000
+DELETE, REPORT, BASE_CTOR = 0x5ce8c0, 0x406cb0, 0x41f9e0
+SCRIPT_CTOR, SCRIPT_READ, SCRIPT_VT, SET_FPS = 0x5cc600, 0x5cc950, 0x5f31e8, 0x5cd120
+LOAD_ANIM, LOAD_ACTION, MAKE_BLEND, COPY = 0x41fc70, 0x421e00, 0x420f40, 0x41fde0
+COPY_PHASE, STRIDE_SPEED, FOOTFALLS, STOP, RESET, STARTED = 0x41fb70, 0x41fc00, 0x420aa0, 0x4221a0, 0x422040, 0x422140
 HANDLE, BIG = 0x55, 0x40000000
 VT = {0: 0x08, 1: 0x0c, 2: 0x10, 3: 0x14, 4: 0x18, 5: 0x1c, 6: 0x20, 7: 0x24, 8: 0x28, 9: 0x2c, 10: 0x30,
       11: 0x34, 12: 0x38, 13: 0x3c, 14: 0x44}
@@ -64,6 +63,15 @@ GAITS = ['stand', 'step', 'walk', 'trot', 'run', 'limp', 'limpb']
 SHOTS = ['fallf', 'fallb', 'landf', 'landb', 'getupf', 'getupb', 'collapser']
 
 
+def entries(data):
+    """PM's archive, version 2: its table, then the version, the count and a checksum."""
+    count = struct.unpack_from('<I', data, len(data) - 8)[0]
+    table = len(data) - 12 - count * 0x94
+    for i in range(count):
+        start, length = struct.unpack_from('<II', data, table + i * 0x94)
+        yield data[table + i * 0x94 + 8:table + i * 0x94 + 72].split(b'\0')[0].decode(), start, length
+
+
 def f2u(x):
     return struct.unpack('<I', struct.pack('<f', x))[0]
 
@@ -72,9 +80,37 @@ def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
 
+class Raw:
+    """PM's addresses as they are: Original's u32, write and read translate MW3's."""
+
+    def __init__(self):
+        self.o = o = Original(exe='pm')
+        self.uc = o._uc
+        self.stub_import, self.import_code, self.code = o.stub_import, o.import_code, o.code
+        self.thunks = {}
+
+    def call(self, addr, ecx=0, stack_args=()):
+        if addr not in self.thunks:  # mov eax, addr; jmp eax
+            self.thunks[addr] = self.o.code(b'\xb8' + struct.pack('<I', addr) + b'\xff\xe0')
+        self.o.call(self.thunks[addr], ecx=ecx, stack_args=stack_args, count=2_000_000_000)
+
+    def u32(self, a, v):
+        self.uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
+
+    def write(self, a, b):
+        self.uc.mem_write(a, bytes(b))
+
+    def read(self, a, n):
+        return bytes(self.uc.mem_read(a, n))
+
+    def stub_function(self, addr, fn, pop=0):
+        self.o.stubs[addr] = (fn, pop)
+        self.uc.hook_add(UC_HOOK_CODE, self.o._stub_hit, begin=addr, end=addr)
+
+
 class Emulated:
     def __init__(self, data):
-        cpu = self.cpu = Original()
+        cpu = self.cpu = Raw()
         cpu.uc.mem_map(BIG, 0x8000000)
         self.next = BIG
         self.data = data
@@ -87,7 +123,7 @@ class Emulated:
         cpu.import_code(IAT_COPYSIGN, COPYSIGN)
         cpu.stub_import(IAT_READFILE, self.read_file, pop_bytes=20)
         cpu.stub_import(IAT_MALLOC, lambda c: self.alloc(c.arg(0)))
-        cpu.stub_import(IAT_NEW, self.new)
+        cpu.stub_function(0x5ce8c6, self.new)
         cpu.stub_import(IAT_CALLOC, self.calloc)
         cpu.stub_import(IAT_FREE, lambda c: 0)
         cpu.stub_import(IAT_STRICMP, lambda c: self.cmp(c, None))
@@ -100,7 +136,8 @@ class Emulated:
         self.scratch = self.alloc(0x400)
         self.ret_slot = self.alloc(16)
         # push 0; call eax; fstp dword [slot]; ret: the footfalls (one unused argument) return in ST0
-        self.thunk = cpu.code(b'\x6a\x00\xff\xd0\xd9\x1d' + struct.pack('<I', self.ret_slot) + b'\xc3')
+        self.thunk = cpu.code(b'\x6a\x00\xb8' + struct.pack('<I', FOOTFALLS) + b'\xff\xd0\xd9\x1d' +
+                              struct.pack('<I', self.ret_slot) + b'\xc3')
 
     def alloc(self, n):
         a = self.next
@@ -122,16 +159,17 @@ class Emulated:
         return 0
 
     def base_ctor(self, uc, address, size, user):
-        """0x41ed70 for a script loaded here beforehand: only its vtable, t and
+        """0x41f9e0 for a script loaded here beforehand: only its vtable, t and
         stride speed (the load itself is skipped). Otherwise it runs."""
         if not self.preloaded:
             return
         c = self.cpu
-        c.u32(c.ecx, 0x5bd1b0)
-        c.u32(c.ecx + 0x88, 0)
-        c.u32(c.ecx + 0x8c, 0)
+        ecx = uc.reg_read(UC_X86_REG_ECX)
+        c.u32(ecx, 0x5dfe30)
+        c.u32(ecx + 0x88, 0)
+        c.u32(ecx + 0x8c, 0)
         esp = uc.reg_read(UC_X86_REG_ESP)
-        uc.reg_write(UC_X86_REG_EAX, c.ecx)
+        uc.reg_write(UC_X86_REG_EAX, ecx)
         uc.reg_write(UC_X86_REG_ESP, esp + 8)
         uc.reg_write(UC_X86_REG_EIP, struct.unpack("<I", c.read(esp, 4))[0])
 
@@ -172,7 +210,7 @@ class Emulated:
         obj = self.alloc(0xf0)
         cpu.u32(obj, SCRIPT_VT)
         cpu.call(SCRIPT_CTOR, ecx=obj)
-        cpu.write(obj + 0x10, b'\x01')  # 0x5a9970 / 0x5a9990: active
+        cpu.write(obj + 0x10, b'\x01')  # 0x5cc650 / 0x5cc670: active
         self.pos = start
         cpu.call(SCRIPT_READ, ecx=obj, stack_args=(HANDLE,))
         cpu.call(SET_FPS, ecx=obj, stack_args=(f2u(30.0),))
@@ -181,9 +219,9 @@ class Emulated:
         self.pending = obj
         self.preloaded = True
         if kind == 0:
-            cpu.call(LOAD_ANIM, ecx=sname, edx=frames, stack_args=(f2u(speed),))
+            cpu.call(LOAD_ANIM, stack_args=(sname, f2u(speed), frames))
         else:
-            cpu.call(LOAD_ACTION, ecx=sname, edx=frames)
+            cpu.call(LOAD_ACTION, stack_args=(sname, frames))
         self.preloaded = False
         if self.pending:
             raise SystemExit('the factory did not allocate')
@@ -195,7 +233,7 @@ class Emulated:
         return obj
 
     def blend(self, a, b):
-        self.cpu.call(MAKE_BLEND, ecx=a, edx=b)
+        self.cpu.call(MAKE_BLEND, stack_args=(a, b))
         return self.cpu.uc.reg_read(19)
 
     def copy(self, src):
@@ -287,8 +325,7 @@ class Emulated:
             cpu.call(COPY_PHASE, ecx=obj, stack_args=(objs[int(a[0])],))
             return []
         if op == 17:
-            cpu.uc.reg_write(19, FOOTFALLS)
-            cpu.call(self.thunk, ecx=obj)
+            cpu.o.call(self.thunk, ecx=obj)
             return rd(self.ret_slot, 1)
         if op == 18:
             cpu.call(STOP, ecx=obj)
@@ -325,7 +362,7 @@ def first_diff(w, g):
 
 def sync_mirror(emu, obj, h, kind):
     """The mirror's rotations (an Euler round trip through the CRT's asin,
-    0x5aa940) against the port's within 2e-6, then the original's copied
+    0x5cd650) against the port's within 2e-6, then the original's copied
     over so the samples after it can be checked bit for bit. Returns the
     largest difference."""
     n = emu.u32(obj + 0x64) + 1
@@ -489,6 +526,8 @@ def main():
             calls += 1
         for i in mine_all:
             check_state(i, f'{mech} object {i - base} at the end', 1)
+    if not loaded:
+        raise SystemExit('no motions read')
     print(f'ok: {loaded} motions loaded identically ({len(mechs)} mechs), {calls} sampler and setter calls '
           f'identical bit for bit; {len(seen_ops)} (kind, op) pairs; {stale} stale caches primed, mirror rotations within {worst:.1e}')
 

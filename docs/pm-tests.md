@@ -39,7 +39,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_light_setters.py` | changed | 5 | 5 | covered | test_pm_light_setters |
 | `test_lighting.py` | changed | 18 | 5 | covered | test_pm_lighting |
 | `test_matrix.py` | gone | 37 | 4 | covered | test_pm_modeldraw, test_pm_device |
-| `test_mechanim.py` | changed | 22 | 2 | to move, rank 9 | mech animation |
+| `test_mechanim.py` | changed | 22 | 2 | moved to `test_pm_mechanim.py` | mech animation, on PM's own motions; no port change needed |
 | `test_mechlib.py` | changed | 4 | 2 | covered | test_pm_mechlib |
 | `test_modeldraw.py` | gone | 24 | 14 | covered | test_pm_modeldraw |
 | `test_motion.py` | unchanged | 2 | 0 | to move |  |
