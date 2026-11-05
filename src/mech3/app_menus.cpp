@@ -439,17 +439,13 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kTraining, h); });
     case 0x49c900:
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kMultiplayer, h); });
-    case 0x47b430: {  // the debriefing, new(0x13bf4): the Win State, operation, mission, its +0x10
+    case 0x47b430: {  // the debriefing, new(0x13dbc; MW3 0x13bf4): the Win State, mission, its +0x10
       const Handle st = a0;
-      int32_t op = 0, mission = 0;
-      if (args.size() >= 3) {
-        op = static_cast<int32_t>(args.begin()[1].v);
-        mission = static_cast<int32_t>(args.begin()[2].v);
-      }
+      const int32_t mission = args.size() >= 2 ? static_cast<int32_t>(args.begin()[1].v) : 0;
       States& ss = states();
       const uint8_t* won = st == ss.end_win.addr() ? &ss.end_win.campaign_won_ : &ss.win.campaign_won_;
-      const Handle h = alloc_block(0x13bf4);
-      screens_[h] = {new DebriefScreen(*this, st, op, mission, won), 0x13bf4};
+      const Handle h = alloc_block(0x13dbc);
+      screens_[h] = {new DebriefScreen(*this, st, mission, won), 0x13dbc};
       widen_screen(screens_[h].screen, ctor);
       return h;
     }
@@ -806,7 +802,7 @@ const char* GameEngine::game_text(int32_t slot) {
   if (launch_.index == 5) return TrainingGame::text_of(slot, launch_.number);  // t1
   if (slot != 0x0c) return nullptr;
   static std::string name;  // 0x00434900's
-  name = pilot_hooks().format_ints(0x21d, {launch_.op, launch_.number});
+  name = pilot_hooks().format_ints(0x21d, {launch_.number});
   return name.c_str();
 }
 

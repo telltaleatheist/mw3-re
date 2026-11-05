@@ -1185,7 +1185,7 @@ bool WinState::enter() {
     if (!lost && clean) campaign_won_ = (campaign == 4 && mission == 6) ? 1 : 0;
     else en.mission_results(1, 1);
   }
-  screen_ = en.construct(0x47b430, {addr(), campaign, mission, addr() + 0x10});  // new(0x13bf4)
+  screen_ = en.construct(0x47b430, {addr(), mission, addr() + 0x10});  // new(0x13dbc)
   if (!lost && clean && type == 1) {
     en.mission_results(0, (campaign == 4 && mission == 4) ? 0 : 1);
     const int32_t n = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x38, {}));

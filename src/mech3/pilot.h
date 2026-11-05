@@ -134,7 +134,7 @@ struct GameSlot {
   int32_t x14 = 0;                   // +0x14
 };
 
-enum GameType : int32_t { kMechLab = 0, kCampaign = 1, kInstantAction = 2, kMultiplayer = 3, kTraining = 4 };
+enum GameType : int32_t { kMechLab = 0, kCampaign = 1, kInstantAction = 2, kMultiplayer = 3, kTraining = 4, kStandalone = 5 };
 
 // A game of the pilot's (vtable 0x005beca0, docs/gametypes.md): its store,
 // the player's mech, and what its kind adds. Only the slots the pilot and its

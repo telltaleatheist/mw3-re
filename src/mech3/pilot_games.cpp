@@ -728,9 +728,10 @@ bool CampaignGame::restore() {
   return pilot_hooks().load_world(path(), 2);
 }
 
-// Mech3.exe 1.2 @ 0x00434900: message 0x21d, "Op %1!d!, Mission %2!d!".
+// Mech3.exe 1.2 @ 0x00434900, Pirate's Moon 1.0 @ 0x00435640: message 0x21d,
+// PM's "Mission %1!d!".
 const char* CampaignGame::name() {
-  text = pilot_hooks().format_ints(0x21d, {operation(), mission_number()});
+  text = pilot_hooks().format_ints(0x21d, {mission_number()});
   return text.c_str();
 }
 

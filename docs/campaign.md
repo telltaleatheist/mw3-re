@@ -313,6 +313,14 @@ movie. The mission stays loaded through it (CONTINUE does no cleanup
 there). zFMV is not ported, so no movie plays: the Win Movie State gives
 Main at its first update.
 
+### Pirate's Moon's debriefing (0x47d890, new(0x13dbc); first pass, 2026-11-05)
+
+Ported so far: the constructor's arguments and titles. Its caller 0x47cf20 passes the Win State, the mission (game vt+0x48) and the Win State's +0x10; there is no operation. The messages moved: Instant Action's title 0xdc0 is `Instant Action %1`, the name only (MW3's `Instant Action Campaign %1!d!, %2`); the campaign's 0x21d is `Mission %1!d!`, MW3's 0x177 being gone; so the game's name (0x435640) takes the mission alone. Type 5, standalone, has a third branch at 0x47dc3b: the game's name, the time, 0x180/0x181, CONTINUE's help as a campaign's, the salvage and REPLAY hidden, 0xfb8 when won.
+
+Still MW3's in the port: `results`. PM's 0x47dfa0 on differs: the objectives' lists moved to 0x47d730, the lancemates' records also in types 2 and 5, the campaign's total read through 0x47b6c0, the rank at 0x47eb74 from the score (type 1) or the standalone game's +0x38 (type 5), 0x47d500 and 0x47d5e0 around it, and message 0x169 is gone (the port's `add_text` is handed null there). `WinState::enter` too: PM's last mission is the game's count (0x435db0), not operation 4 mission 6. `test_debriefing` waits for that port, and needs the twod bench on PM's exe.
+
+Test: `test_pm_debrief_chain.py`, `mw3pm` itself through both chains; it does not reach type 5, the standalone game object being the front end's.
+
 ## 4. The campaign's progress
 
 - **The counts** 0x00484840: operations 1 and 2 have 4 missions, 3 and 4

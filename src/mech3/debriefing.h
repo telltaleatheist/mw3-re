@@ -9,7 +9,7 @@
 #include "mech3/menu_widgets.h"
 
 // The debriefing screen (docs/campaign.md section 3): the Win State's
-// (new(0x13bf4), 0x0047b430, its press 0x0047d030), dlgWin.zrd's WINMENU.
+// (new(0x13dbc), 0x0047b430, its press 0x0047d030), dlgWin.zrd's WINMENU.
 // Original file unknown: 0x0047af70..0x0047d2c0, between the Win State
 // (0x0047ab10..) and the Salvage State (0x0047d2f0..), named after them.
 // The screen, its texts by the game and the result, the buttons and their
@@ -66,14 +66,14 @@ class WinTitle : public ztwod::Control {
   void on_leave() override {}
 };
 
-// The screen (vtable 0x005c3b00), 0x13bf4 bytes.
+// The screen (vtable 0x005c3b00), PM's 0x13dbc bytes (MW3 0x13bf4).
 class DebriefScreen : public MenuScreen {
  public:
   enum Button : int32_t { kContinue = 0, kReplay = 1, kAbort = 2 };
 
-  // 0x0047b430: the Win State's address, the operation and mission shown,
+  // 0x0047b430: the Win State's address, the mission shown,
   // and the Win State's +0x10 (the campaign is over).
-  DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t mission, const uint8_t* won);
+  DebriefScreen(Engine& e, Handle state, int32_t mission, const uint8_t* won);
   ~DebriefScreen() override;         // 0x0047c920 (deleting 0x0047c8d0)
   void update(float dt) override;    // +0x00  0x0042efe0: the window's
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x0047d030

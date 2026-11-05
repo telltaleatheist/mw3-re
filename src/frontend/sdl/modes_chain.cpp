@@ -220,6 +220,7 @@ void ModesChain::debriefing() {
   mech3::States& st = mech3::states();
   auto* d = dynamic_cast<mech3::DebriefScreen*>(e_.screen_of(st.end_win.screen_));
   if (!d) return;
+  std::printf("mw3: modes %s debriefing title: %s\n", case_.c_str(), d->title.labels.size() > 2 ? d->title.labels[2]->text : "(none)");
   if (round_ == 1) {
     std::printf("mw3: modes %s debriefing round 1: score %d, CONTINUE (the next round)\n", case_.c_str(), d->score);
     round_ = 2, accepted_ = false;

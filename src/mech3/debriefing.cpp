@@ -320,8 +320,10 @@ ztwod::Text* label(ztwod::Control& c, size_t i) { return i < c.labels.size() ? c
 ztwod::Text* help(HelpButton& b) { return b.help.empty() ? nullptr : b.help[0]; }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0047b430
-DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t mission, const uint8_t* w)
+// Mech3.exe 1.2 @ 0x0047b430, Pirate's Moon 1.0 @ 0x0047d890: no operation
+// argument, and standalone (type 5) has its own title. The results are still
+// MW3's (results, below).
+DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t mission, const uint8_t* w)
     : MenuScreen(e, state),
       continue_btn(e, -1),
       replay_btn(e, -1),
@@ -368,7 +370,7 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t 
                 static_cast<int32_t>(seconds));
   if (kind == kInstantAction) {
     const char* name = e.game_text(0xc);
-    const std::string s = e.message_format_is(0xdc0, campaign, name);
+    const std::string s = e.message_format_sd(0xdc0, name, 0, false);  // PM: "Instant Action %1", the name only
     if (ztwod::Text* l = label(title, 2)) {
       if (!s.empty()) l->set_text("%s", s.c_str());
       else l->set_text_plain(e.game_text(0xc));
@@ -380,7 +382,7 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t 
     salvage.show_for(-1.0f);
     replay_btn.hide();
   } else if (kind == kCampaign) {
-    if (ztwod::Text* l = label(title, 2)) l->set_text_id(0x177, campaign, mission);
+    if (ztwod::Text* l = label(title, 2)) l->set_text_id(0x21d, mission);  // PM: "Mission %1!d!"; MW3's 0x177 is gone
     if (ztwod::Text* l = label(title, 3)) l->set_text_plain(time);
     const bool failed = e.mission_failed();
     if (ztwod::Text* l = label(title, 1)) l->set_message(failed ? 0x180 : 0x181);
@@ -396,6 +398,17 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t 
       salvage.hide();
       replay_btn.hide();
     }
+    if (*won)
+      if (ztwod::Text* h = help(continue_btn)) h->set_message(0xfb8);
+  } else if (kind == kStandalone) {  // Pirate's Moon 1.0 @ 0x0047dc3b
+    if (ztwod::Text* l = label(title, 2)) l->set_text_plain(e.game_text(0xc));
+    if (ztwod::Text* l = label(title, 3)) l->set_text_plain(time);
+    const bool failed = e.mission_failed();
+    if (ztwod::Text* l = label(title, 1)) l->set_message(failed ? 0x180 : 0x181);
+    if (ztwod::Text* h = help(continue_btn)) h->set_message(clean && !failed ? 0x174 : 0x173);
+    continue_btn.show_for(-1.0f);
+    replay_btn.hide();
+    salvage.hide();
     if (*won)
       if (ztwod::Text* h = help(continue_btn)) h->set_message(0xfb8);
   }

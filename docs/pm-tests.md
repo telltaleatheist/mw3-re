@@ -79,6 +79,8 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 
 39 to move, 21 covered, 2 not applicable.
 
+`test_pm_debrief_chain` is new, not a move: `mw3pm` through both chains to its debriefings. `test_debriefing` itself (below, unclassified) stays to move with the port of 0x47d890 whole (`campaign.md`).
+
 ## The rest that cannot load on this branch
 
 The table above went by the file naming `libmw3probe`. Importing every `test_*.py` once (2026-11-05): 144 of 259 fail at load, every `test_pm_*` loads. These 83 reach MW3's probe through another test's module and are **not classified yet**. `test_mechdef` among them is covered by `test_pm_mechdef`.
