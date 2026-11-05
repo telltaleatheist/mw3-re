@@ -156,7 +156,7 @@ class Game {
   Pilot* pilot;                      // +0x04
   Store store;                       // +0x08
   std::string text;                  // +0x1c  (a CString: the campaign's name or its file)
-  GameSlot slot;                     // +0x20  the player's mech (3 at first)
+  GameSlot slot;                     // +0x20  the player's mech (PM: 5 at first)
 };
 
 // "Mech lab" (0x004373e0, vtable 0x005bee08), 0x84 bytes: the mech lab's and
@@ -199,6 +199,7 @@ class CampaignGame : public Game {
   // new one's record index (+0x14), and the new one is deleted.
   void set_lancemate(int32_t i, GameSlot* s);  // 0x004351c0
   void set_lancemate_count(int32_t n) { x9c = n; }  // 0x00435230
+  bool keeps();                      // vt+0x1c, PM 0x00435d80
   void reset_lancemates(bool del);   // 0x00435240
   void copy_lancemates(const CampaignGame& from);  // 0x00434300
 
@@ -213,18 +214,33 @@ class CampaignGame : public Game {
   uint8_t b0 = 0;                    // +0xb0
   int32_t b4[4] = {};                // +0xb4
   int32_t c4 = 0;                    // +0xc4
+  std::vector<std::string> strings;  // PM +0xc4  a CStringList, kept with the record (each: length, bytes)
+};
+
+// Pirate's Moon's standalone game (0x40e100, vtable 0x5df148, 0x5c bytes). Only its
+// record for now, kept whole so saving loses nothing: the mode is not ported (pm-map.md).
+class StandaloneGame : public Game {
+ public:
+  explicit StandaloneGame(Pilot* p) : Game(p) {}
+  ~StandaloneGame() override;
+  void save() override;              // 0x0040e250
+  void load() override;              // 0x0040e2b0
+  int32_t type() const override { return kStandalone; }
+  int32_t x38 = 0, x3c = 0;          // +0x38, +0x3c  the mission, the best reached (0x0040e510)
+  std::vector<std::vector<GameSlot*>> lineups;  // +0x48, one list a mission (0x0040dc00, 0x0040dc70)
 };
 
 // The Instant Action settings the game keeps outside the game object and the
 // pilot's file carries ([0x00605820..0x0060587f]; the Action screen's).
+struct ActionSetup;
+ActionSetup& action_setup();
+
 struct ActionSetup {
-  int32_t g820[5] = {};              // 0x00605820
-  int32_t g838[6] = {};              // 0x00605838
+  int32_t g820[5] = {-1, -1, -1, -1, -1};  // 0x00605820 (PM: per pilot, its game's +0x40, -1 by 0x0040c460)
+  int32_t g838[6] = {-1, -1, -1, -1, -1, -1};  // 0x00605838 (PM: -1, 0x0040c460)
   int32_t g858[6] = {};              // 0x00605858
   int32_t g874 = 0, g878 = 0, g87c = 0;  // 0x00605874, 0x00605878, 0x0060587c
 };
-ActionSetup& action_setup();
-
 // Instant Action (0x00436650, vtable 0x005bed50), 0x17c bytes: its record.
 class ActionGame : public Game {
  public:
@@ -253,6 +269,7 @@ class ActionGame : public Game {
   char* x38 = nullptr;               // +0x38  the world's name (malloc'd by the Action screen, freed here)
   char* x3c = nullptr;               // +0x3c  its name (vt+0x0c, 0x0040a840: the objectives' header)
   char* x40 = nullptr;               // +0x40  its description
+  ActionSetup setup;                 // PM +0x38..+0x84
   int32_t mode = 0;                  // +0x44  1 endless, 2 waves (the Action screen's; not set by the constructor)
   uint8_t field_bases = 0;           // +0x48  the mission's mobile HQs made (the screen's)
   // +0x4c..+0x68, the pilot screen's lines (messages 0x184..0x18a, 0xdb7).
@@ -371,6 +388,8 @@ class MultiplayerGame : public Game {
     int32_t seed = 0;                // +0x6c  rand()
   } rules;
   uint32_t rules_crc = 0;            // +0x88
+  int32_t pm70 = 0, pm78 = 0, pm98 = 0, pmcc = 0;  // PM's own, in the file; not yet read by anything
+  uint8_t pma8 = 1, pma9 = 1;        // PM +0xa8, +0xa9, the same
   int32_t x70 = 0;                   // +0x70  KILLS_LIST's: the score to win (never set by the constructor; saved)
   float x74 = 10.0f;                 // +0x74  TIME_LIST's: minutes
   int32_t x78 = 90;                  // +0x78  WEIGHT_LIST's: tons
@@ -451,7 +470,8 @@ class Pilot {
   ActionGame* action_game = nullptr; // +0x70
   MultiplayerGame* multi = nullptr;  // +0x74
   TrainingGame* training = nullptr;  // +0x78
-  LabGame* lab = nullptr;            // +0x7c
+  LabGame* lab = nullptr;            // PM +0x80
+  StandaloneGame* standalone = nullptr;  // PM +0x7c
   int32_t x80 = 0;                   // +0x80  the mech's +0xd4 +0x1c, kept across a respawn
 };
 

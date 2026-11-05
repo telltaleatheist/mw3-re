@@ -14,7 +14,7 @@ namespace {
 std::list<Pilot*> g_pilots;    // [0x0060860c], the count [0x00608610]
 Pilot* g_current = nullptr;    // [0x0060861c]
 
-constexpr int32_t kVersion = 15 + 0x20;  // 0x00423cf0 (the loadouts' 15) + 0x20
+constexpr int32_t kVersion = 0x10 + 0x2e;  // PM 0x00479d80 (MW3 15 + 0x20), from  // 0x00423cf0 (the loadouts' 15) + 0x20
 
 namespace fs = std::filesystem;
 
@@ -32,6 +32,12 @@ std::FILE* open_existing(const std::string& path) {
     if (!fs::copy_file(src, w, fs::copy_options::overwrite_existing, ec)) return nullptr;
   }
   return std::fopen(w.c_str(), "r+b");
+}
+std::FILE* create_always(const std::string& path) {
+  const std::string w = zutl::write_path(path.c_str());
+  std::error_code ec;
+  fs::create_directories(fs::path(w).parent_path(), ec);
+  return std::fopen(w.c_str(), "w+b");
 }
 std::FILE* open_always(const std::string& path) {
   if (std::FILE* f = open_existing(path)) return f;
@@ -79,6 +85,7 @@ Pilot::Pilot(const char* n) : version(kVersion) {
   action_game = new ActionGame(this);      // new(0x17c)
   multi = new MultiplayerGame(this);       // new(0xb0)
   training = new TrainingGame(this);       // new(0x8c)
+  standalone = new StandaloneGame(this);   // new(0x5c)
 }
 
 // Mech3.exe 1.2 @ 0x00477e10, with the base's 0x004794c0
@@ -94,7 +101,8 @@ Pilot::~Pilot() {
   delete action_game;
   delete multi;
   delete training;
-  lab = nullptr, action_game = nullptr, multi = nullptr, training = nullptr;
+  delete standalone;
+  lab = nullptr, action_game = nullptr, multi = nullptr, training = nullptr, standalone = nullptr;
   close();
 }
 
@@ -106,8 +114,9 @@ void Pilot::close() {
 // Mech3.exe 1.2 @ 0x00478c80
 std::string Pilot::file_path() const { return std::string("pilots\\") + name + ".mw3"; }
 
-// Mech3.exe 1.2 @ 0x00478ce0. False when it was already open. A header that
-// does not match is written over, the rest of the file kept (OPEN_ALWAYS).
+// Mech3.exe 1.2 @ 0x00478ce0, Pirate's Moon 1.0 @ 0x0047af50. False when it was
+// already open. A header that does not match wipes the file (CREATE_ALWAYS; MW3
+// kept the rest with OPEN_ALWAYS).
 // The header's fields read as 0 when the file is shorter (stack garbage in
 // the exe).
 bool Pilot::open() {
@@ -126,7 +135,7 @@ bool Pilot::open() {
     }
   }
   if (create) {
-    file = open_always(path);
+    file = create_always(path);
     if (file) {
       std::fseek(file, 0, SEEK_SET);
       if (!wr4(file, &magic) || !wr4(file, &version) || !wr4(file, &x0c)) close();
@@ -168,38 +177,42 @@ bool Pilot::save() {
   return ok;
 }
 
-// Mech3.exe 1.2 @ 0x004790d0. The four games in the file's order, then the
-// saved campaigns: each is kept only when its saved game exists (the others
-// leaked in the exe; deleted here). FIX (bug): a damaged count read on past
-// the file's end for up to 4 billion campaigns, a hang; here the reading
-// stops at the end (docs/fixes.md).
+// Pirate's Moon 1.0 @ 0x0047b2f0. The five games in the file's order, then the
+// campaigns, the count now holding the first, which takes the first place with no
+// check; each later one is kept only when 0x00435d80 holds (the others leaked in the
+// exe; deleted here). FIX (bug): a damaged count read on past the file's end for up
+// to 4 billion campaigns, a hang; here the reading stops at the end (docs/fixes.md).
 bool Pilot::read() {
   training->load();
   multi->load();
   action_game->load();
   lab->load();
-  uint32_t n = 0;
+  standalone->load();
+  int32_t n = 0;
   std::fread(&n, 1, 4, file);
-  if (n && campaigns.capacity() < n + 1 && n < 0x10000) campaigns.reserve(n + 1);
-  for (; n; --n) {
-    auto* c = new CampaignGame(this);  // new(200), read
-    if (c->readable()) campaigns.push_back(c);
+  if (n > 0) {
+    delete campaigns[0];
+    campaigns[0] = new CampaignGame(this);
+    current = campaigns[0];
+  }
+  for (--n; n > 0 && !std::feof(file); --n) {
+    auto* c = new CampaignGame(this);  // new(0xe0), read
+    if (c->keeps()) campaigns.push_back(c);
     else delete c;
-    if (std::feof(file)) break;
   }
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00479390. The new campaign (the first) is never saved.
+// Pirate's Moon 1.0 @ 0x0047b610: all the campaigns, the first too.
 bool Pilot::write() {
   training->save();
   multi->save();
   action_game->save();
   lab->save();
-  const int32_t n = static_cast<int32_t>(campaigns.size()) - 1;
+  standalone->save();
+  const int32_t n = static_cast<int32_t>(campaigns.size());
   std::fwrite(&n, 1, 4, file);
-  if (n)
-    for (size_t i = 1; i < campaigns.size(); ++i) campaigns[i]->save();
+  for (Game* c : campaigns) c->save();
   dirty = 0;
   return true;
 }
@@ -242,6 +255,7 @@ void Pilot::select_game(int32_t type) {
     case kInstantAction: current = action_game; break;
     case kMultiplayer: current = multi; break;
     case kTraining: current = training; break;
+    case kStandalone: current = standalone; break;
     default: break;
   }
 }

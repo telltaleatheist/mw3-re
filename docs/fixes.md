@@ -825,3 +825,4 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   give up only on items that weigh nothing (or unlimited ones), so in a
   normal campaign the cut reaches the limit anyway. Options: keep it (the original as played), or make the
   fallback work (more is lost only in the rare case it is reached).
+| Pirate's Moon's pilot file: a campaign's strings 0x597280, the standalone record's counts 0x40dc70 (`pm-map.md`) | A damaged length is allocated whole, a damaged count reads on past the file's end | (bug) a damaged pilot file hangs or runs out of memory | A length over 64 KB stops the strings, the counts stop at the file's end, as the others' |

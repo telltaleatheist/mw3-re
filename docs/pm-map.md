@@ -1430,11 +1430,7 @@ functions PM changed, and PM's new ones.
 6. **The front end**: the load/save screens and saved games
    (`%s%02d.mw3`), the saved configurations (`.m3c`), the pilot and
    briefing screens; no movies (zFMV's 21 ported functions are gone).
-   **To keep a PM campaign (open, 2026-11-05; their own place in the order, after a natural break in the mech step):**
-   the pilot file's PM format (below: the header, the record, a campaign's fields, not ported, the port still writes its own);
-   a new campaign's starting store 0x4351b0 (the port starts with MW3's); `lance_keeps`' twin (MW3's operation 4 mission 6,
-   never true now, PM's not read); restore of an existing saved world never exercised (0x435d30, the chains only start new);
-   type 5, standalone, unrun: its game object 0x40e1b0 with 0x40e510, 0x47ee40, 0x40e6b0, and the debriefing's title, press and rank.
+   **Keeping a PM campaign (2026-11-05):** the pilot file is PM's now (`test_pm_pilot.py`: exe against port, Owen's real save included, byte for byte after a read and write): the version 0x3e with a wipe on a mismatch, five games, the first campaign in the file, the strings, the mission alone, the default mech 5, Instant Action's settings per pilot with their -1 defaults. Multiplayer's fields have their place in the file; their names go by MW3's offsets + 0x18 and three of them have no reader yet (item 8). The standalone record is kept whole; Owen's own is empty, so its unchanged write-back rests on crafted files and what the exe's read and write do. The starting store 0x4351b0 was already ported. Restore (0x435d30) has run on Owen's real `Deathstalker02.mw3` through `--campaign-chain resume:1` to a win, no crash; the restored world is not compared with the exe's. `lance_keeps`: no PM function near the briefing compares the mission with a fixed one, its MW3 rule is never true now and stands, the twin not pinned by the address map. Seen on the way, not ported: 0x404a20's new lancemate warnings before a launch on game types 2 and 5 (messages 0x1e0, 0x1063). The whole `test_pilot` (the screens' calls on stores and games) stays to move.
    **The pilot and save files: mapped** (2026-11-04, read-only, not ported; checked against one real save):
    - **Files.** `pilots\<name>.mw3` the pilot; `pilots//games//<name>%02d.mw3` (0x60559c) a saved world, by the
      mission alone (MW3: `%02d%02d`, operation and mission). `.m3c` is not a campaign file: `configs\<mech>\*.m3c`

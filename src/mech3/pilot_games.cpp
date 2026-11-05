@@ -36,7 +36,11 @@ ActionSetup g_action_setup;
 
 void set_pilot_hooks(PilotHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 PilotHooks& pilot_hooks() { return *g_hooks; }
-ActionSetup& action_setup() { return g_action_setup; }
+// Pirate's Moon keeps these in the pilot's Instant Action game (+0x38..+0x84); MW3 in globals.
+ActionSetup& action_setup() {
+  Pilot* p = current_pilot();
+  return p && p->action_game ? p->action_game->setup : g_action_setup;
+}
 
 Config* PilotHooks::config_load(const char* name, std::FILE* f) { return Config::from_file(name, f); }
 void PilotHooks::save_world(const char* path, int32_t kind) { zsave::save(path, kind); }
@@ -503,7 +507,7 @@ void GameSlot::load(Pilot& p) {
 
 // ---- the games ----
 
-Game::Game(Pilot* p) : pilot(p), slot(3, nullptr, 0) {}
+Game::Game(Pilot* p) : pilot(p), slot(5, nullptr, 0) {}  // PM 0x00434780(5, 0, 0); MW3 3
 
 // Mech3.exe 1.2 @ 0x00434560
 void Game::save() {
@@ -554,11 +558,10 @@ CampaignGame::~CampaignGame() {
   lancemates.clear();
 }
 
-// Mech3.exe 1.2 @ 0x00434990
+// Pirate's Moon 1.0 @ 0x004356f0: no operation, and the strings at the end.
 void CampaignGame::save() {
   Game::save();
   std::FILE* f = pilot->file;
-  wr(f, &campaign, 4);
   wr(f, &mission, 4);
   wr(f, &b38, 1);
   wr(f, &a8, 4);
@@ -571,18 +574,24 @@ void CampaignGame::save() {
   store78.save(f);
   const int32_t n = static_cast<int32_t>(lancemates.size());
   wr(f, &n, 4);
-  if (n)
-    for (GameSlot* s : lancemates) s->save(*pilot);  // 0x00434010
+  for (GameSlot* s : lancemates) s->save(*pilot);  // 0x00434b10
+  const int32_t k = static_cast<int32_t>(strings.size());
+  wr(f, &k, 4);
+  for (const std::string& t : strings) {  // 0x00597210
+    const int32_t len = static_cast<int32_t>(t.size());
+    wr(f, &len, 4);
+    if (len) wr(f, t.data(), static_cast<size_t>(len));
+  }
 }
 
-// Mech3.exe 1.2 @ 0x00434ae0. FIX (bug): a damaged count reads on past the
+// Pirate's Moon 1.0 @ 0x00435820. FIX (bug): a damaged count reads on past the
 // file's end, making a slot each time (up to 4 billion: a hang); here the
 // reading stops at the end (docs/fixes.md).
 void CampaignGame::load() {
   Game::load();
   std::FILE* f = pilot->file;
-  rd(f, &campaign, 4);
   rd(f, &mission, 4);
+  campaign = campaign_world(mission) + 1;
   rd(f, &b38, 1);
   rd(f, &a8, 4);
   rd(f, &ac, 4);
@@ -603,7 +612,61 @@ void CampaignGame::load() {
       if (f && std::feof(f)) break;
     }
   }
+  int32_t k = 0;
+  rd(f, &k, 4);
+  for (; k > 0 && !std::feof(f); --k) {  // 0x00597280
+    int32_t len = 0;
+    rd(f, &len, 4);
+    if (len < 0 || len > 0x10000) break;  // FIX (bug): a damaged length; the exe mallocs it whole
+    std::string t(static_cast<size_t>(len), '\0');
+    if (len) rd(f, t.data(), static_cast<size_t>(len));
+    strings.push_back(std::move(t));
+  }
   merge_salvage();
+}
+
+// Pirate's Moon 1.0 @ 0x00435d80: a campaign record is kept when its mission enters
+// a fresh world, or its saved world is there.
+bool CampaignGame::keeps() { return campaign_fresh_world(mission) || readable(); }
+
+StandaloneGame::~StandaloneGame() {
+  for (auto& l : lineups)
+    for (GameSlot*& s : l) delete s, s = nullptr;
+}
+
+// Pirate's Moon 1.0 @ 0x0040e250
+void StandaloneGame::save() {
+  Game::save();
+  std::FILE* f = pilot->file;
+  wr(f, &x38, 4);
+  wr(f, &x3c, 4);
+  const int32_t n = static_cast<int32_t>(lineups.size());  // 0x0040dc00
+  wr(f, &n, 4);
+  for (const auto& l : lineups) {
+    const int32_t k = static_cast<int32_t>(l.size());  // 0x00434b10
+    wr(f, &k, 4);
+    for (GameSlot* s : l) s->save(*pilot);
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x0040e2b0. FIX (bug): a damaged count stops at the file's end.
+void StandaloneGame::load() {
+  Game::load();
+  std::FILE* f = pilot->file;
+  rd(f, &x38, 4);
+  rd(f, &x3c, 4);
+  int32_t n = 0;  // 0x0040dc70
+  rd(f, &n, 4);
+  for (int32_t i = 0; i < n && !std::feof(f); ++i) {
+    lineups.emplace_back();
+    int32_t k = 0;  // 0x00434b70
+    rd(f, &k, 4);
+    for (; k > 0 && !std::feof(f); --k) {
+      auto* s = new GameSlot(-1, nullptr, 0);
+      s->load(*pilot);
+      lineups.back().push_back(s);
+    }
+  }
 }
 
 // Mech3.exe 1.2 @ 0x00434cb0. What the last mission left in two stores is
@@ -809,15 +872,13 @@ void ActionGame::save() {
   const int32_t stats[8] = {player_kills, lancemate_kills, enemy_kills, attack_wins,
                             attack_losses, defend_wins, defend_losses, waves};
   for (int32_t v : stats) wr(f, &v, 4);
-  ActionSetup& a = action_setup();
+  ActionSetup& a = setup;
   wr(f, &a.g874, 4);
   wr(f, &a.g878, 4);
   wr(f, &a.g87c, 4);
   for (int32_t& v : a.g820) wr(f, &v, 4);
-  for (int i = 0; i < 6; ++i) {
-    wr(f, &a.g838[i], 4);
-    wr(f, &a.g858[i], 4);
-  }
+  for (int32_t& v : a.g838) wr(f, &v, 4);  // Pirate's Moon: the two lists whole, not in turn
+  for (int32_t& v : a.g858) wr(f, &v, 4);
 }
 
 // Mech3.exe 1.2 @ 0x00436cc0
@@ -827,15 +888,13 @@ void ActionGame::load() {
   int32_t* stats[8] = {&player_kills, &lancemate_kills, &enemy_kills, &attack_wins,
                        &attack_losses, &defend_wins, &defend_losses, &waves};
   for (int32_t* v : stats) rd(f, v, 4);
-  ActionSetup& a = action_setup();
+  ActionSetup& a = setup;
   rd(f, &a.g874, 4);
   rd(f, &a.g878, 4);
   rd(f, &a.g87c, 4);
   for (int32_t& v : a.g820) rd(f, &v, 4);
-  for (int i = 0; i < 6; ++i) {
-    rd(f, &a.g838[i], 4);
-    rd(f, &a.g858[i], 4);
-  }
+  for (int32_t& v : a.g838) rd(f, &v, 4);  // Pirate's Moon: the two lists whole, not in turn
+  for (int32_t& v : a.g858) rd(f, &v, 4);
 }
 
 // Mech3.exe 1.2 @ 0x004353a0
@@ -851,36 +910,48 @@ MultiplayerGame::~MultiplayerGame() = default;
 void MultiplayerGame::save() {
   Game::save();
   std::FILE* f = pilot->file;
-  wr(f, &kills, 4);
+  wr(f, &kills, 4);  // Pirate's Moon 1.0 @ 0x004361c0; the names by MW3's offsets + 0x18, multiplayer's item to confirm
   wr(f, &deaths, 4);
+  wr(f, &pm78, 4);
+  wr(f, &pm98, 4);
+  wr(f, &pm70, 4);
   wr(f, &x70, 4);
   wr(f, &x74, 4);
   wr(f, &b8c, 1);
   wr(f, &b8d, 1);
   wr(f, &b8e, 1);
+  wr(f, &b8f, 1);
+  wr(f, &pma8, 1);
   wr(f, &ba8, 1);
   wr(f, &x90, 4);
   wr(f, &x94, 4);
-  wr(f, &b8f, 1);
+  wr(f, &pma9, 1);
   wr(f, &x78, 4);
+  wr(f, &pmcc, 4);
 }
 
 // Mech3.exe 1.2 @ 0x004357d0
 void MultiplayerGame::load() {
   Game::load();
   std::FILE* f = pilot->file;
-  rd(f, &kills, 4);
+  rd(f, &kills, 4);  // Pirate's Moon 1.0 @ 0x004363b0
   rd(f, &deaths, 4);
+  rd(f, &pm78, 4);
+  rd(f, &pm98, 4);
+  rd(f, &pm70, 4);
   rd(f, &x70, 4);
   rd(f, &x74, 4);
   rd(f, &b8c, 1);
   rd(f, &b8d, 1);
   rd(f, &b8e, 1);
+  rd(f, &b8f, 1);
+  rd(f, &pma8, 1);
   rd(f, &ba8, 1);
   rd(f, &x90, 4);
   rd(f, &x94, 4);
-  rd(f, &b8f, 1);
+  rd(f, &pma9, 1);
   rd(f, &x78, 4);
+  rd(f, &pmcc, 4);
 }
 
 // Mech3.exe 1.2 @ 0x00437920, 0x00436500, 0x00437950, 0x00437930

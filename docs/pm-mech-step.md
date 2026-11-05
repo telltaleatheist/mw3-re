@@ -278,7 +278,7 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 
 **The order after this table's frame rows (the lead, 2026-11-05):** the campaign items; the frame's 85 inferred rows, logic class first, with a break in the function itself naming the PM difference it covers; #20 0x424030 and #311 0x41a020; then the second campaign (type 5, `pm-map.md` 7b, read and sized first, the lead's go before porting); then the logic and new rows outside the frame.
 
-**Waiting for a break in this table (2026-11-05):** a player can't keep a PM campaign without the pilot file's format, the starting store 0x4351b0, `lance_keeps`' twin, restore of a saved world, and type 5 unrun (`pm-map.md`, step 6). They take the first natural break here.
+**The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
 
 ## The true size, normalized (2026-11-05, an estimate)
 

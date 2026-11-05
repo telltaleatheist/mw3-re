@@ -329,7 +329,7 @@ Main at its first update.
 - The rank, 0x47eb44 into 0x47d5e0: a campaign by the score (2, 3 from 47,000, 4 from 1,000,000, never 0 or 1); Instant Action's wave modes a fifth of the waves, its other modes hidden; a standalone by its game's +0x38 less a failure (2..4 gives 1, 5..10 gives 4, else 0). Other types hidden.
 - The press 0x47f420: ABORT fades to the main menu over 2 s (MW3 replaced the state at once), a campaign's final CONTINUE unloads first, and Instant Action's wave mode keeps its wave on the next round.
 
-Tests: `test_pm_debrief_chain.py` runs `mw3pm` through the first world's Instant Action, all ten missions and one mission won by kills, and reads every title, rank and line back. It does not read positions and is not the exe side by side: `test_debriefing` waits for the twod bench on PM's exe. **Unrun:** type 5's title, press and rank; no chain reaches a standalone mission's Win State, because its game object is the front end's (`standalone_progress` answers 0 until then).
+Tests: `test_pm_debrief_chain.py` runs `mw3pm` through the first world's Instant Action, the first campaign's ten missions and one mission won by kills, and reads every title, rank and line back. It does not read positions and is not the exe side by side: `test_debriefing` waits for the twod bench on PM's exe. **Unrun:** type 5's title, press and rank; no chain reaches a standalone mission's Win State, because its game object is the front end's (`standalone_progress` answers 0 until then).
 
 ## 4. The campaign's progress
 

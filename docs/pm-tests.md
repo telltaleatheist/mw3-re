@@ -79,7 +79,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 
 39 to move, 21 covered, 2 not applicable.
 
-`test_pm_debrief_chain` and `test_pm_messages` are new, not moves: `mw3pm` through three chains to its debriefings and the campaign's end, and the port's message ids against PM's table. `test_debriefing` itself (below, unclassified) stays to move, with the twod bench on PM's exe (`campaign.md`).
+`test_pm_debrief_chain`, `test_pm_messages` and `test_pm_pilot` are new, not moves: `mw3pm` through three chains to its debriefings and the campaign's end, and the port's message ids against PM's table. `test_debriefing` itself (below, unclassified) stays to move, with the twod bench on PM's exe (`campaign.md`).
 
 ## The rest that cannot load on this branch
 

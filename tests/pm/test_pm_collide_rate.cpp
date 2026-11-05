@@ -87,11 +87,14 @@ TEST(pm_collide_remote_crash_at_any_rate) {
   zfix::options().per_second = true;
   Pair slow, fast;
   slow.a.collider.restitution = fast.a.collider.restitution = 0.5f;
+  slow.a.pending_velocity.x = fast.a.pending_velocity.x = 7.0f;
   slow.step(1 / 30.0f, crash);
-  const float d30 = got_damage, z30 = got_z;
+  const float d30 = got_damage, x30 = got_x, z30 = got_z;
   fast.step(1 / 120.0f, crash);
   c = saved;
   EXPECT(z30 != 0.0f);
+  EXPECT(x30 != 0.0f);
+  EXPECT(near(got_x, x30));
   EXPECT(near(got_z, z30));
   EXPECT(near(got_damage, d30));
 }

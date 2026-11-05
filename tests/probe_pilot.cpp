@@ -607,3 +607,38 @@ int probe_store_fill(int before, int bugs, char* out, int size) {
 }
 
 }  // extern "C"
+
+// test_pm_pilot.py: a pilot's file read by the port and written straight back, the real
+// configurations' code (PilotHooks' defaults). Out: the campaigns kept; -1 no file.
+namespace {
+PilotHooks& real_hooks() {
+  static PilotHooks h;
+  return h;
+}
+}  // namespace
+extern "C" int probe_pm_pilot_round(const char* dir, const char* name) {
+  zutl::mounts().read = {dir};
+  zutl::mounts().write = dir;
+  set_pilot_hooks(&real_hooks());
+  auto* p = new Pilot(name);
+  int campaigns = -1;
+  if (p->open()) {
+    p->read();
+    campaigns = static_cast<int>(p->campaigns.size());
+    p->close();
+    p->save();  // 0x0047a1f0 and 0x0047b610
+  }
+  p->dirty = 0;
+  delete p;
+  return campaigns;
+}
+// A new pilot's file, the stores' fill and mechs through the stubs both sides share.
+extern "C" void probe_pm_pilot_new(const char* dir, const char* name) {
+  zutl::mounts().read = {dir};
+  zutl::mounts().write = dir;
+  set_pilot_hooks(&g_hooks);
+  auto* p = new Pilot(name);
+  p->save();
+  p->dirty = 0;
+  delete p;
+}
