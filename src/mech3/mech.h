@@ -412,6 +412,7 @@ HeatCalls& heat_calls();
 // The calls damage makes into code that is not ported yet (scene nodes,
 // effects, weapons, HUD, sound, network, statistics). Unset ones do nothing
 // and return 0; the screen, throttle, sounds and game type come from HeatCalls.
+struct AmmoBin;
 struct DamageCalls {
   Handle (*attacker)() = nullptr;                    // 0x0040eee0 on the shot's owner [0x009a0edc]
   MechPart* (*node_part)(Handle node) = nullptr;     // 0x0040ef30: the part a node is, if any
@@ -445,6 +446,12 @@ struct DamageCalls {
   void (*equip_voice)(int kind) = nullptr;           // 0x00485390: the callout for an equipment kind
   void (*voice)(int index) = nullptr;                // 0x00485370
   bool (*force_variant0)() = nullptr;                // 0x00586ce0
+  // Pirate's Moon's ammo lost with a part (0x00462ba0): a weapon's bin and its rating (+0x18; 0x004b4270, null with
+  // no such weapon); the bin's add (test hook; unset: AmmoBin::add); the HUD's recount (0x00447da0).
+  AmmoBin* (*weapon_bin)(Mech&, int32_t weapon, float* weight) = nullptr;
+  bool (*death_culled)(Mech&) = nullptr;   // 0x0041f460 under [0x006293a8]: out of the camera's view; unset: never
+  void (*bin_add)(AmmoBin*, int32_t n) = nullptr;
+  void (*hud_ammo)(void* screen) = nullptr;
   void (*weapons_lost)(Mech&, int part) = nullptr;   // 0x004b1040 on +0xd4: the part's weapons are destroyed
   bool (*weapons_critical)(Mech&, int part, int ammo) = nullptr;  // 0x004b0de0 on +0xd4
   void (*weapons_stop)(Mech&) = nullptr;             // 0x004b1110 on +0xd4

@@ -53,35 +53,39 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
   float target_heat = 0.0f;
   Vec3 impulse{0, 0, 0};
   Vec3* pushed = nullptr;
-  // Mech vtable +0x5c (0x0040bae0) is 0 for every mech.
-  if (type) {
-    target_heat = type->heat_2;
-    if (def && (def->flags & 2)) target_heat = target_heat * w.dt;
-    if (type->is_narc) {
-      mark_narc(true);
-      return 0;
+  MechPart* part = c.node_part ? c.node_part(coll->node) : nullptr;
+  const char* nuke = c.message ? c.message(kMessageNuke) : "";
+  const bool is_nuke = std::strcmp(def->desc, nuke) == 0;
+  // Pirate's Moon 0x0041baff: heat, NARC and the knock only for a hit on a part, or the nuke.
+  if (part || is_nuke) {
+    // Mech vtable +0x5c (0x0040bae0) is 0 for every mech.
+    if (type) {
+      target_heat = type->heat_2;
+      if (def && (def->flags & 2)) target_heat = target_heat * w.dt;
+      if (type->is_narc) {
+        mark_narc(true);
+        return 0;
+      }
     }
-  }
-  WeaponType* t = def ? def->type : nullptr;
-  const float force = invincible ? 0.0f : t->impact_force;
-  if (force > 0.0 && anim_state >= 1 && anim_state <= 9) {
-    // Knockback along the shot, flat; the stagger check is per frame (0x417a80).
-    Vec3 dir{w.shot[0].x - w.shot[1].x, w.shot[0].y - w.shot[1].y, w.shot[0].z - w.shot[1].z};
-    dir.y = 0.0f;
-    flat_normal(dir, impulse);
-    impulse = {force * impulse.x, force * impulse.y, force * impulse.z};
-    pushed = &impulse;
-    knock_vec = {knock_vec.x + impulse.x, knock_vec.y + impulse.y, knock_vec.z + impulse.z};
-    knock = std::sqrt((knock_vec.x * knock_vec.x + knock_vec.y * knock_vec.y) + knock_vec.z * knock_vec.z);
-    if (this == w.mission_player && w.force_feedback && type && c.ff_hit) c.ff_hit(type->id, &impulse, force);
+    WeaponType* t = def ? def->type : nullptr;
+    const float force = invincible ? 0.0f : t->impact_force;
+    if (force > 0.0 && anim_state >= 1 && anim_state <= 9) {
+      // Knockback along the shot, flat; the stagger check is per frame (0x417a80).
+      Vec3 dir{w.shot[0].x - w.shot[1].x, w.shot[0].y - w.shot[1].y, w.shot[0].z - w.shot[1].z};
+      dir.y = 0.0f;
+      flat_normal(dir, impulse);
+      impulse = {force * impulse.x, force * impulse.y, force * impulse.z};
+      pushed = &impulse;
+      knock_vec = {knock_vec.x + impulse.x, knock_vec.y + impulse.y, knock_vec.z + impulse.z};
+      knock = std::sqrt((knock_vec.x * knock_vec.x + knock_vec.y * knock_vec.y) + knock_vec.z * knock_vec.z);
+      if (this == w.mission_player && w.force_feedback && type && c.ff_hit) c.ff_hit(type->id, &impulse, force);
+    }
   }
   if (coll->x20 && c.roster_x1c) {
     if (Handle x1c = c.roster_x1c(*this); x1c && decals && c.damage_decal) c.damage_decal(x1c, decals, coll, damage);
   }
   if (this == w.player) screen(*this);  // result unused in the exe
-  MechPart* part = c.node_part ? c.node_part(coll->node) : nullptr;
-  const char* nuke = c.message ? c.message(kMessageNuke) : "";
-  killed_by_nuke = std::strcmp(def->desc, nuke) == 0;
+  killed_by_nuke = is_nuke;
   if (part) {
     result = part->take_hit(def, coll, damage, pushed);
   } else {
@@ -284,17 +288,8 @@ void Mech::on_part_destroyed(MechPart* part) {
 
 // Pirate's Moon 1.0 @ 0x0041de30 (mission scripts, heat): its structure and armor to nothing.
 void Mech::destroy_part(int id) {
-  MechPart* p = nullptr;
-  switch (id) {
-    case kTorso: p = torso; break;
-    case kLeftArm: p = arms[0]; break;
-    case kRightArm: p = arms[1]; break;
-    case kLeftThigh: p = legs[0]; break;
-    case kRightThigh: p = legs[1]; break;
-    case kHead: p = head; break;
-    case kHip: p = hip; break;
-    default: return;
-  }
+  MechPart* p = part_by_id(*this, id);
+  if (!p) return;
   p->set_internal(0.0f, 0);
   p->set_armor(0.0f, 0);
 }

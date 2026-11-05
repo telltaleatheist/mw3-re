@@ -1,9 +1,12 @@
 #include "mech3/mech_ids.h"
 #include "mech3/mech_parts.h"
 
+#include <cmath>
 #include <cstring>
+#include <utility>
 #include <vector>
 
+#include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
@@ -77,6 +80,9 @@ bool crosses(const Vec3& b, const Vec3& a, const Vec3& p, const Vec3& q) {
   if (!(t1 > 0.0f) && !(t2 > 0.0f)) return false;
   return !(t1 >= 0.0f) || !(t2 >= 0.0f);
 }
+
+
+float g_lost_ammo_rating = 0.0f;  // 0x0062998c: the ammo a part took with it, by its weapons' rating
 
 std::vector<EquipmentItem*> equipment_in(Mech& m, int part) {
   std::vector<EquipmentItem*> out;
@@ -308,53 +314,91 @@ bool MechPart::has_equipment(int kind) {
 void MechPart::lose_contents() {
   destroyed = true;
   mech->on_part_destroyed(this);
-  internal = 0.0f;
-  armor = 0.0f;
-  Mech& m = *mech;
-  for (EquipmentItem* it : equipment_in(m, id)) {
-    if (it->group != 0 || it->slots() <= 0) continue;  // group: destroyed by a critical
-    const int k = it->equipment;
-    if (k == kSink || k == kDoubleSink) m.heat_sinks.lose(it->count);
-    else if (m.equipment[k] > 0) --m.equipment[k];
-  }
+  lose_items(*mech, id);
 }
 
-// Mech3.exe 1.2 @ 0x00461a30. Arms and thighs fly off (not on the
+// Pirate's Moon 1.0 @ 0x00462ba0. The part's weapons, equipment and, new in Pirate's Moon, its share of the ammo:
+// each ammo item takes its fraction of the bin's load, worked out on what the bin held before any of it went.
+void lose_items(Mech& m, int part) {
+  if (g_calls.weapons_lost) g_calls.weapons_lost(m, part);
+  g_lost_ammo_rating = 0.0f;
+  std::vector<std::pair<AmmoBin*, int32_t>> lost;
+  for (ConfigItem* item : m.config->items) {
+    if (!item || item->part != part) continue;
+    if (item->kind() == 3) {
+      auto* it = static_cast<EquipmentItem*>(item);
+      if (it->group != 0 || it->slots() <= 0) continue;  // group: destroyed by a critical
+      const int k = it->equipment;
+      if (k == kSink || k == kDoubleSink) m.heat_sinks.lose(it->count);
+      else if (m.equipment[k] > 0) --m.equipment[k];
+    } else if (item->kind() == 2) {
+      float weight = 0.0f;
+      AmmoBin* bin = g_calls.weapon_bin ? g_calls.weapon_bin(m, static_cast<AmmoItem*>(item)->weapon, &weight) : nullptr;
+      if (!bin) continue;
+      size_t at = 0;
+      while (at < lost.size() && lost[at].first != bin) ++at;
+      if (at == lost.size()) lost.emplace_back(bin, 0);
+      if (bin->infinite || !(bin->capacity() > 0)) continue;
+      float share = static_cast<float>(item->count) / static_cast<float>(bin->capacity());
+      share = share > 1.0f ? 1.0f : share < 0.0f ? 0.0f : share;
+      const int32_t n = crt::msvc_ftol(std::floor(static_cast<double>(static_cast<float>(bin->left()) * share)));
+      g_lost_ammo_rating = weight * static_cast<float>(n) + g_lost_ammo_rating;
+      lost[at].second += n;
+    }
+  }
+  for (auto& [bin, n] : lost) {
+    if (g_calls.bin_add) g_calls.bin_add(bin, -n);
+    else bin->add(-n);
+  }
+  if (void* scr = player_screen(m); scr && g_calls.hud_ammo) g_calls.hud_ammo(scr);
+}
+
+// Pirate's Moon 1.0 @ 0x00462fd0. Arms and thighs fly off (not on the
 // Elemental); the owner's effects play; the contents are lost.
 void MechPart::destroy(int variant, int fly) {
   if (destroyed || !mech) return;
   Mech& m = *mech;
   if (g_calls.weapons_lost) g_calls.weapons_lost(m, id);
-  Vec3 from{}, x{}, vel{};
-  Handle at;
-  bool trail;
-  if (m.pilot->roster != kElemental && (id == kLeftArm || id == kRightArm || id == kLeftThigh || id == kRightThigh)) {
-    at = fly_off(&from, &x, &vel, fly);
-    trail = static_cast<uint8_t>(fly) != 0;
-  } else {
-    from = {0, 0, 0};
-    vel = m.velocity;
-    at = node;
-    trail = false;
+  // Pirate's Moon: a dead mech's parts just go; so do a culled mech's (0x006293a8, the far setting, unset here).
+  if (m.active && m.anim_state != 10) {
+    const bool culled = g_calls.death_culled && g_calls.death_culled(m);
+    Vec3 from{}, x{}, vel{};
+    Handle at;
+    bool trail;
+    if (m.pilot->roster != kElemental && (id == kLeftArm || id == kRightArm || id == kLeftThigh || id == kRightThigh)) {
+      at = fly_off(&from, &x, &vel, fly);
+      trail = static_cast<uint8_t>(fly) != 0;
+    } else {
+      from = {0, 0, 0};
+      vel = m.velocity;
+      at = node;
+      trail = false;
+    }
+    if (culled) {
+      if (at && at != node && g_calls.node_set_active) g_calls.node_set_active(at, 0);
+    } else if (m.x634 == 0) {  // +0x658
+      const bool listed = id >= 1 && id <= 5;
+      const Handle effect = listed ? m.pilot->part_effects[id][variant] : nullptr;
+      if (at && effect) debris_effect = spawn(effect, at, {from.x, from.y, from.z, 0, 0, 0, vel.x, vel.y, vel.z});
+      if (trail && node) {
+        const Handle e = listed ? m.pilot->part_effects[id][2] : nullptr;
+        if (e) trail_effect = spawn(e, node, {from.x, from.y, from.z, 0, 0, 0, 0, 0, 0});
+      }
+      if (trail_effect) on_end(trail_effect, *this);
+      if (debris_effect) on_end(debris_effect, *this);
+    }
   }
-  const bool listed = id >= 1 && id <= 5;
-  const Handle effect = listed ? m.pilot->part_effects[id][variant] : nullptr;
-  if (at && effect) debris_effect = spawn(effect, at, {from.x, from.y, from.z, 0, 0, 0, vel.x, vel.y, vel.z});
-  if (trail && node) {
-    const Handle e = listed ? m.pilot->part_effects[id][2] : nullptr;
-    if (e) trail_effect = spawn(e, node, {from.x, from.y, from.z, 0, 0, 0, 0, 0, 0});
-  }
-  if (trail_effect) on_end(trail_effect, *this);
-  if (debris_effect) on_end(debris_effect, *this);
   lose_contents();
 }
 
 // Mech3.exe 1.2 @ 0x00460d50. Docs: damage.md, critical hits.
-bool MechPart::critical(int kind, int) {
+bool MechPart::critical(int kind, int section) {
   Mech& m = *mech;
   void* scr = player_screen(m);
   const bool player = scr != nullptr;
-  if (!m.active) return false;
+  if (!m.active || m.anim_state == 10) return false;  // 0x0041ade0
+  // A side torso's own weapons, ammo and CASE: its id as a part.
+  const int part = id != kTorso ? id : section == 1 ? kLeftTorso : section == 2 ? kRightTorso : id;
   bool ok = false;
   switch (kind) {
     case kCritSink: {
@@ -369,19 +413,30 @@ bool MechPart::critical(int kind, int) {
       break;
     }
     case kCritWeapon:
-      ok = g_calls.weapons_critical && g_calls.weapons_critical(m, id, 0);
+      ok = g_calls.weapons_critical && g_calls.weapons_critical(m, part, 0);
       if (!player) return ok;
       if (ok && g_calls.hud_weapons) g_calls.hud_weapons(scr);
       break;
-    case kCritAmmo:
-      if (has_equipment(kCase)) break;
-      ok = g_calls.weapons_critical && g_calls.weapons_critical(m, id, 1);
-      if (!player) return ok;
-      if (ok) {
-        if (g_calls.hud_weapons) g_calls.hud_weapons(scr);
-        mech_sound(kMechSoundAmmo);
-      }
+    case kCritAmmo: {
+      // Pirate's Moon 0x004621a7: the part's items and ammo go, the part is gone, and without CASE the rounds that
+      // went off hurt the whole mech (the rear at a tenth). It never reports a critical.
+      bool has_case = false;
+      for (EquipmentItem* it : equipment_in(m, part)) has_case = has_case || it->equipment == kCase;
+      lose_items(m, part);
+      float d = has_case ? 0.0f : g_lost_ammo_rating;
+      set_armor(0.0f, section);
+      set_internal(0.0f, section);
+      if (has_case) break;
+      d = 0.143f * interp_globals().damage_scale * d * 0.2f;  // 0x00606dc8, 0x005deffc
+      if (&m == world().mission_player) d = world().difficulty * d;
+      for (int s = 0; s < 3; ++s) m.torso->apply_damage(d, s);
+      for (int s = 3; s < 6; ++s) m.torso->apply_damage(0.1f * d, s);  // 0x00606dcc
+      m.legs[0]->apply_damage(d, 0);
+      m.legs[1]->apply_damage(d, 0);
+      m.arms[0]->apply_damage(d, 0);
+      m.arms[1]->apply_damage(d, 0);
       break;
+    }
     case kCritEquipment: {
       // Intact equipment other than heat sinks, weighted by its slots. The
       // exe keeps at most 12 candidates on the stack; no part holds more.
@@ -421,14 +476,14 @@ bool MechPart::critical(int kind, int) {
       break;
     }
     case kCritSpecial:
-      if (id == kTorso) {
+      if (part == kTorso) {
         // An engine hit: 15% off the top speed, each time.
         if (player && g_calls.voice) g_calls.voice(6);
         m.set_max_speed(m.max_speed * 0.85f);
         ok = true;
         break;
       }
-      if (id == kLeftThigh || id == kRightThigh) {
+      if (part == kLeftThigh || part == kRightThigh) {
         // Never reached: the Leg class handles its own special critical.
         m.scale_knockdown(0.85f);
         const float chance = (100.0f - m.tonnage()) * 0.01f;
@@ -436,7 +491,7 @@ bool MechPart::critical(int kind, int) {
         ok = true;
         break;
       }
-      if (id == kHead && !m.invincible) destroy(0, 1);
+      if (part == kHead && !m.invincible) destroy(0, 1);
       ok = true;
       break;
     default:
@@ -490,19 +545,25 @@ void Torso::set_armor(float v, int s) {
   else sec_armor[s] = val;
 }
 
-// Mech3.exe 1.2 @ 0x00464830. Centre at 0 destroys the torso (death); a side
-// torso at 0 takes its arm.
+// Pirate's Moon 1.0 @ 0x004660a0. Centre at 0 destroys the torso (death); a side
+// torso at 0 takes its arm and its own items.
 void Torso::set_internal(float v, int s) {
   float* slot = internal_slot(s);
   Mech& m = *mech;
   if (*slot < v || *slot > v) {
+    if (*slot == 0.0f && !m.remote) return;  // Pirate's Moon: what is gone stays gone
     *slot = v;
     const int part = (s == 1 || s == 4) ? kLeftTorso : (s == 2 || s == 5) ? kRightTorso : kTorso;
     if (!(v > 0.0)) {
       *slot = 0.0f;
-      if (part == kTorso) destroy(0, 1);
-      else if (part == kLeftTorso) m.arms[0]->set_internal(0.0f, 0);
-      else m.arms[1]->set_internal(0.0f, 0);
+      if (part == kTorso) {
+        destroy(0, 1);
+      } else {
+        MechPart& arm = *m.arms[part == kLeftTorso ? 0 : 1];
+        arm.set_armor(0.0f, 0);
+        arm.set_internal(0.0f, 0);
+        lose_items(m, part);
+      }
     }
     net_event(m, kNetSection, part);
   }
@@ -543,13 +604,14 @@ int Torso::hit_section(const Vec3* shot) const {
   return s <= 2 ? 0 : 3;
 }
 
-// Mech3.exe 1.2 @ 0x00464af0. A jolt: a spin about the horizontal axis
+// Pirate's Moon 1.0 @ 0x00466380. A jolt: a spin about the horizontal axis
 // across the hit, and a shove scaled per axis, both in the torso's frame.
 void Torso::apply_impact(Vec3* impulse, float force) {
   if (zeroish(impulse->z) && zeroish(impulse->x)) {
     jolt_spin = {0, 0, 0};
     return;
   }
+  force = force > 1.0f ? 1.0f : force < 0.0f ? 0.0f : force;  // Pirate's Moon: 0x006040c4
   Vec3 axis{impulse->z, 0.0f, -impulse->x};
   if (g_calls.node_update) g_calls.node_update(*this);  // 0x00461cf0
   float mtx[12];
@@ -562,18 +624,19 @@ void Torso::apply_impact(Vec3* impulse, float force) {
   jolt = rotate_back(jolt, mtx);
 }
 
-// Mech3.exe 1.2 @ 0x00465f40. Death of the mech: the effect, the fall
+// Pirate's Moon 1.0 @ 0x00467800. Death of the mech: the effect, the fall
 // animation by speed, the contents, then Die.
 void Torso::destroy(int explode, int) {
   if (destroyed) return;
   Mech& m = *mech;
   World& w = world();
+  if (!m.head->destroyed) m.salvage_mech = false;  // Pirate's Moon 0x00467800: the chassis goes with a good head
   if (explode == 1) m.killed_by_nuke = true;
   else if (!m.killed_by_nuke) m.killed_by_nuke = false;  // a no-op in the exe
   int effect;
   if (explode == 1 || m.pilot->roster == kElemental) {
     effect = 1;
-    if (m.foot(0)->in_water && m.foot(1)->in_water && m.pilot->water_death) {
+    if (m.x634 == 0 && m.foot(0)->in_water && m.foot(1)->in_water && m.pilot->water_death) {
       const Vec3 p = g_calls.position ? *g_calls.position(m) : Vec3{};
       death_effect = spawn(m.pilot->water_death, nullptr, {p.x, m.foot(0)->water_surface, p.z, 0, 0, 0, 0, 0, 0});
     }
@@ -596,13 +659,15 @@ void Torso::destroy(int explode, int) {
     if (g_calls.death_anim) g_calls.death_anim(m, anim);
   }
   if (g_calls.node_set_name) g_calls.node_set_name(m.node, "deadmech");  // 0x005e503c
-  const Handle e = m.pilot->death_effects[effect];
-  if (e && g_calls.spawn_effect_at)
-    death_effect2 = g_calls.spawn_effect_at(e, m.node, m.velocity.x, m.velocity.y, m.velocity.z);
-  if (death_effect) on_end(death_effect, *this);
-  if (death_effect2) on_end(death_effect2, *this);
-  lose_contents();
+  if (m.x634 == 0 && !(g_calls.death_culled && g_calls.death_culled(m))) {
+    const Handle e = m.pilot->death_effects[effect];
+    if (e && g_calls.spawn_effect_at)
+      death_effect2 = g_calls.spawn_effect_at(e, m.node, m.velocity.x, m.velocity.y, m.velocity.z);
+    if (death_effect) on_end(death_effect, *this);
+    if (death_effect2) on_end(death_effect2, *this);
+  }
   m.die();
+  lose_contents();
 }
 
 // --- Legs ------------------------------------------------------------------
@@ -642,7 +707,7 @@ void Leg::destroy(int variant, int fly) {
   if (destroyed) return;
   Foot* f = foot;
   if (f && f->effect && g_calls.stop_foot_effect) g_calls.stop_foot_effect(f->effect);
-  if (g_calls.node_set_active) g_calls.node_set_active(f->node, 0);  // no check for a foot, as in the exe
+  if (f && mech->active && mech->anim_state != 10 && mech->x634 == 0 && g_calls.node_set_active) g_calls.node_set_active(f->node, 0);  // 0x00465610
   MechPart::destroy(variant, fly);
   if (f) {
     f->lose_contents();
@@ -880,13 +945,12 @@ void Arm::destroy(int variant, int fly) {
   if (destroyed) return;
   internal = 0.0f;
   MechPart::destroy(variant, fly);
-  if (!hand) return;
-  mech->on_part_destroyed(hand);
+  // Pirate's Moon 0x00468660: the hand is lost with its items and leaves the list, but stays allocated.
   MechPart* h = hand;
+  if (!h || h->destroyed) return;
+  lose_items(*mech, h->id);
+  h->lose_contents();
   mech->parts.remove(h);
-  if (g_calls.free_part) g_calls.free_part(h);
-  else delete h;
-  hand = nullptr;
 }
 
 int Head::take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) {
@@ -898,6 +962,8 @@ void Head::apply_impact(Vec3* impulse, float force) { mech->torso->apply_impact(
 
 // Mech3.exe 1.2 @ 0x004671e0. Losing the head kills; its own contents stay.
 void Head::destroy(int, int) {
+  internal = 0.0f;  // Pirate's Moon 0x00468c50
+  armor = 0.0f;
   destroyed = true;
   mech->torso->destroy(0, 1);
 }
@@ -1005,7 +1071,7 @@ HitGlobals& hit_globals() { return g_hit; }
 // and the cockpit sounds are the program's mechs_init).
 void hit_globals_init(bool network) {
   interp_globals().damage_scale = network ? 0.0052f : 0.0062f;  // [0x005e1f6c] / [0x005e1f70]
-  g_hit.leg_scale = network ? 0.5f : 1.0f;
+  g_hit.leg_scale = 0.5f;  // Pirate's Moon 0x00414430: alone too (MW3: 1 alone)
   g_hit.limp_structure = network ? 0.35f : 0.4f;
 }
 

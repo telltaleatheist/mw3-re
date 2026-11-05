@@ -24,6 +24,8 @@ PoseCalls& pose_calls();
 struct GroundHit;
 struct MechDfn;
 struct Config;
+void lose_items(struct Mech& m, int part);  // 0x00462ba0
+
 class MechPart;
 
 // What the parts' setups and updates call outside the parts
@@ -194,7 +196,7 @@ class MechPart {
   void place(const Vec3* pos, const float* q);  // 0x00460210: through the base set_pose whatever the part (null pos: as it is)
 
   void detach();                 // vtable +0x0c with no node, 0x00460190
-  void lose_contents();          // 0x004617f0
+  void lose_contents();          // 0x00462f50
   bool has_equipment(int kind);  // 0x00460cc0
   // vtable +0x60: DamageCalls::fly_off when set (a test's), else fly_away.
   Handle fly_off(Vec3* from, Vec3* x, Vec3* velocity, int flag);
@@ -458,7 +460,7 @@ void mech_view_tint(Mech& m, bool on);                 // 0x0041b9d0
 // network game): the damage scale is the scripts' DamageScale (0x005e1f68,
 // interp_globals()); these two are the legs'. As the exe's data until then.
 struct HitGlobals {
-  float leg_scale = 1.0f;        // 0x005e1f74  a leg's hit damage (0.5 networked)
+  float leg_scale = 0.5f;        // 0x006040a4  a leg's hit damage
   float limp_structure = 0.3f;   // 0x005e1f78  a leg limps under it (0.4 alone, 0.35 networked)
 };
 HitGlobals& hit_globals();

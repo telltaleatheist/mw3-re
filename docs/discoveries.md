@@ -4466,3 +4466,14 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   zero at the start of every fall, landing and getting-up animation. Pirate's Moon does it
   only when the fall starts, and clears all your controls when the falling part ends. (From
   the code.)
+- **In Pirate's Moon losing a part loses the ammo in it:** MechWarrior 3 keeps your whole
+  ammo bin when the arm holding some of it flies off. Pirate's Moon takes that item's share
+  of the bin with it. (From the code.)
+- **Ammo explosions are real in Pirate's Moon:** an ammo critical destroys the section it
+  hit, with everything in it, and without CASE there the rounds that went off hurt the whole
+  mech, more the more of that ammo it was carrying. In MechWarrior 3 an ammo critical goes
+  only to the weapons' ammo, and CASE simply stops it. (From the code.)
+- **Legs are tougher in Pirate's Moon campaigns:** they take half damage alone as well as in
+  multiplayer; in MechWarrior 3 only multiplayer does that. (From the code.)
+- **A big hit jolts you no harder than a smaller one in Pirate's Moon:** the torso's jolt from a
+  hit stops growing at a force of 1. (From the code.)

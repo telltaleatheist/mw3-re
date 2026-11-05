@@ -712,6 +712,13 @@ void wire_mech_parts() {
   d.weapons_stop = [](Mech& m) {                                   // 0x004b1110 on +0xd4
     if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->destroy_all();
   };
+  d.weapon_bin = [](Mech& m, int32_t weapon, float* weight) -> AmmoBin* {  // 0x004b4270 on +0xd4
+    auto* wm = static_cast<WeaponManager*>(m.ammo);
+    Weapon* w = wm ? wm->find(weapon, 0) : nullptr;
+    if (!w) return nullptr;
+    *weight = w->rating;
+    return w->bin;
+  };
   d.weapons_lost = [](Mech& m, int part) {                         // 0x004b1040 on +0xd4
     if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->part_lost(part);
   };

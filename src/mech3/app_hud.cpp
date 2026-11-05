@@ -928,6 +928,7 @@ void wire_hud() {
     if (!(z.flags >> 4 & 1)) z.toggle_lock();  // +0x1514 bit 4 clear: 0x00442e00
     h.set_active(0);
   };
+  damage_calls().hud_ammo = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };  // 0x00447da0
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
   damage_calls().message = [](int id) { return hud_hooks().message(id); };

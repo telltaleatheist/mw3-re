@@ -1,4 +1,4 @@
-// Damage at run time (mech_parts, mech_damage) for tests/differential/test_damage.py.
+// Damage at run time (mech_parts, mech_damage) for tests/differential/test_pm_damage.py.
 // The test builds the same mech in emulator memory and here; state goes back
 // and forth as byte images laid out like the original objects, and every call
 // into unported code is logged as (code, args...) on both sides.
@@ -83,12 +83,14 @@ uint32_t emu_mech(const Mech* m) { return m == &g->mech ? g->emu_mech : 0; }
 Handle from_emu(uint32_t v) { return v && v == g->emu_mech ? static_cast<Handle>(&g->mech) : h(v); }
 uint32_t to_emu(Handle v) { return v == static_cast<Handle>(&g->mech) ? g->emu_mech : u(v); }
 
+AmmoBin g_bins[3];
+float g_bin_weight[3];
 void log(std::initializer_list<int32_t> v) {
   g->log.push_back(static_cast<int32_t>(v.size()));
   g->log.insert(g->log.end(), v);
 }
 
-// Field layouts, shared with FIELDS in test_damage.py.
+// Field layouts, shared with FIELDS in test_pm_damage.py.
 void part_io(MechPart& p, uint8_t* b, bool store) {
   auto f = [&](int off, float& v) { store ? wr(b, off, v) : void(v = rd<float>(b, off)); };
   auto i = [&](int off, int32_t& v) { store ? wr(b, off, v) : void(v = rd<int32_t>(b, off)); };
@@ -100,13 +102,13 @@ void part_io(MechPart& p, uint8_t* b, bool store) {
   hd(0x68, p.x68), hd(0x6c, p.debris_effect), hd(0x70, p.trail_effect);
   if (auto* t = dynamic_cast<Torso*>(&p)) {
     hd(0x74, t->death_effect), hd(0x78, t->death_effect2);
-    f(0x7c, t->half_width), f(0x80, t->half_depth);
-    f(0xd8, t->jolt_spin.x), f(0xdc, t->jolt_spin.y), f(0xe0, t->jolt_spin.z);
-    f(0x100, t->jolt.x), f(0x104, t->jolt.y), f(0x108, t->jolt.z);
-    for (int k = 0; k < 3; ++k) f(0x14c + 4 * k, t->jolt_scale[k]);
-    for (int s = 1; s < 6; ++s) f(0x174 + 4 * s, t->sec_armor[s]), f(0x188 + 4 * s, t->sec_armor_scale[s]);
-    f(0x1a0, t->side_internal[0]), f(0x1a4, t->side_internal[1]);
-    f(0x1a8, t->side_internal_scale[0]), f(0x1ac, t->side_internal_scale[1]);
+    f(0x84, t->half_width), f(0x88, t->half_depth);
+    f(0xe0, t->jolt_spin.x), f(0xe4, t->jolt_spin.y), f(0xe8, t->jolt_spin.z);
+    f(0x108, t->jolt.x), f(0x10c, t->jolt.y), f(0x110, t->jolt.z);
+    for (int k = 0; k < 3; ++k) f(0x154 + 4 * k, t->jolt_scale[k]);
+    for (int s = 1; s < 6; ++s) f(0x17c + 4 * s, t->sec_armor[s]), f(0x190 + 4 * s, t->sec_armor_scale[s]);
+    f(0x1a8, t->side_internal[0]), f(0x1ac, t->side_internal[1]);
+    f(0x1b0, t->side_internal_scale[0]), f(0x1b4, t->side_internal_scale[1]);
   }
   if (auto* ft = dynamic_cast<Foot*>(&p)) {
     bo(0xac, ft->in_water);
@@ -131,24 +133,26 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   bo(0x08, m.active);
   v3(0x30, m.velocity), v3(0x3c, m.vec_3c), v3(0x58, m.vec_58);
   ui(0xc0, m.team), ui(0xc4, m.allies);
-  f(0xe0, m.last_hit_time);
-  if (store) wr<uint32_t>(b, 0xe4, emu_of(m.last_hit_part));
-  for (int k = 0; k < 15; ++k) i(0x3ac + 4 * k, m.equipment[k]);
-  hd(0x3e8, m.decals);
-  bo(0x410, m.damaged), bo(0x411, m.killed_by_nuke);
-  for (int k = 0; k < 13; ++k) hd(0x424 + 4 * k, reinterpret_cast<Handle&>(m.anims[k]));
-  for (int k = 0; k < 10; ++k) hd(0x458 + 4 * k, reinterpret_cast<Handle&>(m.action_objects[k]));
-  f(0x510, m.walk_speed), f(0x518, m.max_speed), f(0x53c, m.knock), v3(0x540, m.knock_vec);
-  f(0x558, m.heat_added), f(0x570, m.narc_time);
-  i(0x578, m.anim_state), i(0x57c, m.prev_state);
-  bo(0x584, m.no_power_down);
-  i(0x5ac, m.limp);
-  for (int k = 0; k < 25; ++k) hd(0x5b8 + 4 * k, m.sounds[k]);
-  bo(0x630, m.invincible);
-  i(0x65c, m.heat_sinks.count);
-  if (store) wr<uint32_t>(b, 0x664, to_emu(m.attacker));
-  else m.attacker = from_emu(rd<uint32_t>(b, 0x664));
-  for (int k = 0; k < 5; ++k) f(0x6b8 + 4 * k, m.knockdown[k]);
+  f(0xe4, m.last_hit_time);
+  if (store) wr<uint32_t>(b, 0xe8, emu_of(m.last_hit_part));
+  for (int k = 0; k < 15; ++k) i(0x3bc + 4 * k, m.equipment[k]);
+  hd(0x3f8, m.decals);
+  bo(0x420, m.damaged), bo(0x421, m.killed_by_nuke);
+  for (int k = 0; k < 13; ++k) hd(0x434 + 4 * k, reinterpret_cast<Handle&>(m.anims[k]));
+  for (int k = 0; k < 10; ++k) hd(0x468 + 4 * k, reinterpret_cast<Handle&>(m.action_objects[k]));
+  f(0x520, m.walk_speed), f(0x528, m.max_speed), f(0x550, m.knock), v3(0x554, m.knock_vec);
+  f(0x57c, m.heat_added), f(0x594, m.narc_time);
+  i(0x59c, m.anim_state), i(0x5a0, m.prev_state);
+  bo(0x5a8, m.no_power_down);
+  i(0x5d0, m.limp);
+  for (int k = 0; k < 25; ++k) hd(0x5dc + 4 * k, m.sounds[k]);
+  bo(0x654, m.invincible);
+  bo(0x5ae, m.salvage_mech);
+  ui(0x658, m.x634);
+  i(0x680, m.heat_sinks.count);
+  if (store) wr<uint32_t>(b, 0x688, to_emu(m.attacker));
+  else m.attacker = from_emu(rd<uint32_t>(b, 0x688));
+  for (int k = 0; k < 5; ++k) f(0x728 + 4 * k, m.knockdown[k]);
 }
 
 void install_hooks() {
@@ -202,6 +206,13 @@ void install_hooks() {
   c.voice = [](int i) { log({14, i}); };
   c.force_variant0 = [] { return g->s.force0 != 0; };
   c.weapons_lost = [](Mech&, int id) { log({8, id}); };
+  c.weapon_bin = [](Mech&, int32_t w, float* weight) -> AmmoBin* {
+    if (w >= 40) return nullptr;
+    *weight = g_bin_weight[w % 3];
+    return &g_bins[w % 3];
+  };
+  c.bin_add = [](AmmoBin* b, int32_t n) { log({41, static_cast<int32_t>(b - g_bins), n}); };
+  c.hud_ammo = [](void*) { log({42}); };
   c.weapons_critical = [](Mech&, int part, int ammo) {
     log({9, part, ammo});
     return g->s.wcrit != 0;
@@ -254,6 +265,14 @@ void install_hooks() {
 }
 
 }  // namespace
+
+extern "C" void probe_damage_bins(const int32_t* v) {
+  for (int k = 0; k < 3; ++k) {
+    g_bins[k] = AmmoBin{};
+    g_bins[k].amount = v[4 * k], g_bins[k].max = v[4 * k + 1], g_bins[k].infinite = v[4 * k + 2] != 0;
+    std::memcpy(&g_bin_weight[k], &v[4 * k + 3], 4);
+  }
+}
 
 extern "C" {
 
@@ -310,6 +329,7 @@ void probe_damage_load(const uint8_t* mech_img, const uint8_t* part_imgs, const 
   }
   // pilot: roster, effects [6][3], death[4], cockpit explosion (+0x200), water, x228 present, x228[1]
   MechData& p = g->pilot;
+  p.limp_speed = 0.0f;  // as the test's zeroed pilot
   p.roster = pilot[0];
   for (int i = 0; i < 18; ++i) p.part_effects[i / 3][i % 3] = h(static_cast<uint32_t>(pilot[1 + i]));
   for (int i = 0; i < 4; ++i) p.death_effects[i] = h(static_cast<uint32_t>(pilot[19 + i]));

@@ -24,7 +24,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_collide.py` | changed | 24 | 7 | moved to `test_pm_collide.py` | mech collision |
 | `test_controls.py` | changed | 3 | 0 | to move, rank 13 | the controls |
 | `test_d3d_frame.py` | gone | 10 | 1 | covered | test_pm_device (its frame; the tint unchecked) |
-| `test_damage.py` | gone | 50 | 12 | to move, rank 3 | mech_damage and mech_parts Elemental sites, roster 4 and 16 |
+| `test_damage.py` | gone | 50 | 12 | moved to `test_pm_damage.py` | mech_damage and mech_parts Elemental sites, roster 4 and 16 |
 | `test_deaths.py` | gone | 65 | 14 | to move, rank 2 | landing, salvage, kill credit, part destroyed, roster 4 and 16 |
 | `test_di.py` | gone | 20 | 6 | covered | test_pm_di |
 | `test_drawtable.py` | changed | 8 | 4 | covered | test_pm_device, test_pm_walk, test_pm_submit |

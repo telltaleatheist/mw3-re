@@ -10,6 +10,10 @@ function from `Mech::TakeDamage` down to `Mech::Die` runs as the original on
 for bit at the game's 24-bit x87 precision. Sections 1-3 were first read from
 the disassembly; the port corrected them where noted.
 
+
+## Pirate's Moon
+
+`test_pm_damage.py` checks PM's damage on `pm`; addresses below are MW3's. What changed: a part's loss (0x462ba0) now takes its ammo too: each ammo item in the part takes count / bin's top of what the bin held before any of it went, and the rating of what went is kept ([0x62998c]). An ammo critical (in 0x462090) always destroys the section it hit, its items and ammo with it, and without CASE in that part the ammo's rating x 0.143 x DamageScale x 0.2 (x difficulty for the mission's player) goes on all torso sections, the rear at a tenth, both legs and both arms; it no longer reports a critical. A critical's side-torso hit reads the side's own items (7, 8). Legs take half a hit's damage alone as well as networked. The jolt's force is held to 1. A dead mech's parts just go, no flying off or effects; +0x658 stops the effects; a side torso at 0 takes its arm and its own items, and what is gone stays gone unless the mech is remote. An arm's hand stays allocated, off the list. Heat, NARC and the knock apply only to a hit on a part or the nuke. The torso's death runs Die before losing its contents and, with a good head, leaves nothing of the chassis to salvage (+0x5ae).
 ## 1. Where armor and internal structure live
 
 Every part (base class constructor 0x45fbe0, base vtable 0x5c2840) keeps its
