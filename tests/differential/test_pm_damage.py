@@ -771,6 +771,10 @@ def run_op(run, op, args, rng):
     elif op == 4:
         cpu.call(KNOCKED_DOWN, ecx=emu.mech, stack_args=(args[0],))
         res = int((cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff) != 0)  # AL is the kind's low byte for other kinds
+    elif op == 7:
+        part = emu.parts[args[0]]
+        cpu.call(emu.u32(emu.u32(part) + 0x20), ecx=part, stack_args=(args[1], args[2]))
+        res = 0
     else:
         cpu.call(HIT_SECTION, ecx=emu.parts[TORSO], stack_args=(0xb0dac4, 0))
         res = cpu.uc.reg_read(UC_X86_REG_EAX)
@@ -830,8 +834,10 @@ def main():
                 op, args = 3, (rng.choice([0, 1, 2]), int(rng.random() < 0.5))
             elif r < 0.96:
                 op, args = 4, (rng.choice([3, 4, 0, 1, 7]),)
-            else:
+            elif r < 0.985:
                 op, args = 5, ()
+            else:  # an arm destroyed directly, its structure still up (a hand's destroy goes to it)
+                op, args = 7, (rng.choice([ARM0, ARM1, HAND0, HAND1]), rng.randrange(2), rng.randrange(2))
             a_res, b_res, a_ev, b_ev = run_op(run, op, args, rng)
             if op == 5:
                 sections.add(a_res)
