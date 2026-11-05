@@ -928,6 +928,7 @@ int probe_pm_cfg_blob(const char* path, const char* name, int32_t* out) {
   for (ConfigItem* i : c.items) out[k++] = i->kind(), out[k++] = i->id(), out[k++] = i->count, out[k++] = i->part;
   return k;
 }
+void* probe_pm_cfg_ptr(int k) { return g_cfg_dfn->configs->configs[k]; }
 int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
   using namespace ::mech3;
   Config& c = *g_cfg_dfn->configs->configs[k];

@@ -437,6 +437,9 @@ class LabMessage : public ztwod::FontText {
 void lab_put_on(Engine& e, LabUnassignedList& list, int32_t index);
 // 0x00455fb0's item row (ASSIGNED_LIST's +0xac): the item back to the lab's store.
 void lab_take_off(Engine& e, LabAssignedList& list, int32_t index);
+struct LabSpeeds { float most = 0, run = 0, walk = 0; };
+LabSpeeds lab_mech_speeds(Engine& e, Handle config);              // Pirate's Moon 0x00458380
+float lab_chassis_tons(Engine& e, Handle config, int32_t row);    // Pirate's Moon 0x00458a50
 // Pirate's Moon 0x00455930: the firepoint a weapon takes on a part, -1 none.
 int32_t lab_pick_firepoint(const std::vector<Engine::LabFirepoint>& fps, int32_t weapon, int32_t part);
 

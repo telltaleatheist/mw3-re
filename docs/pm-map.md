@@ -193,6 +193,8 @@ the 817 in `compiler-flags.json` (`tools/analysis/pmflags.py`).
 - promote1.cpp: 14
 - gmod_init.c: 14
 
+Left out on purpose (2026-11-05): PM's in-game file boxes for the lab's developer keys, 0x48fef0 (save) and 0x490120 (open), with their 0x490270 and 0x4907c0. They replace MW3's Windows dialogs on Ctrl+X and Ctrl+I, a developer path; the port's `export\\` and `import\\` stand-in does the job.
+
 ## Running the differential tests on PM (step 0, 2026-10-31)
 
 **Eye checks of mech movement mean little until the mech step is PM's (`docs/pm-tests.md`): MW3's logic stands in and looks right.** **Tests loading libmw3probe do not test this branch.** `mw3probe` is not built here; they now fail at the import. By-test list: `docs/pm-tests.md`.

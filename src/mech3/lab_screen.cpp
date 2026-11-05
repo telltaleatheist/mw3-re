@@ -1728,17 +1728,31 @@ void LabMechData::hide() {
   endo.hide();
 }
 
-// Mech3.exe 1.2 @ 0x00457330: the speeds at the mech's most tons
-// (0x00425300(8)), the loadout's tons in the alternate font when over them.
+// Pirate's Moon 1.0 @ 0x00458380: the speeds at the mech's most tons (0x00427130(9)), and
+// never under the build's 5 m/s (0x00414c00): 18 kph running, 3/4 of that walking.
+LabSpeeds lab_mech_speeds(Engine& e, Handle config) {
+  LabSpeeds s;
+  if (!config) return s;
+  const float run_floor = 5.0f * 3.6f, walk_floor = run_floor * 0.75f;
+  s.most = e.lab_config_weight_of(config, 9);
+  s.run = std::max(engine_kph(e.lab_config_engine(config), s.most, true), run_floor);
+  s.walk = std::max(engine_kph(e.lab_config_engine(config), s.most, false), walk_floor);
+  return s;
+}
+
+// Pirate's Moon 1.0 @ 0x00458a50: row 3 is the structure with the cockpit and shielding.
+float lab_chassis_tons(Engine& e, Handle config, int32_t row) {
+  if (!config) return 0.0f;
+  if (row == 3) return e.lab_config_weight_of(config, 3) + e.lab_config_weight_of(config, 8);
+  return e.lab_config_weight_of(config, row);
+}
+
+// Mech3.exe 1.2 @ 0x00457330: the loadout's tons in the alternate font when over the most.
 // The units go through " %s" and never show.
 void LabMechData::refresh(Handle config) {
   Engine& e = e_;
-  float most = 0.0f, run = 0.0f, walk = 0.0f;
-  if (config) {
-    most = e.lab_config_weight_of(config, 8);
-    run = engine_kph(e.lab_config_engine(config), most, true);
-    walk = engine_kph(e.lab_config_engine(config), most, false);
-  }
+  const LabSpeeds speeds = lab_mech_speeds(e, config);
+  const float most = speeds.most, run = speeds.run, walk = speeds.walk;
   const std::string kph = e.message_format(0x245, nullptr);
   const std::string tons = e.message_format(0x244, nullptr);
   endo.show_config(config);
@@ -1785,16 +1799,15 @@ void LabChassisData::set_pos(int32_t px, int32_t py) {
   place(rows[9]);
 }
 
-// Mech3.exe 1.2 @ 0x00457940: placed anew, then the tons by kind (0x00425300's
-// 0..7), the total (-1) and the mech's most (8). (The speeds are computed
-// and dropped.)
+// Mech3.exe 1.2 @ 0x00457940: placed anew, then the tons by kind, the total (-1) and the
+// mech's most (Pirate's Moon's 9, lab_mech_speeds). (The speeds are computed and dropped.)
 void LabChassisData::refresh(Handle config) {
   Engine& e = e_;
-  const float most = config ? e.lab_config_weight_of(config, 8) : 0.0f;
+  const float most = lab_mech_speeds(e, config).most;
   const std::string tons = e.message_format(0x244, nullptr);
   set_pos(get_x(), get_y());
   for (int32_t k = 0; k < 8; ++k)
-    rows[static_cast<size_t>(k)]->set_float(config ? e.lab_config_weight_of(config, k) : 0.0f, tons.c_str());
+    rows[static_cast<size_t>(k)]->set_float(lab_chassis_tons(e, config, k), tons.c_str());
   rows[8]->set_float(config ? e.lab_config_weight_of(config, -1) : 0.0f, tons.c_str());
   rows[9]->set_float(most, tons.c_str());
 }
@@ -2289,8 +2302,7 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
   for (int i = 0; i < 7; ++i) show_page(i, false);
   tabs[5].enabled = 0;  // ICON_MISSIONDATA
   tabs[5].refresh();
-  for (int i = slots < 4 ? slots : 4; i < 4; ++i) mechs[i].hide();
-  message.set_text(e.message(0xdcc));
+  for (int i = slots < 4 ? slots : 4; i < 4; ++i) mechs[i].hide();  // (Pirate's Moon drops MW3's opening message 0xdcc)
 }
 
 // Mech3.exe 1.2 @ 0x0044c600: the panels made with new deleted first, the
