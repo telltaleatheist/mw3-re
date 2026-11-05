@@ -218,21 +218,12 @@ int Mech::jump_jets(float dt) {
 }
 
 // Pirate's Moon 1.0 @ 0x00416d70. The move is predicted first. Only the player can fall from a landing (20 % or 40 %), a
-// hard one hurts the legs of a mech that is alive and up. Temporarily the skis still move the node, so their change of place
-// is added to the prediction (until 0x00477f90 is ported; docs/pm-mech-step.md).
+// hard one hurts the legs of a mech that is alive and up.
 void Mech::ground_step(float dt) {
   const float vy0 = vec_3c.y;
   const bool was = no_power_down;
   predict(dt);
-  const Vec3* before = skis_calls().position ? skis_calls().position(*this) : nullptr;
-  const Vec3 from = before ? *before : Vec3{};
   no_power_down = g_calls.skis_update ? g_calls.skis_update(*this, dt) : skis->update(dt);
-  if (const Vec3* after = skis_calls().position ? skis_calls().position(*this) : nullptr) {
-    pending_m[9] += after->x - from.x, pending_m[10] += after->y - from.y, pending_m[11] += after->z - from.z;
-  }
-  // Temporarily too: the port's skis give the vertical speed rather than the place.
-  pending_velocity.y += vec_3c.y;
-  pending_m[10] += vec_3c.y * dt;
   if (!was || no_power_down || pilot->roster == kElemental) return;
   float jolt = -(vy0 / kLandingScale);
   bool hard = false;

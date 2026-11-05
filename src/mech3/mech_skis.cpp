@@ -1,3 +1,4 @@
+#include "mech3/mech_lod.h"
 #include "mech3/mech_skis.h"
 
 #include <cmath>
@@ -34,13 +35,14 @@ namespace {
 SkisCalls g_calls;
 
 constexpr float kHalf = 0.5f;            // 0x005c3738
-constexpr float kQueryTop = -50.0f;      // 0x005c3750, subtracted
+constexpr float kQueryTop = -1024.0f;    // 0x005e5bc8, subtracted
 constexpr float kAirGap = 4.0f;          // 0x005c3754
 constexpr float kGroundPull = 4.0f;      // 0x005e58bc, gravity x4 on the ground
 constexpr float kStep = -0.7f;           // 0x005c3758, of the height, subtracted
 constexpr float kSnap = 3.0f;            // 0x005c375c, also the push x3 of a far mech
 constexpr float kIrregular = 0.2f;       // 0x005c3760
-constexpr float kStepUp = 3.0f;          // 0x005e5914
+constexpr float kStepUp = 3.5f;          // 0x00607a24
+constexpr float kStepKick = 0.5f;        // 0x00607a20 (MW3: 1)
 constexpr float kOnGround = 0.2f;        // 0x005e58ac
 constexpr float kSlopeRate = 2.0f;       // 0x005e5908
 constexpr float kMaxSlope = 0.573576f;   // 0x005e5904, sin 35 degrees
@@ -51,8 +53,8 @@ constexpr double kLedge = 1.5;           // 0x005c3778
 constexpr float kSeventh = 0.142857149f; // 0x005c3780
 constexpr float kCeilingTime = 4.0f;     // 0x005e58c4
 constexpr bool kStopOnGround = true;     // byte 0x005e58c8
-constexpr float kSteep = 0.85f;          // 0x005e58b0, normal y
-constexpr float kSlide = 30.0f;          // 0x005e58b4
+constexpr float kSteep = 0.84f;          // 0x006079c0, normal y
+constexpr float kSlide = 20.0f;          // 0x006079c4
 constexpr int kWater = 1, kNoSlip = 10;
 
 int soil(Handle material) { return material && g_calls.soil ? g_calls.soil(material) : 0; }
@@ -185,10 +187,18 @@ bool Skis::integrate(float* y, float* vy, float dt, float ground, float gravity)
   return v > 20.0f;  // 0x005c3798
 }
 
+namespace {
+// Pirate's Moon 0x00477ef0: these two soils neither slide a mech nor shove it off a step.
+bool step_kicks(const GroundHit& c) {
+  const int s = soil(c.material);
+  return s != kNoSlip && s != 7;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x00477620: down a polygon steeper than about 32 degrees.
 bool Skis::slope_slide(const GroundHit& c, Vec3* push, float dt) {
   if (!(c.normal.y < kSteep)) return false;
-  if (soil(c.material) == kNoSlip) return false;
+  if (!step_kicks(c)) return false;
   const float k = kSlide * dt;
   const Vec3 d{k * c.normal.x, 0.0f, k * c.normal.z};
   *push = {d.x + push->x, d.y + push->y, d.z + push->z};
@@ -198,19 +208,10 @@ bool Skis::slope_slide(const GroundHit& c, Vec3* push, float dt) {
 // Mech3.exe 1.2 @ 0x004765b0. Walkthrough: docs/movement-ground.md.
 bool Skis::update(float dt) {
   Mech& m = *mech;
-  const bool simple = !(m.detail & 0x10) || !m.active;
-  const bool frozen = m.blocked[0] || m.blocked[1] || m.blocked[3];
+  // Pirate's Moon: a remote mech in the low detail table probes once too; the probes go where predict put the mech.
+  const bool simple = !(m.detail & 0x10) || !m.active || (lod_table().low && m.remote);
   slid = false;
-  Vec3 v = m.vec_3c;
-  std::memcpy(matrix, m.transform, sizeof matrix);
-  if (frozen) v.z = v.x = 0.0f;
-  const float* r = matrix;
-  const Vec3 w{(v.x * r[0] + v.y * r[3]) + v.z * r[6], (v.x * r[1] + v.y * r[4]) + v.z * r[7],
-               (v.x * r[2] + v.y * r[5]) + v.z * r[8]};
-  const Vec3 step_xz{w.x * dt, 0.0f, w.z * dt};
-  matrix[9] = step_xz.x + matrix[9];
-  matrix[10] = step_xz.y + matrix[10];
-  matrix[11] = step_xz.z + matrix[11];
+  std::memcpy(matrix, m.pending_m, sizeof matrix);
   const int start = simple ? 6 : 0, count = simple ? 1 : 7;
   for (int side = 0; side < 2; ++side) {
     Foot* f = m.foot(side);
@@ -302,11 +303,13 @@ bool Skis::update(float dt) {
     if (std::fabs(front) - std::fabs(back) < kIrregular) {
       t = (ground[i + 1] - ground[i]) / (local[i + 1].z - local[i].z);
       vy[i + 2] = vy[i + 1];
-      if (!(clearance[i + 2] > 0.0f) && ground[i + 2] - ground[i + 1] > kStepUp) kick = 1.0f;
+      if (!(clearance[i + 2] > 0.0f) && ground[i + 2] - ground[i + 1] > kStepUp && step_kicks(contact[i + 2]) && step_kicks(contact[i + 1]))
+        kick = kStepKick;
     } else {
       t = back / (local[i + 2].z - local[i + 1].z);
       vy[i] = vy[i + 1];
-      if (!(clearance[i] > 0.0f) && ground[i] - ground[i + 1] > kStepUp) kick = -1.0f;
+      if (!(clearance[i] > 0.0f) && ground[i] - ground[i + 1] > kStepUp && step_kicks(contact[i]) && step_kicks(contact[i + 1]))
+        kick = -kStepKick;
     }
     const float mid = clearance[i + 1];
     const bool on = mid < kOnGround && mid > -kOnGround;
@@ -363,16 +366,29 @@ bool Skis::update(float dt) {
   } else {
     body_vy = vy[6];
   }
-  const Vec3* pos = g_calls.position ? g_calls.position(m) : nullptr;
-  const float cap = (environment().jet_ceiling - (pos ? pos->y : 0.0f)) / kCeilingTime;
+  // Pirate's Moon: the vertical goes into the prediction. On the ground the mech is put on the centre probe, carried by
+  // the push when it slid; coming down in the air it stops at the probe's height.
+  const float cap = (environment().jet_ceiling - m.pending_m[10]) / kCeilingTime;
   if (!(body_vy < cap)) body_vy = cap;
   const float rise = body_vy * dt;
-  for (Vec3& p : world) p.y = rise + p.y;
+  if (!air) {
+    if (slid) m.pending_m[9] += dt * m.push.x, m.pending_m[11] += dt * m.push.z;
+    m.pending_m[10] = y[6];
+  } else if (rise < 0.0f || m.impulse.y > 0.0f) {
+    m.pending_m[10] += rise;
+  } else {
+    m.pending_m[10] = (y[6] - m.pending_m[10]) + m.pending_m[10];
+    for (float& x : vy) x = 0.0f;
+  }
+  const Vec3* pos = g_calls.position ? g_calls.position(m) : nullptr;
+  const float moved = m.pending_m[10] - (pos ? pos->y : 0.0f);
+  const float speed = moved / dt;
+  m.vec_3c.y = speed, m.velocity.y = speed, m.pending_velocity.y = speed;
+  for (Vec3& p : world) p.y = moved + p.y;
   const float pitch0 = !simple && slope[0] != 0.0f ? static_cast<float>(std::asin(slope[0])) : 0.0f;  // 0x005ac380
   const float pitch1 = !simple && slope[1] != 0.0f ? static_cast<float>(std::asin(slope[1])) : 0.0f;
   set_ski(0, pitch0, lift[0]);
   set_ski(1, pitch1, lift[1]);
-  m.vec_3c.y = body_vy;
   if (down[0] && down[1] && !air)
     for (float& x : vy) x = kStopOnGround ? 0.0f : body_vy;
   zone_update(contact[6].zone);

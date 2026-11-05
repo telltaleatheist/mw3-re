@@ -10,6 +10,7 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "mech3/mech.h"
+#include "mech3/mech_lod.h"
 #include "mech3/mech_skis.h"
 #include "mech3/mission_world.h"
 
@@ -56,17 +57,17 @@ void skis_io(Skis& s, uint8_t* b, bool store) {
     io.v3(0x7c + 0xc * j, s.world[j]), io.v3(0xd0 + 0xc * j, s.local[j]);
     io.f(0x124 + 4 * j, s.ground[j]), io.f(0x140 + 4 * j, s.vy[j]), io.f(0x15c + 4 * j, s.surface[j]);
     io.i(0x178 + 4 * j, s.in_water[j]);
-    hit_io(s.contact[j], b + 0x194 + 0x28 * j, store);
-    io.f(0x2ac + 4 * j, s.clearance[j]), io.f(0x2c8 + 4 * j, s.y[j]), io.bo(0x2e4 + j, s.landed[j]);
+    hit_io(s.contact[j], b + 0x194 + 0x2c * j, store);  // Pirate's Moon's record, 0x2c, moves what follows 0x1c on
+    io.f(0x2c8 + 4 * j, s.clearance[j]), io.f(0x2e4 + 4 * j, s.y[j]), io.bo(0x300 + j, s.landed[j]);
   }
-  io.f(0x2ec, s.length), io.f(0x2f0, s.half), io.f(0x2f4, s.mid_width);
-  io.f(0x2f8, s.inv_half), io.f(0x2fc, s.inv_half2);
+  io.f(0x308, s.length), io.f(0x30c, s.half), io.f(0x310, s.mid_width);
+  io.f(0x314, s.inv_half), io.f(0x318, s.inv_half2);
 }
 
 void mech_io(Mech& m, uint8_t* b, bool store) {
   Io io{b, store};
   io.bo(0x8, m.active);
-  io.v3(0x24, m.forward), io.v3(0x3c, m.vec_3c);
+  io.v3(0x24, m.forward), io.v3(0x30, m.velocity), io.v3(0x3c, m.vec_3c), io.v3(0x7ec, m.pending_velocity);
   for (int k = 0; k < 4; ++k) io.f(0x48 + 4 * k, m.orientation[k]);
   io.f(0x68, m.height);
   for (int k = 0; k < 4; ++k) io.bo(0x374 + k, m.blocked[k]);
@@ -133,6 +134,10 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
   skis_io(g->s, skis, false);
   std::memcpy(g->transform, transform, sizeof g->transform);
   m.transform = g->transform;
+  std::memcpy(m.pending_m, transform, sizeof m.pending_m);  // Pirate's Moon: the skis read the prediction
+  std::memset(g->transform, 0, sizeof g->transform);  // and not this
+  lod_table().low = mech[0x7b0] != 0;
+  m.remote = mech[0x7b1] != 0;
   std::memcpy(g->ski_mats, ski_mats, sizeof g->ski_mats);
   g->s.mech = &m;
   g->s.ski[0] = h(ski0), g->s.ski[1] = h(ski1);
@@ -159,9 +164,9 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
     for (int k = 0; k < count; ++k) {
       log({2, bits(p[k].x), bits(p[k].y), bits(p[k].z)});
       p[k] = {g->after[3 * (start + k)], g->after[3 * (start + k) + 1], g->after[3 * (start + k) + 2]};
-      const uint8_t* r = g->hits + 0x504 * (start + k);
+      const uint8_t* r = g->hits + 0x584 * (start + k);
       out[k].count = r[0];
-      for (int j = 0; j < 32; ++j) hit_io(out[k].hit[j], const_cast<uint8_t*>(r) + 4 + 0x28 * j, false);
+      for (int j = 0; j < 32; ++j) hit_io(out[k].hit[j], const_cast<uint8_t*>(r) + 4 + 0x2c * j, false);
     }
   };
   c.soil = [](Handle mat) {
@@ -185,6 +190,8 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
   zmth::pop();
   mech_io(m, mech, true);
   skis_io(g->s, skis, true);
+  std::memcpy(transform, m.pending_m, sizeof m.pending_m);
+  lod_table().low = false;
   std::memcpy(ski_mats, g->ski_mats, sizeof g->ski_mats);
   const int32_t len = static_cast<int32_t>(g->log.size());
   std::memcpy(out, g->log.data(), 4 * (len < *n ? len : *n));
