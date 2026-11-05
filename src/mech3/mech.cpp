@@ -208,10 +208,10 @@ void update_heat(Mech& m, float dt) {
 
   float rate = 1.0f;  // 0x00604128
   if (m.powered_down) rate *= 3.0f;
-  // The water's surface over the two front probes, against the mech's feet.
+  // The water's surface over the skis' two middle probes (+0x160, +0x16c), against the mech's feet.
   const Vec3* at = skis_calls().position ? skis_calls().position(m) : nullptr;
   const float y = at ? at->y : m.transform ? m.transform[10] : 0.0f;
-  const float depth = (m.skis->surface[3] + m.skis->surface[0]) * 0.5f - y;
+  const float depth = (m.skis->surface[4] + m.skis->surface[1]) * 0.5f - y;
   if (depth > 25.0f && m.active && m.anim_state != 10) {  // 0x005dfd10, 0x0041ade0
     // Too deep: no invincibility, the structure goes by a quarter a frame. FIX (B): per 1/30 s.
     m.invincible = false;

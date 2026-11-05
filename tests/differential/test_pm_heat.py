@@ -26,7 +26,7 @@ IAT_RAND = 0x5bb668
 FIELDS = [
     ('height', 'f', 0x68), ('heat', 'f', 0x578), ('heat_added', 'f', 0x57c),
     ('heat_dissipation', 'f', 0x580), ('masc_time', 'f', 0x598), ('shutdown_time', 'f', 0x6c4),
-    ('beep_time', 'f', 0x6c8), ('voice_time', 'f', 0x6cc), ('surface0', 'f', 's160'), ('surface3', 'f', 's16c'),
+    ('beep_time', 'f', 0x6c8), ('voice_time', 'f', 0x6cc), ('surface1', 'f', 's160'), ('surface4', 'f', 's16c'),
     ('pos_y', 'f', 'pos'), ('time', 'f', 'g62da90'), ('dt', 'f', 'g8c1b4c'),
     ('controls', 'f', 'script'), ('health', 'f', 'script'),
     ('power_down_pending', 'b', 0xe0), ('heat_shutdown', 'b', 0xe1), ('powered_down', 'b', 0xe2),
@@ -40,7 +40,7 @@ FIELDS = [
 ]
 NAMES = [f[0] for f in FIELDS]
 INPUTS = {'controls', 'mission', 'option', 'screen', 'ammo', 'player', 'full_all', 'no_haze',
-          'time', 'dt', 'height', 'surface0', 'surface3', 'pos_y', 'health', 'remote', 'active', 'state', 'soil0', 'soil1',
+          'time', 'dt', 'height', 'surface1', 'surface4', 'pos_y', 'health', 'remote', 'active', 'state', 'soil0', 'soil1',
           'attacker', 'salvage_mech',
           'jump_jets', 'masc_time', 'sinks', 'doubles', 'invincible', 'powered_down',
           'power_down_pending', 'heat_added'}
@@ -252,7 +252,7 @@ def same_calls(a, b):
 def scenario(rng):
     """A random mech situation: inputs that change now and then over the run."""
     s = {n: 0 for n in NAMES}
-    s.update(surface0=-300.0, surface3=-300.0, pos_y=rng.uniform(0, 40), health=1.0, active=1, salvage_mech=1,
+    s.update(surface1=-300.0, surface4=-300.0, pos_y=rng.uniform(0, 40), health=1.0, active=1, salvage_mech=1,
              height=rng.choice([8.0, 12.0, 15.5]), sinks=rng.choice([10, 14, 22]),
              doubles=rng.random() < 0.4, player=rng.random() < 0.6, full_all=rng.random() < 0.85,
              option=rng.random() < 0.9, mission=rng.choice([0, 0, 0, 3]),
@@ -269,8 +269,8 @@ def tweak(s, rng, frame):
         s['heat_added'] = 0.0
     if rng.random() < 0.03:
         d = rng.choice([None, None, -5.0, 0.5, 3.0, 9.0, 20.0, 24.9, 26.0, 40.0])
-        s['surface0'] = -300.0 if d is None else s['pos_y'] + d
-        s['surface3'] = -300.0 if d is None else s['surface0'] + rng.choice([0.0, 0.0, 2.0])
+        s['surface1'] = -300.0 if d is None else s['pos_y'] + d
+        s['surface4'] = -300.0 if d is None else s['surface1'] + rng.choice([0.0, 0.0, 2.0])
     s['attacker'] = rng.random() < 0.5
     if rng.random() < 0.05:
         s['salvage_mech'] = 1

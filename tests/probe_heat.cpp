@@ -70,7 +70,7 @@ void probe_heat_io(int32_t* v, int write) {
   int32_t player = w.player == &m, attacker = m.attacker != nullptr;
   const F fields[] = {
       {&m.height}, {&m.heat}, {&m.heat_added}, {&m.heat_dissipation}, {&m.masc_time},
-      {&m.shutdown_time}, {&m.beep_time}, {&m.voice_time}, {&g_skis.surface[0]}, {&g_skis.surface[3]}, {&g_pos.y},
+      {&m.shutdown_time}, {&m.beep_time}, {&m.voice_time}, {&g_skis.surface[1]}, {&g_skis.surface[4]}, {&g_pos.y},
       {&w.time}, {&w.dt}, {&g_script.controls}, {&g_script.health},
       {nullptr, nullptr, &m.power_down_pending}, {nullptr, nullptr, &m.heat_shutdown},
       {nullptr, nullptr, &m.powered_down}, {nullptr, nullptr, &m.invincible},

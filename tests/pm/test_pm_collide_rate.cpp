@@ -115,7 +115,7 @@ float drown(int times, float dt) {
   static float place[12];
   m = Mech{};
   skis = Skis{};
-  skis.surface[0] = skis.surface[3] = 30.0f;  // 30 m over a mech at 0
+  skis.surface[1] = skis.surface[4] = 30.0f;  // 30 m over a mech at 0
   m.skis = &skis, m.head = &head, m.torso = &torso, m.transform = place;
   m.height = 10.0f;
   for (int i = 0; i < 2; ++i) legs[i].foot = &foot, m.legs[i] = &legs[i], m.arms[i] = &arms[i];
