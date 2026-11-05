@@ -1,3 +1,5 @@
+#include <cstring>
+#include "gamez/zutil/zfix.h"
 // The mech's frame, Mech::Update (docs/movement.md, The frame). Original
 // file: mech3\mech.cpp (0x00419fc0 sits between its heat code and
 // mech_anim.cpp).
@@ -120,7 +122,6 @@ void Mech::update(float dt) {
       }
     }
     jet_fuel_step(dt);
-    const Vec3 saved = vec_3c;
     bool stopped = false, held = false;  // held: Collide reports the mech blocked
     if (!acting) {
       if (g_calls.turn) g_calls.turn(*this, frame_dt);
@@ -129,12 +130,6 @@ void Mech::update(float dt) {
       torso->set_pitch(controls->pitch, controls->axis_2c);
       torso->update(frame_dt);
       hip->update(frame_dt);
-    }
-    if (collides) {
-      held = g_calls.collide ? g_calls.collide(*this) : collide();
-      stopped = blocked[0] || blocked[1] || blocked[3];
-    }
-    if (!acting) {
       legs[0]->update(frame_dt);
       legs[1]->update(frame_dt);
       arms[0]->update(frame_dt);
@@ -144,60 +139,24 @@ void Mech::update(float dt) {
       vec_58 = {0, 0, 0};
       vec_3c = {0, 0, 0};
     }
-
-    // The lean rolls the display matrix into turns (detail bit 5).
-    bool leaning = false;
-    zmth::Quat roll{};
-    if (detail & 0x20) {
-      const MechDfn* def = g_calls.dfn ? g_calls.dfn(*this) : mech_dfn(pilot->roster);
-      float target = 0.0f;
-      if (vec_58.y != 0.0f && limp != 0 && limp != 1) {
-        const float angle = def->get<float>(0x154);  // lean_angle
-        target = static_cast<float>(controls->turn * double{std::fabs(controls->throttle)});
-        target = target * speed_factor * angle;
-      }
-      float l = (target - lean) * def->get<float>(0x158) * dt + lean;  // lean_factor
-      lean = l;
-      if (viewed && damage_calls().view_mode && damage_calls().view_mode() == 1) lean = l * 0.5f;
-      if (std::fabs(lean) < 0.01) lean = 0.0f;  // 0x005bce38
-      if (lean != 0.0f) {
-        zmth::quat_roll(lean, roll);
-        leaning = true;
-      }
+    // Pirate's Moon: the collision checks the move predict worked out; it is committed unless the collider held the mech.
+    if (collides) {
+      held = g_calls.collide ? g_calls.collide(*this) : collide();
+      stopped = blocked[0] || blocked[1] || blocked[2] || blocked[3];
     }
-
     const bool slid = skis->slid;
-    if (!held) {
-      const float h = frame_dt * 0.5f;
-      const zmth::Vec3 v{h * vec_58.x, vec_58.y * h, vec_58.z * h};
-      zmth::Quat e, p;
-      zmth::quat_exp(v, e);
-      zmth::quat_mul(e, quat(orientation), p);
-      zmth::Quat n;
-      zmth::quat_normalize(p, n);
-      orientation[0] = n.w, orientation[1] = n.x, orientation[2] = n.y, orientation[3] = n.z;
-    }
-    if (stopped) vec_3c = {0.0f, saved.y, 0.0f};
-    zmth::Vec3 wv;
-    zmth::quat_rotate(quat(orientation), {vec_3c.x, vec_3c.y, vec_3c.z}, wv);
-    velocity = {wv.x, wv.y, wv.z};
-    if (!held) velocity = {velocity.x + push.x, velocity.y + push.y, velocity.z + push.z};
-    const float mx = velocity.x * dt, my = velocity.y * dt, mz = velocity.z * dt;
-    if (g_calls.translate) g_calls.translate(node, mx, my, mz);
-    else zcls::object3d_translate(static_cast<zcls::Node*>(node), mx, my, mz);
-    if (!stopped) {
-      // The display matrix; not refreshed on a frame the collider stops the mech.
-      zmth::Quat q = quat(orientation);
-      if (leaning) zmth::quat_mul(q, roll, q);
-      const float qa[4] = {q.w, q.x, q.y, q.z};
-      zmth::quat_matrix(qa, transform);
+    if (!stopped || !held) {
+      std::memcpy(orientation, pending_q, sizeof orientation);
+      velocity = pending_velocity;
+      std::memcpy(transform, pending_m, sizeof pending_m);
     }
     if (g_calls.moved) g_calls.moved(*this);
-    if (slid) {
-      // Pushed this frame: stop when the motion runs against the push.
-      const float d = velocity.x * push.x + velocity.z * push.z;
-      if (d < 0.0) controls->set_throttle(0.0f);
-    } else if (push.x != 0.0 || push.z != 0.0) {
+    if (slid && velocity.x * push.x + velocity.z * push.z < 0.0f) {
+      // Pushed this frame, moving against the push: the throttle falls by a factor a frame. FIX (B): per 1/30 s.
+      controls->throttle = zfix::options().per_second ? controls->throttle * std::pow(0.6f, zfix::frame_steps(dt))
+                                                      : controls->throttle * 0.6f;  // 0x005dfaa8
+    }
+    if (push.x != 0.0f || push.z != 0.0f) {
       const float k = kPushDecay * dt;
       const Vec3 t{k * (0.0f - push.x), k * (0.0f - push.y), k * (0.0f - push.z)};
       push = {push.x + t.x, push.y + t.y, push.z + t.z};
@@ -243,6 +202,56 @@ tail:
     }
   }
   if (g_calls.purge) g_calls.purge(*this, frame_dt);  // 0 after a full update
+}
+
+// Pirate's Moon 1.0 @ 0x004186f0: the lean rolls the display matrix into turns (detail bit 5).
+bool Mech::lean_step(float dt) {
+  if (!(detail & 0x20)) {
+    lean = 0.0f;
+    return false;
+  }
+  const MechDfn* def = g_calls.dfn ? g_calls.dfn(*this) : mech_dfn(pilot->roster);
+  float target = 0.0f;
+  if (vec_58.y != 0.0f && limp != 0 && limp != 1) {
+    target = static_cast<float>(controls->turn * double{std::fabs(controls->throttle)});
+    target = target * speed_factor * def->get<float>(0x154);  // lean_angle
+  }
+  const float l = (target - lean) * def->get<float>(0x158) * dt + lean;  // lean_factor
+  lean = l;
+  if (this == world().player && damage_calls().view_mode && damage_calls().view_mode() == 1) lean = l * 0.5f;
+  if (std::fabs(lean) < 0.01) lean = 0.0f;  // 0x005dfca8
+  if (lean == 0.0f) return false;
+  zmth::Quat roll{};
+  zmth::quat_roll(lean, roll);
+  lean_q[0] = roll.w, lean_q[1] = roll.x, lean_q[2] = roll.y, lean_q[3] = roll.z;
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x00423590, called first in the ground step: the orientation, world velocity and matrix this frame
+// would give, the vertical speed left out and put back, as velocity's too.
+void Mech::predict(float dt) {
+  const float y = vec_3c.y;
+  const bool leaning = lean_step(dt);
+  velocity.y = 0.0f, vec_3c.y = 0.0f;
+  const float h = dt * 0.5f;
+  zmth::Quat e, p, n;
+  zmth::quat_exp({h * vec_58.x, h * vec_58.y, h * vec_58.z}, e);
+  zmth::quat_mul(e, quat(orientation), p);
+  zmth::quat_normalize(p, n);
+  pending_q[0] = n.w, pending_q[1] = n.x, pending_q[2] = n.y, pending_q[3] = n.z;
+  zmth::Vec3 wv;
+  zmth::quat_rotate(n, {vec_3c.x, vec_3c.y, vec_3c.z}, wv);
+  pending_velocity = {wv.x + push.x, wv.y + push.y, wv.z + push.z};
+  const Vec3* at = skis_calls().position ? skis_calls().position(*this) : nullptr;
+  const Vec3 from = at ? *at : Vec3{};
+  zmth::Quat q = n;
+  if (leaning) zmth::quat_mul(q, quat(lean_q), q);
+  const float qa[4] = {q.w, q.x, q.y, q.z};
+  zmth::quat_matrix(qa, pending_m);
+  pending_m[9] = from.x + dt * pending_velocity.x;
+  pending_m[10] = from.y + dt * pending_velocity.y;
+  pending_m[11] = from.z + dt * pending_velocity.z;
+  velocity.y = y, vec_3c.y = y;
 }
 
 // Mech3.exe 1.2 @ 0x0041a843..0x0041aa61: the walk, wade and limp loops,

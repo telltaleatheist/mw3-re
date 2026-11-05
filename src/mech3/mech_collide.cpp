@@ -34,6 +34,9 @@ constexpr int kTopProbe = 10, kSoundBump = 0xd;
 const Vec3* position_of(Mech& m) { return skis_calls().position ? skis_calls().position(m) : nullptr; }
 
 void set_position(Mech& m, const Vec3& p) {
+  // Pirate's Moon works on the predicted place (+0x71c); until its responses are ported, a move here moves that too.
+  if (const Vec3* at = position_of(m))
+    m.pending_m[9] += p.x - at->x, m.pending_m[10] += p.y - at->y, m.pending_m[11] += p.z - at->z;
   if (g_calls.set_position) g_calls.set_position(m, &p);
 }
 
@@ -367,7 +370,7 @@ bool Mech::touch_response() {
 bool Mech::collide() {
   Collider& c = collider;
   blocked[0] = blocked[1] = blocked[2] = blocked[3] = false;
-  const float* m = transform;
+  const float* m = pending_m;  // Pirate's Moon 0x00423730: where the mech is going
   for (int32_t i = 0; i < c.count; ++i) {
     const Vec3& p = c.local[i];
     c.world[i] = {((p.x * m[0] + p.y * m[3]) + p.z * m[6]) + m[9], ((p.x * m[1] + p.y * m[4]) + p.z * m[7]) + m[10],

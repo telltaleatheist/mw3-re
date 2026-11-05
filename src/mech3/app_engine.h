@@ -94,7 +94,7 @@ class GameEngine : public Engine {
     int32_t index = 0;   // the mission directory (0x00484c50): c1 c2 c3 c4 c4b t1
     int32_t type = 1;    // the game type: 1 a campaign mission (gametypes.md)
     int32_t number = 1;  // the mission number (world.zrd's m<n>, the start animation's)
-    int32_t mech = 9;    // the player's mech by roster index (9 the Mad Cat), its first configuration
+    int32_t mech = 13;   // the player's mech by roster index (13 the Mad Cat on Pirate's Moon)
     bool have_pos = false;  // the camera placed (--pos/--look): there is no mech to follow yet
     float eye[3] = {}, yaw = 0, pitch = 0;
     bool active = false;

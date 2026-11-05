@@ -293,9 +293,9 @@ void Store::assign(const Store& from) {
 }
 
 // Mech3.exe 1.2 @ 0x00471c10. Merged with one like it (its place kept, unlike
-// add_copy's); none for -1 or 0x13.
+// add_copy's); none for -1 or one past the roster.
 BaseItem* Store::add_mech(int32_t mech) {
-  if (mech == -1 || mech == 0x13) return nullptr;
+  if (mech == -1 || mech == kMechCount) return nullptr;
   BaseItem probe;
   probe.count = 1, probe.value = mech;
   if (auto* found = static_cast<BaseItem*>(find_like(&probe))) {
@@ -520,26 +520,27 @@ void Game::load() {
 // Mech3.exe 1.2 @ 0x004373e0
 LabGame::LabGame(Pilot* p) : Game(p) {
   pilot_hooks().store_fill(store, kMechLab);
-  lineup[0].mech = 3;  // 0x005a2ba0 on each
-  lineup[1].mech = 8;
-  lineup[2].mech = 13;
+  // Pirate's Moon 0x004381d0 sets no line-up here (MW3: mechs 3, 8 and 13).
 }
 
 // Mech3.exe 1.2 @ 0x004374d0
 LabGame::~LabGame() = default;
 
-// Mech3.exe 1.2 @ 0x004345a0. Operation 1, mission 1 gets the starting
-// store: two mechs 3 with the "Primary" loadout (message 0xf20), one of the
-// mech's own taken back, and ammunition (pilot.md, A new campaign).
+// Pirate's Moon 1.0 @ 0x004351b0 (MW3's 0x004345a0). Operation 1, mission 1 gets the starting store (pilot.md, A new campaign).
 CampaignGame::CampaignGame(Pilot* p, int32_t c, int32_t m) : Game(p), mission(m), campaign(c) {
   if (c == 1 && m == 1) {
     PilotHooks& h = pilot_hooks();
-    h.store_add_mech(store, 3, h.message(0xf20));
-    h.store_add_mech(store, 3, h.message(0xf20));
-    store.remove_mech(3);
-    store.add_ammo(0x11, 750);
-    store.add_ammo(0x15, 4000);
-    store.add_ammo(2, 1000);
+    // Pirate's Moon 0x004351b0: a Centurion, a Puma and an Owens, spare guns, sinks and ammunition.
+    h.store_add_mech(store, 7, h.message(0xf20));
+    h.store_add_mech(store, 0x11, h.message(0xf20));
+    h.store_add_mech(store, 0x10, h.message(0xf20));
+    for (int i = 0; i < 4; ++i) store.add_weapon(0x1f, kInnerSphere);  // MGUN
+    for (int i = 0; i < 2; ++i) store.add_weapon(5, kInnerSphere);     // ER medium laser
+    for (int i = 0; i < 4; ++i) store.add_equipment(10, kInnerSphere, 1);
+    store.add_ammo(0x1f, 1000);
+    store.add_ammo(0x17, 500);
+    store.add_ammo(0x18, 1000);
+    store.add_ammo(0x15, 100);
   }
 }
 

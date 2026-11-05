@@ -43,6 +43,7 @@
 //   --hidden             keep the window hidden
 //   --windowed           a window, not fullscreen (also --window, or windowed=1 in mw3.cfg)
 //   --verbose            list every unported function reached at exit
+#include "mech3/mech_ids.h"
 #include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
 
@@ -987,7 +988,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       if (ia_at != std::string::npos &&
           std::sscanf(a.mission.c_str() + ia_at, "ia%dw%d", &ia_map, &ia_wave) >= 1 && ia_map > 0) {
         ia_game = std::make_unique<mech3::ActionGame>(nullptr);
-        ia_game->mode = 2, ia_game->x6c = ia_wave, ia_game->slot.mech = 9;
+        ia_game->mode = 2, ia_game->x6c = ia_wave, ia_game->slot.mech = mech3::kMadCat;
         for (int i = 0; i < 4; ++i) ia_game->add(5, 1, nullptr, 0);
         l.type = 2, l.number = ia_map, l.action = ia_game.get();
         dir = ia_at ? a.mission.substr(0, ia_at) : "c1";

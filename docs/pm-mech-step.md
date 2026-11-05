@@ -24,6 +24,8 @@ MW3 functions the port has with no PM twin (69 or so: inlined or rewritten) are 
 
 **"New" overstates it.** Reading Update showed some are MW3's inline code moved into a function: 0x4186f0 is the lean and 0x423590 the orientation step, both inline in MW3's Update, with PM's real change being when they run (ahead of collision, committed after it). Done so far: the loadouts (`test_pm_config`), jets 0x417f50 with the fuel moved into Update (`test_pm_jets`).
 
+**In progress, on `pm` (2026-11-05):** Update's order is PM's, with predict 0x423590, the lean 0x4186f0 and the landing 0x416d70, but the collision's responses and the skis are still MW3's. **Temporarily wrong until those are ported:** the skis still move the node and give the vertical speed, so their change is added to the prediction by hand (`ground_step`, `set_position`); the collision's responses work on the node's place and on velocity, where PM's work on the prediction. Per-frame amounts checked: the fuel, the jet assist and predict all use dt; the throttle's 0.6 under a push was per frame and now goes by time behind `per_second`.
+
 ## The order
 
 The lead's rule (2026-11-05): what the frame runs for every mech ranks above what it runs for the player only, unless the player-only one changes how the game feels. The score below cannot see that, so it is applied by reading each function as the order reaches it.

@@ -215,6 +215,11 @@ struct Mech : Vehicle {
   uint32_t net_damaged = 0;  // +0x680  the parts (bit by id) whose damage goes with the next state (kind 0x15)
   MechData* pilot = nullptr;    // +0x684
   Handle x68c = nullptr;     // +0x68c  updated last each frame (0x004e6480)
+  // Pirate's Moon's: what predict makes and Update commits.
+  float pending_q[4] = {1, 0, 0, 0};  // +0x6dc
+  Vec3 pending_velocity{};            // +0x6ec
+  float pending_m[12] = {};           // +0x6f8  rotation, then the place at +0x71c
+  float lean_q[4] = {1, 0, 0, 0};     // +0x568
   uint32_t detail{};           // +0x688  level-of-detail bits by distance (docs/movement.md): 0 sounds, 1 toes, 2 turn pivot, 3 landing effects, 4 full gait, 5 lean
   uint32_t x690 = 0;         // +0x690
   Handle model_node = nullptr;  // +0x694  the model's root under the mech's node
@@ -265,6 +270,8 @@ struct Mech : Vehicle {
   void add_jump_jet(bool add);        // 0x00417300
   void ground_step(float dt);         // 0x004162c0: the skis, then a landing
   void jet_fuel_step(float dt);
+  bool lean_step(float dt);           // Pirate's Moon 0x004186f0
+  void predict(float dt);             // Pirate's Moon 0x00423590: this frame's move, committed after the collision
   float altitude() const;             // 0x0041e9c0: above the centre probe's ground
   bool queue_action(int kind, bool force);  // 0x00416780
   int state_for_action(int kind) const;     // 0x00416660

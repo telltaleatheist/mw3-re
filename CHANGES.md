@@ -113,6 +113,7 @@ it is clear what the designers meant.
 - **Pilot names ignore capitals, as their files do.** Making "BOB" when
   "bob" exists picks bob instead of a second pilot sharing (and
   overwriting) bob's file, and renaming onto another pilot's name is refused.
+- **A shove slows your throttle at the same speed at any frame rate** (Pirate's Moon: the original took 40 % off each frame).
 - **The plain PPC is in the mech lab.** The game defines and names it, but it
   was left out of the mech lab's weapon list. It can now be mounted (Inner
   Sphere, 7 tons, 3 slots, as the data says). On Pirate's Moon it is the game's own: its table has it.

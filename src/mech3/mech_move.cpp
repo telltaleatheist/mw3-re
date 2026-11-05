@@ -217,46 +217,62 @@ int Mech::jump_jets(float dt) {
   return jump_jets_firing;
 }
 
-// Mech3.exe 1.2 @ 0x004162c0. A local mech that comes down hard, or fast
-// sideways, can fall (20 % or 40 %); a hard landing hurts the legs.
+// Pirate's Moon 1.0 @ 0x00416d70. The move is predicted first. Only the player can fall from a landing (20 % or 40 %), a
+// hard one hurts the legs of a mech that is alive and up. Temporarily the skis still move the node, so their change of place
+// is added to the prediction (until 0x00477f90 is ported; docs/pm-mech-step.md).
 void Mech::ground_step(float dt) {
   const float vy0 = vec_3c.y;
   const bool was = no_power_down;
+  predict(dt);
+  const Vec3* before = skis_calls().position ? skis_calls().position(*this) : nullptr;
+  const Vec3 from = before ? *before : Vec3{};
   no_power_down = g_calls.skis_update ? g_calls.skis_update(*this, dt) : skis->update(dt);
-  if (remote || !was || no_power_down || !(vy0 < 0.0f) || pilot->roster == kElemental) return;
+  if (const Vec3* after = skis_calls().position ? skis_calls().position(*this) : nullptr) {
+    pending_m[9] += after->x - from.x, pending_m[10] += after->y - from.y, pending_m[11] += after->z - from.z;
+  }
+  // Temporarily too: the port's skis give the vertical speed rather than the place.
+  pending_velocity.y += vec_3c.y;
+  pending_m[10] += vec_3c.y * dt;
+  if (!was || no_power_down || pilot->roster == kElemental) return;
   float jolt = -(vy0 / kLandingScale);
   bool hard = false;
   if (jolt > 1.0f) jolt = 1.0f, hard = true;
   else if (jolt < 0.0f) jolt = 0.0f, hard = true;
-  if (this == world().mission_player && world().force_feedback && g_calls.ff_landing) g_calls.ff_landing(jolt);
+  const bool is_player = this == world().mission_player;
+  if (is_player && world().force_feedback && g_calls.ff_landing) g_calls.ff_landing(jolt);
   const bool sideways = kLandingSideways < std::fabs(vec_3c.x);
-  if (sideways) hard = true;
-  const float thr = -vec_3c.z / max_speed;  // vtable +0x11c
+  const bool shaken = hard || sideways;
+  const float thr = -vec_3c.z / max_speed;  // vtable +0x128
   controls->throttle = thr;
-  if (thr > 0.0f) {
+  const bool up = active && anim_state != kDead && anim_state != kFallenBack && anim_state != kFallenFront;  // 0x0041ade0
+  if (up && thr > 0.0f) {
     prev_state = anim_state;
     anim_state = 5;
   }
-  if (hard) {
+  bool fall = false;
+  if (is_player && shaken) {
     const float keep = sideways ? 0.6f : 0.8f;
-    if (static_cast<float>(crt::msvc_rand()) * 3.051851e-05f > keep) {  // 0x005bcd94
-      knocked_down(vec_3c.z > 0.0f ? 4 : 3);
-      return;
-    }
+    fall = static_cast<float>(crt::msvc_rand()) * 3.051851e-05f > keep;
   }
-  if (jolt > 0.7f) {  // 0x005bcd98
-    const float d = jolt * 0.005f;  // 0x005bcd9c
+  if (fall) {
+    if (!remote) knocked_down(vec_3c.z > 0.0f ? 4 : 3);
+    return;
+  }
+  if (!(active && anim_state != kDead && anim_state != kFallenBack && anim_state != kFallenFront)) return;
+  if (!remote && jolt > 0.7f) {  // 0x005dfcb0
+    const float d = jolt * 0.005f;  // 0x005dea78
     legs[0]->apply_damage(d, 0);
     legs[1]->apply_damage(d, 0);
   }
   if (detail & 8) {
-    controls->set_throttle(0.0f);
     if (g_calls.landing_dust) g_calls.landing_dust(*this);
     else ground_dust();
     if (g_calls.landing_pose) g_calls.landing_pose(*this);
     else landing_pose();
     momentum = vec_3c;
   }
+  if (collide_calls().crouch) collide_calls().crouch(*hip, jolt);  // 0x004638f0
+  else hip->duck(jolt);
 }
 
 // Mech3.exe 1.2 @ 0x0041df50. On: the top speed x1.25 with the throttle
