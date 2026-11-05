@@ -50,7 +50,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_player.py` | gone | 17 | 3 | to move, rank 14 | the player controls |
 | `test_pocket.py` | changed | 18 | 3 | to move | with PM AI |
 | `test_pocket_orders.py` | gone | 9 | 1 | to move | with PM AI |
-| `test_power.py` | changed | 8 | 5 | to move, rank 11 | power |
+| `test_power.py` | changed | 8 | 5 | moved to `test_pm_power.py` | power; the headlight off and the network target dropped |
 | `test_puffers.py` | gone | 44 | 12 | covered | test_pm_puffers |
 | `test_scenewalk.py` | changed | 33 | 13 | covered | test_pm_walk (10 of its 33 functions; the rest by test_pm_nodebox and test_pm_world_box) |
 | `test_shade.py` | gone | 23 | 5 | covered | test_pm_lighting, test_pm_modeldraw |

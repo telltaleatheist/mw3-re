@@ -4494,3 +4494,5 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   pitch and yaw limits, widened by how far the torso (and the arm, for one on an arm) can turn. MechWarrior 3 has none of
   this. A firepoint attached to a leg or a side torso makes the game complain that it "must be moved" and counts it as the
   torso's. (From the code; what the weapons do with the limits we have not reached yet.)
+- **Shutting down hides you in Pirate's Moon multiplayer:** when another player's mech finishes powering down, your target
+  on it drops; your own headlight goes out too. MechWarrior 3 does neither (it has no headlights). (From the code.)

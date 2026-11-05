@@ -876,6 +876,11 @@ void wire_mech_parts() {
   // The dead mechs (mech_dead.cpp).
   update_calls().add_dead = [](Mech& m) { dead_add(m); };  // 0x0041e350 on 0x00605510
   DeadCalls& dc = dead_calls();
+  heat_calls().clear_target = [](Mech& p) {  // Pirate's Moon 0x0041e7e0 with (0, 0): off the target, the HUD told
+    p.set_target(nullptr, false);
+    p.target_velocity = {};
+    if (&p == world().player) program_hud_target_set(&p);
+  };
   dc.game_type = [] { return static_cast<int32_t>(mission_game_type()); };
   dc.networked = [] { return mission_game_type() == 3; };       // 0x00479480
   dc.instant_action = [] { return mission_game_type() == 2; };  // 0x00479460

@@ -6,6 +6,8 @@
 #include "gamez/zclass/class.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/mech_collide.h"
+#include "mech3/mech_headlight.h"
 #include "mech3/mech_skis.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
@@ -100,7 +102,9 @@ void Mech::power(int power_down) {
   power_down_pending = false;
 }
 
-// Mech3.exe 1.2 @ 0x0041cac0
+// Pirate's Moon 1.0 @ 0x0041d920. New in PM: the headlight goes out with the
+// power (0x0041f8d0, 0x00465da0), and a network mech powering down stops being
+// the mission player's target.
 void Mech::finish_power_down() {
   if (!power_down_pending) return;
   const bool can_stop = anim_state == 1 || anim_state == 12 || anim_state == 13;
@@ -114,7 +118,13 @@ void Mech::finish_power_down() {
   void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
   if (screen && g_calls.screen_power_down) hud_saved = g_calls.screen_power_down(screen);
   for (int i = 0; i < 3; ++i) stop(loops()[i]);
+  if (g_calls.headlight_off) g_calls.headlight_off(*this);
+  else if (torso && torso->headlight) torso->headlight->turn(false, true);
   if ((detail & 1) && g_calls.play_sound_at) power_down_sound() = g_calls.play_sound_at(*this, 8);
+  Mech* p = g_world.mission_player;
+  if (remote && p && p->target && collide_calls().contact_mech && collide_calls().contact_mech(p->target) == this &&
+      g_calls.clear_target)
+    g_calls.clear_target(*p);
 }
 
 // Mech3.exe 1.2 @ 0x0041d4f0

@@ -404,6 +404,8 @@ struct HeatCalls {
   bool (*ammo_explosion)(Mech&) = nullptr;                  // 0x004b0de0 on +0x0d4
   void (*hud_message)(float seconds, int message) = nullptr;  // 0x0040fe70
   void (*stop_controls)(Mech&, int arg) = nullptr;          // +0x37c vtable +0x4c (Stop)
+  void (*headlight_off)(Mech&) = nullptr;                   // PM 0x0041f8d0(0); unset: the torso's headlight
+  void (*clear_target)(Mech& player) = nullptr;             // PM vt+0xcc (0x0041e7e0) with (0, 0)
   uint8_t (*screen_power_down)(void* screen) = nullptr;     // 0x0043bb20
   void (*screen_power_up)(void* screen, uint8_t saved) = nullptr;  // 0x0043bb50
   Sound (*play_sound_at)(Mech&, int id) = nullptr;          // 0x00432990 at the mech's position
