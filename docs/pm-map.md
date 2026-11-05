@@ -195,7 +195,7 @@ the 817 in `compiler-flags.json` (`tools/analysis/pmflags.py`).
 
 ## Running the differential tests on PM (step 0, 2026-10-31)
 
-**Tests loading libmw3probe do not test this branch.** `mw3probe` is not built here; they now fail at the import. By-test list: `docs/pm-tests.md`.
+**Eye checks of mech movement mean little until the mech step is PM's (`docs/pm-tests.md`): MW3's logic stands in and looks right.** **Tests loading libmw3probe do not test this branch.** `mw3probe` is not built here; they now fail at the import. By-test list: `docs/pm-tests.md`.
 
 **The address map** (`tools/analysis/pmaddr.py`, after pmdiff.py; writes
 `analysis-output/pm-diff/addrmap.json`):
@@ -1374,7 +1374,7 @@ functions PM changed, and PM's new ones.
    FIX (bug) is gone here. **`0x4d5020`, MW3's "is it the Elemental" (0x426080), always answers 0 in PM:** the mech
    lists (0x4732b0, 0x48f970, 0x48f660, the store's 0x49ea10) offer the Elemental, and `0x427360` no longer exempts it from
    validation. The table's checksum at 0x4876f0 is MW3's 0x4854c0 (`protection.md`). The family is not used by the port yet.
-   PM's reader 0x46d690 no longer reads `version`, and `dfn_bushwacker.zrd` ships without it: MW3's check would refuse that mech, so it is gone. **The rest of 0x46d690 is still MW3's in the port, not compared with PM's exe** (the definition reader below).
+   PM's reader 0x46d690 no longer reads `version`, and `dfn_bushwacker.zrd` ships without it: MW3's check would refuse that mech, so it is gone. **0x46d690 is compared whole on all 25 (`test_pm_mechdef.py`):** the head, skins, part slots, headlight config, firepoints with their new aim limits (+0..+0x14, default tolerance 0.473, degrees in the file), every loadout and item, every report. PM's changes: no `version`; `engine_minmax` read only for the Elemental, and its maximum kept; `hidden` (+0x1e) replaces MW3's "name starts train"; `double_sinks` read when sinks are 10; armor only reported when over (MW3: any difference); a loadout that fails 0x427360 is dropped. The real validation in play: 113 of 113 kept, once the weight charges the Elemental no engine shielding (0x427130's case 8; without that its one loadout was dropped). The test seams validation on both sides (it needs the weapons' data): the port's `Config::weight` and `validate` have no differential on PM yet. Not ported in `validate`: 0x427310 (the free slots not negative). 0x62cc5c, which would skip validation, is never set.
    Our own command ids are free on PM: 0xa2 and 0xa5 are not in the 110, nothing registers or polls them, their keys are unbound.
    Then the definition reader and its new weapons
    (`XPulseLaser_Large`, `HeavyLaser_Large`, `TBOLT5`), the firepoint

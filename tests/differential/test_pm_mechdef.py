@@ -11,6 +11,7 @@ import ctypes
 import os
 import struct
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -33,7 +34,7 @@ class Emulated(zr.Emulated):
         super().__init__()
         self.reports = []
         self.native_stub(LOAD_SAVED, lambda c: 0)
-        self.native_stub(REPORT, self.report)
+        self.cpu.stubs[REPORT] = (self.report, 0)  # test_pm_zar hooked it already
         self.native_stub(FETCH, lambda c: 0)
         self.native_stub(0x427360, lambda c: 1, 4)  # validate: it needs the weapons' data, seamed on both sides
         for addr, fn in ((0x5ce8e4, self.cstring_new), (0x5ce8d8, lambda c: 0), (0x5ce8de, self.cstring_format)):
@@ -130,48 +131,149 @@ class Emulated(zr.Emulated):
         return bytes(out)
 
 
-def main():
-    rel = 'zbd/reader.zbd'
-    data = (ROOT / 'game' / 'pm' / rel).read_bytes()
+def read_node(data, pos):
+    kind, = struct.unpack_from('<i', data, pos)
+    pos += 4
+    if kind == 1:
+        return struct.unpack_from('<i', data, pos)[0], pos + 4
+    if kind == 2:
+        return struct.unpack_from('<f', data, pos)[0], pos + 4
+    if kind == 3:
+        n, = struct.unpack_from('<I', data, pos)
+        return data[pos + 4:pos + 4 + n].decode('latin-1'), pos + 4 + n
+    n, = struct.unpack_from('<I', data, pos)
+    pos += 4
+    items = []
+    for _ in range(n - 1):
+        item, pos = read_node(data, pos)
+        items.append(item)
+    return items, pos
+
+
+def write_node(v):
+    if isinstance(v, int):
+        return struct.pack('<ii', 1, v)
+    if isinstance(v, float):
+        return struct.pack('<if', 2, v)
+    if isinstance(v, str):
+        return struct.pack('<iI', 3, len(v)) + v.encode('latin-1')
+    return struct.pack('<iI', 4, len(v) + 1) + b''.join(write_node(x) for x in v)
+
+
+def value(lst, key):
+    return lst[lst.index(key) + 1]
+
+
+def crafted(data):
+    """The keys no shipped file has, from dfn_madcat: the head's defaults set, a firepoint's aim limits, a hidden loadout,
+    double sinks, an unknown weapon, more than 16 weapons, armor over its mass; each exercised on a second loadout's copy."""
+    start, size = next((s, n) for name, s, n in entries(data) if name == 'dfn_madcat.zrd')
+    tree, _ = read_node(data, start)
+    top = tree[0]
+    top += ['turn_accel_factor', 2.5, 'accel_rate', 0.75, 'decel_rate', 1.75, 'engine_minmax', [20, 90]]
+    fps = value(top, 'firepoints')
+    fps[1] += ['aimTolerance', 10.0, 'aimMinPitch', -5.0, 'aimMaxPitch', 7.0, 'aimMinYaw', -9.0, 'aimMaxYaw', 11.0]
+    configs = value(top, 'configurations')
+    body = configs[1]
+    body += ['hidden', 'true', 'double_sinks', 'true']
+    weapons = value(body, 'weapons')
+    weapons.append(['NOSUCHWEAPON', fps[0]])
+    other = [x for x in body]
+    configs += ['crafted_over', other]
+    other = list(other)
+    other[other.index('weapons') + 1] = [list(weapons[0]) for _ in range(18)]
+    armor = list(value(other, 'armor'))
+    armor[armor.index('mass') + 1] = 0.0
+    other[other.index('armor') + 1] = armor
+    configs += ['crafted_many', other]
+    return write_node(tree)
+
+
+def entries(data):
+    version, count = struct.unpack_from('<II', data, len(data) - 12)
+    table = len(data) - 12 - count * 0x94
+    for i in range(count):
+        e = table + i * 0x94
+        start, size = struct.unpack_from('<II', data, e)
+        yield data[e + 8:e + 72].split(b'\0')[0].decode('latin1'), start, size
+
+
+def archive(blobs):
+    out, table = bytearray(), bytearray()
+    for name, blob in blobs:
+        e = bytearray(0x94)
+        struct.pack_into('<II', e, 0, len(out), len(blob))
+        e[8:8 + len(name)] = name.encode()
+        table += e
+        out += blob
+    return bytes(out + table + struct.pack('<III', 2, len(blobs), 0))
+
+
+def compare(emu, p, buf, top, name, index):
+    emu.reports = []
+    root = emu.call(zr.LOAD, args=[emu.string(name), 0, 0])
+    dfn = emu.alloc(SIZE)
+    emu.call(CTOR, ecx=dfn, args=[index, root])
+    try:
+        ok = emu.call(READ, ecx=dfn) & 0xff
+    except Exception as ex:
+        uc = emu.cpu._uc
+        raise SystemExit(f'{name}: eip {uc.reg_read(UC_X86_REG_EIP):#x} ret {emu.r32(uc.reg_read(UC_X86_REG_ESP)):#x}: {ex}')
+    want = bytes([ok, emu.raw(dfn + 4, 1)[0]]) + emu.dump(dfn)
+    n = p.probe_pm_dfn(str(top).encode(), name.encode(), index, buf, len(buf))
+    got = buf.raw[:max(n, 0)]
+    # The head's floats within a few units in the last place (the x87's sine, CLAUDE.md); all else exact.
+    near = 0
+    H0, H1 = 2 + 0xc, 2 + 0xc + 0x60
+    if len(got) == len(want):
+        for o in range(H0, H1, 4):
+            a_, b_ = struct.unpack_from('<i', want, o)[0], struct.unpack_from('<i', got, o)[0]
+            if a_ != b_ and abs(a_ - b_) <= 4:
+                near += 1
+                got = got[:o] + want[o:o + 4] + got[o + 4:]
+    if got != want:
+        at = next((i for i in range(min(len(got), len(want))) if got[i] != want[i]), min(len(got), len(want)))
+        print(f'{name}: exe {len(want)} bytes, port {n}, first difference at {at}:\n  exe  {want[max(at-16,0):at+24].hex()}\n  port {got[max(at-16,0):at+24].hex()}')
+        return False, near, 0, len(emu.reports)
+    return True, near, struct.unpack_from('<i', want, 2 + 0x6c + 8)[0], len(emu.reports)
+
+
+def bench(rel, data):
     emu = Emulated()
     emu.files[test_pm_zar.key(rel)] = bytearray(data)
     emu.cpu.import_code(IAT_FLOOR, FLOOR)
     if not emu.call(zr.OPEN_ARCHIVE, args=[emu.string(rel.replace('/', '\\')), 1]):
-        raise SystemExit('PM does not open reader.zbd')
+        raise SystemExit(f'PM does not open {rel}')
     emu.call(0x475860)  # the skins' registry (MW3's 0x473ae0)
+    return emu
+
+
+def main():
+    rel = 'zbd/reader.zbd'
+    data = (ROOT / 'game' / 'pm' / rel).read_bytes()
+    emu = bench(rel, data)
     p = test_pm_zar.load_pm_probe()
     p.probe_pm_dfn.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
     buf = ctypes.create_string_buffer(1 << 22)
     bad = configs = near = 0
     for index, mech in enumerate(MECHS):
-        name = f'dfn_{mech}.zrd'
-        emu.reports = []
-        root = emu.call(zr.LOAD, args=[emu.string(name), 0, 0])
-        dfn = emu.alloc(SIZE)
-        emu.call(CTOR, ecx=dfn, args=[index, root])
-        try:
-            ok = emu.call(READ, ecx=dfn) & 0xff
-        except Exception as ex:
-            uc = emu.cpu._uc
-            raise SystemExit(f'{name}: eip {uc.reg_read(UC_X86_REG_EIP):#x} ret {emu.r32(uc.reg_read(UC_X86_REG_ESP)):#x}: {ex}')
-        want = bytes([ok, emu.raw(dfn + 4, 1)[0]]) + emu.dump(dfn)
-        n = p.probe_pm_dfn(str(ROOT / 'game' / 'pm').encode(), name.encode(), index, buf, len(buf))
-        got = buf.raw[:max(n, 0)]
-        # The head's floats within a few units in the last place (the x87's sine, CLAUDE.md); all else exact.
-        H0, H1 = 2 + 0xc, 2 + 0xc + 0x60
-        if len(got) == len(want):
-            for o in range(H0, H1, 4):
-                a_, b_ = struct.unpack_from('<i', want, o)[0], struct.unpack_from('<i', got, o)[0]
-                if a_ != b_ and abs(a_ - b_) <= 4:
-                    near += 1
-                    got = got[:o] + want[o:o + 4] + got[o + 4:]
-        if got != want:
-            bad += 1
-            at = next((i for i in range(min(len(got), len(want))) if got[i] != want[i]), min(len(got), len(want)))
-            print(f'{name}: exe {len(want)} bytes, port {n}, first difference at {at}:\n  exe  {want[max(at-16,0):at+24].hex()}\n  port {got[max(at-16,0):at+24].hex()}')
-        else:
-            configs += struct.unpack_from('<i', want, 2 + 0x6c + 8)[0]
-    print(f'{len(MECHS) - bad}/{len(MECHS)} definitions identical, {configs} loadouts, {near} head floats within 4 places')
+        same, n, c, _ = compare(emu, p, buf, ROOT / 'game' / 'pm', f'dfn_{mech}.zrd', index)
+        bad += not same
+        near += n
+        configs += c
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / 'zbd').mkdir()
+        blob = archive([('dfn_madcat.zrd', crafted(data)), ('dfn_elemental.zrd', crafted(data))])
+        (Path(tmp) / rel).write_bytes(blob)
+        emu = bench(rel, blob)
+        craft = reports = 0
+        for index, name in ((13, 'dfn_madcat.zrd'), (11, 'dfn_elemental.zrd')):
+            same, n, c, r = compare(emu, p, buf, tmp, name, index)
+            bad += not same
+            craft += c
+            reports += r
+    print(f'{len(MECHS)} shipped: {configs} loadouts, {near} head floats within 4 places; 2 crafted: {craft} loadouts, {reports} reports; '
+          f'{bad} differ')
     sys.exit(1 if bad else 0)
 
 
