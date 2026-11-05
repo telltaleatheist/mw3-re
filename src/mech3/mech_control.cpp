@@ -138,7 +138,7 @@ ControlsCalls g_calls;
 constexpr int kTurnLeft = 2, kTurnRight = 3, kPitchUp = 4, kPitchDown = 5, kTwistLeft = 8, kTwistRight = 9;
 constexpr int kJetsUp = 0xc, kJetsForward = 0xd, kJetsBack = 0xe, kJetsLeft = 0xf, kJetsRight = 0x10;
 constexpr int kJetsTurnLeft = 0x11, kJetsTurnRight = 0x12, kZoom = 0x14, kThrottleUp = 0x18;
-constexpr int kThrottleDown = 0x19, kFire = 0x3d;
+constexpr int kThrottleDown = 0x19, kFire = 0x3e;
 constexpr int kZoomSound = 0x17, kZoomSoundSlot = 23;  // mech +0x614
 constexpr float kThrottleStep = 0.025f;    // 0x3ccccccd, a frame
 constexpr float kThrottleReturn = -0.7f;   // 0x005e25b0, per second

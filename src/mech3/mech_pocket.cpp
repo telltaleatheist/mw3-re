@@ -205,7 +205,7 @@ void PocketControls::keys(float dt) {
     else if (held(9)) tw = -1.0f;
     if (held(4)) p = 1.0f;
     else if (held(5)) p = -1.0f;
-    fire = held(0x3d) ? 1 : 0;  // 0x00467480
+    fire = held(0x3e) ? 1 : 0;  // 0x00467480
     d = clamp_to(d, -1.0f);
     tn = clamp_to(tn, -1.0f);
     jump_in = clamp_to(jump_in, 0.0f);

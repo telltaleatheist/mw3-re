@@ -590,7 +590,7 @@ void pocket_frame(PocketControls& c, float dt) {
   const zgame::Handle mk = pocket_globals().marker;
   if (!c.x184) {
     bool moved = true;
-    const uint32_t trig = g_frame.trigger ? g_frame.trigger() : note("0x0051d300", 0x3d);
+    const uint32_t trig = g_frame.trigger ? g_frame.trigger() : note("0x0051d300", 0x3e);
     if (trig & 4) {
       bool hit = false;
       uint32_t node = 0;
