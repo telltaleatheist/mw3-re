@@ -195,7 +195,7 @@ the 817 in `compiler-flags.json` (`tools/analysis/pmflags.py`).
 
 ## Running the differential tests on PM (step 0, 2026-10-31)
 
-**Tests loading libmw3probe do not test this branch.** `mw3probe` is not built here; they now fail at the import. By-test list: to do, after the rosters.
+**Tests loading libmw3probe do not test this branch.** `mw3probe` is not built here; they now fail at the import. By-test list: `docs/pm-tests.md`.
 
 **The address map** (`tools/analysis/pmaddr.py`, after pmdiff.py; writes
 `analysis-output/pm-diff/addrmap.json`):

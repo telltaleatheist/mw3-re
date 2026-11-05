@@ -1,0 +1,75 @@
+# Tests that load libmw3probe, for `pm` (2026-11-05)
+
+`mw3probe` is not built on `pm`, so none of these test this branch. Each row: what becomes of it. *Fns* is how many mapped
+functions it names, *in PM tests* how many of those a `test_pm_*` also names. That is a count of names, not proof a case is
+covered: "covered" below was judged per test from those names and the test's subject. *Class* is `pm_survey`'s: whether PM
+changed or removed one of its functions.
+
+To move, ranked by how much of the moved roster ids and mech code it proves (1 first). The rest of "to move" is unranked.
+
+| Test | Class | Fns | In PM tests | Becomes | Note |
+|---|---|---:|---:|---|---|
+| `calltrace.py` | - | 0 | 0 | not applicable | a helper: goes with whichever test uses it |
+| `pose_world.py` | - | 7 | 0 | not applicable | a helper for the pose tests: goes with them |
+| `test_action_lists.py` | changed | 42 | 14 | to move |  |
+| `test_actions.py` | gone | 19 | 3 | to move, rank 8 | the falls and getting up |
+| `test_ai_nets.py` | changed | 33 | 0 | to move | with PM AI |
+| `test_ai_paths.py` | gone | 20 | 0 | to move | with PM AI |
+| `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |
+| `test_ai_regions.py` | gone | 19 | 0 | to move | with PM AI |
+| `test_ai_valves.py` | gone | 31 | 6 | to move | with PM AI |
+| `test_bake.py` | changed | 3 | 2 | covered | test_pm_bake |
+| `test_clip2d.py` | gone | 1 | 0 | covered | test_pm_clip2d |
+| `test_clip3d.py` | gone | 0 | 0 | covered | test_pm_clip3d |
+| `test_collide.py` | changed | 24 | 7 | to move, rank 7 | mech collision |
+| `test_controls.py` | changed | 3 | 0 | to move, rank 13 | the controls |
+| `test_d3d_frame.py` | gone | 10 | 1 | covered | test_pm_device (its frame; the tint unchecked) |
+| `test_damage.py` | gone | 50 | 12 | to move, rank 3 | mech_damage and mech_parts Elemental sites, roster 4 and 16 |
+| `test_deaths.py` | gone | 65 | 14 | to move, rank 2 | landing, salvage, kill credit, part destroyed, roster 4 and 16 |
+| `test_di.py` | gone | 20 | 6 | covered | test_pm_di |
+| `test_drawtable.py` | changed | 8 | 4 | covered | test_pm_device, test_pm_walk, test_pm_submit |
+| `test_entity_walk.py` | unchanged | 3 | 0 | to move |  |
+| `test_fogsort.py` | gone | 3 | 1 | covered | test_pm_device (fog) ; the queue in test_pm_walk |
+| `test_gait.py` | changed | 8 | 1 | to move, rank 6 | crouch and the Elemental in 0x41c9f0 |
+| `test_gamez.py` | changed | 9 | 8 | covered | test_pm_gamez |
+| `test_heat.py` | changed | 10 | 6 | to move, rank 10 | heat |
+| `test_interp.py` | gone | 157 | 36 | to move |  |
+| `test_jets.py` | gone | 20 | 6 | to move, rank 1 | jets, landing: three Elemental sites in mech_move |
+| `test_lance_dispatch.py` | gone | 10 | 3 | to move | with PM AI |
+| `test_light_setters.py` | changed | 5 | 5 | covered | test_pm_light_setters |
+| `test_lighting.py` | changed | 18 | 5 | covered | test_pm_lighting |
+| `test_matrix.py` | gone | 37 | 4 | covered | test_pm_modeldraw, test_pm_device |
+| `test_mechanim.py` | changed | 22 | 2 | to move, rank 9 | mech animation |
+| `test_mechlib.py` | changed | 4 | 2 | covered | test_pm_mechlib |
+| `test_modeldraw.py` | gone | 24 | 14 | covered | test_pm_modeldraw |
+| `test_motion.py` | unchanged | 2 | 0 | to move |  |
+| `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
+| `test_objectives.py` | gone | 24 | 8 | to move |  |
+| `test_parts.py` | gone | 75 | 16 | to move, rank 4 | part destroy, the Elemental in mech_parts |
+| `test_player.py` | gone | 17 | 3 | to move, rank 14 | the player controls |
+| `test_pocket.py` | changed | 18 | 3 | to move | with PM AI |
+| `test_pocket_orders.py` | gone | 9 | 1 | to move | with PM AI |
+| `test_power.py` | changed | 8 | 5 | to move, rank 11 | power |
+| `test_puffers.py` | gone | 44 | 12 | covered | test_pm_puffers |
+| `test_scenewalk.py` | changed | 33 | 13 | covered | test_pm_walk (10 of its 33 functions; the rest by test_pm_nodebox and test_pm_world_box) |
+| `test_shade.py` | gone | 23 | 5 | covered | test_pm_lighting, test_pm_modeldraw |
+| `test_shadow_image.py` | changed | 29 | 16 | covered | test_pm_shadows |
+| `test_skis.py` | changed | 18 | 3 | to move, rank 12 | ground following |
+| `test_sound.py` | gone | 47 | 46 | covered | test_pm_sound (imports it for its harness) |
+| `test_sound_extra.py` | gone | 15 | 2 | to move |  |
+| `test_spans.py` | unchanged | 2 | 1 | to move |  |
+| `test_texload.py` | changed | 8 | 3 | covered | test_pm_mission_load, test_pm_gamez |
+| `test_textures.py` | changed | 3 | 0 | to move |  |
+| `test_throttle_keys.py` | unchanged | 1 | 0 | to move, rank 15 | throttle keys |
+| `test_update.py` | gone | 39 | 11 | to move, rank 5 | Mech::Update, whole mech step |
+| `test_weapons_zrd.py` | changed | 29 | 8 | to move |  |
+| `test_weiler.py` | changed | 34 | 2 | to move |  |
+| `test_zclass.py` | changed | 2 | 0 | to move |  |
+| `test_zdec_init.py` | changed | 16 | 9 | to move |  |
+| `test_zgeo_model.py` | changed | 37 | 2 | to move |  |
+| `test_zinput.py` | gone | 53 | 7 | to move |  |
+| `test_zreader.py` | gone | 4 | 4 | covered | test_pm_zreader |
+| `test_zreader_text.py` | gone | 7 | 6 | covered | test_pm_zreader_text (imports its file makers) |
+| `test_ztimer.py` | unchanged | 2 | 0 | to move |  |
+
+39 to move, 21 covered, 2 not applicable.
