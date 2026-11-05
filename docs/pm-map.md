@@ -1374,6 +1374,7 @@ functions PM changed, and PM's new ones.
    FIX (bug) is gone here. **`0x4d5020`, MW3's "is it the Elemental" (0x426080), always answers 0 in PM:** the mech
    lists (0x4732b0, 0x48f970, 0x48f660, the store's 0x49ea10) offer the Elemental, and `0x427360` no longer exempts it from
    validation. The table's checksum at 0x4876f0 is MW3's 0x4854c0 (`protection.md`). The family is not used by the port yet.
+   PM's reader 0x46d690 no longer reads `version`, and `dfn_bushwacker.zrd` ships without it: MW3's check would refuse that mech, so it is gone. **The rest of 0x46d690 is still MW3's in the port, not compared with PM's exe** (the definition reader below).
    Our own command ids are free on PM: 0xa2 and 0xa5 are not in the 110, nothing registers or polls them, their keys are unbound.
    Then the definition reader and its new weapons
    (`XPulseLaser_Large`, `HeavyLaser_Large`, `TBOLT5`), the firepoint

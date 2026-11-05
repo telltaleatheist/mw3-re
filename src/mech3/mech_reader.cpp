@@ -57,10 +57,7 @@ void angle_key(MechDfn& d, zrdr::Node* node, const char* key, int off) {
 bool read_head(MechDfn& d, HeadValues* out) {
   zrdr::Node* tree = d.reader;
   out->tech = mech_tech(d.index);
-  int32_t version = d.get<int32_t>(0xc);
-  const bool has_version = zrdr::get_int(tree, "version", &version);
-  d.put(0xc, version);
-  if (!has_version || version != 2) return false;
+  // Pirate's Moon 0x0046d690 reads no `version` (MW3 needed 2): dfn_bushwacker.zrd ships without one.
   bool chicken = d.raw[0x18] != 0;
   zrdr::get_bool(tree, "chicken", &chicken);
   d.raw[0x18] = chicken;
