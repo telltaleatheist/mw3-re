@@ -635,10 +635,10 @@ CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
     if (Store* salvage = h.mission_salvage()) g->store3c.assign(*salvage);
     else g->store3c.clear();  // [0x00609990] is always set in the exe
     g->slot.copy_from(slot);
-    g->a8 = (m == 1 || (op == 4 && m == 4)) ? 3 : a8;
+    g->a8 = a8;  // Pirate's Moon 1.0 @ 0x004359e0: no resets
     g->c4 = c4;
     g->copy_lancemates(*this);
-    if (save) h.save_world(g->path(), 2);
+    if (save && !campaign_fresh_world(m)) h.save_world(g->path(), 2);
     b0 = 0;
     g->b0 = 1;
     merge_salvage();
@@ -709,7 +709,7 @@ void CampaignGame::copy_lancemates(const CampaignGame& from) {
 // Mech3.exe 1.2 @ 0x00434950
 const char* CampaignGame::path_for(const char* pilot_name) {
   char buf[0x200];
-  std::snprintf(buf, sizeof buf, "pilots//games//%s%02d%02d.mw3", pilot_name, operation(), mission_number());
+  std::snprintf(buf, sizeof buf, "pilots//games//%s%02d.mw3", pilot_name, mission_number());  // PM 0x00435680
   text = buf;
   return text.c_str();
 }
@@ -720,11 +720,11 @@ const char* CampaignGame::path() { return path_for(pilot->name); }
 // Mech3.exe 1.2 @ 0x00435330 (0x00576080: _access)
 bool CampaignGame::readable() { return zutl::exists(path()); }
 
-// Mech3.exe 1.2 @ 0x004352d0: a game read from the pilot's file (not the one
-// the last mission's end made, +0xb0), past Op 1 Mission 1 and not Op 4
-// Mission 4, whose file is there: zSave reads it (kind 2) into the world.
+// Mech3.exe 1.2 @ 0x004352d0, Pirate's Moon 1.0 @ 0x00435d30: a game read from
+// the pilot's file (not the one the last mission's end made, +0xb0), whose
+// file is there: zSave reads it (kind 2) into the world.
 bool CampaignGame::restore() {
-  if (b0 || mission == 1 || (campaign == 4 && mission == 4) || !readable()) return false;
+  if (b0 || !readable()) return false;
   return pilot_hooks().load_world(path(), 2);
 }
 

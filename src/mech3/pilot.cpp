@@ -400,13 +400,11 @@ void delete_other_pilots() {
 
 // Mech3.exe 1.2 @ 0x00478a40 (the debug menu's campaign entries): the
 // "DefaultPlayer" pilot, made and saved when there is none, on that
-// operation (1..4) and mission (1..the operation's count).
+// mission (Pirate's Moon 1.0 @ 0x00479d50: 1..10), its world the "operation".
 Pilot* debug_start_campaign(int32_t campaign, int32_t mission) {
-  if (campaign > 4) campaign = 4;  // 0x00477ac0
-  else if (campaign < 1) campaign = 1;
-  const int32_t last = pilot_hooks().campaign_missions(campaign);  // 0x00477af0
-  if (mission > last) mission = last;
+  if (mission > kCampaignLastMission) mission = kCampaignLastMission;
   else if (mission < 1) mission = 1;
+  campaign = campaign_world(mission) + 1;
   Pilot* p = find_pilot("DefaultPlayer");
   if (!p) {
     p = new Pilot("DefaultPlayer");
@@ -422,12 +420,28 @@ Pilot* debug_start_campaign(int32_t campaign, int32_t mission) {
 }
 
 bool campaign_advance(int32_t& operation, int32_t& mission) {
-  ++mission;
-  if (mission > pilot_hooks().campaign_missions(operation)) {
-    ++operation;
-    mission = 1;
+  ++mission;  // Pirate's Moon 1.0 @ 0x00435dc0
+  operation = campaign_world(mission) + 1;
+  return mission > kCampaignLastMission;
+}
+
+// Pirate's Moon 1.0 @ 0x00435de0
+int32_t campaign_world(int32_t mission) {
+  switch (mission) {
+    case 1: case 2: case 5: return 0;
+    case 3: case 4: case 8: return 1;
+    case 6: case 7: return 2;
+    case 9: case 10: return 3;
+    default: return -1;
   }
-  return operation == 5;
+}
+
+// Pirate's Moon 1.0 @ 0x00435e40
+bool campaign_fresh_world(int32_t mission) {
+  switch (mission) {
+    case 1: case 3: case 5: case 6: case 8: case 9: return true;
+    default: return false;
+  }
 }
 
 }  // namespace mech3

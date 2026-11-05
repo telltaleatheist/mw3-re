@@ -280,7 +280,7 @@ void LobbyScreen::enter() {
         break;
       }
   worlds.clear_items();
-  worlds.add_item(e.message(0xfdf), 0);  // "UNAVAILABLE"
+  // PM 0x0049a9a6: the list starts at the shipped worlds, MW3's "UNAVAILABLE" row (0xfdf) is gone.
   worlds.add_item(e.message(0x320), 0x100);  // the shipped eight: (number << 8) | folder
   static const int32_t kShipped[7][2] = {{0, 2}, {1, 1}, {1, 2}, {2, 1}, {2, 2}, {3, 1}, {3, 2}};
   for (int32_t i = 0; i < 7; ++i) worlds.add_item(e.message(0x321 + i), kShipped[i][1] << 8 | kShipped[i][0]);
@@ -346,8 +346,7 @@ void LobbyScreen::enter() {
   for (int32_t t = 30; t < 0x69; t += 5) weight_list.add_item(zutl::format_message_f(0x2bb, t).c_str(), t);
   weight_list.select_value(0x37);
   if (worlds.select_value(game->world()) == -1) {
-    worlds.select(0);  // both, as the exe: BEACHHEAD in the end
-    worlds.select(1);
+    worlds.select(0);  // the first world (MW3 selected past its "UNAVAILABLE" row)
   }
   kills_list.select_value(game->x70);
   time_list.select_value(static_cast<int32_t>(game->x74));
@@ -589,10 +588,6 @@ void LobbyScreen::host_controls() {
     set_enabled(*c, on ? 1 : 0);
   set_enabled(new_team_btn, on && multiplayer_team_play() ? 1 : 0);
   if (!on) return;
-  if (worlds.item(worlds.index) && worlds.item(worlds.index)->value == 0) {
-    worlds.select(1);
-    g_lobby_dirty = 1;
-  }
   const int32_t w = worlds.item(worlds.index) ? worlds.item(worlds.index)->value : -1;
   if ((w & 0xff) == 4 && (w >> 8) > 2 && mobile_box.checked) {
     mobile_box.set_checked(0);

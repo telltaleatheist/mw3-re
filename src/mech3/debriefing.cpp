@@ -42,12 +42,12 @@ int32_t Engine::campaign_record(int32_t i) {
   return c && i >= 0 && i < 4 ? c->b4[i] : 0;
 }
 bool Engine::mission_ended() { return missions().ended != 0; }
-// Instant Action's +0x44, +0x6c and +0x70 are not mapped on the ported
-// ActionGame yet (campaign.md section 7): mode 0 scores the flat 1000.
+// Instant Action's mode, the wave being fought and the waves won (PM's +0xa0, +0xc8, +0xcc).
 void Engine::action_rounds(int32_t* mode, int32_t* rounds, int32_t* waves) {
-  *mode = 0;
-  *rounds = 0;
-  *waves = 0;
+  ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
+  *mode = g ? g->mode : 0;
+  *rounds = g ? g->x6c : 0;
+  *waves = g ? g->x70 : 0;
 }
 void Engine::win_keep_scores(Handle screen, int32_t n) {
   for (int32_t i = 0; i < n; ++i) {
@@ -122,12 +122,18 @@ bool LanceCard::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
   return r;
 }
 
-// Mech3.exe 1.2 @ 0x0047b2f0: the rank by the score, a step per 100,000
-// (0 to 4): its icon and its name (messages 0x1d8..0x1dc).
-void RankIcon::set_rank(int32_t score) {
-  int32_t r = score / 100000;
-  if (r > 4) r = 4;
-  else if (r < 0) r = 0;
+// Pirate's Moon 1.0 @ 0x0047d5e0 (MW3's 0x0047b2f0 took the score): the rank
+// 0 to 4, its icon and its name (messages 0x1d8..0x1dc); -1 hides it.
+void RankIcon::set_rank(int32_t r) {
+  shown = r;
+  if (r == -1) {
+    hide();
+    r = 0;
+  } else {
+    show_for(-1.0f);
+    if (r > 4) r = 4;
+    else if (r < 0) r = 0;
+  }
   char name[32];
   std::snprintf(name, sizeof name, "icon_rank%d_green", r);
   if (img_normal) ztwod::host().image_release(img_normal);
@@ -321,8 +327,7 @@ ztwod::Text* help(HelpButton& b) { return b.help.empty() ? nullptr : b.help[0]; 
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x0047b430, Pirate's Moon 1.0 @ 0x0047d890: no operation
-// argument, and standalone (type 5) has its own title. The results are still
-// MW3's (results, below).
+// argument, and standalone (type 5) has its own title.
 DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t mission, const uint8_t* w)
     : MenuScreen(e, state),
       continue_btn(e, -1),
@@ -456,7 +461,8 @@ ztwod::Text* DebriefScreen::add_points(int32_t v, int32_t x, int32_t* y, Handle 
   return add_text(m ? m : "", x, y, font, step);
 }
 
-// Mech3.exe 1.2 @ 0x0047baf0..0x0047c84b (inlined in 0x0047b430): the lance
+// Mech3.exe 1.2 @ 0x0047baf0..0x0047c84b, Pirate's Moon 1.0 @ 0x0047dfa0..0x0047ebab
+// (inlined in the constructor): the lance
 // on the cards, the objectives and bonuses with their points, the score and
 // the rank (campaign.md section 3, The results).
 void DebriefScreen::results(int32_t kind) {
@@ -478,10 +484,10 @@ void DebriefScreen::results(int32_t kind) {
     LanceCard& card = cards[slot];
     card.show_for(-1.0f);
     card.set_vehicle(m.mech);
+    Record& r = recs[slot];
     if (kind == kCampaign) {
       // Which lancemate's record: by the pilot's name (messages 0xe14,
       // 0xe15, 0xe01), the player's own 0.
-      Record& r = recs[slot];
       r.name = m.name;
       r.kills = kills;
       r.slot = -1;
@@ -497,6 +503,10 @@ void DebriefScreen::results(int32_t kind) {
           }
         }
       }
+    } else if (kind == kStandalone || kind == kInstantAction) {  // Pirate's Moon: its place, no campaign behind it
+      r.name = m.name;
+      r.kills = kills;
+      r.slot = slot;
     }
     ztwod::Text* l5 = label(card, 5);
     if (ztwod::Text* l = label(card, 0)) l->set_text_plain(m.name);
@@ -527,91 +537,103 @@ void DebriefScreen::results(int32_t kind) {
   const Handle green = h.font_find("lab_small_green"), red_r = h.font_find("lab_small_redR");
   const Handle white_r = h.font_find("lab_small_whiteR"), green_r = h.font_find("lab_small_greenR");
   int32_t y = kTop + kRow + kHeader;
-  int32_t points = 0, primary = 0, secondary = 0;
+  int32_t waves_points = 0, primary = 0, secondary = 0, shown_rank = -1;
+  // Pirate's Moon 1.0 @ 0x0047d730: a list's heading when it has any, then
+  // what is shown, each 2500 done (green) or 0, "Failed" (red), also when done
+  // by failing; a long line moves the next down by its extra height.
+  auto list = [&](int32_t which, int32_t heading, int32_t* sum) {
+    const std::vector<Engine::Objective> items = e.debrief_objectives(which);
+    if (items.empty()) return;
+    add_text(e.message(heading), kX, &y, white, kHeader);
+    for (const Engine::Objective& o : items) {
+      const char* text = o.shown ? e.objective_text(o.obj) : nullptr;
+      if (!text) continue;
+      const bool good = o.done && !o.failed;
+      ztwod::Text* t = add_text(text, kX + kIndent, &y, good ? green : red, 0);
+      const int32_t v = good ? 2500 : 0;
+      *sum += v;
+      add_points(v, kX + kRight, &y, good ? green_r : red_r, kRow);
+      const int32_t th = t->text_height();
+      if (th > kRow) y += th - kRow;
+    }
+  };
   if (kind == kInstantAction) {
-    // A thousand a wave, and a hundred for each round left at each wave.
+    // A thousand a wave, and a hundred for each round left at each wave; the
+    // wave modes' rank a fifth of the waves. Other modes neither (0x0047e5a4).
     int32_t mode = 0, rounds = 0, waves = 0;
     e.action_rounds(&mode, &rounds, &waves);
-    if (mode != 1 && mode != 2) {
-      points = 1000;
-    } else {
+    if (mode == 1 || mode == 2) {
       if (!e.mission_ended() || e.mission_failed()) --rounds;
-      points = waves * 1000;
-      for (int32_t i = 0, step = rounds * 100; i < waves; ++i, step -= 100) points += step;
+      waves_points = waves * 1000;
+      shown_rank = static_cast<int32_t>(std::floor(static_cast<float>(waves) * 0.2f));
+      for (int32_t i = 0, step = rounds * 100; i < waves; ++i, step -= 100) waves_points += step;
     }
     add_text(e.message(0x16d), kX, &y, white, kHeader);
-  } else if (kind == kCampaign) {
-    // The objectives shown, each 2500 when done (green) or 0 (red); a long
-    // line moves the next down by its extra height.
-    auto list = [&](int32_t which, int32_t* sum) {
-      for (const Engine::Objective& o : e.debrief_objectives(which)) {
-        if (!o.shown || !e.objective_text(o.obj)) continue;
-        ztwod::Text* t = add_text(e.objective_text(o.obj), kX + kIndent, &y, o.done ? green : red, 0);
-        const int32_t v = static_cast<int32_t>(o.done ? 2500.0f : 0.0f);
-        *sum += v;
-        add_points(v, kX + kRight, &y, o.done ? green_r : red_r, kRow);
-        const int32_t th = t->text_height();
-        if (th > kRow) y += th - kRow;
-      }
-    };
-    if (!e.debrief_objectives(0).empty()) {
-      add_text(e.message(0x16d), kX, &y, white, kHeader);
-      list(0, &primary);
-    }
+  } else if (kind == kCampaign || kind == kStandalone) {
+    list(0, 0x16d, &primary);
     y += kHeader - kRow;
-    add_text(e.message(0x16e), kX, &y, white, kHeader);
-    list(1, &secondary);
+    list(1, 0x16e, &secondary);
   }
   secondary += bonus[0];
   if (bonus[0]) {
     add_text(e.message(0xfab), kX + kIndent, &y, green, 0);
     add_number(bonus[0], kX + kRight, &y, green_r, kRow);
   }
-  int32_t top = 0;
-  if (kind == kCampaign) {
+  int32_t points = 0;
+  if (kind == kCampaign || kind == kStandalone || kind == kInstantAction) {
     for (int i = 1; i < 3; ++i) {
       if (!bonus[i]) continue;
       add_text(e.message(i == 1 ? 0xfac : 0xfad), kX + kIndent, &y, green, 0);
       add_number(bonus[i], kX + kRight, &y, green_r, kRow);
     }
-    // The mission's total; the score is the campaign's, with the total
-    // added when the mission counts.
-    points += primary + secondary + bonus[1] + bonus[2];
-    score = e.campaign_score();
-    if (!e.mission_failed() && clean) score += points;
+    secondary += bonus[1] + bonus[2];
+    points = secondary + waves_points + primary;
     y = kTotals;
-    add_text(e.message(0x171), kX, &y, large, 0);
-    add_number(score, kX + kRight, &y, large_r, kHeader);
-    lines[1].set(kX, y, kX + kRight, y);
-    lines[1].color = zvid::pack_bytes(0xdc, 0xdc, 0xdc);
-    add(&lines[1]);
-    y += 5;
+    if (kind == kCampaign) {  // 0x0047b6c0: only a campaign has a total
+      score = e.campaign_score();
+      if (!e.mission_failed() && clean) score += points;
+      add_text(e.message(0x171), kX, &y, large, 0);
+      add_number(score, kX + kRight, &y, large_r, kHeader);
+      lines[1].set(kX, y, kX + kRight, y);
+      lines[1].color = zvid::pack_bytes(0xdc, 0xdc, 0xdc);
+      add(&lines[1]);
+      y += 5;
+    }
     add_text(e.message(0x170), kX, &y, white, 0);
     add_number(points, kX + kRight, &y, white_r, kHeader);
     y += 10;
-    add_text(e.message(0x169), kX + kIndent, &y, white, kRow);
+    add_text(e.message(0xfab), kX + kIndent, &y, white, kRow);  // MW3's 0x169 is gone
     // Each lancemate's record: its campaign total and this mission's kills.
     for (int32_t i = 0; i < g_lance_count; ++i) {
       const Record& r = recs[i];
       if (!r.name || r.slot == -1) continue;
-      lance_scores[i] = e.campaign_record(r.slot) + r.kills;
+      lance_scores[i] = (kind == kCampaign ? e.campaign_record(r.slot) : 0) + r.kills;
       lance_scored[i] = true;
       add_text(r.name, kX + kIndent + 10, &y, white, 0);
       add_number(lance_scores[i], kX + kRight, &y, white_r, kRow);
     }
-    top = score;
   } else {
-    points += primary + secondary;
-    top = points;
+    points = secondary + waves_points + primary;
   }
-  y = kTop;
-  add_text(e.message(0x170), kX, &y, large, 0);
-  add_number(points, kX + kRight, &y, large_r, kHeader);
-  lines[0].set(kX, y, kX + kRight, y);
-  lines[0].color = zvid::pack_bytes(0xdc, 0xdc, 0xdc);
-  add(&lines[0]);
+  if (points > 0) {  // no heading on nothing: MW3 always had it
+    y = kTop;
+    add_text(e.message(0x170), kX, &y, large, 0);
+    add_number(points, kX + kRight, &y, large_r, kHeader);
+    lines[0].set(kX, y, kX + kRight, y);
+    lines[0].color = zvid::pack_bytes(0xdc, 0xdc, 0xdc);
+    add(&lines[0]);
+  }
+  // Pirate's Moon 1.0 @ 0x0047eb44: the rank by the score, not a hundred
+  // thousand a step; a standalone's by the game object's progress (+0x38:
+  // the front end's, 0 until it lands). Others as set above, -1 hidden.
+  if (kind == kCampaign) {
+    shown_rank = score >= 1000000 ? 4 : score >= 47000 ? 3 : 2;
+  } else if (kind == kStandalone) {
+    const int32_t v = e.standalone_progress() - (e.mission_failed() ? 1 : 0);
+    shown_rank = v >= 2 && v <= 4 ? 1 : v >= 5 && v <= 10 ? 4 : 0;
+  }
   for (ztwod::Text* t : texts) add(t);
-  rank.set_rank(top);
+  rank.set_rank(shown_rank);
 }
 
 // Mech3.exe 1.2 @ 0x0047c920
@@ -627,7 +649,7 @@ DebriefScreen::~DebriefScreen() {
 // Mech3.exe 1.2 @ 0x0042efe0
 void DebriefScreen::update(float dt) { Window::update(dt); }
 
-// Mech3.exe 1.2 @ 0x0047d030. CONTINUE: a campaign won goes to its movie;
+// Mech3.exe 1.2 @ 0x0047d030, Pirate's Moon 1.0 @ 0x0047f420. CONTINUE: a campaign won goes to its movie;
 // a mission passed (and clean) to the next briefing; failed or cheated, the
 // lancemates go back and the same mission is briefed again. ABORT: to the
 // main menu, the pilot saved (Instant Action: a fade to the IA Dummy
@@ -643,14 +665,17 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
   }
   if (id == kAbort) {
     if (kind == kInstantAction) {
-      e.fade_to_state(kIaDummyState, 0, 1, 2, 2.0f, 0, 0, 0);  // [0x005e7274]: 2 s
+      e.fade_to_state(kIaDummyState, 0, 1, 2, 2.0f, 0, 0, 0);  // [0x00609698]: 2 s
       return;
     }
-    if (kind != kCampaign) return;
-    if (e.mission_failed() || !no_cheat) e.campaign_reset_lancemates();
-    e.pilot_save_now();
+    if (kind == kCampaign) {
+      if (e.mission_failed() || !no_cheat) e.campaign_reset_lancemates();
+      e.pilot_save_now();
+    } else if (kind != kStandalone) {
+      return;
+    }
     e.mission_cleanup(1);
-    e.replace_state(2);
+    e.fade_to_state_n(2);  // 0x0048d2c0, 2 s; MW3 replaced the state at once
     return;
   }
   if (id != kContinue) return;
@@ -658,16 +683,17 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
     e.mission_cleanup(0);
   } else if (kind == kCampaign) {
     if (*won) {
+      e.mission_cleanup(1);
       e.replace_state_at(kWinMovieState);
       return;
     }
+    int32_t op = 0, mission = 0;
+    e.game_campaign(&op, &mission);
     if (!e.mission_failed() && no_cheat) {
-      e.mission_cleanup(0);
+      e.mission_cleanup(campaign_fresh_world(mission) ? 1 : 0);
     } else {
       e.campaign_reset_lancemates();
-      int32_t op = 0, mission = 0;
-      e.game_campaign(&op, &mission);
-      e.mission_cleanup(mission == 1 || (op == 4 && mission == 4) ? 1 : 0);
+      e.mission_cleanup(campaign_fresh_world(mission) ? 1 : 0);
       e.anim_reset();
       e.campaign_set_b0(0);
     }
@@ -675,6 +701,14 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
     e.action_next_round();
     e.mission_cleanup(0);
     e.anim_reset();
+  } else if (kind == kStandalone) {  // Pirate's Moon 1.0 @ 0x0047f5c8; its game's 0x0040e6b0 is the front end's
+    const bool good = !e.mission_failed() && no_cheat;
+    e.mission_cleanup(good || *won ? 1 : 0);
+    e.anim_reset();
+    if (*won) {
+      e.replace_state(2);
+      return;
+    }
   } else {
     return;
   }

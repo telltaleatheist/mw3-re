@@ -468,6 +468,10 @@ void delete_other_pilots();          // 0x004785f0: all but the current one
 Pilot* debug_start_campaign(int32_t campaign, int32_t mission);  // 0x00478a40, "DefaultPlayer"
 // Mech3.exe 1.2 @ 0x00484870: the next mission, past the operation's last
 // the next operation's first; true when the operation reaches 5 (the end).
+// Pirate's Moon has no operations: the "operation" here is the mission's world + 1 (c1..c4).
 bool campaign_advance(int32_t& operation, int32_t& mission);
+constexpr int32_t kCampaignLastMission = 10;  // 0x00435db0
+int32_t campaign_world(int32_t mission);      // 0x00435de0: 0..3, -1 out of range
+bool campaign_fresh_world(int32_t mission);   // 0x00435e40: entered fresh, not carried on from the one before
 
 }  // namespace mech3

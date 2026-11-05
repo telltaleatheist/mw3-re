@@ -21,6 +21,7 @@
 #include "mech3/app_engine.h"
 #include "mech3/mission_map.h"
 #include "mech3/app_mech.h"
+#include "mech3/mech_objective.h"
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
 #include "mech3/debriefing.h"
@@ -726,16 +727,8 @@ bool launch_player();  // 0x00491150 (mech3/mission_launch.h, whose mech headers
 namespace {
 BriefingScreen* briefing_of(const GameEngine& e, Handle s) { return dynamic_cast<BriefingScreen*>(e.screen_of(s)); }
 
-// 0x00435350 (a campaign's vt+0x54): the mission directory, c4b past Op 4 Mission 3.
-int32_t campaign_dir(const CampaignGame& c) {
-  switch (c.operation()) {
-    case 1: return 0;
-    case 2: return 1;
-    case 3: return 2;
-    case 4: return (3 < c.mission_number()) + 3;
-    default: return -1;
-  }
-}
+// Pirate's Moon 1.0 @ 0x00435de0 (a campaign's vt+0x54): the mission directory.
+int32_t campaign_dir(const CampaignGame& c) { return campaign_world(c.mission_number()); }
 }  // namespace
 
 // The Load state from the menus: its game is the chosen pilot's (the
@@ -1251,6 +1244,26 @@ std::string GameEngine::message_format_isi(int32_t id, int32_t a, const char* s,
 }
 void GameEngine::mission_cleanup(int32_t unload) { missions().cleanup(unload != 0); }
 void GameEngine::replace_state(int32_t n) { app().replace(app().state(n), 0); }
+void GameEngine::fade_to_state_n(int32_t n) { fade_replace(app().state(n), 0, 1, 2, 2.0f, 0, 0, 0); }
+std::vector<Engine::Objective> GameEngine::debrief_objectives(int32_t which) {
+  std::vector<Objective> r;
+  Objectives& all = mission_objectives();
+  const ObjectiveGroup* g = (which == 0 ? all.primary : all.secondary).get();
+  if (!g) return r;
+  for (const std::unique_ptr<mech3::Objective>& o : g->items) {
+    Objective d;
+    d.obj = handle_of(o.get());
+    d.done = o->done != 0;
+    d.failed = o->failed != 0;
+    d.shown = o->visible != 0;
+    r.push_back(d);
+  }
+  return r;
+}
+const char* GameEngine::objective_text(Handle obj) {
+  const auto* o = static_cast<const mech3::Objective*>(object_of(obj));
+  return o && o->desc ? o->desc->c_str() : nullptr;
+}
 
 Handle GameEngine::voice_play(Handle s, float v) {
   auto* o = static_cast<zsnd::Object*>(object_of(s));

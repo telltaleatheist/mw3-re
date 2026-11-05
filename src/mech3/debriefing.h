@@ -58,7 +58,8 @@ class RankIcon : public HelpButton {
   explicit RankIcon(Engine& e) : HelpButton(e, -1) {}
   void on_enter() override {}
   void on_leave() override {}
-  void set_rank(int32_t score);      // 0x0047b2f0
+  int32_t shown = -1;                // ours: what set_rank last had, for the chains
+  void set_rank(int32_t rank);       // Pirate's Moon 1.0 @ 0x0047d5e0; -1 hides it
 };
 class WinTitle : public ztwod::Control {
  public:

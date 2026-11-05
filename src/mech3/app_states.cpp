@@ -1165,13 +1165,13 @@ void LoadState::resume(uint32_t arg) {
 // ---------------------------------------------------------------------------
 // Win (the debriefing)
 
-// Mech3.exe 1.2 @ 0x0047ac20. A campaign mission counts only when nothing marked
-// it failed ([0x00609926]) and no cheat was used (protection.md): then the
-// results are kept and the pilot's campaign record is updated; operation 4
-// mission 6 won ends the campaign. Otherwise 0x0047ae10(1, 1) drops them.
+// Mech3.exe 1.2 @ 0x0047ac20, Pirate's Moon 1.0 @ 0x0047cf20. A campaign mission
+// counts only when nothing marked it cheated and it was not lost: then its
+// results are kept and the pilot's campaign record is updated; mission 10 won
+// ends the campaign. Otherwise 0x0047d110(1, 1) drops them. A standalone's win
+// (0x0040e510, 0x0047ee40) is its game object's, the front end's, not ported.
 bool WinState::enter() {
   Engine& en = e();
-  const int32_t campaign = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x48, {}));
   const int32_t mission = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x4c, {}));
   // [0x00609994] and [0x00609926] are the missions' +0xc4 (cheats) and +0x56
   // (aborting), read from the ported Missions (peek8 is not them).
@@ -1182,17 +1182,17 @@ bool WinState::enter() {
   en.twod_set_cursor(0);
   const int32_t type = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x2c, {}));
   if (type == 1) {
-    if (!lost && clean) campaign_won_ = (campaign == 4 && mission == 6) ? 1 : 0;
+    if (!lost && clean) campaign_won_ = mission == kCampaignLastMission ? 1 : 0;
     else en.mission_results(1, 1);
   }
   screen_ = en.construct(0x47b430, {addr(), mission, addr() + 0x10});  // new(0x13dbc)
   if (!lost && clean && type == 1) {
-    en.mission_results(0, (campaign == 4 && mission == 4) ? 0 : 1);
+    en.mission_results(0, 1);
     const int32_t n = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x38, {}));
     en.pilot_record_mission(en.pilot(), 1);
     en.win_keep_scores(screen_, n);
     if (a().no_voices() == 0) {
-      en.format("c%dm%dwin", {campaign, mission}, voice_, sizeof voice_);
+      en.format("m%dwin", {mission}, voice_, sizeof voice_);  // the game's key (vt+0x58) and "win"
       en.voice_start(voice_);
       en.debrief_voice_play(addr());
     }

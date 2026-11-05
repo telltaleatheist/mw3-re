@@ -313,13 +313,23 @@ movie. The mission stays loaded through it (CONTINUE does no cleanup
 there). zFMV is not ported, so no movie plays: the Win Movie State gives
 Main at its first update.
 
-### Pirate's Moon's debriefing (0x47d890, new(0x13dbc); first pass, 2026-11-05)
+### Pirate's Moon's debriefing and campaign (2026-11-05)
 
-Ported so far: the constructor's arguments and titles. Its caller 0x47cf20 passes the Win State, the mission (game vt+0x48) and the Win State's +0x10; there is no operation. The messages moved: Instant Action's title 0xdc0 is `Instant Action %1`, the name only (MW3's `Instant Action Campaign %1!d!, %2`); the campaign's 0x21d is `Mission %1!d!`, MW3's 0x177 being gone; so the game's name (0x435640) takes the mission alone. Type 5, standalone, has a third branch at 0x47dc3b: the game's name, the time, 0x180/0x181, CONTINUE's help as a campaign's, the salvage and REPLAY hidden, 0xfb8 when won.
+**The campaign has no operations.** Ten missions (0x435db0), advanced by 0x435dc0, each in a world by 0x435de0: 1, 2, 5 c1; 3, 4, 8 c2; 6, 7 c3; 9, 10 c4. 0x435e40 says which enter a fresh world (1, 3, 5, 6, 8, 9); the others carry on from a saved one (0x4359e0 saves it, 0x435d30 restores it when the file is there), and the debriefing's CONTINUE unloads the world only for a fresh one. The saved world is `<pilot>%02d.mw3` by the mission alone. In the port `CampaignGame::operation()` holds the world + 1, so what names a directory stays as it was. The pilot file's own PM format, a new campaign's starting store (0x4351b0) and the briefing's lance rule (`lance_keeps`, MW3's operation 4 mission 6, never true now) are not ported.
 
-Still MW3's in the port: `results`. PM's 0x47dfa0 on differs: the objectives' lists moved to 0x47d730, the lancemates' records also in types 2 and 5, the campaign's total read through 0x47b6c0, the rank at 0x47eb74 from the score (type 1) or the standalone game's +0x38 (type 5), 0x47d500 and 0x47d5e0 around it, and message 0x169 is gone (the port's `add_text` is handed null there). `WinState::enter` too: PM's last mission is the game's count (0x435db0), not operation 4 mission 6. `test_debriefing` waits for that port, and needs the twod bench on PM's exe.
+**The Win State 0x47cf20:** mission 10 won ends the campaign; the results are kept with no special mission; the voice is the game's key and `win`, `m3win`. A standalone's win (0x40e510, 0x47ee40) needs its game object: not ported.
 
-Test: `test_pm_debrief_chain.py`, `mw3pm` itself through both chains; it does not reach type 5, the standalone game object being the front end's.
+**The screen 0x47d890, new(0x13dbc).** Its caller passes the Win State, the mission and the Win State's +0x10. Titles: `Instant Action %1` (0xdc0, the name only), `Mission %1!d!` (0x21d, MW3's 0x177 gone), and type 5's own branch at 0x47dc3b.
+
+**The results 0x47dfa0..0x47ebab**, against MW3's:
+- The lists are 0x47d730: a heading only when the list has items, an objective counting when done and not done by failing (PM's +0x09), else 0, shown as `Failed`.
+- Types 1, 2 and 5 all get the second block: the bonuses, `Mission Total` and the lancemates under `'Mechs Defeated` (0xfab, MW3's 0x169 gone). Only a campaign has `Campaign Total` (0x47b6c0 answers null otherwise), and a lancemate's campaign number.
+- Instant Action's wave points only in the wave modes, 0 otherwise (MW3's other modes score a flat 1000, 0x47b430).
+- The heading at the top of the list only when the mission's total is above 0.
+- The rank, 0x47eb44 into 0x47d5e0: a campaign by the score (2, 3 from 47,000, 4 from 1,000,000, never 0 or 1); Instant Action's wave modes a fifth of the waves, its other modes hidden; a standalone by its game's +0x38 less a failure (2..4 gives 1, 5..10 gives 4, else 0). Other types hidden.
+- The press 0x47f420: ABORT fades to the main menu over 2 s (MW3 replaced the state at once), a campaign's final CONTINUE unloads first, and Instant Action's wave mode keeps its wave on the next round.
+
+Tests: `test_pm_debrief_chain.py` runs `mw3pm` through the first world's Instant Action, all ten missions and one mission won by kills, and reads every title, rank and line back. It does not read positions and is not the exe side by side: `test_debriefing` waits for the twod bench on PM's exe. **Unrun:** type 5's title, press and rank; no chain reaches a standalone mission's Win State, because its game object is the front end's (`standalone_progress` answers 0 until then).
 
 ## 4. The campaign's progress
 

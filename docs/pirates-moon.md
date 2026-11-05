@@ -297,4 +297,27 @@ load every frame (ours, the debug start), so it never quits.
 
 ## The message table against the port (2026-11-05)
 
-`Mech3Msg.dll`: 35 of MW3's ids are gone, 128 new. Arguments changed on 6: 5 and 6 (now the game's titles), 0x21d, 0x236, 0xdc0, 0xfe0. Handled: 0x21d, 0xdc0 (debriefing, `campaign.md`), 0x236 (the HUD's already). Not yet, each with its screen: 0x169 and 0x177's neighbours in the debriefing's results; 0xfc2 in `mech_salvage`'s text; 0xfdd, 0xfde, 0xfdf and 0xfe0 in multiplayer (`mp_connect`, `mp_lobby`), where PM's 0xfe0 is `Lt Gauss Rifle`, so a port still showing MW3's message there says the wrong thing. `patch12_text`'s table does not touch PM's: `patch12::messages` applies only to 1.0's `Mech3Msg.dll`.
+`Mech3Msg.dll`: 35 of MW3's ids are gone, 128 are new, 49 have other text. `test_pm_messages.py` checks every call formatting a message by a literal id against PM's table, and every use of a gone id. Calls that pick the id at run time are not seen by it. `patch12_text`'s table does not touch PM's: `patch12::messages` applies only to 1.0's DLL.
+
+Arguments changed on 6:
+
+| id | PM | where in the port | state |
+|---|---|---|---|
+| 0xdc0 | `Instant Action %1` | debriefing | fixed: it crashed |
+| 0x21d | `Mission %1!d!` | the campaign's name, a debug start's | fixed: showed the operation |
+| 0x236 | `Mission %2!d! P R I M A R Y...` | HUD | right already |
+| 0xfe0 | `Lt Gauss Rifle` | `mech_names` right; `mp_lobby.cpp`'s missing-world box wrong | waits: needs an add-on world (`readermp3` on), none shipped; PM's lobby has no such box (0x49e4e2) |
+| 5, 6 | the game's titles | not used as MW3's `Device`, `Driver` | nothing to do |
+
+Gone and used:
+
+| id | MW3 | where | reachable | state |
+|---|---|---|---|---|
+| 0x169 | `'Mechs Defeated` | debriefing | yes | fixed: 0xfab |
+| 0x177 | `Operation %1!d!, Mission %2!d!` | debriefing | yes | fixed: 0x21d |
+| 0xfc2 | `rounds` | `mech_salvage`, ammo rows | yes | fixed: 0xff7 (0x475715) |
+| 0xfdd, 0xfde | old version, new version | `mp_connect` | joining a game of another version | fixed: 0xff3, 0xff4 (0x49828a) |
+| 0xfdf | `UNAVAILABLE` | `mp_lobby`'s first world | yes, a blank row | fixed: PM has no such row (0x49a9a6) |
+
+The other gone ids are only in `patch12_text`'s 1.0 table. Text that changed with the same arguments follows by itself, but PM's lobby is still MW3's otherwise (its world list, limits and scoreboard, map item 8).
+

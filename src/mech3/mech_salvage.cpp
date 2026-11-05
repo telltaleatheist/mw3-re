@@ -146,7 +146,7 @@ std::string item_label(const ConfigItem& it, const MessageText& msg) {
     }
     case 2: {
       if (it.b10) return item_name(it, msg);
-      const std::string rounds = text_of(msg, 0xfc2, "");  // asked before the name
+      const std::string rounds = text_of(msg, 0xff7, "");  // PM 0x00475715 (MW3 0xfc2); asked before the name
       char b[512];
       std::snprintf(b, sizeof b, "%s (%d %s)", item_name(it, msg).c_str(), it.count, rounds.c_str());
       return b;

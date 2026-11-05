@@ -312,7 +312,7 @@ void ConnectScreen::join() {
     return;
   }
   if (g.user[1] != kGameVersion) {
-    e.message_box(0x30, 0x2a8, g.user[1] < kGameVersion ? 0xfdd : 0xfde);
+    e.message_box(0x30, 0x2a8, g.user[1] < kGameVersion ? 0xff3 : 0xff4);  // PM 0x0049828a
     e.pop_state(1);
     e.network_set(0);
     return;

@@ -436,7 +436,7 @@ void Engine::action_next_round() {
   Pilot* p = current_pilot();
   ActionGame* g = p ? p->action() : nullptr;
   if (!g) return;  // (the exe reads it unchecked)
-  g->x6c = g->mode == 2 ? action_setup().g87c + 1 : 1;
+  if (g->mode != 2) g->x6c = 1;  // Pirate's Moon 1.0 @ 0x0047f5a5: the wave mode keeps its wave
   g->x70 = 0;
 }
 

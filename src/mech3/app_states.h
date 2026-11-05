@@ -231,7 +231,7 @@ class WinState : public ShellState {
   void escape() override {}           // 0x0049bfd0
   uint8_t campaign_won_ = 0;          // +0x10
   Handle movie_ = 0;                  // +0x14
-  char voice_[32] = {};               // +0x18  CString "c%dm%dwin"; +0x1c its sound
+  char voice_[32] = {};               // +0x18  CString "m%dwin"; +0x1c its sound
                                       // (set by 0x0047abe0, so kept in the original's memory)
 };
 
