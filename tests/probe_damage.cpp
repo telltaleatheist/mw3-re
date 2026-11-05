@@ -13,6 +13,8 @@
 #include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_lod.h"
+#include "mech3/zai_target.h"
 
 using namespace mech3;
 
@@ -265,6 +267,15 @@ void install_hooks() {
 }
 
 }  // namespace
+
+extern "C" void probe_damage_lod(int low, int contact, int faces) {
+  static ai::Contact c;
+  static int s_faces;
+  s_faces = faces;
+  lod_table().low = low != 0;
+  g->mech.player_contact = contact ? &c : nullptr;
+  damage_calls().faces_camera = [](Mech&) { return s_faces != 0; };
+}
 
 extern "C" void probe_damage_bins(const int32_t* v) {
   for (int k = 0; k < 3; ++k) {

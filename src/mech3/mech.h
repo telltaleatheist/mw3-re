@@ -449,7 +449,7 @@ struct DamageCalls {
   // Pirate's Moon's ammo lost with a part (0x00462ba0): a weapon's bin and its rating (+0x18; 0x004b4270, null with
   // no such weapon); the bin's add (test hook; unset: AmmoBin::add); the HUD's recount (0x00447da0).
   AmmoBin* (*weapon_bin)(Mech&, int32_t weapon, float* weight) = nullptr;
-  bool (*death_culled)(Mech&) = nullptr;   // 0x0041f460 under [0x006293a8]: out of the camera's view; unset: never
+  bool (*faces_camera)(Mech&) = nullptr;   // test hook; unset: lod_faces_camera (0x0041f460)
   void (*bin_add)(AmmoBin*, int32_t n) = nullptr;
   void (*hud_ammo)(void* screen) = nullptr;
   void (*weapons_lost)(Mech&, int part) = nullptr;   // 0x004b1040 on +0xd4: the part's weapons are destroyed

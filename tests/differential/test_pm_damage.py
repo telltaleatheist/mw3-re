@@ -258,6 +258,7 @@ class Emulated:
         self.bench.native_stub(0x4b4270, lambda c: self.wfake[c.arg(0) % 3] if c.arg(0) < 40 else 0, 8)
         self.bench.native_stub(0x4b8df0, lambda c: self.log(41, self.bins.index(c.ecx), c.arg(0)), 4)
         self.bench.native_stub(0x447da0, lambda c: self.log(42), 0)
+        self.bench.native_stub(0x41f460, lambda c: self.sc['faces'], 0)
         cpu.stub_import(IAT_RAND, lambda c: self.rand())
         self.sc = {}
         self.events = []
@@ -559,7 +560,8 @@ class Run:
         self.world = {'player': rng.random() < 0.7, 'mission': rng.random() < 0.7, 'stats': rng.random() < 0.5,
                       'difficulty': rng.choice([0.7, 1.0, 1.3]), 'toggle': rng.random() < 0.5,
                       'time': f32(rng.uniform(0, 500)), 'dt': rng.choice([1 / 30, 1 / 60, 0.1]),
-                      'allies': rng.choice([0, 1, 2, 7]), 'shot': [0.0] * 6}
+                      'allies': rng.choice([0, 1, 2, 7]), 'shot': [0.0] * 6, 'low': int(rng.random() < 0.15),
+                      'contact': int(rng.random() < 0.7)}
         self.matrix = self.make_matrix(rng)
         cpu.write(emu.data[TORSO] + 0x60, struct.pack('<12f', *self.matrix))
 
@@ -580,10 +582,13 @@ class Run:
         cpu.write(0x62cc68, struct.pack('<f', w['difficulty']))
         cpu.write(0xb0dac4, struct.pack('<6f', *w['shot']))
         cpu.write(0x629994, bytes([w['toggle']]))
+        cpu.write(0x6293a8, bytes([w['low']]))
+        cpu.u32(emu.mech + 0x98, 0x6f00 if w['contact'] else 0)
         cpu.write(0x62da90, struct.pack('<f', w['time']))
         cpu.write(0x8c1b4c, struct.pack('<f', w['dt']))
         v = [int(w['player']), int(w['mission']), int(w['stats']), f2i(w['difficulty'])] + \
             [f2i(x) for x in w['shot']] + [int(w['toggle']), f2i(w['time']), f2i(w['dt']), w['allies']]
+        probe.probe_damage_lod(w['low'], w['contact'], self.sc['faces'])
         probe.probe_damage_world((ctypes.c_int32 * 14)(*v))
 
     def script(self, rng):
@@ -593,7 +598,7 @@ class Run:
               'view': rng.choice([-1, 0, 1, 1]), 'owner': 0, 'fly_node': rng.choice([0, 0x6c00, 0x6c00]),
               'blend': 0x6d00 + rng.randrange(16), 'game_type': rng.choice([0, 0, 1, 3]),
               'force0': int(rng.random() < 0.15), 'networked': int(rng.random() < 0.5),
-              'anim_ok': int(rng.random() < 0.7), 'hud167c': int(rng.random() < 0.5),
+              'anim_ok': int(rng.random() < 0.7), 'faces': int(rng.random() < 0.5), 'hud167c': int(rng.random() < 0.5),
               'hud1514': rng.choice([0, 0x10, 0x30]), 'wcrit': int(rng.random() < 0.6),
               'next_effect': 0x7000 + rng.randrange(0x100) * 0x10,
               'throttle': f32(rng.choice([-1.0, -0.2, 0.0, 0.5, 1.0])),

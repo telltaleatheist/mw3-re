@@ -53,6 +53,14 @@ void lod_setup(int32_t object_lod, float far_clip) {
 // budget is spent only while the player stands still (docs/discoveries.md). The low table also drops the finer
 // bits of a mech the camera is not facing, and the gait of one powered down, and never swaps a model.
 // Not ported: the never-set [0x006293a9]; vt+0x64, nonzero only on the network mech 0x005e59a8, which skips the turn.
+// Pirate's Moon 1.0 @ 0x0041f460, on the player's contact with this mech.
+bool lod_faces_camera(Mech& m) {
+  m.player_contact->distance();
+  const float* dir = m.player_contact->dir;
+  const float* axis = g_calls.camera_axis ? g_calls.camera_axis() : nullptr;
+  return !axis || !(-(axis[2] * dir[2] + axis[1] * dir[1] + axis[0] * dir[0]) < kFacing);
+}
+
 int lod_update(Mech& m) {
   Mech* player = world().mission_player;
   const LodTable& t = g_table;
@@ -64,12 +72,7 @@ int lod_update(Mech& m) {
   const bool may_light = !(player && (player->team & m.allies)) && m.active && m.anim_state != 10;  // 0x0041ade0
   const float d = m.player_contact ? m.player_contact->dist2 : t.far_sq;
   bool facing = true;
-  if (t.low && d < t.mid_sq) {  // 0x0041f460
-    m.player_contact->distance();
-    const float* dir = m.player_contact->dir;
-    const float* axis = g_calls.camera_axis ? g_calls.camera_axis() : nullptr;
-    if (axis) facing = !(-(axis[2] * dir[2] + axis[1] * dir[1] + axis[0] * dir[0]) < kFacing);
-  }
+  if (t.low && d < t.mid_sq) facing = lod_faces_camera(m);
   uint32_t bits = 0;
   bool light = false;
   if (d < t.near_sq || d < t.mid_sq) {

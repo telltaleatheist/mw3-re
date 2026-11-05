@@ -16,6 +16,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_lod.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/weapon.h"
 
@@ -81,6 +82,11 @@ bool crosses(const Vec3& b, const Vec3& a, const Vec3& p, const Vec3& q) {
   return !(t1 >= 0.0f) || !(t2 >= 0.0f);
 }
 
+
+bool death_culled(Mech& m) {
+  if (!lod_table().low || &m == world().mission_player || !m.player_contact) return false;
+  return !(g_calls.faces_camera ? g_calls.faces_camera(m) : lod_faces_camera(m));
+}
 
 float g_lost_ammo_rating = 0.0f;  // 0x0062998c: the ammo a part took with it, by its weapons' rating
 
@@ -359,9 +365,11 @@ void MechPart::destroy(int variant, int fly) {
   if (destroyed || !mech) return;
   Mech& m = *mech;
   if (g_calls.weapons_lost) g_calls.weapons_lost(m, id);
-  // Pirate's Moon: a dead mech's parts just go; so do a culled mech's (0x006293a8, the far setting, unset here).
+  // Pirate's Moon: a dead mech's parts just go.
   if (m.active && m.anim_state != 10) {
-    const bool culled = g_calls.death_culled && g_calls.death_culled(m);
+    // At the lower ObjectLOD ([0x006293a8]) nothing trails, and what the camera is not facing plays no effects.
+    if (lod_table().low) fly = 0;
+    const bool culled = death_culled(m);
     Vec3 from{}, x{}, vel{};
     Handle at;
     bool trail;
@@ -659,7 +667,7 @@ void Torso::destroy(int explode, int) {
     if (g_calls.death_anim) g_calls.death_anim(m, anim);
   }
   if (g_calls.node_set_name) g_calls.node_set_name(m.node, "deadmech");  // 0x005e503c
-  if (m.x634 == 0 && !(g_calls.death_culled && g_calls.death_culled(m))) {
+  if (m.x634 == 0 && !death_culled(m)) {
     const Handle e = m.pilot->death_effects[effect];
     if (e && g_calls.spawn_effect_at)
       death_effect2 = g_calls.spawn_effect_at(e, m.node, m.velocity.x, m.velocity.y, m.velocity.z);

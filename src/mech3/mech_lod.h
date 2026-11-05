@@ -53,6 +53,7 @@ struct LodTable {
   int32_t sound_limit = 2;          // [0x006040b4]
 };
 LodTable& lod_table();
+bool lod_faces_camera(Mech& m);   // 0x0041f460
 void lod_setup(int32_t object_lod, float far_clip);
 // 0x0041e870 (vt+0xd0, after the sensors' frame): the detail bits by the
 // player contact's squared distance (+0x98 +0x0c) and the model switch;
