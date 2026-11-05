@@ -378,6 +378,14 @@ void probe_damage_load(const uint8_t* mech_img, const uint8_t* part_imgs, const 
   m.actions.assign(actions, actions + nactions);
 }
 
+// test_pm_hit.py: a forced roll and forced values, the same on the exe's side.
+void probe_damage_srand(uint32_t seed) { crt::msvc_srand(seed); }
+void probe_damage_part_armor(int part, float armor) { g->parts[part]->armor = armor; }
+void probe_damage_torso_sides(int torso, float side0, float side1, float centre) {
+  auto* t = static_cast<Torso*>(g->parts[torso].get());
+  t->side_internal[0] = side0, t->side_internal[1] = side1, t->internal = centre;
+}
+
 void probe_damage_world(const int32_t* world_v) {
   Mech& m = g->mech;
   // world: player is this (1) or the other, mission player likewise, stats,
@@ -434,6 +442,18 @@ int probe_damage_op(int op, const int32_t* a, int32_t* result, int32_t* out, int
       float dmg;
       std::memcpy(&dmg, &a[10], 4);
       r = m.take_damage(&g->def, &g->coll, dmg);
+      break;
+    }
+    case 8: {  // the hit path alone, MechPart::take_hit (test_pm_hit.py): a[11] the part, no impulse
+      g->type.~WeaponType();
+      new (&g->type) WeaponType();
+      std::memcpy(&g->type.impact_force, &a[4], 4);
+      g->def = WeaponDef{};
+      g->def.flags = static_cast<uint32_t>(a[0]);
+      g->def.type = &g->type;
+      float dmg;
+      std::memcpy(&dmg, &a[10], 4);
+      r = g->parts[a[11]]->MechPart::take_hit(&g->def, nullptr, dmg, nullptr);
       break;
     }
     case 1: r = g->parts[a[0]]->critical(a[1], a[2]); break;
