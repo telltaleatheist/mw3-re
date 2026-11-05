@@ -16,6 +16,7 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EBP
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_lighting as lit  # noqa: E402
@@ -128,6 +129,7 @@ def main():
                 raise SystemExit(f'bake {d} node {i}: vector {list(stale)}, the exe {left}')
         for fl in (0x200, 0x204, 0x208):
             seen[hex(fl)] = seen.get(hex(fl), 0) + sum(1 for x in blobs if struct.unpack_from('<I', x, 0xe0)[0] & 0x20c == fl)
+    pm_floors.floors(bakes=(bakes, 2000), floats=(stats.floats, 40000))
     print(f'ok: {bakes} bakes, {floats} values; {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {seen}')
 
 

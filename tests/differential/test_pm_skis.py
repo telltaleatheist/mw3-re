@@ -16,6 +16,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
@@ -284,6 +285,7 @@ def main():
             airborne += want_air
             slides += skis_out[5]
             simple += not (detail & 0x10)
+    pm_floors.floors(frames=(total, 4800), airborne=(airborne, 600), slides=(slides, 1800), one_probe=(simple, 80))
     print(f'ok: {total} frames; {airborne} airborne, {slides} slides, {simple} one-probe')
 
 

@@ -22,6 +22,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import pose_world as W  # noqa: E402
 
 
@@ -171,6 +172,7 @@ def main():
         ops.add((op, int(args[0]) if op == 1 else -1))
         if op >= 3:
             poses += 1
+    pm_floors.floors(calls=(trials, 20000), poses=(poses, 3000))
     print(f'ok: {trials} IK solves, set_poses and gait, jump and action poses ({poses}) identical bit for bit; '
           f'{len(ops)} kinds')
 

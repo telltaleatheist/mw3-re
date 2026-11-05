@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
 from original import ROOT, Original  # noqa: E402
 import msgtable  # noqa: E402
@@ -365,6 +366,7 @@ def main():
             print('  panel exe', ep_lines, 'port', pp)
             sys.exit(1)
         lines += len(eb)
+    pm_floors.floors(missions=(runs, 300), lines=(lines, 1500))
     print(f'ok: {runs} made-up missions, {lines} lines: the box, its scores column and the panel identical')
 
 

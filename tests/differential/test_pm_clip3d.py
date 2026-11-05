@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -169,6 +170,7 @@ def main():
         print('with bugs on, 0x54a6f0 near cut does not carry the fog')
         sys.stdout.flush()
         os._exit(1)
+    pm_floors.floors(cases=(cases, 1500), kept=(stats['kept'], 1800), moved=(stats['moved'], 1800), dropped=(stats['dropped'], 700))
     print(f'ok: {cases * 6} polygons identical ({stats})')
     sys.stdout.flush()
     os._exit(0)

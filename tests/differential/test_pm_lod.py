@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 SETUP, SETUP_END, BUDGET, LOD = 0x414430, 0x4147d2, 0x41f3d0, 0x41f4d0
@@ -213,6 +214,7 @@ def main():
         # In the low table's bands only facing away clears the bit, a powered-down mech aside.
         if emu.r32(LOW) & 0xff and not (v[0] or v[9] or v[10]) and v[1] and d < f(emu.r32(TABLE[2])) and not want[0] & 0x10:
             seen['faced_away'] += 1
+    pm_floors.floors(tables=(tables, 24), budgets=(budgets, 32), cases=(cases, 20000))
     print(f'ok: {tables} tables, {budgets} budgets, {cases} cases identical; {seen}')
 
 

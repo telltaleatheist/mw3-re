@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT  # noqa: E402
 from twod_world import IAT  # noqa: E402
@@ -219,6 +220,7 @@ def main():
             files += 1
             if verbose:
                 print(f'{rel} {name}: {len(strings)} keys')
+    pm_floors.floors(archives=(len(archives), 50), files=(files, 1052), keys=(keys, 26000))
     print(f'ok: {len(archives)} archives, {files} files, identical trees; {keys} keys, every getter agrees '
           f'({past} past-the-end reads compared on find only)')
 

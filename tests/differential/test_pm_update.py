@@ -14,6 +14,7 @@ from pathlib import Path
 
 os.environ['MW3_PROBE_LIB'] = 'libpmprobe'  # test_update's own, not built on this branch
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 import test_update as tu  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT  # noqa: E402
@@ -244,6 +245,7 @@ def main():
         while i < len(log):
             seen.add(log[i + 1])
             i += log[i] + 1
+    pm_floors.floors(calls=(trials, 20000), reached=(len(seen), 30))
     print(f'ok: {trials} Mech::Update calls identical; calls reached {sorted(seen)}')
 
 

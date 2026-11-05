@@ -13,6 +13,7 @@ from pathlib import Path
 
 os.environ['MW3_PROBE_LIB'] = 'libpmprobe'  # test_jets' own, not built on this branch
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_jets as tj  # noqa: E402
 import test_pm_zar  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -244,6 +245,7 @@ def main():
         while i < len(log):
             seen.add((op, log[i + 1]))
             i += log[i] + 1
+    pm_floors.floors(calls=(trials, 20000), reached=(len(seen), 17))
     print(f'ok: {trials} jets, landing, AddJumpJet and Move calls identical; {sorted(seen)}')
 
 

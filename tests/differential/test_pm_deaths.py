@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ESP  # noqa: E402
@@ -988,6 +989,7 @@ def main():
     if fails:
         print(f'{fails} of {runs} runs differ')
         sys.stdout.flush(); os._exit(1)
+    pm_floors.floors(runs=(runs, 4900), kinds=(len(kinds), 14))
     print(f'ok: {runs} runs identical ({", ".join(f"{k} {v}" for k, v in sorted(kinds.items()))}); '
           f'{len(emu.ids)} node copies made and freed, {sum(p for _, p in emu.ids.values())} parents taken off')
     sys.stdout.flush(); os._exit(0)

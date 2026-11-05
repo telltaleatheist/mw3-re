@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_config as tc  # noqa: E402
 import test_pm_mechdef as md  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -146,6 +147,7 @@ def main():
                 if ok:
                     struct.pack_into('<i', b, at, rng.randint(-1, 21))
                 check(f'{mech} {k} MW3 numbers', name, bytes(b))
+    pm_floors.floors(loadouts=(saves, 113), loads=(loads, 900), accepted=(accepted, 200), from_mw3=(mw3, 113))
     print(f'ok: {saves} loadouts saved identically; {loads} loads agree ({accepted} accepted), {mw3} from MW3\'s format')
     os.unlink(TMP)
 

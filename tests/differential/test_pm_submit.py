@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float, scenario  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_lighting as lit  # noqa: E402
@@ -333,6 +334,7 @@ def main():
                     if len(a[5]) != len(b[5]):
                         raise SystemExit(f'{what} call {k}: sets {len(b[5])} bytes, the exe {len(a[5])}')
                     compare_floats(a[5], b[5], stats, 'sets', f'{what} call {k} sets')
+    pm_floors.floors(floats=(stats.floats, 580000))
     print(f'ok: {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {dict(sorted(seen.items()))}; edge-on draws allowed: {edge_on}; side cuts allowed: {cuts}, largest {worst:.3f} px; draws of over 48 corners: {large_draws}; under projected lights: {projected_draws}; near cuts with stale fog: {unfogged}; {faces} facing tests bit for bit')
     if len(seen) < 6:
         raise SystemExit('too few kinds of call')

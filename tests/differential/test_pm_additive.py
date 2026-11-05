@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_light_map as lm  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -65,6 +66,7 @@ def main():
         sys.exit('lines not all run')
     if list(got) != want or list(got_images) != images:
         sys.exit(f'cursors {list(got)}, the exe {want}; images {list(got_images)}, the exe {images}')
+    pm_floors.floors(lines=(len(LINES), 7))
     print(f'ok: {len(LINES)} lines, cursors {want}, images {images}')
     sys.stdout.flush()
     os._exit(0)

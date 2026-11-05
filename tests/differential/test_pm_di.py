@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
@@ -402,6 +403,7 @@ def main():
                 if bad:
                     raise SystemExit(f'{name} clutter ({"tree" if boxed else "array"}) query {q} {kind}: {bad}\n exe {want[:30]}\n port {got[:30]}')
         print(f'{name}: {queries} queries match; hits so far {totals}', flush=True)
+    pm_floors.floors(ground=(totals['ground'], 3000), point=(totals['point'], 500), segs=(totals['segs'], 1400), list=(totals['list'], 240), nearest=(totals['nearest'], 200), sphere=(totals['sphere'], 1300), clutter=(totals['clutter hits'], 2200))
     print(f'ok: {totals}')
 
 

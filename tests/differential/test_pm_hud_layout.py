@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
@@ -80,6 +81,7 @@ def main():
         if e != p:
             print(f'run {k}: counts {counts} current {current} at {x},{y}\n  exe  {e}\n  port {p}')
             sys.exit(1)
+    pm_floors.floors(layouts=(runs, 300))
     print(f'ok: {runs} layouts: the bracket, its showing and the height identical')
 
 

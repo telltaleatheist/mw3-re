@@ -22,6 +22,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 os.environ['MW3_NO_PROBE'] = '1'
 import test_zreader_text as mw3  # noqa: E402
@@ -197,6 +198,7 @@ def main():
             trees += want is not None
             unbalanced += want is None
             includes += bool(named)
+    pm_floors.floors(files=(cases, 840), includes=(includes, 300), opened=(emu.opened, 2000))
     print(f'ok: {cases} text files ({includes} with #include, {emu.opened} files included, up to '
           f'{min(emu.deepest, 32)} open; {trees} trees, {unbalanced} unbalanced) identical, '
           f'{emu.crt["printf"]} too-long tokens; #ifdef depth {depth} at the end on both sides')

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
 import test_pm_mechdef as md  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -213,6 +214,7 @@ def main():
                         fw = [round(struct.unpack('<f', struct.pack('<I', x))[0], 4) for x in want[:11]]
                         fh = [round(struct.unpack('<f', struct.pack('<I', x))[0], 4) for x in have[:11]]
                         print(f'{mech} {k} step {t} op {op} {v}:\n  exe  {fw} {want[11:]}\n  port {fh} {have[11:]}')
+    pm_floors.floors(loadouts=(kept, 113), evaluations=(n, 3000), valid=(valid, 600), invalid=(invalid, 1000))
     print(f'{kept} loadouts kept on both sides; {n} evaluations ({valid} valid, {invalid} not), {bad} differ')
     sys.exit(1 if bad else 0)
 

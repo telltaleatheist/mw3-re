@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -137,6 +138,7 @@ def main():
                 emu.w32(model + off, v)
                 if off not in (0x40, 0x44):
                     p.probe_pm_set_model(i, off, v)
+    pm_floors.floors(nodes=(checked, 8000), floats=(stats.floats, 150000))
     print(f'pm node box: {checked} nodes, {stats.floats} floats, {stats.exact} exact, off by place {stats.where}, {kinds}')
     if checked < 1000:
         raise SystemExit(f'only {checked} nodes checked')

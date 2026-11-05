@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import FTOL, ROOT, Original  # noqa: E402
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
@@ -38,6 +39,7 @@ def main():
         if list(p) != e:
             print(f'{t}: exe {e} port {list(p)}')
             sys.exit(1)
+    pm_floors.floors(times=(len(times), 2008))
     print(f'ok: {len(times)} times split identically (hours, minutes, seconds)')
 
 

@@ -33,6 +33,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL, STACK_TOP  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -866,6 +867,7 @@ def main():
         while i < len(wlog):
             kinds.add(wlog[i + 1])
             i += wlog[i] + 1
+    pm_floors.floors(calls=(trials, 20000), kinds=(len(kinds), 39))
     print(f'ok: {trials} part setups and updates the same '
           f'({", ".join(f"{NAMES[k]} {counts[k]}" for k in range(len(NAMES)))}); {len(kinds)} kinds of call out; '
           f'{ROUNDING[0]} values a little apart')

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float, scenario  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_modeldraw as md  # noqa: E402
@@ -174,6 +175,7 @@ def main():
         for off, v in undo:
             emu.w32(model + off, v)
             p.probe_pm_set_model(i, off, v)
+    pm_floors.floors(draws=(draws, 3000), floats=(stats.floats, 45000))
     print(f'ok: {draws} draws; {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {seen}')
     if len(seen) < 3:
         raise SystemExit('points or flares never reached')

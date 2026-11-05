@@ -25,6 +25,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -528,6 +529,7 @@ def main():
             check_state(i, f'{mech} object {i - base} at the end', 1)
     if not loaded:
         raise SystemExit('no motions read')
+    pm_floors.floors(motions=(loaded, 360), mechs=(len(mechs), 25), calls=(calls, 5000))
     print(f'ok: {loaded} motions loaded identically ({len(mechs)} mechs), {calls} sampler and setter calls '
           f'identical bit for bit; {len(seen_ops)} (kind, op) pairs; {stale} stale caches primed, mirror rotations within {worst:.1e}')
 

@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 import test_pm_zreader as zr  # noqa: E402
 
@@ -489,6 +490,7 @@ def main():
             stats['events'] += 1
             for i in range(n):
                 compare_puffer(f'run {run} event {e} puffer {i}', emu.dump_puffer(i), port.dump_puffer(i))
+    pm_floors.floors(runs=(runs, 60), ticks=(stats['ticks'], 250), particles=(stats['particles'], 1600), sprites=(stats['sprites'], 3000))
     print(f'ok: {runs} runs, {stats["ticks"]} ticks, {stats["particles"]} particles, {stats["sprites"]} sprites, '
           f'{stats["events"]} events identical')
 

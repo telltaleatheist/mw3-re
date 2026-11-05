@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 import test_pm_zreader as zr  # noqa: E402
 from original import ROOT  # noqa: E402
@@ -272,6 +273,7 @@ def main():
             bad += not same
             craft += c
             reports += r
+    pm_floors.floors(mechs=(len(MECHS), 25), loadouts=(configs, 113))
     print(f'{len(MECHS)} shipped: {configs} loadouts, {near} head floats within 4 places; 2 crafted: {craft} loadouts, {reports} reports; '
           f'{bad} differ')
     sys.exit(1 if bad else 0)

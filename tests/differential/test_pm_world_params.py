@@ -19,6 +19,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -302,6 +303,7 @@ def main():
             for cfg in CONFIGS:
                 compare(f'crafted {key} {cfg}', emu, probe, tmp, 'crafted.zbd', key, NAMES, cfg)
                 runs += 1
+    pm_floors.floors(runs=(runs, 288), blocks=(blocks, 7))
     print(f'ok: {runs} runs identical ({blocks} world blocks on 4 worlds, {len(CRAFTED)} crafted blocks)')
 
 

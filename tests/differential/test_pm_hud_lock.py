@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
@@ -147,6 +148,7 @@ def main():
                     print(f'  {n}: exe {e[n]} port {p[n]}')
             sys.exit(1)
         seen[(e['lock'], e['state'])] = seen.get((e['lock'], e['state']), 0) + 1
+    pm_floors.floors(frames=(runs, 1000), states=(len(seen), 11))
     print(f'ok: {runs} frames identical; (lock, image state) reached: {dict(sorted(seen.items()))}')
 
 

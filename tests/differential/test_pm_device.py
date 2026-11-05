@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 import test_pm_gamez as g  # noqa: E402
@@ -382,6 +383,7 @@ def main():
                 seen[f'flush {which}'] = seen.get(f'flush {which}', 0) + sum(x[0] == 'draw' for x in want)
                 seen['fog in flush'] = seen.get('fog in flush', 0) + sum(x[0] == 'fog' for x in want)
                 seen['additive'] = seen.get('additive', 0) + sum(x[0] == 'draw' and x[3][5] for x in want)
+    pm_floors.floors(calls=(compared, 2800), kinds=(len(seen), 10))
     print(f'ok: {compared} device calls compared; {dict(sorted(seen.items(), key=str))}')
 
 

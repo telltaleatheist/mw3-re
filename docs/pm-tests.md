@@ -1,5 +1,7 @@
 # Tests that load libmw3probe, for `pm` (2026-11-05)
 
+Every `test_pm_*` ends through `pm_floors.floors`: what it loaded or reached against a floor, because an empty pass is worse than no test (the lead, 2026-11-05). Data counts are exact; what depends on random cases is about half of what a run reaches. With arguments only zero fails.
+
 `mw3probe` is not built on `pm`, so none of these test this branch. Each row: what becomes of it. *Fns* is how many mapped
 functions it names, *in PM tests* how many of those a `test_pm_*` also names. That is a count of names, not proof a case is
 covered: "covered" below was judged per test from those names and the test's subject. *Class* is `pm_survey`'s: whether PM

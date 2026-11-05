@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
@@ -301,6 +302,7 @@ def main():
     print(f'ties that fell differently: {len(ties)}, {sum(1 for t in ties if not t[5])} at 24 bits; the largest mean '
           f'{max((t[1] for t in ties), default=0)}, share {max((t[2] for t in ties), default=0)}; the worst {ties[:3]} '
           '(worst, mean, share over 3, size, triangles, 53 bits, corners, flags)')
+    pm_floors.floors(polygons=(polygons, 4000), floats=(stats.floats, 700000))
     print(f'ok: {polygons} polygons; {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {seen}')
     if not seen.get('drawn') or not seen.get('triangles'):
         raise SystemExit('nothing drawn')

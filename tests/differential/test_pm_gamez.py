@@ -22,6 +22,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT  # noqa: E402
 from twod_world import IAT  # noqa: E402
@@ -462,6 +463,7 @@ def main():
                 print(f'{name} {fmt}{" models" if models else ""}: results {r}'
                       + (f', {len(emu.converted)} models to the strip conversion' if models == 1 else '')
                       + (' nodes' if models == 2 else ''))
+    pm_floors.floors(runs=(runs, 88), converted=(converted, 20000))
     print(f'ok: {runs} runs identical (textures and materials: 4 worlds, 3 stacks, 5 cut or short files; models: '
           f'4 worlds, 2 stacks, 4 cut files, a crafted model alone and stacked; nodes: 4 worlds, a stack, 3 cut files alone and stacked; 2 colour formats); {converted} models went to PM\'s strip conversion, '
           f'which the port leaves out')

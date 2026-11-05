@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 probe = test_pm_zar.load_pm_probe()
@@ -141,6 +142,7 @@ def main():
         reports.update(b.log[1::2])
         for i in range(n):
             bands.add(rec[IN * i])
+    pm_floors.floors(definitions=(trials, 20000), parts=(len(bands), 21), reports=(len(reports), 4))
     print(f'ok: {trials} definitions agree; part ids {len(bands)}, reports {sorted(hex(x) for x in reports)}')
 
 

@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT  # noqa: E402
 import test_pm_zar  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
@@ -984,6 +985,7 @@ def main():
     print(f'trees: {TREES[0]} words, worst relative float difference {TREES[1]:g}')
     print(f'rotated records: {ULPS.same} of {ULPS.total} words bit-identical, worst {ULPS.worst:g}; '
           f'{ULPS.exact} words of aligned records, all exact')
+    pm_floors.floors(trees=(TREES[0], 12000), rotated=(ULPS.total, 4000), aligned=(ULPS.exact, 120000), uv=(DIFF.total, 100))
     print(f'u, v: {DIFF.same} of {DIFF.total} bit-identical, worst difference {DIFF.worst:g} {DIFF.at}')
 
 

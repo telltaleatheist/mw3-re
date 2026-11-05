@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_mechlib as ml  # noqa: E402
 import test_pm_zar  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -272,6 +273,7 @@ def main():
                     totals['lit'] += lit > 0
                     totals['pixels'] += len(px) // 2
         print(f'run {r} ({mode}): {len(names)} trees, {draws} draws; so far {totals}, {emu.level_hits} level edges')
+    pm_floors.floors(draws=(totals['draws'], 200), drawn=(totals['drawn'], 100), lit=(totals['lit'], 50))
     print(f"ok: {totals['draws']} draws ({totals['drawn']} drawn, {totals['lit']} with shadow pixels, "
           f"{totals['pixels']} pixels, {emu.level_hits} level edges) identical")
 

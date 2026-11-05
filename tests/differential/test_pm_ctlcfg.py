@@ -32,6 +32,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from calltrace import CALLBACK  # noqa: E402
 from original import FTOL, IAT_FTOL, Original  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -473,6 +474,7 @@ def main():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print(f'{emu.pointers} first entries took the path\'s address')
+    pm_floors.floors(steps=(sum(counts.values()), 400), kinds=(len(counts), 8))
     print('ok: 400 steps identical (' + ', '.join(f'{k} {v}' for k, v in sorted(counts.items())) + ')')
 
 

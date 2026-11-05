@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 
@@ -335,6 +336,7 @@ def main():
     want_kinds = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
     if not want_keys <= keys or not want_kinds <= kinds:
         raise SystemExit(f'coverage: shutdown keys {sorted(map(hex, keys))}, calls {sorted(kinds)}')
+    pm_floors.floors(scenarios=(scenarios, 300), calls=(events, 140000))
     print(f'ok: {scenarios} scenarios x {frames} frames agree; {events} calls out matched; '
           f'{len(keys)} shutdown states and all {len(kinds)} kinds of call reached')
 

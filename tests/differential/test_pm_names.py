@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 M_NAME, M_INDEX, M_MSG, M_MASS, M_CLASS, M_TECH = 0x486790, 0x486730, 0x4867c0, 0x486830, 0x486860, 0x486880
@@ -109,6 +110,7 @@ def main():
         for nm in sorted(set(names[kind])) + ['nosuch', 'Ppc', 'ELEMENTAL']:
             for v in (nm, nm.upper(), nm.lower()):
                 check(f'index {kind} {v}', e.i(addr, e.str(v)), p.probe_pm_name_index(kind, v.encode()) & 0xffffffff)
+    pm_floors.floors(names=(n, 859))
     print(f'{n - bad}/{n} identical')
     sys.exit(1 if bad else 0)
 

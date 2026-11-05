@@ -17,6 +17,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -181,6 +182,7 @@ def main():
         capped += w[1][2] == 60.0
     if not capped:
         raise SystemExit('coverage: the cap never reached')
+    pm_floors.floors(calls=(trials, 20000), kinds=(len(seen), 23))
     print(f'ok: {trials} calls agree; {len(seen)} kinds; {capped} at the top speed cap of 60')
 
 

@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
@@ -110,6 +111,7 @@ def main():
                     print(f'type {type_} mission {mission} child {child}:\n  exe  {e} {en}\n  port {p} {nm.value}')
                     sys.exit(1)
                 n += 1
+    pm_floors.floors(variants=(n, 798))
     print(f'ok: {n} variants and matches identical')
 
 

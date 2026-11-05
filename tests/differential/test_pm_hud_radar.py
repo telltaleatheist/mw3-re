@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import FTOL, ROOT, Original  # noqa: E402
 FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')  # the CRT's
 
@@ -417,6 +418,7 @@ def main():
                 if e[key] != p[key]:
                     print(f'  {key}: exe {e[key]}  port {p[key]}')
             sys.exit(1)
+    pm_floors.floors(radars=(runs, 300), rings=(seen[0], 40), triangles=(seen[1], 60), markers=(seen[2], 40), blips=(seen[3], 700))
     print(f'ok: {runs} radars ({seen[0]} C3 rings, {seen[1]} triangles, {seen[2]} marker texts, {seen[3]} blip calls): '
           'every place, text, light, line, flag, blip, ring and triangle identical', flush=True)
 

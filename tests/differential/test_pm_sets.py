@@ -18,6 +18,7 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EBP, UC_X86_REG_EDI
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float, scenario  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_lighting as lit  # noqa: E402
@@ -309,6 +310,7 @@ def main():
                         seen[name] = seen.get(name, 0) + 1
                         at += 4
                         ag += 4
+    pm_floors.floors(records=(records, 8000), floats=(stats.floats, 400000))
     print(f'ok: {records} records; {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {dict(sorted(seen.items()))}')
     print(f"turned axes allowed on {seen.get('turned axes', 0) // 2} UV pairs (53 bits)")
     for need in ('triangle', '7 sets', 'kind 1', 'kind 2', 'fade full', 'fade zero', 'fade between', 'turned axes'):

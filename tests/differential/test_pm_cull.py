@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -142,6 +143,7 @@ def main():
                     if tl.raw[off:off + 4] != want[off:off + 4]:
                         i = off // 32
                         sys.exit(f'case {c} colours fpu53={fpu53} fade={fade} v{i} rec {struct.unpack_from("<3f", recs, 32 * i)}: {tl.raw[off:off + 4].hex()}, exe {want[off:off + 4].hex()}')
+    pm_floors.floors(cases=(cases, 4000), rejected=(rejected, 700), kept=(kept, 1200))
     print(f'ok: {cases} of each identical ({rejected} rejected, {kept} kept; colours at 53 and 24 bits)')
     sys.stdout.flush()
     os._exit(0)

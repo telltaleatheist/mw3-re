@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
@@ -104,6 +105,7 @@ def main():
                 if e[n] != p[n]:
                     print(f'  {n}: exe {e[n]} port {p[n]}')
             sys.exit(1)
+    pm_floors.floors(refreshes=(runs, 1500))
     print(f'ok: {runs} refreshes: the bar, light, count, look and recycling flag identical')
 
 

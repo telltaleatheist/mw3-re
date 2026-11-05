@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -86,6 +87,7 @@ def main():
             if a != b:
                 sys.exit(f'{LINES[i]!r}: exe {struct.unpack("<Iii", a)}, port {struct.unpack("<Iii", b)}')
         sys.exit(f'names: exe {want[12 * len(LINES):]!r}, port {got[12 * len(LINES):]!r}')
+    pm_floors.floors(lines=(len(LINES), 8))
     print(f'ok: {len(LINES)} lines identical (light map, cursor, misses, names)')
     sys.stdout.flush()
     import os

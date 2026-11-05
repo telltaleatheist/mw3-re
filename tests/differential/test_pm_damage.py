@@ -21,6 +21,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')  # the precision the game runs at; exact compares need it
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -855,6 +856,7 @@ def main():
     if missing or unreached or len(sections) < 6:
         raise SystemExit(f'coverage: calls never made {sorted(missing)}; paths never reached {sorted(unreached)}; '
                          f'sections {sorted(sections)}')
+    pm_floors.floors(operations=(ops, 17000), calls=(calls, 35000))
     print(f'ok: {scenarios} mechs, {ops} operations agree; {calls} calls out matched; '
           f'all {len(NAMES)} kinds of call and {len(emu.reached)} paths reached '
           f'(every critical, CASE, difficulty, multiplayer, structure at 0, deaths)')

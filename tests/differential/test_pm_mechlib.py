@@ -21,6 +21,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import ROOT  # noqa: E402
@@ -312,6 +313,7 @@ def main():
         roots = struct.unpack_from(f'<{len(names) if opened else 0}i', want, 4)
         print(f'{label}: open {opened}, {len(names) if opened else 0} loads, roots {roots[:4]}..., '
               f'{len(emu.converted)} to the strip conversion')
+    pm_floors.floors(runs=(runs, 8))
     print(f'ok: {runs} runs identical')
 
 

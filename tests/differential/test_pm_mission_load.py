@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from calltrace import Trace, compare  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -335,6 +336,7 @@ def main():
                 diff = {str(k): (hex(a[2][k]), hex(b[2].get(k, 0))) for k in a[2] if a[2][k] != b[2].get(k)}
                 raise SystemExit(f'{name}: memory differs (exe, port): {diff}')
             calls += len(a[1])
+    pm_floors.floors(cases=(count, 200), calls=(calls, 40000))
     print(f'ok: {count} cases x 2 entries, {calls} calls identical')
 
 

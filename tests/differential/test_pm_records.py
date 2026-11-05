@@ -17,6 +17,7 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EBP, UC_X86_REG_EDI
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float, scenario  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_modeldraw as md  # noqa: E402
@@ -290,6 +291,7 @@ def main():
                     if not same_float(a, b, stats, tol, 'data', ROUNDING):
                         raise SystemExit(f'{w} draw {d} node {i} {kind} poly {poly_w[0]}: float {j} of {count}: {b}, the exe {a}')
                     at += 4
+    pm_floors.floors(draws=(drawn, 900), records=(records, 4000))
     print(f'ok: {drawn} draws reached a ref, {records} records; {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {kinds}; {seen}')
     if records < 1000:
         raise SystemExit('too few records')

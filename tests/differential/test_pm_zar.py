@@ -30,6 +30,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 from twod_world import IAT  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -403,6 +404,7 @@ def main():
                 checked['random writes'] += 1
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    pm_floors.floors(shipped=(checked['shipped'], 54), crc=(checked['crc matches the stored'], 50), damaged=(checked['damaged'], 7))
     print('pm_zar: ' + ', '.join(f'{k} {v}' for k, v in checked.items()) + f'; {bad} mismatches')
     return 1 if bad else 0
 

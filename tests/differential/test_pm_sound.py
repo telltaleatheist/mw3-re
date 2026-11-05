@@ -35,6 +35,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
 os.environ['MW3_PROBE_LIB'] = 'libpmprobe'  # test_sound's own, not built on this branch
 import test_sound as ts  # noqa: E402
@@ -854,6 +855,7 @@ def main():
     except Mismatch as m:
         raise SystemExit(f'FAIL ({runs} runs passed)\n{m}')
     print('coverage:', ', '.join(f'{k} {v}' for k, v in sorted(ts.COVERAGE.items(), key=lambda kv: str(kv[0]))))
+    pm_floors.floors(runs=(runs, 28), calls=(calls, 200000), sets=(len(sets), 91), notified=(notified, 60))
     print(f'ok: {runs} runs, {calls} DirectSound calls and callbacks identical, states identical '
           f'({len(sets)} sets of PM\'s sounds.zrd, its sound archives, {len(variants(emu.tree))} changed files); '
           f'the CD notify identical in {notified} cases')

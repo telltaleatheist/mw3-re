@@ -17,6 +17,7 @@ from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_EBP, UC_X86_REG_EDI
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import Stats, fbits, same_float, scenario  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_modeldraw as md  # noqa: E402
@@ -264,6 +265,7 @@ def main():
                                              f'lights {[hex(struct.unpack_from("<I", q, 0xe0)[0]) for q in blobs]}, needs {head[0]:#x}, clouds {cl[0]}, fog {fog}')
                         at += 4
     seen['real bakes'] = seen_bakes[0]
+    pm_floors.floors(draws=(drawn, 1000), records=(records, 5000), floats=(stats.floats, 140000))
     print(f'ok: {drawn} draws reached a ref, {records} records; {stats.floats} floats, {stats.exact} exact, off by place {stats.where}; {seen}')
     if not seen.get('needs lights') or not seen.get('projected gate') or not seen_bakes[0]:
         raise SystemExit('the lights bit, the projected gate or the bake was never reached')

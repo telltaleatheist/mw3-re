@@ -24,6 +24,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 from test_pm_zar import load_pm_probe  # noqa: E402
 from twod_world import IAT  # noqa: E402
@@ -371,6 +372,7 @@ def main():
     got = struct.unpack_from('<i', buf.raw)[0]
     assert struct.unpack_from('<i', want)[0] == 0 and got == -1, (struct.unpack_from('<i', want)[0], got)
     print(check_prerequisite_fix(emu, buf, written))
+    pm_floors.floors(worlds=(len(g.WORLDS), 4), runs=(runs, 32), calls=(calls, 1000))
     print(f'ok: {len(g.WORLDS)} anim.zbd read against their worlds identical ({calls} unported calls); '
           f'{runs} mismatched, failing, crafted and cut runs agree; a cut in the scripts refused (the exe reads on)')
 

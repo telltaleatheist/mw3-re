@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -63,6 +64,7 @@ def main():
             at = next((i for i in range(0, 0x100, 4) if want[i:i + 4] != got.raw[i:i + 4]), -1)
             raise SystemExit(f'case {n} {NAMES[which]} flags {fl:#x} +{at:#x}: {got.raw[at:at + 4].hex()}, the exe {want[at:at + 4].hex()}; result {r}')
         stale_seen += calls['stale']
+    pm_floors.floors(calls=(cases, 6000), stale=(stale_seen, 1000))
     print(f'ok: {cases} calls bit for bit; the bake marked stale {stale_seen} times in the exe ')
 
 

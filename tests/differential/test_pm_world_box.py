@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_walk  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -217,6 +218,7 @@ def main():
             if want_f != list(out_f):
                 raise SystemExit(f'{w} grid {gx} {gz}: fields exe {want_f}, port {list(out_f)}')
             compare_cells(p, emu, f'{w} grid {gx} {gz}')
+    pm_floors.floors(calls=(calls, 1500), spans=(spans, 2500), unions=(gaps, 1500))
     print(f'ok: {calls} calls on 4 worlds; {moved} in a cell, {spans} across cells, {gaps} unions, {updated} cells updated, {adds} off and on again; every list identical; grids identical')
 
 

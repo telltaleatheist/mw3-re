@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
@@ -177,6 +178,7 @@ def main():
                     break
             sys.exit(1)
         frames_total += len(frames)
+    pm_floors.floors(runs=(runs, 40), frames=(frames_total, 1300))
     print(f'ok: 4 noises (262144 pixels), {runs * 5} quads, {runs} runs of {frames_total} frames identical')
 
 

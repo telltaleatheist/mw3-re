@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
@@ -94,6 +95,7 @@ def main():
             print(f'run {k}: lines {ls} group {gi} mode {mode} current {current} has_group {has_group}')
             print(f'  exe  next {e[0]} marks {e[1]}\n  port next {p[0]} marks {p[1]}')
             sys.exit(1)
+    pm_floors.floors(lists=(runs, 500))
     print(f'ok: {runs} weapon lists: every mark and the next weapon identical')
 
 

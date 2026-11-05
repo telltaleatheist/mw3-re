@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 import unicorn.x86_const  # noqa: E402
 
@@ -347,6 +348,7 @@ def main():
           f'{pcases - pbad}/{pcases} pilot exits identical')
     if bad or kbad or pbad:
         sys.exit(1)
+    pm_floors.floors(commands=(trials, 6000), kinds=(len(seen), 103), pilot_exits=(pcases, 120))
     print('ok')
 
 

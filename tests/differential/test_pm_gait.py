@@ -18,6 +18,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import mechdata  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT  # noqa: E402
@@ -266,6 +267,7 @@ def main():
     need = set(range(10)) - {2}
     if not need <= states or not {2, 3, 4, 5, 6, 8, 9, 10} <= slots or not {1, 2, 3, 4, 5, ('seek', 3, 2), ('seek', 8, 0), ('seek', 8, 1)} <= calls:
         raise SystemExit(f'coverage: states {sorted(states)}, slots {sorted(slots)}, calls {calls}')
+    pm_floors.floors(calls=(trials, 30000), states=(len(states), 13))
     print(f'ok: {trials} gait and turn calls identical bit for bit; states {sorted(states)}, '
           f'slots {sorted(slots)}')
 

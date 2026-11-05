@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 probe = test_pm_zar.load_pm_probe()
@@ -105,6 +106,7 @@ def main():
             if want != got:
                 raise SystemExit(f'op {op} case {i}:\n  original {want}\n  port     {got}')
             cases += 1
+    pm_floors.floors(cases=(cases, 9216))
     print(f'ok: {cases} power cases agree')
 
 

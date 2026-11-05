@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_mechlib as ml  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -178,6 +179,7 @@ def main():
         emu.call(FADE, ecx=o, args=[fbits(0.033)])
         compare(f'lod {f} fade', p.probe_pm_headlight_op(4, 0, 0, 0.033, buf, len(buf)))
     compare('the end', p.probe_pm_headlight_op(10, 0, 0, 0.0, buf, len(buf)), True)
+    pm_floors.floors(steps=(sum(counts.values()), 500), ops=(len(counts), 7))
     print(f'ok: {sum(counts.values())} steps identical, by op {sorted(counts.items())}')
 
 

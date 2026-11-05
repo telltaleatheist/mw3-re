@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from original import ROOT, Original  # noqa: E402
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
@@ -133,6 +134,7 @@ def main():
                 if e[n] != p[n]:
                     print(f'  {n}: exe {e[n]} port {p[n]}')
             sys.exit(1)
+    pm_floors.floors(toggles=(runs, 400))
     print(f'ok: {runs} toggles: on or off, size, place, marker text, reticle, changed and map identical')
 
 

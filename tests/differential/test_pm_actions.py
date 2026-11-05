@@ -21,6 +21,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -318,6 +319,7 @@ def main():
     need_codes = {3, 11, 13, 15, 17, 18, 19, 20, 21, 22}
     if not need_states <= states or not need_codes <= codes:
         raise SystemExit(f'coverage: states {sorted(states)}, calls {sorted(codes)}')
+    pm_floors.floors(runs=(runs, 1500), calls=(calls, 57000), states=(len(states), 10))
     print(f'ok: {runs} runs, {calls} calls identical bit for bit; states {sorted(states)}, '
           f'{len(codes)} kinds of call out')
 

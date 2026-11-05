@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import CIASIN, COPYSIGN, Stats, fbits, same_float, scenario  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -259,6 +260,7 @@ def main():
             emu.w32(model + 0x44, saved_m)
             if kind == 'morph':
                 p.probe_pm_set_morphs(i, b'', 0)
+    pm_floors.floors(draws=(draws, 1500), floats=(stats.floats, 57000))
     print(f'ok: {draws * 2} draws identical; {stats.floats} floats, {stats.exact} bit-identical, worst {stats.worst:.2g}; {degenerate} nearly opposite {near_opposite}; {kinds}')
     sys.stdout.flush()
     os._exit(0)

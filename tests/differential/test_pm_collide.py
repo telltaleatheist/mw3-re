@@ -21,6 +21,7 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -584,6 +585,7 @@ def main():
     need = {7, 8, 9, 10, 11, 12, 13, 14, 20, 'setup'}
     if not need <= seen:
         raise SystemExit(f'coverage: missing {sorted(need - seen, key=str)}')
+    pm_floors.floors(calls=(trials, 20000), resolved=(blocked, 7000), blocked=(stuck, 2500))
     print(f'ok: {trials} Collide calls identical bit for bit; {blocked} resolved something, {stuck} stayed blocked; '
           f'{len(seen)} kinds of call out')
 

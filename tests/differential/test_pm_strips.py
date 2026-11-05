@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 
 
@@ -99,6 +100,7 @@ def main():
         emu.cpu.stubs[g.STRIPS] = stub  # the next world's read records again
         total += with_polys
         print(f'{w}: {len(given)} models given to the conversion, {with_polys} with polygons')
+    pm_floors.floors(models=(total, 645))
     print(f'{"ok" if changed == 0 else "CHANGED"}: PM\'s strip conversion ran on {total} shipped models with polygons; '
           f'{changed} changed')
     if stripped:

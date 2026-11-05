@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import pm_floors  # noqa: E402
 from modeldraw_common import COPYSIGN, CIASIN, Stats, fbits, same_float  # noqa: E402
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
@@ -205,6 +206,7 @@ def main():
                 if ours != want_flags:
                     raise SystemExit(f'{w} camera {k} light {i}: flags {ours:#x}, the exe {want_flags:#x}')
             draws += count
+    pm_floors.floors(cameras=(cameras, 40), draws=(draws, 5000), morphing=(morphs, 40), faded=(faded, 40), lods=(lod_count, 300))
     print(f'ok: {cameras} cameras on 4 worlds, {draws} draws in order, {morphs} morphing, {faded} faded, {lod_count} LoDs edited; '
           f'{stats.floats} floats, {stats.exact} exact, off by place {stats.where}')
     if not draws or not morphs or not faded:
