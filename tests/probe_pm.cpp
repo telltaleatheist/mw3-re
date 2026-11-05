@@ -896,6 +896,15 @@ int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
   using namespace ::mech3;
   Config& c = *g_cfg_dfn->configs->configs[k];
   std::vector<ConfigItem*> items(c.items.begin(), c.items.end());
+  const float keep_tons = c.armor_tons;
+  const int32_t keep_sinks = c.sinks, keep_engine = c.engine;
+  const uint8_t keep_double = c.double_sinks, keep_endo = c.endo_steel, keep_xl = c.xl, keep_ferro = c.ferro;
+  int32_t keep_armor[11];
+  std::memcpy(keep_armor, c.armor, sizeof keep_armor);
+  struct Keep { ConfigItem* i; int32_t count, part, equipment; };
+  std::vector<Keep> keep_items;
+  for (ConfigItem* i : items)
+    keep_items.push_back({i, i->count, i->part, i->kind() == 3 ? static_cast<EquipmentItem*>(i)->equipment : 0});
   switch (op) {
     case 1: c.armor_tons = static_cast<float>(v) / 2; break;
     case 2: c.sinks = v; break;
@@ -906,6 +915,25 @@ int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
     case 7: if (!items.empty()) items[v % items.size()]->count = 1 + v % 4; break;
     case 8: c.engine = v % 79; break;
     case 9: c.xl = v & 1; break;
+    case 10: {
+      const auto total = static_cast<float>(c.weight(-1));
+      const auto limit = static_cast<float>(c.weight(9));
+      c.armor_tons = c.armor_tons + limit - total + static_cast<float>(v / 100.0);
+      break;
+    }
+    case 11:
+      for (ConfigItem* i : items)
+        if (i->kind() == 3) static_cast<EquipmentItem*>(i)->equipment = 11;
+      break;
+    case 12: c.ferro = 1, c.endo_steel = 1, c.xl = 1; break;
+    case 13: {
+      for (ConfigItem* i : items)
+        if (i->kind() == 3) static_cast<EquipmentItem*>(i)->equipment = 11, i->part = 1;
+      const auto total = static_cast<float>(c.weight(-1));
+      const auto limit = static_cast<float>(c.weight(9));
+      c.armor_tons = c.armor_tons + limit - total;
+      break;
+    }
     default: break;
   }
   for (int w = -1; w <= 9; ++w) {
@@ -916,6 +944,13 @@ int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
   out[12] = static_cast<uint32_t>(c.jump_jets()), out[13] = static_cast<uint32_t>(c.jump_jet_limit());
   out[14] = static_cast<uint32_t>(c.slots_unused());
   out[15] = c.validate(false);
+  c.armor_tons = keep_tons, c.sinks = keep_sinks, c.engine = keep_engine;
+  c.double_sinks = keep_double, c.endo_steel = keep_endo, c.xl = keep_xl, c.ferro = keep_ferro;
+  std::memcpy(c.armor, keep_armor, sizeof keep_armor);
+  for (const Keep& k2 : keep_items) {
+    k2.i->count = k2.count, k2.i->part = k2.part;
+    if (k2.i->kind() == 3) static_cast<EquipmentItem*>(k2.i)->equipment = k2.equipment;
+  }
   return 0;
 }
 

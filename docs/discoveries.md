@@ -4225,6 +4225,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon is stricter about overweight loadouts.** MechWarrior 3 lets
+  a loadout go about a quarter of a ton over its mech's limit; Pirate's Moon
+  allows only a tenth of a ton, and also rejects one with too few critical
+  slots left.
+
 - **Pirate's Moon's weapons have their own aim limits per firepoint.**
   Every mech's firepoint carries an aim tolerance and pitch and yaw limits
   in its data. The Elemental also stopped paying for engine shielding, which

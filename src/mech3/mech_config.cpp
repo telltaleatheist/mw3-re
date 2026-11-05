@@ -768,7 +768,7 @@ int32_t Config::slots_unused() const {
 // The checksum test stays for callers that ask; load no longer does.
 bool Config::validate(bool check_crc) const {
   if (check_crc && crc != checksum()) return false;
-  if (static_cast<float>(weight(-1) - 0.24f) > max_mass(mech)) return false;
+  if (static_cast<float>(weight(-1) - 0.1f) > max_mass(mech)) return false;  // 0x005de81c (MW3: 0.24)
   if (unplaced_item()) return false;
   if (jump_jets() > jump_jet_limit()) return false;
   if (slots_unused() < 0) return false;

@@ -23,7 +23,7 @@ from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 WEIGHT, VALIDATE, SLOTS, UNPLACED, JETS, LIMIT, FIND_WEAPON, WEAPON_NAME = (
     0x427130, 0x427360, 0x427310, 0x425c60, 0x427df0, 0x427db0, 0x5a3550, 0x486a30)
 ODS_SLOT = 0x5de0c4  # OutputDebugStringA
-OP_NONE, OP_TONS, OP_SINKS, OP_DOUBLE, OP_ENDO, OP_UNPLACE, OP_ARMOR, OP_COUNT, OP_ENGINE, OP_XL = range(10)
+OP_NONE, OP_TONS, OP_SINKS, OP_DOUBLE, OP_ENDO, OP_UNPLACE, OP_ARMOR, OP_COUNT, OP_ENGINE, OP_XL, OP_NEAR, OP_JETS, OP_BULK, OP_JETS_NEAR = range(14)
 
 
 def labs(data):
@@ -47,7 +47,7 @@ def labs(data):
         mass = get(d, 'MASS')
         clan, sphere, ammo = get(mass, 'clan') or [0, 0], get(mass, 'sphere') or [0, 0], get(mass, 'ammo')
         salvo = get(d, 'SALVO')
-        true = get(salvo, 'truecount') if isinstance(salvo, list) else None
+        true = (get(salvo, 'truecount') or get(salvo, 'count')) if isinstance(salvo, list) else None  # as the reader's default
         per_ton = (ammo[0] if ammo else 0) * (true[0] if true else 1)
         out[name] = (float(clan[0]), int(clan[1]), float(sphere[0]), int(sphere[1]), 1.0 / per_ton if per_ton else 0.0)
     return out
@@ -123,6 +123,23 @@ class Emulated(md.Emulated):
             w(c + 0x24, v % 79)
         elif op == OP_XL:
             b(c + 0x28, v & 1)
+        elif op == OP_NEAR:  # armor tons so that the total is the maximum plus a little: v in hundredths
+            total = struct.unpack('<f', struct.pack('<I', self.weight(c, -1)))[0]
+            limit = struct.unpack('<f', struct.pack('<I', self.weight(c, 9)))[0]
+            tons = struct.unpack('<f', self.raw(c + 0x2c, 4))[0]
+            self.cpu._uc.mem_write(c + 0x2c, struct.pack('<f', tons + limit - total + v / 100))
+        elif op == OP_JETS:  # every equipment item becomes jump jets
+            for it in self.items(c):
+                if self.r32(it) == 0x5dfc70:
+                    w(it + 0x18, 11)
+        elif op == OP_JETS_NEAR:  # too many jets alone: the weight put back in range
+            self.change(c, OP_JETS, 0)
+            for it in self.items(c):  # placed: an unplaced jet is its own failure
+                if self.r32(it) == 0x5dfc70:
+                    self.w32(it + 0xc, 1)
+            self.change(c, OP_NEAR, 0)
+        elif op == OP_BULK:
+            b(c + 0x34, 1), b(c + 0x20, 1), b(c + 0x28, 1)
 
     def wb(self, a, v):
         self.cpu._uc.mem_write(a, bytes([v]))
@@ -173,9 +190,15 @@ def main():
         for k in range(count):
             c = emu.r32(first + 4 * k)
             for t in range(per + 1):
-                op, v = (OP_NONE, 0) if t == 0 else (rng.randrange(1, 10), rng.randrange(0, 200))
+                op, v = (OP_NONE, 0) if t == 0 else (rng.randrange(1, 14), rng.randrange(0, 200))
+                if op == OP_NEAR:
+                    v = rng.choice((0, 10, 20, 23, 24, 25, 26, 30, 50))
+                raw, its = emu.raw(c, 0xd8), [(i, emu.raw(i, 0x20)) for i in emu.items(c)]
                 emu.change(c, op, v)
                 want = emu.eval(c)
+                emu.cpu._uc.mem_write(c, raw)
+                for i, r in its:
+                    emu.cpu._uc.mem_write(i, r)
                 p.probe_pm_cfg_eval(k, op, v, out)
                 have = list(out)[:16]
                 n += 1
