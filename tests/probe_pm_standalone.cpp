@@ -80,6 +80,7 @@ int32_t probe_pm_sa_store(int32_t* out) {
   int32_t k = 0;
   for (const ConfigItem* it : g_game->store.items) {
     out[k++] = it->kind(), out[k++] = it->id(), out[k++] = it->count, out[k++] = it->part;
+    out[k++] = it->kind() == 1 ? static_cast<const WeaponItem*>(it)->tech : it->kind() == 3 ? static_cast<const EquipmentItem*>(it)->tech : 0;
   }
   return k;
 }

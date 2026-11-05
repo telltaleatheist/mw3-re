@@ -206,7 +206,7 @@ void CampaignChain::briefing() {
 }
 
 CampaignChain::~CampaignChain() {
-  if (hooked_) app_.on_state_change = nullptr;
+  if (hooked_) app_.on_state_change = nullptr, e_.on_message_box = nullptr;
 }
 
 void CampaignChain::on_state(const void* s) {
@@ -534,6 +534,11 @@ void CampaignChain::frame() {
   if (done_) return;
   if (!hooked_) {
     hooked_ = true;
+    // A question at LAUNCH (0x00404a20's, the salvage's): as a player answering yes.
+    e_.on_message_box = [](int32_t, int32_t caption, int32_t text) -> uint32_t {
+      std::printf("mw3: chain asked message %#x (caption %#x): yes\n", text, caption);
+      return 1;
+    };
     app_.on_state_change = [this](const zgame::State* s) { on_state(s); };
     on_state(app_.current());
   }

@@ -896,6 +896,7 @@ int probe_pm_cfg_load(const char* dir, const char* entry, int index) {
   read_dfn(*g_cfg_dfn);
   return g_cfg_dfn->configs ? static_cast<int>(g_cfg_dfn->configs->configs.size()) : 0;
 }
+const void* probe_pm_cfg_at(int k) { return g_cfg_dfn->configs->configs[static_cast<size_t>(k)]; }
 // Config k saved (0x00425e40), the bytes in out; returns how many.
 int probe_pm_cfg_save(int k, uint8_t* out, int cap, const char* path) {
   using namespace ::mech3;

@@ -126,7 +126,8 @@ class Bench(tc.Emulated):
         for it in self.items(g + 8 - 8 + 8):
             kind = self.call(self.r32(self.r32(it) + 0xc), ecx=it)
             off = 0x18 if kind == 3 else 0x14
-            out += [kind, self.sa_s32(it + off), self.sa_s32(it + 4), self.sa_s32(it + 0xc)]
+            tech = self.sa_s32(it + 0x18) if kind == 1 else self.sa_s32(it + 0x1c) if kind == 3 else 0
+            out += [kind, self.sa_s32(it + off), self.sa_s32(it + 4), self.sa_s32(it + 0xc), tech]
         return out
 
     def sa_s32(self, a):
@@ -151,7 +152,7 @@ def main():
     p.probe_pm_cfg_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     for name, lab in table.items():
         p.probe_pm_cfg_lab(name.encode(), *lab)
-    p.probe_pm_cfg_load(str(ROOT / 'game' / 'pm').encode(), b'dfn_atlas.zrd', 0)
+    p.probe_pm_cfg_load(str(ROOT / 'game' / 'pm').encode(), b'dfn_atlas.zrd', md.MECHS.index('atlas'))
     buf = (ctypes.c_int32 * 8192)()
 
     # the list
@@ -205,6 +206,65 @@ def main():
         starts += 1
         with_block += len(emu.sa_store(g)) > 0
 
+    # The lineup: lancemates of a mission, new and then again (the slot there keeps its own, 0x40e6c0), and the player's.
+    index = md.MECHS.index('atlas')
+    root = emu.call(md.zr.LOAD, args=[emu.string('dfn_atlas.zrd'), 0, 0])
+    dfn = emu.alloc(md.SIZE)
+    emu.call(md.CTOR, ecx=dfn, args=[index, root])
+    emu.call(md.READ, ecx=dfn)
+    cl = emu.r32(dfn + 0x20)
+    first = emu.r32(cl + 0xc)
+    cfgs = (emu.r32(cl + 0x10) - first) // 4
+    p.probe_pm_cfg_at.restype = ctypes.c_void_p
+    p.probe_pm_sa_lancemate.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_int32, ctypes.c_void_p]
+    p.probe_pm_sa_player.argtypes = [ctypes.c_int32, ctypes.c_void_p]
+    emu.call(MISSION, ecx=g, args=[3]), p.probe_pm_sa_op(0, 3)
+    emu.call(START, ecx=g), p.probe_pm_sa_op(3, 0), p.probe_pm_sa_log(buf)
+    slots = 0
+
+    # 0x434880 (the slot's set_config) and 0x474b40 stand in: the store's side of taking a loadout needs the weapons' whole
+    # tables in the emulator; GameSlot::set_config is compared by the campaign's tests. So the store isn't compared here.
+    takes = []
+
+    def take(k):
+        takes.append((k.arg(0) != 0, k.arg(1) != 0, k.arg(2) & 0xff))
+        emu.sa_w(k.ecx + 8, k.arg(0))
+        return 1
+
+    emu.native_stub(0x434880, take, 12)
+    emu.native_stub(0x474b40, lambda k: takes.append(('mech', emu.sa_s32(k.ecx - 8 + 8) and 0, k.arg(0))) or 0, 4)
+
+    def compare_slots(what):
+        nonlocal slots
+        check(f'{what}: count', emu.call(COUNT, ecx=g), p.probe_pm_sa_op(5, 0))
+        for i in range(5):
+            s = emu.call(SLOT, ecx=g, args=[i])
+            r = p.probe_pm_sa_slot(i, buf)
+            if not s:
+                check(f'{what}: slot {i} none', -9, r)
+                continue
+            cfg = emu.r32(s + 8)
+            check(f'{what}: slot {i}', [emu.sa_s32(s + 4), emu.sa_s32(cfg + 0x14) if cfg else -2, emu.sa_s32(s + 0x14)], list(buf[:3]))
+            slots += 1
+
+    compare_slots('the lineup at first')
+    for pass_ in range(2):
+        for i in range(3):
+            s = emu.alloc(0x18)
+            emu.sa_uc.mem_write(s, bytes(0x18))
+            emu.call(0x434780, ecx=s, args=[index, 0, 0])
+            emu.sa_w(s + 0x14, 100 + 10 * pass_ + i)
+            k = (i + pass_) % cfgs
+            emu.call(MATE, ecx=g, args=[i, s, emu.r32(first + 4 * k)])
+            p.probe_pm_sa_lancemate(i, index, 100 + 10 * pass_ + i, p.probe_pm_cfg_at(k))
+        emu.sa_w(g + 0x48, 3 - pass_), p.probe_pm_sa_op(8, 3 - pass_)
+        compare_slots(f'lancemates, pass {pass_}')
+        # First: taken once each and the mech added. Then: the slots kept their loadouts, nothing taken.
+        check(f'pass {pass_}: the takes', [t[0] for t in takes if t[0] == 'mech'], ['mech'] * 3 if pass_ == 0 else [])
+        takes.clear()
+    # The lancemates' slots stay for a replay of the mission (0x40e3f0 adds their loadouts: 0x474dd0, not run here).
+    compare_slots('the lineup stays')
+
     # Moving on: each win up to past the last; the best kept across a replay's earlier row.
     emu.call(MISSION, ecx=g, args=[0])
     p.probe_pm_sa_op(0, 0)
@@ -221,7 +281,7 @@ def main():
         check(f'step {step}: at', emu.sa_s32(g + 0x38), p.probe_pm_sa_op(6, 0))
         check(f'step {step}: best', emu.sa_s32(g + 0x3c), p.probe_pm_sa_op(7, 0))
         past += a
-    pm_floors.floors(trials=(trials, 600), moved=(moved, 100), starts=(starts, 22), with_block=(with_block, 22), past=(past, 2))
+    pm_floors.floors(trials=(trials, 600), moved=(moved, 100), starts=(starts, 22), with_block=(with_block, 22), past=(past, 2), slots=(slots, 10))
     print(f'ok: the list of {n} in the pinned order; {trials} missions set ({moved} moved); {starts} starts, the stores and '
           f'calls identical; moved on past the end {past} times')
 
