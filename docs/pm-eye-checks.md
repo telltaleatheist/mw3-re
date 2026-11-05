@@ -15,7 +15,7 @@ picture. Camera heights are chosen to be about a mech's eye, and the direction f
    Mission 1, at the start, look at the sky and the ground.
    The port shows a nearly black sky with grey clouds, though the data calls it `day`.
    `1-c1-day-start.png`: `mw3pm --fly c1 --pos 4468 56 -4186 --look 0 5`
-2. **How dark is a night mission?** Answered (Owen, 2026-11-04): "pitch black but that's likely intentional... intentionally dark for headlight use. Yes, I can see the stars." Fine. Mission 2, near Allied Camp: can you see the ground at all, and are there
+2. **How dark is a night mission?** Answered (Owen, 2026-11-04): "pitch black but that's likely intentional... intentionally dark for headlight use. Yes, I can see the stars." Fine. After playing the original's night mission again (Owen, 2026-11-04): "all this looks just like what I remember", meaning the black band under the clouds there and the slow pulse of the light. Both are targets for ours; c1's night keeps its black band. Mission 2, near Allied Camp: can you see the ground at all, and are there
    large stars? The port's ground is almost black.
    `2-c1-night-camp.png`: `mw3pm --fly c1 --variant m2 --pos 3840 17 -3200 --look 0 5`
 3. **Is the third world's light right?** Answered (Owen, 2026-11-04): right. Mission 6 or 7, near Ruins: red ground under a black sky with red clouds, a ringed planet and a large one low down?

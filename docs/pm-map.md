@@ -1346,9 +1346,9 @@ functions PM changed, and PM's new ones.
      dispatcher, the HUD's, the key callbacks, the hat, the pockets, the chains' Exit Mission; the mech's 103
      callbacks are PM's list. PM's reader seeds an entry with no source from the argument's slot (0x412a26),
      docs/controls.md. **Not done:** PM's new cases in 0x41cad0 (headlight 0x41f900, lancemate target keys
-     0x4e6ca0, 0x4e6fb0, 0x4e6710, eject's extra vtable call): their keys bind and do nothing yet. MW3-exe tests
-     that send MW3's ids through this code (`test_command.py` and others) no longer fit `pm`: 0x41cad0 wants its
-     own differential with the PM mech.
+     0x4e6ca0, 0x4e6fb0, 0x4e6710, eject's extra vtable call): their keys bind and do nothing yet. `test_command.py`
+     (MW3's exe with MW3's ids) is retired on `pm`: 0x41cad0 gets its own differential with its new cases, the
+     headlight among the first.
 4. **Mechs and weapons**. The command table is done (above). Dev 2 and the lead's notes: PM's weapon roster has
    56 entries against the port's 38, and its mech roster 25 against 19.
    Then the definition reader and its new weapons
