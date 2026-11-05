@@ -2455,6 +2455,7 @@ void mech_forward(void* mech, float out[3]) {  // any entity's +0x24
   out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z;
 }
 int32_t mech_jump_jets(void* mech) { return static_cast<Mech*>(mech)->equipment[11]; }
+int32_t mech_equipment_count(void* mech, int32_t kind) { return static_cast<Mech*>(mech)->equipment[kind]; }
 float mech_vertical_speed(void* mech) { return static_cast<Vehicle*>(mech)->vec_3c.y; }
 float mech_forward_speed(void* mech) { return static_cast<Vehicle*>(mech)->vec_3c.z; }
 void mech_set_local_velocity(void* mech, float x, float y, float z) { static_cast<Vehicle*>(mech)->vec_3c = {x, y, z}; }

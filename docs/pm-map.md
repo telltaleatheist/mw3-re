@@ -880,8 +880,8 @@ functions PM changed, and PM's new ones.
        0x5003a0, 0x502360) also visit a cell's clutter records, which the port's `cls_di` skips on PM (see the
        mission load's note), so the grid sees no props; (2) the boundary: PM's `inout` loader (0x4cddb0, MW3
        0x4c3930) has its own area container (0xc0-byte areas), counts standalone missions (type 5, by 0x435db0)
-       and training, and MW3's selection call 0x4c3b80 has no twin in PM's setup (PM picks the area while it
-       loads, 0x4cdff0). The port's `inout` is still MW3's, so on PM a standalone mission has no boundary and
+       and training; the area is selected by 0x4ce290, a listener slot (not "while it loads": corrected
+       2026-11-04, step 5). The port's `inout` is still MW3's, so on PM a standalone mission has no boundary and
        the grid none to keep to. The `inout` loader is the AI step's first item; the clutter queries go with
        collision. W58 is off for enemies and multiplayer anyway.
      - **The draw, piece 1: the type dispatch ported** (2026-11-03,
@@ -1360,9 +1360,74 @@ functions PM changed, and PM's new ones.
    (`zaitarget.cpp`, 162 new), the net editor and
    in/out nets (85 and 73 new), the valves' new keys, the movement modes
    (Circle, Direct, Random Move).
+   **Mapped 2026-11-04** (read-only unless marked).
+   - **Baseline, measured:** `mw3pm` runs c1m1 on MW3's AI and PM's data with no unported function reached in
+     9,000 frames at 33 ms. The Thor wakes near frame 1400, walks 2 km, and fights the idle player at 50-150 m;
+     armor falls both ways; 545 shots by frame 6600. So an enemy already walks and shoots; the order below is
+     by what differs from PM, not by what is missing. The two Shadow Cats stayed powered down throughout.
+   - **`on_mission_start`: ported** (0x4944e0, with 0x4e4b00's `bapon`; both slot +0x10 of the listeners, walked by
+     0x4f9960 from 0x483de0's case 9, MW3's 0x481170 case 7; `valves_mission_started`, `test_pm_ai_start.py`). Named
+     108 times, in the standalone missions' valves (`readersa*`), not the campaign's. Measured on c1sa1 over 100 s:
+     without it the allied `pirate_mate_1` falls to 4.2 of 12 armor (its turrets still hostile, their `setteam` never
+     run); with it 12. c1m1 is unchanged, and its Shadow Cats stay powered down, so that is something else.
+     0x483de0's case 8 (0x5349d0, then the player's +0x38c vt+0x1c) is not in the port; its caller is not traced.
+   - **The boundary** (the variant 0x4cdb30, the loader 0x4cddb0, the container 0x4cd740, the fill 0x4cdff0 ->
+     0x4ce450, the select 0x4ce290): names by game type: 1 `inoutm` and 5 `inoutsa` (ten areas by 0x435db0, the index
+     the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Child match 0x4cdce0. Areas 0xc0 bytes (MW3 0x88). The clamp
+     0x4ccaf0 (MW3 0x4c3000) is rewritten: a 0x54-byte record per vehicle (0x4c7f30, at its +0xd8), and it reads the
+     mech's jump jets (+0x3e8). Its body and the area's new fields are not read yet.
+   - **The data's new words** (PM only, every AI file of the four worlds compared with MW3's): valves `on_mission_start`,
+     `play_dead`; nets' `valve_assign` of `jumping` / `jumped` (189 each), `via` / `terminus` (626 each; `terminus` is
+     read by the aiv record, 0x4ec240 +0xa4). `setteam` and `any_zero` are not new in the exe (the port has them) but
+     MW3's data never used them, so they are untested on real files. Most of PM's data-only names are mission
+     valves, not code.
+   - **Valves' new keys** (0x4f5f50): of retreat_*, scan_*, approachRange, attack_radius, minRange, the shipped AI files
+     use only `retreat_time` (one file, c3 m6). Low priority. **Movement modes** (0x4c31c0): 0 Direct, 1 Zig Zag, 2
+     Circle, 4 Random Move, 5 Strafe, and two more names; no text use in the shipped files I searched; nets give the
+     mode as a number, so its use is not settled.
+   - **New code by address** (356 new, 801 changed in 0x4bd000..0x4f9000, attribution by neighbour only): largest runs
+     0x4ca4e0-0x4cbbb0 (2,337 instructions), 0x4c72a0-0x4c8be0 (1,458), 0x4d91e0-0x4d9d00 (1,276), 0x4df320-0x4dffb0
+     (1,256), 0x4daa70-0x4db0e0 (1,213), 0x4ea070-0x4eaff0 (1,169). Not yet read; `zaitarget`'s and the net editor's
+     functions are mapped only to here.
+   - **Order:** (1) `on_mission_start`; (2) the boundary's loader, variant, select; (3) the AI readers compared with
+     PM's exe on every shipped file (`test_ai_readers` on `pm`: aiv, valves, nets, targets), which shows what the data
+     needs; (4) the clamp; (5) the new behaviours and targets by the runs above, c1 first; (6) the clutter in W58's grid
+     with `cls_di`'s PM queries (with dev 1, who owns collision); (7) movement modes and valve keys as the data asks.
 6. **The front end**: the load/save screens and saved games
    (`%s%02d.mw3`), the saved configurations (`.m3c`), the pilot and
    briefing screens; no movies (zFMV's 21 ported functions are gone).
+   **The pilot and save files: mapped** (2026-11-04, read-only, not ported; checked against one real save):
+   - **Files.** `pilots\<name>.mw3` the pilot; `pilots//games//<name>%02d.mw3` (0x60559c) a saved world, by the
+     mission alone (MW3: `%02d%02d`, operation and mission). `.m3c` is not a campaign file: `configs\<mech>\*.m3c`
+     are the mech lab's saved configurations (0x428000).
+   - **Header** (0x47af50): 1, version, 0, the version 0x10 + 0x2e = 0x3e (0x479d80; MW3's 0x2f). Only the first
+     two words are compared. On a mismatch or a short read the file is reopened **CREATE_ALWAYS** and the header
+     written: the pilot is wiped (MW3 used OPEN_ALWAYS and kept the rest).
+   - **No checksum** on the pilot: the readers walked (0x47b2f0, 0x435820, 0x473930, 0x474c30, 0x434a20, 0x434b70)
+     only ReadFile fields. A saved world is a zSave archive: its header entry's kind must be 2, else the load
+     answers false (0x5cbf30, 0x5cbcc0).
+   - **The record** (0x47b2f0, MW3's 0x4790d0): five games' reads (+0x78, +0x74, +0x70, +0x80, +0x7c; MW3 four), a
+     count, then the campaigns. PM's count includes the first record, read into the first place with no check
+     (MW3 saved count - 1). Later records are kept only if vt+0x1c (0x435d80) holds.
+   - **A campaign** (read 0x435820, write 0x4356f0, ctor 0x4351b0, 0xe0 bytes): the slot and a store, then
+     +0xa0 **the mission, 1..10** (4 bytes; there is no operation), +0x38 a byte, +0xa4 and +0xa8 (3 and 3 new;
+     +0xa4 is set from +0xa8 on reading), +0xc0, +0xb0 (16 bytes), four stores, the lancemates (0x434b70: a
+     count, then slots), a count and that many strings (0x597280: length, bytes; +0xc4). To name: +0x38, +0xa4,
+     +0xc0, +0xb0, the strings.
+   - **Mission to world**: 0x435de0: 1, 2, 5 -> c1; 3, 4, 8 -> c2; 6, 7 -> c3; 9, 10 -> c4 (zbd\c<n>). Name `m%d`
+     (0x4355d0). Last mission 10 (0x435db0).
+   - **Which need a saved world**: 0x435e40 is true for 1, 3, 5, 6, 8, 9 (a world entered fresh). Only 2, 4, 7,
+     10 carry on from the mission before: they are written on winning (0x4359e0) and such a record is kept only
+     while its file exists (`_access`, 0x596ea0).
+   - **Loading a world**: vt+0x24 (0x435d30) when the file exists; the mission load (0x493ca0) only logs the answer,
+     so a false starts the mission on the unmodified world.
+   - **Checked on Owen's save** (7,322 + 12,388 bytes): header 1, 0x3e, 0; records parse at 0x58e (mission 1), 0xe01
+     (mission 2, with `<name>02.mw3` on disk) and 0x17c2 (mission 3, no file), each followed by four stores that
+     parse; the saved world starts 8, 2 (kind 2). The stores' strict parse found these three and only small false
+     hits with empty stores; the walk from the file's start through the configurations (0x426000) was not done.
+   - **To start mission N by editing**: with the game closed and a backup kept, change a record's 4-byte mission
+     field, no length change. N in 1, 3, 5, 6, 8, 9 needs nothing else. N in 2, 4, 7, 10 needs `<name>%02d.mw3` to
+     exist, from having won N - 1. Not traced: how the pilot screen picks among the records. Not tried in the game.
    **Headlights go with the mech step (4), as the expansion's headline feature** (traced 2026-11-04, not ported).
    The light map's real user: a light from `0x50e470` starts with flags 0x8b3, so 0x10 and 0x80 are on by default.
    The headlight's builder `0x479780` sets 0x10 again (`0x50ea00`), clears 0x20 (`0x50ea80`), sets 0x40 from

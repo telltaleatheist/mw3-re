@@ -79,6 +79,10 @@ std::list<Valve*>& valves();
 Valve* valve_find(const char* name);  // 0x004d3d20 -> 0x004d3e50: the first of that exact name
 Valve* valve_get(const char* name);   // 0x004d3c40: found or made; nullptr for no name
 void valves_clear();                  // 0x004d3ef0: every valve deleted, the list emptied
+// Pirate's Moon 1.0 @ 0x004944e0 and 0x004e4b00 (two listeners' slot +0x10, as a
+// mission starts): the valve "on_mission_start" on, where the data names it;
+// "bapon" (found or made) whether the player carries a Beagle.
+void valves_mission_started(int32_t player_bap);
 
 // The delayed updates waiting ([0x0060b514], one reaction or a list).
 Reaction*& valve_timers();
