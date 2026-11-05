@@ -12,6 +12,7 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/mech.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
 
@@ -21,24 +22,21 @@ namespace mech3 {
 
 namespace {
 CollideCalls g_calls;
+bool g_first_query = true;             // 0x006293c9: airborne, the feet meet walls on the first query only
 
-constexpr bool kSkiProbes = true;      // byte 0x005e24d4: probe z from the skis' length
-constexpr float kSkiReach = 1.1f;      // 0x005e24d8
-constexpr float kBumpRadius = 9.0f;    // 0x005e24dc
-constexpr float kCeilingNy = -0.3f;    // 0x005e24e0
-constexpr float kWallNy = 0.78f;       // 0x005e24e4
-constexpr float kCrushVolume = 180.0f; // 0x005e24e8
-constexpr float kTurnProbes = 3.3f;    // 0x005bd380
+constexpr bool kSkiProbes = true;      // byte 0x00604644: probe z from the skis' length
+constexpr float kSkiReach = 0.9f;      // 0x00604648
+constexpr float kBumpRadius = 9.0f;    // 0x0060464c
+constexpr float kCeilingNy = -0.3f;    // 0x00604650
+constexpr float kWallNy = 0.78f;       // 0x00604654
+constexpr float kCrushVolume = 180.0f; // 0x00604658
+constexpr float kTurnProbes = 3.3f;    // 0x005dffa0
 constexpr int kTopProbe = 10, kSoundBump = 0xd;
+constexpr float kCrash = 0.2f;         // 0x00604660
+constexpr double kBumpShare = 0.9;     // 0x005dff98: lighter than this share of the mech, it does not bump it
 
-const Vec3* position_of(Mech& m) { return skis_calls().position ? skis_calls().position(m) : nullptr; }
-
-void set_position(Mech& m, const Vec3& p) {
-  // Pirate's Moon works on the predicted place (+0x71c); until its responses are ported, a move here moves that too.
-  if (const Vec3* at = position_of(m))
-    m.pending_m[9] += p.x - at->x, m.pending_m[10] += p.y - at->y, m.pending_m[11] += p.z - at->z;
-  if (g_calls.set_position) g_calls.set_position(m, &p);
-}
+// What a contact does per frame, as long as it lasts. FIX (B): a keep-this-much per 1/30 s.
+float kept(float rate, float dt) { return zfix::options().per_second ? std::pow(rate, zfix::frame_steps(dt)) : rate; }
 
 zmth::Vec3 z(const Vec3& v) { return {v.x, v.y, v.z}; }
 Vec3 m3(const zmth::Vec3& v) { return {v.x, v.y, v.z}; }
@@ -86,7 +84,7 @@ float Mech::turn_rate_now() const {
   return (1.0f - std::fabs(controls->throttle) * 0.8f) * turn_rate;  // 0x005bcdf8, 0x005e1fcc
 }
 
-// Mech3.exe 1.2 @ 0x00422360. Rows of three at 0.4 of the box's height at
+// Pirate's Moon 1.0 @ 0x00423330. Rows of three at 0.4 of the box's height at
 // the skis' ends (the box's, doubled, without skis), four at the feet and
 // one at the top.
 void Mech::setup_collider() {
@@ -100,10 +98,11 @@ void Mech::setup_collider() {
   p[0] = {b[0], cy, zf}, p[1] = {cx, cy, zf}, p[2] = {b[3], cy, zf};
   p[3] = {b[0], cy, zb}, p[4] = {cx, cy, zb}, p[5] = {b[3], cy, zb};
   const float fx = foot(0)->translation->x;
-  p[6] = {fx, 0.75f, b[2]};
-  p[7] = {-fx, 0.75f, b[2]};
-  p[8] = {fx, 0.75f, -b[2]};
-  p[9] = {-fx, 0.75f, -b[2]};
+  const float fz = b[2] * 1.25f;  // 0x005dfd50
+  p[6] = {fx, 0.75f, fz};
+  p[7] = {-fx, 0.75f, fz};
+  p[8] = {fx, 0.75f, -fz};
+  p[9] = {-fx, 0.75f, -fz};
   p[10] = {cx, b[4], cz};
 }
 
@@ -118,7 +117,7 @@ void Mech::sort_hits(const zcls::SegmentHits& rec, const Vec3& from, const Vec3&
     else if (g_calls.node_entity && g_calls.node_entity(n)) list = &collider.vehicles;
     else if (probe == kTopProbe && ny < kCeilingNy) list = &collider.ceilings;
     else if (n && g_calls.node_touchable && g_calls.node_touchable(n)) list = &collider.touches;
-    else if ((probe < 6 && ny < kWallNy && -kWallNy < ny) || (airborne() && probe < 10 && ny < kWallNy))
+    else if ((probe < 6 && ny < kWallNy && -kWallNy < ny) || (g_first_query && airborne() && probe < 10 && ny < kWallNy))
       list = &collider.walls;
     if (!list) continue;
     CollisionHit e;
@@ -199,7 +198,7 @@ void Mech::collide_segments() {
   if (n) c.clear = collide_query(list, n);
 }
 
-// Mech3.exe 1.2 @ 0x004231c0. The mech is moved out by the probe's
+// Pirate's Moon 1.0 @ 0x00424730. The mech is moved out by the probe's
 // penetration reflected off the wall, its velocity's into-wall part kept at
 // the restitution; the throttle drops to a tenth (an AI's flips), and a yaw
 // kick turns the mech off the wall.
@@ -208,7 +207,6 @@ void Mech::wall_response(const CollisionHit& h) {
   if (n.x == 0.0f && n.z == 0.0f) return;
   const Vec3& lv = vec_3c;
   const float speed = std::sqrt((lv.x * lv.x + lv.y * lv.y) + lv.z * lv.z);
-  position_of(*this);
   const Vec3 p{h.hit.point[0], 0.0f, h.hit.point[2]};
   const Vec3 t{h.to.x, 0.0f, h.to.z};
   n.y = 0.0f;
@@ -217,7 +215,7 @@ void Mech::wall_response(const CollisionHit& h) {
   Vec3 r = reflect(n, d);
   const Vec3 p2{p.x + r.x, 0.0f + r.y, p.z + r.z};
   const Vec3 delta{p2.x - t.x, p2.y - 0.0f, p2.z - t.z};
-  if (const Vec3* at = position_of(*this)) set_position(*this, {at->x + delta.x, at->y + delta.y, at->z + delta.z});
+  pending_m[9] += delta.x, pending_m[10] += delta.y, pending_m[11] += delta.z;
   for (int32_t i = 0; i < collider.count; ++i) {
     Vec3& w = collider.world[i];
     w = {w.x + delta.x, w.y + delta.y, w.z + delta.z};
@@ -231,50 +229,62 @@ void Mech::wall_response(const CollisionHit& h) {
   const float b = (rs.x * n.x + rs.z * n.z) * rest;
   const Vec3 into{b * n.x, b * 0.0f, b * n.z};
   const Vec3 nv{into.x + along.x, into.y + along.y, into.z + along.z};
-  push = {nv.x - velocity.x, 0.0f, nv.z - velocity.z};
+  push = {nv.x - pending_velocity.x, 0.0f, nv.z - pending_velocity.z};
   const int32_t flips = g_calls.ai_reverses ? g_calls.ai_reverses(*this) : 0;
-  controls->throttle = flips ? -controls->throttle : crt::x87_mul_f24(controls->throttle, 0.1);  // 0x005bd378
+  const float steps = zfix::frame_steps(frame_dt);  // FIX (B): the throttle's drop and the kick per 1/30 s
+  if (flips) controls->throttle = -controls->throttle;
+  else if (zfix::options().per_second) controls->throttle *= kept(0.1f, frame_dt);
+  else controls->throttle = crt::x87_mul_f24(controls->throttle, 0.1);  // 0x005dffa8
   const float sign = (d.z * rs.x - d.x * rs.z) < 0.0f ? -1.0f : 1.0f;
-  vec_58.y = sign * speed * collider.yaw_kick + vec_58.y;
+  vec_58.y = sign * speed * collider.yaw_kick * steps + vec_58.y;
   if (this == world().mission_player && world().force_feedback && g_calls.ff_jolt) {
     const float nf[3] = {n.x, n.y, n.z};
     g_calls.ff_jolt(nf, speed / max_speed);
   }
 }
 
-// Mech3.exe 1.2 @ 0x00423600. Airborne: bounce down off it when rising, and a
-// knock on the head. On foot: damage by the volume of the box hit, and a crouch.
+// Pirate's Moon 1.0 @ 0x00424d80: moved as late as this frame, and nothing standing
+// owns it. Anything else over the mech, the fixed scenery, is a wall to it.
+bool Mech::can_crush(Handle node) const {
+  if (!node) return false;
+  const uint32_t expiry = g_calls.node_expiry ? g_calls.node_expiry(node) : static_cast<zcls::Node*>(node)->get<uint32_t>(0xc4);
+  if (expiry < zcls::frames().frame) return false;
+  Handle owner = g_calls.node_object ? g_calls.node_object(node) : nullptr;
+  return !owner || (g_calls.object_dead && g_calls.object_dead(owner));
+}
+
+// Pirate's Moon 1.0 @ 0x00424ba0. Airborne: bounce down off it when rising, and
+// a knock on the head. On foot: what can crush, by the volume of the box hit,
+// and a crouch; anything else is a wall.
 void Mech::ceiling_response(const CollisionHit& h) {
+  const float steps = zfix::frame_steps(frame_dt);  // FIX (B): the damage, per 1/30 s
   if (airborne()) {
     if (vec_3c.y > 0.0) {
       const Vec3 v = vec_3c;
       impulse = {0, 0, 0};
-      const float vy = v.y * -0.66f;  // 0x005bd390
+      const float vy = v.y * -0.66f;  // 0x005dffbc
       skis->set_vy(vy);
       vec_3c = {v.x, vy, v.z};
-      if (const Vec3* at = position_of(*this)) {
-        Vec3 q = *at;
-        q.y = (h.hit.point[1] - collider.local[kTopProbe].y) - 0.11f;  // 0x005bd394
-        set_position(*this, q);
-      }
+      pending_m[10] = (h.hit.point[1] - collider.local[kTopProbe].y) - 0.11f;  // 0x005dffb8
     }
-    head->apply_damage(0.002f, 0);  // 0x3b03126f
+    head->apply_damage(0.002f * steps, 0);  // 0x3b03126f
     return;
   }
+  if (!can_crush(h.hit.node)) return wall_response(h);
   const float* b = g_calls.hit_box ? g_calls.hit_box(h.hit.node) : nullptr;
   if (!b) return;
-  const float v = (b[4] - b[1]) * (b[5] - b[2]) * (b[3] - b[0]) / kCrushVolume * 0.25f;
+  const float v = (b[5] - b[2]) * (b[4] - b[1]) * (b[3] - b[0]) / kCrushVolume * 0.25f;
   if (v == 0.0f) return;
-  head->apply_damage(crt::x87_mul_f24(v, 0.1), 0);
-  torso->apply_damage(crt::x87_mul_f24(v, 0.4), 0);  // 0x005bd3a0
-  const float side = crt::x87_mul_f24(v, 0.25);      // 0x005bd3a8
+  head->apply_damage(crt::x87_mul_f24(v, 0.1) * steps, 0);
+  torso->apply_damage(crt::x87_mul_f24(v, 0.4) * steps, 0);  // 0x005dffb0
+  const float side = crt::x87_mul_f24(v, 0.25) * steps;      // 0x005dfce0
   torso->apply_damage(side, 1);
   torso->apply_damage(side, 2);
   if (g_calls.crouch) g_calls.crouch(*hip, v);
-  else hip->duck(v);
+  else hip->duck(v * steps);
 }
 
-// Mech3.exe 1.2 @ 0x004237c0. Each vehicle hit: a non-allied one takes damage
+// Pirate's Moon 1.0 @ 0x00424dd0. Each vehicle hit: a non-allied one takes damage
 // by the speed (killing it ends the response unblocked); every live one is
 // shoved. Dead units are ignored by the foot probes.
 void Mech::vehicle_response() {
@@ -291,16 +301,17 @@ void Mech::vehicle_response() {
     Handle body = g_calls.entity_body ? g_calls.entity_body(ent) : nullptr;
     if (!body) continue;
     hit = true;
-    const Vec3 v = velocity;
+    const Vec3 v = pending_velocity;
+    const float steps = zfix::frame_steps(frame_dt);  // FIX (B): the damage and the shove, per 1/30 s
     const uint32_t team = g_calls.entity_team ? g_calls.entity_team(ent) : 0;
     if (!(team & allies)) {
-      const float dmg = (v.x * v.x + v.z * v.z) / (max_speed * max_speed) * 20.0f;  // 0x005bd3b0
-      if (g_calls.entity_damage && g_calls.entity_damage(target, dmg)) return;
+      const float dmg = (v.x * v.x + v.z * v.z) / (max_speed * max_speed) * 20.0f;  // 0x005dffc4
+      if (g_calls.entity_damage && g_calls.entity_damage(target, dmg * steps)) return;
     }
     float* bv = g_calls.body_velocity ? g_calls.body_velocity(body) : nullptr;
     float* spin = g_calls.body_spin ? g_calls.body_spin(body) : nullptr;
     if (!bv || !spin) continue;
-    const float s = tonnage() * (g_calls.body_mass ? g_calls.body_mass(body) : 0.0f) * 0.1f;  // 0x005bd3b4
+    const float s = tonnage() * (g_calls.body_mass ? g_calls.body_mass(body) : 0.0f) * 0.1f * steps;  // 0x005dffc0
     const float nv[3] = {s * v.x + bv[0], s * v.y + bv[1], s * v.z + bv[2]};
     std::memcpy(bv, nv, 12);
     std::memcpy(spin, nv, 12);
@@ -315,49 +326,60 @@ void Mech::vehicle_response() {
   if (hit) wall_response(collider.vehicles.back());
 }
 
-// Mech3.exe 1.2 @ 0x00423a20. The head hit only: unless allied, each mech
-// takes the other's share of the speed's damage, the other gets a part of
-// this one's velocity; then the wall response.
+// Pirate's Moon 1.0 @ 0x00425370: 1 is the torso, its centre half and each side a quarter; else the leg 4 or 5.
+void Mech::crash_part(Mech* by, float d, int32_t part) {
+  attacker = by;
+  if (part != 1) return legs[part & 1]->apply_damage(d, 0);
+  torso->apply_damage(d * 0.5f, 0);
+  const float side = d * 0.25f;
+  torso->apply_damage(side, 1);
+  torso->apply_damage(side, 2);
+}
+
+// Pirate's Moon 1.0 @ 0x004253f0: the crash, by the two mechs' speeds together
+// over their top speeds together; each takes the other's share of the weight.
+void Mech::crash(Mech& other, int32_t part) {
+  const Vec3& v = pending_velocity;
+  const float sx = v.x + other.velocity.x, sz = v.z + other.velocity.z;
+  const float tops = other.max_speed + max_speed;
+  const float sq = (sx * sx + sz * sz) * kCrash / (tops * tops);
+  const float t_other = other.tonnage();
+  const float inv = 1.0f / (tonnage() + t_other);
+  const float mine = tonnage() * inv, theirs = t_other * inv;
+  const float steps = zfix::frame_steps(frame_dt);  // FIX (B): per 1/30 s
+  crash_part(&other, theirs * sq * steps, part);
+  if (g_calls.remote && g_calls.remote(other)) {
+    const float s = theirs * collider.restitution * steps;
+    if (g_calls.net_shove) g_calls.net_shove(*this, other, mine * sq * steps, s * v.x, s * v.z);
+  } else {
+    other.crash_part(this, mine * sq * steps, part);
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x00425030. The head hit only. A hit below the knee goes to the leg on that side.
 void Mech::mech_response() {
   const CollisionHit& e = collider.mechs.back();
   Mech* other = g_calls.node_mech ? g_calls.node_mech(e.hit.node) : nullptr;
-  if (other && !(other->team & allies)) {
-    const Vec3 v = velocity;
-    const float r = (v.x * v.x + v.z * v.z) / (max_speed * max_speed) * 0.02f;  // 0x005bd3b8
-    const float t_other = other->tonnage();
-    const float sum = tonnage() + t_other;
-    attacker = other;
-    const int32_t probe = e.probe;
-    if (probe < 6 || probe == kTopProbe) {
-      const float d = other->tonnage() * r / sum;
-      torso->apply_damage(d * 0.5f, 0);
-      const float side = d * 0.25f;
-      torso->apply_damage(side, 1);
-      torso->apply_damage(side, 2);
-    } else if (probe < 10) {
-      legs[probe & 1]->apply_damage(other->tonnage() * r / sum, 0);
-    }
-    const float k = tonnage() / sum;
-    const float s = collider.restitution * k;
-    if (g_calls.remote && g_calls.remote(*other)) {
-      if (g_calls.net_shove) g_calls.net_shove(*this, *other, k * r, s * v.x, s * v.z);
-    } else {
-      other->attacker = this;
-      other->torso->apply_damage(k * r, 0);
-      other->velocity.x = s * v.x + other->velocity.x;
-      other->velocity.z = s * v.z + other->velocity.z;
-    }
+  if (!other) {
+    blocked[1] = false;
+    return;
   }
-  blocked[1] = true;
-  wall_response(collider.mechs.back());
+  const bool live = other->active;
+  if (live && !(other->team & allies)) {
+    const int32_t probe = e.probe;
+    if (probe < 6 || probe == kTopProbe) crash(*other, 1);
+    else if (probe < 10) crash(*other, (probe & 1) | 4);
+  }
+  blocked[1] = live;
+  if (live) wall_response(collider.mechs.back());
 }
 
-// Mech3.exe 1.2 @ 0x00423c90. 20 to the touched object; while it stands,
+// Pirate's Moon 1.0 @ 0x004255f0. 20 to the touched object; while it stands,
 // it blocks like a wall.
 bool Mech::touch_response() {
   const CollisionHit& e = collider.touches.back();
   const Vec3 from = e.from;
-  // 20 a frame (0x41a00000). FIX (B): 20 per 1/30 s, 600 a second.
+  // 20 a frame ([0x0060463c]). FIX (B): 20 per 1/30 s, 600 a second.
   const float dmg = 20.0f * zfix::frame_steps(frame_dt);
   const float r = g_calls.touch ? g_calls.touch(e.hit.node, &from, e, dmg) : 0.0f;
   if (!(r > 0.0f)) return false;
@@ -365,17 +387,19 @@ bool Mech::touch_response() {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004225c0. Returns 1 when the mech stays blocked: the
+// Pirate's Moon 1.0 @ 0x00423730. Returns 1 when the mech stays blocked: the
 // resolutions left touch, ceiling or wall hits on the second query.
 bool Mech::collide() {
   Collider& c = collider;
   blocked[0] = blocked[1] = blocked[2] = blocked[3] = false;
-  const float* m = pending_m;  // Pirate's Moon 0x00423730: where the mech is going
+  if (!collides) return false;
+  const float* m = pending_m;  // where the mech is going
   for (int32_t i = 0; i < c.count; ++i) {
     const Vec3& p = c.local[i];
     c.world[i] = {((p.x * m[0] + p.y * m[3]) + p.z * m[6]) + m[9], ((p.x * m[1] + p.y * m[4]) + p.z * m[7]) + m[10],
                   ((p.x * m[2] + p.y * m[5]) + p.z * m[8]) + m[11]};
   }
+  g_first_query = true;
   collide_segments();
   if (!c.clear) {
     if (!c.vehicles.empty()) vehicle_response();
@@ -393,13 +417,15 @@ bool Mech::collide() {
   }
   bool again = blocked[0] || blocked[1] || blocked[3];
   if (!blocked[0] && !blocked[1] && !blocked[3]) {
-    // The bump: the nearest mech (or the Mobile HQ) among the contacts.
+    // The bump: the first mech (or the Mobile HQ) among the contacts, not an
+    // Elemental and not much lighter than this one.
     const int32_t n = g_calls.contact_count ? g_calls.contact_count(*this) : 0;
     Handle found = nullptr;
     for (int32_t i = 0; i < n && !found; ++i) {
       Handle ct = g_calls.contact(*this, i);
       if (Mech* cm = g_calls.contact_mech ? g_calls.contact_mech(ct) : nullptr) {
-        if (cm != this) found = ct;
+        if (cm != this && cm->pilot->roster != kElemental && crt::x87_div_f24(cm->tonnage(), tonnage()) >= kBumpShare)
+          found = ct;
       } else if (g_calls.contact_target && g_calls.contact_target(ct)) {
         found = ct;
       }
@@ -409,10 +435,11 @@ bool Mech::collide() {
       const Vec3* dirp = g_calls.contact_dir(found);
       zmth::Vec3 away{-dirp->x, 0.0f, -dirp->z};
       zmth::normalize(away);
-      const float amt = (kBumpRadius - g_calls.contact_dist(found)) * 1.1f;  // 0x005bd360
+      const float amt = (kBumpRadius - g_calls.contact_dist(found)) * 1.1f;  // 0x005dff90
       const Vec3 off{amt * away.x, amt * away.y, amt * away.z};
-      if (const Vec3* at = position_of(*this)) set_position(*this, {at->x + off.x, at->y + off.y, at->z + off.z});
-      const float k = crt::x87_mul_f24(std::fabs(vec_3c.z), 0.6000000238418579);  // 0x005bd368
+      pending_m[9] += off.x, pending_m[10] += off.y, pending_m[11] += off.z;
+      const float steps = zfix::frame_steps(frame_dt);  // FIX (B): the shove and the throttle's drop per 1/30 s
+      const float k = crt::x87_mul_f24(std::fabs(vec_3c.z), 0.6000000238418579) * steps;  // 0x005dff88
       push = {push.x + k * away.x, push.y + k * away.y, push.z + k * away.z};
       const float dt = frame_dt;
       const Vec3 mv{off.x + push.x * dt, off.y + push.y * dt, off.z + push.z * dt};
@@ -421,13 +448,16 @@ bool Mech::collide() {
         w = {w.x + mv.x, w.y + mv.y, w.z + mv.z};
       }
       const Vec3& d = *dirp;
-      const float cy = d.z * velocity.x - d.x * velocity.z;
+      const float cy = d.z * pending_velocity.x - d.x * pending_velocity.z;
       const float sign = cy < 0.0f ? -1.0f : 1.0f;
-      vec_58.y = turn_rate_now() * sign * 1.8f;  // 0x005bd370
-      controls->throttle = crt::x87_mul_f24(controls->throttle, 0.1);
+      vec_58.y = turn_rate_now() * sign * 1.8f;  // 0x005dff80
+      controls->throttle *= kept(0.7f, frame_dt);  // 0x005dfcb0
       blocked[1] = true;
       if (this == world().player && move_calls().pilot_sound)
         sounds[13] = move_calls().pilot_sound(*this, kSoundBump, 1.0f, -1.0f);
+      // New in Pirate's Moon: bumped into something heavier, it is a crash to both.
+      if (Mech* heavier = g_calls.contact_mech ? g_calls.contact_mech(found) : nullptr)
+        if (tonnage() < heavier->tonnage()) crash(*heavier, 1);
     }
     again = blocked[0] || blocked[1] || blocked[3];
     if (!again && net_collision) {
@@ -440,7 +470,7 @@ bool Mech::collide() {
         std::memcpy(e.hit.normal, &r.normal, 12);
         std::memcpy(e.hit.point, &r.point, 12);
         e.from = r.point;
-        if (const Vec3* at = position_of(*this)) e.to = *at;
+        e.to = {pending_m[9], pending_m[10], pending_m[11]};
         e.probe = 0;
         wall_response(e);
         blocked[3] = true;
@@ -449,14 +479,14 @@ bool Mech::collide() {
   }
   bool stuck = false;
   if (again) {
+    g_first_query = false;
     collide_segments();
     if (!c.clear) {
       stuck = !c.touches.empty() || !c.ceilings.empty() || !c.walls.empty();
       c.clear_lists();
     }
   }
-  if (!stuck)
-    for (int32_t i = 0; i < c.count; ++i) c.last[i] = c.world[i];
+  for (int32_t i = 0; i < c.count; ++i) c.last[i] = c.world[i];
   return stuck;
 }
 

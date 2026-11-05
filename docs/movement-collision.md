@@ -3,7 +3,7 @@
 Mech3.exe 1.2, 2026-10-20. Static map from the asm (Ghidra gets the bool of
 0x4225c0, the push decay in 0x419fc0 and the arguments of 0x423a20, 0x4237c0
 and 0x5836b0 wrong). Part of `movement.md`. Ported (`mech3/mech_collide`, the queries in
-`zclass/cls_di`) and checked in `test_collide.py` and `test_di.py`; the
+`zclass/cls_di`) and checked in `test_pm_collide.py` (MW3: `test_collide.py` on `main`) and `test_di.py`; the
 corrections below came out of that.
 
 Corrections: probes 0-2 sit at -z, so ahead of the mech (forward is -z), and
@@ -21,6 +21,21 @@ The code sits between `mech_anim.cpp` and `mech_data.cpp` (likely its own
 file; `mech_collide` would fit the alphabetical link order). Everything works
 on a collider object embedded in the mech at +0xfc (ctor 0x4222e0 from the mech
 ctor 0x414a39, probe setup 0x422360 at 0x416165 once the model exists).
+
+## Pirate's Moon
+
+`test_pm_collide.py` checks PM's Collide 0x423730 on `pm`; addresses in the sections below are MW3's. What changed:
+the mech works on the move predict worked out (the place in `pending_m`, `pending_velocity`), committed by Update
+afterwards; the position is no longer set from here. Last frame's probes always follow, stuck or not. Wall 0x424730:
+yaw kick 0.05, not 0.01. Probes 0x423330: reach 0.9, not 1.1; foot probes at the box's z times 1.25. Sort 0x424520:
+the airborne foot walls on the first query only ([0x6293c9]). Bump: skips Elementals and mechs under 0.9 of this one's
+tons, takes the first that passes, throttle x0.7, and when the contact is a heavier mech it is a crash (below). Mech
+0x425030: nothing without a mech behind the node; only a live one blocks; damage is the crash 0x4253f0: speed
+(pending velocity + other's)^2 x 0.2 / (top speeds together)^2, each taking its share by the other's tons; part 1
+(probes under 6 and the top) is the torso, 0.5 / 0.25 / 0.25, parts 4 and 5 (foot probes) the leg by the probe's low
+bit on both mechs. The other mech's velocity is not touched; a remote one gets the shove message as before. Ceiling
+0x424ba0: on foot, only what 0x424d80 allows crushes (node +0xc4 at least the frame, and an owner that is gone or
+none); anything else is a wall response. Per-frame amounts go to time behind `per_second` (`fixes.md`).
 
 ## In the frame
 

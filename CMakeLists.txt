@@ -601,6 +601,7 @@ if(MW3_BUILD_PM)
   add_executable(mw3pmtests
     tests/main.cpp
     tests/pm/test_pm_game.cpp
+    tests/pm/test_pm_collide_rate.cpp
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)
@@ -622,6 +623,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_jets.cpp)
   target_sources(pmprobe PRIVATE tests/probe_update.cpp)
   target_sources(pmprobe PRIVATE tests/probe_skis.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_collide.cpp)
 endif()
 
 # The SDL3 front end and the programs on it.

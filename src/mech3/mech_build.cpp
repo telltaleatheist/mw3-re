@@ -305,7 +305,7 @@ void collider_init(Mech& m) {
   c.clear = 0;
   c.count = 11;
   c.restitution = 0.1f;
-  c.yaw_kick = 0.01f;
+  c.yaw_kick = 0.05f;
   for (int i = 0; i < 15; ++i) c.local[i] = c.world[i] = c.last[i] = kZero;
   static const float kMatrix[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};  // 0x004abaf0 with the translation
   std::memcpy(c.matrix, kMatrix, sizeof kMatrix);

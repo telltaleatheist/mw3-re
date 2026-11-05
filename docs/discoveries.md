@@ -4408,3 +4408,27 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   as a whole is under 20%, and with a 3D card it lays a sheet of the same
   green noise over each panel at full strength, however hurt you are; it also
   clears faster. (From the code.)
+- **Pirate's Moon made bumping a fight between weights:** in MechWarrior 3
+  walking into another mech's space only shoves you off it. In Pirate's Moon,
+  if the other mech is heavier the bump is a crash: both take torso damage by
+  your speeds together against your top speeds together, each taking the
+  other's share of the weight. Mechs much lighter than you (under 90% of your
+  tons) and Elementals no longer shove you at all, and a bump takes your
+  throttle down to 70% where MW3 took it to 10%. (From the code.)
+- **In Pirate's Moon a crash treats both mechs alike:** in MechWarrior 3 the
+  other mech took its share all on the centre torso and was thrown a little,
+  and a foot probe's hit hurt only your own leg. In Pirate's Moon the other
+  mech gets the same spread as you, half to the centre and a quarter to each
+  side, or the same leg as yours for a foot probe, and nobody is thrown unless
+  the other side is a network player. (From the code.)
+- **Pirate's Moon stopped the scenery crushing you:** in MechWarrior 3 anything
+  over your mech's head on foot does damage by the size of its box, so a large
+  overhanging rock can kill you outright. Pirate's Moon only lets a thing crush
+  you if it moved as late as this frame and nothing still standing owns it;
+  fixed scenery is just a wall. (From the code, and the rebuild died under a
+  rock in the first Pirate's Moon mission until this was ported.)
+- **Pirate's Moon mechs turn harder off walls and reach less:** the kick that
+  turns you off a wall is five times MW3's (0.05 against 0.01), the probes ahead
+  of and behind you reach 0.9 of the skis' half length instead of 1.1, the foot probes sit
+  a quarter further out, and in the air the feet only meet walls on the first
+  check of the frame. (From the code.)

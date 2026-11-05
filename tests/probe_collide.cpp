@@ -1,4 +1,4 @@
-// Mech collision (mech3/mech_collide) for tests/differential/test_collide.py.
+// Mech collision (mech3/mech_collide) for tests/differential/test_pm_collide.py.
 // The mech goes back and forth as a byte image; other mechs, vehicles,
 // nodes and contacts are small tables the test fills; the segment query
 // answers with the records the test scripted. Every call out is logged as
@@ -58,6 +58,8 @@ struct Node {
   float touch = 0;        // what its damage handler returns
   int32_t has_box = 0;
   float box[6] = {};
+  uint32_t expiry = 0;    // +0xc4
+  int32_t owner = 0;      // 0 none, 1 standing, 2 dead
 };
 struct FakeVehicle {
   int32_t alive = 1, target = 1, body = 1, killed = 0;
@@ -85,6 +87,7 @@ struct State {
   Mech others[2];
   MechData other_pilot[2];
   LTorso other_torso[2];
+  LLeg other_legs[2][2];
   int32_t other_remote[2] = {};
   Node nodes[12];
   FakeVehicle veh[2];
@@ -114,15 +117,17 @@ extern "C" {
 // matrix[12]); contacts x 4 (mech, target, dist2, dist, dir[3]).
 void probe_collide_setup(const float* nodes, const float* veh, const float* contacts, int32_t ncontacts,
                          const int32_t* others_roster, const uint32_t* others_team, const float* others_vel,
-                         const int32_t* others_remote, int32_t ai, int32_t ai_rev) {
+                         const int32_t* others_remote, int32_t ai, int32_t ai_rev, const float* others_top,
+                         const int32_t* others_active) {
   static State state;
   g = &state;
   for (int i = 0; i < 12; ++i) {
-    const float* n = nodes + 10 * i;
+    const float* n = nodes + 12 * i;
     Node& d = g->nodes[i];
     d.kind = static_cast<uint32_t>(n[0]), d.idx = static_cast<int32_t>(n[1]), d.touch = n[2];
     d.has_box = static_cast<int32_t>(n[3]);
     std::memcpy(d.box, n + 4, 24);
+    d.expiry = static_cast<uint32_t>(n[10]), d.owner = static_cast<int32_t>(n[11]);
   }
   for (int i = 0; i < 2; ++i) {
     const float* v = veh + 24 * i;
@@ -151,6 +156,12 @@ void probe_collide_setup(const float* nodes, const float* veh, const float* cont
     g->other_torso[i] = LTorso{};
     g->other_torso[i].code = 5 + i;
     o.torso = &g->other_torso[i];
+    for (int k = 0; k < 2; ++k) {
+      g->other_legs[i][k] = LLeg{};
+      g->other_legs[i][k].code = 7 + 2 * i + k;
+      o.legs[k] = &g->other_legs[i][k];
+    }
+    o.max_speed = others_top[i], o.active = others_active[i] != 0;
     o.attacker = nullptr;
     g->other_remote[i] = others_remote[i];
   }
@@ -185,14 +196,17 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
   m.node = h(0x100 + 11);
   m.velocity = v3(0x30), m.vec_3c = v3(0x3c), m.vec_58 = v3(0x58);
   m.allies = rd<uint32_t>(mech, 0xc4);
-  m.no_power_down = mech[0x584] != 0;
-  m.push = v3(0x5a0), m.impulse = v3(0x594);
-  m.max_speed = f(0x518), m.turn_rate = f(0x520), m.frame_dt = f(0x6b0);
+  m.no_power_down = mech[0x5a8] != 0;
+  m.collides = mech[0x5d4] != 0;
+  m.push = v3(0x5c4), m.impulse = v3(0x5b8);
+  m.pending_velocity = v3(0x6ec);
+  std::memcpy(m.pending_m, mech + 0x6f8, 48);
+  m.max_speed = f(0x528), m.turn_rate = f(0x530), m.frame_dt = f(0x6d4);
   Collider& c = m.collider;
-  c.restitution = f(0x118), c.yaw_kick = f(0x11c), c.count = rd<int32_t>(mech, 0x120);
-  for (int i = 0; i < 15; ++i) c.local[i] = v3(0x124 + 12 * i), c.world[i] = v3(0x1d8 + 12 * i), c.last[i] = v3(0x28c + 12 * i);
+  c.restitution = f(0x128), c.yaw_kick = f(0x12c), c.count = rd<int32_t>(mech, 0x130);
+  for (int i = 0; i < 15; ++i) c.local[i] = v3(0x134 + 12 * i), c.world[i] = v3(0x1e8 + 12 * i), c.last[i] = v3(0x29c + 12 * i);
   g->c = MechControls{};
-  g->c.throttle = rd<float>(mech, 0x6d0);  // the controls' current throttle, carried in a spare slot
+  g->c.throttle = rd<float>(mech, 0x7f0);  // the controls' current throttle, carried in a spare slot
   m.controls = &g->c;
   g->c.owner = &m;
   g->pilot.roster = roster;
@@ -211,12 +225,12 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
     g->legs[i].foot = &g->feet[i];
     m.legs[i] = &g->legs[i];
   }
-  g->foot_pos = v3(0x6c0);
+  g->foot_pos = v3(0x7e0);
   g->feet[0].translation = &g->foot_pos;
   std::memcpy(g->transform, transform, 48);
   m.transform = g->transform;
   g->pos = {pos[0], pos[1], pos[2]};
-  m.sounds[13] = h(rd<uint32_t>(mech, 0x5ec));
+  m.sounds[13] = h(rd<uint32_t>(mech, 0x610));
   m.attacker = nullptr;
   if (flags & 8) {
     std::memcpy(&g->net.frame, net, 4), std::memcpy(&g->net.sent, net + 4, 4);
@@ -230,7 +244,7 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
   w.mission_player = flags & 2 ? &m : nullptr;
   w.force_feedback = flags & 4;
   g->calls = 0;
-  g->mech_node_flags = rd<uint32_t>(mech, 0x6d4);
+  g->mech_node_flags = rd<uint32_t>(mech, 0x7f4);
   g_log.clear();
 
   skis_calls().position = [](Mech&) -> const Vec3* { return &g->pos; };
@@ -275,10 +289,9 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
     const int i = node_of(nd);
     return i >= 0 && g->nodes[i].has_box ? g->nodes[i].box : nullptr;
   };
-  cc.set_position = [](Mech&, const Vec3* p) {
-    log({15, bits(p->x), bits(p->y), bits(p->z)});
-    g->pos = *p;
-  };
+  cc.node_expiry = [](Handle nd) { return g->nodes[node_of(nd)].expiry; };
+  cc.node_object = [](Handle nd) -> Handle { return g->nodes[node_of(nd)].owner ? h(0x600 + node_of(nd)) : nullptr; };
+  cc.object_dead = [](Handle o) { return g->nodes[u(o) - 0x600].owner == 2; };
   cc.contact_count = [](Mech&) { return g->ncontacts; };
   cc.contact = [](Mech&, int32_t i) { return h(0x300 + i); };
   cc.contact_mech = [](Handle ct) -> Mech* {
@@ -313,15 +326,16 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
 
   auto put = [&](int off, float v) { wr(mech, off, v); };
   auto p3 = [&](int off, const Vec3& v) { put(off, v.x), put(off + 4, v.y), put(off + 8, v.z); };
-  p3(0x30, m.velocity), p3(0x3c, m.vec_3c), p3(0x58, m.vec_58), p3(0x5a0, m.push), p3(0x594, m.impulse);
-  for (int i = 0; i < 15; ++i) p3(0x1d8 + 12 * i, c.world[i]), p3(0x28c + 12 * i, c.last[i]);
-  for (int k = 0; k < 4; ++k) mech[0x374 + k] = m.blocked[k];
-  wr<int32_t>(mech, 0xfc, c.clear);
-  wr<uint32_t>(mech, 0x5ec, u(m.sounds[13]));
+  p3(0x30, m.velocity), p3(0x3c, m.vec_3c), p3(0x58, m.vec_58), p3(0x5c4, m.push), p3(0x5b8, m.impulse);
+  for (int i = 0; i < 15; ++i) p3(0x1e8 + 12 * i, c.world[i]), p3(0x29c + 12 * i, c.last[i]);
+  for (int k = 0; k < 4; ++k) mech[0x384 + k] = m.blocked[k];
+  std::memcpy(mech + 0x6f8, m.pending_m, 48);
+  wr<int32_t>(mech, 0x10c, c.clear);
+  wr<uint32_t>(mech, 0x610, u(m.sounds[13]));
   const uint32_t att = m.attacker == &g->others[0] ? 1 : m.attacker == &g->others[1] ? 2 : 0;
-  wr<uint32_t>(mech, 0x664, att);
-  put(0x6d0, g->c.throttle);
-  wr<uint32_t>(mech, 0x6d4, g->mech_node_flags);
+  wr<uint32_t>(mech, 0x688, att);
+  put(0x7f0, g->c.throttle);
+  wr<uint32_t>(mech, 0x7f4, g->mech_node_flags);
   std::memcpy(skis_vy, g->skis.vy, 28);
   pos[0] = g->pos.x, pos[1] = g->pos.y, pos[2] = g->pos.z;
   for (int i = 0; i < 2; ++i) {
@@ -346,7 +360,7 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
 
 extern "C" {
 // The probe setup 0x00422360 on a node box and a foot position; writes the
-// local probes into the image at +0x124.
+// local probes into the image at +0x134.
 int32_t probe_collider_setup(uint8_t* mech, int32_t roster, float half, float, const float* foot, const float* box) {
   static Mech m;
   static Skis skis;
@@ -371,7 +385,7 @@ int32_t probe_collider_setup(uint8_t* mech, int32_t roster, float half, float, c
   collide_calls().node_box = [](Handle) -> const float* { return b; };
   m.setup_collider();
   collide_calls() = CollideCalls{};
-  for (int i = 0; i < 11; ++i) std::memcpy(mech + 0x124 + 12 * i, &m.collider.local[i], 12);
+  for (int i = 0; i < 11; ++i) std::memcpy(mech + 0x134 + 12 * i, &m.collider.local[i], 12);
   return 0;
 }
 }

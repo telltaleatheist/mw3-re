@@ -680,3 +680,4 @@ Known quirks the rebuild deliberately keeps:
 - A controls file whose first axis names no source, with no key list, gets no axis source; Pirate's Moon took the file name's address as one.
 - From high up, no dark band between the far ground and the sky: what nothing draws takes the fog's colour (bug fixes on).
 - A light carried by something that moves (a mech's headlight) now shines from where it is, not from the world's origin.
+- Leaning on a wall, ramming a mech or a vehicle, or being crushed does the same damage and slows you the same at any frame rate.

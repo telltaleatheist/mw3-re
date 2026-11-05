@@ -303,6 +303,9 @@ BasicVehicle* hit_vehicle(Handle e) {
 }
 void wire_vehicle_collisions() {
   CollideCalls& c = collide_calls();
+  c.node_object = [](Handle n) -> Handle { return node_entity(n); };  // 0x0040f160
+  // Only the vehicles are objects with a +0x08 here; the rest count as standing (the wall).
+  c.object_dead = [](Handle o) { return is_program_vehicle(o) && !static_cast<BasicVehicle*>(o)->active; };
   c.entity_dead = [](Handle e) {  // its +0x08 clear
     const BasicVehicle* v = hit_vehicle(e);
     return v && !v->active;

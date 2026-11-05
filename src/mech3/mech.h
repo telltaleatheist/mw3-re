@@ -321,10 +321,13 @@ struct Mech : Vehicle {
   void collide_segments();            // 0x00422d20
   int32_t collide_query(const float* list, int32_t points);  // 0x00422ef0, 1 when nothing was crossed
   void sort_hits(const zcls::SegmentHits& rec, const Vec3& from, const Vec3& to, int32_t probe);  // 0x00423010
-  void wall_response(const CollisionHit& h);    // 0x004231c0
-  void ceiling_response(const CollisionHit& h); // 0x00423600
+  void wall_response(const CollisionHit& h);    // 0x00424730
+  void ceiling_response(const CollisionHit& h); // 0x00424ba0
+  bool can_crush(Handle node) const;            // 0x00424d80
+  void crash(Mech& other, int32_t part);        // 0x004253f0
+  void crash_part(Mech* by, float d, int32_t part);  // 0x00425370
   void vehicle_response();                      // 0x004237c0
-  void mech_response();                         // 0x00423a20
+  void mech_response();                         // 0x00425030
   bool touch_response();                        // 0x00423c90
   float turn_rate_now() const;                  // 0x00418f70
 

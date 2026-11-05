@@ -21,7 +21,7 @@ struct Collider {
   int32_t clear = 0;               // +0xfc  1: the last query crossed nothing
   std::vector<CollisionHit> vehicles, mechs, ceilings, walls, touches;  // +0x100, +0x104, +0x108, +0x10c, +0x114
   float restitution = 0.1f;        // +0x118
-  float yaw_kick = 0.01f;          // +0x11c
+  float yaw_kick = 0.05f;          // +0x11c
   int32_t count = 11;              // +0x120
   Vec3 local[15] = {};             // +0x124
   Vec3 world[15] = {};             // +0x1d8  this frame
@@ -58,6 +58,9 @@ struct CollideCalls {
   bool (*node_touchable)(Handle node) = nullptr;             // node +0xbc: a damage handler with a method
   float (*touch)(Handle node, const Vec3* from, const CollisionHit& h, float damage) = nullptr;  // 0x005836b0
   void (*set_position)(Mech&, const Vec3* p) = nullptr;      // vtable +0x18
+  uint32_t (*node_expiry)(Handle node) = nullptr;            // test hook; unset: the zcls node's +0xc4
+  Handle (*node_object)(Handle node) = nullptr;              // 0x0040f160: what owns a node
+  bool (*object_dead)(Handle o) = nullptr;                   // its +0x08 clear
   // The AiTarget contacts (+0xac..+0xb0) the bump looks through.
   int32_t (*contact_count)(Mech&) = nullptr;
   Handle (*contact)(Mech&, int32_t i) = nullptr;
