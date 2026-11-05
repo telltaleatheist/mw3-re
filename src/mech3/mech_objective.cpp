@@ -382,11 +382,7 @@ std::unique_ptr<Store> read_salvage(Node* node) {
     const int32_t n = e.list[2].type == zrdr::Int ? e.list[2].i : 0;
     if (w != -1 && n != 0) s->add_ammo(w, n);
   });
-  each("engines", [&](Node& e) {
-    if (e.type != zrdr::List || count_of(&e) < 2) return;  // FIX (bug): an empty list, read past in the exe
-    const uint8_t xl = count_of(&e) == 2;
-    s->add_engine(engine_index(e.list[1].i), xl);
-  });
+  // Pirate's Moon 0x00473690 reads no "engines" (its item list can't load one back, 0x00473930).
   if (s->items.empty()) return nullptr;
   return s;
 }

@@ -477,14 +477,15 @@ int32_t WeaponItem::slots() const { return weapon_slots(weapon, tech, false); }
 // Mech3.exe 1.2 @ 0x004731c0. Ferro-fibrous keeps its slot count in the group field.
 int32_t EquipmentItem::slots() const { return equipment == 2 ? group : equip_slots(equipment, tech); }
 
-// Mech3.exe 1.2 @ 0x00471540. A kind above 4 makes no item and reads nothing
-// more, so the rest of the file is read out of step. FIX (bug): the exe goes
-// on counting down a damaged count of up to 4 billion past the file's end, a
-// hang; this stops there, with the same items (docs/fixes.md).
+// Pirate's Moon 1.0 @ 0x00473930 (MW3 0x00471540). A kind above 3 makes no item
+// and reads nothing more, so the rest of the file is read out of step; PM has no
+// kind 4, MW3's engine item, and a count below 1 ends the list. FIX (bug): the
+// exe goes on counting down a damaged count of up to 2 billion past the file's
+// end, a hang; this stops there, with the same items (docs/fixes.md).
 void load_item_list(std::list<ConfigItem*>& items, std::FILE* f) {
   int32_t n = 0;
   rd(f, &n, 4);
-  while (n != 0) {
+  while (n > 0) {
     --n;
     int32_t kind = -1;
     rd(f, &kind, 4);
@@ -495,7 +496,6 @@ void load_item_list(std::list<ConfigItem*>& items, std::FILE* f) {
       case 1: item = new WeaponItem; break;
       case 2: item = new AmmoItem; break;
       case 3: item = new EquipmentItem; break;
-      case 4: item = new EngineItem; break;
       default: break;
     }
     if (!item) continue;

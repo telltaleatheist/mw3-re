@@ -2,6 +2,10 @@
 version, and a file from MW3 (no header) renumbered through 0x487740 and 0x487810. As in the port,
 Load's Validate is asked without the checksum trap (FIX (trap)).
 
+Each loadout is also damaged, in both formats: a bit flipped anywhere but the name's length and
+the item count (a huge one crashes or hangs the exe, both fixed in the port and only run there
+here), and cut short.
+
 Not here: MW3's test_mechsave.py's whole archives. The version check is the exe's own read:
 0x425660 returns 0x10, written at 0x426bd0, compared at 0x4267f0.
 
@@ -20,8 +24,11 @@ import test_pm_config as tc  # noqa: E402
 import test_pm_mechdef as md  # noqa: E402
 import test_pm_zar  # noqa: E402
 from original import ROOT  # noqa: E402
+from unicorn import UC_HOOK_CODE, UcError  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
 SAVE, LOAD, CTOR = 0x425e40, 0x426000, 0x425670
+ITEM_LOAD, ENGINE_FAULT = 0x474c30, 0x433a45
 VALIDATE_PUSH = 0x426286
 TMP = str(ROOT / 'build' / 'pm_mechsave.tmp')
 ID_AT = 8  # kind, count, then the id
@@ -32,6 +39,11 @@ class Bench(tc.Emulated):
         super().__init__(table)
         self.cpu._uc.mem_write(VALIDATE_PUSH, b'\x6a\x00')  # push 0: the port drops the trap
         self.files['mem'] = bytearray()
+        self.cpu._uc.hook_add(UC_HOOK_CODE, self.item_id, begin=ITEM_LOAD + 1, end=ITEM_LOAD + 1)
+
+    def item_id(self, uc, address, size, user):
+        """The item load's id starts as ECX when the file ends before it; the port's INT32_MAX stands in (FIX (A))."""
+        uc.mem_write(uc.reg_read(UC_X86_REG_ESP), struct.pack('<I', 0x7fffffff))
 
     def handle(self, data):
         self.files['mem'] = bytearray(data)
@@ -58,6 +70,22 @@ class Bench(tc.Emulated):
 
     def s32(self, a):
         return struct.unpack('<i', self.raw(a, 4))[0]
+
+
+def damage(rng, blob):
+    """A flipped bit away from the magic, the name's length and the item count; for both formats."""
+    head = 8 if blob[:4] == b'\xff\xff\xff\xff' else 0
+    name_len = struct.unpack_from('<I', blob, head)[0]
+    count_at = head + 4 + name_len
+    b = bytearray(blob)
+    while True:
+        at = rng.randrange(len(b))
+        if at >= 4 + head and not count_at <= at < count_at + 4 and not (head and at < 4):
+            break
+    if head and rng.random() < 0.1:
+        at = 4 + rng.randrange(4)  # the version
+    b[at] ^= 1 << rng.randrange(8)
+    return bytes(b), at
 
 
 def to_mw3(blob):
@@ -88,18 +116,27 @@ def main():
     rng = random.Random(0x426000)
     buf = (ctypes.c_uint8 * (1 << 16))()
     out = (ctypes.c_int32 * 4096)()
-    saves = loads = accepted = mw3 = 0
+    saves = loads = accepted = mw3 = hurt = hurt_ok = cut = huge = faults = 0
 
     def check(what, name, blob):
-        nonlocal loads, accepted
-        want = emu.load(name, blob)
+        nonlocal loads, accepted, faults
         Path(TMP).write_bytes(blob)
+        try:
+            want = emu.load(name, blob)
+        except UcError:
+            # A damaged engine number reads past the engine table and faults in the exe; the port takes 0 (FIX (A)).
+            if emu.cpu._uc.reg_read(UC_X86_REG_EIP) != ENGINE_FAULT:
+                raise
+            p.probe_pm_cfg_blob(TMP.encode(), name, out)
+            faults += 1
+            return 0
         k = p.probe_pm_cfg_blob(TMP.encode(), name, out)
         got = list(out[:k])
         if want != got:
             raise SystemExit(f'{what}: exe {want[:24]}\n  port {got[:24]}')
         loads += 1
         accepted += want[0]
+        return want[0]
 
     for index, mech in enumerate(md.MECHS):
         fname = f'dfn_{mech}.zrd'
@@ -147,8 +184,36 @@ def main():
                 if ok:
                     struct.pack_into('<i', b, at, rng.randint(-1, 21))
                 check(f'{mech} {k} MW3 numbers', name, bytes(b))
-    pm_floors.floors(loadouts=(saves, 113), loads=(loads, 900), accepted=(accepted, 200), from_mw3=(mw3, 113))
-    print(f'ok: {saves} loadouts saved identically; {loads} loads agree ({accepted} accepted), {mw3} from MW3\'s format')
+            for form, whole in (('PM', blob), ('MW3', to_mw3(blob))):
+                for _ in range(per):
+                    b, at = damage(rng, whole)
+                    hurt_ok += check(f'{mech} {k} {form} damaged at {at}', name, b)
+                    hurt += 1
+                head = 8 if form == 'PM' else 0
+                n = rng.randrange(head + 4, len(whole))
+                check(f'{mech} {k} {form} cut to {n}', name, whole[:n])
+                cut += 1
+                # PM's list has no kind 4 (MW3's engine item) and stops on a count below 1
+                name_len = struct.unpack_from('<I', whole, head)[0]
+                count_at = head + 4 + name_len
+                b = bytearray(whole)
+                struct.pack_into('<I', b, count_at, struct.unpack_from('<I', b, count_at)[0] + 1)
+                b[count_at + 4:count_at + 4] = struct.pack('<I4iB', 4, 1, 40, -1, 0, 1)
+                check(f'{mech} {k} {form} kind 4', name, bytes(b))
+                b = bytearray(whole)
+                struct.pack_into('<i', b, count_at, -1)
+                check(f'{mech} {k} {form} count -1', name, bytes(b))
+                # what the exe can't survive: the port's only
+                name_len = struct.unpack_from('<I', whole, head)[0]
+                for at in (head, head + 4 + name_len):
+                    b = bytearray(whole)
+                    struct.pack_into('<I', b, at, 0x7fffffff)
+                    Path(TMP).write_bytes(bytes(b))
+                    p.probe_pm_cfg_blob(TMP.encode(), name, out)
+                    huge += 1
+    pm_floors.floors(loadouts=(saves, 113), loads=(loads, 900), accepted=(accepted, 200), from_mw3=(mw3, 113), damaged=(hurt, 1300),
+                     damaged_accepted=(hurt_ok, 100), cut=(cut, 226), huge=(huge, 452))
+    print(f'ok: {saves} loadouts saved identically; {loads} loads agree ({accepted} accepted), {mw3} from MW3\'s format; {hurt} damaged ({hurt_ok} accepted), {cut} cut short; {faults} past the engine table')
     os.unlink(TMP)
 
 

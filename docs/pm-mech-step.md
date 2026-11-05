@@ -254,7 +254,7 @@ Result: 209 pairs, 168 matched, 10 read, 31 explained (no field at all, such as 
 
 **Saved loadouts (2026-11-05, #34 0x426000):** PM's file starts with a magic (-1) and the version (0x10); a file without them is MW3's, and its mech and weapons are renumbered (0x487740, 0x487810) and its checksum made anew. The checksum's packed form moved its flags up a bit (0x4274d0). `test_pm_mechsave.py` checks saving and loading against the exe on all 113 loadouts, in both formats, with MW3's numbers across their range. It replaces only part of MW3's `test_mechsave.py`, which stays unmoved: whole archives, byte damage and the copy are not checked on PM. The archive's version (0x10, read at 0x426bd0 and 0x4267f0) rests on reading the exe. An MW3 archive, version 15, is refused at that level, so the conversion is reached only through the second loader 0x427e80, which is not ported.
 
-**Owed on `test_pm_mechsave` (the lead, 2026-11-05):** byte damage on a saved file against both sides, and rerun its 14 breaks, on the next pass through this file or when 0x427e80 arrives, whichever is first. #35 0x424dd0 is covered by `test_pm_collide`.
+**Byte damage on saved loadouts (2026-11-05):** `test_pm_mechsave` now flips bits in every loadout in both formats (1,356 cases, 559 still accepted), cuts each short, and splices a kind 4 item and a count of -1. It found what the plain loads couldn't: PM's item list 0x473930 has no kind 4 (MW3's engine item), so one makes no item and reads nothing, and a count below 1 ends the list where MW3 stopped only at 0. The port follows. PM's salvage block 0x473690 reads no `engines` either (no such string in the exe, none in PM's readers), so the port's reading of them is gone: it would have saved an item PM can't load back. Only the port runs: a name length or item count of 0x7fffffff, which crashes or hangs the exe. 42 damaged engine numbers fault in the exe at 0x433a45, past the engine table; for those the test only sees the port survive (it takes 0, FIX (A)). 18 of 18 breaks caught: the 14 owed plus the kind 4, the count, the short read's id and the order of two bytes. **Left:** 0x473690's other changes (it starts from `mechs`) are not compared; `EngineItem` stays in the port, unreachable from PM's data. #35 0x424dd0 is covered by `test_pm_collide`.
 
 **Animation (2026-11-05, #36 0x420aa0):** `test_pm_mechanim.py`, moved from MW3's, on PM's 360 motions of 25 mechs: the diff was the compiler's inlining and calling conventions, and the port needed no change.
 
@@ -279,12 +279,11 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 **The order after this table's frame rows (the lead, 2026-11-05):** the campaign items; the frame's 85 inferred rows, logic class first, with a break in the function itself naming the PM difference it covers; #20 0x424030 and #311 0x41a020; then the second campaign (type 5, `pm-map.md` 7b, read and sized first, the lead's go before porting); then the logic and new rows outside the frame.
 
 **Open, not to lose (2026-11-05):**
-- `test_pm_mechsave`'s byte damage: straight after the roof pin, before the frame's 85.
 - `test_pilot`'s 1,136 lines: move with the pilot and campaign screens, at the latest with the Pirate Missions, whose screens read the fifth game.
 - The starting store 0x4351b0's mech and store calls are stubbed on both sides: not compared. The restored world (0x435d30) runs, not compared with the exe's.
 - 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
-- The corrupt mark on c4's four `radiotower` animations (below): where it comes from, and whether the exe does it too.
-- c2m3's stop at (2636, -1528): not reached by this walk, which stops first at a wall at (1365, -6.8, -824) by another route.
+- c2m3's stop at (2636, -1528): needs its own run on the walker's route. This walk stops first at a wall at (1365, -6.8, -824) by another route, which settles nothing about it.
+- PM's salvage block 0x473690 against the exe (above, Byte damage).
 
 **The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
 
@@ -296,7 +295,7 @@ It is not the roof. Walking with `--tap 0x0b@69`, the mech ends at (4529.2, 28, 
 - **A ledge holds it.** At the stop no wall responds. The ground under the two front probes is 3.50..3.55 above the middle's, over `kStepUp` 3.5, so each ski kicks the push back 0.5 along forward (0x607a20; MW3's is 1), 1.0 a frame. Moving against that push fires Update's 0.6 (0x41b35f), and the throttle regrows about 0.011 a frame between. Slopes (ny 0.64) slow the last metres.
 - **Exe or port.** All 1,043 frames of the walk through exe 0x423730 and the port on the captured segment answers: identical. `test_pm_skis` now has ledge walks, the same numbers scripted, through exe 0x477f90: 3.52 kicks, 3.4 doesn't, port equal; five breaks caught (the kick's size, the height 3.6 and 3.3, the direction, the slid flag). The 0.6's condition was read in the exe: velocity dot push below zero. Not run: the exe's own ground and segment queries at this place, so the geometry is the port's; test_pm_di compares those queries elsewhere.
 - **What frees it.** Key 1 (stop): stands still. Reverse held 90 frames: back 25 m. Backspace: reverses away at -0.98. Left held 60 frames: walks off at speed, until the next wall. Jump not tested: J did nothing in this mission even on open ground, and why wasn't checked.
-- **Not tied to 33 ms.** With the heading forced at frame 60, 33, 16, 8 and 5 ms all stop at the same ledge line, z about -4517. The rate only decides who gets there: in the plain walk one hit from another mech gives -32.79 at 33 ms, -33.72 at 16, -34.13 at 8, with the same kick and hit normals of 0.071, 0.103, 0.112, and about a degree decides it. That is a one-hit kick decayed at different steps. MW3's first wall was not checked.
+- **Not tied to 33 ms.** With the heading forced at frame 60, 33, 16, 8 and 5 ms all stop at the same ledge line, z about -4517. The rate only decides who gets there: in the plain walk one hit from another mech gives -32.79 at 33 ms, -33.72 at 16, -34.13 at 8, with the same kick and hit normals of 0.071, 0.103, 0.112, and about a degree decides it. It looks inherent to a one-hit kick decayed at different steps; no same-state step-by-step comparison from t 0.84 was done. MW3's first wall was not checked.
 
 The 0.6, frames fired in the stop (per_second on, so each firing costs 0.6^(dt/33 ms)):
 
@@ -309,7 +308,9 @@ The 0.6, frames fired in the stop (per_second on, so each firing costs 0.6^(dt/3
 
 A real wall at fast rates (heading forced to 50, one heading only), walls a 2 s window at its worst: 33 ms 31/61, still there after 23 s; 16 ms 83/125 and 8 ms 209/251, both away after about 8 s; 5 ms 357/400, then 36..97/400, throttle 0.002..0.05, still there after 25 s. Close to MW3's fast-frame pin (contact on most frames, the throttle low), but not on every frame and with no steady 0.0198.
 
-Reports at a plain start: c1m1's `player.cpp:727`, `:742` (0x800) and `:974` (0x200) are for the `stealth` object, which has no support or collision points. c4's anim.zbd gives four more 0x400 in every c4 mission run (c4sa1, c4sa2, c4m9): `Corrupt animation loaded: radiotower1..4`. The file's status byte at +0x98 is 0 and neither of the port's messages that go with setting 5 prints, so where the 5 comes from is open, and the exe was not run on it.
+Reports at a plain start: c1m1's `player.cpp:727`, `:742` (0x800) and `:974` (0x200) are for the `stealth` object, which has no support or collision points. They are at a plain start in any mission, not a pirate-mission problem; left alone.
+
+**c4's four corrupt towers: the data's own.** Every c4 mission reports `Corrupt animation loaded: radiotower1..4` (seen in c4sa1, c4sa2, c4m9). The 5 is in the shipped `zbd/c4/anim.zbd`, PM's status byte at +0xa0 of defs 1406..1409 (nodes rtwr1..4). Exe reader 0x523140 and port, all four worlds: identical, 5 on those four only, none in c1, c2, c3, where the towers of the same names have 0. PM's post-load 0x524480 reports them as the port does (read in the exe; its text and line number differ from the port's, which doesn't matter in play). MW3's four anim.zbd have no such names. So in the exe as well as here, c4's radio towers get no binding and their animations never play; c1's and c3's do. A candidate for Owen, not changed: clearing the byte would be a guess at what the tools meant.
 
 ## The true size, normalized (2026-11-05, an estimate)
 
