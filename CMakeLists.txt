@@ -187,6 +187,7 @@ add_library(mw3core STATIC
   src/mech3/mech_lod.cpp
   src/mech3/mech_dead.cpp
   src/mech3/mech_part_update.cpp
+  src/mech3/mech_headlight.cpp
   src/mech3/mech_wake.cpp
   src/mech3/sound_extra.cpp
   src/mech3/mech_pose.cpp

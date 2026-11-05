@@ -23,6 +23,7 @@
 #include "gamez/zclass/camera.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "mech3/mech_headlight.h"
 #include "gamez/zrender/zrndr_span.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zutil/ztimer.h"
@@ -547,6 +548,7 @@ int probe_pm_gamez_stack(const char* paths, int rb, int gb, int bb, int with_mod
 // The tree copies made after the loads: (root, kind, a, b) each, kind 0 tree_copy(a copy models, b own
 // materials), kind 1/2 tree_copy_materials(copy models on/off, a own materials, b shared); root a load's position. Then cleared.
 static std::vector<int32_t> g_pm_copies;
+static ::zcls::MechLib* g_pm_lib = nullptr;
 static std::vector<::zcls::Node*> g_pm_loaded;  // the last probe_pm_mechlib's roots, for test_pm_shadows.py
 void probe_pm_mechlib_copies(const int32_t* v, int n) { g_pm_copies.assign(v, v + n); }
 int probe_pm_mechlib(const char* world, const char* path, const char* names, uint8_t* out, int cap) {
@@ -561,7 +563,7 @@ int probe_pm_mechlib(const char* world, const char* path, const char* names, uin
     ::zcls::nodes() = ::zcls::NodePool{};
     ::zcls::lists() = ::zcls::Lists{};
   }
-  static ::zcls::MechLib* lib = nullptr;
+  ::zcls::MechLib*& lib = g_pm_lib;
   if (lib) ::zcls::mechlib_close(*lib);  // the archive closed, the materials freed
   delete lib;
   lib = new ::zcls::MechLib{};
@@ -678,6 +680,59 @@ int probe_pm_shadow_dump(uint8_t* out, int cap) {
   if (static_cast<int>(b.size()) > cap) return -1;
   std::memcpy(out, b.data(), b.size());
   return static_cast<int>(b.size());
+}
+
+// test_pm_headlight.py: the headlight (mech3/mech_headlight) on a root probe_pm_mechlib loaded, in a world's node.
+// 0 create(a world's slot, b root), 1 turn(a on, b fade), 2 set_level(f), 3 set_lod(f), 4 fade(f), 5 detach,
+// 6 attach(f), 7 set_active(a), 8 show_beam(a). After each: the fields, the four nodes' flags and links, the light;
+// after 0 and 10 every model and node as well.
+static ::mech3::Headlight* g_pm_head = nullptr;
+static ::mech3::HeadlightConfig g_pm_head_cfg;
+static ::zcls::Node* g_pm_head_world = nullptr;
+int probe_pm_headlight_op(int op, int a, int b, float f, uint8_t* out, int cap) {
+  ::mech3::headlight_hooks().world = [] { return g_pm_head_world; };
+  ::mech3::headlight_hooks().load_beam = []() -> ::zcls::Node* {
+    ::zcls::Node* n = ::zcls::mechlib_load(*g_pm_lib, "headlight.flt");
+    return n ? ::zcls::tree_copy(n, 0, 0) : nullptr;
+  };
+  switch (op) {
+    case 0:
+      g_pm_head_cfg = ::mech3::HeadlightConfig{};
+      ::mech3::headlight_config_read(g_pm_head_cfg, nullptr);
+      g_pm_head_world = ::zcls::node_at(a);
+      ::zrndr::device_fog().active = 1;
+      g_pm_head = ::mech3::headlight_create(g_pm_loaded[static_cast<size_t>(b)], &g_pm_head_cfg);
+      break;
+    case 1: g_pm_head->turn(a != 0, b != 0); break;
+    case 2: g_pm_head->set_level(f); break;
+    case 3: g_pm_head->set_lod(f); break;
+    case 4: g_pm_head->fade(f); break;
+    case 5: g_pm_head->detach(); break;
+    case 6: g_pm_head->attach(f); break;
+    case 7: g_pm_head->set_active(a != 0); break;
+    case 8: g_pm_head->show_beam(a != 0); break;
+    default: break;
+  }
+  std::string s;
+  const float v[5] = {g_pm_head->on ? 1.0f : 0.0f, g_pm_head->fade_rate, g_pm_head->level, g_pm_head->target, g_pm_head->lod};
+  s.append(reinterpret_cast<const char*>(v), sizeof v);
+  const float* c = &g_pm_head_cfg.lod_scale;
+  s.append(reinterpret_cast<const char*>(c), 15 * 4);
+  for (const ::zcls::Node* n : {g_pm_head->node, g_pm_head->light, g_pm_head->beam, g_pm_loaded[0]}) {
+    const int32_t w[3] = {static_cast<int32_t>(n->flags()), n->parent_count(), n->child_count()};
+    s.append(reinterpret_cast<const char*>(w), sizeof w);
+  }
+  const auto* l = static_cast<const ::zcls::Light*>(g_pm_head->light->data);
+  s.append(reinterpret_cast<const char*>(l->raw), 0xb0);
+  s.append(reinterpret_cast<const char*>(l->pm_colors), 0x30);
+  s.append(reinterpret_cast<const char*>(l->raw + 0xb0), 0x18);
+  if (op == 0 || op == 10) {  // whole
+    put_models(s, 1 << 30);
+    put_world_nodes(s, 1 << 30, true);
+  }
+  if (static_cast<int>(s.size()) > cap) return -1;
+  std::memcpy(out, s.data(), s.size());
+  return static_cast<int>(s.size());
 }
 
 // test_pm_modeldraw.py: a world loaded (nodes and models, as the exe's), a view
@@ -1207,7 +1262,13 @@ int probe_pm_light_setter(int which, uint8_t* pm_bytes, float a, float b, float 
     case 2: r = pm::zcls::light_set_diffuse(&node, a); break;
     case 3: r = pm::zcls::light_set_diffuse_color(&node, a, b, c); break;
     case 4: r = pm::zcls::light_set_ambient_color(&node, a, b, c); break;
-    default: r = pm::zcls::light_set_own_colors(&node, static_cast<int>(a)); break;
+    case 5: r = pm::zcls::light_set_own_colors(&node, static_cast<int>(a)); break;
+    case 6: r = pm::zcls::light_set_bit4(&node); break;
+    case 7: r = pm::zcls::light_set_ambient_only(&node, static_cast<int>(a)); break;
+    case 8: r = pm::zcls::light_set_diffuse_only(&node, static_cast<int>(a)); break;
+    case 9: r = pm::zcls::light_set_range(&node, a, b); break;
+    case 10: r = pm::zcls::light_set_position(&node, a, b, c); break;
+    default: r = pm::zcls::light_set_color(&node, a, b, c); break;
   }
   std::memcpy(pm_bytes, light.raw, 0xb0);
   std::memcpy(pm_bytes + 0xb0, light.pm_colors, 0x30);

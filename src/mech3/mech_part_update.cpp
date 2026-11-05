@@ -7,6 +7,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "mech3/mech_headlight.h"
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
@@ -202,10 +203,13 @@ bool Foot::setup() {
 // and damping) and turn limits; the half width and depth from the box of the
 // torso's `torso_polys` node (the torso's own without one); then the cockpit
 // off the torso (0x00464580(0)), whether or not the base set-up worked.
+Torso::~Torso() { delete headlight; }
+
 bool Torso::setup() {
   const bool ok = MechPart::setup();
   if (ok) {
     const MechDfn* d = dfn(*mech);
+    if (d->headlight) headlight = headlight_create(static_cast<zcls::Node*>(node), d->headlight);  // Pirate's Moon 0x00465b8c
     for (int k = 0; k < 3; ++k) jolt_scale[k] = d->get<float>(0x160 + 4 * k);
     freq = d->get<float>(0x16c);
     damp = d->get<float>(0x170);

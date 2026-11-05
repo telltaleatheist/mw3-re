@@ -29,6 +29,8 @@
 #include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "mech3/mech_headlight.h"
+#include "mech3/mech_lib.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_view.h"
@@ -302,6 +304,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   r.light_position = [](zwep::Handle l, float x, float y, float z) { zcls::light_set_position(zn(l), x, y, z); };
   r.light_range = [](zwep::Handle l, float a, float b) { zcls::light_set_range(zn(l), a, b); };
   r.light_color = [](zwep::Handle l, float cr, float cg, float cb) { zcls::light_set_color(zn(l), cr, cg, cb); };
+  headlight_hooks().world = [] { return qworld(); };
+  headlight_hooks().load_beam = []() -> zcls::Node* {  // 0x004868d0: the library's tree, copied, models shared
+    zcls::Node* n = load_tree("headlight.flt");
+    return n ? zcls::tree_copy(n, 0, 0) : nullptr;
+  };
   r.world_add_light = [](zwep::Handle l) {
     if (qworld()) zcls::world_add_light(qworld(), zn(l));
   };

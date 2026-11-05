@@ -16,9 +16,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 
-FUNCS = [0x50efc0, 0x50e6f0, 0x50e7c0, 0x50f600, 0x50f760, 0x50e890]
+FUNCS = [0x50efc0, 0x50e6f0, 0x50e7c0, 0x50f600, 0x50f760, 0x50e890, 0x50ea00, 0x50ea80, 0x50eb60, 0x50edd0, 0x50ef50,
+         0x50f460]
 STALE, POINT_COLOUR, STAMP = 0x4ff750, 0x5898c0, 0x60d254
-NAMES = ['orientation', 'ambient', 'diffuse', 'diffuse colour', 'ambient colour', 'own colours']
+NAMES = ['orientation', 'ambient', 'diffuse', 'diffuse colour', 'ambient colour', 'own colours', 'bit 4', 'ambient only',
+         'diffuse only', 'range', 'position', 'colour']
 
 
 def main():
@@ -41,13 +43,15 @@ def main():
         struct.pack_into('<I', raw, 0xe0, fl)
         if rng.random() < 0.5:
             struct.pack_into('<3f', raw, 0xa4, 1.0, 1.0, 1.0)
-        which = rng.randrange(6)
+        which = rng.randrange(12)
         args = [rng.choice((1.0, rng.uniform(-2, 3))) for _ in range(3)]
-        if which == 5:
+        if which in (5, 7, 8):
             args[0] = float(rng.choice((0, 1, 2, 3)))
+        if which == 9 and rng.random() < 0.1:
+            args[1] = args[0]
         emu.cpu._uc.mem_write(data, bytes(raw))
         calls['stale'] = 0
-        stack = [node] + ([int(args[0])] if which == 5 else [struct.unpack('<I', struct.pack('<f', a))[0] for a in args])
+        stack = [node] + ([] if which == 6 else [int(args[0])] if which in (5, 7, 8) else [struct.unpack('<I', struct.pack('<f', a))[0] for a in args])
         emu.call(FUNCS[which], args=stack)
         want = bytes(emu.cpu._uc.mem_read(data, 0x100))
         got = ctypes.create_string_buffer(bytes(raw), 0x100)

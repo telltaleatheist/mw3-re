@@ -1,3 +1,4 @@
+#include "mech3/mech_headlight.h"
 #include "mech3/mech_command.h"
 
 #include <cstring>
@@ -121,8 +122,7 @@ void Mech::target_part(int32_t id) {
 // takes only the second group (the controls' view, the HUD's zoom, the lock
 // cleared). Every command ends in the controls' vtable +0 with it, which
 // does nothing (0x004a5bc0) for each controls class: left out. The ids are
-// Pirate's Moon's (0x0041cad0); its new cases are not here yet: the headlight 0x3c
-// (0x0041f900) and the lancemate target keys 0x49, 0x4c, 0x4f (0x004e6ca0, 0x004e6fb0, 0x004e6710).
+// Pirate's Moon's (0x0041cad0); its new cases not here yet: the lancemate target keys 0x49, 0x4c, 0x4f (0x004e6ca0, 0x004e6fb0, 0x004e6710).
 void Mech::command(int32_t cmd) {
   HeatCalls& hc = heat_calls();
   const bool viewed = this == world().player;
@@ -230,6 +230,9 @@ void Mech::command(int32_t cmd) {
       case 0x3b:  // jettison the ammo
         if (own(0x4b0ae0, p(wm), 0, [&] { return uintptr_t{wm->jettison()}; }) & 0xff)
           if (hc.play_mech_sound) hc.play_mech_sound(kSoundJettison);
+        break;
+      case 0x3c:  // CMD_HEADLIGHT_TOGGLE (Pirate's Moon 0x0041f900, 0x00465dc0): not while powered down
+        if (!powered_down && torso && torso->headlight) torso->headlight->turn(!torso->headlight->active(), true);
         break;
       case 0x3f:  // CMD_EJECT (Pirate's Moon 0x0041de60, unported)
         other(*this, cmd, "0x0041d070");

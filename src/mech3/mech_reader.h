@@ -38,6 +38,7 @@ struct MechDfn {                   // 0x1a8 bytes
   SkinSet* skins = nullptr;        // +0x1c
   ConfigList* configs = nullptr;   // +0x20
   std::vector<Firepoint*>* firepoints = nullptr;  // +0x24
+  struct HeadlightConfig* headlight = nullptr;  // Pirate's Moon's +0x1a8 (0x0046d50a)
   PartSlot parts[18];              // +0x28  by part id
   MechDfn(int32_t index, zrdr::Node* reader);    // 0x0046b890
   ~MechDfn();                                    // 0x0046b9b0, saves the player's loadouts

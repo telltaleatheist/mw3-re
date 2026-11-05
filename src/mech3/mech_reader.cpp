@@ -1,3 +1,4 @@
+#include "mech3/mech_headlight.h"
 #include "mech3/mech_reader.h"
 
 #include <cmath>
@@ -23,6 +24,7 @@ MechDfn::MechDfn(int32_t i, zrdr::Node* tree) : index(i), reader(tree) {
       {0x188, 0x3eb2b8c2}, {0x18c, 0x40400000}, {0x190, 0xbfb2b8c2}, {0x194, 0x3f9c61aa},
       {0x198, 0xbfb2b8c2}, {0x19c, 0x3fb2b8c2}, {0x1a0, 0x3e99999a}};
   for (const auto& d : kDefaults) put(d.off, d.bits);
+  headlight = new HeadlightConfig;
 }
 
 // Mech3.exe 1.2 @ 0x0046ba20. The node is never read.
@@ -86,6 +88,7 @@ bool read_head(MechDfn& d, HeadValues* out) {
     float_key(d, shake, "freq", 0x16c);
     float_key(d, shake, "damp_freq", 0x170);
   }
+  headlight_config_read(*d.headlight, zrdr::find(tree, "headlight"));  // Pirate's Moon 0x0046d8d0
   float lod[2] = {};
   if (zrdr::get_vec2(tree, "lod_range", lod)) d.put(0x14c, lod[0]), d.put(0x150, lod[1]);
   angle_key(d, tree, "lean_angle", 0x154);
@@ -301,6 +304,7 @@ void set_save_all(SaveAll fn) { g_save_all = fn; }
 // without checking for loadouts and crashes when a bad `version` stopped the
 // read before they were made; skipped here (docs/fixes.md).
 MechDfn::~MechDfn() {
+  delete headlight;
   if (configs && g_save_all) g_save_all(configs);
   delete skins;
   delete configs;

@@ -217,6 +217,8 @@ class Torso : public MechPart {
  public:
   Handle death_effect = nullptr;   // +0x74
   Handle death_effect2 = nullptr;  // +0x78
+  class Headlight* headlight = nullptr;  // Pirate's Moon's +0x7c (0x00465ba3), from the dfn's config
+  ~Torso() override;                // Pirate's Moon 0x00465a2a: the headlight
   float half_width = 0;            // +0x7c
   float half_depth = 0;            // +0x80
   int32_t mode = 0;                // +0x084  0 the AI aims, 1 the player's controls, else frozen

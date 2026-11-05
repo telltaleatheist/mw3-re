@@ -1,3 +1,4 @@
+#include "mech3/mech_headlight.h"
 #include "mech3/app_hud.h"
 #include "mech3/chat_panel.h"
 #include "mech3/cheats.h"
@@ -273,8 +274,8 @@ struct ProgramHudHooks : HudHooks {
   }
   // PM's torso attachment (the torso's +0x7c, 0x0041f930; shown and hidden by
   // 0x00479c30/0x00479c60): not ported yet, so none.
-  static bool torso_attachment(Mech*) { return false; }
-  static void torso_attachment_show(Mech*, bool) {}
+  static bool torso_attachment(Mech* m) { return m->torso && m->torso->headlight; }
+  static void torso_attachment_show(Mech* m, bool on) { m->torso->headlight->show_beam(on); }
   // Mech3.exe 1.2 @ 0x004428b0: the view's panel (vt+0x24 0), then the node
   // alone through its camera (0x004f73f0) with the world's fog off
   // (0x004f23e0 on [0x00608c84]+4: 0, then 1).

@@ -86,6 +86,7 @@ class Emulated(test_pm_gamez.Emulated):
         self.files[test_pm_zar.key(str(path))] = bytearray(Path(path).read_bytes())
         lib = self.alloc(0x44)
         self.call(CREATE, ecx=lib)
+        self.lib = lib  # test_pm_headlight.py
         opened = self.call(OPEN, ecx=lib, args=[self.string(str(path))]) & 0xff
         out = struct.pack('<i', 1 if opened else 0)
         self.converted = []

@@ -117,6 +117,87 @@ int light_set_diffuse(Node* node, float v) {
   return 0;
 }
 
+// Pirate's Moon 1.0 @ 0x0050ea00
+int light_set_bit4(Node* node) {
+  ::zcls::Light* l = data_of(node, 0x2b9);
+  if (!l) return 5;
+  const uint32_t f = flags_of(*l), now = (f & ~8u) | 0x10;
+  set_flags(*l, now);
+  if ((f & kStatic) && ((f ^ now) & 0x10)) stale();
+  set_flags(*l, now | kRecalc);
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0050ea80
+int light_set_ambient_only(Node* node, int on) {
+  ::zcls::Light* l = data_of(node, 0x2d4);
+  if (!l) return 5;
+  const uint32_t f = (flags_of(*l) & ~0x20u) | ((on & 1) << 5) | kRecalc;
+  const uint32_t now = with_static(*l, f);
+  set_flags(*l, now);
+  if ((now ^ f) & kStatic) stale();
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0050eb60: unlike its neighbour, not flagged for the update.
+int light_set_diffuse_only(Node* node, int on) {
+  ::zcls::Light* l = data_of(node, 0x2f8);
+  if (!l) return 5;
+  const uint32_t f = (flags_of(*l) & ~0x40u) | ((on & 1) << 6);
+  const uint32_t now = (with_static(*l, f) & ~kRecalc) | (f & kRecalc);
+  set_flags(*l, now);
+  if ((now ^ f) & kStatic) stale();
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0050edd0
+int light_set_range(Node* node, float a, float b) {
+  ::zcls::Light* l = data_of(node, 0x330);
+  if (!l) return 5;
+  const float lo = a < b ? a : b;
+  float hi = b < a ? a : b;
+  if (b == a) {
+    zerr::report(0x200, kFile, 0x336, "gwLightSetRanges: r1 == r2");
+    hi = lo + 10.0f;  // 0x005de7a8
+  }
+  const uint32_t f = flags_of(*l);
+  l->put(0xb4, lo), l->put(0xb8, hi);
+  set_flags(*l, f | kRecalc);
+  l->put(0xbc, lo * lo), l->put(0xc0, hi * hi);
+  l->put(0xc4, 1.0f / (hi - lo));
+  if (f & kStatic) stale();
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0050ef50
+int light_set_position(Node* node, float x, float y, float z) {
+  ::zcls::Light* l = data_of(node, 0x38d);
+  if (!l) return 5;
+  const uint32_t f = flags_of(*l);
+  l->put(0xc, x), l->put(0x10, y), l->put(0x14, z);
+  set_flags(*l, f | kRecalc);
+  if (f & kStatic) stale();
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0050f460: the colour, and both mixes by it.
+int light_set_color(Node* node, float r, float g, float b) {
+  ::zcls::Light* l = data_of(node, 0x4e3);
+  if (!l) return 5;
+  Colors& c = colors(*l);
+  const float rgb[3] = {r, g, b};
+  const float amb = l->get<float>(0xa0), dif = l->get<float>(0x9c);
+  const uint32_t f = flags_of(*l) | kRecalc;
+  l->put(0xa4, r), l->put(0xa8, g), l->put(0xac, b);
+  for (int k = 0; k < 3; ++k) c.amb_mix[k] = rgb[k] * amb, c.dif[k] = rgb[k] * dif;
+  sum_colors(*l);
+  const uint32_t now = with_static(*l, f);
+  set_flags(*l, now);
+  if ((now ^ f) & kStatic) stale();
+  ::zvid::set_point_light_color(l->floats(0xa4));  // 0x005898c0
+  return 0;
+}
+
 // Pirate's Moon 1.0 @ 0x0050f600
 int light_set_diffuse_color(Node* node, float r, float g, float b) {
   ::zcls::Light* l = data_of(node, 0x504);
