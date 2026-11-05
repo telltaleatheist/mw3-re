@@ -1,3 +1,4 @@
+#include <cstring>
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_reader.h"
 
@@ -69,9 +70,12 @@ bool read_head(MechDfn& d, HeadValues* out) {
   zrdr::get_float(tree, "turn_accel_factor", &out->turn_accel_factor);
   out->half_turn_rate *= 0.5f;
   float_key(d, tree, "crouch_height", 0x148);
-  int32_t engine[2] = {d.get<int32_t>(0x10), d.get<int32_t>(0x14)};
-  zrdr::get_ivec2(tree, "engine_minmax", engine);
-  d.put(0x10, engine[0]), d.put(0x14, 400);
+  // Pirate's Moon reads this only for the Elemental (MW3 read it for all, then forced 400 as the maximum).
+  if (d.index == kElemental) {
+    int32_t engine[2] = {d.get<int32_t>(0x10), d.get<int32_t>(0x14)};
+    zrdr::get_ivec2(tree, "engine_minmax", engine);
+    d.put(0x10, engine[0]), d.put(0x14, engine[1]);
+  }
   // Uninitialised stack in the exe; only a wrongly typed component would show it.
   float torso[3] = {};
   if (zrdr::get_vec3(tree, "torso_limits", torso)) {
@@ -122,8 +126,15 @@ void read_firepoints(MechDfn& dfn) {
     float radius = 0, share = 0;
     zrdr::get_float(body, "radius", &radius);
     zrdr::get_float(body, "share", &share);
+    // Pirate's Moon: each firepoint has its own aim limits (0x006070d8's defaults), degrees in the file.
+    float aim[5] = {0.47345117f, 0.0f, 0.0f, 0.0f, 0.0f};
+    static const char* const kAim[5] = {"aimTolerance", "aimMinPitch", "aimMaxPitch", "aimMinYaw", "aimMaxYaw"};
+    for (int k = 0; k < 5; ++k)
+      if (zrdr::get_float(body, kAim[k], &aim[k])) aim[k] = static_cast<float>(aim[k] * kRad);
     const int32_t part = part_id(zrdr::get_string(body, "part"));
-    dfn.firepoints->push_back(new Firepoint{list[1 + 2 * i].s, radius, share, part});
+    auto* f = new Firepoint{list[1 + 2 * i].s, radius, share, part};
+    std::memcpy(f->aim, aim, sizeof aim);
+    dfn.firepoints->push_back(f);
   }
 }
 
@@ -135,7 +146,7 @@ void read_part_slots(MechDfn& dfn) {
 }
 
 namespace {
-const char kFile[] = "C:\\zipper\\Mech3\\mech_reader.cpp";
+const char kFile[] = "C:\\zipper\\branchep1\\mech3ep1\\mech_reader.cpp";
 
 int32_t int_key(zrdr::Node* node, const char* key) {
   int32_t v = 0;
@@ -187,7 +198,7 @@ void read_armor(Config& c, zrdr::Node* body, const HeadValues& head) {
   const int32_t computed = armor_points(c.armor_tech, c.ferro != 0, c.armor_tons);
   int32_t assigned = 0;
   for (int32_t v : c.armor) assigned += v;
-  if (!(mass > 0) || computed != assigned) {
+  if (!(mass > 0) || computed < assigned) {  // Pirate's Moon (MW3: any difference)
     char msg[600];
     std::snprintf(msg, sizeof msg,
                   "***ARMOR ALLOCATION ERROR***\n  Armor Allocation Error (%s: %s configuration)\n"
@@ -197,7 +208,7 @@ void read_armor(Config& c, zrdr::Node* body, const HeadValues& head) {
                   "    R/L Torso (rear)   :  %d\n    R/L Arm            :  %d\n    R/L Leg            :  %d",
                   mech_name(c.mech), c.name, mass, ff ? "ferro-fibrous" : "standard", computed, assigned,
                   headp, torso[0], torso[1], lr[0], lr[1], arms, legs);
-    zerr::report(0x400, kFile, 362, msg);
+    zerr::report(0x400, kFile, 399, msg);
   }
 }
 
@@ -208,7 +219,7 @@ void read_weapons(MechDfn& dfn, Config& c, zrdr::Node* body, const HeadValues& h
   if (n > 16) {
     char msg[120];
     std::snprintf(msg, sizeof msg, "Too Many Weapons (%d>%d) in (%s:%s)", n, 16, mech_name(c.mech), c.name);
-    zerr::report(0x400, kFile, 392, msg);
+    zerr::report(0x400, kFile, 0x1ad, msg);
     n = 16;
   }
   for (int32_t k = 1; k <= n; ++k) {
@@ -218,7 +229,7 @@ void read_weapons(MechDfn& dfn, Config& c, zrdr::Node* body, const HeadValues& h
     if (idx == -1) {
       char msg[120];
       std::snprintf(msg, sizeof msg, "Unrecognized Weapon (%s)", wname);
-      zerr::report(0x200, kFile, 400, msg);
+      zerr::report(0x200, kFile, 0x1b5, msg);
       continue;
     }
     if (equipment_restricted(c.mech, idx, mech_tech(c.mech))) continue;
@@ -255,6 +266,13 @@ void read_weapons(MechDfn& dfn, Config& c, zrdr::Node* body, const HeadValues& h
 }
 }  // namespace
 
+namespace {
+ConfigCheck g_config_check = [](const Config& c) { return c.validate(false); };
+ConfigCheck config_check() { return g_config_check; }
+}  // namespace
+
+void set_config_check(ConfigCheck fn) { g_config_check = fn; }
+
 // Each loadout: its equipment, internal structure, engine, armor and weapons.
 bool read_configurations(MechDfn& dfn, const HeadValues& head) {
   zrdr::Node* found = zrdr::find(dfn.reader, "configurations");
@@ -266,11 +284,17 @@ bool read_configurations(MechDfn& dfn, const HeadValues& head) {
     const char* name = zutl::localize(list[1 + 2 * i].s);
     zrdr::Node* body = &list[2 + 2 * i];
     auto* c = new Config(dfn.index, name);
-    dfn.configs->configs.push_back(c);
     c->accel_rate = head.accel_rate, c->decel_rate = head.decel_rate;
     c->turn_rate = head.half_turn_rate, c->turn_accel = head.turn_accel_factor;
-    if (std::strncmp(name, "train", 5) == 0) c->training = 1;
+    // Pirate's Moon's `hidden` (+0x1e), where MW3 went by a name starting "train"; [0x0062cc5c] is never set.
+    bool hidden = false;
+    if (zrdr::get_bool(body, "hidden", &hidden)) c->training = hidden;
     read_equipment(*c, body, head);
+    if (c->sinks == 10) {  // Pirate's Moon: a mech at the 10 built-in sinks can say they are double
+      bool dbl = false;
+      zrdr::get_bool(body, "double_sinks", &dbl);
+      c->double_sinks = dbl;
+    }
     zrdr::Node* internal = zrdr::find(body, "internal");
     if (internal && internal->list[1].type == zrdr::String && crt::msvc_stricmp(internal->list[1].s, "endosteel") == 0)
       c->endo_steel = 1;
@@ -285,6 +309,8 @@ bool read_configurations(MechDfn& dfn, const HeadValues& head) {
     c->xl = xl;
     read_armor(*c, body, head);
     read_weapons(dfn, *c, body, head);
+    if (config_check()(*c)) dfn.configs->configs.push_back(c);  // 0x00426d10
+    else delete c;
   }
   return true;
 }

@@ -11,6 +11,7 @@ namespace zrdr { struct Node; }
 namespace mech3 {
 
 struct SkinSet;
+struct Config;
 struct ConfigList;
 
 struct Firepoint {                 // 0x20 bytes
@@ -20,6 +21,8 @@ struct Firepoint {                 // 0x20 bytes
   int32_t part;                    // +0x0c  from the file's "part"
   int32_t model_part = -1;         // +0x10  set later, from the model (0x0046cb80)
   float position[3] = {};          // +0x14
+  // Pirate's Moon's (0x80 bytes): at +0 aimTolerance, aimMinPitch, aimMaxPitch, aimMinYaw, aimMaxYaw (radians).
+  float aim[5] = {};
 };
 
 struct PartSlot {                  // 0x10 bytes
@@ -79,6 +82,9 @@ void free_dfns();                            // 0x004844b0's loop: each deleted 
 using LoadSaved = void (*)(ConfigList* configs);
 void set_load_saved(LoadSaved fn);
 using SaveAll = void (*)(ConfigList* configs);
+// Pirate's Moon's reader keeps a loadout only if it validates (0x00427360, the weapons' data loaded).
+using ConfigCheck = bool (*)(const Config&);
+void set_config_check(ConfigCheck fn);
 void set_save_all(SaveAll fn);
 
 }  // namespace mech3

@@ -27,6 +27,10 @@
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_lod.h"
 #include "mech3/mech_names.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_reader.h"
+#include "mech3/mech_skin.h"
+#include "gamez/zerror/zerr.h"
 #include "mech3/mech_parts.h"
 #include "mech3/zai_target.h"
 #include "gamez/zrender/zrndr_span.h"
@@ -778,6 +782,83 @@ int probe_pm_death_prep(int state, int low, int player, uint32_t detail, uint32_
   for (auto& s : m.sounds) s = nullptr;
   hip.node = nullptr;
   return 0;
+}
+
+// test_pm_mechdef.py: dfn_*.zrd through read_dfn, dumped as the test dumps the exe's.
+int probe_pm_dfn(const char* dir, const char* entry, int index, char* out, int cap) {
+  using namespace ::mech3;
+  if (probe_pm_zrdr_load(dir, "zbd/reader.zbd", entry) != 1) return -1;
+  skin_globals() = SkinGlobals{};
+  std::vector<uint8_t> b;
+  const auto i32 = [&b](int32_t v) { const auto* p = reinterpret_cast<const uint8_t*>(&v); b.insert(b.end(), p, p + 4); };
+  const auto raw = [&b](const void* v, size_t n) { const auto* p = static_cast<const uint8_t*>(v); b.insert(b.end(), p, p + n); };
+  const auto str = [&b](const char* s) { if (!s) { b.push_back(0xff); return; } b.insert(b.end(), s, s + std::strlen(s) + 1); };
+  static std::vector<int32_t> s_reports;
+  s_reports.clear();
+  zerr::set_sink([](int level, const char*, int line, const char*) { s_reports.push_back(level), s_reports.push_back(line); });
+  set_load_saved([](ConfigList*) {});
+  set_save_all([](ConfigList*) {});
+  set_config_check([](const Config&) { return true; });
+  MechDfn d(index, g_root);
+  const bool ok = read_dfn(d);
+  b.push_back(ok), b.push_back(d.loaded);
+  raw(d.raw + 0x10, 0xc), raw(d.raw + 0x148, 0x60);
+  if (d.configs) {
+    i32(d.configs->count), i32(d.configs->mech), i32(static_cast<int32_t>(d.configs->configs.size()));
+    for (const Config* c : d.configs->configs) {
+      str(c->name);
+      for (uint8_t v : {c->base_flag, c->player_made, c->b1d, c->training, c->modified, c->endo_steel, c->xl, c->ferro, c->double_sinks}) b.push_back(v);
+      i32(c->mech), i32(c->engine), raw(&c->armor_tons, 4), i32(c->armor_tech);
+      raw(c->armor, sizeof c->armor);
+      i32(c->sink_tech), i32(c->sinks);
+      raw(&c->turn_rate, 4), raw(&c->accel_rate, 4), raw(&c->decel_rate, 4), raw(&c->turn_accel, 4);
+      i32(c->item_count());
+      for (const ConfigItem* it : c->items) {
+        i32(it->kind()), i32(it->count), i32(it->group), i32(it->part), b.push_back(it->b10);
+        if (it->kind() == 1) { const auto* w = static_cast<const WeaponItem*>(it); i32(w->weapon), i32(w->tech); }
+        else if (it->kind() == 2) i32(static_cast<const AmmoItem*>(it)->weapon);
+        else { const auto* e = static_cast<const EquipmentItem*>(it); i32(e->equipment), i32(e->tech); }
+      }
+    }
+  } else {
+    i32(-1);
+  }
+  i32(d.firepoints ? static_cast<int32_t>(d.firepoints->size()) : -1);
+  if (d.firepoints)
+    for (const Firepoint* f : *d.firepoints) {
+      str(f->name), raw(&f->radius, 4), raw(&f->share, 4), i32(f->part);
+      raw(f->aim, sizeof f->aim);
+    }
+  for (int k = 0; k < 18; ++k) {
+    str(d.parts[k].name), raw(&d.parts[k].f4, 4), i32(d.parts[k].i8), i32(d.parts[k].id);
+  }
+  raw(d.headlight, 0x3d);
+  const auto skin = [&](const Skin* s) {
+    b.push_back(s != nullptr);
+    if (!s) return;
+    str(s->name), b.push_back(s->loaded);
+    i32(static_cast<int32_t>(s->entries.size()));
+    for (const SkinEntry* e : s->entries) {
+      str(e->name), b.push_back(e->alt == e->name);
+      if (e->alt != e->name) str(e->alt);
+      b.push_back(e->cached), b.push_back(e->damage == nullptr), b.push_back(e->b14);
+      i32(e->refs), b.push_back(e->texture == nullptr);
+    }
+  };
+  b.push_back(d.skins != nullptr);
+  if (d.skins) {
+    i32(static_cast<int32_t>(d.skins->skins.size()));
+    for (const Skin* s : d.skins->skins) skin(s);
+    skin(d.skins->damage);
+  }
+  zerr::set_sink(nullptr);
+  i32(static_cast<int32_t>(s_reports.size() / 2));
+  for (int32_t v : s_reports) i32(v);
+  d.reader = nullptr;  // g_root stays the probe's
+  const int n = static_cast<int>(b.size());
+  if (n > cap) return -2;
+  std::memcpy(out, b.data(), b.size());
+  return n;
 }
 
 // test_pm_names.py. fn: 0 name, 1 tech, 2 message, 3 mass bits, 4 class, 5 weapon name, 6 weapon message,
