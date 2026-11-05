@@ -24,6 +24,8 @@ MW3 functions the port has with no PM twin (69 or so: inlined or rewritten) are 
 
 ## The order
 
+The lead's rule (2026-11-05): what the frame runs for every mech ranks above what it runs for the player only, unless the player-only one changes how the game feels. The score below cannot see that, so it is applied by reading each function as the order reaches it.
+
 The loadouts first: they decide what exists. Then by a score: size, how unlike MW3, nearness to the frame, callers. It ranks
 the work; it does not measure play, so jets, landing and 0x423590 are near the top by size and depth, not because of a play test.
 
