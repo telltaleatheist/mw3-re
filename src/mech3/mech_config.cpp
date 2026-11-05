@@ -9,6 +9,7 @@
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 
@@ -710,7 +711,7 @@ double Config::weight(int32_t what) const {
       const Engine e{engine, xl};
       const auto shielding = static_cast<float>(std::ceil(engine_rating(e) * static_cast<double>(0.009999f)));
       double t = static_cast<double>(sum) + 3.0 + shielding;  // 0x005e24f0
-      if (mech == 9) t -= 0.5;  // the Mad Cat is half a ton lighter
+      if (mech == kMadCat) t -= 0.5;  // the Mad Cat is half a ton lighter
       return t;
     }
     case 0: return engine_weight_x87(Engine{engine, xl});
@@ -755,10 +756,9 @@ int32_t Config::jump_jet_limit() const {
   return m > 65.0f ? 4 : 3;
 }
 
-// Mech3.exe 1.2 @ 0x004254d0. Elementals are never checked (docs/mechdef-head.md).
+// Pirate's Moon 1.0 @ 0x00427360 (MW3's 0x004254d0 never checked Elementals; docs/mechdef-head.md).
 // The checksum test stays for callers that ask; load no longer does.
 bool Config::validate(bool check_crc) const {
-  if (mech == 7) return true;
   if (check_crc && crc != checksum()) return false;
   if (static_cast<float>(weight(-1) - 0.24f) > max_mass(mech)) return false;
   if (unplaced_item()) return false;

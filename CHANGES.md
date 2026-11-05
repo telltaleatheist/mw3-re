@@ -115,7 +115,7 @@ it is clear what the designers meant.
   overwriting) bob's file, and renaming onto another pilot's name is refused.
 - **The plain PPC is in the mech lab.** The game defines and names it, but it
   was left out of the mech lab's weapon list. It can now be mounted (Inner
-  Sphere, 7 tons, 3 slots, as the data says).
+  Sphere, 7 tons, 3 slots, as the data says). On Pirate's Moon it is the game's own: its table has it.
 - **The Mad Cat and Supernova show their battle damage.** Their damage
   texture lists were shifted out of line, so the wrong parts got bullet holes
   or none. They now line up.

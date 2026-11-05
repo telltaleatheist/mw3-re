@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "mech3/mech_ids.h"
+
 // Mech, part, weapon and equipment names and ids (docs/mechdef-parts.md,
 // docs/mechdef-configs.md). Original file unknown: between mech_waynet.cpp and
 // mission.cpp (the engine and armor helpers sit elsewhere, noted on each).
@@ -23,7 +25,7 @@ int32_t engine_index(int32_t rating);      // 0x00432e30
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
 bool equipment_restricted(int32_t mech, int32_t kind, int32_t tech);  // 0x004d6dc0
 const char* weapon_name(int32_t weapon);   // 0x00484900, "noweapon" when out of range
-int32_t weapon_count();                    // 37 in the exe, 38 with the plain PPC (FIX (bug))
+int32_t weapon_count();                    // kWeaponCount
 bool weapon_uses_ammo(int32_t weapon);     // 0x00484960, the table's byte at 0x005e6504
 bool weapon_has_tech(int32_t weapon, int32_t tech);  // 0x00484940, the table's mask at 0x005e6500
 bool equip_has_tech(int32_t kind, int32_t tech);    // 0x00484a00, the table's mask at 0x005e6878

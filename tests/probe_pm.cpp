@@ -26,6 +26,7 @@
 #include "gamez/zclass/cls_di.h"
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_lod.h"
+#include "mech3/mech_names.h"
 #include "mech3/mech_parts.h"
 #include "mech3/zai_target.h"
 #include "gamez/zrender/zrndr_span.h"
@@ -778,6 +779,29 @@ int probe_pm_death_prep(int state, int low, int player, uint32_t detail, uint32_
   hip.node = nullptr;
   return 0;
 }
+
+// test_pm_names.py. fn: 0 name, 1 tech, 2 message, 3 mass bits, 4 class, 5 weapon name, 6 weapon message,
+// 7 weapon's techs & arg2, 8 ammo. Out through *text, an int otherwise.
+int probe_pm_names(int fn, int a, int b, const char** text) {
+  using namespace ::mech3;
+  switch (fn) {
+    case 0: *text = mech_name(a); return 0;
+    case 1: return mech_tech(a);
+    case 2: return mech_name_message(a);
+    case 3: { const float v = max_mass(a); int32_t o; std::memcpy(&o, &v, 4); return o; }
+    case 4: return weight_class(a);
+    case 5: *text = weapon_name(a); return 0;
+    case 6: return weapon_name_message(a);
+    case 7: return weapon_has_tech(a, b);
+    case 8: return weapon_uses_ammo(a);
+    case 9: return kElemental;
+    case 10: return kMadCat;
+    case 11: return kMechCount;
+    case 12: return kWeaponCount;
+    default: return 0;
+  }
+}
+int probe_pm_name_index(int weapon, const char* name) { return weapon ? ::mech3::weapon_index(name) : ::mech3::mech_index(name); }
 
 // test_pm_shadows.py: the projected-shadow casters (zmod shadow_*, Pirate's Moon 0x0055d740..0x0055dec0) on
 // the trees probe_pm_mechlib loaded. One call: 0 init, 1 new (its id), 2 size(w, h), 3 node(a: a loaded root,

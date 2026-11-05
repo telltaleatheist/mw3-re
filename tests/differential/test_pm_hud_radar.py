@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from original import FTOL, ROOT, Original  # noqa: E402
-from test_mechdef import FLOOR  # noqa: E402
+FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')  # the CRT's
 
 CEIL = FLOOR.replace(bytes.fromhex('660d0004'), bytes.fromhex('660d0008'))  # the CRT's ceil (test_mechsave's)
 

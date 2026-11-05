@@ -13,6 +13,7 @@ itself until the 32 files are open. Every byte comes through PM's stack of
 open files (0x00578720 pushes, 0x00578250 pops at a file's end). Compared:
 the result, the tree node by node and the #ifdef depth after each file.
 """
+import os
 import ctypes
 import random
 import struct
@@ -22,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import test_pm_zar  # noqa: E402
+os.environ['MW3_NO_PROBE'] = '1'
 import test_zreader_text as mw3  # noqa: E402
 import text_crt  # noqa: E402
 from original import ROOT  # noqa: E402

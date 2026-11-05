@@ -1,3 +1,4 @@
+#include "mech3/mech_ids.h"
 #include "mech3/mp_lobby.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
@@ -888,8 +889,7 @@ void LobbyScreen::lock_mech() {
   }
   int32_t best = -1;
   float best_mass = 0;
-  for (int32_t m = 0; m < 0x13; ++m) {
-    if (m == 7) continue;  // 0x00426080, and the check again
+  for (int32_t m = 0; m < kMechCount; ++m) {  // Pirate's Moon 0x0049ea10: the Elemental too (0x004d5020 is always 0)
     const float mass = max_mass(m);
     if (tons < mass) continue;
     if (best == -1 || best_mass < mass) best = m, best_mass = mass;

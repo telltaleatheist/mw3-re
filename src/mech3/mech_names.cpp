@@ -31,38 +31,108 @@ const char* part_name(int32_t id) {
 }
 
 namespace {
-// 0x005e6078, 0x3c bytes each: the name, and the tech at +0x30.
-const struct { const char* name; int32_t tech; } kMechs[19] = {
-    {"annihilator", 2}, {"avatar", 2},    {"blackhawk", 1}, {"bushwacker", 2}, {"cauldron", 1},
-    {"champion", 2},    {"daishi", 1},    {"elemental", 1}, {"firefly", 2},    {"madcat", 1},
-    {"orion", 2},       {"owens", 2},     {"puma", 1},      {"shadowcat", 1},  {"strider", 2},
-    {"sunder", 2},      {"supernova", 1}, {"thor", 1},      {"vulture", 1}};
+// Pirate's Moon 0x00608238, 0x3c bytes each: the name, +0x20 the message, +0x28 the tons, +0x2c the class, +0x30 the tech.
+const struct { const char* name; int32_t message; float mass; int32_t weight_class; int32_t tech; } kMechs[kMechCount] = {
+    {"annihilator", 0xd82, 100, 3, 2},
+    {"atlas", 0xfeb, 100, 3, 2},
+    {"avatar", 0xd83, 70, 2, 2},
+    {"awesome", 0xfec, 80, 3, 2},
+    {"blackhawk", 0xd84, 50, 1, 1},
+    {"bushwacker", 0xd85, 55, 1, 2},
+    {"cauldron", 0xd86, 65, 2, 1},
+    {"centurion", 0xfed, 50, 1, 2},
+    {"champion", 0xd87, 60, 2, 2},
+    {"clint", 0xfee, 40, 1, 1},
+    {"daishi", 0xd88, 100, 3, 1},
+    {"elemental", 0xd89, 10, 0, 1},
+    {"firefly", 0xd8a, 30, 0, 2},
+    {"madcat", 0xd8b, 75, 2, 1},
+    {"masakari", 0xfef, 85, 3, 1},
+    {"orion", 0xd8c, 75, 2, 2},
+    {"owens", 0xd8d, 35, 0, 2},
+    {"puma", 0xd8e, 35, 0, 1},
+    {"ryoken", 0xff0, 55, 1, 1},
+    {"shadowcat", 0xd8f, 45, 1, 1},
+    {"strider", 0xd90, 40, 1, 2},
+    {"sunder", 0xd91, 90, 3, 2},
+    {"supernova", 0xd92, 90, 3, 1},
+    {"thor", 0xd93, 70, 2, 1},
+    {"vulture", 0xd94, 60, 2, 1}};
 
 // 0x005e6868, 5 dwords each; the kind is the first.
 const char* const kEquipment[15] = {"ams",  "armor", "armorff", "fcs",  "bap", "case", "c3", "c3slave",
                                     "ecm",  "sink",  "dsink",   "jjets", "masc", "tag", "tc"};
 
-// 0x005e64f0, 6 dwords each (docs/weapons.md); the index equals the position.
-// FIX (bug): the 38th, the plain PPC, is the rebuild's (weapon_count).
-const char* const kWeapons[38] = {
-    "AC2",          "AC5",          "AC10",          "AC20",         "ERLaser_Small",     "ERLaser_Medium",
-    "ERLaser_Large", "ERPPC",       "Flamer",        "GaussRifle",   "Laser_Small",       "Laser_Medium",
-    "Laser_Large",  "LB2XAC",       "LB5XAC",        "LB10XAC",      "LB20XAC",           "LRM5",
-    "LRM10",        "LRM15",        "LRM20",         "MGUN",         "NARC",              "PulseLaser_Small",
-    "PulseLaser_Medium", "PulseLaser_Large", "SRM2", "SRM4",         "SRM6",              "StreakSRM2",
-    "StreakSRM4",   "StreakSRM6",   "TAG",           "UltraAC2",     "UltraAC5",          "UltraAC10",
-    "UltraAC20",    "PPC"};
+// Pirate's Moon 0x00608818, 6 dwords each (docs/weapons.md): the name, the message, the family (0x004875a0), the
+// index (the position), the techs (1 Clan, 2 Inner Sphere), uses ammo.
+const struct { const char* name; int32_t message; int32_t family; uint8_t tech; uint8_t ammo; } kWeapons[kWeaponCount] = {
+    {"AC2", 0x2d7, 1, 2, 1},
+    {"AC5", 0x2d8, 1, 2, 1},
+    {"AC10", 0x2d9, 1, 2, 1},
+    {"AC20", 0x2da, 1, 2, 1},
+    {"ERLaser_Small", 0x2db, 2, 3, 0},
+    {"ERLaser_Medium", 0x2dc, 2, 3, 0},
+    {"ERLaser_Micro", 0xff9, 2, 1, 0},
+    {"ERLaser_Large", 0x2dd, 2, 3, 0},
+    {"PPC", 0x2fd, 10, 2, 0},
+    {"ERPPC", 0x2de, 3, 3, 0},
+    {"Flamer", 0x2df, 5, 3, 0},
+    {"GaussRifle", 0x2e0, 4, 3, 1},
+    {"GaussRifleLt", 0xfe0, 4, 2, 1},
+    {"HeavyLaser_Small", 0xfe1, 6, 1, 0},
+    {"HeavyLaser_Medium", 0xfe2, 6, 1, 0},
+    {"HeavyLaser_Large", 0xfe3, 6, 1, 0},
+    {"Laser_Small", 0x2e1, 6, 2, 0},
+    {"Laser_Medium", 0x2e2, 6, 2, 0},
+    {"Laser_Large", 0x2e3, 6, 2, 0},
+    {"LB2XAC", 0x2e4, 0, 3, 1},
+    {"LB5XAC", 0x2e5, 0, 3, 1},
+    {"LB10XAC", 0xe6, 0, 3, 1},
+    {"LB20XAC", 0x2e7, 0, 3, 1},
+    {"LRM5", 0x2e8, 7, 3, 1},
+    {"LRM10", 0x2e9, 7, 3, 1},
+    {"LRM15", 0x2ea, 7, 3, 1},
+    {"LRM20", 0x2eb, 7, 3, 1},
+    {"MRM10", 0xfe4, 7, 2, 1},
+    {"MRM20", 0xfe5, 7, 2, 1},
+    {"MRM30", 0xfe6, 7, 2, 1},
+    {"MRM40", 0xfe7, 7, 2, 1},
+    {"MGUN", 0x2ec, 8, 3, 1},
+    {"MGUNH", 0xffa, 8, 1, 1},
+    {"MGUNLT", 0xffb, 8, 1, 1},
+    {"NARC", 0x2ed, 9, 3, 1},
+    {"PulseLaser_Small", 0x2ef, 11, 3, 0},
+    {"PulseLaser_Medium", 0x2f0, 11, 3, 0},
+    {"PulseLaser_Large", 0x2f1, 11, 3, 0},
+    {"SRM2", 0x2f2, 12, 3, 1},
+    {"SRM4", 0x2f3, 12, 3, 1},
+    {"SRM6", 0x2f4, 12, 3, 1},
+    {"StreakSRM2", 0x2f5, 13, 3, 1},
+    {"StreakSRM4", 0x2f6, 13, 3, 1},
+    {"StreakSRM6", 0x2f7, 13, 3, 1},
+    {"TAG", 0x2f8, 14, 0, 0},
+    {"TBOLT5", 0xffc, 7, 2, 1},
+    {"TBOLT10", 0xffd, 7, 2, 1},
+    {"TBOLT15", 0xffe, 7, 2, 1},
+    {"TBOLT20", 0xfff, 7, 2, 1},
+    {"UltraAC2", 0x2f9, 1, 3, 1},
+    {"UltraAC5", 0x2fa, 1, 3, 1},
+    {"UltraAC10", 0x2fb, 1, 3, 1},
+    {"UltraAC20", 0x2fc, 1, 3, 1},
+    {"XPulseLaser_Small", 0xfe8, 11, 2, 0},
+    {"XPulseLaser_Medium", 0xfe9, 11, 2, 0},
+    {"XPulseLaser_Large", 0xfea, 11, 2, 0}};
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x00484720
-int32_t mech_tech(int32_t mech) { return mech >= 0 && mech < 19 ? kMechs[mech].tech : kAnyTech; }
+int32_t mech_tech(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].tech : kAnyTech; }
 
 // Mech3.exe 1.2 @ 0x00484650
-const char* mech_name(int32_t mech) { return mech >= 0 && mech < 19 ? kMechs[mech].name : "notmech"; }
+const char* mech_name(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].name : "notmech"; }
 
 // Mech3.exe 1.2 @ 0x004845f0. The table's +0x24 is the entry's own index.
 int32_t mech_index(const char* name) {
-  for (int32_t i = 0; i < 19; ++i)
+  for (int32_t i = 0; i < kMechCount; ++i)
     if (crt::msvc_stricmp(name, kMechs[i].name) == 0) return i;
   return -1;
 }
@@ -85,8 +155,8 @@ int32_t equip_kind(const char* name) {
 // Mech3.exe 1.2 @ 0x004848a0. Any case.
 int32_t weapon_index(const char* name) {
   if (!name || !*name) return -1;
-  for (int32_t i = 0; i < weapon_count(); ++i)
-    if (crt::msvc_stricmp(kWeapons[i], name) == 0) return i;
+  for (int32_t i = 0; i < kWeaponCount; ++i)
+    if (crt::msvc_stricmp(kWeapons[i].name, name) == 0) return i;
   return -1;
 }
 
@@ -124,8 +194,6 @@ const float kEngineTons[79] = {
     10.0f, 10.0f, 10.5f, 11.0f, 11.5f, 12.0f, 12.5f, 13.0f, 13.5f, 14.0f, 14.5f, 15.5f, 16.0f, 16.5f,
     17.5f, 18.0f, 19.0f, 19.5f, 20.5f, 21.5f, 22.5f, 23.5f, 24.5f, 25.5f, 27.0f, 28.5f, 29.5f, 31.5f,
     33.0f, 34.5f, 36.5f, 38.5f, 41.0f, 43.5f, 46.0f, 49.0f, 52.5f};
-// 0x005e60a0 + 0x3c * mech
-const float kMaxMass[19] = {100, 70, 50, 55, 65, 60, 100, 10, 30, 75, 75, 35, 35, 45, 40, 90, 90, 70, 60};
 WeaponLabFn g_weapon_lab = nullptr;
 
 const WeaponLab* weapon_lab(int32_t weapon) { return g_weapon_lab ? g_weapon_lab(weapon_name(weapon)) : nullptr; }
@@ -133,17 +201,13 @@ const WeaponLab* weapon_lab(int32_t weapon) { return g_weapon_lab ? g_weapon_lab
 
 // Mech3.exe 1.2 @ 0x00484960: autocannons, Gauss, LB-X, missiles, MGUN and NARC.
 bool weapon_uses_ammo(int32_t weapon) {
-  static const uint8_t kUses[38] = {1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
-                                    1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0};
-  return weapon >= 0 && weapon < weapon_count() && kUses[weapon];
+  return weapon >= 0 && weapon < kWeaponCount && kWeapons[weapon].ammo;
 }
 
 // Mech3.exe 1.2 @ 0x00484940: the techs a weapon comes in (1 Clan, 2 Inner
-// Sphere); the table's 37 rows (TAG none), the plain PPC's row 2 (see below).
+// Sphere; TAG none).
 bool weapon_has_tech(int32_t weapon, int32_t tech) {
-  static const uint8_t kTech[38] = {2, 2, 2, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 3, 1, 3, 3,
-                                    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 0, 1, 3, 1, 1, 2};
-  return weapon >= 0 && weapon < weapon_count() && (kTech[weapon] & tech) != 0;
+  return weapon >= 0 && weapon < kWeaponCount && (kWeapons[weapon].tech & tech) != 0;
 }
 
 // Mech3.exe 1.2 @ 0x00484a00: the techs an equipment kind comes in (1 Clan,
@@ -153,40 +217,29 @@ bool equip_has_tech(int32_t kind, int32_t tech) {
   return kind >= 0 && kind < 15 && (kTech[kind] & tech) != 0;
 }
 
-// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's 0xd82.. in the mech table.
-int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < 19 ? 0xd82 + mech : -1; }
+// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's ids in the mech table (Pirate's Moon's new mechs 0xfeb..).
+int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].message : -1; }
 
-// Mech3.exe 1.2 @ 0x00484920. The ids skip 0x2e6 (LB-10X AC is 0xe6, an
-// older message with the same text) and 0x2ee; the plain PPC's would be 0x2fd.
-int32_t weapon_name_message(int32_t weapon) {
-  static const int16_t kIds[38] = {0x2d7, 0x2d8, 0x2d9, 0x2da, 0x2db, 0x2dc, 0x2dd, 0x2de, 0x2df, 0x2e0,
-                                   0x2e1, 0x2e2, 0x2e3, 0x2e4, 0x2e5, 0x0e6, 0x2e7, 0x2e8, 0x2e9, 0x2ea,
-                                   0x2eb, 0x2ec, 0x2ed, 0x2ef, 0x2f0, 0x2f1, 0x2f2, 0x2f3, 0x2f4, 0x2f5,
-                                   0x2f6, 0x2f7, 0x2f8, 0x2f9, 0x2fa, 0x2fb, 0x2fc, 0x2fd};
-  return weapon >= 0 && weapon < weapon_count() ? kIds[weapon] : -1;
-}
+// Mech3.exe 1.2 @ 0x00484920
+int32_t weapon_name_message(int32_t weapon) { return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].message : -1; }
 
 // Mech3.exe 1.2 @ 0x00484980: 0x1c6.. by equipment kind.
 int32_t equip_name_message(int32_t kind) { return kind >= 0 && kind < 15 ? 0x1c6 + kind : -1; }
 
 // Mech3.exe 1.2 @ 0x00484900
-const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < weapon_count() ? kWeapons[weapon] : "noweapon"; }
+const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].name : "noweapon"; }
 
-// The exe's table has 37 weapons. FIX (bug): weapons.zrd defines a plain PPC and
-// Mech3Msg.dll names it (0x2fd, after the last weapon's 0x2fc), but its row was
-// never added, so the mech lab could not offer it. Its row would be message
-// 0x2fd, family 3 (as ERPPC), tech 2 (Inner Sphere, as the plain lasers), no ammo.
-int32_t weapon_count() { return zfix::options().bugs ? 38 : 37; }
+// Pirate's Moon's table has the plain PPC MW3's lacked (index 8), so MW3's FIX (bug) has no place here.
+int32_t weapon_count() { return kWeaponCount; }
 
 // Mech3.exe 1.2 @ 0x00484700. Not the tonnage's class: the Annihilator is 2,
 // the Mad Cat, Owens and Puma 1 (discoveries.md).
 int32_t weight_class(int32_t mech) {
-  static const int32_t kClass[19] = {2, 2, 1, 1, 2, 2, 3, 0, 0, 1, 2, 1, 1, 1, 1, 3, 3, 2, 2};  // 0x005e60a4
-  return mech >= 0 && mech < 19 ? kClass[mech] : 0;
+  return mech >= 0 && mech < kMechCount ? kMechs[mech].weight_class : 0;
 }
 
 // Mech3.exe 1.2 @ 0x004846e0
-float max_mass(int32_t mech) { return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f; }
+float max_mass(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].mass : 10.0f; }
 
 // Mech3.exe 1.2 @ 0x00485400 (and 0x00485430, 0x00485460, 0x00485490): the
 // BattleTech table, a row per 5 t from 10 t (tonnage, CT, side torso, arm, leg).

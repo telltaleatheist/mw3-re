@@ -4225,6 +4225,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon lets you pick the Elemental.** MechWarrior 3 hides the
+  armored infantry from the mech lists. Pirate's Moon's check for it always
+  says no, so the Elemental shows up in Instant Action and multiplayer's
+  lists, and the plain PPC MechWarrior 3 forgot is finally in the weapon list.
+
 - **Pirate's Moon's eject takes your head off.** The eject key fires the
   pilot out and then destroys your own head, with you credited as your own
   killer.

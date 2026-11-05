@@ -1,3 +1,4 @@
+#include "mech3/mech_ids.h"
 #include "mech3/action_menu.h"
 
 #include <cstdio>
@@ -354,7 +355,7 @@ void ActionScreen::show_custom() {
   for (int i = 0; i < 6; ++i) {
     EnemyList& l = enemies[i];
     int32_t chosen = 0, n = 0;
-    for (int32_t mech = -1; mech < 0x13; ++mech) {
+    for (int32_t mech = -1; mech < kMechCount; ++mech) {
       if (i == 0) {
         if (slot && mech == slot->mech) chosen = n;
         if (mech == -1) continue;
@@ -389,8 +390,7 @@ void ActionScreen::reset() {
   for (AllyList& l : allies) l.clear_items();
   for (EnemyList& l : enemies) l.clear_items();
   int32_t chosen = 0;
-  for (int32_t mech = 0; mech < 0x13; ++mech) {
-    if (mech == 7) continue;
+  for (int32_t mech = 0; mech < kMechCount; ++mech) {  // Pirate's Moon lists the Elemental (0x004d5020 is always 0)
     allies[0].add_item(e.message_format(0x18b, mech_label(e, mech)), mech);
     if (slot && mech == slot->mech) chosen = mech;
   }
@@ -398,8 +398,7 @@ void ActionScreen::reset() {
   allies[1].add_item(e.message(0x28a), -1);  // Mobile Field Base: off
   allies[1].add_item(e.message(0x28b), 10);  // on
   for (int i = 2; i < 5; ++i) {
-    for (int32_t mech = -1; mech < 0x13; ++mech) {
-      if (mech == 7) continue;
+    for (int32_t mech = -1; mech < kMechCount; ++mech) {
       const std::string text =
           mech == -1 ? e.message_format_ints(0x28c, {}) : std::string(e.message_format(0x28d, mech_label(e, mech)));
       allies[i].add_item(text.c_str(), mech);

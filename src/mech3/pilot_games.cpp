@@ -10,6 +10,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_reader.h"
@@ -103,8 +104,7 @@ void Store::fill_all() {
     it->b10 = 1;
     items.push_back(it);
   };
-  for (int32_t m = 0; m < 0x13; ++m) {
-    if (m == 7) continue;  // 0x00426080
+  for (int32_t m = 0; m < kMechCount; ++m) {  // Pirate's Moon lists the Elemental (0x004d5020 is always 0)
     auto* b = new BaseItem;
     b->value = m;
     put(b);

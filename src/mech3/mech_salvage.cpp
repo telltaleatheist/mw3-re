@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "mech3/mech_config.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/pilot.h"
 #include "mech3/cheats.h"
@@ -10,7 +11,6 @@
 namespace mech3 {
 
 namespace {
-constexpr int32_t kElemental = 7;
 constexpr int32_t kTag = 0x20;          // never salvaged
 constexpr int32_t kSingleSink = 9, kDoubleSink = 10;
 }  // namespace

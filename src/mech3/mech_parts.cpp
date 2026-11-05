@@ -1,3 +1,4 @@
+#include "mech3/mech_ids.h"
 #include "mech3/mech_parts.h"
 
 #include <cstring>
@@ -21,7 +22,6 @@ namespace {
 constexpr float kCritArmor = 0.15f;       // 0x005c2774
 constexpr float kRandUnit = 3.051851e-05f;  // 0x005c2778
 constexpr int kMultiplayer = 3;           // docs/gametypes.md
-constexpr int kElemental = 7;             // roster index
 constexpr int kCase = 5, kSink = 9, kDoubleSink = 10;  // equipment kinds
 constexpr int kMechSoundAmmo = 15, kMechSoundCritical = 3;
 constexpr int kNetSection = 0x15;         // docs/network-messages.md
@@ -281,7 +281,7 @@ Handle Leg::fly_away(Vec3* velocity, bool stub) {
   m.on_part_destroyed(calf);
   m.on_part_destroyed(foot);
   const int32_t roster = m.pilot->roster;
-  if (roster == 2 || roster == 11) {
+  if (roster == 4 || roster == 16) {  // the Black Hawk, the Owens
     Arm* arm = m.arms[this != m.legs[0] ? 1 : 0];
     arm->destroy(0, 0);
     arm->set_internal(0.0f, 0);

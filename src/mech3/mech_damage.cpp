@@ -12,6 +12,7 @@
 #include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_data.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "gamez/zclass/class.h"
 #include "mech3/mech_collide.h"
@@ -22,7 +23,6 @@ namespace mech3 {
 
 namespace {
 constexpr int kDead = 10, kFallenBack = 12, kFallenFront = 13;
-constexpr int kElemental = 7;  // roster index
 constexpr int kNetDeath = 0x13;
 constexpr int kMessageNuke = 0x305;    // Mech3Msg.dll: the NUKE's name
 
@@ -278,7 +278,7 @@ float Mech::health() {
 void Mech::on_part_destroyed(MechPart* part) {
   if (!part) return;
   if (calls().weapons_lost) calls().weapons_lost(*this, part->id);
-  if (pilot->roster == 7) torso->destroy(1, 1);
+  if (pilot->roster == kElemental) torso->destroy(1, 1);
 }
 
 // Mech3.exe 1.2 @ 0x0041cfa0 (mission scripts, heat)

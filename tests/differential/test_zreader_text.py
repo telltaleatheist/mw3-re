@@ -19,6 +19,7 @@ unknown words, stray #endif lines (the depth carries from file to file, on
 both sides). The MSVCRT pieces are stand-ins (text_crt.py). Compared: the
 result and the whole tree, node by node, and the #ifdef depth after each file.
 """
+import os
 import ctypes
 import random
 import struct
@@ -31,10 +32,12 @@ from original import ROOT, Original  # noqa: E402
 import text_crt  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
-probe = ctypes.CDLL(str(LIB))
-probe.probe_zrdr_text.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int32)]
-probe.probe_zrdr_dump.argtypes = [ctypes.c_char_p, ctypes.c_int]
+# test_pm_zreader_text takes only the file makers from here: no MW3 probe on that branch.
+if not os.environ.get('MW3_NO_PROBE'):
+    LIB = next((ROOT / 'build').glob('libmw3probe.*'))
+    probe = ctypes.CDLL(str(LIB))
+    probe.probe_zrdr_text.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int32)]
+    probe.probe_zrdr_dump.argtypes = [ctypes.c_char_p, ctypes.c_int]
 
 PARSE_TEXT, DEPTH, POOL, DEFINES = 0x5563d0, 0x72c1ac, 0x555cd0, 0x557490
 HANDLE = 0x77

@@ -20,6 +20,7 @@ frequency, voice volume, locks, frames (fades, queue, cues, groups), the
 listener and 3D updates with doppler, fades, pause snapshots, group stash,
 reset, the queue's stop, master volume, mute; and buffers finishing.
 """
+import os
 import ctypes
 import random
 import struct
@@ -30,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
+LIB = next((ROOT / 'build').glob(os.environ.get('MW3_PROBE_LIB', 'libmw3probe') + '.*'))  # test_pm_sound: pmprobe
 probe = ctypes.CDLL(str(LIB))
 GAME = ROOT / 'game' / 'mw3-1.2'
 READER = GAME / 'zbd' / 'reader.zbd'

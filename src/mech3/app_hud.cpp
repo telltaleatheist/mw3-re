@@ -55,6 +55,7 @@
 #include "mech3/zainet_region.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_data.h"
 #include "mech3/message_panel.h"
@@ -262,16 +263,7 @@ struct ProgramHudHooks : HudHooks {
   }
   // PM's roster index (its table 0x00608238, 0x3c bytes each: 25 mechs, the
   // Elemental 11, the Puma 17) by the mech's name: the port's is still MW3's 19.
-  static int32_t pm_roster_index(Mech* m) {
-    static const char* const kPm[25] = {"annihilator", "atlas", "avatar", "awesome", "blackhawk", "bushwacker",
-                                        "cauldron", "centurion", "champion", "clint", "daishi", "elemental",
-                                        "firefly", "madcat", "masakari", "orion", "owens", "puma", "ryoken",
-                                        "shadowcat", "strider", "sunder", "supernova", "thor", "vulture"};
-    const char* name = m->pilot ? m->pilot->name : nullptr;
-    for (int32_t i = 0; name && i < 25; ++i)
-      if (std::strcmp(name, kPm[i]) == 0) return i;
-    return m->pilot ? m->pilot->roster : -1;
-  }
+  static int32_t pm_roster_index(Mech* m) { return m->pilot ? m->pilot->roster : -1; }
   // PM's torso attachment (the torso's +0x7c, 0x0041f930; shown and hidden by
   // 0x00479c30/0x00479c60): not ported yet, so none.
   static bool torso_attachment(Mech* m) { return m->torso && m->torso->headlight; }
@@ -734,7 +726,7 @@ struct ProgramHudHooks : HudHooks {
     return c ? c->name : nullptr;
   }
   const char* mech_display_name(int32_t kind) override {  // 0x00484670
-    return kind >= 0 && kind < 19 ? message(0xd82 + kind) : "notmech";
+    return kind >= 0 && kind < kMechCount ? message(mech_name_message(kind)) : "notmech";
   }
   int32_t mech_aim_part(Mech* m) override { return m->xf8; }
   bool part_by_id(Mech* m, int32_t part) override {  // 0x0041d510

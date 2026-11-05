@@ -195,6 +195,8 @@ the 817 in `compiler-flags.json` (`tools/analysis/pmflags.py`).
 
 ## Running the differential tests on PM (step 0, 2026-10-31)
 
+**Tests loading libmw3probe do not test this branch.** `mw3probe` is not built here; they now fail at the import. By-test list: to do, after the rosters.
+
 **The address map** (`tools/analysis/pmaddr.py`, after pmdiff.py; writes
 `analysis-output/pm-diff/addrmap.json`):
 
@@ -1364,8 +1366,15 @@ functions PM changed, and PM's new ones.
      (`test_pm_lod.py`), and `test_pm_command.py` now has 0x41de60; its other sections (dead_step, dead_update, on_kill,
      marks, end, release, fly, fade, free, anim_nodes, canned, cockpit, part_lod) have no PM test yet, and neither has the
      same goes for the 62 tests in `tests/differential` that load `libmw3probe`: to do, a list by test, before they can be claimed for PM.
-4. **Mechs and weapons**. The command table is done (above). Dev 2 and the lead's notes: PM's weapon roster has
-   56 entries against the port's 38, and its mech roster 25 against 19.
+4. **Mechs and weapons**. The command table is done (above). **The rosters are ported (2026-11-05, `test_pm_names.py`,
+   `mech3/mech_names`, `mech_ids.h`):** 25 mechs (0x608238, 0x3c each: +0x20 message, +0x24 index, +0x28 tons, +0x2c class,
+   +0x30 tech, +0x34 a flag no function read here, +0x38 the definition's cache) and 56 weapons (0x608818, 6 dwords: name,
+   message, family 0x4875a0, index, techs, ammo). The ids moved: the Elemental is 11 and the Mad Cat 13 (each MW3 test
+   checked in the exe's twin), the Black Hawk and Owens test 4 and 16. PM has MW3's missing plain PPC at index 8, so MW3's
+   FIX (bug) is gone here. **`0x4d5020`, MW3's "is it the Elemental" (0x426080), always answers 0 in PM:** the mech
+   lists (0x4732b0, 0x48f970, 0x48f660, the store's 0x49ea10) offer the Elemental, and `0x427360` no longer exempts it from
+   validation. The table's checksum at 0x4876f0 is MW3's 0x4854c0 (`protection.md`). The family is not used by the port yet.
+   Our own command ids are free on PM: 0xa2 and 0xa5 are not in the 110, nothing registers or polls them, their keys are unbound.
    Then the definition reader and its new weapons
    (`XPulseLaser_Large`, `HeavyLaser_Large`, `TBOLT5`), the firepoint
    fix-up (`promote1.cpp`, `CZMechFirePoint::CFixup`), `mech.cpp` (130
@@ -1460,7 +1469,7 @@ functions PM changed, and PM's new ones.
    +0x40 (0x200000 walks up its parents): a clutter record while a query visits it. The records' four walks: 0x4ffb40,
    0x5007d0, 0x502a90, 0x501a30, through the cell's tree by 0x503c20, 0x503ce0, 0x504100, 0x503ea0. Two-sided is 0x400 on PM (the count takes
    0x100). The sphere query 0x5033b0 is in the test on flagged nodes. Tested on crafted records, not on laid ones. Unreached
-   by the test: a count over 255. **Still to look at in play:** jet reach, W58's grid seeing props; why the walker stopped after the prop in c2m3 at (2636, 3, -1528), having lost 0.098 of armor (c3m6's walked on; an eye or exe check against the original). Clutter's
+   by the test: a count over 255. **Still to look at in play:** jet reach, W58's grid seeing props; why the walker stopped after the prop in c2m3 at (2636, 3, -1528), having lost 0.098 of armor (c3m6's walked on; an eye or exe check against the original). Also open: class 0x5ead98's vt+0xac (0x4aafc0), not handled by `entity_down`, the class not identified; the fire mode's `world().time` standing for the exe's [0x8c1b50], the same clock assumed, not verified; E and W and the other target keys call `AiTarget::set_target` directly where the exe goes through vt+0xcc with the HUD's part (`hud(0x51)`), to fix on `pm` with that part. Clutter's
    `ground_heights` hook stays null: a mission's load sets the laying's skip first (0x492f9a).
    **Headlights go with the mech step (4), as the expansion's headline feature: the player's ported (2026-11-04)**
    (`mech3/mech_headlight`, `test_pm_headlight.py`, the setters in `test_pm_light_setters.py`). In the game: the dfn's

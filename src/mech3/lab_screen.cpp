@@ -33,7 +33,7 @@ int32_t engine_rating_of(int32_t index);                 // 0x00432fa0
 int32_t engine_maker_message(int32_t index);             // 0x00432ec0's message (mech_salvage.h)
 float engine_kph(int32_t engine, float mass, bool run);  // 0x00433050 (mech_data.h)
 bool weapon_uses_ammo(int32_t weapon);                   // 0x00484960
-int32_t weapon_count();                                  // 37, the plain PPC's 38th with zfix bugs
+int32_t weapon_count();                                  // Pirate's Moon's 56
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
@@ -185,7 +185,7 @@ void LabLoadoutList::refresh(Handle cfg) {
     return first;
   };
   char line[0x100];
-  for (int32_t w = 0; w < weapon_count(); ++w)  // FIX (bug): 0x25 in the exe; the plain PPC too (fixes.md)
+  for (int32_t w = 0; w < weapon_count(); ++w)  // Pirate's Moon: 0x38
     for (int32_t tech = 1; tech < 3; ++tech) {
       WeaponItem probe;  // 0x0044ec90(1)
       probe.count = 1, probe.weapon = w, probe.tech = tech;

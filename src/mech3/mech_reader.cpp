@@ -9,6 +9,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_skin.h"
 
@@ -348,11 +349,11 @@ MechDfn* load_dfn(int32_t mech) {
 // Mech3.exe 1.2 @ 0x004846a0. Cached in the mech table (0x005e60b0 + 0x3c * i);
 // a failed load is tried again next time.
 namespace {
-MechDfn* g_dfns[19] = {};  // the mech table's +0x38 (0x005e60b0, 0x3c apart)
+MechDfn* g_dfns[kMechCount] = {};  // the mech table's +0x38 (Pirate's Moon 0x00608270, 0x3c apart)
 }  // namespace
 
 MechDfn* mech_dfn(int32_t mech) {
-  if (mech < 0 || mech >= 19) return nullptr;
+  if (mech < 0 || mech >= kMechCount) return nullptr;
   if (!g_dfns[mech]) g_dfns[mech] = load_dfn(mech);
   return g_dfns[mech];
 }

@@ -11,6 +11,7 @@
 #include "gamez/zmodel/gmod_matl.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_data.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission_world.h"
 
@@ -46,7 +47,7 @@ constexpr int kNetAction = 0x17;  // docs/network-messages.md
 constexpr int kKnockSound = 0x18;  // cockpit table 0x00605598
 constexpr uint32_t kBlendFrames = 20;  // 0x005e1fac
 constexpr int kMasc = 12, kMascSound = 0x1b;  // equipment kind; the cockpit sound (table 0x00605598)
-constexpr int kJumpJet = 11, kElementalRoster = 7, kJetSound = 3, kSoundJumpJet = 3, kJumpPose = 12;
+constexpr int kJumpJet = 11, kJetSound = 3, kSoundJumpJet = 3, kJumpPose = 12;
 constexpr int kStandUpSound = 0xb, kStandUpSlot = 11;  // mech +0x5e4
 constexpr float kDustAbove = -50.0f, kDustBelow = 50.0f;  // 0x005bcda0, 0x005bcda4
 
@@ -125,7 +126,7 @@ void Mech::add_jump_jet(bool add) {
   if (jets > limit) jets = limit;
   else if (jets < 0) jets = 0;
   if (jets > 0) {
-    const float t = pilot->roster == kElementalRoster ? 45.0f : tonnage();  // 0x005bcdb8
+    const float t = pilot->roster == kElemental ? 45.0f : tonnage();  // 0x005bcdb8
     jet_burn = t / static_cast<float>(jets * 100);
   } else {
     jet_burn = 0.0f;
@@ -223,7 +224,7 @@ void Mech::ground_step(float dt) {
   const float vy0 = vec_3c.y;
   const bool was = no_power_down;
   no_power_down = g_calls.skis_update ? g_calls.skis_update(*this, dt) : skis->update(dt);
-  if (remote || !was || no_power_down || !(vy0 < 0.0f) || pilot->roster == kElementalRoster) return;
+  if (remote || !was || no_power_down || !(vy0 < 0.0f) || pilot->roster == kElemental) return;
   float jolt = -(vy0 / kLandingScale);
   bool hard = false;
   if (jolt > 1.0f) jolt = 1.0f, hard = true;
@@ -679,7 +680,7 @@ void Mech::update_action(float dt) {
 // (the hip's crouch target the crouch depth below); else up, the player's
 // mech playing the stand-up sound if it was down. The Elemental never crouches.
 void Mech::crouch(bool on) {
-  if (pilot->roster == kElementalRoster) return;
+  if (pilot->roster == kElemental) return;
   bool was = false;
   if (on && gait[kStep][kHi] > std::fabs(controls->throttle)) {  // GetThrottle
     const Vec3 down{0.0f, -crouch_depth, 0.0f};

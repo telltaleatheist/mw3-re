@@ -14,6 +14,7 @@
 #include "gamez/zreader/zreader.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_lib.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 
@@ -181,7 +182,7 @@ void load_sounds(MechData& p) {
 // Mech3.exe 1.2 @ 0x004320b0. Instant action and multiplayer use their own
 // ("m") disable and destroy effects, except for the Elemental.
 void load_effects(MechData& p) {
-  const bool m = (g_hooks->game_multiplayer() != 0 || g_hooks->game_instant_action() != 0) && p.roster != 7;
+  const bool m = (g_hooks->game_multiplayer() != 0 || g_hooks->game_instant_action() != 0) && p.roster != kElemental;
   char name[96];
   auto find = [&](const char* fmt) {
     std::snprintf(name, sizeof name, fmt, p.name);

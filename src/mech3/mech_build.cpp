@@ -15,6 +15,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/mech_data.h"
 #include "mech3/mech_move.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
@@ -501,7 +502,7 @@ void mech_motions(Mech& m) {
   m.anims[11] = nullptr;
   const float right = h.peek_float(&m.foot(1)->translation->x);
   const float d = right - h.peek_float(&m.foot(0)->translation->x);
-  const float length = m.pilot->roster == 7 ? 4.0f : 12.0f;
+  const float length = m.pilot->roster == kElemental ? 4.0f : 12.0f;
   m.skis = make_skis(m, d * 0.5f, length);
 }
 

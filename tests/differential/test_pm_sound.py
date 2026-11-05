@@ -25,6 +25,7 @@ What the port does not reproduce, as in MW3: the error reports name MW3's
 source files and lines (PM's are other lines of other paths), so they are
 compared by level and text.
 """
+import os
 import ctypes
 import random
 import shutil
@@ -35,6 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
+os.environ['MW3_PROBE_LIB'] = 'libpmprobe'  # test_sound's own, not built on this branch
 import test_sound as ts  # noqa: E402
 import zrd  # noqa: E402
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
