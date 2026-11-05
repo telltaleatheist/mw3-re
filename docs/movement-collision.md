@@ -33,9 +33,9 @@ tons, takes the first that passes, throttle x0.7, and when the contact is a heav
 0x425030: nothing without a mech behind the node; only a live one blocks; damage is the crash 0x4253f0: speed
 (pending velocity + other's)^2 x 0.2 / (top speeds together)^2, each taking its share by the other's tons; part 1
 (probes under 6 and the top) is the torso, 0.5 / 0.25 / 0.25, parts 4 and 5 (foot probes) the leg by the probe's low
-bit on both mechs. The other mech's velocity is not touched; a remote one gets the shove message as before. The shove is not scaled by frame rate: the mech's update replaces its velocity each frame, so it never adds up (Update 0x41b2ea from the prediction 0x423590). Ceiling
+bit on both mechs. The other mech's velocity is not touched; a remote one gets the shove message as before. Ceiling
 0x424ba0: on foot, only what 0x424d80 allows crushes (node +0xc4 at least the frame, and an owner that is gone or
-none); anything else is a wall response. Per-frame amounts go to time behind `per_second` (`fixes.md`).
+none); anything else is a wall response. Amounts are per hit, at any frame rate (below).
 
 ## In the frame
 
@@ -303,3 +303,7 @@ so one at most is crossed), the normal renormalised after the world
 transform (the nodes hit carry no scale), the grid walk's diagonal step
 (exact ties at cell corners), the last of equally near crossings, and a
 division for a multiplication in the inverse (an ulp, not reached).
+
+## Frame rate (2026-11-05)
+
+Nothing in collision is scaled by `frame_steps`, but the 20 to touched objects (as on `main`). Dev 2's measure on `main`'s code, c1m1 at 33, 16, 8 and 4 ms: hits rise far less than the frame rate (x3 hits for x8 the frames at walls), so the amounts are per hit. An earlier scaling on `pm` (a2105b11) was removed with that verdict.
