@@ -678,3 +678,4 @@ Known quirks the rebuild deliberately keeps:
 - On fast machines, small bumps throw vehicles much less: the suspension's reaction to the ground is capped at what it is at 30 fps. On rough ground they still tip more than at 30 fps, and they still jump off steep banks at full speed now and then, as in the original.
 - A controls file whose first axis names no source, with no key list, gets no axis source; Pirate's Moon took the file name's address as one.
 - From high up, no dark band between the far ground and the sky: what nothing draws takes the fog's colour (bug fixes on).
+- A light carried by something that moves (a mech's headlight) now shines from where it is, not from the world's origin.
