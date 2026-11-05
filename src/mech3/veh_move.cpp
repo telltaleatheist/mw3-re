@@ -573,7 +573,7 @@ float VehBasicHooks::touch(Handle node, const float from[3], const CollisionHit&
   zwep::HitRecord r;
   std::memcpy(&r.normal, h.hit.normal, 12);
   std::memcpy(&r.point, h.hit.point, 12);
-  r.material = h.hit.material, r.node = node;
+  r.material = h.hit.material, r.node = node, r.owner = h.hit.owner;
   const zwep::Vec3f3 f{from[0], from[1], from[2]};
   return zwep::touch(&f, &r, damage);
 }

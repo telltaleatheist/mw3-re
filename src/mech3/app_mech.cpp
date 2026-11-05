@@ -952,7 +952,7 @@ void wire_mech_parts() {
     zwep::HitRecord r;
     std::memcpy(&r.normal, h.hit.normal, 12);
     std::memcpy(&r.point, h.hit.point, 12);
-    r.material = h.hit.material, r.node = n;
+    r.material = h.hit.material, r.node = n, r.owner = h.hit.owner;
     const zwep::Vec3f3 f{from->x, from->y, from->z};
     return zwep::touch(&f, &r, damage);
   };

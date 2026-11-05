@@ -29,6 +29,7 @@
 #include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "pm/gamez/zclass/cls_clutter.h"
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_lib.h"
 #include "mech3/app_mech.h"
@@ -304,6 +305,18 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   r.light_position = [](zwep::Handle l, float x, float y, float z) { zcls::light_set_position(zn(l), x, y, z); };
   r.light_range = [](zwep::Handle l, float a, float b) { zcls::light_set_range(zn(l), a, b); };
   r.light_color = [](zwep::Handle l, float cr, float cg, float cb) { zcls::light_set_color(zn(l), cr, cg, cb); };
+  // Pirate's Moon 0x005a4d80 (0, node, 1, 0x00513c60), 0x005a4dc0 (0, node, 0x00513cf0): a clutter piece's record is
+  // the hit's owner. The collide handler leaves nothing on the x87 stack, so its caller's test fails: no block.
+  pm::zcls::clutter_hooks().watch_hits = [](zcls::Node* n) {
+    zwep::set_damage_handler(nullptr, n, [](zwep::Handle, zwep::WeaponDef*, zwep::HitRecord* hit, float damage) -> uint32_t {
+      pm::zcls::clutter_on_weapon_hit(static_cast<pm::zcls::ClutterRecord*>(hit->owner), damage);
+      return 0;
+    }, 1);
+    zwep::set_touch_handler(nullptr, n, [](zwep::Handle, float damage) -> float {
+      pm::zcls::clutter_on_collide(static_cast<pm::zcls::ClutterRecord*>(zwep::touch_hit()->owner), damage);
+      return 0.0f;
+    });
+  };
   headlight_hooks().world = [] { return qworld(); };
   headlight_hooks().load_beam = []() -> zcls::Node* {  // 0x004868d0: the library's tree, copied, models shared
     zcls::Node* n = load_tree("headlight.flt");

@@ -291,7 +291,12 @@ void handler_clear(Handle node, uintptr_t h) {
 
 // Mech3.exe 1.2 @ 0x005836b0: something walks into a node: its touch handler
 // (slot 1) with the damage; the shot line is set to from -> the contact.
+namespace {
+HitRecord* g_touch_hit = nullptr;
+}
+HitRecord* touch_hit() { return g_touch_hit; }
 float touch(const Vec3f3* from, HitRecord* hit, float damage) {
+  g_touch_hit = hit;
   const NodeHandlers* t = reinterpret_cast<const NodeHandlers*>(handler_of(hit->node));
   if (g_hit.record_shot == 1) {
     g_hit.shot_from = *from;

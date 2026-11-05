@@ -22,6 +22,9 @@ using DamageFn = uint32_t (*)(Handle object, WeaponDef* def, HitRecord* hit, flo
 // EDX is left holding the hit's point.z when the shot line is recorded, else
 // the record (0x005836b0): not an argument.
 using TouchFn = float (*)(Handle object, float damage);  // the health left (0x004d26d0, 0x00502df0)
+// The hit a touch handler is running for: Pirate's Moon's handlers take it as an argument (0x005a50a0), and
+// its clutter's (0x00513cf0) read the record from its +0x28.
+HitRecord* touch_hit();
 
 // What a crater or a quicksand pit is made from (the crater module's
 // 0x004ffaa0 and 0x00502110 take them): the module's defaults (0x004ff920
