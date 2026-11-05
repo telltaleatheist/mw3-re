@@ -1557,6 +1557,8 @@ functions PM changed, and PM's new ones.
      - Left: mw3pm opening sound at its start (with the mission); the range scale's callers 0x00482ca0,
        0x00408120 (object detail).
 8. **Multiplayer**: PM's game types (Mw3 dev has multiplayer).
+   Left, from other pieces: a multiplayer game's jet keys are gated by its own +0xa7 (vt+0x44, 0x4365f0), the port has no
+   such field and reads the player's option; `mp_lobby`'s missing-world box still uses MW3's message 0xfe0 (`pirates-moon.md`).
 
 The `mw3pm` program, its own mount of PM's install and its own settings
 and saves come with step 1: two programs, `mw3` and `mw3pm`, over one

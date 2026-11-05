@@ -502,7 +502,8 @@ int PlayerControls::update(float dt) {
     if (!jump_held || jump_in < 0.0f || jump_in > 0.0f) {
       // Pirate's Moon 0x00429f6c, 0x004287d0: from rest the thrust goes straight to what holds the mech up.
       if (jump == 0.0f && jump_in != 0.0f) {
-        jump = environment().gravity / kJetClimb;  // its target and hold, set too, set_jump overwrites
+        // 0x004287d0 also writes +0x4c and +0x3d; vt+0x34 at 0x00429fd6 overwrites both, no branch or read between.
+        jump = environment().gravity / kJetClimb;
       }
       set_jump(jump_in);
     }
