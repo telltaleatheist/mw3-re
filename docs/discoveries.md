@@ -4432,3 +4432,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   of and behind you reach 0.9 of the skis' half length instead of 1.1, the foot probes sit
   a quarter further out, and in the air the feet only meet walls on the first
   check of the frame. (From the code.)
+- **Pirate's Moon mechs can drown:** with the water more than 25 m over your feet
+  your mech loses a quarter of its health a frame, even with invincibility on (it
+  turns it off), and when that would leave under 20% it dies on the spot with
+  nothing of the chassis left to salvage. MechWarrior 3 has no such rule. At the
+  game's 30 frames a second that is about a fifth of a second from full health.
+  (From the code.)
+- **Pirate's Moon cools you in water the feet aren't in:** MechWarrior 3 checks
+  whether the first foot is in water; Pirate's Moon compares the water's surface
+  over the two front ski probes with the mech's place. (From the code.)

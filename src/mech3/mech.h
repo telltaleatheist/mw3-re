@@ -192,6 +192,7 @@ struct Mech : Vehicle {
   bool knee_back = false;    // +0x585  the knees bend backward (copied to the legs)
   bool crouched = false;     // +0x586
   bool wading = false;       // +0x588  the wading force-feedback effect is on
+  bool salvage_mech = true;  // Pirate's Moon's +0x5ae: false, nothing of the chassis to salvage (0x00474fb0)
   uint32_t gait_frames = 0;  // +0x58c  frames at walk or faster since stand or step
   float gait_steps = 0;      // (port) the same in 1/30 s steps, for the per-second blend-in (zfix)
   int32_t limp = -1;         // +0x5ac  the limping leg, -1 none
@@ -247,6 +248,9 @@ struct Mech : Vehicle {
   bool airborne() const { return no_power_down; }   // vtable +0x144, 0x0041ec70
   void add_heat(float heat) { heat_added += heat; }  // 0x00419e40
   void power(int power_down);   // 0x0041cc30
+  void set_all_internal(float v);  // 0x00415e90
+  void set_all_armor(float v);     // 0x00415f10
+  void kill();                     // 0x0041de00, vt+0x78
   void finish_power_down();     // 0x0041cac0
   void stop_controls(int arg);  // +0x37c vt+0x4c (0x00426c10)
   Foot* foot(int leg) const;    // 0x0041d4f0
@@ -384,6 +388,7 @@ World& world();
 struct HeatCalls {
   bool (*heat_option)() = nullptr;                          // 0x0040cfc0
   int (*game_type)() = nullptr;                             // pilot 0x0060861c +0x6c, vtable +0x2c; 3 = multiplayer
+  float (*health)(Mech&) = nullptr;                         // vt+0xa4, 0x0041c740
   float (*throttle)(Mech&) = nullptr;                       // +0x37c GetThrottle (docs/controls.md)
   void* (*screen)(Mech&) = nullptr;                         // 0x00430aa0 on +0x684
   void (*heat_haze)(void* screen, float amount, int kind, float dt) = nullptr;  // 0x0043c1f0

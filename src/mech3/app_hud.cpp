@@ -899,6 +899,7 @@ void wire_hud() {
   // the weapons list's layout 0x00446240, refresh 0x00446520, the fire mark
   // 0x004464c0 (+0x11438 = 1) and the weapon it highlights (+0x1795c).
   heat_calls().screen = [](Mech& m) -> void* { return hud_of(m); };
+  heat_calls().health = [](Mech& m) { return mech_health(&m); };
   heat_calls().heat_haze = [](void* s, float amount, int kind, float dt) {  // 0x0043c1f0: the heat's static
     if (s) static_cast<Hud*>(s)->raise_static(amount, kind, dt);
   };

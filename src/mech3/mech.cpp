@@ -45,11 +45,10 @@ void stop(Sound& s) {
 Sound play(Mech& m, int id) { return g_calls.play_sound ? g_calls.play_sound(m, id) : nullptr; }
 int game_type() { return g_calls.game_type ? g_calls.game_type() : 0; }
 
-// Torso vtable +0x20 (explode, 1); 0x0041cfa0(1) is the same with explode 0.
-void torso_hit(Mech& m, int explode) {
-  if (g_calls.torso_hit) g_calls.torso_hit(m, explode);
-  else if (explode) m.torso->destroy(1, 1);
-  else m.destroy_part(kTorso);
+// Torso vtable +0x20 (explode, 1), the critical overheat's.
+void torso_hit(Mech& m) {
+  if (g_calls.torso_hit) g_calls.torso_hit(m, 1);
+  else m.torso->destroy(1, 1);
 }
 
 uint32_t beep_state(uint32_t s) { return s & 7; }
@@ -168,18 +167,63 @@ bool update_ams(Mech& m) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004192f0. Walkthrough and thresholds: docs/heat.md.
+// Pirate's Moon 1.0 @ 0x00415e90: every part's structure.
+void Mech::set_all_internal(float v) {
+  for (int s = 0; s < 3; ++s) torso->set_internal(v, s);
+  head->set_internal(v, 0);
+  legs[0]->set_internal(v, 0);
+  legs[1]->set_internal(v, 0);
+  arms[0]->set_internal(v, 0);
+  arms[1]->set_internal(v, 0);
+}
+
+// Pirate's Moon 1.0 @ 0x00415f10: every part's armor.
+void Mech::set_all_armor(float v) {
+  legs[0]->set_armor(v, 0);
+  legs[1]->set_armor(v, 0);
+  arms[0]->set_armor(v, 0);
+  arms[1]->set_armor(v, 0);
+  for (int s = 0; s < 6; ++s) torso->set_armor(v, s);
+  head->set_armor(v, 0);
+}
+
+// Pirate's Moon 1.0 @ 0x0041de00 (vt+0x78): dead for certain, invincible or not.
+void Mech::kill() {
+  invincible = false;
+  set_all_internal(0.0f);
+  set_all_armor(0.0f);
+  salvage_mech = false;
+}
+
+// Pirate's Moon 1.0 @ 0x0041a100. Walkthrough and thresholds: docs/heat.md.
 void update_heat(Mech& m, float dt) {
   World& w = g_world;
   const bool player = &m == w.player;
   const bool full = w.full_heat_all_mechs || player;
+  if (m.remote) {
+    m.heat_added = 0.0f;
+    m.heat = 0.0f;
+    return;
+  }
 
-  float rate = 1.0f;  // 0x005e1fd4
+  float rate = 1.0f;  // 0x00604128
   if (m.powered_down) rate *= 3.0f;
-  if (m.foot(0)->in_water) {
+  // The water's surface over the two front probes, against the mech's feet.
+  const Vec3* at = skis_calls().position ? skis_calls().position(m) : nullptr;
+  const float y = at ? at->y : m.transform ? m.transform[10] : 0.0f;
+  const float depth = (m.skis->surface[3] + m.skis->surface[0]) * 0.5f - y;
+  if (depth > 25.0f && m.active && m.anim_state != 10) {  // 0x005dfd10, 0x0041ade0
+    // Too deep: no invincibility, the structure goes by a quarter a frame. FIX (B): per 1/30 s.
+    m.invincible = false;
+    const float left = zfix::options().per_second ? std::pow(0.75f, zfix::frame_steps(dt)) : 0.75f;
+    const double kept = (g_calls.health ? g_calls.health(m) : 0.0f) * static_cast<double>(left);
+    if (kept >= 0.2f) m.set_all_internal(static_cast<float>(kept));  // 0x005deffc
+    else m.kill();
+  }
+  if (depth > 0.0f) {
     // Quirk: max(depth / height, 1) makes (3f + 1)^2 at least 16, so the cap
     // always wins and wading is a flat x8.
-    float f = m.foot(0)->water_depth / m.height;
+    float f = depth / m.height;
     if (f < 1.0f) f = 1.0f;
     f = (f * 3.0f + 1.0f) * (f * 3.0f + 1.0f);
     if (!(f <= 8.0f)) f = 8.0f;
@@ -216,7 +260,7 @@ void update_heat(Mech& m, float dt) {
     g_calls.heat_haze(screen, (m.heat - kHazeStart) * 5.0f, 5, w.dt);
 
   if (!full) {
-    if (m.heat >= kCritical && game_type() != kMultiplayer) torso_hit(m, 1);
+    if (m.heat >= kCritical && game_type() != kMultiplayer) torso_hit(m);
     m.heat_added = 0.0f;
     return;
   }
@@ -352,8 +396,9 @@ void update_heat(Mech& m, float dt) {
         }
         m.heat_shutdown = false;
         if (!m.invincible) {
-          if (critical && game_type() != kMultiplayer) torso_hit(m, 1);
-          else torso_hit(m, 0);  // 0x0041cfa0(1)
+          m.attacker = nullptr;
+          if (critical && game_type() != kMultiplayer) torso_hit(m);
+          else m.destroy_part(kTorso);
           m.heat = 0.0f;
           s = next_shutdown(s, -1);
         } else {

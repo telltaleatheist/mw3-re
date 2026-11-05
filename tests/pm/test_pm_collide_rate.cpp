@@ -7,6 +7,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
+#include "mech3/mech_skis.h"
 #include "check.h"
 
 using namespace mech3;
@@ -84,5 +85,57 @@ TEST(pm_collide_original_path_is_per_frame) {
   once.step(1, 1 / 30.0f, crash);
   twice.step(2, 1 / 60.0f, crash);
   EXPECT(near(2.0f * once.damage_a, twice.damage_a));
+  zfix::options().per_second = true;
+}
+
+// Drowning (0x0041a100): the structure's quarter a frame goes by time.
+namespace {
+float g_structure = 1.0f;
+struct DrownPart : Head {
+  void set_internal(float v, int) override { g_structure = v; }
+  void set_armor(float, int) override {}
+};
+struct DrownTorso : Torso {
+  void set_internal(float, int) override {}
+};
+struct DrownLeg : Leg {
+  void set_internal(float, int) override {}
+};
+struct DrownArm : Arm {
+  void set_internal(float, int) override {}
+};
+float drown(int times, float dt) {
+  static Mech m;
+  static Skis skis;
+  static DrownPart head;
+  static DrownTorso torso;
+  static DrownLeg legs[2];
+  static DrownArm arms[2];
+  static Foot foot;
+  static float place[12];
+  m = Mech{};
+  skis = Skis{};
+  skis.surface[0] = skis.surface[3] = 30.0f;  // 30 m over a mech at 0
+  m.skis = &skis, m.head = &head, m.torso = &torso, m.transform = place;
+  m.height = 10.0f;
+  for (int i = 0; i < 2; ++i) legs[i].foot = &foot, m.legs[i] = &legs[i], m.arms[i] = &arms[i];
+  HeatCalls& c = heat_calls();
+  const HeatCalls saved = c;
+  c = HeatCalls{};
+  c.health = [](Mech&) { return g_structure; };
+  g_structure = 1.0f;
+  for (int i = 0; i < times; ++i) update_heat(m, dt);
+  c = saved;
+  return g_structure;
+}
+}  // namespace
+
+TEST(pm_drowning_per_second) {
+  zfix::options().per_second = true;
+  const float once = drown(1, 1 / 30.0f), twice = drown(2, 1 / 60.0f);
+  EXPECT(near(once, 0.75f));
+  EXPECT(near(once, twice));
+  zfix::options().per_second = false;
+  EXPECT(near(drown(2, 1 / 60.0f), 0.5625f));
   zfix::options().per_second = true;
 }

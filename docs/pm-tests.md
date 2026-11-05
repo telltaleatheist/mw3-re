@@ -32,7 +32,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_fogsort.py` | gone | 3 | 1 | covered | test_pm_device (fog) ; the queue in test_pm_walk |
 | `test_gait.py` | changed | 8 | 1 | to move, rank 6 | crouch and the Elemental in 0x41c9f0 |
 | `test_gamez.py` | changed | 9 | 8 | covered | test_pm_gamez |
-| `test_heat.py` | changed | 10 | 6 | to move, rank 10 | heat |
+| `test_heat.py` | changed | 10 | 6 | moved to `test_pm_heat.py` | heat |
 | `test_interp.py` | gone | 157 | 36 | to move |  |
 | `test_jets.py` | gone | 20 | 6 | to move, rank 1 | jets, landing: three Elemental sites in mech_move |
 | `test_lance_dispatch.py` | gone | 10 | 3 | to move | with PM AI |

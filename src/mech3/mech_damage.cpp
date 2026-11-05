@@ -281,7 +281,7 @@ void Mech::on_part_destroyed(MechPart* part) {
   if (pilot->roster == kElemental) torso->destroy(1, 1);
 }
 
-// Mech3.exe 1.2 @ 0x0041cfa0 (mission scripts, heat)
+// Pirate's Moon 1.0 @ 0x0041de30 (mission scripts, heat): its structure and armor to nothing.
 void Mech::destroy_part(int id) {
   MechPart* p = nullptr;
   switch (id) {
@@ -294,7 +294,8 @@ void Mech::destroy_part(int id) {
     case kHip: p = hip; break;
     default: return;
   }
-  p->destroy(0, 1);
+  p->set_internal(0.0f, 0);
+  p->set_armor(0.0f, 0);
 }
 
 // Mech3.exe 1.2 @ 0x0041d5f0. Returns whether the mech limps now.
