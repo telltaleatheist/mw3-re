@@ -24,7 +24,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_clip2d.py` | gone | 1 | 0 | covered | test_pm_clip2d |
 | `test_clip3d.py` | gone | 0 | 0 | covered | test_pm_clip3d |
 | `test_collide.py` | changed | 24 | 7 | moved to `test_pm_collide.py` | mech collision |
-| `test_controls.py` | changed | 3 | 0 | to move, rank 13 | the controls |
+| `test_controls.py` | changed | 3 | 0 | moved: `test_pm_controls` | the controls |
 | `test_d3d_frame.py` | gone | 10 | 1 | covered | test_pm_device (its frame; the tint unchecked) |
 | `test_damage.py` | gone | 50 | 12 | moved to `test_pm_damage.py` | mech_damage and mech_parts Elemental sites, roster 4 and 16 |
 | `test_deaths.py` | gone | 65 | 14 | moved to `test_pm_deaths.py` | landing, salvage, kill credit, part destroyed, roster 4 and 16; the dead step rewritten; the mech's own LOD stays in test_pm_lod |
@@ -51,7 +51,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_mech_build.py` | changed | | | moved to `test_pm_mech_build.py` | launch and mech construction, every block; the weapons loop stubbed |
 | (new) `test_pm_firepoints.py` | PM | | | new | the firepoint fix-up 0x46ea40 and its aim cone |
 | `test_parts.py` | gone | 75 | 16 | moved to `test_pm_parts.py` | setups, updates, the arm's clamp, the torso's mode, the part aim; floats within 1e-5 |
-| `test_player.py` | gone | 17 | 3 | to move, rank 14 | the player controls |
+| `test_player.py` | gone | 17 | 3 | moved: `test_pm_player` | the player controls |
 | `test_pocket.py` | changed | 18 | 3 | to move | with PM AI |
 | `test_pocket_orders.py` | gone | 9 | 1 | to move | with PM AI |
 | `test_power.py` | changed | 8 | 5 | moved to `test_pm_power.py` | power; the headlight off and the network target dropped |

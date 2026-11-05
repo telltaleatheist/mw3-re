@@ -8,6 +8,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_build.h"
 #include "mech3/mech_parts.h"
+#include "mech3/mission_world.h"
 #include "mech3/player_view.h"
 #include "platform/platform.h"
 
@@ -152,6 +153,7 @@ constexpr double kThrottleZero = 0.05;     // 0x005bd648
 constexpr float kInputRate = 6.0f;         // 0x005e25b4, per second
 constexpr double kInputSnap = 0.05000000074505806;  // 0x005bd5f0
 constexpr float kTwistKey = 1.5f;          // 0x3fc00000
+constexpr float kJetClimb = 38.0f;         // [0x00629314], as mech_move.cpp
 constexpr float kMouseYaw = -0.26f, kMousePitch = -0.16f;  // 0x005e25a0, 0x005e25a4: per pixel a frame
 constexpr float kMouseLook = 1.5f;         // 0x005bd634
 constexpr float kLookReturn = 5.0f;        // 0x005e25ac
@@ -174,8 +176,8 @@ void run_command(int cmd) {
 float clamp1(float v) { return v > 1.0f ? 1.0f : !(v >= -1.0f) ? -1.0f : v; }
 
 // (target - v) * 6 dt + v, snapped within 0.05.
-void approach(float& v, float target, float dt) {
-  const float n = (target - v) * kInputRate * dt + v;
+void approach(float& v, float target, float dt, float rate = kInputRate) {
+  const float n = (target - v) * rate * dt + v;
   v = n;
   if (std::fabs(target - n) < kInputSnap) v = target;
 }
@@ -358,7 +360,7 @@ void PlayerControls::read_axes(float dt, float* thr, float* tn, float* p, float*
       *p = clamp1(ax[2].value(j, m));
       if (view == 1) *lp = *p, *p = 0.0f;
     }
-    look_y = free ? clamp1(look_y - kLookReturn * dt * *p) : 0.0f;
+    look_y = free ? clamp1(look_y - kLookReturn * *p * dt) : 0.0f;
   }
   if (!(g_calls.joy_present ? g_calls.joy_present() : zin::joy_present())) return;
   // Ours (W56): with reverse on the lever, a first reading in reverse is taken
@@ -428,14 +430,15 @@ void PlayerControls::pilot_tick() {
   ai::vlist_run(settings, c, c.vehicle(), &picked, &target);
 }
 
-// Mech3.exe 1.2 @ 0x00427d60. Not while powering down: the pilot's tick
+// Mech3.exe 1.2 @ 0x00427d60, Pirate's Moon 1.0 @ 0x004299f0. Not while powering
+// down or in the states 12, 13: the pilot's tick
 // (lance orders, likely), the axes, then the keys over them; the reticule
 // zoom; the throttle (a step a frame, or the joystick's outright, or easing
 // back to zero with ThrottleConst off); the turn and jump; pitch, twist and
 // the free look eased toward their inputs at 6/s. Then the smoothing.
 int PlayerControls::update(float dt) {
   Mech& m = *owner;
-  if (!m.is_powered_down()) {  // vtable +0xa0, 0x0041cc10
+  if (!m.is_powered_down() && m.anim_state != 12 && m.anim_state != 13) {  // vtable +0xa0, 0x0041cc10
     if (g_calls.pilot_tick) g_calls.pilot_tick(*this);
     else pilot_tick();
     float d = 0, tn = 0, jump_in = 0, p = 0, tw = 0, lp = 0, ly = 0, strafe = 0, ahead = 0;
@@ -475,8 +478,10 @@ int PlayerControls::update(float dt) {
         m.sounds[kZoomSoundSlot] = part_calls().sound ? part_calls().sound(m, kZoomSound, 1.0f) : nullptr;
       if (!busy() && g_calls.zoom) g_calls.zoom(screen, zoom);
     }
-    if (held(kTwistLeft)) tw = kTwistKey;
-    else if (held(kTwistRight)) tw = -kTwistKey;
+    // Pirate's Moon: the absolute torso's keys go to the stop (1) at 1/s, not at 1.5 and 6/s.
+    const bool absolute = m.torso && m.torso->absolute;
+    if (held(kTwistLeft)) tw = absolute ? 1.0f : kTwistKey;
+    else if (held(kTwistRight)) tw = absolute ? -1.0f : -kTwistKey;
     if (held(kPitchUp)) p = 1.0f;
     else if (held(kPitchDown)) p = -1.0f;
     fire = held(kFire) ? 1 : 0;  // 0x00467480
@@ -494,9 +499,15 @@ int PlayerControls::update(float dt) {
       throttle_target = clamp1(d);  // straight in: the reverse flag is not touched
     }
     set_turn(tn);
-    if (!jump_held || jump_in < 0.0f || jump_in > 0.0f) set_jump(jump_in);
+    if (!jump_held || jump_in < 0.0f || jump_in > 0.0f) {
+      // Pirate's Moon 0x00429f6c, 0x004287d0: from rest the thrust goes straight to what holds the mech up.
+      if (jump == 0.0f && jump_in != 0.0f) {
+        jump = environment().gravity / kJetClimb;  // its target and hold, set too, set_jump overwrites
+      }
+      set_jump(jump_in);
+    }
     approach(pitch, p, dt);
-    approach(twist, tw, dt);
+    approach(twist, tw, dt, absolute ? 1.0f : kInputRate);
     approach(axis_2c, lp, dt);
     approach(axis_30, ly, dt);
     jj_strafe = strafe;

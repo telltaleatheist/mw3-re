@@ -1,5 +1,5 @@
 // The player's and the AI's controls (mech3/mech_control.cpp) for
-// tests/differential/test_player.py. The controls and the mech go back and
+// tests/differential/test_pm_player.py, by Pirate's Moon's offsets. The controls and the mech go back and
 // forth as byte images laid out like the original's; zInput's commands,
 // joystick, mouse and the HUD come from the env words. Calls out are logged
 // as (count, code, args...) on both sides.
@@ -9,6 +9,7 @@
 
 #include "gamez/zinput/zinput.h"
 #include "mech3/mech.h"
+#include "mech3/mech_parts.h"
 #include "platform/platform.h"
 
 using namespace mech3;
@@ -84,15 +85,15 @@ void player_io(uint8_t* b, bool store) {
   Io io{b, store};
   PlayerControls& p = g->pc;
   ctl_io(p, b, store);
-  io.f(0x138, p.look_dx), io.f(0x13c, p.look_dy), io.f(0x140, p.look_x), io.f(0x144, p.look_y);
+  io.f(0x158, p.look_dx), io.f(0x15c, p.look_dy), io.f(0x160, p.look_x), io.f(0x164, p.look_y);
 }
 
 void mech_io(uint8_t* b, bool store) {
   Io io{b, store};
   Mech& m = g->m;
-  io.bo(0xdc, m.power_down_pending), io.bo(0xde, m.powered_down), io.i(0x3d8, m.equipment[11]);
-  io.f(0x530, m.throttle_up), io.f(0x534, m.throttle_down), io.f(0x538, m.turn_accel);
-  io.bo(0x584, m.no_power_down), io.h(0x614, m.sounds[23]);
+  io.bo(0xe0, m.power_down_pending), io.bo(0xe2, m.powered_down), io.i(0x3e8, m.equipment[11]);
+  io.f(0x544, m.throttle_up), io.f(0x548, m.throttle_down), io.f(0x54c, m.turn_accel);
+  io.i(0x59c, m.anim_state), io.bo(0x5a8, m.no_power_down), io.h(0x638, m.sounds[23]);
 }
 
 void hooks() {
@@ -151,6 +152,9 @@ void probe_controls_load(const uint8_t* mech, const uint8_t* ctl, const uint32_t
   ctl_io(w.ac, const_cast<uint8_t*>(ctl), false);
   w.pc.owner = &w.m, w.ac.owner = &w.m;
   w.m.controls = &w.pc;
+  static Torso torso;
+  torso.absolute = (env[kFlags] >> 4 & 1) != 0;
+  w.m.torso = &torso;
   for (int k = 0; k < 4; ++k) {
     AxisBinding& a = axis_bindings()[k];
     a.source = static_cast<int32_t>(env[kAxes + 4 * k]);

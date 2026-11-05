@@ -155,8 +155,8 @@ int32_t probe_gait(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* feet, uint8
 int32_t probe_controls_update(uint8_t* ctl, uint8_t* owner, float dt) {
   static Mech m;
   Io io{owner, false};
-  io.bo(0xde, m.powered_down);
-  io.f(0x530, m.throttle_up), io.f(0x534, m.throttle_down), io.f(0x538, m.turn_accel);
+  io.bo(0xe2, m.powered_down);  // Pirate's Moon's offsets
+  io.f(0x544, m.throttle_up), io.f(0x548, m.throttle_down), io.f(0x54c, m.turn_accel);
   MechControls c;
   controls_io(c, ctl, false);
   c.owner = &m;
