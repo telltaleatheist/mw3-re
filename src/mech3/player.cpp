@@ -125,8 +125,19 @@ void player_setup(bool full) {
   int32_t player_team = 0;
   const Handle campaign = h.campaign();
   const Handle training = h.training();
+  const Handle standalone = h.standalone();  // Pirate's Moon 0x0047b770(0)
   if (player) {
     player_team = player->team();
+    // Pirate's Moon: a standalone's first time here, the player's mech and loadout are the record's.
+    if (standalone && !h.standalone_has_config(standalone)) {
+      const int32_t m = player->get<int32_t>(0xc4);
+      if (const Handle dfn = h.mech_dfn(m)) {
+        const uint32_t i = player->get<uint32_t>(0xbc);
+        const uint32_t configs = static_cast<uint32_t>(h.dfn_config_count(dfn));
+        const Handle cfg = i < configs && static_cast<int32_t>(i) >= 0 ? h.dfn_config(dfn, static_cast<int32_t>(i)) : 0;
+        if (cfg) h.standalone_set_player(standalone, m, cfg);
+      }
+    }
     // Training: the player's mech takes the record's configuration (p11).
     if (training) {
       if (const Handle dfn = h.mech_dfn(player->get<int32_t>(0xc4))) {
@@ -179,9 +190,25 @@ void player_setup(bool full) {
       h.campaign_set_lancemate(campaign, mates++, slot);
       continue;
     }
+    // Pirate's Moon: a standalone's the same, but with the mission's loadout; a bad index, the
+    // first, reported (0x004a1e..., 0x0040e6c0).
+    if (standalone && mech != -1 && player_team != 0 && player_team == r->team() && (r->get<uint8_t>(0xcc) & 0x80)) {
+      if (const Handle dfn = h.mech_dfn(mech)) {
+        const uint32_t k = r->get<uint32_t>(0xbc);
+        const uint32_t configs = static_cast<uint32_t>(h.dfn_config_count(dfn));
+        Handle cfg = k < configs && static_cast<int32_t>(k) >= 0 ? h.dfn_config(dfn, static_cast<int32_t>(k)) : 0;
+        if (!cfg && configs) {
+          report(0x24a, "Unable to find configuration %d for mech %d", static_cast<int32_t>(k), mech);
+          cfg = h.dfn_config(dfn, 0);
+        }
+        h.standalone_set_lancemate(standalone, mates++, mech, static_cast<int32_t>(i), cfg);
+        continue;
+      }
+    }
     create_vehicle(h.reader_find(vehicles, type), r, type, full_name, suffix);
   }
   if (campaign) h.campaign_set_lancemates(campaign, mates);
+  else if (standalone) h.standalone_set_lancemates(standalone, mates);
   h.reader_free(vehicles);
   h.nets_end();
 }

@@ -1022,7 +1022,9 @@ class Engine : public zgame::AppHooks {
     Handle obj = 0;
     bool done = false, failed = false, shown = false;  // PM's +0x09: done by failing
   };
-  virtual int32_t standalone_progress() { return 0; }  // PM 0x0047b770's +0x38: the front end's game object
+  int32_t standalone_progress();     // PM 0x0047b770's +0x38
+  zrdr::Node* game_briefing_block();  // PM vt+0x6c
+  virtual void win_standalone(Handle screen, uint8_t* won);  // PM 0x0047cf20's type 5
   virtual void fade_to_state_n(int32_t n) { replace_state(n); }
   virtual std::vector<Objective> debrief_objectives(int32_t which) {
     (void)which;

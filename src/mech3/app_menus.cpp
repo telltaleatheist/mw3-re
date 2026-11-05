@@ -432,6 +432,8 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return screen(0x11f3c, [](GameEngine& e, Handle s) -> MenuScreen* { return new TeamScreen(e, s); });
     case 0x488bc0:  // the Action State's screen, new(0x17730)
       return screen(0x17730, [](GameEngine& e, Handle s) -> MenuScreen* { return new ActionScreen(e, s); });
+    case 0x489b20:  // Pirate's Moon's Standalone State
+      return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kStandalone, h); });
     case 0x48a6c0:
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kAction, h); });
     case 0x48aef0:
@@ -746,6 +748,11 @@ void GameEngine::load_state_enter() {
     l.number = c->mission_number();
     l.op = c->operation();
     l.index = campaign_dir(*c);
+  } else if (auto* st = dynamic_cast<StandaloneGame*>(g)) {
+    st->start();  // vt+0x64 at 0x00407f38; Missions::start's stays out (game_open_reader)
+    l.number = st->number();
+    l.index = st->world_index();
+    l.op = 0;
   } else if (auto* t = dynamic_cast<TrainingGame*>(g)) {
     l.number = t->mission;
     l.index = 5;  // t1
@@ -779,9 +786,10 @@ void GameEngine::load_state_enter() {
     replace_state(2);
     return;
   }
-  l.mech = g->slot.mech;
-  l.config = g->slot.config ? handle_of(g->slot.config) : 0;  // the slot's, alive while its game is
-  l.skin = g->slot.skin;
+  const GameSlot* ps = g->player_slot();  // Pirate's Moon: a standalone's, its first mission's none yet
+  l.mech = ps ? ps->mech : -1;
+  l.config = ps && ps->config ? handle_of(ps->config) : 0;  // the slot's, alive while its game is
+  l.skin = ps ? ps->skin : 0;
   set_launch(l);
 }
 
@@ -803,9 +811,11 @@ bool GameEngine::launch_slot_refresh() {
   Pilot* p = current_pilot();
   Game* g = p ? p->current : nullptr;
   if (!g) return false;
-  const Handle config = g->slot.config ? handle_of(g->slot.config) : 0;
-  if (launch_.mech == g->slot.mech && launch_.config == config && launch_.skin == g->slot.skin) return false;
-  launch_.mech = g->slot.mech, launch_.config = config, launch_.skin = g->slot.skin;
+  const GameSlot* s = g->player_slot();
+  if (!s) return false;
+  const Handle config = s->config ? handle_of(s->config) : 0;
+  if (launch_.mech == s->mech && launch_.config == config && launch_.skin == s->skin) return false;
+  launch_.mech = s->mech, launch_.config = config, launch_.skin = s->skin;
   return true;
 }
 
@@ -935,6 +945,14 @@ const char* mech_name(int32_t mech);  // 0x00484650 (mech_names.h, whose engine 
 const char* GameEngine::mech_name_of(int32_t mech) { return mech_name(mech); }
 
 // 0x0047ac20's copy, from the ported screen into the pilot's campaign.
+void Engine::win_standalone(Handle, uint8_t*) {}
+void GameEngine::win_standalone(Handle screen, uint8_t* won) {
+  StandaloneGame* st = current_pilot() ? current_pilot()->standalone_game() : nullptr;
+  if (!st) return;
+  *won = st->advance() ? 1 : 0;
+  if (auto* d = dynamic_cast<DebriefScreen*>(screens_.count(screen) ? screens_[screen].screen : nullptr)) d->standalone_won();
+}
+
 void GameEngine::win_keep_scores(Handle screen, int32_t n) {
   auto it = screens_.find(screen);
   auto* d = it != screens_.end() ? dynamic_cast<DebriefScreen*>(it->second.screen) : nullptr;

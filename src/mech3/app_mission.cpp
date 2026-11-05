@@ -193,6 +193,11 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   s_type = type, s_number = number;
   WorldHooks& h = world_hooks();
   h = WorldHooks{};
+  // Pirate's Moon's vt+0x74: a standalone's `environment` (0x0040e690, 0x0040db00).
+  h.game_block = []() -> zrdr::Node* {
+    StandaloneGame* s = current_pilot() ? current_pilot()->standalone_game() : nullptr;
+    return s && g_mission_engine && !g_mission_engine->launch().auto_launch ? s->block("environment") : nullptr;
+  };
   h.hw_card_flag = [] { return hw_card_flag(); };
   h.world = camera ? zcls::camera_world(camera) : nullptr;
   h.camera = camera;
@@ -409,6 +414,34 @@ struct WiredPlayerHooks : PlayerHooks {
     return true;
   }
   Handle training() override { return e->launch().type == 4 ? e->pilot_game(e->pilot()) : 0; }
+  StandaloneGame* stand() const {
+    Pilot* p = e->launch().type == 5 && !e->launch().auto_launch ? current_pilot() : nullptr;
+    return p ? p->standalone_game() : nullptr;
+  }
+  Handle standalone() override {
+    StandaloneGame* s = stand();
+    return s ? e->handle_of(s) : 0;
+  }
+  bool standalone_has_config(Handle) override {
+    StandaloneGame* s = stand();
+    GameSlot* g = s ? s->slot_at(0) : nullptr;
+    return !g || g->config;
+  }
+  void standalone_set_player(Handle, int32_t mech, Handle config) override {
+    if (GameSlot* g = stand() ? stand()->slot_at(0) : nullptr) {
+      g->mech = mech;
+      g->set_config(as<Config>(config));
+    }
+  }
+  void standalone_set_lancemate(Handle, int32_t i, int32_t mech, int32_t record, Handle config) override {
+    auto* s = new GameSlot(mech);
+    s->x14 = record;
+    if (StandaloneGame* st = stand()) st->set_lancemate(i, s, as<Config>(config));
+    else delete s;
+  }
+  void standalone_set_lancemates(Handle, int32_t n) override {
+    if (StandaloneGame* st = stand()) st->set_lancemate_count(n);
+  }
   Handle mech_dfn(int32_t mech) override { return e->handle_of(mech3::mech_dfn(mech)); }
   int32_t dfn_config_count(Handle dfn) override {
     const MechDfn* d = as<MechDfn>(dfn);
@@ -2111,6 +2144,9 @@ struct WiredMissionHooks : MissionHooks {
     return key;
   }
   void game_open_reader() override {
+    // Pirate's Moon: a standalone's game opened it at the Load state (load_state_enter).
+    Pilot* pilot = e->launch().type == 5 && !e->launch().auto_launch ? current_pilot() : nullptr;
+    if (pilot && pilot->standalone_game()) return;
     char key[0x20];
     missions().block_name(key);
     const std::string path = std::string("zbd\\") + mission_dir(e->launch().index) + "\\reader" + key + ".zbd";

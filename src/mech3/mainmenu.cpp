@@ -11,7 +11,7 @@ namespace mech3 {
 namespace {
 MainMenu* g_main_menu = nullptr;  // 0x00609854
 
-const char* const kButtonNames[7] = {"INSTANTACTION", "NEWCAMPAIGN", "MULTIPLAYER", "TRAINING",
+const char* const kButtonNames[7] = {"INSTANTACTION", "NEWCAMPAIGN", "MULTIPLAYER", "STANDALONE",
                                      "OPTIONS",       "CREDITS",     "QUIT"};
 constexpr uint32_t kButtons = 0x111ec, kButtonSize = 0x2a8;
 }  // namespace
@@ -24,7 +24,7 @@ uint32_t menu_global(MainMenuButton::Kind k) {
     case MainMenuButton::kInstantAction: return 0x60985c;  // Action State (0x0048a6c0)
     case MainMenuButton::kNewCampaign: return 0x609864;    // Campaign State (0x0048aef0)
     case MainMenuButton::kMultiplayer: return 0x609860;    // Multiplayer State (0x0049c900)
-    case MainMenuButton::kTraining: return 0x609874;       // Training State (0x0048b120)
+    case MainMenuButton::kTraining: return 0x62d8a4;       // Pirate's Moon: this slot is the Standalone State (0x00489b20)
     case MainMenuButton::kOptions: return 0x609868;        // the options (0x00438be0)
     case MainMenuButton::kCredits: return 0x609878;        // the credits (0x004295e0)
     default: return 0;

@@ -86,6 +86,7 @@ State& state();
 void init();                                                  // 0x00556170
 bool open_archive(const char* path, bool make_current);      // 0x00557320
 void close_archives(bool all);                                // 0x005573d0
+void close_archive(const char* path);                         // Pirate's Moon 0x00579340: that one
 void shutdown();                                              // 0x00556210
 std::FILE* find_in_archives(const char* name);                // 0x005572c0
 // 0x005563d0: a text file's tree, nullptr when its parentheses do not

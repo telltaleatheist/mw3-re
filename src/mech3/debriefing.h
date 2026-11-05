@@ -91,6 +91,9 @@ class DebriefScreen : public MenuScreen {
   WinTitle title;                    // +0x133b0  WIN_TITLE
   StoreList salvage;                 // +0x134fc  SALVAGE_LIST (vtable 0x005c3b20: only its destructor its own)
   std::vector<ztwod::Text*> texts;   // +0x13bd0  the results' texts (+0x13bcc its allocator byte)
+  const char* continue_help_text();  // ours: what CONTINUE's help reads (the chain's check)
+  bool campaign_over() const { return won && *won; }
+  void standalone_won();             // Pirate's Moon 0x0047ee40, the game moved on
   const uint8_t* won;                // +0x13bdc  the Win State's +0x10
   int32_t score = 0;                 // +0x13be0  the campaign's +0xc4, with this mission's
   int32_t lance_scores[4] = {};      // +0x13be4  each pilot's mechs destroyed in the campaign (into +0xb4)

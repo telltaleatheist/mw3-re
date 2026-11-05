@@ -1,4 +1,5 @@
 #include "mech3/app.h"
+#include "mech3/pilot.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -191,6 +192,7 @@ bool Mech3App::init_instance() {
   e.input_init(0xb0, "DefaultCmdMap");
   e.list_pool_init(0x200);
   e.reader_init("..\\data\\common\\zrdr");
+  standalone_read_missions();  // Pirate's Moon 0x0040def0, from 0x004826e0
   if (!e.options_load("detail.zrd")) {
     e.reader_open_archive("zbd\\reader.zbd", 1);
     if (!e.options_load("detail.zrd")) {

@@ -62,7 +62,13 @@ void GameList::on_left_up() {
 // the save chosen (the list's index is the pilot's campaign).
 void GameList::select(int32_t index) {
   PilotScreen* s = screen_of(owner);
-  if (!s || s->mode != kCampaign) return;
+  if (!s) return;
+  if (s->mode == mech3::kStandalone) {  // Pirate's Moon 0x004912f0
+    FileList::select(index);
+    if (s->chosen && s->chosen->standalone) s->chosen->standalone->set_mission(index);
+    return;
+  }
+  if (s->mode != kCampaign) return;
   FileList::select(index);
   if (s->chosen) s->chosen->select_campaign(index);
 }
@@ -360,6 +366,17 @@ void PilotScreen::fill_games() {
       label(0x27d);
       if (multi) line(0x27e, {multi->kills, multi->deaths});
       break;
+    case kStandalone: {  // Pirate's Moon 0x00491bdb: those reached, by name; its mission chosen
+      label(0x1027);
+      StandaloneGame* st = chosen->standalone;
+      for (int32_t i = 0; st && i < st->unlocked(); ++i)
+        games.add_item(standalone_missions()[static_cast<size_t>(i)]->name.c_str(), i);
+      if (st && st->unlocked() > 0) {
+        if (st->x38 >= st->unlocked()) st->set_mission(0);  // 0x0048bce0 finds no such row
+        games.select_index(st->x38);
+      }
+      break;
+    }
     case kTraining: {
       games.hide();
       scenarios.clear_items();
@@ -482,6 +499,7 @@ const char* name_of(GameMenuState::Kind k) {
     case GameMenuState::kAction: return "Action State";
     case GameMenuState::kCampaign: return "Campaign State";
     case GameMenuState::kTraining: return "Training State";
+    case GameMenuState::kStandalone: return "Standalone State";
     default: return "Multiplayer State";
   }
 }
@@ -523,6 +541,10 @@ bool GameMenuState::enter() {
     case kTraining:
       shell_enter();
       pilot_state_mode(en, mech3::kTraining);
+      break;
+    case kStandalone:  // Pirate's Moon 0x00489b40
+      shell_enter();
+      pilot_state_mode(en, mech3::kStandalone);
       break;
     case kMultiplayer:
       page = 0;
@@ -608,6 +630,17 @@ void GameMenuState::resume(uint32_t arg) {
         shell_resume(1);
         en.pop_state(0);
         if (p) p->select_game(mech3::kTraining);
+        a().replace(a().state(6), 0);
+      } else if (arg == 3) {
+        shell_resume(0);
+        en.pop_state(1);
+      }
+      break;
+    case kStandalone:  // Pirate's Moon 0x00489b70
+      if (arg == 2) {
+        shell_resume(1);
+        en.pop_state(0);
+        if (p) p->select_game(mech3::kStandalone);
         a().replace(a().state(6), 0);
       } else if (arg == 3) {
         shell_resume(0);

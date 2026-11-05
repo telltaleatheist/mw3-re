@@ -1304,6 +1304,12 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       co.kills = co.retry || a.chain.rfind("kills", 0) == 0;
       const size_t colon = a.chain.find(':');
       if (colon != std::string::npos) co.wins = std::atoi(a.chain.c_str() + colon + 1);
+      if (a.chain.rfind("standalone", 0) == 0) {  // standalone:N, standalone-kills:N, standalone-resume:N, standalone-replay:K
+        co.standalone = true;
+        co.kills = a.chain.rfind("standalone-kills", 0) == 0;
+        co.resume = a.chain.rfind("standalone-resume", 0) == 0 || a.chain.rfind("standalone-replay", 0) == 0;
+        if (a.chain.rfind("standalone-replay", 0) == 0) co.replay = co.wins, co.wins = 1;
+      }
       co.dir = a.write_dir;
       chain = std::make_unique<sdlfe::CampaignChain>(engine, app, window.render(), co);
     }

@@ -420,6 +420,16 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t mission, const uin
   results(kind);
 }
 
+const char* DebriefScreen::continue_help_text() {
+  ztwod::Text* h = help(continue_btn);
+  return h && h->text ? h->text : "";
+}
+
+// Pirate's Moon 1.0 @ 0x0047ee40 (ECX the debriefing; the flag is the Win State's, `won`).
+void DebriefScreen::standalone_won() {
+  if (ztwod::Text* h = help(continue_btn)) h->set_message(*won ? 0xfb8 : 0x173 + (clean ? 1 : 0));
+}
+
 namespace {
 // The results' layout (constants in the exe's data, never written).
 constexpr int32_t kX = 0xe1;          // [0x005e5af0]  the left column

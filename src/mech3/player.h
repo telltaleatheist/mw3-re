@@ -36,6 +36,14 @@ class PlayerHooks : public zgame::Unported {
   // The pilot ([0x0060861c]) and its games.
   virtual int32_t game_type() { return static_cast<int32_t>(unported("game.vt+0x2c", {})); }
   virtual Handle campaign() { return unported("0x00479440", {}); }   // the current game when a campaign
+  // Pirate's Moon's standalone game (pilot_standalone.cpp); 0 in anything else, and on a debug start.
+  virtual Handle standalone() { return 0; }
+  virtual bool standalone_has_config(Handle) { return true; }
+  virtual void standalone_set_player(Handle, int32_t mech, Handle config) { (void)mech, (void)config; }
+  virtual void standalone_set_lancemate(Handle, int32_t i, int32_t mech, int32_t record, Handle config) {
+    (void)i, (void)mech, (void)record, (void)config;
+  }
+  virtual void standalone_set_lancemates(Handle, int32_t n) { (void)n; }
   virtual Handle training() { return unported("0x004794a0", {}); }   // when training
   virtual Handle training_slot(Handle training) { return unported("training.vt+0x34", {training, 0}); }
   virtual void slot_set_config(Handle slot, Handle config) { unported("0x00433df0", {slot, config, 0, 0}); }

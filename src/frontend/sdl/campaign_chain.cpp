@@ -108,6 +108,12 @@ void print_objective(mech3::GameEngine& e, const mech3::Objective& o, int depth)
 
 std::string CampaignChain::mission_name() const {
   const mech3::Pilot* p = mech3::current_pilot();
+  if (const auto* st = p ? dynamic_cast<const mech3::StandaloneGame*>(p->current) : nullptr) {
+    char sa[64];
+    const auto* m = st->x40;
+    std::snprintf(sa, sizeof sa, "row %d c%dsa%d", st->x38, m ? m->world : 0, m ? m->number : 0);
+    return sa;
+  }
   const auto* c = p ? dynamic_cast<const mech3::CampaignGame*>(p->current) : nullptr;
   if (!c) return "?";
   char buf[32];
@@ -155,6 +161,16 @@ void CampaignChain::briefing() {
                     mission_name().c_str(), store_line(c->store).c_str(), store_line(c->store3c).c_str(), c->slot.mech,
                     lance.c_str(), c->x9c, c->a8, wins_);
       }
+      if (auto* st = p ? dynamic_cast<mech3::StandaloneGame*>(p->current) : nullptr) {
+        std::string lance;
+        for (int32_t i = 0; i < st->slot_count(); ++i) {
+          const mech3::GameSlot* l = st->slot_at(i);
+          lance += " " + std::to_string(l ? l->mech : -2) + (l && l->config ? "+cfg" : "");
+        }
+        std::printf("mw3: chain briefing %s: \"%s\", at %d, best %d, listed %d; store {%s}, slots [%s ], wins %d\n",
+                    mission_name().c_str(), e_.game_text(0xc), st->x38, st->x3c, st->unlocked(),
+                    store_line(st->store).c_str(), lance.c_str(), wins_);
+      }
       shoot("briefing");
       brief_step_ = 1, wait_ = 5;
       return;
@@ -165,6 +181,7 @@ void CampaignChain::briefing() {
         return;
       }
       brief_step_ = 2;
+      if (o_.standalone) std::printf("mw3: chain buttons: lab %d salvage %d replay %d abort %d\n", b->lab_btn.enabled, b->salvage_btn.enabled, b->replay_btn.enabled, b->abort_btn.enabled);
       // With kills, SALVAGE comes first, so the lab can fit what it moved.
       if (o_.kills ? b->salvage_btn.enabled : b->lab_btn.enabled) {
         std::printf("mw3: chain %s\n", o_.kills ? "SALVAGE" : "MECHLAB");
@@ -527,12 +544,15 @@ void CampaignChain::frame() {
   ++frames_in_state_;
   if (now == &st.main && mech3::main_menu() && frames_in_state_ == 30) {
     if (wins_ > 0 && !after_credits_) {  // the main menu's enter should have pressed CREDITS
-      std::printf("mw3: chain main menu after %d wins without the credits\n", wins_);
+      std::printf("mw3: chain main menu after %d wins without the credits (credits entered %d)\n", wins_, credits_entered_);
+      if (o_.standalone)
+        if (const auto* st = mech3::current_pilot() ? mech3::current_pilot()->standalone : nullptr)
+          std::printf("mw3: chain standalone ended at %d, best %d\n", st->x38, st->x3c);
       done_ = true;
       return;
     }
     if (after_credits_) std::printf("mw3: chain main menu after the credits: NEW CAMPAIGN\n");
-    mech3::main_menu()->buttons[1].on_left_up();  // NEW CAMPAIGN
+    mech3::main_menu()->buttons[o_.standalone ? 3 : 1].on_left_up();  // STANDALONE or NEW CAMPAIGN
   } else if (auto* ps = dynamic_cast<mech3::PilotState*>(app_.current())) {
     if (after_credits_) {  // the main menu works after the campaign's end
       std::printf("mw3: chain pilot screen again after the credits (credits entered %d)\n", credits_entered_);
@@ -554,6 +574,14 @@ void CampaignChain::frame() {
     } else {
       ps->screen->new_bar.set_text("Chain");
       ps->screen->new_bar.on_return();
+    }
+    if (o_.standalone) {
+      for (int32_t i = 0; i < ps->screen->games.item_count(); ++i)
+        std::printf("mw3: chain mission list %d: %s\n", i, ps->screen->games.items[static_cast<size_t>(i)]->text);
+      if (o_.replay >= 0) {
+        ps->screen->games.select(o_.replay);
+        std::printf("mw3: chain replay row %d\n", o_.replay);
+      }
     }
     std::printf("mw3: chain pilot %s\n", o_.resume ? "resumed" : "new");
     ps->screen->on_button(0x18, 0, 0);  // ACCEPT
@@ -675,6 +703,11 @@ void CampaignChain::frame() {
         std::printf("mw3: chain debriefing title: %s; the game's name: %s; rank %d\n",
                     d->title.labels.size() > 2 ? d->title.labels[2]->text : "(none)", e_.game_text(0xc), d->rank.shown);
         for (const ztwod::Text* t : d->texts) std::printf("mw3: chain debriefing line: %s\n", t->text);
+        if (o_.standalone) {
+          const auto* st = mech3::current_pilot() ? mech3::current_pilot()->standalone : nullptr;
+          std::printf("mw3: chain standalone debrief: rank %d, help %d, CONTINUE help \"%s\", won flag %d, at %d, best %d\n",
+                      d->rank.shown, 0, d->continue_help_text(), d->campaign_over(), st ? st->x38 : -1, st ? st->x3c : -1);
+        }
         std::printf("mw3: chain debriefing after %s: score %d, CONTINUE (%swins %d; the game now at %s)\n",
                     launched_.c_str(), d->score, failing_ ? "failed on purpose; " : "", wins_, mission_name().c_str());
         failing_ = false;

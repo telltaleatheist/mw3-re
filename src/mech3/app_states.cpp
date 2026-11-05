@@ -945,7 +945,7 @@ const struct {
   uint32_t global, ctor;
 } kMenus[] = {{0x60985c, 0x48a6c0}, {0x609858, 0x488910}, {0x609864, 0x48aef0},
               {0x609874, 0x48b120}, {0x609868, 0x438be0}, {0x60986c, 0x43a640},
-              {0x609870, 0x42d9d0}, {0x609860, 0x49c900}, {0x609878, 0x4295e0}};
+              {0x609870, 0x42d9d0}, {0x609860, 0x49c900}, {0x609878, 0x4295e0}, {0x62d8a4, 0x489b20}};
 void delete_object(Engine& en, uint32_t global) {
   if (Handle o = en.peek32(global)) en.vcall(o, 0x00, {1});
 }
@@ -1168,8 +1168,8 @@ void LoadState::resume(uint32_t arg) {
 // Mech3.exe 1.2 @ 0x0047ac20, Pirate's Moon 1.0 @ 0x0047cf20. A campaign mission
 // counts only when nothing marked it cheated and it was not lost: then its
 // results are kept and the pilot's campaign record is updated; mission 10 won
-// ends the campaign. Otherwise 0x0047d110(1, 1) drops them. A standalone's win
-// (0x0040e510, 0x0047ee40) is its game object's, the front end's, not ported.
+// ends the campaign. Otherwise 0x0047d110(1, 1) drops them. A standalone's win moves its game
+// on and saves (0x0040e510); past the last mission the debriefing goes to the menu (0x0047ee40).
 bool WinState::enter() {
   Engine& en = e();
   const int32_t mission = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x4c, {}));
@@ -1197,6 +1197,7 @@ bool WinState::enter() {
       en.debrief_voice_play(addr());
     }
   }
+  if (type == 5 && !lost && clean) en.win_standalone(screen_, &campaign_won_);  // 0x0040e510, 0x0047ee40
   ShellState::enter();
   return true;
 }

@@ -415,7 +415,8 @@ extern "C" int probe_lance_run(const char* setup, char* out, int size) {
     }
   }
   Store* target = lab_store_build(lab, &game, &salvage);
-  lance_fit(*target, slots, lance_keeps(true, op, mission));
+  (void)op, (void)mission;
+  lance_fit(*target, slots, lance_keeps(kCampaign));
   store_reallocate(lab, game, salvage, &realloc, units);
   std::ostringstream o;
   for (GameSlot* s : slots) o << "slot m" << s->mech << ' ' << config_text(s->config) << '\n';

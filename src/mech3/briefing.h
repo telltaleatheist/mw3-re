@@ -210,10 +210,9 @@ Store* lab_store_build(Store& lab, Store* game, Store* salvage);
 // to the store and taken out of it, the mech too; `keep` (a lancemate at Op
 // 4 Mission 6) leaves the slot as it is, the store untouched.
 void lance_slot(GameSlot& s, Store& store, bool keep);
-// 0x00408c30's loop: every slot fitted; with `keep` the lancemates (not the
-// player, slot 0) are left as they are. `keep` is Op 4 Mission 6's.
+// 0x00408c30's loop, Pirate's Moon 0x00407c20: every slot fitted; with `keep` left as they are.
 void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep);
-bool lance_keeps(bool campaign, int32_t op, int32_t mission);
+bool lance_keeps(int32_t kind);
 
 // [0x005f4c80] the briefing screen, while the Load state has one.
 BriefingScreen*& briefing_screen();

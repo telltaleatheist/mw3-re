@@ -122,7 +122,7 @@ class PilotState : public MenuState {
 // game and pushes it; what follows a pilot is a hook where not ported.
 class GameMenuState : public MenuState {
  public:
-  enum Kind { kAction, kCampaign, kTraining, kMultiplayer };
+  enum Kind { kAction, kCampaign, kTraining, kMultiplayer, kStandalone };
   GameMenuState(Kind k, Handle addr);
   bool enter() override;             // 0x0048a750, 0x0048afd0, 0x0048b140, 0x0049cab0
   bool update() override;            // 0x0048af20 (the campaign), else the shell's

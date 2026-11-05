@@ -118,6 +118,7 @@ class GameEngine : public Engine {
     // its rules and totals; the pilot's own when it has one.
     MultiplayerGame* multi = nullptr;
   };
+  void win_standalone(Handle screen, uint8_t* won) override;
   void set_launch(const Launch& l);
   // The launch's mech, loadout and skin read again from the chosen pilot's
   // game's slot; true when one changed (app_menus.cpp).

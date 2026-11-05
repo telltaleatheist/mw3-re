@@ -347,9 +347,8 @@ Handle find_node(Node* args, ObjectiveHooks& h) {
 // gives nothing. Weapons must be (name tech) lists and the engines' key is
 // "engines": the shipped files' plain weapon names and "engine" give nothing
 // (docs/objectives.md).
-std::unique_ptr<Store> read_salvage(Node* node) {
-  if (!node) return nullptr;
-  auto s = std::make_unique<Store>(0);
+void salvage_into(Store& store, Node* node) {
+  Store* s = &store;
   auto each = [&](const char* key, auto&& fn) {
     Node* v = zrdr::find(node, key);
     if (!v) return;
@@ -360,6 +359,11 @@ std::unique_ptr<Store> read_salvage(Node* node) {
   // string's pointer or an int's value, whatever the slot holds.
   auto str = [](const Node& e) { return e.type == zrdr::String ? e.s : nullptr; };
   each("mechs", [&](Node& e) {
+    // Pirate's Moon 0x00473690: also (mech config), the mech with that loadout.
+    if (e.type == zrdr::List && count_of(&e) == 3 && e.list[1].type == zrdr::String && e.list[2].type == zrdr::String) {
+      pilot_hooks().store_add_mech(*s, mech_index(e.list[1].s), pilot_hooks().message_named(e.list[2].s));
+      return;
+    }
     if (e.type != zrdr::String) return;
     const int32_t m = mech_index(e.s);
     if (m != -1) s->add_mech(m);
@@ -383,6 +387,12 @@ std::unique_ptr<Store> read_salvage(Node* node) {
     if (w != -1 && n != 0) s->add_ammo(w, n);
   });
   // Pirate's Moon 0x00473690 reads no "engines" (its item list can't load one back, 0x00473930).
+}
+
+std::unique_ptr<Store> read_salvage(Node* node) {
+  if (!node) return nullptr;
+  auto s = std::make_unique<Store>(0);
+  salvage_into(*s, node);
   if (s->items.empty()) return nullptr;
   return s;
 }

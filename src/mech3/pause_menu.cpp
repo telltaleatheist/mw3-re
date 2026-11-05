@@ -33,7 +33,7 @@ PauseScreen::PauseScreen(Engine& e, Handle s)
     bind_button(&quit, "QUIT");
     bind_button(&resume, "RESUME");
     bind_button(&options, "OPTIONS");
-    if (e.game_kind() == kCampaign || e.game_kind() == kInstantAction) bind_button(&replay, "REPLAY");
+    if (e.game_kind() == kCampaign || e.game_kind() == kInstantAction || e.game_kind() == kStandalone) bind_button(&replay, "REPLAY");
     unload();
   }
   // [0x006099c4] is never written: OPTIONS always stays.

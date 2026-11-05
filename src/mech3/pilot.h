@@ -10,6 +10,14 @@
 #include "gamez/zgame/unported.h"
 #include "mech3/mech_config.h"
 
+namespace zrdr {
+struct Node;
+}
+
+namespace mech3 {
+class StandaloneGame;
+}
+
 // The pilot (docs/pilot.md): the player's record at [0x0060861c], one per
 // file in pilots\, and the five games it owns (the campaign saves, Instant
 // Action, multiplayer, training and the mech lab's), with their stores of
@@ -39,6 +47,7 @@ class PilotHooks : public zgame::Unported {
   virtual Config* config_load(const char* name, std::FILE* f);
   virtual void config_save(Config* c, std::FILE* f);
   virtual const char* message(int32_t id);  // 0x00576040, Mech3Msg.dll's text
+  virtual const char* message_named(const char* name);  // Pirate's Moon 0x00596db0: the message of that name
   // 0x00575fd0: message `id` with FormatMessage's %1!d!, %2!d! ... filled.
   virtual std::string format_ints(int32_t id, std::initializer_list<int32_t> args);
   virtual int32_t campaign_missions(int32_t campaign);  // 0x00484840, ported
@@ -152,6 +161,7 @@ class Game {
   // vt+0x04 .. +0x10, the briefing's game_type, db_name, scenario_name and
   // scenario_desc (campaign.md section 3): 0x0040bae0's 0 unless a game has its own.
   virtual const char* game_text(int32_t slot) { (void)slot; return nullptr; }
+  virtual GameSlot* player_slot() { return &slot; }  // what the launch and the lab read
 
   Pilot* pilot;                      // +0x04
   Store store;                       // +0x08
@@ -217,17 +227,46 @@ class CampaignGame : public Game {
   std::vector<std::string> strings;  // PM +0xc4  a CStringList, kept with the record (each: length, bytes)
 };
 
-// Pirate's Moon's standalone game (0x40e100, vtable 0x5df148, 0x5c bytes). Only its
-// record for now, kept whole so saving loses nothing: the mode is not ported (pm-map.md).
+// One of Pirate's Moon's standalone missions (0x0040d920, 0x20 bytes), from its reader's sainfo.zrd.
+struct StandaloneMission {
+  std::string archive;               // +0x00  zbd\c<world>\readersa<number>.zbd
+  std::string name, text;            // +0x04, +0x08  db_name's and db_verbose's messages
+  zrdr::Node* info = nullptr;        // +0x10  sainfo.zrd while the mission is open
+  int32_t order = 0;                 // +0x14
+  int32_t world = 0, number = 0;     // +0x18, +0x1c
+};
+std::vector<StandaloneMission*>& standalone_missions();  // 0x00618848
+int32_t standalone_read_missions();  // 0x0040def0: the readers found, by `order`
+
+// Pirate's Moon's standalone game, the second campaign (0x40e100, vtable 0x5df148, 0x5c
+// bytes; pirates-moon.md). Its store is rebuilt at each mission's start from the
+// mission's salvage block and the lance's mechs and loadouts.
 class StandaloneGame : public Game {
  public:
-  explicit StandaloneGame(Pilot* p) : Game(p) {}
+  explicit StandaloneGame(Pilot* p);  // 0x0040e100
   ~StandaloneGame() override;
   void save() override;              // 0x0040e250
   void load() override;              // 0x0040e2b0
   int32_t type() const override { return kStandalone; }
+  const char* game_text(int32_t slot) override;  // vt+0x08, +0x0c (0x0040e320, 0x0040e330)
+  GameSlot* player_slot() override { return slot_at(0); }
+  bool set_mission(int32_t i);       // 0x0040e340: within the list, true when it had to be moved
+  bool start();                      // vt+0x64  0x0040e3f0: the reader, the store, the lineup
+  void close();                      // vt+0x68  0x0040e5e0 (0x0040daa0)
+  int32_t unlocked() const;          // 0x0040e4d0: the missions listed
+  bool advance();                    // 0x0040e510: the next mission, the pilot saved; true past the last
+  int32_t number() const;            // vt+0x48  0x0040e660
+  int32_t world_index() const;       // vt+0x50  0x0040e310
+  zrdr::Node* block(const char* key) const;  // vt+0x6c..+0x74: briefing, objectives, environment
+  GameSlot* slot_at(int32_t i);      // vt+0x30  0x0040e760
+  int32_t slot_count() const;        // vt+0x34  0x0040e830
+  void set_lancemate(int32_t i, GameSlot* s, const Config* config);  // 0x0040e6c0
+  void set_lancemate_count(int32_t n) { x48 = n; }  // 0x0040e6a0
   int32_t x38 = 0, x3c = 0;          // +0x38, +0x3c  the mission, the best reached (0x0040e510)
-  std::vector<std::vector<GameSlot*>> lineups;  // +0x48, one list a mission (0x0040dc00, 0x0040dc70)
+  StandaloneMission* x40 = nullptr;  // +0x40
+  int32_t x48 = 0;                   // +0x48  the lancemates in the mission (0x0040e6a0)
+  std::vector<std::vector<GameSlot*>> lineups;  // +0x50, one list a mission (0x0040dc00, 0x0040dc70)
+  int32_t lineup = -1;               // +0x44  this mission's (0x0040de60)
 };
 
 // The Instant Action settings the game keeps outside the game object and the
@@ -452,6 +491,7 @@ class Pilot {
   bool record_mission(bool next);    // 0x00478f10: true when the campaign is over
   Store* store();                    // 0x00479430: the current game's
   CampaignGame* campaign();          // 0x00479440: the current game when a campaign
+  StandaloneGame* standalone_game() { return current && current->type() == kStandalone ? standalone : nullptr; }  // PM 0x0047b770
   ActionGame* action();              // 0x00479460
   MultiplayerGame* multiplayer();    // 0x00479480
   TrainingGame* training_game();     // 0x004794a0

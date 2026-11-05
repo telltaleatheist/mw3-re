@@ -625,7 +625,7 @@ void Missions::abort_now() {
 void Missions::end_screen() {
   MissionHooks& h = *g_hooks;
   switch (static_cast<uint32_t>(h.game_type())) {
-    case 0: case 1:
+    case 0: case 1: case 5:  // Pirate's Moon 0x00494fa0: a standalone's too
       h.fn_40f0b0(0);
       h.fade_out(0x6099a0);
       break;

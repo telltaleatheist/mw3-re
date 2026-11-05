@@ -386,6 +386,21 @@ bool open_archive(const char* path, bool make_current) {
 
 // Mech3.exe 1.2 @ 0x005573d0. With all == false the current archive survives and
 // goes back on the list, now last.
+void close_archive(const char* path) {
+  if (!g_state.archives_created) return;
+  auto& list = g_state.archives;
+  for (auto it = list.begin(); it != list.end(); ++it) {
+    zutl_zar::Archive* a = *it;
+    if (!a->path || std::strcmp(a->path, path) != 0) continue;
+    if (g_state.current == a) g_state.current = nullptr;
+    list.erase(it);
+    zutl_zar::close(*a);
+    zutl_zar::destroy(*a);
+    delete a;
+    return;
+  }
+}
+
 void close_archives(bool all) {
   if (!g_state.archives_created) return;
   std::vector<zutl_zar::Archive*> list;

@@ -37,6 +37,14 @@ BriefingScreen*& briefing_screen() {
 
 // ---- the current game, as the screen reads it (app_hooks.h) ----
 
+int32_t Engine::standalone_progress() {
+  StandaloneGame* s = current_pilot() ? current_pilot()->standalone_game() : nullptr;
+  return s ? s->x38 : 0;
+}
+zrdr::Node* Engine::game_briefing_block() {
+  StandaloneGame* s = current_pilot() ? current_pilot()->standalone_game() : nullptr;
+  return s ? s->block("briefing") : nullptr;
+}
 int32_t Engine::game_kind() {
   Pilot* p = current_pilot();
   return p && p->current ? p->current->type() : -1;
@@ -278,7 +286,9 @@ BriefingScreen::BriefingScreen(Engine& e, const char* name, bool draw_now)
   zrdr::Node* mp_tree = nullptr;
   zrdr::Node* section;
   if (!mp_info) {
-    section = zrdr::find(tree, name);
+    // Pirate's Moon 0x00404d70: the game's own (vt+0x6c, a standalone's sainfo.zrd), else by name.
+    section = e.game_briefing_block();
+    if (!section) section = zrdr::find(tree, name);
   } else {
     mp_tree = zrdr::load("mpinfo.zrd");
     section = zrdr::find(mp_tree, "briefing");
@@ -488,6 +498,8 @@ void BriefingScreen::abort() {
 
 // Mech3.exe 1.2 @ 0x00404f70. A campaign with salvage not looked at asks
 // first (messages 0x1e0, 0x1e1); a failed launch goes back to the main menu.
+float max_mass(int32_t mech);  // mech_names.h, whose Engine clashes with the app's
+
 void BriefingScreen::launch() {
   Engine& e = engine();
   const int32_t kind = e.game_kind();
@@ -495,6 +507,34 @@ void BriefingScreen::launch() {
     if (!salvage_seen && e.game_salvage_left()) {
       cursor_obj.erase();
       if (e.message_box(1, 0x1e0, 0x1e1) != 1) return;
+    }
+    // Pirate's Moon 0x00404a20, the campaign's missions 2 and 5: a loadout with no jump jets asks
+    // first; in mission 5 only a mech over 50 tons counts (0x00427df0, 0x00486830).
+    int32_t op = 0, mission = 0;
+    e.game_campaign(&op, &mission);
+    const auto has_jets = [](const GameSlot* s) {
+      for (const ConfigItem* it : s->config->items)
+        if (it->kind() == 3 && static_cast<const EquipmentItem*>(it)->equipment == 0xb) return true;
+      return false;
+    };
+    if (mission == 2) {
+      for (int32_t i = 0, n = e.game_slot_count(); i < n; ++i) {
+        const GameSlot* s = e.game_slot(i);
+        if (s->config && !has_jets(s)) {
+          cursor_obj.erase();
+          if (e.message_box(1, 0x1e0, 0x1063) != 1) return;
+          break;
+        }
+      }
+    } else if (mission == 5) {
+      for (int32_t i = 0, n = e.game_slot_count(); i < n; ++i) {
+        const GameSlot* s = e.game_slot(i);
+        if (s->config && max_mass(s->config->mech) > 50.0f && !has_jets(s)) {
+          cursor_obj.erase();
+          if (e.message_box(1, 0x1e0, 0x1066) != 1) return;
+          break;
+        }
+      }
     }
   } else if (kind == kMultiplayer) {
     e.multiplayer_launch_prep();
@@ -801,6 +841,7 @@ int32_t Engine::game_slot_count() {
   if (CampaignGame* c = p ? p->campaign() : nullptr) return c->slot_count();
   if (ActionGame* a = p ? p->action() : nullptr) return a->slot_count();
   if (p && p->multiplayer()) return 1;
+  if (StandaloneGame* s = p ? p->standalone_game() : nullptr) return s->slot_count();
   return 0;
 }
 GameSlot* Engine::game_slot(int32_t i) {
@@ -808,6 +849,7 @@ GameSlot* Engine::game_slot(int32_t i) {
   if (CampaignGame* c = p ? p->campaign() : nullptr) return c->slot_at(i);
   if (ActionGame* a = p ? p->action() : nullptr) return a->slot_at(i);
   if (MultiplayerGame* m = p ? p->multiplayer() : nullptr) return m->slot_at(i);
+  if (StandaloneGame* s = p ? p->standalone_game() : nullptr) return s->slot_at(i);
   return nullptr;
 }
 
@@ -855,19 +897,19 @@ void lance_slot(GameSlot& s, Store& store, bool keep) {
 void BriefingScreen::lance_loadouts() {
   Engine& e = engine();
   Store* store = build_lab_store();
-  int32_t op = 0, mission = 0;
-  const bool campaign = e.game_campaign(&op, &mission);
   std::vector<GameSlot*> slots;
   for (int32_t i = 0, n = e.game_slot_count(); i < n; ++i) slots.push_back(e.game_slot(i));
-  if (store) lance_fit(*store, slots, lance_keeps(campaign, op, mission));
+  if (store) lance_fit(*store, slots, lance_keeps(e.game_kind()));
   refresh();
 }
 
-bool lance_keeps(bool campaign, int32_t op, int32_t mission) { return campaign && op == 4 && mission == 6; }
+// Pirate's Moon 0x00407c20: a standalone's and Instant Action's every slot keeps its mech and
+// loadout whatever the store holds (0x004079b0's third argument); a campaign's none does.
+bool lance_keeps(int32_t kind) { return kind == kStandalone || kind == kInstantAction; }
 
 void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep) {
   for (size_t i = 0; i < slots.size(); ++i)
-    if (slots[i]) lance_slot(*slots[i], store, i > 0 && keep);
+    if (slots[i]) lance_slot(*slots[i], store, keep);
 }
 
 }  // namespace mech3

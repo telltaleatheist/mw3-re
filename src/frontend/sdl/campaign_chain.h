@@ -30,6 +30,8 @@ struct ChainOptions {
   int wins = 4;         // the missions to win
   bool kills = false;   // won by shooting every enemy (kills:N), not Exit Mission at once
   bool retry = false;   // retry:N, kills with each mission failed once first (the pause's REPLAY), then won
+  bool standalone = false;  // standalone:N and so on: the main menu's STANDALONE, Pirate's Moon's second campaign
+  int replay = -1;      // standalone-replay:K: the pilot's list's row K chosen
   std::string dir;      // where the shots go
 };
 

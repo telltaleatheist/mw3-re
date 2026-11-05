@@ -235,6 +235,7 @@ add_library(mw3core STATIC
   src/mech3/app_keys.cpp
   src/mech3/pilot.cpp
   src/mech3/pilot_games.cpp
+  src/mech3/pilot_standalone.cpp
   src/mech3/pilot_menu.cpp
   src/mech3/action_menu.cpp
   src/mech3/mp_connect.cpp
@@ -639,6 +640,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_firepoints.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_power.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ams.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_standalone.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mechanim.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mech_build.cpp)
 endif()
