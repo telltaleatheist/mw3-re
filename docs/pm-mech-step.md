@@ -30,6 +30,8 @@ MW3 functions the port has with no PM twin (69 or so: inlined or rewritten) are 
 
 Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 written, 0x4b4c90 unmatched): `lrm_flight` stays 0, so `hold_for_flight` adds no delay; settle it when PM's AI firing is ported. `tests/test_program.cpp` (26 places), `test_pilot_names.cpp` and `test_mech_reader.cpp` hold MW3's numbers (`l.mech = 17`, the Thor); they are in `mw3tests`, not built on `pm`, and change when moved. The lancemate's hit on the player at frame 129 of the c1m1 walk waits for PM's AI.
 
+**Health and the limp (2026-11-05):** `test_pm_health`. PM's health 0x41c740 keeps MW3's weights but, each time it is worked out, sets how bad a limp is (+0x540, 0x418540) and a limping mech's top speed from it (0x418640). The speed setter 0x414c00 now holds speed to 5..60 and can leave the gait bounds alone. A limp's start 0x41e3b0 stops MASC, and MASC 0x41eec0 will not run on a bad leg. **The script path:** PM's destroy valve 0x4f5210 does not go through 0x41de30 as MW3's 0x4e34b0 did 0x41cfa0: it calls the entity's vt+0x78, for a mech the kill 0x41de00. 0x41de30 is called from heat alone. `WiredValveHooks` had no `mech_destroy`, so a destroy valve on a mech did nothing here but log; it is wired to `Mech::kill` now. The kill is tested through the exe's valve; the wiring itself and a mission using it are not. `origin/main` lacks that override too.
+
 ## The order
 
 The lead's rule (2026-11-05): what the frame runs for every mech ranks above what it runs for the player only, unless the player-only one changes how the game feels. The score below cannot see that, so it is applied by reading each function as the order reaches it.

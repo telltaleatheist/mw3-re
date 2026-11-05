@@ -362,6 +362,7 @@ bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
 void mech_kill(void* mech, void* killer = nullptr);  // for the tests: its centre torso destroyed (Destroy(0, 1), 0x00465f40), `killer` its last attacker
 int32_t mission_salvage_items();
+void mech_die_for_certain(void* mech);  // the destroy valve: Mech::kill (0x0041de00)
 void mech_destroy_part(void* mech, int32_t id);  // for the tests: Mech::DestroyPart (0x0041cfa0)  // for the tests: the items in the mission's salvage store
 int32_t canned_nodes_count();  // for the tests: the canned effects' node copies (the eject seats)
 

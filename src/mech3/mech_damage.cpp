@@ -269,6 +269,7 @@ float Mech::health() {
       h = (1.0f - wl) * h;
     }
   }
+  limp_update();  // Pirate's Moon 0x00418640: the limp's speed follows the legs
   x40c = h;
   damaged = false;
   return x40c;
@@ -298,7 +299,7 @@ void Mech::destroy_part(int id) {
   p->set_armor(0.0f, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0041d5f0. Returns whether the mech limps now.
+// Pirate's Moon 1.0 @ 0x0041e3b0. MASC stops and the limp's speed starts. Returns whether the mech limps now.
 bool Mech::start_limp(int leg, bool falls) {
   if (limp != 0 && limp != 1 && !invincible) {
     if (falls) {
@@ -314,6 +315,8 @@ bool Mech::start_limp(int leg, bool falls) {
       anim = anims[1];
     }
     if (anim) anims[11] = calls().blend_anim ? static_cast<MechAnim*>(calls().blend_anim(anims[4], anim)) : nullptr;
+    masc(false);
+    limp_update();
   }
   return limp == 0 || limp == 1;
 }
@@ -343,16 +346,44 @@ bool Mech::knocked_down(int kind) {
   return down;
 }
 
-// Mech3.exe 1.2 @ 0x004143c0. The gaits are rescaled; walking is 60%.
-void Mech::set_max_speed(float v) {
+// Pirate's Moon 1.0 @ 0x00418540: how bad the limp is, by the worse leg: 1 under 1/8 structure, 0.3 at 1/2 and over.
+float Mech::limp_severity() const {
+  if (limp != 0 && limp != 1) return 0.0f;
+  const float a = legs[0]->get_internal(0), b = legs[1]->get_internal(0);
+  const float f = b <= a ? b : a;
+  float v = 0.3f;  // 0x006040f0
+  if (f >= 0.125f) {  // 0x006040f8
+    if (f < 0.5f) v = 1.0f - (f - 0.125f) * ((1.0f - 0.3f) / (0.5f - 0.125f));  // 0x006040f4, 0x006040fc
+    if (v > 1.0f) return 1.0f;
+  } else {
+    v = 1.0f;
+  }
+  return v < 0.3f ? 0.3f : v;
+}
+
+// Pirate's Moon 1.0 @ 0x00418640: a limping mech's top speed falls with its legs. The gaits' bounds stay.
+void Mech::limp_update() {
+  limp_amount = limp_severity();
+  if (limp != 0 && limp != 1) return;
+  const float a = pilot->trans[4][0 + 1], b = pilot->trans[5][0];
+  const float w = a <= b ? a : b;
+  const float top = engine_speed(config->engine, max_mass(config->mech));
+  set_max_speed((1.0f - limp_amount) * top * w + pilot->limp_speed, false);
+}
+
+// Pirate's Moon 1.0 @ 0x00414c00. Held to 5..60. The gaits are rescaled if asked; walking is 60%.
+void Mech::set_max_speed(float v, bool gaits) {
+  v = v > 60.0f ? 60.0f : v < 5.0f ? 5.0f : v;  // 0x006040bc, 0x006040c0
   DamageCalls& c = calls();
   for (int i = 0; i < 13; ++i) {
     if (!anims[i] || !(i < 0 || (i > 1 && i != 11))) continue;
     if (c.anim_speed) c.anim_speed(anims[i], v);
     else anims[i]->set_stride_speed(v);
   }
-  if (c.gait_speed) c.gait_speed(*this, v);
-  else if (pilot) scale_gaits(*pilot, gait, v);
+  if (gaits) {
+    if (c.gait_speed) c.gait_speed(*this, v);
+    else if (pilot) scale_gaits(*pilot, gait, v);
+  }
   max_speed = v;
   walk_speed = v * 0.6f;
 }

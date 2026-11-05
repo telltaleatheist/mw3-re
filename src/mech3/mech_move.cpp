@@ -266,16 +266,21 @@ void Mech::ground_step(float dt) {
   else hip->duck(jolt);
 }
 
-// Mech3.exe 1.2 @ 0x0041df50. On: the top speed x1.25 with the throttle
+// Pirate's Moon 1.0 @ 0x0041eec0. On: the top speed x1.25 with the throttle
 // rescaled so the speed holds (vt +0x114 throttle x max, +0x11c speed /
 // max); off: the engine's top speed and no rescale, so the mech slows at once.
 void Mech::masc(bool on) {
   if (!(equipment[kMasc] > 0) || on == (masc_time != 0.0f)) return;
+  if (limp == 0 || limp == 1) {  // no MASC on a bad leg
+    masc_time = 0.0f;
+    limp_update();
+    return;
+  }
   const float base = engine_speed(config->engine, max_mass(config->mech));
   if (on) {
     if (this == world().mission_player && heat_calls().play_mech_sound) heat_calls().play_mech_sound(kMascSound);
     const float speed = controls->throttle * max_speed;
-    set_max_speed(base * 1.25f);  // 0x005bce70
+    set_max_speed(base * 1.25f);  // 0x005dfd50
     controls->throttle = speed / max_speed;
     masc_time = 0.001f;
   } else {
@@ -438,7 +443,7 @@ void Mech::select_gait(float dt) {
     prev_state = anim_state;
     anim_state = 0;
     anim_index = kStepWalk;  // not 11 (docs/movement.md)
-    anims[kLimpBlend]->set_blend(throttle_up < 0.6f ? throttle_up : 0.6f);  // 0x005dfaa8
+    anims[kLimpBlend]->set_blend(limp_amount < 0.6f ? limp_amount : 0.6f);  // 0x005dfaa8
     play_gait(*this, dt, anims[kLimpBlend], thr);
     return;
   }

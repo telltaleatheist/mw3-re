@@ -254,8 +254,7 @@ void MissionAction::fire(Valve& v) {
   else g_hooks->mission_complete();
 }
 
-// Mech3.exe 1.2 @ 0x004e34b0: a mech is destroyed (0x0041cfa0(1)), anything
-// else through its vt+0x70.
+// Pirate's Moon 1.0 @ 0x004f5210: its vt+0x78, for a mech dead for certain (0x0041de00).
 void DestroyAction::fire(Valve& v) {
   if (v.get() != value) return;
   const Handle e = g_hooks->target_find(has_name ? name.c_str() : nullptr);

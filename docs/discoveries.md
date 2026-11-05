@@ -4433,11 +4433,20 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   a quarter further out, and in the air the feet only meet walls on the first
   check of the frame. (From the code.)
 - **Pirate's Moon mechs can drown:** with the water more than 25 m over your feet
-  your mech loses a quarter of its health a frame, even with invincibility on (it
-  turns it off), and when that would leave under 20% it dies on the spot with
-  nothing of the chassis left to salvage. MechWarrior 3 has no such rule. At the
-  game's 30 frames a second that is about a fifth of a second from full health.
+  (measured at the two front ski probes, averaged) your mech loses a quarter of its
+  health a frame, even with invincibility on, which it turns off. When that would
+  leave under 20% it dies on the spot, with nothing of the chassis left to salvage.
+  MechWarrior 3 has no such rule. At 30 frames a second that is about a fifth of a
+  second from full health. How sure this is: read from the code and checked against
+  the game's own instructions in an emulator with made-up depths; nobody has seen it
+  happen in a mission yet, and we have not checked which missions have water that
+  deep. (From the code.)
+- **In Pirate's Moon a limp's speed follows the worse leg:** under an eighth of its
+  structure the limp is at its worst, at half or better at its mildest, and your top
+  speed falls with it. A limp also stops MASC, and MASC will not start on a bad leg.
   (From the code.)
+- **Pirate's Moon caps a mech's top speed at 60 m/s (216 km/h):** MechWarrior 3 has
+  no cap. (From the code.)
 - **Pirate's Moon cools you in water the feet aren't in:** MechWarrior 3 checks
   whether the first foot is in water; Pirate's Moon compares the water's surface
   over the two front ski probes with the mech's place. (From the code.)
@@ -4448,8 +4457,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **Limping in Pirate's Moon is a speed limit, not a percentage:** MechWarrior 3
   takes 40% off your speed. Pirate's Moon caps it at the walk's top or the trot's
   bottom, whichever is slower, and no longer holds your throttle under the trot
-  in the limp animation; the limp's blend follows the mech's acceleration, up to
-  0.6, where MW3 used 0.5. (From the code.)
+  in the limp animation; how much the limp shows goes with how hurt the worse leg
+  is, up to 0.6, where MW3 used a fixed 0.5. (From the code.)
 - **Mechs turn more slowly in the air in Pirate's Moon:** the turn counts as if
   at full throttle, a fifth of the turn rate; in MechWarrior 3 it counted as 85%
   throttle, about a third. (From the code.)

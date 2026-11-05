@@ -42,7 +42,7 @@ class ValveHooks : public zgame::Unported {
   virtual Handle controls_of(Handle v) { return unported("veh.vt+0x140", {v}); }
   virtual Handle brain_of(Handle c) { return unported("ictl.vt+0x54", {c}); }  // the AI's brain (0x004d1e60)
   virtual void destroy(Handle o) { unported("obj.vt+0x70", {o}); }
-  virtual void mech_destroy(Handle m) { unported("0x0041cfa0", {m, 1}); }
+  virtual void mech_destroy(Handle m) { unported("0x0041de00", {m}); }
   virtual void mech_power(Handle m, int32_t down) { unported("0x0041cc30", {m, down}); }
   virtual void vehicle_place(Handle v, const float pos[3], float yaw) {
     unported("veh.vt+0xdc", {v, zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2]), zgame::bits(yaw)});
@@ -177,7 +177,7 @@ struct EntityAction : ValveAction {
 };
 struct DestroyAction : EntityAction {  // 0x004e33c0
   using EntityAction::EntityAction;
-  void fire(Valve& v) override;     // 0x004e34b0
+  void fire(Valve& v) override;     // 0x004f5210
 };
 struct ShutdownAction : EntityAction {  // 0x004e3560, 0x10 bytes
   ShutdownAction(const char* n, int32_t v, uint8_t down) : EntityAction(Shutdown, n, v), down(down) {}

@@ -1099,6 +1099,7 @@ struct WiredValveHooks : ai::ValveHooks {
     if (veh(o)) return program_vehicle_destroy(e->object_of(o));
     ValveHooks::destroy(o);
   }
+  void mech_destroy(Handle m) override { mech_die_for_certain(e->object_of(m)); }
   void vehicle_place(Handle v, const float pos[3], float yaw) override {
     if (veh(v)) return program_vehicle_place(e->object_of(v), pos, yaw);
     if (mech(v)) return move_mech(e->object_of(v), pos, yaw);  // Mech vt+0xdc, 0x00418f30 (c2m1's teleport_thor)

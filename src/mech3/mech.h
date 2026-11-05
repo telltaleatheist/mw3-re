@@ -192,6 +192,7 @@ struct Mech : Vehicle {
   bool knee_back = false;    // +0x585  the knees bend backward (copied to the legs)
   bool crouched = false;     // +0x586
   bool wading = false;       // +0x588  the wading force-feedback effect is on
+  float limp_amount = 0;     // Pirate's Moon's +0x540  how bad the limp is (0x00418640)
   bool salvage_mech = true;  // Pirate's Moon's +0x5ae: false, nothing of the chassis to salvage (0x00474fb0)
   uint32_t gait_frames = 0;  // +0x58c  frames at walk or faster since stand or step
   float gait_steps = 0;      // (port) the same in 1/30 s steps, for the per-second blend-in (zfix)
@@ -359,7 +360,9 @@ struct Mech : Vehicle {
   bool start_limp(int leg, bool fall);  // 0x0041d5f0
   void fall();                        // 0x0041b640
   bool knocked_down(int kind);        // 0x0041b660
-  void set_max_speed(float v);        // 0x004143c0
+  void set_max_speed(float v, bool gaits = true);  // 0x00414c00
+  float limp_severity() const;        // 0x00418540
+  void limp_update();                 // 0x00418640
   void scale_knockdown(float f);      // 0x00417a10
   float tonnage() const;              // 0x00416770
   void mark_narc(bool on);            // 0x0041ac10

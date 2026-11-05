@@ -1979,6 +1979,7 @@ void mech_types_refresh() { mech_data_refresh(); }
 void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
 void mech_canned_nodes_free() { canned_nodes_free(); }
+void mech_die_for_certain(void* mech) { static_cast<Mech*>(mech)->kill(); }
 void mech_destroy_part(void* mech, int32_t id) { static_cast<Mech*>(mech)->destroy_part(id); }
 // Mech3.exe 1.2 @ 0x004782c0 with 0: the pilot lets its mech go, keeping
 // the weapons' fire mode (+0xd4 +0x1c) for its +0x80; the mech globals the

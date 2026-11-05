@@ -80,7 +80,7 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   io.f(0x428, m.blend_weight), io.i(0x430, m.anim_index);
   for (int k = 0; k < 13; ++k) io.f(0x4b0 + 8 * k, m.gait[k][0]), io.f(0x4b4 + 8 * k, m.gait[k][1]);
   io.f(0x530, m.turn_rate), io.f(0x538, m.speed_factor), io.f(0x53c, m.speed_target);
-  io.f(0x540, m.throttle_up), io.f(0x544, m.throttle_down), io.f(0x548, m.turn_accel);
+  io.f(0x540, m.limp_amount), io.f(0x544, m.throttle_up), io.f(0x548, m.throttle_down), io.f(0x54c, m.turn_accel);
   io.f(0x578, m.heat);
   io.i(0x59c, m.anim_state), io.i(0x5a0, m.prev_state);
   io.bo(0x5a8, m.no_power_down), io.bo(0x5ab, m.crouched), io.bo(0x5ad, m.wading);

@@ -37,7 +37,7 @@ ANIM, NANIM, FOOT, TORSO, CTL = 0xdc, 13, 0x100, 0x1c0, 0x74
 # Mech fields the two functions read or write (offset, kind); probe_move.cpp's mech_io.
 MECH = ([(0x3c + 4 * k, 'f') for k in range(3)] + [(0x58 + 4 * k, 'f') for k in range(3)] +
         [(0x68, 'f'), (0xe2, 'b'), (0x428, 'f'), (0x430, 'i')] + [(0x4b0 + 4 * k, 'f') for k in range(26)] +
-        [(0x530, 'f'), (0x538, 'f'), (0x53c, 'f'), (0x540, 'f'), (0x544, 'f'), (0x548, 'f'), (0x578, 'f'),
+        [(0x530, 'f'), (0x538, 'f'), (0x53c, 'f'), (0x540, 'f'), (0x544, 'f'), (0x548, 'f'), (0x54c, 'f'), (0x578, 'f'),
          (0x59c, 'i'), (0x5a0, 'i'), (0x5a8, 'b'), (0x5ab, 'b'), (0x5ad, 'b'), (0x5b0, 'i'), (0x5d0, 'i'),
          (0x6ac, 'i'), (0x6d4, 'f')])
 CTL_FIELDS = [(0x08, 'i')] + [(o, 'f') for o in (0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x44, 0x48,
@@ -189,8 +189,8 @@ def scenario(rng, defs):
         put(mech, 0x4b4 + 8 * k, 'f', hi)
     height = f32(rng.choice([8.0, 12.0, 15.5]))
     vals = {0x68: height, 0xe2: rng.random() < 0.04, 0x428: f32(rng.random()), 0x430: rng.choice([2, 3, 3, 4, 5, 6, 8, 9, 10]),
-            0x530: d['turn_rate'], 0x538: sf, 0x53c: f32(rng.random()), 0x540: d['accel'], 0x544: d['decel'],
-            0x548: d['turn_accel'],
+            0x530: d['turn_rate'], 0x538: sf, 0x53c: f32(rng.random()), 0x540: f32(rng.random()), 0x544: d['accel'], 0x548: d['decel'],
+            0x54c: d['turn_accel'],
             0x578: f32(rng.choice([0.0, 0.3, 0.6, 0.61, 0.9, 1.2, 2.0, rng.uniform(0, 2)])),
             0x59c: rng.choice([0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 9, 11, 12, 13]),
             0x5a0: rng.randrange(14), 0x5a8: rng.random() < 0.08, 0x5ab: rng.random() < 0.15,
