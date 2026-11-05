@@ -2532,6 +2532,10 @@ void GameEngine::missions_start(uint32_t list) {
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
 void GameEngine::ai_on() { ai::ai_switch_on(); }
+void GameEngine::mission_started() {
+  void* m = mech_mission_player();
+  ai::valves_mission_started(m ? mech_equipment_count(m, 4) : 0);  // PM's +0x3cc: kind 4, the Beagle
+}
 // Mech3.exe 1.2 @ 0x00575a00 (ztimer::update), once a frame from zGameApp::Run:
 // the step [0x0072c52c] is one global in the exe, so its copies in the mech,
 // weapon and zWeapon modules are set with it.

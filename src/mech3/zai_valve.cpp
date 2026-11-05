@@ -82,6 +82,12 @@ int32_t& valve_reentries() {
   return n;
 }
 
+// Pirate's Moon 1.0 @ 0x004944e0, 0x004e4b00
+void valves_mission_started(int32_t player_bap) {
+  if (Valve* v = valve_find("on_mission_start")) v->set(1);
+  if (Valve* v = valve_find("bapon")) v->set(player_bap > 0 ? 1 : 0);
+}
+
 // Mech3.exe 1.2 @ 0x004d3bf0. FIX (bug): a valve that fires again while its
 // reactions run (an update of itself, directly or round a loop of updates
 // and conditions) recursed until the stack ran out; here the inner fire is

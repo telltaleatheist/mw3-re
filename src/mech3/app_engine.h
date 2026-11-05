@@ -129,6 +129,7 @@ class GameEngine : public Engine {
   void sensors_update() override;                // 0x004a8cd0: mech3::ai::sensors_update
   void entities_sort() override;                 // 0x004d5ca0: mech3::ai::entities_sort
   void ai_reset(uint32_t list) override;         // 0x004d8610 on one of the AI's four lists (zai_list)
+  void mission_started() override;               // PM's 0x004f9960 (zai_valve.h)
   void ai_on() override;                         // 0x004ea740: mech3::ai::ai_switch_on
   // Core's resume(7) on the pilot's mech: the HUD's fall flag, then the
   // power-up (the spawn left it powered down).

@@ -424,6 +424,7 @@ float mech_stop_share(void* mech, float d);      // vt+0x12c, 0x0041d240
 float mech_throttle_speed(void* mech);           // vt+0x114, 0x0041d1d0
 void mech_forward(void* mech, float out[3]);     // +0x24, the flat forward
 int32_t mech_jump_jets(void* mech);              // +0x3d8, the jump jets installed
+int32_t mech_equipment_count(void* mech, int32_t kind);  // +0x3ac (PM's +0x3bc), by equipment kind
 float mech_vertical_speed(void* mech);           // +0x40, the local velocity's y
 float mech_forward_speed(void* mech);            // +0x44, its z
 void mech_set_local_velocity(void* mech, float x, float y, float z);  // +0x3c..+0x44

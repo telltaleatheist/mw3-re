@@ -406,6 +406,7 @@ class Engine : public zgame::AppHooks {
   virtual uint32_t key_state(int32_t key) { return unported("0x0051a9b0", {key}); }  // a DIK code's state, zin::key_state
   virtual void input_clear() { unported("0x0051a300", {}); }
   virtual void input_reset() { unported("0x0051b1c0", {}); }
+  virtual void mission_started() { unported("0x004f9960", {}); }  // PM's: the mission listeners' slot +0x10
   virtual void input_capture() { unported("0x0051b310", {}); }
   virtual void input_release() { unported("0x0051b340", {}); }
   virtual void input_center_mouse() { unported("0x0051b560", {}); }
