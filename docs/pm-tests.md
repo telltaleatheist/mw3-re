@@ -45,6 +45,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_motion.py` | unchanged | 2 | 0 | to move |  |
 | `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
 | `test_objectives.py` | gone | 24 | 8 | to move |  |
+| (new) `test_pm_mechsave.py` | PM | | | new, part of `test_mechsave.py` | a saved loadout's save and load, both formats |
 | (new) `test_pm_firepoints.py` | PM | | | new | the firepoint fix-up 0x46ea40 and its aim cone |
 | `test_parts.py` | gone | 75 | 16 | moved to `test_pm_parts.py` | setups, updates, the arm's clamp, the torso's mode, the part aim; floats within 1e-5 |
 | `test_player.py` | gone | 17 | 3 | to move, rank 14 | the player controls |

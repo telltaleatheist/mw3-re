@@ -896,6 +896,35 @@ int probe_pm_cfg_load(const char* dir, const char* entry, int index) {
   read_dfn(*g_cfg_dfn);
   return g_cfg_dfn->configs ? static_cast<int>(g_cfg_dfn->configs->configs.size()) : 0;
 }
+// Config k saved (0x00425e40), the bytes in out; returns how many.
+int probe_pm_cfg_save(int k, uint8_t* out, int cap, const char* path) {
+  using namespace ::mech3;
+  Config& c = *g_cfg_dfn->configs->configs[k];
+  c.player_made = 1;
+  std::FILE* f = std::fopen(path, "wb");
+  c.save(f);
+  std::fclose(f);
+  f = std::fopen(path, "rb");
+  const int n = static_cast<int>(std::fread(out, 1, static_cast<size_t>(cap), f));
+  std::fclose(f);
+  return n;
+}
+// A new Config loaded from the file (0x00426000), then what it holds, as the test's dump.
+int probe_pm_cfg_blob(const char* path, const char* name, int32_t* out) {
+  using namespace ::mech3;
+  Config c(-1, name);
+  std::FILE* f = std::fopen(path, "rb");
+  const bool ok = c.load(f);
+  std::fclose(f);
+  int k = 0;
+  out[k++] = ok;
+  out[k++] = c.mech;
+  out[k++] = static_cast<int32_t>(c.crc);
+  out[k++] = c.sinks, out[k++] = c.engine;
+  std::memcpy(&out[k++], &c.armor_tons, 4);
+  for (ConfigItem* i : c.items) out[k++] = i->kind(), out[k++] = i->id(), out[k++] = i->count, out[k++] = i->part;
+  return k;
+}
 int probe_pm_cfg_eval(int k, int op, int v, uint32_t* out) {
   using namespace ::mech3;
   Config& c = *g_cfg_dfn->configs->configs[k];

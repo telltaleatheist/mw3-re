@@ -4496,3 +4496,5 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   torso's. (From the code; what the weapons do with the limits we have not reached yet.)
 - **Shutting down hides you in Pirate's Moon multiplayer:** when another player's mech finishes powering down, your target
   on it drops; your own headlight goes out too. MechWarrior 3 does neither (it has no headlights). (From the code.)
+- **Pirate's Moon can read MechWarrior 3's saved mechs, one at a time:** a saved loadout without PM's header is taken as MW3's and
+  its mech and weapons renumbered to PM's lists. A whole MW3 configs file is refused by its version number. (From the code.)

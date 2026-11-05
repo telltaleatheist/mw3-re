@@ -505,10 +505,40 @@ void load_item_list(std::list<ConfigItem*>& items, std::FILE* f) {
 }
 void Config::load_items(std::FILE* f) { load_item_list(items, f); }
 
-// Mech3.exe 1.2 @ 0x00424600. Byte counts are never checked. The engine
-// (0x00432ff0) and sinks (0x004243c0) loads are inline here.
+namespace {
+constexpr uint32_t kConfigMagic = 0xffffffffu;  // 0x00604664
+constexpr uint32_t kConfigVersion = 0x10;       // Pirate's Moon 0x00425660; MW3's is 15
+
+// Pirate's Moon 1.0 @ 0x00487740: MW3's mech number to PM's.
+int32_t mech_from_mw3(int32_t m) {
+  static const int32_t k[] = {0, 2, 4, 5, 6, 8, 10, 11, 12, 13, 15, 16, 17, 19, 20, 21, 22, 23, 24};
+  return m >= 0 && m < static_cast<int32_t>(std::size(k)) ? k[m] : -1;
+}
+
+// Pirate's Moon 1.0 @ 0x00487810: MW3's weapon number to PM's.
+int32_t weapon_from_mw3(int32_t w) {
+  static const int32_t k[] = {0,  1,  2,  3,  4,  5,  7,  9,  10, 11, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+                              25, 26, 31, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 49, 50, 51, 52};
+  return w >= 0 && w < static_cast<int32_t>(std::size(k)) ? k[w] : -1;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x00426000. Byte counts are never checked. The engine
+// and sinks loads are inline here. A file from PM starts with a magic and the
+// version; one from MW3 has neither, and its mech and weapons are renumbered
+// and its checksum made anew, so MW3's loadouts load.
 bool Config::load(std::FILE* f) {
   if (!f) return false;
+  uint32_t magic = 0;
+  rd(f, &magic, 4);
+  const bool from_mw3 = magic != kConfigMagic;
+  if (from_mw3) {
+    std::fseek(f, -4, SEEK_CUR);
+  } else {
+    uint32_t version = 0;
+    rd(f, &version, 4);
+    if (version != kConfigVersion) return false;
+  }
   std::free(name);
   name = nullptr;
   zutl_zar::read_string(f, &name);
@@ -523,6 +553,12 @@ bool Config::load(std::FILE* f) {
   rd(f, &engine, 4), rd(f, &xl, 1);
   rd(f, &sink_tech, 4), rd(f, &sinks, 4), rd(f, &double_sinks, 1);
   player_made = 1;
+  if (from_mw3) {
+    mech = mech_from_mw3(mech);
+    for (ConfigItem* item : items)
+      if (item->kind() == 1 || item->kind() == 2) item->set_id(weapon_from_mw3(item->id()));
+    crc = checksum();  // 0x00427430
+  }
   return validate(false);  // FIX (trap): the exe passes true, dropping hand-edited loadouts (docs/protection.md)
 }
 
@@ -543,6 +579,8 @@ uint32_t Config::save_items(std::FILE* f) const { return save_item_list(items, b
 // the entry's length, harmless since loading reads on from the entry's start.
 uint32_t Config::save(std::FILE* f) {
   if (!f) return 0;
+  // Pirate's Moon: the magic and the version first (their 8 bytes go uncounted, as the count already runs short).
+  wr(f, &kConfigMagic, 4), wr(f, &kConfigVersion, 4);
   crc = checksum();
   zutl_zar::write_string(f, name);
   uint32_t n = save_items(f);
@@ -565,9 +603,10 @@ uint32_t Config::save(std::FILE* f) {
 std::vector<uint32_t> Config::packed() const {
   std::vector<uint32_t> p((static_cast<size_t>(item_count()) * 0xc + 0x34) / 4 + 1, 0);
   p[0] = static_cast<uint32_t>(mech) << 16;
-  uint32_t w = (player_made != 0) | (endo_steel != 0) << 1 | (static_cast<uint32_t>(engine) & 0x7f) << 2 |
-               (xl != 0) << 9 | (ferro != 0) << 10;
-  w |= (static_cast<uint32_t>(crt::msvc_ftol(static_cast<double>(armor_tons) * 2)) & 0x7ffff) << 11;
+  // Pirate's Moon 0x004274d0: a bit higher than MW3's, bit 0 left clear.
+  uint32_t w = (player_made != 0) << 1 | (endo_steel != 0) << 2 | (static_cast<uint32_t>(engine) & 0x7f) << 3 |
+               (xl != 0) << 10 | (ferro != 0) << 11;
+  w |= (static_cast<uint32_t>(crt::msvc_ftol(static_cast<double>(armor_tons) * 2)) & 0x3ffff) << 12;
   p[1] = (w & 0x3fffffff) | static_cast<uint32_t>(armor_tech) << 30;
   for (int i = 0; i < 11; ++i) p[2 + i] = static_cast<uint32_t>(armor[i]);
   size_t at = 13;
@@ -800,7 +839,7 @@ bool ConfigList::load_saved() {
     return false;
   }
   uint32_t version = 0, size = 4;
-  if (zutl_zar::read(a, zutl_zar::find(a, "version"), &version, &size) == 0 && version == 15) {  // 0x00423cf0
+  if (zutl_zar::read(a, zutl_zar::find(a, "version"), &version, &size) == 0 && version == kConfigVersion) {  // 0x00423cf0
     for (int i = 1; i < a.count; ++i) {
       const char* entry = a.entries[i].name;
       if (Config* c = Config::from_file(entry, zutl_zar::seek(a, i, nullptr))) configs.push_back(c);
@@ -812,7 +851,7 @@ bool ConfigList::load_saved() {
 }
 
 // Mech3.exe 1.2 @ 0x00424f60, with 0x00424f30 and the callback 0x00426590.
-// Writes configs\\<mech>.mw3 from scratch: `version` 15, then each of the
+// Writes configs\\<mech>.mw3 from scratch: `version` (16 in PM), then each of the
 // player's own configs under its name.
 bool ConfigList::save_all() {
   // 0x00576080 ".\\configs" and _mkdir: zutl::open makes the folder in the write dir.
@@ -824,7 +863,7 @@ bool ConfigList::save_all() {
     zutl_zar::destroy(a);
     return false;
   }
-  const uint32_t version = 15;  // 0x00423cf0
+  const uint32_t version = kConfigVersion;  // 0x00425660
   zutl_zar::add(a, "version", &version, 4);
   for (Config* c : configs)
     if (c->player_made)
@@ -857,6 +896,7 @@ Config* ConfigList::find(const char* name) const {
 }  // namespace mech3
 
 #include <cstdio>
+#include <iterator>
 #include <filesystem>
 #include <string>
 
