@@ -284,6 +284,7 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 - 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
 - c2m3's stop at (2636, -1528): needs its own run on the walker's route. This walk stops first at a wall at (1365, -6.8, -824) by another route, which settles nothing about it.
 - PM's salvage block 0x473690 against the exe (above, Byte damage).
+- The frame's gaps: the headlight at a death 0x465da0, 0x41f8d0, 0x41d880 in the port's `app_mech`, and `heat_override` 0x419fb0 (the frame's rows, above).
 - **Outside the frame, with the mech lab's tests:** the saved archives, player files, against the exe: the loader 0x4267f0, the writer 0x426bd0, the second loader 0x427e80. Nothing on `pm` compares them yet; `test_mechsave` (unmoved) is the source.
 
 **The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
@@ -335,115 +336,125 @@ From a hook on each row's address under `test_pm_*`, a stub's address not counte
 
 | # | PM | Class | Instr | State | Ran under, or stubbed in |
 |---:|---|---|---:|---|---|
-| 8 | 0x41ae00 | logic | 805 | ran; compared inferred | update |
-| 9 | 0x477f90 | logic | 1347 | ran; compared inferred | skis |
-| 10 | 0x41a100 | logic | 803 | ran; compared inferred | heat |
-| 11 | 0x418850 | logic | 635 | ran; compared inferred | jets |
-| 12 | 0x417f50 | logic | 410 | ran; compared inferred | jets |
-| 13 | 0x418fc0 | logic | 817 | ran; compared inferred | gait |
-| 14 | 0x423730 | logic | 708 | ran; compared inferred | collide |
-| 15 | 0x417350 | logic | 796 | ran; compared inferred | actions |
-| 16 | 0x425030 | logic | 280 | ran; compared inferred | collide |
-| 17 | 0x423590 | new | 153 | ran; compared inferred | actions,jets |
-| 18 | 0x416d70 | logic | 311 | ran; compared inferred | actions,jets |
-| 19 | 0x4253f0 | new | 197 | ran; compared inferred | collide |
-| 20 | 0x424030 | new | 160 | ran; through its caller only | collide |
-| 24 | 0x424730 | logic | 360 | ran; compared inferred | collide |
-| 25 | 0x4186f0 | new | 115 | ran; compared inferred | actions,jets |
-| 33 | 0x41d920 | logic | 109 | ran; compared inferred | power |
-| 35 | 0x424dd0 | logic | 204 | ran; compared inferred | collide |
-| 41 | 0x479a40 | new | 93 | ran; compared inferred | headlight |
-| 42 | 0x464060 | shape | 276 | ran; compared inferred | jets,parts,pose |
-| 44 | 0x424ba0 | logic | 142 | ran; compared inferred | collide |
-| 46 | 0x465360 | shape | 117 | ran; compared inferred | pose |
-| 51 | 0x467a90 | new | 51 | ran; compared inferred | parts |
-| 53 | 0x425370 | new | 59 | ran; compared inferred | collide |
-| 56 | 0x415e90 | new | 50 | ran; compared inferred | health,heat |
-| 62 | 0x41dab0 | shape | 67 | ran; compared inferred | power |
-| 65 | 0x477ef0 | new | 32 | ran; compared inferred | skis |
+| 8 | 0x41ae00 | logic | 805 | compared: 23 of 24 breaks caught; the jet fuel moved in from the jets, the narc timer, frame_dt | update |
+| 9 | 0x477f90 | logic | 1347 | compared: 11 of 13 breaks caught; the kick of 0.5, the one probe for a remote mech in low detail | skis |
+| 10 | 0x41a100 | logic | 803 | compared: 7 of 9 breaks caught; the water from the skis' surface, the attacker cleared | heat |
+| 11 | 0x418850 | logic | 635 | compared: 5 of 8 breaks caught; the knock and fall moved in; the root motion only in z (x stays 0 in the test) | jets |
+| 12 | 0x417f50 | logic | 410 | compared: 7 of 8 breaks caught; the thrust at once, the assist for the mission's player | jets |
+| 13 | 0x418fc0 | logic | 817 | compared: 10 of 12 breaks caught; the wade line, the limp's speed, the reverse's heat slow | gait |
+| 14 | 0x423730 | logic | 708 | compared: 14 of 15 breaks caught; the prediction's velocity and points, the Elemental rule | collide |
+| 15 | 0x417350 | logic | 796 | compared: 13 of 13 breaks caught; the kinds zeroing the controls, the fall camera, the lie time, the momentum | actions |
+| 16 | 0x425030 | logic | 280 | compared: 6 of 10 breaks caught; a low hit to the leg on its side; the no-mech branch not separated, as Collide clears the flag first | collide |
+| 17 | 0x423590 | new | 153 | compared: 5 of 5 breaks caught; new: the prediction | actions,jets |
+| 18 | 0x416d70 | logic | 311 | compared: 8 of 8 breaks caught; the landing on the prediction, only the player falling | actions,jets |
+| 19 | 0x4253f0 | new | 197 | compared: 8 of 8 breaks caught; new: the crash by two speeds | collide |
+| 20 | 0x424030 | new | 160 | compared: 5 of 5 breaks caught; new: the port empties its five lists where the exe returns them to a pool (no pool in the port); the clears | collide |
+| 24 | 0x424730 | logic | 360 | compared: 9 of 10 breaks caught; the reflection against the prediction's velocity | collide |
+| 25 | 0x4186f0 | new | 115 | compared: 8 of 10 breaks caught; new: the lean, the half lean in the view's mode | actions,jets |
+| 33 | 0x41d920 | logic | 109 | compared: 3 of 4 breaks caught; a network mech drops the target, the state 10 pending; the headlight is a hook here | power |
+| 35 | 0x424dd0 | logic | 204 | compared: 7 of 9 breaks caught; the shove and spin through a tilted matrix, the dead unit's probes | collide |
+| 41 | 0x479a40 | new | 93 | compared: 4 of 4 breaks caught; new: the beam and its light | headlight |
+| 42 | 0x464060 | shape | 276 | compared: 4 of 6 breaks caught; fields moved, no other change | jets,parts,pose |
+| 44 | 0x424ba0 | logic | 142 | compared: 7 of 7 breaks caught; can_crush's wall, the ceiling's height | collide |
+| 46 | 0x465360 | shape | 117 | compared: 4 of 4 breaks caught; fields moved, no other change | pose |
+| 51 | 0x467a90 | new | 51 | compared: 2 of 2 breaks caught; new: only the mission's player takes the mode | parts |
+| 53 | 0x425370 | new | 59 | compared: 6 of 6 breaks caught; new: the crash's parts | collide |
+| 56 | 0x415e90 | new | 50 | compared: 1 of 1 breaks caught; new: every part's structure | health,heat |
+| 62 | 0x41dab0 | shape | 67 | compared: 2 of 3 breaks caught; fields moved, no other change | power |
+| 65 | 0x477ef0 | new | 32 | compared: 2 of 2 breaks caught; new: the two soils | skis |
 | 69 | 0x4777f0 | shape | 60 | read: only under [0x629992], which nothing writes (no store in the exe); the port leaves the branch out, as `mech_part_update.cpp` says. Dead |  |
-| 76 | 0x41c9f0 | logic | 59 | ran; compared inferred | parts |
-| 78 | 0x464450 | logic | 141 | ran; compared inferred | parts |
-| 82 | 0x479190 | shape | 98 | ran; compared inferred | skis |
-| 86 | 0x419de0 | logic | 143 | ran; compared inferred | gait |
-| 98 | 0x41c3f0 | shape | 65 | ran; compared inferred | actions,damage,hit,jets |
-| 99 | 0x424d80 | new | 36 | ran; compared inferred | collide |
-| 103 | 0x4790c0 | new | 23 | ran; through its caller only | skis |
-| 106 | 0x41ade0 | new | 16 | ran; compared inferred | damage,heat,hit,jets |
-| 109 | 0x4792b0 | shape | 48 | ran; compared inferred | skis |
-| 112 | 0x4243f0 | logic | 101 | ran; compared inferred | collide |
-| 115 | 0x41de30 | new | 24 | ran; compared inferred | damage,health,heat |
-| 116 | 0x4799b0 | new | 27 | ran; compared inferred | headlight |
+| 76 | 0x41c9f0 | logic | 59 | compared: 3 of 3 breaks caught; an Elemental doesn't crouch | parts |
+| 78 | 0x464450 | logic | 141 | compared: 4 of 4 breaks caught; the foot on the normal, the prediction's orientation | parts |
+| 82 | 0x479190 | shape | 98 | compared: 2 of 4 breaks caught; fields moved, no other change | skis |
+| 86 | 0x419de0 | logic | 143 | compared: 3 of 5 breaks caught; the creep, the gait's thresholds | gait |
+| 98 | 0x41c3f0 | shape | 65 | compared: 3 of 3 breaks caught; fields moved, no other change | actions,damage,hit,jets |
+| 99 | 0x424d80 | new | 36 | compared: 3 of 3 breaks caught; new: the expiry and owner | collide |
+| 103 | 0x4790c0 | new | 23 | read: three products, inline at its caller | skis |
+| 106 | 0x41ade0 | new | 16 | compared: 3 of 3 breaks caught; new: active and not dead, inline | damage,heat,hit,jets |
+| 109 | 0x4792b0 | shape | 48 | compared: 2 of 3 breaks caught; fields moved, no other change | skis |
+| 112 | 0x4243f0 | logic | 101 | compared: 3 of 4 breaks caught; the segments and probes; the zone FIX is behind `bugs`, off here | collide |
+| 115 | 0x41de30 | new | 24 | compared: 1 of 1 breaks caught; new: structure and armor to nothing | damage,health,heat |
+| 116 | 0x4799b0 | new | 27 | compared: 2 of 2 breaks caught; new: the headlight's turn | headlight |
 | 119 | 0x41f740 | new | 19 | read: the definition by +0x6a8's +0xc (the roster) through the cache 0x4867f0; the port's `mech_dfn(pilot->roster)`, by a hook in the tests | stub: actions,jets,parts,update |
-| 124 | 0x424520 | logic | 148 | ran; compared inferred | collide |
-| 128 | 0x41fb70 | logic | 30 | ran; compared inferred | gait,mechanim |
-| 133 | 0x4790f0 | logic | 58 | ran; compared inferred | skis |
-| 135 | 0x4615b0 | new | 22 | ran; through its caller only | parts,pose |
+| 124 | 0x424520 | logic | 148 | compared: 6 of 6 breaks caught; the first query in the air, the top probe, the touchable node | collide |
+| 128 | 0x41fb70 | logic | 30 | compared: 1 of 1 breaks caught; the phase's rate | gait,mechanim |
+| 133 | 0x4790f0 | logic | 58 | compared: 2 of 3 breaks caught; the slide along the normal | skis |
+| 135 | 0x4615b0 | new | 22 | read: a wrapper of 0x510540 | parts,pose |
 | 136 | 0x472420 | reordered | 26 | read: message 0x18, size 0x10, three floats, to vt+0x60's +0x76c; `net_send_shove` the same, `t->owner` standing for +0x76c, not checked further | stub: collide |
-| 137 | 0x4778a0 | shape | 65 | ran; compared inferred | parts |
-| 144 | 0x465da0 | new | 18 | ran; compared inferred | damage,hit |
-| 145 | 0x4638f0 | shape | 75 | ran; compared inferred | parts |
-| 146 | 0x4255f0 | logic | 34 | ran; compared inferred | collide |
-| 153 | 0x41f8d0 | new | 14 | ran; compared inferred | lod |
-| 159 | 0x41c570 | shape | 34 | ran; compared inferred | actions |
-| 181 | 0x467770 | shape | 31 | ran; compared inferred | parts |
+| 137 | 0x4778a0 | shape | 65 | compared: 3 of 3 breaks caught; fields moved, no other change | parts |
+| 144 | 0x465da0 | new | 18 | **gap:** no test sees the headlight go out at a death (`mech_damage.cpp`); the turn itself is test_pm_headlight's | damage,hit |
+| 145 | 0x4638f0 | shape | 75 | compared: 2 of 2 breaks caught; fields moved, no other change | parts |
+| 146 | 0x4255f0 | logic | 34 | compared: 1 of 2 breaks caught; the touch's stop; its damage scale is per_second, off here | collide |
+| 153 | 0x41f8d0 | new | 14 | **gap:** a hook in test_pm_power, `app_mech.cpp` not run; same by reading | lod |
+| 159 | 0x41c570 | shape | 34 | compared: 2 of 2 breaks caught; fields moved, no other change | actions |
+| 181 | 0x467770 | shape | 31 | compared: 2 of 2 breaks caught; fields moved, no other change | parts |
 | 187 | 0x41dcd0 | shape | 40 | read: look vt+0x14; viewed; HUD 0x430e30; place 0x445fe0(x, y); zoom vt+0x108(0x14) when +0x152c bit 4 is clear and +0x1694 is 0. `player_frame` the same if `kHidden` is that bit and `x174` that byte, which the HUD tests compare | stub: update |
-| 190 | 0x477760 | reordered | 38 | ran; compared inferred | skis |
+| 190 | 0x477760 | reordered | 38 | compared: 2 of 2 breaks caught; fields moved, no other change | skis |
 | 191 | 0x414370 | shape | 46 | read: viewed, then torso 0x4672d0(1); [0x62939c], never written, picks the mode switch; else mode vt+0x20(view, 1). `mech_falls` the same; the mode's vt+0x20 is `on_switch` | stub: actions |
 | 204 | 0x460eb0 | logic | 17 | compared, a break caught | stub: damage,deaths,hit,parts |
-| 206 | 0x477e40 | same | 68 | ran; compared inferred | mech_build,skis |
-| 215 | 0x460f00 | logic | 16 | ran; compared inferred | heat |
-| 235 | 0x466550 | same | 25 | ran; compared inferred | parts |
+| 206 | 0x477e40 | same | 68 | compared: 1 of 3 breaks caught; no PM logic here | mech_build,skis |
+| 215 | 0x460f00 | logic | 16 | compared: 1 of 1 breaks caught; the sinks' rate | heat |
+| 235 | 0x466550 | same | 25 | compared: 2 of 2 breaks caught; no PM logic here | parts |
 | 238 | 0x41f340 | shape | 22 | compared, a break caught | stub: update |
-| 239 | 0x477960 | shape | 44 | ran; compared inferred | parts |
-| 247 | 0x467b70 | shape | 11 | ran; compared inferred | update |
-| 251 | 0x4283f0 | shape | 158 | ran; compared inferred | parts |
+| 239 | 0x477960 | shape | 44 | compared: 2 of 3 breaks caught; fields moved, no other change | parts |
+| 247 | 0x467b70 | shape | 11 | compared: 2 of 2 breaks caught; fields moved, no other change | update |
+| 251 | 0x4283f0 | shape | 158 | compared: 4 of 5 breaks caught; fields moved, no other change | parts |
 | 263 | 0x41f310 | shape | 14 | compared, a break caught | stub: command,damage,health,heat |
-| 271 | 0x419d90 | same | 14 | ran; compared inferred | collide |
-| 272 | 0x41f770 | shape | 12 | ran; compared inferred | jets |
-| 282 | 0x417e00 | logic | 14 | ran; compared inferred | parts |
-| 284 | 0x424220 | same | 156 | ran; compared inferred | collide |
-| 290 | 0x477f30 | same | 23 | ran; compared inferred | skis |
+| 271 | 0x419d90 | same | 14 | compared: 1 of 1 breaks caught; no PM logic here | collide |
+| 272 | 0x41f770 | shape | 12 | compared: 1 of 1 breaks caught; fields moved, no other change | jets |
+| 282 | 0x417e00 | logic | 14 | read: a wrapper of 0x4ff8d0 | parts |
+| 284 | 0x424220 | same | 156 | compared: 2 of 3 breaks caught; no PM logic here | collide |
+| 290 | 0x477f30 | same | 23 | compared: 1 of 2 breaks caught; no PM logic here | skis |
 | 293 | 0x41f390 | shape | 13 | compared, a break caught |  |
-| 298 | 0x417290 | shape | 67 | ran; compared inferred | actions |
-| 303 | 0x4675e0 | shape | 150 | ran; compared inferred | parts |
-| 304 | 0x417e30 | same | 10 | ran; compared inferred | actions |
-| 310 | 0x467b30 | shape | 11 | ran; compared inferred | update |
-| 311 | 0x41a020 | shape | 67 | read: the player, +0x3bc > 0, +0x400's byte; place 0x5cb260 with y + height (+0x68); side (player +200 & team) == 0; find, fire(+0x3bc). `update_ams` the same; find's unused first argument dropped. find and fire not compared here | stub: update |
-| 312 | 0x4654e0 | same | 64 | ran; compared inferred | pose |
-| 321 | 0x4672d0 | shape | 63 | ran; compared inferred | parts |
-| 323 | 0x4616c0 | same | 71 | ran; compared inferred | parts,pose |
-| 324 | 0x419bb0 | shape | 64 | ran; compared inferred | gait |
-| 325 | 0x4779e0 | same | 50 | ran; compared inferred | pose |
-| 329 | 0x463840 | shape | 51 | ran; compared inferred | parts |
-| 332 | 0x41e2d0 | same | 39 | ran; compared inferred | collide,damage,health,heat |
-| 334 | 0x417170 | shape | 47 | ran; compared inferred | actions |
-| 338 | 0x461650 | same | 34 | ran; compared inferred | pose |
-| 341 | 0x467490 | reordered | 64 | ran; compared inferred | parts |
-| 342 | 0x461430 | shape | 29 | ran; compared inferred | damage,deaths,hit,mech_build |
-| 364 | 0x41d880 | logic | 7 | ran; compared inferred | actions |
-| 371 | 0x41f940 | shape | 23 | ran; compared inferred | actions,skis |
+| 298 | 0x417290 | shape | 67 | compared: 3 of 3 breaks caught; fields moved, no other change | actions |
+| 303 | 0x4675e0 | shape | 150 | compared: 4 of 4 breaks caught; fields moved, no other change | parts |
+| 304 | 0x417e30 | same | 10 | compared: 1 of 1 breaks caught; no PM logic here | actions |
+| 310 | 0x467b30 | shape | 11 | compared: 2 of 2 breaks caught; fields moved, no other change | update |
+| 311 | 0x41a020 | shape | 67 | compared: 6 of 6 breaks caught (test_pm_ams, with the real find 0x4b7c90, 4 of 4, and fire 0x4b7d40, 3 of 4: `rounds > 0` for `!= 0` can't differ after find) | stub: update |
+| 312 | 0x4654e0 | same | 64 | compared: 1 of 1 breaks caught; no PM logic here | pose |
+| 321 | 0x4672d0 | shape | 63 | compared: 3 of 3 breaks caught; fields moved, no other change | parts |
+| 323 | 0x4616c0 | same | 71 | compared: 1 of 1 breaks caught; no PM logic here | parts,pose |
+| 324 | 0x419bb0 | shape | 64 | compared: 2 of 2 breaks caught; fields moved, no other change | gait |
+| 325 | 0x4779e0 | same | 50 | read: its switches are never set, the port leaves it out | pose |
+| 329 | 0x463840 | shape | 51 | compared: 2 of 2 breaks caught; fields moved, no other change | parts |
+| 332 | 0x41e2d0 | same | 39 | read: the part by id; the port uses its parts directly | collide,damage,health,heat |
+| 334 | 0x417170 | shape | 47 | compared: 1 of 1 breaks caught; fields moved, no other change | actions |
+| 338 | 0x461650 | same | 34 | compared: 2 of 2 breaks caught; no PM logic here | pose |
+| 341 | 0x467490 | reordered | 64 | compared: 1 of 2 breaks caught; fields moved, no other change | parts |
+| 342 | 0x461430 | shape | 29 | read: the part's mech, found once | damage,deaths,hit,mech_build |
+| 364 | 0x41d880 | logic | 7 | **gap:** the exe's ran; the port's `mech_set_hud_fall` is not run by a test; same by reading | actions |
+| 371 | 0x41f940 | shape | 23 | compared: 1 of 1 breaks caught; fields moved, no other change | actions,skis |
 | 384 | 0x4143f0 | shape | 20 | read: viewed; [0x62939c] never written; else mode vt+0x20(view, 0). `mech_stands` the same | stub: actions |
-| 392 | 0x4643f0 | same | 17 | ran; compared inferred | damage,hit |
-| 397 | 0x41e2b0 | same | 8 | ran; compared inferred | collide,damage,gait,heat |
-| 405 | 0x417220 | shape | 11 | ran; compared inferred | actions |
-| 432 | 0x41e4c0 | same | 3 | ran; through its caller only | damage,gait,health,hit |
-| 433 | 0x424710 | same | 4 | ran; through its caller only | collide |
-| 434 | 0x424720 | same | 4 | ran; through its caller only | collide |
-| 436 | 0x41f760 | same | 3 | ran; through its caller only | jets |
-| 452 | 0x417e50 | identical | 7 | ran; compared inferred | parts |
-| 454 | 0x41c520 | identical | 29 | ran; compared inferred | actions,jets |
-| 474 | 0x422040 | identical | 15 | ran; compared inferred | actions,mechanim |
-| 475 | 0x422140 | identical | 26 | ran; compared inferred | actions,mechanim |
+| 392 | 0x4643f0 | same | 17 | read: the foot's leg | damage,hit |
+| 397 | 0x41e2b0 | same | 8 | compared: 1 of 1 breaks caught; no PM logic here | collide,damage,gait,heat |
+| 405 | 0x417220 | shape | 11 | compared: 1 of 1 breaks caught; fields moved, no other change | actions |
+| 432 | 0x41e4c0 | same | 3 | read: an accessor | damage,gait,health,hit |
+| 433 | 0x424710 | same | 4 | read: calls 0x424730 | collide |
+| 434 | 0x424720 | same | 4 | read: calls 0x424ba0 | collide |
+| 436 | 0x41f760 | same | 3 | read: an accessor | jets |
+| 452 | 0x417e50 | identical | 7 | read: the attached ones by side | parts |
+| 454 | 0x41c520 | identical | 29 | compared: 1 of 1 breaks caught; no PM logic here | actions,jets |
+| 474 | 0x422040 | identical | 15 | compared: 1 of 1 breaks caught; no PM logic here | actions,mechanim |
+| 475 | 0x422140 | identical | 26 | read; a generated break landed elsewhere | actions,mechanim |
 | 477 | 0x4221c0 | identical | 25 | bytes identical to MW3's 0x421080 (table); `calf` not compared on PM | stub: pose |
 | 478 | 0x422210 | identical | 25 | bytes identical to MW3's 0x4210d0 (table); `thigh` not compared on PM | stub: pose |
 | 489 | 0x460ef0 | identical | 5 | compared, a break caught | stub: parts |
-| 494 | 0x463fb0 | identical | 2 | ran; through its caller only | gait |
-| 495 | 0x464430 | identical | 4 | ran; compared inferred | gait |
-| 500 | 0x4677e0 | identical | 10 | ran; compared inferred | parts |
-| 517 | 0x477f70 | identical | 7 | ran; compared inferred | collide |
+| 494 | 0x463fb0 | identical | 2 | read: an accessor | gait |
+| 495 | 0x464430 | identical | 4 | compared: 1 of 1 breaks caught; no PM logic here | gait |
+| 500 | 0x4677e0 | identical | 10 | compared: 1 of 1 breaks caught; no PM logic here | parts |
+| 517 | 0x477f70 | identical | 7 | compared: 1 of 1 breaks caught; no PM logic here | collide |
 
 **Breaks, per function, from 2026-11-05:** 0x4149b0: 1 of 1 (test_pm_cockpit_sound); 0x41f310: 1 of 1 (test_pm_cockpit_sound); 0x41f340: 3 of 3 (test_pm_cockpit_sound); 0x41f390: 2 of 2 (test_pm_cockpit_sound); 0x41f3c0: 1 of 1 (test_pm_cockpit_sound); 0x460d90: 2 of 2 (test_pm_wake); 0x460e50: 2 of 2 (test_pm_wake); 0x460eb0: 3 of 4 (test_pm_wake); 0x460ef0: 1 of 1 (test_pm_wake); the wake's stop has one uncaught, swapping two writes nothing reads between. Also 0x461bb0, 0x461d70, 0x4617a0 (`test_pm_hit`), 0x4299f0, 0x429560 (`test_pm_player`).
+
+**The frame's rows after the breaks (2026-11-05):** 82 compared with breaks in the function itself, 20 read (accessors and wrappers, or code the port leaves out), 3 gaps, 2 identical in bytes and not run on PM. 292 of 337 breaks caught over 81 functions, each test clean first. Run: 57 recorded ones again, 238 generated in the row's own body, 44 by hand; 2 generated ones fell outside their row and aren't counted. A generated break lands anywhere in the body, so it shows the function is checked, not that its PM change is: a row names a PM difference only where a break was on it. The rows of class shape, same and identical were checked as fields moved, not read for other changes here.
+
+The 45 not caught, by reading:
+- **Can't differ** (25): `<` for `<=` where both give the same value or only an exact tie differs; a sign on a value that is 0, or a null check on what is never null here; `flat_normalize`'s result where only the sign is read; the wade's `(3f + 1)^2`, capped at 8 whatever it is (the quirk in `heat`).
+- **Cleared first** (3): `blocked[1] = false` with no mech in 0x425030, the same break three times: Collide clears the flags before it.
+- **Off in the tests by design** (4): the zone FIX behind `bugs` in 0x4243f0, `frame_steps` in 0x4255f0, the no-hook fallbacks of `mouse_set` and `body_mass`.
+- **Closed** (2): 0x424dd0's tilted vehicle matrix and 0x4186f0's half lean, in the tests now and caught.
+- **Not settled** (6): the root motion's x in 0x418850, always 0 in the test; the step's `stop` in 0x418fc0; `c.clear` in 0x424220; the ski's `m[9]`, `m[11]` in 0x477e40; `water_surface` in 0x464060. Each could be a small gap.
+- **Gaps** (5): the headlight at a death 0x465da0 (three breaks), 0x41d880 in the port's `app_mech`, and `zcls::ground_query`'s arguments in 0x477f90, which go through test_pm_di's path and not test_pm_skis, whose query is canned. Also 0x41f8d0, with no break. Not in the table: `heat_override` 0x419fb0's check on the view's mech, not caught by the four tests tried (a generated break that fell outside its row, one of two left out of the count).
 
 ## The order
 
