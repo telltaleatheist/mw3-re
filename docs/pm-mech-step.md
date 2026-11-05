@@ -296,7 +296,7 @@ So of the 364 "changed" and "changed\*", at most 135 show a difference in calls 
 
 ## The frame's 107: executed is not compared (2026-11-05, an estimate)
 
-From a hook on each row's address under every `test_pm_*`, a stub's address not counted as run. *Ran; compared inferred*: the exe's function ran, a port of it exists, and the test compares the state after; nothing shows this function's own result is seen, only a break could. *Through its caller*: it ran, there is no port function of that name, its effect is inlined or unported. Breaks are recorded only for the functions marked. `test_pm_anim`, `gamez`, `sound`, `zreader` and two HUD tests are not in these numbers (see below). *Class* is the normalized comparison below.
+From a hook on each row's address under `test_pm_*`, a stub's address not counted as run. **Compared** is only a test comparing that function against the exe with a break in it caught and recorded (from 2026-11-05 on; older breaks are not counted unless redone). *Ran; compared inferred*: the exe's function ran, a port of it exists, the test compares the state after; nothing shows this function's own result is seen. *Through its caller*: it ran, no port names it. *Read*: compared by reading only, as written, which can miss what a test would not. The hook sweep leaves out `test_pm_anim` (over its time cap under the hook) and `test_pm_hud_lock`, `test_pm_hud_refresh` (over 20 GB under it); *Port* means the source names the address, PM's or MW3's twin, which does not say the port has PM's logic. *Class* is the normalized comparison above.
 
 | # | PM | Class | Instr | State | Ran under, or stubbed in |
 |---:|---|---|---:|---|---|
@@ -309,86 +309,86 @@ From a hook on each row's address under every `test_pm_*`, a stub's address not 
 | 14 | 0x423730 | logic | 708 | ran; compared inferred | collide |
 | 15 | 0x417350 | logic | 796 | ran; compared inferred | actions |
 | 16 | 0x425030 | logic | 280 | ran; compared inferred | collide |
-| 17 | 0x423590 | new | 153 | ran; through its caller only | actions,jets |
+| 17 | 0x423590 | new | 153 | ran; compared inferred | actions,jets |
 | 18 | 0x416d70 | logic | 311 | ran; compared inferred | actions,jets |
-| 19 | 0x4253f0 | new | 197 | ran; through its caller only | collide |
+| 19 | 0x4253f0 | new | 197 | ran; compared inferred | collide |
 | 20 | 0x424030 | new | 160 | ran; through its caller only | collide |
 | 24 | 0x424730 | logic | 360 | ran; compared inferred | collide |
-| 25 | 0x4186f0 | new | 115 | ran; through its caller only | actions,jets |
+| 25 | 0x4186f0 | new | 115 | ran; compared inferred | actions,jets |
 | 33 | 0x41d920 | logic | 109 | ran; compared inferred | power |
 | 35 | 0x424dd0 | logic | 204 | ran; compared inferred | collide |
 | 41 | 0x479a40 | new | 93 | ran; compared inferred | headlight |
 | 42 | 0x464060 | shape | 276 | ran; compared inferred | jets,parts,pose |
 | 44 | 0x424ba0 | logic | 142 | ran; compared inferred | collide |
 | 46 | 0x465360 | shape | 117 | ran; compared inferred | pose |
-| 51 | 0x467a90 | new | 51 | ran; through its caller only | parts |
-| 53 | 0x425370 | new | 59 | ran; through its caller only | collide |
-| 56 | 0x415e90 | new | 50 | ran; through its caller only | health,heat |
+| 51 | 0x467a90 | new | 51 | ran; compared inferred | parts |
+| 53 | 0x425370 | new | 59 | ran; compared inferred | collide |
+| 56 | 0x415e90 | new | 50 | ran; compared inferred | health,heat |
 | 62 | 0x41dab0 | shape | 67 | ran; compared inferred | power |
-| 65 | 0x477ef0 | new | 32 | ran; through its caller only | skis |
-| 69 | 0x4777f0 | shape | 60 | **not run** |  |
+| 65 | 0x477ef0 | new | 32 | ran; compared inferred | skis |
+| 69 | 0x4777f0 | shape | 60 | read: only under [0x629992], which nothing writes (no store in the exe); the port leaves the branch out, as `mech_part_update.cpp` says. Dead |  |
 | 76 | 0x41c9f0 | logic | 59 | ran; compared inferred | parts |
 | 78 | 0x464450 | logic | 141 | ran; compared inferred | parts |
 | 82 | 0x479190 | shape | 98 | ran; compared inferred | skis |
 | 86 | 0x419de0 | logic | 143 | ran; compared inferred | gait |
 | 98 | 0x41c3f0 | shape | 65 | ran; compared inferred | actions,damage,hit,jets |
-| 99 | 0x424d80 | new | 36 | ran; through its caller only | collide |
+| 99 | 0x424d80 | new | 36 | ran; compared inferred | collide |
 | 103 | 0x4790c0 | new | 23 | ran; through its caller only | skis |
-| 106 | 0x41ade0 | new | 16 | ran; through its caller only | damage,heat,hit,jets |
+| 106 | 0x41ade0 | new | 16 | ran; compared inferred | damage,heat,hit,jets |
 | 109 | 0x4792b0 | shape | 48 | ran; compared inferred | skis |
 | 112 | 0x4243f0 | logic | 101 | ran; compared inferred | collide |
-| 115 | 0x41de30 | new | 24 | ran; through its caller only | damage,health,heat |
+| 115 | 0x41de30 | new | 24 | ran; compared inferred | damage,health,heat |
 | 116 | 0x4799b0 | new | 27 | ran; compared inferred | headlight |
-| 119 | 0x41f740 | new | 19 | **stubbed, not compared** | stub: actions,jets,parts,update |
+| 119 | 0x41f740 | new | 19 | read: the definition by +0x6a8's +0xc (the roster) through the cache 0x4867f0; the port's `mech_dfn(pilot->roster)`, by a hook in the tests | stub: actions,jets,parts,update |
 | 124 | 0x424520 | logic | 148 | ran; compared inferred | collide |
 | 128 | 0x41fb70 | logic | 30 | ran; compared inferred | gait,mechanim |
 | 133 | 0x4790f0 | logic | 58 | ran; compared inferred | skis |
 | 135 | 0x4615b0 | new | 22 | ran; through its caller only | parts,pose |
-| 136 | 0x472420 | reordered | 26 | **stubbed, not compared** | stub: collide |
+| 136 | 0x472420 | reordered | 26 | read: message 0x18, size 0x10, three floats, to vt+0x60's +0x76c; `net_send_shove` the same, `t->owner` standing for +0x76c, not checked further | stub: collide |
 | 137 | 0x4778a0 | shape | 65 | ran; compared inferred | parts |
-| 144 | 0x465da0 | new | 18 | ran; through its caller only | damage,hit |
+| 144 | 0x465da0 | new | 18 | ran; compared inferred | damage,hit |
 | 145 | 0x4638f0 | shape | 75 | ran; compared inferred | parts |
 | 146 | 0x4255f0 | logic | 34 | ran; compared inferred | collide |
-| 153 | 0x41f8d0 | new | 14 | ran; through its caller only | lod |
+| 153 | 0x41f8d0 | new | 14 | ran; compared inferred | lod |
 | 159 | 0x41c570 | shape | 34 | ran; compared inferred | actions |
 | 181 | 0x467770 | shape | 31 | ran; compared inferred | parts |
-| 187 | 0x41dcd0 | shape | 40 | **stubbed, not compared** | stub: update |
+| 187 | 0x41dcd0 | shape | 40 | read: look vt+0x14; viewed; HUD 0x430e30; place 0x445fe0(x, y); zoom vt+0x108(0x14) when +0x152c bit 4 is clear and +0x1694 is 0. `player_frame` the same if `kHidden` is that bit and `x174` that byte, which the HUD tests compare | stub: update |
 | 190 | 0x477760 | reordered | 38 | ran; compared inferred | skis |
-| 191 | 0x414370 | shape | 46 | **stubbed, not compared** | stub: actions |
-| 204 | 0x460eb0 | logic | 17 | **stubbed, not compared** | stub: damage,deaths,hit,parts |
+| 191 | 0x414370 | shape | 46 | read: viewed, then torso 0x4672d0(1); [0x62939c], never written, picks the mode switch; else mode vt+0x20(view, 1). `mech_falls` the same; the mode's vt+0x20 is `on_switch` | stub: actions |
+| 204 | 0x460eb0 | logic | 17 | compared, a break caught | stub: damage,deaths,hit,parts |
 | 206 | 0x477e40 | same | 68 | ran; compared inferred | mech_build,skis |
 | 215 | 0x460f00 | logic | 16 | ran; compared inferred | heat |
 | 235 | 0x466550 | same | 25 | ran; compared inferred | parts |
-| 238 | 0x41f340 | shape | 22 | **stubbed, not compared** | stub: update |
+| 238 | 0x41f340 | shape | 22 | compared, a break caught | stub: update |
 | 239 | 0x477960 | shape | 44 | ran; compared inferred | parts |
 | 247 | 0x467b70 | shape | 11 | ran; compared inferred | update |
 | 251 | 0x4283f0 | shape | 158 | ran; compared inferred | parts |
-| 263 | 0x41f310 | shape | 14 | **stubbed, not compared** | stub: command,damage,health,heat |
+| 263 | 0x41f310 | shape | 14 | compared, a break caught | stub: command,damage,health,heat |
 | 271 | 0x419d90 | same | 14 | ran; compared inferred | collide |
 | 272 | 0x41f770 | shape | 12 | ran; compared inferred | jets |
-| 282 | 0x417e00 | logic | 14 | ran; through its caller only | parts |
+| 282 | 0x417e00 | logic | 14 | ran; compared inferred | parts |
 | 284 | 0x424220 | same | 156 | ran; compared inferred | collide |
 | 290 | 0x477f30 | same | 23 | ran; compared inferred | skis |
-| 293 | 0x41f390 | shape | 13 | **not run** |  |
+| 293 | 0x41f390 | shape | 13 | compared, a break caught |  |
 | 298 | 0x417290 | shape | 67 | ran; compared inferred | actions |
 | 303 | 0x4675e0 | shape | 150 | ran; compared inferred | parts |
 | 304 | 0x417e30 | same | 10 | ran; compared inferred | actions |
 | 310 | 0x467b30 | shape | 11 | ran; compared inferred | update |
-| 311 | 0x41a020 | shape | 67 | **stubbed, not compared** | stub: update |
+| 311 | 0x41a020 | shape | 67 | read: the player, +0x3bc > 0, +0x400's byte; place 0x5cb260 with y + height (+0x68); side (player +200 & team) == 0; find, fire(+0x3bc). `update_ams` the same; find's unused first argument dropped. find and fire not compared here | stub: update |
 | 312 | 0x4654e0 | same | 64 | ran; compared inferred | pose |
 | 321 | 0x4672d0 | shape | 63 | ran; compared inferred | parts |
 | 323 | 0x4616c0 | same | 71 | ran; compared inferred | parts,pose |
 | 324 | 0x419bb0 | shape | 64 | ran; compared inferred | gait |
-| 325 | 0x4779e0 | same | 50 | ran; through its caller only | pose |
+| 325 | 0x4779e0 | same | 50 | ran; compared inferred | pose |
 | 329 | 0x463840 | shape | 51 | ran; compared inferred | parts |
 | 332 | 0x41e2d0 | same | 39 | ran; compared inferred | collide,damage,health,heat |
 | 334 | 0x417170 | shape | 47 | ran; compared inferred | actions |
 | 338 | 0x461650 | same | 34 | ran; compared inferred | pose |
 | 341 | 0x467490 | reordered | 64 | ran; compared inferred | parts |
-| 342 | 0x461430 | shape | 29 | ran; through its caller only | damage,deaths,hit,mech_build |
-| 364 | 0x41d880 | logic | 7 | ran; through its caller only | actions |
-| 371 | 0x41f940 | shape | 23 | ran; through its caller only | actions,skis |
-| 384 | 0x4143f0 | shape | 20 | **stubbed, not compared** | stub: actions |
+| 342 | 0x461430 | shape | 29 | ran; compared inferred | damage,deaths,hit,mech_build |
+| 364 | 0x41d880 | logic | 7 | ran; compared inferred | actions |
+| 371 | 0x41f940 | shape | 23 | ran; compared inferred | actions,skis |
+| 384 | 0x4143f0 | shape | 20 | read: viewed; [0x62939c] never written; else mode vt+0x20(view, 0). `mech_stands` the same | stub: actions |
 | 392 | 0x4643f0 | same | 17 | ran; compared inferred | damage,hit |
 | 397 | 0x41e2b0 | same | 8 | ran; compared inferred | collide,damage,gait,heat |
 | 405 | 0x417220 | shape | 11 | ran; compared inferred | actions |
@@ -396,17 +396,19 @@ From a hook on each row's address under every `test_pm_*`, a stub's address not 
 | 433 | 0x424710 | same | 4 | ran; through its caller only | collide |
 | 434 | 0x424720 | same | 4 | ran; through its caller only | collide |
 | 436 | 0x41f760 | same | 3 | ran; through its caller only | jets |
-| 452 | 0x417e50 | identical | 7 | ran; through its caller only | parts |
+| 452 | 0x417e50 | identical | 7 | ran; compared inferred | parts |
 | 454 | 0x41c520 | identical | 29 | ran; compared inferred | actions,jets |
 | 474 | 0x422040 | identical | 15 | ran; compared inferred | actions,mechanim |
 | 475 | 0x422140 | identical | 26 | ran; compared inferred | actions,mechanim |
-| 477 | 0x4221c0 | identical | 25 | **stubbed, not compared** | stub: pose |
-| 478 | 0x422210 | identical | 25 | **stubbed, not compared** | stub: pose |
-| 489 | 0x460ef0 | identical | 5 | **stubbed, not compared** | stub: parts |
+| 477 | 0x4221c0 | identical | 25 | bytes identical to MW3's 0x421080 (table); `calf` not compared on PM | stub: pose |
+| 478 | 0x422210 | identical | 25 | bytes identical to MW3's 0x4210d0 (table); `thigh` not compared on PM | stub: pose |
+| 489 | 0x460ef0 | identical | 5 | compared, a break caught | stub: parts |
 | 494 | 0x463fb0 | identical | 2 | ran; through its caller only | gait |
 | 495 | 0x464430 | identical | 4 | ran; compared inferred | gait |
 | 500 | 0x4677e0 | identical | 10 | ran; compared inferred | parts |
 | 517 | 0x477f70 | identical | 7 | ran; compared inferred | collide |
+
+**Breaks, per function, from 2026-11-05:** 0x4149b0: 1 of 1 (test_pm_cockpit_sound); 0x41f310: 1 of 1 (test_pm_cockpit_sound); 0x41f340: 3 of 3 (test_pm_cockpit_sound); 0x41f390: 2 of 2 (test_pm_cockpit_sound); 0x41f3c0: 1 of 1 (test_pm_cockpit_sound); 0x460d90: 2 of 2 (test_pm_wake); 0x460e50: 2 of 2 (test_pm_wake); 0x460eb0: 3 of 4 (test_pm_wake); 0x460ef0: 1 of 1 (test_pm_wake); the wake's stop has one uncaught, swapping two writes nothing reads between. Also 0x461bb0, 0x461d70, 0x4617a0 (`test_pm_hit`), 0x4299f0, 0x429560 (`test_pm_player`).
 
 ## The order
 
