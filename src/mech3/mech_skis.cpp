@@ -81,16 +81,14 @@ void Skis::fit(int side) {
   c[side] = ground[i + 1];
 }
 
-float Skis::mid() const { return zfix::options().bugs ? half : mid_width; }
-
 // Mech3.exe 1.2 @ 0x00475de0. The contact is the mid probe's within
-// mid() / 2 of it, else the front or back one.
+// mid_width / 2 of it, else the front or back one.
 float Skis::height_at(int side, float z, GroundHit** out) {
   const float h = z * z * a[side] - b[side] * z + c[side];
   if (out) {
     const int i = side ? 3 : 0;
     const float zm = local[i + 1].z;
-    if (mid() * kHalf > std::fabs(z - zm)) *out = &contact[i + 1];
+    if (mid_width * kHalf > std::fabs(z - zm)) *out = &contact[i + 1];
     else *out = &contact[z < zm ? i : i + 2];
   }
   return h;
@@ -100,7 +98,7 @@ float Skis::height_at(int side, float z, GroundHit** out) {
 bool Skis::water_at(int side, float z, float* surface_y) const {
   const int i = side ? 3 : 0;
   const float zm = local[i + 1].z;
-  const int k = mid() * kHalf > std::fabs(z - zm) ? i + 1 : z < zm ? i : i + 2;
+  const int k = mid_width * kHalf > std::fabs(z - zm) ? i + 1 : z < zm ? i : i + 2;
   *surface_y = surface[k];
   return in_water[k] == 1;
 }
@@ -410,7 +408,7 @@ void Skis::zone_update(const uint8_t record[4]) {
   g_calls.set_zone(*mech, record, static_cast<uint8_t>(id));
 }
 
-// Mech3.exe 1.2 @ 0x00476320: the skis a half track apart, `length` long,
+// Mech3.exe 1.2 @ 0x00476320, Pirate's Moon 1.0 @ 0x00477c80: the skis a half track apart, `length` long,
 // under a "ski base" node; each ski's probes, model and pose (0x00476090).
 Skis* make_skis(Mech& m, float half_track, float length) {
   MechBuildHooks& h = mech_build_hooks();
@@ -425,7 +423,7 @@ Skis* make_skis(Mech& m, float half_track, float length) {
   h.node_set_name(s->base, "ski base");
   h.node_add_child(m.node, s->base);
   s->half = s->length * 0.5f;
-  s->mid_width = s->half * 0.5f;
+  s->mid_width = s->half * 0.5f;  // Pirate's Moon 1.0 @ 0x00477d1a; MW3 never writes it
   s->inv_half = 1.0f / s->half;
   s->inv_half2 = s->inv_half * s->inv_half;
   for (int i = 0; i < 7; ++i) {
