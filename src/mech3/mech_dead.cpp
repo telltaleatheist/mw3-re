@@ -1,6 +1,9 @@
 #include "mech3/mech_dead.h"
 
 #include <cmath>
+#include <cstring>
+
+#include "gamez/zutil/zfix.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -37,38 +40,71 @@ void dead_tick(float dt) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0041e220. Off the list: one still active (the exe's
-// own +0x08 test), an instant action wreck at 180 s, or the network's
-// answer for the dead player.
+// Pirate's Moon 1.0 @ 0x00433020. Off the list: one still active (the exe's
+// own +0x08 test), an instant action wreck at 180 s, or the network's answer
+// for the dead player. The exe works out an opacity to hand dead_fade, which
+// ignores it (0x00432e80 recomputes): left out, with the 0.25 cap on it. So a
+// wreck with +0x658 set only starts fading from the first frame.
 bool dead_step(Mech& m, float dt) {
   bool gone = m.active;
-  if (g_calls.update) g_calls.update(m, dt);  // 0x00419ef0
+  const float t = world().time - m.dead_time;
+  if (g_calls.update) g_calls.update(m, dt);  // 0x004332e0
   else m.dead_update(dt);
-  if (!networked()) {
-    if (instant_action()) {
-      const float t = world().time - m.dead_time;
-      if (kIaFade < t) dead_fade(m, true);
+  switch (g_calls.game_type ? g_calls.game_type() : 0) {
+    case 1:
+    case 5:
+      dead_cloak(m, dt);  // 0x0041d730
+      break;
+    case 2:
+      if (kIaFade < t || m.x634 != 0) dead_fade(m, true);
       if (kIaGone < t) {
         dead_fade(m, false);
         dead_hide(m, false);
-        gone = true;
+        return true;
       }
-    }
-    return gone;
-  }
-  if (g_calls.net_update) g_calls.net_update(m, dt);
-  const float t = world().time - m.dead_time;
-  if (g_calls.net_fade && g_calls.net_fade() && kNetFade < t) dead_fade(m, true);
-  if (&m == world().mission_player && kNetGone < t) {
-    dead_fade(m, false);
-    return g_calls.respawn ? g_calls.respawn(m) : gone;
+      break;
+    case 3:
+      if (g_calls.net_update) g_calls.net_update(m, dt);
+      if (g_calls.net_fade && g_calls.net_fade() && kNetFade < t) dead_fade(m, true);
+      if (&m == world().mission_player && kNetGone < t) {
+        dead_fade(m, false);
+        return g_calls.respawn ? g_calls.respawn(m) : gone;
+      }
+      break;
+    default:
+      break;
   }
   return gone;
 }
 
-// Mech3.exe 1.2 @ 0x0041e060: the opacity runs from 1 to 0 over the last
-// stretch (instant action: from 170 s to 180 s); off, it is 1 and unused.
+// Pirate's Moon 1.0 @ 0x0041d730: a campaign wreck with +0x658 set thins to
+// 0.25 by 0.1 a frame; with it clear it comes back to 1, opacity off there.
+void dead_cloak(Mech& m, float dt) {
+  // FIX (B): 0.1 a frame (at 33 ms) with per_second.
+  const float step = zfix::options().per_second ? 0.1f * zfix::frame_steps(dt) : 0.1f;  // 0x0060416c
+  auto clamp01 = [](float v) { return v > 1.0f ? 1.0f : v < 0.0f ? 0.0f : v; };
+  const bool on = m.x634 != 0;
+  if (on && 0.25f < m.x63c) {  // 0x00604170
+    m.x63c = clamp01(m.x63c - step);
+    if (g_calls.set_opacity) g_calls.set_opacity(m.node, m.x63c);
+    if (g_calls.use_opacity) g_calls.use_opacity(m.node, 1);
+    return;
+  }
+  if (on) {
+    if (g_calls.use_opacity) g_calls.use_opacity(m.node, 1);
+    return;
+  }
+  if (!(m.x63c < 1.0f)) return;
+  m.x63c = clamp01(step + m.x63c);
+  if (g_calls.set_opacity) g_calls.set_opacity(m.node, m.x63c);
+  if (m.x63c == 1.0f && g_calls.use_opacity) g_calls.use_opacity(m.node, 0);
+}
+
+// Pirate's Moon 1.0 @ 0x00432e80: the opacity runs from 1 to 0 over the last
+// stretch (instant action: from 170 s to 180 s); off, it is 1 and unused. PM
+// also hides it from the flag-8 queries once half gone.
 void dead_fade(Mech& m, bool fading) {
+  if (!m.node) return;
   if (fading && !m.active) {
     const float t = world().time - m.dead_time;
     float v = networked() ? (kNetGone - t) / kNetFade : (kIaGone - t) / kIaFade;
@@ -76,13 +112,15 @@ void dead_fade(Mech& m, bool fading) {
     else if (v < 0.0f) v = 0.0f;
     if (g_calls.use_opacity) g_calls.use_opacity(m.node, 1);
     if (g_calls.set_opacity) g_calls.set_opacity(m.node, v);
+    if (g_calls.set_flag8) g_calls.set_flag8(m.node, v > 0.5f ? 1 : 0);
     return;
   }
   if (g_calls.set_opacity) g_calls.set_opacity(m.node, 1.0f);
   if (g_calls.use_opacity) g_calls.use_opacity(m.node, 0);
+  if (g_calls.set_flag8) g_calls.set_flag8(m.node, m.active ? 0 : 1);
 }
 
-// Mech3.exe 1.2 @ 0x0041e140. Hidden, in instant action its kills go to the
+// Pirate's Moon 1.0 @ 0x00432fb0 with 0x0040ce90. Hidden, in instant action its kills go to the
 // match (the player's +0x4c, an ally's +0x50, the others' +0x54), the
 // sensors forget it and it is deleted.
 void dead_hide(Mech& m, bool show) {
@@ -106,25 +144,29 @@ void dead_hide(Mech& m, bool show) {
   if (g_calls.free) g_calls.free(m);
 }
 
-// Mech3.exe 1.2 @ 0x00419ef0: a dead mech's frame. No impulse; while still,
-// its speeds forward and sideways run down (x(1 - 3 dt), zero below 0.05;
-// the frame clock caps dt at 1/8 s, 0x00575a00, so the factor stays positive),
-// it stops turning, follows the ground, moves and its flown parts fade.
+// Pirate's Moon 1.0 @ 0x004332e0: a dead mech's frame. No impulse; while
+// still, its speeds forward and sideways run down (x(1 - 3 dt), zero below
+// 0.05; the frame clock caps dt at 1/8 s, 0x00575a00, so the factor stays
+// positive), it stops turning, follows the ground (the move predicted there
+// is taken whole, nothing to collide with), and its flown parts fade.
 void Mech::dead_update(float dt) {
-  impulse = {0, 0, 0};  // 0x0063d870
+  impulse = {0, 0, 0};  // 0x0066f5e0
   if (active) return;
-  constexpr float kDecay = 3.0f;  // 0x005e1ff8
+  constexpr float kDecay = 3.0f;  // 0x006050f0
   vec_3c.x = -vec_3c.x * kDecay * dt + vec_3c.x;
   if (std::fabs(-vec_3c.x) < 0.05) vec_3c.x = 0.0f;
   vec_3c.z = -vec_3c.z * kDecay * dt + vec_3c.z;
   if (std::fabs(-vec_3c.z) < 0.05) vec_3c.z = 0.0f;
   vec_58 = {0, 0, 0};
   if (g_calls.ground_step) g_calls.ground_step(*this, dt);
-  else ground_step(dt);  // 0x004162c0
-  if (g_calls.entity_step) g_calls.entity_step(*this, dt);
-  else entity_step(dt);  // 0x005a8000
+  else ground_step(dt);  // 0x00416d70
+  std::memcpy(orientation, pending_q, sizeof orientation);
+  velocity = pending_velocity;
+  std::memcpy(transform, pending_m, sizeof pending_m);
+  if (g_calls.entity_moved) g_calls.entity_moved(*this);
+  else entity_moved();  // 0x005cb240
   if (g_calls.fade_debris) g_calls.fade_debris(*this, dt);
-  else fade_debris(dt);  // 0x00413cb0
+  else fade_debris(dt);  // 0x00433500
 }
 
 }  // namespace mech3

@@ -142,6 +142,9 @@ class Emulated:
         a = cpu.alloc
         self.mech, self.mvt, self.other = a(0x800), a(0x200), a(0x800)
         cpu.write(self.mvt, cpu.read(MECH_VT, 0x200))
+        remote = cpu.code(b'\xc3')  # vt+0x64: the network class's mechs
+        cpu.u32(self.mvt + 0x64, remote)
+        cpu.stub_function(remote, lambda c: self.remote)
         net = cpu.code(b'\xc2\x08\x00')
         cpu.u32(self.mvt + 0x17c, net)
         cpu.stub_function(net, lambda c: self.log(7, c.arg(0), s32(c.arg(1))), 8)
@@ -414,6 +417,7 @@ def gen(rng):
 
     put(mech, 0x4, 'I', 0x6000)
     put(mech, 0x8, 'b', rng.random() < 0.97)
+    put(mech, 0x7f0, 'b', rng.random() < 0.1)
     for off in (0x30, 0x34, 0x38, 0x3c, 0x40, 0x58, 0x5c, 0x60):
         put(mech, off, 'f', f32(rng.uniform(-30, 30)))
     put(mech, 0x44, 'f', f32(rng.choice([rng.uniform(-30, 30), 0.0, -13.888889, 13.888889, 5.0])))
@@ -484,6 +488,7 @@ class Run:
         mech, parts, pilot, items, plist, actions = gen(rng)
         self.items = items
         cpu.write(emu.mech, bytes(0x800))
+        emu.remote = mech[0x7f0]  # the probe's m.remote; the exe asks vt+0x64
         # structure the probe sets up itself
         struct.pack_into('<I', mech, 0, emu.mvt)
         struct.pack_into('<I', mech, 0xd4, 0x6700)
@@ -811,6 +816,8 @@ def main():
             run.world['shot'] = run.shot(rng)
             run.world['time'] = f32(run.world['time'] + 0.25)
             r = rng.random()
+            if emu.remote:  # a network mech's vt+0x164 is its class's own (take_damage's first line): the rest only
+                r = 0.72 + r * 0.28
             if r < 0.72:
                 op, args = 0, random_hit(rng)
             elif r < 0.86:

@@ -876,6 +876,7 @@ void wire_mech_parts() {
   // The dead mechs (mech_dead.cpp).
   update_calls().add_dead = [](Mech& m) { dead_add(m); };  // 0x0041e350 on 0x00605510
   DeadCalls& dc = dead_calls();
+  dc.game_type = [] { return static_cast<int32_t>(mission_game_type()); };
   dc.networked = [] { return mission_game_type() == 3; };       // 0x00479480
   dc.instant_action = [] { return mission_game_type() == 2; };  // 0x00479460
   dc.net_fade = [] {  // [0x0060861c]+0x8c, ALLOW RESPAWN's: a network wreck fades out
@@ -885,6 +886,7 @@ void wire_mech_parts() {
   dc.node_set_active = [](Handle n, int32_t on) { zcls::node_set_active(zn(n), on); };
   dc.use_opacity = [](Handle n, int32_t on) { zcls::object3d_use_opacity(zn(n), on); };
   dc.set_opacity = [](Handle n, float v) { zcls::object3d_set_opacity(zn(n), v); };
+  dc.set_flag8 = [](Handle n, int32_t on) { zcls::node_set_flag8(zn(n), on); };
   dc.ia_tally = [](int32_t field, int32_t kills) { mission_action_add(field, kills); };  // 0x00479460's
   dc.sensors_forget = [](Mech& m) { ai::entities_forget(g_w.handle_of(g_w.engine, &m)); };  // 0x004aa6b0
   dc.free = [](Mech& m) { mech_free(&m); };  // vt+0x00(1), and off the program's registry

@@ -25,7 +25,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_controls.py` | changed | 3 | 0 | to move, rank 13 | the controls |
 | `test_d3d_frame.py` | gone | 10 | 1 | covered | test_pm_device (its frame; the tint unchecked) |
 | `test_damage.py` | gone | 50 | 12 | moved to `test_pm_damage.py` | mech_damage and mech_parts Elemental sites, roster 4 and 16 |
-| `test_deaths.py` | gone | 65 | 14 | to move, rank 2 | landing, salvage, kill credit, part destroyed, roster 4 and 16 |
+| `test_deaths.py` | gone | 65 | 14 | moved to `test_pm_deaths.py` | landing, salvage, kill credit, part destroyed, roster 4 and 16; the dead step rewritten; the mech's own LOD stays in test_pm_lod |
 | `test_di.py` | gone | 20 | 6 | covered | test_pm_di |
 | `test_drawtable.py` | changed | 8 | 4 | covered | test_pm_device, test_pm_walk, test_pm_submit |
 | `test_entity_walk.py` | unchanged | 3 | 0 | to move |  |
@@ -45,7 +45,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_motion.py` | unchanged | 2 | 0 | to move |  |
 | `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
 | `test_objectives.py` | gone | 24 | 8 | to move |  |
-| `test_parts.py` | gone | 75 | 16 | to move, rank 4 | part destroy, the Elemental in mech_parts |
+| `test_parts.py` | gone | 75 | 16 | moved to `test_pm_parts.py` | setups, updates, the arm's clamp, the torso's mode, the part aim; floats within 1e-5 |
 | `test_player.py` | gone | 17 | 3 | to move, rank 14 | the player controls |
 | `test_pocket.py` | changed | 18 | 3 | to move | with PM AI |
 | `test_pocket_orders.py` | gone | 9 | 1 | to move | with PM AI |

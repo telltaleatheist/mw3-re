@@ -630,6 +630,8 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_health.cpp)
   target_sources(pmprobe PRIVATE tests/probe_actions.cpp)
   target_sources(pmprobe PRIVATE tests/probe_damage.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_parts.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_deaths.cpp)
 endif()
 
 # The SDL3 front end and the programs on it.

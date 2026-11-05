@@ -680,3 +680,4 @@ Known quirks the rebuild deliberately keeps:
 - A light carried by something that moves (a mech's headlight) now shines from where it is, not from the world's origin.
 - Leaning on a wall, ramming a mech or a vehicle, or being crushed does the same damage and slows you the same at any frame rate.
 - A mech under deep water drowns at the same speed at any frame rate.
+- Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).

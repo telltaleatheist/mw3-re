@@ -1,6 +1,7 @@
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_command.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "gamez/zclass/class.h"
@@ -80,8 +81,26 @@ Mech* target_mech(const Mech& m) {  // 0x004e6ff0 on +0x6c
 // at 0.75 of a half width out along the target's torso node; the width is this
 // mech's own torso's (+0x39c on ESI), not the target's. A part gone gives the
 // target's position and drops the choice.
-bool Mech::aim_part() {
-  if (!target || xf8 == -1) return false;
+// Pirate's Moon 1.0 @ 0x0041e4d0: first eases +0x100 toward the target's
+// velocity, x and z by a rate the AI's record sets, y at 0.25; a difference
+// under 0.05 lands on it (docs/pm-mech-step.md: no reader found).
+void Mech::aim_part() {
+  if (!target) return;
+  float skill;
+  Vec3 v;
+  if (part_calls().aim_skill && part_calls().target_velocity && part_calls().aim_skill(*this, &skill) &&
+      part_calls().target_velocity(target, &v)) {
+    float rate = 3.0f - skill * 3.0f;  // 0x00604174, 0x0060417c
+    if (rate > 3.0f) rate = 3.0f;
+    else if (rate < 0.01f) rate = 0.01f;  // 0x00604178
+    target_velocity.x = (v.x - target_velocity.x) * rate * frame_dt + target_velocity.x;
+    if (std::abs(v.x - target_velocity.x) < 0.05000000074505806) target_velocity.x = v.x;
+    target_velocity.z = (v.z - target_velocity.z) * rate * frame_dt + target_velocity.z;
+    if (std::abs(v.z - target_velocity.z) < 0.05000000074505806) target_velocity.z = v.z;
+    target_velocity.y = (v.y - target_velocity.y) * frame_dt * 0.25f + target_velocity.y;  // 0x00604180
+    if (std::abs(v.y - target_velocity.y) < 0.05000000074505806) target_velocity.y = v.y;
+  }
+  if (xf8 == -1) return;
   Mech* tm = target_mech(*this);
   MechPart* p = tm ? part_by_id(*tm, xf8) : nullptr;
   if (!p) {
@@ -90,7 +109,7 @@ bool Mech::aim_part() {
       if (const float* at = g_calls.seen_position ? g_calls.seen_position(target->seen) : nullptr)
         part_aim = Vec3{at[0], at[1], at[2]};
     }
-    return false;
+    return;
   }
   if (xf8 == 7 || xf8 == 8) {
     part_aim = Vec3{torso->half_width * (xf8 == 8 ? 0.75f : -0.75f), 0.0f, 0.0f};  // 0x005bce50, 0x005bce54
@@ -101,7 +120,6 @@ bool Mech::aim_part() {
   } else {
     zcls::node_world_position(static_cast<zcls::Node*>(p->node), &part_aim.x);  // 0x004ed530
   }
-  return true;
 }
 
 // Mech3.exe 1.2 @ 0x0041d810: with a targeting computer (equipment kind 14,

@@ -133,6 +133,7 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   auto v3 = [&](int off, Vec3& v) { f(off, v.x), f(off + 4, v.y), f(off + 8, v.z); };
   hd(0x04, m.node);
   bo(0x08, m.active);
+  bo(0x7f0, m.remote);
   v3(0x30, m.velocity), v3(0x3c, m.vec_3c), v3(0x58, m.vec_58);
   ui(0xc0, m.team), ui(0xc4, m.allies);
   f(0xe4, m.last_hit_time);

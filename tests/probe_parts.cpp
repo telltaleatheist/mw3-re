@@ -1,7 +1,7 @@
 // The parts' setups and updates (mech3/mech_part_update.cpp) for
-// tests/differential/test_parts.py. The mech, its twelve parts, the skis and
+// tests/differential/test_pm_parts.py. The mech, its twelve parts, the skis and
 // the controls go back and forth as byte images laid out like the
-// original's (test_parts.py has the same offsets); each node as its 3x4.
+// original's (test_pm_parts.py has the same offsets); each node as its 3x4.
 // Calls out are logged as (count, code, args...) on both sides.
 #include <cstdint>
 #include <cstring>
@@ -65,19 +65,19 @@ void log_vec(const std::vector<int32_t>& e) {
   g_log.insert(g_log.end(), e.begin(), e.end());
 }
 
-// Parts in test_parts.py's order; nodes 0..11 are theirs, then the mech's,
+// Parts in test_pm_parts.py's order; nodes 0..11 are theirs, then the mech's,
 // the feet's two shadows and the two splash effects' nodes.
 enum { kLeg0, kLeg1, kCalf0, kCalf1, kFoot0, kFoot1, kHip, kTorso, kArm0, kArm1, kHand0, kHand1, kParts };
-constexpr int kImage = 0x1b4, kMechNode = 12, kShadow0 = 13, kNodes = 17;
+constexpr int kImage = 0x1c0, kMechNode = 12, kShadow0 = 13, kNodes = 17;
 constexpr int32_t kIds[kParts] = {kLeftThigh, kRightThigh, kLeftCalf, kRightCalf, kLeftFoot, kRightFoot,
                                   kHip, kTorso, kLeftArm, kRightArm, kLeftHand, kRightHand};
 
-// The env words (test_parts.py's ENV).
+// The env words (test_pm_parts.py's ENV).
 enum {
   kFlags, kScreenFlags, kTarget, kPosition = kTarget + 3, kMechMatrix = kPosition + 3,
   kEuler = kMechMatrix + 12, kLook = kEuler + 3, kSoil = kLook + 3, kSteps = kSoil + 12,
   kPrints = kSteps + 11, kPlaying = kPrints + 11, kWorld = kPlaying + 3, kDust = kWorld + 3 * kNodes,
-  kVmode = kDust + 5 + 16, kPartSel = kVmode + 1, kTBox = kPartSel + 1, kEnv = kTBox + 7,
+  kVmode = kDust + 5 + 16, kPartSel = kVmode + 1, kTBox = kPartSel + 1, kEnv = kTBox + 8,
 };
 
 CameraMode* g_view_mode = nullptr;
@@ -160,16 +160,16 @@ void part_io(int k, uint8_t* b, bool store) {
     io.f(0xa8, h.crouch_target), io.f(0xac, h.target_z);
   } else if (k == kTorso) {
     Torso& t = g->torso;
-    io.i(0x84, t.mode), io.i(0x88, t.aim_local), io.v3(0x8c, t.aim_dir), io.f(0x98, t.facing), io.i(0x9c, t.aim);
-    io.bo(0xa0, t.absolute), io.bo(0xa1, t.pitch_lock), io.bo(0xa2, t.view_aim), io.q(0xa4, t.view_q);
-    io.f(0xb4, t.look_yaw_angle), io.f(0xb8, t.look_pitch_angle), io.f(0xbc, t.twist_in), io.f(0xc0, t.pitch_in);
-    io.f(0xc4, t.look_yaw), io.f(0xc8, t.look_pitch), io.f(0xd0, t.kick), io.f(0xd4, t.kick_twist);
-    io.v3(0xd8, t.jolt_spin), io.v3(0xe4, t.jolt_turn), io.q(0xf0, t.jolt_q), io.v3(0x100, t.jolt);
-    io.v3(0x10c, t.jolt_pos), io.q(0x118, t.turn_q), io.q(0x128, t.rot), io.f(0x138, t.pitch), io.f(0x13c, t.yaw);
-    io.f(0x140, t.min_pitch), io.f(0x144, t.max_pitch), io.f(0x148, t.max_yaw), io.f(0x158, t.freq);
-    io.f(0x15c, t.damp), io.v3(0x160, t.front), io.v3(0x16c, t.flat_front), io.i(0x1b0, t.centring);
-    io.f(0x7c, t.half_width), io.f(0x80, t.half_depth);
-    for (int j = 0; j < 3; ++j) io.f(0x14c + 4 * j, t.jolt_scale[j]);
+    io.i(0x8c, t.mode), io.i(0x90, t.aim_local), io.v3(0x94, t.aim_dir), io.f(0xa0, t.facing), io.i(0xa4, t.aim);
+    io.bo(0xa8, t.absolute), io.bo(0xa9, t.pitch_lock), io.bo(0xaa, t.view_aim), io.q(0xac, t.view_q);
+    io.f(0xbc, t.look_yaw_angle), io.f(0xc0, t.look_pitch_angle), io.f(0xc4, t.twist_in), io.f(0xc8, t.pitch_in);
+    io.f(0xcc, t.look_yaw), io.f(0xd0, t.look_pitch), io.f(0xd8, t.kick), io.f(0xdc, t.kick_twist);
+    io.v3(0xe0, t.jolt_spin), io.v3(0xec, t.jolt_turn), io.q(0xf8, t.jolt_q), io.v3(0x108, t.jolt);
+    io.v3(0x114, t.jolt_pos), io.q(0x120, t.turn_q), io.q(0x130, t.rot), io.f(0x140, t.pitch), io.f(0x144, t.yaw);
+    io.f(0x148, t.min_pitch), io.f(0x14c, t.max_pitch), io.f(0x150, t.max_yaw), io.f(0x160, t.freq);
+    io.f(0x164, t.damp), io.v3(0x168, t.front), io.v3(0x174, t.flat_front), io.i(0x1b8, t.centring);
+    io.f(0x84, t.half_width), io.f(0x88, t.half_depth);
+    for (int j = 0; j < 3; ++j) io.f(0x154 + 4 * j, t.jolt_scale[j]);
   } else if (k == kArm0 || k == kArm1) {
     Arm& a = g->arms[k - kArm0];
     io.f(0x2c, a.x2c), io.f(0x34, a.recoil), io.f(0x78, a.length), io.f(0x7c, a.recoil_hold);
@@ -189,13 +189,13 @@ void part_io(int k, uint8_t* b, bool store) {
 void mech_io(uint8_t* b, bool store) {
   Io io{b, store};
   Mech& m = g->m;
-  io.v3(0x24, m.forward), io.v3(0x30, m.velocity), io.v3(0x3c, m.vec_3c), io.f(0x4bc, m.gait[3][1]);
-  io.f(0x508, m.hip_height), io.f(0x50c, m.crouch_depth);
-  io.f(0x518, m.max_speed), io.f(0x520, m.turn_rate), io.f(0x534, m.throttle_down), io.bo(0x584, m.no_power_down), io.bo(0x585, m.knee_back);
-  io.bo(0x586, m.crouched), io.h(0x5c8, m.servo()), io.h(0x5e4, m.sounds[11]), io.h(0x5e8, m.sounds[12]);
-  io.u32(0x688, m.detail);
-  io.bo(0xdc, m.power_down_pending), io.bo(0xde, m.powered_down);
-  io.v3(0xec, m.part_aim), io.i(0xf8, m.xf8);
+  io.v3(0x24, m.forward), io.v3(0x30, m.velocity), io.v3(0x3c, m.vec_3c), io.f(0x4cc, m.gait[3][1]);
+  io.f(0x518, m.hip_height), io.f(0x51c, m.crouch_depth);
+  io.f(0x528, m.max_speed), io.f(0x530, m.turn_rate), io.f(0x548, m.throttle_down), io.bo(0x5a8, m.no_power_down), io.bo(0x5aa, m.knee_back);
+  io.bo(0x5ab, m.crouched), io.h(0x5ec, m.servo()), io.h(0x608, m.sounds[11]), io.h(0x60c, m.sounds[12]);
+  io.u32(0x6ac, m.detail);
+  io.bo(0xe0, m.power_down_pending), io.bo(0xe2, m.powered_down);
+  io.v3(0xf0, m.part_aim), io.i(0xfc, m.xf8), io.v3(0x100, m.target_velocity), io.f(0x6d4, m.frame_dt);
 }
 
 void skis_io(uint8_t* b, bool store) {
@@ -208,11 +208,11 @@ void skis_io(uint8_t* b, bool store) {
     io.f(0x15c + 4 * j, s.surface[j]);
     io.i(0x178 + 4 * j, s.in_water[j]);
     GroundHit& c = s.contact[j];
-    const int o = 0x194 + 0x28 * j;
+    const int o = 0x194 + 0x2c * j;
     io.v3(o, c.normal), io.f(o + 0xc, c.x), io.f(o + 0x10, c.height), io.f(o + 0x14, c.z);
     io.h(o + 0x20, c.material), io.h(o + 0x24, c.node);
   }
-  io.f(0x2f0, s.half), io.f(0x2f4, s.mid_width);
+  io.f(0x30c, s.half), io.f(0x310, s.mid_width);
 }
 
 void ctl_io(uint8_t* b, bool store) {
@@ -334,6 +334,15 @@ void hooks() {
     return 0;
   };
   collide_calls().contact_mech = [](Handle) -> Mech* { log({55}); return g->env[kPartSel] & 4 ? &g->m : nullptr; };
+  c.aim_skill = [](Mech&, float* out) {
+    *out = flt(g->env[kTBox + 7]);
+    return (g->env[kPartSel] & 16) != 0;
+  };
+  c.target_velocity = [](Handle, Vec3* out) {
+    if (!(g->env[kPartSel] & 2)) return false;
+    g->m.lead_velocity(out);
+    return true;
+  };
   c.find_in_tree = [](Handle n, const char* name) -> Handle {
     log({56, node_index(n), std::strcmp(name, "torso_polys") == 0 ? 1 : 0});
     return g->env[kTBox] & 1 ? static_cast<Handle>(g->nodes[16]) : nullptr;
@@ -493,7 +502,7 @@ float probe_parts_op(int op, const float* a) {
     case 19: w.torso.set_mode((a[2] > 0.0f ? 1 : 0) + i); break;
     case 23: return w.torso.setup() ? 1.0f : 0.0f;
     case 21: w.m.target_part(static_cast<int32_t>(a[3] * 4 + 8) % 16); break;
-    case 22: return w.m.aim_part() ? 1.0f : 0.0f;
+    case 22: w.m.aim_part(); break;
     case 24: return w.m.can_face(Vec3{a[2], a[3], a[0]}) ? 1.0f : 0.0f;  // vt+0x8c
     case 29: return w.m.stop_share(a[0] * 100.0f);  // vt+0x12c
     case 30: return w.m.throttle_speed();  // vt+0x114

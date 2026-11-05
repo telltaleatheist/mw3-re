@@ -4477,3 +4477,16 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   multiplayer; in MechWarrior 3 only multiplayer does that. (From the code.)
 - **A big hit jolts you no harder than a smaller one in Pirate's Moon:** the torso's jolt from a
   hit stops growing at a force of 1. (From the code.)
+- **Arms stop at their limit in Pirate's Moon:** an arm's aim heads for the target only as far as
+  the arm can reach, then eases there. In MechWarrior 3 it heads for the real direction and is cut off
+  at the limit, so an arm with a target well out of reach swings to the limit faster. (From the code.)
+- **Only you get the torso's other modes in Pirate's Moon:** the code that sets how a torso turns
+  gives any mech but the mission's player the plain one; in MechWarrior 3 it gives whatever was asked. (From the code.)
+- **A fading wreck stops getting in the way in Pirate's Moon:** past half faded, its node's flag 8 goes off, the
+  flag the game clears on a mech while its own ground query runs so the query skips it; it comes back if the fade is
+  called off. What else that flag touches we have not traced. (From the code.)
+- **A leg lost on a Black Hawk or Owens takes the arm only if the arm is still there** in Pirate's Moon:
+  MechWarrior 3 destroys it again regardless. (From the code; the two mechs are numbered differently in the two games.)
+- **A number Pirate's Moon works out and never uses:** every frame a mech with a target eases a copy of that target's
+  velocity toward the real one (at a rate from the AI's record, y always at a quarter), and clears it on a new target.
+  We found nothing in the exe that reads it. It looks like a leading-the-target idea that was left unfinished. (From the code.)

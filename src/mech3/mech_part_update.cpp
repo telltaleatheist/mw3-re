@@ -851,7 +851,7 @@ void Arm::recoil_pose() {
   set_pose(&p, nullptr);
 }
 
-// Mech3.exe 1.2 @ 0x00466840. Toward the weapons' target by exp(-rate dt):
+// Pirate's Moon 1.0 @ 0x004681b0. Toward the weapons' target by exp(-rate dt):
 // its direction from the arm in the torso's frame, as pitch and yaw, within
 // the def's limits (the right arm's yaw mirrored); without a target back to
 // rest by exp(-rate dt / 2). The hand takes all of the aim (hand_aims) or the
@@ -877,9 +877,21 @@ void Arm::aim(float dt) {
     const float lv[3] = {l.x, l.y, l.z};
     float ang[3];
     zmth::direction_angles(zero, lv, ang);
+    // PM clamps what it heads for too, so an arm out of reach stops easing past its limit.
+    float want_pitch = ang[0], want_yaw = ang[1];
+    if (want_pitch > max_pitch) want_pitch = max_pitch;
+    else if (!(want_pitch >= min_pitch)) want_pitch = min_pitch;
+    if (id == kLeftArm) {
+      if (want_yaw > max_yaw) want_yaw = max_yaw;
+      else if (!(want_yaw >= min_yaw)) want_yaw = min_yaw;
+    } else {
+      const float hi = -min_yaw, lo = -max_yaw;
+      if (!(hi >= want_yaw)) want_yaw = hi;
+      else if (!(want_yaw >= lo)) want_yaw = lo;
+    }
     const float k = zmth::exp_neg_dt(aim_rate * dt, dt);
-    aim_pitch = (aim_pitch - ang[0]) * k + ang[0];
-    aim_yaw = (aim_yaw - ang[1]) * k + ang[1];
+    aim_pitch = (aim_pitch - want_pitch) * k + want_pitch;
+    aim_yaw = (aim_yaw - want_yaw) * k + want_yaw;
     if (aim_pitch > max_pitch) aim_pitch = max_pitch;
     else if (!(aim_pitch >= min_pitch)) aim_pitch = min_pitch;
     if (id == kLeftArm) {

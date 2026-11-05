@@ -11,6 +11,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_data.h"
+#include "mech3/mech_lod.h"
 #include "mech3/mech_parts.h"
 
 using namespace mech3;
@@ -107,8 +108,9 @@ int probe_canned_free(uint8_t* out, int cap) {
 // mission's player; the hip's world position; what the canned effect and the
 // sound return. Out: the calls, then +0x634 and +0x5e0.
 int probe_death_prep(int32_t state, uint32_t detail, uint32_t x634, int32_t player, const float* hip_at,
-                     uint32_t canned, uint32_t sound, uint8_t* out, int cap) {
+                     uint32_t canned, uint32_t sound, int32_t low, uint8_t* out, int cap) {
   g_out.clear();
+  lod_table().low = low != 0;
   static const float* s_at;
   static uint32_t s_canned, s_sound;
   s_at = hip_at, s_canned = canned, s_sound = sound;
@@ -156,12 +158,13 @@ int probe_death_prep(int32_t state, uint32_t detail, uint32_t x634, int32_t play
 
 // 0x00506ae0 for each query, then 0x00506b60: node, root, the objects' and
 // nodes' nodes. Out: the answers, then the lists after.
-int probe_anim_nodes(uint32_t node, uint32_t root, const uint32_t* objects, int32_t n_obj, const uint32_t* nodes,
+int probe_anim_nodes(uint32_t node, uint32_t root, uint32_t from, uint32_t to, const uint32_t* objects, int32_t n_obj, const uint32_t* nodes,
                      int32_t n_nodes, const uint32_t* queries, int32_t n_q, uint8_t* out, int cap) {
   g_out.clear();
   zeff::AnimDef d;
   d.node = static_cast<zcls::Node*>(h(node));
   d.root = static_cast<zcls::Node*>(h(root));
+  *reinterpret_cast<void**>(d.raw + 0x74) = h(from), *reinterpret_cast<void**>(d.raw + 0x84) = h(to);
   std::vector<zeff::ObjectRef> obj(static_cast<size_t>(n_obj));
   std::vector<zeff::NodeRef40> nds(static_cast<size_t>(n_nodes));
   for (int i = 0; i < n_obj; ++i) obj[i].node = static_cast<zcls::Node*>(h(objects[i]));
@@ -256,7 +259,7 @@ extern "C" {
 // matrix the new node holds.
 int probe_fly(int32_t kind, int32_t side, int32_t roster, int32_t id, int32_t stub, int32_t stubs, uint32_t copy,
               uint32_t create, const float* world_m, const float* local, int32_t parent, const float* mech_vel,
-              uint8_t* out, int cap) {
+              int32_t arm_gone, uint8_t* out, int cap) {
   g_out.clear();
   s_world = world_m, s_copy = copy, s_create = create;
   MechData p;
@@ -275,6 +278,7 @@ int probe_fly(int32_t kind, int32_t side, int32_t roster, int32_t id, int32_t st
   m.torso = &torso;
   for (int i = 0; i < 2; ++i) {
     arms[i].side = i, arms[i].mech = &m, arms[i].hand = &hands[i], arms[i].id = 2 + i;
+    arms[i].destroyed = kind == 2 && arm_gone != 0;
     hands[i].mech = &m, hands[i].id = 9 + i;
     legs[i].mech = &m, legs[i].calf = &calves[i], legs[i].foot = &feet[i], legs[i].id = 4 + i;
     calves[i].mech = &m, calves[i].id = 11 + i;
@@ -478,7 +482,6 @@ int probe_release(int32_t kind, const uint32_t* w, uint8_t* out, int cap) {
 }  // extern "C"
 
 // --- the level of detail (0x0041e870, 0x0041e9f0, 0x00467290, 0x004672f0) ---
-#include "mech3/mech_lod.h"
 #include "mech3/weapon.h"
 
 namespace {
@@ -591,29 +594,39 @@ extern "C" {
 
 // 0x00419ef0 on a mech: active, +0x3c, +0x58, +0x594, dt. Out: the calls
 // (ground, entity step, fade with dt), then +0x3c, +0x58, +0x594.
-int probe_dead_update(int32_t active, const float* v3c, const float* v58, const float* imp, float dt,
-                      uint8_t* out, int cap) {
+int probe_dead_update(int32_t active, const float* v3c, const float* v58, const float* imp, const float* pending,
+                      float dt, uint8_t* out, int cap) {
   g_out.clear();
   Mech m;
+  float tm[12] = {};
+  m.transform = tm;
   m.active = active != 0;
   m.vec_3c = {v3c[0], v3c[1], v3c[2]}, m.vec_58 = {v58[0], v58[1], v58[2]}, m.impulse = {imp[0], imp[1], imp[2]};
+  std::memcpy(m.pending_q, pending, 16);
+  m.pending_velocity = {pending[4], pending[5], pending[6]};
+  std::memcpy(m.pending_m, pending + 7, 48);
   DeadCalls& d = dead_calls();
   const DeadCalls d0 = d;
   d.ground_step = [](Mech&, float t) { u32(0x80), f32(t); };
-  d.entity_step = [](Mech&, float t) { u32(0x81), f32(t); };
+  d.entity_moved = [](Mech&) { u32(0x81); };
   d.fade_debris = [](Mech&, float t) { u32(0x82), f32(t); };
   m.dead_update(dt);
   u32(0xf);
   f32(m.vec_3c.x), f32(m.vec_3c.y), f32(m.vec_3c.z), f32(m.vec_58.x), f32(m.vec_58.y), f32(m.vec_58.z);
   f32(m.impulse.x), f32(m.impulse.y), f32(m.impulse.z);
+  for (float v : m.orientation) f32(v);
+  f32(m.velocity.x), f32(m.velocity.y), f32(m.velocity.z);
+  for (int k = 0; k < 12; ++k) f32(m.transform[k]);
   d = d0;
+  m.transform = nullptr;
   return finish(out, cap);
 }
 
 // 0x0041e220 on a dead mech. w: 0 game (0 campaign, 2 IA, 3 network), 1
 // active, 2 now bits, 3 dead time bits, 4 is the player, 5 the network's
 // fade flag, 6 respawn's answer, 7 kills (+0x3f4), 8 roster, 9 its team,
-// 10 the player's allies. Out: the calls, the tallies, +0x3f4, the answer.
+// 10 the player's allies, 11 +0x658, 12 +0x660. Out: the calls, the tallies,
+// +0x3f4, +0x660, the answer.
 int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
   g_out.clear();
   static uint32_t s_game, s_net_fade, s_respawn;
@@ -626,8 +639,9 @@ int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
   Mech m, other;
   m.pilot = &data;
   m.active = w[1] != 0;
-  m.node = h(0x6100);
+  m.node = w[13] ? h(0x6100) : nullptr;
   m.dead_time = f(w[3]);
+  m.x634 = w[11], m.x63c = f(w[12]);
   m.x3f4[0] = w[7];
   m.team = w[9];
   Mech* pl = w[4] ? &m : &other;
@@ -641,8 +655,10 @@ int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
   DeadCalls& d = dead_calls();
   const DeadCalls d0 = d;
   d = DeadCalls{};
+  d.game_type = [] { return static_cast<int32_t>(s_game); };
   d.networked = [] { return s_game == 3; };
   d.instant_action = [] { return s_game == 2; };
+  d.set_flag8 = [](Handle n, int32_t on) { u32(0x8c), u32(u(n)), u32(static_cast<uint32_t>(on)); };
   d.update = [](Mech&, float t) { u32(0x83), f32(t); };
   d.net_update = [](Mech&, float t) { u32(0x8a), f32(t); };
   d.net_fade = [] { return s_net_fade != 0; };
@@ -655,7 +671,7 @@ int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
   d.free = [](Mech&) { u32(0x89); };
   const bool gone = dead_step(m, 0.05f);
   u32(0xf), u32(static_cast<uint32_t>(s_tally[0])), u32(static_cast<uint32_t>(s_tally[1])),
-      u32(static_cast<uint32_t>(s_tally[2])), u32(m.x3f4[0]), u32(gone ? 1 : 0);
+      u32(static_cast<uint32_t>(s_tally[2])), u32(m.x3f4[0]), f32(m.x63c), u32(gone ? 1 : 0);
   d = d0;
   wd.mission_player = keep, wd.time = keep_t;
   m.pilot = nullptr, m.node = nullptr;

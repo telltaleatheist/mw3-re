@@ -280,13 +280,13 @@ void Mech::fade_debris(float) {
   for (Handle d : x6d0) {
     if (!(f.instant_action && f.instant_action())) continue;
     if (!(f.opacity_used && f.opacity_used(node))) continue;
-    if (f.use_opacity) f.use_opacity(d, 1);
     const float v = f.opacity ? f.opacity(node) : 0.0f;
+    if (f.use_opacity) f.use_opacity(d, 1);
     if (v > 0.0f && f.set_opacity) f.set_opacity(d, v);  // 0x005bcd3c
   }
 }
 
-// Mech3.exe 1.2 @ 0x00466fe0. The calf's and foot's weapons go too; on the
+// Pirate's Moon 1.0 @ 0x00468a40. The calf's and foot's weapons go too; on the
 // Blackhawk and the Owens the arm on the same side is destroyed with it.
 Handle Leg::fly_away(Vec3* velocity, bool stub) {
   Mech& m = *mech;  // set at construction (the exe's lookup through the node, 0x0040ef30, is never needed)
@@ -295,8 +295,10 @@ Handle Leg::fly_away(Vec3* velocity, bool stub) {
   const int32_t roster = m.pilot->roster;
   if (roster == 4 || roster == 16) {  // the Black Hawk, the Owens
     Arm* arm = m.arms[this != m.legs[0] ? 1 : 0];
-    arm->destroy(0, 0);
-    arm->set_internal(0.0f, 0);
+    if (arm && !arm->destroyed) {  // PM's check
+      arm->destroy(0, 0);
+      arm->set_internal(0.0f, 0);
+    }
   }
   return MechPart::fly_away(velocity, stub);
 }
@@ -882,9 +884,9 @@ void Torso::centre(int32_t how) {
   centring = 0;
 }
 
-// Mech3.exe 1.2 @ 0x00466190
+// Pirate's Moon 1.0 @ 0x00467a90 (only the mission's player takes the mode asked)
 void Torso::set_mode(int32_t m) {
-  mode = mech->remote ? 2 : m;  // the mech's vt+0x5c: the network mech's
+  mode = mech->remote ? 2 : mech == world().mission_player ? m : 0;  // the mech's vt+0x64: the network mech's
   Sound& s = mech->servo();
   if (s) {
     if (heat_calls().stop_sound) heat_calls().stop_sound(s);

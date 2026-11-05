@@ -26,6 +26,228 @@ MW3 functions the port has with no PM twin (69 or so: inlined or rewritten) are 
 
 **Done, on `pm` (2026-11-05):** Update's order is PM's, with predict 0x423590, the lean 0x4186f0, the landing 0x416d70, the skis 0x477f90 and the whole of collision 0x423730 on the prediction (`test_pm_update`, `test_pm_jets`, `test_pm_skis`, `test_pm_collide`). Nothing in this group is temporary any more. Standing on something (0x4e2e30, its weight) is called through a hook left unset until that function is ported. Per-frame amounts checked: the fuel, the jet assist and predict use dt; the throttle's 0.6 under a push and the collision's amounts were per frame and go by time behind `per_second` (`fixes.md`, `tests/pm/test_pm_collide_rate.cpp`). Crushing needs an owner's +0x08: only vehicles have one in the port, so a dead non-vehicle owner still counts as standing.
 
+**Parts and deaths (2026-11-05):** `test_pm_parts.py` and `test_pm_deaths.py`, moved from MW3's. What they changed: the arm's aim 0x4681b0 clamps what it heads for before easing; the torso's mode 0x467a90 gives anyone but the mission's player mode 0; the part aim 0x41e4d0 first eases a new vector at mech +0x100 toward the target's velocity (rate from the AI record's +0xb8 through the controls' vt+0x88, y at 0.25, landing within 0.05), reset by 0x41e7e0 when the target changes; nothing found in the exe reads it, by direct offset, `lea`/`add` of the base, or a getter, so `aim_skill` is unset in play until PM's AI and 0x41e7e0's reset is not ported. The dead mechs are rewritten: the step 0x433020 goes by game type (1 and 5 the wreck's own opacity 0x41d730; 2 instant action, fading from the first frame with +0x658; 3 network), 0x432e80 also sets flag 8 by opacity and is safe with no node, the tally moved to 0x40ce90, and 0x4332e0 commits the predicted move whole instead of MW3's 0x5a8000. The step works out an opacity for 0x432e80, which ignores it (with its 0.25 cap): dead code, left out. zEffect's 0x51f650 also checks a connector's two ends. Black Hawk and Owens: 0x468a40 checks the arm first. Unknown: what sets mech +0x658 in PM's campaign, that 0x41d730 thins for (0x41ca60's bit is cleared no longer at death).
+
+**The moved tests' offset maps, audited (2026-11-05).** A probe that maps the exe's offsets onto the port's fields can test a wrong mapping as correct, so each pair is checked against the exes instead of the map. The pairs are every offset changed between a test or probe on `main` and on `pm`, with the tests' `FIELDS` dicts, in heat, jets, update, skis, collide, gait, health, actions, damage and parts. *Matched* means the two exes' matched functions, lined up by instruction shape, hold an instruction with the MW3 offset opposite one with the PM offset (count, then an example MW3 / PM address, in that field's module where there is one). *Read* means the exe's own use was read directly. The table below was generated, then the unmatched and shared rows gone through by hand.
+
+Result: 209 pairs, 168 matched, 10 read, 31 explained (no field at all, such as the test's allocation sizes and image slots, or vtable slots read in the code). None rests on the map alone. What the audit and this group's tests found wrong in the maps: the knee byte, MW3 +0x585, is PM +0x5aa, not the +0x5a9 the block rule gives (+0x5a9 is unused; the parts test's real leg setup caught it); the two water probes (`surface[1]`, `[4]`, found by reading the heat code, fixed in 138d6ffb). The limits: a matched instruction proves the offset's image, not the field's name, which rests on MW3's own tests; and a pair lined up wrongly by the extraction can appear (0xac / 0x5ae is one, marked).
+
+<details><summary>The pairs</summary>
+
+| MW3 | PM | where | field | proof |
+|---|---|---|---|---|
+| 0x28 | 0x2c | parts,skis |  | stride of a ski contact: both exes' loops, 0x5cbac0 |
+| 0x2c | 0x28 | damage |  | not a field: the game object's vt slot (0x47b727) |
+| 0x5c | 0x60 | collide |  | matched 2: 0x423855 / 0x424e61 |
+| 0x5c | 0x64 | actions |  | vt slot remote, 0x4172be |
+| 0x70 | 0x7c | parts |  | read: the controls' mech, vbase+0x20 at 0x4283ff (PM) against vbase+0x14 at 0x426792 (MW3) |
+| 0x74 | 0x90 | parts |  | not a field: the test's allocation of the controls |
+| 0x7c | 0x84 | damage,parts | t.half_width | matched 11: 0x46439d / 0x465b74 |
+| 0x80 | 0x88 | damage,parts | t.half_depth | matched 7: 0x4643ac / 0x465b86 |
+| 0x84 | 0x8c | parts | t.mode | matched 3: 0x464ea1 / 0x466741 |
+| 0x88 | 0x90 | parts | t.aim_local | matched 4: 0x465add / 0x4673ae |
+| 0x8c | 0x94 | parts | t.aim_dir | matched 7: 0x465aea / 0x4673bb |
+| 0x94 | 0x8c | damage |  | vt slot, 0x41ba6f |
+| 0x98 | 0xa0 | parts | t.facing | matched 1: 0x464037 / 0x4657c3 (other module) |
+| 0x9c | 0xa4 | parts | t.aim | matched 2: 0x464eaf / 0x46674f |
+| 0xa0 | 0xa8 | parts | t.absolute | matched 4: 0x4651a6 / 0x466a42 |
+| 0xa1 | 0xa9 | parts | t.pitch_lock | matched 6: 0x464ad6 / 0x466366 |
+| 0xa2 | 0xaa | parts | t.view_aim | matched 6: 0x464c94 / 0x466554 |
+| 0xa4 | 0xac | parts | t.view_q | matched 5: 0x464cb2 / 0x466572 |
+| 0xa8 | 0xa0 | damage |  | vt slot, 0x41bfac |
+| 0xac | 0x5ae | heat |  | **false pair from lining up two lines**: `in_water` stays +0xac (foot), `salvage_mech` +0x5ae read at 0x467800 |
+| 0xb4 | 0xbc | parts | t.look_yaw_angle | matched 4: 0x464cba / 0x46657a |
+| 0xb8 | 0xc0 | parts | t.look_pitch_angle | matched 4: 0x464cc2 / 0x466582 |
+| 0xbc | 0xc4 | parts | t.twist_in | matched 5: 0x4650a5 / 0x466946 |
+| 0xc0 | 0xc8 | parts | t.pitch_in | matched 9: 0x46505b / 0x466900 |
+| 0xc4 | 0xcc | parts | t.look_yaw | matched 4: 0x4650cb / 0x46696c |
+| 0xc8 | 0xd0 | parts | t.look_pitch | matched 5: 0x4650de / 0x46697f |
+| 0xcc | 0xd4 | parts |  | range of the torso's look floats; ends proved at +0xbc and +0xd8 |
+| 0xd0 | 0xd8 | parts | t.kick | matched 5: 0x465660 / 0x466f1e |
+| 0xd4 | 0xdc | parts | t.kick_twist | matched 4: 0x46567b / 0x466f39 |
+| 0xd8 | 0xe0 | damage,parts | t.jolt_spin | matched 4: 0x464be0 / 0x4664a0 |
+| 0xdc | 0xe0 | actions,heat,parts,update | m.power_down_pending | matched 8: 0x41cc53 / 0x41dad7 |
+| 0xdc | 0xe4 | damage | t->jolt_spin.y | matched 1: 0x464beb / 0x4664ab |
+| 0xdd | 0xe1 | heat,update |  | matched 8: 0x41cc33 / 0x41dab3 |
+| 0xde | 0xe2 | actions,gait,heat,parts,update | m.powered_down | matched 11: 0x426974 / 0x4285e4 |
+| 0xe0 | 0xe4 | damage,update |  | matched 1: 0x4ae5cd / 0x4b1eb3 |
+| 0xe0 | 0xe8 | damage | t->jolt_spin.z | matched 1: 0x464bf4 / 0x4664b4 |
+| 0xe4 | 0xe8 | damage,update |  | matched 4: 0x414e68 / 0x4157db |
+| 0xe4 | 0xec | parts | t.jolt_turn | matched 3: 0x46564b / 0x466f09 |
+| 0xec | 0xf0 | heat |  | matched 4: 0x41d98f / 0x41e909 |
+| 0xec | 0xf8 | collide |  | matched 2: 0x42382e / 0x424e3a |
+| 0xf0 | 0xf8 | parts | t.jolt_q | matched 4: 0x46572c / 0x466fe2 |
+| 0xf4 | 0x100 | collide |  | matched 2: 0x4227cc / 0x423949 |
+| 0xf8 | 0xfc | parts |  | matched 7: 0x414cf4 / 0x415665 |
+| 0xfc | 0x10c | collide |  | matched 5: 0x41615f / 0x416bfe |
+| 0x100 | 0x108 | damage,parts | t.jolt | matched 4: 0x464bc6 / 0x466486 |
+| 0x100 | 0x110 | collide |  | matched 4: 0x422699 / 0x423820 |
+| 0x104 | 0x10c | damage | t->jolt.y | matched 1: 0x464c19 / 0x4664d9 |
+| 0x104 | 0x114 | collide |  | matched 3: 0x4226aa / 0x423831 |
+| 0x108 | 0x110 | damage | t->jolt.z | matched 1: 0x464c2d / 0x4664ed |
+| 0x108 | 0x118 | collide |  | matched 4: 0x4226d7 / 0x42385e |
+| 0x10c | 0x114 | parts | t.jolt_pos | matched 4: 0x465787 / 0x467040 |
+| 0x10c | 0x118 | parts |  | vt slot camera, 0x428416 |
+| 0x10c | 0x11c | collide |  | matched 4: 0x4226ef / 0x423876 |
+| 0x110 | 0x120 | collide |  | inside the collider at +0x10c, whose base is matched; no use of its own in either exe's mech code (the test clears it) |
+| 0x114 | 0x124 | collide |  | matched 6: 0x4226bb / 0x423842 |
+| 0x118 | 0x120 | parts | t.turn_q | matched 6: 0x464e9b / 0x46673b |
+| 0x118 | 0x128 | collide |  | collider, matched 0x424941 |
+| 0x11c | 0x12c | collide |  | collider, matched 0x424b55 |
+| 0x120 | 0x130 | collide |  | matched 7: 0x422676 / 0x4237fa |
+| 0x124 | 0x134 | collide |  | collider contacts, `lea` at 0x423781 (PM) against 0x4225fa (MW3) |
+| 0x128 | 0x130 | parts | t.rot | matched 3: 0x4659d2 / 0x4672a0 |
+| 0x138 | 0x140 | parts | t.pitch | matched 16: 0x464f26 / 0x4667c6 |
+| 0x13c | 0x144 | parts | t.yaw | matched 15: 0x464f36 / 0x4667d6 |
+| 0x140 | 0x148 | parts | t.min_pitch | matched 10: 0x465c02 / 0x4674d2 |
+| 0x140 | 0x14c | collide |  | matched 16: 0x4aee75 / 0x4b2ce5 |
+| 0x144 | 0x14c | parts | t.max_pitch | matched 11: 0x465be7 / 0x4674b7 |
+| 0x148 | 0x150 | parts | t.max_yaw | matched 11: 0x465c1f / 0x4674f7 |
+| 0x14c | 0x154 | damage,parts |  | matched 1: 0x464bfa / 0x4664ba |
+| 0x158 | 0x160 | parts | t.freq | matched 1: 0x4657cb / 0x467084 |
+| 0x15c | 0x164 | parts | t.damp | matched 1: 0x465825 / 0x4670de |
+| 0x160 | 0x168 | parts | t.front | matched 5: 0x464f82 / 0x466824 |
+| 0x160 | 0x178 | collide |  | matched 2: 0x4af58a / 0x4b34ba |
+| 0x168 | 0x17c | actions,damage |  | matched 8: 0x41683a / 0x417336 |
+| 0x16c | 0x174 | parts | t.flat_front | matched 3: 0x464f9d / 0x46683e |
+| 0x170 | 0x184 | parts |  | vt slot, 0x466a2b |
+| 0x174 | 0x17c | damage |  | matched 3: 0x4649d1 / 0x46628e |
+| 0x188 | 0x190 | damage |  | matched 1: 0x464a01 / 0x4662ae |
+| 0x1a0 | 0x1a8 | damage | t->side_internal[0] | matched 4: 0x46485f / 0x4660cf |
+| 0x1a4 | 0x1ac | damage | t->side_internal[1] | matched 4: 0x464857 / 0x4660c7 |
+| 0x1a8 | 0x1b0 | damage,parts | t->side_internal_scale[0] | matched 2: 0x464571 / 0x465d94 |
+| 0x1a8 | 0x1b8 | collide |  | not a field: the end of the contact array, 0x134 + 33 x 4 |
+| 0x1ac | 0x1b4 | damage | t->side_internal_scale[1] | matched 2: 0x46456b / 0x465d8e |
+| 0x1b0 | 0x1b8 | gait,parts | t.centring | matched 7: 0x465100 / 0x46699c |
+| 0x1b4 | 0x1c0 | actions,gait,parts | kMechNode | not a field: the test's stride. The torso is `push 0x1bc` at 0x41691a (MW3 0x1b4 at 0x415ea9), the +8 of every field past +0x7c |
+| 0x1d8 | 0x1e8 | collide |  | matched 3: 0x422972 / 0x423b4b |
+| 0x1f0 | 0x200 | damage |  | matched 12: 0x41acd0 / 0x41ba7b |
+| 0x200 | 0x210 | damage |  | not a field: the test's allocation of the weapon def |
+| 0x28c | 0x29c | collide |  | matched 1: 0x422c0e / 0x423fef |
+| 0x2ac | 0x2c8 | skis |  | matched 3: 0x4763fa / 0x477d6d |
+| 0x2c8 | 0x2e4 | skis |  | matched 1: 0x476d45 / 0x478687 |
+| 0x2e4 | 0x300 | skis |  | matched 2: 0x476d65 / 0x4786a7 |
+| 0x2ec | 0x308 | skis | s.length | matched 2: 0x47633e / 0x477c9e |
+| 0x2f0 | 0x30c | parts,skis | s.half | matched 9: 0x476106 / 0x477bc4 |
+| 0x2f4 | 0x310 | parts,skis | s.mid_width | matched 3: 0x475e2b / 0x4778e5 |
+| 0x2f8 | 0x314 | skis | s.inv_half | matched 4: 0x4763b7 / 0x477d26 |
+| 0x2fc | 0x318 | skis | s.inv_half2 | matched 3: 0x4763c1 / 0x477d30 |
+| 0x300 | 0x340 | parts |  | not a field: the test's allocation of the skis |
+| 0x374 | 0x384 | collide,update |  | matched 3: 0x42270e / 0x423895 |
+| 0x375 | 0x385 | collide |  | matched 3: 0x42271c / 0x4238a3 |
+| 0x376 | 0x386 | collide |  | matched 1: 0x4226e8 / 0x42386f |
+| 0x377 | 0x387 | collide |  | matched 5: 0x4226d0 / 0x423857 |
+| 0x378 | 0x388 | collide |  | matched 5: 0x414cbd / 0x41562e |
+| 0x37c | 0x38c | actions,damage,parts |  | matched 73: 0x4151f9 / 0x415bd7 |
+| 0x384 | 0x394 | damage |  | matched 3: 0x415198 / 0x415b8e |
+| 0x38c | 0x39c | actions,damage,parts |  | matched 43: 0x414752 / 0x414fe8 |
+| 0x390 | 0x3a0 | damage,parts |  | matched 37: 0x414764 / 0x414ffa |
+| 0x394 | 0x3a4 | damage,parts |  | matched 24: 0x414776 / 0x41500c |
+| 0x398 | 0x3a8 | damage,parts |  | matched 23: 0x414788 / 0x41501e |
+| 0x39c | 0x3ac | actions,damage,parts |  | matched 78: 0x4147ac / 0x415042 |
+| 0x3a0 | 0x3b0 | actions,damage,parts |  | matched 21: 0x415014 / 0x415a2c |
+| 0x3a4 | 0x3b4 | actions,damage |  | matched 14: 0x41479a / 0x415030 |
+| 0x3a8 | 0x3b8 | jets |  | matched 3: 0x416189 / 0x416c2c |
+| 0x3ac | 0x3bc | damage |  | matched 8: 0x414488 / 0x414d40 |
+| 0x3d8 | 0x3e8 | jets |  | matched 7: 0x417309 / 0x417ea9 |
+| 0x3e4 | 0x3f4 | parts |  | matched 1: 0x41d816 / 0x41e764 |
+| 0x3e8 | 0x3f8 | damage |  | matched 5: 0x414f4b / 0x415956 |
+| 0x3ec | 0x3fc | damage |  | matched 19: 0x414758 / 0x414fee |
+| 0x410 | 0x420 | damage |  | matched 7: 0x414aa3 / 0x415410 |
+| 0x411 | 0x421 | damage |  | matched 4: 0x414aaa / 0x415417 |
+| 0x414 | 0x424 | update |  | matched 2: 0x414d2c / 0x41569d |
+| 0x418 | 0x428 | gait | m.blend_weight | matched 6: 0x418b14 / 0x4198e1 |
+| 0x41c | 0x42c | parts |  | matched 17: 0x415098 / 0x415ab0 |
+| 0x420 | 0x430 | gait | m.anim_index | matched 12: 0x418543 / 0x419337 |
+| 0x424 | 0x434 | damage,gait |  | matched 4: 0x415109 / 0x415b21 |
+| 0x458 | 0x468 | actions,damage |  | matched 7: 0x415136 / 0x415b4e |
+| 0x480 | 0x490 | actions,damage |  | matched 7: 0x4167df / 0x4172d7 |
+| 0x484 | 0x494 | actions |  | matched 7: 0x4167ce / 0x4172cd |
+| 0x488 | 0x498 | actions,jets | m.momentum | matched 4: 0x416ebd / 0x417930 |
+| 0x48c | 0x49c | jets |  | matched 3: 0x416eeb / 0x41795c |
+| 0x490 | 0x4a0 | jets |  | matched 3: 0x416efd / 0x41796e |
+| 0x494 | 0x4a4 | actions | m.action_root | matched 2: 0x416621 / 0x41712a |
+| 0x4a0 | 0x4b0 | gait |  | read: the gait table's start, `lea` at 0x414c7c (PM) against 0x4143fb (MW3) |
+| 0x4a4 | 0x4b4 | gait |  | read: inside the table, as +0x4b0 |
+| 0x4bc | 0x4cc | parts | m.gait[3][1] | matched 5: 0x418238 / 0x419023 |
+| 0x504 | 0x584 | parts,skis |  | not a field: size of the ground query's record; PM's stride 0x2c |
+| 0x508 | 0x518 | parts | m.hip_height | matched, 0x4637d2 |
+| 0x50c | 0x51c | parts | m.crouch_depth | matched 3: 0x41bdee / 0x41ca36 |
+| 0x510 | 0x520 | damage |  | matched 1: 0x414adc / 0x415445 |
+| 0x518 | 0x528 | damage,jets,parts | m.max_speed | matched 14: 0x4175a4 / 0x418143 |
+| 0x520 | 0x530 | gait,parts | m.turn_rate | matched 5: 0x418f98 / 0x419db8 |
+| 0x528 | 0x538 | gait,jets,update | m.speed_factor | matched 2: 0x414b19 / 0x415482 |
+| 0x52c | 0x53c | gait | m.speed_target | matched 8: 0x414b1f / 0x415488 |
+| 0x534 | 0x548 | parts | m.throttle_down | matched 3: 0x4269d1 / 0x428637 |
+| 0x538 | 0x54c | gait |  | matched 1: 0x426a20 / 0x428686 |
+| 0x53c | 0x550 | actions,damage,jets,update | m.knock | matched 6: 0x414ee0 / 0x415857 |
+| 0x540 | 0x554 | actions,damage,jets,update | m.knock_vec | matched 6: 0x414eec / 0x415863 |
+| 0x544 | 0x558 | damage,jets,update |  | matched 1: 0x41ab2c / 0x41b8b9 |
+| 0x548 | 0x55c | damage,jets,update |  | matched 1: 0x41ab3a / 0x41b8c5 |
+| 0x54c | 0x560 | jets,update |  | read: 0x418791 (PM) against 0x41a480 (MW3), the lean |
+| 0x554 | 0x578 | gait,heat | m.heat | matched 25: 0x414dcf / 0x415742 |
+| 0x558 | 0x57c | damage,heat |  | matched 14: 0x414df2 / 0x415765 |
+| 0x55c | 0x580 | heat |  | matched 6: 0x4193f2 / 0x41a263 |
+| 0x560 | 0x584 | jets |  | matched 1: 0x41738f / 0x417f2b |
+| 0x564 | 0x588 | jets |  | matched 2: 0x415a0a / 0x4163ce |
+| 0x568 | 0x58c | jets |  | matched 1: 0x414b49 / 0x4154b8 |
+| 0x570 | 0x594 | damage,update |  | matched 6: 0x414b4f / 0x4154be |
+| 0x574 | 0x598 | heat |  | matched 4: 0x414b5a / 0x4154c9 |
+| 0x578 | 0x59c | actions,damage,gait,jets,update | m.anim_state | matched 35: 0x41b666 / 0x41c3f4 |
+| 0x57c | 0x5a0 | actions,damage,gait,jets,update | m.prev_state | matched 18: 0x414b66 / 0x4154d5 |
+| 0x580 | 0x5a4 | heat,jets,update |  | matched 4: 0x414e0e / 0x415781 |
+| 0x584 | 0x5a8 | actions,damage,gait,jets,parts,update | m.no_power_down | matched 9: 0x41cc49 / 0x41dac9 |
+| 0x585 | 0x5aa | parts | m.knee_back | matched 2: 0x415e75 / 0x4168e5 |
+| 0x586 | 0x5ab | gait,parts | m.crouched | matched 5: 0x4184e4 / 0x4192ed |
+| 0x588 | 0x5ad | gait | m.wading | matched 4: 0x41843c / 0x41921f |
+| 0x58c | 0x5b0 | gait,jets | m.gait_frames | matched 3: 0x414b84 / 0x4154f9 |
+| 0x590 | 0x5b4 | actions,update | m.lie_time | matched 4: 0x414b8a / 0x4154ff |
+| 0x594 | 0x5b8 | actions,jets | m.impulse | matched 4: 0x414b96 / 0x41550b |
+| 0x598 | 0x5bc | jets |  | matched 3: 0x41749f / 0x418040 |
+| 0x59c | 0x5c0 | jets |  | impulse z: impulse at +0x5b8 proved, a Vec3 |
+| 0x5a0 | 0x5c4 | actions,collide,jets | m.push | matched 6: 0x414bae / 0x415524 |
+| 0x5a4 | 0x5c8 | jets |  | read: 0x424aca (PM) against 0x423547 (MW3), push y |
+| 0x5a8 | 0x5cc | jets |  | matched 2: 0x41a6bb / 0x41b381 |
+| 0x5ac | 0x5d0 | damage,gait,jets,update | m.limp | matched 7: 0x414cee / 0x41565f |
+| 0x5b0 | 0x5d4 | update |  | matched 1: 0x414bd5 / 0x415549 |
+| 0x5c4 | 0x5e8 | jets |  | matched 2: 0x4173cb / 0x417f64 |
+| 0x5c8 | 0x5ec | parts | m.servo( | matched, 0x467b0d |
+| 0x5cc | 0x5f0 | heat |  | matched 6: 0x419700 / 0x41a51a |
+| 0x5d0 | 0x5f4 | heat |  | matched 4: 0x4198b3 / 0x41a705 |
+| 0x5e4 | 0x608 | parts | m.sounds[11] | matched 1: 0x41be72 / 0x41cabf |
+| 0x5e8 | 0x60c | parts | m.sounds[12] | matched, 0x4639e2 |
+| 0x5ec | 0x610 | collide |  | matched 1: 0x422a9e / 0x423c80 |
+| 0x600 | 0x624 | actions | m.sounds[0x12] | array: sounds at +0x5dc+4k, [11] proved at +0x608, [12] at +0x60c |
+| 0x604 | 0x628 | actions | m.sounds[0x13] | array, as above |
+| 0x608 | 0x62c | heat |  | read: 0x41abfb (PM) against 0x419d74 (MW3) |
+| 0x60c | 0x630 | heat |  | matched 1: 0x419a0e / 0x41a950 |
+| 0x620 | 0x644 | jets |  | matched 5: 0x4173e0 / 0x417f7d |
+| 0x638 | 0x65c | actions | m.hud_fall | matched 2: 0x41ca3e / 0x41d88e |
+| 0x640 | 0x650 | parts |  | not a field: the test's stack pointer below EBP |
+| 0x65c | 0x680 | heat |  | matched 2: 0x414be6 / 0x41555a |
+| 0x664 | 0x688 | collide | att | matched 7: 0x414ce8 / 0x415659 |
+| 0x684 | 0x6a8 | actions,damage,parts |  | matched 125: 0x41446b / 0x414ce9 |
+| 0x688 | 0x6ac | actions,gait,jets,parts,update | m.detail | matched 14: 0x41ccef / 0x41db67 |
+| 0x68c | 0x6b0 | update |  | matched 6: 0x4151e9 / 0x415bc7 |
+| 0x69c | 0x6c0 | heat |  | matched 29: 0x414e43 / 0x4157b6 |
+| 0x6a0 | 0x6c4 | heat |  | matched 6: 0x414e4c / 0x4157bf |
+| 0x6b0 | 0x6d4 | gait,update | m.frame_dt | matched 16: 0x414c25 / 0x415596 |
+| 0x6b4 | 0x6d8 | gait |  | matched 1: 0x414c2b / 0x41559c |
+| 0x6b8 | 0x728 | damage |  | matched 1: 0x417a15 / 0x4184f4 |
+| 0x6c0 | 0x7e0 | collide |  | not a field: the test's own image slot past the struct |
+| 0x6c4 | 0x734 | jets |  | matched 1: 0x417ae4 / 0x4188b4 |
+| 0x6c8 | 0x738 | jets |  | matched 1: 0x417ade / 0x4188ae |
+| 0x6d0 | 0x7f0 | collide | g->c.throttle | not a field: as above |
+| 0x6d4 | 0x7f4 | collide | g->mech_node_flags | not a field: as above |
+| 0x6d8 | 0x800 | actions,gait,heat |  | not a field: the test's mech image size |
+| 0x6e0 | 0x800 | parts |  | as above |
+| 0x700 | 0x800 | damage |  | as above |
+| 0x700 | 0x900 | actions,gait |  | as above |
+| 0x7d0 | 0x584 | update |  | not a field: image slots for the ground query record |
+| 0x7d4 | 0x588 | update |  | as above |
+
+</details>
+
 **Literal ids (2026-11-05):** a search of the source by pattern, plus every small constant that differs between matched instructions of the two exes, kept where it is a renumbered mech or weapon id or a count (56 places, one by one). Wrong on `pm` and fixed, each checked against the exe's own bytes in `test_pm_names` where the code can be reached: TAG 0x20 to 0x2c (a mech's TAG was added as a heavy machine gun; salvage kept TAG and skipped heavy machine guns), the chase camera's height table 0x4312b0, the lab's missile rule 0x4559e0, a mech's shown name past roster 18 in the lab and Instant Action, the lab's and the debriefing card's "no mech" 0x13 to 0x19 (a Shadow Cat never appeared in the lab's view). Not reached by a test, read only: the two shown names (now `kMechCount`).
 
 Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 written, 0x4b4c90 unmatched): `lrm_flight` stays 0, so `hold_for_flight` adds no delay; settle it when PM's AI firing is ported. `tests/test_program.cpp` (26 places), `test_pilot_names.cpp` and `test_mech_reader.cpp` hold MW3's numbers (`l.mech = 17`, the Thor); they are in `mw3tests`, not built on `pm`, and change when moved. The lancemate's hit on the player at frame 129 of the c1m1 walk waits for PM's AI.

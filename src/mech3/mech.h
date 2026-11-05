@@ -126,6 +126,7 @@ struct Mech : Vehicle {
   Handle xe8 = nullptr;      // +0x0e8  zEntity's target node as the model is set (0x005a8690)
   Vec3 part_aim{};           // +0x0ec  the target's chosen part's world point (0x0041d6f0)
   int32_t xf8 = -1;          // +0x0f8  the target's chosen part (0x0041d810), -1 none
+  Vec3 target_velocity{};    // PM +0x100  the target's velocity, smoothed (aim_part); nothing in the exe reads it
   Collider collider;         // +0x0fc..+0x373 (mech_collide.h)
   class ChatPanel* chat = nullptr;  // +0x378  the network game's chat panel (mech3/chat_panel), none
   MechControls* controls = nullptr;  // +0x37c  (docs/controls.md)
@@ -206,7 +207,7 @@ struct Mech : Vehicle {
   bool remote = false;       // vtable +0x5c: the network class's mechs (0x004d2a70), 0x0040bae0 here
   bool invincible{};           // +0x630  the Invincible cheat (docs/damage.md)
   uint32_t x634 = 0;         // +0x634
-  float x63c = 1.0f;         // +0x63c
+  float x63c = 1.0f;         // +0x63c  PM +0x660: a wreck's own opacity (dead_cloak)
   Vec3 x640{};               // +0x640
   Vec3 lock_velocity{};      // +0x64c  vt+0xc's (0x0041d480): the lead velocity when last asked
   HeatSinks heat_sinks;      // +0x658
@@ -264,7 +265,7 @@ struct Mech : Vehicle {
   void set_target_node(Handle n);       // 0x005a8680: what others aim at (zEntity +0x10), then 0x005a85c0
   // The keypad's part targeting (docs/look.md; the parts by id: part_by_id,
   // 0x0041d510): the chosen part's point, the choice.
-  bool aim_part();                         // 0x0041d6f0
+  void aim_part();                         // 0x0041d6f0, PM 0x0041e4d0
   void target_part(int32_t id);            // 0x0041d810
   // The weapons' aim (mech.cpp): the HUD's reticle point each frame (0x0041cd40).
   bool aim_at(const Vec3* at, void* torso_out, bool check);  // 0x0041bc20

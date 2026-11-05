@@ -1,12 +1,12 @@
-"""A mech's death's small pieces (c1m1 item 2) against the original x86
-(docs/damage.md, The death): the parts' effect-end callback 0x461c90; the
-canned effects 0x432830 (the eject seat, the jump jets' flames) and their
-node copies freed by 0x431800; the death's preparation 0x41d070 (the eject,
+"""A mech's death's small pieces in PM against its exe, addresses mapped from MW3's
+(docs/damage.md, The death): the parts' effect-end callback 0x463290; the
+canned effects 0x432bb0 (the eject seat, the jump jets' flames) and their
+node copies freed by 0x431c40; the death's preparation 0x41de60 (the eject,
 the hip's sink, the sound, the player's loss); zEffect's node checks
-0x506ae0 / 0x506b60. Outside calls stood in on both sides; the x87 at 24
+0x51f650 / 0x51f6f0. Outside calls stood in on both sides; the x87 at 24
 bits.
 
-    cmake --build build && .venv/bin/python tests/differential/test_deaths.py
+    cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_deaths.py
 
 BREAK=<n> breaks the port's inputs in a known way (see main); each must fail.
 """
@@ -18,33 +18,34 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
+import test_pm_zar  # noqa: E402
+from original import FTOL, IAT_FTOL  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ESP  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
-probe = ctypes.CDLL(str(LIB))
+probe = test_pm_zar.load_pm_probe()
 P, I, U, F = ctypes.c_void_p, ctypes.c_int32, ctypes.c_uint32, ctypes.c_float
 probe.probe_effect_ended.argtypes = [I, I, P, U, I, P, I]
 probe.probe_canned_setup.argtypes = [P]
 probe.probe_canned.argtypes = [I, U, P, P, P, U, P, I]
 probe.probe_canned_free.argtypes = [P, I]
-probe.probe_death_prep.argtypes = [I, U, U, I, P, U, U, P, I]
-probe.probe_anim_nodes.argtypes = [U, U, P, I, P, I, P, I, P, I]
-probe.probe_fly.argtypes = [I, I, I, I, I, I, U, U, P, P, I, P, P, I]
+probe.probe_death_prep.argtypes = [I, U, U, I, P, U, U, I, P, I]
+probe.probe_anim_nodes.argtypes = [U, U, U, U, P, I, P, I, P, I, P, I]
+probe.probe_fly.argtypes = [I, I, I, I, I, I, U, U, P, P, I, P, I, P, I]
 probe.probe_fade.argtypes = [I, I, I, F, P, I]
 probe.probe_release.argtypes = [I, P, P, I]
 probe.probe_lod.argtypes = [P, P, I]
 probe.probe_part_lod.argtypes = [I, P, P, I]
-probe.probe_dead_update.argtypes = [I, P, P, P, F, P, I]
+probe.probe_dead_update.argtypes = [I, P, P, P, P, F, P, I]
 probe.probe_dead_step.argtypes = [P, P, I]
 probe.probe_cockpit.argtypes = [P, P, I]
 probe.probe_marks.argtypes = [P, I, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
 BUF = ctypes.create_string_buffer(CAP)
-ZERO = 0x63d870
-LIST, LIST_COUNT, PILOT_GAME = 0x605714, 0x605718, 0x60861c
-OP_NEW, OP_DELETE = 0x5abd26, 0x5abd1a
+ZERO = 0x66f5e0
+MECH = 0x800
+LIST, LIST_COUNT, PILOT_GAME = 0x6293f4, 0x6293f8, 0x62c40c
+OP_NEW, OP_DELETE = 0x5ce8c6, 0x5ce8c0
 
 
 def fb(v):
@@ -55,28 +56,67 @@ def arr(t, vals):
     return (t * max(len(vals), 1))(*vals)
 
 
+class Raw:
+    """PM's addresses as they are: the bench's u32, write and read translate MW3's."""
+
+    def __init__(self):
+        self.emu = test_pm_zar.Emulated()
+        self.uc = self.emu.cpu._uc
+        self.emu.cpu.stubs[0x406cb0] = (lambda c: 0, 0)
+
+    def u32(self, a, v):
+        self.uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
+
+    def write(self, a, b):
+        self.uc.mem_write(a, bytes(b))
+
+    def read(self, a, n):
+        return bytes(self.uc.mem_read(a, n))
+
+    def alloc(self, n):
+        return self.emu.alloc(n)
+
+    def code(self, b):
+        return self.emu.cpu.code(b)
+
+    def stub_function(self, addr, fn, pop=0):
+        if addr in self.emu.cpu.stubs:
+            self.emu.cpu.stubs[addr] = (fn, pop)
+        else:
+            self.emu.native_stub(addr, fn, pop)
+
+    def import_code(self, slot, code):
+        self.emu.cpu.import_code(slot, code)
+
+    def fpu_control(self, v):
+        self.emu.cpu.fpu_control(v)
+
+    def call(self, addr, ecx=0, stack_args=()):
+        self.emu.call(addr, ecx=ecx, args=stack_args)
+
+
 class Emulated:
     def __init__(self, stub_canned, fly=False):
-        cpu = self.cpu = Original()
+        cpu = self.cpu = Raw()
         cpu.import_code(IAT_FTOL, FTOL)
         cpu.fpu_control(0x007f)
         assert cpu.read(ZERO, 12) == bytes(12), 'the zero vector'
         cpu.stub_function(OP_NEW, lambda c: self.zalloc(c.arg(0)))
         cpu.stub_function(OP_DELETE, lambda c: 0)
         if not fly:  # the fly cases stand these in their own way
-            cpu.stub_function(0x4f9af0, self.copy, 4)
-        cpu.stub_function(0x4fc0b0, self.place, 0xc)
-        cpu.stub_function(0x508aa0, self.start, 0x24)
+            cpu.stub_function(0x50d7c0, self.copy)
+        cpu.stub_function(0x510300, self.place)
+        cpu.stub_function(0x5216e0, self.start)
         if not fly:
-            cpu.stub_function(0x4ebb40, self.unparent)
-        cpu.stub_function(0x506bc0, self.anims_off, 4)
-        cpu.stub_function(0x4f9050, self.destroy)
-        cpu.stub_function(0x4ed530, self.world_pos)
+            cpu.stub_function(0x4fd7a0, self.unparent)
+        cpu.stub_function(0x51f750, self.anims_off)
+        cpu.stub_function(0x50cc80, self.destroy)
+        cpu.stub_function(0x4ff250, self.world_pos)
         if stub_canned:
-            cpu.stub_function(0x432830, self.canned, 0x10)
-        cpu.stub_function(0x4622a0, self.duck, 4)
-        cpu.stub_function(0x432990, self.sound, 0x14)
-        cpu.stub_function(0x48f9e0, self.player_died)
+            cpu.stub_function(0x432bb0, self.canned, 0x10)
+        cpu.stub_function(0x4638f0, self.duck, 4)
+        cpu.stub_function(0x432d10, self.sound, 0x14)
+        cpu.stub_function(0x492710, self.player_died)
         head = self.zalloc(12)
         cpu.write(head, struct.pack('<II', head, head))
         cpu.u32(LIST, head)
@@ -114,43 +154,43 @@ class Emulated:
             self.cpu.write(arr_, struct.pack('<II', 0x7100, 0x7200))
             self.cpu.write(node + 0x54, struct.pack('<II', parents, arr_))
             self.ids[node] = (r, parents)
-        self.log(1, c.ecx, r)
+        self.log(1, c.arg(0), r)
         return node
 
     def nid(self, node):
         return self.ids[node][0] if node in self.ids else node
 
     def place(self, c):
-        self.log(2, self.nid(c.ecx), c.arg(0), c.arg(1), c.arg(2))
+        self.log(2, self.nid(c.arg(0)), c.arg(1), c.arg(2), c.arg(3))
 
     def start(self, c):
-        self.log(3, c.ecx, self.nid(c.edx), *[c.arg(i) for i in range(9)])
+        self.log(3, c.arg(0), self.nid(c.arg(1)), *[c.arg(i) for i in range(2, 11)])
         return self.started
 
     def unparent(self, c):
-        node = c.edx
+        node = c.arg(1)
         n, a = struct.unpack('<II', self.cpu.read(node + 0x54, 8))
-        if c.ecx != self.r32(a) or n == 0:
+        if c.arg(0) != self.r32(a) or n == 0:
             self.bad = 'unparent'
         self.cpu.write(node + 0x54, struct.pack('<I', n - 1))
         self.cpu.u32(a, self.r32(a + 4))
         self.removed[node] = self.removed.get(node, 0) + 1
 
     def anims_off(self, c):
-        if c.edx != 1 or c.arg(0) != 1:
+        if c.arg(1) != 1 or c.arg(2) != 1:
             self.bad = 'anims_off args'
-        self.stopped.append(c.ecx)
+        self.stopped.append(c.arg(0))
 
     def destroy(self, c):
-        node = c.ecx
+        node = c.arg(0)
         if self.removed.get(node, 0) != self.ids[node][1] or self.stopped[-1:] != [node]:
             self.bad = 'free order'
         self.log(4, self.nid(node))
 
     # --- the death's calls ---
     def world_pos(self, c):
-        self.log(0x10, c.ecx)
-        self.cpu.write(c.edx, struct.pack('<3f', *self.hip_at))
+        self.log(0x10, c.arg(0))
+        self.cpu.write(c.arg(1), struct.pack('<3f', *self.hip_at))
 
     def canned(self, c):
         at, vel = c.arg(2), c.arg(3)
@@ -171,20 +211,20 @@ class Emulated:
         return self.sound_ret
 
     def player_died(self, c):
-        if c.ecx != 0x6098d0:
+        if c.ecx != 0x62da08:
             self.bad = 'player_died'
         self.log(0x14)
 
     # --- the cases ---
     def effect_ended(self, has_node, nid, handles, effect, value):
         self.out = bytearray()
-        part = self.zalloc(0x1b4)
+        part = self.zalloc(0x1c0)
         if has_node:
             node = self.zalloc(0x60)
             self.cpu.u32(node + 0x28, nid)
             self.cpu.u32(part + 8, node)
         self.cpu.write(part + 0x6c, struct.pack('<4I', *handles))
-        self.cpu.call(0x461c90, ecx=effect, edx=part, stack_args=(value,))
+        self.cpu.call(0x463290, stack_args=(effect, part, value))
         self.logf(part + 0x6c, 4)
         return bytes(self.out)
 
@@ -201,36 +241,37 @@ class Emulated:
             a = self.zalloc(12)
             self.cpu.write(a, struct.pack('<3f', *v))
             return a
-        self.cpu.call(0x432830, ecx=self.pilot, stack_args=(slot, node, vec(at), vec(vel)))
+        self.cpu.call(0x432bb0, ecx=self.pilot, stack_args=(slot, node, vec(at), vec(vel)))
         self.log(self.cpu.uc.reg_read(UC_X86_REG_EAX))
         return bytes(self.out)
 
     def canned_free(self):
         self.out = bytearray()
         self.removed, self.stopped = {}, []
-        self.cpu.call(0x431800)
+        self.cpu.call(0x431c40)
         self.log(0xf)
         if self.r32(LIST_COUNT) != 0:
             self.bad = 'list count'
         return bytes(self.out)
 
-    def death_prep(self, state, detail, x634, player, hip_at, canned, sound):
+    def death_prep(self, state, detail, x634, player, hip_at, canned, sound, low):
         self.out = bytearray()
         self.hip_at, self.canned_ret, self.sound_ret = hip_at, canned, sound
-        m = self.zalloc(0x6d8)
+        m = self.zalloc(MECH)
         hip = self.zalloc(0xb0)
         self.cpu.u32(hip + 8, 0x6000)
-        self.cpu.u32(m + 0x3a0, hip)
-        self.cpu.u32(m + 0x684, self.pilot)
-        self.cpu.u32(m + 0x688, detail)
-        self.cpu.u32(m + 0x634, x634)
-        self.cpu.u32(m + 0x578, state)
+        self.cpu.u32(m + 0x3b0, hip)
+        self.cpu.u32(m + 0x6a8, self.pilot)
+        self.cpu.u32(m + 0x6ac, detail)
+        self.cpu.u32(m + 0x658, x634)
+        self.cpu.u32(m + 0x59c, state)
+        self.cpu.write(0x6293a8, bytes([1 if low else 0]))  # ObjectLOD's low table
         self.cpu.u32(self.game + 0x14, m if player else 0)
-        self.cpu.call(0x41d070, ecx=m)
-        self.log(0xf, self.r32(m + 0x634), self.r32(m + 0x5e0))
+        self.cpu.call(0x41de60, ecx=m)
+        self.log(0xf, self.r32(m + 0x658), self.r32(m + 0x604))
         return bytes(self.out)
 
-    # --- the kill credit 0x41b420 ---
+    # --- the kill credit 0x41c1a0 ---
     def vstub(self, fn, pop=0):
         a = self.cpu.code(b'\xc3')
         self.cpu.stub_function(a, fn, pop)
@@ -238,8 +279,8 @@ class Emulated:
 
     def kill_setup(self):
         cpu = self.cpu
-        cpu.stub_function(0x472f00, lambda c: self.log(0x22, 1 if c.arg(0) == self.k_vmech else 0), 4)
-        cpu.stub_function(0x472ec0, lambda c: self.log(0x23, c.arg(0)), 4)
+        cpu.stub_function(0x474f80, lambda c: self.log(0x22, 1 if c.arg(0) == self.k_vmech else 0), 4)
+        cpu.stub_function(0x474f40, lambda c: self.log(0x23, c.arg(0)), 4)
         # One vtable for the victim, its views and the player: +0x2c, +0x50,
         # +0x40, +0x48, +0x28 by what ECX is.
         vt = self.zalloc(0x200)
@@ -249,18 +290,18 @@ class Emulated:
                     return c.ecx
                 if slot == 0x2c:
                     return self.k_info_block if self.k_info else 0
-                return {0x50: self.k_vmech, 0x40: self.k_vehicle, 0x48: self.k_building}[slot]
+                return {0x58: self.k_vmech, 0x48: self.k_vehicle, 0x50: self.k_building}[slot]
             return f
-        for slot in (0x28, 0x2c, 0x40, 0x48, 0x50):
+        for slot in (0x28, 0x2c, 0x48, 0x50, 0x58):
             cpu.u32(vt + slot, self.vstub(view(slot)))
         self.k_vt = vt
         gvt = self.zalloc(0x40)
-        cpu.u32(gvt + 0x2c, self.vstub(lambda c: self.k_game))
+        cpu.u32(gvt + 0x28, self.vstub(lambda c: self.k_game))
         go = self.zalloc(8)
         cpu.u32(go, gvt)
         cpu.u32(self.game + 0x6c, go)
         cvt = self.zalloc(0x100)
-        cpu.u32(cvt + 0xb4, self.vstub(lambda c: self.log(0x21, self.k_info if c.arg(0) == self.k_info_block else 0xdead), 4))
+        cpu.u32(cvt + 0xac, self.vstub(lambda c: self.log(0x21, self.k_info if c.arg(0) == self.k_info_block else 0xdead), 4))
         self.k_cvt = cvt
 
     def on_kill(self, roster, allies, xf8, counters, killer_is_player, player_team, game, info, has_mech,
@@ -270,22 +311,22 @@ class Emulated:
             self.kill_setup()
         self.out = bytearray()
         def mech(r):
-            m = self.zalloc(0x6d8)
-            pl = self.zalloc(0x234)
+            m = self.zalloc(MECH)
+            pl = self.zalloc(0x300)
             cpu.u32(pl + 0xc, r)
-            cpu.u32(m + 0x684, pl)
+            cpu.u32(m + 0x6a8, pl)
             cpu.u32(m, self.k_vt)
             return m
         k = mech(roster)
         cpu.u32(k + 0xc4, allies)
-        cpu.u32(k + 0xf8, xf8)
-        cpu.write(k + 0x3f4, struct.pack('<6I', *counters))
+        cpu.u32(k + 0xfc, xf8)
+        cpu.write(k + 0x404, struct.pack('<6I', *counters))
         ctl = self.zalloc(0x40)
         vb = self.zalloc(8)
         cpu.u32(vb + 4, 0x10)
         cpu.u32(ctl + 4, vb)
         cpu.u32(ctl + 4 + 0x10, self.k_cvt)
-        cpu.u32(k + 0x37c, ctl)
+        cpu.u32(k + 0x38c, ctl)
         p = k
         if not killer_is_player:
             p = mech(0)
@@ -297,12 +338,12 @@ class Emulated:
         self.k_vmech = mech(victim_roster) if has_mech else 0
         victim = self.zalloc(8)
         cpu.u32(victim, self.k_vt)
-        cpu.call(0x41b420, ecx=k, stack_args=(victim,))
-        self.log(0xf, self.r32(k + 0xf8))
-        self.logf(k + 0x3f4, 6)
+        cpu.call(0x41c1a0, ecx=k, stack_args=(victim,))
+        self.log(0xf, self.r32(k + 0xfc))
+        self.logf(k + 0x404, 6)
         return bytes(self.out)
 
-    # --- the cockpit 0x464580 ---
+    # --- the cockpit 0x465e20 ---
     def cockpit(self, w):
         cpu = self.cpu
         if not hasattr(self, 'ck_setup'):
@@ -310,16 +351,16 @@ class Emulated:
             def is_child(c):
                 self.log(0x90, self.ck_map(cpu.r32(c.ecx + 8) if False else self.r32(c.ecx + 8)), self.ck_map(c.arg(0)))
                 return self.ck_child
-            cpu.stub_function(0x4600e0, is_child, 0xc)
-            cpu.stub_function(0x4ebb40, lambda c: self.log(0x91, self.ck_map(c.ecx), self.ck_map(c.edx)))
-            cpu.stub_function(0x4600b0, lambda c: self.log(0x92, self.ck_map(c.ecx)))
-            cpu.stub_function(0x4eb9b0, lambda c: self.log(0x93, self.ck_map(c.ecx), self.ck_map(c.edx)))
-            cpu.stub_function(0x460050, lambda c: self.log(0x94, c.arg(0), self.ck_map(c.arg(1))), 8)
+            cpu.stub_function(0x461510, is_child, 0xc)
+            cpu.stub_function(0x4fd7a0, lambda c: self.log(0x91, self.ck_map(c.arg(0)), self.ck_map(c.arg(1))))
+            cpu.stub_function(0x4614e0, lambda c: self.log(0x92, self.ck_map(c.arg(0))))
+            cpu.stub_function(0x4fd5e0, lambda c: self.log(0x93, self.ck_map(c.arg(0)), self.ck_map(c.arg(1))))
+            cpu.stub_function(0x461480, lambda c: self.log(0x94, c.arg(0), self.ck_map(c.arg(1))), 8)
         self.out = bytearray()
         self.ck_child = w[1]
-        m = self.zalloc(0x6d8)
-        data = self.zalloc(0x234)
-        cpu.u32(m + 0x684, data)
+        m = self.zalloc(MECH)
+        data = self.zalloc(0x300)
+        cpu.u32(m + 0x6a8, data)
         self.ck_node = self.zalloc(0x100)
         self.ck_tnode = self.zalloc(0x100)
         if w[0]:
@@ -329,10 +370,10 @@ class Emulated:
         arr_ = self.zalloc(8)
         cpu.u32(arr_, w[2])
         cpu.write(self.ck_node + 0x54, struct.pack('<II', 1 if w[2] else 0, arr_))
-        t = self.zalloc(0x1b4)
+        t = self.zalloc(0x1c0)
         cpu.u32(t + 4, m)
         cpu.u32(t + 8, self.ck_tnode)
-        cpu.call(0x464580, ecx=t, stack_args=(w[3],))
+        cpu.call(0x465e20, ecx=t, stack_args=(w[3],))
         self.log(0xf)
         return bytes(self.out)
 
@@ -343,41 +384,52 @@ class Emulated:
     def dead_setup(self, step):
         cpu = self.cpu
         if not step:
-            cpu.stub_function(0x4162c0, lambda c: self.log(0x80, c.arg(0)), 4)
-            cpu.stub_function(0x5a8000, lambda c: self.log(0x81, c.arg(0)), 4)
-            cpu.stub_function(0x413cb0, lambda c: self.log(0x82, c.arg(0)), 4)
+            cpu.stub_function(0x416d70, lambda c: self.log(0x80, c.arg(0)), 4)
+            cpu.stub_function(0x5cb240, lambda c: self.log(0x81))
+            cpu.stub_function(0x433500, lambda c: self.log(0x82, c.arg(0)), 4)
             self.dd_vt = 1
             return
-        cpu.stub_function(0x419ef0, lambda c: self.log(0x83, c.arg(0)), 4)
-        cpu.stub_function(0x479480, lambda c: self.dd_net)
-        cpu.stub_function(0x479460, lambda c: self.dd_ia)
-        cpu.stub_function(0x46dde0, lambda c: (self.log(0x8b), self.dd_respawn)[1])
-        cpu.stub_function(0x4eb170, lambda c: self.log(0x86, self.dd_map(c.ecx), c.edx))
-        cpu.stub_function(0x4fbb90, lambda c: self.log(0x84, self.dd_map(c.ecx), c.edx))
-        cpu.stub_function(0x4fba20, lambda c: self.log(0x85, self.dd_map(c.ecx), c.arg(0)), 4)
-        cpu.stub_function(0x4aa6b0, lambda c: self.log(0x88))
+        cpu.stub_function(0x4332e0, lambda c: self.log(0x83, c.arg(0)), 4)
+        cpu.stub_function(0x47b710, lambda c: self.dd_net, 4)
+        cpu.stub_function(0x47b6e0, lambda c: self.dd_ia, 4)
+        cpu.stub_function(0x46fe80, lambda c: (self.log(0x8b), self.dd_respawn)[1])
+        cpu.stub_function(0x4fca50, lambda c: self.log(0x86, self.dd_map(c.arg(0)), c.arg(1)))
+        cpu.stub_function(0x4fcf20, lambda c: self.log(0x8c, self.dd_map(c.arg(0)), c.arg(1)))
+        cpu.stub_function(0x50fdf0, lambda c: self.log(0x84, self.dd_map(c.arg(0)), c.arg(1)))
+        cpu.stub_function(0x50fc70, lambda c: self.log(0x85, self.dd_map(c.arg(0)), c.arg(1)))
+        cpu.stub_function(0x4adc40, lambda c: self.log(0x88))
         vt = self.zalloc(0x200)
         cpu.u32(vt, self.vstub(lambda c: self.log(0x89), 4))
         cpu.u32(vt + 0x28, self.vstub(lambda c: c.ecx))
-        cpu.u32(vt + 0x158, self.vstub(lambda c: self.log(0x8a, c.arg(0)), 4))
+        cpu.u32(vt + 0x170, self.vstub(lambda c: self.log(0x8a, c.arg(0)), 4))
         self.dd_vt = vt
+        gvt = self.zalloc(0x40)
+        cpu.u32(gvt + 0x28, self.vstub(lambda c: self.dd_game))
+        go = self.zalloc(8)
+        cpu.u32(go, gvt)
+        cpu.u32(self.game + 0x6c, go)
 
     def dd_map(self, v):
         return 0x6100 if v == self.dd_node else v
 
-    def dead_update(self, active, v3c, v58, imp, dt):
+    def dead_update(self, active, v3c, v58, imp, pending, dt):
         cpu = self.cpu
         if not hasattr(self, 'dd_vt'):
             self.dead_setup(False)
         self.out = bytearray()
-        m = self.zalloc(0x6d8)
+        m = self.zalloc(MECH)
+        tm = self.zalloc(48)
+        cpu.u32(m + 0xc, tm)
         cpu.write(m + 8, bytes([1 if active else 0]))
+        cpu.write(m + 0x48, struct.pack('<f', 1.0))  # as a new mech's, for the active case
         cpu.write(m + 0x3c, struct.pack('<3f', *v3c))
         cpu.write(m + 0x58, struct.pack('<3f', *v58))
-        cpu.write(m + 0x594, struct.pack('<3f', *imp))
-        cpu.call(0x419ef0, ecx=m, stack_args=(fb(dt),))
+        cpu.write(m + 0x5b8, struct.pack('<3f', *imp))
+        cpu.write(m + 0x6dc, struct.pack('<23f', *pending))
+        cpu.call(0x4332e0, ecx=m, stack_args=(fb(dt),))
         self.log(0xf)
-        self.logf(m + 0x3c, 3), self.logf(m + 0x58, 3), self.logf(m + 0x594, 3)
+        self.logf(m + 0x3c, 3), self.logf(m + 0x58, 3), self.logf(m + 0x5b8, 3)
+        self.logf(m + 0x48, 4), self.logf(m + 0x30, 3), self.logf(tm, 12)
         return bytes(self.out)
 
     def dead_step(self, w):
@@ -386,137 +438,70 @@ class Emulated:
             self.dead_setup(True)
         self.out = bytearray()
         game_block = self.zalloc(0x100)
-        cpu.write(game_block + 0x8c, bytes([1 if w[5] else 0]))
+        cpu.write(game_block + 0xa4, bytes([1 if w[5] else 0]))
+        self.dd_game = w[0]
         self.dd_net = game_block if w[0] == 3 else 0
         self.dd_ia = game_block if w[0] == 2 else 0
         self.dd_respawn = w[6]
-        m = self.zalloc(0x6d8)
+        m = self.zalloc(MECH)
         cpu.u32(m, self.dd_vt)
         self.dd_node = self.zalloc(0x100)
-        cpu.u32(m + 4, self.dd_node)
+        cpu.u32(m + 4, self.dd_node if w[13] else 0)
         cpu.write(m + 8, bytes([1 if w[1] else 0]))
-        cpu.u32(m + 0x6b4, w[3])
-        cpu.u32(m + 0x3f4, w[7])
+        cpu.u32(m + 0x6d8, w[3])
+        cpu.u32(m + 0x404, w[7])
         cpu.u32(m + 0xc0, w[9])
-        data = self.zalloc(0x234)
+        cpu.u32(m + 0x658, w[11])
+        cpu.u32(m + 0x660, w[12])
+        data = self.zalloc(0x300)
         cpu.u32(data + 0xc, w[8])
-        cpu.u32(m + 0x684, data)
+        cpu.u32(m + 0x6a8, data)
         pl = m
         if not w[4]:
-            pl = self.zalloc(0x6d8)
+            pl = self.zalloc(MECH)
             cpu.u32(pl, self.dd_vt)
         cpu.u32(pl + 0xc4, w[10])
         cpu.u32(self.game + 0x14, pl)
-        cpu.u32(0x60991c, w[2])
+        cpu.u32(0x62da90, w[2])
         functor = self.zalloc(8)
         cpu.u32(functor, fb(0.05))
-        cpu.call(0x41e220, ecx=functor, stack_args=(m,))
+        cpu.call(0x433020, ecx=functor, stack_args=(m,))
         r = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
-        t = struct.unpack('<3i', cpu.read(game_block + 0x4c, 12))
-        self.log(0xf, *t, self.r32(m + 0x3f4), 1 if r else 0)
+        t = struct.unpack('<3i', cpu.read(game_block + 0xa8, 12))
+        self.log(0xf, *t, self.r32(m + 0x404))
+        self.logf(m + 0x660)
+        self.log(1 if r else 0)
         return bytes(self.out)
 
     # --- the level of detail ---
     def lod_setup(self):
         cpu = self.cpu
-        cpu.stub_function(0x4e6ff0, lambda c: self.ld_target)
-        cpu.stub_function(0x4aee40, lambda c: self.ld_answer)
-        cpu.stub_function(0x4ebb40, lambda c: self.log(0x71, self.ld_map(c.ecx), c.edx))
-        cpu.stub_function(0x4eb9b0, lambda c: self.log(0x72, self.ld_map(c.ecx), c.edx))
-        def find(c):
-            self.log(0x73, self.ld_map(c.ecx), len(cpu.read(c.edx, 16).split(b'\0')[0]))
-            return 0x8300
-        cpu.stub_function(0x4f9d60, find)
-        cpu.stub_function(0x506ca0, lambda c: self.log(0x74, c.ecx))
-        def jets(c):
-            if (c.arg(0), c.arg(1), c.arg(2), c.arg(3)) != (1, 0, ZERO, ZERO):
-                self.bad = 'jets args'
-            self.log(0x75)
-            return 0x8400
-        cpu.stub_function(0x432830, jets, 0x10)
-        cpu.stub_function(0x4eb170, lambda c: self.log(0x76, c.ecx, c.edx))
-        cpu.stub_function(0x4fc300, lambda c: self.log(0x77, c.ecx, 1 if c.edx == self.ld_rot else 0))
+        cpu.stub_function(0x4fd7a0, lambda c: self.log(0x71, c.arg(0), c.arg(1)))
+        cpu.stub_function(0x4fd5e0, lambda c: self.log(0x72, c.arg(0), c.arg(1)))
+        cpu.stub_function(0x4fca50, lambda c: self.log(0x76, c.arg(0), c.arg(1)))
+        cpu.stub_function(0x510540, lambda c: self.log(0x77, c.arg(0), 1 if c.arg(1) == self.ld_rot else 0))
         def set_node(c):
             self.log(0x78, c.arg(0))
             cpu.u32(c.ecx + 8, c.arg(0))
         self.ld_part_vt = self.zalloc(0x80)
         cpu.u32(self.ld_part_vt + 0xc, self.vstub(set_node, 4))
-        self.ld_wvt = []
-        for flag in (0, 1):
-            vt = self.zalloc(0x20)
-            cpu.u32(vt + 0xc, self.vstub(lambda c, f=flag: f))
-            self.ld_wvt.append(vt)
-        self.ld_lvt = []
-        for i in (0, 1):
-            vt = self.zalloc(0x80)
-            cpu.u32(vt + 0x5c, self.vstub(lambda c, i=i: self.log(0x70, i, c.arg(0)), 4))
-            self.ld_lvt.append(vt)
 
     def ld_map(self, v):
-        return 0x8000 if v == self.ld_node else v
-
-    def lod(self, w):
-        cpu = self.cpu
-        if not hasattr(self, 'ld_part_vt'):
-            self.lod_setup()
-        self.out = bytearray()
-        m = self.zalloc(0x6d8)
-        self.ld_node = self.zalloc(0x100)
-        cpu.u32(m + 4, self.ld_node)
-        player = m if w[0] else self.zalloc(0x6d8)
-        cpu.u32(self.game + 0x14, player)
-        cpu.u32(player + 0x6c, self.zalloc(0x40) if w[3] else 0)
-        self.ld_target = m if w[4] else player
-        if w[1]:
-            con = self.zalloc(0x40)
-            cpu.u32(con + 0xc, w[2])
-            cpu.u32(m + 0x98, con)
-        data = self.zalloc(0x234)
-        cpu.write(data, struct.pack('<II', w[8], w[9]))
-        cpu.u32(m + 0x684, data)
-        cpu.write(m + 0x690, struct.pack('<III', w[5], w[6], w[7]))
-        wm = self.zalloc(0x94)
-        cpu.u32(wm + 0x24, w[10])
-        for i in range(w[10]):
-            wp = self.zalloc(0x10)
-            cpu.u32(wp, self.ld_wvt[1 if w[11 + i] else 0])
-            cpu.u32(wm + 0x40 + 4 * i, wp)
-        cpu.u32(m + 0xd4, wm)
-        cpu.u32(m + 0x620, w[14])
-        head = self.zalloc(12)
-        items = []
-        for i in (0, 1):
-            pt = self.zalloc(0x80)
-            cpu.u32(pt, self.ld_lvt[i])
-            it = self.zalloc(12)
-            cpu.u32(it + 8, pt)
-            items.append(it)
-        ring = [head] + items
-        for i, it in enumerate(ring):
-            cpu.u32(it, ring[(i + 1) % 3])
-            cpu.u32(it + 4, ring[i - 1])
-        cpu.u32(m + 0x384, head)
-        cpu.u32(0x605634, w[15])
-        self.ld_answer = w[16]
-        cpu.call(0x41e870, ecx=m)
-        r = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
-        self.log(0xf, self.r32(m + 0x688), self.r32(0x605634), self.r32(m + 0x690), self.r32(m + 0x3a8),
-                 self.r32(m + 0x620), r)
-        return bytes(self.out)
+        return v
 
     def part_lod(self, kind, w):
         cpu = self.cpu
         if not hasattr(self, 'ld_part_vt'):
             self.lod_setup()
         self.out = bytearray()
-        p = self.zalloc(0xec)
+        p = self.zalloc(0x1c0)
         cpu.u32(p, self.ld_part_vt)
         cpu.write(p + 8, struct.pack('<III', w[1], w[2], w[3]))
         self.ld_rot = self.zalloc(48)
         cpu.u32(p + 0x14, self.ld_rot)
         cpu.write(p + 0x48, bytes([1 if w[0] else 0]))
         cpu.write(p + 0x98, struct.pack('<II', w[5], w[6]))
-        cpu.call(0x4672f0 if kind == 1 else 0x467290, ecx=p, stack_args=(w[4],))
+        cpu.call(0x468d30 if kind == 1 else 0x468cd0, ecx=p, stack_args=(w[4],))
         self.log(0xf, self.r32(p + 8), self.r32(p + 0xa0) if kind == 1 else 0)
         return bytes(self.out)
 
@@ -525,32 +510,28 @@ class Emulated:
         cpu = self.cpu
         if not hasattr(self, 'rl_setup'):
             self.rl_setup = True
-            cpu.stub_function(0x506ca0, lambda c: self.log(0x60, c.ecx))
-            cpu.stub_function(0x4e66a0, lambda c: self.log(0x61, c.ecx, c.arg(0)), 4)
-            cpu.stub_function(0x5ac5c0, lambda c: 0)
-            def rename(c):
-                self.log(0x62, c.ecx, len(cpu.read(c.edx, 32).split(b'\0')[0]))
-            cpu.stub_function(0x4eb300, rename)
-            cpu.stub_function(0x4eb8a0, lambda c: self.log(0x63, 5, c.edx))
-            cpu.stub_function(0x4eb8e0, lambda c: self.log(0x63, 6, c.edx))
-            cpu.stub_function(0x4600b0, lambda c: self.log(0x64, c.ecx))
-            cpu.stub_function(0x45fb50, lambda c: self.log(0x66, c.ecx))
-            cpu.stub_function(0x45fab0, lambda c: self.log(0x67, c.ecx))
-            cpu.stub_import(0x5bb65c, lambda c: 0)
+            cpu.stub_function(0x51f830, lambda c: self.log(0x60, c.arg(0)))
+            cpu.stub_function(0x4f8440, lambda c: self.log(0x61, c.ecx, c.arg(0)), 4)
+            cpu.stub_function(0x403ac0, lambda c: 0)
+            cpu.stub_function(0x4fcbe0, lambda c: self.log(0x62, c.arg(0), len(cpu.read(c.arg(1), 32).split(b'\0')[0])))
+            cpu.stub_function(0x4fd4a0, lambda c: self.log(0x63, 5, c.arg(1)))
+            cpu.stub_function(0x4fd4f0, lambda c: self.log(0x63, 6, c.arg(1)))
+            cpu.stub_function(0x4614e0, lambda c: self.log(0x64, c.arg(0)))
+            cpu.stub_function(0x460eb0, lambda c: self.log(0x66, self.rl_effect))
             self.rl_vt = {}
             for cid in (9, 11, 13):
                 vt = self.zalloc(8)
                 cpu.u32(vt, self.vstub(lambda c, i=cid: self.log(0x65, i), 4))
                 self.rl_vt[cid] = vt
         self.out = bytearray()
-        part = self.zalloc(0x1b4)
+        part = self.zalloc(0x1c0)
         cpu.write(part + 0x68, struct.pack('<III', w[2], w[1], w[0]))
         cpu.u32(part + 8, w[3])
         def child(cid):
             b = self.zalloc(0x10)
             cpu.u32(b, self.rl_vt[cid])
             return b
-        fn = {0: 0x45fd40, 1: 0x464250, 2: 0x463740, 3: 0x466380, 4: 0x4628c0}[kind]
+        fn = {0: 0x461120, 1: 0x4659e0, 2: 0x464e00, 3: 0x467cb0, 4: 0x463f10}[kind]
         if kind == 1:
             cpu.write(part + 0x74, struct.pack('<II', w[4], w[5]))
         elif kind == 2:
@@ -558,33 +539,40 @@ class Emulated:
         elif kind == 3:
             cpu.u32(part + 0x74, child(9) if w[6] else 0)
         elif kind == 4:
-            cpu.u32(part + 0xe4, w[8])
+            effect = 0
+            if w[8]:  # PM deletes it by its vtable; MW3 called the destructor
+                vt = self.zalloc(8)
+                cpu.u32(vt, self.vstub(lambda c, e=w[8]: self.log(0x67, e), 4))
+                effect = self.zalloc(8)
+                cpu.u32(effect, vt)
+            self.rl_effect = w[8]
+            cpu.u32(part + 0xe4, effect)
             cpu.write(part + 0xa4, struct.pack('<II', 0x1234 if w[9] else 0, 0x5678 if w[9] else 0))
         cpu.call(fn, ecx=part)
         self.log(0xf)
         return bytes(self.out)
 
-    # --- the flown parts' fade 0x413cb0 ---
+    # --- the flown parts' fade 0x433500 ---
     def fade(self, count, ia, used, value):
         cpu = self.cpu
         if not hasattr(self, 'fd_setup'):
             self.fd_setup = True
-            cpu.stub_function(0x479460, lambda c: self.fd_ia)
+            cpu.stub_function(0x47b6e0, lambda c: self.fd_ia, 4)
             def used_(c):
-                self.log(0x51, 0x6000 if c.ecx == self.fd_mnode else c.ecx)
-                cpu.u32(c.edx, self.fd_used)
+                self.log(0x51, 0x6000 if c.arg(0) == self.fd_mnode else c.arg(0))
+                cpu.u32(c.arg(1), self.fd_used)
                 return 0
-            cpu.stub_function(0x4fbb10, used_)
-            cpu.stub_function(0x4fbb90, lambda c: self.log(0x52, self.fd_map(c.ecx), c.edx))
+            cpu.stub_function(0x50fd70, used_)
+            cpu.stub_function(0x50fdf0, lambda c: self.log(0x52, self.fd_map(c.arg(0)), c.arg(1)))
             def val(c):
-                self.log(0x53, 0x6000 if c.ecx == self.fd_mnode else c.ecx)
-                cpu.write(c.edx, struct.pack('<f', self.fd_value))
+                self.log(0x53, 0x6000 if c.arg(0) == self.fd_mnode else c.arg(0))
+                cpu.write(c.arg(1), struct.pack('<f', self.fd_value))
                 return 0
-            cpu.stub_function(0x4fbaa0, val)
-            cpu.stub_function(0x4fba20, lambda c: (self.log(0x54, self.fd_map(c.ecx)), self.logf(cpu.uc.reg_read(UC_X86_REG_ESP) + 4))[0], 4)
+            cpu.stub_function(0x50fcf0, val)
+            cpu.stub_function(0x50fc70, lambda c: self.log(0x54, self.fd_map(c.arg(0)), c.arg(1)))
         self.out = bytearray()
         self.fd_ia, self.fd_used, self.fd_value = ia, used, value
-        m = self.zalloc(0x6d8)
+        m = self.zalloc(MECH)
         self.fd_mnode = self.zalloc(0x100)
         cpu.u32(m + 4, self.fd_mnode)
         head = self.zalloc(12)
@@ -601,10 +589,10 @@ class Emulated:
         for i, it in enumerate(ring):
             cpu.u32(it, ring[(i + 1) % len(ring)])
             cpu.u32(it + 4, ring[i - 1])
-        cpu.u32(m + 0x6d0, head)
-        cpu.u32(m + 0x6d4, count)
-        cpu.call(0x413cb0, ecx=m, stack_args=(fb(1.0 / 30),))
-        self.log(0xf, self.r32(m + 0x6d4))
+        cpu.u32(m + 0x740, head)
+        cpu.u32(m + 0x744, count)
+        cpu.call(0x433500, ecx=m, stack_args=(fb(1.0 / 30),))
+        self.log(0xf, self.r32(m + 0x744))
         return bytes(self.out)
 
     def fd_map(self, v):
@@ -614,22 +602,22 @@ class Emulated:
     def marks(self, ops):
         self.out = bytearray()
         cpu = self.cpu
-        for a in (0x74a2ac, 0x74a2b0, 0x74a2b4, 0x74a2b8, 0x74a2bc, 0x74a2c0, 0x74a2c4):
+        for a in (0xa4e0b8, 0xa4e0bc, 0xa4e0c0, 0xa4e0c4, 0xa4e0c8, 0xa4e0cc, 0xa4e0d0):
             cpu.u32(a, 0)
         for op, a, b in ops:
             if op == 1:
-                cpu.call(0x5426a0, ecx=a)
+                cpu.call(0x548840, stack_args=(a,))
             elif op == 2:
-                cpu.call(0x5426b0, ecx=a)
+                cpu.call(0x548850, stack_args=(a,))
             elif op == 3:
-                cpu.call(0x5426e0, stack_args=(a, b))
+                cpu.call(0x548880, stack_args=(a, b))
             elif op == 4:
-                cpu.call(0x542700, ecx=a)
+                cpu.call(0x5488a0, stack_args=(a,))
             else:
-                cpu.call(0x542710, ecx=a)
+                cpu.call(0x5488b0, stack_args=(a,))
                 self.log(1 if cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff else 0)
-            self.logf(0x74a2ac, 7)
-            cpu.call(0x5426d0)
+            self.logf(0xa4e0b8, 7)
+            cpu.call(0x548870)
             self.log(1 if cpu.uc.reg_read(UC_X86_REG_EAX) else 0)
         return bytes(self.out)
 
@@ -640,33 +628,33 @@ class Emulated:
         def world(c):
             self.log(0x30)
             self.cpu.write(c.arg(0), struct.pack('<12f', *self.f_world))
-        cpu.stub_function(0x461cf0, world, 4)
-        cpu.stub_function(0x4f9af0, lambda c: (self.log(0x31, c.ecx), self.f_copy)[1], 4)
-        cpu.stub_function(0x4fb740, lambda c: (self.log(0x32), self.f_create)[1])
+        cpu.stub_function(0x4632f0, world, 4)
+        cpu.stub_function(0x50d7c0, lambda c: (self.log(0x31, c.arg(0)), self.f_copy)[1])
+        cpu.stub_function(0x50f960, lambda c: (self.log(0x32), self.f_create)[1])
         def report(c):
             name = self.cpu.read(c.arg(4), 16).split(b'\0')[0]
             self.log(0x33, len(name), c.arg(5))
-        cpu.stub_function(0x49bfd0, report)
-        cpu.stub_function(0x4eb300, lambda c: self.log(0x34, c.ecx, m(c.edx)))
-        cpu.stub_function(0x4eb620, lambda c: self.log(0x35, m(c.ecx), c.edx))
-        cpu.stub_function(0x4ebb40, lambda c: self.log(0x36, m(c.ecx), m(c.edx)))
-        cpu.stub_function(0x4eb8a0, lambda c: self.log(0x38, 5, c.edx))
-        cpu.stub_function(0x4eb8e0, lambda c: self.log(0x38, 6, c.edx))
+        cpu.stub_function(0x406cb0, report)
+        cpu.stub_function(0x4fcbe0, lambda c: self.log(0x34, c.arg(0), m(c.arg(1))))
+        cpu.stub_function(0x4fcf20, lambda c: self.log(0x35, m(c.arg(0)), c.arg(1)))
+        cpu.stub_function(0x4fd7a0, lambda c: self.log(0x36, m(c.arg(0)), m(c.arg(1))))
+        cpu.stub_function(0x4fd4a0, lambda c: self.log(0x38, 5, c.arg(1)))
+        cpu.stub_function(0x4fd4f0, lambda c: self.log(0x38, 6, c.arg(1)))
         def pose(c):
-            self.log(0x39, m(c.edx))
-            self.logf(c.ecx, 12)
-        cpu.stub_function(0x461d30, pose, 8)
-        cpu.stub_function(0x4eb9b0, lambda c: self.log(0x3a, m(c.ecx), c.edx))
-        cpu.stub_function(0x460180, lambda c: self.log(0x3c))
-        cpu.stub_function(0x460050, lambda c: self.log(0x3d, c.arg(0)), 8)
-        cpu.stub_function(0x462000, lambda c: self.log(0x3e, m(c.ecx)))
-        cpu.stub_function(0x413bb0, lambda c: self.f_debris.append(m(c.arg(0))), 4)
-        cpu.stub_function(0x4b1040, lambda c: self.log(0x40, c.arg(0)), 4)
+            self.log(0x39, m(c.arg(1)))
+            self.logf(c.arg(0), 12)
+        cpu.stub_function(0x463330, pose)
+        cpu.stub_function(0x4fd5e0, lambda c: self.log(0x3a, m(c.arg(0)), c.arg(1)))
+        cpu.stub_function(0x4615b0, lambda c: self.log(0x3c))
+        cpu.stub_function(0x461480, lambda c: self.log(0x3d, c.arg(0)), 8)
+        cpu.stub_function(0x463600, lambda c: self.log(0x3e, m(c.arg(0))))
+        cpu.stub_function(0x433400, lambda c: self.f_debris.append(m(c.arg(0))), 4)
+        cpu.stub_function(0x4b4f10, lambda c: self.log(0x40, c.arg(0)), 4)
         ov = self.zalloc(8)
-        cpu.u32(ov, self.vstub(lambda c: self.log(0x37, m(c.arg(0))), 4))
+        cpu.u32(ov + 4, self.vstub(lambda c: self.log(0x37, m(c.arg(0))), 4))
         o = self.zalloc(8)
         cpu.u32(o, ov)
-        cpu.u32(0x608c84, o)
+        cpu.u32(0x62ca90, o)
         def set_node(c):
             self.log(0x3b, c.arg(0))
             self.cpu.u32(c.ecx + 0x14, self.f_newbuf)
@@ -686,7 +674,7 @@ class Emulated:
     def map_node(self, v):
         return {self.f_node: 0x5000, self.f_parent: 0x5100}.get(v, v)
 
-    def fly(self, kind, side, roster, nid, stub, stubs, copy, create, world, local, parent, mech_vel):
+    def fly(self, kind, side, roster, nid, stub, stubs, copy, create, world, local, parent, mech_vel, arm_gone):
         cpu = self.cpu
         if not hasattr(self, 'f_set_node'):
             self.f_node = self.f_parent = -1
@@ -703,8 +691,8 @@ class Emulated:
             nd = block(0x100)
             cpu.u32(nd + 0x28, i)
             return nd
-        mech = block(0x6d8)
-        pl = block(0x234)
+        mech = block(MECH)
+        pl = block(0x300)
         nm = block(8)
         cpu.write(nm, b'owens\0')
         cpu.u32(pl + 0xc, roster)
@@ -713,14 +701,15 @@ class Emulated:
             cpu.u32(pl + 0x210, 0x710)
             for i in range(4):
                 cpu.u32(pl + 0x214 + 4 * i, 0x700 + i)
-        cpu.u32(mech + 0x684, pl)
+        cpu.u32(mech + 0x6a8, pl)
         cpu.write(mech + 0x30, struct.pack('<3f', *mech_vel))
         cpu.u32(mech + 0xd4, block(0x100))
-        torso = block(0x1b4, self.f_torso_vt)
-        cpu.u32(mech + 0x39c, torso)
+        torso = block(0x1c0, self.f_torso_vt)
+        cpu.u32(mech + 0x3ac, torso)
         parts = {}
         for i in (0, 1):
             a = block(0xd0, self.f_arm_vt[i])
+            cpu.write(a + 0x48, bytes([1 if kind == 2 and arm_gone else 0]))
             hd = block(0x80)
             cpu.u32(hd + 4, mech), cpu.u32(hd + 8, node(9 + i))
             cpu.u32(a + 4, mech), cpu.u32(a + 8, node(2 + i)), cpu.u32(a + 0x74, hd)
@@ -729,7 +718,7 @@ class Emulated:
             cpu.u32(cf + 4, mech), cpu.u32(cf + 8, node(11 + i))
             cpu.u32(ft + 4, mech), cpu.u32(ft + 8, node(13 + i))
             cpu.u32(lg + 4, mech), cpu.u32(lg + 8, node(4 + i)), cpu.u32(lg + 0x74, cf), cpu.u32(lg + 0x78, ft)
-            cpu.u32(mech + 0x394 + 4 * i, a), cpu.u32(mech + 0x38c + 4 * i, lg)
+            cpu.u32(mech + 0x3a4 + 4 * i, a), cpu.u32(mech + 0x39c + 4 * i, lg)
             parts[(1, i)], parts[(2, i)] = a, lg
         x = parts[(kind, side)]
         self.f_node = node(nid)
@@ -743,7 +732,7 @@ class Emulated:
         cpu.u32(x + 0x14, own)
         vel = block(12)
         cpu.write(vel, struct.pack('<3f', 9, 9, 9))
-        fn = 0x467100 if kind == 1 else 0x466fe0
+        fn = 0x468b70 if kind == 1 else 0x468a40
         cpu.call(fn, ecx=x, stack_args=(block(12), block(12), vel, stub))
         r = self.cpu.uc.reg_read(UC_X86_REG_EAX)
         for d in self.f_debris:
@@ -753,26 +742,27 @@ class Emulated:
         self.logf(self.f_newbuf, 12)
         return bytes(self.out)
 
-    def anim_nodes(self, node, root, objects, nodes, queries):
+    def anim_nodes(self, node, root, conn_from, conn_to, objects, nodes, queries):
         self.out = bytearray()
         d = self.zalloc(0x13c)
-        o = self.zalloc(0x60 * max(len(objects), 1))
-        n = self.zalloc(0x28 * max(len(nodes), 1))
+        o = self.zalloc(0x5c * max(len(objects), 1))
+        n = self.zalloc(0x2c * max(len(nodes), 1))
         for i, v in enumerate(objects):
-            self.cpu.u32(o + 0x60 * i + 0x24, v)
+            self.cpu.u32(o + 0x5c * i + 0x24, v)
         for i, v in enumerate(nodes):
-            self.cpu.u32(n + 0x28 * i + 0x24, v)
-        self.cpu.u32(d + 0x40, node), self.cpu.u32(d + 0x64, root)
-        self.cpu.write(d + 0x109, bytes([len(objects), len(nodes)]))
-        self.cpu.u32(d + 0x114, o), self.cpu.u32(d + 0x118, n)
+            self.cpu.u32(n + 0x2c * i + 0x28, v)
+        self.cpu.u32(d + 0x48, node), self.cpu.u32(d + 0x6c, root)
+        self.cpu.u32(d + 0x7c, conn_from), self.cpu.u32(d + 0x8c, conn_to)
+        self.cpu.write(d + 0xd9, bytes([len(objects), len(nodes)]))
+        self.cpu.u32(d + 0xe4, o), self.cpu.u32(d + 0xe8, n)
         for q in queries:
-            self.cpu.call(0x506ae0, ecx=d, edx=q)
+            self.cpu.call(0x51f650, stack_args=(d, q))
             self.log(1 if self.cpu.uc.reg_read(UC_X86_REG_EAX) else 0)
-        self.cpu.call(0x506b60, ecx=d)
+        self.cpu.call(0x51f6f0, stack_args=(d,))
         for i in range(len(objects)):
-            self.logf(o + 0x60 * i + 0x24)
+            self.logf(o + 0x5c * i + 0x24)
         for i in range(len(nodes)):
-            self.logf(n + 0x28 * i + 0x24)
+            self.logf(n + 0x2c * i + 0x28)
         return bytes(self.out)
 
 
@@ -782,8 +772,8 @@ def main():
     emu = Emulated(False)
     dying = Emulated(True)
     flying = Emulated(False, fly=True)
-    lodding = Emulated(False, fly=True)  # its own stubs for 0x4ebb40 and 0x4eb9b0
-    dupd, dstep = Emulated(False, fly=True), Emulated(False, fly=True)  # 0x419ef0 itself, and stood in
+    lodding = Emulated(False, fly=True)  # its own stubs for 0x4fd7a0 and 0x4fd5e0
+    dupd, dstep = Emulated(False, fly=True), Emulated(False, fly=True)  # 0x4332e0 itself, and stood in
     cockpitting = Emulated(False, fly=True)
     runs = fails = 0
     kinds = {}
@@ -843,8 +833,9 @@ def main():
         hip_at = (rng.uniform(-900, 900), rng.uniform(0, 60), rng.uniform(-900, 900))
         canned, sound = rng.choice((0, 0x7000)), rng.choice((0, 0x7100))
         mine_state = 1 if brk == 3 and state in (12, 13) else state
-        n = probe.probe_death_prep(mine_state, detail, x634, player, arr(F, hip_at), canned, sound, BUF, CAP)
-        check('death_prep', BUF.raw[:n], dying.death_prep(state, detail, x634, player, hip_at, canned, sound))
+        low = rng.random() < 0.25
+        n = probe.probe_death_prep(mine_state, detail, x634, player, arr(F, hip_at), canned, sound, low, BUF, CAP)
+        check('death_prep', BUF.raw[:n], dying.death_prep(state, detail, x634, player, hip_at, canned, sound, low))
 
     # zEffect's node checks.
     for _ in range(400):
@@ -854,9 +845,10 @@ def main():
         node, root = rng.choice(pool + [0]), rng.choice(pool + [0])
         queries = [rng.choice(pool + [0]) for _ in range(6)]
         mine_q = [q + (0x100 if brk == 4 and q == node else 0) for q in queries]
-        n = probe.probe_anim_nodes(node, root, arr(U, objects), len(objects), arr(U, nodes), len(nodes),
+        cfrom, cto = rng.choice(pool + [0]), rng.choice(pool + [0])
+        n = probe.probe_anim_nodes(node, root, cfrom, cto, arr(U, objects), len(objects), arr(U, nodes), len(nodes),
                                    arr(U, mine_q), len(mine_q), BUF, CAP)
-        check('anim_nodes', BUF.raw[:n], emu.anim_nodes(node, root, objects, nodes, queries))
+        check('anim_nodes', BUF.raw[:n], emu.anim_nodes(node, root, cfrom, cto, objects, nodes, queries))
 
     # The kill credit.
     for _ in range(600):
@@ -867,7 +859,7 @@ def main():
         killer_is_player, game = rng.randint(0, 1), rng.choice((1, 1, 2, 3, 4, 0))
         info = rng.choice((0, 0x4401, 0x4401, 0x4401))
         has_mech = rng.randint(0, 1)
-        victim_roster = rng.randint(-1, 19)
+        victim_roster = rng.randint(-1, 24)
         vehicle, building = rng.choice((0, 0x5501)), rng.choice((0, 0x6601))
         mine_roster = victim_roster
         if brk == 5 and has_mech:
@@ -897,35 +889,24 @@ def main():
         mine = list(v3c)
         if brk == 14:
             mine[0] += 0.5
-        n2 = probe.probe_dead_update(active, arr(F, mine), arr(F, v58), arr(F, imp), dt, BUF, CAP)
-        check('dead_update', BUF.raw[:n2], dupd.dead_update(active, v3c, v58, imp, dt))
+        pending = [rng.uniform(-9, 9) for _ in range(23)]
+        n2 = probe.probe_dead_update(active, arr(F, mine), arr(F, v58), arr(F, imp), arr(F, pending), dt, BUF, CAP)
+        check('dead_update', BUF.raw[:n2], dupd.dead_update(active, v3c, v58, imp, pending, dt))
     for _ in range(600):
-        game = rng.choice((0, 2, 2, 3, 3))
+        game = rng.choice((0, 1, 1, 2, 2, 3, 3, 4, 5))
         dead_t = rng.uniform(0, 500)
         now = dead_t + rng.choice((0.5, 5.0, 9.0, 10.5, 50.0, 169.0, 171.0, 175.0, 179.9, 180.5, 300.0, rng.uniform(0, 400)))
         w = [game, 1 if rng.random() < 0.1 else 0, fb(now), fb(dead_t), rng.randint(0, 1), rng.randint(0, 1),
              rng.randint(0, 1), rng.choice((0, 0, 2, 5)), rng.choice((-1, 3, 11)), rng.choice((1, 2, 4)),
-             rng.choice((0, 1, 3))]
+             rng.choice((0, 1, 3)), rng.choice((0, 0, 1, 3)),
+             fb(rng.choice((1.0, 1.0, 0.25, 0.3, 0.05, 0.95, rng.uniform(-0.2, 1.2)))), rng.random() > 0.1]
         mine = list(w)
         if brk == 15:
             mine[2] = fb(now + 1.0)
         n2 = probe.probe_dead_step(arr(U, mine), BUF, CAP)
         check('dead_step', BUF.raw[:n2], dstep.dead_step(w))
 
-    # The level of detail.
-    for _ in range(800):
-        dist = rng.choice((1000.0, 5624.0, 5625.0, 30000.0, 62500.0, 300000.0, 640000.0, 900000.0, rng.uniform(0, 1e6)))
-        r0, r1 = rng.choice((90000.0, 250000.0, 1e6)), rng.choice((40000.0, 90000.0))
-        n = rng.randint(0, 3)
-        w = [1 if rng.random() < 0.1 else 0, rng.randint(0, 1), fb(dist), rng.randint(0, 1), rng.randint(0, 1),
-             rng.randint(0, 1), rng.choice((0x8100, 0x8100, 0)), rng.choice((0x8200, 0x8200, 0)), fb(r0), fb(r1), n,
-             rng.random() < 0.2, rng.random() < 0.2, rng.random() < 0.2, rng.choice((0, 0x8500)), rng.randint(0, 1),
-             rng.randint(0, 1)]
-        w = [int(x) for x in w]
-        mine = list(w)
-        if brk == 12:
-            mine[15] = 1 - mine[15]
-        # On pm the port is PM's 0x41f4d0, not this exe's: test_pm_lod.py.
+    # The parts' level of detail (the mech's own: test_pm_lod.py).
     for _ in range(300):
         kind = rng.randint(0, 1)
         w = [rng.randint(0, 1), rng.choice((0, 0x9100, 0x9200)), rng.choice((0, 0x9100)), rng.choice((0, 0x9200)),
@@ -984,7 +965,7 @@ def main():
         return [ca, 0, -sa, sa * sb, cb, ca * sb, sa * cb, -sb, ca * cb]
     for _ in range(500):
         kind, side = rng.randint(1, 2), rng.randint(0, 1)
-        roster = rng.choice((2, 11, 11, 9, 7, 0))
+        roster = rng.choice((4, 16, 16, 9, 7, 0))
         nid = rng.choice(((2 + side) if kind == 1 else (4 + side),) * 3 + (1, 0, 6, 3, 5))
         stub, stubs = rng.choice((0, 1, 1, 0x100)), rng.randint(0, 1)
         copy, create = rng.choice((0x900, 0x900, 0)), rng.choice((0xa00, 0xa00, 0))
@@ -993,15 +974,16 @@ def main():
         parent = rng.choice((1, 1, 0))
         mech_vel = [rng.uniform(-20, 20), rng.uniform(-3, 3), rng.uniform(-20, 20)]
         mine_side = side
-        if brk == 7 and roster in (2, 11) and kind == 2:
+        arm_gone = rng.random() < 0.3
+        if brk == 7 and roster in (4, 16) and kind == 2:
             mine_side = 1 - side
         mine_world = list(world)
         if brk == 8:
             mine_world[0] = -mine_world[0]
         n = probe.probe_fly(kind, mine_side, roster, nid, stub, stubs, copy, create, arr(F, mine_world), arr(F, local),
-                            parent, arr(F, mech_vel), BUF, CAP)
+                            parent, arr(F, mech_vel), arm_gone, BUF, CAP)
         check('fly', BUF.raw[:n], flying.fly(kind, side, roster, nid, stub, stubs, copy, create, world, local, parent,
-                                          mech_vel))
+                                          mech_vel, arm_gone))
 
     if fails:
         print(f'{fails} of {runs} runs differ')

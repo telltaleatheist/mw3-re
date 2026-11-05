@@ -35,6 +35,10 @@ struct PartCalls {
   int (*world_position)(Handle node, Vec3* out) = nullptr;  // 0x004ed530; unset: zcls::node_world_position
   int (*world_point)(Handle node, Vec3* p) = nullptr;       // 0x004ed650; unset: zcls::node_world_point
   int (*node_to_world)(Handle node, int mode) = nullptr;    // 0x004ed280 onto the matrix stack; unset: zcls::node_to_world
+  // PM: what the smoothing in aim_part asks. The controls' vt+0x88, a record whose +0xb8 sets
+  // the rate (0 from every class but the AI's, so unset until PM's AI); the target's vt+0xc.
+  bool (*aim_skill)(Mech&, float* out) = nullptr;
+  bool (*target_velocity)(Handle contact, Vec3* out) = nullptr;
   const MechDfn* (*dfn)(Mech&) = nullptr;                   // 0x004846a0 on +0x684 +0x0c; unset: mech_dfn
 
   void (*register_part)(Mech&, MechPart&) = nullptr;        // 0x0041b8d0 (the base setup)

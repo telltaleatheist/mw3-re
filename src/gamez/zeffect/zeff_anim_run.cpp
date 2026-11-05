@@ -792,9 +792,12 @@ int32_t anim_reset_all(int32_t restart) {
 
 void anim_keep_stopped_elapsed(int32_t on) { A().stopped_elapsed = on; }
 
-// Mech3.exe 1.2 @ 0x00506ae0 (ECX def, EDX node)
+// Pirate's Moon 1.0 @ 0x0051f650: MW3's 0x00506ae0, with the connector's two
+// ends (MW3's +0x74, +0x84) as well.
 bool anim_uses_node(const AnimDef* def, const Node* node) {
   if (def->node == node || def->root == node) return true;
+  if (*reinterpret_cast<Node* const*>(def->raw + 0x74) == node) return true;
+  if (*reinterpret_cast<Node* const*>(def->raw + 0x84) == node) return true;
   for (int i = 0; i < def->count(0x109); ++i)
     if (def->objects[i].node == node) return true;
   for (int i = 0; i < def->count(0x10a); ++i)
