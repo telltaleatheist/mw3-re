@@ -1345,7 +1345,10 @@ functions PM changed, and PM's new ones.
      Every user follows PM's numbers, checked against 0x41cad0's switch and 0x536c30's callers: the mech's
      dispatcher, the HUD's, the key callbacks, the hat, the pockets, the chains' Exit Mission; the mech's 103
      callbacks are PM's list. PM's reader seeds an entry with no source from the argument's slot (0x412a26),
-     docs/controls.md. **Not done:** PM's new cases in 0x41cad0 (headlight 0x41f900, lancemate target keys
+     docs/controls.md. The dispatched ids against the exe (2026-11-05): all 103 of the mech's registrar in order; the app keys 0x69, 0x78,
+     0x86, 0x74; the mission's 0x79, 0x7a; the pockets' 0x5d..0x60, from the table 0x606f90 by 0x469b71 (the same ids as
+     in the registrar). The switch's cases match but for the three lancemate keys below. Ours: 0xa2, 0xa5.
+     **Not done:** PM's new cases in 0x41cad0 (headlight 0x41f900, lancemate target keys
      0x4e6ca0, 0x4e6fb0, 0x4e6710, eject's extra vtable call): their keys bind and do nothing yet. `test_command.py`
      (MW3's exe with MW3's ids) is retired on `pm`: 0x41cad0 gets its own differential with its new cases, the
      headlight among the first.
@@ -1445,7 +1448,7 @@ functions PM changed, and PM's new ones.
    +0x40 (0x200000 walks up its parents): a clutter record while a query visits it. The records' four walks: 0x4ffb40,
    0x5007d0, 0x502a90, 0x501a30, through the cell's tree by 0x503c20, 0x503ce0, 0x504100, 0x503ea0. Two-sided is 0x400 on PM (the count takes
    0x100). The sphere query 0x5033b0 is in the test on flagged nodes. Tested on crafted records, not on laid ones. Unreached
-   by the test: a count over 255. **Still to look at in play:** jet reach, W58's grid seeing props. Clutter's
+   by the test: a count over 255. **Still to look at in play:** jet reach, W58's grid seeing props; why the walker stopped after the prop in c2m3 at (2636, 3, -1528), having lost 0.098 of armor (c3m6's walked on; an eye or exe check against the original). Clutter's
    `ground_heights` hook stays null: a mission's load sets the laying's skip first (0x492f9a).
    **Headlights go with the mech step (4), as the expansion's headline feature: the player's ported (2026-11-04)**
    (`mech3/mech_headlight`, `test_pm_headlight.py`, the setters in `test_pm_light_setters.py`). In the game: the dfn's
@@ -1468,7 +1471,18 @@ functions PM changed, and PM's new ones.
    of a mech's synced flags (0x4705e0 compares 0x41f920, on through 0x465df0, and sets it by 0x41f8d0); PM's
    HUD never reads it. The toggle: `CMD_HEADLIGHT_TOGGLE` to `0x465dc0`, which flips it by `0x479940` and `0x4799b0`; fading
    through `0x479a40`, whose +0x34 scales the light's ambient and diffuse. The AI's: `ai_headlights` of world.zrd
-   is read into the mission's +0x30 (`mission_world`); its reader is still to trace. The HUD never shows it (2026-11-04: no HUD code reads it; its only on/off query, 0x465df0 via 0x41f920, is the network sync's, 0x4705e0 bit 31).
+   is read into the mission's +0x30 (`mission_world`), at [0x62da38], and ported with the level of detail
+   (`mech3/mech_lod`, `test_pm_lod.py`). Each frame the budget starts at 0 only with that flag, the light map option not
+   -1 and two texture stages (0x41f3d5; the GPU path always has them); otherwise spent. 0x41f4d0 then gives the first
+   mech in the near or mid band that is no ally of the player's team, active and not in state 10 the headlight, one a
+   frame, by the list's order, and passes it the distance always. Off when powered down (0x41f8d0). vt+0x64 is nonzero
+   only on the network mech (0x5e59a8, ctor at 0x47041b): it keeps its synced light. Not ported: that class, and
+   [0x6293a9], which nothing writes. **The level of detail is PM's own:** the player's bits, the near band's bit 0
+   apart, and two tables set with the mechs (0x414430) by ObjectLOD: 2 is low (near 50 m, mid the far clip or 250 m,
+   bits 0x14, 0x10, player 0x15, one sound; the finer bits only for a mech within cos 80 degrees of the view, 0x41f460,
+   the gait not for one shut down, no model swap). `lod_setup` reads the clip at the same point (800 in the missions
+   measured). Checked in play (c1m2, `--mech-ahead 60`, seed 1, frame 300): the beam shows, c1m1 (flag off) never
+   lights. AI mechs fighting with their lights are not seen yet: PM's AI is not running. The HUD never shows it (2026-11-04: no HUD code reads it; its only on/off query, 0x465df0 via 0x41f920, is the network sync's, 0x4705e0 bit 31).
 7. **Sound and the HUD**: the sound syntax reader (rewritten smaller), the
    HUD objectives, spot and headlights.
    - **The HUD: mapped** (2026-11-04; MW3 0x43a800..0x448800 against PM 0x43bb00..0x44a000). 159 pairs

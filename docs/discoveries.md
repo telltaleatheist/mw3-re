@@ -4225,6 +4225,17 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Only one enemy has its headlight on at a time.** On Pirate's Moon's
+  missions that turn them on, enemy mechs carry headlights, but the game gives
+  out just one a frame: the first enemy in its list within 250 metres of
+  you that is still fighting. The others stay dark until that one dies or
+  falls out of range. The beam dims with distance as well.
+- **Low object detail stops animating mechs behind you.** Pirate's Moon
+  adds to the lowest object-detail setting: within 250 metres a mech more
+  than about 80 degrees off your view loses its finer motion, gait
+  included, and mechs never swap to their low-detail models. Near range
+  shrinks from 75 to 50 metres.
+
 - **Pirate's Moon checks its reader file as well as itself.** MechWarrior
   3 checks a few of its own tables when it starts, and if they were
   changed it quietly closes after the intro movie. Pirate's Moon moves
