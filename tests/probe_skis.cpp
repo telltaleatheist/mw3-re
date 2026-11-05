@@ -118,6 +118,7 @@ void probe_skis_real_world(int32_t slot, int32_t own) {
   g_real_world = slot >= 0 ? zcls::node_at(slot) : nullptr;
   g_real_own = own >= 0 ? zcls::node_at(own) : nullptr;
 }
+void probe_skis_own_flag8(int32_t on) { if (g_real_own) zcls::node_set_flag8(g_real_own, on); }
 // The real node's flags after the frame.
 uint32_t probe_skis_own_flags() { return g_real_own ? g_real_own->flags() : 0; }
 

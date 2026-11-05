@@ -47,7 +47,7 @@ def main():
     vt = emu.alloc(0x200)
     emu.wr(vt, emu.raw(0x5dfaac, 0x200))
     emu.w32(vt + 0x64, 0x406ce0)
-    total = kicks = high = own_frames = hidden = 0
+    total = kicks = high = own_frames = hidden = off_frames = 0
     p.probe_skis_real_world.argtypes = [ctypes.c_int, ctypes.c_int]
     p.probe_skis_own_flags.restype = ctypes.c_uint32
     places = [STOP] + [(STOP[0] + rng.uniform(-200, 200), 28.0, STOP[2] + rng.uniform(-200, 200), rng.uniform(-3.1, 3.1)) for _ in range(149)]
@@ -57,6 +57,11 @@ def main():
         hits = emu.ground(world, [ts.f32(x), ts.f32(y + 2), ts.f32(z)], ts.f32(y + 1024))
         own = hit_node(hits) if rng.random() < 0.8 else -1
         p.probe_skis_real_world(slot, own)
+        off = own >= 0 and rng.random() < 0.3  # a node that starts with flag 8 off stays off
+        if own >= 0:
+            flags = emu.r32(emu.node_at(own) + 0x24)
+            emu.w32(emu.node_at(own) + 0x24, flags & ~8 if off else flags | 8)
+            p.probe_skis_own_flag8(1 - off)
         emu.wr(emu.skis, ts.fresh_skis(rng, False))
         emu.w32(emu.skis, emu.mech)
         for i in range(2):
@@ -116,18 +121,23 @@ def main():
                 if (a & 8) != (b & 8):
                     raise SystemExit(f'{where}: flag 8 after: exe {a:#x} port {b:#x}')
                 own_frames += 1
+                off_frames += off
                 emu.w32(node + 0x24, a & ~8)  # what the query sees without the node
                 without = emu.ground(world, [ts.f32(x), ts.f32(y + 2), ts.f32(z)], ts.f32(y + 1024))
-                emu.w32(node + 0x24, a)
+                emu.w32(node + 0x24, a | 8)
                 hidden += without != emu.ground(world, [ts.f32(x), ts.f32(y + 2), ts.f32(z)], ts.f32(y + 1024))
+                emu.w32(node + 0x24, a)
             ground = struct.unpack_from('<7f', skis_out, 0x124)
             total += 1
             kicks += skis_out[5] != 0
             high += max(ground) - min(ground) > 3.5
+        if own >= 0:  # back as the world had it, for the next place's query
+            emu.w32(emu.node_at(own) + 0x24, flags)
+            p.probe_skis_own_flag8(flags >> 3 & 1)
     p.probe_skis_real_world(-1, -1)
-    pm_floors.floors(frames=(total, 600), a_slide_or_kick=(kicks, 10), a_step_over_3_5=(high, 10), own_node=(own_frames, 300))
+    pm_floors.floors(frames=(total, 600), a_slide_or_kick=(kicks, 10), a_step_over_3_5=(high, 10), own_node=(own_frames, 300), flag_off=(off_frames, 40))
     print(f'ok: {total} frames on c1\'s real ground identical; {kicks} slid or kicked, {high} with a step over 3.5; '
-          f'{own_frames} with a real node as the mech\'s, the flag back after; on {hidden} of them the query answers differently without that node')
+          f'{own_frames} with a real node as the mech\'s, the flag back after ({off_frames} starting off); on {hidden} of them the query answers differently without that node')
 
 
 def hit_node(o):
