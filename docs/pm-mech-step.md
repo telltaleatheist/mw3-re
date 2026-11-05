@@ -284,7 +284,8 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 - 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
 - c2m3's stop at (2636, -1528): needs its own run on the walker's route. This walk stops first at a wall at (1365, -6.8, -824) by another route, which settles nothing about it.
 - PM's salvage block 0x473690 against the exe (above, Byte damage).
-- The frame's gaps: the headlight at a death 0x465da0, 0x41f8d0, 0x41d880 in the port's `app_mech`, and `heat_override` 0x419fb0 (the frame's rows, above).
+- PM's new 0x4095e0: its own node out of a line query from the camera, not ported or looked at further.
+- 0x41f8d0's `+0xe2` on the way to the lod's light: read only.
 - **Outside the frame, with the mech lab's tests:** the saved archives, player files, against the exe: the loader 0x4267f0, the writer 0x426bd0, the second loader 0x427e80. Nothing on `pm` compares them yet; `test_mechsave` (unmoved) is the source.
 
 **The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
@@ -297,6 +298,7 @@ It is not the roof. Walking with `--tap 0x0b@69`, the mech ends at (4529.2, 28, 
 - **A ledge holds it.** At the stop no wall responds. The ground under the two front probes is 3.50..3.55 above the middle's, over `kStepUp` 3.5, so each ski kicks the push back 0.5 along forward (0x607a20; MW3's is 1), 1.0 a frame. Moving against that push fires Update's 0.6 (0x41b35f), and the throttle regrows about 0.011 a frame between. Slopes (ny 0.64) slow the last metres.
 - **Exe or port.** All 1,043 frames of the walk through exe 0x423730 and the port on the captured segment answers: identical. `test_pm_skis` now has ledge walks, the same numbers scripted, through exe 0x477f90: 3.52 kicks, 3.4 doesn't, port equal; five breaks caught (the kick's size, the height 3.6 and 3.3, the direction, the slid flag). The 0.6's condition was read in the exe: velocity dot push below zero. Not run: the exe's own ground and segment queries at this place, so the geometry is the port's; test_pm_di compares those queries elsewhere.
 - **What frees it.** Key 1 (stop): stands still. Reverse held 90 frames: back 25 m. Backspace: reverses away at -0.98. Left held 60 frames: walks off at speed, until the next wall. Jump not tested: J did nothing in this mission even on open ground, and why wasn't checked.
+- **Rerun after the skis' query fix (2026-11-05):** the walks stop in the same places to the printed decimal: c1m1 33 ms (4529.3, -4517.0), 8 ms (4528.4, -4517.5), c2m3 33 ms (1368.6, -818.8). c3m6 reads (2515.5, -1636.0) before and (2515.0, -1636.2) after, 24 frames apart, so not compared exactly. So the verdict stands, and no walk shows the mech's own node changing an answer. Correction: with the tap at the same game time (frame 276) 8 ms stops here too; only 16 ms (tap 138) walks on.
 - **Not tied to 33 ms.** With the heading forced at frame 60, 33, 16, 8 and 5 ms all stop at the same ledge line, z about -4517. The rate only decides who gets there: in the plain walk one hit from another mech gives -32.79 at 33 ms, -33.72 at 16, -34.13 at 8, with the same kick and hit normals of 0.071, 0.103, 0.112, and about a degree decides it. It looks inherent to a one-hit kick decayed at different steps; no same-state step-by-step comparison from t 0.84 was done. MW3's first wall was not checked.
 
 The 0.6, frames fired in the stop (per_second on, so each firing costs 0.6^(dt/33 ms)):
@@ -455,6 +457,39 @@ The 45 not caught, by reading:
 - **Closed** (2): 0x424dd0's tilted vehicle matrix and 0x4186f0's half lean, in the tests now and caught.
 - **Not settled** (6): the root motion's x in 0x418850, always 0 in the test; the step's `stop` in 0x418fc0; `c.clear` in 0x424220; the ski's `m[9]`, `m[11]` in 0x477e40; `water_surface` in 0x464060. Each could be a small gap.
 - **Gaps** (5): the headlight at a death 0x465da0 (three breaks), 0x41d880 in the port's `app_mech`, and `zcls::ground_query`'s arguments in 0x477f90, which go through test_pm_di's path and not test_pm_skis, whose query is canned. Also 0x41f8d0, with no break. Not in the table: `heat_override` 0x419fb0's check on the view's mech, not caught by the four tests tried (a generated break that fell outside its row, one of two left out of the count).
+
+**A logic row isn't finished without its account (the lead, 2026-11-05).** Every constant and call the normalized compare says differs gets a line: where the port has it, or why it doesn't apply. A break that hits a line is not that account: two real differences were found by doing it, in rows already marked compared, and the compare had listed both all along. Rows outside the frame the same, when reached.
+
+| Row | The compare says | Where the port has it |
+|---|---|---|
+| 0x41ae00 Update | PM adds 0.6, calls 0x447da0, 0x592a50, 0x433500; MW3's math calls go | 0.6: the throttle under a push, `mech_update.cpp`. 0x447da0: `hud_ammo`, `app_hud.cpp`. 0x433500: `fade_debris`, `mech_dead.cpp`. 0x592a50: a sound's query, run through `test_pm_jets`'s log. The math moved to 0x423590 and 0x4186f0. |
+| 0x477f90 skis | PM adds 0.7, 1024, 0x41f940 twice, **0x4fcf70, 0x4fcf20 twice**; MW3's -0.7, -50 go | 1024: `kQueryTop`. 0.7: `kStep`, subtracted. 0x41f940: the clamp, inline. **0x4fcf70, 0x4fcf20: the mech's own node out of the query, missing until this pass, fixed.** -50 is MW3's only. |
+| 0x41a100 heat | PM adds 0.2, 0.5, 0.75, 2.9, 4, 25, 0x5cb260, 0x58fe70 x3; MW3's negatives go | The constants: `mech.cpp` (drowning at 25, 0.75 left a step, killed under 0.2; the rest are MW3's with the sign moved). 0x5cb260: the place. 0x58fe70: stop sound. |
+| 0x418850 Move | PM adds 16; MW3 loses two calls | 16: the sound's slot and the mech's detail bit, `detail & 0x10`. The calls are inlined accessors. |
+| 0x417f50 jets | PM adds 0.9, 2, 255, 0x434340; MW3's 0.5, 0.7, 0x40afd0 go | 0.9: the thrust at once. 0x434340: the canned effect's stop, logged in `test_pm_jets`. The rest are the jets' move in PM. |
+| 0x418fc0 gait | PM adds 16; MW3's 7, 0.5 go | 16: the detail bit. 7: MW3's Elemental id, now 11. 0.5: read back from a global, same value in `mech_move.cpp`. |
+| 0x423730 Collide | PM adds 0.25, 0.5, 0.7, 0.9, 11, 2, 0x4f8d80, 0x41e2d0, 0x472420 | 0.25, 0.5: the crash's shares, `crash_part`. 0.7, 0.9: the bump. 11: Elemental. 0x4f8d80: the node's object. 0x41e2d0: the torso, direct in the port. 0x472420: `net_send_shove`. |
+| 0x417350 actions | PM adds 65, 0x5cc3a0; MW3's 5, -50, 0x41d880 go | 65: the state check. 0x5cc3a0: an iterator. 5: `lie_time`, in a global in PM, a break on it caught. 0x41d880: set elsewhere in PM (test_pm_power tests it). |
+| 0x425030 mech hit | PM adds 1, 4, 0x41e2d0, 0x472420; MW3's 0.02 goes | MW3's small head damage is gone; the crash's parts. 0x472420: `net_send_shove`. |
+| 0x416d70 landing | PM adds 8, 11, 12, 13, 0x4638f0 | Ids and states. 0x4638f0: `crouch`. |
+| 0x424730 wall | MW3's 0x5cb260 x2 go | The prediction replaces the place. |
+| 0x41d920 power | PM adds 0x4f8d80, a virtual | The target's object, and clearing the target. |
+| 0x424dd0 vehicle | MW3's 10 is 11; a virtual inlined | Elemental's id. |
+| 0x424ba0 ceiling | PM adds 0x424730, a virtual | `wall_response`, `can_crush`. |
+| 0x41c9f0 crouch | MW3's 7 | Elemental's id: 11 in `kElemental`. |
+| 0x464450 foot | PM adds 16, 4 | The detail bits. |
+| 0x419de0 turn | MW3's 0.85 is 1.0 | `kAirTurn`. |
+| 0x4243f0 query | stack sizes | The size of the exe's own stack buffer only. |
+| 0x424520 sort | PM adds 11, 76, a virtual; MW3's 65, 72 go | The pool's hit list, which the port doesn't have; offsets; `airborne`. |
+| 0x41fb70 phase | MW3's two calls | Accessors inlined. No logic change. |
+| 0x4790f0 slide | a call; MW3's 10 goes | 0x477ef0, the two soils, `step_kicks`. |
+| 0x4255f0 touch | MW3's 20 goes | The 20 is in a global, [0x60463c], in PM; the call is now 0x5a50a0 with the hit's point. |
+| 0x460eb0 wake | MW3's 0x4fca50 is a virtual | `test_pm_wake`. |
+| 0x460f00 sinks | **PM adds 1.0** | **The floor of 1, missing until this pass, fixed.** |
+| 0x417e00 ground | PM adds 16 | The argument's offset. A wrapper. |
+| 0x41d880 hud fall | MW3's 0.0 goes | Not a difference in the logic; compared in test_pm_power. |
+
+Before this pass, 9 of the 26 notes named what a break hit and not a PM difference (0x460f00, 0x41fb70, 0x4255f0, 0x4790f0, 0x41c9f0, 0x464450, 0x4243f0, 0x419de0, 0x424730). This table is read from the compare and the two sides' decompiled code, not each line run; the constants were also searched for in the port by value.
 
 ## The order
 
