@@ -159,6 +159,7 @@ class GameEngine : public Engine {
   void load_state_enter() override;
   const char* game_text(int32_t slot) override;  // the pilot's game's vt+0x04 .. +0x10
   Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
+  bool pilot_standalone() override;
   void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
   Handle mission_salvage_store() override;              // [0x00609990], the ported store
   uint8_t briefing_has_movie() override;                // 0x0040a820

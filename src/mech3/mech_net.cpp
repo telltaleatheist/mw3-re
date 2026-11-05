@@ -340,6 +340,7 @@ int32_t net_send_event(Mech& m, int32_t kind, intptr_t arg) {
       const NetMech* t = w->locked && w->projectile_target ? net_mech_of(w->projectile_target) : nullptr;
       s.target = t ? t->owner : 0;
       m.net_shots.push_back(s);
+      if (c.shot_fired) c.shot_fired();  // Pirate's Moon 0x00471ad4: Total Shots
       return 0;
     }
     case 0x12: {  // made again (the respawn), at its place

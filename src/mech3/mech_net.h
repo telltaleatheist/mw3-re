@@ -127,6 +127,7 @@ struct NetCalls {
   NetRoute create = nullptr;      // test hook; unset: net_mech_create (0x0046d450)
   void (*set_position)(NetMech& m, const float pos[3]) = nullptr;  // vt+0x18, zEntity3d's 0x005a8550
   void (*reckon)(NetMech& m, float dt) = nullptr;  // vt+0x158, 0x0046ed70 with [0x0072c52c]
+  void (*shot_fired)() = nullptr;                  // Pirate's Moon: the network game's +0xcc, one more
   uint32_t (*now_ms)() = nullptr;                  // 0x00575d30, timeGetTime; unset: ztimer's clock
   void (*hud_message)(float seconds, int32_t id, const char* name) = nullptr;  // 0x0040fe70
   void (*hud_message2)(float seconds, int32_t id, const char* a, const char* b) = nullptr;  // the same with two

@@ -63,7 +63,7 @@ void LabState::leave() {
 }
 
 // Mech3.exe 1.2 @ 0x00448a80. A mech chosen for the slot (+0x38, set by
-// 0x00449010) brings its model to the 3D view and redraws the page. Two developer keys work only with the flag clear (from the briefing):
+// 0x00449010) brings its model to the 3D view and redraws the page. Two developer keys:
 // Ctrl+X writes the slot's loadout to a file, Ctrl+I reads one into its mech's
 // list (Windows file dialogs; mechlab.md section 1). The result [0x00605a88]
 // is never set, so the lab never leaves by its update.
@@ -88,24 +88,17 @@ bool LabState::update() {
   en.lab_world_frame(addr(), en.frame_dt());
   en.video_flip(0, 0, 1, en.video_mode() == 0 ? 1 : 0);
   const Handle config = en.lab_slot_config(pilot_, slot_);
-  if (config && !flag_) {
+  if (config) {  // Pirate's Moon 1.0 @ 0x0044a127: MW3's also wants the flag clear
     if (en.key_state(0x22d) == 1) {
-      if (en.video_mode() != 0) {
-        en.video_begin_3d();
-        en.video_end_3d();
-      }
       en.config_export(config);
     } else if (en.key_state(0x217) == 1) {
-      if (en.video_mode() != 0) {
-        en.video_begin_3d();
-        en.video_end_3d();
-      }
       const Handle read = en.config_import();
-      const Handle dfn = en.mech_dfn_handle(en.config_mech(config));
+      // Pirate's Moon 0x0044a16f: the list of the read loadout's own mech, MW3's the shown one's.
+      const Handle dfn = read ? en.mech_dfn_handle(en.config_mech(read)) : 0;
       const Handle list = dfn ? en.field32(dfn, 0x20) : 0;
       if (read && list) {
         // 0x00448c1d..: a taken name gets a random number (CString "%s%d"
-        // with rand()); then it goes at the end of the shown mech's list.
+        // with rand()); then it goes at the end of that mech's list.
         if (en.lab_list_find(list, en.lab_config_name(read).c_str())) {
           char b[300];
           std::snprintf(b, sizeof b, "%s%d", en.lab_config_name(read).c_str(), static_cast<int>(en.rand()));

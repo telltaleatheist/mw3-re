@@ -17,7 +17,7 @@
 // (Engine::unported "lab.vt+<slot>" with the control's offset).
 namespace mech3 {
 
-bool lab_weapon_is_missile(int32_t weapon);  // 0x004559e0: a missile goes on the widest firepoint that fits
+bool lab_weapon_is_missile(int32_t weapon);  // Pirate's Moon 0x004559e0's table
 
 class LabScreen;
 
@@ -437,9 +437,8 @@ class LabMessage : public ztwod::FontText {
 void lab_put_on(Engine& e, LabUnassignedList& list, int32_t index);
 // 0x00455fb0's item row (ASSIGNED_LIST's +0xac): the item back to the lab's store.
 void lab_take_off(Engine& e, LabAssignedList& list, int32_t index);
-// [0x005e47d4]: which end of the part's firepoints the next weapon takes
-// (1 at start: the last).
-uint8_t& lab_firepoint_toggle();
+// Pirate's Moon 0x00455930: the firepoint a weapon takes on a part, -1 none.
+int32_t lab_pick_firepoint(const std::vector<Engine::LabFirepoint>& fps, int32_t weapon, int32_t part);
 
 // 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix bugs:
 // the exe compares the mechs' numbers) or 1 the tonnage, then the number.

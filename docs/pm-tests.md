@@ -48,6 +48,8 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
 | `test_objectives.py` | gone | 24 | 8 | to move |  |
 | (new) `test_pm_standalone.py` | PM | | | new | the second campaign's game object, list, salvage and lineup |
+| (new) `test_pm_net_shot.py` | PM | | | new | the sender's shot record and PM's Total Shots |
+| (new) `test_pm_lab_pick.py` | PM | | | new | the lab's firepoint picker |
 | (new) `test_pm_standalone_chain.py` | PM | | | new | the second campaign from the menu; not played: PM's AI isn't running |
 | (new) `test_pm_ams.py` | PM | | | new | the AMS's frame 0x41a020 with its find and fire |
 | (new) `test_pm_mechsave.py` | PM | | | new, part of `test_mechsave.py` | a saved loadout's save and load, both formats, with byte damage |

@@ -2417,6 +2417,9 @@ MultiplayerGame* net_debug_game() {
 }  // namespace
 
 MultiplayerGame* mission_multiplayer_game() { return net_debug_game(); }
+void mission_multiplayer_count_shot() {
+  if (MultiplayerGame* g = net_debug_game()) ++g->pmcc;
+}
 std::vector<std::string> mission_multiplayer_score_lines() {
   std::vector<std::string> out;
   MultiplayerGame* g = net_debug_game();

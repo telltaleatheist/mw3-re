@@ -427,7 +427,8 @@ class MultiplayerGame : public Game {
     int32_t seed = 0;                // +0x6c  rand()
   } rules;
   uint32_t rules_crc = 0;            // +0x88
-  int32_t pm70 = 0, pm78 = 0, pm98 = 0, pmcc = 0;  // PM's own, in the file; not yet read by anything
+  int32_t pm70 = 0, pm78 = 0, pm98 = 0;  // PM's own, in the file; not yet read by anything
+  int32_t pmcc = 0;                  // PM +0xcc  Total Shots on the pilot's screen, one per shot (0x00471adf)
   uint8_t pma8 = 1, pma9 = 1;        // PM +0xa8, +0xa9, the same
   int32_t x70 = 0;                   // +0x70  KILLS_LIST's: the score to win (never set by the constructor; saved)
   float x74 = 10.0f;                 // +0x74  TIME_LIST's: minutes

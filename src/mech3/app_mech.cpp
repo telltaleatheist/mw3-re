@@ -1013,6 +1013,7 @@ void wire_net(bool on) {
   nc.game = kept.game, nc.game_time = kept.game_time, nc.clock_left = kept.clock_left, nc.clock_on = kept.clock_on;
   nc.set_clock_left = kept.set_clock_left, nc.exit_fade = kept.exit_fade;
   if (!on) return;
+  nc.shot_fired = mission_multiplayer_count_shot;
   nc.set_position = [](NetMech& m, const float pos[3]) {  // vtable +0x18
     const Vec3 v{pos[0], pos[1], pos[2]};
     if (collide_calls().set_position) collide_calls().set_position(m, &v);

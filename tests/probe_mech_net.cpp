@@ -26,6 +26,7 @@ std::vector<int32_t>* g_log;
 uint32_t g_clock;
 int32_t g_create_ok, g_slot_ok, g_player_mech, g_ff, g_break, g_cleared;
 
+int32_t g_shots_fired = 0;
 void log(std::initializer_list<int32_t> v) { g_log->insert(g_log->end(), v); }
 int32_t bits(float f) {
   int32_t b;
@@ -439,6 +440,7 @@ extern "C" int32_t probe_mech_net_send(const int32_t* in, int32_t* out, int32_t 
   g_send_id = 100;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
+  c.shot_fired = [] { ++g_shots_fired; };
   c.position = [](mech3::Mech&, float o[3]) {
     for (int i = 0; i < 3; ++i) o[i] = fbits(g_in[kPos + i]);
     return true;
@@ -567,6 +569,17 @@ extern "C" int32_t probe_mech_net_send(const int32_t* in, int32_t* out, int32_t 
   return n;
 }
 extern "C" int32_t probe_mech_net_in_count() { return kInCount; }
+
+// One shot through the sender (kind 0x16), for test_pm_net_shot.py. out: the return,
+// the list's count, the shots counted, the record's slot, trigger and target.
+extern "C" void probe_mech_net_shot(int32_t slot, int32_t locked, int32_t owner, int32_t state, int32_t* out) {
+  std::vector<int32_t> in(kInCount, 0), lg(64);
+  in[kKind] = 0x16, in[kWeaponSlot] = slot, in[kWeaponLocked] = locked, in[kState] = state;
+  if (owner >= 0) in[kRemotes] = 1, in[kOwners] = owner, in[kWeaponTarget] = 1;
+  g_shots_fired = 0;
+  probe_mech_net_send(in.data(), lg.data(), static_cast<int32_t>(lg.size()));
+  out[0] = lg[1], out[1] = lg[3], out[2] = g_shots_fired, out[3] = lg[4], out[4] = lg[6], out[5] = lg[7];
+}
 
 // The receive side (0x0046e4d0, 0x0046ed70, 0x00470a00, 0x004709d0) for
 // test_mech_net_apply.py; the input layout is the test's (Rx below).

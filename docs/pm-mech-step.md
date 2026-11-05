@@ -515,6 +515,17 @@ The mech and weapon count sweep (2026-11-05, grep and read): lance, lab, salvage
 
 Before this pass, 9 of the 26 notes named what a break hit and not a PM difference (0x460f00, 0x41fb70, 0x4255f0, 0x4790f0, 0x41c9f0, 0x464450, 0x4243f0, 0x419de0, 0x424730). This table is read from the compare and the two sides' decompiled code, not each line run; the constants were also searched for in the port by value.
 
+## The mech lab (2026-11-05, in progress)
+
+The account compares each row's assembly with MW3's (immediates and mapped calls), since the decompiler's view of MW3 hides register arguments. 219 lab rows; the differences that are more than offsets are read below as they are reached.
+
+- 0x455930 firepoint picker, new, called from the put-on 0x455a80 in place of MW3's last-and-first turn (`lab_pick_firepoint`). `test_pm_lab_pick.py`, 6000 picks against the exe; six breaks caught (the part's filter, missile or not, the random pick, first of equals, widest, the table). The put-on around it is read only: its armour, ammo, sink and jet branches match the port by reading.
+- 0x44a660 chassis rows: the empty row for a lancemate is in both campaigns (0x47b6c0 or 0x47b770). The port had the first only, so the second campaign could not take a lancemate's mech away. Fixed; read only so far.
+- 0x44a010 the lab's update: the two developer keys no longer want the flag clear, an imported loadout goes on its own mech's list, not the shown one's (0x426d10 refuses any other). Ported; read only. PM's in-game file boxes 0x48fef0 and 0x490120 replace the Windows dialogs; the port keeps its own `export\\` and `import\\` stand-in (FIX (A)), not ported.
+- 0x44b390, 0x44c620, 0x44c930, 0x44f220: read against the port, no logic differs.
+
+**Shots (+0xcc, 0x471ad4):** the exe's network sender counts each shot on the network game; the port did not. `shot_fired` in `NetCalls`, `test_pm_net_shot.py` against the exe's sender kind 0x16, 40 shots, record and count; a break removing the call is caught. The hook's wiring to the game (`mission_multiplayer_count_shot`) is read only: no multiplayer run reads it back.
+
 ## The order
 
 The lead's rule (2026-11-05): what the frame runs for every mech ranks above what it runs for the player only, unless the player-only one changes how the game feels. The score below cannot see that, so it is applied by reading each function as the order reaches it.

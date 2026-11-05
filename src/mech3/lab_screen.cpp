@@ -1,6 +1,7 @@
 // The mech lab's screen (docs/mechlab.md section 2), step 2: the screen,
 // its own controls, the page and slot switches. Original file unknown
 // (0x00448830..0x004561ff, between mech_data.cpp and mech_map.cpp).
+#include "crt/msvc_rand.h"
 #include "mech3/lab_screen.h"
 
 #include <algorithm>
@@ -284,7 +285,9 @@ void LabChassisList::refill() {
   const Handle slot = e.lab_slot(lab.pilot_, lab.slot_);
   if (!slot) return;
   const int32_t mech = e.lab_slot_mech(slot);
-  if (e.pilot() && e.pilot_campaign(e.pilot()) && lab.slot_ != 0) add_item(e.message(0x23d), 0);
+  // Pirate's Moon 1.0 @ 0x0044a6df: either campaign's lancemates can go without a mech.
+  if (e.pilot() && (e.pilot_campaign(e.pilot()) || e.pilot_standalone()) && lab.slot_ != 0)
+    add_item(e.message(0x23d), 0);
   int32_t found = 0;
   if (Store* s = store ? e.store_of(store) : nullptr) {
     for (const ConfigItem* it : s->items) {
@@ -976,18 +979,28 @@ void lab_take_off(Engine& en, LabAssignedList& list, int32_t index) {
 // Engine's put-on by default: the lab test's stand-in for +0xac.
 void Engine::lab_put_on(LabUnassignedList& list, int32_t index) { list.call(0xac, {static_cast<uint32_t>(index)}); }
 
-uint8_t& lab_firepoint_toggle() {
-  static uint8_t toggle = 1;
-  return toggle;
+// Pirate's Moon 1.0 @ 0x00455930, in place of MW3's last-and-first turn: among the part's
+// firepoints a missile weapon takes the widest scatter (the first of equals), any other a
+// random one. None on the part: -1, and the weapon stays off.
+int32_t lab_pick_firepoint(const std::vector<Engine::LabFirepoint>& fps, int32_t weapon, int32_t part) {
+  std::vector<int32_t> fit;
+  for (size_t i = 0; i < fps.size(); ++i)
+    if (fps[i].part == part) fit.push_back(static_cast<int32_t>(i));
+  if (fit.empty()) return -1;
+  if (!lab_weapon_is_missile(weapon)) return fit[static_cast<uint32_t>(crt::msvc_rand()) % fit.size()];
+  int32_t best = fit[0];
+  for (int32_t i : fit)
+    if (fps[static_cast<size_t>(best)].radius < fps[static_cast<size_t>(i)].radius) best = i;
+  return best;
 }
 
-// Mech3.exe 1.2 @ 0x00454600. Ammo goes on by the lab's rounds; weapons
+// Pirate's Moon 1.0 @ 0x00455a80; Mech3.exe 1.2 @ 0x00454600. Ammo goes on by the lab's rounds; weapons
 // past 16 are refused with a message; armour goes on half a ton at a time,
 // or replaces the mech's other kind (the old back to the store, as much of
 // the new as there was of the old, the sections spread anew when over);
 // sinks of the other kind are refused, and jump jets past the mech's
-// limit; then a weapon takes a firepoint in the chosen part, alternately the
-// last and the first that fits (missiles only those that scatter).
+// limit; then a weapon takes the firepoint
+// one lab_pick_firepoint chooses in the chosen part.
 void lab_put_on(Engine& en, LabUnassignedList& list, int32_t index) {
   list.on_leave();
   list.on_enter();
@@ -1065,33 +1078,8 @@ void lab_put_on(Engine& en, LabUnassignedList& list, int32_t index) {
   const Handle dfn = en.mech_dfn_handle(cfg->mech);
   int32_t at = part;
   if (item && item->kind() == 1) {
-    const std::vector<Engine::LabFirepoint> fps = en.lab_dfn_firepoints(dfn);
-    std::vector<int32_t> fit;  // the part's, by their place in the definition
-    for (size_t i = 0; i < fps.size(); ++i)
-      if (fps[i].part == part) fit.push_back(static_cast<int32_t>(i));
-    if (fit.empty()) {
-      put = false;
-    } else {
-      const int32_t w = static_cast<WeaponItem*>(item)->weapon;
-      const bool missile = lab_weapon_is_missile(w);
-      const auto ok = [&](int32_t i) { return !missile || fps[static_cast<size_t>(fit[static_cast<size_t>(i)])].radius > 0.0f; };
-      int32_t chosen = -1;
-      const int32_t count = static_cast<int32_t>(fit.size());
-      if (lab_firepoint_toggle()) {  // the last that fits
-        lab_firepoint_toggle() = 0;
-        for (int32_t i = 0; i < count; ++i)
-          if (ok(i)) chosen = i;
-      } else {  // the first
-        lab_firepoint_toggle() = 1;
-        for (int32_t i = count - 1; i >= 0; --i)
-          if (ok(i)) chosen = i;
-      }
-      // None that fits leaves the part as its "firepoint" (the exe's).
-      if (chosen != -1) {
-        put = true;
-        at = fit[static_cast<size_t>(chosen)];
-      }
-    }
+    at = lab_pick_firepoint(en.lab_dfn_firepoints(dfn), static_cast<WeaponItem*>(item)->weapon, part);
+    if (at < 0) put = false;
   }
   if (put && item) {
     if (ConfigItem* added = cfg->add_item(item, n)) {

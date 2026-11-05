@@ -311,6 +311,7 @@ int32_t mechs_alive();  // mech_build.cpp: made and not yet deleted
 void program_motions_open();  // motion.zbd opened (0x005a9820), as the mechs' set-up does
 void program_check_cheats();  // app_mission.cpp: Missions::check_cheats (0x00491d20)
 class MultiplayerGame* mission_multiplayer_game();
+void mission_multiplayer_count_shot();  // app_mission.cpp: Pirate's Moon 0x00471ad4, Total Shots
 std::vector<std::string> mission_multiplayer_score_lines();  // app_mission.cpp: 0x004361e0, then 0x00435b60(0x14, 0xc)'s lines  // app_mission.cpp: 0x00479480, the pilot's network game (a debug start's), else null
 bool mission_ai_headlights();  // app_mission.cpp: [0x0062da38]
 int mission_game_type();  // app_mission.cpp: the pilot's game's vt+0x2c (gametypes.md)  // app_mission.cpp: Missions::lose (0x0048f9e0), the player's mech destroyed  // 0x00431800: the canned effects' node copies

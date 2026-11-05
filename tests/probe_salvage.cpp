@@ -576,7 +576,6 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
         int32_t m, flag, toggle, full;
         ls >> m >> flag >> toggle >> full;
         lab.flag_ = static_cast<uint8_t>(flag);
-        lab_firepoint_toggle() = static_cast<uint8_t>(toggle);
         cfg.reset(make_config(m, "slot", {}));
         store.full = static_cast<uint8_t>(full);
         e.cfg = cfg.get();
@@ -659,7 +658,7 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
         list.select(row);
         std::string ev;
         for (const std::string& x : events) ev += (ev.empty() ? "" : " ") + x;
-        o << ev << " toggle" << int(lab_firepoint_toggle()) << '\n';
+        o << ev << '\n';
         o << armour_text(*cfg) << ' ' << config_text(cfg.get()) << '\n';
         o << "store{n" << store.count() << ' ';
         for (const ConfigItem* it : store.items) o << item_text(it);

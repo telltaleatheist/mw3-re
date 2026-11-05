@@ -522,6 +522,7 @@ class Engine : public zgame::AppHooks {
   virtual void pilot_update(Handle p, float dt) { unported("0x004783a0", {p, zgame::bits(dt)}); }
   virtual void pilot_record_mission(Handle p, int32_t a) { unported("0x00478f10", {p, a}); }
   virtual Handle pilot_campaign(Handle p) { return unported("0x00479440", {p}); }
+  virtual bool pilot_standalone() { return false; }  // Pirate's Moon 0x0047b770(0): the second campaign is up
   virtual uint32_t pilot_campaign_number(Handle p) { return unported("0x00479420", {p}); }
   // 0x00477f50: the pilot of that name and its files deleted (the main menu's
   // "mechlab", a pilot the mech lab leaves). Ported: mech3::delete_pilot.
