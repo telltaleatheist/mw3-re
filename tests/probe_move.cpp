@@ -1,4 +1,4 @@
-// Movement and physics (mech3/mech_control, mech_move) for tests/differential/test_move*.py.
+// Movement and physics (mech3/mech_control, mech_move) for tests/differential/test_pm_gait.py, test_move*.py.
 // State goes back and forth as byte images laid out like the original
 // objects; calls into unported code are logged as (count, code, args...).
 #include <cstdint>
@@ -76,15 +76,15 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   Io io{b, store};
   io.v3(0x3c, m.vec_3c), io.v3(0x58, m.vec_58);
   io.f(0x68, m.height);
-  io.bo(0xde, m.powered_down);
-  io.f(0x418, m.blend_weight), io.i(0x420, m.anim_index);
-  for (int k = 0; k < 13; ++k) io.f(0x4a0 + 8 * k, m.gait[k][0]), io.f(0x4a4 + 8 * k, m.gait[k][1]);
-  io.f(0x520, m.turn_rate), io.f(0x528, m.speed_factor), io.f(0x52c, m.speed_target);
-  io.f(0x530, m.throttle_up), io.f(0x534, m.throttle_down), io.f(0x538, m.turn_accel);
-  io.f(0x554, m.heat);
-  io.i(0x578, m.anim_state), io.i(0x57c, m.prev_state);
-  io.bo(0x584, m.no_power_down), io.bo(0x586, m.crouched), io.bo(0x588, m.wading);
-  io.u(0x58c, m.gait_frames), io.i(0x5ac, m.limp), io.u(0x688, m.detail), io.f(0x6b0, m.frame_dt);
+  io.bo(0xe2, m.powered_down);
+  io.f(0x428, m.blend_weight), io.i(0x430, m.anim_index);
+  for (int k = 0; k < 13; ++k) io.f(0x4b0 + 8 * k, m.gait[k][0]), io.f(0x4b4 + 8 * k, m.gait[k][1]);
+  io.f(0x530, m.turn_rate), io.f(0x538, m.speed_factor), io.f(0x53c, m.speed_target);
+  io.f(0x540, m.throttle_up), io.f(0x544, m.throttle_down), io.f(0x548, m.turn_accel);
+  io.f(0x578, m.heat);
+  io.i(0x59c, m.anim_state), io.i(0x5a0, m.prev_state);
+  io.bo(0x5a8, m.no_power_down), io.bo(0x5ab, m.crouched), io.bo(0x5ad, m.wading);
+  io.u(0x5b0, m.gait_frames), io.i(0x5d0, m.limp), io.u(0x6ac, m.detail), io.f(0x6d4, m.frame_dt);
 }
 
 void foot_io(Foot& f, Vec3& pos, uint8_t* b, bool store) {
@@ -124,7 +124,7 @@ int32_t probe_gait(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* feet, uint8
     g->feet[i].translation = &g->foot_pos[i];
     foot_io(g->feet[i], g->foot_pos[i], feet + 0x100 * i, false);
   }
-  { Io io{torso, false}; io.i(0x1b0, g->torso.centring); }
+  { Io io{torso, false}; io.i(0x1b8, g->torso.centring); }
   m.torso = &g->torso;
   for (int k = 0; k < 13; ++k) {
     g->anims[k].index = k;

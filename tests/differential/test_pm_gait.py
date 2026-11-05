@@ -1,21 +1,13 @@
-"""The gait choice (0x4181c0) and turning (0x418fc0, with the pivot leg
-0x418e00 and the foot's 0x462dc0) against the original x86 (docs/movement.md).
+"""PM's gait choice 0x418fc0 and turning 0x419de0 (with the pivot leg 0x419bb0 and the foot's 0x464430) against the exe (docs/movement.md).
 
-    cmake --build build && .venv/bin/python tests/differential/test_gait.py
+    cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_gait.py
 
-A whole mech in emulator memory with the real vtable, controls laid out as
-MechControls with its real interface vtable, legs, feet, the torso and
-thirteen animation objects whose SetBlend and Seek are logged; the gait's
-CopyPhase (0x41ef00) runs for real. Move (0x417a80), the crouch and the
-wading effect are stubbed and logged. Each trial puts a random mech of one of
-the 19 shipped definitions (its gait table and turn rate) in a random state
-near the gait thresholds, runs one call on both sides, and compares every
-field both sides keep and the call log, bit for bit at 24-bit precision.
-
-This checks the exe's path: the probes turn the fixes off. With them on the
-port departs in the wading slowdown (zfix bugs: a straight line from 1
-at a tenth of the height to 0.7 at full depth instead of 0.7 (H - d) / H) and
-in the blend-in's frame count (per 1/30 s); tests/test_fixes.cpp checks those.
+A whole mech in emulator memory with a copy of the real vtable, controls laid out as MechControls with their real
+interface vtable, legs, feet, the torso and thirteen animation objects whose SetBlend and Seek are logged; the gait's
+CopyPhase 0x41fb70 runs for real. Move 0x418850, the crouch and the wading effect are stubbed and logged. Each trial puts
+a random mech of the 25 shipped definitions (its gait table and turn rate) in a random state near the gait thresholds,
+runs one call on both sides, and compares every field both sides keep and the call log, bit for bit at 24-bit precision.
+The blend-in's frame count departs by zfix per_second; the probe library has it off.
 """
 import ctypes
 import os
@@ -26,26 +18,28 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
-from mechdata import mechs  # noqa: E402
-from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
+import mechdata  # noqa: E402
+import test_pm_zar  # noqa: E402
+from original import FTOL, IAT_FTOL, ROOT  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
-probe = ctypes.CDLL(str(LIB))
+mechdata.READER = ROOT / 'game' / 'pm' / 'zbd' / 'reader.zbd'
+mechs = mechdata.mechs
+probe = test_pm_zar.load_pm_probe()
 probe.probe_gait.argtypes = [ctypes.c_int] + [ctypes.c_char_p] * 5 + [ctypes.c_uint32, ctypes.c_int, ctypes.c_int,
                                                                        ctypes.c_float, ctypes.c_void_p, ctypes.c_int]
 
-GAIT, TURN = 0x4181c0, 0x418fc0
-MECH_VT, MECH_SIZE, CTL_IFACE_VT = 0x5bcef8, 0x6d8, 0x5bd428
+GAIT, TURN = 0x418fc0, 0x419de0
+MECH_VT, MECH_SIZE, CTL_IFACE_VT = 0x5dfaac, 0x800, 0x5bd428
 FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
 IAT_FLOOR = 0x5bb66c
-ANIM, NANIM, FOOT, TORSO, CTL = 0xdc, 13, 0x100, 0x1b4, 0x74
+ANIM, NANIM, FOOT, TORSO, CTL = 0xdc, 13, 0x100, 0x1c0, 0x74
 
 # Mech fields the two functions read or write (offset, kind); probe_move.cpp's mech_io.
 MECH = ([(0x3c + 4 * k, 'f') for k in range(3)] + [(0x58 + 4 * k, 'f') for k in range(3)] +
-        [(0x68, 'f'), (0xde, 'b'), (0x418, 'f'), (0x420, 'i')] + [(0x4a0 + 4 * k, 'f') for k in range(26)] +
-        [(0x520, 'f'), (0x528, 'f'), (0x52c, 'f'), (0x530, 'f'), (0x534, 'f'), (0x538, 'f'), (0x554, 'f'),
-         (0x578, 'i'), (0x57c, 'i'), (0x584, 'b'), (0x586, 'b'), (0x588, 'b'), (0x58c, 'i'), (0x5ac, 'i'),
-         (0x688, 'i'), (0x6b0, 'f')])
+        [(0x68, 'f'), (0xe2, 'b'), (0x428, 'f'), (0x430, 'i')] + [(0x4b0 + 4 * k, 'f') for k in range(26)] +
+        [(0x530, 'f'), (0x538, 'f'), (0x53c, 'f'), (0x540, 'f'), (0x544, 'f'), (0x548, 'f'), (0x578, 'f'),
+         (0x59c, 'i'), (0x5a0, 'i'), (0x5a8, 'b'), (0x5ab, 'b'), (0x5ad, 'b'), (0x5b0, 'i'), (0x5d0, 'i'),
+         (0x6ac, 'i'), (0x6d4, 'f')])
 CTL_FIELDS = [(0x08, 'i')] + [(o, 'f') for o in (0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x44, 0x48,
                                                   0x4c)] + [(0x50, 'b')]
 FOOT_FIELDS = [(0x8c, 'f'), (0x94, 'i'), (0xc0, 'b'), (0xd4, 'f'), (0xdc, 'f'), (0xf0, 'f'), (0xf4, 'f'), (0xf8, 'f')]
@@ -78,26 +72,37 @@ def pick(img, fields):
     return bytes(out)
 
 
-class Emulated:
+class Emulated(test_pm_zar.Emulated):
     def __init__(self):
-        cpu = self.cpu = Original()
+        super().__init__()
+        cpu = self.cpu
         cpu.import_code(IAT_FTOL, FTOL)
         cpu.import_code(IAT_FLOOR, FLOOR)
-        a = cpu.alloc
-        self.mech, self.ctl, self.vbt = a(0x700), a(CTL), a(8)
+        a = self.alloc
+        self.mech, self.ctl, self.vbt = a(0x900), a(CTL), a(8)
         self.legs, self.feet, self.torso = [a(0xd4), a(0xd4)], [a(FOOT), a(FOOT)], a(TORSO)
         self.anims, self.avt = [a(ANIM) for _ in range(NANIM)], a(0x50)
         self.player_obj, self.ff_obj = a(0x40), a(0x40)
         blend, seek = cpu.code(b'\xc2\x04\x00'), cpu.code(b'\xc2\x04\x00')
-        cpu.write(self.avt, struct.pack('<20I', *([0] * 20)))
-        cpu.u32(self.avt + 0x14, blend)
-        cpu.u32(self.avt + 0x44, seek)
-        cpu.stub_function(blend, lambda c: self.log(4, self.anims.index(c.ecx), c.arg(0)), 4)
-        cpu.stub_function(seek, lambda c: self.log(5, self.anims.index(c.ecx), c.arg(0)), 4)
-        cpu.stub_function(0x417a80, lambda c: self.log(1, c.arg(0), self.index(c.arg(1)), c.arg(2)), 0xc)
-        cpu.stub_function(0x41bda0, lambda c: self.log(2, c.arg(0)), 4)
-        cpu.stub_function(0x433930, lambda c: self.check(c.ecx == self.ff_obj) or self.log(3, c.arg(0)), 4)
-        cpu.u32(0x60861c, self.player_obj)
+        self.w32(self.avt + 0x14, blend)
+        self.w32(self.avt + 0x44, seek)
+        self.native_stub(blend, lambda c: self.log(4, self.anims.index(c.ecx), c.arg(0)), 4)
+        self.native_stub(seek, lambda c: self.log(5, self.anims.index(c.ecx), c.arg(0)), 4)
+        self.native_stub(0x418850, lambda c: self.log(1, c.arg(0), self.index(c.arg(1)), c.arg(2)), 0xc)
+        self.native_stub(0x41c9f0, lambda c: self.log(2, c.arg(0)), 4)
+        self.native_stub(0x434400, lambda c: self.check(c.ecx == self.ff_obj) or self.log(3, c.arg(0)), 4)
+        self.w32(0x62c40c, self.player_obj)
+        self.iface = cpu.tr(CTL_IFACE_VT, 4)
+        self.cpu.stubs[0x406cb0] = (lambda c: 0, 0)
+
+    def raw(self, a, n):
+        return bytes(self.cpu._uc.mem_read(a, n))
+
+    def wr(self, a, b):
+        self.cpu._uc.mem_write(a, bytes(b))
+
+    def w32(self, a, v):
+        self.wr(a, struct.pack('<I', v & 0xffffffff))
 
     def index(self, p):
         return self.anims.index(p) if p in self.anims else -1
@@ -111,39 +116,37 @@ class Emulated:
         self.events.extend(v & 0xffffffff for v in e)
 
     def load(self, s):
-        cpu = self.cpu
-        cpu.write(self.mech, s['mech'])
-        cpu.u32(self.mech, MECH_VT)
-        cpu.u32(self.mech + 0x37c, self.ctl)
-        cpu.u32(self.mech + 0x38c, self.legs[0])
-        cpu.u32(self.mech + 0x390, self.legs[1])
-        cpu.u32(self.mech + 0x39c, self.torso)
+        self.wr(self.mech, s['mech'])
+        self.w32(self.mech, MECH_VT)
+        self.w32(self.mech + 0x38c, self.ctl)
+        self.w32(self.mech + 0x39c, self.legs[0])
+        self.w32(self.mech + 0x3a0, self.legs[1])
+        self.w32(self.mech + 0x3ac, self.torso)
         for k in range(NANIM):
-            cpu.u32(self.mech + 0x424 + 4 * k, self.anims[k] if s['present'] >> k & 1 else 0)
-            cpu.write(self.anims[k], s['anims'][k * ANIM:(k + 1) * ANIM])
-            cpu.u32(self.anims[k], self.avt)
-        cpu.write(self.ctl, s['ctl'])
-        cpu.u32(self.ctl + 4, self.vbt)
-        cpu.u32(self.vbt + 4, 0x5c)
-        cpu.u32(self.ctl + 0x5c, 0)
-        cpu.u32(self.ctl + 0x60, CTL_IFACE_VT)
-        cpu.u32(self.ctl + 0x70, self.mech)
+            self.w32(self.mech + 0x434 + 4 * k, self.anims[k] if s['present'] >> k & 1 else 0)
+            self.wr(self.anims[k], s['anims'][k * ANIM:(k + 1) * ANIM])
+            self.w32(self.anims[k], self.avt)
+        self.wr(self.ctl, s['ctl'])
+        self.w32(self.ctl + 4, self.vbt)
+        self.w32(self.vbt + 4, 0x5c)
+        self.w32(self.ctl + 0x5c, 0)
+        self.w32(self.ctl + 0x60, self.iface)
+        self.w32(self.ctl + 0x70, self.mech)
         for i in range(2):
-            cpu.u32(self.legs[i] + 0x78, self.feet[i])
-            cpu.write(self.feet[i], s['feet'][i * FOOT:(i + 1) * FOOT])
-            cpu.u32(self.feet[i] + 0x18, self.feet[i] + 0xf0)
-        cpu.write(self.torso, s['torso'])
-        cpu.u32(self.player_obj + 0x14, self.mech if s['player'] else 0)
-        cpu.u32(0x608620, self.ff_obj if s['ff'] else 0)
+            self.w32(self.legs[i] + 0x78, self.feet[i])
+            self.wr(self.feet[i], s['feet'][i * FOOT:(i + 1) * FOOT])
+            self.w32(self.feet[i] + 0x18, self.feet[i] + 0xf0)
+        self.wr(self.torso, s['torso'])
+        self.w32(self.player_obj + 0x14, self.mech if s['player'] else 0)
+        self.w32(0x62c410, self.ff_obj if s['ff'] else 0)
 
     def run(self, op, s, dt):
         self.load(s)
         self.events = []
-        self.cpu.call(GAIT if op == 0 else TURN, ecx=self.mech, stack_args=(f2u(dt),))
-        cpu = self.cpu
-        return {'mech': pick(cpu.read(self.mech, MECH_SIZE), MECH), 'ctl': pick(cpu.read(self.ctl, CTL), CTL_FIELDS),
-                'feet': b''.join(pick(cpu.read(f, FOOT), FOOT_FIELDS) for f in self.feet),
-                'anims': b''.join(pick(cpu.read(a, ANIM), ANIM_FIELDS) for a in self.anims)}, self.events
+        self.call(GAIT if op == 0 else TURN, ecx=self.mech, args=(f2u(dt),))
+        return {'mech': pick(self.raw(self.mech, MECH_SIZE), MECH), 'ctl': pick(self.raw(self.ctl, CTL), CTL_FIELDS),
+                'feet': b''.join(pick(self.raw(f, FOOT), FOOT_FIELDS) for f in self.feet),
+                'anims': b''.join(pick(self.raw(a, ANIM), ANIM_FIELDS) for a in self.anims)}, self.events
 
 
 def port(op, s, dt):
@@ -182,18 +185,18 @@ def scenario(rng, defs):
     mech = bytearray(MECH_SIZE)
     sf = f32(rng.choice([1.0, 1.0, 0.6, 0.36, rng.uniform(0.3, 1.0)]))
     for k, (lo, hi) in enumerate(table):
-        put(mech, 0x4a0 + 8 * k, 'f', lo)
-        put(mech, 0x4a4 + 8 * k, 'f', hi)
+        put(mech, 0x4b0 + 8 * k, 'f', lo)
+        put(mech, 0x4b4 + 8 * k, 'f', hi)
     height = f32(rng.choice([8.0, 12.0, 15.5]))
-    vals = {0x68: height, 0xde: rng.random() < 0.04, 0x418: f32(rng.random()), 0x420: rng.choice([2, 3, 3, 4, 5, 6, 8, 9, 10]),
-            0x520: d['turn_rate'], 0x528: sf, 0x52c: f32(rng.random()), 0x530: d['accel'], 0x534: d['decel'],
-            0x538: d['turn_accel'],
-            0x554: f32(rng.choice([0.0, 0.3, 0.6, 0.61, 0.9, 1.2, 2.0, rng.uniform(0, 2)])),
-            0x578: rng.choice([0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 9, 11, 12, 13]),
-            0x57c: rng.randrange(14), 0x584: rng.random() < 0.08, 0x586: rng.random() < 0.15,
-            0x588: rng.random() < 0.3, 0x58c: rng.randrange(30), 0x5ac: rng.choice([-1, -1, -1, 0, 1]),
-            0x688: rng.choice([0xffffffff, 0xffffffff, 0x1d, 0x1c, 0x10, 0, 0x14, 0xffffffef]),
-            0x6b0: f32(rng.choice([1 / 30, 1 / 60, 0.1, rng.uniform(0.005, 0.2)]))}
+    vals = {0x68: height, 0xe2: rng.random() < 0.04, 0x428: f32(rng.random()), 0x430: rng.choice([2, 3, 3, 4, 5, 6, 8, 9, 10]),
+            0x530: d['turn_rate'], 0x538: sf, 0x53c: f32(rng.random()), 0x540: d['accel'], 0x544: d['decel'],
+            0x548: d['turn_accel'],
+            0x578: f32(rng.choice([0.0, 0.3, 0.6, 0.61, 0.9, 1.2, 2.0, rng.uniform(0, 2)])),
+            0x59c: rng.choice([0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 9, 11, 12, 13]),
+            0x5a0: rng.randrange(14), 0x5a8: rng.random() < 0.08, 0x5ab: rng.random() < 0.15,
+            0x5ad: rng.random() < 0.3, 0x5b0: rng.randrange(30), 0x5d0: rng.choice([-1, -1, -1, 0, 1]),
+            0x6ac: rng.choice([0xffffffff, 0xffffffff, 0x1d, 0x1c, 0x10, 0, 0x14, 0xffffffef]),
+            0x6d4: f32(rng.choice([1 / 30, 1 / 60, 0.1, rng.uniform(0.005, 0.2)]))}
     for k in range(3):
         put(mech, 0x3c + 4 * k, 'f', f32(rng.uniform(-10, 10)))
         put(mech, 0x58 + 4 * k, 'f', f32(rng.uniform(-1, 1)))
@@ -216,7 +219,7 @@ def scenario(rng, defs):
         for k in range(3):
             put(feet, b + 0xf0 + 4 * k, 'f', f32(rng.uniform(-3, 3)))
     torso = bytearray(TORSO)
-    put(torso, 0x1b0, 'i', rng.choice([0, 0, 0, 1, 2]))
+    put(torso, 0x1b8, 'i', rng.choice([0, 0, 0, 1, 2]))
     anims = bytearray(NANIM * ANIM)
     for k in range(NANIM):
         b = ANIM * k
@@ -241,7 +244,7 @@ def main():
     for n in range(trials):
         op = 0 if rng.random() < 0.75 else 1
         s = scenario(rng, defs)
-        dt = struct.unpack('<f', s['mech'][0x6b0:0x6b4])[0]
+        dt = struct.unpack('<f', s['mech'][0x6d4:0x6d8])[0]
         want, wlog = emu.run(op, s, dt)
         got, glog = port(op, s, dt)
         for part in want:
@@ -252,8 +255,8 @@ def main():
         if wlog != glog:
             raise SystemExit(f'trial {n} op {op}: calls differ\n  original {wlog}\n  port     {glog}')
         if op == 0:
-            states.add(struct.unpack('<i', want['mech'][0x578:0x57c])[0])
-            slots.add(struct.unpack('<i', want['mech'][0x420:0x424])[0])
+            states.add(struct.unpack('<i', want['mech'][0x59c:0x5a0])[0])
+            slots.add(struct.unpack('<i', want['mech'][0x430:0x434])[0])
         i = 0
         while i < len(wlog):
             calls.add(wlog[i + 1])

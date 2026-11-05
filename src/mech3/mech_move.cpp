@@ -26,14 +26,14 @@ MoveCalls g_calls;
 
 constexpr float kHeatSlow = 0.6f;     // 0x005bcd50
 constexpr float kWadeStart = 0.1f;    // 0x005bcde8, of the height
-constexpr float kWade = 0.7f;         // 0x005e1fb4
+constexpr float kWade = 0.6f;         // 0x00604108
 constexpr float kSpeedRate = 0.6f;    // 0x005e1fb8
 constexpr float kFootfall = 1.25f;    // 0x005e1fbc, frames of slack
 constexpr float kStepSpeed = 0.4f;    // 0x005e1fc4
 constexpr float kStepScale = 2.5f;    // 0x005e1fc8
 constexpr float kTurnSlow = 0.8f;     // 0x005e1fcc
 constexpr float kCreep = 0.99f;       // 0x005bce04, of walk.lo
-constexpr float kAirTurn = 0.85f;     // the turn's throttle when airborne
+constexpr float kAirTurn = 1.0f;      // 0x00419de0: 0.85 in MW3
 constexpr float kJetClimb = 38.0f;    // [0x00629314] = 0x005dfa18 (30) + 0x005dfa1c (8)
 constexpr float kJetPush = 5.0f;      // 0x006040ec
 constexpr float kJetPushShare = 0.9f; // 0x005dfcd4
@@ -71,7 +71,7 @@ Vec3 cross(const Vec3& p, const Vec3& c) {
 
 MoveCalls& move_calls() { return g_calls; }
 
-// Mech3.exe 1.2 @ 0x00417a80. A grounded local mech whose knock exceeds its
+// Pirate's Moon 1.0 @ 0x00418850. A grounded local mech whose knock exceeds its
 // threshold falls; then the animation moves it (root motion into +0x44),
 // blended in over the first 20 frames of walking (docs/movement.md, Move).
 void Mech::move(float dt, MechAnim* anim, float speed) {
@@ -299,7 +299,7 @@ Leg* Mech::pivot_leg() const {
   return legs[1]->foot->clearance < legs[0]->foot->clearance ? legs[1] : legs[0];
 }
 
-// Mech3.exe 1.2 @ 0x00418fc0 (vtable +0x170). Turning in place forces the
+// Pirate's Moon 1.0 @ 0x00419de0 (vtable +0x170). Turning in place forces the
 // throttle up to a creep (docs/movement.md, Turning).
 void Mech::turn(float) {
   MechControls& c = *controls;
@@ -327,7 +327,7 @@ void Mech::turn(float) {
   vec_58 = av;
 }
 
-// Mech3.exe 1.2 @ 0x004181c0. Picks the gait animation from the throttle and
+// Pirate's Moon 1.0 @ 0x00418fc0. Picks the gait animation from the throttle and
 // plays it through 0x00417a80 (docs/movement.md, Speed and gait).
 void Mech::select_gait(float dt) {
   MechControls& c = *controls;
@@ -357,16 +357,10 @@ void Mech::select_gait(float dt) {
   const float h = height;
   const bool ff = this == world().mission_player && world().force_feedback;
   if (d > h * kWadeStart) {
-    if (zfix::options().bugs) {
-      // FIX (bug): from full speed at a tenth of the height down to 70% at
-      // full depth, where the exe fell to a standstill and then jumped back
-      // to 70% (movement.md, Speed and gait; fixes.md).
-      float frac = (d - h * kWadeStart) / (h - h * kWadeStart);
-      frac = frac > 1.0f ? 1.0f : frac;
-      speed_target = (1.0f - (1.0f - kWade) * frac) * speed_target;
-    } else {
-      speed_target = d < h ? (h - d) * kWade / h * speed_target : kWade * speed_target;
-    }
+    // Quirk: never above 0.6 at any depth, so wading is a flat 60% (fixes.md, a candidate).
+    const float line = ((kWade - 1.0f) / h) * d + kWade;
+    const float x = line > 1.0f ? 1.0f : line < kWade ? kWade : line;
+    speed_target = x * speed_target;
     if (ff && !wading) {
       if (g_calls.wading_effect) g_calls.wading_effect(1);
       wading = true;
@@ -375,9 +369,10 @@ void Mech::select_gait(float dt) {
     if (g_calls.wading_effect) g_calls.wading_effect(0);
     wading = false;
   }
-  if (limp == 0 || limp == 1) speed_target = speed_target * kHeatSlow;
   if (thr < 0.0f) speed_target = speed_target * kHeatSlow;
-  speed_factor = (speed_target - speed_factor) * kSpeedRate * dt + speed_factor;
+  // A limp holds the factor at the slower of the walk's top and the trot's bottom.
+  if (limp == 0 || limp == 1) speed_factor = gait[kWalk][kHi] < gait[kTrot][kLo] ? gait[kWalk][kHi] : gait[kTrot][kLo];
+  else speed_factor = (speed_target - speed_factor) * kSpeedRate * dt + speed_factor;
   thr = thr * speed_factor;
   spd = spd * speed_factor;
   if (crouched && spd > gait[kStep][kHi]) {
@@ -443,10 +438,7 @@ void Mech::select_gait(float dt) {
     prev_state = anim_state;
     anim_state = 0;
     anim_index = kStepWalk;  // not 11 (docs/movement.md)
-    anims[kLimpBlend]->set_blend(0.5f);
-    const float lim = gait[kTrot][kLo];
-    if (thr > lim) thr = lim;
-    else if (thr < -lim) thr = -lim;
+    anims[kLimpBlend]->set_blend(throttle_up < 0.6f ? throttle_up : 0.6f);  // 0x005dfaa8
     play_gait(*this, dt, anims[kLimpBlend], thr);
     return;
   }

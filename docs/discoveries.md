@@ -4441,3 +4441,15 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **Pirate's Moon cools you in water the feet aren't in:** MechWarrior 3 checks
   whether the first foot is in water; Pirate's Moon compares the water's surface
   over the two front ski probes with the mech's place. (From the code.)
+- **Pirate's Moon fixed the water that stopped you dead, by accident or not:** in
+  MechWarrior 3 water nearly as deep as the mech almost stops it. Pirate's Moon has
+  a new line that looks meant to fall from full speed to 60% with depth, but as
+  written it is 60% at any depth past a tenth of your height. (From the code.)
+- **Limping in Pirate's Moon is a speed limit, not a percentage:** MechWarrior 3
+  takes 40% off your speed. Pirate's Moon caps it at the walk's top or the trot's
+  bottom, whichever is slower, and no longer holds your throttle under the trot
+  in the limp animation; the limp's blend follows the mech's acceleration, up to
+  0.6, where MW3 used 0.5. (From the code.)
+- **Mechs turn more slowly in the air in Pirate's Moon:** the turn counts as if
+  at full throttle, a fifth of the turn rate; in MechWarrior 3 it counted as 85%
+  throttle, about a third. (From the code.)

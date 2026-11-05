@@ -13,6 +13,8 @@ The pieces:
 Axes: the local velocity +0x3c is (x right, y up, z), **forward is -z**
 (`movement-jump.md`). Units are metres and seconds.
 
+
+**Pirate's Moon** (`test_pm_gait.py`, gait 0x418fc0, turn 0x419de0; Move 0x418850 in `test_pm_jets.py`): the formulas below are MW3's. PM's: water past 0.1 H a flat 0.6 (`fixes.md`); a limp sets the speed factor itself to the slower of walk.hi and trot.lo, in place of f *= 0.6; the limp's blend is min(+0x540, 0.6) and its speed the throttle unclamped; an airborne turn counts as throttle 1, not 0.85.
 ## The frame (Mech::Update 0x419fc0, vtable +0x34)
 
 ```
@@ -101,7 +103,7 @@ standstill as the water nears the top, and jumps back to 0.7 deeper still: a
 mech crossing a river of its own height stops dead in it (Owen: game-breaking).
 The port draws the line it was meant to be, from full speed at 0.1 H to 0.7
 at H, then 0.7 (`FIX (bug)`, behind `zfix::options().bugs`; the probes turn it
-off, so `test_gait.py` checks the exe's curve; `tests/test_fixes.cpp`
+off, so `test_gait.py` on `main` checks the exe's curve; `tests/test_fixes.cpp`
 checks the line). The step from 1 to 0.63 at 0.1 H goes with it.
 
 **Per frame, now per second.** The movement's per-frame steps (a fall's

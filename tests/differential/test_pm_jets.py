@@ -1,6 +1,6 @@
 """PM's jump jets 0x417f50, AddJumpJet 0x417ea0, the landing 0x416d70 and predict 0x423590 with the lean 0x4186f0 against mech3/mech_move
 and mech_update (docs/movement-jump.md, docs/pm-mech-step.md), on MW3's scenarios from test_jets.py with PM's field offsets. The jump pose,
-the landing's dust and pose are skipped by a jump and logged, as test_jets does; the skis are a stub. Move comes with its own piece.
+the landing's dust and pose are skipped by a jump and logged, as test_jets does; the skis are a stub. Move 0x418850 (its samples and pose in test_pm_pose) comes with its own piece.
 
     cmake --build build --target pmprobe
     .venv/bin/python -P tests/differential/test_pm_jets.py [trials]
@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_jets as tj  # noqa: E402
 import test_pm_zar  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
 JETS, ADD, LAND, MECH_VT, SIZE, EXT = 0x417f50, 0x417ea0, 0x416d70, 0x5dfaac, 0x800, 0x900
 DUST_AT, DUST_TO = 0x416fdb, 0x417136
@@ -29,6 +29,11 @@ for o in range(0x7dc, 0x828, 4):
     FIELDS[o] = o - 0x100
 MECH = tj.MECH + [(0x8, 'b')] + [(o, 'f') for o in (0x30, 0x34, 0x38, 0x48, 0x4c, 0x50, 0x54, 0x58, 0x5c, 0x60, 0x528, 0x54c, 0x5a0, 0x5a4, 0x5a8)] + [
     (0x5ac, 'i')] + [(o, 'f') for o in range(0x7dc, 0x828, 4)]
+
+
+MOVE = 0x418850
+# Move's samples, and its pose from the blend (+8) or without it (+0xc): the log and the function's end.
+MOVE_SKIPS = {0x418989: (None, 0x418a24), 0x418c7b: (30, 0x418f89, 8), 0x418c9c: (30, 0x418f89, 0xc)}
 
 
 def to_pm(mw3):
@@ -96,6 +101,32 @@ class Emulated(test_pm_zar.Emulated):
         self.w32(self.player_obj + 0x6c, self.game)
         self.w32(0x6187c4, self.opt)
         self.cpu._uc.mem_write(0x629314, struct.pack('<f', 38.0))
+        # Move: the gait animation's calls log, the feet's ground update too; its samples and pose are skipped.
+        self.gait, self.gaitvt, self.feet, self.vecs = a(0xdc), a(0x30), [a(0xec), a(0xec)], a(0x40)
+        for off, code in ((0x8, 33), (0x10, 34)):
+            f = self.cpu.code(b'\xc2\x04\x00')
+            self.w32(self.gaitvt + off, f)
+            self.native_stub(f, lambda c, code=code: self.log(code, c.arg(0)), 4)
+        f = self.cpu.code(b'\xc2\x04\x00')
+        self.w32(self.gaitvt + 0x20, f)
+        self.native_stub(f, self.velocity, 4)
+        self.cpu._uc.mem_write(0x464060, bytes.fromhex('d9eec20400'))
+        self.cpu._uc.hook_add(UC_HOOK_CODE, lambda uc, a_, s_, d_: self.log(31, self.feet.index(self.cpu._uc.reg_read(UC_X86_REG_ECX))),
+                              begin=0x464060, end=0x464060)
+        self.native_stub(0x41f310, lambda c: self.log(32, c.arg(0)), 0)
+        for addr in MOVE_SKIPS:
+            self.cpu._uc.hook_add(UC_HOOK_CODE, self.move_skip, begin=addr, end=addr)
+
+    def move_skip(self, uc, address, size, data):
+        code, to, *arg = MOVE_SKIPS[address]
+        if code is not None:
+            self.log(code, self.r32(uc.reg_read(UC_X86_REG_EBP) + arg[0]))
+        uc.reg_write(UC_X86_REG_EIP, to)
+
+    def velocity(self, c):
+        self.log(35)
+        self.cpu._uc.mem_write(c.arg(0) + 8, struct.pack('<f', self.vz))
+        return 0
 
     def w32(self, a, v):
         self.cpu._uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
@@ -142,9 +173,16 @@ class Emulated(test_pm_zar.Emulated):
         w(0x62c410, self.ff if s['flags'] & 2 else 0)
         w(self.opt, 0x80 if s['flags'] & 4 else 0)
         dt = struct.unpack('<I', struct.pack('<f', s['dt']))[0]
-        args = {0: [dt], 1: [dt], 2: [s['arg']]}[op]
+        self.vz = s['vz']
+        w(self.gait, self.gaitvt)
+        for i in range(2):
+            w(self.legs[i] + 0x78, self.feet[i])
+            w(self.feet[i] + 0x18, self.vecs + 12 * i)
+        w(self.hip + 0x18, self.vecs + 24)
+        speed = struct.unpack('<I', struct.pack('<f', s['speed']))[0]
+        args = {0: [dt], 1: [dt], 2: [s['arg']], 3: [dt, self.gait if s['arg'] else 0, speed]}[op]
         try:
-            self.call({0: JETS, 1: LAND, 2: ADD}[op], ecx=m, args=args)
+            self.call({0: JETS, 1: LAND, 2: ADD, 3: MOVE}[op], ecx=m, args=args)
         except Exception as ex:
             uc = self.cpu._uc
             raise SystemExit(f'op {op} eip {uc.reg_read(UC_X86_REG_EIP):#x} ret {self.r32(uc.reg_read(UC_X86_REG_ESP)):#x} {self.events[-10:]}: {ex}')
@@ -187,7 +225,7 @@ def main():
     rng = random.Random(0x417f50)
     seen = set()
     for n in range(trials):
-        op = rng.choice([0, 1, 1, 1, 2])
+        op = rng.choice([0, 1, 1, 1, 2, 3, 3])
         s = scenario(rng)
         s['roster'] = rng.randrange(25)
         want, got = emu.run(op, s), tj.port(op, s)
@@ -206,7 +244,7 @@ def main():
         while i < len(log):
             seen.add((op, log[i + 1]))
             i += log[i] + 1
-    print(f'ok: {trials} jets, landing and AddJumpJet calls identical; {sorted(seen)}')
+    print(f'ok: {trials} jets, landing, AddJumpJet and Move calls identical; {sorted(seen)}')
 
 
 if __name__ == '__main__':

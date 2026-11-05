@@ -442,13 +442,10 @@ bool line_clear_avoiding(Grid& g, const float a[3], const float b[3], bool shape
 }
 
 namespace {
-// The gait's slowdown in deep water (0x004181c0, the FIX's line): a wading
-// cell costs the time it takes. H a mech's height, about 12 m.
+// The gait's slowdown in deep water (0x00418fc0): a wading cell costs the time it takes. H a mech's height, about 12 m.
 float water_cost(float depth) {
   constexpr float kH = 12.0f;
-  if (!(depth > 0.1f * kH)) return 1.0f;
-  const float f = depth >= kH ? 0.7f : 1.0f - 0.3f * (depth - 0.1f * kH) / (0.9f * kH);
-  return 1.0f / f;
+  return depth > 0.1f * kH ? 1.0f / 0.6f : 1.0f;
 }
 
 // The walkable floor nearest (cx, cz) within r cells, on height y's storey.

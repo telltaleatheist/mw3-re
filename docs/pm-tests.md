@@ -30,7 +30,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_drawtable.py` | changed | 8 | 4 | covered | test_pm_device, test_pm_walk, test_pm_submit |
 | `test_entity_walk.py` | unchanged | 3 | 0 | to move |  |
 | `test_fogsort.py` | gone | 3 | 1 | covered | test_pm_device (fog) ; the queue in test_pm_walk |
-| `test_gait.py` | changed | 8 | 1 | to move, rank 6 | crouch and the Elemental in 0x41c9f0 |
+| `test_gait.py` | changed | 8 | 1 | moved to `test_pm_gait.py` | crouch and the Elemental in 0x41c9f0 |
 | `test_gamez.py` | changed | 9 | 8 | covered | test_pm_gamez |
 | `test_heat.py` | changed | 10 | 6 | moved to `test_pm_heat.py` | heat |
 | `test_interp.py` | gone | 157 | 36 | to move |  |
