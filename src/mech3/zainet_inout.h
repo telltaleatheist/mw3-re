@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace zcls { struct Node; }
-namespace zmod { struct Polygon; }
+namespace pm::zmod { struct Polygon; }
 
 // mech3\ZAiNetMechInOut.cpp (0x004c11f0..0x004c3ed0): the mission boundary
 // (docs/ai.md section 11). At mission load the world's `inout` polygons
@@ -31,7 +31,7 @@ struct InOutVertex {
 // count crossings the other way round.
 struct InOutPolygon {
   // ECX this; name, the model polygon, its vertices transformed, the width.
-  InOutPolygon(const char* name, const zmod::Polygon& poly, const float* verts, float width);
+  InOutPolygon(const char* name, const pm::zmod::Polygon& poly, const float* verts, float width);
   ~InOutPolygon();  // 0x004c1ff0
   void cross(InOutArea& area) const;  // 0x004c2080: when tested, its sides against the area's query
   bool blocks(const float* from, const float* p) const;  // 0x004c25f0: a side crosses from -> p
@@ -86,27 +86,25 @@ struct InOutArea {
   bool clear(const float* from, const float* p) const;  // 0x004c2e30: no polygon's side crosses from -> p
 };
 
-// The variant of the `inout` node a game reads (0x004c36c0, 0x20 bytes on
-// the stack): campaign "inoutm" + the mission number, one area per mission of
-// the operation; Instant Action "inoutia" and training "inoutt", one area.
+// The variant of the `inout` node a game reads (PM's 0x004cdb30, 0x1c bytes on
+// the stack): campaign "inoutm" and standalone "inoutsa" + the mission number,
+// of ten areas; Instant Action "inoutia" and training "inoutt", one area.
 // Multiplayer has none.
 struct InOutVariant {
-  int32_t operation = 0;  // +0x00  vt+0x48
-  int32_t index = 0;      // +0x04  the mission number - 1 (campaign), else 0
-  int32_t count = 0;      // +0x08  the operation's missions (0x00484840), else 1
-  int32_t game = -1;      // +0x0c  vt+0x2c
-  int32_t prefix = 0;     // +0x10  the name's length
-  uint8_t numbered = 0;   // +0x14
-  uint8_t valid = 0;      // +0x15
-  char name[9] = {};      // +0x16
-  int32_t match(const char* child) const;  // 0x004c3850: its area, -1 for none
+  int32_t index = 0;      // +0x00  the mission number - 1 (campaign, standalone), else 0
+  int32_t count = 0;      // +0x04  ten (0x00435db0), else 1
+  int32_t game = -1;      // +0x08  vt+0x28
+  int32_t prefix = 0;     // +0x0c  the name's length
+  uint8_t numbered = 0;   // +0x10
+  uint8_t valid = 0;      // +0x11
+  char name[9] = {};      // +0x12
+  int32_t match(const char* child) const;  // PM's 0x004cdce0: its area, -1 for none
 };
-InOutVariant inout_variant();  // 0x004c36c0
+InOutVariant inout_variant();  // PM's 0x004cdb30
 
 // What the boundary needs from modules not ported here; the program sets them.
 struct InOutHooks {
   bool (*have_game)() = nullptr;                 // [0x0060861c] set
-  int32_t (*operation)() = nullptr;              // [0x0060861c]+0x6c vt+0x48
   int32_t (*game_type)() = nullptr;              // vt+0x2c
   int32_t (*mission_number)() = nullptr;         // vt+0x4c
   // [0x00608c84]: with a world, each corner is put on the ground under it

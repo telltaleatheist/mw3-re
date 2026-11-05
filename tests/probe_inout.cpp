@@ -146,7 +146,6 @@ int32_t inout_run(int32_t have, int32_t game, int32_t op, int32_t mission, int32
   InOutHooks& h = inout_hooks();
   h.have_game = [] { return g_have != 0; };
   h.game_type = [] { return g_game; };
-  h.operation = [] { return g_op; };
   h.mission_number = [] { return g_mission; };
   h.ground = on_ground ? ground : nullptr;
   zerr::set_sink([](int, const char*, int, const char*) { ++g_reports; });
