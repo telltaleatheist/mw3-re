@@ -1365,8 +1365,12 @@ functions PM changed, and PM's new ones.
      9,000 frames at 33 ms. The Thor wakes near frame 1400, walks 2 km, and fights the idle player at 50-150 m;
      armor falls both ways; 545 shots by frame 6600. So an enemy already walks and shoots; the order below is
      by what differs from PM, not by what is missing. The two Shadow Cats stayed powered down throughout.
-   - **`on_mission_start`** (0x4944e0, not ported): a valve of that name is set on at mission start. Named 108 times
-     in PM's valves.zrd files; absent from MW3's exe and data.
+   - **`on_mission_start`: ported** (0x4944e0, with 0x4e4b00's `bapon`; both slot +0x10 of the listeners, walked by
+     0x4f9960 from 0x483de0's case 9, MW3's 0x481170 case 7; `valves_mission_started`, `test_pm_ai_start.py`). Named
+     108 times, in the standalone missions' valves (`readersa*`), not the campaign's. Measured on c1sa1 over 100 s:
+     without it the allied `pirate_mate_1` falls to 4.2 of 12 armor (its turrets still hostile, their `setteam` never
+     run); with it 12. c1m1 is unchanged, and its Shadow Cats stay powered down, so that is something else.
+     0x483de0's case 8 (0x5349d0, then the player's +0x38c vt+0x1c) is not in the port; its caller is not traced.
    - **The boundary** (the variant 0x4cdb30, the loader 0x4cddb0, the container 0x4cd740, the fill 0x4cdff0 ->
      0x4ce450, the select 0x4ce290): names by game type: 1 `inoutm` and 5 `inoutsa` (ten areas by 0x435db0, the index
      the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Child match 0x4cdce0. Areas 0xc0 bytes (MW3 0x88). The clamp

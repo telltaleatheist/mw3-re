@@ -85,7 +85,7 @@ int32_t& valve_reentries() {
 // Pirate's Moon 1.0 @ 0x004944e0, 0x004e4b00
 void valves_mission_started(int32_t player_bap) {
   if (Valve* v = valve_find("on_mission_start")) v->set(1);
-  if (Valve* v = valve_find("bapon")) v->set(player_bap > 0 ? 1 : 0);
+  if (Valve* v = valve_get("bapon")) v->set(player_bap > 0 ? 1 : 0);  // made if no data named it
 }
 
 // Mech3.exe 1.2 @ 0x004d3bf0. FIX (bug): a valve that fires again while its
