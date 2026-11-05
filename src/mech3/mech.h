@@ -43,7 +43,7 @@ struct CockpitModel {
 struct MechData {
   float range_sq[2] = {};        // +0x000  the definition's +0x14c and +0x150, squared
   int32_t refs = 0;              // +0x008  the mechs (and lookups) holding it
-  int32_t roster = 0;            // +0x00c  index in the mech roster; 7 is the Elemental
+  int32_t roster = 0;            // +0x00c  index in the mech roster (mech_ids.h)
   const char* name = nullptr;    // +0x010  the mech's name, motions are <name>_<gait>
   Handle model = nullptr;        // +0x014  the model tree each mech copies (= models[0])
   Handle models[2] = {};         // +0x018  mechlib's trees (0x00484760): mech_<name>, mech_<name>_1 (low detail)

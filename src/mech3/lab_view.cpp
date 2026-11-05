@@ -30,7 +30,7 @@ namespace mech3 {
 zcls::Node* mech_model(int32_t roster, int32_t variant);  // 0x00484760
 
 namespace {
-constexpr int32_t kMechs = kMechCount;                          // the 19 chassis
+constexpr int32_t kMechs = kMechCount;                          // the chassis
 constexpr int32_t kViewRect[4] = {0xd2, 0x34, 0x1ae, 0x120};  // [0x005e4688]: 210, 52 to 430, 288
 constexpr float kCameraPos[3] = {0.0f, 5.0f, -11.0f};    // [0x005e4648]
 constexpr float kCameraRot[3] = {0.02f, 3.1415927f, 0.0f};  // [0x005e4678]

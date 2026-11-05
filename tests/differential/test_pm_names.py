@@ -92,6 +92,19 @@ def main():
     check('the Mad Cat', 'madcat', port(0, port(10, 0)))
     check('mech count', sum(x != 'notmech' for x in names[0]), port(11, 0))
     check('weapon count', sum(x != 'noweapon' for x in names[1]), port(12, 0))
+    # The ids the code holds as numbers, read off the exe's own instructions.
+    mem = lambda a, k: bytes(e.cpu._uc.mem_read(a, k))  # noqa: E731
+    u32 = lambda a: struct.unpack('<I', mem(a, 4))[0]  # noqa: E731
+    for m in range(32):   # the chase camera's jump table 0x431694; past it, the default
+        at = u32(0x431694 + 4 * m) if m < 25 else 0x4312fb
+        check(f'tether height {m}', struct.unpack('<I', mem(at + 3, 4))[0], port(13, m) & 0xffffffff)
+    for w in range(0x17 - 2, 0x38):   # the lab's table 0x455a64: 0, a missile
+        check(f'lab missile {w}', int(0x17 <= w <= 0x30 and mem(0x455a64 + w - 0x17, 1)[0] == 0), port(14, w))
+    check('TAG added', mem(0x414f58 + 1, 1)[0], port(15, 0))
+    check('TAG not salvaged', mem(0x474e7c + 2, 1)[0], port(15, 0))
+    check('the TAG', b'TAG', e.cstr(e.i(W_NAME, port(15, 0))))
+    check('the lab: no mech', u32(0x449f6c + 3), port(11, 0))
+    check('the debriefing card: no mech', bytes.fromhex('c7867c010000') + struct.pack('<I', port(11, 0)) in mem(0x44bb00, 0x80), True)
     for kind, addr in ((0, M_INDEX), (1, W_INDEX)):
         for nm in sorted(set(names[kind])) + ['nosuch', 'Ppc', 'ELEMENTAL']:
             for v in (nm, nm.upper(), nm.lower()):

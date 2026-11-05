@@ -419,7 +419,7 @@ struct ProgramHudHooks : HudHooks {
   float contact_distance(void* c) override { return static_cast<ai::Contact*>(c)->distance(); }  // 0x004e7030
   int32_t mech_kind_of(void* m) override {
     const Mech* me = static_cast<Mech*>(m);
-    return me->pilot ? me->pilot->roster : 0;  // +0x684 +0xc: 7 the Elemental
+    return me->pilot ? me->pilot->roster : 0;  // +0x6a8 +0xc
   }
   int32_t mech_3cc(void* m) override { return static_cast<Mech*>(m)->equipment[8]; }  // ECM
   // TARGET's tracking, the lead point and the data update (hud.md section

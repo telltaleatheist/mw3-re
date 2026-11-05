@@ -4,6 +4,7 @@
 
 #include "gamez/zgame/zgameapp.h"
 #include "mech3/app_hooks.h"
+#include "mech3/mech_ids.h"
 
 // The game states the app's stack runs (docs/game-loop.md). The static objects
 // at 0x00608e70..0x00608f58 are picked by Mech3App::state(n) (0x00482970).
@@ -267,7 +268,7 @@ class LabState : public ShellState {
   void delete_screen();               // 0x00448ef0
   void draw(float dt);                // 0x00448f10
 
-  static constexpr int32_t kNoMech = 0x13;  // +0x38 when no mech is waiting (the 19 mechs)
+  static constexpr int32_t kNoMech = kMechCount;  // +0x38 when no mech is waiting
 
   uint8_t own_world_ = 0;             // +0x10  the 3D world's load loaded a mission world (none was up)
   std::vector<Handle> models_;        // +0x20  the 3D view's mechs (each +0x08 its mech)

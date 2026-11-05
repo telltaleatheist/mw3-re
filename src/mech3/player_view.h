@@ -103,6 +103,7 @@ struct CameraList {
 // one's block of the mech definition's `camera` reader node; `roster` picks
 // tether's height; area's from the view camera's field of view.
 CameraList* make_cameras(int32_t roster);
+float tether_height(int32_t roster);  // 0x004312b0
 
 // What the view calls outside it: zClass's camera and nodes, the world's
 // queries and fog, the weather, the mech's torso, controls and HUD. One per

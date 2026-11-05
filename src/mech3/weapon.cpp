@@ -13,6 +13,7 @@
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
 #include "mech3/cheats.h"
 
@@ -109,10 +110,7 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
     part_damage_sound = sound("mech_part_damage");
     part_destroy_sound = sound("mech_part_destroy");
   }
-  float v = def->velocity;
-  if (v < 100.0f) v = 100.0f;
-  else if (v > 5000.0f) v = 5000.0f;
-  if (id >= 0x11 && id <= 0x14) lrm_flight = crt::x87_mul_f24(range, 0.7) / v;  // LRM5..LRM20
+  // MW3's LRM hold (lrm_flight, its +0xc0) is gone from Pirate's Moon's type 0x004b34d0: stays 0.
   strike_lock.at = &strike_point;
 }
 
@@ -1126,11 +1124,11 @@ void configure_weapons(Handle mech, WeaponManager* m, Config* cfg, Config** kept
         const std::vector<Firepoint*>* fps = g_calls.firepoints ? g_calls.firepoints(mech) : nullptr;
         const Firepoint* fp = fps && !fps->empty() ? (*fps)[0] : nullptr;
         if (!fp) continue;
-        if (Weapon* t = m->add(0x20, node, fp->name, 4)) {
+        if (Weapon* t = m->add(kTag, node, fp->name, 4)) {
           t->set_group(4);
         } else {
           char msg[256];
-          std::snprintf(msg, sizeof msg, "Failed to add weapon (%s) firepoint=(%s)", weapon_name(0x20), fp->name);
+          std::snprintf(msg, sizeof msg, "Failed to add weapon (%s) firepoint=(%s)", weapon_name(kTag), fp->name);
           zerr::report(0x400, "C:\\zipper\\Mech3\\mech.cpp", 0x1e0, msg);
         }
       }

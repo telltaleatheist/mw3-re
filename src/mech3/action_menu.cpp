@@ -36,7 +36,7 @@ int32_t mode_of(int32_t scenario) {
 
 // 0x00484670: a mech's shown name, "notmech" out of range.
 const char* mech_label(Engine& e, int32_t mech) {
-  if (mech < 0 || mech >= 19) return "notmech";
+  if (mech < 0 || mech >= kMechCount) return "notmech";
   const char* s = e.message(mech_name_message(mech));
   return s ? s : "";
 }

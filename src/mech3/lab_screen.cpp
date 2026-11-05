@@ -15,6 +15,7 @@
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app_states.h"
+#include "mech3/mech_ids.h"
 #include "mech3/pilot.h"
 
 namespace mech3 {
@@ -35,13 +36,18 @@ float engine_kph(int32_t engine, float mass, bool run);  // 0x00433050 (mech_dat
 bool weapon_uses_ammo(int32_t weapon);                   // 0x00484960
 int32_t weapon_count();                                  // Pirate's Moon's 56
 
+// Pirate's Moon 1.0 @ 0x004559e0's table: LRM and MRM, SRM and Streak, Thunderbolt.
+bool lab_weapon_is_missile(int32_t w) {
+  return (w >= 0x17 && w <= 0x1e) || (w >= 0x26 && w <= 0x2b) || (w >= 0x2d && w <= 0x30);
+}
+
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
 
 // Mech3.exe 1.2 @ 0x00484670: a mech's name from Mech3Msg.dll, "notmech"
 // out of range; CString::Format's "%s" gives "(null)" for none.
 std::string display_name(Engine& e, int32_t mech) {
-  if (mech < 0 || mech >= 19) return "notmech";
+  if (mech < 0 || mech >= kMechCount) return "notmech";
   const char* s = e.message(mech_name_message(mech));
   return s ? s : "(null)";
 }
@@ -1067,7 +1073,7 @@ void lab_put_on(Engine& en, LabUnassignedList& list, int32_t index) {
       put = false;
     } else {
       const int32_t w = static_cast<WeaponItem*>(item)->weapon;
-      const bool missile = (w >= 0x11 && w <= 0x14) || (w >= 0x1a && w <= 0x1f);
+      const bool missile = lab_weapon_is_missile(w);
       const auto ok = [&](int32_t i) { return !missile || fps[static_cast<size_t>(fit[static_cast<size_t>(i)])].radius > 0.0f; };
       int32_t chosen = -1;
       const int32_t count = static_cast<int32_t>(fit.size());

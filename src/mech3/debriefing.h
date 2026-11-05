@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "mech3/armor_display.h"
+#include "mech3/mech_ids.h"
 #include "mech3/menu_widgets.h"
 
 // The debriefing screen (docs/campaign.md section 3): the Win State's
@@ -27,7 +28,7 @@ class MechButton : public HelpButton {
   // or not with the glow (0x0044af90).
   void set_mech(int32_t mech, bool selected, ztwod::Image* glow);
 
-  int32_t mech = 0x13;               // +0x17c  0x13: none
+  int32_t mech = kMechCount;         // +0x17c  none (0x0044bb00)
   ztwod::Text name;                  // +0x180
 };
 

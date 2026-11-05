@@ -93,7 +93,7 @@ void Store::clear() {
 
 // Mech3.exe 1.2 @ 0x00470e30: emptied (the exe drops the list's nodes, its
 // items leaked), then one of each, unlimited (+0x10): every mech but the
-// Elemental (7); every weapon in each tech it comes in (Inner Sphere
+// Elemental; every weapon in each tech it comes in (Inner Sphere
 // first) and its ammo when it takes some; every equipment kind, armour in
 // any tech (3). FIX (bug) with the plain PPC (weapon_count).
 void Store::fill_all() {

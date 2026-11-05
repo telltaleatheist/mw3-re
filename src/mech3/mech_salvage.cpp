@@ -11,7 +11,6 @@
 namespace mech3 {
 
 namespace {
-constexpr int32_t kTag = 0x20;          // never salvaged
 constexpr int32_t kSingleSink = 9, kDoubleSink = 10;
 }  // namespace
 
@@ -21,7 +20,7 @@ constexpr int32_t kSingleSink = 9, kDoubleSink = 10;
 bool add_weapons(Store& s, SalvageMech& m, int32_t tech, const SalvageCalls& c) {
   if (!m.has_manager) return false;
   for (const SalvageWeapon& w : m.weapons) {
-    if (!w.present || w.type < 0 || w.type == kTag) continue;
+    if (!w.present || w.type < 0 || w.type == kTag) continue;  // TAG is never salvaged (0x00474e7c)
     int32_t t = w.has_item ? w.item_tech : tech;
     if (!weapon_has_tech(w.type, t)) t = t != 1 ? 1 : 2;
     if (!weapon_has_tech(w.type, t)) continue;

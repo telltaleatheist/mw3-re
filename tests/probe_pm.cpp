@@ -30,6 +30,10 @@
 #include <cctype>
 #include "mech3/mech_lod.h"
 #include "mech3/mech_names.h"
+namespace mech3 {  // lab_screen.h and player_view.h: app_hooks.h's names clash here
+bool lab_weapon_is_missile(int32_t weapon);
+float tether_height(int32_t roster);
+}  // namespace mech3
 #include "mech3/mech_config.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
@@ -972,6 +976,9 @@ int probe_pm_names(int fn, int a, int b, const char** text) {
     case 10: return kMadCat;
     case 11: return kMechCount;
     case 12: return kWeaponCount;
+    case 13: { const float v = tether_height(a); int32_t o; std::memcpy(&o, &v, 4); return o; }
+    case 14: return lab_weapon_is_missile(a);
+    case 15: return kTag;
     default: return 0;
   }
 }

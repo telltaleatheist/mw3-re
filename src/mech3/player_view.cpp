@@ -378,6 +378,20 @@ CameraList::~CameraList() {
 }
 
 // Mech3.exe 1.2 @ 0x00430e70
+// Pirate's Moon 1.0 @ 0x004312b0: the chase camera's height by mech.
+float tether_height(int32_t roster) {
+  switch (roster) {
+    case 0: return 0.7f;
+    case 2: case 0x16: return 0.6f;
+    case 4: case 6: case 0x13: return 0.55f;
+    case 0xa: case 0xd: case 0xf: case 0x15: case 0x17: return 0.65f;
+    case 0xb: case 0xc: case 0x11: case 0x14: return 0.45f;
+    case 0x10: return 0.42f;
+    case 0x18: return 0.63f;
+    default: return 0.5f;
+  }
+}
+
 CameraList* make_cameras(int32_t roster) {
   ViewHooks& h = *g_hooks;
   auto* list = new CameraList;
@@ -388,16 +402,7 @@ CameraList* make_cameras(int32_t roster) {
   tether->dist = 12.0f;
   copy4(tether->delta_rot, kIdentity);
   zmth::quat_pitch(zgame::from_bits(0xbdb2b8c2), Q(tether->delta_rot));
-  switch (roster) {
-    case 0: tether->desired_pos[1] = 0.7f; break;
-    case 1: case 0x10: tether->desired_pos[1] = 0.6f; break;
-    case 2: case 4: case 0xd: tether->desired_pos[1] = 0.55f; break;
-    case 6: case 9: case 10: case 0xf: case 0x11: tether->desired_pos[1] = 0.65f; break;
-    case 7: case 8: case 0xc: case 0xe: tether->desired_pos[1] = 0.45f; break;
-    case 0xb: tether->desired_pos[1] = 0.42f; break;
-    case 0x12: tether->desired_pos[1] = 0.63f; break;
-    default: tether->desired_pos[1] = 0.5f; break;
-  }
+  tether->desired_pos[1] = tether_height(roster);
   tether->desired_pos[2] = 0.93f;
   tether->desired_pos[0] = 0.0f;
   zmth::normalize(V(tether->desired_pos));

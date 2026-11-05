@@ -17,6 +17,8 @@
 // (Engine::unported "lab.vt+<slot>" with the control's offset).
 namespace mech3 {
 
+bool lab_weapon_is_missile(int32_t weapon);  // 0x004559e0: a missile goes on the widest firepoint that fits
+
 class LabScreen;
 
 // N objects made in place in order and destroyed in reverse, as the
