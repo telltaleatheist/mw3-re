@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "mech3/mech_collide.h"
+#include "mech3/mech_reader.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_move.h"
@@ -102,6 +104,14 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   io.v3(0x594, m.impulse);
   io.hd(0x5c4, m.sounds[3]);
   io.hd(0x620, m.jet_effect);
+  // Pirate's Moon's landing and predict (test_pm_jets.py), the pending fields at PM + 0x100.
+  io.bo(0x8, m.active);
+  io.v3(0x30, m.velocity), io.v3(0x58, m.vec_58), io.v3(0x5a0, m.push);
+  for (int k = 0; k < 4; ++k) io.f(0x48 + 4 * k, m.orientation[k]);
+  io.f(0x528, m.speed_factor), io.f(0x54c, m.lean), io.i(0x5ac, m.limp);
+  for (int k = 0; k < 4; ++k) io.f(0x7dc + 4 * k, m.pending_q[k]);
+  io.v3(0x7ec, m.pending_velocity);
+  for (int k = 0; k < 12; ++k) io.f(0x7f8 + 4 * k, m.pending_m[k]);
   int32_t d = static_cast<int32_t>(m.detail);
   io.i(0x688, d);
   m.detail = static_cast<uint32_t>(d);
@@ -109,6 +119,7 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
 
 void controls_io(MechControls& c, uint8_t* b, bool store) {
   Io io{b, store};
+  io.f(0x14, c.turn);
   io.f(0x10, c.throttle), io.f(0x20, c.jump), io.f(0x24, c.jj_strafe), io.f(0x28, c.jj_forward);
   io.f(0x44, c.throttle_target), io.bo(0x50, c.reverse);
 }
@@ -183,6 +194,10 @@ int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int3
   c.jet_pose = [](Mech&) { log({8}); };
   c.landing_dust = [](Mech&) { log({9}); };
   c.landing_pose = [](Mech&) { log({10}); };
+  collide_calls().crouch = [](Hip&, float v) { log({42, bits(v)}); };
+  static MechDfn s_dfn(0, nullptr);
+  std::memcpy(s_dfn.raw + 0x154, mech + 0x7a0, 8);
+  update_calls().dfn = [](Mech&) -> const MechDfn* { return &s_dfn; };
   c.skis_update = [](Mech&, float d) {
     log({15, bits(d)});
     return g->sky != 0;

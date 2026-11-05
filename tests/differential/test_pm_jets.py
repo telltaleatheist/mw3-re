@@ -1,6 +1,6 @@
-"""PM's jump jets 0x417f50 and AddJumpJet 0x417ea0 against mech3/mech_move (docs/movement-jump.md, docs/pm-mech-step.md), on MW3's
-scenarios from test_jets.py with PM's field offsets. The jump pose is skipped by a jump and logged, as test_jets does. Move and
-the landing come with their own pieces.
+"""PM's jump jets 0x417f50, AddJumpJet 0x417ea0, the landing 0x416d70 and predict 0x423590 with the lean 0x4186f0 against mech3/mech_move
+and mech_update (docs/movement-jump.md, docs/pm-mech-step.md), on MW3's scenarios from test_jets.py with PM's field offsets. The jump pose,
+the landing's dust and pose are skipped by a jump and logged, as test_jets does; the skis are a stub. Move comes with its own piece.
 
     cmake --build build --target pmprobe
     .venv/bin/python -P tests/differential/test_pm_jets.py [trials]
@@ -16,19 +16,24 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_jets as tj  # noqa: E402
 import test_pm_zar  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
-JETS, ADD, MECH_VT, SIZE = 0x417f50, 0x417ea0, 0x5dfaac, 0x800
+JETS, ADD, LAND, MECH_VT, SIZE, EXT = 0x417f50, 0x417ea0, 0x416d70, 0x5dfaac, 0x800, 0x900
+DUST_AT, DUST_TO = 0x416fdb, 0x417136
 POSE_AT, POSE_TO = 0x4182ba, 0x4184d9
 FIELDS = {0x3a8: 0x3b8, 0x3d8: 0x3e8, 0x58c: 0x5b0, 0x6c4: 0x734, 0x6c8: 0x738, 0x488: 0x498, 0x48c: 0x49c, 0x490: 0x4a0,
           0x518: 0x528, 0x53c: 0x550, 0x540: 0x554, 0x544: 0x558, 0x548: 0x55c, 0x560: 0x584, 0x564: 0x588, 0x568: 0x58c,
           0x578: 0x59c, 0x57c: 0x5a0, 0x580: 0x5a4, 0x584: 0x5a8, 0x594: 0x5b8, 0x598: 0x5bc, 0x59c: 0x5c0, 0x5c4: 0x5e8,
-          0x620: 0x644, 0x688: 0x6ac}
+          0x620: 0x644, 0x688: 0x6ac, 0x528: 0x538, 0x54c: 0x560, 0x5a0: 0x5c4, 0x5a4: 0x5c8, 0x5a8: 0x5cc, 0x5ac: 0x5d0}
+for o in range(0x7dc, 0x828, 4):
+    FIELDS[o] = o - 0x100
+MECH = tj.MECH + [(0x8, 'b')] + [(o, 'f') for o in (0x30, 0x34, 0x38, 0x48, 0x4c, 0x50, 0x54, 0x58, 0x5c, 0x60, 0x528, 0x54c, 0x5a0, 0x5a4, 0x5a8)] + [
+    (0x5ac, 'i')] + [(o, 'f') for o in range(0x7dc, 0x828, 4) if o not in (0x7f0, 0x820)]  # the vertical two: the skis' piece
 
 
 def to_pm(mw3):
     out = bytearray(SIZE)
-    for off, kind in tj.MECH:
+    for off, kind in MECH:
         n = 1 if kind == 'b' else 4
         p = FIELDS.get(off, off)
         out[p:p + n] = mw3[off:off + n]
@@ -36,8 +41,8 @@ def to_pm(mw3):
 
 
 def to_mw3(pm):
-    out = bytearray(tj.MECH_SIZE)
-    for off, kind in tj.MECH:
+    out = bytearray(EXT)
+    for off, kind in MECH:
         n = 1 if kind == 'b' else 4
         p = FIELDS.get(off, off)
         out[off:off + n] = pm[p:p + n]
@@ -69,6 +74,24 @@ class Emulated(test_pm_zar.Emulated):
         self.native_stub(0x434340, lambda c: self.log(6, c.arg(0) & 0xff), 4)
         self.native_stub(0x5cb260, lambda c: self.pos, 0)
         self.cpu._uc.hook_add(UC_HOOK_CODE, self.pose, begin=POSE_AT, end=POSE_AT)
+        self.cpu._uc.hook_add(UC_HOOK_CODE, self.dust, begin=DUST_AT, end=DUST_AT)
+        self.native_stub(0x477f90, lambda c: self.log(15, c.arg(0)) or self.sky, 4)
+        self.native_stub(0x4342d0, lambda c: self.log(16, c.arg(0)), 4)
+        self.native_stub(0x4638f0, lambda c: self.log(42, c.arg(0)), 4)
+        self.native_stub(0x417290, lambda c: self.log(12, c.arg(0), c.arg(1)) or self.queue_ok, 8)
+        self.native_stub(0x463840, lambda c: self.log(13), 4)
+        self.native_stub(0x434310, lambda c: self.log(14, 0x433840), 0)
+        self.dfn = a(0x1b0)
+        self.native_stub(0x41f740, lambda c: self.dfn, 0)
+        self.lvt = a(0x60)
+        f = self.cpu.code(b'\xc2\x08\x00')
+        self.w32(self.lvt + 0x38, f)
+        self.native_stub(f, lambda c: self.log(11, self.legs.index(c.ecx), c.arg(0), c.arg(1)), 8)
+        for leg in self.legs:
+            self.w32(leg, self.lvt)
+        self.cpu.stub_import(tj.IAT_RAND, lambda c: self.rand())
+        self.view, self.viewp = a(0x80), a(8)
+        self.w32(0x61874c, self.view), self.w32(self.view + 0x58, self.viewp)
         self.w32(0x62c40c, self.player_obj)
         self.w32(self.player_obj + 0x6c, self.game)
         self.w32(0x6187c4, self.opt)
@@ -76,6 +99,10 @@ class Emulated(test_pm_zar.Emulated):
 
     def w32(self, a, v):
         self.cpu._uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
+
+    def dust(self, uc, address, size, data):
+        self.log(9), self.log(10)
+        uc.reg_write(UC_X86_REG_EIP, DUST_TO)
 
     def pose(self, uc, address, size, data):
         self.log(8)
@@ -95,6 +122,9 @@ class Emulated(test_pm_zar.Emulated):
     def run(self, op, s):
         w, m = self.w32, self.mech
         self.events, self.next = [], 0x9000
+        self.rand = tj.MsvcRand(s['seed'])
+        self.sky, self.queue_ok = s['flags'] >> 5 & 1, s['flags'] >> 6 & 1
+        self.cpu._uc.mem_write(self.dfn + 0x154, s['mech'][0x7a0:0x7a8])
         self.cpu._uc.mem_write(m, to_pm(s['mech']))
         w(m, self.mvt)
         w(self.mvt + 0x64, 0x402250 if s['flags'] & 8 else 0x406ce0)
@@ -108,25 +138,59 @@ class Emulated(test_pm_zar.Emulated):
         self.cpu._uc.mem_write(self.ctl, s['ctl'])
         w(self.ctl + 4, self.vbt), w(self.vbt + 4, 0x5c), w(self.ctl + 0x5c, 0), w(self.ctl + 0x60, self.ctl_vt), w(self.ctl + 0x70, m)
         w(self.player_obj + 0x14, m if s['flags'] & 1 else 0)
+        w(self.view + 0x64, m if s['flags'] & 128 else 0)  # the view's half-lean mode (+4 == 1) stays off: its hook is the view's
         w(0x62c410, self.ff if s['flags'] & 2 else 0)
         w(self.opt, 0x80 if s['flags'] & 4 else 0)
-        args = {0: [struct.unpack('<I', struct.pack('<f', s['dt']))[0]], 2: [s['arg']]}[op]
-        self.call({0: JETS, 2: ADD}[op], ecx=m, args=args)
+        dt = struct.unpack('<I', struct.pack('<f', s['dt']))[0]
+        args = {0: [dt], 1: [dt], 2: [s['arg']]}[op]
+        try:
+            self.call({0: JETS, 1: LAND, 2: ADD}[op], ecx=m, args=args)
+        except Exception as ex:
+            uc = self.cpu._uc
+            raise SystemExit(f'op {op} eip {uc.reg_read(UC_X86_REG_EIP):#x} ret {self.r32(uc.reg_read(UC_X86_REG_ESP)):#x} {self.events[-10:]}: {ex}')
         r = self.cpu._uc.reg_read(UC_X86_REG_EAX) if op == 0 else 0
-        return (tj.pick(to_mw3(bytes(self.cpu._uc.mem_read(m, SIZE))), tj.MECH),
+        return (tj.pick(to_mw3(bytes(self.cpu._uc.mem_read(m, SIZE))), MECH),
                 tj.pick(bytes(self.cpu._uc.mem_read(self.ctl, tj.CTL)), tj.CTL_FIELDS), r, self.events)
+
+
+def scenario(rng):
+    s = tj.scenario(rng)
+    m = bytearray(EXT)
+    m[:len(s['mech'])] = s['mech']
+    m[8] = rng.random() < 0.9
+    a = rng.uniform(-3.14, 3.14)
+    q = [0.0 + __import__('math').cos(a / 2), 0.0, __import__('math').sin(a / 2), 0.0]
+    for k in range(4):
+        struct.pack_into('<f', m, 0x48 + 4 * k, tj.f32(q[k]))
+    for o in (0x30, 0x34, 0x38):
+        struct.pack_into('<f', m, o, tj.f32(rng.uniform(-30, 30)))
+    struct.pack_into('<f', m, 0x5c, tj.f32(rng.choice((0.0, 0.5, -1.0, rng.uniform(-1.5, 1.5)))))
+    for o in (0x5a0, 0x5a4, 0x5a8):
+        struct.pack_into('<f', m, o, tj.f32(rng.choice((0.0, 0.0, rng.uniform(-8, 8)))))
+    struct.pack_into('<f', m, 0x528, tj.f32(rng.uniform(0.3, 1)))
+    struct.pack_into('<f', m, 0x54c, tj.f32(rng.choice((0.0, 0.0, 0.005, rng.uniform(-0.3, 0.3)))))
+    struct.pack_into('<i', m, 0x5ac, rng.choice((-1, -1, 0, 1, 2)))
+    struct.pack_into('<2f', m, 0x7a0, tj.f32(rng.choice((0.436, 0.2, 0.0))), tj.f32(rng.choice((1.0, 2.0, 0.5))))
+    ctl = bytearray(s['ctl'])
+    struct.pack_into('<f', ctl, 0x14, tj.f32(rng.choice((0.0, 1.0, -1.0, rng.uniform(-1, 1)))))
+    s['ctl'] = bytes(ctl)
+    s['mech'] = bytes(m)
+    return s
 
 
 def main():
     trials = int(sys.argv[1]) if len(sys.argv) > 1 else 20000
+    tj.MECH_SIZE = EXT
+    tj.MECH = MECH
+    tj.CTL_FIELDS = tj.CTL_FIELDS + [(0x14, 'f')]
     emu = Emulated()
     rng = random.Random(0x417f50)
     seen = set()
     for n in range(trials):
-        op = rng.choice([0, 0, 0, 2])
-        s = tj.scenario(rng)
+        op = rng.choice([0, 1, 1, 1, 2])
+        s = scenario(rng)
         s['roster'] = rng.randrange(25)
-        want, got = emu.run(op, s), tj.port(op if op == 0 else 2, s)
+        want, got = emu.run(op, s), tj.port(op, s)
         for k, name in enumerate(('mech', 'controls', 'result', 'calls')):
             if want[k] != got[k]:
                 if k < 2:
@@ -142,7 +206,7 @@ def main():
         while i < len(log):
             seen.add((op, log[i + 1]))
             i += log[i] + 1
-    print(f'ok: {trials} jets and AddJumpJet calls identical; {sorted(seen)}')
+    print(f'ok: {trials} jets, landing and AddJumpJet calls identical; {sorted(seen)}')
 
 
 if __name__ == '__main__':
@@ -150,6 +214,8 @@ if __name__ == '__main__':
     try:
         main()
     except SystemExit as ex:
+        if isinstance(ex.code, str):
+            print(ex.code)
         code = 0 if ex.code in (None, 0) else 1
     except BaseException:
         import traceback
