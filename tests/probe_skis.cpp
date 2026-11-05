@@ -109,12 +109,17 @@ uint8_t g_camera[4] = {};
 bool g_camera_on = false;
 }  // namespace
 
-namespace { zcls::Node* g_real_world = nullptr; int32_t g_flag8 = 0; }
+namespace { zcls::Node* g_real_world = nullptr; int32_t g_flag8 = 0; zcls::Node* g_real_own = nullptr; }
 
 extern "C" {
 
 void probe_skis_flag8(int32_t v) { g_flag8 = v; }
-void probe_skis_real_world(int32_t slot) { g_real_world = slot >= 0 ? zcls::node_at(slot) : nullptr; }
+void probe_skis_real_world(int32_t slot, int32_t own) {
+  g_real_world = slot >= 0 ? zcls::node_at(slot) : nullptr;
+  g_real_own = own >= 0 ? zcls::node_at(own) : nullptr;
+}
+// The real node's flags after the frame.
+uint32_t probe_skis_own_flags() { return g_real_own ? g_real_own->flags() : 0; }
 
 // The view camera's zone list for 0x00476550 (null: no camera); the zones' mode.
 void probe_skis_camera(const uint8_t* list, int32_t mode) {
@@ -180,8 +185,13 @@ int32_t probe_skis(uint8_t* skis, uint8_t* mech, float* transform, uint8_t* feet
     auto it = g->soils.find(u(mat));
     return it == g->soils.end() ? 0 : it->second;
   };
-  c.node_get_flag8 = [](Handle, int32_t* out) { log({6}); *out = g_flag8; };
-  c.node_set_flag8 = [](Handle, int32_t on) { log({7, on}); };
+  if (g_real_world) {
+    c.node_get_flag8 = nullptr, c.node_set_flag8 = nullptr;
+    m.node = g_real_own;
+  } else {
+    c.node_get_flag8 = [](Handle, int32_t* out) { log({6}); *out = g_flag8; };
+    c.node_set_flag8 = [](Handle, int32_t on) { log({7, on}); };
+  }
   c.node_matrix = [](Handle node) { return g->ski_mats[node == g->s.ski[1] ? 1 : 0]; };
   c.set_node_matrix = [](Handle node, const float* mat) {
     log({3, node == g->s.ski[1] ? 1 : 0});

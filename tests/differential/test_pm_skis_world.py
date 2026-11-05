@@ -1,7 +1,9 @@
 """MechSkis::Update 0x477f90 on the real world and the real ground query 0x5003a0 against the port's (test_pm_skis.py
 has made-up answers, so never the port's call to zcls::ground_query): c1's world at the stop in c1m1
 (docs/pm-mech-step.md) and around it. Soils are 0 on both sides, since the materials are each side's own. Compared: the
-skis' ground, clearance, vertical speeds, surfaces and slopes, the mech's push and vertical speed, airborne.
+skis' ground, clearance, vertical speeds, surfaces and slopes, the mech's push and vertical speed, airborne. The mech's node
+is a real node, on most frames one the query hits under the mech, so that PM's 0x4fcf70 / 0x4fcf20 take it out of the query
+and put its flag back; the flag is compared after.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_skis_world.py
 """
@@ -20,6 +22,7 @@ import test_pm_skis as ts  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 WORLD = g.ZBD / 'c1' / 'gamez.zbd'
+NODE_AT = 9  # test_pm_di.hit's node slot
 FLOATS = [0x124 + 4 * k for k in range(7)] + [0x140 + 4 * k for k in range(7)] + [0x15c + 4 * k for k in range(7)] + [
     0x2c8 + 4 * k for k in range(7)]
 STOP = (4529.2, 28.0, -4517.0, math.radians(-8.26))
@@ -37,7 +40,6 @@ def main():
     emu = make_bench()
     slot, world = emu.world_node()
     emu.w32(emu.world_obj + 4, world)
-    p.probe_skis_real_world(slot)
     p.probe_skis_camera(None, 0)
     emu.w32(ts.MODE, 0)
     for k in range(32):
@@ -45,10 +47,16 @@ def main():
     vt = emu.alloc(0x200)
     emu.wr(vt, emu.raw(0x5dfaac, 0x200))
     emu.w32(vt + 0x64, 0x406ce0)
-    total = kicks = high = 0
+    total = kicks = high = own_frames = hidden = 0
+    p.probe_skis_real_world.argtypes = [ctypes.c_int, ctypes.c_int]
+    p.probe_skis_own_flags.restype = ctypes.c_uint32
     places = [STOP] + [(STOP[0] + rng.uniform(-200, 200), 28.0, STOP[2] + rng.uniform(-200, 200), rng.uniform(-3.1, 3.1)) for _ in range(149)]
     dt = ts.f32(1 / 30)
     for x, y, z, yaw in places:
+        # The node the query finds under the mech, if any, stands for the mech's own.
+        hits = emu.ground(world, [ts.f32(x), ts.f32(y + 2), ts.f32(z)], ts.f32(y + 1024))
+        own = hit_node(hits) if rng.random() < 0.8 else -1
+        p.probe_skis_real_world(slot, own)
         emu.wr(emu.skis, ts.fresh_skis(rng, False))
         emu.w32(emu.skis, emu.mech)
         for i in range(2):
@@ -71,6 +79,7 @@ def main():
             emu.wr(emu.mech + 0x48, struct.pack('<4f', ts.f32(math.cos(yaw / 2)), 0.0, ts.f32(math.sin(yaw / 2)), 0.0))
             emu.w32(emu.mech + 0x6ac, 0xffffffff)
             emu.w32(emu.mech + 0xc, emu.transform)
+            emu.w32(emu.mech + 4, emu.node_at(own) if own >= 0 else 0)
             emu.wr(emu.transform, struct.pack('<12f', *pend))
             skis_in, feet_in, mats_in = emu.raw(emu.skis, ts.SKIS), b''.join(emu.raw(f, ts.FOOT) for f in emu.feet), b''.join(emu.raw(m, 48) for m in emu.mats)
             mech_raw = emu.raw(emu.mech, 0x800)
@@ -101,13 +110,29 @@ def main():
                         raise SystemExit(f'{where}: mech {pm_off:#x}: exe {a} port {b}')
             if want_air != (air & 0xff):
                 raise SystemExit(f'{where}: airborne exe {want_air} port {air}')
+            if own >= 0:
+                node = emu.node_at(own)
+                a, b = emu.r32(node + 0x24), p.probe_skis_own_flags()
+                if (a & 8) != (b & 8):
+                    raise SystemExit(f'{where}: flag 8 after: exe {a:#x} port {b:#x}')
+                own_frames += 1
+                emu.w32(node + 0x24, a & ~8)  # what the query sees without the node
+                without = emu.ground(world, [ts.f32(x), ts.f32(y + 2), ts.f32(z)], ts.f32(y + 1024))
+                emu.w32(node + 0x24, a)
+                hidden += without != emu.ground(world, [ts.f32(x), ts.f32(y + 2), ts.f32(z)], ts.f32(y + 1024))
             ground = struct.unpack_from('<7f', skis_out, 0x124)
             total += 1
             kicks += skis_out[5] != 0
             high += max(ground) - min(ground) > 3.5
-    p.probe_skis_real_world(-1)
-    pm_floors.floors(frames=(total, 600), a_slide_or_kick=(kicks, 10), a_step_over_3_5=(high, 10))
-    print(f'ok: {total} frames on c1\'s real ground identical; {kicks} slid or kicked, {high} with a step over 3.5')
+    p.probe_skis_real_world(-1, -1)
+    pm_floors.floors(frames=(total, 600), a_slide_or_kick=(kicks, 10), a_step_over_3_5=(high, 10), own_node=(own_frames, 300))
+    print(f'ok: {total} frames on c1\'s real ground identical; {kicks} slid or kicked, {high} with a step over 3.5; '
+          f'{own_frames} with a real node as the mech\'s, the flag back after; on {hidden} of them the query answers differently without that node')
+
+
+def hit_node(o):
+    """The first hit's node slot in test_pm_di's ground answer, or -1."""
+    return o[2 + NODE_AT] if len(o) > 2 and o[1] > 0 and o[2 + NODE_AT] >= 0 else -1
 
 
 def make_bench():
@@ -116,7 +141,7 @@ def make_bench():
     ts_init = ts.Emulated.__init__
     # test_pm_skis's __init__ on the loaded bench, with no stub on the query and no second load.
     real_native = emu.native_stub
-    emu.native_stub = lambda addr, fn, pop=0: None if addr == ts.QUERY else real_native(addr, fn, pop)
+    emu.native_stub = lambda addr, fn, pop=0: None if addr in (ts.QUERY, 0x4fcf70, 0x4fcf20) else real_native(addr, fn, pop)
     di_init = di.Emulated.__init__
     di.Emulated.__init__ = lambda self: None
     try:
