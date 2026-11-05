@@ -278,6 +278,13 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 
 **The order after this table's frame rows (the lead, 2026-11-05):** the campaign items; the frame's 85 inferred rows, logic class first, with a break in the function itself naming the PM difference it covers; #20 0x424030 and #311 0x41a020; then the second campaign (type 5, `pm-map.md` 7b, read and sized first, the lead's go before porting); then the logic and new rows outside the frame.
 
+**Open, not to lose (2026-11-05):**
+- `test_pm_mechsave`'s byte damage: straight after the roof pin, before the frame's 85.
+- `test_pilot`'s 1,136 lines: move with the pilot and campaign screens, at the latest with the Pirate Missions, whose screens read the fifth game.
+- The starting store 0x4351b0's mech and store calls are stubbed on both sides: not compared. The restored world (0x435d30) runs, not compared with the exe's.
+- 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
+- The roof pin at 33 ms in c1m1 (the lead's list): exe or port, why it stays, what frees it, the heading split, the 0.6's counts.
+
 **The campaign items (2026-11-05):** done but type 5; `pm-map.md` step 6. Breaks on the pilot file, per function, caught: 0x479d80, 0x47af50, 0x47b2f0 (3), 0x47b610 (2), 0x435d80, 0x435e40, 0x435820 (2), 0x4356f0, 0x40e250 (2), 0x40e2b0 (2), 0x4361c0, 0x4363b0, 0x40c460 (2), 0x434780, 0x40cbb0.
 
 ## The true size, normalized (2026-11-05, an estimate)
