@@ -271,7 +271,7 @@ int32_t probe_collide(uint8_t* mech, int32_t roster, float half, float* transfor
   };
   cc.node_mech = [](Handle nd) -> Mech* {
     const int i = node_of(nd);
-    return i >= 0 && g->nodes[i].kind == 1 ? &g->others[g->nodes[i].idx] : nullptr;
+    return i >= 0 && g->nodes[i].kind == 1 && g->nodes[i].idx >= 0 ? &g->others[g->nodes[i].idx] : nullptr;
   };
   cc.node_entity = [](Handle nd) -> Handle {
     const int i = node_of(nd);

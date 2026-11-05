@@ -197,7 +197,7 @@ class Emulated(test_pm_zar.Emulated):
 
     def node_mech(self, c):
         n = self.node_index(self.r32(c.ecx))
-        return self.others[self.s['nodes'][n]['idx']] if n >= 0 and self.s['nodes'][n]['kind'] == 1 else 0
+        return self.others[self.s['nodes'][n]['idx']] if n >= 0 and self.s['nodes'][n]['kind'] == 1 and self.s['nodes'][n]['idx'] >= 0 else 0
 
     def node_entity(self, c):
         n = self.node_index(self.r32(c.ecx))
@@ -461,7 +461,8 @@ def scenario(rng):
         kind = rng.choice([0, 0, 0, 1, 2, 3]) if i < MECH_NODE else 0
         b = [f32(rng.uniform(-5, 0)), f32(rng.uniform(-5, 0)), f32(rng.uniform(-5, 0)),
              f32(rng.uniform(0, 5)), f32(rng.uniform(0, 5)), f32(rng.uniform(0, 5))]
-        nodes.append({'kind': kind, 'idx': rng.randrange(2), 'touch': f32(rng.choice([0.0, 20.0, -1.0, 5.0])),
+        nodes.append({'kind': kind, 'idx': rng.choice([0, 0, 1, 1, 1, -1]) if kind == 1 else rng.randrange(2),  # -1: a node with no mech
+                      'touch': f32(rng.choice([0.0, 20.0, -1.0, 5.0])),
                       'has_box': int(rng.random() < 0.7), 'box': b,
                       'expiry': frame + rng.choice([-1, 0, 1, 5000]), 'owner': rng.choice([0, 0, 1, 2])})
     def hit():
@@ -494,7 +495,8 @@ def scenario(rng):
                     'killed': int(rng.random() < 0.2), 'team': rng.choice([0, 1, 2, 4]),
                     'velocity': [f32(rng.uniform(-5, 5)) for _ in range(3)],
                     'spin': [f32(rng.uniform(-1, 1)) for _ in range(3)], 'mass': f32(rng.choice([0.5, 1.0, 2.0])),
-                    'matrix': [f32(math.cos(a)), 0.0, f32(-math.sin(a)), 0.0, 1.0, 0.0, f32(math.sin(a)), 0.0,
+                    'matrix': [f32(math.cos(a)), f32(rng.uniform(-0.3, 0.3)), f32(-math.sin(a)), f32(rng.uniform(-0.3, 0.3)), 1.0,
+                               f32(rng.uniform(-0.3, 0.3)), f32(math.sin(a)), f32(rng.uniform(-0.3, 0.3)),
                                f32(math.cos(a)), 0.0, 0.0, 0.0]})
     contacts = []
     for _ in range(rng.choice([0, 0, 1, 2, 3, 4])):

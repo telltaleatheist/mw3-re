@@ -170,7 +170,8 @@ class Emulated(test_pm_zar.Emulated):
         self.cpu._uc.mem_write(self.ctl, s['ctl'])
         w(self.ctl + 4, self.vbt), w(self.vbt + 4, 0x5c), w(self.ctl + 0x5c, 0), w(self.ctl + 0x60, self.ctl_vt), w(self.ctl + 0x70, m)
         w(self.player_obj + 0x14, m if s['flags'] & 1 else 0)
-        w(self.view + 0x64, m if s['flags'] & 128 else 0)  # the view's half-lean mode (+4 == 1) stays off: its hook is the view's
+        w(self.view + 0x64, m if s['flags'] & 128 else 0)
+        w(self.viewp + 4, 1 if s['flags'] & 256 else 0)  # the view's half-lean mode
         w(0x62c410, self.ff if s['flags'] & 2 else 0)
         w(self.opt, 0x80 if s['flags'] & 4 else 0)
         dt = struct.unpack('<I', struct.pack('<f', s['dt']))[0]
@@ -229,6 +230,7 @@ def main():
         op = rng.choice([0, 1, 1, 1, 2, 3, 3])
         s = scenario(rng)
         s['roster'] = rng.randrange(25)
+        s['flags'] |= 256 if rng.random() < 0.3 else 0
         want, got = emu.run(op, s), tj.port(op, s)
         for k, name in enumerate(('mech', 'controls', 'result', 'calls')):
             if want[k] != got[k]:

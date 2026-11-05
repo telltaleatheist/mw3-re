@@ -133,7 +133,7 @@ void probe_jets_seed(uint32_t seed) { crt::msvc_srand(seed); }
 // op 0 jump_jets(dt), 1 ground_step(dt), 2 add_jump_jet(arg), on a mech
 // image (0x6d8) and controls (0x74). `flags`: 1 player, 2 force feedback,
 // 4 MW2 jets option, 8 remote, 16 the jump pose exists, 32 the skis report
-// airborne, 64 the fall's queue succeeds, 128 the view's player. Returns the function's result.
+// airborne, 64 the fall's queue succeeds, 128 the view's player, 256 its half-lean mode. Returns the function's result.
 int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int32_t roster, float pos_y,
                    float ground6, float gravity, float dt, int32_t arg, float speed, float vz, int32_t* out,
                    int32_t* n) {
@@ -214,6 +214,8 @@ int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int3
   };
   dc.hip_reset = [](MechPart&, const Vec3*) { log({13}); };
   dc.ff = [](uint32_t fn, int) { log({14, static_cast<int32_t>(fn)}); };
+  if (flags & 256) dc.view_mode = [] { return 1; };
+  else dc.view_mode = nullptr;
 
   int32_t r = 0;
   if (op == 0) r = m.jump_jets(dt);
@@ -224,6 +226,7 @@ int32_t probe_jets(int32_t op, uint8_t* mech, uint8_t* ctl, uint32_t flags, int3
   controls_io(g->c, ctl, true);
   world().mission_player = nullptr;
   world().player = nullptr;
+  dc.view_mode = nullptr;
   const int32_t len = static_cast<int32_t>(g_log.size());
   std::memcpy(out, g_log.data(), 4 * (len < *n ? len : *n));
   *n = len;
