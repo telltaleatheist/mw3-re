@@ -284,6 +284,8 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 - 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
 - c2m3's stop at (2636, -1528): needs its own run on the walker's route. This walk stops first at a wall at (1365, -6.8, -824) by another route, which settles nothing about it.
 - PM's salvage block 0x473690 against the exe (above, Byte damage).
+- `test_pilot` isn't moved. It holds the store and game calls on the pilot (0x478560, 0x4788b0, the stores' add and take, saved campaigns, rename, damage). It needs a sitting: 40 addresses, 7 with no PM counterpart (0x424010, 0x435240, 0x484840 and four inside functions), and PM's campaign differs. Pointed at PM as it stands, it stops at 0x484840.
+- The campaign's flag 0x10 on a record (0x4a19c0): a vehicle with it is made only if its name is in the campaign's string list (0x4356c0, filled at 0x45fcf0). The port makes it regardless. Not changed: which shipped records have it isn't looked at yet.
 - PM's new 0x4095e0: its own node out of a line query from the camera, not ported or looked at further.
 - 0x41f8d0's `+0xe2` on the way to the lod's light: read only.
 - **Outside the frame, with the mech lab's tests:** the saved archives, player files, against the exe: the loader 0x4267f0, the writer 0x426bd0, the second loader 0x427e80. Nothing on `pm` compares them yet; `test_mechsave` (unmoved) is the source.
@@ -457,6 +459,8 @@ The 45 not caught, by reading:
 - **Closed** (2): 0x424dd0's tilted vehicle matrix and 0x4186f0's half lean, in the tests now and caught.
 - **Not settled** (6): the root motion's x in 0x418850, always 0 in the test; the step's `stop` in 0x418fc0; `c.clear` in 0x424220; the ski's `m[9]`, `m[11]` in 0x477e40; `water_surface` in 0x464060. Each could be a small gap.
 - **Gaps** (5): the headlight at a death 0x465da0 (three breaks), 0x41d880 in the port's `app_mech`, and `zcls::ground_query`'s arguments in 0x477f90, which go through test_pm_di's path and not test_pm_skis, whose query is canned. Also 0x41f8d0, with no break. Not in the table: `heat_override` 0x419fb0's check on the view's mech, not caught by the four tests tried (a generated break that fell outside its row, one of two left out of the count).
+
+**The second campaign's rows (2026-11-05, breaks in the function itself):** 0x40def0 3 of 3, 0x40d920 1 of 1, 0x40e340 3 of 3, 0x40e3f0 1 of 2 (the missing block, no shipped mission lacks one), 0x40e4d0 1 of 1, 0x40e510 2 of 2, 0x473690 4 of 4, 0x40e6c0 2 of 3 (the kept loadout's take is stood in), 0x40e760 2 of 2, 0x40e830 1 of 1. Read and run only through the chain, the exe not run: the Win State's branch 0x47cf20, 0x47ee40, the menu 0x4912f0, 0x4916c0 and its state 0x489b40, 0x489b70, the pause's REPLAY 0x495ec0, the end 0x494fa0, the player's setup 0x4a19c0 and the lance 0x407c20 (`keep` for types 5 and 2 now, for all slots; MW3's Op 4 Mission 6 rule isn't in PM), the warnings 0x404a20. The last is the campaign's missions 2 and 5, not game types: vt+0x48 is the mission's number there.
 
 **A logic row isn't finished without its account (the lead, 2026-11-05).** Every constant and call the normalized compare says differs gets a line: where the port has it, or why it doesn't apply. A break that hits a line is not that account: two real differences were found by doing it, in rows already marked compared, and the compare had listed both all along. Rows outside the frame the same, when reached.
 

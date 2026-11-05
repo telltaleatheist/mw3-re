@@ -682,7 +682,9 @@ void CampaignChain::frame() {
       for (int i = 0; i < 4; ++i)
         if (groups[i]) std::printf("mw3: chain objectives %s %s:\n", launched_.c_str(), names[i]), print_objective(e_, *groups[i], 1);
     }
-    if (o_.kills) {
+    // standalone-kills: a mission that failed by shooting everything (a convoy it must keep) is won as --win.
+    const bool shoot_it = o_.kills && !(o_.standalone && std::find(failed_.begin(), failed_.end(), launched_) != failed_.end());
+    if (shoot_it) {
       if (++core_frames_ == 30 && fitted_weapon_ >= 0) {  // the lab's fit, in the mission
         int32_t n = 0;
         for (int32_t t : mech3::salvage_weapon_types(mech3::mech_mission_player())) n += t == fitted_weapon_;
@@ -709,6 +711,11 @@ void CampaignChain::frame() {
                     d->title.labels.size() > 2 ? d->title.labels[2]->text : "(none)", e_.game_text(0xc), d->rank.shown);
         for (const ztwod::Text* t : d->texts) std::printf("mw3: chain debriefing line: %s\n", t->text);
         if (o_.standalone) {
+          if (o_.kills && e_.mission_failed()) {
+            std::printf("mw3: chain standalone %s failed by shooting: next as --win\n", launched_.c_str());
+            failed_.push_back(launched_);
+            --wins_;
+          }
           const auto* st = mech3::current_pilot() ? mech3::current_pilot()->standalone : nullptr;
           std::printf("mw3: chain standalone debrief: rank %d, help %d, CONTINUE help \"%s\", won flag %d, at %d, best %d\n",
                       d->rank.shown, 0, d->continue_help_text(), d->campaign_over(), st ? st->x38 : -1, st ? st->x3c : -1);

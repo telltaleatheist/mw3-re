@@ -11,8 +11,7 @@ ending it (0x435db0) in the Win Movie State, then the credits.
 `--campaign-chain kills:1`: mission 1 won by shooting: the objectives' rows, the
 bonuses, the two totals and the rank by the score (0x47eb82).
 
-Not reached: type 5's title, press and rank, the standalone game object being the
-front end's. The layout's positions are not read here; `test_debriefing` stays to
+The second campaign's title, press and rank are test_pm_standalone_chain's. The layout's positions are not read here; `test_debriefing` stays to
 move, it needs the twod bench on PM's exe (campaign.md).
 """
 import os
