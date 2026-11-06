@@ -8,6 +8,7 @@ Via nodes aren't here: they wait for the net records.
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_boundary_real.py [worlds]
 """
 import ctypes
+import os
 import math
 import random
 import struct
@@ -15,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.md
 import pm_floors  # noqa: E402
 import test_pm_ai_boundary as tb  # noqa: E402
 import test_pm_zar  # noqa: E402

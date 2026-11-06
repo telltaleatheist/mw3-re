@@ -162,17 +162,18 @@ The search read each `if ...: continue/break/return True` over a value in `test_
 - **Tests the very value it skips:** `test_pm_clutter:158`, `test_pm_skis:278`, `modeldraw_common.same_float`.
 - **Compared just before:** `test_pm_modeldraw:133` (the centre, bit for bit, and the count).
 - **Choosing inputs, not results:** `test_pm_nodebox:79`, `test_pm_submit:205`, `test_pm_strips:83`, `test_pm_gamez:275,343`, `test_pm_lance:136`, `test_pm_ai_boundary_real:46,49`, `test_pm_zar:344`, `test_pm_projected:92`.
-- **Worth knowing:** `test_pm_ai_boundary:297` picks its hunted cases from the port's own answer, so a case the port wrongly leaves out isn't compared in that hunt. The test's other queries are compared in full.
+- **Fixed:** `test_pm_ai_boundary`'s hunt picked its cases from the port's own answer; every query in it now goes to both sides. The same 57 rare cases turn up.
+- **Worth knowing:** `test_pm_ai_boundary_real` screens 594,560 queries with the port and asks the exe about 7,618: every rare case the port finds (up to 100 an area) and a random sample of the rest. A rare case the port wrongly misses is only compared if the sample lands on it. Asking the exe about all of them would take about 20 minutes.
 
-**The recount of what's left** counts a function as done when the port's source names its address outside the hook classes. Cited isn't landed: a comment can name what isn't ported, and only a test shows a function is. It's an estimate of the size, nothing more.
+**The recount of what's left** (`tools/analysis/pmrecount.py --trace DIR`) counts a function as done when the port's source names its address outside the hook classes. Cited isn't landed: a comment can name what isn't ported, and only a test shows a function is. It's an estimate of the size, nothing more.
 
 **On the switch's rerun, added:** the 36 of `0x4d9d00`'s breaks not rerun on the widened test; the 5 twins, 875 instructions, compared against PM.
 
 ## PM's AI runs at 53 bits only (2026-11-06)
 
-`test_pm_ai_steer`, `test_pm_ai_walk` and `test_pm_ai_jump` set `MW3_X87=53` (control word 0x027f, a value added to `original.py`) and compare to the bit, with no tolerance. This differs from CLAUDE.md's "tests still run both": these ports follow the exe's evaluation at the reference's precision, measured 2026-11-04, so at 24 bits they don't match, by design, and that isn't run. Every new PM AI piece is written and tested this way. `pm-map.md`, "PM's AI at 53 bits", has the evaluation, the ties and the numbers.
+`test_pm_ai_steer`, `test_pm_ai_walk`, `test_pm_ai_jump`, `test_pm_ai_boundary` and `test_pm_ai_boundary_real` set `MW3_X87=53` (control word 0x027f, a value added to `original.py`) and compare to the bit, with no tolerance. This differs from CLAUDE.md's "tests still run both": these ports follow the exe's evaluation at the reference's precision, measured 2026-11-04, so at 24 bits they don't match, by design, and that isn't run. Every new PM AI piece is written and tested this way. `pm-map.md`, "PM's AI at 53 bits", has the evaluation, the ties and the numbers.
 
-The compares were 1e-3 wide, which is thousands of last-place units; 53-bit runs with them exact found what that hid. The other PM AI tests' stubs were read for the split that made seed 447 look like a tie, Python doubles on the exe's side against floats on the port's: only that one stub computed a float, and it's fixed. The rest return handles, ints and names. The boundary isn't through this yet.
+The compares were 1e-3 wide, which is thousands of last-place units; 53-bit runs with them exact found what that hid. The other PM AI tests' stubs were read for the split that made seed 447 look like a tie, Python doubles on the exe's side against floats on the port's: only that one stub computed a float, and it's fixed. The rest return handles, ints and names.
 
 **Rerun at the switch, added:** every break for these pieces on this evaluation.
 

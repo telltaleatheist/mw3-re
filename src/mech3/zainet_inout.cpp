@@ -8,6 +8,8 @@
 #include <cstring>
 #include <unordered_map>
 
+#include "mech3/zai_steer_pm.h"
+
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_util.h"
@@ -39,7 +41,11 @@ bool lt(float a, float b) { return !(a >= b); }
 // 0x00537ae0: in x and z.
 float dist_xz_of(const float* a, const float* b) {
   const float dx = a[0] - b[0], dz = a[2] - b[2];
-  return std::sqrt(dz * dz + dx * dx);
+  return static_cast<float>(std::sqrt(double{dz} * dz + double{dx} * dx));
+}
+// 0x004c2430. These follow the exe at 53 bits: docs/pm-map.md, "PM's AI at 53 bits".
+float dot3(const float* a, const float* b) {
+  return static_cast<float>((double{a[0]} * b[0] + double{a[1]} * b[1]) + double{a[2]} * b[2]);
 }
 constexpr float kOut = -0.5f;  // 0x0060b8e0
 
@@ -62,10 +68,11 @@ void make_sides(InOutPolygon& p) {
   for (InOutVertex& v : p.verts) {  // 0x004c85b0
     std::memcpy(cur->offset, cur->pos, 12);
     cur->dir[0] = v.pos[0] - cur->pos[0], cur->dir[1] = 0.0f, cur->dir[2] = v.pos[2] - cur->pos[2];
-    const float len = std::sqrt((cur->dir[1] * cur->dir[1] + cur->dir[2] * cur->dir[2]) + cur->dir[0] * cur->dir[0]);
+    const double root = std::sqrt((double{cur->dir[1]} * cur->dir[1] + double{cur->dir[2]} * cur->dir[2]) + double{cur->dir[0]} * cur->dir[0]);
+    const float len = static_cast<float>(root);
     if (std::fabs(len) != 0.0f) {
-      const float k = 1.0f / len;
-      cur->dir[0] = k * cur->dir[0], cur->dir[1] = k * cur->dir[1], cur->dir[2] = k * cur->dir[2];
+      const double k = 1.0 / root;
+      for (int i = 0; i < 3; ++i) cur->dir[i] = static_cast<float>(k * cur->dir[i]);
     }
     cur->normal[0] = cur->dir[2], cur->normal[1] = cur->dir[1], cur->normal[2] = -cur->dir[0];
     cur = &v;
@@ -73,8 +80,8 @@ void make_sides(InOutPolygon& p) {
   InOutVertex* prev = &p.verts[n - 2];
   cur = &p.verts[n - 1];
   for (InOutVertex& v : p.verts) {  // 0x004c8720: the corner's miter
-    const float d = (prev->dir[0] * cur->dir[0] + prev->dir[1] * cur->dir[1]) + prev->dir[2] * cur->dir[2];
-    float m = std::sqrt((1.0f - d) / (1.0f + d));
+    const float d = dot3(prev->dir, cur->dir);
+    float m = static_cast<float>(std::sqrt((1.0 - d) / (1.0 + d)));
     if (m > 0.0f && lt(((prev->normal[0] * cur->dir[0] + prev->normal[1] * cur->dir[1]) + prev->normal[2] * cur->dir[2]), 0.0f)) m = -m;
     const float x = cur->normal[0] + m * cur->dir[0], y = cur->normal[1] + m * cur->dir[1], z = cur->normal[2] + m * cur->dir[2];
     const float w = p.width, w2 = p.width - kOut;
@@ -99,20 +106,20 @@ void make_sides(InOutPolygon& p) {
   p.perimeter = sum;
 }
 
-float dist_xz(const float* a, const float* b) {  // 0x004c1090
+double dist_xz(const float* a, const float* b) {  // 0x004c80f0: the root left in the register
   const float dx = b[0] - a[0], dz = b[2] - a[2];
-  return std::sqrt(dx * dx + dz * dz);
+  return std::sqrt(double{dx} * dx + double{dz} * dz);
 }
-float dot3(const float* a, const float* b) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; }  // 0x004c2430
 // 0x004c0fe0 (ECX out, EDX a): a + (b - a) t in x and z, a's height.
 void lerp(float out[3], const float* a, float t, const float* b) {
-  out[0] = (b[0] - a[0]) * t + a[0];
+  out[0] = static_cast<float>((double{b[0]} - a[0]) * t + a[0]);
   out[1] = a[1];
-  out[2] = (b[2] - a[2]) * t + a[2];
+  out[2] = static_cast<float>((double{b[2]} - a[2]) * t + a[2]);
 }
 // The side of `p` from the line a -> b (0x004c1410 / 0x004c1770's sums).
 float side(const float* a, const float* b, const float* p) {
-  return (((a[2] - b[2]) * p[0] - (a[0] - b[0]) * p[2]) + b[2] * a[0]) - b[0] * a[2];
+  const float dz = a[2] - b[2], dx = a[0] - b[0];  // stored
+  return static_cast<float>(((double{dz} * p[0] - double{dx} * p[2]) + double{b[2]} * a[0]) - double{b[0]} * a[2]);
 }
 bool opposite(float s1, float s2) { return (lt(s1, 0.0f) && lt(0.0f, s2)) || (s1 > 0.0f && 0.0f > s2); }
 // From the side line p -> v: whether the ray from `a` through `b` meets it,
@@ -133,13 +140,13 @@ void edge_count(InOutQuery& c, const InOutVertex* prev, const InOutVertex* v) {
   const float* a = c.from;
   const float* b = c.to;
   const float u[3] = {a[0] - prev->offset[0], a[1] - prev->offset[1], a[2] - prev->offset[2]};
-  const float perp = u[2] * prev->normal[2] + u[0] * prev->normal[0];
+  const float perp = wide_sum(u[2], prev->normal[2], u[0], prev->normal[0]);
   float along = 0, d = std::fabs(perp);
   bool have_along = false;
   if (lt(d, c.dist)) {
-    along = u[2] * prev->dir[2] + u[0] * prev->dir[0];
+    along = wide_sum(u[2], prev->dir[2], u[0], prev->dir[0]);
     have_along = true;
-    if (lt(along, 0.0f)) d = std::sqrt(u[2] * u[2] + u[0] * u[0]);
+    if (lt(along, 0.0f)) d = static_cast<float>(std::sqrt(double{u[2]} * u[2] + double{u[0]} * u[0]));
     else if (lt(prev->length, along)) d = dist_xz_of(a, v->offset);
     if (lt(d, c.dist)) c.nearest = prev, c.dist = d, c.along = along, c.perp = perp;
   }
@@ -150,8 +157,8 @@ void edge_count(InOutQuery& c, const InOutVertex* prev, const InOutVertex* v) {
   if (rb) ++c.to_rays;
   if (!(ra && rb)) return;
   ++c.crossings;
-  const float t = -sa / (sb - sa);
-  if (!have_along) along = u[2] * prev->dir[2] + u[0] * prev->dir[0], have_along = true;
+  const float t = static_cast<float>(-double{sa} / (double{sb} - sa));
+  if (!have_along) along = wide_sum(u[2], prev->dir[2], u[0], prev->dir[0]), have_along = true;
   if (lt(t, c.t_near)) c.t_near = t, c.near_a = prev, c.near_b = v, c.near_along = along;
   if (lt(c.t_far, t)) c.t_far = t, c.far_a = prev, c.far_b = v, c.far_along = along;
 }
@@ -337,7 +344,7 @@ void InOutPolygon::cross(InOutArea& area) const {
   if (c.near_a) {
     lerp(c.near_point, c.from, c.t_near - c.back, c.to);
     const float u[3] = {c.near_point[0] - c.near_a->offset[0], 0.0f, c.near_point[2] - c.near_a->offset[2]};
-    c.near_along = u[2] * c.near_a->dir[2] + u[0] * c.near_a->dir[0];
+    c.near_along = wide_sum(u[2], c.near_a->dir[2], u[0], c.near_a->dir[0]);
     skip = (c.near_b == c.far_a && lt(c.near_a->length - c.near_along, 1.0f)) || (c.near_a == c.far_b && lt(c.near_along, 1.0f));
   }
   if (skip) return;
@@ -382,11 +389,11 @@ InOutPolygon::Near InOutPolygon::nearest(const float* from, const InOutVertex* r
     }
     if (look) {
       const float u[2] = {from[0] - cur->offset[0], from[2] - cur->offset[2]};
-      const float perp = u[1] * cur->normal[2] + u[0] * cur->normal[0];
+      const float perp = wide_sum(u[1], cur->normal[2], u[0], cur->normal[0]);
       float d = std::fabs(perp);
       if (lt(d, best.dist)) {
-        const float along = u[1] * cur->dir[2] + u[0] * cur->dir[0];
-        if (lt(along, 0.0f)) d = std::sqrt(u[1] * u[1] + u[0] * u[0]);
+        const float along = wide_sum(u[1], cur->dir[2], u[0], cur->dir[0]);
+        if (lt(along, 0.0f)) d = static_cast<float>(std::sqrt(double{u[1]} * u[1] + double{u[0]} * u[0]));
         else if (lt(cur->length, along)) d = dist_xz_of(from, v.offset);
         if (lt(d, best.dist)) best.corner = cur, best.dist = d, best.along = along, best.perp = perp;
       }
@@ -441,9 +448,9 @@ bool InOutArea::clear(const float* from, const float* p) const {
 
 // Pirate's Moon 1.0 @ 0x004cca00: which way round is shorter, near side to far side.
 const InOutVertex* InOutArea::shorter_way() {
-  const float d1 = dist_xz(q.near_point, q.near_b->offset);  // 0x004c80f0
-  const float d2 = dist_xz(q.far_point, q.far_a->offset);
-  float c = (q.far_a->along - q.near_b->along) + (d2 + d1);
+  const float d1 = static_cast<float>(dist_xz(q.near_point, q.near_b->offset));  // 0x004c80f0
+  const float both = static_cast<float>(dist_xz(q.far_point, q.far_a->offset) + d1);
+  float c = static_cast<float>((double{q.far_a->along} - q.near_b->along) + both);
   if (lt(c, 0.0f)) c = c + q.poly->perimeter;
   const float other = q.poly->perimeter - c;
   if (lt(c, other)) {
@@ -492,7 +499,7 @@ const float* InOutArea::way_through(bool ways, const InOutVertex* corner) {
     float along = 0;
     if (c8) {
       const float u[2] = {v.pos[0] - c8->offset[0], v.pos[2] - c8->offset[2]};
-      along = clamp_along(u[1] * c8->dir[2] + u[0] * c8->dir[0], c8);
+      along = clamp_along(wide_sum(u[1], c8->dir[2], u[0], c8->dir[0]), c8);
     }
     const float m1 = round_way(q.far_a->along, (c8 ? c8 : first)->along + along, around, nullptr);
     const float n = clamp_along(q.near_along, q.near_a);
@@ -614,7 +621,7 @@ const float* InOutArea::query(const float* from, const float* to, InOutPolygon* 
   q.from = from, q.to = to;
   from_in = to_in = 0;
   const float dx = to[0] - from[0], dz = to[2] - from[2];
-  q.length = std::sqrt(dz * dz + dx * dx);
+  q.length = static_cast<float>(std::sqrt(double{dz} * dz + double{dx} * dx));
   q.back = 0.1f / q.length;
   q.via = nullptr;
   if (first) {

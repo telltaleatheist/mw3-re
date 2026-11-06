@@ -6,6 +6,7 @@ stars of three size classes and all four colours, queries across, along and near
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_boundary.py [areas]
 """
 import ctypes
+import os
 import math
 import random
 import re
@@ -14,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.md
 import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -277,8 +279,8 @@ def main():
                 print(f'area {k} query {q} {a} {b} first {first} ways {ways}\n  exe  {theirs}\n  port {ours}')
                 break
         if k % 2:
-            # The rare case, found by the port and then asked of the exe: just off one side of the
-            # long outline, its first crossing another, the long way round (0x4cc32c's branch).
+            # The rare case, just off one side of the long outline, its first crossing another, the long
+            # way round (0x4cc32c's branch). Every query goes to both, so the port can't leave a case out.
             xyz, n = shapes[0], len(shapes[0]) // 3
             for q in range(4000):
                 i = r.randrange(n)
@@ -293,19 +295,16 @@ def main():
                 b = near_at(r, xyz, i + r.randint(-6, 6), r.choice([3, 30, 300, 900]))
                 fa_, fb_ = fa(a), fa(b)
                 ours = buf.value.decode() if p.probe_pm_boundary_query(fa_, fb_, -1, 0, buf, len(buf)) >= 0 else ''
-                f = ours.split()
-                if len(f) < 28 or f[4] not in ('15', '16'):
-                    continue
-                case = p.probe_pm_boundary_case()
-                if not case:
-                    continue
-                cases[case] = cases.get(case, 0) + 1
-                hunted += 1
                 theirs = emu.query(a, b, -1, 0)
                 if nan(theirs) != nan(ours):
                     bad += 1
                     print(f'area {k} hunted {a} {b}\n  exe  {theirs}\n  port {ours}')
                     break
+                f = ours.split()
+                case = p.probe_pm_boundary_case() if len(f) >= 28 and f[4] in ('15', '16') else 0
+                if case:
+                    cases[case] = cases.get(case, 0) + 1
+                    hunted += 1
         # The clamp, three vehicles in turn: the polygon each met last counts on its next query.
         emu.w32(CURRENT, emu.area)
         vehicles = [emu.vehicle(0), emu.vehicle(1), emu.vehicle(2)]
