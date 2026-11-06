@@ -18,6 +18,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_msg.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 namespace mech3 {
 
@@ -212,6 +213,13 @@ int32_t soil_of(const char* n) { return g_skins.soil_index ? g_skins.soil_index(
 // The polygons' materials of a node's model (0x24-byte polygons, +0x1c).
 template <typename F>
 void each_material(zcls::Node* n, F&& f) {
+  if (pm::zmod::Model* pm_m = n->pm_model) {  // Pirate's Moon 0x00476610: each polygon's first material
+    for (uint32_t k = 0; pm_m->polygons && k < static_cast<uint32_t>(pm_m->count(0x10)); ++k) {
+      const pm::zmod::Polygon& p = pm_m->polygons[k];
+      if (p.material_count && p.materials && p.materials[0]) f(*p.materials[0]);
+    }
+    return;
+  }
   zmod::Model* m = n->model;
   if (!m) return;
   for (uint32_t k = 0; k < m->count(0x10); ++k)
