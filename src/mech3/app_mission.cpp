@@ -2691,6 +2691,7 @@ void GameEngine::missions_reset(uint32_t list) {
     zsnd::load_set("common");  // 0x0056f520
     zsnd::load_set("mech");
     zsnd::load_set(dir);
+    if (launch_.type != 3) zsnd::load_set("mcbandai");  // Pirate's Moon 0x00493a90: the field bases' and allies' voices
     char block[32] = {};
     missions().block_name(block);  // 0x00490600
     zsnd::load_set((std::string(dir) + block).c_str());  // "%s%s"
