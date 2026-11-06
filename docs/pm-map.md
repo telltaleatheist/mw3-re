@@ -815,7 +815,9 @@ functions PM changed, and PM's new ones.
        clippers', not ported. Against MW3's six (render-clip3d.md): cdecl, not
        fastcall; no far reject and no plane mask, as the draw only calls them
        for a polygon its cull marked; a polygon that grew moves to arenas
-       (`[0xa4cfac]`..), not fixed buffers; and **the point light is
+       (`[0xa4cfac]`.., sized per model in the port: a polygon that grows is written whole, near plane and
+       sides each, so n + 1 and n + 5 of room; 8 a polygon overran the heap, seen as Windows' 0xC0000374, 2026-11-06),
+       not fixed buffers; and **the point light is
        interpolated at a cut**, MW3's copied from the edge's first vertex.
        FIX (bug): the exe's scratch and shadow sets hold 64 vertices, unchecked,
        while PM's polygons allow 1,023 and shipped ones reach 313 (139 over 32 in

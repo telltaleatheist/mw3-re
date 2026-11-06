@@ -9,6 +9,7 @@
 
 #include "check.h"
 #include "gamez/zgame/zgame_table.h"
+#include "pm/gamez/zmodel/gmod_clip3d.h"
 #include "pm/pm_game.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
@@ -222,4 +223,5 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   EXPECT(werewolf);
   EXPECT(before != 10);  // Mech::Die's +0x578
   EXPECT(after == 10);
+  EXPECT(pm::zmod::clip3d_state().overruns == 0);  // the clippers stayed in their arena (gmod_draw.cpp)
 }

@@ -41,6 +41,7 @@ struct Clip3dState {
   uint8_t* arena_extra = nullptr;  // 0x00a4cfbc
   float left = 0, top = 0;      // 0x008d4b0c, 0x008d4b10  the view's sides, screen space (0x00548990)
   float right = 0, bottom = 0;  // 0x008d4b24, 0x008d4b28
+  int32_t overruns = 0;         // (ours) models whose clipping passed the arena's end
 };
 Clip3dState& clip3d_state();
 
