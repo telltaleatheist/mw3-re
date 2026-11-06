@@ -24,7 +24,7 @@ class WalkPmHooks : public SteerPmHooks {
   virtual bool has_pilot(zgame::Handle v) = 0;               // vt+0x58
   virtual float pilot_x544(zgame::Handle v) = 0;
   virtual float now() = 0;                                  // [0x0062da90]
-  virtual float speed_at(zgame::Handle v, float t) = 0;     // vt+0x124
+  virtual double speed_at(zgame::Handle v, float t) = 0;    // vt+0x124, unrounded in the register
   virtual float stop_distance(zgame::Handle v, float s) = 0;  // vt+0x12c
   virtual float range_far() = 0;                            // the brain's +0x28
   virtual float range_near() = 0;                           // the brain's +0x2c

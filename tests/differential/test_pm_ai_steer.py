@@ -6,12 +6,14 @@ places made here: set 0x4dc7a0, the frame 0x4dcb30, the measure 0x4dc9d0 with th
 """
 import ctypes
 import math
+import os
 import random
 import struct
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.md
 import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -52,6 +54,9 @@ class Exe(test_pm_zar.Emulated):
         a = self.cpu.code(b'\xc3')
         self.native_stub(a, fn)
         return a
+
+    def g(self, a):
+        return struct.unpack('<I', bytes(self.cpu._uc.mem_read(a, 4)))[0]
 
     def fs(self, a, vals):
         self.cpu._uc.mem_write(a, struct.pack(f'<{len(vals)}f', *vals))
@@ -161,6 +166,15 @@ def run_exe(x, lines):
             x.fs(a, ln[1])
             x.fs(b, ln[2])
             x.call(SET, ecx=x.steer, args=(a, b, bits(ln[3]), x.vehicle))
+        elif op == 'W':  # a way's fields as they stand, its start, min, length, along_at
+            v = ln[1]
+            x.fs(x.steer + 4, v[0:3])
+            x.fs(x.steer + 0x18, v[3:6])
+            x.fs(x.steer + 0x24, [0.0])
+            x.w32(x.steer + 0x9c, 1)
+        elif op == 'L':
+            out.append(' '.join(f'{x.g(x.steer + o):x}' for o in (0x1c, 0x20, 0x18)) + '\n')
+            continue
         elif op == 'U':
             x.call(UPDATE, ecx=x.steer, args=(bits(ln[1]), x.vehicle))
         elif op == 'M':
@@ -203,18 +217,68 @@ def text(lines):
             o.append('S ' + ' '.join(f'{bits(v):x}' for v in ln[1] + ln[2] + [ln[3]]))
         elif op in ('U', 'A'):
             o.append(f'{op} {bits(ln[1]):x}')
+        elif op == 'W':
+            o.append('W ' + ' '.join(f'{bits(v):x}' for v in ln[1]))
         else:
             o.append(op)
     return '\n'.join(o) + '\n'
 
 
 def close(a, b):
-    if a == b:
-        return True
-    x, y = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (a, b))
-    if math.isinf(x) or math.isinf(y):  # the allowance would be infinite too
-        return False
-    return abs(x - y) <= 1e-3 + 1e-4 * max(abs(x), abs(y))
+    return a == b  # at 53 bits, to the bit
+
+
+def f32(v):
+    return struct.unpack('<f', struct.pack('<f', v))[0]
+
+
+def tie_lines(n):
+    """Where one value is built to equal another, so a later compare of the two turns on the last bit. A way laid from
+    where the carrot is: `set` measures that place along the way it's making, so along_at comes out about the length.
+    Arrivals at the way's two ends, over many lengths: advance 0x4dc400's clamps."""
+    r = random.Random('ties')
+    lines = []
+    for _ in range(n):
+        mech = [f32(r.uniform(-400, 400)), 0.0, f32(r.uniform(-400, 400))]
+        target = [f32(r.uniform(-400, 400)), 0.0, f32(r.uniform(-400, 400))]
+        lines += [('W', mech + [0.0, 0.0, 0.0]), ('P', 1, mech), ('S', mech, target, 5.0), ('L',)]
+    for _ in range(n):
+        ln = f32(r.uniform(1, 600) if r.random() < 0.5 else 10 ** r.uniform(-1, 3))
+        lines += [('W', [0.0, 0.0, 0.0, 0.0, ln, f32(ln * r.uniform(0, 1))]), ('A', 1e4), ('L',)]
+    for _ in range(n):
+        ln = f32(r.uniform(1, 600))
+        low = f32(ln * r.uniform(0, 1))
+        lines += [('W', [0.0, 0.0, 0.0, low, ln, f32(low + (ln - low) * r.uniform(0, 1))]), ('A', -1e4), ('L',)]
+    return lines
+
+
+def tie_counts(rows):
+    """Above, equal, below: along_at against the length, or the way's minimum for the last third."""
+    n = len(rows) // 3
+    out = {}
+    for name, part, against in (('fresh', rows[:n], 0), ('end', rows[n:2 * n], 0), ('start', rows[2 * n:], 2)):
+        c = {'above': 0, 'equal': 0, 'below': 0}
+        for w in part:
+            at, other = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (w[1], w[against]))
+            c['above' if at > other else 'equal' if at == other else 'below'] += 1
+        out[name] = c
+    return out
+
+
+def ties(lib, n):
+    lines = tie_lines(n)
+    a = run_exe(Exe(), lines).split('\n')
+    buf = ctypes.create_string_buffer(1 << 26)
+    assert lib.probe_pm_ai_steer(text(lines).encode(), buf, len(buf)) >= 0
+    b = buf.value.decode().split('\n')
+    a, b = [ln.strip() for ln in a], [ln.strip() for ln in b]
+    if a != b:
+        at = next(i for i, (p, q) in enumerate(zip(a, b)) if p != q)
+        raise SystemExit(f'ties: line {at} of {len(a)}:\n  exe  {a[at]}\n  port {b[at]}')
+    rows = [ln.split() for ln, m in zip(a, lines) if m[0] == 'L']
+    exe = tie_counts(rows)
+    print(f'{n} ways of each kind, along_at against its other value, the same on both sides, to the bit: {exe}')
+    return exe
 
 
 def main():
@@ -246,6 +310,10 @@ def main():
         if bad >= 6:
             break
     print(f'{runs} plans, {steps} lines: {bad} differ')
+    if not bad:
+        n = 3000 if len(sys.argv) == 1 else 100
+        got = ties(lib, n)
+        pm_floors.floors(**{f'{k}_{v}': (got[k][v], n // 200) for k in got for v in got[k]})
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000))
     return 1 if bad else 0
 

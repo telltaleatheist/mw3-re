@@ -168,3 +168,11 @@ The search read each `if ...: continue/break/return True` over a value in `test_
 
 **On the switch's rerun, added:** the 36 of `0x4d9d00`'s breaks not rerun on the widened test; the 5 twins, 875 instructions, compared against PM.
 
+## PM's AI runs at 53 bits only (2026-11-06)
+
+`test_pm_ai_steer`, `test_pm_ai_walk` and `test_pm_ai_jump` set `MW3_X87=53` (control word 0x027f, a value added to `original.py`) and compare to the bit, with no tolerance. This differs from CLAUDE.md's "tests still run both": these ports follow the exe's evaluation at the reference's precision, measured 2026-11-04, so at 24 bits they don't match, by design, and that isn't run. Every new PM AI piece is written and tested this way. `pm-map.md`, "PM's AI at 53 bits", has the evaluation, the ties and the numbers.
+
+The compares were 1e-3 wide, which is thousands of last-place units; 53-bit runs with them exact found what that hid. The other PM AI tests' stubs were read for the split that made seed 447 look like a tie, Python doubles on the exe's side against floats on the port's: only that one stub computed a float, and it's fixed. The rest return handles, ints and names. The boundary isn't through this yet.
+
+**Rerun at the switch, added:** every break for these pieces on this evaluation.
+

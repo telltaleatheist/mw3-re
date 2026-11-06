@@ -28,6 +28,11 @@ class SteerPmHooks {
   virtual float contact_dist2(const Contact* c) = 0;              // +0x0c
 };
 
+// x, z made a unit in place, with their length: the exe's evaluation at 53 bits, which a tie can turn on
+// (docs/pm-map.md, "PM's AI at 53 bits"). `root_stored`: 0x004dbf10 stores the root first, 0x004013d0 doesn't.
+float unit_flat(float* x, float* z, bool root_stored);
+inline float wide_sum(float a, float b, float c, float d) { return static_cast<float>(double{a} * b + double{c} * d); }
+
 struct SteerPm {
   float start[3];       // +0x04  0x0066f5e0
   float dir[2];         // +0x10  x, z

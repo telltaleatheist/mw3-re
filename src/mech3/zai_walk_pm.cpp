@@ -11,12 +11,7 @@ float flat_dir_pm(const float from[3], const float to[3], float out[3]) {
   out[0] = to[0] - from[0];
   out[1] = 0.0f;
   out[2] = to[2] - from[2];
-  const float len = std::sqrt(out[0] * out[0] + out[2] * out[2]);  // 0x004013d0
-  if (len != 0.0f) {
-    const float k = 1.0f / len;
-    out[0] *= k, out[2] *= k;
-  }
-  return len;
+  return unit_flat(&out[0], &out[2], false);  // 0x004013d0
 }
 
 // Pirate's Moon 1.0 @ 0x004d9870. The brake's share is from the pilot's +0x544: 2^n in the float's
@@ -53,7 +48,7 @@ void WalkPm::measure() {
 void WalkPm::aim_turnabout() {
   refresh();
   flat_dir_pm(pos, to, dir);
-  dot = fwd[1] * dir[2] + fwd[0] * dir[0];
+  dot = wide_sum(fwd[1], dir[2], fwd[0], dir[0]);
   const float left = steer.along_at - steer.along_min;
   if (-steer.turnabout_room < left && left < 0.0f && dot < steer.cos_turnabout) {
     dot = -dot;
@@ -73,7 +68,7 @@ void WalkPm::aim() {
 // the gain, at least `least_turn`; full when behind, the way it was turning.
 void WalkPm::turn() {
   refresh();
-  dot = fwd[1] * dir[2] + fwd[0] * dir[0];
+  dot = wide_sum(fwd[1], dir[2], fwd[0], dir[0]);
   const float keep = h.turn_goal();
   turn_out = keep;
   cross = 0.0f;
@@ -85,7 +80,7 @@ void WalkPm::turn() {
     turn_out = 0.0f;
     return;
   }
-  cross = fwd[1] * dir[0] - dir[2] * fwd[0];
+  cross = wide_sum(fwd[1], dir[0], -dir[2], fwd[0]);
   turn_out = 0.0f;
   if (dot < 0.0f) {
     turn_out = 0.0f <= cross ? 1.0f : -1.0f;
@@ -93,15 +88,15 @@ void WalkPm::turn() {
   }
   if (-steer.sin_dead <= cross) {
     if (steer.sin_dead < cross) {
-      const float v = (cross - steer.sin_dead) * steer.gain;
-      turn_out = v;
+      const double v = (double{cross} - steer.sin_dead) * steer.gain;
+      turn_out = static_cast<float>(v);
       if (1.0 < v) turn_out = 1.0f;
       else if (v < steer.least_turn) turn_out = steer.least_turn;
     }
     return;
   }
-  const float v = (steer.sin_dead + cross) * steer.gain;
-  turn_out = v;
+  const double v = (double{steer.sin_dead} + cross) * steer.gain;
+  turn_out = static_cast<float>(v);
   if (v < -1.0) turn_out = -1.0f;
   else if (-steer.least_turn < v) turn_out = -steer.least_turn;
 }
@@ -117,15 +112,15 @@ void WalkPm::throttle() {
     return;
   }
   float a = off_along - steer.far_along;
-  float b = off_side - steer.far_side;
-  if (!(a > 0.0f) && !(b > 0.0f)) {
+  double b = double{off_side} - steer.far_side;
+  if (!(a > 0.0f) && !(b > 0.0)) {
     throttle_out = 0.0f;
     return;
   }
   if (a < 0.0f) a = 0.0f;
-  if (b < 0.0f) b = 0.0f;
-  const float v = a * steer.gain_along + b * steer.gain_side;
-  throttle_out = v;
+  if (b < 0.0) b = 0.0;
+  const double v = double{a} * steer.gain_along + b * steer.gain_side;
+  throttle_out = static_cast<float>(v);
   const float most = h.max_throttle();
   if (v > most) throttle_out = most;
   else if (v < steer.least) throttle_out = steer.least;
@@ -194,7 +189,7 @@ FightStatePm::FightStatePm() : stop_dist(FLT_MAX), range_far(FLT_MAX), until(FLT
 // has none; here that's kept on the first query (inout_pull). `owned` is dropped unfreed, as written.
 void FightStatePm::enter(WalkPmHooks& h, zgame::Handle vehicle) {
   flags &= ~0xfu;
-  speed = h.speed_at(vehicle, h.max_throttle());
+  speed = static_cast<float>(h.speed_at(vehicle, h.max_throttle()));
   wake = 0.0f;
   until = FLT_MAX;
   stop_dist = h.stop_distance(vehicle, speed);
@@ -405,14 +400,7 @@ void WalkFightPm::measure_target() {
   no_target = !target_pos;
   if (no_target) return;
   refresh();
-  to_target[0] = target_pos[0] - pos[0];
-  to_target[1] = 0.0f;
-  to_target[2] = target_pos[2] - pos[2];
-  target_dist = std::sqrt(to_target[0] * to_target[0] + to_target[2] * to_target[2]);  // 0x004013d0
-  if (target_dist != 0.0f) {
-    const float k = 1.0f / target_dist;
-    to_target[0] *= k, to_target[2] *= k;
-  }
+  target_dist = flat_dir_pm(pos, target_pos, to_target);
   in_range = state.range_near < target_dist && target_dist < state.range_far;
 }
 

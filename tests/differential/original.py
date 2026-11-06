@@ -311,6 +311,8 @@ class Original:
         # the default is the power-on 64-bit (0x037f).
         if os.environ.get('MW3_X87') == '24':
             self.fpu_control(0x007f)
+        elif os.environ.get('MW3_X87') == '53':  # the reference runtime, measured (CLAUDE.md)
+            self.fpu_control(0x027f)
         # A test's own use of the emulator: on PM's exe through the map too.
         self.uc = UcProxy(self._uc, self.tr) if self.game == 'pm' else self._uc
         if MOVED:  # pm_moved.py: the tests' constants are PM's already, nothing to translate

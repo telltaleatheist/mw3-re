@@ -43,7 +43,7 @@ struct World : JumpPmHooks {
   bool has_pilot(zgame::Handle) override { return pilot; }
   float pilot_x544(zgame::Handle) override { return 0; }
   float now() override { return clock; }
-  float speed_at(zgame::Handle, float t) override { return t * k_speed; }
+  double speed_at(zgame::Handle, float t) override { return double{t} * k_speed; }
   float stop_distance(zgame::Handle, float v) override { return v; }
   float range_far() override { return 0; }
   float range_near() override { return 0; }

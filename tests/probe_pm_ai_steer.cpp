@@ -91,6 +91,13 @@ extern "C" int probe_pm_ai_steer(const char* plan, char* out, int cap) {
     } else if (op == "S") {
       const float to[3] = {f(a[0]), f(a[1]), f(a[2])}, from[3] = {f(a[3]), f(a[4]), f(a[5])};
       s.set(w, to, from, f(a[6]), v);
+    } else if (op == "W") {
+      s.start[0] = f(a[0]), s.start[1] = f(a[1]), s.start[2] = f(a[2]);
+      s.along_min = f(a[3]), s.length = f(a[4]), s.along_at = f(a[5]), s.across = 0.0f, s.sets = 1;
+    } else if (op == "L") {
+      put(o, s.length), put(o, s.along_at), put(o, s.along_min);
+      o += "\n";
+      continue;
     } else if (op == "U") {
       s.update(w, f(a[0]), v);
     } else if (op == "M") {

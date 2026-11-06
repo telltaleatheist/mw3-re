@@ -5,6 +5,16 @@
 namespace mech3::ai {
 
 // Pirate's Moon 1.0 @ 0x004dc0f0, its defaults the statics 0x0060bb78..0x0060bba8.
+float unit_flat(float* x, float* z, bool root_stored) {
+  const double root = std::sqrt(double{*x} * *x + double{*z} * *z);
+  const float len = static_cast<float>(root);
+  if (len != 0.0f) {
+    const double k = 1.0 / (root_stored ? double{len} : root);
+    *x = static_cast<float>(*x * k), *z = static_cast<float>(*z * k);
+  }
+  return len;
+}
+
 SteerPm::SteerPm() {
   start[0] = start[1] = start[2] = 0;
   dir[0] = dir[1] = 0;
@@ -30,33 +40,33 @@ SteerPm::SteerPm() {
 // Pirate's Moon 1.0 @ 0x004dc210: near the segment, for an order that steers by it; any other is near.
 bool SteerPm::near(SteerPmHooks& h) const {
   if (!h.order_steers(brain)) return true;
-  float m = std::fabs(side);
+  double m = std::fabs(side);
   if (along < 0.0f) m = m - along;
-  else if (length < along) m = (along - length) + m;
+  else if (length < along) m = (double{along} - length) + m;
   return !(near_dist < m);
 }
 
 // Pirate's Moon 1.0 @ 0x004dc290 (MW3's 0x004ce6f0)
 void SteerPm::carrot(float out[3]) const {
-  out[0] = dir[0] * along_at + start[0];
+  out[0] = static_cast<float>(double{dir[0] * along_at} + start[0]);  // each product stored first
   out[1] = 0.0f + start[1];
-  out[2] = dir[1] * along_at + start[2];
+  out[2] = static_cast<float>(double{dir[1] * along_at} + start[2]);
   if (across != 0.0f) {
-    out[0] = dir[1] * across + out[0];
-    out[2] = out[2] - across * dir[0];
+    out[0] = static_cast<float>(double{dir[1]} * across + out[0]);
+    out[2] = static_cast<float>(out[2] - double{across} * dir[0]);
   }
 }
 
 // Pirate's Moon 1.0 @ 0x004dc320
 void SteerPm::on_line(const float p[3], float out[2]) const {
-  const float dx = p[0] - start[0], dz = p[2] - start[2];
-  out[0] = dx * dir[0] + dz * dir[1];
-  out[1] = dx * dir[1] - dz * dir[0];
+  const double dx = double{p[0]} - start[0], dz = double{p[2]} - start[2];
+  out[0] = static_cast<float>(dx * dir[0] + dz * dir[1]);
+  out[1] = static_cast<float>(dx * dir[1] - dz * dir[0]);
 }
 
 // Pirate's Moon 1.0 @ 0x004dc980 (MW3's 0x004ceb00)
 void SteerPm::project(const float p[3], float out[2]) const {
-  on_line(p, out);
+  on_line(p, out);  // stored first in the exe too
   out[0] = out[0] - along_at;
   out[1] = out[1] - across;
 }
@@ -111,13 +121,12 @@ bool SteerPm::push_amount(SteerPmHooks& h, const Contact* c, float* da, float* d
   float r = -l[1];
   if (by_vehicle) r = at_vehicle;
   else if (by_carrot) r = std::copysign(at_carrot, at_vehicle);
-  r = r + across;
-  r = r + l[1];
-  if (r < -near_dist) r = -near_dist;
-  else if (r > near_dist) r = near_dist;
-  r = r - across;
-  *ds = r;
-  return r != 0.0f;
+  double wide = double{r} + across;
+  wide = wide + l[1];
+  if (wide < -near_dist) wide = -near_dist;
+  else if (wide > near_dist) wide = near_dist;
+  *ds = static_cast<float>(wide - across);
+  return *ds != 0.0f;
 }
 
 // Pirate's Moon 1.0 @ 0x004dc7a0: MW3's 0x004cea30, but a segment of no length points back along
@@ -131,10 +140,7 @@ void SteerPm::set(SteerPmHooks& h, const float to[3], const float from[3], float
   else h.position(v, was);
   dir[0] = to[0] - from[0];
   dir[1] = to[2] - from[2];
-  const float len = std::sqrt(dir[1] * dir[1] + dir[0] * dir[0]);
-  const float scale = len == 0.0f ? 0.0f : 1.0f / len;  // 0x004dbf10
-  dir[0] = scale * dir[0];
-  dir[1] = scale * dir[1];
+  const float len = unit_flat(&dir[0], &dir[1], true);  // 0x004dbf10
   along_at = len;
   length = len;
   if (len == 0.0f) {
@@ -183,10 +189,10 @@ void SteerPm::measure(SteerPmHooks& h, zgame::Handle v) {
   along = m[0];
   side = m[1];
   if (keep) {
-    const float room = keep_near - std::fabs(side) * keep_slope;
-    if (room > 0.0f) {
-      const float r = room * keep_scale;
-      if (r < std::fabs(along)) advance(along - std::copysign(r, along));
+    const double room = keep_near - double{std::fabs(side)} * keep_slope;
+    if (room > 0.0) {
+      const double r = room * keep_scale;
+      if (r < std::fabs(along)) advance(static_cast<float>(along - std::copysign(r, double{along})));
     } else {
       advance(along);
     }
@@ -205,11 +211,11 @@ void SteerPm::measure(SteerPmHooks& h, zgame::Handle v) {
 // Pirate's Moon 1.0 @ 0x004dcb30 (MW3's 0x004cec80)
 void SteerPm::update(SteerPmHooks& h, float dt, zgame::Handle v) {
   const float to = across_to;
-  const float n = (to - across) * ease * dt + across;
-  across = n;
+  const double n = (double{to} - across) * ease * dt + across;
+  across = static_cast<float>(n);
   if (std::fabs(to - n) < 0.05000000074505806) across = to;
-  const float a = along_at - dt * rate;
-  along_at = a;
+  const double a = along_at - double{dt} * rate;
+  along_at = static_cast<float>(a);
   if (a < along_min) along_at = along_min;
   measure(h, v);
 }

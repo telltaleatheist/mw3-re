@@ -6,12 +6,14 @@ and each call to the controls, in order, compared after every step.
 """
 import ctypes
 import math
+import os
 import random
 import struct
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.md
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 import pm_floors  # noqa: E402
@@ -222,9 +224,7 @@ def main():
             pf, _, pe = p.partition('|')
             qf, _, qe = q.partition('|')
             pw, qw = pf.split(), qf.split()
-            same = len(pw) == len(qw) and all(close(u, v) for u, v in zip(pw, qw))
-            if pf.startswith('can') or qf.startswith('can') or ' can ' in pf:
-                same = pf.split() == qf.split()
+            same = len(pw) == len(qw) and all(u == v if 'can' in (pw[k - 1], u) else close(u, v) for k, (u, v) in enumerate(zip(pw, qw)))
             if not same or not same_tail(pe, qe):
                 print(f'seed {seed} line {i} {lines[i][0] if i < len(lines) else ""}:\n  exe  {p}\n  port {q}')
                 bad += 1
@@ -246,17 +246,7 @@ def main():
 
 
 def close(a, b):
-    if a == b:
-        return True
-    try:
-        x, y = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (a, b))
-    except ValueError:
-        return False
-    if x != x or y != y:
-        return x != x and y != y
-    if math.isinf(x) or math.isinf(y):  # the allowance would be infinite too
-        return False
-    return abs(x - y) <= 1e-3 + 1e-4 * max(abs(x), abs(y))
+    return a == b  # at 53 bits, to the bit
 
 
 def same_tail(p, q):
