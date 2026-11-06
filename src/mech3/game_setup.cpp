@@ -1,4 +1,5 @@
 #include "mech3/game_setup.h"
+#include "pm/pm_game.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -425,22 +426,17 @@ Result add_music(const std::string& cue, const std::string& music_dir, const Pro
   return r;
 }
 
-Result check_install(const std::string& dir, const std::string& write_dir) {
+Result check_install(const std::string& dir, const std::string&) {
   Result r;
   r.install_dir = dir;
-  std::error_code ec;
-  if (zutl::any_case(dir, "zbd/reader.zbd").empty()) {
-    r.summary = "No MechWarrior 3 was found in " + dir + ": it has no zbd folder with the game's data.";
+  const pm::Install kind = pm::install_kind(dir);
+  if (kind != pm::Install::kPm) {
+    r.summary = "No Pirate's Moon was found in " + dir + ": it holds " + pm::install_words(kind) + ".";
     return r;
   }
-  const std::string overlay = write_dir.empty() ? std::string() : write_dir + "/patch12";
-  r.version = version_of(dir, fs::is_directory(overlay, ec) ? overlay : std::string());
+  r.version = "1.0";  // PM has the one; a changed file is the start-up's note (data_version.h)
   r.ok = true;
-  r.summary = "Found " + version_words(r.version) + " at " + dir + ".";
-  if (r.version == "1.0" || r.version == "1.0 with 1.2 files")
-    r.warnings.push_back("Applying the official 1.2 patch is recommended.");
-  if (zutl::any_case(dir, "video").empty())
-    r.warnings.push_back("It has no video folder, so the game will play without its movies.");
+  r.summary = "Found Pirate's Moon at " + dir + ".";
   return r;
 }
 

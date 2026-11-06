@@ -1,5 +1,6 @@
 #include "frontend/sdl/sdl_install.h"
 #include "gamez/zutil/zutl_path.h"
+#include "pm/pm_game.h"
 
 #include <SDL3/SDL.h>
 
@@ -34,7 +35,12 @@ std::string parent(const std::string& p) { return fs::path(p).parent_path().stri
 
 bool install_valid(const std::string& dir, std::string* missing) {
   std::error_code ec;
-  if (!dir.empty() && fs::is_regular_file(zutl::any_case(dir, "zbd/reader.zbd"), ec)) return true;
+  if (!dir.empty() && fs::is_regular_file(zutl::any_case(dir, "zbd/reader.zbd"), ec)) {
+    const pm::Install kind = pm::install_kind(dir);
+    if (kind == pm::Install::kPm) return true;  // MechWarrior 3's folders hold a reader.zbd too
+    if (missing) *missing = pm::install_words(kind);
+    return false;
+  }
   if (missing) {
     *missing = dir.empty() || !fs::is_directory(zutl::any_case(dir, "zbd"), ec) ? "zbd\\" : "zbd\\reader.zbd";
     if (dir.empty() || !fs::is_directory(zutl::any_case(dir, "video"), ec)) *missing += " and video\\";
@@ -99,9 +105,13 @@ std::vector<std::string> install_candidates() {
   // and InstallationInfo's App Paths entry for PRODUCT_KEY (mech3.exe). A
   // 32-bit installer on 64-bit Windows wrote the WOW6432Node view, or, without
   // admin rights, the user's VirtualStore copy.
+  // Pirate's Moon's own key is a guess from its disc's AppName; the search can't tell
+  // from here which it wrote, and install_valid takes only PM's data whichever it finds.
+  const char* const pm_key = "SOFTWARE\\MicroProse\\MechWarrior 3 Pirate's Moon\\1.0";
   const char* const mp = "SOFTWARE\\MicroProse\\MechWarrior 3\\1.0";
   const char* const app = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\mech3.exe";
   for (DWORD view : {static_cast<DWORD>(RRF_SUBKEY_WOW6432KEY), static_cast<DWORD>(RRF_SUBKEY_WOW6464KEY)}) {
+    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, pm_key, "Program", view)));
     add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, mp, "Program", view)));
     add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, app, "Path", view)));
     add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, app, nullptr, view)));
@@ -112,10 +122,15 @@ std::vector<std::string> install_candidates() {
   // The installer's default, PROGRAMFILES\MicroProse\MechWarrior 3, and the
   // usual hand-picked places.
   for (const char* env : {"ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"})
-    if (const char* pf = std::getenv(env)) add(std::string(pf) + "\\MicroProse\\MechWarrior 3");
+    if (const char* pf = std::getenv(env)) {
+      add(std::string(pf) + "\\MicroProse\\MechWarrior 3 Pirate's Moon");
+      add(std::string(pf) + "\\MicroProse\\Pirate's Moon");
+      add(std::string(pf) + "\\MicroProse\\MechWarrior 3");
+    }
   const char* sd = std::getenv("SystemDrive");
   const std::string drive = sd ? sd : "C:";
-  for (const char* d : {"\\MicroProse\\MechWarrior 3", "\\MicroProse\\MechWarrior3", "\\Games\\MechWarrior 3",
+  for (const char* d : {"\\MicroProse\\MechWarrior 3 Pirate's Moon", "\\Games\\Pirate's Moon", "\\Pirate's Moon",
+                        "\\MicroProse\\MechWarrior 3", "\\MicroProse\\MechWarrior3", "\\Games\\MechWarrior 3",
                         "\\Games\\MechWarrior3", "\\Games\\MW3", "\\MechWarrior 3", "\\MechWarrior3", "\\MW3"})
     add(drive + d);
 #else
@@ -186,7 +201,7 @@ bool ask_browse(const std::string& text) {
   };
   SDL_MessageBoxData box{};
   box.flags = SDL_MESSAGEBOX_INFORMATION;
-  box.title = "Find your MechWarrior 3 installation";
+  box.title = "Find your Pirate's Moon installation";
   box.message = text.c_str();
   box.numbuttons = 2;
   box.buttons = buttons;
@@ -201,7 +216,7 @@ std::string pick_file(const std::string& start) {
     std::atomic<bool> done{false};
     std::string file;  // set before done
   } w;
-  static const SDL_DialogFileFilter filters[] = {{"MechWarrior 3 (Mech3.exe)", "exe"}, {"All files", "*"}};
+  static const SDL_DialogFileFilter filters[] = {{"Pirate's Moon (Mech3.exe)", "exe"}, {"All files", "*"}};
   auto done = [](void* user, const char* const* list, int) {
     auto* w = static_cast<Wait*>(user);
     if (list && list[0]) w->file = list[0];
@@ -227,9 +242,9 @@ std::string find_install(const std::string& configured, const std::vector<std::s
     if (install_valid(d)) return d;
   if (!may_ask) return {};
   std::string text =
-      "MechWarrior 3 needs the files of an installed MechWarrior 3, any version (its zbd folder).\n\n"
-      "Choose Mech3.exe in your MechWarrior 3 folder.";
-  if (!configured.empty()) text = "No MechWarrior 3 install at \"" + configured + "\" any more.\n\n" + text;
+      "Pirate's Moon needs the files of an installed Pirate's Moon (its zbd folder).\n\n"
+      "Choose Mech3.exe in your Pirate's Moon folder.";
+  if (!configured.empty()) text = "No Pirate's Moon install at \"" + configured + "\" any more.\n\n" + text;
   std::string start;
   while (ask_browse(text)) {
     const std::string file = pick_file(start);
@@ -238,9 +253,8 @@ std::string find_install(const std::string& configured, const std::vector<std::s
     std::string missing;
     if (install_valid(dir, &missing)) return dir;
     start = dir;
-    text = "\"" + dir + "\" is not a MechWarrior 3 install: " + missing +
-           (missing.find(" and ") != std::string::npos ? " are" : " is") + " missing there.\n\nChoose Mech3.exe in the folder MechWarrior 3 was installed to "
-           "(the one that holds zbd and video).";
+    text = "\"" + dir + "\" is not a Pirate's Moon install: it holds " + missing +
+           ".\n\nChoose Mech3.exe in the folder Pirate's Moon was installed to (the one that holds zbd).";
   }
   return {};
 }

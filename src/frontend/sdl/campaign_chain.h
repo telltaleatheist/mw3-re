@@ -47,6 +47,8 @@ class CampaignChain {
   void briefing();
   void shoot(const char* what);
   std::string mission_name() const;
+  std::string world_mission_;  // MW3_CHAIN_WORLD
+  int world_frames_ = 0;
   mech3::GameEngine& e_;
   mech3::Mech3App& app_;
   SdlRender3D* render_;

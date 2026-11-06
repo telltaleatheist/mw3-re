@@ -17,6 +17,7 @@ move, it needs the twod bench on PM's exe (campaign.md).
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -44,6 +45,20 @@ def run(exe, write_dir, *args):
                         '--frame-ms', '33', '--seed', '1'],
                        cwd=ROOT, env=env, capture_output=True, text=True, errors='replace', timeout=240)
     return r.returncode, r.stdout
+
+
+def lit(path):
+    """The share of a 32-bit BMP's middle (no HUD) that isn't black, in a mission's shot."""
+    d = Path(path).read_bytes()
+    off, w, h = struct.unpack_from('<I', d, 10)[0], *struct.unpack_from('<ii', d, 18)
+    bh, n, on = abs(h), 0, 0
+    for y in range(bh * 25 // 100, bh * 70 // 100, 4):
+        at = off + y * w * 4
+        for x in range(w * 20 // 100, w * 80 // 100, 4):
+            p = at + x * 4
+            n += 1
+            on += d[p] + d[p + 1] + d[p + 2] > 9
+    return on / n
 
 
 def check(name, got, want):
@@ -78,6 +93,18 @@ def main():
         launched = [(int(a), int(b)) for a, b in re.findall(r'^mw3: chain LAUNCH op (\d+) mission (\d+)$', out, re.M)]
         seen = re.findall(r"^mw3: chain debriefing title: (.*); the game's name: (.*); rank (-?\d+)$", out, re.M)
         bad += check('campaign chain', code, 0)
+        # Through the lab (its purge freed the world's materials), the world is there, by the picture.
+        os.environ['MW3_CHAIN_WORLD'] = '1'
+        code, world = run(exe, tmp / 'world', '--campaign-chain', 'new:3')
+        del os.environ['MW3_CHAIN_WORLD']
+        shots = sorted((tmp / 'world').glob('chain_*_world.bmp'))
+        shares = [lit(p) for p in shots]
+        print('the world after the lab, share not black:', ' '.join(f'{x:.2f}' for x in shares))
+        bad += check('lab before each', len(re.findall(r'^mw3: chain MECHLAB$', world, re.M)) >= 3, True)
+        bad += check('world shots', (code, len(shots)), (0, 3))
+        bad += check('worlds drawn', [x > 0.3 for x in shares], [True] * 3)
+        # The prep screen's map: briefing.zrd's brief_c1m1, not the default section's nothing.
+        bad += check('briefing maps', sorted(set(re.findall(r'^mw3: chain briefing map width (\d+)$', out, re.M))), ['640'])
         bad += check('the worlds', launched[:10], [(WORLD[m], m) for m in range(1, 11)])
         # The name is read once the results moved the game on; the last has no next.
         bad += check('campaign titles', seen, [(f'Mission {m}', f'Mission {min(m + 1, 10)}', '2') for m in range(1, 11)])

@@ -10,9 +10,9 @@
 
 namespace sdlfe {
 
-// A folder that holds the game's data: zbd/reader.zbd (Mech3.exe is not
-// needed, the port never runs it, nor video/: movies are optional). `missing`,
-// when given, names what is not there ("zbd\", "zbd\ and video\").
+// A folder that holds Pirate's Moon's data: its zbd/reader.zbd, by the file's own
+// version words (pm::install_kind); MechWarrior 3's has one too, and is refused.
+// `missing`, when given, says why not: what is not there, or what it is instead.
 bool install_valid(const std::string& dir, std::string* missing = nullptr);
 
 // The install a picked file stands for: its folder, or the folder above when

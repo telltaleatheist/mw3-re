@@ -251,9 +251,8 @@ const SDL_DialogFileFilter kDiscFiles[] = {{"Your disc: its image (.cue, .iso) o
 // The find screen's words (Owen, 2026-11-02): what the game needs, and that
 // nothing of the player's is changed.
 const char* const kFindWords =
-    "MechWarrior 3 needs your own copy of the game. Show us your disc, a disc image or download (.iso, .cue, .zip), "
-    "or a folder where it's installed. We copy what the game needs into your user folder; your disc and any "
-    "installed copy are left untouched.";
+    "Pirate's Moon needs your own installed copy of the game. Show us the folder it's installed in, or Mech3.exe "
+    "there. It's only read, never changed. With just the disc, install from it first.";
 
 // The main menu's own sounds (sounds.zrd's MAINMENU set: menu_rollover,
 // sfx_button2.wav at 0.7; menu_select, sfx_button6.wav), read from the
@@ -499,7 +498,7 @@ void Launcher::find_install() {
     std::printf("mw3: launcher: %s\n", r.summary.c_str());
     return;
   }
-  std::printf("mw3: launcher: no MechWarrior 3 install found\n");
+  std::printf("mw3: launcher: no Pirate's Moon install found\n");
 }
 
 namespace {
@@ -719,7 +718,7 @@ void Launcher::layout() {
       // installed copy or a disc in a drive used at once), else one picker:
       // an image or a download, or any file of an installed copy (its
       // folder; pick_source). The 1.2 patch is built in (patch12.h).
-      add(kFind, {130, 222, 380, 52}, "FIND THE GAME", "A disc image, a download (.zip .iso), or Mech3.exe in an installed copy");
+      add(kFind, {130, 222, 380, 52}, "FIND THE GAME", "Mech3.exe in your installed Pirate's Moon");
       if (from_files_ && !o_.write_dir_fixed) add(kData, {130, 278, 380, 36}, "MY DATA FOLDER");
       if (install_.ok && (lacks_music_ || lacks_movies_))  // what the install in use lacks, from the disc
         add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
@@ -1011,7 +1010,7 @@ void Launcher::notes_refresh() {
   if (!install_.ok) return;
   const fs::path music = o_.write_dir.empty() ? fs::path("music") : fs::path(o_.write_dir) / "music";
   lacks_music_ = !have_music({music.string(), (zutl::any_case(install_.dir, "music").empty() ? fs::path(install_.dir) / "music" : fs::path(zutl::any_case(install_.dir, "music"))).string()});
-  lacks_movies_ = !have_movies(install_.dir, o_.write_dir);
+  lacks_movies_ = false;  // Pirate's Moon has none
   const std::string dir = fs::path(music).make_preferred().string();
   for (const std::string& n : launcher_notes(install_.version, !lacks_music_, !lacks_movies_, dir))
     std::printf("mw3: launcher: note: %s\n", n.c_str());
@@ -1020,7 +1019,7 @@ void Launcher::notes_refresh() {
 
 // GAME FILES' line: the install in use and what it lacks.
 std::string Launcher::in_use() const {
-  std::string s = "Using MechWarrior 3 " + install_.version + " at " + install_.dir;
+  std::string s = "Using Pirate's Moon " + install_.version + " at " + install_.dir;
   if (lacks_movies_ && lacks_music_) s += ". No movies or music.";
   else if (lacks_movies_) s += ". No movies.";
   else if (lacks_music_) s += ". No music.";
@@ -1213,7 +1212,7 @@ void Launcher::look_at(const std::string& path) {
       return f(mech3::setup::Progress{"Looking into " + (name.empty() ? path : name), at, entry});
     });
     mech3::setup::Result r;
-    r.ok = found->game == mech3::source::Found::kMw3, r.cancelled = found->cancelled;
+    r.ok = mech3::source::usable(*found), r.cancelled = found->cancelled;
     r.summary = found->summary, r.detail = found->detail;
     return r;
   });

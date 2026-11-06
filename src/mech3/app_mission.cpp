@@ -37,6 +37,7 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zinterp/zinterp.h"
 #include "pm/gamez/zclass/cls_clutter.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zgame/zgame_table.h"
@@ -1894,6 +1895,7 @@ struct WiredMissionHooks : MissionHooks {
     for (int32_t i = 0; i < p.count; ++i) zmod::model_release(&p.slots[i]);  // 0x00539150
     zmod::models() = zmod::ModelPool{};
     zmod::materials() = zmod::MaterialTable{};
+    pm::zmod::models() = pm::zmod::ModelPool{};  // Pirate's Moon 0x00540200: its pool with its materials
   }
   void textures_free() override { zimg::textures_free(); }  // 0x00516f30: 0x00518b70
   void set_field8(Handle h, uint32_t off, uint8_t v) override { e->poke8(h + off, v); }
@@ -1986,6 +1988,7 @@ struct WiredMissionHooks : MissionHooks {
   void models_reset() override {
     zmod::materials() = zmod::MaterialTable{};
     zmod::models() = zmod::ModelPool{};
+    pm::zmod::models() = pm::zmod::ModelPool{};
     zmod::reset_pool();
     zmod::fog() = zmod::Fog{};
     zrndr::fog_color() = zrndr::FogColor{};

@@ -649,6 +649,8 @@ void watch_begin() {
     for (int i = 0; i < pool.block_size; ++i) {
       zcls::Node& n = block[i];
       if (!n.data || n.cls() != 5 || !(n.flags() & 0x80000) || !(n.flags() & 0x100)) continue;
+      // A mech's part blown off keeps its node, no parent, after the mech is freed: its owner is gone.
+      if (n.parent_count() == 0 && (n.get<uint32_t>(0x28) & 0xff) && !(n.get<uint32_t>(0x28) & 0xf000)) continue;
       const void* owner = node_entity(&n);
       if (owner && (entity_is_mech(owner) || is_program_vehicle(owner))) continue;
       Watched e{&n, n.data, {}, n.flags() & kThere, {}};

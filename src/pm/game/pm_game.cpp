@@ -1,5 +1,6 @@
 #include "gamez/zrender/zrndr_flare.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
+#include "gamez/zutil/zutl_path.h"
 #include "pm/pm_game.h"
 #include "pm/gamez/zclass/cls_clutter.h"
 #include "pm/gamez/zclass/cls_world.h"
@@ -39,8 +40,8 @@ const zgame::Table& table() { return kPm; }
 // MW3's archive ends "version (1), count"; PM's "count, checksum" after a
 // version word of 2 (docs/pm-map.md, zArchive). Only the last 12 bytes are read.
 Install install_kind(const std::string& dir) {
-  const std::filesystem::path p = std::filesystem::path(dir) / "zbd" / "reader.zbd";
-  std::FILE* f = std::fopen(p.string().c_str(), "rb");
+  const std::string p = zutl::any_case(dir, "zbd/reader.zbd");
+  std::FILE* f = p.empty() ? nullptr : std::fopen(p.c_str(), "rb");
   if (!f) return Install::kNone;
   uint8_t tail[12] = {};
   const bool ok = std::fseek(f, -12, SEEK_END) == 0 && std::fread(tail, 1, 12, f) == 12;

@@ -8,6 +8,7 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 namespace zmod {
 
@@ -262,6 +263,16 @@ int32_t materials_purge() {
   for (Model& md : models().slots)
     for (uint32_t i = 0; md.polygons && i < md.count(0x10); ++i)
       if (Material* m = md.polygons[i].material) m->flags = static_cast<uint8_t>((m->flags & 0x3f) | 0x40);
+  // Pirate's Moon 0x00557890: its models are in its own pool, and each polygon lists its materials.
+  pm::zmod::ModelPool& pm_models = pm::zmod::models();
+  for (int32_t i = 0; i < pm_models.capacity; ++i) {
+    pm::zmod::Model& md = pm_models.at(i);
+    for (uint32_t k = 0; md.polygons && k < md.count(0x10); ++k) {
+      const pm::zmod::Polygon& p = md.polygons[k];
+      for (int32_t j = 0; p.materials && j < p.material_count; ++j)
+        if (Material* m = p.materials[j]) m->flags = static_cast<uint8_t>((m->flags & 0x3f) | 0x40);
+    }
+  }
   MaterialTable& t = g_table;
   int32_t freed = 0;
   for (int32_t i = 0; i < t.capacity; ++i) {

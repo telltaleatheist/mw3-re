@@ -9,6 +9,8 @@
 
 #include "check.h"
 #include "gamez/zgame/zgame_table.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "pm/gamez/zmodel/gmod_clip3d.h"
 #include "pm/pm_game.h"
 #include "gamez/zutil/zutl_path.h"
@@ -224,4 +226,9 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   EXPECT(before != 10);  // Mech::Die's +0x578
   EXPECT(after == 10);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);  // the clippers stayed in their arena (gmod_draw.cpp)
+  // Leaving the mech lab purges what no model uses (0x005394c0): the world's materials stay.
+  const int32_t materials = ::zmod::materials().count;
+  ::zmod::models_purge(true, true);
+  std::printf("  c2m4: materials %d before the lab's purge, %d after\n", materials, ::zmod::materials().count);
+  EXPECT(materials > 1000 && ::zmod::materials().count > 1000);
 }
