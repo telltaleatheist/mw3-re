@@ -107,6 +107,38 @@ def _back():
     return _back_map
 
 
+_pm_asm = None
+
+
+def _reads_ecx(at):
+    """Whether PM's function at `at` reads ECX before it writes or calls (its first `push ecx`
+    only makes room for a local)."""
+    global _pm_asm
+    if _pm_asm is None:
+        _pm_asm = {}
+        pat = re.compile(r'^\s*([0-9a-f]+):\s+(?:[0-9a-f]{2} )+\s*(\S.*)$')
+        for line in (ROOT / 'analysis-output' / 'pm.asm').read_text(errors='replace').split('\n'):
+            m = pat.match(line)
+            if m:
+                _pm_asm[int(m.group(1), 16)] = re.sub(r'\s+', ' ', m.group(2))
+    a, n = at, 0
+    keys = sorted(k for k in range(at, at + 200) if k in _pm_asm)
+    for k in keys:
+        t = _pm_asm[k]
+        n += 1
+        if n == 1 and t == 'push ecx':
+            continue
+        if t.startswith(('call', 'ret', 'jmp')) or n > 30:
+            return False
+        if re.match(r'(mov|lea|movzx) ecx,', t) and not re.search(r'ecx', t.split(',', 1)[1]):
+            return False
+        if t in ('xor ecx, ecx',):
+            return False
+        if re.search(r'\b(ecx|cl|cx)\b', t):
+            return True
+    return False
+
+
 def stub_key(addr):
     """The key a stub of `addr` records under: MW3's address, whichever exe runs."""
     if os.environ.get('MW3_PM_MOVED'):
@@ -143,6 +175,8 @@ def pm_args(addr):
     pm = _header(ROOT / 'analysis-output' / 'pm-decomp' / f'{at:#x}.c') if at else ''
     head = pm.split('{')[0]
     conv = 'this' if '__thiscall' in head or 'in_ECX' in pm else 'fast' if '__fastcall' in head else 'stack'
+    if conv == 'stack' and at and _reads_ecx(at):  # Ghidra can call a method a plain function
+        conv = 'this'
     _regs_cache[addr] = (regs, conv)
     return regs, conv
 

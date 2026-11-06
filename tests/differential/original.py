@@ -194,6 +194,45 @@ MOVED = bool(os.environ.get('MW3_PM_MOVED'))
 # PM's own, with no twin in MW3's, stood in for without a trace (pm_moved.py): the message pump,
 # and what 0x5c0b70 does around a frame on the software path. Their addresses are PM's.
 PM_QUIET = {0x5b14e0: 1, 0x5883f0: 0, 0x588590: 0}
+
+
+def pm_iat(name):
+    """The import slot of `name` in PM's exe, for what MW3 doesn't import."""
+    b = Path(EXE).read_bytes()
+    pe = struct.unpack_from('<I', b, 0x3c)[0]
+    n, opt = struct.unpack_from('<H', b, pe + 6)[0], struct.unpack_from('<H', b, pe + 20)[0]
+    secs = [struct.unpack_from('<IIII', b, pe + 24 + opt + 40 * i + 8) for i in range(n)]
+
+    def off(rva):
+        return next(rva - va + raw for vs, va, rs, raw in secs if va <= rva < va + max(vs, rs))
+    d = off(struct.unpack_from('<I', b, pe + 24 + 104)[0])
+    while True:
+        oft, _, _, nm, ft = struct.unpack_from('<IIIII', b, d)
+        if not nm:
+            raise KeyError(name)
+        q, r = off(oft or ft), ft
+        while True:
+            v = struct.unpack_from('<I', b, q)[0]
+            if not v:
+                break
+            if not v & 0x80000000 and b[off(v) + 2:b.index(b'\0', off(v) + 2)].decode() == name:
+                return 0x400000 + r
+            q, r = q + 4, r + 4
+        d += 20
+
+
+def pm_screen_ctor(e, d, param):
+    """MW3's menu screen 0x40a110, which PM inlines into each screen (as 0x42f890 begins); PM's addresses."""
+    e.cpu.call(0x5beb50, ecx=d)
+    e.w32(d + 0x1117c, param)
+    e.cpu.call(0x5bb870, ecx=d + 0x11184, stack_args=[0])
+    e.cpu.call(0x488470, ecx=d + 0x11240)
+    e.w32(d, 0x5de9c4)
+    e.cpu.write(d + 0x11180, b'\0')
+    e.w32(d + 0x11170, 0)
+    e.w32(d + 0x11174, 0)
+
+
 # PM's frame picks these in the other screen mode, where MW3's always calls the plain ones; the port's Host has those.
 PM_AS = {0x597d50: '0x00576de0', 0x597dc0: '0x00576e70'}
 if MOVED:

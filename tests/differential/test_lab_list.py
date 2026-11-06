@@ -20,6 +20,7 @@ rows, arrows and images, and the list's destructor. The port
 the dumps.
 """
 import ctypes
+import os
 import random
 import re
 import struct
@@ -28,7 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Replay, Trace, compare, load_probe  # noqa: E402
-from original import ROOT  # noqa: E402
+from original import ROOT, pm_iat, pm_screen_ctor  # noqa: E402
 from twod_world import IAT, READER, TwodWorld, entries, find, parse_node, write_node  # noqa: E402
 import test_twod  # noqa: E402
 from test_twod import canonical, fbits  # noqa: E402
@@ -237,6 +238,8 @@ class Original:
         self.nodes = [e.world_alloc(0xc) for _ in range(N_ITEMS + 1)]
 
     def vcall(self, obj, slot, stack=()):
+        if os.environ.get('MW3_PM_MOVED') and obj == self.d and slot >= 4:
+            slot += 4  # PM's dialog has one more virtual at +4
         vt = self.e.r32(obj)
         return self.e.call(self.e.r32(vt + slot), ecx=obj, stack=stack)
 
@@ -256,10 +259,18 @@ class Original:
         root = w.read_tree(self.data, 0)
         self.snapshot = e.snapshot()
         d = self.d = e.alloc(SCREEN_SIZE)
-        e.call(SCREEN_CTOR, ecx=d, stack=(0,))
+        if os.environ.get('MW3_PM_MOVED'):
+            def set_rect(emu, key, a, pop):
+                for i in range(4):
+                    emu.w32(a[0] + 4 * i, a[i + 1])
+                emu._ret(1, 20)
+            e.import_stub(pm_iat('SetRect'), '@SetRect', 's0,s1,s2,s3,s4', 20, set_rect)
+            pm_screen_ctor(e, d, 0)
+        else:
+            e.call(SCREEN_CTOR, ecx=d, stack=(0,))
         vt = e.alloc(0x100)
         e.cpu.write(vt, bytes(e.cpu.read(e.r32(d), 0x100)))
-        e.w32(vt + 0x14, e.new_stub('screen.vt+0x14', 's0,s1,s2', 0xc))
+        e.w32(vt + (0x18 if os.environ.get('MW3_PM_MOVED') else 0x14), e.new_stub('screen.vt+0x14', 's0,s1,s2', 0xc))
         e.w32(d, vt)
         e.call(LOAD_FROM, ecx=d, stack=(root, e.world_string('LISTDLG'), 0))
         m = self.m = None

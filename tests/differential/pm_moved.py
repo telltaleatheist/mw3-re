@@ -45,6 +45,10 @@ FORMAT = {0x802738: 0xb0619c, 0x80273c: 0xb061a0, 0x802740: 0xb061a4, 0x802744: 
 FIELDS = {'test_twod', 'test_twod_msgbox', 'test_lab_list', 'test_lab_screen'}
 
 
+# A lab row holds three text objects after its own, each 8 longer: what follows moves by each.
+LAB_ROW = {0xaa8: 0xab8, 0xf74: 0xf8c, 0x1440: 0x1460, 0x148c: 0x14ac}
+
+
 def field(v):
     if v < 0x1000:
         return v + 8
@@ -60,6 +64,8 @@ def field(v):
 def number(s, name):
     """A literal in the image's range as its twin in PM, a moved field as where it moved."""
     v = int(s, 16)
+    if name in ('test_lab_list', 'test_lab_screen') and v in LAB_ROW:
+        return hex(LAB_ROW[v])
     if name in FIELDS and 0x4ac <= v < 0x13000 and not (0x1000 <= v < 0x4000) and v != 0xffff:
         return hex(field(v))
     if v in VTABLES:
