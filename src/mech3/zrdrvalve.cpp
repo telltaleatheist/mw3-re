@@ -278,6 +278,13 @@ void ScanAction::fire(Valve& v) {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x004f5050, its setters 0x004e9f40..0x004e9fb0. FIX (bug): no brain, no
+// write, as ScanAction (the exe writes near address zero).
+void RangeAction::fire(Valve& v) {
+  if (v.get() != value || !brain) return;
+  g_hooks->brain_write(brain, off, number);
+}
+
 // Mech3.exe 1.2 @ 0x004e3330: the missions' function (ECX 0x006098d0).
 void MissionAction::fire(Valve& v) {
   if (v.get() != value) return;
@@ -390,10 +397,10 @@ Condition::Condition(Kind k, const NameList& list, Valve& owner) : kind(k), x04(
     if (v) members.push_back(v);
     else missing = true;
   }
-  if (missing) report(0x3d8, "Could not locate all valves in namelist for valve \"%s\"", owner.name);
+  if (missing) report(0x48c, "Could not locate all valves in namelist for valve \"%s\"", owner.name);
   for (Valve* m : members) {  // 0x004e4080 -> 0x004e3e00 / 0x004e3d70
     if (!m->add(new UpdateAction(&owner)))
-      report(0x3c4, "Failed to create update on valve \"%s\" for valve \"%s\"", m->name, owner.name);
+      report(0x478, "Failed to create update on valve \"%s\" for valve \"%s\"", m->name, owner.name);
   }
 }
 
@@ -431,6 +438,15 @@ Reaction* make_scan(const ValveDef::Named& s, uint32_t on, uint32_t off) {
   const Handle b = c ? g_hooks->brain_of(c) : 0;
   return new ScanAction(b, s.flag ? on : off, 0, s.value);
 }
+
+// Pirate's Moon 1.0 @ 0x004f5080: the same brain, the record's number kept for its setter.
+Reaction* make_range(const ValveDef::Ranged& r, uint32_t off) {
+  const Handle e = g_hooks->target_find(r.name);
+  const Handle o = e ? g_hooks->vehicle_of(e) : 0;
+  const Handle c = o ? g_hooks->controls_of(o) : 0;
+  const Handle b = c ? g_hooks->brain_of(c) : 0;
+  return new RangeAction(b, off, r.number, r.value);
+}
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x004e44b0 (Ghidra splits it at 0x004e46d1)
@@ -440,11 +456,11 @@ Valve* build_valve(const char* name, const ValveDef& d) {
     const bool cond = (d.flags & 0x0f) != 0;
     const bool listed = !d.names.names.empty();
     if (!cond) {
-      if (listed) report(0x41e, "Expected no namelist for valve \"%s\"", name);
+      if (listed) report(0x4d2, "Expected no namelist for valve \"%s\"", name);
     } else if (!listed) {
-      report(0x422, "Expected non empty namelist for valve \"%s\"", name);
+      report(0x4d6, "Expected non empty namelist for valve \"%s\"", name);
     } else if (!v->value->replaceable()) {
-      report(0x424, "Conflicting definition for valve \"%s\"", name);
+      report(0x4d8, "Conflicting definition for valve \"%s\"", name);
       v = nullptr;
     } else {
       const Condition::Kind k = (d.flags & 1)   ? Condition::AnyNonzero
@@ -457,60 +473,88 @@ Valve* build_valve(const char* name, const ValveDef& d) {
     }
   }
   if (!v) {
-    report(0x4c4, "Failed to create valve \"%s\"", name);
+    report(0x5c5, "Failed to create valve \"%s\"", name);
     return nullptr;
   }
   if (d.init.on) v->value->set(d.init.value);
   if (d.sound.name)
-    attach(*v, new SoundAction(d.sound.name, d.sound.value, d.sound.flag != 0), 0x449,
+    attach(*v, new SoundAction(d.sound.name, d.sound.value, d.sound.flag != 0), 0x4fd,
            "Failed to get sound \"%s\" for valve \"%s\"", d.sound.name);
   if (d.anim.name)
-    attach(*v, new AnimAction(d.anim.name, d.anim.value, d.anim.flag != 0), 0x455,
+    attach(*v, new AnimAction(d.anim.name, d.anim.value, d.anim.flag != 0), 0x509,
            "Failed to get animation \"%s\" for valve \"%s\"", d.anim.name);
   static const struct {
     ScanTest on, off;
     int line;
     const char* fmt;
   } kScans[4] = {
-      {ScanTest::AimOn, ScanTest::AimOff, 0x45c, "Failed to create scan aim on vehicle \"%s\" for valve \"%s\""},
-      {ScanTest::HitOn, ScanTest::HitOff, 0x463, "Failed to create scan aim on vehicle \"%s\" for valve \"%s\""},
-      {ScanTest::TimeOn, ScanTest::TimeOff, 0x46a, "Failed to create scan time on vehicle \"%s\" for valve \"%s\""},
-      {ScanTest::CanLeave, ScanTest::CanLeaveNot, 0x471, "Failed to create canleave on vehicle \"%s\" for valve \"%s\""},
+      {ScanTest::AimOn, ScanTest::AimOff, 0x510, "Failed to create scan aim on vehicle \"%s\" for valve \"%s\""},
+      {ScanTest::HitOn, ScanTest::HitOff, 0x517, "Failed to create scan aim on vehicle \"%s\" for valve \"%s\""},
+      {ScanTest::TimeOn, ScanTest::TimeOff, 0x51e, "Failed to create scan time on vehicle \"%s\" for valve \"%s\""},
+      {ScanTest::CanLeave, ScanTest::CanLeaveNot, 0x525, "Failed to create canleave on vehicle \"%s\" for valve \"%s\""},
   };
   for (int k = 0; k < 4; ++k)
     if (d.scan[k].name)
       attach(*v, make_scan(d.scan[k], static_cast<uint32_t>(kScans[k].on), static_cast<uint32_t>(kScans[k].off)),
              kScans[k].line, kScans[k].fmt, d.scan[k].name);
+  // Pirate's Moon 1.0 @ 0x004f6478: the retreat keys make canleave's switch, each its own message.
+  static const char* const kRetreats[3] = {"Failed to create retreat_dist on vehicle \"%s\" for valve \"%s\"",
+                                           "Failed to create retreat_time on vehicle \"%s\" for valve \"%s\"",
+                                           "Failed to create retreat_health on vehicle \"%s\" for valve \"%s\""};
+  for (int k = 0; k < 3; ++k)
+    if (d.retreat[k].name)
+      attach(*v, make_scan(d.retreat[k], static_cast<uint32_t>(ScanTest::CanLeave), static_cast<uint32_t>(ScanTest::CanLeaveNot)),
+             0x52c + 7 * k, kRetreats[k], d.retreat[k].name);
   if (d.shutdown.name)
-    attach(*v, new ShutdownAction(d.shutdown.name, d.shutdown.value, d.shutdown.flag), 0x478,
+    attach(*v, new ShutdownAction(d.shutdown.name, d.shutdown.value, d.shutdown.flag), 0x541,
            "Failed to create shutdown on vehicle \"%s\" for valve \"%s\"", d.shutdown.name);
   if (d.destroy.name)
-    attach(*v, new DestroyAction(ValveAction::Destroy, d.destroy.name, d.destroy.value), 0x47f,
+    attach(*v, new DestroyAction(ValveAction::Destroy, d.destroy.name, d.destroy.value), 0x548,
            "Failed to create destroy on entity \"%s\" for valve \"%s\"", d.destroy.name);
   if (d.team_entity)
-    attach(*v, new SetTeamAction(d.team_entity, d.team_value, d.team), 0x486,
+    attach(*v, new SetTeamAction(d.team_entity, d.team_value, d.team), 0x54f,
            "Failed to create setteam on entity \"%s\" for valve \"%s\"", d.team_entity);
   if (d.attack_entity)
-    attach(*v, new AttackAction(d.attack_entity, d.attack_value, d.strategy), 0x48d,
+    attach(*v, new AttackAction(d.attack_entity, d.attack_value, d.strategy), 0x556,
            "Failed to create attack_strategy on entity \"%s\" for valve \"%s\"", d.attack_entity);
   if (d.teleport)  // the exe reports with the shutdown's message
-    attach(*v, new TeleportAction(d.teleport, d.teleport_value, d.pos, d.yaw), 0x494,
+    attach(*v, new TeleportAction(d.teleport, d.teleport_value, d.pos, d.yaw), 0x55d,
            "Failed to create shutdown on vehicle \"%s\" for valve \"%s\"", d.teleport);
+  // Pirate's Moon 1.0 @ 0x004f6761: each sets one word on the brain when the valve reaches the value.
+  static const struct {
+    const ValveDef::Ranged ValveDef::*r;
+    uint32_t off;
+    int line;
+    const char* fmt;
+  } kRanges[4] = {
+      {&ValveDef::leave_net, 0x20, 0x564, "Failed to create leaveNetRange on \"%s\" for valve \"%s\""},
+      {&ValveDef::attack_radius, 0x44, 0x56b, "Failed to create attack_radius on \"%s\" for valve \"%s\""},
+      {&ValveDef::approach, 0x28, 0x572, "Failed to create approachRange on \"%s\" for valve \"%s\""},
+      {&ValveDef::min_range, 0x2c, 0x579, "Failed to create minRange on \"%s\" for valve \"%s\""},
+  };
+  auto range = [&](const ValveDef::Ranged& r, uint32_t off, int line, const char* fmt) {
+    if (r.name) attach(*v, make_range(r, off), line, fmt, r.name);
+  };
+  for (int k = 0; k < 4; ++k) range(d.*(kRanges[k].r), kRanges[k].off, kRanges[k].line, kRanges[k].fmt);
+  range(d.scan_delay[0], 0x64, 0x580, "Failed to create scan_delay_min on \"%s\" for valve \"%s\"");
+  range(d.scan_delay[1], 0x68, 0x587, "Failed to create scan_delay_max on \"%s\" for valve \"%s\"");
+  range(d.scan_duration[0], 0x6c, 0x58e, "Failed to create scan_duration_min on \"%s\" for valve \"%s\"");
+  range(d.scan_duration[1], 0x70, 0x595, "Failed to create scan_duration_max on \"%s\" for valve \"%s\"");
   // missionreset is not made at all: the exe only reports it.
-  if (d.reset.on) report(0x4a1, "Failed to create mission reset for valve \"%s\"", name);
+  if (d.reset.on) report(0x5a2, "Failed to create mission reset for valve \"%s\"", name);
   if (d.abort.on) {
     Reaction* r = new MissionAction(0x48f730, d.abort.value);
-    if (!v->add(r)) report(0x4a8, "Failed to create mission abort for valve \"%s\"", name), delete r;
+    if (!v->add(r)) report(0x5a9, "Failed to create mission abort for valve \"%s\"", name), delete r;
   }
   if (d.complete.on) {
     Reaction* r = new MissionAction(0x48f710, d.complete.value);
-    if (!v->add(r)) report(0x4b0, "Failed to create mission complete for valve \"%s\"", name), delete r;
+    if (!v->add(r)) report(0x5b1, "Failed to create mission complete for valve \"%s\"", name), delete r;
   }
   if (d.update)
-    attach(*v, new UpdateAction(valve_get(d.update)), 0x4b8, "Failed to create update on valve \"%s\" for valve \"%s\"",
+    attach(*v, new UpdateAction(valve_get(d.update)), 0x5b9, "Failed to create update on valve \"%s\" for valve \"%s\"",
            d.update);
   if (d.delay_valve)  // the exe's report names the update's valve
-    attach(*v, new DelayUpdateAction(valve_get(d.delay_valve), as_float(d.delay)), 0x4bf,
+    attach(*v, new DelayUpdateAction(valve_get(d.delay_valve), as_float(d.delay)), 0x5c0,
            "Failed to create delayed update on valve \"%s\" for valve \"%s\"", d.update);
   return v;
 }
@@ -524,7 +568,7 @@ void valves_load() {
     const char* name = nullptr;
     const ValveDef* d = f.read(i, &name);
     if (!d || !name) continue;
-    if (!build_valve(name, *d)) report(0x17a, "Failed to create valve \"%s\"", name);
+    if (!build_valve(name, *d)) report(0x20b, "Failed to create valve \"%s\"", name);
   }
   f.release();  // 0x004e1f10
 }

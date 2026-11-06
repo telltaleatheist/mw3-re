@@ -241,7 +241,8 @@ def crafted_valves():
 def crafted_archive(body, like):
     version, count, last = struct.unpack_from('<III', like, len(like) - 12)
     entry = struct.pack('<II', 0, len(body)) + b'valves.zrd'.ljust(0x8c, b'\0')
-    return body + entry + struct.pack('<III', version, 1, last)
+    other = struct.pack('<II', 0, len(body)) + b'other.zrd'.ljust(0x8c, b'\0')  # with one entry zrd.py takes it for MW3's
+    return body + entry + other + struct.pack('<III', version, 2, last)
 
 
 def check_crafted(p, buf, like):

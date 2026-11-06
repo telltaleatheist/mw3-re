@@ -148,6 +148,7 @@ struct ValveAction : Reaction {
     Sound = 0x5cd458, SoundOnce = 0x5cd468, Anim = 0x5cd478, AnimOnce = 0x5cd488, Scan = 0x5cd498,
     Mission = 0x5cd4a8, Destroy = 0x5cd4b8, Shutdown = 0x5cd4c8, SetTeam = 0x5cd4d8, Attack = 0x5cd4e8,
     Teleport = 0x5cd4f8, Update = 0x5cd508, Timer = 0x5cd518, DelayUpdate = 0x5cd528,
+    Range = 0x5f00a0,  // Pirate's Moon's vtable
   };
   explicit ValveAction(Kind k) : kind(k) {}
   Kind kind;
@@ -174,6 +175,18 @@ struct ScanAction : ValveAction {
   uint32_t test;                    // +0x08  the function (ScanTest)
   int32_t arg;                      // +0x0c  added to the brain (always 0)
   int32_t value;                    // +0x10
+};
+// Pirate's Moon 1.0 @ 0x004f5000 (0x18 bytes): one of the brain's numbers set (leaveNetRange
+// +0x20, attack_radius +0x44, approachRange +0x28, minRange +0x2c, scan_delay_* +0x64 +0x68,
+// scan_duration_* +0x6c +0x70).
+struct RangeAction : ValveAction {
+  RangeAction(Handle brain, uint32_t off, uint32_t number, int32_t v)
+      : ValveAction(Range), brain(brain), off(off), number(number), value(v) {}
+  void fire(Valve& v) override;     // 0x004f5050
+  Handle brain;                     // +0x04
+  uint32_t off;                     // +0x08  the setter
+  uint32_t number;                  // +0x10
+  int32_t value;                    // +0x14
 };
 struct MissionAction : ValveAction {  // 0x004e3310, 0x0c bytes
   MissionAction(uint32_t fn, int32_t v) : ValveAction(Mission), fn(fn), value(v) {}

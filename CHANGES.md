@@ -676,3 +676,4 @@ Known quirks the rebuild deliberately keeps:
 - A mech under deep water drowns at the same speed at any frame rate.
 - Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).
 - Pirate's Moon: a firepoint whose aim range runs past straight up or down keeps its real top limit (bug fixes on).
+- Pirate's Moon: a mission trigger that sets an AI range on a vehicle with no pilot does nothing, where the original would crash. No shipped mission does this.
