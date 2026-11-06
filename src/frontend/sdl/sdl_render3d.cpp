@@ -3,6 +3,7 @@
 #include "frontend/sdl/sdl_child.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -302,6 +303,10 @@ void SdlRender3D::release_texture(int32_t h) {
 }
 
 void SdlRender3D::set_viewport(int x, int y, int w, int h) { vx_ = x, vy_ = y, vw_ = w, vh_ = h; }
+void SdlRender3D::set_clip(float left, float top, float right, float bottom) {
+  clip_[0] = left, clip_[1] = top, clip_[2] = right, clip_[3] = bottom;
+}
+void SdlRender3D::clear_clip() { clip_[0] = clip_[1] = clip_[2] = clip_[3] = 0.0f; }
 
 // FIX (A): the frame clear (0x005777f0) fills the back buffer once; here it
 // is kept for the next scene's pass, colour and depth (depth to 0).
@@ -355,11 +360,14 @@ void SdlRender3D::draw(platform::Primitive type, const platform::TLVertex* v, in
   if (state.color_select)
     for (uint32_t i = first; i < first + n; ++i) vertices_[i].diffuse |= 0x00ffffffu;
   const bool same_fog = !runs_.empty() && runs_.back().fog[0] == fog_rgb_[0] && runs_.back().fog[1] == fog_rgb_[1] &&
-                        runs_.back().fog[2] == fog_rgb_[2];
+                        runs_.back().fog[2] == fog_rgb_[2] && !std::memcmp(runs_.back().clip, clip_, sizeof clip_);
   if (same_fog && runs_.back().map < 0 && same(runs_.back().state, state) && runs_.back().first + runs_.back().count == first)
     runs_.back().count += n;
   else
+  {
     runs_.push_back({state, first, n, {fog_rgb_[0], fog_rgb_[1], fog_rgb_[2]}});
+    std::memcpy(runs_.back().clip, clip_, sizeof clip_);
+  }
 }
 
 void SdlRender3D::draw_light_map(platform::Primitive type, const platform::LightMapVertex* v, int count, int32_t map,
@@ -383,6 +391,7 @@ void SdlRender3D::draw_light_map(platform::Primitive type, const platform::Light
   }
   Run r{state, first, static_cast<uint32_t>(vertices_.size()) - first, {fog_rgb_[0], fog_rgb_[1], fog_rgb_[2]}};
   r.map = map;
+  std::memcpy(r.clip, clip_, sizeof clip_);
   runs_.push_back(r);
 }
 
@@ -472,7 +481,24 @@ void SdlRender3D::end_scene() {
   SDL_GPUViewport vp{0, 0, static_cast<float>(w), static_cast<float>(h), 0, 1};
   SDL_SetGPUViewport(pass, &vp);
   const float vu[4] = {static_cast<float>(vx_), static_cast<float>(vy_), static_cast<float>(vw_), static_cast<float>(vh_)};
+  const SDL_Rect whole{0, 0, static_cast<int>(w), static_cast<int>(h)};
+  SDL_SetGPUScissor(pass, &whole);
+  const float* scissor = nullptr;  // the last run's clip, or null for the whole frame
   for (const Run& r : runs_) {
+    const float* want = r.clip[2] > r.clip[0] ? r.clip : nullptr;
+    if (want != scissor && (!want || !scissor || std::memcmp(want, scissor, sizeof r.clip))) {
+      SDL_Rect q = whole;
+      if (want && vw_ > 0 && vh_ > 0) {
+        const float kx = static_cast<float>(w) / static_cast<float>(vw_), ky = static_cast<float>(h) / static_cast<float>(vh_);
+        const int x0 = std::max(0, static_cast<int>(std::floor((want[0] - static_cast<float>(vx_)) * kx)));
+        const int y0 = std::max(0, static_cast<int>(std::floor((want[1] - static_cast<float>(vy_)) * ky)));
+        const int x1 = std::min(whole.w, static_cast<int>(std::ceil((want[2] - static_cast<float>(vx_)) * kx)));
+        const int y1 = std::min(whole.h, static_cast<int>(std::ceil((want[3] - static_cast<float>(vy_)) * ky)));
+        q = {x0, y0, std::max(0, x1 - x0), std::max(0, y1 - y0)};
+      }
+      SDL_SetGPUScissor(pass, &q);
+    }
+    scissor = want;
     const bool textured = r.state.texture >= 0 && r.state.texture < static_cast<int32_t>(textures_.size()) &&
                           textures_[r.state.texture];
     const bool light_map = r.map >= 0;

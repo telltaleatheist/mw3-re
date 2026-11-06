@@ -22,6 +22,8 @@
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
+#include "platform/render3d.h"
 #include "pm/gamez/zimage/zimg_texture.h"
 #include "pm/gamez/zmodel/gmod_clip3d.h"
 #include "pm/gamez/zmodel/gmod_cull.h"
@@ -1456,7 +1458,12 @@ int32_t walk_draw(::zcls::Node* node, uint32_t mask) {
   std::memcpy(&c.right, &from.side_1c, 4), std::memcpy(&c.bottom, &from.side_20, 4);
   CullState& k = cull_state();
   k.far_z = from.far_z, k.slope_x = v.cot_h, k.slope_y = v.cot_v;
-  return draw_model(node, mask, pm::zvid::device_call);
+  // FIX (A): strips skip clip_sides for Direct3D's viewport, the camera's window; ours is the whole frame.
+  platform::Render3D* device = ::zvid::render3d();
+  if (device) device->set_clip(c.left, c.top, c.right, c.bottom);
+  const int32_t r = draw_model(node, mask, pm::zvid::device_call);
+  if (device) device->clear_clip();
+  return r;
 }
 
 }  // namespace pm::zmod
