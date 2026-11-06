@@ -34,7 +34,9 @@ def main():
     e.cpu.fpu_control(0x007f)
     e.heap_stubs()
     moved = 0
+    arena = e.world_next
     for seed in range(cases):
+        e.world_next = arena  # each case's model starts over: the world memory is 16 MB
         r = random.Random(seed)
         n = r.randrange(0, 7)
         counts = [r.choice([1, 3, 3, 4, 4, 5, 8, 300]) for _ in range(n)]
