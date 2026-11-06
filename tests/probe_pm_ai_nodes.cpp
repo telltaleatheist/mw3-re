@@ -5,6 +5,7 @@
 #include <cstring>
 #include <string>
 
+#include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_node.h"
@@ -187,6 +188,35 @@ extern "C" int probe_pm_ai_valves(const char* entry, char* out, int size) {
     o += '\n';
   }
   delete d;
+  zrdr::free_node(root);
+  if (static_cast<int>(o.size()) >= size) return -1;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}
+
+// A net file's header (0x004eb960) as text, with its reports. `entry` is open already.
+namespace {
+std::string g_reports;
+void report_sink(int, const char*, int line, const char*) {
+  char b[16];
+  std::snprintf(b, sizeof b, "%x,", line);
+  g_reports += b;
+}
+}  // namespace
+extern "C" int probe_pm_ai_header(const char* entry, const char* base, int net, char* out, int size) {
+  zrdr::Node* root = zrdr::load(entry);
+  if (!root || root->type != zrdr::List) return -1;
+  zrdr::Node* top = root->list[0].i > 1 && root->list[1].type == zrdr::List ? &root->list[1] : root;
+  g_reports.clear();
+  zerr::set_sink(report_sink);
+  NetHeader h;
+  h.net = net;
+  h.parse(top, base);
+  zerr::set_sink(nullptr);
+  char b[128];
+  std::snprintf(b, sizeof b, "%d %d %x %x %x %d %s ", h.version, h.has_pos, fb(h.pos[0]), fb(h.pos[1]), fb(h.pos[2]), h.first,
+                h.name ? h.name : "-");
+  const std::string o = b + g_reports;
   zrdr::free_node(root);
   if (static_cast<int>(o.size()) >= size) return -1;
   std::memcpy(out, o.c_str(), o.size() + 1);

@@ -212,25 +212,25 @@ void NetHeader::parse(zrdr::Node* node, const char* base) {
       version = raw_i(*item(f, 1));
       const char* tag = f->list[0].i > 2 ? str(*item(f, 2)) : nullptr;
       if (version < 0x69)
-        report(0xfb, "%s has past version: %d will update on save", base, version);
+        report(0x100, "%s has past version: %d will update on save", base, version);
       else if (version >= 0x6d)
-        report(0xfd, "%s has future version: %d", base, version);
+        report(0x102, "%s has future version: %d", base, version);
       if (version == 0x69 && tag) {
         if (std::strcmp(tag, "mech3") == 0)
           version = 0x6a;
         else
-          report(0x106, "%s has incompatible version string: expected %s got %s", base, "mech3", tag);
+          report(0x10b, "%s has incompatible version string: expected %s got %s", base, "mech3", tag);
       }
     }
   } else {
-    report(0x10b, "%s has no version", base);
+    report(0x110, "%s has no version", base);
   }
   f = zrdr::find(node, "name");
   if (f) {
     first += 2;
     const char* n = is_list(f) ? str(*item(f, 1)) : nullptr;
     if (n && std::strcmp(n, kReserved) == 0) {
-      report(0x116, "%s: ignoring attempt to assign reserved net name: %s", base, n);
+      report(0x11b, "%s: ignoring attempt to assign reserved net name: %s", base, n);
     } else {
       std::free(name);
       name = dup(n);
@@ -251,18 +251,18 @@ void NetHeader::parse(zrdr::Node* node, const char* base) {
       if (name) {
         const char* expect = net_name(net);
         if (std::strcmp(expect, name) != 0)
-          report(0x13b, "%s.zrd: name field (\"%s\") must be \"%s\" for this net version (%d)", base, name, expect,
+          report(0x140, "%s.zrd: name field (\"%s\") must be \"%s\" for this net version (%d)", base, name, expect,
                  version);
         if (std::strcmp(expect, base) != 0)
-          report(0x13e, "%s.zrd: file name must be \"%s.zrd\" for this net version (%d)", base, expect, version);
+          report(0x143, "%s.zrd: file name must be \"%s.zrd\" for this net version (%d)", base, expect, version);
       }
       break;
     case 0x6b:
-      if (!name) report(0x144, "%s.zrd: name field must be present for this net version (%d)", base, 0x6b);
+      if (!name) report(0x149, "%s.zrd: name field must be present for this net version (%d)", base, 0x6b);
       break;
     case 0x6c:
       if (!name)
-        report(0x149, "%s.zrd: name field must be present and set to \"%s\" for this net version (%d)", base, base,
+        report(0x14e, "%s.zrd: name field must be present and set to \"%s\" for this net version (%d)", base, base,
                0x6c);
       break;
     default:
