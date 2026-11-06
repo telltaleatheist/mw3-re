@@ -18,6 +18,7 @@ state, the cursor), images the code made itself matched by first appearance.
 The x87 runs at 24 bits, as in play.
 """
 import ctypes
+import os
 import random
 import struct
 import sys
@@ -191,6 +192,8 @@ class Original:
         self.data, self.offset, self.dialog, self.plan, self.no_draw = data, offset, dialog, plan, no_draw
 
     def vcall(self, obj, slot, stack=()):
+        if os.environ.get('MW3_PM_MOVED') and obj == self.d and slot >= 4:
+            slot += 4  # PM's dialog has one more virtual at +4 (0x5bfd50)
         vt = self.e.r32(obj)
         return self.e.call(self.e.r32(vt + slot), ecx=obj, stack=stack)
 

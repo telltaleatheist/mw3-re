@@ -205,7 +205,8 @@ bool FontText::measure_prefix(int32_t n, Rect* r) {
   if (!dc) return false;
   const Handle old = host().SelectObject(dc, hfont);
   if (n < 1) {
-    if (host().DrawTextA(dc, "W", -1, r, 0x400)) {  // DT_CALCRECT: the line's height
+    // Pirate's Moon 1.0 @ 0x005c1ae0: DT_NOPREFIX too (0xc00), as in render.
+    if (host().DrawTextA(dc, "W", -1, r, 0xc00)) {  // DT_CALCRECT: the line's height
       ok = true;
       r->right = r->left;
     }
@@ -213,7 +214,7 @@ bool FontText::measure_prefix(int32_t n, Rect* r) {
     std::string s(text);
     if (n <= static_cast<int32_t>(s.size())) {
       s.resize(static_cast<size_t>(n));
-      if (host().DrawTextA(dc, s.c_str(), -1, r, 0x400)) ok = true;
+      if (host().DrawTextA(dc, s.c_str(), -1, r, 0xc00)) ok = true;
     }
   }
   host().SelectObject(dc, old);
@@ -432,15 +433,17 @@ void FontText::render() {
     return;
   }
   const Handle old = h.SelectObject(dc, hfont);
-  uint32_t format;
-  int32_t ok;
+  // Pirate's Moon 1.0 @ 0x005c1360: always measured (DT_CALCRECT | DT_NOPREFIX) and 3 wider, the
+  // fixed rect then put over it; drawn with DT_NOPREFIX: an & is an & (MW3's marks a shortcut).
+  uint32_t format = 0x800;
+  int32_t ok = h.DrawTextA(dc, text, -1, &text_rect, 0xc00);
+  text_rect.right += 3;
+  drawn_width = text_rect.right - text_rect.left;
+  drawn_height = text_rect.bottom - text_rect.top;
   if (fixed) {
-    format = 0x10;  // DT_WORDBREAK
+    format = 0x810;  // DT_WORDBREAK too
     text_rect = fixed_rect;
     ok = 1;
-  } else {
-    format = 0;
-    ok = h.DrawTextA(dc, text, -1, &text_rect, 0x400);  // DT_CALCRECT
   }
   if (!ok) {
     h.GetLastError();

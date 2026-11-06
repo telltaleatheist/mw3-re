@@ -29,13 +29,32 @@ BY_NAME = set()
 missing = {}
 
 
+# zTwoD's classes in PM: a text object has two more words before +0x4ac (0x5a0790's measure), and
+# so everything built on it; the dialog is longer. Found by aligning the paired functions.
+FIELDS = {'test_twod', 'test_twod_msgbox', 'test_lab_list', 'test_lab_screen'}
+
+
+def field(v):
+    if v < 0x1000:
+        return v + 8
+    if v < 0x10000:
+        return v + 0x70
+    if v < 0x11100:
+        return v + 0x190
+    if v < 0x11900:
+        return v + 0x198
+    return v + 0x1a0
+
+
 def rewrite(text, name):
     out = []
     for tok in tokenize.generate_tokens(io.StringIO(text).readline):
         s = tok.string
         if tok.type == tokenize.NUMBER and s.lower().startswith('0x'):
             v = int(s, 16)
-            if 0x400000 <= v < 0x900000:
+            if name in FIELDS and 0x4ac <= v < 0x13000 and not (0x1000 <= v < 0x4000):
+                s = hex(field(v))
+            elif 0x400000 <= v < 0x900000:
                 try:
                     s = hex(MAP(v))
                 except original.Unmapped:

@@ -441,6 +441,8 @@ class TwodWorld:
             emu._ret(1 if dc else 0, 0)
 
         def image_dc_release(emu, key, a, pop):
+            if os.environ.get('MW3_EXE') == 'pm':  # PM's takes the image alone; the port's call names the dc too
+                a = (a[0], next((d for d, i in reversed(list(w.dc_image.items())) if i == a[0]), 0))
             t.handle(key, tuple(a))
             emu._ret(0, 0)
         slot_spec = 's0,s1' if os.environ.get('MW3_EXE') == 'pm' else 'c,d'  # PM's are plain cdecl

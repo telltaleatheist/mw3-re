@@ -296,6 +296,7 @@ class FontText : public TextBase {
   Rect text_rect;                    // +0x490
   int32_t shadow_dx = -1, shadow_dy = -1;  // +0x4a0
   int32_t max_width = -1;            // +0x4a8
+  int32_t drawn_width = 0, drawn_height = 0;  // PM's +0x4ac, +0x4b0: as measured, set by render; no reader found
   Handle named = 0;                  // +0x4ac  a fonts.zrd font, referenced
 
   FontText(const char* format, int32_t px, int32_t py);  // 0x005a00c0
