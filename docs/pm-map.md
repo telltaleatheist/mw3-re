@@ -1429,6 +1429,7 @@ functions PM changed, and PM's new ones.
      PM's exe on every shipped file (`test_ai_readers` on `pm`: aiv, valves, nets, targets), which shows what the data
      needs; (4) the clamp; (5) the new behaviours and targets by the runs above, c1 first; (6) the clutter in W58's grid
      with `cls_di`'s PM queries (with dev 1, who owns collision); (7) movement modes and valve keys as the data asks.
+   **The real size (2026-11-05, an estimate, by the mech step's normalized compare; functions/instructions):** without the dev tools (the AI tester dialog, the net editor), same 559/13,021; shape 297/18,663; logic at most 217/26,249; new 397/28,696. 249 MW3 functions in the range have no pair (14,303 instructions), some inlined, some real rows the map can't see. The largest new area is net records and nodes, 160/12,533. **Order:** the readers on every shipped file; the query and clamp 0x4ccaf0; net records, nodes and new behaviours by what a c1m1 and a c1sa1 run reach; targets; clutter in the W58 grid; lance orders with the speed family and the mech's +0x14c; AI firing and weapon helpers, unless a run pulls them earlier.
 6. **The front end**: the load/save screens and saved games
    (`%s%02d.mw3`), the saved configurations (`.m3c`), the pilot and
    briefing screens; no movies (zFMV's 21 ported functions are gone).
