@@ -223,6 +223,7 @@ void ModesChain::debriefing() {
   std::printf("mw3: modes %s debriefing title: %s; rank %d\n", case_.c_str(),
               d->title.labels.size() > 2 ? d->title.labels[2]->text : "(none)", d->rank.shown);
   for (const ztwod::Text* t : d->texts) std::printf("mw3: modes %s debriefing line: %s\n", case_.c_str(), t->text);
+  std::printf("mw3: modes %s debriefing rows round %d: %s\n", case_.c_str(), round_, mech3::debrief_rows(*d).c_str());
   if (round_ == 1) {
     std::printf("mw3: modes %s debriefing round 1: score %d, CONTINUE (the next round)\n", case_.c_str(), d->score);
     round_ = 2, accepted_ = false;

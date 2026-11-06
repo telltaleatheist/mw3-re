@@ -24,6 +24,9 @@ AppVerName=Pirate's Moon Rebuild {#AppVersion}
 AppPublisher=Pirate's Moon Rebuild (a fan project)
 AppComments=A rebuild of MechWarrior 3: Pirate's Moon's program; it needs your own copy of the game.
 DefaultDirName={autopf}\Pirate's Moon Rebuild
+; The folder page every time, an upgrade's too (the default hides it there),
+; offering the folder already installed to.
+DisableDirPage=no
 DefaultGroupName=Pirate's Moon Rebuild
 DisableProgramGroupPage=yes
 ; Program Files needs administrator rights; a player without them can pick

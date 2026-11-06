@@ -646,6 +646,16 @@ void DebriefScreen::results(int32_t kind) {
   rank.set_rank(shown_rank);
 }
 
+// (ours) The results' texts in order, for the logs and the tests.
+std::string debrief_rows(const DebriefScreen& d) {
+  std::string out;
+  for (const ztwod::Text* t : d.texts) {
+    if (!out.empty()) out += " | ";
+    out += t->text;
+  }
+  return out;
+}
+
 // Mech3.exe 1.2 @ 0x0047c920
 DebriefScreen::~DebriefScreen() {
   for (ztwod::Text*& t : texts) {

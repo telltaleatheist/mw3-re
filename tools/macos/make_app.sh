@@ -32,7 +32,7 @@ if [ -z "$DEPS" ]; then
 fi
 NAME="Pirate's Moon"  # the app as installed (CFBundleName, the display name); the DMG is PM-Rebuild-
 BUNDLE_ID="com.owenmorgan.mw3pmrebuild"  # its own, so it does not replace MW3's
-VER="$(git describe --tags --always --dirty)"
+VER="$(git describe --tags --match 'v[0-9]*' --always --dirty)"
 OUT=build-mac/dist
 APP="$OUT/$NAME.app"
 

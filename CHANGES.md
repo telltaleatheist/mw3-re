@@ -63,14 +63,16 @@ it is clear what the designers meant.
   frame rate, and exactly as before at 30 fps. A turret aimed straight up
   or down also keeps its shape. Vehicles keep the original's damping.
 - **Mech movement plays the same at any frame rate.** Falls, the shoves from
-  slopes and ledges, the blend into a walk, jump-jet thrust and the damage
-  done to buildings you push into all went by frames; they now play as they
-  did at 30 fps.
+  slopes and ledges, the blend into a walk and jump-jet thrust all went by
+  frames; they now play as they did at 30 fps.
 - **The throttle keys open the throttle at the same speed at any frame
   rate.** Each frame a key was held added a fixed step, so on a fast computer
   the throttle ran up several times faster. It now moves as it did at
   30 fps: from stop to full in about 1.3 seconds (with the lance command
   panel open too, which has its own copy of the keys).
+  The mech's speed then follows at the same pace too: above about 83 fps an
+  earlier version of this fix let it skip its slow build-up and pull away
+  nearly 2 seconds sooner.
 - **Lasers and TAG recharge at the same speed at any frame rate.** The
   original dropped the fraction of each frame's recharge, so the faster the
   game ran the slower beams came back: TAG took 67 seconds at 30 fps, 83 at
@@ -146,6 +148,8 @@ it is clear what the designers meant.
 - **A mech put back on the ground looks 10 m above where it stands**, as everything else in the game does. The original looked y + 10 above a mech at height y, so below sea level it found nothing and dropped to the lowest surface (under a bridge), and high up it could land on a roof overhead. No mission's starting place changes: all 195 placements in the 24 campaign missions and all 768 records in every campaign, Instant Action and multiplayer file land exactly where they did. What changes is a mech re-placed where it stands (swapping mechs mid-mission or in multiplayer), which now stays put.
 - **Cut ground keeps its texture lined up.** When a crater cut a ground polygon and a corner of a cut piece lay on a straight edge, the original dropped that corner from the piece's points but not from its texture coordinates and colours, so every corner after it took the next one's: the texture and shading on that piece slid by one corner (about 1 in 200 of the polygons a crater adds). The extra corner's texture coordinates and colours now go with it.
 - **Craters next to an earlier crater are judged on the earlier one.** The original refuses a crater that would come within 5 m of an earlier crater in the same patch of ground, but it checked against the earlier crater's record after freeing it, so the answer depended on what the memory held by then. The rebuild keeps the earlier craters' outlines for the test.
+- From high up, no dark band between the far ground and the sky: what nothing draws takes the fog's colour (bug fixes on).
+- A light carried by something that moves now shines from where it is, not from the world's origin.
 
 ## Crashes and broken data that no longer break the game
 
@@ -671,10 +675,13 @@ Known quirks the rebuild deliberately keeps:
 - With no joystick attached, a saved controls file with axes on the stick no longer makes your mech walk or its torso turn by itself (bug fixes on). The original moved the axes off the stick only for a file exactly like the defaults; a slider, or just a changed deadzone, kept them. The binding is kept for when the stick is back.
 - On fast machines, small bumps throw vehicles much less: the suspension's reaction to the ground is capped at what it is at 30 fps. On rough ground they still tip more than at 30 fps, and they still jump off steep banks at full speed now and then, as in the original.
 - A controls file whose first axis names no source, with no key list, gets no axis source; Pirate's Moon took the file name's address as one.
-- From high up, no dark band between the far ground and the sky: what nothing draws takes the fog's colour (bug fixes on).
-- A light carried by something that moves (a mech's headlight) now shines from where it is, not from the world's origin.
 - A mech under deep water drowns at the same speed at any frame rate.
 - Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).
 - Pirate's Moon: a firepoint whose aim range runs past straight up or down keeps its real top limit (bug fixes on).
 - Pirate's Moon: a mission trigger that sets an AI range on a vehicle with no pilot does nothing, where the original would crash. No shipped mission does this.
 - Pirate's Moon: a broken mission boundary with impossible numbers can't crash the AI's way finding.
+- Linux: the game no longer closes at the end of the intro movies. The launcher closed when the game appeared, which unmounted the AppImage the game was still running from; it now waits, out of sight, until the game ends.
+- A crash now says so, in the log and in a message box that names the log, as does a start that cannot open its window or graphics. It used to just close.
+- Linux: an install whose files are in another letter case (all lower case, all upper case, mixed) now works. Windows ignores case, so the game's names never had to match; on Linux it could not find them.
+- A softer message when files match neither 1.0 nor 1.2: they look modded or from another version, data mods are read but may not play right, and a mod that patches the old Mech3.exe won't apply. It never stopped the game, and still doesn't.
+- Your data folder (settings, pilots, saves, converted movies) can live on another drive: GAME FILES, MY DATA FOLDER in the launcher copies it, checks the copy, then switches over, and removes the old copy only if you say so. If the drive is missing at start the game says so instead of starting afresh.

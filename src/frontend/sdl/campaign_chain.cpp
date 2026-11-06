@@ -720,6 +720,7 @@ void CampaignChain::frame() {
           std::printf("mw3: chain standalone debrief: rank %d, help %d, CONTINUE help \"%s\", won flag %d, at %d, best %d\n",
                       d->rank.shown, 0, d->continue_help_text(), d->campaign_over(), st ? st->x38 : -1, st ? st->x3c : -1);
         }
+        std::printf("mw3: chain debriefing rows after %s: %s\n", launched_.c_str(), mech3::debrief_rows(*d).c_str());
         std::printf("mw3: chain debriefing after %s: score %d, CONTINUE (%swins %d; the game now at %s)\n",
                     launched_.c_str(), d->score, failing_ ? "failed on purpose; " : "", wins_, mission_name().c_str());
         failing_ = false;

@@ -25,7 +25,7 @@ option(MW3_BUILD_MW3 "Build MechWarrior 3's programs, probe and tests from this 
 set(MW3PM_GAME_DIR "${CMAKE_SOURCE_DIR}/game/pm" CACHE PATH "The Pirate's Moon install the PM tests and tools read")
 # The version mw3 --version and the Windows version resource give: git's
 # describe (a tag, or the commit) and the commit count.
-execute_process(COMMAND git describe --tags --always --dirty WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+execute_process(COMMAND git describe --tags --match "v[0-9]*" --always --dirty WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                 OUTPUT_VARIABLE MW3_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 execute_process(COMMAND git rev-list --count HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                 OUTPUT_VARIABLE MW3_BUILD_NUMBER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -37,7 +37,7 @@ if(NOT MW3_BUILD_NUMBER)
 endif()
 
 if(MSVC)
-  add_compile_options(/W4)
+  add_compile_options(/W4 "$<$<COMPILE_LANGUAGE:CXX>:/EHsc>")  # build.cmd's own flags replace CMake's default
 else()
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -67,6 +67,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_reg.cpp
   src/platform/reg_file.cpp
   src/platform/cue_audio.cpp
+  src/mech3/data_folder.cpp
   src/mech3/data_version.cpp
   src/mech3/patch12.cpp
   src/mech3/patch12_edits.cpp
@@ -553,6 +554,7 @@ add_executable(mw3tests
   tests/test_lance.cpp
   tests/test_nav.cpp
   tests/test_setup_sources.cpp
+  tests/test_data_folder.cpp
   tests/test_patch12.cpp
   tests/test_video_device.cpp
   tests/test_resolution.cpp
@@ -747,6 +749,7 @@ if(SDL3_FOUND)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
       src/frontend/sdl/run_log.cpp
+      src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
@@ -792,6 +795,7 @@ if(SDL3_FOUND)
       src/frontend/sdl/launcher_main.cpp
       src/frontend/sdl/launcher.cpp
       src/frontend/sdl/run_log.cpp
+      src/frontend/sdl/crash_report.cpp
     )
     target_link_libraries(mw3launcher PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
     target_compile_definitions(mw3launcher PRIVATE MW3_VERSION="${MW3_VERSION}")
@@ -828,6 +832,7 @@ if(SDL3_FOUND)
         src/frontend/pm_debug_world.cpp
         src/frontend/sdl/mw3_main.cpp
         src/frontend/sdl/run_log.cpp
+        src/frontend/sdl/crash_report.cpp
         src/frontend/sdl/launcher.cpp
         src/frontend/sdl/debug_states.cpp
         src/frontend/sdl/campaign_chain.cpp

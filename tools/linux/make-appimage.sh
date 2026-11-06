@@ -23,7 +23,7 @@ rm -rf build-linux-pkg
 cmake -S . -B build-linux-pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DMW3_PACKAGE=ON -DCMAKE_PREFIX_PATH="$PREFIX"
 cmake --build build-linux-pkg --target mw3pm
 
-VER=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+VER=$(git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo dev)
 APPDIR=build-linux-pkg/AppDir
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/doc/mw3pm/licenses"
 # mw3pm is the AppImage's entry (mw3pm.desktop's Exec); no launcher in PM's package for now.

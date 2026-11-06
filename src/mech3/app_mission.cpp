@@ -1071,6 +1071,8 @@ WiredBrainHooks g_brain_hooks;
 // the objectives' lookup both.
 Handle entity_by_name(GameEngine& e, const char* name) {
   if (!name) return 0;
+  if (std::strcmp(name, "player") == 0)  // the launch names its mech so (0x004140c0, mission_launch.cpp)
+    if (void* p = mech_mission_player()) return e.handle_of(p);
   int32_t n = 0;
   const AiMechMade* m = mission_ai_mechs(&n);
   for (int32_t i = 0; i < n; ++i)
@@ -1116,7 +1118,7 @@ struct WiredValveHooks : ai::ValveHooks {
     const AiMechMade* m = mission_ai_mechs(&n);
     for (int32_t i = 0; i < n; ++i)
       if (e->object_of(h) == m[i].mech) return true;
-    return false;
+    return is_launched_mech(e->object_of(h));
   }
   // A basic vehicle answers itself to vt+0x2c and vt+0x40 (0x004d2a70), 0
   // to vt+0x50 (0x0040bae0); its vt+0x140 is its controls (0x004020b0).
@@ -1185,6 +1187,10 @@ uint32_t target_weapon_hit(zwep::Handle owner, zwep::WeaponDef* def, zwep::HitRe
 float target_collide(zwep::Handle owner, float damage) { return static_cast<ai::CZAiTarget*>(owner)->on_collide(damage); }
 
 struct WiredTargetHooks : ai::TargetHooks {
+  void target_set(ai::AiTarget& t, ai::Contact* c) override {  // vt+0xc0: 0x0041d890 on the view's mech
+    t.set_target(c, false);
+    program_hud_target_set_by(&t);
+  }
   GameEngine* e = nullptr;
   std::unique_ptr<ai::TargetRec> rec[2];
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
