@@ -389,13 +389,19 @@ bool Missions::setup() {
   return true;
 }
 
+void Missions::open_game_reader() {
+  if (!game_reader_open) g_hooks->game_open_reader();
+  game_reader_open = true;
+}
+
 // Mech3.exe 1.2 @ 0x00490880 and its thread 0x00490900. FIX (A): the load
 // runs here, not on a thread at idle priority beside the briefing: the
 // world's textures go to the GPU, which wants the main thread. The briefing
 // sees it finished at once (0x00490930).
 void Missions::start() {
   g_hooks->game_mission_index();
-  g_hooks->game_open_reader();  // Pirate's Moon: vt+0x64 at 0x00407f38
+  open_game_reader();  // Pirate's Moon: vt+0x64 at 0x00407f38
+  game_reader_open = false;
   done = 0;
   abort = 0;
   failed = setup() ? 0 : 1;

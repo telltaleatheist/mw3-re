@@ -331,6 +331,8 @@ struct Missions {
   bool finished() const { return done; }   // 0x00490930
   void open_readers(const char* name);     // 0x00490630
   void block_name(char* out);              // 0x00490600
+  void open_game_reader();                 // once a mission: the load's or the waynet's, whichever is first
+  bool game_reader_open = false;
   void block_name(int32_t number, char* out);  // 0x00490590: m%d, ia%d or mp%d
   bool texture_budget(uint32_t* mb);       // 0x004902a0
   bool begin();                            // 0x0048f400

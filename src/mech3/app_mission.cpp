@@ -2179,7 +2179,11 @@ struct WiredMissionHooks : MissionHooks {
   }
   void pilot_game_ia() override {}
   void fn_4f9930() override {}  // 0x004f9a10 over the world's list: to port with zEffect's start
-  void puffer_tick_reset() override { zmod::puff_tick_reset(); }
+  void puffer_tick_reset() override {
+    zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };  // PM calls this before the hooks' set-up
+    wire_puff_node();
+    zmod::puff_tick_reset();
+  }
   void weapon_detail_a(int32_t) override {}  // read by PM's zWeapon, not ported yet
   void weapon_detail_b(int32_t) override {}
   uint8_t no_clutter() override { return mech3::object_lod() == 2 ? 1 : 0; }  // [0x0062cc58], -noclutter not offered
@@ -2673,7 +2677,7 @@ void GameEngine::missions_update(uint32_t list, float dt) {
 // the mission directory's and "<dir><block>" (its voices), unless the game is
 // of kind 6 (vt+0x54) or the briefing voices are off (app +0x1c3); then
 // the mission's nav waynet (0x004797c0 into +0xb0 / +0xb4) by the game type
-// (vt+0x2c): waynet_N for 0, 1 and 4, waynet_iaN for 2, waynet_mpN for 3.
+// (waynet_ and the game's block).
 void GameEngine::missions_reset(uint32_t list) {
   // Ours: the last mission's world is freed by now in the port (its cleanup's
   // world_clear); the waynets built here see none, as the exe's do before
@@ -2691,15 +2695,15 @@ void GameEngine::missions_reset(uint32_t list) {
     missions().block_name(block);  // 0x00490600
     zsnd::load_set((std::string(dir) + block).c_str());  // "%s%s"
   }
-  const int32_t type = launch_.type;
-  const char* fmt = type == 2 ? "waynet_ia%d" : type == 3 ? "waynet_mp%d"  // 0x005e754c, 0x005e7540
-                    : (type == 0 || type == 1 || type == 4) ? "waynet_%d" : nullptr;  // 0x005e7558
-  if (fmt) {
-    char name[32];
-    std::snprintf(name, sizeof name, fmt, launch_.number);
-    void* w = program_nav_waynet_make(name);
-    missions().xb4 = missions().stations = w ? handle_of(w) : 0;
-  }
+  // Pirate's Moon 1.0 @ 0x00493a90: one format, "waynet_%s", on the game's block (vt+0x58): waynet_m1, _ia1, _sa1,
+  // _mp1. The file is in reader<key>.zbd, which the exe opens first (0x00407f38).
+  missions().open_game_reader();
+  char block[32] = {};
+  missions().block_name(block);
+  char name[48];
+  std::snprintf(name, sizeof name, "waynet_%s", block);
+  void* w = program_nav_waynet_make(name);
+  missions().xb4 = missions().stations = w ? handle_of(w) : 0;
 }
 
 // The debug launch's pilot and game (our addition): [0x0060861c] a pilot
