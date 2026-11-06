@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdio>
 
-#include "gamez/zmodel/gmod_matl.h"
+#include "../../../gamez/zmodel/gmod_matl.h"
 
 // C:\zipper\branchep1\gamez\zModel\gmod_matl.c: what Pirate's Moon changed in
 // the material table (docs/pm-map.md, gamez.zbd 41). The table is zmod's.

@@ -5,8 +5,8 @@
 #include <memory>
 #include <vector>
 
-#include "gamez/zmodel/gmod_const.h"
-#include "gamez/zmodel/gmod_matl.h"
+#include "../../../gamez/zmodel/gmod_const.h"
+#include "../../../gamez/zmodel/gmod_matl.h"
 
 // C:\zipper\branchep1\gamez\zModel\gmod_const.c: Pirate's Moon's world models
 // (docs/pm-map.md, gamez.zbd 41). PM's own types, not MW3's: a polygon has a

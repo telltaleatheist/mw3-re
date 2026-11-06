@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdio>
 
-#include "gamez/zimage/zimg_texture.h"
+#include "../../../gamez/zimage/zimg_texture.h"
 
 // C:\zipper\branchep1\gamez\zImage\zimg_texture.cpp: what Pirate's Moon
 // changed in the texture table (docs/pm-map.md, gamez.zbd 41). The table is

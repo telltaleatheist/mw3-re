@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdio>
 
-#include "gamez/zclass/cls_mechlib.h"
+#include "../../../gamez/zclass/cls_mechlib.h"
 
 // Pirate's Moon's mechlib.zbd (version 41; docs/pm-map.md, mechlib 41).
 // Original file unknown: it sits between branchep1\gamez\zClass\object3d.c and
