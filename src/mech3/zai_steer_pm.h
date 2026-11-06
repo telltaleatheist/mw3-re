@@ -68,6 +68,7 @@ struct SteerPm {
   SteerPm();                                                                 // 0x004dc0f0
   bool near(SteerPmHooks& h) const;                                          // 0x004dc210
   bool at_end() const { return along_at <= along_min; }                      // 0x004dc270
+  const float* way_begin(float out[3]) const;                                // 0x004d9920
   void carrot(float out[3]) const;                                           // 0x004dc290
   void on_line(const float p[3], float out[2]) const;                        // 0x004dc320
   void project(const float p[3], float out[2]) const;                        // 0x004dc980
