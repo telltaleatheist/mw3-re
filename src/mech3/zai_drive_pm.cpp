@@ -20,29 +20,29 @@ const TurnPmParams& turn_walk_params() {
 
 // Pirate's Moon 1.0 @ 0x004d7060 (MW3's 0x004cdd40)
 float turn_pm(const float fwd[3], const float to[3], float* dot, float* cross, float keep, const TurnPmParams& p) {
-  const float d = fwd[2] * to[2] + fwd[0] * to[0];
+  const float d = wide_sum(fwd[2], to[2], fwd[0], to[0]);
   *dot = d;
   *cross = 0.0f;
   if (!(p.behind <= d)) return keep == 0.0f ? 1.0f : keep;
   if (p.cos_dead <= d) return 0.0f;
-  const float c = fwd[2] * to[0] - to[2] * fwd[0];
+  const float c = wide_sum(fwd[2], to[0], -to[2], fwd[0]);
   *cross = c;
   if (d < 0.0f) return c < 0.0f ? -1.0f : 1.0f;
   if (-p.sin_dead <= c) {
     if (!(p.sin_dead < c)) return 0.0f;
-    const float v = (c - p.sin_dead) * p.gain;
+    const double v = (double{c} - p.sin_dead) * p.gain;
     if (1.0 < v) return 1.0f;
-    return v < p.least ? p.least : v;
+    return v < p.least ? p.least : static_cast<float>(v);
   }
-  const float v = (c + p.sin_dead) * p.gain;
+  const double v = (double{c} + p.sin_dead) * p.gain;
   if (v < -1.0) return -1.0f;
-  return -p.least < v ? -p.least : v;
+  return -p.least < v ? -p.least : static_cast<float>(v);
 }
 
 // Pirate's Moon 1.0 @ 0x004d71e0 (MW3's 0x004cdee0)
 float turn_or_back_pm(const float fwd[3], const float to[3], float* dot, float* cross, float keep, bool* back,
                       const TurnPmParams& p) {
-  const float d = fwd[0] * to[0] + fwd[2] * to[2];
+  const float d = wide_sum(fwd[0], to[0], fwd[2], to[2]);
   *back = d < kBackCos;
   if (!*back) return turn_pm(fwd, to, dot, cross, keep, p);
   const float rear[3] = {-fwd[0], 0.0f, -fwd[2]};
@@ -82,15 +82,16 @@ void drive_pm(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float away[2], 
   float dot, cross;
   *turn = back ? turn_or_back_pm(fwd, to, &dot, &cross, keep, &back, turn_walk_params())
                : turn_pm(fwd, to, &dot, &cross, keep, turn_walk_params());
-  float a = away[0] - slack_along, b = away[1] - slack_side;
-  if (!(dot > s.x40) || (!(a > 0.0f) && !(b > 0.0f))) {
+  float a = away[0] - slack_along;
+  double b = double{away[1]} - slack_side;
+  if (!(dot > s.x40) || (!(a > 0.0f) && !(b > 0.0))) {
     *throttle = 0.0f;
     return;
   }
   if (a < 0.0f) a = 0.0f;
-  if (b < 0.0f) b = 0.0f;
-  const float t = (kAlongShare * a + b) * inv_slow;
-  *throttle = back ? -t : t;
+  if (b < 0.0) b = 0.0;
+  const double t = (double{kAlongShare} * a + b) * inv_slow;
+  *throttle = static_cast<float>(back ? -t : t);
   const float most = h.max_throttle();
   if (most < *throttle) *throttle = most;
   else if (-most > *throttle) *throttle = -most;

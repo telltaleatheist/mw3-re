@@ -52,7 +52,7 @@ struct World : WalkPmHooks {
   bool has_pilot(zgame::Handle) override { return pilot; }
   float pilot_x544(zgame::Handle) override { return x544; }
   float now() override { return clock; }
-  float speed_at(zgame::Handle, float t) override { return t * k_speed; }
+  double speed_at(zgame::Handle, float t) override { return double{t} * k_speed; }
   float stop_distance(zgame::Handle, float v) override { return v * k_stop; }
   float range_far() override { return far; }
   float range_near() override { return near; }

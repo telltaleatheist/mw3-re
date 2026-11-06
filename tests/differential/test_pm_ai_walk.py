@@ -10,12 +10,14 @@ Then the guarding context 0x4dfb50 with its measure 0x4dfc30. On any of them the
 """
 import ctypes
 import math
+import os
 import random
 import struct
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.md
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 import pm_floors  # noqa: E402
@@ -26,6 +28,10 @@ VT = 0x5eec2c
 FIGHT_STATE, FIGHT_CTX, FIGHT_ENTER, FIGHT_RESET, FIGHT_RELEASE = 0x4d9b10, 0x4d99a0, 0x4d9be0, 0x4d9ce0, 0x4d9cc0
 FIGHT_MEASURE, FIGHT_TARGET, FIGHT_DECIDE, NOW = 0x4d9a90, 0x4d99e0, 0x4d9b90, 0x62da90
 SLOT = {'0': 0x00, '1': 0x04, '2': 0x08, '3': 0x0c, '5': 0x14, '6': 0x1c, '7': 0x20}
+
+
+def f32(v):
+    return struct.unpack('<f', struct.pack('<f', v))[0]
 
 
 def bits(v):
@@ -120,7 +126,7 @@ class Exe(test_pm_zar.Emulated):
         if self.on_from:
             self.fs(o, [fa[0], fb[1], fa[2]])
         else:
-            self.fs(o, [(fa[0] + fb[0]) * 0.5 + 3.0, fb[1], (fa[2] + fb[2]) * 0.5 - 2.0])
+            self.fs(o, [f32(f32((fa[0] + fb[0])) * 0.5) + 3.0, fb[1], f32(f32((fa[2] + fb[2])) * 0.5) - 2.0])  # as the probe's, in floats
         return 1
 
     def ctl_stub(self, which):
@@ -441,39 +447,8 @@ def text(lines):
     return '\n'.join(o) + '\n'
 
 
-# What a plan writes, by field: the steering's along, side, its direction, length, along_at, and again along and
-# side, then the brain's +0x2b8. All that differs when the plan's two ways part.
-WAY_FIELDS = {18, 19, 64, 65, 67, 68, 70, 71, 72, 73, 74}
-LENGTH, ALONG_AT = 67, 68
-MOST_TIES = 2  # a default run has 1 (seed 447)
-
-
-def tie_split(op, was_exe, was_port, pw, qw, pe, qe):
-    """The plan's `length < along_at` (0x4da28f's first test) on values a few units in the last place apart, gone one
-    way in the exe and the other here. Rounding, not logic: float results that the 1e-3 allowance rightly passes, and
-    either way is one the exe can take. True only for that: the line before shows the tie split, this line is a plan,
-    every flag and every field a plan doesn't write agree. A way field differing otherwise is a difference."""
-    p, q = was_exe.partition('|')[0].split(), was_port.partition('|')[0].split()
-    if op not in 'PS' or pe.split() != qe.split() or len(pw) != len(qw) or len(p) <= ALONG_AT or len(q) != len(p):
-        return False
-    units = [abs(int(w[LENGTH], 16) - int(w[ALONG_AT], 16)) for w in (p, q)]
-    took = [as_float(w[LENGTH]) < as_float(w[ALONG_AT]) for w in (p, q)]
-    if max(units) > 4 or took[0] == took[1]:
-        return False
-    return all(close(u, v) for k, (u, v) in enumerate(zip(pw, qw)) if k not in WAY_FIELDS)
-
-
-def as_float(v):
-    return struct.unpack('<f', struct.pack('<I', int(v, 16)))[0]
-
-
 def close(a, b):
-    if a == b:
-        return True
-    x, y = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (a, b))
-    if math.isinf(x) or math.isinf(y):  # the allowance would be infinite too
-        return False
-    return abs(x - y) <= 1e-3 + 1e-4 * max(abs(x), abs(y))
+    return a == b  # at 53 bits, to the bit
 
 
 def main():
@@ -481,7 +456,7 @@ def main():
     lib = test_pm_zar.load_pm_probe()
     lib.probe_pm_ai_walk.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     buf = ctypes.create_string_buffer(1 << 20)
-    bad = steps = ties = 0
+    bad = steps = 0
     seen = {}
     for seed in range(runs * 3):
         lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed)
@@ -497,16 +472,11 @@ def main():
         assert lib.probe_pm_ai_walk(text(lines).encode(), buf, len(buf)) >= 0
         b = buf.value.decode().split('\n')
         steps += len(a)
-        off = len(lines) - (len(a) - 1)  # lines before the context exists print nothing
         for i, (p, q) in enumerate(zip(a, b)):
             pf, _, pe = p.partition('|')
             qf, _, qe = q.partition('|')
             pw, qw = pf.split(), qf.split()
             if len(pw) != len(qw) or pe.split() != qe.split() or not all(close(u, v) for u, v in zip(pw, qw)):
-                if i and tie_split(lines[i + off][0], a[i - 1], b[i - 1], pw, qw, pe, qe):
-                    ties += 1
-                    a = b = []  # the two ways differ from here on: the plan ends
-                    break
                 print(f'seed {seed} line {i}:\n  exe  {p}\n  port {q}')
                 bad += 1
                 break
@@ -516,9 +486,7 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs * 3} plans, {steps} lines: {bad} differ; {ties} plans ended on a tie')
-    if ties > MOST_TIES:
-        raise SystemExit(f'too many plans ended on a tie: {ties} (at most {MOST_TIES})')
+    print(f'{runs * 3} plans, {steps} lines: {bad} differ')
     print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},
