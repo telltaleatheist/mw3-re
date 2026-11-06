@@ -97,7 +97,7 @@ PM model, so a PM world never silently draws nothing.
 
 - **The game table**: `src/gamez/zgame/zgame_table.h`, `zgame::Table`,
   one per game: MW3's is the default (`zgame::mw3_table()`), PM's is
-  `pm::table()` (`src/pm/pm_game.cpp`), set by `zgame::set_game` before
+  `pm::table()` (`src/pm/game/pm_game.cpp`), set by `zgame::set_game` before
   anything loads. Shared code calls a changed function through
   `zgame::game()`; each entry arrives with its port (`pm-map.md`, step 1
   onwards). For now it holds only the game's name and its exe's.
