@@ -34,6 +34,8 @@
 #include "frontend/sdl/sdl_input.h"
 #include "mech3/controls_cfg.h"
 #include "frontend/sdl/sdl_install.h"
+#include "mech3/game_setup.h"
+#include "mech3/source_map.h"
 #include "frontend/sdl/sdl_platform.h"
 #include "frontend/sdl/sdl_sound.h"
 #include "frontend/sdl/sdl_twod_host.h"
@@ -5003,6 +5005,57 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
 #endif
 #endif
 #endif  // MW3_PM_SUITE
+
+#if defined(MW3_PM_SUITE)
+// The first start finds Pirate's Moon and only that (sdl_install.h, source_map.h): a real PM folder
+// is used and remembered; MechWarrior 3's, or PM's disc, each say why not; mw3.cfg's PM wins over
+// the search, and a MechWarrior 3 folder in the search or left in mw3.cfg is passed over.
+TEST(pm_find_takes_pirates_moon_only) {
+  namespace source = mech3::source;
+  const std::string pm = MW3_GAME_DIR, root = pm + "/..";
+  if (!std::filesystem::exists(pm + "/zbd/reader.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm_find";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/other/zbd", ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  EXPECT(sdlfe::install_valid(pm));
+  const source::Found folder = source::map_source(pm);
+  EXPECT(source::usable(folder) && folder.summary.find("installed copy of Pirate's Moon") != std::string::npos);
+  EXPECT(source::usable(source::map_source(pm + "/Mech3.exe")));
+  EXPECT(mech3::setup::check_install(pm, "").ok);
+  std::string why;
+  // A reader.zbd that is MechWarrior 3's by its tail (pm::install_kind).
+  const uint32_t tail[3] = {0, 1, 0};
+  std::string mw3 = root + "/mw3-1.2";
+  if (std::FILE* f = std::fopen((dir + "/other/zbd/reader.zbd").c_str(), "wb")) std::fwrite(tail, 4, 3, f), std::fclose(f);
+  EXPECT(!sdlfe::install_valid(dir + "/other", &why) && why.find("MechWarrior 3") != std::string::npos);
+  EXPECT(!mech3::setup::check_install(dir + "/other", "").ok);
+  if (std::filesystem::exists(mw3 + "/zbd/reader.zbd")) {
+    EXPECT(!sdlfe::install_valid(mw3));
+    const source::Found f = source::map_source(mw3);
+    EXPECT(f.game == source::Found::kMw3 && !source::usable(f) && f.summary.find("not Pirate's Moon") != std::string::npos);
+  } else {
+    mw3 = dir + "/other";
+  }
+  if (std::filesystem::exists(root + "/pm-disc/iso/DATA1.HDR")) {
+    const source::Found f = source::map_source(root + "/pm-disc/iso");
+    std::printf("  the disc's folder: game %d kind %d: %s\n", static_cast<int>(f.game), static_cast<int>(f.kind), f.summary.c_str());
+    EXPECT(f.game == source::Found::kPiratesMoon && !source::usable(f) && f.summary.find("Install it from the disc first") != std::string::npos);
+  }
+  // The search: mw3.cfg's PM over all; a MechWarrior 3 folder never, in either place.
+  bool searched = false;
+  EXPECT(sdlfe::find_install(pm, {mw3}, false, &searched) == pm && !searched);
+  EXPECT(sdlfe::find_install(mw3, {pm}, false, &searched) == pm && searched);
+  EXPECT(sdlfe::find_install("", {mw3, pm}, false, &searched) == pm);
+  EXPECT(sdlfe::find_install(mw3, {mw3}, false, &searched).empty());
+  // Remembered: what the find screen saves is what the next start reads.
+  EXPECT(sdlfe::save_install(dir + "/wd", pm));
+  std::ifstream in(dir + "/wd/mw3.cfg");
+  const std::string cfg((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  EXPECT(cfg.find("install=" + pm) != std::string::npos);
+}
+#endif
 
 #if defined(MW3_PM_SUITE) && !defined(_WIN32)
 // mw3pm's start-up as mw3's, under its own name: a crash says so in the log (crash_report.h; the test's
