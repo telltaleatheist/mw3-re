@@ -255,6 +255,7 @@ class GameEngine : public Engine {
   // The loadouts page's (step 4): the ported lists, loadouts and store.
   Handle lab_dfn_configs(Handle dfn) override;
   std::vector<Handle> lab_list_configs(Handle list) override;
+  int32_t lab_list_mech(Handle list) override;
   void lab_list_append(Handle list, Handle config) override;
   bool lab_list_remove(Handle list, Handle config) override;
   void lab_list_save(Handle list) override;

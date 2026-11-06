@@ -1754,7 +1754,10 @@ LabSpeeds lab_mech_speeds(Engine& e, Handle config) {
 // Pirate's Moon 1.0 @ 0x00458a50: row 3 is the structure with the cockpit and shielding.
 float lab_chassis_tons(Engine& e, Handle config, int32_t row) {
   if (!config) return 0.0f;
-  if (row == 3) return e.lab_config_weight_of(config, 3) + e.lab_config_weight_of(config, 8);
+  if (row == 3) {  // (PM asks for the 8 first)
+    const float eight = e.lab_config_weight_of(config, 8);
+    return e.lab_config_weight_of(config, 3) + eight;
+  }
   return e.lab_config_weight_of(config, row);
 }
 
@@ -2392,7 +2395,8 @@ void LabScreen::on_button(int32_t id, int32_t a, int32_t b) {
     const std::string name = e.lab_config_name(cfg);
     const Handle existing = e.lab_list_find(list, name.c_str());
     const Handle copy = e.lab_config_copy(name.c_str(), cfg);
-    e.lab_list_append(list, copy);
+    // Pirate's Moon 1.0 @ 0x00426d10: the list takes only a loadout of its own mech.
+    if (e.lab_list_mech(list) == e.config_mech(copy)) e.lab_list_append(list, copy);
     configs.fill();
     configs.select_config(copy);
     if (existing) edit_name(true, false);
@@ -2663,9 +2667,9 @@ void LabScreen::show_page(int32_t p, bool show) {
 }
 
 // Mech3.exe 1.2 @ 0x0044a890
+// Pirate's Moon 1.0 @ 0x0044bc20: without MW3's unused call to 0x00484650.
 void MechButton::set_mech(int32_t m, bool sel, ztwod::Image* glow) {
   if (m != mech) {
-    e_.mech_name_of(m);  // 0x00484650, its answer unused
     zimg::Texture* old = img_normal;
     img_normal = set_image(static_cast<zimg::Texture*>(nullptr));
     ztwod::host().image_release(old);

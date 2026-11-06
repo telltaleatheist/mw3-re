@@ -57,6 +57,8 @@ struct LabHost : RecordingHost {
 
 struct LabEngine : mech3::Engine {
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override { return call(key, args); }
+  // Pirate's Moon 0x0047b770(0): the game's kind asked, 5 for the second campaign.
+  bool pilot_standalone() override { return vcall(field32(pilot(), 0x6c), 0x2c, {}) == 5; }
   int32_t fast_menu() override { return static_cast<int32_t>(call("0x0040cec0", {}) & 0xff); }
   void set_fast_menu(int32_t on) override { call("0x0040ce90", {on}); }
   int32_t display_width() override { return static_cast<int32_t>(call("0x0040d760", {})); }

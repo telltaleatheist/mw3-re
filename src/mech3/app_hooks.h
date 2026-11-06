@@ -795,6 +795,7 @@ class Engine : public zgame::AppHooks {
   // and its +0x10 (full).
   virtual Handle lab_dfn_configs(Handle dfn) { return field32(dfn, 0x20); }
   virtual std::vector<Handle> lab_list_configs(Handle list);
+  virtual int32_t lab_list_mech(Handle list) { return static_cast<int32_t>(field32(list, 4)); }  // ConfigList's +0x04
   virtual void lab_list_append(Handle list, Handle config) { unported("0x0049ccc0", {list, config}); }
   virtual bool lab_list_remove(Handle list, Handle config) { return unported("0x00425090", {list, config}) != 0; }
   virtual Handle lab_list_find(Handle list, const char* name);

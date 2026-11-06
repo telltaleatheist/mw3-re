@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
 from original import ROOT, STACK_TOP, FTOL, IAT_FTOL  # noqa: E402
 from test_zreader import READER, entries, HANDLE  # noqa: E402
+from lab_weapons import WEAPON_NAMES, weapon_labs  # noqa: E402,F401
 from test_mechdef import Emulated as DfnEmu, FLOOR, IAT_FLOOR, LIST_INIT, DAMAGE_MODE, MSG_HOOK, MECHS, \
     DFN_CTOR, HEAD_BLOCK, CONFIGS_END, NO_CONFIGS, HEAD_FAIL, IAT_NEW, probe  # noqa: E402
 from unicorn import UC_HOOK_CODE, UcError  # noqa: E402
@@ -49,12 +50,6 @@ ARCH = 0x5678
 WEAPONS = 37
 VT_KIND = {0x5bc160: 0, 0x5c0fc0: 1, 0x5bd150: 2, 0x5bd180: 3, 0x5c3700: 4}
 DIR = ROOT / 'build' / 'mechsave'
-WEAPON_NAMES = [b'AC2', b'AC5', b'AC10', b'AC20', b'ERLaser_Small', b'ERLaser_Medium', b'ERLaser_Large', b'ERPPC',
-                b'Flamer', b'GaussRifle', b'Laser_Small', b'Laser_Medium', b'Laser_Large', b'LB2XAC', b'LB5XAC',
-                b'LB10XAC', b'LB20XAC', b'LRM5', b'LRM10', b'LRM15', b'LRM20', b'MGUN', b'NARC', b'PulseLaser_Small',
-                b'PulseLaser_Medium', b'PulseLaser_Large', b'SRM2', b'SRM4', b'SRM6', b'StreakSRM2', b'StreakSRM4',
-                b'StreakSRM6', b'TAG', b'UltraAC2', b'UltraAC5', b'UltraAC10', b'UltraAC20']
-
 probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 probe.probe_config_blob.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.probe_load_saved.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
@@ -67,42 +62,6 @@ DFN_CACHE = 0x5e60b0  # 0x004846a0's table, 0x3c apart
 def fake_parts(mech):
     """The firepoints' parts of the stand-in dfns both sides get for the copy's recount."""
     return [((i * 5 + mech) % 10) - 1 for i in range(8)]
-
-
-def weapon_labs(data):
-    """Each weapon's MASS from weapons.zrd (tons and slots, Clan then Inner
-    Sphere; tons per round = 1 / (rounds per ton x salvo)), as zWeapon builds
-    it. Flamer and NARC get no block, to try that path."""
-    import zrd
-    start, length = next((s, n) for name, s, n in entries(data) if name.lower() == 'weapons.zrd')
-    tree, _ = zrd.node(data[start:start + length], 0)
-    defs = {}
-
-    def walk(lst):
-        for i, item in enumerate(lst):
-            if isinstance(item, str) and i + 1 < len(lst) and isinstance(lst[i + 1], list) and 'MASS' in lst[i + 1]:
-                defs[item.lower()] = lst[i + 1]
-            elif isinstance(item, list):
-                walk(item)
-    walk(tree)
-
-    def get(lst, key):
-        return lst[lst.index(key) + 1] if key in lst and lst.index(key) + 1 < len(lst) else None
-
-    labs = []
-    for i, name in enumerate(WEAPON_NAMES):
-        d = defs.get(name.decode().lower())
-        if d is None or i in (8, 22):
-            labs.append(None)
-            continue
-        mass = get(d, 'MASS')
-        clan, sphere, ammo = get(mass, 'clan') or [0, 0], get(mass, 'sphere') or [0, 0], get(mass, 'ammo')
-        salvo = get(d, 'SALVO')
-        true = get(salvo, 'truecount') if isinstance(salvo, list) else None
-        per_ton = (ammo[0] if ammo else 0) * (true[0] if true else 1)
-        labs.append((float(clan[0]), float(sphere[0]), int(clan[1]), int(sphere[1]),
-                     1.0 / per_ton if per_ton else 0.0))
-    return labs
 
 
 class Emulated(DfnEmu):

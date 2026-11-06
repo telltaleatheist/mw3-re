@@ -40,7 +40,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Replay, compare, load_probe, Trace  # noqa: E402
-from original import ROOT  # noqa: E402
+from original import ROOT, pm_set_rect  # noqa: E402
 from twod_world import IAT, READER, TwodWorld, c_format, entries, find, parse_node, write_node  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
@@ -48,7 +48,7 @@ import test_twod  # noqa: E402
 from test_twod import canonical, fbits  # noqa: E402
 from test_twod_msgbox import archive  # noqa: E402
 from test_menus import MECH3, mutate_buttons  # noqa: E402
-from test_mechsave import WEAPON_NAMES, weapon_labs  # noqa: E402
+from lab_weapons import WEAPON_NAMES, weapon_labs  # noqa: E402
 
 probe = load_probe()
 probe.probe_app_set_callback.argtypes = [ctypes.c_void_p]
@@ -452,6 +452,7 @@ class Original:
             e.w32(d + 0x24, fv)
             # Its loadouts (+0x20, a vector at +0x0c): the game's and the player's.
             lst = e.world_alloc(0x18)
+            e.w32(lst + 4, mech & 0xffffffff)  # (PM's add 0x00426d10 refuses a loadout of another mech)
             cfgs = []
             for k in range(rr.choice([0, 1, 2, 3, 4])):
                 co = e.world_alloc(0xd8)
@@ -487,12 +488,12 @@ class Original:
             t.handle(key, a)
             t.override(key, v)
             emu._ret(v, pop)
-        e.w32(vt + 0x34, e.new_stub('vt+0x34', 'c,s0', 4, slot))
+        e.w32(vt + (0x30 if os.environ.get('MW3_PM_MOVED') else 0x34), e.new_stub('vt+0x34', 'c,s0', 4, slot))  # (PM's game has one virtual fewer)
         def kind(emu, key, a, pop):
             t.handle(key, a)
             t.override(key, cfg['kind'])
             emu._ret(cfg['kind'], pop)
-        e.w32(vt + 0x2c, e.new_stub('vt+0x2c', 'c', 0, kind))
+        e.w32(vt + (0x28 if os.environ.get('MW3_PM_MOVED') else 0x2c), e.new_stub('vt+0x2c', 'c', 0, kind))
 
         # The pages' controls' slots of later steps.
         for vtab, slots_ in LATER.items():
@@ -803,6 +804,9 @@ class Original:
                     e.w32(co + 0x38 + 4 * other, 0)
 
     def vcall(self, obj, slot, stack=()):
+        if os.environ.get('MW3_PM_MOVED'):
+            import pm_moved
+            slot = pm_moved.slot_of(self.e.r32(obj), slot)
         return self.e.call(self.e.r32(self.e.r32(obj) + slot), ecx=obj, stack=stack)
 
     def run(self, plan):
@@ -816,6 +820,8 @@ class Original:
             if op == 'S':
                 self.snapshot = e.snapshot()
                 self.m = self.d = m = e.alloc(SIZE)
+                if os.environ.get('MW3_PM_MOVED'):
+                    pm_set_rect(e)
                 e.call(CTOR, ecx=m, stack=(self.cfg['slots'],))
                 e.w32(SCREEN, m)  # (the Lab State keeps it once made)
             elif not m:

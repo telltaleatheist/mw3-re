@@ -623,7 +623,9 @@ void CycleButton::set_label_font(Handle font) {
 }
 
 // Mech3.exe 1.2 @ 0x0048b850
+// Pirate's Moon 1.0 @ 0x0048a210: kept within -1..last, where MW3 stores any number.
 void CycleButton::select(int32_t i) {
+  i = i > count() - 1 ? count() - 1 : i < -1 ? -1 : i;
   index = i;
   if (i >= 0 && i < count()) {
     if (!labels.empty()) labels[0]->set_text_plain(items[static_cast<size_t>(i)]->text);

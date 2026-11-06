@@ -130,13 +130,19 @@ def _reads_ecx(at):
             continue
         if t.startswith(('call', 'ret', 'jmp')) or n > 30:
             return False
-        if re.match(r'(mov|lea|movzx) ecx,', t) and not re.search(r'ecx', t.split(',', 1)[1]):
+        if re.match(r'(mov|lea|movzx) (ecx|cx|cl),', t) and not re.search(r'\b(ecx|cx|cl)\b', t.split(',', 1)[1]):
             return False
         if t in ('xor ecx, ecx',):
             return False
         if re.search(r'\b(ecx|cl|cx)\b', t):
             return True
     return False
+
+
+def _is_thunk(at):
+    _reads_ecx(at)  # (loads the disassembly)
+    return _pm_asm.get(at, '').startswith('jmp dword ptr [') or (
+        re.fullmatch(r'mov eax, 0x[0-9a-f]+', _pm_asm.get(at, '')) and _pm_asm.get(at + 5) == 'ret')  # returns a constant: no arguments to move
 
 
 def stub_key(addr):
@@ -174,6 +180,9 @@ def pm_args(addr):
         at = None
     pm = _header(ROOT / 'analysis-output' / 'pm-decomp' / f'{at:#x}.c') if at else ''
     head = pm.split('{')[0]
+    if at and _is_thunk(at):  # an import's thunk (MFC's methods too) passes the registers on as they came
+        _regs_cache[addr] = (regs, 'fast')
+        return regs, 'fast'
     conv = 'this' if '__thiscall' in head or 'in_ECX' in pm else 'fast' if '__fastcall' in head else 'stack'
     if conv == 'stack' and at and _reads_ecx(at):  # Ghidra can call a method a plain function
         conv = 'this'
@@ -507,6 +516,8 @@ class Emu:
             pop = ret_pop(addr)
             if pop is None:
                 raise ValueError(f'{addr:#x}: import thunk, give pop')
+        elif os.environ.get('MW3_PM_MOVED'):  # the pop given is MW3's: some became cdecl
+            pop = ret_pop(addr) if ret_pop(addr) is not None else pop
         key = key or f'{addr:#010x}'
         if os.environ.get('MW3_PM_MOVED') and key == f'{addr:#010x}':  # made from the address: the port's keys are MW3's
             key = stub_key(addr)

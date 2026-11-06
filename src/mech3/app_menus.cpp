@@ -1191,6 +1191,10 @@ std::vector<Handle> GameEngine::lab_list_configs(Handle list) {
     for (Config* c : l->configs) out.push_back(handle_of(c));
   return out;
 }
+int32_t GameEngine::lab_list_mech(Handle list) {
+  auto* l = static_cast<ConfigList*>(object_of(list));
+  return l ? l->mech : -1;
+}
 void GameEngine::lab_list_append(Handle list, Handle config) {
   if (auto* l = static_cast<ConfigList*>(object_of(list))) l->configs.push_back(static_cast<Config*>(object_of(config)));
 }

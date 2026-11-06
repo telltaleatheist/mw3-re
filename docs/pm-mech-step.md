@@ -551,7 +551,15 @@ The account compares each row's assembly with MW3's (immediates and mapped calls
 - Settled since: the rows above and the Port column below. `inside` for 0x475b20, 0x414ba0, 0x41c4c0, 0x477dd0 and 0x415160 goes by their callers (the store's, the build, the action step, the mech's end), which are ported but not all compared, and by no compare of their own. #20 0x424030 is compared in the frame's table.
 - **Not ported: PM's network rounds.** 0x472850 takes a round's state from the host: overtime ("No winner yet. We are into Overtime, folks!"), a winner, messages 0x9aa and 0x9ab, no more enemies, base destroyed, then the round's end at +0x94 and +0x88. MW3 has none of these strings. Nothing in the port reads them. It belongs to `pm-map.md` step 8, PM's multiplayer, not to these rows.
 
-**Not moved: `test_lab_list`, `test_lab_screen`.** Both need the 2D world (`twod_world`, `test_twod`) on PM, and no test has it. A try through `MW3_EXE=pm` got as far as the screen: PM inlines MW3's menu screen constructor 0x40a110 (no twin to call), its node reader takes other arguments, and its 2D objects are larger (texts and buttons by 8, `0x4b0`→`0x4b8`, panels by more), so every dump's offsets change. What they alone would check on PM: the screen's construction, the pages, the list's rows, scrolling and mouse.
+**Moved by `pm_moved.py`: `test_lab_list`, `test_lab_screen`, `test_twod`, `test_twod_msgbox`** (the 2D world on PM's exe, literals rewritten at import; `pm-tests.md`). What the lab screen's run found against the exe, each compared by `test_lab_screen` (breaks there, or the line says so):
+
+- The cycle button keeps its index within -1..last (0x48a210): MW3 stores any number, so a loadout's skin past the list's end showed a blank; PM shows the last skin.
+- The mech button doesn't ask for the mech's name it then drops (0x44bc20). The port's `set_mech` follows; no effect on play.
+- The chassis list's "no mech" row is on either campaign's lancemates (0x44a6df, 0x47b770): the port had it, the probe now asks the game's kind for it.
+- A loadout's copy goes on the mech's list only if it is that mech's (0x426d10, list +0x04). The port checks now. In play the two agree, as the list comes from the slot's mech.
+- MW3's +0x14 on the loadout's vtable is +0x10 on PM's, the store's +0x0c is +0x08, the game's +0x34 and +0x2c are +0x30 and +0x28, a file list's slots from +0x98 are 8 on, the screen's from +0x08 are 4 on: `pm_moved.slot_of` pairs them by function when a test calls one.
+- A weapon's lab block is at +0x200 on its definition (MW3 +0x1f0), a firepoint's part at +0x68 (MW3 +0x0c), CONFIG_EDIT's text is 0x300 longer and the screen 0x538 longer (`LAB_MEMBERS`).
+- Not in the port, and no effect on the game: `show_page`'s new call 0x5999c0 (the Direct3D device's slot +0x2c in hardware mode, rendering; the guiding rule's). Order only: the chassis table asks for tons 8 before 3 (0x458a50; the port follows so the traces line up).
 
 **Shots (+0xcc, 0x471ad4):** the exe's network sender counts each shot on the network game; the port did not. `shot_fired` in `NetCalls`, `test_pm_net_shot.py` against the exe's sender kind 0x16, 40 shots, record and count; a break removing the call is caught. The hook's wiring to the game (`mission_multiplayer_count_shot`) is read only: no multiplayer run reads it back.
 

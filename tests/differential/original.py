@@ -98,8 +98,9 @@ class AddressMap:
             self.exact.update({int(a, 16): int(b, 16) for a, b in m[part].items()})
         self.blocks = sorted((int(lo, 16), int(hi, 16), d) for lo, hi, d in m['blocks'])
         self.function_back = {int(b, 16): int(a_, 16) for a_, b in m['functions'].items()}
-        # By hand, a one-instruction wrapper the map can't pair: video unlock.
-        for mw, pm in ((0x576e70, 0x597ef0), (0x576ea0, 0x597f40)):
+        # By hand, what the map can't pair: video unlock's one-instruction wrappers, the loadout's copy
+        # (fastcall there, cdecl here) and where a file list's rectangle is worked out.
+        for mw, pm in ((0x576e70, 0x597ef0), (0x576ea0, 0x597f40), (0x424010, 0x425970), (0x48d06d, 0x48bc85)):
             self.exact[mw] = pm
             self.function_back[pm] = mw
         self._lo = [b[0] for b in self.blocks]
@@ -219,6 +220,15 @@ def pm_iat(name):
                 return 0x400000 + r
             q, r = q + 4, r + 4
         d += 20
+
+
+def pm_set_rect(e):
+    """The import PM's screen controls call as they are made (0x488470)."""
+    def set_rect(emu, key, a, pop):
+        for i in range(4):
+            emu.w32(a[0] + 4 * i, a[i + 1])
+        emu._ret(1, 20)
+    e.import_stub(pm_iat('SetRect'), '@SetRect', 's0,s1,s2,s3,s4', 20, set_rect)
 
 
 def pm_screen_ctor(e, d, param):

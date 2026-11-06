@@ -10,8 +10,10 @@ import importlib.abc
 import importlib.machinery
 import importlib.util
 import io
+import json
 import os
 import re
+import struct
 import sys
 import tokenize
 from pathlib import Path
@@ -25,14 +27,19 @@ import original  # noqa: E402
 MAP = original.AddressMap()
 # Modules whose addresses are MW3's and rewritten. `original` itself isn't.
 MODULES = {'calltrace', 'twod_world', 'test_twod', 'test_twod_msgbox', 'test_lab_list', 'test_lab_screen', 'test_menus',
-           'test_mechsave', 'test_zreader', 'test_pilot'}
+           'lab_weapons', 'test_pilot'}
 BY_NAME = set()
 missing = {}
 
 
 # zTwoD's vtables the map lacks, read from each pair of constructors.
-VTABLES = {0x5cf948: 0x5f1d9c, 0x5cf9d8: 0x5f1e28, 0x5d0e28: 0x5f30f4, 0x5be308: 0x5e0c34, 0x5cfd28: 0x5f215c,
-           0x5d06e0: 0x5f29e8}
+# (pm-diff/addrmap.json's data section matches vtables by contents and is often wrong; tools/analysis/pmvtables.py.)
+VTABLES = {int(a, 16): int(b, 16) for a, b in json.loads(
+    (HERE.parents[1] / 'analysis-output' / 'pm-diff' / 'vtables.json').read_text()).items()}
+# The lab screen's constructor makes one control fewer in line (its writes don't pair by count):
+VTABLES.update({0x5c1630: 0x5e3d58, 0x5c1588: 0x5e3ca8, 0x5c14f0: 0x5e3c10, 0x5c1448: 0x5e3b68, 0x5c13b0: 0x5e3ad4,
+                0x5c1300: 0x5e3a20, 0x5c1250: 0x5e396c, 0x5c11c0: 0x5e38e0, 0x5c1130: 0x5e3854, 0x5c1110: 0x5e3830,
+                0x5c1080: 0x5e37a0, 0x5c0ff0: 0x5e3714})
 
 
 # zVideo's pixel format: its neighbours, which the map's block delta gets wrong.
@@ -61,11 +68,75 @@ def field(v):
     return v + 0x1a0
 
 
+# The lab screen's own members (0x44cec0 against 0x44b920, by twin instructions), and in its controls
+# only what moved: rows and their texts 8 further, CONFIG_EDIT's text 0x300 longer, a file list's font 4 further.
+LAB_MEMBERS = [(0x10fe0, 0x190), (0x111ec, 0x198), (0x11708, 0x19c), (0x16e74, 0x1fc), (0x17548, 0x208),
+               (0x17ca8, 0x20c), (0x18028, 0x50c), (0x1a570, 0x510), (0x1a774, 0x514)]
+LAB_SMALL = {0x4ac, 0x4b0, 0x4b4, 0x4cc, 0x4d0, 0x5dc, 0x64c}
+LAB_TEXT = [('ed + 0x374', 'ed + 0x674'), ('ed + 0x38c', 'ed + 0x68c'), ('ed + 0x390', 'ed + 0x690'),
+            ('msg + 0x4b0', 'msg + 0x4d4'), ('msg + 0x4b4', 'msg + 0x4d8'), ('e.w32(MECH, 0x13)', 'e.w32(MECH, 0x19)'), ('e.world_alloc(0x200), e.world_alloc(0x40)', 'e.world_alloc(0x210), e.world_alloc(0x40)'),
+            ('obj + 0x1f0', 'obj + 0x200'),  # the weapon's lab block (0x00486d90)
+            ('fp = e.world_alloc(0x20)', 'fp = e.world_alloc(0x80)'), ('e.w32(fp + 0xc, part)', 'e.w32(fp + 0xc, part); e.w32(fp + 0x68, part)'),  # (0x00475260)
+            # PM's: the second campaign's game (5), and its mechs past MW3's 19.
+            ("'kind': r.choice([1, 1, 2, 3, 0])", "'kind': r.choice([1, 1, 2, 3, 0, 5, 5])"),
+            ("for mech in range(-1, 19):", "for mech in range(-1, 25):"), ('r.randrange(19)', 'r.randrange(25)'),
+            ("r.choice([0, 3, 7, 18, -1])", "r.choice([0, 3, 7, 18, 19, 22, 24, -1])"),
+            ('w + 0x200', 'w + 0x204'),
+            ('self.cfg_vt + 0x14', 'self.cfg_vt + 0x10'),
+            ('ch + 0x218', 'ch + 0x21c'), ('ch + 0x214', 'ch + 0x218'), ('ch + 0x6d0', 'ch + 0x6dc')]
+
+
+def lab_field(v):
+    if v == 0x1b468:  # the screen's size
+        return 0x1b9a0
+    if v >= 0x10fe0:
+        return v + [d for lo, d in LAB_MEMBERS if v >= lo][-1]
+    return v + 8 if v in LAB_SMALL else v
+
+
+def slot_of(vt, slot):
+    """A virtual call's slot in MW3's class as the same function's slot in PM's vtable `vt` (PM's
+    classes gained and lost some); a function the map doesn't pair moves as the next one that it does."""
+    if (vt, slot) not in _slots:
+        back = next((a for a, b in VTABLES.items() if b == vt), None)
+        found = slot
+        for later in range(slot, slot + 0x40, 4):
+            want = MAP_JSON['functions'].get(hex(_mw_read(back + later))) if back else None
+            at = next((i * 4 for i in range(80) if want and _pm_read(vt + i * 4) == int(want, 16)), None)
+            if at is not None:
+                found = at - later + slot
+                break
+        _slots[vt, slot] = found
+    return _slots[vt, slot]
+
+
+def _reader(path):
+    data = path.read_bytes()
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    n, opt = struct.unpack_from('<H', data, pe + 6)[0], struct.unpack_from('<H', data, pe + 20)[0]
+    base = struct.unpack_from('<I', data, pe + 52)[0]
+    secs = [struct.unpack_from('<IIII', data, pe + 24 + opt + 40 * i + 8) for i in range(n)]
+
+    def read(a):
+        for _, va, size, raw in secs:
+            if base + va <= a < base + va + size:
+                return struct.unpack_from('<I', data, raw + a - base - va)[0]
+        return 0
+    return read
+
+
+_slots = {}
+MAP_JSON = json.loads((HERE.parents[1] / 'analysis-output' / 'pm-diff' / 'addrmap.json').read_text())
+_mw_read, _pm_read = (_reader(HERE.parents[1] / 'game' / x / 'Mech3.exe') for x in ('mw3-1.2', 'pm'))
+
+
 def number(s, name):
     """A literal in the image's range as its twin in PM, a moved field as where it moved."""
     v = int(s, 16)
     if name in ('test_lab_list', 'test_lab_screen') and v in LAB_ROW:
         return hex(LAB_ROW[v])
+    if name == 'test_lab_screen' and 0x4ac <= v < 0x1c000:
+        return hex(lab_field(v))
     if name in FIELDS and 0x4ac <= v < 0x13000 and not (0x1000 <= v < 0x4000) and v != 0xffff:
         return hex(field(v))
     if v in VTABLES:
@@ -81,6 +152,9 @@ def number(s, name):
 
 
 def rewrite(text, name):
+    if name == 'test_lab_screen':
+        for old, new in LAB_TEXT:
+            text = text.replace(old, new)
     out = []
     for tok in tokenize.generate_tokens(io.StringIO(text).readline):
         s = tok.string

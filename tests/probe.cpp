@@ -1533,8 +1533,6 @@ static int dfn_configs(const char* path, long offset, int index, int localized, 
 #include <unistd.h>
 
 namespace {
-mech3::WeaponLab g_labs[37];
-uint8_t g_lab_present[37];
 
 // One loaded config as test_mechsave.py dumps it from the original.
 void put_config(std::vector<uint8_t>& b, const mech3::Config* c) {
@@ -1558,17 +1556,6 @@ void put_config(std::vector<uint8_t>& b, const mech3::Config* c) {
 }  // namespace
 
 extern "C" {
-
-// The weapons' mech-lab blocks the test hands both sides; absent ones are 0.
-void probe_set_weapon_labs(const float* table, const uint8_t* present) {
-  std::memcpy(g_labs, table, sizeof g_labs);
-  std::memcpy(g_lab_present, present, sizeof g_lab_present);
-  mech3::set_weapon_lab([](const char* name) -> const mech3::WeaponLab* {
-    for (int i = 0; i < 37; ++i)
-      if (std::strcmp(mech3::weapon_name(i), name) == 0) return g_lab_present[i] ? &g_labs[i] : nullptr;
-    return nullptr;
-  });
-}
 
 // Config(-1, name) + Load on one saved config, then the checksum, each weight,
 // and Validate's other checks (test_mechsave.py).

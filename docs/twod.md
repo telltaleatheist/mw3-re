@@ -389,6 +389,12 @@ OK; OK/Cancel; Abort/Retry/Ignore; Yes/No/Cancel; Yes/No; Retry/Cancel),
 then runs its own frames (input poll, clock, lock, update with the frame
 time, unlock, flip) for up to 100,000 frames until a button answers.
 
+Closing the window while a box is up: Pirate's Moon's box pumps Windows
+messages (0x5b14e0) and exits the process on a quit, at once. The port's input
+poll ends the box with no answer and leaves the quit set, so the code after the
+box runs and the app's loop then quits: nothing hangs and the quit isn't lost
+(`GameEngine::pump_events`; read, and `test_program.cpp`'s quit box).
+
 The shipped dlgMessage.zrd defines only MB_OK, MB_CANCEL and MB_USERBTN; the
 other five buttons bind nothing (no image, no label), so they cannot be
 clicked. Every message box the game opens is OK or OK/Cancel (style 0, 0x30

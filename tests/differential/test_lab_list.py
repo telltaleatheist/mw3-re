@@ -29,7 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Replay, Trace, compare, load_probe  # noqa: E402
-from original import ROOT, pm_iat, pm_screen_ctor  # noqa: E402
+from original import ROOT, pm_set_rect, pm_screen_ctor  # noqa: E402
 from twod_world import IAT, READER, TwodWorld, entries, find, parse_node, write_node  # noqa: E402
 import test_twod  # noqa: E402
 from test_twod import canonical, fbits  # noqa: E402
@@ -260,11 +260,7 @@ class Original:
         self.snapshot = e.snapshot()
         d = self.d = e.alloc(SCREEN_SIZE)
         if os.environ.get('MW3_PM_MOVED'):
-            def set_rect(emu, key, a, pop):
-                for i in range(4):
-                    emu.w32(a[0] + 4 * i, a[i + 1])
-                emu._ret(1, 20)
-            e.import_stub(pm_iat('SetRect'), '@SetRect', 's0,s1,s2,s3,s4', 20, set_rect)
+            pm_set_rect(e)
             pm_screen_ctor(e, d, 0)
         else:
             e.call(SCREEN_CTOR, ecx=d, stack=(0,))
