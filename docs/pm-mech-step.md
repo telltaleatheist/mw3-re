@@ -562,7 +562,13 @@ The lead's rule (2026-11-05): what the frame runs for every mech ranks above wha
 The loadouts first: they decide what exists. Then by a score: size, how unlike MW3, nearness to the frame, callers. It ranks
 the work; it does not measure play, so jets, landing and 0x423590 are near the top by size and depth, not because of a play test.
 
-**The Port column (2026-11-05, from the source):** `yes`, the source cites the row by PM's address or MW3's twin, or the row was paired by its code and read; `inside`, the logic is ported inside another row or its compared caller, not cited on its own; `lib`, the compiler's or the library's; `skim`, a small accessor or wrapper with its first lines read, no sign of logic to port, nothing compared; `ai`, waits on PM's AI; `step8`, PM's multiplayer, `pm-map.md` step 8; `unread`, marked unported by name and not read: those are small, under about 12 instructions or with no decompile, and could still hold something. The Tested column isn't kept up; the frame's table above and the breaks say what's compared.
+**What the bounded pass left, a list and not a queue (2026-11-05):**
+- 0x428880 is the mech's controls base (the mech's vt+0x14c). 0x419c40's last call goes through it to +0x58, then +0xc of what that returns, on placing a mech. Which object isn't resolved; MW3's 0x418e90 has no such call. To settle with the AI, whose controls these are.
+- The speed family, 0x41dff0, 0x41e010, 0x41e070, 0x41e0b0, 0x41e0f0, 0x41e110, 0x41e180, MW3's 0x41d200..0x41d380, with 0x41ebb0 (MW3's 0x41dc40) and 0x41dd40: mech vtable slots the AI's controls call, cited nowhere in the port. They go with the AI.
+- 0x41f3d0, the LOD's frame start: its fields are in `mech_lod`; not compared here.
+- 0x41c680 (MW3's 0x41b980): the decompiler's view differs only in its branches' shape; a player's state set to 0xe, the old kept. Not cited in the port under either address: to look for when the player's flow comes up.
+
+**The Port column (2026-11-05, from the source):** `yes`, the source cites the row by PM's address or MW3's twin, or the row was paired by its code and read; `inside`, the logic is ported inside another row or its compared caller, not cited on its own; `lib`, the compiler's or the library's; `skim`, a small accessor or wrapper with its first lines read, no sign of logic to port, nothing compared; `ai`, waits on PM's AI; `step8`, PM's multiplayer, `pm-map.md` step 8; `open`, read, and a question left (below). Nothing is `unread` since the bounded pass of 2026-11-05: its reading is of small rows and compared nothing. The Tested column isn't kept up; the frame's table above and the breaks say what's compared.
 
 | # | PM | MW3 | Class | Instr MW3 | Instr PM | Alike | Depth | Callers | Port | Tested | Note |
 |---:|---|---|---|---:|---:|---:|---:|---:|---|---|---|
@@ -695,7 +701,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 127 | 0x416c70 | 0x4161c0 | changed | 66 | 72 | 0.45 |  | 4 | yes |  |  |
 | 128 | 0x41fb70 | 0x41ef00 | changed | 26 | 30 | 0.50 | 2 | 9 | yes |  | calls 2->0 |
 | 129 | 0x4796f0 | - | new | 0 | 44 | 0.00 |  | 1 | yes |  |  |
-| 130 | 0x41e110 | - | new | 0 | 44 | 0.00 |  | 0 | skim |  |  |
+| 130 | 0x41e110 | - | new | 0 | 44 | 0.00 |  | 0 | ai |  |  |
 | 131 | 0x463bd0 | 0x462590 | changed | 191 | 194 | 0.79 |  | 1 | yes |  |  |
 | 132 | 0x46af20 | 0x469400 | changed | 177 | 189 | 0.78 |  | 1 | yes |  | calls 0->4 |
 | 133 | 0x4790f0 | 0x477620 | changed | 63 | 58 | 0.70 | 2 | 1 | yes |  | calls 0->1 |
@@ -810,7 +816,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 242 | 0x41ec10 | 0x41dca0 | changed | 97 | 94 | 0.86 |  | 0 | yes |  |  |
 | 243 | 0x41ed00 | 0x41dd90 | changed | 97 | 94 | 0.86 |  | 0 | yes |  |  |
 | 244 | 0x463330 | 0x461d30 | changed | 28 | 29 | 0.57 |  | 1 | yes |  |  |
-| 245 | 0x41e180 | 0x41d380 | changed | 33 | 31 | 0.62 |  | 0 | skim |  |  |
+| 245 | 0x41e180 | 0x41d380 | changed | 33 | 31 | 0.62 |  | 0 | ai |  |  |
 | 246 | 0x460cd0 | 0x45fa00 | changed | 26 | 38 | 0.69 |  | 1 | yes |  |  |
 | 247 | 0x467b70 | 0x466240 | changed | 11 | 11 | 0.57 | 1 | 1 | yes |  |  |
 | 248 | 0x467f80 | 0x466610 | changed | 63 | 58 | 0.81 |  | 0 | yes |  |  |
@@ -838,7 +844,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 270 | 0x465590 | 0x463ef0 | changed | 46 | 43 | 0.81 |  | 0 | yes |  |  |
 | 271 | 0x419d90 | 0x418f70 | changed | 14 | 14 | 0.73 | 2 | 1 | yes |  |  |
 | 272 | 0x41f770 | 0x41e9c0 | changed | 11 | 12 | 0.73 | 1 | 1 | yes |  |  |
-| 273 | 0x41e070 | 0x41d280 | changed | 17 | 17 | 0.50 |  | 0 | skim |  |  |
+| 273 | 0x41e070 | 0x41d280 | changed | 17 | 17 | 0.50 |  | 0 | ai |  |  |
 | 274 | 0x4773e0 | 0x4757f0 | changed | 52 | 53 | 0.85 |  | 1 | yes |  |  |
 | 275 | 0x4166d0 | 0x415c70 | changed | 21 | 24 | 0.69 |  | 2 | yes |  |  |
 | 276 | 0x4639f0 | 0x4623a0 | changed | 72 | 70 | 0.89 |  | 0 | yes |  | consts 1->0 |
@@ -873,7 +879,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 305 | 0x4745a0 | 0x4723c0 | changed* | 209 | 202 | 0.99 |  | 1 | yes |  |  |
 | 306 | 0x41c680 | 0x41b980 | changed | 19 | 17 | 0.77 |  | 0 | skim |  |  |
 | 307 | 0x421e00 | 0x420d00 | changed | 71 | 71 | 0.95 |  | 2 | yes |  | calls 1->0 |
-| 308 | 0x41dd40 | 0x41cee0 | changed | 26 | 24 | 0.84 |  | 0 | skim |  |  |
+| 308 | 0x41dd40 | 0x41cee0 | changed | 26 | 24 | 0.84 |  | 0 | ai |  |  |
 | 309 | 0x415ce0 | 0x4152d0 | changed* | 190 | 140 | 1.00 |  | 2 | yes |  |  |
 | 310 | 0x467b30 | 0x466200 | changed | 11 | 11 | 0.86 | 1 | 1 | yes |  |  |
 | 311 | 0x41a020 | 0x419200 | changed* | 76 | 67 | 0.96 | 1 | 1 | yes |  |  |
@@ -913,7 +919,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 345 | 0x475200 | 0x4731c0 | changed | 9 | 11 | 0.83 |  | 0 | yes |  |  |
 | 346 | 0x464ca0 | 0x4635e0 | changed* | 82 | 82 | 0.99 |  | 2 | yes |  |  |
 | 347 | 0x4673a0 | 0x465ad0 | changed* | 80 | 79 | 0.90 |  | 2 | yes |  |  |
-| 348 | 0x41e010 | 0x41d220 | changed | 7 | 7 | 0.75 |  | 0 | skim |  |  |
+| 348 | 0x41e010 | 0x41d220 | changed | 7 | 7 | 0.75 |  | 0 | ai |  |  |
 | 349 | 0x475d10 | 0x473f40 | changed* | 65 | 67 | 0.96 |  | 6 | yes |  |  |
 | 350 | 0x420e40 | 0x432a80 | changed* | 65 | 58 | 0.92 |  | 5 | yes |  |  |
 | 351 | 0x467e90 | 0x466510 | changed* | 81 | 76 | 0.96 |  | 0 | yes |  |  |
@@ -965,7 +971,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 397 | 0x41e2b0 | 0x41d4f0 | changed* | 8 | 8 | 1.00 | 1 | 25 | yes |  |  |
 | 398 | 0x41edf0 | 0x41de80 | changed* | 25 | 25 | 1.00 |  | 2 | yes |  |  |
 | 399 | 0x427bc0 | 0x425d80 | changed* | 19 | 19 | 1.00 |  | 8 | yes |  |  |
-| 400 | 0x41f9e0 | 0x41ed70 | changed* | 25 | 25 | 1.00 |  | 1 | unread |  |  |
+| 400 | 0x41f9e0 | 0x41ed70 | changed* | 25 | 25 | 1.00 |  | 1 | lib |  |  |
 | 401 | 0x467cb0 | 0x466380 | changed* | 25 | 25 | 1.00 |  | 1 | yes |  |  |
 | 402 | 0x474f40 | 0x472ec0 | changed* | 25 | 25 | 1.00 |  | 1 | yes |  |  |
 | 403 | 0x463ff0 | 0x4629b0 | changed* | 23 | 26 | 0.93 |  | 0 | yes |  |  |
@@ -977,7 +983,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 409 | 0x4632f0 | 0x461cf0 | changed* | 18 | 21 | 0.90 |  | 2 | yes |  |  |
 | 410 | 0x41eb40 | 0x41dbd0 | changed* | 23 | 23 | 1.00 |  | 0 | yes |  |  |
 | 411 | 0x468750 | 0x466da0 | changed* | 21 | 21 | 0.95 |  | 1 | yes |  |  |
-| 412 | 0x428190 | 0x426440 | changed* | 20 | 18 | 1.00 |  | 2 | unread |  |  |
+| 412 | 0x428190 | 0x426440 | changed* | 20 | 18 | 1.00 |  | 2 | lib |  |  |
 | 413 | 0x4689e0 | 0x466f80 | changed* | 17 | 17 | 1.00 |  | 5 | yes |  |  |
 | 414 | 0x41df20 | 0x41d130 | changed* | 20 | 20 | 1.00 |  | 1 | yes |  |  |
 | 415 | 0x466300 | 0x464a70 | changed* | 21 | 21 | 1.00 |  | 0 | yes |  |  |
@@ -985,8 +991,8 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 417 | 0x420f10 | 0x41fef0 | changed* | 18 | 18 | 1.00 |  | 1 | yes |  |  |
 | 418 | 0x427bf0 | 0x425db0 | changed* | 11 | 12 | 1.00 |  | 13 | yes |  |  |
 | 419 | 0x41e030 | 0x41d240 | changed* | 17 | 17 | 1.00 |  | 0 | yes |  |  |
-| 420 | 0x41e0b0 | 0x41d2c0 | changed* | 16 | 16 | 1.00 |  | 0 | unread |  |  |
-| 421 | 0x41ebb0 | 0x41dc40 | changed* | 15 | 15 | 1.00 |  | 0 | unread |  |  |
+| 420 | 0x41e0b0 | 0x41d2c0 | changed* | 16 | 16 | 1.00 |  | 0 | ai |  |  |
+| 421 | 0x41ebb0 | 0x41dc40 | changed* | 15 | 15 | 1.00 |  | 0 | ai |  |  |
 | 422 | 0x41ebe0 | 0x41dc70 | changed* | 15 | 15 | 1.00 |  | 0 | yes |  |  |
 | 423 | 0x466350 | 0x464ac0 | changed* | 12 | 12 | 1.00 |  | 2 | yes |  |  |
 | 424 | 0x479ca0 | 0x4779f0 | changed* | 11 | 10 | 1.00 |  | 1 | yes |  |  |
@@ -995,36 +1001,36 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 427 | 0x41e290 | 0x41d4d0 | changed* | 8 | 8 | 1.00 |  | 6 | yes |  |  |
 | 428 | 0x426680 | 0x426540 | changed* | 9 | 8 | 1.00 |  | 3 | yes |  |  |
 | 429 | 0x41da90 | 0x41cc10 | changed* | 10 | 10 | 1.00 |  | 0 | yes | yes |  |
-| 430 | 0x41e0f0 | 0x41d300 | changed* | 10 | 10 | 1.00 |  | 0 | unread |  |  |
+| 430 | 0x41e0f0 | 0x41d300 | changed* | 10 | 10 | 1.00 |  | 0 | ai |  |  |
 | 431 | 0x41eb10 | 0x41dba0 | changed* | 10 | 10 | 1.00 |  | 0 | yes |  |  |
-| 432 | 0x41e4c0 | 0x41d6e0 | changed* | 3 | 3 | 1.00 | 2 | 39 | unread |  |  |
-| 433 | 0x424710 | 0x4231a0 | changed* | 4 | 4 | 1.00 | 2 | 1 | unread |  |  |
-| 434 | 0x424720 | 0x4231b0 | changed* | 4 | 4 | 1.00 | 2 | 1 | unread |  |  |
-| 435 | 0x428880 | 0x426bf0 | changed* | 8 | 8 | 1.00 |  | 0 | unread |  |  |
-| 436 | 0x41f760 | 0x41e9b0 | changed* | 3 | 3 | 1.00 | 2 | 1 | unread |  |  |
+| 432 | 0x41e4c0 | 0x41d6e0 | changed* | 3 | 3 | 1.00 | 2 | 39 | skim |  |  |
+| 433 | 0x424710 | 0x4231a0 | changed* | 4 | 4 | 1.00 | 2 | 1 | skim |  |  |
+| 434 | 0x424720 | 0x4231b0 | changed* | 4 | 4 | 1.00 | 2 | 1 | skim |  |  |
+| 435 | 0x428880 | 0x426bf0 | changed* | 8 | 8 | 1.00 |  | 0 | open |  |  |
+| 436 | 0x41f760 | 0x41e9b0 | changed* | 3 | 3 | 1.00 | 2 | 1 | skim |  |  |
 | 437 | 0x41dc80 | 0x41ce10 | changed* | 5 | 5 | 1.00 |  | 5 | yes |  |  |
 | 438 | 0x41df60 | 0x41d170 | changed* | 5 | 5 | 1.00 |  | 1 | yes |  |  |
 | 439 | 0x41ad30 | 0x419e40 | changed* | 4 | 4 | 1.00 |  | 5 | yes |  |  |
 | 440 | 0x41e260 | 0x41d480 | changed* | 5 | 5 | 1.00 |  | 0 | yes |  |  |
 | 441 | 0x41f790 | 0x41e9e0 | changed* | 3 | 3 | 1.00 |  | 5 | yes |  |  |
 | 442 | 0x41dfb0 | 0x41d1c0 | changed* | 3 | 3 | 1.00 |  | 0 | yes |  |  |
-| 443 | 0x41dff0 | 0x41d200 | changed* | 3 | 3 | 1.00 |  | 0 | unread |  |  |
+| 443 | 0x41dff0 | 0x41d200 | changed* | 3 | 3 | 1.00 |  | 0 | ai |  |  |
 | 444 | 0x41e000 | 0x41d210 | changed* | 3 | 3 | 1.00 |  | 0 | yes |  |  |
 | 445 | 0x425660 | 0x423cf0 | changed* | 2 | 2 | 1.00 |  | 5 | yes |  |  |
 | 446 | 0x467480 | 0x409e80 | changed* | 2 | 2 | 1.00 |  | 1 | yes |  |  |
 | 447 | 0x4158c0 | 0x40a830 | changed* | 2 | 2 | 1.00 |  | 0 | yes |  |  |
-| 448 | 0x4158a0 | - | new | 0 | 0 | 0.00 |  | 0 | unread |  |  |
+| 448 | 0x4158a0 | - | new | 0 | 0 | 0.00 |  | 0 | skim |  |  |
 | 449 | 0x415920 | 0x414f20 | identical | 11 | 11 |  |  | 0 | yes |  |  |
-| 450 | 0x415cd0 | - | new | 0 | 0 | 0.00 |  | 8 | unread |  |  |
+| 450 | 0x415cd0 | - | new | 0 | 0 | 0.00 |  | 8 | skim |  |  |
 | 451 | 0x416540 | 0x415ae0 | identical | 6 | 6 |  |  | 1 | yes |  |  |
 | 452 | 0x417e50 | 0x41ecf0 | identical | 7 | 7 |  | 2 | 1 | yes |  |  |
 | 453 | 0x41c3d0 | 0x41b640 | identical | 11 | 11 |  |  | 2 | yes |  |  |
 | 454 | 0x41c520 | 0x41b7f0 | identical | 29 | 29 |  | 1 | 1 | yes |  |  |
 | 455 | 0x41eea0 | 0x41df30 | identical | 10 | 10 |  |  | 0 | yes |  |  |
-| 456 | 0x41f3d0 | - | new | 0 | 0 | 0.00 |  | 0 | unread | yes |  |
+| 456 | 0x41f3d0 | - | new | 0 | 0 | 0.00 |  | 0 | inside | yes |  |
 | 457 | 0x41f3d5 | - | new | 0 | 0 | 0.00 |  | 0 | yes | yes |  |
-| 458 | 0x41f450 | - | new | 0 | 0 | 0.00 |  | 0 | unread |  |  |
-| 459 | 0x41fac0 | 0x41ee50 | identical | 9 | 9 |  |  | 3 | unread |  |  |
+| 458 | 0x41f450 | - | new | 0 | 0 | 0.00 |  | 0 | skim |  |  |
+| 459 | 0x41fac0 | 0x41ee50 | identical | 9 | 9 |  |  | 3 | lib |  |  |
 | 460 | 0x420530 | 0x41f800 | identical | 35 | 35 |  |  | 3 | yes |  |  |
 | 461 | 0x420600 | 0x41f8d0 | identical | 27 | 27 |  |  | 0 | yes | yes |  |
 | 462 | 0x420660 | 0x41f930 | identical | 25 | 25 |  |  | 0 | yes |  |  |
@@ -1059,10 +1065,10 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 491 | 0x4611c0 | 0x45fdd0 | identical | 20 | 20 |  |  | 6 | yes |  |  |
 | 492 | 0x4629d0 | 0x461640 | identical | 13 | 13 |  |  | 0 | yes |  |  |
 | 493 | 0x463ee0 | 0x462890 | identical | 16 | 16 |  |  | 0 | yes |  |  |
-| 494 | 0x463fb0 | 0x462970 | identical | 2 | 2 |  | 3 | 4 | unread |  |  |
+| 494 | 0x463fb0 | 0x462970 | identical | 2 | 2 |  | 3 | 4 | skim |  |  |
 | 495 | 0x464430 | 0x462dc0 | identical | 4 | 4 |  | 2 | 1 | yes |  |  |
 | 496 | 0x464770 | 0x463100 | identical | 5 | 5 |  |  | 2 | yes |  |  |
-| 497 | 0x4654d0 | 0x463e30 | identical | 5 | 5 |  |  | 2 | unread |  |  |
+| 497 | 0x4654d0 | 0x463e30 | identical | 5 | 5 |  |  | 2 | skim |  |  |
 | 498 | 0x465580 | 0x463ee0 | identical | 6 | 6 |  |  | 0 | yes |  |  |
 | 499 | 0x467540 | 0x465c70 | identical | 63 | 63 |  |  | 2 | yes |  |  |
 | 500 | 0x4677e0 | 0x465f20 | identical | 10 | 10 |  | 4 | 2 | yes |  |  |
@@ -1071,7 +1077,7 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 503 | 0x4688e0 | 0x466eb0 | identical | 16 | 16 |  |  | 0 | yes |  |  |
 | 504 | 0x468960 | 0x466f00 | identical | 16 | 16 |  |  | 0 | yes |  |  |
 | 505 | 0x468d30 | 0x4672f0 | identical | 11 | 11 |  |  | 0 | yes |  |  |
-| 506 | 0x468d80 | 0x4c4c60 | identical | 9 | 9 |  |  | 2 | unread |  |  |
+| 506 | 0x468d80 | 0x4c4c60 | identical | 9 | 9 |  |  | 2 | lib |  |  |
 | 507 | 0x46a8b0 | 0x468bd0 | identical | 11 | 11 |  |  | 1 | yes |  |  |
 | 508 | 0x46a990 | 0x468df0 | identical | 13 | 13 |  |  | 1 | yes |  |  |
 | 509 | 0x471210 | - | new | 0 | 0 | 0.00 |  | 0 | yes |  |  |
@@ -1081,5 +1087,5 @@ the work; it does not measure play, so jets, landing and 0x423590 are near the t
 | 513 | 0x474d10 | 0x472c00 | identical | 22 | 22 |  |  | 1 | yes |  |  |
 | 514 | 0x475310 | 0x473400 | identical | 20 | 20 |  |  | 4 | yes |  |  |
 | 515 | 0x4755b0 | 0x473700 | identical | 18 | 18 |  |  | 0 | yes |  |  |
-| 516 | 0x476bf0 | 0x474ef0 | identical | 9 | 9 |  |  | 1 | unread |  |  |
+| 516 | 0x476bf0 | 0x474ef0 | identical | 9 | 9 |  |  | 1 | skim |  |  |
 | 517 | 0x477f70 | 0x476590 | identical | 7 | 7 |  | 4 | 1 | yes |  |  |
