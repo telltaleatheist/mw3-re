@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "mech3/zai_drive_pm.h"
+#include "mech3/zainet_inout.h"
 
 namespace {
 using namespace mech3::ai;
@@ -59,6 +60,17 @@ struct World : WalkPmHooks {
   const float* target_place(zgame::Handle t) override { return t == 2 ? target : place; }
   bool target_live(zgame::Handle t) override { return t == 2 && live; }
   bool must_leave(zgame::Handle) override { return leave; }
+  void set_throttle(float v) override { sent[1] = v, ++sends; }
+  void set_turn(float v) override { sent[0] = v, ++sends; }
+  const InOutVia* at_via(zgame::Handle) override { return via_on ? &via : nullptr; }
+  void queue_via(const InOutVia* v) override {
+    queued_net = reinterpret_cast<uintptr_t>(v->net), queued_node = reinterpret_cast<uintptr_t>(v->node), ++queued;
+  }
+  float sent[2] = {};
+  int sends = 0, queued = 0;
+  uintptr_t queued_net = 0, queued_node = 0;
+  bool via_on = false;
+  InOutVia via;
 };
 float f(const std::string& s) {
   uint32_t u = static_cast<uint32_t>(std::stoul(s, nullptr, 16));
@@ -117,6 +129,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       float d[2];
       away_pm(s, d, &drove[2]);
       drove[0] = d[0], drove[1] = d[1];
+    } else if (op == "U") {
+      w.via_on = a[0] == "1";
+      w.via.net = reinterpret_cast<const void*>(uintptr_t(0x1111)), w.via.node = reinterpret_cast<const void*>(uintptr_t(0x2222));
+    } else if (op == "S") {
+      st.step(w, *b);
     } else if (op == "V") {
       w.live = a[0] == "1", w.leave = a[1] == "1";
     } else if (op == "A") {  // the whole of 0x004daa70: the context made again
@@ -189,13 +206,16 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (g) {
         for (float v : {g->to_target[0], g->to_target[1], g->to_target[2], g->target_dist, g->from_way}) put(o, v);
       }
+      if (b) {
+        put(o, w.sent[0]), put(o, w.sent[1]);
+      }
       o += "| " + std::to_string(c->backing) + " " + std::to_string(int(s.keep)) + " " + std::to_string(int(s.push));
       if (g) o += " " + std::to_string(int(g->gone)) + " " + std::to_string(int(g->x70)) + " " + std::to_string(int(g->x71)) + " " + std::to_string(int(g->x72));
       if (b) {
         const int way = !b->way_point ? 0 : b->way_point == b->way_own ? 1 : 2;
         for (int v : {int(b->in_range), int(b->at_stop), int(b->no_target), way, int(b->may_go), int(b->off_way),
                       int(st.flags & 0xff), int(st.pulled), int(st.x2d), int(st.owned != nullptr), int(st.x34), g_deleted,
-                      g_deleted ? 1 : 0})
+                      g_deleted ? 1 : 0, w.sends, w.queued, int(w.queued_net), int(w.queued_node)})
           o += " " + std::to_string(v);
       }
       o += "\n";

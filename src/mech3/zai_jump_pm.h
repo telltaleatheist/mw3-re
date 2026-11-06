@@ -20,8 +20,6 @@ class JumpPmHooks : public WalkPmHooks {
   virtual float margin() = 0;                              // the step's +0x10
   virtual float jet_climb() = 0;                           // [0x00629314]
   virtual float gravity() = 0;                             // [0x00607ec0]
-  virtual void set_throttle(float v) = 0;                  // the controls' vt+0x20
-  virtual void set_turn(float v) = 0;                      // vt+0x28
   virtual void set_jet_forward(float v) = 0;               // vt+0x3c
   virtual void set_jump(float v) = 0;                      // vt+0x4c
   virtual void go_next() = 0;                              // 0x004f9f00 on the next step

@@ -8,6 +8,8 @@
 
 namespace mech3::ai {
 
+struct InOutVia;
+
 class WalkPmHooks : public SteerPmHooks {
  public:
   virtual float turn_goal() = 0;      // the controls' vt+0x30
@@ -31,6 +33,11 @@ class WalkPmHooks : public SteerPmHooks {
   virtual const float* target_place(zgame::Handle t) = 0;   // vt+0x04
   virtual bool target_live(zgame::Handle t) = 0;            // +0x1c's +0x08
   virtual bool must_leave(zgame::Handle v) = 0;             // 0x004fa210
+  virtual void set_throttle(float v) = 0;                   // the controls' vt+0x20
+  virtual void set_turn(float v) = 0;                       // vt+0x28
+  // The boundary record's +0x50 and +0x4c: the via node the last pull ended on, or none.
+  virtual const InOutVia* at_via(zgame::Handle v) = 0;
+  virtual void queue_via(const InOutVia* via) = 0;          // 0x004ea0f0 on the brain's +0x15c, a 0x005eeca4 item
 };
 
 float flat_dir_pm(const float from[3], const float to[3], float out[3]);  // 0x00537e60: its flat length
@@ -47,6 +54,7 @@ struct FightStatePm {
   void reset();                                         // 0x004d9ce0, vt+0x10
   void release();                                       // 0x004d9cc0
   void plan(WalkPmHooks& h, WalkFightPm& c);            // 0x004da1c0, vt+0x24
+  void step(WalkPmHooks& h, WalkFightPm& c);            // 0x004d9d00
 
   uint32_t flags = 0;                 // +0x08  its low four bits the state's step
   float stop_dist;                    // +0x0c

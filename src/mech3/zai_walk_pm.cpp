@@ -290,6 +290,111 @@ void FightStatePm::plan(WalkPmHooks& h, WalkFightPm& c) {
   until = h.now() + 1.0f;  // 0x0060bb5c
 }
 
+// Pirate's Moon 1.0 @ 0x004d9d00: one frame of walking to where it can fight from. The steps' numbers
+// are the exe's, in the low four bits of `flags`: 1 and 3..6 holding, 2 and 7 walking, 8 and 9 a via node
+// queued, 10 the target gone.
+void FightStatePm::step(WalkPmHooks& h, WalkFightPm& c) {
+  bool second = false;  // the local at [esp+0x28]: the last try before holding
+  auto set = [&](uint32_t n) { flags = (flags & ~0xfu) | n; };
+  auto drive = [&](uint32_t n) {
+    h.set_turn(c.turn_out);
+    h.set_throttle(c.throttle_out);
+    set(n);
+  };
+  auto hold = [&](uint32_t n) {
+    c.hold();
+    drive(n);
+  };
+  auto queued = [&](uint32_t n) {
+    if (!pulled) return false;
+    const InOutVia* via = h.at_via(c.vehicle);
+    if (!via) return false;
+    h.queue_via(via);
+    set(n);
+    return true;
+  };
+  switch (flags & 0xf) {
+    case 10:
+      wake = 0.0f;
+      until = FLT_MAX;
+      pulled = 0;
+      [[fallthrough]];
+    case 0:
+      c.measure();
+      plan(h, c);
+      goto after_first_plan;
+    case 8:
+      plan(h, c);
+    after_first_plan:
+      if (queued(8)) return;
+      [[fallthrough]];
+    case 1:
+      if (c.no_target) goto gone;
+      if (c.in_range) return hold(1);
+      goto try_walk;
+    case 2:
+      c.measure();
+      c.decide(*this);
+      goto walk_or_on;
+    case 3:
+      c.measure();
+      c.decide(*this);
+      goto wait_at_stop;
+    case 4:
+      c.measure();
+      goto until_replan;
+    case 5:
+      goto range_after_plan;
+    case 6:
+      c.measure();
+      second = true;
+      goto try_walk;
+    case 7:
+      c.measure();
+      goto decide_walk;
+    case 9:
+      plan(h, c);
+      goto after_second_plan;
+    default:
+      return;
+  }
+try_walk:
+  if (c.no_target) goto gone;
+  c.measure();
+decide_walk:
+  c.decide(*this);
+  if (c.may_go) {
+    if (c.steer.near(h)) goto walk_or_on;
+    c.walk_straight();
+    return drive(7);
+  }
+  goto wait_at_stop;
+walk_or_on:
+  if (c.may_go) {
+    c.walk();
+    return drive(2);
+  }
+wait_at_stop:
+  if (!c.no_target && c.at_stop && c.in_range) return hold(3);
+until_replan:
+  if (h.now() < until) return hold(4);
+  plan(h, c);
+after_second_plan:
+  if (queued(9)) return;
+range_after_plan:
+  if (!c.no_target && c.in_range) return hold(5);
+  if (second) return hold(6);
+  second = true;
+  goto try_walk;
+gone:
+  c.steer.carrot(c.to);
+  {
+    float* w = h.way_from();
+    w[0] = c.to[0], w[1] = c.to[1], w[2] = c.to[2];
+  }
+  set(10);
+}
+
 // Pirate's Moon 1.0 @ 0x004d99a0
 WalkFightPm::WalkFightPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v, FightStatePm& st)
     : WalkPm(hooks, s, v), state(st) {}

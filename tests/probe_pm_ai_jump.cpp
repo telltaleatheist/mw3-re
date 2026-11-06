@@ -51,6 +51,8 @@ struct World : JumpPmHooks {
   const float* target_place(zgame::Handle) override { return nullptr; }
   bool target_live(zgame::Handle) override { return false; }
   bool must_leave(zgame::Handle) override { return false; }
+  const InOutVia* at_via(zgame::Handle) override { return nullptr; }
+  void queue_via(const InOutVia*) override {}
   zgame::Handle mech(zgame::Handle) override { return pilot ? 3 : 0; }
   bool has_jets(zgame::Handle) override { return jets; }
   void set_x588(zgame::Handle) override { ++x588; }
