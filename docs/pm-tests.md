@@ -91,7 +91,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 
 39 to move, 21 covered, 2 not applicable.
 
-`test_pm_debrief_chain`, `test_pm_messages` and `test_pm_pilot` are new, not moves: `mw3pm` through three chains to its debriefings and the campaign's end, and the port's message ids against PM's table. `test_debriefing` itself (below, unclassified) stays to move, with the twod bench on PM's exe (`campaign.md`). `test_pm_ai_nodes` is new too: PM's AI readers on every shipped net, targets, aiv and valves file, exe against port, and `test_pm_ai_valves`, the valve builder and actions; `test_ai_readers` stays to move with the valves and the rest of the reader's harness.
+`test_pm_debrief_chain`, `test_pm_messages` and `test_pm_pilot` are new, not moves: `mw3pm` through three chains to its debriefings and the campaign's end, and the port's message ids against PM's table. `test_debriefing` itself (below, unclassified) stays to move, with the twod bench on PM's exe (`campaign.md`). `test_pm_ai_nodes` is new too: PM's AI readers on every shipped net, targets, aiv and valves file, exe against port, `test_pm_ai_valves`, the valve builder and actions, and `test_pm_ai_boundary`, the boundary and its clamp; `test_ai_readers` stays to move with the valves and the rest of the reader's harness.
 
 ## The rest that cannot load on this branch
 

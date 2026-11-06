@@ -1,4 +1,5 @@
 #pragma once
+#include <cfloat>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -16,44 +17,70 @@ namespace mech3::ai {
 struct InOutArea;
 struct InOutQuery;
 
-// A polygon's corner (0x1c bytes): its place, the place pushed out by the
-// polygon's width along the corner's bisector (y 0), and the length of the
-// side to the next corner.
-struct InOutVertex {
-  float pos[3] = {};     // +0x00
-  float offset[3] = {};  // +0x0c
-  float length = 0;      // +0x18
+// A way through the boundary (PM's, 0x10 bytes, 0x004c7b20): a net's via node and the node it leads to,
+// with the corner nearest each. Listed on the polygon and on each corner within 100 of the node's side.
+struct InOutVertex;
+struct InOutVia {
+  const void* net = nullptr;            // +0x00
+  const void* node = nullptr;           // +0x04
+  const float* pos = nullptr;           // the node's vt+0x1c
+  const float* other_pos = nullptr;     // its +0x30 node's vt+0x1c
+  const void* other = nullptr;          // its +0x30
+  const InOutVertex* other_corner = nullptr;  // +0x08
+  const InOutVertex* corner = nullptr;        // +0x0c
 };
 
-// 0x004c1ab0 (0x40 bytes, vtable 0x005cac6c): one boundary polygon, classed
-// by its material's colour. Red (kind 0) and blue (2) are tested by the query,
-// yellow (1) and cyan (3) are not; blue and cyan are wound the other way and
-// count crossings the other way round.
+// Pirate's Moon 1.0: a polygon's corner (0x54 bytes; MW3's was 0x1c): the place pushed out by
+// the polygon's width, the place, half a unit further out, its side's length and how far along
+// the outline it starts, the side's normal and direction.
+struct InOutVertex {
+  float offset[3] = {};  // +0x00
+  float pos[3] = {};     // +0x0c
+  float inner[3] = {};   // +0x18
+  float length = 0;      // +0x24
+  float along = 0;       // +0x28
+  float normal[3] = {};  // +0x2c
+  float dir[3] = {};     // +0x38
+  std::vector<InOutVia> vias;  // +0x48
+};
+
+// Pirate's Moon 1.0 @ 0x004c9af0 (0x64 bytes): one boundary polygon, classed by its material's
+// colour. Red (kind 0) and blue (2) are tested by the query, yellow (1) and cyan (3) are not;
+// blue and cyan are wound the other way and count crossings the other way round.
 struct InOutPolygon {
   // ECX this; name, the model polygon, its vertices transformed, the width.
   InOutPolygon(const char* name, const pm::zmod::Polygon& poly, const float* verts, float width);
-  ~InOutPolygon();  // 0x004c1ff0
-  void cross(InOutArea& area) const;  // 0x004c2080: when tested, its sides against the area's query
-  bool blocks(const float* from, const float* p) const;  // 0x004c25f0: a side crosses from -> p
-  const InOutVertex* way_round(const InOutQuery& q) const;  // 0x004c2f20: near_a, or near_b the shorter way
-  // 0x004c2470 over 0x004c22c0: the point of the pushed-out outline nearest
-  // `from` into `out`, and its side's corners.
-  void nearest(const float* from, float out[3], const InOutVertex** a, const InOutVertex** b) const;
+  ~InOutPolygon();
+  void cross(InOutArea& area) const;  // 0x004ca690: when tested, its sides against the query
+  bool blocks(const float* from, const float* p) const;  // 0x004cb2d0: a side crosses from -> p
+  void add_via(const InOutVia& via);  // 0x004cf350
+  // 0x004caef0 / 0x004cb0e0: the side nearest `from`, of all or of those within `limit` behind `ref`.
+  struct Near {
+    const InOutVertex* corner = nullptr;
+    float along = 0, dist = FLT_MAX, perp = FLT_MAX;
+  };
+  Near nearest(const float* from, const InOutVertex* ref = nullptr, float limit = 0) const;
+  const InOutVertex* next(const InOutVertex* v) const;
 
-  std::vector<InOutVertex> verts;  // +0x04
+  std::vector<InOutVertex> verts;  // +0x08
   float perimeter = 0;             // +0x14
-  float width = 0;                 // +0x18  3.0 (0x005e8a18)
-  float min[3], max[3];            // +0x1c, +0x28  FLT_MAX, -FLT_MAX before the corners
-  uint8_t inverted = 0;            // +0x34  blue, cyan
-  uint8_t tested = 0;              // +0x35  red, blue
-  int32_t kind = 0;                // +0x38  0 red, 1 yellow, 2 blue, 3 cyan (0 for any other colour)
-  char* name = nullptr;            // +0x3c  strdup'd: the node's name past "inoutXX"
+  float width = 0;                 // +0x18  3.0, 12.0 for a long outline
+  float min[3], max[3];            // +0x1c, +0x28  the pushed-out outline's box
+  float far_limit = 15000.0f;      // +0x34  3500 or 10000 past 20,000 or 35,000 round
+  float near_limit = 1000.0f;      // +0x38  500
+  float x3c = 50.0f;               // +0x3c  10; not read in play
+  float in_limit = 2.0f;           // +0x40  4
+  uint8_t x44 = 0;                 // +0x44  1; not read in play
+  uint8_t inverted = 0;            // +0x45  blue, cyan
+  uint8_t tested = 0;              // +0x46  red, blue
+  int32_t kind = 0;                // +0x48  0 red, 1 yellow, 2 blue, 3 cyan (0 for any other colour)
+  char* name = nullptr;            // +0x4c  strdup'd: the node's name past "inoutXX"
+  std::vector<InOutVia> vias;      // +0x58
 };
 
-// A query's state (0x4c bytes; its fresh copy is the template at 0x0060b348,
-// set at start-up by 0x004c1a00): the segment from -> to against the
-// polygons' sides. A polygon's own pass (0x004c2080) fills one, the area
-// keeps the nearest crossing's.
+// A query's state (0x7c bytes; its fresh copy is the template at 0x0062f9c8, set at start-up by
+// 0x004c8140): the segment from -> to against the polygons' sides. A polygon's own pass
+// (0x004ca690) fills one, the area keeps the nearest crossing's.
 struct InOutQuery {
   const float* from = nullptr;                       // +0x00
   const float* to = nullptr;                         // +0x04
@@ -61,29 +88,40 @@ struct InOutQuery {
   const InOutVertex *near_a = nullptr, *near_b = nullptr;  // +0x0c, +0x10  the side crossed first
   const InOutVertex *far_a = nullptr, *far_b = nullptr;    // +0x14, +0x18  the side crossed last
   float length = 0;                                  // +0x1c  from -> to in x and z
-  float t_near = 3.4028234663852886e38f;             // +0x20  FLT_MAX
+  float t_near = FLT_MAX;                            // +0x20
   float t_far = 0;                                   // +0x24
-  float near_point[3] = {};                          // +0x28  short of the first crossing by the width
-  float far_point[3] = {};                           // +0x34  past the last one by the width
+  float near_point[3] = {};                          // +0x28
+  float far_point[3] = {};                           // +0x34
   int32_t crossings = 0;                             // +0x40
   int32_t from_rays = 0;                             // +0x44  sides the ray from `from` through `to` meets
   int32_t to_rays = 0;                               // +0x48  sides the ray from `to` back through `from` meets
+  const InOutVia* via = nullptr;                     // +0x4c
+  float arc = FLT_MAX;                               // +0x50  the way round from the near side to the far one
+  const InOutVertex* nearest = nullptr;              // +0x54  the side nearest `from`
+  float dist = FLT_MAX, along = FLT_MAX, perp = FLT_MAX;  // +0x58, +0x5c, +0x60  and how far
+  float near_along = FLT_MAX, far_along = FLT_MAX;   // +0x64, +0x68
+  float back = 0;                                    // +0x6c  0.1 / length: how far short of a side
+  float scratch[3] = {};                             // +0x70  a side's middle, when that's the answer
 };
 
-// One mission's boundary (0x88 bytes, vtable 0x005cac70, ctor 0x004c26b0):
-// its polygons, the query's state, a box (FLT_MAX / -FLT_MAX, never set) and
-// the last answer.
+// One mission's boundary (0xc0 bytes, ctor 0x004cb370): its polygons, the query's state, a box
+// (FLT_MAX / -FLT_MAX, never set) and the last answer.
 struct InOutArea {
   InOutArea();
-  std::vector<std::unique_ptr<InOutPolygon>> polygons;  // +0x04
+  std::vector<std::unique_ptr<InOutPolygon>> polygons;  // +0x08
   InOutQuery q;                                         // +0x14
-  float min[3], max[3];                                 // +0x60, +0x6c
-  uint8_t from_in = 0, to_in = 0;  // +0x78, +0x79  inside the nearest polygon (outside, for blue and cyan)
-  float normal[3] = {};            // +0x7c  of the side nearest `from` when it is inside
-  // Mech3.exe 1.2 @ 0x004c2b00 (ECX area): where the way from -> to may go:
-  // `to` itself, or a point in this area (or a polygon's pushed-out corner).
-  const float* query(const float* from, const float* to);
-  bool clear(const float* from, const float* p) const;  // 0x004c2e30: no polygon's side crosses from -> p
+  float min[3], max[3];                                 // +0x90, +0x9c
+  uint8_t from_in = 0, to_in = 0;  // +0xa8, +0xa9  inside the nearest polygon (outside, for blue and cyan)
+  int32_t outcome = 0;             // +0xbc  which way the answer was reached
+  // Pirate's Moon 1.0 @ 0x004cc7f0: where the way from -> to may go: `to` itself or a point in this
+  // area. `first` is the polygon this vehicle met last, tried before the others; `ways` lets the
+  // via nodes count (a mech with jump jets).
+  const float* query(const float* from, const float* to, InOutPolygon* first = nullptr, bool ways = false);
+  const float* resolve(bool ways);       // 0x004cbbb0
+  const float* way_through(bool ways, const InOutVertex* corner);  // 0x004cba50
+  const float* round_to(const InOutVertex* from_side, const InOutVertex* side);  // 0x004cb8b0
+  const InOutVertex* shorter_way();      // 0x004cca00
+  bool clear(const float* from, const float* p) const;  // 0x004cc970: no polygon's side crosses
 };
 
 // The variant of the `inout` node a game reads (PM's 0x004cdb30, 0x1c bytes on
@@ -128,12 +166,20 @@ void inout_mission_load();
 void inout_select();       // 0x004c3b80 (0x00490bde): the current mission's area
 void inout_mission_end();  // 0x004c3dd0 (the listener's slot +0x10): the areas freed
 
-// Mech3.exe 1.2 @ 0x004c3000 (ECX the vehicle, EDX `in`, the stack `out`):
-// with a current area, `in` as the vehicle at `pos` may reach it; true with
-// `out` the place it is pulled to (at `in`'s height). The exe also keeps a
-// record of each query on the vehicle (+0xd8, 0x004c0ed0 / 0x004c0f70) that
-// nothing reads; not kept.
-bool inout_pull(const float pos[3], const float in[3], float out[3]);
+// Pirate's Moon 1.0 @ 0x004ccaf0: with a current area, `in` as `vehicle` at `pos` may reach it;
+// true with `out` the place it is pulled to (at `in`'s height). `ways`: its mech has jump jets
+// (+0x3e8). The exe's record of each query on the vehicle (0x54 bytes at +0xd8) is kept only for
+// what's read: the polygon it met last, which the next query tries first, and the via it chose,
+// which the behaviour 0x004e0790 reads; the rest have no reader found yet (docs/pm-map.md).
+struct InOutLast {
+  InOutPolygon* poly = nullptr;  // +0x3c
+  const InOutVia* via = nullptr;  // +0x4c
+  bool at_via = false;            // +0x50  the answer is the via's own place
+};
+bool inout_pull(uintptr_t vehicle, const float pos[3], const float in[3], float out[3], bool ways);
+InOutLast inout_last(uintptr_t vehicle);
+// 0x004c7b20 over every net: a via node and the node it leads to, onto the current area's polygons.
+void inout_add_via(const void* net, const void* node, const float* pos, const void* other, const float* other_pos);
 // Mech3.exe 1.2 @ 0x004c3bd0 (ECX the animation, EDX the AI message; from
 // 0x004d4a20): messages 0x39..0x3c test, of the current area's polygons named
 // as the animation's node, only the yellow, red, cyan or blue ones.

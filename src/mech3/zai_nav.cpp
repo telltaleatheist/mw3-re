@@ -78,7 +78,7 @@ struct ZclsWorld : World {
   bool avoid(float x, float y, float z) override {
     const float p[3] = {x, y, z};
     float out[3];
-    return inout_pull(p, p, out);  // from inside a shape, the point out of it
+    return inout_pull(0, p, p, out, false);  // from inside a shape, the point out of it
   }
   // The vehicles at rest (a parked mobile HQ, a tank waiting): the grid's
   // edges leave them out, for they may drive off.

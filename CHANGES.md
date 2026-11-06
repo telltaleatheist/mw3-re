@@ -677,3 +677,4 @@ Known quirks the rebuild deliberately keeps:
 - Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).
 - Pirate's Moon: a firepoint whose aim range runs past straight up or down keeps its real top limit (bug fixes on).
 - Pirate's Moon: a mission trigger that sets an AI range on a vehicle with no pilot does nothing, where the original would crash. No shipped mission does this.
+- Pirate's Moon: a broken mission boundary with impossible numbers can't crash the AI's way finding.

@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unordered_map>
 
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
@@ -31,59 +32,76 @@ constexpr bool kReverse[4] = {false, false, true, true};
 
 InOutHooks g_hooks;
 InOut g_inout;
-
-// 0x004c1030 on (x, -, z): normalized in x and z unless of no length; the length.
-float normalize_xz(float v[3]) {
-  const float len = std::sqrt(v[0] * v[0] + v[2] * v[2]);  // 0x004c10e0
-  if (len != 0.0f) {
-    const float k = 1.0f / len;
-    v[0] = v[0] * k;
-    v[2] = v[2] * k;
-  }
-  return len;
-}
-
-// 0x004c1160 -> 0x004c5210 over 0x004c11f0: the corners walked in order with
-// the two before each, from (n-2, n-1); each one's box, the corner before it
-// given its pushed-out place and its side's length.
-void make_sides(InOutPolygon& p) {
-  const size_t n = p.verts.size();
-  InOutVertex* prev = &p.verts[n - 2];
-  InOutVertex* cur = &p.verts[n - 1];
-  for (size_t i = 0; i < n; ++i) {
-    InOutVertex* v = &p.verts[i];
-    for (int k = 0; k < 3; ++k) {  // 0x004c51f0, 0x004c5200: the box keeps its value on a NaN
-      if (!(p.min[k] < v->pos[k])) p.min[k] = v->pos[k];
-      if (!(v->pos[k] < p.max[k])) p.max[k] = v->pos[k];
-    }
-    float a[3] = {prev->pos[2] - cur->pos[2], 0.0f, cur->pos[0] - prev->pos[0]};
-    float b[3] = {cur->pos[2] - v->pos[2], 0.0f, v->pos[0] - cur->pos[0]};
-    normalize_xz(a);
-    cur->length = normalize_xz(b);
-    p.perimeter = p.perimeter + cur->length;
-    if (cur->length <= 0.0f) zerr::report(0x100, kFile, 0x1bc, "zero length segment in an inside/outside net");
-    float c[3] = {a[0] + b[0], 0.0f, a[2] + b[2]};
-    normalize_xz(c);
-    c[0] = c[0] * p.width;
-    c[2] = c[2] * p.width;
-    cur->offset[0] = cur->pos[0] + c[0];
-    cur->offset[2] = cur->pos[2] + c[2];
-    cur->offset[1] = 0.0f;
-    prev = cur;
-    cur = v;
-  }
-}
+std::unordered_map<uintptr_t, InOutLast> g_met_last;  // the vehicles' +0xd8 records
 
 // x87 compares: true when below or unordered (C0).
 bool lt(float a, float b) { return !(a >= b); }
+// 0x00537ae0: in x and z.
+float dist_xz_of(const float* a, const float* b) {
+  const float dx = a[0] - b[0], dz = a[2] - b[2];
+  return std::sqrt(dz * dz + dx * dx);
+}
+constexpr float kOut = -0.5f;  // 0x0060b8e0
+
+// Pirate's Moon 1.0 @ 0x004c9600: the corners' summed distance picks the size class; then the
+// passes each walk the corners with the two before, from (n-2, n-1).
+void make_sides(InOutPolygon& p) {
+  const size_t n = p.verts.size();
+  float around = 0;
+  const InOutVertex* cur0 = &p.verts[n - 1];
+  for (const InOutVertex& v : p.verts) {  // 0x004c8be0
+    around = dist_xz_of(v.pos, cur0->pos) + around;
+    cur0 = &v;
+  }
+  if (!(around > 35000.0f)) {
+    if (around > 20000.0f) p.near_limit = 500, p.x3c = 10, p.x44 = 1, p.width = 12, p.far_limit = 3500, p.in_limit = 4;
+  } else {
+    p.near_limit = 500, p.x3c = 10, p.x44 = 1, p.width = 12, p.far_limit = 10000, p.in_limit = 4;
+  }
+  InOutVertex* cur = &p.verts[n - 1];
+  for (InOutVertex& v : p.verts) {  // 0x004c85b0
+    std::memcpy(cur->offset, cur->pos, 12);
+    cur->dir[0] = v.pos[0] - cur->pos[0], cur->dir[1] = 0.0f, cur->dir[2] = v.pos[2] - cur->pos[2];
+    const float len = std::sqrt((cur->dir[1] * cur->dir[1] + cur->dir[2] * cur->dir[2]) + cur->dir[0] * cur->dir[0]);
+    if (std::fabs(len) != 0.0f) {
+      const float k = 1.0f / len;
+      cur->dir[0] = k * cur->dir[0], cur->dir[1] = k * cur->dir[1], cur->dir[2] = k * cur->dir[2];
+    }
+    cur->normal[0] = cur->dir[2], cur->normal[1] = cur->dir[1], cur->normal[2] = -cur->dir[0];
+    cur = &v;
+  }
+  InOutVertex* prev = &p.verts[n - 2];
+  cur = &p.verts[n - 1];
+  for (InOutVertex& v : p.verts) {  // 0x004c8720: the corner's miter
+    const float d = (prev->dir[0] * cur->dir[0] + prev->dir[1] * cur->dir[1]) + prev->dir[2] * cur->dir[2];
+    float m = std::sqrt((1.0f - d) / (1.0f + d));
+    if (m > 0.0f && lt(((prev->normal[0] * cur->dir[0] + prev->normal[1] * cur->dir[1]) + prev->normal[2] * cur->dir[2]), 0.0f)) m = -m;
+    const float x = cur->normal[0] + m * cur->dir[0], y = cur->normal[1] + m * cur->dir[1], z = cur->normal[2] + m * cur->dir[2];
+    const float w = p.width, w2 = p.width - kOut;
+    const float px = cur->pos[0], py = cur->pos[1], pz = cur->pos[2];
+    cur->offset[0] = px - x * w, cur->offset[1] = py - y * w, cur->offset[2] = pz - z * w;
+    cur->inner[0] = px - x * w2, cur->inner[1] = py - y * w2, cur->inner[2] = pz - z * w2;
+    prev = cur;
+    cur = &v;
+  }
+  float sum = 0;
+  cur = &p.verts[n - 1];
+  for (InOutVertex& v : p.verts) {  // 0x004c8990
+    cur->along = sum;
+    cur->length = dist_xz_of(v.offset, cur->offset);
+    sum = sum + cur->length;
+    for (int k = 0; k < 3; ++k) {
+      if (!lt(p.min[k], v.offset[k])) p.min[k] = v.offset[k];  // a NaN keeps what's there
+      if (!lt(v.offset[k], p.max[k])) p.max[k] = v.offset[k];
+    }
+    cur = &v;
+  }
+  p.perimeter = sum;
+}
 
 float dist_xz(const float* a, const float* b) {  // 0x004c1090
   const float dx = b[0] - a[0], dz = b[2] - a[2];
   return std::sqrt(dx * dx + dz * dz);
-}
-float dist3(const float* a, const float* b) {  // 0x0051e000
-  const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-  return std::sqrt((dx * dx + dy * dy) + dz * dz);
 }
 float dot3(const float* a, const float* b) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; }  // 0x004c2430
 // 0x004c0fe0 (ECX out, EDX a): a + (b - a) t in x and z, a's height.
@@ -91,15 +109,6 @@ void lerp(float out[3], const float* a, float t, const float* b) {
   out[0] = (b[0] - a[0]) * t + a[0];
   out[1] = a[1];
   out[2] = (b[2] - a[2]) * t + a[2];
-}
-// 0x004020d0 in play: floats.
-float normalize3(float v[3]) {
-  const float len = std::sqrt((v[0] * v[0] + v[2] * v[2]) + v[1] * v[1]);
-  if (len != 0.0f) {
-    const float k = 1.0f / len;
-    v[0] = k * v[0], v[1] = k * v[1], v[2] = k * v[2];
-  }
-  return len;
 }
 // The side of `p` from the line a -> b (0x004c1410 / 0x004c1770's sums).
 float side(const float* a, const float* b, const float* p) {
@@ -111,29 +120,66 @@ bool opposite(float s1, float s2) { return (lt(s1, 0.0f) && lt(0.0f, s2)) || (s1
 bool ray_from_a(float sa, float sb) { return (lt(sa, 0.0f) && lt(sa, sb)) || (sa > 0.0f && sa > sb); }
 bool ray_from_b(float sa, float sb) { return (lt(sa, sb) && lt(0.0f, sb)) || (sa > sb && 0.0f > sb); }
 
-// Mech3.exe 1.2 @ 0x004c1770 (ECX {a, b, prev}): segment a -> b against the side prev -> v.
+// Pirate's Moon 1.0 @ 0x004c92f0 (ECX {a, b, prev}): segment a -> b against the side prev -> v.
 bool crosses(const float* a, const float* b, const float* p, const float* v) {
   if (!opposite(side(a, b, p), side(a, b, v))) return false;
   const float sa = side(p, v, a), sb = side(p, v, b);
   return ray_from_a(sa, sb) && ray_from_b(sa, sb);
 }
 
-// Mech3.exe 1.2 @ 0x004c1410 (ECX {query, prev}): the query's segment
-// against the side prev -> v; a crossing's place along it kept when nearest
-// or farthest.
+// Pirate's Moon 1.0 @ 0x004c8c30 (ECX {query, prev}): the side prev -> v nearest `from` kept, then
+// the query's segment against it, a crossing's place along it kept when nearest or farthest.
 void edge_count(InOutQuery& c, const InOutVertex* prev, const InOutVertex* v) {
   const float* a = c.from;
   const float* b = c.to;
-  if (!opposite(side(a, b, prev->pos), side(a, b, v->pos))) return;
-  const float sa = side(prev->pos, v->pos, a), sb = side(prev->pos, v->pos, b);
+  const float u[3] = {a[0] - prev->offset[0], a[1] - prev->offset[1], a[2] - prev->offset[2]};
+  const float perp = u[2] * prev->normal[2] + u[0] * prev->normal[0];
+  float along = 0, d = std::fabs(perp);
+  bool have_along = false;
+  if (lt(d, c.dist)) {
+    along = u[2] * prev->dir[2] + u[0] * prev->dir[0];
+    have_along = true;
+    if (lt(along, 0.0f)) d = std::sqrt(u[2] * u[2] + u[0] * u[0]);
+    else if (lt(prev->length, along)) d = dist_xz_of(a, v->offset);
+    if (lt(d, c.dist)) c.nearest = prev, c.dist = d, c.along = along, c.perp = perp;
+  }
+  if (!opposite(side(a, b, prev->offset), side(a, b, v->offset))) return;
+  const float sa = side(prev->offset, v->offset, a), sb = side(prev->offset, v->offset, b);
   const bool ra = ray_from_a(sa, sb), rb = ray_from_b(sa, sb);
   if (ra) ++c.from_rays;
   if (rb) ++c.to_rays;
   if (!(ra && rb)) return;
   ++c.crossings;
   const float t = -sa / (sb - sa);
-  if (lt(t, c.t_near)) c.t_near = t, c.near_a = prev, c.near_b = v;
-  if (lt(c.t_far, t)) c.t_far = t, c.far_a = prev, c.far_b = v;
+  if (!have_along) along = u[2] * prev->dir[2] + u[0] * prev->dir[0], have_along = true;
+  if (lt(t, c.t_near)) c.t_near = t, c.near_a = prev, c.near_b = v, c.near_along = along;
+  if (lt(c.t_far, t)) c.t_far = t, c.far_a = prev, c.far_b = v, c.far_along = along;
+}
+
+// 0x004c7e90: a point `along` the side and `out` off it.
+void on_side(float out[3], const InOutVertex* c, float along, float out_by) {
+  for (int k = 0; k < 3; ++k) out[k] = c->offset[k] + along * c->dir[k];
+  for (int k = 0; k < 3; ++k) out[k] = out[k] + out_by * c->normal[k];
+}
+float clamp_along(float a, const InOutVertex* c) {  // the query's two clamps
+  if (lt(a, 0.0f)) return 0.0f;
+  return c->length < a ? c->length : a;
+}
+// 0x004c82b0: a side's middle, half a unit out.
+void middle(float out[3], const InOutVertex* c) {
+  const float h = c->length * 0.5f;
+  for (int k = 0; k < 3; ++k) out[k] = h * c->dir[k];
+  for (int k = 0; k < 3; ++k) out[k] = c->inner[k] + out[k];
+}
+// The two ways round from one place on the outline to another (the bodies of 0x004cb8b0,
+// 0x004cf730, 0x004cc1f6): the forward way, negative wrapped; `*shorter` when it is the shorter.
+float round_way(float to, float from, float perimeter, bool* shorter) {
+  float x = to - from;
+  if (lt(x, 0.0f)) x = x + perimeter;
+  const float other = perimeter - x;
+  const bool fwd = !(x > other);
+  if (shorter) *shorter = fwd;
+  return fwd ? x : other;
 }
 
 bool colour_is(const zmod::Material* m, float r, float g, float b) { return m->r == r && m->g == g && m->b == b; }
@@ -253,7 +299,7 @@ InOutPolygon::InOutPolygon(const char* name_, const pm::zmod::Polygon& poly, con
   for (uint32_t k = 0; k < n; ++k) {
     const uint32_t i = kReverse[kind] ? n - 1 - k : k;
     const float* p = v + 3 * poly.vertex_indices[i];
-    InOutVertex c;  // 0x004c1110
+    InOutVertex c;  // 0x004c8230
     std::memcpy(c.pos, p, 12);
     std::memcpy(c.offset, p, 12);
     verts.push_back(c);
@@ -263,158 +309,322 @@ InOutPolygon::InOutPolygon(const char* name_, const pm::zmod::Polygon& poly, con
 
 InOutPolygon::~InOutPolygon() { std::free(name); }
 
-// Mech3.exe 1.2 @ 0x004c26b0 (the query's template copied)
+const InOutVertex* InOutPolygon::next(const InOutVertex* v) const {
+  return ++v == verts.data() + verts.size() ? verts.data() : v;
+}
+
+// Pirate's Moon 1.0 @ 0x004cb370 (the query's template copied)
 InOutArea::InOutArea() {
   min[0] = min[1] = min[2] = FLT_MAX;
   max[0] = max[1] = max[2] = -FLT_MAX;
 }
 
-// Mech3.exe 1.2 @ 0x004c2080
+// Pirate's Moon 1.0 @ 0x004ca690: skipped when the near crossing is a corner's turn hardly past
+// the side's end.
 void InOutPolygon::cross(InOutArea& area) const {
   if (!tested) return;
   InOutQuery c;
   c.from = area.q.from, c.to = area.q.to;
   c.poly = const_cast<InOutPolygon*>(this);
   c.length = area.q.length;
-  const InOutVertex* prev = &verts.back();  // 0x004c5250 over 0x004c1410
+  c.back = area.q.back;
+  const InOutVertex* prev = &verts.back();
   for (const InOutVertex& v : verts) {
     edge_count(c, prev, &v);
     prev = &v;
   }
-  area.q.crossings += c.crossings;
-  area.q.from_rays += c.from_rays;
-  area.q.to_rays += c.to_rays;
+  bool skip = false;
+  if (c.near_a) {
+    lerp(c.near_point, c.from, c.t_near - c.back, c.to);
+    const float u[3] = {c.near_point[0] - c.near_a->offset[0], 0.0f, c.near_point[2] - c.near_a->offset[2]};
+    c.near_along = u[2] * c.near_a->dir[2] + u[0] * c.near_a->dir[0];
+    skip = (c.near_b == c.far_a && lt(c.near_a->length - c.near_along, 1.0f)) || (c.near_a == c.far_b && lt(c.near_along, 1.0f));
+  }
+  if (skip) return;
+  InOutQuery& q = area.q;
+  q.crossings += c.crossings;
+  q.from_rays += c.from_rays;
+  q.to_rays += c.to_rays;
   const bool from_in = ((c.from_rays & 1) != 0) != (inverted != 0);
   const bool to_in = ((c.to_rays & 1) != 0) != (inverted != 0);
-  auto keep = [&] {
-    area.q.poly = c.poly;
-    area.q.near_a = c.near_a, area.q.near_b = c.near_b;
-    area.q.far_a = c.far_a, area.q.far_b = c.far_b;
-    area.q.t_near = c.t_near, area.q.t_far = c.t_far;
+  if ((c.crossings == 0 && from_in && to_in) || (c.crossings > 0 && lt(c.t_near, q.t_near))) {
+    q.poly = c.poly;
+    q.near_a = c.near_a, q.near_b = c.near_b, q.far_a = c.far_a, q.far_b = c.far_b;
+    q.t_near = c.t_near, q.t_far = c.t_far;
     area.from_in = from_in, area.to_in = to_in;
-  };
-  if (c.crossings == 0 && from_in && to_in) keep();
-  if (c.crossings > 0 && lt(c.t_near, area.q.t_near)) keep();
+    q.nearest = c.nearest, q.dist = c.dist, q.along = c.along, q.perp = c.perp;
+    q.near_along = c.near_along, q.far_along = c.far_along;
+    std::memcpy(q.near_point, c.near_point, 12);
+  }
 }
 
-// Mech3.exe 1.2 @ 0x004c25f0 (over 0x004c1770, from the last corner)
+// Pirate's Moon 1.0 @ 0x004cb2d0 (over 0x004c92f0, from the last corner)
 bool InOutPolygon::blocks(const float* from, const float* p) const {
   const InOutVertex* prev = &verts.back();
   for (const InOutVertex& v : verts) {
-    if (crosses(from, p, prev->pos, v.pos)) return true;
+    if (crosses(from, p, prev->offset, v.offset)) return true;
     prev = &v;
   }
   return false;
 }
 
-// Mech3.exe 1.2 @ 0x004c2f20. The sides' lengths from near_b and from far_a
-// to the end (0x004c2e90), the arc between them, then the two ends' gaps.
-const InOutVertex* InOutPolygon::way_round(const InOutQuery& q) const {
-  const InOutVertex* got = q.near_a;
-  float arc = 0, rest = 0;
+// Pirate's Moon 1.0 @ 0x004caef0 / 0x004cb0e0 over 0x004cab20 (and 0x004cae70's limit), the sides
+// from (last, first) on.
+InOutPolygon::Near InOutPolygon::nearest(const float* from, const InOutVertex* ref, float limit) const {
+  Near best;
+  const InOutVertex* cur = &verts.back();
   for (const InOutVertex& v : verts) {
-    if (&v == q.near_b) arc = v.length;
-    else if (arc < 0.0f || arc > 0.0f) arc = arc + v.length;
-    if (&v == q.far_a) rest = v.length;
-    else if (rest < 0.0f || rest > 0.0f) rest = rest + v.length;
+    bool look = true;
+    if (ref) {
+      float behind = ref->along - cur->along;
+      if (lt(behind, 0.0f)) behind = behind + perimeter;
+      look = lt(behind, limit);
+    }
+    if (look) {
+      const float u[2] = {from[0] - cur->offset[0], from[2] - cur->offset[2]};
+      const float perp = u[1] * cur->normal[2] + u[0] * cur->normal[0];
+      float d = std::fabs(perp);
+      if (lt(d, best.dist)) {
+        const float along = u[1] * cur->dir[2] + u[0] * cur->dir[0];
+        if (lt(along, 0.0f)) d = std::sqrt(u[1] * u[1] + u[0] * u[0]);
+        else if (lt(cur->length, along)) d = dist_xz_of(from, v.offset);
+        if (lt(d, best.dist)) best.corner = cur, best.dist = d, best.along = along, best.perp = perp;
+      }
+    }
+    cur = &v;
   }
-  if (lt(arc, rest)) arc = (perimeter - rest) + arc;
-  else arc = arc - rest;
-  const float d1 = dist_xz(q.near_point, q.near_b->pos);  // 0x004c1090
-  const float d2 = dist_xz(q.far_point, q.far_a->pos);
-  arc = (d2 + d1) + arc;
-  if (lt(2.0f * arc, perimeter)) got = q.near_b;  // 0x005cac60
-  return got;
+  return best;
 }
 
-// Mech3.exe 1.2 @ 0x004c2470 / 0x004c5290 / 0x004c22c0: the sides from (last,
-// first) on, each one's nearest point to `from` (its projection in x and z
-// when it falls inside, else its first corner), by the distance in 3D
-// (0x0051e000, the outline at height 0).
-void InOutPolygon::nearest(const float* from, float out[3], const InOutVertex** a, const InOutVertex** b) const {
-  float best = FLT_MAX;
-  const InOutVertex* p = &verts.back();
-  for (const InOutVertex& v : verts) {
-    const float e[3] = {v.offset[0] - p->offset[0], 0.0f, v.offset[2] - p->offset[2]};  // 0x0041fb30, y 0
-    const float u[3] = {p->offset[0] - from[0], 0.0f, p->offset[2] - from[2]};
-    const float w[3] = {v.offset[0] - from[0], 0.0f, v.offset[2] - from[2]};
-    const float d1 = dot3(e, u), d2 = dot3(e, w);  // 0x004c2430
-    float at[3];
-    const float* q = p->offset;
-    if ((!(d1 > 0.0f) && lt(0.0f, d2)) || (lt(d2, 0.0f) && !(0.0f > d1))) {
-      lerp(at, p->offset, d1 / (d1 - d2), v.offset);
-      q = at;
+// Pirate's Moon 1.0 @ 0x004cf350: a via node within 100 of a side, on the polygon and on the
+// corners within 100 along the outline of that side.
+void InOutPolygon::add_via(const InOutVia& via) {
+  const Near a = nearest(via.pos);
+  const Near b = nearest(via.other_pos);
+  if (!a.corner || !lt(a.dist, 100.0f)) return;
+  InOutVia w = via;
+  w.corner = a.corner, w.other_corner = b.corner;
+  vias.push_back(w);
+  const InOutVertex* first = verts.data();
+  const InOutVertex* end = first + verts.size();
+  const InOutVertex* lo = a.corner;
+  const InOutVertex* hi = a.corner;
+  float at = a.corner->along - 100.0f;
+  while (at < lo->along) {  // back to the corner before the span
+    if (lo == first) {
+      lo = end;
+      at = at + perimeter;
     }
-    const float d = dist3(q, from);
-    if (lt(d, best)) {
-      best = d;
-      std::memcpy(out, q, 12);
-      *a = p, *b = &v;
+    --lo;
+  }
+  at = a.corner->along + 100.0f;
+  while (!(hi->along > at)) {  // on to the corner past it
+    if (++hi == end) {
+      hi = first;
+      at = at - perimeter;
     }
-    p = &v;
+  }
+  for (const InOutVertex* c = lo; c != hi;) {
+    auto* m = const_cast<InOutVertex*>(c);
+    bool have = false;
+    for (const InOutVia& o : m->vias) have = have || (o.net == w.net && o.other == w.other);
+    if (!have) m->vias.push_back(w);
+    if (++c == end) c = first;
   }
 }
 
-// Mech3.exe 1.2 @ 0x004c2e30 (0x004c53d0 over 0x004c2940): every polygon,
-// tested or not.
 bool InOutArea::clear(const float* from, const float* p) const {
   for (const auto& poly : polygons)
-    if (poly->blocks(from, p)) return false;
+    if (poly->tested && poly->blocks(from, p)) return false;
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004c2b00 (0x004c2a80: the state reset, each polygon's
-// pass). Nothing to do unless the way crosses a side or both ends are in the
-// same polygon. From inside one: the nearest point of its pushed-out
-// outline. Into one, crossing once: the width short of it. Through one: the
-// width short of the first crossing, then the pushed-out corners round the
-// shorter way (0x004c2f20) up to the last crossing's side, the last one in
-// a clear line from `from` taken.
-const float* InOutArea::query(const float* from, const float* to) {
+// Pirate's Moon 1.0 @ 0x004cca00: which way round is shorter, near side to far side.
+const InOutVertex* InOutArea::shorter_way() {
+  const float d1 = dist_xz(q.near_point, q.near_b->offset);  // 0x004c80f0
+  const float d2 = dist_xz(q.far_point, q.far_a->offset);
+  float c = (q.far_a->along - q.near_b->along) + (d2 + d1);
+  if (lt(c, 0.0f)) c = c + q.poly->perimeter;
+  const float other = q.poly->perimeter - c;
+  if (lt(c, other)) {
+    q.arc = c;
+    return q.near_b;
+  }
+  q.arc = other;
+  return q.near_a;
+}
+
+// Pirate's Moon 1.0 @ 0x004cb8b0: one side on from `from_side`, toward `side_` the shorter way:
+// its middle when that's in a clear line, else the corner.
+const float* InOutArea::round_to(const InOutVertex* from_side, const InOutVertex* side_) {
+  const InOutPolygon& poly = *q.poly;
+  float x = side_->along - from_side->along;
+  if (lt(x, 0.0f)) x = x + poly.perimeter;
+  const InOutVertex* corner;
+  const InOutVertex* mid;
+  if (lt(poly.perimeter - x, x)) {
+    outcome += 3;
+    corner = from_side;
+    mid = (from_side == poly.verts.data() ? poly.verts.data() + poly.verts.size() : from_side) - 1;
+  } else {
+    outcome += 1;
+    corner = mid = poly.next(from_side);
+  }
+  middle(q.scratch, mid);
+  if (clear(q.from, q.scratch)) return q.scratch;
+  outcome += 1;
+  return corner->inner;
+}
+
+// Pirate's Moon 1.0 @ 0x004cba50 over 0x004c8370, 0x004cf730: for a vehicle that may use them, the
+// cheapest via near this corner, by the way round to it, its length, and the way on.
+const float* InOutArea::way_through(bool ways, const InOutVertex* corner) {
+  if (!ways || corner->vias.empty()) return nullptr;
+  float best = q.arc;
+  if (q.poly->far_limit < best) best = q.poly->far_limit;
+  const InOutVia* got = nullptr;
+  const InOutVertex* first = q.poly->verts.data();
+  const float around = q.poly->perimeter;
+  for (const InOutVia& v : corner->vias) {
+    // 0x004cf730: its own side's place; the exe's next corner runs off the vector for the last
+    // side, only for a distance it then doesn't use unless NaN.
+    const InOutVertex* c8 = v.other_corner;
+    float along = 0;
+    if (c8) {
+      const float u[2] = {v.pos[0] - c8->offset[0], v.pos[2] - c8->offset[2]};
+      along = clamp_along(u[1] * c8->dir[2] + u[0] * c8->dir[0], c8);
+    }
+    const float m1 = round_way(q.far_a->along, (c8 ? c8 : first)->along + along, around, nullptr);
+    const float n = clamp_along(q.near_along, q.near_a);
+    const float m2 = round_way(v.corner->along, q.near_a->along + n, around, nullptr);
+    const float cost = (m1 + dist_xz_of(v.pos, v.other_pos)) + m2;
+    if (lt(cost, best)) best = cost, got = &v;
+  }
+  q.via = got;
+  if (!got) return nullptr;
+  if (got->corner == corner) {
+    outcome += 5;
+    return got->pos;
+  }
+  return round_to(corner, got->corner);
+}
+
+// Pirate's Moon 1.0 @ 0x004cbbb0. From inside a polygon, close to a side: the nearest place half a
+// unit past it, and the way goes on from there. Inside and deep in: that place is the answer.
+// `to` inside: its nearest place, as the last crossing. Then by distances: far from the side,
+// short of the first crossing; a long way round, a via or the middle of a side nearer `to`;
+// else the corners round the shorter way, the last in a clear line taken.
+const float* InOutArea::resolve(bool ways) {
+  const float* r = nullptr;
+  bool near_set = false, far_set = false;
+  if (from_in && lt(q.dist, q.poly->in_limit)) {
+    from_in = 0;
+    q.near_a = q.nearest;
+    q.near_b = q.poly->next(q.near_a);
+    on_side(q.near_point, q.nearest, clamp_along(q.along, q.nearest), kOut);
+    q.from = q.near_point;
+    near_set = true;
+    ++q.crossings;
+  }
+  if (to_in) {
+    const InOutPolygon::Near n = q.poly->nearest(q.to);
+    if (n.corner) {  // FIX (A): NaN distances keep none; the exe reads through null
+      for (int k = 0; k < 3; ++k) q.far_point[k] = n.along > 0.0f ? n.corner->offset[k] + n.along * n.corner->dir[k] : n.corner->offset[k];
+      for (int k = 0; k < 3; ++k) q.far_point[k] = q.far_point[k] + kOut * n.corner->normal[k];
+      q.far_a = n.corner;
+      q.far_b = q.poly->next(n.corner);
+      far_set = true;
+      ++q.crossings;
+    }
+  }
+  outcome = 0;
+  if (!(q.crossings > 0 || (from_in && to_in))) return nullptr;
+  if (from_in) {
+    outcome = 1;
+    on_side(q.near_point, q.nearest, clamp_along(q.along, q.nearest), kOut);
+    q.from = q.near_point;
+    return q.near_point;
+  }
+  if (!q.near_a || !q.far_a) return nullptr;
+  outcome = 2;
+  if (!near_set) {
+    lerp(q.near_point, q.from, q.t_near, q.to);
+    for (int k = 0; k < 3; ++k) q.near_point[k] = q.near_point[k] + kOut * q.near_a->normal[k];
+  }
+  if (!far_set) {
+    lerp(q.far_point, q.from, q.t_far, q.to);
+    for (int k = 0; k < 3; ++k) q.far_point[k] = q.far_point[k] + kOut * q.far_a->normal[k];
+  }
+  const InOutVertex* way = shorter_way();
+  const InOutPolygon& poly = *q.poly;
+  if (lt(poly.near_limit, q.dist)) {
+    outcome = 3;
+    return q.near_point;
+  }
+  if (lt(poly.far_limit, q.arc)) {
+    outcome = 4;
+    r = way_through(ways, q.nearest);
+    if (!r && lt(q.t_near * q.length, poly.near_limit)) r = way_through(ways, q.near_a);
+    if (r) return r;
+    const InOutPolygon::Near n = poly.nearest(q.to, q.near_a, poly.far_limit);
+    if (!n.corner) return q.near_point;  // FIX (A): as above
+    if (n.corner == q.near_a) {
+      outcome = 0xb;
+      middle(q.scratch, q.near_a);
+      return q.scratch;
+    }
+    outcome = 0xc;
+    if (lt(q.dist, 1.5f)) {
+      bool s1, s2;
+      const float m1 = round_way(n.corner->along, q.near_a->along, poly.perimeter, &s1);
+      const float m2 = round_way(n.corner->along, q.nearest->along, poly.perimeter, &s2);
+      if (s1 == s2 && lt(m2, m1)) return round_to(q.nearest, n.corner);
+    }
+    return round_to(q.near_a, n.corner);
+  }
+  outcome = 0x13;
+  r = way_through(ways, q.near_a);
+  if (!r) {
+    outcome = 0x14;
+    const InOutVertex* first = poly.verts.data();
+    const InOutVertex* end = first + poly.verts.size();
+    if (way == q.near_a) {
+      const InOutVertex* cur = q.far_a;
+      while (!r && cur != q.near_a) {
+        if (++cur == end) cur = first;
+        if (clear(q.from, cur->inner)) r = cur->inner;
+      }
+    } else {
+      const InOutVertex* cur = q.far_b;
+      while (!r && cur != q.near_b) {
+        if (cur == first) cur = end;
+        --cur;
+        if (clear(q.from, cur->inner)) r = cur->inner;
+      }
+    }
+  }
+  return r ? r : q.near_point;
+}
+
+// Pirate's Moon 1.0 @ 0x004cc7f0: the polygon met last on its own first, the rest only when it
+// changes nothing.
+const float* InOutArea::query(const float* from, const float* to, InOutPolygon* first, bool ways) {
   const float* got = to;
   q = InOutQuery{};
   q.from = from, q.to = to;
   from_in = to_in = 0;
-  for (const auto& poly : polygons) poly->cross(*this);  // 0x004c53a0 over 0x004c2920
-  if (!(q.crossings > 0 || (from_in && to_in))) return got;
-  const float d[2] = {to[0] - from[0], to[2] - from[2]};
-  q.length = std::sqrt(d[0] * d[0] + d[1] * d[1]);  // 0x004c2e00
-  if (from_in) {
-    const InOutVertex *a = nullptr, *b = nullptr;
-    q.poly->nearest(from, q.near_point, &a, &b);
-    got = q.near_point;
-    // FIX (bug): with every distance NaN no side is kept and the exe reads
-    // the stack's leftovers; the normal is left as it was.
-    if (a && b) {
-      normal[0] = a->pos[2] - b->pos[2];
-      normal[1] = 0.0f;
-      normal[2] = b->pos[0] - a->pos[0];
-      normalize3(normal);  // 0x004020d0
-    }
-  } else if (to_in && q.crossings == 1) {
-    got = q.far_point;
-    lerp(q.far_point, from, q.t_far - q.poly->width / q.length, to);
-  } else if (q.near_a && q.far_a) {
-    lerp(q.near_point, from, q.t_near - q.poly->width / q.length, to);
-    lerp(q.far_point, from, q.poly->width / q.length + q.t_far, to);
-    const InOutVertex* cur = q.poly->way_round(q);
-    if (cur) {
-      got = q.near_point;
-      const InOutVertex* first = q.poly->verts.data();
-      const InOutVertex* end = first + q.poly->verts.size();
-      if (cur == q.near_a) {
-        while (cur != q.far_a) {  // back round
-          if (clear(from, cur->offset)) got = cur->offset;
-          if (cur == first) cur = end;
-          --cur;
-        }
-      } else if (cur == q.near_b) {
-        while (cur != q.far_b) {  // forward round
-          if (clear(from, cur->offset)) got = cur->offset;
-          if (++cur == end) cur = first;
-        }
-      }
-    }
+  const float dx = to[0] - from[0], dz = to[2] - from[2];
+  q.length = std::sqrt(dz * dz + dx * dx);
+  q.back = 0.1f / q.length;
+  q.via = nullptr;
+  if (first) {
+    first->cross(*this);
+    if (const float* r = resolve(ways)) got = r;
+  }
+  if (got == to) {
+    for (const auto& poly : polygons)
+      if (poly.get() != first) poly->cross(*this);
+    if (const float* r = resolve(ways)) got = r;
   }
   return got;
 }
@@ -496,18 +706,36 @@ void inout_select() {
   if (!g_inout.areas) return;
   const int32_t i = inout_variant().index;
   // FIX (bug): unchecked in the exe; a mission past ten would point past the vector.
+  g_met_last.clear();
   if (i >= 0 && static_cast<size_t>(i) < g_inout.areas->size()) g_inout.current = &(*g_inout.areas)[size_t(i)];
 }
 
-// Mech3.exe 1.2 @ 0x004c3000 (the vehicle's record left out, see the header)
-bool inout_pull(const float pos[3], const float in[3], float out[3]) {
+// Pirate's Moon 1.0 @ 0x004ccaf0
+bool inout_pull(uintptr_t vehicle, const float pos[3], const float in[3], float out[3], bool ways) {
   InOutArea* a = g_inout.current;
-  if (!a) return false;
-  const float* r = a->query(pos, in);  // 0x004c2670
+  if (!a) {
+    g_met_last.erase(vehicle);
+    return false;
+  }
+  // Vehicle 0 is ours, the way finder's grid (zai_nav.cpp): no vehicle, nothing kept.
+  const float* r = a->query(pos, in, vehicle ? g_met_last[vehicle].poly : nullptr, ways);
+  if (vehicle) g_met_last[vehicle] = InOutLast{a->q.poly, a->q.via, a->q.via && a->q.via->pos == r};
   if (r == in) return false;
   out[0] = r[0], out[1] = r[1], out[2] = r[2];
   out[1] = in[1];  // after the copy: with `in` as `out`, the pulled point's own height
   return true;
+}
+
+InOutLast inout_last(uintptr_t vehicle) {
+  const auto it = g_met_last.find(vehicle);
+  return it == g_met_last.end() ? InOutLast{} : it->second;
+}
+
+void inout_add_via(const void* net, const void* node, const float* pos, const void* other, const float* other_pos) {
+  if (!g_inout.current) return;
+  InOutVia v;
+  v.net = net, v.node = node, v.pos = pos, v.other = other, v.other_pos = other_pos;
+  for (const auto& p : g_inout.current->polygons) p->add_via(v);
 }
 
 // Mech3.exe 1.2 @ 0x004c3bd0 -> 0x004c2a30 over 0x004c29a0. Any other
@@ -533,6 +761,7 @@ void inout_set_state(const char* name, int32_t message) {
 
 // Mech3.exe 1.2 @ 0x004c3dd0
 void inout_mission_end() {
+  g_met_last.clear();
   g_inout.areas.reset();
   ++g_inout_changes;
   // FIX (bug): the exe leaves [0x0060b344] pointing at the freed area; a next

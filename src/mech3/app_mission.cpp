@@ -841,7 +841,7 @@ struct WiredBrainHooks : ai::BrainHooks {
   bool inout_clamp(Handle v, const float in[3], float out[3]) override {
     float pos[3];
     position(v, pos);
-    return ai::inout_pull(pos, in, out);
+    return ai::inout_pull(static_cast<uintptr_t>(v), pos, in, out, false);  // via nodes: step 3 of docs/pm-map.md's AI
   }
   ai::AiTarget* targetable(Handle v) override {
     if (PocketMarker* k = marker(v)) return k;

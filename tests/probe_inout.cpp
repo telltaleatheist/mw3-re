@@ -96,13 +96,14 @@ int32_t inout_query(const float* from, const float* to, uint8_t* buf, int32_t ca
   o.put(r, 12);
   put_query(o, *a, from, to);
   o.u32(a->from_in | a->to_in << 8);
-  o.put(a->normal, 12);
+  const float no_normal[3] = {};  // PM's area keeps none
+  o.put(no_normal, 12);
   return o.n;
 }
 
 // 0x004c3000: the answer and `out` (in and out the same buffer when `same`).
 int32_t inout_pull_probe(const float* pos, float* in, float* out, int32_t same) {
-  return mech3::ai::inout_pull(pos, in, same ? in : out) ? 1 : 0;
+  return mech3::ai::inout_pull(0, pos, in, same ? in : out, false) ? 1 : 0;
 }
 
 // 0x004c3bd0 with the node's name.
