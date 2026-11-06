@@ -66,6 +66,8 @@ struct ModelPool {
 };
 ModelPool& models();
 
+int model_scroll_tick(Model* m);                       // 0x00547ab0: the UVs moved, -1 for no model
+int model_set_scroll(Model* m, int on, float u, float v);  // MW3's 0x00526ae0
 // Pirate's Moon 1.0 @ 0x00557ba0: the slot of an index, null below 0.
 Model* model_at(int32_t index);
 // Pirate's Moon 1.0 @ 0x00558f50: the free head, zeroed but its link, flags

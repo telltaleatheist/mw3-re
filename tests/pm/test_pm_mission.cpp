@@ -195,6 +195,7 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   engine.set_launch(l);
   app.post_intro_ = &mech3::states().load;
   int frames = 0, before = -1, after = -1, unit_valve = -1;
+  int soil_on = 0, soil_all = 0, tex_names = 0;
   void* werewolf = nullptr;
   const auto state = [](void* m) {
     mech3::LaunchedMech o;
@@ -215,6 +216,11 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
       if (mech3::ai::Valve* v = mech3::ai::valve_find("werewolf_destroyed_ready")) v->set(1);  // on_mission_start's, 50 s in
     }
     if (frames == 40 && werewolf) after = state(werewolf);
+    if (frames == 5) {  // the skins reach PM's models (0x00476610): "mech" soil on the mech's materials
+      mech3::MechTextures tex;
+      if (mech3::mech_textures(mech3::mech_mission_player(), &tex))
+        soil_on = tex.mech_soil, soil_all = tex.polygons, tex_names = static_cast<int>(tex.names.size());
+    }
   };
   Pump pump;
   pump.limit = 3000;
@@ -225,6 +231,8 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   EXPECT(werewolf);
   EXPECT(before != 10);  // Mech::Die's +0x578
   EXPECT(after == 10);
+  std::printf("  c2m4: the player's polygons on mech soil %d of %d, textures %d\n", soil_on, soil_all, tex_names);
+  EXPECT(soil_all > 100 && soil_on > soil_all / 2 && tex_names > 100);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);  // the clippers stayed in their arena (gmod_draw.cpp)
   // Leaving the mech lab purges what no model uses (0x005394c0): the world's materials stay.
   const int32_t materials = ::zmod::materials().count;

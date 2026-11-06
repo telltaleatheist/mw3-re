@@ -550,6 +550,7 @@ bool mech_marker_heights(void* mech, float out[4]);
 // For the tests: the textures on the mech's model (+0x694) and its low-detail
 // copy (+0x698), by name (each textured polygon's), and its skin's (+0x3e8).
 struct MechTextures {
+  int32_t polygons = 0, mech_soil = 0;  // Pirate's Moon's: its polygons, those on "mech" soil (the skins reached them)
   std::vector<std::string> names;  // the model's
   std::vector<std::string> lod;    // the low-detail copy's
   std::string skin;                // the mech's skin's name

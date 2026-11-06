@@ -97,6 +97,7 @@
 #include "mech3/weapon_planner.h"
 #include "mech3/zai_brain.h"
 #include "mech3/weapon.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 namespace mech3 {
 int32_t object_lod();  // mech3/options.h (its Handle clashes with mech.h's)
@@ -2828,6 +2829,16 @@ bool mech_textures(void* mech, MechTextures* out) {
   if (!m) return false;
   auto walk = [&](auto& self, zcls::Node* n, std::vector<std::string>& names) -> void {
     if (!n) return;
+    if (pm::zmod::Model* md = n->pm_model)
+      for (uint32_t k = 0; md->polygons && k < static_cast<uint32_t>(md->count(0x10)); ++k) {
+        const pm::zmod::Polygon& p = md->polygons[k];
+        const zmod::Material* mat = p.material_count && p.materials ? p.materials[0] : nullptr;
+        if (mat) ++out->polygons, out->mech_soil += mat->soil == static_cast<uint32_t>(zmod::soil_index("mech"));
+        if (mat && (mat->flags & 1) && mat->texture) {
+          names.push_back(mat->texture->name);
+          out->loaded += mat->texture->image != nullptr;
+        }
+      }
     if (zmod::Model* md = n->model)
       for (uint32_t k = 0; k < md->count(0x10); ++k)
         if (const zmod::Material* mat = md->polygons[k].material; mat && (mat->flags & 1) && mat->texture) {

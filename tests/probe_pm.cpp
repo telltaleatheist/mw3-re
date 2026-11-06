@@ -3432,4 +3432,35 @@ int32_t pmpf_create_before_reset() {
   ::zmod::puff_state() = ::zmod::PuffState{};
   return made;
 }
+
+// The scroll's step on PM's model (0x00547ab0): `n` polygons of `counts` vertices, `textured`, their
+// UV pairs one after another in `uvs` (in and out); `header` in and out. Returns the step's result.
+int32_t probe_pm_scroll_tick(uint8_t* header, int32_t n, const int32_t* counts, const int32_t* textured, float* uvs,
+                             uint32_t frame, float dt, int32_t null_model) {
+  ::zcls::frames().frame = frame;
+  ::ztimer::state().dt = dt;
+  if (null_model) return pm::zmod::model_scroll_tick(nullptr);
+  pm::zmod::Model m{};
+  std::memcpy(m.header, header, sizeof m.header);
+  std::vector<pm::zmod::Polygon> polys(static_cast<size_t>(n));
+  std::vector<::zmod::Material> mats(static_cast<size_t>(n));
+  std::vector<::zmod::Material*> lists(static_cast<size_t>(n));
+  std::vector<float*> uv_lists(static_cast<size_t>(n));
+  float* at = uvs;
+  for (int32_t i = 0; i < n; ++i) {
+    const size_t k = static_cast<size_t>(i);
+    std::memset(&mats[k], 0, sizeof mats[k]);
+    mats[k].flags = textured[i] ? 1 : 0;
+    lists[k] = &mats[k], uv_lists[k] = at;
+    polys[k].flags = static_cast<uint32_t>(counts[i]) & 0x3ff;
+    polys[k].materials = &lists[k], polys[k].uvs = &uv_lists[k];
+    at += 2 * (counts[i] > 0 ? counts[i] : 1);
+  }
+  m.polygons = polys.data();
+  const int32_t r = pm::zmod::model_scroll_tick(&m);
+  std::memcpy(header, m.header, sizeof m.header);
+  for (auto& p : polys) p.materials = nullptr, p.uvs = nullptr;
+  m.polygons = nullptr;
+  return r;
+}
 }  // extern "C"

@@ -33,6 +33,7 @@
 #include "mech3/weapon.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_target.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 // The turrets in the program (docs/vehicles.md, The turrets in the
 // program): turret.cpp's calls out wired to the ports. Ours, not the exe's.
@@ -90,7 +91,7 @@ struct WiredTurrets : tur::TurretHooks {
   Handle nodes_next() override { return hd(zcls::list_walk_next(nullptr, 6, prefixed)); }
   const char* node_name(Handle n) override { return zn(n) ? zn(n)->name() : nullptr; }
   uint32_t node_flags(Handle n) override { return zn(n) ? zn(n)->flags() : 0; }
-  Handle node_model(Handle n) override { return zn(n) ? hd(zn(n)->model) : 0; }
+  Handle node_model(Handle n) override { return zn(n) ? hd(zn(n)->pm_model) : 0; }  // PM's nodes hold theirs here
   Handle node_find(Handle root, const char* name) override { return hd(zcls::node_find_in_tree(zn(root), name)); }
   Handle node_child(Handle n, const char* name) override { return hd(find_first(zn(n), name)); }
   Handle node_named(const char* name) override { return hd(zcls::list_find_by_name(6, name)); }
@@ -141,8 +142,8 @@ struct WiredTurrets : tur::TurretHooks {
     zcls::object3d_set_blend(zn(n), kRed, amount);
   }
   void node_tinted(Handle n, int32_t on) override { zcls::object3d_use_blend(zn(n), on); }
-  void model_scroll(Handle m) override { zmod::model_set_scroll(static_cast<zmod::Model*>(ob(m)), 1, 10.0f, 0.0f); }
-  void effect_animate(Handle m) override { zmod::model_scroll_tick(static_cast<zmod::Model*>(ob(m))); }
+  void model_scroll(Handle m) override { pm::zmod::model_set_scroll(static_cast<pm::zmod::Model*>(ob(m)), 1, 10.0f, 0.0f); }
+  void effect_animate(Handle m) override { pm::zmod::model_scroll_tick(static_cast<pm::zmod::Model*>(ob(m))); }
   void anim_reset(Handle a, Handle n) override {
     if (auto* d = static_cast<zeff::AnimDef*>(ob(a))) zeff::anim_restart(d, zn(n));
   }

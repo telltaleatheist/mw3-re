@@ -58,7 +58,7 @@ void VehBasicHooks::node_set_rotation(Handle node, float x, float y, float z) {
   zcls::object3d_set_rotation(static_cast<zcls::Node*>(node), x, y, z);
 }
 void VehBasicHooks::node_update(Handle node) { zcls::node_update(static_cast<zcls::Node*>(node)); }
-Handle VehBasicHooks::node_model(Handle node) { return static_cast<zcls::Node*>(node)->model; }
+Handle VehBasicHooks::node_model(Handle node) { return static_cast<zcls::Node*>(node)->pm_model; }  // PM's nodes hold theirs here
 void VehBasicHooks::model_scroll(Handle model, float u, float v) {
   unported("0x00526ae0", {low(model), 1, zgame::bits(u), zgame::bits(v)});
   unported("0x00541ad0", {low(model)});
