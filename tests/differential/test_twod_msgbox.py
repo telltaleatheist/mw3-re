@@ -14,6 +14,7 @@ zVideo and zRender calls); the port (tests/probe_twod.cpp) runs the same
 with the original's answers. Compared: the call traces and the answer.
 """
 import ctypes
+import os
 import random
 import struct
 import sys
@@ -40,6 +41,8 @@ def archive(files):
     for name, data in files:
         table += struct.pack('<II', len(blob), len(data)) + name.encode().ljust(64, b'\0') + bytes(0x94 - 72)
         blob += data
+    if os.environ.get('MW3_EXE') == 'pm':  # its tail: version 2, the count, a word from a shipped file
+        return blob + table + struct.pack('<II', 2, len(files)) + READER.read_bytes()[-4:]
     return blob + table + struct.pack('<II', 1, len(files))
 
 

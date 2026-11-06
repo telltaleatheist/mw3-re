@@ -97,6 +97,11 @@ class AddressMap:
         for part in ('data', 'imports', 'instructions', 'functions'):  # a function's entry wins
             self.exact.update({int(a, 16): int(b, 16) for a, b in m[part].items()})
         self.blocks = sorted((int(lo, 16), int(hi, 16), d) for lo, hi, d in m['blocks'])
+        self.function_back = {int(b, 16): int(a_, 16) for a_, b in m['functions'].items()}
+        # By hand, a one-instruction wrapper the map can't pair: video unlock.
+        for mw, pm in ((0x576e70, 0x597ef0),):
+            self.exact[mw] = pm
+            self.function_back[pm] = mw
         self._lo = [b[0] for b in self.blocks]
         self._bisect = bisect.bisect_right
         # imports PM does not have: slots on a scratch page, so a test's stub
@@ -146,6 +151,7 @@ class UcProxy:
         back = {}
         for a, b in tr.exact.items():
             back.setdefault(b, a)
+        back.update(tr.function_back)  # a stub's entry: the function, not an instruction aligned with it
         self._back, self._blocks = back, [(lo + d, hi + d, d) for lo, hi, d in tr.blocks]
 
     def __getattr__(self, name):
@@ -184,10 +190,15 @@ class UcProxy:
 _MAP = None
 
 
+MOVED = bool(os.environ.get('MW3_PM_MOVED'))
+if MOVED:
+    IAT_FTOL = AddressMap()(IAT_FTOL)
+
+
 def to_exe(addr):
     """An MW3 address in the selected exe: itself on MW3's, mapped on PM's."""
     global _MAP
-    if GAME != 'pm':
+    if GAME != 'pm' or MOVED:
         return addr
     if _MAP is None:
         _MAP = AddressMap()
@@ -248,6 +259,9 @@ class Original:
             self.fpu_control(0x007f)
         # A test's own use of the emulator: on PM's exe through the map too.
         self.uc = UcProxy(self._uc, self.tr) if self.game == 'pm' else self._uc
+        if MOVED:  # pm_moved.py: the tests' constants are PM's already, nothing to translate
+            self.tr = lambda a, size=1: a
+            self.uc = self._uc
 
     def fpu_control(self, cw):
         """Loads the x87 control word (0x037f power-on, 0x007f single precision)."""

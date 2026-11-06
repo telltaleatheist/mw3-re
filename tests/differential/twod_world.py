@@ -7,6 +7,7 @@ character) and a fake image cache (sizes from the name) stand in for Windows
 and zImage; tests/probe_twod.cpp does the same on the rebuild's side.
 """
 import hashlib
+import os
 import re
 import struct
 import sys
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Emu, Trace, rnd  # noqa: E402
 from original import EXES, ROOT  # noqa: E402
 
-READER = ROOT / 'game' / 'mw3-1.2' / 'zbd' / 'reader.zbd'
+READER = ROOT / 'game' / ('pm' if os.environ.get('MW3_EXE') == 'pm' else 'mw3-1.2') / 'zbd' / 'reader.zbd'
 READ_NODE = 0x557180
 
 
@@ -63,6 +64,10 @@ def iat_slots():
 
 
 IAT = iat_slots()
+if os.environ.get('MW3_PM_MOVED'):
+    from original import AddressMap
+    _map = AddressMap()
+    IAT = {k: _map(v) if v in _map.exact else v for k, v in IAT.items()}
 
 
 def text_w(n):
@@ -388,6 +393,8 @@ class TwodWorld:
             0x59a530: 'c',
         }
         for addr, spec in plain.items():
+            if os.environ.get('MW3_EXE') == 'pm' and addr == 0x59a530:
+                continue  # PM has no movies: no such function
             e.stub(addr, f'{addr:#010x}', spec)
 
         def measure(emu, key, a, pop):
@@ -436,15 +443,19 @@ class TwodWorld:
         def image_dc_release(emu, key, a, pop):
             t.handle(key, tuple(a))
             emu._ret(0, 0)
-        e.w32(0x72f394, e.new_stub('[0x0072f394]', 'c,d', 0, image_dc))
-        e.w32(0x72f398, e.new_stub('[0x0072f398]', 'c,d', 0, image_dc_release))
+        slot_spec = 's0,s1' if os.environ.get('MW3_EXE') == 'pm' else 'c,d'  # PM's are plain cdecl
+        e.w32(0x72f394, e.new_stub('[0x0072f394]', slot_spec, 0, image_dc))
+        e.w32(0x72f398, e.new_stub('[0x0072f398]', slot_spec, 0, image_dc_release))
 
     # ---- the tree ----
     def read_tree(self, data, offset):
         """The original zReader's tree of the file at `offset` in `data`."""
         self.file, self.file_pos = data, offset
         root = self.emu.alloc(8)
-        self.emu.call(READ_NODE, ecx=0x1234, edx=root)
+        if os.environ.get('MW3_EXE') == 'pm':  # the handle's a global there, the fake file doesn't look
+            self.emu.cpu.call(READ_NODE, stack_args=[root])
+        else:
+            self.emu.call(READ_NODE, ecx=0x1234, edx=root)
         return root
 
 
@@ -469,8 +480,12 @@ class Script(dict):
 
 
 def entries(data):
-    version, count = struct.unpack_from('<II', data, len(data) - 8)
-    table = len(data) - 8 - count * 0x94
+    if os.environ.get('MW3_EXE') == 'pm':  # version 2: one more word after the count
+        version, count = struct.unpack_from('<II', data, len(data) - 12)
+        table = len(data) - 12 - count * 0x94
+    else:
+        version, count = struct.unpack_from('<II', data, len(data) - 8)
+        table = len(data) - 8 - count * 0x94
     for i in range(count):
         start, length = struct.unpack_from('<II', data, table + i * 0x94)
         name = data[table + i * 0x94 + 8:table + i * 0x94 + 72].split(b'\0')[0].decode()

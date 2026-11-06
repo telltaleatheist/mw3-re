@@ -14,6 +14,7 @@ on fake objects, or a Windows API name.
 """
 import bisect
 import ctypes
+import os
 import random
 import re
 import struct
@@ -37,7 +38,9 @@ CALLBACK = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(cty
 
 
 def load_probe():
-    probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libmw3probe.*'))))
+    # This branch builds PM's probe; MW3's where it's built.
+    name = 'libpmprobe.*' if os.environ.get('MW3_EXE') == 'pm' else 'libmw3probe.*'
+    probe = ctypes.CDLL(str(next((ROOT / 'build').glob(name))))
     return probe
 
 
@@ -81,6 +84,71 @@ class PmImage:
             return self.cpu.read(0x400000 + off, 1)[0]
         except Exception:
             return 0
+
+
+# MW3's build passes arguments in ECX and EDX where PM's (no whole-program optimisation) has
+# the plain conventions. A test names MW3's: moved here to PM's, by each function's decompiled header.
+_regs_cache = {}
+
+
+def _header(path):
+    text = path.read_text(errors='replace') if path.exists() else ''
+    return text
+
+
+_back_map = None
+
+
+def _back():
+    global _back_map
+    if _back_map is None:
+        from original import AddressMap
+        _back_map = AddressMap().function_back
+    return _back_map
+
+
+def pm_args(addr):
+    """(regs MW3's function reads, PM's convention: 'this', 'fast' or 'stack')."""
+    if addr in _regs_cache:
+        return _regs_cache[addr]
+    twin = _back().get(addr, addr) if os.environ.get('MW3_PM_MOVED') else addr
+    mw = _header(ROOT / 'analysis-output' / 'decomp' / f'{twin:#x}.c')
+    regs = ''
+    if '__thiscall' in mw or '__fastcall' in mw or 'in_ECX' in mw:
+        regs += 'c'
+    if 'in_EDX' in mw or ('__fastcall' in mw and re.search(r'__fastcall \w+\([^,)]+,[^)]+\)', mw)):
+        regs += 'd'
+    try:
+        at = to_exe(addr)
+    except Exception:
+        at = None
+    pm = _header(ROOT / 'analysis-output' / 'pm-decomp' / f'{at:#x}.c') if at else ''
+    head = pm.split('{')[0]
+    conv = 'this' if '__thiscall' in head or 'in_ECX' in pm else 'fast' if '__fastcall' in head else 'stack'
+    _regs_cache[addr] = (regs, conv)
+    return regs, conv
+
+
+def pm_spec(addr, spec):
+    """A stub's spec in MW3's registers as PM's function takes them."""
+    if GAME == 'mw3' or not spec:
+        return spec
+    regs, conv = pm_args(addr)
+    if conv == 'fast':
+        return spec
+    moved = {'c': None if conv == 'this' else 0, 'd': (0 if conv == 'this' else ('c' in regs) + 0) if 'd' in regs else None}
+    n = sum(1 for r, at in moved.items() if at is not None and r in regs)
+    out = []
+    for tok in spec.split(','):
+        m = re.fullmatch(r'([z*]?)(sb|s|cl|dl|c|d)(\d*)', tok)
+        pre, kind, k = m.group(1), m.group(2), m.group(3)
+        if kind in ('s', 'sb'):
+            out.append(f'{pre}{kind}{int(k) + n}')
+        elif kind[0] in moved and moved[kind[0]] is not None:
+            out.append(f"{pre}{'sb' if len(kind) == 2 else 's'}{moved[kind[0]]}")
+        else:
+            out.append(tok)
+    return ','.join(out)
 
 
 def ret_pop(addr):
@@ -290,7 +358,7 @@ class Emu:
 
     def snapshot(self):
         """The memory as it is now, for the rebuild's reads."""
-        image = (0x400000, self.cpu.read(0x400000, 0x420000)) if GAME == 'mw3' else (0x400000, PmImage(self.cpu))
+        image = (0x400000, self.cpu.read(0x400000, 0x420000)) if GAME == 'mw3' or os.environ.get('MW3_PM_MOVED') else (0x400000, PmImage(self.cpu))
         regions = [image,
                    (self.world_base, self.cpu.read(self.world_base, self.world_next - self.world_base)),
                    (0x10000000, self.cpu.read(0x10000000, self.cpu.heap_next - 0x10000000))]
@@ -383,6 +451,9 @@ class Emu:
             if pop is None:
                 raise ValueError(f'{addr:#x}: import thunk, give pop')
         key = key or f'{addr:#010x}'
+        if os.environ.get('MW3_PM_MOVED') and re.fullmatch(r'0x[0-9a-f]{8}', key):  # the port's keys are MW3's
+            key = f'{_back().get(int(key, 16), int(key, 16)):#010x}'
+        spec = pm_spec(addr, spec)
         if addr not in self.slots:  # one hook per address; a later stub replaces
             self.uc.hook_add(UC_HOOK_CODE, self._hit, begin=addr, end=addr)
         self.slots[addr] = (key, spec, pop, fn)
@@ -411,6 +482,8 @@ class Emu:
         return obj
 
     def alloc(self, n):
+        if os.environ.get('MW3_PM_MOVED'):  # a test's sizes are MW3's; some of PM's classes are larger
+            n += 0x200
         a = self.cpu.alloc(n)
         self.cpu.write(a, b'\0' * n)
         return a
@@ -432,6 +505,15 @@ class Emu:
         self.t.silent |= {'new', 'delete'}
 
     def call(self, addr, ecx=0, edx=0, stack=(), count=200_000_000):
+        if GAME != 'mw3':
+            regs, conv = pm_args(addr)
+            if conv == 'this':
+                stack = ([edx] if 'd' in regs else []) + list(stack)
+                edx = 0
+            elif conv == 'stack':
+                stack = ([ecx] if 'c' in regs else []) + ([edx] if 'd' in regs else []) + list(stack)
+                ecx = 0 if 'c' in regs else ecx
+                edx = 0 if 'd' in regs else edx
         self.cpu.call(addr, ecx=ecx, edx=edx, stack_args=stack, count=count)
         return self.uc.reg_read(UC_X86_REG_EAX)
 
