@@ -1276,7 +1276,8 @@ struct WiredTargetHooks : ai::TargetHooks {
   int32_t node_box(Handle n, float box[6]) override {
     zcls::Node* nd = node(n);
     if (!nd || !nd->data) return 5;
-    std::memcpy(box, nd->raw + 0x74, 6 * sizeof(float));  // 0x004ebd50
+    // Pirate's Moon 1.0 @ 0x004fd9d0: behind the pointer at +0x70
+    std::memcpy(box, nd->pm_box ? nd->pm_box : reinterpret_cast<const float*>(nd->raw + 0x74), 6 * sizeof(float));
     return (nd->flags() & 0x100) == 0 ? 1 : 0;
   }
   // 0x0050b4e0: the first def in use named so whose node is this one.
