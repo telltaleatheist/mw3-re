@@ -19,7 +19,7 @@ Made with AI assistance, by Claude, on Owen's project.
 | Launchers | works without editing the exe, so a launcher's hash check still passes (run through a launcher that checks the exe's hash: works) | a launcher that verifies the exe's hash will refuse it, and that's for its author to allow |
 | Weapons in all | 127 at most, unproven past the lab's lists (What was tested) | 49 |
 | Exes | official 1.2, NOCD 1.2, and either with ZipperFixup: anything else is left alone | only the ones in `ACCEPTED` |
-| Needs | a built DLL | Python only |
+| Needs | nothing: the zip's `install.cmd` | Python |
 | Antivirus | **may be flagged** | less likely |
 
 Use the stand-in unless you have a reason not to. Use the patched copy if your antivirus objects, or you want one file
@@ -31,22 +31,32 @@ start: restore it (below) or take it out of quarantine.
 
 ## The stand-in DLL
 
+1. Unzip the whole release zip to its own folder. Don't paste its files into the game folder.
+2. Drop your game folder onto `install.cmd`. It tells you what it did, or why it stopped.
+3. Start the game the way you always do, and look for the plain PPC in the mech lab's weapon list.
+4. If it isn't there, send `weapon-patch.log` from your game folder. `restore.cmd` undoes it all the same way.
+
+`install.cmd` needs nothing else installed. It renames the game's `IFORCE2.dll` to `IFORCE2o.dll`, and copies in the stand-in, from `install-files\`, and `weapon-rows.txt`. It stops if the folder has neither `Mech3.exe` nor `Mech3fixup.exe`, if `IFORCE2.dll` is missing, if `IFORCE2o.dll` exists, or if the
+`IFORCE2.dll` there is already ours, which means the original was overwritten: put that back first. It never overwrites anything, and keeps a `weapon-rows.txt` that's already there. `restore.cmd` deletes only our own file, and only with `IFORCE2o.dll` there to put back.
+
+**If the game says `IFORCE2o.dll` was not found,** the stand-in is in the game folder without the original beside it. Put the original `IFORCE2.dll` back, 61,440 bytes, then run `install.cmd`.
+
+To change your rows, edit `weapon-rows.txt` in the game folder with any text editor. Each time the game starts, the stand-in writes one line to `weapon-patch.log` beside it, saying how many weapons it added or why it added none, such as
+`weapon-rows.txt line 3: family is not 0..14`. **Past that, it never stops the game:** a bad row, a missing file or an exe it doesn't recognise means no changes at all, and the game runs as usual.
+
+### Building it yourself
+
+The zip's DLL is built from this source with mingw (`i686-w64-mingw32-gcc`), and Python runs the tools; neither is needed to install. In the zip the Python tools are under `tools\`; building needs this repository's layout. The command is in `proxy_install.py`, and the same source and compiler give the same file:
+
     python tools/weapon-patch/proxy_install.py build --out IFORCE2.dll
     python tools/weapon-patch/proxy_install.py install "<game folder>" IFORCE2.dll rows.txt
-
-Building needs mingw (`i686-w64-mingw32-gcc`); the command is in `proxy_install.py`. Install renames the game's `IFORCE2.dll` to
-`IFORCE2o.dll`, and copies in the stand-in and your rows as `weapon-rows.txt`. It refuses if either name is taken, and never
-overwrites. To undo it, which removes the stand-in and puts the original back:
-
     python tools/weapon-patch/proxy_install.py restore "<game folder>"
 
-To change your rows, edit `weapon-rows.txt` in the game folder with any text editor. Each time the game starts, the stand-in
-writes one line to `weapon-patch.log` beside it, saying how many weapons it added or why it added none, such as
-`weapon-rows.txt line 3: family is not 0..14`. **It never stops the game:** a bad row, a missing file or an exe it doesn't
-recognise means no changes at all, and the game runs as usual. To check a row file first, against your own `reader.zbd`, DLL
-and exe:
+To check a row file first, against your own `reader.zbd`, DLL and exe:
 
     python tools/weapon-patch/proxy_install.py check "<game folder>" rows.txt
+
+`package/make_zip.py` makes the release zip, and refuses a DLL that isn't the tested one. `package/test_install_cmd.py` runs both scripts on Windows `cmd` with dummy files.
 
 ## The patched copy
 

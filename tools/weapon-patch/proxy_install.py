@@ -77,8 +77,8 @@ def check_rows(game, rows_text):
         if not reader.is_file() or not dll.is_file():
             raise pw.Refused(f'{game} lacks zbd/reader.zbd or Mech3Msg.dll, needed to check the rows')
         pw.check_data(rows, reader.read_bytes(), dll.read_bytes())
-        exe = game / 'Mech3.exe'
-        if exe.is_file() and exe.stat().st_size == pw.EXE_SIZE:
+        exe = next((game / n for n in ('Mech3.exe', 'Mech3fixup.exe') if (game / n).is_file()), None)
+        if exe and exe.stat().st_size == pw.EXE_SIZE:  # the game's weapon names; else the stand-in checks them at load
             seen = pw.old_names(exe.read_bytes())
             for row in rows:
                 if row['name'].lower() in seen:
