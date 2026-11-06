@@ -1,5 +1,7 @@
 #include "mech3/turret.h"
 
+#include "mech3/zai_params.h"
+
 #include <cmath>
 #include <cstring>
 #include <new>
@@ -264,6 +266,9 @@ void Turret::setup(Handle generic_anim, zrdr::Node* def) {
     ams_on = 1;
     ams = new Ams(ams_range, 0.0f, 100);  // 0x004b3ab0
   }
+  // Pirate's Moon 1.0 @ 0x004a9ce8: ALLY (the turf_ turrets) on the player's side. The key's there or not; its value
+  // goes unread.
+  if (zrdr::find(def, "ALLY")) set_team(static_cast<uint32_t>(ai::team_side(0)));
   h.node_world_position(node, pos);
   h.node_rotation(node, facing);
   vec_normalise(facing);
