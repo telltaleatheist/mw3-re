@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-#include "gamez/zutil/zutl_zar.h"
+#include "../../../gamez/zutil/zutl_zar.h"
 
 // C:\zipper\branchep1\gamez\zUtil\zutl_zar.cpp: Pirate's Moon's zArchive,
 // version 2 (docs/pm-map.md, The data formats). The table ends

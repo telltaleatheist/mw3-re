@@ -585,7 +585,7 @@ endif()
 if(MW3_BUILD_PM)
   # PM's code and the game are one library on this branch; pmcore stays as a name for it.
   target_sources(mw3core PRIVATE
-    src/pm/pm_game.cpp
+    src/pm/game/pm_game.cpp
     src/pm/gamez/zutil/zutl_zar.cpp
     src/pm/gamez/zreader/zrdr_main.cpp
     src/pm/gamez/zclass/cls_zbd.cpp
