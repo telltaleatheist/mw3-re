@@ -505,7 +505,7 @@ void segment_cells(Node* world, const int32_t* valid) {
       // Pirate's Moon 0x00502a90, 0x00502bd0 (0x00504100), 0x00502b00.
       {
         Mask m;
-        std::memcpy(m.m, valid, sizeof m.m);
+        std::memcpy(m.m, valid, g_sq.count * sizeof m.m[0]);  // valid holds the segments (12), the mask the probes (24)
         const int32_t many = clutter_count(p) + 1;
         clutter_walk(
             p, m,

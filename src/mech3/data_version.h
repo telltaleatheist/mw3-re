@@ -31,7 +31,7 @@ struct DataVersion {
   std::string describe() const;           // one line for the start-up print
 };
 
-DataVersion detect_data_version();  // through zutl's mounts
+DataVersion detect_data_version();  // Pirate's Moon's own files, not the 28, through zutl's mounts
 
 // One of the 28 by its path: 10 (1.0's), 12 (1.2's), 0 (neither, or not one
 // of the 28), -1 (missing).

@@ -323,6 +323,9 @@ int begin_model(::zcls::Node& node, Model& m, uint32_t mask, ModelPass& pass) {
   return 1;
 }
 
+// A polygon that grows is written whole: n + 1 at the near plane, then that again plus 4 at the sides.
+static size_t clip_room(size_t n) { return (n + 1) + (n + 5); }
+
 int build_records(Model& m, const MaterialRef& ref, const ModelPass& pass, RefPass& out) {
   out.records.clear(), out.shadows.clear();
   out.strips = 0;
@@ -335,14 +338,15 @@ int build_records(Model& m, const MaterialRef& ref, const ModelPass& pass, RefPa
   const float tolerance = ::zmod::draw_state().backface;
   const int32_t fog = ::zmod::fog().on;
   const float* factor = ::zmod::fog_calc().factor;
-  // The arenas: each polygon's vertices, with room for what the clippers add.
+  // The arenas: each polygon's vertices, with room for what the clippers write. The exe's run on
+  // through a frame's one large pool ([0x00a4cfac]..); these are a model's, made to measure.
   size_t verts = 0, tris = 0;
   for (int32_t i = 0; i < ref.usage_count; ++i) {
     const size_t n = ref.polygon[i].flags & 0x3ff;
-    verts += n + 8;
+    verts += n + clip_room(n);
     if (n > 2) tris += n - 2;
   }
-  verts += tris * (3 + 8);  // the strips' and fans' triangles, each with the clippers' room
+  verts += tris * (3 + 8 + clip_room(3));  // the strips' and fans' triangles (each takes 3 + 8, add_triangle), then the clippers'
   const size_t records = static_cast<size_t>(ref.usage_count) + tris;
   out.pos.resize(verts * 3), out.normals.resize(verts * 3);
   out.rec.resize(verts * 8), out.tl.resize(verts * 8);
@@ -1424,6 +1428,7 @@ int32_t draw_model(::zcls::Node* node, uint32_t mask, void (*device)(const Devic
       if (mask & 0x10) clip_near(mat, ref);
       project_records(ref);
       if (mask & 0xf) clip_sides(mat, ref);
+      if (arena.arena_tl > ref.tl.data() + ref.tl.size()) ++arena.overruns;  // (ours) for the test
       fill_colours(mat, ref);
       if (ref.projected) {
         for (Record& r : ref.records) {

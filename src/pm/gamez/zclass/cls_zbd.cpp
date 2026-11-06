@@ -386,15 +386,6 @@ int read_zbd(const char* path) {
   if (read_nodes(z.get(0x1c), f, models) < 0) return load_error(f, 0x746, "Error reading GameZ node data.");
   std::fclose(f);
   g_state.file = nullptr, g_state.current = -1, g_state.own_textures = false;
-  // Ours: shared code reads a node's `model` (MW3's type; docs/pm-map.md, the
-  // model's users), null for PM's nodes until the renderer's route is chosen.
-  static bool said = false;
-  int32_t with = 0;
-  for (int32_t i = 0; i < ::zcls::nodes().capacity; ++i) with += ::zcls::node_at(i)->pm_model != nullptr;
-  if (with && !said) {
-    said = true;
-    std::printf("mw3: %s: %d nodes have Pirate's Moon models, which nothing draws or collides with yet\n", path, with);
-  }
   return 0;
 }
 
