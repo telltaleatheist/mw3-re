@@ -2,7 +2,9 @@
 #include <memory>
 
 #include "check.h"
+#include "mech3/mech_config.h"
 #include "mech3/mech_objective.h"
+#include "mech3/pilot.h"
 
 using namespace mech3;
 
@@ -56,4 +58,24 @@ TEST(pm_objective_failed_condition_does_not_count) {
   auto* c = static_cast<Flag*>(g->items.front().get());
   c->met = 1, c->failed = 1;
   EXPECT(!g->check_group(h, 0) && !g->done);
+}
+
+// 0x00425970: a loadout's items draw on the store in turn; two of a kind share what there is.
+TEST(pm_config_from_a_short_store) {
+  Config c(0, "test");
+  auto* a = new AmmoItem();
+  a->weapon = 5, a->count = 15;
+  auto* b = new AmmoItem();
+  b->weapon = 5, b->count = 10;
+  c.items.push_back(a), c.items.push_back(b);
+  Store store;
+  store.add_ammo(5, 12);
+  std::unique_ptr<Config> got(config_copy_store("copy", c, &store, false));
+  EXPECT(got != nullptr);
+  int32_t total = 0;
+  for (ConfigItem* i : got->items) total += i->count;
+  std::printf("  store copy: total %d, items %zu\n", total, got->items.size());
+  EXPECT(total == 12);
+  EXPECT(!got->modified);
+  c.items.clear();
 }

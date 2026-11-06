@@ -549,6 +549,9 @@ Bugs whose intent is clear, fixed as the port reaches the code:
 - A camera's window on the GPU, Pirate's Moon 0x00543b10 (gmod_draw `walk_draw`): FIX (A). PM's strips skip the
   software side clip and rely on Direct3D's viewport, the camera's window. Ours is the whole frame, so a zoom window's
   world ran over the main view. `Render3D::set_clip` is the viewport's clip, per model. Picture: `test_pm_zoom_picture.py`.
+- Fonts, SdlTwodHost::font_path: FIX (A). The installer also put the fonts in Windows' folder, so a game folder can
+  lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line.
+  Metrics differ a little off Windows: the box sizes come from each file.
 - Open: crater cuts at 53 bits (`zgeo_weiler`, `zgeo_convexify`, on `main` too). The port computes in float, the
   reference runtime's x87 keeps doubles between stores, so about 6% of `test_pm_crater_cut.py`'s random cuts take
   another branch, some leaving a different ground piece. Not `fpu53`-switched yet; 24 bits match exactly. PM's UV

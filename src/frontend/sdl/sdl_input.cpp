@@ -359,6 +359,17 @@ int32_t SdlInput::keyboard_data(platform::KeyEvent* out, uint32_t* count) {
   return over ? kBufferOverflow : 0;
 }
 
+// For a report of a dead mouse: each change of what decides it, the first few only.
+void SdlInput::note_mouse_state(bool want) {
+  const int state = focused_ | acquired_[kMouse] << 1 | want << 2 | captured_ << 3 | win_ << 4 | mission_ << 5 |
+                    released_ << 6 | (window && SDL_GetWindowRelativeMouseMode(window)) << 7;
+  if (state == noted_state_ || notes_ >= 24) return;
+  noted_state_ = state, ++notes_;
+  std::printf("mw3: mouse: focused %d acquired %d want %d captured %d window %d mission %d released %d relative %d\n",
+              state & 1, state >> 1 & 1, state >> 2 & 1, state >> 3 & 1, state >> 4 & 1, state >> 5 & 1, state >> 6 & 1,
+              state >> 7 & 1);
+}
+
 void SdlInput::capture(bool on) {
   captured_ = on;
   if (window) SDL_SetWindowRelativeMouseMode(window, on);
@@ -388,6 +399,7 @@ void SdlInput::refresh() {
   // Playtest W19: SDL's own state, not only ours; a relative mode refused or
   // dropped (a fullscreen switch, the focus) is asked for again, else the
   // system's cursor showed at the centre the game puts it each frame.
+  note_mouse_state(want);
   if (want != captured_ || (window && SDL_GetWindowRelativeMouseMode(window) != want)) capture(want);
   // The menus and a held mouse draw the game's own cursor or none; a mouse let
   // go in a window shows the system's.
@@ -613,6 +625,9 @@ void SdlInput::on_event(const SDL_Event& e) {
       break;
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
       focused_ = true;
+      // Asked for before the window had the focus, relative mode can read as on and deliver nothing (a dead
+      // mouse at the menu until the next capture): taken again with the focus. The log below tells if it's so.
+      if (captured_) capture(false), capture(true);
       if (held_at_loss_) released_ = false, activation_guard_ = true, gained_ns_ = e.common.timestamp;  // ours
       held_at_loss_ = false;
       refresh();  // a mission let go before (Ctrl+Alt) stays let go until a click
@@ -655,6 +670,10 @@ void SdlInput::on_event(const SDL_Event& e) {
       break;
     }
     case SDL_EVENT_MOUSE_MOTION:
+      if (!motion_seen_) {
+        motion_seen_ = true;
+        std::printf("mw3: mouse: first motion, focused %d captured %d\n", focused_, captured_);
+      }
       mouse_x = e.motion.x, mouse_y = e.motion.y;
       cursor_moved_ = true;
       raw_dx_ += e.motion.xrel, raw_dy_ += e.motion.yrel;

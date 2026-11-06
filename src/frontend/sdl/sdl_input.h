@@ -133,6 +133,9 @@ class SdlInput : public platform::Input {
   bool win_ = false, mission_ = false, absolute_ = false;
   bool released_ = false;
   bool cursor_hidden_ = false;
+  void note_mouse_state(bool want);
+  int noted_state_ = -1, notes_ = 0;
+  bool motion_seen_ = false;
   bool cursor_moved_ = false;  // the cursor moved since the menus took it (else zInput's place stays)
   SDL_Keymod chord_held_ = SDL_KMOD_NONE;
   bool chord_armed_ = false, chord_spoiled_ = false;
