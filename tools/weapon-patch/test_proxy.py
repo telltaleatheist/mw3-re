@@ -321,6 +321,10 @@ def check_installer(folder, dll_path):
     def state():
         return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in game.iterdir() if p.is_file()}
 
+    rows.write_text('erppc 3 sphere no 0x2fd\n')
+    (game / 'Mech3fixup.exe').write_bytes(t.OFFICIAL)
+    out += t.fails('check reads the names of a Mech3fixup.exe alone', run('check', game, rows), 1)
+    (game / 'Mech3fixup.exe').unlink()
     start = state()
     rows.write_text('PPC 99 sphere no 0x2fd\n')
     out += t.fails('bad rows', run('install', game, dll_path, rows), 1)

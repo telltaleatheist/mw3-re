@@ -1,0 +1,6 @@
+1. Unzip this whole zip to its own folder. Don't paste its files into the game folder.
+2. Drop your game folder onto install.cmd. It tells you what it did, or why it stopped.
+3. Start the game the way you always do, and look for the plain PPC in the mech lab's weapon list.
+4. If it isn't there, send weapon-patch.log from your game folder. restore.cmd undoes it all the same way.
+
+Your weapons are in weapon-rows.txt in the game folder. README.md has the rest, including the warnings.
