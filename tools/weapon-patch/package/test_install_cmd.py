@@ -56,7 +56,7 @@ def case(what, got, want_code, text, game=None, before=None, after=None):
     failures.extend(problems)
 
 
-for name in ('install.cmd', 'restore.cmd', 'INSTALL.txt'):  # cmd can lose its labels in a file with bare LFs
+for name in ('install.cmd', 'restore.cmd', 'HOW-TO-INSTALL.txt'):  # cmd can lose its labels in a file with bare LFs
     data = (ZIP / name).read_bytes()
     if data.count(b'\n') != data.count(b'\r\n'):
         failures.append(f'{name} is not all CRLF')

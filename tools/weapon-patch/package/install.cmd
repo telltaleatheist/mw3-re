@@ -1,5 +1,5 @@
 @echo off
-rem Installs the weapon patch's stand-in IFORCE2.dll in a game folder. See INSTALL.txt.
+rem Installs the weapon patch's stand-in IFORCE2.dll in a game folder. See HOW-TO-INSTALL.txt.
 rem No parenthesised blocks here, and paths only echoed in quotes: a game folder may be "Program Files (x86)".
 setlocal EnableExtensions DisableDelayedExpansion
 set "OURS=%~dp0install-files\IFORCE2-standin.dll"

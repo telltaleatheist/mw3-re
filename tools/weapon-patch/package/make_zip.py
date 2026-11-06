@@ -33,7 +33,7 @@ def make(version, out_dir):
     digest = hashlib.sha256(dll).hexdigest()
     if digest != DLL_SHA256 or len(dll) != DLL_SIZE:
         raise SystemExit(f'the built DLL is {len(dll)} bytes, sha256 {digest}: not the tested one, {DLL_SHA256}')
-    files = {'INSTALL.txt': crlf((HERE / 'INSTALL.txt').read_bytes()),
+    files = {'HOW-TO-INSTALL.txt': crlf((HERE / 'HOW-TO-INSTALL.txt').read_bytes()),
              'install.cmd': crlf((HERE / 'install.cmd').read_bytes()),
              'restore.cmd': crlf((HERE / 'restore.cmd').read_bytes()),
              'install-files/IFORCE2-standin.dll': dll,

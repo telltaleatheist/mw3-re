@@ -1,5 +1,5 @@
 @echo off
-rem Takes the weapon patch out of a game folder and puts the game's own IFORCE2.dll back. See INSTALL.txt.
+rem Takes the weapon patch out of a game folder and puts the game's own IFORCE2.dll back. See HOW-TO-INSTALL.txt.
 rem It deletes only our own file, compared byte for byte, and only with the original there to put back.
 setlocal EnableExtensions DisableDelayedExpansion
 set "OURS=%~dp0install-files\IFORCE2-standin.dll"
