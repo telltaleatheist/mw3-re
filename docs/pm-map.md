@@ -1401,6 +1401,9 @@ functions PM changed, and PM's new ones.
      without it the allied `pirate_mate_1` falls to 4.2 of 12 armor (its turrets still hostile, their `setteam` never
      run); with it 12. c1m1 is unchanged.
      0x483de0's case 8 (0x5349d0, then the player's +0x38c vt+0x1c) is not in the port; its caller is not traced.
+     Not what the allied turrets needed: those are `aiTurrets.zrd`'s `ALLY` key (0x004a9ce8, the turf_ blocks and
+     `turm_ac`; the key's presence, its value unread), the player's side on the turret. The op points were the file's
+     name: PM's is `waynet_<block>` (0x00493a90: m1, ia1, sa1, mp1), in reader<key>.zbd, opened before it (0x00407f38).
    - **The boundary's areas: ported** (the variant 0x4cdb30, the loader 0x4cddb0, the match 0x4cdce0, the add 0x4cced0,
      the select 0x4ce290; `zainet_inout`, `test_pm_ai_inout.py`, 798 cases, 5 breaks): names by game type: 1 `inoutm` and
      5 `inoutsa` (ten areas by 0x435db0, the index the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Before this every

@@ -28,6 +28,7 @@
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/options.h"
+#include "mech3/turret.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zrdrvalve.h"
 #include "gamez/zsound/zsnd.h"
@@ -126,8 +127,22 @@ TEST(pm_c1m1_shadow_cats_wake) {
   app.post_intro_ = &mech3::states().load;
   int frames = 0, up0 = -1, up1 = -1, go = -1;
   void* cats[2] = {};
+  int turf = 0, turf_ally = 0, tur_other = 0, tur_enemy = 0;
+  bool nav = false;
   engine.on_present = [&](int) {
     if (app.current() != &mech3::states().core) return;
+    if (frames == 2) {
+      nav = mech3::missions().stations != 0;  // waynet_m1, the op points (0x00493a90)
+    }
+    if (frames == 2) {  // aiTurrets.zrd's ALLY: the turf_ turrets are the player's side (0x004a9ce8)
+      for (mech3::tur::Turret* t : mech3::tur::turret_list()) {
+        const auto* node = static_cast<zcls::Node*>(engine.object_of(t->node));
+        const char* name = node ? node->name() : "";
+        if (!std::strncmp(name, "turf", 4)) ++turf, turf_ally += t->team == 2u;
+        else if (!std::strncmp(name, "turm_ac", 7)) ++turf, turf_ally += t->team == 2u;  // ALLY too
+        else if (!std::strncmp(name, "tur", 3)) ++tur_other, tur_enemy += t->team == 4u;
+      }
+    }
     if (++frames == 3) {
       int32_t made = 0;
       const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
@@ -155,6 +170,9 @@ TEST(pm_c1m1_shadow_cats_wake) {
   std::printf("  frames %d: go at %d, up at %d and %d\n", frames, go, up0, up1);
   zgame::set_game(zgame::mw3_table());
   if (other) return;
+  EXPECT(nav);
+  std::printf("  c1m1: turf_ turrets %d, on the player's side %d; others %d, enemy %d\n", turf, turf_ally, tur_other, tur_enemy);
+  EXPECT(turf > 0 && turf_ally == turf && tur_enemy == tur_other);
   EXPECT(cats[0] && cats[1]);
   EXPECT(go > 0);
   EXPECT(up0 > 0 && up1 > 0);
