@@ -171,6 +171,7 @@ void CampaignChain::briefing() {
                     mission_name().c_str(), e_.game_text(0xc), st->x38, st->x3c, st->unlocked(),
                     store_line(st->store).c_str(), lance.c_str(), wins_);
       }
+      std::printf("mw3: chain briefing map width %d\n", b->first_map_w);
       shoot("briefing");
       brief_step_ = 1, wait_ = 5;
       return;
@@ -545,6 +546,12 @@ void CampaignChain::frame() {
   ++frames_;
   mech3::States& st = mech3::states();
   const zgame::State* now = app_.current();
+  // MW3_CHAIN_WORLD=1 (checks): each mission held a moment and shot, after the lab (test_pm_debrief_chain).
+  if (std::getenv("MW3_CHAIN_WORLD") && now == &st.core) {
+    if (world_mission_ != mission_name()) world_mission_ = mission_name(), world_frames_ = 0;
+    if (++world_frames_ == 40) shoot("world");
+    if (world_frames_ <= 42) return;
+  }
   if (now != last_state_) last_state_ = now, frames_in_state_ = 0;
   ++frames_in_state_;
   if (now == &st.main && mech3::main_menu() && frames_in_state_ == 30) {

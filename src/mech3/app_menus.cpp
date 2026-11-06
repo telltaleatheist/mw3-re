@@ -860,15 +860,15 @@ void GameEngine::briefing_start(Handle s) {
 void GameEngine::briefing_map_image(ztwod::Dialog* d, zrdr::Node* section) {
   ztwod::Host& h = ztwod::host();
   h.image_path("..\\data\\common\\images\\maps");
-  const char* name = zrdr::get_string(section, "MAP");
-  briefing_pick_map(name);
-  zimg::Texture* t = name ? h.image_get(name) : nullptr;
-  if (!d || !t) return;
+  briefing_pick_map(zrdr::get_string(section, "MAP"));
+  // Pirate's Moon 0x00404cc0: the picked map's picture, maps.zrd's `bitmap` (c3m6p is c3m6_p, c1m2 c1m2nb).
+  auto* m = static_cast<MissionMap*>(object_of(missions().xbc));
+  if (!d || !m || !m->image) return;
   ztwod::Image& im = d->images[0];
   d->add(&im);
   im.show_for(-1.0f);
   im.set_pos(0, 0);
-  im.set_image(t);
+  im.set_image(m->image);
   im.flags = ztwod::kManaged | (im.flags & ztwod::kHidden);  // 0x00409ac0(2)
   im.dirty();
 }

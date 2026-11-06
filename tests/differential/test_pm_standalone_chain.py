@@ -75,6 +75,7 @@ def main():
         bad += check('the last win', 'chain main menu after 11 wins without the credits (credits entered 0)' in out, True)
         bad += check('no credits state', 'chain state Credits' in out, False)
         bad += check('nothing refused at the briefing', 'chain stuck' in out, False)
+        bad += check('briefing maps', sorted(set(re.findall(r'^mw3: chain briefing map width (\d+)$', out, re.M))), ['640'])
         bad += check('its buttons', set(re.findall(r'chain buttons: (.*)$', out, re.M)), {'lab 1 salvage 0 replay 1 abort 1'})
         # The lancemates' mechs: PM's 25, not clamped to MW3's 19 (0x4a19c0).
         mates = [int(m) for line in re.findall(r'slots \[ (.*?) \]', out) for m in re.findall(r'(-?\d+)\+cfg', line)[1:]]
