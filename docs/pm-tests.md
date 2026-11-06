@@ -99,6 +99,8 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 
 Field offsets go by a rule for the 2D world (`field`) and a member table for the lab screen (`LAB_MEMBERS`, `LAB_TEXT`). Vtables go by `tools/analysis/pmvtables.py` (run it after regenerating the map): `addrmap.json`'s data section pairs them by contents, and it disagreed with the constructors on 244 of 502. A stub's stack pop comes from PM's own function, as some became cdecl.
 
+`MW3_TWOD_HW=1` runs them with the exe and the port in hardware mode ([0x72f348], PM's 0x8c4b70), the only mode `mw3pm` plays: `test_twod` 90/90, `test_twod_msgbox` 90/90, `test_lab_list` 40/40, `test_lab_screen` 40/40. Breaks caught in that mode: the static parts always updated at a dialog's load (`test_twod`), and the message box's two mode tests (`test_twod_msgbox`). What it compares is the logic and the calls out, not the picture: PM's textured quads 0x5c0510 aren't ported (rendering rule), so that drawing rests on the eye checks.
+
 ## The rest that cannot load on this branch
 
 The table above went by the file naming `libmw3probe`. Importing every `test_*.py` once (2026-11-05): 144 of 259 fail at load, every `test_pm_*` loads. These 83 reach MW3's probe through another test's module and are **not classified yet**. `test_mechdef` among them is covered by `test_pm_mechdef`. `test_mechsave` is unmoved: `test_pm_mechsave` has a loadout's save, load, version and MW3's format with byte damage, not the whole archives (0x4267f0, 0x426bd0, 0x427e80). It stays as the source for those and for six tests that import its helpers: `test_config_unpack`, `test_field_cut`, `test_lab_screen`, `test_mech_net_send`, `test_salvage`, `test_salvage_screen`.

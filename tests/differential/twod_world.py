@@ -141,6 +141,8 @@ class TwodWorld:
         self.cpu = e.cpu
         e.cpu.fpu_control(0x007f)  # 24-bit, as in play (CLAUDE.md)
         e.heap_stubs()
+        if os.environ.get('MW3_TWOD_HW'):  # hardware mode, the only one the port plays
+            e.w32(0x72f348, int(os.environ['MW3_TWOD_HW']))
         self.stub_textures = set()
         self.mouse_addr = e.world_alloc(0x40)
         self.mouse_frames = []

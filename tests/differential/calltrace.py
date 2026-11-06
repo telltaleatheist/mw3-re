@@ -333,6 +333,8 @@ class Replay(Trace):
 
     def handle(self, key, args):
         args = tuple(a if isinstance(a, str) else a & 0xffffffff for a in args)
+        if os.environ.get('MW3_PM_MOVED'):  # one pair in PM (0x597d50, 0x597dc0), named by original.PM_AS
+            key = {'0x00576d00': '0x00576de0', '0x00576d60': '0x00576e70'}.get(key, key)
         if key in self.MEMORY and os.environ.get('MW3_PM_MOVED'):  # the port names MW3's address
             args = (_image_map()(args[0]), *args[1:])
         if key == 'peek32':
