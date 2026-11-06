@@ -447,6 +447,7 @@ class LabMessage : public ztwod::FontText {
 void lab_put_on(Engine& e, LabUnassignedList& list, int32_t index);
 // 0x00455fb0's item row (ASSIGNED_LIST's +0xac): the item back to the lab's store.
 void lab_take_off(Engine& e, LabAssignedList& list, int32_t index);
+bool lab_item_fits(Engine& en, Handle cfg, int32_t part, Handle item, Handle dfn, bool armor_tab);  // can_xa8's body
 struct LabSpeeds { float most = 0, run = 0, walk = 0; };
 LabSpeeds lab_mech_speeds(Engine& e, Handle config);              // Pirate's Moon 0x00458380
 float lab_chassis_tons(Engine& e, Handle config, int32_t row);    // Pirate's Moon 0x00458a50

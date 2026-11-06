@@ -682,9 +682,31 @@ extern "C" int probe_puton_run(const char* setup, char* out, int size) {
 
 // test_pm_puton.py: the put-on on a real loadout and store, one put at a time.
 namespace {
+struct RuleEngine : PutOnEngine {
+  float lab_config_weight(Handle) override { return static_cast<float>(cfg->weight(-1)); }
+  int32_t config_mech(Handle) override { return cfg->mech; }
+  float lab_config_armor_tons(Handle) override { return cfg->armor_tons; }
+  int32_t lab_config_armor_tech(Handle) override { return cfg->armor_tech; }
+  uint8_t lab_config_armor_ferro(Handle) override { return cfg->ferro; }
+  int32_t lab_config_slots_left(Handle) override { return cfg->slots_left(); }
+  int32_t lab_config_ferro_slots(Handle) override { return cfg->ferro_slots(); }
+  int32_t lab_config_weapons(Handle) override { return cfg->weapon_count(); }
+  int32_t lab_config_equipment(Handle, int32_t kind, int32_t tech) override { return cfg->equipment_count(kind, tech); }
+  int32_t lab_config_part_free(Handle, int32_t part) override {
+    return part >= -1 && part < 9 ? cfg->free_slots_in(part) : 0;
+  }
+  int32_t lab_config_sink_limit(Handle) override { return cfg->sink_limit(); }
+  int32_t lab_config_sink_items(Handle) override { return cfg->sink_items(); }
+  std::vector<Handle> lab_config_items(Handle) override {
+    std::vector<Handle> out;
+    for (const ConfigItem* it : cfg->items) out.push_back(item_handle(it));
+    return out;
+  }
+};
+
 struct PutOnRun {
   std::vector<std::string> events;
-  PutOnEngine e;
+  RuleEngine e;
   PutOnHost host;
   Store store{0};
   std::unique_ptr<PutOnList> list;
@@ -743,6 +765,18 @@ extern "C" int probe_pm_puton_put(int row, int rule, int part, uint32_t seed, ch
   if (static_cast<int>(str.size()) >= size) return -1;
   std::memcpy(out, str.data(), str.size() + 1);
   return static_cast<int>(str.size());
+}
+
+extern "C" void probe_pm_puton_tons(float tons) { g_put->e.cfg->armor_tons = tons; }
+extern "C" void probe_pm_puton_engine(int engine) { g_put->e.cfg->engine = engine; }
+
+extern "C" int probe_pm_puton_rule(int row, int part, int armor_tab) {
+  PutOnRun& r = *g_put;
+  if (states().lab.flag_) return 0;
+  const Handle item = row >= 0 && row < static_cast<int>(r.store.items.size())
+                          ? r.e.item_handle(*std::next(r.store.items.begin(), row))
+                          : 0;
+  return lab_item_fits(r.e, PutOnEngine::kConfig, part, item, PutOnEngine::kDfn, armor_tab != 0);
 }
 
 extern "C" void probe_pm_puton_end() {

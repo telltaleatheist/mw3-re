@@ -1,8 +1,9 @@
 """The lab's put-on against PM's exe (0x455a80, lab_put_on): each shipped loadout, a store of
 weapons, ammo, armour of both kinds, sinks and jets, and random rows and parts, with the real
-definition's firepoints, loadout, store and item code. The list's rows and rule, the part,
-the refresh, the sound and the message text are stood in for and logged on both sides.
-Compared after each put: the events, the armour, the loadout's items and the store's.
+definition's firepoints, loadout, store and item code. The list's rows, the part, the refresh,
+the sound and the message text are stood in for and logged on both sides. Compared: the rule
+0x454bd0 (each row, both tabs) before each put; after it, the events, the armour, the loadout's
+items and the store's.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_puton.py [loadouts per mech]
 """
@@ -23,6 +24,7 @@ from original import ROOT  # noqa: E402
 PUT_ON, DFN_OF, OBJECT_AT, PART, REFRESH, SOUND, MESSAGE_FMT, MESSAGE = (
     0x455a80, 0x4867f0, 0x4547e0, 0x457160, 0x44f200, 0x454000, 0x596de0, 0x596e50)
 STORE_CTOR, STORE_VT, IAT_RAND = 0x473170, 0x5e5bac, 0x5de668
+RULE, ARMOR_TAB, ASSIGNED, ASSIGNED_CONFIG = 0x454bd0, 0xd54, 0x1a648, 0x224
 CS_CTOR, CS_FORMAT, CS_DTOR = 0x5ce8e4, 0x5ce8de, 0x5ce8d8
 SCREEN, PILOT, SLOT, STORE, FLAG = 0x629748, 0x629768, 0x629718, 0x62976c, 0x629770
 KINDS = {0x5dfc70: 3, 0x5dfc40: 2, 0x5e36b4: 1}
@@ -139,6 +141,16 @@ class Bench(tc.Emulated):
             return head + f' id{s32(self.r32(it + 0x14))} t{s32(self.r32(it + 0x18))}] '
         return head + f' id{s32(self.r32(it + 0x14))}] '
 
+    def rule_of(self, config, row, part, tab):
+        self.answer_part = part & 0xffffffff
+        self.rows = self.items(self.store)
+        self.wb(self.lst + ARMOR_TAB, tab)
+        self.w32(self.r32(SCREEN) + ASSIGNED + ASSIGNED_CONFIG, config)
+        events, self.events = self.events, []
+        got = self.call(RULE, ecx=self.lst, args=[row & 0xffffffff]) & 0xff
+        self.events = events
+        return got
+
     def put(self, config, row, rule, part, seed):
         self.state = seed
         self.answer_rule, self.answer_part = rule, part & 0xffffffff
@@ -208,12 +220,14 @@ def main():
     p.probe_pm_cfg_load.restype = ctypes.c_int
     p.probe_pm_cfg_ptr.restype = ctypes.c_void_p
     p.probe_pm_puton_begin.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int32), ctypes.POINTER(ctypes.c_float)]
+    p.probe_pm_puton_tons.argtypes = [ctypes.c_float]
+    p.probe_pm_puton_engine.argtypes = [ctypes.c_int]
     p.probe_pm_puton_put.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
     for name, lab in table.items():
         p.probe_pm_cfg_lab(name.encode(), *lab)
     rng = random.Random(0x455a80)
     buf = ctypes.create_string_buffer(1 << 16)
-    n = bad = racks = 0
+    n = bad = racks = rules = fits = rule_bad = cases = 0
     seen = {'weapon': 0, 'armour': 0, 'swap': 0, 'sink': 0, 'jet': 0, 'ammo': 0, 'message': 0}
     weapons = sorted(table) and list(range(0, 0x31))
     for index, mech in enumerate(md.MECHS):
@@ -241,6 +255,9 @@ def main():
             full = 1 if rng.random() < 0.15 else 0
             emu.begin(c, flag, full, index)
             p.probe_pm_puton_begin(mine, flag, full, len(parts), cparts, cradii)
+            if rng.random() < 0.6:  # room for the rule to say yes
+                emu.cpu._uc.mem_write(c + 0x2c, struct.pack('<f', 0.0))
+                p.probe_pm_puton_tons(0.0)
             for _ in range(rng.randrange(5, 14)):
                 kind = rng.choice((1, 1, 1, 2, 3, 3, 3, 3))
                 if kind == 1:
@@ -257,6 +274,15 @@ def main():
                 rule = 0 if rng.random() < 0.08 else 1
                 part = rng.choice(parts) if parts and rng.random() < 0.85 else rng.randrange(-1, 16)
                 seed = rng.randrange(1 << 31)
+                for tab in (0, 1):
+                    want = emu.rule_of(c, row, part, tab)
+                    mine_rule = p.probe_pm_puton_rule(row, part, tab)
+                    rules += 1
+                    fits += want
+                    if want != mine_rule:
+                        rule_bad += 1
+                        if rule_bad <= 5:
+                            print(f'{mech} {k} rule row {row} part {part} tab {tab}: exe {want}, port {mine_rule}')
                 theirs = norm(emu.put(c, row, rule, part, seed))
                 got = p.probe_pm_puton_put(row, rule, part, seed, buf, len(buf))
                 assert got >= 0
@@ -275,6 +301,42 @@ def main():
                                 print('  port only', [x for x in tb if x not in ta][:8], len(tb))
                         print('   diverged: the rest of this loadout is off too')
                     break
+            if parts:  # CASE on a part that has one: PM's one to a part
+                for _ in range(2):
+                    emu.store_add(3, 5, 1, 2)
+                    p.probe_pm_puton_store(3, 5, 1, 2)
+                rows = emu.items(emu.store)
+                row = next((i for i, it in enumerate(rows) if KINDS.get(emu.r32(it)) == 3 and s32(emu.r32(it + 0x18)) == 5), 0)
+                part = parts[0]
+                for _ in range(3):
+                    seed = rng.randrange(1 << 31)
+                    want = emu.rule_of(c, row, part, 0)
+                    if want != p.probe_pm_puton_rule(row, part, 0):
+                        rule_bad += 1
+                        print(f'{mech} {k} CASE on part {part}: exe {want}')
+                    cases += not want
+                    theirs = norm(emu.put(c, row, want, part, seed))
+                    assert p.probe_pm_puton_put(row, want, part, seed, buf, len(buf)) >= 0
+            if k == 0:  # counts: a light engine and no armour, so the weight lets the rule reach them
+                emu.cpu._uc.mem_write(c + 0x2c, struct.pack('<f', 0.0))
+                p.probe_pm_puton_tons(0.0)
+                emu.w32(c + 0x24, 0)
+                p.probe_pm_puton_engine(0)
+                for eq in ((0, 3, 4, 8, 7, 6) if index % 2 else (0, 3, 4, 8, 6, 7)):
+                    for _ in range(7):
+                        emu.store_add(3, eq, 1, 1)
+                        p.probe_pm_puton_store(3, eq, 1, 1)
+                        rows = emu.items(emu.store)
+                        row = next((i for i, it in enumerate(rows) if KINDS.get(emu.r32(it)) == 3 and s32(emu.r32(it + 0x18)) == eq), 0)
+                        want = emu.rule_of(c, row, -1, 0)  # no part: the counts alone
+                        rules += 1
+                        fits += want
+                        if want != p.probe_pm_puton_rule(row, -1, 0):
+                            rule_bad += 1
+                            print(f'{mech} equipment {eq}: exe {want}')
+                        seed = rng.randrange(1 << 31)
+                        emu.put(c, row, 1, -1, seed)
+                        assert p.probe_pm_puton_put(row, 1, -1, seed, buf, len(buf)) >= 0
             if k == 0 and parts:  # a rack past 16 weapons, a store that never runs out
                 part = parts[0]
                 for _ in range(20):
@@ -289,6 +351,12 @@ def main():
                     n += 1
                     seen['message'] += 'message' in theirs
                     racks += 'Only 16' in theirs
+                    want = emu.rule_of(c, row, -1, 0)
+                    rules += 1
+                    fits += want
+                    if want != p.probe_pm_puton_rule(row, -1, 0):
+                        rule_bad += 1
+                        print(f'{mech} a rack: exe {want}')
                     if theirs != ours:
                         bad += 1
                         print(f'{mech} {k} rack: differs')
@@ -296,8 +364,9 @@ def main():
             p.probe_pm_puton_end()
     chassis_bad = chassis_rows(emu, p)
     bad += chassis_bad
-    pm_floors.floors(puts=(n, 300), placed=(seen['weapon'], 30), messages=(seen['message'], 5), racks=(racks, 5))
-    print(f'{n} puts ({seen["weapon"]} placed, {seen["message"]} with a message, {racks} refused past 16 weapons): {bad} loadouts differ')
+    pm_floors.floors(puts=(n, 300), placed=(seen['weapon'], 30), messages=(seen['message'], 5), racks=(racks, 5), rules=(rules, 1800), fits=(fits, 150), cases=(cases, 3))
+    bad += rule_bad
+    print(f'{n} puts ({seen["weapon"]} placed, {seen["message"]} with a message, {racks} refused past 16 weapons), {rules} rules ({fits} yes, {cases} second CASEs refused): {bad} loadouts differ')
     sys.exit(1 if bad else 0)
 
 

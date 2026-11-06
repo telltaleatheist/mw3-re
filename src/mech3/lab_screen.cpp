@@ -605,7 +605,7 @@ int32_t part_armor_max(int32_t mech, int32_t part) {
 int32_t ferro_need(int32_t tech) { return tech == kClan ? 7 : 14; }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00453840 (docs/mechlab.md, The item rules): the item of
+// Pirate's Moon 1.0 @ 0x00454bd0 (docs/mechlab.md, The item rules): the item of
 // row `index` on the shown slot's loadout (ASSIGNED_LIST's +0x224), into the
 // part ASSIGNED_LIST has chosen (none: no part to fit); never while the lab
 // is read-only. The weight first, then the armour tab's or the others' rules.
@@ -620,6 +620,10 @@ bool LabUnassignedList::can_xa8(int32_t index) {
   const Handle item = object_at(index);
   const Handle slot = en.lab_slot(lab.pilot_, lab.slot_);
   const Handle dfn = en.mech_dfn_handle(slot ? en.lab_slot_mech(slot) : -1);
+  return lab_item_fits(en, cfg, part, item, dfn, armor_tab != 0);
+}
+
+bool lab_item_fits(Engine& en, Handle cfg, int32_t part, Handle item, Handle dfn, bool armor_tab) {
   if (!item) return false;
   const int32_t k = en.lab_item_kind(item);
   const int32_t equip = en.lab_item_equipment(item);
@@ -663,6 +667,13 @@ bool LabUnassignedList::can_xa8(int32_t index) {
   }
   if (part == -1) return true;
   if (k == 3 && equip == 11 && (part == 2 || part == 3 || part == 6)) return false;  // jump jets
+  if (k == 3 && equip == 5) {  // Pirate's Moon 0x00454fa6: one CASE to a part
+    for (Handle h : en.lab_config_items(cfg)) {
+      const ConfigItem* it = en.item_of(h);
+      if (it && it->kind() == 3 && static_cast<const EquipmentItem*>(it)->equipment == 5 && it->part == part)
+        return false;
+    }
+  }
   const int32_t left = en.lab_config_slots_left(cfg);
   const int32_t free = en.lab_config_part_free(cfg, part);
   if (armour) {
