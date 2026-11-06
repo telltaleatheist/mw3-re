@@ -222,7 +222,7 @@ def main():
             pf, _, pe = p.partition('|')
             qf, _, qe = q.partition('|')
             pw, qw = pf.split(), qf.split()
-            same = len(pw) == len(qw) and pw[:0] == qw[:0] and all(close(u, v) for u, v in zip(pw, qw))
+            same = len(pw) == len(qw) and all(close(u, v) for u, v in zip(pw, qw))
             if pf.startswith('can') or qf.startswith('can') or ' can ' in pf:
                 same = pf.split() == qf.split()
             if not same or not same_tail(pe, qe):

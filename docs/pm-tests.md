@@ -154,3 +154,17 @@ A float compare whose allowance scales with the value, `abs(x - y) <= k * max(1,
 
 **On the switch's list, added:** once the AI runs, watch the mech's +0x588 and the fuel in a real jump against the trace; only then is PM's full tank a finding. Also: every field of each struct the AI port owns is compared at least once, or has a line saying why not (the steering's `x40` had a wrong constant that nothing read, so "0 differ" didn't cover it).
 
+## Early exits and skips (2026-11-06)
+
+A skip that tests some fields and doesn't prove the others agree hides what it doesn't test. `test_pm_ai_walk` had one, now `tie_split`: with two planted breaks on such lines, a changed flag passed the old exit outright (44 plans dropped, under its ceiling of 45) and a changed field was stopped only by that ceiling. The new exit stops both at once, and still ends the 1 real tie.
+
+The search read each `if ...: continue/break/return True` over a value in `test_pm_*` and `modeldraw_common`, by shape on one or two lines, so one written otherwise could escape it. None of the others has this shape:
+- **Tests the very value it skips:** `test_pm_clutter:158`, `test_pm_skis:278`, `modeldraw_common.same_float`.
+- **Compared just before:** `test_pm_modeldraw:133` (the centre, bit for bit, and the count).
+- **Choosing inputs, not results:** `test_pm_nodebox:79`, `test_pm_submit:205`, `test_pm_strips:83`, `test_pm_gamez:275,343`, `test_pm_lance:136`, `test_pm_ai_boundary_real:46,49`, `test_pm_zar:344`, `test_pm_projected:92`.
+- **Worth knowing:** `test_pm_ai_boundary:297` picks its hunted cases from the port's own answer, so a case the port wrongly leaves out isn't compared in that hunt. The test's other queries are compared in full.
+
+**The recount of what's left** counts a function as done when the port's source names its address outside the hook classes. Cited isn't landed: a comment can name what isn't ported, and only a test shows a function is. It's an estimate of the size, nothing more.
+
+**On the switch's rerun, added:** the 36 of `0x4d9d00`'s breaks not rerun on the widened test; the 5 twins, 875 instructions, compared against PM.
+

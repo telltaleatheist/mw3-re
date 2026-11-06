@@ -441,6 +441,28 @@ def text(lines):
     return '\n'.join(o) + '\n'
 
 
+# What a plan writes, by field: the steering's along, side, its direction, length, along_at, and again along and
+# side, then the brain's +0x2b8. All that differs when the plan's two ways part.
+WAY_FIELDS = {18, 19, 64, 65, 67, 68, 70, 71, 72, 73, 74}
+LENGTH, ALONG_AT = 67, 68
+MOST_TIES = 2  # a default run has 1 (seed 447)
+
+
+def tie_split(op, was_exe, was_port, pw, qw, pe, qe):
+    """The plan's `length < along_at` (0x4da28f's first test) on values a few units in the last place apart, gone one
+    way in the exe and the other here. Rounding, not logic: float results that the 1e-3 allowance rightly passes, and
+    either way is one the exe can take. True only for that: the line before shows the tie split, this line is a plan,
+    every flag and every field a plan doesn't write agree. A way field differing otherwise is a difference."""
+    p, q = was_exe.partition('|')[0].split(), was_port.partition('|')[0].split()
+    if op not in 'PS' or pe.split() != qe.split() or len(pw) != len(qw) or len(p) <= ALONG_AT or len(q) != len(p):
+        return False
+    units = [abs(int(w[LENGTH], 16) - int(w[ALONG_AT], 16)) for w in (p, q)]
+    took = [as_float(w[LENGTH]) < as_float(w[ALONG_AT]) for w in (p, q)]
+    if max(units) > 4 or took[0] == took[1]:
+        return False
+    return all(close(u, v) for k, (u, v) in enumerate(zip(pw, qw)) if k not in WAY_FIELDS)
+
+
 def as_float(v):
     return struct.unpack('<f', struct.pack('<I', int(v, 16)))[0]
 
@@ -459,7 +481,7 @@ def main():
     lib = test_pm_zar.load_pm_probe()
     lib.probe_pm_ai_walk.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     buf = ctypes.create_string_buffer(1 << 20)
-    bad = steps = noise = 0
+    bad = steps = ties = 0
     seen = {}
     for seed in range(runs * 3):
         lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed)
@@ -475,15 +497,15 @@ def main():
         assert lib.probe_pm_ai_walk(text(lines).encode(), buf, len(buf)) >= 0
         b = buf.value.decode().split('\n')
         steps += len(a)
+        off = len(lines) - (len(a) - 1)  # lines before the context exists print nothing
         for i, (p, q) in enumerate(zip(a, b)):
             pf, _, pe = p.partition('|')
             qf, _, qe = q.partition('|')
             pw, qw = pf.split(), qf.split()
             if len(pw) != len(qw) or pe.split() != qe.split() or not all(close(u, v) for u, v in zip(pw, qw)):
-                # The carrot on the mech itself: a direction made of rounding (x87 and float), not logic. The plan ends here.
-                if len(pw) == len(qw) and pw and all(abs(as_float(v)) < 1e-4 for v in pw[:2] + qw[:2]):
-                    noise += 1
-                    a = b = []
+                if i and tie_split(lines[i + off][0], a[i - 1], b[i - 1], pw, qw, pe, qe):
+                    ties += 1
+                    a = b = []  # the two ways differ from here on: the plan ends
                     break
                 print(f'seed {seed} line {i}:\n  exe  {p}\n  port {q}')
                 bad += 1
@@ -494,9 +516,9 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs * 3} plans, {steps} lines: {bad} differ; {noise} plans ended on the carrot at the mech')
-    if noise > runs * 3 // 20:
-        raise SystemExit(f'too many plans ended on rounding: {noise}')
+    print(f'{runs * 3} plans, {steps} lines: {bad} differ; {ties} plans ended on a tie')
+    if ties > MOST_TIES:
+        raise SystemExit(f'too many plans ended on a tie: {ties} (at most {MOST_TIES})')
     print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},
