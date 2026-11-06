@@ -64,6 +64,10 @@ class Render3D {
   virtual void release_texture(int32_t handle) = 0;
   // 0x0057baa0's reload: new pixels for a texture create_texture made, same size.
   virtual void update_texture(int32_t handle, int width, int height, const uint8_t* rgba) = 0;
+  // What Direct3D's viewport did for a camera's window: the draws until clear_clip stay inside these game
+  // pixels. Pirate's Moon's strips reach the device unclipped (a zoom window's would run over the screen).
+  virtual void set_clip(float left, float top, float right, float bottom) { (void)left, (void)top, (void)right, (void)bottom; }
+  virtual void clear_clip() {}
   virtual void set_viewport(int x, int y, int width, int height) = 0;  // Viewport3::SetViewport2
   // The frame clear (0x005777f0): colour when asked, depth always to 0 (reversed).
   virtual void clear(bool color, uint8_t r, uint8_t g, uint8_t b) = 0;

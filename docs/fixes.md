@@ -546,6 +546,9 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   under them. The port's blits land in order, so an erase would paint the grab over the panel (the squares behind a
   message box's buttons). `Host::draws_in_order`, the program's, grabs them first, as MW3; tests keep the exe's way.
   Picture: `test_pm_msgbox_picture.py`.
+- A camera's window on the GPU, Pirate's Moon 0x00543b10 (gmod_draw `walk_draw`): FIX (A). PM's strips skip the
+  software side clip and rely on Direct3D's viewport, the camera's window. Ours is the whole frame, so a zoom window's
+  world ran over the main view. `Render3D::set_clip` is the viewport's clip, per model. Picture: `test_pm_zoom_picture.py`.
 - Open: crater cuts at 53 bits (`zgeo_weiler`, `zgeo_convexify`, on `main` too). The port computes in float, the
   reference runtime's x87 keeps doubles between stores, so about 6% of `test_pm_crater_cut.py`'s random cuts take
   another branch, some leaving a different ground piece. Not `fpu53`-switched yet; 24 bits match exactly. PM's UV

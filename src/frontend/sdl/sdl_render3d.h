@@ -27,6 +27,8 @@ class SdlRender3D : public platform::Render3D {
   void release_texture(int32_t handle) override;
   void update_texture(int32_t handle, int width, int height, const uint8_t* rgba) override;
   void set_viewport(int x, int y, int width, int height) override;
+  void set_clip(float left, float top, float right, float bottom) override;
+  void clear_clip() override;
   void clear(bool color, uint8_t r, uint8_t g, uint8_t b) override;
   void begin_scene() override;
   void end_scene() override;
@@ -60,7 +62,9 @@ class SdlRender3D : public platform::Render3D {
     // draw (a saturated light's colour on its polygons only; W20).
     float fog[3];
     int32_t map = -1;  // a light map's draw: its second texture; first, count in TLVertex slots
+    float clip[4] = {0, 0, 0, 0};  // set_clip's; right <= left for none
   };
+  float clip_[4] = {0, 0, 0, 0};
   SDL_GPUGraphicsPipeline* pipeline(const platform::DrawState& s, bool textured, bool light_map = false);
   SDL_GPUSampler* sampler(uint8_t u, uint8_t v);
   void ensure_depth(uint32_t w, uint32_t h);
