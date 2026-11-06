@@ -2,7 +2,8 @@
 steerings and vehicles: walk 0x4d9680, walk on 0x4d9740, walk straight 0x4d9710, hold 0x4d97a0, the measure
 0x4d92a0, the aim 0x4d92c0, the turn 0x4d9390, the throttle 0x4d9550. Then a fighting state's part: its
 constructor 0x4d9b10, enter 0x4d9be0, reset 0x4d9ce0, release 0x4d9cc0, and its context 0x4d99a0 with the
-measures 0x4d9a90, 0x4d9920, 0x4d99e0, the decision 0x4d9b90 and the plan 0x4da1c0. Each step's fields compared.
+measures 0x4d9a90, 0x4d9920, 0x4d99e0, the decision 0x4d9b90, the plan 0x4da1c0 and the order's target 0x4daa70.
+Then the guarding context 0x4dfb50 with its measure 0x4dfc30. Each step's fields compared.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_walk.py [runs]
 """
@@ -36,6 +37,7 @@ class Exe(test_pm_zar.Emulated):
         self.brain = self.alloc(0x500)
         self.ctx = self.alloc(0x90)
         self.state = None
+        self.guard = False
         self.vehicle = self.alloc(0x100)
         self.order = self.alloc(0x20)
         self.w32(self.order + 8, self.brain)
@@ -64,6 +66,18 @@ class Exe(test_pm_zar.Emulated):
         self.w32(ovt, self.cpu.code(bytes.fromhex('8b442404 a3') + struct.pack('<I', self.deleted + 4)
                                     + bytes.fromhex('ff05') + struct.pack('<I', self.deleted) + bytes.fromhex('c20400')))
         self.pilot = self.alloc(0x600)
+        # The order's target: +0x0c, vt+0x1c, vt+0x18, vt+0x50; vt+0x04 its place, +0x1c's +0x08 live.
+        chain = [self.alloc(0x20) for _ in range(4)]
+        self.record = self.alloc(0x10)
+        for i, slot in ((0, 0x1c), (1, 0x18), (2, 0x50), (3, 0x04)):
+            tvt = self.alloc(0x60)
+            self.w32(chain[i], tvt)
+            answer = chain[i + 1] if i < 3 else None
+            self.w32(tvt + slot, self.ret_stub((lambda a: lambda c: a)(answer) if answer else (lambda c: self.target)))
+        self.w32(self.order + 0xc, chain[0])
+        self.w32(chain[3] + 0x1c, self.record)
+        self.leave = False
+        self.native_stub(0x4fa210, lambda c: 1 if self.leave else 0, pop=4)
         self.want_pilot, self.blocked, self.steers, self.on_from = False, False, True, False
         self.w32(vt + 0x58, self.ret_stub(lambda c: self.pilot if self.want_pilot else 0))
         self.native_stub(PLACE, lambda c: self.vehicle + 0x80 if c.ecx == self.vehicle else self.target)
@@ -111,6 +125,9 @@ class Exe(test_pm_zar.Emulated):
         vals = [self.g(c + o) for o in (0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x38, 0x40, 0x44, 0x48, 0x4c)]
         vals.append(self.g(self.brain + 0x210 + 0x84))
         exact = [self.g(c + 0x3c) & 0xff]
+        if self.guard:
+            vals += [self.g(c + o) for o in (0x5c, 0x60, 0x64, 0x68, 0x6c)]
+            exact += [self.g(c + o) & 0xff for o in (0x58, 0x70, 0x71, 0x72)]
         if self.state:
             s = self.state
             vals += [self.g(c + o) for o in (0x58, 0x5c, 0x60, 0x64, 0x6c, 0x70, 0x74, 0x7c, 0x80, 0x84, 0x88)]
@@ -214,8 +231,31 @@ def fight_plan(seed):
             lines.append(('G',))
         elif k < 0.95:
             lines += [('D',), ('M',), ('P',)]
+            if r.random() < 0.3:
+                lines += [('V', r.choice([0, 1]), 0), ('A',)]
         else:
             lines.append((r.choice('0123567'),))
+    return lines
+
+
+def guard_plan(seed):
+    """The guarding context: made on worlds with a live target or not, then measured."""
+    r = random.Random(f'guard:{seed}')
+    base = plan(seed + 200000)
+    lines = base[:2] + [('V', r.choice([0, 1, 1]), r.choice([0, 0, 1])), ('H',), ('4',)]
+    worlds = [ln for ln in base if ln[0] == 'W']
+    steers = [ln for ln in base if ln[0] == 'T']
+    for _ in range(r.randrange(3, 10)):
+        k = r.random()
+        if k < 0.25 and worlds:
+            lines.append(r.choice(worlds))
+        elif k < 0.5 and steers:
+            lines.append(r.choice(steers))
+        elif k < 0.7:
+            lines.append(('V', r.choice([0, 1, 1]), r.choice([0, 0, 1])))
+            lines.append(('H',))
+        else:
+            lines.append(('4',))
     return lines
 
 
@@ -257,6 +297,20 @@ def run_exe(x, lines):
             x.call(FIGHT_CTX, ecx=x.ctx, args=(x.order, x.state))
             x.w32(x.ctx + 0xc, x.vehicle + 0x80)
             made = True
+        elif op == 'V':
+            x.w32(x.record + 8, ln[1])
+            x.leave = bool(ln[2])
+        elif op == 'A':
+            x.cpu._uc.mem_write(x.ctx, bytes(0x90))  # a new one, as the port's
+            x.call(0x4daa70, ecx=x.ctx, args=(x.order, x.state))
+            x.w32(x.ctx + 0xc, x.vehicle + 0x80)
+        elif op == 'H':
+            x.state = None
+            x.guard = True
+            x.cpu._uc.mem_write(x.ctx, bytes(0x90))
+            x.call(0x4dfb50, ecx=x.ctx, args=(x.order,))
+            x.w32(x.ctx + 0xc, x.vehicle + 0x80)
+            made = True
         elif op == 'Z':
             x.on_from = bool(ln[1])
         elif op == 'P':
@@ -286,7 +340,7 @@ def run_exe(x, lines):
             x.w32(x.ctx + 0xc, x.vehicle + 0x80)
             made = True
         elif op == '4':
-            x.call(MEASURE, ecx=x.ctx)
+            x.call(0x4dfc30 if x.guard else MEASURE, ecx=x.ctx)
         else:
             x.call(x.g(VT + SLOT[op]), ecx=x.ctx)
         if made:
@@ -310,6 +364,8 @@ def text(lines):
             o.append(f'f {ln[1]:x} ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] in 'NZ':
             o.append(f'{ln[0]} {ln[1]}')
+        elif ln[0] == 'V':
+            o.append(f'V {ln[1]} {ln[2]}')
         else:
             o.append(ln[0])
     return '\n'.join(o) + '\n'
@@ -331,10 +387,10 @@ def main():
     buf = ctypes.create_string_buffer(1 << 20)
     bad = steps = 0
     seen = {}
-    for seed in range(runs * 2):
-        lines = plan(seed) if seed < runs else fight_plan(seed)
+    for seed in range(runs * 3):
+        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
-        if seed >= runs:
+        if runs <= seed < runs * 2:
             for p in a:
                 ex = p.partition('|')[2].split()
                 if len(ex) > 6:
@@ -357,7 +413,7 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs * 2} plans, {steps} lines: {bad} differ')
+    print(f'{runs * 3} plans, {steps} lines: {bad} differ')
     print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},

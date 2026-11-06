@@ -47,6 +47,10 @@ struct World : JumpPmHooks {
   float stop_distance(zgame::Handle, float v) override { return v; }
   float range_far() override { return 0; }
   float range_near() override { return 0; }
+  zgame::Handle order_target() override { return 0; }
+  const float* target_place(zgame::Handle) override { return nullptr; }
+  bool target_live(zgame::Handle) override { return false; }
+  bool must_leave(zgame::Handle) override { return false; }
   zgame::Handle mech(zgame::Handle) override { return pilot ? 3 : 0; }
   bool has_jets(zgame::Handle) override { return jets; }
   void set_x588(zgame::Handle) override { ++x588; }

@@ -26,6 +26,11 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float stop_distance(zgame::Handle v, float s) = 0;  // vt+0x12c
   virtual float range_far() = 0;                            // the brain's +0x28
   virtual float range_near() = 0;                           // the brain's +0x2c
+  // What the order is about: the order's +0x0c, vt+0x1c, vt+0x18, vt+0x50 (the exe has no answer for none).
+  virtual zgame::Handle order_target() = 0;
+  virtual const float* target_place(zgame::Handle t) = 0;   // vt+0x04
+  virtual bool target_live(zgame::Handle t) = 0;            // +0x1c's +0x08
+  virtual bool must_leave(zgame::Handle v) = 0;             // 0x004fa210
 };
 
 float flat_dir_pm(const float from[3], const float to[3], float out[3]);  // 0x00537e60: its flat length
@@ -95,6 +100,7 @@ class WalkFightPm : public WalkPm {
   void measure() override;            // vt+0x10  0x004d9a90
   void measure_target();              // 0x004d99e0
   void decide(const FightStatePm& s);  // 0x004d9b90
+  void take_order_target();           // 0x004daa70's own part (vtable 0x005eecac)
 
   FightStatePm& state;                // +0x50
   const float* target_pos = nullptr;  // +0x54
@@ -109,6 +115,22 @@ class WalkFightPm : public WalkPm {
   float way_dist = 0;                 // +0x88
   uint8_t may_go = 0;                 // +0x8c
   uint8_t off_way = 0;                // +0x8d
+};
+
+// The context of the guarding state 0x004dffb0 (vtables 0x005ef2a0, 0x005ef30c): the order's target
+// and how far it is from here and from the way's start.
+class WalkGuardPm : public WalkPm {
+ public:
+  WalkGuardPm(WalkPmHooks& h, SteerPm& steer, zgame::Handle vehicle);  // 0x004dfb50
+  void measure() override;            // vt+0x10  0x004dfc30
+
+  zgame::Handle target = 0;           // +0x50
+  const float* target_pos = nullptr;  // +0x54
+  uint8_t gone = 0;                   // +0x58  no target, or it should leave it
+  float to_target[3] = {};            // +0x5c
+  float target_dist = 0;              // +0x68
+  float from_way = 0;                 // +0x6c
+  uint8_t x70 = 0, x71 = 0, x72 = 0;  // +0x70..+0x72
 };
 
 }  // namespace mech3::ai
