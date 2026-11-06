@@ -1,0 +1,110 @@
+// PM's walking context (zai_walk_pm), for test_pm_ai_walk.py: a plan of steps, the context's fields after each.
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "mech3/zai_walk_pm.h"
+
+namespace {
+using namespace mech3::ai;
+struct World : WalkPmHooks {
+  float place[3] = {}, target[3] = {}, fw[2] = {};
+  float goal_turn = 0, goal_throttle = 0, most = 1, x544 = 0;
+  bool halt = false, steers = true, blocked = false, contact = false, pilot = false;
+  std::vector<const Contact*> none;
+  void position(zgame::Handle e, float out[3]) override {
+    const float* p = e == 1 ? place : target;
+    out[0] = p[0], out[1] = p[1], out[2] = p[2];
+  }
+  void forward(zgame::Handle, float* x, float* z) override { *x = fw[0], *z = fw[1]; }
+  bool halted(zgame::Handle) override { return halt; }
+  bool order_steers(Brain*) override { return steers; }
+  const std::vector<const Contact*>& contacts(zgame::Handle) override { return none; }
+  zgame::Handle contact_entity(const Contact*) override { return 0; }
+  bool targetable(zgame::Handle) override { return false; }
+  float contact_dist2(const Contact*) override { return 0; }
+  float turn_goal() override { return goal_turn; }
+  float throttle_goal() override { return goal_throttle; }
+  float max_throttle() override { return most; }
+  zgame::Handle target_entity(zgame::Handle) override { return 2; }
+  bool has_target_contact(zgame::Handle) override { return contact; }
+  bool way_blocked(zgame::Handle, const float*, const float*) override { return blocked; }
+  bool has_pilot(zgame::Handle) override { return pilot; }
+  float pilot_x544(zgame::Handle) override { return x544; }
+};
+float f(const std::string& s) {
+  uint32_t u = static_cast<uint32_t>(std::stoul(s, nullptr, 16));
+  float v;
+  std::memcpy(&v, &u, 4);
+  return v;
+}
+void put(std::string& o, float v) {
+  uint32_t u;
+  std::memcpy(&u, &v, 4);
+  char b[16];
+  std::snprintf(b, sizeof b, "%x ", u);
+  o += b;
+}
+}  // namespace
+
+extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
+  World w;
+  SteerPm s;
+  std::unique_ptr<WalkPm> c;
+  std::string o;
+  std::istringstream lines(plan);
+  std::string line;
+  while (std::getline(lines, line)) {
+    std::istringstream in(line);
+    std::string op;
+    in >> op;
+    std::vector<std::string> a;
+    std::string t;
+    while (in >> t) a.push_back(t);
+    if (op == "W") {  // the world
+      for (int i = 0; i < 3; ++i) w.place[i] = f(a[i]), w.target[i] = f(a[3 + i]);
+      w.fw[0] = f(a[6]), w.fw[1] = f(a[7]);
+      w.goal_turn = f(a[8]), w.goal_throttle = f(a[9]), w.most = f(a[10]);
+      w.blocked = a[11] == "1", w.contact = a[12] == "1", w.steers = a[13] == "1";
+      w.pilot = a[14] == "1", w.x544 = f(a[15]);
+    } else if (op == "T") {  // the steering's fields
+      s.start[0] = f(a[0]), s.start[1] = f(a[1]), s.start[2] = f(a[2]);
+      s.dir[0] = f(a[3]), s.dir[1] = f(a[4]);
+      s.along_min = f(a[5]), s.length = f(a[6]), s.along_at = f(a[7]), s.across = f(a[8]);
+      s.along = f(a[9]), s.side = f(a[10]);
+    } else if (op == "O") {
+      c->dot = f(a[0]), c->off_along = f(a[1]), c->off_side = f(a[2]);
+    } else if (op == "C") {
+      c.reset(new WalkPm(w, s, 1));
+    } else if (op == "0") {
+      c->walk();
+    } else if (op == "1") {
+      c->walk_on();
+    } else if (op == "2") {
+      c->walk_straight();
+    } else if (op == "3") {
+      c->hold();
+    } else if (op == "4") {
+      c->measure();
+    } else if (op == "5") {
+      c->aim_turnabout();
+    } else if (op == "6") {
+      c->turn();
+    } else if (op == "7") {
+      c->throttle();
+    }
+    if (c) {
+      for (float v : {c->off_along, c->off_side, c->off_sum, c->to[0], c->to[1], c->to[2], c->dir[0], c->dir[2], c->dot,
+                      c->cross, c->turn_out, c->throttle_out, s.brake})
+        put(o, v);
+      o += std::to_string(c->backing) + "\n";
+    }
+  }
+  if (static_cast<int>(o.size()) >= cap) return -1;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}

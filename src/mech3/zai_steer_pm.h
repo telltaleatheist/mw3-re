@@ -50,6 +50,18 @@ struct SteerPm {
   uint8_t push = 1;     // +0x58  0x0060bba0
   float push_reach;     // +0x5c  0x0060bba4
   float push_band;      // +0x60  0x0060bba8
+  // What the walking context reads (zai_walk_pm), all from the statics at 0x0060bbb0, 0x0062fb80.
+  float far_along = 1.0f, far_side = 1.0f;  // +0x64, +0x68
+  float cos_on;         // +0x6c  cos 10 degrees: facing the carrot, it may go
+  float cos_turnabout;  // +0x70  cos 135 degrees
+  float turnabout_room = 80.0f;  // +0x74
+  float gain_along;     // +0x78
+  float gain_side;      // +0x7c
+  float least = 0.1f;   // +0x80
+  float brake = 0.1f;   // +0x84  the walking context's constructor sets it from the pilot
+  float cos_dead, sin_dead;  // +0x88, +0x8c  2 degrees
+  float gain = 1.2f, least_turn = 0.1f;  // +0x90, +0x94
+  float cos_behind;     // +0x98  cos 175 degrees
   Brain* brain = nullptr;  // +0xa0
   int32_t sets = 0;     // +0x9c
 

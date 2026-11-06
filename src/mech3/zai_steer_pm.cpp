@@ -18,6 +18,13 @@ SteerPm::SteerPm() {
   keep_scale = 1.0f;
   push_reach = 40.0f;
   push_band = 15.0f;
+  cos_on = static_cast<float>(std::cos(0.17453292519944444));         // 0x004dbfc0
+  cos_turnabout = static_cast<float>(std::cos(2.3561944901925003));
+  gain_along = 0.05263158f;  // 0x3d579436
+  gain_side = 0.012658228f;  // 0x3c4f6475
+  cos_dead = static_cast<float>(std::cos(0.03490658503988));         // 0x004dc020
+  sin_dead = static_cast<float>(std::sin(0.03490658503988));
+  cos_behind = static_cast<float>(std::cos(3.0543261909895));
 }
 
 // Pirate's Moon 1.0 @ 0x004dc210: near the segment, for an order that steers by it; any other is near.
