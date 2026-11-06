@@ -25,6 +25,7 @@ shipped mechlib.zbd models. Launch-time code: the x87 at 24 bits.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_mech_build.py [cases]
 """
+import math
 import bisect
 import collections
 import ctypes
@@ -714,7 +715,7 @@ def compare_world(probe, name, case, e, world, rep):
             for f in range(fp + 0x14, fp + 0x5c, 4):
                 x = struct.unpack('<f', e.cpu.read(f, 4))[0]
                 y = struct.unpack('<f', bytes(after[f - lo:f - lo + 4]))[0]
-                if not (x == y or abs(x - y) <= 1e-5 * max(1.0, abs(x))):
+                if not (x == y or (math.isfinite(x) and math.isfinite(y) and abs(x - y) <= 1e-5 * max(1.0, abs(x)))):
                     bad.append(f'cone at firepoint {k} +{f - fp:#x}: original {x} port {y}')
                 cone.update(range(f, f + 4))
     for a, v in sorted(written.items()):

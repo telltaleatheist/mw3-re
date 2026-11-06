@@ -680,6 +680,8 @@ def compare_trees(probe, emu, world):
     for i, (a, b) in enumerate(zip(want, got)):
         if a != b:
             fa, fb = struct.unpack('<2f', struct.pack('<2I', a, b))
+            if not (math.isfinite(fa) and math.isfinite(fb)):  # a scaled allowance would let these through
+                raise SystemExit(f'{world}: trees word {i}: exe {a:08x} {fa}, port {b:08x} {fb}')
             worst = max(worst, abs(fa - fb) / max(1.0, abs(fb)))
             if abs(fa - fb) > 1e-6 * max(1.0, abs(fb)):
                 raise SystemExit(f'{world}: trees word {i}: exe {a:08x} {fa}, port {b:08x} {fb}')
@@ -769,6 +771,10 @@ def compare_laying(probe, world, names, skip_ground=0):
                 raise SystemExit(f'{world} frame {k} draw {i}: node, mask {struct.unpack("<iI", o[:8])}, exe {struct.unpack("<iI", r[:8])}')
             for j in list(range(12)) + [12]:
                 a2, b2 = struct.unpack_from('<f', o, 8 + 4 * j)[0], struct.unpack_from('<f', r, 8 + 4 * j)[0]
+                if a2 == b2:
+                    continue
+                if not (math.isfinite(a2) and math.isfinite(b2)):  # a scaled allowance would let these through
+                    raise SystemExit(f'{world} frame {k} draw {i} word {j}: {a2}, exe {b2}')
                 FRAME_DIFF[0] = max(FRAME_DIFF[0], abs(a2 - b2) / max(1.0, abs(b2)))
                 if abs(a2 - b2) > 1e-6 * max(1.0, abs(b2)):
                     raise SystemExit(f'{world} frame {k} draw {i} word {j}: {a2}, exe {b2}')

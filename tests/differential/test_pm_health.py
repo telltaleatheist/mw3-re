@@ -8,6 +8,7 @@ docs/pm-mech-step.md).
 A mech in emulator memory with a copy of the real vtable and controls; the parts answer their structure from a table.
 The answer, the fields and every call out must match at 24-bit precision, floats within 1e-6.
 """
+import math
 import ctypes
 import os
 import random
@@ -165,7 +166,9 @@ def scenario(rng):
 
 
 def close(a, b):
-    return a == b or abs(a - b) <= 1e-6 * max(1.0, abs(a), abs(b))
+    if a == b:
+        return True
+    return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 1e-6 * max(1.0, abs(a), abs(b))
 
 
 def main():
