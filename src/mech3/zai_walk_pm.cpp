@@ -6,9 +6,8 @@
 
 namespace mech3::ai {
 
-namespace {
 // 0x00537e60: to - from, flat, normalized.
-float flat_dir(const float from[3], const float to[3], float out[3]) {
+float flat_dir_pm(const float from[3], const float to[3], float out[3]) {
   out[0] = to[0] - from[0];
   out[1] = 0.0f;
   out[2] = to[2] - from[2];
@@ -19,7 +18,6 @@ float flat_dir(const float from[3], const float to[3], float out[3]) {
   }
   return len;
 }
-}  // namespace
 
 // Pirate's Moon 1.0 @ 0x004d9870. The brake's share is from the pilot's +0x544: 2^n in the float's
 // exponent, as the exe builds it.
@@ -54,7 +52,7 @@ void WalkPm::measure() {
 // it's behind.
 void WalkPm::aim_turnabout() {
   refresh();
-  flat_dir(pos, to, dir);
+  flat_dir_pm(pos, to, dir);
   dot = fwd[1] * dir[2] + fwd[0] * dir[0];
   const float left = steer.along_at - steer.along_min;
   if (-steer.turnabout_room < left && left < 0.0f && dot < steer.cos_turnabout) {
@@ -68,7 +66,7 @@ void WalkPm::aim_turnabout() {
 // Pirate's Moon 1.0 @ 0x004d9370
 void WalkPm::aim() {
   refresh();
-  flat_dir(pos, to, dir);
+  flat_dir_pm(pos, to, dir);
 }
 
 // Pirate's Moon 1.0 @ 0x004d9390 (MW3's 0x004cdd40): 0 within the dead zone, past it the side times
@@ -238,7 +236,7 @@ void FightStatePm::plan(WalkPmHooks& h, WalkFightPm& c) {
     const float* w = h.way_from();
     start[0] = w[0], start[1] = w[1], start[2] = w[2];
     from = start;
-    dist = flat_dir(start, target, back);
+    dist = flat_dir_pm(start, target, back);
     way = back;
   } else if (pulled && c.at_stop && c.way_dist >= range_mid) {
     from = c.way_point;
@@ -257,7 +255,7 @@ void FightStatePm::plan(WalkPmHooks& h, WalkFightPm& c) {
   pulled = h.pull(c.vehicle, from, target, out);
   if (pulled) {
     target = out;
-    dist = flat_dir(from, out, back);
+    dist = flat_dir_pm(from, out, back);
     way = back;
     keep = false;
     if (dist == 0.0f) {
@@ -318,7 +316,7 @@ void WalkFightPm::measure_target() {
 void WalkFightPm::measure() {
   WalkPm::measure();
   way_point = steer.way_begin(way_own);
-  way_dist = flat_dir(target_pos, way_point, way_dir);
+  way_dist = flat_dir_pm(target_pos, way_point, way_dir);
   off_way = way_dist >= state.range_near;
   at_stop = steer.at_end() && off_sum < state.stop_dist;
 }

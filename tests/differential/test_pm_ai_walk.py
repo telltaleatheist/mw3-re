@@ -45,7 +45,7 @@ class Exe(test_pm_zar.Emulated):
         # _ftol, truncating
         self.w32(0x5de644, self.cpu.code(bytes.fromhex('83ec0c d93c24 668b0424 80cc0c 6689442402 d96c2402 df7c2404 d92c24 8b442404 83c40c c3')))
         # The controls at +0x100 + 0: their first word is both the offset table (+4 is 0) and the vtable.
-        ctl = self.alloc(0x40)
+        ctl = self.ctl = self.alloc(0x80)
         self.w32(self.brain + 0x100, ctl)
         self.w32(self.brain + 0x11c, self.vehicle)
         self.w32(ctl + 0x1c, self.cpu.code(bytes.fromhex('d905') + struct.pack('<I', self.goals + 4) + b'\xc3'))
@@ -319,6 +319,8 @@ def close(a, b):
     if a == b:
         return True
     x, y = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (a, b))
+    if math.isinf(x) or math.isinf(y):  # the allowance would be infinite too
+        return False
     return abs(x - y) <= 1e-3 + 1e-4 * max(abs(x), abs(y))
 
 

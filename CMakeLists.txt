@@ -260,6 +260,7 @@ add_library(mw3core STATIC
   src/mech3/zai_brain.cpp
   src/mech3/zai_steer_pm.cpp
   src/mech3/zai_walk_pm.cpp
+  src/mech3/zai_jump_pm.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp
   src/mech3/zai_attack.cpp
@@ -651,7 +652,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_nodes.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_valves.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_boundary.cpp)
-  target_sources(pmprobe PRIVATE tests/probe_pm_ai_steer.cpp tests/probe_pm_ai_walk.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_ai_steer.cpp tests/probe_pm_ai_walk.cpp tests/probe_pm_ai_jump.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_mechvt.cpp)
   target_sources(pmprobe PRIVATE tests/probe_twod.cpp tests/probe_lab_list.cpp tests/probe_menus.cpp tests/probe_lab.cpp tests/probe_weapon_labs.cpp)
   target_sources(pmprobe PRIVATE tests/probe_salvage.cpp)

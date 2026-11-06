@@ -28,6 +28,8 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float range_near() = 0;                           // the brain's +0x2c
 };
 
+float flat_dir_pm(const float from[3], const float to[3], float out[3]);  // 0x00537e60: its flat length
+
 class WalkFightPm;
 
 // What the fighting states keep and hand down to their walking context (vtable 0x005eec78).

@@ -1,0 +1,218 @@
+#include "mech3/zai_jump_pm.h"
+
+#include <cfloat>
+#include <cmath>
+
+namespace mech3::ai {
+
+namespace {
+const TurnPmParams& turn_params_pm() {  // 0x004daf00, 0x60bb74 degrees
+  static const TurnPmParams p{std::cos(1.0f * 0.017453292519943295f), std::sin(1.0f * 0.017453292519943295f), 1.2f, 0.1f, 0.0f};
+  return p;
+}
+// [0x0062fb28..0x0062fb30], set at 0x004daec0: none within 0.1, else half of it, against the error's sign.
+float jet_forward(float error) {
+  const float a = std::fabs(error);
+  if (a <= 0.1f) return 0.0f;
+  const float k = (0.5f + 0.0f) * a;
+  return 0.0f < error ? -k : k;
+}
+float clamp01(float v) {
+  if (v > 1.0f) return 1.0f;
+  return v >= 0.0f ? v : 0.0f;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004d7060 (MW3's 0x004cdd40)
+float turn_pm(const float fwd[3], const float to[3], float* dot, float* cross, float keep, const TurnPmParams& p) {
+  const float d = fwd[2] * to[2] + fwd[0] * to[0];
+  *dot = d;
+  *cross = 0.0f;
+  if (!(p.behind <= d)) return keep == 0.0f ? 1.0f : keep;
+  if (p.cos_dead <= d) return 0.0f;
+  const float c = fwd[2] * to[0] - to[2] * fwd[0];
+  *cross = c;
+  if (d < 0.0f) return c < 0.0f ? -1.0f : 1.0f;
+  if (-p.sin_dead <= c) {
+    if (!(p.sin_dead < c)) return 0.0f;
+    const float v = (c - p.sin_dead) * p.gain;
+    if (1.0 < v) return 1.0f;
+    return v < p.least ? p.least : v;
+  }
+  const float v = (c + p.sin_dead) * p.gain;
+  if (v < -1.0) return -1.0f;
+  return -p.least < v ? -p.least : v;
+}
+
+// Pirate's Moon 1.0 @ 0x004dac40 with 0x004dad70 (MW3's 0x004cb120, 0x004cb250)
+JumpPlanPm jump_plan_pm(const float from[3], const float to[3], float up, float down, float margin, float speed) {
+  JumpPlanPm p;
+  const float dy = to[1] - from[1];
+  const float dx = to[0] - from[0], dz = to[2] - from[2];
+  const float hyp = std::sqrt(dx * dx + dz * dz);  // the CRT's _hypot
+  p.dist = hyp;
+  p.rise = dy;
+  if (0.0f <= dy) {
+    p.fall = margin;
+    p.climb = dy + margin;
+  } else {
+    p.rise = -dy;
+    p.climb = margin;
+    p.fall = -dy + margin;
+  }
+  p.t[2] = 0.0f;
+  p.peak = from[1] + p.climb;
+  p.ratio = up / down;
+  p.k = 2.0f / ((down - up) * p.ratio);
+  p.t[0] = std::sqrt(p.k * p.climb);
+  p.t[1] = -(p.t[0] * p.ratio);
+  p.t[4] = std::sqrt(p.k * p.fall);
+  p.t[3] = -(p.ratio * p.t[4]);
+  p.total = p.t[3] + p.t[4] + p.t[1] + p.t[0];
+  p.need = p.total <= 0.0f ? FLT_MAX : hyp / p.total;
+  if (p.need < speed) {
+    p.speed = p.need;
+  } else if (speed <= 0.0f) {
+    p.speed = speed;
+  } else {
+    p.t[2] = p.dist / speed - p.total;
+    p.speed = speed;
+  }
+  return p;
+}
+
+// Pirate's Moon 1.0 @ 0x004dade0
+bool JumpPm::can(JumpPmHooks& h, zgame::Handle v) {
+  if (!v) return false;
+  const zgame::Handle m = h.mech(v);
+  return m && h.has_jets(m);
+}
+
+// Pirate's Moon 1.0 @ 0x004daf40
+JumpPm::JumpPm(JumpPmHooks& hooks, SteerPm& s, zgame::Handle v) : h(hooks), steer(s), vehicle(v) {
+  const float top = h.speed_at(v, h.max_throttle());
+  steer.set(h, h.way_from(), h.way_point(), top, v);
+  const float g = h.gravity();
+  float from[3];
+  h.position(v, from);
+  const float up = h.jet_climb() * 1.0f - g;
+  const float down = h.jet_climb() * 0.01f - g;  // 0x0060bb6c
+  const JumpPlanPm p = jump_plan_pm(from, h.way_point(), up, down, h.margin(), top);
+  peak = p.peak;
+  for (int i = 0; i < 5; ++i) t[i] = p.t[i];
+  speed = p.speed;
+  far = (t[3] + t[4]) * top;
+}
+
+// Pirate's Moon 1.0 @ 0x004db0e0. Each phase's time starts as it comes; the last phases also end
+// when the mech is down.
+void JumpPm::run(float dt) {
+  const zgame::Handle m = h.mech(vehicle);
+  h.set_x588(m);  // [0x0060bb70], 1 in the exe's data, nothing writes it
+  float pos[3], fwd[2], fw3[3] = {}, dir[3] = {}, dist = 0;
+  auto way = [&] {
+    h.position(vehicle, pos);
+    dist = flat_dir_pm(pos, h.way_point(), dir);
+  };
+  auto steer_on = [&](int32_t now_phase) {
+    way();
+    h.forward(vehicle, &fwd[0], &fwd[1]);
+    fw3[0] = fwd[0], fw3[2] = fwd[1];
+    float dot, cross;
+    h.set_turn(turn_pm(fw3, dir, &dot, &cross, h.turn_goal(), turn_params_pm()));
+    phase = now_phase;
+  };
+  const float jump_low = 0.01f;  // 0x0060bb6c
+  switch (phase) {
+    case 0:
+    case 1: {
+      way();
+      h.forward(vehicle, &fwd[0], &fwd[1]);
+      fw3[0] = fwd[0], fw3[2] = fwd[1];
+      float dot, cross;
+      const float turn = turn_pm(fw3, dir, &dot, &cross, h.turn_goal(), turn_params_pm());
+      if (turn != 0.0f) {
+        h.set_throttle(0.0f);
+        h.set_turn(turn);
+        phase = 1;
+        return;
+      }
+      h.set_throttle(h.max_throttle());
+      t[0] = h.now() + t[0];
+      [[fallthrough]];
+    }
+    case 2:
+      if (h.now() < t[0]) {
+        h.set_jump(1.0f);
+        h.set_jet_forward(jet_forward(-h.along_speed(m) - speed));
+        steer_on(2);
+        return;
+      }
+      t[1] = h.now() + t[1];
+      [[fallthrough]];
+    case 3:
+      if (h.now() < t[1] && h.in_air(m)) {
+        h.set_jump(jump_low);
+        h.set_jet_forward(jet_forward(-h.along_speed(m) - speed));
+        steer_on(3);
+        return;
+      }
+      way();
+      t[2] = h.now() + dist / h.speed_at(vehicle, h.max_throttle()) + 5.0f;
+      [[fallthrough]];
+    case 4:
+      if (h.now() < t[2] && h.in_air(m)) {
+        way();
+        if (far < dist) {
+          const float above = pos[1] - peak;
+          float a;
+          if (above < -0.1f || 0.1f < above) {
+            a = -above - h.climb_speed(m) * dt * 5.0f;
+            a = (a + a) / (dt * dt * 25.0f);
+          } else {
+            a = -(h.climb_speed(m) / dt);
+          }
+          h.set_jump(clamp01((h.gravity() + a) / h.jet_climb()));
+          h.set_jet_forward(jet_forward(-h.along_speed(m) - speed));
+          steer_on(4);
+          return;
+        }
+      }
+      t[3] = h.now() + t[3];
+      [[fallthrough]];
+    case 5:
+      if (h.now() < t[3] && h.in_air(m)) {
+        h.set_jump(jump_low);
+        way();
+        h.set_jet_forward(jet_forward(-h.along_speed(m) - dist / ((t[4] + t[3]) - h.now())));
+        steer_on(5);
+        return;
+      }
+      t[4] = h.now() + t[4];
+      [[fallthrough]];
+    case 6:
+      if (h.now() < t[4] && h.climb_speed(m) < 0.0f && h.in_air(m)) {
+        h.set_jump(clamp01((-(h.climb_speed(m) / dt) + h.gravity()) / h.jet_climb()));
+        way();
+        h.set_jet_forward(jet_forward(-h.along_speed(m) - dist / (t[4] - h.now())));
+        steer_on(6);
+        return;
+      }
+      h.set_throttle(0.0f);
+      h.set_jump(0.0f);
+      h.set_turn(0.0f);
+      [[fallthrough]];
+    case 7:
+      if (h.in_air(m)) {
+        phase = 7;
+        return;
+      }
+      h.position(vehicle, h.way_from());
+      h.go_next();
+      return;
+    default:
+      return;
+  }
+}
+
+}  // namespace mech3::ai
