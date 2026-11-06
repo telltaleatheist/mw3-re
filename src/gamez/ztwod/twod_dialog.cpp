@@ -334,8 +334,10 @@ bool Dialog::load_node(zrdr::Node* t, zrdr::Node* entry, bool no_draw) {
     const int32_t was = mute;
     mute = 1;
     set_active(1);
-    // Pirate's Moon 1.0 @ 0x005befd0: in hardware mode the static parts aren't drawn before the grab.
-    if (host().video_mode() == 0) update(0.0f);
+    // Pirate's Moon 1.0 @ 0x005befd0: in hardware mode the static parts aren't drawn before the grab: its images
+    // are queued quads and an erase (0x0057d210) goes to the surface under them. FIX (A): ours draw in order, so
+    // an erase would land on the panel; the grab takes the static parts, as MW3's.
+    if (host().video_mode() == 0 || host().draws_in_order()) update(0.0f);
     static_bg = host().screen_grab(1);
     set_active(0);
     restore_behind();

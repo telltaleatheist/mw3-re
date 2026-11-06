@@ -81,6 +81,8 @@ class Host : public zgame::Unported {
   // 0x00575ff0: Mech3Msg.dll's message `id` formatted into buf (FormatMessageA,
   // the trailing CR LF cut); its length, 0 when none.
   virtual uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args);
+  // Ours: every blit lands at once, in order (the program's Host; tests keep the exe's way).
+  virtual bool draws_in_order() { return false; }
   virtual int32_t video_mode();                                       // [0x0072f348]: 0 software, 1 Direct3D
   virtual void video_double();                                        // [0x0072f358](0, 0)
   virtual uint32_t show_cursor(uint32_t on);                          // 0x00579840: ECX; returns the old state
