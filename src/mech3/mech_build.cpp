@@ -1,5 +1,7 @@
 #include "mech3/mech_build.h"
 
+#include "gamez/zclass/class.h"
+
 #include "gamez/zentity/zent_init.h"
 #include "mech3/mech_parts.h"
 
@@ -62,7 +64,10 @@ const MechDfn* MechBuildHooks::dfn(int32_t roster) { return mech_dfn(roster); }
 int32_t MechBuildHooks::node_box(Handle node, float box[6]) {
   zcls::Node* n = zn(node);
   if (!n) return 5;
-  std::memcpy(box, n->raw + 0x74, 6 * sizeof(float));
+  // Pirate's Moon 1.0 @ 0x004fd9d0: the box is behind the pointer at +0x70, and 1 without flag 0x100.
+  const float* b = zcls::node_box(n);
+  if (!b) return 1;
+  std::memcpy(box, b, 6 * sizeof(float));
   return 0;
 }
 void MechBuildHooks::node_get_translation(Handle node, float* x, float* y, float* z) {
@@ -85,7 +90,11 @@ int32_t MechBuildHooks::node_parent_count(Handle node) { return node ? zn(node)-
 Handle MechBuildHooks::node_parent(Handle node, int32_t i) {
   return node && zn(node)->parents ? zn(node)->parents[i] : nullptr;
 }
-float MechBuildHooks::node_min_y(Handle node) { return node ? zn(node)->get<float>(0x78) : 0.0f; }
+float MechBuildHooks::node_min_y(Handle node) {
+  if (!node) return 0.0f;
+  const zcls::Node* n = zn(node);
+  return n->pm_box ? n->pm_box[1] : n->get<float>(0x78);  // PM's box is behind +0x70
+}
 int32_t MechBuildHooks::node_id(Handle node) { return node ? zn(node)->get<int32_t>(0x28) : -1; }
 void MechBuildHooks::node_set_owner(Handle node, int32_t id, void* owner) {
   if (!node) return;
