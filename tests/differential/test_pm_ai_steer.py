@@ -212,6 +212,8 @@ def close(a, b):
     if a == b:
         return True
     x, y = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (a, b))
+    if math.isinf(x) or math.isinf(y):  # the allowance would be infinite too
+        return False
     return abs(x - y) <= 1e-3 + 1e-4 * max(abs(x), abs(y))
 
 

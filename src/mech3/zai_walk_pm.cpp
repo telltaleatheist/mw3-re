@@ -1,13 +1,13 @@
 #include "mech3/zai_walk_pm.h"
 
+#include <cfloat>
 #include <cmath>
 #include <cstring>
 
 namespace mech3::ai {
 
-namespace {
 // 0x00537e60: to - from, flat, normalized.
-void flat_dir(const float from[3], const float to[3], float out[3]) {
+float flat_dir_pm(const float from[3], const float to[3], float out[3]) {
   out[0] = to[0] - from[0];
   out[1] = 0.0f;
   out[2] = to[2] - from[2];
@@ -16,8 +16,8 @@ void flat_dir(const float from[3], const float to[3], float out[3]) {
     const float k = 1.0f / len;
     out[0] *= k, out[2] *= k;
   }
+  return len;
 }
-}  // namespace
 
 // Pirate's Moon 1.0 @ 0x004d9870. The brake's share is from the pilot's +0x544: 2^n in the float's
 // exponent, as the exe builds it.
@@ -52,7 +52,7 @@ void WalkPm::measure() {
 // it's behind.
 void WalkPm::aim_turnabout() {
   refresh();
-  flat_dir(pos, to, dir);
+  flat_dir_pm(pos, to, dir);
   dot = fwd[1] * dir[2] + fwd[0] * dir[0];
   const float left = steer.along_at - steer.along_min;
   if (-steer.turnabout_room < left && left < 0.0f && dot < steer.cos_turnabout) {
@@ -66,7 +66,7 @@ void WalkPm::aim_turnabout() {
 // Pirate's Moon 1.0 @ 0x004d9370
 void WalkPm::aim() {
   refresh();
-  flat_dir(pos, to, dir);
+  flat_dir_pm(pos, to, dir);
 }
 
 // Pirate's Moon 1.0 @ 0x004d9390 (MW3's 0x004cdd40): 0 within the dead zone, past it the side times
@@ -138,7 +138,7 @@ void WalkPm::go(bool by_near) {
     aim_turnabout();
   } else {
     refresh();
-    if (h.way_blocked(vehicle, pos, to)) aim();
+    if (h.pull(vehicle, pos, to, to)) aim();
     else aim_turnabout();
   }
   turn();
@@ -176,6 +176,154 @@ void WalkPm::hold() {
   }
   aim();
   turn();
+}
+
+// Pirate's Moon 1.0 @ 0x004d9920: where the way begins, the start itself when none of it is cut off.
+const float* SteerPm::way_begin(float out[3]) const {
+  if (along_min == 0.0f) return start;
+  out[0] = start[0] + along_min * dir[0];
+  out[1] = start[1];
+  out[2] = start[2] + along_min * dir[1];
+  return out;
+}
+
+// Pirate's Moon 1.0 @ 0x004d9b10
+FightStatePm::FightStatePm() : stop_dist(FLT_MAX), range_far(FLT_MAX), until(FLT_MAX) {}
+
+// Pirate's Moon 1.0 @ 0x004d9be0. The exe also makes the vehicle's boundary record at +0xd8 if it
+// has none; here that's kept on the first query (inout_pull). `owned` is dropped unfreed, as written.
+void FightStatePm::enter(WalkPmHooks& h, zgame::Handle vehicle) {
+  flags &= ~0xfu;
+  speed = h.speed_at(vehicle, h.max_throttle());
+  wake = 0.0f;
+  until = FLT_MAX;
+  stop_dist = h.stop_distance(vehicle, speed);
+  range_far = h.range_far();
+  range_near = h.range_near();
+  x1c = 200.0f;
+  owned = nullptr;
+  x2d = 0;
+  pulled = 0;
+  range_mid = (range_near + range_far) * 0.5f;
+}
+
+// Pirate's Moon 1.0 @ 0x004d9ce0
+void FightStatePm::reset() {
+  until = FLT_MAX;
+  flags &= ~0xfu;
+  wake = 0.0f;
+  pulled = 0;
+}
+
+// Pirate's Moon 1.0 @ 0x004d9cc0
+void FightStatePm::release() {
+  delete owned;
+  owned = nullptr;
+}
+
+// Pirate's Moon 1.0 @ 0x004da1c0: lays the way, measured back from the place to stand, and how far
+// short of it to stop. Three blocks can't run and aren't here (docs/pm-map.md): slots vt+0x28 and the
+// context's vt+0x24 are null in every table, and the lane check's byte 0x0062fb20 is never set.
+void FightStatePm::plan(WalkPmHooks& h, WalkFightPm& c) {
+  c.refresh();
+  bool keep = true;
+  float dist = c.target_dist;
+  const float* from = c.pos;
+  const float* target = c.target_pos;
+  const float* way = c.to_target;
+  float start[3], back[3], out[3];
+  if (!c.at_stop && c.steer.length < c.steer.along_at) {
+    const float* w = h.way_from();
+    start[0] = w[0], start[1] = w[1], start[2] = w[2];
+    from = start;
+    dist = flat_dir_pm(start, target, back);
+    way = back;
+  } else if (pulled && c.at_stop && c.way_dist >= range_mid) {
+    from = c.way_point;
+    dist = c.way_dist;
+    way = c.way_dir;
+  }
+  if (dist < range_mid) {
+    const float neg[3] = {-way[0], -way[1], -way[2]};
+    back[0] = neg[0], back[1] = neg[1], back[2] = neg[2];
+    for (int i = 0; i < 3; ++i) out[i] = target[i] + back[i] * range_far;
+    target = out;
+    dist = range_far;
+    way = back;
+    keep = false;
+  }
+  pulled = h.pull(c.vehicle, from, target, out);
+  if (pulled) {
+    target = out;
+    dist = flat_dir_pm(from, out, back);
+    way = back;
+    keep = false;
+    if (dist == 0.0f) {
+      constexpr float kApart = 0.01f;  // 0x0060bb60
+      for (int i = 0; i < 3; ++i) start[i] = out[i] - kApart * back[i];
+      from = start;
+      dist = kApart;
+    }
+  }
+  if (dist > range_mid + x1c) {
+    for (int i = 0; i < 3; ++i) out[i] = from[i] + x1c * way[i];
+    target = out;
+    keep = false;
+    pulled = 0;
+  }
+  float* w = h.way_from();
+  w[0] = from[0], w[1] = from[1], w[2] = from[2];
+  c.steer.set(h, w, target, speed, c.vehicle);
+  if (keep) {
+    c.steer.along_min = range_mid;
+  } else if (pulled && range_near > 0.0f) {
+    float l[2];
+    c.steer.on_line(c.target_pos, l);
+    if (range_near > std::fabs(l[1])) {
+      const float half = std::sqrt(range_near * range_near - l[1] * l[1]);
+      const float end = l[0] + half;
+      if (end < 0.0f || l[0] - half > 0.0f) c.steer.along_min = 0.0f;
+      else c.steer.along_min = end < c.steer.length ? end : c.steer.length;
+    }
+  }
+  wake = h.now() + 10.0f;  // 0x0060bb58
+  until = h.now() + 1.0f;  // 0x0060bb5c
+}
+
+// Pirate's Moon 1.0 @ 0x004d99a0
+WalkFightPm::WalkFightPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v, FightStatePm& st)
+    : WalkPm(hooks, s, v), state(st) {}
+
+// Pirate's Moon 1.0 @ 0x004d99e0. The exe also tests its pointer to the vehicle's place, which is
+// never null (0x005cb260).
+void WalkFightPm::measure_target() {
+  no_target = !target_pos;
+  if (no_target) return;
+  refresh();
+  to_target[0] = target_pos[0] - pos[0];
+  to_target[1] = 0.0f;
+  to_target[2] = target_pos[2] - pos[2];
+  target_dist = std::sqrt(to_target[0] * to_target[0] + to_target[2] * to_target[2]);  // 0x004013d0
+  if (target_dist != 0.0f) {
+    const float k = 1.0f / target_dist;
+    to_target[0] *= k, to_target[2] *= k;
+  }
+  in_range = state.range_near < target_dist && target_dist < state.range_far;
+}
+
+// Pirate's Moon 1.0 @ 0x004d9a90: the target's distance from where the way begins, and whether the
+// vehicle has come to its end.
+void WalkFightPm::measure() {
+  WalkPm::measure();
+  way_point = steer.way_begin(way_own);
+  way_dist = flat_dir_pm(target_pos, way_point, way_dir);
+  off_way = way_dist >= state.range_near;
+  at_stop = steer.at_end() && off_sum < state.stop_dist;
+}
+
+// Pirate's Moon 1.0 @ 0x004d9b90
+void WalkFightPm::decide(const FightStatePm& s) {
+  may_go = !no_target && h.now() < s.wake && off_way && !at_stop;
 }
 
 }  // namespace mech3::ai

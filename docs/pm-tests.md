@@ -106,3 +106,40 @@ Field offsets go by a rule for the 2D world (`field`) and a member table for the
 The table above went by the file naming `libmw3probe`. Importing every `test_*.py` once (2026-11-05): 144 of 259 fail at load, every `test_pm_*` loads. These 83 reach MW3's probe through another test's module and are **not classified yet**. `test_mechdef` among them is covered by `test_pm_mechdef`. `test_mechsave` is unmoved: `test_pm_mechsave` has a loadout's save, load, version and MW3's format with byte damage, not the whole archives (0x4267f0, 0x426bd0, 0x427e80). It stays as the source for those and for six tests that import its helpers: `test_config_unpack`, `test_field_cut`, `test_lab_screen`, `test_mech_net_send`, `test_salvage`, `test_salvage_screen`.
 
 `test_actionscreen` `test_anim` `test_anim_binder` `test_anim_reset` `test_anim_run` `test_anim_save` `test_briefing` `test_config_unpack` `test_convexify` `test_crater` `test_ctlscreen` `test_cycle` `test_debriefing` `test_decal` `test_destroy` `test_field_cut` `test_fmv` `test_gmod_add` `test_hit_globals` `test_hud` `test_inout` `test_inout_query` `test_lab_list` `test_lab_screen` `test_lab_view` `test_loadsave` `test_mainmenu` `test_map_pick` `test_mech_health` `test_mech_net` `test_mech_net_apply` `test_mech_net_create` `test_mech_net_end` `test_mech_net_events` `test_mech_net_launch` `test_mech_net_respawn` `test_mech_net_send` `test_mech_net_world` `test_mechdata` `test_mechsave` `test_menus` `test_model_sweep` `test_node_find` `test_objective_check` `test_pilot` `test_pilotscreen` `test_place` `test_pocket_frame` `test_pocket_keys` `test_pocket_panel` `test_pose` `test_prim2d` `test_project_point` `test_pull_in` `test_ripple` `test_salvage` `test_salvage_screen` `test_script_setters` `test_shadows` `test_shotq` `test_ski_polygon` `test_skins` `test_store_fill` `test_tag` `test_training_lessons` `test_tree_copy` `test_twod` `test_twod_blit` `test_twod_line` `test_twod_msgbox` `test_twod_prims` `test_weapon_planner` `test_weapons_fly` `test_weapons_hit` `test_weapons_run` `test_world_params` `test_znet_create` `test_znet_dispatch` `test_znet_players` `test_znet_session` `test_znet_teams` `test_zsave`
+
+## AI hooks with an output: does a test see it dropped? (2026-11-06)
+
+Why: walk 0x4d9680 passes the carrot to the boundary as both place and answer. The first port's hook took it const and dropped the answer, and its stub never wrote one, so "0 differ" didn't cover it. Each hook below has a pointer or reference output. The check: make the probe's stub drop that output, run the test, see if it fails. The exe-side stubs write theirs, or the test couldn't catch this.
+
+`mw3probe` doesn't compile on `pm`, so the MW3-side rows ran on a scratch library linked from what compiles (`probe.cpp` with one call patched, `probe_world` and `probe_debriefing` left out), against MW3's exe. It's since removed and proves only these drops.
+
+| Hook | Test that caught the drop |
+|---|---|
+| `SteerPmHooks` position, forward | `test_pm_ai_steer` |
+| `WalkPmHooks` position, forward, pull, way_from | `test_pm_ai_walk` |
+| `BrainHooks` position, forward | `test_ai_steer` |
+| `BrainHooks` weapon_node_position, entity_lock_position | `test_ai_aim` |
+| `BrainHooks` velocity, vehicle_matrix | `test_ai_plan` |
+| `BrainHooks` zone_list, node_world_cached, segment_first's count | `test_ai_clearline` |
+| `BrainHooks` lead_point | `test_ai_manoeuvre` |
+| `BrainHooks` dock_point | `test_ai_repair` |
+| `BrainHooks` ammo_value | `test_ai_frame` |
+| `BrainHooks` inout_clamp | `test_ai_node` |
+| `BrainHooks` pilot_of | `test_ai_node` |
+| `BrainHooks` player_allies | `test_ai_brain` |
+| `TargetHooks` record's name, node_box | `test_ai_targets`, part 2 only |
+| `AnimOwnerHooks` node_translation, node_rotation | `test_anim_owner` |
+
+**Not caught, or not checked:**
+- `bearer_aim_clamp`: missed by `test_ai_aim`, `test_ai_plan` and `test_ai_firing`. Expected by reading: the caller ignores the answer (zai_firing.cpp, "feeds a dot the exe drops"). That the exe drops it isn't compared.
+- `InOutHooks::ground`: no test on `pm` runs it. `test_inout` can't, because MW3's boundary is gone from this branch. PM's exe path (0x4ce8a0) is not compared. It only moves a corner's height, and the queries are in x and z, so by reading the height has no effect on an answer. Rests on reading.
+- `NetHooks::ground`: no probe on this branch or `main` sets it, so nothing compares it. It changes a net node's height, which can matter. Owed with the moved `test_ai_nets`.
+- `zai_nav`'s `World::ground`, `parked`: ours, the way finder, with nothing in the exe to compare against.
+
+**Const check, by reading:** of the hooks taking a const pointer, the boundary is the only one where the exe's call passes one pointer as both place and answer. The ones whose bodies were read only read theirs: 0x4b0bc0, 0x56e7e0, 0x4fc1b0, 0x4d51d0, 0x4eed90, 0x41dbd0, 0x41dca0. 0x41dc70 passes its argument on to 0x465c70, which wasn't read. 0x418f30 (vt+0xdc) passes its arguments on to callees that weren't read. `region_inside`, `wall_between` (ours) and `node_offset`'s callee beyond its signature weren't read either. MW3's call sites that pass the same pointer (`inout_clamp(v, to, to)`) are written through non-const `out`. PM's 17 calls of the pull aren't all ported yet; each is checked as it lands.
+
+**Limits:** the list comes from the hook classes in `zai*`, `zainet*` and `zrdr*`, by signature. A hook's return value isn't covered. Hooks that write a field through a call (`brain_write`, `target_masks`, `set_local_velocity`) weren't given drop breaks.
+
+**That scratch build, and what it means for the rows above.** Its first form left out `probe.cpp`, and with it the line that turns the zfix fixes off for the whole probe library, so `bugs` stayed on and `test_ai_attack` differed at seed 281, round 5, step 33, on the port's own fixed path. With `probe.cpp` linked it passes, 300 cases, the same numbers as `main` at 355a1b09 and the merge base d6c63bf2, so it was the build, not `pm`. All rows above except `record`'s name and `node_box` ran on that first form, fixes on: a drop caught there is still a drop the test sees, but they weren't rerun with fixes off. `test_ai_targets` part 1 fails with fixes off as well, at fn 10: PM's `save_target` against MW3's exe, by design.
+
+**On the switch's list:** `InOutHooks::ground`; the hooks with no drop break (`brain_write`, `target_masks`, `set_local_velocity`); the real hooks in `app_mission.cpp`. `NetHooks::ground` goes with the moved `test_ai_nets`.

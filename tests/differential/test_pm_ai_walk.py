@@ -1,6 +1,8 @@
 """PM's walking context against the exe: the constructor 0x4d9870, then its virtual slots on crafted
 steerings and vehicles: walk 0x4d9680, walk on 0x4d9740, walk straight 0x4d9710, hold 0x4d97a0, the measure
-0x4d92a0, the aim 0x4d92c0, the turn 0x4d9390, the throttle 0x4d9550. Each step's fields compared.
+0x4d92a0, the aim 0x4d92c0, the turn 0x4d9390, the throttle 0x4d9550. Then a fighting state's part: its
+constructor 0x4d9b10, enter 0x4d9be0, reset 0x4d9ce0, release 0x4d9cc0, and its context 0x4d99a0 with the
+measures 0x4d9a90, 0x4d9920, 0x4d99e0, the decision 0x4d9b90 and the plan 0x4da1c0. Each step's fields compared.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_walk.py [runs]
 """
@@ -12,11 +14,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
+
 import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 CTOR, STEER, PLACE, ORDER, BLOCKED, MEASURE, COPYSIGN, FTOL = 0x4d9870, 0x4dc0f0, 0x5cb260, 0x4fa470, 0x4ccaf0, 0x4d92a0, 0x5de5bc, 0x5cef9a
 VT = 0x5eec2c
+FIGHT_STATE, FIGHT_CTX, FIGHT_ENTER, FIGHT_RESET, FIGHT_RELEASE = 0x4d9b10, 0x4d99a0, 0x4d9be0, 0x4d9ce0, 0x4d9cc0
+FIGHT_MEASURE, FIGHT_TARGET, FIGHT_DECIDE, NOW = 0x4d9a90, 0x4d99e0, 0x4d9b90, 0x62da90
 SLOT = {'0': 0x00, '1': 0x04, '2': 0x08, '3': 0x0c, '5': 0x14, '6': 0x1c, '7': 0x20}
 
 
@@ -28,7 +34,8 @@ class Exe(test_pm_zar.Emulated):
     def __init__(self):
         super().__init__()
         self.brain = self.alloc(0x500)
-        self.ctx = self.alloc(0x60)
+        self.ctx = self.alloc(0x90)
+        self.state = None
         self.vehicle = self.alloc(0x100)
         self.order = self.alloc(0x20)
         self.w32(self.order + 8, self.brain)
@@ -38,19 +45,30 @@ class Exe(test_pm_zar.Emulated):
         # _ftol, truncating
         self.w32(0x5de644, self.cpu.code(bytes.fromhex('83ec0c d93c24 668b0424 80cc0c 6689442402 d96c2402 df7c2404 d92c24 8b442404 83c40c c3')))
         # The controls at +0x100 + 0: their first word is both the offset table (+4 is 0) and the vtable.
-        ctl = self.alloc(0x40)
+        ctl = self.ctl = self.alloc(0x80)
         self.w32(self.brain + 0x100, ctl)
         self.w32(self.brain + 0x11c, self.vehicle)
         self.w32(ctl + 0x1c, self.cpu.code(bytes.fromhex('d905') + struct.pack('<I', self.goals + 4) + b'\xc3'))
         self.w32(ctl + 0x30, self.cpu.code(bytes.fromhex('d905') + struct.pack('<I', self.goals) + b'\xc3'))
-        vt = self.alloc(0x100)
+        vt = self.alloc(0x200)
         self.w32(self.vehicle, vt)
+        # Speed and stopping distance: the argument times a constant, so a wrong argument shows.
+        self.k = self.alloc(8)
+        self.w32(vt + 0x124, self.cpu.code(bytes.fromhex('d9442404 d80d') + struct.pack('<I', self.k) + bytes.fromhex('c20400')))
+        self.w32(vt + 0x12c, self.cpu.code(bytes.fromhex('d9442404 d80d') + struct.pack('<I', self.k + 4) + bytes.fromhex('c20400')))
+        self.w32(self.vehicle + 0xd8, self.alloc(0x54))  # the boundary record, as made
+        # The owned object: slot 0 counts its calls and keeps the argument.
+        self.deleted = self.alloc(8)
+        self.owned, ovt = self.alloc(8), self.alloc(8)
+        self.w32(self.owned, ovt)
+        self.w32(ovt, self.cpu.code(bytes.fromhex('8b442404 a3') + struct.pack('<I', self.deleted + 4)
+                                    + bytes.fromhex('ff05') + struct.pack('<I', self.deleted) + bytes.fromhex('c20400')))
         self.pilot = self.alloc(0x600)
-        self.want_pilot, self.blocked, self.steers = False, False, True
+        self.want_pilot, self.blocked, self.steers, self.on_from = False, False, True, False
         self.w32(vt + 0x58, self.ret_stub(lambda c: self.pilot if self.want_pilot else 0))
         self.native_stub(PLACE, lambda c: self.vehicle + 0x80 if c.ecx == self.vehicle else self.target)
         self.native_stub(ORDER, lambda c: 1 if self.steers else 0)
-        self.native_stub(BLOCKED, lambda c: 1 if self.blocked else 0)
+        self.native_stub(BLOCKED, self.pull)
         for init in (0x4dbf80, 0x4dbfa0, 0x4dbfc0, 0x4dc020, 0x4dc0c0, 0x4dc0e0):  # the statics, as at start-up
             self.call(init)
         self.call(STEER, ecx=self.brain + 0x210)
@@ -59,6 +77,20 @@ class Exe(test_pm_zar.Emulated):
         self.w32(self.contact + 4, holder)
         self.w32(holder, hvt)
         self.w32(hvt + 0x2c, self.ret_stub(lambda c: self.target))
+
+    def pull(self, c):
+        """The boundary, stubbed alike on both sides: a pulled place, or the way's own start."""
+        if not self.blocked:
+            return 0
+        sp = c._uc.reg_read(UC_X86_REG_ESP)
+        a, b, o = (self.g(sp + i) for i in (8, 12, 16))
+        fa = struct.unpack('<3f', bytes(c._uc.mem_read(a, 12)))
+        fb = struct.unpack('<3f', bytes(c._uc.mem_read(b, 12)))
+        if self.on_from:
+            self.fs(o, [fa[0], fb[1], fa[2]])
+        else:
+            self.fs(o, [(fa[0] + fb[0]) * 0.5 + 3.0, fb[1], (fa[2] + fb[2]) * 0.5 - 2.0])
+        return 1
 
     def ret_stub(self, fn):
         a = self.cpu.code(b'\xc3')
@@ -78,7 +110,21 @@ class Exe(test_pm_zar.Emulated):
         c = self.ctx
         vals = [self.g(c + o) for o in (0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x38, 0x40, 0x44, 0x48, 0x4c)]
         vals.append(self.g(self.brain + 0x210 + 0x84))
-        return ' '.join(f'{v:x}' for v in vals) + f' {self.g(c + 0x3c) & 0xff}\n'
+        exact = [self.g(c + 0x3c) & 0xff]
+        if self.state:
+            s = self.state
+            vals += [self.g(c + o) for o in (0x58, 0x5c, 0x60, 0x64, 0x6c, 0x70, 0x74, 0x7c, 0x80, 0x84, 0x88)]
+            vals += [self.g(s + o) for o in (0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28)]
+            st = self.brain + 0x210
+            vals += [self.g(st + o) for o in (4, 8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x2c, 0x34, 0x38)]
+            vals += [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)]
+            byte = lambda a: self.g(a) & 0xff  # noqa: E731
+            wp = self.g(c + 0x78)
+            way = 0 if not wp else 1 if wp == c + 0x6c else 2 if wp == self.brain + 0x210 + 4 else 3
+            exact += [byte(c + 0x68), byte(c + 0x69), byte(c + 0x6a), way, byte(c + 0x8c), byte(c + 0x8d), byte(s + 8),
+                      byte(s + 0x2c), byte(s + 0x2d), int(self.g(s + 0x30) != 0), byte(s + 0x34),
+                      self.g(self.deleted), self.g(self.deleted + 4)]
+        return ' '.join(f'{v:x}' for v in vals) + ' | ' + ' '.join(str(v) for v in exact) + '\n'
 
 
 def plan(seed):
@@ -116,6 +162,63 @@ def plan(seed):
     return lines
 
 
+def fight_plan(seed):
+    """A fighting state and its context: each measure and decision on worlds set to reach both answers."""
+    r = random.Random(f'fight:{seed}')
+    lines = plan(seed)[:2]
+
+    def fight():
+        far = r.choice([20.0, 60.0, 200.0, 1000.0])
+        return ('F', [r.choice([1.0, 10.0]), r.choice([1.0, 10.0, 100.0]), far, far * r.choice([0.0, 0.1, 0.5]), r.uniform(0, 100)])
+
+    def state():
+        return ('f', r.choice([0x3, 0xf5, 0x1a]), [r.choice([0.0, 50.0, 200.0]), r.uniform(0, 100)])
+
+    lines += [fight(), ('B',), ('N', 1), ('E',)]
+    base = plan(seed + 100000)
+    worlds = [ln for ln in base if ln[0] == 'W'] or [base[0]]
+    # Some far apart, for the way cut short past the middle range + 200.
+    worlds += [(w[0], [u * 6 for u in w[1][:6]] + w[1][6:]) + w[2:] for w in worlds]
+    steers = [ln for ln in base if ln[0] == 'T'] or [base[1]]
+    for _ in range(r.randrange(6, 16)):
+        k = r.random()
+        if k < 0.1:
+            lines.append(fight())
+        elif k < 0.2:
+            lines.append(r.choice(worlds))
+        elif k < 0.3:
+            t = r.choice(steers)
+            if r.random() < 0.3:  # the carrot past the way's length
+                t = ('T', t[1][:7] + [t[1][6] + r.uniform(1, 9)] + t[1][8:])
+            lines.append(t)
+        elif k < 0.35:
+            lines.append(('Z', r.choice([0, 0, 1])))
+        elif k < 0.4:
+            lines.append(state())
+        elif k < 0.45:
+            lines.append(('N', r.choice([0, 1])))
+            lines.append(('D',))
+            lines.append(('N', 1))
+        elif k < 0.5:
+            lines.append(('E',))
+        elif k < 0.55:
+            lines.append(('R',))
+        elif k < 0.6:
+            lines.append(('L',))
+        elif k < 0.65:
+            lines.append(('K',))
+        elif k < 0.75:
+            lines.append(('D',))
+        elif k < 0.8:
+            lines.append(('M',))
+            lines.append(('G',))
+        elif k < 0.95:
+            lines += [('D',), ('M',), ('P',)]
+        else:
+            lines.append((r.choice('0123567'),))
+    return lines
+
+
 def run_exe(x, lines):
     out = []
     st = x.brain + 0x210
@@ -143,6 +246,41 @@ def run_exe(x, lines):
         elif op == 'O':
             x.fs(x.ctx + 0x40, [ln[1][0]])
             x.fs(x.ctx + 0x18, ln[1][1:])
+        elif op == 'F':
+            v = ln[1]
+            x.fs(x.k, v[0:2])
+            x.fs(x.brain + 0x28, v[2:4])
+            x.fs(NOW, v[4:5])
+        elif op == 'B':
+            x.state = x.alloc(0x50)
+            x.call(FIGHT_STATE, ecx=x.state, args=(x.order,))
+            x.call(FIGHT_CTX, ecx=x.ctx, args=(x.order, x.state))
+            x.w32(x.ctx + 0xc, x.vehicle + 0x80)
+            made = True
+        elif op == 'Z':
+            x.on_from = bool(ln[1])
+        elif op == 'P':
+            x.call(x.g(x.g(x.state) + 0x24), ecx=x.state, args=(x.ctx,))
+        elif op == 'E':
+            x.call(FIGHT_ENTER, ecx=x.state, args=(x.ctx,))
+        elif op == 'R':
+            x.call(x.g(x.g(x.state) + 0x10), ecx=x.state)
+        elif op == 'f':
+            x.w32(x.state + 8, ln[1])
+            x.fs(x.state + 0x24, ln[2])
+            x.cpu._uc.mem_write(x.state + 0x2c, b'\1\1')
+        elif op == 'L':
+            x.w32(x.state + 0x30, x.owned)
+        elif op == 'K':
+            x.call(FIGHT_RELEASE, ecx=x.state)
+        elif op == 'N':
+            x.w32(x.ctx + 0x54, x.target if ln[1] else 0)
+        elif op == 'D':
+            x.call(FIGHT_TARGET, ecx=x.ctx, args=(0,))
+        elif op == 'M':
+            x.call(x.g(x.g(x.ctx) + 0x10), ecx=x.ctx)
+        elif op == 'G':
+            x.call(FIGHT_DECIDE, ecx=x.ctx, args=(x.state,))
         elif op == 'C':
             x.call(CTOR, ecx=x.ctx, args=(x.order,))
             x.w32(x.ctx + 0xc, x.vehicle + 0x80)
@@ -166,6 +304,12 @@ def text(lines):
             o.append('W ' + ' '.join(f'{bits(u):x}' for u in v) + f' {ln[2]} {ln[3]} {ln[4]} {ln[5]} {bits(ln[6]):x}')
         elif ln[0] == 'T':
             o.append('T ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
+        elif ln[0] == 'F':
+            o.append('F ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
+        elif ln[0] == 'f':
+            o.append(f'f {ln[1]:x} ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
+        elif ln[0] in 'NZ':
+            o.append(f'{ln[0]} {ln[1]}')
         else:
             o.append(ln[0])
     return '\n'.join(o) + '\n'
@@ -175,6 +319,8 @@ def close(a, b):
     if a == b:
         return True
     x, y = (struct.unpack('<f', struct.pack('<I', int(v, 16)))[0] for v in (a, b))
+    if math.isinf(x) or math.isinf(y):  # the allowance would be infinite too
+        return False
     return abs(x - y) <= 1e-3 + 1e-4 * max(abs(x), abs(y))
 
 
@@ -184,15 +330,24 @@ def main():
     lib.probe_pm_ai_walk.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     buf = ctypes.create_string_buffer(1 << 20)
     bad = steps = 0
-    for seed in range(runs):
-        lines = plan(seed)
+    seen = {}
+    for seed in range(runs * 2):
+        lines = plan(seed) if seed < runs else fight_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
+        if seed >= runs:
+            for p in a:
+                ex = p.partition('|')[2].split()
+                if len(ex) > 6:
+                    for name, i in (('in_range', 1), ('at_stop', 2), ('no_target', 3), ('way', 4), ('may_go', 5), ('off_way', 6)):
+                        seen[name, ex[i]] = seen.get((name, ex[i]), 0) + 1
         assert lib.probe_pm_ai_walk(text(lines).encode(), buf, len(buf)) >= 0
         b = buf.value.decode().split('\n')
         steps += len(a)
         for i, (p, q) in enumerate(zip(a, b)):
-            pw, qw = p.split(), q.split()
-            if len(pw) != len(qw) or pw[-1:] != qw[-1:] or not all(close(u, v) for u, v in zip(pw[:-1], qw[:-1])):
+            pf, _, pe = p.partition('|')
+            qf, _, qe = q.partition('|')
+            pw, qw = pf.split(), qf.split()
+            if len(pw) != len(qw) or pe.split() != qe.split() or not all(close(u, v) for u, v in zip(pw, qw)):
                 print(f'seed {seed} line {i}:\n  exe  {p}\n  port {q}')
                 bad += 1
                 break
@@ -202,8 +357,11 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs} plans, {steps} lines: {bad} differ')
-    pm_floors.floors(plans=(runs, 100), lines=(steps, 1000))
+    print(f'{runs * 2} plans, {steps} lines: {bad} differ')
+    print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
+    pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
+                     **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},
+                     way_own=(seen.get(('way', '1'), 0), 5), way_start=(seen.get(('way', '2'), 0), 5))
     return 1 if bad else 0
 
 
