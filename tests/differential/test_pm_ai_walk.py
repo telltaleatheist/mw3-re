@@ -3,7 +3,8 @@ steerings and vehicles: walk 0x4d9680, walk on 0x4d9740, walk straight 0x4d9710,
 0x4d92a0, the aim 0x4d92c0, the turn 0x4d9390, the throttle 0x4d9550. Then a fighting state's part: its
 constructor 0x4d9b10, enter 0x4d9be0, reset 0x4d9ce0, release 0x4d9cc0, and its context 0x4d99a0 with the
 measures 0x4d9a90, 0x4d9920, 0x4d99e0, the decision 0x4d9b90, the plan 0x4da1c0 and the order's target 0x4daa70.
-Then the guarding context 0x4dfb50 with its measure 0x4dfc30. Each step's fields compared.
+Then the guarding context 0x4dfb50 with its measure 0x4dfc30. On any of them the drive 0x4dcd20 with the turns 0x4d7060,
+0x4d71e0, and the away 0x4dccf0. Each step's fields compared.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_walk.py [runs]
 """
@@ -38,6 +39,7 @@ class Exe(test_pm_zar.Emulated):
         self.ctx = self.alloc(0x90)
         self.state = None
         self.guard = False
+        self.drove = self.alloc(12)
         self.vehicle = self.alloc(0x100)
         self.order = self.alloc(0x20)
         self.w32(self.order + 8, self.brain)
@@ -83,7 +85,7 @@ class Exe(test_pm_zar.Emulated):
         self.native_stub(PLACE, lambda c: self.vehicle + 0x80 if c.ecx == self.vehicle else self.target)
         self.native_stub(ORDER, lambda c: 1 if self.steers else 0)
         self.native_stub(BLOCKED, self.pull)
-        for init in (0x4dbf80, 0x4dbfa0, 0x4dbfc0, 0x4dc020, 0x4dc0c0, 0x4dc0e0):  # the statics, as at start-up
+        for init in (0x4dbf80, 0x4dbfa0, 0x4dbfc0, 0x4dc020, 0x4dc0c0, 0x4dc0e0, 0x4d2d40):  # the statics, as at start-up
             self.call(init)
         self.call(STEER, ecx=self.brain + 0x210)
         # The vehicle's contact: [+0x6c], whose +4 answers the target by vt+0x2c.
@@ -124,7 +126,11 @@ class Exe(test_pm_zar.Emulated):
         c = self.ctx
         vals = [self.g(c + o) for o in (0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x38, 0x40, 0x44, 0x48, 0x4c)]
         vals.append(self.g(self.brain + 0x210 + 0x84))
-        exact = [self.g(c + 0x3c) & 0xff]
+        vals += [self.g(self.drove + o) for o in (0, 4, 8)]
+        st0 = self.brain + 0x210
+        vals += [self.g(st0 + o) for o in range(0x2c, 0x48, 4)] + [self.g(st0 + o) for o in range(0x4c, 0x58, 4)]
+        vals += [self.g(st0 + o) for o in range(0x5c, 0x9c, 4)]  # every constant the steering's constructor sets
+        exact = [self.g(c + 0x3c) & 0xff, self.g(st0 + 0x48) & 0xff, self.g(st0 + 0x58) & 0xff]
         if self.guard:
             vals += [self.g(c + o) for o in (0x5c, 0x60, 0x64, 0x68, 0x6c)]
             exact += [self.g(c + o) & 0xff for o in (0x58, 0x70, 0x71, 0x72)]
@@ -174,9 +180,18 @@ def plan(seed):
         elif k < 0.5:
             lines.append(steer())
             lines.append(('4',))
+        elif k < 0.75:
+            lines.append(drive_line(r))
+        elif k < 0.8:
+            lines.append(('X',))
         else:
             lines.append((r.choice('0123567'),))
     return lines
+
+
+def drive_line(r):
+    return ('Y', [r.uniform(0, 30), r.uniform(0, 30), r.uniform(0, 60), r.choice([0.0, 5.0, 40.0]), r.choice([0.02, 0.1, 1.0]),
+                  r.choice([0.0, 0.5, 5.0]), r.choice([0.0, 0.5, 5.0])])
 
 
 def fight_plan(seed):
@@ -297,6 +312,17 @@ def run_exe(x, lines):
             x.call(FIGHT_CTX, ecx=x.ctx, args=(x.order, x.state))
             x.w32(x.ctx + 0xc, x.vehicle + 0x80)
             made = True
+        elif op == 'Y':
+            v = ln[1]
+            a, c = x.alloc(8), x.alloc(0x14)
+            x.fs(a, v[0:2])
+            for i, w in enumerate((x.brain, x.vehicle, x.vehicle + 0x80, x.vehicle + 0x24, x.brain + 0x210)):
+                x.w32(c + 4 * i, w)
+            x.call(0x4dcd20, args=(a, bits(v[2]), bits(v[3]), c, x.drove, x.drove + 4, bits(v[4]), bits(v[5]), bits(v[6])))
+        elif op == 'X':
+            c = x.alloc(0x14)
+            x.w32(c + 0x10, x.brain + 0x210)
+            x.call(0x4dccf0, args=(0, x.drove, x.drove + 8, c))
         elif op == 'V':
             x.w32(x.record + 8, ln[1])
             x.leave = bool(ln[2])
@@ -366,6 +392,8 @@ def text(lines):
             o.append(f'{ln[0]} {ln[1]}')
         elif ln[0] == 'V':
             o.append(f'V {ln[1]} {ln[2]}')
+        elif ln[0] == 'Y':
+            o.append('Y ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
         else:
             o.append(ln[0])
     return '\n'.join(o) + '\n'
@@ -393,8 +421,8 @@ def main():
         if runs <= seed < runs * 2:
             for p in a:
                 ex = p.partition('|')[2].split()
-                if len(ex) > 6:
-                    for name, i in (('in_range', 1), ('at_stop', 2), ('no_target', 3), ('way', 4), ('may_go', 5), ('off_way', 6)):
+                if len(ex) > 8:
+                    for name, i in (('in_range', 3), ('at_stop', 4), ('no_target', 5), ('way', 6), ('may_go', 7), ('off_way', 8)):
                         seen[name, ex[i]] = seen.get((name, ex[i]), 0) + 1
         assert lib.probe_pm_ai_walk(text(lines).encode(), buf, len(buf)) >= 0
         b = buf.value.decode().split('\n')

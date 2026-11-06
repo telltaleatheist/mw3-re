@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "mech3/zai_walk_pm.h"
+#include "mech3/zai_drive_pm.h"
 
 namespace {
 using namespace mech3::ai;
@@ -82,6 +82,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   FightStatePm st;
   WalkFightPm* b = nullptr;
   WalkGuardPm* g = nullptr;
+  float drove[3] = {};
   g_deleted = 0;
   std::string o;
   std::istringstream lines(plan);
@@ -109,6 +110,13 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "B") {
       b = new WalkFightPm(w, s, 1, st);
       c.reset(b);
+    } else if (op == "Y") {
+      const float away[2] = {f(a[0]), f(a[1])};
+      drive_pm(w, s, 1, away, f(a[2]), f(a[3]), &drove[0], &drove[1], f(a[4]), f(a[5]), f(a[6]));
+    } else if (op == "X") {
+      float d[2];
+      away_pm(s, d, &drove[2]);
+      drove[0] = d[0], drove[1] = d[1];
     } else if (op == "V") {
       w.live = a[0] == "1", w.leave = a[1] == "1";
     } else if (op == "A") {  // the whole of 0x004daa70: the context made again
@@ -165,7 +173,10 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     }
     if (c) {
       for (float v : {c->off_along, c->off_side, c->off_sum, c->to[0], c->to[1], c->to[2], c->dir[0], c->dir[2], c->dot,
-                      c->cross, c->turn_out, c->throttle_out, s.brake})
+                      c->cross, c->turn_out, c->throttle_out, s.brake, drove[0], drove[1], drove[2], s.rate, s.ease,
+                      s.along, s.side, s.near_dist, s.x40, s.keep_near, s.x4c, s.keep_slope, s.keep_scale, s.push_reach,
+                      s.push_band, s.far_along, s.far_side, s.cos_on, s.cos_turnabout, s.turnabout_room, s.gain_along,
+                      s.gain_side, s.least, s.brake, s.cos_dead, s.sin_dead, s.gain, s.least_turn, s.cos_behind})
         put(o, v);
       if (b) {
         for (float v : {b->to_target[0], b->to_target[1], b->to_target[2], b->target_dist, b->way_own[0], b->way_own[1],
@@ -178,7 +189,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (g) {
         for (float v : {g->to_target[0], g->to_target[1], g->to_target[2], g->target_dist, g->from_way}) put(o, v);
       }
-      o += "| " + std::to_string(c->backing);
+      o += "| " + std::to_string(c->backing) + " " + std::to_string(int(s.keep)) + " " + std::to_string(int(s.push));
       if (g) o += " " + std::to_string(int(g->gone)) + " " + std::to_string(int(g->x70)) + " " + std::to_string(int(g->x71)) + " " + std::to_string(int(g->x72));
       if (b) {
         const int way = !b->way_point ? 0 : b->way_point == b->way_own ? 1 : 2;

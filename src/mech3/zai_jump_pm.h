@@ -4,7 +4,7 @@
 // Pirate's Moon's jump state (vtable 0x005eedbc): MW3's `JumpState` with a turn on the spot first, the
 // glide held at the climb's height and the steering kept up in the air; docs/pm-map.md, step 3.
 // Nothing runs it until the orders' switch.
-#include "mech3/zai_walk_pm.h"
+#include "mech3/zai_drive_pm.h"
 
 namespace mech3::ai {
 
@@ -26,12 +26,6 @@ class JumpPmHooks : public WalkPmHooks {
   virtual void set_jump(float v) = 0;                      // vt+0x4c
   virtual void go_next() = 0;                              // 0x004f9f00 on the next step
 };
-
-// 0x004d7060's constants, [0x0062fb38]: 1 degree, its gain, its floor, and facing away below 0.
-struct TurnPmParams {
-  float cos_dead, sin_dead, gain, least, behind;
-};
-float turn_pm(const float fwd[3], const float to[3], float* dot, float* cross, float keep, const TurnPmParams& p);  // 0x004d7060
 
 // 0x004dac40 with 0x004dad70: MW3's JumpPlan and the climb's top height.
 struct JumpPlanPm {
