@@ -15,7 +15,10 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float max_throttle() = 0;   // the brain's +0x10c
   virtual zgame::Handle target_entity(zgame::Handle v) = 0;  // 0x004f8d70 on the vehicle's +0x6c contact, none without one
   virtual bool has_target_contact(zgame::Handle v) = 0;      // the vehicle's +0x6c
-  virtual bool way_blocked(zgame::Handle v, const float from[3], const float to[3]) = 0;  // 0x004ccaf0
+  // 0x004ccaf0: true with `out` the place the boundary pulls `to` to; `out` may be `to`. Its fifth
+  // argument only lands in the area's +0xb8, which no query reads.
+  virtual bool pull(zgame::Handle v, const float from[3], const float to[3], float out[3]) = 0;
+  virtual float* way_from() = 0;                            // the brain's +0x2b8
   virtual bool has_pilot(zgame::Handle v) = 0;               // vt+0x58
   virtual float pilot_x544(zgame::Handle v) = 0;
   virtual float now() = 0;                                  // [0x0062da90]
@@ -24,6 +27,8 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float range_far() = 0;                            // the brain's +0x28
   virtual float range_near() = 0;                           // the brain's +0x2c
 };
+
+class WalkFightPm;
 
 // What the fighting states keep and hand down to their walking context (vtable 0x005eec78).
 struct StateOwnedPm {
@@ -34,6 +39,7 @@ struct FightStatePm {
   void enter(WalkPmHooks& h, zgame::Handle vehicle);    // 0x004d9be0
   void reset();                                         // 0x004d9ce0, vt+0x10
   void release();                                       // 0x004d9cc0
+  void plan(WalkPmHooks& h, WalkFightPm& c);            // 0x004da1c0, vt+0x24
 
   uint32_t flags = 0;                 // +0x08  its low four bits the state's step
   float stop_dist;                    // +0x0c
@@ -41,7 +47,7 @@ struct FightStatePm {
   float range_near = 0, range_mid = 0, x1c = 0, speed = 0;  // +0x14, +0x18, +0x1c, +0x20
   float wake = 0;                     // +0x24  a time
   float until;                        // +0x28  a time
-  uint8_t x2c = 0, x2d = 0;           // +0x2c, +0x2d
+  uint8_t pulled = 0, x2d = 0;        // +0x2c  the last plan was pulled by the boundary; +0x2d
   StateOwnedPm* owned = nullptr;      // +0x30
   uint8_t x34 = 0;                    // +0x34  [0x0060bb64], nothing writes it
 };
@@ -74,8 +80,9 @@ class WalkPm {
   float turn_out = 0, throttle_out = 0;  // +0x48, +0x4c
 
  protected:
+  friend struct FightStatePm;
   void refresh();                 // what the exe reads through its pointers
-  void go(bool blocked_test);
+  void go(bool by_near);
 };
 
 // The context of a state fighting a target (vtable 0x005eec50).

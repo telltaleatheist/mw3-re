@@ -140,7 +140,7 @@ void WalkPm::go(bool by_near) {
     aim_turnabout();
   } else {
     refresh();
-    if (h.way_blocked(vehicle, pos, to)) aim();
+    if (h.pull(vehicle, pos, to, to)) aim();
     else aim_turnabout();
   }
   turn();
@@ -205,7 +205,7 @@ void FightStatePm::enter(WalkPmHooks& h, zgame::Handle vehicle) {
   x1c = 200.0f;
   owned = nullptr;
   x2d = 0;
-  x2c = 0;
+  pulled = 0;
   range_mid = (range_near + range_far) * 0.5f;
 }
 
@@ -214,13 +214,82 @@ void FightStatePm::reset() {
   until = FLT_MAX;
   flags &= ~0xfu;
   wake = 0.0f;
-  x2c = 0;
+  pulled = 0;
 }
 
 // Pirate's Moon 1.0 @ 0x004d9cc0
 void FightStatePm::release() {
   delete owned;
   owned = nullptr;
+}
+
+// Pirate's Moon 1.0 @ 0x004da1c0: lays the way, measured back from the place to stand, and how far
+// short of it to stop. Three blocks can't run and aren't here (docs/pm-map.md): slots vt+0x28 and the
+// context's vt+0x24 are null in every table, and the lane check's byte 0x0062fb20 is never set.
+void FightStatePm::plan(WalkPmHooks& h, WalkFightPm& c) {
+  c.refresh();
+  bool keep = true;
+  float dist = c.target_dist;
+  const float* from = c.pos;
+  const float* target = c.target_pos;
+  const float* way = c.to_target;
+  float start[3], back[3], out[3];
+  if (!c.at_stop && c.steer.length < c.steer.along_at) {
+    const float* w = h.way_from();
+    start[0] = w[0], start[1] = w[1], start[2] = w[2];
+    from = start;
+    dist = flat_dir(start, target, back);
+    way = back;
+  } else if (pulled && c.at_stop && c.way_dist >= range_mid) {
+    from = c.way_point;
+    dist = c.way_dist;
+    way = c.way_dir;
+  }
+  if (dist < range_mid) {
+    const float neg[3] = {-way[0], -way[1], -way[2]};
+    back[0] = neg[0], back[1] = neg[1], back[2] = neg[2];
+    for (int i = 0; i < 3; ++i) out[i] = target[i] + back[i] * range_far;
+    target = out;
+    dist = range_far;
+    way = back;
+    keep = false;
+  }
+  pulled = h.pull(c.vehicle, from, target, out);
+  if (pulled) {
+    target = out;
+    dist = flat_dir(from, out, back);
+    way = back;
+    keep = false;
+    if (dist == 0.0f) {
+      constexpr float kApart = 0.01f;  // 0x0060bb60
+      for (int i = 0; i < 3; ++i) start[i] = out[i] - kApart * back[i];
+      from = start;
+      dist = kApart;
+    }
+  }
+  if (dist > range_mid + x1c) {
+    for (int i = 0; i < 3; ++i) out[i] = from[i] + x1c * way[i];
+    target = out;
+    keep = false;
+    pulled = 0;
+  }
+  float* w = h.way_from();
+  w[0] = from[0], w[1] = from[1], w[2] = from[2];
+  c.steer.set(h, w, target, speed, c.vehicle);
+  if (keep) {
+    c.steer.along_min = range_mid;
+  } else if (pulled && range_near > 0.0f) {
+    float l[2];
+    c.steer.on_line(c.target_pos, l);
+    if (range_near > std::fabs(l[1])) {
+      const float half = std::sqrt(range_near * range_near - l[1] * l[1]);
+      const float end = l[0] + half;
+      if (end < 0.0f || l[0] - half > 0.0f) c.steer.along_min = 0.0f;
+      else c.steer.along_min = end < c.steer.length ? end : c.steer.length;
+    }
+  }
+  wake = h.now() + 10.0f;  // 0x0060bb58
+  until = h.now() + 1.0f;  // 0x0060bb5c
 }
 
 // Pirate's Moon 1.0 @ 0x004d99a0

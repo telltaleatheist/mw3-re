@@ -18,6 +18,8 @@ struct Owned : StateOwnedPm {
 struct World : WalkPmHooks {
   float place[3] = {}, target[3] = {}, fw[2] = {};
   float goal_turn = 0, goal_throttle = 0, most = 1, x544 = 0;
+  float brain_from[3] = {};
+  bool on_from = false;
   float clock = 0, k_speed = 1, k_stop = 1, far = 0, near = 0;
   bool halt = false, steers = true, blocked = false, contact = false, pilot = false;
   std::vector<const Contact*> none;
@@ -37,7 +39,15 @@ struct World : WalkPmHooks {
   float max_throttle() override { return most; }
   zgame::Handle target_entity(zgame::Handle) override { return 2; }
   bool has_target_contact(zgame::Handle) override { return contact; }
-  bool way_blocked(zgame::Handle, const float*, const float*) override { return blocked; }
+  bool pull(zgame::Handle, const float* a, const float* b, float* o) override {
+    if (!blocked) return false;
+    const float y = b[1];
+    const float x = on_from ? a[0] : (a[0] + b[0]) * 0.5f + 3.0f;
+    const float z = on_from ? a[2] : (a[2] + b[2]) * 0.5f - 2.0f;
+    o[0] = x, o[1] = y, o[2] = z;
+    return true;
+  }
+  float* way_from() override { return brain_from; }
   bool has_pilot(zgame::Handle) override { return pilot; }
   float pilot_x544(zgame::Handle) override { return x544; }
   float now() override { return clock; }
@@ -94,13 +104,17 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "B") {
       b = new WalkFightPm(w, s, 1, st);
       c.reset(b);
+    } else if (op == "Z") {
+      w.on_from = a[0] == "1";
+    } else if (op == "P") {
+      st.plan(w, *b);
     } else if (op == "E") {
       st.enter(w, 1);
     } else if (op == "R") {
       st.reset();
     } else if (op == "f") {  // the state's own fields, as it would have them
       st.flags = static_cast<uint32_t>(std::stoul(a[0], nullptr, 16)), st.wake = f(a[1]), st.until = f(a[2]);
-      st.x2c = st.x2d = 1;
+      st.pulled = st.x2d = 1;
     } else if (op == "L") {
       st.owned = new Owned;
     } else if (op == "K") {
@@ -141,14 +155,16 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (b) {
         for (float v : {b->to_target[0], b->to_target[1], b->to_target[2], b->target_dist, b->way_own[0], b->way_own[1],
                         b->way_own[2], b->way_dir[0], b->way_dir[1], b->way_dir[2], b->way_dist, st.stop_dist, st.range_far,
-                        st.range_near, st.range_mid, st.x1c, st.speed, st.wake, st.until})
+                        st.range_near, st.range_mid, st.x1c, st.speed, st.wake, st.until, s.start[0], s.start[1], s.start[2], s.dir[0],
+                        s.dir[1], s.along_min, s.length, s.along_at, s.rate, s.along, s.side, w.brain_from[0], w.brain_from[1],
+                        w.brain_from[2]})
           put(o, v);
       }
       o += "| " + std::to_string(c->backing);
       if (b) {
         const int way = !b->way_point ? 0 : b->way_point == b->way_own ? 1 : 2;
         for (int v : {int(b->in_range), int(b->at_stop), int(b->no_target), way, int(b->may_go), int(b->off_way),
-                      int(st.flags & 0xff), int(st.x2c), int(st.x2d), int(st.owned != nullptr), int(st.x34), g_deleted,
+                      int(st.flags & 0xff), int(st.pulled), int(st.x2d), int(st.owned != nullptr), int(st.x34), g_deleted,
                       g_deleted ? 1 : 0})
           o += " " + std::to_string(v);
       }

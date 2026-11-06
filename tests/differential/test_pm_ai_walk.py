@@ -2,7 +2,7 @@
 steerings and vehicles: walk 0x4d9680, walk on 0x4d9740, walk straight 0x4d9710, hold 0x4d97a0, the measure
 0x4d92a0, the aim 0x4d92c0, the turn 0x4d9390, the throttle 0x4d9550. Then a fighting state's part: its
 constructor 0x4d9b10, enter 0x4d9be0, reset 0x4d9ce0, release 0x4d9cc0, and its context 0x4d99a0 with the
-measures 0x4d9a90, 0x4d9920, 0x4d99e0 and the decision 0x4d9b90. Each step's fields compared.
+measures 0x4d9a90, 0x4d9920, 0x4d99e0, the decision 0x4d9b90 and the plan 0x4da1c0. Each step's fields compared.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_walk.py [runs]
 """
@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
+
 import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -54,7 +56,7 @@ class Exe(test_pm_zar.Emulated):
         self.k = self.alloc(8)
         self.w32(vt + 0x124, self.cpu.code(bytes.fromhex('d9442404 d80d') + struct.pack('<I', self.k) + bytes.fromhex('c20400')))
         self.w32(vt + 0x12c, self.cpu.code(bytes.fromhex('d9442404 d80d') + struct.pack('<I', self.k + 4) + bytes.fromhex('c20400')))
-        self.w32(self.vehicle + 0xd8, 1)  # the boundary record, as made
+        self.w32(self.vehicle + 0xd8, self.alloc(0x54))  # the boundary record, as made
         # The owned object: slot 0 counts its calls and keeps the argument.
         self.deleted = self.alloc(8)
         self.owned, ovt = self.alloc(8), self.alloc(8)
@@ -62,11 +64,11 @@ class Exe(test_pm_zar.Emulated):
         self.w32(ovt, self.cpu.code(bytes.fromhex('8b442404 a3') + struct.pack('<I', self.deleted + 4)
                                     + bytes.fromhex('ff05') + struct.pack('<I', self.deleted) + bytes.fromhex('c20400')))
         self.pilot = self.alloc(0x600)
-        self.want_pilot, self.blocked, self.steers = False, False, True
+        self.want_pilot, self.blocked, self.steers, self.on_from = False, False, True, False
         self.w32(vt + 0x58, self.ret_stub(lambda c: self.pilot if self.want_pilot else 0))
         self.native_stub(PLACE, lambda c: self.vehicle + 0x80 if c.ecx == self.vehicle else self.target)
         self.native_stub(ORDER, lambda c: 1 if self.steers else 0)
-        self.native_stub(BLOCKED, lambda c: 1 if self.blocked else 0)
+        self.native_stub(BLOCKED, self.pull)
         for init in (0x4dbf80, 0x4dbfa0, 0x4dbfc0, 0x4dc020, 0x4dc0c0, 0x4dc0e0):  # the statics, as at start-up
             self.call(init)
         self.call(STEER, ecx=self.brain + 0x210)
@@ -75,6 +77,20 @@ class Exe(test_pm_zar.Emulated):
         self.w32(self.contact + 4, holder)
         self.w32(holder, hvt)
         self.w32(hvt + 0x2c, self.ret_stub(lambda c: self.target))
+
+    def pull(self, c):
+        """The boundary, stubbed alike on both sides: a pulled place, or the way's own start."""
+        if not self.blocked:
+            return 0
+        sp = c._uc.reg_read(UC_X86_REG_ESP)
+        a, b, o = (self.g(sp + i) for i in (8, 12, 16))
+        fa = struct.unpack('<3f', bytes(c._uc.mem_read(a, 12)))
+        fb = struct.unpack('<3f', bytes(c._uc.mem_read(b, 12)))
+        if self.on_from:
+            self.fs(o, [fa[0], fb[1], fa[2]])
+        else:
+            self.fs(o, [(fa[0] + fb[0]) * 0.5 + 3.0, fb[1], (fa[2] + fb[2]) * 0.5 - 2.0])
+        return 1
 
     def ret_stub(self, fn):
         a = self.cpu.code(b'\xc3')
@@ -99,6 +115,9 @@ class Exe(test_pm_zar.Emulated):
             s = self.state
             vals += [self.g(c + o) for o in (0x58, 0x5c, 0x60, 0x64, 0x6c, 0x70, 0x74, 0x7c, 0x80, 0x84, 0x88)]
             vals += [self.g(s + o) for o in (0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28)]
+            st = self.brain + 0x210
+            vals += [self.g(st + o) for o in (4, 8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x2c, 0x34, 0x38)]
+            vals += [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)]
             byte = lambda a: self.g(a) & 0xff  # noqa: E731
             wp = self.g(c + 0x78)
             way = 0 if not wp else 1 if wp == c + 0x6c else 2 if wp == self.brain + 0x210 + 4 else 3
@@ -158,6 +177,8 @@ def fight_plan(seed):
     lines += [fight(), ('B',), ('N', 1), ('E',)]
     base = plan(seed + 100000)
     worlds = [ln for ln in base if ln[0] == 'W'] or [base[0]]
+    # Some far apart, for the way cut short past the middle range + 200.
+    worlds += [(w[0], [u * 6 for u in w[1][:6]] + w[1][6:]) + w[2:] for w in worlds]
     steers = [ln for ln in base if ln[0] == 'T'] or [base[1]]
     for _ in range(r.randrange(6, 16)):
         k = r.random()
@@ -166,7 +187,12 @@ def fight_plan(seed):
         elif k < 0.2:
             lines.append(r.choice(worlds))
         elif k < 0.3:
-            lines.append(r.choice(steers))
+            t = r.choice(steers)
+            if r.random() < 0.3:  # the carrot past the way's length
+                t = ('T', t[1][:7] + [t[1][6] + r.uniform(1, 9)] + t[1][8:])
+            lines.append(t)
+        elif k < 0.35:
+            lines.append(('Z', r.choice([0, 0, 1])))
         elif k < 0.4:
             lines.append(state())
         elif k < 0.45:
@@ -183,9 +209,11 @@ def fight_plan(seed):
             lines.append(('K',))
         elif k < 0.75:
             lines.append(('D',))
-        elif k < 0.9:
+        elif k < 0.8:
             lines.append(('M',))
             lines.append(('G',))
+        elif k < 0.95:
+            lines += [('D',), ('M',), ('P',)]
         else:
             lines.append((r.choice('0123567'),))
     return lines
@@ -229,6 +257,10 @@ def run_exe(x, lines):
             x.call(FIGHT_CTX, ecx=x.ctx, args=(x.order, x.state))
             x.w32(x.ctx + 0xc, x.vehicle + 0x80)
             made = True
+        elif op == 'Z':
+            x.on_from = bool(ln[1])
+        elif op == 'P':
+            x.call(x.g(x.g(x.state) + 0x24), ecx=x.state, args=(x.ctx,))
         elif op == 'E':
             x.call(FIGHT_ENTER, ecx=x.state, args=(x.ctx,))
         elif op == 'R':
@@ -276,8 +308,8 @@ def text(lines):
             o.append('F ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
         elif ln[0] == 'f':
             o.append(f'f {ln[1]:x} ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
-        elif ln[0] == 'N':
-            o.append(f'N {ln[1]}')
+        elif ln[0] in 'NZ':
+            o.append(f'{ln[0]} {ln[1]}')
         else:
             o.append(ln[0])
     return '\n'.join(o) + '\n'
