@@ -239,7 +239,7 @@ uint8_t with(uint8_t byte, int bit, bool on) {
 }  // namespace
 
 namespace {
-// Pirate's Moon 1.0 @ 0x004f1036: _stricmp, where MW3's compared exactly; PM's records are lowercase.
+// Pirate's Moon 1.0 @ 0x004f10bf: _stricmp, where MW3's inlined strcmp (0x004dffb8) is exact; PM's records are lowercase.
 bool same_name(const char* a, const char* b) {
   for (; *a && *b; ++a, ++b)
     if (std::tolower(static_cast<unsigned char>(*a)) != std::tolower(static_cast<unsigned char>(*b))) return false;
@@ -360,8 +360,8 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
       const char* s = nullptr;
       if (zrdr::get_string_value(tag, &s)) std::free(sound_tag), sound_tag = dup(s);
     }
-    // The three lancemates' radio voices when the file names none: the record
-    // must be spelled just so (docs/discoveries.md).
+    // The three lancemates' radio voices when the file names none: any case in
+    // PM, so its lowercase records get them (docs/discoveries.md).
     if (!sound_tag && name) {
       if (same_name(name, "Epona_Rhi"))
         sound_tag = dup("epona");
