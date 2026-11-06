@@ -74,7 +74,7 @@ int32_t valve_value(const char* name) {
 // c1m1's two Shadow Cats start powered down; the data wakes them 180 s in, by `shadowcat_time`
 // through `shadowcat_go`, or when the player's close. The first thing PM's AI was seen not to do.
 TEST(pm_c1m1_shadow_cats_wake) {
-  // Six minutes: run with the campaign chains.
+  // A minute in an optimized build, several in the default: run with the campaign chains.
   if (!std::getenv("MW3_CAMPAIGN") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
@@ -99,6 +99,10 @@ TEST(pm_c1m1_shadow_cats_wake) {
   mech3::set_app(&app);
   EXPECT(app.init_instance());
   mech3::GameEngine::Launch l;
+  // PM_MISSION=index,type,number,frames: another mission for the same run, for looking at it.
+  int limit = 16000;
+  const char* other = std::getenv("PM_MISSION");
+  if (other) std::sscanf(other, "%d,%d,%d,%d", &l.index, &l.type, &l.number, &limit);
   engine.set_launch(l);
   app.post_intro_ = &mech3::states().load;
   int frames = 0, up0 = -1, up1 = -1, go = -1;
@@ -127,10 +131,11 @@ TEST(pm_c1m1_shadow_cats_wake) {
                   b.powered_down, a.powering_down, b.powering_down);
   };
   Pump pump;
-  pump.limit = 16000;
+  pump.limit = limit;
   app.run(pump);
   std::printf("  frames %d: go at %d, up at %d and %d\n", frames, go, up0, up1);
   zgame::set_game(zgame::mw3_table());
+  if (other) return;
   EXPECT(cats[0] && cats[1]);
   EXPECT(go > 0);
   EXPECT(up0 > 0 && up1 > 0);
