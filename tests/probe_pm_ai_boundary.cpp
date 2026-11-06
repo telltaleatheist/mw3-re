@@ -142,7 +142,8 @@ extern "C" int probe_pm_boundary_pull(int vehicle, const float* pos, const float
 }
 
 // For the test's hunt, after a query: which rare case of 0x004cc32c it was. 1 the side it's nearest
-// taken, 2 just past the 1.5 that takes it, 3 nearer that way but the two ways disagree; else 0.
+// taken, 2 just past the 1.5 that takes it, 3 nearer that way within 1.5 but the two ways disagree,
+// 4 the same past the 1.5; else 0.
 extern "C" int probe_pm_boundary_case() {
   const InOutQuery& q = g_area->q;
   if (!q.poly || !q.nearest || !q.near_a || q.nearest == q.near_a) return 0;
@@ -158,6 +159,41 @@ extern "C" int probe_pm_boundary_case() {
   bool s1, s2;
   const float m1 = way(q.near_a->along, &s1), m2 = way(q.nearest->along, &s2);
   if (!(m2 < m1)) return 0;
-  if (s1 != s2) return 3;
+  if (s1 != s2) return q.dist < 1.5f ? 3 : 4;
   return q.dist < 1.5f ? 1 : q.dist < 2.5f ? 2 : 0;
+}
+
+// A shipped world's boundary through the port's own loader, as text: for each area its polygons
+// (the corners back in file order: blue and cyan are stored reversed). Line: area kind name n x y z ...
+extern "C" int probe_pm_gamez_stack(const char* paths, int r, int g, int b, int models, uint8_t* out, int cap);
+namespace {
+int32_t g_world_game = 0;
+}
+extern "C" int probe_pm_boundary_world(const char* world, int game, char* out, int size) {
+  std::vector<uint8_t> scratch(64u << 20);
+  if (probe_pm_gamez_stack(world, 5, 6, 5, 2, scratch.data(), static_cast<int>(scratch.size())) < 0) return -2;
+  g_world_game = game;
+  InOutHooks& h = inout_hooks();
+  h = InOutHooks{};
+  h.have_game = [] { return true; };
+  h.game_type = [] { return g_world_game; };
+  h.mission_number = [] { return 1; };
+  inout() = InOut{};
+  inout_mission_load();
+  std::string o;
+  if (const auto* areas = inout().areas.get())
+    for (size_t a = 0; a < areas->size(); ++a)
+      for (const auto& p : (*areas)[a].polygons) {
+        add_i(o, static_cast<int>(a));
+        add_i(o, p->kind);
+        o += p->name && *p->name ? p->name : "-";
+        o += ' ';
+        const int n = static_cast<int>(p->verts.size());
+        add_i(o, n);
+        for (int k = 0; k < n; ++k) addf(o, p->verts[static_cast<size_t>(p->inverted ? n - 1 - k : k)].pos, 3);
+        o += '\n';
+      }
+  inout_mission_end();
+  h = InOutHooks{};
+  return finish(o, out, size);
 }
