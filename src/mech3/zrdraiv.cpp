@@ -484,6 +484,7 @@ TargetRec* TargetRec::parse(zrdr::Node* value, const char* record) {
   kind = 2, name = nullptr, health = 100.0f, destroy_anim = target = centroid = nullptr;
   for (int k = 0; k < 3; ++k) target_offset[k] = centroid_offset[k] = 0;
   health_below = nullptr, height = 0, flags = 0x30;
+  mpoption = -1, footfall_anim = nullptr, load_limit = 0;
   if (!value) return nullptr;
   if (value->type != zrdr::List) return this;  // FIX (bug)
   if (value->list[0].i > 1) kind = static_cast<int32_t>(word(value->list[1]));
@@ -530,6 +531,10 @@ TargetRec* TargetRec::parse(zrdr::Node* value, const char* record) {
       health_below->push_back(hb);                                      // 0x004d1f80
     }
   }
+  // Pirate's Moon 1.0 @ 0x004f1c20's end: each read by the reader's getters from the key's node.
+  if ((f = find("mpoption")) && f[1].type == zrdr::Int) mpoption = f[1].i;
+  if (zrdr::Node* l = zrdr::find(value, "load_limit")) zrdr::get_float_value(l, &load_limit);
+  if (zrdr::Node* a = zrdr::find(value, "footfall_anim")) zrdr::get_string_value(a, &footfall_anim);
   return this;
 }
 

@@ -33,6 +33,8 @@ void copy_plain(NetNodeRec& to, const NetNodeRec& from) {
   to.mcbwait_time = from.mcbwait_time, to.mcbwait_valve = from.mcbwait_valve;
   to.sound = from.sound;
   to.backup = from.backup, to.shunt = from.shunt;
+  to.via_radius2 = from.via_radius2, to.via_number = from.via_number, to.terminus = from.terminus;
+  to.static_mfb_set = from.static_mfb_set, to.static_mfb = from.static_mfb;
 }
 
 ValveUnion* copy_union(const ValveUnion* u) {
@@ -86,6 +88,7 @@ void NetNodeRec::reset() {
   std::free(name), name = nullptr;
   std::free(gate), gate = nullptr;
   std::free(auxname), auxname = nullptr;
+  std::free(via), via = nullptr;
   delete valve_union, valve_union = nullptr;
   delete valve_assign, valve_assign = nullptr;
   links.clear();

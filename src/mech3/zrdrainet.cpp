@@ -109,7 +109,11 @@ void read_props(NetNodeRec& r, zrdr::Node* value) {
   }
   if (is_list(f = zrdr::find(value, "auxname"))) written = str(*item(f, 1));
   if (written) r.auxname = dup(written);
-  if (is_list(f = zrdr::find(value, "jump"))) r.jump_on = raw_i(*item(f, 1)), r.jump = raw_f(*item(f, 2));
+  if ((f = zrdr::find(value, "jump"))) {  // Pirate's Moon 0x004ec395: on when the first item reads, whatever it says
+    int32_t ignored;
+    if (zrdr::get_bool_int(item(f, 1), &ignored)) r.jump_on = 1;
+    zrdr::get_float_value(item(f, 2), &r.jump);
+  }
   if (is_list(f = zrdr::find(value, "scan_aim"))) r.scan_aim[0] = raw_i(*item(f, 1)), r.scan_aim[1] = raw_i(*item(f, 2));
   if (is_list(f = zrdr::find(value, "scan_time"))) r.scan_time[0] = raw_i(*item(f, 1)), r.scan_time[1] = raw_i(*item(f, 2));
   if (is_list(f = zrdr::find(value, "scan_hit"))) r.scan_hit[0] = raw_i(*item(f, 1)), r.scan_hit[1] = raw_i(*item(f, 2));
@@ -158,8 +162,19 @@ void read_props(NetNodeRec& r, zrdr::Node* value) {
     Valve* v = valve_get(str(*item(f, 1)));
     r.valve_assign = new ValveAssign{v, raw_i(*item(f, 2))};
   }
+  // Pirate's Moon 1.0 @ 0x004ec92b: the node's new keys, each item through the reader's own getters.
+  if ((f = zrdr::find(value, "via"))) {
+    const char* s = nullptr;
+    if (zrdr::get_string_value(item(f, 1), &s)) std::free(r.via), r.via = dup(s);
+    if (item(f, 2)->type == zrdr::Int) r.via_number = item(f, 2)->i;  // 0x00578f70
+    if (zrdr::get_float_value(item(f, 3), &r.via_radius2)) r.via_radius2 *= r.via_radius2;
+  }
+  r.terminus = zrdr::find(value, "terminus") != nullptr;
+  if (is_list(f = zrdr::find(value, "static_mfb"))) r.static_mfb_set = 1, r.static_mfb = raw(*item(f, 1)) != 0;
 }
 }  // namespace
+
+void net_read_props(NetNodeRec& r, zrdr::Node* value) { read_props(r, value); }
 
 // --- the header ----------------------------------------------------------
 

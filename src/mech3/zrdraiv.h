@@ -119,7 +119,10 @@ struct TargetRec {
   float centroid_offset[3] = {};      // +0x24
   std::vector<HealthBelow>* health_below = nullptr;  // +0x30  a 0x14-byte vector owner in the exe
   float height = 0;                   // +0x34
-  // +0x38: 0x01 health given, 0x02 translate_to_anim_root, 0x04 radar,
+  int32_t mpoption = -1;              // Pirate's Moon +0x38
+  const char* footfall_anim = nullptr;  // Pirate's Moon +0x40
+  float load_limit = 0;               // Pirate's Moon +0x44
+  // +0x38, Pirate's Moon +0x3c: 0x01 health given, 0x02 translate_to_anim_root, 0x04 radar,
   // 0x08 display, 0x10 reticule_select, 0x20 zoom_select (both on by default).
   uint8_t flags = 0x30;
 

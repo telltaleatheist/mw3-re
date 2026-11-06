@@ -82,4 +82,6 @@ class NetRef {
   }
 };
 
+void net_read_props(NetNodeRec& r, zrdr::Node* value);  // Pirate's Moon 0x004ec240, for the test
+
 }  // namespace mech3::ai

@@ -69,11 +69,17 @@ struct NetNodeRec {
   void* sound = nullptr;             // +0x94  zSound's object for "sound"
   uint8_t backup = 0;                // +0x98
   uint8_t shunt = 0;                 // +0x99
+  // Pirate's Moon's: via ( "name" number radius ), terminus, static_mfb ( on ).
+  float via_radius2 = 20.0f;         // +0x9c  the radius squared
+  int32_t via_number = 0;            // +0xa0
+  uint8_t terminus = 0;              // +0xa4
+  uint8_t static_mfb_set = 0, static_mfb = 0;  // +0xa5
   // Owned below here (0x004c62d0 frees them, 0x004c6050 deep-copies them).
   char* name = nullptr;              // +0x9c  strdup of the localized name
   char* auxname = nullptr;           // +0xa0  strdup of auxname, or of the name as written
   std::vector<int32_t> links;        // +0xa4  a pointer to a 0x10-byte vector in the exe
   char* gate = nullptr;              // +0xa8
+  char* via = nullptr;               // Pirate's Moon +0xb0, its own string class (0x004a0620)
   ValveUnion* valve_union = nullptr; // +0xac
   ValveAssign* valve_assign = nullptr;  // +0xb0
 
