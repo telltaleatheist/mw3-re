@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <set>
 
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_input.h"
@@ -84,6 +86,32 @@ SdlTwodHost::~SdlTwodHost() {
   for (auto& [h, f] : fonts_)
     if (f.ttf) TTF_CloseFont(f.ttf);
   if (ttf_ok_) TTF_Quit();
+}
+
+// FIX (A): the game's installer put its fonts in Windows' folder as well, and an install can lack them (Pirate's
+// Moon's did: every label blank). The game folder's first, else the system's own of that name.
+std::string SdlTwodHost::font_path(const std::string& file) {
+  std::string found = zutl::find(file.c_str());
+  if (!found.empty()) return found;
+  std::vector<std::string> tries;
+#if defined(_WIN32)
+  if (const char* w = std::getenv("WINDIR")) tries.push_back(std::string(w) + "\\Fonts\\" + file);
+#elif defined(__APPLE__)
+  const std::string mac = file == "impact.ttf" ? "Impact.ttf" : file == "lucon.ttf" ? "Courier New.ttf" : "Arial.ttf";
+  tries.push_back("/System/Library/Fonts/Supplemental/" + mac);
+#else
+  const std::string lib = file == "lucon.ttf" ? "LiberationMono-Regular.ttf" : "LiberationSans-Regular.ttf";
+  tries.push_back("/usr/share/fonts/truetype/liberation/" + lib);
+  tries.push_back("/usr/share/fonts/liberation/" + lib);
+#endif
+  for (const std::string& t : tries)
+    if (std::filesystem::exists(t)) {
+      static std::set<std::string> said;
+      if (said.insert(file).second)
+        std::printf("mw3: note: %s isn't in the game folder; using %s (text may sit a little differently)\n", file.c_str(), t.c_str());
+      return t;
+    }
+  return std::string();
 }
 
 std::string SdlTwodHost::font_file(const std::string& face) {
@@ -413,10 +441,10 @@ SdlTwodHost::Dc* SdlTwodHost::dc(Handle h) {
 // (ascent + descent), 0 a default of 12 pixels.
 TTF_Font* SdlTwodHost::open_ttf(Font& f) {
   if (f.ttf || !ttf_ok_) return f.ttf;
-  const std::string path = zutl::find(font_file(f.face).c_str());
+  const std::string path = font_path(font_file(f.face));
   if (path.empty()) {
-    std::fprintf(stderr, "mw3: font %s (%s) not found in the game folder\n", f.face.c_str(),
-                 font_file(f.face).c_str());
+    std::fprintf(stderr, "mw3: font %s (%s) not found in the game folder or the system's: its text will be blank\n",
+                 f.face.c_str(), font_file(f.face).c_str());
     return nullptr;
   }
   // FIX (A): GDI's size, ascent and descent for the height (VDMX, else the
