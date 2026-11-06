@@ -321,6 +321,29 @@ void WalkFightPm::measure() {
   at_stop = steer.at_end() && off_sum < state.stop_dist;
 }
 
+// Pirate's Moon 1.0 @ 0x004daa70: the target's place, and none unless it's live.
+void WalkFightPm::take_order_target() {
+  const zgame::Handle t = h.order_target();
+  target_pos = h.target_place(t);
+  measure_target();
+  no_target = no_target || !h.target_live(t);
+}
+
+// Pirate's Moon 1.0 @ 0x004dfb50. The exe reads the place without testing it after the test.
+WalkGuardPm::WalkGuardPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v) : WalkPm(hooks, s, v) {
+  target = h.order_target();
+  target_pos = h.target_place(target);
+  gone = !target_pos || !h.target_live(target) || h.must_leave(v);
+  target_dist = flat_dir_pm(pos, target_pos, to_target);
+}
+
+// Pirate's Moon 1.0 @ 0x004dfc30
+void WalkGuardPm::measure() {
+  WalkPm::measure();
+  float d[3];
+  from_way = flat_dir_pm(steer.start, target_pos, d);
+}
+
 // Pirate's Moon 1.0 @ 0x004d9b90
 void WalkFightPm::decide(const FightStatePm& s) {
   may_go = !no_target && h.now() < s.wake && off_way && !at_stop;

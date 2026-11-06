@@ -6,6 +6,7 @@ A mech in emulator memory uses a copy of the real vtable, legs and feet; the cal
 stubbed and logged on both sides. Random scenarios drive heat up and down through every threshold. After each frame the
 mech's fields and the call log must match (floats within 1e-4). The probe library has play fixes off (zfix).
 """
+import math
 import ctypes
 import random
 import struct
@@ -235,7 +236,9 @@ def close(a, b, kind):
     if kind != 'f':
         return a == b
     x, y = i2f(a), i2f(b)
-    return x == y or abs(x - y) <= 1e-4 * max(1.0, abs(x), abs(y))
+    if x == y:
+        return True
+    return math.isfinite(x) and math.isfinite(y) and abs(x - y) <= 1e-4 * max(1.0, abs(x), abs(y))
 
 
 def same_calls(a, b):

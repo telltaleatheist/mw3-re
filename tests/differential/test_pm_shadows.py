@@ -193,7 +193,7 @@ def compare(want, got, mode, where, drawn):
                 if k == 5:  # the colour, a packed int
                     ok = x[2][20:24] == y[2][20:24]
                 else:
-                    ok = p == q or (mode != 'game' and abs(p - q) <= 1e-5 * max(1.0, abs(p)))
+                    ok = p == q or (mode != 'game' and math.isfinite(p) and math.isfinite(q) and abs(p - q) <= 1e-5 * max(1.0, abs(p)))
                 if not ok:
                     raise SystemExit(f'{where}: caster {x[0]} field +{4 + 4 * k:#x}: exe {p!r} port {q!r}')
         if (x[4] is None) != (y[4] is None) or (x[4] and x[4][:2] != y[4][:2]):

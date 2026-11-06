@@ -11,7 +11,7 @@ SteerPm::SteerPm() {
   ease = 2.0f;
   along = side = 0;
   near_dist = 10.0f;
-  x40 = static_cast<float>(std::cos(0.3490658503988));  // 0x004dc0c0
+  x40 = static_cast<float>(std::cos(0.7853981633975001));  // [0x0062fb5c], 0x004dbf80
   keep_near = 30.0f;
   x4c = 1.0f;
   keep_slope = 2.0f;

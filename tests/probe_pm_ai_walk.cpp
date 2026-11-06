@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "mech3/zai_walk_pm.h"
+#include "mech3/zai_drive_pm.h"
 
 namespace {
 using namespace mech3::ai;
@@ -19,7 +19,7 @@ struct World : WalkPmHooks {
   float place[3] = {}, target[3] = {}, fw[2] = {};
   float goal_turn = 0, goal_throttle = 0, most = 1, x544 = 0;
   float brain_from[3] = {};
-  bool on_from = false;
+  bool on_from = false, live = true, leave = false;
   float clock = 0, k_speed = 1, k_stop = 1, far = 0, near = 0;
   bool halt = false, steers = true, blocked = false, contact = false, pilot = false;
   std::vector<const Contact*> none;
@@ -55,6 +55,10 @@ struct World : WalkPmHooks {
   float stop_distance(zgame::Handle, float v) override { return v * k_stop; }
   float range_far() override { return far; }
   float range_near() override { return near; }
+  zgame::Handle order_target() override { return 2; }
+  const float* target_place(zgame::Handle t) override { return t == 2 ? target : place; }
+  bool target_live(zgame::Handle t) override { return t == 2 && live; }
+  bool must_leave(zgame::Handle) override { return leave; }
 };
 float f(const std::string& s) {
   uint32_t u = static_cast<uint32_t>(std::stoul(s, nullptr, 16));
@@ -77,6 +81,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   std::unique_ptr<WalkPm> c;
   FightStatePm st;
   WalkFightPm* b = nullptr;
+  WalkGuardPm* g = nullptr;
+  float drove[3] = {};
   g_deleted = 0;
   std::string o;
   std::istringstream lines(plan);
@@ -104,6 +110,23 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "B") {
       b = new WalkFightPm(w, s, 1, st);
       c.reset(b);
+    } else if (op == "Y") {
+      const float away[2] = {f(a[0]), f(a[1])};
+      drive_pm(w, s, 1, away, f(a[2]), f(a[3]), &drove[0], &drove[1], f(a[4]), f(a[5]), f(a[6]));
+    } else if (op == "X") {
+      float d[2];
+      away_pm(s, d, &drove[2]);
+      drove[0] = d[0], drove[1] = d[1];
+    } else if (op == "V") {
+      w.live = a[0] == "1", w.leave = a[1] == "1";
+    } else if (op == "A") {  // the whole of 0x004daa70: the context made again
+      b = new WalkFightPm(w, s, 1, st);
+      c.reset(b);
+      b->take_order_target();
+    } else if (op == "H") {
+      b = nullptr;
+      g = new WalkGuardPm(w, s, 1);
+      c.reset(g);
     } else if (op == "Z") {
       w.on_from = a[0] == "1";
     } else if (op == "P") {
@@ -150,7 +173,10 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     }
     if (c) {
       for (float v : {c->off_along, c->off_side, c->off_sum, c->to[0], c->to[1], c->to[2], c->dir[0], c->dir[2], c->dot,
-                      c->cross, c->turn_out, c->throttle_out, s.brake})
+                      c->cross, c->turn_out, c->throttle_out, s.brake, drove[0], drove[1], drove[2], s.rate, s.ease,
+                      s.along, s.side, s.near_dist, s.x40, s.keep_near, s.x4c, s.keep_slope, s.keep_scale, s.push_reach,
+                      s.push_band, s.far_along, s.far_side, s.cos_on, s.cos_turnabout, s.turnabout_room, s.gain_along,
+                      s.gain_side, s.least, s.brake, s.cos_dead, s.sin_dead, s.gain, s.least_turn, s.cos_behind})
         put(o, v);
       if (b) {
         for (float v : {b->to_target[0], b->to_target[1], b->to_target[2], b->target_dist, b->way_own[0], b->way_own[1],
@@ -160,7 +186,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                         w.brain_from[2]})
           put(o, v);
       }
-      o += "| " + std::to_string(c->backing);
+      if (g) {
+        for (float v : {g->to_target[0], g->to_target[1], g->to_target[2], g->target_dist, g->from_way}) put(o, v);
+      }
+      o += "| " + std::to_string(c->backing) + " " + std::to_string(int(s.keep)) + " " + std::to_string(int(s.push));
+      if (g) o += " " + std::to_string(int(g->gone)) + " " + std::to_string(int(g->x70)) + " " + std::to_string(int(g->x71)) + " " + std::to_string(int(g->x72));
       if (b) {
         const int way = !b->way_point ? 0 : b->way_point == b->way_own ? 1 : 2;
         for (int v : {int(b->in_range), int(b->at_stop), int(b->no_target), way, int(b->may_go), int(b->off_way),

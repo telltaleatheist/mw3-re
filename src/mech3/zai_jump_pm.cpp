@@ -23,27 +23,6 @@ float clamp01(float v) {
 }
 }  // namespace
 
-// Pirate's Moon 1.0 @ 0x004d7060 (MW3's 0x004cdd40)
-float turn_pm(const float fwd[3], const float to[3], float* dot, float* cross, float keep, const TurnPmParams& p) {
-  const float d = fwd[2] * to[2] + fwd[0] * to[0];
-  *dot = d;
-  *cross = 0.0f;
-  if (!(p.behind <= d)) return keep == 0.0f ? 1.0f : keep;
-  if (p.cos_dead <= d) return 0.0f;
-  const float c = fwd[2] * to[0] - to[2] * fwd[0];
-  *cross = c;
-  if (d < 0.0f) return c < 0.0f ? -1.0f : 1.0f;
-  if (-p.sin_dead <= c) {
-    if (!(p.sin_dead < c)) return 0.0f;
-    const float v = (c - p.sin_dead) * p.gain;
-    if (1.0 < v) return 1.0f;
-    return v < p.least ? p.least : v;
-  }
-  const float v = (c + p.sin_dead) * p.gain;
-  if (v < -1.0) return -1.0f;
-  return -p.least < v ? -p.least : v;
-}
-
 // Pirate's Moon 1.0 @ 0x004dac40 with 0x004dad70 (MW3's 0x004cb120, 0x004cb250)
 JumpPlanPm jump_plan_pm(const float from[3], const float to[3], float up, float down, float margin, float speed) {
   JumpPlanPm p;

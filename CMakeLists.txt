@@ -261,6 +261,7 @@ add_library(mw3core STATIC
   src/mech3/zai_brain.cpp
   src/mech3/zai_steer_pm.cpp
   src/mech3/zai_walk_pm.cpp
+  src/mech3/zai_drive_pm.cpp
   src/mech3/zai_jump_pm.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp

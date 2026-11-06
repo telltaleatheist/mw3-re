@@ -9,6 +9,7 @@ across cells, past the world's second area. After each call: the flags, +0x2c, t
 its values, the node's cell and range, its parents. At the end every cell's list (order, y ranges,
 flags), the world's children and the pending count, order included.
 """
+import math
 import ctypes
 import random
 import struct
@@ -102,8 +103,9 @@ def compare_cells(p, emu, label, tolerance=0.0):
             continue
         fa, fb = struct.unpack('<2f', struct.pack('<2I', a, b))
         off = abs(fa - fb) / max(1.0, abs(fb))
-        WORST[0] = max(WORST[0], off)
-        if at % 9 == 0 or off > tolerance:  # the flags exact; the rest as far as the records' turns allow
+        if math.isfinite(off):
+            WORST[0] = max(WORST[0], off)
+        if at % 9 == 0 or not (math.isfinite(fa) and math.isfinite(fb)) or off > tolerance:  # the flags exact; the rest as far as the records' turns allow
             raise SystemExit(f'{label}: cell state word {at} (cell {at // 9}, field {at % 9}): exe {a:08x}, port {b:08x}')
     return pending
 

@@ -6,6 +6,7 @@ shipped default; projected triangles have their own test (test_pm_projected.py).
     cmake --build build --target pmprobe
     .venv/bin/python -P tests/differential/test_pm_submit.py [draws per world]
 """
+import math
 import ctypes
 import os
 import random
@@ -142,7 +143,7 @@ def side_cut(a, b):
     x, y = struct.unpack('<8f', a), struct.unpack('<8f', b)
     if max(abs(x[0] - y[0]), abs(x[1] - y[1])) >= SIDE_CUT:
         return False
-    return all(abs(x[k] - y[k]) <= 0.01 * max(abs(x[k]), 1e-3) for k in (2, 3))
+    return all(math.isfinite(x[k]) and math.isfinite(y[k]) and abs(x[k] - y[k]) <= 0.01 * max(abs(x[k]), 1e-3) for k in (2, 3))
 
 
 def compare_floats(a, b, stats, where, msg):

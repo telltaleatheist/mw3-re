@@ -17,6 +17,7 @@ and the lists' heads are the bench's.
     cmake --build build --target pmprobe
     .venv/bin/python -P tests/differential/test_pm_puffers.py [runs]
 """
+import math
 import ctypes
 import random
 import struct
@@ -300,7 +301,7 @@ def same_float(a, b):
     if a == b:
         return True
     x, y = u2f(a), u2f(b)
-    return abs(x - y) <= TOL * max(1.0, abs(x), abs(y))
+    return math.isfinite(x) and math.isfinite(y) and abs(x - y) <= TOL * max(1.0, abs(x), abs(y))
 
 
 def check(label, want, got, floats):

@@ -174,6 +174,13 @@ def u2f(w):
     return struct.unpack('<f', struct.pack('<i', w))[0]
 
 
+def near(a, b):
+    """Within 2e-4 of the exe's; a non-finite value only as itself (a scaled allowance would let it through)."""
+    if a == b:
+        return True
+    return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 2e-4 * max(1.0, abs(a))
+
+
 def compare(want, got, kind, stats):
     """Counts, slots and flags exactly; a hit's floats within the x87's last bits (CLAUDE.md: play-accurate)."""
     if len(want) != len(got):
@@ -197,7 +204,7 @@ def compare(want, got, kind, stats):
                 if k < nfloats:
                     if x != y:
                         a, b = u2f(x), u2f(y)
-                        if not (abs(a - b) <= 2e-4 * max(1.0, abs(a))):
+                        if not near(a, b):
                             return f'float {k} at {i}: {a} / {b}'
                         stats['near'] += 1
                     stats['floats'] += 1
@@ -218,7 +225,7 @@ def compare_sphere(want, got, stats):
     for i in range(3, len(want), 5):
         for k in range(4):
             x, y = u2f(want[i + k]), u2f(got[i + k])
-            if not abs(x - y) <= 2e-4 * max(1.0, abs(x)):
+            if not near(x, y):
                 return f'float {k} at {i}: {x} / {y}'
         if want[i + 4] != got[i + 4]:
             return f'node at {i}: {want[i + 4]} / {got[i + 4]}'
@@ -398,7 +405,7 @@ def main():
                 centre = struct.unpack('<4f', emu.read(node + 0x60, 16))
                 mine = (ctypes.c_float * 4)()
                 p.probe_pm_di_centre(prop, mine)
-                if not bad and any(abs(x - y) > 2e-4 * max(1.0, abs(x)) for x, y in zip(centre, mine)):
+                if not bad and any(not near(x, y) for x, y in zip(centre, mine)):
                     bad = f'the node\'s centre {centre} / {list(mine)}'
                 if bad:
                     raise SystemExit(f'{name} clutter ({"tree" if boxed else "array"}) query {q} {kind}: {bad}\n exe {want[:30]}\n port {got[:30]}')
