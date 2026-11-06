@@ -104,7 +104,7 @@ def plan(seed):
     for _ in range(r.randrange(4, 12)):
         k = r.random()
         if k < 0.15:  # the throttle alone, facing the way and near the carrot
-            lines.append(('O', [r.uniform(0.9, 1.0), r.uniform(0, 3), r.uniform(0, 3)]))
+            lines.append(('O', [r.uniform(0.9, 1.0), r.uniform(0, 3), r.uniform(0, 40)]))
             lines.append(('7',))
         elif k < 0.3:
             lines.append(world())
