@@ -16,6 +16,8 @@ namespace platform {
 class RegFile : public Settings {
  public:
   explicit RegFile(std::string path) : path_(std::move(path)) {}
+  // A key this program saved under before: read when the file has nothing under the key asked for.
+  void set_older_key(std::string key) { older_key_ = std::move(key); }
   ~RegFile() override;
 
   bool open(const std::string& key, bool per_user, bool write) override;
@@ -36,8 +38,9 @@ class RegFile : public Settings {
 
  private:
   void load(const std::string& key);
+  static std::string other_sections(const std::string& text, const std::string& key);
   void flush();
-  std::string path_, key_;
+  std::string path_, key_, older_key_;
   std::map<std::string, Value> keys_[2];  // [0] HKLM, [1] HKCU
   bool dirty_ = false;
 };

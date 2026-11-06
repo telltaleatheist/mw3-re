@@ -895,6 +895,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   p.window_width = a.win_w, p.window_height = a.win_h;
   // The registry's keys as a file in the write dir (docs/settings.md).
   platform::RegFile settings(a.write_dir.empty() ? std::string() : a.write_dir + "/settings.reg");
+  // Before 2026-11-05 the rebuild's product was MW3's message 7, empty in Pirate's Moon's table.
+  settings.set_older_key("SOFTWARE\\MicroProse\\\\1.0");
   if (!a.write_dir.empty()) p.settings = &settings;
   p.ram_mb = static_cast<uint32_t>(SDL_GetSystemRAM());
   // The multiplayer screens' transport (FIX (A): DirectPlay's instance): UDP

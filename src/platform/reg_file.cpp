@@ -163,16 +163,41 @@ void RegFile::load(const std::string& key) {
   std::stringstream ss;
   ss << f.rdbuf();
   parse(ss.str(), key);
+  if (keys_[0].empty() && keys_[1].empty() && !older_key_.empty()) parse(ss.str(), older_key_);
+}
+
+// The file's sections under other keys, as they stand: a save keeps them.
+std::string RegFile::other_sections(const std::string& text, const std::string& key) {
+  std::string out, line;
+  std::stringstream in(narrow(text));
+  bool keep = false;
+  while (std::getline(in, line)) {
+    const size_t a = line.find_first_not_of(" \t");
+    if (a != std::string::npos && line[a] == '[') {
+      const size_t b = line.rfind(']');
+      keep = b != std::string::npos && section_root(line.substr(a + 1, b - a - 1), key) < 0;
+    }
+    if (keep) out += line + "\n";
+  }
+  return out;
 }
 
 void RegFile::flush() {
   dirty_ = false;
+  std::string others;
+  {
+    std::ifstream old(path_, std::ios::binary);
+    std::stringstream ss;
+    ss << old.rdbuf();
+    others = other_sections(ss.str(), key_);
+  }
   std::ofstream f(path_, std::ios::binary | std::ios::trunc);
   if (!f) {
     std::fprintf(stderr, "mw3: cannot write the settings file %s\n", path_.c_str());
     return;
   }
   f << format(key_);
+  if (!others.empty()) f << "\n" << others;
 }
 
 // The file stands for both keys: no installer made HKLM's (FIX (A)).
