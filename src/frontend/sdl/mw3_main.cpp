@@ -535,12 +535,6 @@ std::string vfw_helper_path(const std::string& given) {
   return {};
 }
 
-#if defined(_WIN32)
-constexpr const char* kImporter = "mw3import.exe";
-#else
-constexpr const char* kImporter = "mw3import";
-#endif
-
 // The notes for a player's start (ours): the data's version when it is not
 // 1.2's, and no music. Lines for a box; flat() makes one for the log.
 std::vector<std::string> start_notes(const mech3::DataVersion& d, const std::string& write_dir) {
@@ -555,8 +549,8 @@ std::vector<std::string> start_notes(const mech3::DataVersion& d, const std::str
   if (d.name == "unknown")
     out.push_back(mech3::mod_note(list(d.unknown)));
   else if (d.name == "incomplete")
-    out.push_back("Some MechWarrior 3 files are missing from the install: " + list(d.unknown) +
-                  ". Reinstall MechWarrior 3 from its disc.");
+    out.push_back("Some Pirate's Moon files are missing from the install: " + list(d.unknown) +
+                  ". Reinstall Pirate's Moon from its disc.");
   bool music = false;
   for (int t = 2; t <= 20 && !music; ++t)
     for (const char* ext : {"ogg", "flac", "wav", "mp3"}) {
@@ -566,8 +560,7 @@ std::vector<std::string> start_notes(const mech3::DataVersion& d, const std::str
     }
   if (!music)
     out.push_back(std::string("No music: the original played it from the CD's audio tracks, which an install does not have. "
-                              "With a disc image (a .cue and its .bin):\n    ") +
-                  kImporter + " --cue \"<the disc's .cue>\" --music-only\nor put your own rip in " +
+                              "Put your own rip in ") +
                   (write_dir.empty() ? std::string("music") : (std::filesystem::path(write_dir) / "music").make_preferred().string()) +
                   " as track02.ogg, track03.ogg and so on (README.txt, Music).");
   return out;
@@ -787,7 +780,7 @@ int mw3_game_main(int argc, char** argv) {
   if (plain && a.first_start && !notes.empty()) {
     std::string text;
     for (const std::string& n : notes) text += (text.empty() ? "" : "\n\n") + n;
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "MechWarrior 3: first start", text.c_str(), nullptr);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Pirate's Moon: first start", text.c_str(), nullptr);
   }
   if (a.force_import || (plain && !a.no_import && !vfw)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 

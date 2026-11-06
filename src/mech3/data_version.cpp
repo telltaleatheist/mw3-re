@@ -104,6 +104,28 @@ bool measure(const char* path, uint32_t* size, uint32_t* crc) {
   return true;
 }
 
+// Pirate's Moon has one version, 1.0: its main data files as the disc has them.
+struct PmFile {
+  const char* path;
+  uint32_t size, crc;
+};
+constexpr PmFile kPmFiles[] = {
+    {"zbd/reader.zbd", 2626134, 0x28710a57},
+    {"zbd/interp.zbd", 85092, 0xb57a74c0},
+    {"zbd/mechlib.zbd", 3073867, 0xfde62efe},
+    {"zbd/motion.zbd", 7618091, 0xf05a8c9f},
+    {"zbd/c1/reader.zbd", 485505, 0x0acd7252},
+    {"zbd/c2/reader.zbd", 212199, 0x987e89b9},
+    {"zbd/c3/reader.zbd", 226890, 0xfc6e555d},
+    {"zbd/c4/reader.zbd", 339727, 0x6edd9861},
+    {"zbd/c1/gamez.zbd", 7050008, 0x88a2e151},
+    {"zbd/c2/gamez.zbd", 5659600, 0xcfa65b10},
+    {"zbd/c3/gamez.zbd", 4294816, 0x2e9b5feb},
+    {"zbd/c4/gamez.zbd", 5936192, 0xb67263b3},
+    {"Mech3Msg.dll", 143360, 0xb03b93b6},
+    {"force_eff.ifr", 2166, 0x136eae86},
+};
+
 }  // namespace
 
 const DataFile* data_files(int* count) {
@@ -124,31 +146,16 @@ int data_file_version(const char* path) {
 
 DataVersion detect_data_version() {
   DataVersion v;
-  std::vector<std::string> lost;  // files 1.0 already had, missing
-  for (const DataFile& k : kFiles) {
+  std::vector<std::string> lost;
+  for (const PmFile& k : kPmFiles) {
     uint32_t size = 0, crc = 0;
-    const bool have = measure(k.path, &size, &crc);
-    const bool is_12 = have && size == k.size_12 && crc == k.crc_12;
-    const bool is_10 = k.size_10 ? have && size == k.size_10 && crc == k.crc_10 : !have;
-    if (is_12) {
-      ++v.of_12;
-      v.from_12.push_back(k.path);
-    } else if (is_10) {
-      ++v.of_10;
-    } else if (!have) {
-      ++v.missing;
-      lost.push_back(k.path);
-    } else {
-      v.unknown.push_back(k.path);
-    }
+    if (!measure(k.path, &size, &crc)) ++v.missing, lost.push_back(k.path);
+    else if (size == k.size && crc == k.crc) ++v.of_10;
+    else v.unknown.push_back(k.path);
   }
-  const int n = static_cast<int>(sizeof kFiles / sizeof kFiles[0]);
   if (!v.unknown.empty()) v.name = "unknown";
   else if (v.missing > 0) v.name = "incomplete", v.unknown = lost;
-  else if (v.of_12 == n) v.name = "1.2";
-  else if (v.of_10 == n) v.name = "1.0";
-  else v.name = "1.0 with 1.2 files";
-  if (v.name != "1.0 with 1.2 files") v.from_12.clear();
+  else v.name = "1.0";
   return v;
 }
 
@@ -161,7 +168,7 @@ std::string DataVersion::describe() const {
   std::string s = "data version " + name;
   if (name == "1.0 with 1.2 files")
     s += " (" + std::to_string(of_12) + " of " + std::to_string(of_10 + of_12) + " patched, " + std::to_string(of_10) + " not)";
-  if (name == "unknown") s += " (neither 1.0's nor 1.2's:";
+  if (name == "unknown") s += " (not Pirate's Moon 1.0's:";
   if (name == "incomplete") s += " (missing:";
   if (name == "unknown" || name == "incomplete") {
     for (const std::string& f : unknown) s += " " + f;

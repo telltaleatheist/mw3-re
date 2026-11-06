@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/data_version.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsiscript/si_script.h"
@@ -610,4 +611,27 @@ TEST(pm_points_without_polygons) {
   zmth::push(&local);
   EXPECT(pm::zmod::prepare_model(m, centre) == 0 && points == 0 && st.top == 0);
   ::zmod::draw_table() = keep;
+}
+
+// The first start's note (data_version.h): PM's own files are not "modded"; a changed one, a missing one are said.
+TEST(pm_data_version_knows_its_own_files) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  const zutl::Mounts saved = zutl::mounts();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const mech3::DataVersion own = mech3::detect_data_version();
+  EXPECT(own.name == "1.0" && own.of_10 == 14 && own.unknown.empty());
+  const std::string front = std::string(MW3_TEST_TMP_ROOT) + "/pm_data_version";
+  std::error_code ec;
+  std::filesystem::remove_all(front, ec);
+  std::filesystem::create_directories(front + "/zbd", ec);
+  if (std::FILE* f = std::fopen((front + "/zbd/interp.zbd").c_str(), "wb")) std::fputs("not a zbd", f), std::fclose(f);
+  zutl::mount_front(front);
+  const mech3::DataVersion odd = mech3::detect_data_version();
+  EXPECT(odd.name == "unknown" && odd.unknown.size() == 1 && odd.unknown[0] == "zbd/interp.zbd");
+  EXPECT(odd.describe().find("not Pirate's Moon 1.0's") != std::string::npos);
+  zutl::mounts() = zutl::Mounts{};
+  const mech3::DataVersion none = mech3::detect_data_version();
+  EXPECT(none.name == "incomplete" && none.missing == 14);
+  zutl::mounts() = saved;
 }
