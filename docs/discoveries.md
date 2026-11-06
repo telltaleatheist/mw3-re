@@ -4536,3 +4536,7 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **Pirate's Moon's AI knows ways through the mission boundary:** its nets have via nodes, and when an AI's path would cross the boundary, a mech with jump jets may pick one, by how far it is round the boundary to it and from it. MechWarrior 3's AI just walks round. Big boundaries (over 20,000 units round) also keep the AI 12 units off instead of 3. (Read in the exe, the choice run and compared; not yet seen in a mission.)
 - **Pirate's Moon's text doesn't treat & as a shortcut mark, and measures 3 pixels wider:** MechWarrior 3's menus draw text so that an & underlines the next letter; Pirate's Moon draws an & as an &. Each piece of text also gets 3 more pixels of width when it's measured. (Read in the exe and run against it.)
 - **Pirate's Moon's mech lab can't choose a skin past the end of the list:** in MechWarrior 3 a saved skin number past the mech's list leaves the skin button blank. Pirate's Moon keeps the choice on the list, so it shows the last skin. All the game's cycle buttons share this. (Compared against the game's code in an emulator; not checked in play.)
+
+- Pirate's Moon: quicksand pits are built but never drawn. The game sorts a model's polygons by material before it can
+  draw them, and it does that for craters but not for a quicksand pit or its lid, so the cut in the ground would show
+  as a hole with nothing in it (from the code; no shipped PM mission was checked for one).

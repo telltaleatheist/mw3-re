@@ -49,6 +49,7 @@ class SdlTwodHost : public ztwod::Host {
   Handle image_dc(zimg::Texture* image) override;
   void image_dc_release(zimg::Texture* image, Handle dc) override;
   int32_t video_mode() override;
+  bool draws_in_order() override { return true; }
   void video_double() override {}
   uint32_t show_cursor(uint32_t on) override;
   ztwod::Rect screen_rect() override;

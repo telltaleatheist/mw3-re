@@ -512,3 +512,19 @@ crossing validations); no build refusals came up.
 7. **Reset and restore** (0x00500760, 0x00500c20) with gamez.zbd's re-read
    path; the program's wiring (zWeapon's crater hooks, the mission hooks).
    Done (parts 5c and 7).
+
+## On Pirate's Moon
+
+The same code, in place on branch `pm`: `zgeo_model.cpp` works on `pm::zmod` models, whose polygons have a list of
+materials with UVs for each. PM's own steps, the rest as above:
+
+- 0x0055cb70 adds a polygon (`pm::zmod::model_add_polygon`, with 0x0055c6d0, 0x0055c910, the fan 0x0055a4d0, the
+  pieces 0x0055a870); UVs are carried, flattened and snapped for each textured material. 0x005590f0 releases a model.
+- Models draw by their material refs, and the add makes none: the commit 0x00527ff0 and the crater 0x00518350 call
+  0x0055c470 first. The quicksand 0x0051ab70 does not, so its pit and lid have no refs and PM's exe draws neither;
+  the port keeps that.
+- The commit also clears the node's +0xc0 and +0xc4. The file's strips stay as read, so 0x005726f0 has no port.
+
+`test_pm_crater_cut.py` compares the add and the cut against the exe: identical at 24 bits. At 53, the reference
+runtime's, about 6% of its random cuts take another branch, some leaving a different ground piece, because the port's
+Weiler and convexify compute in float where the x87 keeps doubles. MW3's port has the same clip (fixes.md).

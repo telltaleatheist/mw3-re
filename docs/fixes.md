@@ -541,6 +541,15 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   rounding, so at 24 bits a light map set's fade is 0 or full, nothing between
   (emulator; docs/pm-map.md). As for the rows above: `fpu53`, on by default, gives the
   53-bit result; off, the 24-bit one, which the probes keep. Not looked at in play.
+- Dialog's static grab, Pirate's Moon 0x005befd0 (twod_dialog.cpp): FIX (A). In hardware PM doesn't draw the static
+  parts before grabbing them: its images are queued quads, and an erase (0x0057d210) writes the grab to the surface
+  under them. The port's blits land in order, so an erase would paint the grab over the panel (the squares behind a
+  message box's buttons). `Host::draws_in_order`, the program's, grabs them first, as MW3; tests keep the exe's way.
+  Picture: `test_pm_msgbox_picture.py`.
+- Open: crater cuts at 53 bits (`zgeo_weiler`, `zgeo_convexify`, on `main` too). The port computes in float, the
+  reference runtime's x87 keeps doubles between stores, so about 6% of `test_pm_crater_cut.py`'s random cuts take
+  another branch, some leaving a different ground piece. Not `fpu53`-switched yet; 24 bits match exactly. PM's UV
+  gradient 0x0055c3b0, flatten 0x0055be60 and snap 0x0055ac70 do switch (`gmod_const`), so the add matches at both.
 - Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
   fixed point with the same trick, so at 24-bit nothing is filled and the
   shadow texture is plain white: shadows invisible on hardware (emulator,

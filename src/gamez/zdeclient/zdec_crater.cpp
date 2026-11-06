@@ -14,6 +14,8 @@
 #include "gamez/zgeometry/zgeo_model.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "pm/gamez/zclass/cls_clutter.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -170,7 +172,7 @@ int32_t crater_clip(CraterRecord* r) {
 // crater material over the radius and take the cut ground's colours.
 int32_t crater_tessellate(CraterRecord* r) {
   zcls::Node* node = nullptr;
-  zmod::Model* m = zgeo::crater_node(r->set->cells[0], world_node(), &node);
+  pm::zmod::Model* m = zgeo::crater_node(r->set->cells[0], world_node(), &node);
   // As in the exe, a node made without a model is still named and marked
   // (the exe leaves it in the world; harmless).
   if (node) mark_feature(node, r->type, r->box);
@@ -251,6 +253,7 @@ int32_t crater_tessellate(CraterRecord* r) {
     color_of(2, tri + 6);
     zgeo::add_polygon(m, 3, tri, material, tuv, kUp, color);
   }
+  pm::zmod::sort_by_material(*m);  // 0x0055c470
   zgeo::hooks().node_set_model(node, m);
   return 0;
 }
@@ -339,6 +342,8 @@ int32_t crater_instance(const zwep::CraterOrder* order, int dust) {
     const float at[3] = {r->order.at.x, r->order.at.y, r->order.at.z};
     g_hooks.play_anim(r->texture->anim, at);
   }
+  // Pirate's Moon 1.0 @ 0x00517e45: clutter near the crater goes.
+  pm::zcls::clutter_crater(world_node(), reinterpret_cast<const float*>(&r->order.at), r->order.radius);
   record_free(r);
   return 0;
 }
@@ -366,7 +371,7 @@ void craters_reset() {
   }
   while (zcls::Node* node = zcls::list_find_by_name(6, kFeature)) {
     while (node->parent_count() > 0) zcls::node_remove_child(node->parents[0], node);
-    if (zmod::Model* m = node->model) {  // 0x004eb420
+    if (pm::zmod::Model* m = node->pm_model) {  // 0x004fcd10
       zgeo::hooks().node_set_model(node, nullptr);
       zgeo::hooks().model_release(m);
     }

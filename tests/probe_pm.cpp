@@ -58,6 +58,8 @@ float tether_height(int32_t roster);
 #include "gamez/zclass/sound.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_model.h"
+#include "gamez/zgeometry/zgeo_weiler.h"
 #include "gamez/zutil/zfix.h"
 #include <vector>
 #include "gamez/zimage/zimg_texture.h"
@@ -3436,7 +3438,8 @@ int32_t pmpf_create_before_reset() {
 // The scroll's step on PM's model (0x00547ab0): `n` polygons of `counts` vertices, `textured`, their
 // UV pairs one after another in `uvs` (in and out); `header` in and out. Returns the step's result.
 int32_t probe_pm_scroll_tick(uint8_t* header, int32_t n, const int32_t* counts, const int32_t* textured, float* uvs,
-                             uint32_t frame, float dt, int32_t null_model) {
+                             uint32_t frame, float dt, int32_t null_model, int32_t fpu53) {
+  zfix::options().fpu53 = fpu53 != 0;
   ::zcls::frames().frame = frame;
   ::ztimer::state().dt = dt;
   if (null_model) return pm::zmod::model_scroll_tick(nullptr);
@@ -3463,4 +3466,159 @@ int32_t probe_pm_scroll_tick(uint8_t* header, int32_t n, const int32_t* counts, 
   m.polygons = nullptr;
   return r;
 }
+
+// PM's model setters (0x0055ba20, 0x0055bb20, 0x0055bba0, 0x0055bbc0, 0x0055bc10, 0x0055b7e0) on `npoly` polygons
+// whose material lists are `lists` (`list_n` each, up to 3, indices in `nmat` materials). A material's `cycle_n` > 0
+// gives it a cycle of textures 0x1000 * (it + 1) + i. op 0 reset, 1 frame (ia), 2 speed (fa), 3 looping (ia),
+// 4 add (ia), 5 priority (ia). out: for each material the texture, index, speed, looping, added; then the priorities.
+int32_t probe_pm_model_set(int32_t npoly, const int32_t* list_n, const int32_t* lists, int32_t nmat, const int32_t* cycle_n,
+                           int32_t op, int32_t ia, float fa, uint32_t* out) {
+  std::vector<::zmod::Material> mats(static_cast<size_t>(nmat));
+  std::vector<::zmod::Cycle> cycles(static_cast<size_t>(nmat));
+  std::vector<std::vector<::zimg::TextureEntry*>> texs(static_cast<size_t>(nmat));
+  const auto id = [](uint32_t v) { return reinterpret_cast<::zimg::TextureEntry*>(static_cast<uintptr_t>(v)); };
+  for (int32_t i = 0; i < nmat; ++i) {
+    const size_t k = static_cast<size_t>(i);
+    std::memset(&mats[k], 0, sizeof mats[k]);
+    mats[k].texture = id(0x900 + static_cast<uint32_t>(i));
+    if (cycle_n[i] <= 0) continue;
+    texs[k].resize(static_cast<size_t>(cycle_n[i]) + 1);
+    for (int32_t t = 0; t < cycle_n[i]; ++t) texs[k][static_cast<size_t>(t)] = id(0x1000u * static_cast<uint32_t>(i + 1) + static_cast<uint32_t>(t));
+    std::memset(&cycles[k], 0, sizeof cycles[k]);
+    cycles[k].texture_count = static_cast<uint32_t>(cycle_n[i]) + 1, cycles[k].added = static_cast<uint32_t>(cycle_n[i]);
+    cycles[k].textures = texs[k].data();
+    cycles[k].texture_count = static_cast<uint32_t>(cycle_n[i]);
+    mats[k].cycle = &cycles[k];
+  }
+  std::vector<pm::zmod::Polygon> polys(static_cast<size_t>(npoly));
+  std::vector<std::vector<::zmod::Material*>> ml(static_cast<size_t>(npoly));
+  for (int32_t i = 0; i < npoly; ++i) {
+    const size_t k = static_cast<size_t>(i);
+    for (int32_t j = 0; j < list_n[i]; ++j) ml[k].push_back(&mats[static_cast<size_t>(lists[i * 3 + j])]);
+    polys[k].material_count = list_n[i], polys[k].materials = ml[k].data(), polys[k].priority = 0;
+  }
+  pm::zmod::Model m{};
+  const uint32_t n = static_cast<uint32_t>(npoly);
+  std::memcpy(m.header + 0x10, &n, 4);
+  m.polygons = polys.data();
+  int32_t r = 0;
+  switch (op) {
+    case 0: pm::zmod::cycle_reset(&m); break;
+    case 1: pm::zmod::cycle_set_frame(&m, ia); break;
+    case 2: r = pm::zmod::cycle_set_speed(&m, fa); break;
+    case 3: r = pm::zmod::cycle_set_looping(&m, static_cast<uint32_t>(ia)); break;
+    case 4: r = pm::zmod::cycle_set_map(&m, id(static_cast<uint32_t>(ia))); break;
+    default: pm::zmod::model_set_priority(&m, ia); break;
+  }
+  for (int32_t i = 0; i < nmat; ++i) {
+    const size_t k = static_cast<size_t>(i);
+    *out++ = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mats[k].texture));
+    std::memcpy(out++, &cycles[k].index, 4), std::memcpy(out++, &cycles[k].speed, 4);
+    *out++ = cycles[k].looping, *out++ = cycles[k].added;
+  }
+  for (int32_t i = 0; i < npoly; ++i) *out++ = static_cast<uint32_t>(polys[static_cast<size_t>(i)].priority);
+  for (auto& p : polys) p.materials = nullptr;
+  m.polygons = nullptr;
+  return r;
+}
 }  // extern "C"
+
+// test_pm_crater_cut.py. np polygons of nv[i] points, each of mc[i] materials (of 4; the 4th untextured), with
+// UVs for each material; flags bit 0 back face, 1 0x800. op 0 adds them to an empty model through 0x0055cb70;
+// op 1 makes them a model, cuts it with the outline through 0x00528920 and frees the result. out: what
+// test_pm_crater_cut.py's dump() reads, then the pool's count less the one before (0 once released).
+namespace {
+void dump_model(const pm::zmod::Model* m, const ::zmod::Material* mats, std::vector<uint32_t>& o) {
+  const auto bits = [](float f) { uint32_t v; std::memcpy(&v, &f, 4); return v; };
+  if (!m) return o.push_back(0xffffffffu);
+  const int32_t polys = m->count(0x10), verts = m->count(0x14), norms = m->count(0x18);
+  o.push_back(static_cast<uint32_t>(polys)), o.push_back(static_cast<uint32_t>(verts)), o.push_back(static_cast<uint32_t>(norms));
+  for (int32_t i = 0; i < 3 * verts; ++i) o.push_back(bits(m->vertices[i]));
+  for (int32_t i = 0; i < 3 * norms; ++i) o.push_back(bits(m->normals[i]));
+  for (int32_t i = 0; i < polys; ++i) {
+    const pm::zmod::Polygon& q = m->polygons[i];
+    const uint32_t k = q.flags & 0x3ff;
+    o.push_back(q.flags), o.push_back(static_cast<uint32_t>(q.priority)), o.push_back(q.zone_set);
+    o.push_back(static_cast<uint32_t>(q.material_count));
+    for (int32_t j = 0; j < q.material_count; ++j) o.push_back(static_cast<uint32_t>(q.materials[j] - mats));
+    for (uint32_t v = 0; v < k; ++v) o.push_back(q.vertex_indices[v]);
+    if (q.flags & 0x1000) for (uint32_t v = 0; v < k; ++v) o.push_back(q.normal_indices[v]);
+    o.push_back(q.uvs ? 1 : 0);
+    for (int32_t j = 0; q.uvs && j < q.material_count; ++j)
+      for (uint32_t v = 0; v < 2 * k; ++v) o.push_back(bits(q.uvs[j][v]));
+    for (uint32_t v = 0; v < 3 * k; ++v) o.push_back(bits(q.colors[v]));
+  }
+}
+}  // namespace
+
+extern "C" int32_t probe_pm_crater(int32_t op, int32_t np, const int32_t* nv, const int32_t* mc, const int32_t* flags,
+                                   const float* pts, const float* uvs, const float* colors, const float* normals,
+                                   int32_t no, const float* outline, float precision, uint32_t* out, int32_t cap) {
+  static ::zmod::Material mats[4];
+  for (int i = 0; i < 4; ++i) std::memset(&mats[i], 0, sizeof mats[i]), mats[i].flags = i < 3 ? 1 : 0;
+  ::zmod::set_vertex_precision(precision);
+  pm::zmod::ModelPool& pool = pm::zmod::models();
+  const int32_t before = pool.count;
+  const uint8_t zone[4] = {0, 0xff, 0xff, 0xff};
+  std::vector<uint32_t> o;
+  int32_t r = 0;
+  if (op == 0) {
+    pm::zmod::Model* m = pm::zmod::model_alloc();
+    for (int32_t i = 0; i < np; ++i) {
+      const int32_t n = nv[i];
+      std::vector<float> p(pts, pts + 3 * n);
+      std::vector<const float*> uv;
+      std::vector<::zmod::Material*> ml;
+      for (int32_t j = 0; j < mc[i]; ++j) uv.push_back(uvs + 2 * n * j), ml.push_back(&mats[(i + j) % 4]);
+      pm::zmod::PolygonAdd a;
+      a.points = p.data(), a.normals = normals, a.uvs = uv.data(), a.material_count = mc[i], a.materials = ml.data();
+      a.priority = i, a.back = static_cast<uint32_t>(flags[i]) & 1, a.flag_800 = static_cast<uint32_t>(flags[i]) >> 1 & 1;
+      a.zone = zone, a.colors = colors;
+      o.push_back(static_cast<uint32_t>(pm::zmod::model_add_polygon(m, n, a)));
+      pts += 3 * n, uvs += 2 * n * mc[i];
+      if (normals) normals += 3 * n;
+      if (colors) colors += 3 * n;
+    }
+    dump_model(m, mats, o);
+    pm::zmod::model_release(m);
+  } else {
+    pm::zmod::Model src{};
+    const auto put = [&](int off, int32_t v) { std::memcpy(src.header + off, &v, 4); };
+    int32_t total = 0;
+    for (int32_t i = 0; i < np; ++i) total += nv[i];
+    src.vertices = const_cast<float*>(pts), src.normals = const_cast<float*>(normals);
+    put(0x10, np), put(0x14, total), put(0x18, normals ? total : 0);
+    std::vector<pm::zmod::Polygon> polys(static_cast<size_t>(np));
+    std::vector<std::vector<uint32_t>> index(static_cast<size_t>(np));
+    std::vector<std::vector<::zmod::Material*>> ml(static_cast<size_t>(np));
+    std::vector<std::vector<float*>> uv(static_cast<size_t>(np));
+    float* u = const_cast<float*>(uvs);
+    int32_t at = 0;
+    for (int32_t i = 0; i < np; ++i) {
+      const size_t k = static_cast<size_t>(i);
+      pm::zmod::Polygon& q = polys[k];
+      for (int32_t v = 0; v < nv[i]; ++v) index[k].push_back(static_cast<uint32_t>(at + v));
+      for (int32_t j = 0; j < mc[i]; ++j, u += 2 * nv[i]) ml[k].push_back(&mats[(i + j) % 3]), uv[k].push_back(u);
+      q.flags = static_cast<uint32_t>(nv[i]) | (static_cast<uint32_t>(flags[i]) & 3) << 10 | (normals ? 0x1000u : 0u);
+      q.priority = i, q.vertex_indices = index[k].data(), q.normal_indices = normals ? index[k].data() : nullptr;
+      q.material_count = mc[i], q.materials = ml[k].data(), q.uvs = uv[k].data();
+      q.colors = const_cast<float*>(colors) + 3 * at, q.zone_set = 0xffffff00u;
+      at += nv[i];
+    }
+    src.polygons = polys.data();
+    zgeo::ClipPolygon* c = zgeo::clip_polygon_new(outline, no);
+    c->weiler = zgeo::weiler_new(c->points.data(), c->count, 0);
+    pm::zmod::Model* made = nullptr;
+    r = zgeo::clip_model(*c, &src, &made);
+    o.push_back(static_cast<uint32_t>(r));
+    o.push_back(static_cast<uint32_t>(c->count));
+    for (float f : c->points) { uint32_t v; std::memcpy(&v, &f, 4); o.push_back(v); }
+    dump_model(made, mats, o);
+    if (made) pm::zmod::model_release(made);
+    zgeo::clip_polygon_free(c);
+    src = pm::zmod::Model{};
+  }
+  o.push_back(static_cast<uint32_t>(pool.count - before));
+  for (size_t i = 0; i < o.size() && i < static_cast<size_t>(cap); ++i) out[i] = o[i];
+  return static_cast<int32_t>(o.size());
+}

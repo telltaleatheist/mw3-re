@@ -216,9 +216,9 @@ void save_node(uint8_t* p, zcls::Node* n, bool model) {
   }
   if (!model) return;
   uint32_t bit = rd<uint32_t>(p, 0x3c) & ~1u;
-  if (n->model) {
-    bit |= (rd<uint32_t>(n->model->header, 8) >> 3) & 1;
-    wr<uint32_t>(p, 0x40, rd<uint32_t>(n->model->header, 0x24));
+  if (const uint8_t* h = zcls::node_model_header(n)) {
+    bit |= (rd<uint32_t>(h, 8) >> 3) & 1;
+    wr<uint32_t>(p, 0x40, rd<uint32_t>(h, 0x24));
   }
   wr<uint32_t>(p, 0x3c, bit);
 }
@@ -249,9 +249,10 @@ void load_node(const uint8_t* p, bool model) {
     }
   }
   // The model's flag is only ever set back, never cleared.
-  if (model && n->model && (rd<uint32_t>(p, 0x3c) & 1)) {
-    wr<uint32_t>(n->model->header, 8, rd<uint32_t>(n->model->header, 8) | 8);
-    wr<uint32_t>(n->model->header, 0x24, rd<uint32_t>(p, 0x40));
+  uint8_t* h = model ? zcls::node_model_header(n) : nullptr;
+  if (h && (rd<uint32_t>(p, 0x3c) & 1)) {
+    wr<uint32_t>(h, 8, rd<uint32_t>(h, 8) | 8);
+    wr<uint32_t>(h, 0x24, rd<uint32_t>(p, 0x40));
   }
 }
 

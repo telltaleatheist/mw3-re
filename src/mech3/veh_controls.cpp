@@ -12,6 +12,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
@@ -68,11 +69,11 @@ void VehControlsHooks::node_position(Handle node, Vec3c& out) {
 void VehControlsHooks::node_translation(Handle node, float* x, float* y, float* z) {
   zcls::object3d_get_translation(zn(node), x, y, z);
 }
-VehControlsHooks::Handle VehControlsHooks::node_model(Handle node) { return zn(node)->model; }
+VehControlsHooks::Handle VehControlsHooks::node_model(Handle node) { return zn(node)->pm_model; }  // PM's nodes hold theirs here
 void VehControlsHooks::node_set_model(Handle node, Handle model) {
-  zcls::node_set_model(zn(node), static_cast<zmod::Model*>(model));
+  zcls::node_set_pm_model(zn(node), static_cast<pm::zmod::Model*>(model));
 }
-void VehControlsHooks::model_release(Handle model) { zmod::model_release(static_cast<zmod::Model*>(model)); }
+void VehControlsHooks::model_release(Handle model) { pm::zmod::model_release(static_cast<pm::zmod::Model*>(model)); }  // 0x005590f0
 void VehControlsHooks::node_remove_child(Handle parent, Handle child) { zcls::node_remove_child(zn(parent), zn(child)); }
 void VehControlsHooks::node_free(Handle node) { zcls::tree_destroy(zn(node)); }
 zrdr::Node* VehControlsHooks::reader_find(zrdr::Node* node, const char* key) { return zrdr::find(node, key); }

@@ -16,16 +16,17 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 #pragma STDC FP_CONTRACT OFF
 
 namespace zgeo {
 namespace {
-const char kFile[] = "C:\\zipper\\GameZMech3\\zGeometry\\zgeo_model.cpp";
+const char kFile[] = "C:\\zipper\\branchep1\\gamez\\zGeometry\\zgeo_model.cpp";
 constexpr float kByteScale = 0.007782219909131527f;  // 0x005cdd18, 255 / 32767
 constexpr float kNear = 0.01f;                       // 0x005cdd28 (a double of it)
 
-zmod::Model* node_model(zcls::Node* node) { return node ? node->model : nullptr; }
+pm::zmod::Model* node_model(zcls::Node* node) { return node ? node->pm_model : nullptr; }
 
 void report_count(int level, int line, const char* format, int32_t n) {
   char text[96];
@@ -41,7 +42,7 @@ uint16_t pack(uint16_t word, float r, float g, float b) {
   return static_cast<uint16_t>((word & ~0x1f) | (static_cast<int32_t>(b) & 0x1f));
 }
 
-const float* vertex(const zmod::Model& m, const zmod::Polygon& p, int i) {
+const float* vertex(const pm::zmod::Model& m, const pm::zmod::Polygon& p, int i) {
   return m.vertices + p.vertex_indices[i] * 3;
 }
 }  // namespace
@@ -51,24 +52,14 @@ ColorCache& colors() {
   return c;
 }
 Hooks::Hooks()
-    : model_add([](zmod::Model* m, int32_t n, const float* points, const float* normals, const float* uvs, uint32_t a,
-                   uint32_t b, uint32_t c, zmod::Material* material, int32_t priority, uint32_t flag,
-                   const uint8_t zone[4], const float* colors) {
-        zmod::PolygonAdd add;
-        // 0x0053c6c0 drops colinear points from the caller's buffer in place.
-        add.points = const_cast<float*>(points), add.normals = normals, add.uvs = uvs;
-        add.morph = static_cast<int32_t>(a), add.morph_points = reinterpret_cast<const float*>(static_cast<uintptr_t>(b));
-        add.morph_uvs = reinterpret_cast<const float*>(static_cast<uintptr_t>(c));
-        add.material = material, add.priority = priority, add.flag = flag, add.zone = zone, add.colors = colors;
-        return zmod::model_add_polygon(m, n, add);
-      }),
+    : model_add(pm::zmod::model_add_polygon),
       material_add(zmod::material_add),
       rand(crt::msvc_rand),
       node_model(zgeo::node_model),
-      node_set_model(zcls::node_set_model),
-      model_release(zmod::model_release),
+      node_set_model(zcls::node_set_pm_model),
+      model_release(pm::zmod::model_release),
       weiler_free([](void* w) { zgeo::weiler_free(static_cast<Weiler*>(w)); }),
-      model_alloc(zmod::model_alloc),
+      model_alloc(pm::zmod::model_alloc),
       world_node(nullptr) {}
 Hooks& hooks() {
   static Hooks h;
@@ -192,24 +183,30 @@ void gradient(const float p0[3], const float p1[3], const float p2[3], float s0,
   out[1] = -((ax * d0 - d2 * bx) * inv);
 }
 
-// Mech3.exe 1.2 @ 0x0050df30. The UVs are (u, v) pairs, carried from vertex 1.
-std::vector<float> uvs_at(const float* points, int32_t n, const zmod::Model& m, const zmod::Polygon& p) {
+// Pirate's Moon 1.0 @ 0x00527710. The UVs are (u, v) pairs, carried from
+// vertex 1, for each material.
+std::vector<std::vector<float>> uvs_at(const float* points, int32_t n, const pm::zmod::Model& m,
+                                       const pm::zmod::Polygon& p) {
   const float *v0 = vertex(m, p, 0), *v1 = vertex(m, p, 1), *v2 = vertex(m, p, 2);
-  const float* uv = p.uvs;
-  float gu[2], gv[2];
-  gradient(v0, v1, v2, uv[0], uv[2], uv[4], gu);
-  gradient(v0, v1, v2, uv[1], uv[3], uv[5], gv);
-  std::vector<float> out(2 * static_cast<size_t>(n > 0 ? n : 0));
-  for (int32_t i = 0; i < n; ++i) {
-    const float dx = points[3 * i] - v1[0], dz = points[3 * i + 2] - v1[2];
-    out[2 * i] = dz * gu[1] + dx * gu[0] + uv[2];
-    out[2 * i + 1] = dz * gv[1] + dx * gv[0] + uv[3];
+  std::vector<std::vector<float>> all(static_cast<size_t>(p.material_count));
+  for (int32_t j = 0; j < p.material_count; ++j) {
+    const float* uv = p.uvs[j];
+    float gu[2], gv[2];
+    gradient(v0, v1, v2, uv[0], uv[2], uv[4], gu);
+    gradient(v0, v1, v2, uv[1], uv[3], uv[5], gv);
+    std::vector<float>& out = all[static_cast<size_t>(j)];
+    out.resize(2 * static_cast<size_t>(n > 0 ? n : 0));
+    for (int32_t i = 0; i < n; ++i) {
+      const float dx = points[3 * i] - v1[0], dz = points[3 * i + 2] - v1[2];
+      out[2 * i] = dz * gu[1] + dx * gu[0] + uv[2];
+      out[2 * i + 1] = dz * gv[1] + dx * gv[0] + uv[3];
+    }
   }
-  return out;
+  return all;
 }
 
 // Mech3.exe 1.2 @ 0x0050e100. Colours are (r, g, b) per vertex.
-std::vector<float> colors_at(const float* points, int32_t n, const zmod::Model& m, const zmod::Polygon& p) {
+std::vector<float> colors_at(const float* points, int32_t n, const pm::zmod::Model& m, const pm::zmod::Polygon& p) {
   const float *v0 = vertex(m, p, 0), *v1 = vertex(m, p, 1), *v2 = vertex(m, p, 2);
   const float* c = p.colors;
   float g[3][2];
@@ -223,7 +220,7 @@ std::vector<float> colors_at(const float* points, int32_t n, const zmod::Model& 
 }
 
 // Mech3.exe 1.2 @ 0x0050e240
-std::vector<float> normals_at(const float* points, int32_t n, const zmod::Model& m, const zmod::Polygon& p) {
+std::vector<float> normals_at(const float* points, int32_t n, const pm::zmod::Model& m, const pm::zmod::Polygon& p) {
   const float *v0 = vertex(m, p, 0), *v1 = vertex(m, p, 1), *v2 = vertex(m, p, 2);
   const float* n0 = m.normals + p.normal_indices[0] * 3;
   const float* n1 = m.normals + p.normal_indices[1] * 3;
@@ -240,8 +237,8 @@ std::vector<float> normals_at(const float* points, int32_t n, const zmod::Model&
 }
 
 // Mech3.exe 1.2 @ 0x0050f0a0
-void polygon_points(const zmod::Model& m, const zmod::Polygon& p, std::vector<float>& out) {
-  const uint32_t n = p.flags & 0xff;
+void polygon_points(const pm::zmod::Model& m, const pm::zmod::Polygon& p, std::vector<float>& out) {
+  const uint32_t n = p.flags & 0x3ff;
   out.resize(3 * n);
   for (uint32_t i = 0; i < n; ++i) std::memcpy(&out[3 * i], vertex(m, p, static_cast<int>(i)), 12);
 }
@@ -334,9 +331,11 @@ int commit(ClipSet& s) {
   Hooks& h = hooks();
   for (CellClip& cell : s.cells) {
     for (NodeModel& nm : cell.nodes) {
-      zmod::Model* old = h.node_model(nm.node);
+      pm::zmod::sort_by_material(*nm.model);  // 0x0055c470
+      pm::zmod::Model* old = h.node_model(nm.node);
       h.node_set_model(nm.node, nm.model);
       if (old) h.model_release(old);
+      nm.node->put<int32_t>(0xc0, 0), nm.node->put<int32_t>(0xc4, 0);
     }
     ++cell.cell->raw[0x39];
     cell.nodes.clear();
@@ -345,54 +344,70 @@ int commit(ClipSet& s) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x0050dea0
-int add_polygon(zmod::Model* m, int32_t n, const float* points, zmod::Material* material, const float* uvs,
+// Pirate's Moon 1.0 @ 0x00527670
+int add_polygon(pm::zmod::Model* m, int32_t n, const float* points, zmod::Material* material, const float* uvs,
                 const float* normals, const float* colors) {
   uint8_t zone[4];
   zmod::zone_reset(zone);
   if (n < 3) {
-    report_count(0x800, 0xfc, "Attempting to generate polygon with (%d) vertices", n);
+    report_count(0x800, 0xfe, "Attempting to generate polygon with (%d) vertices", n);
     return -1;
   }
   if (!uvs && !material) material = random_material();
-  return hooks().model_add(m, n, points, normals, uvs, 0, 0, 0, material, 0, 0, zone, colors);
+  pm::zmod::PolygonAdd add;
+  add.points = const_cast<float*>(points), add.normals = normals, add.uvs = uvs ? &uvs : nullptr;
+  add.material_count = 1, add.materials = &material;
+  add.zone = zone, add.colors = colors;
+  return hooks().model_add(m, n, add);
 }
 
-// Mech3.exe 1.2 @ 0x0050f4e0
-int add_child(zmod::Model* m, int32_t n, const float* points, const zmod::Model& src, const zmod::Polygon& p) {
+// Pirate's Moon 1.0 @ 0x00528d20. The colour cache's second argument, the
+// normal, is unused. Without UVs, one random material for each it had.
+int add_child(pm::zmod::Model* m, int32_t n, const float* points, const pm::zmod::Model& src,
+              const pm::zmod::Polygon& p) {
   if (n < 3) {
-    report_count(0x800, 0x1c8, "Attempting to add child polygon with (%d) vertices", n);
+    report_count(0x800, 0x1d5, "Attempting to add child polygon with (%d) vertices", n);
     return -1;
   }
-  std::vector<float> uvs, colors, normals;
-  zmod::Material* material;
+  std::vector<std::vector<float>> uvs;
+  std::vector<const float*> uv_of;
+  std::vector<float> colors, normals;
+  std::vector<zmod::Material*> materials(static_cast<size_t>(p.material_count));
   if (p.uvs) {
     uvs = uvs_at(points, n, src, p);
+    for (const auto& u : uvs) uv_of.push_back(u.data());
     colors = colors_at(points, n, src, p);
-    if (p.flags >> 9 & 1) normals = normals_at(points, n, src, p);
+    if (p.flags & 0x1000) normals = normals_at(points, n, src, p);
     for (int32_t i = 0; i < n; ++i) colors_add(points + 3 * i, &colors[3 * i]);
-    material = p.material;
+    std::copy(p.materials, p.materials + p.material_count, materials.begin());
   } else {
-    material = random_material();
+    for (auto& mat : materials) mat = random_material();
   }
   auto ptr = [](const std::vector<float>& v) { return v.empty() ? nullptr : v.data(); };
-  return hooks().model_add(m, n, points, ptr(normals), ptr(uvs), 0, 0, 0, material, p.priority, p.flags >> 8 & 1,
-                           reinterpret_cast<const uint8_t*>(&p.zone_set), ptr(colors));
+  pm::zmod::PolygonAdd add;
+  add.points = const_cast<float*>(points), add.normals = ptr(normals), add.uvs = p.uvs ? uv_of.data() : nullptr;
+  add.material_count = p.material_count, add.materials = materials.data(), add.priority = p.priority;
+  add.back = p.flags >> 10 & 1, add.flag_800 = p.flags >> 11 & 1;
+  add.zone = reinterpret_cast<const uint8_t*>(&p.zone_set), add.colors = ptr(colors);
+  return hooks().model_add(m, n, add);
 }
 
-// Mech3.exe 1.2 @ 0x0050f640
-int copy_polygon(zmod::Model* m, const zmod::Model& src, const zmod::Polygon& p) {
-  const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+// Pirate's Moon 1.0 @ 0x00528f00
+int copy_polygon(pm::zmod::Model* m, const pm::zmod::Model& src, const pm::zmod::Polygon& p) {
+  const int32_t n = static_cast<int32_t>(p.flags & 0x3ff);
   std::vector<float> points, normals;
   polygon_points(src, p, points);
-  if (p.flags >> 9 & 1) {
+  if (p.flags & 0x1000) {
     normals.resize(3 * static_cast<size_t>(n));
     for (int32_t i = 0; i < n; ++i) std::memcpy(&normals[3 * i], src.normals + p.normal_indices[i] * 3, 12);
   }
   std::vector<float> colors(p.colors, p.colors + 3 * n);
-  return hooks().model_add(m, n, points.empty() ? nullptr : points.data(), normals.empty() ? nullptr : normals.data(),
-                           p.uvs, 0, 0, 0, p.material, p.priority, p.flags >> 8 & 1,
-                           reinterpret_cast<const uint8_t*>(&p.zone_set), colors.empty() ? nullptr : colors.data());
+  pm::zmod::PolygonAdd add;
+  add.points = points.empty() ? nullptr : points.data(), add.normals = normals.empty() ? nullptr : normals.data();
+  add.uvs = p.uvs, add.material_count = p.material_count, add.materials = p.materials;
+  add.priority = p.priority, add.back = p.flags >> 10 & 1, add.flag_800 = p.flags >> 11 & 1;
+  add.zone = reinterpret_cast<const uint8_t*>(&p.zone_set), add.colors = colors.empty() ? nullptr : colors.data();
+  return hooks().model_add(m, n, add);
 }
 
 namespace {
@@ -415,7 +430,7 @@ Weiler* weiler_of(ClipPolygon& c) { return static_cast<Weiler*>(c.weiler); }
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x0050e950
-zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** node) {
+pm::zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** node) {
   zcls::Node* n = zcls::object3d_create();
   if (!n) {
     if (node) *node = nullptr;
@@ -433,7 +448,7 @@ zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** n
     }
   }
   zcls::node_set_clip_to(n, 1);
-  zmod::Model* m = hooks().model_alloc();
+  pm::zmod::Model* m = hooks().model_alloc();
   if (!m) {
     if (node) *node = nullptr;
     zcls::node_release(n);  // 0x004f3390
@@ -448,17 +463,17 @@ zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** n
 // polygon's count, not its own.
 int snap_outline(ClipPolygon& c, zcls::Node* node) {
   if (!node) return 0;
-  zmod::Model* m = node->model;
+  pm::zmod::Model* m = node->pm_model;
   if (!m) return 0;
   if ((node->flags() & 0x200) && box_away(c, node)) return 0;
   int snapped = 0;
   uint32_t last = 0;
   std::vector<float> pts;
-  for (uint32_t i = 0; i < m->count(0x10); ++i) {
-    const zmod::Polygon& p = m->polygons[i];
-    const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+  for (uint32_t i = 0; i < static_cast<uint32_t>(m->count(0x10)); ++i) {
+    const pm::zmod::Polygon& p = m->polygons[i];
+    const int32_t n = static_cast<int32_t>(p.flags & 0x3ff);
     if (n < 3) {
-      report_text(0x400, 0x447, "Skipping clip of polygon with (%d) verts", last);
+      report_text(0x400, 0x472, "Skipping clip of polygon with (%d) verts", last);
       continue;
     }
     polygon_points(*m, p, pts);
@@ -472,15 +487,15 @@ int snap_outline(ClipPolygon& c, zcls::Node* node) {
 }
 
 // Mech3.exe 1.2 @ 0x0050f7b0
-int clear_of(ClipPolygon& c, zmod::Model* m) {
+int clear_of(ClipPolygon& c, pm::zmod::Model* m) {
   if (!m) return 0;
   int ok = 1;
   std::vector<float> pts;
-  for (uint32_t i = 0; i < m->count(0x10) && ok; ++i) {
-    const zmod::Polygon& p = m->polygons[i];
-    const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+  for (uint32_t i = 0; i < static_cast<uint32_t>(m->count(0x10)) && ok; ++i) {
+    const pm::zmod::Polygon& p = m->polygons[i];
+    const int32_t n = static_cast<int32_t>(p.flags & 0x3ff);
     if (n < 3) {
-      report_text(0x400, 0x6b0, "Skipping clip of polygon with (%d) verts", n);
+      report_text(0x400, 0x6dd, "Skipping clip of polygon with (%d) verts", n);
       continue;
     }
     polygon_points(*m, p, pts);
@@ -490,10 +505,10 @@ int clear_of(ClipPolygon& c, zmod::Model* m) {
     Result r;
     const int code = boxes_touch(box, c.box) ? clip(*weiler_of(c), 4, pts.data(), n, &r) : 1;
     if (code == 0) {
-      report_text(0x200, 0x6cf, "Weiler algorithm clip error occurred.");
+      report_text(0x200, 0x6fc, "Weiler algorithm clip error occurred.");
       ok = 0;
     } else if (code == 2) {
-      if (r.count(2) == 0) report_text(0x200, 0x6d7, "Intersection found, no polygons...");
+      if (r.count(2) == 0) report_text(0x200, 0x704, "Intersection found, no polygons...");
       ok = 0;
     } else if (code == 3 || code == 4) {
       ok = 0;
@@ -506,19 +521,19 @@ int clear_of(ClipPolygon& c, zmod::Model* m) {
 // Mech3.exe 1.2 @ 0x0050f120. The Weiler is made again from the outline
 // before the next polygon once cut points joined it (within this model
 // only: the flag starts at 0 for each).
-int clip_model(ClipPolygon& c, zmod::Model* src, zmod::Model** out) {
+int clip_model(ClipPolygon& c, pm::zmod::Model* src, pm::zmod::Model** out) {
   if (!src) return 1;
-  zmod::Model* m = hooks().model_alloc();
+  pm::zmod::Model* m = hooks().model_alloc();
   if (!m) return 0;
-  std::memset(m->header, 0, 4);   // 0x00539cc0(m, 0)
-  zmod::expand_strips(*src);      // 0x00553160
+  std::memset(m->header, 0, 4);   // 0x00559910(m, 0)
+  // 0x005726f0 undoes the Direct3D strips here; the file's form is kept (pm-map.md).
   int changed = 0, renew = 0;
   std::vector<float> pts;
-  for (uint32_t i = 0; i < src->count(0x10); ++i) {
-    const zmod::Polygon& p = src->polygons[i];
-    const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+  for (uint32_t i = 0; i < static_cast<uint32_t>(src->count(0x10)); ++i) {
+    const pm::zmod::Polygon& p = src->polygons[i];
+    const int32_t n = static_cast<int32_t>(p.flags & 0x3ff);
     if (n < 3) {
-      report_text(0x400, 0x5b8, "Skipping clip of polygon with (%d) verts", n);
+      report_text(0x400, 0x5e3, "Skipping clip of polygon with (%d) verts", n);
       continue;
     }
     polygon_points(*src, p, pts);
@@ -567,7 +582,7 @@ int clip_model(ClipPolygon& c, zmod::Model* src, zmod::Model** out) {
         break;
       case 4: {
         if (r.count(1) == 0) {
-          zerr::report(0x100, kFile, 0x629, "\nWEILER_CLIP_IN_SUBJ\n\tclip.outside.num_polys = 0\n");
+          zerr::report(0x100, kFile, 0x654, "\nWEILER_CLIP_IN_SUBJ\n\tclip.outside.num_polys = 0\n");
           hooks().model_release(m);
           return 0;
         }
@@ -602,16 +617,16 @@ int clip_model(ClipPolygon& c, zmod::Model* src, zmod::Model** out) {
 }
 
 // Mech3.exe 1.2 @ 0x0050ef70
-int clip_node(ClipPolygon& c, zcls::Node* node, zmod::Model** out) {
-  if (!node || !node->model) return 1;
+int clip_node(ClipPolygon& c, zcls::Node* node, pm::zmod::Model** out) {
+  if (!node || !node->pm_model) return 1;
   const uint32_t flags = node->flags();
   if ((flags & 0x200) && box_away(c, node)) return 1;
   if (flags & 0x20000) {
     *out = nullptr;
-    return clear_of(c, node->model);
+    return clear_of(c, node->pm_model);
   }
   if (flags & 0x10000) {
-    const int r = clip_model(c, node->model, out);
+    const int r = clip_model(c, node->pm_model, out);
     zcls::Frames& f = zcls::frames();
     if (r && node->get<uint32_t>(0xc4) <= f.frame) {
       f.expiry = f.frame + 0xa0;
@@ -626,7 +641,7 @@ int clip_node(ClipPolygon& c, zcls::Node* node, zmod::Model** out) {
 // cell's nodes.
 int clip_cell(const float* points, int32_t n, zcls::Partition* cell, ClipSet& set) {
   if (!cell || !points) {
-    report_text(0x100, 0x48b, "Null Area Partition (0x%08x) or null Outline (0x%08x) passed to ClipPatch", 0u, 0u);
+    report_text(0x100, 0x4b6, "Null Area Partition (0x%08x) or null Outline (0x%08x) passed to ClipPatch", 0u, 0u);
     return -1;
   }
   ClipPolygon* c = clip_polygon_new(points, n);
@@ -651,7 +666,7 @@ int clip_cell(const float* points, int32_t n, zcls::Partition* cell, ClipSet& se
     if (snap_outline(*c, node)) box_of(c->box, c->points.data(), c->count);
   c->weiler = weiler_new(c->points.data(), c->count, 0);
   int ok = 1;
-  zmod::Model* unused = nullptr;
+  pm::zmod::Model* unused = nullptr;
   for (size_t i = 0; i < keep.size() && ok; ++i) ok = clip_node(*c, keep[i], &unused);
   for (size_t i = 0; i < cut.size() && ok; ++i) {
     NodeModel nm{cut[i], nullptr};

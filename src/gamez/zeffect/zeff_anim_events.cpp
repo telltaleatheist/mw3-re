@@ -15,6 +15,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 namespace zeff {
 
@@ -55,21 +56,21 @@ bool not_above(float a, float b) { return !(a > b); }
 
 // The opacity a model is drawn with (+0x24, flag 8 at +0x08 while it is
 // under 1e-5..1).
-void model_opacity(zmod::Model* m, float v, bool add) {
+void model_opacity(uint8_t* header, float v, bool add) {
   uint32_t f;
-  std::memcpy(&f, m->header + 8, 4);
+  std::memcpy(&f, header + 8, 4);
   f |= 8;
-  std::memcpy(m->header + 8, &f, 4);
+  std::memcpy(header + 8, &f, 4);
   float o;
-  std::memcpy(&o, m->header + 0x24, 4);
+  std::memcpy(&o, header + 0x24, 4);
   o = add ? v + o : v;
-  std::memcpy(m->header + 0x24, &o, 4);
+  std::memcpy(header + 0x24, &o, 4);
   if (!not_above(o, 1.0f)) {
     o = 1.0f;
-    std::memcpy(m->header + 0x24, &o, 4);
+    std::memcpy(header + 0x24, &o, 4);
   } else if (o < 1e-05f) {
     f &= ~8u;
-    std::memcpy(m->header + 8, &f, 4);
+    std::memcpy(header + 8, &f, 4);
   }
 }
 
@@ -521,7 +522,7 @@ int32_t ev_object_motion(AnimDef& d, SeqDef& s, uint8_t* e) {
     }
     zcls::object3d_set_scale(n, sc[0], sc[1], sc[2]);
   }
-  if ((get<uint32_t>(e, 0xc) & 0x200) && n->model) model_opacity(n->model, f32(e, 0x1c) * t, true);
+  if ((get<uint32_t>(e, 0xc) & 0x200) && zcls::node_model_header(n)) model_opacity(zcls::node_model_header(n), f32(e, 0x1c) * t, true);
   left() = left() - t;
   if ((get<uint32_t>(e, 0xc) & 0x400) && !(sf(s, 0x28) < f32(e, 0x148))) return 2;
   return result;
@@ -546,7 +547,7 @@ int32_t ev_object_motion_from_to(AnimDef& d, SeqDef& s, uint8_t* e) {
       if (n->cls() == 1) zcls::camera_set_position(n, f32(e, 0x20), f32(e, 0x24), f32(e, 0x28));
       else if (n->cls() == 5) zcls::object3d_set_translation(n, f32(e, 0x20), f32(e, 0x24), f32(e, 0x28));
     }
-    if ((f & 8) && n->model) model_opacity(n->model, f32(e, 0x14), false);
+    if ((f & 8) && zcls::node_model_header(n)) model_opacity(zcls::node_model_header(n), f32(e, 0x14), false);
   }
   const float t = step(s, f32(e, 0x8c));
   if (n) {
@@ -568,7 +569,7 @@ int32_t ev_object_motion_from_to(AnimDef& d, SeqDef& s, uint8_t* e) {
         if (v < 0.0010000000474974513f) v = 0.001f;
       zcls::object3d_set_scale(n, sc[0], sc[1], sc[2]);
     }
-    if ((f & 8) && n->model) model_opacity(n->model, f32(e, 0x1c) * t, true);
+    if ((f & 8) && zcls::node_model_header(n)) model_opacity(zcls::node_model_header(n), f32(e, 0x1c) * t, true);
   }
   left() = left() - t;
   if (!(f32(e, 0x8c) <= sf(s, 0x28))) return 1;
@@ -582,7 +583,7 @@ int32_t ev_object_motion_from_to(AnimDef& d, SeqDef& s, uint8_t* e) {
       if (n->cls() == 1) zcls::camera_set_position(n, f32(e, 0x2c), f32(e, 0x30), f32(e, 0x34));
       else if (n->cls() == 5) zcls::object3d_set_translation(n, f32(e, 0x2c), f32(e, 0x30), f32(e, 0x34));
     }
-    if ((f & 8) && n->model) model_opacity(n->model, f32(e, 0x18), false);
+    if ((f & 8) && zcls::node_model_header(n)) model_opacity(zcls::node_model_header(n), f32(e, 0x18), false);
   }
   return 2;
 }
@@ -761,7 +762,13 @@ int32_t ev_object_cycle_texture(AnimDef& d, SeqDef&, uint8_t* e) {
   const int16_t ni = get<int16_t>(e, 0x10);
   if (ni < 0) return 2;
   Node* n = ref(d, ni);
-  if (!(e[0xc] & 1) || !n || !n->model) return 2;
+  if (!(e[0xc] & 1) || !n) return 2;
+  if (n->pm_model) {
+    pm::zmod::cycle_reset(n->pm_model);
+    pm::zmod::cycle_set_frame(n->pm_model, get<int16_t>(e, 0x12));
+    return 2;
+  }
+  if (!n->model) return 2;
   zmod::cycle_reset(n->model);
   zmod::cycle_set_frame(n->model, get<int16_t>(e, 0x12));
   return 2;

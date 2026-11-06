@@ -3,7 +3,8 @@
 #include <vector>
 
 namespace zcls { struct Node; struct Partition; }
-namespace zmod { struct Material; struct Model; struct Polygon; }
+namespace zmod { struct Material; }
+namespace pm::zmod { struct Model; struct Polygon; struct PolygonAdd; }
 
 // zGeometry's model side (zGeometry\zgeo_model.cpp, 0x0050da90..0x0050f950):
 // the buffers, interpolation and bookkeeping the crater clip works with
@@ -13,6 +14,9 @@ namespace zmod { struct Material; struct Model; struct Polygon; }
 //
 // The clip works in a plane: points (x, y, z) become (x, -z, y), so the
 // outline's (x, z) is its 2D (x, y), and back.
+//
+// On this branch it works on Pirate's Moon's models (pm::zmod): UVs per
+// material, polygon flags 0x3ff count, 0x400 back face, 0x1000 normals.
 namespace zgeo {
 
 // The vertex colours of the polygons cut near the crater being made, for
@@ -55,16 +59,17 @@ void gradient(const float p0[3], const float p1[3], const float p2[3], float s0,
               float out[2]);  // 0x0050e020 ECX p0, EDX p1
 // A polygon's UVs, colours and normals carried over to new points by the
 // gradients over its first three vertices (normals made unit length).
-std::vector<float> uvs_at(const float* points, int32_t n, const zmod::Model& m,
-                          const zmod::Polygon& p);  // 0x0050df30 ECX n, EDX points
-std::vector<float> colors_at(const float* points, int32_t n, const zmod::Model& m,
-                             const zmod::Polygon& p);  // 0x0050e100
-std::vector<float> normals_at(const float* points, int32_t n, const zmod::Model& m,
-                              const zmod::Polygon& p);  // 0x0050e240
+// One array of UVs a material.
+std::vector<std::vector<float>> uvs_at(const float* points, int32_t n, const pm::zmod::Model& m,
+                                       const pm::zmod::Polygon& p);  // Pirate's Moon 1.0 @ 0x00527710
+std::vector<float> colors_at(const float* points, int32_t n, const pm::zmod::Model& m,
+                             const pm::zmod::Polygon& p);  // 0x0050e100
+std::vector<float> normals_at(const float* points, int32_t n, const pm::zmod::Model& m,
+                              const pm::zmod::Polygon& p);  // 0x0050e240
 
 // A polygon's vertex positions in order (0x0050f0a0 ECX model, EDX polygon,
 // reallocating the caller's buffer).
-void polygon_points(const zmod::Model& m, const zmod::Polygon& p, std::vector<float>& out);
+void polygon_points(const pm::zmod::Model& m, const pm::zmod::Polygon& p, std::vector<float>& out);
 
 // The crater's outline (or a polygon) in the plane, 0x1c bytes.
 struct ClipPolygon {
@@ -90,7 +95,7 @@ int insert_points(ClipPolygon& c, const float* points, int32_t n);  // 0x0050e5a
 // A node of the cell whose model the clip replaced, and the new model.
 struct NodeModel {
   zcls::Node* node = nullptr;
-  zmod::Model* model = nullptr;
+  pm::zmod::Model* model = nullptr;
 };
 struct CellClip {                  // 0x0c bytes
   std::vector<NodeModel> nodes;    // +0x00 count, +0x04
@@ -108,34 +113,35 @@ void clip_set_free(ClipSet* s);        // 0x0050e930
 // crater count (+0x39) up by one and its list emptied.
 int commit(ClipSet& s);                // 0x0050e850 ECX s
 
-// Polygons into a model through zModel's 0x0053c6c0. add_polygon: a
-// polygon of n points (no UVs and no material: a random colour);
+// Polygons into a model through zModel's 0x0055cb70. add_polygon: a
+// polygon of n points and one material, all the callers give it (no UVs and
+// no material: a random colour);
 // add_child: a cut piece of src's polygon p, its UVs, colours and normals
 // carried over (the colours noted for the crater); copy_polygon: p as is.
-int add_polygon(zmod::Model* m, int32_t n, const float* points, zmod::Material* material, const float* uvs,
+int add_polygon(pm::zmod::Model* m, int32_t n, const float* points, zmod::Material* material, const float* uvs,
                 const float* normals, const float* colors);  // 0x0050dea0 ECX m, EDX n
-int add_child(zmod::Model* m, int32_t n, const float* points, const zmod::Model& src,
-              const zmod::Polygon& p);  // 0x0050f4e0 ECX m, EDX n
-int copy_polygon(zmod::Model* m, const zmod::Model& src, const zmod::Polygon& p);  // 0x0050f640 ECX m, EDX src
+int add_child(pm::zmod::Model* m, int32_t n, const float* points, const pm::zmod::Model& src,
+              const pm::zmod::Polygon& p);  // 0x0050f4e0 ECX m, EDX n
+int copy_polygon(pm::zmod::Model* m, const pm::zmod::Model& src, const pm::zmod::Polygon& p);  // 0x0050f640 ECX m, EDX src
 
 // The clip (craters part 5b). The outline is in the plane (ClipPolygon).
 // The new crater node for a cell: zone from the first clipped ground node
 // with one, flag 0x20000 (no later crater cuts it), a new model, added under
 // the world. Null on failure (*node too).
-zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** node);  // 0x0050e950 ECX cell, EDX world
+pm::zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** node);  // 0x0050e950 ECX cell, EDX world
 // The outline's points snapped (within 0.1) onto the node's polygons near
 // it; 1 when any moved.
 int snap_outline(ClipPolygon& c, zcls::Node* node);   // 0x0050ea50 ECX c, EDX node
 // 1 when no polygon of m overlaps the outline (Weiler's region-only list).
-int clear_of(ClipPolygon& c, zmod::Model* m);         // 0x0050f7b0 ECX c, EDX m
+int clear_of(ClipPolygon& c, pm::zmod::Model* m);         // 0x0050f7b0 ECX c, EDX m
 // m clipped against the outline into a new model (*out; null when no
 // polygon changed): pieces outside kept (convexified), whole ones copied,
 // a polygon around the outline cut as a ring of triangles. Cut points join
 // the outline. 0 on failure.
-int clip_model(ClipPolygon& c, zmod::Model* m, zmod::Model** out);  // 0x0050f120 ECX c, EDX m
+int clip_model(ClipPolygon& c, pm::zmod::Model* m, pm::zmod::Model** out);  // 0x0050f120 ECX c, EDX m
 // A node by its flags: 0x20000 must be clear of the outline, 0x10000 is
 // clipped (*out its new model). 1 unless that fails.
-int clip_node(ClipPolygon& c, zcls::Node* node, zmod::Model** out);  // 0x0050ef70 ECX c, EDX node
+int clip_node(ClipPolygon& c, zcls::Node* node, pm::zmod::Model** out);  // 0x0050ef70 ECX c, EDX node
 // The outline (n points) against the cell's and the world's own ground
 // nodes (flag 4): a new CellClip in `set` with each changed node and its
 // new model, and the outline as the clip left it. The count of changed
@@ -143,17 +149,14 @@ int clip_node(ClipPolygon& c, zcls::Node* node, zmod::Model** out);  // 0x0050ef
 int clip_cell(const float* points, int32_t n, zcls::Partition* cell, ClipSet& set);  // 0x0050ec10 ECX n, EDX points
 
 struct Hooks {
-  // zModel's add-a-polygon (not ported yet).
-  int (*model_add)(zmod::Model* m, int32_t n, const float* points, const float* normals, const float* uvs,
-                   uint32_t a, uint32_t b, uint32_t c, zmod::Material* material, int32_t priority, uint32_t flag,
-                   const uint8_t zone[4], const float* colors) = nullptr;  // 0x0053c6c0 ECX m, EDX n
+  int (*model_add)(pm::zmod::Model* m, int32_t n, const pm::zmod::PolygonAdd& add);  // 0x0055cb70
   zmod::Material* (*material_add)(zmod::Material& m);                 // 0x00536ad0
   int (*rand)();                                                      // MSVCRT's
-  zmod::Model* (*node_model)(zcls::Node* node);                       // 0x004eb420
-  int (*node_set_model)(zcls::Node* node, zmod::Model* model);        // 0x004eb370
-  int (*model_release)(zmod::Model* m);                               // 0x00539150
+  pm::zmod::Model* (*node_model)(zcls::Node* node);                       // 0x004eb420
+  int (*node_set_model)(zcls::Node* node, pm::zmod::Model* model);        // 0x004fcc60
+  int (*model_release)(pm::zmod::Model* m);                               // 0x005590f0
   void (*weiler_free)(void* polygon) = nullptr;                       // 0x0050fab0
-  zmod::Model* (*model_alloc)();                                      // 0x00538fe0
+  pm::zmod::Model* (*model_alloc)();                                      // 0x00558f50
   zcls::Node* (*world_node)();                                        // zDEClient's 0x005020b0
   Hooks();
 };

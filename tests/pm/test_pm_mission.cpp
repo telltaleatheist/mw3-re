@@ -9,9 +9,13 @@
 
 #include "check.h"
 #include "gamez/zgame/zgame_table.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/list.h"
+#include "gamez/zdeclient/zdec_crater.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "pm/gamez/zmodel/gmod_clip3d.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "pm/pm_game.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
@@ -196,6 +200,8 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   app.post_intro_ = &mech3::states().load;
   int frames = 0, before = -1, after = -1, unit_valve = -1;
   int soil_on = 0, soil_all = 0, tex_names = 0;
+  int crater = -9, crater_polys = 0, crater_refs = 0;
+  size_t crater_history = 0;
   void* werewolf = nullptr;
   const auto state = [](void* m) {
     mech3::LaunchedMech o;
@@ -216,6 +222,17 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
       if (mech3::ai::Valve* v = mech3::ai::valve_find("werewolf_destroyed_ready")) v->set(1);  // on_mission_start's, 50 s in
     }
     if (frames == 40 && werewolf) after = state(werewolf);
+    if (frames == 10) {  // a crater cuts PM's ground: the ground models replaced, its own drawn by material
+      mech3::LaunchedMech o;
+      mech3::describe_mech(mech3::mech_mission_player(), &o);
+      zwep::CraterOrder order;
+      order.x00 = 0x1008, order.points = 10, order.depth = 0.75f, order.radius = 5.0f;
+      order.at = {o.pos[0], o.pos[1], o.pos[2]};
+      crater = zdec::crater_instance(&order, 0);
+      crater_history = zdec::craters().history.size();
+      if (zcls::Node* n = zcls::list_find_by_name(6, "ZDEC_FEATURE"); n && n->pm_model)
+        crater_polys = n->pm_model->count(0x10), crater_refs = n->pm_model->count(0x5c);
+    }
     if (frames == 5) {  // the skins reach PM's models (0x00476610): "mech" soil on the mech's materials
       mech3::MechTextures tex;
       if (mech3::mech_textures(mech3::mech_mission_player(), &tex))
@@ -233,6 +250,9 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   EXPECT(after == 10);
   std::printf("  c2m4: the player's polygons on mech soil %d of %d, textures %d\n", soil_on, soil_all, tex_names);
   EXPECT(soil_all > 100 && soil_on > soil_all / 2 && tex_names > 100);
+  std::printf("  c2m4: crater %d, its polygons %d, material refs %d, history %zu\n", crater, crater_polys, crater_refs,
+              crater_history);
+  EXPECT(crater == 0 && crater_polys >= 20 && crater_refs > 0 && crater_history == 1);  // 10 quads, 10 triangles; a bent quad is 2
   EXPECT(pm::zmod::clip3d_state().overruns == 0);  // the clippers stayed in their arena (gmod_draw.cpp)
   // Leaving the mech lab purges what no model uses (0x005394c0): the world's materials stay.
   const int32_t materials = ::zmod::materials().count;
