@@ -385,18 +385,25 @@ Config* config_copy_store(const char* name, const Config& c, Store* store, bool 
   return Config::copy_of(name, c, [&](Config& d) {
     if (!store) return;
     if (!store->has_config(-1, static_cast<const Store*>(nullptr), &d)) {
-      // Each item cut to what the store holds, from the first again after
-      // each cut; then the emptied ones dropped.
-      for (bool again = true; again;) {
-        again = false;
-        for (ConfigItem* it : d.items) {
-          if (!it) continue;
-          const int32_t have = store->count_like(it);
-          if (have < it->count) {
-            it->count = it->count + (have - it->count);
-            if (it->count < 0) it->count = 0;
-            again = true;
-            break;
+      // Pirate's Moon 1.0 @ 0x00425970, "Incomplete Configuration": each item takes from a copy of the store, in
+      // turn, so two of a kind share it (MW3's each saw it whole), and is cut to what's left. Armour plate a
+      // loadout can't have comes off its tons, half a ton a piece, and the points are spread again. Then the
+      // emptied items dropped; unlike MW3 the copy isn't marked modified.
+      Store left;
+      left.add_all(*store);
+      for (ConfigItem* it : d.items) {
+        if (!it) continue;
+        const int32_t want = it->count, have = left.count_like(it);
+        left.remove(it, want);
+        if (have >= want) continue;
+        const int32_t short_by = want - have;
+        it->count = want - short_by < 0 ? 0 : want - short_by;
+        if (it->kind() == 3) {
+          const int32_t e = static_cast<EquipmentItem*>(it)->equipment;
+          if (e == 1 || e == 2) {
+            d.armor_tons = d.armor_tons - static_cast<float>(short_by) * 0.5f;
+            if (d.armor_tons < 0.0f) d.armor_tons = 0.0f;
+            d.spread_armor(d.mech);
           }
         }
       }
@@ -408,7 +415,6 @@ Config* config_copy_store(const char* name, const Config& c, Store* store, bool 
           ++i;
         }
       }
-      d.modified = 1;
       const int32_t sink_tech = c.sink_tech;
       const uint8_t doubles = c.double_sinks;
       d.sinks = d.sink_items() + 10;
