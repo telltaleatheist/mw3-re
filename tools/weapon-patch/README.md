@@ -158,7 +158,8 @@ As of 2026-11-05:
   log line, and `restore` puts the original back.
 - **127 weapons, unproven.** With 90 made-up rows, 394 store items, the lab's weapon and ammo lists opened and scrolled to the end on a real game. Then, after Accept on the lab and the next click, the game crashed
   once (0xc0000005 at `Mech3.exe+0x89d19`, on the Instant Action screen's enemy list). That code uses the screen's wave numbers, not the weapon table, and reading finds no limit on row count, so the cause is not known. The original
-  also crashes easily on Windows 11. Until that is settled, treat large lists as a risk.
+  also crashes easily on Windows 11. Two later full runs at 127 weapons, with both lists scrolled and the enemy list used, did not crash, and neither did one run each at 38, 49 and
+  without the stand-in. So the crash hasn't been reproduced, and that doesn't clear it: nothing was fitted or saved at 127. Treat large lists as a risk.
 - **On a real game, through a launcher that checks the exe's hash:** the stand-in works, with the PPC fitted, saved, restarted, fired and damaging a target. A patched copy is refused there.
 - **A new definition, in the emulator:** one added to `weapons.zrd`, copied from the PPC with its own weight and damage, is read by the game's own code on both routes. Its name, HUD text, weight, slots, ammo, damage and place in the store all line up, and no other
   definition changes. 5 deliberate breaks were caught. On an exe without its row, it's only one more definition.
