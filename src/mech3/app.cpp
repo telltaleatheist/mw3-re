@@ -188,7 +188,7 @@ bool Mech3App::init_instance() {
   if (!e.register_window_class()) return false;  // FIX (A): "Mech3Class", icon 0x94
   g_globals.class_registered = 1;
   const char* version = e.version_string();
-  e.settings_init("MicroProse", e.message(5), version);  // Pirate's Moon's name is message 5, MW3's 7
+  e.settings_init("MicroProse", "MechWarrior 3 EP1", version);  // Pirate's Moon 0x004828d2, MW3's was message 7
   e.input_init(0xb0, "DefaultCmdMap");
   e.list_pool_init(0x200);
   e.reader_init("..\\data\\common\\zrdr");
