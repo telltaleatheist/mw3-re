@@ -24,6 +24,7 @@
 #include "mech3/app_states.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_objective.h"
 #include "mech3/mission.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
@@ -128,7 +129,8 @@ TEST(pm_c1m1_shadow_cats_wake) {
   int frames = 0, up0 = -1, up1 = -1, go = -1;
   void* cats[2] = {};
   int turf = 0, turf_ally = 0, tur_other = 0, tur_enemy = 0;
-  bool nav = false;
+  bool nav = false, still_core = false;
+  int camp_done = 0, camp_failed = 0;
   engine.on_present = [&](int) {
     if (app.current() != &mech3::states().core) return;
     if (frames == 2) {
@@ -152,6 +154,16 @@ TEST(pm_c1m1_shadow_cats_wake) {
       }
       std::printf("  c1m1: %d AI mechs, shadow cats %p %p\n", made, cats[0], cats[1]);
     }
+    if (frames == 13000)  // the camp lost: "Protect Rim Collective Camp"'s fails (0x004600d0)
+      if (mech3::ai::Valve* v = mech3::ai::valve_find("collective_camp1")) v->set(1);
+    if (frames == 13100) {
+      mech3::Objectives& o = mech3::mission_objectives();
+      if (o.secondary && !o.secondary->items.empty()) {
+        const mech3::Objective& camp = *o.secondary->items.front();
+        camp_done = camp.done, camp_failed = camp.failed;
+      }
+      still_core = app.current() == &mech3::states().core;
+    }
     if (frames < 3 || (!cats[0] && !cats[1])) return;
     mech3::LaunchedMech a, b;
     if (cats[0]) mech3::describe_mech(cats[0], &a);
@@ -171,6 +183,8 @@ TEST(pm_c1m1_shadow_cats_wake) {
   zgame::set_game(zgame::mw3_table());
   if (other) return;
   EXPECT(nav);
+  std::printf("  c1m1: the camp's objective done %d failed %d, still in the mission %d\n", camp_done, camp_failed, still_core);
+  EXPECT(camp_done && camp_failed && still_core);
   std::printf("  c1m1: turf_ turrets %d, on the player's side %d; others %d, enemy %d\n", turf, turf_ally, tur_other, tur_enemy);
   EXPECT(turf > 0 && turf_ally == turf && tur_enemy == tur_other);
   EXPECT(cats[0] && cats[1]);

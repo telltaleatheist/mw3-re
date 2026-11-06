@@ -164,7 +164,7 @@ void pocket_mission_end() {
 PocketItem::PocketItem(PocketPanel* p, const char* s, int32_t px, int32_t py) : FontText(nullptr, 0, 0), panel(p) {
   set_text_plain(s);
   x = px, y = py;
-  set_font(ztwod::host().font_find("ia_small_grey"));  // 0x00517680 on 0x005e50c0
+  set_font(ztwod::host().font_find("pocket_menu_grey"));  // Pirate's Moon 0x00469060, MW3's ia_small_grey
 }
 
 // Mech3.exe 1.2 @ 0x004675e0
