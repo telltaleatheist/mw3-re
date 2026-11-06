@@ -202,7 +202,7 @@ class TargetHooks : public zgame::Unported {
   virtual uint32_t team_of(Handle target) { (void)target; return 0; }  // +0xc0, a field
   virtual uint8_t flags_of(Handle target) { (void)target; return 0; }  // +0xbc, a field
   virtual void contact_delete(Contact* c) { delete c; }
-  // The target keys' vt+0xc0(c, 0): a mech's 0x0041d890 tells the HUD too.
+  // The target keys' vt+0xcc(c, 0) (MW3's vt+0xc0): a mech's 0x0041e7e0 tells the HUD too.
   virtual void target_set(AiTarget& t, Contact* c) { t.set_target(c, false); }
   // 0x004d6d20.
   virtual Handle self_vehicle(Handle self) { return unported("self.vt+0x50", {self}); }

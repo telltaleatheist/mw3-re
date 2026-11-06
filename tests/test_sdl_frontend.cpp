@@ -5003,3 +5003,31 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
 #endif
 #endif
 #endif  // MW3_PM_SUITE
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)
+// mw3pm's start-up as mw3's, under its own name: a crash says so in the log (crash_report.h; the test's
+// run stops at the log line, with no box), a pointer's missing folder is said and nothing made in its place.
+TEST(pm_program_crash_and_data_folder_say_pirates_moon) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm_start_up";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/usual", ec);
+  const auto text = [](const std::string& path) {
+    std::ifstream in(path);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  const auto code = [](const std::string& line) {
+    const int r = std::system(line.c_str());
+    return WIFEXITED(r) ? WEXITSTATUS(r) : -1;
+  };
+  const std::string bin = std::string("\"") + MW3_BIN + "\"";
+  EXPECT(code("MW3_CRASH_TEST=1 " + bin + " --nosound --write-dir \"" + dir + "\" >/dev/null 2>&1") == 70);
+  const std::string log = text(dir + "/mw3.log");
+  EXPECT(log.find("mw3pm: crashed: segmentation fault") != std::string::npos);
+  std::ofstream(dir + "/usual/" + mech3::data_folder::kPointer) << dir << "/gone/mine\n";
+  const std::string out = dir + "/out.log";
+  EXPECT(code("MW3_USUAL_FOLDER=\"" + dir + "/usual\" " + bin + " --hidden --nosound >\"" + out + "\" 2>&1") == 1);
+  EXPECT(text(out).find("Your Pirate's Moon data folder is not there") != std::string::npos);
+  EXPECT(!std::filesystem::exists(dir + "/gone"));
+}
+#endif

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -14,12 +15,14 @@
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/app_mech.h"
+#include "mech3/mech_control.h"
 #include "mech3/mission.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/options.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zrdrvalve.h"
+#include "gamez/zsound/zsnd.h"
 #include "platform/silent_sound.h"
 
 namespace {
@@ -57,7 +60,8 @@ struct NoKeys : platform::Input {
 };
 struct Pump : platform::MessagePump {
   int passes = 0, limit = 200;
-  bool peek() override { return ++passes > limit; }
+  std::function<bool()> stop;
+  bool peek() override { return ++passes > limit || (stop && stop()); }
   bool pump() override {
     mech3::missions().cleanup(false);
     return false;
@@ -82,6 +86,13 @@ TEST(pm_c1m1_shadow_cats_wake) {
   const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_c1m1_write";
   std::filesystem::create_directories(wd);
   zutl::set_write_dir(wd.c_str());
+  // As a new process starts: the tests before this one leave their state.
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
   NoKeys keys;
   Window window;
   Alert alert;
@@ -139,4 +150,76 @@ TEST(pm_c1m1_shadow_cats_wake) {
   EXPECT(cats[0] && cats[1]);
   EXPECT(go > 0);
   EXPECT(up0 > 0 && up1 > 0);
+}
+
+// The one destroy valve PM ships that names a unit: mission 4's `werewolf_destroyed`, any of
+// `werewolf_destroyed_ready` and `werewolf_down`, kills `werewolf` through the kill 0x41de00 (0x4f5210
+// calls vt+0x78). PM has no gas: MW3's c2 m2 records aren't in its data.
+TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
+  // Not after the Shadow Cats in one process: what a mission leaves here crashes a second one (zcls's lists).
+  if (std::getenv("MW3_CAMPAIGN") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_c2m4_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  // As a new process starts: the tests before this one leave their state.
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  mech3::Mech3App app(&engine);
+  mech3::set_app(&app);
+  EXPECT(app.init_instance());
+  mech3::GameEngine::Launch l;
+  l.index = 1, l.number = 4;
+  engine.set_launch(l);
+  app.post_intro_ = &mech3::states().load;
+  int frames = 0, before = -1, after = -1, unit_valve = -1;
+  void* werewolf = nullptr;
+  const auto state = [](void* m) {
+    mech3::LaunchedMech o;
+    mech3::describe_mech(m, &o);
+    return o.anim_state;
+  };
+  engine.on_present = [&](int) {
+    if (app.current() != &mech3::states().core) return;
+    if (++frames == 5) {
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      for (int32_t i = 0; i < made; ++i)
+        if (ai[i].name && !std::strcmp(ai[i].name, "werewolf")) werewolf = ai[i].mech;
+      if (werewolf) before = state(werewolf);
+    }
+    if (frames == 20) {
+      unit_valve = valve_value("werewolf_destroyed");
+      if (mech3::ai::Valve* v = mech3::ai::valve_find("werewolf_destroyed_ready")) v->set(1);  // on_mission_start's, 50 s in
+    }
+    if (frames == 40 && werewolf) after = state(werewolf);
+  };
+  Pump pump;
+  pump.limit = 3000;
+  pump.stop = [&] { return frames >= 41; };
+  app.run(pump);
+  std::printf("  c2m4: werewolf %p, state %d -> %d, the valve was %d, frames %d\n", werewolf, before, after, unit_valve, frames);
+  zgame::set_game(zgame::mw3_table());
+  EXPECT(werewolf);
+  EXPECT(before != 10);  // Mech::Die's +0x578
+  EXPECT(after == 10);
 }

@@ -66,6 +66,25 @@ TEST(pm_collide_wall_hit_at_any_rate) {
   EXPECT(near(slow.a.vec_58.y, fast.a.vec_58.y));
 }
 
+// 0x4255f0: [0x0060463c], 20 a hit, whatever the frame.
+TEST(pm_collide_touch_hit_at_any_rate) {
+  static float got[2];
+  static int at;
+  const CollideCalls saved = collide_calls();
+  collide_calls().touch = [](Handle, const Vec3*, const CollisionHit&, float d) { return got[at] = d, 0.0f; };
+  zfix::options().per_second = true;
+  Pair slow, fast;
+  slow.a.collider.touches.emplace_back(), fast.a.collider.touches.emplace_back();
+  at = 0;
+  slow.a.frame_dt = 1 / 30.0f;
+  EXPECT(!slow.a.touch_response());
+  at = 1;
+  fast.a.frame_dt = 1 / 240.0f;
+  EXPECT(!fast.a.touch_response());
+  collide_calls() = saved;
+  EXPECT(got[0] == 20.0f && got[1] == 20.0f);
+}
+
 TEST(pm_collide_crash_hit_at_any_rate) {
   for (auto* f : {crash, leg_crash}) {
     Pair slow, fast;

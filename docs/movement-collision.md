@@ -313,4 +313,4 @@ division for a multiplication in the inverse (an ulp, not reached).
 
 ## Frame rate (2026-11-05)
 
-Nothing in collision is scaled by `frame_steps`, but the 20 to touched objects (as on `main`). Dev 2's measure on `main`'s code, c1m1 at 33, 16, 8 and 4 ms: hits rise far less than the frame rate (x3 hits for x8 the frames at walls), so the amounts are per hit. An earlier scaling on `pm` (a2105b11) was removed with that verdict.
+Nothing in collision is scaled by `frame_steps`, the 20 to touched objects included (0x4255f0 reads 20.0 from 0x60463c, a hit; on `main` the same since c693ee74). Dev 2's measure on `main`'s code, c1m1 at 33, 16, 8 and 4 ms: hits rise far less than the frame rate (x3 hits for x8 the frames at walls), so the amounts are per hit. An earlier scaling on `pm` (a2105b11) was removed with that verdict.
