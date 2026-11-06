@@ -94,3 +94,45 @@ extern "C" int probe_pm_ai_targets(const char* entry, char* out, int size) {
   std::memcpy(out, o.c_str(), o.size() + 1);
   return static_cast<int>(o.size());
 }
+
+// aiv.zrd's records (0x004f0830): the numbers, the target block, the flags as PM holds them.
+extern "C" int probe_pm_ai_aiv(const char* entry, char* out, int size) {
+  rdr_hooks().localize = same;
+  zrdr::Node* root = zrdr::load(entry);
+  if (!root || root->type != zrdr::List) return -1;
+  std::string o;
+  zrdr::Node* top = root->list[0].i > 1 && root->list[1].type == zrdr::List ? root->list[1].list : root->list;
+  const int32_t n = top[0].i;
+  auto* r = new AivRecord;
+  for (int32_t i = 1; i + 1 < n; i += 2) {
+    if (top[i].type != zrdr::String || top[i + 1].type != zrdr::List) continue;
+    r->parse(&top[i + 1], top[i].s);
+    o += top[i].s;
+    char b[32];
+    for (int off = 4; off < 0xcc; off += 4) {
+      std::snprintf(b, sizeof b, " %x", r->get<uint32_t>(off));
+      o += b;
+    }
+    for (uint32_t w : r->target_words) std::snprintf(b, sizeof b, " %x", w), o += b;
+    std::snprintf(b, sizeof b, " %x %x %x ", r->raw[0xcc], r->raw[0xcd], r->raw[0xce]);
+    o += b;
+    o += std::string(sn(r->pilot)) + '|' + sn(r->sound_tag) + '|';
+    if (r->vlist)
+      for (const VListEntry& e : *r->vlist) {
+        std::snprintf(b, sizeof b, "%x,%x,", fb(e.f00), fb(e.f04));
+        o += b;
+        std::snprintf(b, sizeof b, "%x,%x,%x,", fb(e.f08), fb(e.f0c), fb(e.f10));
+        o += b;
+        std::snprintf(b, sizeof b, "%x,%x,", e.flags, e.flags2);
+        o += b;
+        o += std::string(vn(e.valve)) + ';';
+      }
+    o += '\n';
+  }
+  delete r;
+  zrdr::free_node(root);
+  rdr_hooks() = RdrHooks{};
+  if (static_cast<int>(o.size()) >= size) return -2;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}

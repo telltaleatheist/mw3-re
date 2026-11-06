@@ -1,5 +1,6 @@
 #include "mech3/zrdraiv.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -237,6 +238,15 @@ uint8_t with(uint8_t byte, int bit, bool on) {
 }
 }  // namespace
 
+namespace {
+// Pirate's Moon 1.0 @ 0x004f1036: _stricmp, where MW3's compared exactly; PM's records are lowercase.
+bool same_name(const char* a, const char* b) {
+  for (; *a && *b; ++a, ++b)
+    if (std::tolower(static_cast<unsigned char>(*a)) != std::tolower(static_cast<unsigned char>(*b))) return false;
+  return *a == *b;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x004df730 (Ghidra splits it at 0x004e001a, 0x004e0020 and
 // 0x004e0082). The record is (kind (x y z) yaw [team] tag value ...). The
 // tags p3, p4, p5 and p7 are an older form p8 replaced; no shipped file has
@@ -353,14 +363,14 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
     // The three lancemates' radio voices when the file names none: the record
     // must be spelled just so (docs/discoveries.md).
     if (!sound_tag && name) {
-      if (std::strcmp(name, "Epona_Rhi") == 0)
+      if (same_name(name, "Epona_Rhi"))
         sound_tag = dup("epona");
-      else if (std::strcmp(name, "Alan_Mattila") == 0 ||
+      else if (same_name(name, "Alan_Mattila") ||
                // FIX (bug): two records misspell him (c1 Instant Action map 1,
                // c3 mission 6), so he had no radio voice there (Owen, 2026-10-20).
-               (zfix::options().bugs && (std::strcmp(name, "Alan_Mattilla") == 0 || std::strcmp(name, "Alan_Matilla") == 0)))
+               (zfix::options().bugs && (same_name(name, "Alan_Mattilla") || same_name(name, "Alan_Matilla"))))
         sound_tag = dup("alan");
-      else if (std::strcmp(name, "Dominic_Paine") == 0)
+      else if (same_name(name, "Dominic_Paine"))
         sound_tag = dup("dom");
     }
     if ((f = find("skin"))) put_raw(0xc8, w(f, 1));
@@ -400,6 +410,21 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
       if (!vlist) vlist = new std::list<VListEntry>;  // 0x004d9480
       vlist->push_back(e);
     };
+    // Pirate's Moon 1.0 @ 0x004f1120's "target": eight numbers and seven switches, each only if it reads.
+    if (zrdr::Node* t = zrdr::find(value, "target")) {
+      const auto item_at = [&](int k) { return t->type == zrdr::List && k < t->list[0].i ? &t->list[k] : nullptr; };
+      float fv;
+      for (int k : {1, 2, 5, 6, 7, 8})
+        if (zrdr::get_float_value(item_at(k), &fv)) std::memcpy(&target_words[k <= 2 ? k - 1 : k - 1], &fv, 4);
+      for (int k : {3, 4})
+        if (const zrdr::Node* n = item_at(k); n && n->type == zrdr::Int) target_words[k - 1] = static_cast<uint32_t>(n->i);
+      for (int k = 9; k <= 15; ++k) {
+        int32_t v = 0;
+        if (!zrdr::get_tristate(item_at(k), &v) || v == 2) continue;
+        if (k == 15) set_bit(0xce, 0, v == 1);
+        else set_bit(0xcd, k - 7, v == 1);
+      }
+    }
     if ((f = find("vlist")) && f[0].i > 1) {
       for (int32_t k = 1; k < f[0].i; ++k) {
         if (f[k].type != zrdr::List) continue;  // FIX (bug)

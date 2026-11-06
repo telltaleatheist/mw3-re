@@ -13,14 +13,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
 import pm_floors  # noqa: E402
+import test_pm_mechdef as md  # noqa: E402
 import test_pm_zar  # noqa: E402
 import test_pm_zreader as zr  # noqa: E402
 import zrd  # noqa: E402
 from original import ROOT  # noqa: E402
 
 PM = ROOT / 'game' / 'pm'
+MECHS = {m: i for i, m in enumerate(md.MECHS)}
 READ, CTOR, VALVE, SOUND, LOCALIZE = 0x4ec240, 0x4d20c0, 0x4e4100, 0x590a70, 0x596db0
 TARGET, TARGET_CTOR = 0x4f1c20, 0x4f1bd0
+AIV, AIV_CTOR, AIV_DEFAULTS = 0x4f0830, 0x4e9b60, 0x60bdd0
 
 
 class Bench(zr.Emulated):
@@ -30,6 +33,8 @@ class Bench(zr.Emulated):
         self.native_stub(VALVE, self.named)
         self.native_stub(SOUND, self.named)
         self.stand(LOCALIZE, lambda c: c.arg(0))
+        self.native_stub(0x486730, lambda c: MECHS.get(self.cstr(c.arg(0)).decode('latin1').lower(), 0xffffffff))  # the mech by name
+        self.native_stub(0x4d0fc0, lambda c: 0)  # a region by name: not compared
 
     def stand(self, addr, fn, pop=0):
         if addr in self.cpu.stubs:
@@ -100,6 +105,40 @@ class Bench(zr.Emulated):
                 text += f'{self.names.get(self.r32(p), "-")}:{self.r32s(p + 4)}:{self.r32(p + 8)},'
         return text
 
+    def aiv(self, root):
+        lst = self.r32(root + 4)
+        if self.r32(lst + 4) > 1 and self.r32(lst + 8) == 4:
+            lst = self.r32(lst + 12)
+        out = []
+        n = self.r32(lst + 4)
+        for i in range(1, n - 1, 2):
+            p = lst + 8 * i
+            if self.r32(p) != 3 or self.r32(p + 8) != 4:  # not a name and its record
+                continue
+            key = self.cstr(self.r32(p + 4)).decode('latin1')
+            r = self.alloc(0x110)
+            self.call(AIV_CTOR, ecx=r, args=[AIV_DEFAULTS])
+            self.call(AIV, ecx=r, args=[p + 8, self.string(key)])
+            text = key + ''.join(f' {self.r32(r + o):x}' for o in range(4, 0xcc, 4))
+            text += ''.join(f' {self.r32(r + o):x}' for o in range(0xcc, 0xec, 4))
+            text += f' {self.b(r + 0xec):x} {self.b(r + 0xed):x} {self.b(r + 0xee):x} '
+            text += f'{self.pstring(r, 0xf4)}|{self.pstring(r, 0xf8)}|'
+            v = self.r32(r + 0xf0)
+            if v:
+                head = self.r32(v + 4)
+                node = self.r32(head)
+                while node != head:
+                    e = node + 8
+                    text += f'{self.r32(e):x},{self.r32(e + 4):x},{self.r32(e + 8):x},{self.r32(e + 0xc):x},{self.r32(e + 0x10):x},'
+                    text += f'{self.b(e + 0x18):x},{self.b(e + 0x19):x},{self.names.get(self.r32(e + 0x1c), "-")};'
+                    node = self.r32(node)
+            out.append(text)
+        return out
+
+    def pstring(self, r, off):
+        p = self.r32(r + off)
+        return self.cstr(p).decode('latin1') if p else '-'
+
     def targets(self, root):
         lst = self.r32(root + 4)
         if self.r32(lst + 4) > 1 and self.r32(lst + 8) == 4:
@@ -132,16 +171,18 @@ def main():
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10 ** 6
     p = test_pm_zar.load_pm_probe()
     p.probe_pm_ai_nodes.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    p.probe_pm_ai_aiv.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_ai_targets.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
     buf = ctypes.create_string_buffer(1 << 22)
-    files = nodes = bad = vias = tfiles = trecs = special = 0
+    files = nodes = bad = vias = tfiles = trecs = special = afiles = arecs = 0
     for path in sorted(PM.glob('zbd/*/reader*.zbd'))[:limit]:
         rel = path.relative_to(PM).as_posix()
         data = path.read_bytes()
         names = [n for n, _, _ in zrd.entries(data) if n.lower().startswith(('net_', 'reg_'))]
         has_targets = any(n.lower() == 'targets.zrd' for n, _, _ in zrd.entries(data))
-        if not names and not has_targets:
+        has_aiv = any(n.lower() == 'aiv.zrd' for n, _, _ in zrd.entries(data))
+        if not names and not has_targets and not has_aiv:
             continue
         emu = Bench()
         emu.stand_ins()
@@ -149,6 +190,22 @@ def main():
         if not emu.call(zr.OPEN_ARCHIVE, args=[emu.string(rel.replace('/', '\\')), 1]):
             raise SystemExit(f'{rel}: PM does not open it')
         p.probe_pm_zrdr_load(str(PM).encode(), rel.encode(), (names[0] if names else 'targets.zrd').encode())
+        if has_aiv:
+            root = emu.call(zr.LOAD, args=[emu.string('aiv.zrd'), 0, 0])
+            theirs = emu.aiv(root) if root else []
+            n = p.probe_pm_ai_aiv(b'aiv.zrd', buf, len(buf))
+            ours = buf.value.decode('latin1').splitlines() if n >= 0 else []
+            afiles += 1
+            arecs += len(theirs)
+            if theirs != ours:
+                bad += 1
+                if bad <= 5:
+                    print(f'{rel} aiv: {len(theirs)} and {len(ours)} records')
+                    for a, b in zip(theirs, ours):
+                        if a != b:
+                            ta, tb = a.split(' '), b.split(' ')
+                            print('  ', ta[0], [(hex(4 + 4 * (i - 1)), x, y) for i, (x, y) in enumerate(zip(ta, tb)) if x != y][:8])
+                            break
         if has_targets:
             root = emu.call(zr.LOAD, args=[emu.string('targets.zrd'), 0, 0])
             theirs = emu.targets(root) if root else []
@@ -185,7 +242,7 @@ def main():
                             break
     if limit >= 10 ** 6:
         pm_floors.floors(files=(files, 400), nodes=(nodes, 5000), vias=(vias, 500), target_files=(tfiles, 30), specials=(special, 10))
-    print(f'{files} files, {nodes} nodes ({vias} with via); {tfiles} targets.zrd, {trecs} records ({special} with PM\'s new keys): {bad} differ')
+    print(f'{files} files, {nodes} nodes ({vias} with via); {tfiles} targets.zrd, {trecs} records ({special} with PM\'s new keys); {afiles} aiv.zrd, {arecs} records: {bad} differ')
     sys.exit(1 if bad else 0)
 
 

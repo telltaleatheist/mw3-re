@@ -69,6 +69,9 @@ class AiParams {
   int32_t skin() const { return get<int32_t>(0xc8); }
 
   uint8_t raw[kEnd] = {};                     // +0x04..+0xcf used
+  // Pirate's Moon's "target" block, its +0xcc..+0xe8, between MW3's numbers and flags. Its flags,
+  // at +0xed bits 2-7 and +0xee bit 0 there, are +0xcd and +0xce here (the port keeps MW3's offsets).
+  uint32_t target_words[8] = {0x41200000, 0x41200000, 0, 0, 0x3f800000, 0, 0, 0};
   std::list<VListEntry>* vlist = nullptr;     // +0xd0  a 0x0c-byte list owner in the exe
   char* pilot = nullptr;                      // +0xd4  localized
   char* sound_tag = nullptr;                  // +0xd8  the radio voice: "dom", "alan", "epona"

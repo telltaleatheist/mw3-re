@@ -15,7 +15,7 @@ const uint32_t kDefaults[0x33] = {
     0x41a00000, 0x3dcccccd, 0,          0x41f00000, 0,          0,          0x40a00000, 0x41700000, 0x41200000,
     0x41a00000, 0x44610000, 0x41700000, 0x42480000, 1,          0x3f800000, 0,          1,          0x3e4ccccd,
     0x3f800000, 1,          1,          1,          0,          0x40800000, 0x40800000, 0x40800000, 0x3f000000,
-    0x3f800000, 0,          0x3f000000, 0xffffffff, 0,          0x2c1};
+    0x3f800000, 0,          0x3f000000, 0xffffffff, 0,          0x3fec1};  // Pirate's Moon's flags: +0xcd's bits 2-7, +0xce's 0-1
 constexpr double kToDegrees = 57.29577951308;    // 0x005cd350
 constexpr double kToRadians = 0.01745329251994;  // 0x005cd358
 // The ranges kept squared: +0x1c, +0x20, +0x24, +0x74.
@@ -34,6 +34,7 @@ AiParams::AiParams(const AiParams& o) { *this = o; }
 AiParams& AiParams::operator=(const AiParams& o) {
   if (this == &o) return *this;
   std::memcpy(raw + kBegin, o.raw + kBegin, kEnd - kBegin);
+  std::memcpy(target_words, o.target_words, sizeof target_words);
   if (o.vlist && !o.vlist->empty()) {
     if (!vlist) vlist = new std::list<VListEntry>;
     *vlist = *o.vlist;
@@ -55,6 +56,7 @@ AiParams::~AiParams() {
 // Mech3.exe 1.2 @ 0x004d9ac0
 void AiParams::reset() {
   std::memcpy(raw + kBegin, kDefaults, sizeof kDefaults);
+  std::memcpy(target_words, AiParams{}.target_words, sizeof target_words);
   put<int32_t>(0x18, team_side(1));
   delete vlist, vlist = nullptr;  // 0x004d91e0
   std::free(pilot), pilot = nullptr;
