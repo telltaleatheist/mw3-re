@@ -6,8 +6,10 @@
 #include <cstring>
 
 #include "crt/msvc_math.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_format.h"
 
 namespace pm::zmod {
@@ -32,6 +34,66 @@ T* read_array(std::FILE* f, size_t bytes) {
 }  // namespace
 
 ModelPool& models() { return g_pool; }
+
+// Pirate's Moon 1.0 @ 0x00547ab0: MW3's 0x00541ad0 on a polygon's first material and its UVs, its
+// count in ten bits. The UVs move by dt times +0x28 / +0x2c, kept near 0. -1 for no model.
+int model_scroll_tick(Model* m) {
+  if (!m) return -1;
+  const auto get = [&](int off) { float v; std::memcpy(&v, m->header + off, 4); return v; };
+  uint32_t last;
+  std::memcpy(&last, m->header + 0x30, 4);
+  const uint32_t frame = ::zcls::frames().frame;
+  if (last == frame) return 0;
+  std::memcpy(m->header + 0x30, &frame, 4);
+  const float su = get(0x28), sv = get(0x2c);
+  const bool no_u = !(su < 0.0f || su > 0.0f), no_v = !(sv < 0.0f || sv > 0.0f);
+  if (no_u && no_v) return 0;
+  const float dt = ztimer::state().dt;
+  const float du = dt * su, dv = dt * sv;
+  for (int32_t k = 0; k < m->count(0x10); ++k) {
+    Polygon& p = m->polygons[k];
+    if (!(p.materials[0]->flags & 1)) continue;  // textured
+    float* uv = p.uvs[0];
+    const int32_t count = static_cast<int32_t>(p.flags & 0x3ff);
+    if (!no_u && !no_v) {
+      float umin = uv[0], umax = uv[0], vmin = uv[1], vmax = uv[1];
+      for (int32_t j = 1; j < count; ++j) {
+        const float u = uv[2 * j], v = uv[2 * j + 1];
+        if (!(u >= umin)) umin = u;  // C0: below, or unordered
+        else if (u > umax) umax = u;
+        if (!(v >= vmin)) vmin = v;
+        else if (v > vmax) vmax = v;
+      }
+      const float ou = du - static_cast<float>(crt::msvc_ftol(du - (umax + umin) * -0.5f));
+      const float ov = dv - static_cast<float>(crt::msvc_ftol(dv - (vmax + vmin) * -0.5f));
+      for (int32_t j = 0; j < count; ++j) uv[2 * j] = ou + uv[2 * j], uv[2 * j + 1] = ov + uv[2 * j + 1];
+      continue;
+    }
+    const int a = no_u ? 1 : 0;
+    const float d = no_u ? dv : du;
+    float lo = uv[a], hi = uv[a];
+    for (int32_t j = 1; j < count; ++j) {
+      const float x = uv[2 * j + a];
+      if (!(x >= lo)) lo = x;
+      else if (!(hi >= x)) hi = x;
+    }
+    const float o = d - static_cast<float>(crt::msvc_ftol(d - (hi + lo) * -0.5f));
+    for (int32_t j = 0; j < count; ++j) uv[2 * j + a] = o + uv[2 * j + a];
+  }
+  return 0;
+}
+
+// Pirate's Moon: MW3's 0x00526ae0.
+int model_set_scroll(Model* m, int on, float u, float v) {
+  if (!m) return 1;
+  uint32_t f;
+  std::memcpy(&f, m->header + 8, 4);
+  f = (static_cast<uint32_t>(on) & 1) << 4 | (f & ~0x10u);
+  std::memcpy(m->header + 8, &f, 4);
+  std::memcpy(m->header + 0x2c, &v, 4);
+  std::memcpy(m->header + 0x28, &u, 4);
+  return 0;
+}
 
 // Pirate's Moon 1.0 @ 0x00557ba0
 Model* model_at(int32_t index) { return index < 0 ? nullptr : &g_pool.at(index); }

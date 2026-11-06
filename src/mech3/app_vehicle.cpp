@@ -42,6 +42,7 @@
 #include "gamez/zreader/zreader.h"
 #include "mech3/weapon.h"
 #include "mech3/zai_brain.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 // The vehicles in the program (docs/vehicles.md, In the program): the
 // basic vehicle's and its controls' calls out wired to the ports, and what
@@ -138,8 +139,8 @@ struct WiredVehicles : VehBasicHooks {
   }
   void node_tinted(Handle n, int32_t on) override { zcls::object3d_use_blend(static_cast<zcls::Node*>(n), on); }
   void model_scroll(Handle model, float u, float v) override {
-    zmod::model_set_scroll(static_cast<zmod::Model*>(model), 1, u, v);
-    zmod::model_scroll_tick(static_cast<zmod::Model*>(model));
+    pm::zmod::model_set_scroll(static_cast<pm::zmod::Model*>(model), 1, u, v);
+    pm::zmod::model_scroll_tick(static_cast<pm::zmod::Model*>(model));
   }
   // zWeapon's hit state and a kill (as the mechs').
   Handle hit_attacker() override { return zwep::attacker(); }
