@@ -324,6 +324,8 @@ The other gone ids are only in `patch12_text`'s 1.0 table. Text that changed wit
 
 ## The second campaign: "P I R A T E  M I S S I O N S" (2026-11-05)
 
+Names: players call the first campaign **Inner Sphere** (the docs' "first campaign", the menu's CAMPAIGN) and the second **Pirate Missions** (the docs' "second campaign", the exe's "standalone"). Use both, so the docs match what players say.
+
 The exe calls it standalone (game type 5, `Standalone State`, `sa<n>`); it is the game's second campaign, where you play the other side (Owen): 11 of PM's 21 story missions, on the main menu as `MSG_STANDALONE_BTN` 0x1027. Its order by the descriptions in `Mech3Msg.dll`, as the lead read them, runs across worlds and is not the `readersa` numbering: c1sa1, c2sa1, c1sa2, c1sa3, c3sa1, c3sa2, c3sa3, c2sa2, c4sa1, c4sa2, then c1sa4 "Bonus Mission". To check against the exe when 0x40d000..0x40fa00 is read.
 
 **Ported (2026-11-05): `mech3/pilot_standalone`, the menu's PIRATE MISSIONS. Not played: PM's AI is not running, and these missions depend on it, so a chain's win does not show a mission plays right.** Compared with the exe: the list and its order, the mission, what is listed, moving on, the mission's start and salvage block, the lineup (`test_pm_standalone`). From the screens: `test_pm_standalone_chain`, which rests on reading the exe for what the screens should show.

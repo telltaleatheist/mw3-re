@@ -424,7 +424,8 @@ void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
   std::snprintf(out, static_cast<size_t>(size), "%d.%d", static_cast<int>(major), static_cast<int>(minor));
   unported("sprintf", {out});
 }
-const char* Engine::version_number() { return "1.0"; }  // Pirate's Moon's own (its file version is 1.0.11.5)
+// Pirate's Moon 1.0 @ 0x004b30b0: the exe's file version, "%d.%d.%d.%d"; MW3's rebuild shows its short form.
+const char* Engine::version_number() { return "1.0.11.5"; }
 const char* Engine::mission_dir(uint32_t n) { return mech3::mission_dir(static_cast<int32_t>(n)); }
 const ConfigList* Engine::mech_loadouts(int32_t mech) {
   const MechDfn* d = mech3::mech_dfn(mech);

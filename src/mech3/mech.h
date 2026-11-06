@@ -277,6 +277,7 @@ struct Mech : Vehicle {
   void ground_step(float dt);         // 0x004162c0: the skis, then a landing
   void jet_fuel_step(float dt);
   bool lean_step(float dt);           // Pirate's Moon 0x004186f0
+  void pending_from_state();          // Pirate's Moon 0x00419c40's middle
   void predict(float dt);             // Pirate's Moon 0x00423590: this frame's move, committed after the collision
   float altitude() const;             // 0x0041e9c0: above the centre probe's ground
   bool queue_action(int kind, bool force);  // 0x00416780

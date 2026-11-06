@@ -55,6 +55,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | (new) `test_pm_archives.py` | PM | | | new, part of `test_mechsave.py` | the saved archives' writer and loader |
 | (new) `test_pm_lab_message.py` | PM | | | new | the lab's message: 3 seconds, the red flash |
 | (new) `test_pm_briefing_buttons.py` | PM | | | new | the briefing's buttons by game type |
+| (new) `test_pm_mech_vt.py` | PM | | | new | the aim 0x41c900, the placement's block |
 | (new) `test_pm_standalone_chain.py` | PM | | | new | the second campaign from the menu; not played: PM's AI isn't running |
 | (new) `test_pm_ams.py` | PM | | | new | the AMS's frame 0x41a020 with its find and fire |
 | (new) `test_pm_mechsave.py` | PM | | | new, part of `test_mechsave.py` | a saved loadout's save and load, both formats, with byte damage |

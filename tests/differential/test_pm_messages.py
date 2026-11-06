@@ -60,7 +60,7 @@ def main():
     mw = msgtable.messages((ROOT / 'game/mw3-1.2/Mech3Msg.dll').read_bytes())
     pm = msgtable.messages((ROOT / 'game/pm/Mech3Msg.dll').read_bytes())
     gone = {i for i in mw if i not in pm}
-    bad = checked = 0
+    bad = checked = plain = 0
     for path in sorted((ROOT / 'src').rglob('*')):
         if path.suffix not in ('.cpp', '.h', '.inc') or path.name.startswith('patch12_text'):
             continue
@@ -84,6 +84,13 @@ def main():
                 if max(spec(pm[i]), default=0) != len(args) - 1:
                     print(f'{rel}: {hex(i)} takes {want}, given {len(args) - 1}: {pm[i][:50]!r}')
                     bad += 1
+        # A plain message(N), small ids too: message(7), MW3's name, slipped past the literals below.
+        for lit in re.findall(r'\bmessage\(\s*(0x[0-9a-fA-F]+|\d+)\s*\)', text):
+            i = int(lit, 0)
+            if i in gone and WAITING.get(i) != rel:
+                print(f'{rel}: gone id {hex(i)} in message({lit})')
+                bad += 1
+                plain += 1
         if rel in NOT_MESSAGES:
             continue
         for ln, line in enumerate(text.splitlines(), 1):

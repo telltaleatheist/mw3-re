@@ -313,7 +313,7 @@ BriefingScreen::BriefingScreen(Engine& e, const char* name, bool draw_now)
   }
   for (HelpButton* b : {&abort_btn, &replay_btn, &lab_btn, &salvage_btn, &launch_btn, &loading}) b->enable(0);
   version.set_font(ztwod::host().font_find("debug_font"));
-  version.set_text("%s %s", e.message(7), e.version_number());
+  version.set_text("%s %s", e.message(5), e.version_number());  // Pirate's Moon 0x0040513b
   if (version.needs_render) version.render();  // 0x00409c60: the width
   const float w = static_cast<float>(version.width + 5);
   const float h = static_cast<float>(version.text_height() + 3);

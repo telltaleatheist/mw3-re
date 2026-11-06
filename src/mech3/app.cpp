@@ -188,7 +188,7 @@ bool Mech3App::init_instance() {
   if (!e.register_window_class()) return false;  // FIX (A): "Mech3Class", icon 0x94
   g_globals.class_registered = 1;
   const char* version = e.version_string();
-  e.settings_init("MicroProse", e.message(7), version);
+  e.settings_init("MicroProse", e.message(5), version);  // Pirate's Moon's name is message 5, MW3's 7
   e.input_init(0xb0, "DefaultCmdMap");
   e.list_pool_init(0x200);
   e.reader_init("..\\data\\common\\zrdr");
@@ -197,7 +197,7 @@ bool Mech3App::init_instance() {
     e.reader_open_archive("zbd\\reader.zbd", 1);
     if (!e.options_load("detail.zrd")) {
       // "Cannot read required data. Please ensure proper installation."
-      const std::string caption = e.message(7);
+      const std::string caption = e.message(5);
       e.message_beep(0x10);
       e.message_box_text(g_globals.main_hwnd, e.message(0x14d), caption.c_str(), 0x10);
       e.exit_process(0);
@@ -409,10 +409,7 @@ Handle Mech3App::create_main_window() {
   e.attach_debug_menu(e.frame_hwnd(frame));
   g_globals.main_hwnd = e.frame_hwnd(frame);
   e.error_log_open(hwnd, 0, "mech3.err");
-  const char* version = e.version_number();
-  char title[256];
-  e.format("%s %s", {e.message(7), version}, title, sizeof title);
-  e.frame_set_title(frame, title);
+  e.frame_set_title(frame, e.message(5));  // Pirate's Moon 0x00485952: the name alone, MW3's had the version
   return frame;
 }
 

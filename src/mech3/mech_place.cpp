@@ -77,6 +77,13 @@ void Mech::set_place(const float pos[3], float yaw) {
   reset_at(pos);
 }
 
+// Pirate's Moon 1.0 @ 0x00419c40's middle: predict's block starts as the mech stands.
+void Mech::pending_from_state() {
+  std::memcpy(pending_q, orientation, sizeof pending_q);
+  pending_velocity = velocity;
+  std::memcpy(pending_m, transform, sizeof pending_m);
+}
+
 // Mech3.exe 1.2 @ 0x00418e90. vtable +0x18 is zEntity3d's 0x005a8550: the
 // node's translation, then 0x005a85c0, which runs again after it.
 void Mech::reset_at(const float pos[3]) {
@@ -92,6 +99,7 @@ void Mech::reset_at(const float pos[3]) {
     moved(*this);
   }
   moved(*this);
+  pending_from_state();
   collider.place(transform);
   skis->reset();
 }

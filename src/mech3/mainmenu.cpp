@@ -108,7 +108,7 @@ MainMenu::MainMenu(Engine& e, Handle s)
     for (int i = 0; i < 7; ++i) bind_button(&buttons[i], kButtonNames[i]);
     version.set_font(ztwod::host().font_find("debug_font"));
     const char* number = e.version_number();
-    const char* name = e.message(7);
+    const char* name = e.message(5);  // Pirate's Moon 0x00489041
     version.set_text("%s %s", name, number);
     if (version.needs_render) version.render();
     // The bottom right corner of a 640x480 screen, whatever the resolution
