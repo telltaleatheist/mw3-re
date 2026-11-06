@@ -351,3 +351,10 @@ wrong mission, no save, no reopen; in the program the lessons not stepped,
 no command key, the clock stopped, the fade lost. Missed, and unobservable:
 the select out of range (only 0 is asked, with lessons).
 
+## Pirate's Moon: objectives that fail
+
+An `obj_list` may have `fails`, a list of conditions read as `list`'s are (0x0045dc00), and `fail_sound`. Each check
+of the group first tries `fails`: one met ends the group as failed (0x004600d0, 0x0045fcf0): `fail_sound` in place of
+`sound`, message 0x265 in place of 0x263, its `salvage` not won. A failed condition doesn't count toward its own group,
+and the debriefing shows it as Failed. c1m1's "Protect Rim Collective Camp" and "Avoid the Pirate Base" use them.
+

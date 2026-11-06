@@ -178,6 +178,7 @@ class Objective {
   // its one argument twice); nothing reads it.
   std::list<NodeSalvage> node_salvage;  // +0x18, count +0x1c
   zgame::Handle sound = 0;                     // +0x20
+  zgame::Handle fail_sound = 0;                // PM +0x24
   zgame::Handle valve = 0;                     // +0x24  set_valve's
   int32_t value = 1;                    // +0x28
   std::optional<std::string> persist;   // +0x2c
@@ -197,6 +198,7 @@ class ObjectiveGroup : public Objective {
   // +0x40: a byte of whatever the stack holds (a pointer's low byte in
   // 0x0045bf60, unset locals elsewhere); nothing reads it.
   std::list<std::unique_ptr<Objective>> items;  // +0x44, count +0x48
+  std::list<std::unique_ptr<Objective>> fails;  // PM +0x54, count +0x58: the first met fails the group
   uint8_t check(ObjectiveHooks& h) override { return check_group(h, 0); }  // 0x0045f150
   uint8_t check_group(ObjectiveHooks& h, uint8_t announce);              // 0x0045e540
 };
@@ -374,7 +376,7 @@ void objectives_delete(Objectives& o);                                          
 // Mech3.exe 1.2 @ 0x0045e110: done set; when it is newly true (with a player
 // vehicle) the voice, the message panel's lines, the salvage into the
 // mission's store, set_valve, the HUD's objectives box.
-void complete(Objective& o, uint8_t done, ObjectiveHooks& h);
+void complete(Objective& o, uint8_t done, ObjectiveHooks& h, uint8_t success = 1);
 // Mech3.exe 1.2 @ 0x0045c180: each of primary, final and fail that is done
 // is visible (the cockpit's flash of the objectives).
 uint8_t objectives_visible(const ObjectiveGroup* primary, const ObjectiveGroup* final, const ObjectiveGroup* fail);

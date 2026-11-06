@@ -139,7 +139,7 @@ TEST(pm_c1m1_shadow_cats_wake) {
         const auto* node = static_cast<zcls::Node*>(engine.object_of(t->node));
         const char* name = node ? node->name() : "";
         if (!std::strncmp(name, "turf", 4)) ++turf, turf_ally += t->team == 2u;
-        else if (!std::strncmp(name, "turm_ac", 7)) ++turf, turf_ally += t->team == 2u;  // ALLY too
+        else if (!std::strncmp(name, "turm_ac", 7) || !std::strncmp(name, "turmf_ac", 8)) ++turf, turf_ally += t->team == 2u;  // ALLY too
         else if (!std::strncmp(name, "tur", 3)) ++tur_other, tur_enemy += t->team == 4u;
       }
     }

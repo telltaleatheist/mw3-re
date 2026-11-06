@@ -4540,3 +4540,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - Pirate's Moon: quicksand pits are built but never drawn. The game sorts a model's polygons by material before it can
   draw them, and it does that for craters but not for a quicksand pit or its lid, so the cut in the ground would show
   as a hole with nothing in it (from the code; no shipped PM mission was checked for one).
+
+- Pirate's Moon: secondary objectives can be failed outright, where MW3's only ever stayed unfinished. "Protect Rim
+  Collective Camp" fails the moment the camp's valve trips, with its own voice line, and you lose its salvage. A failed
+  objective never counts toward its group, even though it reads as finished.
+

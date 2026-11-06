@@ -745,6 +745,7 @@ bool Missions::cleanup(bool unload) {
   h.fn_414000();
   char block[0x20];
   block_name(number, block);
+  h.voice_release("mcbandai");  // Pirate's Moon 0x00494b80
   h.voice_release(format("%s%s", mission_dir(current), block).c_str());  // the mission's lines, "c1m1"
   h.fn_431800();
   h.fn_50b2f0();

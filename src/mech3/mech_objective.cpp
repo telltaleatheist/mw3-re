@@ -304,6 +304,7 @@ struct Shared {
   Node* salvage;
   Node* cond_salvage;
   const char* persist;
+  const char* fail_sound;
   Node* set_valve;
   Handle valve = 0;
   int32_t value = 1;
@@ -427,6 +428,7 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
   Shared sh;
   sh.desc = h.localize(zrdr::get_string(args, "desc"));
   sh.sound = zrdr::get_string(args, "sound");
+  sh.fail_sound = zrdr::get_string(args, "fail_sound");
   sh.visible_found = zrdr::get_bool(args, "visible", &sh.visible);
   sh.silent_found = zrdr::get_bool(args, "silent", &sh.silent);
   sh.salvage = zrdr::find_flat(args, "salvage", 1);
@@ -618,6 +620,9 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
     for (int32_t i = 0; i < n; ++i)
       if (auto c = parse_condition(&list->list[1 + 2 * i], h)) g->items.push_back(std::move(c));
     if (g->items.empty()) return nullptr;
+    if (Node* fl = zrdr::find(args, "fails"))  // Pirate's Moon 1.0 @ 0x0045ee5e..
+      for (int32_t i = 0; i < (count_of(fl) - 1) / 2; ++i)
+        if (auto c = parse_condition(&fl->list[1 + 2 * i], h)) g->fails.push_back(std::move(c));
     if (nav) g->nav = nav;
     obj = std::move(g);
   } else {
@@ -628,6 +633,7 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
   obj->salvage = read_salvage(sh.salvage);
   read_node_salvage(*obj, sh.cond_salvage, h);
   obj->sound = h.sound_find(sh.sound);
+  obj->fail_sound = h.sound_find(sh.fail_sound);
   obj->visible = sh.visible;
   obj->silent = sh.silent;
   obj->persist.reset();
@@ -903,25 +909,28 @@ std::vector<std::string> lines_of(const std::string& text) {
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x0045e110
-void complete(Objective& o, uint8_t done, ObjectiveHooks& h) {
+// Pirate's Moon 1.0 @ 0x0045fcf0: `success` 0 is done by failing: its own sound, message 0x265, the store not won.
+void complete(Objective& o, uint8_t done, ObjectiveHooks& h, uint8_t success) {
   o.done = done;
   if (!done) return;
+  o.failed = !success;
   const Handle vehicle = h.player_vehicle();
   if (!vehicle) return;
-  if (!o.silent && o.sound) h.ask_voice(o.sound, 1.0f);
+  const Handle voice = o.failed ? o.fail_sound : o.sound;
+  if (!o.silent && voice) h.ask_voice(voice, 1.0f);
   if (o.visible) {
     if (o.desc) {
       // The first line as message 0x263 ("Objective complete: %s"), the rest
       // on lines of their own.
       const std::vector<std::string> lines = lines_of(*o.desc);
-      h.hud_message(5.0f, 0x263, lines.empty() ? nullptr : lines[0].c_str());
+      h.hud_message(5.0f, o.failed ? 0x265 : 0x263, lines.empty() ? nullptr : lines[0].c_str());
       for (size_t k = 1; k < lines.size(); ++k) h.hud_message_line(5.0f, lines[k].c_str());
     }
-    if (o.salvage) show_items(*o.salvage, h);
+    if (o.salvage && success) show_items(*o.salvage, h);
     for (const NodeSalvage& e : o.node_salvage)  // 0x0045ec40: the node in the state it names
       if (e.salvage && h.node_active(e.node) == e.active) show_items(*e.salvage, h);
   }
-  if (o.salvage) {
+  if (o.salvage && success) {
     add_items(*h.salvage_store(), *o.salvage);
     o.salvage.reset();
   }
@@ -936,12 +945,18 @@ void complete(Objective& o, uint8_t done, ObjectiveHooks& h) {
 // Mech3.exe 1.2 @ 0x0045e540. Without b34 the conditions count in order up
 // to the first not met; goal_count 0 means all. A simultaneous group that is
 // not complete clears its conditions again.
+// Pirate's Moon 1.0 @ 0x004600d0: first its `fails`, any met failing the group; a failed condition doesn't count.
 uint8_t ObjectiveGroup::check_group(ObjectiveHooks& h, uint8_t announce) {
   if (done) return 1;
+  for (auto& f : fails)
+    if (f->check(h)) {
+      complete(*this, 1, h, 0);
+      return done;
+    }
   int32_t n = 0;
   for (auto& c : items) {
     if (c->check(h)) {
-      ++n;
+      if (!c->failed) ++n;
     } else if (!b34) {
       break;
     }
