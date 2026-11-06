@@ -34,7 +34,7 @@ def run(exe, write_dir, chain):
     env = dict(os.environ, SDL_AUDIODRIVER='dummy')
     r = subprocess.run([str(exe), '--campaign-chain', chain, '--hidden', '--nosound', '--write-dir', str(write_dir),
                         '--frame-ms', '33', '--seed', '1'], cwd=ROOT, env=env, capture_output=True, text=True, errors='replace',
-                       timeout=280)
+                       timeout=900)  # c1sa1 by kills runs out its 40,000 frames, the world drawn
     return r.returncode, r.stdout
 
 

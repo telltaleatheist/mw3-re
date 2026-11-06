@@ -1,4 +1,5 @@
 #include "mech3/app_states.h"
+#include "mech3/mission.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/app_shadows.h"
 
@@ -1125,12 +1126,8 @@ bool LoadState::update() {
   char name[256];
   // Pirate's Moon 0x00404fa6: one format, the folder and the game's block (vt+0x58; Missions::block_name),
   // "brief_c1m1" in briefing.zrd and sounds.zrd, where MW3's had three and no "m".
-  char block[32];
-  if (type == 1) std::snprintf(block, sizeof block, "m%d", mission);
-  else if (type == 2) std::snprintf(block, sizeof block, "ia%d", mission);
-  else if (type == 3) std::snprintf(block, sizeof block, "mp%d", mission);
-  else if (type == 5) std::snprintf(block, sizeof block, "sa%d", mission);
-  else std::snprintf(block, sizeof block, "default");
+  char block[0x20];
+  missions().block_name(mission, block);
   en.format("brief_%s%s", {dir, block}, name, sizeof name);
   en.sounds_nop(en.app_sounds(), 0);  // an empty function, called with a stray argument
   if (en.app_flag_1c3() == 0) en.voice_start(name);
