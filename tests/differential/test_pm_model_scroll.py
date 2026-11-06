@@ -24,14 +24,20 @@ FRAME, DT = 0x72f338, 0x72c52c  # MW3's: the emulator takes them to PM's
 I32 = ctypes.c_int32
 probe = test_pm_zar.load_pm_probe()
 probe.probe_pm_scroll_tick.argtypes = [ctypes.POINTER(ctypes.c_uint8), I32, ctypes.POINTER(I32), ctypes.POINTER(I32),
-                                       ctypes.POINTER(ctypes.c_float), ctypes.c_uint32, ctypes.c_float, I32]
+                                       ctypes.POINTER(ctypes.c_float), ctypes.c_uint32, ctypes.c_float, I32, I32]
 probe.probe_pm_scroll_tick.restype = I32
 
 
 def main():
     cases = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
+    for cw in (0x027f, 0x007f):  # 53 bits, the reference's, and 24
+        print(f'fpu {cw:#x}:', end=' ')
+        run(cases, cw)
+
+
+def run(cases, cw):
     e = Emu(Trace())
-    e.cpu.fpu_control(0x007f)
+    e.cpu.fpu_control(cw)
     e.heap_stubs()
     moved = 0
     arena = e.world_next
@@ -78,10 +84,13 @@ def main():
         ub = (ctypes.c_float * max(len(uvs), 1))()
         ub_raw = struct.pack(f'<{len(uvs)}f', *uvs)
         ctypes.memmove(ub, ub_raw, len(ub_raw))
-        rb = probe.probe_pm_scroll_tick(hb, n, (I32 * max(n, 1))(*counts), (I32 * max(n, 1))(*textured), ub, frame, dt, 0)
+        rb = probe.probe_pm_scroll_tick(hb, n, (I32 * max(n, 1))(*counts), (I32 * max(n, 1))(*textured), ub, frame, dt, 0, int(cw == 0x027f))
         ok = (ra & 0xffffffff) == (rb & 0xffffffff) and ha == bytes(hb)[:0x34] and ua == bytes(ub)[:len(ua)]
         if not ok:
             print('differs at seed', seed, hex(ra), rb, ha == bytes(hb)[:0x34], ua == bytes(ub)[:len(ua)])
+            bad = [i for i in range(0, len(ua), 4) if ua[i:i + 4] != bytes(ub)[i:i + 4]][:4]
+            print('  dt', dt, 'speeds', struct.unpack_from('<2f', header, 0x28), 'at', bad,
+                  [(struct.unpack('<f', ua[i:i + 4])[0], struct.unpack('<f', bytes(ub)[i:i + 4])[0], uvs[i // 4]) for i in bad])
             sys.exit(1)
         moved += ua != ub_raw
     print(f'ok: {cases} steps identical, {moved} moved UVs')

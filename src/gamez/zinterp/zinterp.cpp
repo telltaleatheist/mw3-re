@@ -36,8 +36,15 @@
 #include "gamez/zrender/zrndr_flare.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 namespace zint {
+namespace {
+// The script holds a model as MW3's type; on Pirate's Moon it may be PM's (get_model). Its setters go by pool:
+// a PM model to PM's, one of MW3's type (ModelNew's) to MW3's.
+pm::zmod::Model* pm_of(Model* m) { return m && pm::zmod::owns(m) ? reinterpret_cast<pm::zmod::Model*>(m) : nullptr; }
+}  // namespace
+
 
 std::map<std::string, uint32_t>& null_calls() {
   static std::map<std::string, uint32_t> m;
@@ -92,7 +99,7 @@ Engine make_engine() {
   e.display_set_clear_color = zcls::display_set_clear_color;
   e.light_create = zcls::light_create;
   e.object3d_create = zcls::object3d_create;
-  e.model_set_priority = zmod::model_set_priority;  // Object3DSetPriority's
+  e.model_set_priority = [](Model* m, int32_t v) { return pm_of(m) ? pm::zmod::model_set_priority(pm_of(m), v) : zmod::model_set_priority(m, v); };  // Object3DSetPriority's
   // The support scripts' render settings (item 7's census: every mission).
   e.bfe_tolerance = zmod::set_bfe_tolerance;
   e.get_bfe_tolerance = zmod::bfe_tolerance;
@@ -123,17 +130,17 @@ Engine make_engine() {
   // FIX (bug): a null out pointer (scroll_off's) is skipped, not written.
   e.get_model = [](Node* n, Model** out) {
     if (!n) return 5;
-    if (out) *out = n->model;
+    if (out) *out = n->pm_model ? reinterpret_cast<Model*>(n->pm_model) : n->model;  // a PM model: pm_of below
     return 0;
   };
   e.texture_add = zimg::add_texture;
   e.lens_flare_texture = [](int i, zimg::TextureEntry* t) { return zrndr::flare_texture(i, t); };  // 0x005676d0
-  e.cycle_set_on = zmod::cycle_set_on;
-  e.cycle_set_map = zmod::cycle_set_map;
-  e.cycle_set_looping = [](Model* m, int on) { return zmod::cycle_set_looping(m, static_cast<uint32_t>(on)); };
-  e.cycle_set_speed = zmod::cycle_set_speed;
-  e.model_set_scroll = zmod::model_set_scroll;                              // 0x00526ae0
-  e.model_scroll_tick = [](Model* m) { zmod::model_scroll_tick(m); };       // 0x00541ad0
+  e.cycle_set_on = [](Model* m, int on) { return pm_of(m) ? pm::zmod::cycle_set_on(pm_of(m), on) : zmod::cycle_set_on(m, on); };
+  e.cycle_set_map = [](Model* m, zimg::TextureEntry* t) { return pm_of(m) ? pm::zmod::cycle_set_map(pm_of(m), t) : zmod::cycle_set_map(m, t); };
+  e.cycle_set_looping = [](Model* m, int on) { const uint32_t v = static_cast<uint32_t>(on); return pm_of(m) ? pm::zmod::cycle_set_looping(pm_of(m), v) : zmod::cycle_set_looping(m, v); };
+  e.cycle_set_speed = [](Model* m, float v) { return pm_of(m) ? pm::zmod::cycle_set_speed(pm_of(m), v) : zmod::cycle_set_speed(m, v); };
+  e.model_set_scroll = [](Model* m, int on, float u, float v) { return pm_of(m) ? pm::zmod::model_set_scroll(pm_of(m), on, u, v) : zmod::model_set_scroll(m, on, u, v); };                              // 0x00526ae0
+  e.model_scroll_tick = [](Model* m) { pm_of(m) ? pm::zmod::model_scroll_tick(pm_of(m)) : zmod::model_scroll_tick(m); };       // 0x00541ad0
   e.pack_rgb = zvid::pack_rgb;
   e.clouds_on = zmod::clouds_set_on;
   e.write_texture_type = [](int t) { return zmod::mark_set_type(t), 0; };         // 0x005426a0
@@ -828,8 +835,9 @@ void scroll_always_tick(Node*) {
 
 // Mech3.exe 1.2 @ 0x005963f0. The model is read straight from the node.
 bool scroll_on(Node* node, float u, float v, bool always) {
-  if (!node || !node->model) return false;
-  call(g_engine.model_set_scroll, node->model, 1, u, v);
+  Model* model = node ? (node->pm_model ? reinterpret_cast<Model*>(node->pm_model) : node->model) : nullptr;
+  if (!model) return false;
+  call(g_engine.model_set_scroll, model, 1, u, v);
   if (always) {
     if (!g_scroll.holder && (g_scroll.holder = call(g_engine.object3d_create))) {
       call(g_engine.set_name, g_scroll.holder, "ScrollAlways");
@@ -855,7 +863,7 @@ void scroll_list_clear(bool full) {
     return;
   }
   for (Node* n : g_scroll.nodes)
-    if (n && n->model) std::memset(n->model->header + 0x30, 0, 4);
+    if (uint8_t* h = n ? zcls::node_model_header(n) : nullptr) std::memset(h + 0x30, 0, 4);
 }
 
 // Mech3.exe 1.2 @ 0x00596570

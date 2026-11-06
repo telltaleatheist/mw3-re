@@ -1,14 +1,19 @@
 #include "pm/gamez/zmodel/gmod_const.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <vector>
 #include <cstring>
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -34,6 +39,18 @@ T* read_array(std::FILE* f, size_t bytes) {
 }  // namespace
 
 ModelPool& models() { return g_pool; }
+
+namespace {
+// The step less the whole units that bring the range's middle back to 0. At 53 bits (zfix fpu53, as in
+// play) the sum isn't rounded to float before the cut, which can land a unit away on a large UV.
+float scroll_step(float d, float lo, float hi) {
+  if (zfix::options().fpu53) {
+    const double step = d;
+    return static_cast<float>(step - crt::msvc_ftol(step - (static_cast<double>(hi) + lo) * -0.5));
+  }
+  return d - static_cast<float>(crt::msvc_ftol(d - (hi + lo) * -0.5f));
+}
+}  // namespace
 
 // Pirate's Moon 1.0 @ 0x00547ab0: MW3's 0x00541ad0 on a polygon's first material and its UVs, its
 // count in ten bits. The UVs move by dt times +0x28 / +0x2c, kept near 0. -1 for no model.
@@ -64,8 +81,7 @@ int model_scroll_tick(Model* m) {
         if (!(v >= vmin)) vmin = v;
         else if (v > vmax) vmax = v;
       }
-      const float ou = du - static_cast<float>(crt::msvc_ftol(du - (umax + umin) * -0.5f));
-      const float ov = dv - static_cast<float>(crt::msvc_ftol(dv - (vmax + vmin) * -0.5f));
+      const float ou = scroll_step(du, umin, umax), ov = scroll_step(dv, vmin, vmax);
       for (int32_t j = 0; j < count; ++j) uv[2 * j] = ou + uv[2 * j], uv[2 * j + 1] = ov + uv[2 * j + 1];
       continue;
     }
@@ -77,11 +93,83 @@ int model_scroll_tick(Model* m) {
       if (!(x >= lo)) lo = x;
       else if (!(hi >= x)) hi = x;
     }
-    const float o = d - static_cast<float>(crt::msvc_ftol(d - (hi + lo) * -0.5f));
+    const float o = scroll_step(d, lo, hi);
     for (int32_t j = 0; j < count; ++j) uv[2 * j + a] = o + uv[2 * j + a];
   }
   return 0;
 }
+
+// A model of this pool, not MW3's: shared code holding either asks here.
+bool owns(const void* model) {
+  const auto* at = static_cast<const Model*>(model);
+  for (const auto& b : g_pool.blocks)
+    if (at >= b.get() && at < b.get() + g_pool.block) return true;
+  return false;
+}
+
+namespace {
+::zmod::Material* first_of(Model* m, int32_t k) { return m->polygons[k].materials[0]; }
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x0055b7e0
+int model_set_priority(Model* m, int32_t priority) {
+  if (!m) return 0;
+  for (int32_t i = 0; i < m->count(0x10); ++i) m->polygons[i].priority = priority;
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0055ba20: the first polygon's materials.
+void cycle_reset(Model* m) {
+  const Polygon& p = m->polygons[0];
+  for (int32_t i = 0; i < p.material_count; ++i)
+    if (::zmod::Cycle* c = p.materials[i]->cycle) c->index = 0.0f, p.materials[i]->texture = c->textures[0];
+}
+
+// Pirate's Moon 1.0 @ 0x0055bb20. A frame past the end wraps by the count.
+void cycle_set_frame(Model* m, int32_t n) {
+  ::zmod::Material* last = nullptr;
+  for (int32_t k = 0; k < m->count(0x10); ++k) {
+    ::zmod::Material* mat = first_of(m, k);
+    if (mat == last) continue;
+    last = mat;
+    ::zmod::Cycle* c = mat->cycle;
+    if (!c) continue;
+    const int32_t count = static_cast<int32_t>(c->texture_count);
+    if (n >= count) n = n % count;
+    else if (n < 0) n = 0;
+    mat->texture = c->textures[n];
+    c->index = static_cast<float>(n);
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x0055ba60: MW3's, then the refs regrouped for the cycled material.
+int cycle_set_on(Model* m, int32_t count) {
+  if (!m) {
+    std::fprintf(stderr, "%s(%d): ERROR setting model cycle texture. Model 3D pointer is NULL.\n",
+                 "C:\\zipper\\branchep1\\gamez\\zModel\\gmod_const.c", 0x1093);
+    return -1;
+  }
+  ::zmod::cycle_create(*first_of(m, 0), count);
+  sort_by_material(*m);
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0055bba0
+int cycle_set_looping(Model* m, uint32_t on) { return m ? ::zmod::cycle_set_loop(first_of(m, 0), on) : 0; }
+
+// Pirate's Moon 1.0 @ 0x0055bbc0: every material in turn, where MW3's took the first.
+int cycle_set_speed(Model* m, float speed) {
+  if (!m) return 0;
+  ::zmod::Material* last = nullptr;
+  for (int32_t k = 0; k < m->count(0x10); ++k) {
+    ::zmod::Material* mat = first_of(m, k);
+    if (mat != last) ::zmod::cycle_set_speed(mat, speed), last = mat;
+  }
+  return 1;
+}
+
+// Pirate's Moon 1.0 @ 0x0055bc10
+int cycle_set_map(Model* m, ::zimg::TextureEntry* t) { return m ? ::zmod::cycle_add(*first_of(m, 0), t) : 0; }
 
 // Pirate's Moon: MW3's 0x00526ae0.
 int model_set_scroll(Model* m, int on, float u, float v) {
@@ -310,6 +398,225 @@ int read_models(std::FILE* f, int32_t material_base) {
 
 namespace pm::zmod {
 namespace {
+constexpr int32_t kMaxVerts = 48;         // 0x00611c04
+constexpr double kMaxModelVerts = 921.6;  // 0x005f0a98, 0.9 x 1024
+
+bool zeroish(float v) { return !(v < 0.0f || v > 0.0f); }  // the exe's fcom, as MW3's
+void put_count(Model& m, int off, int32_t v) { std::memcpy(m.header + off, &v, 4); }
+
+template <typename... A>
+std::string format(const char* f, A... a) {
+  char text[0x400];
+  std::snprintf(text, sizeof text, f, a...);
+  return text;
+}
+// 0x00527250: zGeometry's report of the shared text buffer.
+void report_buffer(const std::string& text) {
+  zerr::report(1, "C:\\zipper\\branchep1\\gamez\\zError\\zerr_old.c", 0x23, text.c_str());
+}
+
+// Pirate's Moon 1.0 @ 0x005599d0
+int32_t find_vertex(Model& m, const float p[3]) {
+  const int32_t n = m.count(0x14);
+  const float precision = ::zmod::vertex_precision();
+  for (int32_t i = 0; i < n; ++i) {
+    const float* v = m.vertices + 3 * i;
+    if (std::fabs(v[0] - p[0]) <= precision && std::fabs(v[1] - p[1]) <= precision &&
+        std::fabs(v[2] - p[2]) <= precision)
+      return i;
+  }
+  if (kMaxModelVerts < n) {
+    report_buffer(format("%s: Line %d: WARNING: Model vertex count = %d\n         Approaching max allowable: %d\n", kFile,
+                         0x90d, n, 0x400));
+    return -1;
+  }
+  m.vertices = static_cast<float*>(std::realloc(m.vertices, 12 * static_cast<size_t>(n + 1)));
+  std::memcpy(m.vertices + 3 * n, p, 12);
+  put_count(m, 0x14, n + 1);
+  return n;
+}
+
+// Pirate's Moon 1.0 @ 0x00559ca0
+int32_t find_normal(Model& m, const float p[3]) {
+  const int32_t n = m.count(0x18);
+  for (int32_t i = 0; i < n; ++i) {
+    const float* v = m.normals + 3 * i;
+    if (std::fabs(v[0] - p[0]) < 0.0001f && std::fabs(v[1] - p[1]) < 0.0001f && std::fabs(v[2] - p[2]) < 0.0001f)
+      return i;
+  }
+  m.normals = static_cast<float*>(std::realloc(m.normals, 12 * static_cast<size_t>(n + 1)));
+  std::memcpy(m.normals + 3 * n, p, 12);
+  put_count(m, 0x18, n + 1);
+  if (kMaxModelVerts < n + 1) {
+    report_buffer(format("%s: Line %d: WARNING: Model normal count = %d\n         Approaching max allowable: %d\n", kFile,
+                         0x9ca, n + 1, 0x400));
+    return -1;
+  }
+  return n;
+}
+
+// Pirate's Moon 1.0 @ 0x0055c6d0. The next polygon record with its vertex
+// and normal indices; 1 when the model is full (the record stays, uncounted).
+// The exe also copies the materials and UVs here and again in 0x0055c910,
+// leaking the first copy; they are copied there only.
+int add_record(Model& m, int32_t n, const PolygonAdd& a) {
+  const int32_t count = m.count(0x10);
+  Polygon* grown = new Polygon[static_cast<size_t>(count) + 1]{};
+  for (int32_t i = 0; i < count; ++i) grown[i] = m.polygons[i];
+  delete[] m.polygons;
+  m.polygons = grown;
+  Polygon& q = m.polygons[count];
+  q.priority = a.priority;
+  q.flags = static_cast<uint32_t>(n & 0x3ff) | ((a.flag_800 & 1) << 1 | (a.back & 1)) << 10 | (a.normals ? 0x1000u : 0u);
+  q.vertex_indices = static_cast<uint32_t*>(std::malloc(4 * static_cast<size_t>(n)));
+  if (a.normals) q.normal_indices = static_cast<uint32_t*>(std::malloc(4 * static_cast<size_t>(n)));
+  for (int32_t i = 0; i < n; ++i) {
+    const int32_t v = find_vertex(m, a.points + 3 * i);
+    q.vertex_indices[i] = static_cast<uint32_t>(v);
+    if (v < 0) return 1;
+    if (a.normals) {
+      const int32_t k = find_normal(m, a.normals + 3 * i);
+      q.normal_indices[i] = static_cast<uint32_t>(k);
+      if (k < 0) return 1;
+    }
+  }
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0055be60: MW3's 0x0053bdc0 for each textured
+// material's UVs.
+void flatten_uvs(Model& m, int32_t index) {
+  Polygon& q = m.polygons[index];
+  const int32_t n = static_cast<int32_t>(q.flags & 0x3ff);
+  if (!q.uvs || n <= 3) return;
+  auto P = [&](int32_t k) { return m.vertices + 3 * q.vertex_indices[k]; };
+  for (int32_t j = 0; j < q.material_count; ++j) {
+    if (!(q.materials[j]->flags & 1)) continue;
+    float uv[2 * 0x40];
+    std::memcpy(uv, q.uvs[j], 8 * static_cast<size_t>(n));
+    zmth::Vec3 normal;
+    zmth::poly_normal(P(0), P(1), P(2), reinterpret_cast<float*>(&normal));
+    zmth::normalize(normal);
+    const float ax = std::fabs(normal.x), ay = std::fabs(normal.y), az = std::fabs(normal.z);
+    int a, b;  // the two axes the gradients run along
+    if (ax < ay || ax < az) {
+      if (ay < ax || ay < az) a = 0, b = 1;
+      else a = 2, b = 0;
+    } else {
+      a = 1, b = 2;
+    }
+    float gu[2], gv[2];
+    ::zmod::uv_gradient(P(0)[a], P(0)[b], P(1)[a], P(1)[b], P(2)[a], P(2)[b], uv[0], uv[2], uv[4], gu);
+    ::zmod::uv_gradient(P(0)[a], P(0)[b], P(1)[a], P(1)[b], P(2)[a], P(2)[b], uv[1], uv[3], uv[5], gv);
+    for (int32_t k = 3; k < n; ++k) {
+      if (zfix::options().fpu53) {  // the x87 keeps these as doubles; a float's rounding can cross 0x0055ac70's step
+        const double da = static_cast<double>(P(k)[a]) - P(0)[a], db = static_cast<double>(P(k)[b]) - P(0)[b];
+        q.uvs[j][2 * k] = static_cast<float>(da * gu[0] + db * gu[1] + uv[0]);
+        q.uvs[j][2 * k + 1] = static_cast<float>(da * gv[0] + db * gv[1] + uv[1]);
+        continue;
+      }
+      const float da = P(k)[a] - P(0)[a], db = P(k)[b] - P(0)[b];
+      q.uvs[j][2 * k] = db * gu[1] + da * gu[0] + uv[0];
+      q.uvs[j][2 * k + 1] = db * gv[1] + da * gv[0] + uv[1];
+    }
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x0055c910. The record's materials, UVs (shifted near
+// 0, then flattened and snapped), colours (white without), scratch and zone;
+// the polygon counted.
+int fill_record(Model& m, int32_t n, const PolygonAdd& a) {
+  const int32_t index = m.count(0x10);
+  Polygon& q = m.polygons[index];
+  const size_t count = static_cast<size_t>(a.material_count > 0 ? a.material_count : 0);
+  q.material_count = a.material_count;
+  q.materials = static_cast<::zmod::Material**>(std::malloc((count ? count : 1) * sizeof(void*)));
+  for (size_t j = 0; j < count; ++j) q.materials[j] = a.materials[j];
+  if (a.uvs) {
+    q.file_uvs = 1;
+    q.uvs = static_cast<float**>(std::malloc((count ? count : 1) * sizeof(float*)));
+    for (size_t j = 0; j < count; ++j) {
+      float* uv = q.uvs[j] = static_cast<float*>(std::calloc(static_cast<size_t>(n), 8));
+      if (!a.uvs[j]) continue;
+      std::memcpy(uv, a.uvs[j], 8 * static_cast<size_t>(n));
+      float mu = uv[0], mv = uv[1];
+      for (int32_t i = 1; i < n; ++i) {
+        if (uv[2 * i] < mu) mu = uv[2 * i];
+        if (uv[2 * i + 1] < mv) mv = uv[2 * i + 1];
+      }
+      const double fu = std::floor(static_cast<double>(mu)), fv = std::floor(static_cast<double>(mv));
+      for (int32_t i = 0; i < n; ++i) {
+        uv[2 * i] = uv[2 * i] - static_cast<float>(fu);
+        uv[2 * i + 1] = uv[2 * i + 1] - static_cast<float>(fv);
+      }
+    }
+  }
+  q.colors = static_cast<float*>(std::malloc(12 * static_cast<size_t>(n)));
+  for (int32_t i = 0; i < 3 * n; ++i) q.colors[i] = a.colors ? a.colors[i] : 255.0f;
+  q.scratch = static_cast<uint32_t*>(std::malloc(4 * static_cast<size_t>(q.flags & 0x3ff)));
+  flatten_uvs(m, index);
+  for (size_t j = 0; a.uvs && j < count; ++j)
+    if (q.materials[j]->flags & 1) ::zmod::snap_uvs(n, q.uvs[j]);
+  std::memcpy(&q.zone_set, a.zone, 4);
+  put_count(m, 0x10, index + 1);
+  return 0;
+}
+
+// The one piece's arrays for 0x0055a4d0 and 0x0055a870.
+struct Piece {
+  float pts[3 * 4], nrm[3 * 4], col[3 * 4];
+  std::vector<std::vector<float>> uv;
+  std::vector<const float*> uv_of;
+  PolygonAdd add;
+  explicit Piece(const PolygonAdd& a) : add(a) {
+    if (a.uvs) {
+      uv.assign(static_cast<size_t>(a.material_count), std::vector<float>(2 * 4));
+      for (auto& u : uv) uv_of.push_back(u.data());
+      add.uvs = uv_of.data();
+    }
+    add.points = pts, add.normals = a.normals ? nrm : nullptr, add.colors = a.colors ? col : nullptr;
+  }
+  void take(const PolygonAdd& a, int to, int from) {
+    std::memcpy(pts + 3 * to, a.points + 3 * from, 12);
+    if (a.normals) std::memcpy(nrm + 3 * to, a.normals + 3 * from, 12);
+    if (a.colors) std::memcpy(col + 3 * to, a.colors + 3 * from, 12);
+    for (size_t j = 0; j < uv.size(); ++j) std::memcpy(&uv[j][2 * static_cast<size_t>(to)], a.uvs[j] + 2 * from, 8);
+  }
+};
+
+// Pirate's Moon 1.0 @ 0x0055a4d0. A non-planar polygon as the fan of triangles
+// from its first point, each added on its own.
+void add_fan(Model& m, int32_t n, const PolygonAdd& a) {
+  Piece t(a);
+  t.take(a, 0, 0);
+  for (int32_t k = 1; k + 1 < n; ++k) {
+    t.take(a, 1, k), t.take(a, 2, k + 1);
+    float pts[9];  // 0x0055cb70 may drop points from what it is given
+    std::memcpy(pts, t.pts, sizeof pts);
+    PolygonAdd add = t.add;
+    add.points = pts;
+    model_add_polygon(&m, 3, add);
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x0055a870. A polygon past the vertex limit as fans of
+// at most 4 points from its first point.
+void add_pieces(Model& m, int32_t n, const PolygonAdd& a) {
+  Piece t(a);
+  t.take(a, 0, 0);
+  int32_t piece = 4;
+  for (int32_t i = 1; i < n - 1; i += piece - 2) {
+    if (n + 1 < i + piece) piece = n - i + 1;
+    for (int32_t k = 1; k < piece; ++k) t.take(a, k, i + k - 1);
+    if (piece < 3) zerr::report(0x400, kFile, 0xc67, format("Attempting to add polygon with only %d verts", piece).c_str());
+    float pts[12];
+    std::memcpy(pts, t.pts, sizeof pts);
+    PolygonAdd add = t.add;
+    add.points = pts;
+    model_add_polygon(&m, piece, add);
+  }
+}
+
 template <typename T>
 T* dup_array(const T* src, size_t n) {
   if (!src || n == 0) return nullptr;
@@ -318,6 +625,127 @@ T* dup_array(const T* src, size_t n) {
   return p;
 }
 }  // namespace
+
+// Pirate's Moon 1.0 @ 0x0055cb70
+int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
+  if (n < 3) {
+    zerr::report(0x200, kFile, 0x151b, format("ERROR: You're trying to add a Polygon with only (%d) verts", n).c_str());
+    return 1;
+  }
+  if (57.6 < n) {
+    zerr::report(0x200, kFile, 0x1525, format("Poly vertex count approaching limit (%d / %d)", n, 0x40).c_str());
+    return 1;
+  }
+  int32_t k = n;
+  std::vector<int32_t> kept(static_cast<size_t>(n));
+  for (int32_t i = 0; i < n; ++i) kept[static_cast<size_t>(i)] = i;
+  if (::zmod::drop_colinear(&k, a.points, &kept) && k < 3) {
+    zerr::report(0x100, kFile, 0x1548,
+                 format("Discarding Polygon: (%d of %d) verts after 'check_colinearity()'", k, n).c_str());
+    return 1;
+  }
+  // FIX (bug): as MW3's 0x0053c6c0, the exe drops colinear points from the
+  // points only, so what follows one belongs to the next point. zfix bugs:
+  // they go too.
+  std::vector<float> nrm, col;
+  std::vector<std::vector<float>> uv;
+  std::vector<const float*> uv_of;
+  PolygonAdd use = a;
+  if (k < n && zfix::options().bugs) {
+    auto take = [&](const float* src, int width, std::vector<float>& to) {
+      for (int32_t i : kept) to.insert(to.end(), src + width * i, src + width * (i + 1));
+      return to.data();
+    };
+    if (a.normals) use.normals = take(a.normals, 3, nrm);
+    if (a.colors) use.colors = take(a.colors, 3, col);
+    if (a.uvs) {
+      uv.resize(static_cast<size_t>(a.material_count));
+      for (size_t j = 0; j < uv.size(); ++j) uv_of.push_back(a.uvs[j] ? take(a.uvs[j], 2, uv[j]) : nullptr);
+      use.uvs = uv_of.data();
+    }
+  }
+  if (k > 3) {
+    const float* p = a.points;
+    float nx = 0.0f, ny = 0.0f, nz = 0.0f, sx = 0.0f, sy = 0.0f, sz = 0.0f;
+    for (int32_t i = 0; i < k; ++i) {
+      const float* c = p + 3 * i;
+      const float* q = p + 3 * ((i + 1) % k);
+      nx = (c[1] - q[1]) * (q[2] + c[2]) + nx;
+      ny = (c[2] - q[2]) * (q[0] + c[0]) + ny;
+      nz = (c[0] - q[0]) * (q[1] + c[1]) + nz;
+      sx = sx + c[0], sy = sy + c[1], sz = sz + c[2];
+    }
+    float len = 0.0f;
+    if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) len = std::sqrt(nx * nx + ny * ny + nz * nz);
+    const float inv = zeroish(len) ? 0.0f : 1.0f / len;
+    const float ux = inv * nx, uy = inv * ny, uz = inv * nz;
+    const float nlen = static_cast<float>(k) * len;
+    const float dot = sx * nx + sy * ny + sz * nz;
+    const float d = -(dot / nlen);
+    for (int32_t i = 0; i < k; ++i) {
+      const float* c = p + 3 * i;
+      if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > ::zmod::coplanar_tolerance()) {
+        zerr::report(0x100, kFile, 0x1555,
+                     format("Attempting to add non-planar polygon (%d verts), triangulating...", k).c_str());
+        add_fan(*m, k, use);
+        return 2;
+      }
+    }
+  }
+  if (k > kMaxVerts) {
+    add_pieces(*m, k, use);
+    return 2;
+  }
+  add_record(*m, k, use);
+  int full = 0;
+  std::string text;
+  if (kMaxModelVerts < m->count(0x14)) {
+    text = format("%s: Line %d: WARNING: Model vertex count = %d\n         Approaching max allowable: %d\n", kFile,
+                  0x14c4, m->count(0x14), 0x400);
+    report_buffer(text);
+    full = 1;
+  }
+  if (kMaxModelVerts < m->count(0x18)) {
+    text += format("%s: Line %d: WARNING: Model normal count = %d\n         Approaching max allowable: %d\n", kFile,
+                   0x14d1, m->count(0x18), 0x400);
+    report_buffer(text);
+    full = 1;
+  }
+  if (full) return 1;
+  return fill_record(*m, k, use);
+}
+
+// Pirate's Moon 1.0 @ 0x005590f0
+int model_release(Model* m) {
+  if (!m) return 5;
+  if (m->count(0xc) != 0) return 1;
+  for (int32_t i = 0; i < m->count(0x10); ++i) {
+    Polygon& q = m->polygons[i];
+    std::free(q.vertex_indices), std::free(q.normal_indices);
+    if (q.uvs) {
+      for (int32_t j = 0; j < q.material_count; ++j) std::free(q.uvs[j]);
+      std::free(q.uvs);
+    }
+    std::free(q.materials), std::free(q.colors), std::free(q.scratch), std::free(q.library_indices);
+  }
+  delete[] m->polygons;
+  std::free(m->vertices), std::free(m->normals), std::free(m->morphs);
+  if (m->lights) {
+    for (int32_t i = 0; i < m->count(0x20); ++i) std::free(m->lights[i].vertices);
+    std::free(m->lights);
+  }
+  delete[] m->refs;
+  ModelPool& p = g_pool;
+  int32_t index = -1;
+  for (size_t b = 0; b < p.blocks.size() && index < 0; ++b)
+    if (m >= p.blocks[b].get() && m < p.blocks[b].get() + p.block)
+      index = static_cast<int32_t>(b) * p.block + static_cast<int32_t>(m - p.blocks[b].get());
+  *m = Model{};
+  m->link = p.free_head;
+  --p.count;
+  p.free_head = index;
+  return 0;
+}
 
 // Pirate's Moon 1.0 @ 0x0055b0b0: MW3's 0x0053b3c0 over every material of every polygon.
 int model_changes(const Model& m) {

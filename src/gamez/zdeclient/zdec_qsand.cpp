@@ -4,6 +4,7 @@
 #include "gamez/zdeclient/zdec_crater.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zgeometry/zgeo_model.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_const.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -80,7 +81,7 @@ int32_t quicksand_clip(QuicksandRecord* r) {
 int32_t quicksand_tessellate(QuicksandRecord* r) {
   zcls::Node* world = world_node();
   zcls::Node* node = nullptr;
-  zmod::Model* m = zgeo::crater_node(r->set->cells[0], world, &node);
+  pm::zmod::Model* m = zgeo::crater_node(r->set->cells[0], world, &node);
   if (!m || !node) {
     if (m) zgeo::hooks().model_release(m);
     if (node) zcls::node_release(node);
@@ -157,7 +158,7 @@ int32_t quicksand_tessellate(QuicksandRecord* r) {
     zgeo::add_polygon(m, 3, tri, r->still, tuv, nullptr, nullptr);
   }
   zcls::Node* lid = nullptr;
-  zmod::Model* lm = zgeo::crater_node(r->set->cells[0], world, &lid);
+  pm::zmod::Model* lm = zgeo::crater_node(r->set->cells[0], world, &lid);
   if (!lm || !lid) {
     if (lm) zgeo::hooks().model_release(lm);
     if (lid) zcls::node_release(lid);

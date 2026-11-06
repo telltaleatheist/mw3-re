@@ -297,8 +297,8 @@ class WiredBuild : public MechBuildHooks {
     zcls::node_set_model(zn(node), static_cast<zmod::Model*>(model));
   }
   Handle model_new() override { return zmod::model_alloc(); }
-  void model_set_priority(Handle model, int32_t p) override {  // 0x0053bb20
-    zmod::model_set_priority(static_cast<zmod::Model*>(model), p);
+  void model_set_priority(Handle model, int32_t p) override {  // 0x0055b7e0
+    pm::zmod::model_set_priority(static_cast<pm::zmod::Model*>(model), p);
   }
   void model_add_polygon(Handle model, int32_t n, const float* v) override {  // 0x004776d0
     std::vector<float> points(v, v + 3 * n);  // the add drops colinear points in place

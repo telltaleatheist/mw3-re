@@ -483,6 +483,7 @@ float vertex_precision() { return g_precision; }      // 0x00538050
 void set_vertex_precision(float v) { g_precision = v; }  // 0x00538060
 // Mech3.exe 1.2 @ 0x00538070, 0x00538080: the support scripts' (tolerances.gw).
 void set_coplanar_tolerance(float v) { g_planar = v; }
+double coplanar_tolerance() { return g_planar; }
 void set_colinear_tolerance(float v) { g_colinear = v; }
 void tolerances_reset() { g_planar = 0.005, g_colinear = 0.001; }
 
@@ -617,6 +618,21 @@ int add_record(Model& m, int32_t n, const PolygonAdd& a) {
 // triangle (a0, b0) (a1, b1) (a2, b2); 0, 0 when it has no area.
 void uv_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float s0, float s1, float s2,
                  float out[2]) {
+  if (zfix::options().fpu53) {  // 0x0055c3b0's steps: some kept as doubles on the x87, some stored as floats
+    const double da = static_cast<double>(a0) - a1, db = static_cast<double>(b0) - b1;
+    const double ds0 = static_cast<double>(s0) - s1, ds2 = static_cast<double>(s2) - s1;
+    const float ab = a2 - a1, bb = b2 - b1;
+    const float n0 = static_cast<float>(ds2 * db - bb * ds0), n1 = static_cast<float>(ab * ds0 - ds2 * da);
+    const double det = bb * da - ab * db;
+    if (det == 0.0) {
+      out[0] = out[1] = 0.0f;
+      return;
+    }
+    const double inv = 1.0 / det;
+    out[0] = static_cast<float>(-(inv * n0));
+    out[1] = static_cast<float>(-(inv * n1));
+    return;
+  }
   float d = (b2 - b1) * (a0 - a1) - (a2 - a1) * (b0 - b1);
   if (zeroish(d)) {
     out[0] = out[1] = 0.0f;
@@ -662,7 +678,12 @@ void flatten_uvs(Model& m, int32_t index) {
 // down from half a step up), then shifted so the smallest u and v lie in
 // [0, 1).
 void snap_uvs(int32_t n, float* uv) {
-  for (int32_t i = 0; i < 2 * n; ++i) uv[i] = static_cast<float>(crt::msvc_ftol((uv[i] - -0.001953125f) * 256.0f)) * 0.00390625f;
+  for (int32_t i = 0; i < 2 * n; ++i) {
+    // At 53 bits the x87 keeps the sum as a double, and a float's rounding can cross a step.
+    const double scaled = zfix::options().fpu53 ? (static_cast<double>(uv[i]) - -0.001953125) * 256.0
+                                                : (uv[i] - -0.001953125f) * 256.0f;
+    uv[i] = static_cast<float>(crt::msvc_ftol(scaled)) * 0.00390625f;
+  }
   float mu = uv[0], mv = uv[1];
   for (int32_t i = 1; i < n; ++i) {
     if (uv[2 * i] < mu) mu = uv[2 * i];

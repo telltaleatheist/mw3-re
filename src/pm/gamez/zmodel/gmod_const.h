@@ -68,12 +68,40 @@ ModelPool& models();
 
 int model_scroll_tick(Model* m);                       // 0x00547ab0: the UVs moved, -1 for no model
 int model_set_scroll(Model* m, int on, float u, float v);  // MW3's 0x00526ae0
+bool owns(const void* model);                           // ours: a model of this pool, not MW3's
+int model_set_priority(Model* m, int32_t priority);     // 0x0055b7e0
+void cycle_reset(Model* m);                             // 0x0055ba20
+void cycle_set_frame(Model* m, int32_t n);              // 0x0055bb20
+int cycle_set_on(Model* m, int32_t count);              // 0x0055ba60, -1 for no model
+int cycle_set_looping(Model* m, uint32_t on);           // 0x0055bba0
+int cycle_set_speed(Model* m, float speed);             // 0x0055bbc0
+int cycle_set_map(Model* m, ::zimg::TextureEntry* t);   // 0x0055bc10
 // Pirate's Moon 1.0 @ 0x00557ba0: the slot of an index, null below 0.
 Model* model_at(int32_t index);
 // Pirate's Moon 1.0 @ 0x00558f50: the free head, zeroed but its link, flags
 // 3; a full pool grows by a block first (0x00557be0; MW3's aborted). The exe
 // returns null before the pool's set-up ([0x008d4ae4], always done in play).
 Model* model_alloc();
+// Pirate's Moon 1.0 @ 0x005590f0: every array freed, the slot back on the
+// free list. 5 for no model, 1 while a node uses it.
+int model_release(Model* m);
+// The arguments 0x0055cb70 takes on the stack (the crater's polygons). The
+// exe's morph arguments are 0 from every caller here.
+struct PolygonAdd {
+  float* points = nullptr;              // the caller's: colinear points are dropped in place
+  const float* normals = nullptr;       // optional (polygon flag 0x1000)
+  const float* const* uvs = nullptr;    // one array a material, 2 floats a point; optional
+  int32_t material_count = 0;
+  ::zmod::Material* const* materials = nullptr;
+  int32_t priority = 0;
+  uint32_t back = 0;                    // bit 0: polygon flag 0x400
+  uint32_t flag_800 = 0;                // bit 0: polygon flag 0x800
+  const uint8_t* zone = nullptr;        // 4 bytes, the polygon's +0x24
+  const float* colors = nullptr;        // 3 floats a point; null: white
+};
+// Pirate's Moon 1.0 @ 0x0055cb70. As MW3's 0x0053c6c0: 0 added, 1 refused, 2
+// added in pieces.
+int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);
 // Pirate's Moon 1.0 @ 0x0055c470: the material refs rebuilt from each
 // polygon's first material, the polygons regrouped to match: a cycled
 // material's polygons one ref each, first; then one ref per other material,
