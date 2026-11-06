@@ -34,9 +34,9 @@ BATTLE_LOST = ['Primary Objectives', 'Mission Total', '0', "'Mechs Defeated", 'A
 PROGRESSION_WON = ['Primary Objectives', "'Mechs Defeated", '2500', 'Mission Total', '4800', "'Mechs Defeated",
                    'Actions', '5', 'Dominic Paine', '0', 'Epona Rhi', '0', 'Mission Total', '4800']
 MISSION_1_WON = ['Primary Objectives', 'Protect FedSuns Base', '2500', 'Secondary Objectives',
-                 'Protect Rim Collective Camp', '2500', "'Mechs Defeated", '1700', 'Turrets Destroyed', '2200',
-                 'Campaign Total', '8900', 'Mission Total', '8900', "'Mechs Defeated", 'Chain', '4', 'Epona Rhi', '0',
-                 'Mission Total', '8900']
+                 'Protect Rim Collective Camp', '2500', "'Mechs Defeated", '1700', 'Turrets Destroyed', '1200',
+                 'Campaign Total', '7900', 'Mission Total', '7900', "'Mechs Defeated", 'Chain', '4', 'Epona Rhi', '0',
+                 'Mission Total', '7900']  # the 4 allied turf_ turrets no longer killed and scored
 
 
 def run(exe, write_dir, *args):
