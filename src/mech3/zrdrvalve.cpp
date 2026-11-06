@@ -106,6 +106,15 @@ void ValveDef::clear() {
   teleport_value = 0;
   pos[0] = pos[1] = pos[2] = 0;  // 0x0063d870
   yaw = 0;
+  for (Ranged* r : {&leave_net, &attack_radius, &approach, &min_range, &scan_delay[0], &scan_delay[1], &scan_duration[0],
+                    &scan_duration[1]}) {
+    std::free(r->name);
+    *r = {};
+  }
+  for (Named& n : retreat) {
+    std::free(n.name);
+    n = {};
+  }
   names.names.clear();
   flags &= 0xe0;
 }
@@ -173,6 +182,28 @@ ValveDef* ValveDef::parse(zrdr::Node* value, const char* /*name*/) {
     zrdr::get_float_value(const_cast<zrdr::Node*>(&item(f, 3)), &yaw);
     teleport_value = static_cast<int32_t>(word(item(f, 4)));
   }
+  // Pirate's Moon 1.0 @ 0x004f38e0's new keys
+  const char* const kRetreats[3] = {"retreat_dist", "retreat_time", "retreat_health"};
+  for (int k = 0; k < 3; ++k)
+    if (find(kRetreats[k])) named(retreat[k], 3, 2, true);
+  auto ranged = [&](Ranged& r) {
+    set_str(r.name, text(item(f, 1)));
+    r.number = word(item(f, 2));
+    r.value = static_cast<int32_t>(word(item(f, 3)));
+  };
+  if (find("leaveNetRange")) {
+    ranged(leave_net);
+    const float d = as_float(leave_net.number);
+    const float d2 = d * d;
+    std::memcpy(&leave_net.number, &d2, 4);
+  }
+  if (find("attack_radius")) ranged(attack_radius);
+  if (find("approachRange")) ranged(approach);
+  if (find("minRange")) ranged(min_range);
+  if (find("scan_delay_min")) ranged(scan_delay[0]);
+  if (find("scan_delay_max")) ranged(scan_delay[1]);
+  if (find("scan_duration_min")) ranged(scan_duration[0]);
+  if (find("scan_duration_max")) ranged(scan_duration[1]);
   return this;
 }
 

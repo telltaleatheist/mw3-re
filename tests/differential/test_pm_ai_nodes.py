@@ -1,4 +1,5 @@
-"""PM's net node reader 0x4ec240 against the exe: every node_NN of every shipped net and region
+"""PM's AI readers against the exe: valves.zrd 0x4f38e0 (shipped and crafted), aiv.zrd 0x4f0830,
+targets.zrd 0x4f1c20, and the net node reader 0x4ec240 on every node_NN of every shipped net and region
 file, in each mission's archive. New in PM: via ( name number radius ), terminus, static_mfb, jump
 through the typed getters. The valves' and sounds' lookups stand in on both sides, compared by
 name. The rest of the file's reading (the header, the lists, the map by name) isn't here.
@@ -8,6 +9,7 @@ name. The rest of the file's reading (the header, the lists, the map by name) is
 import ctypes
 import struct
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -24,6 +26,7 @@ MECHS = {m: i for i, m in enumerate(md.MECHS)}
 READ, CTOR, VALVE, SOUND, LOCALIZE = 0x4ec240, 0x4d20c0, 0x4e4100, 0x590a70, 0x596db0
 TARGET, TARGET_CTOR = 0x4f1c20, 0x4f1bd0
 AIV, AIV_CTOR, AIV_DEFAULTS = 0x4f0830, 0x4e9b60, 0x60bdd0
+VALVE_READ = 0x4f38e0
 
 
 class Bench(zr.Emulated):
@@ -35,6 +38,7 @@ class Bench(zr.Emulated):
         self.stand(LOCALIZE, lambda c: c.arg(0))
         self.native_stub(0x486730, lambda c: MECHS.get(self.cstr(c.arg(0)).decode('latin1').lower(), 0xffffffff))  # the mech by name
         self.native_stub(0x4d0fc0, lambda c: 0)  # a region by name: not compared
+        self.stand(0x5cee12, lambda c: 0)  # atexit, for 0x4f38e0's static defaults
 
     def stand(self, addr, fn, pop=0):
         if addr in self.cpu.stubs:
@@ -139,6 +143,39 @@ class Bench(zr.Emulated):
         p = self.r32(r + off)
         return self.cstr(p).decode('latin1') if p else '-'
 
+    def valves(self, root):
+        lst = self.r32(root + 4)
+        if self.r32(lst + 4) > 1 and self.r32(lst + 8) == 4:
+            lst = self.r32(lst + 12)
+        r = self.alloc(0x160)  # one record read over again, as the file's is; its ctor opens the file
+        head = self.alloc(0x10)
+        self.cpu._uc.mem_write(head, struct.pack('<II', head, head))
+        self.cpu._uc.mem_write(r + 0x140, struct.pack('<II', head, 0))
+        i, h, b, s = self.r32s, self.h, self.b, self.s
+        named = lambda o: f'{s(r + o)} {i(r + o + 4)} {b(r + o + 8):x}'
+        flag = lambda o: f'{b(r + o):x} {i(r + o + 4)}'
+        three = lambda o, v, w: f'{s(r + o)} {i(r + v)} {h(r + w)}'
+        out = []
+        n = self.r32(lst + 4)
+        for k in range(1, n - 1, 2):
+            p = lst + 8 * k
+            if self.r32(p) != 3 or self.r32(p + 8) != 4:
+                continue
+            key = self.cstr(self.r32(p + 4)).decode('latin1')
+            self.call(VALVE_READ, ecx=r, args=[p + 8])
+            f = [key, flag(0), named(8), named(0x14), named(0x20), named(0x2c), named(0x38), named(0x44), named(0x50),
+                 flag(0x5c), flag(0x64), flag(0x6c), f'{s(r + 0x74)} {i(r + 0x78)} 0', f'{s(r + 0x7c)} 0 0',
+                 f'{s(r + 0x80)} 0 {h(r + 0x84)}', three(0x88, 0x8c, 0x90), three(0x94, 0x98, 0x9c),
+                 three(0xa0, 0xa4, 0xb4), f'{h(r + 0xa8)} {h(r + 0xac)} {h(r + 0xb0)}']
+            f += [three(o, o + 4, o + 8) for o in (0xb8, 0xc4, 0xd0, 0xdc, 0xe8, 0xf4, 0x100, 0x10c)]
+            f += [named(0x118), named(0x124), named(0x130), f'{b(r + 0x148) & 0x1f:x}']
+            names, q = '', self.r32(head)
+            while q != head:
+                names += s(q + 8) + ','
+                q = self.r32(q)
+            out.append('|'.join(f) + '|' + names)
+        return out
+
     def targets(self, root):
         lst = self.r32(root + 4)
         if self.r32(lst + 4) > 1 and self.r32(lst + 8) == 4:
@@ -167,22 +204,89 @@ class Bench(zr.Emulated):
         return out
 
 
+def encode(v):
+    if isinstance(v, bool) or isinstance(v, int):
+        return struct.pack('<ii', 1, v)
+    if isinstance(v, float):
+        return struct.pack('<if', 2, v)
+    if isinstance(v, str):
+        return struct.pack('<iI', 3, len(v)) + v.encode('latin1')
+    return struct.pack('<iI', 4, len(v) + 1) + b''.join(encode(x) for x in v)
+
+
+def crafted_valves():
+    """The keys the shipped files barely use or never do, each alone and all at once, and an empty
+    record after them: what one read leaves is what the next starts from."""
+    tags = [('value', [7]), ('sound', ['snd', 2]), ('sound_once', ['snd1', 3]), ('animation', ['an', 4]),
+            ('animation_once', ['an1', 5]), ('scan_aim', ['aim', 1, 6]), ('scan_hit', ['hit', 0, 7]),
+            ('scan_time', ['tim', 2, 8]), ('canleave', ['lv', 1, 9]), ('shutdown', ['veh', 1, 10]),
+            ('missionreset', [11]), ('missionabort', [12]), ('missioncomplete', [13]), ('destroy', ['ent', 14]),
+            ('setteam', ['tm', 3, 15]), ('attack_strategy', ['at', 4, 16]), ('update', ['up']),
+            ('delayupdate', ['dl', 2.5]), ('all_nonzero', []), ('all_zero', []), ('any_nonzero', []),
+            ('any_zero', []), ('namelist', ['a', 'b', 'c']), ('teleport', ['tp', [1.5, 2.5, 3.5], 45.0, 17])]
+    for i, k in enumerate(('retreat_dist', 'retreat_time', 'retreat_health')):
+        tags.append((k, [k[:9], i % 2, 20 + i]))
+    for i, k in enumerate(('leaveNetRange', 'attack_radius', 'approachRange', 'minRange', 'scan_delay_min',
+                           'scan_delay_max', 'scan_duration_min', 'scan_duration_max')):
+        tags.append((k, [k[:9], 3.0 + i, 30 + i]))
+    records = []
+    for i, (k, v) in enumerate(tags):
+        records += [f'one_{i}', [k, v]]
+    records += ['all', [x for t in tags for x in t], 'none', ['value', [1]]]
+    # An integer where these keys hold a number: the leave range squares its bits as a float.
+    records += ['ints', ['leaveNetRange', ['n', 3, 1], 'attack_radius', ['n', 4, 2]]]
+    return encode(records)
+
+
+def crafted_archive(body, like):
+    version, count, last = struct.unpack_from('<III', like, len(like) - 12)
+    entry = struct.pack('<II', 0, len(body)) + b'valves.zrd'.ljust(0x8c, b'\0')
+    return body + entry + struct.pack('<III', version, 1, last)
+
+
+def check_crafted(p, buf, like):
+    data = crafted_archive(crafted_valves(), like)
+    with tempfile.TemporaryDirectory() as d:
+        rel = 'crafted.zbd'
+        (Path(d) / rel).write_bytes(data)
+        emu = Bench()
+        emu.stand_ins()
+        emu.files[test_pm_zar.key(rel)] = bytearray(data)
+        if not emu.call(zr.OPEN_ARCHIVE, args=[emu.string(rel), 1]):
+            raise SystemExit('PM does not open the crafted archive')
+        theirs = emu.valves(emu.call(zr.LOAD, args=[emu.string('valves.zrd'), 0, 0]))
+        if p.probe_pm_zrdr_load(d.encode(), rel.encode(), b'valves.zrd') != 1:
+            raise SystemExit('the port does not open the crafted archive')
+        n = p.probe_pm_ai_valves(b'valves.zrd', buf, len(buf))
+        ours = buf.value.decode('latin1').splitlines() if n >= 0 else []
+    if theirs != ours:
+        print(f'crafted valves: {len(theirs)} and {len(ours)} records')
+        for a, b in zip(theirs, ours):
+            if a != b:
+                print('  exe ', a[:900])
+                print('  port', b[:900])
+                break
+    return len(theirs), theirs != ours
+
+
 def main():
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10 ** 6
     p = test_pm_zar.load_pm_probe()
     p.probe_pm_ai_nodes.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_ai_aiv.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    p.probe_pm_ai_valves.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_ai_targets.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
     buf = ctypes.create_string_buffer(1 << 22)
-    files = nodes = bad = vias = tfiles = trecs = special = afiles = arecs = 0
+    files = nodes = bad = vias = tfiles = trecs = special = afiles = arecs = vfiles = vrecs = 0
     for path in sorted(PM.glob('zbd/*/reader*.zbd'))[:limit]:
         rel = path.relative_to(PM).as_posix()
         data = path.read_bytes()
         names = [n for n, _, _ in zrd.entries(data) if n.lower().startswith(('net_', 'reg_'))]
         has_targets = any(n.lower() == 'targets.zrd' for n, _, _ in zrd.entries(data))
         has_aiv = any(n.lower() == 'aiv.zrd' for n, _, _ in zrd.entries(data))
-        if not names and not has_targets and not has_aiv:
+        has_valves = any(n.lower() == 'valves.zrd' for n, _, _ in zrd.entries(data))
+        if not names and not has_targets and not has_aiv and not has_valves:
             continue
         emu = Bench()
         emu.stand_ins()
@@ -190,6 +294,22 @@ def main():
         if not emu.call(zr.OPEN_ARCHIVE, args=[emu.string(rel.replace('/', '\\')), 1]):
             raise SystemExit(f'{rel}: PM does not open it')
         p.probe_pm_zrdr_load(str(PM).encode(), rel.encode(), (names[0] if names else 'targets.zrd').encode())
+        if has_valves:
+            root = emu.call(zr.LOAD, args=[emu.string('valves.zrd'), 0, 0])
+            theirs = emu.valves(root) if root else []
+            n = p.probe_pm_ai_valves(b'valves.zrd', buf, len(buf))
+            ours = buf.value.decode('latin1').splitlines() if n >= 0 else []
+            vfiles += 1
+            vrecs += len(theirs)
+            if theirs != ours:
+                bad += 1
+                if bad <= 5:
+                    print(f'{rel} valves: {len(theirs)} and {len(ours)} records')
+                    for a, b in zip(theirs, ours):
+                        if a != b:
+                            print('  exe ', a[:500])
+                            print('  port', b[:500])
+                            break
         if has_aiv:
             root = emu.call(zr.LOAD, args=[emu.string('aiv.zrd'), 0, 0])
             theirs = emu.aiv(root) if root else []
@@ -242,7 +362,9 @@ def main():
                             break
     if limit >= 10 ** 6:
         pm_floors.floors(files=(files, 400), nodes=(nodes, 5000), vias=(vias, 500), target_files=(tfiles, 30), specials=(special, 10))
-    print(f'{files} files, {nodes} nodes ({vias} with via); {tfiles} targets.zrd, {trecs} records ({special} with PM\'s new keys); {afiles} aiv.zrd, {arecs} records: {bad} differ')
+    crafted, wrong = check_crafted(p, buf, next(iter(sorted(PM.glob('zbd/*/reader*.zbd')))).read_bytes())
+    bad += wrong
+    print(f'{files} files, {nodes} nodes ({vias} with via); {tfiles} targets.zrd, {trecs} records ({special} with PM\'s new keys); {vfiles} valves.zrd, {vrecs} records and {crafted} crafted; {afiles} aiv.zrd, {arecs} records: {bad} differ')
     sys.exit(1 if bad else 0)
 
 

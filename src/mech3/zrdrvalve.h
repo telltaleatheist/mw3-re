@@ -110,8 +110,21 @@ struct ValveDef {
   int32_t teleport_value = 0;  // +0xa4
   float pos[3] = {};       // +0xa8
   float yaw = 0;           // +0xb4
-  NameList names;          // +0xb8  "namelist" (name ...)
-  uint8_t flags = 0;       // +0xc4  bit 0 any_nonzero, 1 any_zero, 2 all_nonzero, 3 all_zero
+  // Pirate's Moon's new keys: (name number value), the number squared for the leave range.
+  struct Ranged {
+    char* name = nullptr;
+    int32_t value = 0;
+    uint32_t number = 0;
+  };
+  Ranged leave_net;        // +0xb8  "leaveNetRange", number as its square at +0xc0
+  Ranged attack_radius;    // +0xc4
+  Ranged approach;         // +0xd0  "approachRange"
+  Ranged min_range;        // +0xdc  "minRange"
+  Ranged scan_delay[2];    // +0xe8 scan_delay_min, +0xf4 scan_delay_max
+  Ranged scan_duration[2]; // +0x100 scan_duration_min, +0x10c scan_duration_max
+  Named retreat[3];        // +0x118 retreat_dist, +0x124 retreat_time, +0x130 retreat_health
+  NameList names;          // +0x13c (MW3 +0xb8)  "namelist" (name ...)
+  uint8_t flags = 0;       // +0x148 (MW3 +0xc4)  bit 0 any_nonzero, 1 any_zero, 2 all_nonzero, 3 all_zero
 
   ValveDef* parse(zrdr::Node* value, const char* name);  // 0x004e2330
 };

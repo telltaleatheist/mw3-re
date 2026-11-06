@@ -10,6 +10,7 @@
 #include "mech3/zainet_node.h"
 #include "mech3/zrdrainet.h"
 #include "mech3/zrdraiv.h"
+#include "mech3/zrdrvalve.h"
 
 namespace {
 using namespace mech3::ai;
@@ -133,6 +134,61 @@ extern "C" int probe_pm_ai_aiv(const char* entry, char* out, int size) {
   zrdr::free_node(root);
   rdr_hooks() = RdrHooks{};
   if (static_cast<int>(o.size()) >= size) return -2;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}
+
+// valves.zrd's records (0x004f38e0), one record read over again, as the file's is.
+extern "C" int probe_pm_ai_valves(const char* entry, char* out, int size) {
+  rdr_hooks().localize = same;
+  zrdr::Node* root = zrdr::load(entry);
+  if (!root || root->type != zrdr::List) return -1;
+  std::string o;
+  zrdr::Node* top = root->list[0].i > 1 && root->list[1].type == zrdr::List ? root->list[1].list : root->list;
+  const int32_t n = top[0].i;
+  auto* d = new ValveDef;
+  char b[64];
+  auto named = [&](const ValveDef::Named& v) {
+    std::snprintf(b, sizeof b, "|%s %d %x", sn(v.name), v.value, v.flag);
+    o += b;
+  };
+  auto flag = [&](const ValveDef::Flag& v) {
+    std::snprintf(b, sizeof b, "|%x %d", v.on, v.value);
+    o += b;
+  };
+  auto text = [&](const char* s, int32_t v, uint32_t w) {
+    std::snprintf(b, sizeof b, "|%s %d %x", sn(s), v, w);
+    o += b;
+  };
+  for (int32_t i = 1; i + 1 < n; i += 2) {
+    if (top[i].type != zrdr::String || top[i + 1].type != zrdr::List) continue;
+    d->parse(&top[i + 1], top[i].s);
+    o += top[i].s;
+    flag(d->init);
+    named(d->sound), named(d->anim);
+    for (const auto& v : d->scan) named(v);
+    named(d->shutdown);
+    flag(d->complete), flag(d->abort), flag(d->reset);
+    named(d->destroy);
+    text(d->update, 0, 0);
+    text(d->delay_valve, 0, d->delay);
+    text(d->team_entity, d->team_value, d->team);
+    text(d->attack_entity, d->attack_value, d->strategy);
+    text(d->teleport, d->teleport_value, fb(d->yaw));
+    std::snprintf(b, sizeof b, "|%x %x %x", fb(d->pos[0]), fb(d->pos[1]), fb(d->pos[2]));
+    o += b;
+    for (const auto* r : {&d->leave_net, &d->attack_radius, &d->approach, &d->min_range, &d->scan_delay[0],
+                          &d->scan_delay[1], &d->scan_duration[0], &d->scan_duration[1]})
+      text(r->name, r->value, r->number);
+    for (const auto& v : d->retreat) named(v);
+    std::snprintf(b, sizeof b, "|%x|", d->flags & 0x1f);
+    o += b;
+    for (const auto& s : d->names.names) o += (s ? *s : std::string("-")) + ',';
+    o += '\n';
+  }
+  delete d;
+  zrdr::free_node(root);
+  if (static_cast<int>(o.size()) >= size) return -1;
   std::memcpy(out, o.c_str(), o.size() + 1);
   return static_cast<int>(o.size());
 }
