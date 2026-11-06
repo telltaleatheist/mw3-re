@@ -48,6 +48,7 @@ class Exe:
         cpu = self.cpu = Original('pm')
         cpu.fpu_control(cw)
         self.sizes = {}
+        self.room = {}
         cpu.stub_import(pm_iat('malloc'), lambda c: self.alloc(c.arg(0)))
         cpu.stub_import(pm_iat('calloc'), lambda c: self.alloc(c.arg(0) * c.arg(1)))
         cpu.stub_import(pm_iat('free'), lambda c: 0)
@@ -85,7 +86,11 @@ class Exe:
 
     def realloc(self, c):
         old, n = c.arg(0), c.arg(1)
-        p = self.alloc(n)
+        if old and n <= self.room.get(old, 0):  # the bump heap: growth in steps, or a big model runs it out
+            self.sizes[old] = n
+            return old
+        p = self.alloc(2 * n)
+        self.sizes[p], self.room[p] = n, 2 * n
         if old:
             self.cpu.write(p, bytes(self.cpu.read(old, min(n, self.sizes.get(old, 0)))))
         return p
@@ -138,6 +143,7 @@ class Exe:
     def add(self, c, zone):
         self.cpu.heap_next = self.mark
         self.sizes.clear()
+        self.room.clear()
         m = self.alloc(0x68)
         self.cpu.write(m + 8, struct.pack('<I', 3))
         o = []
@@ -163,6 +169,7 @@ class Exe:
     def clip(self, c):
         self.cpu.heap_next = self.mark
         self.sizes.clear()
+        self.room.clear()
         total = sum(c['nv'])
         vp = self.put(farr(c['pts']))
         cp = self.put(farr(c['colors']))

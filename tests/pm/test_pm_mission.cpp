@@ -9,6 +9,7 @@
 
 #include "check.h"
 #include "gamez/zgame/zgame_table.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zdeclient/zdec_crater.h"
@@ -201,6 +202,7 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   int frames = 0, before = -1, after = -1, unit_valve = -1;
   int soil_on = 0, soil_all = 0, tex_names = 0;
   int crater = -9, crater_polys = 0, crater_refs = 0;
+  float player_height = 0, centroid_over = 0;
   size_t crater_history = 0;
   void* werewolf = nullptr;
   const auto state = [](void* m) {
@@ -228,6 +230,11 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
       zwep::CraterOrder order;
       order.x00 = 0x1008, order.points = 10, order.depth = 0.75f, order.radius = 5.0f;
       order.at = {o.pos[0], o.pos[1], o.pos[2]};
+      player_height = o.height;
+      float centroid[3] = {};
+      if (void* c = mech3::mech_centroid_of(mech3::mech_mission_player()))
+        zcls::node_world_position(static_cast<zcls::Node*>(c), centroid);
+      centroid_over = centroid[1] - o.pos[1];
       crater = zdec::crater_instance(&order, 0);
       crater_history = zdec::craters().history.size();
       if (zcls::Node* n = zcls::list_find_by_name(6, "ZDEC_FEATURE"); n && n->pm_model)
@@ -250,6 +257,10 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   EXPECT(after == 10);
   std::printf("  c2m4: the player's polygons on mech soil %d of %d, textures %d\n", soil_on, soil_all, tex_names);
   EXPECT(soil_all > 100 && soil_on > soil_all / 2 && tex_names > 100);
+  // The box behind PM's +0x70 pointer: at 0 the chase camera, aim and steps all sat at the feet (0x004fd9d0).
+  std::printf("  c2m4: the player's height %.2f, centroid %.2f over its place\n", player_height, centroid_over);
+  EXPECT(player_height > 5.0f && player_height < 30.0f);
+  EXPECT(centroid_over > player_height * 0.45f && centroid_over < player_height * 0.55f);
   std::printf("  c2m4: crater %d, its polygons %d, material refs %d, history %zu\n", crater, crater_polys, crater_refs,
               crater_history);
   EXPECT(crater == 0 && crater_polys >= 20 && crater_refs > 0 && crater_history == 1);  // 10 quads, 10 triangles; a bent quad is 2
