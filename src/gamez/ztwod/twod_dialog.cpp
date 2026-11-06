@@ -334,7 +334,8 @@ bool Dialog::load_node(zrdr::Node* t, zrdr::Node* entry, bool no_draw) {
     const int32_t was = mute;
     mute = 1;
     set_active(1);
-    update(0.0f);
+    // Pirate's Moon 1.0 @ 0x005befd0: in hardware mode the static parts aren't drawn before the grab.
+    if (host().video_mode() == 0) update(0.0f);
     static_bg = host().screen_grab(1);
     set_active(0);
     restore_behind();

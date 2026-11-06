@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from calltrace import Replay, Trace, compare, load_probe  # noqa: E402
+from calltrace import Replay, Trace, _back, compare, load_probe, stub_key  # noqa: E402
 from original import ROOT  # noqa: E402
 from twod_world import READER, TwodWorld, entries, find, parse_node, write_node  # noqa: E402
 from test_twod import canonical, fbits  # noqa: E402
@@ -33,6 +33,10 @@ probe.probe_twod_msgbox.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char
 CTOR, RUN, DTOR, ZRDR_LOAD = 0x5a6e60, 0x5a7280, 0x5a7150, 0x556740
 STYLE_BUTTONS = {0: ['MB_OK'], 1: ['MB_OK', 'MB_CANCEL'], 2: ['MB_ABORT', 'MB_RETRY', 'MB_IGNORE'],
                  3: ['MB_CANCEL', 'MB_YES', 'MB_NO'], 4: ['MB_YES', 'MB_NO'], 5: ['MB_RETRY', 'MB_CANCEL']}
+
+
+def _mw3(a):
+    return _back().get(a, a) if os.environ.get('MW3_PM_MOVED') else a
 
 
 def archive(files):
@@ -93,7 +97,7 @@ class Original:
         # every image there: the loop ends only on a button
         base_image = w.answers['0x005179d0']
         w.answers['0x005179d0'] = lambda rr, k, a: base_image(rr, k, a) or w.fake_texture(32, 16)
-        w.answers.update({f'{a:#010x}': (lambda v: lambda rr, k, aa: v)(0x5e000000 + (a & 0xfff))
+        w.answers.update({stub_key(a): (lambda v: lambda rr, k, aa: v)(0x5e000000 + (_mw3(a) & 0xfff))
                           for a in (0x576db0, 0x576c70, 0x576d80, 0x576cd0, 0x576ca0)})
         w.answers['0x00579840'] = lambda rr, k, a: rr.randrange(2)
         self.tree = w.read_tree(data, start)
@@ -123,6 +127,8 @@ class Original:
 
         def flip(emu, key, a, pop):
             ra, rb, c, d = a
+            if not ra:  # PM's flip takes no rects for the whole screen (0x5c0bc0); the port names them
+                ra = rb = screen
             t.handle(key, (*[emu.r32(ra + 4 * i) for i in range(4)], *[emu.r32(rb + 4 * i) for i in range(4)], c, d))
             emu._ret(0, pop)
         e.stub(0x576ea0, '0x00576ea0', 'c,d,s0,s1', None, flip)
@@ -140,7 +146,7 @@ class Original:
         for a in (0x576db0, 0x576c70, 0x576d80, 0x576cd0, 0x576ca0):
             e.stub(a, f'{a:#010x}', '')
         e.stub(0x579840, '0x00579840', 'c')
-        e.w32(0x72f358, e.new_stub('[0x0072f358]', 'c,d', 0))
+        e.w32(0x72f358, e.new_stub('[0x0072f358]', 's0,s1' if os.environ.get('MW3_PM_MOVED') else 'c,d', 0))
         w.mouse_frames = frames
         self.args = (no_draw, text, caption, style)
 

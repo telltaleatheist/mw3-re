@@ -392,6 +392,12 @@ class TwodWorld:
             0x51b1c0: '', 0x5ae170: 'zc,d,s0,s1', 0x5a7b50: 'zs0', 0x5a7c30: 's0', 0x5a7d10: '',
             0x59a530: 'c',
         }
+        if os.environ.get('MW3_PM_MOVED'):
+            from original import PM_AS, PM_QUIET
+            for addr, as_key in PM_AS.items():
+                e.stub(addr, as_key, '', 0)
+            for addr, value in PM_QUIET.items():
+                e.stub(addr, f'@pm{addr:x}', '', 0, (lambda v: lambda emu, key, a, pop: emu._ret(v, 0))(value))
         for addr, spec in plain.items():
             if os.environ.get('MW3_EXE') == 'pm' and addr == 0x59a530:
                 continue  # PM has no movies: no such function

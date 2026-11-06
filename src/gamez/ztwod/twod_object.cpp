@@ -494,7 +494,8 @@ void Cursor::grab_at(int32_t px, int32_t py) {
 
 // Mech3.exe 1.2 @ 0x005a7a20
 void Cursor::draw() {
-  host().blit(image, x < 0 ? 0 : x, y < 0 ? 0 : y, 0, &bg_rect);
+  // Pirate's Moon 1.0 @ 0x005c0510 (its 2D draws): no image, no draw.
+  if (image) host().blit(image, x < 0 ? 0 : x, y < 0 ? 0 : y, 0, &bg_rect);
 }
 
 // Mech3.exe 1.2 @ 0x005a7a50

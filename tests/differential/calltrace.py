@@ -107,6 +107,24 @@ def _back():
     return _back_map
 
 
+def stub_key(addr):
+    """The key a stub of `addr` records under: MW3's address, whichever exe runs."""
+    if os.environ.get('MW3_PM_MOVED'):
+        addr = _back().get(addr, addr)
+    return f'{addr:#010x}'
+
+
+_map_cache = None
+
+
+def _image_map():
+    global _map_cache
+    if _map_cache is None:
+        from original import AddressMap
+        _map_cache = AddressMap()
+    return _map_cache
+
+
 def pm_args(addr):
     """(regs MW3's function reads, PM's convention: 'this', 'fast' or 'stack')."""
     if addr in _regs_cache:
@@ -136,6 +154,9 @@ def pm_spec(addr, spec):
     regs, conv = pm_args(addr)
     if conv == 'fast':
         return spec
+    # Ghidra can miss EDX in MW3's header; what the stub reads is what MW3 passed.
+    used = re.findall(r'(?:^|,)[z*]?(cl|dl|c|d)(?=,|$)', spec)
+    regs = ''.join(r for r in 'cd' if r in regs or any(u[0] == r for u in used))
     moved = {'c': None if conv == 'this' else 0, 'd': (0 if conv == 'this' else ('c' in regs) + 0) if 'd' in regs else None}
     n = sum(1 for r, at in moved.items() if at is not None and r in regs)
     out = []
@@ -269,6 +290,8 @@ class Replay(Trace):
 
     def handle(self, key, args):
         args = tuple(a if isinstance(a, str) else a & 0xffffffff for a in args)
+        if key in self.MEMORY and os.environ.get('MW3_PM_MOVED'):  # the port names MW3's address
+            args = (_image_map()(args[0]), *args[1:])
         if key == 'peek32':
             return sum(self.read8(args[0] + i) << (8 * i) for i in range(4))
         if key == 'peek8':
@@ -358,7 +381,7 @@ class Emu:
 
     def snapshot(self):
         """The memory as it is now, for the rebuild's reads."""
-        image = (0x400000, self.cpu.read(0x400000, 0x420000)) if GAME == 'mw3' or os.environ.get('MW3_PM_MOVED') else (0x400000, PmImage(self.cpu))
+        image = (0x400000, self.cpu.read(0x400000, 0x714000)) if os.environ.get('MW3_PM_MOVED') else (0x400000, self.cpu.read(0x400000, 0x420000)) if GAME == 'mw3' else (0x400000, PmImage(self.cpu))
         regions = [image,
                    (self.world_base, self.cpu.read(self.world_base, self.world_next - self.world_base)),
                    (0x10000000, self.cpu.read(0x10000000, self.cpu.heap_next - 0x10000000))]
@@ -451,8 +474,8 @@ class Emu:
             if pop is None:
                 raise ValueError(f'{addr:#x}: import thunk, give pop')
         key = key or f'{addr:#010x}'
-        if os.environ.get('MW3_PM_MOVED') and re.fullmatch(r'0x[0-9a-f]{8}', key):  # the port's keys are MW3's
-            key = f'{_back().get(int(key, 16), int(key, 16)):#010x}'
+        if os.environ.get('MW3_PM_MOVED') and key == f'{addr:#010x}':  # made from the address: the port's keys are MW3's
+            key = stub_key(addr)
         spec = pm_spec(addr, spec)
         if addr not in self.slots:  # one hook per address; a later stub replaces
             self.uc.hook_add(UC_HOOK_CODE, self._hit, begin=addr, end=addr)
@@ -508,12 +531,13 @@ class Emu:
         if GAME != 'mw3':
             regs, conv = pm_args(addr)
             if conv == 'this':
-                stack = ([edx] if 'd' in regs else []) + list(stack)
+                stack = ([edx] if 'd' in regs or edx else []) + list(stack)
                 edx = 0
             elif conv == 'stack':
-                stack = ([ecx] if 'c' in regs else []) + ([edx] if 'd' in regs else []) + list(stack)
+                move_d = 'd' in regs or bool(edx)
+                stack = ([ecx] if 'c' in regs else []) + ([edx] if move_d else []) + list(stack)
                 ecx = 0 if 'c' in regs else ecx
-                edx = 0 if 'd' in regs else edx
+                edx = 0 if move_d else edx
         self.cpu.call(addr, ecx=ecx, edx=edx, stack_args=stack, count=count)
         return self.uc.reg_read(UC_X86_REG_EAX)
 

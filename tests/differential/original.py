@@ -99,7 +99,7 @@ class AddressMap:
         self.blocks = sorted((int(lo, 16), int(hi, 16), d) for lo, hi, d in m['blocks'])
         self.function_back = {int(b, 16): int(a_, 16) for a_, b in m['functions'].items()}
         # By hand, a one-instruction wrapper the map can't pair: video unlock.
-        for mw, pm in ((0x576e70, 0x597ef0),):
+        for mw, pm in ((0x576e70, 0x597ef0), (0x576ea0, 0x597f40)):
             self.exact[mw] = pm
             self.function_back[pm] = mw
         self._lo = [b[0] for b in self.blocks]
@@ -191,6 +191,11 @@ _MAP = None
 
 
 MOVED = bool(os.environ.get('MW3_PM_MOVED'))
+# PM's own, with no twin in MW3's, stood in for without a trace (pm_moved.py): the message pump,
+# and what 0x5c0b70 does around a frame on the software path. Their addresses are PM's.
+PM_QUIET = {0x5b14e0: 1, 0x5883f0: 0, 0x588590: 0}
+# PM's frame picks these in the other screen mode, where MW3's always calls the plain ones; the port's Host has those.
+PM_AS = {0x597d50: '0x00576de0', 0x597dc0: '0x00576e70'}
 if MOVED:
     IAT_FTOL = AddressMap()(IAT_FTOL)
 
