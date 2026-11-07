@@ -402,9 +402,10 @@ struct Pl : PlanPmHooks {
   bool spreads(zgame::Handle w) override { return wi(w)[4] != 0 && wi(w)[3] != 0; }
   float spread(zgame::Handle w) override { return wf(w)[6]; }
   const float* offset(zgame::Handle w) override { return wf(w) + 7; }
-  bool buried(zgame::Handle node, const float at[3]) override {
+  bool buried(zgame::Handle node, float at[3]) override {
     log.push_back(0x98), log.push_back(static_cast<uint32_t>(node));
     vec(0x98, at);
+    at[0] = at[0] + 7.0f, at[2] = at[2] - 3.0f;  // into the world, as the exe's
     for (zgame::Handle w : ws)
       if (w == g_cur) return wi(w)[5] != 0;
     return false;
@@ -471,3 +472,6 @@ extern "C" void probe_pm_firing_seed(uint32_t* out) {
   out[0x50 / 4] = f.x50;
   put(0x54, f.x54), put(0x58, f.cool_for), put(0x5c, f.cool_until), put(0x60, f.cool_below), put(0x64, f.shot_every);
 }
+
+extern "C" int32_t probe_pm_firepoint_reaches(const float* cone, const float* dir) { return firepoint_reaches(cone, dir); }
+extern "C" int32_t probe_pm_torso_reaches(const float* lim, const float* dir) { return torso_reaches(lim[0], lim[1], lim[2], dir); }

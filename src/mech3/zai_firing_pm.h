@@ -208,7 +208,7 @@ class PlanPmHooks {
   virtual bool spreads(zgame::Handle w) = 0;                            // +0x6c and +0x84
   virtual float spread(zgame::Handle w) = 0;                            // +0x84's +0x60
   virtual const float* offset(zgame::Handle w) = 0;                     // +0x88
-  virtual bool buried(zgame::Handle node, const float at[3]) = 0;       // 0x004ff3c0
+  virtual bool buried(zgame::Handle node, float at[3]) = 0;             // 0x004ff3c0: `at` turned to the world's, true without a node
   virtual bool has_mount(zgame::Handle w) = 0;                          // +0x84
   virtual bool mount_reaches(zgame::Handle w, const float dir[3]) = 0;  // 0x004a7000
   virtual bool mech_reaches(zgame::Handle m, const float dir[3]) = 0;   // vt+0x94
@@ -226,6 +226,8 @@ void plan_sight(PlanPm& p, const Contact* c);                           // 0x004
 zgame::Handle best_weapon(zgame::Handle wm);                            // 0x004b9de0
 bool can_hit(zgame::Handle w, const float at[3]);                       // 0x004b8f80
 bool any_can_hit(zgame::Handle wm, const float at[3]);                  // 0x004bd1c0
+bool firepoint_reaches(const float cone[18], const float dir[3]);       // 0x004a7000, a firepoint's aim cone
+bool torso_reaches(float min_pitch, float max_pitch, float max_yaw, const float dir[3]);  // 0x00467490's answer
 
 // What the step asks outside. A plan and its virtuals are handles here until the step is wired to
 // PlanPm: vt+0x14 turn, vt+0x04 in the cone, vt+0x1c sight, vt+0x20 place.

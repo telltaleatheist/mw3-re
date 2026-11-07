@@ -901,6 +901,31 @@ bool can_hit(zgame::Handle w, const float at[3]) {
   return h.has_mount(w) ? h.mount_reaches(w, d) : h.mech_reaches(m, d);
 }
 
+// Pirate's Moon 1.0 @ 0x004a7000 with 0x004a6e90 and 0x004a6dd0: within the pitch band, and either yaw band unless
+// the way is all but straight up or down. The exe's keeps the workings for a caller; none here reads them.
+bool firepoint_reaches(const float cone[18], const float dir[3]) {
+  const bool pitch = cone[14] <= dir[1] && dir[1] <= cone[15];
+  bool first = true, second = true;
+  if (std::fabs(double{dir[1]}) < 0.9990000128746033) {
+    float flat[3] = {dir[0], 0.0f, dir[2]};
+    unit3(flat);
+    const auto side = [&](const float* band) {
+      const float d = static_cast<float>((double{band[2]} * flat[2] + double{band[0]} * flat[0]) - band[3]);
+      return 0.0f <= d;
+    };
+    first = side(cone);
+    second = side(cone + 4);
+  }
+  return pitch && (first || second);
+}
+
+// Pirate's Moon 1.0 @ 0x00467490: nothing clamped.
+bool torso_reaches(float min_pitch, float max_pitch, float max_yaw, const float dir[3]) {
+  const float pitch = static_cast<float>(std::asin(double{dir[1]}));
+  const float yaw = static_cast<float>(std::atan2(double{dir[0]}, -double{dir[2]}));
+  return pitch <= max_pitch && min_pitch <= pitch && yaw <= max_yaw && -max_yaw <= yaw;
+}
+
 // Pirate's Moon 1.0 @ 0x004bd1c0
 bool any_can_hit(zgame::Handle wm, const float at[3]) {
   for (const zgame::Handle w : plan_pm_hooks().weapons(wm))

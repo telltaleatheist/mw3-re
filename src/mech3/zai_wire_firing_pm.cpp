@@ -71,6 +71,21 @@ struct LeadHooks : LeadPmHooks {
     return m_;
   }
 };
+// 0x004b7800 on the manager's aim, for its cosine alone: false when the muzzle is blocked. FIX (bug) lands here with
+// the blocked line (fixes.md): the exe leaves the caller's stack, this answers no.
+bool weapon_line_cos(Weapon* w, WeaponManager* m, float* cos) {
+  if (!(w->damage != 1.0f)) return false;
+  Vec3f at = m->aim, mz, dir;
+  if (!w->aim(&at, &mz, &dir, nullptr)) return false;
+  const Vec3f* axis = w->node ? mech3::weapon_calls().node_axis(w->node) : nullptr;
+  if (!axis) {
+    *cos = 1.0f;
+    return true;
+  }
+  *cos = static_cast<float>(-(double{axis->z} * dir.z + double{axis->y} * dir.y + double{axis->x} * dir.x));
+  return true;
+}
+
 // A body part by the exe's offset on PM's mech.
 void* part_at(zgame::Handle m, int32_t offset) {
   const Mech* k = static_cast<Mech*>(brain_hooks().object_of(m));
@@ -288,7 +303,10 @@ class WirePlan : public PlanPmHooks {
   void face(zgame::Handle v, const float dir[3]) override {
     brain_hooks().bearer_set_aim(v, dir);
   }
-  void wm_aim_at(zgame::Handle wm, const float at[3]) override { pm_hook_missing("WirePlan.wm_aim_at"); }
+  void wm_aim_at(zgame::Handle wm, const float at[3]) override {
+    if (at) brain_hooks().wm_aim_at(wm, at);
+    else brain_hooks().wm_clear_aim(wm);
+  }
   const std::vector<zgame::Handle>& weapons(zgame::Handle wm) override {
     return manager_list(wm);
   }
@@ -296,7 +314,9 @@ class WirePlan : public PlanPmHooks {
     const WeaponGroup* k = group_of(g);
     return k ? list_of(k->weapons, k->count) : no_handles();
   }
-  bool weapon_cos(zgame::Handle w, zgame::Handle wm, float* cos) override { pm_hook_missing("WirePlan.weapon_cos"); return {}; }
+  bool weapon_cos(zgame::Handle w, zgame::Handle wm, float* cos) override {
+    return weapon_line_cos(weapon_of(w), wm_of(wm), cos);
+  }
   bool in_sight(zgame::Handle v, zgame::Handle e) override {
     return brain_hooks().clear_line(v, e);  // 0x004e5d00 is MW3's 0x004d5980
   }
@@ -320,16 +340,40 @@ class WirePlan : public PlanPmHooks {
   zgame::Handle holder_mech(zgame::Handle w) override {
     return brain_hooks().handle_of(weapon_of(w)->manager->owner);
   }
-  bool mounted(zgame::Handle w) override { pm_hook_missing("WirePlan.mounted"); return {}; }
-  zgame::Handle muzzle_node(zgame::Handle w) override { pm_hook_missing("WirePlan.muzzle_node"); return {}; }
-  const float* mount_place(zgame::Handle w) override { pm_hook_missing("WirePlan.mount_place"); return kZeros; }
-  bool spreads(zgame::Handle w) override { pm_hook_missing("WirePlan.spreads"); return {}; }
-  float spread(zgame::Handle w) override { pm_hook_missing("WirePlan.spread"); return {}; }
-  const float* offset(zgame::Handle w) override { pm_hook_missing("WirePlan.offset"); return kZeros; }
-  bool buried(zgame::Handle node, const float at[3]) override { pm_hook_missing("WirePlan.buried"); return {}; }
-  bool has_mount(zgame::Handle w) override { pm_hook_missing("WirePlan.has_mount"); return {}; }
-  bool mount_reaches(zgame::Handle w, const float dir[3]) override { pm_hook_missing("WirePlan.mount_reaches"); return {}; }
-  bool mech_reaches(zgame::Handle m, const float dir[3]) override { pm_hook_missing("WirePlan.mech_reaches"); return {}; }
+  bool mounted(zgame::Handle w) override {
+    const Weapon* k = weapon_of(w);
+    return k->part && k->firepoint;
+  }
+  zgame::Handle muzzle_node(zgame::Handle w) override {
+    return brain_hooks().handle_of(weapon_of(w)->node);
+  }
+  const float* mount_place(zgame::Handle w) override {
+    return weapon_of(w)->firepoint->position;
+  }
+  bool spreads(zgame::Handle w) override {
+    const Weapon* k = weapon_of(w);
+    return k->salvo_left && k->firepoint;
+  }
+  float spread(zgame::Handle w) override {
+    return weapon_of(w)->firepoint->radius;
+  }
+  const float* offset(zgame::Handle w) override {
+    return &weapon_of(w)->spread.x;
+  }
+  bool buried(zgame::Handle node, float at[3]) override {
+    if (!node) return true;
+    return mech3::weapon_calls().node_position(brain_hooks().object_of(node), reinterpret_cast<Vec3f*>(at)) != 0;
+  }
+  bool has_mount(zgame::Handle w) override {
+    return weapon_of(w)->firepoint != nullptr;
+  }
+  bool mount_reaches(zgame::Handle w, const float dir[3]) override {
+    return firepoint_reaches(weapon_of(w)->firepoint->cone, dir);
+  }
+  bool mech_reaches(zgame::Handle m, const float dir[3]) override {
+    const Torso* t = static_cast<Mech*>(brain_hooks().object_of(m))->torso;
+    return torso_reaches(t->min_pitch, t->max_pitch, t->max_yaw, dir);
+  }
   int32_t rand() override { return brain_hooks().rand(); }
  private:
   float m_[9] = {};

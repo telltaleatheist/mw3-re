@@ -351,6 +351,10 @@ Breaks over the states, the brain, the nets and the targets: 168, of which 166 c
 
 `test_sensors` doesn't move with this group. Its PM twins 0x4e6140 (the sort) and 0x4e6240 (the allies' turn) didn't run in the trace, so they aren't among the 112; `allies_turn` stays a hook and they stay listed. `test_pocket_panel`, `_frame` and `_keys` weren't reached either.
 
+### A bug the wiring found (2026-11-07)
+
+`can_hit` 0x4b8f80 kept the muzzle in the part's frame: 0x4ff3c0 turns its point into the world's in place, and the port's hook took it as const. `test_pm_ai_plan` passed because its stand-in didn't move the point on either side; both sides now move it, so the test sees the difference. It shows the limit of a stand-in: it can't catch what it doesn't do. `firepoint_reaches` 0x4a7000 and `torso_reaches` 0x467490 are compared real in `test_pm_ai_brain`, 4,000 cases of each, `_CIasin` replaced in the emulator by the same x87 formula.
+
 ### Named checks for the first run, from Owen's play of PM mission 2 on the stand-in (2026-11-07)
 
 Both on c1 mission 2 with `PM_AI=1`, next to c1m1, and both by reading so far, nothing run.

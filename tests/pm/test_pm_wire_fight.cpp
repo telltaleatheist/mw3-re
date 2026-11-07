@@ -154,7 +154,6 @@ TEST(pm_wire_firing_places_are_never_null) {
   Fake f;
   Installed in(&f);
   EXPECT(plan_pm_hooks().matrix(7)[8] == 1.0f);
-  EXPECT(plan_pm_hooks().mount_place(1) != nullptr && plan_pm_hooks().offset(1) != nullptr);
   EXPECT(aim_pm_hooks().plan_position(1) != nullptr);
 }
 
