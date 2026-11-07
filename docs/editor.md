@@ -103,8 +103,107 @@ editor's frame 0x00404290 (nothing without a net editor).
 | 10, 11 | (blank) | none |
 | 12 | Exit Net Editor | 0x00402ba0 |
 
-"Save Changes" writes the net files; the port will write them to the write
-dir, never into the install (FIX (A), agreed 2026-10-31).
+**Save Changes does not reach the disk in the release** (checked 2026-11-07,
+S5 sitting 1). 0x00402e90 -> 0x00402f20 -> 0x004bd340 runs 0x004bd100, then
+0x004d72a0, which is `xor eax, eax; ret`: the net's slot +0x1c, the empty
+default of the base class. 0x004bd100 only folds the edits into the file
+object's records in memory (0x004bef80 -> 0x004dc2b0; deleted nodes through
+0x004dc290). The destructor 0x004bd020 does the same: when the net is dirty
+(+0x39) it calls the same stub. The text writers are all still there,
+0x004da1d0 (slot +0x1c of the file object; 0x004dad10, the header) and
+0x004da7e0 (slot +0x14; 0x004db8d0, a node), but nothing found calls them.
+They need a FILE*, the exe has no `_fdopen`, and every `fopen` for writing
+is something else: the controls (0x00411e60), location.zrd (0x004a37a0),
+stdout (0x00575b00, `freopen`), a zbd save (0x004fe8e0, debug path 0x592423,
+not traced further). Pirate's Moon is the same
+(0x004c4160, stub 0x0051a4d0), and its writer 0x004ecaa0 adds `via` and
+`static_mfb`. So by this reading an edit in the release lasts until the file object goes;
+not run.
+
+## The AI net editor, the map (S5 sitting 1, 2026-11-07)
+
+**The object.** `operator new(0x140)`, ctor 0x00402f40, in [0x005f4c6c],
+over the selection base 0x0058bf50, with one list of them at [0x005f4c60].
+
+| Offset | What |
+|---|---|
+| +0x14 | the net (`CZAiNetEdit`, editing side), owned |
+| +0xfc, +0x100 | selected nodes, count (0x00403770: the first, a box when more) |
+| +0x108, +0x10c | selected lines, count (0x004037b0: its ends, by direction) |
+| +0x114, +0x118 | the list of nodes to link to, count (consumed in the frame) |
+| +0x128 | the camera's far clip before the editor, restored by 0x00402fd0 |
+| +0x130, +0x134 | Move Node's state (0..3) and the node |
+| +0x138 | dirty; cleared by Save, carried over a rebuild |
+| +0x13c | rebuild asked (0x00403080 deletes this and makes a new one on the same net) |
+
+**The flow.** 0x00402d60: the first pick (0x0040e120 -> 0x004d55c0): an
+object under the mouse that is a net (vt+0x48) edits it through 0x004bd360 by
+id; else the camera's pick (vt+0xf8) gives a point, a free id from
+0x0058b1c0 and a new net with one node (0x00402c90). It frees the old editor,
+keeps the new one in [0x005f4c6c] and installs the menu (0x00403690).
+0x00404290 runs the frame of every editor but the one given, 0.1 s each,
+0x00403080 / 0x00403160 for each. The frame: the view (0x0058c950, the
+selection box), the mouse's point on the ground (the camera's vt+0xf8), the
+far clip set to 1.5 times the distance to it (x + y + z) when the view looks
+down past 70 degrees (1.2217 rad), the saved one otherwise, Move Node's
+states, then the links.
+
+| Row | What it does |
+|---|---|
+| GOTO Net | camera vt+0xdc to the net's place (net vt+4) |
+| Change Net Params | net vt+0x5c: a dialog (FIX (A): no MFC) |
+| Node Params | the first selected node's vt+0x60 and vt+0x88: a dialog |
+| Add veh to node | a vehicle picked from a dialog (0x0049d350, 0x0049d8b0), placed at the node, a compiled net built when there is none (0x004be670) |
+| Move Node | 0x00403a90: state 1 waits for the button up, state 2 for a press, state 3 follows the mouse while it is held (vt+0x2c, vt+0x38), sets dirty; letting go ends it |
+| Delete Node, line | confirm (OK, Cancel), +0x138 set, net vt+0x58 for a line |
+| Save Changes | as above, and clears +0x138 |
+| Tree View | 0x00402bf0: one window object, 0x004b5580 (0xa8 bytes) |
+| Exit Net Editor | 0x00402ba0: frees the editor and both side windows, back to the main menu |
+
+Every row's box goes through 0x00402ec0 (a format into 128 bytes, then
+0x00402f10); the port needs its own for those and the dialogs (FIX (A)). The file box 0x004bf750
+(`CFileDialog`, "Zipper Files") is an Open, not a Save; no call to it found.
+
+**Pirate's Moon.** About the same set of functions (46 at these addresses,
+50 in MW3), moved 0x10 here. PM's picker 0x00402d70 differs from 0x00402d60:
+the camera's pick is vt+0x104, and the id call takes (1, 100, 1), with the
+point passed to the net's maker. The fork on `pm` needs reading, not only
+addresses. The reader
+keys `via` (626 nodes) and `static_mfb` (12) are PM's own.
+
+**The files.** Counted by a script over every mission archive:
+
+| | Files | Nodes | Versions |
+|---|---|---|---|
+| MW3 | 751 in 53 archives | 19,971 | 308 net 106, 396 reg (393 108, 3 106), 47 waynet 107 |
+| PM | 619 in 45 archives | 14,332 | 459 net 106, 115 reg 108, 45 waynet 107 |
+
+No shipped file is version 105, the only version 0x004bcba0 sends to the
+reload 0x004bed90: the sitting 4 reload needs reading again for 106.
+
+Three things stand against the original's text writer as a save format:
+
+1. **It rounds.** Positions are `%6.1f`: 128 of 49,710 MW3 values and 127 of
+   39,747 PM values do not survive it. Property floats (`%6.3f`) all do.
+2. **It is text, and the exe cannot use a text net over a shipped one.**
+   0x00556740 asks the open archives first and looks for a loose file only
+   when none has the name. A text net_01.zrd is ignored by the original.
+3. **A loose net names too much, in the port as well.** The mod rule
+   (`mod_loose`) matches by folder and name, and the net reader does come
+   through it (RdrFile::load -> zrdr::load; read, not run). But one campaign
+   folder holds many archives: 115 MW3 names (80 PM) are in more than one
+   archive of a folder, 91 (68) of them with different contents. c1's
+   net_01.zrd is in eight archives, so a loose copy replaces it in all eight.
+
+**So a save writes the mission's whole archive,** `mods\<name>\zbd\c1\
+readerm1.zbd`: every other entry copied, the edited net as a binary tree
+(zrd's types 1..4; the exact floats, no limit on links). The port reads it
+under the rule that a mod's copy of a game file is read instead; the original
+reads the same file dropped in its `zbd\c1`. Not yet tested on the original.
+The text writers stay worth porting for one thing: a readable copy beside it
+and a byte-for-byte test on the original's own code (0x004db8d0 run in the
+emulator). The "BS style" branch (version 105, three links, padded) is not
+used by any shipped file.
 
 ## The stealth object
 
