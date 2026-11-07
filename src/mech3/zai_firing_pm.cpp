@@ -195,7 +195,7 @@ void AimPm::repick(zgame::Handle plan, zgame::Handle w, Brain* b, float at[3]) {
 }
 
 // Pirate's Moon 1.0 @ 0x004bb580: new here, the manager's has_target off against a target whose
-// +0x6a8's +0x0c is 11, on otherwise (what 11 is isn't known); then MW3's 0x004b77e0.
+// +0x6a8's +0x0c (its roster id) is 11, the Elemental, on otherwise; then MW3's 0x004b77e0.
 void AimPm::lead(float dt, zgame::Handle plan, zgame::Handle w, zgame::Handle wm, Brain* b) {
   AimPmHooks& h = aim_pm_hooks();
   const zgame::Handle e = h.contact_entity(h.plan_contact(plan));

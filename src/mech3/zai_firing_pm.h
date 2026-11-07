@@ -21,7 +21,7 @@ class AimPmHooks {
   virtual const float* plan_position(zgame::Handle plan) = 0;           // vt+0x20
   virtual zgame::Handle contact_entity(const Contact* c) = 0;           // 0x004f8d70
   virtual bool entity_is_vehicle(zgame::Handle e) = 0;                  // vt+0x48
-  virtual uint32_t entity_pilot_kind(zgame::Handle e) = 0;              // vt+0x58, its +0x6a8's +0x0c; 0 none
+  virtual uint32_t entity_pilot_kind(zgame::Handle e) = 0;              // vt+0x58, its +0x6a8's +0x0c: the roster id; 0 none
   virtual float difficulty_error() = 0;                                 // [0x0062cc64]
   virtual float pilot_error(Brain* b) = 0;                              // +0xb8
   virtual float pilot_aid(Brain* b) = 0;                                // +0xc0

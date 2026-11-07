@@ -162,7 +162,11 @@ class WireAim : public AimPmHooks {
   bool entity_is_vehicle(zgame::Handle e) override {
     return brain_hooks().vehicle_mech(e) != 0;  // vt+0x48 on a mech is itself; other classes unread
   }
-  uint32_t entity_pilot_kind(zgame::Handle e) override { pm_hook_missing("WireAim.entity_pilot_kind"); return {}; }
+  uint32_t entity_pilot_kind(zgame::Handle e) override {
+    const zgame::Handle m = brain_hooks().vehicle_mech(e);  // PM's mech +0x6a8 is its MechData, +0x0c the roster
+    const Mech* k = m ? static_cast<const Mech*>(brain_hooks().object_of(m)) : nullptr;
+    return k && k->pilot ? static_cast<uint32_t>(k->pilot->roster) : 0;
+  }
   float difficulty_error() override {
     return brain_hooks().aim_intensity();  // [0x0062cc64], taken as MW3's [0x00608e58]
   }
