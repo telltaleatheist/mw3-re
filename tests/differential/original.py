@@ -97,6 +97,10 @@ def _checked_exit(code):
     _quit(code)
 
 
+if PRECISION == '53':
+    os._exit = _checked_exit  # now: `os._exit(main())` looks it up before main() runs
+
+
 class Original:
     def __init__(self, exe=None):
         self.game, self.exe, sha, what = select(exe)
@@ -151,7 +155,6 @@ class Original:
             self.fpu_control(0x027f)
         if PRECISION == '53' and not _ORIGINALS:
             atexit.register(_precision_check)  # after Unicorn's own, so it runs first
-            os._exit = _checked_exit
         _ORIGINALS.append(self)
 
     def fpu_control(self, cw):
