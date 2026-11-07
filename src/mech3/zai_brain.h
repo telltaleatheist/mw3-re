@@ -54,6 +54,9 @@ class BrainHooks : public zgame::Unported {
   virtual Behaviour* default_behaviour();
   // The handle the hooks know a vehicle by (the program's object table).
   virtual zgame::Handle vehicle_handle(void* vehicle) { return low(vehicle); }
+  // The port's object behind a handle, and back (GameEngine's table): what PM's firing reads weapons by.
+  virtual void* object_of(zgame::Handle h) { (void)h; return nullptr; }
+  virtual zgame::Handle handle_of(void* p) { return low(p); }
   // The hit handlers' questions (docs/ai.md 17.8b): a vehicle's mech
   // (vt+0x50; a mech is its own); the attacker's controls told it hit an ally
   // (vt+0x40, vt+0x140, IControls vt+0x98: the AI's 0x004ea500, nothing for

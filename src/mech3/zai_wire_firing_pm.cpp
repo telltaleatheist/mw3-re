@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include "mech3/weapon.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_wire_pm.h"
 
@@ -26,10 +27,25 @@ FiringRecord* record_of(zgame::Handle v) {
   const auto it = records().find(v);
   return it == records().end() ? nullptr : &it->second;
 }
-bool grouped(zgame::Handle) {
-  pm_hook_missing("wm+0x2c.group");
-  return false;
+WeaponManager* wm_of(zgame::Handle wm) { return static_cast<WeaponManager*>(brain_hooks().object_of(wm)); }
+Weapon* weapon_of(zgame::Handle w) { return static_cast<Weapon*>(brain_hooks().object_of(w)); }
+WeaponGroup* group_of(zgame::Handle g) { return static_cast<WeaponGroup*>(brain_hooks().object_of(g)); }
+// By reference in the exe; here rebuilt on each ask.
+const std::vector<zgame::Handle>& list_of(Weapon* const* from, uint32_t n) {
+  static std::vector<zgame::Handle> out;
+  out.clear();
+  for (uint32_t i = 0; i < n; ++i) out.push_back(brain_hooks().handle_of(from[i]));
+  return out;
 }
+const std::vector<zgame::Handle>& manager_list(zgame::Handle wm) {
+  const WeaponManager* m = wm_of(wm);
+  return m ? list_of(m->weapons, m->count) : no_handles();
+}
+zgame::Handle manager_group(zgame::Handle wm) {
+  const WeaponManager* m = wm_of(wm);
+  return m && m->group_ptr() ? brain_hooks().handle_of(m->group_ptr()) : 0;
+}
+bool grouped(zgame::Handle v) { return manager_group(brain_hooks().weapons(v)) != 0; }
 
 class WireAim : public AimPmHooks {
  public:
@@ -86,16 +102,28 @@ class WirePick : public PickPmHooks {
     return t ? t->team : 0;
   }
   uint8_t flags(zgame::Handle e) override { return brain_hooks().vehicle_flags(e); }
-  zgame::Handle group(zgame::Handle e) override { pm_hook_missing("WirePick.group"); return {}; }
+  zgame::Handle group(zgame::Handle e) override {
+    return brain_hooks().vehicle_mech(e) ? 0 : (pm_hook_missing("WirePick.group"), zgame::Handle{0});  // the mech's 0x00406ce0
+  }
   uint32_t group_marker(zgame::Handle g) override { pm_hook_missing("WirePick.group_marker"); return {}; }
   uint32_t group_xe8(zgame::Handle g) override { pm_hook_missing("WirePick.group_xe8"); return {}; }
-  zgame::Handle vehicle(zgame::Handle e) override { pm_hook_missing("WirePick.vehicle"); return {}; }
-  zgame::Handle vehicle_x58(zgame::Handle m) override { pm_hook_missing("WirePick.vehicle_x58"); return {}; }
-  uint32_t vehicle_x100(zgame::Handle m) override { pm_hook_missing("WirePick.vehicle_x100"); return {}; }
-  uint32_t entity_x50(zgame::Handle e) override { pm_hook_missing("WirePick.entity_x50"); return {}; }
+  zgame::Handle vehicle(zgame::Handle e) override {
+    return e;  // 0x00402250 on a mech; dev 2 has the other classes
+  }
+  zgame::Handle vehicle_x58(zgame::Handle m) override {
+    return brain_hooks().vehicle_mech(m);
+  }
+  uint32_t vehicle_x100(zgame::Handle m) override {
+    return brain_hooks().vehicle_mech(m) ? 0 : (pm_hook_missing("WirePick.vehicle_x100"), 0u);  // 0x00406ce0
+  }
+  uint32_t entity_x50(zgame::Handle e) override {
+    return brain_hooks().vehicle_mech(e) ? 0 : (pm_hook_missing("WirePick.entity_x50"), 0u);  // 0x00406ce0
+  }
   float health(zgame::Handle e) override { return brain_hooks().health(e); }
   zgame::Handle mech(zgame::Handle e) override { return brain_hooks().vehicle_mech(e); }
-  float heat(zgame::Handle m) override { pm_hook_missing("WirePick.heat"); return {}; }
+  float heat(zgame::Handle m) override {
+    return brain_hooks().heat(m);
+  }
   zgame::Handle part(zgame::Handle m, int32_t offset) override { pm_hook_missing("WirePick.part"); return {}; }
   uint32_t part_child(zgame::Handle m, int32_t leg) override { pm_hook_missing("WirePick.part_child"); return {}; }
   float part_health(zgame::Handle p) override { pm_hook_missing("WirePick.part_health"); return {}; }
@@ -114,15 +142,25 @@ class WirePick : public PickPmHooks {
 class WireShot : public ShotPmHooks {
  public:
   ShotShooter shooter(const Contact* c) override { pm_hook_missing("WireShot.shooter"); return {}; }
-  const std::vector<zgame::Handle>& weapons(zgame::Handle wm) override { pm_hook_missing("WireShot.weapons"); return no_handles(); }
+  const std::vector<zgame::Handle>& weapons(zgame::Handle wm) override {
+    return manager_list(wm);
+  }
   bool ready(zgame::Handle w) override { pm_hook_missing("WireShot.ready"); return {}; }
   bool can_hit(zgame::Handle w, const float* at) override { pm_hook_missing("WireShot.can_hit"); return {}; }
-  double reach_least(zgame::Handle w) override { pm_hook_missing("WireShot.reach_least"); return {}; }
-  double reach_most(zgame::Handle w) override { pm_hook_missing("WireShot.reach_most"); return {}; }
+  double reach_least(zgame::Handle w) override {
+    return weapon_of(w)->min_range_sq();
+  }
+  double reach_most(zgame::Handle w) override {
+    return weapon_of(w)->max_range();
+  }
   float cost(zgame::Handle w) override { pm_hook_missing("WireShot.cost"); return {}; }
   float value(zgame::Handle w) override { pm_hook_missing("WireShot.value"); return {}; }
-  double dps(zgame::Handle w) override { pm_hook_missing("WireShot.dps"); return {}; }
-  int32_t ammo(zgame::Handle w) override { pm_hook_missing("WireShot.ammo"); return {}; }
+  double dps(zgame::Handle w) override {
+    return weapon_of(w)->dps();
+  }
+  int32_t ammo(zgame::Handle w) override {
+    return weapon_of(w)->ammo();
+  }
   bool bin(zgame::Handle w, int32_t* full) override { pm_hook_missing("WireShot.bin"); return {}; }
   void group_clear(zgame::Handle wm) override { pm_hook_missing("WireShot.group_clear"); }
   void group_add(zgame::Handle wm, zgame::Handle w, float rate) override { pm_hook_missing("WireShot.group_add"); }
@@ -137,7 +175,9 @@ class WirePlan : public PlanPmHooks {
   zgame::Handle mech(zgame::Handle e) override { return brain_hooks().vehicle_mech(e); }
   void refresh(zgame::Handle m) override { pm_hook_missing("WirePlan.refresh"); }
   zgame::Handle wm(zgame::Handle v) override { return brain_hooks().weapons(v); }
-  zgame::Handle group_weapon(zgame::Handle wm) override { pm_hook_missing("WirePlan.group_weapon"); return {}; }
+  zgame::Handle group_weapon(zgame::Handle wm) override {
+    return brain_hooks().wm_group_weapon(wm);
+  }
   bool aim_point(zgame::Handle v, Contact* c, zgame::Handle weapon, float out[3]) override { pm_hook_missing("WirePlan.aim_point"); return {}; }
   void weapon_place(zgame::Handle weapon, float out[3]) override { pm_hook_missing("WirePlan.weapon_place"); }
   const float* position(zgame::Handle e) override {
@@ -148,8 +188,13 @@ class WirePlan : public PlanPmHooks {
   bool turn(zgame::Handle v, const float dir[3], float out[3]) override { pm_hook_missing("WirePlan.turn"); return {}; }
   void face(zgame::Handle v, const float dir[3]) override { pm_hook_missing("WirePlan.face"); }
   void wm_aim_at(zgame::Handle wm, const float at[3]) override { pm_hook_missing("WirePlan.wm_aim_at"); }
-  const std::vector<zgame::Handle>& weapons(zgame::Handle wm) override { pm_hook_missing("WirePlan.weapons"); return no_handles(); }
-  const std::vector<zgame::Handle>& group(zgame::Handle g) override { pm_hook_missing("WirePlan.group"); return no_handles(); }
+  const std::vector<zgame::Handle>& weapons(zgame::Handle wm) override {
+    return manager_list(wm);
+  }
+  const std::vector<zgame::Handle>& group(zgame::Handle g) override {
+    const WeaponGroup* k = group_of(g);
+    return k ? list_of(k->weapons, k->count) : no_handles();
+  }
   bool weapon_cos(zgame::Handle w, zgame::Handle wm, float* cos) override { pm_hook_missing("WirePlan.weapon_cos"); return {}; }
   bool in_sight(zgame::Handle v, zgame::Handle e) override { pm_hook_missing("WirePlan.in_sight"); return {}; }
   void part_place(uint32_t part, float out[3]) override { pm_hook_missing("WirePlan.part_place"); }
@@ -157,10 +202,18 @@ class WirePlan : public PlanPmHooks {
     brain_hooks().position(e, buf_);
     return buf_;
   }
-  bool has_type(zgame::Handle w) override { pm_hook_missing("WirePlan.has_type"); return {}; }
-  int32_t ammo(zgame::Handle w) override { pm_hook_missing("WirePlan.ammo"); return {}; }
-  float blocked(zgame::Handle w) override { pm_hook_missing("WirePlan.blocked"); return {}; }
-  double reach(zgame::Handle w) override { pm_hook_missing("WirePlan.reach"); return {}; }
+  bool has_type(zgame::Handle w) override {
+    return weapon_of(w)->def != nullptr;
+  }
+  int32_t ammo(zgame::Handle w) override {
+    return weapon_of(w)->ammo();
+  }
+  float blocked(zgame::Handle w) override {
+    return weapon_of(w)->damage;
+  }
+  double reach(zgame::Handle w) override {
+    return weapon_of(w)->max_range();
+  }
   zgame::Handle holder_mech(zgame::Handle w) override { pm_hook_missing("WirePlan.holder_mech"); return {}; }
   bool mounted(zgame::Handle w) override { pm_hook_missing("WirePlan.mounted"); return {}; }
   zgame::Handle muzzle_node(zgame::Handle w) override { pm_hook_missing("WirePlan.muzzle_node"); return {}; }
@@ -185,7 +238,9 @@ class WireStep : public StepPmHooks {
     const AiTarget* t = brain_hooks().targetable(v);
     return t ? t->target : nullptr;
   }
-  double heat(zgame::Handle m) override { pm_hook_missing("WireStep.heat"); return {}; }
+  double heat(zgame::Handle m) override {
+    return brain_hooks().heat(m);
+  }
   float coolant(zgame::Handle m) override { pm_hook_missing("WireStep.coolant"); return {}; }
   void flush(zgame::Handle m) override { pm_hook_missing("WireStep.flush"); }
   float now() override { return brain_hooks().now(); }
@@ -196,10 +251,19 @@ class WireStep : public StepPmHooks {
   uint32_t xd0(Brain* b) override { pm_hook_missing("WireStep.xd0"); return {}; }
   void seed(uint32_t v) override { pm_hook_missing("WireStep.seed"); }
   void start_x50(uint32_t v) override { pm_hook_missing("WireStep.start_x50"); }
-  void set_range(zgame::Handle v, float r) override { pm_hook_missing("WireStep.set_range"); }
+  void set_range(zgame::Handle v, float r) override {
+    if (AiTarget* t = brain_hooks().targetable(v)) {  // 0x004e7150, with no cap
+      t->range = r;
+      t->range2 = static_cast<float>(double{r} * r);
+    }
+  }
   void look_start() override { pm_hook_missing("WireStep.look_start"); }
-  zgame::Handle best_weapon(zgame::Handle wm) override { pm_hook_missing("WireStep.best_weapon"); return {}; }
-  float weapon_reach(zgame::Handle w) override { pm_hook_missing("WireStep.weapon_reach"); return {}; }
+  zgame::Handle best_weapon(zgame::Handle wm) override {
+    return ai::best_weapon(wm);
+  }
+  float weapon_reach(zgame::Handle w) override {
+    return weapon_of(w)->max_range();
+  }
   zgame::Handle pick(zgame::Handle v) override {
     FiringRecord* r = record_of(v);
     PlanPm* p = r ? plan_pick(r->pick) : nullptr;
@@ -240,8 +304,12 @@ class WireStep : public StepPmHooks {
     return ai::any_can_hit(brain_hooks().weapons(p->vehicle), ai::plan_place(*p, *p->slot));
   }
   void too_far(Brain* b) override { pm_hook_missing("WireStep.too_far"); }
-  void trigger(Brain* b, bool on) override { pm_hook_missing("WireStep.trigger"); }
-  zgame::Handle group(zgame::Handle wm) override { pm_hook_missing("WireStep.group"); return {}; }
+  void trigger(Brain* b, bool on) override {
+    b->controls->fire(on);
+  }
+  zgame::Handle group(zgame::Handle wm) override {
+    return manager_group(wm);
+  }
   double group_soonest(zgame::Handle g) override { pm_hook_missing("WireStep.group_soonest"); return {}; }
   bool clear_of_friends(zgame::Handle plan) override { pm_hook_missing("WireStep.clear_of_friends"); return {}; }
   void aim_track(zgame::Handle plan, Brain* b) override { if (FiringRecord* r = record_of(plan_of(plan)->vehicle)) r->aim.track(plan, 0, b); }

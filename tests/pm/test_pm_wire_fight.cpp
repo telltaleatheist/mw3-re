@@ -1,11 +1,14 @@
 // The firing's and the attack's hooks on the program: what's answered reaches BrainHooks or the port's own pieces,
 // the rest is counted, and the hook tables are left as found.
 #include "check.h"
+#include "mech3/weapon.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
 
 using namespace mech3::ai;
+using mech3::Weapon;
+using mech3::WeaponManager;
 using zgame::Handle;
 
 namespace {
@@ -19,6 +22,9 @@ struct Fake : BrainHooks {
   Handle vehicle_mech(Handle v) override { return v; }
   Handle weapons(Handle) override { return 0x55; }
   int32_t rand() override { return 99; }
+  float heat(Handle) override { return 2.5f; }
+  WeaponManager* wm = nullptr;
+  void* object_of(Handle h) override { return h == 0x55 ? static_cast<void*>(wm) : nullptr; }
   float speed_at(Handle, float t) override { return t; }
   float stopping_distance(Handle, float s) override { return s; }
 };
@@ -27,7 +33,8 @@ struct Controls : BrainControls {
   void stop() override {}
   void smooth(float) override {}
   bool hit_lately() override { return false; }
-  void fire(bool) override {}
+  void fire(bool on) override { fired += on; }
+  int fired = 0;
   bool reversing() override { return false; }
   float throttle_now() override { return 0; }
   void set_throttle(float) override {}
@@ -71,8 +78,44 @@ TEST(pm_wire_firing_reaches_the_vehicle_and_counts_the_rest) {
   EXPECT(step_pm_hooks().target(7) == &c);
   EXPECT(*pick_pm_hooks().target_slot(7) == &c);
   pm_hooks_missing_clear();
+  EXPECT(shot_pm_hooks().ready(1) == false);
+  EXPECT(pm_hooks_missing().at("WireShot.ready") == 1);
+}
+
+TEST(pm_wire_firing_answers_what_the_step_calls_most) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  pm_hooks_missing_clear();
+  EXPECT(pick_pm_hooks().group(7) == 0);  // a mech has none: nothing counted
+  step_pm_hooks().set_range(7, 300.0f);
+  EXPECT(f.self.range == 300.0f);
+  step_pm_hooks().trigger(&b, true);
+  EXPECT(c.fired == 1);
+  EXPECT(step_pm_hooks().heat(7) == 2.5);
+  EXPECT(pm_hooks_missing().empty());
+}
+
+TEST(pm_wire_firing_lists_a_managers_weapons) {
+  Fake f;
+  Installed in(&f);
+  WeaponManager m(nullptr);
+  f.wm = &m;
+  m.count = 2;
+  m.weapons[0] = reinterpret_cast<Weapon*>(uintptr_t{0x10});  // only their handles are read
+  m.weapons[1] = reinterpret_cast<Weapon*>(uintptr_t{0x20});
+  const std::vector<Handle>& l = shot_pm_hooks().weapons(0x55);
+  EXPECT(l.size() == 2 && l[0] == 0x10 && l[1] == 0x20);
+  m.weapons[0] = m.weapons[1] = nullptr;
+  m.count = 0;
   EXPECT(shot_pm_hooks().weapons(0x55).empty());
-  EXPECT(pm_hooks_missing().at("WireShot.weapons") == 1);
+  EXPECT(step_pm_hooks().best_weapon(0x55) == 0);
+  EXPECT(step_pm_hooks().group(0x55) == f.handle_of(m.group_ptr()));
+  m.group = -1;  // none selected
+  EXPECT(step_pm_hooks().group(0x55) == 0);
 }
 
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {

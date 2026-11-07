@@ -890,6 +890,8 @@ struct WiredBrainHooks : ai::BrainHooks {
     *x = f[0], *z = f[2];
   }
   // The firing's (docs/ai.md 17.7) on the mechs' weapon managers.
+  void* object_of(Handle h) override { return e->object_of(h); }
+  Handle handle_of(void* p) override { return e->handle_of(p); }
   Handle weapons(Handle v) override { return e->handle_of(mech_weapon_manager(mech(v))); }
   Handle wm_current(Handle wm) override { return e->handle_of(wm_current_weapon(e->object_of(wm))); }
   void wm_clear_aim(Handle wm) override { mech3::wm_clear_aim(e->object_of(wm)); }
