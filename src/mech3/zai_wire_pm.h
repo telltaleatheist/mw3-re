@@ -1,0 +1,54 @@
+#ifndef MECH3_ZAI_WIRE_PM_H
+#define MECH3_ZAI_WIRE_PM_H
+
+// Pirate's Moon's AI hooks on the program: the zai_*_pm classes' calls out, answered through
+// BrainHooks, which already holds the mission's vehicles. A call with no answer yet is logged once
+// and counted. Nothing runs these without PM_AI=1 (docs/pm-tests.md, The switch's plan).
+#include <map>
+#include <string>
+#include <vector>
+
+#include "mech3/zai_brain.h"
+#include "mech3/zai_steer_pm.h"
+#include "mech3/zai_target.h"
+
+namespace mech3::ai {
+
+bool pm_ai_on();                                      // PM_AI=1, read once
+void pm_hook_missing(const char* key);                // the log's line, the first time
+const std::map<std::string, int>& pm_hooks_missing();  // what the first run reads
+void pm_hooks_missing_clear();                        // not original: the tests start empty
+
+// SteerPmHooks over BrainHooks. A template because WalkPmHooks and JumpPmHooks derive from it.
+template <class Base>
+class WireSteer : public Base {
+ public:
+  void position(zgame::Handle e, float out[3]) override { brain_hooks().position(e, out); }
+  void forward(zgame::Handle v, float* x, float* z) override { brain_hooks().forward(v, x, z); }
+  bool halted(zgame::Handle) override { return missing<false>("vehicle.vt+0x150"); }
+  bool order_steers(Brain*) override { return missing<false>("0x004fa470"); }
+  const std::vector<const Contact*>& contacts(zgame::Handle v) override {
+    seen_.clear();
+    if (const std::vector<Contact*>* c = brain_hooks().contacts(v)) seen_.assign(c->begin(), c->end());
+    return seen_;
+  }
+  zgame::Handle contact_entity(const Contact* c) override { return brain_hooks().contact_entity(c); }
+  bool targetable(zgame::Handle) override { return missing<false>("entity.vt+0x48"); }
+  float contact_dist2(const Contact* c) override { return c->dist2; }
+
+ protected:
+  template <bool V>
+  static bool missing(const char* key) {
+    pm_hook_missing(key);
+    return V;
+  }
+
+ private:
+  std::vector<const Contact*> seen_;  // the exe's list by reference; ours holds them unconst
+};
+
+using WiredSteerPm = WireSteer<SteerPmHooks>;
+
+}  // namespace mech3::ai
+
+#endif
