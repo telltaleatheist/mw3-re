@@ -97,6 +97,17 @@ void drive_pm(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float away[2], 
   else if (-most > *throttle) *throttle = -most;
 }
 
+// Pirate's Moon 1.0 @ 0x004dcbe0: the way from where it last was to the node, at the speed the brain's throttle gives.
+void MoveStatePm::start(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* to) {
+  step = 0, turn = 0.0f, throttle = 0.0f;
+  wake = 3.4028235e38f;
+  const float speed = static_cast<float>(h.speed_at(v, h.max_throttle()));
+  s.set(h, h.way_from(), to, speed, v);
+  const double stop = h.stop_distance(v, speed);
+  dist = static_cast<float>(stop);
+  slow = static_cast<float>(1.0 / stop);  // from the register
+}
+
 // Pirate's Moon 1.0 @ 0x004dcfe0. At the way's end the next behaviour takes over; with none it stands for 5 s and
 // tries again.
 void MoveStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place) {

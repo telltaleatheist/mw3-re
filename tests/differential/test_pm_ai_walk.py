@@ -192,7 +192,7 @@ class Exe(test_pm_zar.Emulated):
         vals += [self.g(st0 + o) for o in range(0x2c, 0x48, 4)] + [self.g(st0 + o) for o in range(0x4c, 0x58, 4)]
         vals += [self.g(st0 + o) for o in range(0x5c, 0x9c, 4)]  # every constant the steering's constructor sets
         m = self.move
-        vals += [self.g(m + o) for o in (0x10, 0x18, 0x24)] + [self.g(self.along + o) for o in (0, 4, 8)]
+        vals += [self.g(m + o) for o in (0x10, 0x18, 0x1c, 0x20, 0x24)] + [self.g(self.along + o) for o in (0, 4, 8)]
         vals += [self.g(self.pick + o) for o in (0x10, 0x14, 0x18)] + [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)]
         exact = [self.g(c + 0x3c) & 0xff, self.g(st0 + 0x48) & 0xff, self.g(st0 + 0x58) & 0xff]
         if self.guard:
@@ -320,6 +320,8 @@ def fight_plan(seed):
             lines += [('D',), ('M',), ('P',)]
             if r.random() < 0.3:
                 lines += [('V', r.choice([0, 1]), 0), ('A',)]
+        elif k < 0.87:
+            lines.append(('n',))
         elif k < 0.9:  # the move state, from each of its steps
             for _ in range(r.randrange(1, 4)):
                 lines.append(('m', r.choice([0, 1, 2, 2]), r.choice([0, 1, 2]),
@@ -427,6 +429,8 @@ def run_exe(x, lines):
             x.fs(x.move + 0x10, ln[3][3:4])
             x.fs(x.move + 0x18, ln[3][4:5])
             x.call(0x4dcfe0, ecx=x.move, args=(0,))
+        elif op == 'n':
+            x.call(0x4dcbe0, ecx=x.move, args=(x.g(x.move + 8), x.order))
         elif op == 'q':
             x.fs(x.pick + 0x1c, ln[3][:1])
             x.fs(x.pick + 0x28, ln[3][1:2])

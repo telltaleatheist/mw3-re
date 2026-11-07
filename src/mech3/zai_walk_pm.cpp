@@ -192,7 +192,7 @@ void FightStatePm::enter(WalkPmHooks& h, zgame::Handle vehicle) {
   speed = static_cast<float>(h.speed_at(vehicle, h.max_throttle()));
   wake = 0.0f;
   until = FLT_MAX;
-  stop_dist = h.stop_distance(vehicle, speed);
+  stop_dist = static_cast<float>(h.stop_distance(vehicle, speed));
   range_far = h.range_far();
   range_near = h.range_near();
   x1c = 200.0f;

@@ -25,7 +25,7 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float pilot_x544(zgame::Handle v) = 0;
   virtual float now() = 0;                                  // [0x0062da90]
   virtual double speed_at(zgame::Handle v, float t) = 0;    // vt+0x124, unrounded in the register
-  virtual float stop_distance(zgame::Handle v, float s) = 0;  // vt+0x12c
+  virtual double stop_distance(zgame::Handle v, float s) = 0;  // vt+0x12c
   virtual float range_far() = 0;                            // the brain's +0x28
   virtual float range_near() = 0;                           // the brain's +0x2c
   // What the order is about: the order's +0x0c, vt+0x1c, vt+0x18, vt+0x50 (the exe has no answer for none).
@@ -80,6 +80,7 @@ struct MoveStatePm {
   float dist = 0;     // +0x1c
   float slow = 0;     // +0x20
   float wake = 0;     // +0x24
+  void start(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* to);    // 0x004dcbe0
   void run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);  // 0x004dcfe0; `place` its +0x08's vt+0x1c
 };
 

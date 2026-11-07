@@ -63,7 +63,7 @@ struct World : WalkPmHooks {
   float pilot_x544(zgame::Handle) override { return x544; }
   float now() override { return clock; }
   double speed_at(zgame::Handle, float t) override { return double{t} * k_speed; }
-  float stop_distance(zgame::Handle, float v) override { return v * k_stop; }
+  double stop_distance(zgame::Handle, float v) override { return double{v} * k_stop; }
   float range_far() override { return far; }
   float range_near() override { return near; }
   zgame::Handle order_target() override { return 2; }
@@ -154,6 +154,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       ms.step = std::stoi(a[0]), w.next = std::stoi(a[1]);
       ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
       ms.run(w, s, 1, w.place);
+    } else if (op == "n") {
+      ms.start(w, s, 1, w.place);
     } else if (op == "q") {
       w.rolls[0] = std::stoi(a[0]), w.rolls[1] = std::stoi(a[1]), w.roll = 0;
       pick.rate = f(a[2]), pick.reach = f(a[3]), w.reach_at = f(a[4]);
@@ -219,7 +221,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                       s.push_band, s.far_along, s.far_side, s.cos_on, s.cos_turnabout, s.turnabout_room, s.gain_along,
                       s.gain_side, s.least, s.brake, s.cos_dead, s.sin_dead, s.gain, s.least_turn, s.cos_behind})
         put(o, v);
-      for (float v : {ms.turn, ms.throttle, ms.wake, w.along[0], w.along[1], w.along[2], pick.at[0], pick.at[1], pick.at[2], w.brain_from[0], w.brain_from[1], w.brain_from[2]}) put(o, v);
+      for (float v : {ms.turn, ms.throttle, ms.dist, ms.slow, ms.wake, w.along[0], w.along[1], w.along[2], pick.at[0], pick.at[1], pick.at[2], w.brain_from[0], w.brain_from[1], w.brain_from[2]}) put(o, v);
       if (b) {
         for (float v : {b->to_target[0], b->to_target[1], b->to_target[2], b->target_dist, b->way_own[0], b->way_own[1],
                         b->way_own[2], b->way_dir[0], b->way_dir[1], b->way_dir[2], b->way_dist, st.stop_dist, st.range_far,

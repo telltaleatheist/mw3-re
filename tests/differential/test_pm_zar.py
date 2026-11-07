@@ -88,7 +88,10 @@ class Emulated:
 
     # PM's own addresses: a stub and a thunk the address map leaves alone.
     def native_stub(self, addr, fn, pop=0):
+        again = addr in self.cpu.stubs  # a subclass replacing a stub: one hook, or it fires twice
         self.cpu.stubs[addr] = (fn, pop)
+        if again:
+            return
         self.cpu._uc.hook_add(UC_HOOK_CODE, self.cpu._stub_hit, begin=addr, end=addr)
 
     def call(self, addr, ecx=0, args=()):
