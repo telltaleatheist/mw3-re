@@ -186,6 +186,7 @@ add_library(mw3core STATIC
   src/mech3/mech_lib.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
+  src/mech3/hit_log.cpp
   src/mech3/mech_lod.cpp
   src/mech3/mech_dead.cpp
   src/mech3/mech_part_update.cpp

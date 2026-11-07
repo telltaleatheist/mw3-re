@@ -57,6 +57,10 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
   `~/Library/Application Support/MicroProse/MechWarrior 3/`), or
   `--write-dir DIR`. It is searched before the mounts, so what the game wrote
   wins.
+- **Debug logs** (ours): `MW3_HITLOG=1` (`mech3/hit_log`) writes to the log each wall the player's
+  mech stops at and the first thing each weapon ray starting within 60 m of the player hits:
+  `mw3: hit wall|shot t <mission s> <node < parents> flags <node flags> owner <ptr> at x y z normal ...
+  player x y z`. Once a quarter second per node, 4,000 lines a run. Nothing else changes.
 - **The log** (ours, `run_log.cpp`): from the moment the write dir is
   known, everything on stdout and stderr also goes to `<write dir>/mw3.log`
   (first line: the build's version and the log's path), made new at each

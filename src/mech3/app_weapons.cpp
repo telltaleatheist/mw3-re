@@ -30,6 +30,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "pm/gamez/zclass/cls_clutter.h"
+#include "mech3/hit_log.h"
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_lib.h"
 #include "mech3/app_mech.h"
@@ -85,10 +86,23 @@ void note_sound(zwep::Handle s) {
   note("sound", o->kind == 0 ? static_cast<const zsnd::Sound*>(o)->name : static_cast<const zsnd::Group*>(o)->name);
 }
 
+// The crossing nearest the ray's start.
+void log_first_hit(const zcls::LineHits& r, int n, const float* from) {
+  const zcls::LineHit* best = nullptr;
+  float best_d = 0.0f;
+  for (int i = 0; i < n && i < 32; ++i) {
+    const zcls::LineHit& h = r.hit[i];
+    const float d = std::hypot(h.point[0] - from[0], h.point[1] - from[1], h.point[2] - from[2]);
+    if (!best || d < best_d) best = &h, best_d = d;
+  }
+  if (best) hit_log("shot", best->node, best->owner, best->point, best->normal, from);
+}
+
 int32_t segment_list(const zwep::Vec3f3* a, const zwep::Vec3f3* b, zwep::HitList* out) {
   static zcls::LineHits r;
   if (!qworld()) return out->count = 0, 1;
   const int32_t res = zcls::segment_list(qworld(), &a->x, &b->x, &r);
+  if (hit_log_on()) log_first_hit(r, std::max<int>(r.count, r.total), &a->x);
   to_hits(r, out);
   return res;
 }
@@ -97,6 +111,7 @@ int32_t segment_nearest(const zwep::Vec3f3* a, const zwep::Vec3f3* b, zwep::HitL
   static zcls::LineHits r;
   if (!qworld()) return out->count = 0, 1;
   const int32_t res = zcls::segment_nearest(qworld(), &a->x, &b->x, &r);
+  if (hit_log_on()) log_first_hit(r, r.total, &a->x);
   to_hits(r, out);
   return res;
 }

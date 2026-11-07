@@ -12,6 +12,7 @@
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/hit_log.h"
 #include "mech3/mech.h"
 #include "mech3/mech_ids.h"
 #include "mech3/mech_move.h"
@@ -211,6 +212,8 @@ void Mech::collide_segments() {
 // the restitution; the throttle drops to a tenth (an AI's flips), and a yaw
 // kick turns the mech off the wall.
 void Mech::wall_response(const CollisionHit& h) {
+  if (hit_log_on() && this == world().mission_player)
+    hit_log("wall", static_cast<zcls::Node*>(h.hit.node), h.hit.owner, h.hit.point, h.hit.normal, nullptr);
   Vec3 n{h.hit.normal[0], h.hit.normal[1], h.hit.normal[2]};
   if (n.x == 0.0f && n.z == 0.0f) return;
   const Vec3& lv = vec_3c;
