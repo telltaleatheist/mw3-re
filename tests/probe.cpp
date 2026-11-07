@@ -1685,3 +1685,7 @@ int probe_load_and_save(const char* dir, int mech) {
 }
 
 }  // extern "C"
+
+// What the port side runs at, for original.py's check at exit (MW3_PRECISION).
+extern "C" int probe_fpu53() { return zfix::options().fpu53 ? 1 : 0; }
+extern "C" void probe_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
