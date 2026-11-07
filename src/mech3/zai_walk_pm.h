@@ -26,11 +26,15 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float now() = 0;                                  // [0x0062da90]
   virtual double speed_at(zgame::Handle v, float t) = 0;    // vt+0x124, unrounded in the register
   virtual double stop_distance(zgame::Handle v, float s) = 0;  // vt+0x12c
+  virtual double stopping_at(zgame::Handle v, float t) { (void)v; (void)t; return 0.0; }  // vt+0x134
+  virtual float x94() { return 0.0f; }                      // the brain's +0x94
+  virtual void clear_mode() {}                              // the brain's +0x3c to 0
   virtual float range_far() = 0;                            // the brain's +0x28
   virtual float range_near() = 0;                           // the brain's +0x2c
   // What the order is about: the order's +0x0c, vt+0x1c, vt+0x18, vt+0x50 (the exe has no answer for none).
   virtual zgame::Handle order_target() = 0;
   virtual const float* target_place(zgame::Handle t) = 0;   // vt+0x04
+  virtual const float* target_facing(zgame::Handle t) { (void)t; return nullptr; }  // +0x1c's vt+0x24, its +0x24; none: +x
   virtual bool target_live(zgame::Handle t) = 0;            // +0x1c's +0x08
   virtual bool must_leave(zgame::Handle v) = 0;             // 0x004fa210
   virtual void set_throttle(float v) = 0;                   // the controls' vt+0x20
@@ -123,6 +127,15 @@ struct GuardPickPm {
   float reach = 0;    // +0x28
 };
 
+struct GuardStatePm : GuardPickPm {
+  int32_t x08 = 0;          // +0x08  the first argument, kept
+  int32_t step = 0;         // +0x0c  0 just begun, 1 back from the side state (see run), 2 walking, 3 pick again
+  float far_way = 10.0f;    // +0x20  still going while further than this from the way's end
+  float most = 0;           // +0x24  1.3 of the brain's +0x44
+  void start(WalkPmHooks& h, zgame::Handle vehicle, int32_t arg);    // 0x004dfd00, 0x004dfe40
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);       // 0x004dffb0
+};
+
 class WalkPm {
  public:
   WalkPm(WalkPmHooks& h, SteerPm& steer, zgame::Handle vehicle);  // 0x004d9870
@@ -154,6 +167,35 @@ class WalkPm {
   friend struct FightStatePm;
   void refresh();                 // what the exe reads through its pointers
   void go(bool by_near);
+};
+
+// The state 0x004d8690 (vtable 0x005eebc0): a place behind the order's target, by the way it faces, 0.9
+// of the brain's +0x44 back; driven to while it stays within 20 m of the place picked.
+struct BehindPm {
+  int32_t step = 0;           // +0x0c  0 just begun, 1, 2 driving, 3 pick again
+  float point[3] = {0, 0, 0}; // +0x10
+  float turn = 0;             // +0x1c
+  float throttle = 0;         // +0x20  the brain's +0x10c at first
+  float speed = 0;            // +0x24
+  float stop = 0;             // +0x28
+  float inv_stop = 0;         // +0x2c
+  float x34 = 0;              // +0x34  1.3 of the brain's +0x44
+  float x38 = 0;              // +0x38  the brain's +0x2c
+  void start(WalkPmHooks& h, zgame::Handle vehicle);                  // 0x004d8690, 0x004d8580
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);        // 0x004d89d0
+};
+
+// The state 0x004d8dc0 (vtable 0x005eebe4): round the order's target at the brain's +0x44, on the side of +0x20's
+// sign, turning back when the boundary stands in the way (docs/pm-tests.md, The states).
+struct CirclePm {
+  int32_t step = 0;         // +0x08
+  float turn = 0;           // +0x0c
+  int32_t x18 = 0;          // +0x18  the first argument, kept
+  float throttle = 1.0f;    // +0x1c  the brain's +0x94, at most its +0x10c
+  float side = 1.0f;        // +0x20  the sign the side, the size the time of the last change
+  void start(WalkPmHooks& h, int32_t arg);                     // 0x004d8ca0
+  void change_side(float now);                                 // 0x004d8d30, vt+0x10
+  void run(WalkPmHooks& h, zgame::Handle vehicle);             // 0x004d8dc0
 };
 
 // PM's follow, the vehicle net's slot 0 (vtable 0x005ed38c, make_state 0x004d91e0): not MW3's straight
@@ -207,7 +249,7 @@ class WalkGuardPm : public WalkPm {
   float to_target[3] = {};            // +0x5c
   float target_dist = 0;              // +0x68
   float from_way = 0;                 // +0x6c
-  uint8_t x70 = 0, x71 = 0, x72 = 0;  // +0x70..+0x72
+  uint8_t x70 = 0, x71 = 0, x72 = 0;  // +0x70 the way is still good, +0x71 out from the target, +0x72 both
 };
 
 }  // namespace mech3::ai

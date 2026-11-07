@@ -39,6 +39,12 @@ void AttackStatePm::find_hold(AttackPmHooks& h) {
   if (hold_net) hold_at = h.place_of(hold_net);
 }
 
+// Pirate's Moon 1.0 @ 0x004decb0: the context it makes only lends the vehicle to 0x004d9be0.
+void AttackStatePm::start(WalkPmHooks& h, zgame::Handle vehicle, int32_t arg) {
+  x38 = arg;
+  enter(h, vehicle);
+}
+
 // Pirate's Moon 1.0 @ 0x004dedf0. The high nibble of the flags is the state's own step, the low one the fighting
 // state's. (The exe's masks keep only bits it then sets, so each replaces the nibble.)
 void AttackStatePm::step(AttackPmHooks& h, AttackBrainPm& b) {
