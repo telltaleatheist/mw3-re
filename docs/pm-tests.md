@@ -15,7 +15,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `pose_world.py` | - | 7 | 0 | not applicable | a helper for the pose tests: goes with them |
 | `test_action_lists.py` | changed | 42 | 14 | to move |  |
 | `test_actions.py` | gone | 19 | 3 | moved to `test_pm_actions.py` | the falls and getting up |
-| `test_ai_nets.py` | changed | 33 | 0 | moved to `test_pm_ai_nets.py` | the compile; the waynet builder 0x4c55b0 not compared |
+| `test_ai_nets.py` | changed | 33 | 0 | moved to `test_pm_ai_nets.py` | the compile |
 | `test_ai_paths.py` | gone | 20 | 0 | to move | with PM AI |
 | `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |
 | `test_ai_regions.py` | gone | 19 | 0 | to move | with PM AI |
@@ -45,7 +45,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_mechlib.py` | changed | 4 | 2 | covered | test_pm_mechlib |
 | `test_modeldraw.py` | gone | 24 | 14 | covered | test_pm_modeldraw |
 | `test_motion.py` | unchanged | 2 | 0 | to move |  |
-| `test_nav_waynet.py` | changed | 8 | 0 | to move |  |
+| `test_nav_waynet.py` | changed | 8 | 0 | moved to `test_pm_ai_nets.py` | the waynet builder and its points, 6 of 7 breaks caught; the seventh is a dock point's flags, reached only by the arrangenodes point, stubbed. A link past the nodes isn't run: the exe reads out of range |
 | `test_objectives.py` | gone | 24 | 8 | to move |  |
 | (new) `test_pm_standalone.py` | PM | | | new | the second campaign's game object, list, salvage and lineup |
 | (new) `test_pm_net_shot.py` | PM | | | new | the sender's shot record and PM's Total Shots |

@@ -439,6 +439,7 @@ AiNet* CZAiNetEdit::build_waynet() {
     if (net_hooks().ground) net_hooks().ground(p);  // 0x004edab0 / 0x004abd90 while a world is loaded
     auto* pt = new WaynetPoint(r.name, r.auxname, p, links.data(), n->link_count(), 0, r.visible, r.fixed,
                                r.autonext, r.hidden);  // 0x0047a320 (new 0x38)
+    pt->static_mfb = r.static_mfb;  // Pirate's Moon 1.0 @ 0x004c58d0's last argument
     if (at < w->elems.size()) w->elems[at] = pt;
     else delete pt;
     ++at;

@@ -2,8 +2,9 @@
 nets, through the builder 0x4c39e0, the slot counts 0x4c4490, 0x4c4300, the steps 0x4c4c20, 0x4c45c0,
 0x4c4bb0, each step's class and attach, every compiled net's steps compared as text. New in PM: via and
 terminus nodes, the net class for a net with a via, and water as ground under a node. The ground stands
-in on both sides by one rule (the query 0x4ff8d0); the pick 0x4af770 runs on each. What a step does on a
-walk isn't here, nor the waynet's arrangenodes point (0x4e57e0 answers none).
+in on both sides by one rule (the query 0x4ff8d0); the pick 0x4af770 runs on each. Then the waynets
+(waynet_N in each archive, 0x4c55b0 with its points 0x47c5f0), moved from test_nav_waynet. What a step does
+on a walk isn't here, nor the arrangenodes point (0x4e57e0 answers none).
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_nets.py [archives]
 """
@@ -27,6 +28,7 @@ import zrd  # noqa: E402
 PM = nodes.PM
 REGISTRY, NULL_STEP, DEFAULT, WORLD = 0x627c38, 0x627c08, 0x627cc8, 0x62ca90
 BUILD, QUERY, WAYNET = 0x4022b0, 0x4ff8d0, 0x4e57e0
+EDIT, EDIT_END, WAYNET_VT, POINT_VT = 0x4c39e0, 0x4c3e60, 0x5e5c00, 0x5e5c70
 NETS = {0x5ecd14: 0, 0x5ed558: 1}
 KINDS = {0x5edcf0: 'speed', 0x5eddd0: 'wait_interval', 0x5edeb0: 'wait_time', 0x5edf90: 'valve', 0x5ee1d0: 'scan',
          0x5ee2b0: 'canleave', 0x5ee36c: 'canleave_not', 0x5eed00: 'jump', 0x5ee5e8: 'sound', 0x5ee6d0: 'gate',
@@ -187,6 +189,33 @@ class NetBench(nodes.Bench):
         return o + [f'report {r}' for r in self.reports]
 
 
+    def waynets(self, names):
+        self.reports = []
+        o = []
+        for i, name in enumerate(names):
+            edit = self.alloc(0x44)
+            self.call(EDIT, ecx=edit, args=[10000 + i, self.string(name), 1])
+            w = self.r32(edit + 0x34)
+            self.call(EDIT_END, ecx=edit)
+            if not w or self.r32(w) != WAYNET_VT:
+                o.append(f'{name} none')
+                continue
+            b, end = self.r32(w + 0xc), self.r32(w + 0x10)
+            els = [self.r32(q) for q in range(b, end, 4)] if b else []
+            lab = self.r32(w + 0x1c)
+            o.append(f'{name} {self.r32s(w + 4)} {self.cstr(lab).decode("latin1") if lab else ""} {len(els)}')
+            for q in els:
+                if self.r32(q) != POINT_VT:
+                    o.append('null' if q == NULL_STEP else 'other')
+                    continue
+                s = [self.r32(q + off) for off in (0x28, 0x2c)]
+                t = [self.cstr(x).decode('latin1') if x else '-' for x in s]
+                o.append('point ' + ' '.join(str(self.b(q + k)) for k in range(0xc, 0x12)) +
+                         f' {self.names.get(self.r32(q + 0x14), "-")} {self.r32s(q + 0x30)} {self.b(q + 0x34)} '
+                         + ' '.join(f'{self.r32(q + 0x1c + 4 * k):x}' for k in range(3)) + f' {t[0]}|{t[1]}')
+        return o + [f'report {r}' for r in self.reports]
+
+
 def net_file(nodes_, version=0x6a):
     top = ['version', [version], 'name', ['n']]
     for k, v in nodes_:
@@ -239,6 +268,19 @@ def made_up(rng):
             pos = (rng.uniform(-500, 500), rng.uniform(-20, 20), rng.uniform(-500, 500))
             ns.append((f'node_{k:02d}', node(pos, links, props)))
         out.append((f'random {i}', {'net_08.zrd': net_file(ns)}))
+    flags = [['hidden', [1]], ['fixed', [1]], ['autonext', [0]], ['visible', [0]], ['auxname', ['Able']], ['auxname', ['Baker']],
+             ['name', ['MSG_WPT_ABLE']], ['speed', [1, 0.5]], ['gate', ['g1']], ['static_mfb', [1]]]
+    for i in range(30):
+        n = rng.randrange(1, 7)
+        ns = []
+        for k in range(n):
+            links = [rng.randrange(n) for _ in range(rng.randrange(0, 4))]
+            pos = (rng.uniform(-500, 500), rng.uniform(0, 30), rng.uniform(-500, 500))
+            if rng.random() < 0.15:
+                ns.append((f'node_{k:02d}', [links] + rng.choice(flags)))
+            else:
+                ns.append((f'node_{k:02d}', node(pos, links, rng.sample(flags, rng.randrange(0, 3)))))
+        out.append((f'waynet {i}', {'waynet_1.zrd': net_file(ns, rng.choice([0x6b, 0x6b, 0x6b, 0x6a]))}))
     return out
 
 
@@ -258,6 +300,7 @@ class Tally:
         self.p, self.buf = p, ctypes.create_string_buffer(1 << 24)
         self.cases = self.bad = self.steps = self.grounded = self.water = 0
         self.seen = {}
+        self.waynets = 0
 
     def run(self, label, root, rel, data, world=1):
         emu = NetBench()
@@ -270,6 +313,13 @@ class Tally:
         n = self.p.probe_pm_ai_nets(world, self.buf, len(self.buf))
         ours = self.buf.value.decode('latin1').splitlines() if n >= 0 else [f'probe failed {n}']
         self.cases += 1
+        names = [n[:-4] for n, _, _ in zrd.entries(data) if n.lower().startswith('waynet')]
+        if names:
+            more = emu.waynets(names)
+            n = self.p.probe_pm_ai_waynets('\n'.join(names).encode(), world, self.buf, len(self.buf))
+            ours += self.buf.value.decode('latin1').splitlines() if n >= 0 else [f'probe failed {n}']
+            theirs += more
+            self.waynets += len(names)
         self.steps += len(theirs)
         self.grounded += emu.grounded
         self.water += emu.water_hits
@@ -290,13 +340,14 @@ def main():
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10 ** 6
     p = test_pm_zar.load_pm_probe()
     p.probe_pm_ai_nets.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    p.probe_pm_ai_waynets.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
     t = Tally(p)
     like = None
     shipped = 0
     for path in sorted(PM.glob('zbd/*/reader*.zbd'))[:limit]:
         data = path.read_bytes()
-        names = [n for n, _, _ in zrd.entries(data) if n.lower().startswith('net_')]
+        names = [n for n, _, _ in zrd.entries(data) if n.lower().startswith(('net_', 'waynet'))]
         like = like or data
         if names:
             shipped += len(names)
@@ -307,10 +358,11 @@ def main():
             data = archive_of(files, like)
             (Path(d) / 'crafted.zbd').write_bytes(data)
             t.run(label, d, 'crafted.zbd', data, world=int(label != 'square'))
-    print(f'{t.cases} archives ({shipped} shipped net files), {t.steps} lines, {t.grounded} nodes grounded, '
+    print(f'{t.cases} archives ({shipped} shipped net and waynet files, {t.waynets} waynets), {t.steps} lines, {t.grounded} nodes grounded, '
           f'{t.water} water hits: {t.bad} differ; {dict(sorted(t.seen.items()))}')
     if not t.bad and limit > 100:
         pm_floors.floors(cases=(t.cases, 100), grounded=(t.grounded, 50), water=(t.water, 50), reports=(t.seen.get('report', 0), 1),
+                         waynets=(t.waynets, 40), points=(t.seen.get('point', 0), 100),
                          **{k: (t.seen.get(k, 0), 3) for k in sorted(set(KINDS.values()))})
     sys.exit(1 if t.bad else 0)
 

@@ -11,6 +11,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/znetwork/znet_object.h"
+#include "mech3/mech_waynet.h"
 #include "mech3/veh_basic.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_valve.h"
@@ -173,6 +174,14 @@ void put_step(std::string& o, const CompiledNet& n, const Behaviour* b) {
 }
 }  // namespace
 
+void ground_hook(float p[3]) {
+  zcls::GroundHits hits{};
+  hits_at(p[0], p[1] + 10.0f, p[2], &hits);
+  if (hits.count == 0) return;
+  ++g_grounded;
+  p[1] = mech3::net_ground_height(hits, p[1]);
+}
+
 // Heights are the ground's through net_ground_height, the shared half of NetHooks::ground.
 extern "C" int probe_pm_ai_nets(int with_world, char* out, int size) {
   g_log.clear();
@@ -191,14 +200,7 @@ extern "C" int probe_pm_ai_nets(int with_world, char* out, int size) {
   zerr::set_sink(sink);
   const NetHooks saved = net_hooks();
   net_hooks() = NetHooks{};
-  if (with_world)
-    net_hooks().ground = [](float p[3]) {
-      zcls::GroundHits hits{};
-      hits_at(p[0], p[1] + 10.0f, p[2], &hits);
-      if (hits.count == 0) return;
-      ++g_grounded;
-      p[1] = mech3::net_ground_height(hits, p[1]);
-    };
+  if (with_world) net_hooks().ground = ground_hook;
   for (int n = 1; n < 100; ++n) net_build(n);
   std::string o;
   for (znet::Object* x : znet::registry().list)
@@ -211,6 +213,65 @@ extern "C" int probe_pm_ai_nets(int with_world, char* out, int size) {
   zerr::set_sink(nullptr);
   net_hooks() = saved;
   rdr_hooks() = RdrHooks{};
+  if (static_cast<int>(o.size()) >= size) return -2;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}
+
+// The waynets of the file names given, one a line (0x004c39e0 with the build flag -> 0x004c55b0), under
+// ids from 10000, the points as text. Run after probe_pm_ai_nets.
+extern "C" int probe_pm_ai_waynets(const char* names, int with_world, char* out, int size) {
+  struct Hooks : mech3::WaynetHooks {
+    mech3::Handle sound_find(const char* name) override {
+      static std::deque<std::string> kept;
+      kept.push_back(name);
+      return reinterpret_cast<mech3::Handle>(kept.back().data());
+    }
+  };
+  static Hooks hooks;
+  mech3::waynet_icons_count() = 1000;
+  mech3::set_waynet_hooks(&hooks);
+  rdr_hooks().localize = same;
+  rdr_hooks().sound_find = sound_named;
+  const NetHooks saved = net_hooks();
+  net_hooks() = NetHooks{};
+  if (with_world) net_hooks().ground = ground_hook;
+  g_log.clear();
+  zerr::set_sink(sink);
+  std::string o, list = names;
+  int i = 0;
+  for (size_t at = 0; at < list.size();) {
+    size_t nl = list.find('\n', at);
+    const std::string name = list.substr(at, nl - at);
+    at = nl == std::string::npos ? list.size() : nl + 1;
+    auto* edit = new CZAiNetEdit(10000 + i++, name.c_str(), 1);
+    auto* w = dynamic_cast<mech3::Waynet*>(edit->net);
+    delete edit;
+    if (!w) {
+      o += name + " none\n";
+      continue;
+    }
+    o += name + ' ' + std::to_string(w->get_id()) + ' ' + w->label + ' ' + std::to_string(w->count()) + '\n';
+    for (int32_t k = 0; k < w->count(); ++k) {
+      znet::Element* e = w->elem(k);
+      const auto* p = mech3::as_point(e);
+      if (!p) {
+        o += e == null_step() ? "null\n" : "other\n";
+        continue;
+      }
+      char b[160];
+      std::snprintf(b, sizeof b, "point %d %d %d %d %d %d %s %d %d %x %x %x ", p->mfb, p->static_mfb, p->xd, p->xe, p->xf,
+                    p->hidden, p->sound ? reinterpret_cast<const char*>(p->sound) : "-", p->first_link, p->reached,
+                    fb(p->pos[0]), fb(p->pos[1]), fb(p->pos[2]));
+      o += b;
+      o += (p->has_name ? p->name : std::string("-")) + '|' + (p->has_label ? p->label : std::string("-")) + '\n';
+    }
+  }
+  for (const std::string& l : g_log) o += "report " + l + '\n';
+  zerr::set_sink(nullptr);
+  net_hooks() = saved;
+  rdr_hooks() = RdrHooks{};
+  mech3::set_waynet_hooks(nullptr);
   if (static_cast<int>(o.size()) >= size) return -2;
   std::memcpy(out, o.c_str(), o.size() + 1);
   return static_cast<int>(o.size());
