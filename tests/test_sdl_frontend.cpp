@@ -4729,6 +4729,126 @@ TEST(sdl_program_launcher_starts_mechwarrior_1989) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// PIRATE'S MOON (docs/launcher.md): "Coming later" with no mw3pm beside the
+// launcher; with one, started on the folder pm_install= keeps, with nothing of
+// MW3's, in a folder any player might pick; a pm_install= that no longer holds
+// the game goes back to asking, and the setting stays.
+TEST(sdl_program_launcher_starts_pirates_moon) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher pm's caf\xc3\xa9";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  std::filesystem::path install = std::filesystem::path(MW3_GAME_DIR).parent_path() / "pm";
+  const bool have_pm = std::filesystem::is_regular_file(install / "Mech3.exe", ec);
+  if (!have_pm) {
+    std::printf("launcher pm: no game/pm: skipped\n");
+    return;
+  }
+  auto cfg = [&](const std::string& folder) {
+    std::ofstream c(dir + "/wd/mw3.cfg");
+    c << "pm_install=" << folder << "\n";
+  };
+  auto run = [&](const char* name) {
+    const std::string log = dir + "/" + name + ".log";
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-pm", "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  // Without mw3pm: the entry does nothing.
+  cfg(install.string());
+  unsetenv("MW3_PM_BIN");
+  std::string text = run("none");
+  EXPECT(text.find("Pirate's Moon") == std::string::npos);
+
+  // With it.
+  const std::string pm = dir + "/mw3pm";
+  {
+    std::ofstream sh(pm);
+    sh << "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\"; done > \"" << dir << "/args.txt\"\nexit 0\n";
+  }
+  std::filesystem::permissions(pm, std::filesystem::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  text = run("with");
+  std::vector<std::string> args;
+  {
+    std::ifstream af(dir + "/args.txt");
+    for (std::string a; std::getline(af, a);) args.push_back(a);
+  }
+  std::printf("launcher pm: %zu arguments, ended \"%s\"\n", args.size(), text.find("Pirate's Moon exited (0)") != std::string::npos ? "exited 0" : "?");
+  EXPECT(text.find("Pirate's Moon exited (0)") != std::string::npos);
+  EXPECT(args.size() >= 3 && args[0] == "--install" && args[1] == install.string() && args[2] == "--no-launcher");
+  for (const std::string& a : args) EXPECT(a != "--write-dir" && a.find(dir + "/wd") == std::string::npos);
+
+  // A folder that is not there: no start, the setting left alone.
+  std::filesystem::remove(dir + "/args.txt", ec);
+  cfg(dir + "/gone");
+  EXPECT(run("gone").find("not there") != std::string::npos);
+  EXPECT(!std::filesystem::exists(dir + "/args.txt", ec));
+  std::ifstream kept(dir + "/wd/mw3.cfg");
+  std::string line;
+  std::getline(kept, line);
+  EXPECT(line == "pm_install=" + dir + "/gone");
+  unsetenv("MW3_PM_BIN");
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Installed anywhere (docs/launcher.md): the launcher in a folder with a space,
+// an apostrophe and letters outside ASCII finds mw3 and mw3pm beside itself with
+// no variable naming them, and again once the folder is moved; the settings
+// stay as they were, since nothing keeps where the programs were.
+TEST(sdl_program_launcher_follows_a_moved_folder) {
+  const std::filesystem::path install = std::filesystem::path(MW3_GAME_DIR).parent_path() / "pm";
+  std::error_code ec;
+  if (!std::filesystem::is_regular_file(install / "Mech3.exe", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_moved";
+  std::filesystem::remove_all(dir, ec);
+  const std::string before = dir + "/Pilot's caf\xc3\xa9 \xd0\x96", after = dir + "/moved it's \xc3\xa9/again";
+  std::filesystem::create_directories(before, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  std::filesystem::create_directories(std::filesystem::path(after).parent_path(), ec);
+  const std::string cfg_text = "install=" + std::string(MW3_GAME_DIR) + "\npm_install=" + install.string() + "\n";
+  std::ofstream(dir + "/wd/mw3.cfg") << cfg_text;
+  std::filesystem::copy_file(MW3_LAUNCHER_BIN, before + "/mw3launcher", ec);
+  EXPECT(!ec);
+  for (const char* name : {"mw3", "mw3pm"}) {
+    const std::string p = before + "/" + name;
+    std::ofstream(p) << "#!/bin/sh\n{ echo \"$0\"; for a in \"$@\"; do echo \"$a\"; done; } > \"" << dir << "/" << name << ".txt\"\nexit 0\n";
+    std::filesystem::permissions(p, std::filesystem::perms::owner_all, ec);
+  }
+  auto first_two = [&](const char* name) {
+    std::ifstream f(dir + "/" + name + ".txt");
+    std::string a, b;
+    std::getline(f, a), std::getline(f, b);
+    return a + "|" + b;
+  };
+  auto run = [&](const std::string& at, const char* flag) {
+    const std::string bin = at + "/mw3launcher", log = dir + "/run.log";
+    const pid_t pid = spawn_bin(bin.c_str(), {"--write-dir", dir + "/wd", flag, "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  };
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_GAME_BIN");
+  for (const std::string& at : {before, after}) {
+    if (at == after) std::filesystem::rename(before, after, ec);
+    EXPECT(!ec);
+    run(at, "--launcher-pm");
+    EXPECT(first_two("mw3pm") == at + "/mw3pm|--install");
+    run(at, "--launcher-play");
+    EXPECT(first_two("mw3") == at + "/mw3|" + MW3_GAME_DIR);
+    std::filesystem::remove(dir + "/mw3.txt", ec), std::filesystem::remove(dir + "/mw3pm.txt", ec);
+  }
+  std::ifstream c(dir + "/wd/mw3.cfg");
+  const std::string kept((std::istreambuf_iterator<char>(c)), std::istreambuf_iterator<char>());
+  std::printf("launcher moved: settings %s\n", kept == cfg_text ? "as they were" : "changed");
+  EXPECT(kept == cfg_text);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // The movies on a wide screen (W1, docs/fmv.md section 8): INTRO, C4WIN and
 // a 4:3 briefing imported (mw3import, FFmpeg), their shapes measured from the
 // pictures (INTRO letterboxed throughout; C4WIN letterboxed, then its 4:3
