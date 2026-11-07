@@ -679,3 +679,4 @@ Known quirks the rebuild deliberately keeps:
 - Restarting a mission after a mech lost a limb can no longer crash in the pathfinding's start-up, which followed the limb to its freed mech.
 - The launcher brings its own font (Saira Condensed Bold, free under the SIL Open Font License) on every system, in place of Bahnschrift, DIN Condensed or a Linux face, so a Linux without the expected fonts no longer shows empty buttons. Without it the launcher searches the system's font folders.
 - An install without the game's fonts, on a system without them either, now shows its text in free stand-ins the package carries (Liberation Sans, Anton, Liberation Mono), sized to keep the original's line heights.
+- A mech can no longer be given more than 16 weapons by a mod or by another player's loadout in multiplayer: the extra one is left off and named in the log, where it used to overwrite memory.
