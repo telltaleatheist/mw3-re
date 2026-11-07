@@ -142,7 +142,9 @@ Why: walk 0x4d9680 passes the carrot to the boundary as both place and answer. T
 
 **That scratch build, and what it means for the rows above.** Its first form left out `probe.cpp`, and with it the line that turns the zfix fixes off for the whole probe library, so `bugs` stayed on and `test_ai_attack` differed at seed 281, round 5, step 33, on the port's own fixed path. With `probe.cpp` linked it passes, 300 cases, the same numbers as `main` at 355a1b09 and the merge base d6c63bf2, so it was the build, not `pm`. All rows above except `record`'s name and `node_box` ran on that first form, fixes on: a drop caught there is still a drop the test sees, but they weren't rerun with fixes off. `test_ai_targets` part 1 fails with fixes off as well, at fn 10: PM's `save_target` against MW3's exe, by design.
 
-**On the switch's list:** `InOutHooks::ground`; the hooks with no drop break (`brain_write`, `target_masks`, `set_local_velocity`); the real hooks in `app_mission.cpp`. `NetHooks::ground` goes with the moved `test_ai_nets`.
+**On the switch's list:** the real hooks in `app_mission.cpp`. `NetHooks::ground` goes with the moved `test_ai_nets`.
+
+**Closed from that list (2026-11-07).** `brain_write` and `target_masks`: dropped at the caller, `test_pm_ai_valves` differs (1 and 15 files). `InOutHooks::ground`: dropped, no test differs, and none can: `app_mission.cpp` wires it, but a corner's height is in no answer, since every measure is in x and z and `inout_pull` writes the height back from `in`. Rests on reading. `set_local_velocity`: only MW3's `JumpState` calls it; PM's `zai_jump_pm` doesn't.
 
 ## Scaled tolerances and non-finite values (2026-11-06)
 
@@ -176,6 +178,14 @@ The search read each `if ...: continue/break/return True` over a value in `test_
 The compares were 1e-3 wide, which is thousands of last-place units; 53-bit runs with them exact found what that hid. The other PM AI tests' stubs were read for the split that made seed 447 look like a tie, Python doubles on the exe's side against floats on the port's: only that one stub computed a float, and it's fixed. The rest return handles, ints and names.
 
 **Rerun at the switch, added:** every break for these pieces on this evaluation.
+
+## The boundary's small helpers, compared through their callers (2026-11-07)
+
+PM keeps as functions what MW3 inlined: 0x4c7e10, 0x4c7e50, 0x4c7f30, 0x4c9220, 0x4c9260, 0x4caa60, 0x4caca0, 0x4cab20, 0x4cad50,
+0x4cade0, 0x4cb730, 0x4cae10, 0x4cc970, 0x4ccac0. The port has them in line. Counted on the exe, `test_pm_ai_boundary` runs the first 13
+(600 to 12.8 million times; 24,000 queries, 0 differ) and `test_pm_ai_walk` the last. 6 of 8 breaks on the port's forms caught.
+The two missed need an exact tie the 200 areas don't reach: a point exactly on a side's line (0x4c9260) and a side exactly at the limit
+(0x4cab20); those two comparisons rest on reading.
 
 ## The cloud's death band
 
