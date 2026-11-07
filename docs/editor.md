@@ -29,6 +29,15 @@ with the code from it. Recoil's exes have "stealth" and an `ai_net.cpp` but none
 editor's menu text ("PICK A COMMAND", "BATTLESPORT", the net editor's rows): by strings
 alone, not a disassembly, the menus aren't in them.
 
+The Windows dialogs are another matter (2026-11-07, read from each exe's resources; whether
+code still opens them is not checked). `Mech3.exe` 1.2 holds 38 dialog templates, 17 in Recoil's:
+both have AI Network Editor (139), Net Edit (140), Node Edit - Vehicle (141), Map Area
+Editor (142), Vehicle Select (143), Camera Properties (106), Teleport (132). MW3 adds Mech Editor (149),
+Select Mech (156), Global Light Properties (160), Mech AI (165) with pages p1, p2, p5, Attack, Retreat, Fire,
+Valve, Zig Zag, Circle, Jump, Direct and Random Move (166-176, 183), Node Parameters (180), a second Ai
+Network Editor (181), Mech Animation Transitions (182) and Enter Cheat Code (138). Pirate's Moon's exe
+keeps only Teleport (132) and one dialog of its own (188), though its menus' strings are there.
+
 ## The entry and the exit
 
 **Command 0x9a** (0x0040dba0's switch, decoded from its byte table at
