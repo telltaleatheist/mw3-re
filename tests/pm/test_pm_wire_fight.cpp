@@ -118,6 +118,15 @@ TEST(pm_wire_firing_lists_a_managers_weapons) {
   EXPECT(step_pm_hooks().group(0x55) == 0);
 }
 
+TEST(pm_wire_firing_threat_is_the_attacker_list) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  EXPECT(pick_pm_hooks().threat(&b, 0) == 0 && pick_pm_hooks().threat(&b, 1) == 0);  // none yet
+  EXPECT(pm_hooks_missing().count("WirePick.threat") == 0);
+}
+
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {
   Fake f;
   Installed in(&f);

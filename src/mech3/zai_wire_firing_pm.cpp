@@ -146,7 +146,9 @@ class WirePick : public PickPmHooks {
     return buf_;
   }
   zgame::Handle player() override { return brain_hooks().player_vehicle(); }
-  zgame::Handle threat(Brain* b, int32_t list) override { pm_hook_missing("WirePick.threat"); return {}; }
+  zgame::Handle threat(Brain* b, int32_t list) override {
+    return list == 0 ? pm_latest_attacker(*b) : pm_hardest_attacker(*b);  // each changes the list, as the exe's
+  }
   int32_t rand() override { return brain_hooks().rand(); }
   float now() override { return brain_hooks().now(); }
  private:
