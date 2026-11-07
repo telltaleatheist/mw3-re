@@ -2,14 +2,34 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
 #include <mutex>
 #include <thread>
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace mech3 {
 namespace {
 using Clock = std::chrono::steady_clock;
+double cpu_seconds() {
+#if defined(_WIN32)  // clock() there is the time since start, not CPU time
+  FILETIME made, ended, kernel, user;
+  if (!GetProcessTimes(GetCurrentProcess(), &made, &ended, &kernel, &user)) return 0;
+  const auto ticks = [](const FILETIME& t) { return (static_cast<uint64_t>(t.dwHighDateTime) << 32) | t.dwLowDateTime; };
+  return static_cast<double>(ticks(kernel) + ticks(user)) / 1e7;
+#else
+  return static_cast<double>(std::clock()) / CLOCKS_PER_SEC;
+#endif
+}
 LoadWatch::Say say_to_log() {
   return [](const std::string& s) { std::printf("%s\n", s.c_str()); };
 }
@@ -37,7 +57,7 @@ struct LoadWatch::Impl {
       const auto quiet = std::chrono::duration_cast<std::chrono::seconds>(Clock::now() - since).count();
       char line[256];
       std::snprintf(line, sizeof line, "mw3: load: nothing new for %lld s, on \"%s\" (CPU time so far %.0f s)",
-                    static_cast<long long>(quiet), name.c_str(), static_cast<double>(std::clock()) / CLOCKS_PER_SEC);
+                    static_cast<long long>(quiet), name.c_str(), cpu_seconds());
       say(line);
       wait *= 4;
     }
