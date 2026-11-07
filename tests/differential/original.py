@@ -113,6 +113,8 @@ class Original:
         # the default is the power-on 64-bit (0x037f).
         if os.environ.get('MW3_X87') == '24':
             self.fpu_control(0x007f)
+        elif os.environ.get('MW3_X87') == '53':  # the reference runtime's (CLAUDE.md, FPU precision)
+            self.fpu_control(0x027f)
 
     def fpu_control(self, cw):
         """Loads the x87 control word (0x037f power-on, 0x007f single precision)."""
