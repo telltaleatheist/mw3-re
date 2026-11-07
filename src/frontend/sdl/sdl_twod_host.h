@@ -96,6 +96,7 @@ class SdlTwodHost : public ztwod::Host {
 
   // The file to open for it: the game folder's, else the system's (FIX (A)); empty when neither has it.
   static std::string font_path(const std::string& file);
+  static std::string shipped_font(const std::string& file);
   // Which .ttf a GDI face name uses ("Lucida Console" is lucon.ttf).
   static std::string font_file(const std::string& face);
 

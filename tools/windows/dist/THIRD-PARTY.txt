@@ -55,6 +55,16 @@ mw3import.exe loads the DLLs dynamically: you may replace them with your
 own build of the same version.
 
 
+Liberation Sans, Liberation Mono and Anton (assets\fonts)
+---------------------------------------------------------
+Stand-ins for an install without the game's Arial, Lucida Console and Impact.
+Liberation: Copyright (c) 2010 Google Corporation, Copyright (c) 2012 Red Hat,
+Inc., https://github.com/liberationfonts/liberation-fonts. Anton: Copyright
+2020 The Anton Project Authors, https://github.com/googlefonts/AntonFont.
+SIL Open Font License 1.1 (licenses\liberation\OFL.txt,
+licenses\anton\OFL.txt). Unchanged, under their reserved names.
+
+
 Saira Condensed Bold (assets\launcher\font.ttf)
 ------------------------------------------------
 The launcher's lettering. Copyright 2016 The Saira Project Authors,

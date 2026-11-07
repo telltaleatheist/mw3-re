@@ -535,6 +535,16 @@ columns) was made against GDI's metrics, so the SDL host
   size they list, glyph for glyph; no kerning (GetTextExtentPoint32 and
   DrawText never kern; SDL_ttf would by default).
 
+An install without the fonts, on a system without them, gets the package's
+stand-ins (`assets/fonts`): Liberation Sans for Arial (metric-compatible),
+Anton for Impact, Liberation Mono for Lucida Console. Any file not named as
+the game's is sized by that game face's numbers (`stand_in_metrics`: its win
+ascent and descent, and Arial's and Impact's VDMX to size 48, which pick
+smaller sizes than the win metrics), so a cell is the same height.
+`sdl_stand_in_fonts_keep_the_layout` compares them with the real files at the
+menus' heights: cells equal; widths within 1.2% (Arial), 10.8% on a short
+string (Impact), the same (Lucida Console).
+
 Before this the host scaled a cell height by FreeType's line height and
 kerned: Arial 12 came out at size 10 (the lab's and the briefing's small
 texts about a tenth wider) and the salvage screen's tonnage values ran

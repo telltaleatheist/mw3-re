@@ -89,11 +89,13 @@ SdlTwodHost::~SdlTwodHost() {
 }
 
 // FIX (A): the game's installer put its fonts in Windows' folder as well, and an install can lack them (Pirate's
-// Moon's did: every label blank). The game folder's first, else the system's own of that name.
+// Moon's did: every label blank). The game folder's first, else the system's own of that name, else the
+// package's stand-in (assets/fonts: first on Linux, where the system's would be these same faces at best).
 std::string SdlTwodHost::font_path(const std::string& file) {
   std::string found = zutl::find(file.c_str());
   if (!found.empty()) return found;
   std::vector<std::string> tries;
+  const std::string shipped = shipped_font(file);
 #if defined(_WIN32)
   if (const char* w = std::getenv("WINDIR")) tries.push_back(std::string(w) + "\\Fonts\\" + file);
 #elif defined(__APPLE__)
@@ -101,8 +103,12 @@ std::string SdlTwodHost::font_path(const std::string& file) {
   tries.push_back("/System/Library/Fonts/Supplemental/" + mac);
 #else
   const std::string lib = file == "lucon.ttf" ? "LiberationMono-Regular.ttf" : "LiberationSans-Regular.ttf";
+  if (!shipped.empty()) tries.push_back(shipped);
   tries.push_back("/usr/share/fonts/truetype/liberation/" + lib);
   tries.push_back("/usr/share/fonts/liberation/" + lib);
+#endif
+#if defined(_WIN32) || defined(__APPLE__)
+  if (!shipped.empty()) tries.push_back(shipped);
 #endif
   for (const std::string& t : tries)
     if (std::filesystem::exists(t)) {
@@ -112,6 +118,24 @@ std::string SdlTwodHost::font_path(const std::string& file) {
       return t;
     }
   return std::string();
+}
+
+// The stand-in for one of the game's fonts, beside the program or in a
+// development build's assets; "" without one.
+std::string SdlTwodHost::shipped_font(const std::string& file) {
+  const char* name = file == "impact.ttf" ? "Anton-Regular.ttf"
+                     : file == "lucon.ttf" ? "LiberationMono-Regular.ttf"
+                                           : "LiberationSans-Regular.ttf";
+  std::error_code ec;
+  if (const char* base = SDL_GetBasePath()) {
+    const std::filesystem::path p = std::filesystem::path(base) / "assets" / "fonts" / name;
+    if (std::filesystem::exists(p, ec)) return p.string();
+  }
+#ifdef MW3_ASSETS_DIR
+  const std::filesystem::path p = std::filesystem::path(MW3_ASSETS_DIR) / "fonts" / name;
+  if (std::filesystem::exists(p, ec)) return p.string();
+#endif
+  return {};
 }
 
 std::string SdlTwodHost::font_file(const std::string& face) {
@@ -441,17 +465,17 @@ SdlTwodHost::Dc* SdlTwodHost::dc(Handle h) {
 // (ascent + descent), 0 a default of 12 pixels.
 TTF_Font* SdlTwodHost::open_ttf(Font& f) {
   if (f.ttf || !ttf_ok_) return f.ttf;
-  const std::string path = font_path(font_file(f.face));
+  const std::string file = font_file(f.face), path = font_path(file);
   if (path.empty()) {
     std::fprintf(stderr, "mw3: font %s (%s) not found in the game folder or the system's: its text will be blank\n",
-                 f.face.c_str(), font_file(f.face).c_str());
+                 f.face.c_str(), file.c_str());
     return nullptr;
   }
   // FIX (A): GDI's size, ascent and descent for the height (VDMX, else the
   // win metrics scaled), and its widths: hinted advances (MONO matches the
   // fonts' hdmx), no kerning (twod.md section 6, Text widths).
   static std::map<std::string, GdiFaceMetrics> faces;
-  auto it = faces.find(path);
+  auto it = faces.find(file + path);
   if (it == faces.end()) {
     GdiFaceMetrics m;
     if (std::FILE* fp = std::fopen(path.c_str(), "rb")) {
@@ -461,7 +485,8 @@ TTF_Font* SdlTwodHost::open_ttf(Font& f) {
       std::fclose(fp);
       gdi_face_metrics(bytes, &m);
     }
-    it = faces.emplace(path, m).first;
+    stand_in_metrics(file, std::filesystem::path(path).filename().string(), &m);
+    it = faces.emplace(file + path, m).first;
   }
   const GdiSize size = gdi_font_size(it->second, f.height);
   f.ttf = TTF_OpenFont(path.c_str(), static_cast<float>(size.ppem));
