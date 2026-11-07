@@ -1,7 +1,11 @@
 #include "mech3/zai_wire_walk_pm.h"
 
+#include <algorithm>
+
 #include "mech3/mech.h"
 #include "mech3/zai_brain_pm.h"
+#include "mech3/zai_node.h"
+#include "mech3/zai_node_pm.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zainet_inout.h"
 
@@ -77,9 +81,43 @@ const InOutVia* wire_walk::at_via(Brain& b_, zgame::Handle v) {
 
 void wire_walk::queue_via(Brain& b_, const InOutVia*) { pm_hook_missing("0x004ea0f0.via"); }
 
-zgame::Handle wire_walk::next_along(Brain& b_, const float*) {
-  pm_hook_missing("0x004d60d0");
-  return 0;
+namespace {
+
+// PM's link pick over the brain's MW3 nodes: their links, way points and weights (MW3's vt+0xa8 standing in for
+// PM's vt+0xac, the same slot moved).
+class LinkPick : public LinkPickPmHooks {
+ public:
+  explicit LinkPick(Brain& b) : b_(b) {}
+  zgame::Handle path_next(zgame::Handle at) override { return pm_id(brain_hooks().path_next(b_, node(at))); }
+  int32_t link_count(zgame::Handle at) override { return node(at)->link_count(); }
+  zgame::Handle link(zgame::Handle at, int32_t i) override { return pm_id(node(at)->link(i)); }
+  zgame::Handle null_step(zgame::Handle) override { return pm_id(ai::null_step()); }
+  const float* way_point(zgame::Handle at) override { return node(at)->way_point(); }
+  float weight(zgame::Handle l, zgame::Handle, zgame::Handle at, LinkWayPm* way) override {
+    LinkWay w;
+    w.x00 = way->x00, w.dist = way->dist;
+    std::copy(way->from, way->from + 3, w.from), std::copy(way->dir, way->dir + 3, w.dir);
+    const float r = node(l)->weight(b_, node(at), &w);
+    way->x00 = w.x00, way->dist = w.dist;
+    std::copy(w.from, w.from + 3, way->from), std::copy(w.dir, w.dir + 3, way->dir);
+    return r;
+  }
+  int32_t rand_int() override { return brain_hooks().rand(); }
+
+ private:
+  static Behaviour* node(zgame::Handle h) { return static_cast<Behaviour*>(pm_ptr(h)); }
+  Brain& b_;
+};
+
+}  // namespace
+
+// The node is the running state's (MW3's NodeState `from`); none with no order, no state or a state on no node.
+zgame::Handle wire_walk::next_along(Brain& b_, const float* dir) {
+  if (b_.orders.empty()) return 0;
+  const BehaviourState* st = b_.current().state.get();
+  if (!st || !st->from) return 0;
+  LinkPick h(b_);
+  return pick_link_pm(h, pm_id(&b_), pm_id(st->from), dir);
 }
 
 void wire_walk::set_behaviour(Brain& b_, zgame::Handle b) { b_.current().set_behaviour(static_cast<Behaviour*>(pm_ptr(b))); }

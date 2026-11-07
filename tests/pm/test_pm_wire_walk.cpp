@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/zai_node.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_wire_walk_pm.h"
 
@@ -147,5 +148,46 @@ TEST(pm_wire_walk_counts_what_has_no_answer) {
   EXPECT(w.pilot_x544(8) == 0.0f);  // no mech
   EXPECT(!w.target_place(0) && !w.target_live(0) && !w.target_facing(0));
   EXPECT(w.stopping_at(7, 1.5f) == 9.0);  // 1.5 x 2, then x 3
+  EXPECT(pm_hooks_missing().empty());
+}
+
+namespace {
+// A node with two links that each weigh `w`, and a lone link.
+struct Node : Behaviour {
+  std::vector<Behaviour*> to;
+  float w = 1.0f;
+  float at[3] = {0, 0, 0};
+  int32_t link_count() const override { return int32_t(to.size()); }
+  Behaviour* link(int32_t i) const override { return to[size_t(i)]; }
+  const float* way_point() const override { return at; }
+  float weight(Brain&, const Behaviour*, LinkWay* way) override {
+    way->dir[0] = 0, way->dir[2] = 1;
+    return w;
+  }
+};
+}  // namespace
+
+TEST(pm_wire_walk_next_along_picks_from_the_states_node) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  WireWalk w(b, c);
+  Node here, a, z;
+  here.to = {&a};
+  const float dir[3] = {0, 0, 1};
+  EXPECT(w.next_along(dir) == 0);  // no order
+  b.orders.emplace_back().owner = &b;
+  b.current().state = std::make_unique<BehaviourState>(&b.current(), &here);
+  EXPECT(w.next_along(dir) == pm_id(&a));  // the lone link
+  a.w = 0;
+  EXPECT(w.next_along(dir) == 0);  // weighs nothing
+  a.w = 1;
+  here.to = {&a, &z};
+  // both straight on: the sums 1 and 2, the roll 1234 x 2 / 32767 below the first
+  EXPECT(w.next_along(dir) == pm_id(&a));
+  b.current().state = std::make_unique<BehaviourState>(&b.current(), nullptr);
+  EXPECT(w.next_along(dir) == 0);  // a state on no node
   EXPECT(pm_hooks_missing().empty());
 }
