@@ -5,6 +5,7 @@
 #include "mech3/app_mech.h"
 #include "pm/gamez/zclass/cls_clutter.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_salvage.h"
 #include "mech3/mech_objective.h"
 #include "mech3/pilot.h"
 
@@ -90,4 +91,19 @@ TEST(pm_clutter_break_has_its_anim) {
   EXPECT(h.anim_find != nullptr && h.anim_start != nullptr && h.watch_hits != nullptr);
   mech3::unwire_weapons();
   EXPECT(pm::zcls::clutter_hooks().anim_find == nullptr);
+}
+
+// Pirate's Moon 0x00474f80: the chassis by +0x5ae alone, so a head shot's mech comes and one the torso's
+// loss or kill() cleared doesn't.
+TEST(pm_salvage_takes_the_chassis_by_its_flag) {
+  SalvageMech m;
+  m.has_data = true, m.type = 3;
+  SalvageCalls c;
+  c.rand = [] { return 0; };
+  Store a(1), b(1);
+  add_salvage(a, m, c);
+  EXPECT(a.count() == 1);
+  m.chassis = false;
+  add_salvage(b, m, c);
+  EXPECT(b.count() == 0);
 }

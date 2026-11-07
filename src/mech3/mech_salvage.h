@@ -28,10 +28,10 @@ struct SalvageWeapon {
 // A mech as 0x00472f00 reads it.
 struct SalvageMech {
   bool has_data = false;             // +0x684
-  int32_t type = -1;                 // +0x684 +0xc (7, the Elemental, leaves nothing)
+  int32_t type = -1;                 // +0x684 +0xc (11, the Elemental, leaves nothing)
   int32_t tech = 3;                  // 0x0041df10: its definition's tech
-  bool torso_gone = false, head_gone = false;  // +0x39c, +0x3a4: +0x48
-  bool leg_gone[2] = {};             // +0x38c, +0x390
+  bool chassis = true;               // Pirate's Moon +0x5ae (Mech::salvage_mech)
+  bool leg_gone[2] = {};             // +0x39c, +0x3a0: +0x48
   bool has_manager = false;          // +0xd4
   std::vector<SalvageWeapon> weapons;
   std::vector<int32_t> bins;         // each bin's rounds left (0x004b4cf0), -1 infinite
@@ -48,8 +48,8 @@ struct SalvageCalls {
   std::function<void(const SalvageMech& m, int32_t bin)> empty_bin;  // 0x004b4d10(0) on the mech's bin
 };
 
-// Mech3.exe 1.2 @ 0x00472f00 (on the store): the mech itself (its torso
-// whole, or its head gone; a coin when a leg is off), its weapons and ammo,
+// Pirate's Moon 1.0 @ 0x00474f80 (on the store): the mech itself (by its flag;
+// a coin when a leg is off), its weapons and ammo,
 // its loadout's equipment on parts still standing, the sinks past the ten.
 bool add_salvage(Store& s, SalvageMech& m, const SalvageCalls& c);
 // Mech3.exe 1.2 @ 0x00472da0: each weapon in a tech it comes in, its ammo

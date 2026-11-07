@@ -2348,8 +2348,7 @@ SalvageMech salvage_view(Mech& m) {
   // index (MechDfn::index, the cache 0x004846a0 is by roster); a built
   // mech's definition is already loaded, so the cache's lazy load is moot.
   v.tech = mech_tech(v.type);
-  v.torso_gone = m.torso && m.torso->destroyed;
-  v.head_gone = m.head && m.head->destroyed;
+  v.chassis = m.salvage_mech;
   for (int i = 0; i < 2; ++i) v.leg_gone[i] = m.legs[i] && m.legs[i]->destroyed;
   salvage_weapons(m.ammo, v);
   v.config = m.config;
@@ -2358,7 +2357,7 @@ SalvageMech salvage_view(Mech& m) {
     v.parts[id] = p ? (p->destroyed ? 2 : 1) : 0;
   }
   if (cheats().whole) {  // ours: there is no cow level's kills, as if undamaged (cheats.h)
-    v.torso_gone = v.head_gone = v.leg_gone[0] = v.leg_gone[1] = false;
+    v.chassis = true, v.leg_gone[0] = v.leg_gone[1] = false;
     for (int8_t& p : v.parts)
       if (p == 2) p = 1;
   }
