@@ -37,6 +37,9 @@ struct Fake : BrainHooks {
   void velocity(Handle e, float o[3]) override { o[0] = e == 5 ? 10.0f : 0.0f, o[1] = 0, o[2] = 0; }
   void entity_lock_position(Handle, float o[3]) override { o[0] = 100, o[1] = 0, o[2] = 0; }
   Handle contact_entity(const Contact* c) override { return c->seen; }
+  void vehicle_matrix(Handle, float m[9]) override {
+    for (int i = 0; i < 9; ++i) m[i] = i % 4 == 0 ? 1.0f : 0.0f;
+  }
   void* object_of(Handle h) override { return h == 0x55 ? static_cast<void*>(wm) : nullptr; }
   float speed_at(Handle, float t) override { return t; }
   float stopping_distance(Handle, float s) override { return s; }
@@ -145,6 +148,14 @@ TEST(pm_wire_firing_aims_through_the_vehicle_slots) {
   EXPECT(f.at[0] == 1.0f);
   step_pm_hooks().stand_down(7);
   EXPECT(f.at[1] == -1.0f);  // the manager's aim cleared
+}
+
+TEST(pm_wire_firing_places_are_never_null) {
+  Fake f;
+  Installed in(&f);
+  EXPECT(plan_pm_hooks().matrix(7)[8] == 1.0f);
+  EXPECT(plan_pm_hooks().mount_place(1) != nullptr && plan_pm_hooks().offset(1) != nullptr);
+  EXPECT(aim_pm_hooks().plan_position(1) != nullptr);
 }
 
 TEST(pm_wire_firing_aim_point_is_the_lead_point) {

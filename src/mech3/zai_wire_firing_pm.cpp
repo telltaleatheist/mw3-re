@@ -12,6 +12,8 @@
 namespace mech3::ai {
 
 namespace {
+// What a counted hook hands back for a place or matrix: its callers read through it, as the exe's never null.
+constexpr float kZeros[12] = {};
 PlanPm* plan_of(zgame::Handle plan) { return static_cast<PlanPm*>(pm_ptr(plan)); }
 zgame::Handle vehicle_of(Brain* b) { return b->controls->vehicle(); }
 const std::vector<zgame::Handle>& no_handles() {
@@ -102,7 +104,7 @@ bool grouped(zgame::Handle v) { return manager_group(brain_hooks().weapons(v)) !
 class WireAim : public AimPmHooks {
  public:
   Contact* plan_contact(zgame::Handle plan) override { return plan_of(plan) ? *plan_of(plan)->slot : nullptr; }
-  const float* plan_position(zgame::Handle plan) override { pm_hook_missing("WireAim.plan_position"); return nullptr; }
+  const float* plan_position(zgame::Handle plan) override { pm_hook_missing("WireAim.plan_position"); return kZeros; }
   zgame::Handle contact_entity(const Contact* c) override { return brain_hooks().contact_entity(c); }
   bool entity_is_vehicle(zgame::Handle e) override { pm_hook_missing("WireAim.entity_is_vehicle"); return {}; }
   uint32_t entity_pilot_kind(zgame::Handle e) override { pm_hook_missing("WireAim.entity_pilot_kind"); return {}; }
@@ -269,12 +271,17 @@ class WirePlan : public PlanPmHooks {
     LeadHooks h;
     return lead_point_pm(h, v, brain_hooks().contact_entity(c), weapon, out);
   }
-  void weapon_place(zgame::Handle weapon, float out[3]) override { pm_hook_missing("WirePlan.weapon_place"); }
+  void weapon_place(zgame::Handle weapon, float out[3]) override {
+    brain_hooks().weapon_node_position(weapon, out);
+  }
   const float* position(zgame::Handle e) override {
     brain_hooks().position(e, buf_);
     return buf_;
   }
-  const float* matrix(zgame::Handle v) override { pm_hook_missing("WirePlan.matrix"); return nullptr; }
+  const float* matrix(zgame::Handle v) override {
+    brain_hooks().vehicle_matrix(v, m_);
+    return m_;
+  }
   bool turn(zgame::Handle v, const float dir[3], float out[3]) override {
     return brain_hooks().bearer_aim_clamp(v, dir, out);
   }
@@ -315,16 +322,17 @@ class WirePlan : public PlanPmHooks {
   }
   bool mounted(zgame::Handle w) override { pm_hook_missing("WirePlan.mounted"); return {}; }
   zgame::Handle muzzle_node(zgame::Handle w) override { pm_hook_missing("WirePlan.muzzle_node"); return {}; }
-  const float* mount_place(zgame::Handle w) override { pm_hook_missing("WirePlan.mount_place"); return nullptr; }
+  const float* mount_place(zgame::Handle w) override { pm_hook_missing("WirePlan.mount_place"); return kZeros; }
   bool spreads(zgame::Handle w) override { pm_hook_missing("WirePlan.spreads"); return {}; }
   float spread(zgame::Handle w) override { pm_hook_missing("WirePlan.spread"); return {}; }
-  const float* offset(zgame::Handle w) override { pm_hook_missing("WirePlan.offset"); return nullptr; }
+  const float* offset(zgame::Handle w) override { pm_hook_missing("WirePlan.offset"); return kZeros; }
   bool buried(zgame::Handle node, const float at[3]) override { pm_hook_missing("WirePlan.buried"); return {}; }
   bool has_mount(zgame::Handle w) override { pm_hook_missing("WirePlan.has_mount"); return {}; }
   bool mount_reaches(zgame::Handle w, const float dir[3]) override { pm_hook_missing("WirePlan.mount_reaches"); return {}; }
   bool mech_reaches(zgame::Handle m, const float dir[3]) override { pm_hook_missing("WirePlan.mech_reaches"); return {}; }
   int32_t rand() override { return brain_hooks().rand(); }
  private:
+  float m_[9] = {};
   float buf_[3] = {};
 };
 
