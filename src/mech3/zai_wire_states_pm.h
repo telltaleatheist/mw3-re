@@ -56,10 +56,8 @@ class WireJump final : public WireWalkT<JumpPmHooks> {
     std::memcpy(&f, &w, sizeof f);
     return f;
   }
-  float jet_climb() override {  // [0x00629314], set at run time; MW3's climb is 8 above gravity
-    pm_hook_missing("assumed: [0x00629314] as MW3's climb");
-    return 8.0f + brain_hooks().gravity();
-  }
+  // [0x00629314]: 0x00417e80 sets it once at start-up to [0x005dfa18] + [0x005dfa1c], 30 + 8.
+  float jet_climb() override { return 30.0f + 8.0f; }
   float gravity() override { return brain_hooks().gravity(); }  // [0x00607ec0], MW3's [0x005e5d34]
   void set_jump(float v) override { controls_.set_jump(v); }
   void go_next() override { o_.set_behaviour(step_.next); }  // 0x004f9f00: this state destroyed
