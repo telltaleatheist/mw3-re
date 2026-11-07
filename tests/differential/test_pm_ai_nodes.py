@@ -31,6 +31,8 @@ HEADER, REPORT = 0x4eb960, 0x406cb0
 
 
 class Bench(zr.Emulated):
+    stub_regions = True
+
     def stand_ins(self):
         self.names = {}
         self.ids = {}
@@ -38,7 +40,8 @@ class Bench(zr.Emulated):
         self.native_stub(SOUND, self.named)
         self.stand(LOCALIZE, lambda c: c.arg(0))
         self.native_stub(0x486730, lambda c: MECHS.get(self.cstr(c.arg(0)).decode('latin1').lower(), 0xffffffff))  # the mech by name
-        self.native_stub(0x4d0fc0, lambda c: 0)  # a region by name: not compared
+        if self.stub_regions:
+            self.native_stub(0x4d0fc0, lambda c: 0)  # a region by name: not compared
         self.stand(0x5cee12, lambda c: 0)  # atexit, for 0x4f38e0's static defaults
         self.cpu.stub_import(0x5bb654, self.strncmp, 0)  # strncmp, by MW3's slot (the map moves it)
         self.stand(0x4e5640, lambda c: self.string(f'net_{c.arg(0):02d}'))  # sprintf

@@ -372,3 +372,59 @@ extern "C" int probe_pm_ai_paths(const char* text, char* out, int size) {
   std::memcpy(out, o.c_str(), o.size() + 1);
   return static_cast<int>(o.size());
 }
+
+// Regions (test_pm_ai_regions.py), a line each: F name, then the region's words; T i x y z: the point in
+// the i-th found, with where the test stopped; L: the regions' list and the registry.
+extern "C" int probe_pm_ai_regions(const char* text, char* out, int size) {
+  rdr_hooks().localize = same;
+  rdr_hooks().sound_find = sound_named;
+  g_log.clear();
+  zerr::set_sink(sink);
+  std::vector<Region*> got;
+  std::string o, t = text;
+  size_t at = 0;
+  auto word = [&](std::string& w) {
+    const size_t e = t.find_first_of(" \n", at);
+    w = t.substr(at, e - at);
+    at = e == std::string::npos ? t.size() : e + 1;
+  };
+  while (at < t.size()) {
+    std::string op, w;
+    word(op);
+    if (op == "F") {
+      word(w);
+      Region* r = region_find(w.c_str());
+      got.push_back(r);
+      if (!r) {
+        o += "none\n";
+        continue;
+      }
+      o += std::to_string(r->get_id()) + ' ' + r->region_name + ' ' + std::to_string(r->count()) + ' ' + std::to_string(r->cursor);
+      for (int32_t i = 0; i < r->count(); ++i) {
+        const RegionEdge* e = r->edge(i);
+        for (float v : e->point) o += ' ' + hex(fb(v));
+        for (float v : e->normal) o += ' ' + hex(fb(v));
+      }
+      o += '\n';
+    } else if (op == "T") {
+      word(w);
+      Region* r = got[size_t(std::stoi(w))];
+      float p[3];
+      for (float& f : p) {
+        word(w);
+        const uint32_t u = static_cast<uint32_t>(std::stoul(w, nullptr, 16));
+        std::memcpy(&f, &u, 4);
+      }
+      const bool in = r->inside(p);
+      o += std::to_string(int(in)) + ' ' + std::to_string(r->cursor) + '\n';
+    } else {
+      for (Region* r : regions()) o += std::string("listed ") + r->region_name + '\n';
+    }
+  }
+  for (const std::string& l : g_log) o += "report " + l + '\n';
+  zerr::set_sink(nullptr);
+  rdr_hooks() = RdrHooks{};
+  if (static_cast<int>(o.size()) >= size) return -2;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}

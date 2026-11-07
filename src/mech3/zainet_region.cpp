@@ -21,10 +21,11 @@ RegionEdge::RegionEdge(const float* a, const float* b) {
   normal[0] = d[2], normal[1] = 0.0f, normal[2] = -d[0];
 }
 
-// Mech3.exe 1.2 @ 0x004c5a30 (a per-frame test: floats, the exe's order)
+// Pirate's Moon 1.0 @ 0x004d0e50 (MW3's 0x004c5a30): at 53 bits the sum is held in the register, then stored.
 bool RegionEdge::outside(const float* p) const {
   const float d[3] = {p[0] - point[0], p[1] - point[1], p[2] - point[2]};
-  const float dot = (d[0] * normal[0] + d[1] * normal[1]) + d[2] * normal[2];
+  const float dot =
+      static_cast<float>((double{d[0]} * normal[0] + double{d[1]} * normal[1]) + double{d[2]} * normal[2]);
   return dot < 0.0f;
 }
 

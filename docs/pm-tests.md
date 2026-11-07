@@ -18,7 +18,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_ai_nets.py` | changed | 33 | 0 | moved to `test_pm_ai_nets.py` | the compile |
 | `test_ai_paths.py` | gone | 20 | 0 | moved to `test_pm_ai_paths.py` | at 53 bits, nets of up to 30 nodes for ways |
 | `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |
-| `test_ai_regions.py` | gone | 19 | 0 | to move | with PM AI |
+| `test_ai_regions.py` | gone | 19 | 0 | moved to `test_pm_ai_regions.py` | at 53 bits |
 | `test_ai_valves.py` | gone | 31 | 6 | to move | with PM AI |
 | `test_bake.py` | changed | 3 | 2 | covered | test_pm_bake |
 | `test_clip2d.py` | gone | 1 | 0 | covered | test_pm_clip2d |
@@ -220,6 +220,10 @@ the mission test sees the failure, not the picture (vehicles.md).
 ## The way along a net (2026-11-07)
 
 `test_pm_ai_paths`, moved from `test_ai_paths`, on `test_pm_ai_nets`' nets: the nearest step, the finder, the way followed and the steps' tests of the pilot, at 53 bits to the bit, each way's length too; about 12,300 answers on 50 archives, and hand-made nets for what a random plan doesn't reach: two ways of one length, a way that shuts and is found again, a valve union, two distances that round alike, asking from off the way. 19 of 24 breaks caught. PM's distances 0x537a00 and 0x537a50 sum in the register and store once; the port now does, and the 10 m test at a search's start reads the target's vt+0x1c. The five missed can't change an answer: cutting a branch or not (2), as a cut only saves time; `still_open`'s previous step and the target (2), as no step's test reads who came from where and a node always passes; and leaving a distance unrounded in `dist_sq`, as its caller stores it. Ways in nets over 30 nodes aren't asked, as the search is depth first and very slow in the emulator. Not compared: the pilot's place (0x5cb260 stands in).
+
+## Regions (2026-11-07)
+
+`test_pm_ai_regions`, moved from `test_ai_regions`: every `reg_*.zrd` asked twice, net files and a missing name asked as regions, made-up files, points round each region's corners and sides, at 53 bits, where each test stops too. 238 regions, 5,712 points, 0 differ; 12 of 13 breaks caught. The miss, the loop's version test, can't change an answer: the builder only calls it at that version. The inside test's sum is held in the register and stored once, as 0x4d0e50 does; a float sum fails this test. The net's file reader's stand-ins are `test_pm_ai_nodes`', whose region stub is now switched off here.
 
 ## The calls on the pilot (2026-11-07)
 
