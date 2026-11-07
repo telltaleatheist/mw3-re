@@ -104,6 +104,8 @@ extern "C" int probe_pm_ai_steer(const char* plan, char* out, int cap) {
       s.measure(w, v);
     } else if (op == "A") {
       s.advance(f(a[0]));
+    } else if (op == "Y") {  // along, side, length
+      s.along = f(a[0]), s.side = f(a[1]), s.length = f(a[2]);
     } else if (op == "N") {
       o += s.near(w) ? "near " : "far ";
       o += s.at_end() ? "end\n" : "on\n";

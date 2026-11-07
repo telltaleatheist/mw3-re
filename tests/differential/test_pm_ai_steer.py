@@ -9,6 +9,7 @@ import math
 import os
 import random
 import struct
+from fractions import Fraction
 import sys
 from pathlib import Path
 
@@ -181,6 +182,9 @@ def run_exe(x, lines):
             x.call(MEASURE, ecx=x.steer, args=(0, x.vehicle))
         elif op == 'A':
             x.call(ADVANCE, ecx=x.steer, args=(bits(ln[1]),))
+        elif op == 'Y':  # along, side and length as given, for a tie made by hand
+            x.fs(x.steer + 0x34, ln[1:3])
+            x.fs(x.steer + 0x1c, [ln[3]])
         elif op == 'N':
             n = x.call(NEAR, ecx=x.steer) & 0xff
             e = x.call(END, ecx=x.steer) & 0xff
@@ -219,6 +223,8 @@ def text(lines):
             o.append(f'{op} {bits(ln[1]):x}')
         elif op == 'W':
             o.append('W ' + ' '.join(f'{bits(v):x}' for v in ln[1]))
+        elif op == 'Y':
+            o.append('Y ' + ' '.join(f'{bits(v):x}' for v in ln[1:]))
         else:
             o.append(op)
     return '\n'.join(o) + '\n'
@@ -281,6 +287,33 @@ def ties(lib, n):
     return exe
 
 
+def near_ties(lib, buf):
+    """0x4dc210 past the end: a double sum against near_dist. The tie is made by hand: a short way, its
+    length with bits a float of the sum can't hold, so the exact sum is just over 10 and the rounded one 10.
+    Each case's answer is worked out exactly and asked of the exe and the port."""
+    e20, e26, e30 = 2.0 ** -20, 2.0 ** -26, 2.0 ** -30
+    cases = [(10.0 + e20, 0.0, e20 - e30), (7.0, 3.25, 0.25 - e26), (7.0, -3.25, 0.25 - e26),  # just over: far
+             (10.0 + e20, 0.0, e20), (7.0, 3.25, 0.25), (7.0, 3.25, 0.25 + 2 * e26)]           # 10 or under: near
+    bad = rounded = 0
+    for along, side, length in cases:
+        for v in (along, side, length):
+            assert f32(v) == v
+        exact = Fraction(along) - Fraction(length) + abs(Fraction(side))
+        if exact > 10 and f32(along - length) + abs(side) <= 10:
+            rounded += 1
+        lines = [('P', 1, [0.0, 0.0, 0.0]), ('F', [0.0, 1.0]), ('H', 0, 1), ('Y', along, side, length), ('N',)]
+        a = run_exe(Exe(), lines).split('\n')
+        assert lib.probe_pm_ai_steer(text(lines).encode(), buf, len(buf)) >= 0
+        b = buf.value.decode().split('\n')
+        said = next(ln.split()[0] for ln in a if ln.startswith(('near ', 'far ')))
+        if a != b or said != ('far' if exact > 10 else 'near'):
+            print(f'near tie {along} {side} {length}: exact {float(exact)}\n  exe  {said} {a[-3:]}\n  port {b[-3:]}')
+            bad += 1
+    print(f'{len(cases)} ties at the near test by hand, {rounded} that a rounded sum would answer wrongly: {bad} differ')
+    pm_floors.floors(near_rounded=(rounded, 3))
+    return bad
+
+
 def main():
     runs = int(sys.argv[1]) if len(sys.argv) > 1 else 300
     lib = test_pm_zar.load_pm_probe()
@@ -310,6 +343,7 @@ def main():
         if bad >= 6:
             break
     print(f'{runs} plans, {steps} lines: {bad} differ')
+    bad += near_ties(lib, buf)
     if not bad:
         n = 3000 if len(sys.argv) == 1 else 100
         got = ties(lib, n)
