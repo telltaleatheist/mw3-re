@@ -149,6 +149,9 @@ ShotShooter shooter_of(const Contact* c) {
   }
   return o;
 }
+// A mech (vtable 0x005dfaac) or a basic vehicle (0x005eaeac): both answer 0 at vt+0x50, +0x68 and +0x100. Other
+// classes' slots are unread, and counted.
+bool known_vehicle(zgame::Handle e) { return brain_hooks().vehicle_mech(e) || brain_hooks().targetable(e); }
 bool grouped(zgame::Handle v) { return manager_group(brain_hooks().weapons(v)) != 0; }
 
 class WireAim : public AimPmHooks {
@@ -231,7 +234,7 @@ class WirePick : public PickPmHooks {
   }
   uint8_t flags(zgame::Handle e) override { return brain_hooks().vehicle_flags(e); }
   zgame::Handle group(zgame::Handle e) override {
-    return brain_hooks().vehicle_mech(e) ? 0 : (pm_hook_missing("WirePick.group"), zgame::Handle{0});  // the mech's 0x00406ce0
+    return known_vehicle(e) ? 0 : (pm_hook_missing("WirePick.group"), zgame::Handle{0});  // 0x00406ce0 on both
   }
   uint32_t group_marker(zgame::Handle g) override { pm_hook_missing("WirePick.group_marker"); return {}; }
   uint32_t group_xe8(zgame::Handle g) override { pm_hook_missing("WirePick.group_xe8"); return {}; }
@@ -242,10 +245,10 @@ class WirePick : public PickPmHooks {
     return brain_hooks().vehicle_mech(m);
   }
   uint32_t vehicle_x100(zgame::Handle m) override {
-    return brain_hooks().vehicle_mech(m) ? 0 : (pm_hook_missing("WirePick.vehicle_x100"), 0u);  // 0x00406ce0
+    return known_vehicle(m) ? 0 : (pm_hook_missing("WirePick.vehicle_x100"), 0u);  // 0x00406ce0 on both
   }
   uint32_t entity_x50(zgame::Handle e) override {
-    return brain_hooks().vehicle_mech(e) ? 0 : (pm_hook_missing("WirePick.entity_x50"), 0u);  // 0x00406ce0
+    return known_vehicle(e) ? 0 : (pm_hook_missing("WirePick.entity_x50"), 0u);  // 0x00406ce0 on both
   }
   float health(zgame::Handle e) override { return brain_hooks().health(e); }
   zgame::Handle mech(zgame::Handle e) override { return brain_hooks().vehicle_mech(e); }
