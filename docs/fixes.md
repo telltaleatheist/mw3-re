@@ -541,6 +541,10 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   gives the 53-bit result (x rounded to the nearest integer); off, the
   24-bit one, which the probes keep. Checked against the original run at
   64 bits: within one colour step (the original's arithmetic is wider).
+- Mech collision, mech_collide.cpp (0x4225c0 and its responses): at the exe's own precision. The port's floats
+  matched at 24 bits only; `zgeo::X` follows the exe's x87 stores at either (movement-collision.md).
+- Mech skis, mech_skis.cpp (0x4765b0, 0x477940, 0x477620) and the quaternion rotate 0x525840: at the exe's own
+  precision. As floats they matched at 24 bits only; at 53 an exact tie went the other way (movement-ground.md).
 - Pirate's Moon's light map fade, 0x00543b10 (pm/gamez/zmodel/gmod_draw): the same
   rounding, so at 24 bits a light map set's fade is 0 or full, nothing between
   (emulator; docs/pm-map.md). As for the rows above: `fpu53`, on by default, gives the

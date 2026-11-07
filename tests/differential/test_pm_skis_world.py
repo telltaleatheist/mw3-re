@@ -9,6 +9,7 @@ and put its flag back; the flag is compared after.
 """
 import ctypes
 import math
+import os
 import random
 import struct
 import sys
