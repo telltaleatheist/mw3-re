@@ -189,7 +189,7 @@ struct ConfigList {                // 0x18 bytes
 // FIX (A) for the mech lab's Ctrl+X / Ctrl+I (0x00426180, 0x00426300; no
 // Windows file dialogs): export\\<mech>_<loadout>.m3c in the write dir, and
 // the next import\\*.m3c (renamed *.m3c.done once read); null when none.
-bool lab_export_config(const Config& c);
-Config* lab_import_config();
+bool lab_export_config(const Config& c, const std::string& file);
+Config* lab_import_config(const std::string& file);
 
 }  // namespace mech3

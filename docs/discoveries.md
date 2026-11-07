@@ -1836,8 +1836,8 @@ From the mech definitions (mechdef-head.md).
   loads one from a file into the shown mech's list of loadouts (even a
   loadout of another mech); if a loadout with the same name is already
   there, the loaded one gets a random number added to its name. They only
-  work while the mech shown has a loadout. (In the rebuild the files are
-  the `export` and `import` folders.)
+  work while the mech shown has a loadout. (On Pirate's Moon they open the
+  game's own box, and the files are in the `configs` folder.)
 - **The mech lab's loadout buttons.** "Add" is never enabled (its press
   does nothing anyway); Rename and Delete only for your own loadouts.
   Saving copies the shown loadout to the end of the list; if its name is

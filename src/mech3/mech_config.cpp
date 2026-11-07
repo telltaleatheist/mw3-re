@@ -906,12 +906,10 @@ namespace mech3 {
 
 const char* mech_name(int32_t mech);
 
-// FIX (A) for 0x00426180 (Ctrl+X in the mech lab): the file dialog's
-// default name in the write dir's export folder; the file is 0x00426090's.
-bool lab_export_config(const Config& c) {
-  char name[300];
-  std::snprintf(name, sizeof name, "export\\%s_%s.m3c", mech_name(c.mech), c.name ? c.name : "");
-  std::FILE* f = zutl::open(name, "wb");
+// Pirate's Moon 1.0 @ 0x00427f50 (0x00427e50): the box's name in configs\.
+bool lab_export_config(const Config& c, const std::string& file) {
+  const std::string path = "configs\\" + file + ".m3c";
+  std::FILE* f = zutl::open(path.c_str(), "wb");
   if (!f) return false;
   zutl_zar::write_string(f, c.name ? c.name : "");
   const_cast<Config&>(c).save(f);
@@ -919,29 +917,21 @@ bool lab_export_config(const Config& c) {
   return true;
 }
 
-// FIX (A) for 0x00426300 (Ctrl+I): the next import\\*.m3c in place of the
-// open dialog, read as 0x004260c0 (the name first, then the loadout), then
-// renamed *.m3c.done so it is read once.
-Config* lab_import_config() {
-  for (const std::string& file : zutl::list("import\\*.m3c")) {
-    const std::string path = "import\\" + file;
-    std::FILE* f = zutl::open(path.c_str(), "rb");
-    if (!f) continue;
-    char* name = nullptr;  // the loadout made with it (0x00423d00(-1, name)), then freed
-    zutl_zar::read_string(f, &name);
-    auto* c = new Config(-1, name);
-    std::free(name);
-    // FIX (trap): the exe also drops a loadout whose checksum (0x004255b0)
-    // is not its +0x88, as the saved ones' (docs/protection.md).
-    const bool ok = c->load(f);
-    std::fclose(f);
-    // An earlier .done of the same name is replaced (Windows' rename keeps
-    // it and fails, and the file would be read again each time).
-    std::error_code ec;
-    std::filesystem::rename(zutl::write_path(path.c_str()), zutl::write_path((path + ".done").c_str()), ec);
-    if (ok) return c;
-    delete c;
-  }
+// Pirate's Moon 1.0 @ 0x00428080 (0x00427e80): the name first, then the loadout.
+Config* lab_import_config(const std::string& file) {
+  const std::string path = "configs\\" + file + ".m3c";
+  std::FILE* f = zutl::open(path.c_str(), "rb");
+  if (!f) return nullptr;
+  char* name = nullptr;
+  zutl_zar::read_string(f, &name);
+  auto* c = new Config(-1, name);
+  std::free(name);
+  // FIX (trap): the exe also drops a loadout whose checksum (0x00427430) is
+  // not its +0x88, as the saved ones' (docs/protection.md).
+  const bool ok = c->load(f);
+  std::fclose(f);
+  if (ok) return c;
+  delete c;
   return nullptr;
 }
 

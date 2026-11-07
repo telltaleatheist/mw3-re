@@ -456,6 +456,7 @@ class GameEngine : public Engine {
   uint32_t game_message_box(int32_t style, int32_t caption, const std::string& text);  // 0x004ac150
   void pump_events();                // FIX (A): the window's events, inside the box's loop
   ztwod::MessageBox* message_box_open() const { return box_; }  // the box being answered, or null
+  class LabFileBox* file_box_ = nullptr;  // up: a window closed ends it, as box_
 
   // The app's objects.
   Handle script_new() override;

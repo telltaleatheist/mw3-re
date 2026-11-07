@@ -95,7 +95,7 @@ bool LabState::update() {
       const Handle read = en.config_import();
       // Pirate's Moon 0x0044a16f: the list of the read loadout's own mech, MW3's the shown one's.
       const Handle dfn = read ? en.mech_dfn_handle(en.config_mech(read)) : 0;
-      const Handle list = dfn ? en.field32(dfn, 0x20) : 0;
+      const Handle list = dfn ? en.lab_dfn_configs(dfn) : 0;
       if (read && list) {
         // 0x00448c1d..: a taken name gets a random number (CString "%s%d"
         // with rand()); then it goes at the end of that mech's list.

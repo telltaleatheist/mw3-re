@@ -984,6 +984,26 @@ mission from the row, the pilot not saved. Missed, and unobservable: the
 loadout lists shown at the making (the first enemy step hides or shows each
 again).
 
+## 15. The loadout file box (Pirate's Moon, 0x00490270, vtable 0x005e7bb4)
+
+The lab's Ctrl+X (0x00428000) and Ctrl+I (0x00428080) on PM: `dlgLoadSave.zrd`,
+LOADSAVE_DIALOG, in place of MW3's Windows dialogs. `src/mech3/lab_filebox`.
+
+- 0x0048fef0 (save) and 0x00490120 (load) make the box on the stack and run it
+  (0x004907c0, its own frames as a message box's, the screen behind grabbed as
+  the first object). Port: `GameEngine::config_export` and `config_import`.
+- The list is `configs\*.m3c` without the extension, in the listing's order. On
+  saving the bar starts with `<mech>_<loadout>`; on loading the first file is
+  chosen, and a choice shows in the bar.
+- The bar has the focus from the start, 25 characters at most, refusing
+  `:|\<>/?"*`. Enter is Accept and Escape is Cancel, as the two buttons. The name
+  is then the bar's as typed: an empty one on saving writes `configs\.m3c`.
+- Ours: a window closed while it is up ends it as Cancel (`pump_events`), as the
+  message box's loop is ended; the exe would keep looping.
+
+Loaded and saved, the file is the exe's (the name, then the loadout).
+`test_pm_lab_filebox.py`, `fix_lab_loadout_export_import`.
+
 ## 14. Left
 
 - The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its lists

@@ -56,7 +56,7 @@ the expansion, not shared. The files with assert strings, compared:
 - `reader.zbd` holds 198 files to MW3's 178. New: six mechs (Atlas,
   Awesome, Centurion, Clint, Masakari, Ryoken: `dfn_`, `anim_`, `_prints`
   each), `cargotruck`, `mobile_hq`, `packrat`, `bubbles`, `clutter_ani`,
-  `dlgLoadSave` (a load/save dialog), `ia_progression` (Instant Action
+  `dlgLoadSave` (the lab's loadout file box, menus.md section 15), `ia_progression` (Instant Action
   progression), `mprounds` (multiplayer rounds). Gone: `mechs.zrd`,
   `player.zrd`, `equipment.zrd`, `camera.zrd`, `dlgMechLab.zrd` (the
   second mech lab dialog stays) and `mechLibDemo.zrd`.
