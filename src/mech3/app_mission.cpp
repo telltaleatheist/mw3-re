@@ -1275,6 +1275,7 @@ struct WiredTargetHooks : ai::TargetHooks {
     std::memcpy(box, nd->pm_box ? nd->pm_box : reinterpret_cast<const float*>(nd->raw + 0x74), 6 * sizeof(float));
     return (nd->flags() & 0x100) == 0 ? 1 : 0;
   }
+  Handle anim_named(const char* name) override { return name ? e->handle_of(zeff::anim_find(name)) : 0; }
   // 0x0050b4e0: the first def in use named so whose node is this one.
   Handle anim_of_node(const char* name, int32_t len, Handle n) override {
     zeff::AnimState& a = zeff::anim();

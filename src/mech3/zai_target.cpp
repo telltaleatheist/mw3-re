@@ -1,12 +1,14 @@
 #include "mech3/zai_target.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <new>
 #include <utility>
 
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zrdraiv.h"
@@ -440,6 +442,8 @@ void desc_take(TargetDesc& d, TargetRec* rec, Handle anim) {
     d.next = 0;
   }
   const uint8_t f = rec->flags;
+  d.load_limit = rec->load_limit;  // Pirate's Moon 0x004e2730
+  d.footfall_anim = h.anim_named(rec->footfall_anim);
   d.flags = static_cast<uint8_t>((d.flags & 0xf0) | ((f >> 3) & 1) | ((f >> 1) & 2) | ((f >> 2) & 4) | ((f >> 2) & 8));
 }
 
@@ -664,6 +668,24 @@ void CZAiTarget::kill() {
   }
   desc.health = 0;
   active = 0;
+}
+
+// Pirate's Moon 1.0 @ 0x004e2e30's load. FIX (B), behind per_second: per call in the exe, so at 60
+// fps a bridge would go in half the time; each call counts as its share of a 30 fps frame.
+bool load_step(float& stress, float& load, float limit, float tons, float steps) {
+  if (load <= limit) stress = stress * (steps == 1.0f ? 0.5f : std::pow(0.5f, steps));
+  else stress = static_cast<float>(static_cast<double>(load) / limit * steps + stress);  // the x87's double
+  const bool gives = stress > 10.0f;
+  load = tons;
+  return gives;
+}
+
+// Pirate's Moon 1.0 @ 0x004e2e30. The exe's test of the frame against +0x108 always passes (nothing
+// writes it), so a call per mech, a frame: two mechs side by side don't add up.
+void CZAiTarget::stood_on(float tons, float dt) {
+  if (!active) return;
+  if (desc.load_limit > 0.0f && load_step(stress, load, desc.load_limit, tons, zfix::frame_steps(dt))) destroy();
+  if (desc.footfall_anim) g_hooks->anim_run(desc.footfall_anim);
 }
 
 // Mech3.exe 1.2 @ 0x004d7270 with the target's vt+0x7c 0x004d3340 and vt+0x78.

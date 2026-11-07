@@ -131,7 +131,14 @@ struct TargetDesc {
   uint8_t flags = 0;
   bool named = false;            // +0x18  the record's (localized) name, strdup'd (0x0049d1c0)
   std::string name;
+  float load_limit = 0;          // Pirate's Moon +0x1c  the record's, tons
+  Handle footfall_anim = 0;      // Pirate's Moon +0x20  the record's, by name (0x00524b50)
 };
+
+// Pirate's Moon 0x004e2e30's weight on a target, one mech's call: the last call's weight against
+// the limit, 0.5 or the share over it into the stress, then this one's. True when it gives way
+// (docs/pm-map.md, Load limits). `steps` is 1 at 30 fps (zfix::frame_steps).
+bool load_step(float& stress, float& load, float limit, float tons, float steps);
 
 // A targets.zrd object (0xf4 bytes: AiTarget's 0xd4 by 0x004d7f80, then
 // the description and +0xf0). Its zEntity3d part is the port's few fields.
@@ -146,6 +153,8 @@ class CZAiTarget : public AiTarget {
   Handle centroid_node = 0;      // +0x14  the HUD's (the record's "centroid")
   TargetDesc desc;               // +0xd4
   uint8_t destroyed = 0;         // +0xf0
+  float load = 0;                // Pirate's Moon +0x100  the last call's weight
+  float stress = 0;              // Pirate's Moon +0x104
 
   CZAiTarget(Handle self, Handle node, TargetDesc& d, TargetRec* rec, bool trap);  // 0x004d2960, 0x004d3080
   ~CZAiTarget();                 // 0x004d2aa0 (0x004d30d0 a trap's), 0x004d81e0, 0x004d58a0
@@ -157,6 +166,7 @@ class CZAiTarget : public AiTarget {
   float on_collide(float damage);                         // 0x004d26d0 -> 0x004d2cd0
   void destroy();                // 0x004d2b30, vt+0x70: the destroy animation, then kill
   void kill();                   // 0x004d2b60, vt+0x78
+  void stood_on(float tons, float dt);  // Pirate's Moon 0x004e2e30: a mech's weight on it
   // 0x004d7270 (vt+0x74, the AI messages): 0 vt+0x7c 0x004d3340 (+0xf0
   // cleared), 0x38 vt+0x78 the kill; the rest nothing.
   void message(int32_t msg);
@@ -234,6 +244,7 @@ class TargetHooks : public zgame::Unported {
     return static_cast<int32_t>(unported("0x004ebd50", {node}));
   }
   // zEffect's animations.
+  virtual Handle anim_named(const char* name) { (void)name; return 0; }  // Pirate's Moon 0x00524b50
   virtual Handle anim_of_node(const char* name, int32_t len, Handle node) {
     return unported("0x0050b4e0", {name, len, node});
   }
