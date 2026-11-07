@@ -13,6 +13,7 @@
 #include "gamez/znetwork/znet_object.h"
 #include "mech3/mech_waynet.h"
 #include "mech3/veh_basic.h"
+#include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_region.h"
@@ -272,6 +273,101 @@ extern "C" int probe_pm_ai_waynets(const char* names, int with_world, char* out,
   net_hooks() = saved;
   rdr_hooks() = RdrHooks{};
   mech3::set_waynet_hooks(nullptr);
+  if (static_cast<int>(o.size()) >= size) return -2;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}
+
+namespace {
+CompiledNet* net_by_id(int32_t id) {
+  for (znet::Object* x : znet::registry().list)
+    if (auto* c = dynamic_cast<CompiledNet*>(x); c && c->get_id() == id) return c;
+  return nullptr;
+}
+Behaviour* node_at(CompiledNet& n, int k) {
+  for (int32_t i = 0; i < n.count(); ++i)
+    if (auto* s = dynamic_cast<NodeStep*>(n.step(i)); s && k-- == 0) return s;
+  return nullptr;
+}
+void put_way(std::string& o, CompiledNet& n, const PathFinder* f) {
+  if (!f) {
+    o += " none";
+    return;
+  }
+  o += ' ' + std::to_string(int(f->found)) + ' ' + hex(fb(f->best_length)) + ' ' + std::to_string(f->best.size());
+  for (const Behaviour* b : f->best) o += ' ' + std::to_string(token(n, b));
+}
+}  // namespace
+
+// Queries on the nets probe_pm_ai_nets built, a line each, floats as words (test_pm_ai_paths.py):
+//   N net x y z   V name value   P net a b jets name x y z follows valve value from (a node, -1 the start)
+extern "C" int probe_pm_ai_paths(const char* text, char* out, int size) {
+  std::string o, t = text;
+  size_t at = 0;
+  auto word = [&](std::string& w) {
+    const size_t e = t.find_first_of(" \n", at);
+    w = t.substr(at, e - at);
+    at = e == std::string::npos ? t.size() : e + 1;
+  };
+  auto fl = [&] {
+    std::string w;
+    word(w);
+    const uint32_t u = static_cast<uint32_t>(std::stoul(w, nullptr, 16));
+    float f;
+    std::memcpy(&f, &u, 4);
+    return f;
+  };
+  auto num = [&] {
+    std::string w;
+    word(w);
+    return std::stoi(w);
+  };
+  auto set_valve = [](const std::string& name, int v) {
+    if (Valve* x = valve_find(name.c_str())) x->value->value = v;
+  };
+  while (at < t.size()) {
+    std::string op;
+    word(op);
+    if (op == "V") {
+      std::string name;
+      word(name);
+      set_valve(name, num());
+      continue;
+    }
+    CompiledNet* n = net_by_id(num());
+    if (op == "N") {
+      const float p[3] = {fl(), fl(), fl()};
+      o += "near " + std::to_string(token(*n, nearest_step(*n, p))) + '\n';
+      continue;
+    }
+    const int a = num(), b = num();
+    Pilot pilot;
+    pilot.jump_jets = num();
+    std::string name;
+    word(name);
+    pilot.name = name.c_str();
+    const float pos[3] = {fl(), fl(), fl()};
+    pilot.pos = pos;
+    const int follows = num();
+    std::string flip;
+    word(flip);
+    const int value = num();
+    const int from = num();
+    Behaviour* start = node_at(*n, a);
+    Behaviour* target = node_at(*n, b);
+    PathHolder h;
+    o += "way " + std::to_string(int(h.find(&pilot, n, start, target)));
+    put_way(o, *n, h.finder);
+    o += '\n';
+    if (flip != "-") set_valve(flip, value);
+    Behaviour* now = from >= 0 ? node_at(*n, from) : start;
+    for (int k = 0; k < follows && now; ++k) {
+      now = h.next(now);
+      o += "next " + std::to_string(now ? token(*n, now) : -1);
+      put_way(o, *n, h.finder);
+      o += '\n';
+    }
+  }
   if (static_cast<int>(o.size()) >= size) return -2;
   std::memcpy(out, o.c_str(), o.size() + 1);
   return static_cast<int>(o.size());

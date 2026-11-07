@@ -16,7 +16,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_action_lists.py` | changed | 42 | 14 | to move |  |
 | `test_actions.py` | gone | 19 | 3 | moved to `test_pm_actions.py` | the falls and getting up |
 | `test_ai_nets.py` | changed | 33 | 0 | moved to `test_pm_ai_nets.py` | the compile |
-| `test_ai_paths.py` | gone | 20 | 0 | to move | with PM AI |
+| `test_ai_paths.py` | gone | 20 | 0 | moved to `test_pm_ai_paths.py` | at 53 bits, nets of up to 30 nodes for ways |
 | `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |
 | `test_ai_regions.py` | gone | 19 | 0 | to move | with PM AI |
 | `test_ai_valves.py` | gone | 31 | 6 | to move | with PM AI |
@@ -216,6 +216,10 @@ camera 3 call and the fall sound rest on the port of the death prep and on readi
 the mission test sees the failure, not the picture (vehicles.md).
 
 **Settled by a tighter search (2026-11-07), reading, PM's exe:** the weapon definition's `ammo_limit` (+0x18) and `beam_energy` (+0x58) are stored and never read. Definitions are 0x204 bytes in PM, from the table [0xb0daac] and `find_def` 0x5a3550. Followed from there: every read at those offsets in zWeapon, which takes the definition as an argument, is on a shot, a node or a pointer list; the weapon module (0x4b2000 to 0x4be000) holds definitions at the weapon's +0x30, +0x58 and +0xa0, the landmines at [0x628b64], and no read goes through any of them; the +0x18 in 0x4b4cd0, 0x4b5230 and 0x4b5f80 is the weapon's own, not the definition's. PM's weapons.zrd sets `AMMO_LIMIT` on its weapons, and no weapon sets `ENERGY`, so beams would hold their default of 1. MW3's same functions (0x4b0de0, 0x4b1370) read the same way, but MW3 wasn't followed from its table. No test can show an unread field; this rests on reading.
+
+## The way along a net (2026-11-07)
+
+`test_pm_ai_paths`, moved from `test_ai_paths`, on `test_pm_ai_nets`' nets: the nearest step, the finder, the way followed and the steps' tests of the pilot, at 53 bits to the bit, each way's length too; about 12,300 answers on 50 archives, and hand-made nets for what a random plan doesn't reach: two ways of one length, a way that shuts and is found again, a valve union, two distances that round alike, asking from off the way. 19 of 24 breaks caught. PM's distances 0x537a00 and 0x537a50 sum in the register and store once; the port now does, and the 10 m test at a search's start reads the target's vt+0x1c. The five missed can't change an answer: cutting a branch or not (2), as a cut only saves time; `still_open`'s previous step and the target (2), as no step's test reads who came from where and a node always passes; and leaving a distance unrounded in `dist_sq`, as its caller stores it. Ways in nets over 30 nodes aren't asked, as the search is depth first and very slow in the emulator. Not compared: the pilot's place (0x5cb260 stands in).
 
 ## The calls on the pilot (2026-11-07)
 

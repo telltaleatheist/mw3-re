@@ -8,12 +8,13 @@
 namespace mech3::ai {
 namespace {
 
-// 0x0051dfa0 / 0x0051e000 (per frame: floats, the exe's order).
-float dist_sq(const float* a, const float* b) {
+// Pirate's Moon 1.0 @ 0x00537a00 / 0x00537a50: at 53 bits the sum is held in the register, the answer stored.
+double sum_sq(const float* a, const float* b) {
   const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-  return (dx * dx + dy * dy) + dz * dz;
+  return (double{dx} * dx + double{dy} * dy) + double{dz} * dz;
 }
-float dist(const float* a, const float* b) { return std::sqrt(dist_sq(a, b)); }
+float dist_sq(const float* a, const float* b) { return static_cast<float>(sum_sq(a, b)); }
+float dist(const float* a, const float* b) { return static_cast<float>(std::sqrt(sum_sq(a, b))); }
 
 }  // namespace
 
@@ -34,7 +35,7 @@ Behaviour* nearest_step(const AiNet& net, const float p[3]) {
   return static_cast<AiElem*>(net.elems[0])->as_behaviour();
 }
 
-// Mech3.exe 1.2 @ 0x004c7f70
+// Pirate's Moon 1.0 @ 0x004d33b0 (MW3's 0x004c7f70)
 bool PathFinder::search(const Pilot* p, CompiledNet* n, Behaviour* start, Behaviour* t) {
   pilot = p, net = n, target = t;
   return search_again(start);
@@ -48,7 +49,7 @@ bool PathFinder::search_again(Behaviour* start) {
   best_length = FLT_MAX;
   at_pos = pilot ? pilot->pos : nullptr;
   if (!at_pos || !net->mark(true)) return found;
-  if (dist_sq(target->position(), at_pos) < 100.0f) {
+  if (dist_sq(target->way_point(), at_pos) < 100.0f) {  // Pirate's Moon 0x004d32c0: vt+0x1c
     found = true;
     best.push_back(start);
   } else {
