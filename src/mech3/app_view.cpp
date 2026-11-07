@@ -89,12 +89,12 @@ struct ProgramViewHooks : ViewHooks {
   }
   Node3 world_node() override { return g_view ? zcls::camera_world(zn(g_view->camera)) : nullptr; }
   void node_set_intersect(Node3 node, int32_t on) override { zcls::node_set_intersect(zn(node), on); }
-  void query_mode(int32_t on) override { unported("0x004ed9c0", {on}); }
-  // Not ported yet (cls_di.c): no cover over the camera, no ground under it.
-  int32_t segment_query(const float*, const float*, uint8_t* found) override {
-    unported("0x004eed90", {});
-    *found = 0;
-    return 1;
+  void query_mode(int32_t on) override { zcls::segment_options().first_hit = on; }
+  int32_t segment_query(const float* a, const float* b, uint8_t* found) override {  // 0x004eed90
+    zcls::LineHits hits;
+    const int32_t r = zcls::segment_list(zn(world_node()), a, b, &hits);
+    *found = hits.count;
+    return r;
   }
   const float* camera_position(Node3 cam) override {
     const zcls::Node* n = zn(cam);
@@ -151,8 +151,10 @@ struct ProgramViewHooks : ViewHooks {
     return y;
   }
   void screen_tint(uint16_t colour, double alpha) override { ztwod::weather_tint(colour, alpha); }
-  bool has_weather() override { return false; }
-  uint32_t weather_flags() override { return 0; }
+  bool has_weather() override { return program_weather_flags() != nullptr; }
+  uint32_t weather_flags() override { return *program_weather_flags(); }
+  void weather_hide() override { program_weather_show(false); }
+  void weather_show() override { program_weather_show(true); }
   // The wall pull-in (0x0040b310) is the port's; its query, on the world.
   void world_segments(float* segs, int32_t points, zcls::SegmentHits* out) override {
     if (Node3 w = world_node()) zcls::segment_query(zn(w), segs, points, out);  // 0x004efcd0
@@ -348,6 +350,7 @@ void program_view_look(int32_t look) {
   sync();
 }
 float program_view_camera_height() { return g_view ? g_hooks.camera_height(g_view->camera) : 0.0f; }
+void* program_view_world() { return g_view ? zcls::camera_world(zn(g_view->camera)) : nullptr; }
 bool program_view_ground_probe(float x, float y, float z, float* y_after, bool* under) {
   if (!g_view) return false;
   zcls::camera_set_position(zn(g_view->camera), x, y, z);

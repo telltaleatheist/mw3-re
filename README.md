@@ -23,6 +23,8 @@ original.
 
 ### Coming in the next release
 
+- **Rain and snow stop under roofs and in tunnels.** The check was ported but
+  never connected, so they kept falling indoors.
 - **`--check-mod` passes a mod with a new world.** It refused every good
   `gamez.zbd`, `anim.zbd` and `texture*.zbd` as "not an archive". Only the check
   was wrong. It also no longer stops at a long folder path.
