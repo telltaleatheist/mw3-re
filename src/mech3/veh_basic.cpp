@@ -38,6 +38,14 @@ float ground_pick(const zcls::GroundHits& hits, float y, float step, int32_t* be
   return best_h > low ? best_h : low;
 }
 
+// Pirate's Moon 1.0 @ 0x004c4d16, 0x004c58a3: MW3's two callers took water as not ground (1, 0x004bdf12);
+// these pass 0, so a net node over water stands on the water. docs/pm-map.md.
+float net_ground_height(const zcls::GroundHits& hits, float y) {
+  int32_t best = 0, in_water = 0;
+  float surface = 0;
+  return ground_pick(hits, y, 10.0f, &best, 0, &in_water, &surface);
+}
+
 // Mech3.exe 1.2 @ 0x004abb60: strncmp to the name's length.
 void* node_find_prefix(void* node, const char* name) {
   auto* n = static_cast<zcls::Node*>(node);

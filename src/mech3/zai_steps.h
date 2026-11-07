@@ -74,6 +74,9 @@ enum class StepKind : uint32_t {
   BackupNode = 0x5cc7a8,    // 0x004cfa00
   McbWaitNode = 0x5cbf30,   // 0x004ccc30
   DeployNode = 0x5cc898,    // 0x004cff10
+  // Pirate's Moon's two, by its vtables; the rest of this list is MW3's numbers.
+  ViaNode = 0x5ef498,       // 0x004e1c60
+  TerminusNode = 0x5ef578,  // 0x004e1ea0
   Repair = 0x5cc970,        // 0x004d08d0, the refit order's (zai_repair)
 };
 
@@ -242,6 +245,20 @@ struct DeployNode : NodeStep {  // 0x004cff10, 0x40 bytes
   Behaviour* target_step = nullptr;  // +0x3c  ...and after attach its step
 };
 
+// Pirate's Moon 1.0 @ 0x004e1c60, 0x38 bytes: a node with via ( "name" number radius ). The name
+// is the boundary's (0x004cf350); what it does on a walk isn't ported.
+struct ViaNode : NodeStep {
+  ViaNode(const float p[3], const int32_t* s, int32_t n, const char* nm, const char* v, int32_t slot, float r2)
+      : NodeStep(StepKind::ViaNode, p, s, n), radius2(r2), next_slot(slot), via(v) {
+    set_name(nm);
+  }
+  void attach(CompiledNet* net) override;  // 0x004e1d70: the slot made its step
+  float radius2;      // +0x2c
+  int32_t next_slot;  // +0x30  while compiling...
+  Behaviour* next_step = nullptr;  // +0x30  ...and after attach
+  std::string via;    // +0x34
+};
+
 // 0x004bf910 (0x1c bytes, vtable 0x005ca6d8): a net_NN compiled. Its
 // elements are the steps above, in slots; the null step fills any slot
 // nothing was built for. It owns its steps (0x004bff20).
@@ -259,6 +276,7 @@ class CompiledNet : public AiNet {
   }
 
   uint8_t x18 = 0;  // +0x18  bit 0 cleared by the ctor
+  bool has_vias = false;  // Pirate's Moon: the class 0x004c7a10 (vtable 0x005ed558), not 0x004c67f0
 };
 
 // 0x004c0090 (0x20 bytes, vtable 0x005caaf0, over 0x004bfbb0(0, 7)): a

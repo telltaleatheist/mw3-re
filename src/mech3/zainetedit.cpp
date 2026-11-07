@@ -15,7 +15,7 @@
 namespace mech3::ai {
 namespace {
 
-constexpr const char* kFile = "C:\\zipper\\Mech3\\ZAiNetEdit.cpp";
+constexpr const char* kFile = "C:\\zipper\\branchep1\\mech3ep1\\ZAiNetEdit.cpp";
 
 void report(int level, int line, const char* fmt, ...) {
   char msg[512];
@@ -28,7 +28,7 @@ void report(int level, int line, const char* fmt, ...) {
 
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004bcba0. The builder's own id comes from 400..499 (one
+// Pirate's Moon 1.0 @ 0x004c39e0 (MW3's 0x004bcba0). The builder's own id comes from 400..499 (one
 // building a region asks for 400 too); a net already registered under `net`
 // (built earlier) is taken as it is and nothing is rebuilt.
 CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
@@ -57,7 +57,7 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
         if (elems[at] == placeholder)
           elems[at] = new NetNode(this, *r);
         else
-          report(0x2000, 0xa1, "net %d: ignoring duplicate node %d", net_no, r->index);
+          report(0x2000, 0xa4, "net %d: ignoring duplicate node %d", net_no, r->index);
       }
       link_pass();
     }
@@ -74,7 +74,7 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
       default: break;
     }
   }
-  editing = build == 0;
+  editing = 0;
 }
 
 // Mech3.exe 1.2 @ 0x004bd020. The save on close (0x004bd100) is the editor's.
@@ -128,7 +128,7 @@ bool CZAiNetEdit::loop(NetLoop* out) {
         nd = uint32_t(link) < elems.size() && elems[size_t(link)]
                  ? static_cast<AiElem*>(elems[size_t(link)])->as_node()
                  : nullptr;
-        if (!nd) report(0x800, 0x55d, "region \"%s\" node %d points to nonexistant node %d", name(), prev, link);
+        if (!nd) report(0x800, 0x584, "region \"%s\" node %d points to nonexistant node %d", name(), prev, link);
         ++out->count;
         prev = link;
         if (--budget <= 0) break;
@@ -182,6 +182,7 @@ struct Compiler {
   CZAiNetEdit* edit;
   int32_t slots = 0;            // +0x08
   int32_t max_links = 0;        // +0x0c
+  int32_t vias = 0;             // +0x10  nodes with a via
   std::vector<int32_t> slot_of; // +0x14  a node's number -> its step's slot, -1 for none
   std::vector<int32_t> targets; // +0x24  the current node's links as slots
   CompiledNet* net = nullptr;   // +0x30
@@ -232,6 +233,7 @@ struct Compiler {
   // properties on each link and the edge nodes' on theirs.
   void count(NetNode* n) {
     cur = n;
+    if (n && n->rec.via) ++vias;  // Pirate's Moon 1.0 @ 0x004c4552, positioned or not
     if (!positioned(n)) return;
     slot_of[size_t(n->rec.index)] = slots;
     const int32_t nl = n->link_count();
@@ -298,7 +300,7 @@ struct Compiler {
       if (l[k] == target) emit(m);
   }
 
-  // Mech3.exe 1.2 @ 0x004bde20: a positioned node's step, then each link's
+  // Pirate's Moon 1.0 @ 0x004c4c20 (MW3's 0x004bde20): a positioned node's step, then each link's
   // chain of property steps leading on to the node it links to.
   void compile(NetNode* n) {
     cur = n;
@@ -310,16 +312,20 @@ struct Compiler {
     if (net_hooks().ground) net_hooks().ground(p);
     for (int32_t k = 0; k < links; ++k) targets[size_t(k)] = slot_for(r.links[size_t(k)]);
     NodeStep* s;
-    if (r.deploy_set)
-      s = new DeployNode(p, targets.data(), links, r.auxname, r.deploy_valve_a, r.deploy_a, r.deploy_valve_b,
+    if (r.terminus)
+      s = new NodeStep(StepKind::TerminusNode, p, targets.data(), links);
+    else if (r.via)
+      s = new ViaNode(p, targets.data(), links, r.name, r.via, slot_for(r.via_number), r.via_radius2);
+    else if (r.deploy_set)
+      s = new DeployNode(p, targets.data(), links, r.name, r.deploy_valve_a, r.deploy_a, r.deploy_valve_b,
                          r.deploy_b, slot_for(int32_t(r.deploy_c)));
     else if (r.mcbwait_set)
-      s = new McbWaitNode(p, targets.data(), links, r.auxname, r.mcbwait_valve, r.mcbwait_b, r.mcbwait_time);
+      s = new McbWaitNode(p, targets.data(), links, r.name, r.mcbwait_valve, r.mcbwait_b, r.mcbwait_time);
     else if (r.backup)
       s = new NodeStep(StepKind::BackupNode, p, targets.data(), links);
     else {
       s = new NodeStep(StepKind::Node, p, targets.data(), links);
-      s->set_name(r.auxname);
+      s->set_name(r.name);  // the record's +0xac; MW3 gave the auxname
     }
     if (r.arrange_set && net_hooks().waynet_point) net_hooks().waynet_point(r, p);
     net->elems[size_t(slot)] = s;
@@ -347,7 +353,8 @@ AiNet* CZAiNetEdit::build_compiled() {
   }
   Compiler c(this);
   for (znet::Element* e : elems) c.count(e ? static_cast<AiElem*>(e)->as_node() : nullptr);  // 0x004bd740
-  auto* cn = new CompiledNet(header.net, c.slots);
+  auto* cn = new CompiledNet(header.net, c.slots);  // 0x004c67f0, or 0x004c7a10 with a via node
+  cn->has_vias = c.vias != 0;
   cn->elems.assign(size_t(c.slots), null_step());
   net = cn;
   // 0x004be230: the net checked to be a compiled one (0x004bd640).

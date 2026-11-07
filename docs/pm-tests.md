@@ -15,7 +15,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `pose_world.py` | - | 7 | 0 | not applicable | a helper for the pose tests: goes with them |
 | `test_action_lists.py` | changed | 42 | 14 | to move |  |
 | `test_actions.py` | gone | 19 | 3 | moved to `test_pm_actions.py` | the falls and getting up |
-| `test_ai_nets.py` | changed | 33 | 0 | to move | with PM AI |
+| `test_ai_nets.py` | changed | 33 | 0 | moved to `test_pm_ai_nets.py` | the compile; the waynet builder 0x4c55b0 not compared |
 | `test_ai_paths.py` | gone | 20 | 0 | to move | with PM AI |
 | `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |
 | `test_ai_regions.py` | gone | 19 | 0 | to move | with PM AI |
@@ -133,7 +133,7 @@ Why: walk 0x4d9680 passes the carrot to the boundary as both place and answer. T
 **Not caught, or not checked:**
 - `bearer_aim_clamp`: missed by `test_ai_aim`, `test_ai_plan` and `test_ai_firing`. Expected by reading: the caller ignores the answer (zai_firing.cpp, "feeds a dot the exe drops"). That the exe drops it isn't compared.
 - `InOutHooks::ground`: no test on `pm` runs it. `test_inout` can't, because MW3's boundary is gone from this branch. PM's exe path (0x4ce8a0) is not compared. It only moves a corner's height, and the queries are in x and z, so by reading the height has no effect on an answer. Rests on reading.
-- `NetHooks::ground`: no probe on this branch or `main` sets it, so nothing compares it. It changes a net node's height, which can matter. Owed with the moved `test_ai_nets`.
+- `NetHooks::ground`: `test_pm_ai_nets` (20 of 20 breaks caught) compares it (2026-11-07): the pick 0x4af770 runs on the exe, `net_ground_height` on the port, over one stand-in for the ground query. It found that PM counts water as ground here and the port didn't (`pm-map.md`, PM's net compile). The query itself, `ground_point` on a real world, isn't in that test; the hook's few lines around it rest on reading.
 - `zai_nav`'s `World::ground`, `parked`: ours, the way finder, with nothing in the exe to compare against.
 
 **Const check, by reading:** of the hooks taking a const pointer, the boundary is the only one where the exe's call passes one pointer as both place and answer. The ones whose bodies were read only read theirs: 0x4b0bc0, 0x56e7e0, 0x4fc1b0, 0x4d51d0, 0x4eed90, 0x41dbd0, 0x41dca0. 0x41dc70 passes its argument on to 0x465c70, which wasn't read. 0x418f30 (vt+0xdc) passes its arguments on to callees that weren't read. `region_inside`, `wall_between` (ours) and `node_offset`'s callee beyond its signature weren't read either. MW3's call sites that pass the same pointer (`inout_clamp(v, to, to)`) are written through non-const `out`. PM's 17 calls of the pull aren't all ported yet; each is checked as it lands.
@@ -142,7 +142,7 @@ Why: walk 0x4d9680 passes the carrot to the boundary as both place and answer. T
 
 **That scratch build, and what it means for the rows above.** Its first form left out `probe.cpp`, and with it the line that turns the zfix fixes off for the whole probe library, so `bugs` stayed on and `test_ai_attack` differed at seed 281, round 5, step 33, on the port's own fixed path. With `probe.cpp` linked it passes, 300 cases, the same numbers as `main` at 355a1b09 and the merge base d6c63bf2, so it was the build, not `pm`. All rows above except `record`'s name and `node_box` ran on that first form, fixes on: a drop caught there is still a drop the test sees, but they weren't rerun with fixes off. `test_ai_targets` part 1 fails with fixes off as well, at fn 10: PM's `save_target` against MW3's exe, by design.
 
-**On the switch's list:** the real hooks in `app_mission.cpp`. `NetHooks::ground` goes with the moved `test_ai_nets`.
+**On the switch's list:** the real hooks in `app_mission.cpp`.
 
 **Closed from that list (2026-11-07).** `brain_write` and `target_masks`: dropped at the caller, `test_pm_ai_valves` differs (1 and 15 files). `InOutHooks::ground`: dropped, no test differs, and none can: `app_mission.cpp` wires it, but a corner's height is in no answer, since every measure is in x and z and `inout_pull` writes the height back from `in`. Rests on reading. `set_local_velocity`: only MW3's `JumpState` calls it; PM's `zai_jump_pm` doesn't.
 

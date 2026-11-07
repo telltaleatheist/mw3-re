@@ -16,6 +16,7 @@ namespace mech3 {
 // defaults and the soil table.)
 float ground_pick(const zcls::GroundHits& hits, float y, float step, int32_t* best, int32_t water_not_ground,
                   int32_t* in_water, float* surface);  // 0x004abd90
+float net_ground_height(const zcls::GroundHits& hits, float y);
 
 // 0x004abb60 (ECX the node, EDX the name): the node itself or the first in
 // its tree, children first to last, whose name starts with `name`.

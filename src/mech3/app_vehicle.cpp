@@ -428,18 +428,15 @@ void wire_vehicles(const MechWiring* w) {
   set_waynet_hooks(&g_waynets);
   wire_vehicle_collisions();
   ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
-  // 0x004bdec9..0x004bdf17, while a world is loaded: the ground from 10 m
-  // above the node (0x004edab0), the height picked by 0x004abd90 (a 10 m step,
-  // water not ground). Unset, the nodes kept the files' heights.
+  // Pirate's Moon 1.0 @ 0x004c4ccd..0x004c4d1b, while a world is loaded: the ground from 10 m
+  // above the node (0x004ff8d0), the height picked by 0x004af770. Unset, the nodes kept the files' heights.
   ai::net_hooks().ground = [](float p[3]) {
-    float ground_pick(const zcls::GroundHits&, float, float, int32_t*, int32_t, int32_t*, float*);  // veh_basic.cpp
+    float net_ground_height(const zcls::GroundHits&, float);  // veh_basic.cpp
     zcls::Node* w = world_hooks().world;
     if (!w) return;
     zcls::GroundHits hits{};
     if (zcls::ground_point(w, p[0], p[1] + 10.0f, p[2], &hits) != 0 || hits.count == 0) return;
-    int32_t best = 0, in_water = 0;
-    float surface = 0;
-    p[1] = ground_pick(hits, p[1], 10.0f, &best, 1, &in_water, &surface);
+    p[1] = net_ground_height(hits, p[1]);
   };
 }
 

@@ -79,7 +79,7 @@ struct NetNodeRec {
   char* auxname = nullptr;           // +0xa0  strdup of auxname, or of the name as written
   std::vector<int32_t> links;        // +0xa4  a pointer to a 0x10-byte vector in the exe
   char* gate = nullptr;              // +0xa8
-  char* via = nullptr;               // Pirate's Moon +0xb0, its own string class (0x004a0620)
+  char* via = nullptr;               // Pirate's Moon +0xb4, its own string class (0x004a0620)
   ValveUnion* valve_union = nullptr; // +0xac
   ValveAssign* valve_assign = nullptr;  // +0xb0
 

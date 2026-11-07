@@ -101,6 +101,12 @@ void DeployNode::attach(CompiledNet* net) {
   target_step = net->step(target);
 }
 
+// Pirate's Moon 1.0 @ 0x004e1d70
+void ViaNode::attach(CompiledNet* net) {
+  NodeStep::attach(net);
+  next_step = net->step(next_slot);
+}
+
 // Mech3.exe 1.2 @ 0x004c0e70: turning the mark on clears every step's
 // visited mark; false when it was already as asked.
 bool CompiledNet::mark(bool on) {

@@ -53,6 +53,7 @@ NetNodeRec::NetNodeRec(const NetNodeRec& o) : links(o.links) {
   name = dup(o.name);
   auxname = dup(o.auxname);
   gate = dup(o.gate);
+  via = dup(o.via);
   valve_union = copy_union(o.valve_union);
   valve_assign = copy_assign(o.valve_assign);
 }
@@ -67,6 +68,7 @@ NetNodeRec& NetNodeRec::operator=(const NetNodeRec& o) {
   if (&links != &o.links) links = o.links;
   name = dup(o.name);
   gate = dup(o.gate);
+  std::free(via), via = dup(o.via);
   delete valve_union;
   valve_union = copy_union(o.valve_union);
   delete valve_assign;
@@ -79,6 +81,7 @@ NetNodeRec::~NetNodeRec() {
   std::free(name);
   std::free(auxname);
   std::free(gate);
+  std::free(via);
   delete valve_union;
   delete valve_assign;
 }
