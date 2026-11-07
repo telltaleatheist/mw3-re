@@ -578,8 +578,8 @@ ENTRY and the pilots left, OPERATION, ACCEPT and CANCEL right, LINES2 (619
 wide) stretched at column 320, which only its top line crosses).
 The briefing (0x405230) is one centred block on its widened map. Its
 script's objects are made with it (read_script), so the widening sees them.
-The debriefing (0x47b430, made apart too): MECH STATUS and ABORT left,
-SALVAGE FOUND and CONTINUE right, MISSION SUCCESS and REPLAY in the middle.
+The debriefing (0x47b430, made apart too) is one centred block (Owen, 2026-11-06:
+its columns together, the extra width open at the sides, its board reaching them).
 The mech lab (0x44b920, made apart too) is one centred block: its panels
 change looks as it goes (LabPanel::show_look, a double one across two
 columns), so its columns cannot be split once. Its edge panels' three
