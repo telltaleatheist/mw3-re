@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinterp/zinterp.h"
@@ -391,7 +392,8 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const std::string host = (fs::path(dir) / rel).generic_string();
     const std::string name = low.substr(low.rfind('/') == std::string::npos ? 0 : low.rfind('/') + 1);
     // Not zar archives (M3): the texture and image libraries, the scripts.
-    if (name == "rimage.zbd" || name.rfind("rtexture", 0) == 0 || name.rfind("rmechtex", 0) == 0) {
+    if (name == "rimage.zbd" || name.rfind("rtexture", 0) == 0 || name.rfind("rmechtex", 0) == 0 ||
+        name.rfind("texture", 0) == 0 || name.rfind("mechtex", 0) == 0) {
       if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zbd") == 0) {
         ++archives;
         check_texture_library(host, rel, &entries, error);
@@ -401,6 +403,24 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     if (name == "interp.zbd") {
       ++archives;
       check_interp(host, rel, &entries, error);
+      continue;
+    }
+    if (name == "gamez.zbd") {  // a world, not an archive: its header (the rest needs the world up)
+      zcls::ZbdHeader h;
+      std::FILE* f = zcls::open_zbd(host.c_str(), &h);
+      if (f) std::fclose(f);
+      else error(rel + ": not a world the game can read (its signature or version)");
+      continue;
+    }
+    if (name == "anim.zbd") {  // a world's animations: the read (its binding needs the world)
+      zeff::anim() = zeff::AnimState{};
+      zeff::anim_allow_loading(1);
+      zeff::anim().host_path = host;  // a folder anywhere: 0x005090f0's 127 would refuse a long one
+      zeff::anim_read_zbd();
+      if (zeff::anim().defs == nullptr && zeff::anim().def_count() == 0) error(rel + ": its animations cannot be read");
+      else out.push_back("  " + std::to_string(zeff::anim().def_count()) + " animations read (bound to the world in play)");
+      zeff::anim_free_all();
+      zeff::anim() = zeff::AnimState{};
       continue;
     }
     if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zbd") == 0) {
@@ -444,17 +464,6 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         } else {
           error(rel + ": the motion archive cannot be opened");
         }
-        continue;
-      }
-      if (name == "anim.zbd") {  // a world's animations: the read (its binding needs the world)
-        zeff::anim() = zeff::AnimState{};
-        zeff::anim_allow_loading(1);
-        zeff::anim_set_zbd_path(host.c_str());
-        zeff::anim_read_zbd();
-        if (zeff::anim().defs == nullptr && zeff::anim().def_count() == 0) error(rel + ": its animations cannot be read");
-        else out.push_back("  " + std::to_string(zeff::anim().def_count()) + " animations read (bound to the world in play)");
-        zeff::anim_free_all();
-        zeff::anim() = zeff::AnimState{};
         continue;
       }
       if (name.rfind("sounds", 0) == 0) {  // every sound through the bounded WAV read (M3)
