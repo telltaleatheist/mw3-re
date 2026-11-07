@@ -356,11 +356,9 @@ struct World {
   Mech* player = nullptr;           // 0x005f4c8c +0x64
   Mech* mission_player = nullptr;   // 0x0060861c +0x14  (the same mech in play)
   bool force_feedback = false;      // [0x00608620] the force feedback object exists (mech3/force_feedback)
-  float difficulty = 1.0f;          // 0x00608e5c  damage taken by your side: 0.7, 1.0, 1.3
   Vec3 shot[2] = {};                // 0x009a0ec4  the hitting shot: from, to
   bool death_anim_toggle = false;   // 0x00605cc0
   bool full_heat_all_mechs = true;  // 0x005e1fd0
-  bool no_heat_haze = false;        // 0x00608e4d
   float time = 0.0f;                // 0x0060991c  game time, seconds
   int32_t last_action = 0;          // 0x0060550c  the kind of the last action finished
   float dt = 0.0f;                  // 0x0072c52c
@@ -368,6 +366,8 @@ struct World {
   float move_volume_floor = 0.0f;   // 0x00605630  the movement sounds' volume at a standstill (0)
 };
 World& world();
+float& difficulty_scale();  // [0x00608e5c] the third of GameIntensity's floats: damage to your side (options.cpp)
+uint8_t& no_heat_haze();    // [0x00608e4d] GameIntensity's second flag (options.cpp)
 
 // Calls into code that is not ported yet. Unset ones do nothing and return 0.
 struct HeatCalls {

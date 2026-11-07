@@ -9568,6 +9568,74 @@ TEST(mission_c1m1_lrm_homes_on_the_lock_headless) {
   EXPECT(r.armor1 < r.armor0);          // and the missiles found it
 }
 
+// The Options screen's Difficulty reaches the damage (0x00608e5c, one store, options().intensity[2]; the differential
+// sets the store itself, so it can't see this): what a hit takes off the player's leg, on each level, in a mission.
+TEST(mission_c1m1_difficulty_reaches_the_damage_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_difficulty_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen;
+  p.sound = &sound, p.files = &files;
+  float loss[3] = {0, 0, 0}, preset[3][3] = {}, chosen_before = 0, at_startup = 0;
+  int haze_off[3] = {};
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::options().game_intensity = 2;
+    mech3::apply_all();  // the saved setting at start-up
+    at_startup = mech3::options().intensity[2];
+    engine.set_game_intensity(2);  // the Options screen, before the launch
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    bool done = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || done || ++frames < 10) return;
+      chosen_before = mech3::options().intensity[2];
+      void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      for (int level = 0; level < 3; ++level) {
+        engine.set_game_intensity(level);
+        for (int k = 0; k < 3; ++k) preset[level][k] = mech3::options().intensity[k];
+        haze_off[level] = mech3::options().intensity_flag[1];
+        loss[level] = mech3::program_leg_hit_loss(m, 2.0f);
+      }
+      done = true;
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+  }
+  mech3::options() = mech3::Options{};
+  for (int l = 0; l < 3; ++l)
+    std::printf("  difficulty %d: intensity.zrd %.2f %.2f %.2f, no heat haze %d, a hit takes %.4f\n", l, preset[l][0], preset[l][1], preset[l][2], haze_off[l], loss[l]);
+  std::printf("  at start-up %.2f, chosen before the launch %.2f\n", at_startup, chosen_before);
+  EXPECT(at_startup == preset[2][2]);  // high, whichever way it was chosen
+  EXPECT(chosen_before == preset[2][2]);
+  EXPECT(preset[0][2] < preset[1][2] && preset[1][2] < preset[2][2]);  // the file's, not the exe's fallback table
+  EXPECT(loss[1] > 0.0f);
+  EXPECT(std::fabs(loss[0] / loss[1] - preset[0][2] / preset[1][2]) < 1e-3f);
+  EXPECT(std::fabs(loss[2] / loss[1] - preset[2][2] / preset[1][2]) < 1e-3f);
+}
+
 // The left mouse button fires (CMD_TRIGGER1), with the mouse as DirectInput
 // has it: exclusive and foreground, so refused while the window is not in
 // front. The game starts unfocused, the window then gains the focus (the
