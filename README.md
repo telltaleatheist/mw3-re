@@ -23,12 +23,17 @@ original.
 
 ### Coming in the next release
 
-- **The launcher's buttons have their text on any Linux.** It looked for a
-  font at fixed places and drew empty buttons if none was there. It now brings
-  its own, and on all systems the launcher wears that font.
+Nothing yet.
+
+**1.0.4 (2026-11-07)**
+
+- **The launcher's buttons have their text on Linux.** It looked for a font at
+  fixed places and drew empty buttons if none was there. It now brings its own,
+  and on all systems the launcher wears that font.
 - **No game fonts is no longer blank menus.** An install without Arial, Impact
-  and Lucida Console, on a system without them, shows its text in free
-  stand-ins the package brings, at the original's line heights.
+  and Lucida Console uses your system's on Windows and Mac. With none there, or on
+  Linux, it shows its text in free stand-ins the package brings, at the original's
+  line heights.
 - **Rain and snow stop under roofs and in tunnels.** The check was ported but
   never connected, so they kept falling indoors.
 - **`--check-mod` passes a mod with a new world.** It refused every good
@@ -52,8 +57,6 @@ original.
   a Windows user name with an accent, stopped the game from starting. Windows
   10 version 1903 or later now handles them, and pilots saved under a garbled
   name get their right name back.
-- **Missing fonts.** A MechWarrior 3 folder without its fonts now uses your
-  system's, where it used to show blank text.
 - **The debrief at 16:9.** The screen's three columns now sit together in the
   middle, and the extra width stays open at the sides.
 - **A possible crash after a blown-off limb,** when a mission restarted, is
@@ -89,6 +92,8 @@ original.
   how far you got, as the original does, in place of a flat 1000, so a round that
   clears no wave scores nothing but its kills. Scores you already have stay as
   saved; new missions add to them.
+- **A mission load that stops says where.** The log now names the load step that
+  has gone quiet and for how long.
 
 **1.0.3 (2026-11-05)**
 
