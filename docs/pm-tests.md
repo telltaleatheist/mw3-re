@@ -206,6 +206,8 @@ Mission Failed, one AI mech dead the same way. 14 of 14 breaks caught. The
 camera 3 call and the fall sound rest on the port of the death prep and on reading:
 the mission test sees the failure, not the picture (vehicles.md).
 
+**Settled by a tighter search (2026-11-07), reading, PM's exe:** the weapon definition's `ammo_limit` (+0x18) and `beam_energy` (+0x58) are stored and never read. Definitions are 0x204 bytes in PM, from the table [0xb0daac] and `find_def` 0x5a3550. Followed from there: every read at those offsets in zWeapon, which takes the definition as an argument, is on a shot, a node or a pointer list; the weapon module (0x4b2000 to 0x4be000) holds definitions at the weapon's +0x30, +0x58 and +0xa0, the landmines at [0x628b64], and no read goes through any of them; the +0x18 in 0x4b4cd0, 0x4b5230 and 0x4b5f80 is the weapon's own, not the definition's. PM's weapons.zrd sets `AMMO_LIMIT` on its weapons, and no weapon sets `ENERGY`, so beams would hold their default of 1. MW3's same functions (0x4b0de0, 0x4b1370) read the same way, but MW3 wasn't followed from its table. No test can show an unread field; this rests on reading.
+
 Left for the multiplayer work, from the sweep of stored fields: `resends` [0x605fd0] and `ping_counter`
 [0x5e5690]; the exe reads both, nothing in the port does yet.
 
