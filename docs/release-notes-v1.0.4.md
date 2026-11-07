@@ -4,7 +4,6 @@
 
 - **Low and Medium get noticeably easier.** Every release so far gave your side the High damage figure on every difficulty. The game's own table now applies: you take 40% on Low, 70% on Medium and 100% on High. Low also loses a heat haze the original doesn't have there.
 - **The launcher has a new font on every system.** It now brings its own, Saira Condensed, where it used to borrow one from your system.
-- **Windows:** this package passed its checks and the launcher was tested from it, but we didn't play a mission from the final Windows package before release. If a mission won't start for you, please send `mw3.log`.
 
 ## Linux
 
