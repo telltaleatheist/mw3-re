@@ -161,7 +161,7 @@ class ShotPmHooks {
   virtual double reach_most(zgame::Handle w) = 0;                       // 0x004b7b90
   virtual float cost(zgame::Handle w) = 0;                              // +0x1c
   virtual float value(zgame::Handle w) = 0;                             // +0x18, MW3's rating
-  virtual double dps(zgame::Handle w) = 0;                              // vt+0x1c, MW3's vt+0x10
+  virtual double dps(zgame::Handle w) = 0;                              // vt+0x1c: not damage, a shot's heat
   virtual int32_t ammo(zgame::Handle w) = 0;                            // vt+0x20
   virtual bool bin(zgame::Handle w, int32_t* full) = 0;                 // +0x5c, 0x004b8d30
   virtual void group_clear(zgame::Handle wm) = 0;                       // +0x30, 0x004b5dc0 each

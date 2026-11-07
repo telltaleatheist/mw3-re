@@ -86,6 +86,23 @@ bool weapon_line_cos(Weapon* w, WeaponManager* m, float* cos) {
   return true;
 }
 
+// What a weapon heats by the second, kept on the exe's weapon at +0x1c: 0x004b8ed0, for a beam 0x004b8f10.
+float heat_rate(const Weapon& w) {
+  const WeaponDef* d = w.def;
+  if (!d) return 0.0f;
+  const WeaponType* t = d->type;
+  if (w.is_beam()) {
+    double cycle = double{d->period} * t->fire_time / t->recharge_rate + t->fire_time;
+    if (cycle != 0.0) cycle = 1.0 / cycle;
+    return static_cast<float>(cycle * t->heat);
+  }
+  double rate = d->period;
+  if (rate != 0.0) rate = 1.0 / rate;
+  double heat = t->heat;
+  if (w.salvo != 0) heat = heat * t->salvo_truecount;
+  return static_cast<float>(heat * rate);
+}
+
 // A body part by the exe's offset on PM's mech.
 void* part_at(zgame::Handle m, int32_t offset) {
   const Mech* k = static_cast<Mech*>(brain_hooks().object_of(m));
@@ -238,12 +255,16 @@ class WireShot : public ShotPmHooks {
   double reach_most(zgame::Handle w) override {
     return weapon_of(w)->max_range_sq();  // 0x004b7b90 is the square, 0x004b7b50 the range
   }
-  float cost(zgame::Handle w) override { pm_hook_missing("WireShot.cost"); return {}; }
+  float cost(zgame::Handle w) override {
+    return heat_rate(*weapon_of(w));
+  }
   float value(zgame::Handle w) override {
     return weapon_of(w)->rating;
   }
   double dps(zgame::Handle w) override {
-    return weapon_of(w)->dps();
+    const Weapon* k = weapon_of(w);  // 0x004bc8f0, a beam's 0x004bc910: an eighth of its heat by the second
+    if (k->is_beam()) return 0.125 * heat_rate(*k);
+    return k->def ? k->def->type->heat : 0.0f;
   }
   int32_t ammo(zgame::Handle w) override {
     return weapon_of(w)->ammo();
