@@ -1,5 +1,8 @@
 #include "mech3/zai_walk_pm.h"
 
+#include "mech3/zai_drive_pm.h"
+#include "mech3/zai_firing_pm.h"
+
 #include <cfloat>
 #include <cmath>
 #include <cstring>
@@ -423,6 +426,120 @@ void WalkFightPm::take_order_target() {
   no_target = no_target || !h.target_live(t);
 }
 
+// Pirate's Moon 1.0 @ 0x004d8580 from 0x004d8690, whose context only lends the brain and vehicle.
+void BehindPm::start(WalkPmHooks& h, zgame::Handle vehicle) {
+  throttle = h.max_throttle();
+  const double fast = h.speed_at(vehicle, throttle);
+  speed = static_cast<float>(fast);
+  const double brake = h.stop_distance(vehicle, speed);
+  stop = static_cast<float>(brake);
+  inv_stop = static_cast<float>(1.0 / brake);
+  x34 = static_cast<float>(double{h.reach()} * 1.2999999523162842);
+  x38 = h.range_near();
+}
+
+// Pirate's Moon 1.0 @ 0x004d89d0 with 0x004d87f0 (the place picked and the way laid to it), 0x004d88a0
+// (how far the place behind has moved from it, squared) and 0x004d8950.
+void BehindPm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
+  float pos[3];
+  h.position(vehicle, pos);
+  const zgame::Handle t = h.order_target();
+  const float* tp = h.target_place(t);
+  const float* face = h.target_facing(t);
+  const float fx = face ? face[0] : 1.0f, fz = face ? face[2] : 0.0f;
+  const bool gone = !tp || !h.target_live(t) || h.must_leave(vehicle);
+  const auto behind = [&](float out[3]) {
+    const double back = double{h.reach()} * -0.8999999761581421;
+    out[0] = tp[0] + static_cast<float>(back * fx);
+    out[1] = tp[1] + 0.0f;
+    out[2] = tp[2] + static_cast<float>(back * fz);
+  };
+  const auto moved = [&] {
+    float w[3];
+    behind(w);
+    const float x = w[0] - point[0], z = w[2] - point[2];
+    return double{z} * z + double{x} * x;
+  };
+  if (step == 0 || step == 3) {
+    if (gone) {
+      s.carrot(h.way_from());
+      h.order_pop();
+      return;
+    }
+    behind(point);
+    h.pull(vehicle, pos, point, point);  // 0x004ccac0
+    float* from = h.way_from();
+    from[0] = pos[0], from[1] = pos[1], from[2] = pos[2];
+    s.set(h, from, point, speed, vehicle);
+    if (!(moved() < 400.0)) return;
+  } else if (step != 1 && step != 2) {
+    return;
+  }
+  float away[2], sum;
+  away_pm(s, away, &sum);
+  if (!gone && moved() < 400.0) {
+    drive_pm(h, s, vehicle, away, sum, static_cast<float>(double{stop} * 0.5), &turn, &throttle, inv_stop, 0.04f, 0.04f);
+    h.set_turn(turn);
+    h.set_throttle(throttle);
+    step = 2;
+  } else {
+    step = 3;
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x004d8ca0, with 0x004d9260's clearing
+void CirclePm::start(WalkPmHooks& h, int32_t arg) {
+  x18 = arg;
+  const float most = h.max_throttle();
+  throttle = h.x94();
+  if (throttle > most) throttle = most;
+}
+
+// Pirate's Moon 1.0 @ 0x004d8d30
+void CirclePm::change_side(float now) {
+  side = static_cast<float>(std::copysign(double{now}, -double{side}));
+}
+
+// Pirate's Moon 1.0 @ 0x004d8dc0. The exe also works out the point on the circle (pos + the way × +0x44) and
+// never reads it. The boundary's pull only says yes or no here; 0x004d7060 is inlined.
+void CirclePm::run(WalkPmHooks& h, zgame::Handle vehicle) {
+  float pos[3];
+  h.position(vehicle, pos);
+  const zgame::Handle t = h.order_target();
+  const float* tp = h.target_place(t);
+  if (!tp || !h.target_live(t) || h.must_leave(vehicle)) {
+    h.order_pop();
+    return;
+  }
+  float d[3] = {tp[0] - pos[0], 0.0f, tp[2] - pos[2]};
+  const float len = unit3(d);
+  const float r = h.reach();
+  const float k = static_cast<float>((double{len} - r) / r);
+  const double sign = std::copysign(1.0, double{side});
+  float way[3] = {static_cast<float>(sign * d[2] + double{d[0]} * k), 0.0f,
+                  static_cast<float>(double{d[2]} * k - sign * d[0])};
+  unit3(way);
+
+  double ahead = h.stopping_at(vehicle, throttle) * 3.0;
+  if (ahead < 10.0) ahead = 10.0;
+  float probe[3];
+  for (int i = 0; i < 3; ++i) probe[i] = pos[i] + static_cast<float>(ahead * way[i]);
+  const bool blocked = h.pull(vehicle, pos, probe, probe);
+  if (blocked) {
+    const float now = h.now();
+    if (std::fabs(double{side}) + 1.0 > now) h.clear_mode();
+    change_side(now);
+  }
+
+  float fwd[3] = {};
+  h.forward(vehicle, &fwd[0], &fwd[2]);
+  float dot, cross;
+  turn = turn_pm(fwd, way, &dot, &cross, turn, turn_walk_params());
+  h.set_throttle(!blocked && !(dot < 0.5f) ? throttle : 0.0f);
+  h.set_turn(turn);
+  step = 1;
+}
+
 // Pirate's Moon 1.0 @ 0x004daaf0 (the state's own fields are 0x004d9b10's, FightStatePm()).
 void follow_start(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, FightStatePm& st) {
   WalkFightPm c(h, s, vehicle, st);
@@ -488,6 +605,50 @@ void WalkGuardPm::measure() {
   WalkPm::measure();
   float d[3];
   from_way = flat_dir_pm(steer.start, target_pos, d);
+}
+
+// Pirate's Moon 1.0 @ 0x004dfd00 with 0x004dfe40, the context only lending the brain and vehicle
+void GuardStatePm::start(WalkPmHooks& h, zgame::Handle vehicle, int32_t arg) {
+  x08 = arg;
+  rate = static_cast<float>(h.speed_at(vehicle, h.max_throttle()));
+  most = static_cast<float>(double{h.reach()} * 1.2999999523162842);
+  reach = h.range_near();
+}
+
+// Pirate's Moon 1.0 @ 0x004dffb0. Its other way out, a side state 0x004dbe00 on the brain's list (step 1), wants
+// the state's +0x2c, which only the constructor writes, with 0: never taken, and left out.
+void GuardStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
+  WalkGuardPm c(h, s, vehicle);
+  const auto judge = [&] {
+    c.x70 = !c.gone && reach < c.from_way && c.from_way < most && (!s.at_end() || c.off_sum > far_way);
+    c.x71 = reach < c.target_dist;
+    c.x72 = c.x70 && c.x71;
+  };
+  if (step < 0 || step > 3) return;
+  bool again = step != 2;
+  if (!again) {
+    c.measure();
+    judge();
+    again = !c.x70;
+  }
+  if (again) {
+    if (c.gone) {
+      s.carrot(h.way_from());
+      h.order_pop();
+      return;
+    }
+    c.pick(*this);
+    c.measure();
+    judge();
+    if (!c.x70) {
+      step = 3;
+      return;
+    }
+  }
+  c.walk();
+  h.set_turn(c.turn_out);
+  h.set_throttle(c.throttle_out);
+  step = 2;
 }
 
 // Pirate's Moon 1.0 @ 0x004d9b90

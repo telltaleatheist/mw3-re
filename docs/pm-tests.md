@@ -246,7 +246,7 @@ The 387 are a known size. The 220 are the risk: they run today as MW3's port wit
 
 ### 2. A first run
 
-On a throwaway branch from `pm`, never merged: the tick and states wired to the PM classes, an environment switch `PM_AI=1`, the 105 hooks real or logged as unported. One mission, `c1m1` idle, the trace's own run, forked and headless like `pm_starbase_refit`, 255 s of mission time at 53 bits, the stand-in's run the same way as the control.
+On a throwaway branch from `pm`, never merged: the tick and states wired to the PM classes, an environment switch `PM_AI=1`, the hooks real or logged as unported. The size, counted 2026-11-07 once the brain was in: 18 hook classes in `src/mech3/zai_*_pm.h`, 307 virtuals, not the six and 105 this plan first said, with some counted twice (the same call in several classes, Jump and Walk inheriting Steer). What's still to build before it runs: every hook body (the only ones today are the test stand-ins in `tests/probe_pm_ai_*.cpp`); a mapping from the plain structs (`BrainTickPm`, `OrdersPm`, `TargetsPm`) to `Brain` and `AiTarget`; the code that reads `PM_AI`, which is nowhere yet; and the first-hit log, which isn't built. Dev 2 has the wiring, on a `pm`-based branch, filling in these interfaces from its own files; the estimate in sittings comes after it has seen its first class. One mission, `c1m1` idle, the trace's own run, forked and headless like `pm_starbase_refit`, 255 s of mission time at 53 bits, the stand-in's run the same way as the control.
 
 | Compare | Good | Bad |
 |---|---|---|
@@ -309,6 +309,47 @@ After the cone's table. Two looks at the `test_pm_ai_*`, lance and pocket tests.
 ### PM's follow, found (2026-11-07)
 
 The lancemate's gap in the 112. MW3's getter 0x4c0de0 maps to PM's 0x4c7920, slot 0 of the vehicle's net; PM's 0x4c7030 makes it first (vtable 0x5ed38c), and its make_state vt+0x8c is 0x4d91e0, which builds 0x4daaf0, vtable 0x5eecd4. That's a fight state on `FightStatePm` (0x4d9b10), run by 0x4dabf0: MW3's straight-line `FollowState` is gone from this slot, and PM's follow walks the walk states, which ask the link pick. So on PM a following lancemate can reach a jump link, as Owen remembers; shown by the class it's made from, not run. Size: 0x4d91e0 30, 0x4daaf0 48, 0x4dab80 13, 0x4dabf0 34, 125 instructions. 0x4daaf0 and 0x4dabf0 are ported, `follow_start` and `follow_run`, and tested in `test_pm_ai_walk` on the exe, 0 differ; 6 breaks, 5 caught, one of them after a case with the target gone. The sixth drops the start's target check, on a context that's thrown away. Left for the wiring: the thin factory 0x4d91e0 and the delete 0x4dab80.
+
+### The states (2026-11-07)
+
+In `zai_walk_pm`, compared in `test_pm_ai_walk` at 53 bits, exact. None of it runs until the switch.
+
+- **Behind the target** (`BehindPm`, 0x4d8580, 0x4d8690, 0x4d89d0, vtable 0x5eebc0): a place 0.9 of the brain's +0x44 back from the order's target, by the way it faces, driven to while it stays within 20 m of the place picked.
+- **Circling** (`CirclePm`, 0x4d8ca0, 0x4d8d30, 0x4d8dc0, vtable 0x5eebe4): round the target at the brain's +0x44. The way is the tangent with a share of the way in by how far off the circle it is, the sign of +0x20 the side and its size the time of the last change. The boundary is asked about a point three stopping distances ahead (10 m at least) and only says yes or no: on a yes the throttle is 0 and the side changes, and two changes within a second clear the brain's +0x3c. The exe works out the point on the circle as well and never reads it, and the context's +0x18 (0x4c7950) isn't read by this state, so both are left out.
+- **Guarding** (`GuardStatePm`, 0x4dfd00, 0x4dfe40, 0x4dffb0, vtables 0x5ef2c4, 0x5ef2e8): keeps a way to a picked point while the way's end stays between the brain's +0x2c and 1.3 of its +0x44 from the target. The way out to a side state (0x4dbe00, step 1) needs the state's +0x2c, which only the constructor writes, with 0: by reading it can't be taken, the trace never ran it, and it isn't ported. The guard's destructors only free that side state.
+- **The attack's constructor** 0x4decb0: `AttackStatePm::start`, its context only lending the vehicle to 0x4d9be0.
+
+Compared through other tests: the jump context 0x4dae80 is called inside the exe's 0x4daf40 and 0x4db0e0 in `test_pm_ai_jump`. Wiring with no logic: the factories, the destructors, the STL deque helpers 0x4d7750 and 0x4de9d0. 0x4d5a10 goes with the brain, being MW3's `ScanState::run` on PM's brain.
+
+0x4dffb0 was counted as done for a while: the address was in a comment on its context. A count of what's ported wants `@ addr` or a declaration, not any mention.
+
+### The brain and the tick (2026-11-07)
+
+`zai_brain_pm`, compared in `test_pm_ai_brain` at 53 bits, exact. Three parts, none running until the switch.
+
+- **The frame** 0x4fab90 against `tick_pm`, 6,000 random frames with everything it calls standing in, the calls in order and the brain's fields compared. It keeps MW3's shape. The changes from MW3's 0x4e9710: the hurt flag in the params' +0xcc is gone; a hit that sets off a reaction also hands the worst attacker (0x4b2820) to the brain's vt+0x28; MW3's `own_order_run` and the attack's bookkeeping left the frame (0x4fb260, 0x4fa150). 0x4b8f50's ammo value stays a double in the compare. The FIX for no vehicle and a NaN range is MW3's row, carried over. The net's vt+0x18 after 0x4fbf30 is a getter whose answer is dropped: left out.
+- **The smaller pieces**, each real on the exe with its neighbours standing in: `may_engage_pm` 0x4fa5a0 (mode must be exactly 1, where MW3 takes any non-zero; the health floor is asked each time, not once a frame), `manoeuvre_pm` 0x4fab30, `on_hit_pm` 0x4fbc20, `died_pm` 0x4fbdd0, `way_reset_pm` 0x4fbe90, `scan_run_pm` 0x4d5a10.
+- **The orders**: the exe's own deque and pending list (0x4fafe0, 0x4faff0, 0x4fbf30, 0x4ea220, 0x4f9e70) run real against `std::deque` and `std::list`, past a block of 31 and back, with what they run standing in: `may_fire_pm` 0x4fa6d0, `orders_idle_pm` 0x4fa470, `order_parts_pm`, `pop_order_pm`, `replace_orders_pm` 0x4fa860, `run_orders_pm` 0x4fb260. The first run of the test found the pop takes up the order under it (vt+0x10), which reading the frame hadn't shown.
+
+`on_hit_pm` differs from MW3's 0x4ea520 twice: the base's hit record comes last, so what's read is the record before this hit; and allies turn on the player only for hits lasting over 3 s, the last within 7 s, more than 10 in all, against MW3's 3 s alone.
+
+The clock in that test, 0x8c1b50, is another clock from 0x62da90: what sets it hasn't been read. One-liners with no logic of their own, wiring when the switch comes: 0x4f5030, 0x4f5f00, 0x4f5f10, 0x4f9d80, 0x4f9f60, 0x4fa150, 0x4fa170, 0x4fbe60, 0x4fbe70, 0x4fc130, 0x4fc1c0.
+
+### Nets and targets (2026-11-07)
+
+`test_pm_ai_brain` again, the same bar.
+
+- **The vehicle net** 0x4c6f90 runs real and its ten slots' vtables must match `kVehicleSlotsPm`; `kind_behaviour_pm` 0x4c7800 and the getters 0x4c7920, 0x4c7950, 0x4c7980 on random live slots. The base 0x4c6ab0 runs inside that, its vector growth STL. What the slots' behaviours are is `test_pm_ai_nets`.
+- **The way's pieces** 0x4c9220, 0x4c9260, 0x4cab20, 0x4caca0, 0x4cad50, 0x4cae10, 0x4cb730 are inlined in `zainet_inout`'s ports of their callers and run real on the exe in that module's tests; constructors 0x4c7e10, 0x4c7f30, 0x4caa60, 0x4cade0 likewise. Checked by call sites, not by a test of their own.
+- **The lead point** `lead_point_pm` 0x4e7210: MW3's three ways to the time, at the register's width, on 6,000 random cases, every way reached. Two changes from MW3's: a mech shooting leads by its smoothed view of the target's velocity (its +0x100, aim_part), not the velocity itself, and with nothing to lead (no weapon, instant, no speed, no muzzle) the point moves by that view's error, where MW3's stays.
+- **The target change** `set_target_pm` 0x4e6330: a new slot +0x78 keeps the last ally with bit 4 of its +0xbc, while the target's owner hasn't bit 5.
+- **The stop, a new order and the pending list**: `stop_orders_pm` 0x4ea5f0 tells the last order's state (vt+0x0c) and pushes an empty order; `give_order_pm` 0x4ea740 and `push_behaviour_pm` 0x4ea7f0 build on it (0x4fa150 and 0x4fa170 are their doors from the brain); 0x4ea0f0 and 0x4ea180 are `std::list` push_back and push_front, on the exe's own list in the orders test. A strict pass (`@ addr`, not any mention) found 0x4ea740 and 0x4ea7f0 only named in hook comments, as 0x4dffb0 had been.
+
+Not ported, by reading: 0x4e2f50's one addition to MW3's kill, 0x472b40 on the target's +0xe8 when that isn't negative. 0x4e30d0 takes damage only while it's negative, so a target that can be hurt never gets there; what 0x472b40 does is a mode for the player object of multiplayer (0x47b710). No writer of +0xe8 was found in 0x4e0000..0x4e4fff. 0x4e9c80 is `AiParams`' copy, its size already PM's (`target_words`). 0x4e45c0 and 0x4e4b00 are in `zai_valve` (`test_pm_ai_valves`). 0x4ea070..0x4ea0e0 are the list's small STL pieces.
+
+Breaks over the states, the brain, the nets and the targets: 168, of which 166 caught, on `test_pm_ai_walk` and `test_pm_ai_brain`. The first run missed ten that showed real gaps, each closed and caught on the rerun: the behind state's plans had reach 0 and sent nothing to compare, the circling state's probe point wasn't compared, the ammo's compare wasn't between 0.1 and 0.1f, the engage range had no case near it, and the case with no time at all wasn't reached. The two left: `bh21`, a step past 3, which nothing can set; `l8`, 0.001 as a double or float, which no stored float falls between. That run also showed the port held 0.001 as the float's value where the exe's constant is the double: fixed, though no float can tell.
+
+`test_sensors` doesn't move with this group. Its PM twins 0x4e6140 (the sort) and 0x4e6240 (the allies' turn) didn't run in the trace, so they aren't among the 112; `allies_turn` stays a hook and they stay listed. `test_pocket_panel`, `_frame` and `_keys` weren't reached either.
 
 ### Named checks for the first run, from Owen's play of PM mission 2 on the stand-in (2026-11-07)
 

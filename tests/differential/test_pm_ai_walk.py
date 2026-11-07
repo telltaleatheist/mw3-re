@@ -100,6 +100,17 @@ class Exe(test_pm_zar.Emulated):
         self.w32(self.order + 0xc, chain[0])
         self.w32(chain[3] + 0x1c, self.record)
         self.w32(self.record + 8, 1)  # live, as the probe's world starts
+        rvt, self.face = self.alloc(0x40), self.alloc(0x40)
+        self.face_on = False
+        self.w32(self.record, rvt), self.w32(rvt + 0x24, self.ret_stub(lambda c: self.face if self.face_on else 0))
+        self.bh = None
+        self.cp = None
+        self.asked = [0, 0, 0]
+        self.gs = None
+        self.at = None
+        self.native_stub(0x4c7950, lambda c: 0)  # the circling context's +0x18, which its state never reads
+        self.k_ahead = self.alloc(4)
+        self.w32(vt + 0x134, self.cpu.code(bytes.fromhex('d9442404 d80d') + struct.pack('<I', self.k_ahead) + bytes.fromhex('c20400')))
         self.leave = False
         self.native_stub(0x4fa210, lambda c: 1 if self.leave else 0, pop=4)
         self.want_pilot, self.blocked, self.steers, self.on_from = False, False, True, False
@@ -201,10 +212,11 @@ class Exe(test_pm_zar.Emulated):
 
     def pull(self, c):
         """The boundary, stubbed alike on both sides: a pulled place, or the way's own start."""
-        if not self.blocked:
-            return 0
         sp = c._uc.reg_read(UC_X86_REG_ESP)
         a, b, o = (self.g(sp + i) for i in (8, 12, 16))
+        self.asked = [self.g(b + i) for i in (0, 4, 8)]
+        if not self.blocked:
+            return 0
         fa = struct.unpack('<3f', bytes(c._uc.mem_read(a, 12)))
         fb = struct.unpack('<3f', bytes(c._uc.mem_read(b, 12)))
         if self.on_from:
@@ -250,6 +262,11 @@ class Exe(test_pm_zar.Emulated):
         vals += [self.g(self.man + o) for o in (0xc, 0x14, 0x18)] + self.m_sent
         vals += [self.g(self.pick + o) for o in (0x10, 0x14, 0x18)] + [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)]
         exact = [self.g(c + 0x3c) & 0xff, self.g(st0 + 0x48) & 0xff, self.g(st0 + 0x58) & 0xff]
+        if self.bh:
+            st = self.brain + 0x210
+            vals += [self.g(self.bh + o) for o in (0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x34, 0x38)]
+            vals += [self.g(st + o) for o in (4, 8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x2c, 0x34, 0x38)]
+            vals += [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)] + self.sent
         if self.guard:
             vals += [self.g(c + o) for o in (0x5c, 0x60, 0x64, 0x68, 0x6c)]
             exact += [self.g(c + o) & 0xff for o in (0x58, 0x70, 0x71, 0x72)]
@@ -270,6 +287,21 @@ class Exe(test_pm_zar.Emulated):
             last = self.g(self.head + 4)  # the last node's item, its two words
             item = self.g(last + 8) if last != self.head else 0
             exact += [self.g(item + 4), self.g(item + 8)] if item else [0, 0]
+        if self.bh:
+            exact += [self.g(self.bh + 0xc), self.sends]
+        if self.gs:
+            st = self.brain + 0x210
+            vals += [self.g(self.gs + o) for o in (0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28)]
+            vals += [self.g(st + o) for o in (4, 8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x2c, 0x34, 0x38)]
+            vals += [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)] + self.sent
+            exact += [self.g(self.gs + 8), self.g(self.gs + 0xc), self.g(self.gs + 0x30), self.sends]
+        if self.at:
+            vals += [self.g(self.at + o) for o in range(0xc, 0x2c, 4)]
+            exact += [self.g(self.at + 8), self.g(self.at + 0x2c) & 0xffff, self.g(self.at + 0x30), self.g(self.at + 0x38),
+                      self.g(self.at + 0x3c), self.g(self.at + 0x40)]
+        if self.cp:
+            vals += [self.g(self.cp + o) for o in (0xc, 0x1c, 0x20)] + self.asked + self.sent
+            exact += [self.g(self.cp + 8), self.g(self.cp + 0x18), int(self.g(self.brain + 0x3c) == 0), self.sends]
         exact += [self.m_stops, self.g(self.brain + 0x110)]
         exact += [self.g(self.man + 0x10), self.g(self.man + 0x2c), self.m_pops, self.g(self.brain + 0x118) & 0xff]
         exact += [self.g(m + 0xc), self.taken[0], self.taken[1]]
@@ -446,6 +478,82 @@ def guard_plan(seed):
     return lines
 
 
+def behind_plan(seed):
+    """The state behind the order's target: made, then run on worlds moving under it."""
+    r = random.Random(f'behind:{seed}')
+    base = plan(seed + 300000)
+    worlds = [ln for ln in base if ln[0] == 'W']
+    steers = [ln for ln in base if ln[0] == 'T']
+    a = r.uniform(0, 6.283)
+    lines = base[:2] + [('C',), ('F', [r.uniform(1, 40), r.uniform(1, 40), 60.0, r.uniform(0, 60), 10.0]), ('a', [r.choice([r.uniform(5, 120), 40.0])]),
+                        ('V', 1, 0), ('j', r.choice([0, 1, 1]), math.cos(a), math.sin(a)), ('w',)]
+    for _ in range(r.randrange(4, 14)):
+        k = r.random()
+        if k < 0.2 and worlds:
+            lines.append(r.choice(worlds))
+        elif k < 0.3 and steers:
+            lines.append(r.choice(steers))
+        elif k < 0.4:
+            lines.append(('V', r.choice([0, 1, 1, 1]), r.choice([0, 0, 0, 1])))
+        lines.append(('x',))
+    return lines
+
+
+def circle_plan(seed):
+    """The circling state: made, then run with the clock going and the boundary coming and going."""
+    r = random.Random(f'circle:{seed}')
+    base = plan(seed + 400000)
+    worlds = [ln for ln in base if ln[0] == 'W']
+    now = r.uniform(0, 30)
+    lines = base[:2] + [('C',), ('F', [1.0, 1.0, 60.0, 30.0, now]), ('V', 1, 0),
+                        ('y', [r.uniform(0, 2), r.uniform(0, 60), r.choice([r.uniform(5, 120), 40.0])])]
+    for _ in range(r.randrange(4, 16)):
+        k = r.random()
+        if k < 0.35 and worlds:
+            w = r.choice(worlds)
+            if r.random() < 0.08:  # standing on the target: nothing to normalise
+                w = (w[0], w[1][:3] + w[1][:3] + w[1][6:]) + w[2:]
+            lines.append(w)
+        elif k < 0.5:
+            lines.append(('V', r.choice([0, 1, 1, 1]), r.choice([0, 0, 0, 1])))
+        elif k < 0.75:
+            now += r.choice([0.2, 0.5, 0.99, 1.5, 4.0])
+            lines.append(('F', [1.0, 1.0, 60.0, 30.0, now]))
+        elif k < 0.8:
+            lines.append(('!',))
+        lines.append(('z',))
+    return lines
+
+
+def attack_made_plan(seed):
+    """The attack state as its constructor leaves it."""
+    r = random.Random(f'attackmade:{seed}')
+    base = plan(seed + 600000)
+    return base[:2] + [('C',), ('F', [r.uniform(1, 40), r.uniform(1, 40), r.uniform(0, 300), r.uniform(0, 300), 10.0]), ('I',)]
+
+
+def guard_run_plan(seed):
+    """The guarding state: made, then run while the target, the vehicle and the way move."""
+    r = random.Random(f'guardrun:{seed}')
+    base = plan(seed + 500000)
+    worlds = [ln for ln in base if ln[0] == 'W']
+    steers = [ln for ln in base if ln[0] == 'T']
+    lines = base[:2] + [('C',), ('F', [1.0, 1.0, 60.0, r.choice([0.0, 5.0, 20.0]), 10.0]), ('V', 1, 0)]
+    lines.append(('Q', r.randrange(32768), r.randrange(32768), [r.choice([20.0, 60.0, 150.0, 400.0])]))
+    for _ in range(r.randrange(4, 14)):
+        k = r.random()
+        if k < 0.3 and worlds:
+            lines.append(r.choice(worlds))
+        elif k < 0.4 and steers:
+            lines.append(r.choice(steers))
+        elif k < 0.55:
+            lines.append(('V', r.choice([0, 1, 1, 1]), r.choice([0, 0, 0, 1])))
+        elif k < 0.7:
+            lines.append(('e', r.randrange(32768), r.randrange(32768)))
+        lines.append(('g',))
+    return lines
+
+
 def run_exe(x, lines):
     out = []
     st = x.brain + 0x210
@@ -549,6 +657,39 @@ def run_exe(x, lines):
         elif op == 'V':
             x.w32(x.record + 8, ln[1])
             x.leave = bool(ln[2])
+        elif op == 'a':
+            x.fs(x.brain + 0x44, ln[1])
+        elif op == 'j':
+            x.face_on = bool(ln[1])
+            x.fs(x.face + 0x24, [ln[2], 0.0, ln[3]])
+        elif op == 'w':
+            x.bh = x.alloc(0x50)
+            x.call(0x4d8690, ecx=x.bh, args=(0x1234, x.order))
+        elif op == 'x':
+            x.call(0x4d89d0, ecx=x.bh, args=(0,))
+        elif op == 'Q':
+            x.rolls = [ln[1], ln[2]] * 50
+            x.fs(x.brain + 0x44, ln[3])
+            x.gs = x.alloc(0x50)
+            x.call(0x4dfe40, ecx=x.gs, args=(0x1234, x.order))
+        elif op == 'e':
+            x.rolls = [ln[1], ln[2]] * 50
+        elif op == 'g':
+            x.call(0x4dffb0, ecx=x.gs, args=(0,))
+        elif op == 'I':
+            x.at = x.alloc(0x50)
+            x.call(0x4decb0, ecx=x.at, args=(0x1234, x.order))
+        elif op == 'y':
+            x.fs(x.brain + 0x94, ln[1][0:1])
+            x.fs(x.k_ahead, ln[1][1:2])
+            x.fs(x.brain + 0x44, ln[1][2:3])
+            x.w32(x.brain + 0x3c, 7)
+            x.cp = x.alloc(0x50)
+            x.call(0x4d8ca0, ecx=x.cp, args=(0x1234, x.order))
+        elif op == 'z':
+            x.call(0x4d8dc0, ecx=x.cp, args=(0,))
+        elif op == '!':
+            x.call(0x4d8d30, ecx=x.cp)
         elif op == 'b':
             x.state = x.alloc(0x50)
             x.call(0x4daaf0, ecx=x.state, args=(0x1234, x.order))
@@ -626,9 +767,13 @@ def text(lines):
             o.append(f'V {ln[1]} {ln[2]}')
         elif ln[0] == 'u':
             o.append('u ' + ' '.join(str(u) for u in ln[1]) + ' ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
-        elif ln[0] in 'mq':
+        elif ln[0] == 'e':
+            o.append(f'e {ln[1]} {ln[2]}')
+        elif ln[0] in 'mqQ':
             o.append(f'{ln[0]} {ln[1]} {ln[2]} ' + ' '.join(f'{bits(u):x}' for u in ln[3]))
-        elif ln[0] in 'Y@':
+        elif ln[0] == 'j':
+            o.append(f'j {ln[1]} {bits(ln[2]):x} {bits(ln[3]):x}')
+        elif ln[0] in 'Y@ya':
             o.append(ln[0] + ' ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
         else:
             o.append(ln[0])
@@ -646,9 +791,25 @@ def main():
     buf = ctypes.create_string_buffer(1 << 20)
     bad = steps = 0
     seen = {}
-    for seed in range(runs * 3):
-        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed)
+    for seed in range(runs * 7):
+        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
+        if runs * 5 <= seed < runs * 6:
+            for p in a:
+                ex = p.partition('|')[2].split()
+                if len(ex) > 8:
+                    key = ('guard', ex[4])
+                    seen[key] = seen.get(key, 0) + 1
+        elif runs * 4 <= seed < runs * 5:
+            for p, q in zip(a, a[1:]):
+                was, ex = p.partition('|')[2].split(), q.partition('|')[2].split()
+                if len(ex) > 8 and ex != was:
+                    seen['circle', 'cleared' if ex[5] == '1' and was[5] != '1' else 'other'] = 1
+            for p in a:
+                vals = p.partition('|')[0].split()
+                if len(vals) > 3:
+                    seen['circle', 'sent0' if vals[-1] == '0' else 'sent'] = seen.get(('circle', 'sent0' if vals[-1] == '0' else 'sent'), 0) + 1
+                    seen['circle', 'left' if int(vals[-3], 16) >> 31 else 'right'] = seen.get(('circle', 'left' if int(vals[-3], 16) >> 31 else 'right'), 0) + 1
         if runs <= seed < runs * 2:
             for p in a:
                 ex = p.partition('|')[2].split()
@@ -676,7 +837,7 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs * 3} plans, {steps} lines: {bad} differ')
+    print(f'{runs * 7} plans, {steps} lines: {bad} differ')
     print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},
@@ -684,6 +845,8 @@ def main():
                      queued=(seen.get(('queued', '1'), 0), 1),
                      moved=(seen.get(('move', '1'), 0), 5), waited=(seen.get(('move', '2'), 0), 5),
                      taken=(seen.get(('taken', '1'), 0), 5),
+                     **{f'guard_{k}': (seen.get(('guard', k), 0), 1) for k in '023'},
+                     **{f'circle_{k}': (seen.get(('circle', k), 0), 1) for k in ('cleared', 'sent0', 'sent', 'left', 'right')},
                      **{f'step_{k}': (seen.get(('step', str(k)), 0), 5) for k in range(1, 11)})
     return 1 if bad else 0
 
