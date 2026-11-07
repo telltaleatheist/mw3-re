@@ -1,5 +1,7 @@
 #include "frontend/sdl/font_search.h"
 
+#include <SDL3_ttf/SDL_ttf.h>
+
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -56,16 +58,27 @@ std::vector<std::string> scan_fonts(const std::vector<std::string>& roots) {
   return out;
 }
 
-std::string pick_font(const std::vector<std::string>& files, const std::vector<std::string>& wanted) {
+bool has_latin(const std::string& file) {
+  if (!TTF_Init()) return false;
+  TTF_Font* f = TTF_OpenFont(file.c_str(), 12.0f);
+  const bool ok = f && TTF_FontHasGlyph(f, 'A') && TTF_FontHasGlyph(f, 'a') && TTF_FontHasGlyph(f, '0');
+  if (f) TTF_CloseFont(f);
+  TTF_Quit();
+  return ok;
+}
+
+std::string pick_font(const std::vector<std::string>& files, const std::vector<std::string>& wanted,
+                      const std::function<bool(const std::string&)>& usable) {
   for (const std::string& w : wanted)
     for (const std::string& f : files)
       if (lower(fs::path(f).filename().string()) == lower(w)) return f;
   std::string upright;
   for (const std::string& f : files) {
     const std::string name = lower(fs::path(f).filename().string());
-    if (!text_face(name)) continue;
-    if (has(name, "bold")) return f;
-    if (upright.empty()) upright = f;
+    const bool bold = has(name, "bold");
+    if (!text_face(name) || (!bold && !upright.empty()) || (usable && !usable(f))) continue;
+    if (bold) return f;
+    upright = f;
   }
   return upright;
 }

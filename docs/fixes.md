@@ -516,8 +516,10 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   24-bit one, which the probes keep. Checked against the original run at
   64 bits: within one colour step (the original's arithmetic is wider).
 - Fonts, SdlTwodHost::font_path: FIX (A). The installer also put the fonts in Windows' folder, so a game folder can
-  lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line.
-  Metrics differ a little off Windows: the box sizes come from each file.
+  lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line;
+  last, or first on Linux, the package's stand-ins (`assets/fonts`: Liberation Sans, Anton, Liberation Mono), so no
+  system fonts is no longer blank text. A file not named as the game's is sized by the game face's metrics
+  (`stand_in_metrics`), so a line keeps its height.
 - Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
   fixed point with the same trick, so at 24-bit nothing is filled and the
   shadow texture is plain white: shadows invisible on hardware (emulator,

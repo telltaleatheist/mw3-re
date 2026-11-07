@@ -72,6 +72,12 @@ for /d %%d in (deps\*) do if /i not "%%~nxd"=="archive" (
 rem FFmpeg's version and configure line (THIRD-PARTY.txt).
 build-win-pkg\mw3import.exe --version > "%DIST%\licenses\ffmpeg-configuration.txt" || exit /b 1
 for /d %%d in ("%DIST%\licenses\*") do dir /b /a-d "%%d" >nul 2>nul || echo Warning: no licence file found for %%~nxd: copy it into licenses\%%~nxd by hand.
+mkdir "%DIST%\assets\fonts"
+copy /y assets\fonts\*.ttf "%DIST%\assets\fonts\" >nul || exit /b 1
+mkdir "%DIST%\licenses\liberation"
+copy /y assets\fonts\Liberation-OFL.txt "%DIST%\licenses\liberation\OFL.txt" >nul || exit /b 1
+mkdir "%DIST%\licenses\anton"
+copy /y assets\fonts\Anton-OFL.txt "%DIST%\licenses\anton\OFL.txt" >nul || exit /b 1
 mkdir "%DIST%\licenses\saira-condensed"
 copy /y assets\launcher\font-OFL.txt "%DIST%\licenses\saira-condensed\OFL.txt" >nul || exit /b 1
 mkdir "%DIST%\licenses\pl_mpeg"

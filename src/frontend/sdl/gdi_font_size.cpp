@@ -106,4 +106,34 @@ GdiSize gdi_font_size(const GdiFaceMetrics& m, int32_t height) {
   return s;
 }
 
+// Arial's and Impact's VDMX to size 48, the 1:1 group's {size, yMax, yMin}: a
+// stand-in has no such table, and these pick smaller sizes than the win metrics.
+const GdiFaceMetrics::Vdmx kArialCells[] = {
+    {8, 8, -2}, {9, 9, -3}, {10, 10, -3}, {11, 11, -3}, {12, 12, -3}, {13, 13, -3}, {14, 13, -3}, {15,
+    14, -3}, {16, 15, -3}, {17, 15, -4}, {18, 17, -4}, {19, 18, -4}, {20, 19, -4}, {21, 19, -5}, {22,
+    20, -5}, {23, 21, -5}, {24, 21, -6}, {25, 23, -5}, {26, 25, -6}, {27, 26, -6}, {28, 26, -6}, {29,
+    27, -6}, {30, 28, -7}, {31, 28, -7}, {32, 29, -7}, {33, 31, -7}, {34, 32, -7}, {35, 32, -8}, {36,
+    33, -8}, {37, 34, -8}, {38, 34, -9}, {39, 35, -9}, {40, 36, -9}, {41, 38, -9}, {42, 38, -9}, {43,
+    39, -10}, {44, 40, -10}, {45, 40, -10}, {46, 42, -10}, {47, 43, -10}, {48, 45, -10},
+};
+const GdiFaceMetrics::Vdmx kImpactCells[] = {
+    {8, 9, -2}, {9, 11, -2}, {10, 12, -2}, {11, 13, -2}, {12, 13, -3}, {13, 14, -3}, {14, 15, -3}, {15,
+    16, -3}, {16, 17, -3}, {17, 17, -4}, {18, 18, -4}, {19, 19, -4}, {20, 21, -4}, {21, 22, -4}, {22,
+    22, -5}, {23, 23, -5}, {24, 24, -5}, {25, 27, -5}, {26, 28, -5}, {27, 28, -6}, {28, 29, -6}, {29,
+    30, -6}, {30, 31, -6}, {31, 32, -7}, {32, 32, -7}, {33, 34, -7}, {34, 35, -7}, {35, 36, -7}, {36,
+    36, -8}, {37, 37, -8}, {38, 38, -8}, {39, 39, -8}, {40, 40, -8}, {41, 42, -9}, {42, 43, -9}, {43,
+    44, -9}, {44, 45, -9}, {45, 47, -9}, {46, 47, -10}, {47, 49, -10}, {48, 50, -10},
+};
+void stand_in_metrics(const std::string& file, const std::string& found, GdiFaceMetrics* m) {
+  std::string name;
+  for (char c : found) name += c >= 'A' && c <= 'Z' ? static_cast<char>(c + 32) : c;
+  if (name == file) return;
+  m->upem = 2048;  // the three game faces' own OS/2 values
+  m->win_ascent = file == "impact.ttf" ? 2066 : file == "lucon.ttf" ? 1616 : 1854;
+  m->win_descent = file == "arial.ttf" ? 434 : 432;
+  m->vdmx.clear();
+  if (file == "arial.ttf") m->vdmx.assign(std::begin(kArialCells), std::end(kArialCells));
+  if (file == "impact.ttf") m->vdmx.assign(std::begin(kImpactCells), std::end(kImpactCells));
+}
+
 }  // namespace sdlfe

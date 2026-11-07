@@ -276,6 +276,7 @@ add_library(mw3core STATIC
   src/mech3/force_feedback.cpp
   src/mech3/app_fmv.cpp
   src/mech3/app_movie.cpp
+  src/mech3/load_watch.cpp
   src/mech3/movie_shape.cpp
   src/mech3/movie_shape_table.cpp
   src/mech3/mods.cpp
@@ -548,6 +549,7 @@ add_executable(mw3tests
   tests/test_pilot_names.cpp
   tests/test_program.cpp
   tests/test_editor.cpp
+  tests/test_load_watch.cpp
   tests/test_movie_shape.cpp
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
@@ -651,6 +653,9 @@ if(SDL3_FOUND)
                 src/frontend/sdl/gdi_font_size.cpp
                 src/frontend/sdl/text_fit.cpp src/frontend/sdl/launcher_notes.cpp src/frontend/sdl/movie_import.cpp)
     target_link_libraries(mw3text PUBLIC mw3sdl SDL3_ttf::SDL3_ttf)
+    if(NOT MW3_PACKAGE)
+      target_compile_definitions(mw3text PRIVATE MW3_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+    endif()
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
       src/frontend/sdl/run_log.cpp
@@ -745,6 +750,7 @@ if(SDL3_FOUND)
                                                  MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
                                                  MW3_BIN="$<TARGET_FILE:mw3>"
                                                  MW3_LAUNCHER_BIN="$<TARGET_FILE:mw3launcher>"
+                                                 MW3_ASSETS_FOR_TESTS="${CMAKE_SOURCE_DIR}/assets"
                                                  MW3_FAKE_INDEO="$<TARGET_FILE:mw3indeo_fake>"
                                                  MW3_IMPORT_BIN="$<TARGET_FILE_DIR:mw3>/mw3import")
     add_dependencies(mw3sdltests mw3indeo_fake)

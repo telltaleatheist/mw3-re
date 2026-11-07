@@ -37,6 +37,10 @@ if [ -x build-linux-pkg/mw3import ]; then
 fi
 # The launcher's art (ours): beside the program, where SDL_GetBasePath finds it.
 cp assets/launcher/*.png assets/launcher/font.ttf "$APPDIR/usr/bin/assets/launcher/"
+mkdir -p "$APPDIR/usr/bin/assets/fonts" "$APPDIR/usr/share/doc/mw3/licenses/liberation" "$APPDIR/usr/share/doc/mw3/licenses/anton"
+cp assets/fonts/*.ttf "$APPDIR/usr/bin/assets/fonts/"
+cp assets/fonts/Liberation-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/liberation/OFL.txt"
+cp assets/fonts/Anton-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/anton/OFL.txt"
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed"
 cp assets/launcher/font-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed/OFL.txt"
 cp tools/windows/dist/README.txt tools/windows/dist/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"

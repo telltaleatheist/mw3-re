@@ -84,7 +84,7 @@ std::string font_path(const std::string& dir) {
 #if !defined(_WIN32) && !defined(__APPLE__)
   return sdlfe::pick_font(sdlfe::scan_fonts(sdlfe::font_folders()),
                           {"LiberationSansNarrow-Bold.ttf", "DejaVuSansCondensed-Bold.ttf", "NotoSans-CondensedBold.ttf",
-                           "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf", "NotoSans-Bold.ttf"});
+                           "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf", "NotoSans-Bold.ttf"}, sdlfe::has_latin);
 #else
   return {};
 #endif
