@@ -423,8 +423,7 @@ int32_t find_vertex(Model& m, const float p[3]) {
   const float precision = ::zmod::vertex_precision();
   for (int32_t i = 0; i < n; ++i) {
     const float* v = m.vertices + 3 * i;
-    if (std::fabs(v[0] - p[0]) <= precision && std::fabs(v[1] - p[1]) <= precision &&
-        std::fabs(v[2] - p[2]) <= precision)
+    if (abs(X(v[0]) - p[0]) <= precision && abs(X(v[1]) - p[1]) <= precision && abs(X(v[2]) - p[2]) <= precision)
       return i;
   }
   if (kMaxModelVerts < n) {
@@ -443,7 +442,7 @@ int32_t find_normal(Model& m, const float p[3]) {
   const int32_t n = m.count(0x18);
   for (int32_t i = 0; i < n; ++i) {
     const float* v = m.normals + 3 * i;
-    if (std::fabs(v[0] - p[0]) < 0.0001f && std::fabs(v[1] - p[1]) < 0.0001f && std::fabs(v[2] - p[2]) < 0.0001f)
+    if (abs(X(v[0]) - p[0]) < 0.0001f && abs(X(v[1]) - p[1]) < 0.0001f && abs(X(v[2]) - p[2]) < 0.0001f)
       return i;
   }
   m.normals = static_cast<float*>(std::realloc(m.normals, 12 * static_cast<size_t>(n + 1)));
