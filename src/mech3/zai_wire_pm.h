@@ -67,6 +67,11 @@ class WireSteer : public Base {
 
 using WiredSteerPm = WireSteer<SteerPmHooks>;
 
+// PM's frame in place of Brain::frame under PM_AI=1 (0x004fab90 for 0x004e9710). Until PM's orders
+// and states are wired they are MW3's, which keep `mode` and `busy` on the Brain, so those two
+// cross at the frame's ends.
+bool pm_frame(Brain& b, BrainControls& c, float dt);
+
 }  // namespace mech3::ai
 
 #endif

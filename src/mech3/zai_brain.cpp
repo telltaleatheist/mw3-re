@@ -1,4 +1,5 @@
 #include "mech3/zai_brain.h"
+#include "mech3/zai_wire_pm.h"
 
 #include "mech3/zai_attack.h"
 
@@ -980,6 +981,7 @@ AiNet* brain_net_for(const AiParams& rec) {
 // Mech3.exe 1.2 @ 0x004cf630 (from the controls' destructors). The objects
 // at +0x23c and +0x238 (the way finder) go through their slot 0 with 1.
 Brain::~Brain() {
+  if (pm_ai_on()) pm_forget(*this, 0);
   BrainHooks& h = brain_hooks();
   if (radio) {  // 0x004e7df0 (0x004e7d80 clears it)
     h.on_delete(radio);
@@ -1445,6 +1447,7 @@ constexpr float kFltMax = 3.4028235e38f;
 
 // Mech3.exe 1.2 @ 0x004e9710
 bool Brain::frame(BrainControls& c, float dt) {
+  if (pm_ai_on()) return pm_frame(*this, c, dt);
   BrainHooks& h = brain_hooks();
   if (!h.ai_on()) {
     c.stop();
