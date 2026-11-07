@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <functional>
 #include <string>
 #include <vector>
@@ -226,7 +227,8 @@ int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
 void pm_kill_loadout(void* player);
 void pm_kill_fall_line(void* mech, int t);
-bool pm_kill_falling_sound(void* mech);
+int pm_kill_falling_buffer(void* mech);
+void pm_kill_walk(void* mech, bool jets);
 void pm_kill_hurt(void* mech);
 float pm_kill_leg_armor(void* mech);
 void pm_kill_ground_line(float x0, float z0, float x1, float z1);
@@ -273,7 +275,22 @@ static float g_fall_lowest = 1e9f, g_fall_died_at = 1e9f;
 static bool g_fall_failed = false, g_fall_ai_dead = false;
 static int g_fall_mode = -1, g_fall_frames_dead = 0, g_fall_sound_from = 0, g_fall_sound_frames = 0;
 static float g_fall_camera_up = 0;
+static int g_fall_sound_heard = 0, g_fall_quietest = 0;
 static int g_cloud_frames = 0, g_cloud_wrong = 0, g_cloud_full = 0, g_cloud_ramp = 0, g_cloud_mode = -1;
+
+// The canyon tests: what the output was told for each buffer, as the mixer takes it.
+struct HeardSound : platform::SilentSoundOutput {
+  std::map<platform::SoundBuffer, int32_t> volume;
+  int32_t set_volume(platform::SoundBuffer b, int32_t v) override {
+    volume[b] = v;
+    return platform::SilentSoundOutput::set_volume(b, v);
+  }
+  bool playing(platform::SoundBuffer b) {
+    uint32_t st = 0;
+    return get_status(b, &st) == 0 && (st & kStatusPlaying);
+  }
+};
+static HeardSound* g_heard = nullptr;
 
 static bool me_alive(void* player) {
   mech3::LaunchedMech me;
@@ -302,7 +319,8 @@ static void kill_run(const char* which, bool quick) {
   Clock clock;
   MovieClock movies;
   Screen screen;
-  platform::SilentSoundOutput sound;
+  HeardSound sound;
+  g_heard = &sound;
   mech3::MountFiles files;
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
@@ -450,11 +468,14 @@ static void kill_run(const char* which, bool quick) {
       static int t = 0;
       float x = 0, z = 0;
       std::sscanf(e, "%f,%f", &x, &z);
+      const char* walk = std::getenv("PM_FALL_WALK");  // the yaw: on foot over the edge at full throttle
       ++t;
       if (t == 2) {
-        const float at[3] = {x, 30.0f, z};
-        mech3::move_mech(player, at, 0.0f);
+        const float yaw = walk ? std::strtof(walk, nullptr) : 0.0f;
+        const float at[3] = {x, walk ? pm_kill_ground(x, 300.0f, z) : 30.0f, z};
+        mech3::move_mech(player, at, yaw);
       }
+      if (walk && me_alive(player)) pm_kill_walk(player, std::getenv("PM_FALL_JETS") != nullptr);
       if (const char* c = std::getenv("PM_FALL_CAMERA")) {
         if (t == 2) mech3::program_view_set_camera(std::atoi(c));
         if (me_alive(player) && mech3::program_view_mode_id() >= 0) g_cloud_mode = mech3::program_view_mode_id();
@@ -485,15 +506,18 @@ static void kill_run(const char* which, bool quick) {
         ++g_fall_frames_dead;
         const float up = mech3::program_view_camera_height() - there_y[1];
         if (g_fall_frames_dead == 10) g_fall_camera_up = up;
-        if (pm_kill_falling_sound(player)) {
+        const int buffer = pm_kill_falling_buffer(player);
+        if (buffer >= 0) {
           if (g_fall_sound_from == 0) g_fall_sound_from = g_fall_frames_dead;
           ++g_fall_sound_frames;
+          // At the mixer: playing, and at what it was told.
+          if (g_heard->playing(buffer)) ++g_fall_sound_heard, g_fall_quietest = std::min(g_fall_quietest, g_heard->volume[buffer]);
         }
       }
       if (me.anim_state == 10 && g_fall_died_at > 0.0f) g_fall_died_at = there_y[1], g_fall_failed = engine.mission_failed();
       if (targets.size() > 1 && state(targets[1]) == 10) g_fall_ai_dead = true;
       g_fall_failed = g_fall_failed || engine.mission_failed();
-      if (t > 300) done = true;
+      if (t > (walk ? 900 : 300)) done = true;
       return;
     }
     if (std::getenv("PM_GROUND")) {
@@ -613,30 +637,40 @@ TEST(pm_cloud_screen_tint) {
 TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
 
 // Always on: c1m1's Thor, one ER Large, every shot on its leg: it goes down with the leg, the player's hits on legs only.
-// Always on: mission 2's canyon, cloud_cover's death band: the player dropped in dies at y = -30, in the air, the
-// mission failed; an AI mech dies there too (docs/vehicles.md, The cloud's death band).
+// Always on: mission 2's canyon, cloud_cover's death band: the player over the edge dies at y = -30, in the air,
+// mission failed; an AI mech dies there too (docs/vehicles.md, The cloud's death band). Dropped in, walked in in
+// the Centurion, jetted in in the Thor: the god's eye over the body and mech_falling at the mixer.
 TEST(pm_canyon_death_band) {
 #if !defined(_WIN32)
-  std::fflush(nullptr);
-  const pid_t child = fork();
-  if (child == 0) {
-    setenv("PM_FALL", "3056,-4776", 1);
-    kill_run("0,1,2", true);
-    std::printf("  canyon: died at y %.2f, lowest %.2f, mission failed %d, the AI mech dead %d\n", g_fall_died_at, g_fall_lowest, g_fall_failed ? 1 : 0, g_fall_ai_dead ? 1 : 0);
-    EXPECT(g_fall_died_at < -30.0f && g_fall_died_at > -36.0f);
-    EXPECT(g_fall_failed);
-    EXPECT(g_fall_ai_dead);
-    std::printf("  the god's eye: mode %d, %.1f m over the body; mech_falling from dead frame %d for %d frames\n", g_fall_mode, g_fall_camera_up, g_fall_sound_from, g_fall_sound_frames);
-    EXPECT(g_fall_mode == 3);                        // 0x00408a70(3)
-    EXPECT(g_fall_camera_up > 100.0f);
-    EXPECT(g_fall_sound_from >= 1 && g_fall_sound_from <= 2);  // the fall action's start, the frame after
-    EXPECT(g_fall_sound_frames > 30);
+  struct Way { const char* name; const char* at; const char* walk; const char* mech; bool jets; };
+  const Way ways[] = {{"dropped", "3056,-4776", nullptr, nullptr, false},
+                      {"walked, Centurion", "2985,-4727", "-0.98", "7", false},
+                      {"jetted, Thor", "2985,-4727", "-0.98", "23", true}};
+  for (const Way& w : ways) {
     std::fflush(nullptr);
-    _exit(check::failures ? 1 : 0);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_FALL", w.at, 1);
+      if (w.walk) setenv("PM_FALL_WALK", w.walk, 1);
+      if (w.mech) setenv("PM_MECH", w.mech, 1);
+      if (w.jets) setenv("PM_FALL_JETS", "1", 1);
+      kill_run("0,1,2", true);
+      std::printf("  %s: died at y %.2f, lowest %.2f, mission failed %d, the AI mech dead %d\n", w.name, g_fall_died_at, g_fall_lowest, g_fall_failed, g_fall_ai_dead);
+      std::printf("  the god's eye: mode %d, %.1f m over the body; mech_falling from dead frame %d for %d frames, %d of them at the mixer, quietest %d (0.01 dB)\n", g_fall_mode, g_fall_camera_up, g_fall_sound_from, g_fall_sound_frames, g_fall_sound_heard, g_fall_quietest);
+      EXPECT(g_fall_died_at < -30.0f && g_fall_died_at > -36.0f);
+      EXPECT(g_fall_failed);
+      EXPECT(g_fall_mode == 3);                        // 0x00408a70(3)
+      EXPECT(g_fall_camera_up > 100.0f);
+      EXPECT(g_fall_sound_from >= 1 && g_fall_sound_from <= 2);  // the fall action's start, the frame after
+      EXPECT(g_fall_sound_heard > 30);
+      EXPECT(g_fall_quietest > -1500);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
-  int status = 1;
-  waitpid(child, &status, 0);
-  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
 

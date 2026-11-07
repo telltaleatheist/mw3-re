@@ -1,3 +1,4 @@
+#include "gamez/zsound/zsnd.h"
 // test_pm_mission.cpp's kill test, the parts and weapons it reaches: these headers don't sit with options.h.
 #include "mech3/mech.h"
 #include "mech3/mech_parts.h"
@@ -296,7 +297,16 @@ void pm_kill_loadout(void* player) {
 }
 
 // PM_FALL: a frame of the fall: height, fall speed, state, the water the skis see, the depth rule's number, structure.
-bool pm_kill_falling_sound(void* mech) { return static_cast<Mech*>(mech)->sounds[18] != nullptr; }
+void pm_kill_walk(void* mech, bool jets) {
+  auto* m = static_cast<Mech*>(mech);
+  m->controls->set_throttle(1.0f);
+  if (jets) m->controls->set_jump(1.0f);
+}
+
+int pm_kill_falling_buffer(void* mech) {
+  const auto* v = static_cast<const zsnd::VoiceBase*>(static_cast<Mech*>(mech)->sounds[18]);
+  return v && v->kind == 0 ? static_cast<const zsnd::Voice*>(v)->buffer : -1;
+}
 
 void pm_kill_fall_line(void* mech, int t) {
   auto* m = static_cast<Mech*>(mech);

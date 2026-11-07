@@ -102,8 +102,12 @@ def main():
         lines = re.findall(r'^mw3: chain debriefing line: (.*)$', out, re.M)
         bad += check('kills chain', code, 0)
         bad += check('won by kills: a total', 'Mission Total' in lines, True)
-        won = re.search(r'^mw3: chain won row 0 c1sa1 by (\d+) kills', out, re.M)
-        print('c1sa1 by shooting:', won.group(0)[5:] if won else 'no win line', '|', lines[:8])
+        # Shooting can't win it: the final objective is valve mission_success, set by nothing a kill does.
+        spent = re.search(r'^mw3: chain row 0 c1sa1 not won by its kills \((\d+)\) after 40000 frames: won as --win$', out, re.M)
+        bad += check('c1sa1 runs out by kills', bool(spent), True)
+        bad += check('kills made', bool(spent) and int(spent.group(1)) > 0, True)
+        bad += check('not won by kills', re.search(r'^mw3: chain won row 0 c1sa1 by \d+ kills', out, re.M) is None, True)
+        print('c1sa1 by shooting:', spent.group(0)[5:] if spent else 'never ran out', '|', lines[:8])
         pm_floors.floors(missions=(whole_titles, 11), resumed=(len(launched(out)), 1), lines=(len(lines), 4))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
