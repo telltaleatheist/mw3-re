@@ -341,6 +341,10 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
       } else {
         m.o->set_pos(m.x + m.off, m.y);
       }
+      if (auto* lc = dynamic_cast<LanceCard*>(m.o)) {  // its display and line draw by their own numbers
+        if (lc->display) lc->display->shift(m.off);
+        lc->line.set(lc->line.get_x() + m.off, lc->line.get_y(), lc->line.end_x + m.off, lc->line.end_y);
+      }
       auto* pl = dynamic_cast<ztwod::PolyLine*>(m.o);  // its points are where it draws (0x005a38f0)
       if (pl && !dynamic_cast<ztwod::Shape*>(pl) && !dynamic_cast<ztwod::Caret*>(pl))
         for (int32_t i = 0; i < pl->count; ++i) pl->pts[i][0] += m.off;

@@ -25,6 +25,7 @@ class LanceDisplay : public ztwod::Line2D {
     int32_t x = 0, y = 0;            // +0x288, +0x28c
     void place(int32_t px, int32_t py, int32_t w, int32_t h, bool dim);  // 0x0047e520
     void fill(float left);           // 0x0047e680: the standing part
+    void shift(int32_t dx);          // ours (16:9 menus)
     void update(float dt);           // +0x24  0x0047e810
   };
 
@@ -35,6 +36,7 @@ class LanceDisplay : public ztwod::Line2D {
   void update(float dt) override;    // +0x24  0x0047f0e0: the bars, the line, the labels
   void layout(const LanceArmor& a);  // 0x0047eba0
   void fill(const LanceArmor& a);    // 0x0047ef10
+  void shift(int32_t dx);            // ours (16:9 menus): already laid out, as a screen is widened
 
   Bar bars[11];                      // +0x4c  by armor section
   int32_t px = 0, py = 0;            // +0x1c7c
