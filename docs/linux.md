@@ -73,8 +73,12 @@ movies need it: the 32-bit Indeo helper (`mw3indeo`) is Windows-only.
   prefix (Lutris), at `drive_c/Program Files (x86)/MicroProse/MechWarrior 3`
   and the usual hand-picked folders; and `~/Games/MechWarrior 3` and the
   like for a copied install.
-- The launcher's font: `assets/launcher/font.ttf`, else DejaVu Sans
-  Condensed Bold; the game's own fonts come from the install.
+- The launcher's font: `assets/launcher/font.ttf` (Saira Condensed Bold,
+  in the package), else a narrow system face at its known places, else a
+  walk of the font folders fontconfig reads (`font_search`: the user's,
+  `XDG_DATA_DIRS`', `/usr/share/fonts`), wanted names first, then any
+  upright text face. The log says which (`mw3: launcher: font`). The game's
+  own fonts come from the install.
 - The MechWarrior (1989) entry looks for `mechwarrior` (no `.exe`) beside
   `mw3` (docs/launcher.md).
 

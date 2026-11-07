@@ -134,6 +134,17 @@ c4, c4b and t1 load to "Ready To Launch" and draw. The scripts' three
 cycled textures are made before the textures load; zerr is empty in the
 release build).
 
+- **The watch** (ours, `load_watch.cpp`; 1.0.4, after a Linux player's load
+  stopped with nothing in the report to say where): the port's load blocks
+  the main thread, so the briefing's first frame stays up and "Downloading
+  Mission Parameters", the LOADING button's label, shows through all of it.
+  While `missions_start` runs, a thread writes to the log when one
+  `mw3: load:` step has gone quiet for 20 s, then at 80 s, 320 s and so on:
+  `mw3: load: nothing new for 80 s, on "Loading Textures" (CPU time so far
+  84 s)`. CPU time climbing with the wait means the load is working or
+  spinning; flat means it is blocked. It reads nothing of the load's and
+  changes nothing; a test run's `quiet` has none.
+
 ## 5. Testing
 
 `test_mission_load.py`: 240 cases, each through the world 0x0048faf0 and

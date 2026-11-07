@@ -180,6 +180,10 @@ EOF
 # The read-me and the notices beside the program.
 cp tools/macos/README.txt "$APP/Contents/Resources/README.txt"
 if [ -f LICENSE ]; then cp LICENSE "$APP/Contents/Resources/LICENSE.txt"; fi
+mkdir -p "$APP/Contents/Resources/assets/fonts" "$APP/Contents/Resources/licenses/liberation" "$APP/Contents/Resources/licenses/anton"
+cp assets/fonts/*.ttf "$APP/Contents/Resources/assets/fonts/"
+cp assets/fonts/Liberation-OFL.txt "$APP/Contents/Resources/licenses/liberation/OFL.txt"
+cp assets/fonts/Anton-OFL.txt "$APP/Contents/Resources/licenses/anton/OFL.txt"
 cp tools/macos/THIRD-PARTY.txt "$APP/Contents/Resources/THIRD-PARTY.txt"
 # libarchive, zlib and liblzma: linked in with --deps (build_deps.sh keeps
 # their licences in the prefix); Homebrew's libarchive is a dylib, its

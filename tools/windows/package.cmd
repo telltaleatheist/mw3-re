@@ -63,6 +63,12 @@ for /d %%d in (deps\*) do if /i not "%%~nxd"=="archive" (
   for %%f in ("%%d\LICENSE*" "%%d\COPYING*" "%%d\README-SDL.txt") do copy /y "%%f" "%DIST%\licenses\%%~nxd\" >nul
 )
 for /d %%d in ("%DIST%\licenses\*") do dir /b /a-d "%%d" >nul 2>nul || echo Warning: no licence file found for %%~nxd: copy it into licenses\%%~nxd by hand.
+mkdir "%DIST%\assets\fonts"
+copy /y assets\fonts\*.ttf "%DIST%\assets\fonts\" >nul || exit /b 1
+mkdir "%DIST%\licenses\liberation"
+copy /y assets\fonts\Liberation-OFL.txt "%DIST%\licenses\liberation\OFL.txt" >nul || exit /b 1
+mkdir "%DIST%\licenses\anton"
+copy /y assets\fonts\Anton-OFL.txt "%DIST%\licenses\anton\OFL.txt" >nul || exit /b 1
 mkdir "%DIST%\licenses\pl_mpeg"
 copy /y third_party\pl_mpeg\README.md "%DIST%\licenses\pl_mpeg\" >nul || exit /b 1
 mkdir "%DIST%\licenses\enet"

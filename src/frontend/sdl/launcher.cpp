@@ -1,5 +1,6 @@
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/data_folder_start.h"
+#include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
 #include "frontend/sdl/movie_import.h"
 #include "frontend/sdl/text_fit.h"
@@ -56,8 +57,9 @@ std::string assets_dir() {
 #endif
   return {};
 }
-// The font: assets/launcher/font.ttf when shipped, else a condensed system
-// face (a placeholder until Owen picks one; launcher.md, Open).
+// The font: assets/launcher/font.ttf, which every package carries, else a
+// condensed system face (launcher.md, Open), else on Linux whatever a walk of
+// the font folders finds (an install without the fonts at these places).
 std::string font_path(const std::string& dir) {
   std::error_code ec;
   std::vector<std::string> tries;
@@ -79,7 +81,13 @@ std::string font_path(const std::string& dir) {
                              "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"});
   for (const std::string& t : tries)
     if (fs::exists(t, ec)) return t;
+#if !defined(_WIN32) && !defined(__APPLE__)
+  return sdlfe::pick_font(sdlfe::scan_fonts(sdlfe::font_folders()),
+                          {"LiberationSansNarrow-Bold.ttf", "DejaVuSansCondensed-Bold.ttf", "NotoSans-CondensedBold.ttf",
+                           "LiberationSans-Bold.ttf", "DejaVuSans-Bold.ttf", "NotoSans-Bold.ttf"}, sdlfe::has_latin);
+#else
   return {};
+#endif
 }
 
 SDL_Surface* load_png(const std::string& dir, const char* name) {
@@ -1495,7 +1503,9 @@ LauncherChoice Launcher::run() {
   const std::string dir = assets_dir();
   art_.load(dir);
   const Uint64 t_art = SDL_GetTicksNS();
-  text_.open(font_path(dir));
+  const std::string font = font_path(dir);
+  text_.open(font);
+  std::printf("mw3: launcher: font %s\n", font.empty() ? "none found: its text will be blank" : font.c_str());
   canvas_ = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGB565);
   const Uint64 t_font = SDL_GetTicksNS();
   find_install();
