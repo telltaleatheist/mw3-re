@@ -1451,6 +1451,10 @@ functions PM changed, and PM's new ones.
      Not what the allied turrets needed: those are `aiTurrets.zrd`'s `ALLY` key (0x004a9ce8, the turf_ blocks and
      `turm_ac`; the key's presence, its value unread), the player's side on the turret. The op points were the file's
      name: PM's is `waynet_<block>` (0x00493a90: m1, ia1, sa1, mp1), in reader<key>.zbd, opened before it (0x00407f38).
+     The beacon is the `waypoint` model, a flat quad 0.5 above its node, put at the file's x, y, z (0x47bcb0, MW3's 0x479ac0):
+     no ground query, so its height is data. c3m7's Able is at 20.53 over ground at 12.59, 7.9 high, and floats in the data;
+     the other campaign points measured (c1, c2m3, c2m4, c2m8, c3m6) are within about 2.4 of the ground (2026-11-07). Kept as
+     the original's (Owen).
    - **The boundary's areas: ported** (the variant 0x4cdb30, the loader 0x4cddb0, the match 0x4cdce0, the add 0x4cced0,
      the select 0x4ce290; `zainet_inout`, `test_pm_ai_inout.py`, 798 cases, 5 breaks): names by game type: 1 `inoutm` and
      5 `inoutsa` (ten areas by 0x435db0, the index the mission - 1), 2 `inoutia`, 4 `inoutt` (one). Before this every
