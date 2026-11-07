@@ -23,7 +23,10 @@ original.
 
 ### Coming in the next release
 
-Nothing yet.
+- **A loadout past 16 weapons can't damage the game.** The game took a 17th weapon
+  unchecked and overwrote what came after the list. A mod's mech could do that,
+  and so could a modified player's loadout in multiplayer. The extra weapon is now
+  refused and named in the log.
 
 **1.0.4 (2026-11-07)**
 
