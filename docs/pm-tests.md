@@ -69,6 +69,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_power.py` | changed | 8 | 5 | moved to `test_pm_power.py` | power; the headlight off and the network target dropped |
 | `test_puffers.py` | gone | 44 | 12 | covered | test_pm_puffers |
 | `test_scenewalk.py` | changed | 33 | 13 | covered | test_pm_walk (10 of its 33 functions; the rest by test_pm_nodebox and test_pm_world_box) |
+| `test_sensors.py` | changed | 35 | 5 | to move | the sensors, the entity sort and the allies' turn; added 2026-11-07, it was on neither list. The sort 0x4e6140 keeps about an eighth of MW3's lines, the turn 0x4e6240 a quarter; `test_pm_lance_flag` has 0x4e5f90 alone |
 | `test_shade.py` | gone | 23 | 5 | covered | test_pm_lighting, test_pm_modeldraw |
 | `test_shadow_image.py` | changed | 29 | 16 | covered | test_pm_shadows |
 | `test_skis.py` | changed | 18 | 3 | to move, rank 12 | ground following |
@@ -266,6 +267,34 @@ The first run only needs to reach the end, and each miss becomes an item. It can
 | Mission 5's bases | No. Another mission: `PM_MFB=4700,-4200`, `PM_KILL=0,1,5`, with PM_AI=1, and the exe's flags to compare. A second run after the first. |
 
 Also left at the switch, from this file: every field of each struct the AI port owns compared once or a line why not; every break for these pieces rerun on the switch's evaluation; the three commander tests above; the 53-bit precision kept on.
+
+### The first steps, decided (2026-11-07)
+
+The lead's call: before the first run, port and test the 112 that ran, biggest risk first, at today's bar. The other 195 differing functions wait for what the run shows; the 387 less those stay listed, not ported speculatively. `test_sensors`, `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` move as their code is reached.
+
+| Group | Functions | Instructions | MW3's test to start from |
+|---|---:|---:|---|
+| Firing, 0x4b8ce0..0x4bd920, all under the step 0x4bb700 from 0x4fb3d0 | 46 | 5,039 | `test_ai_aim`, `test_ai_plan`, `test_ai_firing` |
+| The brain and the tick, 0x4f5030..0x4fc1c0 | 19 | 1,055 | `test_ai_brain` |
+| The states, 0x4d4010..0x4dfe90 | 26 | 1,518 | by state |
+| Nets, 0x4c6ab0..0x4cb730 | 13 | 873 | |
+| Targets, 0x4e2f50..0x4ea5f0 | 8 | 620 | `test_sensors` near it |
+
+Firing is first and more than half. It isn't MW3's changed: PM's step keeps about a fifth of MW3's 0x4b5b80's lines and 0x4bd920, 412 instructions, fires nothing MW3 has a twin for. Its parts, bottom-up: the aim (0x4badc0, 0x4bb040, 0x4bb290, 0x4bb580, 0x4b9f00), the plan's pick (0x4bc2e0, with 0x4bbfa0, 0x4bbe30, 0x4ba030, 0x4ba190, 0x4ba340 and their helpers), the shot (0x4bcd40, with 0x4bd920, 0x4bcad0, 0x4b8f80, 0x4bc930), then the step and the plan's virtuals (0x4ba9e0, 0x4baae0).
+
+## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
+
+What it's for: PM's places and states once a second, to compare by event against the port, and the jump's +0x588 and fuel. The smallest thing that does it is a logging form of `tools/weapon-patch/proxy`.
+
+- **Where:** a copy of PM in its own folder, with `IFORCE2.dll` renamed and the stand-in in its place, as `install.cmd` does. PM imports IFORCE2 as MW3 does. The disc's exe stays untouched, and deleting the folder undoes it.
+- **Which exe:** by sha256, the trace's no-CD b28ecb70 alone, anything else left alone with a line in its log, as the proxy refuses unknown exes.
+- **The hook:** the brain's tick has two callers, 0x4f8f4b and the thunk at 0x4fab7b, both `call 0x4fab90`. Change those two rel32s in memory to a wrapper that calls the tick and then logs. Nothing in the tick moves, no entry bytes are copied, and the two writes are the only change. `0x4fab90` is thiscall; the wrapper keeps ECX and the stack and returns EAX untouched. It must save the x87 state too, as the trace's first version showed (floor(NaN) after a tracer that didn't).
+- **What it logs:** one line per brain, per mission second of [0x62da90]: the clock, the brain, its mech, the place, the heading if it's cheap, the state (+0x59c), the fuel and +0x588, the health, the brain's current state and order, the target. Read straight from memory, with no calls into the game, under `__try`, so a bad pointer turns the logger off rather than the game. The place has to come from the mech's node; the exe's 0x5cb260 may rebuild a matrix, so it isn't safe to call. Which fields hold the heading, state and order is to be read from the map first.
+- **The file:** a text file in the copy's folder, written through a buffer of its own and flushed each second, so a crash loses at most a second. A size cap stops it.
+- **What it can't do:** anything about the random numbers. The two sides' `rand` differ, so the compare is by event (who fought whom, when the first shot, who died, where).
+- **Checks on the Mac:** `test_proxy.py`'s way: the built DLL in the emulator with the exe's pages really protected, DllMain run, the two rel32s checked, the exe's tick run through the wrapper with registers, flags and x87 compared to a run without it, breaks of the source, refusal of another exe.
+
+Left to work out before building: the fields above, and whether 0x4fab90 runs for every AI mech in a mission at a rate that's fine for this (`port_hits` 621,773 over the port's runs says the wrapper must be cheap between seconds: one float compare per mech).
 
 ## The cloud's death band
 
