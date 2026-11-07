@@ -614,6 +614,7 @@ if(MW3_BUILD_PM)
   )
   add_library(pmcore ALIAS mw3core)
   add_executable(mw3pmtests
+    tests/pm/test_pm_lobby.cpp
     tests/main.cpp
     tests/pm/test_pm_game.cpp
     tests/pm/test_pm_collide_rate.cpp

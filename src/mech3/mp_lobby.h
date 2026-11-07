@@ -83,6 +83,8 @@ class ChatLog : public ztwod::TextBox {
 };
 
 // The screen (vtable 0x005c6aa0), 0x1505c bytes.
+void lobby_store_ready(Store& st);  // Pirate's Moon: 0x0049eb20's start, the fill and the mechs out
+
 class LobbyScreen : public MenuScreen {
  public:
   LobbyScreen(Engine& e, Handle state);  // 0x00495f90

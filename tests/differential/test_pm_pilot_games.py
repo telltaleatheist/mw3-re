@@ -83,9 +83,6 @@ FIELDS = [(g, o, 4) for g in range(5) for o in (0x24, 0x30, 0x34, 0x2c)] + \
     [(4, 0x3c, 1), (4, 0x3d, 1), (4, 0x3e, 1), (4, 0x3f, 1), (4, 0x40, 4), (0, 0x38, 4)]
 SETUP = [0x605820 + 4 * i for i in range(5)] + [0x605838 + 4 * i for i in range(6)] + \
     [0x605858 + 4 * i for i in range(6)] + [0x605874, 0x605878, 0x60587c]
-# Damaged-file runs whose rewritten file differs after a cut inside a stored campaign. The calls and dumps agree
-# in two of them; the cause isn't found. pm-tests.md.
-KNOWN = {126, 158, 247}
 # MW3's offset -> PM's, by game (0x40cbb0, 0x4361c0, 0x4356f0).
 MAP = {1: {0xa8: 0xa4, 0xac: 0xa8, 0xb0: 0xac, 0xb4: 0xb0, 0xb8: 0xb4, 0xbc: 0xb8, 0xc0: 0xbc, 0xc4: 0xc0},
        2: {**{o: o + 0x5c for o in range(0x4c, 0x7c + 1, 4)}, 0x170: 0x1cc, 0x174: 0x1d0, 0x178: 0x1d4},
@@ -214,10 +211,9 @@ class Files:
 
     def malloc(self, c):
         n = c.arg(0)
-        if n > 0x10000:  # a string's length damaged: the exe clears it whole and faults, the port stops (FIX (bug))
+        if n > 0xf00000:  # a string's length damaged past what this heap holds: the exe clears it whole
             self.too_long = True
-            raise_at = self.alloc(4)
-            return raise_at
+            return self.alloc(4)
         return self.alloc(n)
 
     def pm_import(self, slot, fn, pop):
@@ -1113,15 +1109,19 @@ def damage_plan(r, fs):
         if n.lower().startswith('pilots/') and n.count('/') == 1 and r.random() < 0.7:
             lines += damage(r, n.replace('/', '\\'), data)
     lines += ['L', 'E']
+    taken = set()
     for _ in range(r.randrange(0, 6)):
         ps = [n.rsplit('/', 1)[1][:-4] for n, _ in fs.snapshot() if n.count('/') == 1 and n.lower().endswith('.mw3')]
         if not ps:
             break
         n = r.choice(ps)
         # A rename, to a name nothing uses: onto a taken one Windows and a Mac folder part ways, a FIX (bug) with the switch on.
-        free = [x for x in NAMES if x.lower() not in {q.lower() for q in ps}] or ['Fresh']
-        lines += r.choice([[f'W {hx(n)}'], [f'S {hx(n)} 1'], mutate(r, n), [f'R {hx(n)} {hx(r.choice(free))}']])
-        ps.append(free[0])
+        free = [x for x in NAMES if x.lower() not in {q.lower() for q in ps} | taken] or ['Fresh']
+        to = r.choice(free)
+        step = r.choice([[f'W {hx(n)}'], [f'S {hx(n)} 1'], mutate(r, n), [f'R {hx(n)} {hx(to)}']])
+        if step[0][0] == 'R':
+            taken.add(to.lower())
+        lines += step
     lines += ['E', 'Z', 'E']
     return lines
 
@@ -1207,18 +1207,14 @@ def main():
     runs = int(args[0]) if args else 150
     first = int(args[1]) if len(args) > 1 else 0
     verbose = '--verbose' in sys.argv
-    passed = calls = files = size = known = 0
+    passed = calls = files = size = 0
     for seed in range(first, first + runs):
         ok, c, f, s = run_case(seed, verbose)
-        if not ok and seed in KNOWN:
-            print(f'pilot seed {seed}: known, cause not found (pm-tests.md)')
-            known += 1
-            ok = True
         passed += ok
         calls += c
         files += f
         size += s
-    print(f'pilot: {passed - known}/{runs} runs identical, {known} known ({calls} calls, {files} files, {size} bytes compared)')
+    print(f'pilot: {passed}/{runs} runs identical ({calls} calls, {files} files, {size} bytes compared)')
     pm_floors.floors(runs=(runs, 10), calls=(calls, runs * 150), files=(files, runs * 5))
     return 0 if passed == runs else 1
 

@@ -259,10 +259,6 @@ void LobbyScreen::take_pilot(Handle p, MultiplayerGame* g) {
 // and set from the game; the lists and buttons cleared; the handlers; the
 // game open again (its fourth word 1); the network's players and teams.
 void LobbyScreen::enter() {
-  // Pirate's Moon fills the game's store in the lobby (0x0049eb20, with a tonnage limit on the mech, not
-  // ported), not in its constructor: here, before anything uses it. docs/pm-tests.md.
-  if (Pilot* p = current_pilot())
-    if (MultiplayerGame* m = p->multiplayer(); m && !m->store.full) pilot_hooks().store_fill(m->store, kMultiplayer);
   Engine& e = engine();
   if (!game) return;
   const uint32_t me = znet::local_id();
@@ -865,8 +861,23 @@ void LobbyScreen::lock() {
   if (znet::is_host()) keep_rules(true);
 }
 
-// Mech3.exe 1.2 @ 0x0049b360 (0x0049b1c0, 0x0049b2d0): the store's mechs
-// out, then each within WEIGHT_LIST's tons in (marked); a slot mech over
+// Pirate's Moon 1.0 @ 0x0049eb20: the game's store filled here, not in its constructor, and refilled
+// at each lock (0x004732b0), then its mechs out (0x0049e950).
+void lobby_store_ready(Store& st) {
+  pilot_hooks().store_fill(st, kMultiplayer);
+  for (auto it = st.items.begin(); it != st.items.end();) {
+    if ((*it)->kind() == 0) {
+      delete *it;
+      it = st.items.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0049b360 (0x0049b1c0, 0x0049b2d0), Pirate's Moon 1.0 @ 0x0049eb20: the store ready,
+// then each mech within WEIGHT_LIST's tons in (marked). PM's gate on a world item
+// (0x0049ea90, 0x0049eb10 [0x0062cc38]) isn't ported: multiplayer's list, pm-tests.md; a slot mech over
 // the limit (or none) becomes the heaviest within it with its first stock
 // loadout; one within keeps its loadout, given the first stock one when it
 // has none, or with STOCK on when it is not one of the mech's stock
@@ -878,14 +889,7 @@ void LobbyScreen::lock_mech() {
   const float tons = static_cast<float>(weight_list.selected_value());
   const bool stock = stock_box.checked != 0;
   Store& st = game->store;
-  for (auto it = st.items.begin(); it != st.items.end();) {
-    if ((*it)->kind() == 0) {
-      delete *it;
-      it = st.items.erase(it);
-    } else {
-      ++it;
-    }
-  }
+  lobby_store_ready(st);
   int32_t best = -1;
   float best_mass = 0;
   for (int32_t m = 0; m < kMechCount; ++m) {  // Pirate's Moon 0x0049ea10: the Elemental too (0x004d5020 is always 0)

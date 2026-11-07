@@ -624,9 +624,20 @@ void CampaignGame::load() {
   for (; k != 0 && !std::feof(f); --k) {  // 0x00597280
     int32_t len = 0;
     rd(f, &len, 4);
-    if (len < 0 || len > 0x10000) break;  // FIX (bug): a damaged length; the exe mallocs it whole
-    std::string t(static_cast<size_t>(len), '\0');
-    if (len) rd(f, t.data(), static_cast<size_t>(len));
+    if (len < -1) break;  // FIX (bug): a damaged length; the exe clears 4 GB and faults
+    // -1 mallocs nothing and reads nothing: empty. FIX (bug): no more is taken than the file has, as the
+    // exe reads, without its allocation of the whole damaged length.
+    std::string t;
+    if (len > 0) {  // only here: the seek clears a short read's end of file
+      const long at = std::ftell(f);
+      std::fseek(f, 0, SEEK_END);
+      const long left = std::ftell(f) - at;
+      std::fseek(f, at, SEEK_SET);
+      t.resize(static_cast<size_t>(len < left ? len : left));
+      if (!t.empty()) rd(f, t.data(), t.size());
+      if (len > left) std::fgetc(f);  // at the end, as the exe's short read leaves it
+    }
+    t.resize(std::strlen(t.c_str()));  // a CString in the exe: to the first zero
     strings.push_back(std::move(t));
   }
   merge_salvage();
