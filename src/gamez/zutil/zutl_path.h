@@ -15,6 +15,22 @@
 // that exists is used as it is (tools and tests pass those).
 namespace zutl {
 
+// Names on Windows (docs/program.md, Names on Windows; zutl_winnames.cpp).
+// Whether the narrow calls take UTF-8: not before Windows 10 1903, which ignores
+// the manifest; a name in plain ASCII works either way. A path from mw3.cfg or
+// the data folder's pointer, which an earlier build may have left in the
+// system's code page, as UTF-8. Files of `write_dir` an earlier build named
+// wrongly, put right.
+#if defined(_WIN32)
+bool narrow_paths_utf8();
+std::string path_from_config(const std::string& s);
+void repair_old_names(const std::string& write_dir);
+#else
+inline bool narrow_paths_utf8() { return true; }
+inline std::string path_from_config(const std::string& s) { return s; }
+inline void repair_old_names(const std::string&) {}
+#endif
+
 struct Mounts {
   std::vector<std::string> read;   // searched in order
   std::string write;               // where the game writes (configs\, saves); "" = the first read mount

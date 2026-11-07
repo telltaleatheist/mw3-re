@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <string>
 
+#include "gamez/zutil/zutl_path.h"
 #include "mech3/data_folder.h"
 
 namespace sdlfe {
@@ -20,6 +21,26 @@ inline std::string usual_folder(const char* game = "MechWarrior 3") {
   return dir;
 }
 
+// Windows before 10 1903: a folder of the program's or the data with letters
+// outside ASCII fails in odd ways, so it is said at the start (docs/program.md,
+// Names on Windows).
+inline bool names_usable(const std::string& data, bool ask) {
+  if (zutl::narrow_paths_utf8()) return true;
+  const char* base = SDL_GetBasePath();
+  const std::string program = base ? base : "";
+  auto plain = [](const std::string& s) {
+    for (const char c : s)
+      if (static_cast<unsigned char>(c) >= 0x80) return false;
+    return true;
+  };
+  if (plain(program) && plain(data)) return true;
+  const std::string text = "This version of Windows cannot use a folder whose name has letters outside plain English "
+                           "(it needs Windows 10 version 1903 or later):\n\n" + (plain(program) ? data : program);
+  std::fprintf(stderr, "mw3: %s\n", text.c_str());
+  if (ask) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", text.c_str(), nullptr);
+  return false;
+}
+
 // `dir` set to the folder to use. A pointer's folder that cannot be used is said
 // and asked about again (a drive to connect), and never replaced by a fresh
 // folder: false when the player quits, or at once when `ask` is false.
@@ -28,7 +49,10 @@ inline bool data_folder_at_start(std::string* dir, bool ask, bool* pointer = nul
   for (;;) {
     const mech3::data_folder::Resolved r = mech3::data_folder::resolve(usual);
     if (pointer) *pointer = r.pointer;
-    if (r.error.empty()) return *dir = r.dir, true;
+    if (r.error.empty()) {
+      *dir = r.dir;
+      return names_usable(r.dir, ask);
+    }
     std::fprintf(stderr, "mw3: %s\n", r.error.c_str());
     if (!ask) return false;
     const SDL_MessageBoxButtonData buttons[] = {{SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Try again"},

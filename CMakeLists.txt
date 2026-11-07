@@ -57,6 +57,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
+  src/gamez/zutil/zutl_winnames.cpp
   src/gamez/zutil/zutl_reg.cpp
   src/platform/reg_file.cpp
   src/platform/cue_audio.cpp
@@ -555,6 +556,9 @@ add_executable(mw3tests
   tests/test_hooks.cpp
   tests/place_survey.cpp
 )
+if(WIN32)
+  target_sources(mw3tests PRIVATE tools/windows/utf8.manifest)
+endif()
 target_link_libraries(mw3tests PRIVATE mw3core)
 # Tests that read the player's install skip themselves when it is not there.
 target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
@@ -672,6 +676,7 @@ if(SDL3_FOUND)
       set(MW3_RC_ICON "ICON_MAIN ICON \"${CMAKE_SOURCE_DIR}/tools/windows/mw3.ico\"")
       configure_file(tools/windows/version.rc.in ${CMAKE_BINARY_DIR}/mw3.rc)
       target_sources(mw3 PRIVATE ${CMAKE_BINARY_DIR}/mw3.rc)
+      target_sources(mw3 PRIVATE tools/windows/utf8.manifest)
     endif()
     # A package build is a Windows GUI program: no console window beside the
     # game, its output in the write dir's mw3.log (mw3_main.cpp); `main` stays
@@ -710,6 +715,7 @@ if(SDL3_FOUND)
       set(MW3_RC_ICON "ICON_MAIN ICON \"${CMAKE_SOURCE_DIR}/tools/windows/mw3.ico\"")
       configure_file(tools/windows/version.rc.in ${CMAKE_BINARY_DIR}/mw3launcher.rc)
       target_sources(mw3launcher PRIVATE ${CMAKE_BINARY_DIR}/mw3launcher.rc)
+      target_sources(mw3launcher PRIVATE tools/windows/utf8.manifest)
       # No console, in every build: it is only ever a window (its log is
       # mw3launcher.log in the write dir).
       if(MSVC)
@@ -783,6 +789,9 @@ if(SDL3_FOUND)
   endif()
   if(MW3_FFMPEG)
     add_executable(mw3import tools/import/mw3import.cpp)
+    if(WIN32)
+      target_sources(mw3import PRIVATE tools/windows/utf8.manifest)
+    endif()
     target_link_libraries(mw3import PRIVATE mw3core ${MW3_FFMPEG} SDL3::SDL3)
     # FFmpeg's headers by -I, not -isystem: a stray FFmpeg in /usr/local/include
     # (another major version) otherwise wins over them and the structs disagree.

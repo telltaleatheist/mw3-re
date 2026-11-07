@@ -85,10 +85,28 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
   them. Logs stay behind: they are in use, and each start makes new ones.
   Anything in the folder it cannot read stops the move before the switch.
   The top level's `.DS_Store`, `Thumbs.db` and `desktop.ini` count as not data,
-  neither copied nor removed. On Windows a destination's name must be plain ASCII for
-  now: the dialog gives UTF-8, and `fs::path` reads narrow strings in the ANSI code page
-  (installs have the same limit).
+  neither copied nor removed. Before Windows 10 1903 a destination's name must be
+  plain ASCII (below, Names on Windows).
   `MW3_USUAL_FOLDER`, `MW3_LAUNCHER_MOVE_TO`, `MW3_LAUNCHER_MOVE_OLD`: for checks.
+- **Names on Windows** (2026-11-06, a player's request to install anywhere):
+  the code keeps names in UTF-8, as SDL gives them, and `fs::path`, `fopen` and
+  the C runtime's `argv` read narrow strings in the ANSI code page. So every
+  program carries `tools/windows/utf8.manifest` (`mw3`, `mw3launcher`,
+  `mw3import`, `mw3indeo`, `mw3tests`), which makes UTF-8 that page.
+  - Before Windows 10 1903 the setting is ignored. A program or data folder with
+    letters outside ASCII is then said at the start (`names_usable`), a picked one
+    in the launcher's status line, and MY DATA FOLDER refuses it as it did.
+    `MW3_OLD_WINDOWS` for checks.
+  - What earlier builds left: a path in mw3.cfg or the pointer may be in the
+    system's code page (the finder's registry reads, `.string()`), and is read as
+    that when it is not valid UTF-8 (`path_from_config`). A name made from a
+    game path was UTF-8 passed to a call reading the system's page, so a pilot
+    José's file is `JosÃ©.mw3` on disk; `repair_old_names` renames those in
+    pilots, configs, keys, export and import, never over a file.
+  - Unaffected: game text and game paths are Windows-1252 inside and converted by
+    `zutl` (no system code page involved); drawn text goes through `utf8()` in the
+    2D host. No `CP_ACP` anywhere; the one narrow registry call, `RegGetValueA`,
+    gives UTF-8 now, which the finder wants.
 - **A crash says why** (ours, `crash_report.cpp`; not in hidden runs): a
   crash signal, a Windows exception or an uncaught exception puts a line in
   the log (`mw3: crashed: ...`, with a backtrace where the system has one) and
