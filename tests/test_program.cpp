@@ -6603,6 +6603,9 @@ ParkRun c2m1_park_run(bool bugs) {
       }
       ++frames;
       if (frames == 3) {
+        // The mission's enemies go on shooting: this is about the dock, and a player killed
+        // on it (the AI's timing varies with what ran before) ends the mission.
+        mech3::program_mech_set_invincible(player, true);
         out.bases = mech3::program_bases_alive();
         int32_t made = 0;
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
