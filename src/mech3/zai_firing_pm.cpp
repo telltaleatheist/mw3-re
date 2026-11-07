@@ -604,19 +604,33 @@ bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, 
   return true;
 }
 
-// Pirate's Moon 1.0 @ 0x004ba660, the start-up's defaults at 0x0060b688.
+namespace {
+// Pirate's Moon 1.0 @ 0x004ba660, a start-up initializer (the CRT's table, before WinMain): the defaults at
+// 0x0060b688. Nothing else writes them, so filling them once at start-up, as here, is the exe's.
+FiringPm firing_defaults() {
+  FiringPm f;
+  f.phase = 8;
+  f.time = FLT_MAX;
+  f.quick = 3.0f, f.delay = 6.0f, f.rest = 1.0f;
+  f.reach_arg = static_cast<float>(std::cos(0.3490658503988));  // 20, 30 and 45 degrees
+  f.track_arg = static_cast<float>(std::cos(0.5235987755982));
+  f.fire_arg = static_cast<float>(std::cos(0.7853981633973));
+  f.x24 = 50.0f;
+  f.too_hot = 0.9f, f.x3c = 1.5f, f.x40 = 1.0f, f.x44 = 0.3f, f.x48 = 0.2f;
+  f.x50 = 0x3e99999a;
+  f.x54 = 0.473451167345047f;
+  f.cool_for = 1.0f, f.cool_until = FLT_MAX, f.cool_below = 1.1f, f.shot_every = 0.5f;
+  return f;
+}
+const FiringPm g_firing_defaults = firing_defaults();
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004ba750's copy of the 0x6c bytes at 0x0060b688; the vehicle and brain stay.
 void FiringPm::seed() {
-  phase = 8;
-  time = FLT_MAX;
-  quick = 3.0f, delay = 6.0f, rest = 1.0f;
-  reach_arg = static_cast<float>(std::cos(0.3490658503988));  // 20, 30 and 45 degrees
-  track_arg = static_cast<float>(std::cos(0.5235987755982));
-  fire_arg = static_cast<float>(std::cos(0.7853981633973));
-  x24 = 50.0f;
-  too_hot = 0.9f, x3c = 1.5f, x40 = 1.0f, x44 = 0.3f, x48 = 0.2f;
-  x50 = 0x3e99999a;
-  x54 = 0.473451167345047f;
-  cool_for = 1.0f, cool_until = FLT_MAX, cool_below = 1.1f, shot_every = 0.5f;
+  const zgame::Handle v = vehicle;
+  Brain* b = brain;
+  *this = g_firing_defaults;
+  vehicle = v, brain = b;
 }
 
 // Pirate's Moon 1.0 @ 0x004bb700, the states as the exe's: 0, 8 start; 1 ask the range; 2 wait; 7 pick
