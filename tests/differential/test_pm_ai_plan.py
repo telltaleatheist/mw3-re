@@ -1,6 +1,6 @@
 """PM's firing, the rest against the exe at 53 bits, exact: the plan's virtuals 0x4baae0 (turn), 0x4ba9e0 (cone),
 0x4ba0d0 (place), 0x4baac0 (sight), the weapon checks 0x4b9de0 with 0x4b9d80, 0x4b8f80, 0x4bd1c0, and the line 0x4b9f00
-with the start-up's table 0x4b9e40. The vehicle, weapons and manager are made up behind their fields and virtuals;
+with the start-up's table 0x4b9e40, the table compared bit for bit. The vehicle, weapons and manager are made up behind their fields and virtuals;
 0x4b7800, 0x4b76d0, 0x41df20, 0x4e5d00, 0x4ff250, 0x5cb260, 0x5cb2b0, 0x4ff3c0, 0x4a7000 and rand stand in, logged. Case by
 case the calls and the answer must match the port's (mech3/zai_firing_pm, tests/probe_pm_ai_aim.cpp).
 
@@ -212,13 +212,20 @@ def main():
     p = test_pm_zar.load_pm_probe()
     P = ctypes.c_void_p
     p.probe_pm_ai_plan.argtypes = [P, P, P, P, ctypes.c_int]
+    p.probe_pm_cone_table.argtypes = [P]
     rng = random.Random(1)
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 16000
     emu = Exe()
-    emu.z.cpu._uc.mem_write(0x62f8c8, bytes(0x24))
-    fl = lambda a, v: emu.uc.mem_write(a, struct.pack('<f', v))  # noqa: E731
-    base, top = rf(30 / math.hypot(10, 30)), rf(200 / math.hypot(10, 200))
-    fl(0x62f8d0, 30.0), fl(0x62f8d8, 170.0), fl(0x62f8dc, rf(1 / 170)), fl(0x62f8e0, base), fl(0x62f8e4, top), fl(0x62f8e8, rf(top - base))  # 0x4b9e40's, its _hypot not emulated
+    # The start-up's own 0x4b9ed0 builds the table; _hypot lives in the C library, here its sqrt(x*x + y*y) on the x87.
+    hypot = emu.z.cpu.code(bytes.fromhex('dd442404 d8c8 dd44240c d8c8 dec1 d9fa c3'.replace(' ', '')))
+    emu.w(0x5de5b8, hypot)
+    emu.z.call(0x4b9ed0)
+    table = (ctypes.c_float * 2)()
+    p.probe_pm_cone_table(table)
+    exe_table = [emu.z.r32(0x62f8e0), emu.z.r32(0x62f8e8)]
+    if exe_table != [fb(table[0]), fb(table[1])]:
+        print(f'the cone table: exe {[hex(x) for x in exe_table]}, port {[hex(fb(x)) for x in table]}')
+        return 1
     out = (ctypes.c_uint32 * 200)()
     st = collections.Counter()
     for k in range(n):

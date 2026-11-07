@@ -216,6 +216,7 @@ class PlanPmHooks {
 PlanPmHooks& plan_pm_hooks();
 void set_plan_pm_hooks(PlanPmHooks* h);
 
+void cone_table(float out[2]);               // the start-up's +0x18, +0x20, for the test
 bool in_line(Contact& target, Contact& c);   // 0x004b9f00: `c` in the cone round the target
 bool plan_turn(PlanPm& p, Contact* c, bool grouped, float cone);        // 0x004baae0
 bool plan_cone(const PlanPm& p, Contact* c, zgame::Handle wm, bool grouped, zgame::Handle g, float cone);  // 0x004ba9e0

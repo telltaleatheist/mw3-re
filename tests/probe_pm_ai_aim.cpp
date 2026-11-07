@@ -456,3 +456,5 @@ extern "C" int32_t probe_pm_ai_plan(const int32_t* in, const int32_t* rands, con
   std::memcpy(out, l.data(), 4 * l.size());
   return m;
 }
+
+extern "C" void probe_pm_cone_table(float* out) { cone_table(out); }

@@ -765,10 +765,12 @@ constexpr float kConeNear = 30.0f, kConeSpan = 170.0f;  // +0x08, +0x10
 constexpr float kRandMiddle = 16383.5f, kRandScale = 6.103701889514923e-05f;  // 0x00605ee4, 0x00605ee0
 // +0x18, the cosine at 30 m, and +0x20, how far it rises by 200 (a line 10 m wide at each).
 const float kConeBase = static_cast<float>(30.0 / std::hypot(10.0, 30.0));
-const float kConeRise = static_cast<float>(double{static_cast<float>(200.0 / std::hypot(10.0, 200.0))} - kConeBase);
+const float kConeRise = static_cast<float>(200.0 / std::hypot(10.0, 200.0) - kConeBase);  // the top unrounded, as the exe's
 const float kConeInverse = static_cast<float>(1.0 / 170.0);  // +0x14
 
 }  // namespace
+
+void cone_table(float out[2]) { out[0] = kConeBase, out[1] = kConeRise; }
 
 // Pirate's Moon 1.0 @ 0x004b9f00
 bool in_line(Contact& target, Contact& c) {

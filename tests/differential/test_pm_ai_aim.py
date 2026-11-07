@@ -50,8 +50,7 @@ class Exe:
         self.mem_vec = z.alloc(16)
         rand = self.ret(self.rand)
         w(RAND, rand)
-        self.uc.mem_write(SCALE, struct.pack('<f', 0.02))
-        self.uc.mem_write(0x60b700, struct.pack('<d', 0.7853981633973))
+        z.call(0x4bad40)  # the start-up's [0x62f8ec]
         self.uc.mem_write(ZERO, bytes(12))
         self.reached = set()
         for addr in (IN_FRONT, CARRIED, ON_TARGET):
