@@ -243,6 +243,8 @@ unusual happens.
 - Rare random rolls in equipment critical hits no longer crash.
 - Clearing every shot in flight no longer writes past a firing laser's
   memory (the original treated beams as missiles there).
+- Ending a mission with a laser still firing no longer crashes the game when you
+  press Replay or leave (our port had missed the fix above in one place).
 - Very large polygons, long script lines and oversized weapon sound or
   damage lists no longer write past their buffers.
 - A null texture, a missing weapon group and a few malformed script commands
