@@ -299,7 +299,7 @@ TOL = 2e-4
 
 
 def close(a, b, scale=1.0):
-    return a == b or abs(a - b) <= TOL * (scale + abs(a) + abs(b))
+    return a == b or (math.isfinite(a) and math.isfinite(b) and abs(a - b) <= TOL * (scale + abs(a) + abs(b)))
 
 
 CAMERA_INTS = {0x10, 0xf8, 0x138, 0x184, 0x1e0, 0x1e4}
@@ -316,7 +316,7 @@ def compare(what, want, got):
             if a[1:3] != b[1:3] or a[4:] != b[4:]:
                 return (f'{what}: draw {k}: original node {a[1]} mask {a[2]:#x} state {a[4:]}, '
                         f'port node {b[1]} mask {b[2]:#x} state {b[4:]}')
-            scale = max(abs(x) for x in a[3]) + 1.0
+            scale = max((abs(x) for x in a[3] if math.isfinite(x)), default=0.0) + 1.0
             if not all(close(x, y, scale) for x, y in zip(a[3], b[3])):
                 return f'{what}: draw {k} node {a[1]}: matrix {a[3]} vs {b[3]}'
         elif a[0] == 2:

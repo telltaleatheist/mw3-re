@@ -42,7 +42,7 @@ def traces_match(name, a, b):
             if i not in NEAR[x[0]]:
                 return False
             fp, fq = S.bf(p), S.bf(q)
-            if not abs(fp - fq) <= max(1e-4, 4e-6 * abs(fp)):
+            if not (math.isfinite(fp) and math.isfinite(fq) and abs(fp - fq) <= max(1e-4, 4e-6 * abs(fp))):
                 return False
         return True
     if len(a) == len(b) and all(close(x, y) for x, y in zip(a, b)):
