@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "mech3/zai_attack_pm.h"
 #include "mech3/zai_drive_pm.h"
 #include "mech3/zainet_inout.h"
 
@@ -40,7 +41,9 @@ struct World : WalkPmHooks {
   float max_throttle() override { return most; }
   zgame::Handle target_entity(zgame::Handle) override { return 2; }
   bool has_target_contact(zgame::Handle) override { return contact; }
+  float asked[3] = {};
   bool pull(zgame::Handle, const float* a, const float* b, float* o) override {
+    asked[0] = b[0], asked[1] = b[1], asked[2] = b[2];
     if (!blocked) return false;
     const float y = b[1];
     const float x = on_from ? a[0] : (a[0] + b[0]) * 0.5f + 3.0f;
@@ -98,6 +101,14 @@ struct World : WalkPmHooks {
   zgame::Handle order_target() override { return 2; }
   const float* target_place(zgame::Handle t) override { return t == 2 ? target : place; }
   bool target_live(zgame::Handle t) override { return t == 2 && live; }
+  const float* target_facing(zgame::Handle) override { return face_on ? face : nullptr; }
+  double stopping_at(zgame::Handle, float t) override { return double{t} * k_ahead; }
+  float x94() override { return m_x94; }
+  void clear_mode() override { ++m_cleared; }
+  float k_ahead = 1, m_x94 = 0;
+  int m_cleared = 0;
+  bool face_on = false;
+  float face[3] = {};
   bool must_leave(zgame::Handle) override { return leave; }
   void set_throttle(float v) override { sent[1] = v, ++sends; }
   void set_turn(float v) override { sent[0] = v, ++sends; }
@@ -137,6 +148,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   WalkFightPm* b = nullptr;
   WalkGuardPm* g = nullptr;
   float drove[3] = {};
+  BehindPm bh;
+  bool behind = false, circling = false, guarding = false, attacking = false;
+  AttackStatePm as;
+  GuardStatePm gs;
+  CirclePm cp;
   g_deleted = 0;
   std::string o;
   std::istringstream lines(plan);
@@ -178,6 +194,35 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "U") {
       w.via_on = a[0] == "1";
       w.via.net = reinterpret_cast<const void*>(uintptr_t(0x1111)), w.via.node = reinterpret_cast<const void*>(uintptr_t(0x2222));
+    } else if (op == "a") {
+      w.reach_at = f(a[0]);
+    } else if (op == "j") {  // the target's facing
+      w.face_on = a[0] == "1", w.face[0] = f(a[1]), w.face[2] = f(a[2]);
+    } else if (op == "w") {
+      bh = BehindPm{}, behind = true;
+      bh.start(w, 1);
+    } else if (op == "x") {
+      bh.run(w, s, 1);
+    } else if (op == "Q") {  // the guarding state, its rolls and the brain's +0x44
+      w.rolls[0] = std::stoi(a[0]), w.rolls[1] = std::stoi(a[1]), w.roll = 0;
+      w.reach_at = f(a[2]);
+      gs = GuardStatePm{}, guarding = true;
+      gs.start(w, 1, 0x1234);
+    } else if (op == "e") {
+      w.rolls[0] = std::stoi(a[0]), w.rolls[1] = std::stoi(a[1]), w.roll = 0;
+    } else if (op == "g") {
+      gs.run(w, s, 1);
+    } else if (op == "I") {
+      as = AttackStatePm{}, attacking = true;
+      as.start(w, 1, 0x1234);
+    } else if (op == "y") {  // the circling state, with the brain's +0x94 and vt+0x134's constant
+      w.m_x94 = f(a[0]), w.k_ahead = f(a[1]), w.reach_at = f(a[2]);
+      cp = CirclePm{}, circling = true, w.m_cleared = 0;
+      cp.start(w, 0x1234);
+    } else if (op == "z") {
+      cp.run(w, 1);
+    } else if (op == "!") {
+      cp.change_side(w.clock);
     } else if (op == "b") {  // the follow's state made
       st = FightStatePm();
       follow_start(w, s, 1, st);
@@ -282,6 +327,24 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (g) {
         for (float v : {g->to_target[0], g->to_target[1], g->to_target[2], g->target_dist, g->from_way}) put(o, v);
       }
+      if (behind) {
+        for (float v : {bh.point[0], bh.point[1], bh.point[2], bh.turn, bh.throttle, bh.speed, bh.stop, bh.inv_stop, bh.x34, bh.x38,
+                        s.start[0], s.start[1], s.start[2], s.dir[0], s.dir[1], s.along_min, s.length, s.along_at, s.rate, s.along,
+                        s.side, w.brain_from[0], w.brain_from[1], w.brain_from[2], w.sent[0], w.sent[1]})
+          put(o, v);
+      }
+      if (guarding) {
+        for (float v : {gs.at[0], gs.at[1], gs.at[2], gs.rate, gs.far_way, gs.most, gs.reach, s.start[0], s.start[1], s.start[2], s.dir[0],
+                        s.dir[1], s.along_min, s.length, s.along_at, s.rate, s.along, s.side, w.brain_from[0], w.brain_from[1],
+                        w.brain_from[2], w.sent[0], w.sent[1]})
+          put(o, v);
+      }
+      if (attacking) {
+        for (float v : {as.stop_dist, as.range_far, as.range_near, as.range_mid, as.x1c, as.speed, as.wake, as.until}) put(o, v);
+      }
+      if (circling) {
+        for (float v : {cp.turn, cp.throttle, cp.side, w.asked[0], w.asked[1], w.asked[2], w.sent[0], w.sent[1]}) put(o, v);
+      }
       if (b) {
         put(o, w.sent[0]), put(o, w.sent[1]);
       }
@@ -294,6 +357,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                       g_deleted ? 1 : 0, w.sends, w.queued, int(w.queued_net), int(w.queued_node)})
           o += " " + std::to_string(v);
       }
+      if (behind) o += " " + std::to_string(bh.step) + " " + std::to_string(w.sends);
+      if (guarding) o += " " + std::to_string(gs.x08) + " " + std::to_string(gs.step) + " 0 " + std::to_string(w.sends);
+      if (attacking)
+        o += " " + std::to_string(as.flags) + " " + std::to_string(as.pulled | as.x2d << 8) + " 0 " + std::to_string(as.x38) + " 0 0";
+      if (circling) o += " " + std::to_string(cp.step) + " " + std::to_string(cp.x18) + " " + std::to_string(int(w.m_cleared > 0)) + " " + std::to_string(w.sends);
       o += " " + std::to_string(w.m_stops) + " " + std::to_string(static_cast<uint32_t>(w.m_over));
       o += " " + std::to_string(man.phase) + " " + std::to_string(man.target) + " " + std::to_string(w.m_pops) + " " + std::to_string(int(w.m_fought));
       o += " " + std::to_string(ms.step) + " " + std::to_string(w.taken) + " " + std::to_string(w.last_taken);

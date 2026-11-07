@@ -62,9 +62,11 @@ struct PendingPm {
 
 // Past FightStatePm's.
 struct AttackStatePm : FightStatePm {
+  int32_t x38 = 0;                 // +0x38  the first argument, kept
   const float* hold_at = nullptr;  // +0x3c
   zgame::Handle hold_net = 0;      // +0x40
   float hold[3] = {};              // +0x44
+  void start(WalkPmHooks& h, zgame::Handle vehicle, int32_t arg);  // 0x004decb0
   void step(AttackPmHooks& h, AttackBrainPm& b);  // 0x004dedf0
   void find_hold(AttackPmHooks& h);
 };
