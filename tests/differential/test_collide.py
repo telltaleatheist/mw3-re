@@ -15,13 +15,14 @@ floors, ceilings, other mechs' and vehicles' nodes, touchable objects, at
 the probes the sweep picked. Everything outside the mech code is a logging
 stub on both sides. Each trial is one Collide (or probe setup); the mech's
 fields, the probes, the other mechs and vehicles it shoved, the skis and
-every call out must match bit for bit at 24-bit precision.
+every call out must match bit for bit at 24-bit precision, then again at 53.
 """
 import ctypes
 import math
 import os
 import random
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -565,3 +566,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # And at the reference runtime's 53 bits (CLAUDE.md, FPU precision): zgeo::X, as the exe's stores.
+    if os.environ['MW3_X87'] == '24':
+        env = dict(os.environ, MW3_X87='53', MW3_FPU53='1')
+        sys.exit(subprocess.call([sys.executable, __file__, *sys.argv[1:]], env=env))

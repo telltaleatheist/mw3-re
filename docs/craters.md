@@ -527,3 +527,6 @@ difference, a back-to-back pair of triangles the exe doesn't make (0.32% of that
 differences, 2 clips the exe refuses going through, so that reading or something after it isn't right yet.
 MW3's `test_crater.py` at 53 has a point or two more or less about once a world in 40 craters. The rest is last-bit rounding,
 which stays small (`MW3_X87=53 MW3_FPU53=1` runs the per-function tests there and shows it).
+
+MW3's UV steps at 53 bits were tried and left as floats (lead, 2026-11-06): `test_gmod_add`
+differs on 9 cases as floats, 11 with the flatten at 53, 21 with the snap, 31 with the gradient.

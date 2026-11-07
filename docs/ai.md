@@ -3750,10 +3750,11 @@ FIX (bug): a valve message two or more levels up on a def without a node
 would read the parent count of nothing (no shipped def has one); the port
 binds nothing.
 
-What it does in play, on c1m1: the dropship ramp's animation call_ramp
+What it does in play, on c1m1: the animation call_ramp
 (on call, node bramp; called by the mission's start animation
-start_single_player_m1) sends 0x2b in its effect sequence, which turns on the
-valve `bramp`; c1m1's valves.zrd then powers the Owens owens_01 up
+start_single_player_m1) sends 0x2b at the start of its effect sequence, then
+calls hit_ramp 20 s later, so the valve comes before the ramp is hit. The 0x2b
+turns on the valve `bramp`; c1m1's valves.zrd then powers the Owens owens_01 up
 (`shutdown` with 0), sends the trucks after 18 s and plays the fourth
 dialogue after 22 s. Before the binder the Owens stayed down. Most
 buildings' and bridges' destroy animations turn on the valve of their own

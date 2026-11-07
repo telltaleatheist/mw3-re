@@ -93,6 +93,7 @@ change.
 | A turret's setup, 0x004a6270 (vehicles.md, The turrets) | A WEAPON whose NAME finds no weapon (or is empty) and that has no DETECTION_RANGE takes the range from the definition unchecked | (bug) reads through null: a crash at load; no shipped turret has both (tur_ams, the one without a weapon, gives a range) | The range stays the constructor's 200 (`test_turret.py` runs such files on the port alone) |
 | The turrets' file, 0x004a76b0 / 0x004a6270 | List items read by position without the list's type or length (the TURRET pairs, GENERIC_DESTROY_ANIM, PARTS, DEACTIVATE, EFFECT, FIRE_LIMITS, SOUNDS) | (bug) a value that is not a list, or a list shorter than read, reads past it; no shipped file has one | Such an item reads as none |
 | The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | Takes turns by the frame count over the turrets made ([0x00609a48]), which only the constructor touches | (bug) the count runs on across missions: each later mission's turrets act once every as many frames as turrets have been made since the game started, so they fire and turn slower mission after mission | The count and the turn reset as each mission's turrets are made (0x004a76b0); behind `bugs` (`test_turret_frame.py` checks the original path, the count kept) |
+| A manager's weapons, 0x004b0400, 0x004b0460 (weapons.md, Sixteen weapons) | Writes the next of 16 slots unchecked | (bug) A 17th goes over the owner field: a mod's mech with 16 and TAG, or a network peer's config, which `validate()` doesn't count | The extra weapon is refused and named in the log; the mech fights without it |
 | A turret shut down, 0x004a7620 | Puts the effect out only when its node is not showing | (bug) the flag test is the wrong way round: an effect lit as the turret dies (a charge before a shot) stays lit; no shipped world has an effect node (tur_ppc's `lightning`), so it is never seen | Put out when showing; behind `bugs` |
 | A turret's frame, 0x004a6be0 | Reads the `healthy` node's flags unchecked | (bug) a turret without one (a definition without PARTS) reads through null: a crash; no shipped turret | Shut down as when the node is hidden |
 | A turret's aim, 0x004a71c0 | Reads the gun's matrix unchecked | (bug) a turret without a gun (PARTS of one name, or a gun node not found) reads through null: a crash; no shipped turret | It cannot aim |
@@ -515,6 +516,8 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   gives the 53-bit result (x rounded to the nearest integer); off, the
   24-bit one, which the probes keep. Checked against the original run at
   64 bits: within one colour step (the original's arithmetic is wider).
+- Mech collision, mech_collide.cpp (0x4225c0 and its responses): at the exe's own precision. The port's floats
+  matched at 24 bits only; `zgeo::X` follows the exe's x87 stores at either (movement-collision.md).
 - Fonts, SdlTwodHost::font_path: FIX (A). The installer also put the fonts in Windows' folder, so a game folder can
   lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line;
   last, or first on Linux, the package's stand-ins (`assets/fonts`: Liberation Sans, Anton, Liberation Mono), so no
