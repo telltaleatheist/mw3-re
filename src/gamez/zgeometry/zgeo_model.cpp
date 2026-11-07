@@ -1,4 +1,5 @@
 #include "gamez/zgeometry/zgeo_model.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 
 #include <cmath>
 #include <cstdarg>
@@ -179,17 +180,17 @@ zmod::Material* color_material(float r, float g, float b) {
 // Mech3.exe 1.2 @ 0x0050e020
 void gradient(const float p0[3], const float p1[3], const float p2[3], float s0, float s1, float s2,
               float out[2]) {
-  const float ax = p2[0] - p1[0], az = p2[2] - p1[2];
-  const float bx = p0[0] - p1[0], bz = p0[2] - p1[2];
-  const float det = az * bx - ax * bz;
-  const float d0 = s0 - s1, d2 = s2 - s1;
-  if (det == 0.0f) {
+  const X ax = X(p2[0]) - p1[0], az = X(p2[2]) - p1[2];
+  const X bx = X(p0[0]) - p1[0], bz = X(p0[2]) - p1[2];
+  const X det = az * bx - ax * bz;
+  const X d0 = X(s0) - s1, d2 = X(s2) - s1;
+  if (det == X(0.0f)) {
     out[0] = out[1] = 0.0f;
     return;
   }
-  const float inv = 1.0f / det;
-  out[0] = -((d2 * bz - az * d0) * inv);
-  out[1] = -((ax * d0 - d2 * bx) * inv);
+  const X inv = X(1.0f) / det;
+  out[0] = (-((d2 * bz - az * d0) * inv)).f();
+  out[1] = (-((ax * d0 - d2 * bx) * inv)).f();
 }
 
 // Mech3.exe 1.2 @ 0x0050df30. The UVs are (u, v) pairs, carried from vertex 1.
@@ -201,9 +202,9 @@ std::vector<float> uvs_at(const float* points, int32_t n, const zmod::Model& m, 
   gradient(v0, v1, v2, uv[1], uv[3], uv[5], gv);
   std::vector<float> out(2 * static_cast<size_t>(n > 0 ? n : 0));
   for (int32_t i = 0; i < n; ++i) {
-    const float dx = points[3 * i] - v1[0], dz = points[3 * i + 2] - v1[2];
-    out[2 * i] = dz * gu[1] + dx * gu[0] + uv[2];
-    out[2 * i + 1] = dz * gv[1] + dx * gv[0] + uv[3];
+    const X dx = X(points[3 * i]) - v1[0], dz = X(points[3 * i + 2]) - v1[2];
+    out[2 * i] = (dz * gu[1] + dx * gu[0] + uv[2]).f();
+    out[2 * i + 1] = (dz * gv[1] + dx * gv[0] + uv[3]).f();
   }
   return out;
 }
@@ -216,8 +217,8 @@ std::vector<float> colors_at(const float* points, int32_t n, const zmod::Model& 
   for (int k = 0; k < 3; ++k) gradient(v0, v1, v2, c[k], c[3 + k], c[6 + k], g[k]);
   std::vector<float> out(3 * static_cast<size_t>(n > 0 ? n : 0));
   for (int32_t i = 0; i < n; ++i) {
-    const float dx = points[3 * i] - v1[0], dz = points[3 * i + 2] - v1[2];
-    for (int k = 0; k < 3; ++k) out[3 * i + k] = dz * g[k][1] + dx * g[k][0] + c[3 + k];
+    const X dx = X(points[3 * i]) - v1[0], dz = X(points[3 * i + 2]) - v1[2];
+    for (int k = 0; k < 3; ++k) out[3 * i + k] = (dz * g[k][1] + dx * g[k][0] + c[3 + k]).f();
   }
   return out;
 }
@@ -232,8 +233,8 @@ std::vector<float> normals_at(const float* points, int32_t n, const zmod::Model&
   for (int k = 0; k < 3; ++k) gradient(v0, v1, v2, n0[k], n1[k], n2[k], g[k]);
   std::vector<float> out(3 * static_cast<size_t>(n > 0 ? n : 0));
   for (int32_t i = 0; i < n; ++i) {
-    const float dx = points[3 * i] - v1[0], dz = points[3 * i + 2] - v1[2];
-    for (int k = 0; k < 3; ++k) out[3 * i + k] = dz * g[k][1] + dx * g[k][0] + n1[k];
+    const X dx = X(points[3 * i]) - v1[0], dz = X(points[3 * i + 2]) - v1[2];
+    for (int k = 0; k < 3; ++k) out[3 * i + k] = (dz * g[k][1] + dx * g[k][0] + n1[k]).f();
     zmth::normalize(*reinterpret_cast<zmth::Vec3*>(&out[3 * i]));
   }
   return out;
@@ -284,20 +285,20 @@ int find_edge(const ClipPolygon& c, const float point[3]) {
   for (int32_t i = 0; i < n; ++i) {
     const float* a = &c.points[3 * i];
     const float* b = &c.points[3 * ((i + 1) % n)];
-    const float dx = b[0] - a[0], dy = b[1] - a[1];
-    float t;
-    if (std::fabs(dx) < kNear) {
-      if (std::fabs(a[0] - point[0]) > kNear) continue;
-      t = (point[1] - a[1]) / dy;
-    } else if (std::fabs(dy) < kNear) {
-      if (std::fabs(point[1] - a[1]) > kNear) continue;
-      t = (point[0] - a[0]) / dx;
+    const X dx = X(b[0]) - a[0], dy = X(b[1]) - a[1];
+    X t = 0.0f;
+    if (abs(dx) < kNear) {
+      if (abs(X(a[0]) - point[0]) > kNear) continue;
+      t = (X(point[1]) - a[1]) / dy;
+    } else if (abs(dy) < kNear) {
+      if (abs(X(point[1]) - a[1]) > kNear) continue;
+      t = (X(point[0]) - a[0]) / dx;
     } else {
-      const float tx = (point[0] - a[0]) / dx, ty = (point[1] - a[1]) / dy;
-      if (!(std::fabs(tx - ty) < kNear)) continue;
+      const X tx = (X(point[0]) - a[0]) / dx, ty = (X(point[1]) - a[1]) / dy;
+      if (!(abs(tx - ty) < kNear)) continue;
       if (!(ty > 0.0f) || !(ty < 1.0f) || !(tx > 0.0f) || !(tx < 1.0f)) continue;
-      if (std::fabs(tx * dx + a[0] - point[0]) > kNear) continue;
-      if (std::fabs(ty * dy + a[1] - point[1]) > kNear) continue;
+      if (abs(tx * dx + a[0] - point[0]) > kNear) continue;
+      if (abs(ty * dy + a[1] - point[1]) > kNear) continue;
       return i;
     }
     if (t > 0.0f && t < 1.0f) return i;

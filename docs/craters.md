@@ -512,3 +512,14 @@ crossing validations); no build refusals came up.
 7. **Reset and restore** (0x00500760, 0x00500c20) with gamez.zbd's re-read
    path; the program's wiring (zWeapon's crater hooks, the mission hooks).
    Done (parts 5c and 7).
+
+## Precision
+
+The clip's arithmetic follows the x87 at both precisions (`zgeo_x87.h`, `zfix fpu53`): the exe keeps values on the
+FPU stack between stores, so at the reference runtime's 53 bits they are doubles until stored to a float, at 24 every
+step rounds. `X` is such a value; the code has float where the exe stores one. Used in the Weiler clip's tests and
+crossings, convexify, the plane of a cut and the gradients of its UVs, colours and normals. At 24 bits every test is
+exact as before. At 53, PM's random cuts (`test_pm_crater_cut.py`) went from 95 of 1,116 differing past the tolerance
+to 14 with the clip's own arithmetic, those 14 being a UV one step of 1/256 off after the snap, and to 1 with the
+gradients. That one is a polygon with a point more, not traced. The rest is last-bit rounding, which stays small
+(`MW3_X87=53 MW3_FPU53=1` runs the per-function tests there and shows it). Real ground wasn't measured again.

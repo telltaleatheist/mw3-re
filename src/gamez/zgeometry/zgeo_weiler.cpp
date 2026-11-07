@@ -1,4 +1,5 @@
 #include "gamez/zgeometry/zgeo_weiler.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 
 #include <cmath>
 #include <cstdio>
@@ -28,7 +29,7 @@ int sign_of(float v, float w) {
 
 // Mech3.exe 1.2 @ 0x00515130
 int points_near(const float a[2], const float b[2], float eps) {
-  return std::fabs(a[0] - b[0]) <= eps && std::fabs(a[1] - b[1]) <= eps;
+  return abs(X(a[0]) - b[0]) <= eps && abs(X(a[1]) - b[1]) <= eps;
 }
 
 // Mech3.exe 1.2 @ 0x00515360
@@ -122,6 +123,7 @@ void edge_boxes(Edge* first, int32_t n) {
 
 // Mech3.exe 1.2 @ 0x005129a0
 int new_contour(Weiler& w, Edge* e) {
+  if (!e) return 0;  // FIX (bug): as merge_contours, the clip fails rather than crashes
   if (e->contour) return 1;
   Contour* c = w.contours.alloc(1);
   c->edge = e;
@@ -215,13 +217,13 @@ void side_tables(Weiler& w) {
         const float* b = a + 3;
         for (int32_t k = 0; k < np; ++k) {
           const float* q = pts + 3 * k;
-          *out++ = (q[0] - a[0]) * (b[1] - a[1]) - (q[1] - a[1]) * (b[0] - a[0]);
+          *out++ = ((X(q[0]) - a[0]) * (X(b[1]) - a[1]) - (X(q[1]) - a[1]) * (X(b[0]) - a[0])).f();
         }
       } else {
         const float* b = edges;
         for (int32_t k = 0; k < np; ++k) {
           const float* q = pts + 3 * k;
-          *out++ = (b[1] - a[1]) * (q[0] - a[0]) - (b[0] - a[0]) * (q[1] - a[1]);
+          *out++ = ((X(b[1]) - a[1]) * (X(q[0]) - a[0]) - (X(b[0]) - a[0]) * (X(q[1]) - a[1])).f();
         }
       }
       *out++ = row[0];
@@ -264,7 +266,7 @@ int weed_out(Weiler& w) {
   Edge* const p2_first = w.contours.at(3).edge;
   const float* side_poly = w.side_poly.data();
   auto far = [](const float* u, const float* v) {
-    return std::fabs(u[0] - v[0]) > kSame || std::fabs(u[1] - v[1]) > kSame;
+    return abs(X(u[0]) - v[0]) > X(kSame) || abs(X(u[1]) - v[1]) > X(kSame);
   };
   for (int32_t i = 0; i < nr; ++i, ++r, ++r2, ++side_poly) {
     const float* side_region = w.side_region.data() + i;
@@ -417,18 +419,18 @@ uint32_t crossing_type(const float a[2], const float b[2], const float c[2], con
       0, 18, 6, 2, 2, 15, 2, 2, 0, 0, 2,  2, 2,  3, 2, 2, 2, 0, 0, 2, 2, 12, 2, 2, 7, 21, 0,
       0, 19, 4, 2, 2, 16, 2, 2, 0, 2, 20, 9, 2,  2, 17, 2, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0};
   const float dx = d[0] - c[0], dy = d[1] - c[1];
-  float s1 = (a[0] - c[0]) * dy - (a[1] - c[1]) * dx;  // a and b against c d
-  float s2 = (b[0] - c[0]) * dy - (b[1] - c[1]) * dx;
+  float s1 = ((X(a[0]) - c[0]) * dy - (X(a[1]) - c[1]) * dx).f();  // a and b against c d
+  float s2 = ((X(b[0]) - c[0]) * dy - (X(b[1]) - c[1]) * dx).f();
   if ((s1 < 0.0f && s2 < 0.0f) || (s1 > 0.0f && s2 > 0.0f)) return 0;
   const float ex = b[0] - a[0], ey = b[1] - a[1];
-  float s3 = (c[0] - a[0]) * ey - (c[1] - a[1]) * ex;  // c and d against a b
-  float s4 = (d[0] - a[0]) * ey - (d[1] - a[1]) * ex;
+  float s3 = ((X(c[0]) - a[0]) * ey - (X(c[1]) - a[1]) * ex).f();  // c and d against a b
+  float s4 = ((X(d[0]) - a[0]) * ey - (X(d[1]) - a[1]) * ex).f();
   if ((s3 < 0.0f && s4 < 0.0f) || (s3 > 0.0f && s4 > 0.0f)) return 0;
   if ((s1 == 0.0f) + (s2 == 0.0f) + (s3 == 0.0f) + (s4 == 0.0f) == 2) {
     // Two ends touch: a point just inside c d from the touching end, in the
     // region or not, settles which side the touch counts on.
     const float k = s3 == 0.0f ? -9.999999747378752e-06f : -0.9999899864196777f;  // 0x005cdd60 / 64
-    const float q[2] = {c[0] - dx * k, c[1] - dy * k};
+    const float q[2] = {(X(c[0]) - X(dx) * k).f(), (X(c[1]) - X(dy) * k).f()};
     const float s = s3 == 0.0f ? s4 : s3;
     const int in = point_in_polygon(q, w.region_count, w.region.data());
     if (s > 0.0f ? in > 0 : in < 0) {
@@ -449,22 +451,22 @@ uint32_t intersect(Weiler& w, const float a[3], const float b[3], const float c[
   switch (t) {
     case 4:
     case 5: {
-      const float u = c[0] - d[0], v = c[1] - d[1];
-      const float ex = b[0] - a[0], ey = b[1] - a[1];
-      const float det = v * ex - u * ey;
-      if (det == 0.0f) {
+      const X u = X(c[0]) - d[0], v = X(c[1]) - d[1];
+      const X ex = X(b[0]) - a[0], ey = X(b[1]) - a[1];
+      const X det = v * ex - u * ey;
+      if (det == X(0.0f)) {
         *out = nullptr;
         return 0;
       }
       x = w.crossings.alloc(1);
-      const float inv = 1.0f / det;
-      const float s = (c[0] - a[0]) * (v * inv) + (c[1] - a[1]) * -(u * inv);
-      x->point[0] = ex * s + a[0];
-      const float y = ey * s + a[1];
+      const X inv = X(1.0f) / det;
+      const X s = (X(c[0]) - a[0]) * (v * inv) + (X(c[1]) - a[1]) * -(u * inv);
+      x->point[0] = (ex * s + a[0]).f();
+      const float y = (ey * s + a[1]).f();
       x->point[1] = y;
-      const float cd = c[0] - d[0];
-      if (cd != 0.0f) x->point[2] = (d[2] - c[2]) * ((c[0] - x->point[0]) / cd) + c[2];
-      else x->point[2] = (d[2] - c[2]) * ((c[1] - y) / (c[1] - d[1])) + c[2];
+      const X cd = X(c[0]) - d[0];
+      if (cd != X(0.0f)) x->point[2] = ((X(d[2]) - c[2]) * ((X(c[0]) - x->point[0]) / cd) + c[2]).f();
+      else x->point[2] = ((X(d[2]) - c[2]) * ((X(c[1]) - y) / (X(c[1]) - d[1])) + c[2]).f();
       break;
     }
     case 6:
@@ -582,7 +584,7 @@ uint32_t walk(Weiler& w) {
     return c && (c == e1->start || c == e1->end || c == e2->start || c == e2->end);
   };
   auto near = [](const float* u, const float* v) {
-    return std::fabs(u[0] - v[0]) <= kSame && std::fabs(u[1] - v[1]) <= kSame;
+    return abs(X(u[0]) - v[0]) <= X(kSame) && abs(X(u[1]) - v[1]) <= X(kSame);
   };
   do {
     Edge* const p_first = p;
@@ -875,8 +877,9 @@ int merge_contours(Weiler& w) {
   }
   for (int32_t i = 0; i < w.crossings.count; ++i) {
     Edge* const* L = w.crossings.at(i).links;
-    auto n = [&](int a, int b) { L[a]->next = L[b]; };
-    auto p = [&](int a, int b) { L[a]->prev = L[b]; };
+    // FIX (bug): a link left null by a crossing the walk didn't finish; the exe reads through it.
+    auto n = [&](int a, int b) { if (L[a]) L[a]->next = L[b]; };
+    auto p = [&](int a, int b) { if (L[a]) L[a]->prev = L[b]; };
     auto c = [&](int a) { return new_contour(w, L[a]); };
     int ok = 1;
     switch (w.crossings.at(i).type) {
@@ -1118,8 +1121,8 @@ int point_in_polygon(const float q[2], int32_t n, const float* poly) {
     if (sx == 0 && sy == 0) return 0;
     if (sx != old_sx) {
       if ((sy >= 0) != (old_sy >= 0)) {
-        const float x = (px - cx) * ((q[1] - cy) / (py - cy)) + cx;
-        const int s = sign_of(x, q[0]);
+        const X x = (X(px) - cx) * ((X(q[1]) - cy) / (X(py) - cy)) + cx;
+        const int s = x < q[0] ? -1 : x <= q[0] ? 0 : 1;
         if (s == 0) return 0;
         if (s == 1) ++crossings;
       } else if (sy == 0 && old_sy == 0) {
@@ -1141,7 +1144,7 @@ int all_inside(int32_t na, const float* a, int32_t nb, const float* b, int code)
     for (int32_t j = 0; j < nb && same; ++j) {
       same = false;
       for (int32_t i = 0; i < na; ++i)
-        if (std::fabs(a[3 * i] - b[3 * j]) <= kSame && std::fabs(a[3 * i + 1] - b[3 * j + 1]) <= kSame) {
+        if (abs(X(a[3 * i]) - b[3 * j]) <= X(kSame) && abs(X(a[3 * i + 1]) - b[3 * j + 1]) <= X(kSame)) {
           same = true;
           break;
         }
@@ -1196,8 +1199,8 @@ void bridge_point(const float q[3], const float** bridge, const Weiler& w) {
     --i;
     const float *p = last, *c = first;
     const float ex = c[0] - p[0], ey = c[1] - p[1];
-    const float s = (q[0] - p[0]) * ey - (q[1] - p[1]) * ex;
-    const float t = ((*bridge)[0] - p[0]) * ey - ((*bridge)[1] - p[1]) * ex;
+    const float s = ((X(q[0]) - p[0]) * ey - (X(q[1]) - p[1]) * ex).f();
+    const float t = ((X((*bridge)[0]) - p[0]) * ey - (X((*bridge)[1]) - p[1]) * ex).f();
     if ((s > 0.0f && t < 0.0f) || (s < 0.0f && t > 0.0f)) {
       *bridge = c[0] < q[0] ? p : c;
       i = w.region_count;
@@ -1216,12 +1219,12 @@ int output_with_hole(Weiler& w) {
   const float* rbest = region;
   for (int32_t i = 1; i < nr; ++i) {
     const float* c = region + 3 * i;
-    if (c[0] > rbest[0] || (std::fabs(c[0] - rbest[0]) < kTie && c[1] > rbest[1])) rbest = c;
+    if (c[0] > rbest[0] || (abs(X(c[0]) - rbest[0]) < X(kTie) && c[1] > rbest[1])) rbest = c;
   }
   const float* pbest = w.poly;
   for (int32_t i = 1; i < np; ++i) {
     const float* c = w.poly + 3 * i;
-    if (c[0] > pbest[0] || (std::fabs(c[0] - pbest[0]) < kTie && pbest[1] < c[1])) pbest = c;
+    if (c[0] > pbest[0] || (abs(X(c[0]) - pbest[0]) < X(kTie) && pbest[1] < c[1])) pbest = c;
   }
   bridge_point(pbest, &rbest, w);
   size_t at = out.points.size();
@@ -1244,20 +1247,20 @@ int output_with_hole(Weiler& w) {
 // Mech3.exe 1.2 @ 0x00514e40
 void plane_z(Weiler& w) {
   const float* p = w.poly;
-  const float ax = p[0] - p[3], bx = p[6] - p[3];
-  const float det = ax * (p[7] - p[4]) - (p[1] - p[4]) * bx;
-  if (det == 0.0f) return;
-  const float gx = ((p[1] - p[4]) * (p[8] - p[5]) - (p[2] - p[5]) * (p[7] - p[4])) / det;
-  const float gy = ((p[2] - p[5]) * bx - ax * (p[8] - p[5])) / det;
-  const float x0 = p[0], y0 = p[1], z0 = p[2];
+  const X ax = X(p[0]) - p[3], bx = X(p[6]) - p[3];
+  const X det = ax * (X(p[7]) - p[4]) - (X(p[1]) - p[4]) * bx;
+  if (det == X(0.0f)) return;
+  const X gx = ((X(p[1]) - p[4]) * (X(p[8]) - p[5]) - (X(p[2]) - p[5]) * (X(p[7]) - p[4])) / det;
+  const X gy = ((X(p[2]) - p[5]) * bx - ax * (X(p[8]) - p[5])) / det;
+  const X x0 = p[0], y0 = p[1], z0 = p[2];
   std::vector<float>& r = w.out->points;
   for (size_t i = 0; i + 2 < r.size(); i += 3)
-    r[i + 2] = -(r[i + 1] * gy + gx * r[i] + -(y0 * gy + gx * x0 + z0));
+    r[i + 2] = (-(X(r[i + 1]) * gy + gx * r[i] + -(y0 * gy + gx * x0 + z0))).f();
 }
 
 // Mech3.exe 1.2 @ 0x00514f80
 int within_segment(const float q[2], const float a[2], const float b[2]) {
-  if (std::fabs(a[0] - b[0]) >= 1e-05f) {
+  if (abs(X(a[0]) - b[0]) >= 1e-05f) {
     if (a[0] < b[0]) return a[0] <= q[0] && q[0] <= b[0];
     return b[0] <= q[0] && q[0] <= a[0];
   }
@@ -1267,26 +1270,26 @@ int within_segment(const float q[2], const float a[2], const float b[2]) {
 
 // Mech3.exe 1.2 @ 0x00515170
 int snap_to_segment(const float a[2], const float b[2], float p[3], float eps) {
-  const float dx = b[0] - a[0], px = p[0] - a[0];
-  const float dy = b[1] - a[1], py = p[1] - a[1];
-  if (eps <= std::fabs(dx)) {
-    if (eps <= std::fabs(dy)) {
-      const float tx = px / dx, ty = py / dy;
-      if (!(std::fabs(tx - ty) < eps) || !(0.0f < tx) || !(0.0f < ty) || !(tx < 1.0f) || !(ty < 1.0f)) return 0;
-      const float x = tx * dx + a[0];
-      if (std::fabs(x - p[0]) > eps) return 0;
-      const float y = ty * dy + a[1];
-      if (std::fabs(y - p[1]) > eps) return 0;
-      p[1] = y, p[0] = x;
+  const X dx = X(b[0]) - a[0], px = X(p[0]) - a[0];
+  const X dy = X(b[1]) - a[1], py = X(p[1]) - a[1];
+  if (X(eps) <= abs(dx)) {
+    if (X(eps) <= abs(dy)) {
+      const X tx = px / dx, ty = py / dy;
+      if (!(abs(tx - ty) < eps) || !(X(0.0f) < tx) || !(X(0.0f) < ty) || !(tx < 1.0f) || !(ty < 1.0f)) return 0;
+      const X x = tx * dx + a[0];
+      if (abs(x - p[0]) > eps) return 0;
+      const X y = ty * dy + a[1];
+      if (abs(y - p[1]) > eps) return 0;
+      p[1] = y.f(), p[0] = x.f();
       return 1;
     }
-    if (std::fabs(py) <= eps && 0.0f < px / dx && px / dx < 1.0f) {
+    if (abs(py) <= eps && X(0.0f) < px / dx && px / dx < 1.0f) {
       p[1] = a[1];
       return 1;
     }
     return 0;
   }
-  if (std::fabs(px) <= eps && 0.0f < py / dy && py / dy < 1.0f) {
+  if (abs(px) <= eps && X(0.0f) < py / dy && py / dy < 1.0f) {
     p[0] = a[0];
     return 1;
   }
