@@ -241,6 +241,18 @@ struct WiredFieldBases : FieldBaseHooks {
     const auto* pt = dynamic_cast<const WaynetPoint*>(static_cast<znet::Element*>(p));
     return pt ? pt->label_or_null() : nullptr;
   }
+  bool dock_point_static(Handle p) override {
+    const auto* pt = dynamic_cast<const WaynetPoint*>(static_cast<znet::Element*>(p));
+    return pt && pt->static_mfb != 0;
+  }
+  void entity_set_shutdown(Handle e, bool on) override {
+    if (entity_is_mech(e)) static_cast<Mech*>(e)->heat_shutdown = on;
+  }
+  void mech_power_up(Handle m) override { mech_power(m, 0); }
+  bool entity_remote(Handle) override { return false; }
+  void anim_on_end(Handle anim, Handle mech) override {  // 0x00508f00, with 0x0045a0f0 or 0x0045bc30
+    zeff::anim_set_callback(static_cast<zeff::AnimDef*>(anim), [](zeff::AnimDef* a, void* m, int32_t stopped) { field_bases_station_done(a, m, stopped); }, mech);
+  }
   const float* dock_point_position(Handle p) override {
     ai::Behaviour* b = static_cast<ai::AiElem*>(static_cast<znet::Element*>(p))->as_behaviour();
     return b ? b->position() : nullptr;

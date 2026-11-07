@@ -14,6 +14,8 @@
 #endif
 
 #include "check.h"
+#include "mech3/app_hud.h"
+#include "mech3/app_vehicle.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/player.h"
 #include "gamez/zgame/zgame_table.h"
@@ -219,6 +221,9 @@ bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
 int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
+void pm_kill_hurt(void* mech);
+float pm_kill_leg_armor(void* mech);
+void pm_kill_ground_line(float x0, float z0, float x1, float z1);
 void pm_kill_weapons(void* mech);
 void pm_kill_scales(void* mech);
 // Pirate's Moon 1.0 @ 0x004a4490, 0x004a4440: the box window opens before the player's update and the walk and closes after both.
@@ -256,6 +261,8 @@ TEST(pm_player_tick_box_window) {
   mech3::set_player_hooks(&was);
   EXPECT(o.calls == "c(pw)dv");
 }
+
+static bool g_refit_point = false, g_refit_done = false;
 
 static void kill_run(const char* which, bool quick) {
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
@@ -345,6 +352,83 @@ static void kill_run(const char* which, bool quick) {
     mech3::entities_box_counts(&during, &left_on, &fields, &stealth);
     box_field = std::max(box_field, fields), box_stealth = std::max(box_stealth, stealth);
     box_during = std::max(box_during, during), box_left = std::max(box_left, left_on);
+    if (const char* mfb = std::getenv("PM_MFB")) {  // x,z: the player there, the MFB command twice, each base's way to its point
+      static int t = 0, order_at = 0;
+      static float dock[3] = {};
+      float x = 0, z = 0;
+      std::sscanf(mfb, "%f,%f", &x, &z);
+      ++t;
+      if (t == 2) {
+        const float at[3] = {x, pm_kill_ground(x, 300.0f, z), z};
+        mech3::move_mech(player, at, 0.0f);
+      }
+      if ((t == 30 || t == 31) && !std::getenv("PM_MFB_NO_CALL")) mech3::program_mcb_command(player);
+      if (t == 32) {
+        const char* name = nullptr;
+        const bool sent = mech3::program_dock_point(&name, dock);
+        std::printf("  mfb: sent %d to %s at %.1f %.1f %.1f, %d bases\n", sent ? 1 : 0, name ? name : "-", dock[0], dock[1], dock[2], mech3::program_field_bases_count());
+        order_at = t;
+        g_refit_point = name && std::strstr(name, "starbase") != nullptr;
+      }
+      static float base0[3][2], health0 = 0;
+      static int down_at = 0, drive_off = 0;
+      if (std::getenv("PM_MFB_NO_CALL")) {  // the control: where the mission takes the bases by itself
+        if (t == 33 || t % 300 == 0) {
+          std::printf("  alone %4d s:", t / 60);
+          for (int i = 0; i < 3; ++i) {
+            mech3::VehicleSummary v;
+            if (mech3::describe_vehicle(mech3::program_field_base(i), &v)) std::printf(" [%.0f %.0f]", v.pos[0], v.pos[2]);
+          }
+          std::printf("\n");
+        }
+        if (t > 1300) done = true;
+        return;
+      }
+      if (t == 33 && !g_refit_point) {  // an ordinary point: the log alone
+        order_at = t;
+      } else if (t == 33) {
+        for (int i = 0; i < 3; ++i) {
+          mech3::VehicleSummary v;
+          if (mech3::describe_vehicle(mech3::program_field_base(i), &v)) base0[i][0] = v.pos[0], base0[i][1] = v.pos[2];
+        }
+        pm_kill_hurt(player);
+        health0 = pm_kill_leg_armor(player);
+        mech3::move_mech(player, dock, 0.0f);
+      }
+      if (g_refit_point && t == 60) mech3::mech_power(player, 1), down_at = t;
+      if (g_refit_point && t > 60 && !drive_off && !mech3::program_dock_contact()) drive_off = t;
+      if (drive_off) {
+        float moved = 0;
+        for (int i = 0; i < 3; ++i) {
+          mech3::VehicleSummary v;
+          if (mech3::describe_vehicle(mech3::program_field_base(i), &v)) moved = std::max(moved, std::hypot(v.pos[0] - base0[i][0], v.pos[1 + 1] - base0[i][1]));
+        }
+        std::printf("  refit over at frame %d, %d after power down: leg structure %.3f to %.3f, bases moved %.1f m\n", t, t - down_at, health0, pm_kill_leg_armor(player), moved);
+        EXPECT(pm_kill_leg_armor(player) > health0);
+        EXPECT(moved < 1.0f);
+        g_refit_done = true;
+        done = true;
+        return;
+      }
+      if (order_at && (t - order_at) % 300 == 0) {
+        std::printf("  mfb %5d s:", (t - order_at) / 60);
+        for (int i = 0; i < 3; ++i) {
+          void* b = mech3::program_field_base(i);
+          mech3::VehicleSummary v;
+          if (b && mech3::describe_vehicle(b, &v))
+            std::printf(" [%.0f %.0f d %.0f mode %d]", v.pos[0], v.pos[2], std::hypot(v.pos[0] - dock[0], v.pos[2] - dock[2]), v.mode);
+        }
+        std::printf("\n");
+      }
+      if (t > 12000) done = true;
+      return;
+    }
+    if (std::getenv("PM_GROUND")) {
+      pm_kill_ground_line(2517, -4413, 3181, -4860);
+      pm_kill_ground_line(2700, -4800, 3200, -4300);
+      done = true;
+      return;
+    }
     int missile[5] = {-1, 0, 0, 300, 0};
     if (const char* e = std::getenv("PM_MISSILE")) std::sscanf(e, "%d,%d,%d,%d,%d", &missile[0], &missile[1], &missile[2], &missile[3], &missile[4]);
     if (missile[0] >= 0 && static_cast<int>(at) < missile[4]) { ++at; return; }
@@ -424,13 +508,30 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick) EXPECT(dead == 1);
+  if (quick) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
 TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
 
 // Always on: c1m1's Thor, one ER Large, every shot on its leg: it goes down with the leg, the player's hits on legs only.
+// Always on: mission 1's static MFB: called from the start, no base moves, the mech at the point is refitted and the dock ends.
+TEST(pm_starbase_refit) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_MFB", "4476,-4486", 1);
+    kill_run("0,1,1", true);
+    std::fflush(nullptr);
+    _exit(check::failures || !g_refit_done ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
 TEST(pm_leg_down) {
 #if !defined(_WIN32)
   std::fflush(nullptr);

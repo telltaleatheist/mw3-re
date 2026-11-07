@@ -839,6 +839,31 @@ and c1m1's headless test (three registered and alive, held in place, the
 arms of one opened through its frames, one shot down, all freed at the
 end).
 
+## The starbase refit (Pirate's Moon, a static MFB)
+
+PM adds a fixed repair point to the MFB system. A net node with `static_mfb (1)` (c1's net 11 in mission 1, net 10 in
+mission 2: `Static MFB`, auxname `starbase_refit_activate`, no links) becomes a dock point like any other, but its
+byte `+0x0d` is set (PM's point has that one byte more than MW3's, 0x4c5002). The file `static_mfb` is in c1's
+readers ia1-4, m1, m2, m5, mp1, mp2 and sa1-3.
+
+The request (0x45b5e0) branches on that byte before anything else: **no base is sent**, no valve is touched, and the
+one state at registry `+0x150` is queued (vtable 0x5e4c80, `DockRefit`):
+
+- begin 0x45bc80: its line (mcb_contact) in five frames; both flags on, "may drive" [0x62fbb2] and "contact"
+  [0x62fbb1];
+- step 0x45bfb0: the line, then 0x45be50: the requester powered down within 6.5 m (d2 + 1 under 42.25), and in
+  multiplayer no enemy within 5000 (d2), else "%s is too close for MFB deployment", every 5 s;
+- then 0x45bd20: a node of the point's name takes `mfb_station_01`, else the animation of the point's name runs
+  alone; the mech shut down, the view on camera 4, at rest at the point, the end callback set;
+- the end 0x45bcc0 (not when stopped): repaired 0x415fc0 (`Mech::repair`: structure always, armour and ammo from the
+  campaign's store), up again, the view back, the marker cleared, finished;
+- end 0x45c020: the flags off, the idle state queued; abort 0x45c080: nothing once the animation runs, else
+  mcb_pos_cancel and the marker cleared.
+
+A point with no links in MW3's path leaves the bases unsent but free to drive their nets, with the dock waiting for
+them for good: what the port did before this ("the MFBs go in circles"). "May drive" is on here too, in the exe, so
+a base with its own orders can still move while the refit waits (mission 5's do, in the port, on the stand-in's AI).
+
 ## The repair dock (0x459b80..0x45b9c0; states and drives 4b1, frame and request 4b2)
 
 `mech3/mech_fieldbase_dock`, ported 2026-10-24. The registry (0x605ae0)

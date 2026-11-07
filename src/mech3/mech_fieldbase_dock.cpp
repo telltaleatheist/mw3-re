@@ -254,6 +254,12 @@ Handle DockIdle::message(Handle m) {
   r.dock_point = h.dock_point();
   if (!r.dock_point) return m;
   const char* name = h.dock_point_name(r.dock_point);  // vt+0x24
+  if (h.dock_point_static(r.dock_point)) {  // Pirate's Moon 1.0 @ 0x0045b5e0: a static MFB: no base is sent
+    field_bases_drive() = true;
+    r.states.push_back(&r.refit);
+    asked = true;
+    return m;
+  }
   if (!name) return m;
   field_bases_drive() = true;
   h.valve_set(r.deploy_valve, 1);
@@ -402,6 +408,7 @@ void field_bases_station_message(Handle mech, uint32_t id) {
 // Mech3.exe 1.2 @ 0x0045a0f0
 void field_bases_station_done(Handle anim, Handle mech, int32_t stopped) {
   FieldBaseHooks& h = hk();
+  if (field_bases().refit.anim && anim == field_bases().refit.anim) return field_bases().refit.anim_ended(stopped);
   if (anim != g_repair_anim || stopped) return;
   g_repair_anim = nullptr;
   h.mech_repair(mech, 0.0f);  // 0x004154e0(0)
@@ -438,6 +445,102 @@ void DockContact::abort() {
   say_soon();
   hk().marker_clear();
   cancel(&reg->reset);
+}
+
+// Pirate's Moon 1.0 @ 0x0045bc80: its line after five frames.
+void DockRefit::begin() {
+  until = hk().frame() + 5;
+  sound = reg->sounds[6];  // +0xa4 mcb_contact
+  field_bases_drive() = true;
+  field_bases_contact() = true;
+}
+
+// Pirate's Moon 1.0 @ 0x0045be50: at rest within 6.5 m of the point (the exe's d2 + 1 under 42.25), and in
+// multiplayer no enemy within about 71 m.
+bool DockRefit::may_start(Handle mech, Handle point) {
+  FieldBaseHooks& h = hk();
+  if (!mech || !point || anim || !reg->requester_ok()) return false;
+  const float* at = h.dock_point_position(point);
+  const float* p = h.entity_position(mech);
+  const float dx = p[0] - at[0], dy = p[1] - at[1], dz = p[2] - at[2];
+  if (!(dz * dz + dy * dy + dx * dx + 1.0f < 42.25f)) return false;  // [0x006068f4]
+  if (!h.mp_repairs()) return true;  // 0x0047b710(0)
+  const Handle c = h.nearest_enemy(mech);
+  if (!c || !h.contact_vehicle(c) || h.contact_distance(c) > 5000.0f) return true;  // [0x00606900]
+  if (h.game_time() <= line_at) return false;
+  char text[0x100];
+  std::snprintf(text, sizeof text, "%s is too close for MFB deployment", h.entity_name(h.contact_vehicle(c)));
+  h.hud_message(text);
+  line_at = h.game_time() + 5.0f;  // [0x005df000]
+  return false;
+}
+
+// Pirate's Moon 1.0 @ 0x0045bd20: the point's own animation, or with a node of its name "mfb_station_01" on that
+// node; the mech shut down at rest at the point. The network line 0x00472010 isn't sent: no dock runs in multiplayer.
+bool DockRefit::start(Handle mech, Handle point) {
+  FieldBaseHooks& h = hk();
+  VehBasicHooks& vh = veh_basic_hooks();
+  const char* name = h.dock_point_name(point);
+  const Handle node = vh.node_named(name);
+  const Handle def = vh.anim_find(node ? "mfb_station_01" : name);
+  if (!def) return false;
+  if (h.entity_remote(mech)) {
+    h.effects_start(def, node);
+    return true;
+  }
+  h.entity_set_shutdown(mech, true);
+  view_was = h.view_camera();
+  if (mech == h.view_vehicle()) h.view_set_camera(4);
+  h.mech_rest_at(mech, h.dock_point_position(point));
+  anim = h.effects_start(def, node);
+  h.anim_on_end(anim, mech);
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x0045bfb0
+bool DockRefit::step(float) {
+  FieldBaseHooks& h = hk();
+  if (until < h.frame()) {
+    say_soon();
+    until = 0x7fffffff;
+  }
+  if (may_start(reg->requester, reg->dock_point)) {
+    start(reg->requester, reg->dock_point);
+    return finished;
+  }
+  if (!reg->dock_point) finished = true;
+  return finished;
+}
+
+// Pirate's Moon 1.0 @ 0x0045bcc0: repaired and rearmed, up again, the view back, the dock's marker cleared.
+void DockRefit::anim_ended(int32_t stopped) {
+  if (stopped) return;
+  FieldBaseHooks& h = hk();
+  const Handle mech = reg->requester;
+  anim = nullptr;
+  h.mech_repair(mech, 0.0f);  // 0x00415fc0
+  h.entity_set_shutdown(mech, false);
+  h.mech_power_up(mech);  // 0x0041dab0(0)
+  if (mech == h.view_vehicle()) h.view_set_camera(view_was);
+  h.marker_clear();
+  finished = true;
+}
+
+// Pirate's Moon 1.0 @ 0x0045c020
+void DockRefit::end() {
+  finished = false;
+  field_bases_contact() = false;
+  field_bases_drive() = false;
+  reg->states.push_back(&reg->idle);
+}
+
+// Pirate's Moon 1.0 @ 0x0045c080: not once it has begun.
+void DockRefit::abort() {
+  if (anim) return;
+  sound = reg->sounds[5];  // +0xa0 mcb_pos_cancel
+  say_soon();
+  hk().marker_clear();
+  DockStep::abort();
 }
 
 // Mech3.exe 1.2 @ 0x0045ab50: "wait" after five frames.

@@ -2,6 +2,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_parts.h"
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zweapon/zweapon.h"
@@ -254,3 +255,23 @@ float pm_kill_ground(float x, float y, float z) {
     if (g.hit[i].height > best) best = g.hit[i].height;
   return best;
 }
+
+// PM_GROUND: every polygon under a line of points across the canyon.
+void pm_kill_ground_line(float x0, float z0, float x1, float z1) {
+  for (int i = 0; i <= 16; ++i) {
+    const float x = x0 + (x1 - x0) * static_cast<float>(i) / 16.0f, z = z0 + (z1 - z0) * static_cast<float>(i) / 16.0f;
+    float probe[3] = {x, 300.0f, z};
+    static zcls::GroundHits g;
+    zcls::ground_query(static_cast<zcls::Node*>(world_hooks().world), probe, 1, 300.0f, &g);
+    std::printf("  ground %.0f %.0f:", x, z);
+    for (int k = 0; k < g.count && k < 5; ++k)
+      std::printf(" [%.1f soil %d %s]", g.hit[k].height, g.hit[k].material ? g.hit[k].material->soil : -1, g.hit[k].node ? g.hit[k].node->name() : "-");
+    std::printf("\n");
+  }
+}
+
+void pm_kill_hurt(void* mech) {
+  auto* m = static_cast<Mech*>(mech);
+  m->legs[0]->set_internal(0.4f, 0);
+}
+float pm_kill_leg_armor(void* mech) { return static_cast<Mech*>(mech)->legs[0]->internal; }

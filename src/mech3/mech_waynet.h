@@ -36,6 +36,7 @@ struct WaynetPoint : ai::Behaviour {
   void set_reached(uint8_t on);                                       // 0x0047a500: its line once
 
   uint8_t mfb = 0;            // +0x0c  a dock point
+  uint8_t static_mfb = 0;     // Pirate's Moon's +0x0d (its later bytes are one on): the net node's static_mfb
   uint8_t xd = 0, xe = 0, xf = 0;  // +0x0d..+0x0f
   uint8_t hidden = 0;         // +0x10  the record's hidden
   Handle sound = nullptr;     // +0x14  "nav<label>" (not a dock point's)

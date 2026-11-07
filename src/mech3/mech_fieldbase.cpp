@@ -47,7 +47,8 @@ FieldBases::FieldBases() {
   for (DockState* st : {static_cast<DockState*>(&idle), static_cast<DockState*>(&contact),
                         static_cast<DockState*>(&places), static_cast<DockState*>(&deploy),
                         static_cast<DockState*>(&repair), static_cast<DockState*>(&close),
-                        static_cast<DockState*>(&reset), static_cast<DockState*>(&parked)})
+                        static_cast<DockState*>(&reset), static_cast<DockState*>(&parked),
+                        static_cast<DockState*>(&refit)})
     st->reg = this;
   states.push_back(&idle);
   begin_next = true;

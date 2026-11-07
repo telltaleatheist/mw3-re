@@ -153,6 +153,22 @@ struct DockReset : DockState {
   void abort() override {}       // 0x005ac5c0
 };
 
+// Pirate's Moon 1.0 +0x150 (vtable 0x005e4c80): a static MFB's dock, the starbase refit (docs/vehicles.md, The
+// starbase refit): no base moves; the mech powered down at the point is refitted by the point's animation.
+struct DockRefit : DockState {
+  uint32_t until = 0;      // +0x10
+  float line_at = 0;       // +0x14  the next "too close"
+  Handle anim = nullptr;   // +0x18
+  int32_t view_was = 0;    // [0x0061874c]+0x5c
+  void begin() override;   // 0x0045bc80
+  bool step(float) override;  // 0x0045bfb0
+  void end() override;     // 0x0045c020
+  void abort() override;   // 0x0045c080
+  bool may_start(Handle mech, Handle point);  // 0x0045be50
+  bool start(Handle mech, Handle point);      // 0x0045bd20
+  void anim_ended(int32_t stopped);           // 0x0045bcc0
+};
+
 // The arms' motion script (0x90 bytes, vtable 0x005c2388; 0x00458890): the
 // script "mobilehq", its time running from `now` toward `target` (0 shut,
 // 1 open) at 0.2 a second.
@@ -213,6 +229,7 @@ struct FieldBases {
   DockRepair repair;                   // +0x110
   DockClose close;                     // +0x124
   DockReset reset;                     // +0x140
+  DockRefit refit;                     // Pirate's Moon's +0x150
   DockParked parked;                   // ours (FIX (bug), behind bugs): after a repair
   bool park = false;                   // ours: the repair done, the reset parks
   FieldBases();                        // 0x00459b80 (the states' sounds: none, before zSound is up)
@@ -354,6 +371,7 @@ class FieldBaseHooks : public zgame::Unported {
   // brain's way finder dropped (+0x238 0x004040d0) and its go-to (0x004c84b0).
   virtual Handle dock_point() { return h(unported("[0x0060b544]+0x20 0x0058b060", {})); }
   virtual const char* dock_point_name(Handle p) { (void)p; return nullptr; }
+  virtual bool dock_point_static(Handle p) { (void)p; return false; }  // Pirate's Moon's point +0x0d
   virtual ai::Valve* valve_find(const char* name);
   virtual Handle base_brain(FieldBase& b);
   virtual Handle brain_order_net(Handle brain);

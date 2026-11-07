@@ -202,3 +202,12 @@ the leg's scale 1.
 (the restore gone brings the fault back: 42 hits, all spread). `test_pm_window.py` catches the clear
 on every mech, the gauge on every mech, no frame time, the aim after the gauge, no attach, no
 detach.
+
+## The starbase refit
+
+`test_pm_refit.py` compares the state 0x5e4c80 with the exe on 3,000 random set-ups, every call out and the flags;
+`pm_starbase_refit` (`mw3pmtests`, always on, forked, so nothing on Windows) calls the MFB from the start of mission
+1: no base moves, the mech at the point is repaired and the dock ends. `PM_MFB=x,z` runs the same on any mission
+(`PM_KILL=0,1,2` for mission 2); `PM_MFB_NO_CALL` is its control. Not compared: the animation itself and a campaign
+store's armour and ammo through the refit; that the port's point takes `static_mfb` is checked by the mission, not
+against the exe's record offset.

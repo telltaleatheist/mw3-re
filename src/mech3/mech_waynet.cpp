@@ -482,6 +482,7 @@ void waynet_point_from_node(const ai::NetNodeRec& r, const float pos[3]) {
   McbWaynet* w = mcb_waynet_make();
   if (!w || w->find(r.auxname)) return;
   auto* p = new WaynetPoint(r.name, r.auxname, pos, nullptr, 0, 1, 0, 1, 0, r.hidden);  // new 0x38
+  p->static_mfb = r.static_mfb;  // Pirate's Moon 1.0 @ 0x004c5002
   w->add(p);
 }
 
