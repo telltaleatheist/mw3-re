@@ -217,3 +217,14 @@ against the exe's record offset.
 Mission 5's field bases stand still until a static MFB is called, then drive about 211 m (`PM_MFB=4700,-4200`,
 `PM_KILL=0,1,5`, control `PM_MFB_NO_CALL`). The exe's static branch sets "may drive" too, and these bases have `vlist`
 orders, so the port follows the exe's flags, but on the stand-in's AI: compare once PM's AI runs.
+
+## For later: MW3's AI at 53 bits (after PM, on Owen's list of MW3 fixes)
+
+`main`'s AI is ported at 24 bits; the reference runs at 53. Measured 2026-11-06 on the differential tests at 53 bits,
+past each first difference, a real sign flip being a steering value that comes out the other way (e.g. -1.0 against
++0.93): `ai_lance` 479 in 5,491 runs, `ai_repair` 257 in 4,581, `ai_aim` 388 in about 7,000 tracks, `ai_attack` 42 in
+8,768; `ai_steer`, `ai_plan` none. Those are upper bounds on random states: after the first flip a chain runs on diverged
+state, so it counts again. In play it would be a frame or more of a wrong turn, or an order picked differently.
+The fix is known: PM's `unit_flat` and `wide_sum` (`zai_steer_pm`) for the same expressions, what's stored in a float
+and what stays in the register by function (pm-map.md, PM's AI at 53 bits), with the tests' compares exact at 53.
+`ai_nets` and `ai_regions` differ only at 24, which isn't the reference; `ai_repair`'s crash is the test's teardown.
