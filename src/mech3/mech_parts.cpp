@@ -109,7 +109,7 @@ int MechPart::take_hit(WeaponDef* def, Collision*, float damage, Vec3* impulse) 
   float d = damage * interp_globals().damage_scale;  // 0x005e1f68
   if (game_type() != kMultiplayer) {
     // Difficulty (0x0040cc20) scales what the player and its side take.
-    if (&m == w.mission_player || (w.mission_player->allies & m.team) != 0) d = w.difficulty * d;
+    if (&m == w.mission_player || (w.mission_player->allies & m.team) != 0) d = difficulty_scale() * d;
   }
   const Vec3* shot = w.shot;  // 0x00581e30
   if (impulse) {

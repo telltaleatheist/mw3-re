@@ -70,8 +70,10 @@ keep the sizes they had. The input gets the display size (0x0051b590).
 **GameIntensity** (0x0040cc20): stores the level as given and picks a preset by
 the level clamped to 0..2: low (0.5, 1.2, 0.7, flags 1 1), medium (1, 1, 1, 0 0),
 high (1.2, 0.6, 1.3, 0 0); a complete `(name f f f b b)` entry in
-intensity.zrd replaces it. The three floats and two flags are the app's
-+0x1cc..+0x1d4 and +0x1c4/+0x1c5 (game-loop.md); who reads them is not traced.
+intensity.zrd replaces it, and the shipped file has every entry: low 0.3, 1.5, 0.4,
+medium 0.5, 1.2, 0.7, high 1, 1, 1. The three floats and two flags are the app's
++0x1cc..+0x1d4 and +0x1c4/+0x1c5 (game-loop.md): the AI's delay [0x608e54], its aim
+error [0x608e58], the damage to your side [0x608e5c] (`difficulty_scale()`).
 
 **The camera** (0x0040d590): stores the node and sets its horizontal field of
 view to the vertical one times the render width over height.

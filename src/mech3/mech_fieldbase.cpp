@@ -74,7 +74,7 @@ uint32_t FieldBaseHooks::player_allies() {
   const Mech* p = world().mission_player;
   return p ? p->allies : 0;
 }
-float FieldBaseHooks::difficulty() { return world().difficulty; }
+float FieldBaseHooks::difficulty() { return difficulty_scale(); }
 void FieldBaseHooks::motion_step(BasicVehicle& v, float throttle) { vehicle_motion_anim_step(v, throttle); }
 uint32_t FieldBaseHooks::entity_team(Handle entity) { return static_cast<uint32_t>(unported("entity.vt+0x28+0xc0", {low(entity)})); }
 void FieldBaseHooks::controls_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount, Handle entity) {

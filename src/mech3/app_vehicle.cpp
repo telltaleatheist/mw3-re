@@ -827,7 +827,7 @@ bool program_vehicle_kill(void* v, void* killer, const char* weapon) {
   zwep::WeaponDef* def = zwep::find_def(weapon);
   if (!is_program_vehicle(v) || !def || !bv(v).controls) return false;
   zwep::hit_state().attacker = killer ? static_cast<Vehicle*>(killer)->node : nullptr;
-  g_hooks.damage(bv(v), def, 0, bv(v).controls->health + 1.0f);  // vt+0x160 by the class
+  g_hooks.damage(bv(v), def, 0, (bv(v).controls->health + 1.0f) / std::min(difficulty_scale(), 1.0f));  // vt+0x160 by the class; enough at any difficulty
   zwep::hit_state().attacker = nullptr;
   return !bv(v).active;
 }

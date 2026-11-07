@@ -113,9 +113,15 @@ From the damage code (damage.md).
   (a lost side torso takes its arm with it).
 - **A part can't be destroyed while it has armor.** Structure damage can never
   take the internal value below the remaining armor fraction.
-- **Difficulty only scales damage you take**: x0.7, x1.0 or x1.3, and not in
-  multiplayer. Your allies' mechs likely get the same scaling (a team-mask
-  test); enemies always take full damage.
+- **Difficulty is much kinder than it looks, and Hard is the real number.** The
+  exe has a fallback table (x0.7, x1.0, x1.3), but the game's own `intensity.zrd`
+  replaces it: you and your side take x0.4 on Low, x0.7 on Medium and x1.0 on
+  High. So the numbers people quote for damage are High's, and on Medium you take
+  under three quarters of them. It doesn't apply in multiplayer. The same file
+  sets the AI's aim error (x1.5, x1.2, x1.0) and how long it waits between actions
+  (x0.3, x0.5, x1.0). The rebuild's first releases missed the damage half, so every
+  level played like High for damage. Your allies' mechs likely get the same scaling (a
+  team-mask test); enemies always take full damage.
 
 From the port of the damage code, checked in an emulator against the original
 (damage.md, section 4):

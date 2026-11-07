@@ -23,6 +23,13 @@ original.
 
 ### Coming in the next release
 
+- **Difficulty changes how much damage you take again.** Every release so far
+  gave your side the High figure on every difficulty. The game's own table now
+  applies: 40% on Low, 70% on Medium, 100% on High. **Low and Medium get
+  noticeably easier.** Low also loses a heat haze the original doesn't have
+  there.
+- **A locked Artemis missile no longer crashes the game.** One flying under 10 m
+  over the ground with a clear line did.
 - **Ctrl+I in the mech lab keeps your loadout.** Importing a loadout read the
   file, added nothing and renamed the file `.done`, so it seemed to vanish. It
   now adds the loadout. If you lost one, take `.done` off its name in the

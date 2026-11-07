@@ -188,8 +188,10 @@ Arguments: weapon def, collision, damage, impulse.
    (`[0x60861c] +0x14`, the mission's player), and to mechs that pass a
    team-mask test against the player's
    (`player +0xc4 & target +0xc0`, likely allies), is multiplied by
-   0x608e5c. 0x40cc20 sets it from the difficulty table: low 0.7, medium 1.0,
-   high 1.3 (the third float of each row; the others go to 0x608e54/58).
+   0x608e5c. 0x40cc20 sets it from the third float of the difficulty's row:
+   the exe's fallback is low 0.7, medium 1.0, high 1.3, but the shipped
+   intensity.zrd replaces it with 0.4, 0.7, 1.0 (the others go to 0x608e54/58).
+   One store with `options().intensity[2]`: `difficulty_scale()`.
 3. `ApplyImpact` (vtable +0x1c) with `IMPACT_FORCE`, when there was knockback.
 4. The torso picks its section from the shot (0x460350, below).
 5. Critical roll (section 3). If one is rolled, `Critical` runs and **the hit
