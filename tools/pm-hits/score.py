@@ -4,7 +4,7 @@
     tools/pm-hits/score.py BINARY HITS SUMMARY.tsv [--run c1m1-idle] [--list]
 
 BINARY is the MW3_PM_HITS=ON mw3pmtests, HITS what PM_AI_HITS=<file> wrote, SUMMARY.tsv the PC trace's
-(pm_addr and a column per run; "mission" when it ran in the mission). A port function is known by the
+(pm_addr and a column per run, holding "mission" among its phases when it ran in a mission). A port function is known by the
 `// Pirate's Moon 1.0 @ 0x...` comment over its definition in src/mech3/*_pm.cpp. Run from the repo's root.
 """
 import argparse
@@ -43,8 +43,8 @@ def main():
     a = ap.parse_args()
     syms = {}
     for line in subprocess.run(['nm', '-C', '-n', a.binary], capture_output=True, text=True).stdout.split('\n'):
-        p = line.split(' ', 2)
-        if len(p) == 3 and p[1] in 'tT':
+        p = line.split(None, 2)
+        if len(p) == 3 and p[1] in ('t', 'T'):
             syms[int(p[0], 16) - 0x100000000] = p[2]
     hit_names = [syms.get(int(x, 16), '?') for x in open(a.hits).read().split()]
     names = port_names()
@@ -55,7 +55,7 @@ def main():
             if q == n or q.endswith('::' + n):
                 hit_pm.add(addr)
     rows = list(csv.DictReader(open(a.summary, encoding='utf-8-sig'), delimiter='\t'))
-    ran = {int(r['pm_addr'], 16) for r in rows if r.get(a.run) == 'mission'}
+    ran = {int(r['pm_addr'], 16) for r in rows if 'mission' in (r.get(a.run) or '')}
     have = set(names.values())
     both, missed, extra = ran & hit_pm, (ran & have) - hit_pm, hit_pm - ran
     print(f'{len(hit_names)} instrumented functions entered; {len(hit_pm)} named PM functions')
