@@ -17,7 +17,9 @@
 
 namespace mech3::ai {
 
-class WireWalk;
+class WalkPmHooks;
+template <class Base> class WireWalkT;
+using WireWalk = WireWalkT<WalkPmHooks>;
 
 bool pm_ai_on();                                      // PM_AI=1, read once
 void pm_hook_missing(const char* key);                // the log's line, the first time
