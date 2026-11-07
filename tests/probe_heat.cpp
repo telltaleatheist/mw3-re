@@ -76,7 +76,7 @@ void probe_heat_io(int32_t* v, int write) {
       {nullptr, nullptr, &m.powered_down}, {nullptr, nullptr, &m.invincible},
       {nullptr, nullptr, &m.heat_sinks.doubles}, {nullptr, nullptr, &m.active}, {nullptr, nullptr, &m.remote},
       {nullptr, nullptr, &m.salvage_mech}, {nullptr, nullptr, &w.full_heat_all_mechs},
-      {nullptr, nullptr, &w.no_heat_haze},
+      {nullptr, nullptr, reinterpret_cast<bool*>(&mech3::no_heat_haze())},
       {nullptr, &m.jump_jets_firing}, {nullptr, &m.heat_sinks.count},
       {nullptr, reinterpret_cast<int32_t*>(&m.heat_state)}, {nullptr, &g_feet[0].soil},
       {nullptr, &g_feet[1].soil}, {nullptr, &beep}, {nullptr, &alarm}, {nullptr, &warn},

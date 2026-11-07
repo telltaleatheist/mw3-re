@@ -438,7 +438,7 @@ bool MechPart::critical(int kind, int section) {
       set_internal(0.0f, section);
       if (has_case) break;
       d = 0.143f * interp_globals().damage_scale * d * 0.2f;  // 0x00606dc8, 0x005deffc
-      if (&m == world().mission_player) d = world().difficulty * d;
+      if (&m == world().mission_player) d = difficulty_scale() * d;
       for (int s = 0; s < 3; ++s) m.torso->apply_damage(d, s);
       for (int s = 3; s < 6; ++s) m.torso->apply_damage(0.1f * d, s);  // 0x00606dcc
       m.legs[0]->apply_damage(d, 0);
