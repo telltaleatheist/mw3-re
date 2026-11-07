@@ -23,6 +23,10 @@ original.
 
 ### Coming in the next release
 
+Nothing yet.
+
+**1.0.5 (2026-11-07)**
+
 - **No crash ending a mission with a laser firing.** If a beam was still firing when
   a mission ended, the cleanup treated it as a shot and could crash, for example on
   REPLAY at the debriefing.
@@ -30,6 +34,10 @@ original.
   unchecked and overwrote what came after the list. A mod's mech could do that,
   and so could a modified player's loadout in multiplayer. The extra weapon is now
   refused and named in the log.
+- **Walls and footing match the original more closely.** Mech collision and the
+  feet's ground probes now do their sums at the precision the original game really
+  runs at. In tests they agree with it exactly; in play the difference is rare and
+  small.
 
 **1.0.4 (2026-11-07)**
 
