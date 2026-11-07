@@ -31,6 +31,11 @@ cp build-linux-pkg/mw3pm "$APPDIR/usr/bin/"
 EXES="-e $APPDIR/usr/bin/mw3pm"
 cp tools/windows/dist/README.txt tools/windows/dist/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3pm/"
 [ -f LICENSE ] && cp LICENSE "$APPDIR/usr/share/doc/mw3pm/LICENSE.txt"
+# The game's stand-in fonts, for an install without them (assets/fonts): beside the program, where SDL_GetBasePath finds them.
+mkdir -p "$APPDIR/usr/bin/assets/fonts" "$APPDIR/usr/share/doc/mw3pm/licenses/liberation" "$APPDIR/usr/share/doc/mw3pm/licenses/anton"
+cp assets/fonts/*.ttf "$APPDIR/usr/bin/assets/fonts/"
+cp assets/fonts/Liberation-OFL.txt "$APPDIR/usr/share/doc/mw3pm/licenses/liberation/OFL.txt"
+cp assets/fonts/Anton-OFL.txt "$APPDIR/usr/share/doc/mw3pm/licenses/anton/OFL.txt"
 # Each library's licence files: from its source tree when the prefix is
 # build_deps.sh's (FFmpeg installs none), else what the prefix installed.
 if [ -d "$PREFIX/../work/src" ]; then

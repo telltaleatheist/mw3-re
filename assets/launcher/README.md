@@ -25,3 +25,7 @@ supported) and MechWarrior (1989) (shown when its port is beside ours).
 The starfield and the metal are not yet seamless at their ends: the
 launcher cross-fades the last strip into the first when it scrolls (or they
 are made again with an outpainted seam). "MW3 REBUILD" is a working title.
+
+`font.ttf` is not ours: Saira Condensed Bold by the Saira Project Authors,
+unchanged, under the SIL Open Font License 1.1 (`font-OFL.txt`; "Saira" is
+its reserved name), from github.com/google/fonts `ofl/sairacondensed`.

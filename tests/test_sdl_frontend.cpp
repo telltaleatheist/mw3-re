@@ -27,6 +27,7 @@
 #include "mech3/data_folder.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
+#include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
 #include "frontend/sdl/text_fit.h"
 #include <SDL3_ttf/SDL_ttf.h>
@@ -1347,6 +1348,50 @@ TEST(sdl_fonts_from_the_system) {
   EXPECT(got.empty() || std::filesystem::exists(got));
 }
 
+// The package's stand-ins (assets/fonts) in the game's place keep its layout:
+// the same line height (a pixel at most) and widths close, at the menus' sizes.
+TEST(sdl_stand_in_fonts_keep_the_layout) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/arial.ttf") || !TTF_Init()) return;
+  const char* lines[] = {"LAUNCH MISSION", "Mech Lab", "Instant Action", "Multiplayer Options", "Heat Sinks 12 Tons",
+                         "Armor: 100%", "Madcat Mk II", "The quick brown fox jumps over 0123456789"};
+  auto load = [](const std::string& path) {
+    std::vector<uint8_t> bytes;
+    std::ifstream f(path, std::ios::binary);
+    bytes.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+    return bytes;
+  };
+  for (const char* file : {"arial.ttf", "impact.ttf", "lucon.ttf"}) {
+    const std::string real = std::string(MW3_GAME_DIR) + "/" + file, stand = sdlfe::SdlTwodHost::shipped_font(file);
+    EXPECT(!stand.empty());
+    if (stand.empty()) continue;
+    sdlfe::GdiFaceMetrics a, b;
+    EXPECT(sdlfe::gdi_face_metrics(load(real), &a) && sdlfe::gdi_face_metrics(load(stand), &b));
+    sdlfe::stand_in_metrics(file, std::filesystem::path(stand).filename().string(), &b);
+    double worst = 0.0;
+    int worst_cell = 0;
+    for (int height : {-11, -12, -14, -16, -20, -24, 12, 14, 16, 18, 20, 24, 30}) {
+      const sdlfe::GdiSize x = sdlfe::gdi_font_size(a, height), y = sdlfe::gdi_font_size(b, height);
+      worst_cell = std::max(worst_cell, std::abs(x.ascent + x.descent - y.ascent - y.descent));
+      TTF_Font* fx = TTF_OpenFont(real.c_str(), static_cast<float>(x.ppem));
+      TTF_Font* fy = TTF_OpenFont(stand.c_str(), static_cast<float>(y.ppem));
+      EXPECT(fx && fy);
+      if (!fx || !fy) continue;
+      for (TTF_Font* f : {fx, fy}) TTF_SetFontHinting(f, TTF_HINTING_MONO), TTF_SetFontKerning(f, false);
+      for (const char* s : lines) {
+        int wx = 0, wy = 0;
+        TTF_GetStringSize(fx, s, 0, &wx, nullptr);
+        TTF_GetStringSize(fy, s, 0, &wy, nullptr);
+        worst = std::max(worst, std::abs(wy - wx) / static_cast<double>(wx));
+      }
+      TTF_CloseFont(fx), TTF_CloseFont(fy);
+    }
+    std::printf("%s: cell within %d px, widths within %.1f%%\n", file, worst_cell, worst * 100.0);
+    EXPECT(worst_cell <= 1);
+    EXPECT(worst < 0.12);
+  }
+  TTF_Quit();
+}
+
 bool have_fonts() { return std::filesystem::exists(std::string(MW3_GAME_DIR) + "/arial.ttf"); }
 }  // namespace
 
@@ -2461,8 +2506,29 @@ pid_t spawn_bin(const char* bin, const std::vector<std::string>& args, const std
 }
 pid_t spawn_mw3(const std::vector<std::string>& args, const std::string& log) { return spawn_bin(MW3_BIN, args, log); }
 // mw3launcher, the launcher's own program (docs/launcher.md, The two programs).
+// A stale mw3pm beside the build's launcher would make PIRATE'S MOON a live
+// entry and move every key walk: none, unless a test names its stand-in.
 pid_t spawn_launcher(const std::vector<std::string>& args, const std::string& log) {
-  return spawn_bin(MW3_LAUNCHER_BIN, args, log);
+  const bool named = std::getenv("MW3_PM_BIN") != nullptr;
+  if (!named) setenv("MW3_PM_BIN", "", 1);
+  const pid_t pid = spawn_bin(MW3_LAUNCHER_BIN, args, log);
+  if (!named) unsetenv("MW3_PM_BIN");
+  return pid;
+}
+// waitpid with a limit: a launcher that never quits is killed and fails its
+// test, where a bare wait would hang the whole run.
+bool waited(pid_t pid, int* status, int seconds = 120) {
+  if (pid <= 0) return false;
+  for (int i = 0; i < seconds * 20; ++i) {
+    const pid_t got = waitpid(pid, status, WNOHANG);
+    if (got == pid) return true;
+    if (got < 0) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  std::printf("the launcher ran past %d s: killed\n", seconds);
+  kill(pid, SIGKILL);
+  waitpid(pid, status, 0);
+  return false;
 }
 }  // namespace
 
@@ -4328,6 +4394,37 @@ TEST(launcher_one_picker_takes_a_file_for_its_folder) {
 // pixel past their advance, so the space after a digit vanished. A space
 // under a fifth of the size is doubled; with the Mac's font, the blank gap
 // after "3" is then as wide as the font's own between "a" and "g".
+// An Arch install's launcher had none of the fixed paths: empty buttons. The
+// package's font is drawn from; without it, a walk finds what the system has.
+TEST(launcher_font_search_finds_any_system_face) {
+  const std::string root = std::string(MW3_TEST_TMP) + "/font_search";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root + "/noto/deep");
+  std::filesystem::create_directories(root + "/misc");
+  auto touch = [&](const char* f) { std::ofstream(root + f) << "x"; };
+  for (const char* f : {"/noto/NotoColorEmoji.ttf", "/noto/NotoSans-Italic.ttf", "/noto/deep/NotoSans-Regular.ttf", "/misc/readme.txt",
+                        "/misc/AAA-Symbols-Bold.ttf"})
+    touch(f);
+  const std::vector<std::string> files = sdlfe::scan_fonts({root, root + "/absent"});
+  EXPECT(files.size() == 4);
+  EXPECT(sdlfe::pick_font(files, {"Liberation.ttf"}) == root + "/noto/deep/NotoSans-Regular.ttf");  // upright text
+  touch("/noto/deep/NotoSans-Bold.ttf");
+  const std::vector<std::string> more = sdlfe::scan_fonts({root});
+  EXPECT(sdlfe::pick_font(more, {"Liberation.ttf"}) == root + "/noto/deep/NotoSans-Bold.ttf");  // bold before upright
+  EXPECT(sdlfe::pick_font(more, {"Liberation.ttf", "notosans-regular.TTF"}) == root + "/noto/deep/NotoSans-Regular.ttf");  // named first
+  EXPECT(sdlfe::pick_font({root + "/noto/NotoColorEmoji.ttf"}, {}).empty());
+  EXPECT(sdlfe::pick_font({}, {"x.ttf"}).empty());
+  // A script's own face has no letters of ours: passed over (NotoSansArabic-Bold sorts first).
+  const std::vector<std::string> faces = {"/f/NotoSansArabic-Bold.ttf", "/f/NotoSansArabic-Regular.ttf", "/f/Noto-Regular.ttf", "/f/Text-Bold.ttf"};
+  auto latin = [](const std::string& f) { return f.find("Arabic") == std::string::npos; };
+  EXPECT(sdlfe::pick_font(faces, {}) == "/f/NotoSansArabic-Bold.ttf");
+  EXPECT(sdlfe::pick_font(faces, {}, latin) == "/f/Text-Bold.ttf");
+  EXPECT(sdlfe::has_latin(std::string(MW3_ASSETS_FOR_TESTS) + "/launcher/font.ttf"));
+  EXPECT(!sdlfe::has_latin(root + "/noto/NotoColorEmoji.ttf"));  // not a font at all
+  EXPECT(!sdlfe::font_folders().empty() && sdlfe::font_folders().back() == "/usr/share/fonts");
+  std::filesystem::remove_all(root);
+}
+
 TEST(launcher_narrow_spaces_widen) {
   EXPECT(sdlfe::widen_spaces("MechWarrior 3 was", 2, 13) == "MechWarrior  3  was");
   EXPECT(sdlfe::widen_spaces("MechWarrior 3 was", 3, 13) == "MechWarrior 3 was");  // wide enough: as is
@@ -4393,9 +4490,10 @@ TEST(sdl_program_launcher_screens) {
     const pid_t pid = spawn_launcher({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
     if (s.none) unsetenv("MW3_FIND_INSTALL");
     int status = 0;
-    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    EXPECT(text.find("/launcher/font.ttf\n") != std::string::npos);  // the package's font, no system one asked
     SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
     int lit = 0, n = 0;
     bool edge = s.edge_x < 0;
@@ -4434,7 +4532,7 @@ TEST(sdl_program_plain_start_goes_straight_in_or_to_setup) {
   auto run = [&](const std::vector<std::string>& args, const std::string& log, bool launcher = false) {
     const pid_t pid = launcher ? spawn_launcher(args, log) : spawn_mw3(args, log);
     int status = 0;
-    const bool ok = pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    const bool ok = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
     std::ifstream f(log);
     return ok ? std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>()) : std::string("(failed)");
   };
@@ -4561,7 +4659,7 @@ LauncherRun run_launcher_with(const std::string& name, const std::string& script
   unsetenv("MW3_LAUNCHER_READY_MS");
   unsetenv("MW3_GAME_BIN");
   int status = 0;
-  out.exited = pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  out.exited = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
   out.game_alive = !std::filesystem::exists(done, ec);
   for (int i = 0; i < 100 && !std::filesystem::exists(done, ec); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
   out.game_finished = std::filesystem::exists(done, ec);
@@ -4606,7 +4704,7 @@ TEST(sdl_program_data_folder_pointer_and_move) {
   setenv("MW3_USUAL_FOLDER", usual.c_str(), 1);
   auto wait = [](pid_t pid) {
     int status = 0;
-    return pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    return waited(pid, &status) && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
   };
   auto text = [](const std::string& path) {
     std::ifstream in(path);
@@ -4788,11 +4886,12 @@ TEST(sdl_program_launcher_game_files_repicks) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_files_repick";
   std::ifstream cfg(dir + "/wd/mw3.cfg");
   const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
+  const std::string after = b.log.substr(std::min(b.log.find("no longer used"), b.log.size()));
   std::printf("repick: removed %d, cfg %d, back to the games %d\n", seen(b.log, "is no longer used: removed"),
-              seen(text, std::string("install=") + MW3_GAME_DIR), seen(b.log.substr(b.log.find("no longer used")), "screen main:"));
+              seen(text, std::string("install=") + MW3_GAME_DIR), seen(after, "screen main:"));
   EXPECT(b.exited && b.args.empty() && seen(b.log, "is no longer used: removed") && !std::filesystem::exists(dir + "/wd/install"));
   EXPECT(seen(text, std::string("install=") + MW3_GAME_DIR));
-  EXPECT(seen(b.log, "no longer used") && seen(b.log.substr(b.log.find("no longer used")), "screen main:"));
+  EXPECT(seen(b.log, "no longer used") && seen(after, "screen main:"));
 }
 
 // The game's own status before its first frame (its first start's movie

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 #include <vector>
 
 // GDI's choice of a TrueType font's size and its ascent and descent for a
@@ -28,5 +29,9 @@ struct GdiSize {
 // The tables read from a TrueType file's bytes; false when it is not one.
 bool gdi_face_metrics(const std::vector<uint8_t>& file, GdiFaceMetrics* out);
 GdiSize gdi_font_size(const GdiFaceMetrics& m, int32_t height);
+// A stand-in sized as the game's own face `file` would be (its win ascent and
+// descent, no VDMX), so a line keeps its height; `found` the file in use: any
+// case of `file` itself is the real one, and left alone.
+void stand_in_metrics(const std::string& file, const std::string& found, GdiFaceMetrics* m);
 
 }  // namespace sdlfe

@@ -553,12 +553,16 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   software side clip and rely on Direct3D's viewport, the camera's window. Ours is the whole frame, so a zoom window's
   world ran over the main view. `Render3D::set_clip` is the viewport's clip, per model. Picture: `test_pm_zoom_picture.py`.
 - Fonts, SdlTwodHost::font_path: FIX (A). The installer also put the fonts in Windows' folder, so a game folder can
-  lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line.
-  Metrics differ a little off Windows: the box sizes come from each file.
+  lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line;
+  last, or first on Linux, the package's stand-ins (`assets/fonts`: Liberation Sans, Anton, Liberation Mono), so no
+  system fonts is no longer blank text. A file not named as the game's is sized by the game face's metrics
+  (`stand_in_metrics`), so a line keeps its height.
 - Pathfinding's watched nodes, `watch_begin` (zai_nav, ours): FIX (bug). A blown-off part keeps its node with no parent after its mech is freed; `node_entity` then followed it to freed memory. Such a node isn't watched.
 - Load limit, Pirate's Moon 0x004e2e30 (`load_step`): FIX (B), behind `per_second`. Per mech and frame in the exe (its frame test
   against +0x108 always passes: nothing writes that), so a bridge would fall faster at a higher frame rate. Each call counts as
   its share of a 30 fps frame: the stress's halving and its gain. Off, the exe's. `test_pm_bridge.py`.
+- Mech collision, mech_collide.cpp (0x4225c0 and its responses): at the exe's own precision. The port's floats
+  matched at 24 bits only; `zgeo::X` follows the exe's x87 stores at either (movement-collision.md).
 - Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
   fixed point with the same trick, so at 24-bit nothing is filled and the
   shadow texture is plain white: shadows invisible on hardware (emulator,

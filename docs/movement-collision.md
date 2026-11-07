@@ -22,6 +22,14 @@ file; `mech_collide` would fit the alphabetical link order). Everything works
 on a collider object embedded in the mech at +0xfc (ctor 0x4222e0 from the mech
 ctor 0x414a39, probe setup 0x422360 at 0x416165 once the model exists).
 
+Precision (2026-11-07): `mech_collide.cpp` works in `zgeo::X` between the exe's
+stores, so `test_collide.py` is bit for bit at 53 bits, the reference runtime's,
+as well as at 24. As plain floats it matched at 24 only, and at 53 it took
+another path on 397 of 18,993 random trials. On the walking runs at walls (33 +- 2 ms,
+193,293 sweeps, 2,489 wall responses) the same inputs flipped none of the turn, move,
+reflect or sign tests, and the reflected move differed by 2e-6 m at most.
+PM forked this file (`pm` branch): the change crosses by hand.
+
 ## Pirate's Moon
 
 `test_pm_collide.py` checks PM's Collide 0x423730 on `pm`; addresses in the sections below are MW3's. What changed:
