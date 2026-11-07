@@ -525,6 +525,19 @@ materials with UVs for each. PM's own steps, the rest as above:
   the port keeps that.
 - The commit also clears the node's +0xc0 and +0xc4. The file's strips stay as read, so 0x005726f0 has no port.
 
-`test_pm_crater_cut.py` compares the add and the cut against the exe: identical at 24 bits. At 53, the reference
-runtime's, about 6% of its random cuts take another branch, some leaving a different ground piece, because the port's
-Weiler and convexify compute in float where the x87 keeps doubles. MW3's port has the same clip (fixes.md).
+`test_pm_crater_cut.py` compares the add and the cut against the exe; the figures are under Precision.
+
+## Precision
+
+The clip's arithmetic follows the x87 at both precisions (`zgeo_x87.h`, `zfix fpu53`): the exe keeps values on the
+FPU stack between stores, so at the reference runtime's 53 bits they are doubles until stored to a float, at 24 every
+step rounds. `X` is such a value; the code has float where the exe stores one. Used in the Weiler clip's tests and
+crossings, convexify, the plane of a cut and the gradients of its UVs, colours and normals. At 24 bits every test is
+exact as before. At 53, PM's random cuts (`test_pm_crater_cut.py`) went from 95 of 1,116 differing past the tolerance
+to 1, a pair of triangles split along the other diagonal. On real ground (c1m1 and c1m5, 664 clips of forced craters,
+459 cutting something) from 31 to 7: 2 cut nothing, 1 has the same geometry, 3 a vertex in the last digit, and 1 is a real
+difference, a back-to-back pair of triangles the exe doesn't make (0.32% of that cut's listed area, no hole).
+`segments_cross` stays all in doubles: its stack read exactly (some terms through their stored floats) gave more
+differences, 2 clips the exe refuses going through, so that reading or something after it isn't right yet.
+MW3's `test_crater.py` at 53 has a point or two more or less about once a world in 40 craters. The rest is last-bit rounding,
+which stays small (`MW3_X87=53 MW3_FPU53=1` runs the per-function tests there and shows it).

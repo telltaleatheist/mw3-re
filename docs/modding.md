@@ -287,6 +287,15 @@ library, interp.zbd and six sounds pass; a library cut by 5,000 bytes names
 its last four textures, a script offset past the file and a sound cut in
 half are named: six errors).
 
+`gamez.zbd`, `anim.zbd` and the `texture*.zbd` sets are not zar archives, and
+the check took them for one, so a shipped copy came back an error and the
+animation read was never reached (found 2026-11-06). Now `anim.zbd` is read
+(by `AnimState::host_path`, ours, as a mod can sit deeper than the 127
+characters 0x005090f0 holds), the texture sets go through the library read,
+and `gamez.zbd` gets its signature and version only: the rest needs the world
+up. Every shipped kind passes on c1, c4b and t1. Test:
+`mods_check_mod_reads_animations_at_any_depth`.
+
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.

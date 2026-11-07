@@ -11,6 +11,7 @@
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zfix.h"
@@ -18,6 +19,7 @@
 #include "gamez/zvideo/zvid_format.h"
 
 namespace pm::zmod {
+using zgeo::X;
 
 namespace {
 const char kFile[] = "C:\\zipper\\branchep1\\gamez\\zModel\\gmod_const.c";
@@ -670,21 +672,21 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
     for (int32_t i = 0; i < k; ++i) {
       const float* c = p + 3 * i;
       const float* q = p + 3 * ((i + 1) % k);
-      nx = (c[1] - q[1]) * (q[2] + c[2]) + nx;
-      ny = (c[2] - q[2]) * (q[0] + c[0]) + ny;
-      nz = (c[0] - q[0]) * (q[1] + c[1]) + nz;
+      nx = ((X(c[1]) - q[1]) * (X(q[2]) + c[2]) + nx).f();
+      ny = ((X(c[2]) - q[2]) * (X(q[0]) + c[0]) + ny).f();
+      nz = ((X(c[0]) - q[0]) * (X(q[1]) + c[1]) + nz).f();
       sx = sx + c[0], sy = sy + c[1], sz = sz + c[2];
     }
     float len = 0.0f;
-    if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) len = std::sqrt(nx * nx + ny * ny + nz * nz);
-    const float inv = zeroish(len) ? 0.0f : 1.0f / len;
-    const float ux = inv * nx, uy = inv * ny, uz = inv * nz;
-    const float nlen = static_cast<float>(k) * len;
-    const float dot = sx * nx + sy * ny + sz * nz;
-    const float d = -(dot / nlen);
+    if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) len = sqrt(X(nx) * nx + X(ny) * ny + X(nz) * nz).f();
+    const X inv = zeroish(len) ? X(0.0f) : X(1.0f) / len;
+    const float ux = (inv * nx).f(), uy = (inv * ny).f(), uz = (inv * nz).f();
+    const X nlen = X(static_cast<float>(k)) * len;
+    const float dot = (X(sx) * nx + X(sy) * ny + X(sz) * nz).f();
+    const float d = (-(X(dot) / nlen)).f();
     for (int32_t i = 0; i < k; ++i) {
       const float* c = p + 3 * i;
-      if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > ::zmod::coplanar_tolerance()) {
+      if (abs(X(uz) * c[2] + X(c[0]) * ux + X(c[1]) * uy + d) > ::zmod::coplanar_tolerance()) {
         zerr::report(0x100, kFile, 0x1555,
                      format("Attempting to add non-planar polygon (%d verts), triangulating...", k).c_str());
         add_fan(*m, k, use);

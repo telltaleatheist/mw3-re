@@ -6603,6 +6603,9 @@ ParkRun c2m1_park_run(bool bugs) {
       }
       ++frames;
       if (frames == 3) {
+        // The mission's enemies go on shooting: this is about the dock, and a player killed
+        // on it (the AI's timing varies with what ran before) ends the mission.
+        mech3::program_mech_set_invincible(player, true);
         out.bases = mech3::program_bases_alive();
         int32_t made = 0;
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
@@ -22133,6 +22136,7 @@ struct WideMenus {
   int32_t pil_accept = -1, pil_bar_label_y = -1, pil_bar_label_x = -1, pil_up = -1, games_up = -1, pil_lines_w = -1;
   int32_t map_w = -1, launch = -1, line_x = -1, waypoint_dx = -99, first_map_w = -2;
   bool pil_lines_alpha = false;  // LINES2 stretched (its alpha kept), not taken for a background
+  int32_t win_bars = -1, win_mark = -1, win_name = -1;  // a lance card: its bars, its line, its name
   int32_t win_bg = -1, win_continue = -1, win_abort = -1, win_card = -1, win_line = -1, win_line_end = -1;  // the debriefing
   int32_t lab_left_w = -1, lab_left_x = -1, lab_right_w = -1, lab_accept = -1, lab_view_x = -1, lab_view_w = -1;  // the lab
   int32_t lab_render_w = 0, lab_canvas_w = 0;
@@ -22318,6 +22322,9 @@ WideMenus wide_menus_run(bool wide) {
         out.win_continue = d->continue_btn.get_rect()->left;
         out.win_abort = d->abort_btn.get_rect()->left;
         out.win_card = d->cards[0].get_rect()->left;
+        out.win_bars = d->cards[0].display ? d->cards[0].display->bars[0].x : -1;
+        out.win_mark = d->cards[0].line.get_x();
+        out.win_name = d->cards[0].labels.empty() ? -1 : d->cards[0].labels[0]->get_x();
         out.win_line = d->lines[0].get_x(), out.win_line_end = d->lines[0].end_x;
         stage = 3;
       } else if (stage == 1) {
@@ -22521,6 +22528,10 @@ TEST(menus_wide_spread_by_their_groups_headless) {
   EXPECT(off.win_bg == 640 && on.win_bg == 640 + extra);
   EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra / 2 && on.win_abort == off.win_abort + extra / 2);  // one block (Owen)
   EXPECT(on.win_card == off.win_card + extra / 2);
+  // The card's bars and line draw by their own numbers: they keep their place by its name (Owen's 10:46 shot).
+  std::printf("  the card: bars %d -> %d, line %d -> %d, name %d -> %d\n", off.win_bars, on.win_bars, off.win_mark, on.win_mark, off.win_name, on.win_name);
+  EXPECT(off.win_bars > 0 && on.win_bars - on.win_name == off.win_bars - off.win_name);
+  EXPECT(off.win_mark > 0 && on.win_mark - on.win_name == off.win_mark - off.win_name);
   EXPECT(off.win_line_end > off.win_line && on.win_line == off.win_line + extra / 2 && on.win_line_end == off.win_line_end + extra / 2);
   // The credits (one block): their lines kept at the left edge and 106
   // longer to the box, BACK half the extra width right.
