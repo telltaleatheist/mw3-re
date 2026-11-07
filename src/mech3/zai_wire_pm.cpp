@@ -116,6 +116,44 @@ void pm_wire_clear() {
 }
 
 namespace {
+// BrainSidePmHooks: what may_engage_pm asks first; the hit side waits for PM's states.
+class WiredSidePm final : public BrainSidePmHooks {
+ public:
+  explicit WiredSidePm(Brain& brain) : b(brain), h(brain_hooks()) {}
+  float now() override { return h.now(); }
+  void position(zgame::Handle v, float out[3]) override { h.position(v, out); }
+  double health(zgame::Handle v) override { return h.health(v); }
+  bool net_allows(zgame::Handle net) override { return static_cast<AiNet*>(pm_ptr(net))->allows_attack(); }
+  bool state_allows(zgame::Handle state) override {
+    return static_cast<BehaviourState*>(pm_ptr(state))->may_break_in();
+  }
+  float clock() override { return none<float>("[0x008c1b50]"); }
+  void push_behaviour(int32_t) override { pm_hook_missing("0x004fa170"); }
+  uint32_t allies(zgame::Handle) override { return none<uint32_t>("vehicle+0xc4"); }
+  uint32_t team(zgame::Handle) override { return none<uint32_t>("attacker.vt+0x28"); }
+  zgame::Handle attacker_vehicle(zgame::Handle) override { return none<zgame::Handle>("attacker.vt+0x58"); }
+  zgame::Handle player_vehicle() override { return h.player_vehicle(); }
+  zgame::Handle player_contact(zgame::Handle) override { return none<zgame::Handle>("vehicle+0x98"); }
+  float dist2(zgame::Handle c) override { return static_cast<Contact*>(pm_ptr(c))->dist2; }
+  void radio_line(int32_t slot) override { h.radio_line(b, slot / 4); }
+  const float* hit_record(zgame::Handle) override { return none<const float*>("0x004b2900"); }
+  void allies_turn() override { h.allies_turn(); }
+  void hit_base(int32_t, int32_t, int32_t, zgame::Handle) override { pm_hook_missing("0x004b2a00"); }
+  void died_base() override { pm_hook_missing("0x004b2ab0"); }
+  double speed_at(zgame::Handle, float) override { return none<double>("vehicle.vt+0x124"); }
+  bool in_world(zgame::Handle) override { return none<bool>("vehicle+0x04"); }
+  void set_way(const float*, const float*, float, zgame::Handle) override { pm_hook_missing("steer.set_way"); }
+
+ private:
+  template <class T>
+  static T none(const char* key) {
+    pm_hook_missing(key);
+    return T{};
+  }
+  Brain& b;
+  BrainHooks& h;
+};
+
 // TickPmHooks on a Brain. Where PM's piece isn't wired, MW3's runs and says so once.
 class WiredTickPm final : public TickPmHooks {
  public:
@@ -174,8 +212,8 @@ class WiredTickPm final : public TickPmHooks {
     *state = pm_id(o.state.get());
   }
   bool may_engage(zgame::Handle v, zgame::Handle net, zgame::Handle state) override {
-    pm_hook_missing("stand-in: MW3's may_engage");
-    return b.may_engage(v, static_cast<AiNet*>(pm_ptr(net)), static_cast<BehaviourState*>(pm_ptr(state)));
+    WiredSidePm side(b);
+    return may_engage_pm(side, pm_brain(b).tick, v, net, state);
   }
   zgame::Handle target_vehicle(zgame::Handle c2) override { return h.contact_vehicle(contact(c2)); }
   zgame::Handle vehicle_net(zgame::Handle v) override { return pm_id(h.vehicle_net(v)); }
@@ -217,7 +255,7 @@ bool pm_frame(Brain& b, BrainControls& c, float dt) {
   r.vehicle = c.vehicle();
   r.tick.mode = b.params.get<int32_t>(0x3c);
   r.tick.busy = b.xf0;
-  r.tick.give_up = b.x230, r.tick.attack_until = b.xe8;
+  r.tick.give_up = b.x230, r.tick.attack_until = b.xe8, r.tick.home = b.xe4;
   WiredTickPm hooks(b, c);
   const bool answer = tick_pm(hooks, r.tick, c.vehicle(), dt);
   b.params.put<int32_t>(0x3c, r.tick.mode);
