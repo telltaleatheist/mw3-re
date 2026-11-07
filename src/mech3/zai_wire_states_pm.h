@@ -26,6 +26,7 @@ class PmAttackState final : public BehaviourState {
   bool may_break_in() const override { return false; }  // as MW3's FightState until PM's slots are read
   bool may_fire() const override { return false; }
   void run(float dt) override;
+  void resume() override { s_.reset(); }  // vt+0x10: 0x004d9ce0
 
  private:
   AttackStatePm s_;

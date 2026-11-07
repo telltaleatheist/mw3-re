@@ -19,7 +19,7 @@ bool pm_state_running(Brain& b) {
 }
 
 PmAttackState::PmAttackState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
-PmAttackState::~PmAttackState() = default;
+PmAttackState::~PmAttackState() { s_.release(); }  // 0x004ded60
 
 // 0x004dedf0 each frame. The brain's fields it keeps (AttackBrainPm) are the record's and the
 // params', handed in and back each frame; the walking context and the steering are the record's.

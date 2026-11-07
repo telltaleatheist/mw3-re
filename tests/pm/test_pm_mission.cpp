@@ -169,7 +169,7 @@ TEST(pm_c1m1_shadow_cats_wake) {
       }
       std::printf("  c1m1: %d AI mechs, shadow cats %p %p\n", made, cats[0], cats[1]);
     }
-    if (frames == 13000)  // the camp lost: "Protect Rim Collective Camp"'s fails (0x004600d0)
+    if (frames == 13000 && !std::getenv("PM_IDLE"))  // PM_IDLE: the trace's c1m1-idle, nothing forced; the camp lost: "Protect Rim Collective Camp"'s fails (0x004600d0)
       if (mech3::ai::Valve* v = mech3::ai::valve_find("collective_camp1")) v->set(1);
     if (frames == 13100) {
       mech3::Objectives& o = mech3::mission_objectives();
@@ -196,7 +196,7 @@ TEST(pm_c1m1_shadow_cats_wake) {
   app.run(pump);
   std::printf("  frames %d: go at %d, up at %d and %d\n", frames, go, up0, up1);
   zgame::set_game(zgame::mw3_table());
-  if (other) return;
+  if (other || std::getenv("PM_IDLE")) return;  // a run to look at, not this test's checks
   EXPECT(nav);
   std::printf("  c1m1: the camp's objective done %d failed %d, still in the mission %d\n", camp_done, camp_failed, still_core);
   EXPECT(camp_done && camp_failed && still_core);
