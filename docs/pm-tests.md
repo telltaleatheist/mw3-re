@@ -282,6 +282,10 @@ The lead's call: before the first run, port and test the 112 that ran, biggest r
 
 Firing is first and more than half. It isn't MW3's changed: PM's step keeps about a fifth of MW3's 0x4b5b80's lines and 0x4bd920, 412 instructions, has no close twin in MW3 (at best 17%, by a rough match on lines). Its parts, bottom-up: the aim (0x4badc0, 0x4bb040, 0x4bb290, 0x4bb580, 0x4b9f00), the plan's pick (0x4bc2e0, with 0x4bbfa0, 0x4bbe30, 0x4ba030, 0x4ba190, 0x4ba340 and their helpers), the shot (0x4bcd40, with 0x4bd920, 0x4bcad0, 0x4b8f80, 0x4bc930), then the step and the plan's virtuals (0x4ba9e0, 0x4baae0).
 
+### Firing's aim (2026-11-07)
+
+`test_pm_ai_aim`: 0x4bb040, 0x4bb580, 0x4badc0, 0x4baf40, 0x4bb290, 0x4013d0 and 0x4f8dc0 real on the exe, `zai_firing_pm`'s `AimPm`, 20,000 cases at 53 bits, exact from the first run, every re-pick branch reached (the offset carried exactly onto the target by a directed case). 27 breaks, 24 caught. The three missed swap the order of a double sum or divide where the exe multiplies by the inverse: each moves a double by a last bit before a float store, so a case would have to sit on a float's rounding edge, about 1 in 2^29, and they rest on reading the asm. Not tested: 0x4b7800 stands in (a blocked weapon line leaves the exe on stack garbage), the hooks that read the brain and vehicle, and the constructor, which comes with the step. 0x4b9f00, the fifth in this group, waits for the step: its numbers are written by a loader not yet traced.
+
 ## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
 
 What it's for: PM's places and states once a second, to compare by event against the port, and the jump's +0x588 and fuel. The smallest thing that does it is a logging form of `tools/weapon-patch/proxy`.
