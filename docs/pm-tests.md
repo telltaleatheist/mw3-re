@@ -270,7 +270,7 @@ Also left at the switch, from this file: every field of each struct the AI port 
 
 ### The first steps, decided (2026-11-07)
 
-The lead's call: before the first run, port and test the 112 that ran, biggest risk first, at today's bar. The other 195 differing functions wait for what the run shows; the 387 less those stay listed, not ported speculatively. `test_sensors`, `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` move as their code is reached.
+The lead's call: before the first run, port and test the 112 that ran, biggest risk first, at today's bar. The other 197 differing functions wait for what the run shows; the 387 less those stay listed, not ported speculatively. `test_sensors`, `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` move as their code is reached.
 
 | Group | Functions | Instructions | MW3's test to start from |
 |---|---:|---:|---|
@@ -280,7 +280,7 @@ The lead's call: before the first run, port and test the 112 that ran, biggest r
 | Nets, 0x4c6ab0..0x4cb730 | 13 | 873 | |
 | Targets, 0x4e2f50..0x4ea5f0 | 8 | 620 | `test_sensors` near it |
 
-Firing is first and more than half. It isn't MW3's changed: PM's step keeps about a fifth of MW3's 0x4b5b80's lines and 0x4bd920, 412 instructions, fires nothing MW3 has a twin for. Its parts, bottom-up: the aim (0x4badc0, 0x4bb040, 0x4bb290, 0x4bb580, 0x4b9f00), the plan's pick (0x4bc2e0, with 0x4bbfa0, 0x4bbe30, 0x4ba030, 0x4ba190, 0x4ba340 and their helpers), the shot (0x4bcd40, with 0x4bd920, 0x4bcad0, 0x4b8f80, 0x4bc930), then the step and the plan's virtuals (0x4ba9e0, 0x4baae0).
+Firing is first and more than half. It isn't MW3's changed: PM's step keeps about a fifth of MW3's 0x4b5b80's lines and 0x4bd920, 412 instructions, has no close twin in MW3 (at best 17%, by a rough match on lines). Its parts, bottom-up: the aim (0x4badc0, 0x4bb040, 0x4bb290, 0x4bb580, 0x4b9f00), the plan's pick (0x4bc2e0, with 0x4bbfa0, 0x4bbe30, 0x4ba030, 0x4ba190, 0x4ba340 and their helpers), the shot (0x4bcd40, with 0x4bd920, 0x4bcad0, 0x4b8f80, 0x4bc930), then the step and the plan's virtuals (0x4ba9e0, 0x4baae0).
 
 ## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
 
