@@ -195,15 +195,43 @@ Three things stand against the original's text writer as a save format:
    archive of a folder, 91 (68) of them with different contents. c1's
    net_01.zrd is in eight archives, so a loose copy replaces it in all eight.
 
-**So a save writes the mission's whole archive,** `mods\<name>\zbd\c1\
-readerm1.zbd`: every other entry copied, the edited net as a binary tree
-(zrd's types 1..4; the exact floats, no limit on links). The port reads it
-under the rule that a mod's copy of a game file is read instead; the original
-reads the same file dropped in its `zbd\c1`. Not yet tested on the original.
-The text writers stay worth porting for one thing: a readable copy beside it
-and a byte-for-byte test on the original's own code (0x004db8d0 run in the
-emulator). The "BS style" branch (version 105, three links, padded) is not
-used by any shipped file.
+**So a save writes the mission's whole archive** (decided 2026-11-07), as the
+mod's own copy, `mods\<name>\zbd\c1\readerm1.zbd`, and never touches a
+shared one or the install. Every other entry is copied as it is and the
+edited net goes in as a binary tree (zrd's types 1..4: the exact floats, no
+limit on links). The log names the archive written. A saved net is
+reproducible: a mod holding an unchanged copy of an archive plays as the
+original. The port reads the file under the rule that a mod's copy of a game
+file is read instead; the original should read the same file dropped in its
+`zbd\c1`, untested until there is a real saved archive. The text writers
+are ported too, for a readable copy beside it and a byte-for-byte test on
+the original's own code (0x004db8d0 run in the emulator). The "BS style"
+branch (version 105, three links, padded) is used by no shipped file.
+
+**Functions by sitting.** Counted as what the roots call, not yet ported,
+each counted once under the first sitting that needs it. Direct calls and the
+net's vtable only, so the other classes' slots will add some.
+
+| Sitting | Functions | Pseudocode lines | Largest |
+|---|---|---|---|
+| 2 writers | 7 | 420 | 0x004db8d0, 0x004dad10; the archive writer is ported (`zutl_zar`, the saved loadouts' 0x005765b0..) |
+| 3 viewing, the reticle pick | 70 | 2,800 | selection base 0x0058bf50, 0x0058ba40, the frame 0x00403160, 0x0058dfd0, 0x0058da70 |
+| 4 editing | 83 | 3,200 | 0x004c6680, 0x004dc710, 0x004de2c0, 0x004ddc90, 0x004dc2b0, the vehicle box 0x0049d350 |
+| 4 tree view | 3 | 70 | 0x00402bf0, 0x004b5580 |
+| 4 the reload as the exe has it | 25 | 960 | 0x004025b0, 0x00404860, 0x004bed90 |
+
+That is about 190 functions, where this page's first estimate for S5 and S6
+was part of 140.
+
+**The reload.** 0x004bed90 does nothing unless the version is 105 and no
+shipped file is, so in the exe an edit to a shipped net never reaches the
+vehicles running on it. Its 25 functions, with the older net class, are for a
+format that does not exist in the data, and stay unported as ai.md,
+Not ported on purpose, says. What sitting 4 needs instead is ours: 0x004be300, the compile, is ported
+already, and vehicles on the old net go over to the new one on 0x004bed90's
+pattern (the list at [0x0073655c], vt+0x140, vt+0x64, then vt+4), or the
+edit shows at the next mission load. The first is small and is a choice: it
+does what the 105 path was for, and the release never did it.
 
 ## The stealth object
 
@@ -324,8 +352,8 @@ PM's differences on `pm` (its zainetedit.cpp changed: 35 changed functions, 85
 new):
 
 5. **S5, S6** The AI net editor: 0x00402d60, 0x0040e120, 0x00403690, the
-   handlers above, the tree view; Save Changes to the write dir (FIX (A)),
-   saying on screen where it saved; typed fields (names, numbers) bounded
+   handlers above, the tree view; Save Changes to the mod's copy of the
+   mission's archive (FIX (A); the map above), saying on screen where it saved; typed fields (names, numbers) bounded
    like any input.
 6. **S7** The vehicle editor mapped (0x004b80f0's object, its screens and
    what each control edits and writes, to which file; every save to the
