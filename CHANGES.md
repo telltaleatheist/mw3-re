@@ -670,6 +670,7 @@ Known quirks the rebuild deliberately keeps:
 - A mod's new world can have multiplayer maps (readermp3.zbd and on), listed in the lobby with the others.
 - A broken entry in a reader archive (a mod's, say) is refused and named in the log instead of being read into whatever follows it; `mw3 --check-mod DIR` reads a mod as the game would and reports what it would refuse.
 - A broken texture or image library, world texture directory, sound or script file (a mod's, say) is refused and named in the log instead of being read past its end; a refused texture or sound is a missing one, a refused script line ends its script. `mw3 --check-mod` looks inside these files too.
+- `mw3 --check-mod` no longer calls a good world's gamez.zbd, anim.zbd or software texture sets broken, and reads a mod's animations from a folder of any length.
 - The mouse settings, like the controls, are saved only as you set them in the menus.
 - The controls screen's KEY A and KEY B columns take a key again: click the box, press the key (v1.0 never saw it; the mouse and joystick columns were not affected).
 - A MOUSE SENSITIVITY slider on the Graphics & Audio screen, under the volume sliders (0.5 to 3.0): it sets how far the mouse turns the mech in a mission. It starts at the original's 1.3, and Invert Mouse keeps it.

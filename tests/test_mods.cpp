@@ -263,6 +263,28 @@ TEST(mods_broken_reader_entries_are_refused) {
   zrdr::close_archives(true);
 }
 
+// A world's own files in a mod, in a folder past the 127 characters zEffect's path
+// holds: none is a zar archive, and each once came back refused as one.
+TEST(mods_check_mod_reads_animations_at_any_depth) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/anim.zbd", ec)) return;
+  SavedMounts keep;
+  std::string mod = tmp("mods_long");
+  while (mod.size() < 200) mod += "/a_folder_with_a_long_name";
+  put(mod + "/mod.txt", "name=Deep\nversion=1\n");
+  fs::create_directories(mod + "/zbd/c1", ec);
+  for (const char* f : {"anim.zbd", "gamez.zbd", "texture2.zbd"}) {
+    fs::copy_file(install + "/zbd/c1/" + f, mod + "/zbd/c1/" + f, ec);
+    EXPECT(!ec);
+  }
+  int errors = -1;
+  std::string text;
+  for (const std::string& l : mech3::mod_check(mod, install, &errors)) text += l + "\n";
+  EXPECT(text.find("animations read") != std::string::npos);
+  EXPECT(errors == 0);
+}
+
 // M3: mw3 --check-mod's report on a good mod and on one with every kind of
 // fault the game would refuse.
 TEST(mods_check_mod_reports_what_the_game_would_refuse) {

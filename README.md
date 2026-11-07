@@ -23,6 +23,9 @@ original.
 
 ### Coming in the next release
 
+- **`--check-mod` passes a mod with a new world.** It refused every good
+  `gamez.zbd`, `anim.zbd` and `texture*.zbd` as "not an archive". Only the check
+  was wrong. It also no longer stops at a long folder path.
 - **Artemis in a side torso works.** The game looked for it in the wrong
   place, so launchers there never got its better tracking. Stock loadouts with
   Artemis in a side torso now do.

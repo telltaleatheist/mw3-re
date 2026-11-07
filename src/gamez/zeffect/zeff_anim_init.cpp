@@ -226,8 +226,9 @@ int anim_read_zbd() { return zgame::game().zeff_anim_read_zbd(); }
 // place; the caller (0x50ae60) ignores the result.
 int mw3_anim_read_zbd() {
   AnimState& a = g_anim;
-  if (!a.loading || a.path[0] == 0) return -1;
-  std::FILE* f = zutl::open(a.path, "rb");  // FIX (A): the mounts (zutl_path.h)
+  const char* const file = a.host_path.empty() ? a.path : a.host_path.c_str();
+  if (!a.loading || file[0] == 0) return -1;
+  std::FILE* f = zutl::open(file, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return -1;
   std::fseek(f, 0, SEEK_END);
   g_file_end = std::ftell(f);
@@ -235,11 +236,11 @@ int mw3_anim_read_zbd() {
   // Ours: a broken copy is refused whole (the log names it) and the world has
   // no animations; the exe left what it had read in place, half bound.
   bool header_ok = false;
-  const auto fail = [f, &a, &header_ok] {
+  const auto fail = [f, &a, &header_ok, file] {
     std::fclose(f);
     g_file_end = -1;
     if (header_ok) {
-      std::printf("mw3: %s is broken (a count, size or name it cannot hold), its animations not read\n", a.path);
+      std::printf("mw3: %s is broken (a count, size or name it cannot hold), its animations not read\n", file);
       delete[] a.defs, a.defs = nullptr;
       a.block.put<int16_t>(0x0a, 0), a.block.put<int32_t>(0x10, 0);
       delete[] a.messages, a.messages = nullptr;
@@ -718,6 +719,7 @@ int32_t anim_init() {
   AnimState& a = g_anim;
   if (a.block.get<int32_t>(0) != 0) anim_free_all();
   a.path[0] = 0;
+  a.host_path.clear();
   for (int off : {0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x20, 0x24, 0x28}) a.block.put<int32_t>(off, 0);
   a.defs = nullptr, a.messages = nullptr, a.world = nullptr, a.player_node = nullptr;
   a.block.put<int32_t>(0x3c, 1);
