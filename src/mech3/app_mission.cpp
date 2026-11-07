@@ -2769,6 +2769,17 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
   return Engine::vcall(obj, slot, args);
 }
 
+const uint32_t* program_weather_flags() {
+  auto* w = static_cast<ProgramWeather*>(missions().world.weather);
+  return w ? &w->obj->flags : nullptr;
+}
+void program_weather_show(bool on) {
+  auto* w = static_cast<ProgramWeather*>(missions().world.weather);
+  if (!w) return;
+  if (on) w->obj->show_for(-1.0f);
+  else w->obj->hide();
+}
+
 const float* program_mission_fog(bool water) {
   static float f[7];
   const MissionWorld& w = missions().world;

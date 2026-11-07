@@ -57,6 +57,9 @@ void* program_cameras(int32_t roster);       // 0x00430e70
 void program_cameras_free(void* list);      // 0x0040abf0
 // The options' camera choice (0x0040ce70 / 0x0040ce10; defined with the options).
 int32_t program_camera_option();
+void* program_view_world();                  // the camera's world node
+const uint32_t* program_weather_flags();     // [0x006098d0] +0x0c, null without weather
+void program_weather_show(bool on);          // its vt+0x60(-1), vt+0x64
 const float* program_mission_fog(bool water);  // world.zrd's fog: range 2, altitude 2, colour 3 (app_mission.cpp)
 void program_camera_set(int32_t mode);
 int32_t program_mouse_mode();

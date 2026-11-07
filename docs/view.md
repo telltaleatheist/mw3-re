@@ -62,6 +62,9 @@ renders, +0x08 0x0040ada0 updates.
   the ground's hit (0x0040b080).
 - **Weather** (0x0040b9a0): a segment 100 m up from the camera; something
   over it hides the weather (vt+0x64), the open shows it again (vt+0x60).
+  Rain and snow are 2D layers, so this is what stops them falling under a
+  roof. `mission_weather_worlds_cover_headless` (`MW3_WEATHER_WORLDS=1`) stands the
+  player under cover and back on c4 m2, m3, c4b m4, m6 and t1 m1 to m4.
 
 ## 2. The camera modes
 
