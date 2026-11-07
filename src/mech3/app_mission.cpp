@@ -2071,6 +2071,7 @@ struct WiredMissionHooks : MissionHooks {
     // second instance at no node (an impact while the last one plays) copies its tree.
     a.copy_tree = [](zcls::Node* n) { return zcls::tree_copy_materials(n, 1, 1, 1); };  // PM [0x0060f384..8c], all 1
     a.create_puffer = []() -> void* { return zmod::puffer_create(); };
+    a.destroy_puffer = [](void* p) { zmod::puffer_destroy(static_cast<zmod::Puffer*>(p)); };
     a.find_sound = [](const char* name) -> void* { return zsnd::find(name); };
     a.effect_index = zeff::effect_find;  // 0x0050d9e0
     zcls::set_find_sound(a.find_sound);

@@ -83,6 +83,11 @@ Puffer* puffer_create() {
   return &g_state.puffers.back();
 }
 
+// Pirate's Moon 1.0 @ 0x00565cb0
+void puffer_destroy(Puffer* p) {
+  g_state.puffers.remove_if([p](const Puffer& q) { return &q == p; });
+}
+
 // Mech3.exe 1.2 @ 0x0054ab40
 void puffer_set_active(Puffer* p, int32_t on) {
   p->active = on != 0;
