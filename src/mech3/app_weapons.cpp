@@ -317,6 +317,12 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
       return 0.0f;
     });
   };
+  // Pirate's Moon 0x00524b50, 0x005216e0: a piece's break, at the piece.
+  pm::zcls::clutter_hooks().anim_find = [](const char* name) -> void* { return zeff::anim_find(name); };
+  pm::zcls::clutter_hooks().anim_start = [](void* anim, const float point[3]) {
+    static const float kZero[3] = {};
+    if (anim) zeff::anim_start_at(static_cast<zeff::AnimDef*>(anim), nullptr, point, kZero, kZero);
+  };
   headlight_hooks().world = [] { return qworld(); };
   headlight_hooks().load_beam = []() -> zcls::Node* {  // 0x004868d0: the library's tree, copied, models shared
     zcls::Node* n = load_tree("headlight.flt");
@@ -694,6 +700,7 @@ void unwire_weapons() {
   aim_calls() = AimCalls{};
   zwep::run_hooks() = zwep::RunHooks{};
   zwep::hit_hooks() = zwep::HitHooks{};
+  pm::zcls::clutter_hooks() = pm::zcls::ClutterHooks{};
   update_calls().weapons_fire = nullptr;
   update_calls().weapons_update = nullptr;
   heat_calls().heat_option = nullptr;
