@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/options.h"
 #include "mech3/zai_nav.h"
@@ -470,4 +471,22 @@ TEST(nav_a_search_spreads_over_frames_to_the_same_way) {
   some = 1 << 30;
   EXPECT(s.run(g, &some, &part) == nav::Find::kBuilding && !s.active() && part.empty());
   EXPECT(g.queue.empty());  // and asks nothing of the new grid for the old search
+}
+
+// A limb on the ground after its mech is freed isn't followed to the mech (watch_begin).
+TEST(nav_a_part_left_behind_is_not_watched) {
+  zcls::Node n{};
+  n.put<uint32_t>(0x28, 3);
+  EXPECT(nav::part_left_behind(n));
+  n.put<uint32_t>(0x28, 0x1003);  // not a mech part's id
+  EXPECT(!nav::part_left_behind(n));
+  n.put<uint32_t>(0x28, 0);
+  EXPECT(!nav::part_left_behind(n));
+  zcls::Node parent{};
+  zcls::Node* one[1] = {&parent};
+  n.put<uint32_t>(0x28, 3);
+  n.parents = one;
+  n.put<int32_t>(0x54, 1);
+  EXPECT(!nav::part_left_behind(n));
+  n.parents = nullptr;
 }

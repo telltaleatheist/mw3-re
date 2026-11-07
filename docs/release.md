@@ -163,6 +163,15 @@ the game's path is built into the programs.
 - [x] `AppDir/usr/share/doc/mw3/licenses` has every bundled library's
       licence files.
 
+### Packages with Pirate's Moon
+
+`main` builds no `mw3pm`. When packages take it from a tag on `pm`, it goes beside
+`mw3` and the launcher finds it there (launcher.md, Pirate's Moon): in
+`tools/macos/make_app.sh` copied to Contents/MacOS, signed and added to the
+library walk's `exes`, and in `tools/linux/make-appimage.sh` copied to usr/bin
+and given to linuxdeploy with `-e`; `tools/windows/package.cmd` copies it to the
+package folder, and `check_dist.ps1` then checks its DLLs.
+
 ## 4. Privacy
 
 Every file that leaves the machine (the packages, the read-mes, the release

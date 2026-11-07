@@ -22292,8 +22292,8 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               off.win_bg, on.win_bg, off.win_continue, on.win_continue, off.win_abort, on.win_abort, off.win_card,
               on.win_card, off.win_line, off.win_line_end, on.win_line, on.win_line_end);
   EXPECT(off.win_bg == 640 && on.win_bg == 640 + extra);
-  EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra && on.win_abort == off.win_abort);
-  EXPECT(on.win_card == off.win_card);
+  EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra / 2 && on.win_abort == off.win_abort + extra / 2);  // one block (Owen)
+  EXPECT(on.win_card == off.win_card + extra / 2);
   EXPECT(off.win_line_end > off.win_line && on.win_line == off.win_line + extra / 2 && on.win_line_end == off.win_line_end + extra / 2);
   // The credits (one block): their lines kept at the left edge and 106
   // longer to the box, BACK half the extra width right.

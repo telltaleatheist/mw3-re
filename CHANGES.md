@@ -153,6 +153,11 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- **Ctrl+I in the mech lab loads a loadout again.** In the rebuild so far it read
+  the file from `import` and added nothing, and still renamed the file
+  `.m3c.done`, so the loadout seemed to vanish. The file itself is intact: take
+  `.done` off its name and press Ctrl+I again.
+
 - **Finishing a mission while commanding your lance from the pocket view no
   longer crashes.** The original threw the commander's view away at the
   mission's end while your mech was still using it, then had the mech let
@@ -383,6 +388,7 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- On Windows the game can be installed, and keep its data, in a folder whose name has any letters, and it works for a Windows user name with accents (Windows 10 version 1903 or later; before that, it says so and asks for plain English letters). A pilot or file name with accents from an earlier version of the rebuild is put right at the next start.
 - The graphics options no longer offer the software renderer, which the rebuild does not have: the video device list shows your graphics card only, and a setting saved by the original or an older rebuild that chose software starts on the card.
 - **Gamepads work as they did on Windows.** A modern pad's sticks, triggers
   and buttons arrive in the order the game knew from Windows: the left stick
@@ -688,3 +694,4 @@ Known quirks the rebuild deliberately keeps:
 - Your data folder (settings, pilots, saves, converted movies) can live on another drive: GAME FILES, MY DATA FOLDER in the launcher copies it, checks the copy, then switches over, and removes the old copy only if you say so. If the drive is missing at start the game says so instead of starting afresh.
 - Pirate's Moon: message boxes draw their buttons on the panel. The squares of the screen behind each button are gone.
 - An install without the game's fonts (arial.ttf, impact.ttf, lucon.ttf) shows its text with the system's fonts, and says so in the log, where it used to show blank labels.
+- Restarting a mission after a mech lost a limb can no longer crash in the pathfinding's start-up, which followed the limb to its freed mech.
