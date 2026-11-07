@@ -2662,6 +2662,19 @@ std::vector<std::string> program_holders_of(uint32_t x, const void* gone) {
       if (on(c)) out.push_back("a targets.zrd object: a contact");
   return out;
 }
+// For the tests: weapon i of the mech has its FCS in the firing part, as the shot asks (Weapon::fire).
+bool program_weapon_fcs(void* mech, int32_t i) {
+  auto* m = static_cast<Mech*>(mech);
+  auto* wm = static_cast<WeaponManager*>(m->ammo);
+  Weapon* w = i >= 0 && static_cast<uint32_t>(i) < wm->count ? wm->weapons[i] : nullptr;
+  return w && w->firepoint && weapon_calls().equipment_in_part && weapon_calls().equipment_in_part(m, 3, w->firepoint->part);
+}
+const char* program_weapon_desc(void* mech, int32_t i) {
+  auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  Weapon* w = i >= 0 && static_cast<uint32_t>(i) < wm->count ? wm->weapons[i] : nullptr;
+  return w && w->def ? w->def->desc : nullptr;
+}
+
 // For the tests: what a real hit of `damage` takes off the mech's left leg's armour; a critical takes none, so again.
 float program_leg_hit_loss(void* mech, float damage) {
   auto* m = static_cast<Mech*>(mech);

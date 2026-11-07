@@ -465,5 +465,6 @@ AimCalls& aim_calls();
 void update_heat(Mech& m, float dt);  // 0x004192f0
 bool update_ams(Mech& m);             // 0x00419200: the AMS's frame; true when it fired
 MechPart* part_by_id(Mech& m, int32_t id);  // 0x0041d510: 1, 7, 8 the torso .. 15 the hip
+bool mech_equipment_in_part(Mech& m, int kind, int part);  // 0x00460c10
 
 }  // namespace mech3

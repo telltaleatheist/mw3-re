@@ -199,10 +199,8 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   c.target_velocity = [](Handle t) { return reinterpret_cast<const zwep::Vec3f3*>(weapon_lock_velocity(t)); };
   c.ecm_count = [](Handle m) { return mech_of(m)->equipment[8]; };  // +0x3cc
   c.fcs_count = [](Handle m) { return mech_of(m)->equipment[3]; };  // +0x3b8
-  c.equipment_in_part = [](Handle m, int32_t kind, int32_t part) {   // 0x00460c10
-    MechPart* p = part_by_id(*mech_of(m), part);
-    return p && p->has_equipment(kind);
-  };
+  // 0x00460c10: the config's part number as it stands; the torso's sides have no MechPart of their own.
+  c.equipment_in_part = [](Handle m, int32_t kind, int32_t part) { return mech_equipment_in_part(*mech_of(m), kind, part); };
   c.lock_notice = [](Handle m, Handle, WeaponDef* d) {  // 0x0041abd0: no sound without the def
     if (d) mech_lock_warning(m);
   };
