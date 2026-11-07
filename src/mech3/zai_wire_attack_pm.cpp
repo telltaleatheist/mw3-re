@@ -4,6 +4,7 @@
 #include <map>
 
 #include "mech3/zai_steps.h"
+#include "mech3/zai_wire_nets_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 
 namespace mech3::ai {
@@ -44,10 +45,7 @@ const float* WireAttack::place_of(zgame::Handle behaviour) {
   return static_cast<Behaviour*>(pm_ptr(behaviour))->way_point();
 }
 
-zgame::Handle WireAttack::kind_behaviour(int32_t) {
-  pm_hook_missing("0x004c7800");
-  return 0;
-}
+zgame::Handle WireAttack::kind_behaviour(int32_t kind) { return pm_id(pm_kind_behaviour(b_, kind)); }
 
 namespace {
 std::map<const Brain*, std::list<PendingPm>>& pending() {
@@ -67,9 +65,10 @@ struct PendingOn : PendingPmHooks {
 }  // namespace
 
 // 0x004ea0f0 with a 0x005eeca4: at the back.
-void WireAttack::queue_after(zgame::Handle target, zgame::Handle behaviour) {
+// The exe's "target" here is the order's net (its +0x0c, vt+0x1c, vt+0x18, vt+0x50), the net the follow goes on.
+void WireAttack::queue_after(zgame::Handle, zgame::Handle behaviour) {
   PendingPm p;
-  p.kind = PendingPm::kFollow, p.target = target, p.behaviour = behaviour;
+  p.kind = PendingPm::kFollow, p.target = b_.current().net ? pm_id(b_.current().net->net()) : 0, p.behaviour = behaviour;
   pending()[&b_].push_back(p);
 }
 

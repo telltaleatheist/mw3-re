@@ -2,6 +2,7 @@
 
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_nets_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 #include "mech3/zai_wire_walk_pm.h"
 #include "mech3/zai_wire_states_pm.h"
@@ -116,6 +117,7 @@ void pm_ids_forget(const void* p) {
   ids().erase(it);
 }
 void pm_wire_clear() {
+  pm_vehicle_nets_clear();
   brains().clear(), targets().clear(), ids().clear(), ptrs().clear();
   g_next_id = 1;
 }
@@ -232,7 +234,7 @@ class WiredTickPm final : public TickPmHooks {
     return yes;
   }
   zgame::Handle target_vehicle(zgame::Handle c2) override { return h.contact_vehicle(contact(c2)); }
-  zgame::Handle vehicle_net(zgame::Handle v) override { return pm_id(h.vehicle_net(v)); }
+  zgame::Handle vehicle_net(zgame::Handle v) override { return pm_id(pm_vehicle_net(v)); }  // PM's ten slots
   zgame::Handle attack_behaviour(zgame::Handle net) override {
     return pm_id(h.attack_behaviour(static_cast<AiNet*>(pm_ptr(net))));
   }

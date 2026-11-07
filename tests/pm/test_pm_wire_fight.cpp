@@ -6,6 +6,7 @@
 #include "mech3/zai_target.h"
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_nets_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 
 using namespace mech3::ai;
@@ -231,6 +232,23 @@ TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
   pm_pop_order(b);
   EXPECT(b.orders.size() == n);
   b.set_net(nullptr);
+}
+
+TEST(pm_wire_nets_ten_slots_and_the_kind_lookup) {
+  Fake f;
+  Installed in(&f);
+  PmVehicleNet* n = pm_vehicle_net(9);
+  EXPECT(n == pm_vehicle_net(9) && n->elems.size() == 10);
+  EXPECT(n->follow() != nullptr && n->attack() != nullptr);  // MW3's asks still answer
+  AiParams rec;
+  Brain b(nullptr, rec);
+  EXPECT(b.set_net(n));
+  // 0x004c7800: kind 1 is slot 2, 7 is slot 9, anything else slot 0.
+  EXPECT(pm_kind_behaviour(b, 1)->kind == static_cast<StepKind>(kVehicleSlotsPm[2]));
+  EXPECT(pm_kind_behaviour(b, 7)->kind == static_cast<StepKind>(kVehicleSlotsPm[9]));
+  EXPECT(pm_kind_behaviour(b, 0)->kind == StepKind::VehFollow);
+  b.set_net(nullptr);
+  pm_vehicle_nets_clear();
 }
 
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {

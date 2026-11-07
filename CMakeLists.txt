@@ -277,6 +277,7 @@ add_library(mw3core STATIC
   src/mech3/zai_wire_firing_pm.cpp
   src/mech3/zai_wire_attack_pm.cpp
   src/mech3/zai_wire_orders_pm.cpp
+  src/mech3/zai_wire_nets_pm.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp
   src/mech3/zai_attack.cpp
