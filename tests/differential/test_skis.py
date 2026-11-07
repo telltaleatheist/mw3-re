@@ -20,7 +20,9 @@ is approximated here, docs/movement.md, Ported and checked).
 import ctypes
 import math
 import random
+import os
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -355,3 +357,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # And at the reference runtime's 53 bits (docs/testing-precision.md): zgeo::X, as the exe's stores.
+    if not os.environ.get('MW3_PRECISION'):
+        sys.exit(subprocess.call([sys.executable, __file__, *sys.argv[1:]], env=dict(os.environ, MW3_PRECISION='53')))
