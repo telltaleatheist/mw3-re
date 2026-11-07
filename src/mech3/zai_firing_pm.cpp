@@ -111,8 +111,9 @@ bool AimPm::frame(zgame::Handle plan, zgame::Handle w, Brain* b, float f[9], flo
   active = *spread != 0;
   if (active) {
     const float* at = h.plan_position(plan);
-    if (w) {
-      h.weapon_line(w, at, muzzle, f + 6);
+    // FIX (bug): a destroyed weapon, or one with no node, writes nothing and the exe goes on with its stack's muzzle
+    // and way; here the vehicle's place, as with no weapon (fixes.md, The weapon's line with no node).
+    if (w && h.weapon_line(w, at, muzzle, f + 6)) {
     } else {
       h.vehicle_position(b, muzzle);
       for (int i = 0; i < 3; ++i) f[6 + i] = at[i] - muzzle[i];

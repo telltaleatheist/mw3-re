@@ -27,7 +27,7 @@ class AimPmHooks {
   virtual float pilot_aid(Brain* b) = 0;                                // +0xc0
   virtual bool targeting_aid(Brain* b) = 0;                             // the vehicle's +0x3f4 or +0x3c8 above 0
   virtual void vehicle_position(Brain* b, float out[3]) = 0;            // 0x005cb260 on the brain's vehicle
-  virtual void weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) = 0;  // 0x004b7800
+  virtual bool weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) = 0;  // 0x004b7800: false, nothing written
   virtual int32_t rand() = 0;
   virtual float now() = 0;                                              // [0x0062da90]
   virtual void wm_aim_at(zgame::Handle wm, const float* at) = 0;        // 0x004b4a20

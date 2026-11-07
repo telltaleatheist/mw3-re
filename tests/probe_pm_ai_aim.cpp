@@ -27,9 +27,10 @@ struct W : AimPmHooks {
   float pilot_aid(Brain*) override { return f[2]; }
   bool targeting_aid(Brain*) override { return in[3] != 0; }
   void vehicle_position(Brain*, float out[3]) override { std::memcpy(out, f + 3, 12); }
-  void weapon_line(zgame::Handle, const float at[3], float muzzle[3], float dir[3]) override {
+  bool weapon_line(zgame::Handle, const float at[3], float muzzle[3], float dir[3]) override {
     for (int i = 0; i < 3; ++i) log.push_back(bits(at[i]));
     std::memcpy(muzzle, f + 6, 12), std::memcpy(dir, f + 9, 12);
+    return true;  // the stand-in always writes, as the exe's own does for a weapon with a node
   }
   int32_t rand() override { return rands[nrand++]; }
   float now() override { return f[12]; }

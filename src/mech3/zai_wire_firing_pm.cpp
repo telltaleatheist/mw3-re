@@ -170,10 +170,10 @@ class WireAim : public AimPmHooks {
   float pilot_aid(Brain* b) override { return b->params.get<float>(0xc0); }
   bool targeting_aid(Brain* b) override { return brain_hooks().targeting_aid(vehicle_of(b)); }
   void vehicle_position(Brain* b, float out[3]) override { brain_hooks().position(vehicle_of(b), out); }
-  void weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) override {
+  bool weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) override {
     LineHooks h;
     float c, kept;
-    ai::weapon_line(h, line_of(*weapon_of(w)), at, muzzle, dir, &c, &kept);
+    return ai::weapon_line(h, line_of(*weapon_of(w)), at, muzzle, dir, &c, &kept);
   }
   int32_t rand() override { return brain_hooks().rand(); }
   float now() override { return brain_hooks().now(); }
