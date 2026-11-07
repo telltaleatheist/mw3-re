@@ -1162,6 +1162,18 @@ struct Mounted {
   }
   ~Mounted() { zutl::mounts() = saved; }
 };
+// An install without the fonts: the system's, not blank text (font_path, FIX (A)).
+TEST(sdl_fonts_from_the_system) {
+  zutl::Mounts held = zutl::mounts();
+  zutl::mounts() = zutl::Mounts{};
+  const std::string got = sdlfe::SdlTwodHost::font_path("arial.ttf");
+  zutl::mounts() = held;
+#if defined(__APPLE__) || defined(_WIN32)
+  EXPECT(!got.empty());
+#endif
+  EXPECT(got.empty() || std::filesystem::exists(got));
+}
+
 bool have_fonts() { return std::filesystem::exists(std::string(MW3_GAME_DIR) + "/arial.ttf"); }
 }  // namespace
 
