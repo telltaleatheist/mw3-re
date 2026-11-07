@@ -130,7 +130,8 @@ def main():
                         cases[case] = cases.get(case, 0) + 1
                     if case:
                         rare += 1
-                    if (not case or rare > 100) and r.random() > sample:  # no more than 100 of them an area
+                    # MW3_BOUNDARY_ALL=1: every query on the exe too, about 20 minutes, so the port picks nothing.
+                    if not os.environ.get('MW3_BOUNDARY_ALL') and (not case or rare > 100) and r.random() > sample:
                         continue
                     theirs = emu.query(a, b, -1, 0)
                     queries += 1

@@ -699,15 +699,10 @@ struct WiredPlayerHooks : PlayerHooks {
   }
   float frame_dt() override { return e->frame_dt(); }
   Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
+  void entities_before(float dt) override { entities_box_on(dt); }
+  void entities_after(float dt) override { entities_box_back(dt); }
   // Mech3.exe 1.2 @ 0x00419fc0 (vtable +0x34): the pilot's mech is the
   // port's (the launch), its frame.
-  void vehicle_41aba0(Handle v, float dt) override {
-    void* m = e->object_of(v);
-    if (!m || !is_launched_mech(m)) return PlayerHooks::vehicle_41aba0(v, dt);
-    static GameEngine* s_e;
-    s_e = e;
-    mech_after_tick(m, [](const char* k) { return s_e->unported(k, {}); });
-  }
   void vehicle_update(Handle v, float dt) override {
     void* m = e->object_of(v);
     if (m && is_launched_mech(m)) update_mech(m, dt);

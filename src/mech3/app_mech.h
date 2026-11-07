@@ -275,7 +275,13 @@ bool mech_group_reloading(void* mech, int32_t group);
 bool program_mech_ams(void* mech, int32_t* fitted, bool* on, int32_t* rounds);
 void program_mech_ams_set(void* mech, bool on);
 int32_t program_fire_at(void* mech, const char* weapon, int32_t n, float dist);
-void mech_after_tick(void* mech, uint32_t (*unported)(const char*));  // 0x0041aba0  // a group whose weapons heat (as F1..F5 would), -1 none  // [0x0072c52c] into the mech, weapon and zWeapon modules
+void mech_before_frame(void* mech);             // PM 0x0041b900
+void mech_after_frame(void* mech, float dt);    // PM 0x0041b930
+void entities_box_on(float dt);                 // PM 0x005cb4e0
+void entities_box_back(float dt);               // PM 0x005cb510
+// Roots with their box on as entities_box_back started, and after it: for the program's tests.
+void entities_box_counts(int32_t* during, int32_t* left, int32_t* player_at);
+//  // a group whose weapons heat (as F1..F5 would), -1 none  // [0x0072c52c] into the mech, weapon and zWeapon modules
 void mech_set_damage_handler(void* mech);
 
 // The mech types (mech_lib.h, mech_data.h) for the engine and the mission:

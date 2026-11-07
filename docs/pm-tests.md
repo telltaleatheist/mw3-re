@@ -177,3 +177,22 @@ The compares were 1e-3 wide, which is thousands of last-place units; 53-bit runs
 
 **Rerun at the switch, added:** every break for these pieces on this evaluation.
 
+## The frame's box window
+
+`pm_player_tick_box_window` (`mw3pmtests`) holds the tick's order against
+0x4a4490 and 0x4a4440 as read; the two orders are not compared against the
+running exe. `pm_enemies_die_under_real_fire` is gated by `PM_KILL=index,type,number`
+(c1m1 is `0,1,1`) and takes minutes: every AI mech dies under real fire, the real
+bit counted after the walk each frame (on during it, off after it), the player
+first in the walk. `PM_LEG=<weapon index>` aims that one weapon's ready shots at
+a leg through the real trigger and prints each hit: the node, part or spread, the
+damage, the segment's real end, every section's health. On the ER Large
+(index 5): every mech dies, the Thor in 11 to 14 shots, every hit of the player's
+on a leg. The slower weapons (`PM_LEG=3`, `0`, `8`) print and aren't held to a
+kill: the time or the ammo runs out. What only the window does for the
+headlight and the aim (the moved `mech_after_frame`) isn't compared: it
+rests on reading.
+
+Breaks, all caught: the box never set (the reticle alone boxes 3 roots, against 13), never
+restored, restored on, the walk outside the window, the player's update outside it,
+the leg's scale 1, the player not first in the walk.

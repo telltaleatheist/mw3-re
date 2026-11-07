@@ -185,7 +185,8 @@ class PlayerHooks : public zgame::Unported {
   virtual void entities_update(float dt) { unported("0x004a1140", {zgame::bits(dt)}); }
   virtual void tick_41e3f0(float dt) { unported("0x0041e3f0", {zgame::bits(dt)}); }
   virtual void tick_537f20(int32_t v) { unported("0x00537f20", {v}); }
-  virtual void vehicle_41aba0(Handle v, float dt) { unported("0x0041aba0", {v, zgame::bits(dt)}); }
+  virtual void entities_before(float dt) { (void)dt; }  // 0x005cb4e0: each entity's vt+0x34
+  virtual void entities_after(float dt) { (void)dt; }   // 0x005cb510: each entity's vt+0x3c
   virtual void view_tick(Handle view, float dt) { unported("view.vt+0x8", {view, zgame::bits(dt)}); }
 
   // The handle a record goes by in the calls above (its address in the exe).

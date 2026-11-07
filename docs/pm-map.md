@@ -415,6 +415,56 @@ jagged orange edge low in c2, which may be what the transparency and priority st
 do. Each is to check under the real draw against an original screenshot or the
 data, not by assuming.
 
+## The frame's box window
+
+Pirate's Moon does one thing to every entity around the frame that MW3 did
+to none of them, and everything a shot can land on depends on it. MW3's
+0x41aba0 ran on the pilot's mech alone, at the tail of its update; PM's
+player tick (0x4a4490) calls 0x4a4440 instead:
+
+1. 0x5cb4e0: each entity of the list at 0x8d3ac0, vt+0x34.
+2. The player's vehicle, vt+0x38.
+3. If [0x609920], 0x5cb540: vt+0x38 of each entity with +9 set.
+4. 0x5cb510: each entity, vt+0x3c.
+
+The slots exist on the mech (vtable 0x5dfaac: 0x41b900, 0x41ae00, 0x41b930),
+the field base (0x5e4a20), the stealth object (0x5ea8d0), the basic vehicle
+(0x5eaeac) and the vehicle base (0x5eb2ac, which has no instance). Turrets
+and the targets don't take part. Before the frame a mech detaches its
+headlight (0x479c30 through 0x41f930), and 0x4b2d70, if the entity is active,
+saves the root's box bit (0x20, 0x4fd310) in +0xdc and sets it. After the
+frame the mech takes +0x6d4 = dt, aims the parts (0x41e4d0), runs the ammo
+gauge and aim state if it is the viewed mech (0x4b4c70), clears +0x688,
+attaches the headlight (0x479c60); 0x4b2da0 then puts the saved bit back.
+
+So a root is a box only while mechs move and look; beams and shots cast in
+the weapon_tick action, a separate node, with every root back to its meshes.
+That is what a hit on a part needs: a root with 0x20 answers the segment
+itself (`line_gate`, `line_take`), `node_part` finds nothing, and the hit
+spreads 14.3% over the body, never the head. **A port that sets the box at the
+build and has no window makes the enemy nearly unkillable**: 276 to 431 hits
+each on c1m1, none on a part.
+
+**Order.** The reticle's ray 0x445cf0 runs in the viewed mech's vt+0x3c, by
+0x4b4c70, inside step 4: it sets the near contacts' box off (0x445c60 with 0,
+at 0x445d9d), casts, and sets it on (with 1, at 0x445efa) whatever it was. A
+contact later in the list is restored after that, so the reticle changes
+nothing. A contact earlier in the list has been restored already: it is left
+boxed, and the next frame's 0x4b2d70 saves that 1, so it stays boxed for as long
+as it stays in reach. The list is push_back order, from the entities'
+constructors (0x5cabb0), and the player is built first: the port measures him at
+0 in the walk on c1m1, so in a campaign mission no contact is affected. The
+port keeps the order, so a case with a mech ahead of the viewed one (a network
+game's other players, the pocket commander's view) does as the exe does. That
+the exe's own list has the player first rests on reading: the mission load is
+ported as written, and nothing has watched the running exe's list.
+
+**How many hits.** PM's 0x414430 sets the leg's scale [0x6040a4] to 0.5 alone
+and on a network; MW3's 0x413e60 has 1 alone. So PM's legs take half what
+MW3's do, and the arithmetic (`apply_damage`, damage_scale 0.0062) gives, for 10
+damage: Thor 12, Shadow Cat 10, Clint 9, Epona 8, at 15 damage 8, 7, 6, 5.
+`PM_LEG=5` reaches that in the mission on the same five mechs.
+
 ## A porting order
 
 Each step is a sitting or a few, as for MW3; the counts are the port's

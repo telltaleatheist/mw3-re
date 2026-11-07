@@ -2179,6 +2179,62 @@ bool mech_aim_at(void* mech, const float at[3]) {
 void update_mech(void* mech, float dt) {
   if (mech) static_cast<Mech*>(mech)->update(dt);
 }
+// PM's box window (docs/pm-map.md, "The frame's box window"). Pirate's Moon 1.0 @ 0x004b2d70, 0x004b2da0: every
+// vehicle's root hit by its box for the frame, its bit kept in +0xdc. A mech, a field base, a basic vehicle and the
+// stealth object have these slots; turrets and targets don't.
+namespace {
+std::unordered_map<zcls::Node*, int32_t> g_box_kept;  // +0xdc, 0 at the start as the constructors leave it
+int32_t g_box_during = 0, g_box_left = 0, g_box_player = -1;
+constexpr uint32_t kIntersectBbox = 0x20;
+
+// The entity's root when its class has the slots.
+zcls::Node* box_root(ai::Handle h, bool* active) {
+  if (Mech* m = entity_mech(h)) {
+    *active = m->active;
+    return zn(m->node);
+  }
+  void* v = g_w.object_of(g_w.engine, h);
+  if (!v || !is_program_vehicle(v)) return nullptr;
+  *active = hud_object_active(v);
+  return zn(program_vehicle_node(v));
+}
+}  // namespace
+
+void entities_box_on(float) {
+  for (const ai::Handle h : ai::entity_list()) {
+    if (Mech* m = entity_mech(h)) mech_before_frame(m);
+    bool active = false;
+    zcls::Node* n = box_root(h, &active);
+    if (!n || !active) continue;  // 0x004b2d70 asks +0x08
+    g_box_kept[n] = (n->flags() & kIntersectBbox) != 0;
+    zcls::node_set_intersect_bbox(n, 1);
+  }
+}
+
+void entities_box_back(float dt) {
+  g_box_during = g_box_left = 0;
+  int32_t at = 0;
+  for (const ai::Handle h : ai::entity_list()) {
+    if (entity_mech(h) == mech_mission_player()) g_box_player = at;
+    ++at;
+    bool active = false;
+    zcls::Node* n = box_root(h, &active);
+    if (n && (n->flags() & kIntersectBbox)) ++g_box_during;
+    if (Mech* m = entity_mech(h)) mech_after_frame(m, dt);
+    if (!n) continue;
+    const auto kept = g_box_kept.find(n);
+    zcls::node_set_intersect_bbox(n, kept == g_box_kept.end() ? 0 : kept->second);
+  }
+  for (const ai::Handle h : ai::entity_list()) {  // after the walk: the reticle's own box calls run in it
+    bool active = false;
+    if (zcls::Node* n = box_root(h, &active); n && (n->flags() & kIntersectBbox)) ++g_box_left;
+  }
+}
+
+void entities_box_counts(int32_t* during, int32_t* left, int32_t* player_at) {
+  *during = g_box_during, *left = g_box_left, *player_at = g_box_player;
+}
+
 // Mech3.exe 1.2 @ 0x004a1140 ([0x005e7284] is 1): the entity manager's walk
 // 0x005a8850 over zEntity's list, the program's mechs; the sensors leave the
 // player's +0x09 clear, so its frame is the player tick's alone. The basic

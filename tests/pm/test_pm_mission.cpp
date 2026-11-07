@@ -1,4 +1,5 @@
 // Pirate's Moon missions run headless with the AI on, for what the AI does in play.
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/player.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
@@ -195,9 +197,201 @@ TEST(pm_c1m1_shadow_cats_wake) {
 // The one destroy valve PM ships that names a unit: mission 4's `werewolf_destroyed`, any of
 // `werewolf_destroyed_ready` and `werewolf_down`, kills `werewolf` through the kill 0x41de00 (0x4f5210
 // calls vt+0x78). PM has no gas: MW3's c2 m2 records aren't in its data.
+// PM_KILL=index,type,number: the player's real weapons, all of them each frame, at each AI mech of a mission in turn,
+// at its torso from close by, until it's dead. The player can't die or run dry. One mission a process.
+extern int pm_kill_on_part, pm_kill_off_part;  // pm_kill.cpp
+void pm_kill_begin(void* player);
+int pm_kill_fire(void* player, const float at[3]);
+void pm_kill_left(void* mech, char* out, size_t n);
+void pm_kill_ray(const float from[3], const float to[3]);
+uint32_t pm_kill_root_flags(void* mech);
+void pm_kill_tree(void* mech);
+int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown);
+void pm_leg_reset();
+const char* pm_weapon_name(void* player, int i);
+bool pm_kill_only_leg_lost(void* mech, int leg);
+void pm_kill_weapons(void* mech);
+void pm_kill_scales(void* mech);
+// Pirate's Moon 1.0 @ 0x004a4490, 0x004a4440: the box window opens before the player's update and the walk and closes after both.
+struct TickOrder : mech3::PlayerHooks {
+  std::string calls;
+  float reader_item_float(mech3::Handle, int32_t) override { return 0; }
+  mech3::Handle reader_item(mech3::Handle, int32_t) override { return 0; }
+  int32_t dfn_config_count(mech3::Handle) override { return 0; }
+  mech3::Handle dfn_config(mech3::Handle, int32_t) override { return 0; }
+  int32_t dfn_skin_count(mech3::Handle) override { return 0; }
+  mech3::Handle dfn_skin(mech3::Handle, int32_t) override { return 0; }
+  void set_field32(mech3::Handle, uint32_t, uint32_t) override {}
+  uint32_t field32(mech3::Handle, uint32_t) override { return 0; }
+  mech3::Handle controls_interface(mech3::Handle) override { return 0; }
+  float frame_dt() override { return 0.033f; }
+  mech3::Handle pilot_vehicle() override { return 0; }
+  mech3::Handle view() override { return 0; }
+  mech3::Handle view_target(mech3::Handle) override { return 0; }
+  mech3::Handle stealth() override { return 8; }
+  void clear_6099c0() override { calls += 'c'; }
+  void entities_before(float) override { calls += '('; }
+  void vehicle_update(mech3::Handle, float) override { calls += 'p'; }
+  void entities_update(float) override { calls += 'w'; }
+  void entities_after(float) override { calls += ')'; }
+  void tick_41e3f0(float) override { calls += 'd'; }
+  int32_t game_type() override { return 0; }
+  void view_tick(mech3::Handle, float) override { calls += 'v'; }
+};
+
+TEST(pm_player_tick_box_window) {
+  TickOrder o;
+  mech3::PlayerHooks& was = mech3::player_hooks();
+  mech3::set_player_hooks(&o);
+  mech3::player_tick();
+  mech3::set_player_hooks(&was);
+  EXPECT(o.calls == "c(pw)dv");
+}
+
+TEST(pm_enemies_die_under_real_fire) {
+  const char* which = std::getenv("PM_KILL");
+  if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_kill_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  mech3::Mech3App app(&engine);
+  mech3::set_app(&app);
+  EXPECT(app.init_instance());
+  mech3::GameEngine::Launch l;
+  std::sscanf(which, "%d,%d,%d", &l.index, &l.type, &l.number);
+  engine.set_launch(l);
+  app.post_intro_ = &mech3::states().load;
+  std::vector<void*> targets;
+  std::vector<const char*> names;
+  size_t at = 0;
+  int frames = 0, since = 0, dead = 0, stuck = 0, shots = 0, hits0 = 0, off0 = 0, box_during = 0, box_left = 0, player_at = -1;
+  bool done = false;
+  const auto state = [](void* m) {
+    mech3::LaunchedMech o;
+    mech3::describe_mech(m, &o);
+    return o.anim_state;
+  };
+  engine.on_present = [&](int) {
+    if (app.current() != &mech3::states().core) return;
+    if (++frames < 10) return;
+    void* player = mech3::mech_mission_player();
+    if (!player) return;
+    if (targets.empty()) {
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      for (int32_t i = 0; i < made; ++i) {
+        targets.push_back(ai[i].mech), names.push_back(ai[i].name);
+        std::printf("  frame %d: %s root flags %x\n", frames, ai[i].name ? ai[i].name : "?", pm_kill_root_flags(ai[i].mech));
+      }
+      std::printf("  %d AI mechs; the player's root flags %x\n", made, pm_kill_root_flags(player));
+      pm_kill_begin(player);
+      if (std::getenv("PM_KILL_TREE") && made) pm_kill_tree(ai[0].mech);
+      pm_kill_weapons(player);
+      for (int32_t i = 0; i < made; ++i) std::printf("  %s:", ai[i].name ? ai[i].name : "?"), pm_kill_scales(ai[i].mech);
+    }
+    while (at < targets.size() && state(targets[at]) == 10) {
+      char left[200];
+      pm_kill_left(targets[at], left, sizeof left);
+      std::printf("  %s dead: %d frames, %d shots, %d hits on a part, %d off: %s\n", names[at] ? names[at] : "?", since, shots, pm_kill_on_part - hits0,
+                  pm_kill_off_part - off0, left);
+      if (const char* leg = std::getenv("PM_LEG"); leg && std::atoi(leg) == 5 && at == 0) {  // ER Large at the Thor: docs/pm-map.md
+        EXPECT(shots >= 11 && shots <= 14);
+        EXPECT(pm_kill_only_leg_lost(targets[at], 0));
+      }
+      ++dead, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
+      pm_leg_reset();
+    }
+    if (at >= targets.size()) {
+      done = true;
+      return;
+    }
+    void* m = targets[at];
+    float there[3];
+    mech3::LaunchedMech info;
+    mech3::describe_mech(m, &info);
+    mech3::mech_world_position(m, there);
+    int32_t during = 0, left_on = 0;
+    mech3::entities_box_counts(&during, &left_on, &player_at);
+    box_during = std::max(box_during, during), box_left = std::max(box_left, left_on);
+    if (since++ % 60 == 0) {
+      const float mine[3] = {there[0] - 40.0f, there[1], there[2]};
+      mech3::move_mech(player, mine, -1.5707964f);  // facing +x
+    }
+    if (const char* leg = std::getenv("PM_LEG")) {  // weapon index: one weapon, ready shots only, at a leg
+      const int weapon = std::atoi(leg);
+      if (since == 1) std::printf("  == %s at %s, height %.1f\n", pm_weapon_name(player, weapon), names[at] ? names[at] : "?", info.height);
+      shots += pm_leg_fire(player, m, weapon, 0, 24);
+      if (state(m) != 10 && since > 3600) {
+        char left[200];
+        pm_kill_left(m, left, sizeof left);
+        std::printf("  %s alive after %d shots, %d on a part, %d off: %s\n", names[at] ? names[at] : "?", shots, pm_kill_on_part - hits0, pm_kill_off_part - off0, left);
+        ++stuck, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
+        pm_leg_reset();
+      }
+      return;
+    }
+    const float aim[3] = {there[0], there[1] + info.height * 0.6f, there[2]};
+    shots += pm_kill_fire(player, aim);
+    if (since == 30 || since == 31) {
+      float me[3];
+      mech3::mech_world_position(player, me);
+      std::printf("  %s at %.1f %.1f %.1f height %.1f state %d down %d, player at %.1f %.1f %.1f, weapons %d\n", names[at] ? names[at] : "?", there[0],
+                  there[1], there[2], info.height, info.anim_state, info.powered_down, me[0], me[1], me[2], info.weapons);
+      const float from[3] = {aim[0] - 40.0f, aim[1], aim[2]};
+      pm_kill_ray(from, aim);
+    }
+    char left[200];
+    if (since % 300 == 0) {
+      pm_kill_left(m, left, sizeof left);
+      std::printf("  %s after %d frames, %d shots, hits on a part %d, off %d: %s\n", names[at] ? names[at] : "?", since, shots,
+                  pm_kill_on_part - hits0, pm_kill_off_part, left);
+    }
+    if (since > 3600) {
+      ++stuck, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
+    }
+  };
+  Pump pump;
+  pump.limit = 60000;
+  pump.stop = [&] { return done; };
+  app.run(pump);
+  std::printf("  %s: %zu AI mechs, %d killed, %d not; hits on a part %d, off a part %d; frames %d\n", which, targets.size(), dead, stuck,
+              pm_kill_on_part, pm_kill_off_part, frames);
+  zgame::set_game(zgame::mw3_table());
+  std::printf("  roots boxed during the frame, most %d; left boxed after it, most %d; the player %d in the walk\n", box_during, box_left, player_at);
+  EXPECT(!targets.empty());
+  EXPECT(box_during > static_cast<int>(targets.size()));  // on through the frame: 0x005cb4e0 (the reticle alone boxes its near contacts)
+  EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
+  EXPECT(player_at == 0);  // first: its reticle's box calls run before any contact's restore (pm-map.md, "The frame's box window")
+  const char* leg_mode = std::getenv("PM_LEG");
+  if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
+  EXPECT(pm::zmod::clip3d_state().overruns == 0);
+}
+
 TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   // Not after the Shadow Cats in one process: what a mission leaves here crashes a second one (zcls's lists).
-  if (std::getenv("MW3_CAMPAIGN") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  if (std::getenv("MW3_CAMPAIGN") || std::getenv("PM_KILL") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3PM_GAME_DIR);

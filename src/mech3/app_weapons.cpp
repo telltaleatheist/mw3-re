@@ -651,14 +651,22 @@ int32_t mech_select_hot_group(void* mech) {
   return -1;
 }
 
-// Mech3.exe 1.2 @ 0x0041aba0, the player tick's tail on the pilot's mech:
-// its target's chosen part's point (0x0041d6f0), the ammo gauge (0x004b0d80)
-// and the last attacker cleared.
-void mech_after_tick(void* mech, uint32_t (*)(const char*)) {
+// Pirate's Moon 1.0 @ 0x0041b930 (vt+0x3c, MW3's 0x0041aba0, which ran for the pilot's mech alone): after every
+// entity's frame, each mech's chosen part's point (0x0041e4d0), the ammo gauge on the mech in view, the last
+// attacker cleared, the headlight back. The box bit is the caller's (entities_box_back).
+void mech_after_frame(void* mech, float dt) {
   Mech* m = static_cast<Mech*>(mech);
+  m->frame_dt = dt;
   m->aim_part();
-  if (auto* wm = static_cast<WeaponManager*>(m->ammo)) wm->ammo_gauge();
+  if (auto* wm = static_cast<WeaponManager*>(m->ammo)) wm->ammo_gauge();  // the mech in view's alone
   m->attacker = nullptr;
+  if (Headlight* head = m->torso ? m->torso->headlight : nullptr) head->attach(dt);
+}
+
+// Pirate's Moon 1.0 @ 0x0041b900 (vt+0x34): the headlight out of the tree for the frame; its box is the caller's.
+void mech_before_frame(void* mech) {
+  Mech* m = static_cast<Mech*>(mech);
+  if (Headlight* head = m->torso ? m->torso->headlight : nullptr) head->detach();
 }
 
 // Everything wire_weapons set, back to the defaults.

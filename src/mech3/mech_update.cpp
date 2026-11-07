@@ -9,7 +9,6 @@
 #include "gamez/zentity/zent_manager.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
-#include "mech3/mech_headlight.h"
 #include "mech3/mech.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_reader.h"
@@ -45,15 +44,6 @@ void Mech::hit_timeout() {
 // entity budget skipped. Each step's order is the original's; the hooks
 // stand in for what is not ported (docs/movement.md, The frame).
 void Mech::update(float dt) {
-  // Pirate's Moon's vt+0x34 and vt+0x3c around it (0x0041b900, 0x0041b930): the headlight out of the tree for
-  // the update, back after, with its fade.
-  Headlight* head = torso ? torso->headlight : nullptr;
-  struct Back {
-    Headlight* h;
-    float dt;
-    ~Back() { if (h) h->attach(dt); }
-  } back{head, dt};
-  if (head) head->detach();
   World& w = world();
   frame_dt = dt;  // Pirate's Moon: a skipped frame's time is not carried over, as MW3's was
   impulse = {0, 0, 0};

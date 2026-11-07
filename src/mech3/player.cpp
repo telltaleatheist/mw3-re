@@ -584,15 +584,17 @@ void player_tick() {
   PlayerState& s = g_state;
   s.dt = h.frame_dt();
   s.inv_dt = !(s.dt < 0 || s.dt > 0) ? 10000.0f : 1.0f / s.dt;
-  h.vehicle_update(h.pilot_vehicle(), s.dt);
   const Handle st = h.stealth();
   if (h.view_target(h.view()) == st) h.stealth_update(st, s.dt);
   h.clear_6099c0();
+  // Pirate's Moon 1.0 @ 0x004a4440: before and after every entity's frame (docs/pm-map.md, "The frame's box window").
+  h.entities_before(s.dt);
+  h.vehicle_update(h.pilot_vehicle(), s.dt);
   h.entities_update(s.dt);
+  h.entities_after(s.dt);
   h.tick_41e3f0(s.dt);
   const int32_t type = h.game_type();
   if (type == 2 || type == 3) h.tick_537f20(s.x5e8118);
-  h.vehicle_41aba0(h.pilot_vehicle(), s.dt);
   h.view_tick(h.view(), s.dt);
 }
 
