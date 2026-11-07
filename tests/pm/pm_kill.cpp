@@ -275,3 +275,16 @@ void pm_kill_hurt(void* mech) {
   m->legs[0]->set_internal(0.4f, 0);
 }
 float pm_kill_leg_armor(void* mech) { return static_cast<Mech*>(mech)->legs[0]->internal; }
+
+void pm_kill_loadout(void* player) {
+  auto* me = static_cast<Mech*>(player);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  std::printf("  loadout %s fcs %d:", static_cast<zcls::Node*>(me->node) ? "mech" : "?", me->equipment[3]);
+  for (uint32_t i = 0; i < wm->count; ++i)
+    if (wm->weapons[i] && wm->weapons[i]->def)
+      std::printf(" [%u %s part %d in %d]", i, wm->weapons[i]->def->desc, wm->weapons[i]->firepoint ? wm->weapons[i]->firepoint->part : -1, wm->weapons[i]->firepoint ? (weapon_calls().equipment_in_part(me, 3, wm->weapons[i]->firepoint->part) ? 1 : 0) : -1);
+  std::printf("\n  equipment:");
+  for (ConfigItem* it : me->config->items)
+    if (it && it->kind() == 3) std::printf(" [id %d part %d count %d]", it->id(), it->location(-1), it->count);
+  std::printf("\n");
+}

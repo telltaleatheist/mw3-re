@@ -221,6 +221,7 @@ bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
 int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
+void pm_kill_loadout(void* player);
 void pm_kill_hurt(void* mech);
 float pm_kill_leg_armor(void* mech);
 void pm_kill_ground_line(float x0, float z0, float x1, float z1);
@@ -297,6 +298,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(app.init_instance());
   mech3::GameEngine::Launch l;
   std::sscanf(which, "%d,%d,%d", &l.index, &l.type, &l.number);
+  if (const char* e = std::getenv("PM_MECH")) l.mech = std::atoi(e);
   engine.set_launch(l);
   app.post_intro_ = &mech3::states().load;
   std::vector<void*> targets;
@@ -421,6 +423,11 @@ static void kill_run(const char* which, bool quick) {
         std::printf("\n");
       }
       if (t > 12000) done = true;
+      return;
+    }
+    if (std::getenv("PM_LOADOUT")) {
+      pm_kill_loadout(player);
+      done = true;
       return;
     }
     if (std::getenv("PM_GROUND")) {

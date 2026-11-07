@@ -211,3 +211,9 @@ detach.
 (`PM_KILL=0,1,2` for mission 2); `PM_MFB_NO_CALL` is its control. Not compared: the animation itself and a campaign
 store's armour and ammo through the refit; that the port's point takes `static_mfb` is checked by the mission, not
 against the exe's record offset.
+
+## On the switch's list from the starbase refit
+
+Mission 5's field bases stand still until a static MFB is called, then drive about 211 m (`PM_MFB=4700,-4200`,
+`PM_KILL=0,1,5`, control `PM_MFB_NO_CALL`). The exe's static branch sets "may drive" too, and these bases have `vlist`
+orders, so the port follows the exe's flags, but on the stand-in's AI: compare once PM's AI runs.
