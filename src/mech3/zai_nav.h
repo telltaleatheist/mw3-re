@@ -12,6 +12,7 @@
 // way is blocked walks round. Behind zfix bugs (nav_allies, nav_enemies);
 // the brain's decisions stay the exe's, only the point it walks toward is
 // a path's waypoint when the straight line is blocked.
+namespace zcls { struct Node; }
 namespace mech3::ai::nav {
 
 constexpr float kCell = 4.0f;   // m
@@ -172,6 +173,7 @@ void service(float now, int steps, int search_steps = 3000);
 // A mission's start, replays too (the same world's address, its nodes new): the
 // grid and what it watches begun again.
 void restart();
+bool part_left_behind(const zcls::Node& n);  // ours: not watched, its mech freed
 
 // The pilot's follower: the path it is on toward the brain's point.
 struct Follower {

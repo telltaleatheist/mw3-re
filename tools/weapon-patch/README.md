@@ -76,16 +76,21 @@ One line for each weapon:
     # name  family  tech    ammo  label
     PPC     3       sphere  no    0x2fd
 
+Any number of spaces or tabs goes between the columns, so you can line them up. A line starting with `#` is a note and is
+not read: a row of your own must not start with one.
+
 - `name`: the weapon's key under `BALLISTICS` in `weapons.zrd`, in exact case.
 - `family`: 0 to 14. Copy a similar weapon's.
 - `tech`: `clan`, `sphere`, `both` or `none`.
 - `ammo`: `yes` or `no`.
-- `label`: the lab's name, as a message id in your `Mech3Msg.dll`.
+- `label`: the lab's name, as a message id in your `Mech3Msg.dll`. A resource editor such as Resource Tuner shows the ids.
+  Keep the `0x`: `0x307` and `0x00000307` are the same id, while `307` without it is a different one, read as a decimal number.
 
 Always add at the end of your list and keep the order: saved loadouts hold a weapon's position.
 
 A row needs a definition in `weapons.zrd`. The game has 12 without a row, most not meant to be mounted (`LANDMINE`, `NUKE`,
-`lb2xburst`); only the PPC has been tried. `ammo` has to match the definition: in every row the game has, `yes` means its `MASS` has an `ammo` entry, so the tools refuse
+`lb2xburst`); of those, only the PPC has been tried. A brand-new weapon works too: a player added one with its own definition and
+label, and its damage, range, weight and slots all came out right in the game. `ammo` has to match the definition: in every row the game has, `yes` means its `MASS` has an `ammo` entry, so the tools refuse
 a mismatch, and each tech in the row needs its own `MASS` entry.
 
 ### Adding a definition

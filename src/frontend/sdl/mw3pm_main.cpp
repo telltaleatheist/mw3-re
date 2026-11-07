@@ -84,7 +84,7 @@ std::string cfg_install(const std::string& write_dir) {
   std::string line;
   while (std::getline(in, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (line.rfind("install=", 0) == 0) return line.substr(8);
+    if (line.rfind("install=", 0) == 0) return zutl::path_from_config(line.substr(8));
   }
   return {};
 }

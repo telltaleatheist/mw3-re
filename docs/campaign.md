@@ -517,6 +517,10 @@ data +0x684, or an Elemental, type 7):
 - the mech itself (0x00471c10) when its torso stands or its head is gone
   (a head shot leaves a whole mech); with a leg off, only on a coin (rand
   & 1);
+  Pirate's Moon (0x00474f80): by the flag +0x5ae, set at the start, cleared when
+  the torso goes with the head still on (0x00467800) and by `kill` (vt+0x78,
+  0x0041de00: dead for certain). So a head shot still leaves the whole mech,
+  and a mech killed for certain leaves none. The coin as MW3's.
 - its weapons (0x00472da0 with the definition's tech, 0x0041df10): each
   slot of the weapon manager (+0xd4: +0x24 count, +0x40 slots) but TAG
   (0x20), in its loadout item's tech (+0x90 +0x18) or the mech's; a tech

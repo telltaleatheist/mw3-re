@@ -207,10 +207,10 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The briefing: one block, the map in the middle, its sides from its
       // terrain, past the grid's labels and the north arrow at its edges.
       {0x405230, {}, {}, 40},
-      // The debriefing: MECH STATUS left, SALVAGE FOUND right, MISSION
-      // SUCCESS in the middle, each with the button under it; its dark
-      // circuit board's sides barely dimmed (dimmed as the others, black).
-      {0x47b430, {{0, 0, 213, 480, kLeft}, {427, 0, 640, 480, kRight}}, {}, 0, 256, 160},
+      // The debriefing: one block (Owen, 2026-11-06: the columns kept together,
+      // the extra width open at the sides); its dark circuit board's sides
+      // barely dimmed (dimmed as the others, black).
+      {0x47b430, {}, {}, 0, 256, 160},
       // The mech lab: one block (its panels change looks as it goes, a
       // double one across two columns), the 3D view's hole with it
       // (lab_place_window); the sides from its edge panels, its board as

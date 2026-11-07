@@ -14,5 +14,5 @@ set OUT=%~1
 if "%OUT%"=="" set OUT=build-win
 if not exist "%OUT%" mkdir "%OUT%"
 clang-cl -m32 /nologo /std:c++17 /O2 /MT /EHsc /W3 /Isrc tools\indeo\mw3indeo.cpp /Fo"%OUT%\mw3indeo.obj" /Fe:"%OUT%\mw3indeo.exe" ^
-  /link /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup vfw32.lib msvfw32.lib avifil32.lib psapi.lib user32.lib || exit /b 1
+  /link /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup /MANIFEST:EMBED /MANIFESTINPUT:tools\windows\utf8.manifest vfw32.lib msvfw32.lib avifil32.lib psapi.lib user32.lib || exit /b 1
 echo Built %OUT%\mw3indeo.exe

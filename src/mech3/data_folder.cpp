@@ -9,6 +9,8 @@
 #include <sstream>
 #include <system_error>
 
+#include "gamez/zutil/zutl_path.h"
+
 namespace fs = std::filesystem;
 
 namespace mech3::data_folder {
@@ -189,7 +191,7 @@ Resolved resolve(const std::string& usual) {
   if (!f || !std::getline(f, line)) return r;
   line = trimmed(line);
   if (line.empty()) return r;
-  r.dir = line, r.pointer = true;
+  r.dir = zutl::path_from_config(line), r.pointer = true;
   r.error = unusable(line);
   return r;
 }
@@ -205,12 +207,9 @@ Plan plan(const std::string& from, const std::string& to, const std::string& usu
   Plan p;
   std::error_code ec;
   if (same(from, to)) return p.error = "Your data is already in that folder.", p;
-#if defined(_WIN32)
-  // SDL's dialog gives UTF-8 and fs::path reads narrow strings in the ANSI code
-  // page, so another name would come out garbled (docs/program.md, The data folder).
-  if (!same(to, usual) && !plain_name(to))
-    return p.error = "For now the folder's name must use plain English letters: " + to, p;
-#endif
+  // Before Windows 10 1903 the narrow calls read another code page (docs/program.md, Names on Windows).
+  if (!zutl::narrow_paths_utf8() && !same(to, usual) && !plain_name(to))
+    return p.error = "On this version of Windows the folder's name must use plain English letters: " + to, p;
   if (within(to, from)) return p.error = "That folder is inside your data folder. Pick one outside it.", p;
   if (within(from, to)) return p.error = "Your data folder is inside that folder. Pick another.", p;
   if (fs::exists(to, ec) && !fs::is_directory(to, ec)) return p.error = "That is a file, not a folder: " + to, p;

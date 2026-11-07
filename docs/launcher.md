@@ -31,7 +31,9 @@ found or installed. The launcher below is its own program, `mw3launcher`
      kept, more of the folder's end; `fit_middle`, text_fit.cpp): a long
      path ran past both sides on Owen's PC (lead, 2026-10-31).
      `launcher_long_path_fits_the_button`.
-   - **Pirate's Moon**: greyed, "Coming later".
+   - **Pirate's Moon**: greyed, "Coming later", while `mw3pm` is not beside
+     the launcher; with it, "Ready: <folder>" or "Not found yet: click to find
+     your game" (below, Pirate's Moon).
    - **MechWarrior (1989)**: only when the MW1 port is found beside ours
      (below).
    - **Game files** (Owen, 2026-11-02, after the rework): the find screen
@@ -144,6 +146,36 @@ filtered to .iso/.cue, .zip, or Mech3.exe.
   sounds through zSnd from the install; without one, silent (no sounds
   of ours).
 - Mouse, keyboard (arrows, Enter, Escape) and a pad's d-pad and A/B.
+
+## Pirate's Moon (2026-11-06, Owen and the lead)
+
+`mw3pm` is found in the launcher's own folder (`own_dir`, as `mw3`: a bundle's
+Contents/MacOS, the AppImage's usr/bin; `MW3_PM_BIN` for checks), the final
+package's layout. It is a separate game: it gets `--install <folder>
+--no-launcher`, the window and sound choices, and `--ready-file`, never MW3's
+install or write dir; its settings and saves are its own. Its folder is
+`pm_install=` in the launcher's mw3.cfg, checked at start with `map_source`
+(a Pirate's Moon install, in a plain folder). A click on the entry starts it,
+or, with no folder yet, asks for one. GAME FILES acts on the game last clicked:
+for Pirate's Moon the same folder picker, which also keeps MY DATA FOLDER, ADD
+FROM MY DISC and SETUP out of it (later items). Installing from a disc and its
+music (the image's track 2) are later too.
+
+## Installed anywhere (2026-11-06, a player's request)
+
+Nothing keeps where the programs are. They find each other beside themselves;
+mw3.cfg keeps only the games' folders (`install=`, `pm_install=`), in the write
+dir, so a moved package carries on. `sdl_program_launcher_follows_a_moved_folder`;
+a bundle's start from another folder and volume was run on the Mac. Windows has
+the plain-letters limit below. macOS asks the first time a bundle reads a
+removable or network volume (a game on an external disk): the launcher waits in
+its read until the player answers, which looks like a slow start.
+
+Windows: the folders a player picks may be on any drive, with spaces and
+apostrophes. Letters outside ASCII are the limit (`program.md`, The data
+folder): the code is UTF-8 throughout, but on Windows `fs::path` and `fopen` read
+narrow strings in the ANSI code page and `fs::path::string()` writes them in it.
+MY DATA FOLDER refuses such a name; the install has no such guard.
 
 ## MechWarrior (1989)
 
