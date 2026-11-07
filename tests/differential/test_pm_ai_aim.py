@@ -112,9 +112,25 @@ def on_target(rng):
     return [1, 1, 3, 0, 1, 1, 1], [rng.randrange(32768) for _ in range(8)], f
 
 
+def edges(rng):
+    """The dot's order decides a branch: an offset whose square lands on a float's rounding edge across a power of 2
+    (found by search) against a limit on that edge, and a line that cancels, the last term alone deciding the side."""
+    r = [rng.randrange(32768) for _ in range(8)]
+    k = rng.randrange(3)
+    if k < 2:
+        o = [(2047.9998779296875, 0.8660245537757874, 0.0012074464466422796),
+             (2047.999755859375, 1.118033528327942, 0.0009849858470261097)][k]
+        f = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 10.0, 0.0, 9000.0, 0.0, 0.0, 50.0, 0.0, 0.0, 50.0]
+        return [1, 1, 3, 0, 1, 1, 1], r, f + list(o) + [0.0, 0.0, 0.0, 0.0, 4194304.0]
+    f = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0, rf(-1e-20), 10.0, 0.0, 1024.0, 1024.0, 1024.0, 50.0, 0.0, 0.0, 50.0]
+    return [1, 1, 3, 0, 1, 1, 1], r, f + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+
+
 def case(rng):
     if rng.random() < 0.02:
         return on_target(rng)
+    if rng.random() < 0.02:
+        return edges(rng)
     inp = [int(rng.random() < 0.95), int(rng.random() < 0.95), rng.choice([0, 0xb, 0xb, 3]), rng.choice([0, 0, 1, 2]),
            int(rng.random() < 0.5), rng.choice([0, 1, 1]), rng.choice([0, 1, 1, 1])]
     place = [rng.uniform(-2000, 2000) for _ in range(3)]
