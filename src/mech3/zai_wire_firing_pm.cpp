@@ -464,8 +464,13 @@ class WireStep : public StepPmHooks {
   double heat(zgame::Handle m) override {
     return brain_hooks().heat(m);
   }
-  float coolant(zgame::Handle m) override { pm_hook_missing("WireStep.coolant"); return {}; }
-  void flush(zgame::Handle m) override { pm_hook_missing("WireStep.flush"); }
+  float coolant(zgame::Handle m) override {  // PM's +0x590, the port's coolant
+    const Mech* k = static_cast<const Mech*>(brain_hooks().object_of(m));
+    return k ? k->coolant : 0.0f;
+  }
+  void flush(zgame::Handle m) override {  // 0x0041ad50 is MW3's 0x00419e60
+    if (Mech* k = static_cast<Mech*>(brain_hooks().object_of(m))) k->flush_coolant();
+  }
   float now() override { return brain_hooks().now(); }
   float hold(Brain* b) override { return b->params.get<float>(0x34); }
   float rest(Brain* b) override { return b->params.get<float>(0x38); }
