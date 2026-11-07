@@ -99,7 +99,7 @@ or upgrade, for Owen to approve.
 
 ## 2. The version
 
-The version is git's: `git describe --tags --match "v[0-9]*" --always --dirty`, so only game tags count (CMake reads it
+The version is git's: `git describe --tags --match "pm-v[0-9]*" --always --dirty` on this branch, so only PM's tags count (`pm-v0.9.0` for test builds until `pm-v1.0.0`; `main`'s `v1.0.x` are MW3's and merge in with it) (CMake reads it
 into `MW3_VERSION`, which `mw3 --version`, the Windows version resource, the
 Mac's Info.plist and every package's file name carry), and the commit count
 into `MW3_BUILD_NUMBER`.
