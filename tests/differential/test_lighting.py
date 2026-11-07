@@ -80,6 +80,8 @@ def floats(*xs):
 def close(a, b):
     if math.isnan(a) or math.isnan(b):
         return math.isnan(a) and math.isnan(b)
+    if math.isinf(a) or math.isinf(b):
+        return a == b
     return abs(a - b) <= TOL * max(1.0, abs(a), abs(b))
 
 

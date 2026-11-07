@@ -335,7 +335,7 @@ def same(mine, theirs):
             continue
         x, y = fl(a), fl(b)
         scale = max(abs(x), abs(y), 1000.0 if i in aim else 1.0)
-        if not (abs(x) > 1e-30 and abs(y) > 1e-30 and math.isfinite(x) and abs(x - y) <= 3e-6 * scale):
+        if not (abs(x) > 1e-30 and abs(y) > 1e-30 and math.isfinite(x) and math.isfinite(y) and abs(x - y) <= 3e-6 * scale):
             return False
     return True
 

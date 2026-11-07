@@ -384,7 +384,7 @@ def same(mine, theirs):
         if k not in loose:
             return False
         x, y = fl(a), fl(b)
-        if not (abs(x - y) <= 2e-6 * max(1.0, abs(y))):
+        if not (math.isfinite(x) and math.isfinite(y) and abs(x - y) <= 2e-6 * max(1.0, abs(y))):
             return False
     return True
 
