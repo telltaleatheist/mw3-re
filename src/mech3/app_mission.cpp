@@ -2872,6 +2872,17 @@ CloudCover program_cloud_cover() {
   return CloudCover{w.cloud_on != 0, w.cloud_top, w.cloud_bottom, w.cloud_low, w.cloud_high, w.cloud_packed};
 }
 
+const uint32_t* program_weather_flags() {
+  auto* w = static_cast<ProgramWeather*>(missions().world.weather);
+  return w ? &w->obj->flags : nullptr;
+}
+void program_weather_show(bool on) {
+  auto* w = static_cast<ProgramWeather*>(missions().world.weather);
+  if (!w) return;
+  if (on) w->obj->show_for(-1.0f);
+  else w->obj->hide();
+}
+
 const float* program_mission_fog(bool water) {
   static float f[7];
   const MissionWorld& w = missions().world;

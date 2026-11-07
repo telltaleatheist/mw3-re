@@ -2235,7 +2235,33 @@ struct WeatherSeen {
   int quads = 0, quads_at_3 = -1, count = 0, shown = 0, thick = 0, outside = 0;
   bool made = false, camera = false, rect_is_managers = false, gone_after = false;
   float gravity = 0, wind = 0, alpha_tail = 0, alpha_head = -1;
+  bool start_covered = false, open_hidden = true, found_cover = false, under_hidden = false, back_hidden = true;
 };
+// How far the highest crossing of a line straight down stands over the lowest.
+float cover_over(zcls::Node* w, float x, float z, float* low) {
+  zcls::LineHits hits;
+  const float from[3] = {x, 400.0f, z}, to[3] = {x, -100.0f, z};
+  if (zcls::segment_list(w, from, to, &hits) != 0 || hits.count < 2) return 0.0f;
+  float high = *low = hits.hit[0].point[1];
+  for (int i = 1; i < hits.count; ++i) *low = std::min(*low, hits.hit[i].point[1]), high = std::max(high, hits.hit[i].point[1]);
+  return high - *low;
+}
+// A place with something 18 m or more over the ground, the camera's reach about it covered too.
+bool find_cover(void* world, const float at[3], float out[3]) {
+  auto* w = static_cast<zcls::Node*>(world);
+  for (float r = 20.0f; r < 5000.0f; r += 10.0f)
+    for (float a = 0.0f; a < 6.28f; a += 10.0f / r) {
+      const float x = at[0] + r * std::cos(a), z = at[2] + r * std::sin(a);
+      float low = 0, unused = 0;
+      if (cover_over(w, x, z, &low) < 18.0f) continue;
+      bool all = true;
+      for (const float d : {-5.0f, 5.0f}) all = all && cover_over(w, x + d, z, &unused) >= 18.0f && cover_over(w, x, z + d, &unused) >= 18.0f;
+      if (!all) continue;
+      out[0] = x, out[1] = low + 1.0f, out[2] = z;
+      return true;
+    }
+  return false;
+}
 template <class Kind>
 WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write_dir) {
   SavedMounts keep;
@@ -2294,9 +2320,29 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
         seen.rect_is_managers = w->rect && w->rect == m.rects[0];
         for (const ztwod::WeatherStreak& s : w->streaks) seen.shown += s.shown > 0, seen.thick += s.shown > 1;
       }
+      seen.open_hidden = (*mech3::program_weather_flags() & ztwod::kHidden) != 0;
+    };
+    float start[3] = {}, cover[3] = {};
+    auto present = engine.on_present;
+    engine.on_present = [&, present](int n) {
+      present(n);
+      void* me = mech3::mech_mission_player();
+      if (app.current() != &mech3::states().core || !me) return;
+      if (frames == 3) {
+        mech3::mech_world_position(me, start);
+        float under = 0;
+        seen.start_covered = cover_over(static_cast<zcls::Node*>(mech3::program_view_world()), start[0], start[2], &under) > 15.0f;
+        seen.found_cover = find_cover(mech3::program_view_world(), start, cover);
+        if (seen.found_cover) mech3::move_mech(me, cover, 0.0f);
+      } else if (frames == 9) {
+        seen.under_hidden = (*mech3::program_weather_flags() & ztwod::kHidden) != 0;
+        mech3::move_mech(me, start, 0.0f);
+      } else if (frames == 15) {
+        seen.back_hidden = (*mech3::program_weather_flags() & ztwod::kHidden) != 0;
+      }
     };
     CountingPump pump;
-    pump.stop = [&] { return frames >= 5; };
+    pump.stop = [&] { return frames >= 16; };
     pump.limit = 3000;
     app.run(pump);
     mech3::missions().cleanup(false);
@@ -2306,6 +2352,8 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
     mech3::set_app(nullptr);
   }
   ztwod::weather_hooks() = keep_hooks;
+  if (std::getenv("MW3_WEATHER_LOG"))
+    std::fprintf(stderr, "COVER open %d found %d under %d back %d\n", seen.open_hidden, seen.found_cover, seen.under_hidden, seen.back_hidden);
   if (std::getenv("MW3_WEATHER_LOG"))
     std::fprintf(stderr, "WEATHER made %d count %d shown %d thick %d quads %d (at 3: %d) outside %d g %g w %g a %g %g cam %d rect %d gone %d\n",
                  seen.made, seen.count, seen.shown, seen.thick, seen.quads, seen.quads_at_3, seen.outside, seen.gravity,
@@ -2323,6 +2371,7 @@ TEST(mission_c4m2_rain_made_and_drawn_headless) {
   if (!have_game()) return;
   const WeatherSeen seen = run_weather_mission<ztwod::Rain>(3, 2, "mission_rain_write");
   EXPECT(seen.made && seen.count == 100 && seen.shown == 100 && seen.thick == 0);
+  EXPECT(!seen.open_hidden && seen.found_cover && seen.under_hidden && !seen.back_hidden);  // 0x0040b9a0
   EXPECT(seen.gravity == 3.0f && std::fabs(seen.wind - 0.2f) < 1e-6f);
   EXPECT(seen.alpha_tail == 0.5f && seen.alpha_head == 0.0f);
   EXPECT(seen.camera && seen.rect_is_managers);
@@ -2336,11 +2385,25 @@ TEST(mission_c4b_m4_snow_made_and_drawn_headless) {
   if (!have_game()) return;
   const WeatherSeen seen = run_weather_mission<ztwod::Snow>(4, 4, "mission_snow_write");
   EXPECT(seen.made && seen.count == 100 && seen.shown == 100 && seen.thick > 0);
+  EXPECT(!seen.open_hidden && seen.found_cover && seen.under_hidden && !seen.back_hidden);  // 0x0040b9a0
   EXPECT(std::fabs(seen.gravity - 0.2f) < 1e-6f && std::fabs(seen.wind - 0.1f) < 1e-6f);
   EXPECT(seen.alpha_tail == 1.0f && seen.alpha_head == 0.25f);
   EXPECT(seen.camera && seen.rect_is_managers);
   EXPECT(seen.quads_at_3 > 0 && seen.quads > seen.quads_at_3 && seen.outside == 0);
   EXPECT(seen.gone_after);
+}
+
+// MW3_WEATHER_WORLDS=1: every campaign and training mission with weather, stood under cover and back.
+TEST(mission_weather_worlds_cover_headless) {
+  if (!have_game() || !std::getenv("MW3_WEATHER_WORLDS")) return;
+  const int32_t kMissions[][2] = {{3, 2}, {3, 3}, {4, 4}, {4, 6}, {5, 1}, {5, 2}, {5, 3}, {5, 4}};
+  for (const auto& m : kMissions) {
+    const WeatherSeen seen = run_weather_mission<ztwod::Weather>(m[0], m[1], "mission_weather_write");
+    std::printf("  world %d mission %d: quads %d, starts covered %d, hidden %d, cover %d, under %d, back %d\n", m[0], m[1], seen.quads, seen.start_covered, seen.open_hidden, seen.found_cover, seen.under_hidden, seen.back_hidden);
+    EXPECT(seen.open_hidden == seen.start_covered && seen.back_hidden == seen.start_covered);
+    EXPECT(seen.found_cover && seen.under_hidden);
+    EXPECT((seen.quads > 0) == !seen.start_covered);
+  }
 }
 
 // The HUD's static (0x0043cd20; hud.md section 21) in c1m1: with the
