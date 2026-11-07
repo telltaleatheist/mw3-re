@@ -232,6 +232,16 @@ When the mech takes a configuration (0x414501..0x414732, mech code, ported as
 4. Equipment counts; TAG mounts weapon 0x20 into group 5 through 0x4b0460
    (no 16-weapon check); the AMS gets 100 rounds per AMS (0x4146f9).
 
+### Sixteen weapons
+
+A manager holds 16 weapons, and neither add in the exe checks: 0x4b0400 and 0x4b0460 write the next
+slot, so a 17th lands on `owner`, the field after the array. Nothing shipped reaches it: the mech file's
+reader clamps its `weapons` list to 16 ("Too Many Weapons"), and the lab stops at 16 with TAG counted.
+A mod's mech with 16 and TAG does, and so does a network peer: `Config::unpacked` adds every weapon the
+packed form lists, `validate()` checks weight, placement, jump jets and armour but not the count, and
+the mech is built from it on every other player's machine. FIX (bug): both adds now refuse the extra
+weapon, name it in the log and return null, which the callers already handle.
+
 ### Weapon (0x98; BeamWeapon adds +0x98..+0xa0)
 
 | Offset | Field |

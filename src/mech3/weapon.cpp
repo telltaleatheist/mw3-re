@@ -1,5 +1,7 @@
 #include "mech3/weapon.h"
 
+#include <cstdio>
+#include <iterator>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -552,10 +554,19 @@ Weapon* WeaponManager::find(int32_t index, uint32_t from) const {
   return nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x004b0400. Nothing here stops a 17th weapon
-// (docs/weapons.md, "Latent overflow").
+// FIX (bug): the exe's adds write the next slot unchecked, so a 17th weapon lands on the owner
+// after the array, and a network peer's config can send one (docs/weapons.md, Sixteen weapons).
+static bool out_of_slots(const WeaponManager& m, int32_t weapon) {
+  if (m.count < std::size(m.weapons)) return false;
+  char msg[128];
+  std::snprintf(msg, sizeof msg, "Too many weapons: %s not added", weapon_name(weapon));
+  zerr::report(0x200, "C:\\zipper\\Mech3\\weapon.cpp", 0, msg);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004b0400
 Weapon* WeaponManager::add(WeaponItem* item) {
-  if (!item) return nullptr;
+  if (!item || out_of_slots(*this, item->weapon)) return nullptr;
   const int32_t g = item->group > 4 ? 4 : (item->group < 0 ? 0 : item->group);
   Weapon* w = make_weapon(item, this);
   if (w) {
@@ -568,6 +579,7 @@ Weapon* WeaponManager::add(WeaponItem* item) {
 // Mech3.exe 1.2 @ 0x004b0460, given the node (the vehicle-and-name form looks
 // it up first, 0x004abb60).
 Weapon* WeaponManager::add(int32_t index, Handle node, int32_t g) {
+  if (out_of_slots(*this, index)) return nullptr;
   Weapon* w = make_vehicle_weapon(index, node, this);
   if (w) {
     weapons[count++] = w;
