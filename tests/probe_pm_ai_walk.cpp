@@ -55,6 +55,35 @@ struct World : WalkPmHooks {
   }
   void set_behaviour(zgame::Handle b) override { ++taken, last_taken = static_cast<int>(b); }
   int32_t rand_int() override { return rolls[roll++ & 1]; }
+  double jump_fuel(zgame::Handle) override { return m_fuel; }
+  bool airborne(zgame::Handle) override { return m_air; }
+  float forward_speed(zgame::Handle) override { return m_z; }
+  double move_speed(zgame::Handle) override { return m_speed; }
+  void order_pop() override { ++m_pops; }
+  zgame::Handle contact_pick(zgame::Handle, int32_t k) override { return k == 1 ? m_pick1 : m_pick3; }
+  bool hit_lately(zgame::Handle) override { return m_hit; }
+  zgame::Handle attacker(zgame::Handle) override { return 0x6601; }
+  bool lead_point(zgame::Handle, zgame::Handle t, float o[3]) override {
+    if (!pilot || !contact_same(t) || !m_lead_on) return false;
+    o[0] = m_lead[0], o[1] = m_lead[1], o[2] = m_lead[2];
+    return true;
+  }
+  bool contact_same(zgame::Handle t) const { return m_same && t == m_target0; }
+  const float* entity_place(zgame::Handle) override { return m_place; }
+  void set_fought(bool on) override { m_fought = on; }
+  bool fought() override { return m_fought; }
+  uint8_t params_ec() override { return m_ec; }
+  float ceiling() override { return m_ceiling; }
+  void set_jump(float v) override { m_sent[0] = v; }
+  void set_jet_forward(float v) override { m_sent[1] = v; }
+  void stop_controls() override { ++m_stops; }
+  void manoeuvre_over() override { --m_over; }
+  int m_stops = 0, m_over = 0;
+  float m_fuel = 0, m_speed = 0, m_z = 0, m_ceiling = 0, m_place[3] = {}, m_lead[3] = {}, m_sent[2] = {};
+  bool m_air = false, m_hit = false, m_fought = false, m_same = false, m_lead_on = false;
+  zgame::Handle m_pick1 = 0, m_pick3 = 0, m_target0 = 0;
+  int m_pops = 0;
+  uint8_t m_ec = 0;
   float reach() override { return reach_at; }
   int next = 0, taken = 0, last_taken = 0, roll = 0;
   int32_t rolls[2] = {};
@@ -103,6 +132,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   std::unique_ptr<WalkPm> c;
   FightStatePm st;
   MoveStatePm ms;
+  ManoeuvrePm man;
   GuardPickPm pick;
   WalkFightPm* b = nullptr;
   WalkGuardPm* g = nullptr;
@@ -154,6 +184,20 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       ms.step = std::stoi(a[0]), w.next = std::stoi(a[1]);
       ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
       ms.run(w, s, 1, w.place);
+    } else if (op == "u") {
+      man.no_jets = std::stoi(a[0]), man.phase = std::stoi(a[1]);
+      w.m_air = a[2] == "1", w.m_hit = a[5] == "1";
+      w.m_pick1 = a[3] == "1" ? 0x6603 : 0, w.m_pick3 = a[4] == "1" ? 0x6604 : 0;
+      man.target = static_cast<zgame::Handle>(std::stoi(a[6]));
+      w.m_ec = static_cast<uint8_t>(std::stoi(a[7]));
+      w.m_fought = a[8] == "1", w.pilot = a[9] == "1", w.m_same = a[10] == "1", w.m_target0 = man.target;
+      w.m_lead_on = a[11] == "1";
+      man.jump = f(a[12]), man.turn = f(a[13]), man.until = f(a[14]);
+      w.m_fuel = f(a[15]), w.m_speed = f(a[16]), w.m_z = f(a[17]), w.m_ceiling = f(a[18]);
+      for (int i = 0; i < 3; ++i) w.m_place[i] = f(a[19 + i]), w.m_lead[i] = f(a[22 + i]);
+      man.run(w, 1);
+    } else if (op == "l") {
+      man.leave(w);
     } else if (op == "n") {
       ms.start(w, s, 1, w.place);
     } else if (op == "q") {
@@ -221,7 +265,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                       s.push_band, s.far_along, s.far_side, s.cos_on, s.cos_turnabout, s.turnabout_room, s.gain_along,
                       s.gain_side, s.least, s.brake, s.cos_dead, s.sin_dead, s.gain, s.least_turn, s.cos_behind})
         put(o, v);
-      for (float v : {ms.turn, ms.throttle, ms.dist, ms.slow, ms.wake, w.along[0], w.along[1], w.along[2], pick.at[0], pick.at[1], pick.at[2], w.brain_from[0], w.brain_from[1], w.brain_from[2]}) put(o, v);
+      for (float v : {ms.turn, ms.throttle, ms.dist, ms.slow, ms.wake, w.along[0], w.along[1], w.along[2], man.jump, man.turn, man.until, w.m_sent[0], w.m_sent[1], pick.at[0], pick.at[1], pick.at[2], w.brain_from[0], w.brain_from[1], w.brain_from[2]}) put(o, v);
       if (b) {
         for (float v : {b->to_target[0], b->to_target[1], b->to_target[2], b->target_dist, b->way_own[0], b->way_own[1],
                         b->way_own[2], b->way_dir[0], b->way_dir[1], b->way_dir[2], b->way_dist, st.stop_dist, st.range_far,
@@ -245,6 +289,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                       g_deleted ? 1 : 0, w.sends, w.queued, int(w.queued_net), int(w.queued_node)})
           o += " " + std::to_string(v);
       }
+      o += " " + std::to_string(w.m_stops) + " " + std::to_string(static_cast<uint32_t>(w.m_over));
+      o += " " + std::to_string(man.phase) + " " + std::to_string(man.target) + " " + std::to_string(w.m_pops) + " " + std::to_string(int(w.m_fought));
       o += " " + std::to_string(ms.step) + " " + std::to_string(w.taken) + " " + std::to_string(w.last_taken);
       o += "\n";
     }

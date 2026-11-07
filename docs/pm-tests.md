@@ -169,7 +169,7 @@ The search read each `if ...: continue/break/return True` over a value in `test_
 
 **The recount of what's left** (`tools/analysis/pmrecount.py --trace DIR`) counts a function as done when the port's source names its address outside the hook classes. Cited isn't landed: a comment can name what isn't ported, and only a test shows a function is. It's an estimate of the size, nothing more.
 
-**On the switch's rerun, added:** the 36 of `0x4d9d00`'s breaks not rerun on the widened test; the 5 twins, 875 instructions, compared against PM.
+**On the switch's rerun, added:** the 36 of `0x4d9d00`'s breaks not rerun on the widened test. The 5 twins, 875 instructions, are done (2026-11-07): `pm-map.md`, the link pick and the manoeuvre.
 
 ## PM's AI runs at 53 bits only (2026-11-06)
 

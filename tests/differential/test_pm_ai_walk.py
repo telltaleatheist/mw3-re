@@ -135,6 +135,51 @@ class Exe(test_pm_zar.Emulated):
             return 0
         self.native_stub(0x4d60d0, along, pop=8)
         self.native_stub(0x4f9f00, take, pop=4)
+        # The manoeuvre 0x4d5040: the vehicle's answers, the order's pop, the picks.
+        self.man = self.alloc(0x40)
+        self.w32(self.man + 4, self.order)
+        self.m = self.alloc(0x20)  # fuel, speed
+        self.w32(vt + 0x154, self.cpu.code(b'\xd9\x05' + struct.pack('<I', self.m) + b'\xc3'))
+        self.w32(vt + 0x120, self.cpu.code(b'\xd9\x05' + struct.pack('<I', self.m + 4) + b'\xc3'))
+        self.m_air, self.m_pops, self.m_picks, self.m_hit, self.m_lead = False, 0, {}, False, None
+        self.w32(vt + 0x150, self.ret_stub(lambda c: 1 if self.m_air else 0))
+        ovt = self.alloc(0x40)
+        self.w32(self.order, ovt)
+
+        def popped(c):
+            self.m_pops += 1
+            return 0
+        self.w32(ovt + 0xc, self.ret_stub(popped))
+        self.m_kinds = {}
+        for kind in (1, 3):
+            self.m_kinds[kind] = self.alloc(8)
+
+        def picked(c):
+            k = self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)
+            if not self.m_picks.get(k):
+                return 0
+            self.w32(self.m_kinds[k] + 4, self.m_picks[k])
+            return self.m_kinds[k]
+        self.native_stub(0x4e7010, picked, pop=4)
+        self.native_stub(0x4b27d0, lambda c: 1 if self.m_hit else 0, pop=4)
+        self.native_stub(0x4b2820, lambda c: 0x6601)
+        self.m_place = self.alloc(12)
+        self.native_stub(0x5cb2b0, lambda c: self.m_place)
+
+        def lead(c):
+            if self.m_lead is None:
+                return 0
+            self.fs(self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4), self.m_lead)
+            return 1
+        self.native_stub(0x41e8b0, lead, pop=4)
+        self.m_sent, self.m_stops = [0, 0], 0
+
+        def stopped(c):
+            self.m_stops += 1
+            return 0
+        self.w32(ctl + 0x14, self.ret_stub(stopped))
+        self.w32(ctl + 0x34, self.m_ctl(0))
+        self.w32(ctl + 0x3c, self.m_ctl(1))
         self.rolls = []
         roll = self.cpu.code(b'\xc3')
         self.w32(0x5de668, roll)
@@ -144,6 +189,15 @@ class Exe(test_pm_zar.Emulated):
         self.w32(self.contact + 4, holder)
         self.w32(holder, hvt)
         self.w32(hvt + 0x2c, self.ret_stub(lambda c: self.target))
+
+    def m_ctl(self, i):
+        a = self.cpu.code(b'\xc2\x04\x00')
+
+        def fn(c):
+            self.m_sent[i] = self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)
+            return 0
+        self.native_stub(a, fn, pop=4)
+        return a
 
     def pull(self, c):
         """The boundary, stubbed alike on both sides: a pulled place, or the way's own start."""
@@ -193,6 +247,7 @@ class Exe(test_pm_zar.Emulated):
         vals += [self.g(st0 + o) for o in range(0x5c, 0x9c, 4)]  # every constant the steering's constructor sets
         m = self.move
         vals += [self.g(m + o) for o in (0x10, 0x18, 0x1c, 0x20, 0x24)] + [self.g(self.along + o) for o in (0, 4, 8)]
+        vals += [self.g(self.man + o) for o in (0xc, 0x14, 0x18)] + self.m_sent
         vals += [self.g(self.pick + o) for o in (0x10, 0x14, 0x18)] + [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)]
         exact = [self.g(c + 0x3c) & 0xff, self.g(st0 + 0x48) & 0xff, self.g(st0 + 0x58) & 0xff]
         if self.guard:
@@ -215,6 +270,8 @@ class Exe(test_pm_zar.Emulated):
             last = self.g(self.head + 4)  # the last node's item, its two words
             item = self.g(last + 8) if last != self.head else 0
             exact += [self.g(item + 4), self.g(item + 8)] if item else [0, 0]
+        exact += [self.m_stops, self.g(self.brain + 0x110)]
+        exact += [self.g(self.man + 0x10), self.g(self.man + 0x2c), self.m_pops, self.g(self.brain + 0x118) & 0xff]
         exact += [self.g(m + 0xc), self.taken[0], self.taken[1]]
         return ' '.join(f'{v:x}' for v in vals) + ' | ' + ' '.join(str(v) for v in exact) + '\n'
 
@@ -320,8 +377,30 @@ def fight_plan(seed):
             lines += [('D',), ('M',), ('P',)]
             if r.random() < 0.3:
                 lines += [('V', r.choice([0, 1]), 0), ('A',)]
-        elif k < 0.87:
+        elif k < 0.855:
             lines.append(('n',))
+        elif k < 0.86:
+            lines.append(('l',))
+        elif k < 0.88:
+            if 'F' not in [ln[0] for ln in lines[:4]]:
+                lines.append(fight())
+            for _ in range(r.randrange(1, 4)):
+                a = r.uniform(0, 6.283)
+                tp = [r.uniform(-300, 300), r.uniform(-10, 40), r.uniform(-300, 300)]
+                if r.random() < 0.5:  # facing it within a few degrees: the dead zone's edges
+                    w = r.choice(worlds)
+                    v = list(w[1])
+                    v[6], v[7] = f32(math.sin(a)), f32(math.cos(a))
+                    lines.append((w[0], v) + w[2:])
+                    t = a + math.radians(r.choice([1, -1]) * r.choice([0.5, 4.9, 4.99, 5.01, 5.1, 7, 20, 60, 120, 174.9, 175.1]))
+                    tp = [v[0] + 200 * math.sin(t), r.uniform(-10, 40), v[2] + 200 * math.cos(t)]
+                ld = [r.uniform(-300, 300), r.uniform(-10, 40), r.uniform(-300, 300)]
+                lines.append(('u', [r.choice([0, 0, 1]), r.choice([0, 0, 1, 1, 2, 2, 2]), r.choice([0, 1]), r.choice([0, 1]), r.choice([0, 0, 1]),
+                                    r.choice([0, 0, 1]), r.choice([0, 0, 0x6602]), r.choice([0, 0x40, 0x40]), r.choice([0, 1]), r.choice([0, 1]),
+                                    r.choice([0, 1]), r.choice([0, 1])],
+                              [r.choice([0.0, 1.0, 0.5]), r.choice([0.0, 0.0, 1.0, -0.3]), r.choice([0.0, clock[0], clock[0] + 5, clock[0] - 5]),
+                               r.choice([0.05, 0.1, 0.3, 0.6, 0.7, 0.9]), r.choice([0.0, 0.5, -0.5, 1.0, 1.5, -2.0, 4.0, -9.0, 30.0, 1.002, -1.002, r.uniform(-6, 6)]),
+                               r.choice([0.0, 0.5, -0.5, 1.5, -2.0, 4.0, -9.0, 30.0, 1.002, -1.002, r.uniform(-6, 6)]), r.choice([-1000.0, 1000.0, 0.0])] + tp + ld))
         elif k < 0.9:  # the move state, from each of its steps
             for _ in range(r.randrange(1, 4)):
                 lines.append(('m', r.choice([0, 1, 2, 2]), r.choice([0, 1, 2]),
@@ -429,6 +508,32 @@ def run_exe(x, lines):
             x.fs(x.move + 0x10, ln[3][3:4])
             x.fs(x.move + 0x18, ln[3][4:5])
             x.call(0x4dcfe0, ecx=x.move, args=(0,))
+        elif op == 'u':
+            v, f = ln[1], ln[2]
+            x.w32(x.man + 8, v[0])
+            x.w32(x.man + 0x10, v[1])
+            x.m_air, x.m_hit = bool(v[2]), bool(v[5])
+            x.m_picks = {1: 0x6603 if v[3] else 0, 3: 0x6604 if v[4] else 0}
+            x.w32(x.man + 0x2c, v[6])
+            x.w32(x.brain + 0xec, v[7])
+            x.cpu._uc.mem_write(x.brain + 0x118, bytes([v[8]]))
+            x.want_pilot = bool(v[9])
+            mine = x.alloc(0x10)  # its own contact: walk's is a chain
+            x.w32(mine + 4, v[6] if v[10] else 0x7777)
+            x.m_lead = f[10:13] if v[11] else None
+            held = x.g(x.vehicle + 0x6c)
+            x.w32(x.vehicle + 0x6c, mine)
+            x.fs(x.man + 0xc, f[0:1])
+            x.fs(x.man + 0x14, f[1:2])
+            x.fs(x.man + 0x18, f[2:3])
+            x.fs(x.m, f[3:5])
+            x.fs(x.vehicle + 0x44, f[5:6])
+            x.fs(x.brain + 0x7c, f[6:7])
+            x.fs(x.m_place, f[7:10])
+            x.call(0x4d5040, ecx=x.man)
+            x.w32(x.vehicle + 0x6c, held)
+        elif op == 'l':
+            x.call(0x4d4fa0, ecx=x.man)
         elif op == 'n':
             x.call(0x4dcbe0, ecx=x.move, args=(x.g(x.move + 8), x.order))
         elif op == 'q':
@@ -510,6 +615,8 @@ def text(lines):
             o.append(f'{ln[0]} {ln[1]}')
         elif ln[0] == 'V':
             o.append(f'V {ln[1]} {ln[2]}')
+        elif ln[0] == 'u':
+            o.append('u ' + ' '.join(str(u) for u in ln[1]) + ' ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] in 'mq':
             o.append(f'{ln[0]} {ln[1]} {ln[2]} ' + ' '.join(f'{bits(u):x}' for u in ln[3]))
         elif ln[0] in 'Y@':

@@ -275,9 +275,10 @@ void FightStatePm::plan(WalkPmHooks& h, WalkFightPm& c) {
     float l[2];
     c.steer.on_line(c.target_pos, l);
     if (range_near > std::fabs(l[1])) {
-      const float half = std::sqrt(range_near * range_near - l[1] * l[1]);
-      const float end = l[0] + half;
-      if (end < 0.0f || l[0] - half > 0.0f) c.steer.along_min = 0.0f;
+      const double half = std::sqrt(double{range_near} * range_near - double{l[1]} * l[1]);  // in the register
+      const double ends = l[0] + half;
+      const float end = static_cast<float>(ends);
+      if (ends < 0.0 || l[0] - half > 0.0) c.steer.along_min = 0.0f;
       else c.steer.along_min = end < c.steer.length ? end : c.steer.length;
     }
   }

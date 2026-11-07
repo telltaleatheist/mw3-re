@@ -43,6 +43,25 @@ class WalkPmHooks : public SteerPmHooks {
   virtual void set_behaviour(zgame::Handle b) { (void)b; }                       // 0x004f9f00
   virtual int32_t rand_int() { return 0; }                                       // rand
   virtual float reach() { return 0.0f; }                                         // the brain's +0x44
+  // The manoeuvre 0x004d5040.
+  virtual double jump_fuel(zgame::Handle v) { (void)v; return 0.0; }             // vt+0x154
+  virtual bool airborne(zgame::Handle v) { (void)v; return false; }              // vt+0x150
+  virtual float forward_speed(zgame::Handle v) { (void)v; return 0.0f; }         // +0x44
+  virtual double move_speed(zgame::Handle v) { (void)v; return 0.0; }            // vt+0x120
+  virtual void order_pop() {}                                                    // the order's vt+0x0c
+  virtual zgame::Handle contact_pick(zgame::Handle v, int32_t kind) { (void)v, (void)kind; return 0; }  // 0x004e7010, its +4
+  virtual bool hit_lately(zgame::Handle v) { (void)v; return false; }            // 0x004b27d0(1)
+  virtual zgame::Handle attacker(zgame::Handle v) { (void)v; return 0; }         // 0x004b2820
+  virtual bool lead_point(zgame::Handle v, zgame::Handle t, float out[3]) { (void)v, (void)t, (void)out; return false; }  // a pilot, +0x6c's +4, 0x0041e8b0
+  virtual const float* entity_place(zgame::Handle t) { (void)t; return nullptr; }  // 0x005cb2b0
+  virtual void set_fought(bool on) { (void)on; }                                 // the brain's +0x118
+  virtual bool fought() { return false; }
+  virtual uint8_t params_ec() { return 0; }                                      // the brain's +0xec
+  virtual float ceiling() { return 0.0f; }                                       // the brain's +0x7c
+  virtual void set_jump(float v) { (void)v; }                                    // the controls' vt+0x34
+  virtual void set_jet_forward(float v) { (void)v; }                             // vt+0x3c
+  virtual void stop_controls() {}                                                // vt+0x14
+  virtual void manoeuvre_over() {}                                               // the brain's +0x110 down one
 };
 
 float flat_dir_pm(const float from[3], const float to[3], float out[3]);  // 0x00537e60: its flat length
@@ -82,6 +101,19 @@ struct MoveStatePm {
   float wake = 0;     // +0x24
   void start(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* to);    // 0x004dcbe0
   void run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);  // 0x004dcfe0; `place` its +0x08's vt+0x1c
+};
+
+// The manoeuvre state (0x004d5040, vtable 0x005ee150's twin of MW3's 0x004ca600): the brakes on, then a target to
+// turn to, the jets while they last.
+struct ManoeuvrePm {
+  int32_t no_jets = 0;        // +0x08
+  float jump = 0;             // +0x0c
+  int32_t phase = 0;          // +0x10
+  float turn = 0;             // +0x14
+  float until = 0;            // +0x18
+  zgame::Handle target = 0;   // +0x2c
+  void run(WalkPmHooks& h, zgame::Handle v);  // 0x004d5040
+  void leave(WalkPmHooks& h);                 // 0x004d4fa0, the destructor's work
 };
 
 // The guarding state's own part (0x004dfec0).

@@ -97,6 +97,91 @@ void drive_pm(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float away[2], 
   else if (-most > *throttle) *throttle = -most;
 }
 
+namespace {
+// 0x004d52e1..0x004d5415: 0x004d7060's turn in line, its NaNs as the compares fall.
+float manoeuvre_turn(const float fw[3], const float dir[3], float keep) {
+  const TurnPmParams& p = turn_walk_params();
+  const float d = static_cast<float>(double{fw[2]} * dir[2] + double{fw[0]} * dir[0]);
+  if (!(p.behind <= d)) return keep == 0.0f || std::isnan(keep) ? 1.0f : keep;
+  if (p.cos_dead <= d) return 0.0f;
+  const float c = static_cast<float>(double{dir[0]} * fw[2] - double{dir[2]} * fw[0]);
+  if (!(d >= 0.0f)) return !(c >= 0.0f) ? -1.0f : 1.0f;
+  if (-p.sin_dead > c) {
+    const double k = (double{p.sin_dead} + c) * p.gain;
+    if (!(k >= -1.0)) return -1.0f;
+    const float nl = -p.least;
+    return k > nl ? nl : static_cast<float>(k);
+  }
+  if (!(c > p.sin_dead)) return 0.0f;
+  const double k = (double{c} - p.sin_dead) * p.gain;
+  if (k > 1.0) return 1.0f;
+  return k < p.least ? p.least : static_cast<float>(k);
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004d5040 (MW3's 0x004ca600). Unlike MW3's, over the ceiling it still gives the jets 0.01.
+void ManoeuvrePm::run(WalkPmHooks& h, zgame::Handle v) {
+  float pos[3];
+  h.position(v, pos);
+  float steer = 0.0f;
+  if (!no_jets) {
+    const double fuel = h.jump_fuel(v);
+    if (!(fuel >= 0.1)) jump = 0.0f;
+    else if (0.6000000238418579 < fuel) jump = 1.0f;
+  }
+  if (until <= h.now()) {
+    h.order_pop();
+    return;
+  }
+  const double s = h.airborne(v) ? -double{h.forward_speed(v)} : h.move_speed(v);
+  float thr = 0.0f;
+  constexpr double kShare = 0.20000000298023224;  // 0x005ee180
+  if (!(-1.0 <= s)) {
+    double k = (s + 1.0) * kShare;
+    if (!(k >= -1.0)) k = -1.0;
+    thr = static_cast<float>(-k);
+  } else if (s > 1.0) {
+    double k = (s - 1.0) * kShare;
+    if (k > 1.0) k = 1.0;
+    thr = static_cast<float>(-k);
+  }
+  bool ready = true;
+  if (phase == 0) {
+    if (double{thr} < -0.0001 || 0.0001 < double{thr}) ready = false;
+    else phase = 1;
+  }
+  if (ready && phase == 1) {
+    if (!target) target = h.contact_pick(v, 1);
+    if (!target && h.hit_lately(v)) target = h.attacker(v);
+    if (!target) target = h.contact_pick(v, 3);
+    if (target) {
+      h.set_fought(true);
+      steer = turn;
+      phase = 2;
+    }
+  }
+  if (ready && phase == 2) {
+    float at[3], dir[3], fw[3] = {};
+    const float* to = at;
+    if (!h.lead_point(v, target, at)) to = h.entity_place(target);
+    flat_dir_pm(pos, to, dir);
+    h.forward(v, &fw[0], &fw[2]);
+    turn = manoeuvre_turn(fw, dir, turn);
+    steer = turn;
+    if ((h.params_ec() & 0x40) && !h.fought()) until = 0.0f;
+  }
+  h.set_jump(h.ceiling() <= pos[1] ? 0.01f : jump);  // 0x3c23d70a
+  if (h.airborne(v)) h.set_jet_forward(thr);
+  else h.set_throttle(thr);
+  h.set_turn(steer);
+}
+
+// Pirate's Moon 1.0 @ 0x004d4fa0
+void ManoeuvrePm::leave(WalkPmHooks& h) {
+  h.stop_controls();
+  h.manoeuvre_over();
+}
+
 // Pirate's Moon 1.0 @ 0x004dcbe0: the way from where it last was to the node, at the speed the brain's throttle gives.
 void MoveStatePm::start(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* to) {
   step = 0, turn = 0.0f, throttle = 0.0f;
