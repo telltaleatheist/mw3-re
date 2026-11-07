@@ -244,6 +244,19 @@ Not ported, by the source files they lie between: zainetmechinout..zaitarget 152
 
 The 387 are a known size. The 220 are the risk: they run today as MW3's port with PM's changes missing, and nothing fails: that is how the commander looked until its test moved. `test_sensors` isn't on this file's table either. Of the 220, 19 are named by a PM test. Each needs its PM side read or tested before the switch, or a line saying why not.
 
+### Single player against network, and the remainder (2026-11-07)
+
+Split of the two counts above by what's reached only behind a network check. The AI calls out of its range (0x4b8000..0x500000) to no network source file at all (znet_dplay, znet_session, the lobby or connect screens, mech_net): its only network checks are the game type (the game object [0x62c40c]'s +0x6c, vt+0x28: 3 is network) and the multiplayer player (0x47b710). Within the tick's reach those are 0x4e7170 (a vehicle's sensor range: a network server takes [0x60bd9c]), 0x4e2820 and 0x4e2f50 (a target's death: 0x472b40, a multiplayer player's mode 6, when the target's +0xe8 isn't negative). None gates a function of its own on the list; only a few instructions are network-only inside functions that single player runs too.
+
+| From the brain's tick | single player | network only |
+|---|---|---|
+| ported from MW3, PM's differs | 220 functions, 13,586 instructions | none as functions; inside 0x4e2f50, the 6 instructions of its multiplayer line (0x4e2fe2..0x4e2ff2) |
+| not ported | 387 functions, 17,453 instructions | none |
+
+By reading the call graph and the checks named; a check that reaches the network by another object (a vtable slot that only a network class fills) wouldn't show here.
+
+**The remainder (Owen, 2026-11-07: "for posterity, i would like to convert as many functions as we can").** After the first runs, everything left of PM's differing and unported functions is ported and tested too, network included, in the order the runs set: what affects play first, then the rest. As a final group on this list it is, from the tick: the 220 differing and the 387 not ported less what the runs' groups take, today 607 functions and 31,039 instructions before them; and beyond the tick, PM's multiplayer (docs/pm-map.md, PM's multiplayer against MW3's) and the rest of the program, counted by `tools/analysis/pmmap.py` per file.
+
 ### 2. A first run
 
 On a throwaway branch from `pm`, never merged: the tick and states wired to the PM classes, an environment switch `PM_AI=1`, the hooks real or logged as unported. The size, counted 2026-11-07 once the brain was in: 18 hook classes in `src/mech3/zai_*_pm.h`, 307 virtuals, not the six and 105 this plan first said, with some counted twice (the same call in several classes, Jump and Walk inheriting Steer). What's still to build before it runs: every hook body (the only ones today are the test stand-ins in `tests/probe_pm_ai_*.cpp`); a mapping from the plain structs (`BrainTickPm`, `OrdersPm`, `TargetsPm`) to `Brain` and `AiTarget`; the code that reads `PM_AI`, which is nowhere yet; and the first-hit log, which isn't built. Dev 2 has the wiring, on a `pm`-based branch, filling in these interfaces from its own files; the estimate in sittings comes after it has seen its first class. One mission, `c1m1` idle, the trace's own run, forked and headless like `pm_starbase_refit`, 255 s of mission time at 53 bits, the stand-in's run the same way as the control.
