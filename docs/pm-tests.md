@@ -280,7 +280,7 @@ The lead's call: before the first run, port and test the 112 that ran, biggest r
 | Nets, 0x4c6ab0..0x4cb730 | 13 | 873 | |
 | Targets, 0x4e2f50..0x4ea5f0 | 8 | 620 | `test_sensors` near it |
 
-Firing is first and more than half. It isn't MW3's changed: PM's step keeps about a fifth of MW3's 0x4b5b80's lines and 0x4bd920, 412 instructions, has no close twin in MW3 (at best 17%, by a rough match on lines). Its parts, bottom-up: the aim (0x4badc0, 0x4bb040, 0x4bb290, 0x4bb580, 0x4b9f00), the plan's pick (0x4bc2e0, with 0x4bbfa0, 0x4bbe30, 0x4ba030, 0x4ba190, 0x4ba340 and their helpers), the shot (0x4bcd40, with 0x4bd920, 0x4bcad0, 0x4b8f80, 0x4bc930), then the step and the plan's virtuals (0x4ba9e0, 0x4baae0).
+Firing is first and more than half. It isn't MW3's changed: PM's step keeps about a fifth of MW3's 0x4b5b80's lines and 0x4bd920, 412 instructions, is `std::sort` on the shot's records, not game logic. Its parts, bottom-up: the aim (0x4badc0, 0x4bb040, 0x4bb290, 0x4bb580, 0x4b9f00), the plan's pick (0x4bc2e0, with 0x4bbfa0, 0x4bbe30, 0x4ba030, 0x4ba190, 0x4ba340 and their helpers), the shot (0x4bcd40, with 0x4bd920, 0x4bcad0, 0x4b8f80, 0x4bc930), then the step and the plan's virtuals (0x4ba9e0, 0x4baae0).
 
 ### Firing's aim (2026-11-07)
 
@@ -289,6 +289,10 @@ Firing is first and more than half. It isn't MW3's changed: PM's step keeps abou
 ### Firing's plan's pick (2026-11-07)
 
 `test_pm_ai_pick`: 0x4bc2e0 with 0x4bbfa0, 0x4bbe30, 0x4bbf20, 0x4ba190, 0x4ba340, 0x4ba030, 0x4bc230, 0x4bc260, 0x4bc2a0, 0x4ba970, 0x4ba990, 0x4baaa0, 0x4bd2e0, 0x4bd680, 0x4bd6c0, 0x4bd6f0, 0x4bd710 and the sort 0x4bd760 real, `plan_pick`, 6,000 cases at 53 bits, exact, every part mode. 53 breaks, 52 caught by a compare (one after adding the empty list with a wish kept); the other was dead code, a flag on the last subtraction, and is gone. Stand-ins: 0x4e5d00 (line of sight), 0x5cb260, the threat lists 0x4b2820 and 0x4b2890, and the entities' virtuals. The sort's heap is only run at one place; the port keeps its effect, not its code, so the branches of 0x4be050 aren't reached in either. Ties are pinned: contacts alike with the vehicle refusing some, so the whole order after the sort shows in the targets asked for, 807 cases; a later equal doesn't displace the first, and each better one swaps with the front. Breaks of that rule (`<=`, a rotate for the swap) are caught. The start-up's 0x4ba110 and 0x4ba140 run in the test, not in the port, which has them as constants. The plan's virtuals come with the step.
+
+### Firing's shot (2026-11-07)
+
+`test_pm_ai_shot`: 0x4bcd40 with 0x4bc930, 0x4bcad0, 0x4bca70, 0x4bd170, the removes, `std::sort` 0x4bd920 (`crt::msvc_sort`), 0x4b8d30 real, `shot_pick`, 20,000 cases at 53 bits, exact, volleys of one to many. 34 breaks, 28 caught by a compare. First pass 22; the misses that were gaps got directed cases: ammo exactly at the keep level, the room exactly on a weapon's number, equal numbers, the multiplier 0 so the sort's ties show, and a sum that decides as a double but not as the float it's stored in. The 6 left are equivalent: a division of equal numbers is 1, two forms of the "some but not all" test give the same list, the cheapest of one, the single fit through the other branch, and `std::stable_sort` matches at 16 weapons or fewer, where the exe's sort is an insertion sort; the quick part past 16 can't be reached by a manager's list. Stand-ins: 0x4b7bd0, 0x4b8f80, 0x4b7b40, 0x4b7b90, the group's calls. The test leaves out a vehicle with no brain: the exe faults on null there (`fld [ebp + 0x38]`), the port reads zeros; a firing's shooter always has one.
 
 ## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
 

@@ -139,6 +139,36 @@ struct PickFiring {
 };
 PlanPm* plan_pick(PickFiring& f);  // 0x004bc2e0
 
+// What the shot asks outside. The shooter's numbers: 0x004bc930 reads them from the contact's owner.
+struct ShotShooter {
+  float heat = 0, health = 0;      // vt+0xa8, vt+0xa4
+  bool vehicle = false;            // vt+0x58
+  bool pilot = false;              // the brain's +0x124
+  float heat_most = 0, rate_most = 0, cost_least = 0, health_past = 0, ammo_keep = 0;  // +0x38, +0x3c, +0x40, +0x44, +0x48
+};
+class ShotPmHooks {
+ public:
+  virtual ~ShotPmHooks() = default;
+  virtual ShotShooter shooter(const Contact* c) = 0;
+  virtual const std::vector<zgame::Handle>& weapons(zgame::Handle wm) = 0;  // +0x44, +0x28 of them
+  virtual bool ready(zgame::Handle w) = 0;                              // 0x004b7bd0
+  virtual bool can_hit(zgame::Handle w, const float* at) = 0;           // 0x004b8f80
+  virtual double reach_least(zgame::Handle w) = 0;                      // 0x004b7b40
+  virtual double reach_most(zgame::Handle w) = 0;                       // 0x004b7b90
+  virtual float cost(zgame::Handle w) = 0;                              // +0x1c
+  virtual float value(zgame::Handle w) = 0;                             // +0x18, MW3's rating
+  virtual double dps(zgame::Handle w) = 0;                              // vt+0x1c, MW3's vt+0x10
+  virtual int32_t ammo(zgame::Handle w) = 0;                            // vt+0x20
+  virtual bool bin(zgame::Handle w, int32_t* full) = 0;                 // +0x5c, 0x004b8d30
+  virtual void group_clear(zgame::Handle wm) = 0;                       // +0x30, 0x004b5dc0 each
+  virtual void group_add(zgame::Handle wm, zgame::Handle w, float rate) = 0;  // 0x004b5d80, 0x004b7a90
+  virtual void set_mode(zgame::Handle wm, int32_t mode) = 0;            // +0x1c
+};
+ShotPmHooks& shot_pm_hooks();
+void set_shot_pm_hooks(ShotPmHooks* h);
+// 0x004bcd40: which weapons fire. `k` is the brain's +0x34, `rate` its +0x124's +0x54.
+bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float k, float rate);
+
 }  // namespace mech3::ai
 
 #endif

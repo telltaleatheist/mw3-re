@@ -5,6 +5,8 @@
 #include <cstring>
 #include <utility>
 
+#include "crt/msvc_sort.h"
+
 #include "mech3/zai_target.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -14,6 +16,7 @@ namespace {
 
 AimPmHooks* g_hooks = nullptr;
 PickPmHooks* g_pick = nullptr;
+ShotPmHooks* g_shot = nullptr;
 
 constexpr float kAimScale = 0.02f;           // [0x0062f8ec], 0x004bad40: 2 / 100
 constexpr double kPi = 3.14159265359;        // 0x005e6e20
@@ -61,6 +64,8 @@ AimPmHooks& aim_pm_hooks() { return *g_hooks; }
 void set_aim_pm_hooks(AimPmHooks* h) { g_hooks = h; }
 PickPmHooks& pick_pm_hooks() { return *g_pick; }
 void set_pick_pm_hooks(PickPmHooks* h) { g_pick = h; }
+ShotPmHooks& shot_pm_hooks() { return *g_shot; }
+void set_shot_pm_hooks(ShotPmHooks* h) { g_shot = h; }
 
 // Pirate's Moon 1.0 @ 0x004013d0
 float unit3(float v[3]) {
@@ -476,6 +481,119 @@ PlanPm* plan_pick(PickFiring& f) {
   }
   f.seen = *h.target_slot(f.vehicle);
   return made;
+}
+
+namespace {
+
+// A weapon weighed (0x18 bytes).
+struct ShotRec {
+  zgame::Handle w = 0;
+  float cost = FLT_MAX, heat = FLT_MAX, value = 0;
+  bool wanted = false, within = false, cool = false;  // +0x14, +0x15, +0x16
+};
+
+// 0x004bc930's record (0x80 bytes): what limits this volley and the running counts.
+struct ShotCtx {
+  float heat_room = FLT_MAX, rate_room = FLT_MAX;  // +0x0c, +0x10
+  float ammo_keep = 0;                             // +0x14
+  float value_k = 0, cost_k = 0;                   // +0x18, +0x1c
+  float best_cost = FLT_MAX, best_heat = FLT_MAX;  // +0x20, +0x24
+  ShotRec cheapest, coolest;                       // +0x28, +0x40
+  bool any_ammo = false;                           // +0x58
+  int32_t fit = 0, cool = 0, wanted = 0, ready = 0, fit_wanted = 0;  // +0x5c, +0x60, +0x64, +0x68, +0x6c
+  float dist2 = 0;                                 // +0x08
+  const float* at = nullptr;                       // +0x78
+};
+
+// 0x004bca70: the bin's fill; 1 without a bin, for no ammo count, or full.
+double fill(zgame::Handle w) {
+  ShotPmHooks& h = shot_pm_hooks();
+  const int32_t n = h.ammo(w);
+  const float a = static_cast<float>(n);
+  int32_t full = 0;
+  if (static_cast<double>(n) == -1.0 || !h.bin(w, &full)) return 1.0;
+  return double{a} == full ? 1.0 : a / static_cast<double>(full);
+}
+
+// 0x004bcad0
+ShotRec weigh(zgame::Handle w, ShotCtx& x) {
+  ShotPmHooks& h = shot_pm_hooks();
+  ShotRec r;
+  r.w = w;
+  if (!h.ready(w) || (x.at && !h.can_hit(w, x.at))) return r;
+  if (!(h.reach_least(w) < x.dist2) || !(h.reach_most(w) > x.dist2)) return r;
+  ++x.ready;
+  r.wanted = x.any_ammo || fill(w) > x.ammo_keep;
+  if (r.wanted) ++x.wanted;
+  r.cost = static_cast<float>(double{x.cost_k} * h.cost(w));
+  const double dps = h.dps(w);
+  r.heat = static_cast<float>(dps);
+  r.cool = dps < x.rate_room;
+  r.within = r.cool && x.heat_room > r.cost;
+  if (r.within && r.cost < x.best_cost) x.cheapest = r, x.best_cost = r.cost;
+  if (r.heat < x.best_heat) x.coolest = r, x.best_heat = r.heat;
+  if (r.cool) ++x.cool;
+  if (r.within) {
+    ++x.fit;
+    if (r.wanted) ++x.fit_wanted;
+  }
+  r.value = static_cast<float>(double{h.value(w)} * x.value_k);
+  return r;
+}
+
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004bcd40 (0x004bd920 is std::sort): each weapon weighed against the room
+// above the shooter's heat. None fits: the lowest vt+0x1c alone; one: it; else those that fit, those
+// with ammo to spare if some, best rating first while both sums stay in the room.
+bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float k, float rate) {
+  ShotPmHooks& h = shot_pm_hooks();
+  if (!c) return false;
+  const ShotShooter me = h.shooter(c);
+  ShotCtx x;
+  x.value_k = k, x.at = at, x.dist2 = c->dist2;
+  if (me.pilot) x.cost_k = me.cost_least < k ? k : me.cost_least;
+  if (me.vehicle) {
+    x.heat_room = me.heat_most - me.heat;
+    x.rate_room = me.rate_most - me.heat;
+    if (me.health >= me.health_past) x.ammo_keep = me.ammo_keep;
+  }
+  x.any_ammo = !(x.ammo_keep > 0);
+  const std::vector<zgame::Handle>& ws = h.weapons(wm);
+  std::vector<ShotRec> recs;
+  recs.reserve(ws.size());
+  for (const zgame::Handle w : ws) recs.push_back(weigh(w, x));
+  if (x.ready < 1 || x.cool < 1) return false;
+  if (x.fit == 0 || x.fit == 1) {
+    recs.assign(1, x.fit == 0 ? x.coolest : x.cheapest);
+  } else {
+    const size_t all = recs.size();
+    const auto keep = [&](auto pass) {
+      size_t n = 0;
+      for (const ShotRec& r : recs)
+        if (pass(r)) recs[n++] = r;
+      recs.resize(n);
+    };
+    keep([](const ShotRec& r) { return r.within; });
+    if (0 < x.fit_wanted && static_cast<size_t>(x.fit_wanted) < all) keep([](const ShotRec& r) { return r.wanted && r.within; });
+    if (recs.size() > 1) {
+      crt::msvc_sort(recs.begin(), recs.end(), [](const ShotRec& a, const ShotRec& b) { return a.value > b.value; });
+      float cost = 0, heat = 0;
+      size_t i = 0;
+      for (; i < recs.size(); ++i) {
+        cost = cost + recs[i].cost;
+        const double sum = double{recs[i].heat} + heat;
+        heat = static_cast<float>(sum);
+        if (cost > x.heat_room || sum > x.rate_room) break;
+      }
+      recs.resize(i);
+    }
+  }
+  if (recs.empty()) return false;
+  h.group_clear(wm);
+  for (const ShotRec& r : recs) h.group_add(wm, r.w, rate);
+  h.set_mode(wm, 2);
+  return true;
 }
 
 }  // namespace mech3::ai

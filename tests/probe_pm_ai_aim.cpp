@@ -202,3 +202,55 @@ extern "C" int32_t probe_pm_ai_pick(const int32_t* in, const int32_t* rands, con
   std::memcpy(out, l.data(), 4 * l.size());
   return m;
 }
+
+// The shot, for test_pm_ai_shot.py. in: n, a place, the shooter's vehicle, pilot, group's size, then 6 for each
+// weapon: ready, can hit, ammo, a bin, its full; f: dist2, k, rate, the shooter's 7, then 6 for each: least, most,
+// cost, value, heat, unused.
+namespace {
+struct Sh : ShotPmHooks {
+  const int32_t* in;
+  const float* f;
+  std::vector<zgame::Handle> ws;
+  std::vector<uint32_t> log;
+  float at[3] = {1, 2, 3};
+  const int32_t* wi(zgame::Handle w) const { return in + 5 + 6 * (w - 1); }
+  const float* wf(zgame::Handle w) const { return f + 10 + 6 * (w - 1); }
+  ShotShooter shooter(const Contact*) override {
+    ShotShooter s;
+    s.heat = f[3], s.health = f[4], s.vehicle = in[2] != 0, s.pilot = in[3] != 0;
+    s.heat_most = f[5], s.rate_most = f[6], s.cost_least = f[7], s.health_past = f[8], s.ammo_keep = f[9];
+    return s;
+  }
+  const std::vector<zgame::Handle>& weapons(zgame::Handle) override { return ws; }
+  bool ready(zgame::Handle w) override { return wi(w)[0] != 0; }
+  bool can_hit(zgame::Handle w, const float*) override { log.push_back(0x81), log.push_back(static_cast<uint32_t>(w)); return wi(w)[1] != 0; }
+  double reach_least(zgame::Handle w) override { return wf(w)[0]; }
+  double reach_most(zgame::Handle w) override { return wf(w)[1]; }
+  float cost(zgame::Handle w) override { return wf(w)[2]; }
+  float value(zgame::Handle w) override { return wf(w)[3]; }
+  double dps(zgame::Handle w) override { return wf(w)[4]; }
+  int32_t ammo(zgame::Handle w) override { return wi(w)[2]; }
+  bool bin(zgame::Handle w, int32_t* full) override { *full = wi(w)[4]; return wi(w)[3] != 0; }
+  void group_clear(zgame::Handle) override {
+    if (in[4]) log.push_back(0x82), log.push_back(static_cast<uint32_t>(in[4]));
+  }
+  void group_add(zgame::Handle, zgame::Handle w, float rate) override { log.push_back(0x83), log.push_back(static_cast<uint32_t>(w)), log.push_back(W::bits(rate)); }
+  void set_mode(zgame::Handle, int32_t mode) override { log.push_back(0x84), log.push_back(static_cast<uint32_t>(mode)); }
+};
+}  // namespace
+
+extern "C" int32_t probe_pm_ai_shot(const int32_t* in, const float* f, uint32_t* out, int32_t cap) {
+  Sh s;
+  s.in = in, s.f = f;
+  for (int i = 0; i < in[0]; ++i) s.ws.push_back(static_cast<zgame::Handle>(i + 1));
+  Contact c;
+  c.dist2 = f[0];
+  set_shot_pm_hooks(&s);
+  const bool r = shot_pick(9, &c, in[1] ? s.at : nullptr, f[1], f[2]);
+  set_shot_pm_hooks(nullptr);
+  s.log.push_back(0x2b), s.log.push_back(r);
+  const int32_t m = static_cast<int32_t>(s.log.size());
+  if (m > cap) return -1;
+  std::memcpy(out, s.log.data(), 4 * s.log.size());
+  return m;
+}
