@@ -180,7 +180,7 @@ struct Args {
   int64_t seed = -1;          // --seed N: rand seeded with N wherever the game seeds it from the clock (ours)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
   int frame_times = 0;  // --frame-times N (ours): each frame's wall time from the N-th frame shown, summed up at the end
-  int briefing_wait = 0;
+  int briefing_wait = 150;  // PM's main menu takes longer to take a click than MW3's
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
   struct Tap { int down, up, dik, ingame = 0; };
   std::vector<Tap> taps;  // --tap DIK@N[:M]
