@@ -95,8 +95,9 @@ TEST(pm_wire_firing_reaches_the_vehicle_and_counts_the_rest) {
   EXPECT(step_pm_hooks().target(7) == &c);
   EXPECT(*pick_pm_hooks().target_slot(7) == &c);
   pm_hooks_missing_clear();
-  EXPECT(pick_pm_hooks().part_child(7, 0) == 0);
-  EXPECT(pm_hooks_missing().at("WirePick.part_child") == 1);
+  EXPECT(pick_pm_hooks().part_child(7, 0) == 0);  // no mech object
+  step_pm_hooks().seed(1);
+  EXPECT(pm_hooks_missing().at("WireStep.seed") == 1);
 }
 
 TEST(pm_wire_firing_answers_what_the_step_calls_most) {
