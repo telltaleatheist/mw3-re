@@ -561,9 +561,18 @@ class WireStep : public StepPmHooks {
     if (FiringRecord* r = record_of(plan_of(plan)->vehicle)) r->aim.lead(dt, plan, brain_hooks().wm_current(wm), wm, b);
   }
   void stand_down(zgame::Handle v) override {
-    pm_hook_missing("WireStep.stand_down");  // the torso's centring and the speech
-    const zgame::Handle wm = brain_hooks().weapons(v);
-    if (wm) brain_hooks().wm_clear_aim(wm);  // 0x004b4a20(0)
+    // vt+0x164(0, &o, 1), the port's Mech::aim_at; then the torso turned to straight ahead (0x004677e0, 0x005eb958).
+    const zgame::Handle m = brain_hooks().vehicle_mech(v);
+    Mech* k = m ? static_cast<Mech*>(brain_hooks().object_of(m)) : nullptr;
+    if (!k) {
+      const zgame::Handle wm = brain_hooks().weapons(v);
+      if (wm) brain_hooks().wm_clear_aim(wm);
+      return;
+    }
+    uint8_t out[16] = {};
+    k->aim_at(nullptr, out, true);
+    static const Vec3 ahead{0.0f, 0.0f, -1.0f};
+    if (k->torso && aim_calls().torso_aim) aim_calls().torso_aim(*k, &ahead, out, 0);
   }
   void brain_x20(Brain* b) override {
     pm_walk(*b, *b->controls).set_fought(false);  // vt+0x20 0x004faa30: the brain's +0x118 to 0
