@@ -1,4 +1,5 @@
 #include "mech3/app_vehicle.h"
+#include "mech3/mech_lod.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -823,6 +824,15 @@ void* program_vehicle_brain(void* controls) {
       if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(v)->controls)) return c->brain.get();
   return nullptr;
 }
+// Pirate's Moon 1.0 @ 0x004b2c00 (vt+0x16c of the field base, the stealth object, the basic vehicle).
+void program_vehicle_cloud_kill(void* v) {
+  if (!is_program_vehicle(v) || !bv(v).active || !cloud_calls().band) return;
+  float at[3];
+  if (zcls::node_world_position(zn(bv(v).node), at) != 0 || !cloud_calls().band().holds(at[1])) return;
+  if (is_field_base(bv(v))) field_base_die(*static_cast<FieldBase*>(&bv(v)));  // 0x0045a250
+  else vehicle_die(bv(v));                                                     // 0x004b0c70
+}
+
 bool program_vehicle_kill(void* v, void* killer, const char* weapon) {
   zwep::WeaponDef* def = zwep::find_def(weapon);
   if (!is_program_vehicle(v) || !def || !bv(v).controls) return false;

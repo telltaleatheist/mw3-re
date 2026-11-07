@@ -286,6 +286,7 @@ struct MechFrameCalls {
 };
 MechFrameCalls& mech_frame_calls();
 void mech_after_frame(void* mech, float dt);    // PM 0x0041b930
+void wire_cloud_band();
 void entities_box_on(float dt);                 // PM 0x005cb4e0
 void entities_box_back(float dt);               // PM 0x005cb510
 // Roots with their box on as entities_box_back started, and after it: for the program's tests.

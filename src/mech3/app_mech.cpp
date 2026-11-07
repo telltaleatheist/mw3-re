@@ -1938,6 +1938,7 @@ void wire_mech_build(const MechWiring* w) {
     unwire_hud();
     wire_cheats(false);
     unwire_weapons();
+    cloud_calls() = CloudCalls{};
     set_mech_build_hooks(nullptr);
     set_shade_hooks(nullptr);
     update_calls().x68c_update = nullptr;
@@ -1985,6 +1986,7 @@ void wire_mech_build(const MechWiring* w) {
   wire_mech_parts();
   wire_hud();
   wire_cheats(true);
+  wire_cloud_band();
   wire_weapons([](const char* key) { return g_w.unported ? g_w.unported(g_w.engine, key, {}) : 0u; });
   WeaponCalls& c = weapon_calls();
   // (A mech's manager is made while the mech is built, before zEntity knows
@@ -2207,6 +2209,21 @@ zcls::Node* box_root(ai::Handle h, bool* active) {
   return zn(program_vehicle_node(v));
 }
 }  // namespace
+
+// The cloud's death band (mech_lod.h): the real program's answers.
+void wire_cloud_band() {
+  CloudCalls& c = cloud_calls();
+  c.band = program_cloud_band;  // app_mission.cpp
+  c.height = [](Mech& m) {
+    float at[3] = {};
+    zcls::node_world_position(zn(m.node), at);
+    return at[1];
+  };
+  c.viewed = [](Mech& m) { return &m == program_view_target(); };
+  c.camera = [](int32_t id) { program_view_set_camera(id); };
+  c.prep = [](Mech& m) { m.death_prep(); };
+  c.kill = [](Mech& m) { m.kill(); };
+}
 
 void entities_box_on(float) {
   for (const ai::Handle h : ai::entity_list()) {

@@ -177,6 +177,16 @@ The compares were 1e-3 wide, which is thousands of last-place units; 53-bit runs
 
 **Rerun at the switch, added:** every break for these pieces on this evaluation.
 
+## The cloud's death band
+
+`test_pm_window.py` runs 0x4b2b40 and 0x4b2c00 on the exe against `cloud_kill` and
+the vehicle's kill: 448 cases at the band's edges, on and off, active, dead, the
+pilot's mech and another. `pm_canyon_death_band` (`mw3pmtests`, always on, forked,
+nothing on Windows) walks the player off the rim of the real c1m2: dead at y -30.43,
+Mission Failed, one AI mech dead the same way. 14 of 14 breaks caught. The
+camera 3 call and the fall sound rest on the port of the death prep and on reading:
+the mission test sees the failure, not the picture (vehicles.md).
+
 ## The frame's box window
 
 `pm_player_tick_box_window` (`mw3pmtests`) holds the tick's order against

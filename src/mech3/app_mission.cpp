@@ -104,6 +104,7 @@
 #include "mech3/pocket_panel.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
+#include "mech3/cloud_band.h"
 #include "mech3/mission_world.h"
 #include "gamez/zclass/cls_di.h"
 #include "mech3/options.h"
@@ -2546,6 +2547,11 @@ void wire_mission_hooks(GameEngine* e) {
     out->unlimited_ammo = g->b8d != 0, out->outside_view = g->b8e != 0;
     return true;
   });
+}
+
+CloudBand program_cloud_band() {
+  const MissionWorld& w = missions().world;
+  return CloudBand{w.cloud_on != 0, w.cloud_death_on != 0, w.cloud_death[0], w.cloud_death[1]};
 }
 
 // 0x00490880 on the missions object: the load, then (a debug launch, our

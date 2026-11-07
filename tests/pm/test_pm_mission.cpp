@@ -222,6 +222,7 @@ int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemi
 int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
 void pm_kill_loadout(void* player);
+void pm_kill_fall_line(void* mech, int t);
 void pm_kill_hurt(void* mech);
 float pm_kill_leg_armor(void* mech);
 void pm_kill_ground_line(float x0, float z0, float x1, float z1);
@@ -264,6 +265,8 @@ TEST(pm_player_tick_box_window) {
 }
 
 static bool g_refit_point = false, g_refit_done = false;
+static float g_fall_lowest = 1e9f, g_fall_died_at = 1e9f;
+static bool g_fall_failed = false, g_fall_ai_dead = false;
 
 static void kill_run(const char* which, bool quick) {
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
@@ -430,6 +433,31 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    if (const char* e = std::getenv("PM_FALL")) {  // x,z: from the rim, down into the canyon
+      static int t = 0;
+      float x = 0, z = 0;
+      std::sscanf(e, "%f,%f", &x, &z);
+      ++t;
+      if (t == 2) {
+        const float at[3] = {x, 30.0f, z};
+        mech3::move_mech(player, at, 0.0f);
+      }
+      if (t == 3 && targets.size() > 1) {  // an AI mech in with it, a little along
+        const float at[3] = {x + 40.0f, 10.0f, z};
+        mech3::move_mech(targets[1], at, 0.0f);
+      }
+      if (t % 20 == 0 && !quick) pm_kill_fall_line(player, t);
+      mech3::LaunchedMech me;
+      mech3::describe_mech(player, &me);
+      float there_y[3];
+      mech3::mech_world_position(player, there_y);
+      g_fall_lowest = std::min(g_fall_lowest, there_y[1]);
+      if (me.anim_state == 10 && g_fall_died_at > 0.0f) g_fall_died_at = there_y[1], g_fall_failed = engine.mission_failed();
+      if (targets.size() > 1 && state(targets[1]) == 10) g_fall_ai_dead = true;
+      g_fall_failed = g_fall_failed || engine.mission_failed();
+      if (t > 300) done = true;
+      return;
+    }
     if (std::getenv("PM_GROUND")) {
       pm_kill_ground_line(2517, -4413, 3181, -4860);
       pm_kill_ground_line(2700, -4800, 3200, -4300);
@@ -515,13 +543,35 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
 TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
 
 // Always on: c1m1's Thor, one ER Large, every shot on its leg: it goes down with the leg, the player's hits on legs only.
+// Always on: mission 2's canyon, cloud_cover's death band: the player dropped in dies at y = -30, in the air, the
+// mission failed; an AI mech dies there too (docs/vehicles.md, The cloud's death band).
+TEST(pm_canyon_death_band) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_FALL", "3056,-4776", 1);
+    kill_run("0,1,2", true);
+    std::printf("  canyon: died at y %.2f, lowest %.2f, mission failed %d, the AI mech dead %d\n", g_fall_died_at, g_fall_lowest, g_fall_failed ? 1 : 0, g_fall_ai_dead ? 1 : 0);
+    EXPECT(g_fall_died_at < -30.0f && g_fall_died_at > -36.0f);
+    EXPECT(g_fall_failed);
+    EXPECT(g_fall_ai_dead);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
 // Always on: mission 1's static MFB: called from the start, no base moves, the mech at the point is refitted and the dock ends.
 TEST(pm_starbase_refit) {
 #if !defined(_WIN32)

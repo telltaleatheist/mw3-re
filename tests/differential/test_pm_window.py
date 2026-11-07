@@ -63,6 +63,63 @@ def port(slot, pilot, head, dt):
     return list(log[:n]) + [6 if slot else 5], frame.value, kept.value != 0
 
 
+def cloud(emu):
+    """The death band: 0x4b2b40 on a mech and 0x4b2c00 on another class, at the band's edges."""
+    poke = emu.poke
+    obj, node, vt = emu.alloc(0x100), emu.alloc(0x60), emu.alloc(0x200)
+    m = emu.alloc(0x800)
+    poke(m, vt)
+    poke(m + 0x14, node)
+    poke(node + 0x38, obj)
+    log = []
+    kill = emu.cpu.code(b'\xc3')
+    poke(vt + 0x78, kill)
+    emu.native_stub(kill, lambda c: log.extend((3,)) or 0, 0)
+    emu.native_stub(0x408a70, lambda c: log.extend((1, c.arg(0))) or 0, 4)
+    emu.native_stub(0x41de60, lambda c: log.extend((2,)) or 0, 0)
+    view = emu.alloc(0x80)
+    poke(0x61874c, view)
+    bad = cases = kills = 0
+    probe.probe_pm_cloud.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_int, P, P]
+    probe.probe_pm_cloud_band.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float]
+    mem = emu.cpu._uc.mem_write
+    for on in (0, 1):
+        for death in (0, 1):
+            for y in (-10001.0, -10000.0, -9999.0, -30.5, -30.0, -29.5, 5.0):
+                for active in (0, 1):
+                    for state in (1, 10):
+                        for viewed in (0, 1):
+                            mem(0x62da58, bytes([on]))
+                            mem(0x62da7c, bytes([death]))
+                            mem(0x62da80, struct.pack('<f', -10000.0))
+                            mem(0x62da84, struct.pack('<f', -30.0))
+                            mem(obj + 0x84 + 4, struct.pack('<f', y))
+                            mem(m + 8, bytes([active]))
+                            poke(m + 0x59c, state)
+                            poke(m + 0x658, 0)
+                            poke(view + 0x64, m if viewed else m + 4)
+                            log.clear()
+                            emu.call(0x4b2b40, ecx=m)
+                            want = (list(log), emu.r32(m + 0x658) & 1)
+                            out, flag = (ctypes.c_uint32 * 16)(), ctypes.c_int()
+                            n = probe.probe_pm_cloud(on, death, -10000.0, -30.0, y, active, state, viewed, out, ctypes.byref(flag))
+                            got = list(out[:n])
+                            cases += 1
+                            kills += 3 in log
+                            if want != (got, flag.value):
+                                bad += 1
+                                print(f'mech on {on} death {death} y {y} active {active} state {state} viewed {viewed}: exe {want} port {got, flag.value}')
+                            # the other classes: active, no fall test, no view
+                            log.clear()
+                            emu.call(0x4b2c00, ecx=m)
+                            if bool(log) != (bool(active) and bool(probe.probe_pm_cloud_band(on, death, -10000.0, -30.0, y))):
+                                bad += 1
+                                print(f'vehicle on {on} death {death} y {y} active {active}: exe {log}')
+                            cases += 1
+    print(f'{cases} band cases, {kills} kills: {bad} differ')
+    return bad
+
+
 emu = Emulated()
 cases = bad = 0
 for slot in (0, 1):
@@ -74,4 +131,5 @@ for slot in (0, 1):
                 bad += 1
                 print(f'slot {slot} pilot {pilot} head {head}\n  exe  {want}\n  port {got}')
 print(f'{cases} cases: {bad} differ')
+bad += cloud(emu)
 sys.exit(1 if bad else 0)

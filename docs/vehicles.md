@@ -1907,6 +1907,42 @@ a lost base cut is gone for good (campaign.md section 9). No sign in
 0x00458xxx..0x0045bxxx of repairs looking at the mechs carried: the store
 is touched only here and by the repair (above).
 
+## The cloud's death band (Pirate's Moon; 0x4b2b40, 0x4b2c00; 2026-11-06)
+
+PM's `world.zrd` gives `cloud_cover` a `death` list: `(-10000 -30)` in the
+c1 and c3 `defaults` blocks and in the c1 missions with a block of their own
+(m2, m5, sa4). c2 and c4 have none. The defaults are read first
+(`mission_world.cpp`), so every mission of those two sets has the band. MW3 has
+neither the string nor the block.
+
+The world's `cloud_on` (0x62da58), `death_on` (0x62da7c), low (0x62da80) and
+high (0x62da84) are read in two places only:
+
+- 0x4b2b40, the mech's vt+0x16c. While it is active and not dead (0x41ade0: not
+  state 10) it takes the height from the node, updating it first if dirty. With
+  y strictly between low and high: the pilot's own mech gets camera 3
+  (0x408a70) and the death prep 0x41de60, which ends in the failed mission
+  (0x492710); any mech gets bit 0 of +0x658 (0x41d8b0(1), our `x634`) and the
+  kill vt+0x78.
+- 0x4b2c00, for field bases, stealth, basic and the vehicle base: the same band,
+  active, then the kill alone (field base 0x45a250, others 0x4b0c70).
+
+vt+0x16c is called from the vehicles' 0x4b2c90 and from the mech's LOD step
+0x41f4d0 at its exits, between the controls' fetch and their answer. In the
+port: `cloud_kill` in `mech_lod.cpp`, `program_vehicle_cloud_kill` in
+`app_vehicle.cpp`, `CloudBand` in `cloud_band.h`.
+
+So it is a height rule and not a material or a damage: a mech falling into the
+Canyon on c1m2 passes y -30 and dies there with its armour whole. It has nothing
+to do with drowning (0x41a100), which needs water over the feet. The cloud's
+drawing is unchanged by any of this.
+
+Checked: `test_pm_window.py` runs both functions on the exe and the port at the
+band's edges (448 cases); `pm_canyon_death_band` walks the player off the rim on
+the real c1m2: dead at y -30.43, mission failed, an AI mech dead too. After death
+the port's body falls on to y -57; whether the original's view shows the same is
+not checked against a run of it.
+
 ## High frame rates: why a vehicle tips and hops (W57, 2026-11-04)
 
 Reported on Reddit as APCs leaving the ground near the town in c1m2 on very fast

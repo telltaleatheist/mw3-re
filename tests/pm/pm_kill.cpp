@@ -3,6 +3,7 @@
 #include "mech3/mech_parts.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zweapon/zweapon.h"
@@ -262,10 +263,15 @@ void pm_kill_ground_line(float x0, float z0, float x1, float z1) {
     const float x = x0 + (x1 - x0) * static_cast<float>(i) / 16.0f, z = z0 + (z1 - z0) * static_cast<float>(i) / 16.0f;
     float probe[3] = {x, 300.0f, z};
     static zcls::GroundHits g;
+    const int32_t mode = zmod::zones().mode;
+    zmod::zones().mode = 0;  // every zone's ground
     zcls::ground_query(static_cast<zcls::Node*>(world_hooks().world), probe, 1, 300.0f, &g);
-    std::printf("  ground %.0f %.0f:", x, z);
-    for (int k = 0; k < g.count && k < 5; ++k)
-      std::printf(" [%.1f soil %d %s]", g.hit[k].height, g.hit[k].material ? g.hit[k].material->soil : -1, g.hit[k].node ? g.hit[k].node->name() : "-");
+    zmod::zones().mode = mode;
+    std::printf("  ground %.0f %.0f (%d):", x, z, g.count);
+    for (int k = 0; k < g.count && k < 6; ++k) {
+      const zmod::Material* mt = g.hit[k].material;
+      std::printf(" [%.1f soil %d tex %d %s]", g.hit[k].height, mt ? static_cast<int>(mt->soil) : -1, mt ? static_cast<int>(mt->texture_index) : -1, g.hit[k].node ? g.hit[k].node->name() : "-");
+    }
     std::printf("\n");
   }
 }
@@ -287,4 +293,13 @@ void pm_kill_loadout(void* player) {
   for (ConfigItem* it : me->config->items)
     if (it && it->kind() == 3) std::printf(" [id %d part %d count %d]", it->id(), it->location(-1), it->count);
   std::printf("\n");
+}
+
+// PM_FALL: a frame of the fall: height, fall speed, state, the water the skis see, the depth rule's number, structure.
+void pm_kill_fall_line(void* mech, int t) {
+  auto* m = static_cast<Mech*>(mech);
+  float at[3];
+  mech_world_position(mech, at);
+  std::printf("  fall %4d: y %.2f vy %.2f state %d air %d surface %.1f %.1f depth %.1f torso %.3f legs %.3f %.3f\n", t, at[1], m->vec_3c.y, m->anim_state, m->airborne() ? 1 : 0,
+              m->skis->surface[1], m->skis->surface[4], (m->skis->surface[4] + m->skis->surface[1]) * 0.5f - at[1], m->torso->internal, m->legs[0]->internal, m->legs[1]->internal);
 }

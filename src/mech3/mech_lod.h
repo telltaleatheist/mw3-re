@@ -1,4 +1,5 @@
 #pragma once
+#include "mech3/cloud_band.h"
 #include <cstdint>
 
 #include "mech3/mech.h"
@@ -32,6 +33,17 @@ struct LodCalls {
   void (*switch_model)(Mech& m, int32_t lod) = nullptr;  // unset, lod_switch; the tests'
 };
 LodCalls& lod_calls();
+
+struct CloudCalls {
+  CloudBand (*band)() = nullptr;
+  float (*height)(Mech& m) = nullptr;     // the node's world y, brought up to date (0x00538470..0x004fefa0)
+  bool (*viewed)(Mech& m) = nullptr;      // [0x0061874c]+0x64
+  void (*camera)(int32_t id) = nullptr;   // 0x00408a70
+  void (*prep)(Mech& m) = nullptr;        // 0x0041de60
+  void (*kill)(Mech& m) = nullptr;        // vt+0x78
+};
+CloudCalls& cloud_calls();
+void cloud_kill(Mech& m);  // 0x004b2b40, vt+0x16c
 
 // 0x0041e810's tail (vt+0xc8, the sensors' per-vehicle call): the frame's
 // budget of full-detail mechs, 0 while the player's throttle is 0, else 1

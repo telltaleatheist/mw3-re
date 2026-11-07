@@ -26,6 +26,7 @@ void program_stealth_frame(float dt);  // its vt+0x34 (0x004a1040) from the play
 // overlay off (0x004a50d0); a mech's and others', nothing.
 void program_vehicle_view_detached(Vehicle& v);
 bool program_vehicle_sensed(const void* v);  // zEntity +0x09: the entity walk runs it
+void program_vehicle_cloud_kill(void* v);  // 0x004b2c00
 void* program_field_base_create(void* ctl, const char* type, const char* name);  // 0x004589d0
 bool program_is_field_base(const void* v);  // vt+0xf0 / vt+0xf4: itself (0x004d2a70), else 0
 void* program_campaign();                   // app_menus.cpp: the pilot's campaign (0x00479440), null without one

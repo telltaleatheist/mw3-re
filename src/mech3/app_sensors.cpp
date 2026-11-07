@@ -138,7 +138,9 @@ struct ProgramSensors : ai::SensorHooks {
         case 0x24: case 0x28: case 0x2c: case 0x40: case 0xec: return o;  // 0x004d2a70
         case 0x50: case 0xa0: case 0xb4: return 0;  // 0x0040bae0, 0x004d7290
         case 0xcc: return program_vehicle_awake(v) ? 1 : 0;   // 0x004aee00
-        case 0xd0: return program_vehicle_sees(v, o) ? 1 : 0; // 0x004aee40
+        case 0xd0:  // 0x004aee40, Pirate's Moon's 0x004b2c90 with its vt+0x16c
+          program_vehicle_cloud_kill(v);
+          return program_vehicle_sees(v, o) ? 1 : 0;
         case 0xc8: program_vehicle_sense_refresh(v); return 0;  // 0x004add90
         case 0x140: return handle(program_vehicle_controls(v));  // 0x004020b0
         case 0x1c: program_vehicle_refresh(v); return 0;      // 0x005a85a0 as 0x005a85c0's

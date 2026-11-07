@@ -61,11 +61,31 @@ bool lod_faces_camera(Mech& m) {
   return !axis || !(-(axis[2] * dir[2] + axis[1] * dir[1] + axis[0] * dir[0]) < kFacing);
 }
 
+CloudCalls& cloud_calls() {
+  static CloudCalls c;
+  return c;
+}
+
+// Pirate's Moon 1.0 @ 0x004b2b40. Every mech; the mech the view is on goes to camera 3 and is prepared first. Its
+// other classes' 0x004b2c00 has only the kill. MW3 has neither.
+void cloud_kill(Mech& m) {
+  CloudCalls& c = cloud_calls();
+  if (!c.band || !m.active || m.anim_state == 10) return;  // 0x0041ade0
+  if (!c.band().holds(c.height(m))) return;
+  if (c.viewed(m)) {
+    c.camera(3);
+    c.prep(m);
+  }
+  m.x634 |= 1;  // 0x0041d8b0(1)
+  c.kill(m);
+}
+
 int lod_update(Mech& m) {
   Mech* player = world().mission_player;
   const LodTable& t = g_table;
   if (&m == player) {
     m.detail = t.player_bits;
+    cloud_kill(m);  // 0x004b2c90: between the controls' fetch and their answer
     return g_calls.controls_answer ? g_calls.controls_answer(m) : 1;
   }
   const bool targeted = player && player->target && g_calls.player_target && g_calls.player_target(*player) == &m;
@@ -93,6 +113,7 @@ int lod_update(Mech& m) {
   }
   if (g_calls.light_turn) g_calls.light_turn(m, light && !m.powered_down);  // 0x0041f8d0
   if (g_calls.light_lod) g_calls.light_lod(m, d);
+  cloud_kill(m);
   return g_calls.controls_answer ? g_calls.controls_answer(m) : 1;
 }
 

@@ -4441,6 +4441,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   of and behind you reach 0.9 of the skis' half length instead of 1.1, the foot probes sit
   a quarter further out, and in the air the feet only meet walls on the first
   check of the frame. (From the code.)
+- **Pirate's Moon has a height that kills:** on two of the game's four sets of worlds
+  the low cloud carries a death setting, from y -30 down. Anything that drops into it dies
+  on the spot however much armour it has, your mech or an enemy's, a field base too, and for you it
+  is Mission Failed. It's what makes the canyons deadly: the haze isn't only scenery.
+  MechWarrior 3 has no such rule. How sure this is: read from the code, checked against the game's
+  own instructions in an emulator, and walked in the rebuild on the real canyon mission.
 - **Pirate's Moon mechs can drown:** with the water more than 25 m over your feet
   (measured at the two middle ski probes, averaged) your mech loses a quarter of its
   health a frame, even with invincibility on, which it turns off. When that would
