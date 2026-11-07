@@ -320,6 +320,11 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   on, off and reorder, with their conflicts shown. A mod made by overwriting an
   install is taken as the files that differ from the player's own install. Nothing is
   ever written into the install.
+- Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
+  `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
+  Ours will be new art in MW3's style (Owen: made with the local image generator), one
+  seamless texture turned into the seven looping frames by a scripted drift, so the loop
+  stays smooth; in the rebuild's own assets with its licence, never Recoil's.
 - Making missions (Owen, 2026-11-07): worlds are zStudio's, missions are ours.
   [zStudio](https://github.com/Vorta/zStudio) (Vorta, MIT, Windows) rebuilds Zipper's own
   source tree from the game files and compiles worlds back to `gamez.zbd`; the rebuild
