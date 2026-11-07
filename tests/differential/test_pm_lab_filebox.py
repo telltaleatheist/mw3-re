@@ -40,6 +40,13 @@ def main():
         print(f'Escape on the save box: {"a file" if saved.exists() else "no file"}')
         assert not saved.exists()
 
+        # The bar refuses what a file name cannot hold, the exe's list (0x604a60): typed, / and \\ are dropped.
+        wd, _ = run(t, 'typed', SAVE + ['--tap', '0x35@2750:2752', '--tap', '0x2b@2756:2758', '--tap', '0x1e@2762:2764',
+                                        '--tap', ENTER + '@2800:2803'])
+        made = sorted(str(f.relative_to(wd)) for f in wd.rglob('*.m3c'))
+        print(f'typed / \\ a: {made}')
+        assert made == ['configs/centurion_Primarya.m3c'], made
+
         wd, (_, _, px) = run(t, 'load_cancelled', SAVE + ['--tap', ENTER + '@2800:2803'] + LOAD +
                              ['--tap', ESCAPE + '@3000:3003'])
         saved = wd / 'configs' / 'centurion_Primary.m3c'
