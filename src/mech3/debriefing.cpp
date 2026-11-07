@@ -226,6 +226,24 @@ void LanceDisplay::Bar::fill(float left) {
   lost_w = width;
 }
 
+// Ours (16:9 menus): where the bar stands now, as fill leaves it.
+void LanceDisplay::Bar::shift(int32_t dx) {
+  x += dx;
+  full.set_pos(x, y);
+  const float fx = static_cast<float>(x), fx1 = static_cast<float>(x + full_w + 1);
+  full.set_point(0, fx, static_cast<float>(y));
+  full.set_point(1, fx, static_cast<float>(y + full_h));
+  full.set_point(2, fx1, static_cast<float>(y + full_h));
+  full.set_point(3, fx1, static_cast<float>(y));
+  if (lost_w == 0) return;
+  const float lx1 = static_cast<float>(x + lost_w + 1);
+  const int32_t y2 = y + full_h;
+  lost.set_point(0, fx, static_cast<float>(y2));
+  lost.set_point(1, fx, static_cast<float>(y2 + lost_h));
+  lost.set_point(2, lx1, static_cast<float>(y2 + lost_h));
+  lost.set_point(3, lx1, static_cast<float>(y2));
+}
+
 // Mech3.exe 1.2 @ 0x0047e810
 void LanceDisplay::Bar::update(float dt) {
   full.Object2D::update(dt);
@@ -242,6 +260,15 @@ LanceDisplay::LanceDisplay(const std::function<const char*(int32_t)>& message, i
   for (ztwod::FontText& l : labels) l.set_font(font);
   for (int i = 0; i < 4; ++i) labels[i].set_text_plain(message(0xf3b + i));  // H, T, A, L
   line.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+}
+
+// Ours (16:9 menus): the cards are filled in the screen's constructor, so the
+// widening finds the display laid out by its own numbers.
+void LanceDisplay::shift(int32_t dx) {
+  px += dx, left += dx, right += dx;
+  for (Bar& b : bars) b.shift(dx);
+  for (ztwod::FontText& l : labels) l.set_pos(l.get_x() + dx, l.get_y());
+  line.set(line.get_x() + dx, line.get_y(), line.end_x + dx, line.end_y);
 }
 
 // Mech3.exe 1.2 @ 0x0047eb60

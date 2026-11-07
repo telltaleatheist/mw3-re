@@ -580,6 +580,8 @@ The briefing (0x405230) is one centred block on its widened map. Its
 script's objects are made with it (read_script), so the widening sees them.
 The debriefing (0x47b430, made apart too) is one centred block (Owen, 2026-11-06:
 its columns together, the extra width open at the sides, its board reaching them).
+Its cards are filled in the constructor, so their armor display and line are laid out by their own numbers before the
+widening: it shifts them with the card (`LanceDisplay::shift`).
 The mech lab (0x44b920, made apart too) is one centred block: its panels
 change looks as it goes (LabPanel::show_look, a double one across two
 columns), so its columns cannot be split once. Its edge panels' three
