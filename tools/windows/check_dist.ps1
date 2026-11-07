@@ -19,8 +19,11 @@ foreach ($bin in Get-ChildItem -LiteralPath $Dist -File | Where-Object { $_.Exte
     $missing += "$($bin.Name) needs $d"
   }
 }
+# Our free fonts are the only .ttf a package may hold (assets\launcher, assets\fonts); the game's are not.
+$ours = 'font.ttf', 'LiberationSans-Regular.ttf', 'LiberationMono-Regular.ttf', 'Anton-Regular.ttf'
 $game = Get-ChildItem -LiteralPath $Dist -Recurse -File |
-  Where-Object { $_.Extension -in '.zbd', '.avi', '.fmv', '.m1v', '.ttf', '.zrd', '.wav', '.ogg', '.flac' -or $_.Name -ieq 'mech3.exe' }
+  Where-Object { $_.Extension -in '.zbd', '.avi', '.fmv', '.m1v', '.zrd', '.wav', '.ogg', '.flac' -or $_.Name -ieq 'mech3.exe' -or
+                 ($_.Extension -ieq '.ttf' -and $_.Name -cnotin $ours) }
 # The launcher (the main shortcut) and the game it starts.
 foreach ($exe in 'mw3launcher.exe', 'mw3.exe') {
   if (-not (Test-Path -LiteralPath (Join-Path $Dist $exe))) { $missing += "$exe (the program itself)" }
