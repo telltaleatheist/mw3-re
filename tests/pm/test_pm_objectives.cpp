@@ -2,6 +2,8 @@
 #include <memory>
 
 #include "check.h"
+#include "mech3/app_mech.h"
+#include "pm/gamez/zclass/cls_clutter.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_objective.h"
 #include "mech3/pilot.h"
@@ -78,4 +80,14 @@ TEST(pm_config_from_a_short_store) {
   EXPECT(total == 12);
   EXPECT(!got->modified);
   c.items.clear();
+}
+
+// A clutter piece's break (0x00513c60, 0x00513cf0) finds and starts its anim: both hooks were left
+// unset, so a piece walked into or shot just vanished (docs/pm-map.md, cls_clutter).
+TEST(pm_clutter_break_has_its_anim) {
+  mech3::wire_weapons([](const char*) -> uint32_t { return 0; });
+  const pm::zcls::ClutterHooks h = pm::zcls::clutter_hooks();
+  EXPECT(h.anim_find != nullptr && h.anim_start != nullptr && h.watch_hits != nullptr);
+  mech3::unwire_weapons();
+  EXPECT(pm::zcls::clutter_hooks().anim_find == nullptr);
 }

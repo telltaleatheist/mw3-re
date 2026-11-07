@@ -1190,8 +1190,8 @@ functions PM changed, and PM's new ones.
        world's corners (0x505230 keeps a point inside the area; the decompile does not show it, the assembly does).
        The free 0x513a40 is ported, untested: `clutter_free`; the cells' records go with the world, which frees
        them when its class lands. The hits are ported (0x513c60, 0x513cf0; made-up records, 4,000 calls,
-       `clutter_on_weapon_hit`, `clutter_on_collide`), not wired: the record is the hit's +0x28 and PM's zWeapon
-       and its touch 0x5a50a0 (object, hit, damage; MW3's has no hit) are not ported. Both take OnWeaponHit's anim
+       `clutter_on_weapon_hit`, `clutter_on_collide`), wired in `wire_weapons`: the record is the hit's owner
+       (+0x28). `anim_find` and `anim_start` went unset until 2026-11-06, so a piece hit just vanished. Both take OnWeaponHit's anim
        and model; no code in the file reads OnCollide's or OnCrater's anim and model. The draw is ported (0x50a1e0,
        0x50a230, 0x50a3e0, the tree 0x504450, 0x5045e0, 0x504530, 0x504640, 0x5047e0, the corners 0x53c510), called
        from the walk's cell (`zgame::Table::cell_clutter`, wrapped cells too). A cell over 20 records gets its tree
