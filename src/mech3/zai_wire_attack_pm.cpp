@@ -4,6 +4,7 @@
 #include <map>
 
 #include "mech3/zai_steps.h"
+#include "mech3/zai_wire_orders_pm.h"
 
 namespace mech3::ai {
 
@@ -56,10 +57,10 @@ std::map<const Brain*, std::list<PendingPm>>& pending() {
 // What a pending item does to the brain's orders when it runs, after the state that left it may be gone.
 struct PendingOn : PendingPmHooks {
   explicit PendingOn(Brain& b) : b(b) {}
-  void pop_order() override { b.pop(); }
+  void pop_order() override { pm_pop_order(b); }
   void set_behaviour(zgame::Handle beh) override { b.current().set_behaviour(static_cast<Behaviour*>(pm_ptr(beh))); }
   void follow(zgame::Handle target, zgame::Handle beh) override {
-    b.push(static_cast<AiNet*>(pm_ptr(target)), static_cast<Behaviour*>(pm_ptr(beh)));
+    pm_give_order(b, static_cast<AiNet*>(pm_ptr(target)), static_cast<Behaviour*>(pm_ptr(beh)));
   }
   Brain& b;
 };
@@ -92,9 +93,14 @@ bool pm_run_pending(Brain& b) {
 }
 
 void pm_pending_forget(const Brain& b) { pending().erase(&b); }
-void WireAttack::pop_order() { b_.pop(); }
+
+size_t pm_pending_count(const Brain& b) {
+  const auto it = pending().find(&b);
+  return it == pending().end() ? 0 : it->second.size();
+}
+void WireAttack::pop_order() { pm_pop_order(b_); }
 void WireAttack::follow(zgame::Handle target, zgame::Handle b) {
-  b_.push(static_cast<AiNet*>(pm_ptr(target)), static_cast<Behaviour*>(pm_ptr(b)));
+  pm_give_order(b_, static_cast<AiNet*>(pm_ptr(target)), static_cast<Behaviour*>(pm_ptr(b)));
 }
 
 }  // namespace mech3::ai

@@ -6,6 +6,7 @@
 #include "mech3/zai_target.h"
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_orders_pm.h"
 
 using namespace mech3::ai;
 using mech3::Weapon;
@@ -211,6 +212,25 @@ TEST(pm_wire_firing_stand_down_clears_the_fought_flag) {
   step_pm_hooks().brain_x20(&b);
   EXPECT(!w.fought());
   pm_forget(b, 7);
+}
+
+TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  mech3::ai::VehicleNet vn(9);
+  EXPECT(b.set_net(&vn));
+  const size_t n = b.orders.size();
+  pm_give_order(b, &vn, nullptr);  // 0x004ea740: an order over what runs
+  EXPECT(b.orders.size() == n + 1);
+  pm_push_behaviour(b, nullptr);  // 0x004ea7f0: on the last order's own net
+  EXPECT(b.orders.size() == n + 2 && b.current().net && b.current().net->net() == &vn);
+  EXPECT(pm_may_fire(b) == b.may_fire());  // the last order's state, as MW3's 0x004e9070
+  pm_pop_order(b);
+  pm_pop_order(b);
+  EXPECT(b.orders.size() == n);
+  b.set_net(nullptr);
 }
 
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {

@@ -2,6 +2,7 @@
 
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_orders_pm.h"
 #include "mech3/zai_wire_walk_pm.h"
 #include "mech3/zai_wire_states_pm.h"
 
@@ -132,7 +133,9 @@ class WiredSidePm final : public BrainSidePmHooks {
     return static_cast<BehaviourState*>(pm_ptr(state))->may_break_in();
   }
   float clock() override { return none<float>("[0x008c1b50]"); }
-  void push_behaviour(int32_t) override { pm_hook_missing("0x004fa170"); }
+  void push_behaviour(int32_t which) override {  // 0x004fa170 of [0x00627cf8] (0) or [0x00627ce8] (1), as MW3's pair
+    pm_push_behaviour(b, brain_hooks().manoeuvre_behaviour(which));
+  }
   uint32_t allies(zgame::Handle) override { return none<uint32_t>("vehicle+0xc4"); }
   uint32_t team(zgame::Handle) override { return none<uint32_t>("attacker.vt+0x28"); }
   zgame::Handle attacker_vehicle(zgame::Handle) override { return none<zgame::Handle>("attacker.vt+0x58"); }
@@ -203,11 +206,14 @@ class WiredTickPm final : public TickPmHooks {
     *enemy = pm_id(t);
   }
   bool hit_lately() override { return c.hit_lately(); }
-  bool may_fire() override { return b.may_fire(); }
+  bool may_fire() override { return pm_may_fire(b); }  // 0x004fa6d0
   void firing_reset() override { h.firing_reset(b); }
   zgame::Handle worst_attacker() override { return pm_latest_attacker(b); }
   void take_attacker(zgame::Handle) override { pm_hook_missing("brain.vt+0x28"); }
-  void manoeuvre() override { b.manoeuvre(); }
+  void manoeuvre() override {  // 0x004fab30
+    WiredSidePm side(b);
+    manoeuvre_pm(side, pm_brain(b).tick);
+  }
   void current(zgame::Handle* net, zgame::Handle* state) override {
     Order& o = b.current();
     *net = pm_id(o.net->net());
@@ -230,23 +236,15 @@ class WiredTickPm final : public TickPmHooks {
   zgame::Handle attack_behaviour(zgame::Handle net) override {
     return pm_id(h.attack_behaviour(static_cast<AiNet*>(pm_ptr(net))));
   }
+  // 0x004fa150, 0x004ea740: PM's attack order over what runs. MW3's checks (0x004e9ca0) and its x230, xe8 aren't
+  // PM's: the attack state keeps its own (+0x1f0, +0x108).
   void attack(zgame::Handle net, zgame::Handle behaviour) override {
-    pm_hook_missing("stand-in: MW3's attack");
-    if (h.attack(b, b.current().net->net())) {
-      b.x230 = h.health(c.vehicle()) - b.params.get<float>(0xb4);
-      b.xe8 = b.params.get<float>(0x4c) * h.intensity() + h.now();
-      b.push(static_cast<AiNet*>(pm_ptr(net)), static_cast<Behaviour*>(pm_ptr(behaviour)));
-    }
+    pm_give_order(b, static_cast<AiNet*>(pm_ptr(net)), static_cast<Behaviour*>(pm_ptr(behaviour)));
   }
   int32_t rand_int() override { return h.rand(); }
   void run_orders(float dt) override {
     if (!pm_state_running(b)) pm_hook_missing("stand-in: MW3's orders");
-    do {
-      b.x104 = 0;
-      pm_run_pending(b);  // 0x004fb260's first half: one item the attack left
-      if (b.orders.empty()) break;
-      b.current().run(dt);
-    } while (b.x104);
+    pm_run_orders(b, dt);  // 0x004fb260: one pending item, then the last order, again while it asks
     if (!h.powered_down(c.vehicle()) && b.params.get<int32_t>(0x80) == 1) h.own_order_run(b, dt);
   }
   void firing(float dt) override { pm_firing(b, c.vehicle()).fire.step(dt); }
