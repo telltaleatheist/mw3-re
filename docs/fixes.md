@@ -800,3 +800,4 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   give up only on items that weigh nothing (or unlimited ones), so in a
   normal campaign the cut reaches the limit anyway. Options: keep it (the original as played), or make the
   fallback work (more is lost only in the rare case it is reached).
+- Pathfinding's watched nodes, `watch_begin` (zai_nav, ours): FIX (bug). A blown-off part keeps its node with no parent after its mech is freed; `node_entity` then followed it to freed memory. Such a node isn't watched.
