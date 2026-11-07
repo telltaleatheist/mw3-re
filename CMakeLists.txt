@@ -270,6 +270,7 @@ add_library(mw3core STATIC
   src/mech3/zai_jump_pm.cpp
   src/mech3/zai_firing_pm.cpp
   src/mech3/zai_wire_pm.cpp
+  src/mech3/zai_attackers_pm.cpp
   src/mech3/zai_wire_walk_pm.cpp
   src/mech3/zai_wire_firing_pm.cpp
   src/mech3/zai_wire_attack_pm.cpp
@@ -679,6 +680,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_boundary.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_steer.cpp tests/probe_pm_ai_walk.cpp tests/probe_pm_ai_link.cpp tests/probe_pm_ai_jump.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_mechvt.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_ai_attackers.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_window.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_refit.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attack.cpp tests/probe_pm_ai_aim.cpp tests/probe_pm_ai_brain.cpp)
