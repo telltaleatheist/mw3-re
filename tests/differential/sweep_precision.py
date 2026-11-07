@@ -19,9 +19,17 @@ SKIP = {'test_precision_setting': 'tests the setting itself', 'test_exe_select':
 
 
 def emulator_tests():
-    for f in sorted(HERE.glob('test_*.py')):
-        if re.search(r'\bOriginal\b|from original|import original|unicorn', f.read_text(errors='replace')):
-            yield f
+    """Those that reach the emulator, directly or through a module they import."""
+    text = {f: f.read_text(errors='replace') for f in sorted(HERE.glob('*.py'))}
+    reach = {f.stem for f, t in text.items() if re.search(r'\bOriginal\b|from original|import original|unicorn', t)}
+    grew = True
+    while grew:
+        grew = False
+        for f, t in text.items():
+            if f.stem not in reach and set(re.findall(r'^\s*(?:import|from)\s+(\w+)', t, re.M)) & reach:
+                reach.add(f.stem)
+                grew = True
+    return [f for f in text if f.stem in reach and f.name.startswith('test_')]
 
 
 def arg(name, default):
