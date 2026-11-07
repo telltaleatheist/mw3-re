@@ -299,5 +299,7 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
+- Limits new mechs meet: a weapon manager holds 16 weapons, TAG included, and its adds don't check (weapons.md,
+  Latent overflow): new mechs need the check first.
 - After v1.0: a custom campaign, new mechs and weapons (the exe's name
   tables made data), loose `.zan` motions, the launcher's MODS list.

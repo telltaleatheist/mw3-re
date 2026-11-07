@@ -232,6 +232,14 @@ When the mech takes a configuration (0x414501..0x414732, mech code, ported as
 4. Equipment counts; TAG mounts weapon 0x20 into group 5 through 0x4b0460
    (no 16-weapon check); the AMS gets 100 rounds per AMS (0x4146f9).
 
+### Latent overflow
+
+A manager holds 16 weapons (`weapons[16]`), and neither add checks: 0x4b0400 (PM's 0x4b42b0) and 0x4b0460 write the
+next slot, so a 17th lands on the field after the array, the owner. Nothing shipped reaches it. The guards are elsewhere:
+the mech file's reader clamps its `weapons` list to 16 with "Too Many Weapons", and the lab stops at 16 with TAG counted.
+Not guarded: 16 weapons plus TAG in a mech file, a hand-edited saved loadout, a network peer's config. The port has the
+same array and the same adds. A limit for the mod work; `modding.md`, Planned.
+
 ### Weapon (0x98; BeamWeapon adds +0x98..+0xa0)
 
 | Offset | Field |

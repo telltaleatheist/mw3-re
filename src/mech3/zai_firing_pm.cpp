@@ -553,6 +553,7 @@ bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, 
   ShotCtx x;
   x.value_k = hold, x.at = at, x.dist2 = c->dist2;
   if (me.pilot) x.cost_k = me.cost_least < hold ? hold : me.cost_least;
+  // FIX (bug): with a vehicle and no brain the exe reads through null; here zeros (fixes.md).
   if (me.vehicle) {
     x.heat_room = me.heat_most - me.heat;
     x.rate_room = me.rate_most - me.heat;
