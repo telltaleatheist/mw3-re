@@ -226,6 +226,27 @@ void plan_sight(PlanPm& p, const Contact* c);                           // 0x004
 zgame::Handle best_weapon(zgame::Handle wm);                            // 0x004b9de0
 bool can_hit(zgame::Handle w, const float at[3]);                       // 0x004b8f80
 bool any_can_hit(zgame::Handle wm, const float at[3]);                  // 0x004bd1c0
+// A weapon's line, 0x004b7800: where it fires from, the way to a point, and how far off its part's facing.
+struct WeaponLinePm {
+  float damage = 0;                   // +0x74
+  zgame::Handle part_node = 0;        // +0x28's +0x08, none without a part
+  zgame::Handle node = 0;             // +0x24
+  const float* fp_place = nullptr;    // the firepoint's +0x70, none without one
+  float fp_radius = 0;                // its +0x60
+  const float* fp_tolerance = nullptr;  // its +0x00, the cosine it must face within
+  int32_t salvo_left = 0;             // +0x6c
+  float spread[3] = {0, 0, 0};        // +0x88
+};
+class WeaponLinePmHooks {
+ public:
+  virtual ~WeaponLinePmHooks() = default;
+  virtual bool node_place(zgame::Handle node, float io[3]) = 0;  // 0x004ff3c0: false when placed
+  virtual const float* node_axis(zgame::Handle node) = 0;         // its +0x38's +0x78
+  virtual int32_t rand() = 0;
+  virtual bool quiet() = 0;                                       // [0x0062f86c]: no facing asked
+};
+bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
+                 float* cos, float* cos_kept);  // 0x004b7800
 bool firepoint_reaches(const float cone[18], const float dir[3]);       // 0x004a7000, a firepoint's aim cone
 bool torso_reaches(float min_pitch, float max_pitch, float max_yaw, const float dir[3]);  // 0x00467490's answer
 

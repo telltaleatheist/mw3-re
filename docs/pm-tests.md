@@ -355,6 +355,10 @@ Breaks over the states, the brain, the nets and the targets: 168, of which 166 c
 
 `can_hit` 0x4b8f80 kept the muzzle in the part's frame: 0x4ff3c0 turns its point into the world's in place, and the port's hook took it as const. `test_pm_ai_plan` passed because its stand-in didn't move the point on either side; both sides now move it, so the test sees the difference. It shows the limit of a stand-in: it can't catch what it doesn't do. `firepoint_reaches` 0x4a7000 and `torso_reaches` 0x467490 are compared real in `test_pm_ai_brain`, 4,000 cases of each, `_CIasin` replaced in the emulator by the same x87 formula.
 
+### The weapon's line (2026-11-07)
+
+`weapon_line` 0x4b7800 in `zai_firing_pm`, compared real in `test_pm_ai_brain`: 3,000 weapons with or without a part, node and firepoint, a salvo or not, a point or none, the debug byte [0x62f86c] on or off, every tenth with the tolerance met exactly; the node's placing 0x4ff3c0 stands in alike on both sides. 13 breaks, 12 caught: the order of the three products in the dot (`wl12`) isn't, since the sum is stored as a float and the doubles' difference doesn't reach it on these cases. The blocked line's FIX row is in fixes.md. The wiring's `weapon_cos` and the aim's `weapon_line` take it next, in place of `Weapon::aim`.
+
 ### Named checks for the first run, from Owen's play of PM mission 2 on the stand-in (2026-11-07)
 
 Both on c1 mission 2 with `PM_AI=1`, next to c1m1, and both by reading so far, nothing run.

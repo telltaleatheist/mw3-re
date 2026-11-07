@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <list>
 #include <memory>
@@ -87,7 +88,7 @@ namespace {
 // The whole probe library tests the original's path, as tests/probe.cpp: the zfix fixes off.
 const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
                           zfix::options().any_resolution = false, zfix::options().nested_lock = false,
-                          zfix::options().fpu53 = false, true);
+                          zfix::options().fpu53 = std::getenv("MW3_PRECISION") && !std::strcmp(std::getenv("MW3_PRECISION"), "53"), true);
 struct UsePm {
   UsePm() { zgame::set_game(pm::table()); }
 } g_use_pm;
@@ -3625,3 +3626,7 @@ extern "C" int32_t probe_pm_crater(int32_t op, int32_t np, const int32_t* nv, co
   for (size_t i = 0; i < o.size() && i < static_cast<size_t>(cap); ++i) out[i] = o[i];
   return static_cast<int32_t>(o.size());
 }
+
+// What the port side runs at, for original.py's check at exit (MW3_PRECISION).
+extern "C" int probe_fpu53() { return zfix::options().fpu53 ? 1 : 0; }
+extern "C" void probe_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
