@@ -159,6 +159,7 @@ def yaw_matrix(a, x, y, z):
 def main():
     frames = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     p = test_pm_zar.load_pm_probe()
+    p.probe_pm_set_fpu53(1 if os.environ['MW3_X87'] == '53' else 0)  # zgeo::X
     P = ctypes.c_void_p
     p.probe_skis_camera.argtypes = [ctypes.c_char_p, ctypes.c_int]
     p.probe_skis.argtypes = [ctypes.c_char_p, ctypes.c_char_p, P, ctypes.c_char_p, P, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, P, P,
