@@ -12,13 +12,17 @@
 #include <cstdlib>
 #include <cwchar>
 #include <filesystem>
+#include <cstdio>
 #include <system_error>
+#include <vector>
 
 namespace fs = std::filesystem;
 
 namespace zutl {
 
 namespace {
+
+const wchar_t* const kNamesMark = L"names-utf8.done";
 
 // The system's own code page: GetACP says 65001 under the manifest.
 UINT system_code_page() {
@@ -78,26 +82,36 @@ std::string path_from_config(const std::string& s) {
   return to_utf8(to_wide(system_code_page(), s));
 }
 
-// Renames only, and never over a file; a name that cannot be mapped stays.
+// Once per settings folder (its mark, kNamesMark, stays in it). Only our own
+// folders inside it, not following a link or junction out; renames only, each
+// logged, never over a file; a name that cannot be mapped stays.
 void repair_old_names(const std::string& write_dir) {
   if (!narrow_paths_utf8() || write_dir.empty()) return;
   const UINT cp = system_code_page();
   if (cp == CP_UTF8) return;  // nothing to undo: earlier builds wrote UTF-8 there too
   std::error_code ec;
+  const fs::path mark = fs::path(write_dir) / kNamesMark;
+  if (fs::exists(mark, ec)) return;
   for (const char* folder : {"pilots", "configs", "keys", "export", "import"}) {
     const fs::path root = fs::path(write_dir) / folder;
-    if (!fs::is_directory(root, ec)) continue;
+    if (fs::symlink_status(root, ec).type() != fs::file_type::directory) continue;
     std::vector<fs::path> paths;
     for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) paths.push_back(it->path());
+    ec.clear();
     for (auto p = paths.rbegin(); p != paths.rend(); ++p) {  // files before their folders
       const std::wstring meant = meant_by(p->filename().native(), cp);
       if (meant.empty()) continue;
       const fs::path to = p->parent_path() / meant;
-      if (fs::exists(to, ec)) continue;
+      if (fs::exists(to, ec)) {
+        std::printf("mw3: an old name left alone, the right one is taken: %s\n", to_utf8(p->native()).c_str());
+        continue;
+      }
       fs::rename(*p, to, ec);
-      std::printf("mw3: an old name put right: %s\n", to_utf8(to.native()).c_str());
+      std::printf(ec ? "mw3: an old name could not be put right: %s\n" : "mw3: an old name put right: %s\n",
+                  to_utf8(ec ? p->native() : to.native()).c_str());
     }
   }
+  if (std::FILE* f = _wfopen(mark.c_str(), L"wb")) std::fclose(f);
 }
 
 }  // namespace zutl

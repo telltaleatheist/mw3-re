@@ -101,8 +101,10 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
     system's code page (the finder's registry reads, `.string()`), and is read as
     that when it is not valid UTF-8 (`path_from_config`). A name made from a
     game path was UTF-8 passed to a call reading the system's page, so a pilot
-    José's file is `JosÃ©.mw3` on disk; `repair_old_names` renames those in
-    pilots, configs, keys, export and import, never over a file.
+    José's file is `JosÃ©.mw3` on disk; `repair_old_names` renames those. It
+    runs once per settings folder (the mark `names-utf8.done` stays there), only
+    in that folder's pilots, configs, keys, export and import, not through a
+    link or junction, a log line for each, and never over a file.
   - Unaffected: game text and game paths are Windows-1252 inside and converted by
     `zutl` (no system code page involved); drawn text goes through `utf8()` in the
     2D host. No `CP_ACP` anywhere; the one narrow registry call, `RegGetValueA`,

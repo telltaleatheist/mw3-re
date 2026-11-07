@@ -20,7 +20,7 @@ namespace zutl {
 // the manifest; a name in plain ASCII works either way. A path from mw3.cfg or
 // the data folder's pointer, which an earlier build may have left in the
 // system's code page, as UTF-8. Files of `write_dir` an earlier build named
-// wrongly, put right.
+// wrongly, put right, once per settings folder.
 #if defined(_WIN32)
 bool narrow_paths_utf8();
 std::string path_from_config(const std::string& s);
