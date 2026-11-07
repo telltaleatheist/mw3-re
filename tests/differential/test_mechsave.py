@@ -15,6 +15,7 @@ then damaged byte by byte, and items of kinds 0, 4 and 5 are spliced in. The
 weapons' mech-lab blocks (weights and slots, from weapons.zrd at run time) are
 made up and handed to both sides.
 """
+import math
 import ctypes
 import random
 import struct
@@ -534,7 +535,7 @@ def compare_blob(what, want, n, buf):
     w0, w1 = -(74 + tail), -(34 + tail)
     if len(got) == len(want) >= -w0 and got[:w0] + got[w1:] == want[:w0] + want[w1:]:
         a, b = struct.unpack('<10f', want[w0:w1]), struct.unpack('<10f', got[w0:w1])
-        if all(x == y or abs(x - y) <= 1e-6 * max(1.0, abs(x)) for x, y in zip(a, b)):
+        if all(x == y or (math.isfinite(x) and math.isfinite(y) and abs(x - y) <= 1e-6 * max(1.0, abs(x))) for x, y in zip(a, b)):
             return
     compare(what, want, n, buf)
 

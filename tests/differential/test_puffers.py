@@ -36,6 +36,7 @@ The original runs as shipped and the port with zfix bugs off; with --fixed
 the original has the near-fade fix patched in (0x548b4c: +0x3c -> +0x34) and
 the port its FIX (bug) on, so both paths are checked.
 """
+import math
 import ctypes
 import os
 import random
@@ -548,7 +549,7 @@ def close(a, b, tol):
     x, y = u2f(a), u2f(b)
     if x != x and y != y:
         return True
-    return abs(x - y) <= tol * max(1.0, abs(x), abs(y))
+    return math.isfinite(x) and math.isfinite(y) and abs(x - y) <= tol * max(1.0, abs(x), abs(y))
 
 
 class Compare:

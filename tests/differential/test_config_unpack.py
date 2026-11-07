@@ -10,6 +10,7 @@ the whole loadout (test_mechsave.py's dump), its weight and Validate.
 
 BREAK=1 hands the port the packed form without its last item; it must fail.
 """
+import math
 import ctypes
 import os
 import random
@@ -90,7 +91,7 @@ def same(want, got):
     if len(got) != len(want) or got[:-5] != want[:-5] or got[-1:] != want[-1:]:
         return False
     a, b = struct.unpack('<f', want[-5:-1])[0], struct.unpack('<f', got[-5:-1])[0]
-    return a == b or abs(a - b) <= 1e-6 * max(1.0, abs(a))
+    return a == b or (math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 1e-6 * max(1.0, abs(a)))
 
 
 def main():
