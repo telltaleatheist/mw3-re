@@ -124,6 +124,7 @@ struct PlanPm {
   float dir[3] = {0, 0, 0};   // +0x18  to the aim, in the vehicle's frame
   float place[3] = {0, 0, 0}; // +0x28  the part's
   bool seen = false;          // +0x0d
+  bool fired = false;         // +0x10
 };
 
 // The firing's fields the pick reads and keeps.

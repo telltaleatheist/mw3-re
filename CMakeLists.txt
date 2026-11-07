@@ -271,6 +271,8 @@ add_library(mw3core STATIC
   src/mech3/zai_firing_pm.cpp
   src/mech3/zai_wire_pm.cpp
   src/mech3/zai_wire_walk_pm.cpp
+  src/mech3/zai_wire_firing_pm.cpp
+  src/mech3/zai_wire_attack_pm.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp
   src/mech3/zai_attack.cpp
@@ -624,6 +626,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_lobby.cpp
     tests/pm/test_pm_wire.cpp
     tests/pm/test_pm_wire_walk.cpp
+    tests/pm/test_pm_wire_fight.cpp
     tests/main.cpp
     tests/pm/test_pm_game.cpp
     tests/pm/test_pm_collide_rate.cpp
