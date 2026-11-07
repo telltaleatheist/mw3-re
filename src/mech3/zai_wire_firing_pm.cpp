@@ -488,8 +488,26 @@ class WireStep : public StepPmHooks {
   zgame::Handle group(zgame::Handle wm) override {
     return manager_group(wm);
   }
-  double group_soonest(zgame::Handle g) override { pm_hook_missing("WireStep.group_soonest"); return {}; }
-  bool clear_of_friends(zgame::Handle plan) override { pm_hook_missing("WireStep.clear_of_friends"); return {}; }
+  double group_soonest(zgame::Handle g) override {
+    const WeaponGroup* k = group_of(g);  // 0x004b5bf0: the least reload among those that can fire
+    float least = 100000.0f;
+    for (uint32_t i = 0; k && i < k->count; ++i) {
+      const Weapon* w = k->weapons[i];
+      if (!(w->reload < least) || !w->def || !w->enabled) continue;
+      const int32_t n = w->ammo();
+      if ((n > 0 || n == -1) && w->damage < 1.0f) least = w->reload;
+    }
+    return least;
+  }
+  bool clear_of_friends(zgame::Handle plan) override {
+    PlanPm* p = plan_of(plan);  // the first contact in line, nearest first, is the target or none
+    Contact* t = *p->slot;
+    const AiTarget* me = brain_hooks().targetable(p->vehicle);
+    if (!me || !t) return true;
+    for (Contact* c : me->contacts)
+      if (in_line(*t, *c)) return c == t;
+    return true;
+  }
   void aim_track(zgame::Handle plan, Brain* b) override { if (FiringRecord* r = record_of(plan_of(plan)->vehicle)) r->aim.track(plan, 0, b); }
   void aim_lead(float dt, zgame::Handle plan, zgame::Handle wm, Brain* b) override { pm_hook_missing("WireStep.aim_lead"); }
   void stand_down(zgame::Handle v) override {

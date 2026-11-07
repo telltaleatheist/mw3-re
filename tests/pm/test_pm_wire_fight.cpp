@@ -178,6 +178,26 @@ TEST(pm_wire_firing_threat_is_the_attacker_list) {
   EXPECT(pm_hooks_missing().count("WirePick.threat") == 0);
 }
 
+TEST(pm_wire_firing_soonest_and_friends) {
+  Fake f;
+  Installed in(&f);
+  EXPECT(step_pm_hooks().group_soonest(0) == 100000.0);  // no group
+  Contact t, friend_;
+  t.delta[0] = 20, friend_.delta[0] = 10;  // the friend in line, nearer
+  t.dist = friend_.dist = -1;
+  f.self.contacts = {&friend_, &t};
+  auto* p = new PlanPm;
+  Contact* slot = &t;
+  p->slot = &slot, p->vehicle = 7;
+  const zgame::Handle h = pm_id(p);
+  EXPECT(!step_pm_hooks().clear_of_friends(h));
+  friend_.delta[0] = -10, friend_.dist = -1;  // behind
+  EXPECT(step_pm_hooks().clear_of_friends(h));
+  f.self.contacts.clear();
+  pm_ids_forget(p);
+  delete p;
+}
+
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {
   Fake f;
   Installed in(&f);
