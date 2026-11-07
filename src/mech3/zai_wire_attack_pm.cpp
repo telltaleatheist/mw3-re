@@ -67,9 +67,13 @@ struct PendingOn : PendingPmHooks {
 // 0x004ea0f0 with a 0x005eeca4: at the back.
 // The exe's "target" here is the order's net (its +0x0c, vt+0x1c, vt+0x18, vt+0x50), the net the follow goes on.
 void WireAttack::queue_after(zgame::Handle, zgame::Handle behaviour) {
+  pm_queue_follow(b_, b_.current().net ? b_.current().net->net() : nullptr, static_cast<Behaviour*>(pm_ptr(behaviour)));
+}
+
+void pm_queue_follow(Brain& b, const void* net, const void* behaviour) {
   PendingPm p;
-  p.kind = PendingPm::kFollow, p.target = b_.current().net ? pm_id(b_.current().net->net()) : 0, p.behaviour = behaviour;
-  pending()[&b_].push_back(p);
+  p.kind = PendingPm::kFollow, p.target = pm_id(net), p.behaviour = pm_id(behaviour);
+  pending()[&b].push_back(p);
 }
 
 // 0x004ea180 with a 0x005ef254, or with none a 0x005ef250: at the front.

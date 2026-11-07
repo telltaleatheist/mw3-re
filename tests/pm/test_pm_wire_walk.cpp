@@ -5,6 +5,8 @@
 #include "check.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zai_wire_attack_pm.h"
+#include "mech3/zainet_inout.h"
 #include "mech3/zai_wire_walk_pm.h"
 
 using namespace mech3::ai;
@@ -190,4 +192,21 @@ TEST(pm_wire_walk_next_along_picks_from_the_states_node) {
   b.current().state = std::make_unique<BehaviourState>(&b.current(), nullptr);
   EXPECT(w.next_along(dir) == 0);  // a state on no node
   EXPECT(pm_hooks_missing().empty());
+}
+
+TEST(pm_wire_walk_queue_via_leaves_a_pending_item) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  WireWalk w(b, c);
+  Node net, node;
+  InOutVia via;
+  via.net = &net, via.node = &node;
+  w.queue_via(&via);
+  w.queue_via(&via);
+  EXPECT(pm_pending_count(b) == 2);
+  EXPECT(pm_hooks_missing().empty());
+  pm_pending_forget(b);
 }

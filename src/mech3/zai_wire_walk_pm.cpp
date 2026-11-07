@@ -7,6 +7,7 @@
 #include "mech3/zai_node.h"
 #include "mech3/zai_node_pm.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zainet_inout.h"
 
 namespace mech3::ai {
@@ -79,7 +80,8 @@ const InOutVia* wire_walk::at_via(Brain& b_, zgame::Handle v) {
   return last.at_via ? last.via : nullptr;
 }
 
-void wire_walk::queue_via(Brain& b_, const InOutVia*) { pm_hook_missing("0x004ea0f0.via"); }
+// 0x004d9f0d: a follow item on the via's net (+0x00) and node (+0x04).
+void wire_walk::queue_via(Brain& b_, const InOutVia* via) { pm_queue_follow(b_, via->net, via->node); }
 
 namespace {
 
