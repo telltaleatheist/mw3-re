@@ -83,6 +83,16 @@ TEST(data_folder_move_copies_checks_and_switches) {
   EXPECT(fs::exists(s.usual + "/" + kPointer));
 }
 
+// The names' mark (repair_old_names, Windows) goes with the data: once stays once.
+TEST(data_folder_move_carries_the_names_mark) {
+  Scene s("names_mark");
+  put(s.usual + "/names-utf8.done", "");
+  const std::string to = s.root + "/drive/mine";
+  const Moved m = move_data(s.usual, to, s.usual, [](double, const std::string&) { return true; });
+  EXPECT(m.ok);
+  EXPECT(fs::exists(to + "/names-utf8.done"));
+}
+
 TEST(data_folder_moves_back_to_the_usual_folder) {
   Scene s("back");
   const std::string to = s.root + "/drive/mine";

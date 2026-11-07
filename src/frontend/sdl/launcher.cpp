@@ -396,7 +396,8 @@ class Launcher {
   void find_install();
   void find_mw1();
   void run_mw1();
-  void start_game();
+  void start_game(bool pm = false);
+  void find_pm();
   void watch_game();
   void layout();
   void draw(float dt);
@@ -449,6 +450,9 @@ class Launcher {
     return {b.r.x + b.r.w / 2, b.r.y + b.r.h / 2};
   }
   Install install_;
+  std::string pm_dir_;  // Pirate's Moon's folder, kept as pm_install= in mw3.cfg
+  bool pm_last_ = false;  // the game last clicked: GAME FILES acts on it
+  std::string game_name_ = "MechWarrior 3";  // the one started, for the status lines
   SDL_Process* game_ = nullptr;  // mw3, started by MECHWARRIOR 3 (game_bin)
   Uint64 game_click_ = 0;
   bool game_slow_ = false;
@@ -502,6 +506,10 @@ void Launcher::find_install() {
 }
 
 namespace {
+bool is_pm_install(const mech3::source::Found& f) {
+  return f.kind == mech3::source::Found::kInstall && f.game == mech3::source::Found::kPiratesMoon && f.on_disk;
+}
+
 // A MechWarrior (1989) folder: BTECH.EXE in it (any case).
 bool mw1_game_valid(const std::string& dir) {
   std::error_code ec;
@@ -526,7 +534,7 @@ void Launcher::find_mw1() {
 #endif
   std::vector<fs::path> tries;
   if (const char* env = SDL_getenv("MW3_MW1_PORT")) tries.emplace_back(env);
-  if (const char* base = SDL_GetBasePath()) tries.push_back(fs::path(base) / name), tries.push_back(fs::path(base) / "MechWarrior1989" / name);
+  tries.push_back(fs::path(o_.program_dir) / name), tries.push_back(fs::path(o_.program_dir) / "MechWarrior1989" / name);
   std::error_code ec;
   for (const fs::path& t : tries)
     if (fs::is_regular_file(t, ec)) {
@@ -540,6 +548,14 @@ void Launcher::find_mw1() {
 // The port started as its own script starts it (`mechwarrior <game dir>
 // <capture dir>`, the saves in MECHWARRIOR_SAVE_DIRECTORY), both under the
 // write dir's mw1; this window hidden until it exits.
+// Pirate's Moon: its folder as last picked, while it still holds the game.
+void Launcher::find_pm() {
+  if (o_.pm_bin.empty() || o_.cfg_pm_install.empty()) return;
+  const mech3::source::Found f = mech3::source::map_source(o_.cfg_pm_install);
+  if (is_pm_install(f)) pm_dir_ = o_.cfg_pm_install;
+  std::printf("mw3: launcher: Pirate's Moon at %s: %s\n", o_.cfg_pm_install.c_str(), pm_dir_.empty() ? "not there" : "ready");
+}
+
 void Launcher::run_mw1() {
   const fs::path base = o_.write_dir.empty() ? fs::path("mw1") : fs::path(o_.write_dir) / "mw1";
   std::error_code ec;
@@ -572,18 +588,26 @@ void Launcher::run_mw1() {
 // passed on, the launcher kept on screen until the game's first frame
 // (mw3 --ready-file) so the switch shows no empty moment, then closed: the
 // game goes on alone (Owen, 2026-11-01).
-void Launcher::start_game() {
+void Launcher::start_game(bool pm) {
   std::error_code ec;
+  game_name_ = pm ? "Pirate's Moon" : "MechWarrior 3";
   ready_file_ = (fs::temp_directory_path(ec) / ("mw3-ready-" + std::to_string(SDL_GetTicksNS()))).string();
   fs::remove(ready_file_, ec);
-  std::vector<std::string> args = {o_.game_bin, install_.dir};
-  args.insert(args.end(), o_.game_args.begin(), o_.game_args.end());
+  // PM has its own install, settings and saves: nothing of MW3's goes to it.
+  std::vector<std::string> args;
+  if (pm) {
+    args = {o_.pm_bin, "--install", pm_dir_, "--no-launcher"};
+    args.insert(args.end(), o_.pm_args.begin(), o_.pm_args.end());
+  } else {
+    args = {o_.game_bin, install_.dir};
+    args.insert(args.end(), o_.game_args.begin(), o_.game_args.end());
+  }
   args.push_back("--ready-file"), args.push_back(ready_file_);
   std::vector<const char*> argv;
   std::string line;
   for (const std::string& a : args) argv.push_back(a.c_str()), line += (line.empty() ? "" : " ") + a;
   argv.push_back(nullptr);
-  save_install(o_.write_dir, install_.dir);
+  if (!pm) save_install(o_.write_dir, install_.dir);
   game_click_ = SDL_GetTicksNS(), game_slow_ = false, game_status_.clear(), status_read_ms_ = -1e9;
   // Its own stdio, none of ours: the game writes mw3.log itself, and our
   // log's pipe in its stdout would hold this program's exit until the game's.
@@ -598,13 +622,13 @@ void Launcher::start_game() {
   game_ = SDL_CreateProcessWithProperties(props);
   SDL_DestroyProperties(props);
   if (!game_) {
-    status_ = std::string("MechWarrior 3 did not start: ") + SDL_GetError(), status_good_ = false;
+    status_ = game_name_ + " did not start: " + SDL_GetError(), status_good_ = false;
     std::printf("mw3launcher: %s (%s)\n", status_.c_str(), line.c_str());
     layout();
     return;
   }
   std::printf("mw3launcher: started %s\n", line.c_str());
-  status_ = "Starting MechWarrior 3...", status_good_ = true;
+  status_ = "Starting " + game_name_ + "...", status_good_ = true;
 }
 
 // Each pass while the game starts: at its first frame the launcher closes,
@@ -620,8 +644,8 @@ void Launcher::watch_game() {
     game_ = nullptr;
     fs::remove(ready_file_, ec);
     fs::remove(ready_file_ + ".status", ec);
-    std::printf("mw3launcher: MechWarrior 3 exited (%d) after %.1f s\n", code, ms / 1000.0);
-    status_ = code == 0 ? "" : "MechWarrior 3 closed with an error (" + std::to_string(code) + "): see mw3.log.";
+    std::printf("mw3launcher: %s exited (%d) after %.1f s\n", game_name_.c_str(), code, ms / 1000.0);
+    status_ = code == 0 ? "" : game_name_ + " closed with an error (" + std::to_string(code) + "): see mw3.log.";
     status_good_ = code == 0;
     if (win_ && !o_.hidden) SDL_ShowWindow(win_), SDL_RaiseWindow(win_);
     if (o_.quit_after_game) done_ = true;
@@ -701,7 +725,13 @@ void Launcher::layout() {
       };
       game(kMw3, 0, 0, "MECHWARRIOR 3", sub, true);
       if (sub.rfind(ready, 0) == 0) buttons_.back().sub_keep = ready.size();
-      game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
+      // Pirate's Moon when its program is beside this one (a package with it).
+      if (o_.pm_bin.empty()) {
+        game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
+      } else {
+        game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : "Ready: " + pm_dir_, true);
+        if (!pm_dir_.empty()) buttons_.back().sub_keep = 7;  // "Ready: "
+      }
       if (!mw1_exe_.empty()) {  // Elthial's port, credited on its line (MIT; THIRD-PARTY.txt)
         const std::string by = "Elthial's SDL port: ";
         game(kMw1, 2, 2, "MECHWARRIOR (1989)", by + (mw1_game_.empty() ? "click to pick your MechWarrior folder" : mw1_game_), true);
@@ -960,6 +990,24 @@ void Launcher::ask_folder(int what) {
 // A picked path: what the button that asked does with it.
 void Launcher::picked(int what, const std::string& path) {
   using namespace mech3::setup;
+  // Before Windows 10 1903 such a name cannot be used (docs/program.md, Names on Windows).
+  if (!zutl::narrow_paths_utf8() && !std::all_of(path.begin(), path.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
+    status_ = "This version of Windows needs a folder with plain English letters in its name.", status_good_ = false;
+    layout();
+    return;
+  }
+  if (what == kPm) {
+    if (!is_pm_install(mech3::source::map_source(path))) {
+      status_ = "That is not an installed Pirate's Moon: pick its folder, the one with Mech3.exe.", status_good_ = false;
+      layout();
+      return;
+    }
+    pm_dir_ = fs::is_regular_file(path) ? fs::path(path).parent_path().string() : path;
+    save_config_value(o_.write_dir, "pm_install", pm_dir_);
+    status_.clear();
+    layout();
+    return;
+  }
   if (what == kMw1) {
     const std::string dir = fs::is_regular_file(path) ? fs::path(path).parent_path().string() : path;
     if (!mw1_game_valid(dir)) {
@@ -1312,6 +1360,7 @@ void Launcher::activate(int id) {
   static const SDL_DialogFileFilter kZip[] = {{"The 1.2 patch (.zip, .exe)", "zip;exe"}, {"All files", "*"}};
   switch (id) {
     case kMw3:
+      pm_last_ = false;
       if (install_.ok) play();
       else from_files_ = false, screen_ = kSetupScreen, status_.clear(), layout();  // its files to find first
       break;
@@ -1345,8 +1394,23 @@ void Launcher::activate(int id) {
       from_files_ = false, screen_ = kMain, layout();
       break;
     case kFiles:  // the find screen at any time (Owen): repick or refresh the game's files
+      if (pm_last_ && !o_.pm_bin.empty()) {  // Pirate's Moon's: its folder, nothing to import yet
+        status_ = "Pick your Pirate's Moon folder: the one with Mech3.exe.", status_good_ = true;
+        ask_folder(kPm);
+        break;
+      }
       from_files_ = true, status_.clear();
       screen_ = kSetupScreen, layout();
+      break;
+    case kPm:
+      if (o_.pm_bin.empty()) break;
+      pm_last_ = true;
+      if (pm_dir_.empty()) {
+        status_ = "Pick your Pirate's Moon folder: the one with Mech3.exe.", status_good_ = true;
+        ask_folder(kPm);
+      } else {
+        start_game(true);
+      }
       break;
     case kMw1:
       if (mw1_game_.empty()) {
@@ -1437,6 +1501,7 @@ LauncherChoice Launcher::run() {
   find_install();
   const Uint64 t_install = SDL_GetTicksNS();
   find_mw1();
+  find_pm();
   std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the install search %.0f ms\n", ms(t0, t_art), ms(t_art, t_font),
               ms(t_font, t_install));
   sounds_on_ = o_.sound && !shot;
@@ -1519,6 +1584,10 @@ LauncherChoice Launcher::run() {
   if (const char* pick = SDL_getenv("MW3_LAUNCHER_PICK"); pick && (screen_ == kSetupScreen || !install_.ok))
     auto_go_ = auto_ok_ = true, look_at(pick);
   if (o_.play_mw1) activate(kMw1), done_ = !asking_;
+  if (o_.play_pm) {  // never the picker: a check has nobody to answer it
+    if (pm_dir_.empty()) done_ = true;
+    else activate(kPm), o_.quit_after_game = true;
+  }
   while (!done_) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {

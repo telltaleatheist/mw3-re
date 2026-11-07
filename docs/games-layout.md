@@ -126,7 +126,8 @@ PM model, so a PM world never silently draws nothing.
   only and PM work stays on the branch `mac5/pm`.
 - Before `v1.0` the launcher moves into its own program, so MW3's final
   layout is this one from the start. Done 2026-11-01: `mw3launcher`
-  (launcher.md, The two programs); `mw3pm` has its greyed entry until then.
+  (launcher.md, The two programs); `mw3pm`'s entry is greyed until it sits beside
+  the launcher (launcher.md, Pirate's Moon).
 - After `v1.0`, `mac5/pm` merges into `main` (after the full MW3
   differential set passes on it, `pm-map.md`), and both games live on
   `main` from then on. One branch per game would mean merging every
