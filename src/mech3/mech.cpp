@@ -267,7 +267,7 @@ void update_heat(Mech& m, float dt) {
   }
 
   void* screen = player && g_calls.screen ? g_calls.screen(m) : nullptr;
-  if (screen && m.heat >= kHazeStart && !w.no_heat_haze && g_calls.heat_haze)
+  if (screen && m.heat >= kHazeStart && !no_heat_haze() && g_calls.heat_haze)
     g_calls.heat_haze(screen, (m.heat - kHazeStart) * 5.0f, 5, w.dt);
 
   if (!full) {

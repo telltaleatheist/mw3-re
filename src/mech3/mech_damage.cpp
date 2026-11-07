@@ -95,7 +95,7 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
       return result;
     }
     float d = damage * 0.143f * interp_globals().damage_scale;  // 0x005bce4c, 0x005e1f68
-    if (this == w.mission_player) d = w.difficulty * d;
+    if (this == w.mission_player) d = difficulty_scale() * d;
     torso->apply_damage(d, 0);
     torso->apply_damage(d, 1);
     torso->apply_damage(d, 2);

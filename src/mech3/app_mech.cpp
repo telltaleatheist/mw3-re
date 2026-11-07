@@ -2769,6 +2769,22 @@ std::vector<std::string> program_holders_of(uint32_t x, const void* gone) {
       if (on(c)) out.push_back("a targets.zrd object: a contact");
   return out;
 }
+// For the tests: what a real hit of `damage` takes off the mech's left leg's armour; a critical takes none, so again.
+float program_leg_hit_loss(void* mech, float damage) {
+  auto* m = static_cast<Mech*>(mech);
+  WeaponDef def{};
+  WeaponType type{};
+  def.type = &type;
+  float loss = 0.0f;
+  for (int tries = 0; tries < 200 && loss <= 0.0f; ++tries) {
+    m->legs[0]->set_armor(1.0f, 0);
+    m->legs[0]->take_hit(&def, nullptr, damage, nullptr);
+    loss = 1.0f - m->legs[0]->armor;
+  }
+  m->legs[0]->set_armor(1.0f, 0);
+  return loss;
+}
+
 // For the tests: `mech`'s last attacker (+0x664) set.
 void program_mech_set_attacker(void* mech, void* attacker) {
   if (entity_is_mech(mech)) static_cast<Mech*>(mech)->attacker = attacker;
