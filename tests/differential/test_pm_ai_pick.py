@@ -203,6 +203,20 @@ def case(rng):
         f += [rng.choice([r * r, r * r, 0.5, 2.0]), v[0], v[1], v[2], -1.0, 0.0, 0.0, 0.0, rng.uniform(0, 2), rng.uniform(0, 3)]
         f += [rng.choice([0.0, rng.uniform(0, 1), 1.0]) for _ in range(7)] + [0.0]
     rands = [rng.choice([rng.randrange(32768), 0, 32767]) for _ in range(4)]
+    if n > 2 and rng.random() < 0.25:  # ties: groups of contacts alike, so the sort's order shows; refusals show the rest
+        inp[1], inp[6], inp[7], inp[8], inp[9], inp[13], inp[14] = 4, 0, 0, 0, 0, 0, 0
+        inp[3], inp[4], inp[15] = 0xe4, 1, 0
+        inp[12] = rng.choice([0, 1, 2, 4, 8, 0xc, 0x10])
+        f[5], f[6] = 900.0, 900.0
+        first = f[NF:NF + CF]
+        first[0], first[1:4], first[4] = 400.0, [20.0, 0.0, 0.0], -1.0
+        second = list(first)
+        second[8] = first[8] + 1.0
+        for i in range(n):
+            f[NF + CF * i:NF + CF * (i + 1)] = rng.choice([first, first, second])
+            b = NI + CI * i
+            inp[b:b + 4] = [1, 1, 1, 8]
+            inp[b + 4], inp[b + 13] = 0, 0
     return inp, rands, [rf(x) for x in f]
 
 
@@ -231,8 +245,9 @@ def main():
             st['in part'] += a[x + 6] != 0
             st['rand'] += a[-1] > 0
         st['asked'] += a.count(0x71)
+        st['ties'] += inp[1] == 4 and inp[3] == 0xe4 and inp[12] in (0, 1, 2, 4, 8, 0xc, 0x10) and inp[0] > 2 and a.count(0x71) > 1
     print(f'ok: {n} cases, {dict(st)}: identical')
-    pm_floors.floors(cases=(n, 2000), none=(st['none'], 200), made=(st['made'], 1000), held=(st['held'], 100), asked=(st['asked'], 1000), rand=(st['rand'], 200),
+    pm_floors.floors(cases=(n, 2000), none=(st['none'], 200), made=(st['made'], 1000), held=(st['held'], 100), asked=(st['asked'], 1000), ties=(st['ties'], 100), rand=(st['rand'], 200),
                      lowest=(st['mode1'], 100), highest=(st['mode2'], 100))
     return 0
 
