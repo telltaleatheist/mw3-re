@@ -1,5 +1,6 @@
 #include "mech3/zai_wire_walk_pm.h"
 
+#include "mech3/mech.h"
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zainet_inout.h"
@@ -30,14 +31,16 @@ bool WireWalk::pull(zgame::Handle v, const float from[3], const float to[3], flo
   return inout_pull(v, from, to, out, p.jump_jets != 0);
 }
 
-float WireWalk::pilot_x544(zgame::Handle) {
-  pm_hook_missing("mech+0x544");
-  return 0.0f;
+// PM's mech +0x544 is the configuration's +0x7c (0x00414cb0), the port's throttle_up.
+float WireWalk::pilot_x544(zgame::Handle v) {
+  const zgame::Handle m = brain_hooks().vehicle_mech(v);
+  const Mech* k = m ? static_cast<const Mech*>(brain_hooks().object_of(m)) : nullptr;
+  return k ? k->throttle_up : 0.0f;
 }
 
-double WireWalk::stopping_at(zgame::Handle, float) {
-  pm_hook_missing("vehicle.vt+0x134");
-  return 0.0;
+// The mech's 0x0041e010: its stopping distance (vt+0x12c) from its top speed times `t`, rounded to a float between.
+double WireWalk::stopping_at(zgame::Handle v, float t) {
+  return brain_hooks().stopping_distance(v, brain_hooks().speed_at(v, t));
 }
 
 // For the first run orders are MW3's (dev 2): what the order is about is its vehicle net's vehicle, as

@@ -144,8 +144,8 @@ TEST(pm_wire_walk_counts_what_has_no_answer) {
   Controls c;
   WireWalk w(b, c);
   pm_hooks_missing_clear();
-  EXPECT(w.pilot_x544(7) == 0.0f && w.pilot_x544(7) == 0.0f);
-  EXPECT(pm_hooks_missing().at("mech+0x544") == 2);
+  EXPECT(w.pilot_x544(8) == 0.0f);  // no mech
   EXPECT(!w.target_place(0) && !w.target_live(0) && !w.target_facing(0));
-  EXPECT(pm_hooks_missing().size() == 1);  // none of those needs an answer
+  EXPECT(w.stopping_at(7, 1.5f) == 9.0);  // 1.5 x 2, then x 3
+  EXPECT(pm_hooks_missing().empty());
 }
