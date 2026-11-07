@@ -13,6 +13,8 @@ instructions, import slots, globals and their blocks; docs/pm-map.md), and
 one the map lacks raises Unmapped. Addresses a test passes to `uc` itself or
 writes as values are not translated.
 """
+import atexit
+import ctypes
 import hashlib
 import os
 import struct
@@ -21,7 +23,7 @@ from pathlib import Path
 from unicorn import UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_32, Uc
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP,
                                 UC_X86_REG_ESP, UC_X86_REG_FS, UC_X86_REG_GDTR,
-                                UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES)
+                                UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES, UC_X86_REG_FPCW)
 
 ROOT = Path(__file__).resolve().parents[2]
 # The exes the tests know: name -> (path, SHA-256, what it is).
@@ -257,6 +259,40 @@ def to_exe(addr):
     if _MAP is None:
         _MAP = AddressMap()
     return _MAP(addr)
+# MW3_PRECISION=53 runs a test at the reference runtime's precision on both
+# sides, whatever its own defaults say: the x87 here, zfix fpu53 in the probe.
+# At exit it reads both back and fails the run if either is not there, because
+# an env var that reaches one side only passes for a test at 53 (docs/testing-precision.md).
+PRECISION = os.environ.get('MW3_PRECISION')
+if PRECISION == '53':
+    os.environ['MW3_X87'] = '53'
+    os.environ['MW3_FPU53'] = '1'
+_ORIGINALS = []
+
+
+def _precision_check():
+    """Says what each side really ran at; exit 3 when it is not 53."""
+    emu = sorted({hex(o.uc.reg_read(UC_X86_REG_FPCW) & 0x300) for o in _ORIGINALS})
+    lib = next((ROOT / 'build').glob('libpmprobe.*'), None)
+    port = ctypes.CDLL(str(lib)).probe_fpu53() if lib else -1
+    print(f'precision: emulator {emu or "none made"}, port fpu53 {port}', flush=True)
+    if emu != ['0x200'] or port != 1:
+        print('precision: NOT at 53 bits', flush=True)
+        _quit(3)
+
+
+# Many tests leave by os._exit, past the check: their teardown crashes.
+_quit = os._exit
+
+
+def _checked_exit(code):
+    os._exit = _quit
+    _precision_check()
+    _quit(code)
+
+
+if PRECISION == '53':
+    os._exit = _checked_exit  # now: `os._exit(main())` looks it up before main() runs
 
 
 class Original:
@@ -318,9 +354,14 @@ class Original:
         if MOVED:  # pm_moved.py: the tests' constants are PM's already, nothing to translate
             self.tr = lambda a, size=1: a
             self.uc = self._uc
+        if PRECISION == '53' and not _ORIGINALS:
+            atexit.register(_precision_check)  # after Unicorn's own, so it runs first
+        _ORIGINALS.append(self)
 
     def fpu_control(self, cw):
         """Loads the x87 control word (0x037f power-on, 0x007f single precision)."""
+        if PRECISION == '53':
+            cw = cw & ~0x300 | 0x200  # whatever the test asks for
         slot = self.alloc(4)
         self.u32(slot, cw)
         self.call(self.code(b'\xd9\x2d' + struct.pack('<I', slot) + b'\xc3'))
