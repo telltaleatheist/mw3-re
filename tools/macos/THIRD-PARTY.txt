@@ -25,6 +25,13 @@ and others. zlib licence. Built into it (no other library):
   All rights reserved.
 
 
+Saira Condensed Bold (Resources/assets/launcher/font.ttf)
+---------------------------------------------------------
+The launcher's lettering. Copyright 2016 The Saira Project Authors,
+https://github.com/Omnibus-Type/Saira. SIL Open Font License 1.1
+(licenses/saira-condensed/OFL.txt). Unchanged, under its reserved name.
+
+
 SDL_sound 3 (libSDL3_sound), version 3.2.0
 ------------------------------------------
 https://github.com/icculus/SDL_sound. Copyright (c) 2001-2026 Ryan C. Gordon

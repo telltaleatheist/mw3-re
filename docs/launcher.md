@@ -224,10 +224,11 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
   `add_music`), BACK. Each operation on a worker thread with the bar, its
   stage and file, and CANCEL; its summary on the main screen's line.
 - Art from `assets/launcher` (beside the exe in a package, the repo's in a
-  development build: `MW3_ASSETS_DIR`); the font `assets/launcher/font.ttf`
-  when there is one, else a condensed system face (Bahnschrift on
-  Windows, DIN Condensed on the Mac, DejaVu Sans Condensed on Linux): a
-  placeholder, as is the title art's "MW3 REBUILD".
+  development build: `MW3_ASSETS_DIR`); the font `assets/launcher/font.ttf`,
+  Saira Condensed Bold (SIL OFL, `font-OFL.txt` beside it; from 1.0.4, after
+  an Arch player with none of the fixed paths got empty buttons), else a
+  condensed system face (Bahnschrift on Windows, DIN Condensed on the Mac,
+  docs/linux.md on Linux). A placeholder, as is the title art's "MW3 REBUILD".
 - The games are round badges (2026-10-31, Owen: the ripple is a circle's):
   `badge_mw3.png`, `badge_pm.png`, `badge_mw1.png` (assets/launcher, ours,
   their prompts in its README), each with its name and line beside it,

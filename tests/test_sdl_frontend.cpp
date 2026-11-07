@@ -27,6 +27,7 @@
 #include "mech3/data_folder.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
+#include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
 #include "frontend/sdl/text_fit.h"
 #include <SDL3_ttf/SDL_ttf.h>
@@ -4152,6 +4153,30 @@ TEST(launcher_one_picker_takes_a_file_for_its_folder) {
 // pixel past their advance, so the space after a digit vanished. A space
 // under a fifth of the size is doubled; with the Mac's font, the blank gap
 // after "3" is then as wide as the font's own between "a" and "g".
+// An Arch install's launcher had none of the fixed paths: empty buttons. The
+// package's font is drawn from; without it, a walk finds what the system has.
+TEST(launcher_font_search_finds_any_system_face) {
+  const std::string root = std::string(MW3_TEST_TMP) + "/font_search";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root + "/noto/deep");
+  std::filesystem::create_directories(root + "/misc");
+  auto touch = [&](const char* f) { std::ofstream(root + f) << "x"; };
+  for (const char* f : {"/noto/NotoColorEmoji.ttf", "/noto/NotoSans-Italic.ttf", "/noto/deep/NotoSans-Regular.ttf", "/misc/readme.txt",
+                        "/misc/AAA-Symbols-Bold.ttf"})
+    touch(f);
+  const std::vector<std::string> files = sdlfe::scan_fonts({root, root + "/absent"});
+  EXPECT(files.size() == 4);
+  EXPECT(sdlfe::pick_font(files, {"Liberation.ttf"}) == root + "/noto/deep/NotoSans-Regular.ttf");  // upright text
+  touch("/noto/deep/NotoSans-Bold.ttf");
+  const std::vector<std::string> more = sdlfe::scan_fonts({root});
+  EXPECT(sdlfe::pick_font(more, {"Liberation.ttf"}) == root + "/noto/deep/NotoSans-Bold.ttf");  // bold before upright
+  EXPECT(sdlfe::pick_font(more, {"Liberation.ttf", "notosans-regular.TTF"}) == root + "/noto/deep/NotoSans-Regular.ttf");  // named first
+  EXPECT(sdlfe::pick_font({root + "/noto/NotoColorEmoji.ttf"}, {}).empty());
+  EXPECT(sdlfe::pick_font({}, {"x.ttf"}).empty());
+  EXPECT(!sdlfe::font_folders().empty() && sdlfe::font_folders().back() == "/usr/share/fonts");
+  std::filesystem::remove_all(root);
+}
+
 TEST(launcher_narrow_spaces_widen) {
   EXPECT(sdlfe::widen_spaces("MechWarrior 3 was", 2, 13) == "MechWarrior  3  was");
   EXPECT(sdlfe::widen_spaces("MechWarrior 3 was", 3, 13) == "MechWarrior 3 was");  // wide enough: as is
@@ -4220,6 +4245,7 @@ TEST(sdl_program_launcher_screens) {
     EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    EXPECT(text.find("/launcher/font.ttf\n") != std::string::npos);  // the package's font, no system one asked
     SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
     int lit = 0, n = 0;
     bool edge = s.edge_x < 0;

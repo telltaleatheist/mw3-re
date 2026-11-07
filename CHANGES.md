@@ -677,3 +677,4 @@ Known quirks the rebuild deliberately keeps:
 - Your data folder (settings, pilots, saves, converted movies) can live on another drive: GAME FILES, MY DATA FOLDER in the launcher copies it, checks the copy, then switches over, and removes the old copy only if you say so. If the drive is missing at start the game says so instead of starting afresh.
 - An install without the game's fonts (arial.ttf, impact.ttf, lucon.ttf) shows its text with the system's fonts, and says so in the log, where it used to show blank labels.
 - Restarting a mission after a mech lost a limb can no longer crash in the pathfinding's start-up, which followed the limb to its freed mech.
+- The launcher brings its own font (Saira Condensed Bold, free under the SIL Open Font License) on every system, in place of Bahnschrift, DIN Condensed or a Linux face, so a Linux without the expected fonts no longer shows empty buttons. Without it the launcher searches the system's font folders.

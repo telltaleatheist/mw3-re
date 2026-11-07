@@ -59,7 +59,7 @@ cp build-mac-pkg/mw3 "$APP/Contents/MacOS/mw3"
 if [ -n "$DEPS" ]; then cp build-mac-pkg/mw3import "$APP/Contents/MacOS/mw3import"; fi
 # The launcher's art (ours, assets/launcher), where SDL's base path is: Resources.
 mkdir -p "$APP/Contents/Resources/assets/launcher"
-cp assets/launcher/*.png "$APP/Contents/Resources/assets/launcher/"
+cp assets/launcher/*.png assets/launcher/font.ttf "$APP/Contents/Resources/assets/launcher/"
 
 # Every library outside the system, followed through the ones they load:
 # copied by their real file, named by their install name's file, and every
@@ -190,6 +190,8 @@ EOF
 # The read-me and the notices beside the program.
 cp tools/macos/README.txt "$APP/Contents/Resources/README.txt"
 if [ -f LICENSE ]; then cp LICENSE "$APP/Contents/Resources/LICENSE.txt"; fi
+mkdir -p "$APP/Contents/Resources/licenses/saira-condensed"
+cp assets/launcher/font-OFL.txt "$APP/Contents/Resources/licenses/saira-condensed/OFL.txt"
 cp tools/macos/THIRD-PARTY.txt "$APP/Contents/Resources/THIRD-PARTY.txt"
 # libarchive, zlib and liblzma: linked in with --deps (build_deps.sh keeps
 # their licences in the prefix); Homebrew's libarchive is a dylib, its
