@@ -36,7 +36,9 @@ if [ -x build-linux-pkg/mw3import ]; then
   EXES="$EXES -e $APPDIR/usr/bin/mw3import"
 fi
 # The launcher's art (ours): beside the program, where SDL_GetBasePath finds it.
-cp assets/launcher/*.png "$APPDIR/usr/bin/assets/launcher/"
+cp assets/launcher/*.png assets/launcher/font.ttf "$APPDIR/usr/bin/assets/launcher/"
+mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed"
+cp assets/launcher/font-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed/OFL.txt"
 cp tools/windows/dist/README.txt tools/windows/dist/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"
 [ -f LICENSE ] && cp LICENSE "$APPDIR/usr/share/doc/mw3/LICENSE.txt"
 # Each library's licence files: from its source tree when the prefix is

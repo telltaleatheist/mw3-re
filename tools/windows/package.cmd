@@ -56,6 +56,7 @@ copy /y tools\windows\dist\README.txt "%DIST%\" >nul || exit /b 1
 rem The launcher's art (ours, assets/launcher: generated, with its prompts).
 mkdir "%DIST%\assets\launcher"
 copy /y assets\launcher\*.png "%DIST%\assets\launcher\" >nul || exit /b 1
+copy /y assets\launcher\font.ttf "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
 if exist LICENSE copy /y LICENSE "%DIST%\LICENSE.txt" >nul
 rem libarchive, zlib and liblzma: linked into mw3.exe, their licences from
@@ -71,6 +72,8 @@ for /d %%d in (deps\*) do if /i not "%%~nxd"=="archive" (
 rem FFmpeg's version and configure line (THIRD-PARTY.txt).
 build-win-pkg\mw3import.exe --version > "%DIST%\licenses\ffmpeg-configuration.txt" || exit /b 1
 for /d %%d in ("%DIST%\licenses\*") do dir /b /a-d "%%d" >nul 2>nul || echo Warning: no licence file found for %%~nxd: copy it into licenses\%%~nxd by hand.
+mkdir "%DIST%\licenses\saira-condensed"
+copy /y assets\launcher\font-OFL.txt "%DIST%\licenses\saira-condensed\OFL.txt" >nul || exit /b 1
 mkdir "%DIST%\licenses\pl_mpeg"
 copy /y third_party\pl_mpeg\README.md "%DIST%\licenses\pl_mpeg\" >nul || exit /b 1
 mkdir "%DIST%\licenses\enet"

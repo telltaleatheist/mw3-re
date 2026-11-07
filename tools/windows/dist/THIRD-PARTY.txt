@@ -55,6 +55,13 @@ mw3import.exe loads the DLLs dynamically: you may replace them with your
 own build of the same version.
 
 
+Saira Condensed Bold (assets\launcher\font.ttf)
+------------------------------------------------
+The launcher's lettering. Copyright 2016 The Saira Project Authors,
+https://github.com/Omnibus-Type/Saira. SIL Open Font License 1.1
+(licenses\saira-condensed\OFL.txt). Unchanged, under its reserved name.
+
+
 miniz's inflate, tinfl (built into mw3.exe)
 -------------------------------------------
 Rich Geldreich, RAD Game Tools and Valve Software,

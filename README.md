@@ -23,6 +23,9 @@ original.
 
 ### Coming in the next release
 
+- **The launcher's buttons have their text on any Linux.** It looked for a
+  font at fixed places and drew empty buttons if none was there. It now brings
+  its own, and on all systems the launcher wears that font.
 - **Rain and snow stop under roofs and in tunnels.** The check was ported but
   never connected, so they kept falling indoors.
 - **`--check-mod` passes a mod with a new world.** It refused every good
