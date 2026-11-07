@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace mech3::ai {
 
@@ -214,7 +215,15 @@ class WiredTickPm final : public TickPmHooks {
   }
   bool may_engage(zgame::Handle v, zgame::Handle net, zgame::Handle state) override {
     WiredSidePm side(b);
-    return may_engage_pm(side, pm_brain(b).tick, v, net, state);
+    const BrainTickPm& t = pm_brain(b).tick;
+    const bool yes = may_engage_pm(side, t, v, net, state);
+    if (!yes) {  // which check refused, for the first run
+      if (t.mode != 1) pm_hook_missing(("why no engage: mode " + std::to_string(t.mode)).c_str());
+      else if (net && !side.net_allows(net)) pm_hook_missing("why no engage: net");
+      else if (state && !side.state_allows(state)) pm_hook_missing("why no engage: state");
+      else pm_hook_missing("why no engage: leash, health or time");
+    }
+    return yes;
   }
   zgame::Handle target_vehicle(zgame::Handle c2) override { return h.contact_vehicle(contact(c2)); }
   zgame::Handle vehicle_net(zgame::Handle v) override { return pm_id(h.vehicle_net(v)); }
