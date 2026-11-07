@@ -158,6 +158,11 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- **Ctrl+I in the mech lab loads a loadout again.** In the rebuild so far it read
+  the file from `import` and added nothing, and still renamed the file
+  `.m3c.done`, so the loadout seemed to vanish. The file itself is intact: take
+  `.done` off its name and press Ctrl+I again.
+
 - **Finishing a mission while commanding your lance from the pocket view no
   longer crashes.** The original threw the commander's view away at the
   mission's end while your mech was still using it, then had the mech let
