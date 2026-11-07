@@ -10,12 +10,15 @@ namespace mech3::ai {
 BehaviourState* pm_make_state(Behaviour& b, Order& o) {
   switch (b.kind) {
     case StepKind::VehAttack: return new PmAttackState(&o, &b);
+    case StepKind::Jump: return new PmJumpState(&o, &b);
     default: return nullptr;
   }
 }
 
 bool pm_state_running(Brain& b) {
-  return !b.orders.empty() && dynamic_cast<PmAttackState*>(b.current().state.get()) != nullptr;
+  if (b.orders.empty()) return false;
+  BehaviourState* s = b.current().state.get();
+  return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s);
 }
 
 PmAttackState::PmAttackState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
@@ -53,6 +56,22 @@ void PmAttackState::run(float dt) {
   }
   r.tick.mode = a.mode, r.tick.delay_until = a.xfc, r.tick.home = a.place;
   r.tick.attack_until = a.x108, r.tick.give_up = a.x1f0;
+}
+
+}  // namespace mech3::ai
+
+namespace mech3::ai {
+
+PmJumpState::PmJumpState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
+
+void PmJumpState::run(float dt) {
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  if (!jump_) {  // 0x004daf40 once the brain's controls are known
+    hooks_ = std::make_unique<WireJump>(b, c, *order, *static_cast<const Step*>(from));
+    jump_ = std::make_unique<JumpPm>(*hooks_, pm_brain(b).steer, c.vehicle());
+  }
+  jump_->run(dt);  // may end in go_next, which destroys this state
 }
 
 }  // namespace mech3::ai
