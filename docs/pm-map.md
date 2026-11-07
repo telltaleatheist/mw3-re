@@ -1631,3 +1631,15 @@ functions PM changed, and PM's new ones.
 The `mw3pm` program, its own mount of PM's install and its own settings
 and saves come with step 1: two programs, `mw3` and `mw3pm`, over one
 engine, started from the launcher or directly (docs/games-layout.md).
+
+## Load limits (0x004e2e30, 2026-11-06)
+
+A targets.zrd entry's `load_limit` and `footfall_anim` (only `sbrg01`, `sbrg02`, c1m5: 50 tons, `sbridge_woggle01`, `02`), kept in
+the target's description (0x004e2730: +0xf0, +0xf4 by name, 0x00524b50). Mech::Update (0x0041ae00), on the ground, takes the planted
+foot's ground record (contact 1, 4 or 6), its node's target (id bit 21; 0x0040f670, so not a trap) and calls this with the mech.
+Only mechs: nothing else calls it, so tanks crossing put no weight on a bridge. With the target active: the last call's weight
+(+0x100) at or under the limit halves the stress (+0x104), over it adds weight/limit; past 10 vt+0x78 runs (0x004e2f20: the destroy
+anim, then vt+0x80, the kill: the triggers fire, so `bridge_1_down` or `bridge_2_down`, the second failing the mission's
+secondary objective). +0x100 then takes this mech's weight (vt+0x8c, 0x00486830, the chassis's tons, not the loadout's). Then the
+footfall anim, every call (vt+0x58 is a mech's own self). The test of the frame against +0x108 always passes, nothing writing it.
+Two mechs on it each see the other's weight, not the sum. `CZAiTarget::stood_on`, `load_step`; `test_pm_bridge.py`.

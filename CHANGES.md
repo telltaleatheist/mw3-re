@@ -388,6 +388,7 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- A Pirate's Moon bridge's weight limit takes the same time at any frame rate; the original's ran per frame.
 - On Windows the game can be installed, and keep its data, in a folder whose name has any letters, and it works for a Windows user name with accents (Windows 10 version 1903 or later; before that, it says so and asks for plain English letters). A pilot or file name with accents from an earlier version of the rebuild is put right at the next start.
 - The graphics options no longer offer the software renderer, which the rebuild does not have: the video device list shows your graphics card only, and a setting saved by the original or an older rebuild that chose software starts on the card.
 - **Gamepads work as they did on Windows.** A modern pad's sticks, triggers

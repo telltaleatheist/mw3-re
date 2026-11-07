@@ -554,6 +554,9 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   lack them. The system's of that name (Windows), Arial, Impact, Courier New (Mac), Liberation (Linux), with a log line.
   Metrics differ a little off Windows: the box sizes come from each file.
 - Pathfinding's watched nodes, `watch_begin` (zai_nav, ours): FIX (bug). A blown-off part keeps its node with no parent after its mech is freed; `node_entity` then followed it to freed memory. Such a node isn't watched.
+- Load limit, Pirate's Moon 0x004e2e30 (`load_step`): FIX (B), behind `per_second`. Per mech and frame in the exe (its frame test
+  against +0x108 always passes: nothing writes that), so a bridge would fall faster at a higher frame rate. Each call counts as
+  its share of a 30 fps frame: the stress's halving and its gain. Off, the exe's. `test_pm_bridge.py`.
 - Open: crater cuts at 53 bits (`zgeo_weiler`, `zgeo_convexify`, on `main` too). The port computes in float, the
   reference runtime's x87 keeps doubles between stores, so about 6% of `test_pm_crater_cut.py`'s random cuts take
   another branch, some leaving a different ground piece. Not `fpu53`-switched yet; 24 bits match exactly. PM's UV
