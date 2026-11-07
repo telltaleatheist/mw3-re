@@ -1,5 +1,6 @@
 #include "mech3/zai_wire_pm.h"
 
+#include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
 #include "mech3/zai_wire_walk_pm.h"
 #include "mech3/zai_wire_states_pm.h"
@@ -93,6 +94,7 @@ void pm_forget(Brain& b, zgame::Handle vehicle) {
   }
   targets().erase(vehicle);
   pm_firing_forget(vehicle);
+  pm_pending_forget(b);
 }
 
 uint32_t pm_id(const void* p) {
@@ -232,6 +234,8 @@ class WiredTickPm final : public TickPmHooks {
     if (!pm_state_running(b)) pm_hook_missing("stand-in: MW3's orders");
     do {
       b.x104 = 0;
+      pm_run_pending(b);  // 0x004fb260's first half: one item the attack left
+      if (b.orders.empty()) break;
       b.current().run(dt);
     } while (b.x104);
     if (!h.powered_down(c.vehicle()) && b.params.get<int32_t>(0x80) == 1) h.own_order_run(b, dt);
