@@ -22,6 +22,7 @@ option(MW3_BUILD_PM "Build Pirate's Moon (mw3pm)" ON)
 # On the branch `pm` (docs/games-layout.md) the plain build is Pirate's Moon alone. MW3's programs, its
 # probe and its tests are here only for reading; MW3 is built from `main`.
 option(MW3_BUILD_MW3 "Build MechWarrior 3's programs, probe and tests from this branch too" OFF)
+option(MW3_PM_HITS "The first run's first-hit log of PM's AI (tools/pm-hits), scratch builds only" OFF)
 set(MW3PM_GAME_DIR "${CMAKE_SOURCE_DIR}/game/pm" CACHE PATH "The Pirate's Moon install the PM tests and tools read")
 # The version mw3 --version and the Windows version resource give: git's
 # describe (a tag, or the commit) and the commit count.
@@ -638,6 +639,11 @@ if(MW3_BUILD_PM)
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)
+  if(MW3_PM_HITS)
+    file(GLOB pm_hit_sources src/mech3/zai_*_pm.cpp src/mech3/zai_wire*_pm.cpp src/mech3/zai_attackers_pm.cpp)
+    set_source_files_properties(${pm_hit_sources} PROPERTIES COMPILE_OPTIONS "-finstrument-functions-after-inlining")
+    target_sources(mw3pmtests PRIVATE tools/pm-hits/pm_hits.cpp)
+  endif()
   target_compile_definitions(mw3pmtests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
                                               MW3PM_GAME_DIR="${MW3PM_GAME_DIR}"
                                               MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
