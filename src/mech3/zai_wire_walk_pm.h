@@ -31,6 +31,7 @@ class WireWalk : public WireSteer<WalkPmHooks> {
   float range_near() override { return b_.params.get<float>(0x2c); }
   zgame::Handle order_target() override;
   const float* target_place(zgame::Handle t) override;
+  const float* target_facing(zgame::Handle t) override;
   bool target_live(zgame::Handle t) override;
   bool must_leave(zgame::Handle v) override;
   void set_throttle(float v) override { c_.set_throttle(v); }
@@ -65,6 +66,7 @@ class WireWalk : public WireSteer<WalkPmHooks> {
   BrainControls& c_;
   bool fought_ = false;       // the brain's +0x118
   float place_[3] = {};       // what entity_place hands back; the exe's is the entity's own
+  float facing_[3] = {};
 };
 
 }  // namespace mech3::ai

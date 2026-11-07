@@ -1,6 +1,7 @@
 #include "mech3/zai_wire_walk_pm.h"
 
 #include "mech3/zai_brain_pm.h"
+#include "mech3/zai_steps.h"
 #include "mech3/zainet_inout.h"
 
 namespace mech3::ai {
@@ -39,20 +40,27 @@ double WireWalk::stopping_at(zgame::Handle, float) {
   return 0.0;
 }
 
+// For the first run orders are MW3's (dev 2): what the order is about is its vehicle net's vehicle, as
+// StationHoldState reads it.
 zgame::Handle WireWalk::order_target() {
-  pm_hook_missing("order+0x0c.target");
-  return 0;
+  if (b_.orders.empty() || !b_.current().net) return 0;
+  const auto* vn = dynamic_cast<VehicleNet*>(b_.current().net->net());
+  return vn ? vn->vehicle : 0;
 }
 
-const float* WireWalk::target_place(zgame::Handle) {
-  pm_hook_missing("target.vt+0x04");
-  return nullptr;
+const float* WireWalk::target_place(zgame::Handle t) {
+  if (!t) return nullptr;
+  brain_hooks().position(t, place_);
+  return place_;
 }
 
-bool WireWalk::target_live(zgame::Handle) {
-  pm_hook_missing("target+0x1c+0x08");
-  return false;
+const float* WireWalk::target_facing(zgame::Handle t) {
+  if (!t) return nullptr;
+  brain_hooks().forward(t, &facing_[0], &facing_[2]);
+  return facing_;
 }
+
+bool WireWalk::target_live(zgame::Handle t) { return t && brain_hooks().entity_active(t); }
 
 bool WireWalk::must_leave(zgame::Handle v) {
   Engage h;
@@ -71,9 +79,9 @@ zgame::Handle WireWalk::next_along(const float*) {
   return 0;
 }
 
-void WireWalk::set_behaviour(zgame::Handle) { pm_hook_missing("0x004f9f00"); }
+void WireWalk::set_behaviour(zgame::Handle b) { b_.current().set_behaviour(static_cast<Behaviour*>(pm_ptr(b))); }
 
-void WireWalk::order_pop() { pm_hook_missing("order.vt+0x0c"); }
+void WireWalk::order_pop() { b_.current().pop(); }
 
 zgame::Handle WireWalk::contact_pick(zgame::Handle v, int32_t kind) {
   const Contact* c = brain_hooks().pick(v, kind);

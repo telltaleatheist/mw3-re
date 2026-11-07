@@ -96,11 +96,10 @@ TEST(pm_wire_attack_makes_its_context_and_counts_the_order_side) {
   AttackStatePm s;
   pm_hooks_missing_clear();
   EXPECT(a.context(s));  // no order target wired: no target
-  EXPECT(pm_hooks_missing().count("order+0x0c.target") == 1);
   EXPECT(a.position()[1] == 2.0f);
-  EXPECT(a.speed() == 0.5 && a.now() == 12.0f && a.orders() == 0);
+  EXPECT(a.speed() == 0.5 && a.now() == 12.0f && a.orders() == b.orders.size());
   a.fight_enter();
   EXPECT(s.speed == 1.0f);  // the brain's +0x10c, by the fake's speed
-  a.pop_order();
-  EXPECT(pm_hooks_missing().at("0x004ea220") == 1);
+  a.queue_after(1, 2);
+  EXPECT(pm_hooks_missing().at("0x004ea0f0") == 1);
 }

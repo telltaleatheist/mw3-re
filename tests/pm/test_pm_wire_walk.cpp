@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/zai_steps.h"
 #include "mech3/zai_wire_walk_pm.h"
 
 using namespace mech3::ai;
@@ -28,6 +29,8 @@ struct Fake : BrainHooks {
   float forward_speed(Handle) override { return 4.0f; }
   float move_speed(Handle) override { return 5.0f; }
   int32_t rand() override { return 1234; }
+  bool entity_active(Handle e) override { return e == 9; }
+  void forward(Handle, float* x, float* z) override { *x = 0.6f, *z = 0.8f; }
 };
 struct Controls : BrainControls {
   float sent[4] = {};
@@ -117,6 +120,22 @@ TEST(pm_wire_walk_mode_and_leave_share_the_record) {
   EXPECT(p.tick.busy == 1);
 }
 
+TEST(pm_wire_walk_order_target_is_the_vehicle_nets) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  WireWalk w(b, c);
+  EXPECT(w.order_target() == 0);
+  VehicleNet vn(9);
+  EXPECT(b.set_net(&vn));
+  EXPECT(w.order_target() == 9);
+  EXPECT(w.target_place(9)[2] == 3.0f && w.target_live(9) && !w.target_live(8));
+  EXPECT(w.target_facing(9)[2] == 0.8f);
+  b.set_net(nullptr);
+}
+
 TEST(pm_wire_walk_counts_what_has_no_answer) {
   Fake f;
   Installed in(&f);
@@ -125,9 +144,8 @@ TEST(pm_wire_walk_counts_what_has_no_answer) {
   Controls c;
   WireWalk w(b, c);
   pm_hooks_missing_clear();
-  EXPECT(w.order_target() == 0 && !w.target_place(0) && !w.target_live(0));
-  w.order_pop();
-  w.order_pop();
-  EXPECT(pm_hooks_missing().at("order.vt+0x0c") == 2);
-  EXPECT(pm_hooks_missing().count("order+0x0c.target") == 1);
+  EXPECT(w.pilot_x544(7) == 0.0f && w.pilot_x544(7) == 0.0f);
+  EXPECT(pm_hooks_missing().at("mech+0x544") == 2);
+  EXPECT(!w.target_place(0) && !w.target_live(0) && !w.target_facing(0));
+  EXPECT(pm_hooks_missing().size() == 1);  // none of those needs an answer
 }

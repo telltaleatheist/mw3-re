@@ -22,7 +22,7 @@ class WireAttack : public AttackPmHooks, public PendingPmHooks {
   float now() override { return brain_hooks().now(); }
   float intensity() override;
   const float* position() override;
-  uint32_t orders() override { return static_cast<uint32_t>(pm_brain(b_).orders.orders.size()); }
+  uint32_t orders() override { return static_cast<uint32_t>(b_.orders.size()); }
   zgame::Handle prior_net() override;
   zgame::Handle nearest(zgame::Handle net, const float* at) override;
   const float* place_of(zgame::Handle behaviour) override;

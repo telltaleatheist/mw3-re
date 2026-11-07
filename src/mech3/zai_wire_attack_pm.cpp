@@ -20,8 +20,9 @@ float WireAttack::intensity() {
 const float* WireAttack::position() { return ctx_->pos; }
 
 zgame::Handle WireAttack::prior_net() {
-  pm_hook_missing("order[-2].net");
-  return 0;
+  if (b_.orders.size() < 2) return 0;
+  const Order& o = b_.orders[b_.orders.size() - 2];
+  return o.net ? pm_id(o.net->net()) : 0;
 }
 
 zgame::Handle WireAttack::nearest(zgame::Handle, const float*) {
@@ -41,7 +42,9 @@ zgame::Handle WireAttack::kind_behaviour(int32_t) {
 
 void WireAttack::queue_after(zgame::Handle, zgame::Handle) { pm_hook_missing("0x004ea0f0"); }
 void WireAttack::return_to(zgame::Handle) { pm_hook_missing("0x004ea180"); }
-void WireAttack::pop_order() { pm_hook_missing("0x004ea220"); }
-void WireAttack::follow(zgame::Handle, zgame::Handle) { pm_hook_missing("0x004ea740"); }
+void WireAttack::pop_order() { b_.pop(); }
+void WireAttack::follow(zgame::Handle target, zgame::Handle b) {
+  b_.push(static_cast<AiNet*>(pm_ptr(target)), static_cast<Behaviour*>(pm_ptr(b)));
+}
 
 }  // namespace mech3::ai
