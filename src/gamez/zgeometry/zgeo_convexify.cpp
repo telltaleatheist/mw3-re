@@ -1,4 +1,5 @@
 #include "gamez/zgeometry/zgeo_convexify.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 
 #include <cstdio>
 #include <cstring>
@@ -18,11 +19,11 @@ bool zeroish(float v) { return !(v < 0.0f || v > 0.0f); }
 
 // Mech3.exe 1.2 @ 0x00515990. A B and C D cross strictly inside both.
 int segments_cross(const float* a, const float* b, const float* c, const float* d) {
-  const float den = (c[1] - d[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - d[0]);
-  if (den == 0.0f) return 0;
-  const float t = ((c[0] - a[0]) * (c[1] - d[1]) - (c[1] - a[1]) * (c[0] - d[0])) / den;
-  const float u = ((c[1] - a[1]) * (b[0] - a[0]) - (c[0] - a[0]) * (b[1] - a[1])) / den;
-  return 0.0f < t && 0.0f < u && t < 1.0f && u < 1.0f;
+  const X den = (X(c[1]) - d[1]) * (X(b[0]) - a[0]) - (X(b[1]) - a[1]) * (X(c[0]) - d[0]);
+  if (den == X(0.0f)) return 0;
+  const X t = ((X(c[0]) - a[0]) * (X(c[1]) - d[1]) - (X(c[1]) - a[1]) * (X(c[0]) - d[0])) / den;
+  const X u = ((X(c[1]) - a[1]) * (X(b[0]) - a[0]) - (X(c[0]) - a[0]) * (X(b[1]) - a[1])) / den;
+  return X(0.0f) < t && X(0.0f) < u && t < 1.0f && u < 1.0f;
 }
 
 // Mech3.exe 1.2 @ 0x00515ae0. The edge a b (either way) when it may still
@@ -55,28 +56,28 @@ void plane_of(const float* p, int32_t n, float plane[4]) {
   for (int32_t i = 0; i < n; ++i) {
     const float* c = p + 3 * i;
     const float* q = p + 3 * ((i + 1) % n);
-    nx = (c[1] - q[1]) * (q[2] + c[2]) + nx;
-    ny = (c[2] - q[2]) * (q[0] + c[0]) + ny;
-    nz = (c[0] - q[0]) * (q[1] + c[1]) + nz;
+    nx = ((X(c[1]) - q[1]) * (X(q[2]) + c[2]) + nx).f();
+    ny = ((X(c[2]) - q[2]) * (X(q[0]) + c[0]) + ny).f();
+    nz = ((X(c[0]) - q[0]) * (X(q[1]) + c[1]) + nz).f();
     sx = sx + c[0], sy = sy + c[1], sz = sz + c[2];
   }
   float len = 0.0f;
   if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) {
-    const float sq = nx * nx + ny * ny + nz * nz;
+    const float sq = (X(nx) * nx + X(ny) * ny + X(nz) * nz).f();
     int32_t bits;
     std::memcpy(&bits, &sq, 4);
     bits = (bits >> 1) + 0x1fc00000;
     std::memcpy(&len, &bits, 4);
   }
-  const float inv = zeroish(len) ? 0.0f : 1.0f / len;
-  plane[0] = inv * nx, plane[1] = inv * ny, plane[2] = inv * nz;
-  const float dot = sx * nx + sy * ny + sz * nz;
-  plane[3] = -(dot / (static_cast<float>(n) * len));
+  const X inv = zeroish(len) ? X(0.0f) : X(1.0f) / len;
+  plane[0] = (inv * nx).f(), plane[1] = (inv * ny).f(), plane[2] = (inv * nz).f();
+  const X dot = X(sx) * nx + X(sy) * ny + X(sz) * nz;
+  plane[3] = (-(dot / (X(static_cast<float>(n)) * len))).f();
 }
 
 // Mech3.exe 1.2 @ 0x005160e0
 void plane_z(const float plane[4], float* p, int32_t n) {
-  for (int32_t i = 0; i < n; ++i, p += 3) p[2] = -((p[0] * plane[0] + p[1] * plane[1] + plane[3]) / plane[2]);
+  for (int32_t i = 0; i < n; ++i, p += 3) p[2] = (-((X(p[0]) * plane[0] + X(p[1]) * plane[1] + plane[3]) / plane[2])).f();
 }
 
 // Mech3.exe 1.2 @ 0x00516120
@@ -95,8 +96,8 @@ void reverse_points(float* p, int32_t n) {
 
 // Mech3.exe 1.2 @ 0x00516190
 int face_up(float* p, int32_t n, int turn) {
-  const float ux = p[3] - p[0], uy = p[4] - p[1];
-  const float vx = p[6] - p[3], vy = p[7] - p[4];
+  const X ux = X(p[3]) - p[0], uy = X(p[4]) - p[1];
+  const X vx = X(p[6]) - p[3], vy = X(p[7]) - p[4];
   if (!(ux * vy - uy * vx > 0.0f)) {  // NaN too, as the exe's test ah, 0x41
     if (!turn) return 0;
     reverse_points(p, n);
@@ -188,11 +189,11 @@ int split_polygon(const int32_t* v, int32_t n, int32_t s, const float* f, std::v
     if (k == prev || k == best || k == next) continue;
     if (!(Y(k) <= hi) || !(lo <= Y(k)) || !(X(k) < X(bound))) continue;
     const float qx = X(k), qy = Y1(k);
-    const float a = X(best) - qx, b = X(next) - qx, c = Y1(next) - qy, d = Y1(best) - qy;
-    const float e = X(prev) - qx, g = Y1(prev) - qy;
+    const ::zgeo::X a = ::zgeo::X(X(best)) - qx, b = ::zgeo::X(X(next)) - qx, c = ::zgeo::X(Y1(next)) - qy, d = ::zgeo::X(Y1(best)) - qy;
+    const ::zgeo::X e = ::zgeo::X(X(prev)) - qx, g = ::zgeo::X(Y1(prev)) - qy;
     if (!(b * d < c * a) || !(e * c <= g * b) || !(g * a < e * d)) continue;
-    const float y = Y(best) - Y(k);
-    const float dist = a * a + y * y;
+    const ::zgeo::X y = ::zgeo::X(Y(best)) - Y(k);
+    const float dist = (a * a + y * y).f();
     if (dist < nearest) found = true, nearest = dist, inside = k;
   }
   int32_t from = best, to = inside;
