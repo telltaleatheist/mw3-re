@@ -490,6 +490,60 @@ def reach_cases(x, r, lib):
     return bad, yes, no
 
 
+def line_cases(x, r, lib):
+    """0x4b7800 real: a weapon with or without a part, node and firepoint, a salvo or not, a point or none."""
+    z, w = x.z, x.w
+    wp, fp, part, n41, n42, ax41, ax42, at, mz, dir_, c1, c2 = (z.alloc(0xa0) for _ in range(12))
+    rolls = []
+    z.native_stub(0x4ff3c0, lambda u: line_place(x, u), 0)
+    w(0x5de668, x.ret(lambda u: rolls.pop(0)))
+    pack = lambda v: struct.pack(f'<{len(v)}f', *v)  # noqa: E731
+    bad = sorts = 0
+    seen = set()
+    for i in range(3000):
+        ints = [r.randrange(2), r.choice([0, 1, 1]), r.randrange(2), r.choice([0, 0, 1]), r.choice([0, 1, 1]), int(r.random() < 0.1),
+                r.randrange(32768), r.randrange(32768)]
+        unit = lambda: (lambda v: [c / math.sqrt(sum(d * d for d in v)) for c in v])([r.uniform(-1, 1) for _ in range(3)])  # noqa: E731
+        f = [r.choice([0.0, 0.5, 1.0]), *[r.uniform(-2, 2) for _ in range(3)], r.uniform(0, 3), r.choice([0.2, 0.47, 0.9, -1.0]),
+             *[r.uniform(-1, 1) for _ in range(3)], *[r.uniform(-50, 50) for _ in range(3)], *unit(), *unit()]
+        if i % 10 == 0:  # the tolerance met exactly: the way straight down the node's axis, the tolerance 1
+            ints[0:6] = [0, 1, 1, 0, 1, 0]
+            f[0], f[5], f[6:9], f[9:12], f[15:18] = 0.0, 1.0, [0.0] * 3, [1.0, 2.0, -50.0], [0.0, 0.0, 1.0]
+        rolls[:] = ints[6:8]
+        w(wp + 0x74, fb(f[0])), w(wp + 0x28, part if ints[0] else 0), w(part + 8, n41), w(wp + 0x24, n42 if ints[1] else 0)
+        w(wp + 0x84, fp if ints[2] else 0), x.uc.mem_write(fp, pack([f[5]])), x.uc.mem_write(fp + 0x60, pack([f[4]]))
+        x.uc.mem_write(fp + 0x70, pack(f[1:4])), w(wp + 0x6c, ints[3]), x.uc.mem_write(wp + 0x88, pack(f[6:9]))
+        x.uc.mem_write(at, pack(f[9:12])), w(n41 + 0x38, ax41 - 0x78), x.uc.mem_write(ax41, pack(f[12:15]))
+        w(n42 + 0x38, ax42 - 0x78), x.uc.mem_write(ax42, pack(f[15:18])), x.uc.mem_write(0x62f86c, bytes([ints[5]]))
+        for a in (mz, dir_, c1, c2):
+            x.uc.mem_write(a, pack([-7.0] * 3))
+        ans = z.call(0x4b7800, ecx=wp, args=(at if ints[4] else 0, mz, dir_, 0, c1, c2)) & 0xff
+        g = z.r32
+        a = [ans] + [g(mz + 4 * k) for k in range(3)] + [g(dir_ + 4 * k) for k in range(3)] + [g(c1), g(c2)]
+        o = (ctypes.c_float * 9)()
+        h_ints = [ints[0], ints[1], ints[2], ints[3], ints[4], ints[5], ints[6], ints[7]]
+        rolls[:] = []
+        lib.probe_pm_weapon_line((ctypes.c_int32 * 8)(*h_ints), (ctypes.c_float * 18)(*f), o)
+        b = [int(o[0])] + [fb(v) for v in o[1:]]
+        if ans == 0 and not ints[1] and not (ints[0] and ints[2]) and f[0] != 1.0:
+            a[4:9] = b[4:9]  # the exe leaves these unwritten: the FIX's answer stands
+        seen.add((ans, ints[2], ints[3], a[8] == fb(1.0)))
+        if a != b:
+            bad += 1
+            if bad < 4:
+                print(f'line {ints} {f}\n  exe  {[hex(v) for v in a]}\n  port {[hex(v) for v in b]}')
+    return bad, len(seen)
+
+
+def line_place(x, u):
+    node, v = u.arg(0), u.arg(1)
+    if not node:
+        return 1
+    p = list(struct.unpack('<3f', bytes(x.uc.mem_read(v, 12))))
+    x.uc.mem_write(v, struct.pack('<3f', p[0] + 1.0, p[1] + 2.0, p[2] + 3.0))
+    return 0
+
+
 def scan_exe(tests):
     """0x4d5a10: tests through an adjustment on the brain, the again flag, then the next step."""
     x = Exe()
@@ -642,6 +696,9 @@ def main():
         print(f'reaches: {fires[0]} differ')
         bad += fires[0]
     print(f'reaches: {fires[1]} yes, {fires[2]} no')
+    lb, kinds = line_cases(nx, r, lib)
+    print(f'weapon line: 3000 cases, {kinds} kinds: {lb} differ')
+    bad += lb
     nx.z.call(0x4ba660)
     a = [nx.z.r32(0x60b688 + i * 4) for i in range(27)]
     b = (ctypes.c_uint32 * 27)()

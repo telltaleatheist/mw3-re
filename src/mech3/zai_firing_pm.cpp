@@ -901,6 +901,59 @@ bool can_hit(zgame::Handle w, const float at[3]) {
   return h.has_mount(w) ? h.mount_reaches(w, d) : h.mech_reaches(m, d);
 }
 
+// Pirate's Moon 1.0 @ 0x004b7800. FIX (bug): without a node to place the muzzle by, the exe leaves `dir` and the
+// cosines unwritten and its callers read their stack; here the muzzle stays where it was put, `dir` is the zero
+// way and the cosines 1 (fixes.md, The weapon's line with no node).
+bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
+                 float* cos, float* cos_kept) {
+  constexpr float kMiddle = 16383.5f, kScale = 6.103701889514923e-05f;  // 0x00605ee4, 0x00605ee0
+  if (w.damage == 1.0f || std::isnan(w.damage)) return false;
+  const bool mounted = w.part_node && w.fp_place;
+  const zgame::Handle node = mounted ? w.part_node : w.node;
+  if (mounted) muzzle[0] = w.fp_place[0], muzzle[1] = w.fp_place[1], muzzle[2] = w.fp_place[2];
+  else muzzle[0] = muzzle[1] = muzzle[2] = 0.0f;
+  if (w.salvo_left && w.fp_place) {
+    for (int i = 0; i < 2; ++i) {
+      const double k = (static_cast<double>(h.rand()) - kMiddle) * kScale;
+      muzzle[i] = static_cast<float>(double{w.fp_radius} * k + muzzle[i]);
+    }
+  } else {
+    for (int i = 0; i < 3; ++i) muzzle[i] = muzzle[i] + w.spread[i];
+  }
+  if (h.node_place(node, muzzle)) {
+    dir[0] = dir[1] = dir[2] = 0.0f;
+    *cos = *cos_kept = 1.0f;
+    return false;
+  }
+  const zgame::Handle face_node = w.part_node;
+  if (at) {
+    for (int i = 0; i < 3; ++i) dir[i] = at[i] - muzzle[i];
+    unit3(dir);
+  } else {
+    if (!w.node) return false;
+    const float* a = h.node_axis(w.node);
+    dir[0] = -a[0], dir[1] = -a[1], dir[2] = -a[2];
+  }
+  if (h.quiet()) return true;
+  const zgame::Handle n = face_node ? face_node : w.node;
+  const float* a = n ? h.node_axis(n) : nullptr;
+  if (!a) {
+    *cos = *cos_kept = 1.0f;
+    return true;
+  }
+  const float d = static_cast<float>((double{a[0]} * dir[0] + double{a[1]} * dir[1]) + double{a[2]} * dir[2]);
+  const double c = -double{d};
+  *cos = static_cast<float>(c);
+  const double least = w.fp_tolerance ? double{*w.fp_tolerance} : double{0.473451167345047f};  // [0x006070d8]
+  if (c >= least) {
+    *cos_kept = static_cast<float>(c);
+    return true;
+  }
+  dir[0] = -a[0], dir[1] = -a[1], dir[2] = -a[2];
+  *cos_kept = 1.0f;
+  return true;
+}
+
 // Pirate's Moon 1.0 @ 0x004a7000 with 0x004a6e90 and 0x004a6dd0: within the pitch band, and either yaw band unless
 // the way is all but straight up or down. The exe's keeps the workings for a caller; none here reads them.
 bool firepoint_reaches(const float cone[18], const float dir[3]) {
