@@ -269,6 +269,7 @@ add_library(mw3core STATIC
   src/mech3/zai_node_pm.cpp
   src/mech3/zai_jump_pm.cpp
   src/mech3/zai_firing_pm.cpp
+  src/mech3/zai_wire_pm.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp
   src/mech3/zai_attack.cpp
@@ -620,6 +621,7 @@ if(MW3_BUILD_PM)
   add_library(pmcore ALIAS mw3core)
   add_executable(mw3pmtests
     tests/pm/test_pm_lobby.cpp
+    tests/pm/test_pm_wire.cpp
     tests/main.cpp
     tests/pm/test_pm_game.cpp
     tests/pm/test_pm_collide_rate.cpp
