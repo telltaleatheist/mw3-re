@@ -366,6 +366,12 @@ FOLDER` reads a mod as the game would and says what it would refuse. With
 no mods turned on, nothing changes. How to make one:
 [docs/modding.md](docs/modding.md).
 
+To build or change a world, use [zStudio](https://github.com/Vorta/zStudio) by Vorta
+(Windows): it unpacks the game's files into the editable source tree Zipper's own team
+worked from, and builds them back into game files you can ship as a mod. A guide to
+making whole missions and campaigns, with zStudio for the world and the rebuild's game
+editor for the mission, comes after Pirate's Moon.
+
 The original game has a tool of its own here: [tools/weapon-patch](tools/weapon-patch)
 adds weapons to the original `Mech3.exe`'s mech lab. It isn't part of the rebuild.
 
