@@ -112,6 +112,9 @@ class Exe:
     def buried(self, u):
         self.log += [0x98, 31 if u.arg(0) == 0x31 else 32]
         self.vec(0x98, u.arg(1))
+        a, b = struct.unpack('<ff', bytes(self.uc.mem_read(u.arg(1), 4)) + bytes(self.uc.mem_read(u.arg(1) + 8, 4)))
+        self.uc.mem_write(u.arg(1), struct.pack('<f', a + 7.0))  # into the world, as the real one
+        self.uc.mem_write(u.arg(1) + 8, struct.pack('<f', b - 3.0))
         return self.wi(self.cur)[5]
 
     def mreach(self, u):

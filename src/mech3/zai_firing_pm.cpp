@@ -603,6 +603,21 @@ bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, 
   return true;
 }
 
+// Pirate's Moon 1.0 @ 0x004ba660, the start-up's defaults at 0x0060b688.
+void FiringPm::seed() {
+  phase = 8;
+  time = FLT_MAX;
+  quick = 3.0f, delay = 6.0f, rest = 1.0f;
+  reach_arg = static_cast<float>(std::cos(0.3490658503988));  // 20, 30 and 45 degrees
+  track_arg = static_cast<float>(std::cos(0.5235987755982));
+  fire_arg = static_cast<float>(std::cos(0.7853981633973));
+  x24 = 50.0f;
+  too_hot = 0.9f, x3c = 1.5f, x40 = 1.0f, x44 = 0.3f, x48 = 0.2f;
+  x50 = 0x3e99999a;
+  x54 = 0.473451167345047f;
+  cool_for = 1.0f, cool_until = FLT_MAX, cool_below = 1.1f, shot_every = 0.5f;
+}
+
 // Pirate's Moon 1.0 @ 0x004bb700, the states as the exe's: 0, 8 start; 1 ask the range; 2 wait; 7 pick
 // a plan; 3 turn to it; 4, 5 fire when it's up; 6 hold the trigger. The gotos are the exe's, whose
 // states fall into each other.
@@ -884,6 +899,31 @@ bool can_hit(zgame::Handle w, const float at[3]) {
   to_local(d, h.matrix(m));
   unit3(d);
   return h.has_mount(w) ? h.mount_reaches(w, d) : h.mech_reaches(m, d);
+}
+
+// Pirate's Moon 1.0 @ 0x004a7000 with 0x004a6e90 and 0x004a6dd0: within the pitch band, and either yaw band unless
+// the way is all but straight up or down. The exe's keeps the workings for a caller; none here reads them.
+bool firepoint_reaches(const float cone[18], const float dir[3]) {
+  const bool pitch = cone[14] <= dir[1] && dir[1] <= cone[15];
+  bool first = true, second = true;
+  if (std::fabs(double{dir[1]}) < 0.9990000128746033) {
+    float flat[3] = {dir[0], 0.0f, dir[2]};
+    unit3(flat);
+    const auto side = [&](const float* band) {
+      const float d = static_cast<float>((double{band[2]} * flat[2] + double{band[0]} * flat[0]) - band[3]);
+      return 0.0f <= d;
+    };
+    first = side(cone);
+    second = side(cone + 4);
+  }
+  return pitch && (first || second);
+}
+
+// Pirate's Moon 1.0 @ 0x00467490: nothing clamped.
+bool torso_reaches(float min_pitch, float max_pitch, float max_yaw, const float dir[3]) {
+  const float pitch = static_cast<float>(std::asin(double{dir[1]}));
+  const float yaw = static_cast<float>(std::atan2(double{dir[0]}, -double{dir[2]}));
+  return pitch <= max_pitch && min_pitch <= pitch && yaw <= max_yaw && -max_yaw <= yaw;
 }
 
 // Pirate's Moon 1.0 @ 0x004bd1c0

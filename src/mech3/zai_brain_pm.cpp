@@ -101,12 +101,9 @@ bool tick_pm(TickPmHooks& h, BrainTickPm& b, zgame::Handle vehicle, float dt) {
   return true;
 }
 
-// Pirate's Moon 1.0 @ 0x004fa5a0 (MW3's 0x004e8f10): engaging only at mode 1, and the health floor asked each time
-// where MW3 decides it once a frame.
-bool may_engage_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle v, zgame::Handle net, zgame::Handle state) {
-  if (b.mode != 1) return false;
-  if (net && !h.net_allows(net)) return false;
-  if (state && !h.state_allows(state)) return false;
+namespace {
+// The checks 0x004fa5a0 and 0x004fa210 share: the leash, the health floor, the attack's time, the give-up health.
+bool engage_checks(EngagePmHooks& h, const BrainTickPm& b, zgame::Handle v) {
   if ((b.engage_flags & 1) && b.home) {
     float p[3];
     h.position(v, p);
@@ -118,6 +115,21 @@ bool may_engage_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle v, z
   if ((b.engage_flags & 2) && h.now() >= b.attack_until) return false;
   if ((b.engage_flags & 8) && !(h.health(v) >= b.give_up)) return false;
   return true;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004fa5a0 (MW3's 0x004e8f10): engaging only at mode 1, and the health floor asked each time
+// where MW3 decides it once a frame.
+bool may_engage_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle v, zgame::Handle net, zgame::Handle state) {
+  if (b.mode != 1) return false;
+  if (net && !h.net_allows(net)) return false;
+  if (state && !h.state_allows(state)) return false;
+  return engage_checks(h, b, v);
+}
+
+// Pirate's Moon 1.0 @ 0x004fa210 (MW3's 0x004e8dd0)
+bool must_leave_pm(EngagePmHooks& h, const BrainTickPm& b, zgame::Handle v) {
+  return b.mode != 1 || !engage_checks(h, b, v);
 }
 
 // Pirate's Moon 1.0 @ 0x004fab30 (MW3's 0x004e96b0)

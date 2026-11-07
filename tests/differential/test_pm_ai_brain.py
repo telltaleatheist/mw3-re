@@ -5,6 +5,7 @@ tests/probe_pm_ai_brain.cpp). What the stand-ins do is tested piece by piece.
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_brain.py [cases]
 """
 import ctypes
+import math
 import os
 import random
 import struct
@@ -221,6 +222,8 @@ class Side(Exe):
             self.z.call(0x4fbc20, ecx=b + 0x2d4, args=(11, 22, 33, v if ints[10] else 0 if ints[11] else self.at))
         elif what == 3:
             self.z.call(0x4fbdd0, ecx=b + 0x2d4)
+        elif what == 5:
+            r = self.z.call(0x4fa210, ecx=b, args=(v,)) & 0xff
         else:
             self.w(self.brain + 0x11c, v if ints[12] else 0)
             self.z.call(0x4fbe90, ecx=b)
@@ -458,6 +461,35 @@ def lead_case(r):
             mz + own + v() + pil + at + [s])
 
 
+def reach_cases(x, r, lib):
+    """0x4a7000 on made-up cones and 0x467490 on made-up limits, real on the exe."""
+    z, cone, dir_, out, torso = x.z, x.z.alloc(0x60), x.z.alloc(12), x.z.alloc(0x20), x.z.alloc(0x200)
+    x.uc.mem_write(0x5cefd6, bytes.fromhex('d9c0 d8c8 d9e8 dee1 d9fa d9f3 c3'))  # _CIasin: atan2(x, sqrt(1 - x * x))
+    bad = yes = no = 0
+    pack = lambda v: struct.pack(f'<{len(v)}f', *v)  # noqa: E731
+    for i in range(4000):
+        a = r.uniform(-3.2, 3.2)
+        y = r.choice([0.0, r.uniform(-1, 1), 0.99899, 0.9991, -0.9995, 1.0])
+        k = (1 - y * y) ** 0.5
+        d = [k * math.sin(a), y, -k * math.cos(a)]
+        band = lambda: [math.cos(u := r.uniform(0, 6.3)), 0.0, math.sin(u), r.uniform(-0.3, 0.3)]  # noqa: E731
+        c = band() + band() + [0.0] * 6 + [r.uniform(-1, 0.2), r.uniform(-0.2, 1), 0.0, 0.0]
+        x.uc.mem_write(cone, pack(c)), x.uc.mem_write(dir_, pack(d))
+        p = z.call(0x4a7000, ecx=cone, args=(dir_, out)) & 0xff
+        q = lib.probe_pm_firepoint_reaches((ctypes.c_float * 18)(*c), (ctypes.c_float * 3)(*d)) & 0xff
+        lim = [r.uniform(-1.5, 0), r.uniform(0, 1.5), r.uniform(0, 3.2)]
+        x.uc.mem_write(torso + 0x148, pack(lim))
+        p2 = z.call(0x467490, ecx=torso, args=(dir_, out, out + 4)) & 1
+        q2 = lib.probe_pm_torso_reaches((ctypes.c_float * 3)(*lim), (ctypes.c_float * 3)(*d)) & 1
+        yes += p + p2
+        no += 2 - p - p2
+        if p != q or p2 != q2:
+            bad += 1
+            if bad < 4:
+                print(f'reach {c} {d} {lim}: exe {p} {p2} port {q} {q2}')
+    return bad, yes, no
+
+
 def scan_exe(tests):
     """0x4d5a10: tests through an adjustment on the brain, the again flag, then the next step."""
     x = Exe()
@@ -532,7 +564,7 @@ def main():
     sx = Side()
     sf = lib.probe_pm_ai_side
     for i in range(cases):
-        what = i % 5
+        what = i % 6
         ints, fl, bits = side_case(r, what)
         a = sx.side(what, ints, fl, bits)
         n = sf(what, (ctypes.c_int32 * len(ints))(*ints), bits, (ctypes.c_float * len(fl))(*fl), out, 512)
@@ -605,6 +637,18 @@ def main():
             bad += 1
             if bad >= 6:
                 break
+    fires = reach_cases(nx, r, lib)
+    if fires[0]:
+        print(f'reaches: {fires[0]} differ')
+        bad += fires[0]
+    print(f'reaches: {fires[1]} yes, {fires[2]} no')
+    nx.z.call(0x4ba660)
+    a = [nx.z.r32(0x60b688 + i * 4) for i in range(27)]
+    b = (ctypes.c_uint32 * 27)()
+    lib.probe_pm_firing_seed(b)
+    if a != list(b):
+        print('firing defaults:', [(hex(i * 4), hex(u), hex(v)) for i, (u, v) in enumerate(zip(a, b)) if u != v])
+        bad += 1
     for tests in range(5):
         a = scan_exe(tests)
         n = lib.probe_pm_ai_scan(tests, big)
