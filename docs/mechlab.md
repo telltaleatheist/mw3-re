@@ -293,6 +293,9 @@ Ported in `mech3/lab_screen.{h,cpp}`, checked by `test_lab_screen.py`.
     rand() when its name is taken (0x00448c1d, ported in mech_lab.cpp).
   - FIX (A): the export\ and import\ folders instead of the dialogs, and
     no checksum check (FIX (trap)).
+  - The list comes through `lab_dfn_configs`; `field32(dfn, 0x20)` reads the
+    exe's memory, which the real program does not have, and gave 0, so until
+    2026-11-06 an import did nothing but rename its file. `test_lab_import.py`.
 
 ### The item lists' base (step 5a)
 

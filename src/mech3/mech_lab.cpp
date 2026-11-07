@@ -102,7 +102,7 @@ bool LabState::update() {
       }
       const Handle read = en.config_import();
       const Handle dfn = en.mech_dfn_handle(en.config_mech(config));
-      const Handle list = dfn ? en.field32(dfn, 0x20) : 0;
+      const Handle list = dfn ? en.lab_dfn_configs(dfn) : 0;
       if (read && list) {
         // 0x00448c1d..: a taken name gets a random number (CString "%s%d"
         // with rand()); then it goes at the end of the shown mech's list.
