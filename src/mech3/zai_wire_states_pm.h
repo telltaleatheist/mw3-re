@@ -7,6 +7,8 @@
 #include <cstring>
 #include <memory>
 
+#include "mech3/app_mech.h"
+#include "mech3/mech.h"
 #include "mech3/zai_attack_pm.h"
 #include "mech3/zai_jump_pm.h"
 #include "mech3/zai_wire_walk_pm.h"
@@ -45,7 +47,11 @@ class WireJump final : public WireWalkT<JumpPmHooks> {
   WireJump(Brain& b, BrainControls& c, Order& o, const Step& step) : WireWalkT<JumpPmHooks>(b, c), brain_(b), controls_(c), o_(o), step_(step) {}
   zgame::Handle mech(zgame::Handle v) override { return brain_hooks().vehicle_mech(v); }
   bool has_jets(zgame::Handle) override { return brain_.path_pilot.jump_jets > 0; }  // +0x3e8, MW3's +0x3d8
-  void set_x588(zgame::Handle) override { pm_hook_missing("mech+0x588"); }
+  // PM's +0x588 is the jet fuel (MW3's +0x564): the jump fills it from [0x0060bb70], 1.0, never written.
+  void set_x588(zgame::Handle m) override {
+    void* o = brain_hooks().object_of(m);
+    if (o && entity_is_mech(o)) static_cast<Mech*>(o)->jet_fuel = 1.0f;
+  }
   bool in_air(zgame::Handle m) override { return brain_hooks().airborne(m); }
   float climb_speed(zgame::Handle m) override { return brain_hooks().vertical_speed(m); }
   float along_speed(zgame::Handle m) override { return brain_hooks().forward_speed(m); }
