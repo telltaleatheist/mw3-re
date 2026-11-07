@@ -1,4 +1,5 @@
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 
 #include <cmath>
 #include <cstdarg>
@@ -23,6 +24,7 @@
 #pragma STDC FP_CONTRACT OFF
 
 namespace zmod {
+using zgeo::X;
 
 namespace {
 const char kFile[] = "C:\\zipper\\GameZMech3\\zModel\\gmod_const.c";
@@ -563,15 +565,14 @@ int drop_colinear(int32_t* n, float* p, std::vector<int32_t>* kept) {
       const float* a = p + 3 * (i - 1);
       const float* b = p + 3 * i;
       const float* q = p + 3 * c;
-      const float u0 = a[0] - b[0], u1 = a[1] - b[1], u2 = a[2] - b[2];
-      const float v0 = q[0] - b[0], v1 = q[1] - b[1], v2 = q[2] - b[2];
-      float x = u2 * v1 - u1 * v2, y = u0 * v2 - u2 * v0, z = u1 * v0 - u0 * v1;
-      float len = 0.0f;
-      if (std::fabs(x) > g_colinear || std::fabs(y) > g_colinear || std::fabs(z) > g_colinear)
-        len = std::sqrt(x * x + y * y + z * z);
-      const float inv = !(std::fabs(len) > g_colinear) ? 0.0f : 1.0f / len;
+      const X u0 = X(a[0]) - b[0], u1 = X(a[1]) - b[1], u2 = X(a[2]) - b[2];
+      const X v0 = X(q[0]) - b[0], v1 = X(q[1]) - b[1], v2 = X(q[2]) - b[2];
+      X x = u2 * v1 - u1 * v2, y = u0 * v2 - u2 * v0, z = u1 * v0 - u0 * v1;
+      X len = 0.0f;
+      if (abs(x) > g_colinear || abs(y) > g_colinear || abs(z) > g_colinear) len = sqrt(x * x + y * y + z * z);
+      const X inv = !(abs(len) > g_colinear) ? X(0.0f) : X(1.0f) / len;
       x = inv * x, y = inv * y, z = inv * z;
-      if (!(std::fabs(x) >= g_colinear) && !(std::fabs(y) >= g_colinear) && !(std::fabs(z) >= g_colinear)) {
+      if (!(abs(x) >= g_colinear) && !(abs(y) >= g_colinear) && !(abs(z) >= g_colinear)) {
         std::memmove(p + 3 * i, p + 3 * (i + 1), 12 * static_cast<size_t>(count - 1 - i));
         if (kept) kept->erase(kept->begin() + i);
         --*n;
@@ -810,21 +811,21 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
     for (int32_t i = 0; i < k; ++i) {
       const float* c = p + 3 * i;
       const float* q = p + 3 * ((i + 1) % k);
-      nx = (c[1] - q[1]) * (q[2] + c[2]) + nx;
-      ny = (c[2] - q[2]) * (q[0] + c[0]) + ny;
-      nz = (c[0] - q[0]) * (q[1] + c[1]) + nz;
+      nx = ((X(c[1]) - q[1]) * (X(q[2]) + c[2]) + nx).f();
+      ny = ((X(c[2]) - q[2]) * (X(q[0]) + c[0]) + ny).f();
+      nz = ((X(c[0]) - q[0]) * (X(q[1]) + c[1]) + nz).f();
       sx = sx + c[0], sy = sy + c[1], sz = sz + c[2];
     }
     float len = 0.0f;
-    if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) len = std::sqrt(nx * nx + ny * ny + nz * nz);
-    const float inv = zeroish(len) ? 0.0f : 1.0f / len;
-    const float ux = inv * nx, uy = inv * ny, uz = inv * nz;
-    const float nlen = static_cast<float>(k) * len;
-    const float dot = sx * nx + sy * ny + sz * nz;
-    const float d = -(dot / nlen);
+    if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) len = sqrt(X(nx) * nx + X(ny) * ny + X(nz) * nz).f();
+    const X inv = zeroish(len) ? X(0.0f) : X(1.0f) / len;
+    const float ux = (inv * nx).f(), uy = (inv * ny).f(), uz = (inv * nz).f();
+    const X nlen = X(static_cast<float>(k)) * len;
+    const X dot = X(sx) * nx + X(sy) * ny + X(sz) * nz;
+    const float d = (-(dot / nlen)).f();
     for (int32_t i = 0; i < k; ++i) {
       const float* c = p + 3 * i;
-      if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > g_planar) {
+      if (abs(X(uz) * c[2] + X(c[0]) * ux + X(c[1]) * uy + d) > g_planar) {
         zerr::report(0x100, kFile, 0x121c,
                      format("Attempting to add non-planar polygon (%d verts), triangulating...", k).c_str());
         add_fan(*m, k, use);

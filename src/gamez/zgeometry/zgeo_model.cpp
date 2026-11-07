@@ -285,20 +285,21 @@ int find_edge(const ClipPolygon& c, const float point[3]) {
   for (int32_t i = 0; i < n; ++i) {
     const float* a = &c.points[3 * i];
     const float* b = &c.points[3 * ((i + 1) % n)];
-    const X dx = X(b[0]) - a[0], dy = X(b[1]) - a[1];
+    const float dx = (X(b[0]) - a[0]).f(), dy = (X(b[1]) - a[1]).f();
     X t = 0.0f;
-    if (abs(dx) < kNear) {
+    if (std::fabs(dx) < kNear) {
       if (abs(X(a[0]) - point[0]) > kNear) continue;
       t = (X(point[1]) - a[1]) / dy;
-    } else if (abs(dy) < kNear) {
+    } else if (std::fabs(dy) < kNear) {
       if (abs(X(point[1]) - a[1]) > kNear) continue;
       t = (X(point[0]) - a[0]) / dx;
     } else {
-      const X tx = (X(point[0]) - a[0]) / dx, ty = (X(point[1]) - a[1]) / dy;
-      if (!(abs(tx - ty) < kNear)) continue;
+      const X kept = (X(point[0]) - a[0]) / dx;  // on the stack for the test, stored as float after
+      const float tx = kept.f(), ty = ((X(point[1]) - a[1]) / dy).f();
+      if (!(abs(kept - ty) < kNear)) continue;
       if (!(ty > 0.0f) || !(ty < 1.0f) || !(tx > 0.0f) || !(tx < 1.0f)) continue;
-      if (abs(tx * dx + a[0] - point[0]) > kNear) continue;
-      if (abs(ty * dy + a[1] - point[1]) > kNear) continue;
+      if (abs(X(tx) * dx + a[0] - point[0]) > kNear) continue;
+      if (abs(X(ty) * dy + a[1] - point[1]) > kNear) continue;
       return i;
     }
     if (t > 0.0f && t < 1.0f) return i;

@@ -22,6 +22,7 @@ inline X operator*(X a, X b) { return X::step(a.v * b.v); }
 inline X operator/(X a, X b) { return X::step(a.v / b.v); }
 inline X operator-(X a) { return X(-a.v); }
 inline X abs(X a) { return X(std::fabs(a.v)); }
+inline X sqrt(X a) { return X::step(std::sqrt(a.v)); }
 inline bool operator<(X a, X b) { return a.v < b.v; }
 inline bool operator>(X a, X b) { return a.v > b.v; }
 inline bool operator<=(X a, X b) { return a.v <= b.v; }

@@ -1270,26 +1270,27 @@ int within_segment(const float q[2], const float a[2], const float b[2]) {
 
 // Mech3.exe 1.2 @ 0x00515170
 int snap_to_segment(const float a[2], const float b[2], float p[3], float eps) {
-  const X dx = X(b[0]) - a[0], px = X(p[0]) - a[0];
-  const X dy = X(b[1]) - a[1], py = X(p[1]) - a[1];
-  if (X(eps) <= abs(dx)) {
-    if (X(eps) <= abs(dy)) {
-      const X tx = px / dx, ty = py / dy;
-      if (!(abs(tx - ty) < eps) || !(X(0.0f) < tx) || !(X(0.0f) < ty) || !(tx < 1.0f) || !(ty < 1.0f)) return 0;
-      const X x = tx * dx + a[0];
+  const float dx = (X(b[0]) - a[0]).f(), px = (X(p[0]) - a[0]).f();
+  const float dy = (X(b[1]) - a[1]).f(), py = (X(p[1]) - a[1]).f();
+  if (eps <= std::fabs(dx)) {
+    if (eps <= std::fabs(dy)) {
+      const X kept = X(px) / dx;  // on the stack for the test, stored as float after
+      const float tx = kept.f(), ty = (X(py) / dy).f();
+      if (!(abs(kept - ty) < eps) || !(0.0f < tx) || !(0.0f < ty) || !(tx < 1.0f) || !(ty < 1.0f)) return 0;
+      const X x = X(tx) * dx + a[0];
       if (abs(x - p[0]) > eps) return 0;
-      const X y = ty * dy + a[1];
+      const X y = X(ty) * dy + a[1];
       if (abs(y - p[1]) > eps) return 0;
       p[1] = y.f(), p[0] = x.f();
       return 1;
     }
-    if (abs(py) <= eps && X(0.0f) < px / dx && px / dx < 1.0f) {
+    if (std::fabs(py) <= eps && X(0.0f) < X(px) / dx && X(px) / dx < 1.0f) {
       p[1] = a[1];
       return 1;
     }
     return 0;
   }
-  if (abs(px) <= eps && X(0.0f) < py / dy && py / dy < 1.0f) {
+  if (std::fabs(px) <= eps && X(0.0f) < X(py) / dy && X(py) / dy < 1.0f) {
     p[0] = a[0];
     return 1;
   }
