@@ -165,7 +165,7 @@ The search read each `if ...: continue/break/return True` over a value in `test_
 - **Compared just before:** `test_pm_modeldraw:133` (the centre, bit for bit, and the count).
 - **Choosing inputs, not results:** `test_pm_nodebox:79`, `test_pm_submit:205`, `test_pm_strips:83`, `test_pm_gamez:275,343`, `test_pm_lance:136`, `test_pm_ai_boundary_real:46,49`, `test_pm_zar:344`, `test_pm_projected:92`.
 - **Fixed:** `test_pm_ai_boundary`'s hunt picked its cases from the port's own answer; every query in it now goes to both sides. The same 57 rare cases turn up.
-- **Worth knowing:** `test_pm_ai_boundary_real` screens 594,560 queries with the port and asks the exe about 7,618: every rare case the port finds (up to 100 an area) and a random sample of the rest. A rare case the port wrongly misses is only compared if the sample lands on it. Asking the exe about all of them would take about 20 minutes.
+- **Worth knowing:** `test_pm_ai_boundary_real` screens 594,560 queries with the port and asks the exe about 7,618: every rare case the port finds (up to 100 an area) and a random sample of the rest. A rare case the port wrongly misses is only compared if the sample lands on it. Asking the exe about all of them was done per world (2026-11-07, below): about 4 hours, 0 differ.
 
 **The recount of what's left** (`tools/analysis/pmrecount.py --trace DIR`) counts a function as done when the port's source names its address outside the hook classes. Cited isn't landed: a comment can name what isn't ported, and only a test shows a function is. It's an estimate of the size, nothing more.
 
@@ -177,7 +177,7 @@ The search read each `if ...: continue/break/return True` over a value in `test_
 
 `near float` missed at 5 times the runs too, and is caught now by a tie made by hand (`near_ties` in `test_pm_ai_steer`, 6 cases on the exe and the port). 0x4dc210 past the way's end keeps the sum of along - length and the side in the register. The tie can arise: on a way short enough that its length has bits a float of the sum can't hold (under about 1 unit, with the sum near 10), the exact sum is just over `near_dist` and the rounded one equal to it. The exe answers far, a rounded sum near. On ways of ordinary length along - length fits a float and there's no such case.
 
-**The boundary per world, every query on the exe (2026-11-07):** c3 6 areas, 109,360 queries; c4 5 areas, 99,200; c2 6 areas, 157,480; 0 differ in all three.
+**The boundary per world, every query on the exe (2026-11-07):** c1 8 areas, 228,520 queries; c2 6 areas, 157,480; c3 6 areas, 109,360; c4 5 areas, 99,200: all 25 areas and all 594,560 screened queries, 0 differ, so the port picked nothing. `MW3_BOUNDARY_ALL=1 MW3_BOUNDARY_WORLD=c1` and so on, c1 about 1 hour 50 minutes.
 
 ## PM's AI runs at 53 bits only (2026-11-06)
 
