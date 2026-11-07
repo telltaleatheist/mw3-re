@@ -71,19 +71,37 @@ struct LeadHooks : LeadPmHooks {
     return m_;
   }
 };
-// 0x004b7800 on the manager's aim, for its cosine alone: false when the muzzle is blocked. FIX (bug) lands here with
-// the blocked line (fixes.md): the exe leaves the caller's stack, this answers no.
-bool weapon_line_cos(Weapon* w, WeaponManager* m, float* cos) {
-  if (!(w->damage != 1.0f)) return false;
-  Vec3f at = m->aim, mz, dir;
-  if (!w->aim(&at, &mz, &dir, nullptr)) return false;
-  const Vec3f* axis = w->node ? mech3::weapon_calls().node_axis(w->node) : nullptr;
-  if (!axis) {
-    *cos = 1.0f;
-    return true;
+// The weapon's line, 0x004b7800 (weapon_line), on what the port's weapon holds.
+struct LineHooks : WeaponLinePmHooks {
+  bool node_place(zgame::Handle node, float io[3]) override {
+    const auto& k = mech3::weapon_calls();
+    void* n = brain_hooks().object_of(node);
+    if (!n) return true;
+    return k.node_position && k.node_position(n, reinterpret_cast<Vec3f*>(io)) != 0;
   }
-  *cos = static_cast<float>(-(double{axis->z} * dir.z + double{axis->y} * dir.y + double{axis->x} * dir.x));
-  return true;
+  const float* node_axis(zgame::Handle node) override {
+    const auto& k = mech3::weapon_calls();
+    const Vec3f* a = k.node_axis ? k.node_axis(brain_hooks().object_of(node)) : nullptr;
+    return a ? &a->x : kZeros;
+  }
+  int32_t rand() override { return brain_hooks().rand(); }
+  bool quiet() override { return false; }  // [0x0062f86c], a debug switch, off
+};
+WeaponLinePm line_of(const Weapon& w) {
+  WeaponLinePm o;
+  const auto& k = mech3::weapon_calls();
+  o.damage = w.damage;
+  o.part_node = w.part && k.part_node ? brain_hooks().handle_of(k.part_node(w.part)) : 0;
+  o.node = brain_hooks().handle_of(w.node);
+  if (w.firepoint) o.fp_place = w.firepoint->position, o.fp_radius = w.firepoint->radius, o.fp_tolerance = &w.firepoint->aim[0];
+  o.salvo_left = w.salvo_left;
+  o.spread[0] = w.spread.x, o.spread[1] = w.spread.y, o.spread[2] = w.spread.z;
+  return o;
+}
+bool weapon_line_cos(Weapon* w, WeaponManager* m, float* cos) {
+  LineHooks h;
+  float mz[3], dir[3], kept;
+  return weapon_line(h, line_of(*w), &m->aim.x, mz, dir, cos, &kept);
 }
 
 // What a weapon heats by the second, kept on the exe's weapon at +0x1c: 0x004b8ed0, for a beam 0x004b8f10.
@@ -153,10 +171,9 @@ class WireAim : public AimPmHooks {
   bool targeting_aid(Brain* b) override { return brain_hooks().targeting_aid(vehicle_of(b)); }
   void vehicle_position(Brain* b, float out[3]) override { brain_hooks().position(vehicle_of(b), out); }
   void weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) override {
-    Vec3f a{at[0], at[1], at[2]}, mz, dir_;
-    weapon_of(w)->aim(&a, &mz, &dir_, nullptr);  // 0x004b7800, on the port's Weapon::aim
-    muzzle[0] = mz.x, muzzle[1] = mz.y, muzzle[2] = mz.z;
-    dir[0] = dir_.x, dir[1] = dir_.y, dir[2] = dir_.z;
+    LineHooks h;
+    float c, kept;
+    ai::weapon_line(h, line_of(*weapon_of(w)), at, muzzle, dir, &c, &kept);
   }
   int32_t rand() override { return brain_hooks().rand(); }
   float now() override { return brain_hooks().now(); }
