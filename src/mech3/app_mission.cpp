@@ -3,6 +3,7 @@
 // Core states: the pilot's game for a debug launch (our addition), the view
 // the Core state draws through. Not original code: it stands where the exe's
 // other modules will be. What has no port is logged once by address.
+#include <optional>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -62,6 +63,7 @@
 #include "mech3/cheats.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/landmines.h"
+#include "mech3/load_watch.h"
 #include "mech3/entity_classes.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_objective.h"
@@ -1752,6 +1754,7 @@ struct WiredMissionHooks : MissionHooks {
   }
   void progress_text(const char* s) override {
     program_briefing_line(s);
+    LoadWatch::step(s);
     if (s && *s && !e->quiet)
       std::printf("mw3: load: %s (%lld ms)\n", s,
                   static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -2474,7 +2477,11 @@ void GameEngine::missions_start(uint32_t list) {
   ai::entity_list().clear();
   if (stealth) ai::entity_list().push_back(stealth);
   mech_entities_forget();
-  m.start();
+  {
+    std::optional<LoadWatch> watch;
+    if (!quiet) watch.emplace();
+    m.start();
+  }
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");
   zcls::Node* cam = mission_node(*this, camera_);
   if (launch_.active && launch_.have_pos && cam) {  // as the debug viewer places it (render.md section 0)
