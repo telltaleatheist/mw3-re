@@ -9580,6 +9580,7 @@ TEST(mission_c1m1_difficulty_reaches_the_damage_headless) {
   reset_process_state();
   mech3::missions() = mech3::Missions{};
   mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -9623,7 +9624,14 @@ TEST(mission_c1m1_difficulty_reaches_the_damage_headless) {
     pump.limit = 400;
     pump.stop = [&] { return done; };
     app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
   }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
   mech3::options() = mech3::Options{};
   for (int l = 0; l < 3; ++l)
     std::printf("  difficulty %d: intensity.zrd %.2f %.2f %.2f, no heat haze %d, a hit takes %.4f\n", l, preset[l][0], preset[l][1], preset[l][2], haze_off[l], loss[l]);
