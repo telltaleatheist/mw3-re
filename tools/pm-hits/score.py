@@ -56,14 +56,18 @@ def main():
                 hit_pm.add(addr)
     rows = list(csv.DictReader(open(a.summary, encoding='utf-8-sig'), delimiter='\t'))
     ran = {int(r['pm_addr'], 16) for r in rows if 'mission' in (r.get(a.run) or '')}
+    listed = {int(r['pm_addr'], 16) for r in rows}  # the trace only watched these
     have = set(names.values())
-    both, missed, extra = ran & hit_pm, (ran & have) - hit_pm, hit_pm - ran
+    both, missed = ran & hit_pm, (ran & have) - hit_pm
+    extra, unwatched = (hit_pm & listed) - ran, hit_pm - listed
     print(f'{len(hit_names)} instrumented functions entered; {len(hit_pm)} named PM functions')
-    print(f'the trace ran {len(ran)} in {a.run}; the port names {len(ran & have)} of them')
-    print(f'  hit: {len(both)}   ported but never entered: {len(missed)}   entered, the trace never ran: {len(extra)}')
+    print(f'the trace watched {len(listed)} and ran {len(ran)} in {a.run}; the port names {len(ran & have)} of those')
+    print(f'  hit: {len(both)}   ported but never entered: {len(missed)}   entered, watched, never run there: {len(extra)}'
+          f'   entered, not watched (no answer): {len(unwatched)}')
     if a.list:
         print('never entered:', ' '.join(hex(x) for x in sorted(missed)))
-        print('entered, not in the trace:', ' '.join(hex(x) for x in sorted(extra)))
+        print('entered, watched, never run there:', ' '.join(hex(x) for x in sorted(extra)))
+        print('entered, not watched:', ' '.join(hex(x) for x in sorted(unwatched)))
 
 
 if __name__ == '__main__':
