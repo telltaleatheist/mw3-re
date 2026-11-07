@@ -29,14 +29,56 @@ with the code from it. Recoil's exes have "stealth" and an `ai_net.cpp` but none
 editor's menu text ("PICK A COMMAND", "BATTLESPORT", the net editor's rows): by strings
 alone, not a disassembly, the menus aren't in them.
 
-The Windows dialogs are another matter (2026-11-07, read from each exe's resources; whether
-code still opens them is not checked). `Mech3.exe` 1.2 holds 38 dialog templates, 17 in Recoil's:
+The Windows dialogs are another matter (2026-11-07, read from each exe's resources). `Mech3.exe` 1.2 holds 38 dialog templates, 17 in Recoil's:
 both have AI Network Editor (139), Net Edit (140), Node Edit - Vehicle (141), Map Area
 Editor (142), Vehicle Select (143), Camera Properties (106), Teleport (132). MW3 adds Mech Editor (149),
 Select Mech (156), Global Light Properties (160), Mech AI (165) with pages p1, p2, p5, Attack, Retreat, Fire,
 Valve, Zig Zag, Circle, Jump, Direct and Random Move (166-176, 183), Node Parameters (180), a second Ai
 Network Editor (181), Mech Animation Transitions (182) and Enter Cheat Code (138). Pirate's Moon's exe
 keeps only Teleport (132) and one dialog of its own (188), though its menus' strings are there.
+
+**Which of them code still opens** (2026-11-07, dev 2; every `CDialog`
+constructor and `Create` in the exe, and every push of a template's id; the
+exe has no `DialogBoxParam` or `CreateDialogParam`). "No key" means the
+debug command is bound to nothing (`keybindings.md`), as with 0x9a itself.
+The debug menu (resource 147, 0x00482d10) is taken off the window at engine
+start (0x00480570), before anyone can use it, and resources 148 and 149 have
+no load found as menus.
+
+| Status | Template | Way in |
+|---|---|---|
+| Reachable in the release | Select Video Device (162) | 0x0047fe10 at start-up, when full screen and the saved device says ask (999) |
+| Code, no way in | Vehicle Select (143) | command 0x8a, no key |
+| | Camera Properties (106) | command 0x8f, no key |
+| | Teleport (132) | command 0x95, no key (0x004a37a0 -> 0x0040dfe0; it writes location.zrd) |
+| | Select Mech (156) | command 0x84, no key; message id 0x9c65, in no menu |
+| | About (103) | the debug menu's Help (0x6b, 0x00483260) |
+| | Mech AI (165), its 12 pages p1..Random Move (166-176, 183) | EDIT VEHICLES (0x004040c0 -> 0x004b86e0) and command 0x9d, no key |
+| | AI Network Editor (139) | EDIT AI NETS: the pick 0x0040e120 -> 0x004a4c20 |
+| | Node Edit - Vehicle (141) | Add veh to node, 0x00403820 -> 0x0049d350 |
+| | Node Parameters (180) | Node Params; node slot +0x90, 0x004c7190 -> 0x004c7840 |
+| | Ai Network Editor (181) | Change Net Params, 0x004bd330 -> 0x004bf670; also the Mech AI dialog |
+| | the tree (155, untitled) | Tree View, 0x00402bf0 -> 0x004b5580 |
+| Template only | Controls (118), Graphics and Sound (119), Configure Controls (134), Multi Player Missions (136), Enter Cheat Code (138), Net Edit (140), Map Area Editor (142), New Game (146), Mech Editor (149), the untitled 152, 154, 179, Global Light Properties (160), Mech Animation Transitions (182) | nothing constructs them |
+
+So 1 is live, 23 have working code behind no way in, and 14 are only
+templates. Everything behind 0x9a is reachable in the port through Shift+F12;
+the other debug commands are not. A template with no code has nothing to
+port: it shows what the tools once did, no more.
+
+**zStudio** (github.com/Vorta/zStudio, MIT, a map editor for Recoil with MW3
+1.2 source projects; docs read 2026-11-07, not its code; nothing taken). Its
+project keeps nets as text in `data/<campaign>/zrdr/aipath/m1`, left at
+version 106, and builds that folder into `readerm1.zbd`, one archive to one
+mission, as our save does. It rebuilds every member, so an export is
+not byte-identical to the shipped archive, and it writes to a separate
+folder. It does not clash with our save, which works on whichever archive is
+loaded: drop its export in a mod and the editor saves over the mod's own
+copy. Two checks when the save exists: open a zStudio-built archive, and
+keep every other member's table entry as it stands (name, comment, time).
+Its docs put a project path in a member's name for Recoil and don't say so
+for MW3, and our lookup matches the name alone. Its MW3 map editing is
+deferred and PM is not supported; world editing is not ours to duplicate.
 
 ## The entry and the exit
 
@@ -250,6 +292,8 @@ already, and vehicles on the old net go over to the new one on 0x004bed90's
 pattern (the list at [0x0073655c], vt+0x140, vt+0x64, then vt+4), or the
 edit shows at the next mission load. The first is small and is a choice: it
 does what the 105 path was for, and the release never did it.
+Decided 2026-11-07: the first, marked ours in fixes.md and CHANGES.md, inside
+the editor only; the 25 functions stay unported and listed here.
 
 ## The stealth object
 
