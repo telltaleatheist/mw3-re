@@ -20,7 +20,7 @@ class SteerPmHooks {
   virtual ~SteerPmHooks() = default;
   virtual void position(zgame::Handle e, float out[3]) = 0;       // 0x005cb260
   virtual void forward(zgame::Handle v, float* x, float* z) = 0;  // +0x24, +0x2c
-  virtual bool halted(zgame::Handle v) = 0;                       // vt+0x150
+  virtual bool halted(zgame::Handle v) = 0;                       // vt+0x150: airborne, on a mech its +0x5a8
   virtual bool order_steers(Brain* b) = 0;                        // 0x004fa470
   virtual const std::vector<const Contact*>& contacts(zgame::Handle v) = 0;  // +0xac
   virtual zgame::Handle contact_entity(const Contact* c) = 0;     // 0x004f8d70

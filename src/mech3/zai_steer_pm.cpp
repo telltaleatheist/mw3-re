@@ -179,7 +179,7 @@ void SteerPm::set(SteerPmHooks& h, const float to[3], const float from[3], float
   side = m[1];
 }
 
-// Pirate's Moon 1.0 @ 0x004dc9d0 (MW3's 0x004ceb50): nothing for a halted vehicle. The keep's reach
+// Pirate's Moon 1.0 @ 0x004dc9d0 (MW3's 0x004ceb50): nothing for a vehicle in the air. The keep's reach
 // shrinks with the distance to the side; the contacts until one has no target or is past the reach.
 void SteerPm::measure(SteerPmHooks& h, zgame::Handle v) {
   if (h.halted(v)) return;
