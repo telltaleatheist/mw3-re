@@ -23,6 +23,20 @@ original.
 
 ### Coming in the next release
 
+- **Ctrl+I in the mech lab keeps your loadout.** Importing a loadout read the
+  file, added nothing and renamed the file `.done`, so it seemed to vanish. It
+  now adds the loadout. If you lost one, take `.done` off its name in the
+  `import` folder and press Ctrl+I again.
+- **Accented and non-English letters on Windows.** A folder like `D:\Café`, or
+  a Windows user name with an accent, stopped the game from starting. Windows
+  10 version 1903 or later now handles them, and pilots saved under a garbled
+  name get their right name back.
+- **Missing fonts.** A MechWarrior 3 folder without its fonts now uses your
+  system's, where it used to show blank text.
+- **The debrief at 16:9.** The screen's three columns now sit together in the
+  middle, and the extra width stays open at the sides.
+- **A possible crash after a blown-off limb,** when a mission restarted, is
+  gone.
 - **The same acceleration above 83 fps.** Holding a throttle key above about
   83 fps skipped the mech's slow build-up of speed, so it pulled away nearly
   2 seconds sooner than at 30 or 60 fps. It now builds up the same at any
