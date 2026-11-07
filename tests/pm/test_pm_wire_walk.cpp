@@ -207,6 +207,9 @@ TEST(pm_wire_walk_queue_via_leaves_a_pending_item) {
   w.queue_via(&via);
   w.queue_via(&via);
   EXPECT(pm_pending_count(b) == 2);
+  pm_queue_back(b, nullptr);  // the terminus's (0x004e1fd0)
+  pm_queue_back(b, &node);
+  EXPECT(pm_pending_count(b) == 4);
   EXPECT(pm_hooks_missing().empty());
   pm_pending_forget(b);
 }

@@ -48,6 +48,8 @@ bool pm_run_pending(Brain& b);
 void pm_pending_forget(const Brain& b);
 // 0x004ea0f0 with a 0x005eeca4: a follow of `behaviour` on `net`, at the back.
 void pm_queue_follow(Brain& b, const void* net, const void* behaviour);
+// 0x004ea180 with a 0x005ef254, or with no behaviour a 0x005ef250: back to it, at the front.
+void pm_queue_back(Brain& b, const void* behaviour);
 size_t pm_pending_count(const Brain& b);
 
 }  // namespace mech3::ai

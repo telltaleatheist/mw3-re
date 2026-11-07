@@ -77,10 +77,12 @@ void pm_queue_follow(Brain& b, const void* net, const void* behaviour) {
 }
 
 // 0x004ea180 with a 0x005ef254, or with none a 0x005ef250: at the front.
-void WireAttack::return_to(zgame::Handle behaviour) {
+void WireAttack::return_to(zgame::Handle behaviour) { pm_queue_back(b_, pm_ptr(behaviour)); }
+
+void pm_queue_back(Brain& b, const void* behaviour) {
   PendingPm p;
-  p.kind = behaviour ? PendingPm::kBackTo : PendingPm::kBack, p.behaviour = behaviour;
-  pending()[&b_].push_front(p);
+  p.kind = behaviour ? PendingPm::kBackTo : PendingPm::kBack, p.behaviour = pm_id(behaviour);
+  pending()[&b].push_front(p);
 }
 
 // 0x004fb260's first half: one item, before the order runs. The exe asks the last order's ready flag (+0x04, set
