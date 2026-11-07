@@ -152,7 +152,8 @@ def main():
     print(f'{len(worlds)} worlds, {areas} areas, {polygons} polygons, {corners} corners (widths {classes}); {screened} screened, '
           f'{queries} on the exe, outcomes {dict(sorted(outcomes.items(), key=lambda x: int(x[0])))}, rare cases {cases}: {bad} differ')
     if not bad:
-        pm_floors.floors(worlds=(len(worlds), 4 if len(sys.argv) < 2 else 1), areas=(areas, 25 if len(sys.argv) < 2 else 1), nearest_side=(cases.get(1, 0), 20 if len(sys.argv) < 2 else 0))
+        whole = len(sys.argv) < 2 and not os.environ.get('MW3_BOUNDARY_WORLD')
+        pm_floors.floors(worlds=(len(worlds), 4 if whole else 1), areas=(areas, 25 if whole else 1), nearest_side=(cases.get(1, 0), 20 if whole else 0))
     sys.exit(1 if bad else 0)
 
 
