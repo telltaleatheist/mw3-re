@@ -132,6 +132,7 @@ PuffHooks& puff_hooks();
 
 // --- Puffers ---
 Puffer* puffer_create();                                   // 0x0054a710
+void puffer_destroy(Puffer* p);                            // Pirate's Moon 0x00565cb0
 void puffer_set_active(Puffer* p, int32_t on);             // 0x0054ab40  off also forgets the position
 void puffer_set_node(Puffer* p, zcls::Node* node);         // 0x0054ab60
 void puffer_set_translate(Puffer* p, const float v[3]);    // 0x0054ab70

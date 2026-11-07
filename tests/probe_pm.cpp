@@ -1695,6 +1695,9 @@ int probe_pm_projected(int node, int poly, uint32_t flags, int count, float* pos
   return static_cast<int>(b.size()) + 4;
 }
 void probe_pm_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
+int probe_pm_load_step(float* stress, float* load, float limit, float tons, float steps) {
+  return mech3::ai::load_step(*stress, *load, limit, tons, steps) ? 1 : 0;
+}
 void probe_pm_set_bugs(int on) { zfix::options().bugs = on != 0; }
 // test_pm_submit.py: the whole draw, every device call: kind, count, cull, primitive,
 // shade, fade, overlay, its TL vertices, then its sets' UVs and colours.

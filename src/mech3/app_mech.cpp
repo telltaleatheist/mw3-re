@@ -521,6 +521,14 @@ void wire_mech_frame() {
     zcls::object3d_set_translation(zn(m.node), at->x, at->y, at->z);
     m.entity_moved();
   };
+  // Pirate's Moon 0x0040f670 on the planted foot's ground record: the node's target (its id's bit 21).
+  update_calls().ground_entity = [](Mech& m, int rec) -> Handle {
+    const zcls::Node* n = m.skis ? zn(m.skis->contact[rec].node) : nullptr;
+    return n && (n->get<uint32_t>(0x28) >> 21 & 1) ? n->owner : nullptr;
+  };
+  update_calls().stood_on = [](Handle entity, Mech& m) {  // 0x004e2e30, the mech's tons 0x00486830
+    static_cast<ai::CZAiTarget*>(entity)->stood_on(max_mass(m.pilot ? m.pilot->roster : -1), ztimer::state().dt);
+  };
   update_calls().moved = [](Mech& m) { m.entity_moved(); };                                 // 0x005a85c0
   update_calls().landmines = [](const Vec3* at) { landmines_check(at ? &at->x : nullptr); };  // 0x00413560
   landmine_hooks().ground = [](float x, float y, float z, zcls::GroundHits* out) -> int32_t {    // 0x004edab0
