@@ -321,7 +321,7 @@ struct FiringPm {
   float x54 = 0;              // +0x54  what `rate` answers
   float cool_for = 0, cool_until = 0, cool_below = 0;  // +0x58, +0x5c, +0x60
   float shot_every = 0, shot_next = 0;  // +0x64, +0x68
-  void seed();                // the numbers of 0x004ba660, copied in by the constructor 0x004ba750
+  void seed();                // 0x004ba750's copy of the start-up's numbers (0x004ba660)
   void step(float dt);        // 0x004bb700
 };
 
