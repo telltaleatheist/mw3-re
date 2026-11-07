@@ -1,6 +1,7 @@
 // The firing's and the attack's hooks on the program: what's answered reaches BrainHooks or the port's own pieces,
 // the rest is counted, and the hook tables are left as found.
 #include "check.h"
+#include "mech3/zai_steps.h"
 #include "mech3/weapon.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_wire_attack_pm.h"
@@ -226,6 +227,14 @@ TEST(pm_wire_attack_makes_its_context_and_counts_the_order_side) {
   EXPECT(a.speed() == 0.5 && a.now() == 12.0f && a.orders() == b.orders.size());
   a.fight_enter();
   EXPECT(s.speed == 1.0f);  // the brain's +0x10c, by the fake's speed
-  a.queue_after(1, 2);
-  EXPECT(pm_hooks_missing().at("0x004ea0f0") == 1);
+  EXPECT(!pm_run_pending(b));
+  mech3::ai::VehicleNet vn(9);
+  EXPECT(b.set_net(&vn) && b.push_net(&vn) && b.push_net(&vn));
+  a.return_to(0);  // back: the order popped, one a frame
+  a.return_to(0);
+  const size_t n = b.orders.size();
+  EXPECT(pm_run_pending(b) && b.orders.size() == n - 1);
+  EXPECT(pm_run_pending(b) && !pm_run_pending(b));
+  pm_pending_forget(b);
+  b.set_net(nullptr);
 }

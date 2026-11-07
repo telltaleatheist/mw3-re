@@ -358,7 +358,13 @@ class WirePlan : public PlanPmHooks {
   bool in_sight(zgame::Handle v, zgame::Handle e) override {
     return brain_hooks().clear_line(v, e);  // 0x004e5d00 is MW3's 0x004d5980
   }
-  void part_place(uint32_t part, float out[3]) override { pm_hook_missing("WirePlan.part_place"); }
+  void part_place(uint32_t part, float out[3]) override {
+    Vec3f at{0, 0, 0};  // 0x004ff250: the node's place in the world
+    const auto& k = mech3::weapon_calls();
+    void* node = k.part_node ? k.part_node(brain_hooks().object_of(part)) : nullptr;
+    if (node && k.node_position) k.node_position(node, &at);
+    out[0] = at.x, out[1] = at.y, out[2] = at.z;
+  }
   const float* entity_place(zgame::Handle e) override {
     brain_hooks().position(e, buf_);
     return buf_;

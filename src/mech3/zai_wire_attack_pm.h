@@ -43,6 +43,10 @@ class WireAttack : public AttackPmHooks, public PendingPmHooks {
   std::unique_ptr<WalkAttackPm> ctx_;
 };
 
+// The attack's pending items (0x004ea0f0, 0x004ea180), run one a frame by the tick's run_orders before the order.
+bool pm_run_pending(Brain& b);
+void pm_pending_forget(const Brain& b);
+
 }  // namespace mech3::ai
 
 #endif
