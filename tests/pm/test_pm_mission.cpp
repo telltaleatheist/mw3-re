@@ -14,6 +14,7 @@
 #endif
 
 #include "check.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/player.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zclass/class.h"
@@ -215,6 +216,9 @@ int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown, bool r
 void pm_leg_reset();
 const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
+int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
+int pm_missile_hits();
+float pm_kill_ground(float x, float y, float z);
 void pm_kill_weapons(void* mech);
 void pm_kill_scales(void* mech);
 // Pirate's Moon 1.0 @ 0x004a4490, 0x004a4440: the box window opens before the player's update and the walk and closes after both.
@@ -255,6 +259,7 @@ TEST(pm_player_tick_box_window) {
 
 static void kill_run(const char* which, bool quick) {
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  if (std::getenv("PM_BUGS_OFF")) zfix::options().bugs = false;
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3PM_GAME_DIR);
@@ -340,9 +345,38 @@ static void kill_run(const char* which, bool quick) {
     mech3::entities_box_counts(&during, &left_on, &fields, &stealth);
     box_field = std::max(box_field, fields), box_stealth = std::max(box_stealth, stealth);
     box_during = std::max(box_during, during), box_left = std::max(box_left, left_on);
-    if (since++ % 60 == 0) {
+    int missile[5] = {-1, 0, 0, 300, 0};
+    if (const char* e = std::getenv("PM_MISSILE")) std::sscanf(e, "%d,%d,%d,%d,%d", &missile[0], &missile[1], &missile[2], &missile[3], &missile[4]);
+    if (missile[0] >= 0 && static_cast<int>(at) < missile[4]) { ++at; return; }
+    if (since++ % 60 == 0 && missile[0] < 0) {
       const float mine[3] = {there[0] - 40.0f, there[1], there[2]};
       mech3::move_mech(player, mine, -1.5707964f);  // facing +x
+    }
+    if (missile[0] >= 0) {  // once, at the range, then the shooter stands
+      if (since == 1) {
+        std::printf("  == %s at %s, lock %d artemis %d range %d, state %d\n", pm_weapon_name(player, missile[0]), names[at] ? names[at] : "?", missile[1], missile[2], missile[3], info.anim_state);
+      }
+      static float mine[3];
+      if (since == 1) {  // level ground at the range, as a player would pick
+        float best = 1e9f;
+        const float here = pm_kill_ground(there[0], there[1] + 200.0f, there[2]);
+        for (int k = 0; k < 32; ++k) {
+          const float a = 6.2831853f * static_cast<float>(k) / 32.0f, x = there[0] + std::cos(a) * static_cast<float>(missile[3]), z = there[2] + std::sin(a) * static_cast<float>(missile[3]);
+          const float g = pm_kill_ground(x, there[1] + 200.0f, z);
+          if (std::fabs(g - here) < best) best = std::fabs(g - here), mine[0] = x, mine[1] = g, mine[2] = z;
+        }
+        std::printf("  shooter %.0f %.1f %.0f, target ground %.1f\n", mine[0], mine[1], mine[2], here);
+      }
+      if (since > 1) {  // the shooter holds its ground and keeps the reticle on the target
+        const float dx = there[0] - mine[0], dz = there[2] - mine[2];
+        mech3::move_mech(player, mine, std::atan2(-dx, -dz));
+      }
+      if (since > 20) shots += pm_missile_step(player, m, missile[0], missile[1] != 0, missile[2] != 0);
+      if (since > 1500) {
+        std::printf("  %s: %d salvos, %d hits; state %d\n", names[at] ? names[at] : "?", shots, pm_missile_hits(), info.anim_state);
+        done = true;
+      }
+      return;
     }
     if (const char* leg = std::getenv("PM_LEG")) {  // weapon index: one weapon, ready shots only, at a leg
       const int weapon = std::atoi(leg);

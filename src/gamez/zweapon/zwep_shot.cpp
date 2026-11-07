@@ -547,8 +547,7 @@ void home(WeaponDef* def, Projectile* p) {
         HitList q;
         const int32_t r = segment(&p->position, p->target_at, &q);
         if (def->flags & kFlyoutHealth) set_intersect(p->node, 1);
-        const uintptr_t hd = hit_hooks().node_handler ? hit_hooks().node_handler(q.rec[q.count].node) : 0;
-        if (r == 0 && hd <= 1) {
+        if (r == 0 && (hit_hooks().node_handler ? hit_hooks().node_handler(q.rec[q.count].node) : 0) <= 1) {  // nothing hit: no record
           want.y = want.y - def->pitch_rate * track * -0.636619925f;
           zmth::normalize(want);
         }

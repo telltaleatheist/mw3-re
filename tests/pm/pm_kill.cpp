@@ -5,12 +5,16 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zweapon/zweapon.h"
+#include "gamez/zweapon/zwep_init.h"
+#include "mech3/app_hud.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
 
 #include <cstdio>
+#include <cmath>
+#include <map>
 #include <string>
 
 using namespace mech3;
@@ -170,3 +174,83 @@ const char* pm_weapon_name(void* player, int i) {
 
 // The leg's gone, and everything the player landed on this mech landed on a leg (the rest of the mission shoots it too).
 bool pm_kill_only_leg_lost(void* mech, int leg) { return static_cast<Mech*>(mech)->legs[leg]->internal == 0.0f && pm_leg_off_leg == 0; }
+
+// One missile weapon at a mech at range, a shot at a time: every missile's nearest pass, its last distance and how
+// many reached the target's damage (PM_MISSILE=weapon,lock,artemis,range).
+namespace {
+struct Flight {
+  float nearest = 1e9f, last = 0, age = 0, start = 0;
+  int frames = 0;
+  bool locked = false, seen = false;
+  float track = 0;
+  int follow = 0;
+};
+std::map<zwep::Projectile*, Flight> g_flights;
+int g_missile_hits = 0;
+void* g_missile_target = nullptr;
+}  // namespace
+
+int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis) {
+  auto* me = static_cast<Mech*>(player);
+  auto* m = static_cast<Mech*>(mech);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  me->heat = 0.0f;
+  Weapon* w = wm->weapons[weapon];
+  static decltype(damage_calls().controls_hit) old_hit;
+  if (g_missile_target != mech) {
+    if (!g_missile_target) {
+      old_hit = damage_calls().controls_hit;
+      damage_calls().controls_hit = [](Mech& t, WeaponDef* def, Collision* coll, float damage, Handle attacker) {
+        if (&t == g_missile_target && attacker == static_cast<Handle>(mech_mission_player())) ++g_missile_hits;
+        if (old_hit) old_hit(t, def, coll, damage, attacker);
+        else if (t.controls) t.controls->on_hit(attacker);
+      };
+    }
+    g_missile_target = mech;
+    bool set = false;
+    if (lock) std::printf("  lock group %d", program_hud_lock_on(mech, &set)), std::printf(", target set %d\n", set ? 1 : 0);
+    if (artemis) {
+      weapon_calls().fcs_count = [](Handle) { return 1; };
+      weapon_calls().equipment_in_part = [](Handle, int32_t, int32_t) { return true; };
+    }
+  }
+  float at[3] = {};
+  zcls::node_world_point(static_cast<zcls::Node*>(m->torso->node), at);
+  // The real route: the reticle's aim and the HUD's lock, the shot fired when the lock shows
+  int fired = 0;
+  static int lock_frames = 0;
+  if (wm->has_target) ++lock_frames;
+  if (w && w->can_fire() && g_flights.empty() && (!lock || wm->has_target)) fired = w->trigger() ? 1 : 0;
+  static int salvo_left_max = 0;
+  salvo_left_max = std::max(salvo_left_max, static_cast<int>(w->salvo_left));
+  if (fired) std::printf("  fired: salvo %d left %d, reload %.2f, locked %d, lock frames so far %d\n", static_cast<int>(w->salvo), static_cast<int>(w->salvo_left), w->reload, w->locked ? 1 : 0, lock_frames);
+  // The flights
+  std::map<zwep::Projectile*, bool> live;
+  for (auto* p = static_cast<zwep::Projectile*>(w->def->active); p; p = p->next) {
+    live[p] = true;
+    Flight& f = g_flights[p];
+    const float d = std::sqrt((p->position.x - at[0]) * (p->position.x - at[0]) + (p->position.y - at[1]) * (p->position.y - at[1]) +
+                              (p->position.z - at[2]) * (p->position.z - at[2]));
+    if (!f.seen) f.seen = true, f.start = d, f.locked = p->target_at != nullptr, f.track = p->track_scale[0], f.follow = p->terrain_follow;
+    f.nearest = std::min(f.nearest, d), f.last = d, f.age = p->age, ++f.frames;
+  }
+  for (auto it = g_flights.begin(); it != g_flights.end();) {
+    if (live.count(it->first)) { ++it; continue; }
+    const Flight& f = it->second;
+    std::printf("  missile: start %.0f nearest %.1f last %.1f age %.2f frames %d locked %d track %.1f follow %d\n", f.start, f.nearest, f.last, f.age, f.frames, f.locked ? 1 : 0, f.track, f.follow);
+    it = g_flights.erase(it);
+  }
+  return fired;
+}
+int pm_missile_hits() { return g_missile_hits; }
+
+// The ground under a point, from above.
+float pm_kill_ground(float x, float y, float z) {
+  float probe[3] = {x, y, z};
+  static zcls::GroundHits g;
+  zcls::ground_query(static_cast<zcls::Node*>(world_hooks().world), probe, 1, y, &g);
+  float best = -1e9f;
+  for (int i = 0; i < g.count; ++i)
+    if (g.hit[i].height > best) best = g.hit[i].height;
+  return best;
+}
