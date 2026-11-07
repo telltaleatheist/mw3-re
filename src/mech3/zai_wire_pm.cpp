@@ -30,7 +30,7 @@ static void report_missing() {
 }
 
 void pm_hook_missing(const char* key) {
-  static const bool reports = std::atexit(report_missing) == 0;
+  static const bool reports = (missing_counts(), std::atexit(report_missing) == 0);  // the map outlives it
   (void)reports;
   if (++missing_counts()[key] == 1) std::printf("mw3: pm ai: no answer yet for %s\n", key);
 }
