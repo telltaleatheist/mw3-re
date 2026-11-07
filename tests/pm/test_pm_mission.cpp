@@ -213,6 +213,8 @@ TEST(pm_c1m1_shadow_cats_wake) {
 // PM_KILL=index,type,number: the player's real weapons, all of them each frame, at each AI mech of a mission in turn,
 // at its torso from close by, until it's dead. The player can't die or run dry. One mission a process.
 extern int pm_kill_on_part, pm_kill_off_part;  // pm_kill.cpp
+void pm_watch(void* mech, const char* name, const float player[3]);
+int pm_watch_follow(void* mech);
 void pm_kill_begin(void* player);
 int pm_kill_fire(void* player, const float at[3]);
 void pm_kill_left(void* mech, char* out, size_t n);
@@ -390,6 +392,39 @@ static void kill_run(const char* which, bool quick) {
     mech3::entities_box_counts(&during, &left_on, &fields, &stealth);
     box_field = std::max(box_field, fields), box_stealth = std::max(box_stealth, stealth);
     box_during = std::max(box_during, during), box_left = std::max(box_left, left_on);
+    if (const char* watch = std::getenv("PM_M2_WATCH")) {  // x,z: the player there; PM_M2_ACROSS=x,z,t later; each AI mech logged
+      static int t = 0;
+      float x = 0, z = 0;
+      std::sscanf(watch, "%f,%f", &x, &z);
+      ++t;
+      if (t == 2) {
+        const float to[3] = {x, pm_kill_ground(x, 300.0f, z), z};
+        mech3::move_mech(player, to, 0.0f);
+      }
+      if (const char* across = std::getenv("PM_M2_ACROSS")) {
+        float ax = 0, az = 0;
+        int when = 0;
+        std::sscanf(across, "%f,%f,%d", &ax, &az, &when);
+        if (t == when) {
+          const float to[3] = {ax, pm_kill_ground(ax, 300.0f, az), az};
+          mech3::move_mech(player, to, 0.0f);
+        }
+      }
+      int32_t count = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&count);
+      if (std::getenv("PM_M2_FOLLOW") && t == 30)
+        for (int32_t i = 0; i < count; ++i)
+          if (ai[i].name && std::strcmp(ai[i].name, std::getenv("PM_M2_FOLLOW")) == 0)
+            std::printf("  follow %s: %d\n", ai[i].name, pm_watch_follow(ai[i].mech));
+      if (t % 300 == 1) {
+        float me[3];
+        mech3::mech_world_position(player, me);
+        std::printf("  t %d frames, player %.0f %.0f %.0f\n", t, me[0], me[1], me[2]);
+        for (int32_t i = 0; i < count; ++i) pm_watch(ai[i].mech, ai[i].name ? ai[i].name : "?", me);
+      }
+      if (const char* e = std::getenv("PM_M2_END"); t > (e ? std::atoi(e) : 3000)) done = true;
+      return;
+    }
     if (const char* mfb = std::getenv("PM_MFB")) {  // x,z: the player there, the MFB command twice, each base's way to its point
       static int t = 0, order_at = 0;
       static float dock[3] = {};

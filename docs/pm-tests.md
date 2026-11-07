@@ -306,6 +306,20 @@ Both on c1 mission 2 with `PM_AI=1`, next to c1m1, and both by reading so far, n
 
 **The lancemate's jump: does Epona cross with the player when fitted with jets?** Owen: "my lancemate was outfitted with jump jets but never crossed the canyon with me. shes supposed to do that." What makes her jump, by reading: a net's jump link, the same `net_15` node 01 (`jump 1 25.0`), taken by the way finder only with jets; then the jump state. On the stand-in that's `ValueStep::passable`, on PM the link pick 0x4d60d0 and `zai_jump_pm`. The real loadout is read: `Pilot::jump_jets` is `mech_jump_jets`, `equipment[11]`, the built mech's count, and PM's jump state `has_jets` is +0x3e8, the same field; to confirm in the run that a lancemate's mech is built from the player's loadout, not the stock one. Her strategy is 5 too. The stand-in has the link, the jets and a jump state, so reading can't say it must wait for the switch; which step fails there is unknown: a short stand-in run with her ordered to follow would show it. No valve orders her across: `jumpingspeak` is only her line.
 
+**Run on the stand-in (2026-11-07):** `PM_M2_WATCH=3360,-4640 PM_KILL=0,1,2 PM_M2_FOLLOW=epona_rhi` on `pm_enemies_die_under_real_fire`, 100 s of mission, with `PM_M2_ACROSS=3090,-4646,900 PM_M2_JETS=4` for the crossing. The player is dropped by Able and stands still, or is moved across. Epona's jets are set by hand on the launched mech, since a test launch has no campaign lance. No save of Owen's and nothing on the exe.
+
+| Who | What happened | Where it fails |
+|---|---|---|
+| Clint | Takes a target by 951 m, walks to the canyon's edge in `CircleState`, circles the player at 330..480 m. In one run he walks off the edge and dies at y -57 | He comes. The stand-in doesn't keep him out of the canyon |
+| Puma | `NodeState` and manoeuvres, wandering around 1800 -4450, no target at 1,490..1,726 m though her sight is 2,000 | Never engages; why isn't found |
+| Epona | `FollowState`: straight at the player. With the player across and jets 4, she walks off the edge at 3256 -4657 and dies at y -57. Never a jump | MW3's follow is a straight line, and only the walking states ask the way finder |
+
+**Strategy 5.** Every integer access of `[reg + 0x40]` in 0x4b8000..0x500000, 89 functions by the asm, and the three `lea`s checked: 0x4f5570 writes the brain's +0x40, and nothing found reads it. MW3's one reader, `VehiclePart` 0x4c0ba0, has no twin in the address map. So strategy 5, and any value, looks unused in PM, which would rule it out for Puma and Epona. That rests on reading: the base register of each access wasn't traced, and a watch needs the running exe (the logger's route, or the PC).
+
+**The lancemate's loadout.** Read: `mech_set_config` calls `mech_configure`, which clears `equipment` and rebuilds it from the config given, so a lancemate has the config the launch hands her, if `roster` matches her mech; otherwise it's refused. Not run through a campaign save.
+
+**Verdict: both wait for the switch.** On MW3's code the jump is a step on a net, and the way finder's link pick is called only by the walking states (MW3 0x4cf140, 0x4cfad0, 0x4d00a0; PM 0x4dcfe0, 0x4ddab0, 0x4de0e0), so a following mech can't take it. Teaching the stand-in's follow to use the link would be a behaviour nobody has read in PM: PM's follow isn't found yet. Keep the chase and the jump as named checks. Added to them: nobody walks off the canyon's edge, and Puma takes a target; find PM's follow before the first run.
+
 ## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
 
 What it's for: PM's places and states once a second, to compare by event against the port, and the jump's +0x588 and fuel. The smallest thing that does it is a logging form of `tools/weapon-patch/proxy`.

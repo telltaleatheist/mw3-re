@@ -14,8 +14,13 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
+#include "mech3/zai_brain.h"
+#include "mech3/zai_steps.h"
+#include "mech3/mech_control.h"
+#include <typeinfo>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <map>
 #include <string>
@@ -314,4 +319,30 @@ void pm_kill_fall_line(void* mech, int t) {
   mech_world_position(mech, at);
   std::printf("  fall %4d: y %.2f vy %.2f state %d air %d surface %.1f %.1f depth %.1f torso %.3f legs %.3f %.3f\n", t, at[1], m->vec_3c.y, m->anim_state, m->airborne() ? 1 : 0,
               m->skis->surface[1], m->skis->surface[4], (m->skis->surface[4] + m->skis->surface[1]) * 0.5f - at[1], m->torso->internal, m->legs[0]->internal, m->legs[1]->internal);
+}
+
+// PM_M2_WATCH: what a mech on the stand-in is doing, for the mission 2 run (docs/pm-tests.md).
+void pm_watch(void* mech, const char* name, const float player[3]) {
+  auto* m = static_cast<Mech*>(mech);
+  float p[3];
+  mech_world_position(mech, p);
+  const float dx = p[0] - player[0], dz = p[2] - player[2];
+  auto* ac = dynamic_cast<AiControls*>(m->controls);
+  ai::Brain* b = ac ? ac->brain.get() : nullptr;
+  std::printf("    %-13s %7.0f %6.0f %8.0f d %6.0f anim %2d xbc %02x jets %d", name, p[0], p[1], p[2], std::sqrt(dx * dx + dz * dz), m->anim_state, m->xbc, m->equipment[11]);
+  if (b) {
+    std::printf(" strat %d orders %zu", b->params.get<int32_t>(0x40), b->orders.size());
+    if (!b->orders.empty()) {
+      ai::Order& o = b->current();
+      std::printf(" state %s", o.state ? typeid(*o.state).name() : "-");
+    }
+  }
+  std::printf(" target %d\n", m->target ? 1 : 0);
+}
+int pm_watch_follow(void* mech) {
+  auto* m = static_cast<Mech*>(mech);
+  if (const char* e = std::getenv("PM_M2_JETS")) m->equipment[11] = std::atoi(e);
+  auto* ac = dynamic_cast<AiControls*>(m->controls);
+  if (!ac || !ac->brain || !m->player_contact) return -1;
+  return ac->brain->lance_order(0, m->player_contact);
 }
