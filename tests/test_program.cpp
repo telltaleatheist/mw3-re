@@ -9644,6 +9644,70 @@ TEST(mission_c1m1_difficulty_reaches_the_damage_headless) {
   EXPECT(std::fabs(loss[2] / loss[1] - preset[2][2] / preset[1][2]) < 1e-3f);
 }
 
+// Artemis in a side torso, beside the launchers there (parts 7 and 8): the check is by the config's part number
+// (0x00460c10), and the torso's sides share one MechPart, so going through it never found them.
+TEST(mission_c1m1_side_torso_artemis_reaches_the_launcher_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_artemis_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen;
+  p.sound = &sound, p.files = &files;
+  int found = 0, with_fcs = 0, others_fcs = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.mech = 1;  // two LRM 10s with Artemis beside them
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    bool done = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || done) return;
+      void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      for (int32_t i = 0; i < 16; ++i) {
+        const char* d = mech3::program_weapon_desc(m, i);
+        if (!d) continue;
+        const bool lrm = std::strncmp(d, "LRM", 3) == 0;
+        found += lrm;
+        (lrm ? with_fcs : others_fcs) += mech3::program_weapon_fcs(m, i) ? 1 : 0;
+      }
+      done = true;
+    };
+    CountingPump pump;
+    pump.limit = 300;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  std::printf("  artemis: %d LRM launchers, %d with it, %d other weapons in those parts\n", found, with_fcs, others_fcs);
+  EXPECT(found == 2 && with_fcs == 2);
+}
+
 // The left mouse button fires (CMD_TRIGGER1), with the mouse as DirectInput
 // has it: exclusive and foreground, so refused while the window is not in
 // front. The game starts unfocused, the window then gains the focus (the

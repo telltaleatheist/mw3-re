@@ -295,7 +295,14 @@ Handle Arm::fly_away(Vec3* velocity, bool stub) {
   return MechPart::fly_away(velocity, stub);
 }
 
-// Mech3.exe 1.2 @ 0x00460cc0 / 0x00460c10. A destroyed item still counts.
+// Mech3.exe 1.2 @ 0x00460c10: by the config's part number. A destroyed item still counts.
+bool mech_equipment_in_part(Mech& m, int kind, int part) {
+  for (EquipmentItem* it : equipment_in(m, part))
+    if (it->equipment == kind) return true;
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x00460cc0.
 bool MechPart::has_equipment(int kind) {
   if (!node) return false;
   for (EquipmentItem* it : equipment_in(*mech, id))

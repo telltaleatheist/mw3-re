@@ -21,6 +21,9 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
+- Multiplayer: a laid mine goes off after its two minutes again. The rebuild's clock for it never ran, so a mine stayed for good.
+
 - **Difficulty sets the damage your side takes again.** The rebuild read the setting but never passed that part on, so every level played like High: you took full damage even on Medium. Now, as in the original, you and your allies take 40% on Low, 70% on Medium and 100% on High (not in multiplayer). This is not behind the bug-fix switch, because it restores the original. On Low the screen's heat haze is back to the original's rule too, from the same setting.
 
 - **A joystick's throttle lever reaches reverse.** The original's lever ran from stop to full ahead; reverse took the Toggle throttle direction key (Backspace). Now the lever covers the whole range, full reverse at the bottom to full ahead at the top, with stop a little over a third of the way up (reverse is slower, so each step of the lever is the same change of speed both ways) and a small band around it that holds stop. A lever left at the bottom does not send the mech backwards at the start of a mission. Toggle throttle direction (Backspace, stick button 10) flips the keys' throttle but not the lever, so nothing can leave the lever backwards for the rest of a mission; a lever that runs backwards on your stick is cured by unticking Invert in Assign Axis. `throttle_reverse=0` in `mw3.cfg` gives the original's lever, which Backspace flips. Gamepad triggers are unchanged. The controls screen's Assign Axis also offers the stick's sliders, where many throttle levers are.

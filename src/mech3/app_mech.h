@@ -502,6 +502,8 @@ bool program_mech_lock_on(void* mech, void* target);                 // for the 
 std::vector<std::string> program_holders_of(uint32_t x, const void* gone);  // for the tests: who still holds it
 void program_mech_set_attacker(void* mech, void* attacker);  // for the tests
 float program_leg_hit_loss(void* mech, float damage);
+bool program_weapon_fcs(void* mech, int32_t i);
+const char* program_weapon_desc(void* mech, int32_t i);
 void program_mech_wreck_gone(void* mech);                            // for the tests: 0x0041e140's delete  // vt+0xd4 0x004aeec0 (with the attacker FIX)
 // The IA Dummy State's tally (0x0047ce80's loop over zEntity's list): each
 // mech's kills (+0x3f4) to the Instant Action game's player (+0x4c), ally
