@@ -237,8 +237,9 @@ TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
 TEST(pm_wire_nets_ten_slots_and_the_kind_lookup) {
   Fake f;
   Installed in(&f);
-  PmVehicleNet* n = pm_vehicle_net(9);
-  EXPECT(n == pm_vehicle_net(9) && n->elems.size() == 10);
+  VehicleNet* n = pm_vehicle_net(7);
+  EXPECT(n == pm_vehicle_net(7) && n == f.self.net && n->elems.size() == 10);  // on the vehicle, as MW3's
+  EXPECT(pm_vehicle_net(9) == nullptr);  // no AiTarget
   EXPECT(n->follow() != nullptr && n->attack() != nullptr);  // MW3's asks still answer
   AiParams rec;
   Brain b(nullptr, rec);
@@ -248,7 +249,7 @@ TEST(pm_wire_nets_ten_slots_and_the_kind_lookup) {
   EXPECT(pm_kind_behaviour(b, 7)->kind == static_cast<StepKind>(kVehicleSlotsPm[9]));
   EXPECT(pm_kind_behaviour(b, 0)->kind == StepKind::VehFollow);
   b.set_net(nullptr);
-  pm_vehicle_nets_clear();
+  delete f.self.net;  // znet's to free in the program
 }
 
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {

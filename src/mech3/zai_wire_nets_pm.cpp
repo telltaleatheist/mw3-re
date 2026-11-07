@@ -1,10 +1,8 @@
 #include "mech3/zai_wire_nets_pm.h"
 
-#include <map>
-#include <memory>
-
 #include "mech3/zai_brain.h"
 #include "mech3/zai_brain_pm.h"
+#include "mech3/zai_target.h"
 #include "mech3/zai_wire_pm.h"
 
 namespace mech3::ai {
@@ -25,11 +23,6 @@ PmVehicleNet::PmVehicleNet(zgame::Handle vehicle) : VehicleNet(vehicle) {
 }
 
 namespace {
-std::map<zgame::Handle, std::unique_ptr<PmVehicleNet>>& nets() {
-  static std::map<zgame::Handle, std::unique_ptr<PmVehicleNet>> m;
-  return m;
-}
-
 struct Slots : NetSlotsPmHooks {
   explicit Slots(const VehicleNet& n) : n(n) {}
   zgame::Handle slot(int32_t i) override {
@@ -45,13 +38,16 @@ struct Slots : NetSlotsPmHooks {
 };
 }  // namespace
 
-PmVehicleNet* pm_vehicle_net(zgame::Handle vehicle) {
-  std::unique_ptr<PmVehicleNet>& n = nets()[vehicle];
-  if (!n) n = std::make_unique<PmVehicleNet>(vehicle);
-  return n.get();
+// 0x004d70f0's place: the vehicle's +0xd0, given to znet as MW3's is. A net MW3's code made first stays.
+VehicleNet* pm_vehicle_net(zgame::Handle vehicle) {
+  AiTarget* t = brain_hooks().targetable(vehicle);
+  if (!t) return nullptr;
+  if (!t->net) {
+    t->net = new PmVehicleNet(vehicle);
+    brain_hooks().on_new(0x20, t->net);
+  }
+  return t->net;
 }
-
-void pm_vehicle_nets_clear() { nets().clear(); }
 
 Behaviour* pm_kind_behaviour(Brain& b, int32_t kind) {
   const auto* n = b.orders.empty() || !b.current().net ? nullptr : dynamic_cast<VehicleNet*>(b.current().net->net());

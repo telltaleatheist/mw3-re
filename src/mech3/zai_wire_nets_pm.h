@@ -13,8 +13,8 @@ class PmVehicleNet : public VehicleNet {
   explicit PmVehicleNet(zgame::Handle vehicle);
 };
 
-PmVehicleNet* pm_vehicle_net(zgame::Handle vehicle);  // one a vehicle, made at the first ask
-void pm_vehicle_nets_clear();                          // the mission's end
+// The vehicle's net (AiTarget +0xd0), a PmVehicleNet made at the first ask; null for a vehicle with no AiTarget.
+VehicleNet* pm_vehicle_net(zgame::Handle vehicle);
 // 0x004c7800 on the net of the brain's last order: the behaviour of an order kind (1..7), slot 0's for any other.
 Behaviour* pm_kind_behaviour(Brain& b, int32_t kind);
 

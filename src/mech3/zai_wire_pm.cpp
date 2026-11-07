@@ -117,7 +117,6 @@ void pm_ids_forget(const void* p) {
   ids().erase(it);
 }
 void pm_wire_clear() {
-  pm_vehicle_nets_clear();
   brains().clear(), targets().clear(), ids().clear(), ptrs().clear();
   g_next_id = 1;
 }
