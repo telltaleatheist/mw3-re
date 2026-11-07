@@ -4,6 +4,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+#include "mech3/lab_filebox.h"
 #include "mech3/game_editor.h"
 #include "mech3/mods.h"
 #include "mech3/force_feedback.h"
@@ -428,6 +429,7 @@ void GameEngine::pump_events() {
     if (!p->pump()) {
       p->post_quit();
       if (box_) box_->frames = 0;
+      if (file_box_) file_box_->answer(false);
       return;
     }
   }

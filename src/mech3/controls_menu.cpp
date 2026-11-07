@@ -316,7 +316,7 @@ void AxisPopupState::prepare() {
   popup->invert.set_checked(!(b.scale >= 0.0f) ? 1 : 0);
   zimg::Texture* g = ztwod::host().screen_grab(2);
   popup->grab = g;
-  if (g) popup->background.set_image(g);
+  if (g) popup->backdrop.set_image(g);
 }
 
 // Mech3.exe 1.2 @ 0x0042e7c0
@@ -329,6 +329,7 @@ void AxisPopupState::finish() {
   if (popup && popup->grab) {
     ztwod::host().texture_free(popup->grab);
     popup->grab = nullptr;
+    popup->backdrop.set_image(static_cast<zimg::Texture*>(nullptr));
   }
   e_.joy_unuse();
 }
@@ -859,11 +860,14 @@ bool InvertCheck::read_control(zrdr::Node* n, ztwod::Dialog* d) {
   return r;
 }
 
-// Mech3.exe 1.2 @ 0x0042da80
+// Pirate's Moon 1.0 @ 0x0042ec20: MW3's 0x0042da80 with a panel, ASSIGN_BOX,
+// over the screen grabbed behind it.
 AxisPopupScreen::AxisPopupScreen(Engine& e, Handle s)
     : MenuScreen(e, s), ok(e), cancel(e), sources(e) {
   grab = nullptr;
-  if (load("dlgOptions.zrd", "ASSIGN_AXIS_POPUP", false)) {
+  if (load("dlgOptions.zrd", "ASSIGN_AXIS_POPUP", true)) {
+    add(&backdrop);
+    bind_primitive(&box, "ASSIGN_BOX");
     bind_button(&ok, "MB_OK");
     bind_button(&cancel, "MB_CANCEL");
     bind_button(&sources, "CMD_AXIS_CYCLE_BTN");

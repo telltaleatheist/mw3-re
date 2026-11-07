@@ -222,6 +222,8 @@ class AxisPopupScreen : public MenuScreen {
   InvertCheck invert;                // +0x119e8  INVERT_CHECKBOX
   AxisSlider value;                  // +0x11b54  AXIS_VALUE
   ztwod::FontText instructions{nullptr, 0, 0};  // +0x11cdc  INSTRUCTIONS
+  ztwod::Image box{0};               // Pirate's Moon +0x1232c  ASSIGN_BOX
+  ztwod::Image backdrop{0};          // Pirate's Moon +0x123e8  the screen behind (the list's first object)
   zimg::Texture* grab = nullptr;     // +0x1218c  the screen behind, taken on entering
   int32_t axis = 0;                  // +0x12190  (written, never read)
   AxisPopupState* owner = nullptr;   // the state at +0x10fec, as an object

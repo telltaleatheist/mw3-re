@@ -312,6 +312,7 @@ add_library(mw3core STATIC
   src/mech3/quit_box.cpp
   src/mech3/lab_items.cpp
   src/mech3/controls_menu.cpp
+  src/mech3/lab_filebox.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)

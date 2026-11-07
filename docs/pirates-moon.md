@@ -56,7 +56,7 @@ the expansion, not shared. The files with assert strings, compared:
 - `reader.zbd` holds 198 files to MW3's 178. New: six mechs (Atlas,
   Awesome, Centurion, Clint, Masakari, Ryoken: `dfn_`, `anim_`, `_prints`
   each), `cargotruck`, `mobile_hq`, `packrat`, `bubbles`, `clutter_ani`,
-  `dlgLoadSave` (a load/save dialog), `ia_progression` (Instant Action
+  `dlgLoadSave` (the lab's loadout file box, menus.md section 15), `ia_progression` (Instant Action
   progression), `mprounds` (multiplayer rounds). Gone: `mechs.zrd`,
   `player.zrd`, `equipment.zrd`, `camera.zrd`, `dlgMechLab.zrd` (the
   second mech lab dialog stays) and `mechLibDemo.zrd`.
@@ -343,4 +343,10 @@ The exe calls it standalone (game type 5, `Standalone State`, `sa<n>`); it is th
 - **Credits:** none. The ported debriefing sends a won last mission to the main menu (state 2) with no credits flag, where the first campaign sets it. Read from `debriefing.cpp` and the Win State's branch; not played.
 - **Rank:** by progress, in the ported debriefing: the mission's index, less 1 if this one failed; 2 to 4 shows rank 1, 5 to 10 rank 4, else 0.
 
+## Names the data asks for and the DLL does not have
 
+`dfn_annihilator.zrd` and `dfn_atlas.zrd` name loadouts `MSG_CONFIG_EXOTIC_A`..`D`,
+and PM's Mech3Msg.dll has only `MSG_CONFIG_PRIMARY` and `_ALTERNATE_A`..`D`.
+`localize` keeps a name it cannot find, so those variants show the raw key. As
+the original's code path reads, by the exe's localize (0x00575fb0 in 1.2) and
+the DLL's table; not seen in the original's lab. Nothing to port.

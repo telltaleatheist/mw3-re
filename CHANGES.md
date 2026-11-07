@@ -216,6 +216,7 @@ unusual happens.
 - The game starts without a mouse (the original crashed), and pressing a
   newer key such as Power, Sleep or a web key while holding Ctrl, Alt and
   Shift no longer corrupts the game's input memory.
+- Closing the window while the mech lab's loadout file box is up cancels it and quits; the original kept waiting in the box.
 - A damaged or hand-edited saved loadout (`configs\<mech>.mw3`) can no longer
   hang the load or crash it.
 - A controls profile with a `%` in its file name shows its name in the load
