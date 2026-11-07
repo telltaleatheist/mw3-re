@@ -2252,7 +2252,10 @@ struct WiredMissionHooks : MissionHooks {
       zcls::node_set_priority(static_cast<zcls::Node*>(n), p);
     };
     w.set_tick_action = [](zwep::Handle n) {
-      zcls::node_set_action(static_cast<zcls::Node*>(n), [](zcls::Node*) { zwep::tick(); });
+      zcls::node_set_action(static_cast<zcls::Node*>(n), [](zcls::Node*) {
+        zwep::run_state().net_clock = ztimer::state().total_raw;  // one store in the exe, 0x0072c538
+        zwep::tick();
+      });
     };
     w.error = [](int32_t level, int32_t line, const char* what) {
       if (GameEngine* g = engine_of_hooks(); g && !g->quiet)

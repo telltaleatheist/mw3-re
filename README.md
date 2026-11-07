@@ -23,6 +23,9 @@ original.
 
 ### Coming in the next release
 
+- **Artemis in a side torso works.** The game looked for it in the wrong
+  place, so launchers there never got its better tracking. Stock loadouts with
+  Artemis in a side torso now do.
 - **Difficulty changes how much damage you take again.** Every release so far
   gave your side the High figure on every difficulty. The game's own table now
   applies: 40% on Low, 70% on Medium, 100% on High. **Low and Medium get
