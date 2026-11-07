@@ -17,6 +17,7 @@ struct Fake : BrainHooks {
   const std::vector<Contact*>* contacts(zgame::Handle v) override { return v ? &list : nullptr; }
   zgame::Handle contact_entity(const Contact* c) override { return c->seen; }
   bool airborne(zgame::Handle v) override { return v == 5; }
+  zgame::Handle vehicle_mech(zgame::Handle v) override { return v == 7 ? v : 0; }
 };
 struct Installed {
   BrainHooks* old = &brain_hooks();
@@ -42,6 +43,7 @@ TEST(pm_wire_steer_asks_the_brain_hooks) {
   EXPECT(w.contact_entity(&c) == 9);
   EXPECT(w.contact_dist2(&c) == 25.0f);
   EXPECT(w.halted(5) && !w.halted(6));
+  EXPECT(w.targetable(7) && !w.targetable(8));
 }
 
 TEST(pm_wire_counts_a_call_with_no_answer) {
@@ -49,12 +51,10 @@ TEST(pm_wire_counts_a_call_with_no_answer) {
   Installed in(&f);
   pm_hooks_missing_clear();
   WiredSteerPm w;
-  EXPECT(!w.targetable(1));
-  EXPECT(!w.targetable(1));
-  EXPECT(!w.order_steers(nullptr));
+  EXPECT(w.order_steers(nullptr));
+  EXPECT(w.order_steers(nullptr));
   const auto& m = pm_hooks_missing();
-  EXPECT(m.at("entity.vt+0x48") == 2);
-  EXPECT(m.at("0x004fa470") == 1);
+  EXPECT(m.at("assumed: the order's net idle (vt+0x14)") == 2);
   pm_hooks_missing_clear();
 }
 

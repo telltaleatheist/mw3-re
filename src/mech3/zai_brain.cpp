@@ -1,5 +1,6 @@
 #include "mech3/zai_brain.h"
 #include "mech3/zai_wire_pm.h"
+#include "mech3/zai_wire_states_pm.h"
 
 #include "mech3/zai_attack.h"
 
@@ -702,6 +703,8 @@ void GateState::run(float dt) {
 }
 
 BehaviourState* Behaviour::make_state(Order& o) {
+  if (pm_ai_on())
+    if (BehaviourState* pm = pm_make_state(*this, o)) return pm;
   switch (kind) {
     case StepKind::Behaviour: return new DefaultState(&o, this);
     case StepKind::Null: return new NullStepState(&o, this);

@@ -2,6 +2,7 @@
 
 #include "mech3/zai_wire_firing_pm.h"
 #include "mech3/zai_wire_walk_pm.h"
+#include "mech3/zai_wire_states_pm.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -166,6 +167,7 @@ class WiredTickPm final : public TickPmHooks {
   void smooth(float dt) override { c.smooth(dt); }
   int32_t power_state(zgame::Handle v) override { return h.powered_down(v); }
   void steer_update(float dt, zgame::Handle v) override {
+    if (pm_state_running(b)) return pm_brain(b).steer.update(pm_walk(b, c), dt, v);
     pm_hook_missing("stand-in: MW3's steering");
     b.steer.update(dt, v);
   }
@@ -227,7 +229,7 @@ class WiredTickPm final : public TickPmHooks {
   }
   int32_t rand_int() override { return h.rand(); }
   void run_orders(float dt) override {
-    pm_hook_missing("stand-in: MW3's orders");
+    if (!pm_state_running(b)) pm_hook_missing("stand-in: MW3's orders");
     do {
       b.x104 = 0;
       b.current().run(dt);

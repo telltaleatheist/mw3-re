@@ -55,14 +55,17 @@ class WireSteer : public Base {
   void position(zgame::Handle e, float out[3]) override { brain_hooks().position(e, out); }
   void forward(zgame::Handle v, float* x, float* z) override { brain_hooks().forward(v, x, z); }
   bool halted(zgame::Handle v) override { return brain_hooks().airborne(v); }  // vt+0x150, PM's +0x5a8: MW3's vt+0x144
-  bool order_steers(Brain*) override { return missing<false>("0x004fa470"); }
+  // 0x004fa470: the order's net (vt+0x14) and state (vt+0x20) both idle. The state's slot answers 1 on
+  // 49 of PM's state vtables, the attack's among them (0x004eb000); the nets' slot isn't read yet.
+  bool order_steers(Brain*) override { return missing<true>("assumed: the order's net idle (vt+0x14)"); }
   const std::vector<const Contact*>& contacts(zgame::Handle v) override {
     seen_.clear();
     if (const std::vector<Contact*>* c = brain_hooks().contacts(v)) seen_.assign(c->begin(), c->end());
     return seen_;
   }
   zgame::Handle contact_entity(const Contact* c) override { return brain_hooks().contact_entity(c); }
-  bool targetable(zgame::Handle) override { return missing<false>("entity.vt+0x48"); }
+  // vt+0x48: a mech answers itself (0x00402250 on 0x005dfaac); other classes are unread.
+  bool targetable(zgame::Handle e) override { return brain_hooks().vehicle_mech(e) != 0; }
   float contact_dist2(const Contact* c) override { return c->dist2; }
 
  protected:
