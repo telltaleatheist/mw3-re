@@ -1820,3 +1820,39 @@ TEST(fix_matrix_stack_imbalance_is_refused_and_logged) {
   zmth::reset_stack();
   zmth::stack_faults() = {};
 }
+
+// An FCS shot low over the ground with a clear line to its target: the query found nothing, so there's no record to
+// ask about (0x00585900 tests the answer first, 0x005a77ba on PM). The port read the empty record's node and crashed.
+TEST(fcs_shot_low_with_a_clear_line_reads_no_record) {
+  zwep::RunHooks& run = zwep::run_hooks();
+  zwep::HitHooks& hit = zwep::hit_hooks();
+  const zwep::RunHooks keep_run = run;
+  const zwep::HitHooks keep_hit = hit;
+  static int asked, answer;
+  static int ground_node;
+  asked = 0;
+  run = zwep::RunHooks{};
+  hit = zwep::HitHooks{};
+  run.ground = [](const zwep::Vec3f3*, zwep::HitList* out) { out->count = 1, out->rec[0].point.y = 0.0f; };
+  run.segment = [](const zwep::Vec3f3*, const zwep::Vec3f3*, zwep::HitList* out) {
+    out->count = 0, out->rec[0].node = answer == 0 ? &ground_node : nullptr;
+    return answer;
+  };
+  hit.node_handler = [](zwep::Handle n) {
+    ++asked;
+    EXPECT(n != nullptr);
+    return uintptr_t{0};
+  };
+  zwep::WeaponDef def{};
+  def.turn_rate = 1.0f, def.lock_on = 1.0f, def.pitch_rate = 1.0f;
+  const zwep::Vec3f3 target{100.0f, 5.0f, 0.0f};
+  zwep::Projectile p;
+  p.target_at = &target, p.position = {0.0f, 5.0f, 0.0f}, p.direction = {1.0f, 0.0f, 0.0f}, p.speed = 50.0f, p.terrain_follow = 1;
+  answer = 1;  // clear
+  zwep::home(&def, &p);
+  EXPECT(asked == 0);
+  answer = 0;  // blocked: the node's asked
+  zwep::home(&def, &p);
+  EXPECT(asked == 1);
+  run = keep_run, hit = keep_hit;
+}

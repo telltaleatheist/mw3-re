@@ -354,7 +354,7 @@ void probe_damage_world(const int32_t* world_v) {
   w.player = world_v[0] ? &m : &g->other;
   w.mission_player = world_v[1] ? &m : &g->other;
   w.force_feedback = world_v[2] != 0;
-  std::memcpy(&w.difficulty, &world_v[3], 4);
+  std::memcpy(&mech3::difficulty_scale(), &world_v[3], 4);
   std::memcpy(w.shot, &world_v[4], 24);
   w.death_anim_toggle = world_v[10] != 0;
   std::memcpy(&w.time, &world_v[11], 4);

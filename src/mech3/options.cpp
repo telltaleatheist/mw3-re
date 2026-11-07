@@ -92,6 +92,8 @@ void set_game_intensity(int32_t level) {
 }
 // Mech3.exe 1.2 @ 0x0040cdf0
 int32_t game_intensity() { return g_options.game_intensity; }
+float& difficulty_scale() { return g_options.intensity[2]; }
+uint8_t& no_heat_haze() { return g_options.intensity_flag[1]; }
 
 // Mech3.exe 1.2 @ 0x0040ce00
 void set_game_options(uint32_t bits) { word() = bits; }
