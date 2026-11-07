@@ -85,6 +85,7 @@
 #include "mech3/turret.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/app_view.h"
+#include "mech3/player_view.h"
 #include "mech3/app_keys.h"
 #include "gamez/zinput/zinput.h"
 #include "mech3/player_view.h"
@@ -2864,6 +2865,11 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
     return 0;
   }
   return Engine::vcall(obj, slot, args);
+}
+
+CloudCover program_cloud_cover() {
+  const MissionWorld& w = missions().world;
+  return CloudCover{w.cloud_on != 0, w.cloud_top, w.cloud_bottom, w.cloud_low, w.cloud_high, w.cloud_packed};
 }
 
 const float* program_mission_fog(bool water) {

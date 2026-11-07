@@ -296,6 +296,8 @@ void pm_kill_loadout(void* player) {
 }
 
 // PM_FALL: a frame of the fall: height, fall speed, state, the water the skis see, the depth rule's number, structure.
+bool pm_kill_falling_sound(void* mech) { return static_cast<Mech*>(mech)->sounds[18] != nullptr; }
+
 void pm_kill_fall_line(void* mech, int t) {
   auto* m = static_cast<Mech*>(mech);
   float at[3];

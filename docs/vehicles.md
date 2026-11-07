@@ -1939,9 +1939,53 @@ drawing is unchanged by any of this.
 
 Checked: `test_pm_window.py` runs both functions on the exe and the port at the
 band's edges (448 cases); `pm_canyon_death_band` walks the player off the rim on
-the real c1m2: dead at y -30.43, mission failed, an AI mech dead too. After death
-the port's body falls on to y -57; whether the original's view shows the same is
-not checked against a run of it.
+the real c1m2: dead at y -30.43, mission failed, an AI mech dead too.
+
+What follows, from the exe, with the real program's log on c1m2 (`--fall x,z`,
+`MW3_SOUND_LOG=1`). In one frame: camera 3, the god's eye, 150 m straight over the
+body (`godseye` in the mech's camera block); the prep: the eject effect, the hip's
+duck with `mech_landing` (slot 12), `mech_eject` (slot 10, its file is on neither
+disc, so nothing); +0x658 bit 0; the kill, whose torso death runs the prep again and
+queues the fall (1 then 3 in the air), skips the death effects for the flag, and Dies, which
+stops every sound in the mech's slots. The second `mech_landing` is stopped; the first was
+overwritten in its slot and plays out its 1.5 s. Next frame the fall action starts:
+`mech_falling` (slot 18). When the action ends the mech goes inactive and its sounds stop; the
+landing action 3 is dropped, as the state is 10 and not 11, so `mech_fall` never plays
+and there is no landing. The mission's `com_failed` and its 8 s run from the prep.
+
+The body carries on down to the canyon floor, y -57 on c1m2, by the dead mech's own
+step, and thins to 0.25 (+0x658, 0x41d730). From 150 m up that is under the cloud,
+so nothing of it shows. An Elemental takes the other branch of the torso's death: no prep, no fall
+action, no `mech_falling`, in the exe as here.
+
+## The cloud's screen tint (Pirate's Moon; 0x4096f0; 2026-11-06)
+
+Every frame the view's update 0x408980 asks, when `cloud_on` is set, whether the
+camera is inside the cloud: 0x4096f0 takes the camera's height (0x4ff250). Between
+`bottom` and `top` it tints the whole screen with the cloud's packed colour (+0x60)
+through the same 0x5c6c70 as the animations' event 36. The alpha climbs from 0 at
+`bottom` to 1 at low (+0x80), stays 1 up to high (+0x84), and falls to 0 at `top`;
+low and high are the cloud's middle less and plus `depth`. Every set of worlds has
+`cloud_cover`, so this runs on c2 and c4 too, where the cloud doesn't kill. The answer
+goes to the weather check 0x4095e0: inside the cloud the weather hides without its
+roof query. PM ships no weather, so that part never shows.
+
+On c1m2 (top -5, bottom -65, depth 10) the screen goes to the dark colour
+(0.1, 0.1, 0.15) from y -5 and is solid at y -25. A mech dies with its feet at -30,
+so a cockpit eye is still on the ramp at the moment of death (19 frames in the test,
+never solid); an outside camera sits deeper and reaches solid.
+
+Owen's check that the fog looks right from above still stands: this needs the camera
+inside the cloud.
+
+Port: `cloud_fill` and `PlayerView::cloud_tint` (`player_view.cpp`), `program_cloud_cover`.
+Tested: `test_pm_window.py` runs 0x4096f0 on the exe against `cloud_fill` (1,600 heights
+on five clouds, 0 differ, the alpha exact); `pm_cloud_screen_tint` falls into the canyon with the
+cockpit and outside cameras and holds the frame's tint to the camera's height. 8 of 10 breaks
+caught; the two missed move an edge test onto a height where both sides give the same
+alpha, so nothing can differ. Not seen on a screen by us: no test reads the pixels, the
+quad is the path event 36 already uses. A camera with a parent isn't handled: the
+player's view has none (0x4fefa0 would walk it).
 
 ## High frame rates: why a vehicle tips and hops (W57, 2026-11-04)
 

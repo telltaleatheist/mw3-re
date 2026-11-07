@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "gamez/zclass/camera.h"
+#include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
@@ -140,6 +141,16 @@ struct ProgramViewHooks : ViewHooks {
   void world_fog_altitude(float a, float b) override {
     if (Node3 w = world_node()) zcls::world_set_fog_altitude(zn(w), a, b);
   }
+  CloudCover cloud_cover() override { return program_cloud_cover(); }
+  float camera_height(Node3 cam) override {  // 0x004fefa0: a camera with a given matrix keeps it at +0xa0
+    const zcls::Node* n = zn(cam);
+    if (!n || !n->data) return 0.0f;
+    const auto* d = static_cast<const uint8_t*>(n->data);
+    float y;
+    std::memcpy(&y, d + ((*reinterpret_cast<const uint32_t*>(d + 0x10) & 2) ? 0xa8 : 0x18), 4);
+    return y;
+  }
+  void screen_tint(uint16_t colour, double alpha) override { ztwod::weather_tint(colour, alpha); }
   bool has_weather() override { return false; }
   uint32_t weather_flags() override { return 0; }
   // The wall pull-in (0x0040b310) is the port's; its query, on the world.
@@ -336,6 +347,7 @@ void program_view_look(int32_t look) {
   g_view->mode->set_look(look);
   sync();
 }
+float program_view_camera_height() { return g_view ? g_hooks.camera_height(g_view->camera) : 0.0f; }
 bool program_view_ground_probe(float x, float y, float z, float* y_after, bool* under) {
   if (!g_view) return false;
   zcls::camera_set_position(zn(g_view->camera), x, y, z);

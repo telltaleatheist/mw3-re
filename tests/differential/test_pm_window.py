@@ -6,6 +6,7 @@ frame's box window). Pilot's vehicle or not, with a headlight or not: the calls,
 """
 import ctypes
 import os
+import random
 import struct
 import sys
 from pathlib import Path
@@ -120,6 +121,52 @@ def cloud(emu):
     return bad
 
 
+def cloud_tint(emu):
+    """The screen tint 0x4096f0: the camera's height to an alpha, against cloud_fill."""
+    view, node = emu.alloc(0x80), emu.alloc(0x60)
+    emu.poke(view + 4, node)
+    mem = emu.cpu._uc.mem_write
+    height, seen = [0.0], []
+
+    def where(c):
+        mem(c.arg(1), struct.pack('<3f', 0.0, height[0], 0.0))
+        return 0
+
+    def tint(c):
+        seen.append((c.arg(0) & 0xffff, struct.unpack('<d', struct.pack('<II', c.arg(1) & 0xffffffff, c.arg(2) & 0xffffffff))[0]))
+        return 0
+    emu.native_stub(0x4ff250, where, 0)
+    emu.native_stub(0x5c6c70, tint, 0)
+    fill = probe.probe_pm_cloud_fill
+    fill.argtypes = [ctypes.c_float] * 5 + [ctypes.POINTER(ctypes.c_double)]
+    r = random.Random(5)
+    bad = cases = inside = ramps = 0
+    clouds = [(-5.0, -65.0, 10.0), (-5.0, -65.0, 0.0), (10.0, -40.0, 22.5), (0.0, -1.0, 0.45), (-5.0, -65.0, 27.0)]
+    for top, bottom, depth in clouds:
+        middle = (top - bottom) * 0.5 + bottom
+        low, high = middle - depth, middle + depth
+        mem(0x62da6c, struct.pack('<2f', top, bottom))
+        mem(0x62da88, struct.pack('<2f', low, high))
+        mem(0x62da68, struct.pack('<H', 0x1234))
+        edges = [top, bottom, low, high]
+        ys = edges + [e + d for e in edges for d in (-0.01, 0.01, 1e-5, -1e-5)]
+        ys += [r.uniform(bottom - 5, top + 5) for _ in range(300)]
+        for y in ys:
+            seen.clear()
+            height[0] = y
+            ret = emu.call(0x4096f0, ecx=view) & 0xff
+            a = ctypes.c_double(-1.0)
+            got = fill(top, bottom, low, high, y, ctypes.byref(a))
+            cases += 1
+            inside += bool(ret)
+            ramps += 1 if seen and 0 < seen[0][1] < 1 else 0
+            if bool(ret) != bool(got) or (ret and (len(seen) != 1 or seen[0] != (0x1234, a.value))):
+                bad += 1
+                print(f'cloud {top} {bottom} {low} {high} y {y}: exe {ret} {seen}, port {got} {a.value}')
+    print(f'{cases} tint cases, {inside} in the cloud, {ramps} on a ramp: {bad} differ')
+    return bad
+
+
 emu = Emulated()
 cases = bad = 0
 for slot in (0, 1):
@@ -132,4 +179,5 @@ for slot in (0, 1):
                 print(f'slot {slot} pilot {pilot} head {head}\n  exe  {want}\n  port {got}')
 print(f'{cases} cases: {bad} differ')
 bad += cloud(emu)
+bad += cloud_tint(emu)
 sys.exit(1 if bad else 0)

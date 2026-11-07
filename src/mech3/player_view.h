@@ -108,6 +108,15 @@ float tether_height(int32_t roster);  // 0x004312b0
 // What the view calls outside it: zClass's camera and nodes, the world's
 // queries and fog, the weather, the mech's torso, controls and HUD. One per
 // original function or read; the keys are the addresses.
+// world.zrd's cloud_cover, read each frame by PM's 0x004096f0 (+0x64, +0x68, +0x80, +0x84, +0x60).
+struct CloudCover {
+  bool on = false;
+  float top = 0, bottom = 0, low = 0, high = 0;
+  uint16_t colour = 0;
+};
+// The camera inside the cloud at height y; `alpha` rises over bottom..low, is 1 up to high, falls to top.
+bool cloud_fill(const CloudCover& c, float y, double* alpha);
+
 class ViewHooks : public zgame::Unported {
  public:
   // How a node or object is named in the hooks' records (the probe's addresses).
@@ -178,6 +187,11 @@ class ViewHooks : public zgame::Unported {
   virtual uint32_t weather_flags() = 0;
   virtual void weather_hide() { unported("weather.vt+0x64", {}); }
   virtual void weather_show() { unported("weather.vt+0x60", {zgame::bits(-1.0f)}); }
+  // Pirate's Moon's cloud (docs/vehicles.md, The cloud's screen tint): world.zrd's
+  // cloud_cover, the camera's height (0x004ff250) and the tint (0x005c6c70).
+  virtual CloudCover cloud_cover() { return {}; }
+  virtual float camera_height(Node3 cam) { return camera_position(cam)[1]; }
+  virtual void screen_tint(uint16_t, double) {}
   // 0x0040b310: an outside camera pulled in before walls (pull_in below);
   // the tests stand in for it.
   virtual void pull_in(float pos[3], const float at[3], const float back[3]);
@@ -250,7 +264,8 @@ class PlayerView {
   void cycle_camera();                                  // 0x0040aed0
   bool follow_ground();                                 // 0x0040af30
   void set_underwater(bool on);                         // 0x0040b0e0
-  void weather_check();                                 // 0x0040b9a0
+  void weather_check(bool in_cloud = false);            // 0x0040b9a0, PM 0x004095e0
+  bool cloud_tint();                                    // PM 0x004096f0
   // 0x0040b7e0: the camera at `pos` (+ the offset turned by `rot` times
   // `dist`), looking along `look` then the mode's delta.
   void place(const float pos[3], float dist, const float rot[4], const float offset[3], const float look[4],

@@ -14,7 +14,10 @@
 #endif
 
 #include "check.h"
+#include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
+#include "mech3/app_view.h"
+#include "mech3/player_view.h"
 #include "mech3/app_vehicle.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/player.h"
@@ -223,6 +226,7 @@ int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
 void pm_kill_loadout(void* player);
 void pm_kill_fall_line(void* mech, int t);
+bool pm_kill_falling_sound(void* mech);
 void pm_kill_hurt(void* mech);
 float pm_kill_leg_armor(void* mech);
 void pm_kill_ground_line(float x0, float z0, float x1, float z1);
@@ -267,6 +271,15 @@ TEST(pm_player_tick_box_window) {
 static bool g_refit_point = false, g_refit_done = false;
 static float g_fall_lowest = 1e9f, g_fall_died_at = 1e9f;
 static bool g_fall_failed = false, g_fall_ai_dead = false;
+static int g_fall_mode = -1, g_fall_frames_dead = 0, g_fall_sound_from = 0, g_fall_sound_frames = 0;
+static float g_fall_camera_up = 0;
+static int g_cloud_frames = 0, g_cloud_wrong = 0, g_cloud_full = 0, g_cloud_ramp = 0, g_cloud_mode = -1;
+
+static bool me_alive(void* player) {
+  mech3::LaunchedMech me;
+  mech3::describe_mech(player, &me);
+  return me.anim_state != 10;
+}
 
 static void kill_run(const char* which, bool quick) {
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
@@ -442,6 +455,21 @@ static void kill_run(const char* which, bool quick) {
         const float at[3] = {x, 30.0f, z};
         mech3::move_mech(player, at, 0.0f);
       }
+      if (const char* c = std::getenv("PM_FALL_CAMERA")) {
+        if (t == 2) mech3::program_view_set_camera(std::atoi(c));
+        if (me_alive(player) && mech3::program_view_mode_id() >= 0) g_cloud_mode = mech3::program_view_mode_id();
+      }
+      {  // the tint this frame's camera height asks for, what the weather layer holds
+        double a = 0;
+        const mech3::CloudCover cover = mech3::program_cloud_cover();
+        const ztwod::ScreenTint& tint = ztwod::weather_layer().tint;
+        if (mech3::cloud_fill(cover, mech3::program_view_camera_height(), &a)) {
+          ++g_cloud_frames;
+          g_cloud_full += a >= 1.0 ? 1 : 0;
+          g_cloud_ramp += a < 1.0 ? 1 : 0;
+          if (tint.alpha != a || tint.colour != cover.colour) ++g_cloud_wrong;
+        }
+      }
       if (t == 3 && targets.size() > 1) {  // an AI mech in with it, a little along
         const float at[3] = {x + 40.0f, 10.0f, z};
         mech3::move_mech(targets[1], at, 0.0f);
@@ -452,6 +480,16 @@ static void kill_run(const char* which, bool quick) {
       float there_y[3];
       mech3::mech_world_position(player, there_y);
       g_fall_lowest = std::min(g_fall_lowest, there_y[1]);
+      if (me.anim_state == 10 && g_fall_died_at > 0.0f) g_fall_mode = mech3::program_view_mode_id();
+      if (me.anim_state == 10) {
+        ++g_fall_frames_dead;
+        const float up = mech3::program_view_camera_height() - there_y[1];
+        if (g_fall_frames_dead == 10) g_fall_camera_up = up;
+        if (pm_kill_falling_sound(player)) {
+          if (g_fall_sound_from == 0) g_fall_sound_from = g_fall_frames_dead;
+          ++g_fall_sound_frames;
+        }
+      }
       if (me.anim_state == 10 && g_fall_died_at > 0.0f) g_fall_died_at = there_y[1], g_fall_failed = engine.mission_failed();
       if (targets.size() > 1 && state(targets[1]) == 10) g_fall_ai_dead = true;
       g_fall_failed = g_fall_failed || engine.mission_failed();
@@ -547,6 +585,31 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
+// Always on: the same fall with the camera by the cockpit and outside: entering the cloud
+// tints the screen to its colour by the camera's height (docs/vehicles.md, The cloud's screen tint).
+TEST(pm_cloud_screen_tint) {
+#if !defined(_WIN32)
+  for (const char* camera : {"1", "2"}) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_FALL", "3056,-4776", 1);
+      setenv("PM_FALL_CAMERA", camera, 1);
+      kill_run("0,1,2", true);
+      std::printf("  camera %s (mode %d): %d frames in the cloud, %d on the ramp, %d full, %d wrong\n", camera, g_cloud_mode, g_cloud_frames, g_cloud_ramp, g_cloud_full, g_cloud_wrong);
+      EXPECT(g_cloud_ramp > 0);
+      if (std::strcmp(camera, "2") == 0) EXPECT(g_cloud_full > 0);  // the cockpit dies at the feet's -30, its eye still on the ramp
+      EXPECT(g_cloud_wrong == 0);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
+}
+
 TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
 
 // Always on: c1m1's Thor, one ER Large, every shot on its leg: it goes down with the leg, the player's hits on legs only.
@@ -563,6 +626,11 @@ TEST(pm_canyon_death_band) {
     EXPECT(g_fall_died_at < -30.0f && g_fall_died_at > -36.0f);
     EXPECT(g_fall_failed);
     EXPECT(g_fall_ai_dead);
+    std::printf("  the god's eye: mode %d, %.1f m over the body; mech_falling from dead frame %d for %d frames\n", g_fall_mode, g_fall_camera_up, g_fall_sound_from, g_fall_sound_frames);
+    EXPECT(g_fall_mode == 3);                        // 0x00408a70(3)
+    EXPECT(g_fall_camera_up > 100.0f);
+    EXPECT(g_fall_sound_from >= 1 && g_fall_sound_from <= 2);  // the fall action's start, the frame after
+    EXPECT(g_fall_sound_frames > 30);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }

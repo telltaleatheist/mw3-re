@@ -4447,6 +4447,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   is Mission Failed. It's what makes the canyons deadly: the haze isn't only scenery.
   MechWarrior 3 has no such rule. How sure this is: read from the code, checked against the game's
   own instructions in an emulator, and walked in the rebuild on the real canyon mission.
+- **Pirate's Moon's low cloud fills your screen from inside:** take the camera into the cloud
+  layer and the whole picture fades to the cloud's colour, solid through the middle of the layer.
+  In the canyons that's the dark haze closing in as you fall. It happens on every world with the
+  layer, including those where it doesn't kill. How sure this is: read from the code and checked
+  against the game's own instructions in an emulator.
 - **Pirate's Moon mechs can drown:** with the water more than 25 m over your feet
   (measured at the two middle ski probes, averaged) your mech loses a quarter of its
   health a frame, even with invincibility on, which it turns off. When that would

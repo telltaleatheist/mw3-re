@@ -164,6 +164,8 @@ struct Args {
   bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
   float turret_ahead = 0;  // --turret-ahead M (ours): the player M m from the nearest live turret, facing it
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the nearest enemy mech in play, facing it
+  bool fall_given = false;  // --fall x,z: the player dropped there from y 30 at frame 5 (ours, for the canyon)
+  float fall[2] = {};
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
@@ -264,6 +266,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--shot-series" && next(1)) a.shot_series = std::atoi(argv[++i]);
     else if (s == "--frame-times" && next(1)) a.frame_times = std::atoi(argv[++i]);
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
+    else if (s == "--fall" && next(1)) a.fall_given = std::sscanf(argv[++i], "%f,%f", &a.fall[0], &a.fall[1]) == 2;
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
@@ -1199,6 +1202,10 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
               mech3::move_mech(m, p, std::atan2(p[0] - at[0], p[2] - at[2]));  // facing it: forward is -z
             }
           }
+        if (a.fall_given && shots == 5) {
+          const float at[3] = {a.fall[0], 30.0f, a.fall[1]};
+          if (void* m = mech3::mech_mission_player()) mech3::move_mech(m, at, 0.0f);
+        }
         if (a.fire > 0 && shots == a.fire) {
           s_fire = true;
           void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));

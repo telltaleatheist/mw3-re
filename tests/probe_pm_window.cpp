@@ -4,6 +4,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/mech.h"
 #include "mech3/mech_lod.h"
+#include "mech3/player_view.h"
 
 using mech3::CloudBand;
 
@@ -35,6 +36,12 @@ int probe_pm_cloud(int on, int death_on, float low, float high, float y, int act
   c = was;
   *flag = static_cast<int>(m.x634 & 1);
   return g_n;
+}
+// test_pm_window.py: the cloud's tint at height y; returns 1 inside the cloud, its alpha through `alpha`.
+int probe_pm_cloud_fill(float top, float bottom, float low, float high, float y, double* alpha) {
+  mech3::CloudCover c;
+  c.on = true, c.top = top, c.bottom = bottom, c.low = low, c.high = high;
+  return mech3::cloud_fill(c, y, alpha) ? 1 : 0;
 }
 int probe_pm_cloud_band(int on, int death_on, float low, float high, float y) { return CloudBand{on != 0, death_on != 0, low, high}.holds(y) ? 1 : 0; }
 // slot 0: 0x0041b900, 1: 0x0041b930. Returns the calls logged.

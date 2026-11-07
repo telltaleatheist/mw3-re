@@ -187,6 +187,9 @@ Mission Failed, one AI mech dead the same way. 14 of 14 breaks caught. The
 camera 3 call and the fall sound rest on the port of the death prep and on reading:
 the mission test sees the failure, not the picture (vehicles.md).
 
+Left for the multiplayer work, from the sweep of stored fields: `resends` [0x605fd0] and `ping_counter`
+[0x5e5690]; the exe reads both, nothing in the port does yet.
+
 ## The frame's box window
 
 `pm_player_tick_box_window` (`mw3pmtests`) holds the tick's order against

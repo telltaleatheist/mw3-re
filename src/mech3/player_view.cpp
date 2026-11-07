@@ -500,7 +500,7 @@ void PlayerView::update(float step) {
   handled = 0;
   if (mode) mode->update(step, *this);
   if (!handled && mode && target) follow_ground();
-  weather_check();
+  weather_check(cloud_tint());
 }
 
 // Mech3.exe 1.2 @ 0x0040adf0: the old target and mode let go, the new taken,
@@ -822,12 +822,37 @@ void PlayerView::set_underwater(bool on) {
   underwater = on;
 }
 
+// Pirate's Moon 1.0 @ 0x004096f0's sums: see player_view.h.
+bool cloud_fill(const CloudCover& c, float y, double* alpha) {
+  if (y < c.bottom || !(y <= c.top)) return false;
+  float a = 1.0f;
+  if (y < c.low) a = (y - c.bottom) / (c.low - c.bottom);
+  else if (!(y <= c.high)) a = (c.top - y) / (c.top - c.high);
+  *alpha = !(a <= 1.0f) ? 1.0f : a < 0.0f ? 0.0f : a;
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x004096f0
+bool PlayerView::cloud_tint() {
+  ViewHooks& h = *g_hooks;
+  const CloudCover c = h.cloud_cover();
+  double alpha;
+  if (!c.on || !cloud_fill(c, h.camera_height(camera), &alpha)) return false;
+  h.screen_tint(c.colour, alpha);
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x0040b9a0: the weather hidden while something is over
 // the camera (100 m up), shown again in the open.
-void PlayerView::weather_check() {
+// Pirate's Moon 1.0 @ 0x004095e0: inside the cloud it hides without looking.
+void PlayerView::weather_check(bool in_cloud) {
   ViewHooks& h = *g_hooks;
   Vehicle* t = h.player_target();
   if (!t || !h.has_weather()) return;
+  if (in_cloud) {
+    if (!((h.weather_flags() >> 4) & 1)) h.weather_hide();
+    return;
+  }
   h.node_set_intersect(t->node, 0);
   h.query_mode(1);
   const float* c = h.camera_position(camera);

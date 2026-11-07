@@ -985,7 +985,13 @@ void wire_mech_parts() {
     const Vec3 at = mech_position(m);
     return pilot_play(m, id, 1.0f, &at);
   };
-  hc.stop_sound = [](Sound s) { if (s) zsnd::stop(static_cast<zsnd::VoiceBase*>(s)); };  // 0x0056e9f0
+  hc.stop_sound = [](Sound s) {  // 0x0056e9f0
+    if (!s) return;
+    auto* v = static_cast<zsnd::VoiceBase*>(s);
+    static const bool log = std::getenv("MW3_SOUND_LOG") != nullptr;
+    if (log) std::printf("mw3: sound stopped %s, time %.2f\n", v->kind == 0 && static_cast<zsnd::Voice*>(v)->sound ? static_cast<zsnd::Voice*>(v)->sound->name : "group", world().time);
+    zsnd::stop(v);
+  };
   // The cockpit sounds (playtest #17): the fire modes, the gyro, MASC, the
   // jettison, the coolant, the hits (0x0041e770 at 1.0; 0x0041e7a0(i, 0)).
   hc.play_mech_sound = [](int i) { cockpit_sound_play(i, 1.0f); };

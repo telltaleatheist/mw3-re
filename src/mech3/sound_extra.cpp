@@ -86,7 +86,11 @@ zsnd::VoiceBase* sound_extra_play(SoundExtra& r, zsnd::Object* obj, float volume
 zsnd::VoiceBase* sound_play(zsnd::Object* obj, const float* pos, float volume, const float* vel, float fade_to) {
   if (!obj) return nullptr;
   auto* r = static_cast<SoundExtra*>(zsnd::user_data(obj));  // 0x0056f430
-  return sound_extra_play(r ? *r : g_default, obj, volume, pos, vel, fade_to);
+  zsnd::VoiceBase* v = sound_extra_play(r ? *r : g_default, obj, volume, pos, vel, fade_to);
+  static const bool log = std::getenv("MW3_SOUND_LOG") != nullptr;  // ours: every sound asked for
+  if (log)
+    std::printf("mw3: sound %s %s at y %.1f (listener y %.1f), volume %d, time %.2f\n", obj->kind == 0 ? static_cast<zsnd::Sound*>(obj)->name : "group", v ? "plays" : "refused", pos ? pos[1] : 0.0f, zsnd::state().listener[10], v && v->kind == 0 ? static_cast<zsnd::Voice*>(v)->volume : 0, world().time);
+  return v;
 }
 
 // Mech3.exe 1.2 @ 0x004e6c60: 0x004e6cd0's tests, zSound's 2D play.

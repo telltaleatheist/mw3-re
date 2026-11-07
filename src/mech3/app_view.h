@@ -42,6 +42,7 @@ void program_view_attach(Mech& m);          // the mech's 0x0041ce30
 // 0x004acd90): `handle` how the program names it.
 void program_view_attach_vehicle(Vehicle& v, void* handle, CameraMode* mode);
 void program_view_detach();                 // 0x0040adf0(view, 0, 0): no target, no mode
+float program_view_camera_height();        // the camera node's y, 0 without a view
 void program_view_set_camera(int32_t id);   // 0x0040ae70
 int32_t program_view_camera_id();           // the view's +0x58 +0x04, -1 without one
 void program_view_look(int32_t look);       // [0x005f4c8c] +0x58 vt+0x10 (the free look)
@@ -57,6 +58,8 @@ void* program_cameras(int32_t roster);       // 0x00430e70
 void program_cameras_free(void* list);      // 0x0040abf0
 // The options' camera choice (0x0040ce70 / 0x0040ce10; defined with the options).
 int32_t program_camera_option();
+struct CloudCover;
+CloudCover program_cloud_cover();            // world.zrd cloud_cover
 const float* program_mission_fog(bool water);  // world.zrd's fog: range 2, altitude 2, colour 3 (app_mission.cpp)
 void program_camera_set(int32_t mode);
 int32_t program_mouse_mode();
