@@ -1,5 +1,7 @@
 #include "gamez/zmath/zmth_vector.h"
 
+#include "gamez/zgeometry/zgeo_x87.h"
+
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -41,12 +43,14 @@ float direction(const Vec3& from, const Vec3& to, Vec3& out) {
 // Mech3.exe 1.2 @ 0x00525840: 2w (q x v) + 2 (q.v) q + (2w^2 - 1) v, summed
 // in the original's order (z adds its terms the other way round).
 void quat_rotate(const Quat& q, const Vec3& v, Vec3& out) {
-  const float d = (q.x * v.x + q.y * v.y) + q.z * v.z;
-  const float d2 = d + d, w2 = q.w + q.w;
-  const float c = w2 * q.w - 1.0f;
-  out.x = ((v.z * q.y - q.z * v.y) * w2 + d2 * q.x) + c * v.x;
-  out.y = ((v.x * q.z - v.z * q.x) * w2 + d2 * q.y) + c * v.y;
-  out.z = ((v.y * q.x - v.x * q.y) * w2 + c * v.z) + d2 * q.z;
+  using zgeo::X;
+  const float d = ((X(q.x) * v.x + X(q.y) * v.y) + X(q.z) * v.z).f();
+  const X d2 = X(d) + d, w2 = X(q.w) + q.w;
+  const X c = w2 * q.w - 1.0f;
+  const float x = (((X(v.z) * q.y - X(q.z) * v.y) * w2 + d2 * q.x) + c * v.x).f();
+  const float y = (((X(v.x) * q.z - X(v.z) * q.x) * w2 + d2 * q.y) + c * v.y).f();
+  out.z = (((X(v.y) * q.x - X(v.x) * q.y) * w2 + c * v.z) + d2 * q.z).f();
+  out.x = x, out.y = y;
 }
 
 // Mech3.exe 1.2 @ 0x0051dfa0

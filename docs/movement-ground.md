@@ -5,6 +5,12 @@ casts a ray for its height: a probe object at mech +0x41c ("skis", source
 `C:\zipper\Mech3\mech_skis.cpp`, the "No altitude" assert; code 0x475c80..
 0x4779d1) holds seven ground probes and moves the body.
 
+Precision (2026-11-07): the skis work in `zgeo::X` between the exe's stores, so `test_skis.py` agrees
+at 53 bits, the reference runtime's, as well as at 24. As floats, 6 of 14,400 frames on the shipped
+worlds took the other way in the step onto the ground: 0x477940 keeps the new speed and `y + v dt` on the
+x87, unstored, for its test against the ground, and a rounded pair could land on the other side of it, giving
+one foot probe a vertical speed up to 174 m/s for a frame.
+
 ## The skis (0x300 bytes, ctor 0x476320 from mech setup 0x415e09)
 
 Probes j: 0..2 the left ski (local z = -L, 0, +L), 3..5 the right ski, 6 the
