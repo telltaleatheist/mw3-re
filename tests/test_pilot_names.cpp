@@ -132,6 +132,7 @@ TEST(fix_lab_loadout_export_import) {
 }
 
 #if defined(_WIN32)
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 // Names on Windows (docs/program.md): the manifest's UTF-8 in the narrow calls,
@@ -168,6 +169,19 @@ TEST(windows_names_are_utf8_and_old_ones_put_right) {
   std::string line;
   std::getline(kept, line);
   EXPECT(line == "new");
+  // A junction inside pilots is left, and what it leads to is not ours.
+  const fs::path outside = dir / "outside", second = dir.string() + "b";
+  fs::create_directories(outside, ec);
+  fs::create_directories(second / "pilots", ec);
+  std::ofstream(outside / L"Jos\u00c3\u00a9.mw3") << "not ours";
+  const std::string make = "mklink /J \"" + (second / "pilots" / "link").string() + "\" \"" + outside.string() + "\" >nul";
+  EXPECT(std::system(make.c_str()) == 0);
+  zutl::repair_old_names(second.string());
+  EXPECT(fs::exists(outside / L"Jos\u00c3\u00a9.mw3", ec));
+  EXPECT(!fs::exists(outside / L"Jos\u00e9.mw3", ec));
+  fs::remove(second / "pilots" / "link", ec);  // the junction itself, not what it leads to
+  EXPECT(fs::exists(outside / L"Jos\u00c3\u00a9.mw3", ec));
+  fs::remove_all(second, ec);
   // Once: a name of that shape made afterwards is the player's.
   std::ofstream(dir / "pilots" / L"Ana\u00c3\u00a9.mw3") << "later";
   zutl::repair_old_names(dir.string());
