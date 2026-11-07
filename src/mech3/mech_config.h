@@ -3,6 +3,7 @@
 #include <functional>
 #include <cstdio>
 #include <list>
+#include <string>
 #include <vector>
 
 // A mech's loadouts (docs/mechdef-configs.md). Original files unknown: the
