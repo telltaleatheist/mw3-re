@@ -1663,3 +1663,28 @@ anim, then vt+0x80, the kill: the triggers fire, so `bridge_1_down` or `bridge_2
 secondary objective). +0x100 then takes this mech's weight (vt+0x8c, 0x00486830, the chassis's tons, not the loadout's). Then the
 footfall anim, every call (vt+0x58 is a mech's own self). The test of the frame against +0x108 always passes, nothing writing it.
 Two mechs on it each see the other's weight, not the sum. `CZAiTarget::stood_on`, `load_step`; `test_pm_bridge.py`.
+
+## PM's multiplayer against MW3's (2026-11-07)
+
+By the pair map (`analysis-output/pm-diff/pairs.json`, pm-map's columns: compiler only, compiler with other offsets or constants, changed), over the MW3 functions the port's network-side files name. Our transport replaces DirectPlay, so what matters is what reaches what we kept: the messages' contents and types, and the game's rules.
+
+| port file (MW3's) | functions | identical | compiler only | other offsets, constants | changed | MW3 only, gone | new in PM beside it |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| mech_net.cpp (the in-game messages, rounds, scores) | 39 | 4 | 4 | 8 | 12 | 11 | 10 (410 instructions) |
+| mp_lobby.cpp | 51 | 0 | 6 | 5 | 14 | 26 | 26 (2,542) |
+| mp_connect.cpp | 17 | 3 | 5 | 1 | 7 | 1 | 3 (15) |
+| pilot_games.cpp (the game kinds, scoring, the stores) | 90 | 12 | 22 | 23 | 14 | 19 | 38 (1,371) |
+| chat_panel.cpp | 7 | 0 | 1 | 4 | 2 | 0 | |
+| znet_session.cpp | 17 | 4 | 11 | 0 | 2 | 0 | |
+| znet_dplay.cpp | 23 | 0 | 11 | 0 | 6 | 6 | |
+| znet_object.cpp | 7 | 0 | 5 | 0 | 1 | 1 | |
+
+**Message types.** Both register 30 handlers through the dispatcher (MW3's 0x587aa0, PM's 0x5a8ba0). One type changed: 0x1b, MW3's move-to-map-object (`docs/network-messages.md`), is no longer routed to the mechs' handler; 0x1d is, which MW3 doesn't register. What 0x1d carries isn't read yet. The system type 6 (a player gone) gets a new PM handler, 0x46f440, beside the lobby's: by reading, it asks the game object, marks the leaver's lobby record, and on the host (0x5a8a40) scores the leaver as killed by himself through 0x4721e0, MW3's `net_score_kill` (0x470170, changed: six calls more). The rest of the types keep their handlers' places; the lobby's handlers are unpaired in the map, so whether they changed isn't known from it.
+
+**What reaches what we kept.**
+- *Contents*: `net_state_apply` (0x46e4d0 to 0x4705e0) is smaller with one constant fewer, and `net_mech_tick` (0x46ef70) one constant fewer and a call more: the mech state message's fields or rates differ; `net_send_period` (0x470b40) drops a constant. Not read further.
+- *Game rules*: `net_score_kill`, `net_launch_player` (five calls more), `net_pilot_respawn` (two more) and `net_end` (five more) changed; `MultiplayerGame::rescore` gains a call; the lobby's `enter` grows from 713 to 1,091 instructions with 64 calls against 13. Rounds, overtime and the stats live in these; which rule changed needs each read against the exe.
+- *Transport only*: znet_dplay's six changed and znet_session's two (`send`, `poll`) are DirectPlay's side, which ours replaces; they matter only if a message's framing changed, which isn't read.
+
+None of this is ported for PM, nothing has been run, and nothing here was compared with a test: it's the pair map read by file. It sits in the remainder (pm-tests.md, Single player against network, and the remainder).
+
