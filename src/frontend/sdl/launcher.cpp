@@ -961,6 +961,12 @@ void Launcher::ask_folder(int what) {
 // A picked path: what the button that asked does with it.
 void Launcher::picked(int what, const std::string& path) {
   using namespace mech3::setup;
+  // Before Windows 10 1903 such a name cannot be used (docs/program.md, Names on Windows).
+  if (!zutl::narrow_paths_utf8() && !std::all_of(path.begin(), path.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
+    status_ = "This version of Windows needs a folder with plain English letters in its name.", status_good_ = false;
+    layout();
+    return;
+  }
   if (what == kMw1) {
     const std::string dir = fs::is_regular_file(path) ? fs::path(path).parent_path().string() : path;
     if (!mw1_game_valid(dir)) {

@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zutil/zutl_path.h"
 #include "frontend/sdl/crash_report.h"
 #include "frontend/sdl/data_folder_start.h"
 #include "frontend/sdl/launcher.h"
@@ -74,8 +75,8 @@ void read_config(const std::string& write_dir, sdlfe::LauncherOptions& o) {
   std::string line;
   while (std::getline(f, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (line.rfind("install=", 0) == 0) o.cfg_install = line.substr(8);
-    if (line.rfind("mw1_game=", 0) == 0) o.cfg_mw1_game = line.substr(9);
+    if (line.rfind("install=", 0) == 0) o.cfg_install = zutl::path_from_config(line.substr(8));
+    if (line.rfind("mw1_game=", 0) == 0) o.cfg_mw1_game = zutl::path_from_config(line.substr(9));
   }
 }
 
@@ -125,6 +126,7 @@ int main(int argc, char** argv) {
   sdlfe::RunLog run_log;
   if (!hidden_log && !sdlfe::log_to_file(o.write_dir, "mw3launcher") && !o.write_dir.empty())
     run_log.open(o.write_dir, "mw3launcher");
+  zutl::repair_old_names(o.write_dir);
   std::printf("mw3launcher (MechWarrior 3 rebuild) %s, write dir %s\n", MW3_VERSION, o.write_dir.c_str());
   if (!hidden_log && !o.write_dir.empty()) sdlfe::crash_report_install("mw3launcher", o.write_dir + "/mw3launcher.log", true);
   read_config(o.write_dir, o);

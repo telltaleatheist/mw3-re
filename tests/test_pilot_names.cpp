@@ -130,3 +130,62 @@ TEST(fix_lab_loadout_export_import) {
   EXPECT(mech3::lab_import_config() == nullptr);  // read once: renamed .done
   EXPECT(zutl::exists("import\\mine.m3c.done"));
 }
+
+#if defined(_WIN32)
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+// Names on Windows (docs/program.md): the manifest's UTF-8 in the narrow calls,
+// and what an earlier build left in the system's code page (Windows-1252 here).
+TEST(windows_names_are_utf8_and_old_ones_put_right) {
+  namespace fs = std::filesystem;
+  EXPECT(zutl::narrow_paths_utf8());
+  const fs::path dir = fs::path(MW3_TEST_TMP) / L"test_win_names \u00e9 \u0416 it's";
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir / "pilots", ec);
+  EXPECT(!ec);
+  // A narrow name reaches the disk as the letters it spells.
+  const std::string narrow = dir.string() + "\\caf\xc3\xa9 \xd0\x96.txt";
+  std::FILE* f = std::fopen(narrow.c_str(), "wb");
+  EXPECT(f != nullptr);
+  if (f) std::fclose(f);
+  EXPECT(fs::exists(dir / L"caf\u00e9 \u0416.txt", ec));
+
+  EXPECT(zutl::path_from_config("D:\\Caf\xe9") == "D:\\Caf\xc3\xa9");
+  EXPECT(zutl::path_from_config("D:\\Caf\xc3\xa9") == "D:\\Caf\xc3\xa9");
+  EXPECT(zutl::path_from_config("D:\\Cafe") == "D:\\Cafe");
+
+  std::ofstream(dir / "pilots" / L"Jos\u00c3\u00a9.mw3") << "old";      // "José", as an earlier build named it
+  std::ofstream(dir / "pilots" / L"Zo\u00eb.mw3") << "plain";           // a real name stays
+  std::ofstream(dir / "pilots" / L"R\u00c3\u00a9mi.mw3") << "old";
+  std::ofstream(dir / "pilots" / L"R\u00e9mi.mw3") << "new";            // never over a file
+  zutl::repair_old_names(dir.string());
+  EXPECT(fs::exists(dir / "pilots" / L"Jos\u00e9.mw3", ec));
+  EXPECT(!fs::exists(dir / "pilots" / L"Jos\u00c3\u00a9.mw3", ec));
+  EXPECT(fs::exists(dir / "pilots" / L"Zo\u00eb.mw3", ec));
+  EXPECT(fs::exists(dir / "pilots" / L"R\u00c3\u00a9mi.mw3", ec));
+  std::ifstream kept(dir / "pilots" / L"R\u00e9mi.mw3");
+  std::string line;
+  std::getline(kept, line);
+  EXPECT(line == "new");
+  // A junction inside pilots is left, and what it leads to is not ours.
+  const fs::path outside = dir / "outside", second = dir.string() + "b";
+  fs::create_directories(outside, ec);
+  fs::create_directories(second / "pilots", ec);
+  std::ofstream(outside / L"Jos\u00c3\u00a9.mw3") << "not ours";
+  const std::string make = "mklink /J \"" + (second / "pilots" / "link").string() + "\" \"" + outside.string() + "\" >nul";
+  EXPECT(std::system(make.c_str()) == 0);
+  zutl::repair_old_names(second.string());
+  EXPECT(fs::exists(outside / L"Jos\u00c3\u00a9.mw3", ec));
+  EXPECT(!fs::exists(outside / L"Jos\u00e9.mw3", ec));
+  fs::remove(second / "pilots" / "link", ec);  // the junction itself, not what it leads to
+  EXPECT(fs::exists(outside / L"Jos\u00c3\u00a9.mw3", ec));
+  fs::remove_all(second, ec);
+  // Once: a name of that shape made afterwards is the player's.
+  std::ofstream(dir / "pilots" / L"Ana\u00c3\u00a9.mw3") << "later";
+  zutl::repair_old_names(dir.string());
+  EXPECT(fs::exists(dir / "pilots" / L"Ana\u00c3\u00a9.mw3", ec));
+  fs::remove_all(dir, ec);
+}
+#endif

@@ -392,8 +392,8 @@ void read_config(const std::string& dir, Args& a) {
   std::string line;
   while (std::getline(f, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (line.rfind("install=", 0) == 0) a.cfg_install = line.substr(8);
-    else if (line.rfind("mw1_game=", 0) == 0) a.cfg_mw1_game = line.substr(9);
+    if (line.rfind("install=", 0) == 0) a.cfg_install = zutl::path_from_config(line.substr(8));
+    else if (line.rfind("mw1_game=", 0) == 0) a.cfg_mw1_game = zutl::path_from_config(line.substr(9));
     else if (line.rfind("assets=", 0) == 0) a.assets.push_back(line.substr(7));
     else if (line.rfind("mod=", 0) == 0) a.cfg_mods.push_back(line.substr(4));
     else if (line.rfind("joystick=", 0) == 0) a.cfg_joystick = line.substr(9);
@@ -628,6 +628,7 @@ int main(int argc, char** argv) {
     std::printf("mw3 (MechWarrior 3 rebuild) %s: %s\n", MW3_VERSION, argc > 1 ? "started with arguments" : "started");
   else if (!a.write_dir.empty() && run_log.open(a.write_dir))
     std::printf("mw3 (MechWarrior 3 rebuild) %s, log %s\n", MW3_VERSION, run_log.path().c_str());
+  zutl::repair_old_names(a.write_dir);
   if (!a.hidden && !a.write_dir.empty()) sdlfe::crash_report_install("mw3", a.write_dir + "/mw3.log", true);
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
   if (!a.mods_given) a.mods = a.cfg_mods;
