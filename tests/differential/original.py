@@ -84,7 +84,17 @@ def _precision_check():
     print(f'precision: emulator {emu or "none made"}, port fpu53 {port}', flush=True)
     if emu != ['0x200'] or port != 1:
         print('precision: NOT at 53 bits', flush=True)
-        os._exit(3)
+        _quit(3)
+
+
+# Many tests leave by os._exit, past the check: their teardown crashes.
+_quit = os._exit
+
+
+def _checked_exit(code):
+    os._exit = _quit
+    _precision_check()
+    _quit(code)
 
 
 class Original:
@@ -141,6 +151,7 @@ class Original:
             self.fpu_control(0x027f)
         if PRECISION == '53' and not _ORIGINALS:
             atexit.register(_precision_check)  # after Unicorn's own, so it runs first
+            os._exit = _checked_exit
         _ORIGINALS.append(self)
 
     def fpu_control(self, cw):

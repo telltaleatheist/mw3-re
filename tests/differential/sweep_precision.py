@@ -65,8 +65,8 @@ def main():
                 status = 'NOT AT 53'
             elif code == 0:
                 status = 'PASS'
-            elif code == 1 and good:
-                status = 'DIFFERS'
+            elif good:  # 139: a test that stopped on a difference can crash in its teardown
+                status = 'DIFFERS' if code == 1 else f'DIFFERS, then crash {code}'
             else:
                 status = f'CRASH {code}'
         with open(table, 'a') as t:
