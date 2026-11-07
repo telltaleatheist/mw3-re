@@ -57,13 +57,13 @@ fs::path own_dir() {
   return base ? fs::path(base) : fs::path(".");
 }
 
-// The game beside us; MW3_GAME_BIN names another (checks: a stand-in).
-std::string game_bin() {
-  if (const char* env = std::getenv("MW3_GAME_BIN")) return env;
+// A program beside us; the variable names another (checks: a stand-in).
+std::string beside(const char* env, const char* name) {
+  if (const char* e = std::getenv(env)) return e;
 #if defined(_WIN32)
-  const fs::path p = own_dir() / "mw3.exe";
+  const fs::path p = own_dir() / (std::string(name) + ".exe");
 #else
-  const fs::path p = own_dir() / "mw3";
+  const fs::path p = own_dir() / name;
 #endif
   std::error_code ec;
   return fs::is_regular_file(p, ec) ? p.string() : std::string();
@@ -77,6 +77,7 @@ void read_config(const std::string& write_dir, sdlfe::LauncherOptions& o) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
     if (line.rfind("install=", 0) == 0) o.cfg_install = zutl::path_from_config(line.substr(8));
     if (line.rfind("mw1_game=", 0) == 0) o.cfg_mw1_game = zutl::path_from_config(line.substr(9));
+    if (line.rfind("pm_install=", 0) == 0) o.cfg_pm_install = zutl::path_from_config(line.substr(11));
   }
 }
 
@@ -101,6 +102,7 @@ int main(int argc, char** argv) {
     else if (s == "--launcher-screen") o.screen = next();
     else if (s == "--launcher-play") o.play = true;
     else if (s == "--launcher-mw1") o.play_mw1 = true;
+    else if (s == "--launcher-pm") o.play_pm = true;
     else {
       std::fprintf(stderr,
                    "usage: mw3launcher [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--hidden] [--no-import]\n"
@@ -134,15 +136,18 @@ int main(int argc, char** argv) {
   if (!std::getenv("MW3_FIND_INSTALL")) o.more_installs.push_back(MW3_GAME_DIR);
 #endif
   o.fullscreen = !windowed && !window_given;
-  o.game_bin = game_bin();
+  o.program_dir = own_dir().string();
+  o.game_bin = beside("MW3_GAME_BIN", "mw3");
+  o.pm_bin = beside("MW3_PM_BIN", "mw3pm");
   if (o.game_bin.empty()) std::printf("mw3launcher: no mw3 beside this program: MECHWARRIOR 3 cannot start\n");
-  // The game gets this start's choices; a named write dir goes on too.
+  // The games get this start's choices; MW3 a named write dir too (Pirate's Moon has its own).
+  if (windowed) o.pm_args.push_back("--windowed");
+  if (window_given) o.pm_args.push_back("--window"), o.pm_args.push_back(std::to_string(o.win_w) + "x" + std::to_string(o.win_h));
+  if (!o.sound) o.pm_args.push_back("--nosound");
+  if (o.hidden) o.pm_args.push_back("--hidden");
+  if (o.no_import) o.pm_args.push_back("--no-import");
   if (write_dir_given || pointer) o.game_args.push_back("--write-dir"), o.game_args.push_back(o.write_dir);
-  if (windowed) o.game_args.push_back("--windowed");
-  if (window_given) o.game_args.push_back("--window"), o.game_args.push_back(std::to_string(o.win_w) + "x" + std::to_string(o.win_h));
-  if (!o.sound) o.game_args.push_back("--nosound");
-  if (o.hidden) o.game_args.push_back("--hidden");
-  if (o.no_import) o.game_args.push_back("--no-import");
+  o.game_args.insert(o.game_args.end(), o.pm_args.begin(), o.pm_args.end());
   o.quit_after_game = o.play;
   sdlfe::run_launcher(o);
   SDL_Quit();
