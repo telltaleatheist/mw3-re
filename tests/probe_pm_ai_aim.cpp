@@ -254,3 +254,90 @@ extern "C" int32_t probe_pm_ai_shot(const int32_t* in, const float* f, uint32_t*
   std::memcpy(out, s.log.data(), 4 * s.log.size());
   return m;
 }
+
+// The step, for test_pm_ai_step.py. in: 0 start phase, 1 a mech, 2 a manager, 3 bits: busy, shot, seen, a far time; then for each frame: target,
+// group, contact, plan quick; bits: the answers in order. f: 0 hold, 1 rest, 2 range, 3 rate, 4 quick, 5 delay, 6 rest
+// field, 7..9 reach, track, fire, 10 too hot, 11 cool for, 12 cool below, 13 shot every, 14 reach of the best, then for
+// each frame: now, heat, coolant, soonest.
+namespace {
+constexpr int kStepF = 15;
+struct St : StepPmHooks {
+  const int32_t* in;
+  const float* f;
+  const uint8_t* bits;
+  int n = 0, fr = 0;
+  bool fired = false, seen = false;
+  Contact con;
+  float at[3] = {};
+  std::vector<uint32_t> log;
+  bool bit() { return bits[n++] != 0; }
+  void put(uint32_t k, uint32_t v = 0) { log.push_back(k), log.push_back(v); }
+  const int32_t* fi() const { return in + 4 + 4 * fr; }
+  const float* ff() const { return f + kStepF + 4 * fr; }
+  zgame::Handle wm(zgame::Handle) override { return in[2] ? 5 : 0; }
+  zgame::Handle mech(zgame::Handle) override { return in[1] ? 6 : 0; }
+  Contact* target(zgame::Handle) override { return fi()[0] ? &con : nullptr; }
+  double heat(zgame::Handle) override { return ff()[1]; }
+  float coolant(zgame::Handle) override { return ff()[2]; }
+  void flush(zgame::Handle) override { put(1); }
+  float now() override { return ff()[0]; }
+  float hold(Brain*) override { return f[0]; }
+  float rest(Brain*) override { return f[1]; }
+  float range(Brain*) override { return f[2]; }
+  float rate(Brain*) override { return f[3]; }
+  uint32_t xd0(Brain*) override { return 0x77; }
+  void seed(uint32_t v) override { put(2, v); }
+  void start_x50(uint32_t v) override { put(3, v); }
+  void set_range(zgame::Handle, float r) override { put(4, W::bits(r)); }
+  void look_start() override { put(5); }
+  zgame::Handle best_weapon(zgame::Handle) override { put(0x15); return bit() ? 8 : 0; }
+  float weapon_reach(zgame::Handle) override { return f[14]; }
+  zgame::Handle pick(zgame::Handle) override { put(6); return bit() ? 9 : 0; }
+  void plan_free(zgame::Handle) override { put(7); }
+  bool plan_turn(zgame::Handle, float c) override { put(8, W::bits(c)); return bit(); }
+  bool plan_cone(zgame::Handle, float c) override { put(9, W::bits(c)); return bit(); }
+  bool plan_sight(zgame::Handle) override { put(10); seen = bit(); return seen; }
+  bool plan_quick(zgame::Handle) override { return fi()[3] != 0; }
+  bool plan_seen(zgame::Handle) override { return seen; }
+  Contact* plan_contact(zgame::Handle) override { return fi()[2] ? &con : nullptr; }
+  const float* plan_place(zgame::Handle, float, float) override { put(0x16); return at; }
+  bool plan_fired(zgame::Handle) override { return fired; }
+  void plan_set_fired(zgame::Handle, bool on) override { fired = on; }
+  bool shot(zgame::Handle, Contact*, const float*, float a, float r) override { put(11, W::bits(a)), put(11, W::bits(r)); return bit(); }
+  bool any_can_hit(zgame::Handle) override { put(12); return bit(); }
+  void too_far(Brain*) override { put(13); }
+  void trigger(Brain*, bool on) override { put(14, on); }
+  zgame::Handle group(zgame::Handle) override { return fi()[1] ? 11 : 0; }
+  double group_soonest(zgame::Handle) override { return ff()[3]; }
+  bool clear_of_friends(zgame::Handle) override { put(0x14); return !bit(); }
+  void aim_track(zgame::Handle, Brain*) override { put(16); }
+  void aim_lead(float dt, zgame::Handle, zgame::Handle, Brain*) override { put(17, W::bits(dt)); }
+  void stand_down(zgame::Handle) override { put(18); }
+  void brain_x20(Brain*) override { put(19); }
+};
+}  // namespace
+
+extern "C" int32_t probe_pm_ai_step(const int32_t* in, int32_t frames, const uint8_t* bits, const float* f, uint32_t* out, int32_t cap) {
+  St s;
+  s.in = in, s.f = f, s.bits = bits;
+  set_step_pm_hooks(&s);
+  FiringPm p;
+  p.vehicle = 4, p.brain = nullptr, p.phase = in[0], p.busy = (in[3] & 1) != 0, p.plan = in[0] == 8 || in[0] == 0 ? 0 : 9;
+  p.quick = f[4], p.delay = f[5], p.rest = f[6], p.reach_arg = f[7], p.track_arg = f[8], p.fire_arg = f[9];
+  p.too_hot = f[10], p.cool_for = f[11], p.cool_below = f[12], p.shot_every = f[13], p.x50 = 0x55;
+  p.wait = 0.25f, p.time = in[3] & 8 ? 1e6f : 0;
+  s.fired = (in[3] & 2) != 0, s.seen = (in[3] & 4) != 0;
+  for (s.fr = 0; s.fr < frames; ++s.fr) {
+    p.step(1.0f / 30);
+    s.log.push_back(0x2b), s.log.push_back(static_cast<uint32_t>(p.phase)), s.log.push_back(W::bits(p.time));
+    s.log.push_back(W::bits(p.wait)), s.log.push_back(W::bits(p.range)), s.log.push_back(p.busy);
+    s.log.push_back(W::bits(p.cool_until)), s.log.push_back(W::bits(p.shot_next)), s.log.push_back(s.fired);
+    s.log.push_back(W::bits(p.x40));
+  }
+  set_step_pm_hooks(nullptr);
+  s.log.push_back(static_cast<uint32_t>(s.n));
+  const int32_t m = static_cast<int32_t>(s.log.size());
+  if (m > cap) return -1;
+  std::memcpy(out, s.log.data(), 4 * s.log.size());
+  return m;
+}

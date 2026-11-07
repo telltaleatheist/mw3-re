@@ -170,6 +170,76 @@ void set_shot_pm_hooks(ShotPmHooks* h);
 // the burst's seconds; `rate` its +0x124's +0x54.
 bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, float rate);
 
+// What the step asks outside. A plan and its virtuals are handles here until the step is wired to
+// PlanPm: vt+0x14 turn, vt+0x04 in the cone, vt+0x1c sight, vt+0x20 place.
+class StepPmHooks {
+ public:
+  virtual ~StepPmHooks() = default;
+  virtual zgame::Handle wm(zgame::Handle v) = 0;                         // +0xd4
+  virtual zgame::Handle mech(zgame::Handle v) = 0;                       // vt+0x58
+  virtual Contact* target(zgame::Handle v) = 0;                          // +0x6c
+  virtual double heat(zgame::Handle m) = 0;                              // vt+0xa8
+  virtual float coolant(zgame::Handle m) = 0;                            // +0x590
+  virtual void flush(zgame::Handle m) = 0;                               // 0x0041ad50
+  virtual float now() = 0;
+  virtual float hold(Brain* b) = 0;                                      // +0x34
+  virtual float rest(Brain* b) = 0;                                      // +0x38
+  virtual float range(Brain* b) = 0;                                     // +0x30
+  virtual float rate(Brain* b) = 0;                                      // +0x124's +0x54
+  virtual uint32_t xd0(Brain* b) = 0;                                    // +0xd0
+  virtual void seed(uint32_t v) = 0;                                     // 0x005bfdc0
+  virtual void start_x50(uint32_t v) = 0;                                // 0x00434980
+  virtual void set_range(zgame::Handle v, float r) = 0;                  // 0x004e7150
+  virtual void look_start() = 0;                                         // +0x70's vt+0x00
+  virtual zgame::Handle best_weapon(zgame::Handle wm) = 0;               // 0x004b9de0
+  virtual float weapon_reach(zgame::Handle w) = 0;                       // 0x004b7b50
+  virtual zgame::Handle pick(zgame::Handle v) = 0;                       // 0x004bc2e0
+  virtual void plan_free(zgame::Handle plan) = 0;
+  virtual bool plan_turn(zgame::Handle plan, float cone) = 0;            // vt+0x14
+  virtual bool plan_cone(zgame::Handle plan, float cone) = 0;            // vt+0x04
+  virtual bool plan_sight(zgame::Handle plan) = 0;                       // vt+0x1c, +0x0d
+  virtual bool plan_quick(zgame::Handle plan) = 0;                       // +0x0c
+  virtual bool plan_seen(zgame::Handle plan) = 0;                        // +0x0d
+  virtual Contact* plan_contact(zgame::Handle plan) = 0;                 // [[+4]]
+  virtual const float* plan_place(zgame::Handle plan, float hold, float rate) = 0;  // vt+0x20
+  virtual bool plan_fired(zgame::Handle plan) = 0;                       // +0x10
+  virtual void plan_set_fired(zgame::Handle plan, bool on) = 0;
+  virtual bool shot(zgame::Handle wm, Contact* c, const float* at, float hold, float rate) = 0;  // 0x004bcd40
+  virtual bool any_can_hit(zgame::Handle plan) = 0;                      // 0x004bd1c0
+  virtual void too_far(Brain* b) = 0;                                    // the IControls' vt+0x78
+  virtual void trigger(Brain* b, bool on) = 0;                           // the IControls' vt+0x10
+  virtual zgame::Handle group(zgame::Handle wm) = 0;                     // +0x2c, +0x30: none at -1
+  virtual double group_soonest(zgame::Handle g) = 0;                     // 0x004b5bf0
+  virtual bool clear_of_friends(zgame::Handle plan) = 0;                 // the contacts by 0x004b9f00: none in the way, or the target first
+  virtual void aim_track(zgame::Handle plan, Brain* b) = 0;              // AimPm::track(plan, 0, b)
+  virtual void aim_lead(float dt, zgame::Handle plan, zgame::Handle wm, Brain* b) = 0;  // AimPm::lead
+  virtual void stand_down(zgame::Handle v) = 0;                          // vt+0x164(0, &o, 1), the speech 0x004677e0 when o's +0x3ac
+  virtual void brain_x20(Brain* b) = 0;                                  // vt+0x20
+};
+StepPmHooks& step_pm_hooks();
+void set_step_pm_hooks(StepPmHooks* h);
+
+// The firing's state 0x004bc930's owner: the brain's +0x108.
+struct FiringPm {
+  zgame::Handle vehicle = 0;
+  Brain* brain = nullptr;     // +0x6c
+  int32_t phase = 8;          // +0x00
+  float time = 0;             // +0x04
+  float quick = 0, delay = 0; // +0x08, +0x0c
+  float rest = 0;             // +0x10
+  zgame::Handle plan = 0;     // +0x14
+  float reach_arg = 0, track_arg = 0, fire_arg = 0;  // +0x18, +0x1c, +0x20
+  float range = 0;            // +0x2c
+  float wait = 0;             // +0x30
+  bool busy = false;          // +0x34
+  float too_hot = 0;          // +0x38
+  float x40 = 0;              // +0x40
+  uint32_t x50 = 0;           // +0x50
+  float cool_for = 0, cool_until = 0, cool_below = 0;  // +0x58, +0x5c, +0x60
+  float shot_every = 0, shot_next = 0;  // +0x64, +0x68
+  void step(float dt);        // 0x004bb700
+};
+
 }  // namespace mech3::ai
 
 #endif

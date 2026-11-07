@@ -17,6 +17,7 @@ namespace {
 AimPmHooks* g_hooks = nullptr;
 PickPmHooks* g_pick = nullptr;
 ShotPmHooks* g_shot = nullptr;
+StepPmHooks* g_step = nullptr;
 
 constexpr float kAimScale = 0.02f;           // [0x0062f8ec], 0x004bad40: 2 / 100
 constexpr double kPi = 3.14159265359;        // 0x005e6e20
@@ -66,6 +67,8 @@ PickPmHooks& pick_pm_hooks() { return *g_pick; }
 void set_pick_pm_hooks(PickPmHooks* h) { g_pick = h; }
 ShotPmHooks& shot_pm_hooks() { return *g_shot; }
 void set_shot_pm_hooks(ShotPmHooks* h) { g_shot = h; }
+StepPmHooks& step_pm_hooks() { return *g_step; }
+void set_step_pm_hooks(StepPmHooks* h) { g_step = h; }
 
 // Pirate's Moon 1.0 @ 0x004013d0
 float unit3(float v[3]) {
@@ -595,6 +598,151 @@ bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, 
   for (const ShotRec& r : recs) h.group_add(wm, r.w, rate);
   h.set_mode(wm, 2);
   return true;
+}
+
+// Pirate's Moon 1.0 @ 0x004bb700, the states as the exe's: 0, 8 start; 1 ask the range; 2 wait; 7 pick
+// a plan; 3 turn to it; 4, 5 fire when it's up; 6 hold the trigger. The gotos are the exe's, whose
+// states fall into each other.
+void FiringPm::step(float dt) {
+  StepPmHooks& h = step_pm_hooks();
+  const zgame::Handle wm = h.wm(vehicle);
+  const zgame::Handle m = h.mech(vehicle);
+  bool cool = true;
+  if (m) {
+    double heat = h.heat(m);
+    if (!(heat > cool_below)) {
+      cool_until = static_cast<float>(double{h.now()} + cool_for);
+    } else if (h.now() > cool_until && h.coolant(m) > 0) {
+      h.flush(m);
+      heat = 0;
+    }
+    cool = heat < too_hot;
+  }
+  if (!wm) return;
+  bool again = false, fired = false;
+  const auto spent = [&] { return busy || !h.target(vehicle) || time <= h.now(); };
+  const auto fire_now = [&] {
+    Contact* c = h.plan_contact(plan);
+    if (!c) {
+      h.plan_set_fired(plan, false);
+      return;
+    }
+    const float a = h.hold(brain), r = h.rate(brain);
+    h.plan_set_fired(plan, h.shot(wm, c, h.plan_place(plan, a, r), a, r));
+    if (h.plan_fired(plan)) shot_next = h.now() + shot_every;
+  };
+  switch (phase) {
+    case 1: goto ask_range;
+    case 2: goto waiting;
+    case 3: goto track;
+    case 4: case 5: goto firing;
+    case 6: goto hold;
+    case 7: {
+      x40 = h.hold(brain) > 1.0f ? 1.0f : h.hold(brain);
+      if (!busy) {
+        plan = h.pick(vehicle);
+        if (plan) {
+          h.plan_turn(plan, track_arg);
+          if (!h.plan_quick(plan) && !h.any_can_hit(plan)) {
+            h.too_far(brain);
+            time = h.now() + delay;
+          } else {
+            time = h.now() + quick;
+          }
+          again = false;
+          goto track;
+        }
+      }
+      goto done;
+    }
+    case 100:
+      h.plan_free(plan);
+      plan = 0;
+      [[fallthrough]];
+    case 0: case 8:
+      h.seed(h.xd0(brain));
+      h.start_x50(x50);
+      h.set_range(vehicle, h.range(brain));
+      h.look_start();
+      wait = rest;
+      goto ask_range;
+    default: return;
+  }
+track:
+  if (spent()) {
+    if (!again) goto done;
+  } else {
+    if (!h.plan_turn(plan, track_arg) || !h.plan_cone(plan, reach_arg)) {
+      phase = 3;
+      return;
+    }
+    again = true;
+  }
+  fire_now();
+  if (h.plan_fired(plan)) {
+    phase = 4;
+    return;
+  }
+  goto done;
+firing:
+  if (spent()) {
+    if (!again) goto done;
+  } else {
+    if (!h.plan_turn(plan, track_arg) || !h.plan_cone(plan, reach_arg) || !h.plan_sight(plan)) {
+      phase = 5;
+      return;
+    }
+    again = true;
+  }
+  time = h.now() + h.hold(brain);
+  h.aim_track(plan, brain);
+  fired = true;
+  goto check;
+done:
+  if (fired) {
+  check:
+    if (cool) {
+    hold:
+      if (!busy && cool) {
+        if (shot_next < h.now()) fire_now();
+        const float t = h.now();
+        if (h.plan_fired(plan)) {
+          if (const zgame::Handle g = h.group(wm)) {
+            if (!(double{time} - h.group_soonest(g) <= t) && h.plan_turn(plan, fire_arg)) {
+              if (h.plan_cone(plan, reach_arg) && h.plan_seen(plan) && h.clear_of_friends(plan)) {
+                h.aim_lead(dt, plan, wm, brain);
+                h.trigger(brain, true);
+              } else {
+                h.trigger(brain, false);
+              }
+              phase = 6;
+              return;
+            }
+          }
+        }
+      }
+      wait = h.rest(brain);
+    }
+  }
+  busy = false;
+  {
+    const float t = h.now() + wait;
+    wait = rest;
+    time = t;
+  }
+  h.trigger(brain, false);
+  h.stand_down(vehicle);
+  h.brain_x20(brain);
+waiting:
+  phase = h.now() < time ? 2 : 1;
+  return;
+ask_range: {
+    const zgame::Handle best = h.best_weapon(wm);
+    range = h.range(brain);
+    if (best && range < h.weapon_reach(best)) range = h.weapon_reach(best);
+    h.set_range(vehicle, range);
+    phase = 7;
+  }
 }
 
 }  // namespace mech3::ai

@@ -274,7 +274,7 @@ The lead's call: before the first run, port and test the 112 that ran, biggest r
 
 | Group | Functions | Instructions | MW3's test to start from |
 |---|---:|---:|---|
-| Firing, 0x4b8ce0..0x4bd920, all under the step 0x4bb700 from 0x4fb3d0 | 46 | 5,039 | `test_ai_aim`, `test_ai_plan`, `test_ai_firing` |
+| Firing, 0x4b8ce0..0x4bd920, all under the step 0x4bb700 from 0x4fb3d0 (aim, pick, shot and step done, the rest named under Firing's step) | 46 | 5,039 | `test_ai_aim`, `test_ai_plan`, `test_ai_firing` |
 | The brain and the tick, 0x4f5030..0x4fc1c0 | 19 | 1,055 | `test_ai_brain` |
 | The states, 0x4d4010..0x4dfe90 | 26 | 1,518 | by state |
 | Nets, 0x4c6ab0..0x4cb730 | 13 | 873 | |
@@ -293,6 +293,18 @@ Firing is first and more than half. It isn't MW3's changed: PM's step keeps abou
 ### Firing's shot (2026-11-07)
 
 `test_pm_ai_shot`: 0x4bcd40 with 0x4bc930, 0x4bcad0, 0x4bca70, 0x4bd170, the removes, `std::sort` 0x4bd920 (`crt::msvc_sort`), 0x4b8d30 real, `shot_pick`, 20,000 cases at 53 bits, exact, volleys of one to many. 34 breaks, 28 caught by a compare. First pass 22; the misses that were gaps got directed cases: ammo exactly at the keep level, the room exactly on a weapon's number, equal numbers, the multiplier 0 so the sort's ties show, and a sum that decides as a double but not as the float it's stored in. The 6 left are equivalent: a division of equal numbers is 1, two forms of the "some but not all" test give the same list, the cheapest of one, the single fit through the other branch, and `std::stable_sort` matches at 16 weapons or fewer, where the exe's sort is an insertion sort. The port doesn't lean on that: it keeps `crt::msvc_sort`, the exe's own sort at any size, though the test stops at 16. Past 16, read: the shipped game can't get there (loadouts of 4 to 12; the lab stops at 16, TAG counted). Three ways in, all outside it: a mod's mech file with 16 weapons and TAG (the reader clamps weapons to 16, TAG goes in by 0x4b0460 unchecked), a hand-edited saved loadout, a network peer's config. Then the add writes the 17th over the manager's next field; weapons.md, Latent overflow. That's the limit to fix for mods, not this sort. Stand-ins: 0x4b7bd0, 0x4b8f80, 0x4b7b40, 0x4b7b90, the group's calls. The test leaves out a vehicle with no brain: the exe faults on null there (`fld [ebp + 0x38]`), the port reads zeros; a firing's shooter always has one.
+
+### Firing's step (2026-11-07)
+
+`test_pm_ai_step`: 0x4bb700 on the exe, `FiringPm::step`, every state, 3,000 cases of 40 frames at 53 bits, exact, with all it calls stood in on one script of answers. 40 breaks, 40 caught, 7 of them after adding ties (no time between frames, heat on its limit), start states (busy, already fired, seen, a far time) and +0x40 to the log. Still to come for the 112: the plan's virtuals 0x4baae0, 0x4ba9e0, 0x4baac0, 0x4ba0d0, the weapon checks 0x4b8f80, 0x4b9de0, 0x4b9d80, 0x4bd1c0, and 0x4b9f00. The step's `fire_now` is 0x4bbdc0, inlined; 0x4bb6b0 is its head. MW3's `volley_pick` is still in PM's exe as 0x4b56d0, but only the plan's vt+0 0x4bacc0 leads to it, nothing in the step calls that slot, and no trace run hit it.
+
+### Named checks for the first run, from Owen's play of PM mission 2 on the stand-in (2026-11-07)
+
+Both on c1 mission 2 with `PM_AI=1`, next to c1m1, and both by reading so far, nothing run.
+
+**The chase: do the enemies leave Op Able and reach the canyon crossing?** Owen: "in the original, they met me at the canyon crossing and killed me before i could cross. now theyre staying by op able and doing nothing." What starts it, from `readerm2.zbd`: no order and no script. Clint (`clint_01`, 2433 -4347) and Puma (`puma_01`, 2043 -4247) have no net in their records and vlists that only fire on damage; the valves touch Clint once, `jump_made` setting attack strategy 2 when the player reaches a `reg_canyon_*`, after the crossing; no text for them turned up in `interp.zbd`. That leaves the attack state's own pursuit: sight ranges 1050 and 2000 reach Able (3304 -4659), and `net_15` runs through there, with a jump link and `via gorge_01` nodes beside it (nodes 00, 01). So it should need PM's attack, but a stand-in fault isn't ruled out: their strategies are 1 and 5, and MW3's switch on the brain's +0x40 (0x4c0ba0, `VehiclePart`) has cases 1..4 only, so 5 gets no behaviour. PM's reader of +0x40 wasn't found by searching, so whether 5 means something there is open.
+
+**The lancemate's jump: does Epona cross with the player when fitted with jets?** Owen: "my lancemate was outfitted with jump jets but never crossed the canyon with me. shes supposed to do that." What makes her jump, by reading: a net's jump link, the same `net_15` node 01 (`jump 1 25.0`), taken by the way finder only with jets; then the jump state. On the stand-in that's `ValueStep::passable`, on PM the link pick 0x4d60d0 and `zai_jump_pm`. The real loadout is read: `Pilot::jump_jets` is `mech_jump_jets`, `equipment[11]`, the built mech's count, and PM's jump state `has_jets` is +0x3e8, the same field; to confirm in the run that a lancemate's mech is built from the player's loadout, not the stock one. Her strategy is 5 too. The stand-in has the link, the jets and a jump state, so reading can't say it must wait for the switch; which step fails there is unknown: a short stand-in run with her ordered to follow would show it. No valve orders her across: `jumpingspeak` is only her line.
 
 ## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
 
