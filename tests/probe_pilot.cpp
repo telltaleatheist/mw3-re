@@ -184,6 +184,8 @@ void dump_pilot(Dump& d, Pilot* p) {
   d.kv("kills", m->kills);
   d.kv("deaths", m->deaths);
   d.kv("ba8", m->ba8);
+  d.o << "\n standalone ";
+  d.game(*p->standalone);
   TrainingGame* t = p->training;
   d.o << "\n training ";
   d.game(*t);
@@ -197,7 +199,6 @@ void dump_pilot(Dump& d, Pilot* p) {
     d.kv("b38", c->b38);
     d.kv("x9c", c->x9c);
     d.kv("mission", c->mission);
-    d.kv("campaign", c->campaign);
     d.kv("a8", c->a8);
     d.kv("ac", c->ac);
     d.kv("b0", c->b0);
@@ -216,6 +217,7 @@ void dump_pilot(Dump& d, Pilot* p) {
 void dump_all(Dump& d) {
   d.o << "pilots " << pilots().size() << " current \"" << (current_pilot() ? current_pilot()->name : "-") << "\"\n";
   for (Pilot* p : pilots()) dump_pilot(d, p);
+  if (!current_pilot()) return;  // PM's is the pilot's
   const ActionSetup& s = action_setup();
   d.o << "setup ";
   for (int32_t v : s.g820) d.o << v << ' ';
@@ -400,7 +402,7 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
     } else if (op == "G") {
       int c = 0, m = 0;
       ls >> c >> m;
-      Pilot* p = debug_start_campaign(c, m);
+      Pilot* p = debug_start_campaign(c, c);  // PM's 0x0047ad20 takes the mission alone
       g_log.add(std::string("debug ") + (p ? p->name : "-"));
     } else if (op == "N") {
       int c = 0, m = 0;
@@ -415,6 +417,7 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
     } else if (op == "Y") {  // a setup global by its address
       uint32_t addr = 0, v = 0;
       ls >> std::hex >> addr >> v >> std::dec;
+      if (!current_pilot()) continue;  // PM's is the pilot's
       ActionSetup& s = action_setup();
       const auto i = static_cast<int32_t>(v);
       if (addr >= 0x605820 && addr < 0x605834) s.g820[(addr - 0x605820) / 4] = i;

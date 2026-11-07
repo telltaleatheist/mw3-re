@@ -279,12 +279,12 @@ Open from it: MW3's LRM hold is gone from PM's weapon type 0x4b34d0 (no +0xc0 wr
 **The order after this table's frame rows (the lead, 2026-11-05):** the campaign items; the frame's 85 inferred rows, logic class first, with a break in the function itself naming the PM difference it covers; #20 0x424030 and #311 0x41a020; then the second campaign (type 5, `pm-map.md` 7b, read and sized first, the lead's go before porting); then the logic and new rows outside the frame.
 
 **Open, not to lose (2026-11-05):**
-- `test_pilot`'s 1,136 lines: move with the pilot and campaign screens, at the latest with the Pirate Missions, whose screens read the fifth game.
+- `test_pilot`'s 1,136 lines: moved, `test_pm_pilot_games` (2026-11-07), `pm-tests.md`.
 - The starting store 0x4351b0's mech and store calls are stubbed on both sides: not compared. The restored world (0x435d30) runs, not compared with the exe's.
 - 0x404a20's lancemate warnings: type 5's half with the Pirate Missions, type 2's with the outside-frame rows.
 - c2m3's stop at (2636, -1528): needs its own run on the walker's route. This walk stops first at a wall at (1365, -6.8, -824) by another route, which settles nothing about it.
 - PM's salvage block 0x473690 against the exe (above, Byte damage).
-- `test_pilot` isn't moved. It holds the store and game calls on the pilot (0x478560, 0x4788b0, the stores' add and take, saved campaigns, rename, damage). It needs a sitting: 40 addresses, 7 with no PM counterpart (0x424010, 0x435240, 0x484840 and four inside functions), and PM's campaign differs. Pointed at PM as it stands, it stops at 0x484840.
+- `test_pilot` is moved: `test_pm_pilot_games`.
 - The campaign's flag 0x10 on a record (0x4a19c0): a vehicle with it is made only if its name is in the campaign's string list (0x4356c0, filled at 0x45fcf0). The port makes it regardless. Not changed: which shipped records have it isn't looked at yet.
 - PM's new 0x4095e0: its own node out of a line query from the camera, not ported or looked at further.
 - 0x41f8d0's `+0xe2` on the way to the lod's light: read only.

@@ -259,6 +259,10 @@ void LobbyScreen::take_pilot(Handle p, MultiplayerGame* g) {
 // and set from the game; the lists and buttons cleared; the handlers; the
 // game open again (its fourth word 1); the network's players and teams.
 void LobbyScreen::enter() {
+  // Pirate's Moon fills the game's store in the lobby (0x0049eb20, with a tonnage limit on the mech, not
+  // ported), not in its constructor: here, before anything uses it. docs/pm-tests.md.
+  if (Pilot* p = current_pilot())
+    if (MultiplayerGame* m = p->multiplayer(); m && !m->store.full) pilot_hooks().store_fill(m->store, kMultiplayer);
   Engine& e = engine();
   if (!game) return;
   const uint32_t me = znet::local_id();

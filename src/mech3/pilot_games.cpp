@@ -530,7 +530,7 @@ void Game::load() {
 // Mech3.exe 1.2 @ 0x004373e0
 LabGame::LabGame(Pilot* p) : Game(p) {
   pilot_hooks().store_fill(store, kMechLab);
-  // Pirate's Moon 0x004381d0 sets no line-up here (MW3: mechs 3, 8 and 13).
+  lineup[0].mech = 5;  // Pirate's Moon 0x004381d0: the first only (MW3: mechs 3, 8 and 13)
 }
 
 // Mech3.exe 1.2 @ 0x004374d0
@@ -538,7 +538,8 @@ LabGame::~LabGame() = default;
 
 // Pirate's Moon 1.0 @ 0x004351b0 (MW3's 0x004345a0). Operation 1, mission 1 gets the starting store (pilot.md, A new campaign).
 CampaignGame::CampaignGame(Pilot* p, int32_t c, int32_t m) : Game(p), mission(m), campaign(c) {
-  if (c == 1 && m == 1) {
+  (void)c;
+  if (m == 1) {  // the mission alone
     PilotHooks& h = pilot_hooks();
     // Pirate's Moon 0x004351b0: a Centurion, a Puma and an Owens, spare guns, sinks and ammunition.
     h.store_add_mech(store, 7, h.message(0xf20));
@@ -620,7 +621,7 @@ void CampaignGame::load() {
   }
   int32_t k = 0;
   rd(f, &k, 4);
-  for (; k > 0 && !std::feof(f); --k) {  // 0x00597280
+  for (; k != 0 && !std::feof(f); --k) {  // 0x00597280
     int32_t len = 0;
     rd(f, &len, 4);
     if (len < 0 || len > 0x10000) break;  // FIX (bug): a damaged length; the exe mallocs it whole
@@ -663,15 +664,17 @@ void StandaloneGame::load() {
   rd(f, &x3c, 4);
   int32_t n = 0;  // 0x0040dc70
   rd(f, &n, 4);
-  for (int32_t i = 0; i < n && !std::feof(f); ++i) {
+  for (int32_t i = 0; i < n; ++i) {
     lineups.emplace_back();
     int32_t k = 0;  // 0x00434b70
     rd(f, &k, 4);
-    for (; k > 0 && !std::feof(f); --k) {
+    for (; k != 0; --k) {
       auto* s = new GameSlot(-1, nullptr, 0);
       s->load(*pilot);
       lineups.back().push_back(s);
+      if (std::feof(f)) break;
     }
+    if (std::feof(f)) break;
   }
 }
 
@@ -696,7 +699,10 @@ CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   int32_t m = mission_number(), op = operation();
   const bool over = campaign_advance(op, m);
   if (next_one) {
-    if (over) return nullptr;
+    if (over) {  // Pirate's Moon 1.0 @ 0x004359e0: the salvage merged all the same
+      merge_salvage();
+      return nullptr;
+    }
     auto* g = new CampaignGame(pilot, op, m);
     g->store.assign(store);
     g->store.add_all(store64);
@@ -904,10 +910,7 @@ void ActionGame::load() {
 }
 
 // Mech3.exe 1.2 @ 0x004353a0
-MultiplayerGame::MultiplayerGame(Pilot* p) : Game(p) {
-  store.full = 1;
-  pilot_hooks().store_fill(store, kMultiplayer);
-}
+MultiplayerGame::MultiplayerGame(Pilot* p) : Game(p) {}  // Pirate's Moon 0x00435e80: no fill, the lobby's
 
 // Mech3.exe 1.2 @ 0x00435500
 MultiplayerGame::~MultiplayerGame() = default;
@@ -921,7 +924,8 @@ void MultiplayerGame::save() {
   wr(f, &pm78, 4);
   wr(f, &pm98, 4);
   wr(f, &pm70, 4);
-  wr(f, &x70, 4);
+  const int32_t score = x70 > 9 ? 10 : x70;  // Pirate's Moon: saved no higher than 10
+  wr(f, &score, 4);
   wr(f, &x74, 4);
   wr(f, &b8c, 1);
   wr(f, &b8d, 1);

@@ -308,17 +308,17 @@ bool Pilot::record_mission(bool next) {
   const bool fix = zfix::options().bugs;
   CampaignGame* g = static_cast<CampaignGame*>(current)->next_mission(next, !fix);
   if (g && g != current) {
-    const int32_t m = g->mission_number(), op = g->operation();
+    const int32_t m = g->mission_number();  // Pirate's Moon 1.0 @ 0x0047b130: no operation
     auto it = campaigns.begin();
     for (; it != campaigns.end(); ++it) {
       if ((*it)->type() != kCampaign) continue;
       auto* c = static_cast<CampaignGame*>(*it);
-      if (c->operation() == op && c->mission_number() == m) break;
+      if (c->mission_number() == m) break;
     }
     bool filed = true;
     if (it == campaigns.end()) {
       campaigns.push_back(g);
-    } else if (pilot_hooks().message_box(1, 7, 0xfb3) == 1) {
+    } else if (pilot_hooks().message_box(1, 5, 0xfb3) == 1) {
       Game* old = *it;
       *it = g;
       delete old;
@@ -439,6 +439,7 @@ void delete_other_pilots() {
     it = g_pilots.erase(it);
     delete p;
   }
+  delete_pilot("DefaultPlayer");  // Pirate's Moon 1.0 @ 0x0047a98d: the debug start's, and its file
 }
 
 // Mech3.exe 1.2 @ 0x00478a40 (the debug menu's campaign entries): the
