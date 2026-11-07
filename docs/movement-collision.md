@@ -37,6 +37,12 @@ bit on both mechs. The other mech's velocity is not touched; a remote one gets t
 0x424ba0: on foot, only what 0x424d80 allows crushes (node +0xc4 at least the frame, and an owner that is gone or
 none); anything else is a wall response. Amounts are per hit, at any frame rate (below).
 
+Precision on `pm` (2026-11-07): `mech_collide.cpp` works in `zgeo::X` between the exe's stores, and
+`test_pm_collide.py` is bit for bit at 24 and 53 bits. As floats, 396 of 19,020 random trials took another
+path at 53. PM's exe stores the sweep's two sums, which MW3's doesn't; 0.9's bump share is compared in
+double, so a ratio of exactly 0.9 falls the exe's way; and of the crash's two inlined copies, the leg's
+(0x00425202) stores the share before using it where the torso's and 0x004253f0 don't.
+
 ## In the frame
 
 ```
