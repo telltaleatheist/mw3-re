@@ -12,6 +12,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/lab_filebox.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/ztwod/twod.h"
@@ -1246,9 +1247,23 @@ void GameEngine::lab_slot_set_config(Handle slot, Handle config, Handle store) {
     s->set_config(static_cast<const Config*>(object_of(config)), store_of(store), true);
 }
 void GameEngine::config_export(Handle config) {
-  if (const auto* c = static_cast<const Config*>(object_of(config))) lab_export_config(*c);
+  const auto* c = static_cast<const Config*>(object_of(config));
+  if (!c) return;
+  std::string file = std::string(mech_name(c->mech)) + "_" + (c->name ? c->name : "");  // 0x00428000
+  LabFileBox box(*this, "configs", "*.m3c", &file, false);
+  file_box_ = &box;
+  const bool save = box.run();
+  file_box_ = nullptr;
+  if (save) lab_export_config(*c, file);
 }
-Handle GameEngine::config_import() { return handle_of(lab_import_config()); }
+Handle GameEngine::config_import() {
+  std::string file;
+  LabFileBox box(*this, "configs", "*.m3c", &file, true);
+  file_box_ = &box;
+  const bool read = box.run();
+  file_box_ = nullptr;
+  return read ? handle_of(lab_import_config(file)) : 0;
+}
 void GameEngine::lab_page_refresh(Handle screen) {
   if (LabScreen* s = lab_screen(screen)) s->refresh();
 }

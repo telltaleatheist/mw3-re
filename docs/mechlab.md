@@ -291,8 +291,10 @@ Ported in `mech3/lab_screen.{h,cpp}`, checked by `test_lab_screen.py`.
     in a .m3c file) and imports with 0x00426300 / 0x004260c0.
   - An import goes to the end of the *shown* mech's list, renamed with
     rand() when its name is taken (0x00448c1d, ported in mech_lab.cpp).
-  - FIX (A): the export\ and import\ folders instead of the dialogs, and
-    no checksum check (FIX (trap)).
+  - Pirate's Moon (0x00428000, 0x00428080) asks through its own dialog,
+    LOADSAVE_DIALOG, for a name in `configs\` (*.m3c), and adds a read loadout
+    to its own mech's list (`lab_filebox`, menus.md section 15). No checksum
+    check (FIX (trap)).
 
 ### The item lists' base (step 5a)
 

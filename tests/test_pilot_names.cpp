@@ -111,22 +111,10 @@ TEST(fix_lab_loadout_export_import) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/test_lab_files";
   zutl::set_write_dir(dir);
   mech3::Config c(3, "Mine");
-  EXPECT(mech3::lab_export_config(c));
-  const std::string out = zutl::write_path((std::string("export\\") + mech3::mech_name(3) + "_Mine.m3c").c_str());
-  std::FILE* f = std::fopen(out.c_str(), "rb");
-  EXPECT(f != nullptr);
-  std::string bytes;
-  for (int ch; f && (ch = std::fgetc(f)) != EOF;) bytes += static_cast<char>(ch);
-  if (f) std::fclose(f);
-  std::FILE* g = zutl::open("import\\mine.m3c", "wb");
-  EXPECT(g != nullptr);
-  if (g) {
-    std::fwrite(bytes.data(), 1, bytes.size(), g);
-    std::fclose(g);
-  }
-  mech3::Config* in = mech3::lab_import_config();
+  EXPECT(mech3::lab_export_config(c, "Mine file"));
+  EXPECT(zutl::exists("configs\\Mine file.m3c"));
+  mech3::Config* in = mech3::lab_import_config("Mine file");
   EXPECT(in && in->mech == 3 && in->name && std::strcmp(in->name, "Mine") == 0);
   delete in;
-  EXPECT(mech3::lab_import_config() == nullptr);  // read once: renamed .done
-  EXPECT(zutl::exists("import\\mine.m3c.done"));
+  EXPECT(mech3::lab_import_config("No file") == nullptr);
 }

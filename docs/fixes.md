@@ -60,7 +60,7 @@ change.
 | A message the table lacks, 0x00576040 (Mech3Msg.dll) | FormatMessage fails and the text is null; the callers copy it unchecked (the settings' default ActiveCtlCfg, 0xfc0, with `strncpy`) | (bug) 1.0's Mech3Msg.dll lacks 38 of 1.2's messages (assets.md, Data versions): the 1.2 exe over 1.0's table would crash on a fresh registry | Read as "" (`Engine::message`): the controls start from their defaults; mw3tests on 1.0 data (`build-10`) |
 | fmv.zrd's entries, 0x00598d80 | BLITIMAGE's x and y, a fade's values read by position whatever the entry's length | (bug) a short entry reads past its list; no shipped one is short | Read as 0 past the list |
 | The message box's loop, 0x005a7280 (twod.md, The message box) | Its frames poll zInput (DirectInput), never the window's messages | (A) the program's input comes as window events: unpumped, no click would reach the box | The loop's input poll pumps the app's message pump first (`GameEngine::pump_events`); a quit ends the box (no answer) and is posted again; `playtest_delete_pilot_through_the_games_message_box_headless` |
-| The mech lab's Ctrl+X / Ctrl+I, 0x00426180 / 0x00426300 (mechlab.md section 1) | A loadout written to or read from a file chosen in Windows' save and open dialogs ("Mech3 Configurations", *.m3c) | (A) no Windows dialogs | Ctrl+X writes `export\<mech>_<loadout>.m3c` in the write dir (the dialog's default name); Ctrl+I reads the next `import\*.m3c` and renames it `*.m3c.done` (`lab_export_config`, `lab_import_config`); `fix_lab_loadout_export_import`. The file is the exe's (0x00426090: the name, then 0x00424480) |
+| The mech lab's Ctrl+X / Ctrl+I on Pirate's Moon | The game's own LOADSAVE_DIALOG (MW3 used Windows' dialogs, and its port the `export\` and `import\` folders) | none: ported as written | `lab_filebox`, `configs\<name>.m3c`, as the exe (0x00428000, 0x00428080); `test_pm_lab_filebox.py`. The file is the exe's (the name, then the loadout). FIX (trap): no checksum check on loading, as MW3's (docs/protection.md) |
 | The mech lab's import, 0x004260c0 | A read loadout whose checksum (0x004255b0) is not its +0x88 is dropped | (trap) hand-edited loadouts refused, as the saved ones (protection.md) | Not checked |
 | Span routines, 0x564080, 0x56cb40 | ESP pointed at the pixels, written with PUSH | (A) x86-only; fragile anywhere, since anything using the stack meanwhile writes into the picture | Same writes in the same order through a pointer; emulator-verified identical |
 | Frame clock, 0x575a00 | Float seconds from `GetTickCount()`, ms since boot | (B) after ~10 days of uptime a float can only step 64 ms, so frames quantise and the game stutters | Ticks counted from game start; the float arithmetic is unchanged and emulator-verified identical; zFMV's clock (timeGetTime() x 0.001f, 0x005996d0) the same way |
@@ -757,10 +757,6 @@ Kept:
   10 and changes only the list's slot counts shown (the rule for actually
   fitting a sink is 5b2's, not traced yet).
 
-- Ctrl+X / Ctrl+I's folders (mac 3, 2026-10-21): with no file dialogs, the
-  export goes to `export\` and the import takes the next file in
-  `import\` (one a press, renamed `.done`). A file picker in the SDL front
-  end would be closer to the original.
 - The HUD's missing images (mac 3, 2026-10-21, playtest #10, hud.md
   section 16): a destroyed part's `dmg_<part>_blk` and the "other" target
   arrows `hud_othererrow_*` were never shipped, so a destroyed part leaves
@@ -768,10 +764,6 @@ Kept:
   Kept as the original. Possible: draw a destroyed part in a dark tint of
   its red image, and use `hud_navarrow_*` (shipped, unused) for the "other"
   arrows; both are guesses at the art the designers meant.
-- The import goes into the shown mech's list (mac 3, 2026-10-21): Ctrl+I
-  adds the read loadout to the list of the mech on the shown slot
-  (0x00448bfd), whatever mech the file is for. Using the loadout's own
-  mech is a guess that it was meant.
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
