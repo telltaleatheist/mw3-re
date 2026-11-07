@@ -24,10 +24,8 @@ bool WireAttack::context(AttackStatePm& s) {
 void WireAttack::fight_step() { static_cast<FightStatePm&>(*state_).step(walk_, *ctx_); }
 void WireAttack::fight_enter() { state_->enter(walk_, v_); }
 
-float WireAttack::intensity() {
-  pm_hook_missing("[0x0062cc60]");
-  return 1.0f;
-}
+// [0x0062cc60], beside the aim's [0x0062cc64]: taken as MW3's GameIntensity [0x00608e54], as that pair is.
+float WireAttack::intensity() { return brain_hooks().intensity(); }
 
 const float* WireAttack::position() { return ctx_->pos; }
 
