@@ -558,10 +558,6 @@ Bugs whose intent is clear, fixed as the port reaches the code:
 - Load limit, Pirate's Moon 0x004e2e30 (`load_step`): FIX (B), behind `per_second`. Per mech and frame in the exe (its frame test
   against +0x108 always passes: nothing writes that), so a bridge would fall faster at a higher frame rate. Each call counts as
   its share of a 30 fps frame: the stress's halving and its gain. Off, the exe's. `test_pm_bridge.py`.
-- Open: crater cuts at 53 bits (`zgeo_weiler`, `zgeo_convexify`, on `main` too). The port computes in float, the
-  reference runtime's x87 keeps doubles between stores, so about 6% of `test_pm_crater_cut.py`'s random cuts take
-  another branch, some leaving a different ground piece. Not `fpu53`-switched yet; 24 bits match exactly. PM's UV
-  gradient 0x0055c3b0, flatten 0x0055be60 and snap 0x0055ac70 do switch (`gmod_const`), so the add matches at both.
 - Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
   fixed point with the same trick, so at 24-bit nothing is filled and the
   shadow texture is plain white: shadows invisible on hardware (emulator,

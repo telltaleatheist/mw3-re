@@ -58,6 +58,8 @@ def view_matrix(r):
 
 
 def close(a, b, eps):
+    if not (math.isfinite(a) and math.isfinite(b)):
+        return a == b
     return abs(a - b) <= eps * max(1.0, abs(a), abs(b))
 
 

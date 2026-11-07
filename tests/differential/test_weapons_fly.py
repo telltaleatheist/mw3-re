@@ -880,7 +880,7 @@ def close(a, b, tol, floor=1.0):
     x, y = i2f(a), i2f(b)
     if math.isnan(x) and math.isnan(y):
         return True
-    return abs(x - y) <= tol * max(abs(x), abs(y), floor)
+    return math.isfinite(x) and math.isfinite(y) and abs(x - y) <= tol * max(abs(x), abs(y), floor)
 
 
 def compare_lists(what, a, b, floats, tol, stats):

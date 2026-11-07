@@ -1070,9 +1070,10 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           return zin::command(cmd) | mech3::program_net_drive(cmd, SDL_GetTicks() / 1000.0 - s_drive_from, s_drive_seed);
         };
       }
-      static bool net_core = false, net_over = false;  // static: the frame's hook outlives this block
-      static uint64_t net_line_at = 0;
-      engine.on_present = [&, shots, l_type3](int) mutable {
+      bool net_core = false, net_over = false;
+      uint64_t net_line_at = 0;
+      // These live here and the hook outlives this block: copies, not references.
+      engine.on_present = [&, shots, l_type3, net_core, net_over, net_line_at](int) mutable {
         // The soak test's (ours): the clock and the drive from the first Core
         // frame, the lines each half second, the scores at the end, the quit
         // at the menu after it.

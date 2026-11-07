@@ -63,7 +63,7 @@ def check(what, got, want, bound, eps=1e-6):
         b_ = bound[i] if isinstance(bound, (list, tuple)) else bound
         if math.isnan(a) and math.isnan(b):
             continue
-        if not abs(a - b) <= eps * (b_ + abs(b)) + 1e-30:
+        if not (a == b or (math.isfinite(a) and math.isfinite(b) and abs(a - b) <= eps * (b_ + abs(b)) + 1e-30)):
             fails.append(f'{what}: [{i}] rebuilt {a!r} original {b!r}')
             return False
     return True

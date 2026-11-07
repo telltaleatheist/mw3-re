@@ -495,8 +495,8 @@ int32_t find_vertex(Model& m, const float p[3]) {
   const int32_t n = count_at(m, 0x14);
   for (int32_t i = 0; i < n; ++i) {
     const float* v = m.vertices + 3 * i;
-    if (std::fabs(v[0] - p[0]) <= g_precision && std::fabs(v[1] - p[1]) <= g_precision &&
-        std::fabs(v[2] - p[2]) <= g_precision)
+    if (abs(X(v[0]) - p[0]) <= g_precision && abs(X(v[1]) - p[1]) <= g_precision &&
+        abs(X(v[2]) - p[2]) <= g_precision)
       return i;
   }
   if (kMaxModelVerts < n) {
@@ -538,7 +538,7 @@ int32_t find_normal(Model& m, const float p[3]) {
   const int32_t n = count_at(m, 0x18);
   for (int32_t i = 0; i < n; ++i) {
     const float* v = m.normals + 3 * i;
-    if (std::fabs(v[0] - p[0]) < 0.0001 && std::fabs(v[1] - p[1]) < 0.0001 && std::fabs(v[2] - p[2]) < 0.0001)
+    if (abs(X(v[0]) - p[0]) < 0.0001f && abs(X(v[1]) - p[1]) < 0.0001f && abs(X(v[2]) - p[2]) < 0.0001f)
       return i;
   }
   m.normals = static_cast<float*>(std::realloc(m.normals, 12 * static_cast<size_t>(n + 1)));

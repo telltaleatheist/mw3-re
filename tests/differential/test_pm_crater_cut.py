@@ -2,9 +2,9 @@
 UVs per material, snapped and flattened) and the clip 0x528920 with 0x528f00, 0x528d20, 0x527710. Models are PM's; a
 crater dug into the ground on this branch goes through these. The model alloc and release are stubbed in the exe (its
 pool needs the game's set-up) and the port's real ones run: the pool's count must come back. At 24 bits the words are
-compared exactly, cut and add alike. At 53 adds must agree to 1e-3 and exactly elsewhere; the clip is counted, not
-passed: the port's Weiler and convexify compute in float where the exe's x87 keeps doubles, and about 6% of these
-random cuts take another branch, a ground piece different in the worst ones (zgeo_weiler, as on main; fixes.md).
+compared exactly, cut and add alike. At 53 the x87's doubles between stores are kept (zgeo_x87.h), floats must agree to
+1e-3 (seen: the last bit of a cut point, worst 1.2e-4 relative) and the clip may take another branch on 1 cut in 500 at
+most: 1 of the 1,116 cuts here does, a ground piece's two coplanar triangles split the other way (docs/craters.md).
 
     cmake --build build --target pmprobe && .venv/bin/python tests/differential/test_pm_crater_cut.py [cases]
 
@@ -344,7 +344,7 @@ def main():
             near_words += near
         print(f'fpu {cw:#x}: ok: {cases} cases, adds {kinds}, cut {cut}, untouched {whole}; '
               f'floats within 1e-3 but not equal in {near_cases} cases ({near_words} words), other branch in {flips} cuts')
-        if flips > cases // 16:
+        if flips > cases // 500:
             sys.exit(f'{flips} cuts took another branch: more than before')
         pm_floors.floors(cut=(cut, cases // 8), big=(kinds.get('big', 0), cases // 16), bent=(kinds.get('bent', 0), cases // 16))
 

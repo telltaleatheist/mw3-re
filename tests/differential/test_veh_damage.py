@@ -47,6 +47,8 @@ def close(a, b):
     fa, fbb = bf(a), bf(b)
     if math.isnan(fa) or math.isnan(fbb):
         return math.isnan(fa) and math.isnan(fbb)
+    if math.isinf(fa) or math.isinf(fbb):
+        return False
     return abs(fa - fbb) <= 1e-5 * max(1.0, abs(fa))
 
 
