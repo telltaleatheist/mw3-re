@@ -821,8 +821,8 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
     const X inv = zeroish(len) ? X(0.0f) : X(1.0f) / len;
     const float ux = (inv * nx).f(), uy = (inv * ny).f(), uz = (inv * nz).f();
     const X nlen = X(static_cast<float>(k)) * len;
-    const X dot = X(sx) * nx + X(sy) * ny + X(sz) * nz;
-    const float d = (-(dot / nlen)).f();
+    const float dot = (X(sx) * nx + X(sy) * ny + X(sz) * nz).f();
+    const float d = (-(X(dot) / nlen)).f();
     for (int32_t i = 0; i < k; ++i) {
       const float* c = p + 3 * i;
       if (abs(X(uz) * c[2] + X(c[0]) * ux + X(c[1]) * uy + d) > g_planar) {

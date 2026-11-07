@@ -520,6 +520,10 @@ FPU stack between stores, so at the reference runtime's 53 bits they are doubles
 step rounds. `X` is such a value; the code has float where the exe stores one. Used in the Weiler clip's tests and
 crossings, convexify, the plane of a cut and the gradients of its UVs, colours and normals. At 24 bits every test is
 exact as before. At 53, PM's random cuts (`test_pm_crater_cut.py`) went from 95 of 1,116 differing past the tolerance
-to 14 with the clip's own arithmetic, those 14 being a UV one step of 1/256 off after the snap, and to 1 with the
-gradients. That one is a polygon with a point more, not traced. The rest is last-bit rounding, which stays small
-(`MW3_X87=53 MW3_FPU53=1` runs the per-function tests there and shows it). Real ground wasn't measured again.
+to 1, a pair of triangles split along the other diagonal. On real ground (c1m1 and c1m5, 664 clips of forced craters,
+459 cutting something) from 31 to 7: 2 cut nothing, 1 has the same geometry, 3 a vertex in the last digit, and 1 is a real
+difference, a back-to-back pair of triangles the exe doesn't make (0.32% of that cut's listed area, no hole).
+`segments_cross` stays all in doubles: its stack read exactly (some terms through their stored floats) gave more
+differences, 2 clips the exe refuses going through, so that reading or something after it isn't right yet.
+MW3's `test_crater.py` at 53 has a point or two more or less about once a world in 40 craters. The rest is last-bit rounding,
+which stays small (`MW3_X87=53 MW3_FPU53=1` runs the per-function tests there and shows it).
