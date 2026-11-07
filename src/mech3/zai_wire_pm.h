@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "mech3/zai_attackers_pm.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steer_pm.h"
@@ -31,6 +32,7 @@ struct PmBrain {
   BrainTickPm tick;
   OrdersPm orders;
   SteerPm steer;
+  AttackersPm attackers = AttackersPm::for_pilot(0.0f);  // the controls' +0x04
   std::unique_ptr<WireWalk> walk;  // its `fought` is state
   zgame::Handle vehicle = 0;       // from the first frame
 };
@@ -80,6 +82,11 @@ using WiredSteerPm = WireSteer<SteerPmHooks>;
 // and states are wired they are MW3's, which keep `mode` and `busy` on the Brain, so those two
 // cross at the frame's ends.
 bool pm_frame(Brain& b, BrainControls& c, float dt);
+// A hit on the pilot, for the list. The port's hit carries no damage yet, so it counts 0: `latest`
+// is right, `hardest` isn't. The clock is the game's until [0x008c1b50] is mapped.
+void pm_note_hit(Brain& b, zgame::Handle attacker);
+zgame::Handle pm_hardest_attacker(Brain& b);  // 0x004b2890 on the controls' +0x04
+zgame::Handle pm_latest_attacker(Brain& b);   // 0x004b2820
 
 }  // namespace mech3::ai
 

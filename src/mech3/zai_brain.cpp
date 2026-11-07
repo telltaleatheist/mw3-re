@@ -1390,6 +1390,7 @@ void controls_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
 
 // Mech3.exe 1.2 @ 0x004ea520
 void Brain::on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
+  if (pm_ai_on()) pm_note_hit(*this, attacker);
   BrainHooks& h = brain_hooks();
   controls_hit(r, owner, attacker);
   if (owner == attacker || !attacker) return;

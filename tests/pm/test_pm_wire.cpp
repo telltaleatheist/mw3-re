@@ -99,3 +99,17 @@ TEST(pm_wire_ids_stand_for_pointers) {
   EXPECT(pm_id(&a) != ia);  // a freed id is not given to another object
   pm_wire_clear();
 }
+
+TEST(pm_wire_a_hit_reaches_the_attackers) {
+  pm_wire_clear();
+  Fake f;
+  Installed in(&f);
+  BuiltinNet net(7, 0);
+  AiParams rec;
+  Brain b(&net, rec);
+  EXPECT(pm_latest_attacker(b) == 0);
+  pm_note_hit(b, 33);
+  EXPECT(pm_latest_attacker(b) == 33);
+  pm_wire_clear();
+  pm_hooks_missing_clear();
+}

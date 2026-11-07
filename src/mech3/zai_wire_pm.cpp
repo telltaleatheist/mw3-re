@@ -200,10 +200,7 @@ class WiredTickPm final : public TickPmHooks {
   bool hit_lately() override { return c.hit_lately(); }
   bool may_fire() override { return b.may_fire(); }
   void firing_reset() override { h.firing_reset(b); }
-  zgame::Handle worst_attacker() override {
-    pm_hook_missing("0x004b2820");
-    return 0;
-  }
+  zgame::Handle worst_attacker() override { return pm_latest_attacker(b); }
   void take_attacker(zgame::Handle) override { pm_hook_missing("brain.vt+0x28"); }
   void manoeuvre() override { b.manoeuvre(); }
   void current(zgame::Handle* net, zgame::Handle* state) override {
@@ -246,6 +243,13 @@ class WiredTickPm final : public TickPmHooks {
   BrainHooks& h;
 };
 }  // namespace
+
+void pm_note_hit(Brain& b, zgame::Handle attacker) {
+  pm_hook_missing("the hit's damage");
+  pm_brain(b).attackers.add(attacker, 0.0f, brain_hooks().now());
+}
+zgame::Handle pm_hardest_attacker(Brain& b) { return pm_brain(b).attackers.hardest(brain_hooks().now()); }
+zgame::Handle pm_latest_attacker(Brain& b) { return pm_brain(b).attackers.latest(brain_hooks().now()); }
 
 bool pm_frame(Brain& b, BrainControls& c, float dt) {
   static const bool installed = (pm_firing_install(), true);
