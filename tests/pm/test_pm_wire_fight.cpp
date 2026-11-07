@@ -33,7 +33,7 @@ struct Fake : BrainHooks {
   bool can_face(Handle, const float d[3]) override { return d[0] > 0; }
   bool bearer_aim_clamp(Handle, const float d[3], float o[3]) override { o[0] = d[0], o[1] = d[1], o[2] = -d[2]; return true; }
   void bearer_set_aim(Handle, const float d[3]) override { at[0] = d[0]; }
-  void wm_aim_at(Handle, const float a[3]) override { at[1] = a ? 1.0f : -1.0f; }
+  void wm_clear_aim(Handle) override { at[1] = -1.0f; }
   void velocity(Handle e, float o[3]) override { o[0] = e == 5 ? 10.0f : 0.0f, o[1] = 0, o[2] = 0; }
   void entity_lock_position(Handle, float o[3]) override { o[0] = 100, o[1] = 0, o[2] = 0; }
   Handle contact_entity(const Contact* c) override { return c->seen; }

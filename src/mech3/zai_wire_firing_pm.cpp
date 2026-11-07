@@ -421,7 +421,8 @@ class WireStep : public StepPmHooks {
   void aim_lead(float dt, zgame::Handle plan, zgame::Handle wm, Brain* b) override { pm_hook_missing("WireStep.aim_lead"); }
   void stand_down(zgame::Handle v) override {
     pm_hook_missing("WireStep.stand_down");  // the torso's centring and the speech
-    brain_hooks().wm_aim_at(brain_hooks().weapons(v), nullptr);
+    const zgame::Handle wm = brain_hooks().weapons(v);
+    if (wm) brain_hooks().wm_clear_aim(wm);  // 0x004b4a20(0)
   }
   void brain_x20(Brain* b) override { pm_hook_missing("WireStep.brain_x20"); }
  private:
