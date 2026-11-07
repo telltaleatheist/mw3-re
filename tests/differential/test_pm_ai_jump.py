@@ -93,6 +93,8 @@ def plan(seed):
     lines = [('N', [r.uniform(0, 500)]), world(1), ('C',)]
     now = lines[0][1][0]
     w0 = lines[1]
+    y0, y1, margin0 = w0[1][1], w0[1][4], w0[1][13]
+    peak = y0 + max(y1 - y0, 0.0) + margin0  # the height the glide holds
     for _ in range(r.randrange(10, 40)):
         k = r.random()
         if k < 0.75:
@@ -101,7 +103,7 @@ def plan(seed):
             lines.append(('R', [r.choice([0.033, 0.1])]))
         elif k < 0.85:  # the same world, the mech's place and speeds moved
             v = list(w0[1])
-            v[1] += r.uniform(-30, 30)
+            v[1] = peak + r.uniform(-0.09, 0.09) if r.random() < 0.3 else v[1] + r.uniform(-30, 30)  # in the glide's band, or not
             v[0] += r.uniform(-20, 20)
             v[11], v[12] = r.choice([0.0, -4.0, 3.0]), r.choice([0.0, 5.0, 11.0, -2.0])
             w0 = ('W', v, r.choice([1, 1, 1, 0]), 1, 1)
