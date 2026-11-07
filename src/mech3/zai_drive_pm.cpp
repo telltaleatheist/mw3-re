@@ -97,4 +97,41 @@ void drive_pm(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float away[2], 
   else if (-most > *throttle) *throttle = -most;
 }
 
+// Pirate's Moon 1.0 @ 0x004dcfe0. At the way's end the next behaviour takes over; with none it stands for 5 s and
+// tries again.
+void MoveStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place) {
+  if (step != 0 && step != 1 && step != 2) return;
+  float away[2], sum = 0.0f;
+  bool waiting = step == 2;
+  if (!waiting) {
+    away_pm(s, away, &sum);
+    if (!(s.at_end() && sum <= dist)) {
+      drive_pm(h, s, v, away, sum, dist * 0.5f, &turn, &throttle, slow, 0.04f, 0.04f);
+      h.set_turn(turn);
+      h.set_throttle(throttle);
+      step = 1;
+      return;
+    }
+  }
+  for (;;) {
+    if (!waiting) {
+      const float dir[3] = {-s.dir[0], 0.0f, -s.dir[1]};
+      if (const zgame::Handle next = h.next_along(dir)) {
+        float* from = h.way_from();
+        from[0] = place[0], from[1] = place[1], from[2] = place[2];
+        h.set_behaviour(next);
+        return;
+      }
+      turn = 0.0f;
+      throttle = 0.0f;
+      h.set_turn(0.0f);
+      h.set_throttle(throttle);
+      wake = h.now() + 5.0f;  // [0x005df000]
+    }
+    waiting = false;
+    if (!(wake <= h.now())) break;
+  }
+  step = 2;
+}
+
 }  // namespace mech3::ai

@@ -111,6 +111,35 @@ class Exe(test_pm_zar.Emulated):
             self.call(init)
         self.call(STEER, ecx=self.brain + 0x210)
         # The vehicle's contact: [+0x6c], whose +4 answers the target by vt+0x2c.
+        # The move state 0x4dcfe0: its +8's vt+0x1c the place; what comes next and the behaviour taken.
+        self.move = self.alloc(0x30)
+        self.w32(self.move + 4, self.order)
+        mh, mvt = self.alloc(8), self.alloc(0x40)
+        self.w32(mh, mvt)
+        self.w32(self.move + 8, mh)
+        self.w32(mvt + 0x1c, self.ret_stub(lambda c: self.vehicle + 0x80))
+        self.next, self.taken, self.along = 0, [0, 0], self.alloc(12)
+        nxt, nvt = self.alloc(8), self.alloc(0x80)
+        self.w32(nxt, nvt)
+        self.w32(nvt + 0x74, self.ret_stub(lambda c: 0x7700 if self.next == 2 else 0))
+
+        def along(c):
+            sp = c._uc.reg_read(UC_X86_REG_ESP)
+            d = self.g(sp + 8)
+            for o in (0, 4, 8):
+                self.w32(self.along + o, self.g(d + o))
+            return nxt if self.next else 0
+
+        def take(c):
+            self.taken = [self.taken[0] + 1, self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)]
+            return 0
+        self.native_stub(0x4d60d0, along, pop=8)
+        self.native_stub(0x4f9f00, take, pop=4)
+        self.rolls = []
+        roll = self.cpu.code(b'\xc3')
+        self.w32(0x5de668, roll)
+        self.native_stub(roll, lambda c: self.rolls.pop(0), 0)
+        self.pick = self.alloc(0x30)
         self.contact, holder, hvt = self.alloc(0x20), self.alloc(8), self.alloc(0x40)
         self.w32(self.contact + 4, holder)
         self.w32(holder, hvt)
@@ -162,6 +191,9 @@ class Exe(test_pm_zar.Emulated):
         st0 = self.brain + 0x210
         vals += [self.g(st0 + o) for o in range(0x2c, 0x48, 4)] + [self.g(st0 + o) for o in range(0x4c, 0x58, 4)]
         vals += [self.g(st0 + o) for o in range(0x5c, 0x9c, 4)]  # every constant the steering's constructor sets
+        m = self.move
+        vals += [self.g(m + o) for o in (0x10, 0x18, 0x24)] + [self.g(self.along + o) for o in (0, 4, 8)]
+        vals += [self.g(self.pick + o) for o in (0x10, 0x14, 0x18)] + [self.g(self.brain + 0x2b8 + o) for o in (0, 4, 8)]
         exact = [self.g(c + 0x3c) & 0xff, self.g(st0 + 0x48) & 0xff, self.g(st0 + 0x58) & 0xff]
         if self.guard:
             vals += [self.g(c + o) for o in (0x5c, 0x60, 0x64, 0x68, 0x6c)]
@@ -183,6 +215,7 @@ class Exe(test_pm_zar.Emulated):
             last = self.g(self.head + 4)  # the last node's item, its two words
             item = self.g(last + 8) if last != self.head else 0
             exact += [self.g(item + 4), self.g(item + 8)] if item else [0, 0]
+        exact += [self.g(m + 0xc), self.taken[0], self.taken[1]]
         return ' '.join(f'{v:x}' for v in vals) + ' | ' + ' '.join(str(v) for v in exact) + '\n'
 
 
@@ -235,9 +268,12 @@ def fight_plan(seed):
     r = random.Random(f'fight:{seed}')
     lines = plan(seed)[:2]
 
+    clock = [0.0]
+
     def fight():
         far = r.choice([20.0, 60.0, 200.0, 1000.0])
-        return ('F', [r.choice([1.0, 10.0]), r.choice([1.0, 10.0, 100.0]), far, far * r.choice([0.0, 0.1, 0.5]), r.uniform(0, 100)])
+        clock[0] = r.uniform(0, 100)
+        return ('F', [r.choice([1.0, 10.0]), r.choice([1.0, 10.0, 100.0]), far, far * r.choice([0.0, 0.1, 0.5]), clock[0]])
 
     def state():
         return ('f', r.choice([0x3, 0xf5, 0x1a]), [r.choice([0.0, 50.0, 200.0]), r.uniform(0, 100)])
@@ -284,6 +320,10 @@ def fight_plan(seed):
             lines += [('D',), ('M',), ('P',)]
             if r.random() < 0.3:
                 lines += [('V', r.choice([0, 1]), 0), ('A',)]
+        elif k < 0.9:  # the move state, from each of its steps
+            for _ in range(r.randrange(1, 4)):
+                lines.append(('m', r.choice([0, 1, 2, 2]), r.choice([0, 1, 2]),
+                              [r.choice([0.0, 5.0, 50.0, 500.0, r.uniform(0, 8), r.uniform(0, 80)]), r.choice([0.002, 0.01, 0.05, r.uniform(0, 5)]), r.choice([0.0, clock[0], 200.0, 1e4]), r.uniform(-1, 1), r.uniform(-1, 1)]))
         elif k < 0.95:  # the walk's step, from each of its steps
             if r.random() < 0.6:
                 lines.append(('f', r.randrange(11) | r.choice([0, 0x50]), [r.choice([0.0, 50.0, 200.0]), r.uniform(0, 100)]))
@@ -314,6 +354,8 @@ def guard_plan(seed):
         elif k < 0.7:
             lines.append(('V', r.choice([0, 1, 1]), r.choice([0, 0, 1])))
             lines.append(('H',))
+        elif k < 0.85:
+            lines.append(('q', r.randrange(32768), r.randrange(32768), [r.uniform(0.1, 3), r.uniform(0, 80), r.uniform(0, 300)]))
         else:
             lines.append(('4',))
     return lines
@@ -378,6 +420,19 @@ def run_exe(x, lines):
             c = x.alloc(0x14)
             x.w32(c + 0x10, x.brain + 0x210)
             x.call(0x4dccf0, args=(0, x.drove, x.drove + 8, c))
+        elif op == 'm':
+            x.w32(x.move + 0xc, ln[1])
+            x.next = ln[2]
+            x.fs(x.move + 0x1c, ln[3][:3])
+            x.fs(x.move + 0x10, ln[3][3:4])
+            x.fs(x.move + 0x18, ln[3][4:5])
+            x.call(0x4dcfe0, ecx=x.move, args=(0,))
+        elif op == 'q':
+            x.fs(x.pick + 0x1c, ln[3][:1])
+            x.fs(x.pick + 0x28, ln[3][1:2])
+            x.fs(x.brain + 0x44, ln[3][2:3])
+            x.rolls = [ln[1], ln[2]]
+            x.call(0x4dfec0, ecx=x.pick, args=(x.ctx,))
         elif op == 'V':
             x.w32(x.record + 8, ln[1])
             x.leave = bool(ln[2])
@@ -451,6 +506,8 @@ def text(lines):
             o.append(f'{ln[0]} {ln[1]}')
         elif ln[0] == 'V':
             o.append(f'V {ln[1]} {ln[2]}')
+        elif ln[0] in 'mq':
+            o.append(f'{ln[0]} {ln[1]} {ln[2]} ' + ' '.join(f'{bits(u):x}' for u in ln[3]))
         elif ln[0] in 'Y@':
             o.append(ln[0] + ' ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
         else:
@@ -478,6 +535,8 @@ def main():
                 if len(ex) > 8:
                     seen['step', str(int(ex[9]) & 15)] = seen.get(('step', str(int(ex[9]) & 15)), 0) + 1
                     seen['queued', '1' if int(ex[17]) else '0'] = 1
+                    seen['move', ex[-3]] = seen.get(('move', ex[-3]), 0) + 1
+                    seen['taken', '1' if int(ex[-2]) else '0'] = seen.get(('taken', '1' if int(ex[-2]) else '0'), 0) + 1
                     for name, i in (('in_range', 3), ('at_stop', 4), ('no_target', 5), ('way', 6), ('may_go', 7), ('off_way', 8)):
                         seen[name, ex[i]] = seen.get((name, ex[i]), 0) + 1
         assert lib.probe_pm_ai_walk(text(lines).encode(), buf, len(buf)) >= 0
@@ -503,6 +562,8 @@ def main():
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},
                      way_own=(seen.get(('way', '1'), 0), 5), way_start=(seen.get(('way', '2'), 0), 5),
                      queued=(seen.get(('queued', '1'), 0), 1),
+                     moved=(seen.get(('move', '1'), 0), 5), waited=(seen.get(('move', '2'), 0), 5),
+                     taken=(seen.get(('taken', '1'), 0), 5),
                      **{f'step_{k}': (seen.get(('step', str(k)), 0), 5) for k in range(1, 11)})
     return 1 if bad else 0
 

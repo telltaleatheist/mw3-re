@@ -446,6 +446,27 @@ WalkGuardPm::WalkGuardPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v) : Walk
   target_dist = flat_dir_pm(pos, target_pos, to_target);
 }
 
+// Pirate's Moon 1.0 @ 0x004dfec0: a point at a random distance and bearing round the target, the boundary's pull on
+// it from the vehicle, and the way there laid from the steering's start.
+void WalkGuardPm::pick(GuardPickPm& g) {
+  constexpr double kRand = 3.0518509447574615e-05;  // 0x005dfcb4
+  constexpr double kTurn = 6.2831854820251465;      // 0x005e14d0
+  const int32_t r1 = h.rand_int();
+  const float r = static_cast<float>((static_cast<double>(h.reach()) - g.reach) * static_cast<float>(r1) * kRand + g.reach);
+  const int32_t r2 = h.rand_int();
+  const double a = r2 * kRand * kTurn;
+  const float x = static_cast<float>(std::cos(a) * r), z = static_cast<float>(std::sin(a) * r);
+  g.at[0] = target_pos[0] + x;
+  g.at[1] = target_pos[1] + 0.0f;
+  g.at[2] = target_pos[2] + z;
+  float here[3];
+  h.position(vehicle, here);  // 0x004ccac0 takes it afresh, not the measure's
+  h.pull(vehicle, here, g.at, g.at);
+  float* from = h.way_from();
+  from[0] = steer.start[0], from[1] = steer.start[1], from[2] = steer.start[2];
+  steer.set(h, from, g.at, g.rate, vehicle);
+}
+
 // Pirate's Moon 1.0 @ 0x004dfc30
 void WalkGuardPm::measure() {
   WalkPm::measure();

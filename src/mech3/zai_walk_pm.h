@@ -38,6 +38,11 @@ class WalkPmHooks : public SteerPmHooks {
   // The boundary record's +0x50 and +0x4c: the via node the last pull ended on, or none.
   virtual const InOutVia* at_via(zgame::Handle v) = 0;
   virtual void queue_via(const InOutVia* via) = 0;          // 0x004ea0f0 on the brain's +0x15c, a 0x005eeca4 item
+  // The move state 0x004dcfe0 and the guarding state's pick 0x004dfec0.
+  virtual zgame::Handle next_along(const float dir[3]) { (void)dir; return 0; }  // 0x004d60d0, then vt+0x74
+  virtual void set_behaviour(zgame::Handle b) { (void)b; }                       // 0x004f9f00
+  virtual int32_t rand_int() { return 0; }                                       // rand
+  virtual float reach() { return 0.0f; }                                         // the brain's +0x44
 };
 
 float flat_dir_pm(const float from[3], const float to[3], float out[3]);  // 0x00537e60: its flat length
@@ -65,6 +70,24 @@ struct FightStatePm {
   uint8_t pulled = 0, x2d = 0;        // +0x2c  the last plan was pulled by the boundary; +0x2d
   StateOwnedPm* owned = nullptr;      // +0x30
   uint8_t x34 = 0;                    // +0x34  [0x0060bb64], nothing writes it
+};
+
+// The state run by 0x004dcfe0 (vtable 0x005eee40): driving down the steering's way, then on to the next behaviour.
+struct MoveStatePm {
+  int32_t step = 0;   // +0x0c  0 just begun, 1 driving, 2 waiting
+  float turn = 0;     // +0x10
+  float throttle = 0; // +0x18
+  float dist = 0;     // +0x1c
+  float slow = 0;     // +0x20
+  float wake = 0;     // +0x24
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);  // 0x004dcfe0; `place` its +0x08's vt+0x1c
+};
+
+// The guarding state's own part (0x004dfec0).
+struct GuardPickPm {
+  float at[3] = {};   // +0x10
+  float rate = 0;     // +0x1c
+  float reach = 0;    // +0x28
 };
 
 class WalkPm {
@@ -136,6 +159,7 @@ class WalkAttackPm : public WalkFightPm {
 // and how far it is from here and from the way's start.
 class WalkGuardPm : public WalkPm {
  public:
+  void pick(GuardPickPm& g);  // 0x004dfec0
   WalkGuardPm(WalkPmHooks& h, SteerPm& steer, zgame::Handle vehicle);  // 0x004dfb50
   void measure() override;            // vt+0x10  0x004dfc30
 

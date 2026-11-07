@@ -49,6 +49,16 @@ struct World : WalkPmHooks {
     return true;
   }
   float* way_from() override { return brain_from; }
+  zgame::Handle next_along(const float d[3]) override {
+    along[0] = d[0], along[1] = d[1], along[2] = d[2];
+    return next == 2 ? 0x7700 : 0;
+  }
+  void set_behaviour(zgame::Handle b) override { ++taken, last_taken = static_cast<int>(b); }
+  int32_t rand_int() override { return rolls[roll++ & 1]; }
+  float reach() override { return reach_at; }
+  int next = 0, taken = 0, last_taken = 0, roll = 0;
+  int32_t rolls[2] = {};
+  float along[3] = {}, reach_at = 0;
   bool has_pilot(zgame::Handle) override { return pilot; }
   float pilot_x544(zgame::Handle) override { return x544; }
   float now() override { return clock; }
@@ -92,6 +102,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   SteerPm s;
   std::unique_ptr<WalkPm> c;
   FightStatePm st;
+  MoveStatePm ms;
+  GuardPickPm pick;
   WalkFightPm* b = nullptr;
   WalkGuardPm* g = nullptr;
   float drove[3] = {};
@@ -138,6 +150,14 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       w.via.net = reinterpret_cast<const void*>(uintptr_t(0x1111)), w.via.node = reinterpret_cast<const void*>(uintptr_t(0x2222));
     } else if (op == "S") {
       st.step(w, *b);
+    } else if (op == "m") {
+      ms.step = std::stoi(a[0]), w.next = std::stoi(a[1]);
+      ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
+      ms.run(w, s, 1, w.place);
+    } else if (op == "q") {
+      w.rolls[0] = std::stoi(a[0]), w.rolls[1] = std::stoi(a[1]), w.roll = 0;
+      pick.rate = f(a[2]), pick.reach = f(a[3]), w.reach_at = f(a[4]);
+      if (g) g->pick(pick);
     } else if (op == "V") {
       w.live = a[0] == "1", w.leave = a[1] == "1";
     } else if (op == "A") {  // the whole of 0x004daa70: the context made again
@@ -199,6 +219,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                       s.push_band, s.far_along, s.far_side, s.cos_on, s.cos_turnabout, s.turnabout_room, s.gain_along,
                       s.gain_side, s.least, s.brake, s.cos_dead, s.sin_dead, s.gain, s.least_turn, s.cos_behind})
         put(o, v);
+      for (float v : {ms.turn, ms.throttle, ms.wake, w.along[0], w.along[1], w.along[2], pick.at[0], pick.at[1], pick.at[2], w.brain_from[0], w.brain_from[1], w.brain_from[2]}) put(o, v);
       if (b) {
         for (float v : {b->to_target[0], b->to_target[1], b->to_target[2], b->target_dist, b->way_own[0], b->way_own[1],
                         b->way_own[2], b->way_dir[0], b->way_dir[1], b->way_dir[2], b->way_dist, st.stop_dist, st.range_far,
@@ -222,6 +243,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
                       g_deleted ? 1 : 0, w.sends, w.queued, int(w.queued_net), int(w.queued_node)})
           o += " " + std::to_string(v);
       }
+      o += " " + std::to_string(ms.step) + " " + std::to_string(w.taken) + " " + std::to_string(w.last_taken);
       o += "\n";
     }
   }
