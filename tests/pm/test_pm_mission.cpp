@@ -8,6 +8,11 @@
 #include <string>
 #include <vector>
 
+#if !defined(_WIN32)
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 #include "check.h"
 #include "mech3/player.h"
 #include "gamez/zgame/zgame_table.h"
@@ -206,7 +211,7 @@ void pm_kill_left(void* mech, char* out, size_t n);
 void pm_kill_ray(const float from[3], const float to[3]);
 uint32_t pm_kill_root_flags(void* mech);
 void pm_kill_tree(void* mech);
-int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown);
+int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown, bool ready);
 void pm_leg_reset();
 const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
@@ -248,8 +253,7 @@ TEST(pm_player_tick_box_window) {
   EXPECT(o.calls == "c(pw)dv");
 }
 
-TEST(pm_enemies_die_under_real_fire) {
-  const char* which = std::getenv("PM_KILL");
+static void kill_run(const char* which, bool quick) {
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
@@ -286,7 +290,7 @@ TEST(pm_enemies_die_under_real_fire) {
   std::vector<void*> targets;
   std::vector<const char*> names;
   size_t at = 0;
-  int frames = 0, since = 0, dead = 0, stuck = 0, shots = 0, hits0 = 0, off0 = 0, box_during = 0, box_left = 0, player_at = -1;
+  int frames = 0, since = 0, dead = 0, stuck = 0, shots = 0, hits0 = 0, off0 = 0, box_during = 0, box_left = 0, box_field = 0, box_stealth = 0;
   bool done = false;
   const auto state = [](void* m) {
     mech3::LaunchedMech o;
@@ -323,7 +327,7 @@ TEST(pm_enemies_die_under_real_fire) {
       ++dead, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
       pm_leg_reset();
     }
-    if (at >= targets.size()) {
+    if (at >= targets.size() || (quick && at > 0)) {
       done = true;
       return;
     }
@@ -332,8 +336,9 @@ TEST(pm_enemies_die_under_real_fire) {
     mech3::LaunchedMech info;
     mech3::describe_mech(m, &info);
     mech3::mech_world_position(m, there);
-    int32_t during = 0, left_on = 0;
-    mech3::entities_box_counts(&during, &left_on, &player_at);
+    int32_t during = 0, left_on = 0, fields = 0, stealth = 0;
+    mech3::entities_box_counts(&during, &left_on, &fields, &stealth);
+    box_field = std::max(box_field, fields), box_stealth = std::max(box_stealth, stealth);
     box_during = std::max(box_during, during), box_left = std::max(box_left, left_on);
     if (since++ % 60 == 0) {
       const float mine[3] = {there[0] - 40.0f, there[1], there[2]};
@@ -342,7 +347,7 @@ TEST(pm_enemies_die_under_real_fire) {
     if (const char* leg = std::getenv("PM_LEG")) {  // weapon index: one weapon, ready shots only, at a leg
       const int weapon = std::atoi(leg);
       if (since == 1) std::printf("  == %s at %s, height %.1f\n", pm_weapon_name(player, weapon), names[at] ? names[at] : "?", info.height);
-      shots += pm_leg_fire(player, m, weapon, 0, 24);
+      shots += pm_leg_fire(player, m, weapon, 0, quick ? 0 : 24, quick);
       if (state(m) != 10 && since > 3600) {
         char left[200];
         pm_kill_left(m, left, sizeof left);
@@ -379,14 +384,33 @@ TEST(pm_enemies_die_under_real_fire) {
   std::printf("  %s: %zu AI mechs, %d killed, %d not; hits on a part %d, off a part %d; frames %d\n", which, targets.size(), dead, stuck,
               pm_kill_on_part, pm_kill_off_part, frames);
   zgame::set_game(zgame::mw3_table());
-  std::printf("  roots boxed during the frame, most %d; left boxed after it, most %d; the player %d in the walk\n", box_during, box_left, player_at);
+  std::printf("  roots boxed during the frame, most %d; left boxed after it, most %d; field bases boxed %d, the stealth object %d\n", box_during, box_left, box_field, box_stealth);
   EXPECT(!targets.empty());
   EXPECT(box_during > static_cast<int>(targets.size()));  // on through the frame: 0x005cb4e0 (the reticle alone boxes its near contacts)
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
-  EXPECT(player_at == 0);  // first: its reticle's box calls run before any contact's restore (pm-map.md, "The frame's box window")
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
+  if (quick) EXPECT(dead == 1);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
+}
+
+TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
+
+// Always on: c1m1's Thor, one ER Large, every shot on its leg: it goes down with the leg, the player's hits on legs only.
+TEST(pm_leg_down) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();  // a second mission in one process crashes (pm_c2m4's note)
+  if (child == 0) {
+    setenv("PM_LEG", "5", 1);
+    kill_run("0,1,1", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
 }
 
 TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {

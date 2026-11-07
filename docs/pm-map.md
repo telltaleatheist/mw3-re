@@ -434,7 +434,7 @@ and the targets don't take part. Before the frame a mech detaches its
 headlight (0x479c30 through 0x41f930), and 0x4b2d70, if the entity is active,
 saves the root's box bit (0x20, 0x4fd310) in +0xdc and sets it. After the
 frame the mech takes +0x6d4 = dt, aims the parts (0x41e4d0), runs the ammo
-gauge and aim state if it is the viewed mech (0x4b4c70), clears +0x688,
+gauge and aim state and clears +0x688 if it is the pilot's vehicle (0x4b4c70),
 attaches the headlight (0x479c60); 0x4b2da0 then puts the saved bit back.
 
 So a root is a box only while mechs move and look; beams and shots cast in
@@ -445,19 +445,16 @@ spreads 14.3% over the body, never the head. **A port that sets the box at the
 build and has no window makes the enemy nearly unkillable**: 276 to 431 hits
 each on c1m1, none on a part.
 
-**Order.** The reticle's ray 0x445cf0 runs in the viewed mech's vt+0x3c, by
-0x4b4c70, inside step 4: it sets the near contacts' box off (0x445c60 with 0,
-at 0x445d9d), casts, and sets it on (with 1, at 0x445efa) whatever it was. A
-contact later in the list is restored after that, so the reticle changes
-nothing. A contact earlier in the list has been restored already: it is left
-boxed, and the next frame's 0x4b2d70 saves that 1, so it stays boxed for as long
-as it stays in reach. The list is push_back order, from the entities'
-constructors (0x5cabb0), and the player is built first: the port measures him at
-0 in the walk on c1m1, so in a campaign mission no contact is affected. The
-port keeps the order, so a case with a mech ahead of the viewed one (a network
-game's other players, the pocket commander's view) does as the exe does. That
-the exe's own list has the player first rests on reading: the mission load is
-ported as written, and nothing has watched the running exe's list.
+**Order.** The reticle's ray 0x445cf0 runs from the reticle's place 0x445fe0,
+called from the mech's update (0x41afc5, through 0x41dcd0), so inside step 2 with
+every root boxed. It sets the near contacts' box off (0x445c60 with 0, at 0x445d9d),
+casts, and sets it on (with 1, at 0x445efa) whatever it was, which is right
+there, and step 4 restores them all. So the order of the list changes nothing.
+
+Everything else in the list keeps only the box: the field base, stealth object,
+basic vehicle and vehicle base have 0x4b2d70 and 0x4b2da0 themselves in +0x34 and
++0x3c, their update apart. Of a mech's +0x3c, the gauge and the clear of +0x688
+are the pilot's vehicle's alone ([0x62c40c]+0x14).
 
 **How many hits.** PM's 0x414430 sets the leg's scale [0x6040a4] to 0.5 alone
 and on a network; MW3's 0x413e60 has 1 alone. So PM's legs take half what

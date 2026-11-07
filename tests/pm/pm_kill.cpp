@@ -48,7 +48,8 @@ void pm_kill_begin(void* player) {
       std::snprintf(line, sizeof line, "%s id %x flags %x, %s, %.3f from %s by %s, scale %.5f, shot end %.1f %.1f %.1f", z ? z->name() : "-",
                     z ? z->get<uint32_t>(0x28) : 0, z ? z->flags() : 0, part ? "part" : "SPREAD", pm_leg_damage, pm_leg_def, by ? by->name() : "-",
                     interp_globals().damage_scale, hs.shot_to.x, hs.shot_to.y, hs.shot_to.z);
-      pm_leg_line = line;
+      if (!pm_leg_line.empty()) pm_leg_line += "\n      and ";
+      pm_leg_line += line;
       auto* m = static_cast<Mech*>(pm_leg_target);
       if (by && by == static_cast<zcls::Node*>(me_node) && (!part || (part != m->legs[0] && part != m->legs[1] && part != m->legs[0]->calf && part != m->legs[1]->calf &&
                                                                      part != m->legs[0]->foot && part != m->legs[1]->foot)))
@@ -133,7 +134,7 @@ void pm_kill_scales(void* mech) {
 // One weapon, fired only when it's ready, at `leg` (0, 1) of `mech`: its calf's node, or the thigh's. Prints each hit: the node the query
 // reported, the path, then every section's health. Returns the shots fired so far by this weapon.
 static int leg_hits = 0;
-int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown) {
+int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown, bool ready) {
   auto* me = static_cast<Mech*>(player);
   auto* m = static_cast<Mech*>(mech);
   auto* wm = static_cast<WeaponManager*>(me->ammo);
@@ -146,6 +147,10 @@ int pm_leg_fire(void* player, void* mech, int weapon, int leg, int shown) {
   const Vec3f aim{at[0], at[1], at[2]};
   int fired = 0;
   wm->aim = aim;
+  if (w && ready) {  // no waiting on the reload or, between beams, the recharge
+    w->reload = 0.0f;
+    if (auto* b = dynamic_cast<BeamWeapon*>(w); b && !b->firing) b->bin->amount = b->bin->capacity();
+  }
   if (w && w->can_fire()) fired = w->trigger() ? 1 : 0;  // the real route, a beam's too
   if (!pm_leg_line.empty()) {
     if (leg_hits++ < shown) {

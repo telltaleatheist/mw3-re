@@ -656,17 +656,36 @@ int32_t mech_select_hot_group(void* mech) {
 // attacker cleared, the headlight back. The box bit is the caller's (entities_box_back).
 void mech_after_frame(void* mech, float dt) {
   Mech* m = static_cast<Mech*>(mech);
+  MechFrameCalls& c = mech_frame_calls();
   m->frame_dt = dt;
-  m->aim_part();
-  if (auto* wm = static_cast<WeaponManager*>(m->ammo)) wm->ammo_gauge();  // the mech in view's alone
-  m->attacker = nullptr;
-  if (Headlight* head = m->torso ? m->torso->headlight : nullptr) head->attach(dt);
+  c.aim(mech);
+  if (c.is_pilot(mech)) {  // [0x0062c40c]+0x14: the gauge and the clear, the pilot's mech alone
+    c.gauge(mech);
+    m->attacker = nullptr;
+  }
+  c.head_in(mech, dt);
 }
 
 // Pirate's Moon 1.0 @ 0x0041b900 (vt+0x34): the headlight out of the tree for the frame; its box is the caller's.
-void mech_before_frame(void* mech) {
-  Mech* m = static_cast<Mech*>(mech);
-  if (Headlight* head = m->torso ? m->torso->headlight : nullptr) head->detach();
+void mech_before_frame(void* mech) { mech_frame_calls().head_out(mech); }
+
+MechFrameCalls& mech_frame_calls() {
+  static MechFrameCalls c{
+      [](void* m) { static_cast<Mech*>(m)->aim_part(); },
+      [](void* m) { return m == mech_mission_player(); },
+      [](void* m) {
+        if (auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(m)->ammo)) wm->ammo_gauge();
+      },
+      [](void* m) {
+        Mech* me = static_cast<Mech*>(m);
+        if (Headlight* head = me->torso ? me->torso->headlight : nullptr) head->detach();
+      },
+      [](void* m, float dt) {
+        Mech* me = static_cast<Mech*>(m);
+        if (Headlight* head = me->torso ? me->torso->headlight : nullptr) head->attach(dt);
+      },
+  };
+  return c;
 }
 
 // Everything wire_weapons set, back to the defaults.

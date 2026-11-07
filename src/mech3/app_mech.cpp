@@ -2184,7 +2184,7 @@ void update_mech(void* mech, float dt) {
 // stealth object have these slots; turrets and targets don't.
 namespace {
 std::unordered_map<zcls::Node*, int32_t> g_box_kept;  // +0xdc, 0 at the start as the constructors leave it
-int32_t g_box_during = 0, g_box_left = 0, g_box_player = -1;
+int32_t g_box_during = 0, g_box_left = 0, g_box_field = 0, g_box_stealth = 0;
 constexpr uint32_t kIntersectBbox = 0x20;
 
 // The entity's root when its class has the slots.
@@ -2212,14 +2212,16 @@ void entities_box_on(float) {
 }
 
 void entities_box_back(float dt) {
-  g_box_during = g_box_left = 0;
-  int32_t at = 0;
+  g_box_during = g_box_left = g_box_field = g_box_stealth = 0;
   for (const ai::Handle h : ai::entity_list()) {
-    if (entity_mech(h) == mech_mission_player()) g_box_player = at;
-    ++at;
     bool active = false;
     zcls::Node* n = box_root(h, &active);
-    if (n && (n->flags() & kIntersectBbox)) ++g_box_during;
+    if (n && (n->flags() & kIntersectBbox)) {
+      ++g_box_during;
+      void* o = g_w.object_of(g_w.engine, h);
+      g_box_field += program_is_field_base(o) ? 1 : 0;
+      g_box_stealth += o == program_stealth() ? 1 : 0;
+    }
     if (Mech* m = entity_mech(h)) mech_after_frame(m, dt);
     if (!n) continue;
     const auto kept = g_box_kept.find(n);
@@ -2231,8 +2233,8 @@ void entities_box_back(float dt) {
   }
 }
 
-void entities_box_counts(int32_t* during, int32_t* left, int32_t* player_at) {
-  *during = g_box_during, *left = g_box_left, *player_at = g_box_player;
+void entities_box_counts(int32_t* during, int32_t* left, int32_t* field_bases, int32_t* stealth) {
+  *during = g_box_during, *left = g_box_left, *field_bases = g_box_field, *stealth = g_box_stealth;
 }
 
 // Mech3.exe 1.2 @ 0x004a1140 ([0x005e7284] is 1): the entity manager's walk
