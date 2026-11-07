@@ -11,6 +11,13 @@ namespace mech3::ai {
 bool WireAttack::context(AttackStatePm& s) {
   state_ = &s;
   ctx_ = std::make_unique<WalkAttackPm>(walk_, steer_, v_, s, s.hold_at, pm_brain(b_).tick.mode);
+  if (ctx_->no_target && !s.hold_at) {  // why, for the first run: counted, not gaps
+    const zgame::Handle t = walk_.order_target();
+    pm_hook_missing(!t ? "why no target: no vehicle net order"
+                    : !walk_.target_live(t) ? "why no target: not live"
+                    : walk_.must_leave(v_) ? "why no target: must leave (mode or checks)"
+                                           : "why no target: measured");
+  }
   return ctx_->no_target != 0;
 }
 
