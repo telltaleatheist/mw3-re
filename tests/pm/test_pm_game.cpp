@@ -592,6 +592,8 @@ TEST(pm_points_without_polygons) {
   zmth::Mat34 w{}, local{};
   for (int i : {0, 4, 8}) w.m[i] = 1.0f;
   zmth::MatrixStack& st = zmth::matrix_stack();
+  // Put back at the end: w is this test's, and a later mission's boxes go through a set slot 0.
+  const zmth::MatrixStack saved = st;
   st.top = 0, st.slot[0] = &w, st.identity[0] = 0;
   zmth::push(&local);
   static int points;
@@ -611,6 +613,7 @@ TEST(pm_points_without_polygons) {
   zmth::push(&local);
   EXPECT(pm::zmod::prepare_model(m, centre) == 0 && points == 0 && st.top == 0);
   ::zmod::draw_table() = keep;
+  st = saved;
 }
 
 // The first start's note (data_version.h): PM's own files are not "modded"; a changed one, a missing one are said.
