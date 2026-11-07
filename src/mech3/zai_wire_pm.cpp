@@ -277,6 +277,8 @@ bool pm_frame(Brain& b, BrainControls& c, float dt) {
   if (!pm_state_running(b))  // MW3's states keep these on the Brain; PM's attack keeps them in the record
     r.tick.give_up = b.x230, r.tick.attack_until = b.xe8, r.tick.home = b.xe4;
   WiredTickPm hooks(b, c);
+  // For the first run: how a pilot comes to be awake (params +0x88 set, or the sight check).
+  pm_hook_missing(r.tick.awake ? "awake: params +0x88" : r.tick.by_player ? "sight check: by +0x98" : "sight check: by the pick");
   const bool answer = tick_pm(hooks, r.tick, c.vehicle(), dt);
   b.params.put<int32_t>(0x3c, r.tick.mode);
   return answer;
