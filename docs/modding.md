@@ -303,3 +303,10 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   Latent overflow): new mechs need the check first.
 - After v1.0: a custom campaign, new mechs and weapons (the exe's name
   tables made data), loose `.zan` motions, the launcher's MODS list.
+- Existing data mods load (Owen, 2026-11-07): a file the old engine loaded isn't
+  refused by a check stricter than it was. An exe patch can't apply; what it
+  changed is rebuilt as data. Tested on real mods, kept out of the repo.
+- Whole campaigns (Owen, 2026-11-07): the goal is fully moddable, including a
+  rewritten campaign with more enemies. Every fixed limit a mission can reach
+  (units, AI, objects, scripts) found, then raised, or refused with a message
+  naming it, where the original crashed.

@@ -20,6 +20,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "mech3/hud.h"
@@ -46,6 +47,7 @@
 #include "mech3/mech_place.h"
 #include "mech3/mission_world.h"
 #include "mech3/turret.h"
+#include "mech3/mech_names.h"
 #include "mech3/weapon.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "mech3/veh_controls.h"
@@ -1855,4 +1857,38 @@ TEST(fcs_shot_low_with_a_clear_line_reads_no_record) {
   zwep::home(&def, &p);
   EXPECT(asked == 1);
   run = keep_run, hit = keep_hit;
+}
+
+// A 17th weapon, which the exe writes over the manager's owner: a mod's mech, or a peer's
+// config, which validate() lets through by weight alone (docs/weapons.md, Sixteen weapons).
+TEST(weapon_manager_refuses_a_seventeenth) {
+  static mech3::WeaponType type;
+  type.salvo_truecount = 1;  // the firepoint spread needs a mech
+  zwep::State& st = zwep::state();
+  const std::vector<zwep::WeaponDef> kept = st.defs;
+  st.defs.assign(1, zwep::WeaponDef{});
+  st.defs[0].key = mech3::weapon_name(0), st.defs[0].type = &type;
+  int marker = 0;
+  auto* m = new mech3::WeaponManager(nullptr);
+  m->owner = &marker;
+  std::vector<mech3::WeaponItem> items(20);
+  int added = 0;
+  for (mech3::WeaponItem& it : items) {
+    it.weapon = 0, it.group = 0;
+    if (m->add(&it)) ++added;
+  }
+  EXPECT(added == 16);
+  EXPECT(m->count == 16);
+  EXPECT(m->owner == &marker);  // the array's next field
+  EXPECT(m->weapons[15] != nullptr);
+  st.defs = kept;
+  // A peer's packed config with 20 weapons comes through unpacked with all 20.
+  std::vector<uint32_t> packed(13 + 3 * 20, 0);
+  packed[0] = static_cast<uint32_t>(1) << 16 | (0x34 + 20 * 0xc);
+  for (int k = 0; k < 20; ++k) packed[13 + 3 * k] = 1u;
+  mech3::Config* c = mech3::Config::unpacked(packed.data(), packed.size());
+  int weapons = 0;
+  for (mech3::ConfigItem* it : c->items) weapons += it->kind() == 1;
+  EXPECT(weapons == 20);
+  delete c;
 }
