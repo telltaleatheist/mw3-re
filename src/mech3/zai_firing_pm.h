@@ -4,6 +4,7 @@
 // Pirate's Moon's firing (docs/pm-map.md): the step 0x004bb700 keeps about a fifth of MW3's
 // 0x004b5b80, so this is its own port. Nothing runs it until the orders' switch.
 #include <cstdint>
+#include <vector>
 
 #include "gamez/zgame/unported.h"
 
@@ -55,6 +56,88 @@ struct AimPm {
   void repick(zgame::Handle plan, zgame::Handle w, Brain* b, float at[3]);  // 0x004bb290
   void lead(float dt, zgame::Handle plan, zgame::Handle w, zgame::Handle wm, Brain* b);  // 0x004bb580
 };
+
+// The pilot's numbers the plan's pick reads.
+struct PickPilot {
+  int32_t pick_order = 0;   // +0xd4  whose threat first: 0, 1 the first list, 2, 3 the second, 4, 5 none, else no target
+  int32_t part_mode = 0;    // +0xd8  0, 3 by the weights, 1 the weakest part, 2 the strongest
+  float weights[4] = {};    // +0xdc  the torso; +0xe0 each leg; +0xe4 each arm; +0xe8 the head
+  float repick = 0;         // +0xcc
+  float range = 0;          // +0x30
+  uint8_t filter[2] = {};   // +0xed, +0xee  what mustn't be left out
+  uint32_t marker = 0;      // +0x2cc  the brain's own marker
+};
+
+// What the plan's pick asks outside.
+class PickPmHooks {
+ public:
+  virtual ~PickPmHooks() = default;
+  virtual std::vector<Contact*>& contacts(zgame::Handle v) = 0;         // +0xac
+  virtual Contact** target_slot(zgame::Handle v) = 0;                   // +0x6c
+  virtual uint32_t allies(zgame::Handle v) = 0;                         // +0xc4
+  virtual const float* forward(zgame::Handle v) = 0;                    // +0x24
+  virtual bool faces(zgame::Handle v, const float dir[3]) = 0;          // vt+0x98
+  virtual bool in_sight(zgame::Handle v, zgame::Handle e) = 0;          // 0x004e5d00
+  virtual bool select(zgame::Handle v, Contact* c) = 0;                 // vt+0xcc(c, 0)
+  virtual void select_none(zgame::Handle v) = 0;                        // vt+0xcc(0, 0)
+  virtual zgame::Handle contact_entity(const Contact* c) = 0;           // 0x004f8d70
+  virtual zgame::Handle contact_mech(const Contact* c) = 0;             // 0x004f8d80
+  virtual bool active(zgame::Handle e) = 0;                             // +0x08
+  virtual uint32_t team(zgame::Handle e) = 0;                           // vt+0x28's +0xc0
+  virtual uint8_t flags(zgame::Handle e) = 0;                           // +0xbc
+  virtual zgame::Handle group(zgame::Handle e) = 0;                     // vt+0x68
+  virtual uint32_t group_marker(zgame::Handle g) = 0;                   // vt+0xf8
+  virtual uint32_t group_xe8(zgame::Handle g) = 0;                      // vt+0xe8
+  virtual zgame::Handle vehicle(zgame::Handle e) = 0;                   // vt+0x48
+  virtual zgame::Handle vehicle_x58(zgame::Handle m) = 0;               // vt+0x58
+  virtual uint32_t vehicle_x100(zgame::Handle m) = 0;                   // vt+0x100
+  virtual uint32_t entity_x50(zgame::Handle e) = 0;                     // vt+0x50
+  virtual float health(zgame::Handle e) = 0;                            // vt+0xa4
+  virtual zgame::Handle mech(zgame::Handle e) = 0;                      // vt+0x58
+  virtual float heat(zgame::Handle m) = 0;                              // +0x578
+  virtual zgame::Handle part(zgame::Handle m, int32_t offset) = 0;      // legs +0x39c, arms +0x3a4, torso +0x3ac, head +0x3b4
+  virtual uint32_t part_child(zgame::Handle m, int32_t leg) = 0;        // 0x0041e290: the leg's calf, +0x74
+  virtual float part_health(zgame::Handle p) = 0;                       // vt+0x48(0)
+  virtual const float* position(zgame::Handle e) = 0;                   // 0x005cb260
+  virtual zgame::Handle player() = 0;                                   // [0x0062c40c]+0x14
+  virtual zgame::Handle threat(Brain* b, int32_t list) = 0;             // 0x004b2820, 0x004b2890 on +0x104
+  virtual int32_t rand() = 0;
+  virtual float now() = 0;
+};
+PickPmHooks& pick_pm_hooks();
+void set_pick_pm_hooks(PickPmHooks* h);
+
+// A contact offered (0x10 bytes). Lowest score first.
+struct PickRec {
+  Contact** slot = nullptr;
+  float score = 0;
+  uint8_t faces = 0, in_sight = 0;
+};
+
+// The plan 0x005eb990 (0x34 bytes): what the pick hands the step.
+struct PlanPm {
+  Contact** slot = nullptr;   // +0x04
+  float score = 0;            // +0x08
+  uint8_t faces = 0, in_sight = 0;  // +0x0c
+  zgame::Handle vehicle = 0;  // +0x14
+  uint32_t part = 0;          // +0x24
+};
+
+// The firing's fields the pick reads and keeps.
+struct PickFiring {
+  zgame::Handle vehicle = 0;   // [param]
+  Brain* brain = nullptr;      // +0x6c
+  PickPilot pilot;
+  float reach = 0;             // +0x2c
+  zgame::Handle aimed = 0;     // +0x28  the last aimed-at object: a candidate on its line is left alone
+  bool aimed_up = false;       // its +0x08
+  PlanPm* plan = nullptr;      // +0x14
+  float until = 0;             // +0x4c
+  zgame::Handle prefer = 0;    // +0x8c
+  zgame::Handle prefer_next = 0;  // +0x90
+  Contact* seen = nullptr;     // param's +0x0c
+};
+PlanPm* plan_pick(PickFiring& f);  // 0x004bc2e0
 
 }  // namespace mech3::ai
 

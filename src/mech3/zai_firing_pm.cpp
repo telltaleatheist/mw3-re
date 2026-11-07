@@ -3,6 +3,7 @@
 #include <cfloat>
 #include <cmath>
 #include <cstring>
+#include <utility>
 
 #include "mech3/zai_target.h"
 
@@ -12,6 +13,7 @@ namespace mech3::ai {
 namespace {
 
 AimPmHooks* g_hooks = nullptr;
+PickPmHooks* g_pick = nullptr;
 
 constexpr float kAimScale = 0.02f;           // [0x0062f8ec], 0x004bad40: 2 / 100
 constexpr double kPi = 3.14159265359;        // 0x005e6e20
@@ -57,6 +59,8 @@ float dot_stored(const float a[3], const float b[3]) {
 
 AimPmHooks& aim_pm_hooks() { return *g_hooks; }
 void set_aim_pm_hooks(AimPmHooks* h) { g_hooks = h; }
+PickPmHooks& pick_pm_hooks() { return *g_pick; }
+void set_pick_pm_hooks(PickPmHooks* h) { g_pick = h; }
 
 // Pirate's Moon 1.0 @ 0x004013d0
 float unit3(float v[3]) {
@@ -194,6 +198,284 @@ void AimPm::lead(float dt, zgame::Handle plan, zgame::Handle w, zgame::Handle wm
   for (int i = 0; i < 3; ++i) at[i] = pos[i] + offset[i];
   if (limit2 < dot_stored(offset, offset)) repick(plan, w, b, at);
   h.wm_aim_at(wm, at);
+}
+
+namespace {
+
+constexpr int32_t kMostCandidates = 8;     // [0x0060b708]
+Contact* g_no_contact = nullptr;           // 0x0062f8f0
+Contact** const kNoSlot = &g_no_contact;   // [0x0062f8b8]
+constexpr float kTwoThirds = 0.6666666865348816f;  // 0x005e28ac
+// The parts on PM's mech.
+enum : int32_t { kLeg0 = 0x39c, kLeg1 = 0x3a0, kArm0 = 0x3a4, kArm1 = 0x3a8, kTorso = 0x3ac, kHead = 0x3b4 };
+
+// 0x004bbf20: who's filtered, counted up to `limit`.
+struct Filter {
+  PickFiring& f;
+  int32_t limit, count = 0;
+  bool open;
+  Filter(PickFiring& fr, int32_t n) : f(fr), limit(n) {
+    const uint8_t a = fr.pilot.filter[0], b = fr.pilot.filter[1];
+    open = (a & 4) && (a & 0x20) && (a & 0x40) && (a & 0x80) && (b & 1);
+  }
+  bool skip(Contact* c);  // 0x004ba190
+};
+
+bool Filter::skip(Contact* c) {
+  PickPmHooks& h = pick_pm_hooks();
+  if (!(count < limit)) return true;
+  const zgame::Handle e = h.contact_entity(c);
+  if (!e || !h.active(e)) return true;
+  if (h.team(e) & h.allies(f.vehicle)) return true;
+  const zgame::Handle g = h.group(e);
+  const uint32_t marker = g ? h.group_marker(g) : 0;
+  if (marker && marker != f.pilot.marker) return true;
+  if (!(contact_distance(*c) <= f.reach)) return true;
+  if (!open) {
+    const zgame::Handle m = h.vehicle(e);
+    const zgame::Handle driver = m ? h.vehicle_x58(m) : 0;
+    const uint32_t x100 = m ? h.vehicle_x100(m) : 0;
+    const zgame::Handle g2 = h.group(e);
+    const uint32_t xe8 = g2 ? h.group_xe8(g2) : 0;
+    const uint8_t a = f.pilot.filter[0];
+    if (!marker && (!(a & 4) || !driver) && (!(a & 8) || driver != h.player()) && (!(a & 0x10) || !(h.flags(e) & 0x10)) &&
+        (!(a & 0x20) || !m || driver || x100) && (!(a & 0x40) || !x100) && (!(a & 0x80) || !h.entity_x50(e)) &&
+        (!(f.pilot.filter[1] & 1) || !xe8))
+      return true;
+  }
+  ++count;
+  return false;
+}
+
+// 0x004ba340 with its record 0x004bc230: lower is better; none past the first out of reach.
+struct Scorer {
+  PickFiring& f;
+  float most2;
+  bool going = true;
+  explicit Scorer(PickFiring& fr) : f(fr) {
+    const double r = fr.pilot.range;
+    most2 = static_cast<float>(r * r);
+  }
+  void operator()(PickRec& r);
+};
+
+void Scorer::operator()(PickRec& r) {
+  PickPmHooks& h = pick_pm_hooks();
+  const auto none = [&] { r.slot = kNoSlot, r.score = 0, r.faces = 0, r.in_sight = 0; };
+  Contact* c = *r.slot;
+  const zgame::Handle e = going ? h.contact_entity(c) : 0;
+  if (!e) return none();
+  float s = c->dist2;
+  if (s < 1.0f) return none();
+  if (s > most2) {
+    going = false;
+    return none();
+  }
+  if (s < 1600.0f) s = 100.0f;
+  contact_distance(*c);
+  const float* dir = c->dir;
+  if (!(std::fabs(dir[1]) <= 0.5f)) return none();
+  if (f.aimed) {
+    if (f.aimed_up) {
+      const float* to = h.position(f.aimed);
+      const float* from = h.position(f.vehicle);
+      float line[3] = {to[0] - from[0], to[1] - from[1], to[2] - from[2]};
+      const float len = unit3(line);
+      const float dot = dot_stored(line, dir);
+      if (dot > 0) {
+        if (len < 10.0f) return none();
+        const double off = (1.0 - double{dot} * dot) / dot * len * len;
+        if (off < 400.0) return none();
+      }
+    }
+    f.aimed = 0, f.aimed_up = false;
+  }
+  const float* ahead = h.forward(f.vehicle);
+  const float along = static_cast<float>(double{dir[0]} * ahead[0] + double{dir[2]} * ahead[2]);
+  const double turn = (2.0 - along) * (0.25 / (0.25 - double{dir[1]} * dir[1]));
+  s = static_cast<float>(turn * turn * s);
+  const bool faces = h.faces(f.vehicle, dir);
+  if (!faces) s = s + s;
+  s = static_cast<float>((double{h.health(e)} + 0.5) * s * kTwoThirds);
+  if (const zgame::Handle m = h.mech(e)) {
+    const float heat = h.heat(m);
+    const double k = heat > 1.5f ? 1.0 : double{heat} * kTwoThirds;
+    s = static_cast<float>((1.5 - k) * s * kTwoThirds);
+  }
+  const bool sight = h.in_sight(f.vehicle, e);
+  r.score = sight ? s : static_cast<float>(double{s} * 10.0);
+  r.faces = faces, r.in_sight = sight;
+}
+
+// 0x004ba030: the vehicle takes it, or has it already; the slot its own then.
+bool take(PickRec& r, zgame::Handle v) {
+  PickPmHooks& h = pick_pm_hooks();
+  Contact** own = h.target_slot(v);
+  bool ok = true;
+  if (!*own || h.contact_entity(*r.slot) != h.contact_entity(*own)) {
+    ok = h.select(v, *r.slot);
+    if (!ok) return false;
+  }
+  r.slot = own;
+  return ok;
+}
+
+// 0x004bbe30: the entity's contact, when it passes and the vehicle takes it.
+bool pick_entity(PickFiring& f, zgame::Handle e, PickRec* out) {
+  PickPmHooks& h = pick_pm_hooks();
+  if (!e) return false;
+  std::vector<Contact*>& cs = h.contacts(f.vehicle);
+  for (Contact*& c : cs) {
+    if (h.contact_entity(c) != e) continue;
+    Filter pass(f, 1);
+    if (pass.skip(c)) return false;
+    *out = PickRec{};
+    out->slot = &c;
+    Scorer score(f);
+    score(*out);
+    return out->slot != kNoSlot && take(*out, f.vehicle);
+  }
+  return false;
+}
+
+// 0x004bbfa0: the first eight that pass, the best (0x004bd760: a sort to one place by 0x004ba170)
+// then the rest in that order, until the vehicle takes one.
+bool pick_best(PickFiring& f, PickRec* out) {
+  PickPmHooks& h = pick_pm_hooks();
+  std::vector<Contact*>& cs = h.contacts(f.vehicle);
+  const int32_t room = static_cast<int32_t>(cs.size()) < kMostCandidates ? static_cast<int32_t>(cs.size()) : kMostCandidates;
+  Filter pass(f, room);
+  std::vector<PickRec> recs;
+  for (Contact*& c : cs) {
+    if (pass.skip(c)) continue;
+    PickRec r;
+    r.slot = &c;
+    recs.push_back(r);
+  }
+  if (recs.empty()) return false;
+  Scorer score(f);
+  for (PickRec& r : recs) score(r);
+  std::vector<PickRec> kept;
+  for (const PickRec& r : recs)
+    if (r.slot != kNoSlot) kept.push_back(r);
+  for (size_t i = 1; i < kept.size(); ++i)
+    if (kept[i].score < kept[0].score) std::swap(kept[i], kept[0]);
+  for (PickRec& r : kept) {
+    if (take(r, f.vehicle)) {
+      *out = r;
+      return true;
+    }
+  }
+  return false;
+}
+
+// The rest of 0x004bc2e0: which part to aim at. A leg's is its calf (0x0041e290).
+void pick_part(PickFiring& f, PlanPm& p, zgame::Handle m) {
+  PickPmHooks& h = pick_pm_hooks();
+  const PickPilot& b = f.pilot;
+  const auto alive = [&](int32_t at) { return h.part_health(h.part(m, at)) > 0; };
+  const auto weighted = [&] {
+    const double sum = ((double{b.weights[3]} + b.weights[2]) + b.weights[1]) + b.weights[0];
+    if (sum == 0) return;
+    const double first = h.rand() * static_cast<double>(static_cast<float>(sum)) * 3.0517578125e-05 - b.weights[0];
+    float left = static_cast<float>(first);
+    if (first < 0 && alive(kTorso)) {
+      p.part = static_cast<uint32_t>(h.part(m, kTorso));
+      return;
+    }
+    const auto less = [&](float w) {
+      const double v = left - double{w} * 0.5;
+      left = static_cast<float>(v);
+      return v < 0;
+    };
+    if (less(b.weights[1]) && alive(kLeg0)) {
+      p.part = h.part_child(m, 0);
+      return;
+    }
+    if (less(b.weights[1]) && alive(kLeg1)) {
+      p.part = h.part_child(m, 1);
+      return;
+    }
+    if (less(b.weights[2]) && alive(kArm0)) {
+      p.part = static_cast<uint32_t>(h.part(m, kArm0));
+      return;
+    }
+    if (less(b.weights[2]) && alive(kArm1)) {
+      p.part = static_cast<uint32_t>(h.part(m, kArm1));
+      return;
+    }
+    p.part = static_cast<uint32_t>(h.part(m, alive(kHead) ? kHead : kTorso));
+  };
+  const auto extreme = [&](bool high) {
+    const auto wins = [&](float v, float best) { return high ? best < v : best > v; };
+    float best = h.part_health(h.part(m, kTorso));
+    for (int32_t at : {kHead, kArm0, kArm1}) {
+      const float v = h.part_health(h.part(m, at));
+      if (wins(v, best)) best = v, p.part = static_cast<uint32_t>(h.part(m, at));
+    }
+    float v = h.part_health(h.part(m, kLeg0));
+    if (wins(v, best)) best = v, p.part = h.part_child(m, 0);
+    v = h.part_health(h.part(m, kLeg1));
+    if (wins(v, best)) p.part = h.part_child(m, 1);
+  };
+  p.part = static_cast<uint32_t>(h.part(m, kTorso));
+  switch (b.part_mode) {
+    case 0: case 3: weighted(); break;
+    case 1: extreme(false); break;
+    case 2: extreme(true); break;
+    default: break;
+  }
+}
+
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004bc2e0: the plan held until its time, else a new one: the entity asked
+// for (+0x8c, +0x90), the pilot's threat list, the best contact; then a part of a mech to aim at,
+// which MW3 doesn't have. Nothing found: no target.
+PlanPm* plan_pick(PickFiring& f) {
+  PickPmHooks& h = pick_pm_hooks();
+  PlanPm* made = nullptr;
+  if (h.now() < f.until && f.plan && f.plan->slot && *f.plan->slot) {
+    f.seen = *h.target_slot(f.vehicle);
+    return f.plan;
+  }
+  f.until = 0;
+  delete f.plan;
+  f.plan = nullptr;
+  PickRec rec;
+  rec.slot = kNoSlot;
+  const auto find = [&]() -> bool {
+    if (h.contacts(f.vehicle).empty()) return false;
+    if (pick_entity(f, f.prefer, &rec)) return true;
+    if (f.prefer_next) {
+      const zgame::Handle e = f.prefer_next;
+      const bool found = e != f.prefer && pick_entity(f, e, &rec);
+      f.prefer_next = 0;
+      if (found) return true;
+    }
+    switch (f.pilot.pick_order) {
+      case 0: case 1:
+        if (pick_entity(f, h.threat(f.brain, 0), &rec)) return true;
+        break;
+      case 2: case 3:
+        if (pick_entity(f, h.threat(f.brain, 1), &rec)) return true;
+        break;
+      case 4: case 5: break;
+      default: return false;
+    }
+    return pick_best(f, &rec);
+  };
+  if (find()) {
+    made = new PlanPm;
+    made->slot = rec.slot, made->score = rec.score, made->faces = rec.faces, made->in_sight = rec.in_sight;
+    made->vehicle = f.vehicle;
+    if (const zgame::Handle m = h.contact_mech(*made->slot)) pick_part(f, *made, m);
+    f.until = h.now() + f.pilot.repick;
+  } else {
+    h.select_none(f.vehicle);
+  }
+  f.seen = *h.target_slot(f.vehicle);
+  return made;
 }
 
 }  // namespace mech3::ai
