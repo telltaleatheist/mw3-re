@@ -1418,6 +1418,10 @@ From the network code (network-messages.md).
   vehicle. Nothing in the released game can open it (docs/editor.md; the
   rebuild opens it for developers with Shift+F12 under --debug-camera and
   gives the view back on exit).
+- **Battlesport was Recoil.** Recoil's exes carry their source paths, and the game's folder is
+  `D:\Proj\Battlesport`, beside the engine's `D:\Proj\GameZRecoil`. So the "BATTLESPORT GAME
+  EDITOR" in MW3 is most likely a leftover name from Zipper's previous game, and not
+  the 1996 BattleSport by Cyclone Studios (read from the exes' strings).
 - **Every mission builds that invisible camera vehicle anyway.** The
   loading screen's "Creating Stealth" step makes it in every mission, campaign,
   Instant Action and multiplayer alike, even though nothing in the release

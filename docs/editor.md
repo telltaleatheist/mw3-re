@@ -20,6 +20,15 @@ Cyclone Studios, with its ports by Unexpected Development, and don't list it
 among Zipper's games. The exe has only the title string, in MW3 and in Pirate's
 Moon, so it shows neither that this is the same game nor how the name got here.
 
+Recoil answers it (2026-11-07, strings of its two exes, built November and December
+1998; neither was run). Its debug paths are `D:\Proj\GameZRecoil\...` for the engine
+and `D:\Proj\Battlesport\...` for the game (`ai_net.cpp`, `Briefing.cpp`, `hud.cpp`,
+`map.cpp`, `mission.cpp`, `pickup.cpp`, `player.cpp`, `turret.cpp`). So Battlesport was
+Zipper's working name for Recoil's project, and MW3's editor title most likely came
+with the code from it. Recoil's exes have "stealth" and an `ai_net.cpp` but none of the
+editor's menu text ("PICK A COMMAND", "BATTLESPORT", the net editor's rows): by strings
+alone, not a disassembly, the menus aren't in them.
+
 ## The entry and the exit
 
 **Command 0x9a** (0x0040dba0's switch, decoded from its byte table at
