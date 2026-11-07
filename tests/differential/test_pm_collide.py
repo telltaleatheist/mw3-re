@@ -9,13 +9,14 @@ A mech in emulator memory with a copy of the real vtable, its skis, parts that l
 touchable nodes and AiTarget contacts. The segment query answers both sides with scripted crossings. Everything outside
 the mech code is a logging stub on both sides. Each trial is one Collide (or probe setup); the mech's fields, the
 predicted place, the probes, the vehicles it shoved, the skis and every call out must match bit for bit at 24-bit
-precision. The probe library has play fixes off (zfix), so the per-second scaling is not tested here.
+precision, then again at 53. The probe library has play fixes off (zfix), so the per-second scaling is not tested here.
 """
 import ctypes
 import math
 import os
 import random
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -28,6 +29,7 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_AL  # noqa: E402
 
 probe = test_pm_zar.load_pm_probe()
+probe.probe_pm_set_fpu53(1 if os.environ['MW3_X87'] == '53' else 0)  # zgeo::X
 P, F, I, U = ctypes.c_void_p, ctypes.c_float, ctypes.c_int32, ctypes.c_uint32
 probe.probe_collide_setup.argtypes = [P, P, P, I, P, P, P, P, I, I, P, P]
 probe.probe_collide_record.argtypes = [I, I, I, P]
@@ -594,3 +596,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+    # And at the reference runtime's 53 bits (CLAUDE.md, FPU precision): zgeo::X, as the exe's stores.
+    if os.environ['MW3_X87'] == '24':
+        sys.exit(subprocess.call([sys.executable, __file__, *sys.argv[1:]], env=dict(os.environ, MW3_X87='53')))

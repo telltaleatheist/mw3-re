@@ -8,6 +8,7 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zutil/zfix.h"
@@ -21,6 +22,7 @@
 namespace mech3 {
 
 namespace {
+using zgeo::X;
 CollideCalls g_calls;
 bool g_first_query = true;             // 0x006293c9: airborne, the feet meet walls on the first query only
 
@@ -37,23 +39,30 @@ constexpr double kBumpShare = 0.9;     // 0x005dff98: lighter than this share of
 
 // What a contact does per frame, as long as it lasts. FIX (B): a keep-this-much per 1/30 s.
 
-zmth::Vec3 z(const Vec3& v) { return {v.x, v.y, v.z}; }
-Vec3 m3(const zmth::Vec3& v) { return {v.x, v.y, v.z}; }
-
 // 0x0051e280: v reflected off the plane of n (n.v == 0 gives -v).
 Vec3 reflect(const Vec3& n, const Vec3& v) {
-  const float d = (n.x * v.x + n.y * v.y) + n.z * v.z;
+  const float d = ((X(n.x) * v.x + X(n.y) * v.y) + X(n.z) * v.z).f();
   if (d == 0.0f) return {v.x * -1.0f, v.y * -1.0f, v.z * -1.0f};  // 0x005ce028
-  const float k = -d;
-  const Vec3 s{k * n.x, n.y * k, n.z * k};
-  const Vec3 t{v.x + s.x, v.y + s.y, v.z + s.z};
-  return {s.x + t.x, s.y + t.y, s.z + t.z};
+  const X k = -X(d);
+  const Vec3 s{(k * n.x).f(), (k * n.y).f(), (k * n.z).f()};
+  const Vec3 t{(X(v.x) + s.x).f(), (X(v.y) + s.y).f(), (X(v.z) + s.z).f()};
+  return {(X(s.x) + t.x).f(), (X(s.y) + t.y).f(), (X(s.z) + t.z).f()};
 }
 
+// 0x004020d0 at the x87's precision.
+void normalize(Vec3& v) {
+  const X len = sqrt((X(v.x) * v.x + X(v.z) * v.z) + X(v.y) * v.y);
+  if (len.f() == 0.0f) return;
+  const X inv = X(1.0f) / len;
+  v = {(inv * v.x).f(), (inv * v.y).f(), (inv * v.z).f()};
+}
+
+// 0x0051e210 at the x87's precision; v.y as it was.
 void flat_normalize(Vec3& v) {
-  zmth::Vec3 a = z(v);
-  zmth::flat_normalize(a, a);
-  v = m3(a);
+  const float len = sqrt((X(v.x) * v.x + X(0.0f) * 0.0f) + X(v.z) * v.z).f();
+  const X inv = len == 0.0f ? X(len) : X(1.0f) / len;
+  v.x = (inv * v.x).f();
+  v.z = (X(v.z) * inv).f();
 }
 }  // namespace
 
@@ -164,14 +173,14 @@ int32_t Mech::collide_query(const float* list, int32_t points) {
 void Mech::collide_segments() {
   Collider& c = collider;
   const Vec3& v = vec_3c;
-  const float vsq = (v.x * v.x + v.y * v.y) + v.z * v.z;
-  const float psq = (push.x * push.x + push.y * push.y) + push.z * push.z;
-  const float moving = psq + vsq;
+  const float vsq = ((X(v.x) * v.x + X(v.y) * v.y) + X(v.z) * v.z).f();
+  const float psq = ((X(push.x) * push.x + X(push.y) * push.y) + X(push.z) * push.z).f();
+  const X moving = X(psq) + vsq;
   c.clear = 1;
   bool use[11] = {};
-  if (std::fabs(v.z) < std::fabs(vec_58.y * kTurnProbes)) use[0] = use[2] = use[3] = use[5] = true;
+  if (abs(X(v.z)) < abs(X(vec_58.y) * kTurnProbes)) use[0] = use[2] = use[3] = use[5] = true;
   const bool player = this == world().mission_player;
-  if (moving > 0.0f) {
+  if (moving > X(0.0f)) {
     if (v.z < 0.0f) {
       use[0] = use[1] = use[2] = true;
       if (player) use[6] = use[7] = true;
@@ -205,35 +214,37 @@ void Mech::wall_response(const CollisionHit& h) {
   Vec3 n{h.hit.normal[0], h.hit.normal[1], h.hit.normal[2]};
   if (n.x == 0.0f && n.z == 0.0f) return;
   const Vec3& lv = vec_3c;
-  const float speed = std::sqrt((lv.x * lv.x + lv.y * lv.y) + lv.z * lv.z);
+  const float speed = sqrt((X(lv.x) * lv.x + X(lv.y) * lv.y) + X(lv.z) * lv.z).f();
   const Vec3 p{h.hit.point[0], 0.0f, h.hit.point[2]};
   const Vec3 t{h.to.x, 0.0f, h.to.z};
   n.y = 0.0f;
-  const Vec3 d{t.x - p.x, 0.0f - 0.0f, t.z - p.z};
+  const Vec3 d{(X(t.x) - p.x).f(), 0.0f - 0.0f, (X(t.z) - p.z).f()};
   flat_normalize(n);
   Vec3 r = reflect(n, d);
-  const Vec3 p2{p.x + r.x, 0.0f + r.y, p.z + r.z};
-  const Vec3 delta{p2.x - t.x, p2.y - 0.0f, p2.z - t.z};
-  pending_m[9] += delta.x, pending_m[10] += delta.y, pending_m[11] += delta.z;
+  const Vec3 p2{(X(p.x) + r.x).f(), 0.0f + r.y, (X(p.z) + r.z).f()};
+  const Vec3 delta{(X(p2.x) - t.x).f(), p2.y - 0.0f, (X(p2.z) - t.z).f()};
+  pending_m[9] = (X(pending_m[9]) + delta.x).f();
+  pending_m[10] = (X(pending_m[10]) + delta.y).f();
+  pending_m[11] = (X(pending_m[11]) + delta.z).f();
   for (int32_t i = 0; i < collider.count; ++i) {
     Vec3& w = collider.world[i];
-    w = {w.x + delta.x, w.y + delta.y, w.z + delta.z};
+    w = {(X(w.x) + delta.x).f(), (X(w.y) + delta.y).f(), (X(w.z) + delta.z).f()};
   }
   const float rest = collider.restitution;
   flat_normalize(r);
-  const Vec3 g{r.x - n.x, r.y - 0.0f, r.z - n.z};
-  const Vec3 rs{speed * r.x, speed * r.y, speed * r.z};
-  const float a = rs.x * g.x + rs.z * g.z;
-  const Vec3 along{a * g.x, a * g.y, a * g.z};
-  const float b = (rs.x * n.x + rs.z * n.z) * rest;
-  const Vec3 into{b * n.x, b * 0.0f, b * n.z};
-  const Vec3 nv{into.x + along.x, into.y + along.y, into.z + along.z};
-  push = {nv.x - pending_velocity.x, 0.0f, nv.z - pending_velocity.z};
+  const Vec3 g{(X(r.x) - n.x).f(), r.y - 0.0f, (X(r.z) - n.z).f()};
+  const Vec3 rs{(X(speed) * r.x).f(), (X(speed) * r.y).f(), (X(speed) * r.z).f()};
+  const float a = (X(rs.x) * g.x + X(rs.z) * g.z).f();
+  const Vec3 along{(X(a) * g.x).f(), (X(a) * g.y).f(), (X(a) * g.z).f()};
+  const X b = X((X(rs.x) * n.x + X(rs.z) * n.z).f()) * rest;
+  const Vec3 into{(b * n.x).f(), (b * 0.0f).f(), (b * n.z).f()};
+  const Vec3 nv{(X(into.x) + along.x).f(), (X(into.y) + along.y).f(), (X(into.z) + along.z).f()};
+  push = {(X(nv.x) - pending_velocity.x).f(), 0.0f, (X(nv.z) - pending_velocity.z).f()};
   const int32_t flips = g_calls.ai_reverses ? g_calls.ai_reverses(*this) : 0;
   if (flips) controls->throttle = -controls->throttle;
   else controls->throttle = crt::x87_mul_f24(controls->throttle, 0.1);  // 0x005dffa8
-  const float sign = (d.z * rs.x - d.x * rs.z) < 0.0f ? -1.0f : 1.0f;
-  vec_58.y = sign * speed * collider.yaw_kick + vec_58.y;
+  const float sign = (X(d.z) * rs.x - X(d.x) * rs.z) < X(0.0f) ? -1.0f : 1.0f;
+  vec_58.y = (X(sign) * speed * collider.yaw_kick + vec_58.y).f();
   if (this == world().mission_player && world().force_feedback && g_calls.ff_jolt) {
     const float nf[3] = {n.x, n.y, n.z};
     g_calls.ff_jolt(nf, speed / max_speed);
@@ -258,10 +269,10 @@ void Mech::ceiling_response(const CollisionHit& h) {
     if (vec_3c.y > 0.0) {
       const Vec3 v = vec_3c;
       impulse = {0, 0, 0};
-      const float vy = v.y * -0.66f;  // 0x005dffbc
+      const float vy = (X(v.y) * -0.66f).f();  // 0x005dffbc
       skis->set_vy(vy);
       vec_3c = {v.x, vy, v.z};
-      pending_m[10] = (h.hit.point[1] - collider.local[kTopProbe].y) - 0.11f;  // 0x005dffb8
+      pending_m[10] = ((X(h.hit.point[1]) - collider.local[kTopProbe].y) - 0.11f).f();  // 0x005dffb8
     }
     head->apply_damage(0.002f, 0);  // 0x3b03126f
     return;
@@ -269,7 +280,7 @@ void Mech::ceiling_response(const CollisionHit& h) {
   if (!can_crush(h.hit.node)) return wall_response(h);
   const float* b = g_calls.hit_box ? g_calls.hit_box(h.hit.node) : nullptr;
   if (!b) return;
-  const float v = (b[5] - b[2]) * (b[4] - b[1]) * (b[3] - b[0]) / kCrushVolume * 0.25f;
+  const float v = ((X(b[5]) - b[2]) * (X(b[4]) - b[1]) * (X(b[3]) - b[0]) / kCrushVolume * 0.25f).f();
   if (v == 0.0f) return;
   head->apply_damage(crt::x87_mul_f24(v, 0.1), 0);
   torso->apply_damage(crt::x87_mul_f24(v, 0.4), 0);  // 0x005dffb0
@@ -300,21 +311,22 @@ void Mech::vehicle_response() {
     const Vec3 v = pending_velocity;
     const uint32_t team = g_calls.entity_team ? g_calls.entity_team(ent) : 0;
     if (!(team & allies)) {
-      const float dmg = (v.x * v.x + v.z * v.z) / (max_speed * max_speed) * 20.0f;  // 0x005dffc4
+      const float dmg = ((X(v.x) * v.x + X(v.z) * v.z) / (X(max_speed) * max_speed) * 20.0f).f();  // 0x005dffc4
       if (g_calls.entity_damage && g_calls.entity_damage(target, dmg)) return;
     }
     float* bv = g_calls.body_velocity ? g_calls.body_velocity(body) : nullptr;
     float* spin = g_calls.body_spin ? g_calls.body_spin(body) : nullptr;
     if (!bv || !spin) continue;
-    const float s = tonnage() * (g_calls.body_mass ? g_calls.body_mass(body) : 0.0f) * 0.1f;  // 0x005dffc0
-    const float nv[3] = {s * v.x + bv[0], s * v.y + bv[1], s * v.z + bv[2]};
+    const X s = X(tonnage()) * (g_calls.body_mass ? g_calls.body_mass(body) : 0.0f) * 0.1f;  // 0x005dffc0
+    const Vec3 sv{(s * v.x).f(), (s * v.y).f(), (s * v.z).f()};
+    const float nv[3] = {(X(bv[0]) + sv.x).f(), (X(bv[1]) + sv.y).f(), (X(bv[2]) + sv.z).f()};
     std::memcpy(bv, nv, 12);
     std::memcpy(spin, nv, 12);
     if (const float* m = g_calls.entity_matrix ? g_calls.entity_matrix(ent) : nullptr) {
       const float x = spin[0], y = spin[1], zz = spin[2];
-      spin[2] = (x * m[6] + y * m[7]) + zz * m[8];
-      spin[1] = (x * m[3] + y * m[4]) + zz * m[5];
-      spin[0] = (x * m[0] + y * m[1]) + zz * m[2];
+      spin[2] = ((X(x) * m[6] + X(y) * m[7]) + X(zz) * m[8]).f();
+      spin[1] = ((X(x) * m[3] + X(y) * m[4]) + X(zz) * m[5]).f();
+      spin[0] = ((X(x) * m[0] + X(y) * m[1]) + X(zz) * m[2]).f();
     }
   }
   blocked[0] = hit;
@@ -325,8 +337,8 @@ void Mech::vehicle_response() {
 void Mech::crash_part(Mech* by, float d, int32_t part) {
   attacker = by;
   if (part != 1) return legs[part & 1]->apply_damage(d, 0);
-  torso->apply_damage(d * 0.5f, 0);
-  const float side = d * 0.25f;
+  torso->apply_damage((X(d) * 0.5f).f(), 0);
+  const float side = (X(d) * 0.25f).f();
   torso->apply_damage(side, 1);
   torso->apply_damage(side, 2);
 }
@@ -335,18 +347,21 @@ void Mech::crash_part(Mech* by, float d, int32_t part) {
 // over their top speeds together; each takes the other's share of the weight.
 void Mech::crash(Mech& other, int32_t part) {
   const Vec3& v = pending_velocity;
-  const float sx = v.x + other.velocity.x, sz = v.z + other.velocity.z;
-  const float tops = other.max_speed + max_speed;
-  const float sq = (sx * sx + sz * sz) * kCrash / (tops * tops);
+  const float sx = (X(v.x) + other.velocity.x).f(), sz = (X(v.z) + other.velocity.z).f();
+  const X tops = X(other.max_speed) + max_speed;
+  const float sq = ((X(sx) * sx + X(sz) * sz) * kCrash / (tops * tops)).f();
   const float t_other = other.tonnage();
-  const float inv = 1.0f / (tonnage() + t_other);
-  const float mine = tonnage() * inv, theirs = t_other * inv;
-  crash_part(&other, theirs * sq, part);
+  const float inv = (X(1.0f) / (X(tonnage()) + t_other)).f();
+  const float mine = (X(tonnage()) * inv).f();
+  // On the x87 for the first product, but 0x00425202's inlined copy, a leg's, stores it first.
+  const X theirs_x = X(t_other) * inv;
+  const float theirs = theirs_x.f();
+  crash_part(&other, ((part == 1 ? theirs_x : X(theirs)) * sq).f(), part);
   if (g_calls.remote && g_calls.remote(other)) {
-    const float s = theirs * collider.restitution;
-    if (g_calls.net_shove) g_calls.net_shove(*this, other, mine * sq, s * v.x, s * v.z);
+    const X s = X(theirs) * collider.restitution;
+    if (g_calls.net_shove) g_calls.net_shove(*this, other, (X(mine) * sq).f(), (s * v.x).f(), (s * v.z).f());
   } else {
-    other.crash_part(this, mine * sq, part);
+    other.crash_part(this, (X(mine) * sq).f(), part);
   }
 }
 
@@ -389,8 +404,9 @@ bool Mech::collide() {
   const float* m = pending_m;  // where the mech is going
   for (int32_t i = 0; i < c.count; ++i) {
     const Vec3& p = c.local[i];
-    c.world[i] = {((p.x * m[0] + p.y * m[3]) + p.z * m[6]) + m[9], ((p.x * m[1] + p.y * m[4]) + p.z * m[7]) + m[10],
-                  ((p.x * m[2] + p.y * m[5]) + p.z * m[8]) + m[11]};
+    c.world[i] = {(((X(p.x) * m[0] + X(p.y) * m[3]) + X(p.z) * m[6]) + m[9]).f(),
+                  (((X(p.x) * m[1] + X(p.y) * m[4]) + X(p.z) * m[7]) + m[10]).f(),
+                  (((X(p.x) * m[2] + X(p.y) * m[5]) + X(p.z) * m[8]) + m[11]).f()};
   }
   g_first_query = true;
   collide_segments();
@@ -417,7 +433,7 @@ bool Mech::collide() {
     for (int32_t i = 0; i < n && !found; ++i) {
       Handle ct = g_calls.contact(*this, i);
       if (Mech* cm = g_calls.contact_mech ? g_calls.contact_mech(ct) : nullptr) {
-        if (cm != this && cm->pilot->roster != kElemental && crt::x87_div_f24(cm->tonnage(), tonnage()) >= kBumpShare)
+        if (cm != this && cm->pilot->roster != kElemental && X(cm->tonnage()) / tonnage() >= X(kBumpShare))
           found = ct;
       } else if (g_calls.contact_target && g_calls.contact_target(ct)) {
         found = ct;
@@ -426,24 +442,30 @@ bool Mech::collide() {
     if (found && g_calls.contact_dist2(found) < kBumpRadius * kBumpRadius) {
       g_calls.contact_dist(found);
       const Vec3* dirp = g_calls.contact_dir(found);
-      zmth::Vec3 away{-dirp->x, 0.0f, -dirp->z};
-      zmth::normalize(away);
-      const float amt = (kBumpRadius - g_calls.contact_dist(found)) * 1.1f;  // 0x005dff90
-      const Vec3 off{amt * away.x, amt * away.y, amt * away.z};
-      pending_m[9] += off.x, pending_m[10] += off.y, pending_m[11] += off.z;
-      const float k = crt::x87_mul_f24(std::fabs(vec_3c.z), 0.6000000238418579);  // 0x005dff88
-      push = {push.x + k * away.x, push.y + k * away.y, push.z + k * away.z};
+      Vec3 away{-dirp->x, 0.0f, -dirp->z};
+      normalize(away);
+      const X amt = (X(kBumpRadius) - g_calls.contact_dist(found)) * 1.1f;  // 0x005dff90
+      const Vec3 off{(amt * away.x).f(), (amt * away.y).f(), (amt * away.z).f()};
+      pending_m[9] = (X(pending_m[9]) + off.x).f();
+      pending_m[10] = (X(pending_m[10]) + off.y).f();
+      pending_m[11] = (X(pending_m[11]) + off.z).f();
+      const X k = abs(X(vec_3c.z)) * X(0.6000000238418579);  // 0x005dff88
+      const Vec3 shove{(k * away.x).f(), (k * away.y).f(), (k * away.z).f()};
+      push = {(X(push.x) + shove.x).f(), (X(push.y) + shove.y).f(), (X(push.z) + shove.z).f()};
       const float dt = frame_dt;
-      const Vec3 mv{off.x + push.x * dt, off.y + push.y * dt, off.z + push.z * dt};
+      const Vec3 step{(X(push.x) * dt).f(), (X(push.y) * dt).f(), (X(push.z) * dt).f()};
+      const Vec3 mv{(X(off.x) + step.x).f(), (X(off.y) + step.y).f(), (X(off.z) + step.z).f()};
       for (int32_t i = 0; i < c.count; ++i) {
         Vec3& w = c.world[i];
-        w = {w.x + mv.x, w.y + mv.y, w.z + mv.z};
+        w = {(X(w.x) + mv.x).f(), (X(w.y) + mv.y).f(), (X(w.z) + mv.z).f()};
       }
       const Vec3& d = *dirp;
-      const float cy = d.z * pending_velocity.x - d.x * pending_velocity.z;
+      const float cy = (X(d.z) * pending_velocity.x - X(d.x) * pending_velocity.z).f();
       const float sign = cy < 0.0f ? -1.0f : 1.0f;
-      vec_58.y = turn_rate_now() * sign * 1.8f;  // 0x005dff80
-      controls->throttle *= 0.7f;  // 0x005dfcb0
+      // The exe's sign picks the constant; turn_rate_now's value is still on the x87.
+      const X rate = (X(1.0) - abs(X(controls->throttle)) * 0.8f) * turn_rate;
+      vec_58.y = (rate * sign * 1.8f).f();  // 0x005dff80
+      controls->throttle = (X(controls->throttle) * 0.7f).f();  // 0x005dfcb0
       blocked[1] = true;
       if (this == world().player && move_calls().pilot_sound)
         sounds[13] = move_calls().pilot_sound(*this, kSoundBump, 1.0f, -1.0f);
