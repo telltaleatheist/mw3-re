@@ -38,7 +38,7 @@ bool add_weapons(Store& s, SalvageMech& m, int32_t tech, const SalvageCalls& c) 
 // Mech3.exe 1.2 @ 0x00472f00
 bool add_salvage(Store& s, SalvageMech& m, const SalvageCalls& c) {
   if (!m.has_data || m.type == kElemental) return false;
-  bool mech = !m.torso_gone || m.head_gone;
+  bool mech = m.chassis;  // Pirate's Moon 0x00474f80, its +0x5ae: MW3's asks the torso and the head
   // Ours: food for thought wins the coin (cheats.h).
   if (mech && (m.leg_gone[0] || m.leg_gone[1])) mech = cheats().max_salvage || (c.rand() & 1) != 0;
   if (mech) s.add_mech(m.type);

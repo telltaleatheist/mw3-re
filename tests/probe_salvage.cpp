@@ -92,7 +92,7 @@ extern "C" int probe_salvage_run(const char* setup, char* out, int size) {
       SalvageMech& m = e.m;
       int has, torso, head, l0, l1, mgr, doubles, nw, nb, np, ni;
       ss >> has >> m.type >> m.tech >> torso >> head >> l0 >> l1 >> m.sink_tech >> m.sinks >> doubles;
-      m.has_data = has != 0, m.torso_gone = torso != 0, m.head_gone = head != 0;
+      m.has_data = has != 0, m.chassis = torso == 0 || head != 0;
       m.leg_gone[0] = l0 != 0, m.leg_gone[1] = l1 != 0, m.doubles = doubles != 0;
       ss >> np;
       for (int i = 0; i < np && i < 16; ++i) {

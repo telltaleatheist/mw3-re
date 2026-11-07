@@ -3,6 +3,7 @@
 
 #include "check.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_salvage.h"
 #include "mech3/mech_objective.h"
 #include "mech3/pilot.h"
 
@@ -78,4 +79,19 @@ TEST(pm_config_from_a_short_store) {
   EXPECT(total == 12);
   EXPECT(!got->modified);
   c.items.clear();
+}
+
+// Pirate's Moon 0x00474f80: the chassis by +0x5ae alone, so a head shot's mech comes and one the torso's
+// loss or kill() cleared doesn't.
+TEST(pm_salvage_takes_the_chassis_by_its_flag) {
+  SalvageMech m;
+  m.has_data = true, m.type = 3;
+  SalvageCalls c;
+  c.rand = [] { return 0; };
+  Store a(1), b(1);
+  add_salvage(a, m, c);
+  EXPECT(a.count() == 1);
+  m.chassis = false;
+  add_salvage(b, m, c);
+  EXPECT(b.count() == 0);
 }
