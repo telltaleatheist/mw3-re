@@ -45,6 +45,21 @@ class AttackPmHooks {
   virtual void return_to(zgame::Handle behaviour) = 0;  // 0x004ea180, a 0x005ef254, or with none a 0x005ef250
 };
 
+// What the attack leaves on the brain's list: run with the brain, between frames.
+class PendingPmHooks {
+ public:
+  virtual ~PendingPmHooks() = default;
+  virtual void pop_order() = 0;                       // 0x004ea220
+  virtual void set_behaviour(zgame::Handle b) = 0;    // 0x004f9f00 on the order now last
+  virtual void follow(zgame::Handle target, zgame::Handle b) = 0;  // 0x004ea740
+};
+struct PendingPm {
+  enum Kind { kFollow, kBack, kBackTo } kind = kBack;  // vtables 0x005eeca4, 0x005ef250, 0x005ef254
+  zgame::Handle target = 0;     // +0x04
+  zgame::Handle behaviour = 0;  // +0x08, 0x005ef254's +0x04
+  void run(PendingPmHooks& h);  // 0x004dedb0, 0x004e1fc0, 0x004eab40
+};
+
 // Past FightStatePm's.
 struct AttackStatePm : FightStatePm {
   const float* hold_at = nullptr;  // +0x3c

@@ -140,6 +140,38 @@ class Exe(test_pm_zar.Emulated):
                 [self.fr(b + OFF[k]) for k in ('xfc', 'x108', 'x1f0')] + [self.fr(st + o) for o in (0x10, 0x14, 0x18, 0x44, 0x48, 0x4c)])
 
 
+def functors(lib):
+    """The three orders the attack leaves on the list: exe and port, the calls in order."""
+    x = test_pm_zar.Emulated()
+    a = x.alloc
+    log = []
+
+    def poke(p, v):
+        x.cpu._uc.mem_write(p, struct.pack('<I', v))
+    x.native_stub(0x4ea220, lambda c: log.append((1, c.ecx)) or 0, 0)
+    x.native_stub(0x4ea740, lambda c: log.append((2, c.arg(0), c.arg(1))) or 0, 8)
+    x.native_stub(0x4f9f00, lambda c: log.append((3, c.arg(0))) or 0, 4)
+    brain, cases = a(0x40), 0
+    block = a(0x84 * 3)
+    poke(brain + 0x14, block), poke(brain + 0x1c, block + 0x84 * 2)
+    for kind, fn, obj in ((0, 0x4dedb0, (0x5eeca4, 0x11, 0x22)), (1, 0x4e1fc0, (0x5ef250,)), (2, 0x4eab40, (0x5ef254, 0x22))):
+        o = a(16)
+        for k, w in enumerate(obj):
+            poke(o + 4 * k, w)
+        log.clear()
+        x.call(fn, ecx=o, args=(brain,))
+        w = (ctypes.c_uint32 * 12)()
+        n = lib.probe_pm_ai_pending(kind, 0x11, 0x22, w)
+        got = [tuple(w[3 * i:3 * i + 3]) for i in range(n)]
+        want = [{1: (1, 0, 0), 2: e + (0,) * 3, 3: e + (0,) * 3}[e[0]][:3] for e in log]
+        if want != got:
+            print(f'functor {kind}: exe {want} port {got}')
+            return 1
+        cases += 1
+    print(f'{cases} functors agree')
+    return 0
+
+
 def main():
     runs = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
     lib = test_pm_zar.load_pm_probe()
@@ -174,6 +206,7 @@ def main():
             if bad > 4:
                 break
         seen[i['flags'] & 0xf0, a[1][0] & 0xf0] = seen.get((i['flags'] & 0xf0, a[1][0] & 0xf0), 0) + 1
+    bad += functors(lib)
     print(f'{runs} steps: {bad} differ; transitions {sorted(seen)}')
     pm_floors.floors(steps=(runs, 1000), transitions=(len(seen), 8))
     return 1 if bad else 0

@@ -14,6 +14,22 @@ bool odd_step(uint32_t flags) {  // the fighting state's steps 1, 3, 5: it can't
 }
 }  // namespace
 
+// Pirate's Moon 1.0 @ 0x004dedb0, 0x004e1fc0 (the exe tests its brain, never null here), 0x004eab40.
+void PendingPm::run(PendingPmHooks& h) {
+  switch (kind) {
+    case kFollow:
+      h.follow(target, behaviour);
+      break;
+    case kBack:
+      h.pop_order();
+      break;
+    case kBackTo:
+      h.pop_order();
+      h.set_behaviour(behaviour);
+      break;
+  }
+}
+
 // The nearest behaviour of the order two from the back, when there is one.
 void AttackStatePm::find_hold(AttackPmHooks& h) {
   hold_net = 0;

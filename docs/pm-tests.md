@@ -214,6 +214,8 @@ against the exe's record offset.
 
 ## On the switch's list from the starbase refit
 
+The full boundary run (`MW3_BOUNDARY_ALL=1`, `test_pm_ai_boundary_real`) runs per world: one pass at 53 bits stopped at its 3,000 s cap with 109,880 queries on the exe, 0 differ, through c1's campaign areas and into standalone.
+
 Mission 5's field bases stand still until a static MFB is called, then drive about 211 m (`PM_MFB=4700,-4200`,
 `PM_KILL=0,1,5`, control `PM_MFB_NO_CALL`). The exe's static branch sets "may drive" too, and these bases have `vlist`
 orders, so the port follows the exe's flags, but on the stand-in's AI: compare once PM's AI runs.

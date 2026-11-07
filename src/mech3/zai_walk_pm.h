@@ -125,6 +125,13 @@ class WalkFightPm : public WalkPm {
   uint8_t off_way = 0;                // +0x8d
 };
 
+// The context of the attack state 0x004dedf0 (vtable 0x005ef1fc): the target is the state's held place, else the
+// order's.
+class WalkAttackPm : public WalkFightPm {
+ public:
+  WalkAttackPm(WalkPmHooks& h, SteerPm& steer, zgame::Handle vehicle, FightStatePm& state, const float* held, int32_t mode);  // 0x004debe0
+};
+
 // The context of the guarding state 0x004dffb0 (vtables 0x005ef2a0, 0x005ef30c): the order's target
 // and how far it is from here and from the way's start.
 class WalkGuardPm : public WalkPm {

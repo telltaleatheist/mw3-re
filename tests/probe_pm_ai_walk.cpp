@@ -122,6 +122,10 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "B") {
       b = new WalkFightPm(w, s, 1, st);
       c.reset(b);
+    } else if (op == "@") {
+      static const float held[3] = {100.0f, 0.0f, 50.0f};
+      b = new WalkAttackPm(w, s, 1, st, f(a[0]) != 0.0f ? held : nullptr, static_cast<int32_t>(f(a[1])));
+      c.reset(b);
     } else if (op == "Y") {
       const float away[2] = {f(a[0]), f(a[1])};
       drive_pm(w, s, 1, away, f(a[2]), f(a[3]), &drove[0], &drove[1], f(a[4]), f(a[5]), f(a[6]));

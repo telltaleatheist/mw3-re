@@ -422,6 +422,22 @@ void WalkFightPm::take_order_target() {
   no_target = no_target || !h.target_live(t);
 }
 
+// Pirate's Moon 1.0 @ 0x004debe0: `mode` the brain's +0x3c.
+WalkAttackPm::WalkAttackPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v, FightStatePm& st, const float* held, int32_t mode)
+    : WalkFightPm(hooks, s, v, st) {
+  if (!held) {
+    const zgame::Handle t = h.order_target();
+    target_pos = h.target_place(t);
+    measure_target();
+    if (!no_target && h.target_live(t) && !h.must_leave(v)) return;
+  } else {
+    target_pos = held;
+    measure_target();
+    if (!no_target && mode != 1) return;
+  }
+  no_target = 1;
+}
+
 // Pirate's Moon 1.0 @ 0x004dfb50. The exe reads the place without testing it after the test.
 WalkGuardPm::WalkGuardPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v) : WalkPm(hooks, s, v) {
   target = h.order_target();

@@ -99,6 +99,7 @@ class Exe(test_pm_zar.Emulated):
             self.w32(tvt + slot, self.ret_stub((lambda a: lambda c: a)(answer) if answer else (lambda c: self.target)))
         self.w32(self.order + 0xc, chain[0])
         self.w32(chain[3] + 0x1c, self.record)
+        self.w32(self.record + 8, 1)  # live, as the probe's world starts
         self.leave = False
         self.native_stub(0x4fa210, lambda c: 1 if self.leave else 0, pop=4)
         self.want_pilot, self.blocked, self.steers, self.on_from = False, False, True, False
@@ -241,7 +242,7 @@ def fight_plan(seed):
     def state():
         return ('f', r.choice([0x3, 0xf5, 0x1a]), [r.choice([0.0, 50.0, 200.0]), r.uniform(0, 100)])
 
-    lines += [fight(), ('B',), ('N', 1), ('E',)]
+    lines += [fight(), ('V', r.choice([0, 1, 1]), r.choice([0, 0, 1])), ('B',) if r.random() < 0.7 else ('@', [r.choice([0.0, 1.0]), r.choice([0.0, 1.0, 2.0])]), ('V', 1, 0), ('N', 1), ('E',)]
     base = plan(seed + 100000)
     worlds = [ln for ln in base if ln[0] == 'W'] or [base[0]]
     # Some far apart, for the way cut short past the middle range + 200.
@@ -356,6 +357,16 @@ def run_exe(x, lines):
             x.call(FIGHT_CTX, ecx=x.ctx, args=(x.order, x.state))
             x.w32(x.ctx + 0xc, x.vehicle + 0x80)
             made = True
+        elif op == '@':
+            x.state = x.alloc(0x50)
+            x.call(FIGHT_STATE, ecx=x.state, args=(x.order,))
+            hold = x.alloc(12)
+            x.fs(hold, [100.0, 0.0, 50.0])
+            x.w32(x.state + 0x3c, hold if ln[1][0] else 0)
+            x.w32(x.brain + 0x3c, int(ln[1][1]))
+            x.call(0x4debe0, ecx=x.ctx, args=(x.order, x.state))
+            x.w32(x.ctx + 0xc, x.vehicle + 0x80)
+            made = True
         elif op == 'Y':
             v = ln[1]
             a, c = x.alloc(8), x.alloc(0x14)
@@ -440,8 +451,8 @@ def text(lines):
             o.append(f'{ln[0]} {ln[1]}')
         elif ln[0] == 'V':
             o.append(f'V {ln[1]} {ln[2]}')
-        elif ln[0] == 'Y':
-            o.append('Y ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
+        elif ln[0] in 'Y@':
+            o.append(ln[0] + ' ' + ' '.join(f'{bits(u):x}' for u in ln[1]))
         else:
             o.append(ln[0])
     return '\n'.join(o) + '\n'

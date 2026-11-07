@@ -35,7 +35,21 @@ struct Hooks : AttackPmHooks {
 };
 }  // namespace
 
+struct Pending : PendingPmHooks {
+  void pop_order() override { note(1); }
+  void set_behaviour(zgame::Handle b) override { note(3, b); }
+  void follow(zgame::Handle t, zgame::Handle b) override { note(2, t, b); }
+};
+
 extern "C" {
+int probe_pm_ai_pending(int kind, uint32_t target, uint32_t behaviour, uint32_t* log) {
+  g_log = log, g_n = 0;
+  Pending p;
+  PendingPm o;
+  o.kind = static_cast<PendingPm::Kind>(kind), o.target = target, o.behaviour = behaviour;
+  o.run(p);
+  return g_n / 3;
+}
 // in: no_target, orders, net, nearest, target, behaviour, flags, kind, x5c, x60, mode, hold_net, hold_set
 // fin: speed, now, intensity, delay, x58, xb4, xfc, x108, x1f0, pos[3], place[3], r10, r14, r18, hold[3]
 // out: flags, kind, x5c, x60, mode, hold_net, hold_set, place (0 none, 1 hold); fout: xfc, x108, x1f0, r10, r14, r18, hold[3]
