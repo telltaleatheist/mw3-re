@@ -19,11 +19,24 @@ struct Fake : BrainHooks {
   void position(Handle, float o[3]) override { o[0] = 1, o[1] = 2, o[2] = 3; }
   void forward(Handle, float* x, float* z) override { *x = 0.6f, *z = 0.8f; }
   AiTarget* targetable(Handle v) override { return v == 7 ? &self : nullptr; }
-  Handle vehicle_mech(Handle v) override { return v; }
+  bool mech_none = false;
+  Handle vehicle_mech(Handle v) override { return mech_none ? 0 : v; }
   Handle weapons(Handle) override { return 0x55; }
   int32_t rand() override { return 99; }
   float heat(Handle) override { return 2.5f; }
   WeaponManager* wm = nullptr;
+  int refreshed = 0;
+  zgame::Handle sighted = 0;
+  float at[3] = {};
+  void mech_aim_at_last_hit(Handle) override { ++refreshed; }
+  bool clear_line(Handle, Handle e) override { sighted = e; return true; }
+  bool can_face(Handle, const float d[3]) override { return d[0] > 0; }
+  bool bearer_aim_clamp(Handle, const float d[3], float o[3]) override { o[0] = d[0], o[1] = d[1], o[2] = -d[2]; return true; }
+  void bearer_set_aim(Handle, const float d[3]) override { at[0] = d[0]; }
+  void wm_aim_at(Handle, const float a[3]) override { at[1] = a ? 1.0f : -1.0f; }
+  void velocity(Handle e, float o[3]) override { o[0] = e == 5 ? 10.0f : 0.0f, o[1] = 0, o[2] = 0; }
+  void entity_lock_position(Handle, float o[3]) override { o[0] = 100, o[1] = 0, o[2] = 0; }
+  Handle contact_entity(const Contact* c) override { return c->seen; }
   void* object_of(Handle h) override { return h == 0x55 ? static_cast<void*>(wm) : nullptr; }
   float speed_at(Handle, float t) override { return t; }
   float stopping_distance(Handle, float s) override { return s; }
@@ -96,7 +109,7 @@ TEST(pm_wire_firing_answers_what_the_step_calls_most) {
   step_pm_hooks().trigger(&b, true);
   EXPECT(c.fired == 1);
   EXPECT(step_pm_hooks().heat(7) == 2.5);
-  EXPECT(pm_hooks_missing().empty());
+  EXPECT(pm_hooks_missing().size() == 1 && pm_hooks_missing().at("fired: trigger") == 1);  // the run's count of shots
 }
 
 TEST(pm_wire_firing_lists_a_managers_weapons) {
@@ -116,6 +129,34 @@ TEST(pm_wire_firing_lists_a_managers_weapons) {
   EXPECT(step_pm_hooks().group(0x55) == f.handle_of(m.group_ptr()));
   m.group = -1;  // none selected
   EXPECT(step_pm_hooks().group(0x55) == 0);
+}
+
+TEST(pm_wire_firing_aims_through_the_vehicle_slots) {
+  Fake f;
+  Installed in(&f);
+  plan_pm_hooks().refresh(7);
+  EXPECT(f.refreshed == 1);
+  EXPECT(plan_pm_hooks().in_sight(7, 9) && f.sighted == 9);
+  const float d[3] = {1, 0, 2};
+  float o[3];
+  EXPECT(pick_pm_hooks().faces(7, d));
+  EXPECT(plan_pm_hooks().turn(7, d, o) && o[2] == -2.0f);
+  plan_pm_hooks().face(7, d);
+  EXPECT(f.at[0] == 1.0f);
+  step_pm_hooks().stand_down(7);
+  EXPECT(f.at[1] == -1.0f);  // the manager's aim cleared
+}
+
+TEST(pm_wire_firing_aim_point_is_the_lead_point) {
+  Fake f;
+  Installed in(&f);
+  Contact c;
+  c.seen = 5;
+  float o[3];
+  // No weapon: nothing to lead, and with no mech's smoothed view the point stays.
+  f.mech_none = true;
+  EXPECT(plan_pm_hooks().aim_point(7, &c, 0, o));
+  EXPECT(o[0] == 100.0f);
 }
 
 TEST(pm_wire_firing_threat_is_the_attacker_list) {
