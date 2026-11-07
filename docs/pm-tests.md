@@ -17,9 +17,9 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_actions.py` | gone | 19 | 3 | moved to `test_pm_actions.py` | the falls and getting up |
 | `test_ai_nets.py` | changed | 33 | 0 | moved to `test_pm_ai_nets.py` | the compile |
 | `test_ai_paths.py` | gone | 20 | 0 | moved to `test_pm_ai_paths.py` | at 53 bits, nets of up to 30 nodes for ways |
-| `test_ai_readers.py` | changed | 13 | 1 | to move | with PM AI |
+| `test_ai_readers.py` | changed | 13 | 1 | covered | `test_pm_ai_nodes` (the header, every node), `test_pm_ai_nets`, `test_pm_ai_regions` (the cache and lookups, through the build) |
 | `test_ai_regions.py` | gone | 19 | 0 | moved to `test_pm_ai_regions.py` | at 53 bits |
-| `test_ai_valves.py` | gone | 31 | 6 | to move | with PM AI |
+| `test_ai_valves.py` | gone | 31 | 6 | covered | `test_pm_ai_valves` reaches the same record, builder, actions, conditions, sets and timers, judged by what it runs; the mission's end 0x4e4400, 0x4e4380 isn't run on the exe |
 | `test_bake.py` | changed | 3 | 2 | covered | test_pm_bake |
 | `test_clip2d.py` | gone | 1 | 0 | covered | test_pm_clip2d |
 | `test_clip3d.py` | gone | 0 | 0 | covered | test_pm_clip3d |
