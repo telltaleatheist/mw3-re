@@ -4,6 +4,7 @@
 
 - **Low and Medium get noticeably easier.** Every release so far gave your side the High damage figure on every difficulty. The game's own table now applies: you take 40% on Low, 70% on Medium and 100% on High. Low also loses a heat haze the original doesn't have there.
 - **The launcher has a new font on every system.** It now brings its own, Saira Condensed, where it used to borrow one from your system.
+- **Windows:** this package passed its checks and the launcher was tested from it, but we didn't play a mission from the final Windows package before release. If a mission won't start for you, please send `mw3.log`.
 
 ## Linux
 
@@ -33,3 +34,39 @@
 - **`--check-mod` passes a mod with a new world.** It refused every good `gamez.zbd`, `anim.zbd` and `texture*.zbd` as "not an archive". Only the check was wrong. It also no longer stops at a long folder path.
 
 Everything the rebuild changes from the original is in `CHANGES.md`.
+
+## Still known
+
+- **macOS: window tools can delay the mouse button by about a second**
+  (Magnet and similar). Quit the tool while you play, or exclude
+  MechWarrior 3 in it.
+- **Jump jets lighting up water (Op 3, Mission 5):** one report, not
+  reproduced. A screenshot and `mw3.log` help.
+- Mech speed in shallow water and on hills is the original's: speed has no
+  slope term, and water only slows a mech deeper than a tenth of its height.
+- Pirate's Moon is not supported yet.
+
+## Downloads
+
+| | Download | |
+|---|---|---|
+| Windows | `MW3-Rebuild-Setup-v1.0.4.exe` | An installer (a `.zip` of the same files is there too). |
+| Mac | `MW3-Rebuild-v1.0.4-mac.dmg` | Drag the app to Applications. |
+| Linux | `MW3-Rebuild-v1.0.4-x86_64.AppImage` | Make it executable and run it. Built and checked under WSL, not playtested on a Linux machine. |
+
+You need your own MechWarrior 3 (an installed copy, the disc, or a disc
+image); see the 1.0 release for getting started.
+
+## Reporting bugs
+
+Open an issue on the project's GitHub page with `mw3.log` from the
+settings folder (the README says where it is).
+
+## Checksums
+
+```
+6245e8b063fa4dcef7617f417d98c81e8226fc64b026e29a19c141c205100d23  MW3-Rebuild-Setup-v1.0.4.exe
+32f455753196dd16d28f4663eca25e2c210840df107f9b4218c6f9efd38e66e0  mw3-v1.0.4-win64.zip
+1237bf6f4b1fd49e91f477e866dba610de44f7d650055005204a7f5f9b1e1d80  MW3-Rebuild-v1.0.4-mac.dmg
+d8e557b37501184da5049fabed20c2da515b2a9bc1228addbacf77c80b88fc74  MW3-Rebuild-v1.0.4-x86_64.AppImage
+```
