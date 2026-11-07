@@ -1,7 +1,7 @@
 """MW3_PRECISION=53 reaches both sides, and the check at exit catches a side
 that is not there (original.py). Run with no arguments; it starts itself.
 
-    cmake --build build --target mw3probe && .venv/bin/python tests/differential/test_precision_setting.py
+    cmake --build build --target pmprobe && .venv/bin/python tests/differential/test_precision_setting.py
 """
 import ctypes
 import os
@@ -17,7 +17,7 @@ def child(mode):
     os.environ.setdefault('MW3_X87', '24')  # as a test's own default
     import original
     from original import ROOT, Original
-    probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libmw3probe.*'))))
+    probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
     cpu = Original()
     cpu.fpu_control(0x007f)  # as 66 tests do in their own code
     # 1 / 3 stored as a double through the x87: 24 bits keep a float's digits.
