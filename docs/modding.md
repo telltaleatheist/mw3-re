@@ -308,3 +308,19 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   rewritten campaign with more enemies. Every fixed limit a mission can reach
   (units, AI, objects, scripts) found, then raised, or refused with a message
   naming it, where the original crashed.
+- After Pirate's Moon (Owen, 2026-11-07), in one list: custom weapons with their own
+  effects and animations, custom mechs, custom maps and campaigns, all as data;
+  existing data mods (mech3ax and zStudio output) loading as they are; quicksand as a
+  part a mod can use, the pits the engine already makes plus, behind a mod's own
+  setting, the sinking Recoil had (slower, lower gravity, settling in); the game
+  editor reachable from the launcher; and installing a mod made simple: the
+  launcher takes a mod's .zip, .7z or folder (picked, or dropped on its window),
+  finds the game files in it whatever its layout, checks them with `--check-mod`,
+  asks which game, writes `mods/<name>/` with its `mod.txt`, and lists mods to turn
+  on, off and reorder, with their conflicts shown. A mod made by overwriting an
+  install is taken as the files that differ from the player's own install. Nothing is
+  ever written into the install.
+- Exe patches aren't supported: the code is open, so a change to the engine is a
+  change to the source. What exe patches were used for (weapon rows, limits, the
+  resolution) becomes data or a setting instead, so mods stay combinable and
+  multiplayer can compare them.
