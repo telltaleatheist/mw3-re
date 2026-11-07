@@ -23,6 +23,9 @@ original.
 
 ### Coming in the next release
 
+- **No crash ending a mission with a laser firing.** If a beam was still firing when
+  a mission ended, the cleanup treated it as a shot and could crash, for example on
+  REPLAY at the debriefing.
 - **A loadout past 16 weapons can't damage the game.** The game took a 17th weapon
   unchecked and overwrote what came after the list. A mod's mech could do that,
   and so could a modified player's loadout in multiplayer. The extra weapon is now

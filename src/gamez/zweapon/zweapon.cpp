@@ -561,9 +561,9 @@ int32_t startup() {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x00584fe0
-void kill_every_shot() {
-  for (WeaponDef& d : state().defs) kill_all(&d);
-}
+// Mech3.exe 1.2 @ 0x00584fe0, the mission cleanup's way in: the same function as zwep_shot's
+// kill_all(), and the same FIX (A): a BEAM def's list holds beams, not projectiles. Run on them,
+// a beam firing at the debriefing was killed as a shot and crashed REPLAY (docs/fixes.md).
+void kill_every_shot() { kill_all(); }
 
 }  // namespace zwep
