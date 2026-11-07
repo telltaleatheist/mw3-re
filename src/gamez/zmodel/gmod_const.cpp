@@ -923,6 +923,18 @@ template <typename T> T hget(const Model& m, int off) {
 template <typename T> void hput(Model& m, int off, T v) { std::memcpy(m.header + off, &v, sizeof v); }
 }  // namespace
 
+namespace {
+// The step less the whole units that bring the range's middle back to 0. At 53 bits (zfix fpu53, as in
+// play) the sum isn't rounded to float before the cut, which can land a unit away on a large UV.
+float scroll_step(float d, float lo, float hi) {
+  if (zfix::options().fpu53) {
+    const double step = d;
+    return static_cast<float>(step - crt::msvc_ftol(step - (static_cast<double>(hi) + lo) * -0.5));
+  }
+  return d - static_cast<float>(crt::msvc_ftol(d - (hi + lo) * -0.5f));
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x00541ad0: the texture scroll's step (docs/render.md
 // section 3, Texture scroll), once a frame ([0x0072f338] kept at +0x30):
 // every textured polygon's UVs move by dt ([0x0072c52c]) times the speeds
@@ -954,8 +966,7 @@ int model_scroll_tick(Model* m) {
         if (!(v >= vmin)) vmin = v;
         else if (v > vmax) vmax = v;
       }
-      const float ou = du - static_cast<float>(crt::msvc_ftol(du - (umax + umin) * -0.5f));
-      const float ov = dv - static_cast<float>(crt::msvc_ftol(dv - (vmax + vmin) * -0.5f));
+      const float ou = scroll_step(du, umin, umax), ov = scroll_step(dv, vmin, vmax);
       for (int32_t j = 0; j < count; ++j) uv[2 * j] = ou + uv[2 * j], uv[2 * j + 1] = ov + uv[2 * j + 1];
       continue;
     }
@@ -969,7 +980,7 @@ int model_scroll_tick(Model* m) {
       if (!(x >= lo)) lo = x;
       else if (!(hi >= x)) hi = x;
     }
-    const float o = d - static_cast<float>(crt::msvc_ftol(d - (hi + lo) * -0.5f));
+    const float o = scroll_step(d, lo, hi);
     for (int32_t j = 0; j < count; ++j) uv[2 * j + a] = o + uv[2 * j + a];
   }
   return 0;
