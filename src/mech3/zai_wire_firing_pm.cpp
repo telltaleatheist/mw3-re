@@ -259,7 +259,11 @@ class WirePick : public PickPmHooks {
   zgame::Handle part(zgame::Handle m, int32_t offset) override {
     return brain_hooks().handle_of(part_at(m, offset));
   }
-  uint32_t part_child(zgame::Handle m, int32_t leg) override { pm_hook_missing("WirePick.part_child"); return {}; }
+  uint32_t part_child(zgame::Handle m, int32_t leg) override {
+    const Mech* k = static_cast<const Mech*>(brain_hooks().object_of(m));  // 0x0041e290: the leg's calf
+    const Leg* l = k && (leg == 0 || leg == 1) ? k->legs[leg] : nullptr;
+    return l && l->calf ? brain_hooks().handle_of(l->calf) : 0;
+  }
   float part_health(zgame::Handle p) override {
     return static_cast<MechPart*>(brain_hooks().object_of(p))->get_internal(0);
   }
