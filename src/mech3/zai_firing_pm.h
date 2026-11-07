@@ -121,6 +121,9 @@ struct PlanPm {
   uint8_t faces = 0, in_sight = 0;  // +0x0c
   zgame::Handle vehicle = 0;  // +0x14
   uint32_t part = 0;          // +0x24
+  float dir[3] = {0, 0, 0};   // +0x18  to the aim, in the vehicle's frame
+  float place[3] = {0, 0, 0}; // +0x28  the part's
+  bool seen = false;          // +0x0d
 };
 
 // The firing's fields the pick reads and keeps.
@@ -169,6 +172,58 @@ void set_shot_pm_hooks(ShotPmHooks* h);
 // 0x004bcd40, PM's for MW3's volley_pick 0x004b1860: which weapons fire. `hold` is the brain's +0x34,
 // the burst's seconds; `rate` its +0x124's +0x54.
 bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, float rate);
+
+// What the plan's virtuals and the weapon checks ask outside.
+class PlanPmHooks {
+ public:
+  virtual ~PlanPmHooks() = default;
+  virtual zgame::Handle contact_entity(const Contact* c) = 0;           // 0x004f8d70
+  virtual zgame::Handle mech(zgame::Handle e) = 0;                      // vt+0x58
+  virtual void refresh(zgame::Handle m) = 0;                            // 0x0041df20
+  virtual zgame::Handle wm(zgame::Handle v) = 0;                        // +0xd4
+  virtual zgame::Handle group_weapon(zgame::Handle wm) = 0;             // the group at +0x2c: its +0x10
+  virtual bool aim_point(zgame::Handle v, Contact* c, zgame::Handle weapon, float out[3]) = 0;  // vt+0x90
+  virtual void weapon_place(zgame::Handle weapon, float out[3]) = 0;    // 0x004b76d0
+  virtual const float* position(zgame::Handle e) = 0;                   // 0x005cb260
+  virtual const float* matrix(zgame::Handle v) = 0;                     // +0x0c
+  virtual bool turn(zgame::Handle v, const float dir[3], float out[3]) = 0;  // vt+0x9c
+  virtual void face(zgame::Handle v, const float dir[3]) = 0;           // vt+0x160
+  virtual void wm_aim_at(zgame::Handle wm, const float at[3]) = 0;      // 0x004b4a20
+  virtual const std::vector<zgame::Handle>& weapons(zgame::Handle wm) = 0;   // +0x44
+  virtual const std::vector<zgame::Handle>& group(zgame::Handle g) = 0; // +0x14
+  virtual bool weapon_cos(zgame::Handle w, zgame::Handle wm, float* cos) = 0;  // 0x004b7800 on the manager's +0x0c
+  virtual bool in_sight(zgame::Handle v, zgame::Handle e) = 0;          // 0x004e5d00
+  virtual void part_place(uint32_t part, float out[3]) = 0;             // 0x004ff250 on its +0x08
+  virtual const float* entity_place(zgame::Handle e) = 0;               // 0x005cb2b0
+  // A weapon's fields for 0x004b8f80 and 0x004b9d80.
+  virtual bool has_type(zgame::Handle w) = 0;                           // +0x30
+  virtual int32_t ammo(zgame::Handle w) = 0;                            // vt+0x20
+  virtual float blocked(zgame::Handle w) = 0;                           // +0x74
+  virtual double reach(zgame::Handle w) = 0;                            // 0x004b7b90
+  virtual zgame::Handle holder_mech(zgame::Handle w) = 0;               // +0x9c's +0x88, vt+0x2c, vt+0x48
+  virtual bool mounted(zgame::Handle w) = 0;                            // +0x28 and +0x84
+  virtual zgame::Handle muzzle_node(zgame::Handle w) = 0;               // the mount's +0x08, else +0x24
+  virtual const float* mount_place(zgame::Handle w) = 0;                // +0x84's +0x70
+  virtual bool spreads(zgame::Handle w) = 0;                            // +0x6c and +0x84
+  virtual float spread(zgame::Handle w) = 0;                            // +0x84's +0x60
+  virtual const float* offset(zgame::Handle w) = 0;                     // +0x88
+  virtual bool buried(zgame::Handle node, const float at[3]) = 0;       // 0x004ff3c0
+  virtual bool has_mount(zgame::Handle w) = 0;                          // +0x84
+  virtual bool mount_reaches(zgame::Handle w, const float dir[3]) = 0;  // 0x004a7000
+  virtual bool mech_reaches(zgame::Handle m, const float dir[3]) = 0;   // vt+0x94
+  virtual int32_t rand() = 0;
+};
+PlanPmHooks& plan_pm_hooks();
+void set_plan_pm_hooks(PlanPmHooks* h);
+
+bool in_line(Contact& target, Contact& c);   // 0x004b9f00: `c` in the cone round the target
+bool plan_turn(PlanPm& p, Contact* c, bool grouped, float cone);        // 0x004baae0
+bool plan_cone(const PlanPm& p, Contact* c, zgame::Handle wm, bool grouped, zgame::Handle g, float cone);  // 0x004ba9e0
+const float* plan_place(PlanPm& p, const Contact* c);                   // 0x004ba0d0
+void plan_sight(PlanPm& p, const Contact* c);                           // 0x004baac0
+zgame::Handle best_weapon(zgame::Handle wm);                            // 0x004b9de0
+bool can_hit(zgame::Handle w, const float at[3]);                       // 0x004b8f80
+bool any_can_hit(zgame::Handle wm, const float at[3]);                  // 0x004bd1c0
 
 // What the step asks outside. A plan and its virtuals are handles here until the step is wired to
 // PlanPm: vt+0x14 turn, vt+0x04 in the cone, vt+0x1c sight, vt+0x20 place.

@@ -341,3 +341,118 @@ extern "C" int32_t probe_pm_ai_step(const int32_t* in, int32_t frames, const uin
   std::memcpy(out, s.log.data(), 4 * s.log.size());
   return m;
 }
+
+// The plan's virtuals and the weapon checks, for test_pm_ai_plan.py. in: 0 op, 1 entity, 2 its mech, 3 grouped, 4 a
+// group weapon, 5 aim ok, 6 there, 7 sight, 8 part, 9 n, 10 list by group, then 12 for each weapon: type, ammo, weapon_cos
+// ok, mounted, spreads, buried, has mount, mount reaches, mech reaches, holder; f: 0 cone, 1..3 at, 4..6 weapon's place,
+// 7..9 vehicle's, 10..18 matrix, 19..21 turn's out, 22..24 part, 25..27 entity's, 28..30 mount place... see the test.
+namespace {
+constexpr int kPI = 11, kPW = 10, kPF = 40, kWF = 12;
+struct Pl : PlanPmHooks {
+  const int32_t* in;
+  const float* f;
+  const int32_t* rands;
+  int nr = 0;
+  std::vector<zgame::Handle> ws;
+  std::vector<uint32_t> log;
+  const int32_t* wi(zgame::Handle w) const { return in + kPI + kPW * (w - 1); }
+  const float* wf(zgame::Handle w) const { return f + kPF + kWF * (w - 1); }
+  void vec(uint32_t k, const float* v) {
+    log.push_back(k);
+    for (int i = 0; i < 3; ++i) log.push_back(W::bits(v[i]));
+  }
+  zgame::Handle contact_entity(const Contact*) override { return in[1] ? 21 : 0; }
+  zgame::Handle mech(zgame::Handle) override { return in[2] ? 22 : 0; }
+  void refresh(zgame::Handle) override { log.push_back(0x91); }
+  zgame::Handle wm(zgame::Handle) override { return 23; }
+  zgame::Handle group_weapon(zgame::Handle) override { return in[4] ? 24 : 0; }
+  bool aim_point(zgame::Handle, Contact*, zgame::Handle w, float out[3]) override {
+    log.push_back(0x92), log.push_back(w ? 1 : 0);
+    std::memcpy(out, f + 1, 12);
+    return in[5] != 0;
+  }
+  void weapon_place(zgame::Handle, float out[3]) override { std::memcpy(out, f + 4, 12); }
+  const float* position(zgame::Handle) override { return f + 7; }
+  const float* matrix(zgame::Handle) override { return f + 10; }
+  bool turn(zgame::Handle, const float dir[3], float out[3]) override {
+    vec(0x93, dir);
+    std::memcpy(out, f + 19, 12);
+    return in[6] != 0;
+  }
+  void face(zgame::Handle, const float dir[3]) override { vec(0x94, dir); }
+  void wm_aim_at(zgame::Handle, const float at[3]) override { vec(0x95, at); }
+  const std::vector<zgame::Handle>& weapons(zgame::Handle) override { return ws; }
+  const std::vector<zgame::Handle>& group(zgame::Handle) override { return ws; }
+  bool weapon_cos(zgame::Handle w, zgame::Handle, float* cos) override {
+    log.push_back(0x96), log.push_back(static_cast<uint32_t>(w));
+    *cos = wf(w)[0];
+    return wi(w)[2] != 0;
+  }
+  bool in_sight(zgame::Handle, zgame::Handle) override { log.push_back(0x97); return in[7] != 0; }
+  void part_place(uint32_t, float out[3]) override { std::memcpy(out, f + 22, 12); }
+  const float* entity_place(zgame::Handle) override { return f + 25; }
+  bool has_type(zgame::Handle w) override { return wi(w)[0] != 0; }
+  int32_t ammo(zgame::Handle w) override { return wi(w)[1]; }
+  float blocked(zgame::Handle w) override { return wf(w)[1]; }
+  double reach(zgame::Handle w) override { return wf(w)[2]; }
+  zgame::Handle holder_mech(zgame::Handle w) override { return wi(w)[9] ? 22 : 0; }
+  bool mounted(zgame::Handle w) override { return wi(w)[3] != 0; }
+  zgame::Handle muzzle_node(zgame::Handle w) override { return wi(w)[3] ? 31 : 32; }
+  const float* mount_place(zgame::Handle w) override { return wf(w) + 3; }
+  bool spreads(zgame::Handle w) override { return wi(w)[4] != 0 && wi(w)[3] != 0; }
+  float spread(zgame::Handle w) override { return wf(w)[6]; }
+  const float* offset(zgame::Handle w) override { return wf(w) + 7; }
+  bool buried(zgame::Handle node, const float at[3]) override {
+    log.push_back(0x98), log.push_back(static_cast<uint32_t>(node));
+    vec(0x98, at);
+    for (zgame::Handle w : ws)
+      if (w == g_cur) return wi(w)[5] != 0;
+    return false;
+  }
+  bool has_mount(zgame::Handle w) override { return wi(w)[3] != 0; }
+  bool mount_reaches(zgame::Handle w, const float dir[3]) override { vec(0x99, dir); return wi(w)[7] != 0; }
+  bool mech_reaches(zgame::Handle, const float dir[3]) override { vec(0x9a, dir); return wi(g_cur)[8] != 0; }
+  int32_t rand() override { return rands[nr++]; }
+  zgame::Handle g_cur = 1;
+};
+}  // namespace
+
+extern "C" int32_t probe_pm_ai_plan(const int32_t* in, const int32_t* rands, const float* f, uint32_t* out, int32_t cap) {
+  Pl s;
+  s.in = in, s.f = f, s.rands = rands;
+  for (int i = 0; i < in[9]; ++i) s.ws.push_back(static_cast<zgame::Handle>(i + 1));
+  set_plan_pm_hooks(&s);
+  PlanPm p;
+  p.vehicle = 20, p.part = in[8] ? 33 : 0;
+  Contact a, b;
+  std::memcpy(a.delta, f + 28, 12), a.dist = f[31];
+  std::memcpy(b.delta, f + 32, 12), b.dist = f[35];
+  int32_t r = 0;
+  switch (in[0]) {
+    case 0: r = plan_turn(p, &a, in[3] != 0, f[0]); break;
+    case 1: r = plan_cone(p, &a, 23, in[3] != 0, 25, f[0]); break;
+    case 2: s.vec(0x9b, plan_place(p, &a)); break;
+    case 3: plan_sight(p, &a), r = p.seen; break;
+    case 4: r = static_cast<int32_t>(best_weapon(23)); break;
+    case 5: r = can_hit(1, f + 1); break;
+    case 6: {
+      bool any = false;
+      for (zgame::Handle w : s.ws) {
+        s.g_cur = w;
+        if (can_hit(w, f + 1)) { any = true; break; }
+      }
+      r = any;
+      break;
+    }
+    default: r = in_line(a, b); break;
+  }
+  set_plan_pm_hooks(nullptr);
+  auto& l = s.log;
+  l.push_back(0x2b), l.push_back(static_cast<uint32_t>(r));
+  if (in[0] == 0) for (int i = 0; i < 3; ++i) l.push_back(W::bits(p.dir[i]));
+  l.push_back(static_cast<uint32_t>(s.nr));
+  const int32_t m = static_cast<int32_t>(l.size());
+  if (m > cap) return -1;
+  std::memcpy(out, l.data(), 4 * l.size());
+  return m;
+}

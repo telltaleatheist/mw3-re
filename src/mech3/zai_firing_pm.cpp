@@ -18,6 +18,7 @@ AimPmHooks* g_hooks = nullptr;
 PickPmHooks* g_pick = nullptr;
 ShotPmHooks* g_shot = nullptr;
 StepPmHooks* g_step = nullptr;
+PlanPmHooks* g_plan = nullptr;
 
 constexpr float kAimScale = 0.02f;           // [0x0062f8ec], 0x004bad40: 2 / 100
 constexpr double kPi = 3.14159265359;        // 0x005e6e20
@@ -69,6 +70,8 @@ ShotPmHooks& shot_pm_hooks() { return *g_shot; }
 void set_shot_pm_hooks(ShotPmHooks* h) { g_shot = h; }
 StepPmHooks& step_pm_hooks() { return *g_step; }
 void set_step_pm_hooks(StepPmHooks* h) { g_step = h; }
+PlanPmHooks& plan_pm_hooks() { return *g_plan; }
+void set_plan_pm_hooks(PlanPmHooks* h) { g_plan = h; }
 
 // Pirate's Moon 1.0 @ 0x004013d0
 float unit3(float v[3]) {
@@ -743,6 +746,149 @@ ask_range: {
     h.set_range(vehicle, range);
     phase = 7;
   }
+}
+
+namespace {
+
+// The vehicle's frame, its 0x004bb... matrix by columns; the exe's sum order.
+void to_local(float v[3], const float* m) {
+  const double a = double{v[0]} * m[0] + double{v[1]} * m[1];
+  const double b = double{v[0]} * m[3] + double{v[1]} * m[4];
+  const double c = double{v[0]} * m[6] + double{v[1]} * m[7];
+  v[0] = static_cast<float>(a + double{v[2]} * m[2]);
+  v[1] = static_cast<float>(b + double{v[2]} * m[5]);
+  v[2] = static_cast<float>(c + double{v[2]} * m[8]);
+}
+
+// 0x004b9ed0 -> 0x004b9e40(10, 30, 10, 200): the cone's half angle shrinks from 30 m to 200 m.
+constexpr float kConeNear = 30.0f, kConeSpan = 170.0f;  // +0x08, +0x10
+constexpr float kRandMiddle = 16383.5f, kRandScale = 6.103701889514923e-05f;  // 0x00605ee4, 0x00605ee0
+// +0x18, the cosine at 30 m, and +0x20, how far it rises by 200 (a line 10 m wide at each).
+const float kConeBase = static_cast<float>(30.0 / std::hypot(10.0, 30.0));
+const float kConeRise = static_cast<float>(double{static_cast<float>(200.0 / std::hypot(10.0, 200.0))} - kConeBase);
+const float kConeInverse = static_cast<float>(1.0 / 170.0);  // +0x14
+
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004b9f00
+bool in_line(Contact& target, Contact& c) {
+  if (&c == &target) return true;
+  const float d = static_cast<float>(double{contact_distance(c)} - kConeNear);
+  double k;
+  if (!(0 < d)) k = 1.0;
+  else k = d < kConeSpan ? double{kConeInverse} * d : 0.0;
+  const float least = static_cast<float>(double{kConeRise} * k + kConeBase);
+  contact_distance(target);
+  return dot_stored(target.dir, c.dir) > least;
+}
+
+// Pirate's Moon 1.0 @ 0x004baae0: the torso turned to the aim point, the manager aimed; true when
+// it's there, or within `cone`. FIX (bug): no group with a weapon asked for reads null in the exe;
+// here it aims as without a weapon (fixes.md).
+bool plan_turn(PlanPm& p, Contact* c, bool grouped, float cone) {
+  PlanPmHooks& h = plan_pm_hooks();
+  if (!c) return false;
+  if (const zgame::Handle e = h.contact_entity(c))
+    if (const zgame::Handle m = h.mech(e)) h.refresh(m);
+  const zgame::Handle wm = h.wm(p.vehicle);
+  const zgame::Handle w = grouped ? h.group_weapon(wm) : 0;
+  float at[3];
+  if (!h.aim_point(p.vehicle, c, w, at)) return false;
+  if (w) {
+    h.weapon_place(w, p.dir);
+  } else {
+    std::memcpy(p.dir, h.position(p.vehicle), sizeof p.dir);
+  }
+  for (int i = 0; i < 3; ++i) p.dir[i] = at[i] - p.dir[i];
+  unit3(p.dir);
+  to_local(p.dir, h.matrix(p.vehicle));
+  float out[3];
+  const bool there = h.turn(p.vehicle, p.dir, out);
+  h.face(p.vehicle, p.dir);
+  h.wm_aim_at(wm, at);
+  return there || !(dot_stored(out, p.dir) < cone);
+}
+
+// Pirate's Moon 1.0 @ 0x004ba9e0: a weapon (of the group, when one fired) with the aim in its cone.
+bool plan_cone(const PlanPm& p, Contact* c, zgame::Handle wm, bool grouped, zgame::Handle g, float cone) {
+  (void)p;
+  PlanPmHooks& h = plan_pm_hooks();
+  if (!c) return false;
+  for (const zgame::Handle w : grouped ? h.group(g) : h.weapons(wm)) {
+    float cos = 0;
+    if (w && h.weapon_cos(w, wm, &cos) && cone < cos) return true;
+  }
+  return false;
+}
+
+// Pirate's Moon 1.0 @ 0x004ba0d0: the part's place, else the entity's.
+const float* plan_place(PlanPm& p, const Contact* c) {
+  PlanPmHooks& h = plan_pm_hooks();
+  if (p.part) {
+    h.part_place(p.part, p.place);
+    return p.place;
+  }
+  return h.entity_place(h.contact_entity(c));
+}
+
+// Pirate's Moon 1.0 @ 0x004baac0
+void plan_sight(PlanPm& p, const Contact* c) {
+  PlanPmHooks& h = plan_pm_hooks();
+  p.seen = h.in_sight(p.vehicle, h.contact_entity(c));
+}
+
+namespace {
+// 0x004b9d80: `b` replaces `a` unless `a` can fire and reaches at least as far.
+bool replaces(zgame::Handle a, zgame::Handle b) {
+  PlanPmHooks& h = plan_pm_hooks();
+  if (!h.has_type(a) || !h.ammo(a) || !(h.blocked(a) < 1.0f)) return true;
+  const float mine = static_cast<float>(h.reach(a));
+  return h.reach(b) > mine;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004b9de0
+zgame::Handle best_weapon(zgame::Handle wm) {
+  PlanPmHooks& h = plan_pm_hooks();
+  const std::vector<zgame::Handle>& ws = h.weapons(wm);
+  if (ws.empty()) return 0;
+  zgame::Handle best = ws[0];
+  for (size_t i = 1; i < ws.size(); ++i)
+    if (replaces(best, ws[i])) best = ws[i];
+  return best;
+}
+
+// Pirate's Moon 1.0 @ 0x004b8f80: whether the muzzle, clear of the ground, bears on `at`.
+bool can_hit(zgame::Handle w, const float at[3]) {
+  PlanPmHooks& h = plan_pm_hooks();
+  if (!h.has_type(w) || !(h.blocked(w) < 1.0f)) return false;
+  const int32_t rounds = h.ammo(w);
+  if (rounds <= 0 && rounds != -1) return false;
+  const zgame::Handle m = h.holder_mech(w);
+  if (!m) return false;
+  float from[3] = {0, 0, 0};
+  if (h.mounted(w)) std::memcpy(from, h.mount_place(w), sizeof from);
+  if (h.spreads(w)) {
+    for (int i = 0; i < 2; ++i) {
+      const double k = (static_cast<double>(h.rand()) - kRandMiddle) * kRandScale;
+      from[i] = static_cast<float>(double{h.spread(w)} * k + from[i]);
+    }
+  } else {
+    const float* o = h.offset(w);
+    for (int i = 0; i < 3; ++i) from[i] = from[i] + o[i];
+  }
+  if (h.buried(h.muzzle_node(w), from)) return false;
+  float d[3] = {at[0] - from[0], at[1] - from[1], at[2] - from[2]};
+  to_local(d, h.matrix(m));
+  unit3(d);
+  return h.has_mount(w) ? h.mount_reaches(w, d) : h.mech_reaches(m, d);
+}
+
+// Pirate's Moon 1.0 @ 0x004bd1c0
+bool any_can_hit(zgame::Handle wm, const float at[3]) {
+  for (const zgame::Handle w : plan_pm_hooks().weapons(wm))
+    if (can_hit(w, at)) return true;
+  return false;
 }
 
 }  // namespace mech3::ai
