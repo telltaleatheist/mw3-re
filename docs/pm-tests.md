@@ -195,6 +195,7 @@ No test can show these; each rests on reading the exe.
 - 0x4cab20: a side exactly at the limit. The same.
 - `InOutHooks::ground`: a corner's height is in no answer.
 - The plan 0x4da1c0's second pull through vt+0x24, and its [0x62fb20] branch: not ported, as all three contexts answer 0 at vt+0x24 and nothing writes the flag.
+- The arrangenodes point (0x4c5002): 0x4e57e0 is stubbed on both sides of `test_pm_ai_nets`, so no such point is built, and with it a dock point's flags in 0x47c5f0 (`WaynetPoint`'s `xe, mfb, xd, xf`). The break on those flags is the waynets' one miss, 6 of 7 caught. Unlike the rest of this list a test could show it, by leaving 0x4e57e0 running.
 
 ## The cloud's death band
 
