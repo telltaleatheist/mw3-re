@@ -8,6 +8,7 @@
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_wire_pm.h"
+#include "mech3/zai_wire_walk_pm.h"
 
 namespace mech3::ai {
 
@@ -564,7 +565,9 @@ class WireStep : public StepPmHooks {
     const zgame::Handle wm = brain_hooks().weapons(v);
     if (wm) brain_hooks().wm_clear_aim(wm);  // 0x004b4a20(0)
   }
-  void brain_x20(Brain* b) override { pm_hook_missing("WireStep.brain_x20"); }
+  void brain_x20(Brain* b) override {
+    pm_walk(*b, *b->controls).set_fought(false);  // vt+0x20 0x004faa30: the brain's +0x118 to 0
+  }
  private:
   float buf_[3] = {};
 };

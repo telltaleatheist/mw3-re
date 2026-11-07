@@ -198,6 +198,20 @@ TEST(pm_wire_firing_soonest_and_friends) {
   delete p;
 }
 
+TEST(pm_wire_firing_stand_down_clears_the_fought_flag) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  WireWalk& w = pm_walk(b, c);
+  w.set_fought(true);
+  step_pm_hooks().brain_x20(&b);
+  EXPECT(!w.fought());
+  pm_forget(b, 7);
+}
+
 TEST(pm_wire_firing_keeps_a_record_a_vehicle) {
   Fake f;
   Installed in(&f);
