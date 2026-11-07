@@ -14,6 +14,7 @@
 #include <unistd.h>
 #endif
 
+#include "gamez/zmath/zmth_matrix.h"
 #include "check.h"
 #include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
@@ -299,6 +300,7 @@ static bool me_alive(void* player) {
 }
 
 static void kill_run(const char* which, bool quick) {
+  EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
   if (std::getenv("PM_BUGS_OFF")) zfix::options().bugs = false;
   zgame::set_game(pm::table());

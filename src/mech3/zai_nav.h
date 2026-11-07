@@ -86,6 +86,7 @@ class Grid {
   bool tight(int cx, int cz, int level);               // kTight here, worked out once
   void forget_avoid();                                 // the shapes changed
   void hold(int cx, int cz, float y, float until, uint16_t what = kHeld);  // blocked (or kNear) for a while
+  void hold_parked(const std::array<float, 5>& rect, float now);  // a World::parked rect, and round it
   void release(float now);                             // holds past their time lifted
   // The tiles under that rectangle built again behind the old ones, as what
   // stands there has changed (a door opened, a ramp fallen, a building down).
