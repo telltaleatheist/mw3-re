@@ -535,7 +535,7 @@ void Launcher::find_mw1() {
 #endif
   std::vector<fs::path> tries;
   if (const char* env = SDL_getenv("MW3_MW1_PORT")) tries.emplace_back(env);
-  if (const char* base = SDL_GetBasePath()) tries.push_back(fs::path(base) / name), tries.push_back(fs::path(base) / "MechWarrior1989" / name);
+  tries.push_back(fs::path(o_.program_dir) / name), tries.push_back(fs::path(o_.program_dir) / "MechWarrior1989" / name);
   std::error_code ec;
   for (const fs::path& t : tries)
     if (fs::is_regular_file(t, ec)) {

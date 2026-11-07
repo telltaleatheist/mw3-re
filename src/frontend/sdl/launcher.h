@@ -33,6 +33,7 @@ struct LauncherOptions {
   // mw3launcher (docs/launcher.md, The two programs): MECHWARRIOR 3 starts
   // this program as a child, `game_bin <install> game_args... --ready-file F`,
   // the launcher hidden from the game's first frame until it exits.
+  std::string program_dir;  // this program's own folder (a bundle's Contents/MacOS, not its Resources)
   std::string game_bin;
   // mw3pm beside this program, empty when the package has none (PIRATE'S MOON
   // then stays "Coming later"). Its arguments have nothing of MW3's: it keeps
