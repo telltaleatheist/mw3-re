@@ -624,8 +624,10 @@ struct EntityLess {
 
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004d5be0 (ECX the vehicle): the brain's lancemate
-// setting (+0xcd), bit 1 "default": an ally of the player.
+// Pirate's Moon 1.0 @ 0x004e5f90 (MW3's 0x004d5be0, ECX the vehicle): the brain's lancemate
+// setting (+0xcd), bit 1 "default": an ally of the player. Then PM's: team 30, the markers of orders to
+// move, is an ally; team 29 an ally of everyone else and an enemy of a lancemate; a lancemate has its own
+// marker. The exe makes a new one each time and loses the old: here once.
 void lance_flag(Handle x) {
   AiTarget& t = F(x);
   const Handle m = vt(x, 0x40);
@@ -641,6 +643,11 @@ void lance_flag(Handle x) {
     on = w && w != p && (F(p).allies & H().team(vt(w, 0x28)));
   }
   t.xbc = static_cast<uint8_t>((t.xbc & ~0x10u) | (on ? 0x10 : 0));
+  constexpr uint32_t k30 = 1u << 30, k29 = 1u << 29;
+  t.allies |= k30, t.enemies &= ~k30;
+  if (on) t.enemies |= k29, t.allies &= ~k29;
+  else t.allies |= k29, t.enemies &= ~k29;
+  if (b) H().brain_own_marker(b, on);
 }
 
 // Mech3.exe 1.2 @ 0x004d5ca0 (with 0x004d5bc0 per entity, the sort 0x004d7360).

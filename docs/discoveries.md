@@ -4566,3 +4566,6 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   Collective Camp" fails the moment the camp's valve trips, with its own voice line, and you lose its salvage. A failed
   objective never counts toward its group, even though it reads as finished.
 
+- Pirate's Moon's command mode keeps your throttle. In MW3 the number keys 1 to 4 picked lancemates and 5 to 9 did nothing. Pirate's Moon binds 1 to 4 to the lancemates only while the mode is up, in a private copy of your keys, and 5 to 0 set the throttle as usual.
+- Pirate's Moon: an Attack order on the command marker turns into a Defend order. There's nothing there to shoot, so the lancemate goes to the spot, and it gets a marker of its own to walk to.
+- Pirate's Moon: the throttle's number keys do nothing while your mech lies on its back or front. MW3 took them, so the speed you'd typed was waiting when you got up.

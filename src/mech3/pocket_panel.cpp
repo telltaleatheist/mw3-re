@@ -86,26 +86,44 @@ FrameCalls& frame_calls() { return g_frame; }
 DrawCalls& draw_calls() { return g_draw; }
 ztwod::Rect& pocket_clip() { return g_clip; }
 
-// Mech3.exe 1.2 @ 0x00467d80 (the rows of 0x005e5050: an action, its
-// message, the order; the last is the command mode's own key, order 2)
+// Pirate's Moon 1.0 @ 0x00469bf0 over the rows of 0x00606f30 (an action, the
+// order; the last is the command mode's own key, order 2), at each panel:
+// MW3's 0x00467d80 at the mission's start, dropping a row without a key.
 void pocket_load_commands() {
-  static const int32_t kRows[6][3] = {{84, 2195, 10}, {85, 2196, 11}, {82, 2142, 0},
-                                      {81, 2143, 1},  {86, 2197, 12}, {79, 2204, 2}};
+  static const int32_t kRows[6][2] = {{0x58, 10}, {0x59, 11}, {0x56, 0}, {0x55, 1}, {0x5a, 12}, {0x53, 2}};
   int32_t n = 0;
   for (const auto& row : kRows) {
     const zgame::Handle k = g_calls.key_binding ? g_calls.key_binding(row[0]) : note("0x0051d1f0", row[0]);
-    if (!k) continue;
-    PocketCommand& c = g_commands.rows[n];
-    if (g_calls.key_name) g_calls.key_name(k, c.key, 0xf);
-    else note("0x0051d330", k);
-    c.key[0xf] = 0;
-    const char* s = ztwod::host().message_text(static_cast<uint32_t>(row[1]));  // 0x00576040
-    std::strncpy(c.name, s ? s : "", 0x3f);
-    c.name[0x3f] = 0;
-    c.order = row[2];
-    ++n;
+    PocketCommand& c = g_commands.rows[n++];
+    c.key[0] = 0;
+    if (g_calls.key_name) {
+      if (g_calls.key_name(k, c.key, 0x10) != c.key) c.key[0] = 0;
+    } else {
+      note("0x0051d330", k);
+    }
+    c.named = g_calls.command_text && g_calls.command_text(row[0], c.name, 0x40);
+    c.order = row[1];
   }
   g_commands.count = n;
+}
+
+// Pirate's Moon 1.0 @ 0x00469a70, its test: a lancemate under orders, up, the
+// player's seen one (+0xbc bit 3) on his side (its allies, the player's
+// team), named: its name, else none.
+const char* pocket_mate_name(const Mech& player, Mech* m) {
+  if (!under_orders(m) || !(m->xbc & 8)) return nullptr;
+  if (!(m->allies & player.team)) return nullptr;  // the player's vt+0x28 +0xc0
+  return g_calls.unit_name ? g_calls.unit_name(*m) : reinterpret_cast<const char*>(note("mech.vt+0xb0"));
+}
+
+// Pirate's Moon 1.0 @ 0x00469a70, the key: the first four lancemates get
+// 1..4 in the mode's keys (rows 0x00606f90), its name shown for the line's
+// number; none when the key has no name.
+const char* pocket_pick_key(int32_t index, char* key) {
+  const int32_t cmd = 0x5d + index;
+  if (g_calls.bind_pick) g_calls.bind_pick(cmd, 0x83b + index, 2u + static_cast<uint32_t>(index));
+  const zgame::Handle k = g_calls.key_binding ? g_calls.key_binding(cmd) : 0;
+  return g_calls.key_name && g_calls.key_name(k, key, 0x10) == key ? key : nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x0046a930 (a debug line when loaded twice, another
@@ -133,7 +151,6 @@ void pocket_mission_start() {
   PocketGlobals& g = pocket_globals();
   g.marker = g_calls.make_marker ? g_calls.make_marker() : note("0x00468100");
   if (g.marker && g_calls.marker_on) g_calls.marker_on(g.marker, false);
-  pocket_load_commands();
 }
 
 // Mech3.exe 1.2 @ 0x0046ab10 (0x0046aa40)
@@ -371,6 +388,7 @@ PocketPanel::PocketPanel(PocketControls* c, int32_t px, int32_t py, int32_t lh)
     if (under_orders(entity_mech(e))) ++n;
   mates = n;
   places = n > 3 ? n : 3;
+  pocket_load_commands();
   items.reserve(static_cast<size_t>(places + g_commands.count));
   add(&target);
   target.state |= 7;
@@ -386,20 +404,24 @@ PocketPanel::PocketPanel(PocketControls* c, int32_t px, int32_t py, int32_t lh)
   int32_t widest = target.width;
   int32_t y = py + lh;
   Lines lines{this, &widest, px, &y, lh};
-  // 0x00467fa0 on each: a lancemate under orders, up, the player's seen
-  // one (+0xbc bit 3) on his side (its allies, the player's team), named.
+  int32_t picks = 0;
+  // Pirate's Moon 0x00469a70 on each: a lancemate under orders, up, the
+  // player's seen one (+0xbc bit 3) on his side (its allies, the player's
+  // team), named. The first four get a key of their own, 1..4 in the mode's
+  // keys (rows 0x00606f90), shown in place of the line's number.
   for (zgame::Handle e : world) {
     Mech* m = e ? entity_mech(e) : nullptr;
-    if (!under_orders(m) || !(m->xbc & 8)) continue;
-    if (!(m->allies & player->team)) continue;  // the player's vt+0x28 +0xc0
-    const char* name = g_calls.unit_name ? g_calls.unit_name(*m) : reinterpret_cast<const char*>(note("mech.vt+0xa4"));
+    const char* name = pocket_mate_name(*player, m);
     if (!name) continue;
-    lines.add(new PocketMateItem(this, m, nullptr, px, y), nullptr, name);
+    char key[0x10];
+    const char* prefix = picks < 4 ? pocket_pick_key(picks, key) : nullptr;
+    ++picks;
+    lines.add(new PocketMateItem(this, m, nullptr, px, y), prefix, name);
   }
   items.resize(static_cast<size_t>(places), nullptr);  // 0x0049ced0 / 0x004aa700
   for (int32_t i = 0; i < g_commands.count; ++i) {  // 0x004680c0 on each
     PocketCommand& cmd = g_commands.rows[i];
-    if (PocketOrderItem* item = make_order_item(cmd.order, this, px, y)) lines.add(item, cmd.key, cmd.name);
+    if (PocketOrderItem* item = make_order_item(cmd.order, this, px, y)) lines.add(item, cmd.key, cmd.named ? cmd.name : nullptr);
   }
   rect.right = widest + rect.left;
   rect.bottom = (places + g_commands.count) * lh + rect.top;
@@ -485,7 +507,7 @@ void pocket_draw(float dt) {
 // Mech3.exe 1.2 @ 0x00469060
 bool PocketPanel::pick(int32_t unit) {
   const int32_t i = unit - 1;
-  if (i < 0 || i >= static_cast<int32_t>(items.size()) || !items[static_cast<size_t>(i)]) return false;
+  if (i < 0 || i >= mates || !items[static_cast<size_t>(i)]) return false;
   PocketItem* item = items[static_cast<size_t>(i)];
   if (item->mouse & ztwod::kPressed) {
     item->mouse = static_cast<uint16_t>(item->mouse & ~ztwod::kPressed);

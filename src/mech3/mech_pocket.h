@@ -7,8 +7,12 @@
 // The pocket commander (mech_pocket.cpp, docs/ai.md 17.6a): the player's
 // lance command mode, the lance order 2 (key 0x53). His controls are wrapped
 // by these, which keep the old ones and give them back; while it is up the
-// number keys pick lancemates, the panel (item L4c2) shows the lance and the
+// number keys 1..4 pick lancemates, the panel (item L4c2) shows the lance and the
 // target, and the next lance order goes to the lancemates picked.
+namespace zin {
+struct CmdMap;
+}
+
 namespace mech3 {
 
 struct Mech;
@@ -49,6 +53,10 @@ struct PocketCalls {
   // not (its +0x4b0 bit 1) and its mech (vt+0xb4, then vt+0x2c, vt+0x40).
   // Unset: the mode's PocketPanel's (pocket_panel_units).
   int32_t (*panel_units)(PocketControls& p, struct PocketUnit* out, int32_t cap) = nullptr;
+  // The tests' stand-ins for the key maps (unset: zin's): 0x00536d00(0), 0x00536cf0, 0x00536df0.
+  void (*keys_push)() = nullptr;
+  zin::CmdMap* (*keys_current)() = nullptr;
+  void (*keys_pop)() = nullptr;
 };
 PocketCalls& pocket_calls();
 
@@ -122,6 +130,7 @@ class PocketControls : public PlayerControls {
   uint32_t x184 = 0;                     // +0x184
   ai::Contact aim;                       // +0x188  (the template 0x005e9d10)
   uint32_t x1b8 = 0, net_element = 0;    // +0x1b8 the mission map when the HUD shows it, +0x1bc
+  zin::CmdMap* key_map = nullptr;        // Pirate's Moon's +0x1e4  the keys pushed for the mode
   uint8_t x1c0 = 0, x1c1 = 0;            // +0x1c0 the cursor the net's, +0x1c1 the player's target's
 
  private:

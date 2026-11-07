@@ -37,7 +37,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_heat.py` | changed | 10 | 6 | moved to `test_pm_heat.py` | heat |
 | `test_interp.py` | gone | 157 | 36 | to move |  |
 | `test_jets.py` | gone | 20 | 6 | to move, rank 1 | jets, landing: three Elemental sites in mech_move |
-| `test_lance_dispatch.py` | gone | 10 | 3 | to move | with PM AI |
+| `test_lance_dispatch.py` | gone | 10 | 3 | moved to `test_pm_lance_dispatch.py` | at 53 bits, with the order's object 0x46a750 and the own marker |
 | `test_light_setters.py` | changed | 5 | 5 | covered | test_pm_light_setters |
 | `test_lighting.py` | changed | 18 | 5 | covered | test_pm_lighting |
 | `test_matrix.py` | gone | 37 | 4 | covered | test_pm_modeldraw, test_pm_device |
@@ -64,8 +64,8 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | (new) `test_pm_firepoints.py` | PM | | | new | the firepoint fix-up 0x46ea40 and its aim cone |
 | `test_parts.py` | gone | 75 | 16 | moved to `test_pm_parts.py` | setups, updates, the arm's clamp, the torso's mode, the part aim; floats within 1e-5 |
 | `test_player.py` | gone | 17 | 3 | moved: `test_pm_player` | the player controls |
-| `test_pocket.py` | changed | 18 | 3 | to move | with PM AI |
-| `test_pocket_orders.py` | gone | 9 | 1 | to move | with PM AI |
+| `test_pocket.py` | changed | 18 | 3 | moved to `test_pm_pocket.py` | PM's keys, the pushed key map, the real 0x4291a0 under the mode |
+| `test_pocket_orders.py` | gone | 9 | 1 | moved to `test_pm_pocket_orders.py` | at 53 bits, each unit's own marker |
 | `test_power.py` | changed | 8 | 5 | moved to `test_pm_power.py` | power; the headlight off and the network target dropped |
 | `test_puffers.py` | gone | 44 | 12 | covered | test_pm_puffers |
 | `test_scenewalk.py` | changed | 33 | 13 | covered | test_pm_walk (10 of its 33 functions; the rest by test_pm_nodebox and test_pm_world_box) |
@@ -204,6 +204,68 @@ No test can show these; each rests on reading the exe.
 - `InOutHooks::ground`: a corner's height is in no answer.
 - The plan 0x4da1c0's second pull through vt+0x24, and its [0x62fb20] branch: not ported, as all three contexts answer 0 at vt+0x24 and nothing writes the flag.
 - The arrangenodes point (0x4c5002): 0x4e57e0 is stubbed on both sides of `test_pm_ai_nets`, so no such point is built, and with it a dock point's flags in 0x47c5f0 (`WaynetPoint`'s `xe, mfb, xd, xf`). The break on those flags is the waynets' one miss, 6 of 7 caught. Unlike the rest of this list a test could show it, by leaving 0x4e57e0 running.
+
+## The lance orders and the commander (2026-11-07)
+
+0x46a750 (the order's object) and the brain's +0x2cc (the own marker, `cmd_target`) are ported, with five tests: `test_pm_lance_dispatch`, `test_pm_pocket_orders`, `test_pm_pocket`, `test_pm_lance_flag` (0x4e5f90: the bits 30 and 29 and the marker made or freed) and `test_pm_pocket_lines` (0x469a70 and 0x469bf0, the panel's new lines). 33 breaks: 30 caught, one of them after the follow path's test gained a case for it. The three left: `own != target` needs the marker to be the lancemate's own, which the game can't make; the saved target's test on +0xbc has a second check on the same field just after it, so the break changes nothing; `key_map = nullptr` is written just before the mode is deleted.
+
+Moving the test found what the MW3 classification hid: PM's commander isn't MW3's with new addresses. Ported with it: picks are commands 0x5d..0x60, keys 1..4 bound in a copy of the key map pushed for the mode, so the throttle's other keys work there; the panel's lines show those keys; the orders' keys are read at each panel from a renumbered table (the port still held MW3's numbers); the player's key handler 0x4291a0 ignores keys in the animation states 12 and 13.
+
+Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_marker` (what the port builds for the marker, the tests stand in for it); 0x46c920 answers 0 where MW3's answers 1, which the port's FIX for the double delete already amounts to. `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` are not moved: the frame 0x46b980 keeps about a quarter of MW3's lines and the keys 0x46cc50 two thirds.
+
+## The switch's plan (2026-11-07, for Owen and the lead: nothing flipped)
+
+`mw3pm` runs MW3's AI as a stand-in. Nothing outside the `zai_*_pm` files and their tests calls PM's AI: the six hook classes (`AttackPmHooks`, `PendingPmHooks`, `JumpPmHooks`, `LinkPickPmHooks`, `SteerPmHooks`, `WalkPmHooks`, 105 virtuals) have no implementation in the program.
+
+### 1. What the first campaign can reach and isn't ported
+
+From `tools/analysis/pmrecount.py --list`, every function listed in `docs/pm-switch-list.md`. It's static reach, direct calls and the vtables a function installs, inside 0x4b8000..0x500000, so it overstates a mission (network code is in it) and understates the AI's whole cost (the mech and weapon code it calls lies outside the range). "Named" means the port or a test names the address: it doesn't show a function is right, and a function under a tested root isn't named.
+
+| From the brain's tick 0x4fab90 | functions | instructions | ran in the trace |
+|---|---:|---:|---:|
+| ported for PM | 163 | 17,437 | 80 |
+| ported from MW3, PM's the same | 39 | 673 | 1 |
+| ported from MW3, **PM's differs** | 220 | 13,586 | 23 |
+| **not ported** | 387, and 63 vtable slots with no code | 17,453 | 89 |
+| all | 872 | 49,149 | 193 |
+
+The 112 that ran without a PM port are 9,105 instructions, the first to do.
+
+The attack state's own 334, the recount's set, by the same classes:
+
+| | functions | instructions |
+|---|---:|---:|
+| ran | 72 PM, 2 MW3 differs, 24 none | |
+| **listed, didn't run: the 58** | 14 PM, 7 MW3 differs, 37 none | 1,678 / 889 / 2,120 (4,687) |
+| **unlisted: the 178** | 34 PM, 14 MW3 same, 52 MW3 differs, 78 none | 1,834 / 155 / 1,980 / 1,254 (5,223) |
+
+Not ported, by the source files they lie between: zainetmechinout..zaitarget 152 functions, 5,881 instructions; weapon..zainetedit 56, 4,469; zrdrvalve..class.c 49, 2,174; zaitarget..zrdrainet 45, 1,419; zrdrainet..zrdraiv 13, 1,401; zrdraiv..zrdrvalve 10, 762; the rest 62 by file, 1,347.
+
+The 387 are a known size. The 220 are the risk: they run today as MW3's port with PM's changes missing, and nothing fails: that is how the commander looked until its test moved. `test_sensors` isn't on this file's table either. Of the 220, 19 are named by a PM test. Each needs its PM side read or tested before the switch, or a line saying why not.
+
+### 2. A first run
+
+On a throwaway branch from `pm`, never merged: the tick and states wired to the PM classes, an environment switch `PM_AI=1`, the 105 hooks real or logged as unported. One mission, `c1m1` idle, the trace's own run, forked and headless like `pm_starbase_refit`, 255 s of mission time at 53 bits, the stand-in's run the same way as the control.
+
+| Compare | Good | Bad |
+|---|---|---|
+| The trace's 193 AI functions that ran in the missions | the port hits those it has, by a first-hit log of the PM addresses; a score against c1m1-idle | a function the exe ran that the port never reaches; one the exe never ran hit often |
+| Unported hooks | each fires only where the list expects | a hook fired that the trace says matters, its count |
+| Faults | none, and no NaN or infinity in an AI mech's position, heading or speed | any |
+| What the AI does | the fight near the base by the trace's clock, 4:32 at the end, in the same place | mechs standing still, leaving the ground, state transitions stuck |
+| Against the control | differences each explained | a mission that can't end, an objective changed |
+
+The first run only needs to reach the end, and each miss becomes an item. It can't show play identical. The trace records first hits, not positions, so no moment-by-moment compare exists. That needs a run of the exe logging each mech's place and state once a second (the PC, the lead's to ask), and then a compare by event, because the two sides' random numbers differ.
+
+### 3. What that run closes
+
+| Item | Closed by the first run? |
+|---|---|
+| The real hooks in `app_mission.cpp` | Partly. It writes them and shows which fire; `set_behaviour`, `rand_int` and `reach` among them. Each needs its compare, and the branch doesn't land. |
+| +0x588 and the fuel | Half. The jump state 0x4db0e0 ran in c1m1-idle's mission, so the run shows the port's values in a real jump, but the trace holds no field values: the same watch on the exe closes it. |
+| Mission 5's bases | No. Another mission: `PM_MFB=4700,-4200`, `PM_KILL=0,1,5`, with PM_AI=1, and the exe's flags to compare. A second run after the first. |
+
+Also left at the switch, from this file: every field of each struct the AI port owns compared once or a line why not; every break for these pieces rerun on the switch's evaluation; the three commander tests above; the 53-bit precision kept on.
 
 ## The cloud's death band
 

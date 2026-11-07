@@ -228,6 +228,8 @@ std::string program_net_scores();
 void wire_pocket(const MechWiring* w);
 struct PocketMarker;
 PocketMarker* program_pocket_marker(uint32_t h);
+namespace ai { class Brain; }
+void program_own_marker(ai::Brain& b, bool on);  // Pirate's Moon: a lancemate's own marker, 0x004eae70
 bool program_pocket_marker_end(uint32_t h);  // the mission's end: its caster freed
 // The weapons' hooks (app_weapons.cpp): the manager's, zWeapon's, the
 // queries; and a mech's damage handler (0x005833b0 with 0x004161a0).

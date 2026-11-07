@@ -20,6 +20,9 @@ struct MechControls;
 struct LanceCalls {
   ai::Brain* (*brain)(Mech& mate) = nullptr;                       // vt+0x140, then vt+0x54
   int32_t (*order)(ai::Brain& b, int32_t order, ai::Contact* c) = nullptr;  // 0x004ea000..0x004ea230
+  uint32_t (*own_marker)(ai::Brain& b) = nullptr;                  // the brain's +0x2cc
+  void (*own_marker_place)(uint32_t own, uint32_t target) = nullptr;  // vt+0x18 with 0x005cb260
+  void (*own_marker_show)(uint32_t own, bool on) = nullptr;        // 0x004fca50 on its node, +0x08
 };
 LanceCalls& lance_calls();
 

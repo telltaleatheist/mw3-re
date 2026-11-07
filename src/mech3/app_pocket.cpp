@@ -4,7 +4,10 @@
 // marks. The mission map's (0x00491c80) and a network game's pieces, the
 // repair bays (0x0045a000) and the view's pocket layer (0x004b5290) are not
 // ported and stay unwired (the panel answers as without them).
+#include <algorithm>
 #include <cstring>
+#include <iterator>
+#include <vector>
 
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
@@ -15,6 +18,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
+#include "mech3/lance_orders.h"
 #include "mech3/mech.h"
 #include "mech3/mech_command.h"
 #include "mech3/mech_hud.h"
@@ -34,6 +38,7 @@ const char* program_pilot_name();  // app_menus.cpp
 namespace {
 MechWiring g_w;
 PocketMarker* g_marker = nullptr;
+std::vector<PocketMarker*> g_own;  // the lancemates', the brains' +0x2cc
 
 zgame::Handle handle(const void* p) { return p && g_w.handle_of ? g_w.handle_of(g_w.engine, p) : 0; }
 void* object(zgame::Handle h) { return h && g_w.object_of ? g_w.object_of(g_w.engine, h) : nullptr; }
@@ -56,7 +61,51 @@ Hud* view_hud(Mech& m) { return &m == program_view_target() && m.pilot ? pilot_h
 }  // namespace
 
 PocketMarker* program_pocket_marker(zgame::Handle h) {
-  return h && g_marker && h == pocket_globals().marker && object(h) == g_marker ? g_marker : nullptr;
+  if (!h) return nullptr;
+  if (g_marker && h == pocket_globals().marker && object(h) == g_marker) return g_marker;
+  for (PocketMarker* k : g_own)
+    if (object(h) == k) return k;
+  return nullptr;
+}
+
+namespace {
+void own_marker_free(PocketMarker* k) {
+  auto& list = ai::entity_list();
+  for (auto it = list.begin(); it != list.end();) it = object(*it) == k ? list.erase(it) : std::next(it);
+  k->release_shadow();
+  if (g_w.forget_object) g_w.forget_object(g_w.engine, k);
+  delete k;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004eae70: an AiTarget on a node of its own (the exe's a copy of cmd_target, an
+// empty object, added to the world), named as the command marker, team 0, hidden until an order.
+void program_own_marker(ai::Brain& b, bool on) {
+  if (!on) {
+    if (PocketMarker* k = program_pocket_marker(b.own_marker)) {
+      g_own.erase(std::find(g_own.begin(), g_own.end(), k));
+      own_marker_free(k);
+    }
+    b.own_marker = 0;
+    return;
+  }
+  if (b.own_marker) return;
+  zcls::Node* n = zcls::object3d_create();
+  if (!n) return;
+  zcls::node_set_name(n, "cmd_target");
+  zcls::node_set_flag8(n, 0);
+  zcls::node_set_intersect(n, 0);
+  if (zcls::Node* wn = world_hooks().world) zcls::node_add_child(wn, n);
+  zcls::node_set_active(n, 0);
+  auto* k = new PocketMarker;
+  k->node = n;
+  n->owner = k;
+  n->put<uint32_t>(0x28, n->get<uint32_t>(0x28) | 0x10000);
+  k->name = ztwod::host().message_text(0x89d);
+  const zgame::Handle h = handle(k);
+  ai::entity_list().push_back(h);
+  g_own.push_back(k);
+  b.own_marker = h;
 }
 
 // The mission's end on the marker's entry (vt+0x00): zEntity3d's base end
@@ -71,7 +120,10 @@ void wire_pocket(const MechWiring* w) {
   PanelCalls& pc = panel_calls();
   FrameCalls& fc = frame_calls();
   DrawCalls& dc = draw_calls();
+  lance_calls().own_marker_place = nullptr, lance_calls().own_marker_show = nullptr;
   if (!w) {
+    for (PocketMarker* k : g_own) own_marker_free(k);
+    g_own.clear();
     g_w = MechWiring{};
     pc.unit_name = nullptr, pc.node_entity = nullptr, pc.entity_team = nullptr;
     pc.make_marker = nullptr, pc.marker_on = nullptr;
@@ -122,6 +174,17 @@ void wire_pocket(const MechWiring* w) {
     const zgame::Handle h = handle(g_marker);
     ai::entity_list().push_back(h);
     return h;
+  };
+  lance_calls().own_marker_place = [](uint32_t own, uint32_t target) {  // vt+0x18, 0x005cb260
+    PocketMarker* k = program_pocket_marker(own);
+    if (zcls::Node* from = entity_node_of(target); k && k->node && from)
+      if (const float* p = node_place(from)) zcls::object3d_set_translation(zn(k->node), p[0], p[1], p[2]);
+  };
+  lance_calls().own_marker_show = [](uint32_t own, bool on) {  // 0x004fca50 on its node, +0x08
+    if (PocketMarker* k = program_pocket_marker(own)) {
+      if (k->node) zcls::node_set_active(zn(k->node), on ? 1 : 0);
+      k->active = on ? 1 : 0;
+    }
   };
   pc.marker_on = [](zgame::Handle h, bool on) {  // 0x004eb170 on its node, +0x08
     if (PocketMarker* k = program_pocket_marker(h)) {

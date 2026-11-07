@@ -563,6 +563,7 @@ struct BrainControls {
 // from it). Offsets in the comments are the brain's.
 class Brain {
  public:
+  uint32_t own_marker = 0;  // Pirate's Moon +0x2cc: a lancemate's own command marker, 0x004e5f90 (app_pocket)
   // 0x004cf330(net, record, 0): the net is the vehicle's, else the record's
   // first item's (znet), else the built-in one.
   Brain(AiNet* net, const AiParams& rec);

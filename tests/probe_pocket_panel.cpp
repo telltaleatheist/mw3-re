@@ -448,12 +448,13 @@ int probe_pocket_load_commands(const uint32_t* bound, const char* const* keys, c
   PanelCalls& pc = panel_calls();
   pc = PanelCalls{};
   pc.key_binding = [](int32_t) -> zgame::Handle { return g_bound[g_nbound++]; };
-  pc.key_name = [](zgame::Handle b, char* o, int32_t n) {
+  pc.key_name = [](zgame::Handle b, char* o, int32_t n) -> const char* {
     for (int i = 0; i < 6; ++i)
       if (g_bound[i] == b) {
         std::strncpy(o, g_keys[i], static_cast<size_t>(n));
-        return;
+        return o;
       }
+    return "";
   };
   PocketCommands& c = pocket_commands();
   c = PocketCommands{};

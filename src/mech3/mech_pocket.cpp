@@ -82,6 +82,10 @@ void PocketControls::set_owner(Mech* m) {
   aim = ai::Contact{};
   x1c0 = 0, x1c1 = 0;
   if (!m) return;
+  // Pirate's Moon 0x0046bfc0: a copy of the keys for the mode, the panel's 1..4 bound in it.
+  if (g_calls.keys_push) g_calls.keys_push();
+  else zin::push_map(nullptr);
+  key_map = g_calls.keys_current ? g_calls.keys_current() : zin::current_map();
   panel = g_calls.panel_make ? g_calls.panel_make(*this) : new PocketPanel(this, panel_x, panel_y, 0x0c);
   if (g_calls.hud_hold) g_calls.hud_hold(*m, false);
 }
@@ -229,17 +233,17 @@ void PocketControls::keys(float dt) {
   MechControls::update(dt);
 }
 
-// Mech3.exe 1.2 @ 0x0046a860: not powered down (vt+0xa0), 0x1b..0x1e pick
-// lancemates 1..4 (0x00469060), 0x1f..0x23 nothing, the rest the player's.
+// Pirate's Moon 1.0 @ 0x0046c3e0: not powered down (vt+0xac), 0x5d..0x60 pick
+// lancemates 1..4 (0x0046abd0; MW3's were 0x1b..0x1e, the throttle's first
+// four), the rest the player's, the throttle's other keys included.
 void PocketControls::command(int32_t cmd) {
   Mech* m = owner;
   if (!m || m->is_powered_down()) return;
-  if (cmd >= 0x1b && cmd <= 0x1e) {
-    if (g_calls.panel_pick) g_calls.panel_pick(*this, cmd - 0x1a);
-    else if (panel) static_cast<PocketPanel*>(panel)->pick(cmd - 0x1a);
+  if (cmd >= 0x5d && cmd <= 0x60) {
+    if (g_calls.panel_pick) g_calls.panel_pick(*this, cmd - 0x5c);
+    else if (panel) static_cast<PocketPanel*>(panel)->pick(cmd - 0x5c);
     return;
   }
-  if (cmd >= 0x1f && cmd <= 0x23) return;
   if (g_calls.player_keys) g_calls.player_keys(*this, cmd);
   else PlayerControls::command(cmd);  // 0x004274d0
 }
@@ -253,6 +257,11 @@ MechControls* PocketControls::leave(bool free_self) {
   Mech* m = owner;
   MechControls* p = prev;
   if (!m) return this;
+  if (key_map == (g_calls.keys_current ? g_calls.keys_current() : zin::current_map())) {  // Pirate's Moon 0x0046c94d
+    if (g_calls.keys_pop) g_calls.keys_pop();
+    else zin::pop_map();
+  }
+  key_map = nullptr;
   player_controls_instance() = prev_instance;
   g_globals.active = nullptr;
   if (p) {

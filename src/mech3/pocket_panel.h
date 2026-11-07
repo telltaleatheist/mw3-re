@@ -34,24 +34,24 @@ struct PocketColours {
 };
 PocketColours& pocket_colours();
 
-// The orders the panel offers ([0x00605cd8], 0x54 bytes each, [0x00605f54]
-// of them), made at the mission's start by 0x00467d80 from the table
-// 0x005e5050 (an action, its message, the lance order): only the actions
-// bound to a key, each with the key's name.
+// The orders the panel offers, made for each panel from the table 0x00606f30
+// (an action, the lance order), each with its key's name and the action's.
 struct PocketCommand {
-  char key[0x10] = {};   // +0x00  0x0051d330's, 15 at most
-  char name[0x40] = {};  // +0x10  the message (0x00576040), 63 at most
-  int32_t order = 0;     // +0x50
+  char key[0x10] = {};   // 0x0051d330's, "" without a name
+  char name[0x40] = {};  // 0x0051d310's
+  bool named = false;    // without, the line is hidden
+  int32_t order = 0;
 };
 struct PocketCommands {
   PocketCommand rows[6];
-  int32_t count = 0;     // 0x00605f54
+  int32_t count = 0;
 };
 PocketCommands& pocket_commands();
-void pocket_load_commands();  // 0x00467d80
+void pocket_load_commands();  // Pirate's Moon 0x00469bf0 over its rows
+const char* pocket_mate_name(const Mech& player, Mech* m);
+const char* pocket_pick_key(int32_t index, char* key);
 
-// The mission's start (0x0046aaa0): the sounds (0x0046a930), the marker,
-// the orders' table; and its end (0x0046ab10, 0x0046aa40): the sounds
+// The mission's start (0x0046aaa0): the sounds (0x0046a930), the marker; and its end (0x0046ab10, 0x0046aa40): the sounds
 // forgotten, a mode left up deleted, [0x00605f50], [0x00605f60] and the
 // marker cleared (the world frees it).
 void pocket_load_sounds();    // 0x0046a930
@@ -71,7 +71,10 @@ struct PocketMarker : ai::AiTarget {
 // PocketCalls::unported, if set).
 struct PanelCalls {
   zgame::Handle (*key_binding)(int32_t action) = nullptr;           // 0x0051d1f0: ECX the action
-  void (*key_name)(zgame::Handle binding, char* out, int32_t n) = nullptr;  // 0x0051d330
+  const char* (*key_name)(zgame::Handle binding, char* out, int32_t n) = nullptr;  // 0x0051d330: `out`, or "" unnamed
+  const char* (*command_text)(int32_t action, char* out, int32_t n) = nullptr;  // 0x0051d310: none unnamed
+  // Pirate's Moon 0x00469a70: the command bound in the mode's keys, the player's callback on it.
+  void (*bind_pick)(int32_t action, int32_t message, uint32_t key) = nullptr;
   Mech* (*entity_mech)(zgame::Handle entity) = nullptr;             // a zEntity's vt+0x2c
   const char* (*unit_name)(Mech& m) = nullptr;                      // vt+0xa4: the pilot's name
   zgame::Handle (*node_entity)(uint32_t node) = nullptr;            // 0x0040eee0 (0x0040e920)

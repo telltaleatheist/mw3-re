@@ -245,6 +245,9 @@ struct ProgramSensors : ai::SensorHooks {
     const auto* p = static_cast<const ai::Brain*>(object(b));
     return p ? p->params.raw[0xcd] : 0;
   }
+  void brain_own_marker(zgame::Handle b, bool on) override {
+    if (auto* p = static_cast<ai::Brain*>(object(b))) program_own_marker(*p, on);
+  }
   const char* brain_pilot(zgame::Handle b) override {
     const auto* p = static_cast<const ai::Brain*>(object(b));
     return p ? p->params.pilot : nullptr;

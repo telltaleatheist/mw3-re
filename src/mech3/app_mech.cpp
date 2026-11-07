@@ -1954,6 +1954,7 @@ void wire_mech_build(const MechWiring* w) {
     set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
     panel_calls().entity_mech = nullptr, panel_calls().key_binding = nullptr, panel_calls().key_name = nullptr;
+    panel_calls().command_text = nullptr, panel_calls().bind_pick = nullptr;
     wire_pocket(nullptr);
     wire_net(false);
     return;
@@ -1967,8 +1968,13 @@ void wire_mech_build(const MechWiring* w) {
   wire_pocket(w);
   wire_vehicles(w);
   wire_turrets(w);
-  panel_calls().key_binding = [](int32_t action) -> zgame::Handle { return zin::key1_of(action); };
-  panel_calls().key_name = [](zgame::Handle k, char* out, int32_t n) { zin::key_name(k, out, static_cast<size_t>(n)); };
+  panel_calls().key_binding = [](int32_t action) -> zgame::Handle { return static_cast<zgame::Handle>(zin::key_of(action)); };
+  panel_calls().key_name = [](zgame::Handle k, char* out, int32_t n) { return zin::key_name(k, out, static_cast<size_t>(n)); };
+  panel_calls().command_text = [](int32_t action, char* out, int32_t n) { return zin::command_name(action, out, static_cast<size_t>(n)); };
+  panel_calls().bind_pick = [](int32_t action, int32_t message, uint32_t key) {
+    zin::bind(action, ztwod::host().message_text(static_cast<uint32_t>(message)), key, 0, 0, 0);
+    mech_build_hooks().set_command_callback(action);
+  };
   set_shade_hooks(&g_shade_hooks);
   update_calls().x68c_update = [](Handle s, float dt) { shade_update(*static_cast<SunShade*>(s), dt); };
   free_calls().ref_free = [](Handle ref, Handle n) {  // 0x004e66a0, then the delete

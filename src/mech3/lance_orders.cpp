@@ -20,11 +20,18 @@ int32_t give(ai::Brain& b, int32_t order, ai::Contact* c) {
 }
 
 // 0x00469400 / 0x00469650's own path (not in the command mode): the
-// player's saved target or last ally (0x004d7240) when its mech (0x004e6ff0)
+// player's saved target or lancemate (0x004e76e0) when its mech (0x004e6ff0)
 // is a lancemate under orders (+0xbc bit 4), its controls (vt+0x140) and
 // their brain (vt+0x54).
 ai::Brain* selected_brain(Mech& player, Mech** mate) {
-  ai::Contact* sel = player.saved_or_ally();
+  // Pirate's Moon 1.0 @ 0x004e76e0: the saved target, else the target when it's a lancemate under orders.
+  ai::Contact* sel = player.saved_target;
+  if (!sel && player.target) {
+    ai::BrainHooks& h = ai::brain_hooks();
+    const zgame::Handle v = h.contact_vehicle(player.target);
+    const ai::AiTarget* t = v ? h.targetable(v) : nullptr;
+    if (t && (t->xbc & 0x10)) sel = player.target;
+  }
   Mech* m = sel && collide_calls().contact_mech ? collide_calls().contact_mech(sel) : nullptr;
   if (!m || !(m->xbc & 0x10)) return nullptr;
   *mate = m;
@@ -45,9 +52,30 @@ ai::Contact contact_on(Mech& from, zgame::Handle to) {
   h.position(c.owner, a);  // 0x005a85e0
   h.position(c.entity, b);
   const float dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-  c.dist2 = (dx * dx + dy * dy) + dz * dz;  // the exe's order of the sums
+  c.dist2 = static_cast<float>((double{dx} * dx + double{dy} * dy) + double{dz} * dz);  // held in the register, then stored
   c.delta[0] = dx, c.delta[1] = dy, c.delta[2] = dz;
   return c;
+}
+
+// Pirate's Moon 1.0 @ 0x0046a750 (MW3's 0x00468ca0): the object of an order. On the command marker
+// ([0x00629a2c]), "only an enemy" (10) becomes "only an ally" (11), and with either the lancemate's own
+// marker (the brain's +0x2cc) takes team bit 30, else bit 0; it goes to the marker's place, is shown, and
+// is the order's object. On anything else it's hidden and the order keeps its object.
+uint32_t order_object(ai::Brain& b, uint32_t target, int32_t* order) {
+  const uint32_t own = g_calls.own_marker ? g_calls.own_marker(b) : b.own_marker;
+  ai::AiTarget* t = own ? ai::brain_hooks().targetable(own) : nullptr;
+  const bool on = target == pocket_globals().marker;
+  if (on && *order == 10) *order = 11;
+  if (t) {
+    t->team = on && *order == 11 ? 1u << 30 : 1u;
+    t->allies = t->team & 0xfffffffeu;
+    t->enemies = ~t->allies & 0xfffffffeu;
+    player_clear_60b56c();
+  }
+  if (!own) return target;
+  if (on && own != target && g_calls.own_marker_place) g_calls.own_marker_place(own, target);
+  if (g_calls.own_marker_show) g_calls.own_marker_show(own, on);
+  return on ? own : target;
 }
 
 // Mech3.exe 1.2 @ 0x00469400: the order on the lancemate's contact on the
@@ -55,7 +83,9 @@ ai::Contact contact_on(Mech& from, zgame::Handle to) {
 void to_follow(Mech& player, int32_t order) {
   Mech* mate = nullptr;
   ai::Brain* b = selected_brain(player, &mate);
-  if (b && mate->player_contact) give(*b, order, mate->player_contact);
+  if (!b || !mate->player_contact) return;
+  order_object(*b, ai::brain_hooks().contact_vehicle(mate->player_contact), &order);  // Pirate's Moon 0x0046af20
+  give(*b, order, mate->player_contact);
 }
 
 // Mech3.exe 1.2 @ 0x00469650: the order on a contact from the lancemate on
@@ -69,7 +99,7 @@ void to_target(Mech& player, int32_t order) {
   ai::Brain* b = selected_brain(player, &mate);
   const zgame::Handle t = player.target ? ai::brain_hooks().contact_vehicle(player.target) : 0;
   if (!b || !t) return;
-  ai::Contact c = contact_on(*mate, t);
+  ai::Contact c = contact_on(*mate, order_object(*b, t, &order));  // Pirate's Moon 0x0046b1b0
   give(*b, order, &c);
 }
 
@@ -78,29 +108,6 @@ void to_target(Mech& player, int32_t order) {
 LanceCalls& lance_calls() { return g_calls; }
 
 namespace {
-
-// Mech3.exe 1.2 @ 0x00468ca0 (the lancemate, the target): when the target
-// is the command target marker ([0x00605f58], a spot on the ground), "only
-// an enemy" (order 10, 0x004ea200) makes it count as the lancemate's enemy
-// and "only an ally" (11, 0x004ea230) as its ally: its team the lowest bit
-// of the lancemate's enemies (+0xc8) or allies (+0xc4) (with the 5-bit
-// packing's), its allies that but bit 0, its enemies the rest, [0x0060b56c]
-// cleared.
-void retarget_team(Mech& mate, uint32_t target, int32_t order) {
-  if (!target || target != pocket_globals().marker || (order != 10 && order != 11)) return;
-  ai::AiTarget* t = ai::brain_hooks().targetable(target);
-  if (!t) return;
-  const uint32_t from = order == 10 ? mate.enemies : mate.allies;
-  uint32_t idx = 0;
-  while (idx < 32 && !((1u << idx) & from)) ++idx;
-  if (idx == 32) idx = 0xffffffffu;
-  uint32_t team = 1u << (idx & 0x1f);
-  while ((idx >>= 5) != 0) team |= 1u << (idx & 0x1f);
-  t->team = team;
-  t->allies = team & 0xfffffffeu;
-  t->enemies = ~t->allies & 0xfffffffeu;
-  player_clear_60b56c();
-}
 
 }  // namespace
 
@@ -121,11 +128,11 @@ int32_t pocket_order(PocketControls& p, int32_t order, uint32_t target, bool on_
     if (!b) continue;
     int32_t r;
     if (on_target) {
-      ai::Contact c = contact_on(*u.mech, target);
-      retarget_team(*u.mech, target, order);
+      ai::Contact c = contact_on(*u.mech, order_object(*b, target, &order));  // Pirate's Moon 0x0046a9c0
       r = give(*b, order, &c);
     } else {
       if (!u.mech->player_contact) continue;
+      order_object(*b, ai::brain_hooks().contact_vehicle(u.mech->player_contact), &order);  // 0x0046a8e0
       r = give(*b, order, u.mech->player_contact);
     }
     if (r) taken = true;

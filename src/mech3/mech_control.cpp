@@ -711,6 +711,7 @@ void register_player_commands() {
 // Mech3.exe 1.2 @ 0x004274d0
 void PlayerControls::command(int32_t cmd) {
   if (!owner || owner->is_powered_down()) return;  // the vehicle's vt+0x50, then vt+0xa0
+  if (owner->anim_state == 12 || owner->anim_state == 13) return;  // Pirate's Moon 0x004291a0
   if (cmd == 0x1a) {  // THROTTLE_REV
     if (throttle_target != 0.0f) set_throttle(-throttle_target);  // IControls +0x2c, +0x20
     else reverse = !reverse;

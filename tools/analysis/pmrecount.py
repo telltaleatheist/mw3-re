@@ -4,7 +4,7 @@
 A function counts as done when the port's PM AI sources name its address outside the hook classes, or it's in --inlined.
 Cited isn't landed: a comment can name what isn't ported, and only a test shows a function is. This is a size, nothing more.
 
-    tools/analysis/pmrecount.py --trace DIR [--roots 0x4dedf0,0x4debe0] [--inlined 0x4c7e10,...]
+    tools/analysis/pmrecount.py --trace DIR [--roots 0x4dedf0,0x4debe0] [--inlined 0x4c7e10,...] [--list]
 
 DIR holds the PC trace's SUMMARY.tsv (pm_addr, port_state, instructions, one column per run). Needs analysis-output/pm.asm,
 pm-decomp/ and game/pm/Mech3.exe. Run from the repo's root.
@@ -13,7 +13,9 @@ import argparse
 import bisect
 import collections
 import csv
+import difflib
 import glob
+import json
 import os
 import re
 import struct
@@ -61,11 +63,45 @@ def cited():
     return {int(x, 16) for x in re.findall(r'0x00([0-9a-f]{6})\b', text)}
 
 
+def similar(mw3, pm):
+    """How much of MW3's pseudocode PM's keeps, addresses aside."""
+    def body(path):
+        text = open(path, errors='replace').read().split('{', 1)[1]
+        text = re.sub(r'(FUN|DAT|PTR|LAB|s_\w+?)_?[0-9a-f]{6,8}\b', 'X', text)
+        return [x.strip() for x in text.splitlines() if x.strip() and not re.match(r'\s*(\w+ )+\*?\w+;$', x)]
+    try:
+        return difflib.SequenceMatcher(None, body(f'analysis-output/decomp/{mw3}.c'), body(f'analysis-output/pm-decomp/{pm}.c'),
+                                       autojunk=False).ratio()
+    except (OSError, IndexError):
+        return None
+
+
+def listing(seen, rows, ran, owner):
+    """Every reached function: pm, mw3, instructions, ran, listed, port, similarity, named by a PM test.
+
+    port: pm (the port names the PM address), mw3 (only MW3's), none. A named address isn't a tested one, and a
+    function under a tested root isn't named: the last column is a floor, not the coverage.
+    """
+    sizes = collections.Counter(owner(at) for at, _ in instructions('analysis-output/pm.asm') if LOW <= at < HIGH)
+    to_mw3 = {int(v, 16): k for k, v in json.load(open('analysis-output/pm-diff/addrmap.json'))['functions'].items()}
+    text = ''.join(open(f, errors='replace').read() for f in glob.glob('src/**/*.[ch]*', recursive=True))
+    named = {int(x, 16) for x in re.findall(r'0x00([0-9a-f]{6})\b', text)}
+    text = ''.join(open(f, errors='replace').read() for f in glob.glob('tests/differential/*pm_*.py'))
+    tested = {int(x, 16) for x in re.findall(r'0x([0-9a-f]{6})\b', text)}
+    for x in sorted(seen):
+        r, mw3 = rows.get(hex(x)), to_mw3.get(x)
+        port = 'pm' if x in named else 'mw3' if mw3 and int(mw3, 16) in named else 'none'
+        sim = similar(mw3, hex(x)) if port == 'mw3' else None
+        print(f'{x:#x} {mw3 or "-"} {sizes[x]} {"ran" if r and r["pm_addr"] in ran else "unran"} {"listed" if r else "unlisted"} '
+              f'{port} {"-" if sim is None else f"{sim:.2f}"} {"named" if x in tested else "-"}')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--trace', required=True)
     ap.add_argument('--roots', default='0x4dedf0,0x4debe0')
     ap.add_argument('--inlined', default='')
+    ap.add_argument('--list', action='store_true', help='every reached function instead: see listing()')
     a = ap.parse_args()
     rows = {r['pm_addr']: r for r in csv.DictReader(open(os.path.join(a.trace, 'SUMMARY.tsv'), encoding='utf-8-sig'), delimiter='\t')}
     ran = {k for k, r in rows.items() if any('load' in r[x] or 'mission' in r[x] for x in RUNS)}
@@ -105,6 +141,9 @@ def main():
     listed = [(x, rows[hex(x)]) for x in seen if hex(x) in rows]
     left = [(x, r) for x, r in listed if r['pm_addr'] in ran and x not in done]
     print(f'reached {len(seen)}, listed {len(listed)}, ran {sum(r["pm_addr"] in ran for _, r in listed)}, not cited {len(left)}')
+    if a.list:
+        listing(seen, rows, ran, owner)
+        return
     for state in sorted({r['port_state'] for _, r in left}):
         part = sorted(((int(r['instructions']), r['pm_addr']) for _, r in left if r['port_state'] == state), reverse=True)
         print(f'{state}: {len(part)} functions, {sum(n for n, _ in part)} instructions: {part}')
