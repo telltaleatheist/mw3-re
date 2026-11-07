@@ -187,6 +187,15 @@ PM keeps as functions what MW3 inlined: 0x4c7e10, 0x4c7e50, 0x4c7f30, 0x4c9220, 
 The two missed need an exact tie the 200 areas don't reach: a point exactly on a side's line (0x4c9260) and a side exactly at the limit
 (0x4cab20); those two comparisons rest on reading.
 
+## Reading only, for the switch's review (2026-11-07)
+
+No test can show these; each rests on reading the exe.
+
+- 0x4c9260: a point exactly on a side's line. The tie isn't reached in 200 areas.
+- 0x4cab20: a side exactly at the limit. The same.
+- `InOutHooks::ground`: a corner's height is in no answer.
+- The plan 0x4da1c0's second pull through vt+0x24, and its [0x62fb20] branch: not ported, as all three contexts answer 0 at vt+0x24 and nothing writes the flag.
+
 ## The cloud's death band
 
 `test_pm_window.py` runs 0x4b2b40 and 0x4b2c00 on the exe against `cloud_kill` and

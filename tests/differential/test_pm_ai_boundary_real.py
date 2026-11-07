@@ -73,6 +73,8 @@ def candidates(r, polys, each):
 
 def main():
     worlds = sorted(PM.glob('zbd/c*/gamez.zbd'))[:int(sys.argv[1]) if len(sys.argv) > 1 else 4]
+    if os.environ.get('MW3_BOUNDARY_WORLD'):  # one world's full run: the whole set is more than one cap
+        worlds = [w for w in worlds if w.parent.name == os.environ['MW3_BOUNDARY_WORLD']]
     p = test_pm_zar.load_pm_probe()
     F = ctypes.POINTER(ctypes.c_float)
     p.probe_pm_boundary_polygon.argtypes = [ctypes.c_float] * 3 + [ctypes.c_int, F, ctypes.c_float, ctypes.c_char_p]
