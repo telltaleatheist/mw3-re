@@ -1,5 +1,8 @@
 #include "mech3/zai_wire_pm.h"
 
+#include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_walk_pm.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -67,6 +70,15 @@ std::map<uint32_t, void*>& ptrs() {
 uint32_t g_next_id = 1;
 }  // namespace
 
+PmBrain::PmBrain() = default;
+PmBrain::~PmBrain() = default;
+
+WireWalk& pm_walk(Brain& b, BrainControls& c) {
+  PmBrain& r = pm_brain(b);
+  if (!r.walk) r.walk = std::make_unique<WireWalk>(b, c);
+  return *r.walk;
+}
+
 PmBrain& pm_brain(Brain& b) {
   auto [it, fresh] = brains().try_emplace(&b);
   if (fresh) pm_seed(it->second.tick, b);
@@ -74,8 +86,12 @@ PmBrain& pm_brain(Brain& b) {
 }
 TargetsPm& pm_targets(zgame::Handle vehicle) { return targets()[vehicle]; }
 void pm_forget(Brain& b, zgame::Handle vehicle) {
-  brains().erase(&b);
+  if (const auto it = brains().find(&b); it != brains().end()) {
+    if (!vehicle) vehicle = it->second.vehicle;
+    brains().erase(it);
+  }
   targets().erase(vehicle);
+  pm_firing_forget(vehicle);
 }
 
 uint32_t pm_id(const void* p) {
@@ -183,10 +199,7 @@ class WiredTickPm final : public TickPmHooks {
     } while (b.x104);
     if (!h.powered_down(c.vehicle()) && b.params.get<int32_t>(0x80) == 1) h.own_order_run(b, dt);
   }
-  void firing(float dt) override {
-    pm_hook_missing("stand-in: MW3's firing");
-    h.firing_run(b, dt);
-  }
+  void firing(float dt) override { pm_firing(b, c.vehicle()).fire.step(dt); }
 
  private:
   static Contact* contact(zgame::Handle id) { return static_cast<Contact*>(pm_ptr(id)); }
@@ -197,8 +210,11 @@ class WiredTickPm final : public TickPmHooks {
 }  // namespace
 
 bool pm_frame(Brain& b, BrainControls& c, float dt) {
+  static const bool installed = (pm_firing_install(), true);
+  (void)installed;
   b.controls = &c;
   PmBrain& r = pm_brain(b);
+  r.vehicle = c.vehicle();
   r.tick.mode = b.params.get<int32_t>(0x3c);
   r.tick.busy = b.xf0;
   r.tick.give_up = b.x230, r.tick.attack_until = b.xe8;

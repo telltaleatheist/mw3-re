@@ -5,6 +5,7 @@
 // BrainHooks, which already holds the mission's vehicles. A call with no answer yet is logged once
 // and counted. Nothing runs these without PM_AI=1 (docs/pm-tests.md, The switch's plan).
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,8 @@
 
 namespace mech3::ai {
 
+class WireWalk;
+
 bool pm_ai_on();                                      // PM_AI=1, read once
 void pm_hook_missing(const char* key);                // the log's line, the first time
 const std::map<std::string, int>& pm_hooks_missing();  // what the first run reads
@@ -23,11 +26,17 @@ void pm_hooks_missing_clear();                        // not original: the tests
 // A pilot's PM state, beside its MW3 Brain, which stays as the mission built it. This record owns
 // what PM's frame writes (`mode`, `wait_until`...); nothing copies them back into the Brain.
 struct PmBrain {
+  PmBrain();
+  ~PmBrain();
   BrainTickPm tick;
   OrdersPm orders;
+  SteerPm steer;
+  std::unique_ptr<WireWalk> walk;  // its `fought` is state
+  zgame::Handle vehicle = 0;       // from the first frame
 };
 void pm_seed(BrainTickPm& t, const Brain& b);  // the params and the fields with an MW3 twin
 PmBrain& pm_brain(Brain& b);                   // made and seeded at the first ask
+WireWalk& pm_walk(Brain& b, BrainControls& c);  // the brain's one, made at the first ask
 TargetsPm& pm_targets(zgame::Handle vehicle);  // by the vehicle: 0x004e6330's `this`
 void pm_forget(Brain& b, zgame::Handle vehicle);
 
