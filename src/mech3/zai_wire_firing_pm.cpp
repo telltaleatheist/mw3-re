@@ -136,20 +136,37 @@ bool grouped(zgame::Handle v) { return manager_group(brain_hooks().weapons(v)) !
 class WireAim : public AimPmHooks {
  public:
   Contact* plan_contact(zgame::Handle plan) override { return plan_of(plan) ? *plan_of(plan)->slot : nullptr; }
-  const float* plan_position(zgame::Handle plan) override { pm_hook_missing("WireAim.plan_position"); return kZeros; }
+  const float* plan_position(zgame::Handle plan) override {
+    PlanPm* p = plan_of(plan);
+    return ai::plan_place(*p, *p->slot);
+  }
   zgame::Handle contact_entity(const Contact* c) override { return brain_hooks().contact_entity(c); }
-  bool entity_is_vehicle(zgame::Handle e) override { pm_hook_missing("WireAim.entity_is_vehicle"); return {}; }
+  bool entity_is_vehicle(zgame::Handle e) override {
+    return brain_hooks().vehicle_mech(e) != 0;  // vt+0x48 on a mech is itself; other classes unread
+  }
   uint32_t entity_pilot_kind(zgame::Handle e) override { pm_hook_missing("WireAim.entity_pilot_kind"); return {}; }
-  float difficulty_error() override { pm_hook_missing("WireAim.difficulty_error"); return {}; }
+  float difficulty_error() override {
+    return brain_hooks().aim_intensity();  // [0x0062cc64], taken as MW3's [0x00608e58]
+  }
   float pilot_error(Brain* b) override { return b->params.get<float>(0xb8); }
   float pilot_aid(Brain* b) override { return b->params.get<float>(0xc0); }
   bool targeting_aid(Brain* b) override { return brain_hooks().targeting_aid(vehicle_of(b)); }
   void vehicle_position(Brain* b, float out[3]) override { brain_hooks().position(vehicle_of(b), out); }
-  void weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) override { pm_hook_missing("WireAim.weapon_line"); }
+  void weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) override {
+    Vec3f a{at[0], at[1], at[2]}, mz, dir_;
+    weapon_of(w)->aim(&a, &mz, &dir_, nullptr);  // 0x004b7800, on the port's Weapon::aim
+    muzzle[0] = mz.x, muzzle[1] = mz.y, muzzle[2] = mz.z;
+    dir[0] = dir_.x, dir[1] = dir_.y, dir[2] = dir_.z;
+  }
   int32_t rand() override { return brain_hooks().rand(); }
   float now() override { return brain_hooks().now(); }
-  void wm_aim_at(zgame::Handle wm, const float* at) override { pm_hook_missing("WireAim.wm_aim_at"); }
-  void wm_has_target(zgame::Handle wm, bool on) override { pm_hook_missing("WireAim.wm_has_target"); }
+  void wm_aim_at(zgame::Handle wm, const float* at) override {
+    if (at) brain_hooks().wm_aim_at(wm, at);
+    else brain_hooks().wm_clear_aim(wm);
+  }
+  void wm_has_target(zgame::Handle wm, bool on) override {
+    if (WeaponManager* m = wm_of(wm)) m->has_target = on;
+  }
  private:
   float buf_[3] = {};
 };
@@ -509,7 +526,9 @@ class WireStep : public StepPmHooks {
     return true;
   }
   void aim_track(zgame::Handle plan, Brain* b) override { if (FiringRecord* r = record_of(plan_of(plan)->vehicle)) r->aim.track(plan, 0, b); }
-  void aim_lead(float dt, zgame::Handle plan, zgame::Handle wm, Brain* b) override { pm_hook_missing("WireStep.aim_lead"); }
+  void aim_lead(float dt, zgame::Handle plan, zgame::Handle wm, Brain* b) override {
+    if (FiringRecord* r = record_of(plan_of(plan)->vehicle)) r->aim.lead(dt, plan, brain_hooks().wm_current(wm), wm, b);
+  }
   void stand_down(zgame::Handle v) override {
     pm_hook_missing("WireStep.stand_down");  // the torso's centring and the speech
     const zgame::Handle wm = brain_hooks().weapons(v);
