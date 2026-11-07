@@ -543,16 +543,16 @@ ShotRec weigh(zgame::Handle w, ShotCtx& x) {
 
 }  // namespace
 
-// Pirate's Moon 1.0 @ 0x004bcd40 (0x004bd920 is std::sort): each weapon weighed against the room
-// above the shooter's heat. None fits: the lowest vt+0x1c alone; one: it; else those that fit, those
+// Pirate's Moon 1.0 @ 0x004bcd40 (0x004bd920 is std::sort): no roll, as MW3's 0x004b1860 has; each
+// weapon weighed against the room above the shooter's heat. None fits: the lowest vt+0x1c alone; one: it; else those that fit, those
 // with ammo to spare if some, best rating first while both sums stay in the room.
-bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float k, float rate) {
+bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, float rate) {
   ShotPmHooks& h = shot_pm_hooks();
   if (!c) return false;
   const ShotShooter me = h.shooter(c);
   ShotCtx x;
-  x.value_k = k, x.at = at, x.dist2 = c->dist2;
-  if (me.pilot) x.cost_k = me.cost_least < k ? k : me.cost_least;
+  x.value_k = hold, x.at = at, x.dist2 = c->dist2;
+  if (me.pilot) x.cost_k = me.cost_least < hold ? hold : me.cost_least;
   if (me.vehicle) {
     x.heat_room = me.heat_most - me.heat;
     x.rate_room = me.rate_most - me.heat;

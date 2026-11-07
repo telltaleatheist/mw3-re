@@ -166,8 +166,9 @@ class ShotPmHooks {
 };
 ShotPmHooks& shot_pm_hooks();
 void set_shot_pm_hooks(ShotPmHooks* h);
-// 0x004bcd40: which weapons fire. `k` is the brain's +0x34, `rate` its +0x124's +0x54.
-bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float k, float rate);
+// 0x004bcd40, PM's for MW3's volley_pick 0x004b1860: which weapons fire. `hold` is the brain's +0x34,
+// the burst's seconds; `rate` its +0x124's +0x54.
+bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, float rate);
 
 }  // namespace mech3::ai
 
