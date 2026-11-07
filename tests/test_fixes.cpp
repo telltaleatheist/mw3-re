@@ -1892,3 +1892,22 @@ TEST(weapon_manager_refuses_a_seventeenth) {
   EXPECT(weapons == 20);
   delete c;
 }
+
+// The mission cleanup with a beam firing (Owen, PM mission 2, REPLAY on the debriefing): the
+// cleanup's kill ran on the BEAM defs and read a beam's list as shots, a null node at +0x54.
+TEST(fix_cleanup_leaves_a_firing_beam) {
+  zwep::State& st = zwep::state();
+  const std::vector<zwep::WeaponDef> kept = st.defs;
+  zwep::RunHooks& rh = zwep::run_hooks();
+  const zwep::RunHooks kept_hooks = rh;
+  rh.parent_count = [](zwep::Handle n) { return *static_cast<const int32_t*>(n); };  // reads the node, as the program's
+  static zwep::Projectile beam_as_shot;  // what a beam looks like through the projectile's fields
+  beam_as_shot = zwep::Projectile{};
+  st.defs.assign(1, zwep::WeaponDef{});
+  st.defs[0].flags = zwep::kBeam;
+  st.defs[0].active = &beam_as_shot;
+  zwep::kill_every_shot();
+  EXPECT(st.defs[0].active == &beam_as_shot);  // left to its weapon
+  st.defs = kept;
+  rh = kept_hooks;
+}
