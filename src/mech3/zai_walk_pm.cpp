@@ -423,6 +423,21 @@ void WalkFightPm::take_order_target() {
   no_target = no_target || !h.target_live(t);
 }
 
+// Pirate's Moon 1.0 @ 0x004daaf0 (the state's own fields are 0x004d9b10's, FightStatePm()).
+void follow_start(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, FightStatePm& st) {
+  WalkFightPm c(h, s, vehicle, st);
+  c.take_order_target();
+  st.enter(h, vehicle);
+}
+
+// Pirate's Moon 1.0 @ 0x004dabf0: the order ends when its target goes.
+void follow_run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, FightStatePm& st) {
+  WalkFightPm c(h, s, vehicle, st);
+  c.take_order_target();
+  st.step(h, c);
+  if (c.no_target) h.order_pop();
+}
+
 // Pirate's Moon 1.0 @ 0x004debe0: `mode` the brain's +0x3c.
 WalkAttackPm::WalkAttackPm(WalkPmHooks& hooks, SteerPm& s, zgame::Handle v, FightStatePm& st, const float* held, int32_t mode)
     : WalkFightPm(hooks, s, v, st) {

@@ -377,6 +377,10 @@ def fight_plan(seed):
             lines += [('D',), ('M',), ('P',)]
             if r.random() < 0.3:
                 lines += [('V', r.choice([0, 1]), 0), ('A',)]
+        elif k < 0.8525:
+            lines.append(('b',))
+            lines += [('r',)] * r.randrange(1, 4)
+            lines += [('V', 0, 0), ('r',), ('V', 1, 0)]  # the target gone: the order ends
         elif k < 0.855:
             lines.append(('n',))
         elif k < 0.86:
@@ -545,6 +549,11 @@ def run_exe(x, lines):
         elif op == 'V':
             x.w32(x.record + 8, ln[1])
             x.leave = bool(ln[2])
+        elif op == 'b':
+            x.state = x.alloc(0x50)
+            x.call(0x4daaf0, ecx=x.state, args=(0x1234, x.order))
+        elif op == 'r':
+            x.call(0x4dabf0, ecx=x.state, args=(0,))
         elif op == 'A':
             x.cpu._uc.mem_write(x.ctx, bytes(0x90))  # a new one, as the port's
             x.call(0x4daa70, ecx=x.ctx, args=(x.order, x.state))

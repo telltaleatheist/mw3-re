@@ -178,6 +178,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "U") {
       w.via_on = a[0] == "1";
       w.via.net = reinterpret_cast<const void*>(uintptr_t(0x1111)), w.via.node = reinterpret_cast<const void*>(uintptr_t(0x2222));
+    } else if (op == "b") {  // the follow's state made
+      st = FightStatePm();
+      follow_start(w, s, 1, st);
+    } else if (op == "r") {  // and run
+      follow_run(w, s, 1, st);
     } else if (op == "S") {
       st.step(w, *b);
     } else if (op == "m") {

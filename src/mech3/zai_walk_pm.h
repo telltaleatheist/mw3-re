@@ -156,6 +156,11 @@ class WalkPm {
   void go(bool by_near);
 };
 
+// PM's follow, the vehicle net's slot 0 (vtable 0x005ed38c, make_state 0x004d91e0): not MW3's straight
+// line but a fighting state on the walk, vtable 0x005eecd4 (docs/pm-tests.md, PM's follow, found).
+void follow_start(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, FightStatePm& st);  // 0x004daaf0
+void follow_run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, FightStatePm& st);    // 0x004dabf0
+
 // The context of a state fighting a target (vtable 0x005eec50).
 class WalkFightPm : public WalkPm {
  public:
