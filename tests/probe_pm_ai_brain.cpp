@@ -270,6 +270,7 @@ extern "C" int32_t probe_pm_ai_side(int32_t what, const int32_t* in, const uint8
     case 1: manoeuvre_pm(t, b); break;
     case 2: on_hit_pm(t, b, owner, 11, 22, 33, in[10] ? owner : in[11] ? 0 : 0x95); break;
     case 3: died_pm(t, b); break;
+    case 5: r = must_leave_pm(t, b, owner); break;
     default: {
       const float spot[3] = {f[18], f[19], f[20]};
       way_reset_pm(t, in[12] ? owner : 0, f[21], spot, from);

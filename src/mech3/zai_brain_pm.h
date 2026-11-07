@@ -79,15 +79,19 @@ class TickPmHooks {
 bool tick_pm(TickPmHooks& h, BrainTickPm& b, zgame::Handle vehicle, float dt);  // 0x004fab90
 
 // What the brain's smaller pieces call.
-class BrainSidePmHooks {
+class EngagePmHooks {
  public:
-  virtual ~BrainSidePmHooks() = default;
+  virtual ~EngagePmHooks() = default;
   virtual float now() = 0;                                     // [0x0062da90]
+  virtual void position(zgame::Handle v, float out[3]) = 0;    // 0x005cb260
+  virtual double health(zgame::Handle v) = 0;                  // vt+0xa4
+};
+
+class BrainSidePmHooks : public EngagePmHooks {
+ public:
   virtual float clock() = 0;                                   // [0x008c1b50]
   virtual bool net_allows(zgame::Handle net) = 0;              // vt+0x0c
   virtual bool state_allows(zgame::Handle state) = 0;          // vt+0x04
-  virtual void position(zgame::Handle v, float out[3]) = 0;    // 0x005cb260
-  virtual double health(zgame::Handle v) = 0;                  // vt+0xa4
   virtual void push_behaviour(int32_t which) = 0;              // 0x004fa170 of [0x00627cf8], [0x00627ce8]
   virtual uint32_t allies(zgame::Handle v) = 0;                // +0xc4
   virtual uint32_t team(zgame::Handle attacker) = 0;           // vt+0x28's +0xc0
@@ -106,6 +110,7 @@ class BrainSidePmHooks {
 };
 
 bool may_engage_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle v, zgame::Handle net, zgame::Handle state);  // 0x004fa5a0
+bool must_leave_pm(EngagePmHooks& h, const BrainTickPm& b, zgame::Handle v);  // 0x004fa210
 void manoeuvre_pm(BrainSidePmHooks& h, BrainTickPm& b);  // 0x004fab30
 void on_hit_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle owner, int32_t x, int32_t y, int32_t z,
                zgame::Handle attacker);  // 0x004fbc20

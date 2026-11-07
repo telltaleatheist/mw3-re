@@ -221,6 +221,8 @@ class Side(Exe):
             self.z.call(0x4fbc20, ecx=b + 0x2d4, args=(11, 22, 33, v if ints[10] else 0 if ints[11] else self.at))
         elif what == 3:
             self.z.call(0x4fbdd0, ecx=b + 0x2d4)
+        elif what == 5:
+            r = self.z.call(0x4fa210, ecx=b, args=(v,)) & 0xff
         else:
             self.w(self.brain + 0x11c, v if ints[12] else 0)
             self.z.call(0x4fbe90, ecx=b)
@@ -532,7 +534,7 @@ def main():
     sx = Side()
     sf = lib.probe_pm_ai_side
     for i in range(cases):
-        what = i % 5
+        what = i % 6
         ints, fl, bits = side_case(r, what)
         a = sx.side(what, ints, fl, bits)
         n = sf(what, (ctypes.c_int32 * len(ints))(*ints), bits, (ctypes.c_float * len(fl))(*fl), out, 512)
