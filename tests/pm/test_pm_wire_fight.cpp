@@ -78,8 +78,8 @@ TEST(pm_wire_firing_reaches_the_vehicle_and_counts_the_rest) {
   EXPECT(step_pm_hooks().target(7) == &c);
   EXPECT(*pick_pm_hooks().target_slot(7) == &c);
   pm_hooks_missing_clear();
-  EXPECT(shot_pm_hooks().ready(1) == false);
-  EXPECT(pm_hooks_missing().at("WireShot.ready") == 1);
+  EXPECT(shot_pm_hooks().cost(1) == 0.0f);
+  EXPECT(pm_hooks_missing().at("WireShot.cost") == 1);
 }
 
 TEST(pm_wire_firing_answers_what_the_step_calls_most) {
@@ -125,6 +125,10 @@ TEST(pm_wire_firing_keeps_a_record_a_vehicle) {
   Brain b(nullptr, rec);
   FiringRecord& r = pm_firing(b, 7);
   EXPECT(r.fire.vehicle == 7 && r.pick.brain == &b && &pm_firing(b, 7) == &r);
+  EXPECT(r.fire.quick == 3.0f && r.fire.phase == 8);  // seeded
+  EXPECT(r.pick.pilot.repick == 10.0f && r.pick.pilot.weights[0] == 1.0f);
+  r.fire.quick = 4.0f;
+  EXPECT(pm_firing(b, 7).fire.quick == 4.0f);  // once
 }
 
 TEST(pm_wire_attack_makes_its_context_and_counts_the_order_side) {

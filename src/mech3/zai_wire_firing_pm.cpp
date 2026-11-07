@@ -45,6 +45,20 @@ zgame::Handle manager_group(zgame::Handle wm) {
   const WeaponManager* m = wm_of(wm);
   return m && m->group_ptr() ? brain_hooks().handle_of(m->group_ptr()) : 0;
 }
+// 0x004bc930's top: the firing's own numbers (the exe's brain +0x124), and the contact's owner's heat and health.
+ShotShooter shooter_of(const Contact* c) {
+  ShotShooter o;
+  const zgame::Handle e = c->owner;
+  const FiringRecord* r = record_of(e);
+  o.heat = brain_hooks().heat(e), o.health = brain_hooks().health(e);
+  o.vehicle = brain_hooks().vehicle_mech(e) != 0;
+  o.pilot = r != nullptr;
+  if (r) {
+    o.heat_most = r->fire.too_hot, o.rate_most = r->fire.x3c, o.cost_least = r->fire.x40;
+    o.health_past = r->fire.x44, o.ammo_keep = r->fire.x48;
+  }
+  return o;
+}
 bool grouped(zgame::Handle v) { return manager_group(brain_hooks().weapons(v)) != 0; }
 
 class WireAim : public AimPmHooks {
@@ -141,30 +155,52 @@ class WirePick : public PickPmHooks {
 
 class WireShot : public ShotPmHooks {
  public:
-  ShotShooter shooter(const Contact* c) override { pm_hook_missing("WireShot.shooter"); return {}; }
+  ShotShooter shooter(const Contact* c) override {
+    return shooter_of(c);
+  }
   const std::vector<zgame::Handle>& weapons(zgame::Handle wm) override {
     return manager_list(wm);
   }
-  bool ready(zgame::Handle w) override { pm_hook_missing("WireShot.ready"); return {}; }
-  bool can_hit(zgame::Handle w, const float* at) override { pm_hook_missing("WireShot.can_hit"); return {}; }
+  bool ready(zgame::Handle w) override {
+    return weapon_of(w)->can_fire();
+  }
+  bool can_hit(zgame::Handle w, const float* at) override {
+    return ai::can_hit(w, at);
+  }
   double reach_least(zgame::Handle w) override {
     return weapon_of(w)->min_range_sq();
   }
   double reach_most(zgame::Handle w) override {
-    return weapon_of(w)->max_range();
+    return weapon_of(w)->max_range_sq();  // 0x004b7b90 is the square, 0x004b7b50 the range
   }
   float cost(zgame::Handle w) override { pm_hook_missing("WireShot.cost"); return {}; }
-  float value(zgame::Handle w) override { pm_hook_missing("WireShot.value"); return {}; }
+  float value(zgame::Handle w) override {
+    return weapon_of(w)->rating;
+  }
   double dps(zgame::Handle w) override {
     return weapon_of(w)->dps();
   }
   int32_t ammo(zgame::Handle w) override {
     return weapon_of(w)->ammo();
   }
-  bool bin(zgame::Handle w, int32_t* full) override { pm_hook_missing("WireShot.bin"); return {}; }
-  void group_clear(zgame::Handle wm) override { pm_hook_missing("WireShot.group_clear"); }
-  void group_add(zgame::Handle wm, zgame::Handle w, float rate) override { pm_hook_missing("WireShot.group_add"); }
-  void set_mode(zgame::Handle wm, int32_t mode) override { pm_hook_missing("WireShot.set_mode"); }
+  bool bin(zgame::Handle w, int32_t* full) override {
+    const Weapon* k = weapon_of(w);
+    if (!k->bin) return false;
+    *full = k->bin->capacity();
+    return true;
+  }
+  void group_clear(zgame::Handle wm) override {
+    if (WeaponGroup* g = group_of(manager_group(wm))) {
+      while (g->count) g->remove(g->weapons[g->count - 1]);
+    }
+  }
+  void group_add(zgame::Handle wm, zgame::Handle w, float rate) override {
+    (void)rate;  // PM's +0x98 on the weapon: its readers aren't ported
+    if (WeaponGroup* g = group_of(manager_group(wm))) g->add(weapon_of(w));
+  }
+  void set_mode(zgame::Handle wm, int32_t mode) override {
+    if (WeaponManager* m = wm_of(wm)) m->mode = mode;
+  }
  private:
   float buf_[3] = {};
 };
@@ -212,7 +248,7 @@ class WirePlan : public PlanPmHooks {
     return weapon_of(w)->damage;
   }
   double reach(zgame::Handle w) override {
-    return weapon_of(w)->max_range();
+    return weapon_of(w)->max_range_sq();
   }
   zgame::Handle holder_mech(zgame::Handle w) override { pm_hook_missing("WirePlan.holder_mech"); return {}; }
   bool mounted(zgame::Handle w) override { pm_hook_missing("WirePlan.mounted"); return {}; }
@@ -247,8 +283,13 @@ class WireStep : public StepPmHooks {
   float hold(Brain* b) override { return b->params.get<float>(0x34); }
   float rest(Brain* b) override { return b->params.get<float>(0x38); }
   float range(Brain* b) override { return b->params.get<float>(0x30); }
-  float rate(Brain* b) override { pm_hook_missing("WireStep.rate"); return {}; }
-  uint32_t xd0(Brain* b) override { pm_hook_missing("WireStep.xd0"); return {}; }
+  float rate(Brain* b) override {
+    FiringRecord* r = record_of(vehicle_of(b));
+    return r ? r->fire.x54 : 0.0f;
+  }
+  uint32_t xd0(Brain* b) override {
+    return b->params.target_words[1];
+  }
   void seed(uint32_t v) override { pm_hook_missing("WireStep.seed"); }
   void start_x50(uint32_t v) override { pm_hook_missing("WireStep.start_x50"); }
   void set_range(zgame::Handle v, float r) override {
@@ -266,6 +307,7 @@ class WireStep : public StepPmHooks {
   }
   zgame::Handle pick(zgame::Handle v) override {
     FiringRecord* r = record_of(v);
+    if (r) r->pick.reach = r->fire.range;
     PlanPm* p = r ? plan_pick(r->pick) : nullptr;
     if (p) p->seen = p->in_sight;  // one byte in the exe, +0x0d
     return pm_id(p);
@@ -323,7 +365,19 @@ class WireStep : public StepPmHooks {
 }  // namespace
 
 FiringRecord& pm_firing(Brain& b, zgame::Handle vehicle) {
+  const bool fresh = !records().count(vehicle);
   FiringRecord& r = records()[vehicle];
+  if (fresh) {
+    r.fire.seed();
+    const AiParams& p = b.params;
+    r.pick.pilot.repick = zgame::from_bits(p.target_words[0]);
+    r.pick.pilot.pick_order = static_cast<int32_t>(p.target_words[2]);
+    r.pick.pilot.part_mode = static_cast<int32_t>(p.target_words[3]);
+    for (int i = 0; i < 4; ++i) r.pick.pilot.weights[i] = zgame::from_bits(p.target_words[4 + i]);
+    r.pick.pilot.range = p.get<float>(0x30);
+    r.pick.pilot.filter[0] = p.raw[0xcd], r.pick.pilot.filter[1] = p.raw[0xce];
+    r.pick.pilot.marker = b.own_marker;
+  }
   r.fire.vehicle = r.pick.vehicle = vehicle;
   r.fire.brain = r.pick.brain = &b;
   return r;

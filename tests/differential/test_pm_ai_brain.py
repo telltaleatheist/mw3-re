@@ -607,6 +607,13 @@ def main():
             bad += 1
             if bad >= 6:
                 break
+    nx.z.call(0x4ba660)
+    a = [nx.z.r32(0x60b688 + i * 4) for i in range(27)]
+    b = (ctypes.c_uint32 * 27)()
+    lib.probe_pm_firing_seed(b)
+    if a != list(b):
+        print('firing defaults:', [(hex(i * 4), hex(u), hex(v)) for i, (u, v) in enumerate(zip(a, b)) if u != v])
+        bad += 1
     for tests in range(5):
         a = scan_exe(tests)
         n = lib.probe_pm_ai_scan(tests, big)

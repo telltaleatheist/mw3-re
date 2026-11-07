@@ -286,14 +286,19 @@ struct FiringPm {
   float rest = 0;             // +0x10
   zgame::Handle plan = 0;     // +0x14
   float reach_arg = 0, track_arg = 0, fire_arg = 0;  // +0x18, +0x1c, +0x20
+  float x24 = 0;              // +0x24
   float range = 0;            // +0x2c
   float wait = 0;             // +0x30
   bool busy = false;          // +0x34
   float too_hot = 0;          // +0x38
+  float x3c = 0;              // +0x3c
   float x40 = 0;              // +0x40
+  float x44 = 0, x48 = 0;     // +0x44, +0x48
   uint32_t x50 = 0;           // +0x50
+  float x54 = 0;              // +0x54  what `rate` answers
   float cool_for = 0, cool_until = 0, cool_below = 0;  // +0x58, +0x5c, +0x60
   float shot_every = 0, shot_next = 0;  // +0x64, +0x68
+  void seed();                // the numbers of 0x004ba660, copied in by the constructor 0x004ba750
   void step(float dt);        // 0x004bb700
 };
 
