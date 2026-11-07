@@ -45,6 +45,12 @@ void PmAttackState::run(float dt) {
   a.xfc = r.tick.delay_until, a.place = r.tick.home, a.x108 = r.tick.attack_until, a.x1f0 = r.tick.give_up;
   s_.step(*hooks_, a);
   // The step may have popped this order (and so this state): only the record is touched after it.
+  // FIX (bug): the exe leaves the brain's +0x104 on the state's own hold (+0x44), which the pop frees
+  // while the leash goes on reading it; the record keeps a copy (docs/fixes.md).
+  if (a.place) {
+    r.home_kept[0] = a.place[0], r.home_kept[1] = a.place[1], r.home_kept[2] = a.place[2];
+    a.place = r.home_kept;
+  }
   r.tick.mode = a.mode, r.tick.delay_until = a.xfc, r.tick.home = a.place;
   r.tick.attack_until = a.x108, r.tick.give_up = a.x1f0;
 }

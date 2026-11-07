@@ -35,6 +35,7 @@ struct PmBrain {
   AttackersPm attackers = AttackersPm::for_pilot(0.0f);  // the controls' +0x04
   std::unique_ptr<WireWalk> walk;  // its `fought` is state
   zgame::Handle vehicle = 0;       // from the first frame
+  float home_kept[3] = {};         // FIX (bug): the attack's hold point, kept past its state
 };
 void pm_seed(BrainTickPm& t, const Brain& b);  // the params and the fields with an MW3 twin
 PmBrain& pm_brain(Brain& b);                   // made and seeded at the first ask

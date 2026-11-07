@@ -274,7 +274,8 @@ bool pm_frame(Brain& b, BrainControls& c, float dt) {
   r.vehicle = c.vehicle();
   r.tick.mode = b.params.get<int32_t>(0x3c);
   r.tick.busy = b.xf0;
-  r.tick.give_up = b.x230, r.tick.attack_until = b.xe8, r.tick.home = b.xe4;
+  if (!pm_state_running(b))  // MW3's states keep these on the Brain; PM's attack keeps them in the record
+    r.tick.give_up = b.x230, r.tick.attack_until = b.xe8, r.tick.home = b.xe4;
   WiredTickPm hooks(b, c);
   const bool answer = tick_pm(hooks, r.tick, c.vehicle(), dt);
   b.params.put<int32_t>(0x3c, r.tick.mode);
