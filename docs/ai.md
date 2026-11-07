@@ -3921,3 +3921,7 @@ marker on the nav waynet's selected point). The order is not visible after
 the first mission frame, since the nav waynet's frame places the marker
 each frame.
 
+
+## The grid's boxes (2026-11-07)
+
+`Grid::refresh` and `hold_parked` walk a box cell by cell, so they refuse one past 1,000 km from the origin, not finite, or wider than 100 km (a parked vehicle's, 1 km). Nothing shipped comes near. `node_box_extent_xz` puts a box through the matrix stack's top: slot 0 is empty in play (`push` never writes it), which reads as the identity. A PM test left a local there, later missions' boxes came out billions of metres wide, and an AI mech's tick walked them for hours. The test puts it back; the limit stays, since a box that size takes the game with it. Test: `nav_huge_boxes_are_not_walked`, which needs a built tile: with none, the compiler drops refresh's loop.

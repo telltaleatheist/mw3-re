@@ -2,6 +2,7 @@
 // made-up world of flat ground, boxes for walls, a cliff and water.
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -489,4 +490,21 @@ TEST(nav_a_part_left_behind_is_not_watched) {
   n.put<int32_t>(0x54, 1);
   EXPECT(!nav::part_left_behind(n));
   n.parents = nullptr;
+}
+
+// A box billions of metres wide (seen through a bad matrix) is left alone: walked, each of these takes hours.
+TEST(nav_huge_boxes_are_not_walked) {
+  FakeWorld w;
+  nav::Grid g;
+  g.reset(&w);
+  int steps = 1 << 20;
+  EXPECT(g.build(0, 0, &steps));  // with no tile at all the compiler drops refresh's loop
+  const float huge = 6e9f, inf = std::numeric_limits<float>::infinity(), nan = std::nanf("");
+  for (float v : {huge, inf, nan}) {
+    g.refresh(-v, -v, v, v, 0.0f);
+    g.hold_parked({-v, -v, v, v, 0.0f}, 0.0f);
+  }
+  g.refresh(0.0f, 0.0f, huge, 10.0f, 0.0f);
+  g.hold_parked({0.0f, 0.0f, 10.0f, huge, 0.0f}, 0.0f);
+  EXPECT(g.queue.empty());
 }
