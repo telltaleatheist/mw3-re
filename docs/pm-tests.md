@@ -155,7 +155,7 @@ engine's known reasons. Count, missions, key; (a) changes what the player sees o
 | 12,250 | 21 | stand-in: MW3's steering | done: the exe's tick runs the brain's +0x210 vt+0x04 whatever state runs; PM's steering now always. Score and pair unchanged; kills:99's missions end as before |
 | 3,254 | 12 | stand-in: MW3's orders, WaitState | scripted orders whose states are still MW3's: wait. PM's runs (0x004d4a20, 0x004d4b80) and Speed's, Pass's and Assign's (0x004d48b0, 0x004d6ec0, 0x004d7010) are MW3's logic with PM's offsets (PM's 0x004fbe60(1) is the brain's +0x104 the port's mirror reads); not yet marked PM's |
 | 265 | 21 | stand-in: MW3's orders, SharedState | done: PmSharedState (0x004d5c60): the lancemate follows on the player's PM net by PM's order (the follow now "made: PM's orders"), others take their net's nearest step by PM's push; the nearest step (0x004e5580) is MW3's 0x004d51d0 but cdecl, with the same squared distance (0x00537a00, MW3's 0x0051dfa0), so the port's serves |
-| 197 | 21 | 0x004b2ab0 (died_base) | the brain's reaction to its vehicle's death |
+| 197 | 21 | 0x004b2ab0 (died_base) | done, nothing to port: the controls' tick once more (MW3's 0x004aed50), which AiVehicleControls::died already runs before the brain's death, in the exe's order |
 | 40, 39, 16 | 7, 11, 2 | stand-in: MW3's orders, SpeedState, PassState, AssignState | scripted orders' states still MW3's |
 | 12 | 11 | 0x00479440 | the pilot's current campaign game, asked in the standalone missions (caller to trace) |
 
