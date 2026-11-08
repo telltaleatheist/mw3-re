@@ -43,14 +43,19 @@ void pm_hook_missing(const char* key) {
 
 // The params keep MW3's offsets (zai_params.h); +0xcc is PM's +0xec. The brain's own fields are
 // the twins docs/pm-tests.md names; `home` and the times start as the Brain's ctor left them.
-void pm_seed(BrainTickPm& t, const Brain& b) {
-  const AiParams& p = b.params;
+// The pilot's numbers the exe's tick reads where they live, each frame: the scan steps (scan_hit, scan_time, canleave)
+// and the scripts change them as it goes.
+void pm_params(BrainTickPm& t, const AiParams& p) {
   t.sight = p.get<float>(0x1c), t.engage = p.get<float>(0x20), t.leash = p.get<float>(0x24);
   t.mode = p.get<int32_t>(0x3c), t.health_floor = p.get<float>(0x50);
   t.delay_on = p.get<int32_t>(0x5c), t.wait_low = p.get<float>(0x64), t.wait_high = p.get<float>(0x68);
   t.awake = p.get<int32_t>(0x88), t.by_player = p.get<int32_t>(0x8c), t.reacts = p.get<int32_t>(0x9c);
   t.wanders = p.get<int32_t>(0xa0), t.manoeuvre_kind = p.get<int32_t>(0xa4);
   t.react_gap = p.get<float>(0xb0), t.engage_flags = p.get<uint8_t>(0xcc);
+}
+
+void pm_seed(BrainTickPm& t, const Brain& b) {
+  pm_params(t, b.params);
   t.delay_until = b.xdc, t.busy = b.xf0, t.wait_until = b.xf4, t.home = b.xe4;
   t.attack_until = b.xe8, t.react_at = b.x100, t.give_up = b.x230, t.runs_down = b.x2a4;
   t.radio = b.radio != nullptr;
@@ -234,7 +239,14 @@ class WiredTickPm final : public TickPmHooks {
   bool may_fire() override { return pm_may_fire(b); }  // 0x004fa6d0
   void firing_reset() override { h.firing_reset(b); }
   zgame::Handle worst_attacker() override { return pm_latest_attacker(b); }
-  void take_attacker(zgame::Handle) override { pm_hook_missing("brain.vt+0x28"); }
+  // vt+0x28: a mech pilot's brain (0x005efdb0, made by 0x004e8c00) hands the attacker to its firing record's +0x90
+  // (0x004ba5d0 -> 0x004ba5c0), which the next pick tries once (docs/pm-tests.md, One hit turns a lancemate); the
+  // other brains' slot (0x005afca0) does nothing.
+  void take_attacker(zgame::Handle a) override {
+    if (!h.vehicle_mech(c.vehicle())) return;
+    pm_hook_missing(a ? "took an attacker" : "took no attacker");  // for the first runs: the tick's reaction to a hit
+    pm_firing(b, c.vehicle()).pick.prefer_next = a;
+  }
   void manoeuvre() override {  // 0x004fab30
     WiredSidePm side(b);
     manoeuvre_pm(side, pm_brain(b).tick);
@@ -309,7 +321,7 @@ bool pm_frame(Brain& b, BrainControls& c, float dt) {
   b.controls = &c;
   PmBrain& r = pm_brain(b);
   r.vehicle = c.vehicle();
-  r.tick.mode = b.params.get<int32_t>(0x3c);
+  pm_params(r.tick, b.params);
   r.tick.busy = b.xf0;
   if (!pm_state_running(b))  // MW3's states keep these on the Brain; PM's attack keeps them in the record
     r.tick.give_up = b.x230, r.tick.attack_until = b.xe8, r.tick.home = b.xe4;

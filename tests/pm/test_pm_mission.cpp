@@ -40,6 +40,8 @@
 #include "mech3/app_states.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech_control.h"
+#include "mech3/zai_target.h"
+#include "mech3/zai_wire_orders_pm.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mission.h"
 #include "mech3/app_engine.h"
@@ -154,6 +156,13 @@ TEST(pm_c1m1_shadow_cats_wake) {
   int turf = 0, turf_ally = 0, tur_other = 0, tur_enemy = 0;
   bool nav = false, still_core = false;
   int camp_done = 0, camp_failed = 0;
+  // PM_HIT_MATE=<frame>: the player hits a lancemate once (its controls' hit, as Mech::take_damage reports one), then
+  // the run says whether it takes the player as its target (docs/pm-tests.md, One hit turns a lancemate).
+  const char* hit_mate = std::getenv("PM_HIT_MATE");
+  const int hit_frame = hit_mate ? std::atoi(hit_mate) : -1;
+  void* mate = nullptr;
+  void* mate_controls = nullptr;
+  int on_player = 0, first_on = -1, last_on = -1;
   engine.on_present = [&](int) {
     if (app.current() != &mech3::states().core) return;
     if (frames == 2) {
@@ -176,6 +185,36 @@ TEST(pm_c1m1_shadow_cats_wake) {
         if (ai[i].name && !std::strcmp(ai[i].name, "shadowcat_02")) cats[1] = ai[i].mech;
       }
       std::printf("  c1m1: %d AI mechs, shadow cats %p %p\n", made, cats[0], cats[1]);
+      if (hit_frame >= 0) {
+        const mech3::ai::AiTarget* pt = mech3::mech_ai_target(mech3::mission_player_mech());
+        for (int32_t i = 0; i < made; ++i) {
+          const mech3::ai::AiTarget* t = mech3::mech_ai_target(ai[i].mech);
+          std::printf("  c1m1: %s team %x allies %x enemies %x\n", ai[i].name ? ai[i].name : "?", t->team, t->allies, t->enemies);
+          if (!mate && pt && (t->team == pt->team || (t->allies & pt->team))) mate = ai[i].mech, mate_controls = ai[i].controls;
+        }
+        if (pt) std::printf("  c1m1: player team %x allies %x enemies %x; lancemate %p\n", pt->team, pt->allies, pt->enemies, mate);
+      }
+    }
+    if (mate && frames == hit_frame) {
+      auto* mc = static_cast<mech3::AiControls*>(mate_controls);
+      if (std::getenv("PM_HIT_REACTS") && mc->brain) mc->brain->params.put<int32_t>(0x9c, 1);  // as scan_hit ( 1 1 ) sets it
+      mc->on_hit(mech3::mission_player_mech(), 1.0f);
+    }
+    if (mate && frames == hit_frame + 1) {
+      auto* mc = static_cast<mech3::AiControls*>(mate_controls);
+      mech3::ai::Brain* br = mc->brain.get();
+      std::printf("  c1m1: after the hit: reacts %d hit_lately %d busy %d may_fire %d react_gap %g now %g\n",
+                  br ? br->params.get<int32_t>(0x9c) : -1, int(mc->hit_lately()), br ? int(br->xf0) : -1,
+                  br ? int(mech3::ai::pm_may_fire(*br)) : -1, br ? br->params.get<float>(0xb0) : -1.0f,
+                  mech3::ai::brain_hooks().now());
+    }
+    if (mate && hit_frame >= 0 && frames >= hit_frame) {
+      const mech3::ai::AiTarget* t = mech3::mech_ai_target(mate);
+      const zgame::Handle p = engine.handle_of(mech3::mission_player_mech());
+      if (t->target && t->target->seen == p) {
+        ++on_player, last_on = frames;
+        if (first_on < 0) first_on = frames;
+      }
     }
     if (frames == 13000 && !std::getenv("PM_IDLE"))  // PM_IDLE: the trace's c1m1-idle, nothing forced; the camp lost: "Protect Rim Collective Camp"'s fails (0x004600d0)
       if (mech3::ai::Valve* v = mech3::ai::valve_find("collective_camp1")) v->set(1);
@@ -203,6 +242,9 @@ TEST(pm_c1m1_shadow_cats_wake) {
   pump.limit = limit;
   app.run(pump);
   std::printf("  frames %d: go at %d, up at %d and %d\n", frames, go, up0, up1);
+  if (hit_frame >= 0)
+    std::printf("  c1m1: hit the lancemate at frame %d; it targets the player on %d frames, first %d, last %d\n", hit_frame,
+                on_player, first_on, last_on);
   zgame::set_game(zgame::mw3_table());
   if (other || std::getenv("PM_IDLE")) return;  // a run to look at, not this test's checks
   EXPECT(nav);
