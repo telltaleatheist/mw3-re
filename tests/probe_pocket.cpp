@@ -262,7 +262,7 @@ int32_t probe_pocket_orders(const int32_t* in, const uint32_t* handles, const fl
 
 namespace {
 // The mode's own keys (test_pocket_keys.py).
-const int32_t kKeyCmds[17] = {0x18, 0x19, 2, 3, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x12, 0x14, 8, 9, 4, 5, 0x3d};
+const int32_t kKeyCmds[17] = {0x18, 0x19, 2, 3, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x12, 0x14, 8, 9, 4, 5, 0x3e};  // the trigger: PM's 0x3e (0x00468ff0)
 int32_t g_cmd_state[17];
 int32_t g_mw2, g_busy;
 zin::MouseInfo g_mouse_info;
