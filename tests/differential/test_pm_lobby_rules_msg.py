@@ -11,6 +11,11 @@ box an object whose vt+0x8c sets its +0x150.
    rand() (the import stood in for with the case's word), +0x9c its CRC by the exe's 0x597bc0), the lock as sent, and
    on its first lock the team play ([0x62cc34], the message's kind) with the screen's calls after (chat box, 0x5a9520,
    0x49eb20) stood in for and logged.
+3. READY's block 0x49e6f0 (MultiplayerGame::keep_lobby_rules): the same block from the lists, boxes and lock, time()
+   and srand() stood in for, rand() the case's word.
+4. A match's start 0x438550 (MultiplayerGame::round_start, the rounds played): before the first round the store
+   (+0x08) emptied by the exe's 0x473240 and the bonus tons (+0xd0) the weight limit (+0x80); the round store (+0xd4)
+   emptied always; operator delete stood in for.
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_lobby_rules_msg.py
 """
@@ -25,7 +30,8 @@ os.environ['MW3_EXE'] = 'pm'
 import test_pm_zar  # noqa: E402
 
 I32 = ctypes.c_int32
-SEND, READ = 0x49d220, 0x49d450
+SEND, READ, KEEP, ROUND_START = 0x49d220, 0x49d450, 0x49e6f0, 0x438550
+TIME, SRAND, DELETE = 0x5de5e0, 0x5de5e4, 0x5ce8c0
 SCREEN, DIRTY, TEAM_PLAY, RAND = 0x62db54, 0x62db51, 0x62cc34, 0x5de668
 LISTS = [0x13808, 0x13c2c, 0x14050, 0x12fc0, 0x133e4, 0x12778, 0x12b9c]  # kills, minutes, tons, realloc, rounds, kind, world
 BOXES = [0x14474, 0x1474c, 0x148b8, 0x14a24, 0x14b90, 0x11b84, 0x145e0]  # respawn, ammo, outside, jets, radar, stock, mobile
@@ -48,9 +54,11 @@ class Exe:
                  0x5a9520: (lambda c: self.log.append(3) or 0, 0), 0x49eb20: (lambda c: self.log.append(4) or 0, 0)}
         for a, (fn, pop) in stubs.items():
             z.native_stub(a, fn, pop)
-        f = z.cpu.code(b'\xc3')
-        z.native_stub(f, lambda c: self.seed)
-        self.uc.mem_write(RAND, struct.pack('<I', f))
+        for slot, fn in ((RAND, lambda c: self.seed), (TIME, lambda c: 12345), (SRAND, lambda c: 0)):
+            f = z.cpu.code(b'\xc3')
+            z.native_stub(f, fn)
+            self.uc.mem_write(slot, struct.pack('<I', f))
+        z.native_stub(DELETE, lambda c: 0)
         self.vt = z.alloc(0x100)  # the screen's, the lists', the boxes', the chat box's
         for off, fn, pop in ((0x14, lambda c: 0, 4), (0xa0, lambda c: self.w(c.ecx + 0x16c, c.arg(0)) or 0, 4),
                              (0x8c, lambda c: self.w(c.ecx + 0x150, c.arg(0) & 0xff) or 0, 4), (0x80, lambda c: 0, 0),
@@ -108,6 +116,35 @@ class Exe:
                  sh(g + 0x68), sh(g + 0x6a), s32(self.r(g + 0x6c)), s32(self.r(g + 0x9c))])
 
 
+    def keep(self, v):
+        self.seed = v[112]
+        self.screen(v)
+        self.w(self.g + 0x60, 0xdead), self.w(self.g + 0x9c, 0xbeef)
+        self.z.call(KEEP, ecx=self.sc)
+        g = self.g
+        sh = lambda a: struct.unpack('<h', bytes(self.uc.mem_read(a, 2)))[0]  # noqa: E731
+        return [s32(self.r(g + 0x60)), sh(g + 0x64), sh(g + 0x66), sh(g + 0x68), sh(g + 0x6a), s32(self.r(g + 0x6c)),
+                s32(self.r(g + 0x9c))]
+
+    def store(self, at, n, full):
+        head = self.z.alloc(0xc)
+        prev = head
+        for k in range(n):
+            node, item = self.z.alloc(0xc), self.z.alloc(0x20)
+            self.w(node + 8, item), self.w(prev, node), self.w(node + 4, prev)
+            prev = node
+        self.w(prev, head), self.w(head + 4, prev)
+        self.w(at + 8, head), self.w(at + 0xc, n), self.uc.mem_write(at + 0x10, bytes([full]))
+
+    def round_start(self, v):
+        g = self.z.alloc(0x100)
+        self.store(g + 8, v[0], v[1]), self.store(g + 0xd4, v[2], v[3])
+        self.w(g + 0x80, v[4]), self.w(g + 0xd0, v[5])
+        self.z.call(ROUND_START, ecx=g, args=(v[6],))
+        rd = lambda a: self.uc.mem_read(a, 1)[0]  # noqa: E731
+        return [s32(self.r(g + 0x14)), rd(g + 0x18), s32(self.r(g + 0xe0)), rd(g + 0xe4), s32(self.r(g + 0xd0))]
+
+
 def case(rng):
     v = [0] * N_IN
     for k, shipped in enumerate(SHIPPED):
@@ -155,6 +192,29 @@ def main():
         key = ('first lock' if theirs[21] else 'locked' if theirs[20] else 'open')
         seen[key] = seen.get(key, 0) + 1
     print(f'{count} rules messages identical, sent and read; {dict(sorted(seen.items()))}', flush=True)
+    probe.probe_pm_keep_lobby_rules.argtypes = [ctypes.POINTER(I32), ctypes.POINTER(I32)]
+    for i in range(count // 2):
+        v = case(rng)
+        theirs = exe.keep(v)
+        out = (I32 * 7)()
+        probe.probe_pm_keep_lobby_rules((I32 * N_IN)(*v), out)
+        if list(out) != theirs:
+            print(f'READY block case {i}:\n  exe  {theirs}\n  port {list(out)}', flush=True)
+            os._exit(1)
+    print(f'{count // 2} READY blocks identical', flush=True)
+    probe.probe_pm_round_start.argtypes = [ctypes.POINTER(I32), ctypes.POINTER(I32)]
+    seen = {}
+    for i in range(500):
+        v = [rng.randrange(0, 8), rng.randrange(2), rng.randrange(0, 8), rng.randrange(2), rng.choice([10, 55, 100]),
+             struct.unpack('<i', struct.pack('<f', rng.uniform(0, 200)))[0], rng.choice([0, 0, 1, 2, 5])]
+        theirs = exe.round_start(v)
+        out = (I32 * 5)()
+        probe.probe_pm_round_start((I32 * 7)(*v), out)
+        if list(out) != theirs:
+            print(f'match start case {i} {v}:\n  exe  {theirs}\n  port {list(out)}', flush=True)
+            os._exit(1)
+        seen[v[6] == 0] = seen.get(v[6] == 0, 0) + 1
+    print(f'500 match starts identical; first round {seen.get(True, 0)}, later {seen.get(False, 0)}', flush=True)
     os._exit(0)
 
 

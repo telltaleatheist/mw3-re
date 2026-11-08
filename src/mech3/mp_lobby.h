@@ -103,7 +103,6 @@ class LobbyScreen : public MenuScreen {
   // (0x0049b360).
   void send_rules();                 // PM 0x0049d220 (MW3 0x00499b10)
   void lock();                       // 0x0049aca0
-  void keep_rules(bool seeded);      // the game's +0x60 block, its CRC at +0x88
   void lock_mech();                  // 0x0049b360
   LobbyControls controls();          // the lists' items and picks, the boxes, the lock
   void show_controls(const LobbyControls& c);  // the picks and boxes back
@@ -175,6 +174,7 @@ class LobbyScreen : public MenuScreen {
   InvertCheck select_box;            // PM +0x148b8  SELECT_CHECKBOX (0x19)
   InvertCheck jets_box;              // PM +0x14a24  JETS_CHECKBOX (0x1a)
   InvertCheck radar_box;             // PM +0x14b90  RADAR_CHECKBOX (0x1b)
+  float rejoin_at = 0;               // PM +0x167a8  READY's team rejoin, not before (enter: the clock)
   uint8_t stock_kept = 0;            // PM +0x1679e  STOCK as the host left it (case 0x17)
   ShellButton join_team_btn;         // +0x135c8  JOIN_TEAM_BUTTON (4)
   ShellButton remove_team_btn;       // +0x13720  REMOVE_TEAM_BUTTON (5)

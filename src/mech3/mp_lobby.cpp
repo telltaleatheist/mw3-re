@@ -14,6 +14,7 @@
 #include "gamez/znetwork/znet_session.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/app_mech.h"
@@ -396,6 +397,7 @@ void LobbyScreen::enter(bool from_game) {
   chat_edit.set_focus(1);
   all_ready = 0, start_pending = 0;
   host_controls();
+  rejoin_at = ztimer::state().total_scaled;  // PM 0x0049b103
   for (ztwod::Control* c : std::initializer_list<ztwod::Control*>{&join_team_btn, &remove_team_btn, &kick_btn,
                                                                   &new_team_btn, &pick_skin_btn, &kick2_btn,
                                                                   &mechlab_btn, &start_btn})
@@ -460,8 +462,10 @@ void LobbyScreen::on_button(int32_t id, int32_t a, int32_t b) {
   (void)a, (void)b;
   Engine& e = engine();
   switch (id) {
-    case 1:  // CANCEL: the handlers off, back, the network off, the records gone
+    case 1:  // CANCEL: the handlers off, back, the network off, the records gone (PM 0x0049a1b0's; started
+             // from a DirectPlay lobby it went to state 4 instead: there is none here)
       handlers(false);
+      between_rounds = 0;
       e.pop_state(1);
       e.network_set(0);
       g_lobby_dirty = 0;
@@ -748,10 +752,6 @@ bool LobbyScreen::has_world(uint32_t player, int32_t world) {
 // ---- the rules (piece 11b) ----
 
 namespace {
-uint32_t box_flags(const LobbyScreen& l) {
-  return (l.regen_box.checked ? 1u : 0u) | (l.mobile_box.checked ? 2u : 0u) | (l.stock_box.checked ? 4u : 0u) |
-         (l.ammo_box.checked ? 8u : 0u) | (l.select_box.checked ? 0x10u : 0u) | (l.locked ? 0x20u : 0u);
-}
 bool no_mobile(int32_t world) { return (world & 0xff) == 4 && (world >> 8) > 2; }
 }  // namespace
 
@@ -793,28 +793,6 @@ void LobbyScreen::send_rules() {
   znet::send(m.data(), m.size(), true, 0);
 }
 
-// The game's rules block from the lists and the boxes (0x0049aca0's host
-// branch, 0x00499cf0's), a random word, then its CRC-32 (0x00576c10, from
-// 0). The lock seeds the generator with the time first.
-void LobbyScreen::keep_rules(bool seeded) {
-  if (!game) return;
-  MultiplayerGame::Rules& r = game->rules;
-  r = MultiplayerGame::Rules{};
-  game->rules_crc = 0;
-  r.world = static_cast<int16_t>(worlds.selected_value());
-  r.kills = static_cast<int16_t>(kills_list.selected_value());
-  r.time = static_cast<int16_t>(time_list.selected_value());
-  r.weight = static_cast<int16_t>(weight_list.selected_value());
-  r.flags = box_flags(*this);
-  if (seeded) std::srand(static_cast<unsigned>(std::time(nullptr)));
-  r.seed = std::rand();
-  uint8_t b[0x10];
-  std::memcpy(b, &r.flags, 4);
-  std::memcpy(b + 4, &r.world, 2), std::memcpy(b + 6, &r.kills, 2), std::memcpy(b + 8, &r.time, 2);
-  std::memcpy(b + 10, &r.weight, 2), std::memcpy(b + 12, &r.seed, 4);
-  game->rules_crc = zutl_zar::crc32(0, b, sizeof b);
-}
-
 // Pirate's Moon 1.0 @ 0x0049d450: the host's rules shown and kept
 // (MultiplayerGame::read_lobby_rules), the boxes not ours to change; on
 // their first lock the team play as the host's kind, the chat's team box
@@ -849,12 +827,14 @@ void LobbyScreen::world_changed() {
   g_lobby_dirty = 1;
 }
 
-// Mech3.exe 1.2 @ 0x0049aca0: not while a player lacks the chosen add-on
-// world (0xfe0 with their names); asked first when there is neither a score
-// nor a time limit (0xfbd), then whether to lock (0x2c4). Locked: the
-// players again, the game shown as locked to the search (its fourth word
-// 3), the host's controls off, the rules sent, our mech fitted, the block
-// kept.
+// Pirate's Moon 1.0 @ 0x0049e400 (LOCK, 0x0049e3f0 through the screen's
+// +0x58): the kind's rules (check_lobby_rules: an error box with the lists
+// or RESPAWN put right, or a confirmation answered no), then locked: team
+// play as the kind (the chat's team box with it), the players (and teams)
+// again, the game shown as locked to the search (its fourth word 3), the
+// host's controls off, the rules sent, our mech fitted. MW3's 0x0049aca0
+// kept the rules' block here; PM's host keeps it at READY (0x0049e6f0).
+// Ours first: the mods check and the add-on worlds' (MW3's 0xfe0).
 void LobbyScreen::lock() {
   Engine& e = engine();
   cursor_obj.erase();
@@ -886,11 +866,32 @@ void LobbyScreen::lock() {
       return;
     }
   }
-  if (kills_list.selected_value() == 1000 && time_list.selected_value() == 1000 && e.message_box(1, 0x1e3, 0xfbd) != 1)
-    return;
-  if (e.message_box(1, 0x1e3, 0x2c4) != 1) return;
+  static Engine* s_engine;
+  s_engine = &e;
+  const auto confirm = [](int32_t text) { return s_engine->message_box(1, 0x1e3, text) == 1; };  // 0x004afb30
+  const auto error = [&](const char* text) { e.message_box_text(0, "Multiplayer Rule Error", text); };  // 0x004afa20
+  bool team = multiplayer_team_play();
+  switch (check_lobby_rules(controls().settings(), confirm, &team)) {
+    case LobbyRule::one_base_unlimited:
+      error("Attack/Defend with one base requires a time limit or a score limit");
+      return;
+    case LobbyRule::two_bases_limited:
+      error("Attack/Defend with two bases requires unlimited time and unlimited score.");
+      kills_list.select_value(1000);
+      time_list.select_value(1000);
+      return;
+    case LobbyRule::no_respawn:
+      error("Attack/Defend games and 'No RESPAWN' are incompatible.");
+      regen_box.set_checked(1);
+      return;
+    case LobbyRule::declined: return;
+    case LobbyRule::start: break;
+  }
+  set_multiplayer_team_play(team);  // [0x0062cc34]
+  if (team) chat_team.show_for(-1.0f);
+  else chat_team.hide();
   znet::enum_players();
-  if (multiplayer_team_play()) {
+  if (team) {
     znet::enum_teams();
     znet::enum_team_players();
   }
@@ -904,10 +905,6 @@ void LobbyScreen::lock() {
   send_rules();
   g_lobby_dirty = 1;
   lock_mech();
-  if (!game) return;
-  game->rules = MultiplayerGame::Rules{};
-  game->rules_crc = 0;
-  if (znet::is_host()) keep_rules(true);
 }
 
 // Pirate's Moon 1.0 @ 0x0049eb20: the game's store filled here, not in its constructor, and refilled
@@ -1064,58 +1061,39 @@ NetLobbyAccess net_lobby_access() {
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0049b790: the host tells everyone their places (0x1e:
-// each place's player, 1..8) and shows the game in progress (its fourth word
-// 2); everyone then gives the game the lobby's settings (a limit of 100 is
-// none: the kills 0x7fffffff, the clock off), the rules block, the world
-// (UNAVAILABLE folder -1) and the players' lines (the briefing's), drops the
-// lobby's handlers, and goes to the Load state (0x0049ca80). Ours: the
-// network game's lobby calls on this game (the debug start's stand-ins
-// otherwise).
+// Pirate's Moon 1.0 @ 0x0049ef20: the host tells everyone the players'
+// orders and team numbers (0x1e, start_message) and keeps the order;
+// everyone then gives the game the lobby's settings (apply_lobby: the
+// limits, the boxes, the rules' flags, the world, the clock; 1000 none),
+// drops the lobby's handlers (0x0049d170), gives the game the lines (TP_LIST
+// in team play, else PLAYERS_LIST; 0x004377c0), starts a match of more
+// rounds (0x00438550 with the rounds played) and goes to the Load state
+// (0x004a02b0). MW3's 0x0049b790 also showed the game in progress (its
+// fourth word 2); PM's doesn't. Ours: the network game's lobby calls on
+// this game (the debug start's stand-ins otherwise).
 void LobbyScreen::start() {
   Engine& e = engine();
   start_pending = 0;
   if (!game) return;
   if (znet::is_host()) {
-    const std::vector<uint8_t> m = game->start_message();  // PM 0x0049ef20's 0x1e (MW3's: 8 ids by order)
+    const std::vector<uint8_t> m = game->start_message();
     znet::send(m.data(), m.size(), true, 0);
-    znet::GameInfo info;
-    if (znet::game_info(-1, &info)) {
-      info.user[3] = 2;  // in progress
-      znet::set_game_info(info);
-    }
     keep_order = 1;
   }
-  const int32_t kills = kills_list.selected_value();
-  game->x70 = kills < 1000 ? kills : 0x7fffffff;
-  game->b8c = regen_box.checked != 0;
-  game->b8d = ammo_box.checked != 0;
-  game->b8e = select_box.checked != 0;
-  game->b8f = stock_box.checked != 0;
-  game->ba8 = mobile_box.checked != 0;
-  game->x78 = weight_list.selected_value();
-  const int32_t minutes = time_list.selected_value();
-  game->x74 = static_cast<float>(minutes);
-  MultiplayerGame::Rules& r = game->rules;
-  r.world = static_cast<int16_t>(worlds.selected_value());
-  r.kills = static_cast<int16_t>(kills);
-  r.time = static_cast<int16_t>(minutes);
-  r.weight = static_cast<int16_t>(game->x78);
-  r.flags |= box_flags(*this) & 0x1f;  // or'd onto the lock's
   handlers(false);
-  const float t = static_cast<float>(minutes);
-  program_net_clock(t >= 1000.0f ? 0.0f : t * 60.0f, t < 1000.0f);  // [0x00609920], [0x00609924]
-  const int32_t w = worlds.selected_value();
-  game->x90 = w == 0 ? -1 : (w & 0xff);
-  game->x94 = w >> 8;
+  bool clock_on = false;
+  float clock_left = 0;
+  game->apply_lobby(controls().settings(), &clock_on, &clock_left);
+  program_net_clock(clock_left, clock_on);  // [0x0062da94], [0x0062da98]
   LobbyList& lines = multiplayer_team_play() ? teams_list : players_list;
   std::vector<std::string> roster;
   for (int32_t i = 0; i < lines.item_count(); ++i) roster.emplace_back(lines.items[static_cast<size_t>(i)]->text);
   game->set_roster(roster);
+  if (rounds_list.selected_value() > 1) game->round_start(net_rounds_played());  // 0x0049ea90, 0x0049eb10
   g_net_game = game;
   program_net_lobby(net_lobby_access());
   e.pop_state(0);
-  e.replace_state(6);  // 0x0049ca80: the Load state
+  e.replace_state(6);
 }
 
 // Mech3.exe 1.2 @ 0x0049bcb0: the host's places for its players; then our
@@ -1146,19 +1124,37 @@ void LobbyScreen::on_scores(uint32_t, const uint8_t* msg, size_t size) {
   l->scores(false);
 }
 
-// Mech3.exe 1.2 @ 0x0049a970: READY (after its press) into our data's state,
-// 3 ready or 2 not. Its check of another team with our skin (0x0049bd10
-// with the skin as the exception, which never answers one) is dead.
+// Pirate's Moon 1.0 @ 0x0049e2e0: READY (after its press) into our data's
+// state, 5 ready or 4 not (0x0049ecb0). Its check of another team with our
+// skin (0x0049f570 with the skin as the exception, which never answers one)
+// is dead. The host's controls follow the box and the host keeps the
+// rules' block (0x0049e6f0, its rand() seeded with the time); in team play
+// at most every 5 seconds the host leaves its team and joins it again
+// (0x00498800, 0x005a9480, 0x0049daf0).
 void LobbyScreen::ready() {
   if (!game) return;
-  const LobbyPlayer* me = game->lobby_player(znet::local_id());
+  const uint32_t me_id = znet::local_id();
+  const LobbyPlayer* me = game->lobby_player(me_id);
   if (ready_box.checked && me && free_skin(me->skin, me->skin) != 0) {
     ready_box.set_checked(0);  // (with 0xf47 / 0xf48 in team play)
     return;
   }
+  if (znet::is_host()) {
+    host_controls();
+    std::srand(static_cast<unsigned>(std::time(nullptr)));
+    game->keep_lobby_rules(controls(), std::rand());
+    const float now = ztimer::state().total_scaled;  // [0x008c1b50]
+    if (multiplayer_team_play() && rejoin_at < now) {
+      rejoin_at = now + 5.0f;
+      const uint32_t team = me ? me->team : 0;
+      znet::remove_from_team(team, me_id);
+      if (game->lobby_team(team) && znet::add_to_team(team, me_id))
+        if (LobbyPlayer* r = game->lobby_player(me_id)) r->team = team;
+    }
+  }
   std::vector<uint32_t> d;
   if (!my_data(&d)) return;
-  d[2] = ready_box.checked ? 5 : 4;  // PM 0x0049e2e0 through 0x0049ecb0 (MW3: 3, 2)
+  d[2] = ready_box.checked ? 5 : 4;
   set_my_data(d);
 }
 
