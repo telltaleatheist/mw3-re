@@ -2550,6 +2550,10 @@ void wire_mission_hooks(GameEngine* e) {
     MultiplayerGame* g = net_debug_game();
     return g ? &g->round_end : nullptr;
   };
+  acc.clock_from = []() -> uint32_t* {
+    MultiplayerGame* g = net_debug_game();
+    return g ? &g->clock_from : nullptr;
+  };
   net_set_game_access(acc);
   net_set_launch_game([](NetLaunchGame* out) {  // the network launch's (0x0046da80): slot 0 is +0x20 (0x00437800)
     MultiplayerGame* g = net_debug_game();

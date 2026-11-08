@@ -1,14 +1,13 @@
 """Pirate's Moon's network end, 0x46f150 (MW3's 0x46d100), against the port's net_end through probe_pm_net_end. Only
 while a game runs ([0x629a88]): the handlers off (0x5a8c20: the in-game types', the player gone's, 1's, 0xe's and,
-new, 0xd's), the crater veto ([0x639c48]) and the flag cleared, the pilot's mech's end (0x41f0a0, when there is
+new, 0xd's, "I am the host"), the crater veto ([0x639c48]) and the flag cleared, the pilot's mech's end (0x41f0a0, when there is
 one), each remote mech forgotten (0x4adc40), taken off the list (0x4c63f0) and deleted (vt+0), the player data
 cleared (0x5aa4a0), the anim log's net hook off (0x526950(0, 0xc)), the force feedback stopped (0x434020, when
 there is one). New in PM: one more round played ([0x62cc38]), the round's tally (0x436980(1) on the network game,
 piece 3's), then each remote loadout's mech and loadout added to the game's stats (0x475310 on its +0xd4, piece 5's)
 and the local slot's (the game's vt+0x30(0): +4 the mech, +8 the loadout). Then the loadouts freed (0x425d50 and the
 delete) and the missing list emptied. The calls out are stood in for and logged on both sides; the handlers taken off
-are compared as a set with those the port's start put on, but 0xd: the port registers it with the launch's
-registrations (the next piece), so the exe's 0xd is checked and left out.
+are compared as a set with those the port's start and launch (net_register, 0x46f030) put on.
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_net_end.py
 """
@@ -131,9 +130,7 @@ class Exe:
         w(self.slot + 4, v[24]), w(self.slot + 8, slot_cfg)
         z.call(END)
         offs = sorted(set(self.offs))
-        if v[1]:
-            assert len(self.offs) == 19 and 0xd in offs, [hex(t) for t in self.offs]
-            offs.remove(0xd)
+        assert not v[1] or len(self.offs) == 19, [hex(t) for t in self.offs]
         self.log += [61, len(offs)] + offs
         self.log += [90, self.uc.mem_read(RUNNING, 1)[0], s32(self.r(ROUNDS)),
                      (self.r(CONFIGS_END) - self.r(CONFIGS)) // 4, self.r(MISSING_N), self.r(MECHS_N),

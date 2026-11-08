@@ -1160,6 +1160,7 @@ void net_set_game_access(const NetGameAccess& a) {
                               &f.flags))
       return nullptr;
     f.round_end = g_game_access.round_end ? g_game_access.round_end() : nullptr;
+    f.clock_from = g_game_access.clock_from ? g_game_access.clock_from() : nullptr;
     return &f;
   };
   nc.game_time = a.game_time, nc.clock_left = a.clock_left, nc.clock_on = a.clock_on;

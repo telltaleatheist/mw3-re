@@ -16,7 +16,8 @@ against probe_mech_net_apply's calls.
 Part 3, the map-object move PM renumbered 0x1b to 0x1d: the sender 0x472010 (only while [0x629a88], a network game
 up) against probe_mech_net_drop_send, the bytes handed to the transport; and the router 0x46f970 on every type
 0..0x22 from a known mech, which handler it picks (the move 0x472060, another, none) against probe_mech_net's route
-log. The registrations (0x46f030) are read from the exe and compared with the port's start.
+log. The registrations (0x46f030, the launch's in PM) are read from the exe, each type and handler, and compared
+with the port's net_register; the port's start registers none and its end takes them off.
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_net_state.py [cases]
 """
@@ -400,25 +401,30 @@ def routes(probe, z):
 
 
 def registrations(probe, z):
-    """The types the exe's start registers with the router, in order, against the port's start."""
+    """The registrations 0x46f030 (the launch's): each type and its handler, in order, against the port's
+    net_register; and the port's start (0x46ef80) registers none, its end takes them all off."""
     code = bytes(z.cpu._uc.mem_read(REGISTER_FROM, REGISTER_END - REGISTER_FROM))
+    handlers = {ROUTER: 1, 0x46f440: 2, 0x51a4d0: 3, 0x472b90: 4, 0x472c80: 5}
     exe, k = [], 0
-    while True:
-        k = code.find(b'\x68' + struct.pack('<I', ROUTER) + b'\x6a', k)
+    while True:  # push 2; push handler; push type; call 0x5a8ba0
+        k = code.find(b'\x6a\x02\x68', k)
         if k < 0:
             break
-        if code[k + 7] == 0xe8 and k + 12 + struct.unpack('<i', code[k + 8:k + 12])[0] + REGISTER_FROM == REGISTER:
-            exe.append(code[k + 6])
+        fn = struct.unpack('<I', code[k + 3:k + 7])[0]
+        if code[k + 7] == 0x6a and code[k + 9] == 0xe8 and \
+                k + 14 + struct.unpack('<i', code[k + 10:k + 14])[0] + REGISTER_FROM == REGISTER:
+            exe.append((code[k + 8], handlers.get(fn, fn), 2))
         k += 1
-    out = (I32 * 4096)()
-    ops = [0, 9] + [3, 0, 0, 0, 0, 0, 0]
-    n = probe.probe_mech_net((I32 * len(ops))(*ops), len(ops), out, 4096)
+    out = (I32 * 256)()
+    probe.probe_pm_net_register.argtypes = [ctypes.POINTER(I32), I32]
+    n = probe.probe_pm_net_register(out, 256)
     lg = [out[k] for k in range(n)]
-    port = [lg[i + 1] for i in range(0, len(lg) - 3, 4) if lg[i] == 60 and lg[i + 2] == 1]
-    if exe != port:
-        print(f'registrations: exe {[hex(t) for t in exe]} port {[hex(t) for t in port]}', flush=True)
+    port = [tuple(lg[i:i + 3]) for i in range(1, n - 1, 3)]
+    if lg[0] != 0 or lg[-1] != 0 or exe != port:
+        print(f'registrations: start {lg[0]}, after the end {lg[-1]}\n  exe  {exe}\n  port {port}', flush=True)
         os._exit(1)
-    print(f'registrations: the same {len(exe)} types in the same order ({[hex(t) for t in exe]})')
+    print(f'registrations: the same {len(exe)} in the same order, types {[hex(t) for t, _, _ in exe]}; '
+          f'none at the start, none after the end')
 
 
 def main():

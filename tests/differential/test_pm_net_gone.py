@@ -1,12 +1,13 @@
 """Pirate's Moon's player gone (0x46f440, a DirectPlay player-left; MW3's 0x46d3b0) and its one-side check 0x472da0
 against the port's net_player_left and net_two_sides through probe_mech_net_gone (docs/pm-map.md, the in-game
 types). PM, whether or not the player's mech is here: the lobby's kills 0 for it (0x436750, stood in for and
-logged), its record left (+0x18 1) without a score line (+0x2c 0), on the host the leaving scored as a suicide
+logged), its record left (+0x18 1) with no rounds won (+0x2c 0), on the host the leaving scored as a suicide
 (0x4721e0, tested in test_pm_net_score: its call logged on both sides); with the mech, MW3's line
 (0x26a, 4 s), the sensors' forget (0x4adc40) and the delete (vt+0). Then if the round has no two sides left
 (0x472da0: the network mechs whose players' records aren't out (+0xe, none counts as out) and the pilot's mech
 unless the local player is out, by team mask +0xc0) and its end reason (+0x90) is 0, the reason is 5 ("No more
 enemies") and the clock's next send (+0x84) is now. The check is also run alone before, on the same state.
+Then 0xd's handler 0x472c80 ("I am the host"): the player gone run on the game's +0xa0, the last clock's sender.
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_net_gone.py
 """
@@ -184,6 +185,32 @@ def case(rng):
     return v
 
 
+def host_moved(probe, rng):
+    """0xd's handler 0x472c80 ("I am the host", from a new host): the player gone run on the game's +0xa0, the last
+    clock's sender (the old host), whoever sent the 0xd; against the port's net_host_moved, the gone's first call."""
+    z = test_pm_zar.Emulated()
+    uc = z.cpu._uc
+    game = z.alloc(0x100)
+    got = []
+    z.native_stub(MP_GAME, lambda c: game, 4)
+    z.native_stub(GONE, lambda c: got.append(c.arg(0)) or 0, 0)
+    probe.probe_pm_net_host_moved.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(I32), I32]
+    msg = z.alloc(4)
+    uc.mem_write(msg, bytes([0xd, 0, 4, 0]))
+    for i in range(300):
+        old, sender = rng.choice([0, 1, 2, 7, 0x1234, 0xffffffff]), rng.randrange(0, 12)
+        uc.mem_write(game + 0xa0, struct.pack('<I', old))
+        got.clear()
+        z.call(0x472c80, args=(sender, msg))
+        out = (I32 * 4)()
+        n = probe.probe_pm_net_host_moved(old, sender, out, 4)
+        mine = [x & 0xffffffff for x in out[:n]]
+        if mine != [20] + got:
+            print(f'host moved case {i} (old host {old:#x}, sender {sender}): exe {got} port {mine}', flush=True)
+            os._exit(1)
+    print('0xd: 300 identical (the player gone on the last clock\'s sender, not the 0xd\'s)', flush=True)
+
+
 def main():
     probe = test_pm_zar.load_pm_probe()
     probe.probe_mech_net_gone.argtypes = [ctypes.POINTER(I32), ctypes.POINTER(I32), I32]
@@ -208,6 +235,7 @@ def main():
         seen[key] = seen.get(key, 0) + 1
     print(f'{count} identical; (two sides before, a mech deleted, scored, the round ended): '
           f'{dict(sorted(seen.items()))}', flush=True)
+    host_moved(probe, rng)
     os._exit(0)
 
 
