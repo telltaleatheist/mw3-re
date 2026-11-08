@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -774,6 +775,11 @@ extern "C" int32_t probe_mech_net_events(const int32_t* in, int32_t* out, int32_
   c.hud_message = [](float t, int32_t id, const char* a) { log({2, bits(t), id, s_num(a)}); };
   c.hud_message2 = [](float t, int32_t id, const char* a, const char* b) { log({2, bits(t), id, s_num(a), s_num(b)}); };
   c.mech_name = [](mech3::Mech&) -> const char* { return "Pilot"; };
+  c.lobby_name = [](uint32_t p) -> const char* {  // PM's kill line: the lobby's records ("P<id>")
+    static std::map<uint32_t, std::string> names;  // each its own, as the records' are
+    if (slot_of(p) < 0) return nullptr;
+    return (names[p] = "P" + std::to_string(p)).c_str();
+  };
   c.team_of = [](uint32_t p) {
     const int32_t k = slot_of(p);
     return k < 0 ? 0u : static_cast<uint32_t>(g_ev[eSlots + 4 * k + 1]);
@@ -962,6 +968,7 @@ extern "C" int32_t probe_mech_net_world(const int32_t* in, int32_t* out, int32_t
     case 2: {
       zeff::AnimLogRecord r;
       std::memcpy(&r, msg.data(), std::min(msg.size(), sizeof r));
+      g.echo = static_cast<uint8_t>(in[wMade] == 2);  // test_pm_net_effect: sent while one heard replays
       mech3::net_anim_sent(&r);
       break;
     }
@@ -1130,3 +1137,61 @@ extern "C" int32_t probe_mech_net_respawn(const int32_t* in, int32_t* out, int32
 }
 
 extern "C" void probe_mech_net_light(int32_t on) { g_light_on = on; }
+
+// Pirate's Moon's map-object move (0x1d, MW3's 0x1b) as sent, for test_pm_net_state.py: the bytes handed to the
+// transport while a network game runs or not.
+extern "C" int32_t probe_mech_net_drop_send(int32_t running, uint32_t id, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_send_id = 100;
+  Sends t;
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.async = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 9;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = running != 0;
+  mech3::net_send_drop(id);
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
+
+// The chat line (0x1f) for test_pm_net_chat.py: the HUD's line for a message from a player, the players named
+// "P<id>" (1..8), the message table's texts "M<id>".
+#include "gamez/zutil/zutl_msg.h"
+#include "mech3/chat_panel.h"
+extern "C" int32_t probe_mech_net_chat(uint32_t from, const uint8_t* msg, int32_t size, char* out, int32_t cap) {
+  static std::string s_line;
+  s_line = "(none)";
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  for (uint32_t id = 1; id <= 8; ++id) {
+    auto r = std::make_unique<znet::PlayerRecord>();
+    r->id = id, r->short_name = "P" + std::to_string(id);
+    znet::lists().players.push_back(std::move(r));
+  }
+  auto& m = zutl::messages();
+  const auto was = m.get_text;
+  m.get_text = [](int32_t id) -> const char* {
+    static std::string t;
+    t = "M" + std::to_string(id);
+    return t.c_str();
+  };
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  c.hud_line = [](float t, const char* line) { s_line = std::to_string(bits(t)) + "|" + line; };
+  mech3::net_chat_in(nullptr, from, msg, static_cast<size_t>(size));
+  c = mech3::NetCalls{};
+  m.get_text = was;
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  const int32_t n = static_cast<int32_t>(std::min<size_t>(s_line.size(), static_cast<size_t>(cap - 1)));
+  std::memcpy(out, s_line.data(), static_cast<size_t>(n));
+  out[n] = 0;
+  return n;
+}

@@ -58,7 +58,8 @@ NetGame g_net;
 NetCalls g_calls;
 
 // The messages 0x0046d880 takes, in the exe's order of registration.
-constexpr uint16_t kRouted[] = {0xf, 0x10, 0x11, 0x16, 0x15, 0x18, 0x12, 0x13, 0x17, 0x1a, 0x1b, 0x19, 0x21, 0x14, 0x1f};
+// Pirate's Moon routes 0x1d where MW3 routes 0x1b: the same message, a mech to a map object, renumbered (0x0046f970).
+constexpr uint16_t kRouted[] = {0xf, 0x10, 0x11, 0x16, 0x15, 0x18, 0x12, 0x13, 0x17, 0x1a, 0x1d, 0x19, 0x21, 0x14, 0x1f};
 
 // Mech3.exe 1.2 @ 0x004d72a0, message 1's: returns 0.
 void ignore(uint32_t, const uint8_t*, size_t) {}
@@ -182,7 +183,7 @@ void net_route(uint32_t from, const uint8_t* msg, size_t size) {
     case 0x17: return c.posture ? c.posture(m, from, msg, size) : net_posture_in(*m, msg, size);
     case 0x18: return c.knockback ? c.knockback(m, from, msg, size) : net_shove_in(*m, msg, size);
     case 0x1a: return c.effect ? c.effect(m, from, msg, size) : net_effect_in(msg, size);
-    case 0x1b: return c.drop ? c.drop(m, from, msg, size) : net_drop_in(*m, msg, size);
+    case 0x1d: return c.drop ? c.drop(m, from, msg, size) : net_drop_in(*m, msg, size);  // MW3's 0x1b
     case 0x1f: return call(c.chat, m, from, msg, size);
     case 0x21: return c.part_off ? c.part_off(m, from, msg, size) : net_part_off_in(msg, size);
     default: return;  // 0x15 is registered but not handled in a mission
@@ -734,29 +735,23 @@ void net_mech_rebuild(NetMech& m) {
 }
 
 namespace {
-// A mech by player for the kill's line: the network mech's, the pilot's,
-// else none.
-Mech* player_mech(uint32_t id) {
-  if (NetMech* m = net_mech(id)) return m;
-  if (id == znet::local_id() && g_calls.pilot_mech) return g_calls.pilot_mech();
-  return nullptr;
-}
-const char* name_of(Mech* m) {
-  if (!m) return "Unknown";  // [0x005e56f0]
-  if (m->remote) return znet::player_name(static_cast<NetMech*>(m)->owner);  // 0x004709c0
-  return g_calls.mech_name ? g_calls.mech_name(*m) : nullptr;  // 0x0041df30
+// A player's name for the kill's line: its lobby record's (0x0047b710(0)'s 0x00498930), else "Unknown"
+// ([0x006077c0]). MW3 took it from the player's mech, so a player whose mech was gone was "Unknown".
+const char* name_of(uint32_t id) {
+  const char* n = g_calls.lobby_name ? g_calls.lobby_name(id) : nullptr;
+  return n ? n : "Unknown";
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0046eba0 (ECX the message). 0x40a00000 is 5 s.
+// Pirate's Moon 1.0 @ 0x00470b80 (the message; MW3's 0x0046eba0). 0x40a00000 is 5 s.
 void net_kill_in(const uint8_t* msg, size_t size) {
   const NetCalls& c = g_calls;
   if (size < 12) return;
   uint32_t victim, killer;
   std::memcpy(&victim, msg + 4, 4);
   std::memcpy(&killer, msg + 8, 4);
-  const char* v = name_of(player_mech(victim));
-  const char* k = name_of(player_mech(killer));
+  const char* v = name_of(victim);
+  const char* k = name_of(killer);
   if (c.hud_message) {
     if (victim == killer) c.hud_message(5.0f, 0xf0a, v);  // "%1 has managed to kill himself"
     else if (c.hud_message2) c.hud_message2(5.0f, 0xf09, v, k);  // "%1 has been killed by %2"
@@ -938,11 +933,10 @@ void net_host_replay() {
   zdec::history_each(replay_crater, nullptr);
 }
 
-// Mech3.exe 1.2 @ 0x0046feb0 (ECX the record). The mobile field base
-// stations' animations are not sent; none is while one heard is replayed.
+// Pirate's Moon 1.0 @ 0x00471f50 (the record; MW3's 0x0046feb0). None is sent while one heard is replayed. PM
+// dropped MW3's skip of the field base stations' animations ("mfb_station_01"): PM sends those too.
 void net_anim_sent(zeff::AnimLogRecord* rec) {
-  if (std::strstr(rec->name, "mfb_station_01")) return;  // [0x005e4b68], on 0x0050d260's name
-  if (g_net.echo) return;  // [0x00605fb8]
+  if (g_net.echo) return;  // [0x00629a89]
   const auto n = static_cast<size_t>(zeff::log_record_size(rec));  // 0x0050ca20
   std::vector<uint8_t> b(n + 4, 0);
   put16(b, 0, 0x1a);
@@ -951,7 +945,7 @@ void net_anim_sent(zeff::AnimLogRecord* rec) {
   znet::send(b.data(), static_cast<uint32_t>(b.size()), true, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0046ff50
+// Pirate's Moon 1.0 @ 0x00471fd0 (MW3's 0x0046ff50, the same: the record passed on the stack)
 void net_effect_in(const uint8_t* msg, size_t size) {
   zeff::AnimLogRecord r;
   std::memset(&r, 0, sizeof r);
@@ -971,20 +965,21 @@ void net_effect_in(const uint8_t* msg, size_t size) {
     if ((r.type == 3 || r.type == 4) && !live(static_cast<int32_t>(r.args[0]))) return;
     if (r.type == 4 && !live(static_cast<int32_t>(r.args[4]))) return;
   }
-  if (g_calls.log_has ? g_calls.log_has(&r) : zeff::log_has(&r)) return;  // 0x0050b680
+  if (g_calls.log_has ? g_calls.log_has(&r) : zeff::log_has(&r)) return;  // PM 0x00524d70, MW3 0x0050b680
   g_net.echo = 1;
   g_calls.log_replay ? g_calls.log_replay(&r) : (void)zeff::log_replay(&r);  // 0x0050ca90
   g_net.echo = 0;
 }
 
-// Mech3.exe 1.2 @ 0x0046ff90 (ECX the station's id)
+// Pirate's Moon 1.0 @ 0x00472010 (MW3's 0x0046ff90, whose type was 0x1b): only while a network game runs ([0x00629a88]).
 void net_send_drop(uint32_t station) {
-  uint8_t b[8] = {0x1b, 0, 8, 0};
+  if (!g_net.running) return;
+  uint8_t b[8] = {0x1d, 0, 8, 0};
   std::memcpy(b + 4, &station, 4);
   znet::send(b, sizeof b, true, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0046ffd0 (the mech, the message)
+// Pirate's Moon 1.0 @ 0x00472060 (MW3's 0x0046ffd0, the mech, the message; its 0x0045bbf0 is MW3's 0x0045a140)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size) {
   if (size < 8) return;
   uint32_t id;
