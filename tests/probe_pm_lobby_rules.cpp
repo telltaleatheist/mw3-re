@@ -67,7 +67,7 @@ extern "C" void probe_pm_rescore(const int32_t* in, int32_t* out) {
 static int32_t tally_run(const int32_t* in, int32_t* out, bool winner) {
   mech3::multiplayer_setup().team_play = in[0];
   mech3::MultiplayerGame g(nullptr);
-  g.kind = in[2], g.round_end = in[3], g.base_lost = in[4], g.xb0 = in[5];
+  g.kind = in[2], g.round_end = in[3], g.base_lost = in[4], g.x94 = in[5];
   std::vector<mech3::ScoreLine*> lines(12, nullptr);
   const int32_t* p = in + 7;
   for (int32_t k = 0; k < in[6]; ++k, p += 8) {
@@ -281,7 +281,7 @@ extern "C" int32_t probe_pm_round_lines(const int32_t* in, int32_t* out, int32_t
 #include "mech3/options.h"
 extern "C" int32_t probe_pm_game_kind(int32_t op, const int32_t* in, int32_t* out) {
   mech3::MultiplayerGame g(nullptr);
-  g.kind = in[0], g.xb0 = in[1];
+  g.kind = in[0], g.x94 = in[1];
   switch (op) {
     case 1: {
       if (in[3]) {
@@ -327,7 +327,7 @@ extern "C" int32_t probe_pm_game_kind(int32_t op, const int32_t* in, int32_t* ou
 extern "C" int32_t probe_pm_kind_helpers(const int32_t* in, int32_t* out) {
   mech3::multiplayer_setup().team_play = in[1];
   mech3::MultiplayerGame g(nullptr);
-  g.xb0 = in[3], g.scenario = in[4], g.best = in[5];
+  g.x94 = in[3], g.x90 = in[4], g.best = in[5];
   const int32_t* p = in + 7;
   for (int32_t k = 0; k < in[6]; ++k, p += 5) {
     auto r = std::make_unique<mech3::LobbyPlayer>();
@@ -365,4 +365,72 @@ extern "C" int32_t probe_pm_kind_helpers(const int32_t* in, int32_t* out) {
   }
   mech3::multiplayer_setup().team_play = 0;
   return static_cast<int32_t>(o - out);
+}
+
+// Pirate's Moon's lobby settings (piece 4d) for test_pm_lobby_settings.py. in: op; the picks (kills, minutes, tons,
+// realloc, rounds, kind, world: has, value each), the boxes (respawn, ammo, outside, jets, radar, stock, mobile), the
+// rules' flags before; for op 2 the players (count, then 8 of: id, team, order) and the teams (count, then 4 of: id,
+// number) and team play; for op 3 the two confirmations' answers. out: op 1 the game's fields and the clock; op 2 the
+// 0x1e's words; op 3 the rule, the confirmations asked, team play.
+namespace {
+const int32_t* g_ls;
+std::vector<int32_t>* g_ls_log;
+}  // namespace
+
+extern "C" int32_t probe_pm_lobby_settings(const int32_t* in, int32_t* out) {
+  g_ls = in;
+  mech3::LobbySettings s;
+  mech3::LobbyPick* picks[7] = {&s.kills, &s.minutes, &s.tons, &s.realloc, &s.rounds, &s.kind, &s.world};
+  for (int k = 0; k < 7; ++k) picks[k]->has = in[1 + 2 * k] != 0, picks[k]->value = in[2 + 2 * k];
+  bool* boxes[7] = {&s.respawn, &s.ammo, &s.outside, &s.jets, &s.radar, &s.stock, &s.mobile};
+  for (int k = 0; k < 7; ++k) *boxes[k] = in[15 + k] != 0;
+  mech3::MultiplayerGame g(nullptr);
+  g.rules.flags = static_cast<uint32_t>(in[22]);
+  std::vector<int32_t> lg;
+  switch (in[0]) {
+    case 1: {
+      bool on = false;
+      float left = -1;
+      g.apply_lobby(s, &on, &left);
+      float x74 = g.x74;
+      int32_t b74, bl;
+      std::memcpy(&b74, &x74, 4), std::memcpy(&bl, &left, 4);
+      lg = {g.x70, g.b8c, g.b8d, g.b8e, g.jets_assist, g.radar, g.b8f, g.ba8, g.x78, b74, g.realloc, g.rounds_total,
+            g.kind, g.rules.world, g.rules.kills, g.rules.time, g.rules.weight, static_cast<int32_t>(g.rules.flags),
+            on ? 1 : 0, bl, g.x90, g.x94};
+      break;
+    }
+    case 2: {
+      mech3::multiplayer_setup().team_play = in[23];
+      const int32_t* p = in + 25;
+      for (int32_t k = 0; k < in[24]; ++k, p += 3) {
+        auto r = std::make_unique<mech3::LobbyPlayer>();
+        r->id = static_cast<uint32_t>(p[0]), r->team = static_cast<uint32_t>(p[1]), r->order = p[2];
+        g.lobby_players.push_back(std::move(r));
+      }
+      const int32_t* t = in + 25 + 8 * 3 + 1;
+      for (int32_t k = 0; k < in[25 + 8 * 3]; ++k, t += 2) {
+        auto r = std::make_unique<mech3::LobbyTeam>();
+        r->id = static_cast<uint32_t>(t[0]), r->word2 = t[1];
+        g.lobby_teams.push_back(std::move(r));
+      }
+      const std::vector<uint8_t> b = g.start_message();
+      lg.resize(b.size() / 4);
+      std::memcpy(lg.data(), b.data(), b.size());
+      mech3::multiplayer_setup().team_play = 0;
+      break;
+    }
+    case 3: {
+      g_ls_log = &lg;
+      bool team = false;
+      const mech3::LobbyRule r = mech3::check_lobby_rules(s, [](int32_t text) {
+        g_ls_log->push_back(7), g_ls_log->push_back(text);
+        return g_ls[text == 0xfbd ? 23 : 24] != 0;
+      }, &team);
+      lg.push_back(90), lg.push_back(static_cast<int32_t>(r)), lg.push_back(team ? 1 : 0);
+      break;
+    }
+  }
+  std::copy(lg.begin(), lg.end(), out);
+  return static_cast<int32_t>(lg.size());
 }
