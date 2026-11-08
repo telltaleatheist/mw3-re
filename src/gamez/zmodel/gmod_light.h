@@ -75,6 +75,11 @@ struct Lighting {
   const float (*normals)[3] = nullptr;  // 0x00747ca8
   float (*rec)[8] = nullptr;       // 0x007481a8  work records: +0 darkness, +4 point, +8 fog/saturated
   float stale[3] = {};             // 0x00545720's [ebp-0x1c]: see shade_polygon
+  // Ours: how many records rec holds (the draw's 64, clip2d's work). A light
+  // past them keeps its intensities in rec_extra; FIX (bug): the exe indexes
+  // the 64 records by light, up to 128, into the shadow sets (fixes.md).
+  int32_t rec_slots = 64;
+  float rec_extra[LightList::kMax][2] = {};
 };
 Lighting& lighting();
 

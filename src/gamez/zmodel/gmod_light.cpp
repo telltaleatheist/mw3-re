@@ -279,6 +279,16 @@ int32_t light_update(zcls::Node* node) {
   return 0;
 }
 
+// Light i's intensities: its work record, or past the records rec holds its
+// own pair. FIX (bug): the exe writes record i for every light up to 128, and
+// the 64 records end at the shadow sets (0x7489a8; render-lighting.md).
+namespace {
+float* light_rec(int32_t i) {
+  Lighting& G = g_lighting;
+  return i < G.rec_slots ? G.rec[i] : G.rec_extra[i];
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x00543d90
 int32_t lights_reaching(const float centre[3], float radius) {
   LightList& L = g_list;
@@ -331,7 +341,7 @@ int32_t lights_reaching(const float centre[3], float radius) {
     if (cap < v) v = cap;
     if (v > 1.0f) v = 1.0f;
     else if (v < 0.0f) v = 0.0f;
-    g_lighting.rec[i][(fl & kDirected) ? 0 : 1] = v;
+    light_rec(i)[(fl & kDirected) ? 0 : 1] = v;
   }
   return reached;
 }
@@ -355,7 +365,7 @@ uint32_t model_needs(uint32_t model_flags, const float centre[3], float radius) 
     for (int32_t i = 0; i < g_list.count; ++i) {
       const LightEntry& e = g_list.list[i];
       if (!(e.reach && !g_lighting.single) && (lflags(e.data) & kDirected)) continue;
-      const float k = g_lighting.rec[i][1];  // +4 for every light, the directed slot is +0
+      const float k = light_rec(i)[1];  // +4 for every light, the directed slot is +0
       r = lf(e.data, kColor) * k + r;
       g = lf(e.data, kColor + 4) * k + g;
       b = lf(e.data, kColor + 8) * k + b;

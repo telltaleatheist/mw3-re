@@ -158,6 +158,7 @@ it is clear what the designers meant.
 ## Crashes and broken data that no longer break the game
 
 - A rare crash when a crater cut the ground in an awkward place is gone: the cut is skipped on that piece of ground.
+- **More than 64 lights at once no longer corrupt the shadows' memory.** Every explosion and weapon impact brings its own light. With more than 64 lights on at once, the original wrote the brightness of the 65th and later ones, wherever they reached a model, past the end of its table and over the shadows' data. Heavily modded weapons with lots of firing could get there. Those lights now keep their values apart and light the model as the others do.
 - **Ctrl+I in the mech lab loads a loadout again.** In the rebuild so far it read
   the file from `import` and added nothing, and still renamed the file
   `.m3c.done`, so the loadout seemed to vanish. The file itself is intact: take

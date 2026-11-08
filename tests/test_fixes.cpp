@@ -16,6 +16,9 @@
 #include "gamez/zrender/zrndr_span.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zmodel/gmod_puff.h"
+#include "gamez/zmodel/gmod_clip2d.h"
+#include "gamez/zmodel/gmod_light.h"
+#include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
@@ -1923,4 +1926,41 @@ TEST(damage_reads_the_weapons_shot_line) {
   EXPECT(s[0].x == 1.0f && s[0].y == 2.0f && s[0].z == 3.0f);
   EXPECT(s[1].x == 4.0f && s[1].y == 5.0f && s[1].z == 6.0f);
   h.shot_from = from, h.shot_to = to;
+}
+
+// FIX (bug), 0x543d90: a light's intensities go to work record i, for every
+// light up to 128, but the draw's buffer holds 64 records (they end at the
+// shadow sets, 0x7489a8). 100 lights reaching: the 36 past the records keep
+// theirs apart, and nothing after the 64 records changes.
+TEST(fix_light_records_bounded_at_64) {
+  constexpr int n = 100;
+  static zcls::Light data[n];
+  static zcls::Node nodes[n];
+  zcls::Light* dp[n];
+  zcls::Node* np[n];
+  for (int i = 0; i < n; ++i) {
+    std::memset(data[i].raw, 0, sizeof data[i].raw);
+    std::memset(nodes[i].raw, 0, sizeof nodes[i].raw);
+    nodes[i].set_flags(4);                       // active
+    data[i].put<uint32_t>(0xb0, 0x200);          // on, not ranged: full and reaching
+    data[i].put<float>(0x9c, 0.25f + i * 0.001f);  // diffuse
+    data[i].put<float>(0xa0, 0.125f);            // ambient
+    dp[i] = &data[i], np[i] = &nodes[i];
+  }
+  zrndr::device_fog().active = 1;
+  zmod::build_light_list(np, dp, n);
+  EXPECT(zmod::light_list().count == n);
+  zmod::Clip2D& c = zmod::clip2d();
+  zmod::Lighting& G = zmod::lighting();
+  G.rec = reinterpret_cast<float (*)[8]>(c.work);  // as the model draw sets it
+  G.rec_slots = zmod::kClipVerts;
+  static uint8_t after[sizeof c.tl_tmp];
+  std::memset(after, 0x5a, sizeof after);
+  std::memcpy(c.tl_tmp, after, sizeof after);
+  const float centre[3] = {0, 0, 10};
+  EXPECT(zmod::lights_reaching(centre, 1.0f) == n);
+  EXPECT(std::memcmp(c.tl_tmp, after, sizeof after) == 0);
+  EXPECT(G.rec[63][1] == 0.25f + 63 * 0.001f + 0.125f);
+  EXPECT(G.rec_extra[99][1] == 0.25f + 99 * 0.001f + 0.125f);
+  zmod::build_light_list(np, dp, 0);
 }

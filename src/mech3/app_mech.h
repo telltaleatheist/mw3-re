@@ -272,6 +272,7 @@ struct BeamProbe {
   float ready = 0, origin[3] = {}, live[3] = {};
 };
 bool mech_group_beam(void* mech, int32_t g, BeamProbe* out);
+float mech_tag_muzzle(void* mech, bool* mounted);  // tests: TAG added as the build adds it, its muzzle from the torso
 std::string mech_group_names(void* mech, int32_t g);
 // Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
 bool mech_lock_shown(void* mech);
