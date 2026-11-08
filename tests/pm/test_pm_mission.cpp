@@ -316,6 +316,8 @@ int pm_watch_follow(void* mech);
 void pm_kill_begin(void* player);
 int pm_kill_fire(void* player, const float at[3]);
 int pm_trigger_all(void* player, const float at[3]);
+float pm_mech_toughness(void* mech, bool* invincible);
+bool pm_cheat(void* player, const char* text);
 void pm_kill_left(void* mech, char* out, size_t n);
 void pm_kill_ray(const float from[3], const float to[3]);
 uint32_t pm_kill_root_flags(void* mech);
@@ -694,6 +696,27 @@ static void kill_run(const char* which, bool quick) {
       }
       for (const auto& [k, n] : seen) std::printf("  event %d size %#x: %d\n", k.first, k.second, n);
       done = true;
+      return;
+    }
+    if (std::getenv("PM_CHEAT")) {  // pm-tests item 12: Invincible on, the player 150 m from a hostile mech, his armour watched
+      static int t = 0;
+      static float start = 0;
+      ++t;
+      if (t == 10) std::printf("  cheat taken %d\n", pm_cheat(player, "power overwhelming") ? 1 : 0);
+      if (t == 12)
+        for (const mech3::ChainTarget& c : mech3::chain_hostiles())
+          if (std::strcmp(c.kind, "mech") == 0) {
+            mech3::chain_player_near(mech3::hud_object_node(mech3::chain_object(c.h)), 150.0f);
+            std::printf("  near %s\n", c.name.c_str());
+            break;
+          }
+      if (t >= 12 && (t - 12) % 300 == 0) {
+        bool inv = false;
+        const float now = pm_mech_toughness(player, &inv);
+        if (t == 12) start = now;
+        std::printf("  t %d: invincible %d, armour and internal %.2f of %.2f\n", t, inv ? 1 : 0, now, start);
+      }
+      if (t > 3600) done = true;
       return;
     }
     if (std::getenv("PM_LOADOUT")) {
