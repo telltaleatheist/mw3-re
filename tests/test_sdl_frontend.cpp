@@ -3939,6 +3939,11 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
 // the stockpile, ACCEPT; back in the lobby the game's slot holds the Avatar
 // (mech 1), not the stock Bushwacker (3).
 TEST(sdl_lobby_mech_lab_picks_a_mech) {
+#if defined(MW3_PM_SUITE)  // PM's roster starts with the Annihilator: the Avatar is mech 2
+  const char* const kAvatarBack = "lobby back from the lab, mech 2\n";
+#else
+  const char* const kAvatarBack = "lobby back from the lab, mech 1\n";
+#endif
   const std::string install = MW3_GAME_DIR;
   std::error_code ec;
   if (!std::filesystem::exists(install + "/zbd/mechlib.zbd", ec)) return;
@@ -3974,8 +3979,8 @@ TEST(sdl_lobby_mech_lab_picks_a_mech) {
   }
   auto has = [&](const char* w) { return text.find(w) != std::string::npos; };
   std::printf("  the lab %s; back with %s\n", has("state Lab State") ? "opened" : "not opened",
-              has("lobby back from the lab, mech 1\n") ? "the Avatar" : "not the Avatar");
-  EXPECT(has("state Lab State") && has("lobby back from the lab, mech 1\n"));
+              has(kAvatarBack) ? "the Avatar" : "not the Avatar");
+  EXPECT(has("state Lab State") && has(kAvatarBack));
 }
 #endif
 

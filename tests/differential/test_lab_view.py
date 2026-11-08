@@ -37,10 +37,12 @@ from test_gamez import ZBD  # noqa: E402
 
 probe.lv_world.argtypes = [ctypes.c_float] * 6 + [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.lv_highlight.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+probe.lv_display.argtypes = [ctypes.c_void_p, ctypes.c_int]
 probe.lv_frame.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_float, ctypes.c_void_p, ctypes.c_int]
 
 WORLD_CREATE, ORIGIN, SIZE, GRID = 0x4f1bd0, 0x4f2500, 0x4f2530, 0x4f2560
 CAMERA_CREATE, OBJECT_CREATE, SET_ROTATION = 0x4f32e0, 0x4fb740, 0x4fbd80
+DISPLAY_CREATE, LIST_COUNT, DISPLAYS = 0x4fa4c0, 0x4f7f80, 15
 FRAME, MODEL_NODE, DRAW, HIGHLIGHT = 0x450690, 0x44fd20, 0x4f73f0, 0x4504d0
 SET_NAME, ADD_CHILD = 0x4eb300, 0x4eb9b0
 PARTS = ['torso', 'larm', 'rarm', 'lthigh', 'lfoot', 'rthigh', 'rfoot', 'head']
@@ -85,6 +87,14 @@ class LabEmu(Emu):
             for c in range(cols):
                 out += self.words(row + 0x48 * c, 0x48, CELL_POINTERS)
         return out
+
+    def display(self):  # 0x4fa4c0 (the interp's NewDisplay, world.gw's): class, data, the displays' count
+        from unicorn.x86_const import UC_X86_REG_EAX
+        self.cpu.call(DISPLAY_CREATE)
+        n = self.cpu.uc.reg_read(UC_X86_REG_EAX)
+        self.cpu.call(LIST_COUNT, ecx=DISPLAYS)  # fastcall
+        count = self.cpu.uc.reg_read(UC_X86_REG_EAX)
+        return [self.u(n + 0x34)] + self.words(self.u(n + 0x38), 0x1c) + [count]
 
     def named(self, name):
         from unicorn.x86_const import UC_X86_REG_EAX
@@ -179,6 +189,8 @@ def main():
         cmp(f'frame {k} cam {cam} rot {rot} dt {dt}', want, got)
         turns += 1
         wraps += rot[1] + 0.8 * dt > 3.1415927
+    for k in range(3):  # a display node, as world.gw's NewDisplay makes one when gamez.zbd won't load (the lab's)
+        cmp(f'display {k}', emu.display(), port_words(probe.lv_display))
     lit = 0
     for k in range(runs):  # the armour section's highlight (0x4504d0, item 9b)
         names = rng.sample(PARTS, rng.randrange(0, len(PARTS) + 1)) + rng.sample(DECOYS, rng.randrange(0, 3))

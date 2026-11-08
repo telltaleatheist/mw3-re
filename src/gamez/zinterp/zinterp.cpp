@@ -25,6 +25,7 @@
 #include "gamez/zclass/light.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zclass/window.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
@@ -93,6 +94,20 @@ Engine make_engine() {
   e.write_prepare_a = zcls::frame_update;
   e.write_prepare_b = [] { zcls::purge_lists(); };
   e.read_zbd = [](const char* path) { return zgame::game().zcls_read_zbd(path); };  // the running game's
+  // The build-from-source branch (world.gw), which runs when a mission's gamez.zbd won't load (the mech lab's
+  // "lab", which ships no world): its world, window, camera and display, as the exe makes them.
+  e.world_create = zcls::world_create;
+  e.window_create = zcls::window_create;
+  e.window_origin = zcls::window_set_origin;
+  e.window_resolution = zcls::window_set_size;
+  e.camera_create = zcls::camera_create;
+  e.camera_set_world = zcls::camera_set_world;
+  e.camera_set_window = zcls::camera_set_window;
+  e.camera_set_fov = zcls::camera_set_fov_angles;          // 0x004f3d90
+  e.camera_set_lod_multiplier = zcls::camera_set_lod_scale; // 0x004f3ff0
+  e.display_create = zcls::display_create;
+  e.display_origin = zcls::display_set_origin;
+  e.display_resolution = zcls::display_set_size;
   e.camera_set_active = zcls::node_set_active;  // 0x004f3420 is a jmp to it
   e.camera_set_clip = zcls::camera_set_clip;
   e.lod_add_child = zcls::node_link;            // 0x004fe0a0 is a jmp to it
