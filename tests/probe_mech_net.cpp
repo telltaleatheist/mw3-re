@@ -1362,3 +1362,92 @@ extern "C" int32_t probe_mech_net_score(const int32_t* in, int32_t* out, int32_t
 }
 extern "C" int32_t probe_mech_net_score_count() { return sScoreCount; }
 
+
+// The network end (PM 0x0046f150) for test_pm_net_end.py. in: the local id,
+// a game running, the pilot has a mech, force feedback, the remote mechs
+// (count, 8 owners), the loadouts (count, 8 mechs), the missing count, the
+// rounds played before, the local slot's mech. Logged: the pilot mech's end,
+// each mech's forget and delete, the player data, the force feedback, the
+// tally, each stats add (the mech, the loadout's tag: its index + 1, the
+// slot's 99), each loadout freed; then the handlers the end took off and the
+// state after.
+namespace {
+const int32_t* g_ne;
+std::map<const mech3::Config*, int32_t> g_ne_tags;
+mech3::Config* g_ne_slot;
+}  // namespace
+
+extern "C" int32_t probe_pm_net_end(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_ne = in;
+  wire();
+  g_player_mech = in[2], g_ff = in[3];
+  mech3::NetCalls& c = mech3::net_calls();
+  c.config_free = [](mech3::Config* cfg) {
+    log({73, g_ne_tags[cfg]});
+    delete cfg;
+  };
+  c.round_tally = [] { log({25}); };
+  c.stats_add = [](int32_t mech, const mech3::Config* cfg) { log({26, mech, g_ne_tags[cfg]}); };
+  c.local_slot = [](int32_t* mech, const mech3::Config** cfg) {
+    *mech = g_ne[24], *cfg = g_ne_slot;
+    return true;
+  };
+  Data t;
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = static_cast<uint32_t>(in[0]);
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  zeff::anim_log().net = nullptr, zeff::anim_log().mask = 0;
+  zdec::craters().veto = nullptr;
+  if (in[1]) mech3::net_start();
+  std::vector<int32_t> before;
+  for (const znet::HandlerEntry& e : s.handlers) before.push_back(e.type);
+  for (int32_t k = 0; k < in[4]; ++k) {
+    auto* m = new NetMech();
+    m->owner = static_cast<uint32_t>(in[5 + k]);
+    g.mechs.push_back(m);
+  }
+  g_ne_tags.clear();
+  g_ne_slot = new mech3::Config(0, "slot");
+  g_ne_tags[g_ne_slot] = 99;
+  for (int32_t k = 0; k < in[13]; ++k) {
+    auto* cfg = new mech3::Config(in[14 + k], "remote");
+    cfg->mech = in[14 + k];
+    g_ne_tags[cfg] = k + 1;
+    g.configs.push_back(cfg);
+  }
+  for (int32_t k = 0; k < in[22]; ++k) g.missing.push_back(0);
+  g.rounds_played = in[23];
+  lg.clear();
+  mech3::net_end();
+  std::vector<int32_t> after;
+  for (const znet::HandlerEntry& e : s.handlers) after.push_back(e.type);
+  std::vector<int32_t> off;
+  for (int32_t t : before)
+    if (std::find(after.begin(), after.end(), t) == after.end()) off.push_back(t);
+  std::sort(off.begin(), off.end());
+  log({61, static_cast<int32_t>(off.size())});
+  lg.insert(lg.end(), off.begin(), off.end());
+  log({90, g.running ? 1 : 0, g.rounds_played, static_cast<int32_t>(g.configs.size()),
+       static_cast<int32_t>(g.missing.size()), static_cast<int32_t>(g.mechs.size()), zdec::craters().veto ? 1 : 0,
+       zeff::anim_log().net ? 1 : 0, static_cast<int32_t>(zeff::anim_log().mask)});
+  for (NetMech* m : g.mechs) delete m;
+  for (mech3::Config* cfg : g.configs) delete cfg;
+  delete g_ne_slot;
+  g = mech3::NetGame{};
+  for (const znet::HandlerEntry& e : std::vector<znet::HandlerEntry>(s.handlers)) znet::off(e.type, e.fn);
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  mech3::net_calls() = mech3::NetCalls{};
+  zeff::anim_log().net = nullptr;
+  zdec::craters().veto = nullptr;
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
