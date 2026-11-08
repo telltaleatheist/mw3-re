@@ -105,16 +105,24 @@ The port's event dispatch (zeff_anim_run.cpp) is MW3's; PM's runs through its ow
 
 | Type | Event | PM / MW3 (instructions, opcode similarity) | In PM's data | Note |
 |---|---|---|---|---|
-| 2 | SOUND_NODE | 0x51b7d0 112 / 0x503270 88, 0.83 | 108 | close to MW3's; the first count measured past the function |
+| 2 | SOUND_NODE | 0x51b7d0 112 / 0x503270 88, 0.83 | 108 | MW3's logic, callees too (cdecl, PM's def and world offsets) |
 | 25 | STOP_ANIMATION | 0x51f900 160 / 0x506d60 60, 0.45 | 470 | ported: the last matching ref wins (`test_pm_stop_animation`) |
 | 31 | IF | 0x51fce0 288 / 0x507010 165, 0.64 | yes | PM adds tests; HW_RENDER read as the device's fog. PM's added flags are unused in the shipped records |
-| 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | |
+| 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | PM skips node ref 0 (`0 < i`, MW3 `-1 < i`); no shipped record has 0 (c1..c4), so left as MW3's |
 | 12 | OBJECT_MOTION_SI_SCRIPT | 0x51e2c0 103 / 0x505b00 120, 0.59 | 412, 237, 187, 377 (c1..c4) | ported, it never played: see below |
-| 1 | SOUND | 0x51b630 60 / 0x503100 52, 0.61 | yes | |
-| 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | |
+| 1 | SOUND | 0x51b630 60 / 0x503100 52, 0.61 | yes | MW3's logic |
+| 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | MW3's logic (the colour step and clamps read in the asm) |
 | 28 | FOG_STATE | 0x51c2f0 169 / 0x503ba0 36, 0.26 | no | mods only |
 | 43, 44, 45 | per-vertex colours on a node's model (0x50cb90, 0x55b8f0, 0x55b850) | PM only | no | unknown to the port: an anim using one stops (mods only) |
 | 16, 20, 21, 36, 37, 38 | remove child, camera, fbfx, message | PM's | no (16, 20, 21, 37, 38) | 36 shipped |
+
+The rest of the shipped types, read side by side (PM's pseudocode from `CreateAndDecompile.java` on the PM project,
+the asm where Ghidra hid an add): 8, 10, 11, 13, 14, 15, 17, 18, 19, 22, 23, 24, 26, 27, 30, 32/33, 35, 36 and 41 keep
+MW3's logic; the differences are the def's offsets (nodes +0xe8 by 0x2c, the start node +0x7c, which the port's own
+layout covers), cdecl and the callees' new addresses. 10 (OBJECT_MOTION, 467 lines) was compared by its constants,
+flags and steps, not run against the exe. Not shipped and different: 3 is PM's own (0x51b700, an effect placed at a
+point from the def's +0xfc list), where the port sends 3 to the light state (mods only). So, of the shipped types,
+only 4, 12 and 25 needed PM's code (42 already had it).
 
 Event 12 in PM takes its key frames from the anim file's SI scripts (record +0x10, the script's index; the script
 holds the cubic flag at +0x0c, the frames' size at +0x14 and the frames at +0x18), where MW3's frames follow the
