@@ -752,7 +752,8 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
     const bool good = !e.mission_failed() && no_cheat;
     e.mission_cleanup(good || *won ? 1 : 0);
     e.anim_reset();
-    if (*won) {
+    if (*won) {  // 0x0047f644: the credits flag set, then the main menu, which opens the credits
+      e.set_reopen_credits();
       e.replace_state(2);
       return;
     }

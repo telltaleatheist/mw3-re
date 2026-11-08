@@ -288,6 +288,7 @@ class GameEngine : public Engine {
   bool mission_launch() override;
   void mission_cleanup(int32_t unload) override;
   void replace_state(int32_t n) override;
+  void set_reopen_credits() override;
   void fade_to_state_n(int32_t n) override;
   std::vector<Objective> debrief_objectives(int32_t which) override;  // [0x0062dabc], [0x0062dac0]
   const char* objective_text(Handle obj) override;  // 0x0045fc60(0): the description alone

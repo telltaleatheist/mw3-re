@@ -140,6 +140,18 @@ offsets), `pm_c1m2_motions_play` (10 of 121 event-12 nodes moving by 300 frames;
 None of these touches damage (their callees: camera.c, class.c's remove child, video, sound, the anim run), so none
 explains mission 3's defences (item 9). Known gaps, not from this work: MW3's `probe_world.cpp` does not build on `pm` (PM's WorldHooks).
 
+## The campaign chains on `pm` (2026-11-08)
+
+`mw3pm --campaign-chain` (mw3_main's driver) with `PM_AI=1 --hidden --nosound` on a scratch write dir: `new:99` plays the
+ten campaign missions to the credits and the pilot screen again; `kills:99` too (op 3 mission 6, which fails by shooting
+the trucks it must keep, is played again and won as --win); `standalone:99` and `standalone-kills:99` the eleven rows
+to the end, then the credits (the exe's 0x47f644 sets the app's credits flag before the main menu; the port had it
+without, fixed). No crash, no hang, no warning new since pm-v0.9.0. Won as --win after 40000 frames, the objectives the
+driver can't meet by shooting: op 1 mission 2 (jump_made, the canyon jump), c1sa1 (mission_success: pirate_base),
+c4sa1 (baker_base_down: the valves 1warehouse1 and 1warehouse2, set by what destroys those buildings, not nodes of
+those names), c4sa2 (capture_bases: reaching the four bases). Shooting a valve condition's buildings would need each
+member valve traced to what sets it; not done.
+
 ## MW3's tests built from `pm` (2026-11-08)
 
 `cmake -DMW3_BUILD_MW3=ON` then `cmake --build <dir> --target mw3probe mw3tests` builds MW3's probe and tests from this
