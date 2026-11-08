@@ -136,8 +136,7 @@ against 0x51df10, linear and cubic, the frame's end and the next frame; breaks: 
 offsets), `pm_c1m2_motions_play` (10 of 121 event-12 nodes moving by 300 frames; none without the port).
 
 None of these touches damage (their callees: camera.c, class.c's remove child, video, sound, the anim run), so none
-explains mission 3's defences (item 9). Known gaps, not from this work: `test_pm_anim` fails since before b10b924d
-("c1 full: original 5754248 bytes, port 20"); MW3's `probe_world.cpp` does not build on `pm` (PM's WorldHooks).
+explains mission 3's defences (item 9). Known gaps, not from this work: MW3's `probe_world.cpp` does not build on `pm` (PM's WorldHooks).
 
 ## MW3's tests rewritten for PM (`pm_moved.py`)
 

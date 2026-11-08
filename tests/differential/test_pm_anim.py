@@ -321,6 +321,18 @@ def main():
     buf = ctypes.create_string_buffer(96 << 20)
     tmp = tempfile.TemporaryDirectory(prefix='pm-anim-')
     tmpdir = Path(tmp.name)
+    links = tmpdir / 'a'  # counted by written()'s names alike before and after
+    links.mkdir()
+
+    def anim_of(w):
+        # The port takes no anim path of 0x80 characters or more (0x5090f0, as the exe); a deep checkout's is.
+        path = g.ZBD / w / 'anim.zbd'
+        if len(str(path)) < 0x80:
+            return path
+        link = links / f'{w}.zbd'
+        if not link.exists():
+            link.symlink_to(path)
+        return link
 
     def case(label, world, anim, fail_at=-1, full=True):
         want = emu.run(world, anim, fail_at=fail_at, full=full)
@@ -335,16 +347,16 @@ def main():
 
     calls = runs = 0
     for w in g.WORLDS:
-        world, anim = g.ZBD / w / 'gamez.zbd', g.ZBD / w / 'anim.zbd'
+        world, anim = g.ZBD / w / 'gamez.zbd', anim_of(w)
         res, n, reports = case(f'{w} full', world, anim)
         assert res == 0, f'{w}: {res}'
         calls += n
         print(f'{w}: identical ({n} calls, {reports} reports)', flush=True)
     for w, other in (('c1', 'c2'), ('c3', 'c4')):
-        res, _, reports = case(f'{w} anim on {other} world', g.ZBD / other / 'gamez.zbd', g.ZBD / w / 'anim.zbd')
+        res, _, reports = case(f'{w} anim on {other} world', g.ZBD / other / 'gamez.zbd', anim_of(w))
         print(f'{w} on {other}: result {res}, {reports} reports', flush=True)
         runs += 1
-    world, anim = g.ZBD / 'c1' / 'gamez.zbd', g.ZBD / 'c1' / 'anim.zbd'
+    world, anim = g.ZBD / 'c1' / 'gamez.zbd', anim_of('c1')
     total = struct.unpack_from('<i', emu.run(world, anim), 4)[0]
     for k in sorted({0, 1, 2, 5, total // 3, total // 2, total - 2, total - 1}):
         case(f'c1 fail at {k}', world, anim, fail_at=k)
