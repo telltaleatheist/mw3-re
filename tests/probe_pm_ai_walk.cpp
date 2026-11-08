@@ -61,6 +61,19 @@ struct World : WalkPmHooks {
   void order_ready() override { ready = 1; }
   void return_back() override { ++backs; }
   int again = 0, ready = 0, backs = 0;
+  // The deploy node's answers.
+  float vspeed = 0, placed[4] = {}, dplace[3] = {}, dtarget[3] = {};
+  int hold = 0, places = 0, vsets = 0, vset_last = 0, va = 0, vb = 0;
+  bool don = false, finding = false;
+  float vertical_speed(zgame::Handle) override { return vspeed; }
+  void set_hold(int32_t on) override { hold = on; }
+  void place_vehicle(zgame::Handle, const float p[3], float yaw) override {
+    placed[0] = p[0], placed[1] = p[1], placed[2] = p[2], placed[3] = yaw, ++places;
+  }
+  bool deploy_on() override { return don; }
+  int32_t valve_value(zgame::Handle v) override { return v == 0xa1 ? va : v == 0xb1 ? vb : 0; }
+  void valve_set(zgame::Handle, int32_t value) override { ++vsets, vset_last = value; }
+  bool finding_way() override { return finding; }
   int32_t rand_int() override { return rolls[roll++ & 1]; }
   double jump_fuel(zgame::Handle) override { return m_fuel; }
   bool airborne(zgame::Handle) override { return m_air; }
@@ -147,6 +160,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   std::unique_ptr<WalkPm> c;
   FightStatePm st;
   MoveStatePm ms;
+  DeployStatePm ds;
+  bool deploying = false;
   ManoeuvrePm man;
   GuardPickPm pick;
   WalkFightPm* b = nullptr;
@@ -242,6 +257,18 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       ms.step = std::stoi(a[0]), w.next = std::stoi(a[1]);
       ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
       ms.run_backup(w, s, 1, w.place);
+    } else if (op == "d") {  // the deploy node's run: its fields, the world's answers, the node
+      ds.step = std::stoi(a[0]), w.next = std::stoi(a[1]), w.don = a[2] == "1", w.va = std::stoi(a[3]), w.vb = std::stoi(a[4]);
+      DeployNodePm n;
+      n.valve_a = 0xa1, n.a = std::stoi(a[5]), n.valve_b = 0xb1, n.b = std::stoi(a[6]);
+      w.finding = a[7] == "1";
+      ds.dist = f(a[8]), ds.slow = f(a[9]), ds.wake = f(a[10]), ds.turn = f(a[11]), ds.throttle = f(a[12]);
+      ds.face[0] = f(a[13]), ds.face[1] = 0.0f, ds.face[2] = f(a[14]);
+      w.vspeed = f(a[15]);
+      for (int i = 0; i < 3; ++i) w.dplace[i] = f(a[17 + i]), w.dtarget[i] = f(a[20 + i]);
+      n.place = w.dplace, n.target = w.dtarget;
+      deploying = true;
+      ds.run(w, s, 1, n, f(a[16]));
     } else if (op == "t") {  // the terminus node's run, likewise
       ms.step = std::stoi(a[0]);
       ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
@@ -360,6 +387,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (b) {
         put(o, w.sent[0]), put(o, w.sent[1]);
       }
+      if (deploying) {
+        for (float v : {ds.turn, ds.throttle, ds.dist, ds.wake, ds.face[0], ds.face[1], ds.face[2], w.placed[0], w.placed[1],
+                        w.placed[2], w.placed[3]})
+          put(o, v);
+      }
       o += "| " + std::to_string(c->backing) + " " + std::to_string(int(s.keep)) + " " + std::to_string(int(s.push));
       if (g) o += " " + std::to_string(int(g->gone)) + " " + std::to_string(int(g->x70)) + " " + std::to_string(int(g->x71)) + " " + std::to_string(int(g->x72));
       if (b) {
@@ -374,6 +406,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (attacking)
         o += " " + std::to_string(as.flags) + " " + std::to_string(as.pulled | as.x2d << 8) + " 0 " + std::to_string(as.x38) + " 0 0";
       if (circling) o += " " + std::to_string(cp.step) + " " + std::to_string(cp.x18) + " " + std::to_string(int(w.m_cleared > 0)) + " " + std::to_string(w.sends);
+      if (deploying)
+        for (int v : {ds.step, w.hold, w.vsets, w.vset_last, w.places}) o += " " + std::to_string(v);
       o += " " + std::to_string(w.m_stops) + " " + std::to_string(static_cast<uint32_t>(w.m_over));
       o += " " + std::to_string(man.phase) + " " + std::to_string(man.target) + " " + std::to_string(w.m_pops) + " " + std::to_string(int(w.m_fought));
       o += " " + std::to_string(w.again) + " " + std::to_string(w.ready) + " " + std::to_string(w.backs);

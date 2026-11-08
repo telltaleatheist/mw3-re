@@ -135,11 +135,12 @@ TEST(pm_wire_kinds_make_their_states) {
   EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::ViaNode).get()));
   EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::BackupNode).get()));
   EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::TerminusNode).get()));
+  EXPECT(dynamic_cast<PmDeployState*>(made(StepKind::DeployNode).get()));
   EXPECT(dynamic_cast<PmFollowState*>(made(StepKind::VehFollow).get()));
   EXPECT(dynamic_cast<PmCircleState*>(made(slot(3)).get()));
   EXPECT(dynamic_cast<PmGuardState*>(made(slot(6)).get()));
   EXPECT(dynamic_cast<PmBehindState*>(made(slot(8)).get()));
-  for (StepKind k : {StepKind::DeployNode, StepKind::VehOwn})
+  for (StepKind k : {StepKind::VehOwn})
     EXPECT(!made(k));
   for (int i : {2, 5, 7, 9}) EXPECT(!made(slot(i)));
 }

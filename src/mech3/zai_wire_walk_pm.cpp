@@ -128,6 +128,14 @@ void wire_walk::order_pop(Brain& b_) { b_.current().pop(); }
 
 void wire_walk::return_back(Brain& b_) { pm_queue_back(b_, nullptr); }
 
+// [0x0062fb68] ("mcbdeploy", set at each mission load) at [0x0062fb6c]: MW3's pair, as the mission load keeps it.
+bool wire_walk::deploy_on() {
+  const DeployValve& d = deploy_valve();
+  return d.valve && d.valve->get() == d.value;
+}
+int32_t wire_walk::valve_value(zgame::Handle valve) { return static_cast<Valve*>(pm_ptr(valve))->get(); }
+void wire_walk::valve_set(zgame::Handle valve, int32_t value) { static_cast<Valve*>(pm_ptr(valve))->set(value); }
+
 zgame::Handle wire_walk::contact_pick(Brain& b_, zgame::Handle v, int32_t kind) {
   const Contact* c = brain_hooks().pick(v, kind);
   return c ? brain_hooks().contact_entity(c) : 0;

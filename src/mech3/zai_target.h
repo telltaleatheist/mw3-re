@@ -108,6 +108,7 @@ struct AiTarget {
   void release_shadow();             // 0x004d58fc: the caster's texture and the caster freed
 
  private:
+  friend bool pm_set_target(AiTarget& t, Contact* c, bool keep_sides);  // PM's 0x004e6330 (zai_wire_targets_pm.cpp)
   bool is_lancemate(const Contact* c) const;         // the vehicle's +0xbc bit 4
   Handle vehicle_of(const Contact* c) const;         // 0x004d6fe0's 0x004e6fe0
   uint32_t team_of(Handle vehicle) const;            // vt+0x28's +0xc0

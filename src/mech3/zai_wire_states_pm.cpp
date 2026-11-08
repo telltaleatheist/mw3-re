@@ -17,10 +17,14 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     case StepKind::Node:
     case StepKind::ViaNode: return new PmMoveState(&o, &b);  // 0x005eef64's and 0x005ef498's vt+0x8c
     case StepKind::BackupNode: return new PmMoveState(&o, &b, PmMoveState::kBackup);  // 0x005ef020's
+    case StepKind::DeployNode: return new PmDeployState(&o, &b);  // 0x005ef11c's
     case StepKind::TerminusNode: return new PmMoveState(&o, &b, PmMoveState::kTerminus);  // 0x005ef578's
     case StepKind::VehFollow:  // for the first runs: whose order made it
       pm_hook_missing(pm_orders_making() ? "follow made: PM's orders" : "follow made: MW3's push");
       return new PmFollowState(&o, &b);
+    case StepKind::Scan:
+    case StepKind::CanLeave:
+    case StepKind::CanLeaveNot: return pm_make_scan_state(o, b);
     case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
     case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
     default: break;
@@ -36,7 +40,7 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
 bool pm_state_running(Brain& b) {
   if (b.orders.empty()) return false;
   BehaviourState* s = b.current().state.get();
-  return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) ||
+  return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) || dynamic_cast<PmDeployState*>(s) ||
          dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s);
 }
 
@@ -157,6 +161,34 @@ void PmManoeuvreState::run(float dt) {
   if (gone) return;  // the run popped the order, and with it this state
   gone_ = nullptr;
   no_jets = m.no_jets, jump = m.jump, phase = m.phase, turn = m.turn, until = m.until, target = m.target;
+}
+
+}  // namespace mech3::ai
+
+namespace mech3::ai {
+
+// Pirate's Moon 1.0 @ 0x004d4600, as the move state's.
+void PmDeployState::resume() {
+  s_.step = 0;
+  order->owner->controls->stop();
+}
+
+void PmDeployState::run(float dt) {
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  PmBrain& r = pm_brain(b);
+  WireWalk& walk = pm_walk(b, c);
+  const auto& node = *static_cast<const DeployNode*>(from);
+  if (!started_) {  // 0x004dcbe0 once the brain's controls are known
+    started_ = true;
+    s_.start(walk, r.steer, v, node.position());
+  }
+  DeployNodePm n;
+  n.place = node.position(), n.target = node.target_step->position();
+  n.valve_a = pm_id(node.valve_a), n.a = static_cast<int32_t>(node.a);
+  n.valve_b = pm_id(node.valve_b), n.b = static_cast<int32_t>(node.b);
+  s_.run(walk, r.steer, v, n, dt);  // may end in set_behaviour, which destroys this state
 }
 
 }  // namespace mech3::ai

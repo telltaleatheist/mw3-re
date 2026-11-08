@@ -62,6 +62,20 @@ class PmMoveState final : public BehaviourState {
   bool started_ = false;
 };
 
+// The deploy node's state (0x004de010 -> 0x004de070 over the move state's 0x004dcbe0, vtable 0x005ef1d8; MW3's
+// DeployState): its run 0x004de0e0 on the record's steering.
+class PmDeployState final : public BehaviourState {
+ public:
+  PmDeployState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
+  Behaviour* behaviour() const override { return from; }
+  void resume() override;  // vt+0x10: 0x004d4600, the move state's
+  void run(float dt) override;
+
+ private:
+  DeployStatePm s_;
+  bool started_ = false;
+};
+
 // The vehicle net's slot states (make_state on each slot's vt+0x8c, the state taking the slot's behaviour and
 // the order): PM's follow (slot 0, 0x004d91e0 -> 0x004daaf0, vtable 0x005eecd4), circling (slot 3, 0x004d8c40 ->
 // 0x004d8ca0, 0x005eebe4), guarding (slot 6, 0x004dfca0 -> 0x004dfe40, 0x005ef2e8) and behind (slot 8,
