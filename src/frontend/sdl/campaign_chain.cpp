@@ -649,7 +649,8 @@ void CampaignChain::frame() {
       for (int i = 0; i < 4; ++i)
         if (groups[i]) std::printf("mw3: chain objectives %s %s:\n", launched_.c_str(), names[i]), print_objective(e_, *groups[i], 1);
     }
-    if (o_.kills) {
+    // kills: a mission that failed by shooting everything (a convoy it must keep) is played again and won as --win.
+    if (o_.kills && std::find(shot_failed_.begin(), shot_failed_.end(), launched_) == shot_failed_.end()) {
       if (++core_frames_ == 30 && fitted_weapon_ >= 0) {  // the lab's fit, in the mission
         int32_t n = 0;
         for (int32_t t : mech3::salvage_weapon_types(mech3::mech_mission_player())) n += t == fitted_weapon_;
@@ -671,7 +672,12 @@ void CampaignChain::frame() {
     if (frames_in_state_ == 70) {
       auto* d = dynamic_cast<mech3::DebriefScreen*>(e_.screen_of(st.end_win.screen_));
       if (d) {
-        if (!failing_) ++wins_;
+        const bool shot = o_.kills && !failing_ && e_.mission_failed();
+        if (shot) {
+          std::printf("mw3: chain %s failed by shooting: next as --win\n", launched_.c_str());
+          shot_failed_.push_back(launched_);
+        }
+        if (!failing_ && !shot) ++wins_;
         std::printf("mw3: chain debriefing rows after %s: %s\n", launched_.c_str(), mech3::debrief_rows(*d).c_str());
         std::printf("mw3: chain debriefing after %s: score %d, CONTINUE (%swins %d; the game now at %s)\n",
                     launched_.c_str(), d->score, failing_ ? "failed on purpose; " : "", wins_, mission_name().c_str());

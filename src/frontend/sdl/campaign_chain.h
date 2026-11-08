@@ -53,6 +53,7 @@ class CampaignChain {
   int wins_ = 0, shots_ = 0, frames_in_state_ = 0, core_frames_ = 0;
   std::map<std::string, std::map<int32_t, uint32_t>> first_nodes_;  // retry: each mission's nodes at core frame 30, first try
   std::vector<std::string> failed_;                                  // retry: the missions failed once
+  std::vector<std::string> shot_failed_;                             // kills: failed by shooting, then won as --win
   bool failing_ = false;                                             // retry: this debriefing is the failed try's
   std::vector<const void*> objectives_done_;  // this mission's objectives seen done, logged once
   const void* last_state_ = nullptr;
