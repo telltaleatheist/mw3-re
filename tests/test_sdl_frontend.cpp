@@ -3916,7 +3916,11 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
   int s1 = -1, k1 = -1, d1 = -1, s2 = -1, k2 = -1, d2 = -1;
   std::sscanf(a2.c_str(), "%31s %d %d %d | %31s %d %d %d", n1, &s1, &k1, &d1, n2, &s2, &k2, &d2);
   EXPECT(a2 == b2 && a3 == b3 && a2 == a3);
+#if defined(MW3_PM_SUITE)  // PM's columns: rounds won, score, kills (0x436db0)
+  EXPECT(std::string(n1) == "best" && s1 == 1 && k1 == 1 && d1 == 1);
+#else
   EXPECT(std::string(n1) == "best" && s1 == 1 && k1 == 1 && d1 == 0);
+#endif
   EXPECT(std::string(n2) == "test" && s2 == 0 && k2 == 0 && d2 == 0);
   // W43: F12 in the game shows the network scores (0xdd5, its columns, a line
   // each player), not the campaign's MISSION COMPLETE.
@@ -3945,8 +3949,8 @@ TEST(sdl_lobby_mech_lab_picks_a_mech) {
   std::vector<std::string> v = {MW3_BIN, "--install", install, "--no-launcher", "--hidden", "--nosound",
                                 "--net-bind", "127.0.0.1", "--frame-ms", "33", "--write-dir", dir, "--verbose",
                                 "--net-port", std::to_string(base), "--net-discovery", std::to_string(base + 1),
-                                "--click-at", "132,285@" + menu_frame(40), "--tap", "0x14@70", "--tap", "0x12@74", "--tap", "0x1f@78",
-                                "--tap", "0x14@82", "--click-at", "470,320@" + menu_frame(100), "--click-at", "421,406@" + menu_frame(180),
+                                "--click-at", "132,285@" + menu_frame(40), "--tap", "0x14@" + menu_frame(70), "--tap", "0x12@" + menu_frame(74), "--tap", "0x1f@" + menu_frame(78),
+                                "--tap", "0x14@" + menu_frame(82), "--click-at", "470,320@" + menu_frame(100), "--click-at", "421,406@" + menu_frame(180),
                                 "--click-at", std::string(kLockAt) + "@" + menu_frame(260), "--click-at", "246,290@" + menu_frame(320), "--click-at", std::string(kMechLabAt) + "@" + menu_frame(380),
                                 "--click-at", "470,93@" + menu_frame(560), "--click-at", "595,460@" + menu_frame(640), "--frames", menu_frame(760)};
   std::vector<char*> argv;
@@ -3991,8 +3995,8 @@ TEST(sdl_lobby_host_alone_starts_a_game) {
   std::vector<std::string> v = {MW3_BIN, "--install", install, "--no-launcher", "--hidden", "--nosound",
                                 "--net-bind", "127.0.0.1", "--frame-ms", "33", "--write-dir", dir,
                                 "--net-port", std::to_string(base), "--net-discovery", std::to_string(base + 1),
-                                "--click-at", "132,285@" + menu_frame(40), "--tap", "0x14@70", "--tap", "0x12@74", "--tap", "0x1f@78",
-                                "--tap", "0x14@82", "--click-at", "470,320@" + menu_frame(100), "--click-at", "421,406@" + menu_frame(180),
+                                "--click-at", "132,285@" + menu_frame(40), "--tap", "0x14@" + menu_frame(70), "--tap", "0x12@" + menu_frame(74), "--tap", "0x1f@" + menu_frame(78),
+                                "--tap", "0x14@" + menu_frame(82), "--click-at", "470,320@" + menu_frame(100), "--click-at", "421,406@" + menu_frame(180),
                                 "--click-at", std::string(kLockAt) + "@" + menu_frame(260), "--click-at", "246,290@" + menu_frame(320), "--click-at", "515,446@" + menu_frame(380),
                                 "--click-at", "585,418@" + menu_frame(440), "--frames", menu_frame(1400)};
   std::vector<char*> argv;
