@@ -1286,6 +1286,7 @@ std::string GameEngine::message_format_isi(int32_t id, int32_t a, const char* s,
 }
 void GameEngine::mission_cleanup(int32_t unload) { missions().cleanup(unload != 0); }
 void GameEngine::replace_state(int32_t n) { app().replace(app().state(n), 0); }
+void GameEngine::set_reopen_credits() { app().reopen_credits() = 1; }
 void GameEngine::fade_to_state_n(int32_t n) { fade_replace(app().state(n), 0, 1, 2, 2.0f, 0, 0, 0); }
 std::vector<Engine::Objective> GameEngine::debrief_objectives(int32_t which) {
   std::vector<Objective> r;

@@ -1,6 +1,7 @@
 """PM's second campaign as a player reaches it: `mw3pm` itself, from the main menu's STANDALONE through the real states.
 Eleven missions in the exe's order, each won into the next; the file saved, and read back partway by a new run; a mission
-already reached replayed, the best kept; the last win going to the main menu with no credits; titles, ranks and CONTINUE's
+already reached replayed, the best kept; the last win going to the main menu, which opens the credits (0x47f644 sets the
+flag, as the first campaign's win movie does); titles, ranks and CONTINUE's
 help read back from the screens.
 
 What this does NOT show. The wins are Exit Mission with the objectives forced (as `--campaign-chain new:N`), or one mission
@@ -72,8 +73,8 @@ def main():
         bad += check('titles', titles(out), [(NAME[i], NAME[min(i + 1, 10)], str(rank(i))) for i in range(11)])
         want = [(str(rank(i)), 'Next Mission', '0', str(i + 1), str(i + 1)) for i in range(10)] + [('4', 'Finish Game', '1', '10', '10')]
         bad += check('helps, at, best', helps(out), want)
-        bad += check('the last win', 'chain main menu after 11 wins without the credits (credits entered 0)' in out, True)
-        bad += check('no credits state', 'chain state Credits' in out, False)
+        bad += check('the last win: the credits', 'chain credits after 11 wins (entered 1): CANCEL' in out, True)
+        bad += check('then the main menu again', 'chain pilot screen again after the credits (credits entered 1)' in out, True)
         bad += check('nothing refused at the briefing', 'chain stuck' in out, False)
         bad += check('briefing maps', sorted(set(re.findall(r'^mw3: chain briefing map width (\d+)$', out, re.M))), ['640'])
         bad += check('its buttons', set(re.findall(r'chain buttons: (.*)$', out, re.M)), {'lab 1 salvage 0 replay 1 abort 1'})
@@ -95,7 +96,7 @@ def main():
         rows = re.findall(r'^mw3: chain mission list (\d+): (.*)$', out, re.M)
         bad += check('read back again: still five', len(rows), 5)
         bad += check('resumed at row 2', launched(out), [(str(i), ORDER[i]) for i in range(2, 11)])
-        bad += check('resumed to the end', 'chain main menu after 9 wins without the credits (credits entered 0)' in out, True)
+        bad += check('resumed to the end, the credits', 'chain credits after 9 wins (entered 1): CANCEL' in out, True)
 
         # One by shooting.
         code, out = run(exe, tmp / 'kills', 'standalone-kills:1')

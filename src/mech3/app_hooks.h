@@ -982,6 +982,8 @@ class Engine : public zgame::AppHooks {
   virtual void set_reopen_training(uint8_t v) { unported("0x0047fe00", {v}); }
   // Replace(state(n), 0) (0x00482970, 0x00590250).
   virtual void replace_state(int32_t n) { unported("0x00590250", {n}); }
+  // The app's credits flag (MW3's +0x1c6, PM's +0x1c3 at [0x0062cc5b]): the main menu opens the credits on entry.
+  virtual void set_reopen_credits() { unported("app +0x1c6", {}); }
   // The current campaign's salvage merged (0x00434cb0): the ported pilot's.
   virtual void campaign_merge_salvage();
   // The debriefing's (mech3/debriefing, campaign.md section 3): the mission's
