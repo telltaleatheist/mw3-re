@@ -546,7 +546,7 @@ class WireStep : public StepPmHooks {
     PlanPm* p = plan_of(plan);
     return ai::any_can_hit(brain_hooks().weapons(p->vehicle), ai::plan_place(*p, *p->slot));
   }
-  void too_far(Brain* b) override { pm_hook_missing("WireStep.too_far"); }
+  void too_far(Brain* b) override { pm_scan_aim(*b); }  // the controls' vt+0x78: 0x004e8d40
   void trigger(Brain* b, bool on) override {
     if (on) pm_hook_missing("fired: trigger");  // a count of what the first run did, not a gap
     static const bool trace = std::getenv("PM_TRACE") != nullptr;

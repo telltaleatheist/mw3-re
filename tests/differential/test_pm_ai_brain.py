@@ -224,6 +224,12 @@ class Side(Exe):
             self.z.call(0x4fbdd0, ecx=b + 0x2d4)
         elif what == 5:
             r = self.z.call(0x4fa210, ecx=b, args=(v,)) & 0xff
+        elif what == 6:  # the controls' vt+0x78, after its thunk: +0x11c read here direct, not through the base
+            w(b + 0x110, ints[15]), w(b + 0x98, ints[16]), w(b + 0x11c, fb(fl[22])), w(b + 0xa8, fb(fl[23]))
+            r = self.z.call(0x4e8d40, ecx=b + 0x2d4) & 0xff
+            hold = self.z.r32(b + 0x11c)
+            self.w(self.brain + 0x11c, v)
+            return [r, hold, 0, 0, 0, self.n] + self.log
         else:
             self.w(self.brain + 0x11c, v if ints[12] else 0)
             self.z.call(0x4fbe90, ecx=b)
@@ -564,7 +570,7 @@ def side_case(r, what):
     now = r.choice([0.5, 100.0])
     ints = [r.choice([0, 1, 6]), r.choice([0, 2, 6]), r.randrange(2), r.randrange(2), r.randrange(2), r.choice([0, 1, 1, 1, 2]),
             r.randrange(16), r.randrange(2), r.randrange(3), r.randrange(2), int(r.random() < 0.15), int(r.random() < 0.15), r.randrange(2),
-            r.randrange(2), r.randrange(2)]
+            r.randrange(2), r.randrange(2), int(r.random() < 0.2) if what == 6 else 0, int(r.random() < 0.8) if what == 6 else 0]
     if what == 2 and r.random() < 0.5:  # the player hitting an ally
         ints[0], ints[1], ints[2], ints[10], ints[11] = 6, 6, 1, 0, 0
     d = r.choice([0.0, 2.9, 3.0, 3.1, 6.9, 7.0, 7.5])
@@ -573,7 +579,8 @@ def side_case(r, what):
     fl = [now, 500.0 + r.choice([0.0, 0.5]), *p, r.choice([0.2, 0.5, 0.8]), r.choice([100.0, 500.0, 900.0]),
           r.choice([5.0, 10.0, 15.0]), 500.0 - d, 500.0 - r.choice([0.0, 2.9, 3.0, 3.5, 3.1, 8.0]),
           r.choice([0.0, 1e-30, 4.25, 30.0]), *home, r.choice([100.0, 400.0, 900.0]), r.choice([0.2, 0.5, 0.8]),
-          now + r.choice([-1, 0, 1]), r.choice([0.2, 0.5, 0.8]), *[r.uniform(-9, 9) for _ in range(3)], r.uniform(0, 2)]
+          now + r.choice([-1, 0, 1]), r.choice([0.2, 0.5, 0.8]), *[r.uniform(-9, 9) for _ in range(3)], r.uniform(0, 2),
+          *([now + r.choice([-1.0, 0.0, 1.0, float('nan')]), r.choice([0.0, 2.5, 10.0])] if what == 6 else [0.0, 0.0])]
     return ints, fl, bytes(r.randrange(2) for _ in range(16))
 
 
@@ -632,6 +639,21 @@ def main():
             if bad >= 6:
                 break
     print(f'{cases} side: {bad} differ')
+    # 0x4e8d40 (the step's "can't hit from here"), on its own numbers so the cases above and below draw as before.
+    r6, aimed = random.Random(66), {}
+    for i in range(cases // 3):
+        ints, fl, bits = side_case(r6, 6)
+        a = sx.side(6, ints, fl, bits)
+        n = sf(6, (ctypes.c_int32 * len(ints))(*ints), bits, (ctypes.c_float * len(fl))(*fl), out, 512)
+        b = list(out[:n])
+        moved = a[1] != struct.unpack('<I', struct.pack('<f', fl[22]))[0]
+        aimed[a[0], moved] = aimed.get((a[0], moved), 0) + 1
+        if a != b:
+            print(f'scan_aim case {i} {ints} {fl}\n  exe  {a}\n  port {b}')
+            bad += 1
+            if bad >= 6:
+                break
+    print(f'{cases // 3} scan_aim: {bad} differ; (answer, +0x11c moved on): {aimed}')
     for i in range(max(cases // 200, 30)):
         ox = Orders()
         for k in (0xa1, 0xa2, 0xa3, 0xa4):

@@ -271,6 +271,15 @@ extern "C" int32_t probe_pm_ai_side(int32_t what, const int32_t* in, const uint8
     case 2: on_hit_pm(t, b, owner, 11, 22, 33, in[10] ? owner : in[11] ? 0 : 0x95); break;
     case 3: died_pm(t, b); break;
     case 5: r = must_leave_pm(t, b, owner); break;
+    case 6: {
+      b.busy = in[15], b.aims = in[16], b.aim_at = f[22], b.aim_gap = f[23];
+      r = scan_aim_pm(t, b, f[0]);
+      std::vector<uint32_t> o = {r, ubits(b.aim_at), 0, 0, 0, static_cast<uint32_t>(t.n)};
+      o.insert(o.end(), t.log.begin(), t.log.end());
+      if (static_cast<int32_t>(o.size()) > cap) return -1;
+      std::memcpy(out, o.data(), o.size() * 4);
+      return static_cast<int32_t>(o.size());
+    }
     default: {
       const float spot[3] = {f[18], f[19], f[20]};
       way_reset_pm(t, in[12] ? owner : 0, f[21], spot, from);

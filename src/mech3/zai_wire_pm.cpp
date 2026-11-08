@@ -49,15 +49,15 @@ void pm_params(BrainTickPm& t, const AiParams& p) {
   t.sight = p.get<float>(0x1c), t.engage = p.get<float>(0x20), t.leash = p.get<float>(0x24);
   t.mode = p.get<int32_t>(0x3c), t.health_floor = p.get<float>(0x50);
   t.delay_on = p.get<int32_t>(0x5c), t.wait_low = p.get<float>(0x64), t.wait_high = p.get<float>(0x68);
-  t.awake = p.get<int32_t>(0x88), t.by_player = p.get<int32_t>(0x8c), t.reacts = p.get<int32_t>(0x9c);
+  t.awake = p.get<int32_t>(0x88), t.by_player = p.get<int32_t>(0x8c), t.aims = p.get<int32_t>(0x98), t.reacts = p.get<int32_t>(0x9c);
   t.wanders = p.get<int32_t>(0xa0), t.manoeuvre_kind = p.get<int32_t>(0xa4);
-  t.react_gap = p.get<float>(0xb0), t.engage_flags = p.get<uint8_t>(0xcc);
+  t.aim_gap = p.get<float>(0xa8), t.react_gap = p.get<float>(0xb0), t.engage_flags = p.get<uint8_t>(0xcc);
 }
 
 void pm_seed(BrainTickPm& t, const Brain& b) {
   pm_params(t, b.params);
   t.delay_until = b.xdc, t.busy = b.xf0, t.wait_until = b.xf4, t.home = b.xe4;
-  t.attack_until = b.xe8, t.react_at = b.x100, t.give_up = b.x230, t.runs_down = b.x2a4;
+  t.attack_until = b.xe8, t.aim_at = b.xfc, t.react_at = b.x100, t.give_up = b.x230, t.runs_down = b.x2a4;
   t.radio = b.radio != nullptr;
 }
 
@@ -306,6 +306,11 @@ void pm_on_hit(Brain& b, HitRecord& r, zgame::Handle owner, zgame::Handle attack
   WiredSidePm side(b);
   side.hit = &r, side.owner = owner, side.damage = damage;
   on_hit_pm(side, pm_brain(b).tick, owner, 0, 0, 0, attacker);
+}
+
+bool pm_scan_aim(Brain& b) {
+  WiredSidePm side(b);
+  return scan_aim_pm(side, pm_brain(b).tick, brain_hooks().now());
 }
 
 void pm_died(Brain& b) {
