@@ -1669,6 +1669,17 @@ Two mechs on it each see the other's weight, not the sum. `CZAiTarget::stood_on`
 
 ## PM's multiplayer against MW3's (2026-11-07)
 
+**PM's lobby lists (0x49a3c0's fill, read in the emulator 2026-11-08; piece 6c-2).** Each list is an object on the
+lobby screen (its items at +0x15c, its pick at +0x16c; 0x48a740 clears, 0x48a4a0 adds (text, value), 0x48a2e0 picks):
+GAME_TYPE +0x12778 "Deathmatch without Teams" 0, "Deathmatch with Teams" 1, "Attack/Defend - One Base" 3,
+"Attack/Defend - Two Bases" 4 (the game's kind; any but 0 team play); the worlds +0x12b9c messages 0x320..0x327 valued
+0x100, 0x200, 0x101, 0x201, 0x102, 0x202, 0x103, 0x203 (folder | mp number << 8); REALLOC +0x12fc0 "0" 0, "X .5" 1,
+"X 1" 2, "X 1.5" 3, "X 3" 6, "X -3" -6, "X -1.5" -3, "X -1" -2, "X -.5" -1 (the rewards' scale is the value / 2: the
+multiplier shown); KILLS +0x13808 message 0x2b2 with 1, 2, 5, 10, 20, 40, 50, 60, 80 and 0x2b5 for 1000 (no limit),
+the fifth picked; TIME +0x13c2c 0x2b6..0x2b9 for 5, 10, 20, 30 minutes and 0x2ba for 1000 (none); WEIGHT +0x14050
+0x2bb with 10 to 100 tons by 5; ROUNDS +0x133e4 "%d" from 1 to the match's rounds between rounds, else to 10. MW3's
+were kills 1, 5, 10, 20, 40 and 100 for none, its own times and 15 weights.
+
 By the pair map (`analysis-output/pm-diff/pairs.json`, pm-map's columns: compiler only, compiler with other offsets or constants, changed), over the MW3 functions the port's network-side files name. Our transport replaces DirectPlay, so what matters is what reaches what we kept: the messages' contents and types, and the game's rules.
 
 | port file (MW3's) | functions | identical | compiler only | other offsets, constants | changed | MW3 only, gone | new in PM beside it |
