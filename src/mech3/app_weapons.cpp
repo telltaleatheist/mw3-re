@@ -508,6 +508,16 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return zcls::node_find(static_cast<zcls::Node*>(node), name);
   };
   wc.node_by_name = [](Handle node, const char* name) -> Handle { return node_find_prefix(node, name); };  // 0x004abb60
+  // A weapon built on a node (Weapon's second constructor, 0x004b28d0; a mech's TAG): its part by the node
+  // (0x0040ef30, the build's +0x28 mark and +0x40 owner), the part's mech (0x00460000) and the node's name, so it
+  // finds its firepoint. Unset, TAG kept no part or firepoint and fired from the world's origin, its beam out of
+  // sight (pm-tests item 15).
+  wc.node_part = [](Handle n) -> Handle {
+    zcls::Node* z = zn(n);
+    return z && (z->get<uint32_t>(0x28) & 0xff) ? static_cast<Handle>(z->owner) : nullptr;
+  };
+  wc.part_mech = [](Handle part) -> Handle { return part ? static_cast<MechPart*>(part)->mech : nullptr; };
+  wc.node_name = [](Handle n) -> const char* { return n ? zn(n)->name() : ""; };
   // The aim's view test (0x0041bc20): [0x005f4c8c] +0x64 is the mech and its
   // camera (+0x58) +4 is 1, the cockpit.
   aim_calls().cockpit_view = [](Mech& m) {

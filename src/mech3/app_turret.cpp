@@ -1,5 +1,6 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_turret.h"
+#include "mech3/entity_classes.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -289,6 +290,10 @@ struct WiredTurrets : tur::TurretHooks {
     return hd(&at);
   }
   Handle ams_target(Ams& a) override { return hd(a.target_at()); }
+  bool seen_is_entity(Handle seen) override {
+    const EntityClass k = entity_facts().class_of(seen);
+    return k != EntityClass::target && k != EntityClass::trap;
+  }
 };
 WiredTurrets g_hooks;
 

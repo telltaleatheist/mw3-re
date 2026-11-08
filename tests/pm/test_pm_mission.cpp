@@ -25,6 +25,9 @@
 #include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_sensors.h"
+#include "mech3/app_turret.h"
+#include "mech3/turret.h"
+#include "mech3/sensors.h"
 #include "mech3/app_view.h"
 #include "mech3/player_view.h"
 #include "mech3/app_vehicle.h"
@@ -344,6 +347,7 @@ int pm_watch_follow(void* mech);
 void pm_kill_begin(void* player);
 int pm_kill_fire(void* player, const float at[3]);
 int pm_trigger_all(void* player, const float at[3]);
+float pm_tag_muzzle(void* player, const float at[3], bool* mounted);
 float pm_mech_toughness(void* mech, bool* invincible);
 bool pm_cheat(void* player, const char* text);
 void pm_kill_left(void* mech, char* out, size_t n);
@@ -545,6 +549,26 @@ static void kill_run(const char* which, bool quick) {
     mech3::entities_box_counts(&during, &left_on, &fields, &stealth);
     box_field = std::max(box_field, fields), box_stealth = std::max(box_stealth, stealth);
     box_during = std::max(box_during, during), box_left = std::max(box_left, left_on);
+    if (const char* tri = std::getenv("PM_TRIANGLE")) {  // pm-tests item 16: the player that far from this mech, it targeted
+      static int t = 0;
+      ++t;
+      if (t == 2) {
+        const float d = static_cast<float>(std::atof(tri));
+        const float to[3] = {there[0] + d, pm_kill_ground(there[0] + d, 300.0f, there[2]), there[2]};
+        mech3::move_mech(player, to, static_cast<float>(std::atan2(d, 0.0)));
+      }
+      if (t == 30) mech3::program_hud_target(m, 0);
+      if (t >= 30 && t < 400) {
+        int sets = 0;
+        const float pulse = mech3::program_hud_target_pulse(&sets);
+        float me[3];
+        mech3::mech_world_position(player, me);
+        const float dx = me[0] - there[0], dz = me[2] - there[2];
+        if (t % 10 == 0 || t < 40) std::printf("  triangle t %d dist %.0f pulse %.3f sets %d\n", t, std::sqrt(dx * dx + dz * dz), pulse, sets);
+      }
+      if (t == 400) done = true;
+      return;
+    }
     if (const char* watch = std::getenv("PM_M2_WATCH")) {  // x,z: the player there; PM_M2_ACROSS=x,z,t later; each AI mech logged
       static int t = 0;
       float x = 0, z = 0;
@@ -652,10 +676,64 @@ static void kill_run(const char* which, bool quick) {
     }
     if (std::getenv("PM_EVERYONE") && t_everyone_once()) {  // every object the sensors know: kind, name, team, allies, alive
       for (const mech3::ChainSide& x : mech3::chain_everyone())
-        std::printf("  everyone %s %s team %x allies %x %s\n", x.t.kind, x.t.name.c_str(), x.team, x.allies, x.alive ? "alive" : "dead");
+      {
+        float at[3] = {};
+        mech3::hud_object_place(mech3::chain_object(x.t.h), at);
+        std::printf("  everyone %s %s team %x allies %x %s at %.0f %.0f %.0f\n", x.t.kind, x.t.name.c_str(), x.team, x.allies,
+                    x.alive ? "alive" : "dead", at[0], at[1], at[2]);
+      }
     }
     // PM_HOSTILES=metres: each hostile but the mechs in turn (vehicles, turrets, targets.zrd's), the player that far
     // from it, every weapon through its trigger at its node until it dies or 300 frames pass (pm-tests item 9).
+    if (std::getenv("PM_TAG_MUZZLE")) {  // pm-tests item 15: TAG added as the build does, aimed ahead
+      static int t = 0;
+      if (++t == 30) {
+        bool mounted = false;
+        float at[3];
+        zcls::node_world_point(static_cast<zcls::Node*>(mech3::hud_object_node(player)), at);
+        at[0] += 100.0f;
+        const float d = pm_tag_muzzle(player, at, &mounted);
+        std::printf("  TAG: mounted %d, its muzzle %.1f m from the mech\n", mounted, d);
+        EXPECT(mounted);
+        EXPECT(d >= 0.0f && d < 15.0f);
+        done = true;
+      }
+      return;
+    }
+    // pm-tests item 17: an ALLY turret (turf_lrm01) with an AI mech 120 m from it and the player 60 m; at frame 120
+    // the mech goes 900 m away. The turret's target may be the mech, never anything of the player's side.
+    if (std::getenv("PM_ALLY_TURRET")) {
+      static int t = 0, bad = 0, engaged = 0;
+      static mech3::tur::Turret* tu = nullptr;
+      static float tp[3] = {};
+      ++t;
+      if (t == 2) {
+        for (const mech3::ChainSide& x : mech3::chain_everyone())
+          if (x.t.name == "turf_lrm01") tu = mech3::program_turret_by_handle(x.t.h), mech3::hud_object_place(mech3::chain_object(x.t.h), tp);
+        EXPECT(tu != nullptr);
+        if (!tu) return void(done = true);
+        const float pa[3] = {tp[0] + 60.0f, pm_kill_ground(tp[0] + 60.0f, 300.0f, tp[2]), tp[2]};
+        mech3::move_mech(player, pa, 0.0f);
+        const float ma[3] = {tp[0] - 120.0f, pm_kill_ground(tp[0] - 120.0f, 300.0f, tp[2]), tp[2]};
+        mech3::move_mech(m, ma, 0.0f);
+      }
+      if (t == 120) {
+        const float far[3] = {tp[0] - 900.0f, pm_kill_ground(tp[0] - 900.0f, 300.0f, tp[2]), tp[2]};
+        mech3::move_mech(m, far, 0.0f);
+      }
+      if (t > 2 && tu && tu->target && tu->target->seen) {
+        const mech3::ai::AiTarget* a = mech3::ai::sensor_hooks().fields(tu->target->seen);
+        if (a && (a->team & tu->enemies)) ++engaged;
+        else ++bad;
+      }
+      if (t == 300) {
+        std::printf("  ally turret: %d frames on an enemy, %d on its own side\n", engaged, bad);
+        EXPECT(engaged > 0);
+        EXPECT(bad == 0);
+        done = true;
+      }
+      return;
+    }
     if (const char* range = std::getenv("PM_HOSTILES")) {
       static int t = 0, from = 0, shots_at = 0, killed = 0, alive = 0;
       static std::vector<mech3::ChainTarget> all;
@@ -1019,7 +1097,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1063,6 +1141,42 @@ TEST(pm_c2m3_lasers_kill_the_tanker) {
   if (child == 0) {
     setenv("PM_HOSTILES", "60", 1);
     setenv("PM_BEAMS_ONLY", "1", 1);
+    kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// pm-tests item 15: TAG, added by its node (the mech's equipment 13), finds its part and firepoint, so its beam
+// starts at the mech; without the weapon calls' node lookups it fired from the world's origin, out of sight.
+TEST(pm_tag_fires_from_the_mech) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_TAG_MUZZLE", "1", 1);
+    kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// pm-tests item 17: Pirate's Moon's ALLY turrets (turf_) never take the player's side as a target. MW3's pick ended
+// on the player's own contact (0x004a7b40), which an ALLY turret kept once its enemy left, and fired on the player.
+TEST(pm_c2m3_ally_turret_keeps_off_the_player) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_ALLY_TURRET", "1", 1);
     kill_run("1,1,3", true);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);

@@ -167,6 +167,9 @@ struct Args {
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the nearest enemy mech in play, facing it
   bool fall_given = false;  // --fall x,z: the player dropped there from y 30 at frame 5 (ours, for the canyon)
   float fall[2] = {};
+  std::string pilot;  // --pilot NAME (ours, for reproducing a player's report): his mech and loadout
+  int pilot_game = 0;
+  int target = 0;  // --target N (ours, for checking TARGET): from frame N the nearest AI mech targeted, the pulse logged  // --pilot-game N: that pilot's saved game of mission N
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
@@ -269,6 +272,9 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
     else if (s == "--fall" && next(1)) a.fall_given = std::sscanf(argv[++i], "%f,%f", &a.fall[0], &a.fall[1]) == 2;
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
+    else if (s == "--pilot" && next(1)) a.pilot = argv[++i];
+    else if (s == "--target" && next(1)) a.target = std::atoi(argv[++i]);
+    else if (s == "--pilot-game" && next(1)) a.pilot_game = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
@@ -1050,6 +1056,14 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       l.have_pos = a.have_pos;
       for (int i = 0; i < 3; ++i) l.eye[i] = a.pos[i];
       l.yaw = a.look[0] * 0.0174533f, l.pitch = a.look[1] * 0.0174533f;
+      if (!a.pilot.empty()) {  // the pilot's current game's slot (its mech, loadout and skin), as the tests' PM_PILOT
+        mech3::current_pilot() = mech3::load_pilot(a.pilot.c_str(), false);
+        if (mech3::Pilot* pp = mech3::current_pilot(); pp && a.pilot_game > 0)
+          for (mech3::Game* g : pp->campaigns)
+            if (auto* cg = dynamic_cast<mech3::CampaignGame*>(g); cg && cg->mission_number() == a.pilot_game) pp->current = g;
+        l.keep_pilot = mech3::current_pilot() != nullptr;
+        std::printf("mw3: pilot %s: %s\n", a.pilot.c_str(), l.keep_pilot ? "loaded" : "not found");
+      }
       engine.set_launch(l);
       launch = true;
       const bool l_type3 = l.type == 3;
@@ -1215,6 +1229,28 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           const int32_t g = a.fire_group > 0 ? (mech3::mech_select_group(m, a.fire_group - 1), a.fire_group - 1)
                                               : mech3::mech_select_hot_group(m);
           std::printf("mw3: firing group %d: %s\n", g + 1, mech3::mech_group_names(m, g).c_str());
+        }
+        if (a.target > 0 && shots >= a.target && shots < a.target + 120) {
+          void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));
+          if (shots == a.target) {
+            int32_t made = 0;
+            const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+            float me[3];
+            mech3::mech_world_position(m, me);
+            void* best = nullptr;
+            float bd = 1e30f;
+            for (int32_t i = 0; i < made; ++i) {
+              float p[3];
+              mech3::mech_world_position(ai[i].mech, p);
+              const float d = (p[0] - me[0]) * (p[0] - me[0]) + (p[2] - me[2]) * (p[2] - me[2]);
+              if (d < bd && mech3::program_hud_target(ai[i].mech, 0)) bd = d, best = ai[i].mech;
+            }
+            if (best) mech3::program_hud_target(best, 0);
+            std::printf("mw3: targeted at %.0f m\n", best ? std::sqrt(bd) : -1.0f);
+          }
+          int sets = 0;
+          const float pulse = mech3::program_hud_target_pulse(&sets);
+          std::printf("mw3: frame %d dt %.1f ms: pulse %.3f, sets %d\n", shots, engine.frame_dt() * 1000.0f, pulse, sets);
         }
         // --objectives N (ours, for checking): F12's box shown from the N-th frame.
         if (a.objectives > 0 && shots == a.objectives) mech3::program_hud_objectives_toggle();

@@ -14,6 +14,9 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
+#include "mech3/mech_ids.h"
+#include "gamez/zclass/object3d.h"
+#include "mech3/mech_reader.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
 #include "mech3/mech_control.h"
@@ -376,3 +379,32 @@ float pm_mech_toughness(void* mech, bool* invincible) {
   return sum;
 }
 bool pm_cheat(void* player, const char* text) { return cheat_enter(*static_cast<Mech*>(player), text); }
+
+// pm-tests item 15: TAG added as a mech's build adds it (configure_weapons: by the first firepoint's name under the
+// mech's node), aimed at `at`: its muzzle's distance from the mech's place, -1 when it can't be added or aimed, and whether
+// it found its part and firepoint. This harness's mechs have no firepoint nodes (the program's do), so one is made
+// under the torso, marked as the build marks a part's subtree (+0x28, the part at +0x40).
+float pm_tag_muzzle(void* player, const float at[3], bool* mounted) {
+  auto* me = static_cast<Mech*>(player);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  *mounted = false;
+  const std::vector<Firepoint*>* fps = weapon_calls().firepoints ? weapon_calls().firepoints(me) : nullptr;
+  if (!fps || fps->empty() || !me->torso) return -1.0f;
+  auto* torso = static_cast<zcls::Node*>(me->torso->node);
+  if (!weapon_calls().node_by_name || !weapon_calls().node_by_name(me->node, (*fps)[0]->name)) {
+    zcls::Node* fp = zcls::object3d_create();
+    zcls::node_set_name(fp, (*fps)[0]->name);
+    fp->put<uint32_t>(0x28, fp->get<uint32_t>(0x28) | 1u);
+    fp->owner = me->torso;
+    zcls::node_add_child(torso, fp);
+  }
+  Weapon* t = wm->add(kTag, me->node, (*fps)[0]->name, 4);
+  if (!t) return -1.0f;
+  *mounted = t->part && t->firepoint;
+  Vec3f to{at[0], at[1], at[2]}, mz{}, dir{};
+  if (!t->aim(&to, &mz, &dir, nullptr)) return -1.0f;
+  float p[3] = {};
+  mech_world_position(me, p);  // (the torso's node_world_point can fail and leave it unset)
+  const float d[3] = {mz.x - p[0], mz.y - p[1], mz.z - p[2]};
+  return std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+}

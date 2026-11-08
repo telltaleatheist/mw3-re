@@ -330,6 +330,9 @@ class TurretHooks : public zgame::Unported {
   virtual bool line_clear(Handle self, Handle v) { return unported("0x004d5980", {self, v, 0}) != 0; }
   virtual void set_target(Turret& t, ai::Contact* c) { t.ai::AiTarget::set_target(c, false); }
   virtual Handle entity_position(Handle e) { return unported("0x005a8630", {e}); }
+  // Pirate's Moon 0x004aa5a0's test on its target: the seen object's vehicle (vt+0x2c) answers an entity (vt+0x48);
+  // a targets.zrd object answers none (0x00406ce0).
+  virtual bool seen_is_entity(Handle seen) { (void)seen; return true; }
 };
 void set_turret_hooks(TurretHooks* h);
 TurretHooks& turret_hooks();
