@@ -115,9 +115,31 @@ float pm_kill_ground(float x, float y, float z);  // pm_kill.cpp
 
 // c1m1's two Shadow Cats start powered down; the data wakes them 180 s in, by `shadowcat_time`
 // through `shadowcat_go`, or when the player's close. The first thing PM's AI was seen not to do.
+static void shadow_cats_run();
 TEST(pm_c1m1_shadow_cats_wake) {
   // A minute in an optimized build, several in the default: run with the campaign chains.
   if (!std::getenv("MW3_CAMPAIGN") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  // In a child, as the other whole-mission runs: the mission's world stays on zClass's lists after the run, and
+  // the next mission (in each later test's child) then counts two worlds and updates the old one's freed cells.
+  // tools/pm-hits counts in this process and writes at its exit: that run (this test alone) stays in it.
+  if (std::getenv("PM_AI_HITS")) return shadow_cats_run();
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    shadow_cats_run();
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+  shadow_cats_run();
+#endif
+}
+
+static void shadow_cats_run() {
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3PM_GAME_DIR);
