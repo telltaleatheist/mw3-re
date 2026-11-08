@@ -87,7 +87,7 @@ struct NetGame {
   uint32_t ping_counter = 1;           // [0x005e5690]
   uint32_t ping_turn = 0;              // [0x00605fc8]  the player pinged last (0x00470ab0)
   uint32_t acked_time = 0;             // [0x00605fc4]  the last state acknowledged's send time (0x004709d0)
-  uint8_t echo = 0;                    // [0x00605fb8]  an effect heard is being replayed: not sent again
+  uint8_t echo = 0;                    // [0x00605fb8], PM [0x00629a89]  an effect heard is being replayed: not sent again
 };
 NetGame& net_game();
 
@@ -311,8 +311,8 @@ void net_send_shove(Mech& other, float damage, float vx, float vz);
 // negative radius (made from a 0x19) passes, its radius made positive.
 int net_crater_veto(const zwep::CraterOrder* order);
 void net_crater_in(const uint8_t* msg, size_t size);   // 0x0046fde0
-void net_anim_sent(zeff::AnimLogRecord* rec);          // 0x0046feb0, the anim log's: the effect to all (0x1a)
-void net_effect_in(const uint8_t* msg, size_t size);   // 0x0046ff50: replayed unless one like it runs
+void net_anim_sent(zeff::AnimLogRecord* rec);          // PM 0x00471f50, the anim log's: the effect to all (0x1a)
+void net_effect_in(const uint8_t* msg, size_t size);   // PM 0x00471fd0: replayed unless one like it is logged
 void net_send_drop(uint32_t station);                  // PM 0x00472010: a repair station used (0x1d, MW3's 0x1b)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size);  // 0x0046ffd0
 void net_clock_in(const uint8_t* msg, size_t size);    // 0x00470740: the clock, and the game's end with its reason

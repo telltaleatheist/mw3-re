@@ -939,11 +939,10 @@ void net_host_replay() {
   zdec::history_each(replay_crater, nullptr);
 }
 
-// Mech3.exe 1.2 @ 0x0046feb0 (ECX the record). The mobile field base
-// stations' animations are not sent; none is while one heard is replayed.
+// Pirate's Moon 1.0 @ 0x00471f50 (the record; MW3's 0x0046feb0). None is sent while one heard is replayed. PM
+// dropped MW3's skip of the field base stations' animations ("mfb_station_01"): PM sends those too.
 void net_anim_sent(zeff::AnimLogRecord* rec) {
-  if (std::strstr(rec->name, "mfb_station_01")) return;  // [0x005e4b68], on 0x0050d260's name
-  if (g_net.echo) return;  // [0x00605fb8]
+  if (g_net.echo) return;  // [0x00629a89]
   const auto n = static_cast<size_t>(zeff::log_record_size(rec));  // 0x0050ca20
   std::vector<uint8_t> b(n + 4, 0);
   put16(b, 0, 0x1a);
@@ -952,7 +951,7 @@ void net_anim_sent(zeff::AnimLogRecord* rec) {
   znet::send(b.data(), static_cast<uint32_t>(b.size()), true, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0046ff50
+// Pirate's Moon 1.0 @ 0x00471fd0 (MW3's 0x0046ff50, the same: the record passed on the stack)
 void net_effect_in(const uint8_t* msg, size_t size) {
   zeff::AnimLogRecord r;
   std::memset(&r, 0, sizeof r);
@@ -972,7 +971,7 @@ void net_effect_in(const uint8_t* msg, size_t size) {
     if ((r.type == 3 || r.type == 4) && !live(static_cast<int32_t>(r.args[0]))) return;
     if (r.type == 4 && !live(static_cast<int32_t>(r.args[4]))) return;
   }
-  if (g_calls.log_has ? g_calls.log_has(&r) : zeff::log_has(&r)) return;  // 0x0050b680
+  if (g_calls.log_has ? g_calls.log_has(&r) : zeff::log_has(&r)) return;  // PM 0x00524d70, MW3 0x0050b680
   g_net.echo = 1;
   g_calls.log_replay ? g_calls.log_replay(&r) : (void)zeff::log_replay(&r);  // 0x0050ca90
   g_net.echo = 0;

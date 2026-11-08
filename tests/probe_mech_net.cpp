@@ -962,6 +962,7 @@ extern "C" int32_t probe_mech_net_world(const int32_t* in, int32_t* out, int32_t
     case 2: {
       zeff::AnimLogRecord r;
       std::memcpy(&r, msg.data(), std::min(msg.size(), sizeof r));
+      g.echo = static_cast<uint8_t>(in[wMade] == 2);  // test_pm_net_effect: sent while one heard replays
       mech3::net_anim_sent(&r);
       break;
     }
