@@ -126,6 +126,8 @@ void wire_walk::set_behaviour(Brain& b_, zgame::Handle b) { b_.current().set_beh
 
 void wire_walk::order_pop(Brain& b_) { b_.current().pop(); }
 
+void wire_walk::return_back(Brain& b_) { pm_queue_back(b_, nullptr); }
+
 zgame::Handle wire_walk::contact_pick(Brain& b_, zgame::Handle v, int32_t kind) {
   const Contact* c = brain_hooks().pick(v, kind);
   return c ? brain_hooks().contact_entity(c) : 0;

@@ -9,6 +9,7 @@ Then the guarding context 0x4dfb50 with its measure 0x4dfc30. On any of them the
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_walk.py [runs]
 """
 import ctypes
+import gc
 import math
 import os
 import random
@@ -18,8 +19,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.md
+from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
+import original  # noqa: E402
 import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -145,6 +148,17 @@ class Exe(test_pm_zar.Emulated):
             self.taken = [self.taken[0] + 1, self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)]
             return 0
         self.native_stub(0x4d60d0, along, pop=8)
+        # The terminus's end: its new 0x5ef250 (operator new, 0x4ea070) to 0x4ea180 on the brain's +0x15c, its list.
+        self.backs = 0
+        self.native_stub(0x5ce8c6, lambda c: self.alloc(8))
+        self.native_stub(0x4ea070, lambda c: c.ecx)
+
+        def back(c):
+            item = self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)
+            assert c.ecx == self.brain + 0x15c and self.g(item) == 0x5ef250, (hex(c.ecx), hex(self.g(item)))
+            self.backs += 1
+            return 0
+        self.native_stub(0x4ea180, back, pop=4)
         self.native_stub(0x4f9f00, take, pop=4)
         # The manoeuvre 0x4d5040: the vehicle's answers, the order's pop, the picks.
         self.man = self.alloc(0x40)
@@ -304,6 +318,7 @@ class Exe(test_pm_zar.Emulated):
             exact += [self.g(self.cp + 8), self.g(self.cp + 0x18), int(self.g(self.brain + 0x3c) == 0), self.sends]
         exact += [self.m_stops, self.g(self.brain + 0x110)]
         exact += [self.g(self.man + 0x10), self.g(self.man + 0x2c), self.m_pops, self.g(self.brain + 0x118) & 0xff]
+        exact += [self.g(self.brain + 0x158) & 0xff, self.g(self.order + 4) & 0xff, self.backs]
         exact += [self.g(m + 0xc), self.taken[0], self.taken[1]]
         return ' '.join(f'{v:x}' for v in vals) + ' | ' + ' '.join(str(v) for v in exact) + '\n'
 
@@ -437,9 +452,31 @@ def fight_plan(seed):
                               [r.choice([0.0, 1.0, 0.5]), r.choice([0.0, 0.0, 1.0, -0.3]), r.choice([0.0, clock[0], clock[0] + 5, clock[0] - 5]),
                                r.choice([0.05, 0.1, 0.3, 0.6, 0.7, 0.9]), r.choice([0.0, 0.5, -0.5, 1.0, 1.5, -2.0, 4.0, -9.0, 30.0, 1.002, -1.002, r.uniform(-6, 6)]),
                                r.choice([0.0, 0.5, -0.5, 1.5, -2.0, 4.0, -9.0, 30.0, 1.002, -1.002, r.uniform(-6, 6)]), r.choice([-1000.0, 1000.0, 0.0])] + tp + ld))
-        elif k < 0.9:  # the move state, from each of its steps
-            for _ in range(r.randrange(1, 4)):
-                lines.append(('m', r.choice([0, 1, 2, 2]), r.choice([0, 1, 2]),
+        elif k < 0.9:  # the move state or the backup node's, from each of their steps
+            backup = r.random() < 0.5
+            terminus = not backup and r.random() < 0.4
+            ws, ts = [ln for ln in lines if ln[0] == 'W'], [ln for ln in lines if ln[0] == 'T']
+            if backup and ws and ts and r.random() < 0.5:  # facing back along the way, within a few degrees: the turns done
+                d = ts[-1][1][3:5]
+                # The front to the way back (steps 2, 3) or the back to it (step 0 done, the drive on its front).
+                t = math.atan2(-d[0], -d[1]) + math.radians(r.choice([0.0, 2.0, -10.0, 25.0, -25.4, 26.0, 180.0, 178.0, 160.0]))
+                v = list(ws[-1][1])
+                v[6], v[7] = f32(math.sin(t)), f32(math.cos(t))
+                lines.append((ws[-1][0], v) + ws[-1][2:])
+            for _ in range(r.randrange(2, 7) if backup or terminus else r.randrange(1, 4)):
+                if (backup or terminus) and ts and r.random() < (0.2 if backup else 0.5):  # at the way's end, its sum the distance
+                    tv = list(ts[-1][1])
+                    tv[7] = tv[5]
+                    lines.append(('T', tv))
+                    ts.append(('T', tv))
+                    on = f32(f32(abs(f32(tv[10]))) + f32(abs(f32(tv[9]))))
+                    lines.append(('t' if terminus else 'k', r.choice([0, 1]), r.choice([0, 1, 2, 2]),
+                                  [f32(on * r.choice([1.0, 1.0, 2.0, 0.5])) if terminus else on, r.choice([0.01, 0.05]), r.choice([0.0, 1e4]), r.uniform(-1, 1), r.uniform(-1, 1)]))
+                    continue
+                if terminus:
+                    lines.append(('t', r.choice([0, 1, 1, 2]), 0, [r.choice([0.0, 5.0, 50.0, 500.0, r.uniform(0, 8), r.uniform(0, 80)]), r.choice([0.002, 0.01, 0.05, r.uniform(0, 5)]), 0.0, r.uniform(-1, 1), r.uniform(-1, 1)]))
+                    continue
+                lines.append(('k' if backup else 'm', r.choice([0, 0, 1, 2, 2, 3] if backup else [0, 1, 2, 2]), r.choice([0, 1, 2, 2] if backup else [0, 1, 2]),
                               [r.choice([0.0, 5.0, 50.0, 500.0, r.uniform(0, 8), r.uniform(0, 80)]), r.choice([0.002, 0.01, 0.05, r.uniform(0, 5)]), r.choice([0.0, clock[0], 200.0, 1e4]), r.uniform(-1, 1), r.uniform(-1, 1)]))
         elif k < 0.95:  # the walk's step, from each of its steps
             if r.random() < 0.6:
@@ -620,6 +657,28 @@ def run_exe(x, lines):
             x.fs(x.move + 0x10, ln[3][3:4])
             x.fs(x.move + 0x18, ln[3][4:5])
             x.call(0x4dcfe0, ecx=x.move, args=(0,))
+        elif op == 'k':
+            if not getattr(x, 'aim_hook', False):
+                # The backup run's aim, a stack vector it never sets in steps 0 and 2 ([ebp-0x28]): the port's FIX,
+                # back along the way, put there on entry.
+                def aim(uc, ad, sz, dir_at):
+                    sp = uc.reg_read(UC_X86_REG_ESP)
+                    d = struct.unpack('<2I', bytes(uc.mem_read(dir_at, 8)))
+                    uc.mem_write(sp - 0x2c, struct.pack('<3I', d[0] ^ 0x80000000, 0, d[1] ^ 0x80000000))
+                x.cpu._uc.hook_add(UC_HOOK_CODE, aim, x.brain + 0x210 + 0x10, begin=0x4ddab0, end=0x4ddab0)
+                x.aim_hook = True
+            x.w32(x.move + 0xc, ln[1])
+            x.next = ln[2]
+            x.fs(x.move + 0x1c, ln[3][:3])
+            x.fs(x.move + 0x10, ln[3][3:4])
+            x.fs(x.move + 0x18, ln[3][4:5])
+            x.call(0x4ddab0, ecx=x.move, args=(0,))
+        elif op == 't':
+            x.w32(x.move + 0xc, ln[1])
+            x.fs(x.move + 0x1c, ln[3][:3])
+            x.fs(x.move + 0x10, ln[3][3:4])
+            x.fs(x.move + 0x18, ln[3][4:5])
+            x.call(0x4e1fd0, ecx=x.move, args=(0,))
         elif op == 'u':
             v, f = ln[1], ln[2]
             x.w32(x.man + 8, v[0])
@@ -769,7 +828,7 @@ def text(lines):
             o.append('u ' + ' '.join(str(u) for u in ln[1]) + ' ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] == 'e':
             o.append(f'e {ln[1]} {ln[2]}')
-        elif ln[0] in 'mqQ':
+        elif ln[0] in 'mktqQ':
             o.append(f'{ln[0]} {ln[1]} {ln[2]} ' + ' '.join(f'{bits(u):x}' for u in ln[3]))
         elif ln[0] == 'j':
             o.append(f'j {ln[1]} {bits(ln[2]):x} {bits(ln[3]):x}')
@@ -794,6 +853,9 @@ def main():
     for seed in range(runs * 7):
         lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
+        # original.py keeps every emulator for the precision check at exit, 40 MB a plan: the newest is enough here.
+        del original._ORIGINALS[:-1]
+        gc.collect()
         if runs * 5 <= seed < runs * 6:
             for p in a:
                 ex = p.partition('|')[2].split()
@@ -820,6 +882,16 @@ def main():
                     seen['taken', '1' if int(ex[-2]) else '0'] = seen.get(('taken', '1' if int(ex[-2]) else '0'), 0) + 1
                     for name, i in (('in_range', 3), ('at_stop', 4), ('no_target', 5), ('way', 6), ('may_go', 7), ('off_way', 8)):
                         seen[name, ex[i]] = seen.get((name, ex[i]), 0) + 1
+        for ln, was, p in zip(lines[1:], a, a[1:]):
+            ex, before = p.partition('|')[2].split(), was.partition('|')[2].split()
+            if ln[0] == 't' and len(ex) > 8:
+                seen['terminus', ex[-3]] = seen.get(('terminus', ex[-3]), 0) + 1
+                if len(before) > 8 and ex[-4] != before[-4]:
+                    seen['terminus', 'back'] = seen.get(('terminus', 'back'), 0) + 1
+            if ln[0] == 'k' and len(ex) > 8:
+                seen['backup', ex[-3]] = seen.get(('backup', ex[-3]), 0) + 1
+                if len(before) > 8 and ex[-2] != before[-2]:  # the next behaviour taken by this line
+                    seen['backup', 'taken'] = seen.get(('backup', 'taken'), 0) + 1
         assert lib.probe_pm_ai_walk(text(lines).encode(), buf, len(buf)) >= 0
         b = buf.value.decode().split('\n')
         steps += len(a)
@@ -845,6 +917,9 @@ def main():
                      queued=(seen.get(('queued', '1'), 0), 1),
                      moved=(seen.get(('move', '1'), 0), 5), waited=(seen.get(('move', '2'), 0), 5),
                      taken=(seen.get(('taken', '1'), 0), 5),
+                     **{f'backup_{k}': (seen.get(('backup', k), 0), 5) for k in '0123'},
+                     backup_taken=(seen.get(('backup', 'taken'), 0), 1),
+                     **{f'terminus_{k}': (seen.get(('terminus', k), 0), 5) for k in ('1', 'back')},
                      **{f'guard_{k}': (seen.get(('guard', k), 0), 1) for k in '023'},
                      **{f'circle_{k}': (seen.get(('circle', k), 0), 1) for k in ('cleared', 'sent0', 'sent', 'left', 'right')},
                      **{f'step_{k}': (seen.get(('step', str(k)), 0), 5) for k in range(1, 11)})
