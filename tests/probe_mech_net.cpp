@@ -1160,3 +1160,38 @@ extern "C" int32_t probe_mech_net_drop_send(int32_t running, uint32_t id, int32_
   std::copy(lg.begin(), lg.begin() + m, out);
   return m;
 }
+
+// The chat line (0x1f) for test_pm_net_chat.py: the HUD's line for a message from a player, the players named
+// "P<id>" (1..8), the message table's texts "M<id>".
+#include "gamez/zutil/zutl_msg.h"
+#include "mech3/chat_panel.h"
+extern "C" int32_t probe_mech_net_chat(uint32_t from, const uint8_t* msg, int32_t size, char* out, int32_t cap) {
+  static std::string s_line;
+  s_line = "(none)";
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  for (uint32_t id = 1; id <= 8; ++id) {
+    auto r = std::make_unique<znet::PlayerRecord>();
+    r->id = id, r->short_name = "P" + std::to_string(id);
+    znet::lists().players.push_back(std::move(r));
+  }
+  auto& m = zutl::messages();
+  const auto was = m.get_text;
+  m.get_text = [](int32_t id) -> const char* {
+    static std::string t;
+    t = "M" + std::to_string(id);
+    return t.c_str();
+  };
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  c.hud_line = [](float t, const char* line) { s_line = std::to_string(bits(t)) + "|" + line; };
+  mech3::net_chat_in(nullptr, from, msg, static_cast<size_t>(size));
+  c = mech3::NetCalls{};
+  m.get_text = was;
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  const int32_t n = static_cast<int32_t>(std::min<size_t>(s_line.size(), static_cast<size_t>(cap - 1)));
+  std::memcpy(out, s_line.data(), static_cast<size_t>(n));
+  out[n] = 0;
+  return n;
+}
