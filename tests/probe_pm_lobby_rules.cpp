@@ -210,3 +210,65 @@ extern "C" int32_t probe_pm_next_round(const int32_t* in, int32_t* out, int32_t 
   std::copy(lg.begin(), lg.begin() + m, out);
   return m;
 }
+
+// Pirate's Moon's end of a round's lines (0x0049b730, with the score lines 0x00436db0) for test_pm_round_lines.py.
+// in: team play, rounds played, extended, over, the saved total, the rounds (+0x74); the players (count, then 8 of:
+// id, team, order, kills, deaths, rounds, score, key), the teams (count, then 4 of: id, rounds, score, key), the
+// lines' order (12). Names: "P<id>", "T<id>"; message 0x2bd "M2BD". out: each line's bytes and 0, then -1, the most
+// rounds won and how many have it.
+namespace {
+struct RoundLinesHooks : mech3::PilotHooks {
+  const char* message(int32_t id) override { return id == 0x2bd ? "M2BD" : "?"; }
+};
+}  // namespace
+
+extern "C" int32_t probe_pm_round_lines(const int32_t* in, int32_t* out, int32_t cap) {
+  mech3::multiplayer_setup().team_play = in[0];
+  RoundLinesHooks hooks;
+  mech3::PilotHooks& old = mech3::pilot_hooks();
+  mech3::set_pilot_hooks(&hooks);
+  mech3::MultiplayerGame g(nullptr);
+  g.rounds_total = in[5];
+  std::vector<mech3::ScoreLine*> lines(12, nullptr);
+  const int32_t* p = in + 7;
+  for (int32_t k = 0; k < in[6]; ++k, p += 8) {
+    auto r = std::make_unique<mech3::LobbyPlayer>();
+    r->id = static_cast<uint32_t>(p[0]), r->team = static_cast<uint32_t>(p[1]), r->order = p[2];
+    r->kills = p[3], r->deaths = p[4], r->rounds = p[5], r->name = "P" + std::to_string(p[0]);
+    auto l = std::make_unique<mech3::ScoreLine>();
+    l->kind = 1, l->score = p[6], l->key = static_cast<uint32_t>(p[7]);
+    r->score = lines[k] = l.get();
+    g.score_lines.push_back(std::move(l));
+    g.lobby_players.push_back(std::move(r));
+  }
+  const int32_t tbase = 7 + 8 * 8;
+  const int32_t* t = in + tbase + 1;
+  for (int32_t k = 0; k < in[tbase]; ++k, t += 4) {
+    auto r = std::make_unique<mech3::LobbyTeam>();
+    r->id = static_cast<uint32_t>(t[0]), r->rounds = t[1], r->name = "T" + std::to_string(t[0]);
+    auto l = std::make_unique<mech3::ScoreLine>();
+    l->kind = 2, l->score = t[2], l->key = static_cast<uint32_t>(t[3]);
+    r->score = lines[8 + k] = l.get();
+    g.score_lines.push_back(std::move(l));
+    g.lobby_teams.push_back(std::move(r));
+  }
+  const int32_t* order = in + tbase + 1 + 4 * 4;
+  std::vector<std::unique_ptr<mech3::ScoreLine>> sorted;
+  for (int32_t k = 0; k < 12; ++k) {
+    if (order[k] < 0) continue;
+    for (auto& u : g.score_lines)
+      if (u && u.get() == lines[order[k]]) sorted.push_back(std::move(u));
+  }
+  g.score_lines = std::move(sorted);
+  std::vector<int32_t> lg;
+  for (const std::string& s : g.round_lines(in[1], in[2] != 0, in[3] != 0, in[4])) {
+    for (unsigned char c : s) lg.push_back(c);
+    lg.push_back(0);
+  }
+  lg.push_back(-1), lg.push_back(g.best), lg.push_back(g.best_count);
+  mech3::set_pilot_hooks(&old);
+  mech3::multiplayer_setup().team_play = 0;
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
