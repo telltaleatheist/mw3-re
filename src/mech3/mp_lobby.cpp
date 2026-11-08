@@ -260,7 +260,6 @@ void LobbyScreen::enter(bool from_game) {
   set_labels(player_name, my_name && *my_name ? my_name : "Unknown");  // [0x005e56f0]
   const std::string& game_name = znet::session().desc.name;
   set_labels(session_name, game_name.empty() ? "Some Game" : game_name.c_str());  // [0x005e7c30]
-  scores(true);
   // Pirate's Moon 0x0049a3c0's rounds: extended, over, the next round or the match's end (the results list's lines).
   const RoundsEntry rounds = game->enter_rounds(from_game, &net_rounds_played(), me, znet::is_host(),
                                                 [](LobbyTeam& t, bool kept) {
@@ -278,7 +277,9 @@ void LobbyScreen::enter(bool from_game) {
                                                 });
   between_rounds = rounds.next;  // +0x1679d
   locked = rounds.next;          // +0x16799: the next round's options stay locked
-  results = rounds.lines;        // the results list's (+0x15e14; piece 6c shows it)
+  results = rounds.lines;        // SCORES_LIST's lines (0x0049b730 within it)
+  round_extended = rounds.extended, round_over = rounds.over, round_over_total = rounds.over_total;  // +0x1679f..+0x167a4
+  show_results();
   // PM's data (0x1c bytes): kind 1, the skin, the state, 0, the rounds won and place (between rounds), 0. Ours after
   // it: the add-on worlds (their count, the values) and the mods block (MW3's had the worlds from its fourth word).
   std::vector<uint32_t> data(kPmDataWords + 1, 0);
@@ -525,23 +526,26 @@ void LobbyScreen::on_button(int32_t id, int32_t a, int32_t b) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00498550. FIX (A): with `report` and a lobby's launch
-// ([0x00608e24]) the scores went to the game service's COM object
-// ([0x007307e0], 0x00589d00..0x00589e30); there is no such service.
+// Pirate's Moon 1.0 @ 0x0049b730 (the 0x14 handler's, 0x0049e8e0; enter's
+// lines are its too): SCORES_LIST shows the round's results lines
+// (MultiplayerGame::round_lines: before any round message 0x2bd, else "End
+// of Round", the tie's and game over's lines and the score lines). MW3's
+// 0x00498550 showed the score lines alone. FIX (A): not reported to the MSN
+// Gaming Zone ([0x0062cc2d]); there is none.
 void LobbyScreen::scores(bool report) {
   (void)report;
+  if (!game) return;
+  results = game->round_lines(net_rounds_played(), round_extended, round_over, round_over_total);
+  show_results();
+}
+
+void LobbyScreen::show_results() {
   scores_list.clear_items();
   scores_list.layout();
   shown_scores.clear();
-  if (!game) return;
-  if (game->lobby_players.empty()) {
-    scores_list.add_item(engine().message(0x2bd), 0);  // "  No Scores to report"
-    return;
-  }
-  game->score_texts(0x15, 7);
-  for (const auto& l : game->score_lines) {
-    scores_list.add_item(l->text.c_str(), 0);
-    shown_scores.push_back(l->text);
+  for (const std::string& l : results) {
+    scores_list.add_item(l.c_str(), 0);
+    shown_scores.push_back(l);
   }
 }
 

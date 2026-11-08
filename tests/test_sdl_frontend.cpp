@@ -3924,7 +3924,14 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
   // Each game's scores, the same on both: B's kill of A (score, kills, suicides), A's nothing.
   char n1[32] = {}, n2[32] = {};
   int s1 = -1, k1 = -1, d1 = -1, s2 = -1, k2 = -1, d2 = -1;
-  std::sscanf(a2.c_str(), "%31s %d %d %d | %31s %d %d %d", n1, &s1, &k1, &d1, n2, &s2, &k2, &d2);
+#if defined(MW3_PM_SUITE)  // PM's list opens with the round's line (0x0049b730), then the scores
+  const char* const kRound = "End of Round 1 of 1 | ";
+  EXPECT(a2.rfind(kRound, 0) == 0);
+  const std::string sc = a2.rfind(kRound, 0) == 0 ? a2.substr(std::strlen(kRound)) : a2;
+#else
+  const std::string& sc = a2;
+#endif
+  std::sscanf(sc.c_str(), "%31s %d %d %d | %31s %d %d %d", n1, &s1, &k1, &d1, n2, &s2, &k2, &d2);
   EXPECT(a2 == b2 && a3 == b3 && a2 == a3);
 #if defined(MW3_PM_SUITE)  // PM's columns: rounds won, score, kills (0x436db0)
   EXPECT(std::string(n1) == "best" && s1 == 1 && k1 == 1 && d1 == 1);
