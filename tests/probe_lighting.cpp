@@ -114,6 +114,7 @@ int32_t probe_light_reaching(const float* centre, float radius, int32_t single, 
                              int32_t* entries, int32_t* directed) {
   std::memcpy(g_rec, rec, sizeof g_rec);
   zmod::lighting().rec = g_rec;
+  zmod::lighting().rec_slots = 128;  // the emulator's buffer has a record for every light: compared as the exe writes them
   zmod::lighting().single = single;
   zrndr::device_fog().active = d3d;
   const int32_t r = zmod::lights_reaching(centre, radius);
@@ -145,6 +146,7 @@ uint32_t probe_model_needs(uint32_t flags, const float* centre, float radius, co
   zrndr::device_fog().active = d3d;
   std::memcpy(g_rec, rec, sizeof g_rec);
   G.rec = g_rec;
+  G.rec_slots = 128;  // as in probe_light_reaching
   set_hooks(log, cap);
   const uint32_t r = zmod::model_needs(flags, centre, radius);
   std::memcpy(rec, g_rec, sizeof g_rec);
