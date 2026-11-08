@@ -676,9 +676,12 @@ void GameMenuState::resume(uint32_t arg) {
         en.network_set(0);
         en.pop_state(1);
         escape();
-      } else if (arg == 4) {
+      } else if (arg == 4 || arg == 7) {  // Pirate's Moon 0x004a03e0: 4 and 7 0x0049eef0, 6 0x0049ee20
         shell_resume(1);
-        en.multiplayer_resume(screens[1]);  // 0x0049b660
+        en.multiplayer_resume(screens[1]);
+      } else if (arg == 6) {
+        shell_resume(1);
+        en.multiplayer_salvage_back(screens[1]);
       }
       break;
   }

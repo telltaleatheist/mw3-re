@@ -16,8 +16,8 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msgdll.h"
-#include "gamez/zutil/zutl_zar.h"
 #include "mech3/app_mech.h"
+#include "mech3/briefing.h"
 #include "mech3/pilot.h"
 
 namespace mech3 {
@@ -511,7 +511,7 @@ void LobbyScreen::on_button(int32_t id, int32_t a, int32_t b) {
     case 9: kick(players_list); return;
     case 0x1d: team_chosen(); return;    // PM 0x0049dc50
     case 0x1e: player_chosen(); return;  // PM 0x0049dfd0
-    // PM's SALVAGE (0xb, 0x0049ed90) and OPTIONS (0xc, none: the button does nothing) come with piece 6c-3.
+    case 0xb: salvage(); return;  // PM's OPTIONS (0xc) has no case: the button does nothing
     default: return;
   }
 }
@@ -1171,16 +1171,55 @@ void LobbyScreen::mech_lab() {
   e.mech_lab_open(e.store_handle(&game->store), stock_box.checked ? 1 : 0);  // 0x00479430, 0x00448830
 }
 
-// Mech3.exe 1.2 @ 0x0049b660: back from the lab, our state as it was; the
-// chat's bar given the keyboard again.
+// Pirate's Moon 1.0 @ 0x0049eef0: back from the lab, our state none (4;
+// MW3's 0x0049b660 put back the state it kept); the chat's bar given the
+// keyboard again.
 void LobbyScreen::resume() {
   std::vector<uint32_t> d;
   if (my_data(&d)) {
-    d[2] = 4;  // PM 0x0049ee20: none (MW3 put back the state kept, saved_state)
+    d[2] = 4;
     set_my_data(d);
   }
   chat_edit.set_focus(0);
   chat_edit.set_focus(1);
+}
+
+// Pirate's Moon 1.0 @ 0x0049ed90: "In Salvage" (2); slot 0 kept as it is,
+// its mech and loadout back into the game's store (0x00473e70, 0x00434880
+// with the store), no mech; then the Salvage State (0x0047f790, the
+// briefing's), the store against the round's.
+void LobbyScreen::salvage() {
+  if (!game) return;
+  chat_edit.set_focus(0);
+  std::vector<uint32_t> d;
+  if (my_data(&d)) {
+    d[2] = 2;
+    set_my_data(d);
+  }
+  GameSlot& slot = game->slot;
+  if (!kept_slot) kept_slot = std::make_unique<GameSlot>();
+  kept_slot->copy_from(slot);
+  game->store.add_mech(slot.mech);
+  slot.set_config(nullptr, &game->store, true);
+  slot.mech = -1;
+  engine().salvage_open();
+}
+
+// Pirate's Moon 1.0 @ 0x0049ee20: back from salvage, our state none (4), the
+// chat's bar the keyboard; slot 0 fitted again from the store as the lance
+// is (0x004079b0, not kept), from the mech and loadout SALVAGE kept.
+void LobbyScreen::back_from_salvage() {
+  std::vector<uint32_t> d;
+  if (my_data(&d)) {
+    d[2] = 4;
+    set_my_data(d);
+  }
+  chat_edit.set_focus(0);
+  chat_edit.set_focus(1);
+  if (!game || !kept_slot) return;
+  const Config* kept = kept_slot->config;
+  game->slot.mech = kept ? kept->mech : kept_slot->mech;
+  lance_slot(game->slot, game->store, false, kept);
 }
 
 // Mech3.exe 1.2 @ 0x0049a220: a player into a team (the network's, then the

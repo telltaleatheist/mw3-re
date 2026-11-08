@@ -1427,6 +1427,11 @@ void GameEngine::multiplayer_take_pilot(Handle first, Handle second) {
   if (auto* l = dynamic_cast<LobbyScreen*>(screen_of(second))) l->take_pilot(p ? handle_of(p) : 0, p ? p->multiplayer() : nullptr);
 }
 
+// Pirate's Moon 1.0 @ 0x0049ee20 on the lobby: back from salvage.
+void GameEngine::multiplayer_salvage_back(Handle screen) {
+  if (auto* l = dynamic_cast<LobbyScreen*>(screen_of(screen))) l->back_from_salvage();
+}
+
 // Mech3.exe 1.2 @ 0x0049b660 on the lobby: back from the mech lab.
 void GameEngine::multiplayer_resume(Handle screen) {
   if (auto* l = dynamic_cast<LobbyScreen*>(screen_of(screen))) {

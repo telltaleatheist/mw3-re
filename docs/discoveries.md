@@ -4610,3 +4610,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - In a Pirate's Moon match of more than one round, your mech carries over: the store and the weight check run only
   when the options are first locked, and between rounds "Stock 'Mechs" is switched off and can't be changed (from
   the code: 0x49eb20 and 0x49b5e0).
+- Pirate's Moon's multiplayer lobby has a Salvage button. Pressing it puts your current mech and its loadout back
+  into the shared pool and opens the salvage screen, with the round's salvage on one side and the pool on the
+  other. When you come back, the game gives you your old mech again if the pool still has it (with the loadout
+  cut to what the pool holds), or else the next mech the pool has (from the code: 0x49ed90, 0x49ee20, 0x4079b0;
+  the fitting checked against the original in an emulator).

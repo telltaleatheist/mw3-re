@@ -581,6 +581,7 @@ class Engine : public zgame::AppHooks {
     unported("0x00494920", {first});
   }
   virtual void multiplayer_resume(Handle screen) { unported("0x0049b660", {screen}); }
+  virtual void multiplayer_salvage_back(Handle screen) { unported("PM 0x0049ee20", {screen}); }
   // 0x004ac150 with one string for the message's %1 (the pilot's delete question).
   virtual uint32_t message_box1(int32_t a, int32_t caption, int32_t text, const char* s) {
     return unported("0x004ac150", {a, caption, text, s});

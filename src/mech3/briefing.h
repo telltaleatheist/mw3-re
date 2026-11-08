@@ -217,6 +217,10 @@ Store* lab_store_build(Store& lab, Store* game, Store* salvage);
 // to the store and taken out of it, the mech too; `keep` (a lancemate at Op
 // 4 Mission 6) leaves the slot as it is, the store untouched.
 void lance_slot(GameSlot& s, Store& store, bool keep);
+// Pirate's Moon 0x004079b0 itself: the same with the loadout to fit given
+// (none: the slot's), its mech the start (the lobby's return from salvage,
+// 0x0049ee20, gives the loadout it kept).
+void lance_slot(GameSlot& s, Store& store, bool keep, const Config* cfg);
 // 0x00408c30's loop, Pirate's Moon 0x00407c20: every slot fitted; with `keep` left as they are.
 void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep);
 bool lance_keeps(int32_t kind);
