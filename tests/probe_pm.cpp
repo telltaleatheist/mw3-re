@@ -18,6 +18,8 @@
 #include "pm/gamez/zvideo/zvid_tl.h"
 #include "pm/gamez/zclass/cls_clutter.h"
 #include "pm/gamez/zclass/light.h"
+#include "gamez/zeffect/zeff_anim_events.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zclass/cls_util.h"
 #include "mech3/mission_world.h"
 #include "gamez/zclass/class.h"
@@ -1826,12 +1828,75 @@ int probe_pm_light_setter(int which, uint8_t* pm_bytes, float a, float b, float 
     case 8: r = pm::zcls::light_set_diffuse_only(&node, static_cast<int>(a)); break;
     case 9: r = pm::zcls::light_set_range(&node, a, b); break;
     case 10: r = pm::zcls::light_set_position(&node, a, b, c); break;
-    default: r = pm::zcls::light_set_color(&node, a, b, c); break;
+    case 11: r = pm::zcls::light_set_color(&node, a, b, c); break;
+    case 12: r = pm::zcls::light_set_bit2(&node, static_cast<int>(a)); break;
+    case 13: r = pm::zcls::light_set_bit3(&node); break;
+    case 14: r = pm::zcls::light_set_light_map(&node, static_cast<int>(a)); break;
+    default: r = pm::zcls::light_set_directional(&node, static_cast<int>(a)); break;
   }
   std::memcpy(pm_bytes, light.raw, 0xb0);
   std::memcpy(pm_bytes + 0xb0, light.pm_colors, 0x30);
   std::memcpy(pm_bytes + 0xe0, light.raw + 0xb0, 0x20);
   return r | (::zcls::frames().update_frame != 0) << 8;
+}
+
+// PM's LIGHT_STATE (0x0051b910) on a light given by PM's offsets, in a world of the probe's: the event (its light
+// index at +0x2c already 1), whether the light was in the world (its record's +0x28), the node's flags, and the two
+// nodes a place may come from, ref 1 and the node the anim was started at (each a translation, or none), the
+// started-at offset. Out: the light's bytes, the event, the node's flags, in the world after; the result's bits 4..5
+// the world's light count change + 1, bit 8 the bake marked stale.
+int probe_pm_light_state(uint8_t* pm_bytes, uint8_t* event, int* in_world, uint32_t* node_flags, const float* ref_at,
+                         int ref_none, const float* at, int at_none, const float* at_off) {
+  static ::zcls::Node node;
+  static ::zcls::Light light;
+  static ::zcls::Node* world = nullptr;
+  static ::zcls::Node* ref_node = nullptr;
+  static ::zcls::Node* at_node = nullptr;
+  if (!world) {
+    world = ::zcls::world_create();
+    ref_node = ::zcls::object3d_create();
+    at_node = ::zcls::object3d_create();
+  }
+  std::memcpy(light.raw, pm_bytes, 0xb0);
+  std::memcpy(light.pm_colors, pm_bytes + 0xb0, 0x30);
+  std::memcpy(light.raw + 0xb0, pm_bytes + 0xe0, 0x20);
+  light.put<int32_t>(0xc8, 0), light.nodes = nullptr;
+  node.data = &light;
+  node.put<int32_t>(0x34, 9);
+  node.set_flags(*node_flags);
+  ::zcls::object3d_set_translation(ref_node, ref_at[0], ref_at[1], ref_at[2]);
+  ::zcls::object3d_set_translation(at_node, at[0], at[1], at[2]);
+  static ::zeff::AnimDef def;
+  static ::zeff::CreatedRef lights[2];
+  static ::zeff::NodeRef40 nodes[2];
+  lights[1].made = &node;
+  lights[1].put<int32_t>(0x28, 0);
+  nodes[1].node = ref_none ? nullptr : ref_node;
+  def.lights = lights, def.nodes = nodes;
+  def.at_node = at_none ? nullptr : at_node;
+  std::memcpy(def.raw + 0x78, at_off, 12);
+  void* const old_world = ::zeff::anim().world;
+  ::zeff::anim().world = world;
+  if (*in_world) ::zcls::world_add_light(world, &node), lights[1].put<int32_t>(0x28, 1);
+  auto* w = static_cast<::zcls::World*>(world->data);
+  const int32_t before = w->get<int32_t>(0xa0);
+  const ::zgame::Table& game = ::zgame::game();
+  ::zgame::set_game(pm::table());
+  ::zcls::frames() = ::zcls::Frames{};
+  ::zcls::frames().update_frame = 0;
+  const int r = ::zgame::game().zeff_light_state(def, event);
+  const bool stale = ::zcls::frames().update_frame != 0;
+  ::zgame::set_game(game);
+  const int32_t delta = w->get<int32_t>(0xa0) - before;
+  *in_world = lights[1].get<int32_t>(0x28);
+  if (*in_world) ::zcls::world_remove_light(world, &node);
+  ::zeff::anim().world = old_world;
+  *node_flags = node.flags();
+  std::memcpy(pm_bytes, light.raw, 0xb0);
+  std::memcpy(pm_bytes + 0xb0, light.pm_colors, 0x30);
+  std::memcpy(pm_bytes + 0xe0, light.raw + 0xb0, 0x20);
+  delete[] light.nodes, light.nodes = nullptr;
+  return (r & 0xf) | (delta + 1) << 4 | (stale ? 1 : 0) << 8;
 }
 
 // A material's texture says it has an alpha plane, or the material takes back what it had.

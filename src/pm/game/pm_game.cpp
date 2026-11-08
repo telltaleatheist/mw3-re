@@ -15,6 +15,7 @@
 #include "pm/gamez/zclass/cls_node.h"
 #include "pm/gamez/zclass/cls_zbd.h"
 #include "pm/gamez/zclass/light.h"
+#include "pm/gamez/zeffect/zeff_anim_events.h"
 #include "pm/gamez/zeffect/zeff_anim_init.h"
 #include "pm/gamez/zimage/zimg_texture.h"
 #include "pm/gamez/zreader/zrdr_main.h"
@@ -29,7 +30,7 @@ void render_setup() {
 
 const zgame::Table kPm = {"Pirate's Moon", "Pirate's Moon 1.0", zar::read_table, zar::write_table, zar::span,
                          zrdr::parse_text, zcls::read_zbd, zcls::node_alloc, zmod::walk_draw, zcls::world_cell_update, zcls::world_add_child, zcls::world_remove_node, zcls::world_make_grid, zcls::node_bound_box, zcls::node_set_active,
-                         zcls::node_model_box, zcls::node_model_header, zcls::light_create, zeff::anim_read_zbd,
+                         zcls::node_model_box, zcls::node_model_header, zcls::light_create, zeff::anim_read_zbd, zeff::ev_light_state,
                          // mechlib (pm-map step 1e)
                          zcls::mechlib_open, zcls::mechlib_load,
                          zimg::set_light_map, zimg::set_additive, 0x800, true, false, zcls::clutter_draw_cell, zcls::clutter_free_cell, render_setup};

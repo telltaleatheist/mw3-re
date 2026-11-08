@@ -150,6 +150,48 @@ int light_set_diffuse_only(Node* node, int on) {
   return 0;
 }
 
+// Pirate's Moon 1.0 @ 0x0050e900. Bit 2 from on & 1. As MW3's 0x004faa20 the stale test compares the old bit as
+// 0 / -1 with the argument itself.
+int light_set_bit2(Node* node, int on) {
+  ::zcls::Light* l = data_of(node, 0x214);
+  if (!l) return 5;
+  const uint32_t f = flags_of(*l);
+  set_flags(*l, ((static_cast<uint32_t>(on) & 1) << 2) | (f & ~4u));
+  if ((f & kStatic) && ((f & 4) ? -1 : 0) != on) stale();
+  set_flags(*l, flags_of(*l) | kRecalc);
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0050e980: bit 3 on, bit 4 off.
+int light_set_bit3(Node* node) {
+  ::zcls::Light* l = data_of(node, 0x236);
+  if (!l) return 5;
+  const uint32_t f = flags_of(*l), now = (f & ~0x10u) | 8;
+  set_flags(*l, now);
+  if ((f & kStatic) && ((f ^ now) & 8)) stale();
+  set_flags(*l, now | kRecalc);
+  return 0;
+}
+
+namespace {
+// 0x0050ec30 / 0x0050ed00: one bit from on & 1, then the static bit again; not flagged for the update.
+int set_mode_bit(Node* node, int on, uint32_t bit, int line) {
+  ::zcls::Light* l = data_of(node, line);
+  if (!l) return 5;
+  const uint32_t f = (flags_of(*l) & ~bit) | ((static_cast<uint32_t>(on) & 1) ? bit : 0);
+  const uint32_t now = with_static(*l, f) & ~kRecalc;
+  set_flags(*l, now | (f & kRecalc));
+  if ((now ^ f) & kStatic) stale();
+  return 0;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x0050ec30: the light map (bit 7; the script's LightSetLightMap, the light reader, the event).
+int light_set_light_map(Node* node, int on) { return set_mode_bit(node, on, 0x80, 0x2aa); }
+
+// Pirate's Moon 1.0 @ 0x0050ed00: MW3's 0x004fad30, bit 8.
+int light_set_directional(Node* node, int on) { return set_mode_bit(node, on, 0x100, 0x2c5); }
+
 // Pirate's Moon 1.0 @ 0x0050edd0
 int light_set_range(Node* node, float a, float b) {
   ::zcls::Light* l = data_of(node, 0x330);

@@ -12,6 +12,7 @@
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/light.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zeffect/zeff_anim_events.h"
 #include "gamez/zeffect/zeff_anim_puffer.h"
 #include "gamez/zeffect/zeff_anim_save.h"
@@ -71,7 +72,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
     case 3:
       if (h.effect) h.effect(h.ctx, def, e);
       return 2;
-    case 4: return ev_light_state(d, e);
+    case 4: return zgame::game().zeff_light_state(d, e);
     case 5: return ev_light_animation(d, s, e);
     case 6: return ev_object_active(d, e);
     case 7: return ev_object_translate(d, e);

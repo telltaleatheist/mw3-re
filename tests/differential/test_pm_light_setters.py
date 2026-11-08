@@ -1,6 +1,7 @@
 """PM's light setters (pm/gamez/zclass/light, Light.c) against PM's exe: 0x50efc0 orientation,
 0x50e6f0 ambient, 0x50e7c0 diffuse, 0x50f600 diffuse colour, 0x50f760 ambient colour, 0x50e890 own
-colours. Random lights by PM's offsets, flags with and without the static, own and 0xe0 bits;
+colours, and the rest the LIGHT_STATE event calls: bit 4 and bit 3, ambient only, diffuse only, range, position,
+colour, bit 2 (0x50e900), the light map (0x50ec30) and directional (0x50ed00). Random lights by PM's offsets, flags with and without the static, own and 0xe0 bits;
 every byte after the call, and whether the bake was marked stale (0x4ff750).
 
     cmake --build build --target pmprobe
@@ -18,10 +19,10 @@ import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 
 FUNCS = [0x50efc0, 0x50e6f0, 0x50e7c0, 0x50f600, 0x50f760, 0x50e890, 0x50ea00, 0x50ea80, 0x50eb60, 0x50edd0, 0x50ef50,
-         0x50f460]
+         0x50f460, 0x50e900, 0x50e980, 0x50ec30, 0x50ed00]
 STALE, POINT_COLOUR, STAMP = 0x4ff750, 0x5898c0, 0x60d254
 NAMES = ['orientation', 'ambient', 'diffuse', 'diffuse colour', 'ambient colour', 'own colours', 'bit 4', 'ambient only',
-         'diffuse only', 'range', 'position', 'colour']
+         'diffuse only', 'range', 'position', 'colour', 'bit 2', 'bit 3', 'light map', 'directional']
 
 
 def main():
@@ -38,21 +39,21 @@ def main():
     rng = random.Random(0x50e6f0)
     stale_seen = 0
     for n in range(cases):
-        fl = rng.choice((0, 0x100, 0x200, 0x300, 0x400, 0x500, 0x700, 0x120, 0x140)) | rng.choice((0, 1, 2, 0x10))
+        fl = rng.choice((0, 0x100, 0x200, 0x300, 0x400, 0x500, 0x700, 0x120, 0x140, 0x80, 0x280)) | rng.choice((0, 1, 2, 0x10, 8, 4))
         floats = [rng.choice((1.0, rng.uniform(-2, 3))) for _ in range(0x100 // 4)]
         raw = bytearray(struct.pack(f'<{len(floats)}f', *floats))
         struct.pack_into('<I', raw, 0xe0, fl)
         if rng.random() < 0.5:
             struct.pack_into('<3f', raw, 0xa4, 1.0, 1.0, 1.0)
-        which = rng.randrange(12)
+        which = rng.randrange(16)
         args = [rng.choice((1.0, rng.uniform(-2, 3))) for _ in range(3)]
-        if which in (5, 7, 8):
+        if which in (5, 7, 8, 12, 14, 15):
             args[0] = float(rng.choice((0, 1, 2, 3)))
         if which == 9 and rng.random() < 0.1:
             args[1] = args[0]
         emu.cpu._uc.mem_write(data, bytes(raw))
         calls['stale'] = 0
-        stack = [node] + ([] if which == 6 else [int(args[0])] if which in (5, 7, 8) else [struct.unpack('<I', struct.pack('<f', a))[0] for a in args])
+        stack = [node] + ([] if which in (6, 13) else [int(args[0])] if which in (5, 7, 8, 12, 14, 15) else [struct.unpack('<I', struct.pack('<f', a))[0] for a in args])
         emu.call(FUNCS[which], args=stack)
         want = bytes(emu.cpu._uc.mem_read(data, 0x100))
         got = ctypes.create_string_buffer(bytes(raw), 0x100)
