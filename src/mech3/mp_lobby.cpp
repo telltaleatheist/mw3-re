@@ -45,18 +45,6 @@ void set_enabled(ztwod::Control& c, int32_t on) {
   c.enabled = on;
   c.refresh();  // +0x80
 }
-std::string lower(std::string s) {  // CString::MakeLower
-  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  return s;
-}
-// A skin's name as the lists show it: " {gunmetal} " (0xdd7.., the format
-// [0x005e7c3c] or the teams' "  {%s} " [0x005e7c50]).
-std::string skin_tag(Engine& e, const char* format, int32_t skin) {
-  char buf[96];
-  std::snprintf(buf, sizeof buf, format, e.message(0xdd6 + skin));
-  return lower(buf);
-}
-
 // A player's data as the lobby reads it (0x00499030, 0x0049ab30): more than
 // a word or nothing. Kind 1 (the lobby's): its skin, its state, then the
 // add-on worlds it has (their count, the values); the launch's kind 2
@@ -521,51 +509,27 @@ void LobbyScreen::scores(bool report) {
 // own mech's name. Our slot's skin is our side's; a changed player count
 // asks the session and the players again.
 void LobbyScreen::refresh_lists() {
-  Engine& e = engine();
   if (!game) return;
   game->clear_lobby();
-  all_ready = 1;
   g_order_next = 1;
   znet::each_player(add_player, nullptr);
-  const bool team = multiplayer_team_play();
-  if (team) {
-    znet::each_team(add_team, nullptr);
-    teams_list.empty();
-    for (auto& t : game->lobby_teams) {
-      t->count = 0;
-      teams_list.add(t->name + skin_tag(e, "  {%s} ", t->skin), t.get());
-      for (auto& p : game->lobby_players) {
-        if (p->team != t->id) continue;
-        std::string s = "   " + p->name;  // [0x005e7c4c]
-        if (p->host) s += "++";
-        s += " ";
-        if (p->state == 1) s += e.message(0x2bf);  // "In MechLab"
-        if (p->state == 3) s += e.message(0x2c0);  // "Ready!"
-        else all_ready = 0;
-        teams_list.add(s, p.get());
-        ++t->count;
-      }
-    }
-  }
+  if (multiplayer_team_play()) znet::each_team(add_team, nullptr);
+  // PM 0x0049bb70's lines (MultiplayerGame::lobby_lines); the kinds list's value is the game's kind until the
+  // screen has PM's GAME_TYPE list (piece 6c-2).
+  static Engine* s_engine;
+  s_engine = &engine();
+  LobbyText tx;
+  tx.message = [](int32_t id) { return s_engine->message(id); };
+  tx.skin = [](int32_t skin) -> std::string {  // the screen's names (0x0049a3c0: messages 0xdd7 on)
+    const char* m = s_engine->message(0xdd6 + skin);
+    return m ? m : "";
+  };
+  std::vector<LobbyLine> tp, pl;
+  all_ready = game->lobby_lines(game->kind, znet::local_id(), tx, &tp, &pl) ? 1 : 0;
+  teams_list.empty();
+  for (const LobbyLine& l : tp) teams_list.add(l.text, l.entry);
   players_list.empty();
-  const int32_t chosen_world = worlds.value_at(worlds.index);
-  for (auto& p : game->lobby_players) {
-    GameSlot* mine = p->id == znet::local_id() ? game->slot_at(0) : nullptr;
-    if (p->team != 0) continue;
-    std::string s = p->name;
-    if (p->host) s += "++";
-    if ((chosen_world >> 8) > 2 && !has_world(p->id, chosen_world)) s += "**";
-    s += " ";
-    if (p->state == 1) s += e.message(0x2bf);
-    if (p->state == 3) s += e.message(0x2c0);
-    else all_ready = 0;
-    if (!team && p->skin != 0) s += skin_tag(e, " {%s} ", p->skin);
-    if (mine) {
-      const int32_t m = mech_name_message(mine->mech);
-      s += m < 0 ? "notmech" : e.message(m);  // 0x00484670
-    }
-    players_list.add(s, p.get());
-  }
+  for (const LobbyLine& l : pl) players_list.add(l.text, l.entry);
   game->slot_at(0)->skin = game->net_skin(znet::local_id()) - 1;  // 0x005a2b90
   znet::GameInfo info;
   if (znet::game_info(-1, &info) && game->lobby_players.size() != info.players) {
@@ -1049,10 +1013,8 @@ void LobbyScreen::start() {
   start_pending = 0;
   if (!game) return;
   if (znet::is_host()) {
-    uint8_t m[0x24] = {0x1e, 0, 0x24, 0};
-    for (auto& p : game->lobby_players)
-      if (p->order > 0 && p->order < 9) std::memcpy(m + 4 * p->order, &p->id, 4);
-    znet::send(m, sizeof m, true, 0);
+    const std::vector<uint8_t> m = game->start_message();  // PM 0x0049ef20's 0x1e (MW3's: 8 ids by order)
+    znet::send(m.data(), m.size(), true, 0);
     znet::GameInfo info;
     if (znet::game_info(-1, &info)) {
       info.user[3] = 2;  // in progress
@@ -1096,13 +1058,8 @@ void LobbyScreen::start() {
 // start. FIX (A): only the host's, whole (the exe took any player's).
 void LobbyScreen::on_start(uint32_t from, const uint8_t* msg, size_t size) {
   LobbyScreen* l = g_lobby;
-  if (!l || !l->game || size < 0x24 || from != znet::session().host_id || znet::is_host()) return;
-  for (int32_t i = 0; i < 8; ++i) {
-    uint32_t id;
-    std::memcpy(&id, msg + 4 + 4 * i, 4);
-    if (id)
-      if (LobbyPlayer* p = l->game->lobby_player(id)) p->order = i + 1;
-  }
+  if (!l || !l->game || size < 8 || from != znet::session().host_id || znet::is_host()) return;
+  l->game->read_start_message(msg, size);  // PM 0x0049f510
   l->keep_order = 1;
   l->start_pending = 1;
 }
@@ -1137,7 +1094,7 @@ void LobbyScreen::ready() {
   }
   std::vector<uint32_t> d;
   if (!my_data(&d)) return;
-  d[2] = ready_box.checked ? 3 : 2;
+  d[2] = ready_box.checked ? 5 : 4;  // PM 0x0049e2e0 through 0x0049ecb0 (MW3: 3, 2)
   set_my_data(d);
 }
 
@@ -1159,7 +1116,7 @@ void LobbyScreen::mech_lab() {
 void LobbyScreen::resume() {
   std::vector<uint32_t> d;
   if (my_data(&d)) {
-    d[2] = static_cast<uint32_t>(saved_state);
+    d[2] = 4;  // PM 0x0049ee20: none (MW3 put back the state kept, saved_state)
     set_my_data(d);
   }
   chat_edit.set_focus(0);

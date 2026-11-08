@@ -1355,6 +1355,20 @@ std::vector<uint8_t> MultiplayerGame::start_message() {
   return b;
 }
 
+// Pirate's Moon 1.0 @ 0x0049f510 (the handler: sender, message): the count, then each
+// player's id, order and team number; a listed player takes its order (the
+// team number isn't read). FIX (A): only as far as the message goes.
+void MultiplayerGame::read_start_message(const uint8_t* msg, size_t size) {
+  if (size < 8) return;
+  uint32_t n;
+  std::memcpy(&n, msg + 4, 4);
+  for (uint32_t k = 0; k < n && 8 + 12 * static_cast<size_t>(k + 1) <= size; ++k) {
+    uint32_t w[2];
+    std::memcpy(w, msg + 8 + 12 * k, 8);
+    if (LobbyPlayer* p = lobby_player(w[0])) p->order = static_cast<int32_t>(w[1]);  // 0x00498930
+  }
+}
+
 // Pirate's Moon 1.0 @ 0x0049e400's rules: with no score and no time limit
 // (1000 each) one base can't play and anything but two bases asks first;
 // with either limit two bases can't; the base kinds need respawn; then the
