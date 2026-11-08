@@ -171,6 +171,8 @@ def main():
         emu.call(0x4079b0, ecx=s, args=[emu.store_, keep, gcfg])
         cfg = emu.r32(s + 8)
         want = [emu.ls32(s + 4), emu.ls32(cfg + 0x14) if cfg else -2]
+        cm = emu.ls32(cfg + 0x14) if cfg else -1  # which of its mech's loadouts (the copy stands in as itself)
+        want.append(configs[cm].index(cfg) if cfg and cm in configs and cfg in configs[cm] else -1)
         for it in emu.items(emu.store_):
             if emu.call(emu.r32(emu.r32(it) + 0xc), ecx=it) == 0:
                 want += [emu.ls32(it + 0x14), emu.ls32(it + 4)]

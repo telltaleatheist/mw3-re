@@ -1,4 +1,5 @@
 // The lance's fit at a load's end (0x00407c20, 0x004079b0), for test_pm_lance.py: what the rule does per game type.
+#include <cstring>
 #include <cstdint>
 #include <vector>
 
@@ -42,6 +43,14 @@ int32_t probe_pm_lance_given(int32_t keep, const int32_t* in, const int32_t* sto
   lance_slot(s, store, keep != 0, given);
   int32_t k = 0;
   out[k++] = s.mech, out[k++] = s.config ? s.config->mech : -2;
+  int32_t at = -1;  // which of its mech's loadouts, by name (the slot's is a copy)
+  if (s.config && s.config->name && s.config->mech >= 0)
+    for (size_t i = 0; i < mech_dfn(s.config->mech)->configs->configs.size(); ++i)
+      if (const char* n = mech_dfn(s.config->mech)->configs->configs[i]->name; n && std::strcmp(n, s.config->name) == 0) {
+        at = static_cast<int32_t>(i);
+        break;
+      }
+  out[k++] = at;
   for (const ConfigItem* it : store.items)
     if (it->kind() == 0) out[k++] = it->id(), out[k++] = it->count;
   return k;
