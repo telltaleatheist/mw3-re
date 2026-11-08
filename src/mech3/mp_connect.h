@@ -25,8 +25,10 @@ struct MultiplayerSetup {
 MultiplayerSetup& multiplayer_setup();
 
 // The game's version in a session's second word ([0x005e55e8]): a join to a
-// host with another one is refused (0xfdd, 0xfde).
-constexpr uint32_t kGameVersion = 0x28;
+// host with another one is refused (0xfdd, 0xfde). Pirate's Moon's is its exe's
+// file version's low word pair (1.0.11.5: 0x000b0005, read from the version
+// resource by 0x004b2f70, 0x004b3110), where MW3 1.2 has the constant 0x28.
+constexpr uint32_t kGameVersion = 0x000b0005;
 
 // Ours: the versions the two games' sessions carry, by name, so a join to the
 // other game's host says which game it is (MW3 1.2's constant 0x28; Pirate's
