@@ -4286,7 +4286,7 @@ TEST(launcher_narrow_spaces_widen) {
 // The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
 // development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
 // an empty write dir), the setup screen; and the progress screen. Each a
-// lit 640x480 canvas, and the log says what it found.
+// lit 854x480 canvas (16:9), and the log says what it found.
 TEST(sdl_program_launcher_screens) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher";
   std::error_code ec;
@@ -4295,7 +4295,7 @@ TEST(sdl_program_launcher_screens) {
   std::filesystem::create_directories(dir + "/wd2", ec);
   // The first entry hovered (Owen, the PC's fresh install): the ripple only
   // round a round badge; a square plate lights its edge (at edge_x, edge_y,
-  // the plate's top) in amber instead.
+  // the plate's top, the 640 block 107 in) in amber instead.
   struct Shot {
     const char* screen;
     bool none;
@@ -4304,11 +4304,11 @@ TEST(sdl_program_launcher_screens) {
     int edge_x, edge_y;
   };
   for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
-                        Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 320, 222},
-                        Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 320, 222},
-                        Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 320, 372},
-                        Shot{"notes", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 320, 318},
-                        Shot{"disc", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 320, 318}}) {
+                        Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
+                        Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
+                        Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 427, 372},
+                        Shot{"notes", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 427, 318},
+                        Shot{"disc", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 427, 318}}) {
     const std::string bmp = dir + "/" + s.screen + ".bmp", log = dir + "/" + s.screen + ".log";
     if (s.none) setenv("MW3_FIND_INSTALL", "1", 1);
     const pid_t pid = spawn_launcher({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
@@ -4336,7 +4336,7 @@ TEST(sdl_program_launcher_screens) {
                   text.find(s.says) != std::string::npos);
       if (c) SDL_DestroySurface(c);
     }
-    EXPECT(img && img->w == 640 && img->h == 480 && lit > n / 4);
+    EXPECT(img && img->w == 854 && img->h == 480 && lit > n / 5);  // 16:9 (Owen, 2026-11-08): more dark sky, 24% lit at least
     EXPECT(text.find(s.says) != std::string::npos);
     EXPECT(text.find(s.hover) != std::string::npos && edge);
     if (img) SDL_DestroySurface(img);
