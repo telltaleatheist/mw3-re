@@ -12,6 +12,7 @@
 #include "gamez/zclass/list.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/zai_wire_pm.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_vehicle.h"
@@ -224,6 +225,25 @@ void CampaignChain::on_state(const void* s) {
 // the mission is won (its objectives met), Exit Mission. The mission's
 // salvage is followed: what each kill added, and what came otherwise (the
 // objectives' salvage).
+// What the mission reached that is not ported, since the last debriefing: the engine's unported calls and PM's AI
+// calls with no answer, each by key with its count (pm-tests, Unported in play).
+void CampaignChain::print_unported(const char* where) {
+  std::string line;
+  for (const auto& [k, n] : e_.unported_counts()) {
+    const uint32_t d = n - unported_seen_[k];
+    if (d) line += " " + k + " x" + std::to_string(d) + ";";
+  }
+  unported_seen_ = e_.unported_counts();
+  std::printf("mw3: chain unported in %s:%s\n", where, line.c_str());
+  line.clear();
+  for (const auto& [k, n] : mech3::ai::pm_hooks_missing()) {
+    const int d = n - missing_seen_[k];
+    if (d) line += " " + k + " x" + std::to_string(d) + ";";
+  }
+  missing_seen_ = mech3::ai::pm_hooks_missing();
+  std::printf("mw3: chain pm ai unanswered in %s:%s\n", where, line.c_str());
+}
+
 void CampaignChain::shoot_hostiles() {
   if (core_frames_ == 60) salvage_seen_.clear(), salvage_kills_.clear(), salvage_other_.clear();
   {
@@ -728,6 +748,7 @@ void CampaignChain::frame() {
           std::printf("mw3: chain standalone debrief: rank %d, help %d, CONTINUE help \"%s\", won flag %d, at %d, best %d\n",
                       d->rank.shown, 0, d->continue_help_text(), d->campaign_over(), st ? st->x38 : -1, st ? st->x3c : -1);
         }
+        print_unported(launched_.c_str());
         std::printf("mw3: chain debriefing rows after %s: %s\n", launched_.c_str(), mech3::debrief_rows(*d).c_str());
         std::printf("mw3: chain debriefing after %s: score %d, CONTINUE (%swins %d; the game now at %s)\n",
                     launched_.c_str(), d->score, failing_ ? "failed on purpose; " : "", wins_, mission_name().c_str());
