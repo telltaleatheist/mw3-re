@@ -493,9 +493,7 @@ class WireStep : public StepPmHooks {
       t->range2 = static_cast<float>(double{r} * r);
     }
   }
-  void look_start(Brain* b) override {
-    if (FiringRecord* r = record_of(vehicle_of(b))) r->aim.active = true;
-  }
+  void look_start(Brain*) override { pm_hook_missing("WireStep.look_start"); }  // the firing's +0x70 (vtable 0x5eb970), not the aim
   zgame::Handle best_weapon(zgame::Handle wm) override {
     return ai::best_weapon(wm);
   }
