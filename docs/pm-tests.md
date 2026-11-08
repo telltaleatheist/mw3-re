@@ -385,6 +385,18 @@ Breaks over the states, the brain, the nets and the targets: 168, of which 166 c
 
 `weapon_line` 0x4b7800 in `zai_firing_pm`, compared real in `test_pm_ai_brain`: 3,000 weapons with or without a part, node and firepoint, a salvo or not, a point or none, the debug byte [0x62f86c] on or off, every tenth with the tolerance met exactly; the node's placing 0x4ff3c0 stands in alike on both sides. 13 breaks, 12 caught: the order of the three products in the dot (`wl12`) isn't, since the sum is stored as a float and the doubles' difference doesn't reach it on these cases. The blocked line's FIX row is in fixes.md. The wiring's `weapon_cos` and the aim's `weapon_line` take it next, in place of `Weapon::aim`.
 
+### One hit turns a lancemate? (2026-11-07, a player's report)
+
+Freako reports that on the original PM one shot makes a lancemate turn on the player. Neither of the two ways PM's AI answers a hit does that, by reading the exe and in the port:
+
+- The tick's reaction (0x4fad1d..0x4fad94): with the pilot's +0x9c on (`scan_hit ( 1 1 )`), no busy order, the time past +0x120, the controls' vt+0x98 (hit within the last second) and may_fire 0x4fa6d0, it waits +0xb0 seconds again, resets the firing (0x4faa20), takes the latest attacker (0x4b2820 on the list at +0x104) and hands it to the brain's vt+0x28, then manoeuvres (0x4fab30). The tick's `this` is the brain at +0x5c of the mech's AI controls (built by 0x4e8c00: vtable 0x5efe08, brain 0x5efdb0). Its vt+0x28 is 0x4ba5d0 -> 0x4ba5c0, which stores the attacker at the firing record's (+0x124) +0x90 with no side check. The other four brain vtables answer 0 there (0x5afca0). The firing's pick (0x4bc2e0) tries +0x90 once, through the same filter as every candidate (0x4ba190), and that filter drops a contact whose team (vt+0x28's +0xc0) is in the shooter's allies (+0xc4).
+- The anger rule in the hit (0x4fbc20): the attacker's faded damage over 10, its first hit more than 3 s ago and its last within 7 s, on zTime's game clock [0x8c1b50] (0x5963d0 zeroes it, 0x596430 adds each frame's capped time), the same clock the attacker list keeps. One shot can't pass it, since its first hit is its last.
+- Splash counts as a hit from the shooter: zWeapon's splash (MW3 0x5829b0, by reading) applies damage with the shot's owner, and `Mech::take_damage` hands that owner to the controls' hit.
+
+In every PM campaign mission (all ten, read at their start) each lancemate is team 2 with the player's bit in its allies (0x40000002; the player 0x60000002), so the filter always drops the player. The port shows it: `PM_HIT_MATE=6000 PM_HIT_REACTS=1` on c1m1 (fixed seed) hits Epona once from the player at 96 s with her reaction switched on; she reacts once (`took an attacker`) and never takes the player as her target. Without `PM_HIT_REACTS` she doesn't react at all: her net hasn't run `scan_hit` by then. What the report saw is still open: a stray shot that also pushed her over the anger rule, or something outside the AI (a script or the lance orders), would be the next places to look, ideally with the report's mission and moment.
+
+The run found a wiring bug: the tick read the pilot's numbers (+0x1c..+0xcc) once, at the brain's first frame, so a later `scan_hit` or `scan_time` never reached it. `pm_params` now reloads them each frame, as the exe reads them where they live.
+
 ### Named checks for the first run, from Owen's play of PM mission 2 on the stand-in (2026-11-07)
 
 Both on c1 mission 2 with `PM_AI=1`, next to c1m1, and both by reading so far, nothing run.
