@@ -1,4 +1,5 @@
 #include "mech3/options.h"
+#include "pm/gamez/zmodel/gmod_draw.h"
 
 #include "mech3/controls_cfg.h"
 
@@ -273,10 +274,14 @@ int32_t sound_lod() { return g_options.sound_lod; }
 void set_texture_memory(int32_t v) { g_options.texture_memory[g_options.hw ? 1 : 0] = v; }
 int32_t texture_memory() { return g_options.texture_memory[g_options.hw ? 1 : 0]; }
 
-// Mech3.exe 1.2 @ 0x0040d430: bit 4 turns the world's "sunlight" node on.
+// Mech3.exe 1.2 @ 0x0040d430, Pirate's Moon 1.0 @ 0x0040b270: bit 4 turns the world's "sunlight" node on;
+// PM's LIGHT MAPS from bits 17 and 18 (0, 1, 2; both -1, none on models), left as it was for flags of 0.
 void set_gfx_flags(int32_t v) {
   g_options.gfx_flags[g_options.hw ? 1 : 0] = v;
   if (Handle sun = g_hooks->find_node(6, "sunlight")) g_hooks->node_set_active(sun, (v & 0x10) ? 1 : 0);
+  if (v == 0) return;
+  const bool a = (v >> 17) & 1, b = (v >> 18) & 1;
+  pm::zmod::draw_state().light_map_option = a ? (b ? -1 : 1) : (b ? 2 : 0);  // [0x008ccc64]
 }
 // Mech3.exe 1.2 @ 0x0040d480
 int32_t gfx_flags() { return g_options.gfx_flags[g_options.hw ? 1 : 0]; }

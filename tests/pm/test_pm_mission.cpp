@@ -727,8 +727,15 @@ static void kill_run(const char* which, bool quick) {
               const float* v = md->vertices + i * 3, r = std::sqrt(v[0] * v[0] + v[2] * v[2]);
               rmin = std::min(rmin, r), rmax = std::max(rmax, r), ymin = std::min(ymin, v[1]), ymax = std::max(ymax, v[1]);
             }
-            std::printf("    %*s%s: %d polygons, %d with normals, %d normals, flags %x; %d vertices, radius %.2f..%.2f, y %.2f..%.2f\n", depth * 2, "", x->name(), md->count(0x10), with,
-                        md->count(0x18), md->header[8], md->count(0x14), rmin, rmax, ymin, ymax);
+            std::vector<int> angles;  // the vertices' bearings round the model's axis, to the degree: its sides
+            for (int32_t i = 0; i < md->count(0x14); ++i) {
+              const float* v = md->vertices + i * 3;
+              if (std::sqrt(v[0] * v[0] + v[2] * v[2]) > 0.01f) angles.push_back(static_cast<int>(std::lround(std::atan2(v[2], v[0]) * 57.29578f + 360.0)) % 360);
+            }
+            std::sort(angles.begin(), angles.end());
+            angles.erase(std::unique(angles.begin(), angles.end()), angles.end());
+            std::printf("    %*s%s: %d polygons, %d with normals, %d normals, flags %x; %d vertices, radius %.2f..%.2f, y %.2f..%.2f, %zu bearings\n", depth * 2, "", x->name(), md->count(0x10), with,
+                        md->count(0x18), md->header[8], md->count(0x14), rmin, rmax, ymin, ymax, angles.size());
           }
           for (int32_t i = 0; i < x->child_count(); ++i) self(x->children[i], depth + 1, self);
         };
