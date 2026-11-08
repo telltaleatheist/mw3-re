@@ -5237,6 +5237,107 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
 #endif
 #endif  // MW3_PM_SUITE
 
+#if !defined(_WIN32)  // posix_spawn, waitpid
+extern char** environ;
+// MechWarrior 3 and Pirate's Moon refuse each other at the join, by the game's
+// version word (MW3 1.2's 0x28, PM's 0x000b0005), naming the host's game: each
+// way, from the screens. MW3_OTHER_BIN and MW3_OTHER_INSTALL name the other
+// game's program and install (skipped without them).
+TEST(sdl_two_processes_the_other_game_is_refused_by_name) {
+  const char* other_bin = std::getenv("MW3_OTHER_BIN");
+  const char* other_install = std::getenv("MW3_OTHER_INSTALL");
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!other_bin || !other_install || !std::filesystem::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  auto read = [](const std::string& path) {
+    std::string text;
+    if (std::FILE* f = std::fopen(path.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+      std::fclose(f);
+    }
+    return text;
+  };
+  auto spawn = [](const std::string& bin, std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {bin};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  // MULTIPLAYER, a name typed, ACCEPT; `shift` frames later for a game whose opening runs longer (Pirate's
+  // Moon's logos: its main menu is up near frame 85 where MW3's is by 40).
+  auto menus = [](std::vector<std::string> v, std::initializer_list<const char*> name, int shift) {
+    std::vector<std::string> m = {"--click-at", "132,285@" + std::to_string(40 + shift)};
+    int at = 70 + shift;
+    for (const char* k : name) m.insert(m.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
+    m.insert(m.end(), {"--click-at", "470,320@" + std::to_string(100 + shift)});
+    v.insert(v.end(), m.begin(), m.end());
+    return v;
+  };
+  auto shift_of = [](const std::string& install) {
+    return std::filesystem::exists(install + "/zbd/c1/start_multi_c1.zrd") || install.find("pm") != std::string::npos ? 60 : 0;
+  };
+  const std::string self_bin = MW3_BIN;
+#if defined(MW3_PM_SUITE)
+  const char* self_game = "Pirate's Moon";
+  const char* other_game = "MechWarrior 3";
+#else
+  const char* self_game = "MechWarrior 3";
+  const char* other_game = "Pirate's Moon";
+#endif
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_net_other_game";
+  std::filesystem::remove_all(dir, ec);
+  int round = 0;
+  // The host's program and install, the joiner's, and the game the joiner must name.
+  auto run = [&](const std::string& host_bin, const std::string& host_install, const std::string& join_bin,
+                 const std::string& join_install, const char* expect) {
+    const std::string d = dir + "/" + std::to_string(round++);
+    std::filesystem::create_directories(d + "/a", ec);
+    std::filesystem::create_directories(d + "/b", ec);
+    const int base = 32000 + static_cast<int>(getpid() % 1000) * 4 + round * 2;
+    const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+    const int hs = shift_of(host_install), js = shift_of(join_install);
+    std::vector<std::string> va = menus({"--write-dir", d + "/a", "--net-port", game, "--net-discovery", lan, "--click-at",
+                                         "421,406@" + std::to_string(180 + hs), "--frames", "100000", "--install", host_install},
+                                        {"0x14", "0x12", "0x1f", "0x14"}, hs);
+    std::vector<std::string> vb = menus({"--write-dir", d + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
+                                         "--click-at", "100,143@" + std::to_string(420 + js), "--click-at",
+                                         "240,406@" + std::to_string(450 + js), "--frames", std::to_string(700 + js),
+                                         "--install", join_install},
+                                        {"0x30", "0x12", "0x1f", "0x14"}, js);
+    for (auto* v : {&va, &vb})
+      v->insert(v->end(), {"--no-launcher", "--hidden", "--nosound", "--net-bind", "127.0.0.1", "--frame-ms", "33"});
+    const pid_t a = spawn(host_bin, va, d + "/a.log");
+    for (int i = 0; i < 400 && read(d + "/a.log").find("multiplayer page 2") == std::string::npos; ++i)
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const pid_t b = spawn(join_bin, vb, d + "/b.log");
+    for (int i = 0; i < 600 && read(d + "/b.log").find("join refused") == std::string::npos; ++i)
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    int st = 0;
+    if (b > 0) kill(b, SIGTERM), waitpid(b, &st, 0);  // the box waits for a press
+    if (a > 0) kill(a, SIGTERM), waitpid(a, &st, 0);
+    const std::string la = read(d + "/a.log"), lb = read(d + "/b.log");
+    const std::string want = std::string("join refused: the host's game is ") + expect;
+    const bool hosted = la.find("multiplayer page 2") != std::string::npos;
+    const bool named = lb.find(want) != std::string::npos;
+    std::printf("  %s hosting %d; the joiner: %s\n", expect, hosted, named ? want.c_str() : "not refused by name");
+    if (!named) std::printf("  the joiner's log ends:\n%s\n", lb.substr(lb.size() > 1500 ? lb.size() - 1500 : 0).c_str());
+    return hosted && named;
+  };
+  EXPECT(run(self_bin, install, other_bin, other_install, self_game));   // the other game joins ours
+  EXPECT(run(other_bin, other_install, self_bin, install, other_game));  // ours joins the other's
+}
+#endif
+
 #if defined(MW3_PM_SUITE)
 // The first start finds Pirate's Moon and only that (sdl_install.h, source_map.h): a real PM folder
 // is used and remembered; MechWarrior 3's, or PM's disc, each say why not; mw3.cfg's PM wins over
