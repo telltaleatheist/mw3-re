@@ -421,3 +421,13 @@ bool pm_headlight(void* player, bool on, float at[3]) {
   if (h->light) zcls::node_world_point(h->light, at);
   return true;
 }
+
+// pm-tests item 23: a mech's knock (+0x53c), its threshold (the gait's, 0x00418850) and its state.
+float pm_knock(void* mech, float* threshold, int* state) {
+  auto* m = static_cast<Mech*>(mech);
+  float t = m->tonnage();
+  if (t < 10.0f) t = 10.0f;
+  *threshold = (t - 10.0f) * 0.0111111114f * m->knockdown[4] + m->knockdown[3];
+  *state = m->anim_state;
+  return m->knock;
+}

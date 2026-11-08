@@ -363,6 +363,7 @@ float pm_tag_muzzle(void* player, const float at[3], bool* mounted);
 float pm_mech_toughness(void* mech, bool* invincible);
 bool pm_cheat(void* player, const char* text);
 bool pm_headlight(void* player, bool on, float at[3]);
+float pm_knock(void* mech, float* threshold, int* state);
 void pm_kill_left(void* mech, char* out, size_t n);
 void pm_kill_ray(const float from[3], const float to[3]);
 uint32_t pm_kill_root_flags(void* mech);
@@ -536,6 +537,16 @@ static void kill_run(const char* which, bool quick) {
       if (std::getenv("PM_KILL_TREE") && made) pm_kill_tree(ai[0].mech);
       pm_kill_weapons(player);
       for (int32_t i = 0; i < made; ++i) std::printf("  %s:", ai[i].name ? ai[i].name : "?"), pm_kill_scales(ai[i].mech);
+    }
+    if (std::getenv("PM_KNOCK") && at < targets.size()) {  // pm-tests item 23: the target's knock and falls under fire
+      static float most = 0;
+      static int last = -1;
+      float thr = 0;
+      int st = 0;
+      const float k = pm_knock(targets[at], &thr, &st);
+      if (k > most) most = k, std::printf("  knock %s %.2f of %.2f (state %d)\n", names[at] ? names[at] : "?", k, thr, st);
+      if (st != last && st >= 11 && st <= 13) std::printf("  FELL %s state %d at frame %d\n", names[at] ? names[at] : "?", st, frames);
+      last = st;
     }
     while (at < targets.size() && state(targets[at]) == 10) {
       char left[200];
