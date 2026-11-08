@@ -61,6 +61,8 @@ struct Table {
   int (*zeff_anim_read_zbd)();  // 0x0050a0e0; PM 0x00523140
   // Anim event 4, LIGHT_STATE (zeff/zeff_anim_events.h): PM's record and setters differ.
   int32_t (*zeff_light_state)(zeff::AnimDef& def, uint8_t* e);  // 0x00503390; PM 0x0051b910
+  // Event 25, STOP_ANIMATION: PM's looks in the def's own anim refs first.
+  int32_t (*zeff_stop_animation)(zeff::AnimDef& def, uint8_t* e);  // 0x00506d60; PM 0x0051f900
   // mechlib (pm-map step 1e): mechlib.zbd (zcls/cls_mechlib.h), PM's version
   // 41 with PM's nodes and models.
   bool (*zcls_mechlib_open)(zcls::MechLib& lib, const char* path);  // 0x004fc6d0; PM 0x00510910

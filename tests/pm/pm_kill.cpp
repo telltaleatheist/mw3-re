@@ -17,6 +17,7 @@
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
 #include "mech3/mech_control.h"
+#include "mech3/cheats.h"
 #include <typeinfo>
 
 #include <cstdio>
@@ -364,3 +365,13 @@ int pm_trigger_all(void* player, const float at[3]) {
   }
   return fired;
 }
+
+// The player's Invincible flag and its parts' armour and internal summed (pm-tests item 12).
+float pm_mech_toughness(void* mech, bool* invincible) {
+  auto* m = static_cast<Mech*>(mech);
+  *invincible = m->invincible;
+  float sum = 0;
+  for (MechPart* p : m->parts) sum += p->armor + p->internal;
+  return sum;
+}
+bool pm_cheat(void* player, const char* text) { return cheat_enter(*static_cast<Mech*>(player), text); }

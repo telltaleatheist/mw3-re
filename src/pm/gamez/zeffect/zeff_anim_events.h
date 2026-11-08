@@ -13,4 +13,10 @@ namespace pm::zeff {
 // the mixed colours).
 int32_t ev_light_state(::zeff::AnimDef& def, uint8_t* e);
 
+// Pirate's Moon 1.0 @ 0x0051f900, event 25 (STOP_ANIMATION). Against MW3's 0x00506d60, two cached indices (shorts):
+// +0x2c into the def's own anim refs, which it searches first by either of a ref's names (the last match kept: the
+// loop does not stop), stopping the def or instance that ref started; +0x2e into the defs, searched only when no ref is named so (index 0 never stopped, as
+// MW3's). PM's stop 0x0051f830 is MW3's 0x00506ca0 on its offsets.
+int32_t ev_stop_animation(::zeff::AnimDef& def, uint8_t* e);
+
 }  // namespace pm::zeff

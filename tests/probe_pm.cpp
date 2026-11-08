@@ -1899,6 +1899,48 @@ int probe_pm_light_state(uint8_t* pm_bytes, uint8_t* event, int* in_world, uint3
   return (r & 0xf) | (delta + 1) << 4 | (stale ? 1 : 0) << 8;
 }
 
+// PM's STOP_ANIMATION (0x0051f900): `ndefs` defs named by `names` (0x20 each), a calling def whose `nrefs` anim refs
+// are the 0x48-byte records in `refs` with ref i's started def `started[i]` (an index, -1 none), and the event
+// (+0x2c/+0x2e cached or not). The def the stop reached (its callback), -1 for none; the event's bytes come back.
+int probe_pm_stop_animation(uint8_t* event, const char* names, int ndefs, const uint8_t* refs, const int32_t* started, int nrefs) {
+  static std::vector<::zeff::AnimDef> defs;
+  static std::vector<::zcls::Node*> objects;
+  static int stopped;
+  while (static_cast<int>(objects.size()) < ndefs) objects.push_back(::zcls::object3d_create());
+  defs.assign(static_cast<size_t>(ndefs), ::zeff::AnimDef{});
+  for (int i = 0; i < ndefs; ++i) {
+    ::zeff::AnimDef& d = defs[static_cast<size_t>(i)];
+    std::memcpy(d.raw, names + i * 0x20, 0x20);
+    d.raw[0x98] = 2;                 // running
+    d.put<float>(0xa4, 1.0f);        // a reset time: waited out from its tick
+    d.object = objects[static_cast<size_t>(i)];
+    objects[static_cast<size_t>(i)]->owner = &d;
+    d.callback = [](::zeff::AnimDef* def, void*, int32_t) { stopped = static_cast<int>(def - defs.data()); };
+  }
+  ::zeff::AnimDef caller{};
+  std::vector<::zeff::AnimRefRec> rr(static_cast<size_t>(nrefs));
+  for (int i = 0; i < nrefs; ++i) {
+    std::memcpy(rr[static_cast<size_t>(i)].raw, refs + i * 0x48, 0x48);
+    rr[static_cast<size_t>(i)].ref = started[i] >= 0 ? &defs[static_cast<size_t>(started[i])] : nullptr;
+  }
+  caller.anim_refs = rr.data();
+  caller.raw[0x112] = static_cast<uint8_t>(nrefs);
+  ::zeff::AnimState& a = ::zeff::anim();
+  ::zeff::AnimDef* const old_defs = a.defs;
+  const int16_t old_count = a.block.get<int16_t>(0x0a);
+  const int32_t old_elapsed = a.stopped_elapsed;
+  a.defs = defs.data(), a.block.put<int16_t>(0x0a, static_cast<int16_t>(ndefs)), a.stopped_elapsed = 0;
+  const ::zgame::Table& game = ::zgame::game();
+  ::zgame::set_game(pm::table());
+  stopped = -1;
+  ::zgame::game().zeff_stop_animation(caller, event);
+  ::zgame::set_game(game);
+  a.defs = old_defs, a.block.put<int16_t>(0x0a, old_count), a.stopped_elapsed = old_elapsed;
+  caller.anim_refs = nullptr;
+  for (::zcls::Node* o : objects) o->owner = nullptr;
+  return stopped;
+}
+
 // A material's texture says it has an alpha plane, or the material takes back what it had.
 void probe_pm_material_alpha(int node, int ref, int on) {
   static zimg::Texture image;
