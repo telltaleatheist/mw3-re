@@ -153,14 +153,13 @@ engine's known reasons. Count, missions, key; (a) changes what the player sees o
 |---|---|---|---|
 | 870,154 | 21 | assumed: the order's state idle (vt+0x20) | PM's run of pending orders asks the order's state; the port answers yes for all. To check per state against the exe's vt+0x20 |
 | 12,250 | 21 | stand-in: MW3's steering | frames where no PM state runs (MW3's order states below) steer with MW3's steering |
-| 11,244 | 21 | vehicle.vt+0x50 | the walk's "has a pilot" (PM's vehicle vt+0x58, MW3's vt+0x50: the vehicle's mech) is always no, so AI mechs brake by the default 0.1, not by their +0x544 |
 | 3,254 | 12 | stand-in: MW3's orders, WaitState | scripted orders whose states are still MW3's: wait |
 | 265 | 21 | stand-in: MW3's orders, SharedState | the lancemates' shared state |
 | 197 | 21 | 0x004b2ab0 (died_base) | the brain's reaction to its vehicle's death |
 | 40, 39, 16 | 7, 11, 2 | stand-in: MW3's orders, SpeedState, PassState, AssignState | scripted orders' states still MW3's |
 | 12 | 11 | 0x00479440 | the pilot's current campaign game, asked in the standalone missions (caller to trace) |
 
-(b): the developer-only HUD debug numbers and lines (0x0043c820.debug 187,765, hudline.vt+0x7c and vt+0x7c, 0x0040f7f0,
+(b): vehicle.vt+0x50 (11,244; first listed under (a)): asked of targets and turrets among the steering's contacts, which answer none by their class as the exe's 0x0040bae0, the mechs being answered already; now answered by entity_mech, no change in play. The developer-only HUD debug numbers and lines (0x0043c820.debug 187,765, hudline.vt+0x7c and vt+0x7c, 0x0040f7f0,
 0x0040f890); the port's own replacements (0x00557f90 189,963, the archive and mount paths, zModel/zRender starts, the
 back buffer's size, CZAiTarget's ctor/dtor, the fog); no-effect calls (0x0040fef0, 0x004f3540, 0x00537520,
 0x0047f2b0, 0x004b52e0, 0x005269e0, 0x00535ed0, 0x00558070, 0x004f8f20, 0x004f8f60, 0x00518790, 0x00519e50);
