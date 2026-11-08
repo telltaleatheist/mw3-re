@@ -322,7 +322,7 @@ void ConnectScreen::join() {
   }
   if (g.user[1] != kGameVersion) {
     // Ours: the other game's host named, where the exe says older or newer.
-    if (const char* other = game_of_version(g.user[1]); other && g.user[1] != kGameVersion) {
+    if (const char* other = game_of_version(g.user[1])) {
       std::printf("mw3: join refused: the host's game is %s\n", other);
       e.message_box_plain(0x30, 0x2a8, std::string("This game is ") + other + ". It can't be joined from here.");
       e.pop_state(1);
