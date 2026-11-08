@@ -1103,14 +1103,17 @@ bool net_read_record(uint32_t player, std::vector<uint8_t>* out) {
   return ok;
 }
 
-// Mech3.exe 1.2 @ 0x0046da80. The mech's definition is loaded first
-// (0x004846a0) and not used. The record is made by 0x0046dd90 (kind 2,
-// zero-filled to its size).
+// Pirate's Moon 1.0 @ 0x0046fb20 (MW3's 0x0046da80). The mech's definition
+// is loaded first (0x004867f0) and not used. The record is made by
+// 0x0046fe30 (kind 2, zero-filled to its size). PM sends the record twice
+// (once made, again after the ammo), leaves the clock's last second as it
+// was, and starts at "remote_<first - 1 + slot>" (first 0x00437a40, by the
+// game's kind; MW3's "remote_<slot>").
 bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bool unlimited_ammo, bool outside_view) {
   const NetCalls& c = g_calls;
   const int32_t roster = m.pilot ? m.pilot->roster : 0;
   c.dfn ? (void)c.dfn(roster) : (void)mech_dfn(roster);
-  g_net.next_state = 0, g_net.warned = 0, g_net.last_second = 0;
+  g_net.next_state = 0, g_net.warned = 0;  // [0x00629a74], [0x00629a78]
   m.net_sent = 0;
   m.net_acked = 1;
   const uint32_t local = znet::local_id();
@@ -1122,6 +1125,7 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   std::memcpy(rec.data() + 0xc, p.data(), std::min<size_t>(n, 4 * p.size()));
   std::memcpy(rec.data() + 8, &roster, 4);
   std::memcpy(rec.data() + 4, &skin, 4);
+  znet::set_player_data(local, rec.data(), static_cast<uint32_t>(rec.size()));  // 0x005aa4a0, the first time
   m.set_team(c.team_of ? c.team_of(local) : 0);
   if (c.unlimited) c.unlimited(m, unlimited_ammo);
   else if (auto* w = static_cast<WeaponManager*>(m.ammo)) w->set_unlimited(unlimited_ammo);
@@ -1129,8 +1133,9 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   if (c.scores_reset) c.scores_reset();
   if (outside_view && c.view_outside) c.view_outside();
   const int32_t slot = c.start_of ? c.start_of(local) : 0;
+  const int32_t first = c.spawn_base ? c.spawn_base(local) : 0x18;  // 0x00437a40
   char name[0x20];
-  std::snprintf(name, sizeof name, "remote_%d", slot);
+  std::snprintf(name, sizeof name, "remote_%d", first - 1 + slot);
   float pos[3] = {0, 0, 0}, yaw = 0;  // 0x0063d870
   if (!c.spawn_point || !c.spawn_point(name, pos, &yaw)) return false;
   net_spawn_offset(pos, slot);

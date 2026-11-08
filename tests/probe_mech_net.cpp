@@ -203,12 +203,13 @@ extern "C" int32_t probe_mech_net(const int32_t* ops, int32_t n, int32_t* out, i
   return m;
 }
 
-// The launch (0x0046da80) for test_mech_net_launch.py. in: the local id,
+// The launch (PM 0x0046fb20) for test_pm_net_launch.py. in: the local id,
 // the roster, the skin, the team, the start slot, unlimited ammo, the
 // outside view, the spawn point found, its position (3) and heading as
-// bits, the force feedback; then the packed loadout.
+// bits, the force feedback, the first start (0x00437a40); then the packed
+// loadout.
 namespace {
-int32_t g_team, g_start, g_found, g_ff2;
+int32_t g_team, g_start, g_found, g_ff2, g_base;
 float g_spawn[4];
 }  // namespace
 
@@ -218,7 +219,7 @@ extern "C" int32_t probe_mech_net_launch(const int32_t* in, const uint32_t* blob
   g_log = &lg;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
-  g_team = in[3], g_start = in[4], g_found = in[7], g_ff2 = in[12];
+  g_team = in[3], g_start = in[4], g_found = in[7], g_ff2 = in[12], g_base = in[13];
   std::memcpy(g_spawn, &in[8], 16);
   c.dfn = [](int32_t r) -> const mech3::MechDfn* { log({1, r}); return nullptr; };
   c.team_of = [](uint32_t p) { log({2, static_cast<int32_t>(p)}); return static_cast<uint32_t>(g_team); };
@@ -226,6 +227,7 @@ extern "C" int32_t probe_mech_net_launch(const int32_t* in, const uint32_t* blob
   c.scores_reset = [] { log({5}); };
   c.view_outside = [] { log({6, 1}); };
   c.start_of = [](uint32_t p) { log({7, static_cast<int32_t>(p)}); return g_start; };
+  c.spawn_base = [](uint32_t p) { log({16, static_cast<int32_t>(p)}); return g_base; };  // PM 0x00437a40
   c.spawn_point = [](const char* name, float pos[3], float* yaw) {
     log({8, std::atoi(name + 7)});
     if (!g_found) return false;
