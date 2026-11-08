@@ -140,6 +140,35 @@ offsets), `pm_c1m2_motions_play` (10 of 121 event-12 nodes moving by 300 frames;
 None of these touches damage (their callees: camera.c, class.c's remove child, video, sound, the anim run), so none
 explains mission 3's defences (item 9). Known gaps, not from this work: MW3's `probe_world.cpp` does not build on `pm` (PM's WorldHooks).
 
+## Unported in play (2026-11-08)
+
+The played chains (`kills:99`, `standalone-kills:99`, `PM_AI=1`, seed 1, 21 missions) with each debriefing printing what
+the mission reached that is not ported (`mw3: chain unported in <mission>` from the engine's `unported`, `mw3: chain
+pm ai unanswered in <mission>` from PM's AI's `pm_hook_missing`), summed over both runs; `--verbose`'s summary gives the
+engine's known reasons. Count, missions, key; (a) changes what the player sees or plays, (b) doesn't.
+
+(a), by count:
+
+| Count | Missions | Key | What |
+|---|---|---|---|
+| 870,154 | 21 | assumed: the order's state idle (vt+0x20) | PM's run of pending orders asks the order's state; the port answers yes for all. To check per state against the exe's vt+0x20 |
+| 12,250 | 21 | stand-in: MW3's steering | frames where no PM state runs (MW3's order states below) steer with MW3's steering |
+| 11,244 | 21 | vehicle.vt+0x50 | the walk's "has a pilot" (PM's vehicle vt+0x58, MW3's vt+0x50: the vehicle's mech) is always no, so AI mechs brake by the default 0.1, not by their +0x544 |
+| 3,254 | 12 | stand-in: MW3's orders, WaitState | scripted orders whose states are still MW3's: wait |
+| 265 | 21 | stand-in: MW3's orders, SharedState | the lancemates' shared state |
+| 197 | 21 | 0x004b2ab0 (died_base) | the brain's reaction to its vehicle's death |
+| 40, 39, 16 | 7, 11, 2 | stand-in: MW3's orders, SpeedState, PassState, AssignState | scripted orders' states still MW3's |
+| 12 | 11 | 0x00479440 | the pilot's current campaign game, asked in the standalone missions (caller to trace) |
+
+(b): the developer-only HUD debug numbers and lines (0x0043c820.debug 187,765, hudline.vt+0x7c and vt+0x7c, 0x0040f7f0,
+0x0040f890); the port's own replacements (0x00557f90 189,963, the archive and mount paths, zModel/zRender starts, the
+back buffer's size, CZAiTarget's ctor/dtor, the fog); no-effect calls (0x0040fef0, 0x004f3540, 0x00537520,
+0x0047f2b0, 0x004b52e0, 0x005269e0, 0x00535ed0, 0x00558070, 0x004f8f20, 0x004f8f60, 0x00518790, 0x00519e50);
+0x0049bfd0 (4, the report text); 0x005ac5c0 (1, the empty function); entity vt+0x0 (17, at a mission's end an entity
+no free claims stays allocated: memory only). PM's AI's counters for the first runs, not gaps: awake / sight check by
+the pick (753,222 and 9,341), why no engage (mode 0, net, state, leash), why no target, picked facing / not facing,
+took an attacker / none, fired: trigger / group_add, follow made: MW3's push.
+
 ## The campaign chains on `pm` (2026-11-08)
 
 `mw3pm --campaign-chain` (mw3_main's driver) with `PM_AI=1 --hidden --nosound` on a scratch write dir: `new:99` plays the

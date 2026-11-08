@@ -57,6 +57,9 @@ class CampaignChain {
   int wins_ = 0, shots_ = 0, frames_in_state_ = 0, core_frames_ = 0;
   std::map<std::string, std::map<int32_t, uint32_t>> first_nodes_;  // retry: each mission's nodes at core frame 30, first try
   std::vector<std::string> failed_;                                  // retry: the missions failed once
+  std::map<std::string, uint32_t> unported_seen_;                    // the engine's unported calls, up to the last debriefing
+  std::map<std::string, int> missing_seen_;                          // PM's AI calls with no answer, the same
+  void print_unported(const char* where);
   bool failing_ = false;                                             // retry: this debriefing is the failed try's
   std::vector<const void*> objectives_done_;  // this mission's objectives seen done, logged once
   const void* last_state_ = nullptr;
