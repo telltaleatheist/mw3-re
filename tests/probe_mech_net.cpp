@@ -1562,3 +1562,122 @@ extern "C" int32_t probe_pm_net_clock(const int32_t* in, int32_t* out, int32_t c
   std::copy(lg.begin(), lg.begin() + m, out);
   return m;
 }
+
+// The tick (PM 0x00471040) and its clock send (0x00471210 kind 0x11) for test_pm_net_tick.py. Tick in: the game
+// time, next state, resends, next ping (bits), the clock on, the clock left (bits), warned, host, players, the rate
+// setting, the round's end reason, the clock's next send (bits), ending, the end time (bits), a winner, the 0xf's id.
+// Logged: each send (3, kind, 1 with the game), each HUD message (2, seconds, id), the winner asked (5), the game
+// over (4); then 90 and the state after.
+namespace {
+const int32_t* g_tk;
+mech3::NetGameFields g_tk_game;
+float g_tk_clock_next, g_tk_end_time;
+int32_t g_tk_reason, g_tk_ending;
+float tkf(int32_t i) {
+  float f;
+  std::memcpy(&f, &g_tk[i], 4);
+  return f;
+}
+}  // namespace
+
+extern "C" int32_t probe_pm_net_tick(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_tk = in;
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  g_tk_reason = in[10], g_tk_clock_next = tkf(11), g_tk_ending = in[12], g_tk_end_time = tkf(13);
+  g_tk_game = mech3::NetGameFields{};
+  g_tk_game.players = in[8], g_tk_game.clock_next = &g_tk_clock_next, g_tk_game.round_end = &g_tk_reason;
+  g_tk_game.end_state = &g_tk_ending, g_tk_game.end_time = &g_tk_end_time;
+  c.game = []() -> mech3::NetGameFields* { return &g_tk_game; };
+  c.game_time = [] { return tkf(0); };
+  c.clock_on = [] { return g_tk[4] != 0; };
+  c.clock_left = [] { return tkf(5); };
+  c.hud_message = [](float s, int32_t id, const char*) { log({2, bits(s), id}); };
+  c.round_winner = [] { log({5}); return g_tk[14] != 0; };
+  c.game_over = [] { log({4}); };
+  c.send_event = [](mech3::Mech&, int32_t kind, intptr_t arg) {
+    log({3, kind, arg == reinterpret_cast<intptr_t>(&g_tk_game) ? 1 : 0});
+    return kind == 0xf ? g_tk[15] : 0;
+  };
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 3;
+  s.host_id = in[7] ? 3u : 9u;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.next_state = tkf(1), g.resends = in[2], g.next_ping = tkf(3), g.warned = static_cast<uint8_t>(in[6]);
+  g.rate_setting = static_cast<uint32_t>(in[9]);
+  auto* m = new mech3::Mech();
+  m->net_sent = 77, m->net_acked = 1, m->net_damaged = 5;
+  mech3::net_mech_tick(*m);
+  log({90, bits(g.next_state), g.resends, bits(g.next_ping), g.warned, g_tk_reason, bits(g_tk_clock_next),
+       static_cast<int32_t>(m->net_sent), m->net_acked, static_cast<int32_t>(m->net_damaged)});
+  delete m;
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  c = mech3::NetCalls{};
+  const int32_t k = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + k, out);
+  return k;
+}
+
+// The clock's send (PM 0x00471210, kind 0x11) for test_pm_net_tick.py. in: host, the local id, the round's end
+// reason, the clock left (bits). Logged: the send (1, to, guaranteed, size, its words), the local apply (7, from, its
+// words).
+namespace {
+struct ClockSends : Data {
+  bool send(uint32_t to, const void* data, size_t size, bool guaranteed, uint32_t*) override {
+    log({1, static_cast<int32_t>(to), guaranteed ? 1 : 0, static_cast<int32_t>(size)});
+    const auto* w = static_cast<const uint8_t*>(data);
+    for (size_t k = 0; k + 4 <= size; k += 4) {
+      int32_t v;
+      std::memcpy(&v, w + k, 4);
+      g_log->push_back(v);
+    }
+    return true;
+  }
+};
+float g_cs_left;
+}  // namespace
+
+extern "C" int32_t probe_pm_net_clock_send(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  std::memcpy(&g_cs_left, &in[3], 4);
+  c.clock_left = [] { return g_cs_left; };
+  c.clock = [](NetMech*, uint32_t from, const uint8_t* msg, size_t size) {
+    log({7, static_cast<int32_t>(from)});
+    for (size_t k = 0; k + 4 <= size; k += 4) {
+      int32_t v;
+      std::memcpy(&v, msg + k, 4);
+      g_log->push_back(v);
+    }
+  };
+  ClockSends t;
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = static_cast<uint32_t>(in[1]);
+  s.host_id = in[0] ? s.local->id : 99u;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = true;
+  int32_t reason = in[2];
+  mech3::NetGameFields f;
+  f.round_end = &reason;
+  auto* m = new mech3::Mech();
+  mech3::net_send_event(*m, 0x11, reinterpret_cast<intptr_t>(&f));
+  delete m;
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  c = mech3::NetCalls{};
+  const int32_t k = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + k, out);
+  return k;
+}

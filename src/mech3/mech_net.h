@@ -78,7 +78,7 @@ struct NetGame {
   float reckon_gain = -6.5f;           // PM [0x006076c0] (MW3's [0x005e55f0])
   float reckon_damp = -0.3f;           // PM [0x006076bc] (MW3's [0x005e55ec], -3.5 until its start set -0.3)
   // The local mech's sends (0x0046ef70); the first three cleared at the launch.
-  uint8_t last_second = 0;             // [0x00605f9c]  the clock is under a second
+  uint8_t last_second = 0;             // MW3 [0x00605f9c]  the clock under a second; PM has none (not set)
   float next_state = 0;                // [0x00605fa0]  when the next state goes (game time)
   uint8_t warned = 0;                  // [0x00605fa4]  the one-minute warning shown
   float next_ping = 0;                 // [0x00605fcc]
@@ -98,7 +98,7 @@ struct NetGameFields {
   int32_t players = 0;           // +0x50  the lobby's count
   float* clock_next = nullptr;   // +0x7c  when the host sends the clock (0x11) again
   float* end_time = nullptr;     // +0x80, PM +0x88: when the round's over (3 s after its end reason)
-  int32_t* end_state = nullptr;  // +0x84  0, 1 ending (the clock under 3 s), 3 ended; PM +0x94 (a byte): 1 ending
+  int32_t* end_state = nullptr;  // PM +0x94 (a byte): 1 the round ending (MW3 +0x84: 0, 1, 3)
   int32_t* round_end = nullptr;  // PM +0x90: why the round ended (5 no more enemies), 0 playing
   uint32_t* clock_from = nullptr;  // PM +0xa0: the last clock's (0x11) sender, the host
   uint8_t* overtime_shown = nullptr;  // PM +0xab: the overtime line shown (once a round)
@@ -188,6 +188,7 @@ struct NetCalls {
   void (*set_clock_left)(float v) = nullptr;       // [0x00609920] = (0x00470740)
   bool (*clock_on)() = nullptr;                    // [0x00609924]
   int32_t (*send_other)(Mech& m, int32_t kind, intptr_t arg) = nullptr;  // test hook: the kinds a test stands in for
+  int32_t (*send_event)(Mech& m, int32_t kind, intptr_t arg) = nullptr;  // test hook: every send (the tick's tests)
   void (*game_over)() = nullptr;                   // test hook; unset: net_game_over (0x004707c0)
   // The game over's: the lobby's deaths (0x00435b40), the pilot written
   // (0x00478ce0, its header, vt+0x04, closed), the fade to the Multi-Exit

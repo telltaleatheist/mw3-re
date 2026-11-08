@@ -439,10 +439,10 @@ class MultiplayerGame : public Game {
   int32_t x70 = 0;                   // +0x70  KILLS_LIST's: the score to win (never set by the constructor; saved)
   float x74 = 10.0f;                 // +0x74  TIME_LIST's: minutes
   int32_t x78 = 90;                  // +0x78  WEIGHT_LIST's: tons
-  // The network game's clock and end (0x0046ef70); the start clears them.
-  float clock_next = 0;              // +0x7c  when the host sends the clock (0x11) again
-  float end_time = 0;                // +0x80  (not set by the constructor)
-  int32_t end_state = 0;             // +0x84  0, 1 ending, 3 ended
+  // The network game's clock and end (PM 0x00471040, MW3 0x0046ef70); the start clears them.
+  float clock_next = 0;              // PM +0x84 (MW3 +0x7c): when the host sends the clock (0x11) again
+  float end_time = 0;                // PM +0x88 (MW3 +0x80): the round over then (not set by the constructor)
+  int32_t end_state = 0;             // PM +0x94 (a byte): 1 the round ending (0x00472850); MW3 +0x84 0, 1, 3
   int32_t round_end = 0;             // PM +0x90: why the round ended (0x00472850's 1..6), 0 playing
   uint32_t clock_from = 0;           // PM +0xa0: the last clock's (0x11) sender, the host (0x00472850)
   uint8_t overtime_shown = 0;        // PM +0xab: the overtime line shown (0x00472850), cleared by the start
