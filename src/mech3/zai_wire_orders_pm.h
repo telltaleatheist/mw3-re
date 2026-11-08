@@ -11,6 +11,7 @@ namespace mech3::ai {
 
 bool pm_orders_making();  // a state being made by PM's orders, not MW3's Brain::push (for the first runs' counts)
 BehaviourState* pm_make_scan_state(Order& o, Behaviour& b);  // a scan or canleave step's, running 0x004d5a10
+bool pm_is_scan_state(const BehaviourState* s);  // whether `s` is one of those
 void pm_run_orders(Brain& b, float dt);                    // 0x004fb260
 bool pm_may_fire(Brain& b);                                // 0x004fa6d0
 bool pm_orders_idle(Brain& b);                             // 0x004fa470

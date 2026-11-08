@@ -42,7 +42,7 @@ bool pm_state_running(Brain& b) {
   if (b.orders.empty()) return false;
   BehaviourState* s = b.current().state.get();
   return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) || dynamic_cast<PmDeployState*>(s) ||
-         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s);
+         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s) || pm_is_scan_state(s);
 }
 
 PmAttackState::PmAttackState(Order* o, Behaviour* b) : BehaviourState(o, b) {}

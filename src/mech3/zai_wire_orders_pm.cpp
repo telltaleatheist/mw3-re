@@ -90,6 +90,7 @@ class PmScanState final : public BehaviourState, ScanPmHooks {
 }  // namespace
 
 BehaviourState* pm_make_scan_state(Order& o, Behaviour& b) { return new PmScanState(&o, &b); }
+bool pm_is_scan_state(const BehaviourState* s) { return dynamic_cast<const PmScanState*>(s) != nullptr; }
 
 void pm_run_orders(Brain& b, float dt) {
   if (b.orders.empty()) return;
