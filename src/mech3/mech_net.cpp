@@ -221,7 +221,7 @@ void net_player_left(uint32_t from, const uint8_t* msg, size_t size) {
   const NetCalls& c = g_calls;
   if (c.lobby_set_kills) c.lobby_set_kills(from, 0);  // 0x00436750 (MW3's 0x004359f0)
   if (c.lobby_left) c.lobby_left(from);
-  if (znet::is_host()) net_score_kill(from, from);  // 0x004721e0
+  if (znet::is_host()) c.score_kill ? c.score_kill(from, from) : net_score_kill(from, from);  // 0x004721e0
   if (NetMech* m = net_mech(from)) {
     if (c.hud_message) c.hud_message(4.0f, 0x26a, znet::player_name(from));
     if (c.forget) c.forget(*m);
@@ -789,25 +789,49 @@ void net_kill_in(const uint8_t* msg, size_t size) {
     if (victim == killer) c.hud_message(5.0f, 0xf0a, v);  // "%1 has managed to kill himself"
     else if (c.hud_message2) c.hud_message2(5.0f, 0xf09, v, k);  // "%1 has been killed by %2"
   }
-  if (znet::is_host()) net_score_kill(victim, killer);
+  if (znet::is_host()) c.score_kill ? c.score_kill(victim, killer) : net_score_kill(victim, killer);  // 0x004721e0
 }
 
-// Mech3.exe 1.2 @ 0x00470170. A kill counts only between teams; reaching
-// the score limit ends the game (state 2) at once.
+// Pirate's Moon 1.0 @ 0x004721e0 (MW3's 0x00470170). Rounds: nothing is scored once the round is decided (its
+// end reason over 1). Without respawning the victim is out of the round. A kill counts only between teams; reaching
+// the score limit ends the round (4 with a winner, else 1, overtime), and in overtime a winner ends it (2); without
+// respawning, one side left ends it (5, "No more enemies") and the lobby's scores become the round's (0x00437a10).
+// Each end sends the clock (0x11) at once.
 void net_score_kill(uint32_t victim, uint32_t killer) {
   const NetCalls& c = g_calls;
   if (!znet::is_host()) return;
   NetGameFields* g = c.game ? c.game() : nullptr;
   if (!g) return;
+  int32_t none = 0;
+  int32_t& reason = g->round_end ? *g->round_end : none;  // +0x90
+  if (reason > 1) return;
+  const bool respawn = g->flags && g->flags[0];  // +0xa4 (MW3's +0x8c)
+  if (!respawn && c.lobby_set_out) c.lobby_set_out(victim, true);  // 0x004379b0
+  const auto now = [&] {
+    if (g->clock_next) *g->clock_next = game_time();  // +0x84
+  };
+  const auto winner = [&] { return c.round_winner && c.round_winner(); };  // 0x00437970
+  bool check = true;
   if (victim == killer) {
-    if (c.lobby_suicide) c.lobby_suicide(victim);
-  } else if ((c.team_of ? c.team_of(killer) : 0) != (c.team_of ? c.team_of(victim) : 0)) {
-    if (c.lobby_kill) c.lobby_kill(killer);
-    const auto score = c.lobby_score ? c.lobby_score : c.lobby_kills;  // 0x00435a50
-    if ((score ? score(killer) : 0) >= g->score_limit) {
-      if (g->end_state && *g->end_state == 0) *g->end_state = 2;
-      if (g->clock_next) *g->clock_next = game_time();
+    if (c.lobby_suicide) c.lobby_suicide(victim);  // 0x00436820
+  } else if ((c.team_of ? c.team_of(killer) : 0) != (c.team_of ? c.team_of(victim) : 0)) {  // 0x00436600
+    if (c.lobby_kill) c.lobby_kill(killer);  // 0x00436710
+    const auto score = c.lobby_score ? c.lobby_score : c.lobby_kills;  // 0x004367b0
+    if ((score ? score(killer) : 0) >= g->score_limit && reason == 0) {  // +0x78
+      reason = winner() ? 4 : 1;
+      now();
     }
+  } else {
+    check = false;
+  }
+  if (check && reason == 1 && winner()) {
+    reason = 2;
+    now();
+  }
+  if (!respawn && !net_two_sides() && reason == 0) {
+    reason = 5;
+    if (c.lobby_round_reset) c.lobby_round_reset();  // 0x00437a10
+    now();
   }
   if (c.scores_reset) c.scores_reset();  // 0x004361e0
   std::vector<uint32_t> list(3 * static_cast<size_t>(std::max(g->players, 0)), 0);

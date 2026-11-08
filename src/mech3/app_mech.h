@@ -173,6 +173,8 @@ struct NetLobbyAccess {
   int32_t (*start_of)(uint32_t player) = nullptr;    // the record's +0x20
   void (*left)(uint32_t player) = nullptr;           // the record's +0x18 = 1 (PM: and its +0x2c score line none)
   bool (*out)(uint32_t player) = nullptr;            // PM 0x00437990: the record's +0x0e, true none
+  void (*set_out)(uint32_t player, bool out) = nullptr;  // PM 0x004379b0
+  void (*round_reset)() = nullptr;                   // PM 0x00437a10
   void (*suicide)(uint32_t player) = nullptr;        // 0x00435ac0(p, 1)
   void (*kill)(uint32_t player) = nullptr;           // 0x004359b0(p, 1)
   int32_t (*kills)(uint32_t player) = nullptr;       // 0x00435a30

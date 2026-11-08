@@ -957,6 +957,12 @@ NetLobbyAccess net_lobby_access() {
     const LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr;
     return r ? r->out != 0 : true;
   };
+  a.set_out = [](uint32_t p, bool out) {
+    if (g_net_game) g_net_game->set_out(p, out);
+  };
+  a.round_reset = [] {
+    if (g_net_game) g_net_game->round_reset();
+  };
   a.suicide = [](uint32_t p) {
     if (g_net_game) g_net_game->add_deaths(p, 1);
   };

@@ -775,6 +775,7 @@ extern "C" int32_t probe_mech_net_events(const int32_t* in, int32_t* out, int32_
   c.hud_message = [](float t, int32_t id, const char* a) { log({2, bits(t), id, s_num(a)}); };
   c.hud_message2 = [](float t, int32_t id, const char* a, const char* b) { log({2, bits(t), id, s_num(a), s_num(b)}); };
   c.mech_name = [](mech3::Mech&) -> const char* { return "Pilot"; };
+  c.score_kill = [](uint32_t v, uint32_t k) { log({99, static_cast<int32_t>(v), static_cast<int32_t>(k)}); };
   c.lobby_name = [](uint32_t p) -> const char* {  // PM's kill line: the lobby's records ("P<id>")
     static std::map<uint32_t, std::string> names;  // each its own, as the records' are
     if (slot_of(p) < 0) return nullptr;
@@ -1217,7 +1218,7 @@ extern "C" int32_t probe_mech_net_gone(const int32_t* in, int32_t* out, int32_t 
       if (static_cast<uint32_t>(g_gone[gRec + 2 * k]) == p) return g_gone[gRec + 2 * k + 1] != 0;
     return true;
   };
-  c.lobby_suicide = [](uint32_t p) { log({20, static_cast<int32_t>(p)}); };
+  c.score_kill = [](uint32_t v, uint32_t k) { log({99, static_cast<int32_t>(v), static_cast<int32_t>(k)}); };
   c.hud_message = [](float t, int32_t id, const char* n) { log({2, bits(t), id, n ? std::atoi(n + 1) : -3}); };
   c.forget = [](NetMech& m) { log({51, static_cast<int32_t>(m.owner)}); };
   c.free = [](NetMech* m) {
@@ -1274,3 +1275,84 @@ extern "C" int32_t probe_mech_net_gone(const int32_t* in, int32_t* out, int32_t 
   return n;
 }
 extern "C" int32_t probe_mech_net_gone_count() { return gGoneCount; }
+
+// Pirate's Moon's kill scoring (0x004721e0) for test_pm_net_score.py. in: the victim, the killer, host, the game
+// there, its round's end reason, the clock's next send and the game time (bits), the score limit, respawn, two sides
+// left, the round winner's answers (bit k the k-th asking), the HUD's scores hidden, the lobby's records (count, then
+// id, team, kills, deaths, score for 8).
+namespace {
+enum Score { sVictim, sKiller, sHost, sGame, sReason, sClock, sTime, sLimit, sRespawn, sSides, sWinners, sHudHidden,
+             sLobby, sRec, sScoreCount = sRec + 40 };
+const int32_t* g_sc;
+int32_t g_sc_asked;
+int32_t sc_field(uint32_t p, int32_t f, int32_t none) {
+  for (int32_t k = 0; k < g_sc[sLobby]; ++k)
+    if (static_cast<uint32_t>(g_sc[sRec + 5 * k]) == p) return g_sc[sRec + 5 * k + f];
+  return none;
+}
+}  // namespace
+extern "C" int32_t probe_mech_net_score(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_sc = in;
+  g_sc_asked = 0;
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  c.lobby_set_out = [](uint32_t p, bool o) { log({60, static_cast<int32_t>(p), o ? 1 : 0}); };
+  c.lobby_suicide = [](uint32_t p) { log({20, static_cast<int32_t>(p)}); };
+  c.lobby_kill = [](uint32_t p) { log({21, static_cast<int32_t>(p)}); };
+  c.team_of = [](uint32_t p) { return static_cast<uint32_t>(sc_field(p, 1, 0)); };
+  c.lobby_score = [](uint32_t p) { return sc_field(p, 4, -1); };
+  c.round_winner = [] { return (g_sc[sWinners] >> g_sc_asked++ & 1) != 0; };
+  c.lobby_round_reset = [] { log({61}); };
+  c.scores_reset = [] { log({24}); };
+  c.lobby_scores = [](uint32_t* o, int32_t n) {
+    const int32_t m = std::min(n, g_sc[sLobby]);
+    for (int32_t k = 0; k < m; ++k)
+      o[3 * k] = static_cast<uint32_t>(g_sc[sRec + 5 * k]), o[3 * k + 1] = static_cast<uint32_t>(g_sc[sRec + 5 * k + 2]),
+      o[3 * k + 2] = static_cast<uint32_t>(g_sc[sRec + 5 * k + 3]);
+    return m;
+  };
+  c.hud_scores = [] { if (!g_sc[sHudHidden]) log({25}); };
+  // two sides left or not, as the network mechs give it (net_two_sides, tested in test_pm_net_gone)
+  c.lobby_out = [](uint32_t) { return false; };
+  static mech3::Mech pilot;
+  pilot = mech3::Mech{};
+  pilot.team = 2;
+  c.pilot_mech = []() -> mech3::Mech* { return &pilot; };
+  static int32_t s_end_state, s_reason;
+  static float s_clock, s_end_time;
+  static uint8_t s_flags[4];
+  s_end_state = 0, s_reason = in[sReason], s_clock = fbits(in[sClock]), s_end_time = 0;
+  s_flags[0] = static_cast<uint8_t>(in[sRespawn]);
+  static mech3::NetGameFields s_f;
+  s_f = mech3::NetGameFields{in[sLimit], in[sLobby], &s_clock, &s_end_time, &s_end_state};
+  s_f.round_end = &s_reason, s_f.flags = s_flags;
+  c.game = []() -> mech3::NetGameFields* { return g_sc[sGame] ? &s_f : nullptr; };
+  c.game_time = [] { return fbits(g_sc[sTime]); };
+  Sends t;
+  g_send_id = 100;
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.async = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 1;
+  s.host_id = in[sHost] ? 1u : 99u;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = true;
+  auto* other = new NetMech();
+  other->remote = true, other->owner = 2, other->team = in[sSides] ? 4u : 2u;
+  g.mechs.push_back(other);
+  mech3::net_score_kill(static_cast<uint32_t>(in[sVictim]), static_cast<uint32_t>(in[sKiller]));
+  log({90, s_reason, bits(s_clock)});
+  for (NetMech* m : g.mechs) delete m;
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  c = mech3::NetCalls{};
+  const int32_t n = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + n, out);
+  return n;
+}
+extern "C" int32_t probe_mech_net_score_count() { return sScoreCount; }
+
