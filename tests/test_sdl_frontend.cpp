@@ -5403,11 +5403,15 @@ TEST(pm_find_takes_pirates_moon_only) {
     EXPECT(f.game == source::Found::kPiratesMoon && !source::usable(f) && f.summary.find("Install it from the disc first") != std::string::npos);
   }
   // The search: mw3.cfg's PM over all; a MechWarrior 3 folder never, in either place.
+  // The machine's own installs (registry, standard folders) are left out, so a PM
+  // installed in a standard place doesn't change the answer.
+  sdlfe::set_install_candidates_hook([] { return std::vector<std::string>{}; });
   bool searched = false;
   EXPECT(sdlfe::find_install(pm, {mw3}, false, &searched) == pm && !searched);
   EXPECT(sdlfe::find_install(mw3, {pm}, false, &searched) == pm && searched);
   EXPECT(sdlfe::find_install("", {mw3, pm}, false, &searched) == pm);
   EXPECT(sdlfe::find_install(mw3, {mw3}, false, &searched).empty());
+  sdlfe::set_install_candidates_hook(nullptr);
   // Remembered: what the find screen saves is what the next start reads.
   EXPECT(sdlfe::save_install(dir + "/wd", pm));
   std::ifstream in(dir + "/wd/mw3.cfg");
