@@ -495,6 +495,13 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 
 From the weapon code (weapons.md).
 
+- **A destroyed weapon can stay selected.** When your selected weapon is
+  destroyed, the game moves you on to the next weapon on the HUD's list
+  without checking that it still works, so if that one was already gone
+  (an arm's weapons, say) you are left on a dead weapon and have to pick
+  another yourself. Pirate's Moon changed this: it skips to the next weapon
+  that can fire. The rebuild moves on to the next working one in MW3 too.
+  (0x004b3020, PM's 0x004b6f70)
 - **Craters really dig into the ground.** A crater is not a painted mark:
   the game cuts the terrain polygons under the hole away, clips the ones on
   its edge, and puts in a sloped ring and a floor, textured to match the

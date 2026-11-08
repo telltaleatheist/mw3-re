@@ -258,6 +258,9 @@ struct BeamProbe {
 };
 bool mech_group_beam(void* mech, int32_t g, BeamProbe* out);
 float mech_tag_muzzle(void* mech, bool* mounted);  // tests: TAG added as the build adds it, its muzzle from the torso
+// Tests (pm-tests item 21): the first weapon in the list's order selected, the one after it destroyed, then it;
+// whether the selection ends on a destroyed weapon. -1 with fewer than three weapons.
+int32_t mech_weapon_gone_case(void* mech, bool* picked);
 std::string mech_group_names(void* mech, int32_t g);
 // Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
 bool mech_lock_shown(void* mech);

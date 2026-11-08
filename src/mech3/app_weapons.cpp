@@ -556,6 +556,23 @@ int32_t program_fire_at(void* mech, const char* weapon, int32_t n, float dist) {
   return fired;
 }
 
+int32_t mech_weapon_gone_case(void* mech, bool* picked) {
+  auto* wm = static_cast<WeaponManager*>(program_mech_weapons(mech));
+  *picked = false;
+  if (!wm) return -1;
+  std::vector<Weapon*> order;
+  for (WeaponGroup* g : wm->groups)
+    if (g)
+      for (uint32_t i = 0; i < g->count; ++i) order.push_back(g->weapons[i]);
+  if (order.size() < 3) return -1;
+  Weapon* a = order[0];
+  if (wm->select_group(a->group)) wm->group_ptr()->select(a);
+  *picked = wm->current() == a;
+  order[1]->destroy();
+  a->destroy();
+  return !wm->current() || wm->current()->damage == 1.0f ? 1 : 0;
+}
+
 // What F1..F5 select (CMD_WEPGRP_1..5 through the mech's command handler,
 // not ported): the first group holding a weapon that heats its mech; -1 none.
 std::string mech_group_names(void* mech, int32_t g) {

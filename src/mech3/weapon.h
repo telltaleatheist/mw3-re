@@ -265,6 +265,7 @@ struct WeaponManager {                 // 0x94 bytes, Vehicle +0xd4
   bool next_group();                                       // 0x004b04f0
   bool prev_group();                                       // 0x004b0610
   bool select_group(int32_t g);                            // 0x004b0730
+  Weapon* standing_after(const Weapon* from) const;        // ours: Weapon::destroy's FIX
   void next_weapon();                                      // 0x004b0790
   void prev_weapon();                                      // 0x004b07e0
   void mode_sound() const;                                 // 0x004b0830

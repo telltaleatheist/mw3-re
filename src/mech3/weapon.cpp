@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <list>
+#include <vector>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
@@ -654,6 +655,23 @@ bool WeaponManager::select_group(int32_t g) {
   group = g;
   refresh_hud();
   return true;
+}
+
+// Ours (Weapon::destroy's FIX): the first weapon after `from` in the HUD's order (the
+// groups 0..4, each in its order, from the start again after the last) that is not
+// destroyed; none when every other one is.
+Weapon* WeaponManager::standing_after(const Weapon* from) const {
+  std::vector<Weapon*> order;
+  for (WeaponGroup* g : groups)
+    if (g)
+      for (uint32_t i = 0; i < g->count; ++i) order.push_back(g->weapons[i]);
+  const auto at = std::find(order.begin(), order.end(), from);
+  const size_t start = at == order.end() ? 0 : static_cast<size_t>(at - order.begin()) + 1;
+  for (size_t k = 0; k < order.size(); ++k) {
+    Weapon* w = order[(start + k) % order.size()];
+    if (w && w != from && w->damage < 1.0f) return w;
+  }
+  return nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x004b0790
@@ -1326,6 +1344,14 @@ void Weapon::destroy() {
     } else {
       manager->next_weapon();
     }
+    // FIX (bug): the HUD's pick is the next line whether or not it still stands, and
+    // next_weapon stays in the group, so the selection could stay on a destroyed weapon
+    // (pm-tests item 21). The first standing one after this in the list's order instead.
+    if (zfix::options().bugs && manager->current() && manager->current()->damage == 1.0f)
+      if (Weapon* w = manager->standing_after(this)) {
+        if (manager->select_group(w->group)) manager->group_ptr()->select(w);
+        if (is_player(owner) && g_calls.screen && g_calls.screen(owner) && g_calls.hud_weapons) g_calls.hud_weapons(owner);
+      }
   }
   halt(loop_sound);
   loop_sound = nullptr;

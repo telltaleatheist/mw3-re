@@ -20917,6 +20917,26 @@ TEST(mission_c1m2_cheat_codes_headless) {
   EXPECT(cleared);
 }
 
+// pm-tests item 21: the current weapon destroyed with the weapon after it in the list already gone. The original
+// picks the HUD's next line, destroyed or not (0x004b3020), so the selection stays on a destroyed weapon; with the
+// fix (bugs) it goes to the first one still standing.
+TEST(mission_c1m1_selection_leaves_a_destroyed_weapon_headless) {
+  if (!have_game()) return;
+  for (const bool fix : {false, true}) {
+    zfix::options().bugs = fix;
+    bool on_destroyed = true, picked = false;
+    cheat_mission(fix ? "weapon_gone_fix_write" : "weapon_gone_write", 0, 1, 400, [&](int f, mech3::GameEngine&, CheatKeys&) {
+      if (f != 30) return false;
+      on_destroyed = mech3::mech_weapon_gone_case(mech3::mission_player_mech(), &picked) == 1;
+      return true;
+    });
+    std::printf("  bugs %s: the current weapon selected %d, on a destroyed one after %d\n", fix ? "on" : "off", picked, on_destroyed);
+    EXPECT(picked);
+    EXPECT(on_destroyed == !fix);
+  }
+  zfix::options().bugs = true;
+}
+
 // There is no cow level in c1m2: every enemy mech and vehicle killed by the
 // player and salvaged whole (each mech in the salvage), the objectives done,
 // the mission won; Exit Mission brings the debriefing as a win.
