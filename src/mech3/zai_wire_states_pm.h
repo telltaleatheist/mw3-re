@@ -161,6 +161,34 @@ class PmPassState final : public PmSlotState {
   PassPm s_;
 };
 
+// Slot 9 (0x004df320 -> 0x004df4a0, vtable 0x005ef27c): closing in on the target. It may be broken into and fire
+// (0x004964e0, 0x004eb000); resume does nothing.
+class PmCloseInState final : public PmSlotState {
+ public:
+  using PmSlotState::PmSlotState;
+  void resume() override {}  // vt+0x10: 0x00403ac0
+
+ private:
+  void start(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.start(w, v); }
+  void step(WireWalk& w, SteerPm& s, zgame::Handle v) override { s_.run(w, s, v); }
+  CloseInPm s_;
+};
+
+// Slot 5 (0x004d7960 -> 0x004d7ac0, vtable 0x005eeb60): keeping the target at a range. Neither broken into nor firing
+// (0x004d5020); the resume is the start again (0x004d7bb0), made at the next run.
+class PmKeepRangeState final : public PmSlotState {
+ public:
+  using PmSlotState::PmSlotState;
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void resume() override { started_ = false; }
+
+ private:
+  void start(WireWalk& w, SteerPm&, zgame::Handle) override { s_.start(w); }
+  void step(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.run(w, v); }
+  KeepRangePm s_;
+};
+
 class PmBehindState final : public PmSlotState {
  public:
   using PmSlotState::PmSlotState;

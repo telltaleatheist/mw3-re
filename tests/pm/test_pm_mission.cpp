@@ -17,9 +17,11 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "check.h"
+#include "mech3/zainet_inout.h"
 #include "crt/msvc_rand.h"
 #include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
+#include "mech3/app_sensors.h"
 #include "mech3/app_view.h"
 #include "mech3/player_view.h"
 #include "mech3/app_vehicle.h"
@@ -310,6 +312,7 @@ void pm_watch(void* mech, const char* name, const float player[3]);
 int pm_watch_follow(void* mech);
 void pm_kill_begin(void* player);
 int pm_kill_fire(void* player, const float at[3]);
+int pm_trigger_all(void* player, const float at[3]);
 void pm_kill_left(void* mech, char* out, size_t n);
 void pm_kill_ray(const float from[3], const float to[3]);
 uint32_t pm_kill_root_flags(void* mech);
@@ -505,6 +508,7 @@ static void kill_run(const char* which, bool quick) {
       }
       int32_t count = 0;
       const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&count);
+      if (t == 30) std::printf("  vias on the area: %d\n", mech3::ai::inout_via_count());
       if (std::getenv("PM_M2_FOLLOW") && t == 30)
         for (int32_t i = 0; i < count; ++i)
           if (ai[i].name && std::strcmp(ai[i].name, std::getenv("PM_M2_FOLLOW")) == 0)
@@ -587,6 +591,53 @@ static void kill_run(const char* which, bool quick) {
         std::printf("\n");
       }
       if (t > 12000) done = true;
+      return;
+    }
+    // PM_HOSTILES=metres: each hostile but the mechs in turn (vehicles, turrets, targets.zrd's), the player that far
+    // from it, every weapon through its trigger at its node until it dies or 300 frames pass (pm-tests item 9).
+    if (const char* range = std::getenv("PM_HOSTILES")) {
+      static int t = 0, from = 0, shots_at = 0, killed = 0, alive = 0;
+      static std::vector<mech3::ChainTarget> all;
+      static size_t i = 0;
+      static bool placed = false;
+      if (++t == 2) {
+        for (const mech3::ChainTarget& c : mech3::chain_hostiles())
+          if (std::strcmp(c.kind, "mech") != 0) all.push_back(c);
+        std::printf("  %zu hostiles but mechs\n", all.size());
+        return;
+      }
+      if (t < 2) return;
+      if (i >= all.size() || t > 40000) {
+        std::printf("  hostiles: %zu, killed %d, alive after 300 frames %d\n", all.size(), killed, alive);
+        EXPECT(alive == 0);
+        done = true;
+        return;
+      }
+      const mech3::ChainTarget& c = all[i];
+      auto* n = static_cast<zcls::Node*>(mech3::hud_object_node(mech3::chain_object(c.h)));
+      if (!placed) {
+        if (!mech3::chain_alive(c.h)) {
+          std::printf("  %s %s gone before its turn\n", c.kind, c.name.c_str());
+          ++i;
+          return;
+        }
+        mech3::chain_player_near(n, static_cast<float>(std::atof(range)));
+        placed = true, from = t, shots_at = 0;
+        return;
+      }
+      if (!mech3::chain_alive(c.h)) {
+        std::printf("  %s %s dead after %d frames, %d shots\n", c.kind, c.name.c_str(), t - from, shots_at);
+        ++killed, ++i, placed = false;
+        return;
+      }
+      float at[3] = {};
+      if (n) zcls::node_world_position(n, at);
+      at[1] += 2.0f;
+      if (t - from > 5) shots_at += pm_trigger_all(player, at);
+      if (t - from > 300) {
+        std::printf("  %s %s at %.0f %.0f %.0f alive after %d shots\n", c.kind, c.name.c_str(), at[0], at[1], at[2], shots_at);
+        ++alive, ++i, placed = false;
+      }
       return;
     }
     if (std::getenv("PM_LOADOUT")) {

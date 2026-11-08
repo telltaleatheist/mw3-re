@@ -9,8 +9,10 @@
 #include <unordered_map>
 
 #include "mech3/zai_steer_pm.h"
+#include "mech3/zai_steps.h"
 
 #include "gamez/zclass/class.h"
+#include "gamez/znetwork/znet_object.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/list.h"
@@ -743,6 +745,39 @@ void inout_add_via(const void* net, const void* node, const float* pos, const vo
   InOutVia v;
   v.net = net, v.node = node, v.pos = pos, v.other = other, v.other_pos = other_pos;
   for (const auto& p : g_inout.current->polygons) p->add_via(v);
+}
+
+// Pirate's Moon 1.0 @ 0x004ce2f0, 0x004c7d60, 0x004c7c00 and 0x004c7b20 (each step's vt+0x60, +0x74, +0xa0: a via node;
+// its place and its +0x30's, and the net, to 0x004cf350 on each polygon; the exe's log line of it goes nowhere).
+void for_each_via(void (*fn)(void* ctx, AiNet* net, const ViaNode* node), void* ctx) {
+  for (znet::Object* x : znet::registry().list) {
+    auto* net = dynamic_cast<CompiledNet*>(x);  // 0x004c7c00: vt+0x28, then vt+0x34
+    if (!net) continue;
+    for (znet::Element* e : net->elems) {  // 0x004c7b20: vt+0x60, +0x74, +0xa0
+      Behaviour* b = e ? static_cast<AiElem*>(e)->as_behaviour() : nullptr;
+      if (b && b->kind == StepKind::ViaNode) fn(ctx, net, static_cast<const ViaNode*>(b));
+    }
+  }
+}
+
+int32_t inout_register_vias() {
+  if (!g_inout.current) return 0;
+  int32_t n = 0;
+  for_each_via(
+      [](void* ctx, AiNet* net, const ViaNode* v) {
+        const Behaviour* other = v->next_step;  // its +0x30
+        inout_add_via(net, v, v->position(), other, other ? other->position() : nullptr);
+        ++*static_cast<int32_t*>(ctx);
+      },
+      &n);
+  return n;
+}
+
+int32_t inout_via_count() {
+  if (!g_inout.current) return 0;
+  size_t n = 0;
+  for (const auto& p : g_inout.current->polygons) n += p->vias.size();
+  return static_cast<int32_t>(n);
 }
 
 // Mech3.exe 1.2 @ 0x004c3bd0 -> 0x004c2a30 over 0x004c29a0. Any other

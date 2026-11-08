@@ -149,5 +149,7 @@ TEST(pm_wire_kinds_make_their_states) {
   for (StepKind k : {StepKind::VehOwn})
     EXPECT(!made(k));
   EXPECT(dynamic_cast<PmPassState*>(made(slot(7)).get()));
-  for (int i : {5, 9}) EXPECT(!made(slot(i)));
+  EXPECT(dynamic_cast<PmCloseInState*>(made(slot(9)).get()));
+  EXPECT(dynamic_cast<PmKeepRangeState*>(made(slot(5)).get()));
+  EXPECT(!made(slot(5))->may_fire() && !made(slot(5))->may_break_in());
 }

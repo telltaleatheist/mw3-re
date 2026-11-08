@@ -346,3 +346,21 @@ int pm_watch_follow(void* mech) {
   if (!ac || !ac->brain || !m->player_contact) return -1;
   return ac->brain->lance_order(0, m->player_contact);
 }
+
+// Every weapon through its trigger, the route a pull of the trigger takes (pm_kill_fire's aim_and_fire makes a
+// beam but never starts it, so its lasers never fire); the reload and the beams' charge skipped.
+int pm_trigger_all(void* player, const float at[3]) {
+  auto* me = static_cast<Mech*>(player);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  me->heat = 0.0f;
+  wm->aim = Vec3f{at[0], at[1], at[2]};
+  int fired = 0;
+  for (uint32_t i = 0; i < wm->count; ++i) {
+    Weapon* w = wm->weapons[i];
+    if (!w) continue;
+    w->reload = 0.0f;
+    if (auto* b = dynamic_cast<BeamWeapon*>(w); b && !b->firing) b->bin->amount = b->bin->capacity();
+    if (w->can_fire()) fired += w->trigger() ? 1 : 0;
+  }
+  return fired;
+}

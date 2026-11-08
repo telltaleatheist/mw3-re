@@ -180,6 +180,14 @@ bool inout_pull(uintptr_t vehicle, const float pos[3], const float in[3], float 
 InOutLast inout_last(uintptr_t vehicle);
 // 0x004c7b20 over every net: a via node and the node it leads to, onto the current area's polygons.
 void inout_add_via(const void* net, const void* node, const float* pos, const void* other, const float* other_pos);
+// 0x004ce2f0 (the boundary listener's slot +0x0c) -> 0x004c7d60 -> 0x004c7c00 -> 0x004c7b20: with a current area, every
+// via node of every net with them onto its polygons. The count of via nodes handed over (ours, for the checks).
+int32_t inout_register_vias();
+class AiNet;
+struct ViaNode;
+// 0x004c7d60 -> 0x004c7c00 -> 0x004c7b20: each via node of each compiled net in the registry ([0x00627c3c]), in its order.
+void for_each_via(void (*fn)(void* ctx, AiNet* net, const ViaNode* node), void* ctx);
+int32_t inout_via_count();  // ours, for the checks: the vias on the current area's polygons
 // Mech3.exe 1.2 @ 0x004c3bd0 (ECX the animation, EDX the AI message; from
 // 0x004d4a20): messages 0x39..0x3c test, of the current area's polygons named
 // as the animation's node, only the yellow, red, cyan or blue ones.

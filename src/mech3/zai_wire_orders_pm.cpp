@@ -54,8 +54,15 @@ struct OnBrain : OrdersPmHooks {
     b.x104 = 0;
     b.current().run(dt);
     mirror.again = b.x104;
+    sync_pending();
   }
-  void run_pending(zgame::Handle) override { pm_run_pending(b); }
+  void run_pending(zgame::Handle) override {
+    pm_run_pending(b);
+    sync_pending();
+  }
+  // The exe's loop sees what a state queues at once (one list); the mirror counts the brain's again. Without it a
+  // terminus (0x004e1fd0: return_back, then again) looped in one frame, queuing for ever.
+  void sync_pending() { mirror.pending.resize(pm_pending_count(b)); }
 
   static bool missing(const char* key) {
     pm_hook_missing(key);

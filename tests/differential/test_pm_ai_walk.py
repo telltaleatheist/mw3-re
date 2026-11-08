@@ -150,6 +150,7 @@ class Exe(test_pm_zar.Emulated):
         # The terminus's end: its new 0x5ef250 (operator new, 0x4ea070) to 0x4ea180 on the brain's +0x15c, its list.
         self.backs = 0
         self.dep = None
+        self.ks = None
         self.native_stub(0x5ce8c6, lambda c: self.alloc(8))
         self.native_stub(0x4ea070, lambda c: c.ecx)
 
@@ -253,6 +254,32 @@ class Exe(test_pm_zar.Emulated):
         a = self.cpu.code(b'\xc3')
         self.native_stub(a, fn)
         return a
+
+    def velocity_setup(self):
+        """Slot 5's asks: each vehicle's velocity (vt+0x08), the target's vehicle (the record's vt+0x2c, then vt+0x48)
+        and the controls' reversing (vt+0x18)."""
+        self.vel_on = True
+        self.vel_mine, self.vel_theirs, self.has_tv, self.rev = [0.0] * 3, [0.0] * 3, False, False
+
+        def vel(which):
+            def fn(c):
+                p = self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)
+                self.fs(p, self.vel_mine if which == 0 else self.vel_theirs)
+                return 0
+            at = self.cpu.code(b'\xc2\x04\x00')
+            self.native_stub(at, fn, pop=4)
+            return at
+        self.w32(self.g(self.vehicle) + 8, vel(0))
+        tv, tvt = self.alloc(0x10), self.alloc(0x200)
+        self.w32(tv, tvt)
+        self.w32(tvt + 8, vel(1))
+        self.w32(tvt + 0x120, self.cpu.code(b'\xd9\xee\xc3'))  # fldz; ret: its speed, not read
+        holder, hvt = self.alloc(8), self.alloc(0x60)
+        self.w32(holder, hvt)
+        self.w32(hvt + 0x48, self.ret_stub(lambda c: tv))
+        rvt = self.g(self.record)
+        self.w32(rvt + 0x2c, self.ret_stub(lambda c: holder if self.has_tv else 0))
+        self.w32(self.ctl + 0x18, self.ret_stub(lambda c: 1 if self.rev else 0))
 
     def deploy_setup(self):
         """The deploy state 0x4de0e0 runs on: its node (+0x08 and +0x28) with two valves and a target step, the
@@ -366,6 +393,10 @@ class Exe(test_pm_zar.Emulated):
         if self.rs:
             vals += [self.g(self.rs + o) for o in (0xc, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x38)] + self.asked + self.sent
             exact += [self.g(self.rs + 0x34)]
+        if self.ks:
+            vals += [self.g(self.ks + o) for o in (0xc, 0x20, 0x24, 0x28)] + self.sent
+            exact += [struct.unpack('<h', bytes(self.cpu._uc.mem_read(self.ks + 0x2c, 2)))[0],
+                      struct.unpack('<h', bytes(self.cpu._uc.mem_read(self.ks + 0x2e, 2)))[0], self.sends]
         if self.dep:
             d = self.dep
             vals += [self.g(d + o) for o in (0x10, 0x18, 0x1c, 0x24, 0x2c, 0x30, 0x34)] + self.placed
@@ -649,6 +680,78 @@ def pass_plan(seed):
     return lines
 
 
+def close_plan(seed):
+    """The vehicle net's slot 9 state (0x4df4a0, 0x4df860): made, then run on worlds and ways moving under it, the
+    pilot bumping a mech or not, the rolls placing it round the target."""
+    r = random.Random(f'close:{seed}')
+    base = plan(seed + 900000)
+    worlds = [ln for ln in base if ln[0] == 'W']
+    steers = [ln for ln in base if ln[0] == 'T']
+    lines = base[:2] + [('C',), ('F', [r.uniform(1, 40), r.uniform(1, 40), 60.0, r.uniform(0, 60), 10.0]),
+                        ('a', [r.choice([r.uniform(5, 120), 40.0])]), ('V', 1, 0), ('B9', 1, 0),
+                        ('e', r.randrange(32768), r.randrange(32768)), ('P9',)]
+    for _ in range(r.randrange(4, 14)):
+        k = r.random()
+        if k < 0.2 and worlds:
+            w = r.choice(worlds)
+            if r.random() < 0.4:  # the target within 30 m
+                v = list(w[1])
+                v[3:6] = [v[0] + r.uniform(-20, 20), v[1], v[2] + r.uniform(-20, 20)]
+                w = (w[0], v) + w[2:]
+            lines.append(w)
+        elif k < 0.35 and steers:
+            tv = list(r.choice(steers)[1])
+            if r.random() < 0.5:  # at the way's end
+                tv[7] = tv[5]
+            lines.append(('T', tv))
+        elif k < 0.45:
+            lines.append(('V', r.choice([0, 1, 1, 1]), r.choice([0, 0, 0, 1])))
+        elif k < 0.6:
+            lines.append(('B9', r.choice([0, 1, 1]), r.choice([0, 1])))
+        elif k < 0.7:
+            lines.append(('e', r.randrange(32768), r.randrange(32768)))
+        lines.append(('R9',))
+    return lines
+
+
+def keep_plan(seed):
+    """The vehicle net's slot 5 state (0x4d7ac0, 0x4d7c10): made, then run as the worlds, the two velocities and the
+    target's life change; ranges set so every phase meets."""
+    r = random.Random(f'keep:{seed}')
+    base = plan(seed + 1000000)
+    worlds = [ln for ln in base if ln[0] == 'W']
+    near = r.choice([5.0, 20.0, 60.0, r.uniform(1, 120)])
+
+    def vel():
+        return ('VL', [r.uniform(-20, 20), r.choice([0.0, r.uniform(-3, 3)]), r.uniform(-20, 20)] +
+                [r.uniform(-20, 20), 0.0, r.uniform(-20, 20)], r.choice([0, 1, 1]))
+    lines = base[:2] + [('C',), ('F', [1.0, 1.0, 60.0, 30.0, 10.0]), ('V', 1, 0), vel(),
+                        ('KP', [r.choice([near * near * 2, near * near * 0.5, 1e4, r.uniform(0, 1e4)]), near], r.choice([0, 1]))]
+    if worlds and r.random() < 0.4:  # closing fast just inside the near band: the sidestep, its across near the 0.17 turn
+        w = r.choice(worlds)
+        place = w[1][:3]
+        h = r.uniform(0, 6.283)
+        u = [math.sin(h), 0.0, math.cos(h)]
+        d = near * r.uniform(0.92, 0.99)
+        target = [place[0] + u[0] * d, r.uniform(-3, 3), place[2] + u[2] * d]
+        lines.append(('W', place + target + w[1][6:]) + w[2:])
+        side = r.choice([r.uniform(-0.25, 0.25), r.uniform(-0.2, -0.16), r.uniform(0.16, 0.2)])
+        perp = [u[2], 0.0, -u[0]]  # across of perp is -1
+        speed = r.choice([r.uniform(0.2, 0.32), r.uniform(0.3, 20)])
+        c = math.sqrt(1 - side * side)
+        lines.append(('VL', [speed * (c * u[i] - side * perp[i]) for i in range(3)] + [0.0, 0.0, 0.0], 1))
+    for _ in range(r.randrange(4, 16)):
+        k = r.random()
+        if k < 0.35 and worlds:
+            lines.append(r.choice(worlds))
+        elif k < 0.55:
+            lines.append(vel())
+        elif k < 0.6:
+            lines.append(('V', r.choice([0, 1, 1, 1]), 0))
+        lines.append(('KR',))
+    return lines
+
+
 def circle_plan(seed):
     """The circling state: made, then run with the clock going and the boundary coming and going."""
     r = random.Random(f'circle:{seed}')
@@ -893,6 +996,28 @@ def run_exe(x, lines):
             x.call(0x4e1750, ecx=x.bh, args=(0x1234, x.order))
         elif op == 'R7':
             x.call(0x4e1a50, ecx=x.bh, args=(0,))
+        elif op == 'P9':
+            x.bh = x.alloc(0x50)
+            x.call(0x4df4a0, ecx=x.bh, args=(0x1234, x.order))
+        elif op == 'R9':
+            x.call(0x4df860, ecx=x.bh, args=(0,))
+        elif op == 'VL':
+            if not getattr(x, 'vel_on', False):
+                x.velocity_setup()
+            x.vel_mine, x.vel_theirs, x.has_tv = ln[1][0:3], ln[1][3:6], bool(ln[2])
+        elif op == 'KP':
+            if not getattr(x, 'vel_on', False):
+                x.velocity_setup()
+            x.fs(x.brain + 0x74, ln[1][0:1])
+            x.fs(x.brain + 0x78, ln[1][1:2])
+            x.rev = bool(ln[2])
+            x.ks = x.alloc(0x40)
+            x.call(0x4d7ac0, ecx=x.ks, args=(0x1234, x.order))
+        elif op == 'KR':
+            x.call(0x4d7c10, ecx=x.ks)
+        elif op == 'B9':
+            x.want_pilot = bool(ln[1])
+            x.cpu._uc.mem_write(x.pilot + 0x385, bytes([ln[2]]))
         elif op == 'Q':
             x.rolls = [ln[1], ln[2]] * 50
             x.fs(x.brain + 0x44, ln[3])
@@ -998,6 +1123,10 @@ def text(lines):
             o.append(f'f {ln[1]:x} ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] in 'NZU':
             o.append(f'{ln[0]} {ln[1]}')
+        elif ln[0] == 'B9':
+            o.append(f'B9 {ln[1]} {ln[2]}')
+        elif ln[0] in ('VL', 'KP'):
+            o.append(ln[0] + ' ' + ' '.join(f'{bits(u):x}' for u in ln[1]) + f' {ln[2]}')
         elif ln[0] == 'V':
             o.append(f'V {ln[1]} {ln[2]}')
         elif ln[0] == 'u':
@@ -1028,8 +1157,8 @@ def main():
     buf = ctypes.create_string_buffer(1 << 20)
     bad = steps = 0
     seen = {}
-    for seed in range(runs * 9):
-        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed) if seed < runs * 7 else round_plan(seed) if seed < runs * 8 else pass_plan(seed)
+    for seed in range(runs * 11):
+        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed) if seed < runs * 7 else round_plan(seed) if seed < runs * 8 else pass_plan(seed) if seed < runs * 9 else close_plan(seed) if seed < runs * 10 else keep_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
         if runs * 5 <= seed < runs * 6:
             for p in a:
@@ -1061,6 +1190,9 @@ def main():
             ex, before = p.partition('|')[2].split(), was.partition('|')[2].split()
             if ln[0] == 'R7' and before and len(ex) > 8:
                 seen['pass', 'picked' if ex[-13] != '2' else 'drove'] = seen.get(('pass', 'picked' if ex[-13] != '2' else 'drove'), 0) + 1
+            if ln[0] == 'KR' and len(ex) > 8:
+                ph = ex[-14]
+                seen['keep', ph] = seen.get(('keep', ph), 0) + 1
             if ln[0] == '^' and len(ex) > 8:
                 seen['round', 'flip' if ex[-13] == '1' else 'flat'] = seen.get(('round', 'flip' if ex[-13] == '1' else 'flat'), 0) + 1
             if ln[0] == 'd' and len(ex) > 8:
@@ -1090,7 +1222,7 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs * 9} plans, {steps} lines: {bad} differ')
+    print(f'{runs * 11} plans, {steps} lines: {bad} differ')
     print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},
@@ -1102,6 +1234,7 @@ def main():
                      backup_taken=(seen.get(('backup', 'taken'), 0), 1),
                      **{f'terminus_{k}': (seen.get(('terminus', k), 0), 5) for k in ('1', 'back')},
                      **{f'pass_{k}': (seen.get(('pass', k), 0), 20) for k in ('picked', 'drove')},
+                     **{f'keep_{k}': (seen.get(('keep', k), 0), 5) for k in '0123'},
                      **{f'round_{k}': (seen.get(('round', k), 0), 20) for k in ('flip', 'flat')},
                      **{f'deploy_{k}': (seen.get(('deploy', k), 0), 3) for k in ('1', '2', '3', '4', '5', '6', '41', '42')},
                      **{f'guard_{k}': (seen.get(('guard', k), 0), 1) for k in '023'},

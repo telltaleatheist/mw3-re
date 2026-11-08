@@ -111,6 +111,19 @@ struct World : WalkPmHooks {
   int32_t rolls[2] = {};
   float along[3] = {}, reach_at = 0;
   bool has_pilot(zgame::Handle) override { return pilot; }
+  bool bump = false;
+  // Slot 5's answers.
+  float vel_mine[3] = {}, vel_theirs[3] = {}, kfar = 0, knear = 0;
+  bool has_tv = false, rev = false;
+  void velocity(zgame::Handle v, float out[3]) override {
+    const float* f = v == 1 ? vel_mine : vel_theirs;
+    out[0] = f[0], out[1] = f[1], out[2] = f[2];
+  }
+  zgame::Handle target_vehicle(zgame::Handle) override { return has_tv ? 2 : 0; }
+  bool reversing() override { return rev; }
+  float keep_far() override { return kfar; }
+  float keep_near() override { return knear; }
+  bool bumped(zgame::Handle) override { return pilot && bump; }
   float pilot_x544(zgame::Handle) override { return x544; }
   float now() override { return clock; }
   double speed_at(zgame::Handle, float t) override { return double{t} * k_speed; }
@@ -171,7 +184,9 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   WalkFightPm* b = nullptr;
   WalkGuardPm* g = nullptr;
   float drove[3] = {};
-  PassPm bh;  // the behind state's fields: the pass state's dump is the behind state's
+  KeepRangePm ks;
+  bool keeping = false;
+  CloseInPm bh;  // the behind state's fields: the pass and close-in states' dumps are the behind state's
   bool behind = false, circling = false, guarding = false, attacking = false;
   AttackStatePm as;
   GuardStatePm gs;
@@ -222,15 +237,31 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "j") {  // the target's facing
       w.face_on = a[0] == "1", w.face[0] = f(a[1]), w.face[2] = f(a[2]);
     } else if (op == "w") {
-      bh = PassPm{}, behind = true;
+      bh = CloseInPm{}, behind = true;
       bh.start(w, 1);
     } else if (op == "x") {
       bh.BehindPm::run(w, s, 1);
     } else if (op == "P7") {  // the slot 7 state: made as the behind state is, run as its own
-      bh = PassPm{}, behind = true;
+      bh = CloseInPm{}, behind = true;
       bh.start(w, 1);
     } else if (op == "R7") {
+      bh.PassPm::run(w, s, 1);
+    } else if (op == "P9") {  // the slot 9 state, likewise
+      bh = CloseInPm{}, behind = true;
+      bh.start(w, 1);
+    } else if (op == "R9") {
       bh.run(w, s, 1);
+    } else if (op == "VL") {  // both velocities, and whether the target has a vehicle to ask
+      for (int i = 0; i < 3; ++i) w.vel_mine[i] = f(a[i]), w.vel_theirs[i] = f(a[3 + i]);
+      w.has_tv = a[6] == "1";
+    } else if (op == "KP") {  // the slot 5 state: the brain's +0x74 and +0x78, the controls reversing or not
+      w.kfar = f(a[0]), w.knear = f(a[1]), w.rev = a[2] == "1";
+      ks = KeepRangePm{}, keeping = true;
+      ks.start(w);
+    } else if (op == "KR") {
+      ks.run(w, 1);
+    } else if (op == "B9") {  // a pilot or not, and whether it bumped a mech (its +0x385)
+      w.pilot = a[0] == "1", w.bump = a[1] == "1";
     } else if (op == "Q") {  // the guarding state, its rolls and the brain's +0x44
       w.rolls[0] = std::stoi(a[0]), w.rolls[1] = std::stoi(a[1]), w.roll = 0;
       w.reach_at = f(a[2]);
@@ -407,6 +438,9 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (b) {
         put(o, w.sent[0]), put(o, w.sent[1]);
       }
+      if (keeping) {
+        for (float v : {ks.turn, ks.throttle, ks.near, ks.far, w.sent[0], w.sent[1]}) put(o, v);
+      }
       if (deploying) {
         for (float v : {ds.turn, ds.throttle, ds.dist, ds.wake, ds.face[0], ds.face[1], ds.face[2], w.placed[0], w.placed[1],
                         w.placed[2], w.placed[3]})
@@ -427,6 +461,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
         o += " " + std::to_string(as.flags) + " " + std::to_string(as.pulled | as.x2d << 8) + " 0 " + std::to_string(as.x38) + " 0 0";
       if (circling) o += " " + std::to_string(cp.step) + " " + std::to_string(cp.x18) + " " + std::to_string(int(w.m_cleared > 0)) + " " + std::to_string(w.sends);
       if (rounding) o += " " + std::to_string(rs.flip);
+      if (keeping) o += " " + std::to_string(ks.count) + " " + std::to_string(ks.phase) + " " + std::to_string(w.sends);
       if (deploying)
         for (int v : {ds.step, w.hold, w.vsets, w.vset_last, w.places}) o += " " + std::to_string(v);
       o += " " + std::to_string(w.m_stops) + " " + std::to_string(static_cast<uint32_t>(w.m_over));

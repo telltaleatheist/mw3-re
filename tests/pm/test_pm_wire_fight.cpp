@@ -441,6 +441,47 @@ TEST(pm_wire_a_queued_follow_runs_on_its_net) {
   b.set_net(nullptr);
 }
 
+// 0x004fb260: what a state queues runs on the loop's next pass. A terminus's back (return_back, then again) pops it
+// in the same frame and the order under it runs once; nothing is left queued.
+namespace {
+int g_back_runs = 0;
+struct QueuesBack : BehaviourState {
+  using BehaviourState::BehaviourState;
+  Behaviour* behaviour() const override { return nullptr; }
+  void run(float) override {
+    if (++g_back_runs > 100) return;  // a loop that never pops: stop it, the test fails
+    pm_queue_back(*order->owner, nullptr);
+    order->owner->x104 = 1;
+  }
+};
+int g_under_runs = 0;
+struct Under : BehaviourState {
+  using BehaviourState::BehaviourState;
+  Behaviour* behaviour() const override { return nullptr; }
+  void run(float) override { ++g_under_runs; }
+};
+}  // namespace
+TEST(pm_wire_a_queued_back_pops_in_the_same_frame) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  mech3::ai::VehicleNet vn(9);
+  EXPECT(b.set_net(&vn));
+  const size_t n = b.orders.size();
+  pm_give_order(b, &vn, nullptr);
+  b.current().state.reset(new Under(&b.current(), nullptr));
+  pm_give_order(b, &vn, nullptr);
+  b.current().state.reset(new QueuesBack(&b.current(), nullptr));
+  g_back_runs = g_under_runs = 0;
+  pm_run_orders(b, 0.033f);
+  EXPECT(g_back_runs == 1 && g_under_runs == 1);  // popped, then the one under runs, once
+  EXPECT(b.orders.size() == n + 1);
+  EXPECT(pm_pending_count(b) == 0);
+  pm_pop_order(b);
+  b.set_net(nullptr);
+}
+
 // 0x004fa470's net half (vt+0x14): idle on a vehicle net's or a compiled net's part, not on the built-in net's.
 TEST(pm_wire_orders_idle_but_on_the_built_in_net) {
   Fake f;
