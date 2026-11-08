@@ -2,9 +2,7 @@
 (MW3's 0x46eba0) through probe_mech_net_events' kind 2, as test_mech_net_events does MW3's. PM names both players
 from the lobby's records (0x47b710(0)'s +0x48, 0x498930: the record's +0x10), "Unknown" ([0x6077c0]) for one not
 there, where MW3 named them from their mechs; the line is the same (0xf0a a suicide, 0xf09 a kill, 5 s), and a host
-scores the kill. The scoring itself (0x4721e0) is piece 2's: here only whether the host calls it, against the
-port's net_score_kill having run (the scores' reset, 24 in the probe's log) and whom it credits (the suicide the
-victim's, the kill the killer's).
+scores the kill (0x4721e0, tested in test_pm_net_score: here its call, logged on both sides).
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_net_kill.py
 """
@@ -130,14 +128,7 @@ def main():
         n = probe.probe_mech_net_events((I32 * COUNT)(*v), out, 4096)
         lg = list(out[:n])[:-8]  # less the probe's closing line (90 and seven fields)
         line = lg[:4 if lg[2] == 0xf0a else 5]
-        victim, killer = v[K['msg'] + 1], v[K['msg'] + 2]
-        rest = lg[len(line):]
-        mine = line + ([99, victim, killer] if 24 in rest else [])
-        # whom the port's scoring credits before its reset (24): the suicide the victim's, the kill the killer's
-        # (none between one team's players)
-        credit = rest[:rest.index(24)] if 24 in rest else []
-        if credit not in ([], [20, victim] if victim == killer else [21, killer]):
-            mine.append(('credited', credit))
+        mine = lg
         if mine != theirs:
             print(f'case {i}:\n  exe  {theirs}\n  port {mine} (whole log {lg})', flush=True)
             os._exit(1)

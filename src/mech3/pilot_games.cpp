@@ -1094,13 +1094,32 @@ int32_t MultiplayerGame::score_of(uint32_t player) {
   return t && t->score ? t->score->score : -1;
 }
 
-// Mech3.exe 1.2 @ 0x00435ac0
+// Pirate's Moon 1.0 @ 0x00436820 (MW3's 0x00435ac0): a suicide counts only while the player's kills exceed its
+// deaths, so it never takes a score below 0; 0 for none or not counted.
 int32_t MultiplayerGame::add_deaths(uint32_t player, int32_t n) {
   LobbyPlayer* p = lobby_player(player);
-  if (!p) return -1;
+  if (!p || p->kills - p->deaths < 0 || p->kills == p->deaths) return 0;
   p->deaths += n;
   rescore();
   return p->deaths;
+}
+
+// Pirate's Moon 1.0 @ 0x004379b0 (ECX the network game): a player out of the round or back in, unless players
+// respawn (+0xa4); its record's old mark (out with none).
+bool MultiplayerGame::set_out(uint32_t player, bool out) {
+  if (b8c) return false;
+  LobbyPlayer* p = lobby_player(player);
+  const bool was = p ? p->out != 0 : true;
+  if (p) p->out = out ? 1 : 0;
+  return was;
+}
+
+// Pirate's Moon 1.0 @ 0x00437a10: a round's scores from who is left in it, 1 kill and no deaths each, 0 kills out.
+void MultiplayerGame::round_reset() {
+  for (auto& p : lobby_players) {
+    if (!p->out) p->kills = 1, p->deaths = 0;
+    else p->kills = 0;
+  }
 }
 
 // Mech3.exe 1.2 @ 0x00435b00

@@ -409,7 +409,9 @@ class MultiplayerGame : public Game {
   int32_t set_kills(uint32_t player, int32_t n);   // 0x004359f0
   int32_t kills_of(uint32_t player);               // 0x00435a30
   int32_t score_of(uint32_t player);               // 0x00435a50: its team's in team play
-  int32_t add_deaths(uint32_t player, int32_t n);  // 0x00435ac0
+  int32_t add_deaths(uint32_t player, int32_t n);  // PM 0x00436820: only while kills exceed deaths; 0 not counted
+  bool set_out(uint32_t player, bool out);          // PM 0x004379b0: the record's +0x0e, unless respawning
+  void round_reset();                                // PM 0x00437a10
   int32_t set_deaths(uint32_t player, int32_t n);  // 0x00435b00
   int32_t deaths_of(uint32_t player);              // 0x00435b40
   void rescore();                                  // 0x004361e0

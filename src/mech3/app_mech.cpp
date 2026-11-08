@@ -1214,7 +1214,7 @@ void program_net_lobby(const NetLobbyAccess& a) {
   c.scores_reset = a.rescore;
   c.lobby_team_id = a.team_id;
   c.lobby_name = a.name;
-  c.lobby_out = a.out;
+  c.lobby_out = a.out, c.lobby_set_out = a.set_out, c.lobby_round_reset = a.round_reset;
 }
 
 void program_mech_chat_draw(void* mech) {

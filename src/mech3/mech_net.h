@@ -137,6 +137,10 @@ struct NetCalls {
   void (*forget)(NetMech& m) = nullptr;            // 0x004aa6b0, the sensors' (ai::entities_forget)
   void (*free)(NetMech* m) = nullptr;              // vt+0 (1), 0x0046e3a0; unset: net_mech_delete
   bool (*lobby_out)(uint32_t player) = nullptr;    // PM 0x00437990: its record's +0x0e, out with none
+  void (*lobby_set_out)(uint32_t player, bool out) = nullptr;  // PM 0x004379b0: the record's +0x0e
+  void (*score_kill)(uint32_t victim, uint32_t killer) = nullptr;  // net_score_kill's stand-in (the tests)
+  void (*lobby_round_reset)() = nullptr;           // PM 0x00437a10: in play 1 kill 0 deaths, out 0 kills
+  bool (*round_winner)() = nullptr;                // PM 0x00437970: the game's +0xaa or the kind's winner (0x00436980(0))
   void (*lobby_left)(uint32_t player) = nullptr;   // 0x00495b10 on the game's +0x48: the slot's +0x18 = 1
   // The start's and end's.
   int (*crater_veto)(const zwep::CraterOrder* order) = nullptr;  // 0x0046fd30, zDecal's [0x0060bf88]

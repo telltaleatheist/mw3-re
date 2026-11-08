@@ -2,7 +2,7 @@
 against the port's net_player_left and net_two_sides through probe_mech_net_gone (docs/pm-map.md, the in-game
 types). PM, whether or not the player's mech is here: the lobby's kills 0 for it (0x436750, stood in for and
 logged), its record left (+0x18 1) without a score line (+0x2c 0), on the host the leaving scored as a suicide
-(0x4721e0, piece 2's: logged, against the port's net_score_kill crediting the suicide); with the mech, MW3's line
+(0x4721e0, tested in test_pm_net_score: its call logged on both sides); with the mech, MW3's line
 (0x26a, 4 s), the sensors' forget (0x4adc40) and the delete (vt+0). Then if the round has no two sides left
 (0x472da0: the network mechs whose players' records aren't out (+0xe, none counts as out) and the pilot's mech
 unless the local player is out, by team mask +0xc0) and its end reason (+0x90) is 0, the reason is 5 ("No more
@@ -144,15 +144,12 @@ class Exe:
 
 
 def port_log(lg):
-    """The probe's log with the port's scoring (its suicide credit, 20) as the exe's call (99), its sends dropped."""
+    """The probe's log, its sends dropped."""
     out, i = [], 0
-    sizes = {30: 2, 22: 3, 52: 2, 2: 4, 51: 2, 40: 2, 90: 3}
+    sizes = {30: 2, 22: 3, 52: 2, 99: 3, 2: 4, 51: 2, 40: 2, 90: 3}
     while i < len(lg):
         t = lg[i]
-        if t == 20:
-            out += [99, lg[i + 1], lg[i + 1]]
-            i += 2
-        elif t == 1:  # a send: to, guaranteed, size, then its words
+        if t == 1:  # a send: to, guaranteed, size, then its words
             i += 4 + (lg[i + 3] + 3) // 4
         elif t in sizes:
             out += lg[i:i + sizes[t]]
