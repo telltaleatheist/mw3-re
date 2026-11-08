@@ -5057,6 +5057,35 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
   const std::string text((std::istreambuf_iterator<char>(cache)), std::istreambuf_iterator<char>());
   EXPECT(text.find("intro/") == std::string::npos && text.find("c1/") == std::string::npos);
 }
+
+// The opening's still (SPLASH's mech3splash, after INTRO) on a 16:9 mode, with
+// the wide menus and without: 4:3 at the screen's height, black sides, never
+// stretched (pm-tests.md front-end item 2). No movies needed (-nofmv).
+TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!std::filesystem::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/wide_splash";
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  for (const char* wide : {"--wide-menus", "--no-wide-menus"}) {
+    if (std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "w")) {
+      std::fputs("Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0]\n"
+                 "\"InGameVMode\"=dword:0000000d\n", f);
+      std::fclose(f);
+    }
+    const std::string bmp = dir + "/splash" + wide + ".bmp";
+    const pid_t pid = spawn_mw3({"--install", install, "--write-dir", dir, "--no-launcher", "-nofmv", wide, "--window",
+                                 "1920x1080", "--nosound", "--hidden", "--shot", bmp, "--shot-any", "--shot-frame", "2"},
+                                dir + "/splash" + wide + ".log");
+    int status = 0;
+    if (pid > 0) waitpid(pid, &status, 0);
+    int w = 0, h = 0, b[4] = {};
+    const bool ok = bmp_lit_box(bmp, &w, &h, b) && w == 1920 && h == 1080;
+    std::printf("%s: splash lit %d..%d x %d..%d\n", wide, b[0], b[2], b[1], b[3]);
+    EXPECT(ok && b[0] >= 230 && b[2] <= 1690 && b[1] <= 30 && b[3] >= 1050);  // 1440 wide in the middle
+  }
+}
 #endif
 #endif
 
