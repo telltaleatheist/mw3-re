@@ -244,7 +244,8 @@ only when needs & 6):
   tested, and the software-only `single` switch is off.
 - No bound checks: more than 64 vertices overrun 0x545720's stack array;
   the work records' per-light use assumes at most 64 lights before the
-  shadow sets.
+  shadow sets (the port keeps lights past 64 apart, `Lighting::rec_extra`:
+  fixes.md).
 - The 1/255 tests compare against a double constant (0x5ce4a0), not a float.
 
 ## Checked (test_lighting.py, 24-bit)
