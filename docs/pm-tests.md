@@ -325,6 +325,8 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
 
 ## The switch's plan (2026-11-07, for Owen and the lead: nothing flipped)
 
+**Flipped (Owen, 2026-11-08):** PM's own AI is the default; `PM_AI=0` runs MW3's in its place, for comparing. The list below stays as the work left to check it against the exe.
+
 **Where the switch stands (2026-11-08):** what gates `PM_AI` on by default.
 
 - Done: the first run, its hooks written and every one that fires sorted (Unported in play: the (a) list cleared, only

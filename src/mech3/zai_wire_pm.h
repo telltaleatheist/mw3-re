@@ -22,7 +22,7 @@ class WalkPmHooks;
 template <class Base> class WireWalkT;
 using WireWalk = WireWalkT<WalkPmHooks>;
 
-bool pm_ai_on();                                      // PM_AI=1, read once
+bool pm_ai_on();                                      // on unless PM_AI=0, read once
 void pm_hook_missing(const char* key);                // the log's line, the first time
 const std::map<std::string, int>& pm_hooks_missing();  // what the first run reads
 void pm_hooks_missing_clear();                        // not original: the tests start empty
