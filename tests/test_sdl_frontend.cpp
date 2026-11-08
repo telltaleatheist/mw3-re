@@ -3518,6 +3518,12 @@ TEST(sdl_two_processes_a_walk_seen_from_the_other) {
                                        "--click-players", "585,418@600/2", "--net-walk", "5,15", "--frames", menu_frame(2400)},
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
+#if defined(MW3_PM_SUITE)
+  // PM's c1mp1 puts a canopy's pillar ahead of A's spawn: A runs into it and walks in place, as it should. The
+  // host takes c3mp1 (DATABASE_LIST's next arrow, its TOGGLE_RIGHT at (168 104), four times: c1mp2, c2mp1,
+  // c2mp2, c3mp1), whose ground ahead is open.
+  for (const char* at : {"20/2", "28/2", "36/2", "44/2"}) va.insert(va.end(), {"--click-players", std::string("171,110@") + at});
+#endif
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
                                        "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
                                        "--click-players", "515,446@300/2", "--frames", menu_frame(2400)},
@@ -3551,15 +3557,19 @@ TEST(sdl_two_processes_a_walk_seen_from_the_other) {
       seen.push_back(s);
   }
   // Walking in place: a walking gait through three lines (1.5 s) or more
-  // while A's place holds. (A's start, on its own screen too, is a step or
-  // two before it gets going: one or two lines.)
+  // while A's place holds. A run straight from standing is a start, not a stop against something: A takes a
+  // step or two before it gets going, and the hidden runs go several times faster than real time, so the
+  // network's few hundred milliseconds between the gait and the first move can span three lines (PM's,
+  // 2026-11-08, at each walk's start). A mech blocked mid-walk still counts.
   int walking = 0, in_place = 0, jerks = 0, run = 0;
+  bool from_stand = false;
   float worst = 0;
   for (size_t i = 7; i < seen.size(); ++i) {  // the first lines: the start's placing and the aim's slerp in
     const bool still = std::fabs(seen[i].z - seen[i - 1].z) < 0.05f;
     walking += seen[i].gait != 2;
+    if (still && seen[i].gait != 2 && run == 0) from_stand = seen[i - 1].gait == 2;
     run = still && seen[i].gait != 2 ? run + 1 : 0;
-    in_place += run >= 3;
+    in_place += run >= 3 && !from_stand;
     for (int k = 0; k < 4; ++k) {
       const float d = std::fabs(seen[i].arms[k] - seen[i - 1].arms[k]);
       worst = std::max(worst, d);
