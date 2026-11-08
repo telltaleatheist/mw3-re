@@ -48,6 +48,14 @@ class WalkPmHooks : public SteerPmHooks {
   // The terminus node's end (0x004e1fd0).
   virtual void set_again() {}    // 0x004fbe60(1): the brain's +0x158, the last order run once more
   virtual void order_ready() {}  // the order's +0x04
+  // The deploy node's (0x004de0e0).
+  virtual float vertical_speed(zgame::Handle v) { (void)v; return 0.0f; }               // the vehicle's +0x40
+  virtual void set_hold(int32_t on) { (void)on; }                                       // the brain's +0x80
+  virtual void place_vehicle(zgame::Handle v, const float p[3], float yaw) { (void)v, (void)p, (void)yaw; }  // vt+0xe8
+  virtual bool deploy_on() { return false; }  // [0x0062fb68]'s value is [0x0062fb6c] ("mcbdeploy")
+  virtual int32_t valve_value(zgame::Handle valve) { (void)valve; return 0; }           // +0x04's vt+0x04
+  virtual void valve_set(zgame::Handle valve, int32_t value) { (void)valve, (void)value; }  // 0x004e40d0
+  virtual bool finding_way() { return false; }  // the brain's +0x1f8, its way finder's path
   virtual void return_back() {}  // 0x004ea180 on the brain's +0x15c with a new 0x005ef250: back to the order before
   virtual int32_t rand_int() { return 0; }                                       // rand
   virtual float reach() { return 0.0f; }                                         // the brain's +0x44
@@ -114,6 +122,23 @@ struct MoveStatePm {
   void run_backup(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
   // The terminus node's run (0x004e1fd0, vtable 0x005ef634): driven there, then back to the order before.
   void run_terminus(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
+};
+
+// What the deploy node's run reads of its node (0x40 bytes, as MW3's 0x004cff10).
+struct DeployNodePm {
+  const float* place = nullptr;   // vt+0x1c
+  const float* target = nullptr;  // +0x3c's vt+0x1c: the deploy target's step
+  zgame::Handle valve_a = 0;      // +0x2c
+  int32_t a = 0;                  // +0x30
+  zgame::Handle valve_b = 0;      // +0x34
+  int32_t b = 0;                  // +0x38
+};
+
+// The deploy node's state (0x004de010 -> 0x004de070, vtable 0x005ef1d8; MW3's 0x004d00a0): walked to the node,
+// held, set on it facing away from its target, held while the valves say, then on (docs/pm-tests.md).
+struct DeployStatePm : MoveStatePm {
+  float face[3] = {};  // +0x2c
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const DeployNodePm& n, float dt);  // 0x004de0e0
 };
 
 // The manoeuvre state (0x004d5040, vtable 0x005ee150's twin of MW3's 0x004ca600): the brakes on, then a target to

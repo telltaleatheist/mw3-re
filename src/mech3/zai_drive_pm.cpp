@@ -320,4 +320,148 @@ void MoveStatePm::run_terminus(WalkPmHooks& h, SteerPm& s, zgame::Handle v, cons
   step = 1;
 }
 
+namespace {
+// [0x0062fbb8], made by 0x004de0e0's first run: a 1 degree dead zone ([0x005eede8] degrees), the gain 1.2 and the
+// least turn 0.1.
+const TurnPmParams& deploy_turn_params() {
+  static const TurnPmParams p = [] {
+    const double a = double{1.0f} * 0.01745329251994;  // [0x005deee8]
+    return TurnPmParams{static_cast<float>(std::cos(a)), static_cast<float>(std::sin(a)), 1.2f, 0.1f, 0.0f};
+  }();
+  return p;
+}
+// 0x00537ae0: the flat distance between two points.
+float flat_distance_pm(const float a[3], const float b[3]) {
+  const float dx = a[0] - b[0], dz = a[2] - b[2];
+  return std::sqrt(dz * dz + dx * dx);
+}
+// The yaw facing from `from` toward `to`, the vehicle's place angle: fpatan(-dx, -dz).
+float yaw_toward_pm(const float from[3], const float to[3]) {
+  const float vx = to[0] - from[0], vz = to[2] - from[2];
+  return static_cast<float>(std::atan2(-static_cast<double>(vx), -static_cast<double>(vz)));
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004de0e0. FIX (bug): a node without a valve named has none, which the exe reads (a crash);
+// it reads 0 here, as MW3's 0x004d00a0's port (docs/fixes.md).
+void DeployStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const DeployNodePm& n, float dt) {
+  const TurnPmParams& fine = deploy_turn_params();
+  auto value = [&](zgame::Handle valve) { return valve ? h.valve_value(valve) : 0; };
+  float pos[3], fx, fz;
+  h.position(v, pos);
+  h.forward(v, &fx, &fz);
+  const float fwd[3] = {fx, 0.0f, fz};
+  float away[2], sum, dot, cross, k = 0.5f;
+  bool on = false, open = false, waiting = false;
+  switch (step) {
+    case 0:
+    case 1:
+      away_pm(s, away, &sum);
+      if (!s.at_end() || dist < sum) {
+        drive_pm(h, s, v, away, sum, dist * 0.5f, &turn, &throttle, slow, 0.04f, 0.04f);
+        h.set_turn(turn);
+        h.set_throttle(throttle);
+        step = 1;
+        return;
+      }
+      h.set_hold(0);
+      dist = 1.0f;
+      [[fallthrough]];
+    case 2:
+      away_pm(s, away, &sum);
+      if (dist < sum) {
+        drive_pm(h, s, v, away, sum, dist * 0.5f, &turn, &throttle, slow, 0.04f, 0.04f);
+        h.set_turn(turn);
+        h.set_throttle(throttle);
+        step = 2;
+        return;
+      }
+      throttle = 0.0f, turn = 0.0f;
+      [[fallthrough]];
+    case 3:
+      if (std::fabs(h.vertical_speed(v)) > 0.1f) {  // [0x0060bbdc]
+        h.set_throttle(throttle);
+        h.set_turn(turn);
+        step = 3;
+        return;
+      }
+      s.set(h, n.place, n.target, static_cast<float>(h.speed_at(v, h.max_throttle())), v);
+      face[0] = s.dir[0], face[1] = 0.0f, face[2] = s.dir[1];
+      turn = turn_pm(fwd, face, &dot, &cross, h.turn_goal(), fine);
+      goto turned;
+    case 4:
+      turn = turn_pm(fwd, face, &dot, &cross, h.turn_goal(), turn_walk_params());
+    turned:
+      if (turn != 0.0f && !std::isnan(turn)) {  // test ah 0x40: unordered counts as turned
+        h.set_throttle(throttle);
+        h.set_turn(turn);
+        step = 4;
+        return;
+      }
+      dist = 0.5f;
+      goto slide;
+    case 0x29:
+      k = dist;
+    slide: {
+      const float len = dt * k;
+      const float d = flat_distance_pm(n.place, pos);
+      if (len < d) {
+        const float f = len / d;
+        float p[3];  // each kept in the register, stored once
+        for (int i = 0; i < 3; ++i) p[i] = static_cast<float>((double{n.place[i]} - pos[i]) * f + pos[i]);
+        h.place_vehicle(v, p, yaw_toward_pm(n.target, p));
+        step = 0x29;
+        return;
+      }
+      h.place_vehicle(v, n.place, yaw_toward_pm(n.target, n.place));
+    }
+      [[fallthrough]];
+    case 0x2a:
+      on = h.deploy_on(), open = value(n.valve_b) != n.b;
+      if (on && open) {
+        if (value(n.valve_a) == n.a) {
+          turn = turn_pm(fwd, face, &dot, &cross, h.turn_goal(), fine);
+          h.set_turn(turn);
+          step = 0x2a;
+          return;
+        }
+        if (n.valve_a) h.valve_set(n.valve_a, n.a);
+        goto held;
+      }
+      break;
+    case 5:
+      on = h.deploy_on(), open = value(n.valve_b) != n.b;
+      if (on && open) {
+      held:
+        turn = turn_pm(fwd, face, &dot, &cross, h.turn_goal(), fine);
+        h.set_turn(turn);
+        step = 5;
+        return;
+      }
+      break;
+    case 6: waiting = true; break;
+    default: return;
+  }
+  if (!waiting) h.set_hold(1);
+  for (;;) {
+    if (!waiting) {
+      const float dir[3] = {-s.dir[0], 0.0f, -s.dir[1]};
+      if (const zgame::Handle next = h.next_along(dir)) {
+        float* from = h.way_from();
+        from[0] = n.place[0], from[1] = n.place[1], from[2] = n.place[2];
+        h.set_behaviour(next);
+        return;
+      }
+      turn = 0.0f;
+      throttle = 0.0f;
+      h.set_turn(0.0f);
+      h.set_throttle(throttle);
+      wake = h.now() + 5.0f;  // [0x005df000]
+    }
+    waiting = false;
+    if (!(wake <= h.now()) && !h.finding_way()) break;  // the way finder's path ends the wait at once
+  }
+  step = 6;
+}
+
 }  // namespace mech3::ai

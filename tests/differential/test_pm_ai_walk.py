@@ -9,7 +9,6 @@ Then the guarding context 0x4dfb50 with its measure 0x4dfc30. On any of them the
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_ai_walk.py [runs]
 """
 import ctypes
-import gc
 import math
 import os
 import random
@@ -22,7 +21,6 @@ os.environ['MW3_X87'] = '53'  # the reference's precision, only: docs/pm-tests.m
 from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
-import original  # noqa: E402
 import pm_floors  # noqa: E402
 import test_pm_zar  # noqa: E402
 
@@ -150,6 +148,7 @@ class Exe(test_pm_zar.Emulated):
         self.native_stub(0x4d60d0, along, pop=8)
         # The terminus's end: its new 0x5ef250 (operator new, 0x4ea070) to 0x4ea180 on the brain's +0x15c, its list.
         self.backs = 0
+        self.dep = None
         self.native_stub(0x5ce8c6, lambda c: self.alloc(8))
         self.native_stub(0x4ea070, lambda c: c.ecx)
 
@@ -254,6 +253,53 @@ class Exe(test_pm_zar.Emulated):
         self.native_stub(a, fn)
         return a
 
+    def deploy_setup(self):
+        """The deploy state 0x4de0e0 runs on: its node (+0x08 and +0x28) with two valves and a target step, the
+        mission's deploy valve [0x62fb68] at [0x62fb6c], the valve set 0x4e40d0 and the vehicle's place vt+0xe8."""
+        self.dep = d = self.alloc(0x40)
+        self.w32(d + 4, self.order)
+        node, nvt = self.alloc(0x40), self.alloc(0x40)
+        self.dnode, self.dplace, self.dtarget = node, self.alloc(12), self.alloc(12)
+        self.w32(node, nvt)
+        self.w32(nvt + 0x1c, self.ret_stub(lambda c: self.dplace))
+        tgt, tvt = self.alloc(8), self.alloc(0x40)
+        self.w32(tgt, tvt)
+        self.w32(tvt + 0x1c, self.ret_stub(lambda c: self.dtarget))
+        self.w32(node + 0x3c, tgt)
+        self.w32(d + 8, node)
+        self.w32(d + 0x28, node)
+        self.dv_on, self.va, self.vb = 0, 0, 0
+
+        def valve(get):
+            v, holder, hvt = self.alloc(8), self.alloc(8), self.alloc(0x10)
+            self.w32(v + 4, holder)
+            self.w32(holder, hvt)
+            self.w32(hvt + 4, self.ret_stub(lambda c: get()))
+            return v
+        self.va_obj, self.vb_obj = valve(lambda: self.va), valve(lambda: self.vb)
+        self.w32(node + 0x2c, self.va_obj)
+        self.w32(node + 0x34, self.vb_obj)
+        self.w32(0x62fb68, valve(lambda: 1 if self.dv_on else 0))
+        self.w32(0x62fb6c, 1)
+        self.vsets, self.vset_last, self.places, self.placed = 0, 0, 0, [0, 0, 0, 0]
+
+        def vset(c):
+            assert c.ecx == self.va_obj, hex(c.ecx)
+            self.vsets += 1
+            self.vset_last = self.g(c._uc.reg_read(UC_X86_REG_ESP) + 4)
+            return 0
+        self.native_stub(0x4e40d0, vset, pop=4)
+
+        def place(c):
+            sp = c._uc.reg_read(UC_X86_REG_ESP)
+            p = self.g(sp + 4)
+            self.placed = [self.g(p), self.g(p + 4), self.g(p + 8), self.g(sp + 8)]
+            self.places += 1
+            return 0
+        at = self.cpu.code(b'\xc2\x08\x00')  # ret 8: the place and the yaw
+        self.native_stub(at, place, pop=8)
+        self.w32(self.g(self.vehicle) + 0xe8, at)
+
     def w32(self, a, v):
         self.cpu._uc.mem_write(a, struct.pack('<I', v & 0xffffffff))
 
@@ -316,6 +362,10 @@ class Exe(test_pm_zar.Emulated):
         if self.cp:
             vals += [self.g(self.cp + o) for o in (0xc, 0x1c, 0x20)] + self.asked + self.sent
             exact += [self.g(self.cp + 8), self.g(self.cp + 0x18), int(self.g(self.brain + 0x3c) == 0), self.sends]
+        if self.dep:
+            d = self.dep
+            vals += [self.g(d + o) for o in (0x10, 0x18, 0x1c, 0x24, 0x2c, 0x30, 0x34)] + self.placed
+            exact += [self.g(d + 0xc), self.g(self.brain + 0x80), self.vsets, self.vset_last, self.places]
         exact += [self.m_stops, self.g(self.brain + 0x110)]
         exact += [self.g(self.man + 0x10), self.g(self.man + 0x2c), self.m_pops, self.g(self.brain + 0x118) & 0xff]
         exact += [self.g(self.brain + 0x158) & 0xff, self.g(self.order + 4) & 0xff, self.backs]
@@ -456,6 +506,38 @@ def fight_plan(seed):
             backup = r.random() < 0.5
             terminus = not backup and r.random() < 0.4
             ws, ts = [ln for ln in lines if ln[0] == 'W'], [ln for ln in lines if ln[0] == 'T']
+            deploy = not backup and not terminus and r.random() < 0.8
+            if deploy and ws:
+                at = ws[-1][1][0:3]
+                for _ in range(r.randrange(3, 9)):
+                    on_sum = None
+                    if ts and r.random() < 0.3:  # at the way's end, its sum the distance or under
+                        tv = list(ts[-1][1])
+                        tv[7] = tv[5]
+                        lines.append(('T', tv))
+                        ts.append(('T', tv))
+                        on_sum = f32(f32(abs(f32(tv[10]))) + f32(abs(f32(tv[9]))))
+                    off = r.choice([0.0, 0.01, 0.2, 2.0, 20.0])
+                    t = r.uniform(-math.pi, math.pi)
+                    place = [at[0] + off * math.sin(t), at[1] + r.choice([0.0, 0.5]), at[2] + off * math.cos(t)]
+                    u = r.uniform(-math.pi, math.pi)
+                    target = [place[0] + 50 * math.sin(u), place[1], place[2] + 50 * math.cos(u)]
+                    fa = r.uniform(-math.pi, math.pi)
+                    nxt = r.choice([0, 1, 2, 2])
+                    if r.random() < 0.15:  # held at the node with the first valve not there yet: it's set
+                        lines.append(('d', [0x2a, nxt, 1, 0, 1, 1, 0, 0],
+                                      [0.5, 0.01, 0.0, r.uniform(-1, 1), r.uniform(-1, 1), 0.6, 0.8, 0.0, 0.033] + at + [at[0] + 50, at[1], at[2]]))
+                        continue
+                    # The way finder ends the wait at once: with no next step both sides would go round for ever (the
+                    # game's pick gives its path's next then), so only with one.
+                    lines.append(('d', [r.choice([2, 2]) if on_sum is not None else r.choice([0, 1, 2, 3, 4, 5, 6, 0x29, 0x2a]), nxt, r.choice([0, 1, 1]),
+                                        r.choice([0, 1]), r.choice([0, 1]), r.choice([0, 1]), r.choice([0, 1]),
+                                        r.choice([0, 1]) if nxt == 2 else 0],
+                                  [on_sum if on_sum is not None and r.random() < 0.5 else r.choice([0.0, 0.5, 1.0, 5.0, 50.0, r.uniform(0, 8)]),
+                                   r.choice([0.002, 0.01, 0.05, r.uniform(0, 5)]),
+                                   r.choice([0.0, clock[0], 1e4]), r.uniform(-1, 1), r.uniform(-1, 1), math.sin(fa), math.cos(fa),
+                                   r.choice([0.0, 0.05, 0.1, 0.2, -0.3]), r.choice([0.033, 0.1, 1.0])] + place + target))
+                continue
             if backup and ws and ts and r.random() < 0.5:  # facing back along the way, within a few degrees: the turns done
                 d = ts[-1][1][3:5]
                 # The front to the way back (steps 2, 3) or the back to it (step 0 done, the drive on its front).
@@ -673,6 +755,25 @@ def run_exe(x, lines):
             x.fs(x.move + 0x10, ln[3][3:4])
             x.fs(x.move + 0x18, ln[3][4:5])
             x.call(0x4ddab0, ecx=x.move, args=(0,))
+        elif op == 'd':
+            iv, fv = ln[1], ln[2]
+            if not x.dep:
+                x.deploy_setup()
+            d = x.dep
+            x.w32(d + 0xc, iv[0])
+            x.next = iv[1]
+            x.dv_on, x.va, x.vb = iv[2], iv[3], iv[4]
+            x.w32(x.dnode + 0x30, iv[5])
+            x.w32(x.dnode + 0x38, iv[6])
+            x.w32(x.brain + 0x1f8, iv[7])
+            x.fs(d + 0x1c, fv[0:3])
+            x.fs(d + 0x10, fv[3:4])
+            x.fs(d + 0x18, fv[4:5])
+            x.fs(d + 0x2c, [fv[5], 0.0, fv[6]])
+            x.fs(x.vehicle + 0x40, fv[7:8])
+            x.fs(x.dplace, fv[9:12])
+            x.fs(x.dtarget, fv[12:15])
+            x.call(0x4de0e0, ecx=d, args=(bits(fv[8]),))
         elif op == 't':
             x.w32(x.move + 0xc, ln[1])
             x.fs(x.move + 0x1c, ln[3][:3])
@@ -828,6 +929,8 @@ def text(lines):
             o.append('u ' + ' '.join(str(u) for u in ln[1]) + ' ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] == 'e':
             o.append(f'e {ln[1]} {ln[2]}')
+        elif ln[0] == 'd':
+            o.append('d ' + ' '.join(str(u) for u in ln[1]) + ' ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] in 'mktqQ':
             o.append(f'{ln[0]} {ln[1]} {ln[2]} ' + ' '.join(f'{bits(u):x}' for u in ln[3]))
         elif ln[0] == 'j':
@@ -853,9 +956,6 @@ def main():
     for seed in range(runs * 7):
         lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
-        # original.py keeps every emulator for the precision check at exit, 40 MB a plan: the newest is enough here.
-        del original._ORIGINALS[:-1]
-        gc.collect()
         if runs * 5 <= seed < runs * 6:
             for p in a:
                 ex = p.partition('|')[2].split()
@@ -884,6 +984,8 @@ def main():
                         seen[name, ex[i]] = seen.get((name, ex[i]), 0) + 1
         for ln, was, p in zip(lines[1:], a, a[1:]):
             ex, before = p.partition('|')[2].split(), was.partition('|')[2].split()
+            if ln[0] == 'd' and len(ex) > 8:
+                seen['deploy', ex[-17]] = seen.get(('deploy', ex[-17]), 0) + 1
             if ln[0] == 't' and len(ex) > 8:
                 seen['terminus', ex[-3]] = seen.get(('terminus', ex[-3]), 0) + 1
                 if len(before) > 8 and ex[-4] != before[-4]:
@@ -920,6 +1022,7 @@ def main():
                      **{f'backup_{k}': (seen.get(('backup', k), 0), 5) for k in '0123'},
                      backup_taken=(seen.get(('backup', 'taken'), 0), 1),
                      **{f'terminus_{k}': (seen.get(('terminus', k), 0), 5) for k in ('1', 'back')},
+                     **{f'deploy_{k}': (seen.get(('deploy', k), 0), 3) for k in ('1', '2', '3', '4', '5', '6', '41', '42')},
                      **{f'guard_{k}': (seen.get(('guard', k), 0), 1) for k in '023'},
                      **{f'circle_{k}': (seen.get(('circle', k), 0), 1) for k in ('cleared', 'sent0', 'sent', 'left', 'right')},
                      **{f'step_{k}': (seen.get(('step', str(k)), 0), 5) for k in range(1, 11)})
