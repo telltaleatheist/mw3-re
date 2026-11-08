@@ -74,6 +74,7 @@ TEST(pm_wire_a_brain_keeps_one_record) {
   b.xf4 = 12.0f, b.x2a4 = 1;
   PmBrain& r = pm_brain(b);
   EXPECT(r.tick.mode == 3 && r.tick.sight == 900.0f && r.tick.engage_flags == 5);
+  EXPECT(r.steer.brain == &b);  // the steering asks this brain's orders (0x004fa470)
   EXPECT(r.tick.wait_until == 12.0f && r.tick.runs_down == 1);
   r.tick.mode = 0;  // PM's frame writes it: a second ask must not seed it again
   b.params.put<int32_t>(0x3c, 7);

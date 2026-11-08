@@ -92,7 +92,10 @@ WireWalk& pm_walk(Brain& b, BrainControls& c) {
 
 PmBrain& pm_brain(Brain& b) {
   auto [it, fresh] = brains().try_emplace(&b);
-  if (fresh) pm_seed(it->second.tick, b);
+  if (fresh) {
+    pm_seed(it->second.tick, b);
+    it->second.steer.brain = &b;  // the steering's +0xa0: whose orders say whether it steers (0x004fa470)
+  }
   return it->second;
 }
 TargetsPm& pm_targets(zgame::Handle vehicle) { return targets()[vehicle]; }
