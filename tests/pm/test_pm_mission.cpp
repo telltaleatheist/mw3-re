@@ -16,6 +16,7 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "check.h"
+#include "crt/msvc_rand.h"
 #include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_view.h"
@@ -118,6 +119,13 @@ TEST(pm_c1m1_shadow_cats_wake) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
+  // The clock seeds the game's rand (time(), as the exe): a fixed seed makes two runs repeat.
+  const std::optional<uint32_t> seed_was = crt::rand_fixed_seed();
+  crt::rand_fixed_seed() = 1u;
+  struct SeedBack {
+    std::optional<uint32_t> was;
+    ~SeedBack() { crt::rand_fixed_seed() = was; }
+  } seed_back{seed_was};
   NoKeys keys;
   Window window;
   Alert alert;

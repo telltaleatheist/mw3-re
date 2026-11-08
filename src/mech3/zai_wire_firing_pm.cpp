@@ -1,5 +1,8 @@
 #include "mech3/zai_wire_firing_pm.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 #include <map>
 
 #include "mech3/mech.h"
@@ -540,6 +543,8 @@ class WireStep : public StepPmHooks {
   void too_far(Brain* b) override { pm_hook_missing("WireStep.too_far"); }
   void trigger(Brain* b, bool on) override {
     if (on) pm_hook_missing("fired: trigger");  // a count of what the first run did, not a gap
+    static const bool trace = std::getenv("PM_TRACE") != nullptr;
+    if (trace && on) std::printf("pm trace: %a fire v%u\n", brain_hooks().now(), b->controls->vehicle());
     b->controls->fire(on);
   }
   zgame::Handle group(zgame::Handle wm) override {

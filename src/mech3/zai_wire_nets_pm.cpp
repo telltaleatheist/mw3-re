@@ -1,5 +1,7 @@
 #include "mech3/zai_wire_nets_pm.h"
 
+#include <string>
+
 #include "mech3/zai_brain.h"
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_target.h"
@@ -54,7 +56,10 @@ Behaviour* pm_kind_behaviour(Brain& b, int32_t kind) {
   if (!n) return nullptr;
   if (n->elems.size() < 10) pm_hook_missing("0x004c7800 on MW3's seven-slot net");
   Slots h(*n);
-  return static_cast<Behaviour*>(pm_ptr(kind_behaviour_pm(h, kind)));
+  auto* r = static_cast<Behaviour*>(pm_ptr(kind_behaviour_pm(h, kind)));
+  if (r && r->kind == StepKind::VehFollow)  // for the first runs: who asks for the follow
+    pm_hook_missing(("kind lookup: follow for kind " + std::to_string(kind)).c_str());
+  return r;
 }
 
 }  // namespace mech3::ai

@@ -1,5 +1,7 @@
 #include "mech3/zai_wire_states_pm.h"
 
+#include "mech3/zai_wire_orders_pm.h"
+
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_wire_attack_pm.h"
@@ -16,7 +18,9 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     case StepKind::ViaNode: return new PmMoveState(&o, &b);  // 0x005eef64's and 0x005ef498's vt+0x8c
     case StepKind::BackupNode: return new PmMoveState(&o, &b, PmMoveState::kBackup);  // 0x005ef020's
     case StepKind::TerminusNode: return new PmMoveState(&o, &b, PmMoveState::kTerminus);  // 0x005ef578's
-    case StepKind::VehFollow: return new PmFollowState(&o, &b);
+    case StepKind::VehFollow:  // for the first runs: whose order made it
+      pm_hook_missing(pm_orders_making() ? "follow made: PM's orders" : "follow made: MW3's push");
+      return new PmFollowState(&o, &b);
     case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
     case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
     default: break;
