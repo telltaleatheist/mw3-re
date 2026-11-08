@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <typeinfo>
 #include <string>
 
 namespace mech3::ai {
@@ -267,7 +268,10 @@ class WiredTickPm final : public TickPmHooks {
   }
   int32_t rand_int() override { return h.rand(); }
   void run_orders(float dt) override {
-    if (!pm_state_running(b)) pm_hook_missing("stand-in: MW3's orders");
+    if (!pm_state_running(b)) {  // for the first runs: which of MW3's states still runs
+      const BehaviourState* s = b.orders.empty() ? nullptr : b.current().state.get();
+      pm_hook_missing((std::string("stand-in: MW3's orders, ") + (s ? typeid(*s).name() : "none")).c_str());
+    }
     pm_run_orders(b, dt);  // 0x004fb260: one pending item, then the last order, again while it asks
     if (!h.powered_down(c.vehicle()) && b.params.get<int32_t>(0x80) == 1) h.own_order_run(b, dt);
   }
