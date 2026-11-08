@@ -5482,3 +5482,106 @@ TEST(pm_program_crash_and_data_folder_say_pirates_moon) {
   EXPECT(!std::filesystem::exists(dir + "/gone"));
 }
 #endif
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)
+// Pirate's Moon's multiplayer modes, each from the lobby as a player sets it up (pm-tests.md, piece 8): two
+// mw3pm on loopback through the menus, A hosting, B finding and joining. A's `lobby` clicks come once both are
+// in the lobby, before A locks; then LOCK, its OK, both READY, A's START, and after each game back in the lobby
+// both READY again and A's START (between rounds the options stay locked). `both` goes to both, `a`/`b` to one.
+namespace {
+struct PmPair {
+  std::string a, b;  // the logs
+};
+PmPair pm_mode_pair(const std::string& dir, const std::vector<std::string>& lobby, const std::vector<std::string>& both,
+                    int frames, const std::vector<std::string>& a_more, const std::vector<std::string>& b_more) {
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/a", ec);
+  std::filesystem::create_directories(dir + "/b", ec);
+  auto spawn = [&](std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {MW3_BIN};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  auto read = [](const std::string& path) {
+    std::ifstream in(path);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  const int base = 46000 + static_cast<int>(getpid() % 1000) * 3 + static_cast<int>(dir.size() % 7) * 3000;
+  const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+  auto menus = [](std::vector<std::string> v, const char* first_key) {  // MULTIPLAYER, a pilot's name, ACCEPT
+    const std::vector<std::string> m = {"--click-at", "132,285@" + menu_frame(40), "--tap", std::string(first_key) + "@" + menu_frame(70),
+                                        "--tap", "0x12@" + menu_frame(74), "--tap", "0x1f@" + menu_frame(78), "--tap",
+                                        "0x14@" + menu_frame(82), "--click-at", "470,320@" + menu_frame(100)};
+    v.insert(v.end(), m.begin(), m.end());
+    return v;
+  };
+  const std::vector<std::string> common = {"--install", MW3_GAME_DIR, "--no-launcher", "--hidden", "--nosound", "--net-bind",
+                                           "127.0.0.1", "--frame-ms", "33", "--net-soak", "--frames", std::to_string(frames)};
+  std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at",
+                                       "421,406@" + menu_frame(180)}, "0x14");
+  va.insert(va.end(), lobby.begin(), lobby.end());
+  const std::string lock_at = std::string(kLockAt) + "@60/2";  // LOCK, its OK, READY, START
+  for (const std::string& c : {lock_at, std::string("246,290@100/2"), std::string("515,446@140/2"), std::string("585,418@600/2")})
+    va.insert(va.end(), {"--click-players", c});
+  va.insert(va.end(), {"--click-return", "515,446@" + menu_frame(100), "--click-return", "585,418@" + menu_frame(650)});
+  std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
+                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-players", "515,446@300/2", "--click-return", "515,446@" + menu_frame(400)},
+                                      "0x30");
+  for (auto* v : {&va, &vb}) {
+    v->insert(v->end(), common.begin(), common.end());
+    v->insert(v->end(), both.begin(), both.end());
+  }
+  va.insert(va.end(), a_more.begin(), a_more.end());
+  vb.insert(vb.end(), b_more.begin(), b_more.end());
+  const pid_t a = spawn(va, dir + "/a.log");
+  for (int i = 0; i < 400 && read(dir + "/a.log").find("multiplayer page 2") == std::string::npos; ++i)
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  const pid_t b = spawn(vb, dir + "/b.log");
+  int st = 0;
+  if (b > 0) waitpid(b, &st, 0);
+  if (a > 0) waitpid(a, &st, 0);
+  return {read(dir + "/a.log"), read(dir + "/b.log")};
+}
+// The value after `key` on the n-th line holding `head` (1-based), or "" when there is none.
+std::string pm_line(const std::string& log, const std::string& head, int n) {
+  size_t at = 0;
+  for (int k = 0; k < n; ++k) {
+    at = log.find(head, k ? at + 1 : 0);
+    if (at == std::string::npos) return "";
+  }
+  return log.substr(at + head.size(), log.find('\n', at) - at - head.size());
+}
+}  // namespace
+
+// Two rounds (ROUNDS_LIST's next arrow once, at (167 227)): each round a 20 s game with A killed at 8 s, B's
+// win. Between them the lobby shows "End of Round 1 of 2" and the scores, is between rounds with one played; at
+// the match's end "End of Round 2 of 2" with B's two rounds won, and the match over. The same on both.
+TEST(pm_net_two_rounds_from_the_lobby) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd")) return;
+  const PmPair r = pm_mode_pair(std::string(MW3_TEST_TMP) + "/pm_net_rounds", {"--click-players", "170,233@20/2"},
+                                {"--net-seconds", "20"}, 4400, {"--net-ahead", "50", "--net-kill-at", "8"}, {});
+  const std::string a2 = pm_line(r.a, "lobby entered 2, scores: ", 1), b2 = pm_line(r.b, "lobby entered 2, scores: ", 1);
+  const std::string a3 = pm_line(r.a, "lobby entered 3, scores: ", 1), b3 = pm_line(r.b, "lobby entered 3, scores: ", 1);
+  std::printf("  after round 1: %s\n  after round 2: %s\n  between: %s\n", a2.c_str(), a3.c_str(),
+              pm_line(r.a, "lobby round: ", 2).c_str());
+  EXPECT(a2.rfind("End of Round 1 of 2 | ", 0) == 0 && a2 == b2);
+  EXPECT(a3.rfind("End of Round 2 of 2 | ", 0) == 0 && a3 == b3);
+  EXPECT(a2.find("best                  1      1      1") != std::string::npos);  // B: a round won, a kill
+  EXPECT(a3.find("best                  2      1      1") != std::string::npos);  // and the second
+  EXPECT(pm_line(r.a, "lobby round: ", 2).rfind("between 1, rounds 2, played 1", 0) == 0);
+  EXPECT(pm_line(r.b, "lobby round: ", 2).rfind("between 1, rounds 2, played 1", 0) == 0);
+  EXPECT(pm_line(r.a, "lobby round: ", 3).rfind("between 0, rounds 2, played 0", 0) == 0);  // the match over
+}
+#endif

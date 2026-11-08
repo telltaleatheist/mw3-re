@@ -1373,6 +1373,8 @@ void GameEngine::network_set(int32_t on) {
   network_on_ = false;
 }
 
+int32_t& net_rounds_played();  // mech_net.h's (not includable beside app_hooks.h): [0x0062cc38]
+
 // Mech3.exe 1.2 @ 0x0049cb20: the Multiplayer State's page shown as wanted
 // (1 the connection screen, 2 the lobby, 3 the new team), each told when
 // it starts over (+0x19): the connection screen forgets its kind
@@ -1397,6 +1399,15 @@ void GameEngine::multiplayer_switch(Handle state) {
           std::string t;
           for (const std::string& x : l->shown_scores) t += (t.empty() ? "" : " | ") + x;
           std::printf("mw3: lobby entered %d, scores: %s\n", lobby_entries_, t.empty() ? "none" : t.c_str());
+          // Pirate's Moon's match state on entry (the rounds tests): between rounds, the rounds, the weight
+          // limit, the round's pool (its mechs) and the bonus tons.
+          if (MultiplayerGame* mg = l->game) {
+            int32_t pool = 0;
+            for (const ConfigItem* it : mg->round_store.items) pool += it && it->kind() == 0;
+            std::printf("mw3: lobby round: between %d, rounds %d, played %d, weight %d, pool %d mechs, bonus %.1f\n",
+                        l->between_rounds, mg->rounds_total, net_rounds_played(), mg->x78, pool,
+                        static_cast<double>(mg->bonus_tons));
+          }
         }
       }
   } else if (g->want == 3) {

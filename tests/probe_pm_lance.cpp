@@ -22,7 +22,7 @@ int32_t probe_pm_lance(int32_t kind, const int32_t* slots, int32_t n, const int3
     if (slots[2 * i + 1] >= 0 && s->mech >= 0) s->set_config(mech_dfn(s->mech)->configs->configs[static_cast<size_t>(slots[2 * i + 1])]);
     list.push_back(s);
   }
-  lance_fit(store, list, lance_keeps(kind));
+  lance_fit_game(kind, store, list);
   int32_t k = 0;
   for (GameSlot* s : list) {
     out[k++] = s->mech, out[k++] = s->config ? s->config->mech : -2;
