@@ -32,10 +32,9 @@ class PmAttackState final : public BehaviourState {
  public:
   PmAttackState(Order* o, Behaviour* b);
   ~PmAttackState() override;
-  // The exe's vt+0x04 and +0x08 (0x004eb000) say yes to both, but with yes here the tick gives the attack again every
-  // frame (c1m1-idle: 68 entered, 11 never, against 76 and 3): something else holds the exe off, likely the order's
-  // net part's vt+0x0c in may_engage_pm, not yet the exe's. No to both until it is (MW3's FightState's).
-  bool may_break_in() const override { return false; }
+  // The exe's vt+0x04 and +0x08 (0x004eb000) say yes to both (MW3's FightState no). Fire stays no for now: with yes the
+  // attack's own steps stop being reached (c1m1-idle: 69 entered, 10 never, against 77 and 2; 0x004d9ce0, 0x004dfb50..).
+  bool may_break_in() const override { return true; }
   bool may_fire() const override { return false; }
   void run(float dt) override;
   void resume() override { s_.reset(); }  // vt+0x10: 0x004d9ce0
