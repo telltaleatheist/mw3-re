@@ -152,7 +152,7 @@ engine's known reasons. Count, missions, key; (a) changes what the player sees o
 | Count | Missions | Key | What |
 |---|---|---|---|
 | 870,154 | 21 | assumed: the order's state idle (vt+0x20) | done: every PM state answers yes (0x004eb000) but the jump's (0x004d5020, no); now each state's own (`BehaviourState::idle`); MW3's states standing in are still counted. No change in the score (seeds 1..4 76/3) |
-| 12,250 | 21 | stand-in: MW3's steering | frames where no PM state runs (MW3's order states below) steer with MW3's steering |
+| 12,250 | 21 | stand-in: MW3's steering | done: the exe's tick runs the brain's +0x210 vt+0x04 whatever state runs; PM's steering now always. Score and pair unchanged; kills:99's missions end as before |
 | 3,254 | 12 | stand-in: MW3's orders, WaitState | scripted orders whose states are still MW3's: wait. PM's runs (0x004d4a20, 0x004d4b80) and Speed's, Pass's and Assign's (0x004d48b0, 0x004d6ec0, 0x004d7010) are MW3's logic with PM's offsets (PM's 0x004fbe60(1) is the brain's +0x104 the port's mirror reads); not yet marked PM's |
 | 265 | 21 | stand-in: MW3's orders, SharedState | done: PmSharedState (0x004d5c60): the lancemate follows on the player's PM net by PM's order (the follow now "made: PM's orders"), others take their net's nearest step by PM's push; the nearest step (0x004e5580) is still MW3's 0x004d51d0, PM's changed and isn't ported |
 | 197 | 21 | 0x004b2ab0 (died_base) | the brain's reaction to its vehicle's death |

@@ -210,10 +210,8 @@ class WiredTickPm final : public TickPmHooks {
   void stop() override { c.stop(); }
   void smooth(float dt) override { c.smooth(dt); }
   int32_t power_state(zgame::Handle v) override { return h.powered_down(v); }
-  void steer_update(float dt, zgame::Handle v) override {
-    if (pm_state_running(b)) return pm_brain(b).steer.update(pm_walk(b, c), dt, v);
-    pm_hook_missing("stand-in: MW3's steering");
-    b.steer.update(dt, v);
+  void steer_update(float dt, zgame::Handle v) override {  // +0x210's vt+0x04, whatever state runs
+    pm_brain(b).steer.update(pm_walk(b, c), dt, v);
   }
   zgame::Handle pick(zgame::Handle v) override { return pm_id(h.pick(v, kEnemy)); }
   zgame::Handle player_contact(zgame::Handle v) override {
