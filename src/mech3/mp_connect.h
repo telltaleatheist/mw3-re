@@ -28,6 +28,12 @@ MultiplayerSetup& multiplayer_setup();
 // host with another one is refused (0xfdd, 0xfde).
 constexpr uint32_t kGameVersion = 0x28;
 
+// Ours: the versions the two games' sessions carry, by name, so a join to the
+// other game's host says which game it is (MW3 1.2's constant 0x28; Pirate's
+// Moon's is its exe's file version 1.0.11.5, low word pair 0x000b0005,
+// 0x004b3110). Null for any other version.
+const char* game_of_version(uint32_t version);
+
 // The connection for the chosen provider (0x0058a110: kind 2 TCP/IP's,
 // vtable 0x005cefa8 family; the modem's, IPX's and serial's are gone, FIX
 // (A)): its address set (+0xc), opened to search (+4 with 0) or to host
