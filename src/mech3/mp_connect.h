@@ -19,7 +19,7 @@ class ConnectScreen;
 // The connection screen's globals the lobby reads.
 struct MultiplayerSetup {
   int32_t kind = -1;          // [0x00608e28]  the connection's kind, -1 none (0x004949d0)
-  uint8_t team_play = 0;      // [0x00608e2c]  the host's TEAM_CHECKBOX
+  uint8_t team_play = 0;      // [0x00608e2c], PM [0x0062cc34]  MW3: the host's TEAM_CHECKBOX; PM: the lobby's kind at the lock
   int32_t max_players = 0;    // [0x00608e30]  the game's limit
 };
 MultiplayerSetup& multiplayer_setup();
@@ -140,7 +140,6 @@ class ConnectScreen : public MenuScreen {
   ShellButton dial_btn;              // +0x12104  DIAL (5): the modem's, hidden
   ShellButton find_btn;              // +0x1225c  FIND_GAME_BUTTON (6)
   ConnectBox connect_box;            // +0x123b4  CONNECT_CHECKBOX
-  InvertCheck team_box;              // +0x1251c  TEAM_CHECKBOX
   ztwod::CheckButton call_box;       // +0x12688  CALL_BUTTON: the modem's, hidden
   FocusBar player_name;              // +0x127f0  PLAYER_NAME (16 characters)
   CycleButton max_players;           // +0x12b7c  MAX_PLAYERS_LIST
@@ -152,7 +151,6 @@ class ConnectScreen : public MenuScreen {
   ztwod::Image lines2{0};            // +0x13a48  LINES2
   Handle pilot = 0;                  // +0x13974
   float timer = 0;                   // +0x13978  to the search's next ask
-  uint8_t team = 0;                  // +0x1397d
   uint8_t find_shows_find = 1;       // +0x1397e  FIND GAME (1) or Stop Search (0)
   std::unique_ptr<NetConnection> conn;  // +0x13980
   std::string name;                  // +0x13984  the player's, trimmed

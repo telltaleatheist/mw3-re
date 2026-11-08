@@ -114,8 +114,9 @@ void FocusBar::on_return() {
 
 // ---- the screen ----
 
-// Mech3.exe 1.2 @ 0x00493260. FIX (A): the modem's ANSWER, DIAL and CALL are
-// hidden (no modem provider is listed, multiplayer-port.md piece 9's plan).
+// Mech3.exe 1.2 @ 0x00493260 (Pirate's Moon 0x00496660: no TEAM_CHECKBOX, team
+// play is the lobby's GAME_TYPE). FIX (A): the modem's ANSWER, DIAL and CALL
+// are hidden (no modem provider is listed, multiplayer-port.md piece 9's plan).
 ConnectScreen::ConnectScreen(Engine& e, Handle s)
     : MenuScreen(e, s), join_btn(e, 2), connections(e), sessions(e, this), cancel_btn(e, 1), host_btn(e, 3),
       answer_btn(e, 4), dial_btn(e, 5), find_btn(e, 6), connect_box(this), player_name(e, this, 1), max_players(e, -1),
@@ -156,7 +157,6 @@ ConnectScreen::ConnectScreen(Engine& e, Handle s)
     bind_button(&dial_btn, "DIAL_BUTTON");
     bind_button(&find_btn, "FIND_GAME_BUTTON");
     bind_button(&connect_box, "CONNECT_CHECKBOX");
-    bind_button(&team_box, "TEAM_CHECKBOX");
     bind_button(&call_box, "CALL_BUTTON");
     bind_button(&connections, "CONNECTION_LIST");
     bind_button(&player_name, "PLAYER_NAME");
@@ -344,17 +344,16 @@ void ConnectScreen::join() {
       return;
     }
   if (znet::create_player(name.c_str())) {
-    connect(false);
-    multiplayer_setup().team_play = 0;
-    team = 0;
+    connect(false);  // PM 0x00498190: team play left as it is (MW3's cleared it)
     multiplayer_setup().max_players = static_cast<int32_t>(g.max_players);
     e.multiplayer_page(state, 2, 1);  // 0x0049cb00: the lobby
   }
 }
 
-// Mech3.exe 1.2 @ 0x00495600: a game named NEW_SESSION_NAME (none: 0x2aa),
-// MAX_PLAYERS_LIST's limit, TEAM_CHECKBOX's team play, the game's version in
-// its second word; hosted, then our player, then the lobby.
+// Mech3.exe 1.2 @ 0x00495600, Pirate's Moon 0x00498300: a game named
+// NEW_SESSION_NAME (none: 0x2aa), MAX_PLAYERS_LIST's limit, the game's version
+// in its second word; hosted, then our player, then the lobby. MW3's also set
+// team play from TEAM_CHECKBOX; PM's lobby sets it at the lock.
 void ConnectScreen::host() {
   Engine& e = engine();
   focus(0);
@@ -366,8 +365,6 @@ void ConnectScreen::host() {
   }
   const int32_t limit = max_players.selected_value();
   name = trimmed(player_name.get_text());
-  multiplayer_setup().team_play = team_box.checked != 0 ? 1 : 0;
-  team = multiplayer_setup().team_play;
   znet::GameInfo g;
   g.user[0] = 1;
   g.user[1] = kGameVersion;
