@@ -600,3 +600,33 @@ extern "C" void probe_pm_read_start(const int32_t* in, int32_t* out) {
   int32_t k = 0;
   for (auto& r : g.lobby_players) out[k++] = r->order;
 }
+
+// Pirate's Moon's rules message 0x20 for test_pm_lobby_rules_msg.py: the lists (kills, minutes, tons, realloc, rounds,
+// kind, world: each its count, pick and 12 values), the boxes (respawn, ammo, outside, jets, radar, stock, mobile), the
+// lock, the message read, the rand() word. Out: the message sent (6 words), then after the read the picks, the boxes,
+// the lock, the first lock and its team play, the block (flags, world, kills, minutes, tons, seed) and its CRC.
+extern "C" void probe_pm_lobby_rules_msg(const int32_t* in, int32_t* out) {
+  mech3::LobbyControls c;
+  mech3::LobbyChoice* lists[7] = {&c.kills, &c.minutes, &c.tons, &c.realloc, &c.rounds, &c.kind, &c.world};
+  for (int k = 0; k < 7; ++k) {
+    const int32_t* l = in + 14 * k;
+    lists[k]->values.assign(l + 2, l + 2 + l[0]);
+    lists[k]->pick = l[1];
+  }
+  bool* boxes[7] = {&c.respawn, &c.ammo, &c.outside, &c.jets, &c.radar, &c.stock, &c.mobile};
+  for (int k = 0; k < 7; ++k) *boxes[k] = in[98 + k] != 0;
+  c.locked = in[105] != 0;
+  const std::vector<uint8_t> m = mech3::lobby_rules_message(c);
+  std::memcpy(out, m.data(), m.size());
+  uint8_t msg[0x18];
+  std::memcpy(msg, in + 106, sizeof msg);
+  mech3::MultiplayerGame g(nullptr);
+  bool team = in[113] != 0;
+  const bool first = g.read_lobby_rules(msg, sizeof msg, &c, in[112], &team);
+  for (int k = 0; k < 7; ++k) out[6 + k] = lists[k]->pick;
+  for (int k = 0; k < 7; ++k) out[13 + k] = *boxes[k] ? 1 : 0;
+  const int32_t r[10] = {c.locked ? 1 : 0, first ? 1 : 0, team ? 1 : 0, static_cast<int32_t>(g.rules.flags),
+                         g.rules.world, g.rules.kills, g.rules.time, g.rules.weight, g.rules.seed,
+                         static_cast<int32_t>(g.rules_crc)};
+  std::memcpy(out + 20, r, sizeof r);
+}

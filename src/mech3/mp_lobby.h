@@ -17,16 +17,9 @@
 namespace mech3 {
 
 class MultiplayerGame;
+struct LobbyControls;
 struct LobbyEntry;
 class LobbyScreen;
-
-// DATABASE_LIST (vtable 0x005c7788): the worlds; a step passes over
-// "UNAVAILABLE" (the first) when there is more.
-class WorldCycle : public CycleButton {
- public:
-  explicit WorldCycle(Engine& e) : CycleButton(e, 0xc) {}
-  void step(int32_t by) override;    // +0xa4  0x00496880
-};
 
 // TP_LIST (0x16) and PLAYERS_LIST (0x17): the teams with their players, and
 // the players without one. Each item's value is its record (the exe's
@@ -98,21 +91,23 @@ class LobbyScreen : public MenuScreen {
   void scores(bool report);          // 0x00498550: SCORES_LIST
   void refresh_lists();              // 0x00498710: the records from the network, TP_LIST and PLAYERS_LIST
   void refresh_buttons();            // 0x004993f0: READY, MECHLAB, START, NEW_TEAM as things stand
-  void host_controls();              // 0x00498260: the rules' controls the host's to change
+  void host_controls();              // PM 0x0049b3f0 (MW3 0x00498260): the rules' controls the host's to change
+  bool stock_control();              // PM 0x0049b5e0: STOCK the host's, as kept (+0x1679e)
   void handlers(bool on);            // 0x00497fbf's registrations, 0x00499a30's removals
   void kick(LobbyList& from);        // 0x0049a150 (TP_LIST), 0x0049a7a0 (PLAYERS_LIST)
   void team_chosen();                // 0x0049a3a0: TP_LIST's choice
   void player_chosen();              // 0x0049a6a0: PLAYERS_LIST's
-  // The rules (piece 11b): the host's to everyone (0x00499b10, message 0x20:
-  // the flags 1 respawn, 2 mobile bases, 4 stock mechs, 8 unlimited ammo,
-  // 0x10 first person, 0x20 locked, then the four lists' values as int16);
-  // LOCK_OPTIONS (0x0049aca0); the lists' values and the boxes into the
-  // game's rules block (inline twice in the exe); the lock's mech (0x0049b360).
-  void send_rules();                 // 0x00499b10
+  // The rules (piece 11b; PM piece 6c-2): the host's to everyone (PM
+  // 0x0049d220, message 0x20: lobby_rules_message); LOCK_OPTIONS (0x0049aca0);
+  // the lists and boxes as the message sees them, and back; the lock's mech
+  // (0x0049b360).
+  void send_rules();                 // PM 0x0049d220 (MW3 0x00499b10)
   void lock();                       // 0x0049aca0
   void keep_rules(bool seeded);      // the game's +0x60 block, its CRC at +0x88
   void lock_mech();                  // 0x0049b360
-  void world_changed();              // 0x00497410 case 0xc
+  LobbyControls controls();          // the lists' items and picks, the boxes, the lock
+  void show_controls(const LobbyControls& c);  // the picks and boxes back
+  void world_changed();              // ours: MW3's 0x00497410 case 0xc, for the add-on worlds
   // The game's start and the players' own (piece 11c): START (0x0049b790,
   // the host's message 0x1e with the players' places, then everyone the
   // game's settings from the lobby and the Load state), READY (0x0049a970),
@@ -147,7 +142,7 @@ class LobbyScreen : public MenuScreen {
   static void on_change(uint32_t from, const uint8_t* msg, size_t size);  // 0x00499600: 2..6, 8..0xa
   static void on_kicked(uint32_t from, const uint8_t* msg, size_t size);  // 0x0049a1d0: 7
   static void on_host(uint32_t from, const uint8_t* msg, size_t size);    // 0x0049a200: 0xd
-  static void on_rules(uint32_t from, const uint8_t* msg, size_t size);   // 0x00499cf0: 0x20
+  static void on_rules(uint32_t from, const uint8_t* msg, size_t size);   // PM 0x0049d450 (MW3 0x00499cf0): 0x20
   // The chat (piece 12): ours to `team` (0 all) as 0x1f, unguaranteed, and
   // shown here (0x004998b0); a player's shown, "< name to all >" or "< name
   // to team >" over the text (0x00499610).
@@ -162,16 +157,25 @@ class LobbyScreen : public MenuScreen {
   HelpButton cancel_btn;             // +0x1182c  CANCEL_BUTTON (1)
   HelpButton start_btn;              // +0x119a8  START_BUTTON (0)
   HelpButton mechlab_btn;            // +0x11b24  MECHLAB_BUTTON (10)
-  HelpButton lock_btn;               // +0x11ca0  LOCK_OPTIONS_BUTTON (0xb)
-  WorldCycle worlds;                 // +0x11e1c  DATABASE_LIST (0xc)
-  CycleButton kills_list;            // +0x12240  KILLS_LIST (0xd)
-  CycleButton time_list;             // +0x12664  TIME_LIST (0xe)
-  CycleButton weight_list;           // +0x12a88  WEIGHT_LIST (0xf)
-  InvertCheck regen_box;             // +0x12eac  REGEN_CHECKBOX (0x10)
-  InvertCheck mobile_box;            // +0x13018  MOBILE_CHECKBOX (0x11)
-  InvertCheck stock_box;             // +0x13184  STOCK_CHECKBOX (0x12)
-  InvertCheck ammo_box;              // +0x132f0  AMMO_CHECKBOX (0x13)
-  InvertCheck select_box;            // +0x1345c  SELECT_CHECKBOX (0x14)
+  // PM's ids and offsets (its constructor 0x00498b70; MW3's ids 0xb..0x15 moved).
+  HelpButton salvage_btn;            // PM +0x12304  SALVAGE_BUTTON (0xb)
+  HelpButton options_btn;            // PM +0x12480  OPTIONS_BUTTON (0xc)
+  HelpButton lock_btn;               // PM +0x125fc  LOCK_OPTIONS_BUTTON (0xd)
+  CycleButton game_type;             // PM +0x12778  GAME_TYPE (0xe): the kinds
+  CycleButton worlds;                // PM +0x12b9c  DATABASE_LIST (0xf; MW3's skipped its "UNAVAILABLE")
+  CycleButton salvage_award;         // PM +0x12fc0  SALVAGE_AWARD (0x10): REALLOC
+  CycleButton rounds_list;           // PM +0x133e4  ROUNDS_LIST (0x11)
+  CycleButton kills_list;            // PM +0x13808  KILLS_LIST (0x12)
+  CycleButton time_list;             // PM +0x13c2c  TIME_LIST (0x13)
+  CycleButton weight_list;           // PM +0x14050  WEIGHT_LIST (0x14)
+  InvertCheck regen_box;             // PM +0x14474  REGEN_CHECKBOX (0x15)
+  InvertCheck mobile_box;            // PM +0x145e0  MOBILE_CHECKBOX (0x16)
+  InvertCheck stock_box;             // PM +0x11b84  STOCK_CHECKBOX (0x17)
+  InvertCheck ammo_box;              // PM +0x1474c  AMMO_CHECKBOX (0x18)
+  InvertCheck select_box;            // PM +0x148b8  SELECT_CHECKBOX (0x19)
+  InvertCheck jets_box;              // PM +0x14a24  JETS_CHECKBOX (0x1a)
+  InvertCheck radar_box;             // PM +0x14b90  RADAR_CHECKBOX (0x1b)
+  uint8_t stock_kept = 0;            // PM +0x1679e  STOCK as the host left it (case 0x17)
   ShellButton join_team_btn;         // +0x135c8  JOIN_TEAM_BUTTON (4)
   ShellButton remove_team_btn;       // +0x13720  REMOVE_TEAM_BUTTON (5)
   ShellButton kick_btn;              // +0x13878  KICK_PLAYER_BUTTON (6)
@@ -180,13 +184,13 @@ class LobbyScreen : public MenuScreen {
   ShellButton kick2_btn;             // +0x13c80  KICK_PLAYER2_BUTTON (9)
   ChatLog chat_log;                  // +0x13dd8  CHAT_REC_LIST, its CHAT_UP (+0x142a0) and CHAT_DOWN (+0x143fc)
   FileList scores_list;              // +0x14578  SCORES_LIST
-  LobbyList teams_list;              // +0x14778  TP_LIST (0x16)
-  LobbyList players_list;            // +0x14978  PLAYERS_LIST (0x17)
+  LobbyList teams_list;              // +0x14778  TP_LIST (PM 0x1d, MW3 0x16)
+  LobbyList players_list;            // +0x14978  PLAYERS_LIST (PM 0x1e, MW3 0x17)
   ShellButton player_name;           // +0x14b78  PLAYER_NAME: the label
   ShellButton session_name;          // +0x14cd0  SESSION_NAME
-  InvertCheck ready_box;             // +0x14e28  READY_CHECKBOX (0x15)
+  InvertCheck ready_box;             // +0x14e28, PM +0x16570  READY_CHECKBOX (PM 0x1c, MW3 0x15)
   ztwod::Image lines1{0};            // +0x14f94  LINES1
-  uint8_t locked = 0;                // +0x15050  the options locked (LOCK_OPTIONS): READY then
+  uint8_t locked = 0;                // +0x15050, PM +0x16799  the options locked (LOCK_OPTIONS; between rounds): READY then
   uint8_t all_ready = 0;             // +0x15051  every player ready (START)
   uint8_t start_pending = 0;         // +0x15052  START asked; the update starts (piece 11c)
   uint8_t keep_order = 0;            // +0x15053, PM +0x1679c  a refresh keeps the players' places
