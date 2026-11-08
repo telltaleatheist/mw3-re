@@ -45,6 +45,11 @@ Node* ref_or_at(AnimDef& d, int32_t i, float* off = nullptr) {
   }
   return nullptr;
 }
+}  // namespace
+
+Node* anim_event_node(AnimDef& d, int32_t i, float* off) { return ref_or_at(d, i, off); }
+
+namespace {
 
 // The time this event may use this frame: what is left, less what the event
 // ran past its end (+end).

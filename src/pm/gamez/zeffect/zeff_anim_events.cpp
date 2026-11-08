@@ -1,0 +1,70 @@
+#include "pm/gamez/zeffect/zeff_anim_events.h"
+
+#include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/cls_world.h"
+#include "gamez/zeffect/zeff_anim_events.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "pm/gamez/zclass/light.h"
+
+#pragma STDC FP_CONTRACT OFF
+
+namespace pm::zeff {
+
+using ::zcls::Node;
+using ::zeff::ev::get;
+using ::zeff::ev::put;
+
+namespace {
+float f32(const uint8_t* e, int off) { return get<float>(e, off); }
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x0051b910
+int32_t ev_light_state(::zeff::AnimDef& d, uint8_t* e) {
+  if (get<int32_t>(e, 0x2c) < 1) {
+    const int32_t i = ::zeff::anim_light_ref(d, reinterpret_cast<const char*>(e + 0xc));  // 0x00522280
+    put(e, 0x2c, i);
+    if (i < 1) return 2;
+  }
+  ::zeff::CreatedRef& r = d.lights[get<int32_t>(e, 0x2c)];
+  Node* n = static_cast<Node*>(r.made);
+  Node* world = static_cast<Node*>(::zeff::anim().world);  // [0x008d3f20]
+  ::zcls::node_set_active(n, get<int32_t>(e, 0x34));      // 0x004fca50
+  if (get<int32_t>(e, 0x34) == 1) {
+    if (!r.get<int32_t>(0x28)) {
+      ::zcls::world_add_light(world, n);  // 0x00506160
+      r.put<int32_t>(0x28, 1);
+    }
+  } else if (r.get<int32_t>(0x28)) {
+    ::zcls::world_remove_light(world, n);  // 0x00506200
+    r.put<int32_t>(0x28, 0);
+  }
+  if (get<int32_t>(e, 0x38)) zcls::light_set_bit4(n);
+  else zcls::light_set_bit3(n);
+  const uint32_t f = get<uint32_t>(e, 0x30);
+  if (f & 1) zcls::light_set_position(n, f32(e, 0x58), f32(e, 0x5c), f32(e, 0x60));
+  if (f & 2) {
+    float p[3] = {0, 0, 0};
+    Node* a = ::zeff::anim_event_node(d, get<int32_t>(e, 0x54), p);
+    if (a) {
+      ::zcls::node_world_point(a, p);  // 0x004ff3c0
+      zcls::light_set_position(n, p[0] + f32(e, 0x58), p[1] + f32(e, 0x5c), p[2] + f32(e, 0x60));
+    }
+  }
+  if (f & 4) zcls::light_set_orientation(n, f32(e, 0x64), f32(e, 0x68), f32(e, 0x6c));
+  if (f & 8) zcls::light_set_range(n, f32(e, 0x70), f32(e, 0x74));
+  if (f & 0x10) zcls::light_set_color(n, f32(e, 0x78), f32(e, 0x7c), f32(e, 0x80));
+  if (f & 0x800) zcls::light_set_ambient_color(n, f32(e, 0x84), f32(e, 0x88), f32(e, 0x8c));
+  if (f & 0x20) zcls::light_set_ambient(n, f32(e, 0x90));
+  if (f & 0x40) zcls::light_set_diffuse(n, f32(e, 0x94));
+  if (f & 0x1000) zcls::light_set_own_colors(n, get<int32_t>(e, 0x50));
+  if (f & 0x80) zcls::light_set_bit2(n, get<int32_t>(e, 0x3c));
+  if (f & 0x100) zcls::light_set_ambient_only(n, get<int32_t>(e, 0x40));
+  if (f & 0x200) zcls::light_set_diffuse_only(n, get<int32_t>(e, 0x44));
+  if (f & 0x2000) zcls::light_set_light_map(n, get<int32_t>(e, 0x48));
+  if (f & 0x400) zcls::light_set_directional(n, get<int32_t>(e, 0x4c));
+  return 2;
+}
+
+}  // namespace pm::zeff

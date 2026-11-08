@@ -17,6 +17,8 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "check.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zclass/light.h"
 #include "mech3/zainet_inout.h"
 #include "crt/msvc_rand.h"
 #include "gamez/ztwod/twod_weather.h"
@@ -397,6 +399,13 @@ static bool me_alive(void* player) {
   return me.anim_state != 10;
 }
 
+struct LightSeen {
+  bool found = false, active = false, in_world = false;
+  uint32_t flags = 0;
+  float near = 0, far = 0, ambient = 0, diffuse = 0, color[3] = {}, mixed[12] = {};
+};
+static LightSeen g_light;
+
 static void kill_run(const char* which, bool quick) {
   EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
@@ -640,6 +649,24 @@ static void kill_run(const char* which, bool quick) {
       }
       return;
     }
+    if (std::getenv("PM_BASE_LIGHT")) {  // c1m2's starbase_light (turnon_baselight's LIGHT_STATE, PM's event 4) at 200 frames
+      static int t = 0;
+      if (++t < 200) return;
+      auto& a = zeff::anim();
+      for (int i = 0; i < a.def_count(); ++i) {
+        zeff::AnimDef* d = &a.defs[i];
+        if (std::strcmp(d->name(), "turnon_baselight") != 0 || d->count(0x10b) < 2) continue;
+        auto* n = static_cast<zcls::Node*>(d->lights[1].made);
+        auto* l = static_cast<zcls::Light*>(n->data);
+        g_light.found = true, g_light.active = (n->flags() & 4) != 0, g_light.in_world = d->lights[1].get<int32_t>(0x28) != 0;
+        g_light.flags = l->get<uint32_t>(0xb0), g_light.near = l->get<float>(0xb4), g_light.far = l->get<float>(0xb8);
+        g_light.ambient = l->get<float>(0xa0), g_light.diffuse = l->get<float>(0x9c);
+        for (int k = 0; k < 3; ++k) g_light.color[k] = l->get<float>(0xa4 + 4 * k);
+        for (int k = 0; k < 12; ++k) g_light.mixed[k] = l->pm_colors[k];
+      }
+      done = true;
+      return;
+    }
     if (std::getenv("PM_LOADOUT")) {
       pm_kill_loadout(player);
       done = true;
@@ -786,7 +813,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -816,6 +843,36 @@ TEST(pm_cloud_screen_tint) {
 }
 
 TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
+
+// Always on: c1m2's base lights (pm-tests item 6). start_hwlights calls turnon_baselight, whose loop's first range test
+// (2 s in) lights starbase_light by PM's LIGHT_STATE (0x0051b910): the file's range 0..150, ambient 0.45, diffuse 1,
+// white, static and not a light map, and PM's mixed colours from them. MW3's handler on PM's record set only the switch.
+TEST(pm_c1m2_base_light_takes_its_state) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_BASE_LIGHT", "1", 1);
+    kill_run("0,1,2", true);
+    const LightSeen& l = g_light;
+    std::printf("  starbase_light: found %d active %d in the world %d flags %x range %.1f..%.1f ambient %.3f diffuse %.3f colour %.2f %.2f %.2f; mixed",
+                l.found, l.active, l.in_world, l.flags, l.near, l.far, l.ambient, l.diffuse, l.color[0], l.color[1], l.color[2]);
+    for (float m : l.mixed) std::printf(" %.3f", m);
+    std::printf("\n");
+    EXPECT(l.found && l.active && l.in_world);
+    EXPECT(l.near == 0.0f && l.far == 150.0f);
+    EXPECT(l.ambient == 0.45f && l.diffuse == 1.0f);
+    EXPECT(l.color[0] == 1.0f && l.color[1] == 1.0f && l.color[2] == 1.0f);
+    EXPECT(l.mixed[3] == 1.0f && l.mixed[6] == 0.45f && l.mixed[9] == 1.45f);  // diffuse mixed, ambient mixed, their sum
+    EXPECT((l.flags & 0x80) == 0);  // LIGHTMAP FALSE
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
 
 // Always on: c1m1's Thor, one ER Large, every shot on its leg: it goes down with the leg, the player's hits on legs only.
 // Always on: mission 2's canyon, cloud_cover's death band: the player over the edge dies at y = -30, in the air,
