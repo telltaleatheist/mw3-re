@@ -31,8 +31,14 @@ KINDS = ['Battle', 'Battle Waves', 'Battle Progression', 'Attack', 'Defend']
 WORLD = {1: 1, 2: 1, 3: 2, 4: 2, 5: 1, 6: 3, 7: 3, 8: 2, 9: 4, 10: 4}
 RANK = {'Battle': -1, 'Battle Waves': 0, 'Battle Progression': 0, 'Attack': -1, 'Defend': -1}
 BATTLE_LOST = ['Primary Objectives', 'Mission Total', '0', "'Mechs Defeated", 'Actions', '0']
+# The round's two lancemates are a random draw of the three (their AI params' pilot, by rand): which two moves with
+# the seed under either AI (seed 2: Epona and Alan, then Dominic and Alan with MW3's AI, Epona and Alan with PM's).
+# PM's AI, the default since e40aa9b5, uses rand otherwise in the first round, so the second draws Epona and Alan;
+# PM_AI=0 still draws Dominic and Epona. Re-taken at the flip, nobody dropped.
 PROGRESSION_WON = ['Primary Objectives', "'Mechs Defeated", '2500', 'Mission Total', '4800', "'Mechs Defeated",
-                   'Actions', '5', 'Dominic Paine', '0', 'Epona Rhi', '0', 'Mission Total', '4800']
+                   'Actions', '5', 'Epona Rhi', '0', 'Alan Mattila', '0', 'Mission Total', '4800']
+if os.environ.get('PM_AI') == '0':
+    PROGRESSION_WON[8:12] = ['Dominic Paine', '0', 'Epona Rhi', '0']
 MISSION_1_WON = ['Primary Objectives', 'Protect FedSuns Base', '2500', 'Secondary Objectives',
                  'Protect Rim Collective Camp', '2500', "'Mechs Defeated", '1700', 'Turrets Destroyed', '1200',
                  'Campaign Total', '7900', 'Mission Total', '7900', "'Mechs Defeated", 'Chain', '4', 'Epona Rhi', '0',

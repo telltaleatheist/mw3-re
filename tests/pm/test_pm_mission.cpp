@@ -58,6 +58,7 @@
 #include "mech3/turret.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zrdrvalve.h"
+#include "mech3/zai_wire_pm.h"
 #include "gamez/zsound/zsnd.h"
 #include "platform/silent_sound.h"
 
@@ -128,6 +129,8 @@ TEST(pm_c1m1_shadow_cats_wake) {
   const pid_t child = fork();
   if (child == 0) {
     shadow_cats_run();
+    // _exit skips the atexit report: the seeded pair compares these lines, so the child prints them itself.
+    for (const auto& [key, n] : mech3::ai::pm_hooks_missing()) std::printf("mw3: pm ai: %8d %s\n", n, key.c_str());
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }

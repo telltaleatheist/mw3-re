@@ -90,6 +90,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
 #include "mech3/mods.h"
+#include "mech3/zai_wire_pm.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_keys.h"
@@ -604,6 +605,7 @@ int mw3_game_main(int argc, char** argv) {
   Args a;
   if (!parse(argc, argv, a)) return 2;
   if (!a.shot.empty()) a.hidden = true;
+  if (a.verbose) mech3::ai::set_pm_ai_report(true);  // the PM AI's unanswered calls, as they come and at exit
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK)) {
     sdlfe::fatal_box(std::string("MechWarrior 3 cannot start: ") + SDL_GetError(), a.hidden);
     return 1;

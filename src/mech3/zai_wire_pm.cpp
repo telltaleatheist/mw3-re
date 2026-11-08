@@ -31,15 +31,26 @@ bool pm_ai_on() {
   return on;
 }
 
+// Not original: the report below is printed only when asked (--verbose, PM_AI_REPORT=1 or a test), not to players.
+static bool& report_on() {
+  static bool on = [] {
+    const char* v = std::getenv("PM_AI_REPORT");
+    return v && std::strcmp(v, "0") != 0;
+  }();
+  return on;
+}
+void set_pm_ai_report(bool on) { report_on() = on; }
+
 // The first run's report: every call with no answer, with its count.
 static void report_missing() {
+  if (!report_on()) return;
   for (const auto& [key, n] : missing_counts()) std::printf("mw3: pm ai: %8d %s\n", n, key.c_str());
 }
 
 void pm_hook_missing(const char* key) {
   static const bool reports = (missing_counts(), std::atexit(report_missing) == 0);  // the map outlives it
   (void)reports;
-  if (++missing_counts()[key] == 1) std::printf("mw3: pm ai: no answer yet for %s\n", key);
+  if (++missing_counts()[key] == 1 && report_on()) std::printf("mw3: pm ai: no answer yet for %s\n", key);
 }
 
 // The params keep MW3's offsets (zai_params.h); +0xcc is PM's +0xec. The brain's own fields are

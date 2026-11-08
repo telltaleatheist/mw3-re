@@ -147,6 +147,8 @@ the mission reached that is not ported (`mw3: chain unported in <mission>` from 
 pm ai unanswered in <mission>` from PM's AI's `pm_hook_missing`), summed over both runs; `--verbose`'s summary gives the
 engine's known reasons. Count, missions, key; (a) changes what the player sees or plays, (b) doesn't.
 
+Since the flip (e40aa9b5) `pm_hook_missing`'s own lines (`mw3: pm ai: no answer yet for ...` and the counts at exit) print only under `--verbose` or `PM_AI_REPORT=1`; the chains' per-mission lines are unchanged. `pm_c1m1_shadow_cats_wake` prints the counts from its child itself, as `_exit` skips the atexit report: the seeded pair compared two empty sets from the test's move into a child (eaf2739f) until 2026-11-08. Rerun then: 16 lines, the two runs alike.
+
 (a), by count:
 
 | Count | Missions | Key | What |
