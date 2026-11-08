@@ -808,9 +808,13 @@ bool CampaignGame::readable() { return zutl::exists(path()); }
 
 // Mech3.exe 1.2 @ 0x004352d0, Pirate's Moon 1.0 @ 0x00435d30: a game read from
 // the pilot's file (not the one the last mission's end made, +0xb0), whose
-// file is there: zSave reads it (kind 2) into the world.
+// file is there: zSave reads it (kind 2) into the world. FIX (bug): never for a
+// mission on a fresh world. The exe writes no world for those, but the port's
+// builds before 2026-11-08 did (record_mission), and that world, the last
+// mission's, read into the new one took the fixed turrets' damage handlers
+// (pm-tests item 9).
 bool CampaignGame::restore() {
-  if (b0 || !readable()) return false;
+  if (b0 || !readable() || campaign_fresh_world(mission)) return false;
   return pilot_hooks().load_world(path(), 2);
 }
 
