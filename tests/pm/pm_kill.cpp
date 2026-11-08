@@ -2,6 +2,7 @@
 // test_pm_mission.cpp's kill test, the parts and weapons it reaches: these headers don't sit with options.h.
 #include "mech3/mech.h"
 #include "mech3/mech_parts.h"
+#include "mech3/mech_headlight.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmodel/gmod_cull.h"
@@ -407,4 +408,16 @@ float pm_tag_muzzle(void* player, const float at[3], bool* mounted) {
   mech_world_position(me, p);  // (the torso's node_world_point can fail and leave it unset)
   const float d[3] = {mz.x - p[0], mz.y - p[1], mz.z - p[2]};
   return std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+}
+
+// pm-tests item 20: the player's headlight (CMD_HEADLIGHT_TOGGLE's turn) on or off; whether there is one, and its
+// light's world place.
+bool pm_headlight(void* player, bool on, float at[3]) {
+  auto* me = static_cast<Mech*>(player);
+  Headlight* h = me && me->torso ? me->torso->headlight : nullptr;
+  if (!h) return false;
+  h->turn(on, false);
+  at[0] = at[1] = at[2] = 0.0f;
+  if (h->light) zcls::node_world_point(h->light, at);
+  return true;
 }
