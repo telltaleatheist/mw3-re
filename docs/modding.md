@@ -267,7 +267,8 @@ script there, the others unchanged; an offset past the file refused).
 
 **`mw3 --check-mod DIR`** reads a mod as the game would without mounting it
 into play, and exits 1 when anything would be refused, else 0. It reports:
-mod.txt; each `world=` (its `zbd\<folder>\gamez.zbd` and `<folder>.gs`)
+mod.txt (a folder without one is checked as an install overlay, files laid
+over the game's folder, which play as an install: no error); each `world=` (its `zbd\<folder>\gamez.zbd` and `<folder>.gs`)
 and `ia_world=`; every file and what it replaces in the install (mw3.cfg's
 `install=`) or adds; the player's own kind of file, ignored; every archive's
 table; every reader archive's entries through the bounded reader; a

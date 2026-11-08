@@ -354,7 +354,9 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   ModInfo m;
   std::ifstream f(fs::path(dir) / "mod.txt");
   if (!f) {
-    error("no mod.txt");
+    // Files laid over the game's folder with no mod.txt play as an install,
+    // so the folder is checked all the same (Freako's PM mods ship so).
+    out.push_back("no mod.txt: checked as an install overlay");
   } else {
     std::stringstream ss;
     ss << f.rdbuf();
