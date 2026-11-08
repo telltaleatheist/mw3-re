@@ -17296,6 +17296,9 @@ TEST(options_mouse_sensitivity_slider_headless) {
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   int stage = 0;
   bool bound = false, default_kept = false, set_both = false, invert_after = false, sens_after = false;
+  bool page = false, page_read = false, page_applied = false;
+  std::vector<std::string> saved;
+  mech3::options_upgrades_saver() = [&](const char* key, bool on) { saved.push_back(std::string(key) + "=" + (on ? "1" : "0")); };
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -17308,42 +17311,41 @@ TEST(options_mouse_sensitivity_slider_headless) {
     engine.on_present = [&](int) {
       auto* os = dynamic_cast<mech3::OptionsState*>(app.current());
       auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
-      auto* a = os ? dynamic_cast<mech3::GfxAudioScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      auto* u = os ? dynamic_cast<mech3::UpgradesScreen*>(engine.screen_of(os->screen_)) : nullptr;
       float* accel = mech3::options().mouse_accel;
       if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
         const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[mech3::MainMenuButton::kOptions].on_left_up();
         stage = 1;
-      } else if (stage == 1 && g) {
+      } else if (stage == 1 && g) {  // the slider sits on the game options, under INVERT MOUSE Y
+        bound = g->has_sensitivity;
         g->apply(0), g->apply(1);  // untouched: the original's 1.3 both ways
         default_kept = accel[0] == 1.3f && accel[1] == 1.3f;
-        g->invert_y.select(1), g->apply(1);  // inverted
-        g->gfx_audio.on_left_up();
-        stage = 2;
-      } else if (stage == 2 && a) {
-        bound = a->has_sensitivity;
-        a->apply(0);
-        a->sensitivity.set_value(mech3::slider_of_sensitivity(2.5f));  // the slider at 2.5: X 2.5, Y -2.5
-        a->apply(1);
+        g->apply(0);
+        g->invert_y.select(1);
+        g->sensitivity.set_value(mech3::slider_of_sensitivity(2.5f));  // inverted at 2.5: X 2.5, Y -2.5
+        g->apply(1);
         set_both = accel[0] == 2.5f && accel[1] == -2.5f;
-        a->back.on_left_up();
-        stage = 3;
-      } else if (stage == 3 && g) {
         g->apply(0), g->invert_y.select(0), g->apply(1);  // invert off after it: the magnitude stays
         invert_after = accel[0] == 2.5f && accel[1] == 2.5f;
-        g->invert_y.select(1), g->apply(1);  // inverted again, then the sensitivity changed
-        g->gfx_audio.on_left_up();
-        stage = 4;
-      } else if (stage == 4 && a) {
-        a->apply(0);
-        a->sensitivity.set_value(mech3::slider_of_sensitivity(0.8f));
-        a->apply(1);
+        g->apply(0), g->invert_y.select(1);
+        g->sensitivity.set_value(mech3::slider_of_sensitivity(0.8f));
+        g->apply(1);
         sens_after = std::fabs(accel[0] - 0.8f) < 1e-6f && std::fabs(accel[1] + 0.8f) < 1e-6f;
-        stage = 5;
+        page = g->has_upgrades;
+        g->upgrades.on_left_up();  // the UPGRADES page
+        stage = 2;
+      } else if (stage == 2 && u) {
+        u->apply(0);
+        page_read = u->bug_fixes.selected_value() == 0 && u->wide_menus.selected_value() == (zfix::options().wide_menus ? 1 : 0);
+        u->bug_fixes.select(1), u->wide_menus.select(0);
+        u->apply(1);
+        page_applied = zfix::options().bugs && !zfix::options().wide_menus;
+        stage = 3;
       }
     };
-    CountingPump pump;
+  CountingPump pump;
     pump.limit = 400;
-    pump.stop = [&] { return stage == 5; };
+    pump.stop = [&] { return stage == 3; };
     app.run(pump);
     app.stop_game();
     app.exit_instance();
@@ -17357,7 +17359,11 @@ TEST(options_mouse_sensitivity_slider_headless) {
   zfix::options() = saved_fix;
   std::printf("  sensitivity: bound %d, default kept %d, both set %d, invert after %d, sensitivity after %d\n", bound,
               default_kept, set_both, invert_after, sens_after);
-  EXPECT(stage == 5 && bound && default_kept && set_both && invert_after && sens_after);
+  std::printf("  upgrades: page %d, read %d, applied %d, saved %zu\n", page, page_read, page_applied, saved.size());
+  EXPECT(stage == 3 && bound && default_kept && set_both && invert_after && sens_after);
+  EXPECT(page && page_read && page_applied);
+  EXPECT(saved == std::vector<std::string>({"bugfixes=1", "widemenus=0"}));
+  mech3::options_upgrades_saver() = nullptr;
   // The mission's step: zInput's read counts times the acceleration (cut toward zero).
   zin::State& st = zin::state();
   const zin::MouseInfo keep_mouse = st.mouse;
@@ -17381,6 +17387,49 @@ TEST(options_mouse_sensitivity_slider_headless) {
 // the values kept at the load and the options' ACCEPT, never the live ones:
 // 2.5 inverted, a mission, the menus, a moment's change, the program's end,
 // the next start: 2.5 / -2.5 saved and in its mission's step.
+// Our option records (patch12::apply_ours) on dlgoptions.zrd: MOUSE
+// SENSITIVITY, UPGRADES and the upgrades page go in, and their small font is
+// the dialog's: MW3's ia_small_green, and with CONTROLS's set to Pirate's
+// Moon's ia_small_amber (its archive is read on the pm branch), that one.
+TEST(options_our_records_take_the_dialogs_font) {
+  std::error_code ec;
+  const std::filesystem::path reader = std::filesystem::path(MW3_GAME_DIR) / "zbd" / "reader.zbd";
+  if (!std::filesystem::exists(reader, ec)) return;
+  for (const char* want : {"ia_small_green", "ia_small_amber"}) {
+    zrdr::init();
+    zrdr::close_archives(true);
+    EXPECT(zrdr::open_archive(std::filesystem::canonical(reader, ec).string().c_str(), true));
+    zrdr::Node* r = zrdr::load("dlgoptions.zrd");  // opened by its full path: the load hook leaves it alone
+    EXPECT(r != nullptr);
+    if (!r) continue;
+    auto font_of = [&](const char* button) -> zrdr::Node* {
+      zrdr::Node* b = zrdr::find(r, button);
+      zrdr::Node* label = b ? zrdr::find(b, "LABEL") : nullptr;
+      zrdr::Node* f = label ? zrdr::find(label, "font") : nullptr;
+      return f && f->type == zrdr::List && f->list[0].i > 1 && f->list[1].type == zrdr::String ? &f->list[1] : nullptr;
+    };
+    auto font = [&](const char* button) -> std::string {
+      const zrdr::Node* f = font_of(button);
+      return f && f->s ? f->s : "";
+    };
+    if (std::strcmp(want, "ia_small_green") != 0) {
+      zrdr::Node* f = font_of("CONTROLS_CFG");
+      zrdr::Node amber{};
+      EXPECT(f && mech3::patch12::parse_value("\"ia_small_amber\"", &amber));
+      if (f) zrdr::free_contents(f), *f = amber;
+    }
+    EXPECT(zrdr::find(r, "UPGRADES_DIALOG") == nullptr);
+    EXPECT(mech3::patch12::apply_ours("zbd/reader.zbd", "dlgoptions.zrd", r));
+    std::printf("  CONTROLS_CFG %s: UPGRADES %s, BUG_FIXES %s, WIDE_MENUS %s, page %d, slider %d\n", font("CONTROLS_CFG").c_str(),
+                font("UPGRADES").c_str(), font("BUG_FIXES").c_str(), font("WIDE_MENUS").c_str(),
+                zrdr::find(r, "UPGRADES_DIALOG") != nullptr, zrdr::find(r, "MOUSE_SENSITIVITY") != nullptr);
+    EXPECT(font("CONTROLS_CFG") == want && font("UPGRADES") == want && font("BUG_FIXES") == want && font("WIDE_MENUS") == want);
+    EXPECT(zrdr::find(r, "UPGRADES_DIALOG") != nullptr && zrdr::find(r, "MOUSE_SENSITIVITY") != nullptr);
+    zrdr::free_node(r);
+    zrdr::close_archives(true);
+  }
+}
+
 TEST(options_mouse_sensitivity_survives_a_mission_and_a_restart_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -22134,6 +22183,8 @@ namespace {
 struct OptionsPlace {
   int32_t game_origin = -1, gfx_origin = -1;
   int32_t accept[4] = {}, resolution[4] = {};
+  bool sensitivity = false, upgrades = false;  // ours on the game options: bound
+  int32_t upgrades_origin = -1;                // the UPGRADES page, reached from them and left by BACK
 };
 OptionsPlace c1m1_options_place(int32_t mode) {
   OptionsPlace out;
@@ -22218,6 +22269,18 @@ OptionsPlace c1m1_options_place(int32_t mode) {
         if (!g) return;
         out.game_origin = g->origin_x;
         rect(g->accept, out.accept);
+        out.sensitivity = g->has_sensitivity, out.upgrades = g->has_upgrades;
+        if (g->has_upgrades) g->upgrades.on_left_up(), step = 10;
+        else g->gfx_audio.on_left_up(), step = 2;
+      } else if (os->kind == mech3::OptionsState::kUpgrades && step == 10) {
+        auto* u = dynamic_cast<mech3::UpgradesScreen*>(scr);
+        if (!u) return;
+        out.upgrades_origin = u->origin_x;
+        u->back.on_left_up();
+        step = 11;
+      } else if (os->kind == mech3::OptionsState::kGame && step == 11) {
+        auto* g = dynamic_cast<mech3::GameOptionsScreen*>(scr);
+        if (!g) return;
         g->gfx_audio.on_left_up();
         step = 2;
       } else if (os->kind == mech3::OptionsState::kGfxAudio && step == 2) {
@@ -22255,7 +22318,7 @@ TEST(mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless) {
     std::printf("options from the pause at mode %d: origins %d %d, ACCEPT %d %d %d %d, RESOLUTION %d %d %d %d\n", mode,
                 v.game_origin, v.gfx_origin, v.accept[0], v.accept[1], v.accept[2], v.accept[3], v.resolution[0],
                 v.resolution[1], v.resolution[2], v.resolution[3]);
-    EXPECT(v.game_origin == 0 && v.gfx_origin == 0);
+    EXPECT(v.game_origin == 0 && v.gfx_origin == 0 && v.upgrades_origin == 0 && v.sensitivity && v.upgrades);
     EXPECT(std::equal(v.accept, v.accept + 4, v5.accept) && std::equal(v.resolution, v.resolution + 4, v5.resolution));
   }
   EXPECT(v5.accept[2] > 0 || v5.accept[0] > 0);

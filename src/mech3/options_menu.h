@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 
 #include "mech3/menu_widgets.h"
 
@@ -30,8 +31,8 @@ class CameraCycle : public CycleButton {
 // The game options' MouseAccelY for the invert box (0x00438100's ACCEPT).
 float mouse_y_accel(float current, bool inverted);
 
-// Ours (Owen, 2026-11-02): MOUSE SENSITIVITY on the graphics and audio
-// screen, MouseAccelX and Y's magnitude (Y keeping its sign, the game
+// Ours (Owen, 2026-11-02; moved 11-07 to the game options under INVERT
+// MOUSE Y, where a player meets it first): MOUSE SENSITIVITY, MouseAccelX and Y's magnitude (Y keeping its sign, the game
 // options' invert box), 0.5 to 3.0 in tenths, the original's 1.3 by default;
 // its slider (our record edit, patch12::apply_ours) bound only where the
 // program turns it on (the probes run the original's screens).
@@ -44,6 +45,17 @@ class SensitivitySlider : public ztwod::Slider {
  public:
   void on_left_up() override { set_from_mouse(); }
 };
+
+// Ours (Owen, 2026-11-07): the UPGRADES page, one press from the options (its
+// button under CONTROLS), our record edits (patch12::apply_ours): the rebuild's
+// own switches, today the bug fixes and wide menus, saved to mw3.cfg through
+// options_upgrades_saver (the program sets it). Bound only where the program
+// turns it on (options_upgrades_page): the probes run the original's screens.
+constexpr uint32_t kUpgradesScreenCtor = 0xf0000001;  // ours: not the exe's addresses
+constexpr uint32_t kUpgradesStateCtor = 0xf0000002;
+bool& options_upgrades_page();
+Handle& options_upgrades_state();  // its menu object, made beside the option menus
+std::function<void(const char* key, bool on)>& options_upgrades_saver();
 
 class GameOptionsScreen : public MenuScreen {
  public:
@@ -66,6 +78,12 @@ class GameOptionsScreen : public MenuScreen {
     void on_left_up() override;      // 0x004380c0 / 0x004380e0
     uint32_t target;                 // [0x0060986c] or [0x00609870]
   };
+  // Ours: UPGRADES pushes the upgrades page's menu object.
+  class UpgradesButton : public SlideButton {
+   public:
+    explicit UpgradesButton(Engine& e) : SlideButton(e, -1) {}
+    void on_left_up() override;
+  };
 
   AcceptButton accept;               // +0x111ec  ACCEPT
   StateBackButton back;              // +0x113d8  BACK
@@ -82,6 +100,30 @@ class GameOptionsScreen : public MenuScreen {
   PushButton controls;               // +0x13d18  CONTROLS_CFG
   ztwod::Image lines{0};             // +0x13f04  LINES
   ztwod::Image lines1{0};            // +0x13fc0  LINES1
+  SensitivitySlider sensitivity;     // ours: MOUSE_SENSITIVITY (options_sensitivity_slider)
+  bool has_sensitivity = false;      // bound
+  UpgradesButton upgrades;           // ours: UPGRADES (options_upgrades_page)
+  bool has_upgrades = false;         // bound
+};
+
+// Ours: the upgrades page (UPGRADES_DIALOG), the game options' look: the bug
+// fixes (zfix bugs) and wide menus (zfix wide_menus), applied on ACCEPT and saved.
+class UpgradesScreen : public MenuScreen {
+ public:
+  UpgradesScreen(Engine& e, Handle state);
+  void apply(int32_t to_options) override;
+  class AcceptButton : public SlideButton {
+   public:
+    explicit AcceptButton(Engine& e) : SlideButton(e, -1) {}
+    void on_left_up() override;
+  };
+  AcceptButton accept;
+  StateBackButton back;
+  OnOffCycle bug_fixes;              // BUG_FIXES
+  OnOffCycle wide_menus;             // WIDE_MENUS
+  ztwod::Image lines{0};             // LINES
+  ztwod::Image lines1{0};            // LINES1
+  ztwod::Image box1{0}, box2{0};     // BOX1, BOX2: each switch's box
 };
 
 // MUSICSLIDER and SFXSLIDER (vtables 0x005bffb0, 0x005bff20), 0x18c bytes: a
@@ -151,8 +193,6 @@ class GfxAudioScreen : public MenuScreen {
 
   VolumeSlider music;                // +0x111ec  MUSICSLIDER: CDVolume
   VolumeSlider sfx;                  // +0x11378  SFXSLIDER: SoundVolume
-  SensitivitySlider sensitivity;     // ours: MOUSE_SENSITIVITY (options_sensitivity_slider)
-  bool has_sensitivity = false;      // bound
   OnOffCycle shadows;                // +0x11504  SHADOWS: Shadow
   OnOffCycle self_shadows;           // +0x11928  SELF_SHADOWS: ShadowParts
   OnOffCycle lighting;               // +0x11d4c  LIGHTING: GfxFlags bit 0

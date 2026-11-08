@@ -31,17 +31,23 @@ constexpr Edit kEdits[] = {
 #include "mech3/patch12_edits.inc"
 };
 
-// Ours, on any data (not 1.2's): MOUSE SENSITIVITY (Owen, 2026-11-02) on
-// the graphics and audio screen among the volume sliders, the same record and
-// art (sliderunfilled / sliderfilled; no new images), at their 25-pixel step:
-// the two volumes up 10, ours third, VIDEO DEVICE below it. Its label is
-// spaced as the original's are ("M U S I C  V O L U M E").
+// Ours, on any data (not 1.2's), by the original's records (no new images):
+// - MOUSE SENSITIVITY (Owen, 2026-11-02; moved 11-07 from the graphics and
+//   audio screen to here): the volumes' slider record under INVERT MOUSE Y,
+//   just below the frame (the column's rows fill it), its label spaced as the
+//   original's ("I N V E R T   M O U S E") and aligned with the column's.
+// - UPGRADES (Owen, 2026-11-07): a button under CONTROLS inside its bracket,
+//   GRAPHICS & AUDIO's record, and its page, UPGRADES_DIALOG: the game
+//   options' background, ACCEPT and BACK, the credits' frame (option1_lines'
+//   nine boxes would stand empty) with the shell's textbox70 under each
+//   switch's on/off row (TORSO AUTO RETURN's, its arrows at the box's ends).
 constexpr Edit kOurs[] = {
-    {"zbd/reader.zbd", "dlgoptions.zrd", Set, R"(GFX_AUDIO_OPTIONDIALOG/BUTTONS/MUSICSLIDER/POSITION)", R"((250 57))", R"((250 47))"},
-    {"zbd/reader.zbd", "dlgoptions.zrd", Set, R"(GFX_AUDIO_OPTIONDIALOG/BUTTONS/SFXSLIDER/POSITION)", R"((250 82))", R"((250 72))"},
-    {"zbd/reader.zbd", "dlgoptions.zrd", Set, R"(GFX_AUDIO_OPTIONDIALOG/BUTTONS/VIDEO_DEVICE/POSITION)", R"((250 110))", R"((250 122))"},
-    {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GFX_AUDIO_OPTIONDIALOG/BUTTONS/SFXSLIDER)", R"("MOUSE_SENSITIVITY")",
-     R"(("POSITION" (250 97) "BITMAP" ("sliderunfilled") "LABEL" ("M O U S E  S E N S I T I V I T Y" "offset" (-170 1) "font" ("ia_dark_grey")) "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select" 1.0)) "FILLBITMAP" ("sliderfilled")))"},
+    {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GAME_OPTION_DIALOG/BUTTONS/CMD_INVERT_MOUSE_Y)", R"("MOUSE_SENSITIVITY")",
+     R"(("POSITION" (250 352) "BITMAP" ("sliderunfilled") "LABEL" ("M O U S E   S E N S I T I V I T Y" "offset" (-185 1) "font" ("ia_dark_grey")) "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select" 1.0)) "FILLBITMAP" ("sliderfilled")))"},
+    {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GAME_OPTION_DIALOG/BUTTONS/CONTROLS_CFG)", R"("UPGRADES")",
+     R"(("POSITION" (400 160) "BITMAP" ("circlebtn_tiny") "LABEL" ("U P G R A D E S" "offset" (22 8) "font" ("ia_small_green")) "RADIUS" (10) "MAXRADIUS" (100) "ROLLOVER" ("SOUND" ("menu_rollover")) "ACTIVATE" ("SOUND" ("menu_select"))))"},
+    {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GFX_AUDIO_OPTIONDIALOG)", R"("UPGRADES_DIALOG")",
+     R"(("IMAGE_PATH" ("..\data\common\images\dialogs\options;..\data\common\images\dialogs\credits;..\data\common\images\dialogs\shared") "PRIMITIVES" ("BACKGROUND" ("BITMAP" ("common_background") "POSITION" (0 0)) "LINES" ("BITMAP" ("pilot_lines") "POSITION" (443 326)) "LINES1" ("BITMAP" ("credit_lines") "POSITION" (-97 18)) "BOX1" ("BITMAP" ("textbox70") "POSITION" (229 64)) "BOX2" ("BITMAP" ("textbox70") "POSITION" (229 94))) "BUTTONS" ("ACCEPT" ("POSITION" (384 279) "BITMAP" ("circlebtn_small") "LABEL" ("MSG_ACCEPT_BTN" "offset" (47 35) "font" ("main_red")) "ROLLOVER" ("SOUND" ("menu_rollover")) "ACTIVATE" ("SOUND" ("menu_select"))) "BACK" ("POSITION" (452 366) "BITMAP" ("circlebtn_small") "LABEL" ("MSG_BACK_BTN" "offset" (47 35) "font" ("main_red")) "ROLLOVER" ("SOUND" ("menu_rollover")) "ACTIVATE" ("SOUND" ("menu_select"))) "BUG_FIXES" ("POSITION" (232 64) "LABEL" (("" "offset" (11 5) "font" ("ia_small_green")) ("B U G   F I X E S" "offset" (-167 5) "font" ("ia_dark_grey")) ("U P G R A D E S" "offset" (-162 -40) "font" ("main_red"))) "BITMAP" () "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select")) "TOGGLE_LEFT" ("POSITION" (-2 4) "BITMAP" ("arrowleft") "ROLLOVER" ("SOUND" ("arrow_rollover") "BITMAP" ("arrowleft_r")) "ACTIVATE" ("SOUND" ("box_rollover") "BITMAP" ("arrowleft"))) "TOGGLE_RIGHT" ("POSITION" (76 4) "BITMAP" ("arrowright") "ROLLOVER" ("SOUND" ("arrow_rollover") "BITMAP" ("arrowright_r")) "ACTIVATE" ("SOUND" ("box_rollover") "BITMAP" ("arrowright")))) "WIDE_MENUS" ("POSITION" (232 94) "LABEL" (("" "offset" (11 5) "font" ("ia_small_green")) ("W I D E   M E N U S" "offset" (-167 5) "font" ("ia_dark_grey"))) "BITMAP" () "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select")) "TOGGLE_LEFT" ("POSITION" (-2 4) "BITMAP" ("arrowleft") "ROLLOVER" ("SOUND" ("arrow_rollover") "BITMAP" ("arrowleft_r")) "ACTIVATE" ("SOUND" ("box_rollover") "BITMAP" ("arrowleft"))) "TOGGLE_RIGHT" ("POSITION" (76 4) "BITMAP" ("arrowright") "ROLLOVER" ("SOUND" ("arrow_rollover") "BITMAP" ("arrowright_r")) "ACTIVATE" ("SOUND" ("box_rollover") "BITMAP" ("arrowright"))))) "CURSOR" ("BITMAP" ("cursor_circle_orange" "CENTER" (1) "CAPTURE" (1)))))"},
 };
 
 // A value as the table writes it: (lists), "strings", ints, floats with a '.'.
@@ -195,7 +201,15 @@ bool apply_ours(const std::string& archive, const std::string& entry, Node* root
     Node copy = tree::clone(*root);  // a record not as expected (a mod's) is left whole
     Node* top = &copy;
     while (top->list[0].i == 2 && top->list[1].type == zrdr::List) top = &top->list[1];
-    if (apply_one(top, e)) tree::replace(root, copy), any = true;
+    // Our values' small font is the dialog's own (Pirate's Moon's is ia_small_amber).
+    std::string value = e.b;
+    const Node* font = walk(top, split("GAME_OPTION_DIALOG/BUTTONS/CONTROLS_CFG/LABEL/font/@0"), 6);
+    if (font && font->type == zrdr::String && font->s)
+      for (size_t at = 0; (at = value.find("ia_small_green", at)) != std::string::npos; at += std::strlen(font->s))
+        value.replace(at, 14, font->s);
+    Edit ours = e;
+    ours.b = value.c_str();
+    if (apply_one(top, ours)) tree::replace(root, copy), any = true;
     else zrdr::free_contents(&copy);
   }
   return any;

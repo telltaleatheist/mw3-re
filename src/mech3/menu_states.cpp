@@ -1,6 +1,7 @@
 #include "mech3/menu_states.h"
 
 #include "mech3/app.h"
+#include "mech3/options_menu.h"
 
 namespace mech3 {
 
@@ -9,6 +10,7 @@ const char* name_of(OptionsState::Kind k) {
   switch (k) {
     case OptionsState::kGame: return "Game Options State";
     case OptionsState::kGfxAudio: return "Gfx and Audio Options State";
+    case OptionsState::kUpgrades: return "Upgrades State";  // ours
     default: return "Controls Configure State";
   }
 }
@@ -22,7 +24,7 @@ void MenuState::escape() { e().pop_state(1); }
 
 // Mech3.exe 1.2 @ 0x00438be0, 0x0043a640, 0x0042d9d0
 OptionsState::OptionsState(Kind k, Handle addr) : MenuState(name_of(k), addr), kind(k) {
-  static const uint32_t kScreens[] = {0x4379f0, 0x438f60, 0x42a590};  // new(0x1407c), (0x13f9c), (0x16c94)
+  static const uint32_t kScreens[] = {0x4379f0, 0x438f60, 0x42a590, kUpgradesScreenCtor};  // new(0x1407c), (0x13f9c), (0x16c94), ours
   screen_ = e().construct(kScreens[k], {addr});
 }
 
