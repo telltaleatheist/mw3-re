@@ -995,6 +995,14 @@ NetLobbyAccess net_lobby_access() {
   a.round_tally = [] {
     if (g_net_game) g_net_game->tally(true);
   };
+  a.store_give = [](int32_t mech, const Config* c) {
+    if (g_net_game) g_net_game->round_store.give_config(mech, c);
+  };
+  a.local_slot = [](int32_t* mech, const Config** c) {
+    if (!g_net_game) return false;
+    *mech = g_net_game->slot.mech, *c = g_net_game->slot.config;  // slot 0's +4, +8
+    return true;
+  };
   a.team_id = [](uint32_t p) { return g_net_game ? g_net_game->lobby_team_id(p) : 0u; };
   a.name = [](uint32_t p) -> const char* {
     const LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr;

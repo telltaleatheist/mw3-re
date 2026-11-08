@@ -1392,7 +1392,7 @@ extern "C" int32_t probe_pm_net_end(const int32_t* in, int32_t* out, int32_t cap
     delete cfg;
   };
   c.round_tally = [] { log({25}); };
-  c.stats_add = [](int32_t mech, const mech3::Config* cfg) { log({26, mech, g_ne_tags[cfg]}); };
+  c.store_give = [](int32_t mech, const mech3::Config* cfg) { log({26, mech, g_ne_tags[cfg]}); };
   c.local_slot = [](int32_t* mech, const mech3::Config** cfg) {
     *mech = g_ne[24], *cfg = g_ne_slot;
     return true;

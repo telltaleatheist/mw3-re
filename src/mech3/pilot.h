@@ -120,6 +120,21 @@ class Store {
   uint8_t full = 0;                  // +0x10  set with b04, and by store_fill
 };
 
+// Pirate's Moon's rules for a multiplayer round (0x00438380), from
+// mprounds.zrd: 8 numbers by place (the defaults [0x0060554c] when its block
+// has none) and the salvage the round gives.
+struct RoundRules {
+  float table[8] = {70, 50, 40, 35, 30, 25, 20, 15};  // +0x00
+  Store salvage{0};                                    // +0x20
+  float reward(int32_t place, float scale) const;     // 0x004384f0
+};
+// 0x00438380: "round<round>" from mprounds.zrd, else the `fallback` block.
+void read_round_rules(RoundRules& r, const char* fallback, int32_t round);
+void read_round_rules(RoundRules& r, zrdr::Node* root, const char* fallback, int32_t round);  // the file's tree given
+bool read_round_block(RoundRules& r, zrdr::Node* block);  // 0x00438460: false without a block
+extern void (*round_salvage)(Store& s, zrdr::Node* salvage);  // salvage_into (0x00473690); a test's stand-in
+extern void (*round_rules_read)(RoundRules& r, const char* fallback, int32_t round);  // read_round_rules; a test's
+
 // A mech in a game (0x00433cc0, vtable 0x005bec38), 0x18 bytes: the player's
 // own (a game's +0x20), the campaign's lancemates, Instant Action's and the
 // mech lab's line-ups. Its configuration is its own (deleted with it).
@@ -425,6 +440,7 @@ class MultiplayerGame : public Game {
   void award_side(bool side);                      // PM 0x00436d50
   bool tally(bool award);                          // PM 0x00436980
   bool round_winner();                             // PM 0x00437970
+  void next_round(uint32_t place, int32_t round);  // PM 0x00438580
   void score_texts(int32_t name_width, int32_t number_width);  // 0x00435b60: the lines, sorted
 
   // +0x38..+0x5c: the lobby's (pointers in the exe's lists, owned here).
@@ -458,6 +474,11 @@ class MultiplayerGame : public Game {
   int32_t base_lost = 0;             // PM +0x8c  the base destroyed, 1 or 2 (0x00472b40); cleared by the start
   int32_t xb0 = 0;                   // PM +0xb0  vt+0x48 (0x00436010): the side whose base is 1 (piece 4)
   uint8_t winner_set = 0;            // PM +0xaa  a winner already (0x00437970); cleared by the start
+  // PM's between rounds (0x00438580).
+  int32_t realloc = 0;               // PM +0x70  REALLOC_LIST's ("MSG_REALLOC_SALVAGE"): the rewards' scale, x2
+  int32_t rounds_total = 0;          // PM +0x74  the rounds in the match (the lobby's 0x0049a3c0 extends it on a tie)
+  float bonus_tons = 0;              // PM +0xd0  the places' rewards summed; read through vt+0x60 (0x00436020)
+  Store round_store{0};              // PM +0xd4  what the players draw from between rounds
   uint8_t b8c = 1, b8d = 0, b8e = 0, b8f = 1;  // +0x8c..+0x8f
   int32_t x90 = 0, x94 = 1;          // +0x90, +0x94  DATABASE_LIST's world: its folder (0 c1) and number
   int32_t kills = 0, deaths = 0;     // +0x98, +0x9c  the pilot screen's line (0x27e)

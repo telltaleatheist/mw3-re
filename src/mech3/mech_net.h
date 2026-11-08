@@ -154,9 +154,9 @@ struct NetCalls {
   void (*player_mech_end)() = nullptr;             // 0x0041e580 on the pilot's mech, when there is one
   void (*ff_stop)() = nullptr;                     // 0x00433530 on [0x00608620], when there is one
   void (*config_free)(Config* c) = nullptr;        // 0x00424350 and the delete
-  // PM's end's (0x0046f150): the round's tally, the stats (piece 5), the local slot.
+  // PM's end's (0x0046f150): the round's tally, the round store, the local slot.
   void (*round_tally)() = nullptr;                 // PM 0x00436980(1) on the network game: the winner's rounds, the ranking
-  void (*stats_add)(int32_t mech, const Config* c) = nullptr;  // PM 0x00475310 on the game's +0xd4
+  void (*store_give)(int32_t mech, const Config* c) = nullptr;  // PM 0x00475310: the round store's (+0xd4) give_config
   bool (*local_slot)(int32_t* mech, const Config** c) = nullptr;  // PM the game's vt+0x30(0): its +4, +8
   // The launch's (0x0046da80): the lobby's and the network game's.
   uint32_t (*team_of)(uint32_t player) = nullptr;  // 0x00435910 on the network game

@@ -369,6 +369,7 @@ void add_mobile_hq(const char* desc, std::unique_ptr<ObjectiveGroup>& fail, Obje
 // it). Types the port does not read yet report themselves through unported().
 std::unique_ptr<Objective> parse_condition(zrdr::Node* slot, ObjectiveHooks& h);
 std::unique_ptr<Store> read_salvage(zrdr::Node* node);                           // 0x004711a0
+void salvage_into(Store& store, zrdr::Node* node);  // PM 0x00473690 on a store: a salvage block's items added
 void read_node_salvage(Objective& o, zrdr::Node* cond, ObjectiveHooks& h);       // 0x0045e9f0
 zgame::Handle find_node(zrdr::Node* args, ObjectiveHooks& h);                           // 0x0045c810 ("node")
 void objectives_free(Objectives& o, ObjectiveHooks& h);                          // 0x0045c1d0
