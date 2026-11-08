@@ -124,12 +124,18 @@ class PmBehindState final : public PmSlotState {
 };
 
 // The manoeuvre (0x004d54e0 -> 0x004d5530 over 0x004d4e80, vtable 0x005ee188): the vehicle net's slot 4 and the
-// one at 0x00627ce8 the tick pushes. Its constructor, destructor (0x004d55d0 -> 0x004d4fa0), suspend (0x004d5030,
+// one at 0x00627ce8 the tick pushes; the one at 0x00627cf8 (vtable 0x005df8dc, 0x004d55e0) gives it no jets. Its constructor, destructor (0x004d55d0 -> 0x004d4fa0), suspend (0x004d5030,
 // the one at 0x0062fae8 taking over) and slots are MW3's ManoeuvreState's; its run is PM's 0x004d5040.
 class PmManoeuvreState final : public ManoeuvreState {
  public:
-  PmManoeuvreState(Order* o, Behaviour* b) : ManoeuvreState(o, b, false) {}
+  PmManoeuvreState(Order* o, Behaviour* b, bool no_jets) : ManoeuvreState(o, b, no_jets) {}
+  ~PmManoeuvreState() override {
+    if (gone_) *gone_ = true;
+  }
   void run(float dt) override;
+
+ private:
+  bool* gone_ = nullptr;  // set while the run is going: its pop may destroy this state
 };
 
 // JumpPmHooks: the walk's answers, and the jump's own as MW3's JumpState asks them.

@@ -9,6 +9,7 @@
 
 namespace mech3::ai {
 
+bool pm_orders_making();  // a state being made by PM's orders, not MW3's Brain::push (for the first runs' counts)
 void pm_run_orders(Brain& b, float dt);                    // 0x004fb260
 bool pm_may_fire(Brain& b);                                // 0x004fa6d0
 bool pm_orders_idle(Brain& b);                             // 0x004fa470

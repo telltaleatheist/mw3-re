@@ -14,6 +14,7 @@
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steer_pm.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_wire_orders_pm.h"
 
 namespace mech3::ai {
 
@@ -58,9 +59,12 @@ class WireSteer : public Base {
   void position(zgame::Handle e, float out[3]) override { brain_hooks().position(e, out); }
   void forward(zgame::Handle v, float* x, float* z) override { brain_hooks().forward(v, x, z); }
   bool halted(zgame::Handle v) override { return brain_hooks().airborne(v); }  // vt+0x150, PM's +0x5a8: MW3's vt+0x144
-  // 0x004fa470: the order's net (vt+0x14) and state (vt+0x20) both idle. The state's slot answers 1 on
-  // 49 of PM's state vtables, the attack's among them (0x004eb000); the nets' slot isn't read yet.
-  bool order_steers(Brain*) override { return missing<true>("assumed: the order's net idle (vt+0x14)"); }
+  // 0x004fa470 on the brain's orders: the order's net (vt+0x14) and state (vt+0x20) both idle. The state's slot
+  // answers 1 on 49 of PM's state vtables, the attack's among them (0x004eb000); both are counted assumptions.
+  bool order_steers(Brain* b) override {
+    if (!b || b->orders.empty()) return missing<true>("assumed: the order's net idle (vt+0x14)");  // the exe's always has one
+    return pm_orders_idle(*b);
+  }
   const std::vector<const Contact*>& contacts(zgame::Handle v) override {
     seen_.clear();
     if (const std::vector<Contact*>* c = brain_hooks().contacts(v)) seen_.assign(c->begin(), c->end());
@@ -90,7 +94,10 @@ using WiredSteerPm = WireSteer<SteerPmHooks>;
 bool pm_frame(Brain& b, BrainControls& c, float dt);
 // A hit on the pilot, for the list. The port's hit carries no damage yet, so it counts 0: `latest`
 // is right, `hardest` isn't. The clock is the game's until [0x008c1b50] is mapped.
-void pm_note_hit(Brain& b, zgame::Handle attacker);
+void pm_note_hit(Brain& b, zgame::Handle attacker, float damage = 0.0f);
+// 0x004fbc20 and 0x004fbdd0 for the brain's on_hit and died under PM_AI=1.
+void pm_on_hit(Brain& b, HitRecord& r, zgame::Handle owner, zgame::Handle attacker, float damage);
+void pm_died(Brain& b);
 zgame::Handle pm_hardest_attacker(Brain& b);  // 0x004b2890 on the controls' +0x04
 zgame::Handle pm_latest_attacker(Brain& b);   // 0x004b2820
 

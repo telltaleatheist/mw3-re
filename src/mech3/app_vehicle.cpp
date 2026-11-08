@@ -281,7 +281,7 @@ struct WiredFieldBases : FieldBaseHooks {
     return FieldBaseHooks::entity_team(e);
   }
   void controls_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount, Handle e) override {
-    if (auto* c = dynamic_cast<ai::AiVehicleControls*>(v.controls)) return c->on_hit(e);
+    if (auto* c = dynamic_cast<ai::AiVehicleControls*>(v.controls)) return c->on_hit(e, amount);
     FieldBaseHooks::controls_hit(v, weapon, x, amount, e);
   }
 };
