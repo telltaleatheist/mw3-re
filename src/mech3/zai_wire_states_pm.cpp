@@ -17,12 +17,13 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     case StepKind::BackupNode: return new PmMoveState(&o, &b, PmMoveState::kBackup);  // 0x005ef020's
     case StepKind::TerminusNode: return new PmMoveState(&o, &b, PmMoveState::kTerminus);  // 0x005ef578's
     case StepKind::VehFollow: return new PmFollowState(&o, &b);
-    case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b);
+    case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
+    case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
     default: break;
   }
   const uint32_t k = static_cast<uint32_t>(b.kind);
   if (k == kVehicleSlotsPm[3]) return new PmCircleState(&o, &b);
-  if (k == kVehicleSlotsPm[4]) return new PmManoeuvreState(&o, &b);
+  if (k == kVehicleSlotsPm[4]) return new PmManoeuvreState(&o, &b, false);
   if (k == kVehicleSlotsPm[6]) return new PmGuardState(&o, &b);
   if (k == kVehicleSlotsPm[8]) return new PmBehindState(&o, &b);
   return nullptr;
@@ -146,10 +147,12 @@ void PmManoeuvreState::run(float dt) {
   BrainControls& c = *b.controls;
   ManoeuvrePm m;
   m.no_jets = no_jets, m.jump = jump, m.phase = phase, m.turn = turn, m.until = until, m.target = target;
+  bool gone = false;
+  gone_ = &gone;
   m.run(pm_walk(b, c), c.vehicle());
-  // The run may pop the order, and with it this state: nothing of it is touched then.
-  if (!b.orders.empty() && b.current().state.get() == this)
-    no_jets = m.no_jets, jump = m.jump, phase = m.phase, turn = m.turn, until = m.until, target = m.target;
+  if (gone) return;  // the run popped the order, and with it this state
+  gone_ = nullptr;
+  no_jets = m.no_jets, jump = m.jump, phase = m.phase, turn = m.turn, until = m.until, target = m.target;
 }
 
 }  // namespace mech3::ai
