@@ -91,6 +91,8 @@ class SensorHooks : public zgame::Unported {
   // The brain's lancemate setting (+0xcd) and pilot (+0xd4).
   virtual uint8_t brain_lancemate(Handle b) { (void)b; return 0; }
   virtual void brain_own_marker(Handle b, bool on) { (void)b, (void)on; }  // Pirate's Moon: 0x004eae70, made or freed
+  virtual void brain_flags_or(Handle b, uint8_t bits) { (void)b, (void)bits; }  // that byte (+0xcd) |= bits (PM)
+  virtual void unsort() {}  // [0x0060b56c] = 0: the list sorted again before the next frame
   virtual const char* brain_pilot(Handle b) { (void)b; return nullptr; }
   virtual const char* message(int32_t id) {
     unported("0x00576040", {id});
@@ -132,5 +134,8 @@ void entities_sort();
 void lance_flag(Handle vehicle);
 // Mech3.exe 1.2 @ 0x004d5dc0: the player's allies after the sort turn on him.
 void allies_turn();
+// Pirate's Moon 1.0 @ 0x004e6240: they go to team 31, everyone's enemy and only their own allies, with the player
+// let into their pick; the player keeps them as allies.
+void allies_turn_pm();
 
 }  // namespace mech3::ai

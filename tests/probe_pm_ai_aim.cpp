@@ -290,7 +290,7 @@ struct St : StepPmHooks {
   void seed(uint32_t v) override { put(2, v); }
   void start_x50(uint32_t v) override { put(3, v); }
   void set_range(zgame::Handle, float r) override { put(4, W::bits(r)); }
-  void look_start() override { put(5); }
+  void look_start(Brain*) override { put(5); }
   zgame::Handle best_weapon(zgame::Handle) override { put(0x15); return bit() ? 8 : 0; }
   float weapon_reach(zgame::Handle) override { return f[14]; }
   zgame::Handle pick(zgame::Handle) override { put(6); return bit() ? 9 : 0; }

@@ -50,7 +50,8 @@
 
 namespace mech3 {
 
-void player_set_60b56c(uint8_t v);  // mech3/player.h, whose Handle is not mech.h's
+void player_set_60b56c(uint8_t v);
+void player_clear_60b56c();  // mech3/player.h, whose Handle is not mech.h's
 const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
 
 namespace {
@@ -245,6 +246,10 @@ struct ProgramSensors : ai::SensorHooks {
     const auto* p = static_cast<const ai::Brain*>(object(b));
     return p ? p->params.raw[0xcd] : 0;
   }
+  void brain_flags_or(zgame::Handle b, uint8_t bits) override {
+    if (auto* p = static_cast<ai::Brain*>(object(b))) p->params.raw[0xcd] |= bits;
+  }
+  void unsort() override { player_clear_60b56c(); }
   void brain_own_marker(zgame::Handle b, bool on) override {
     if (auto* p = static_cast<ai::Brain*>(object(b))) program_own_marker(*p, on);
   }
