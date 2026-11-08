@@ -161,6 +161,19 @@ class PmPassState final : public PmSlotState {
   PassPm s_;
 };
 
+// Slot 9 (0x004df320 -> 0x004df4a0, vtable 0x005ef27c): closing in on the target. It may be broken into and fire
+// (0x004964e0, 0x004eb000); resume does nothing.
+class PmCloseInState final : public PmSlotState {
+ public:
+  using PmSlotState::PmSlotState;
+  void resume() override {}  // vt+0x10: 0x00403ac0
+
+ private:
+  void start(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.start(w, v); }
+  void step(WireWalk& w, SteerPm& s, zgame::Handle v) override { s_.run(w, s, v); }
+  CloseInPm s_;
+};
+
 class PmBehindState final : public PmSlotState {
  public:
   using PmSlotState::PmSlotState;

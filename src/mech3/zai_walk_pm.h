@@ -55,7 +55,8 @@ class WalkPmHooks : public SteerPmHooks {
   virtual bool deploy_on() { return false; }  // [0x0062fb68]'s value is [0x0062fb6c] ("mcbdeploy")
   virtual int32_t valve_value(zgame::Handle valve) { (void)valve; return 0; }           // +0x04's vt+0x04
   virtual void valve_set(zgame::Handle valve, int32_t value) { (void)valve, (void)value; }  // 0x004e40d0
-  virtual bool finding_way() { return false; }  // the brain's +0x1f8, its way finder's path
+  virtual bool finding_way() { return false; }
+  virtual bool bumped(zgame::Handle v) { (void)v; return false; }  // vt+0x58's +0x385: the mech's blocked[1], a mech bumped  // the brain's +0x1f8, its way finder's path
   virtual void return_back() {}  // 0x004ea180 on the brain's +0x15c with a new 0x005ef250: back to the order before
   virtual int32_t rand_int() { return 0; }                                       // rand
   virtual float reach() { return 0.0f; }
@@ -240,6 +241,15 @@ struct PassPm : BehindPm {
   void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);  // 0x004e1a50
  private:
   void pick(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3], const float to[3]);  // 0x004e1860
+};
+
+// The vehicle net's slot 9 state (0x004df320 -> 0x004df4a0 over 0x004df380, vtable 0x005ef27c): the behind state's
+// fields and start; driven at the target's place, turned straight at it within 30 m, and once the pilot has bumped a
+// mech, on to a point round the target at random, 0.9 of the brain's +0x44 out.
+struct CloseInPm : PassPm {  // a PassPm only so the test can hold either; it shares nothing but the behind state's
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);  // 0x004df860
+ private:
+  void lay(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3]);  // the way to `point`
 };
 
 // The state 0x004d8dc0 (vtable 0x005eebe4): round the order's target at the brain's +0x44, on the side of +0x20's

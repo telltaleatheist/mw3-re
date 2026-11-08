@@ -28,6 +28,7 @@ void return_back(Brain& b);
 bool deploy_on();
 int32_t valve_value(zgame::Handle valve);
 void valve_set(zgame::Handle valve, int32_t value);
+bool bumped(zgame::Handle v);
 void order_pop(Brain& b);
 zgame::Handle contact_pick(Brain& b, zgame::Handle v, int32_t kind);
 const float* entity_place(Brain& b, zgame::Handle t, float* buf);
@@ -77,6 +78,7 @@ class WireWalkT : public WireSteer<Base> {
   int32_t valve_value(zgame::Handle valve) override { return wire_walk::valve_value(valve); }
   void valve_set(zgame::Handle valve, int32_t value) override { wire_walk::valve_set(valve, value); }
   bool finding_way() override { return b_.path.finder != nullptr; }
+  bool bumped(zgame::Handle v) override { return wire_walk::bumped(v); }
   int32_t rand_int() override { return brain_hooks().rand(); }
   float reach() override { return b_.params.get<float>(0x44); }
   float circle_slack() override { return b_.params.get<float>(0x48); }

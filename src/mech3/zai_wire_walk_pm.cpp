@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "mech3/app_mech.h"
 #include "mech3/mech.h"
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_node.h"
@@ -135,6 +136,12 @@ bool wire_walk::deploy_on() {
 }
 int32_t wire_walk::valve_value(zgame::Handle valve) { return static_cast<Valve*>(pm_ptr(valve))->get(); }
 void wire_walk::valve_set(zgame::Handle valve, int32_t value) { static_cast<Valve*>(pm_ptr(valve))->set(value); }
+
+// The pilot's +0x385 (vt+0x58): PM's collide (0x00423730) sets it on a bump into a mech, the port's blocked[1].
+bool wire_walk::bumped(zgame::Handle v) {
+  void* o = brain_hooks().object_of(brain_hooks().vehicle_mech(v));
+  return o && entity_is_mech(o) && static_cast<Mech*>(o)->blocked[1];
+}
 
 zgame::Handle wire_walk::contact_pick(Brain& b_, zgame::Handle v, int32_t kind) {
   const Contact* c = brain_hooks().pick(v, kind);

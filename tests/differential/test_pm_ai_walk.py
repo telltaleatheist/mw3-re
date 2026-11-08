@@ -649,6 +649,40 @@ def pass_plan(seed):
     return lines
 
 
+def close_plan(seed):
+    """The vehicle net's slot 9 state (0x4df4a0, 0x4df860): made, then run on worlds and ways moving under it, the
+    pilot bumping a mech or not, the rolls placing it round the target."""
+    r = random.Random(f'close:{seed}')
+    base = plan(seed + 900000)
+    worlds = [ln for ln in base if ln[0] == 'W']
+    steers = [ln for ln in base if ln[0] == 'T']
+    lines = base[:2] + [('C',), ('F', [r.uniform(1, 40), r.uniform(1, 40), 60.0, r.uniform(0, 60), 10.0]),
+                        ('a', [r.choice([r.uniform(5, 120), 40.0])]), ('V', 1, 0), ('B9', 1, 0),
+                        ('e', r.randrange(32768), r.randrange(32768)), ('P9',)]
+    for _ in range(r.randrange(4, 14)):
+        k = r.random()
+        if k < 0.2 and worlds:
+            w = r.choice(worlds)
+            if r.random() < 0.4:  # the target within 30 m
+                v = list(w[1])
+                v[3:6] = [v[0] + r.uniform(-20, 20), v[1], v[2] + r.uniform(-20, 20)]
+                w = (w[0], v) + w[2:]
+            lines.append(w)
+        elif k < 0.35 and steers:
+            tv = list(r.choice(steers)[1])
+            if r.random() < 0.5:  # at the way's end
+                tv[7] = tv[5]
+            lines.append(('T', tv))
+        elif k < 0.45:
+            lines.append(('V', r.choice([0, 1, 1, 1]), r.choice([0, 0, 0, 1])))
+        elif k < 0.6:
+            lines.append(('B9', r.choice([0, 1, 1]), r.choice([0, 1])))
+        elif k < 0.7:
+            lines.append(('e', r.randrange(32768), r.randrange(32768)))
+        lines.append(('R9',))
+    return lines
+
+
 def circle_plan(seed):
     """The circling state: made, then run with the clock going and the boundary coming and going."""
     r = random.Random(f'circle:{seed}')
@@ -893,6 +927,14 @@ def run_exe(x, lines):
             x.call(0x4e1750, ecx=x.bh, args=(0x1234, x.order))
         elif op == 'R7':
             x.call(0x4e1a50, ecx=x.bh, args=(0,))
+        elif op == 'P9':
+            x.bh = x.alloc(0x50)
+            x.call(0x4df4a0, ecx=x.bh, args=(0x1234, x.order))
+        elif op == 'R9':
+            x.call(0x4df860, ecx=x.bh, args=(0,))
+        elif op == 'B9':
+            x.want_pilot = bool(ln[1])
+            x.cpu._uc.mem_write(x.pilot + 0x385, bytes([ln[2]]))
         elif op == 'Q':
             x.rolls = [ln[1], ln[2]] * 50
             x.fs(x.brain + 0x44, ln[3])
@@ -998,6 +1040,8 @@ def text(lines):
             o.append(f'f {ln[1]:x} ' + ' '.join(f'{bits(u):x}' for u in ln[2]))
         elif ln[0] in 'NZU':
             o.append(f'{ln[0]} {ln[1]}')
+        elif ln[0] == 'B9':
+            o.append(f'B9 {ln[1]} {ln[2]}')
         elif ln[0] == 'V':
             o.append(f'V {ln[1]} {ln[2]}')
         elif ln[0] == 'u':
@@ -1028,8 +1072,8 @@ def main():
     buf = ctypes.create_string_buffer(1 << 20)
     bad = steps = 0
     seen = {}
-    for seed in range(runs * 9):
-        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed) if seed < runs * 7 else round_plan(seed) if seed < runs * 8 else pass_plan(seed)
+    for seed in range(runs * 10):
+        lines = plan(seed) if seed < runs else fight_plan(seed) if seed < runs * 2 else guard_plan(seed) if seed < runs * 3 else behind_plan(seed) if seed < runs * 4 else circle_plan(seed) if seed < runs * 5 else guard_run_plan(seed) if seed < runs * 6 else attack_made_plan(seed) if seed < runs * 7 else round_plan(seed) if seed < runs * 8 else pass_plan(seed) if seed < runs * 9 else close_plan(seed)
         a = run_exe(Exe(), lines).split('\n')
         if runs * 5 <= seed < runs * 6:
             for p in a:
@@ -1090,7 +1134,7 @@ def main():
                 bad += 1
         if bad >= 6:
             break
-    print(f'{runs * 9} plans, {steps} lines: {bad} differ')
+    print(f'{runs * 10} plans, {steps} lines: {bad} differ')
     print('fight answers:', ' '.join(f'{n}={v}:{c}' for (n, v), c in sorted(seen.items())))
     pm_floors.floors(plans=(runs, 100), lines=(steps, 1000),
                      **{f'{n}_{v}': (seen.get((n, v), 0), 5) for n in ('in_range', 'at_stop', 'no_target', 'may_go', 'off_way') for v in '01'},

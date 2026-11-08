@@ -588,4 +588,81 @@ void PassPm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
   step = 3;
 }
 
+// 0x004df5b0's and 0x004df620's end: `point` pulled to the boundary, the way laid to it from where the pilot is.
+void CloseInPm::lay(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3]) {
+  h.pull(vehicle, pos, point, point);  // 0x004ccac0
+  float* from = h.way_from();
+  from[0] = pos[0], from[1] = pos[1], from[2] = pos[2];
+  s.set(h, from, point, speed, vehicle);
+}
+
+// Pirate's Moon 1.0 @ 0x004df860, with 0x004df5b0 (the target's place), 0x004df620 (a place round it), 0x004df6f0 (the
+// turn at it) and 0x004df7e0 (the away measure, and how far the way's start is from the target). Without the target's
+// place the exe reads through null; it gives up here.
+void CloseInPm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
+  float pos[3];
+  h.position(vehicle, pos);
+  const zgame::Handle t = h.order_target();
+  const float* to = h.target_place(t);
+  const bool gone = !to || !h.target_live(t) || h.must_leave(vehicle);
+  float dir[3] = {}, dist = 0.0f;
+  if (to) {
+    dir[0] = to[0] - pos[0], dir[2] = to[2] - pos[2];
+    dist = unit3(dir);
+  }
+  switch (step) {
+    case 0:
+    case 4:
+      if (gone) {
+        s.carrot(h.way_from());
+        h.order_pop();  // order vt+0x0c
+        return;
+      }
+      point[0] = to[0], point[1] = to[1], point[2] = to[2];  // 0x004df5b0
+      lay(h, s, vehicle, pos);
+      step = 2;
+      break;
+    case 2:
+      if (h.bumped(vehicle)) {  // 0x004df620
+        const float r = h.reach() * 0.9f;  // [0x005dfcd4]
+        const double a = h.rand_int() * double{3.0518509e-05f} * double{6.2831855f};  // [0x005dfcb4], [0x005e14d0]
+        const float ox = static_cast<float>(std::cos(a) * r), oz = static_cast<float>(std::sin(a) * r);
+        point[0] = to[0] + ox, point[1] = to[1] + 0.0f, point[2] = to[2] + oz;
+        lay(h, s, vehicle, pos);
+        step = 3;
+      }
+      break;
+    case 1:
+    case 3: break;
+    default: return;
+  }
+  float away[2], sum;
+  away_pm(s, away, &sum);
+  float from_start = 0.0f;
+  if (to) {
+    float w[3] = {to[0] - s.start[0], 0.0f, to[2] - s.start[2]};
+    from_start = unit3(w);
+  }
+  if (!gone && from_start < x34 && (!s.at_end() || stop < sum)) {
+    if (step == 2 && dist < 30.0f) {  // [0x005dfd28]: straight at it (0x004df6f0)
+      float p[3];
+      h.position(vehicle, p);
+      float d[3] = {to[0] - p[0], 0.0f, to[2] - p[2]};
+      unit3(d);
+      float fx, fz;
+      h.forward(vehicle, &fx, &fz);
+      double turn_at = double{fz} * d[0] - double{d[2]} * fx;
+      if (double{fx} * d[0] + double{fz} * d[2] < 0.0) turn_at = 0.0 < turn_at ? 1.0 : -1.0;
+      h.set_turn(static_cast<float>(turn_at));
+      h.set_throttle(h.max_throttle());  // the brain's +0x10c
+      return;
+    }
+    drive_pm(h, s, vehicle, away, sum, stop * 0.5f, &turn, &throttle, inv_stop, 0.04f, 0.04f);
+    h.set_turn(turn);
+    h.set_throttle(throttle);
+    return;
+  }
+  step = 4;
+}
+
 }  // namespace mech3::ai
