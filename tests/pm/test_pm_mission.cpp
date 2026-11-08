@@ -440,6 +440,11 @@ static struct { int nodes, moved; } g_motions;  // PM_MOTIONS: event 12's nodes 
 
 static int g_crater_spikes = -1, g_craters_made = 0;
 
+static bool t_everyone_once() {
+  static int n = 0;
+  return ++n == 3;
+}
+
 static void kill_run(const char* which, bool quick) {
   EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
@@ -645,6 +650,10 @@ static void kill_run(const char* which, bool quick) {
       if (t > 12000) done = true;
       return;
     }
+    if (std::getenv("PM_EVERYONE") && t_everyone_once()) {  // every object the sensors know: kind, name, team, allies, alive
+      for (const mech3::ChainSide& x : mech3::chain_everyone())
+        std::printf("  everyone %s %s team %x allies %x %s\n", x.t.kind, x.t.name.c_str(), x.team, x.allies, x.alive ? "alive" : "dead");
+    }
     // PM_HOSTILES=metres: each hostile but the mechs in turn (vehicles, turrets, targets.zrd's), the player that far
     // from it, every weapon through its trigger at its node until it dies or 300 frames pass (pm-tests item 9).
     if (const char* range = std::getenv("PM_HOSTILES")) {
@@ -684,7 +693,7 @@ static void kill_run(const char* which, bool quick) {
       }
       float at[3] = {};
       if (n) zcls::node_world_position(n, at);
-      at[1] += 2.0f;
+      at[1] += std::getenv("PM_AIM_UP") ? static_cast<float>(std::atof(std::getenv("PM_AIM_UP"))) : 2.0f;
       if (t - from > 5) shots_at += pm_trigger_all(player, at);
       if (t - from > 300) {
         std::printf("  %s %s at %.0f %.0f %.0f alive after %d shots\n", c.kind, c.name.c_str(), at[0], at[1], at[2], shots_at);
@@ -1010,7 +1019,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1045,6 +1054,25 @@ TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); 
 // them triangles first (0x005726f0). Read whole as one polygon, a strip's zigzag clipped into vertices tens of metres
 // off the ground (5 here before) and holes to the sky. An LRM's crater every 60 m over part of the map, each touched
 // ground model's heights checked.
+// pm-tests item 14: c2m3's cargo tanker (tcab03, a targets.zrd object) dies to lasers alone. A target isn't put in
+// the HUD's box test (its vt+0x48 is none); when it was, the beam stopped on its box, a node with no handler.
+TEST(pm_c2m3_lasers_kill_the_tanker) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_HOSTILES", "60", 1);
+    setenv("PM_BEAMS_ONLY", "1", 1);
+    kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
 TEST(pm_c2m3_craters_raise_no_spikes) {
 #if !defined(_WIN32)
   std::fflush(nullptr);

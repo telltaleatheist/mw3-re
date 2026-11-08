@@ -64,6 +64,13 @@ struct ChainTarget {
   std::string name;  // its node's, before it dies (a dead mech's node is "deadmech")
 };
 std::vector<ChainTarget> chain_hostiles();
+// Every object the sensors know, any side, alive or not, with its team and allies masks (tests).
+struct ChainSide {
+  ChainTarget t;
+  uint32_t team = 0, allies = 0;
+  bool alive = false;
+};
+std::vector<ChainSide> chain_everyone();
 void* chain_object(uint32_t h);  // the object a hostile's handle names (tests)
 bool chain_alive(uint32_t h);
 // One shot of the player's landing on h's aim node: zWeapon's impact
