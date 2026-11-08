@@ -188,7 +188,8 @@ class LobbyScreen : public MenuScreen {
   uint8_t locked = 0;                // +0x15050  the options locked (LOCK_OPTIONS): READY then
   uint8_t all_ready = 0;             // +0x15051  every player ready (START)
   uint8_t start_pending = 0;         // +0x15052  START asked; the update starts (piece 11c)
-  uint8_t keep_order = 0;            // +0x15053  a refresh keeps the players' places
+  uint8_t keep_order = 0;            // +0x15053, PM +0x1679c  a refresh keeps the players' places
+  uint8_t between_rounds = 0;        // PM +0x1679d  the records keep their rounds won and place (0x0049c650)
   int32_t saved_state = 0;           // +0x15054  our data's state while in the mech lab
   uint8_t team_new = 0;              // +0x111ec  the team dialog: a new team (its name)
   uint8_t team_skin = 0;             // +0x111ed  ... its skin chosen
