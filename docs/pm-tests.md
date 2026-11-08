@@ -151,7 +151,7 @@ engine's known reasons. Count, missions, key; (a) changes what the player sees o
 
 | Count | Missions | Key | What |
 |---|---|---|---|
-| 870,154 | 21 | assumed: the order's state idle (vt+0x20) | PM's run of pending orders asks the order's state; the port answers yes for all. To check per state against the exe's vt+0x20 |
+| 870,154 | 21 | assumed: the order's state idle (vt+0x20) | done: every PM state answers yes (0x004eb000) but the jump's (0x004d5020, no); now each state's own (`BehaviourState::idle`); MW3's states standing in are still counted. No change in the score (seeds 1..4 76/3) |
 | 12,250 | 21 | stand-in: MW3's steering | frames where no PM state runs (MW3's order states below) steer with MW3's steering |
 | 3,254 | 12 | stand-in: MW3's orders, WaitState | scripted orders whose states are still MW3's: wait |
 | 265 | 21 | stand-in: MW3's orders, SharedState | the lancemates' shared state |

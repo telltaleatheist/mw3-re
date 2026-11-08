@@ -144,6 +144,12 @@ TEST(pm_wire_kinds_make_their_states) {
   EXPECT(made(StepKind::VehAttack)->may_fire() && made(StepKind::VehAttack)->may_break_in());
   EXPECT(!made(StepKind::ViaNode)->may_fire() && made(StepKind::Node)->may_fire());
   EXPECT(!made(slot(3))->may_break_in() && !made(StepKind::Jump)->may_fire());
+  // vt+0x20, the order idle for the steering: yes on every PM state but the jump's (0x005eedbc: 0x004d5020).
+  EXPECT(!made(StepKind::Jump)->idle());
+  for (StepKind k : {StepKind::VehAttack, StepKind::ViaNode, StepKind::Node, StepKind::VehFollow})
+    EXPECT(made(k)->idle());
+  for (int i : {2, 3, 6, 7, 8, 9})
+    EXPECT(made(slot(i))->idle());
   EXPECT(dynamic_cast<PmGuardState*>(made(slot(6)).get()));
   EXPECT(dynamic_cast<PmBehindState*>(made(slot(8)).get()));
   for (StepKind k : {StepKind::VehOwn})

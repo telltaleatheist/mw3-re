@@ -396,6 +396,9 @@ class BehaviourState {
   virtual void resume() {}                              // +0x10 0x0049bfd0
   virtual void run(float dt);                           // +0x14 0x004c8690 (not ported)
   virtual Behaviour* behaviour() const { return nullptr; }  // +0x18 0x0040bae0 for the base
+  // Pirate's Moon's +0x20, asked by 0x004fa470 (the order idle, so the steering takes it): 0x004eb000, yes, on every
+  // PM state but the jump's (0x004d5020). MW3's states, standing in, answer as PM's would (assumed).
+  virtual bool idle() const { return true; }
 
   Order* order = nullptr;  // +0x04
   Behaviour* from = nullptr;
