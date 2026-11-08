@@ -359,7 +359,7 @@ struct ProgramHudHooks : HudHooks {
     if (own) zcls::node_set_intersect(own, 1);
     out->count = r.count;
     out->total = r.total;
-    for (int i = 0; i < r.count && i < 31; ++i) std::memcpy(&out->rec[i], &r.hit[i], sizeof(zwep::HitRecord));
+    for (int i = 0; i < r.count && i < 32; ++i) std::memcpy(&out->rec[i], &r.hit[i], sizeof(zwep::HitRecord));  // all 32 (zwep_init.h)
     return res;
   }
   // The player's mech, its weapon manager and target (hud.md sections 12,

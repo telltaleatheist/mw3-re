@@ -53,12 +53,14 @@ namespace {
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
 Mech* mech_of(Handle v) { return static_cast<Mech*>(v); }
 
-// The query record (0x504 bytes, 32 slots) into zWeapon's list (31 slots).
+// The query record (0x504 bytes, 32 slots) into zWeapon's list (as many). With 31 slots here a full query's
+// 32nd hit was counted and not copied, and splash damage read past the list: a crash where the exe only
+// reports "Database intersections array is full" (a splash among 32 or more objects).
 void to_hits(const zcls::LineHits& in, zwep::HitList* out) {
   out->count = in.count;
   out->total = in.total;
-  const int n = in.count < 31 ? in.count : 31;
-  const int t = in.total < 31 ? in.total : 31;
+  const int n = in.count < 32 ? in.count : 32;
+  const int t = in.total < 32 ? in.total : 32;
   const int k = n > t ? n : t;
   for (int i = 0; i < k; ++i) std::memcpy(&out->rec[i], &in.hit[i], sizeof(zwep::HitRecord));
 }
@@ -561,6 +563,26 @@ int32_t program_fire_at(void* mech, const char* weapon, int32_t n, float dist) {
     if (spawn_projectile(def, nullptr, nullptr, &from, &dir, &still, 0, 0, true)) ++fired;  // hostile to the player
   }
   return fired;
+}
+
+int32_t weapons_query_flood(const float at[3], float radius, int32_t* matched) {
+  zcls::LineHits r;
+  zcls::Node* w = qworld();
+  *matched = 0;
+  if (!w || zcls::sphere_query(w, at, radius, nullptr, 1, 1, &r) != 0) return 0;
+  zwep::HitList list;
+  const zwep::Vec3f3 p{at[0], at[1], at[2]};
+  zwep::hit_hooks().query(nullptr, &p, radius, &list);  // zWeapon's (0x004f0ac0 through to_hits)
+  for (int i = 0; i < list.count; ++i) *matched += list.rec[i].node == r.hit[i].node ? 1 : 0;
+  return list.count;
+}
+
+bool weapons_burst(const char* name, const float at[3]) {
+  zwep::WeaponDef* d = zwep::find_def(name);
+  if (!d) return false;
+  const zwep::Vec3f3 p{at[0], at[1], at[2]};
+  zwep::burst_at(d, &p);  // as a mission anim's detonation (0x005822c0)
+  return true;
 }
 
 int32_t mech_weapon_gone_case(void* mech, bool* picked) {

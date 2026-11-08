@@ -262,6 +262,10 @@ float mech_tag_muzzle(void* mech, bool* mounted);  // tests: TAG added as the bu
 // whether the selection ends on a destroyed weapon. -1 with fewer than three weapons.
 int32_t mech_weapon_gone_case(void* mech, bool* picked);
 float mech_knock(void* mech, float* threshold, bool* airborne);  // tests: pm-tests item 23
+// Tests: zWeapon's sphere query at `at` (the splash's, through its hook): how many hits it counts, and in
+// `matched` how many of those hold zClass's own record; a weapon by name burst at a point.
+int32_t weapons_query_flood(const float at[3], float radius, int32_t* matched);
+bool weapons_burst(const char* name, const float at[3]);
 std::string mech_group_names(void* mech, int32_t g);
 // Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
 bool mech_lock_shown(void* mech);

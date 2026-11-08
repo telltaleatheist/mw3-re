@@ -20937,6 +20937,27 @@ TEST(mission_c1m1_selection_leaves_a_destroyed_weapon_headless) {
   zfix::options().bugs = true;
 }
 
+// A splash among more objects than zClass's query holds: its 32 hits all reach zWeapon's list. With 31 slots
+// the 32nd was counted and not copied, so splash damage read past the list and crashed (seen with a mission's
+// NUKE in c1m1); the exe only reports "Database intersections array is full". Then the NUKE itself, there.
+TEST(mission_c1m1_splash_survives_a_full_query_headless) {
+  if (!have_game()) return;
+  int32_t counted = -1, matched = -1;
+  bool burst = false;
+  cheat_mission("splash_full_write", 0, 1, 200, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    float at[3];
+    mech3::mech_world_position(mech3::mission_player_mech(), at);
+    counted = mech3::weapons_query_flood(at, 2000.0f, &matched);
+    burst = mech3::weapons_burst("NUKE", at);
+    return f > 40;
+  });
+  std::printf("  the query counted %d, %d of them stored; the NUKE burst %d\n", counted, matched, burst);
+  EXPECT(counted == 32);
+  EXPECT(matched == counted);
+  EXPECT(burst);
+}
+
 // pm-tests item 23: the player knocked down in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from
 // 50 m ahead build the knock past the threshold (0x00417a80): Stagger, a fall. Until the shot line fix (579f77b3)
 // the knock's direction was always zero, so nothing fell. (2) Dropped from 150 m, a hard landing (0x004162c0: the
