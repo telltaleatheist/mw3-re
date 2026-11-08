@@ -4600,3 +4600,13 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   it only for your enemies. The panel's lines changed too: each one starts with its key, right-aligned in three
   places (lancemates 1 to 4 show their pick key, where MW3 numbered them), and the orders' keys are read each time
   the panel opens, not once at the mission's start (checked against the original in an emulator).
+- Pirate's Moon's multiplayer lobby has new settings: the game type (Deathmatch with or without teams, Attack/Defend
+  with one base or two), the number of rounds (1 to 10), a salvage award ("0", "X .5" up to "X 3", and negative ones
+  down to "X -3", which turn the bonus table around), jump jets and radar. The kill limits are 1, 2, 5, 10, 20, 40,
+  50, 60 or 80 whether or not teams play (MW3 doubled its 1 to 40 for teams), and the tonnage limit goes down to 10
+  tons (MW3's to 30) (from the code: the lobby's lists, 0x49a3c0). The host's settings reach the other players in
+  one message, and team play is set for everyone by the game type when the host locks the options (checked against
+  the original in an emulator).
+- In a Pirate's Moon match of more than one round, your mech carries over: the store and the weight check run only
+  when the options are first locked, and between rounds "Stock 'Mechs" is switched off and can't be changed (from
+  the code: 0x49eb20 and 0x49b5e0).

@@ -140,6 +140,24 @@ enum class LobbyRule {
 };
 LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text), bool* team_play);
 
+// Pirate's Moon's lobby controls as its rules message sees them: each list's
+// values and pick (0x0048a2e0 picks by value, a value it lacks leaves the
+// pick), the boxes, and the options locked (the screen's +0x16799).
+struct LobbyChoice {
+  std::vector<int32_t> values;
+  int32_t pick = -1;
+  LobbyPick picked() const;          // 0x004395e0 on the pick: none past the items
+  void select_value(int32_t v);      // 0x0048a2e0
+};
+struct LobbyControls {
+  LobbyChoice kills, minutes, tons, realloc, rounds, kind, world;
+  bool respawn = false, ammo = false, outside = false, jets = false, radar = false, stock = false, mobile = false;
+  bool locked = false;
+  LobbySettings settings() const;
+};
+// The host's message 0x20 (0x0049d220, 0x18 bytes; MultiplayerGame::read_lobby_rules reads it).
+std::vector<uint8_t> lobby_rules_message(const LobbyControls& c);
+
 // Pirate's Moon's lobby lists' lines (0x0049bb70): TP_LIST's (each team, then its players) and PLAYERS_LIST's
 // (the players without a team), each with its record; the texts by id, the skins' names and the mechs' names given.
 struct LobbyLine {
@@ -533,7 +551,12 @@ class MultiplayerGame : public Game {
     int16_t world = 0, kills = 0, time = 0, weight = 0;  // +0x64..+0x6a  the lists' values
     int32_t seed = 0;                // +0x6c  rand()
   } rules;
-  uint32_t rules_crc = 0;            // +0x88
+  uint32_t rules_crc = 0;            // +0x88, PM +0x9c
+  // PM 0x0049d450 (the handler's work): the host's 0x20 into the lists and
+  // boxes, the block from them (the boxes' flags, 0x20 the lock as it was,
+  // `seed` its rand() word, its CRC-32 0x00597bc0 from 0), then the lock as
+  // sent. True on the options' first lock, with the team play it sets.
+  bool read_lobby_rules(const uint8_t* msg, size_t size, LobbyControls* c, int32_t seed, bool* team_play);
   int32_t pmcc = 0;                  // PM +0xcc  Total Shots on the pilot's screen, one per shot (0x00471adf)
   uint8_t radar = 1;                 // PM +0xa8  the rules' 0x100 (RADAR_CHECKBOX's, by elimination: piece 6)
   int32_t x70 = 0;                   // +0x70, PM +0x78  KILLS_LIST's: the score to win (never set by the constructor; saved)

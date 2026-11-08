@@ -1669,6 +1669,32 @@ Two mechs on it each see the other's weight, not the sum. `CZAiTarget::stood_on`
 
 ## PM's multiplayer against MW3's (2026-11-07)
 
+**PM's lobby lists (0x49a3c0's fill, read in the emulator 2026-11-08; piece 6c-2).** Each list is an object on the
+lobby screen (its items at +0x15c, its pick at +0x16c; 0x48a740 clears, 0x48a4a0 adds (text, value), 0x48a2e0 picks):
+GAME_TYPE +0x12778 "Deathmatch without Teams" 0, "Deathmatch with Teams" 1, "Attack/Defend - One Base" 3,
+"Attack/Defend - Two Bases" 4 (the game's kind; any but 0 team play); the worlds +0x12b9c messages 0x320..0x327 valued
+0x100, 0x200, 0x101, 0x201, 0x102, 0x202, 0x103, 0x203 (folder | mp number << 8); REALLOC +0x12fc0 "0" 0, "X .5" 1,
+"X 1" 2, "X 1.5" 3, "X 3" 6, "X -3" -6, "X -1.5" -3, "X -1" -2, "X -.5" -1 (the rewards' scale is the value / 2: the
+multiplier shown); KILLS +0x13808 message 0x2b2 with 1, 2, 5, 10, 20, 40, 50, 60, 80 and 0x2b5 for 1000 (no limit),
+the fifth picked; TIME +0x13c2c 0x2b6..0x2b9 for 5, 10, 20, 30 minutes and 0x2ba for 1000 (none); WEIGHT +0x14050
+0x2bb with 10 to 100 tons by 5; ROUNDS +0x133e4 "%d" from 1 to the match's rounds between rounds, else to 10. MW3's
+were kills 1, 5, 10, 20, 40 and 100 for none, its own times and 15 weights.
+
+**PM's rules message 0x20 (the host's 0x49d220, read by 0x49d450; MW3's 0x499b10 / 0x499cf0 were 0x10 bytes).**
+0x18 bytes: +4 the flags (1 REGEN, 2 MOBILE, 4 STOCK, 8 AMMO, 0x10 SELECT (outside view), 0x80 JETS, 0x100 RADAR,
+0x20 the screen's +0x16799: options locked / between rounds), +8 the world's value (short), +0xa the kills, +0xc the
+minutes, +0xe the tons, +0x10 the kind (GAME_TYPE), +0x12 the rounds (each short), +0x14 REALLOC (a word). The reader
+picks each list by its value (0x48a2e0) and sets each box (vt+0x8c). The boxes are the screen's REGEN +0x14474,
++0x145e0, ... (JETS_CHECKBOX and RADAR_CHECKBOX in MULTIPLAYER_HOST_DIALOG, dialog.zrd, with GAME_TYPE, SALVAGE_AWARD
+(the REALLOC list) and ROUNDS_LIST).
+
+**PM's lobby control ids** (the constructor 0x498b70; the switch 0x49a1b0 is the screen's vt+0x18): CANCEL 1 (CANCEL_ZONE
+when started from a DirectPlay lobby, [0x62cc2d] from 0x5aa730), START 0, chat 2/3, the team buttons 4..9, MECHLAB 10,
+SALVAGE_BUTTON 0xb (0x49ed90), OPTIONS_BUTTON 0xc (no case), LOCK 0xd (0x49e3f0, then 0x49e400 through the screen's
++0x58), GAME_TYPE 0xe, DATABASE_LIST 0xf (a plain cycle list, no "UNAVAILABLE" skip), SALVAGE_AWARD 0x10, ROUNDS_LIST 0x11
+(also decides STOCK, 0x49b5e0), KILLS 0x12, TIME 0x13, WEIGHT 0x14, REGEN 0x15, MOBILE 0x16, STOCK 0x17 (kept in +0x1679e),
+AMMO 0x18, SELECT 0x19, JETS 0x1a, RADAR 0x1b, READY 0x1c (0x49e2e0), TP_LIST 0x1d (0x49dc50), PLAYERS_LIST 0x1e (0x49dfd0).
+
 By the pair map (`analysis-output/pm-diff/pairs.json`, pm-map's columns: compiler only, compiler with other offsets or constants, changed), over the MW3 functions the port's network-side files name. Our transport replaces DirectPlay, so what matters is what reaches what we kept: the messages' contents and types, and the game's rules.
 
 | port file (MW3's) | functions | identical | compiler only | other offsets, constants | changed | MW3 only, gone | new in PM beside it |

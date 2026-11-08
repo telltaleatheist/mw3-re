@@ -403,6 +403,9 @@ const char* GameEngine::message_format_n(int32_t id, int32_t n) {
 // callers (0x00575ff0 with their arguments); the answer is the box's (IDOK 1,
 // IDCANCEL 2, IDYES 6 ...).
 uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std::string& text) {
+  return game_message_box(style, message(caption), text);
+}
+uint32_t GameEngine::game_message_box(int32_t style, const char* cap, const std::string& text) {
   video_begin_3d();
   video_end_3d();
   const int32_t fast = exchange_fast_menu(0);
@@ -410,7 +413,6 @@ uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std:
   {
     ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", false);
     box_ = &box;
-    const char* cap = message(caption);
     r = box.run(text.c_str(), cap ? cap : "", static_cast<uint32_t>(style));
     box_ = nullptr;
   }
@@ -456,6 +458,14 @@ uint32_t GameEngine::message_box_plain(int32_t a, int32_t caption, const std::st
   if (on_message_box) {
     last_box_text = text;
     return on_message_box(a, caption, 0);
+  }
+  return game_message_box(a, caption, text);
+}
+
+uint32_t GameEngine::message_box_text(int32_t a, const char* caption, const std::string& text) {
+  if (on_message_box) {
+    last_box_text = text;
+    return on_message_box(a, 0, 0);
   }
   return game_message_box(a, caption, text);
 }
