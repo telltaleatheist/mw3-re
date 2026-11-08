@@ -588,6 +588,7 @@ add_executable(mw3tests
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
   tests/test_bounded_readers.cpp
+  tests/test_anim_events.cpp
   tests/test_bounded_media.cpp
   tests/test_hooks.cpp
   tests/place_survey.cpp
