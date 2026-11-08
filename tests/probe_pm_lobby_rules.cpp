@@ -666,3 +666,21 @@ extern "C" void probe_pm_round_start(const int32_t* in, int32_t* out) {
   out[0] = g.store.count(), out[1] = g.store.full, out[2] = g.round_store.count(), out[3] = g.round_store.full;
   std::memcpy(out + 4, &g.bonus_tons, 4);
 }
+
+// The lobby's buttons for test_pm_lobby_buttons.py: op 0 the refresh (0x0049ca00), 1 a TP_LIST choice (0x0049dc50),
+// 2 a PLAYERS_LIST choice (0x0049dfd0); in: host, team play, locked, between rounds, ready, all ready, me, my team, my
+// skin, the teams, GAME_TYPE's pick (has, value), the entry's kind, id and whether me is in it. Out: READY, MECHLAB,
+// SALVAGE, OPTIONS, START, NEW_TEAM, PICK_SKIN, JOIN, REMOVE, KICK, KICK2 (-1 untouched), the two lists undone, the
+// team kept.
+extern "C" void probe_pm_lobby_buttons(int32_t op, const int32_t* in, int32_t* out) {
+  mech3::LobbyView v;
+  v.host = in[0], v.team_play = in[1], v.locked = in[2], v.between_rounds = in[3], v.ready = in[4];
+  v.all_ready = in[5], v.me = static_cast<uint32_t>(in[6]), v.my_team = static_cast<uint32_t>(in[7]);
+  v.my_skin = in[8], v.teams = in[9], v.kind.has = in[10] != 0, v.kind.value = in[11];
+  const mech3::LobbyButtons b = op == 0   ? mech3::lobby_buttons(v)
+                                : op == 1 ? mech3::lobby_team_chosen(v, in[12], static_cast<uint32_t>(in[13]), in[14] != 0)
+                                          : mech3::lobby_player_chosen(v, in[12], static_cast<uint32_t>(in[13]));
+  const int8_t f[11] = {b.ready, b.mechlab, b.salvage, b.options, b.start, b.new_team, b.pick_skin, b.join, b.remove, b.kick, b.kick2};
+  for (int k = 0; k < 11; ++k) out[k] = f[k];
+  out[11] = b.deselect_teams, out[12] = b.deselect_players, out[13] = b.chose_team;
+}

@@ -18,6 +18,8 @@ namespace mech3 {
 
 class MultiplayerGame;
 struct LobbyControls;
+struct LobbyView;
+struct LobbyButtons;
 struct GameSlot;
 struct LobbyEntry;
 class LobbyScreen;
@@ -107,6 +109,8 @@ class LobbyScreen : public MenuScreen {
   void lock_mech();                  // 0x0049b360
   LobbyControls controls();          // the lists' items and picks, the boxes, the lock
   void show_controls(const LobbyControls& c);  // the picks and boxes back
+  LobbyView view();                  // the lobby as PM's button rules read it
+  void apply_buttons(const LobbyButtons& b);  // their buttons and choices
   void world_changed();              // ours: MW3's 0x00497410 case 0xc, for the add-on worlds
   // The game's start and the players' own (piece 11c): START (0x0049b790,
   // the host's message 0x1e with the players' places, then everyone the
@@ -178,6 +182,7 @@ class LobbyScreen : public MenuScreen {
   InvertCheck jets_box;              // PM +0x14a24  JETS_CHECKBOX (0x1a)
   InvertCheck radar_box;             // PM +0x14b90  RADAR_CHECKBOX (0x1b)
   std::unique_ptr<GameSlot> kept_slot;  // PM +0x11d34  slot 0 as SALVAGE found it
+  uint32_t chosen_team = 0;          // PM +0x167b0  TP_LIST's team, PICK_SKIN's in team play (its id here)
   float rejoin_at = 0;               // PM +0x167a8  READY's team rejoin, not before (enter: the clock)
   uint8_t stock_kept = 0;            // PM +0x1679e  STOCK as the host left it (case 0x17)
   ShellButton join_team_btn;         // +0x135c8  JOIN_TEAM_BUTTON (4)

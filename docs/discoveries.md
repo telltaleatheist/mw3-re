@@ -4615,3 +4615,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   other. When you come back, the game gives you your old mech again if the pool still has it (with the loadout
   cut to what the pool holds), or else the next mech the pool has (from the code: 0x49ed90, 0x49ee20, 0x4079b0;
   the fitting checked against the original in an emulator).
+- Pirate's Moon names new multiplayer teams after the Inner Sphere's houses: the team dialog offers the first of
+  Draconis Combine, Federated Commonwealth, Capellan Confederation, Free Worlds League, Free Rasalhague Republic,
+  Lyran Alliance, St. Ives Compact and Federated Suns that no team has taken (MW3 offered "A Team", "B Team"...).
+  Attack/Defend games allow only two teams, the host can remove a team even with players in it (they're taken out of
+  it), and between rounds of a match no one can change team or colour (from the code: 0x49faf0, 0x49df10; the
+  buttons' rules checked against the original in an emulator).
+- In Pirate's Moon, if every opponent leaves the lobby between rounds, the match ends there with "Game over: No
+  enemies left" (from the code: the lobby's update, 0x49b650).
