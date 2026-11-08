@@ -30,7 +30,7 @@ bool pm_state_running(Brain& b);
 // Pirate's Moon 1.0 @ 0x004d5c60, the shared behaviour's state (MW3's SharedState, 0x004cbeb0) with PM's calls: a
 // lancemate forms up on the formation net by PM's order (0x004fa130) in Training, else follows the player's vehicle on
 // its ten-slot net (vt+0xe4, slot 0 by 0x004c7920; 0x004fa150); any other pilot goes on to the step of its net nearest
-// it (0x004e5580, here MW3's 0x004d51d0; PM's changed and isn't ported) by PM's push (0x004fa170), the place kept in
+// it (0x004e5580: MW3's 0x004d51d0 but cdecl, the same squared distance) by PM's push (0x004fa170), the place kept in
 // the brain only (+0x2b8, the port's x298), not the order's +0x24 as MW3.
 class PmSharedState final : public SharedState {
  public:
