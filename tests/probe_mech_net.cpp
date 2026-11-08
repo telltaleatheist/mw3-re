@@ -28,6 +28,12 @@ int32_t g_create_ok, g_slot_ok, g_player_mech, g_ff, g_break, g_cleared;
 
 int32_t g_shots_fired = 0;
 void log(std::initializer_list<int32_t> v) { g_log->insert(g_log->end(), v); }
+// Pirate's Moon's headlight (the state's bit 31), as the send and apply probes answer and log it.
+int32_t g_light_on = 0;
+void light_hooks(mech3::NetCalls& c) {
+  c.light_on = [](mech3::Mech&) { return g_light_on != 0; };
+  c.light_turn = [](mech3::Mech&, bool on) { log({17, on ? 1 : 0}); };
+}
 int32_t bits(float f) {
   int32_t b;
   std::memcpy(&b, &f, 4);
@@ -440,6 +446,7 @@ extern "C" int32_t probe_mech_net_send(const int32_t* in, int32_t* out, int32_t 
   g_send_id = 100;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
+  light_hooks(c);
   c.shot_fired = [] { ++g_shots_fired; };
   c.position = [](mech3::Mech&, float o[3]) {
     for (int i = 0; i < 3; ++i) o[i] = fbits(g_in[kPos + i]);
@@ -617,6 +624,7 @@ extern "C" int32_t probe_mech_net_apply(const int32_t* in, int32_t* out, int32_t
   g_rx = in;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
+  light_hooks(c);
   c.now_ms = [] { return static_cast<uint32_t>(g_rx[rNow]); };
   c.position = [](mech3::Mech&, float o[3]) {
     for (int i = 0; i < 3; ++i) o[i] = fbits(g_rx[rWorld + i]);
@@ -1120,3 +1128,5 @@ extern "C" int32_t probe_mech_net_respawn(const int32_t* in, int32_t* out, int32
   std::copy(lg.begin(), lg.begin() + n, out);
   return n;
 }
+
+extern "C" void probe_mech_net_light(int32_t on) { g_light_on = on; }
