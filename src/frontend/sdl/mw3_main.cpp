@@ -108,6 +108,9 @@
 #include "mech3/data_version.h"
 #include "mech3/patch_import.h"
 #include "mech3/mission.h"
+#include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/list.h"
 #include "mech3/app_sensors.h"
 #include "mech3/turret.h"
 #include "platform/reg_file.h"
@@ -164,6 +167,8 @@ struct Args {
   float vehicle_ahead = 0;  // --vehicle-ahead M (ours): the mission's first (armed) vehicle placed M m before the player
   bool vehicle_hold = false;  // --vehicle-hold (ours): and the player turned to face it each frame (to watch it fire)
   float turret_ahead = 0;  // --turret-ahead M (ours): the player M m from the nearest live turret, facing it
+  std::string node_ahead;  // --node-ahead NAME M (ours): the player M m from the named world node, facing it
+  float node_ahead_m = 0;
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the nearest enemy mech in play, facing it
   bool fall_given = false;  // --fall x,z: the player dropped there from y 30 at frame 5 (ours, for the canyon)
   float fall[2] = {};
@@ -233,7 +238,7 @@ struct Args {
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
-      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
+      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
@@ -375,6 +380,9 @@ bool parse(int argc, char** argv, Args& a) {
       a.have_pos = true;
     } else if (s == "--vehicle-ahead" && next(1)) {
       a.vehicle_ahead = std::strtof(argv[++i], nullptr);
+    } else if (s == "--node-ahead" && next(2)) {
+      a.node_ahead = argv[++i];
+      a.node_ahead_m = std::strtof(argv[++i], nullptr);
     } else if (s == "--turret-ahead" && next(1)) {
       a.turret_ahead = std::strtof(argv[++i], nullptr);
     } else if (s == "--mech-ahead" && next(1)) {
@@ -1168,6 +1176,23 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
                 placed = true;
                 break;
               }
+          }
+        // --node-ahead (ours, for looking at a world object up close: pm-tests item 20's
+        // tanks): the player M m from the named node on the first frame, then facing it.
+        if (!a.node_ahead.empty())
+          if (void* m = mech3::mech_mission_player()) {
+            static zcls::Node* n = nullptr;
+            if (shots == 1) {
+              n = zcls::list_find_by_name(6, a.node_ahead.c_str());
+              if (n) mech3::chain_player_near(n, a.node_ahead_m);
+              std::printf("mw3: the player %.0f m from %s%s\n", a.node_ahead_m, a.node_ahead.c_str(), n ? "" : " (not found)");
+            }
+            if (n) {
+              float p[3], at[3];
+              mech3::mech_world_position(m, p);
+              zcls::node_world_point(n, at);
+              mech3::move_mech(m, p, std::atan2(p[0] - at[0], p[2] - at[2]));  // facing it: forward is -z
+            }
           }
         // --turret-ahead (ours, for checking the reticle over a turret, playtest
         // W6): the player taken M m from the nearest live turret on the first
