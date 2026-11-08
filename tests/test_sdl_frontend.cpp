@@ -5585,3 +5585,27 @@ TEST(pm_net_two_rounds_from_the_lobby) {
   EXPECT(pm_line(r.a, "lobby round: ", 3).rfind("between 0, rounds 2, played 0", 0) == 0);  // the match over
 }
 #endif
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)
+// A timed round's tie goes to overtime and a kill ends it (PM's 0x472850: at time with no winner, reason 1, the
+// clock runs on; mech_net's round_end): a 15 s game, no kill until A dies at 25 s. Both see the clock run past
+// zero, then the game end, and the lobby gives B the round.
+TEST(pm_net_overtime_ends_on_a_kill) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd")) return;
+  const PmPair r = pm_mode_pair(std::string(MW3_TEST_TMP) + "/pm_net_overtime", {}, {"--net-seconds", "15"}, 3000,
+                                {"--net-ahead", "50", "--net-kill-at", "25"}, {});
+  auto overtime = [](const std::string& log) {  // the lowest clock seen in play
+    float low = 1e9f;
+    for (size_t at = 0; (at = log.find("mw3: soak menus clock ", at)) != std::string::npos; ++at)
+      low = std::min(low, std::strtof(log.c_str() + at + 22, nullptr));
+    return low;
+  };
+  const float la = overtime(r.a), lb = overtime(r.b);
+  const std::string a2 = pm_line(r.a, "lobby entered 2, scores: ", 1);
+  std::printf("  the clocks down to %.1f and %.1f; then %s\n", la, lb, a2.c_str());
+  EXPECT(la < -5.0f && lb < -5.0f);  // overtime: no winner at the time
+  EXPECT(r.a.find("soak menus game over") != std::string::npos && r.b.find("soak menus game over") != std::string::npos);
+  EXPECT(a2 == "End of Round 1 of 1 | best                  1      1      1 | test                  0      0      0");
+  EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
+}
+#endif
