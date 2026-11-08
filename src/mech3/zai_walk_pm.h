@@ -65,8 +65,8 @@ class WalkPmHooks : public SteerPmHooks {
   virtual float keep_near() { return 0.0f; }  // the brain's +0x78  // vt+0x58's +0x385: the mech's blocked[1], a mech bumped  // the brain's +0x1f8, its way finder's path
   virtual void return_back() {}  // 0x004ea180 on the brain's +0x15c with a new 0x005ef250: back to the order before
   virtual int32_t rand_int() { return 0; }                                       // rand
-  virtual float reach() { return 0.0f; }
-  virtual float circle_slack() { return 0.0f; }  // the brain's +0x48: how far along the round it goes before turning back                                         // the brain's +0x44
+  virtual float reach() { return 0.0f; }                                         // the brain's +0x44
+  virtual float circle_slack() { return 0.0f; }  // the brain's +0x48: how far along the round it goes before turning back
   // The manoeuvre 0x004d5040.
   virtual double jump_fuel(zgame::Handle v) { (void)v; return 0.0; }             // vt+0x154
   virtual bool airborne(zgame::Handle v) { (void)v; return false; }              // vt+0x150

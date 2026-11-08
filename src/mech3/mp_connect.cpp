@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "gamez/znetwork/znet_dplay.h"
 #include "gamez/znetwork/znet_session.h"
@@ -294,6 +295,14 @@ void ConnectScreen::focus(int32_t which) {
   else if (which == 3) session_name.set_focus(1);
 }
 
+const char* game_of_version(uint32_t version) {
+  switch (version) {
+    case 0x28: return "MechWarrior 3";
+    case 0x000b0005: return "Pirate's Moon";
+    default: return nullptr;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00495490. The game's version is that of the game chosen;
 // another one's leaves (0xfdd the host's older, 0xfde ours). Ours: DirectPlay
 // listed a game's players before the join (0x00588600, 0x00589600), ours
@@ -312,6 +321,15 @@ void ConnectScreen::join() {
     return;
   }
   if (g.user[1] != kGameVersion) {
+    // Ours: the other game's host named, where the exe says older or newer.
+    if (const char* other = game_of_version(g.user[1])) {
+      std::printf("mw3: join refused: the host's game is %s\n", other);
+      e.message_box_plain(0x30, 0x2a8, std::string("This game is ") + other + ". It can't be joined from here.");
+      e.pop_state(1);
+      e.network_set(0);
+      return;
+    }
+    std::printf("mw3: join refused: the host's version %#x, ours %#x\n", g.user[1], kGameVersion);
     e.message_box(0x30, 0x2a8, g.user[1] < kGameVersion ? 0xff3 : 0xff4);  // PM 0x0049828a
     e.pop_state(1);
     e.network_set(0);

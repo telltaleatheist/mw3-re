@@ -13,6 +13,7 @@
 #include "mech3/mech_fieldbase.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zdeclient/zdec_init.h"
+#include "mech3/mech_headlight.h"
 #include "mech3/mech_parts.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "crt/msvc_math.h"
@@ -32,12 +33,33 @@
 
 namespace mech3 {
 
+// The state's flags word (+0x38), Pirate's Moon's layout: its motion state has 4 bits where MW3's has 5, so every
+// field above it is one bit lower than MW3's, and bit 31 is the headlight (docs/pm-map.md, the in-game types).
+// Pirate's Moon 1.0 @ 0x00471573..0x00471743 (the packing in 0x00471040), read by 0x004705e0.
+namespace state_bits {
+constexpr uint32_t kMotion = 2, kMotionMask = 0xf;  // MW3 2, 0x1f
+constexpr uint32_t kAction = 6;      // MW3 7
+constexpr uint32_t kLimp = 10;       // 11
+constexpr uint32_t kShots = 11;      // 12
+constexpr uint32_t kParts = 18;      // 19
+constexpr uint32_t kPassive = 22;    // 23
+constexpr uint32_t kDown = 23;       // 24
+constexpr uint32_t kMasc = 24;       // 25
+constexpr uint32_t kAms = 25;        // 26
+constexpr uint32_t kNarc = 26;       // 27
+constexpr uint32_t kJump = 29;       // 30
+constexpr uint32_t kCrouch = 30;     // 31
+constexpr uint32_t kHeadlight = 31;  // new: the torso's headlight on (0x0041f920, 0x00465df0, 0x00479940)
+}  // namespace state_bits
+
+
 namespace {
 NetGame g_net;
 NetCalls g_calls;
 
 // The messages 0x0046d880 takes, in the exe's order of registration.
-constexpr uint16_t kRouted[] = {0xf, 0x10, 0x11, 0x16, 0x15, 0x18, 0x12, 0x13, 0x17, 0x1a, 0x1b, 0x19, 0x21, 0x14, 0x1f};
+// Pirate's Moon routes 0x1d where MW3 routes 0x1b: the same message, a mech to a map object, renumbered (0x0046f970).
+constexpr uint16_t kRouted[] = {0xf, 0x10, 0x11, 0x16, 0x15, 0x18, 0x12, 0x13, 0x17, 0x1a, 0x1d, 0x19, 0x21, 0x14, 0x1f};
 
 // Mech3.exe 1.2 @ 0x004d72a0, message 1's: returns 0.
 void ignore(uint32_t, const uint8_t*, size_t) {}
@@ -54,6 +76,18 @@ void call(NetRoute fn, NetMech* m, uint32_t from, const uint8_t* msg, size_t siz
 
 NetGame& net_game() { return g_net; }
 NetCalls& net_calls() { return g_calls; }
+
+namespace {
+// 0x0041f920 (0x00465df0: the torso's headlight, 0x00479940) and 0x0041f8d0 (0x00465da0 with a fade).
+bool headlight_on(Mech& m) {
+  if (g_calls.light_on) return g_calls.light_on(m);
+  return m.torso && m.torso->headlight && m.torso->headlight->active();
+}
+void headlight_turn(Mech& m, bool on) {
+  if (g_calls.light_turn) return g_calls.light_turn(m, on);
+  if (m.torso && m.torso->headlight) m.torso->headlight->turn(on, true);
+}
+}  // namespace
 
 NetMech* net_mech(uint32_t owner) {
   for (NetMech* m : g_net.mechs)
@@ -149,22 +183,55 @@ void net_route(uint32_t from, const uint8_t* msg, size_t size) {
     case 0x17: return c.posture ? c.posture(m, from, msg, size) : net_posture_in(*m, msg, size);
     case 0x18: return c.knockback ? c.knockback(m, from, msg, size) : net_shove_in(*m, msg, size);
     case 0x1a: return c.effect ? c.effect(m, from, msg, size) : net_effect_in(msg, size);
-    case 0x1b: return c.drop ? c.drop(m, from, msg, size) : net_drop_in(*m, msg, size);
+    case 0x1d: return c.drop ? c.drop(m, from, msg, size) : net_drop_in(*m, msg, size);  // MW3's 0x1b
     case 0x1f: return call(c.chat, m, from, msg, size);
     case 0x21: return c.part_off ? c.part_off(m, from, msg, size) : net_part_off_in(msg, size);
     default: return;  // 0x15 is registered but not handled in a mission
   }
 }
 
-// Mech3.exe 1.2 @ 0x0046d3b0. 0x40800000 is 4 s.
+namespace {
+bool lobby_out(uint32_t player) { return g_calls.lobby_out ? g_calls.lobby_out(player) : true; }  // 0x00437990
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x00472da0: two sides still in the round, among the network mechs whose players aren't out
+// (0x004379f0) and the pilot's mech unless the local player is. A side is the mech's team mask (+0xc0).
+bool net_two_sides() {
+  bool found = false;
+  uint32_t side = 0;
+  for (NetMech* m : g_net.mechs) {
+    if (lobby_out(m->owner)) continue;
+    if (!found) {
+      found = true, side = m->team;
+    } else if (m->team != side) {
+      return true;
+    }
+  }
+  if (!found || lobby_out(znet::local_id())) return false;
+  Mech* pilot = g_calls.pilot_mech ? g_calls.pilot_mech() : nullptr;  // [0x0062c40c]'s +0x14
+  return pilot && pilot->team != side;
+}
+
+// Pirate's Moon 1.0 @ 0x0046f440 (MW3's 0x0046d3b0). 0x40800000 is 4 s. PM takes the player off the lobby's
+// scores (kills 0, its record left with no score line) and, on the host, scores the leaving as a suicide, whether
+// or not its mech is here; a round left with one side ends, "No more enemies" (5), sent at once (the clock's
+// next send now).
 void net_player_left(uint32_t from, const uint8_t* msg, size_t size) {
   (void)msg, (void)size;
-  NetMech* m = net_mech(from);
-  if (!m) return;
-  if (g_calls.hud_message) g_calls.hud_message(4.0f, 0x26a, znet::player_name(from));
-  if (g_calls.forget) g_calls.forget(*m);
-  g_calls.free ? g_calls.free(m) : net_mech_delete(m);
-  if (g_calls.lobby_left) g_calls.lobby_left(from);
+  const NetCalls& c = g_calls;
+  if (c.lobby_set_kills) c.lobby_set_kills(from, 0);  // 0x00436750 (MW3's 0x004359f0)
+  if (c.lobby_left) c.lobby_left(from);
+  if (znet::is_host()) c.score_kill ? c.score_kill(from, from) : net_score_kill(from, from);  // 0x004721e0
+  if (NetMech* m = net_mech(from)) {
+    if (c.hud_message) c.hud_message(4.0f, 0x26a, znet::player_name(from));
+    if (c.forget) c.forget(*m);
+    c.free ? c.free(m) : net_mech_delete(m);
+  }
+  if (net_two_sides()) return;
+  NetGameFields* g = c.game ? c.game() : nullptr;
+  if (!g || !g->round_end || *g->round_end != 0) return;
+  *g->round_end = 5;
+  if (g->clock_next) *g->clock_next = c.game_time ? c.game_time() : 0.0f;  // [0x0062da90]
 }
 
 namespace {
@@ -226,24 +293,25 @@ std::vector<uint8_t> net_state_message(Mech& m) {
   put_f(b, 0x28, turn[0]);
   put_f(b, 0x2c, turn[1]);
   put_f(b, 0x30, range);
-  // The flags: 0 nothing struck last, 1 inactive, 2-6 the motion state, 7-10
-  // the first action, 11 limping, 12-18 the shots, 19-22 the parts, 23
-  // passive, 24 powered down, 25 MASC, 26 the AMS on, 27 NARCed, 30 jumping,
-  // 31 crouched (docs/network-messages.md).
+  // The flags (state_bits, Pirate's Moon's): 0 nothing struck last, 1 inactive, then the motion state, the first
+  // action, limping, the shots, the parts, passive, powered down, MASC, the AMS on, NARCed, jumping, crouched and
+  // the headlight on (docs/network-messages.md; docs/pm-map.md for PM's places).
+  using namespace state_bits;
   uint32_t f = m.collider.clear == 0 ? 1u : 0u;
   f |= (m.active ? 0u : 1u) << 1;
-  f |= (static_cast<uint32_t>(m.anim_state) & 0x1f) << 2;
-  f |= (m.actions.empty() ? 0u : static_cast<uint32_t>(m.actions.front()) & 0xf) << 7;
-  f |= (m.limp != 0 ? 1u : 0u) << 11;  // -1 (none) too
-  f |= (shots & 0x7f) << 12;
-  f |= (parts & 0xf) << 19;
-  f |= ((m.xbc >> 2 & 1) != 0 ? 1u : 0u) << 23;  // passive radar
-  f |= (m.is_powered_down() ? 1u : 0u) << 24;  // vt+0xa0
-  f |= (m.masc_time != 0.0f ? 1u : 0u) << 25;
-  f |= (m.ams && m.ams->on ? 1u : 0u) << 26;
-  f |= (m.narc_time > 0.0f ? 1u : 0u) << 27;
-  f |= (ctl && ctl->jump != 0.0f ? 1u : 0u) << 30;  // IControls vt+0x38
-  f |= (m.crouched ? 1u : 0u) << 31;
+  f |= (static_cast<uint32_t>(m.anim_state) & kMotionMask) << kMotion;
+  f |= (m.actions.empty() ? 0u : static_cast<uint32_t>(m.actions.front()) & 0xf) << kAction;
+  f |= (m.limp != 0 ? 1u : 0u) << kLimp;  // -1 (none) too
+  f |= (shots & 0x7f) << kShots;
+  f |= (parts & 0xf) << kParts;
+  f |= ((m.xbc >> 2 & 1) != 0 ? 1u : 0u) << kPassive;  // passive radar
+  f |= (m.is_powered_down() ? 1u : 0u) << kDown;  // vt+0xa0 (PM's +0xac)
+  f |= (m.masc_time != 0.0f ? 1u : 0u) << kMasc;
+  f |= (m.ams && m.ams->on ? 1u : 0u) << kAms;
+  f |= (m.narc_time > 0.0f ? 1u : 0u) << kNarc;
+  f |= (ctl && ctl->jump != 0.0f ? 1u : 0u) << kJump;  // IControls vt+0x38
+  f |= (m.crouched ? 1u : 0u) << kCrouch;
+  f |= (headlight_on(m) ? 1u : 0u) << kHeadlight;
   put32(b, 0x38, f);
   put32(b, 0x34, c.target_player ? c.target_player(m) : 0);
   size_t at_shot = 0x3c;
@@ -507,7 +575,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
     m.heading_q[1] = 0.0f;
     m.heading_q[2] = static_cast<float>(std::sin(static_cast<double>(st.heading)));
     m.heading_q[3] = 0.0f;
-    const uint8_t passive = static_cast<uint8_t>(st.flags >> 23 & 1);
+    const uint8_t passive = static_cast<uint8_t>(st.flags >> state_bits::kPassive & 1);
     if (passive != (m.xbc >> 2 & 1)) {
       m.xbc = static_cast<uint8_t>((m.xbc & ~4) | passive << 2);
       if (c.radar_toggled) c.radar_toggled(m);  // vt+0xb8
@@ -523,7 +591,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
     uint16_t full;
     std::memcpy(&full, msg + 2, 2);
     if (full > 0x3c && full <= size) {
-      const uint32_t shots = st.flags >> 12 & 0x7f, parts = st.flags >> 19 & 0xf;
+      const uint32_t shots = st.flags >> state_bits::kShots & 0x7f, parts = st.flags >> state_bits::kParts & 0xf;
       const uint8_t* shot = shots ? msg + 0x3c : nullptr;
       const uint8_t* part = shots == 0 ? msg + 0x3c : shots + 0x3c < full ? msg + 0x3c + shots : nullptr;
       if (!inactive && shot) {
@@ -552,16 +620,19 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
       }
     }
   }
+  using namespace state_bits;
   const uint32_t f = st.flags;
-  const bool down = (f >> 24 & 1) != 0;
+  const bool down = (f >> kDown & 1) != 0;
   if (down && !m.is_powered_down()) mech_do(m, 0x41cc30, 1);  // vt+0xa0
   else if (!down && m.is_powered_down()) mech_do(m, 0x41cc30, 0);
-  if (m.ams) m.ams->on = (f >> 26 & 1) != 0;
-  if ((f >> 25 & 1) != (m.masc_time != 0.0f ? 1u : 0u)) mech_do(m, 0x41df50, static_cast<int32_t>(f >> 25 & 1));
-  if ((f >> 27 & 1) != (m.narc_time > 0.0f ? 1u : 0u)) mech_do(m, 0x41ac10, static_cast<int32_t>(f >> 27 & 1));
-  if ((m.crouched ? 1u : 0u) != (f >> 31)) mech_do(m, 0x41bda0, static_cast<int32_t>(f >> 31));
-  if (m.controls) m.controls->set_jump((f >> 30 & 1) ? 1.0f : 0.0f);
-  const int32_t state = static_cast<int32_t>(f >> 2 & 0x1f);
+  if (m.ams) m.ams->on = (f >> kAms & 1) != 0;
+  if ((f >> kMasc & 1) != (m.masc_time != 0.0f ? 1u : 0u)) mech_do(m, 0x41df50, static_cast<int32_t>(f >> kMasc & 1));
+  if ((f >> kNarc & 1) != (m.narc_time > 0.0f ? 1u : 0u)) mech_do(m, 0x41ac10, static_cast<int32_t>(f >> kNarc & 1));
+  if ((m.crouched ? 1u : 0u) != (f >> kCrouch & 1)) mech_do(m, 0x41bda0, static_cast<int32_t>(f >> kCrouch & 1));
+  // Pirate's Moon 0x004705e0: the headlight follows its bit (0x0041f920, then 0x0041f8d0 on the torso's, 0x00465da0).
+  if (headlight_on(m) != ((f >> kHeadlight & 1) != 0)) headlight_turn(m, (f >> kHeadlight & 1) != 0);
+  if (m.controls) m.controls->set_jump((f >> kJump & 1) ? 1.0f : 0.0f);
+  const int32_t state = static_cast<int32_t>(f >> kMotion & kMotionMask);
   bool respawn = false;
   if (m.anim_state != state) {
     switch (m.anim_state) {
@@ -569,7 +640,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
         if (state != 1 && static_cast<uint32_t>(state) < 9) mech_do(m, 0x415a90, 0);
         break;
       case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:
-        if (state == 0) mech_do(m, 0x41d5f0, static_cast<int32_t>(f >> 11 & 1));
+        if (state == 0) mech_do(m, 0x41d5f0, static_cast<int32_t>(f >> kLimp & 1));
         break;
       case 10: respawn = true; break;
       case 12: if (state <= 9) mech_do(m, 0x416780, 6); break;
@@ -697,52 +768,70 @@ void net_mech_rebuild(NetMech& m) {
 }
 
 namespace {
-// A mech by player for the kill's line: the network mech's, the pilot's,
-// else none.
-Mech* player_mech(uint32_t id) {
-  if (NetMech* m = net_mech(id)) return m;
-  if (id == znet::local_id() && g_calls.pilot_mech) return g_calls.pilot_mech();
-  return nullptr;
-}
-const char* name_of(Mech* m) {
-  if (!m) return "Unknown";  // [0x005e56f0]
-  if (m->remote) return znet::player_name(static_cast<NetMech*>(m)->owner);  // 0x004709c0
-  return g_calls.mech_name ? g_calls.mech_name(*m) : nullptr;  // 0x0041df30
+// A player's name for the kill's line: its lobby record's (0x0047b710(0)'s 0x00498930), else "Unknown"
+// ([0x006077c0]). MW3 took it from the player's mech, so a player whose mech was gone was "Unknown".
+const char* name_of(uint32_t id) {
+  const char* n = g_calls.lobby_name ? g_calls.lobby_name(id) : nullptr;
+  return n ? n : "Unknown";
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0046eba0 (ECX the message). 0x40a00000 is 5 s.
+// Pirate's Moon 1.0 @ 0x00470b80 (the message; MW3's 0x0046eba0). 0x40a00000 is 5 s.
 void net_kill_in(const uint8_t* msg, size_t size) {
   const NetCalls& c = g_calls;
   if (size < 12) return;
   uint32_t victim, killer;
   std::memcpy(&victim, msg + 4, 4);
   std::memcpy(&killer, msg + 8, 4);
-  const char* v = name_of(player_mech(victim));
-  const char* k = name_of(player_mech(killer));
+  const char* v = name_of(victim);
+  const char* k = name_of(killer);
   if (c.hud_message) {
     if (victim == killer) c.hud_message(5.0f, 0xf0a, v);  // "%1 has managed to kill himself"
     else if (c.hud_message2) c.hud_message2(5.0f, 0xf09, v, k);  // "%1 has been killed by %2"
   }
-  if (znet::is_host()) net_score_kill(victim, killer);
+  if (znet::is_host()) c.score_kill ? c.score_kill(victim, killer) : net_score_kill(victim, killer);  // 0x004721e0
 }
 
-// Mech3.exe 1.2 @ 0x00470170. A kill counts only between teams; reaching
-// the score limit ends the game (state 2) at once.
+// Pirate's Moon 1.0 @ 0x004721e0 (MW3's 0x00470170). Rounds: nothing is scored once the round is decided (its
+// end reason over 1). Without respawning the victim is out of the round. A kill counts only between teams; reaching
+// the score limit ends the round (4 with a winner, else 1, overtime), and in overtime a winner ends it (2); without
+// respawning, one side left ends it (5, "No more enemies") and the lobby's scores become the round's (0x00437a10).
+// Each end sends the clock (0x11) at once.
 void net_score_kill(uint32_t victim, uint32_t killer) {
   const NetCalls& c = g_calls;
   if (!znet::is_host()) return;
   NetGameFields* g = c.game ? c.game() : nullptr;
   if (!g) return;
+  int32_t none = 0;
+  int32_t& reason = g->round_end ? *g->round_end : none;  // +0x90
+  if (reason > 1) return;
+  const bool respawn = g->flags && g->flags[0];  // +0xa4 (MW3's +0x8c)
+  if (!respawn && c.lobby_set_out) c.lobby_set_out(victim, true);  // 0x004379b0
+  const auto now = [&] {
+    if (g->clock_next) *g->clock_next = game_time();  // +0x84
+  };
+  const auto winner = [&] { return c.round_winner && c.round_winner(); };  // 0x00437970
+  bool check = true;
   if (victim == killer) {
-    if (c.lobby_suicide) c.lobby_suicide(victim);
-  } else if ((c.team_of ? c.team_of(killer) : 0) != (c.team_of ? c.team_of(victim) : 0)) {
-    if (c.lobby_kill) c.lobby_kill(killer);
-    const auto score = c.lobby_score ? c.lobby_score : c.lobby_kills;  // 0x00435a50
-    if ((score ? score(killer) : 0) >= g->score_limit) {
-      if (g->end_state && *g->end_state == 0) *g->end_state = 2;
-      if (g->clock_next) *g->clock_next = game_time();
+    if (c.lobby_suicide) c.lobby_suicide(victim);  // 0x00436820
+  } else if ((c.team_of ? c.team_of(killer) : 0) != (c.team_of ? c.team_of(victim) : 0)) {  // 0x00436600
+    if (c.lobby_kill) c.lobby_kill(killer);  // 0x00436710
+    const auto score = c.lobby_score ? c.lobby_score : c.lobby_kills;  // 0x004367b0
+    if ((score ? score(killer) : 0) >= g->score_limit && reason == 0) {  // +0x78
+      reason = winner() ? 4 : 1;
+      now();
     }
+  } else {
+    check = false;
+  }
+  if (check && reason == 1 && winner()) {
+    reason = 2;
+    now();
+  }
+  if (!respawn && !net_two_sides() && reason == 0) {
+    reason = 5;
+    if (c.lobby_round_reset) c.lobby_round_reset();  // 0x00437a10
+    now();
   }
   if (c.scores_reset) c.scores_reset();  // 0x004361e0
   std::vector<uint32_t> list(3 * static_cast<size_t>(std::max(g->players, 0)), 0);
@@ -901,11 +990,10 @@ void net_host_replay() {
   zdec::history_each(replay_crater, nullptr);
 }
 
-// Mech3.exe 1.2 @ 0x0046feb0 (ECX the record). The mobile field base
-// stations' animations are not sent; none is while one heard is replayed.
+// Pirate's Moon 1.0 @ 0x00471f50 (the record; MW3's 0x0046feb0). None is sent while one heard is replayed. PM
+// dropped MW3's skip of the field base stations' animations ("mfb_station_01"): PM sends those too.
 void net_anim_sent(zeff::AnimLogRecord* rec) {
-  if (std::strstr(rec->name, "mfb_station_01")) return;  // [0x005e4b68], on 0x0050d260's name
-  if (g_net.echo) return;  // [0x00605fb8]
+  if (g_net.echo) return;  // [0x00629a89]
   const auto n = static_cast<size_t>(zeff::log_record_size(rec));  // 0x0050ca20
   std::vector<uint8_t> b(n + 4, 0);
   put16(b, 0, 0x1a);
@@ -914,7 +1002,7 @@ void net_anim_sent(zeff::AnimLogRecord* rec) {
   znet::send(b.data(), static_cast<uint32_t>(b.size()), true, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0046ff50
+// Pirate's Moon 1.0 @ 0x00471fd0 (MW3's 0x0046ff50, the same: the record passed on the stack)
 void net_effect_in(const uint8_t* msg, size_t size) {
   zeff::AnimLogRecord r;
   std::memset(&r, 0, sizeof r);
@@ -934,20 +1022,21 @@ void net_effect_in(const uint8_t* msg, size_t size) {
     if ((r.type == 3 || r.type == 4) && !live(static_cast<int32_t>(r.args[0]))) return;
     if (r.type == 4 && !live(static_cast<int32_t>(r.args[4]))) return;
   }
-  if (g_calls.log_has ? g_calls.log_has(&r) : zeff::log_has(&r)) return;  // 0x0050b680
+  if (g_calls.log_has ? g_calls.log_has(&r) : zeff::log_has(&r)) return;  // PM 0x00524d70, MW3 0x0050b680
   g_net.echo = 1;
   g_calls.log_replay ? g_calls.log_replay(&r) : (void)zeff::log_replay(&r);  // 0x0050ca90
   g_net.echo = 0;
 }
 
-// Mech3.exe 1.2 @ 0x0046ff90 (ECX the station's id)
+// Pirate's Moon 1.0 @ 0x00472010 (MW3's 0x0046ff90, whose type was 0x1b): only while a network game runs ([0x00629a88]).
 void net_send_drop(uint32_t station) {
-  uint8_t b[8] = {0x1b, 0, 8, 0};
+  if (!g_net.running) return;
+  uint8_t b[8] = {0x1d, 0, 8, 0};
   std::memcpy(b + 4, &station, 4);
   znet::send(b, sizeof b, true, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0046ffd0 (the mech, the message)
+// Pirate's Moon 1.0 @ 0x00472060 (MW3's 0x0046ffd0, the mech, the message; its 0x0045bbf0 is MW3's 0x0045a140)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size) {
   if (size < 8) return;
   uint32_t id;
@@ -1014,14 +1103,17 @@ bool net_read_record(uint32_t player, std::vector<uint8_t>* out) {
   return ok;
 }
 
-// Mech3.exe 1.2 @ 0x0046da80. The mech's definition is loaded first
-// (0x004846a0) and not used. The record is made by 0x0046dd90 (kind 2,
-// zero-filled to its size).
+// Pirate's Moon 1.0 @ 0x0046fb20 (MW3's 0x0046da80). The mech's definition
+// is loaded first (0x004867f0) and not used. The record is made by
+// 0x0046fe30 (kind 2, zero-filled to its size). PM sends the record twice
+// (once made, again after the ammo), leaves the clock's last second as it
+// was, and starts at "remote_<first - 1 + slot>" (first 0x00437a40, by the
+// game's kind; MW3's "remote_<slot>").
 bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bool unlimited_ammo, bool outside_view) {
   const NetCalls& c = g_calls;
   const int32_t roster = m.pilot ? m.pilot->roster : 0;
   c.dfn ? (void)c.dfn(roster) : (void)mech_dfn(roster);
-  g_net.next_state = 0, g_net.warned = 0, g_net.last_second = 0;
+  g_net.next_state = 0, g_net.warned = 0;  // [0x00629a74], [0x00629a78]
   m.net_sent = 0;
   m.net_acked = 1;
   const uint32_t local = znet::local_id();
@@ -1033,6 +1125,7 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   std::memcpy(rec.data() + 0xc, p.data(), std::min<size_t>(n, 4 * p.size()));
   std::memcpy(rec.data() + 8, &roster, 4);
   std::memcpy(rec.data() + 4, &skin, 4);
+  znet::set_player_data(local, rec.data(), static_cast<uint32_t>(rec.size()));  // 0x005aa4a0, the first time
   m.set_team(c.team_of ? c.team_of(local) : 0);
   if (c.unlimited) c.unlimited(m, unlimited_ammo);
   else if (auto* w = static_cast<WeaponManager*>(m.ammo)) w->set_unlimited(unlimited_ammo);
@@ -1040,8 +1133,9 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   if (c.scores_reset) c.scores_reset();
   if (outside_view && c.view_outside) c.view_outside();
   const int32_t slot = c.start_of ? c.start_of(local) : 0;
+  const int32_t first = c.spawn_base ? c.spawn_base(local) : 0x18;  // 0x00437a40
   char name[0x20];
-  std::snprintf(name, sizeof name, "remote_%d", slot);
+  std::snprintf(name, sizeof name, "remote_%d", first - 1 + slot);
   float pos[3] = {0, 0, 0}, yaw = 0;  // 0x0063d870
   if (!c.spawn_point || !c.spawn_point(name, pos, &yaw)) return false;
   net_spawn_offset(pos, slot);
@@ -1050,13 +1144,14 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0046dde0 (ECX the pilot, its mech `m`), from the dead
+// Pirate's Moon 1.0 @ 0x0046fe80 (MW3's 0x0046dde0; the pilot, its mech `m`), from the dead
 // list once the pilot has been dead 7.1 s: with respawn off (+0x8c) the
 // player watches (+0x8e cleared, the view's camera 4) and stays dead.
 // Otherwise its mech is made again where it lay (0x004783c0), its team,
 // unlimited ammo (+0x8d) and options set again, the cockpit's explosion
-// reset, and it starts at the "remote_N" (N 0..15) farthest from every
-// remote mech (the nearest's flat distance, squared), moved by its lobby
+// reset, and it starts at the "remote_N" farthest from every remote mech (the
+// nearest's flat distance, squared; PM: N from the kind's first, 0x00437a40,
+// 16 of them, 8 in the kinds over 1; MW3's 0..15), moved by its lobby
 // slot; then 0x12 to all, its sensor range, the objectives again, the
 // force feedback. Whether it was made again (off the dead list).
 bool net_pilot_respawn(Mech& m) {
@@ -1079,9 +1174,12 @@ bool net_pilot_respawn(Mech& m) {
   const int32_t slot = c.start_of ? c.start_of(local) : 0;  // the lobby's record +0x20 (0x00495b10)
   float pos[3] = {0, 0, 0}, yaw = 0, best = 0;
   if (c.position) c.position(m, pos);  // 0x005a85e0: where it lay, without a start
-  for (int32_t i = 0; i < 0x10; ++i) {
+  const int32_t kind = c.game_kind ? c.game_kind() : 0;  // +0x98
+  const int32_t points = kind > 1 ? 8 : 16;
+  for (int32_t i = 0; i < points; ++i) {
     char name[0x20];
-    std::snprintf(name, sizeof name, "remote_%d", i);  // [0x005e56e0]
+    const int32_t first = c.spawn_base ? c.spawn_base(local) : 0x18;  // 0x00437a40, asked each time; 24 kinds 0, 1
+    std::snprintf(name, sizeof name, "remote_%d", first + i);  // [0x006077b0]
     float at[3], at_yaw = 0;
     if (!c.spawn_point || !c.spawn_point(name, at, &at_yaw)) continue;  // 0x004e0680
     float d = 1.0e8f;  // 0x0046e030: the nearest remote mech, squared flat

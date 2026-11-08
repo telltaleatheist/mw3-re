@@ -1159,6 +1159,7 @@ void net_set_game_access(const NetGameAccess& a) {
         !g_game_access.fields(&f.players, &f.clock_next, &f.end_time, &f.end_state, &f.kills, &f.deaths, &f.score_limit,
                               &f.flags))
       return nullptr;
+    f.round_end = g_game_access.round_end ? g_game_access.round_end() : nullptr;
     return &f;
   };
   nc.game_time = a.game_time, nc.clock_left = a.clock_left, nc.clock_on = a.clock_on;
@@ -1177,6 +1178,8 @@ void program_net_debug_lobby() {
   NetCalls& c = net_calls();
   g_debug_scores.clear();
   c.lobby_team_id = [](uint32_t) { return 0u; };  // each player its own side, no teams
+  c.lobby_name = [](uint32_t p) { return znet::player_name(p); };
+  c.lobby_out = [](uint32_t) { return false; };  // everyone in play
   c.team_of = [](uint32_t p) { return p; };
   c.start_of = [](uint32_t p) -> int32_t {
     int32_t rank = 1;
@@ -1210,6 +1213,8 @@ void program_net_lobby(const NetLobbyAccess& a) {
   c.lobby_scores = a.scores, c.lobby_set_kills = a.set_kills, c.lobby_set_deaths = a.set_deaths;
   c.scores_reset = a.rescore;
   c.lobby_team_id = a.team_id;
+  c.lobby_name = a.name;
+  c.lobby_out = a.out, c.lobby_set_out = a.set_out, c.lobby_round_reset = a.round_reset;
 }
 
 void program_mech_chat_draw(void* mech) {
@@ -2100,6 +2105,10 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   for (const MechPart* p : parts) {
     s.parts += p && p->node;
     if (p) s.armor += p->armor + p->internal;
+  }
+  if (m->torso) {  // the torso's other sections: rear (3-5) and side (1, 2) armour, the side torsos' internal
+    for (int i = 1; i <= 5; ++i) s.armor += m->torso->sec_armor[i];
+    s.armor += m->torso->side_internal[0] + m->torso->side_internal[1];
   }
   s.heat = m->heat;
   for (const Arm* a : m->arms) s.parts += a && a->hand && a->hand->node;

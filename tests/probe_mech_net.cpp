@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -28,6 +29,12 @@ int32_t g_create_ok, g_slot_ok, g_player_mech, g_ff, g_break, g_cleared;
 
 int32_t g_shots_fired = 0;
 void log(std::initializer_list<int32_t> v) { g_log->insert(g_log->end(), v); }
+// Pirate's Moon's headlight (the state's bit 31), as the send and apply probes answer and log it.
+int32_t g_light_on = 0;
+void light_hooks(mech3::NetCalls& c) {
+  c.light_on = [](mech3::Mech&) { return g_light_on != 0; };
+  c.light_turn = [](mech3::Mech&, bool on) { log({17, on ? 1 : 0}); };
+}
 int32_t bits(float f) {
   int32_t b;
   std::memcpy(&b, &f, 4);
@@ -196,12 +203,13 @@ extern "C" int32_t probe_mech_net(const int32_t* ops, int32_t n, int32_t* out, i
   return m;
 }
 
-// The launch (0x0046da80) for test_mech_net_launch.py. in: the local id,
+// The launch (PM 0x0046fb20) for test_pm_net_launch.py. in: the local id,
 // the roster, the skin, the team, the start slot, unlimited ammo, the
 // outside view, the spawn point found, its position (3) and heading as
-// bits, the force feedback; then the packed loadout.
+// bits, the force feedback, the first start (0x00437a40); then the packed
+// loadout.
 namespace {
-int32_t g_team, g_start, g_found, g_ff2;
+int32_t g_team, g_start, g_found, g_ff2, g_base;
 float g_spawn[4];
 }  // namespace
 
@@ -211,7 +219,7 @@ extern "C" int32_t probe_mech_net_launch(const int32_t* in, const uint32_t* blob
   g_log = &lg;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
-  g_team = in[3], g_start = in[4], g_found = in[7], g_ff2 = in[12];
+  g_team = in[3], g_start = in[4], g_found = in[7], g_ff2 = in[12], g_base = in[13];
   std::memcpy(g_spawn, &in[8], 16);
   c.dfn = [](int32_t r) -> const mech3::MechDfn* { log({1, r}); return nullptr; };
   c.team_of = [](uint32_t p) { log({2, static_cast<int32_t>(p)}); return static_cast<uint32_t>(g_team); };
@@ -219,6 +227,7 @@ extern "C" int32_t probe_mech_net_launch(const int32_t* in, const uint32_t* blob
   c.scores_reset = [] { log({5}); };
   c.view_outside = [] { log({6, 1}); };
   c.start_of = [](uint32_t p) { log({7, static_cast<int32_t>(p)}); return g_start; };
+  c.spawn_base = [](uint32_t p) { log({16, static_cast<int32_t>(p)}); return g_base; };  // PM 0x00437a40
   c.spawn_point = [](const char* name, float pos[3], float* yaw) {
     log({8, std::atoi(name + 7)});
     if (!g_found) return false;
@@ -440,6 +449,7 @@ extern "C" int32_t probe_mech_net_send(const int32_t* in, int32_t* out, int32_t 
   g_send_id = 100;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
+  light_hooks(c);
   c.shot_fired = [] { ++g_shots_fired; };
   c.position = [](mech3::Mech&, float o[3]) {
     for (int i = 0; i < 3; ++i) o[i] = fbits(g_in[kPos + i]);
@@ -617,6 +627,7 @@ extern "C" int32_t probe_mech_net_apply(const int32_t* in, int32_t* out, int32_t
   g_rx = in;
   mech3::NetCalls& c = mech3::net_calls();
   c = mech3::NetCalls{};
+  light_hooks(c);
   c.now_ms = [] { return static_cast<uint32_t>(g_rx[rNow]); };
   c.position = [](mech3::Mech&, float o[3]) {
     for (int i = 0; i < 3; ++i) o[i] = fbits(g_rx[rWorld + i]);
@@ -766,6 +777,12 @@ extern "C" int32_t probe_mech_net_events(const int32_t* in, int32_t* out, int32_
   c.hud_message = [](float t, int32_t id, const char* a) { log({2, bits(t), id, s_num(a)}); };
   c.hud_message2 = [](float t, int32_t id, const char* a, const char* b) { log({2, bits(t), id, s_num(a), s_num(b)}); };
   c.mech_name = [](mech3::Mech&) -> const char* { return "Pilot"; };
+  c.score_kill = [](uint32_t v, uint32_t k) { log({99, static_cast<int32_t>(v), static_cast<int32_t>(k)}); };
+  c.lobby_name = [](uint32_t p) -> const char* {  // PM's kill line: the lobby's records ("P<id>")
+    static std::map<uint32_t, std::string> names;  // each its own, as the records' are
+    if (slot_of(p) < 0) return nullptr;
+    return (names[p] = "P" + std::to_string(p)).c_str();
+  };
   c.team_of = [](uint32_t p) {
     const int32_t k = slot_of(p);
     return k < 0 ? 0u : static_cast<uint32_t>(g_ev[eSlots + 4 * k + 1]);
@@ -954,6 +971,7 @@ extern "C" int32_t probe_mech_net_world(const int32_t* in, int32_t* out, int32_t
     case 2: {
       zeff::AnimLogRecord r;
       std::memcpy(&r, msg.data(), std::min(msg.size(), sizeof r));
+      g.echo = static_cast<uint8_t>(in[wMade] == 2);  // test_pm_net_effect: sent while one heard replays
       mech3::net_anim_sent(&r);
       break;
     }
@@ -1021,11 +1039,12 @@ extern "C" int32_t probe_mech_net_end(const int32_t* in, int32_t* out, int32_t c
   return n;
 }
 
-// The pilot's respawn (0x0046dde0) for test_mech_net_respawn.py. in: the
-// game's +0x8c (respawn), +0x8d (unlimited), +0x8e; the local id, its team,
-// its lobby slot, the roster, a cockpit explosion, force feedback, the
-// remote mechs (0..3) and their places (x y z each), the mech's place, then
-// 16 starts (found, x y z, yaw).
+// The pilot's respawn (PM 0x0046fe80) for test_pm_net_respawn.py. in: the
+// game's respawn, unlimited ammo and the byte after (PM +0xa4..+0xa6); the
+// local id, its team, its lobby slot, the roster, a cockpit explosion, force
+// feedback, the remote mechs (0..3) and their places (x y z each), the mech's
+// place, then 40 starts by N (found, x y z, yaw), the game's kind (+0x98) and
+// the first start's N (0x00437a40).
 #include "mech3/mech_data.h"
 namespace {
 const int32_t* g_rs;
@@ -1062,9 +1081,12 @@ extern "C" int32_t probe_mech_net_respawn(const int32_t* in, int32_t* out, int32
     std::memcpy(o, at, 12);
     return true;
   };
+  c.game_kind = [] { return g_rs[22 + 5 * 40]; };  // PM: the kind and the first start (test_pm_net_respawn)
+  c.spawn_base = [](uint32_t p) { log({6, static_cast<int32_t>(p)}); return g_rs[22 + 5 * 40 + 1]; };
   c.spawn_point = [](const char* name, float pos[3], float* yaw) {
     const int32_t i = std::atoi(name + 7);
     log({8, i});
+    if (i < 0 || i >= 40) return false;
     const int32_t* s = &g_rs[22 + 5 * i];
     if (!s[0]) return false;
     std::memcpy(pos, s + 1, 12), std::memcpy(yaw, s + 4, 4);
@@ -1120,3 +1142,223 @@ extern "C" int32_t probe_mech_net_respawn(const int32_t* in, int32_t* out, int32
   std::copy(lg.begin(), lg.begin() + n, out);
   return n;
 }
+
+extern "C" void probe_mech_net_light(int32_t on) { g_light_on = on; }
+
+// Pirate's Moon's map-object move (0x1d, MW3's 0x1b) as sent, for test_pm_net_state.py: the bytes handed to the
+// transport while a network game runs or not.
+extern "C" int32_t probe_mech_net_drop_send(int32_t running, uint32_t id, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_send_id = 100;
+  Sends t;
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.async = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 9;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = running != 0;
+  mech3::net_send_drop(id);
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
+
+// The chat line (0x1f) for test_pm_net_chat.py: the HUD's line for a message from a player, the players named
+// "P<id>" (1..8), the message table's texts "M<id>".
+#include "gamez/zutil/zutl_msg.h"
+#include "mech3/chat_panel.h"
+extern "C" int32_t probe_mech_net_chat(uint32_t from, const uint8_t* msg, int32_t size, char* out, int32_t cap) {
+  static std::string s_line;
+  s_line = "(none)";
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  for (uint32_t id = 1; id <= 8; ++id) {
+    auto r = std::make_unique<znet::PlayerRecord>();
+    r->id = id, r->short_name = "P" + std::to_string(id);
+    znet::lists().players.push_back(std::move(r));
+  }
+  auto& m = zutl::messages();
+  const auto was = m.get_text;
+  m.get_text = [](int32_t id) -> const char* {
+    static std::string t;
+    t = "M" + std::to_string(id);
+    return t.c_str();
+  };
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  c.hud_line = [](float t, const char* line) { s_line = std::to_string(bits(t)) + "|" + line; };
+  mech3::net_chat_in(nullptr, from, msg, static_cast<size_t>(size));
+  c = mech3::NetCalls{};
+  m.get_text = was;
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  const int32_t n = static_cast<int32_t>(std::min<size_t>(s_line.size(), static_cast<size_t>(cap - 1)));
+  std::memcpy(out, s_line.data(), static_cast<size_t>(n));
+  out[n] = 0;
+  return n;
+}
+
+// Pirate's Moon's player gone (0x0046f440) for test_pm_net_gone.py. in: the player gone, the local id, host, the
+// pilot's mech there and its team, the game there, its round's end and clock's next send, the game time (bits),
+// the network mechs (count, then owner and team for 8), the lobby's records (count, then id and out for 8).
+namespace {
+enum Gone { gFrom, gLocal, gHost, gPilot, gPilotTeam, gGame, gRoundEnd, gClockNext, gTime, gMechs, gMech,
+            gLobby = gMech + 16, gRec, gGoneCount = gRec + 16 };
+const int32_t* g_gone;
+}  // namespace
+extern "C" int32_t probe_mech_net_gone(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_gone = in;
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  c.lobby_set_kills = [](uint32_t p, uint32_t v) { log({22, static_cast<int32_t>(p), static_cast<int32_t>(v)}); };
+  c.lobby_left = [](uint32_t p) { log({52, static_cast<int32_t>(p)}); };
+  c.lobby_out = [](uint32_t p) {
+    for (int32_t k = 0; k < g_gone[gLobby]; ++k)
+      if (static_cast<uint32_t>(g_gone[gRec + 2 * k]) == p) return g_gone[gRec + 2 * k + 1] != 0;
+    return true;
+  };
+  c.score_kill = [](uint32_t v, uint32_t k) { log({99, static_cast<int32_t>(v), static_cast<int32_t>(k)}); };
+  c.hud_message = [](float t, int32_t id, const char* n) { log({2, bits(t), id, n ? std::atoi(n + 1) : -3}); };
+  c.forget = [](NetMech& m) { log({51, static_cast<int32_t>(m.owner)}); };
+  c.free = [](NetMech* m) {
+    log({40, static_cast<int32_t>(m->owner)});
+    mech3::net_game().mechs.remove(m);
+    delete m;
+  };
+  static mech3::Mech pilot;
+  pilot = mech3::Mech{};
+  pilot.team = static_cast<uint32_t>(in[gPilotTeam]);
+  c.pilot_mech = []() -> mech3::Mech* { return g_gone[gPilot] ? &pilot : nullptr; };
+  static int32_t s_end_state, s_round_end;
+  static float s_clock_next, s_end_time;
+  s_end_state = 0, s_round_end = in[gRoundEnd], s_clock_next = fbits(in[gClockNext]), s_end_time = 0;
+  static mech3::NetGameFields s_fields;
+  s_fields = mech3::NetGameFields{0, 8, &s_clock_next, &s_end_time, &s_end_state};
+  s_fields.round_end = &s_round_end;
+  c.game = []() -> mech3::NetGameFields* { return g_gone[gGame] ? &s_fields : nullptr; };
+  c.game_time = [] { return fbits(g_gone[gTime]); };
+  Sends t;
+  g_send_id = 100;
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.async = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = static_cast<uint32_t>(in[gLocal]);
+  s.host_id = in[gHost] ? s.local->id : 99u;
+  for (uint32_t id = 1; id <= 12; ++id) {
+    auto r = std::make_unique<znet::PlayerRecord>();
+    r->id = id, r->short_name = "P" + std::to_string(id);
+    znet::lists().players.push_back(std::move(r));
+  }
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = true;
+  for (int32_t k = 0; k < in[gMechs]; ++k) {
+    auto* m = new NetMech();
+    m->remote = true;
+    m->owner = static_cast<uint32_t>(in[gMech + 2 * k]);
+    m->team = static_cast<uint32_t>(in[gMech + 2 * k + 1]);
+    g.mechs.push_back(m);
+  }
+  log({30, mech3::net_two_sides() ? 1 : 0});  // before
+  mech3::net_player_left(static_cast<uint32_t>(in[gFrom]), nullptr, 0);
+  log({90, s_round_end, bits(s_clock_next)});
+  for (NetMech* m : g.mechs) delete m;
+  g = mech3::NetGame{};
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  c = mech3::NetCalls{};
+  const int32_t n = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + n, out);
+  return n;
+}
+extern "C" int32_t probe_mech_net_gone_count() { return gGoneCount; }
+
+// Pirate's Moon's kill scoring (0x004721e0) for test_pm_net_score.py. in: the victim, the killer, host, the game
+// there, its round's end reason, the clock's next send and the game time (bits), the score limit, respawn, two sides
+// left, the round winner's answers (bit k the k-th asking), the HUD's scores hidden, the lobby's records (count, then
+// id, team, kills, deaths, score for 8).
+namespace {
+enum Score { sVictim, sKiller, sHost, sGame, sReason, sClock, sTime, sLimit, sRespawn, sSides, sWinners, sHudHidden,
+             sLobby, sRec, sScoreCount = sRec + 40 };
+const int32_t* g_sc;
+int32_t g_sc_asked;
+int32_t sc_field(uint32_t p, int32_t f, int32_t none) {
+  for (int32_t k = 0; k < g_sc[sLobby]; ++k)
+    if (static_cast<uint32_t>(g_sc[sRec + 5 * k]) == p) return g_sc[sRec + 5 * k + f];
+  return none;
+}
+}  // namespace
+extern "C" int32_t probe_mech_net_score(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_sc = in;
+  g_sc_asked = 0;
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  c.lobby_set_out = [](uint32_t p, bool o) { log({60, static_cast<int32_t>(p), o ? 1 : 0}); };
+  c.lobby_suicide = [](uint32_t p) { log({20, static_cast<int32_t>(p)}); };
+  c.lobby_kill = [](uint32_t p) { log({21, static_cast<int32_t>(p)}); };
+  c.team_of = [](uint32_t p) { return static_cast<uint32_t>(sc_field(p, 1, 0)); };
+  c.lobby_score = [](uint32_t p) { return sc_field(p, 4, -1); };
+  c.round_winner = [] { return (g_sc[sWinners] >> g_sc_asked++ & 1) != 0; };
+  c.lobby_round_reset = [] { log({61}); };
+  c.scores_reset = [] { log({24}); };
+  c.lobby_scores = [](uint32_t* o, int32_t n) {
+    const int32_t m = std::min(n, g_sc[sLobby]);
+    for (int32_t k = 0; k < m; ++k)
+      o[3 * k] = static_cast<uint32_t>(g_sc[sRec + 5 * k]), o[3 * k + 1] = static_cast<uint32_t>(g_sc[sRec + 5 * k + 2]),
+      o[3 * k + 2] = static_cast<uint32_t>(g_sc[sRec + 5 * k + 3]);
+    return m;
+  };
+  c.hud_scores = [] { if (!g_sc[sHudHidden]) log({25}); };
+  // two sides left or not, as the network mechs give it (net_two_sides, tested in test_pm_net_gone)
+  c.lobby_out = [](uint32_t) { return false; };
+  static mech3::Mech pilot;
+  pilot = mech3::Mech{};
+  pilot.team = 2;
+  c.pilot_mech = []() -> mech3::Mech* { return &pilot; };
+  static int32_t s_end_state, s_reason;
+  static float s_clock, s_end_time;
+  static uint8_t s_flags[4];
+  s_end_state = 0, s_reason = in[sReason], s_clock = fbits(in[sClock]), s_end_time = 0;
+  s_flags[0] = static_cast<uint8_t>(in[sRespawn]);
+  static mech3::NetGameFields s_f;
+  s_f = mech3::NetGameFields{in[sLimit], in[sLobby], &s_clock, &s_end_time, &s_end_state};
+  s_f.round_end = &s_reason, s_f.flags = s_flags;
+  c.game = []() -> mech3::NetGameFields* { return g_sc[sGame] ? &s_f : nullptr; };
+  c.game_time = [] { return fbits(g_sc[sTime]); };
+  Sends t;
+  g_send_id = 100;
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.async = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 1;
+  s.host_id = in[sHost] ? 1u : 99u;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = true;
+  auto* other = new NetMech();
+  other->remote = true, other->owner = 2, other->team = in[sSides] ? 4u : 2u;
+  g.mechs.push_back(other);
+  mech3::net_score_kill(static_cast<uint32_t>(in[sVictim]), static_cast<uint32_t>(in[sKiller]));
+  log({90, s_reason, bits(s_clock)});
+  for (NetMech* m : g.mechs) delete m;
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  c = mech3::NetCalls{};
+  const int32_t n = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + n, out);
+  return n;
+}
+extern "C" int32_t probe_mech_net_score_count() { return sScoreCount; }
+

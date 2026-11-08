@@ -693,8 +693,8 @@ void FiringPm::step(float dt) {
       plan = 0;
       [[fallthrough]];
     case 0: case 8:
-      h.seed(h.xd0(brain));
-      h.start_x50(x50);
+      h.seed(brain, h.xd0(brain));
+      h.start_x50(brain, x50);
       h.set_range(vehicle, h.range(brain));
       h.look_start(brain);
       wait = rest;

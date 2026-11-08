@@ -485,8 +485,10 @@ class WireStep : public StepPmHooks {
   uint32_t xd0(Brain* b) override {
     return b->params.target_words[1];
   }
-  void seed(uint32_t v) override { pm_hook_missing("WireStep.seed"); }
-  void start_x50(uint32_t v) override { pm_hook_missing("WireStep.start_x50"); }
+  // The step's start sets the pilot's attacker list: its drop limit from the pilot (+0xd0, 10 s by default where the
+  // list's constructor gave 5) and its fade rate from the firing (+0x50, 0.3).
+  void seed(Brain* b, uint32_t v) override { pm_brain(*b).attackers.set_limit(zgame::from_bits(v)); }
+  void start_x50(Brain* b, uint32_t v) override { pm_brain(*b).attackers.set_rate(zgame::from_bits(v)); }
   void set_range(zgame::Handle v, float r) override {
     if (AiTarget* t = brain_hooks().targetable(v)) {  // 0x004e7150, with no cap
       t->range = r;

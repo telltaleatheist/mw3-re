@@ -88,7 +88,7 @@ void net_chat_send(const char* text, bool to_all) {
   net_chat_in(nullptr, znet::local_id(), m.data(), m.size());
 }
 
-// Mech3.exe 1.2 @ 0x00470490
+// Mech3.exe 1.2 @ 0x00470490, Pirate's Moon 1.0 @ 0x004725a0 (the same)
 void net_chat_in(NetMech*, uint32_t from, const uint8_t* msg, size_t size) {
   if (size < 9) return;
   const char* who = znet::player_name(from);

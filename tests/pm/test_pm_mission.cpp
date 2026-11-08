@@ -1,5 +1,6 @@
 // Pirate's Moon missions run headless with the AI on, for what the AI does in play.
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -107,6 +108,8 @@ int32_t valve_value(const char* name) {
 }
 }  // namespace
 
+float pm_kill_ground(float x, float y, float z);  // pm_kill.cpp
+
 // c1m1's two Shadow Cats start powered down; the data wakes them 180 s in, by `shadowcat_time`
 // through `shadowcat_go`, or when the player's close. The first thing PM's AI was seen not to do.
 TEST(pm_c1m1_shadow_cats_wake) {
@@ -213,6 +216,33 @@ TEST(pm_c1m1_shadow_cats_wake) {
         std::printf("  c1m1: hit %d (%g) at %g s: her team %x allies %x enemies %x\n", k + 1, hit_damage[k],
                     mech3::ai::brain_hooks().now(), t->team, t->allies, t->enemies);
       }
+    // PM_WALK_TO_ENEMY=<frame>: from then the player steps toward the nearest enemy AI mech (0.25 m a frame, about
+    // 15 m/s) until 80 m off, for seeing whether it engages (the named "Puma engages" check, c1m2).
+    if (const char* walk = std::getenv("PM_WALK_TO_ENEMY"); walk && frames >= std::atoi(walk)) {
+      void* pl = mech3::mission_player_mech();
+      const mech3::ai::AiTarget* pt = pl ? mech3::mech_ai_target(pl) : nullptr;
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      float at[3], best[3] = {}, d2 = 1e30f;
+      const char* who = "";
+      if (pl && pt && mech3::mech_world_position(pl, at))
+        for (int32_t k = 0; k < made; ++k) {
+          const mech3::ai::AiTarget* t = mech3::mech_ai_target(ai[k].mech);
+          float q[3];
+          if (!t || !(t->team & pt->enemies) || !mech3::mech_world_position(ai[k].mech, q)) continue;
+          const float dd = (q[0] - at[0]) * (q[0] - at[0]) + (q[2] - at[2]) * (q[2] - at[2]);
+          if (dd < d2) d2 = dd, best[0] = q[0], best[1] = q[1], best[2] = q[2], who = ai[k].name ? ai[k].name : "?";
+        }
+      if (d2 < 1e30f) {
+        const float d = std::sqrt(d2);
+        if (d > 80.0f) {
+          const float x = at[0] + (best[0] - at[0]) / d * 0.25f, z = at[2] + (best[2] - at[2]) / d * 0.25f;
+          const float to[3] = {x, pm_kill_ground(x, 300.0f, z), z};
+          mech3::move_mech(pl, to, static_cast<float>(std::atan2(best[0] - at[0], -(best[2] - at[2]))));
+        }
+        if (frames % 500 == 0) std::printf("  walk: %s %.0f m off at %d\n", who, d, frames);
+      }
+    }
     if (mate && hit_frames[1] >= 0 && frames == hit_frames[1] + 1) {
       const mech3::ai::AiTarget* t = mech3::mech_ai_target(mate);
       std::printf("  c1m1: after hit 2: her team %x allies %x enemies %x\n", t->team, t->allies, t->enemies);

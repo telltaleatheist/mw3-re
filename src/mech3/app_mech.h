@@ -49,6 +49,7 @@ struct NetGameAccess {
   bool (*clock_on)() = nullptr;     // [0x00609924]
   void (*set_clock_left)(float v) = nullptr;  // [0x00609920] =
   void (*exit_fade)() = nullptr;    // 0x0048ef00 to the Multi-Exit State
+  int32_t* (*round_end)() = nullptr;  // PM +0x90
 };
 void net_set_game_access(const NetGameAccess& a);
 // Ours, for the tests (multiplayer-port.md piece 5c): in the mission that is
@@ -170,7 +171,10 @@ void program_net_debug_lobby();
 struct NetLobbyAccess {
   uint32_t (*team_of)(uint32_t player) = nullptr;    // 0x00435910
   int32_t (*start_of)(uint32_t player) = nullptr;    // the record's +0x20
-  void (*left)(uint32_t player) = nullptr;           // the record's +0x18 = 1
+  void (*left)(uint32_t player) = nullptr;           // the record's +0x18 = 1 (PM: and its +0x2c score line none)
+  bool (*out)(uint32_t player) = nullptr;            // PM 0x00437990: the record's +0x0e, true none
+  void (*set_out)(uint32_t player, bool out) = nullptr;  // PM 0x004379b0
+  void (*round_reset)() = nullptr;                   // PM 0x00437a10
   void (*suicide)(uint32_t player) = nullptr;        // 0x00435ac0(p, 1)
   void (*kill)(uint32_t player) = nullptr;           // 0x004359b0(p, 1)
   int32_t (*kills)(uint32_t player) = nullptr;       // 0x00435a30
@@ -181,6 +185,7 @@ struct NetLobbyAccess {
   void (*set_deaths)(uint32_t player, uint32_t n) = nullptr;  // 0x00435b00
   void (*rescore)() = nullptr;                       // 0x004361e0
   uint32_t (*team_id)(uint32_t player) = nullptr;    // 0x00495b60: its team, 0 none
+  const char* (*name)(uint32_t player) = nullptr;    // PM 0x00498930's +0x10: null none
 };
 void program_net_lobby(const NetLobbyAccess& a);
 // 0x0041ab90 on the pilot's mech: its chat panel drawn (mech3/chat_panel).

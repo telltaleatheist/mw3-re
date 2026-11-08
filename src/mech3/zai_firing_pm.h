@@ -267,8 +267,10 @@ class StepPmHooks {
   virtual float range(Brain* b) = 0;                                     // +0x30
   virtual float rate(Brain* b) = 0;                                      // +0x124's +0x54
   virtual uint32_t xd0(Brain* b) = 0;                                    // +0xd0
-  virtual void seed(uint32_t v) = 0;                                     // 0x005bfdc0
-  virtual void start_x50(uint32_t v) = 0;                                // 0x00434980
+  // The attacker list (the brain's +0x104, through the base): its drop limit (0x005bfdc0, +0x10) and fade rate
+  // (0x00434980, +0x0c), both one-line setters the linker shares with other classes.
+  virtual void seed(Brain* b, uint32_t v) = 0;
+  virtual void start_x50(Brain* b, uint32_t v) = 0;
   virtual void set_range(zgame::Handle v, float r) = 0;                  // 0x004e7150
   virtual void look_start(Brain* b) = 0;  // the firing's +0x70 (vtable 0x5eb970) vt+0x00, 0x004ba630: on (+0x18), the firing its owner (+0x04)
   virtual zgame::Handle best_weapon(zgame::Handle wm) = 0;               // 0x004b9de0

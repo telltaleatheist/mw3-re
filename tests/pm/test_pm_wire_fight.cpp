@@ -98,8 +98,19 @@ TEST(pm_wire_firing_reaches_the_vehicle_and_counts_the_rest) {
   EXPECT(*pick_pm_hooks().target_slot(7) == &c);
   pm_hooks_missing_clear();
   EXPECT(pick_pm_hooks().part_child(7, 0) == 0);  // no mech object
-  step_pm_hooks().seed(1);
-  EXPECT(pm_hooks_missing().at("WireStep.seed") == 1);
+}
+
+// The step's start sets its pilot's attacker list (the brain's +0x104): the drop limit from the pilot's +0xd0, the
+// fade rate from the firing's +0x50.
+TEST(pm_wire_firing_the_step_sets_the_attacker_list) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  step_pm_hooks().seed(&b, 0x41200000);       // 10.0
+  step_pm_hooks().start_x50(&b, 0x3e99999a);  // 0.3
+  EXPECT(pm_brain(b).attackers.limit() == 10.0f && pm_brain(b).attackers.rate() == 0.3f);
+  pm_forget(b, 0);
 }
 
 TEST(pm_wire_firing_answers_what_the_step_calls_most) {

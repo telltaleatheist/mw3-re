@@ -372,11 +372,15 @@ struct Mech : Vehicle {
 };
 
 // Globals of other modules that the heat and damage code reads.
+// The hitting shot's line, from then to: 0x009a0ec4, which the weapons write (zwep::HitState, 0x00583480) and the
+// damage reads (0x00581e30). One copy: the world kept a second the game never filled, so in play every torso hit
+// went to the centre torso's front and no hit pushed a mech (docs/damage.md, Front or rear).
+const Vec3* hit_shot();
+
 struct World {
   Mech* player = nullptr;           // 0x005f4c8c +0x64
   Mech* mission_player = nullptr;   // 0x0060861c +0x14  (the same mech in play)
   bool force_feedback = false;      // [0x00608620] the force feedback object exists (mech3/force_feedback)
-  Vec3 shot[2] = {};                // 0x009a0ec4  the hitting shot: from, to
   bool death_anim_toggle = false;   // 0x00605cc0
   bool full_heat_all_mechs = true;  // 0x005e1fd0
   float time = 0.0f;                // 0x0060991c  game time, seconds

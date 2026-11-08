@@ -1911,3 +1911,16 @@ TEST(fix_cleanup_leaves_a_firing_beam) {
   st.defs = kept;
   rh = kept_hooks;
 }
+
+// The damage reads the shot line the weapons write (0x009a0ec4): a second copy the game never filled sent every
+// torso hit to the centre front and pushed no mech (docs/damage.md, Front or rear).
+TEST(damage_reads_the_weapons_shot_line) {
+  zwep::HitState& h = zwep::hit_state();
+  const zwep::Vec3f3 from = h.shot_from, to = h.shot_to;
+  h.shot_from = {1.0f, 2.0f, 3.0f};
+  h.shot_to = {4.0f, 5.0f, 6.0f};
+  const mech3::Vec3* s = mech3::hit_shot();
+  EXPECT(s[0].x == 1.0f && s[0].y == 2.0f && s[0].z == 3.0f);
+  EXPECT(s[1].x == 4.0f && s[1].y == 5.0f && s[1].z == 6.0f);
+  h.shot_from = from, h.shot_to = to;
+}
