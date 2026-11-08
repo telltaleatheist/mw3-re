@@ -329,7 +329,7 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
   pm-v0.9.0; the canyon, mission 3's defences, the base lights, the lancemates' follow on PM's net.
 - Left, no decision needed, in this order: (1) the three commander tests moved to PM (`test_pocket_panel`,
   `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 two
-  thirds); (2) mission 5's bases with `PM_AI=1` (`PM_MFB=4700,-4200`, `PM_KILL=0,1,5`), the port's side; (3) every field
+  thirds); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
   of each struct the AI port owns compared once, or a line why not; (4) the 220 functions PM changed that run as MW3's
   port: each read or tested, or a line why not; (5) every break for the AI pieces rerun on the switch's evaluation.
 - Needs Owen or his PC: the same watch on the exe for +0x588 and the fuel in a real jump; a run of the exe logging each
@@ -679,7 +679,7 @@ The full boundary run (`MW3_BOUNDARY_ALL=1`, `test_pm_ai_boundary_real`) runs pe
 
 Mission 5's field bases stand still until a static MFB is called, then drive about 211 m (`PM_MFB=4700,-4200`,
 `PM_KILL=0,1,5`, control `PM_MFB_NO_CALL`). The exe's static branch sets "may drive" too, and these bases have `vlist`
-orders, so the port follows the exe's flags, but on the stand-in's AI: compare once PM's AI runs.
+orders, so the port follows the exe's flags, but on the stand-in's AI: compare once PM's AI runs. With `PM_AI=1` (2026-11-08): the same three bases, mode 3 throughout, drive off after the call much as on the stand-in (moved 226.3 m against 266.5 m by the refit's end at frame 1142, the same frame); the exe's flags are still to compare (the PC).
 
 ## For later: MW3's AI at 53 bits (after PM, on Owen's list of MW3 fixes)
 
