@@ -344,6 +344,7 @@ int pm_watch_follow(void* mech);
 void pm_kill_begin(void* player);
 int pm_kill_fire(void* player, const float at[3]);
 int pm_trigger_all(void* player, const float at[3]);
+float pm_tag_muzzle(void* player, const float at[3], bool* mounted);
 float pm_mech_toughness(void* mech, bool* invincible);
 bool pm_cheat(void* player, const char* text);
 void pm_kill_left(void* mech, char* out, size_t n);
@@ -656,6 +657,21 @@ static void kill_run(const char* which, bool quick) {
     }
     // PM_HOSTILES=metres: each hostile but the mechs in turn (vehicles, turrets, targets.zrd's), the player that far
     // from it, every weapon through its trigger at its node until it dies or 300 frames pass (pm-tests item 9).
+    if (std::getenv("PM_TAG_MUZZLE")) {  // pm-tests item 15: TAG added as the build does, aimed ahead
+      static int t = 0;
+      if (++t == 30) {
+        bool mounted = false;
+        float at[3];
+        zcls::node_world_point(static_cast<zcls::Node*>(mech3::hud_object_node(player)), at);
+        at[0] += 100.0f;
+        const float d = pm_tag_muzzle(player, at, &mounted);
+        std::printf("  TAG: mounted %d, its muzzle %.1f m from the torso\n", mounted, d);
+        EXPECT(mounted);
+        EXPECT(d >= 0.0f && d < 15.0f);
+        done = true;
+      }
+      return;
+    }
     if (const char* range = std::getenv("PM_HOSTILES")) {
       static int t = 0, from = 0, shots_at = 0, killed = 0, alive = 0;
       static std::vector<mech3::ChainTarget> all;
@@ -1019,7 +1035,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1063,6 +1079,24 @@ TEST(pm_c2m3_lasers_kill_the_tanker) {
   if (child == 0) {
     setenv("PM_HOSTILES", "60", 1);
     setenv("PM_BEAMS_ONLY", "1", 1);
+    kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// pm-tests item 15: TAG, added by its node (the mech's equipment 13), finds its part and firepoint, so its beam
+// starts at the mech; without the weapon calls' node lookups it fired from the world's origin, out of sight.
+TEST(pm_tag_fires_from_the_mech) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_TAG_MUZZLE", "1", 1);
     kill_run("1,1,3", true);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);

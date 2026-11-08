@@ -167,6 +167,8 @@ struct Args {
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the nearest enemy mech in play, facing it
   bool fall_given = false;  // --fall x,z: the player dropped there from y 30 at frame 5 (ours, for the canyon)
   float fall[2] = {};
+  std::string pilot;  // --pilot NAME (ours, for reproducing a player's report): his mech and loadout
+  int pilot_game = 0;  // --pilot-game N: that pilot's saved game of mission N
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
@@ -269,6 +271,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
     else if (s == "--fall" && next(1)) a.fall_given = std::sscanf(argv[++i], "%f,%f", &a.fall[0], &a.fall[1]) == 2;
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
+    else if (s == "--pilot" && next(1)) a.pilot = argv[++i];
+    else if (s == "--pilot-game" && next(1)) a.pilot_game = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
@@ -1050,6 +1054,14 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       l.have_pos = a.have_pos;
       for (int i = 0; i < 3; ++i) l.eye[i] = a.pos[i];
       l.yaw = a.look[0] * 0.0174533f, l.pitch = a.look[1] * 0.0174533f;
+      if (!a.pilot.empty()) {  // the pilot's current game's slot (its mech, loadout and skin), as the tests' PM_PILOT
+        mech3::current_pilot() = mech3::load_pilot(a.pilot.c_str(), false);
+        if (mech3::Pilot* pp = mech3::current_pilot(); pp && a.pilot_game > 0)
+          for (mech3::Game* g : pp->campaigns)
+            if (auto* cg = dynamic_cast<mech3::CampaignGame*>(g); cg && cg->mission_number() == a.pilot_game) pp->current = g;
+        l.keep_pilot = mech3::current_pilot() != nullptr;
+        std::printf("mw3: pilot %s: %s\n", a.pilot.c_str(), l.keep_pilot ? "loaded" : "not found");
+      }
       engine.set_launch(l);
       launch = true;
       const bool l_type3 = l.type == 3;
