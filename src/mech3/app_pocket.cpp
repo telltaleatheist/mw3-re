@@ -30,6 +30,7 @@
 #include "mech3/mission_map.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_params.h"
+#include "mech3/veh_basic.h"
 
 namespace mech3 {
 
@@ -268,6 +269,14 @@ void wire_pocket(const MechWiring* w) {
     m.set_target(found, false);
     if (Hud* hud = view_hud(m))
       if (command_calls().hud) command_calls().hud(hud, 0x49);
+  };
+  fc.ground_snap = [](float place[3]) {  // Pirate's Moon 1.0 @ 0x0046b8d0
+    zcls::Node* w = world_hooks().world;
+    zcls::GroundHits hits{};
+    if (!w || zcls::ground_point(w, place[0], place[1] + 10.0f, place[2], &hits) != 0 || hits.count == 0) return;
+    int32_t best = 0, in_water = 0;
+    float surface = 0;
+    place[1] = ground_pick(hits, place[1], 10.0f, &best, 1, &in_water, &surface) + 1.0f;  // 0x004af770, [0x005de7b0]
   };
   fc.marker_move = [](zgame::Handle h, const float* p) {  // vt+0x18: the node moved there
     PocketMarker* k = program_pocket_marker(h);

@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "crt/msvc_math.h"
@@ -583,6 +584,15 @@ void name_cursor(PocketPanel* p, zgame::Handle e) {
   p->target.set_text("   %s", entity_name(e));
 }
 
+// Pirate's Moon 1.0 @ 0x0046b8d0, then the marker's vt+0x18: the cursor's place copied to the mode's (+0x18c, the
+// port's `place`), put on the ground, the marker moved there. Not shown or hidden: PM's frame leaves that alone.
+void marker_to_ground(PocketControls& c, zgame::Handle mk) {
+  if (c.cursor_pos && c.cursor_pos != c.place) std::memcpy(c.place, c.cursor_pos, sizeof c.place);  // FIX (bug): none, the exe reads null
+  if (g_frame.ground_snap) g_frame.ground_snap(c.place);
+  if (g_frame.marker_move) g_frame.marker_move(mk, c.place);
+  else note("marker.vt+0x18", mk);
+}
+
 // The cursor on the marker, put at the mode's place and shown.
 void cursor_on_marker(PocketControls& c, PocketPanel* p) {
   const zgame::Handle mk = pocket_globals().marker;
@@ -596,8 +606,11 @@ void cursor_on_marker(PocketControls& c, PocketPanel* p) {
 }
 }  // namespace
 
+// Pirate's Moon 1.0 @ 0x0046b980 under zgame's pocket_frame_pm: the marker on the ground (marker_to_ground), never
+// shown or hidden here, +0x1c0/+0x1c1 set on a pick too, and no target alone re-picking nothing.
 void pocket_frame(PocketControls& c, float dt) {
   (void)dt;
+  const bool pm = zgame::game().pocket_frame_pm;
   auto* p = static_cast<PocketPanel*>(c.panel);
   Mech* player = c.owner;
   const zgame::Handle hud = player && g_frame.view_hud ? g_frame.view_hud(*player) : 0;
@@ -644,7 +657,15 @@ void pocket_frame(PocketControls& c, float dt) {
         const zgame::Handle t = g_calls.node_entity ? g_calls.node_entity(c.x164) : e;
         if (g_frame.pick_target) g_frame.pick_target(*player, t);
         else note("0x004a7b40", t);
-        if (!pocket_globals().cursor) {
+        if (pm) {
+          c.x1c0 = 0;
+          c.x1c1 = !pocket_globals().cursor;
+          if (c.x1c1) {  // a bare spot: the marker there
+            c.x164 = node_of(mk);
+            name_cursor(p, mk);
+            if (mk) marker_to_ground(c, mk);
+          }
+        } else if (!pocket_globals().cursor) {
           cursor_on_marker(c, p);  // a bare spot: the marker there
         } else if (mk) {
           marker_on(false);  // (even when the cursor is the marker)
@@ -660,10 +681,10 @@ void pocket_frame(PocketControls& c, float dt) {
         c.x164 = node_of(e);
         c.cursor_pos = g_frame.entity_place ? g_frame.entity_place(e) : nullptr;
         name_cursor(p, e);
-        if (e && mk && e != mk) marker_on(false);
+        if (!pm && e && mk && e != mk) marker_on(false);
       } else {
         moved = false;
-        if (!target) c.x1c0 = 0, moved = true;
+        if (!target && !pm) c.x1c0 = 0, moved = true;
         if (net && c.net_element != net) {
           c.net_element = net;
           c.x1c0 = 1, c.x1c1 = 0;
@@ -672,12 +693,14 @@ void pocket_frame(PocketControls& c, float dt) {
             c.x164 = node_of(e);
             c.cursor_pos = g_frame.entity_place ? g_frame.entity_place(e) : nullptr;
             name_cursor(p, e);
-            if (mk && e != mk) marker_on(false);
+            if (!pm && mk && e != mk) marker_on(false);
           } else {
             c.x164 = node_of(mk);
             c.cursor_pos = g_frame.net_place ? g_frame.net_place(net) : nullptr;
             name_cursor(p, mk);
-            if (mk) {
+            if (mk && pm) {
+              marker_to_ground(c, mk);
+            } else if (mk) {
               if (g_frame.marker_move) g_frame.marker_move(mk, c.cursor_pos);
               marker_on(true);
             }
@@ -686,7 +709,10 @@ void pocket_frame(PocketControls& c, float dt) {
         }
       }
     }
-    if (moved) p->picked(0, p->places);
+    if (moved) {
+      if (g_frame.lines_picked) g_frame.lines_picked(p, 0, p->places);
+      else p->picked(0, p->places);
+    }
   }
   c.aim = target ? *target : ai::Contact{};  // the template 0x005e9d10
   switch (c.x148) {
