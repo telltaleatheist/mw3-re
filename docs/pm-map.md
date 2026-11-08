@@ -567,7 +567,12 @@ functions PM changed, and PM's new ones.
        0x7fffffff, 0x7fffffff): about 1,960 instructions over MSVC
        std::map/set (0x573100..0x576ba0), building triangle strips (0x2000)
        of polygons with UVs and normals. In software, a model with 0x80
-       goes back through 0x5726f0. The port keeps the file's form. It is
+       goes back through 0x5726f0. The port keeps the file's form. But
+       the file itself has strips (0x2000) in its ground, and the crater's
+       clip (0x528920, 0x5290b0) unstrips its source with 0x5726f0 before
+       reading it: ported as `pm::zmod::model_unstrip` (2026-11-08; read
+       whole as one polygon, a strip's zigzag clipped into spikes and holes,
+       pm-tests item 11). It is
        exactly PM's under Direct3D for every shipped world: 0x570b70 acts
        only on a model of type 0 with polygons, and every shipped model
        without 0x80 that has polygons is a facade (type 1; 645 in the 4

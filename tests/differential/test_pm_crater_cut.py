@@ -9,6 +9,8 @@ most: 1 of the 1,116 cuts here does, a ground piece's two coplanar triangles spl
     cmake --build build --target pmprobe && .venv/bin/python tests/differential/test_pm_crater_cut.py [cases]
 
 Compared: results, the outline as the clip left it, every model field. BREAK=1 changes one UV of the port's input.
+Strips (0x2000) in half the clip cases' ground, a row each, some with a repeated point: the clip unstrips its source
+first (0x5726f0, pm::zmod::model_unstrip), and the source is compared after too (pm-tests item 11).
 Untested here: a polygon without UVs (a random material through the material pool); test_pm_mission shows no shipped
 ground has one. clip_cell, commit and the crater's own polygons are MW3's logic on these, seen in the mission test.
 """
@@ -183,11 +185,11 @@ class Exe:
                 uvs.append(self.put(farr(c['uvs'][uv_at:uv_at + 2 * n])))
                 mats.append(self.mats + 0x2c * ((i + j) % 3))
                 uv_at += 2 * n
-            f = n | (c['flags'][i] & 3) << 10 | (0x1000 if c['normals'] else 0)
+            f = n | (c['flags'][i] & 3) << 10 | (0x1000 if c['normals'] else 0) | (0x2000 if c['flags'][i] & 4 else 0)
             self.cpu.write(polys + 0x28 * i, struct.pack('<10I', f, i, ix, ix if c['normals'] else 0, c['mc'][i],
                                                          self.put(struct.pack(f'<{len(mats)}I', *mats)),
                                                          self.put(struct.pack(f'<{len(uvs)}I', *uvs)),
-                                                         cp + 12 * at, self.alloc(4 * n), 0xffffff00))
+                                                         self.put(farr(c['colors'][at * 3:(at + n) * 3])), self.alloc(4 * n), 0xffffff00))
             at += n
         m = self.alloc(0x68)
         self.cpu.write(m + 0x10, struct.pack('<III', len(c['nv']), total, total if c['normals'] else 0))
@@ -202,6 +204,7 @@ class Exe:
         o.append(k)
         o += self.u32(self.u32(p + 4)[0], 3 * k)
         self.dump(self.u32(out)[0], o)
+        self.dump(m, o)  # the source, as the clip's unstrip (0x5726f0) left it
         return o
 
 
@@ -257,21 +260,30 @@ def clip_case(r):
     c = dict(nv=[], mc=[], flags=[], pts=[], uvs=[], colors=[], normals=[])
     with_nrm = r.random() < .4
     x0, z0 = r.uniform(-100, 100), r.uniform(-100, 100)
-    for i in range(cols):
-        for j in range(rows):
-            corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
-            if r.random() < .5:  # two triangles
-                polys = [corners[:3], [corners[0], corners[2], corners[3]]]
-            else:
-                polys = [corners]
-            for q in polys:
+    strips = r.random() < .5  # rows as Direct3D strips (0x2000), as PM's ground has them: unstripped by the clip (0x5726f0)
+    for j in range(rows):
+        if strips and r.random() < .7:
+            row = [[(i, j + 1) if k % 2 == 0 else (i, j) for i in range(cols + 1) for k in (0, 1)]]
+            if r.random() < .3 and len(row[0]) > 4:  # a repeated point, as the shipped strips join
+                k = r.randrange(1, len(row[0]) - 1)
+                row[0].insert(k, row[0][k])
+            cells = [(q, 4) for q in row]
+        else:
+            cells = []
+            for i in range(cols):
+                corners = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
+                if r.random() < .5:  # two triangles
+                    cells += [(corners[:3], 0), ([corners[0], corners[2], corners[3]], 0)]
+                else:
+                    cells += [(corners, 0)]
+        for q, strip in cells:
                 n = len(q)
                 for u, v in q:
                     x, z = x0 + u * size, z0 + v * size
                     c['pts'] += [x, a * (x - x0) + b * (z - z0) + h, z]
                 c['nv'].append(n)
                 c['mc'].append(r.randrange(1, 3))
-                c['flags'].append(r.randrange(4))
+                c['flags'].append(r.randrange(4) | strip)
                 c['uvs'] += [r.uniform(-3, 3) for _ in range(2 * n * c['mc'][-1])]
                 c['colors'] += [r.uniform(0, 255) for _ in range(3 * n)]
                 if with_nrm:
@@ -312,7 +324,7 @@ def main():
         probe.probe_pm_set_fpu53(1 if cw == 0x027f else 0)
         e = Exe(cw)
         kinds = {}
-        cut = whole = near_cases = near_words = flips = 0
+        cut = whole = near_cases = near_words = flips = strips = 0
         for seed in range(cases):
             r = random.Random(seed)
             precision = r.choice([0.001, 0.005])
@@ -325,6 +337,7 @@ def main():
                 b, left = port(0, c, precision, brk)
             else:
                 c = clip_case(r)
+                strips += any(f & 4 for f in c['flags'])
                 a = e.clip(c)
                 b, left = port(1, c, precision, brk)
                 if a[0] == 1:
@@ -346,7 +359,7 @@ def main():
               f'floats within 1e-3 but not equal in {near_cases} cases ({near_words} words), other branch in {flips} cuts')
         if flips > cases // 500:
             sys.exit(f'{flips} cuts took another branch: more than before')
-        pm_floors.floors(cut=(cut, cases // 8), big=(kinds.get('big', 0), cases // 16), bent=(kinds.get('bent', 0), cases // 16))
+        pm_floors.floors(strips=(strips, cases // 8), cut=(cut, cases // 8), big=(kinds.get('big', 0), cases // 16), bent=(kinds.get('bent', 0), cases // 16))
 
 
 if __name__ == '__main__':

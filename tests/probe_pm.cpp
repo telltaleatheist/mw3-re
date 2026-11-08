@@ -3699,24 +3699,36 @@ extern "C" int32_t probe_pm_crater(int32_t op, int32_t np, const int32_t* nv, co
     for (int32_t i = 0; i < np; ++i) total += nv[i];
     src.vertices = const_cast<float*>(pts), src.normals = const_cast<float*>(normals);
     put(0x10, np), put(0x14, total), put(0x18, normals ? total : 0);
-    std::vector<pm::zmod::Polygon> polys(static_cast<size_t>(np));
-    std::vector<std::vector<uint32_t>> index(static_cast<size_t>(np));
-    std::vector<std::vector<::zmod::Material*>> ml(static_cast<size_t>(np));
-    std::vector<std::vector<float*>> uv(static_cast<size_t>(np));
-    float* u = const_cast<float*>(uvs);
+    // As the game's models hold them (the clip's unstrip, 0x005726f0, reallocates and appends): the polygons by new[],
+    // each one's arrays its own (malloc).
+    auto* polys = new pm::zmod::Polygon[static_cast<size_t>(np)]{};
+    const float* u = uvs;
     int32_t at = 0;
     for (int32_t i = 0; i < np; ++i) {
-      const size_t k = static_cast<size_t>(i);
-      pm::zmod::Polygon& q = polys[k];
-      for (int32_t v = 0; v < nv[i]; ++v) index[k].push_back(static_cast<uint32_t>(at + v));
-      for (int32_t j = 0; j < mc[i]; ++j, u += 2 * nv[i]) ml[k].push_back(&mats[(i + j) % 3]), uv[k].push_back(u);
-      q.flags = static_cast<uint32_t>(nv[i]) | (static_cast<uint32_t>(flags[i]) & 3) << 10 | (normals ? 0x1000u : 0u);
-      q.priority = i, q.vertex_indices = index[k].data(), q.normal_indices = normals ? index[k].data() : nullptr;
-      q.material_count = mc[i], q.materials = ml[k].data(), q.uvs = uv[k].data();
-      q.colors = const_cast<float*>(colors) + 3 * at, q.zone_set = 0xffffff00u;
+      pm::zmod::Polygon& q = polys[i];
+      const size_t n = static_cast<size_t>(nv[i]);
+      q.vertex_indices = static_cast<uint32_t*>(std::malloc(4 * n));
+      for (size_t v = 0; v < n; ++v) q.vertex_indices[v] = static_cast<uint32_t>(at) + static_cast<uint32_t>(v);
+      if (normals) {
+        q.normal_indices = static_cast<uint32_t*>(std::malloc(4 * n));
+        std::memcpy(q.normal_indices, q.vertex_indices, 4 * n);
+      }
+      q.materials = static_cast<::zmod::Material**>(std::malloc(sizeof(void*) * static_cast<size_t>(mc[i])));
+      q.uvs = static_cast<float**>(std::malloc(sizeof(float*) * static_cast<size_t>(mc[i])));
+      for (int32_t j = 0; j < mc[i]; ++j, u += 2 * nv[i]) {
+        q.materials[j] = &mats[(i + j) % 3];
+        q.uvs[j] = static_cast<float*>(std::malloc(8 * n));
+        std::memcpy(q.uvs[j], u, 8 * n);
+      }
+      q.flags = static_cast<uint32_t>(nv[i]) | (static_cast<uint32_t>(flags[i]) & 3) << 10 | (normals ? 0x1000u : 0u) |
+                (flags[i] & 4 ? 0x2000u : 0u);
+      q.priority = i, q.material_count = mc[i], q.zone_set = 0xffffff00u, q.file_uvs = 1;
+      q.colors = static_cast<float*>(std::malloc(12 * n));
+      std::memcpy(q.colors, colors + 3 * at, 12 * n);
+      q.scratch = static_cast<uint32_t*>(std::calloc(n, 4));
       at += nv[i];
     }
-    src.polygons = polys.data();
+    src.polygons = polys;
     zgeo::ClipPolygon* c = zgeo::clip_polygon_new(outline, no);
     c->weiler = zgeo::weiler_new(c->points.data(), c->count, 0);
     pm::zmod::Model* made = nullptr;
@@ -3725,8 +3737,16 @@ extern "C" int32_t probe_pm_crater(int32_t op, int32_t np, const int32_t* nv, co
     o.push_back(static_cast<uint32_t>(c->count));
     for (float f : c->points) { uint32_t v; std::memcpy(&v, &f, 4); o.push_back(v); }
     dump_model(made, mats, o);
+    dump_model(&src, mats, o);  // the source, as the clip's unstrip left it
     if (made) pm::zmod::model_release(made);
     zgeo::clip_polygon_free(c);
+    for (int32_t i = 0; i < src.count(0x10); ++i) {
+      pm::zmod::Polygon& q = src.polygons[i];
+      std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.materials), std::free(q.colors), std::free(q.scratch);
+      for (int32_t j = 0; j < q.material_count && q.uvs; ++j) std::free(q.uvs[j]);
+      std::free(q.uvs);
+    }
+    delete[] src.polygons;
     src = pm::zmod::Model{};
   }
   o.push_back(static_cast<uint32_t>(pool.count - before));
