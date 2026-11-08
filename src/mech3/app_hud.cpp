@@ -1457,3 +1457,16 @@ bool program_hud_power_state(void* mech, bool* on, bool* reticle_shown) {
   return true;
 }
 }  // namespace mech3
+namespace mech3 {
+// Tests (pm-tests item 25): the view mech's reticle lock state (0..4, 3 locked) and its timer, set first when
+// `set` >= 0; and whether its weapons may lock (the manager's +0x88).
+int32_t program_reticle_lock(int32_t set, float timer, bool* has_target) {
+  Mech* m = program_view_mech();
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  *has_target = false;
+  if (!h) return -1;
+  if (set >= 0) h->reticle.lock = set, h->reticle.lock_timer = timer;
+  if (auto* wm = static_cast<WeaponManager*>(m->ammo)) *has_target = wm->has_target;
+  return h->reticle.lock;
+}
+}  // namespace mech3

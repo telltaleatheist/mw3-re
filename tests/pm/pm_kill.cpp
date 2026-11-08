@@ -431,3 +431,6 @@ float pm_knock(void* mech, float* threshold, int* state) {
   *state = m->anim_state;
   return m->knock;
 }
+
+// pm-tests item 25: a player command (the keys' Mech::command, e.g. 0x48 E, the next enemy).
+void pm_command(void* player, int32_t cmd) { static_cast<Mech*>(player)->command(cmd); }

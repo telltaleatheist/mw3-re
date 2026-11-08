@@ -364,6 +364,7 @@ float pm_mech_toughness(void* mech, bool* invincible);
 bool pm_cheat(void* player, const char* text);
 bool pm_headlight(void* player, bool on, float at[3]);
 float pm_knock(void* mech, float* threshold, int* state);
+void pm_command(void* player, int32_t cmd);
 void pm_kill_left(void* mech, char* out, size_t n);
 void pm_kill_ray(const float from[3], const float to[3]);
 uint32_t pm_kill_root_flags(void* mech);
@@ -703,6 +704,25 @@ static void kill_run(const char* which, bool quick) {
       float at[3] = {};
       if (++t == 2 || t == 60) std::printf("  headlight: %d at %.0f %.0f %.0f\n", pm_headlight(player, true, at), at[0], at[1], at[2]);
       if (t < 60) return;
+    }
+    // pm-tests item 25: the player 200 m from this mech, it targeted and the reticle locked at frame 30; at 60
+    // E (the next enemy) and the lock logged each frame after.
+    if (std::getenv("PM_LOCK")) {
+      static int t = 0;
+      ++t;
+      bool has = false;
+      if (t == 2) {
+        const float to[3] = {there[0] + 200.0f, pm_kill_ground(there[0] + 200.0f, 300.0f, there[2]), there[2]};
+        mech3::move_mech(player, to, static_cast<float>(std::atan2(200.0, 0.0)));
+      }
+      if (t == 30) mech3::program_hud_target(m, 0), mech3::program_reticle_lock(3, 3.5f, &has);
+      if (t == 60) pm_command(player, 0x48);
+      if (t >= 58 && t <= 110 && (t < 64 || t % 4 == 0)) {
+        const int32_t lock = mech3::program_reticle_lock(-1, 0, &has);
+        std::printf("  lock t %d: state %d weapons may lock %d\n", t, lock, has);
+      }
+      if (t == 110) done = true;
+      return;
     }
     if (std::getenv("PM_LIGHTS")) {  // every world light: active, its parents, its world place (pm-tests item 20)
       auto* wn = static_cast<zcls::Node*>(mech3::world_hooks().world);
