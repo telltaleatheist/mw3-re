@@ -323,8 +323,8 @@ std::unique_ptr<ObjectiveGroup> make_group(const char* desc) { return std::make_
 
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0045c810: the "node" list's first name among the world's
-// nodes (zClass list 6), then each further name inside the last.
+// Pirate's Moon 1.0 @ 0x0045daf0 (MW3's 0x0045c810): the "node" list's first name among the world's
+// nodes (zClass list 6), then each further name inside the last. Its reports name PM's source lines.
 Handle find_node(Node* args, ObjectiveHooks& h) {
   Node* v = zrdr::find(args, "node");
   if (!v || v->type != zrdr::List) return 0;
@@ -333,12 +333,12 @@ Handle find_node(Node* args, ObjectiveHooks& h) {
   if (n < 2) return 0;
   const char* first = v->list[1].s;
   Handle node = h.node_find(first);
-  if (!node) h.report(0x200, 0x189, "Failed to find node (%s)", first, 0);
+  if (!node) h.report(0x200, 0x18c, "Failed to find node (%s)", first, 0);
   for (int32_t i = 2; i < n; ++i) {
     if (!node) return 0;
     const char* name = v->list[i].s;
     Handle sub = h.subnode_find(node, name);
-    if (!sub) h.report(0x200, 0x192, "Failed to find subnode (%s) of root (%s)", name, node);
+    if (!sub) h.report(0x200, 0x195, "Failed to find subnode (%s) of root (%s)", name, node);
     node = sub;
   }
   return node;
@@ -620,9 +620,12 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
     for (int32_t i = 0; i < n; ++i)
       if (auto c = parse_condition(&list->list[1 + 2 * i], h)) g->items.push_back(std::move(c));
     if (g->items.empty()) return nullptr;
-    if (Node* fl = zrdr::find(args, "fails"))  // Pirate's Moon 1.0 @ 0x0045ee5e..
+    Node* fl = zrdr::find(args, "fails");  // Pirate's Moon 1.0 @ 0x0045ee5e..
+    if (fl && (count_of(fl) - 1) / 2 > 0) {
+      (void)nav_of(args, h);  // 0x0045dbd0 again, its answer unused
       for (int32_t i = 0; i < (count_of(fl) - 1) / 2; ++i)
         if (auto c = parse_condition(&fl->list[1 + 2 * i], h)) g->fails.push_back(std::move(c));
+    }
     if (nav) g->nav = nav;
     obj = std::move(g);
   } else {
@@ -642,9 +645,9 @@ std::unique_ptr<Objective> parse_condition(Node* slot, ObjectiveHooks& h) {
   return obj;
 }
 
-// Mech3.exe 1.2 @ 0x0045bf60: the block's `key` list into `out` (made when
-// it has conditions, kept only when one reads); its own desc, sound, visible
-// and silent.
+// Pirate's Moon 1.0 @ 0x0045d280 (MW3's 0x0045bf60): the block's `key` list into `out` (made when it has
+// conditions, kept only when one reads); its own desc, sound, fail sound (new), visible and silent. Both sounds
+// are looked up whether named or not (MW3's only a named one).
 void read_group(Node* block, const char* key, const char* default_desc, std::unique_ptr<ObjectiveGroup>& out,
                 ObjectiveHooks& h) {
   if (!block) return;
@@ -653,6 +656,7 @@ void read_group(Node* block, const char* key, const char* default_desc, std::uni
   const char* desc = h.localize(zrdr::get_string_flat(v, "desc", 1));
   if (!desc) desc = default_desc;
   const char* sound = zrdr::get_string_flat(v, "sound", 1);
+  const char* fail_sound = zrdr::get_string_flat(v, "fail_sound", 1);
   int32_t visible = 0, silent = 0;
   Node* vis = zrdr::find_flat(v, "visible", 1);
   if (vis) zrdr::get_bool_int(vis, &visible);
@@ -669,7 +673,8 @@ void read_group(Node* block, const char* key, const char* default_desc, std::uni
   }
   if (vis) out->visible = visible == 1;
   if (sil) out->silent = silent == 1;
-  if (sound) out->sound = h.sound_find(sound);
+  out->sound = h.sound_find(sound);
+  out->fail_sound = h.sound_find(fail_sound);
 }
 
 // Mech3.exe 1.2 @ 0x0045bc90: a campaign's fail condition: the mobile field
@@ -699,7 +704,7 @@ void add_mobile_hq(const char* desc, std::unique_ptr<ObjectiveGroup>& fail, Obje
   }
 }
 
-// Mech3.exe 1.2 @ 0x0045c340
+// Pirate's Moon 1.0 @ 0x0045d620 (MW3's 0x0045c340)
 bool read_objectives(Node* block, Objectives& o, ObjectiveHooks& h) {
   if (!block) return false;
   Node* d = zrdr::find_flat(block, "desc", 1);
@@ -719,12 +724,12 @@ bool read_objectives(Node* block, Objectives& o, ObjectiveHooks& h) {
   return n > 0;
 }
 
-// Mech3.exe 1.2 @ 0x0045c2d0
+// Pirate's Moon 1.0 @ 0x00435150, its callers' load (MW3's 0x0045c2d0): the tree freed whether the block was
+// found or not (MW3's kept it when not).
 bool objectives_load(const char* file, const char* block, Objectives& o, ObjectiveHooks& h, const char* dir) {
   Node* root = h.load(file);
   if (!root) return false;
   Node* b = zrdr::find(root, block);
-  if (!b) return false;  // the tree is not freed (original)
   const bool ok = read_objectives(b, o, h);
   h.free_tree(root);
   if (dir && zfix::options().bugs) fix_objective_data(dir, block, o, h);
