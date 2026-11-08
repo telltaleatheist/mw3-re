@@ -13,6 +13,7 @@
 #include "mech3/mech_fieldbase.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zdeclient/zdec_init.h"
+#include "mech3/mech_headlight.h"
 #include "mech3/mech_parts.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "crt/msvc_math.h"
@@ -31,6 +32,26 @@
 #include "mech3/weapon.h"
 
 namespace mech3 {
+
+// The state's flags word (+0x38), Pirate's Moon's layout: its motion state has 4 bits where MW3's has 5, so every
+// field above it is one bit lower than MW3's, and bit 31 is the headlight (docs/pm-map.md, the in-game types).
+// Pirate's Moon 1.0 @ 0x00471573..0x00471743 (the packing in 0x00471040), read by 0x004705e0.
+namespace state_bits {
+constexpr uint32_t kMotion = 2, kMotionMask = 0xf;  // MW3 2, 0x1f
+constexpr uint32_t kAction = 6;      // MW3 7
+constexpr uint32_t kLimp = 10;       // 11
+constexpr uint32_t kShots = 11;      // 12
+constexpr uint32_t kParts = 18;      // 19
+constexpr uint32_t kPassive = 22;    // 23
+constexpr uint32_t kDown = 23;       // 24
+constexpr uint32_t kMasc = 24;       // 25
+constexpr uint32_t kAms = 25;        // 26
+constexpr uint32_t kNarc = 26;       // 27
+constexpr uint32_t kJump = 29;       // 30
+constexpr uint32_t kCrouch = 30;     // 31
+constexpr uint32_t kHeadlight = 31;  // new: the torso's headlight on (0x0041f920, 0x00465df0, 0x00479940)
+}  // namespace state_bits
+
 
 namespace {
 NetGame g_net;
@@ -54,6 +75,18 @@ void call(NetRoute fn, NetMech* m, uint32_t from, const uint8_t* msg, size_t siz
 
 NetGame& net_game() { return g_net; }
 NetCalls& net_calls() { return g_calls; }
+
+namespace {
+// 0x0041f920 (0x00465df0: the torso's headlight, 0x00479940) and 0x0041f8d0 (0x00465da0 with a fade).
+bool headlight_on(Mech& m) {
+  if (g_calls.light_on) return g_calls.light_on(m);
+  return m.torso && m.torso->headlight && m.torso->headlight->active();
+}
+void headlight_turn(Mech& m, bool on) {
+  if (g_calls.light_turn) return g_calls.light_turn(m, on);
+  if (m.torso && m.torso->headlight) m.torso->headlight->turn(on, true);
+}
+}  // namespace
 
 NetMech* net_mech(uint32_t owner) {
   for (NetMech* m : g_net.mechs)
@@ -226,24 +259,25 @@ std::vector<uint8_t> net_state_message(Mech& m) {
   put_f(b, 0x28, turn[0]);
   put_f(b, 0x2c, turn[1]);
   put_f(b, 0x30, range);
-  // The flags: 0 nothing struck last, 1 inactive, 2-6 the motion state, 7-10
-  // the first action, 11 limping, 12-18 the shots, 19-22 the parts, 23
-  // passive, 24 powered down, 25 MASC, 26 the AMS on, 27 NARCed, 30 jumping,
-  // 31 crouched (docs/network-messages.md).
+  // The flags (state_bits, Pirate's Moon's): 0 nothing struck last, 1 inactive, then the motion state, the first
+  // action, limping, the shots, the parts, passive, powered down, MASC, the AMS on, NARCed, jumping, crouched and
+  // the headlight on (docs/network-messages.md; docs/pm-map.md for PM's places).
+  using namespace state_bits;
   uint32_t f = m.collider.clear == 0 ? 1u : 0u;
   f |= (m.active ? 0u : 1u) << 1;
-  f |= (static_cast<uint32_t>(m.anim_state) & 0x1f) << 2;
-  f |= (m.actions.empty() ? 0u : static_cast<uint32_t>(m.actions.front()) & 0xf) << 7;
-  f |= (m.limp != 0 ? 1u : 0u) << 11;  // -1 (none) too
-  f |= (shots & 0x7f) << 12;
-  f |= (parts & 0xf) << 19;
-  f |= ((m.xbc >> 2 & 1) != 0 ? 1u : 0u) << 23;  // passive radar
-  f |= (m.is_powered_down() ? 1u : 0u) << 24;  // vt+0xa0
-  f |= (m.masc_time != 0.0f ? 1u : 0u) << 25;
-  f |= (m.ams && m.ams->on ? 1u : 0u) << 26;
-  f |= (m.narc_time > 0.0f ? 1u : 0u) << 27;
-  f |= (ctl && ctl->jump != 0.0f ? 1u : 0u) << 30;  // IControls vt+0x38
-  f |= (m.crouched ? 1u : 0u) << 31;
+  f |= (static_cast<uint32_t>(m.anim_state) & kMotionMask) << kMotion;
+  f |= (m.actions.empty() ? 0u : static_cast<uint32_t>(m.actions.front()) & 0xf) << kAction;
+  f |= (m.limp != 0 ? 1u : 0u) << kLimp;  // -1 (none) too
+  f |= (shots & 0x7f) << kShots;
+  f |= (parts & 0xf) << kParts;
+  f |= ((m.xbc >> 2 & 1) != 0 ? 1u : 0u) << kPassive;  // passive radar
+  f |= (m.is_powered_down() ? 1u : 0u) << kDown;  // vt+0xa0 (PM's +0xac)
+  f |= (m.masc_time != 0.0f ? 1u : 0u) << kMasc;
+  f |= (m.ams && m.ams->on ? 1u : 0u) << kAms;
+  f |= (m.narc_time > 0.0f ? 1u : 0u) << kNarc;
+  f |= (ctl && ctl->jump != 0.0f ? 1u : 0u) << kJump;  // IControls vt+0x38
+  f |= (m.crouched ? 1u : 0u) << kCrouch;
+  f |= (headlight_on(m) ? 1u : 0u) << kHeadlight;
   put32(b, 0x38, f);
   put32(b, 0x34, c.target_player ? c.target_player(m) : 0);
   size_t at_shot = 0x3c;
@@ -507,7 +541,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
     m.heading_q[1] = 0.0f;
     m.heading_q[2] = static_cast<float>(std::sin(static_cast<double>(st.heading)));
     m.heading_q[3] = 0.0f;
-    const uint8_t passive = static_cast<uint8_t>(st.flags >> 23 & 1);
+    const uint8_t passive = static_cast<uint8_t>(st.flags >> state_bits::kPassive & 1);
     if (passive != (m.xbc >> 2 & 1)) {
       m.xbc = static_cast<uint8_t>((m.xbc & ~4) | passive << 2);
       if (c.radar_toggled) c.radar_toggled(m);  // vt+0xb8
@@ -523,7 +557,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
     uint16_t full;
     std::memcpy(&full, msg + 2, 2);
     if (full > 0x3c && full <= size) {
-      const uint32_t shots = st.flags >> 12 & 0x7f, parts = st.flags >> 19 & 0xf;
+      const uint32_t shots = st.flags >> state_bits::kShots & 0x7f, parts = st.flags >> state_bits::kParts & 0xf;
       const uint8_t* shot = shots ? msg + 0x3c : nullptr;
       const uint8_t* part = shots == 0 ? msg + 0x3c : shots + 0x3c < full ? msg + 0x3c + shots : nullptr;
       if (!inactive && shot) {
@@ -552,16 +586,19 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
       }
     }
   }
+  using namespace state_bits;
   const uint32_t f = st.flags;
-  const bool down = (f >> 24 & 1) != 0;
+  const bool down = (f >> kDown & 1) != 0;
   if (down && !m.is_powered_down()) mech_do(m, 0x41cc30, 1);  // vt+0xa0
   else if (!down && m.is_powered_down()) mech_do(m, 0x41cc30, 0);
-  if (m.ams) m.ams->on = (f >> 26 & 1) != 0;
-  if ((f >> 25 & 1) != (m.masc_time != 0.0f ? 1u : 0u)) mech_do(m, 0x41df50, static_cast<int32_t>(f >> 25 & 1));
-  if ((f >> 27 & 1) != (m.narc_time > 0.0f ? 1u : 0u)) mech_do(m, 0x41ac10, static_cast<int32_t>(f >> 27 & 1));
-  if ((m.crouched ? 1u : 0u) != (f >> 31)) mech_do(m, 0x41bda0, static_cast<int32_t>(f >> 31));
-  if (m.controls) m.controls->set_jump((f >> 30 & 1) ? 1.0f : 0.0f);
-  const int32_t state = static_cast<int32_t>(f >> 2 & 0x1f);
+  if (m.ams) m.ams->on = (f >> kAms & 1) != 0;
+  if ((f >> kMasc & 1) != (m.masc_time != 0.0f ? 1u : 0u)) mech_do(m, 0x41df50, static_cast<int32_t>(f >> kMasc & 1));
+  if ((f >> kNarc & 1) != (m.narc_time > 0.0f ? 1u : 0u)) mech_do(m, 0x41ac10, static_cast<int32_t>(f >> kNarc & 1));
+  if ((m.crouched ? 1u : 0u) != (f >> kCrouch & 1)) mech_do(m, 0x41bda0, static_cast<int32_t>(f >> kCrouch & 1));
+  // Pirate's Moon 0x004705e0: the headlight follows its bit (0x0041f920, then 0x0041f8d0 on the torso's, 0x00465da0).
+  if (headlight_on(m) != ((f >> kHeadlight & 1) != 0)) headlight_turn(m, (f >> kHeadlight & 1) != 0);
+  if (m.controls) m.controls->set_jump((f >> kJump & 1) ? 1.0f : 0.0f);
+  const int32_t state = static_cast<int32_t>(f >> kMotion & kMotionMask);
   bool respawn = false;
   if (m.anim_state != state) {
     switch (m.anim_state) {
@@ -569,7 +606,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
         if (state != 1 && static_cast<uint32_t>(state) < 9) mech_do(m, 0x415a90, 0);
         break;
       case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:
-        if (state == 0) mech_do(m, 0x41d5f0, static_cast<int32_t>(f >> 11 & 1));
+        if (state == 0) mech_do(m, 0x41d5f0, static_cast<int32_t>(f >> kLimp & 1));
         break;
       case 10: respawn = true; break;
       case 12: if (state <= 9) mech_do(m, 0x416780, 6); break;

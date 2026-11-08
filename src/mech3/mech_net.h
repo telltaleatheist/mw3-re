@@ -233,6 +233,9 @@ struct NetCalls {
   // limp's end, 0x0041d5f0 its start, 0x00416780 an action), the weapons'
   // aim (0x004b0bc0) and replayed shots (0x004b08c0);
   void (*mech_call)(NetMech& m, uint32_t fn, int32_t arg) = nullptr;
+  // Pirate's Moon's headlight in the state (bit 31): on (0x0041f920) and turned (0x0041f8d0); unset, the torso's.
+  bool (*light_on)(Mech& m) = nullptr;
+  void (*light_turn)(Mech& m, bool on) = nullptr;
   void (*aim)(NetMech& m, const float at[3]) = nullptr;
   void (*fire)(NetMech& m, uint32_t slot, uint32_t target, int32_t trigger) = nullptr;
   // ... and 0x004259c0, Validate 0x004254d0, the skin 0x00414390.
