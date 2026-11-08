@@ -133,20 +133,38 @@ class WiredSidePm final : public BrainSidePmHooks {
   bool state_allows(zgame::Handle state) override {
     return static_cast<BehaviourState*>(pm_ptr(state))->may_break_in();
   }
-  float clock() override { return none<float>("[0x008c1b50]"); }
+  float clock() override { return h.now(); }  // [0x008c1b50], another clock than [0x0062da90]: the attackers' own clock here
   void push_behaviour(int32_t which) override {  // 0x004fa170 of [0x00627cf8] (0) or [0x00627ce8] (1), as MW3's pair
     pm_push_behaviour(b, brain_hooks().manoeuvre_behaviour(which));
   }
-  uint32_t allies(zgame::Handle) override { return none<uint32_t>("vehicle+0xc4"); }
-  uint32_t team(zgame::Handle) override { return none<uint32_t>("attacker.vt+0x28"); }
-  zgame::Handle attacker_vehicle(zgame::Handle) override { return none<zgame::Handle>("attacker.vt+0x58"); }
+  uint32_t allies(zgame::Handle v) override {
+    const AiTarget* t = h.targetable(v);
+    return t ? t->allies : 0;
+  }
+  uint32_t team(zgame::Handle a) override {
+    const AiTarget* t = h.targetable(a);
+    return t ? t->team : 0;
+  }
+  zgame::Handle attacker_vehicle(zgame::Handle a) override { return h.vehicle_mech(a); }  // as MW3's 0x004ea520 asks
   zgame::Handle player_vehicle() override { return h.player_vehicle(); }
-  zgame::Handle player_contact(zgame::Handle) override { return none<zgame::Handle>("vehicle+0x98"); }
+  zgame::Handle player_contact(zgame::Handle v) override {
+    const AiTarget* t = h.targetable(v);
+    return t ? pm_id(t->player_contact) : 0;
+  }
   float dist2(zgame::Handle c) override { return static_cast<Contact*>(pm_ptr(c))->dist2; }
   void radio_line(int32_t slot) override { h.radio_line(b, slot / 4); }
-  const float* hit_record(zgame::Handle) override { return none<const float*>("0x004b2900"); }
+  // 0x004b2900(v, 1): the attacker's damage, last and first hit, three floats in a row.
+  const float* hit_record(zgame::Handle v) override {
+    AttackerPm* a = pm_brain(b).attackers.find(v, true, h.now());
+    return a ? &a->sum : nullptr;
+  }
   void allies_turn() override { h.allies_turn(); }
-  void hit_base(int32_t, int32_t, int32_t, zgame::Handle) override { pm_hook_missing("0x004b2a00"); }
+  // 0x004b2a00: the attacker list's add (0x004b2740, the damage its fourth argument), then an ally's hit told to
+  // it, as MW3's 0x004aec90 (which also keeps MW3's one-attacker record, still read by hit_lately).
+  void hit_base(int32_t, int32_t, int32_t, zgame::Handle attacker) override {
+    pm_note_hit(b, attacker, damage);
+    if (hit) controls_hit(*hit, owner, attacker);
+  }
   void died_base() override { pm_hook_missing("0x004b2ab0"); }
   double speed_at(zgame::Handle, float) override { return none<double>("vehicle.vt+0x124"); }
   bool in_world(zgame::Handle) override { return none<bool>("vehicle+0x04"); }
@@ -160,6 +178,11 @@ class WiredSidePm final : public BrainSidePmHooks {
   }
   Brain& b;
   BrainHooks& h;
+
+ public:
+  HitRecord* hit = nullptr;  // a hit's, for hit_base
+  zgame::Handle owner = 0;
+  float damage = 0.0f;
 };
 
 // TickPmHooks on a Brain. Where PM's piece isn't wired, MW3's runs and says so once.
@@ -258,9 +281,19 @@ class WiredTickPm final : public TickPmHooks {
 };
 }  // namespace
 
-void pm_note_hit(Brain& b, zgame::Handle attacker) {
-  pm_hook_missing("the hit's damage");
-  pm_brain(b).attackers.add(attacker, 0.0f, brain_hooks().now());
+void pm_note_hit(Brain& b, zgame::Handle attacker, float damage) {
+  pm_brain(b).attackers.add(attacker, damage, brain_hooks().now());
+}
+
+void pm_on_hit(Brain& b, HitRecord& r, zgame::Handle owner, zgame::Handle attacker, float damage) {
+  WiredSidePm side(b);
+  side.hit = &r, side.owner = owner, side.damage = damage;
+  on_hit_pm(side, pm_brain(b).tick, owner, 0, 0, 0, attacker);
+}
+
+void pm_died(Brain& b) {
+  WiredSidePm side(b);
+  died_pm(side, pm_brain(b).tick);
 }
 zgame::Handle pm_hardest_attacker(Brain& b) { return pm_brain(b).attackers.hardest(brain_hooks().now()); }
 zgame::Handle pm_latest_attacker(Brain& b) { return pm_brain(b).attackers.latest(brain_hooks().now()); }

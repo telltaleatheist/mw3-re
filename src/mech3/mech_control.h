@@ -61,8 +61,9 @@ struct MechControls {
   // IControls vt+0x94 (from Mech::take_damage 0x0041ac60): a hit from
   // `attacker` (the base's 0x004aec90; the AI's 0x004ea520). vt+0x98: it hit
   // an ally, `victim` (nothing but the AI's 0x004ea500). vt+0xa0
-  // (0x004aed40): hit within the last second.
-  virtual void on_hit(void* attacker);
+  // (0x004aed40): hit within the last second. Pirate's Moon's slot (vt+0x8c from 0x0041ba10) also hands on the
+  // weapon, the collision and the damage; its AI keeps the damage (zai_attackers_pm).
+  virtual void on_hit(void* attacker, float damage = 0.0f);
   virtual void hit_an_ally(void* victim) { (void)victim; }  // 0x004bf620
   bool hit_lately() const;
   // vt+0xa4: the pilot's tick (the base's is _purecall; the player's
@@ -166,7 +167,7 @@ struct AiControls : MechControls, ai::BrainControls {
   void smooth(float dt) override { MechControls::smooth(dt); }  // 0x004d89f0
   bool hit_lately() override { return MechControls::hit_lately(); }  // IControls vt+0xa0 0x004aed40
   zgame::Handle attacker() override { return hit.by; }
-  void on_hit(void* attacker) override;       // IControls vt+0x94 0x004ea520
+  void on_hit(void* attacker, float damage = 0.0f) override;  // IControls vt+0x94 0x004ea520
   void hit_an_ally(void* victim) override;    // IControls vt+0x98 0x004ea500
   void tick() override;                       // IControls vt+0xa4 0x004e94f0
   void on_death() override;                   // IControls vt+0xa8 0x004d8d00 -> 0x004d8a00

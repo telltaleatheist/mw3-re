@@ -1298,7 +1298,9 @@ bool AiVehicleControls::destroyed() { return !brain_hooks().entity_active(vehicl
 int AiVehicleControls::update(float dt) { return brain->frame(*this, dt) ? 1 : 0; }
 
 // Mech3.exe 1.2 @ 0x004ea520 (the mechs' AI controls' too).
-void AiVehicleControls::on_hit(void* attacker) { brain->on_hit(hit, vehicle(), brain_hooks().vehicle_handle(attacker)); }
+void AiVehicleControls::on_hit(void* attacker, float damage) {
+  brain->on_hit(hit, vehicle(), brain_hooks().vehicle_handle(attacker), damage);
+}
 
 // Mech3.exe 1.2 @ 0x004aed40: a hit within the last second.
 bool AiVehicleControls::hit_lately() { return hit.within(1.0f, brain_hooks().now()); }
@@ -1392,8 +1394,9 @@ void controls_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
 }
 
 // Mech3.exe 1.2 @ 0x004ea520
-void Brain::on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
-  if (pm_ai_on()) pm_note_hit(*this, attacker);
+void Brain::on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker, float damage) {
+  if (pm_ai_on()) return pm_on_hit(*this, r, owner, attacker, damage);
+  (void)damage;
   BrainHooks& h = brain_hooks();
   controls_hit(r, owner, attacker);
   if (owner == attacker || !attacker) return;
@@ -1408,6 +1411,12 @@ void Brain::on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
   if (h.vehicle_mech(attacker) != h.player_vehicle()) return;
   if (radio) h.radio_line(*this, 8);  // friendly_fire (radio +0x20)
   if (r.run() > 3.0f) h.allies_turn();  // 0x005cd918
+}
+
+// 0x004ea6b0's line (Pirate's Moon's 0x004fbdd0 under PM_AI=1).
+void Brain::died() {
+  if (pm_ai_on()) return pm_died(*this);
+  if (radio) brain_hooks().radio_line(*this, 6);  // ejecting (radio +0x18)
 }
 
 // Mech3.exe 1.2 @ 0x004ea630 (the AI's IControls vt+0xb4, from the kill

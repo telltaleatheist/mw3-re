@@ -111,8 +111,11 @@ TEST(pm_wire_a_hit_reaches_the_attackers) {
   AiParams rec;
   Brain b(&net, rec);
   EXPECT(pm_latest_attacker(b) == 0);
-  pm_note_hit(b, 33);
+  pm_note_hit(b, 33, 5.0f);
   EXPECT(pm_latest_attacker(b) == 33);
+  pm_note_hit(b, 44, 40.0f);
+  pm_note_hit(b, 33, 5.0f);  // 33 again, but 44 has done the most: the damage counts
+  EXPECT(pm_hardest_attacker(b) == 44);
   pm_wire_clear();
   pm_hooks_missing_clear();
 }
