@@ -456,6 +456,8 @@ Both on c1 mission 2 with `PM_AI=1`, next to c1m1, and both by reading so far, n
 
 **Verdict: both wait for the switch.** On MW3's code the jump is a step on a net, and the way finder's link pick is called only by the walking states (MW3 0x4cf140, 0x4cfad0, 0x4d00a0; PM 0x4dcfe0, 0x4ddab0, 0x4de0e0), so a following mech can't take it. Teaching the stand-in's follow to use the link would be a stand-in for what PM's own state does (PM's follow, above). Keep the chase and the jump as named checks. Added to them: nobody walks off the canyon's edge, and Puma takes a target.
 
+**With the switch on, still no jump (Owen, 2026-11-07, `PM_AI=1` at 49701ad8):** "lancemate also still isnt jumping over the canyon with me." That build has PM's follow but not slots 2 and 7 or PM's own steering, so the walk is still MW3's straight line. Next, after slots 9 and 5: the stand-in run above (`PM_M2_ACROSS`, `PM_M2_JETS=4`) with `PM_AI=1`, to find which step fails. Does PM's follow ask the way finder, does the link pick offer the jump link, and does the jump state start?
+
 ## A logger for the exe (2026-11-07, design only: nothing built, nothing on the PC)
 
 What it's for: PM's places and states once a second, to compare by event against the port, and the jump's +0x588 and fuel. The smallest thing that does it is a logging form of `tools/weapon-patch/proxy`.
