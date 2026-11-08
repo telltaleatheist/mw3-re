@@ -1148,16 +1148,20 @@ uint32_t floor0(int32_t kills, int32_t deaths) {
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004361e0: each score kills less suicides, not under 0;
-// a team's the sum of its players'. The order key puts each team's line
-// over its players' (the +1), the teams by score, then the players.
-void MultiplayerGame::rescore() {
-  if (!multiplayer_team_play()) {
+// Pirate's Moon 1.0 @ 0x004374f0 (MW3's 0x004361e0): each score kills less
+// suicides, not under 0; a team's the sum of its players'. The order key puts
+// each team's line over its players' (the +1), the teams by score, then the
+// players. PM: the key's low bits are a player's lobby order (MW3's skin) or a
+// team's third data word, and with `rounds` (every caller but the tally's first
+// pass, 0x00436980) the rounds won (4 bits) sort above the score.
+void MultiplayerGame::rescore(bool rounds) {
+  if (!multiplayer_team_play()) {  // PM [0x0062cc34]
     for (auto& p : lobby_players) {
-      if (!p->score) continue;
+      if (!p->score) continue;  // the exe reads +0x34 unchecked
       const uint32_t s = floor0(p->kills, p->deaths);
+      const uint32_t won = rounds ? (static_cast<uint32_t>(p->rounds) & 0xf) * 0x1000000 : 0;
       p->score->score = static_cast<int32_t>(s);
-      p->score->key = ((static_cast<uint32_t>(p->skin) & 7) + (s & 0xfff) * 8) * 2;
+      p->score->key = ((static_cast<uint32_t>(p->order) & 7) + (won + (s & 0xfff)) * 8) * 2;
     }
     return;
   }
@@ -1173,13 +1177,14 @@ void MultiplayerGame::rescore() {
   }
   for (auto& t : lobby_teams) {
     if (!t->score) continue;
-    const uint32_t ts = static_cast<uint32_t>(t->score->score) & 0xfff, skin = static_cast<uint32_t>(t->skin) & 7;
-    t->score->key = (skin + (ts + ts * 0x1000) * 8) * 2 + 1;
+    const uint32_t ts = static_cast<uint32_t>(t->score->score) & 0xfff, low = static_cast<uint32_t>(t->word2) & 7;
+    const uint32_t top = (rounds ? (static_cast<uint32_t>(t->rounds) & 0xf) * 0x1000 : 0) + ts;
+    t->score->key = (low + (top * 0x1000 + ts) * 8) * 2 + 1;
     for (auto& p : lobby_players)
       if (p->team == t->id && p->score) {
         const uint32_t s = floor0(p->kills, p->deaths);
         p->score->score = static_cast<int32_t>(s);
-        p->score->key = (skin + ((s & 0xfff) + ts * 0x1000) * 8) * 2;
+        p->score->key = (low + (top * 0x1000 + (s & 0xfff)) * 8) * 2;
       }
   }
 }
