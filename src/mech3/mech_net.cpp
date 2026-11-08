@@ -75,6 +75,7 @@ void call(NetRoute fn, NetMech* m, uint32_t from, const uint8_t* msg, size_t siz
 }  // namespace
 
 NetGame& net_game() { return g_net; }
+int32_t& net_rounds_played() { return g_net.rounds_played; }
 NetCalls& net_calls() { return g_calls; }
 
 namespace {

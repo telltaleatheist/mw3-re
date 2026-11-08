@@ -1453,6 +1453,42 @@ void LobbyPlayer::from_data(const std::vector<uint32_t>& d, bool between_rounds)
   }
 }
 
+// Pirate's Moon 1.0 @ 0x0049a3c0's rounds. The scores (0x00436db0) set the
+// most rounds won and how many have it. Back from a game with rounds played:
+// a tie for the most at the match's last round adds a round. With rounds
+// played and one leader too far ahead for the rest to catch up in the rounds
+// left (0x00437380), the match ends now (its total kept for the line). Then
+// the match is over (entered from elsewhere, no round played, or none left:
+// the rounds played cleared, the teams gone and team play off for the host)
+// or another round follows (the lobby between rounds: ours keeps its place
+// and rounds, the host's teams their rounds); the results list either way.
+RoundsEntry MultiplayerGame::enter_rounds(bool from_game, int32_t* played, uint32_t local, bool host,
+                                          void (*teams_end)(LobbyTeam& t, bool kept)) {
+  RoundsEntry r;
+  score_texts(0x15, 7);
+  const bool checks = !from_game || *played != 0;  // back with none played: straight to the end
+  if (from_game && *played != 0 && best_count > 1 && rounds_total <= *played) ++rounds_total, r.extended = true;
+  if (checks && *played != 0 && *played < rounds_total && best_count == 1 &&
+      rounds_total - *played < best - runner_up_rounds()) {
+    r.over_total = rounds_total, rounds_total = *played, r.over = true;
+  }
+  const bool team_play = multiplayer_team_play();  // [0x0062cc34]
+  if (!from_game || *played == 0 || rounds_total <= *played) {
+    r.lines = round_lines(*played, r.extended, r.over, r.over_total);  // 0x0049b730
+    *played = 0;
+    if (host && team_play && teams_end)
+      for (auto& t : lobby_teams) teams_end(*t, false);  // 0x005a9480 its players, 0x005a94f0 it
+    set_multiplayer_team_play(false);
+    return r;
+  }
+  r.next = true;
+  r.lines = round_lines(*played, r.extended, r.over, r.over_total);
+  r.place = place_of(local), r.rounds = rounds_of(local);  // 0x004366f0, 0x004366d0
+  if (host && team_play && teams_end)
+    for (auto& t : lobby_teams) teams_end(*t, true);  // its data's fourth word its rounds (0x005aa550)
+  return r;
+}
+
 // Pirate's Moon 1.0 @ 0x00436580 (vt+0x58): the objectives block's name, by
 // the side whose base is base 1 (vt+0x48).
 std::string MultiplayerGame::objectives_key() {

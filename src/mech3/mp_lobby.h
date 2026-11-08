@@ -92,7 +92,8 @@ class LobbyScreen : public MenuScreen {
   void update(float dt) override;    // +0x00  0x004984e0
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x00497410
 
-  void enter();                      // 0x00497720: the screen made ready for a game
+  void enter(bool from_game = true);  // PM 0x0049a3c0 (MW3 0x00497720): the screen made ready (the state's: 1)
+  std::vector<std::string> results;  // PM: the results list's lines (0x0049b730; the screen's +0x15e14)
   void take_pilot(Handle pilot, MultiplayerGame* game);  // 0x0049cc30's two stores
   void scores(bool report);          // 0x00498550: SCORES_LIST
   void refresh_lists();              // 0x00498710: the records from the network, TP_LIST and PLAYERS_LIST

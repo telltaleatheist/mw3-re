@@ -151,6 +151,16 @@ struct LobbyText {
   std::string (*skin)(int32_t skin) = nullptr;      // the screen's +0x11cf0 + 4 skin (SKIN_LIST's names)
 };
 
+// Pirate's Moon's lobby on entering (0x0049a3c0's rounds): the match extended on a tie, over before its end, the
+// results list's lines, whether another round follows (the lobby between rounds), the local player's place and
+// rounds won for its data, and for the host in team play the teams' ends (their rounds into their data, or gone).
+struct RoundsEntry {
+  bool extended = false, over = false, next = false;
+  int32_t over_total = -1;
+  int32_t place = 0, rounds = 0;
+  std::vector<std::string> lines;
+};
+
 // Pirate's Moon: a game's vt+0x44, the jump jets' assist: the multiplayer
 // game's 0x004365f0 (its +0xa7) when it is `g`, else every other game's
 // 0x00435070 (the MW2 jump jets option, 0x0040afd0, the other way round).
@@ -376,6 +386,7 @@ class ActionGame : public Game {
 
 // [0x00608e2c]: the game is team play (the connection screen's, mp_connect.h).
 bool multiplayer_team_play();
+void set_multiplayer_team_play(bool on);  // [0x0062cc34] (PM; MW3 [0x00608e2c])
 
 // The lobby's records (docs/multiplayer-port.md, piece 11), kept by the
 // multiplayer game and made again from the network's players and teams at
@@ -496,6 +507,10 @@ class MultiplayerGame : public Game {
   // and its seconds out ([0x0062da98], [0x0062da94]).
   void apply_lobby(const LobbySettings& s, bool* clock_on, float* clock_left);
   std::vector<uint8_t> start_message();            // PM 0x0049ef20's 0x1e: each player's id, order, team number
+  // PM 0x0049a3c0's rounds (`from_game` the lobby entered after a game, `played` [0x0062cc38], cleared at the match's
+  // end); `teams_end` the host's in team play: each team, with its rounds kept (the next round) or not (gone).
+  RoundsEntry enter_rounds(bool from_game, int32_t* played, uint32_t local, bool host,
+                           void (*teams_end)(LobbyTeam& t, bool kept));
   // PM 0x0049bb70's lines (`kinds` the kinds list's value, `local` our id): whether everyone is ready (state 5).
   bool lobby_lines(int32_t kinds, uint32_t local, const LobbyText& t, std::vector<LobbyLine>* teams,
                    std::vector<LobbyLine>* players);
