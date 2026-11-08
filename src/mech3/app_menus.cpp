@@ -906,7 +906,7 @@ void program_briefing_line(const char* s) {
 // 0x00479440 on the pilot the launch filled: its game's stand-in.
 bool GameEngine::pilot_standalone() { return current_pilot() && current_pilot()->standalone_game(); }
 Handle GameEngine::pilot_campaign(Handle p) {
-  if (p && p == pilot_ && launch_.type == kCampaign) return game_;
+  if (p && p == pilot_) return launch_.type == kCampaign ? game_ : 0;  // another game (PM's standalone): none
   return Engine::pilot_campaign(p);
 }
 
