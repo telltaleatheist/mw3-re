@@ -5569,12 +5569,15 @@ std::string pm_line(const std::string& log, const std::string& head, int n) {
 }  // namespace
 
 // Two rounds (ROUNDS_LIST's next arrow once, at (167 227)): each round a 20 s game with A killed at 8 s, B's
-// win. Between them the lobby shows "End of Round 1 of 2" and the scores, is between rounds with one played; at
-// the match's end "End of Round 2 of 2" with B's two rounds won, and the match over. The same on both.
+// win. Between them the lobby shows "End of Round 1 of 2" and the scores, is between rounds with one played, and
+// B goes to SALVAGE (223 417; PM's 0x49ed90: "In Salvage", its mech back into the pool) and ACCEPTs (565 428;
+// back by 0x49ee20 with its mech refitted from the pool); at the match's end "End of Round 2 of 2" with B's two
+// rounds won, and the match over. The same on both.
 TEST(pm_net_two_rounds_from_the_lobby) {
   if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd")) return;
   const PmPair r = pm_mode_pair(std::string(MW3_TEST_TMP) + "/pm_net_rounds", {"--click-players", "170,233@20/2"},
-                                {"--net-seconds", "20"}, 4400, {"--net-ahead", "50", "--net-kill-at", "8"}, {});
+                                {"--net-seconds", "20"}, 4400, {"--net-ahead", "50", "--net-kill-at", "8"},
+                                {"--verbose", "--click-return", "245,440@100", "--click-return", "590,450@200"});
   const std::string a2 = pm_line(r.a, "lobby entered 2, scores: ", 1), b2 = pm_line(r.b, "lobby entered 2, scores: ", 1);
   const std::string a3 = pm_line(r.a, "lobby entered 3, scores: ", 1), b3 = pm_line(r.b, "lobby entered 3, scores: ", 1);
   std::printf("  after round 1: %s\n  after round 2: %s\n  between: %s\n", a2.c_str(), a3.c_str(),
@@ -5586,6 +5589,9 @@ TEST(pm_net_two_rounds_from_the_lobby) {
   EXPECT(pm_line(r.a, "lobby round: ", 2).rfind("between 1, rounds 2, played 1", 0) == 0);
   EXPECT(pm_line(r.b, "lobby round: ", 2).rfind("between 1, rounds 2, played 1", 0) == 0);
   EXPECT(pm_line(r.a, "lobby round: ", 3).rfind("between 0, rounds 2, played 0", 0) == 0);  // the match over
+  const size_t salvage = r.b.find("mw3: state Salvage State");
+  EXPECT(salvage != std::string::npos && r.b.find("[best In Salvage {gunmetal} notmech]") != std::string::npos);
+  EXPECT(salvage != std::string::npos && r.b.find("[best  {gunmetal} Bushwacker]", salvage) != std::string::npos);
 }
 #endif
 
