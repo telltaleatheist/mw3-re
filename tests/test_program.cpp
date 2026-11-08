@@ -20937,6 +20937,48 @@ TEST(mission_c1m1_selection_leaves_a_destroyed_weapon_headless) {
   zfix::options().bugs = true;
 }
 
+// pm-tests item 23: the player knocked down in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from
+// 50 m ahead build the knock past the threshold (0x00417a80): Stagger, a fall. Until the shot line fix (579f77b3)
+// the knock's direction was always zero, so nothing fell. (2) Dropped from 150 m, a hard landing (0x004162c0: the
+// fall's speed over 80 m/s) falls one time in five (rand > 0.8); ten drops under the fixed seed.
+TEST(mission_c1m1_player_knocked_down_headless) {
+  if (!have_game()) return;
+  for (const int cause : {1, 2}) {
+    int fell_at = -1, drops = 0;
+    float force = 0;
+    cheat_mission(cause == 1 ? "knock_write" : "landing_write", 0, 1, 6000, [&](int f, mech3::GameEngine& e, CheatKeys&) {
+      void* me = mech3::mission_player_mech();
+      if (!me || f < 30) return false;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(me, &d);
+      if (d.anim_state >= 11 && d.anim_state <= 13) {
+        fell_at = f;
+        return true;
+      }
+      float at[3];
+      mech3::mech_world_position(me, at);
+      if (cause == 1) {
+        int32_t n = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+        void* def = mech3::chain_heaviest_impact();
+        force = def ? mech3::weapon_def_impact(def) : 0;
+        const float from[3] = {at[0], at[1] + 5.0f, at[2] - 50.0f};
+        if (n && def && f % 2 == 0) mech3::mech_hit_from(me, def, from, mech3::mech_node(ai[0].mech), 0.01f);
+        return f > 600;
+      }
+      if ((f - 30) % 500 == 0) {
+        if (++drops > 10) return true;
+        const float up[3] = {at[0], at[1] + 150.0f, at[2]};
+        mech3::move_mech(me, up, 0.0f);
+      }
+      (void)e;
+      return false;
+    });
+    std::printf("  cause %d: fell at frame %d (impact force %.1f, drops %d)\n", cause, fell_at, force, drops);
+    EXPECT(fell_at > 0);
+  }
+}
+
 // There is no cow level in c1m2: every enemy mech and vehicle killed by the
 // player and salvaged whole (each mech in the salvage), the objectives done,
 // the mission won; Exit Mission brings the debriefing as a win.

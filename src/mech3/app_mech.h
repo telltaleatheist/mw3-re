@@ -261,6 +261,7 @@ float mech_tag_muzzle(void* mech, bool* mounted);  // tests: TAG added as the bu
 // Tests (pm-tests item 21): the first weapon in the list's order selected, the one after it destroyed, then it;
 // whether the selection ends on a destroyed weapon. -1 with fewer than three weapons.
 int32_t mech_weapon_gone_case(void* mech, bool* picked);
+float mech_knock(void* mech, float* threshold, bool* airborne);  // tests: pm-tests item 23
 std::string mech_group_names(void* mech, int32_t g);
 // Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
 bool mech_lock_shown(void* mech);
