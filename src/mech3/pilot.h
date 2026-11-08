@@ -507,6 +507,7 @@ class MultiplayerGame : public Game {
   // and its seconds out ([0x0062da98], [0x0062da94]).
   void apply_lobby(const LobbySettings& s, bool* clock_on, float* clock_left);
   std::vector<uint8_t> start_message();            // PM 0x0049ef20's 0x1e: each player's id, order, team number
+  void read_start_message(const uint8_t* msg, size_t size);  // PM 0x0049f510: each listed player's order
   // PM 0x0049a3c0's rounds (`from_game` the lobby entered after a game, `played` [0x0062cc38], cleared at the match's
   // end); `teams_end` the host's in team play: each team, with its rounds kept (the next round) or not (gone).
   RoundsEntry enter_rounds(bool from_game, int32_t* played, uint32_t local, bool host,

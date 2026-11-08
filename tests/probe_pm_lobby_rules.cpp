@@ -583,3 +583,20 @@ extern "C" int32_t probe_pm_enter_rounds(const int32_t* in, int32_t* out, int32_
   std::copy(lg.begin(), lg.begin() + m, out);
   return m;
 }
+
+// Pirate's Moon's 0x1e read (0x0049f510) for test_pm_lobby_settings.py's fifth part. in: the players (count, then 8
+// ids), the message's words (count, then the words). out: each player's order after.
+extern "C" void probe_pm_read_start(const int32_t* in, int32_t* out) {
+  mech3::MultiplayerGame g(nullptr);
+  for (int32_t k = 0; k < in[0]; ++k) {
+    auto r = std::make_unique<mech3::LobbyPlayer>();
+    r->id = static_cast<uint32_t>(in[1 + k]), r->order = -5;
+    g.lobby_players.push_back(std::move(r));
+  }
+  const int32_t words = in[9];
+  std::vector<uint8_t> msg(4 * static_cast<size_t>(words));
+  std::memcpy(msg.data(), in + 10, msg.size());
+  g.read_start_message(msg.data(), msg.size());
+  int32_t k = 0;
+  for (auto& r : g.lobby_players) out[k++] = r->order;
+}

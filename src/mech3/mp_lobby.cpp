@@ -1059,15 +1059,7 @@ void LobbyScreen::start() {
 void LobbyScreen::on_start(uint32_t from, const uint8_t* msg, size_t size) {
   LobbyScreen* l = g_lobby;
   if (!l || !l->game || size < 8 || from != znet::session().host_id || znet::is_host()) return;
-  // PM 0x0049f510: the count, then each player's id, order and team number (the order taken). FIX (A): only as
-  // far as the message goes.
-  uint32_t n;
-  std::memcpy(&n, msg + 4, 4);
-  for (uint32_t k = 0; k < n && 8 + 12 * static_cast<size_t>(k + 1) <= size; ++k) {
-    uint32_t w[2];
-    std::memcpy(w, msg + 8 + 12 * k, 8);
-    if (LobbyPlayer* p = l->game->lobby_player(w[0])) p->order = static_cast<int32_t>(w[1]);
-  }
+  l->game->read_start_message(msg, size);  // PM 0x0049f510
   l->keep_order = 1;
   l->start_pending = 1;
 }
