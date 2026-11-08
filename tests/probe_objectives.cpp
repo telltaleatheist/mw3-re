@@ -327,10 +327,13 @@ void store_text(std::string& o, const Store* s) {
 
 std::string opt(const std::optional<std::string>& s) { return s ? "'" + *s + "'" : "-"; }
 
+bool g_pm = false;  // test_pm_objectives.py's: PM's fields too (failed, the fail sound, a group's fails)
+
 void obj_text(std::string& o, const Objective* b, int depth) {
   o += std::string(depth * 2, ' ') + "K" + hex(b->kind) + " nav" + hex(b->nav) + " d" + hex(b->done) + " " +
        opt(b->desc) + " v" + hex(b->valve) + "=" + hex(b->value) + " snd" + hex(b->sound) + " vis" + hex(b->visible) +
        " sil" + hex(b->silent) + " per" + opt(b->persist);
+  if (g_pm) o += " f" + hex(b->failed) + " fsnd" + hex(b->fail_sound);
   store_text(o, b->salvage.get());
   for (const NodeSalvage& n : b->node_salvage) {
     o += " N" + hex(n.node) + "/" + hex(n.active);
@@ -341,6 +344,11 @@ void obj_text(std::string& o, const Objective* b, int depth) {
       auto* g = static_cast<const ObjectiveGroup*>(b);
       o += " | " + hex(g->b34) + " " + hex(g->simultaneous) + " " + hex(g->goal_count) + " " + hex(g->x3c) + "\n";
       for (const auto& c : g->items) obj_text(o, c.get(), depth + 1);
+      if (g_pm)
+        for (const auto& c : g->fails) {
+          o += std::string(depth * 2 + 2, ' ') + "fails\n";
+          obj_text(o, c.get(), depth + 1);
+        }
       return;
     }
     case Objective::kDestroy: {
@@ -444,6 +452,15 @@ int probe_objectives_run(const char* archive, const char* file, const char* bloc
   zrdr::close_archives(true);
   if (put(text, out, cap) < 0 || put(h.log, log, logcap) < 0) return -1;
   return ok ? 1 : 0;
+}
+
+// test_pm_objectives.py's: probe_objectives_run with PM's fields in the text.
+int probe_pm_objectives_run(const char* archive, const char* file, const char* block, int type, const float* pt, int op,
+                            char* out, int cap, char* log, int logcap) {
+  g_pm = true;
+  const int r = probe_objectives_run(archive, file, block, type, pt, op, out, cap, log, logcap);
+  g_pm = false;
+  return r;
 }
 
 // Piece 3: the block read, Instant Action's group added (ia >= 0: its mode;
