@@ -22385,6 +22385,8 @@ struct WideMenus {
   int32_t win_bg = -1, win_continue = -1, win_abort = -1, win_card = -1, win_line = -1, win_line_end = -1;  // the debriefing
   int32_t lab_left_w = -1, lab_left_x = -1, lab_right_w = -1, lab_accept = -1, lab_view_x = -1, lab_view_w = -1;  // the lab
   int32_t lab_render_w = 0, lab_canvas_w = 0;
+  // The lab lists' scroll arrows from their list's corner (UP, DOWN of each, x then y): the same on any canvas.
+  std::vector<int32_t> lab_arrows;
   int32_t ia_accept = -1, ia_ally = -1, ia_worlds = -1, ia_box_w = -1;  // Instant Action (made at the start)
   int32_t mb_title = -1, mb_ok = -1;  // a message box (the quit box's dlgMessage.zrd) made on the main menu
   int32_t cr_lines_w = -1, cr_lines_x = -1, cr_back = -1;  // the credits (first from the main menu)
@@ -22543,6 +22545,9 @@ WideMenus wide_menus_run(bool wide) {
         if (ls->panel_right.single) out.lab_right_w = ls->panel_right.single->width;
         out.lab_accept = ls->tabs[6].get_rect()->left;
         out.lab_render_w = mech3::render().w, out.lab_canvas_w = mech3::display().w;
+        for (mech3::LabItemList* l : {static_cast<mech3::LabItemList*>(&ls->unassigned), static_cast<mech3::LabItemList*>(&ls->assigned)})
+          for (mech3::LabListArrow* a : {l->up, l->down})
+            if (a) out.lab_arrows.push_back(a->get_x() - l->get_x()), out.lab_arrows.push_back(a->get_y() - l->get_y());
         if (mech3::LabView* v = engine.lab_view()) {
           int32_t y = 0, h = 0;
           zcls::window_origin(v->window, &out.lab_view_x, &y);
@@ -22836,6 +22841,11 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               off.lab_left_w, off.lab_left_x, on.lab_left_w, on.lab_left_x, off.lab_right_w, on.lab_right_w, off.lab_accept,
               on.lab_accept, off.lab_view_x, off.lab_view_w, on.lab_view_x, on.lab_view_w);
   EXPECT(off.lab_left_w > 0 && on.lab_left_w == off.lab_left_w + extra / 2 && on.lab_left_x == off.lab_left_x);
+  // The scroll arrows keep their place by their list (they took the canvas's centring twice: on the next list).
+  std::printf("  lab arrows from their lists:");
+  for (size_t i = 0; i < on.lab_arrows.size(); ++i) std::printf(" %d/%d", off.lab_arrows.size() > i ? off.lab_arrows[i] : -999, on.lab_arrows[i]);
+  std::printf("\n");
+  EXPECT(on.lab_arrows.size() == 8 && on.lab_arrows == off.lab_arrows);
   EXPECT(on.lab_right_w == off.lab_right_w + extra - extra / 2 && on.lab_accept == off.lab_accept + extra / 2);
   EXPECT(off.lab_view_x == 210 && off.lab_view_w == 220);
   const int32_t rw = on.lab_render_w, cw = on.lab_canvas_w;
