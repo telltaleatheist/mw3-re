@@ -1230,6 +1230,12 @@ uint32_t program_net_team_of(uint32_t p) { return net_calls().team_of ? net_call
 int32_t program_net_start_of(uint32_t p) { return net_calls().start_of ? net_calls().start_of(p) : 0; }
 int32_t program_net_score_of(uint32_t p) { return net_calls().lobby_score ? net_calls().lobby_score(p) : 0; }
 
+namespace {
+bool g_drive_lock = false;
+bool g_drive_held = false;  // --net-ahead holds the pilot: not "walking into something"
+}  // namespace
+void program_net_drive_lock(bool on) { g_drive_lock = on; }
+
 uint32_t program_net_drive(int cmd, double t, uint32_t seed) {
   // The throttle up (0x18) held throughout (THROTTLE0's 0x24 is a key's
   // callback, not polled, and with ThrottleConst off a let-go throttle eases
@@ -1241,12 +1247,17 @@ uint32_t program_net_drive(int cmd, double t, uint32_t seed) {
   if (cmd == 0x18) return 1u;
   if (cmd != 2 && cmd != 3 && cmd != 0x3e) return 0;
   Mech* me = launched_mech();
+  static double s_locked_at = -1;
+  if (g_drive_lock && me && cmd == 0x3e && (t < s_locked_at || t - s_locked_at >= 1.0)) {
+    s_locked_at = t;
+    me->command(0x4b);  // Ctrl+E, PM's id (mech_command.cpp): the shots go locked, the replica aims at the target
+  }
   float p[3] = {}, f[3] = {}, best = 1e30f, to[2] = {};
   if (me) mech_world_position(me, p), mech_forward(me, f);
   static float s_was[2] = {};
   static double s_was_t = -1, s_free_at = -1;
   if (t < s_was_t) s_was_t = s_free_at = -1;  // a new game
-  if (t >= s_free_at && (s_was_t < 0 || t - s_was_t > 3.0)) {
+  if (!g_drive_held && t >= s_free_at && (s_was_t < 0 || t - s_was_t > 3.0)) {
     if (s_was_t >= 0 && std::hypot(p[0] - s_was[0], p[2] - s_was[1]) < 3.0f) s_free_at = t + 5.0;
     s_was[0] = p[0], s_was[1] = p[2], s_was_t = s_free_at > t ? s_free_at : t;
   }
@@ -1361,6 +1372,7 @@ bool program_net_hold_near(float metres) {
     if (d < best) best = d, std::memcpy(at, q, sizeof at);
   }
   if (best > 1e29f) return false;
+  g_drive_held = true;
   static float dir[2] = {0, 0};  // the side it stays on, from the first hold
   if (dir[0] == 0 && dir[1] == 0) {
     const float d = best > 0.01f ? best : 1.0f;
