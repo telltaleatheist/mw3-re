@@ -137,10 +137,15 @@ TEST(pm_wire_kinds_make_their_states) {
   EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::TerminusNode).get()));
   EXPECT(dynamic_cast<PmDeployState*>(made(StepKind::DeployNode).get()));
   EXPECT(dynamic_cast<PmFollowState*>(made(StepKind::VehFollow).get()));
+  EXPECT(dynamic_cast<PmRoundState*>(made(slot(2)).get()));
   EXPECT(dynamic_cast<PmCircleState*>(made(slot(3)).get()));
+  // The flags the exe's vtables give: the attack may be broken into and fire; the via node, slot 3 and the jump not.
+  EXPECT(made(StepKind::VehAttack)->may_fire() && made(StepKind::VehAttack)->may_break_in());
+  EXPECT(!made(StepKind::ViaNode)->may_fire() && made(StepKind::Node)->may_fire());
+  EXPECT(!made(slot(3))->may_break_in() && !made(StepKind::Jump)->may_fire());
   EXPECT(dynamic_cast<PmGuardState*>(made(slot(6)).get()));
   EXPECT(dynamic_cast<PmBehindState*>(made(slot(8)).get()));
   for (StepKind k : {StepKind::VehOwn})
     EXPECT(!made(k));
-  for (int i : {2, 5, 7, 9}) EXPECT(!made(slot(i)));
+  for (int i : {5, 7, 9}) EXPECT(!made(slot(i)));
 }

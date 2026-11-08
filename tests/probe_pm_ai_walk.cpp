@@ -105,6 +105,8 @@ struct World : WalkPmHooks {
   int m_pops = 0;
   uint8_t m_ec = 0;
   float reach() override { return reach_at; }
+  float slack = 0;
+  float circle_slack() override { return slack; }
   int next = 0, taken = 0, last_taken = 0, roll = 0;
   int32_t rolls[2] = {};
   float along[3] = {}, reach_at = 0;
@@ -162,6 +164,8 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   MoveStatePm ms;
   DeployStatePm ds;
   bool deploying = false;
+  CircleStatePm rs;
+  bool rounding = false;
   ManoeuvrePm man;
   GuardPickPm pick;
   WalkFightPm* b = nullptr;
@@ -240,6 +244,12 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       cp.start(w, 0x1234);
     } else if (op == "z") {
       cp.run(w, 1);
+    } else if (op == "h") {  // the slot 2 circling state: the brain's +0x94, vt+0x134's constant, +0x44 and +0x48
+      w.m_x94 = f(a[0]), w.k_ahead = f(a[1]), w.reach_at = f(a[2]), w.slack = f(a[3]);
+      rs = CircleStatePm{}, rounding = true;
+      rs.start(w, 1);
+    } else if (op == "^") {
+      rs.run(w, 1);
     } else if (op == "!") {
       cp.change_side(w.clock);
     } else if (op == "b") {  // the follow's state made
@@ -384,6 +394,11 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (circling) {
         for (float v : {cp.turn, cp.throttle, cp.side, w.asked[0], w.asked[1], w.asked[2], w.sent[0], w.sent[1]}) put(o, v);
       }
+      if (rounding) {
+        for (float v : {rs.turn, rs.radial[0], rs.radial[1], rs.radial[2], rs.tangent[0], rs.tangent[1], rs.tangent[2], rs.share,
+                        w.asked[0], w.asked[1], w.asked[2], w.sent[0], w.sent[1]})
+          put(o, v);
+      }
       if (b) {
         put(o, w.sent[0]), put(o, w.sent[1]);
       }
@@ -406,6 +421,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (attacking)
         o += " " + std::to_string(as.flags) + " " + std::to_string(as.pulled | as.x2d << 8) + " 0 " + std::to_string(as.x38) + " 0 0";
       if (circling) o += " " + std::to_string(cp.step) + " " + std::to_string(cp.x18) + " " + std::to_string(int(w.m_cleared > 0)) + " " + std::to_string(w.sends);
+      if (rounding) o += " " + std::to_string(rs.flip);
       if (deploying)
         for (int v : {ds.step, w.hold, w.vsets, w.vset_last, w.places}) o += " " + std::to_string(v);
       o += " " + std::to_string(w.m_stops) + " " + std::to_string(static_cast<uint32_t>(w.m_over));

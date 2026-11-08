@@ -14,8 +14,8 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
   switch (b.kind) {
     case StepKind::VehAttack: return new PmAttackState(&o, &b);
     case StepKind::Jump: return new PmJumpState(&o, &b);
-    case StepKind::Node:
-    case StepKind::ViaNode: return new PmMoveState(&o, &b);  // 0x005eef64's and 0x005ef498's vt+0x8c
+    case StepKind::Node: return new PmMoveState(&o, &b);
+    case StepKind::ViaNode: return new PmMoveState(&o, &b, PmMoveState::kVia);  // 0x005eef64's and 0x005ef498's vt+0x8c
     case StepKind::BackupNode: return new PmMoveState(&o, &b, PmMoveState::kBackup);  // 0x005ef020's
     case StepKind::DeployNode: return new PmDeployState(&o, &b);  // 0x005ef11c's
     case StepKind::TerminusNode: return new PmMoveState(&o, &b, PmMoveState::kTerminus);  // 0x005ef578's
@@ -30,6 +30,7 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     default: break;
   }
   const uint32_t k = static_cast<uint32_t>(b.kind);
+  if (k == kVehicleSlotsPm[2]) return new PmRoundState(&o, &b);
   if (k == kVehicleSlotsPm[3]) return new PmCircleState(&o, &b);
   if (k == kVehicleSlotsPm[4]) return new PmManoeuvreState(&o, &b, false);
   if (k == kVehicleSlotsPm[6]) return new PmGuardState(&o, &b);

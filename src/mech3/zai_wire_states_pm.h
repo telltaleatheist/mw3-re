@@ -32,8 +32,8 @@ class PmAttackState final : public BehaviourState {
  public:
   PmAttackState(Order* o, Behaviour* b);
   ~PmAttackState() override;
-  bool may_break_in() const override { return false; }  // as MW3's FightState until PM's slots are read
-  bool may_fire() const override { return false; }
+  bool may_break_in() const override { return true; }  // vt+0x04, +0x08: 0x004eb000 (MW3's FightState says no to both)
+  bool may_fire() const override { return true; }
   void run(float dt) override;
   void resume() override { s_.reset(); }  // vt+0x10: 0x004d9ce0
 
@@ -50,8 +50,11 @@ class PmAttackState final : public BehaviourState {
 // their runs, 0x004ddab0 and 0x004e1fd0.
 class PmMoveState final : public BehaviourState {
  public:
-  enum Run { kNode, kBackup, kTerminus };
+  enum Run { kNode, kVia, kBackup, kTerminus };
   PmMoveState(Order* o, Behaviour* b, Run run = kNode) : BehaviourState(o, b), run_(run) {}
+  // vt+0x04, +0x08: the via node's and the terminus's 0x004d5020, no; the node's and the backup's yes.
+  bool may_break_in() const override { return run_ != kVia && run_ != kTerminus; }
+  bool may_fire() const override { return run_ != kVia && run_ != kTerminus; }
   Behaviour* behaviour() const override { return from; }
   void resume() override;  // vt+0x10: 0x004d4600
   void run(float dt) override;
@@ -107,6 +110,8 @@ class PmFollowState final : public PmSlotState {
 class PmCircleState final : public PmSlotState {
  public:
   using PmSlotState::PmSlotState;
+  bool may_break_in() const override { return false; }  // vt+0x04, +0x08: 0x004d5020
+  bool may_fire() const override { return false; }
   void resume() override;  // vt+0x10: 0x004d8d30
 
  private:
@@ -124,6 +129,20 @@ class PmGuardState final : public PmSlotState {
   void start(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.start(w, v, static_cast<int32_t>(pm_id(from))); }
   void step(WireWalk& w, SteerPm& s, zgame::Handle v) override { s_.run(w, s, v); }
   GuardStatePm s_;
+};
+
+// Slot 2 (0x004e0ff0 -> 0x004e1050, vtable 0x005ef424): MW3's mode 1 circling, PM's.
+class PmRoundState final : public PmSlotState {
+ public:
+  using PmSlotState::PmSlotState;
+  bool may_break_in() const override { return false; }  // vt+0x04, +0x08: 0x004d5020
+  bool may_fire() const override { return false; }
+  void resume() override {}  // vt+0x10: 0x00406cb0, nothing
+
+ private:
+  void start(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.start(w, v); }
+  void step(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.run(w, v); }
+  CircleStatePm s_;
 };
 
 class PmBehindState final : public PmSlotState {
@@ -190,6 +209,8 @@ class WireJump final : public WireWalkT<JumpPmHooks> {
 class PmJumpState final : public BehaviourState {
  public:
   PmJumpState(Order* o, Behaviour* b);
+  bool may_break_in() const override { return false; }  // vt+0x04, +0x08 of 0x005eedbc: 0x004d5020
+  bool may_fire() const override { return false; }
   Behaviour* behaviour() const override { return from; }
   void run(float dt) override;
 
