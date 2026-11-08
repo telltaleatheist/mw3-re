@@ -535,6 +535,14 @@ made, except the pause screen (it keeps the dialog origin, section 9):
   centred block;
 - a main menu button's underline (AUXBITMAP, the button's own image, not on
   the screen's list) moves with its button;
+- an options screen's borrowed main menu background (1280x960, a view the
+  display's size from 0, 0x0040a110) stays at 0, as does one with no image:
+  held still in a mission (`borrow_background`), the controls' went by
+  half the extra width, so the game options showed through at its left
+  (pm-tests.md front-end item 5, Owen's mw3pm shot 2026-11-07; MW3 the
+  same). The dark corner at the top left and the ring around MOUSE/KEYBD
+  DEFAULT of that shot are gone with it (hidden 1920x1080 shots through
+  Instant Action). `mission_c1m1_controls_from_the_pause_wide_headless`;
 - controls move first, each object to its start plus its offset; some move
   pieces of their own that are on the list too (a cycle its value,
   0x0048b9b0; an edit bar its label, 0x0048b220), and an object already

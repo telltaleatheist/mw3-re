@@ -275,6 +275,11 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     auto* axp = dynamic_cast<AxisPopupScreen*>(s);
     auto* team = dynamic_cast<TeamScreen*>(s);  // the new team's dialog's: the same (0x00579500(2) as it enters)
     if ((lsp && o == &lsp->backdrop) || (axp && o == &axp->background) || (team && o == &team->backdrop)) continue;
+    // The main menu's background borrowed (1280x960, 0x0040a110): a view the
+    // display's size from 0, so left there (with no image, nothing to move).
+    // Held still (in a mission) the controls' went to the middle, the game
+    // options showing at its left (pm-tests.md front-end item 5).
+    if (o == &s->background && im && (!im->image || im->image->width > 640)) continue;
     if (im && !stretched && (right - left >= 600 || (img_w >= 600 && img_w <= 640))) {
       widen_background(*im, extra, table ? table->inset : 0, table ? table->shade0 : 150, table ? table->shade1 : 60);
       continue;
