@@ -14,6 +14,7 @@ import ctypes
 import hashlib
 import os
 import struct
+import weakref
 from pathlib import Path
 
 from unicorn import UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_32, Uc
@@ -73,12 +74,28 @@ PRECISION = os.environ.get('MW3_PRECISION')
 if PRECISION == '53':
     os.environ['MW3_X87'] = '53'
     os.environ['MW3_FPU53'] = '1'
+# Each emulator by a weak reference, and the precision each was seen at: holding the emulators themselves
+# kept every one alive (40 MB each; a test making one per case ran out of memory).
 _ORIGINALS = []
+_PRECISIONS = set()
+_REGISTERED = []
+
+
+def _note_precisions():
+    """The precision of each emulator still alive, kept; the ones gone were noted before they went."""
+    live = []
+    for r in _ORIGINALS:
+        o = r()
+        if o is not None:
+            _PRECISIONS.add(o.uc.reg_read(UC_X86_REG_FPCW) & 0x300)
+            live.append(r)
+    _ORIGINALS[:] = live
 
 
 def _precision_check():
     """Says what each side really ran at; exit 3 when it is not 53."""
-    emu = sorted({hex(o.uc.reg_read(UC_X86_REG_FPCW) & 0x300) for o in _ORIGINALS})
+    _note_precisions()
+    emu = sorted(hex(p) for p in _PRECISIONS)
     lib = next((ROOT / 'build').glob('libmw3probe.*'), None)
     port = ctypes.CDLL(str(lib)).probe_fpu53() if lib else -1
     print(f'precision: emulator {emu or "none made"}, port fpu53 {port}', flush=True)
@@ -153,14 +170,17 @@ class Original:
             self.fpu_control(0x007f)
         elif os.environ.get('MW3_X87') == '53':  # the reference runtime's (CLAUDE.md, FPU precision)
             self.fpu_control(0x027f)
-        if PRECISION == '53' and not _ORIGINALS:
+        if PRECISION == '53' and not _ORIGINALS and not _REGISTERED:
             atexit.register(_precision_check)  # after Unicorn's own, so it runs first
-        _ORIGINALS.append(self)
+            _REGISTERED.append(True)
+        _ORIGINALS.append(weakref.ref(self))
+        _note_precisions()  # this one's start, and where the others are now
 
     def fpu_control(self, cw):
         """Loads the x87 control word (0x037f power-on, 0x007f single precision)."""
         if PRECISION == '53':
             cw = cw & ~0x300 | 0x200  # whatever the test asks for
+        _PRECISIONS.add(cw & 0x300)  # kept now: this emulator may be gone by the next note
         slot = self.alloc(4)
         self.u32(slot, cw)
         self.call(self.code(b'\xd9\x2d' + struct.pack('<I', slot) + b'\xc3'))
