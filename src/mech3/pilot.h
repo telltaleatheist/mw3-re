@@ -359,7 +359,8 @@ struct LobbyPlayer : LobbyEntry {
   int32_t order = 0;                 // +0x20  its place in the lobby's count ([0x005e7920])
   int32_t kills = 0;                 // +0x24
   int32_t deaths = 0;                // +0x28  its suicides
-  ScoreLine* score = nullptr;        // +0x2c  the game's
+  int32_t rounds = 0;                // PM +0x2c  rounds won (0x00436980); 0 when it leaves (0x0046f440)
+  ScoreLine* score = nullptr;        // +0x2c, PM +0x34  the game's
 };
 
 // A team (0x00499280, vtable 0x005c7cc8), 0x20 bytes; its data (8 bytes) the
@@ -370,8 +371,10 @@ struct LobbyTeam : LobbyEntry {
   int32_t count = 0;                 // +0x0c  its players, counted by the lists (0x00498710)
   int32_t skin = 0;                  // +0x10  its data's second word
   int32_t kills = 0;                 // +0x14  its players' (0x004361e0)
-  uint32_t owner = 0;                // +0x18  the first to join it; its data's first word
-  ScoreLine* score = nullptr;        // +0x1c  the game's
+  uint32_t owner = 0;                // +0x18, PM +0x28  the first to join it; its data's first word
+  int32_t word2 = 0;                 // PM +0x18  its data's third word (0x0049db90's last); the order key's low bits
+  int32_t rounds = 0;                // PM +0x20  rounds won (0x00436980), its data's fourth word between rounds
+  ScoreLine* score = nullptr;        // +0x1c, PM +0x2c  the game's
 };
 
 // Multiplayer (0x004353a0, vtable 0x005becf8), 0xb0 bytes.
@@ -414,7 +417,7 @@ class MultiplayerGame : public Game {
   void round_reset();                                // PM 0x00437a10
   int32_t set_deaths(uint32_t player, int32_t n);  // 0x00435b00
   int32_t deaths_of(uint32_t player);              // 0x00435b40
-  void rescore();                                  // 0x004361e0
+  void rescore(bool rounds = true);                // PM 0x004374f0 (MW3's 0x004361e0)
   void score_texts(int32_t name_width, int32_t number_width);  // 0x00435b60: the lines, sorted
 
   // +0x38..+0x5c: the lobby's (pointers in the exe's lists, owned here).
