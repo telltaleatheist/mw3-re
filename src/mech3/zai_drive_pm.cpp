@@ -665,4 +665,129 @@ void CloseInPm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
   step = 4;
 }
 
+// Pirate's Moon 1.0 @ 0x004d7ac0 and 0x004d7bb0
+void KeepRangePm::start(WalkPmHooks& h) {
+  throttle = h.reversing() ? -1.0f : 1.0f;  // [0x005deea8], [0x005de7b0]
+  near = h.keep_near() * 0.9f;               // [0x005dfcd4]
+  far = static_cast<float>(std::sqrt(double{h.keep_far()}) * double{1.1f});  // [0x005eeb58]
+}
+
+// Pirate's Moon 1.0 @ 0x004d7c10. Each dot product summed x and y first, then z, and stored. Phase 2 turns by the way
+// against its own reversed forward, its copy of 0x004d8450 testing the dead zone's sine where the dot belongs (always
+// past it: never the full turn), as written.
+void KeepRangePm::run(WalkPmHooks& h, zgame::Handle v) {
+  const zgame::Handle t = h.order_target();
+  const float* to = h.target_place(t);
+  if (!to || !h.target_live(t)) {
+    h.order_pop();  // order vt+0x0c
+    return;
+  }
+  float pos[3];
+  h.position(v, pos);
+  float dir[3] = {to[0] - pos[0], 0.0f, to[2] - pos[2]};  // 0x004d74f0
+  const float dist = unit3(dir);
+  float fx, fz;
+  h.forward(v, &fx, &fz);
+  float mine[3], theirs[3] = {0.0f, 0.0f, 0.0f};
+  h.velocity(v, mine);
+  if (const zgame::Handle tv = h.target_vehicle(t)) h.velocity(tv, theirs);
+  float rel[3] = {mine[0] - theirs[0], mine[1] - theirs[1], mine[2] - theirs[2]};
+  const float closing_speed = unit3(rel);
+  auto dot3 = [](const float a[3], const float b[3]) {
+    return static_cast<float>((double{a[0]} * b[0] + double{a[1]} * b[1]) + double{a[2]} * b[2]);
+  };
+  const float closing = dot3(rel, dir);
+  const float across = static_cast<float>(double{rel[2]} * dir[0] - double{rel[0]} * dir[2]);
+  const float fwd[3] = {fx, 0.0f, fz};
+  const float facing = dot3(fwd, dir);
+  const float keep = h.keep_near();
+  const TurnPmParams& p = turn_walk_params();
+  // 0x004d8450 and its inline copies: the turn past the dead zone, `c` the cross product, `d` the dot.
+  auto past = [&](float c, float d) -> float {
+    if (!(0.0f <= d)) return c < 0.0f ? -1.0f : 1.0f;
+    if (!(-p.sin_dead <= c)) {
+      const double k = (double{p.sin_dead} + c) * p.gain;
+      if (k < -1.0) return -1.0f;
+      return -p.least < k ? -p.least : static_cast<float>(k);
+    }
+    if (!(p.sin_dead < c)) return 0.0f;
+    const double k = (double{c} - p.sin_dead) * p.gain;
+    if (1.0 < k) return 1.0f;
+    return k < p.least ? p.least : static_cast<float>(k);
+  };
+  auto kept = [&] { return turn == 0.0f ? 1.0f : turn; };
+  for (;;) {
+    switch (phase) {
+      case 0:
+        if (far < dist) {
+          count = 0;
+          h.order_pop();
+          return;
+        }
+        if (near <= dist) {
+          if (closing_speed <= 0.2f || closing <= 0.0 || keep < static_cast<double>(closing) * dist) {
+            if (count == 0) return;
+            turn = 0.0f;
+            --count;
+            throttle = h.reversing() ? -1.0f : 1.0f;
+          } else {  // closing fast: a sidestep for 8 frames
+            turn = 0.0f;
+            if (!(-0.17f <= across)) turn = 1.0f;     // [0x0060bb48], -[0x0060bb44]
+            else if (0.17f < across) turn = -1.0f;    // [0x0060bb44]
+            count = 8;
+            throttle = h.reversing() ? -1.0f : 1.0f;
+          }
+          break;
+        }
+        if (facing <= 0.5f) {  // [0x005de818]
+          if (-0.5f <= facing) {  // [0x005e4fc4]
+            phase = 3, count = 0;
+            throttle = 0.0f <= throttle ? 1.0f : -1.0f;
+          } else {
+            phase = 2, throttle = 1.0f, count = 0;  // [0x0060bb40]
+          }
+        } else {
+          phase = 1, throttle = -1.0f, count = 0;  // [0x0060bb3c]
+        }
+        continue;
+      case 1:  // facing it: backing off, turned at it
+        if (0.0f <= facing && dist < keep) {
+          const float d = static_cast<float>(double{fz} * dir[2] + double{fx} * dir[0]);
+          if (!(p.behind <= d)) turn = kept();
+          else if (p.cos_dead <= d) turn = 0.0f;
+          else turn = past(static_cast<float>(double{dir[0]} * fz - double{dir[2]} * fx), d);
+          break;
+        }
+        phase = 0;
+        continue;
+      case 2:  // facing away: forward
+        if (facing <= 0.0f && dist <= keep) {
+          const float back[3] = {-fx, 0.0f, -fz};
+          if (!(p.behind <= facing)) turn = kept();
+          else if (p.cos_dead <= facing) turn = 0.0f;
+          else turn = past(static_cast<float>(double{dir[0]} * back[2] - double{dir[2]} * back[0]), p.sin_dead);
+          break;
+        }
+        phase = 0;
+        continue;
+      case 3:  // side on: turned across, the side it already leans to
+        if (-0.8 <= facing && facing < 0.8 && dist < keep) {  // [0x005eeb90], [0x005eeb88]
+          float side[3] = {dir[2], 0.0f, -dir[0]};
+          float d = static_cast<float>(double{fz} * dir[2] + double{fx} * dir[0]);
+          if (d < 0.0f) side[0] = -dir[2], side[2] = dir[0], d = -d;
+          if (!(p.behind <= d)) turn = kept();
+          else if (p.cos_dead <= d) turn = 0.0f;
+          else turn = past(static_cast<float>(double{side[0]} * fz - double{side[2]} * fx), d);
+          break;
+        }
+        phase = 0;
+        continue;
+      default: break;
+    }
+    h.set_turn(turn);
+    h.set_throttle(throttle);
+    return;
+  }
+}
+
 }  // namespace mech3::ai

@@ -33,6 +33,7 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
   if (k == kVehicleSlotsPm[2]) return new PmRoundState(&o, &b);
   if (k == kVehicleSlotsPm[3]) return new PmCircleState(&o, &b);
   if (k == kVehicleSlotsPm[4]) return new PmManoeuvreState(&o, &b, false);
+  if (k == kVehicleSlotsPm[5]) return new PmKeepRangeState(&o, &b);
   if (k == kVehicleSlotsPm[6]) return new PmGuardState(&o, &b);
   if (k == kVehicleSlotsPm[7]) return new PmPassState(&o, &b);
   if (k == kVehicleSlotsPm[8]) return new PmBehindState(&o, &b);

@@ -81,6 +81,11 @@ class WireWalkT : public WireSteer<Base> {
   bool bumped(zgame::Handle v) override { return wire_walk::bumped(v); }
   int32_t rand_int() override { return brain_hooks().rand(); }
   float reach() override { return b_.params.get<float>(0x44); }
+  void velocity(zgame::Handle v, float out[3]) override { brain_hooks().velocity(v, out); }
+  zgame::Handle target_vehicle(zgame::Handle t) override { return t; }  // the order's target is a vehicle already
+  bool reversing() override { return c_.reversing(); }
+  float keep_far() override { return b_.params.get<float>(0x74); }
+  float keep_near() override { return b_.params.get<float>(0x78); }
   float circle_slack() override { return b_.params.get<float>(0x48); }
   double jump_fuel(zgame::Handle v) override { return brain_hooks().jump_fuel(v); }
   bool airborne(zgame::Handle v) override { return brain_hooks().airborne(v); }
