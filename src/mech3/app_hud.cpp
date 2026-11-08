@@ -1414,6 +1414,11 @@ bool program_view_target_delta(float d[3]) {
   std::copy(m->target->delta, m->target->delta + 3, d);
   return true;
 }
+float program_view_target_since() {
+  Mech* m = program_view_mech();
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  return h ? h->target.since_set : -1.0f;
+}
 // Tests (pm-tests item 25): the view mech's reticle lock state (0..4, 3 locked) and its timer, set first when
 // `set` >= 0; and whether its weapons may lock (the manager's +0x88).
 int32_t program_reticle_lock(int32_t set, float timer, bool* has_target) {

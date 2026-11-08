@@ -586,6 +586,13 @@ bool weapons_burst(const char* name, const float at[3]) {
 }
 
 void mech_command(void* mech, int32_t cmd) { static_cast<Mech*>(mech)->command(cmd); }
+bool mech_torso_pitch(void* mech, float pitch, float range[2]) {
+  Torso* t = static_cast<Mech*>(mech)->torso;
+  if (!t) return false;
+  t->pitch = pitch;
+  range[0] = t->min_pitch, range[1] = t->max_pitch;
+  return true;
+}
 
 int mech_trigger_lock_on(void* mech, bool* locked) {
   auto* me = static_cast<Mech*>(mech);

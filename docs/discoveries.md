@@ -645,6 +645,11 @@ From the weapon code (weapons.md).
   out of room and misses; from farther away it has time to come round. A
   lock is kept for 3.5 seconds after the reticle leaves the target, so you
   can fire after looking away.
+- **A lock never carries over to a new target, it only looks that way.**
+  Switching targets drops the lock at once; the new one takes 0.6 seconds
+  with the reticle on it (1.2 against ECM). Missiles fired before that fly
+  unguided straight along the reticle, so with the reticle already on the
+  new target they still fly at it (0x00443cc0, 0x00443d20).
 - **Only a weapon's first group counts.** A loadout can list a weapon in two
   groups, like `group (1 2)`, and 59 entries across 11 stock mechs do, but the
   game reads only the first number.

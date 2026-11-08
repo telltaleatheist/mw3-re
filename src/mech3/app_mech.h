@@ -264,6 +264,7 @@ int32_t mech_weapon_gone_case(void* mech, bool* picked);
 // Tests (pm-tests item 25): a key's command (Mech::command, e.g. 0x46 E); the first lock-on weapon through its
 // trigger (whether the shot locked); its first shot in flight (its place, whether it has a lock).
 void mech_command(void* mech, int32_t cmd);
+bool mech_torso_pitch(void* mech, float pitch, float range[2]);  // tests: the torso's pitch set, its limits
 int mech_trigger_lock_on(void* mech, bool* locked);
 int mech_lock_on_shot(void* mech, float at[3], bool* has_lock);
 float mech_knock(void* mech, float* threshold, bool* airborne);  // tests: pm-tests item 23

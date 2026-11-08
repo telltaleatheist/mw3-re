@@ -127,6 +127,7 @@ int32_t program_reticle_lock(int32_t set, float timer, bool* has_target);  // te
 void* program_view_target_mech();  // tests: the view mech's target's mech, if a mech
 const void* program_view_target_contact();  // tests: the view mech's target contact
 bool program_view_target_delta(float d[3]);  // tests: from the view mech to its target, as its sensors last saw
+float program_view_target_since();  // tests: seconds since TARGET last changed (-1 without a HUD)
 bool program_hud_target_other(const void* object, int mode);  // tests: on a turret or targets.zrd object
 // Tests only: the first group that locks selected and the player's target
 // set to its contact on `mech`; the group, -1 for none.
