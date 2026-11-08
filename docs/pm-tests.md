@@ -356,7 +356,7 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
   PM's 0x46b980 with 0x46b8d0, `test_pm_pocket_frame`, 3,000 frames on PM's exe, 4 of 4 breaks; the keys done 2026-11-08: `test_pm_pocket_keys`, 1,500 frames, 4 of 4 breaks; the panel done 2026-11-08: `test_pm_pocket_panel`, 200 runs, 12 of 12 breaks) (`test_pocket_panel`,
   `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 are
   MW3's with PM's offsets); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
-  of each struct the AI port owns compared once, or a line why not; (4) the 220 functions PM changed that run as MW3's
+  of each struct the AI port owns compared once, or a line why not (done 2026-11-08: `pm-ai-fields.md`, with `test_pm_ai_defaults` for the constructors' and start-up's values, 5 of 5 breaks); (4) the 220 functions PM changed that run as MW3's
   port: each read or tested, or a line why not; (5) every break for the AI pieces rerun on the switch's evaluation.
 - Needs Owen or his PC: the same watch on the exe for +0x588 and the fuel in a real jump; a run of the exe logging each
   mech's place and state once a second, for a compare by event; the exe's flags for mission 5's bases; and the flip
