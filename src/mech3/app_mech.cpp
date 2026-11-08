@@ -1236,6 +1236,13 @@ bool g_drive_held = false;  // --net-ahead holds the pilot: not "walking into so
 }  // namespace
 void program_net_drive_lock(bool on) { g_drive_lock = on; }
 
+int program_net_kill_base(int base) {
+  int n = 0;
+  for (ai::CZAiTarget* t : ai::target_list())
+    if (t && t->desc.mpoption == base && t->desc.health > 0) t->kill(), ++n;
+  return n;
+}
+
 uint32_t program_net_drive(int cmd, double t, uint32_t seed) {
   // The throttle up (0x18) held throughout (THROTTLE0's 0x24 is a key's
   // callback, not polled, and with ThrottleConst off a let-go throttle eases

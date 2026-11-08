@@ -89,9 +89,12 @@ class LobbyScreen : public MenuScreen {
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x00497410
 
   void enter(bool from_game = true);  // PM 0x0049a3c0 (MW3 0x00497720): the screen made ready (the state's: 1)
-  std::vector<std::string> results;  // PM: the results list's lines (0x0049b730; the screen's +0x15e14)
+  std::vector<std::string> results;  // PM: SCORES_LIST's lines (0x0049b730; its line list, the screen's +0x15e14)
+  void show_results();               // results into SCORES_LIST
+  uint8_t round_extended = 0, round_over = 0;  // PM +0x1679f, +0x167a0  the match extended on a tie, over early
+  int32_t round_over_total = -1;     // PM +0x167a4  the rounds it had, when over early
   void take_pilot(Handle pilot, MultiplayerGame* game);  // 0x0049cc30's two stores
-  void scores(bool report);          // 0x00498550: SCORES_LIST
+  void scores(bool report);          // PM 0x0049b730 (MW3 0x00498550): SCORES_LIST
   void refresh_lists();              // 0x00498710: the records from the network, TP_LIST and PLAYERS_LIST
   void refresh_buttons();            // 0x004993f0: READY, MECHLAB, START, NEW_TEAM as things stand
   void host_controls();              // PM 0x0049b3f0 (MW3 0x00498260): the rules' controls the host's to change
@@ -212,6 +215,7 @@ class LobbyScreen : public MenuScreen {
   CopyLine internet_line, lan_line;  // ours (piece 9c)
   float reach_timer = 0;
   std::vector<std::string> shown_scores;  // ours: SCORES_LIST's lines as last filled (the tests)
+  std::string shown_lines;           // ours: TP_LIST's and PLAYERS_LIST's lines as last dumped
 
  private:
   bool handlers_on_ = false;

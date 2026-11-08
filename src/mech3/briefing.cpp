@@ -903,13 +903,18 @@ void BriefingScreen::lance_loadouts() {
   Store* store = build_lab_store();
   std::vector<GameSlot*> slots;
   for (int32_t i = 0, n = e.game_slot_count(); i < n; ++i) slots.push_back(e.game_slot(i));
-  if (store) lance_fit(*store, slots, lance_keeps(e.game_kind()));
+  if (store) lance_fit_game(e.game_kind(), *store, slots);
   refresh();
 }
 
 // Pirate's Moon 0x00407c20: a standalone's and Instant Action's every slot keeps its mech and
 // loadout whatever the store holds (0x004079b0's third argument); a campaign's none does.
 bool lance_keeps(int32_t kind) { return kind == kStandalone || kind == kInstantAction; }
+
+void lance_fit_game(int32_t kind, Store& store, const std::vector<GameSlot*>& slots) {
+  if (kind == kMultiplayer) return;  // vt+0x30(0) and back
+  lance_fit(store, slots, lance_keeps(kind));
+}
 
 void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep) {
   for (size_t i = 0; i < slots.size(); ++i)

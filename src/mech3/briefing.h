@@ -224,6 +224,10 @@ void lance_slot(GameSlot& s, Store& store, bool keep, const Config* cfg);
 // 0x00408c30's loop, Pirate's Moon 0x00407c20: every slot fitted; with `keep` left as they are.
 void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep);
 bool lance_keeps(int32_t kind);
+// Pirate's Moon 0x00407c20 whole: a multiplayer game's (kind 3) lance isn't fitted at all, its slot kept
+// as the lobby left it (in a match of more rounds the store is empty by then, 0x00438550); any other kind's by
+// lance_keeps.
+void lance_fit_game(int32_t kind, Store& store, const std::vector<GameSlot*>& slots);
 
 // [0x005f4c80] the briefing screen, while the Load state has one.
 BriefingScreen*& briefing_screen();

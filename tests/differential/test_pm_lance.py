@@ -1,4 +1,5 @@
-"""The lance's fit when a load ends, PM's 0x407c20 and 0x4079b0, against the port's lance_keeps and lance_fit. The rule: in a
+"""The lance's fit when a load ends, PM's 0x407c20 and 0x4079b0, against the port's lance_fit_game and lance_fit. The rule: in a
+multiplayer game (3) no fit at all;
 standalone (5) and in Instant Action (2) every slot keeps its mech and loadout whatever the store holds; in a campaign (1) a
 slot's mech must be in the store, else the next of the 25 that is, and it comes out of the store. MW3's rule was only for
 Op 4 Mission 6's lancemates, and MW3's test can't load here.
@@ -99,7 +100,7 @@ def main():
     out = (ctypes.c_int32 * 256)()
     this = emu.alloc(0x100)  # 0x407900 and 0x407960, its only uses of it, stand in
     for t in range(3000):
-        kind = rng.choice([1, 2, 5])
+        kind = rng.choice([1, 2, 3, 5])  # 3, multiplayer: no fit at all
         emu.kind = kind
         n = rng.randint(1, 4)
         slots = []
