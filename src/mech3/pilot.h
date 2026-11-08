@@ -557,6 +557,13 @@ class MultiplayerGame : public Game {
   // `seed` its rand() word, its CRC-32 0x00597bc0 from 0), then the lock as
   // sent. True on the options' first lock, with the team play it sets.
   bool read_lobby_rules(const uint8_t* msg, size_t size, LobbyControls* c, int32_t seed, bool* team_play);
+  // PM 0x0049e6f0 (READY's host work; 0x0049d450's too): the block from the
+  // lists and boxes, 0x20 the lock, `seed` its rand() word, its CRC-32.
+  void keep_lobby_rules(const LobbyControls& c, int32_t seed);
+  // PM 0x00438550, the start of a match of more rounds: before its first,
+  // the store (+0x08) emptied and the bonus tons the weight limit; the
+  // round store (+0xd4) emptied.
+  void round_start(int32_t played);
   int32_t pmcc = 0;                  // PM +0xcc  Total Shots on the pilot's screen, one per shot (0x00471adf)
   uint8_t radar = 1;                 // PM +0xa8  the rules' 0x100 (RADAR_CHECKBOX's, by elimination: piece 6)
   int32_t x70 = 0;                   // +0x70, PM +0x78  KILLS_LIST's: the score to win (never set by the constructor; saved)

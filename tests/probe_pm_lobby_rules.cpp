@@ -630,3 +630,39 @@ extern "C" void probe_pm_lobby_rules_msg(const int32_t* in, int32_t* out) {
                          static_cast<int32_t>(g.rules_crc)};
   std::memcpy(out + 20, r, sizeof r);
 }
+
+// READY's block (0x0049e6f0) for test_pm_lobby_rules_msg.py: the lists, boxes and lock as probe_pm_lobby_rules_msg's,
+// in[112] the rand() word. Out: the block (flags, world, kills, minutes, tons, seed) and its CRC.
+extern "C" void probe_pm_keep_lobby_rules(const int32_t* in, int32_t* out) {
+  mech3::LobbyControls c;
+  mech3::LobbyChoice* lists[7] = {&c.kills, &c.minutes, &c.tons, &c.realloc, &c.rounds, &c.kind, &c.world};
+  for (int k = 0; k < 7; ++k) {
+    const int32_t* l = in + 14 * k;
+    lists[k]->values.assign(l + 2, l + 2 + l[0]);
+    lists[k]->pick = l[1];
+  }
+  bool* boxes[7] = {&c.respawn, &c.ammo, &c.outside, &c.jets, &c.radar, &c.stock, &c.mobile};
+  for (int k = 0; k < 7; ++k) *boxes[k] = in[98 + k] != 0;
+  c.locked = in[105] != 0;
+  mech3::MultiplayerGame g(nullptr);
+  g.rules.flags = 0xdead, g.rules_crc = 0xbeef;  // whatever was there goes
+  g.keep_lobby_rules(c, in[112]);
+  const int32_t r[7] = {static_cast<int32_t>(g.rules.flags), g.rules.world, g.rules.kills, g.rules.time,
+                        g.rules.weight, g.rules.seed, static_cast<int32_t>(g.rules_crc)};
+  std::memcpy(out, r, sizeof r);
+}
+
+// A match's start (0x00438550): the store's and the round store's item counts and `full`, the tons, the rounds
+// played. Out: the counts and `full` after, the bonus tons' bits.
+extern "C" void probe_pm_round_start(const int32_t* in, int32_t* out) {
+  mech3::MultiplayerGame g(nullptr);
+  g.store.clear(), g.round_store.clear();
+  for (int32_t k = 0; k < in[0]; ++k) g.store.add_mech(k);
+  for (int32_t k = 0; k < in[2]; ++k) g.round_store.add_mech(k);
+  g.store.full = static_cast<uint8_t>(in[1]), g.round_store.full = static_cast<uint8_t>(in[3]);
+  g.x78 = in[4];
+  std::memcpy(&g.bonus_tons, in + 5, 4);
+  g.round_start(in[6]);
+  out[0] = g.store.count(), out[1] = g.store.full, out[2] = g.round_store.count(), out[3] = g.round_store.full;
+  std::memcpy(out + 4, &g.bonus_tons, 4);
+}

@@ -1435,6 +1435,31 @@ std::vector<uint8_t> lobby_rules_message(const LobbyControls& c) {
   return m;
 }
 
+// Pirate's Moon 1.0 @ 0x0049e6f0 (the screen's; inline in 0x0049d450).
+void MultiplayerGame::keep_lobby_rules(const LobbyControls& c, int32_t seed) {
+  const auto v = [](const LobbyChoice& l) { return static_cast<int16_t>(l.picked().has ? l.picked().value : 0); };
+  rules = Rules{};
+  rules.world = v(c.world), rules.kills = v(c.kills), rules.time = v(c.minutes), rules.weight = v(c.tons);
+  rules.flags = lobby_flags(c);
+  rules.seed = seed;
+  uint8_t b[0x10];
+  std::memcpy(b, &rules.flags, 4);
+  std::memcpy(b + 4, &rules.world, 2), std::memcpy(b + 6, &rules.kills, 2), std::memcpy(b + 8, &rules.time, 2);
+  std::memcpy(b + 10, &rules.weight, 2), std::memcpy(b + 12, &rules.seed, 4);
+  rules_crc = zutl_zar::crc32(0, b, sizeof b);
+}
+
+// Pirate's Moon 1.0 @ 0x00438550 (0x00473240 empties a store, `full` off).
+void MultiplayerGame::round_start(int32_t played) {
+  if (played == 0) {
+    store.clear();
+    store.full = 0;
+    bonus_tons = static_cast<float>(x78);  // +0x80
+  }
+  round_store.clear();
+  round_store.full = 0;
+}
+
 // Pirate's Moon 1.0 @ 0x0049d450. The shorts are picked as unsigned (a
 // negative value never matches); REALLOC as a word. FIX (A): whole messages
 // only (the exe read 0x18 bytes of any).
@@ -1450,17 +1475,7 @@ bool MultiplayerGame::read_lobby_rules(const uint8_t* msg, size_t size, LobbyCon
   c->rounds.select_value(h[5]);
   c->respawn = flags & 1, c->mobile = (flags >> 1) & 1, c->stock = (flags >> 2) & 1, c->ammo = (flags >> 3) & 1;
   c->outside = (flags >> 4) & 1, c->jets = (flags >> 7) & 1, c->radar = (flags >> 8) & 1;
-  const auto v = [](const LobbyChoice& l) { return static_cast<int16_t>(l.picked().has ? l.picked().value : 0); };
-  rules = Rules{};
-  rules_crc = 0;
-  rules.world = v(c->world), rules.kills = v(c->kills), rules.time = v(c->minutes), rules.weight = v(c->tons);
-  rules.flags = lobby_flags(*c);
-  rules.seed = seed;
-  uint8_t b[0x10];
-  std::memcpy(b, &rules.flags, 4);
-  std::memcpy(b + 4, &rules.world, 2), std::memcpy(b + 6, &rules.kills, 2), std::memcpy(b + 8, &rules.time, 2);
-  std::memcpy(b + 10, &rules.weight, 2), std::memcpy(b + 12, &rules.seed, 4);
-  rules_crc = zutl_zar::crc32(0, b, sizeof b);
+  keep_lobby_rules(*c, seed);
   const bool was = c->locked;
   c->locked = (flags >> 5) & 1;
   if (was || !c->locked) return false;
