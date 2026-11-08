@@ -1394,7 +1394,12 @@ MW3's; what changed:
   damage as MW3's does. The channels' eased level would not: +0.1 to one of
   four a frame against a fall of 2 x level a second settles near 0.375 at any
   health under 0.1, where MW3's slow fall (0.3 a second) kept its level at its
-  ceiling (fixes.md).
+  ceiling (fixes.md). FIX (B): the quad is drawn on the 3D frame, so its
+  corners go from the canvas onto the frame (`canvas_point_to_render`, as the
+  panels' quads); at 16:9 (853x480 on 1920x1080) the static sat at canvas
+  pixels, small patches above the compass and in the view and none on the
+  panels (Owen's shot 2026-11-08, pm-tests.md front-end item 13; MW3's fill
+  is on the 2D layer and was right). `pm_static_on_the_frame_at_16_9`.
 Checked by `test_pm_hud_static.py`: 4 noises (262,144 pixels), 200 quads and
 40 runs of 2,787 frames against PM's exe; 12 breaks caught. Not checked: which
 panel's rect is drawn (as MW3's), and the static on screen (mw3pm does not run

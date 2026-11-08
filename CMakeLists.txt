@@ -642,6 +642,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
     tests/pm/test_pm_objectives.cpp
+    tests/pm/test_pm_hud.cpp
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)

@@ -1941,6 +1941,13 @@ void Hud::static_quad(float level, const ztwod::Rect& r) {
   if (!noise) return;
   float q[4][8];
   static_quad_vertices(r, q);
+  // FIX (B): the panel's canvas rect onto the frame, as the panels' quads
+  // (draw_quad); at 16:9 the static sat at canvas pixels on the 3D frame.
+  for (auto& p : q) {
+    float x = p[0] + 0.5f, y = p[1] + 0.5f;
+    canvas_point_to_render(&x, &y);
+    p[0] = x - 0.5f, p[1] = y - 0.5f;
+  }
   // FIX (bug): the exe clamps the level to 0..0.9 and then draws the noise at
   // full strength however hurt. Drawn at the add's ceiling for the health
   // instead (the eased level settles near 0.375 at any health; MW3's sat at
