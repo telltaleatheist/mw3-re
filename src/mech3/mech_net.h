@@ -88,6 +88,7 @@ struct NetGame {
   uint32_t ping_turn = 0;              // [0x00605fc8]  the player pinged last (0x00470ab0)
   uint32_t acked_time = 0;             // [0x00605fc4]  the last state acknowledged's send time (0x004709d0)
   uint8_t echo = 0;                    // [0x00605fb8], PM [0x00629a89]  an effect heard is being replayed: not sent again
+  int32_t rounds_played = 0;           // PM [0x0062cc38]  one more at each end; the lobby's (0x0049a3c0) reads and clears it
 };
 NetGame& net_game();
 
@@ -151,6 +152,10 @@ struct NetCalls {
   void (*player_mech_end)() = nullptr;             // 0x0041e580 on the pilot's mech, when there is one
   void (*ff_stop)() = nullptr;                     // 0x00433530 on [0x00608620], when there is one
   void (*config_free)(Config* c) = nullptr;        // 0x00424350 and the delete
+  // PM's end's (0x0046f150): the round's tally, the stats (piece 5), the local slot.
+  void (*round_tally)() = nullptr;                 // PM 0x00436980(1) on the network game: the winner's rounds, the ranking
+  void (*stats_add)(int32_t mech, const Config* c) = nullptr;  // PM 0x00475310 on the game's +0xd4
+  bool (*local_slot)(int32_t* mech, const Config** c) = nullptr;  // PM the game's vt+0x30(0): its +4, +8
   // The launch's (0x0046da80): the lobby's and the network game's.
   uint32_t (*team_of)(uint32_t player) = nullptr;  // 0x00435910 on the network game
   int32_t (*start_of)(uint32_t player) = nullptr;  // the player's lobby slot +0x20 (0x00495b10)
