@@ -292,3 +292,48 @@ TEST(pm_wire_attack_makes_its_context_and_counts_the_order_side) {
   pm_pending_forget(b);
   b.set_net(nullptr);
 }
+
+namespace mech3::ai {
+bool pm_set_target(AiTarget& t, Contact* c, bool keep_sides);
+}
+
+namespace {
+// Vehicles 21 (an ally, a lancemate the player commands) and 22 (an enemy); a contact's seen is its vehicle.
+struct Teams : TargetHooks {
+  Handle seen_vehicle(Handle s) override { return s; }
+  Handle ai_target(Handle v) override { return v; }
+  uint32_t team_of(Handle v) override { return v == 21 ? 2u : v == 22 ? 4u : 0u; }
+};
+struct Lancemate : BrainHooks {
+  AiTarget mate;
+  AiTarget* targetable(Handle v) override { return v == 21 ? &mate : nullptr; }
+};
+}  // namespace
+
+TEST(pm_wire_set_target_keeps_the_sides_and_saves_a_lancemate) {
+  Teams teams;
+  TargetHooks& old_t = target_hooks();
+  set_target_hooks(&teams);
+  Lancemate f;
+  f.mate.xbc = 0x10;
+  BrainHooks& old_b = brain_hooks();
+  set_brain_hooks(&f);
+  AiTarget t;
+  t.allies = 2, t.enemies = 4;
+  Contact ally, enemy;
+  ally.seen = 21, enemy.seen = 22;
+  pm_set_target(t, &enemy, false);
+  EXPECT(t.target == &enemy && t.enemy_target == &enemy && !t.ally_target && !t.saved_target);
+  pm_set_target(t, &ally, false);  // 0x004e6330: a lancemate picked while none is held is saved
+  EXPECT(t.target == &ally && t.ally_target == &ally && t.saved_target == &ally);
+  t.saved_target = nullptr, t.xbc = 0x20;  // one held: none saved
+  pm_set_target(t, &ally, false);
+  EXPECT(!t.saved_target);
+  pm_set_target(t, nullptr, false);  // none: the sides it was are cleared
+  EXPECT(!t.target && !t.ally_target && t.enemy_target == &enemy);
+  pm_set_target(t, &enemy, true);  // keep_sides: only the target
+  EXPECT(t.target == &enemy && !t.ally_target);
+  set_brain_hooks(&old_b);
+  set_target_hooks(&old_t);
+  pm_wire_clear();
+}
