@@ -439,7 +439,7 @@ static void kill_run(const char* which, bool quick) {
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
   p.sound = &sound, p.files = &files, p.input = &keys;
   mech3::GameEngine engine(p, "mech3.exe -nofmv");
-  engine.quiet = true;
+  engine.quiet = std::getenv("PM_PILOT") == nullptr;
   mech3::Mech3App app(&engine);
   mech3::set_app(&app);
   EXPECT(app.init_instance());
@@ -449,6 +449,9 @@ static void kill_run(const char* which, bool quick) {
   if (const char* name = std::getenv("PM_PILOT")) {  // the pilot's current game's slot: its mech, loadout and skin
     mech3::current_pilot() = mech3::load_pilot(name, false);
     std::printf("  pilot %s: %s\n", name, mech3::current_pilot() ? "loaded" : "not found");
+    if (mech3::Pilot* pp = mech3::current_pilot(); pp && std::getenv("PM_PILOT_GAME"))  // the saved game of that mission, as the pilot screen picks it
+      for (mech3::Game* g : pp->campaigns)
+        if (auto* cg = dynamic_cast<mech3::CampaignGame*>(g); cg && cg->mission_number() == std::atoi(std::getenv("PM_PILOT_GAME"))) pp->current = g;
     l.keep_pilot = mech3::current_pilot() != nullptr;
   }
   engine.set_launch(l);

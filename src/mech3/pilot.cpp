@@ -302,7 +302,8 @@ bool Pilot::select_campaign(int32_t i) {
 // then the pilot saved. True when there is no next game: the campaign is over.
 // FIX (bug), behind `bugs`: the exe wrote the next game's world (zSave, in
 // next_mission) before asking, so No kept the old entry over the new world;
-// here the world is written once filed, and not on No (fixes.md).
+// here the world is written once filed, and not on No (fixes.md). As
+// next_mission, Pirate's Moon writes none for a mission on a fresh world.
 bool Pilot::record_mission(bool next) {
   if (!current || current->type() != kCampaign) return false;
   const bool fix = zfix::options().bugs;
@@ -327,7 +328,7 @@ bool Pilot::record_mission(bool next) {
       g = static_cast<CampaignGame*>(*it);
       filed = false;
     }
-    if (fix && filed) pilot_hooks().save_world(g->path(), 2);
+    if (fix && filed && !campaign_fresh_world(m)) pilot_hooks().save_world(g->path(), 2);
     current = g;
   }
   save();
