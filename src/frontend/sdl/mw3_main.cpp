@@ -856,7 +856,9 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   // (sdl_fit.h). Checks and shots stay in a window.
   window.set_fullscreen(!a.windowed && !a.window_given && !a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
   // FIX (B): a first start's mission at the desktop's size; checks and shots keep 640x480.
-  window.set_first_start_desktop(!a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
+  // MW3_FIRST_START=1 keeps it on in a check (sdl_first_start_takes_the_desktop).
+  window.set_first_start_desktop((!a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty()) ||
+                                 std::getenv("MW3_FIRST_START") != nullptr);
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;

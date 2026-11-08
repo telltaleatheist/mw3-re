@@ -5059,3 +5059,36 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
 }
 #endif
 #endif
+
+#if !defined(_WIN32)  // posix_spawn's std::system
+// A first start (no InGameVMode saved) plays 16:9, or the screen's own shape, at the desktop's size: mode 16
+// with the desktop's width and height saved (FIX (B), resolution.md; pm-tests.md front-end item 1). Checks keep
+// it off; MW3_FIRST_START=1 keeps it on in this one. The size saved is the frame the program opened.
+TEST(sdl_first_start_takes_the_desktop) {
+  const std::string install = MW3_GAME_DIR;
+  if (!std::filesystem::exists(install + "/zbd/mechlib.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_first_start";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  const std::string line = "MW3_FIRST_START=1 \"" + std::string(MW3_BIN) + "\" --install \"" + install + "\" --write-dir \"" + dir +
+                           "\" --no-launcher --hidden --nosound --frames 60 > \"" + dir + "/out.log\" 2>&1";
+  EXPECT(std::system(line.c_str()) == 0);
+  auto text = [](const std::string& path) {
+    std::ifstream in(path);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  const std::string out = text(dir + "/out.log"), reg = text(dir + "/settings.reg");
+  int fw = 0, fh = 0, cw = 0, ch = 0;
+  const size_t at = out.find("mw3: screen: frame ");
+  if (at != std::string::npos) std::sscanf(out.c_str() + at, "mw3: screen: frame %d x %d, canvas %d x %d", &fw, &fh, &cw, &ch);
+  auto dword = [&](const char* key) {
+    const size_t k = reg.find(std::string("\"") + key + "\"=dword:");
+    return k == std::string::npos ? -1 : static_cast<int>(std::strtol(reg.c_str() + k + std::strlen(key) + 9, nullptr, 16));
+  };
+  std::printf("  frame %d x %d, canvas %d x %d; saved mode %d, %d x %d\n", fw, fh, cw, ch, dword("InGameVMode"),
+              dword("ScreenWidth"), dword("ScreenHeight"));
+  EXPECT(dword("InGameVMode") == 16 && dword("ScreenWidth") == fw && dword("ScreenHeight") == fh);
+  EXPECT(fw > 0 && fh > 0 && fw * 3 != fh * 4);  // the desktop's shape, not the 4:3 of a check
+}
+#endif
