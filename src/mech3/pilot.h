@@ -441,7 +441,11 @@ class MultiplayerGame : public Game {
   bool tally(bool award);                          // PM 0x00436980
   bool round_winner();                             // PM 0x00437970
   void next_round(uint32_t place, int32_t round);  // PM 0x00438580
-  void score_texts(int32_t name_width, int32_t number_width);  // 0x00435b60: the lines, sorted
+  void score_texts(int32_t name_width, int32_t number_width);  // PM 0x00436db0 (MW3 0x00435b60): the lines, sorted
+  // PM 0x0049b730, the lobby screen's results list's lines: before any round
+  // message 0x2bd; else "End of Round <played> of <total>" (the saved total
+  // once `over`), the tie's and the game over's lines, then the score lines.
+  std::vector<std::string> round_lines(int32_t played, bool extended, bool over, int32_t over_total);
 
   // +0x38..+0x5c: the lobby's (pointers in the exe's lists, owned here).
   std::vector<std::unique_ptr<ScoreLine>> score_lines;      // +0x3c (its allocator +0x38)
@@ -482,7 +486,7 @@ class MultiplayerGame : public Game {
   uint8_t b8c = 1, b8d = 0, b8e = 0, b8f = 1;  // +0x8c..+0x8f
   int32_t x90 = 0, x94 = 1;          // +0x90, +0x94  DATABASE_LIST's world: its folder (0 c1) and number
   int32_t kills = 0, deaths = 0;     // +0x98, +0x9c  the pilot screen's line (0x27e)
-  int32_t best = 0, best_count = 0;  // +0xa0, +0xa4  the best score and how many have it (0x00435b60)
+  int32_t best = 0, best_count = 0;  // PM +0xbc, +0xc0 (MW3 +0xa0, +0xa4): the most rounds won and how many have it (0x00436db0)
   uint8_t ba8 = 0;                   // +0xa8  MOBILE_CHECKBOX's
   std::string roster;                // +0xac  (0x00436470)
 };

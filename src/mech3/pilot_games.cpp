@@ -1351,43 +1351,72 @@ bool MultiplayerGame::tally(bool award) {
 // tally's, not awarding.
 bool MultiplayerGame::round_winner() { return winner_set || tally(false); }
 
-// Mech3.exe 1.2 @ 0x00435b60: SCORES_LIST's lines (under the heading 0xdd6,
-// "Player Score Kills Suicides"): the name and two numbers cut to their
-// columns, then the suicides; a team's line its name and score. The best
-// score and how many have it noted; the lines sorted by their keys
-// (std::sort in the exe, its order of equal keys unspecified: stable here).
+// Pirate's Moon 1.0 @ 0x00436db0 (MW3's 0x00435b60): SCORES_LIST's lines
+// (and the end of a round's, 0x0049b730): the name cut to its column, then
+// the rounds won (in team play the team's), the score and the kills, each cut
+// to its column (MW3: score, kills, suicides); a team's line "<name> (Rounds
+// Won: <n>)". The most rounds won and how many have it noted (teams' in team
+// play); the lines sorted by their keys (std::sort in the exe, its order of
+// equal keys unspecified: stable here).
 void MultiplayerGame::score_texts(int32_t name_width, int32_t number_width) {
   const auto left = [](const std::string& s, int32_t n) { return s.substr(0, n < 0 ? 0 : static_cast<size_t>(n)); };
   char buf[256];
   best = 0, best_count = 0;
-  const auto line = [&](LobbyPlayer& p, const char* name_format) {
+  const auto note = [&](int32_t rounds_won) {
+    if (best < rounds_won) best = rounds_won, best_count = 1;
+    else if (rounds_won == best) ++best_count;
+  };
+  const auto line = [&](LobbyPlayer& p, const char* name_format, int32_t rounds_won) {
     ScoreLine* l = p.score;
-    if (!l) return;
-    if (l->score > best) best = l->score, best_count = 1;
-    else if (l->score == best) ++best_count;
     std::snprintf(buf, sizeof buf, name_format, p.name.c_str());
     std::string t = left(buf, name_width) + " ";
-    std::snprintf(buf, sizeof buf, "%d             ", l->score);
+    std::snprintf(buf, sizeof buf, "%d             ", rounds_won);  // [0x006055dc]
     t += left(buf, number_width);
-    std::snprintf(buf, sizeof buf, "%d             ", p.kills);
+    std::snprintf(buf, sizeof buf, "%d             ", l ? l->score : 0);
     t += left(buf, number_width);
-    std::snprintf(buf, sizeof buf, "%d", p.deaths);
-    l->text = t + buf;
+    std::snprintf(buf, sizeof buf, "%d", p.kills);  // [0x00604080]
+    if (l) l->text = t + buf;  // the exe reads +0x34 unchecked
   };
-  if (!multiplayer_team_play()) {
-    for (auto& p : lobby_players) line(*p, "%s                        ");  // [0x005e3790]
+  if (!multiplayer_team_play()) {  // [0x0062cc34]
+    for (auto& p : lobby_players) {
+      note(p->rounds);
+      line(*p, "%s                        ", p->rounds);  // [0x006055c0]
+    }
   } else {
     for (auto& t : lobby_teams) {
       if (t->score) {
-        std::snprintf(buf, sizeof buf, "%s ( %d )", t->name.c_str(), t->score->score);
+        std::snprintf(buf, sizeof buf, "%s (Rounds Won: %d)", t->name.c_str(), t->rounds);  // [0x00605608]
         t->score->text = buf;
       }
+      note(t->rounds);
       for (auto& p : lobby_players)
-        if (p->team == t->id) line(*p, "  %s                  ");  // [0x005e37c0]
+        if (p->team == t->id) line(*p, "  %s                  ", t->rounds);  // [0x006055f0]
     }
   }
   std::stable_sort(score_lines.begin(), score_lines.end(),
                    [](const std::unique_ptr<ScoreLine>& a, const std::unique_ptr<ScoreLine>& b) { return a->key > b->key; });
+}
+
+// Pirate's Moon 1.0 @ 0x0049b730 (on the lobby screen: `played` [0x0062cc38],
+// `extended` its +0x1679f, `over` +0x167a0, `over_total` +0x167a4). Each line
+// is an item of its results list (+0x15e14). Not ported: then, when the game
+// came from the MSN Gaming Zone ([0x0062cc2d]), its scores reported to it
+// (0x005aaa80, 0x005aab60, 0x005aaba0), FIX (A): no Zone.
+std::vector<std::string> MultiplayerGame::round_lines(int32_t played, bool extended, bool over, int32_t over_total) {
+  std::vector<std::string> out;
+  if (played == 0) {
+    const char* m = pilot_hooks().message(0x2bd);  // 0x00596e50
+    out.emplace_back(m ? m : "");
+    return out;
+  }
+  char buf[64];
+  std::snprintf(buf, sizeof buf, "End of Round %d of %d", played, over ? over_total : rounds_total);  // [0x0060a7f8]
+  out.emplace_back(buf);
+  if (extended) out.emplace_back(" Rounds extended due to tie.");  // [0x0060a7d8]
+  if (over) out.emplace_back(" Game over: No one else can win.");  // [0x0060a7b4]
+  score_texts(0x15, 7);  // 0x00436db0
+  for (const auto& l : score_lines) out.push_back(l->text);
+  return out;
 }
 
 // Mech3.exe 1.2 @ 0x00436e30
