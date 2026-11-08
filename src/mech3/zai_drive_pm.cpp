@@ -1,5 +1,7 @@
 #include "mech3/zai_drive_pm.h"
 
+#include "mech3/zai_firing_pm.h"
+
 #include <cmath>
 
 namespace mech3::ai {
@@ -462,6 +464,128 @@ void DeployStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const Deplo
     if (!(wake <= h.now()) && !h.finding_way()) break;  // the way finder's path ends the wait at once
   }
   step = 6;
+}
+
+// Pirate's Moon 1.0 @ 0x004e1050. Without a target the exe reads through null; the directions stay 0 here.
+void CircleStatePm::start(WalkPmHooks& h, zgame::Handle v) {
+  const float* to = h.target_place(h.order_target());
+  float pos[3];
+  h.position(v, pos);  // 0x005cb260
+  share = h.x94();
+  flip = 0;
+  if (!to) return;
+  float r[3] = {to[0] - pos[0], 0.0f, to[2] - pos[2]};
+  unit3(r);  // 0x004013d0
+  radial[0] = r[0], radial[1] = r[1], radial[2] = r[2];
+  tangent[0] = r[2], tangent[1] = 0.0f, tangent[2] = -r[0];
+}
+
+// Pirate's Moon 1.0 @ 0x004e1180 (MW3's 0x004c9880): PM gives up on the target's live flag and its own must-leave, looks
+// ahead by vt+0x134, and turns as 0x004d7060 (inline, PM's turn settings).
+void CircleStatePm::run(WalkPmHooks& h, zgame::Handle v) {
+  const zgame::Handle t = h.order_target();
+  const float* to = h.target_place(t);
+  float from[3];
+  h.position(v, from);
+  if (!to || !h.target_live(t) || h.must_leave(v)) {
+    h.order_pop();  // order vt+0x0c
+    return;
+  }
+  float dir[3] = {to[0] - from[0], 0.0f, to[2] - from[2]};  // 0x004d74f0
+  const float dist = unit3(dir);
+  const double R = h.reach();
+  // Each dot summed x and y first, then z, and stored.
+  const float r = static_cast<float>((double{dir[0]} * radial[0] + double{dir[1]} * radial[1]) + double{dir[2]} * radial[2]);
+  const float e = static_cast<float>((double{r} * dist - R) / R);
+  const float along = static_cast<float>((double{dir[0]} * tangent[0] + double{dir[1]} * tangent[1]) + double{dir[2]} * tangent[2]);
+  const double P = h.circle_slack();
+  if (flip == 0) {
+    if (!(double{along} * dist >= -P)) flip = 1;  // test ah 0x01: unordered turns it on
+  } else if (P < double{along} * dist) {
+    flip = 0;
+  }
+  const double thr = h.throttle_goal();  // the controls' vt+0x1c
+  float s = e;
+  if (flip == 0) {
+    if (!(thr > -0.1)) s = -e;  // [0x005ef448], test ah 0x41
+  } else if (!(thr >= 0.1)) {   // [0x005dffa8], test ah 0x01
+    s = -e;
+  }
+  float d[3] = {static_cast<float>(double{s} * radial[0] + tangent[0]), 0.0f,
+                static_cast<float>(double{s} * radial[2] + tangent[2])};  // each kept in the register, stored once
+  unit3(d);
+  float fx, fz;
+  h.forward(v, &fx, &fz);
+  const float fwd[3] = {fx, 0.0f, fz};
+  float dot, cross;
+  turn = turn_pm(fwd, d, &dot, &cross, turn, turn_walk_params());
+  h.set_turn(turn);
+  double ahead = h.stopping_at(v, share) * 3.0;  // [0x005dfd14]
+  if (10.0 < ahead) ahead = 10.0;                // [0x005de7a8]
+  if (flip != 0) ahead = -ahead;
+  float look[3];
+  for (int i = 0; i < 3; ++i) look[i] = from[i] + static_cast<float>(ahead * d[i]);
+  if (h.pull(v, from, look, look)) flip = flip == 0;  // 0x004ccac0
+  if (!(0.5 <= dot)) {  // [0x005de838]
+    h.set_throttle(0.0f);
+    return;
+  }
+  h.set_throttle(flip == 0 ? share : -share);
+}
+
+// Pirate's Moon 1.0 @ 0x004e1860
+void PassPm::pick(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3], const float to[3]) {
+  float d[3] = {pos[0] - to[0], 0.0f, pos[2] - to[2]};
+  const float far_side[3] = {to[0] - d[0], 0.0f, to[2] - d[2]};
+  const double len = unit3(d);
+  const double a = std::atan2(double{x38}, len);
+  const double r = std::sqrt(len * len + double{x38} * x38);
+  const float f = static_cast<float>((r + r) * std::sin(a));
+  float side[3];
+  if ((h.rand_int() & 1) == 0) {
+    side[0] = -(d[2] * f), side[2] = d[0] * f;
+  } else {
+    side[0] = d[2] * f, side[2] = -(d[0] * f);
+  }
+  point[0] = far_side[0] + side[0], point[1] = far_side[1] + 0.0f, point[2] = far_side[2] + side[2];
+  h.pull(vehicle, pos, point, point);  // 0x004ccac0
+  float* from = h.way_from();
+  from[0] = pos[0], from[1] = pos[1], from[2] = pos[2];
+  s.set(h, from, point, speed, vehicle);
+}
+
+// Pirate's Moon 1.0 @ 0x004e1a50, with 0x004e19d0 (the away measure and a distance nothing reads). Without the
+// target's place the exe reads through null; it gives up here.
+void PassPm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
+  float pos[3];
+  h.position(vehicle, pos);
+  const zgame::Handle t = h.order_target();
+  const float* to = h.target_place(t);
+  const bool gone = !to || !h.target_live(t) || h.must_leave(vehicle);
+  switch (step) {
+    case 0:
+    case 3:
+      if (gone) {
+        s.carrot(h.way_from());
+        h.order_pop();  // order vt+0x0c
+        return;
+      }
+      pick(h, s, vehicle, pos, to);
+      break;
+    case 1:
+    case 2: break;
+    default: return;
+  }
+  float away[2], sum;
+  away_pm(s, away, &sum);
+  if (!gone && (!s.at_end() || stop < sum)) {
+    drive_pm(h, s, vehicle, away, sum, stop * 0.5f, &turn, &throttle, inv_stop, 0.04f, 0.04f);
+    h.set_turn(turn);
+    h.set_throttle(throttle);
+    step = 2;
+    return;
+  }
+  step = 3;
 }
 
 }  // namespace mech3::ai

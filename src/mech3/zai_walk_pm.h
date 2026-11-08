@@ -58,7 +58,8 @@ class WalkPmHooks : public SteerPmHooks {
   virtual bool finding_way() { return false; }  // the brain's +0x1f8, its way finder's path
   virtual void return_back() {}  // 0x004ea180 on the brain's +0x15c with a new 0x005ef250: back to the order before
   virtual int32_t rand_int() { return 0; }                                       // rand
-  virtual float reach() { return 0.0f; }                                         // the brain's +0x44
+  virtual float reach() { return 0.0f; }
+  virtual float circle_slack() { return 0.0f; }  // the brain's +0x48: how far along the round it goes before turning back                                         // the brain's +0x44
   // The manoeuvre 0x004d5040.
   virtual double jump_fuel(zgame::Handle v) { (void)v; return 0.0; }             // vt+0x154
   virtual bool airborne(zgame::Handle v) { (void)v; return false; }              // vt+0x150
@@ -122,6 +123,19 @@ struct MoveStatePm {
   void run_backup(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
   // The terminus node's run (0x004e1fd0, vtable 0x005ef634): driven there, then back to the order before.
   void run_terminus(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
+};
+
+// The vehicle net's slot 2 state (0x004e0ff0 -> 0x004e1050, vtable 0x005ef424; MW3's mode 1 CircleState, 0x004c9750 and
+// 0x004c9880; not CirclePm, slot 3): round the order's target at the brain's +0x44 along the tangent of the start,
+// turning back past its +0x48 or at the boundary.
+struct CircleStatePm {
+  float turn = 0;          // +0x0c
+  float radial[3] = {};    // +0x1c
+  float tangent[3] = {};   // +0x28
+  int32_t flip = 0;        // +0x34  1 the other way round
+  float share = 1.0f;      // +0x38  the brain's +0x94
+  void start(WalkPmHooks& h, zgame::Handle v);  // 0x004e1050
+  void run(WalkPmHooks& h, zgame::Handle v);    // 0x004e1180
 };
 
 // What the deploy node's run reads of its node (0x40 bytes, as MW3's 0x004cff10).
@@ -217,6 +231,15 @@ struct BehindPm {
   float x38 = 0;              // +0x38  the brain's +0x2c
   void start(WalkPmHooks& h, zgame::Handle vehicle);                  // 0x004d8690, 0x004d8580
   void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);        // 0x004d89d0
+};
+
+// The vehicle net's slot 7 state (0x004e15e0 -> 0x004e1750 over 0x004e1640, vtable 0x005ef474): the behind state's
+// fields and start; a place through the target and past it, as far again as the pilot is from it and to a random
+// side by twice the brain's +0x2c, driven to, then picked again.
+struct PassPm : BehindPm {
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);  // 0x004e1a50
+ private:
+  void pick(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3], const float to[3]);  // 0x004e1860
 };
 
 // The state 0x004d8dc0 (vtable 0x005eebe4): round the order's target at the brain's +0x44, on the side of +0x20's
