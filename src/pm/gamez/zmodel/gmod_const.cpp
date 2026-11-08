@@ -339,6 +339,75 @@ void read_model_data(std::FILE* f, Model& m, int32_t base) {
   // (docs/pm-map.md, the models' form).
 }
 
+// Pirate's Moon 1.0 @ 0x005726f0
+void model_unstrip(Model* m) {
+  if (!m || m->count(0) != 0) return;
+  bool appended = false;
+  const int32_t count = m->count(0x10);
+  for (int32_t at = 0; at < count; ++at) {
+    if (!(m->polygons[at].flags & 0x2000)) continue;
+    m->polygons[at].flags &= ~0x2000u;
+    const int32_t n = static_cast<int32_t>(m->polygons[at].flags & 0x3ff);
+    if (n == 3) continue;
+    appended = true;
+    for (int32_t i = n - 3; i >= 0; --i) {
+      for (int32_t j = 0; j < m->polygons[at].material_count; ++j) {
+        if (i == 0 && j == 0) continue;  // the strip's own triangle and material, kept in place below
+        const Polygon& s = m->polygons[at];
+        const int32_t a = i, b = (i + 1) | 1, c = (i + 2) & ~1;  // the strip's winding
+        const uint32_t va = s.vertex_indices[a], vb = s.vertex_indices[b], vc = s.vertex_indices[c];
+        if (va == vb || va == vc || vb == vc) continue;
+        const int32_t k = m->count(0x10);
+        Polygon* grown = new Polygon[static_cast<size_t>(k) + 1]{};
+        for (int32_t q = 0; q < k; ++q) grown[q] = m->polygons[q];
+        delete[] m->polygons;
+        m->polygons = grown;
+        { const int32_t c1 = k + 1; std::memcpy(m->header + 0x10, &c1, 4); }
+        const Polygon& src = m->polygons[at];
+        Polygon& t = m->polygons[k];
+        t.flags = 3u | (src.flags & 0x800) | (src.flags & 0x1000);
+        t.priority = src.priority;
+        const int32_t pick[3] = {a, b, c};
+        t.vertex_indices = static_cast<uint32_t*>(std::malloc(12));
+        for (int q = 0; q < 3; ++q) t.vertex_indices[q] = src.vertex_indices[pick[q]];
+        if (t.flags & 0x1000) {
+          t.normal_indices = static_cast<uint32_t*>(std::malloc(12));
+          for (int q = 0; q < 3; ++q) t.normal_indices[q] = src.normal_indices[pick[q]];
+        }
+        t.material_count = 1;
+        t.materials = static_cast<::zmod::Material**>(std::malloc(sizeof(void*)));
+        t.materials[0] = src.materials[j];
+        if (src.uvs) {
+          t.uvs = static_cast<float**>(std::malloc(sizeof(float*)));
+          t.uvs[0] = static_cast<float*>(std::malloc(0x18));
+          for (int q = 0; q < 3; ++q) std::memcpy(t.uvs[0] + 2 * q, src.uvs[j] + 2 * pick[q], 8);
+          t.file_uvs = src.file_uvs;
+        }
+        t.colors = static_cast<float*>(std::malloc(0x24));
+        for (int q = 0; q < 3; ++q) std::memcpy(t.colors + 3 * q, src.colors + 3 * pick[q], 12);
+        t.scratch = static_cast<uint32_t*>(std::malloc(12));
+        for (int q = 0; q < 3; ++q) t.scratch[q] = src.scratch[pick[q]];
+        t.zone_set = src.zone_set;
+      }
+    }
+    Polygon& p = m->polygons[at];  // the strip itself: its first triangle and first material
+    p.flags = (p.flags & 0xfffffc03u) | 3;
+    p.vertex_indices = static_cast<uint32_t*>(std::realloc(p.vertex_indices, 12));
+    if (p.flags & 0x1000) p.normal_indices = static_cast<uint32_t*>(std::realloc(p.normal_indices, 12));
+    if (p.material_count > 1) p.materials = static_cast<::zmod::Material**>(std::realloc(p.materials, sizeof(void*)));
+    if (p.uvs) {
+      for (int32_t j = 1; j < p.material_count; ++j) std::free(p.uvs[j]);
+      if (p.material_count > 1) p.uvs = static_cast<float**>(std::realloc(p.uvs, sizeof(float*)));
+      if (p.uvs[0]) p.uvs[0] = static_cast<float*>(std::realloc(p.uvs[0], 0x18));
+    }
+    p.material_count = 1;
+    p.colors = static_cast<float*>(std::realloc(p.colors, 0x24));
+    p.scratch = static_cast<uint32_t*>(std::realloc(p.scratch, 12));
+  }
+  { const int32_t f = m->count(8) & ~0x80; std::memcpy(m->header + 8, &f, 4); }
+  if (appended) sort_by_material(*m);
+}
+
 // Pirate's Moon 1.0 @ 0x00558ba0, MW3's 0x00538e30 appending.
 int read_models(std::FILE* f, int32_t material_base) {
   ModelPool& p = g_pool;

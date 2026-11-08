@@ -491,6 +491,7 @@ int snap_outline(ClipPolygon& c, zcls::Node* node) {
 // Mech3.exe 1.2 @ 0x0050f7b0
 int clear_of(ClipPolygon& c, pm::zmod::Model* m) {
   if (!m) return 0;
+  pm::zmod::model_unstrip(m);  // Pirate's Moon 1.0 @ 0x005290e4
   int ok = 1;
   std::vector<float> pts;
   for (uint32_t i = 0; i < static_cast<uint32_t>(m->count(0x10)) && ok; ++i) {
@@ -528,7 +529,9 @@ int clip_model(ClipPolygon& c, pm::zmod::Model* src, pm::zmod::Model** out) {
   pm::zmod::Model* m = hooks().model_alloc();
   if (!m) return 0;
   std::memset(m->header, 0, 4);   // 0x00559910(m, 0)
-  // 0x005726f0 undoes the Direct3D strips here; the file's form is kept (pm-map.md).
+  // Pirate's Moon 1.0 @ 0x0052897b: the ground model's strips made triangles first (0x005726f0), in place. The
+  // file has strips (0x2000); read as one polygon, a strip's zigzag outline clips into spikes and holes (item 11).
+  pm::zmod::model_unstrip(src);
   int changed = 0, renew = 0;
   std::vector<float> pts;
   for (uint32_t i = 0; i < static_cast<uint32_t>(src->count(0x10)); ++i) {

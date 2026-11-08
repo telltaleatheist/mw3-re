@@ -107,6 +107,12 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);
 // material's polygons one ref each, first; then one ref per other material,
 // in the order first used. One ref keeps the polygons as they are.
 void sort_by_material(Model& m);
+// Pirate's Moon 1.0 @ 0x005726f0: a type-0 model's strips (0x2000) made triangles in place, as the crater's clip
+// (0x00528920, 0x005290b0) asks before it reads the polygons. A strip keeps its first triangle with its first
+// material; each other triangle that is not degenerate (by index), with each material, is appended as a polygon of
+// one material. Then the model's 0x80 is cleared, and when a strip had more than three points the refs rebuilt
+// (0x0055c470).
+void model_unstrip(Model* m);
 // Pirate's Moon 1.0 @ 0x00558ba0: a gamez.zbd's models appended in new blocks
 // (the count and free head taken on the first load only), each one's data
 // read (0x005587e0) with the file's material base. The first one's index, 0

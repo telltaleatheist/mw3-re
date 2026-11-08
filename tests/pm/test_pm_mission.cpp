@@ -1,5 +1,6 @@
 // Pirate's Moon missions run headless with the AI on, for what the AI does in play.
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -409,6 +410,8 @@ struct LightSeen {
 };
 static LightSeen g_light;
 
+static int g_crater_spikes = -1, g_craters_made = 0;
+
 static void kill_run(const char* which, bool quick) {
   EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
@@ -722,6 +725,79 @@ static void kill_run(const char* which, bool quick) {
       if (t > 3600) done = true;
       return;
     }
+    // PM_CRATERS=step[,x0,z0,x1,z1]: the player taken over a grid of the ground, an LRM's crater (radius 3, depth 0.75)
+    // dug 10 m ahead the frame after; every ground model with a vertex within 60 m of it checked before and after: its
+    // heights there must stay within 10 m of what they were, and finite (pm-tests item 11).
+    if (const char* cr = std::getenv("PM_CRATERS")) {
+      static std::vector<std::array<float, 3>> points;
+      static size_t at = 0;
+      static int made = 0, failed = 0, spikes = 0, phase = 0;
+      static std::vector<std::pair<zcls::Node*, std::vector<float>>> before;
+      if (points.empty()) {
+        float step = 60, x0 = 0, z0 = -4000, x1 = 3000, z1 = 0;
+        std::sscanf(cr, "%f,%f,%f,%f,%f", &step, &x0, &z0, &x1, &z1);
+        for (float x = x0; x <= x1; x += step)
+          for (float z = z0; z <= z1; z += step) {
+            const float y = pm_kill_ground(x, 400.0f, z);
+            if (y > -500.0f) points.push_back({x, y, z});
+          }
+        std::printf("  %zu crater points\n", points.size());
+      }
+      if (at >= points.size()) {
+        std::printf("  craters: %d made, %d failed, %d spikes\n", made, failed, spikes);
+        g_crater_spikes = spikes, g_craters_made = made;
+        done = true;
+        return;
+      }
+      const auto& q = points[at];
+      const auto near = [&](zcls::Node* n) {
+        const pm::zmod::Model* m = n->pm_model;
+        std::vector<float> ys;
+        bool any = false;
+        for (int i = 0; m && m->vertices && i < m->count(0x14); ++i) {
+          const float* v = m->vertices + 3 * i;
+          ys.push_back(v[1]);
+          if (std::fabs(v[0] - q[0]) < 60.0f && std::fabs(v[2] - q[2]) < 60.0f) any = true;
+        }
+        return any ? ys : std::vector<float>{};
+      };
+      if (phase == 0) {  // the player there
+        const float to[3] = {q[0], q[1] + 1.0f, q[2] + 10.0f};
+        mech3::move_mech(player, to, 0.0f);
+        phase = 1;
+        return;
+      }
+      before.clear();
+      for (zcls::ListItem* li = zcls::list_head(6); li; li = li->next)
+        if (zcls::Node* n = static_cast<zcls::Node*>(li->node); n && n->pm_model) { auto ys = near(n); if (!ys.empty()) before.push_back({n, ys}); }
+      zwep::CraterOrder order;
+      order.x00 = 0x1008, order.points = 10, order.depth = 0.75f, order.radius = 3.0f;
+      order.at = {q[0], q[1], q[2]};
+      const int r = zdec::crater_instance(&order, 0);
+      r < 0 ? ++failed : ++made;
+      for (auto& [n, ys] : before) {
+        const pm::zmod::Model* m = n->pm_model;
+        if (!m || !m->vertices) continue;
+        float worst = 0, wv[3] = {};
+        bool finite = true;
+        float lo = 1e30f, hi = -1e30f;
+        for (float y : ys) lo = std::min(lo, y), hi = std::max(hi, y);
+        for (int i = 0; i < m->count(0x14); ++i) {
+          const float* v = m->vertices + 3 * i;
+          if (!std::isfinite(v[0]) || !std::isfinite(v[1]) || !std::isfinite(v[2])) finite = false;
+          const float off = std::max(v[1] - hi, lo - v[1]);
+          if (off > worst) worst = off, wv[0] = v[0], wv[1] = v[1], wv[2] = v[2];
+        }
+        if (worst > 10.0f) std::printf("    worst vertex %.1f %.1f %.1f (heights before %.1f..%.1f), vertices %zu to %d, polygons %d\n", wv[0], wv[1], wv[2], lo, hi, ys.size() / 1, m->count(0x14), m->count(0x10));
+        if (!finite || worst > 10.0f) {
+          ++spikes;
+          std::printf("  spike: crater at %.1f %.1f %.1f (result %d): %s off its heights by %.1f m%s\n", q[0], q[1], q[2], r, n->name(), worst,
+                      finite ? "" : ", not finite");
+        }
+      }
+      ++at, phase = 0;
+      return;
+    }
     if (std::getenv("PM_LOADOUT")) {
       pm_kill_loadout(player);
       done = true;
@@ -868,7 +944,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -898,6 +974,28 @@ TEST(pm_cloud_screen_tint) {
 }
 
 TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); }
+
+// Always on: c2's craters raise no spikes (pm-tests item 11). PM's ground has strips (0x2000); the crater's clip makes
+// them triangles first (0x005726f0). Read whole as one polygon, a strip's zigzag clipped into vertices tens of metres
+// off the ground (5 here before) and holes to the sky. An LRM's crater every 60 m over part of the map, each touched
+// ground model's heights checked.
+TEST(pm_c2m3_craters_raise_no_spikes) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_CRATERS", "60,600,-2500,1000,-300", 1);
+    kill_run("1,1,3", true);
+    EXPECT(g_crater_spikes == 0);
+    EXPECT(g_craters_made > 20);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
 
 // Always on: c1m2's base lights (pm-tests item 6). start_hwlights calls turnon_baselight, whose loop's first range test
 // (2 s in) lights starbase_light by PM's LIGHT_STATE (0x0051b910): the file's range 0..150, ambient 0.45, diffuse 1,
