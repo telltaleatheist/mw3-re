@@ -58,7 +58,8 @@ NetGame g_net;
 NetCalls g_calls;
 
 // The messages 0x0046d880 takes, in the exe's order of registration.
-constexpr uint16_t kRouted[] = {0xf, 0x10, 0x11, 0x16, 0x15, 0x18, 0x12, 0x13, 0x17, 0x1a, 0x1b, 0x19, 0x21, 0x14, 0x1f};
+// Pirate's Moon routes 0x1d where MW3 routes 0x1b: the same message, a mech to a map object, renumbered (0x0046f970).
+constexpr uint16_t kRouted[] = {0xf, 0x10, 0x11, 0x16, 0x15, 0x18, 0x12, 0x13, 0x17, 0x1a, 0x1d, 0x19, 0x21, 0x14, 0x1f};
 
 // Mech3.exe 1.2 @ 0x004d72a0, message 1's: returns 0.
 void ignore(uint32_t, const uint8_t*, size_t) {}
@@ -182,7 +183,7 @@ void net_route(uint32_t from, const uint8_t* msg, size_t size) {
     case 0x17: return c.posture ? c.posture(m, from, msg, size) : net_posture_in(*m, msg, size);
     case 0x18: return c.knockback ? c.knockback(m, from, msg, size) : net_shove_in(*m, msg, size);
     case 0x1a: return c.effect ? c.effect(m, from, msg, size) : net_effect_in(msg, size);
-    case 0x1b: return c.drop ? c.drop(m, from, msg, size) : net_drop_in(*m, msg, size);
+    case 0x1d: return c.drop ? c.drop(m, from, msg, size) : net_drop_in(*m, msg, size);  // MW3's 0x1b
     case 0x1f: return call(c.chat, m, from, msg, size);
     case 0x21: return c.part_off ? c.part_off(m, from, msg, size) : net_part_off_in(msg, size);
     default: return;  // 0x15 is registered but not handled in a mission
@@ -977,14 +978,15 @@ void net_effect_in(const uint8_t* msg, size_t size) {
   g_net.echo = 0;
 }
 
-// Mech3.exe 1.2 @ 0x0046ff90 (ECX the station's id)
+// Pirate's Moon 1.0 @ 0x00472010 (MW3's 0x0046ff90, whose type was 0x1b): only while a network game runs ([0x00629a88]).
 void net_send_drop(uint32_t station) {
-  uint8_t b[8] = {0x1b, 0, 8, 0};
+  if (!g_net.running) return;
+  uint8_t b[8] = {0x1d, 0, 8, 0};
   std::memcpy(b + 4, &station, 4);
   znet::send(b, sizeof b, true, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0046ffd0 (the mech, the message)
+// Pirate's Moon 1.0 @ 0x00472060 (MW3's 0x0046ffd0, the mech, the message; its 0x0045bbf0 is MW3's 0x0045a140)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size) {
   if (size < 8) return;
   uint32_t id;

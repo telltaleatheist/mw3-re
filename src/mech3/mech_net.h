@@ -119,7 +119,7 @@ struct NetCalls {
   NetRoute posture = nullptr;     // 0x17 0x0046ed10
   NetRoute knockback = nullptr;   // 0x18 0x004705b0 (the mech, the message)
   NetRoute effect = nullptr;      // 0x1a 0x0046ff50
-  NetRoute drop = nullptr;        // 0x1b 0x0046ffd0 (the mech, the message)
+  NetRoute drop = nullptr;        // 0x1d PM 0x00472060, MW3 0x1b 0x0046ffd0 (the mech, the message)
   NetRoute chat = nullptr;        // 0x1f 0x00470490 (the sender, the message)
   NetRoute part_off = nullptr;    // 0x21 0x0046fff0
   NetRoute crater = nullptr;      // 0x19 0x0046fde0 (the message only, any sender)
@@ -313,7 +313,7 @@ int net_crater_veto(const zwep::CraterOrder* order);
 void net_crater_in(const uint8_t* msg, size_t size);   // 0x0046fde0
 void net_anim_sent(zeff::AnimLogRecord* rec);          // 0x0046feb0, the anim log's: the effect to all (0x1a)
 void net_effect_in(const uint8_t* msg, size_t size);   // 0x0046ff50: replayed unless one like it runs
-void net_send_drop(uint32_t station);                  // 0x0046ff90: a repair station used (0x1b)
+void net_send_drop(uint32_t station);                  // PM 0x00472010: a repair station used (0x1d, MW3's 0x1b)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size);  // 0x0046ffd0
 void net_clock_in(const uint8_t* msg, size_t size);    // 0x00470740: the clock, and the game's end with its reason
 void net_game_over();  // 0x004707c0

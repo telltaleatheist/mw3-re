@@ -1130,3 +1130,26 @@ extern "C" int32_t probe_mech_net_respawn(const int32_t* in, int32_t* out, int32
 }
 
 extern "C" void probe_mech_net_light(int32_t on) { g_light_on = on; }
+
+// Pirate's Moon's map-object move (0x1d, MW3's 0x1b) as sent, for test_pm_net_state.py: the bytes handed to the
+// transport while a network game runs or not.
+extern "C" int32_t probe_mech_net_drop_send(int32_t running, uint32_t id, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_send_id = 100;
+  Sends t;
+  znet::session() = znet::Session{};
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true, s.async = true;
+  s.local = std::make_unique<znet::Player>();
+  s.local->id = 9;
+  mech3::NetGame& g = mech3::net_game();
+  g = mech3::NetGame{};
+  g.running = running != 0;
+  mech3::net_send_drop(id);
+  g = mech3::NetGame{};
+  znet::session() = znet::Session{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}

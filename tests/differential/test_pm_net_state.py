@@ -13,6 +13,11 @@ Part 2, the apply 0x4705e0 on an inactive state (bit 1: the motion's half skippe
 the flags change on the mech (power, AMS, MASC, NARC, crouch, the headlight, the jump, the motion state's turns)
 against probe_mech_net_apply's calls.
 
+Part 3, the map-object move PM renumbered 0x1b to 0x1d: the sender 0x472010 (only while [0x629a88], a network game
+up) against probe_mech_net_drop_send, the bytes handed to the transport; and the router 0x46f970 on every type
+0..0x22 from a known mech, which handler it picks (the move 0x472060, another, none) against probe_mech_net's route
+log. The registrations (0x46f030) are read from the exe and compared with the port's start.
+
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_net_state.py [cases]
 """
 import ctypes
@@ -29,6 +34,11 @@ import test_pm_zar  # noqa: E402
 I32 = ctypes.c_int32
 PACK_FROM, PACK_END = 0x471522, 0x471746
 HEADLIGHT_ON = 0x41f920
+DROP_SEND, NET_SEND, NET_UP, ROUTER, MECHS = 0x472010, 0x5a97d0, 0x629a88, 0x46f970, 0x629a5c
+DROP_IN = 0x472060
+HANDLERS = [0x4705e0, 0x472bd0, 0x472850, 0x470d40, 0x470b80, 0x472a50, 0x5afca0, 0x470d20, 0x4726d0, 0x471fd0,
+            DROP_IN, 0x4725a0, 0x472080, 0x471e70, 0x46f510]
+REGISTER, REGISTER_FROM, REGISTER_END = 0x5a8ba0, 0x46f030, 0x46f170
 
 # The send probe's input (test_mech_net_send.py's, copied: that file loads MW3's probe).
 NAMES = ['kind', 'arg', ('vel', 3), 'qw', 'qy', ('turn_q', 4), 'throttle', 'turn', 'jump', ('torso_at', 3), ('aim', 3),
@@ -327,6 +337,90 @@ def run_applies(probe, count, rng):
     print(f'apply: {count} states identical; calls seen {sorted(seen)}')
 
 
+def drops(probe, z):
+    """The sender, exe and port, with the game up and not."""
+    uc = z.cpu._uc
+    sent = []
+
+    def net_send(c):
+        buf, size, guaranteed, to = (c.arg(i) for i in range(4))
+        sent.append([1, to, guaranteed, size] + list(struct.unpack(f'<{size // 4}i', bytes(uc.mem_read(buf, size)))))
+        return 1
+    z.native_stub(NET_SEND, net_send)
+    out = (I32 * 64)()
+    probe.probe_mech_net_drop_send.argtypes = [I32, ctypes.c_uint32, ctypes.POINTER(I32), I32]
+    rng = random.Random(3)
+    for i in range(200):
+        up, sid = i & 1, rng.getrandbits(32)
+        uc.mem_write(NET_UP, bytes([up]))
+        sent.clear()
+        z.call(DROP_SEND, args=(sid,))
+        n = probe.probe_mech_net_drop_send(up, sid, out, 64)
+        exe = sent[0] if sent else []
+        port = [out[k] for k in range(n)]
+        if exe != port:
+            print(f'send case {i} (game up {up}, id {sid:#x}): exe {exe} port {port}', flush=True)
+            os._exit(1)
+    print('send: 200 identical (the move as 0x1d, 8 bytes, guaranteed; nothing with the game down)')
+
+
+def routes(probe, z):
+    """Each type from a mech in the list: which handler the exe's router calls and which the port's route logs."""
+    uc = z.cpu._uc
+    called = []
+    for h in HANDLERS:  # stdcall, but the four the router pops after
+        pop = 0 if h in (0x472850, 0x471e70, 0x46f510, 0x470b80) else 8 if h in (DROP_IN, 0x4726d0, 0x4725a0) else 4
+        z.native_stub(h, lambda c, h=h: called.append(h) or 0, pop)
+    sentinel, node, mech, msg = z.alloc(0x10), z.alloc(0x10), z.alloc(0x800), z.alloc(0x40)
+    w = lambda a, v: uc.mem_write(a, struct.pack('<I', v & 0xffffffff))  # noqa: E731
+    w(MECHS, sentinel), w(sentinel, node), w(sentinel + 4, node), w(node, sentinel), w(node + 4, sentinel)
+    w(node + 8, mech), w(mech + 0x76c, 5)
+    out = (I32 * 4096)()
+    probe.probe_mech_net.argtypes = [ctypes.POINTER(I32), I32, ctypes.POINTER(I32), I32]
+    kinds = {}
+    for t in range(0x23):
+        called.clear()
+        uc.mem_write(msg, struct.pack('<HHI', t, 0x40, 7) + b'\0' * 0x38)
+        z.call(ROUTER, args=(5, msg))
+        exe = 'move' if called == [DROP_IN] else 'other' if called else 'none'
+        # the port: a state from player 5 makes its mech, then the type
+        ops = [0, 9] + [1, 5, 0xf, 1, 0, 0, 0] + [1, 5, t, 1, 7, 0, 0]
+        n = probe.probe_mech_net((I32 * len(ops))(*ops), len(ops), out, 4096)
+        lg = [out[k] for k in range(n)]
+        after = lg[lg.index(99) + 2 + 2:] if 99 in lg else lg  # past the first step's list (99, count, owner, heard)
+        codes = [c for c in after[:after.index(99)]] if 99 in after else after
+        port = 'move' if codes[:1] == [11] else 'other' if codes else 'none'
+        kinds[t] = exe
+        if exe != port:
+            print(f'route type {t:#x}: exe {exe} {[hex(c) for c in called]} port {port} {codes}', flush=True)
+            os._exit(1)
+    moved = [hex(t) for t, k in kinds.items() if k == 'move']
+    print(f'route: 35 types the same (the move on {moved}; handled: '
+          f'{[hex(t) for t, k in kinds.items() if k != "none"]})')
+
+
+def registrations(probe, z):
+    """The types the exe's start registers with the router, in order, against the port's start."""
+    code = bytes(z.cpu._uc.mem_read(REGISTER_FROM, REGISTER_END - REGISTER_FROM))
+    exe, k = [], 0
+    while True:
+        k = code.find(b'\x68' + struct.pack('<I', ROUTER) + b'\x6a', k)
+        if k < 0:
+            break
+        if code[k + 7] == 0xe8 and k + 12 + struct.unpack('<i', code[k + 8:k + 12])[0] + REGISTER_FROM == REGISTER:
+            exe.append(code[k + 6])
+        k += 1
+    out = (I32 * 4096)()
+    ops = [0, 9] + [3, 0, 0, 0, 0, 0, 0]
+    n = probe.probe_mech_net((I32 * len(ops))(*ops), len(ops), out, 4096)
+    lg = [out[k] for k in range(n)]
+    port = [lg[i + 1] for i in range(0, len(lg) - 3, 4) if lg[i] == 60 and lg[i + 2] == 1]
+    if exe != port:
+        print(f'registrations: exe {[hex(t) for t in exe]} port {[hex(t) for t in port]}', flush=True)
+        os._exit(1)
+    print(f'registrations: the same {len(exe)} types in the same order ({[hex(t) for t in exe]})')
+
+
 def main():
     probe = test_pm_zar.load_pm_probe()
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
@@ -357,6 +451,9 @@ def main():
     if never:
         os._exit(1)
     run_applies(probe, count, rng)
+    drops(probe, pack.z)
+    routes(probe, test_pm_zar.Emulated())  # its own: Unicorn keeps the apply part 2 translated, unstubbed
+    registrations(probe, pack.z)
     sys.stdout.flush()
     os._exit(0)
 
