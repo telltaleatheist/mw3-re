@@ -14,6 +14,7 @@
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steer_pm.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_wire_orders_pm.h"
 
 namespace mech3::ai {
 
@@ -58,9 +59,12 @@ class WireSteer : public Base {
   void position(zgame::Handle e, float out[3]) override { brain_hooks().position(e, out); }
   void forward(zgame::Handle v, float* x, float* z) override { brain_hooks().forward(v, x, z); }
   bool halted(zgame::Handle v) override { return brain_hooks().airborne(v); }  // vt+0x150, PM's +0x5a8: MW3's vt+0x144
-  // 0x004fa470: the order's net (vt+0x14) and state (vt+0x20) both idle. The state's slot answers 1 on
-  // 49 of PM's state vtables, the attack's among them (0x004eb000); the nets' slot isn't read yet.
-  bool order_steers(Brain*) override { return missing<true>("assumed: the order's net idle (vt+0x14)"); }
+  // 0x004fa470 on the brain's orders: the order's net (vt+0x14) and state (vt+0x20) both idle. The state's slot
+  // answers 1 on 49 of PM's state vtables, the attack's among them (0x004eb000); both are counted assumptions.
+  bool order_steers(Brain* b) override {
+    if (!b || b->orders.empty()) return missing<true>("assumed: the order's net idle (vt+0x14)");  // the exe's always has one
+    return pm_orders_idle(*b);
+  }
   const std::vector<const Contact*>& contacts(zgame::Handle v) override {
     seen_.clear();
     if (const std::vector<Contact*>* c = brain_hooks().contacts(v)) seen_.assign(c->begin(), c->end());
