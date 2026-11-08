@@ -354,4 +354,14 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: zbd/broken.zrd: not a text .zrd the reader can read") != std::string::npos &&
          text.find("pilots/x.pil: the player's own kind of file") != std::string::npos);
   EXPECT(mech3::mod_check(root + "/none", install, &errors).size() == 1 && errors == 1);
+  // An install overlay: no mod.txt is a note, not an error; its files are still checked.
+  const std::string overlay = root + "/overlay";
+  put(overlay + "/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put(overlay + "/zbd/broken.zrd", "(UNCLOSED\n");
+  text.clear();
+  for (const std::string& l : mech3::mod_check(overlay, install, &errors)) text += l + "\n";
+  std::printf("%s", text.c_str());
+  EXPECT(errors == 1 && text.find("no mod.txt: checked as an install overlay") != std::string::npos &&
+         text.find("error: no mod.txt") == std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos &&
+         text.find("error: zbd/broken.zrd: not a text .zrd the reader can read") != std::string::npos);
 }
