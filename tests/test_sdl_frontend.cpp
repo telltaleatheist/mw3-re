@@ -5638,3 +5638,80 @@ TEST(pm_net_team_deathmatch_from_the_lobby) {
   EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
 }
 #endif
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)
+namespace {
+// The two teams as pm_net_team_deathmatch_from_the_lobby makes them, `from` frames after the lock's OK (half
+// frames, as --click-players): A's NEW_TEAM, its OK (A joins), NEW_TEAM, JOIN unchecked, OK; then B's.
+std::vector<std::string> pm_teams_a(int from) {
+  std::vector<std::string> v;
+  const std::pair<const char*, int> c[] = {{"440,368", 0}, {"345,320", 30}, {"440,368", 70}, {"350,282", 100}, {"345,320", 130}};
+  for (const auto& [at, d] : c) v.insert(v.end(), {"--click-players", std::string(at) + "@" + std::to_string(from + d) + "/2"});
+  return v;
+}
+std::vector<std::string> pm_teams_b(int from) {  // TP_LIST's third row (the second team), JOIN_TEAM
+  return {"--click-players", "440,81@" + std::to_string(from + 170) + "/2", "--click-players",
+          "440,183@" + std::to_string(from + 190) + "/2"};
+}
+// The flat distance between where each player starts (its 4th soak line, past the start's placing).
+float pm_start_apart(const PmPair& r) {
+  auto at = [](const std::string& log, float* x, float* z) {
+    size_t p = 0;
+    for (int k = 0; k < 4 && p != std::string::npos; ++k) p = log.find("mw3: soak menus clock ", p ? p + 1 : 0);
+    if (p == std::string::npos) return false;
+    const size_t me = log.find(" me ", p);
+    int who = 0;
+    float y = 0;
+    return me != std::string::npos && std::sscanf(log.c_str() + me, " me %d %f %f %f", &who, x, &y, z) == 4;
+  };
+  float ax = 0, az = 0, bx = 0, bz = 0;
+  if (!at(r.a, &ax, &az) || !at(r.b, &bx, &bz)) return -1;
+  return std::hypot(ax - bx, az - bz);
+}
+}  // namespace
+
+// Attack/Defend with one base (GAME_TYPE's next arrow twice, kind 3; a score or time limit, the defaults): the
+// two teams, Draconis Combine attacking ("  Attack" on its line) and the other defending ("Defend"); each side
+// starts at its own end of the map (spawn_base, 0x437a40). Base 1 destroyed (its target killed on each machine,
+// as shots would) ends the round, reason 6 (0x472b40): the attackers win it, the same on both.
+TEST(pm_net_attack_defend_one_base) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd")) return;
+  std::vector<std::string> lobby = {"--click-players", "171,69@20/2", "--click-players", "171,69@28/2"};
+  for (const std::string& c : pm_teams_a(150)) lobby.push_back(c);
+  std::vector<std::string> b = pm_teams_b(150);
+  b.insert(b.end(), {"--net-base-kill", "1@4"});  // B's frames run slower: its 4 s is about A's 8
+  const PmPair r = pm_mode_pair(std::string(MW3_TEST_TMP) + "/pm_net_ad1", lobby, {"--net-seconds", "60"}, 3000,
+                                {"--net-base-kill", "1@12"}, b, 400, 420);
+  const std::string a2 = pm_line(r.a, "lobby entered 2, scores: ", 1);
+  const float apart = pm_start_apart(r);
+  std::printf("  starting %.0f m apart; then %s\n", apart, a2.c_str());
+  EXPECT(r.a.find("[Draconis Combine  {gunmetal}  Attack]") != std::string::npos &&
+         r.a.find("[Federated Commonwealth  {sunfire} Defend]") != std::string::npos);
+  EXPECT(apart > 1000.0f);
+  EXPECT(a2.rfind("End of Round 1 of 1 | Draconis Combine (Rounds Won: 1) |", 0) == 0);
+  EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
+}
+
+// Attack/Defend with two bases (GAME_TYPE's next arrow three times, kind 4): it needs unlimited time and score,
+// so the first LOCK is refused with PM's rule box and both lists set to 1000 (0x49e400); the second locks. No
+// clock. Each side starts at its base; base 2 destroyed ends the round for the side whose base is base 1.
+TEST(pm_net_attack_defend_two_bases) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd")) return;
+  std::vector<std::string> lobby = {"--click-players", "171,69@10/2", "--click-players", "171,69@18/2", "--click-players",
+                                    "171,69@26/2", "--click-players", std::string(kLockAt) + "@120/2", "--click-players",
+                                    "246,290@150/2"};
+  for (const std::string& c : pm_teams_a(180)) lobby.push_back(c);
+  std::vector<std::string> b = pm_teams_b(180);
+  b.insert(b.end(), {"--net-base-kill", "2@4"});
+  const PmPair r = pm_mode_pair(std::string(MW3_TEST_TMP) + "/pm_net_ad2", lobby, {}, 3000, {"--net-base-kill", "2@12"},
+                                b, 420, 460);
+  const std::string a2 = pm_line(r.a, "lobby entered 2, scores: ", 1);
+  const float apart = pm_start_apart(r);
+  std::printf("  starting %.0f m apart; then %s\n", apart, a2.c_str());
+  EXPECT(r.a.find("mw3: box: Multiplayer Rule Error: Attack/Defend with two bases requires unlimited time and "
+                  "unlimited score.") != std::string::npos);
+  EXPECT(apart > 1000.0f);
+  EXPECT(a2.rfind("End of Round 1 of 1 | Federated Commonwealth (Rounds Won: 1) |", 0) == 0);
+  EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
+}
+#endif

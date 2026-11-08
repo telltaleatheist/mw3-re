@@ -4623,3 +4623,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   buttons' rules checked against the original in an emulator).
 - In Pirate's Moon, if every opponent leaves the lobby between rounds, the match ends there with "Game over: No
   enemies left" (from the code: the lobby's update, 0x49b650).
+- In Pirate's Moon's Attack/Defend games, the round is decided on each player's own machine. When a base is
+  destroyed, the host ends the round and tells everyone why ("base destroyed") but not which base. Each machine
+  then decides the winner from what it saw itself, so a player whose game hadn't shown the base falling yet can
+  get a different result, a tie that extends the match (from the code: 0x472850 reads only the reason; seen in
+  the rebuild by destroying the base on the host alone).

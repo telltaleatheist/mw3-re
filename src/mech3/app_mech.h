@@ -206,7 +206,10 @@ int32_t program_net_score_of(uint32_t player);
 // [0x00609920] and [0x00609924]: the mission clock START sets (0x0049b790).
 void program_net_clock(float left, bool on);
 uint32_t program_net_drive(int cmd, double seconds, uint32_t seed);
-void program_net_drive_lock(bool on);  // --net-lock: the drive also targets the nearest enemy (Ctrl+E) each second
+void program_net_drive_lock(bool on);
+// --net-base-kill: the mission's target that is base `base` (targets.zrd mpoption, 1 or 2) killed as by
+// damage (its kill, 0x004e2f50, so the network game hears of it through 0x00472b40). How many were.
+int program_net_kill_base(int base);  // --net-lock: the drive also targets the nearest enemy (Ctrl+E) each second
 std::string program_net_soak_line();
 // A kill staged on the pilot (hits that land are too few to kill in a soak):
 // its head destroyed, the nearest remote mech within 300 m its attacker

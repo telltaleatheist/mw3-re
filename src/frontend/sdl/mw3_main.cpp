@@ -212,6 +212,7 @@ struct Args {
   int net_wait = 0, net_minutes = 0;
   int net_seconds = 0;  // --net-seconds: a network game the menus start lasts this long (each one)
   int net_kill_at = 0;  // --net-kill-at S: a kill staged on the pilot S seconds (of 30 frames) into each such game
+  int net_base_kill = 0, net_base_kill_at = 0;  // --net-base-kill B@S: base B's target killed S seconds into each
   int blur[2] = {0, 0};  // --blur-ingame N:MS (ours, W45): inactive at game frame N, a focus back MS ms later
   bool fire_probe = false;  // --fire-probe (ours, W40): each menu game frame, the trigger and the reloads, timed
   int net_walk[2] = {0, 0};  // --net-walk A,B: the throttle held up from A to B seconds (of 30 frames) into each
@@ -288,6 +289,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--net-minutes" && next(1)) a.net_minutes = std::atoi(argv[++i]);
     else if (s == "--net-seconds" && next(1)) a.net_seconds = std::atoi(argv[++i]);
     else if (s == "--net-kill-at" && next(1)) a.net_kill_at = std::atoi(argv[++i]);
+    else if (s == "--net-base-kill" && next(1) && std::sscanf(argv[i + 1], "%d@%d", &a.net_base_kill, &a.net_base_kill_at) == 2) ++i;
     else if (s == "--fire-probe") a.fire_probe = true;
     else if (s == "--blur-ingame" && next(1)) std::sscanf(argv[++i], "%d:%d", &a.blur[0], &a.blur[1]);
     else if (s == "--net-walk" && next(1)) std::sscanf(argv[++i], "%d,%d", &a.net_walk[0], &a.net_walk[1]);
@@ -1406,12 +1408,13 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         static uint64_t s_menu_net_line_at = 0;
         // Each game's first Core frame: --net-seconds its clock; its end: any
         // state but Core, the fade or the pause after it.
-        static bool s_menu_in_game = false, s_menu_killed = false;
+        static bool s_menu_in_game = false, s_menu_killed = false, s_menu_base_killed = false;
         static int s_menu_game_from = 0;
         const bool menu_net = a.mission.empty() && engine.launch().type == 3;
         if (menu_net && !s_menu_in_game && app.current() == &mech3::states().core) {
           s_menu_in_game = true;
           s_menu_killed = false;
+          s_menu_base_killed = false;
           s_menu_game_from = menu_frames;
           if (a.net_seconds > 0) mech3::missions().clock = static_cast<float>(a.net_seconds), mech3::missions().clock_down = 1;
           if (a.net_soak) std::printf("mw3: soak menus game in\n");
@@ -1470,6 +1473,11 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           if (mech3::program_pilot_fire_probe(&trig, &reload))
             std::printf("mw3: fire probe frame %d ms %llu buttons %u trigger %d reload %.3f\n", menu_frames,
                         static_cast<unsigned long long>(SDL_GetTicks()), input.mouse_buttons, trig, reload);
+        }
+        if (a.net_base_kill > 0 && s_menu_in_game && !s_menu_base_killed && app.current() == &mech3::states().core &&
+            menu_frames >= s_menu_game_from + 30 * a.net_base_kill_at) {
+          s_menu_base_killed = true;
+          std::printf("mw3: soak menus base %d killed: %d\n", a.net_base_kill, mech3::program_net_kill_base(a.net_base_kill));
         }
         if (a.net_kill_at > 0 && s_menu_in_game && !s_menu_killed && app.current() == &mech3::states().core &&
             menu_frames >= s_menu_game_from + 30 * a.net_kill_at) {

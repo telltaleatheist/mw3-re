@@ -406,6 +406,7 @@ uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std:
   return game_message_box(style, message(caption), text);
 }
 uint32_t GameEngine::game_message_box(int32_t style, const char* cap, const std::string& text) {
+  if (!quiet) std::printf("mw3: box: %s: %s\n", cap ? cap : "", text.c_str());  // ours: what the player was told (tests)
   video_begin_3d();
   video_end_3d();
   const int32_t fast = exchange_fast_menu(0);
