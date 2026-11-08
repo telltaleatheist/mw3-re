@@ -14,6 +14,7 @@ struct TextureEntry;
 }
 namespace zeff {
 struct AnimDef;
+struct SeqDef;
 }
 namespace zcls {
 struct Node;
@@ -63,6 +64,8 @@ struct Table {
   int32_t (*zeff_light_state)(zeff::AnimDef& def, uint8_t* e);  // 0x00503390; PM 0x0051b910
   // Event 25, STOP_ANIMATION: PM's looks in the def's own anim refs first.
   int32_t (*zeff_stop_animation)(zeff::AnimDef& def, uint8_t* e);  // 0x00506d60; PM 0x0051f900
+  // Event 12, OBJECT_MOTION_SI_SCRIPT: PM's key frames are in the anim file's SI scripts, not after the event.
+  int32_t (*zeff_motion_script)(zeff::AnimDef& def, zeff::SeqDef& s, uint8_t* e);  // 0x00505b00; PM 0x0051e2c0
   // mechlib (pm-map step 1e): mechlib.zbd (zcls/cls_mechlib.h), PM's version
   // 41 with PM's nodes and models.
   bool (*zcls_mechlib_open)(zcls::MechLib& lib, const char* path);  // 0x004fc6d0; PM 0x00510910
@@ -82,6 +85,9 @@ struct Table {
   void (*cell_clutter)(const zcls::World* world, zcls::Partition& cell);
   void (*cell_clutter_free)(zcls::Partition& cell);
   void (*render_setup)();  // a mission's render state beyond MW3's; null in MW3
+  // A key-framed motion's rotation (zeff_anim_events.cpp, 0x005056b0; PM 0x0051deb0): PM normalises the product of
+  // the track's quaternion and the frame's (0x0053eec0, MW3's 0x00525500) before making it a matrix.
+  bool anim_quat_normalized;
 };
 
 const Table& mw3_table();

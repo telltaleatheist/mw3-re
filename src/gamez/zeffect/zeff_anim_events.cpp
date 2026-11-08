@@ -13,6 +13,8 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zgame/zgame_table.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "pm/gamez/zmodel/gmod_const.h"
@@ -595,8 +597,8 @@ int32_t ev_object_motion_from_to(AnimDef& d, SeqDef& s, uint8_t* e) {
 
 namespace {
 // 0x005056b0 (ECX seq, EDX event, stack frame): on to the next key frame;
-// 1 while it is inside the event.
-int32_t next_frame(SeqDef& s, uint8_t* e, const uint8_t* frame) {
+// 1 while it is inside the frames (MW3: the event's size; PM's 0x0051deb0: the script's).
+int32_t next_frame(SeqDef& s, uint8_t* e, const uint8_t* frame, int32_t limit) {
   put<int32_t>(e, 0x20, get<int32_t>(e, 0x20) + 1);
   int32_t at = get<int32_t>(e, 0x1c) + 0xc;
   if (frame[0] & 1) at += 0x4c;
@@ -604,7 +606,8 @@ int32_t next_frame(SeqDef& s, uint8_t* e, const uint8_t* frame) {
   if (frame[0] & 4) at += 0x4c;
   put(e, 0x1c, at);
   put<float>(e, 0x18, 0.0f);
-  return at < get<int32_t>(s.cur, 4) ? 1 : 0;
+  (void)s;
+  return at < limit ? 1 : 0;
 }
 
 // A cubic (+0x14 set) or linear track at t: c0 + t c1 (+ t^2 c2 + t^3 c3).
@@ -612,7 +615,7 @@ void track(const uint8_t* p, bool cubic, float t, float out[3]) {
   if (cubic) {
     for (int i = 0; i < 3; ++i) {
       const int b = 0x10 * i;
-      out[i] = ((f32(p, b + 0x1c) * t + f32(p, b + 0x18)) * t + f32(p, b + 0x14)) * t + f32(p, b + 0x10);
+      out[i] = ((f32(p, b + 0x28) * t + f32(p, b + 0x24)) * t + f32(p, b + 0x20)) * t + f32(p, b + 0x1c);
     }
   } else {
     for (int i = 0; i < 3; ++i) out[i] = f32(p, 0x10 + 4 * i) * t + f32(p, 4 * i);
@@ -622,7 +625,7 @@ void track(const uint8_t* p, bool cubic, float t, float out[3]) {
 // 0x00505710 (ECX seq, EDX event, stack node, frame, &time): plays one key
 // frame up to the sequence's time; returns the time it used. A frame before
 // its start returns the cursor's old value (sic) and moves it to now.
-float play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* time) {
+float play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* time, const FrameSource& src) {
   float extra = 0.0f;
   if (sf(s, 0x28) < f32(frame, 4)) {
     const float old = *time;
@@ -637,7 +640,7 @@ float play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* ti
   if (!not_above(sf(s, 0x28), f32(frame, 8))) {
     const uint32_t saved18 = get<uint32_t>(e, 0x18);
     const int32_t saved1c = get<int32_t>(e, 0x1c);
-    if (next_frame(s, e, frame) && get<uint32_t>(e, get<int32_t>(e, 0x1c)) == get<uint32_t>(frame, 0)) {
+    if (next_frame(s, e, frame, src.limit) && get<uint32_t>(src.base, get<int32_t>(e, 0x1c) & ~3) == get<uint32_t>(frame, 0)) {
       const float r = (f32(frame, 8) - *time) + extra;
       *time = f32(frame, 8);
       put<float>(e, 0x18, f32(frame, 8));
@@ -654,7 +657,7 @@ float play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* ti
   const float dt = until - *time;
   const float t = dt + f32(e, 0x18);
   put(e, 0x18, t);
-  const bool cubic = get<int32_t>(e, 0x14) != 0;
+  const bool cubic = src.cubic != 0;
   const uint8_t* p = frame + 0xc;
   if (frame[0] & 1) {
     float v[3];
@@ -675,6 +678,11 @@ float play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* ti
     float q[4], r[4], m[12];
     zmth::quat_exp(v, q);
     zmth::quat_mul(q, reinterpret_cast<const float*>(p), r);
+    if (zgame::game().anim_quat_normalized) {  // Pirate's Moon 1.0 @ 0x0051e189
+      zmth::Quat u{r[0], r[1], r[2], r[3]};
+      zmth::quat_normalize(u, u);
+      r[0] = u.w, r[1] = u.x, r[2] = u.y, r[3] = u.z;
+    }
     zmth::quat_matrix(r, m);
     m[9] = m[10] = m[11] = 0;
     float rot[3];
@@ -694,6 +702,11 @@ float play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* ti
 }
 }  // namespace
 
+float anim_play_frame(SeqDef& s, uint8_t* e, Node* n, const uint8_t* frame, float* time, const FrameSource& src) {
+  return play_frame(s, e, n, frame, time, src);
+}
+int32_t anim_next_frame(SeqDef& s, uint8_t* e, const uint8_t* frame, int32_t limit) { return next_frame(s, e, frame, limit); }
+
 // Mech3.exe 1.2 @ 0x00505b00. A key-framed motion (mech3ax ObjectMotionSiScript)
 // for node +0x0c: frames from +0x24, the frame at +0x1c, time in it +0x18.
 int32_t ev_object_motion_script(AnimDef& d, SeqDef& s, uint8_t* e) {
@@ -705,10 +718,11 @@ int32_t ev_object_motion_script(AnimDef& d, SeqDef& s, uint8_t* e) {
   if (s.raw[0x20] == 0) put<int32_t>(e, 0x1c, 0x24), put<uint32_t>(e, 0x18, 0), put<int32_t>(e, 0x20, 0);
   float time = sf(s, 0x28) - left();
   if (get<int32_t>(e, 0x1c) >= get<int32_t>(s.cur, 4)) return 2;
+  const FrameSource src{e, get<int32_t>(s.cur, 4), get<int32_t>(e, 0x14)};  // MW3's frames: after the event's head
   do {
     const uint8_t* frame = e + get<int32_t>(e, 0x1c);
-    left() = left() - play_frame(s, e, n, frame, &time);
-    if (time < sf(s, 0x28) && !next_frame(s, e, frame)) result = 2;
+    left() = left() - play_frame(s, e, n, frame, &time, src);
+    if (time < sf(s, 0x28) && !next_frame(s, e, frame, src.limit)) result = 2;
   } while (time < sf(s, 0x28) && result != 2);
   return result;
 }
@@ -1060,6 +1074,7 @@ int32_t ev_stop_animation(uint8_t* e) {
 }
 
 int32_t ev_stop_animation_of(AnimDef&, uint8_t* e) { return ev_stop_animation(e); }
+int32_t ev_object_motion_script_of(AnimDef& d, SeqDef& s, uint8_t* e) { return ev_object_motion_script(d, s, e); }
 
 // Mech3.exe 1.2 @ 0x00506e00
 int32_t ev_reset_animation(uint8_t* e) {

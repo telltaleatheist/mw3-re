@@ -1941,6 +1941,30 @@ int probe_pm_stop_animation(uint8_t* event, const char* names, int ndefs, const 
   return stopped;
 }
 
+// A key frame of a motion (0x0051df10) on an object3d of the probe's, under PM's table: the sequence's time, the event
+// (in and out), the SI script's record (+0x0c cubic, +0x14 size) and data, the frame's offset in it, the time cursor.
+// Out: the node's place, rotation and scale.
+void probe_pm_play_frame(float seq_time, uint8_t* event, const uint8_t* script, const uint8_t* data, int32_t at, float* time,
+                         float* out9) {
+  static ::zcls::Node* n = nullptr;
+  if (!n) n = ::zcls::object3d_create();
+  ::zcls::object3d_set_translation(n, 0, 0, 0);
+  ::zcls::object3d_set_rotation(n, 0, 0, 0);
+  ::zcls::object3d_set_scale(n, 1, 1, 1);
+  ::zeff::SeqDef s{};
+  s.put<float>(0x28, seq_time);
+  const ::zgame::Table& game = ::zgame::game();
+  ::zgame::set_game(pm::table());
+  int32_t size, cubic;
+  std::memcpy(&size, script + 0x14, 4), std::memcpy(&cubic, script + 0xc, 4);
+  const ::zeff::FrameSource src{data, size, cubic};
+  ::zeff::anim_play_frame(s, event, n, data + at, time, src);
+  ::zgame::set_game(game);
+  ::zcls::object3d_get_translation(n, out9, out9 + 1, out9 + 2);
+  ::zcls::object3d_get_rotation(n, out9 + 3, out9 + 4, out9 + 5);
+  ::zcls::object3d_get_scale(n, out9 + 6, out9 + 7, out9 + 8);
+}
+
 // A material's texture says it has an alpha plane, or the material takes back what it had.
 void probe_pm_material_alpha(int node, int ref, int on) {
   static zimg::Texture image;

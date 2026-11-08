@@ -80,7 +80,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
     case 9: return ev_object_rotate(d, e);
     case 10: return ev_object_motion(d, s, e);
     case 11: return ev_object_motion_from_to(d, s, e);
-    case 12: return ev_object_motion_script(d, s, e);
+    case 12: return zgame::game().zeff_motion_script(d, s, e);
     case 13: return ev_object_opacity(d, e);
     case 14: return ev_object_opacity_from_to(d, s, e);
     case 15: return ev_object_add_child(d, e);

@@ -34,6 +34,7 @@
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zdeclient/zdec_crater.h"
 #include "gamez/zmodel/gmod_const.h"
@@ -409,6 +410,7 @@ struct LightSeen {
   float near = 0, far = 0, ambient = 0, diffuse = 0, color[3] = {}, mixed[12] = {};
 };
 static LightSeen g_light;
+static struct { int nodes, moved; } g_motions;  // PM_MOTIONS: event 12's nodes and how many moved
 
 static int g_crater_spikes = -1, g_craters_made = 0;
 
@@ -682,6 +684,44 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    if (std::getenv("PM_MOTIONS")) {  // the nodes event 12 (an SI script's motion) moves, by 300 frames (pm-tests, the event sweep)
+      static std::map<zcls::Node*, std::array<float, 6>> start;
+      static int t = 0;
+      const auto pose = [](zcls::Node* n) {
+        std::array<float, 6> p{};
+        zcls::object3d_get_translation(n, &p[0], &p[1], &p[2]);
+        zcls::object3d_get_rotation(n, &p[3], &p[4], &p[5]);
+        return p;
+      };
+      if (t++ == 0) {
+        auto& a = zeff::anim();
+        for (int i = 0; i < a.def_count(); ++i) {
+          zeff::AnimDef* d = &a.defs[i];
+          for (int k = 0; k < d->count(0x108); ++k) {
+            const uint8_t* e = d->seqs[k].events;
+            const uint32_t size = e ? d->seqs[k].get<uint32_t>(0x3c) : 0;
+            for (uint32_t at = 0; at + 12 <= size;) {
+              uint32_t n;
+              int32_t ni;
+              std::memcpy(&n, e + at + 4, 4), std::memcpy(&ni, e + at + 0xc, 4);
+              if (e[at] == 12 && ni >= 0 && d->nodes[ni].node && d->nodes[ni].node->cls() == 5)
+                start.emplace(d->nodes[ni].node, pose(d->nodes[ni].node));
+              if (n < 12) break;
+              at += n;
+            }
+          }
+        }
+      }
+      if (t < 300) return;
+      int moved = 0;
+      for (const auto& [n, p] : start)
+        if (pose(n) != p) std::printf("%s%s", moved++ ? " " : "  moved:", n->name());
+      if (moved) std::printf("\n");
+      std::printf("  event 12: %zu nodes, %d moved\n", start.size(), moved);
+      g_motions = {static_cast<int>(start.size()), moved};
+      done = true;
+      return;
+    }
     if (std::getenv("PM_EVENTS")) {  // the world's anim events by type and record size (pm-tests, the event sweep)
       std::map<std::pair<int, uint32_t>, int> seen;
       auto& a = zeff::anim();
@@ -944,7 +984,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1018,6 +1058,25 @@ TEST(pm_c1m2_base_light_takes_its_state) {
     EXPECT(l.color[0] == 1.0f && l.color[1] == 1.0f && l.color[2] == 1.0f);
     EXPECT(l.mixed[3] == 1.0f && l.mixed[6] == 0.45f && l.mixed[9] == 1.45f);  // diffuse mixed, ambient mixed, their sum
     EXPECT((l.flags & 0x80) == 0);  // LIGHTMAP FALSE
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// Always on: c1m2's motions from SI scripts (PM's event 12, 0x0051e2c0; pm-tests, the event sweep): by 300 frames the
+// base crew of the_dude_runa06 and a07 run (torso and legs, 10 nodes). Routed to MW3's handler, PM's records moved none.
+TEST(pm_c1m2_motions_play) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_MOTIONS", "1", 1);
+    kill_run("0,1,2", true);
+    EXPECT(g_motions.nodes > 100 && g_motions.moved >= 10);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }
