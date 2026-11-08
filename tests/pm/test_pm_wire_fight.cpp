@@ -377,3 +377,55 @@ TEST(pm_wire_scan_state_runs_its_tests_then_the_next) {
   EXPECT(b.x104 == 1);  // the brain's +0x158: run the order again
   EXPECT(b.current().state && b.current().state->from == &after);
 }
+
+namespace {
+struct OneWeapon : BrainHooks {
+  void* w = nullptr;
+  void* object_of(Handle h) override { return h == 0x77 ? w : nullptr; }
+};
+}  // namespace
+
+// A beam's heat by the second (0x004b8f10): its cycle is a period's recharge plus its firing, and the shot's heat
+// (vt+0x1c, 0x004bc910) an eighth of that.
+TEST(pm_wire_firing_a_beams_heat_rate) {
+  mech3::WeaponType type;
+  type.heat = 4.0f, type.fire_time = 0.5f, type.recharge_rate = 1.5f;
+  zwep::WeaponDef def;
+  def.type = &type, def.period = 2.0f;
+  mech3::BeamWeapon beam(&def, nullptr, nullptr);
+  OneWeapon f;
+  f.w = &beam;
+  Installed in(&f);
+  const double cycle = 2.0 * 0.5 / 1.5 + 0.5;
+  const float rate = static_cast<float>(1.0 / cycle * 4.0);
+  EXPECT(shot_pm_hooks().cost(0x77) == rate);
+  EXPECT(shot_pm_hooks().dps(0x77) == 0.125 * rate);
+}
+
+// The step's quick plan is one that faces its contact; any_can_hit (0x004bd1c0) asks for the others.
+TEST(pm_wire_firing_a_quick_plan_faces) {
+  Fake f;
+  Installed in(&f);
+  PlanPm p;
+  p.faces = 1;
+  EXPECT(step_pm_hooks().plan_quick(pm_id(&p)));
+  p.faces = 0;
+  EXPECT(!step_pm_hooks().plan_quick(pm_id(&p)));
+  pm_ids_forget(&p);
+}
+
+// A queued follow (0x004ea0f0 with a 0x005eeca4) gives its order on the net it names.
+TEST(pm_wire_a_queued_follow_runs_on_its_net) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  mech3::ai::VehicleNet vn(9);
+  EXPECT(b.set_net(&vn));
+  mech3::ai::VehicleNet other(10);
+  pm_queue_follow(b, &other, nullptr);
+  EXPECT(pm_run_pending(b));
+  EXPECT(b.current().net && b.current().net->net() == &other);
+  pm_pop_order(b);
+  b.set_net(nullptr);
+}
