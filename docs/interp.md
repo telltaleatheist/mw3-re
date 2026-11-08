@@ -519,9 +519,16 @@ More from the emulator check:
   `FindNode ocean52`). It matches nothing, so the ocean52 water texture in
   mission c1 does not scroll, while ocean50, 51 and 53 do. The original
   silently ignores it.
-- **Unused scripts:** `dev1.gs`, `dev2.gs` and `lab.gs` (no `zbd\dev1` or
+- **Unused scripts:** `dev1.gs` and `dev2.gs` (no `zbd\dev1` or
   `zbd\dev2` folder ships; dev1 is dated 1999-04-28, two weeks before
-  release), `dev1size/dev2size/labsize.gw`, `mechs.gw`, `morfutil.gw` (a
+  release). `lab.gs` is used: the Lab State loads mission 6 ("lab") when no
+  world is up (0x44ffc0, from the multiplayer lobby), no `zbd\lab` ships, so
+  its GameZReadZBDFile fails and the build-from-source branch runs:
+  `support\world.gw`'s NewWorld, NewWindow, NewCamera and NewDisplay (which
+  the exe has; only GameGen's commands are missing) make `world1` and the
+  rest, empty. The port wires those calls (2026-11-08); Pirate's Moon's
+  clutter step (0x513a30 in its load) reads that world. Also unused:
+  `dev1size/dev2size/labsize.gw`, `mechs.gw`, `morfutil.gw` (a
   LOD-morph helper driven by macros `%morph_root%` and `%lod_node_1%`), and,
   in effect, `world/weapons/vehicles/effects/cN_mp.gw` (dead branch only).
   `cN_mp.gw` places the mobile field bases (`mfb_stationNN`). The script

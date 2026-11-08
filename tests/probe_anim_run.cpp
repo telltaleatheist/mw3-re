@@ -33,6 +33,7 @@
 #include "gamez/zsave/zsave.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/display.h"
 #include "mech3/lab_view.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/ztimer.h"
@@ -502,6 +503,16 @@ int lv_draw(Node* camera, Node* node, int32_t hw) {
   return 0;
 }
 }  // namespace
+// A display node (0x004fa4c0): its class, its data and the displays' count after.
+int lv_display(uint32_t* out, int len) {
+  Node* n = zcls::display_create();
+  if (!n || len < 9) return 0;
+  out[0] = n->get<uint32_t>(0x34);
+  std::memcpy(out + 1, static_cast<zcls::Display*>(n->data)->raw, 0x1c);
+  out[8] = static_cast<uint32_t>(zcls::list_count(zcls::kDisplays));
+  return 9;
+}
+
 int lv_frame(const float* cam, const float* node_rot, float dt, uint32_t* out, int len) {
   mech3::LabView v;
   v.camera = zcls::camera_create();
