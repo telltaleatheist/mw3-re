@@ -900,7 +900,12 @@ void wire_hud() {
     Mech* tm = m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
     const char* name = tm && tm->node ? static_cast<zcls::Node*>(tm->node)->name() : (m->target ? "(not a mech)" : "(none)");
     float tp[3] = {};
-    if (tm) mech_world_position(tm, tp);
+    if (tm) {
+      mech_world_position(tm, tp);
+    } else if (m->target) {  // a vehicle or building: where the sensors last saw it
+      mech_world_position(m, tp);
+      for (int i = 0; i < 3; ++i) tp[i] += m->target->delta[i];
+    }
     std::printf("mw3: lock shot: %s locked %d; target %s at %.0f %.0f %.0f, picked %.2f s ago; reticle %d, locked for %.2f s; "
                 "aimed at %.0f %.0f %.0f\n",
                 w.def && w.def->name ? w.def->name : "?", w.locked ? 1 : 0, name, tp[0], tp[1], tp[2], h->target.since_set,
