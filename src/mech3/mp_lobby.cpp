@@ -131,11 +131,6 @@ LobbyScreen* lobby_screen() { return g_lobby; }
 // ---- the controls ----
 
 // Mech3.exe 1.2 @ 0x00496880
-void WorldCycle::step(int32_t by) {
-  CycleButton::step(by);
-  if (count() > 1 && index == 0) CycleButton::step(by);
-}
-
 void LobbyList::empty() {
   clear_items();
   records.clear();
@@ -158,15 +153,16 @@ LobbyEntry* LobbyList::chosen() {
 
 // Mech3.exe 1.2 @ 0x00495f90
 LobbyScreen::LobbyScreen(Engine& e, Handle s)
-    : MenuScreen(e, s), chat_edit(e, this), cancel_btn(e, 1), start_btn(e, 0), mechlab_btn(e, 10), lock_btn(e, 0xb),
-      worlds(e), kills_list(e, 0xd), time_list(e, 0xe), weight_list(e, 0xf), join_team_btn(e, 4), remove_team_btn(e, 5),
-      kick_btn(e, 6), new_team_btn(e, 7), pick_skin_btn(e, 8), kick2_btn(e, 9), chat_log(e, this),
-      scores_list(e, -1), teams_list(e, -1), players_list(e, 0x17), player_name(e, -1), session_name(e, -1),
-      internet_line(e), lan_line(e) {
+    : MenuScreen(e, s), chat_edit(e, this), cancel_btn(e, 1), start_btn(e, 0), mechlab_btn(e, 10), salvage_btn(e, 0xb),
+      options_btn(e, 0xc), lock_btn(e, 0xd), game_type(e, 0xe), worlds(e, 0xf), salvage_award(e, 0x10),
+      rounds_list(e, 0x11), kills_list(e, 0x12), time_list(e, 0x13), weight_list(e, 0x14), join_team_btn(e, 4),
+      remove_team_btn(e, 5), kick_btn(e, 6), new_team_btn(e, 7), pick_skin_btn(e, 8), kick2_btn(e, 9),
+      chat_log(e, this), scores_list(e, -1), teams_list(e, -1), players_list(e, 0x1e), player_name(e, -1),
+      session_name(e, -1), internet_line(e), lan_line(e) {
   chat_edit.set_size(0x27);
-  int32_t id = 0x10;
-  for (InvertCheck* c : {&regen_box, &mobile_box, &stock_box, &ammo_box, &select_box}) c->id = id++;
-  ready_box.id = 0x15;
+  regen_box.id = 0x15, mobile_box.id = 0x16, stock_box.id = 0x17, ammo_box.id = 0x18, select_box.id = 0x19;
+  jets_box.id = 0x1a, radar_box.id = 0x1b;
+  ready_box.id = 0x1c;
   const bool moving = !e.fast_menu();
   if (load_from(e.main_menu_definition(), "MULTIPLAYER_HOST_DIALOG", moving)) {
     zimg::Texture* img = nullptr;
@@ -186,11 +182,16 @@ LobbyScreen::LobbyScreen(Engine& e, Handle s)
       remove(&lines1);
     }
     bind_button(&session_name, "SESSION_NAME");
-    bind_button(&cancel_btn, "CANCEL_BUTTON");
+    bind_button(&cancel_btn, "CANCEL_BUTTON");  // PM: CANCEL_ZONE when started from a DirectPlay lobby (none here)
     bind_button(&start_btn, "START_BUTTON");
     bind_button(&mechlab_btn, "MECHLAB_BUTTON");
+    bind_button(&salvage_btn, "SALVAGE_BUTTON");
+    bind_button(&options_btn, "OPTIONS_BUTTON");
     bind_button(&lock_btn, "LOCK_OPTIONS_BUTTON");
+    bind_button(&game_type, "GAME_TYPE");
     bind_button(&worlds, "DATABASE_LIST");
+    bind_button(&salvage_award, "SALVAGE_AWARD");
+    bind_button(&rounds_list, "ROUNDS_LIST");
     bind_button(&kills_list, "KILLS_LIST");
     bind_button(&time_list, "TIME_LIST");
     bind_button(&weight_list, "WEIGHT_LIST");
@@ -199,6 +200,8 @@ LobbyScreen::LobbyScreen(Engine& e, Handle s)
     bind_button(&stock_box, "STOCK_CHECKBOX");
     bind_button(&ammo_box, "AMMO_CHECKBOX");
     bind_button(&select_box, "SELECT_CHECKBOX");
+    bind_button(&jets_box, "JETS_CHECKBOX");
+    bind_button(&radar_box, "RADAR_CHECKBOX");
     bind_button(&player_name, "PLAYER_NAME");
     bind_button(&chat_edit, "CHAT_ENTER_EDIT");
     bind_button(&chat_team, "CHAT_TEAM_CHECKBOX");
@@ -215,7 +218,7 @@ LobbyScreen::LobbyScreen(Engine& e, Handle s)
     bind_primitive(&chat_log, "CHAT_REC_LIST");
     bind_button(&chat_log.up_btn, "CHAT_UP");
     bind_button(&chat_log.down_btn, "CHAT_DOWN");
-    teams_list.id = 0x16;
+    teams_list.id = 0x1d;
   }
   // Ours (piece 9c): the host's two address lines, under CANCEL and LOCK.
   const Handle font = ztwod::host().font_find("ia_small_green");
@@ -273,6 +276,7 @@ void LobbyScreen::enter(bool from_game) {
                                                   znet::destroy_team(t.id);  // 0x005a94f0
                                                 });
   between_rounds = rounds.next;  // +0x1679d
+  locked = rounds.next;          // +0x16799: the next round's options stay locked
   results = rounds.lines;        // the results list's (+0x15e14; piece 6c shows it)
   // PM's data (0x1c bytes): kind 1, the skin, the state, 0, the rounds won and place (between rounds), 0. Ours after
   // it: the add-on worlds (their count, the values) and the mods block (MW3's had the worlds from its fourth word).
@@ -290,6 +294,11 @@ void LobbyScreen::enter(bool from_game) {
         data[1] = static_cast<uint32_t>(i + 1);
         break;
       }
+  game_type.clear_items();  // PM 0x0049a951: the kinds
+  game_type.add_item("Deathmatch without Teams", 0);
+  game_type.add_item("Deathmatch with Teams", 1);
+  game_type.add_item("Attack/Defend - One Base", 3);
+  game_type.add_item("Attack/Defend - Two Bases", 4);
   worlds.clear_items();
   // PM 0x0049a9a6: the list starts at the shipped worlds, MW3's "UNAVAILABLE" row (0xfdf) is gone.
   worlds.add_item(e.message(0x320), 0x100);  // the shipped eight: (number << 8) | folder
@@ -341,33 +350,43 @@ void LobbyScreen::enter(bool from_game) {
   }
   mods_checked = 0;
   znet::set_player_data(me, data.data(), static_cast<uint32_t>(data.size() * 4));
-  // KILLS_LIST: 1, 5, 10, 20, 40 (doubled with teams) and unlimited (100).
-  const int32_t unit = team ? 2 : 1;
+  // PM 0x0049aa76..0x0049afc8: REALLOC (the salvage's multiple: its value in halves), the kills, minutes and tons
+  // (1000 none; MW3's kills doubled with teams, its none 100), the rounds (1..10, or to the match's between rounds),
+  // then each picked from the game and the boxes set from it.
+  salvage_award.clear_items();
+  static const std::pair<const char*, int32_t> kRealloc[9] = {{"0", 0},     {"X .5", 1},   {"X 1", 2},
+                                                              {"X 1.5", 3}, {"X 3", 6},    {"X -3", -6},
+                                                              {"X -1.5", -3}, {"X -1", -2}, {"X -.5", -1}};
+  for (const auto& r : kRealloc) salvage_award.add_item(r.first, r.second);
   kills_list.clear_items();
-  kills_list.add_item(unit < 2 ? e.message(0x2b1) : zutl::format_message_f(0x2b2, unit).c_str(), unit);
-  for (int32_t m : {5, 10, 20, 40}) kills_list.add_item(zutl::format_message_f(0x2b2, unit * m).c_str(), unit * m);
-  kills_list.add_item(e.message(0x2b5), 100);
+  for (int32_t k : {1, 2, 5, 10, 20, 40, 50, 60, 80}) kills_list.add_item(zutl::format_message_f(0x2b2, k).c_str(), k);
+  kills_list.add_item(e.message(0x2b5), 1000);
   kills_list.select_value(5);
   time_list.clear_items();
   static const int32_t kMinutes[4] = {5, 10, 20, 30};
   for (int32_t i = 0; i < 4; ++i) time_list.add_item(e.message(0x2b6 + i), kMinutes[i]);
-  time_list.add_item(e.message(0x2ba), 100);
+  time_list.add_item(e.message(0x2ba), 1000);
   weight_list.clear_items();
-  for (int32_t t = 30; t < 0x69; t += 5) weight_list.add_item(zutl::format_message_f(0x2bb, t).c_str(), t);
+  for (int32_t t = 10; t < 0x69; t += 5) weight_list.add_item(zutl::format_message_f(0x2bb, t).c_str(), t);
   weight_list.select_value(0x37);
-  if (worlds.select_value(game->world()) == -1) {
-    worlds.select(0);  // the first world (MW3 selected past its "UNAVAILABLE" row)
-  }
-  kills_list.select_value(game->x70);
+  rounds_list.clear_items();
+  const int32_t rounds_n = between_rounds ? game->rounds_total : 10;
+  for (int32_t i = 1; i <= rounds_n; ++i) rounds_list.add_item(std::to_string(i).c_str(), i);
+  game_type.select_value(game->kind);
+  worlds.select_value((game->x94 & 0xff) << 8 | (game->x90 & 0xff));  // vt+0x48, vt+0x50
+  salvage_award.select_value(game->realloc);
+  rounds_list.select_value(game->rounds_total);
+  kills_list.select_value(std::min(game->x70, 1000));
   time_list.select_value(static_cast<int32_t>(game->x74));
   weight_list.select_value(game->x78);
   regen_box.set_checked(game->b8c);
-  const int32_t w = worlds.value_at(worlds.index);
-  const bool mobile_world = !((w & 0xff) == 4 && (w >> 8) > 2);
-  mobile_box.set_checked(game->ba8 && mobile_world ? 1 : 0);
+  mobile_box.set_checked(game->ba8);
   stock_box.set_checked(game->b8f);
+  stock_kept = game->b8f;
   ammo_box.set_checked(game->b8d);
   select_box.set_checked(game->b8e);
+  jets_box.set_checked(game->jets_assist);
+  radar_box.set_checked(game->radar);
   chat_team.set_checked(0);
   teams_list.empty();
   players_list.empty();
@@ -375,7 +394,7 @@ void LobbyScreen::enter(bool from_game) {
   chat_edit.set_text("");
   chat_edit.set_focus(0);
   chat_edit.set_focus(1);
-  locked = 0, all_ready = 0, start_pending = 0;
+  all_ready = 0, start_pending = 0;
   host_controls();
   for (ztwod::Control* c : std::initializer_list<ztwod::Control*>{&join_team_btn, &remove_team_btn, &kick_btn,
                                                                   &new_team_btn, &pick_skin_btn, &kick2_btn,
@@ -460,23 +479,35 @@ void LobbyScreen::on_button(int32_t id, int32_t a, int32_t b) {
     case 8: open_pick_skin(); return;
     case 5: remove_team(); return;
     case 10: mech_lab(); return;
-    case 0x15: ready(); return;
-    case 0xb: lock(); return;
-    case 0xc: world_changed(); return;
-    case 0xd:
+    case 0xd: lock(); return;  // PM 0x0049e3f0: through the screen's +0x58 (0x0049e400)
+    case 0x1c: ready(); return;
+    case 0xf: world_changed(); return;  // ours: PM's is case 0xe's
+    case 0x11:  // PM: ROUNDS also decides STOCK (0x0049b5e0)
+      g_lobby_dirty = 1;
+      set_enabled(stock_box, stock_control() ? 1 : 0);
+      return;
+    case 0x17:  // STOCK kept as the host leaves it
+      stock_kept = stock_box.checked != 0;
+      g_lobby_dirty = 1;
+      return;
     case 0xe:
-    case 0xf:
     case 0x10:
-    case 0x11:
     case 0x12:
     case 0x13:
-    case 0x14:  // a rule changed: sent with the next refresh
+    case 0x14:
+    case 0x15:
+    case 0x16:
+    case 0x18:
+    case 0x19:
+    case 0x1a:
+    case 0x1b:  // a rule changed: sent with the next refresh
       g_lobby_dirty = 1;
       return;
     case 6: kick(teams_list); return;
     case 9: kick(players_list); return;
-    case 0x16: team_chosen(); return;
-    case 0x17: player_chosen(); return;
+    case 0x1d: team_chosen(); return;    // PM 0x0049dc50
+    case 0x1e: player_chosen(); return;  // PM 0x0049dfd0
+    // PM's SALVAGE (0xb, 0x0049ed90) and OPTIONS (0xc, none: the button does nothing) come with piece 6c-3.
     default: return;
   }
 }
@@ -514,8 +545,7 @@ void LobbyScreen::refresh_lists() {
   g_order_next = 1;
   znet::each_player(add_player, nullptr);
   if (multiplayer_team_play()) znet::each_team(add_team, nullptr);
-  // PM 0x0049bb70's lines (MultiplayerGame::lobby_lines); the kinds list's value is the game's kind until the
-  // screen has PM's GAME_TYPE list (piece 6c-2).
+  // PM 0x0049bb70's lines (MultiplayerGame::lobby_lines), by GAME_TYPE's pick.
   static Engine* s_engine;
   s_engine = &engine();
   LobbyText tx;
@@ -525,7 +555,7 @@ void LobbyScreen::refresh_lists() {
     return m ? m : "";
   };
   std::vector<LobbyLine> tp, pl;
-  all_ready = game->lobby_lines(game->kind, znet::local_id(), tx, &tp, &pl) ? 1 : 0;
+  all_ready = game->lobby_lines(game_type.selected_value(), znet::local_id(), tx, &tp, &pl) ? 1 : 0;
   teams_list.empty();
   for (const LobbyLine& l : tp) teams_list.add(l.text, l.entry);
   players_list.empty();
@@ -561,16 +591,23 @@ void LobbyScreen::refresh_buttons() {
     set_enabled(new_team_btn, game->lobby_teams.size() < 8 && !ready_box.checked ? 1 : 0);
 }
 
-// Mech3.exe 1.2 @ 0x00498260: the rules the host's (until locked): the
-// lists' arrows, the boxes, LOCK and (team play) NEW_TEAM. "UNAVAILABLE"
-// chosen becomes BEACHHEAD; a world without MOBILE (an add-on of folder 4)
-// clears and disables it.
+// Pirate's Moon 1.0 @ 0x0049b3f0: the rules the host's until locked: the
+// lists' arrows (the worlds' also between rounds while not ready), the boxes
+// (STOCK by 0x0049b5e0), LOCK and (team play) NEW_TEAM. Ours after it, for
+// the add-on worlds we list (MW3's 0x00498260): one without MOBILE (an
+// add-on of folder 4) clears and disables it.
 void LobbyScreen::host_controls() {
-  const bool on = znet::is_host() && !locked;
-  for (CycleButton* c : {static_cast<CycleButton*>(&worlds), &kills_list, &time_list, &weight_list})
+  const bool host = znet::is_host();
+  const bool on = host && !locked;
+  const bool world_on = (host && between_rounds && !ready_box.checked) || on;
+  worlds.set_arrows(world_on, world_on);
+  for (CycleButton* c : {&kills_list, &time_list, &weight_list, &game_type, &salvage_award, &rounds_list})
     c->set_arrows(on, on);
-  for (ztwod::Control* c : std::initializer_list<ztwod::Control*>{&regen_box, &mobile_box, &stock_box, &ammo_box,
-                                                                  &select_box, &lock_btn})
+  set_enabled(regen_box, on ? 1 : 0);
+  set_enabled(mobile_box, on ? 1 : 0);
+  set_enabled(stock_box, stock_control() ? 1 : 0);
+  for (ztwod::Control* c : std::initializer_list<ztwod::Control*>{&ammo_box, &select_box, &jets_box, &radar_box,
+                                                                  &lock_btn})
     set_enabled(*c, on ? 1 : 0);
   set_enabled(new_team_btn, on && multiplayer_team_play() ? 1 : 0);
   if (!on) return;
@@ -580,6 +617,20 @@ void LobbyScreen::host_controls() {
     set_enabled(mobile_box, 0);
     g_lobby_dirty = 1;
   }
+}
+
+// Pirate's Moon 1.0 @ 0x0049b5e0: STOCK is the host's while unlocked (as it
+// left it); between the rounds of a match of more (0x0049ea90: ROUNDS over
+// 1) it is off, the mechs kept from round to round.
+bool LobbyScreen::stock_control() {
+  if (!znet::is_host()) return false;
+  if (rounds_list.selected_value() > 1 && between_rounds) {
+    stock_box.set_checked(0);
+    return false;
+  }
+  if (locked) return false;
+  stock_box.set_checked(stock_kept);
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x00497fbf..0x004980b6 (on), 0x00499a30 (off).
@@ -704,17 +755,42 @@ uint32_t box_flags(const LobbyScreen& l) {
 bool no_mobile(int32_t world) { return (world & 0xff) == 4 && (world >> 8) > 2; }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00499b10: the host's, to every player, guaranteed (the
-// screen's vt+0x10 before it is empty here).
+// The lists and boxes as the rules message sees them, and back.
+LobbyControls LobbyScreen::controls() {
+  LobbyControls c;
+  const std::pair<CycleButton*, LobbyChoice*> lists[7] = {
+      {&kills_list, &c.kills}, {&time_list, &c.minutes}, {&weight_list, &c.tons},  {&salvage_award, &c.realloc},
+      {&rounds_list, &c.rounds}, {&game_type, &c.kind},  {&worlds, &c.world}};
+  for (const auto& [from, to] : lists) {
+    for (const CycleButton::Item* it : from->items) to->values.push_back(it->value);
+    to->pick = from->index;
+  }
+  c.respawn = regen_box.checked, c.ammo = ammo_box.checked, c.outside = select_box.checked;
+  c.jets = jets_box.checked, c.radar = radar_box.checked, c.stock = stock_box.checked, c.mobile = mobile_box.checked;
+  c.locked = locked;
+  return c;
+}
+
+void LobbyScreen::show_controls(const LobbyControls& c) {
+  const std::pair<CycleButton*, const LobbyChoice*> lists[7] = {
+      {&kills_list, &c.kills}, {&time_list, &c.minutes}, {&weight_list, &c.tons},  {&salvage_award, &c.realloc},
+      {&rounds_list, &c.rounds}, {&game_type, &c.kind},  {&worlds, &c.world}};
+  for (const auto& [to, from] : lists)
+    if (to->index != from->pick) to->select(from->pick);  // vt+0xa0
+  const std::pair<InvertCheck*, bool> boxes[7] = {{&regen_box, c.respawn}, {&mobile_box, c.mobile},
+                                                  {&stock_box, c.stock},   {&ammo_box, c.ammo},
+                                                  {&select_box, c.outside}, {&jets_box, c.jets},
+                                                  {&radar_box, c.radar}};
+  for (const auto& [box, on] : boxes) box->set_checked(on ? 1 : 0);  // vt+0x8c
+  locked = c.locked;
+}
+
+// Pirate's Moon 1.0 @ 0x0049d220: the host's, to every player, guaranteed
+// (the screen's vt+0x14 before it is empty here).
 void LobbyScreen::send_rules() {
   if (!znet::is_host()) return;
-  uint8_t m[0x10] = {0x20, 0, 0x10, 0};
-  const uint32_t flags = box_flags(*this);
-  const int16_t v[4] = {static_cast<int16_t>(worlds.selected_value()), static_cast<int16_t>(kills_list.selected_value()),
-                        static_cast<int16_t>(time_list.selected_value()), static_cast<int16_t>(weight_list.selected_value())};
-  std::memcpy(m + 4, &flags, 4);
-  std::memcpy(m + 8, v, 8);
-  znet::send(m, sizeof m, true, 0);
+  const std::vector<uint8_t> m = lobby_rules_message(controls());
+  znet::send(m.data(), m.size(), true, 0);
 }
 
 // The game's rules block from the lists and the boxes (0x0049aca0's host
@@ -739,50 +815,37 @@ void LobbyScreen::keep_rules(bool seeded) {
   game->rules_crc = zutl_zar::crc32(0, b, sizeof b);
 }
 
-// Mech3.exe 1.2 @ 0x00499cf0: the host's rules shown: a world not in our
-// list is UNAVAILABLE; a value the lists lack leaves theirs; the boxes set
-// and not ours to change; the block kept (with the lock as it was); then
-// the lock as sent, and on its first lock the players again and our mech
-// fitted to the rules (bits past the six are never read). FIX (A): only
-// from the host, and whole (the exe took any sender's, and read what the
-// message lacked).
+// Pirate's Moon 1.0 @ 0x0049d450: the host's rules shown and kept
+// (MultiplayerGame::read_lobby_rules), the boxes not ours to change; on
+// their first lock the team play as the host's kind, the chat's team box
+// with it, the players again (not the teams, as MW3's) and our mech fitted
+// to the rules. FIX (A): only from the host, and whole (the exe took any
+// sender's, and read what the message lacked).
 void LobbyScreen::on_rules(uint32_t from, const uint8_t* msg, size_t size) {
   LobbyScreen* l = g_lobby;
-  if (!l || !l->game || size < 0x10 || from != znet::session().host_id || znet::is_host()) return;
-  uint32_t flags;
-  uint16_t v[4];
-  std::memcpy(&flags, msg + 4, 4);
-  std::memcpy(v, msg + 8, 8);
-  if (l->worlds.select_value(v[0]) == -1) l->worlds.select(0);
-  l->kills_list.select_value(v[1]);
-  l->time_list.select_value(v[2]);
-  l->weight_list.select_value(v[3]);
-  int32_t bit = 1;
-  for (InvertCheck* c : {&l->regen_box, &l->mobile_box, &l->stock_box, &l->ammo_box, &l->select_box}) {
-    c->set_checked((flags & bit) ? 1 : 0);
-    bit <<= 1;
-  }
-  for (InvertCheck* c : {&l->regen_box, &l->mobile_box, &l->stock_box, &l->ammo_box, &l->select_box}) set_enabled(*c, 0);
-  l->keep_rules(false);
-  const uint8_t was = l->locked;
-  l->locked = (flags >> 5) & 1;
+  if (!l || !l->game || size < 0x18 || from != znet::session().host_id || znet::is_host()) return;
+  LobbyControls c = l->controls();
+  bool team = multiplayer_team_play();
+  const bool first = l->game->read_lobby_rules(msg, size, &c, std::rand(), &team);
+  l->show_controls(c);
+  for (InvertCheck* b : {&l->regen_box, &l->mobile_box, &l->stock_box, &l->ammo_box, &l->select_box, &l->jets_box,
+                         &l->radar_box})
+    set_enabled(*b, 0);
   g_lobby_dirty = 1;
-  if (!was && l->locked) {
-    znet::enum_players();
-    if (multiplayer_team_play()) {
-      znet::enum_teams();
-      znet::enum_team_players();
-    }
-    l->lock_mech();
-  }
+  if (!first) return;
+  set_multiplayer_team_play(team);  // [0x0062cc34]
+  if (team) l->chat_team.show_for(-1.0f);
+  else l->chat_team.hide();
+  znet::enum_players();  // 0x005a9520
+  l->lock_mech();
 }
 
-// Mech3.exe 1.2 @ 0x00497410 case 0xc: a world without MOBILE (an add-on of
-// folder 4) clears and disables it.
+// Ours (MW3's 0x00497410 case 0xc, for the add-on worlds we list): a world
+// without MOBILE (an add-on of folder 4) clears and disables it.
 void LobbyScreen::world_changed() {
   const bool ok = !no_mobile(worlds.selected_value());
   if (!ok) mobile_box.set_checked(0);
-  set_enabled(mobile_box, ok ? 1 : 0);
+  set_enabled(mobile_box, ok && !locked ? 1 : 0);
   g_lobby_dirty = 1;
 }
 
@@ -823,7 +886,7 @@ void LobbyScreen::lock() {
       return;
     }
   }
-  if (kills_list.selected_value() == 100 && time_list.selected_value() == 100 && e.message_box(1, 0x1e3, 0xfbd) != 1)
+  if (kills_list.selected_value() == 1000 && time_list.selected_value() == 1000 && e.message_box(1, 0x1e3, 0xfbd) != 1)
     return;
   if (e.message_box(1, 0x1e3, 0x2c4) != 1) return;
   znet::enum_players();
@@ -862,8 +925,7 @@ void lobby_store_ready(Store& st) {
 }
 
 // Mech3.exe 1.2 @ 0x0049b360 (0x0049b1c0, 0x0049b2d0), Pirate's Moon 1.0 @ 0x0049eb20: the store ready,
-// then each mech within WEIGHT_LIST's tons in (marked). PM's gate on a world item
-// (0x0049ea90, 0x0049eb10 [0x0062cc38]) isn't ported: multiplayer's list, pm-tests.md; a slot mech over
+// then each mech within WEIGHT_LIST's tons in (marked); a slot mech over
 // the limit (or none) becomes the heaviest within it with its first stock
 // loadout; one within keeps its loadout, given the first stock one when it
 // has none, or with STOCK on when it is not one of the mech's stock
@@ -871,6 +933,8 @@ void lobby_store_ready(Store& st) {
 // so with STOCK on the exe always made it the first (multiplayer-port.md 11b).
 void LobbyScreen::lock_mech() {
   if (!game) return;
+  // PM 0x0049eb20's gate (0x0049ea90, 0x0049eb10; by reading): in a match of more rounds, only before its first.
+  if (rounds_list.selected_value() > 1 && net_rounds_played() != 0) return;
   Engine& e = engine();
   const float tons = static_cast<float>(weight_list.selected_value());
   const bool stock = stock_box.checked != 0;
@@ -1023,7 +1087,7 @@ void LobbyScreen::start() {
     keep_order = 1;
   }
   const int32_t kills = kills_list.selected_value();
-  game->x70 = kills < 100 ? kills : 0x7fffffff;
+  game->x70 = kills < 1000 ? kills : 0x7fffffff;
   game->b8c = regen_box.checked != 0;
   game->b8d = ammo_box.checked != 0;
   game->b8e = select_box.checked != 0;
@@ -1040,7 +1104,7 @@ void LobbyScreen::start() {
   r.flags |= box_flags(*this) & 0x1f;  // or'd onto the lock's
   handlers(false);
   const float t = static_cast<float>(minutes);
-  program_net_clock(t >= 100.0f ? 0.0f : t * 60.0f, t < 100.0f);  // [0x00609920], [0x00609924]
+  program_net_clock(t >= 1000.0f ? 0.0f : t * 60.0f, t < 1000.0f);  // [0x00609920], [0x00609924]
   const int32_t w = worlds.selected_value();
   game->x90 = w == 0 ? -1 : (w & 0xff);
   game->x94 = w >> 8;

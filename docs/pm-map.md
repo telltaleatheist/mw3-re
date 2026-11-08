@@ -1688,6 +1688,13 @@ picks each list by its value (0x48a2e0) and sets each box (vt+0x8c). The boxes a
 +0x145e0, ... (JETS_CHECKBOX and RADAR_CHECKBOX in MULTIPLAYER_HOST_DIALOG, dialog.zrd, with GAME_TYPE, SALVAGE_AWARD
 (the REALLOC list) and ROUNDS_LIST).
 
+**PM's lobby control ids** (the constructor 0x498b70; the switch 0x49a1b0 is the screen's vt+0x18): CANCEL 1 (CANCEL_ZONE
+when started from a DirectPlay lobby, [0x62cc2d] from 0x5aa730), START 0, chat 2/3, the team buttons 4..9, MECHLAB 10,
+SALVAGE_BUTTON 0xb (0x49ed90), OPTIONS_BUTTON 0xc (no case), LOCK 0xd (0x49e3f0, then 0x49e400 through the screen's
++0x58), GAME_TYPE 0xe, DATABASE_LIST 0xf (a plain cycle list, no "UNAVAILABLE" skip), SALVAGE_AWARD 0x10, ROUNDS_LIST 0x11
+(also decides STOCK, 0x49b5e0), KILLS 0x12, TIME 0x13, WEIGHT 0x14, REGEN 0x15, MOBILE 0x16, STOCK 0x17 (kept in +0x1679e),
+AMMO 0x18, SELECT 0x19, JETS 0x1a, RADAR 0x1b, READY 0x1c (0x49e2e0), TP_LIST 0x1d (0x49dc50), PLAYERS_LIST 0x1e (0x49dfd0).
+
 By the pair map (`analysis-output/pm-diff/pairs.json`, pm-map's columns: compiler only, compiler with other offsets or constants, changed), over the MW3 functions the port's network-side files name. Our transport replaces DirectPlay, so what matters is what reaches what we kept: the messages' contents and types, and the game's rules.
 
 | port file (MW3's) | functions | identical | compiler only | other offsets, constants | changed | MW3 only, gone | new in PM beside it |

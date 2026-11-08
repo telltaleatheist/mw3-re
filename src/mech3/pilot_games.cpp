@@ -12,6 +12,7 @@
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
@@ -1385,6 +1386,86 @@ LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text
   if (!confirm(0x2c4)) return LobbyRule::declined;
   *team_play = s.kind.has && s.kind.value != 0;  // [0x0062cc34]
   return LobbyRule::start;
+}
+
+LobbyPick LobbyChoice::picked() const {
+  LobbyPick p;
+  if (pick >= 0 && pick < static_cast<int32_t>(values.size())) p.has = true, p.value = values[static_cast<size_t>(pick)];
+  return p;
+}
+
+void LobbyChoice::select_value(int32_t v) {
+  for (size_t i = 0; i < values.size(); ++i)
+    if (values[i] == v) {
+      pick = static_cast<int32_t>(i);
+      return;
+    }
+}
+
+LobbySettings LobbyControls::settings() const {
+  LobbySettings s;
+  s.kills = kills.picked(), s.minutes = minutes.picked(), s.tons = tons.picked(), s.realloc = realloc.picked();
+  s.rounds = rounds.picked(), s.kind = kind.picked(), s.world = world.picked();
+  s.respawn = respawn, s.ammo = ammo, s.outside = outside, s.jets = jets, s.radar = radar, s.stock = stock;
+  s.mobile = mobile;
+  return s;
+}
+
+namespace {
+uint32_t lobby_flags(const LobbyControls& c) {
+  return (c.respawn ? 1u : 0u) | (c.mobile ? 2u : 0u) | (c.stock ? 4u : 0u) | (c.ammo ? 8u : 0u) |
+         (c.outside ? 0x10u : 0u) | (c.jets ? 0x80u : 0u) | (c.radar ? 0x100u : 0u) | (c.locked ? 0x20u : 0u);
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x0049d220 (the host's, to all, guaranteed): the flags,
+// then the world, kills, minutes, tons, kind and rounds (int16) and REALLOC
+// (a word); a list without a pick sends 0. MW3's 0x00499b10 had the first
+// four lists in 0x10 bytes.
+std::vector<uint8_t> lobby_rules_message(const LobbyControls& c) {
+  std::vector<uint8_t> m(0x18, 0);
+  const uint32_t head = 0x20 | 0x18u << 16, flags = lobby_flags(c);
+  const auto v = [](const LobbyChoice& l) { return l.picked().has ? l.picked().value : 0; };
+  const int16_t h[6] = {static_cast<int16_t>(v(c.world)), static_cast<int16_t>(v(c.kills)),
+                        static_cast<int16_t>(v(c.minutes)), static_cast<int16_t>(v(c.tons)),
+                        static_cast<int16_t>(v(c.kind)), static_cast<int16_t>(v(c.rounds))};
+  const int32_t realloc = v(c.realloc);
+  std::memcpy(m.data(), &head, 4), std::memcpy(m.data() + 4, &flags, 4);
+  std::memcpy(m.data() + 8, h, sizeof h), std::memcpy(m.data() + 0x14, &realloc, 4);
+  return m;
+}
+
+// Pirate's Moon 1.0 @ 0x0049d450. The shorts are picked as unsigned (a
+// negative value never matches); REALLOC as a word. FIX (A): whole messages
+// only (the exe read 0x18 bytes of any).
+bool MultiplayerGame::read_lobby_rules(const uint8_t* msg, size_t size, LobbyControls* c, int32_t seed,
+                                       bool* team_play) {
+  if (size < 0x18) return false;
+  uint32_t flags;
+  uint16_t h[6];
+  int32_t realloc_v;
+  std::memcpy(&flags, msg + 4, 4), std::memcpy(h, msg + 8, sizeof h), std::memcpy(&realloc_v, msg + 0x14, 4);
+  c->world.select_value(h[0]), c->kills.select_value(h[1]), c->minutes.select_value(h[2]);
+  c->tons.select_value(h[3]), c->kind.select_value(h[4]), c->realloc.select_value(realloc_v);
+  c->rounds.select_value(h[5]);
+  c->respawn = flags & 1, c->mobile = (flags >> 1) & 1, c->stock = (flags >> 2) & 1, c->ammo = (flags >> 3) & 1;
+  c->outside = (flags >> 4) & 1, c->jets = (flags >> 7) & 1, c->radar = (flags >> 8) & 1;
+  const auto v = [](const LobbyChoice& l) { return static_cast<int16_t>(l.picked().has ? l.picked().value : 0); };
+  rules = Rules{};
+  rules_crc = 0;
+  rules.world = v(c->world), rules.kills = v(c->kills), rules.time = v(c->minutes), rules.weight = v(c->tons);
+  rules.flags = lobby_flags(*c);
+  rules.seed = seed;
+  uint8_t b[0x10];
+  std::memcpy(b, &rules.flags, 4);
+  std::memcpy(b + 4, &rules.world, 2), std::memcpy(b + 6, &rules.kills, 2), std::memcpy(b + 8, &rules.time, 2);
+  std::memcpy(b + 10, &rules.weight, 2), std::memcpy(b + 12, &rules.seed, 4);
+  rules_crc = zutl_zar::crc32(0, b, sizeof b);
+  const bool was = c->locked;
+  c->locked = (flags >> 5) & 1;
+  if (was || !c->locked) return false;
+  *team_play = h[4] != 0;  // [0x0062cc34]: the message's kind, not the list's
+  return true;
 }
 
 // Pirate's Moon 1.0 @ 0x0049bb70's lines. A team: its name, "  {skin} ", in
