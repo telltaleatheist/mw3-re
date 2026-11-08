@@ -604,8 +604,8 @@ class WireStep : public StepPmHooks {
 FiringRecord& pm_firing(Brain& b, zgame::Handle vehicle) {
   const bool fresh = !records().count(vehicle);
   FiringRecord& r = records()[vehicle];
-  if (fresh) {
-    r.fire.seed();
+  if (fresh) r.fire.seed();
+  {  // the pilot's numbers, read where they live as the exe does (PM's allies_turn sets a filter bit in play)
     const AiParams& p = b.params;
     r.pick.pilot.repick = zgame::from_bits(p.target_words[0]);
     r.pick.pilot.pick_order = static_cast<int32_t>(p.target_words[2]);

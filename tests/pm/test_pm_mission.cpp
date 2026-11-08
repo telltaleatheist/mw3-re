@@ -158,8 +158,13 @@ TEST(pm_c1m1_shadow_cats_wake) {
   int camp_done = 0, camp_failed = 0;
   // PM_HIT_MATE=<frame>: the player hits a lancemate once (its controls' hit, as Mech::take_damage reports one), then
   // the run says whether it takes the player as its target (docs/pm-tests.md, One hit turns a lancemate).
+  // PM_HIT_MATE=f1[,f2] hits at those frames; PM_HIT_DAMAGE=d1[,d2] their raw damage (1 by default).
   const char* hit_mate = std::getenv("PM_HIT_MATE");
-  const int hit_frame = hit_mate ? std::atoi(hit_mate) : -1;
+  int hit_frames[2] = {-1, -1};
+  float hit_damage[2] = {1.0f, 1.0f};
+  if (hit_mate) std::sscanf(hit_mate, "%d,%d", &hit_frames[0], &hit_frames[1]);
+  if (const char* d = std::getenv("PM_HIT_DAMAGE")) std::sscanf(d, "%f,%f", &hit_damage[0], &hit_damage[1]);
+  const int hit_frame = hit_frames[0];
   void* mate = nullptr;
   void* mate_controls = nullptr;
   int on_player = 0, first_on = -1, last_on = -1;
@@ -195,10 +200,18 @@ TEST(pm_c1m1_shadow_cats_wake) {
         if (pt) std::printf("  c1m1: player team %x allies %x enemies %x; lancemate %p\n", pt->team, pt->allies, pt->enemies, mate);
       }
     }
-    if (mate && frames == hit_frame) {
-      auto* mc = static_cast<mech3::AiControls*>(mate_controls);
-      if (std::getenv("PM_HIT_REACTS") && mc->brain) mc->brain->params.put<int32_t>(0x9c, 1);  // as scan_hit ( 1 1 ) sets it
-      mc->on_hit(mech3::mission_player_mech(), 1.0f);
+    for (int k = 0; k < 2; ++k)
+      if (mate && frames == hit_frames[k]) {
+        auto* mc = static_cast<mech3::AiControls*>(mate_controls);
+        if (std::getenv("PM_HIT_REACTS") && mc->brain) mc->brain->params.put<int32_t>(0x9c, 1);  // as scan_hit ( 1 1 )
+        mc->on_hit(mech3::mission_player_mech(), hit_damage[k]);
+        const mech3::ai::AiTarget* t = mech3::mech_ai_target(mate);
+        std::printf("  c1m1: hit %d (%g) at %g s: her team %x allies %x enemies %x\n", k + 1, hit_damage[k],
+                    mech3::ai::brain_hooks().now(), t->team, t->allies, t->enemies);
+      }
+    if (mate && hit_frames[1] >= 0 && frames == hit_frames[1] + 1) {
+      const mech3::ai::AiTarget* t = mech3::mech_ai_target(mate);
+      std::printf("  c1m1: after hit 2: her team %x allies %x enemies %x\n", t->team, t->allies, t->enemies);
     }
     if (mate && frames == hit_frame + 1) {
       auto* mc = static_cast<mech3::AiControls*>(mate_controls);
