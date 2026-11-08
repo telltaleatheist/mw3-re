@@ -546,6 +546,23 @@ std::vector<ChainTarget> chain_hostiles() {
   return out;
 }
 
+std::vector<ChainSide> chain_everyone() {
+  std::vector<ChainSide> out;
+  auto add = [&](uint32_t h, const char* kind) {
+    const ai::AiTarget* a = g_sensors.fields(h);
+    if (!a) return;
+    for (const ChainSide& x : out)
+      if (x.t.h == h) return;
+    const zcls::Node* node = g_sensors.node(h, false);
+    out.push_back({{h, kind, node ? std::string(node->name()) : std::string("?")}, a->team, a->allies, chain_alive(h)});
+  };
+  for (const uint32_t e : ai::entity_list())
+    add(e, mech(e) ? "mech" : vehicle(e) ? "vehicle" : program_turret_by_handle(e) ? "turret" : "entity");
+  for (tur::Turret* t : tur::turret_list()) add(handle(t), "turret");
+  for (ai::CZAiTarget* t : ai::target_list()) add(t->self, "target");
+  return out;
+}
+
 void* chain_object(uint32_t h) { return object(h); }
 
 std::vector<void*> radar_unsensed(const void* m) {
