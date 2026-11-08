@@ -23,7 +23,9 @@ struct OnBrain : OrdersPmHooks {
     for (size_t i = pm_pending_count(b); i; --i) mirror.pending.push_back(0);
   }
   bool may_fire(zgame::Handle s) override { return static_cast<BehaviourState*>(pm_ptr(s))->may_fire(); }
-  bool net_idle(zgame::Handle) override { return missing("assumed: the order's net idle (vt+0x14)"); }
+  // vt+0x14 on the order's net part: 1 for a compiled net's link (vtable 0x5ecd8c) and a vehicle net's part (0x5ed538),
+  // both 0x4eb000; 0 for the built-in net's (0x5ed5b0, 0x4d5020).
+  bool net_idle(zgame::Handle n) override { return !dynamic_cast<BuiltinNet*>(static_cast<AiNet*>(pm_ptr(n))); }
   bool state_idle(zgame::Handle) override { return missing("assumed: the order's state idle (vt+0x20)"); }
   zgame::Handle as_net(zgame::Handle obj) override { return obj; }
   zgame::Handle make_net(zgame::Handle net) override {
