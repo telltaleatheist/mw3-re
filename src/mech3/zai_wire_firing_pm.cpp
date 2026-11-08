@@ -493,7 +493,9 @@ class WireStep : public StepPmHooks {
       t->range2 = static_cast<float>(double{r} * r);
     }
   }
-  void look_start(Brain*) override { pm_hook_missing("WireStep.look_start"); }  // the firing's +0x70 (vtable 0x5eb970), not the aim
+  // The firing's +0x70 (0x004ba5f0, vtable 0x005eb970): its start 0x004ba630 sets its +0x18 and owner, its only other
+  // slot answers 0, and nothing reads it (the vtable's one reference is its constructor's): nothing to do.
+  void look_start(Brain*) override {}
   zgame::Handle best_weapon(zgame::Handle wm) override {
     return ai::best_weapon(wm);
   }
