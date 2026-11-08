@@ -120,6 +120,11 @@ class Store {
   uint8_t full = 0;                  // +0x10  set with b04, and by store_fill
 };
 
+// Pirate's Moon: a game's vt+0x44, the jump jets' assist: the multiplayer
+// game's 0x004365f0 (its +0xa7) when it is `g`, else every other game's
+// 0x00435070 (the MW2 jump jets option, 0x0040afd0, the other way round).
+bool jets_assist_of(const class MultiplayerGame* g);
+
 // Pirate's Moon's rules for a multiplayer round (0x00438380), from
 // mprounds.zrd: 8 numbers by place (the defaults [0x0060554c] when its block
 // has none) and the salvage the round gives.
@@ -441,6 +446,9 @@ class MultiplayerGame : public Game {
   bool tally(bool award);                          // PM 0x00436980
   bool round_winner();                             // PM 0x00437970
   void next_round(uint32_t place, int32_t round);  // PM 0x00438580
+  int32_t spawn_base(uint32_t player);             // PM 0x00437a40: the first "remote_N" for the player's side
+  bool base_counts(int32_t base);                  // PM 0x00437920: a destroyed base `base` (1, 2) ends the round
+  bool base_destroyed(int32_t base, float now);    // PM 0x00472b40's: reason 6, +0x8c, the clock sent now
   void score_texts(int32_t name_width, int32_t number_width);  // PM 0x00436db0 (MW3 0x00435b60): the lines, sorted
   // PM 0x0049b730, the lobby screen's results list's lines: before any round
   // message 0x2bd; else "End of Round <played> of <total>" (the saved total
@@ -478,6 +486,7 @@ class MultiplayerGame : public Game {
   int32_t base_lost = 0;             // PM +0x8c  the base destroyed, 1 or 2 (0x00472b40); cleared by the start
   int32_t xb0 = 0;                   // PM +0xb0  vt+0x48 (0x00436010): the side whose base is 1 (piece 4)
   uint8_t winner_set = 0;            // PM +0xaa  a winner already (0x00437970); cleared by the start
+  uint8_t jets_assist = 1;           // PM +0xa7  vt+0x44 (0x004365f0): the jump jets' assist (the MW2 option's other way round)
   // PM's between rounds (0x00438580).
   int32_t realloc = 0;               // PM +0x70  REALLOC_LIST's ("MSG_REALLOC_SALVAGE"): the rewards' scale, x2
   int32_t rounds_total = 0;          // PM +0x74  the rounds in the match (the lobby's 0x0049a3c0 extends it on a tie)

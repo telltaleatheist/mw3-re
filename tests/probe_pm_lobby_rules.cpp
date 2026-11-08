@@ -272,3 +272,49 @@ extern "C" int32_t probe_pm_round_lines(const int32_t* in, int32_t* out, int32_t
   std::copy(lg.begin(), lg.begin() + m, out);
   return m;
 }
+
+// Pirate's Moon's game kinds' queries (piece 4a) for test_pm_game_kinds.py. op 1 the spawn base (0x00437a40): in
+// kind, +0xb0, the player, the player listed, its team, the team listed, its third word. op 2 the base check
+// (0x00437920): kind, +0xb0, the base. op 3 the base destroyed (0x00472b40): kind, +0xb0, the base, now (bits), the
+// reason, the base lost, the clock (bits) before; out the reason, the base lost, the clock's bits. op 4 the jets'
+// assist (vt+0x44): the multiplayer game current, its +0xa7, the MW2 option.
+#include "mech3/options.h"
+extern "C" int32_t probe_pm_game_kind(int32_t op, const int32_t* in, int32_t* out) {
+  mech3::MultiplayerGame g(nullptr);
+  g.kind = in[0], g.xb0 = in[1];
+  switch (op) {
+    case 1: {
+      if (in[3]) {
+        auto r = std::make_unique<mech3::LobbyPlayer>();
+        r->id = static_cast<uint32_t>(in[2]), r->team = static_cast<uint32_t>(in[4]);
+        g.lobby_players.push_back(std::move(r));
+      }
+      if (in[5]) {
+        auto t = std::make_unique<mech3::LobbyTeam>();
+        t->id = static_cast<uint32_t>(in[4]), t->word2 = in[6];
+        g.lobby_teams.push_back(std::move(t));
+      }
+      out[0] = g.spawn_base(static_cast<uint32_t>(in[2]));
+      return 1;
+    }
+    case 2: out[0] = g.base_counts(in[2]) ? 1 : 0; return 1;
+    case 3: {
+      float now, clock;
+      std::memcpy(&now, &in[3], 4), std::memcpy(&clock, &in[6], 4);
+      g.round_end = in[4], g.base_lost = in[5], g.clock_next = clock;
+      g.base_destroyed(in[2], now);
+      out[0] = g.round_end, out[1] = g.base_lost;
+      std::memcpy(&out[2], &g.clock_next, 4);
+      return 3;
+    }
+    case 4: {
+      g.jets_assist = static_cast<uint8_t>(in[1]);
+      const uint32_t saved = mech3::options().game_options;
+      mech3::set_mw2_jump_jets(in[2]);
+      out[0] = mech3::jets_assist_of(in[0] ? &g : nullptr) ? 1 : 0;
+      mech3::set_game_options(saved);
+      return 1;
+    }
+  }
+  return 0;
+}

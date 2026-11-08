@@ -19,7 +19,7 @@
 
 namespace mech3 {
 
-int32_t mw2_jump_jets();  // options.h, 0x0040d1e0 (its Handle clashes with mech_parts.h's)
+bool program_jets_assist();  // app_mission.cpp: the current game's vt+0x44
 
 namespace {
 MoveCalls g_calls;
@@ -162,7 +162,7 @@ int Mech::jump_jets(float dt) {
     }
     return 0;
   }
-  const bool assist = this == world().mission_player && mw2_jump_jets() == 0;  // the game's vt+0x44, 0x00435070
+  const bool assist = this == world().mission_player && program_jets_assist();  // the game's vt+0x44
   const float thrust = controls->jump;  // GetJumpThrust
   int firing = 0;
   const double need = jump_jets_firing == 0 && !no_power_down ? 0.25 : 0.0;  // 0x005dfce0
