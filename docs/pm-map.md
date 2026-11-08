@@ -1567,9 +1567,7 @@ functions PM changed, and PM's new ones.
    **Headlights go with the mech step (4), as the expansion's headline feature: the player's ported (2026-11-04)**
    (`mech3/mech_headlight`, `test_pm_headlight.py`, the setters in `test_pm_light_setters.py`). In the game: the dfn's
    config, the torso's setup, the key 0x3c, the mech's frame detaching and reattaching it (PM's vt+0x34, +0x3c), the
-   death's fade off, the HUD's view hiding the beam. Seen: `pm-c1m2-headlight-on.png`. **Not done:** the AI's: 0x41f4d0's
-   budget (0x41f8d0, the mech's distance through 0x465e00) and multiplayer's bit (0x4705e0); until then only a key
-   lights one, and its lod stays 1. `CMD_EJECT`'s extra vtable call is not in either. The beam itself is checked as
+   death's fade off, the HUD's view hiding the beam. Seen: `pm-c1m2-headlight-on.png`. The AI's: 0x41f4d0's budget (0x41f8d0, the mech's distance through 0x465e00) is ported (c60db664, `mech_lod`, `test_pm_lod.py`); multiplayer's bit (0x4705e0, bit 31 of the state message) too (c672ee62, `test_pm_net_state`). `CMD_EJECT`'s extra vtable call is not in either. The beam itself is checked as
    a node, not in a picture from outside.
    The light map's real user: a light from `0x50e470` starts with flags 0x8b3, so 0x10 and 0x80 are on by default.
    The headlight's builder `0x479780` sets 0x10 again (`0x50ea00`), clears 0x20 (`0x50ea80`), sets 0x40 from
