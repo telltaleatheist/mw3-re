@@ -267,6 +267,8 @@ unusual happens.
   `#include` others). Pirate's Moon's `#include` reads only files inside
   the game and its mods: a name with `..`, a drive or a full path reads
   nothing.
+- In Pirate's Moon's lobby, a team or player without a colour shows an empty colour tag instead of
+  stray characters, and a player whose lobby data is too short no longer reads past it.
 - In Pirate's Moon, a points model with no points or no polygons draws nothing;
   the original loops for hours or crashes. No shipped model is one.
 - In Pirate's Moon, light maps draw on any graphics card, where the original needed

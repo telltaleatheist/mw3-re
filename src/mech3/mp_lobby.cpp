@@ -64,20 +64,15 @@ std::vector<uint32_t> player_data(uint32_t id) {
   return words;
 }
 
-// 0x00499030: each network player's record, from its data (none: skin 1,
-// state 2), its place in the count unless kept, its score line.
+// PM 0x0049c650 (MW3's 0x00499030): each network player's record, from its
+// data (LobbyPlayer::from_data), its place in the count unless kept, its
+// score line.
 void add_player(uint32_t id, uint32_t team, bool host, const char* name, void*) {
   MultiplayerGame* g = g_lobby ? g_lobby->game : nullptr;
   if (!g) return;
-  int32_t state = 2, skin = 1;
-  const std::vector<uint32_t> d = player_data(id);
-  if (!d.empty()) {
-    if (d[0] == 1 && d.size() > 2) state = static_cast<int32_t>(d[2]);
-    skin = static_cast<int32_t>(d[1]);
-  }
   auto p = std::make_unique<LobbyPlayer>();
   p->id = id, p->team = team, p->host = host ? 1 : 0, p->name = name ? name : "";
-  p->skin = skin, p->state = state;
+  p->from_data(player_data(id), g_lobby->between_rounds != 0);
   if (!g_lobby->keep_order) p->order = g_order_next++;
   auto line = std::make_unique<ScoreLine>();
   line->kind = 1;

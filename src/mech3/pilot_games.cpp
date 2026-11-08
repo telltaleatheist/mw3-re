@@ -1,5 +1,6 @@
 // The pilot's games, their slots and stores (docs/pilot.md, The games).
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -1370,6 +1371,86 @@ LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text
   if (!confirm(0x2c4)) return LobbyRule::declined;
   *team_play = s.kind.has && s.kind.value != 0;  // [0x0062cc34]
   return LobbyRule::start;
+}
+
+// Pirate's Moon 1.0 @ 0x0049bb70's lines. A team: its name, "  {skin} ", in
+// the one-base kind (3) " Attack" for side 1 else "Defend" (no space, the
+// exe's). A player: its name (indented under a team), "++" the host's, " ",
+// the state's text (1 in the mech lab 0x2bf, 2 0x1061, 3 0x1062, 5 ready
+// 0x2c0; MW3's 1 and 3), outside team play " {skin} " when it has one, and
+// ours our slot's mech's name. Everyone ready: every listed player at 5.
+bool MultiplayerGame::lobby_lines(int32_t kinds, uint32_t local, const LobbyText& tx, std::vector<LobbyLine>* teams,
+                                  std::vector<LobbyLine>* players) {
+  const auto msg = [&](int32_t id) -> std::string {
+    const char* m = tx.message ? tx.message(id) : nullptr;
+    return m ? m : "";
+  };
+  const auto mech = [&](int32_t m) -> std::string {  // 0x004867c0
+    const int32_t id = mech_name_message(m);
+    return id < 0 ? "notmech" : msg(id);
+  };
+  const auto tag = [&](const char* open, int32_t skin, const char* close) {  // CString::Format, MakeLower
+    // FIX (bug): skins 1..8 have names; the exe reads the screen's word before them (its game) for 0 as text.
+    const bool named = tx.skin && skin >= 1 && skin <= 8;
+    std::string s = open + (named ? tx.skin(skin) : std::string()) + close;
+    for (char& ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return s;
+  };
+  bool ready = true;
+  const auto player = [&](LobbyPlayer& p, const char* indent) {
+    std::string s = std::string(indent) + p.name;
+    if (p.host) s += "++";  // [0x0060a818]
+    s += " ";
+    switch (p.state) {
+      case 1: s += msg(0x2bf); break;
+      case 2: s += msg(0x1061); break;
+      case 3: s += msg(0x1062); break;
+      case 5: s += msg(0x2c0); break;
+      default: break;
+    }
+    if (p.state != 5) ready = false;  // the screen's +0x1679a
+    return s;
+  };
+  const bool team_play = multiplayer_team_play();  // [0x0062cc34]
+  if (team_play) {
+    for (auto& t : lobby_teams) {
+      t->count = 0;
+      std::string s = t->name + tag("  {", t->skin, "} ");  // [0x0060a830]
+      if (kinds == 3) s += (t->word2 & 1) ? " Attack" : "Defend";                             // [0x0060a828], [0x0060a820]
+      teams->push_back({s, t.get()});
+      for (auto& p : lobby_players) {
+        if (p->team != t->id) continue;
+        std::string line = player(*p, "   ");  // [0x0060a81c]
+        if (p->id == local) line += mech(slot.mech);  // vt+0x30(0)'s +4
+        teams->push_back({line, p.get()});
+        ++t->count;
+      }
+    }
+  }
+  for (auto& p : lobby_players) {
+    if (p->team != 0) continue;
+    std::string line = player(*p, "");
+    if (!team_play && p->skin != 0) line += tag(" {", p->skin, "} ");  // [0x0060a810]
+    if (p->id == local) line += mech(slot.mech);
+    players->push_back({line, p.get()});
+  }
+  return ready;
+}
+
+// Pirate's Moon 1.0 @ 0x0049c650's data (MW3's 0x00499030): kind 1's
+// state, else 4 (MW3 2); the second word the skin whatever the kind, else 1;
+// with the lobby between rounds (its +0x1679d), kind 1's words 4 and 5 the
+// rounds won and place, else 0. FIX (bug): a kind 1 record too short for its
+// state or those words gives the defaults; the exe reads past it.
+void LobbyPlayer::from_data(const std::vector<uint32_t>& d, bool between_rounds) {
+  state = 4, skin = 1, rounds = 0, place = 0;
+  if (d.size() < 2) return;
+  if (d[0] == 1 && d.size() > 2) state = static_cast<int32_t>(d[2]);
+  skin = static_cast<int32_t>(d[1]);
+  if (between_rounds && d[0] == 1) {
+    rounds = d.size() > 4 ? static_cast<int32_t>(d[4]) : 0;
+    place = d.size() > 5 ? static_cast<int32_t>(d[5]) : 0;
+  }
 }
 
 // Pirate's Moon 1.0 @ 0x00436580 (vt+0x58): the objectives block's name, by

@@ -468,3 +468,65 @@ extern "C" void probe_pm_target_kill(const int32_t* in, int32_t* out) {
   delete t;
   mech3::ai::set_target_hooks(nullptr);
 }
+
+// Pirate's Moon's lobby lists' lines (0x0049bb70) for test_pm_lobby_lines.py. in: team play, the kinds list's value,
+// our id, our slot's mech; the players (count, then 8 of: id, team, host, state, skin), the teams (count, then 4 of:
+// id, skin, number). Names "P<id>" and "T<id>", texts "M<id in hex>", skins "S<n>". out: TP_LIST's lines then
+// PLAYERS_LIST's, each its bytes, 0 and its record (a player's id, a team's id + 1000), -1 between and after; then
+// whether everyone is ready.
+namespace {
+const char* lines_message(int32_t id) {
+  static std::string s;
+  char b[16];
+  std::snprintf(b, sizeof b, "M%x", static_cast<unsigned>(id));
+  s = b;
+  return s.c_str();
+}
+std::string lines_skin(int32_t skin) { return "S" + std::to_string(skin); }
+}  // namespace
+
+extern "C" int32_t probe_pm_lobby_lines(const int32_t* in, int32_t* out, int32_t cap) {
+  mech3::multiplayer_setup().team_play = in[0];
+  mech3::MultiplayerGame g(nullptr);
+  g.slot.mech = in[3];
+  const int32_t* p = in + 5;
+  for (int32_t k = 0; k < in[4]; ++k, p += 5) {
+    auto r = std::make_unique<mech3::LobbyPlayer>();
+    r->id = static_cast<uint32_t>(p[0]), r->team = static_cast<uint32_t>(p[1]), r->host = static_cast<uint8_t>(p[2]);
+    r->state = p[3], r->skin = p[4], r->name = "P" + std::to_string(p[0]);
+    g.lobby_players.push_back(std::move(r));
+  }
+  const int32_t* t = in + 5 + 8 * 5 + 1;
+  for (int32_t k = 0; k < in[5 + 8 * 5]; ++k, t += 3) {
+    auto r = std::make_unique<mech3::LobbyTeam>();
+    r->id = static_cast<uint32_t>(t[0]), r->skin = t[1], r->word2 = t[2], r->name = "T" + std::to_string(t[0]);
+    g.lobby_teams.push_back(std::move(r));
+  }
+  mech3::LobbyText tx;
+  tx.message = lines_message, tx.skin = lines_skin;
+  std::vector<mech3::LobbyLine> teams, players;
+  const bool ready = g.lobby_lines(in[1], static_cast<uint32_t>(in[2]), tx, &teams, &players);
+  std::vector<int32_t> lg;
+  for (auto* list : {&teams, &players}) {
+    for (const mech3::LobbyLine& l : *list) {
+      for (unsigned char c : l.text) lg.push_back(c);
+      lg.push_back(0);
+      lg.push_back(static_cast<int32_t>(l.entry->id) + (l.entry->kind() == 2 ? 1000 : 0));
+    }
+    lg.push_back(-1);
+  }
+  lg.push_back(ready ? 1 : 0);
+  mech3::multiplayer_setup().team_play = 0;
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
+
+// Pirate's Moon's player record from its data (0x0049c650) for test_pm_lobby_lines.py's second part. in: between
+// rounds, the data's word count (0: none), its words (8). out: state, skin, rounds, place.
+extern "C" void probe_pm_player_data(const int32_t* in, int32_t* out) {
+  std::vector<uint32_t> d(in + 2, in + 2 + in[1]);
+  mech3::LobbyPlayer p;
+  p.from_data(d, in[0] != 0);
+  out[0] = p.state, out[1] = p.skin, out[2] = p.rounds, out[3] = p.place;
+}

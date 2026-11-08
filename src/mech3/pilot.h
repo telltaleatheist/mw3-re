@@ -140,6 +140,17 @@ enum class LobbyRule {
 };
 LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text), bool* team_play);
 
+// Pirate's Moon's lobby lists' lines (0x0049bb70): TP_LIST's (each team, then its players) and PLAYERS_LIST's
+// (the players without a team), each with its record; the texts by id, the skins' names and the mechs' names given.
+struct LobbyLine {
+  std::string text;
+  struct LobbyEntry* entry = nullptr;
+};
+struct LobbyText {
+  const char* (*message)(int32_t id) = nullptr;     // 0x00596e50
+  std::string (*skin)(int32_t skin) = nullptr;      // the screen's +0x11cf0 + 4 skin (SKIN_LIST's names)
+};
+
 // Pirate's Moon: a game's vt+0x44, the jump jets' assist: the multiplayer
 // game's 0x004365f0 (its +0xa7) when it is `g`, else every other game's
 // 0x00435070 (the MW2 jump jets option, 0x0040afd0, the other way round).
@@ -403,6 +414,9 @@ struct LobbyPlayer : LobbyEntry {
   int32_t rounds = 0;                // PM +0x2c  rounds won (0x00436980); 0 when it leaves (0x0046f440)
   int32_t place = 0;                 // PM +0x30  its line's rank, or its team's (0x004373e0); its data's word 5
   ScoreLine* score = nullptr;        // +0x2c, PM +0x34  the game's
+  // PM 0x0049c650's reading of its network data (none: `data` empty): kind 1's state (else 4), the skin; between
+  // rounds the rounds won and place (its words 4 and 5).
+  void from_data(const std::vector<uint32_t>& data, bool between_rounds);
 };
 
 // A team (0x00499280, vtable 0x005c7cc8), 0x20 bytes; its data (8 bytes) the
@@ -482,6 +496,9 @@ class MultiplayerGame : public Game {
   // and its seconds out ([0x0062da98], [0x0062da94]).
   void apply_lobby(const LobbySettings& s, bool* clock_on, float* clock_left);
   std::vector<uint8_t> start_message();            // PM 0x0049ef20's 0x1e: each player's id, order, team number
+  // PM 0x0049bb70's lines (`kinds` the kinds list's value, `local` our id): whether everyone is ready (state 5).
+  bool lobby_lines(int32_t kinds, uint32_t local, const LobbyText& t, std::vector<LobbyLine>* teams,
+                   std::vector<LobbyLine>* players);
   void score_texts(int32_t name_width, int32_t number_width);  // PM 0x00436db0 (MW3 0x00435b60): the lines, sorted
   // PM 0x0049b730, the lobby screen's results list's lines: before any round
   // message 0x2bd; else "End of Round <played> of <total>" (the saved total
