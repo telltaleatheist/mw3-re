@@ -35,6 +35,7 @@ class AttackersPm {
   void set_limit(float l) { limit_ = l; }  // 0x005bfdc0 on it
   float rate() const { return rate_; }
   float limit() const { return limit_; }
+  float stamp() const { return stamp_; }
 
  private:
   float rate_;   // +0x0c
