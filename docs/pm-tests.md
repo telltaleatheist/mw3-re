@@ -215,6 +215,16 @@ commit's lobby files): these 13 fail or crash here by design.
   `campaign_debriefing_scores_the_missions_objectives_headless`: each crashes loading MW3's mission in PM's tree reader
   (`zcls::node_link` under `read_tree`), the mechlib reads' crash.
 
+Since the lobby became PM's (pieces 6a to 6c-2, rerun 2026-11-08 at 6c-2 and its parent), every `net_lobby_*` test but
+`net_lobby_chat_headless` fails by design, on MW3's lobby: its control ids (LOCK 0xb, READY 0x15, PLAYERS_LIST 0x17;
+PM's 0xd, 0x1c, 0x1e), its rules message (0x10 bytes; PM's 0x18, so a MW3 one is refused), its lists (kills 1..40 or
+100, doubled with teams, 15 weights from 30, "UNAVAILABLE" skipped; PM's 1000 none and 19 weights from 10), its states
+(ready 3, not 2; PM's 5 and 4), its 0x1e (8 ids by order) and its team data and lines. `net_lobby_screen_headless`,
+`net_lobby_rules_host_headless`, `net_lobby_mods_check_headless`, `net_lobby_lists_a_mod_worlds_maps_headless`,
+`net_lobby_rules_join_headless`, `net_lobby_start_host_headless`, `net_lobby_start_join_and_teams_headless`,
+`net_lobby_team_dialog_headless`: 44 failed checks at 6c-2's parent, 57 at 6c-2, the 13 new ones all of these kinds.
+PM's own headless lobby tests replace them in piece 8.
+
 A failure outside these lists is news.
 
 ## MW3's tests rewritten for PM (`pm_moved.py`)

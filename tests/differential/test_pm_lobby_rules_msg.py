@@ -111,7 +111,9 @@ class Exe:
 def case(rng):
     v = [0] * N_IN
     for k, shipped in enumerate(SHIPPED):
-        vals = list(shipped) if rng.random() < 0.7 else [rng.randrange(-8, 1100) for _ in range(rng.randrange(0, 13))]
+        # made-up lists: wide, narrow (repeated values: the first is picked) or past a short (REALLOC's a word)
+        lo, hi = rng.choice([(-8, 1100), (0, 4), (-100000, 100000)])
+        vals = list(shipped) if rng.random() < 0.6 else [rng.randrange(lo, hi) for _ in range(rng.randrange(0, 13))]
         vals = vals[:12]
         v[14 * k] = len(vals)
         v[14 * k + 1] = rng.choice([-1, len(vals), rng.randrange(len(vals))] if vals else [-1, 0])
