@@ -622,6 +622,7 @@ int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
 // The screen at a size (FIX (A): DirectDraw's surfaces and the device made
 // for a mode): the 16-bit buffer, Render3D's viewport, the window's shape.
 void GameEngine::screen_size(int32_t w, int32_t h, int32_t frame_w, int32_t frame_h) {
+  if (!quiet) std::printf("mw3: screen: frame %d x %d, canvas %d x %d\n", frame_w > 0 ? frame_w : w, frame_h > 0 ? frame_h : h, w, h);  // ours (tests)
   width_ = w, height_ = h;
   // FIX (B): on a canvas (2D smaller than the frame) the dialogs' 640x480 frame centred on it.
   const bool canvas = frame_w > 0 && (frame_w != w || frame_h != h) && w >= 640 && h >= 480;
