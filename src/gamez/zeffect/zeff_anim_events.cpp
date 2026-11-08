@@ -615,7 +615,7 @@ void track(const uint8_t* p, bool cubic, float t, float out[3]) {
   if (cubic) {
     for (int i = 0; i < 3; ++i) {
       const int b = 0x10 * i;
-      out[i] = ((f32(p, b + 0x28) * t + f32(p, b + 0x24)) * t + f32(p, b + 0x20)) * t + f32(p, b + 0x1c);
+      out[i] = ((f32(p, b + 0x28) * t + f32(p, b + 0x24)) * t + f32(p, b + 0x20)) * t + f32(p, b + 0x1c);  // 0x00505813
     }
   } else {
     for (int i = 0; i < 3; ++i) out[i] = f32(p, 0x10 + 4 * i) * t + f32(p, 4 * i);
