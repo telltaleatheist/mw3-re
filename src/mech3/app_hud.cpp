@@ -1288,11 +1288,13 @@ bool program_hud_report(HudReport* r) {
 // Mech3.exe 1.2 @ 0x0041d890's HUD part (the mech's vt+0xc0 after AiTarget's
 // 0x004d5e40): the view's mech's TARGET turned on for its new target, and
 // the target sound (0x18) played on the new target's mech, kept at its +0x618.
+int g_target_sets = 0;  // (ours) the target set calls that reached TARGET, for the tests
 void program_hud_target_set(void* mech) {
   Mech* m = static_cast<Mech*>(mech);
   if (!m || m != program_view_target() || !m->pilot) return;
   Hud* h = pilot_hud(*m->pilot);
   if (!h) return;
+  ++g_target_sets;
   h->target.set_shown(true);
   Mech* tm = m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
   if (tm && heat_calls().play_sound) {
@@ -1326,6 +1328,14 @@ int program_hud_lock_on(void* mech, bool* target_set) {
     program_hud_target_set(m);
   }
   return found;
+}
+
+// Tests only: TARGET's pulse left (+0x240c) and the target sets so far.
+float program_hud_target_pulse(int* sets) {
+  if (sets) *sets = g_target_sets;
+  Mech* m = program_view_mech();
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  return h ? h->target.x240c : -1.0f;
 }
 
 bool program_hud_target(void* mech, int mode) {

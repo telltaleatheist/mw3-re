@@ -559,29 +559,27 @@ bool turn_due(int64_t& seen, float clock, uint32_t n, int32_t id) {
   return first <= now;
 }
 
-// Mech3.exe 1.2 @ 0x004a70d0. Without an AMS a turret looks for a target
-// only on the frames whose number, over the turrets ever made
-// ([0x00609a48], never reset), leaves its id; then the next turn's count
-// [0x00609a4c] moves on and, unless it wrapped to 0, the nearest enemy in
-// sight becomes the target (0x004d72b0). An AMS turret takes the nearest
-// shot on the radar every frame. Either way the target ends as the player's
-// contact (0x004a7b40) while the shot goes at what was picked.
+// Pirate's Moon 1.0 @ 0x004aa5a0 (MW3's 0x004a70d0). Without an AMS a turret looks for a target (0x004e7760, the
+// nearest enemy in sight) only on the frames whose number, over the turrets ever made ([0x0062dbac]), leaves its
+// id; every frame it aims at its target's place while the target's seen object is an entity, and that object is the
+// shot's owner. An AMS turret takes the nearest shot on the radar every frame. MW3's skipped the pick each time its
+// turn count wrapped and then made the player's own contact its target and the player the shooter (0x004a7b40),
+// which turned Pirate's Moon's ALLY turrets on the player (pm-tests item 17).
 bool Turret::pick(Handle player) {
+  (void)player;
   TurretHooks& h = *g_hooks;
   Handle at = 0;
+  Handle seen = 0;
   if (!ams_on) {
     const uint32_t n = static_cast<uint32_t>(g_count);  // at least this turret
     const bool due = zfix::options().per_second ? turn_due(turn_seen, h.clock(), n, id)
                                                 : n && h.frame_number() % n == static_cast<uint32_t>(id);
-    if (due) {
-      g_turn = static_cast<int32_t>((static_cast<uint32_t>(g_turn) + 1) % n);
-      if (g_turn != 0) pick_enemy();
-      const Handle e = target ? target->seen : 0;
-      if (e) at = h.entity_position(e);
-    }
+    if (due) pick_enemy();
+    seen = target ? target->seen : 0;
+    if (seen && h.seen_is_entity(seen)) at = h.entity_position(seen);
   } else {
     // Side 0: the shots not hostile to the player (a mech's AMS takes it as
-    // the player's enemy, 0x0041927e); the turrets are all the enemy's.
+    // the player's enemy, 0x0041927e).
     ams_found = h.ams_find(*ams, 0, pos) ? 1 : 0;
     if (ams_found) at = h.ams_target(*ams);
   }
@@ -589,8 +587,7 @@ bool Turret::pick(Handle player) {
     picked = 0;
     return false;
   }
-  target_player(player);
-  shooter = player;
+  shooter = seen;
   picked = 1;
   x1a0 = 1;
   target_at = at;

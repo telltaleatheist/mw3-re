@@ -123,6 +123,7 @@ void program_count_sounds(int id, int* count);
 // Tests only: the player's target set to its contact on `mech` (TARGET given
 // it, as the targeting keys would) and TARGET's mode set; false without one.
 bool program_hud_target(void* mech, int mode);
+float program_hud_target_pulse(int* sets);  // tests: TARGET's pulse left, the target sets so far
 bool program_hud_target_other(const void* object, int mode);  // tests: on a turret or targets.zrd object
 // Tests only: the first group that locks selected and the player's target
 // set to its contact on `mech`; the group, -1 for none.
