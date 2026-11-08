@@ -94,7 +94,14 @@ std::string reg_string(HKEY root, const char* key, const char* name, DWORD flags
 }  // namespace
 #endif
 
+namespace {
+std::vector<std::string> (*g_candidates_hook)() = nullptr;
+}  // namespace
+
+void set_install_candidates_hook(std::vector<std::string> (*fn)()) { g_candidates_hook = fn; }
+
 std::vector<std::string> install_candidates() {
+  if (g_candidates_hook) return g_candidates_hook();
   std::vector<std::string> out;
   auto add = [&](const std::string& d) {
     if (!d.empty() && std::find(out.begin(), out.end(), d) == out.end()) out.push_back(d);
@@ -105,9 +112,10 @@ std::vector<std::string> install_candidates() {
   // and InstallationInfo's App Paths entry for PRODUCT_KEY (mech3.exe). A
   // 32-bit installer on 64-bit Windows wrote the WOW6432Node view, or, without
   // admin rights, the user's VirtualStore copy.
-  // Pirate's Moon's own key is a guess from its disc's AppName; the search can't tell
-  // from here which it wrote, and install_valid takes only PM's data whichever it finds.
-  const char* const pm_key = "SOFTWARE\\MicroProse\\MechWarrior 3 Pirate's Moon\\1.0";
+  // Pirate's Moon's own key, as its install writes it (the install's mw3pm.reg,
+  // and a PM installed on Windows 11: WOW6432Node\MicroProse\MechWarrior 3 EP1\1.0
+  // "Program"); install_valid takes only PM's data whichever key it finds.
+  const char* const pm_key = "SOFTWARE\\MicroProse\\MechWarrior 3 EP1\\1.0";
   const char* const mp = "SOFTWARE\\MicroProse\\MechWarrior 3\\1.0";
   const char* const app = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\mech3.exe";
   for (DWORD view : {static_cast<DWORD>(RRF_SUBKEY_WOW6432KEY), static_cast<DWORD>(RRF_SUBKEY_WOW6464KEY)}) {
