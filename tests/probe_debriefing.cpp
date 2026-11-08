@@ -339,8 +339,7 @@ int probe_debriefing_run(const char* reader, const char* setup, const char* plan
     std::string op;
     ls >> op;
     if (op == "S") {
-      s = std::make_unique<mech3::DebriefScreen>(engine, 0x608e70, static_cast<int32_t>(engine.c.op),
-                                                 static_cast<int32_t>(engine.c.mission), &won);
+      s = std::make_unique<mech3::DebriefScreen>(engine, 0x608e70, static_cast<int32_t>(engine.c.mission), &won);
     } else if (!s) {
       continue;
     } else if (op == "F") {

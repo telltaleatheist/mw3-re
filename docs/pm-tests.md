@@ -140,6 +140,24 @@ offsets), `pm_c1m2_motions_play` (10 of 121 event-12 nodes moving by 300 frames;
 None of these touches damage (their callees: camera.c, class.c's remove child, video, sound, the anim run), so none
 explains mission 3's defences (item 9). Known gaps, not from this work: MW3's `probe_world.cpp` does not build on `pm` (PM's WorldHooks).
 
+## MW3's tests built from `pm` (2026-11-08)
+
+`cmake -DMW3_BUILD_MW3=ON` then `cmake --build <dir> --target mw3probe mw3tests` builds MW3's probe and tests from this
+branch, so a change to shared code can be checked against MW3's tests here (MW3's programs build from `main`; their
+main is mw3pm's on this branch). The test sources follow PM's structs: the hooks PM removed (WorldHooks' game type,
+mission, sun light and software colour; DeadCalls.entity_step; InOutHooks.operation; AnimRunHooks.effect) are out of
+`hook_fields.inc` and `probe_world.cpp`, `probe_zgeo.cpp` is out of the probe (zGeo takes PM's models here), and the
+probe calls PM's `tree_copy_materials` and DebriefScreen with MW3's arguments.
+
+Each of MW3's 254 non-mission tests run alone (`MW3_TEST=<name> MW3_SKIP=headless`): 233 pass. These 19 test code
+that `pm` holds as PM's, so they fail here by design (not each traced): the mechlib reads and fuzz (PM's tree copy;
+they crash in mark_moved), `mech_dfn_bad_version_does_not_save` (PM reads no version), `data_version_names_the_install`,
+`patch_import_upgrades_10_data_from_the_official_patch`, `program_starts_like_the_game_to_the_main_state`, the three
+`setup_*` archive and probe tests (PM's install and titles), `fix_lava_heat_per_second` (crashes in PM's heat),
+`fix_jet_cap_per_second`, `fix_deep_water_curve`, `fix_foot_uses_its_middle_probe`, `fix_lab_sort_by_name`,
+`fix_unpause_resumes_only_the_kept_voices`, the two `game_editor_*` and
+`controls_repair_mouse_fire_only_mends_the_quit_boxs_damage`. A failure outside this list is news.
+
 ## MW3's tests rewritten for PM (`pm_moved.py`)
 
 `pm_moved.py test_x` imports a MW3 test with every literal in the image's range replaced by its twin in PM, and runs it on PM's exe through `libpmprobe`. No address map at run time, so the pointers the exe holds are read as they are. Run today: `test_twod`, `test_twod_msgbox`, `test_lab_list`, `test_lab_screen`.

@@ -96,8 +96,8 @@ void build_scene() {
 
 void install_hooks() {
   mech3::WorldHooks& h = mech3::world_hooks();
-  h.game_type = [] { return line("game_type"), g_cfg[kGameType]; };
-  h.mission_number = [] { return line("mission_number"), g_cfg[kMission]; };
+  // On `pm` the world's parameters are PM's (its WorldHooks, test_pm_world_params): MW3's game type, mission,
+  // sun light and software colour hooks are gone, and test_world_params does not apply here.
   h.hw_card_flag = [] { return line("hw_card_flag"), g_cfg[kHwCard]; };
   h.world = g_cfg[kHasWorld] ? &g_nodes[kWorld] : nullptr;
   h.camera = g_cfg[kHasView] ? &g_nodes[kCamera] : nullptr;
@@ -106,15 +106,6 @@ void install_hooks() {
   h.wind_max_speed = [](float v) { line("wind_max %08x", bits(v)); };
   h.wind_random_accel = [](float v) { line("wind_accel %08x", bits(v)); };
   h.wind_random_angvel = [](float v) { line("wind_angvel %08x", bits(v)); };
-  h.light_get_orientation = [](zcls::Node* n, float* x, float* y, float* z) {
-    line("light_get %s", name_of(n));
-    *x = flt(g_cfg[kRotX]), *y = flt(g_cfg[kRotY]), *z = flt(g_cfg[kRotZ]);
-  };
-  h.light_set_orientation = [](zcls::Node* n, float x, float y, float z) {
-    line("light_rot %s %08x %08x %08x", name_of(n), bits(x), bits(y), bits(z));
-  };
-  h.light_set_ambient = [](zcls::Node* n, float v) { line("light_amb %s %08x", name_of(n), bits(v)); };
-  h.light_set_diffuse = [](zcls::Node* n, float v) { line("light_dif %s %08x", name_of(n), bits(v)); };
   static auto make = [](const char* kind, int32_t n) -> mech3::Weather* {
     if (g_cfg[kNoMemory]) return nullptr;  // the original's new fails before the ctor
     line("%s %d", kind, n);
@@ -134,7 +125,6 @@ void install_hooks() {
   h.fluctuate_wavelength = [](float v) { line("fl_wave %08x", bits(v)); };
   h.fluctuate_base_amp = [](float b, float a) { line("fl_baseamp %08x %08x", bits(b), bits(a)); };
   h.fluctuate_heading = [](float v) { line("fl_heading %08x", bits(v)); };
-  h.software_color = [](const float c[3]) { line("swcolor %08x %08x %08x", bits(c[0]), bits(c[1]), bits(c[2])); };
 }
 
 // The 4-byte fields of the original's +0x0c..+0x4c, by offset (+0x28, the sky, apart).
