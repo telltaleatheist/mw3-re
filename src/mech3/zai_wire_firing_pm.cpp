@@ -526,7 +526,11 @@ class WireStep : public StepPmHooks {
     ai::plan_sight(*p, *p->slot);
     return p->seen;
   }
-  bool plan_quick(zgame::Handle plan) override { return plan_of(plan)->faces != 0; }
+  bool plan_quick(zgame::Handle plan) override {
+    const bool f = plan_of(plan)->faces != 0;
+    pm_hook_missing(f ? "picked: facing" : "picked: not facing");  // for the first runs: 0x004bd1c0 follows the second
+    return f;
+  }
   bool plan_seen(zgame::Handle plan) override { return plan_of(plan)->seen; }
   Contact* plan_contact(zgame::Handle plan) override { return *plan_of(plan)->slot; }
   const float* plan_place(zgame::Handle plan, float hold, float rate) override {

@@ -215,6 +215,18 @@ TEST(pm_wire_firing_stand_down_clears_the_fought_flag) {
   pm_forget(b, 7);
 }
 
+namespace {
+// A behaviour whose states count their resumes.
+int g_resumes = 0;
+struct Counted : Behaviour {
+  struct State : BehaviourState {
+    using BehaviourState::BehaviourState;
+    void resume() override { ++g_resumes; }
+  };
+  BehaviourState* make_state(Order& o) override { return new State(&o, this); }
+};
+}  // namespace
+
 TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
   Fake f;
   Installed in(&f);
@@ -229,6 +241,15 @@ TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
   EXPECT(b.orders.size() == n + 2 && b.current().net && b.current().net->net() == &vn);
   EXPECT(pm_may_fire(b) == b.may_fire());  // the last order's state, as MW3's 0x004e9070
   pm_pop_order(b);
+  pm_pop_order(b);
+  EXPECT(b.orders.size() == n);
+  // 0x004ea220: the order under the one popped resumes once (Brain::pop's resume stands for PM's).
+  Counted under;
+  pm_give_order(b, &vn, &under);
+  pm_push_behaviour(b, nullptr);
+  g_resumes = 0;
+  pm_pop_order(b);
+  EXPECT(g_resumes == 1 && b.current().state->from == &under);
   pm_pop_order(b);
   EXPECT(b.orders.size() == n);
   b.set_net(nullptr);
@@ -348,6 +369,7 @@ TEST(pm_wire_scan_state_runs_its_tests_then_the_next) {
   scan.tests = {{ScanTest::AimOn, 0}, {ScanTest::TimeOn, 0}};
   Behaviour after;
   scan.next = &after;
+  b.params.put<int32_t>(0x98, 0), b.params.put<int32_t>(0xa0, 0);
   b.current().state.reset(pm_make_scan_state(b.current(), scan));
   b.x104 = 0;
   b.current().state->run(0.1f);  // 0x004d5a10: this state goes
