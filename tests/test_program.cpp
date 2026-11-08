@@ -21083,7 +21083,9 @@ TEST(mission_c1m2_lock_drops_on_a_new_target_headless) {
 // pm-tests item 25, Owen's likely play: locked on one target (A, a vehicle), switched to another (B, a mech, by
 // Shift+E) with the reticle on B, an LRM volley 0.1, 0.3, 0.6 and 1.0 s after the key. The lock on B takes the
 // original's 0.6 s (0x00443d20, [0x005e3a0c]) plus two frames; the volleys before it go unlocked, along the aim,
-// so onto B all the same; the one after is locked on B. No lock carries over.
+// so onto B all the same; the one after is locked on B. No lock carries over. B walks across the line at about
+// 7 m/s; the locked LRMs, slow off the rail and slow to turn (0x00585900, as the exe: test_weapons_fly.py), pass
+// 4 m beside it and miss, as the original's would; unlocked ones that cross its body hit (the armour line).
 TEST(mission_c1m2_lock_after_e_and_aiming_at_the_new_target_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -21131,7 +21133,7 @@ TEST(mission_c1m2_lock_after_e_and_aiming_at_the_new_target_headless) {
   struct Run {
     int delay = 0, fired = -1, reticle = -1, before = -1, group = -1;
     bool locked = true, shot_lock = true, shot_seen = false, changed = false, aim_hit = false;
-    float since = -1, near_b = 1e9f, near_a = 1e9f, aim_off = -1;
+    float since = -1, near_b = 1e9f, near_a = 1e9f, aim_off = -1, armor0 = 0, armor1 = 0;
   };
   const int delays[4] = {6, 18, 36, 60};  // frames of 1/60 s after E
   constexpr int kE = 196;  // A's lock (3.5 s from frame 10) still held
@@ -21211,6 +21213,8 @@ TEST(mission_c1m2_lock_after_e_and_aiming_at_the_new_target_headless) {
       if (f == kE + r.delay) {
         r.reticle = mech3::program_reticle_lock(-1, 0, &has);
         r.since = mech3::program_view_target_since();
+        mech3::LaunchedMech o;
+        if (mech3::describe_mech(ai[0].mech, &o)) r.armor0 = o.armor;
         r.fired = mech3::mech_trigger_lock_on(me, &r.locked);
       }
       if (f > kE + r.delay) {
@@ -21222,6 +21226,8 @@ TEST(mission_c1m2_lock_after_e_and_aiming_at_the_new_target_headless) {
           r.near_b = std::min(r.near_b, std::hypot(q[0] - bp[0], q[2] - bp[2]));
           r.near_a = std::min(r.near_a, std::hypot(q[0] - a[0], q[2] - a[2]));
         }
+        mech3::LaunchedMech o;
+        if (mech3::describe_mech(ai[0].mech, &o)) r.armor1 = o.armor;
       }
     };
     CountingPump pump;
@@ -21234,8 +21240,8 @@ TEST(mission_c1m2_lock_after_e_and_aiming_at_the_new_target_headless) {
     mech3::set_app(nullptr);
     ztwod::set_host(nullptr);
     std::printf("  reticle %.0f m off B, lock %d at the key; ", r.aim_off, r.before);
-    std::printf("%.2f s after: reticle %d; volley fired %d locked %d, its shot locked %d; nearest B %.0f m, A %.0f m\n",
-                r.since, r.reticle, r.fired, r.locked, r.shot_lock, r.near_b, r.near_a);
+    std::printf("%.2f s after: reticle %d; volley fired %d locked %d, its shot locked %d; nearest B %.0f m, A %.0f m; B's armour %.3f -> %.3f\n",
+                r.since, r.reticle, r.fired, r.locked, r.shot_lock, r.near_b, r.near_a, r.armor0, r.armor1);
   }
   for (const Run& r : runs) {
     EXPECT(r.group >= 0 && r.changed && r.before == 3 && r.aim_off >= 0 && r.aim_off < 10.0f);
