@@ -75,8 +75,8 @@ struct NetGame {
   std::list<uint32_t> missing;         // [0x00605f94], count [0x00605f98]: players whose loadout failed (0x0046d450); never read
   // The dead reckoning's (0x0046ed70) gains, set by the start: the exe's
   // data holds -6.5 and -3.5 before.
-  float reckon_gain = -6.5f;           // [0x005e55f0]
-  float reckon_damp = -3.5f;           // [0x005e55ec]
+  float reckon_gain = -6.5f;           // PM [0x006076c0] (MW3's [0x005e55f0])
+  float reckon_damp = -0.3f;           // PM [0x006076bc] (MW3's [0x005e55ec], -3.5 until its start set -0.3)
   // The local mech's sends (0x0046ef70); the first three cleared at the launch.
   uint8_t last_second = 0;             // [0x00605f9c]  the clock is under a second
   float next_state = 0;                // [0x00605fa0]  when the next state goes (game time)
@@ -100,6 +100,7 @@ struct NetGameFields {
   float* end_time = nullptr;     // +0x80
   int32_t* end_state = nullptr;  // +0x84  0, 1 ending (the clock under 3 s), 3 ended
   int32_t* round_end = nullptr;  // PM +0x90: why the round ended (5 no more enemies), 0 playing
+  uint32_t* clock_from = nullptr;  // PM +0xa0: the last clock's (0x11) sender, the host
   int32_t* kills = nullptr;      // +0x98  the pilot's totals over network games
   int32_t* deaths = nullptr;     // +0x9c
   uint8_t* flags = nullptr;      // +0x8c respawn on, +0x8d unlimited ammo, +0x8e (cleared when respawn is off)
@@ -261,8 +262,10 @@ struct NetCalls {
 };
 NetCalls& net_calls();
 
-void net_start();   // 0x0046ceb0: once, before the multiplayer mission's launch
-void net_end();     // 0x0046d100: once, as the player leaves the game
+void net_start();   // PM 0x0046ef80 (MW3 0x0046ceb0): once, before the multiplayer mission's launch
+void net_end();     // PM 0x0046f150 (MW3 0x0046d100): once, as the player leaves the game
+void net_register();  // PM 0x0046f030: the in-game handlers, by the launch once placed
+void net_host_moved(uint32_t from, const uint8_t* msg, size_t size);  // PM 0x00472c80, 0xd's
 NetMech* net_mech(uint32_t owner);  // the list's lookup by +0x6fc (inlined in the exe)
 // Ours: the network mech a vehicle is, if it is one (the exe reads +0x6fc of
 // whatever it is given: past the end of a plain mech; FIX (A)).

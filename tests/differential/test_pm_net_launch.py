@@ -6,8 +6,8 @@ sent twice (0x5aa4a0, DirectPlay's SetPlayerData: once made, again after the amm
 as it was (only [0x629a74] and [0x629a78] cleared); the start is "remote_<first - 1 + slot>" (the first from
 0x437a40, by the game's kind: stood in for here, piece 4 ports it). The rest as MW3's: the team, the ammo, the
 rescore (0x4374f0), the outside view, the slot, the spread (0x470170, run), the place, the force feedback. PM then
-registers the network's handlers (0x46f030): logged on the exe's side and left out of the comparison, the next
-piece's (the registrations move from the start to here).
+registers the network's handlers (0x46f030, MW3's start did): logged as 15 on both sides (test_pm_net_state compares
+the list).
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_net_launch.py
 """
@@ -164,10 +164,7 @@ def main():
         v += [rng.choice([0, 8, 16, 24])]
         theirs = exe.run(v, words)
         tail = len(theirs) - 13  # the answer and the fields read after: 13 words
-        registered = theirs[tail + 1] == 1  # only on success, just before the answer
-        assert not registered or theirs[tail - 1] == 15, theirs[tail - 3:]
-        if registered:  # the next piece's: the port registers at the start
-            del theirs[tail - 1]
+        registered = theirs[tail - 1] == 15 and theirs[tail + 1] == 1  # only on success, just before the answer
         out = (I32 * 4096)()
         k = probe.probe_mech_net_launch((I32 * len(v))(*v), (ctypes.c_uint32 * len(words))(*words), len(words), out,
                                         4096)

@@ -95,14 +95,31 @@ NetMech* net_mech(uint32_t owner) {
   return nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x0046ceb0
-void net_start() {
-  if (g_net.running) return;
-  g_net.missing.clear();
+// Pirate's Moon 1.0 @ 0x0046f030: the in-game handlers, put on by the
+// launch once the player is placed (MW3's start put them on).
+void net_register() {
   for (uint16_t t : kRouted) znet::on(t, net_route, 2);
   znet::on(6, net_player_left, 2);
   znet::on(1, ignore, 2);
   znet::on(0xe, send_done, 2);
+  znet::on(0xd, net_host_moved, 2);
+}
+
+// Pirate's Moon 1.0 @ 0x00472c80, 0xd's ("I am the host", from a new host):
+// the old host, the last clock's sender (the game's +0xa0), is taken as gone.
+void net_host_moved(uint32_t, const uint8_t* msg, size_t size) {
+  const NetCalls& c = g_calls;
+  NetGameFields* g = c.game ? c.game() : nullptr;  // the exe reads it unchecked
+  if (!g || !g->clock_from) return;
+  net_player_left(*g->clock_from, msg, size);
+}
+
+// Pirate's Moon 1.0 @ 0x0046ef80 (MW3's 0x0046ceb0). PM registers no
+// handlers here (the launch does, net_register) and no longer sets the dead
+// reckoning's gains (PM's are constants, the values MW3's start set).
+void net_start() {
+  if (g_net.running) return;
+  g_net.missing.clear();
   zdec::craters().veto = g_calls.crater_veto ? g_calls.crater_veto : net_crater_veto;  // 0x0046fd30
   g_net.running = true;
   weapon_world().lock_targets = true;  // the same flag
@@ -111,8 +128,6 @@ void net_start() {
   // The dead list's respawn of the pilot (the exe's 0x0041e220 calls
   // 0x0046dde0 in a network game): set while the network game runs (ours).
   dead_calls().respawn = net_pilot_respawn;
-  g_net.reckon_gain = -6.5f;
-  g_net.reckon_damp = -0.3f;
 }
 
 // Pirate's Moon 1.0 @ 0x0046f150 (MW3's 0x0046d100). PM, after the force
@@ -125,6 +140,7 @@ void net_end() {
   znet::off(6, net_player_left);
   znet::off(1, ignore);
   znet::off(0xe, send_done);
+  znet::off(0xd, net_host_moved);
   zdec::craters().veto = nullptr;
   dead_calls().respawn = nullptr;
   g_net.running = false;
@@ -225,7 +241,7 @@ bool net_two_sides() {
 }
 
 // Pirate's Moon 1.0 @ 0x0046f440 (MW3's 0x0046d3b0). 0x40800000 is 4 s. PM takes the player off the lobby's
-// scores (kills 0, its record left with no score line) and, on the host, scores the leaving as a suicide, whether
+// scores (kills 0, its record left, its rounds won 0) and, on the host, scores the leaving as a suicide, whether
 // or not its mech is here; a round left with one side ends, "No more enemies" (5), sent at once (the clock's
 // next send now).
 void net_player_left(uint32_t from, const uint8_t* msg, size_t size) {
@@ -1056,9 +1072,10 @@ void net_drop_in(NetMech& m, const uint8_t* msg, size_t size) {
   g_calls.station ? g_calls.station(m, id) : field_bases_station_message(&m, id);  // 0x0045a140
 }
 
-// Mech3.exe 1.2 @ 0x004707c0: the game's end. The local player's kills
-// and deaths in the lobby (0x00435a30 / 0x00435b40, -1 without its slot)
-// added to the game's totals (+0x98, +0x9c), the pilot written (opened,
+// Pirate's Moon 1.0 @ 0x00472940 (MW3's 0x004707c0, the same logic): the
+// game's end. The local player's kills and deaths in the lobby (0x00436790 /
+// 0x004368b0, -1 without its slot) added to the game's totals (PM +0xb4,
+// +0xb8; MW3 +0x98, +0x9c), the pilot written (opened,
 // its header, then the record), a fade to the Multi-Exit State (0x00605fa8,
 // which unloads the mission and goes to the main menu), the network end.
 void net_game_over() {
@@ -1070,8 +1087,8 @@ void net_game_over() {
     if (g->deaths) *g->deaths += c.lobby_deaths ? c.lobby_deaths(local) : -1;
   }
   if (c.pilot_save) c.pilot_save();
-  if (c.exit_fade) c.exit_fade();  // 0x0048ef00(next 0x00605fa8, 0, 1, 2, [0x005e7274], 0, 0, 0)
-  net_end();                       // 0x0046d100
+  if (c.exit_fade) c.exit_fade();  // PM 0x0048d2c0(next 0x00629a80, 0, 1, 2, [0x00609698], 0, 0, 0)
+  net_end();                       // PM 0x0046f150
 }
 
 // Mech3.exe 1.2 @ 0x00470740 (ECX the message). The reasons: 1 the time,
@@ -1153,6 +1170,7 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   net_spawn_offset(pos, slot);
   c.place ? c.place(m, pos, yaw) : m.set_place(pos, yaw);  // vtable +0xdc
   if (c.ff_spawn) c.ff_spawn();
+  net_register();  // 0x0046f030
   return true;
 }
 

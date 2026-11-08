@@ -112,6 +112,7 @@ void wire() {
 int32_t handler_code(const znet::HandlerEntry& e) {
   if (e.fn == mech3::net_route) return 1;
   if (e.fn == mech3::net_player_left) return 2;
+  if (e.fn == mech3::net_host_moved) return 5;
   return e.type == 1 ? 3 : 4;  // mech_net.cpp's own two: 0x004d72a0, 0x004709d0
 }
 }  // namespace
@@ -266,6 +267,8 @@ extern "C" int32_t probe_mech_net_launch(const int32_t* in, const uint32_t* blob
   m->net_acked = 0, m->net_sent = 5;
   const std::vector<uint32_t> packed(blob, blob + words);
   const bool ok = mech3::net_launch_player(*m, packed, in[2], in[5] != 0, in[6] != 0);
+  if (!znet::session().handlers.empty()) log({15});  // the registrations (0x0046f030), last
+  for (const znet::HandlerEntry& e : std::vector<znet::HandlerEntry>(znet::session().handlers)) znet::off(e.type, e.fn);
   log({11, ok ? 1 : 0, 12, static_cast<int32_t>(m->team), static_cast<int32_t>(m->allies),
        static_cast<int32_t>(m->enemies), 13, m->net_acked, static_cast<int32_t>(m->net_sent), 14, g.last_second,
        bits(g.next_state), g.warned});
@@ -1405,7 +1408,7 @@ extern "C" int32_t probe_pm_net_end(const int32_t* in, int32_t* out, int32_t cap
   g = mech3::NetGame{};
   zeff::anim_log().net = nullptr, zeff::anim_log().mask = 0;
   zdec::craters().veto = nullptr;
-  if (in[1]) mech3::net_start();
+  if (in[1]) mech3::net_start(), mech3::net_register();  // the start's, then the launch's (0x0046f030)
   std::vector<int32_t> before;
   for (const znet::HandlerEntry& e : s.handlers) before.push_back(e.type);
   for (int32_t k = 0; k < in[4]; ++k) {
@@ -1450,4 +1453,63 @@ extern "C" int32_t probe_pm_net_end(const int32_t* in, int32_t* out, int32_t cap
   const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
   std::copy(lg.begin(), lg.begin() + m, out);
   return m;
+}
+
+// The start's and the launch's registrations (PM 0x0046ef80, 0x0046f030) for test_pm_net_state.py: out the start's
+// count, then each of net_register's (type, handler code, its argument).
+extern "C" int32_t probe_pm_net_register(int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  wire();
+  Data t;
+  znet::session() = znet::Session{};
+  znet::clear_lists();
+  znet::Session& s = znet::session();
+  s.transport = &t, s.initialised = true, s.open = true;
+  mech3::net_game() = mech3::NetGame{};
+  mech3::net_start();
+  lg.push_back(static_cast<int32_t>(s.handlers.size()));
+  mech3::net_register();
+  for (const znet::HandlerEntry& e : s.handlers) log({e.type, handler_code(e), e.arg});
+  mech3::net_end();
+  lg.push_back(static_cast<int32_t>(s.handlers.size()));
+  for (const znet::HandlerEntry& e : std::vector<znet::HandlerEntry>(s.handlers)) znet::off(e.type, e.fn);
+  mech3::net_game() = mech3::NetGame{};
+  znet::clear_lists();
+  znet::session() = znet::Session{};
+  mech3::net_calls() = mech3::NetCalls{};
+  zeff::anim_log().net = nullptr;
+  zdec::craters().veto = nullptr;
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
+
+// 0xd's handler (PM 0x00472c80) for test_pm_net_gone.py: the game's last clock sender (+0xa0); logged, the player
+// gone's first call (the lobby's kills, 0x00436750) with whom it was given.
+namespace {
+mech3::NetGameFields g_hm;
+uint32_t g_hm_from;
+}  // namespace
+
+extern "C" int32_t probe_pm_net_host_moved(uint32_t clock_from, uint32_t sender, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  wire();
+  mech3::NetCalls& c = mech3::net_calls();
+  c.lobby_set_kills = [](uint32_t p, uint32_t) { log({20, static_cast<int32_t>(p)}); };
+  c.lobby_left = nullptr;
+  g_hm = mech3::NetGameFields{};
+  g_hm_from = clock_from;
+  g_hm.clock_from = &g_hm_from;
+  c.game = []() -> mech3::NetGameFields* { return &g_hm; };
+  c.score_kill = [](uint32_t, uint32_t) {};
+  znet::session() = znet::Session{};
+  const uint8_t msg[4] = {0x0d, 0, 4, 0};
+  mech3::net_host_moved(sender, msg, sizeof msg);
+  c = mech3::NetCalls{};
+  znet::session() = znet::Session{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + std::min<int32_t>(m, 2), out);
+  return std::min<int32_t>(m, 2);
 }
