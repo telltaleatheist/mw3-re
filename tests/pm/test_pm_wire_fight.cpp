@@ -429,3 +429,21 @@ TEST(pm_wire_a_queued_follow_runs_on_its_net) {
   pm_pop_order(b);
   b.set_net(nullptr);
 }
+
+// 0x004fa470's net half (vt+0x14): idle on a vehicle net's or a compiled net's part, not on the built-in net's.
+TEST(pm_wire_orders_idle_but_on_the_built_in_net) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  mech3::ai::VehicleNet vn(9);
+  EXPECT(b.set_net(&vn));
+  pm_give_order(b, &vn, nullptr);
+  EXPECT(pm_orders_idle(b));
+  mech3::ai::BuiltinNet bn(7, 0);
+  pm_give_order(b, &bn, nullptr);
+  EXPECT(!pm_orders_idle(b));
+  pm_pop_order(b);
+  pm_pop_order(b);
+  b.set_net(nullptr);
+}

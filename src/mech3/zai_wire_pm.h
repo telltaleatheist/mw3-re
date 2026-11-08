@@ -98,6 +98,7 @@ void pm_note_hit(Brain& b, zgame::Handle attacker, float damage = 0.0f);
 // 0x004fbc20 and 0x004fbdd0 for the brain's on_hit and died under PM_AI=1.
 void pm_on_hit(Brain& b, HitRecord& r, zgame::Handle owner, zgame::Handle attacker, float damage);
 void pm_died(Brain& b);
+bool pm_scan_aim(Brain& b);  // 0x004e8d40, the firing step's "can't hit from here" (the controls' vt+0x78)
 zgame::Handle pm_hardest_attacker(Brain& b);  // 0x004b2890 on the controls' +0x04
 zgame::Handle pm_latest_attacker(Brain& b);   // 0x004b2820
 

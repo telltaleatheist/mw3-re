@@ -74,6 +74,7 @@
 #include "mech3/zai_anim_owner.h"
 #include "mech3/zai_list.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_wire_pm.h"
 #include "mech3/zai_valve.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
@@ -116,6 +117,7 @@
 #include "mech3/zai_brain.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_wire_pm.h"
 #include "mech3/zrdraiv.h"
 #include "mech3/zainetedit.h"
 #include "mech3/zrdrvalve.h"
@@ -1052,7 +1054,7 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (!entity_is_mech(mech(attacker))) return ai::BrainHooks::ally_hit(attacker, victim);
     if (MechControls* c = mech_controls(mech(attacker))) c->hit_an_ally(mech(victim));
   }
-  void allies_turn() override { ai::allies_turn(); }  // 0x004d5dc0 (sensors.cpp)
+  void allies_turn() override { ai::pm_ai_on() ? ai::allies_turn_pm() : ai::allies_turn(); }  // 0x004e6240 / 0x004d5dc0 (sensors.cpp)
   // The refit's (zai_repair): the field bases and the dock (app_vehicle).
   int32_t bases_alive() override { return program_bases_alive(); }
   bool mfb_ask(Handle v) override { return program_mfb_ask(mech(v)); }

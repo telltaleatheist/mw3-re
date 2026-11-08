@@ -493,7 +493,9 @@ class WireStep : public StepPmHooks {
       t->range2 = static_cast<float>(double{r} * r);
     }
   }
-  void look_start() override { pm_hook_missing("WireStep.look_start"); }
+  // The firing's +0x70 (0x004ba5f0, vtable 0x005eb970): its start 0x004ba630 sets its +0x18 and owner, its only other
+  // slot answers 0, and nothing reads it (the vtable's one reference is its constructor's): nothing to do.
+  void look_start(Brain*) override {}
   zgame::Handle best_weapon(zgame::Handle wm) override {
     return ai::best_weapon(wm);
   }
@@ -544,7 +546,7 @@ class WireStep : public StepPmHooks {
     PlanPm* p = plan_of(plan);
     return ai::any_can_hit(brain_hooks().weapons(p->vehicle), ai::plan_place(*p, *p->slot));
   }
-  void too_far(Brain* b) override { pm_hook_missing("WireStep.too_far"); }
+  void too_far(Brain* b) override { pm_scan_aim(*b); }  // the controls' vt+0x78: 0x004e8d40
   void trigger(Brain* b, bool on) override {
     if (on) pm_hook_missing("fired: trigger");  // a count of what the first run did, not a gap
     static const bool trace = std::getenv("PM_TRACE") != nullptr;
@@ -604,8 +606,8 @@ class WireStep : public StepPmHooks {
 FiringRecord& pm_firing(Brain& b, zgame::Handle vehicle) {
   const bool fresh = !records().count(vehicle);
   FiringRecord& r = records()[vehicle];
-  if (fresh) {
-    r.fire.seed();
+  if (fresh) r.fire.seed();
+  {  // the pilot's numbers, read where they live as the exe does (PM's allies_turn sets a filter bit in play)
     const AiParams& p = b.params;
     r.pick.pilot.repick = zgame::from_bits(p.target_words[0]);
     r.pick.pilot.pick_order = static_cast<int32_t>(p.target_words[2]);

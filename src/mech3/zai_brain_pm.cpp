@@ -139,6 +139,15 @@ void manoeuvre_pm(BrainSidePmHooks& h, BrainTickPm& b) {
   b.wait_until = kFltMax;
 }
 
+// Pirate's Moon 1.0 @ 0x004e8d40 (MW3's 0x004d8930)
+bool scan_aim_pm(BrainSidePmHooks& h, BrainTickPm& b, float now) {
+  if (b.busy) return true;
+  if (!b.aims || !(now > b.aim_at)) return false;
+  b.aim_at = static_cast<float>(double{now} + b.aim_gap);
+  manoeuvre_pm(h, b);
+  return true;
+}
+
 // Pirate's Moon 1.0 @ 0x004fbc20 (MW3's 0x004ea520): the base's record comes last, not first, and allies turn on
 // the player for hits lasting over 3 s, the last within 7 s, more than 10 in all, where MW3 asks only the 3 s.
 void on_hit_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle owner, int32_t x, int32_t y, int32_t z,

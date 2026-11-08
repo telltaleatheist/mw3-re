@@ -23,9 +23,11 @@ struct BrainTickPm {
   float wait_high = 0;       // +0x68
   int32_t awake = 0;         // +0x88  needs no one in sight
   int32_t by_player = 0;     // +0x8c  sees by its +0x98 contact, not the nearest enemy
+  int32_t aims = 0;          // +0x98  scan_aim ( 1 1 ): out of reach, the pilot manoeuvres
   int32_t reacts = 0;        // +0x9c
   int32_t wanders = 0;       // +0xa0
   int32_t manoeuvre_kind = 0;  // +0xa4
+  float aim_gap = 0;         // +0xa8
   float react_gap = 0;       // +0xb0
   float delay_until = 0;     // +0xfc
   int32_t busy = 0;          // +0x110
@@ -33,6 +35,7 @@ struct BrainTickPm {
   uint8_t engage_flags = 0;  // +0xec  1 the leash, 2 the attack's time, 4 the health floor, 8 the give-up health
   const float* home = nullptr;  // +0x104
   float attack_until = 0;    // +0x108
+  float aim_at = 0;          // +0x11c
   float react_at = 0;        // +0x120
   float give_up = 0;         // +0x1f0
   uint8_t runs_down = 0;     // +0x2c4  keeps going powered down
@@ -112,6 +115,9 @@ class BrainSidePmHooks : public EngagePmHooks {
 bool may_engage_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle v, zgame::Handle net, zgame::Handle state);  // 0x004fa5a0
 bool must_leave_pm(EngagePmHooks& h, const BrainTickPm& b, zgame::Handle v);  // 0x004fa210
 void manoeuvre_pm(BrainSidePmHooks& h, BrainTickPm& b);  // 0x004fab30
+// 0x004e8d40, the controls' vt+0x78 (MW3's 0x004d8930): the step can't hit from here. Busy: true. With +0x98 on and the
+// time past +0x11c, the next try +0xa8 seconds on and a manoeuvre: true. `now` is [0x0062da90].
+bool scan_aim_pm(BrainSidePmHooks& h, BrainTickPm& b, float now);
 void on_hit_pm(BrainSidePmHooks& h, const BrainTickPm& b, zgame::Handle owner, int32_t x, int32_t y, int32_t z,
                zgame::Handle attacker);  // 0x004fbc20
 void died_pm(BrainSidePmHooks& h, const BrainTickPm& b);  // 0x004fbdd0

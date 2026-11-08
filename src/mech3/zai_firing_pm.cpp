@@ -696,7 +696,7 @@ void FiringPm::step(float dt) {
       h.seed(h.xd0(brain));
       h.start_x50(x50);
       h.set_range(vehicle, h.range(brain));
-      h.look_start();
+      h.look_start(brain);
       wait = rest;
       goto ask_range;
     default: return;

@@ -690,4 +690,22 @@ void allies_turn() {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x004e6240. The allies' range is the last sort's, which is left to be redone ([0x0062fc40],
+// MW3's [0x0060b56c]); the pick's bit 8 lets in what the player drives (0x004ba190).
+void allies_turn_pm() {
+  SensorHooks& h = H();
+  AiTarget& p = F(h.player());
+  p.enemies &= 0x7fffffff;
+  p.allies |= 0x80000000u;
+  for (size_t i = g_allies.first; i < g_allies.end && i < g_entities.size(); ++i) {
+    const Handle x = veh(g_entities[i]);
+    if (!x) continue;
+    AiTarget& t = F(x);
+    t.team = 0x80000000u, t.allies = 0x80000000u, t.enemies = 0x7ffffffe;
+    h.unsort();
+    const Handle m = vt(x, 0x40);
+    if (const Handle b = m ? brain_of(m) : 0) h.brain_flags_or(b, 8);
+  }
+}
+
 }  // namespace mech3::ai
