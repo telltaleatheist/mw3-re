@@ -139,6 +139,8 @@ struct NetCalls {
   bool (*lobby_out)(uint32_t player) = nullptr;    // PM 0x00437990: its record's +0x0e, out with none
   void (*lobby_set_out)(uint32_t player, bool out) = nullptr;  // PM 0x004379b0: the record's +0x0e
   void (*score_kill)(uint32_t victim, uint32_t killer) = nullptr;  // net_score_kill's stand-in (the tests)
+  int32_t (*game_kind)() = nullptr;                // PM: the network game's +0x98 (its kind; piece 4)
+  int32_t (*spawn_base)(uint32_t player) = nullptr;  // PM 0x00437a40: its first "remote_N" (24 kinds 0, 1)
   void (*lobby_round_reset)() = nullptr;           // PM 0x00437a10: in play 1 kill 0 deaths, out 0 kills
   bool (*round_winner)() = nullptr;                // PM 0x00437970: the game's +0xaa or the kind's winner (0x00436980(0))
   void (*lobby_left)(uint32_t player) = nullptr;   // 0x00495b10 on the game's +0x48: the slot's +0x18 = 1

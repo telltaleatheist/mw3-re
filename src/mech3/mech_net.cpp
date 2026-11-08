@@ -1139,13 +1139,14 @@ bool net_launch_player(Mech& m, const std::vector<uint32_t>& p, int32_t skin, bo
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0046dde0 (ECX the pilot, its mech `m`), from the dead
+// Pirate's Moon 1.0 @ 0x0046fe80 (MW3's 0x0046dde0; the pilot, its mech `m`), from the dead
 // list once the pilot has been dead 7.1 s: with respawn off (+0x8c) the
 // player watches (+0x8e cleared, the view's camera 4) and stays dead.
 // Otherwise its mech is made again where it lay (0x004783c0), its team,
 // unlimited ammo (+0x8d) and options set again, the cockpit's explosion
-// reset, and it starts at the "remote_N" (N 0..15) farthest from every
-// remote mech (the nearest's flat distance, squared), moved by its lobby
+// reset, and it starts at the "remote_N" farthest from every remote mech (the
+// nearest's flat distance, squared; PM: N from the kind's first, 0x00437a40,
+// 16 of them, 8 in the kinds over 1; MW3's 0..15), moved by its lobby
 // slot; then 0x12 to all, its sensor range, the objectives again, the
 // force feedback. Whether it was made again (off the dead list).
 bool net_pilot_respawn(Mech& m) {
@@ -1168,9 +1169,12 @@ bool net_pilot_respawn(Mech& m) {
   const int32_t slot = c.start_of ? c.start_of(local) : 0;  // the lobby's record +0x20 (0x00495b10)
   float pos[3] = {0, 0, 0}, yaw = 0, best = 0;
   if (c.position) c.position(m, pos);  // 0x005a85e0: where it lay, without a start
-  for (int32_t i = 0; i < 0x10; ++i) {
+  const int32_t kind = c.game_kind ? c.game_kind() : 0;  // +0x98
+  const int32_t points = kind > 1 ? 8 : 16;
+  for (int32_t i = 0; i < points; ++i) {
     char name[0x20];
-    std::snprintf(name, sizeof name, "remote_%d", i);  // [0x005e56e0]
+    const int32_t first = c.spawn_base ? c.spawn_base(local) : 0x18;  // 0x00437a40, asked each time; 24 kinds 0, 1
+    std::snprintf(name, sizeof name, "remote_%d", first + i);  // [0x006077b0]
     float at[3], at_yaw = 0;
     if (!c.spawn_point || !c.spawn_point(name, at, &at_yaw)) continue;  // 0x004e0680
     float d = 1.0e8f;  // 0x0046e030: the nearest remote mech, squared flat

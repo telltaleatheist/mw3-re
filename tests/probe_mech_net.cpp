@@ -1037,11 +1037,12 @@ extern "C" int32_t probe_mech_net_end(const int32_t* in, int32_t* out, int32_t c
   return n;
 }
 
-// The pilot's respawn (0x0046dde0) for test_mech_net_respawn.py. in: the
-// game's +0x8c (respawn), +0x8d (unlimited), +0x8e; the local id, its team,
-// its lobby slot, the roster, a cockpit explosion, force feedback, the
-// remote mechs (0..3) and their places (x y z each), the mech's place, then
-// 16 starts (found, x y z, yaw).
+// The pilot's respawn (PM 0x0046fe80) for test_pm_net_respawn.py. in: the
+// game's respawn, unlimited ammo and the byte after (PM +0xa4..+0xa6); the
+// local id, its team, its lobby slot, the roster, a cockpit explosion, force
+// feedback, the remote mechs (0..3) and their places (x y z each), the mech's
+// place, then 40 starts by N (found, x y z, yaw), the game's kind (+0x98) and
+// the first start's N (0x00437a40).
 #include "mech3/mech_data.h"
 namespace {
 const int32_t* g_rs;
@@ -1078,9 +1079,12 @@ extern "C" int32_t probe_mech_net_respawn(const int32_t* in, int32_t* out, int32
     std::memcpy(o, at, 12);
     return true;
   };
+  c.game_kind = [] { return g_rs[22 + 5 * 40]; };  // PM: the kind and the first start (test_pm_net_respawn)
+  c.spawn_base = [](uint32_t p) { log({6, static_cast<int32_t>(p)}); return g_rs[22 + 5 * 40 + 1]; };
   c.spawn_point = [](const char* name, float pos[3], float* yaw) {
     const int32_t i = std::atoi(name + 7);
     log({8, i});
+    if (i < 0 || i >= 40) return false;
     const int32_t* s = &g_rs[22 + 5 * i];
     if (!s[0]) return false;
     std::memcpy(pos, s + 1, 12), std::memcpy(yaw, s + 4, 4);
