@@ -577,6 +577,17 @@ void LobbyScreen::refresh_lists() {
   for (const LobbyLine& l : tp) teams_list.add(l.text, l.entry);
   players_list.empty();
   for (const LobbyLine& l : pl) players_list.add(l.text, l.entry);
+  // Ours (the multiplayer tests' dump): the two lists' lines whenever they change.
+  {
+    std::string all = "TP:";
+    for (const LobbyLine& l : tp) all += " [" + l.text + "]";
+    all += " PLAYERS:";
+    for (const LobbyLine& l : pl) all += " [" + l.text + "]";
+    if (all != shown_lines) {
+      shown_lines = all;
+      if (!engine().quiet_log()) std::printf("mw3: lobby lines: %s\n", all.c_str());
+    }
+  }
   game->slot_at(0)->skin = game->net_skin(znet::local_id()) - 1;  // 0x005a2b90
   znet::GameInfo info;
   if (znet::game_info(-1, &info) && game->lobby_players.size() != info.players) {

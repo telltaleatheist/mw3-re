@@ -5493,7 +5493,8 @@ struct PmPair {
   std::string a, b;  // the logs
 };
 PmPair pm_mode_pair(const std::string& dir, const std::vector<std::string>& lobby, const std::vector<std::string>& both,
-                    int frames, const std::vector<std::string>& a_more, const std::vector<std::string>& b_more) {
+                    int frames, const std::vector<std::string>& a_more, const std::vector<std::string>& b_more,
+                    int a_ready = 140, int b_ready = 300) {
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/a", ec);
@@ -5532,12 +5533,14 @@ PmPair pm_mode_pair(const std::string& dir, const std::vector<std::string>& lobb
                                        "421,406@" + menu_frame(180)}, "0x14");
   va.insert(va.end(), lobby.begin(), lobby.end());
   const std::string lock_at = std::string(kLockAt) + "@60/2";  // LOCK, its OK, READY, START
-  for (const std::string& c : {lock_at, std::string("246,290@100/2"), std::string("515,446@140/2"), std::string("585,418@600/2")})
+  for (const std::string& c : {lock_at, std::string("246,290@100/2"), "515,446@" + std::to_string(a_ready) + "/2",
+                               std::string("585,418@600/2")})
     va.insert(va.end(), {"--click-players", c});
   va.insert(va.end(), {"--click-return", "515,446@" + menu_frame(100), "--click-return", "585,418@" + menu_frame(650)});
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
                                        "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
-                                       "--click-players", "515,446@300/2", "--click-return", "515,446@" + menu_frame(400)},
+                                       "--click-players", "515,446@" + std::to_string(b_ready) + "/2", "--click-return",
+                                       "515,446@" + menu_frame(400)},
                                       "0x30");
   for (auto* v : {&va, &vb}) {
     v->insert(v->end(), common.begin(), common.end());
@@ -5606,6 +5609,32 @@ TEST(pm_net_overtime_ends_on_a_kill) {
   EXPECT(la < -5.0f && lb < -5.0f);  // overtime: no winner at the time
   EXPECT(r.a.find("soak menus game over") != std::string::npos && r.b.find("soak menus game over") != std::string::npos);
   EXPECT(a2 == "End of Round 1 of 1 | best                  1      1      1 | test                  0      0      0");
+  EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
+}
+#endif
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)
+// Deathmatch with teams (GAME_TYPE's next arrow once, kind 1; team play set at the lock, 0x49e400): after the
+// lock A makes two teams with NEW_TEAM (440 368): the first joined (the dialog's JOIN_TEAM_CHECKBOX checked as it
+// opens, OK at (345 320)), the second not (JOIN unchecked at (350 282)); B picks the second in TP_LIST (its third
+// row, (440 81)) and JOIN_TEAM (440 183). Teams take the houses' names; B's kill (A dies at 8 s) wins its team
+// the round, and the match's end drops the teams.
+TEST(pm_net_team_deathmatch_from_the_lobby) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd")) return;
+  const PmPair r = pm_mode_pair(std::string(MW3_TEST_TMP) + "/pm_net_teams",
+                                {"--click-players", "171,69@20/2", "--click-players", "440,368@150/2", "--click-players",
+                                 "345,320@180/2", "--click-players", "440,368@220/2", "--click-players", "350,282@250/2",
+                                 "--click-players", "345,320@280/2"},
+                                {"--net-seconds", "20"}, 3000, {"--net-ahead", "50", "--net-kill-at", "8"},
+                                {"--click-players", "440,81@320/2", "--click-players", "440,183@340/2"}, 400, 420);
+  const std::string teams = "TP: [Draconis Combine  {gunmetal} ] [   test++ Ready!Bushwacker] [Federated Commonwealth  "
+                            "{sunfire} ] [   best Ready!] PLAYERS:";
+  const std::string a2 = pm_line(r.a, "lobby entered 2, scores: ", 1);
+  std::printf("  %s\n  then %s\n", r.a.find(teams) != std::string::npos ? "both in their teams, ready" : "teams not as set",
+              a2.c_str());
+  EXPECT(r.a.find("mw3: lobby lines: " + teams) != std::string::npos);
+  EXPECT(a2 == "End of Round 1 of 1 | Federated Commonwealth (Rounds Won: 1) |   best                1      1      1 | "
+               "Draconis Combine (Rounds Won: 0) |   test                0      0      0");
   EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
 }
 #endif

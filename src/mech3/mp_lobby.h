@@ -215,6 +215,7 @@ class LobbyScreen : public MenuScreen {
   CopyLine internet_line, lan_line;  // ours (piece 9c)
   float reach_timer = 0;
   std::vector<std::string> shown_scores;  // ours: SCORES_LIST's lines as last filled (the tests)
+  std::string shown_lines;           // ours: TP_LIST's and PLAYERS_LIST's lines as last dumped
 
  private:
   bool handlers_on_ = false;
