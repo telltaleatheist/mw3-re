@@ -233,6 +233,15 @@ struct BehindPm {
   void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);        // 0x004d89d0
 };
 
+// The vehicle net's slot 7 state (0x004e15e0 -> 0x004e1750 over 0x004e1640, vtable 0x005ef474): the behind state's
+// fields and start; a place through the target and past it, as far again as the pilot is from it and to a random
+// side by twice the brain's +0x2c, driven to, then picked again.
+struct PassPm : BehindPm {
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle);  // 0x004e1a50
+ private:
+  void pick(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3], const float to[3]);  // 0x004e1860
+};
+
 // The state 0x004d8dc0 (vtable 0x005eebe4): round the order's target at the brain's +0x44, on the side of +0x20's
 // sign, turning back when the boundary stands in the way (docs/pm-tests.md, The states).
 struct CirclePm {

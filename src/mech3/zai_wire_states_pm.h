@@ -32,8 +32,11 @@ class PmAttackState final : public BehaviourState {
  public:
   PmAttackState(Order* o, Behaviour* b);
   ~PmAttackState() override;
-  bool may_break_in() const override { return true; }  // vt+0x04, +0x08: 0x004eb000 (MW3's FightState says no to both)
-  bool may_fire() const override { return true; }
+  // The exe's vt+0x04 and +0x08 (0x004eb000) say yes to both, but with yes here the tick gives the attack again every
+  // frame (c1m1-idle: 68 entered, 11 never, against 76 and 3): something else holds the exe off, likely the order's
+  // net part's vt+0x0c in may_engage_pm, not yet the exe's. No to both until it is (MW3's FightState's).
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
   void run(float dt) override;
   void resume() override { s_.reset(); }  // vt+0x10: 0x004d9ce0
 
@@ -143,6 +146,19 @@ class PmRoundState final : public PmSlotState {
   void start(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.start(w, v); }
   void step(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.run(w, v); }
   CircleStatePm s_;
+};
+
+// Slot 7 (0x004e15e0 -> 0x004e1750, vtable 0x005ef474): the pass through the target. It may be broken into and fire
+// (0x004964e0, 0x004eb000); resume does nothing.
+class PmPassState final : public PmSlotState {
+ public:
+  using PmSlotState::PmSlotState;
+  void resume() override {}  // vt+0x10: 0x00403ac0
+
+ private:
+  void start(WireWalk& w, SteerPm&, zgame::Handle v) override { s_.start(w, v); }
+  void step(WireWalk& w, SteerPm& s, zgame::Handle v) override { s_.run(w, s, v); }
+  PassPm s_;
 };
 
 class PmBehindState final : public PmSlotState {

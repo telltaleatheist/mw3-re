@@ -135,7 +135,12 @@ class WiredSidePm final : public BrainSidePmHooks {
   float now() override { return h.now(); }
   void position(zgame::Handle v, float out[3]) override { h.position(v, out); }
   double health(zgame::Handle v) override { return h.health(v); }
-  bool net_allows(zgame::Handle net) override { return static_cast<AiNet*>(pm_ptr(net))->allows_attack(); }
+  // vt+0x0c: a compiled net's link yes, the built-in net's (0x005ed5b0) and a vehicle net's part no. MW3's built-in
+  // net answers as a compiled one.
+  bool net_allows(zgame::Handle net) override {
+    AiNet* n = static_cast<AiNet*>(pm_ptr(net));
+    return !dynamic_cast<BuiltinNet*>(n) && n->allows_attack();
+  }
   bool state_allows(zgame::Handle state) override {
     return static_cast<BehaviourState*>(pm_ptr(state))->may_break_in();
   }

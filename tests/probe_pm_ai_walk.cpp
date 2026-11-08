@@ -171,7 +171,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
   WalkFightPm* b = nullptr;
   WalkGuardPm* g = nullptr;
   float drove[3] = {};
-  BehindPm bh;
+  PassPm bh;  // the behind state's fields: the pass state's dump is the behind state's
   bool behind = false, circling = false, guarding = false, attacking = false;
   AttackStatePm as;
   GuardStatePm gs;
@@ -222,9 +222,14 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
     } else if (op == "j") {  // the target's facing
       w.face_on = a[0] == "1", w.face[0] = f(a[1]), w.face[2] = f(a[2]);
     } else if (op == "w") {
-      bh = BehindPm{}, behind = true;
+      bh = PassPm{}, behind = true;
       bh.start(w, 1);
     } else if (op == "x") {
+      bh.BehindPm::run(w, s, 1);
+    } else if (op == "P7") {  // the slot 7 state: made as the behind state is, run as its own
+      bh = PassPm{}, behind = true;
+      bh.start(w, 1);
+    } else if (op == "R7") {
       bh.run(w, s, 1);
     } else if (op == "Q") {  // the guarding state, its rolls and the brain's +0x44
       w.rolls[0] = std::stoi(a[0]), w.rolls[1] = std::stoi(a[1]), w.roll = 0;

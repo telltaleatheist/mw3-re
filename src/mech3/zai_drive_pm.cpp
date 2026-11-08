@@ -533,4 +533,59 @@ void CircleStatePm::run(WalkPmHooks& h, zgame::Handle v) {
   h.set_throttle(flip == 0 ? share : -share);
 }
 
+// Pirate's Moon 1.0 @ 0x004e1860
+void PassPm::pick(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle, const float pos[3], const float to[3]) {
+  float d[3] = {pos[0] - to[0], 0.0f, pos[2] - to[2]};
+  const float far_side[3] = {to[0] - d[0], 0.0f, to[2] - d[2]};
+  const double len = unit3(d);
+  const double a = std::atan2(double{x38}, len);
+  const double r = std::sqrt(len * len + double{x38} * x38);
+  const float f = static_cast<float>((r + r) * std::sin(a));
+  float side[3];
+  if ((h.rand_int() & 1) == 0) {
+    side[0] = -(d[2] * f), side[2] = d[0] * f;
+  } else {
+    side[0] = d[2] * f, side[2] = -(d[0] * f);
+  }
+  point[0] = far_side[0] + side[0], point[1] = far_side[1] + 0.0f, point[2] = far_side[2] + side[2];
+  h.pull(vehicle, pos, point, point);  // 0x004ccac0
+  float* from = h.way_from();
+  from[0] = pos[0], from[1] = pos[1], from[2] = pos[2];
+  s.set(h, from, point, speed, vehicle);
+}
+
+// Pirate's Moon 1.0 @ 0x004e1a50, with 0x004e19d0 (the away measure and a distance nothing reads). Without the
+// target's place the exe reads through null; it gives up here.
+void PassPm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle vehicle) {
+  float pos[3];
+  h.position(vehicle, pos);
+  const zgame::Handle t = h.order_target();
+  const float* to = h.target_place(t);
+  const bool gone = !to || !h.target_live(t) || h.must_leave(vehicle);
+  switch (step) {
+    case 0:
+    case 3:
+      if (gone) {
+        s.carrot(h.way_from());
+        h.order_pop();  // order vt+0x0c
+        return;
+      }
+      pick(h, s, vehicle, pos, to);
+      break;
+    case 1:
+    case 2: break;
+    default: return;
+  }
+  float away[2], sum;
+  away_pm(s, away, &sum);
+  if (!gone && (!s.at_end() || stop < sum)) {
+    drive_pm(h, s, vehicle, away, sum, stop * 0.5f, &turn, &throttle, inv_stop, 0.04f, 0.04f);
+    h.set_turn(turn);
+    h.set_throttle(throttle);
+    step = 2;
+    return;
+  }
+  step = 3;
+}
+
 }  // namespace mech3::ai
