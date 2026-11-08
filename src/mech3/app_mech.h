@@ -261,6 +261,11 @@ float mech_tag_muzzle(void* mech, bool* mounted);  // tests: TAG added as the bu
 // Tests (pm-tests item 21): the first weapon in the list's order selected, the one after it destroyed, then it;
 // whether the selection ends on a destroyed weapon. -1 with fewer than three weapons.
 int32_t mech_weapon_gone_case(void* mech, bool* picked);
+// Tests (pm-tests item 25): a key's command (Mech::command, e.g. 0x46 E); the first lock-on weapon through its
+// trigger (whether the shot locked); its first shot in flight (its place, whether it has a lock).
+void mech_command(void* mech, int32_t cmd);
+int mech_trigger_lock_on(void* mech, bool* locked);
+int mech_lock_on_shot(void* mech, float at[3], bool* has_lock);
 float mech_knock(void* mech, float* threshold, bool* airborne);  // tests: pm-tests item 23
 // Tests: zWeapon's sphere query at `at` (the splash's, through its hook): how many hits it counts, and in
 // `matched` how many of those hold zClass's own record; a weapon by name burst at a point.

@@ -585,6 +585,37 @@ bool weapons_burst(const char* name, const float at[3]) {
   return true;
 }
 
+void mech_command(void* mech, int32_t cmd) { static_cast<Mech*>(mech)->command(cmd); }
+
+int mech_trigger_lock_on(void* mech, bool* locked) {
+  auto* me = static_cast<Mech*>(mech);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  me->heat = 0.0f;
+  for (uint32_t i = 0; wm && i < wm->count; ++i) {
+    Weapon* w = wm->weapons[i];
+    if (!w || !w->def || !(w->def->flags & zwep::kLockOn)) continue;
+    w->reload = 0.0f;
+    const int r = w->can_fire() && w->trigger() ? 1 : 0;
+    *locked = w->locked;
+    return r;
+  }
+  return -1;
+}
+
+int mech_lock_on_shot(void* mech, float at[3], bool* has_lock) {
+  auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  for (uint32_t i = 0; wm && i < wm->count; ++i) {
+    Weapon* w = wm->weapons[i];
+    if (!w || !w->def || !(w->def->flags & zwep::kLockOn)) continue;
+    zwep::Projectile* p = w->def->active;
+    if (!p) return 0;
+    at[0] = p->position.x, at[1] = p->position.y, at[2] = p->position.z;
+    *has_lock = p->lock_entity != nullptr;
+    return 1;
+  }
+  return 0;
+}
+
 int32_t mech_weapon_gone_case(void* mech, bool* picked) {
   auto* wm = static_cast<WeaponManager*>(program_mech_weapons(mech));
   *picked = false;

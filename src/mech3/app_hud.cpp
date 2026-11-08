@@ -1394,4 +1394,30 @@ bool program_hud_power_state(void* mech, bool* on, bool* reticle_shown) {
   *on = h->active == 1, *reticle_shown = !(h->reticle.flags & ztwod::kHidden);
   return true;
 }
+
+void* program_view_target_mech() {
+  Mech* m = program_view_mech();
+  return m && m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
+}
+const void* program_view_target_contact() {
+  Mech* m = program_view_mech();
+  return m ? m->target : nullptr;
+}
+bool program_view_target_delta(float d[3]) {
+  Mech* m = program_view_mech();
+  if (!m || !m->target) return false;
+  std::copy(m->target->delta, m->target->delta + 3, d);
+  return true;
+}
+// Tests (pm-tests item 25): the view mech's reticle lock state (0..4, 3 locked) and its timer, set first when
+// `set` >= 0; and whether its weapons may lock (the manager's +0x88).
+int32_t program_reticle_lock(int32_t set, float timer, bool* has_target) {
+  Mech* m = program_view_mech();
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  *has_target = false;
+  if (!h) return -1;
+  if (set >= 0) h->reticle.lock = set, h->reticle.lock_timer = timer;
+  if (auto* wm = static_cast<WeaponManager*>(m->ammo)) *has_target = wm->has_target;
+  return h->reticle.lock;
+}
 }  // namespace mech3
