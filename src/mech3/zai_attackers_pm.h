@@ -31,6 +31,10 @@ class AttackersPm {
   AttackerPm* find(zgame::Handle attacker, bool aged, float clock);  // 0x004b2900
 
   std::list<AttackerPm> list;  // +0x04, +0x08
+  void set_rate(float r) { rate_ = r; }    // 0x00434980 on it (the firing step's start)
+  void set_limit(float l) { limit_ = l; }  // 0x005bfdc0 on it
+  float rate() const { return rate_; }
+  float limit() const { return limit_; }
 
  private:
   float rate_;   // +0x0c
