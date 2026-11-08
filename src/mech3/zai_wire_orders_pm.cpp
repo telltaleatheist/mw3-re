@@ -1,3 +1,4 @@
+#include "mech3/zai_wire_states_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 
 #include "mech3/zai_brain_pm.h"
@@ -26,7 +27,10 @@ struct OnBrain : OrdersPmHooks {
   // vt+0x14 on the order's net part: 1 for a compiled net's link (vtable 0x5ecd8c) and a vehicle net's part (0x5ed538),
   // both 0x4eb000; 0 for the built-in net's (0x5ed5b0, 0x4d5020).
   bool net_idle(zgame::Handle n) override { return !dynamic_cast<BuiltinNet*>(static_cast<AiNet*>(pm_ptr(n))); }
-  bool state_idle(zgame::Handle) override { return missing("assumed: the order's state idle (vt+0x20)"); }
+  bool state_idle(zgame::Handle s) override {  // vt+0x20 (BehaviourState::idle)
+    if (!pm_state_running(b)) pm_hook_missing("assumed: the order's state idle (vt+0x20), MW3's state");
+    return static_cast<BehaviourState*>(pm_ptr(s))->idle();
+  }
   zgame::Handle as_net(zgame::Handle obj) override { return obj; }
   zgame::Handle make_net(zgame::Handle net) override {
     net_ = static_cast<AiNet*>(pm_ptr(net));
