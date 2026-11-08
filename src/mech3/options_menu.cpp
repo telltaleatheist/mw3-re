@@ -53,11 +53,16 @@ void GameOptionsScreen::AcceptButton::on_left_up() {
 // Mech3.exe 1.2 @ 0x004380c0, 0x004380e0
 void GameOptionsScreen::PushButton::on_left_up() { e_.push_state(e_.peek32(target), 0); }
 
+// Ours: UPGRADES, as the two pushes.
+void GameOptionsScreen::UpgradesButton::on_left_up() {
+  if (const Handle s = options_upgrades_state()) e_.push_state(s, 0);
+}
+
 // Mech3.exe 1.2 @ 0x004379f0
 GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
     : MenuScreen(e, s), accept(e), back(e), difficulty(e), camera(e), invincible(e, 1), infinite_ammo(e, 1),
       heat(e, 0), torso(e), throttle(e), jump_jets(e), invert_y(e), gfx_audio(e, 0x60986c),
-      controls(e, 0x609870) {
+      controls(e, 0x609870), upgrades(e) {
   target_buffers(e);
   const bool moving = !e.fast_menu();
   if (load("dlgOptions.zrd", "GAME_OPTION_DIALOG", moving)) {
@@ -68,6 +73,7 @@ GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
     bind_button(&back, "BACK");
     bind_button(&gfx_audio, "GFX_AUDIO_OPTIONS");
     bind_button(&controls, "CONTROLS_CFG");
+    if (options_upgrades_page()) has_upgrades = bind_button(&upgrades, "UPGRADES");  // ours
     if (!moving) {
       bake();
       remove(&background);
@@ -77,6 +83,7 @@ GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
       back.set_baked(true);
       gfx_audio.set_baked(true);
       controls.set_baked(true);
+      if (has_upgrades) upgrades.set_baked(true);
     }
     bind_button(&difficulty, "DIFFICULTY");
     bind_button(&camera, "CAMERA");
@@ -87,6 +94,7 @@ GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
     bind_button(&throttle, "THROTTLE_CONST");
     bind_button(&jump_jets, "MW2JJETS");
     bind_button(&invert_y, "CMD_INVERT_MOUSE_Y");
+    if (options_sensitivity_slider()) has_sensitivity = bind_button(&sensitivity, "MOUSE_SENSITIVITY");  // ours
     unload();
   }
   set_flags_all(0);
@@ -117,6 +125,7 @@ void GameOptionsScreen::apply(int32_t to_options) {
     throttle.select(e.throttle_const() != 0);
     jump_jets.select(e.mw2_jump_jets() != 0);
     invert_y.select(e.mouse_accel_y() < 0.0f);
+    if (has_sensitivity) sensitivity.set_value(slider_of_sensitivity(std::fabs(e.mouse_accel_x())));
     return;
   }
   e.set_game_intensity(difficulty.selected_value());
@@ -127,11 +136,18 @@ void GameOptionsScreen::apply(int32_t to_options) {
   e.set_torso_auto_return(torso.selected_value());
   e.set_throttle_const(throttle.selected_value());
   e.set_mw2_jump_jets(jump_jets.selected_value());
-  if (options_sensitivity_slider()) {  // ours: the sensitivity (graphics and audio) kept, only Y's sign set
+  if (has_sensitivity) {  // ours: X and Y's magnitude from the slider, Y's sign from the invert box
+    const float s = sensitivity_of_slider(sensitivity.value);
+    e.set_mouse_accel_x(s);
+    e.set_mouse_accel_y(invert_y.selected_value() != 0 ? -s : s);
+    settings_keep_mouse();  // ours: the values the settings save
+    return;
+  }
+  if (options_sensitivity_slider()) {  // ours, without the slider bound: the sensitivity kept, only Y's sign set
     float mag = std::fabs(e.mouse_accel_y());
     if (mag == 0.0f) mag = 1.3f;
     e.set_mouse_accel_y(invert_y.selected_value() != 0 ? -mag : mag);
-    settings_keep_mouse();  // ours: the values the settings save
+    settings_keep_mouse();
     return;
   }
   e.set_mouse_accel_y(mouse_y_accel(e.mouse_accel_y(), invert_y.selected_value() != 0));
@@ -140,6 +156,76 @@ void GameOptionsScreen::apply(int32_t to_options) {
 bool& options_sensitivity_slider() {
   static bool on = false;
   return on;
+}
+
+bool& options_upgrades_page() {
+  static bool on = false;
+  return on;
+}
+
+Handle& options_upgrades_state() {
+  static Handle h = 0;
+  return h;
+}
+
+std::function<void(const char* key, bool on)>& options_upgrades_saver() {
+  static std::function<void(const char*, bool)> f;
+  return f;
+}
+
+// ---- ours: the upgrades page ----
+
+void UpgradesScreen::AcceptButton::on_left_up() {
+  auto* s = dynamic_cast<MenuScreen*>(owner);
+  if (!s) return;
+  s->apply(1);
+  s->state_escape();
+}
+
+UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
+    : MenuScreen(e, s), accept(e), back(e), bug_fixes(e), wide_menus(e) {
+  target_buffers(e);
+  const bool moving = !e.fast_menu();
+  if (load("dlgOptions.zrd", "UPGRADES_DIALOG", moving)) {
+    borrow_background(true);
+    bind_primitive(&lines, "LINES");
+    bind_primitive(&lines1, "LINES1");
+    bind_primitive(&box1, "BOX1");
+    bind_primitive(&box2, "BOX2");
+    bind_button(&accept, "ACCEPT");
+    bind_button(&back, "BACK");
+    if (!moving) {
+      bake();
+      remove(&background);
+      remove(&lines);
+      remove(&lines1);
+      remove(&box1);
+      remove(&box2);
+      accept.set_baked(true);
+      back.set_baked(true);
+    }
+    bind_button(&bug_fixes, "BUG_FIXES");
+    bind_button(&wide_menus, "WIDE_MENUS");
+    unload();
+  }
+  set_flags_all(0);
+  set_active(1);
+}
+
+// The bug fixes take hold at once; wide menus from the next screen made.
+void UpgradesScreen::apply(int32_t to_options) {
+  zfix::Options& o = zfix::options();
+  if (!to_options) {
+    bug_fixes.select(o.bugs);
+    wide_menus.select(o.wide_menus);
+    return;
+  }
+  o.bugs = bug_fixes.selected_value() != 0;
+  o.wide_menus = wide_menus.selected_value() != 0;
+  if (auto& save = options_upgrades_saver()) {
+    save("bugfixes", o.bugs);
+    save("widemenus", o.wide_menus);
+  }
 }
 
 float sensitivity_of_slider(float v) {
@@ -312,7 +398,6 @@ GfxAudioScreen::GfxAudioScreen(Engine& e, Handle s)
     bind_button(&shadows, "SHADOWS");
     bind_button(&music, "MUSICSLIDER");
     bind_button(&sfx, "SFXSLIDER");
-    if (options_sensitivity_slider()) has_sensitivity = bind_button(&sensitivity, "MOUSE_SENSITIVITY");  // ours
     bind_button(&self_shadows, "SELF_SHADOWS");
     bind_button(&lighting, "LIGHTING");
     bind_button(&device, "VIDEO_DEVICE");
@@ -335,7 +420,6 @@ void GfxAudioScreen::apply(int32_t to_options) {
   if (!to_options) {
     music.set_raw(e.cd_volume());
     sfx.set_raw(e.sound_frequency());
-    if (has_sensitivity) sensitivity.set_value(slider_of_sensitivity(std::fabs(e.mouse_accel_x())));
     resolution.select_each_value(e.in_game_vmode());
     device.select_each_value(e.hw_card_dev());
     textures.select_each_value(e.texture_memory());
@@ -364,12 +448,6 @@ void GfxAudioScreen::apply(int32_t to_options) {
   e.set_cd_volume(music.value);
   e.set_texture_memory(textures.selected_value());
   e.set_sound_frequency(sfx.value);
-  if (has_sensitivity) {  // ours: both from the slider, Y keeping its sign (the game options' invert box)
-    const float s = sensitivity_of_slider(sensitivity.value);
-    e.set_mouse_accel_x(s);
-    e.set_mouse_accel_y(e.mouse_accel_y() < 0.0f ? -s : s);
-    settings_keep_mouse();  // ours: the values the settings save
-  }
   e.set_sound_lod(sound.selected_value());
   e.set_object_lod(level_of(detail.selected_value()));
   e.set_effects_level(level_of(effects.value_at(effects.index)));

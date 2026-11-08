@@ -71,6 +71,7 @@
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
+#include "mech3/options_menu.h"
 #include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
@@ -658,6 +659,10 @@ int main(int argc, char** argv) {
   // line's, else mw3.cfg's widemenus=, else on.
   zfix::options().wide_menus = a.wide_menus >= 0 ? a.wide_menus != 0 : a.cfg_wide_menus != 0;
   zfix::options().throttle_reverse = a.cfg_throttle_reverse != 0;  // with bugs (lever_reverse_on)
+  // The options' UPGRADES page saves its switches here, beside the rest of mw3.cfg (ours).
+  mech3::options_upgrades_saver() = [wd = a.write_dir](const char* key, bool on) {
+    if (!wd.empty()) sdlfe::save_config_value(wd, key, on ? "1" : "0");
+  };
   mech3::app_key_calls().debug_camera = a.debug_camera;
   if (a.debug_camera) std::printf("mw3: --debug-camera: the game editor on Shift+F12 (docs/editor.md)\n");
   if (!zfix::options().bugs)
