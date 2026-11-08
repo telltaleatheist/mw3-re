@@ -1189,6 +1189,96 @@ void MultiplayerGame::rescore(bool rounds) {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x004373e0: each line's rank, 0 first, lines whose
+// keys differ only in their low 4 bits (the order's) sharing it; the players'
+// lines (the teams' in team play) in the lines' order, then each player's
+// place its line's (its team's in team play) and each team's its line's.
+void MultiplayerGame::rank() {
+  const bool teams = multiplayer_team_play();  // [0x0062cc34]
+  int32_t r = -1, run = 1;
+  uint32_t last = 0xf;
+  for (auto& l : score_lines) {
+    if (l->kind != (teams ? 2 : 1)) continue;
+    const uint32_t k = l->key & 0xfffffff0u;
+    if (k == last) {
+      l->rank = r, ++run;
+    } else {
+      r += run, l->rank = r, run = 1, last = k;
+    }
+  }
+  if (!teams) {
+    for (auto& p : lobby_players)
+      if (p->score) p->place = p->score->rank;  // the exe reads +0x34 unchecked
+    return;
+  }
+  for (auto& t : lobby_teams) {
+    if (!t->score) continue;
+    t->place = t->score->rank;
+    for (auto& p : lobby_players)
+      if (p->team == t->id) p->place = t->place;
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x00436d50: a round to each team on `side` (its third
+// data word's bit 0) and to each of its players.
+void MultiplayerGame::award_side(bool side) {
+  for (auto& t : lobby_teams) {
+    if ((static_cast<uint32_t>(t->word2) & 1) != (side ? 1u : 0u)) continue;
+    ++t->rounds;
+    for (auto& p : lobby_players)
+      if (p->team == t->id) ++p->rounds;
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x00436980: the round's winner, given its round when
+// `award`. A base destroyed (kinds over 1) wins for the side vt+0x48 names
+// for that base; kind 3 timed out with no base lost, side 0. Otherwise the
+// lines rescored without the rounds, sorted and ranked, and the first place
+// (players, or teams) wins when it is one alone; all those on it get the
+// round. Awarding ends with the rescore with the rounds, sorted and ranked.
+bool MultiplayerGame::tally(bool award) {
+  bool one = true;
+  const auto sort_lines = [&] {
+    std::stable_sort(score_lines.begin(), score_lines.end(),  // 0x00438820 (std::sort; ties' order unspecified)
+                     [](const std::unique_ptr<ScoreLine>& a, const std::unique_ptr<ScoreLine>& b) { return a->key > b->key; });
+  };
+  if (kind == 3 && round_end == 3 && base_lost == 0) {
+    if (!award) return true;
+    award_side(false);
+  } else if (kind < 2 || base_lost == 0) {
+    int32_t first = 0;
+    rescore(false);
+    sort_lines();
+    rank();
+    if (!multiplayer_team_play()) {
+      for (auto& p : lobby_players)
+        if (p->place == 0 && !p->left && (++first, award)) ++p->rounds;
+    } else {
+      for (auto& t : lobby_teams) {
+        if (t->place != 0 || (++first, !award)) continue;
+        ++t->rounds;
+        for (auto& p : lobby_players)
+          if (p->team == t->id && !p->left) ++p->rounds;
+      }
+    }
+    one = first == 1;
+  } else {
+    if (!award) return true;
+    if (base_lost == 1) award_side(xb0 == 1);  // vt+0x48
+    else if (base_lost == 2) award_side(xb0 == 2);
+  }
+  if (award) {
+    rescore(true);
+    sort_lines();
+    rank();
+  }
+  return one;
+}
+
+// Pirate's Moon 1.0 @ 0x00437970: a winner set already (+0xaa), else the
+// tally's, not awarding.
+bool MultiplayerGame::round_winner() { return winner_set || tally(false); }
+
 // Mech3.exe 1.2 @ 0x00435b60: SCORES_LIST's lines (under the heading 0xdd6,
 // "Player Score Kills Suicides"): the name and two numbers cut to their
 // columns, then the suicides; a team's line its name and score. The best

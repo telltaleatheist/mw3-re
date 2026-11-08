@@ -991,6 +991,10 @@ NetLobbyAccess net_lobby_access() {
   a.rescore = [] {
     if (g_net_game) g_net_game->rescore();
   };
+  a.round_winner = [] { return g_net_game && g_net_game->round_winner(); };
+  a.round_tally = [] {
+    if (g_net_game) g_net_game->tally(true);
+  };
   a.team_id = [](uint32_t p) { return g_net_game ? g_net_game->lobby_team_id(p) : 0u; };
   a.name = [](uint32_t p) -> const char* {
     const LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr;

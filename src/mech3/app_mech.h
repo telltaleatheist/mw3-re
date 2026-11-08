@@ -186,6 +186,8 @@ struct NetLobbyAccess {
   void (*set_kills)(uint32_t player, uint32_t n) = nullptr;   // 0x004359f0
   void (*set_deaths)(uint32_t player, uint32_t n) = nullptr;  // 0x00435b00
   void (*rescore)() = nullptr;                       // 0x004361e0
+  bool (*round_winner)() = nullptr;                  // PM 0x00437970
+  void (*round_tally)() = nullptr;                   // PM 0x00436980(1)
   uint32_t (*team_id)(uint32_t player) = nullptr;    // 0x00495b60: its team, 0 none
   const char* (*name)(uint32_t player) = nullptr;    // PM 0x00498930's +0x10: null none
 };

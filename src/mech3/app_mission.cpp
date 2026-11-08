@@ -2528,7 +2528,7 @@ void wire_mission_hooks(GameEngine* e) {
   wire_mech_build(&w);
   wire_sensors(&w, [](void* p, int32_t id) { return static_cast<GameEngine*>(p)->message(id); });
   net_set_game_clear([] {  // the network start's (0x0046ceb0): the network game's +0x7c, +0x80, +0x84
-    if (MultiplayerGame* g = net_debug_game()) g->clock_next = g->end_time = 0, g->end_state = 0, g->round_end = 0, g->overtime_shown = 0;  // PM 0x0046ef80: +0x90, +0xab
+    if (MultiplayerGame* g = net_debug_game()) g->clock_next = g->end_time = 0, g->end_state = 0, g->round_end = 0, g->overtime_shown = 0, g->base_lost = 0, g->winner_set = 0;  // PM 0x0046ef80: +0x90, +0xab, +0x8c, +0xaa
   });
   NetGameAccess acc;
   acc.fields = [](int32_t* players, float** clock_next, float** end_time, int32_t** end_state, int32_t** kills,

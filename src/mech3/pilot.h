@@ -333,8 +333,9 @@ bool multiplayer_team_play();
 struct ScoreLine {
   std::string text;                  // +0x00
   int32_t score = 0;                 // +0x04  kills less suicides, not under 0 (0x004361e0)
-  uint32_t key = 0;                  // +0x08  the lines' order, largest first (0x00435b60)
-  int32_t kind = 0;                  // +0x0c  1 a player's, 2 a team's
+  uint32_t key = 0;                  // +0x08, PM +0x10  the lines' order, largest first (0x00435b60)
+  int32_t kind = 0;                  // +0x0c, PM +0x14  1 a player's, 2 a team's
+  int32_t rank = 0;                  // PM +0x0c  its place, 0 first, ties sharing it (0x004373e0)
 };
 
 // A player or a team of the lobby's lists (vtable 0x005c7cc4); the lists'
@@ -360,6 +361,7 @@ struct LobbyPlayer : LobbyEntry {
   int32_t kills = 0;                 // +0x24
   int32_t deaths = 0;                // +0x28  its suicides
   int32_t rounds = 0;                // PM +0x2c  rounds won (0x00436980); 0 when it leaves (0x0046f440)
+  int32_t place = 0;                 // PM +0x30  its line's rank, or its team's (0x004373e0); its data's word 5
   ScoreLine* score = nullptr;        // +0x2c, PM +0x34  the game's
 };
 
@@ -374,6 +376,7 @@ struct LobbyTeam : LobbyEntry {
   uint32_t owner = 0;                // +0x18, PM +0x28  the first to join it; its data's first word
   int32_t word2 = 0;                 // PM +0x18  its data's third word (0x0049db90's last); the order key's low bits
   int32_t rounds = 0;                // PM +0x20  rounds won (0x00436980), its data's fourth word between rounds
+  int32_t place = 0;                 // PM +0x24  its line's rank (0x004373e0)
   ScoreLine* score = nullptr;        // +0x1c, PM +0x2c  the game's
 };
 
@@ -418,6 +421,10 @@ class MultiplayerGame : public Game {
   int32_t set_deaths(uint32_t player, int32_t n);  // 0x00435b00
   int32_t deaths_of(uint32_t player);              // 0x00435b40
   void rescore(bool rounds = true);                // PM 0x004374f0 (MW3's 0x004361e0)
+  void rank();                                     // PM 0x004373e0
+  void award_side(bool side);                      // PM 0x00436d50
+  bool tally(bool award);                          // PM 0x00436980
+  bool round_winner();                             // PM 0x00437970
   void score_texts(int32_t name_width, int32_t number_width);  // 0x00435b60: the lines, sorted
 
   // +0x38..+0x5c: the lobby's (pointers in the exe's lists, owned here).
@@ -446,6 +453,11 @@ class MultiplayerGame : public Game {
   int32_t round_end = 0;             // PM +0x90: why the round ended (0x00472850's 1..6), 0 playing
   uint32_t clock_from = 0;           // PM +0xa0: the last clock's (0x11) sender, the host (0x00472850)
   uint8_t overtime_shown = 0;        // PM +0xab: the overtime line shown (0x00472850), cleared by the start
+  // PM's rounds (0x00436980): the game's kind, the base destroyed and the side the vt+0x48 names.
+  int32_t kind = 0;                  // PM +0x98  0, 1 deathmatch; 3, 4 a base or two (piece 4)
+  int32_t base_lost = 0;             // PM +0x8c  the base destroyed, 1 or 2 (0x00472b40); cleared by the start
+  int32_t xb0 = 0;                   // PM +0xb0  vt+0x48 (0x00436010): the side whose base is 1 (piece 4)
+  uint8_t winner_set = 0;            // PM +0xaa  a winner already (0x00437970); cleared by the start
   uint8_t b8c = 1, b8d = 0, b8e = 0, b8f = 1;  // +0x8c..+0x8f
   int32_t x90 = 0, x94 = 1;          // +0x90, +0x94  DATABASE_LIST's world: its folder (0 c1) and number
   int32_t kills = 0, deaths = 0;     // +0x98, +0x9c  the pilot screen's line (0x27e)
