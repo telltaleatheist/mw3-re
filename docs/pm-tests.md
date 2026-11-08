@@ -418,6 +418,15 @@ By reading the call graph and the checks named; a check that reaches the network
 5. The in-mission controls screen (Esc, OPTIONS, then controls; mw3pm, Owen's screenshot 2026-11-07). The game options screen stays drawn behind it, its left column showing at the side. CONTROL SETUP is drawn 4:3 in the middle of a 16:9 screen rather than widened. A black square sits at the top left. MOUSE/KEYBD DEFAULT has an orange glow ring around its button that the other buttons don't have. Check the same path on mw3 and from the main menu.
 13. The damage static in the wrong places (Owen 2026-11-08, mw3pm 16:9, screenshot: torso hurt, no target). Besides the panels, three fuzzy patches sit where no panel is drawn: one above the compass's left end, one right of the radar by the OP line, one at the far left by the OP line. The static (hud.md section 21) draws on TARGET's and the MFD's shown rects and the weapons' and equipment's panels; likely those rects are still the 4:3 layout's (or a hidden panel's) after the 16:9 rearrangement. Check on mw3 too.
 
+**Owen's bug list (2026-11-08), worked one at a time in this order, none a priority over another.** From his play of build 11a6504b (pm-test write dir, his pilot's saved game, c2m3 "Protect Allied Camp / Destroy Trucks and Defenses"). Each gets a test where one can be made, and its line here says what was found.
+
+14. The cargo tanker he must destroy in mission 3 takes no damage, as the turrets did (item 9), and isn't on the radar. Whether it should show on the radar: what the exe does.
+15. TAG fires no visible beam; the original shows a laser.
+16. The target triangles start gigantic (a Clint IIC at 1.03 km, the triangle across half the screen) and stay so a while before they shrink to the target.
+17. At OP Charlie, missile turrets drawn blue (friendly) fired on him. The colour or the AI's side is not the exe's.
+18. Mission 3's second half: "there is no cow level" typed at the start wins; typed mid-mission (OP Able done, the trucks in progress) it only moved him on to OP Charlie, and reaching OP Charlie never completed it. Ctrl+Q then quit (replayed on CONTINUE): check that's the exe's too.
+19. The weapon and equipment lists' arrows (the group and selection markers left of each line) overlap the text. Position them as the original does in the 16:9 layout (both games).
+
 Items 3 and 4 were started and parked: `mac5/settings` bb39448c, off main 0fb2b72b, unmerged. It puts MOUSE SENSITIVITY on the game options screen under INVERT MOUSE Y and adds an UPGRADES button under CONTROLS, whose page holds BUG FIXES and WIDE MENUS, saved to mw3.cfg. The headless tests pass. Still to do: shots, the mw3pm check, the fixes.md sort.
 
 **PM only, same window:**
