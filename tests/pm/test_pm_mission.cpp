@@ -665,7 +665,7 @@ static void kill_run(const char* which, bool quick) {
         zcls::node_world_point(static_cast<zcls::Node*>(mech3::hud_object_node(player)), at);
         at[0] += 100.0f;
         const float d = pm_tag_muzzle(player, at, &mounted);
-        std::printf("  TAG: mounted %d, its muzzle %.1f m from the torso\n", mounted, d);
+        std::printf("  TAG: mounted %d, its muzzle %.1f m from the mech\n", mounted, d);
         EXPECT(mounted);
         EXPECT(d >= 0.0f && d < 15.0f);
         done = true;
