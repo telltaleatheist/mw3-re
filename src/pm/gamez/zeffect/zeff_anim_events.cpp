@@ -95,4 +95,27 @@ int32_t ev_stop_animation(::zeff::AnimDef& d, uint8_t* e) {
   return 2;
 }
 
+// Pirate's Moon 1.0 @ 0x0051e2c0
+int32_t ev_object_motion_script(::zeff::AnimDef& d, ::zeff::SeqDef& s, uint8_t* e) {
+  const int32_t ni = get<int32_t>(e, 0xc);
+  if (ni < 0) return 2;
+  Node* n = d.nodes[ni].node;
+  if (!n) return 2;
+  const int32_t si = get<int32_t>(e, 0x10);
+  ::zeff::AnimState& a = ::zeff::anim();
+  if (si < 0 || si >= a.pm_script_count) return 2;  // ours: the exe takes any index past the list
+  const ::zeff::SiScript& sc = a.pm_scripts[si];
+  if (s.raw[0x20] == 0) put<int32_t>(e, 0x1c, 0), put<uint32_t>(e, 0x18, 0), put<int32_t>(e, 0x20, 0);
+  float time = s.get<float>(0x28) - a.time_left();
+  const ::zeff::FrameSource src{sc.data, sc.get<int32_t>(0x14), sc.get<int32_t>(0xc)};
+  if (get<int32_t>(e, 0x1c) >= src.limit) return 2;
+  int32_t result = 1;
+  do {
+    const uint8_t* frame = sc.data + get<int32_t>(e, 0x1c);
+    a.time_left() = a.time_left() - ::zeff::anim_play_frame(s, e, n, frame, &time, src);
+    if (time < s.get<float>(0x28) && !::zeff::anim_next_frame(s, e, frame, src.limit)) result = 2;
+  } while (time < s.get<float>(0x28) && result != 2);
+  return result;
+}
+
 }  // namespace pm::zeff

@@ -106,15 +106,26 @@ The port's event dispatch (zeff_anim_run.cpp) is MW3's; PM's runs through its ow
 | Type | Event | PM / MW3 (instructions, opcode similarity) | In PM's data | Note |
 |---|---|---|---|---|
 | 2 | SOUND_NODE | 0x51b7d0 112 / 0x503270 88, 0.83 | 108 | close to MW3's; the first count measured past the function |
-| 25 | STOP_ANIMATION | 0x51f900 160 / 0x506d60 60, 0.45 | 470 | |
-| 31 | IF | 0x51fce0 288 / 0x507010 165, 0.64 | yes | PM adds tests; HW_RENDER read as the device's fog |
+| 25 | STOP_ANIMATION | 0x51f900 160 / 0x506d60 60, 0.45 | 470 | ported: the last matching ref wins (`test_pm_stop_animation`) |
+| 31 | IF | 0x51fce0 288 / 0x507010 165, 0.64 | yes | PM adds tests; HW_RENDER read as the device's fog. PM's added flags are unused in the shipped records |
 | 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | |
-| 12 | OBJECT_MOTION_SI_SCRIPT | 0x51e2c0 103 / 0x505b00 120, 0.59 | yes | |
+| 12 | OBJECT_MOTION_SI_SCRIPT | 0x51e2c0 103 / 0x505b00 120, 0.59 | 412, 237, 187, 377 (c1..c4) | ported, it never played: see below |
 | 1 | SOUND | 0x51b630 60 / 0x503100 52, 0.61 | yes | |
 | 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | |
 | 28 | FOG_STATE | 0x51c2f0 169 / 0x503ba0 36, 0.26 | no | mods only |
 | 43, 44, 45 | per-vertex colours on a node's model (0x50cb90, 0x55b8f0, 0x55b850) | PM only | no | unknown to the port: an anim using one stops (mods only) |
 | 16, 20, 21, 36, 37, 38 | remove child, camera, fbfx, message | PM's | no (16, 20, 21, 37, 38) | 36 shipped |
+
+Event 12 in PM takes its key frames from the anim file's SI scripts (record +0x10, the script's index; the script
+holds the cubic flag at +0x0c, the frames' size at +0x14 and the frames at +0x18), where MW3's frames follow the
+event's head. MW3's handler on PM's records stopped at once, so no scripted motion played: in c1m2 the base crew
+(the_dude_runa06, a07) stood still. Ported (0x51e2c0 with PM's 0x51df10 and 0x51deb0, the same frame code taking the
+frames' base, size and cubic flag), with PM's one change to the frame: the rotation's quaternion normalised before the
+matrix (0x51e189, a `zgame::Table` flag, MW3 off). Found on the way, in MW3's code too: the cubic tracks read their
+coefficients 0xc bytes early (both exes take t^0..t^3 from the track's +0x1c..+0x28). No shipped script or MW3 record
+is cubic (0 of 71 scripts in c1m2, 0 of 37 in c2m3), so nothing played changes. `test_pm_play_frame` (6,000 frames
+against 0x51df10, linear and cubic, the frame's end and the next frame; breaks: the normalise, the size, the old
+offsets), `pm_c1m2_motions_play` (10 of 121 event-12 nodes moving by 300 frames; none without the port).
 
 None of these touches damage (their callees: camera.c, class.c's remove child, video, sound, the anim run), so none
 explains mission 3's defences (item 9). Known gaps, not from this work: `test_pm_anim` fails since before b10b924d

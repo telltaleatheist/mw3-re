@@ -33,6 +33,19 @@ int32_t ev_sound_node(AnimDef& def, uint8_t* e);                 // 2   0x005032
 int32_t ev_light_state(AnimDef& def, uint8_t* e);                // 4   0x00503390 (MW3's; the game's through zgame::Table)
 // MW3's 0x00506d60 in the table's shape (the def unused).
 int32_t ev_stop_animation_of(AnimDef& def, uint8_t* e);
+// Where a motion's key frames are: MW3's after the event's head (the event, its size, its +0x14), Pirate's Moon's in
+// an SI script of the anim file (its data, its size +0x14, its +0x0c).
+struct FrameSource {
+  const uint8_t* base;
+  int32_t limit;
+  int32_t cubic;
+};
+// 0x00505710 (PM 0x0051df10): one key frame of a motion played up to the sequence's time.
+float anim_play_frame(SeqDef& s, uint8_t* e, zcls::Node* n, const uint8_t* frame, float* time, const FrameSource& src);
+// 0x005056b0 (PM 0x0051deb0): on to the next key frame; 1 while it is inside the frames.
+int32_t anim_next_frame(SeqDef& s, uint8_t* e, const uint8_t* frame, int32_t limit);
+// MW3's 0x00505b00 in the table's shape.
+int32_t ev_object_motion_script_of(AnimDef& def, SeqDef& s, uint8_t* e);
 // The handlers' node pick: refs 1.., -200 the node the anim was started at (its offset into `off` when given).
 zcls::Node* anim_event_node(AnimDef& def, int32_t i, float* off);
 int32_t ev_light_animation(AnimDef& def, SeqDef& s, uint8_t* e); // 5   0x00503910
