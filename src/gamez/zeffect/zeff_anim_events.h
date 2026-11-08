@@ -31,6 +31,7 @@ inline float* fp(uint8_t* p, int off) { return reinterpret_cast<float*>(p + off)
 int32_t ev_sound(AnimDef& def, uint8_t* e);                      // 1   0x00503100
 int32_t ev_sound_node(AnimDef& def, uint8_t* e);                 // 2   0x00503270
 int32_t ev_light_state(AnimDef& def, uint8_t* e);                // 4   0x00503390
+int32_t ev_effect(AnimDef& def, uint8_t* e);                     // 3   0x005031b0 (PM 0x0051b700)
 int32_t ev_light_animation(AnimDef& def, SeqDef& s, uint8_t* e); // 5   0x00503910
 int32_t ev_object_active(AnimDef& def, uint8_t* e);              // 6   0x005044d0
 int32_t ev_object_translate(AnimDef& def, uint8_t* e);           // 7   0x00504380

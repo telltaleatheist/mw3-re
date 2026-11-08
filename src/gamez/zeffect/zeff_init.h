@@ -11,13 +11,14 @@ namespace zeff {
 struct EffectHooks {
   void (*unported)(const char* key, int32_t arg) = nullptr;  // an entry read, or a spawn of one
   void (*error)(const char* text) = nullptr;                 // the "Failed to read" report
+  void (*spawn_asked)(int32_t index, const float* at) = nullptr;  // every spawn asked, loaded or not (the tests)
 };
 EffectHooks& effect_hooks();
 
 int32_t effects_init(const char* file);   // 0x0050d2c0: 0, or -1 when the file is missing
 int32_t effect_count();                   // [0x0073f3c8]
 int32_t effect_find(const char* name);    // 0x0050d9e0: the index, -1 none
-void effect_spawn(int32_t index);         // 0x0050d650 (ECX the index, -1 none)
+void effect_spawn(int32_t index, const float* at = nullptr);  // 0x0050d650 (ECX the index, -1 none; EDX the place)
 void effects_init();                      // 0x0050d270: with 0x00508fc0, zEffect's start
 void effects_free();                      // 0x0050d570: at the mission unload
 void effects_shutdown();                  // 0x0050d2b0: at the game's end

@@ -68,9 +68,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
   switch (e[0]) {
     case 1: return ev_sound(d, e);
     case 2: return ev_sound_node(d, e);
-    case 3:
-      if (h.effect) h.effect(h.ctx, def, e);
-      return 2;
+    case 3: return ev_effect(d, e);
     case 4: return ev_light_state(d, e);
     case 5: return ev_light_animation(d, s, e);
     case 6: return ev_object_active(d, e);
