@@ -4069,12 +4069,24 @@ TEST(sdl_network_damage_point_blank) {
     }
     return text;
   };
+#if defined(MW3_PM_SUITE)
+  // PM's c1mp1: around its spawn warehouse02 stands between the held mechs, or the hold drops A on its roof and
+  // its level aim passes over B. c3mp1's ground is open: there A's shots, locked on B (--net-lock), take B to
+  // 0.72 (three runs, 2026-11-08). A timed round with no kill goes to overtime and never ends (PM's rule), so
+  // both stop by frames, in the overtime.
+  const char* const world = "c3mp1";
+  const std::vector<std::string> stop = {"--frames", "15000", "--net-lock"};
+#else
+  const char* const world = "c1mp1";
+  const std::vector<std::string> stop;
+#endif
   const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
-                                           "127.0.0.1", "--mission", "c1mp1", "--net-wait", "2", "--net-minutes", "1",
+                                           "127.0.0.1", "--mission", world, "--net-wait", "2", "--net-minutes", "1",
                                            "--net-soak"};
   std::vector<std::string> ha = {"--write-dir", dir + "/a", "--host", "--net-port", "0", "--net-name", "A", "--net-drive",
                                  "1", "--net-staged", "0", "--net-ahead", "40"};
   ha.insert(ha.end(), common.begin(), common.end());
+  ha.insert(ha.end(), stop.begin(), stop.end());
   const pid_t a = spawn(ha, dir + "/a.log");
   std::string port;
   for (int i = 0; i < 400 && port.empty(); ++i) {
@@ -4086,6 +4098,7 @@ TEST(sdl_network_damage_point_blank) {
   EXPECT(!port.empty());
   std::vector<std::string> hb = {"--write-dir", dir + "/b", "--join", "127.0.0.1:" + port, "--net-name", "B"};
   hb.insert(hb.end(), common.begin(), common.end());
+  hb.insert(hb.end(), stop.begin(), stop.end());
   const pid_t b = port.empty() ? -1 : spawn(hb, dir + "/b.log");
   int st = 0;
   if (b > 0) waitpid(b, &st, 0);

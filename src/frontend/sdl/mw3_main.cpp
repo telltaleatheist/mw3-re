@@ -300,6 +300,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--net-soak") a.net_soak = true;
     else if (s == "--net-staged" && next(1)) a.net_staged = std::atoi(argv[++i]) != 0;
     else if (s == "--net-ahead" && next(1)) a.net_ahead = std::strtof(argv[++i], nullptr);
+    else if (s == "--net-lock") mech3::program_net_drive_lock(true);
     else if (s == "--net-discovery" && next(1)) a.net_discovery = std::atoi(argv[++i]);
     else if (s == "--net-lan" && next(1)) a.net_lan = argv[++i];
     else if (s == "--net-upnp" && next(1)) a.net_upnp = argv[++i];
