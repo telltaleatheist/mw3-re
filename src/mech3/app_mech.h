@@ -51,6 +51,7 @@ struct NetGameAccess {
   void (*exit_fade)() = nullptr;    // 0x0048ef00 to the Multi-Exit State
   int32_t* (*round_end)() = nullptr;  // PM +0x90
   uint32_t* (*clock_from)() = nullptr;  // PM +0xa0
+  uint8_t* (*overtime_shown)() = nullptr;  // PM +0xab
 };
 void net_set_game_access(const NetGameAccess& a);
 // Ours, for the tests (multiplayer-port.md piece 5c): in the mission that is

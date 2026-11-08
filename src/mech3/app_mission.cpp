@@ -2528,7 +2528,7 @@ void wire_mission_hooks(GameEngine* e) {
   wire_mech_build(&w);
   wire_sensors(&w, [](void* p, int32_t id) { return static_cast<GameEngine*>(p)->message(id); });
   net_set_game_clear([] {  // the network start's (0x0046ceb0): the network game's +0x7c, +0x80, +0x84
-    if (MultiplayerGame* g = net_debug_game()) g->clock_next = g->end_time = 0, g->end_state = 0, g->round_end = 0;  // PM 0x0046ef80: +0x90
+    if (MultiplayerGame* g = net_debug_game()) g->clock_next = g->end_time = 0, g->end_state = 0, g->round_end = 0, g->overtime_shown = 0;  // PM 0x0046ef80: +0x90, +0xab
   });
   NetGameAccess acc;
   acc.fields = [](int32_t* players, float** clock_next, float** end_time, int32_t** end_state, int32_t** kills,
@@ -2553,6 +2553,10 @@ void wire_mission_hooks(GameEngine* e) {
   acc.clock_from = []() -> uint32_t* {
     MultiplayerGame* g = net_debug_game();
     return g ? &g->clock_from : nullptr;
+  };
+  acc.overtime_shown = []() -> uint8_t* {
+    MultiplayerGame* g = net_debug_game();
+    return g ? &g->overtime_shown : nullptr;
   };
   net_set_game_access(acc);
   net_set_launch_game([](NetLaunchGame* out) {  // the network launch's (0x0046da80): slot 0 is +0x20 (0x00437800)
