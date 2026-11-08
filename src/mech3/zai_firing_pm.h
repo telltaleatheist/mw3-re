@@ -270,7 +270,7 @@ class StepPmHooks {
   virtual void seed(uint32_t v) = 0;                                     // 0x005bfdc0
   virtual void start_x50(uint32_t v) = 0;                                // 0x00434980
   virtual void set_range(zgame::Handle v, float r) = 0;                  // 0x004e7150
-  virtual void look_start() = 0;                                         // +0x70's vt+0x00
+  virtual void look_start(Brain* b) = 0;  // the aim's (+0x70) vt+0x00, 0x004ba630: on (+0x18), the firing its owner (+0x04)
   virtual zgame::Handle best_weapon(zgame::Handle wm) = 0;               // 0x004b9de0
   virtual float weapon_reach(zgame::Handle w) = 0;                       // 0x004b7b50
   virtual zgame::Handle pick(zgame::Handle v) = 0;                       // 0x004bc2e0

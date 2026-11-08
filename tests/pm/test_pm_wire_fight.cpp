@@ -429,3 +429,17 @@ TEST(pm_wire_a_queued_follow_runs_on_its_net) {
   pm_pop_order(b);
   b.set_net(nullptr);
 }
+
+// The step's start turns its aim on (0x004ba630 on the firing's +0x70, the aim: +0x18 = 1).
+TEST(pm_wire_firing_the_step_starts_its_aim) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  FiringRecord& r = pm_firing(b, 7);
+  r.aim.active = false;
+  step_pm_hooks().look_start(&b);
+  EXPECT(r.aim.active);
+}
