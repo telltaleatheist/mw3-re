@@ -120,6 +120,11 @@ class Store {
   uint8_t full = 0;                  // +0x10  set with b04, and by store_fill
 };
 
+// Pirate's Moon: a game's vt+0x44, the jump jets' assist: the multiplayer
+// game's 0x004365f0 (its +0xa7) when it is `g`, else every other game's
+// 0x00435070 (the MW2 jump jets option, 0x0040afd0, the other way round).
+bool jets_assist_of(const class MultiplayerGame* g);
+
 // Pirate's Moon's rules for a multiplayer round (0x00438380), from
 // mprounds.zrd: 8 numbers by place (the defaults [0x0060554c] when its block
 // has none) and the salvage the round gives.
@@ -389,7 +394,7 @@ struct LobbyTeam : LobbyEntry {
   int32_t skin = 0;                  // +0x10  its data's second word
   int32_t kills = 0;                 // +0x14  its players' (0x004361e0)
   uint32_t owner = 0;                // +0x18, PM +0x28  the first to join it; its data's first word
-  int32_t word2 = 0;                 // PM +0x18  its data's third word (0x0049db90's last); the order key's low bits
+  int32_t word2 = 0;                 // PM +0x18  its data's third word (0x0049db90's last): the team's number (0x00436600; MW3 used the skin), bit 0 its side
   int32_t rounds = 0;                // PM +0x20  rounds won (0x00436980), its data's fourth word between rounds
   int32_t place = 0;                 // PM +0x24  its line's rank (0x004373e0)
   ScoreLine* score = nullptr;        // +0x1c, PM +0x2c  the game's
@@ -420,11 +425,12 @@ class MultiplayerGame : public Game {
   int32_t lobby_skin(uint32_t player);          // 0x00495bb0: 0 none
   bool in_team(uint32_t player, uint32_t team);  // 0x00495c00
   LobbyTeam* lobby_team(uint32_t id);           // 0x00495d20: null none
+  LobbyTeam* team_numbered(int32_t number);     // PM 0x00436650: the team whose number (+0x18) it is
   void clear_lobby();                           // the three, as the lists' refresh does
   // The network game's lookups and scores (0x00435910..0x00435b40, 0x004361e0,
   // 0x00435b60). A player's side in play: its place in the lobby's count,
   // or in team play its team's skin (a team is its colour); 0 none.
-  uint32_t net_team(uint32_t player);           // 0x00435910
+  uint32_t net_team(uint32_t player);           // PM 0x00436600 (MW3 0x00435910)
   int32_t net_skin(uint32_t player);            // 0x00435960: its own skin, or its team's in team play
   int32_t add_kills(uint32_t player, int32_t n);   // 0x004359b0: -1 no such player
   int32_t set_kills(uint32_t player, int32_t n);   // 0x004359f0
@@ -441,6 +447,17 @@ class MultiplayerGame : public Game {
   bool tally(bool award);                          // PM 0x00436980
   bool round_winner();                             // PM 0x00437970
   void next_round(uint32_t place, int32_t round);  // PM 0x00438580
+  int32_t spawn_base(uint32_t player);             // PM 0x00437a40: the first "remote_N" for the player's side
+  bool base_counts(int32_t base);                  // PM 0x00437920: a destroyed base `base` (1, 2) ends the round
+  bool base_destroyed(int32_t base, float now);    // PM 0x00472b40's: reason 6, +0x8c, the clock sent now
+  // PM's helpers for the lobby screen (0x0049a3c0, 0x0049b5e0) and the objectives (piece 4).
+  std::string objectives_key();                    // vt+0x58 0x00436580: "mp<+0xb0>"
+  int32_t scenario_message();                      // vt+0x08 0x00437850: the scenario's text id
+  int32_t enemies_of(uint32_t player);             // 0x004368d0: the others not on its team
+  int32_t award_team(uint32_t player);             // 0x00436930: a round to each on its team; how many
+  int32_t runner_up_rounds();                      // 0x00437380: the most rounds won short of `best`
+  int32_t rounds_of(uint32_t player);              // 0x004366d0: its +0x2c, 0 unlisted
+  int32_t place_of(uint32_t player);               // 0x004366f0: its +0x30, 0 unlisted
   void score_texts(int32_t name_width, int32_t number_width);  // PM 0x00436db0 (MW3 0x00435b60): the lines, sorted
   // PM 0x0049b730, the lobby screen's results list's lines: before any round
   // message 0x2bd; else "End of Round <played> of <total>" (the saved total
@@ -478,6 +495,8 @@ class MultiplayerGame : public Game {
   int32_t base_lost = 0;             // PM +0x8c  the base destroyed, 1 or 2 (0x00472b40); cleared by the start
   int32_t xb0 = 0;                   // PM +0xb0  vt+0x48 (0x00436010): the side whose base is 1 (piece 4)
   uint8_t winner_set = 0;            // PM +0xaa  a winner already (0x00437970); cleared by the start
+  int32_t scenario = 0;              // PM +0xac  the scenario (0..3; vt+0x08's text by it and +0xb0)
+  uint8_t jets_assist = 1;           // PM +0xa7  vt+0x44 (0x004365f0): the jump jets' assist (the MW2 option's other way round)
   // PM's between rounds (0x00438580).
   int32_t realloc = 0;               // PM +0x70  REALLOC_LIST's ("MSG_REALLOC_SALVAGE"): the rewards' scale, x2
   int32_t rounds_total = 0;          // PM +0x74  the rounds in the match (the lobby's 0x0049a3c0 extends it on a tie)

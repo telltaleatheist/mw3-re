@@ -1216,6 +1216,7 @@ void program_net_lobby(const NetLobbyAccess& a) {
   c.scores_reset = a.rescore;
   c.round_winner = a.round_winner, c.round_tally = a.round_tally;
   c.store_give = a.store_give, c.local_slot = a.local_slot;
+  c.game_kind = a.game_kind, c.spawn_base = a.spawn_base;
   c.lobby_team_id = a.team_id;
   c.lobby_name = a.name;
   c.lobby_out = a.out, c.lobby_set_out = a.set_out, c.lobby_round_reset = a.round_reset;
