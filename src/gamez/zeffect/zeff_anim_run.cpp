@@ -97,7 +97,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
     case 22: return ev_call_sequence(d, e);
     case 23: return ev_stop_sequence(d, e);
     case 24: return ev_call_animation(d, s, e);
-    case 25: return ev_stop_animation(e);
+    case 25: return zgame::game().zeff_stop_animation(d, e);
     case 26: return ev_reset_animation(e);
     case 27: return ev_invalidate_animation(e);
     case 28: return ev_fog_state(e);

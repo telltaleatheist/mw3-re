@@ -8,6 +8,8 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "pm/gamez/zclass/light.h"
 
+#include <cstring>
+
 #pragma STDC FP_CONTRACT OFF
 
 namespace pm::zeff {
@@ -64,6 +66,32 @@ int32_t ev_light_state(::zeff::AnimDef& d, uint8_t* e) {
   if (f & 0x200) zcls::light_set_diffuse_only(n, get<int32_t>(e, 0x44));
   if (f & 0x2000) zcls::light_set_light_map(n, get<int32_t>(e, 0x48));
   if (f & 0x400) zcls::light_set_directional(n, get<int32_t>(e, 0x4c));
+  return 2;
+}
+
+// Pirate's Moon 1.0 @ 0x0051f900
+int32_t ev_stop_animation(::zeff::AnimDef& d, uint8_t* e) {
+  const char* name = reinterpret_cast<const char*>(e + 0xc);
+  if (get<int16_t>(e, 0x2c) < 0 && get<int16_t>(e, 0x2e) < 0) {
+    for (int i = 0; i < d.count(0x112); ++i) {
+      const auto* r = reinterpret_cast<const char*>(d.anim_refs[i].raw);
+      if (std::strcmp(r, name) == 0 || std::strcmp(r + 0x20, name) == 0) put<int16_t>(e, 0x2c, static_cast<int16_t>(i));
+    }
+    if (get<int16_t>(e, 0x2c) < 0) {
+      ::zeff::AnimState& a = ::zeff::anim();
+      for (int j = 0; j < a.def_count(); ++j)
+        if (std::strcmp(a.defs[j].name(), name) == 0) {
+          put<int16_t>(e, 0x2e, static_cast<int16_t>(j));
+          break;
+        }
+    }
+  }
+  const int16_t r = get<int16_t>(e, 0x2c);
+  if (r >= 0) {
+    ::zeff::anim_stop(d.anim_refs[r].ref);  // 0x0051f830
+  } else if (get<int16_t>(e, 0x2e) > 0) {
+    ::zeff::anim_stop(&::zeff::anim().defs[get<int16_t>(e, 0x2e)]);
+  }
   return 2;
 }
 

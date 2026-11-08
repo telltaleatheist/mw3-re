@@ -18,7 +18,7 @@ namespace {
 const Table kMw3 = {"MechWarrior 3", "Mech3.exe 1.2", zutl_zar::read_table, zutl_zar::write_table, zutl_zar::length_span,
                     zrdr::parse_text, zcls::read_zbd, zcls::mw3_node_alloc,
                     zmod::draw_model, zcls::mw3_area_update, zcls::mw3_world_add_child, zcls::mw3_world_remove_child, zcls::mw3_world_make_grid, zcls::mw3_node_bound_box, zcls::mw3_node_set_active, zcls::mw3_node_model_box, zcls::mw3_node_model_header,
-                    zcls::mw3_light_create, zeff::mw3_anim_read_zbd, zeff::ev_light_state,
+                    zcls::mw3_light_create, zeff::mw3_anim_read_zbd, zeff::ev_light_state, zeff::ev_stop_animation_of,
                     // mechlib (pm-map step 1e)
                     zcls::mw3_mechlib_open, zcls::mw3_mechlib_load,
                     nullptr, nullptr, 0x200, false, true, nullptr, nullptr, nullptr};

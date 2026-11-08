@@ -31,6 +31,8 @@ inline float* fp(uint8_t* p, int off) { return reinterpret_cast<float*>(p + off)
 int32_t ev_sound(AnimDef& def, uint8_t* e);                      // 1   0x00503100
 int32_t ev_sound_node(AnimDef& def, uint8_t* e);                 // 2   0x00503270
 int32_t ev_light_state(AnimDef& def, uint8_t* e);                // 4   0x00503390 (MW3's; the game's through zgame::Table)
+// MW3's 0x00506d60 in the table's shape (the def unused).
+int32_t ev_stop_animation_of(AnimDef& def, uint8_t* e);
 // The handlers' node pick: refs 1.., -200 the node the anim was started at (its offset into `off` when given).
 zcls::Node* anim_event_node(AnimDef& def, int32_t i, float* off);
 int32_t ev_light_animation(AnimDef& def, SeqDef& s, uint8_t* e); // 5   0x00503910

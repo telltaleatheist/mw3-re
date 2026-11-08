@@ -1059,6 +1059,8 @@ int32_t ev_stop_animation(uint8_t* e) {
   return 2;
 }
 
+int32_t ev_stop_animation_of(AnimDef&, uint8_t* e) { return ev_stop_animation(e); }
+
 // Mech3.exe 1.2 @ 0x00506e00
 int32_t ev_reset_animation(uint8_t* e) {
   if (AnimDef* t = def_by_name(e)) anim_restart(t);
