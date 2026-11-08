@@ -71,7 +71,8 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
     const float force = invincible ? 0.0f : t->impact_force;
     if (force > 0.0 && anim_state >= 1 && anim_state <= 9) {
       // Knockback along the shot, flat; the stagger check is per frame (0x417a80).
-      Vec3 dir{w.shot[0].x - w.shot[1].x, w.shot[0].y - w.shot[1].y, w.shot[0].z - w.shot[1].z};
+      const Vec3* shot = hit_shot();
+      Vec3 dir{shot[0].x - shot[1].x, shot[0].y - shot[1].y, shot[0].z - shot[1].z};
       dir.y = 0.0f;
       flat_normal(dir, impulse);
       impulse = {force * impulse.x, force * impulse.y, force * impulse.z};
