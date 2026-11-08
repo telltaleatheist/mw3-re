@@ -981,7 +981,7 @@ extern "C" int32_t probe_mech_net_world(const int32_t* in, int32_t* out, int32_t
     case 3: mech3::net_effect_in(msg.data(), msg.size()); break;
     case 4: mech3::net_send_drop(static_cast<uint32_t>(in[wOrder])); break;
     case 5: mech3::net_drop_in(who, msg.data(), msg.size()); break;
-    case 6: mech3::net_clock_in(msg.data(), msg.size()); break;
+    case 6: mech3::net_clock_in(who.owner, msg.data(), msg.size()); break;
     case 7: {
       std::vector<uint32_t> w(in + wOrder, in + wOrder + 10);
       zdec::craters().history.clear();
@@ -1512,4 +1512,53 @@ extern "C" int32_t probe_pm_net_host_moved(uint32_t clock_from, uint32_t sender,
   const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
   std::copy(lg.begin(), lg.begin() + std::min<int32_t>(m, 2), out);
   return std::min<int32_t>(m, 2);
+}
+
+// The clock in (PM 0x00472850) for test_pm_net_clock.py. in: the sender, the message's flags word and clock (bits),
+// the game time (bits), then the game's overtime line shown, end reason, ending, end time (bits). Logged: each HUD
+// line (1, seconds, its length, its bytes), each HUD message (2, seconds, id); then 90, the clock left, the sender
+// kept, the reason, ending, end time and the overtime flag.
+namespace {
+const int32_t* g_ck;
+mech3::NetGameFields g_ck_game;
+uint32_t g_ck_from;
+uint8_t g_ck_over;
+int32_t g_ck_reason, g_ck_ending;
+float g_ck_end, g_ck_left;
+}  // namespace
+
+extern "C" int32_t probe_pm_net_clock(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_log = &lg;
+  g_ck = in;
+  mech3::NetCalls& c = mech3::net_calls();
+  c = mech3::NetCalls{};
+  g_ck_from = 0xeeee, g_ck_over = static_cast<uint8_t>(in[4]), g_ck_reason = in[5], g_ck_ending = in[6];
+  std::memcpy(&g_ck_end, &in[7], 4);
+  g_ck_left = -1;
+  g_ck_game = mech3::NetGameFields{};
+  g_ck_game.clock_from = &g_ck_from, g_ck_game.overtime_shown = &g_ck_over, g_ck_game.round_end = &g_ck_reason;
+  g_ck_game.end_state = &g_ck_ending, g_ck_game.end_time = &g_ck_end;
+  c.game = []() -> mech3::NetGameFields* { return &g_ck_game; };
+  c.game_time = [] {
+    float t;
+    std::memcpy(&t, &g_ck[3], 4);
+    return t;
+  };
+  c.set_clock_left = [](float v) { g_ck_left = v; };
+  c.hud_line = [](float s, const char* text) {
+    const std::string t(text);
+    log({1, bits(s), static_cast<int32_t>(t.size())});
+    for (unsigned char ch : t) g_log->push_back(ch);
+  };
+  c.hud_message = [](float s, int32_t id, const char*) { log({2, bits(s), id}); };
+  uint8_t msg[12] = {0x11, 0, 12, 0};
+  std::memcpy(msg + 4, &in[1], 4);
+  std::memcpy(msg + 8, &in[2], 4);
+  mech3::net_clock_in(static_cast<uint32_t>(in[0]), msg, sizeof msg);
+  log({90, bits(g_ck_left), static_cast<int32_t>(g_ck_from), g_ck_reason, g_ck_ending, bits(g_ck_end), g_ck_over});
+  c = mech3::NetCalls{};
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
 }

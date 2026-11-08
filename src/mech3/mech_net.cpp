@@ -198,7 +198,7 @@ void net_route(uint32_t from, const uint8_t* msg, size_t size) {
   switch (type) {
     case 0xf: return c.state ? c.state(m, from, msg, size) : net_state_apply(*m, msg, size);
     case 0x10: return c.ping ? c.ping(m, from, msg, size) : net_ping_in(*m, msg, size);
-    case 0x11: return c.clock ? c.clock(m, from, msg, size) : net_clock_in(msg, size);
+    case 0x11: return c.clock ? c.clock(m, from, msg, size) : net_clock_in(from, msg, size);
     case 0x12: {
       if (c.respawn) return c.respawn(m, from, msg, size);
       float pos[3] = {0, 0, 0};
@@ -486,7 +486,7 @@ int32_t net_send_event(Mech& m, int32_t kind, intptr_t arg) {
       std::memcpy(b + 4, &reason, 4);
       std::memcpy(b + 8, &left, 4);
       if (znet::is_host()) znet::send(b, sizeof b, false, 0);
-      c.clock ? c.clock(nullptr, 0, b, sizeof b) : net_clock_in(b, sizeof b);
+      c.clock ? c.clock(nullptr, 0, b, sizeof b) : net_clock_in(znet::local_id(), b, sizeof b);  // PM: from 0x005a8a30
       return 0;
     }
     default:
@@ -1091,24 +1091,42 @@ void net_game_over() {
   net_end();                       // PM 0x0046f150
 }
 
-// Mech3.exe 1.2 @ 0x00470740 (ECX the message). The reasons: 1 the time,
-// 2 the score limit (0x9aa, 0x9ab for 5 s); the game ends 3 s on.
-void net_clock_in(const uint8_t* msg, size_t size) {
+// Pirate's Moon 1.0 @ 0x00472850 (MW3's 0x00470740), 0x11's from the host
+// (and the host's own): the sender kept (+0xa0, 0xd's old host), the clock,
+// the round's end reason (+4 bits 0..2, MW3's 0..1) always kept (+0x90). 1
+// overtime: its line once a round, the round goes on. 2 a winner, 5 no more
+// enemies, 6 a base destroyed: a line; 3 and 4 the time's (0x9aa, 0x9ab).
+// Those end the round 3 s on (+0x94, +0x88). All lines 5 s.
+void net_clock_in(uint32_t from, const uint8_t* msg, size_t size) {
   const NetCalls& c = g_calls;
   if (size < 12) return;
   uint32_t flags;
   float left;
   std::memcpy(&flags, msg + 4, 4);
   std::memcpy(&left, msg + 8, 4);
-  if (c.set_clock_left) c.set_clock_left(left);
+  if (c.set_clock_left) c.set_clock_left(left);  // [0x0062da94]
   NetGameFields* g = c.game ? c.game() : nullptr;  // FIX (bug): the exe reads it unchecked
-  const uint32_t reason = flags & 3;
-  if (reason == 0 || !g || !g->end_state) return;
-  if (*g->end_state == 0) *g->end_state = static_cast<int32_t>(reason);
-  if (reason == 1 && c.hud_message) c.hud_message(5.0f, 0x9aa, nullptr);
-  else if (reason == 2 && c.hud_message) c.hud_message(5.0f, 0x9ab, nullptr);
-  *g->end_state = 3;
-  if (g->end_time) *g->end_time = game_time() - -3.0f;
+  if (!g) return;
+  if (g->clock_from) *g->clock_from = from;
+  const uint32_t reason = flags & 7;
+  if (g->round_end) *g->round_end = static_cast<int32_t>(reason);
+  const char* line = nullptr;
+  switch (reason) {
+    case 1:
+      if (!(g->overtime_shown && *g->overtime_shown) && c.hud_line)
+        c.hud_line(5.0f, "No winner yet.\nWe are into Overtime, folks!");  // 0x00410750
+      if (g->overtime_shown) *g->overtime_shown = 1;
+      return;
+    case 2: line = "Round Over : We FINALLY have a winner"; break;
+    case 3: if (c.hud_message) c.hud_message(5.0f, 0x9aa, nullptr); break;  // 0x004107a0
+    case 4: if (c.hud_message) c.hud_message(5.0f, 0x9ab, nullptr); break;
+    case 5: line = "Round Over : No more enemies"; break;
+    case 6: line = "Round Over : Base Destroyed"; break;
+    default: return;
+  }
+  if (line && c.hud_line) c.hud_line(5.0f, line);
+  if (g->end_state) *g->end_state = 1;
+  if (g->end_time) *g->end_time = game_time() + 3.0f;  // [0x0062da90] + [0x005dfd14]
 }
 
 // Mech3.exe 1.2 @ 0x0046e0a0

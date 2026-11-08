@@ -97,10 +97,11 @@ struct NetGameFields {
   int32_t score_limit = 0;       // +0x70  the kills that end the game
   int32_t players = 0;           // +0x50  the lobby's count
   float* clock_next = nullptr;   // +0x7c  when the host sends the clock (0x11) again
-  float* end_time = nullptr;     // +0x80
-  int32_t* end_state = nullptr;  // +0x84  0, 1 ending (the clock under 3 s), 3 ended
+  float* end_time = nullptr;     // +0x80, PM +0x88: when the round's over (3 s after its end reason)
+  int32_t* end_state = nullptr;  // +0x84  0, 1 ending (the clock under 3 s), 3 ended; PM +0x94 (a byte): 1 ending
   int32_t* round_end = nullptr;  // PM +0x90: why the round ended (5 no more enemies), 0 playing
   uint32_t* clock_from = nullptr;  // PM +0xa0: the last clock's (0x11) sender, the host
+  uint8_t* overtime_shown = nullptr;  // PM +0xab: the overtime line shown (once a round)
   int32_t* kills = nullptr;      // +0x98  the pilot's totals over network games
   int32_t* deaths = nullptr;     // +0x9c
   uint8_t* flags = nullptr;      // +0x8c respawn on, +0x8d unlimited ammo, +0x8e (cleared when respawn is off)
@@ -333,7 +334,7 @@ void net_effect_in(const uint8_t* msg, size_t size);   // PM 0x00471fd0: replaye
 bool net_two_sides();                                  // PM 0x00472da0: two sides left in the round
 void net_send_drop(uint32_t station);                  // PM 0x00472010: a repair station used (0x1d, MW3's 0x1b)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size);  // 0x0046ffd0
-void net_clock_in(const uint8_t* msg, size_t size);    // 0x00470740: the clock, and the game's end with its reason
+void net_clock_in(uint32_t from, const uint8_t* msg, size_t size);  // PM 0x00472850: the clock, the round's end reason
 void net_game_over();  // 0x004707c0
 // 0x004700a0 and 0x00500c60 with 0x004700e0: the host's effects and craters
 // sent again to a player joining.
