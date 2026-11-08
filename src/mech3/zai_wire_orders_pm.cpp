@@ -8,6 +8,7 @@
 namespace mech3::ai {
 
 namespace {
+bool g_making = false;  // inside PM's make_state (0x004f9e70's vt+0x8c)
 // The brain's MW3 orders as PM's functions see them, and what their hooks do back on the brain. A new order's parts
 // come in pairs (make_net, then make_state), so the net waits for its state, and Brain::push makes the order: it
 // suspends the state under it as PM's stop (vt+0x0c) does, so `stop_state` has nothing left to do.
@@ -30,7 +31,9 @@ struct OnBrain : OrdersPmHooks {
     return net;
   }
   zgame::Handle make_state(zgame::Handle beh) override {
+    g_making = true;
     b.push(net_, static_cast<Behaviour*>(pm_ptr(beh)));
+    g_making = false;
     return pm_id(b.current().state.get());
   }
   zgame::Handle default_net() override { return pm_id(brain_hooks().builtin_net()); }
@@ -62,6 +65,8 @@ struct OnBrain : OrdersPmHooks {
   bool popped = false;
 };
 }  // namespace
+
+bool pm_orders_making() { return g_making; }
 
 void pm_run_orders(Brain& b, float dt) {
   if (b.orders.empty()) return;
