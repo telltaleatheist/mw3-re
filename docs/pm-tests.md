@@ -327,7 +327,8 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
   the tick, the states, nets, targets); 53-bit precision kept on; the score by seeds (1..4 or 1..8, 77/2), not seed 1
   alone; both campaigns played to their ends with `PM_AI=1` (`kills:99`, `standalone-kills:99`), nothing new since
   pm-v0.9.0; the canyon, mission 3's defences, the base lights, the lancemates' follow on PM's net.
-- Left, no decision needed, in this order: (1) the three commander tests moved to PM (`test_pocket_panel`,
+- Left, no decision needed, in this order: (1) the three commander tests moved to PM (the frame done 2026-11-08:
+  PM's 0x46b980 with 0x46b8d0, `test_pm_pocket_frame`, 3,000 frames on PM's exe, 4 of 4 breaks; then the keys and the panel) (`test_pocket_panel`,
   `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 two
   thirds); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
   of each struct the AI port owns compared once, or a line why not; (4) the 220 functions PM changed that run as MW3's

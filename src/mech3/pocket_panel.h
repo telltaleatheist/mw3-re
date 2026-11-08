@@ -117,6 +117,10 @@ struct FrameCalls {
   zgame::Handle (*net_entity)(uint32_t net) = nullptr;          // its +0x18's vt+0x2c
   const float* (*net_place)(uint32_t net) = nullptr;            // its vt+0x18
   void (*route_mouse)(ztwod::MouseState* m) = nullptr;          // 0x0051ba60 (unset: the zTwoD host's)
+  // Pirate's Moon 1.0 @ 0x0046b8d0's ground: the world's ground query 10 above the place (0x004ff8d0), and where it
+  // hits, the height 0x004af770 picks (10 up, water not ground) plus 1. Unset: the place stays.
+  void (*ground_snap)(float place[3]) = nullptr;
+  void (*lines_picked)(PocketPanel* p, int32_t delta, int32_t from) = nullptr;  // 0x004687e0 (unset: the panel's own)
 };
 FrameCalls& frame_calls();
 

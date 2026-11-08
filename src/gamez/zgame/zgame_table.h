@@ -90,6 +90,9 @@ struct Table {
   bool anim_quat_normalized;
   // OBJECT_ACTIVE_STATE's node ref (zeff_anim_events.cpp, 0x005044d0): MW3 takes ref 0, PM's 0x0051cd00 refs from 1.
   int16_t anim_active_first_ref;
+  // The pocket commander's frame (pocket_panel.cpp, 0x00469d00; PM's 0x0046b980): PM puts the marker on the ground
+  // (0x0046b8d0) and never switches it on or off, and with no target re-picks nothing.
+  bool pocket_frame_pm;
 };
 
 const Table& mw3_table();

@@ -4585,3 +4585,7 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - Pirate's Moon's AI pilots don't lock their missiles onto Elementals. When the target is an Elemental, the pilot leaves its weapons' target lock off, and a lock is what lets missiles home (from reading the code; not yet seen in play).
 - Pirate's Moon's multiplayer kill messages name players from the lobby. MW3 takes the names from the players' mechs, so a player whose mech is gone (one who has left the game, say) shows as "Unknown". Pirate's Moon takes them from the lobby's player list, so a player still listed there is named either way (checked against the original in an emulator).
 - In Pirate's Moon multiplayer a suicide can't take your score below zero. MW3 counts every suicide against you; Pirate's Moon counts one only while your kills are ahead of your deaths, so a player at 0 (or behind) loses nothing by self-destructing (checked against the original in an emulator).
+- Pirate's Moon puts the lance command marker on the ground. When you point your lance at a bare spot (or a network
+  game's waypoint) in the command mode, MW3 hangs the marker where your aim landed and switches it on and off as the
+  cursor moves. Pirate's Moon drops it onto the terrain under that spot, a metre above the ground, and leaves it
+  showing. (From the code: the command mode's frame, 0x46b980 and 0x46b8d0.)
