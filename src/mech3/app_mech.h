@@ -181,6 +181,7 @@ struct NetLobbyAccess {
   void (*set_deaths)(uint32_t player, uint32_t n) = nullptr;  // 0x00435b00
   void (*rescore)() = nullptr;                       // 0x004361e0
   uint32_t (*team_id)(uint32_t player) = nullptr;    // 0x00495b60: its team, 0 none
+  const char* (*name)(uint32_t player) = nullptr;    // PM 0x00498930's +0x10: null none
 };
 void program_net_lobby(const NetLobbyAccess& a);
 // 0x0041ab90 on the pilot's mech: its chat panel drawn (mech3/chat_panel).

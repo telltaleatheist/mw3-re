@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -774,6 +775,11 @@ extern "C" int32_t probe_mech_net_events(const int32_t* in, int32_t* out, int32_
   c.hud_message = [](float t, int32_t id, const char* a) { log({2, bits(t), id, s_num(a)}); };
   c.hud_message2 = [](float t, int32_t id, const char* a, const char* b) { log({2, bits(t), id, s_num(a), s_num(b)}); };
   c.mech_name = [](mech3::Mech&) -> const char* { return "Pilot"; };
+  c.lobby_name = [](uint32_t p) -> const char* {  // PM's kill line: the lobby's records ("P<id>")
+    static std::map<uint32_t, std::string> names;  // each its own, as the records' are
+    if (slot_of(p) < 0) return nullptr;
+    return (names[p] = "P" + std::to_string(p)).c_str();
+  };
   c.team_of = [](uint32_t p) {
     const int32_t k = slot_of(p);
     return k < 0 ? 0u : static_cast<uint32_t>(g_ev[eSlots + 4 * k + 1]);

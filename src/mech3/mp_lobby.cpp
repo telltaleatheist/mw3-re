@@ -982,6 +982,10 @@ NetLobbyAccess net_lobby_access() {
     if (g_net_game) g_net_game->rescore();
   };
   a.team_id = [](uint32_t p) { return g_net_game ? g_net_game->lobby_team_id(p) : 0u; };
+  a.name = [](uint32_t p) -> const char* {
+    const LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr;
+    return r ? r->name.c_str() : nullptr;
+  };
   return a;
 }
 }  // namespace

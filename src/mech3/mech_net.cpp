@@ -735,29 +735,23 @@ void net_mech_rebuild(NetMech& m) {
 }
 
 namespace {
-// A mech by player for the kill's line: the network mech's, the pilot's,
-// else none.
-Mech* player_mech(uint32_t id) {
-  if (NetMech* m = net_mech(id)) return m;
-  if (id == znet::local_id() && g_calls.pilot_mech) return g_calls.pilot_mech();
-  return nullptr;
-}
-const char* name_of(Mech* m) {
-  if (!m) return "Unknown";  // [0x005e56f0]
-  if (m->remote) return znet::player_name(static_cast<NetMech*>(m)->owner);  // 0x004709c0
-  return g_calls.mech_name ? g_calls.mech_name(*m) : nullptr;  // 0x0041df30
+// A player's name for the kill's line: its lobby record's (0x0047b710(0)'s 0x00498930), else "Unknown"
+// ([0x006077c0]). MW3 took it from the player's mech, so a player whose mech was gone was "Unknown".
+const char* name_of(uint32_t id) {
+  const char* n = g_calls.lobby_name ? g_calls.lobby_name(id) : nullptr;
+  return n ? n : "Unknown";
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0046eba0 (ECX the message). 0x40a00000 is 5 s.
+// Pirate's Moon 1.0 @ 0x00470b80 (the message; MW3's 0x0046eba0). 0x40a00000 is 5 s.
 void net_kill_in(const uint8_t* msg, size_t size) {
   const NetCalls& c = g_calls;
   if (size < 12) return;
   uint32_t victim, killer;
   std::memcpy(&victim, msg + 4, 4);
   std::memcpy(&killer, msg + 8, 4);
-  const char* v = name_of(player_mech(victim));
-  const char* k = name_of(player_mech(killer));
+  const char* v = name_of(victim);
+  const char* k = name_of(killer);
   if (c.hud_message) {
     if (victim == killer) c.hud_message(5.0f, 0xf0a, v);  // "%1 has managed to kill himself"
     else if (c.hud_message2) c.hud_message2(5.0f, 0xf09, v, k);  // "%1 has been killed by %2"

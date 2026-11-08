@@ -1177,6 +1177,7 @@ void program_net_debug_lobby() {
   NetCalls& c = net_calls();
   g_debug_scores.clear();
   c.lobby_team_id = [](uint32_t) { return 0u; };  // each player its own side, no teams
+  c.lobby_name = [](uint32_t p) { return znet::player_name(p); };
   c.team_of = [](uint32_t p) { return p; };
   c.start_of = [](uint32_t p) -> int32_t {
     int32_t rank = 1;
@@ -1210,6 +1211,7 @@ void program_net_lobby(const NetLobbyAccess& a) {
   c.lobby_scores = a.scores, c.lobby_set_kills = a.set_kills, c.lobby_set_deaths = a.set_deaths;
   c.scores_reset = a.rescore;
   c.lobby_team_id = a.team_id;
+  c.lobby_name = a.name;
 }
 
 void program_mech_chat_draw(void* mech) {

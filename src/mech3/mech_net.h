@@ -206,6 +206,7 @@ struct NetCalls {
   // 0x00435b00); the HUD's scores (0x00446ad0 on the view's mech's HUD,
   // when it shows them).
   const char* (*mech_name)(Mech& m) = nullptr;
+  const char* (*lobby_name)(uint32_t player) = nullptr;  // PM: its lobby record's name (0x00498930's +0x10), null none
   void (*lobby_suicide)(uint32_t player) = nullptr;
   void (*lobby_kill)(uint32_t player) = nullptr;
   int32_t (*lobby_kills)(uint32_t player) = nullptr;  // 0x00435a30 (the game's end)
