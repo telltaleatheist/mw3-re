@@ -337,3 +337,21 @@ TEST(pm_wire_set_target_keeps_the_sides_and_saves_a_lancemate) {
   set_target_hooks(&old_t);
   pm_wire_clear();
 }
+
+TEST(pm_wire_scan_state_runs_its_tests_then_the_next) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  b.orders.emplace_back().owner = &b;
+  ScanStep scan(StepKind::Scan, 2);
+  scan.tests = {{ScanTest::AimOn, 0}, {ScanTest::TimeOn, 0}};
+  Behaviour after;
+  scan.next = &after;
+  b.current().state.reset(pm_make_scan_state(b.current(), scan));
+  b.x104 = 0;
+  b.current().state->run(0.1f);  // 0x004d5a10: this state goes
+  EXPECT(b.params.get<int32_t>(0x98) == 1 && b.params.get<int32_t>(0xa0) == 1);
+  EXPECT(b.x104 == 1);  // the brain's +0x158: run the order again
+  EXPECT(b.current().state && b.current().state->from == &after);
+}

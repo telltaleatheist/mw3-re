@@ -21,6 +21,9 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     case StepKind::VehFollow:  // for the first runs: whose order made it
       pm_hook_missing(pm_orders_making() ? "follow made: PM's orders" : "follow made: MW3's push");
       return new PmFollowState(&o, &b);
+    case StepKind::Scan:
+    case StepKind::CanLeave:
+    case StepKind::CanLeaveNot: return pm_make_scan_state(o, b);
     case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
     case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
     default: break;

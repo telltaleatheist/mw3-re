@@ -68,6 +68,27 @@ struct OnBrain : OrdersPmHooks {
 
 bool pm_orders_making() { return g_making; }
 
+namespace {
+// PM's scan and canleave states run 0x004d5a10: MW3's tests on the brain (their PM twins by name), then the next.
+class PmScanState final : public BehaviourState, ScanPmHooks {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float) override {
+    const auto* st = static_cast<const ScanStep*>(from);
+    OrdersPm mirror;
+    scan_run_pm(*this, mirror, static_cast<int32_t>(st->tests.size()), pm_id(st->next));
+  }
+  Behaviour* behaviour() const override { return from; }
+  void scan_test(int32_t i) override { order->owner->scan_test(static_cast<const ScanStep*>(from)->tests[size_t(i)].first); }
+  void set_behaviour(zgame::Handle next) override {
+    order->owner->x104 = 1;  // the mirror's `again` is the brain's +0x158, MW3's x104
+    order->set_behaviour(static_cast<Behaviour*>(pm_ptr(next)));  // 0x004f9f00: this state destroyed
+  }
+};
+}  // namespace
+
+BehaviourState* pm_make_scan_state(Order& o, Behaviour& b) { return new PmScanState(&o, &b); }
+
 void pm_run_orders(Brain& b, float dt) {
   if (b.orders.empty()) return;
   OnBrain h(b);
