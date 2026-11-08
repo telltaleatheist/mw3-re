@@ -7,6 +7,7 @@
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_firing_pm.h"
 #include "mech3/zai_wire_nets_pm.h"
+#include "mech3/zai_wire_states_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 
 using namespace mech3::ai;
@@ -264,6 +265,32 @@ TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
   pm_pop_order(b);
   EXPECT(b.orders.size() == n);
   b.set_net(nullptr);
+}
+
+// 0x004d5c60 (PmSharedState): a lancemate the player commands follows the player's vehicle on its ten-slot net, by
+// PM's order (0x004fa150, the follow by 0x004c7920), stopped first.
+TEST(pm_wire_shared_state_follows_on_pms_net) {
+  struct Lancemate : Fake {
+    uint8_t vehicle_flags(Handle) override { return 0x10; }
+    int32_t player_lance_state() override { return 0; }
+    Handle player_vehicle() override { return 7; }
+  } f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  VehicleNet* vn = pm_vehicle_net(7);
+  EXPECT(b.set_net(vn));  // the order the shared state runs on
+  const size_t n = b.orders.size();
+  PmSharedState s(&b.current());
+  s.run(0.0f);
+  EXPECT(b.orders.size() == n + 1);
+  EXPECT(b.current().net && b.current().net->net() == vn && b.current().state->from == vn->follow());
+  EXPECT(c.fired == 0);  // the guns off (vt+0x10(0))
+  pm_pop_order(b);
+  b.set_net(nullptr);
+  delete f.self.net;
 }
 
 TEST(pm_wire_nets_ten_slots_and_the_kind_lookup) {

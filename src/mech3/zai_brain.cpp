@@ -493,7 +493,11 @@ void ScanState::run(float dt) {
 // 0x004cbe10 (vtable 0x005cbe18), made at start-up into 0x0060b460.
 struct SharedBehaviour : Behaviour {
   SharedBehaviour() : Behaviour(StepKind::Shared) {}
-  BehaviourState* make_state(Order& o) override { return new SharedState(&o); }  // 0x004cbe30
+  BehaviourState* make_state(Order& o) override {  // 0x004cbe30
+    if (pm_ai_on())
+      if (BehaviourState* pm = pm_make_state(*this, o)) return pm;
+    return new SharedState(&o);
+  }
 };
 }  // namespace
 
@@ -766,7 +770,7 @@ Behaviour* hold_behaviour() {
 SharedState::SharedState(Order* o) : BehaviourState(o, shared_behaviour()) {}
 Behaviour* SharedState::behaviour() const { return shared_behaviour(); }
 
-// Mech3.exe 1.2 @ 0x004cbeb0: stopped; a lancemate the player commands
+// Mech3.exe 1.2 @ 0x004cbeb0 (Pirate's Moon's 0x004d5c60 is PmSharedState): stopped; a lancemate the player commands
 // (+0xbc bit 4) forms up on the formation net when the pilot's game's type
 // is 4 (Training), else follows the player's vehicle's own net; any other pilot goes on
 // to the step of its net nearest it, the place kept (brain +0x298, the
