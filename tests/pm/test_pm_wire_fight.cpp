@@ -215,6 +215,18 @@ TEST(pm_wire_firing_stand_down_clears_the_fought_flag) {
   pm_forget(b, 7);
 }
 
+namespace {
+// A behaviour whose states count their resumes.
+int g_resumes = 0;
+struct Counted : Behaviour {
+  struct State : BehaviourState {
+    using BehaviourState::BehaviourState;
+    void resume() override { ++g_resumes; }
+  };
+  BehaviourState* make_state(Order& o) override { return new State(&o, this); }
+};
+}  // namespace
+
 TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
   Fake f;
   Installed in(&f);
@@ -229,6 +241,15 @@ TEST(pm_wire_orders_give_pop_and_run_on_the_brain) {
   EXPECT(b.orders.size() == n + 2 && b.current().net && b.current().net->net() == &vn);
   EXPECT(pm_may_fire(b) == b.may_fire());  // the last order's state, as MW3's 0x004e9070
   pm_pop_order(b);
+  pm_pop_order(b);
+  EXPECT(b.orders.size() == n);
+  // 0x004ea220: the order under the one popped resumes once (Brain::pop's resume stands for PM's).
+  Counted under;
+  pm_give_order(b, &vn, &under);
+  pm_push_behaviour(b, nullptr);
+  g_resumes = 0;
+  pm_pop_order(b);
+  EXPECT(g_resumes == 1 && b.current().state->from == &under);
   pm_pop_order(b);
   EXPECT(b.orders.size() == n);
   b.set_net(nullptr);
@@ -290,5 +311,121 @@ TEST(pm_wire_attack_makes_its_context_and_counts_the_order_side) {
   EXPECT(pm_run_pending(b) && b.orders.size() == n - 1);
   EXPECT(pm_run_pending(b) && !pm_run_pending(b));
   pm_pending_forget(b);
+  b.set_net(nullptr);
+}
+
+namespace mech3::ai {
+bool pm_set_target(AiTarget& t, Contact* c, bool keep_sides);
+}
+
+namespace {
+// Vehicles 21 (an ally, a lancemate the player commands) and 22 (an enemy); a contact's seen is its vehicle.
+struct Teams : TargetHooks {
+  Handle seen_vehicle(Handle s) override { return s; }
+  Handle ai_target(Handle v) override { return v; }
+  uint32_t team_of(Handle v) override { return v == 21 ? 2u : v == 22 ? 4u : 0u; }
+};
+struct Lancemate : BrainHooks {
+  AiTarget mate;
+  AiTarget* targetable(Handle v) override { return v == 21 ? &mate : nullptr; }
+};
+}  // namespace
+
+TEST(pm_wire_set_target_keeps_the_sides_and_saves_a_lancemate) {
+  Teams teams;
+  TargetHooks& old_t = target_hooks();
+  set_target_hooks(&teams);
+  Lancemate f;
+  f.mate.xbc = 0x10;
+  BrainHooks& old_b = brain_hooks();
+  set_brain_hooks(&f);
+  AiTarget t;
+  t.allies = 2, t.enemies = 4;
+  Contact ally, enemy;
+  ally.seen = 21, enemy.seen = 22;
+  pm_set_target(t, &enemy, false);
+  EXPECT(t.target == &enemy && t.enemy_target == &enemy && !t.ally_target && !t.saved_target);
+  pm_set_target(t, &ally, false);  // 0x004e6330: a lancemate picked while none is held is saved
+  EXPECT(t.target == &ally && t.ally_target == &ally && t.saved_target == &ally);
+  t.saved_target = nullptr, t.xbc = 0x20;  // one held: none saved
+  pm_set_target(t, &ally, false);
+  EXPECT(!t.saved_target);
+  pm_set_target(t, nullptr, false);  // none: the sides it was are cleared
+  EXPECT(!t.target && !t.ally_target && t.enemy_target == &enemy);
+  pm_set_target(t, &enemy, true);  // keep_sides: only the target
+  EXPECT(t.target == &enemy && !t.ally_target);
+  set_brain_hooks(&old_b);
+  set_target_hooks(&old_t);
+  pm_wire_clear();
+}
+
+TEST(pm_wire_scan_state_runs_its_tests_then_the_next) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  b.orders.emplace_back().owner = &b;
+  ScanStep scan(StepKind::Scan, 2);
+  scan.tests = {{ScanTest::AimOn, 0}, {ScanTest::TimeOn, 0}};
+  Behaviour after;
+  scan.next = &after;
+  b.params.put<int32_t>(0x98, 0), b.params.put<int32_t>(0xa0, 0);
+  b.current().state.reset(pm_make_scan_state(b.current(), scan));
+  b.x104 = 0;
+  b.current().state->run(0.1f);  // 0x004d5a10: this state goes
+  EXPECT(b.params.get<int32_t>(0x98) == 1 && b.params.get<int32_t>(0xa0) == 1);
+  EXPECT(b.x104 == 1);  // the brain's +0x158: run the order again
+  EXPECT(b.current().state && b.current().state->from == &after);
+}
+
+namespace {
+struct OneWeapon : BrainHooks {
+  void* w = nullptr;
+  void* object_of(Handle h) override { return h == 0x77 ? w : nullptr; }
+};
+}  // namespace
+
+// A beam's heat by the second (0x004b8f10): its cycle is a period's recharge plus its firing, and the shot's heat
+// (vt+0x1c, 0x004bc910) an eighth of that.
+TEST(pm_wire_firing_a_beams_heat_rate) {
+  mech3::WeaponType type;
+  type.heat = 4.0f, type.fire_time = 0.5f, type.recharge_rate = 1.5f;
+  zwep::WeaponDef def;
+  def.type = &type, def.period = 2.0f;
+  mech3::BeamWeapon beam(&def, nullptr, nullptr);
+  OneWeapon f;
+  f.w = &beam;
+  Installed in(&f);
+  const double cycle = 2.0 * 0.5 / 1.5 + 0.5;
+  const float rate = static_cast<float>(1.0 / cycle * 4.0);
+  EXPECT(shot_pm_hooks().cost(0x77) == rate);
+  EXPECT(shot_pm_hooks().dps(0x77) == 0.125 * rate);
+}
+
+// The step's quick plan is one that faces its contact; any_can_hit (0x004bd1c0) asks for the others.
+TEST(pm_wire_firing_a_quick_plan_faces) {
+  Fake f;
+  Installed in(&f);
+  PlanPm p;
+  p.faces = 1;
+  EXPECT(step_pm_hooks().plan_quick(pm_id(&p)));
+  p.faces = 0;
+  EXPECT(!step_pm_hooks().plan_quick(pm_id(&p)));
+  pm_ids_forget(&p);
+}
+
+// A queued follow (0x004ea0f0 with a 0x005eeca4) gives its order on the net it names.
+TEST(pm_wire_a_queued_follow_runs_on_its_net) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  mech3::ai::VehicleNet vn(9);
+  EXPECT(b.set_net(&vn));
+  mech3::ai::VehicleNet other(10);
+  pm_queue_follow(b, &other, nullptr);
+  EXPECT(pm_run_pending(b));
+  EXPECT(b.current().net && b.current().net->net() == &other);
+  pm_pop_order(b);
   b.set_net(nullptr);
 }

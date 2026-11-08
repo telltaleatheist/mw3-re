@@ -74,9 +74,13 @@ bool AiTarget::on_side(int32_t side, Handle vehicle) const {
   }
 }
 
+bool pm_ai_on();                                               // zai_wire_pm.h
+bool pm_set_target(AiTarget& t, Contact* c, bool keep_sides);  // PM's 0x004e6330 (zai_wire_targets_pm.cpp)
+
 // Mech3.exe 1.2 @ 0x004d5e40. Without keep_sides a target remembers itself
 // as the last ally or enemy picked; none clears those it was.
 bool AiTarget::set_target(Contact* c, bool keep_sides) {
+  if (pm_ai_on()) return pm_set_target(*this, c, keep_sides);
   if (!keep_sides) {
     if (!c) {
       if (ally_target == target) ally_target = nullptr;
