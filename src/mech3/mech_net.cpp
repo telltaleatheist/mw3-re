@@ -380,10 +380,11 @@ uint32_t net_next_player() {
   return g_net.ping_turn = g_net.mechs.front()->owner;
 }
 
-// Mech3.exe 1.2 @ 0x00470b40
+// Pirate's Moon 1.0 @ 0x00472d10 (MW3's 0x00470b40): no fast rate (MW3's
+// setting 1, 0.1 s); settings 0..2 go by the players (times [0x006076b8],
+// 1.0), any other 0.25 s.
 float net_send_period(int32_t players) {
-  if (g_net.rate_setting == 1) return 0.1f;
-  if (g_net.rate_setting != 0 && g_net.rate_setting != 2) return 0.25f;
+  if (static_cast<int32_t>(g_net.rate_setting) < 0 || g_net.rate_setting >= 3) return 0.25f;  // [0x0062cc30]
   switch (players) {
     case 2: case 3: case 4: return 1.0f / 7.0f;
     case 5: return 0.2f;
@@ -396,8 +397,9 @@ float net_send_period(int32_t players) {
 
 // Mech3.exe 1.2 @ 0x0046f160
 int32_t net_send_event(Mech& m, int32_t kind, intptr_t arg) {
-  if (!g_net.running || m.remote) return 0;  // a network mech's vt+0x168 is 0x00410490: 0
   const NetCalls& c = g_calls;
+  if (c.send_event) return c.send_event(m, kind, arg);
+  if (!g_net.running || m.remote) return 0;  // a network mech's vt+0x168 is 0x00410490: 0
   switch (kind) {
     case 0xf: {
       std::vector<uint8_t> b = net_state_message(m);
@@ -477,16 +479,18 @@ int32_t net_send_event(Mech& m, int32_t kind, intptr_t arg) {
       znet::send(b, sizeof b, false, 0);
       return 0;
     }
-    case 0x11: {  // the clock (the host's) and the end's reason, arg the game
+    case 0x11: {  // the clock (the host's) and the round's end reason, arg the game
       if (c.send_other) return c.send_other(m, kind, arg);
       const auto* gf = reinterpret_cast<const NetGameFields*>(arg);
       uint8_t b[0xc] = {0x11, 0, 0xc, 0};
-      const uint32_t reason = gf && gf->end_state ? static_cast<uint32_t>(*gf->end_state) & 3 : 0;  // [0x005e5674]'s low bits
-      const float left = c.clock_left ? c.clock_left() : 0.0f;  // [0x00609920]
+      // PM 0x00471b51: [0x00607744]'s low 3 bits the game's +0x90, guaranteed once there is one.
+      const int32_t end = gf && gf->round_end ? *gf->round_end : 0;
+      const uint32_t reason = static_cast<uint32_t>(end) & 7;
+      const float left = c.clock_left ? c.clock_left() : 0.0f;  // [0x0062da94]
       std::memcpy(b + 4, &reason, 4);
       std::memcpy(b + 8, &left, 4);
-      if (znet::is_host()) znet::send(b, sizeof b, false, 0);
-      c.clock ? c.clock(nullptr, 0, b, sizeof b) : net_clock_in(znet::local_id(), b, sizeof b);  // PM: from 0x005a8a30
+      if (znet::is_host()) znet::send(b, sizeof b, end != 0, 0);
+      c.clock ? c.clock(nullptr, znet::local_id(), b, sizeof b) : net_clock_in(znet::local_id(), b, sizeof b);  // PM: from 0x005a8a30
       return 0;
     }
     default:
@@ -494,8 +498,13 @@ int32_t net_send_event(Mech& m, int32_t kind, intptr_t arg) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0046ef70. The game time is [0x0060991c], the clock left
-// [0x00609920] while [0x00609924].
+// Pirate's Moon 1.0 @ 0x00471040 (MW3's 0x0046ef70). The game time is
+// [0x0062da90], the clock left [0x0062da94] while [0x0062da98]. PM: the
+// minute's warning only (no last second); on the host, the clock under 3 s
+// with no end reason yet ends the round, 3 (time's up) with a winner
+// (0x00437970) else 1 (overtime), sent at once; the clock (0x11) only every
+// 5 s, the reason with it; the game over once a round's end (+0x94) is 3 s
+// old (+0x88).
 void net_mech_tick(Mech& m) {
   const NetCalls& c = g_calls;
   NetGameFields* g = c.game ? c.game() : nullptr;
@@ -512,26 +521,27 @@ void net_mech_tick(Mech& m) {
   }
   if (g_net.next_ping <= game_time()) {
     net_send_event(m, 0x10, 0);
-    g_net.next_ping = game_time() - -5.1f;  // [0x005c33d8]
+    g_net.next_ping = game_time() + 5.1f;  // [0x005e5b3c]
   }
   const bool timed = c.clock_on && c.clock_on();
   const float left = c.clock_left ? c.clock_left() : 0.0f;
-  if (timed) {
-    if (left <= 60.0f && !g_net.warned) {
-      g_net.warned = 1;
-      g_net.last_second = 0;
-      if (c.hud_message) c.hud_message(4.0f, 0xf0b, nullptr);
+  if (timed && left <= 60.0f && !g_net.warned) {  // [0x005e5b38]
+    g_net.warned = 1;
+    if (c.hud_message) c.hud_message(4.0f, 0xf0b, nullptr);
+  }
+  if (znet::is_host()) {
+    if (timed && left < 3.0f && g->round_end && *g->round_end == 0) {
+      *g->round_end = 3;
+      if (!(c.round_winner && c.round_winner())) *g->round_end = 1;  // 0x00437970; unwired: none (3c)
+      if (g->clock_next) *g->clock_next = game_time();
     }
-    if (left <= 1.0f && !g_net.last_second) g_net.last_second = 1;
-    if (left < 3.0f && g->end_state && *g->end_state == 0) *g->end_state = 1;
+    if (g->clock_next && *g->clock_next <= game_time()) {
+      net_send_event(m, 0x11, reinterpret_cast<intptr_t>(g));
+      *g->clock_next = game_time() + 5.0f;  // [0x005df000]
+    }
   }
-  if (znet::is_host() && g->clock_next && *g->clock_next <= game_time()) {
-    net_send_event(m, 0x11, reinterpret_cast<intptr_t>(g));
-    *g->clock_next = game_time() - -5.0f;  // [0x005c33e4]
-  }
-  const int32_t state = g->end_state ? *g->end_state : 0;
-  if (state != 0 && state != 3) net_send_event(m, 0x11, reinterpret_cast<intptr_t>(g));
-  if (state == 3 && g->end_time && game_time() > *g->end_time) c.game_over ? c.game_over() : net_game_over();
+  if (g->end_state && *g->end_state != 0 && g->end_time && *g->end_time < game_time())
+    c.game_over ? c.game_over() : net_game_over();
 }
 
 namespace {
