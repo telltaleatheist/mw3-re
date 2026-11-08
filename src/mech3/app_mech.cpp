@@ -2038,6 +2038,10 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
     s.parts += p && p->node;
     if (p) s.armor += p->armor + p->internal;
   }
+  if (m->torso) {  // the torso's other sections: rear (3-5) and side (1, 2) armour, the side torsos' internal
+    for (int i = 1; i <= 5; ++i) s.armor += m->torso->sec_armor[i];
+    s.armor += m->torso->side_internal[0] + m->torso->side_internal[1];
+  }
   s.heat = m->heat;
   for (const Arm* a : m->arms) s.parts += a && a->hand && a->hand->node;
   for (const Leg* l : m->legs) {

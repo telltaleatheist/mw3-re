@@ -9,6 +9,7 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
@@ -87,6 +88,8 @@ std::vector<EquipmentItem*> equipment_in(Mech& m, int part) {
 }  // namespace
 
 DamageCalls& damage_calls() { return g_calls; }
+
+const Vec3* hit_shot() { return reinterpret_cast<const Vec3*>(zwep::shot_line()); }  // shot_from, shot_to
 FlyCalls& fly_calls() { return g_fly; }
 FreeCalls& free_calls() { return g_free; }
 
@@ -99,7 +102,7 @@ int MechPart::take_hit(WeaponDef* def, Collision*, float damage, Vec3* impulse) 
     // Difficulty (0x0040cc20) scales what the player and its side take.
     if (&m == w.mission_player || (w.mission_player->allies & m.team) != 0) d = difficulty_scale() * d;
   }
-  const Vec3* shot = w.shot;  // 0x00581e30
+  const Vec3* shot = hit_shot();  // 0x00581e30
   if (impulse) {
     WeaponType* t = def ? def->type : nullptr;
     apply_impact(impulse, t->impact_force);

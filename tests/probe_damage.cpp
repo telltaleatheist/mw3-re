@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
@@ -355,7 +356,8 @@ void probe_damage_world(const int32_t* world_v) {
   w.mission_player = world_v[1] ? &m : &g->other;
   w.force_feedback = world_v[2] != 0;
   std::memcpy(&mech3::difficulty_scale(), &world_v[3], 4);
-  std::memcpy(w.shot, &world_v[4], 24);
+  std::memcpy(&zwep::hit_state().shot_from, &world_v[4], 12);
+  std::memcpy(&zwep::hit_state().shot_to, &world_v[7], 12);
   w.death_anim_toggle = world_v[10] != 0;
   std::memcpy(&w.time, &world_v[11], 4);
   std::memcpy(&w.dt, &world_v[12], 4);
@@ -408,7 +410,7 @@ int probe_damage_op(int op, const int32_t* a, int32_t* result, int32_t* out, int
     case 2: m.destroy_part(a[0]); break;
     case 3: r = m.start_limp(a[0], a[1] != 0); break;
     case 4: r = m.knocked_down(a[0]); break;
-    case 5: r = m.torso->hit_section(world().shot); break;
+    case 5: r = m.torso->hit_section(mech3::hit_shot()); break;
     case 6: {  // the health 0x0041ba40 (test_mech_health.py): +0x40c and +0x410 given
       std::memcpy(&m.x40c, &a[0], 4);
       m.damaged = a[1] != 0;
