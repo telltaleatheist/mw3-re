@@ -18,9 +18,10 @@ float turn_or_back_pm(const float fwd[3], const float to[3], float* dot, float* 
                       const TurnPmParams& p);
 
 void away_pm(const SteerPm& s, float away[2], float* sum);  // 0x004dccf0
-// 0x004dcd20: this frame's turn and throttle. `near`: closer than this it faces along the way.
+// 0x004dcd20: this frame's turn and throttle. `near`: closer than this it faces along the way. `fwd`: the
+// context's forward when a caller hands its own (the backup's, turned round), else the vehicle's.
 void drive_pm(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float away[2], float dist, float near, float* turn,
-              float* throttle, float inv_slow, float slack_along, float slack_side);
+              float* throttle, float inv_slow, float slack_along, float slack_side, const float* fwd = nullptr);
 
 }  // namespace mech3::ai
 

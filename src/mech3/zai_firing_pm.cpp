@@ -111,8 +111,9 @@ bool AimPm::frame(zgame::Handle plan, zgame::Handle w, Brain* b, float f[9], flo
   active = *spread != 0;
   if (active) {
     const float* at = h.plan_position(plan);
-    if (w) {
-      h.weapon_line(w, at, muzzle, f + 6);
+    // FIX (bug): a destroyed weapon, or one with no node, writes nothing and the exe goes on with its stack's muzzle
+    // and way; here the vehicle's place, as with no weapon (fixes.md, The weapon's line with no node).
+    if (w && h.weapon_line(w, at, muzzle, f + 6)) {
     } else {
       h.vehicle_position(b, muzzle);
       for (int i = 0; i < 3; ++i) f[6 + i] = at[i] - muzzle[i];
@@ -194,7 +195,7 @@ void AimPm::repick(zgame::Handle plan, zgame::Handle w, Brain* b, float at[3]) {
 }
 
 // Pirate's Moon 1.0 @ 0x004bb580: new here, the manager's has_target off against a target whose
-// +0x6a8's +0x0c is 11, on otherwise (what 11 is isn't known); then MW3's 0x004b77e0.
+// +0x6a8's +0x0c (its roster id) is 11, the Elemental, on otherwise; then MW3's 0x004b77e0.
 void AimPm::lead(float dt, zgame::Handle plan, zgame::Handle w, zgame::Handle wm, Brain* b) {
   AimPmHooks& h = aim_pm_hooks();
   const zgame::Handle e = h.contact_entity(h.plan_contact(plan));
@@ -603,6 +604,35 @@ bool shot_pick(zgame::Handle wm, const Contact* c, const float* at, float hold, 
   return true;
 }
 
+namespace {
+// Pirate's Moon 1.0 @ 0x004ba660, a start-up initializer (the CRT's table, before WinMain): the defaults at
+// 0x0060b688. Nothing else writes them, so filling them once at start-up, as here, is the exe's.
+FiringPm firing_defaults() {
+  FiringPm f;
+  f.phase = 8;
+  f.time = FLT_MAX;
+  f.quick = 3.0f, f.delay = 6.0f, f.rest = 1.0f;
+  f.reach_arg = static_cast<float>(std::cos(0.3490658503988));  // 20, 30 and 45 degrees
+  f.track_arg = static_cast<float>(std::cos(0.5235987755982));
+  f.fire_arg = static_cast<float>(std::cos(0.7853981633973));
+  f.x24 = 50.0f;
+  f.too_hot = 0.9f, f.x3c = 1.5f, f.x40 = 1.0f, f.x44 = 0.3f, f.x48 = 0.2f;
+  f.x50 = 0x3e99999a;
+  f.x54 = 0.473451167345047f;
+  f.cool_for = 1.0f, f.cool_until = FLT_MAX, f.cool_below = 1.1f, f.shot_every = 0.5f;
+  return f;
+}
+const FiringPm g_firing_defaults = firing_defaults();
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004ba750's copy of the 0x6c bytes at 0x0060b688; the vehicle and brain stay.
+void FiringPm::seed() {
+  const zgame::Handle v = vehicle;
+  Brain* b = brain;
+  *this = g_firing_defaults;
+  vehicle = v, brain = b;
+}
+
 // Pirate's Moon 1.0 @ 0x004bb700, the states as the exe's: 0, 8 start; 1 ask the range; 2 wait; 7 pick
 // a plan; 3 turn to it; 4, 5 fire when it's up; 6 hold the trigger. The gotos are the exe's, whose
 // states fall into each other.
@@ -884,6 +914,84 @@ bool can_hit(zgame::Handle w, const float at[3]) {
   to_local(d, h.matrix(m));
   unit3(d);
   return h.has_mount(w) ? h.mount_reaches(w, d) : h.mech_reaches(m, d);
+}
+
+// Pirate's Moon 1.0 @ 0x004b7800. FIX (bug): without a node to place the muzzle by, the exe leaves `dir` and the
+// cosines unwritten and its callers read their stack; here the muzzle stays where it was put, `dir` is the zero
+// way and the cosines 1 (fixes.md, The weapon's line with no node).
+bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
+                 float* cos, float* cos_kept) {
+  constexpr float kMiddle = 16383.5f, kScale = 6.103701889514923e-05f;  // 0x00605ee4, 0x00605ee0
+  if (w.damage == 1.0f || std::isnan(w.damage)) return false;
+  const bool mounted = w.part_node && w.fp_place;
+  const zgame::Handle node = mounted ? w.part_node : w.node;
+  if (mounted) muzzle[0] = w.fp_place[0], muzzle[1] = w.fp_place[1], muzzle[2] = w.fp_place[2];
+  else muzzle[0] = muzzle[1] = muzzle[2] = 0.0f;
+  if (w.salvo_left && w.fp_place) {
+    for (int i = 0; i < 2; ++i) {
+      const double k = (static_cast<double>(h.rand()) - kMiddle) * kScale;
+      muzzle[i] = static_cast<float>(double{w.fp_radius} * k + muzzle[i]);
+    }
+  } else {
+    for (int i = 0; i < 3; ++i) muzzle[i] = muzzle[i] + w.spread[i];
+  }
+  if (h.node_place(node, muzzle)) {
+    dir[0] = dir[1] = dir[2] = 0.0f;
+    *cos = *cos_kept = 1.0f;
+    return false;
+  }
+  const zgame::Handle face_node = w.part_node;
+  if (at) {
+    for (int i = 0; i < 3; ++i) dir[i] = at[i] - muzzle[i];
+    unit3(dir);
+  } else {
+    if (!w.node) return false;
+    const float* a = h.node_axis(w.node);
+    dir[0] = -a[0], dir[1] = -a[1], dir[2] = -a[2];
+  }
+  if (h.quiet()) return true;
+  const zgame::Handle n = face_node ? face_node : w.node;
+  const float* a = n ? h.node_axis(n) : nullptr;
+  if (!a) {
+    *cos = *cos_kept = 1.0f;
+    return true;
+  }
+  const float d = static_cast<float>((double{a[0]} * dir[0] + double{a[1]} * dir[1]) + double{a[2]} * dir[2]);
+  const double c = -double{d};
+  *cos = static_cast<float>(c);
+  const double least = w.fp_tolerance ? double{*w.fp_tolerance} : double{0.473451167345047f};  // [0x006070d8]
+  if (c >= least) {
+    *cos_kept = static_cast<float>(c);
+    return true;
+  }
+  dir[0] = -a[0], dir[1] = -a[1], dir[2] = -a[2];
+  *cos_kept = 1.0f;
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x004a7000 with 0x004a6e90 and 0x004a6dd0: within the pitch band, and either yaw band unless
+// the way is all but straight up or down. The exe's keeps the workings for a caller; none here reads them.
+bool firepoint_reaches(const float cone[18], const float dir[3]) {
+  const bool pitch = cone[14] <= dir[1] && dir[1] <= cone[15];
+  bool first = true, second = true;
+  if (std::fabs(double{dir[1]}) < 0.9990000128746033) {
+    float flat[3] = {dir[0], 0.0f, dir[2]};
+    unit3(flat);
+    const auto side = [&](const float* band) {
+      const float d = static_cast<float>((double{band[2]} * flat[2] + double{band[0]} * flat[0]) - band[3]);
+      return 0.0f <= d;
+    };
+    first = side(cone);
+    second = side(cone + 4);
+  }
+  return pitch && (first || second);
+}
+
+// Pirate's Moon 1.0 @ 0x00467490: nothing clamped.
+bool torso_reaches(float min_pitch, float max_pitch, float max_yaw, const float dir[3]) {
+  const float pitch = static_cast<float>(std::asin(double{dir[1]}));
+  const float yaw = static_cast<float>(std::atan2(double{dir[0]}, -double{dir[2]}));
+  return pitch <= max_pitch && min_pitch <= pitch && yaw <= max_yaw && -max_yaw <= yaw;
 }
 
 // Pirate's Moon 1.0 @ 0x004bd1c0

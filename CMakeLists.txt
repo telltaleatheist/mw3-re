@@ -22,6 +22,7 @@ option(MW3_BUILD_PM "Build Pirate's Moon (mw3pm)" ON)
 # On the branch `pm` (docs/games-layout.md) the plain build is Pirate's Moon alone. MW3's programs, its
 # probe and its tests are here only for reading; MW3 is built from `main`.
 option(MW3_BUILD_MW3 "Build MechWarrior 3's programs, probe and tests from this branch too" OFF)
+option(MW3_PM_HITS "The first run's first-hit log of PM's AI (tools/pm-hits), scratch builds only" OFF)
 set(MW3PM_GAME_DIR "${CMAKE_SOURCE_DIR}/game/pm" CACHE PATH "The Pirate's Moon install the PM tests and tools read")
 # The version mw3 --version and the Windows version resource give: git's
 # describe (a tag, or the commit) and the commit count.
@@ -269,6 +270,14 @@ add_library(mw3core STATIC
   src/mech3/zai_node_pm.cpp
   src/mech3/zai_jump_pm.cpp
   src/mech3/zai_firing_pm.cpp
+  src/mech3/zai_wire_pm.cpp
+  src/mech3/zai_attackers_pm.cpp
+  src/mech3/zai_wire_states_pm.cpp
+  src/mech3/zai_wire_walk_pm.cpp
+  src/mech3/zai_wire_firing_pm.cpp
+  src/mech3/zai_wire_attack_pm.cpp
+  src/mech3/zai_wire_orders_pm.cpp
+  src/mech3/zai_wire_nets_pm.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp
   src/mech3/zai_attack.cpp
@@ -620,6 +629,9 @@ if(MW3_BUILD_PM)
   add_library(pmcore ALIAS mw3core)
   add_executable(mw3pmtests
     tests/pm/test_pm_lobby.cpp
+    tests/pm/test_pm_wire.cpp
+    tests/pm/test_pm_wire_walk.cpp
+    tests/pm/test_pm_wire_fight.cpp
     tests/main.cpp
     tests/pm/test_pm_game.cpp
     tests/pm/test_pm_collide_rate.cpp
@@ -629,6 +641,11 @@ if(MW3_BUILD_PM)
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)
+  if(MW3_PM_HITS)
+    file(GLOB pm_hit_sources src/mech3/zai_*_pm.cpp src/mech3/zai_wire*_pm.cpp src/mech3/zai_attackers_pm.cpp)
+    set_source_files_properties(${pm_hit_sources} PROPERTIES COMPILE_OPTIONS "-finstrument-functions-after-inlining")
+    target_sources(mw3pmtests PRIVATE tools/pm-hits/pm_hits.cpp)
+  endif()
   target_compile_definitions(mw3pmtests PRIVATE MW3_GAME_DIR="${MW3_GAME_DIR}"
                                               MW3PM_GAME_DIR="${MW3PM_GAME_DIR}"
                                               MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
@@ -672,6 +689,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_boundary.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_steer.cpp tests/probe_pm_ai_walk.cpp tests/probe_pm_ai_link.cpp tests/probe_pm_ai_jump.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_mechvt.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_ai_attackers.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_window.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_refit.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attack.cpp tests/probe_pm_ai_aim.cpp tests/probe_pm_ai_brain.cpp)

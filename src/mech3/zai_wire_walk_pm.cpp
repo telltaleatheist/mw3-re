@@ -1,0 +1,141 @@
+#include "mech3/zai_wire_walk_pm.h"
+
+#include <algorithm>
+
+#include "mech3/mech.h"
+#include "mech3/zai_brain_pm.h"
+#include "mech3/zai_node.h"
+#include "mech3/zai_node_pm.h"
+#include "mech3/zai_steps.h"
+#include "mech3/zai_wire_attack_pm.h"
+#include "mech3/zainet_inout.h"
+
+namespace mech3::ai {
+
+namespace {
+struct Engage : EngagePmHooks {
+  float now() override { return brain_hooks().now(); }
+  void position(zgame::Handle v, float o[3]) override { brain_hooks().position(v, o); }
+  double health(zgame::Handle v) override { return brain_hooks().health(v); }
+};
+}  // namespace
+
+zgame::Handle wire_walk::target_entity(Brain& b_, zgame::Handle v) {
+  const AiTarget* t = brain_hooks().targetable(v);
+  return t && t->target ? brain_hooks().contact_entity(t->target) : 0;
+}
+
+bool wire_walk::has_target_contact(Brain& b_, zgame::Handle v) {
+  const AiTarget* t = brain_hooks().targetable(v);
+  return t && t->target;
+}
+
+bool wire_walk::pull(Brain& b_, zgame::Handle v, const float from[3], const float to[3], float out[3]) {
+  Pilot p;
+  brain_hooks().pilot_of(v, &p);
+  return inout_pull(v, from, to, out, p.jump_jets != 0);
+}
+
+// PM's mech +0x544 is the configuration's +0x7c (0x00414cb0), the port's throttle_up.
+float wire_walk::pilot_x544(Brain& b_, zgame::Handle v) {
+  const zgame::Handle m = brain_hooks().vehicle_mech(v);
+  const Mech* k = m ? static_cast<const Mech*>(brain_hooks().object_of(m)) : nullptr;
+  return k ? k->throttle_up : 0.0f;
+}
+
+// The mech's 0x0041e010: its stopping distance (vt+0x12c) from its top speed times `t`, rounded to a float between.
+double wire_walk::stopping_at(Brain& b_, zgame::Handle v, float t) {
+  return brain_hooks().stopping_distance(v, brain_hooks().speed_at(v, t));
+}
+
+// For the first run orders are MW3's (dev 2): what the order is about is its vehicle net's vehicle, as
+// StationHoldState reads it.
+zgame::Handle wire_walk::order_target(Brain& b_) {
+  if (b_.orders.empty() || !b_.current().net) return 0;
+  const auto* vn = dynamic_cast<VehicleNet*>(b_.current().net->net());
+  return vn ? vn->vehicle : 0;
+}
+
+const float* wire_walk::target_place(Brain& b_, zgame::Handle t, float* place_) {
+  if (!t) return nullptr;
+  brain_hooks().position(t, place_);
+  return place_;
+}
+
+const float* wire_walk::target_facing(Brain& b_, zgame::Handle t, float* facing_) {
+  if (!t) return nullptr;
+  brain_hooks().forward(t, &facing_[0], &facing_[2]);
+  return facing_;
+}
+
+bool wire_walk::target_live(Brain& b_, zgame::Handle t) { return t && brain_hooks().entity_active(t); }
+
+bool wire_walk::must_leave(Brain& b_, zgame::Handle v) {
+  Engage h;
+  return must_leave_pm(h, pm_brain(b_).tick, v);
+}
+
+const InOutVia* wire_walk::at_via(Brain& b_, zgame::Handle v) {
+  const InOutLast last = inout_last(v);
+  return last.at_via ? last.via : nullptr;
+}
+
+// 0x004d9f0d: a follow item on the via's net (+0x00) and node (+0x04).
+void wire_walk::queue_via(Brain& b_, const InOutVia* via) { pm_queue_follow(b_, via->net, via->node); }
+
+namespace {
+
+// PM's link pick over the brain's MW3 nodes: their links, way points and weights (MW3's vt+0xa8 standing in for
+// PM's vt+0xac, the same slot moved).
+class LinkPick : public LinkPickPmHooks {
+ public:
+  explicit LinkPick(Brain& b) : b_(b) {}
+  zgame::Handle path_next(zgame::Handle at) override { return pm_id(brain_hooks().path_next(b_, node(at))); }
+  int32_t link_count(zgame::Handle at) override { return node(at)->link_count(); }
+  zgame::Handle link(zgame::Handle at, int32_t i) override { return pm_id(node(at)->link(i)); }
+  zgame::Handle null_step(zgame::Handle) override { return pm_id(ai::null_step()); }
+  const float* way_point(zgame::Handle at) override { return node(at)->way_point(); }
+  float weight(zgame::Handle l, zgame::Handle, zgame::Handle at, LinkWayPm* way) override {
+    LinkWay w;
+    w.x00 = way->x00, w.dist = way->dist;
+    std::copy(way->from, way->from + 3, w.from), std::copy(way->dir, way->dir + 3, w.dir);
+    const float r = node(l)->weight(b_, node(at), &w);
+    way->x00 = w.x00, way->dist = w.dist;
+    std::copy(w.from, w.from + 3, way->from), std::copy(w.dir, w.dir + 3, way->dir);
+    return r;
+  }
+  int32_t rand_int() override { return brain_hooks().rand(); }
+
+ private:
+  static Behaviour* node(zgame::Handle h) { return static_cast<Behaviour*>(pm_ptr(h)); }
+  Brain& b_;
+};
+
+}  // namespace
+
+// The node is the running state's (MW3's NodeState `from`); none with no order, no state or a state on no node.
+zgame::Handle wire_walk::next_along(Brain& b_, const float* dir) {
+  if (b_.orders.empty()) return 0;
+  const BehaviourState* st = b_.current().state.get();
+  if (!st || !st->from) return 0;
+  LinkPick h(b_);
+  return pick_link_pm(h, pm_id(&b_), pm_id(st->from), dir);
+}
+
+void wire_walk::set_behaviour(Brain& b_, zgame::Handle b) { b_.current().set_behaviour(static_cast<Behaviour*>(pm_ptr(b))); }
+
+void wire_walk::order_pop(Brain& b_) { b_.current().pop(); }
+
+void wire_walk::return_back(Brain& b_) { pm_queue_back(b_, nullptr); }
+
+zgame::Handle wire_walk::contact_pick(Brain& b_, zgame::Handle v, int32_t kind) {
+  const Contact* c = brain_hooks().pick(v, kind);
+  return c ? brain_hooks().contact_entity(c) : 0;
+}
+
+const float* wire_walk::entity_place(Brain& b_, zgame::Handle t, float* place_) {
+  brain_hooks().position(t, place_);
+  return place_;
+}
+
+}  // namespace mech3::ai

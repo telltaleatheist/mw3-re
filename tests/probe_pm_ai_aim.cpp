@@ -27,9 +27,10 @@ struct W : AimPmHooks {
   float pilot_aid(Brain*) override { return f[2]; }
   bool targeting_aid(Brain*) override { return in[3] != 0; }
   void vehicle_position(Brain*, float out[3]) override { std::memcpy(out, f + 3, 12); }
-  void weapon_line(zgame::Handle, const float at[3], float muzzle[3], float dir[3]) override {
+  bool weapon_line(zgame::Handle, const float at[3], float muzzle[3], float dir[3]) override {
     for (int i = 0; i < 3; ++i) log.push_back(bits(at[i]));
     std::memcpy(muzzle, f + 6, 12), std::memcpy(dir, f + 9, 12);
+    return true;  // the stand-in always writes, as the exe's own does for a weapon with a node
   }
   int32_t rand() override { return rands[nrand++]; }
   float now() override { return f[12]; }
@@ -402,9 +403,10 @@ struct Pl : PlanPmHooks {
   bool spreads(zgame::Handle w) override { return wi(w)[4] != 0 && wi(w)[3] != 0; }
   float spread(zgame::Handle w) override { return wf(w)[6]; }
   const float* offset(zgame::Handle w) override { return wf(w) + 7; }
-  bool buried(zgame::Handle node, const float at[3]) override {
+  bool buried(zgame::Handle node, float at[3]) override {
     log.push_back(0x98), log.push_back(static_cast<uint32_t>(node));
     vec(0x98, at);
+    at[0] = at[0] + 7.0f, at[2] = at[2] - 3.0f;  // into the world, as the exe's
     for (zgame::Handle w : ws)
       if (w == g_cur) return wi(w)[5] != 0;
     return false;
@@ -458,3 +460,52 @@ extern "C" int32_t probe_pm_ai_plan(const int32_t* in, const int32_t* rands, con
 }
 
 extern "C" void probe_pm_cone_table(float* out) { cone_table(out); }
+
+// The firing's defaults, word by word from +0x00, for test_pm_ai_brain.py.
+extern "C" void probe_pm_firing_seed(uint32_t* out) {
+  FiringPm f;
+  f.seed();
+  const auto put = [&](int off, float v) { std::memcpy(out + off / 4, &v, 4); };
+  for (int i = 0; i < 27; ++i) out[i] = 0;
+  out[0] = f.phase;
+  put(0x04, f.time), put(0x08, f.quick), put(0x0c, f.delay), put(0x10, f.rest), put(0x18, f.reach_arg), put(0x1c, f.track_arg);
+  put(0x20, f.fire_arg), put(0x24, f.x24), put(0x38, f.too_hot), put(0x3c, f.x3c), put(0x40, f.x40), put(0x44, f.x44), put(0x48, f.x48);
+  out[0x50 / 4] = f.x50;
+  put(0x54, f.x54), put(0x58, f.cool_for), put(0x5c, f.cool_until), put(0x60, f.cool_below), put(0x64, f.shot_every);
+}
+
+extern "C" int32_t probe_pm_firepoint_reaches(const float* cone, const float* dir) { return firepoint_reaches(cone, dir); }
+extern "C" int32_t probe_pm_torso_reaches(const float* lim, const float* dir) { return torso_reaches(lim[0], lim[1], lim[2], dir); }
+
+namespace {
+struct Line : WeaponLinePmHooks {
+  const int32_t* in;
+  const float* f;
+  int n = 0;
+  bool node_place(zgame::Handle node, float io[3]) override {
+    if (!node) return true;
+    io[0] = io[0] + 1.0f, io[1] = io[1] + 2.0f, io[2] = io[2] + 3.0f;
+    return false;
+  }
+  const float* node_axis(zgame::Handle node) override { return node == 0x41 ? f + 12 : f + 15; }
+  int32_t rand() override { return in[6 + (n++ & 1)]; }
+  bool quiet() override { return in[5] != 0; }
+};
+}  // namespace
+
+// in: part, node, firepoint, salvo, at, quiet, two rolls. f: damage, fp place, radius, tolerance, spread, at, the
+// part node's axis, the node's axis. out: the answer, muzzle, dir, the two cosines.
+extern "C" void probe_pm_weapon_line(const int32_t* in, const float* f, float* out) {
+  Line h;
+  h.in = in, h.f = f;
+  WeaponLinePm w;
+  w.damage = f[0];
+  w.part_node = in[0] ? 0x41 : 0;
+  w.node = in[1] ? 0x42 : 0;
+  if (in[2]) w.fp_place = f + 1, w.fp_radius = f[4], w.fp_tolerance = f + 5;
+  w.salvo_left = in[3];
+  w.spread[0] = f[6], w.spread[1] = f[7], w.spread[2] = f[8];
+  float mz[3] = {-7, -7, -7}, dir[3] = {-7, -7, -7}, c = -7, k = -7;
+  out[0] = weapon_line(h, w, in[4] ? f + 9 : nullptr, mz, dir, &c, &k) ? 1.0f : 0.0f;
+  out[1] = mz[0], out[2] = mz[1], out[3] = mz[2], out[4] = dir[0], out[5] = dir[1], out[6] = dir[2], out[7] = c, out[8] = k;
+}

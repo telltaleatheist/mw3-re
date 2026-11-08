@@ -21,13 +21,13 @@ class AimPmHooks {
   virtual const float* plan_position(zgame::Handle plan) = 0;           // vt+0x20
   virtual zgame::Handle contact_entity(const Contact* c) = 0;           // 0x004f8d70
   virtual bool entity_is_vehicle(zgame::Handle e) = 0;                  // vt+0x48
-  virtual uint32_t entity_pilot_kind(zgame::Handle e) = 0;              // vt+0x58, its +0x6a8's +0x0c; 0 none
+  virtual uint32_t entity_pilot_kind(zgame::Handle e) = 0;              // vt+0x58, its +0x6a8's +0x0c: the roster id; 0 none
   virtual float difficulty_error() = 0;                                 // [0x0062cc64]
   virtual float pilot_error(Brain* b) = 0;                              // +0xb8
   virtual float pilot_aid(Brain* b) = 0;                                // +0xc0
   virtual bool targeting_aid(Brain* b) = 0;                             // the vehicle's +0x3f4 or +0x3c8 above 0
   virtual void vehicle_position(Brain* b, float out[3]) = 0;            // 0x005cb260 on the brain's vehicle
-  virtual void weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) = 0;  // 0x004b7800
+  virtual bool weapon_line(zgame::Handle w, const float at[3], float muzzle[3], float dir[3]) = 0;  // 0x004b7800: false, nothing written
   virtual int32_t rand() = 0;
   virtual float now() = 0;                                              // [0x0062da90]
   virtual void wm_aim_at(zgame::Handle wm, const float* at) = 0;        // 0x004b4a20
@@ -124,6 +124,7 @@ struct PlanPm {
   float dir[3] = {0, 0, 0};   // +0x18  to the aim, in the vehicle's frame
   float place[3] = {0, 0, 0}; // +0x28  the part's
   bool seen = false;          // +0x0d
+  bool fired = false;         // +0x10
 };
 
 // The firing's fields the pick reads and keeps.
@@ -160,7 +161,7 @@ class ShotPmHooks {
   virtual double reach_most(zgame::Handle w) = 0;                       // 0x004b7b90
   virtual float cost(zgame::Handle w) = 0;                              // +0x1c
   virtual float value(zgame::Handle w) = 0;                             // +0x18, MW3's rating
-  virtual double dps(zgame::Handle w) = 0;                              // vt+0x1c, MW3's vt+0x10
+  virtual double dps(zgame::Handle w) = 0;                              // vt+0x1c: not damage, a shot's heat
   virtual int32_t ammo(zgame::Handle w) = 0;                            // vt+0x20
   virtual bool bin(zgame::Handle w, int32_t* full) = 0;                 // +0x5c, 0x004b8d30
   virtual void group_clear(zgame::Handle wm) = 0;                       // +0x30, 0x004b5dc0 each
@@ -207,7 +208,7 @@ class PlanPmHooks {
   virtual bool spreads(zgame::Handle w) = 0;                            // +0x6c and +0x84
   virtual float spread(zgame::Handle w) = 0;                            // +0x84's +0x60
   virtual const float* offset(zgame::Handle w) = 0;                     // +0x88
-  virtual bool buried(zgame::Handle node, const float at[3]) = 0;       // 0x004ff3c0
+  virtual bool buried(zgame::Handle node, float at[3]) = 0;             // 0x004ff3c0: `at` turned to the world's, true without a node
   virtual bool has_mount(zgame::Handle w) = 0;                          // +0x84
   virtual bool mount_reaches(zgame::Handle w, const float dir[3]) = 0;  // 0x004a7000
   virtual bool mech_reaches(zgame::Handle m, const float dir[3]) = 0;   // vt+0x94
@@ -225,6 +226,29 @@ void plan_sight(PlanPm& p, const Contact* c);                           // 0x004
 zgame::Handle best_weapon(zgame::Handle wm);                            // 0x004b9de0
 bool can_hit(zgame::Handle w, const float at[3]);                       // 0x004b8f80
 bool any_can_hit(zgame::Handle wm, const float at[3]);                  // 0x004bd1c0
+// A weapon's line, 0x004b7800: where it fires from, the way to a point, and how far off its part's facing.
+struct WeaponLinePm {
+  float damage = 0;                   // +0x74
+  zgame::Handle part_node = 0;        // +0x28's +0x08, none without a part
+  zgame::Handle node = 0;             // +0x24
+  const float* fp_place = nullptr;    // the firepoint's +0x70, none without one
+  float fp_radius = 0;                // its +0x60
+  const float* fp_tolerance = nullptr;  // its +0x00, the cosine it must face within
+  int32_t salvo_left = 0;             // +0x6c
+  float spread[3] = {0, 0, 0};        // +0x88
+};
+class WeaponLinePmHooks {
+ public:
+  virtual ~WeaponLinePmHooks() = default;
+  virtual bool node_place(zgame::Handle node, float io[3]) = 0;  // 0x004ff3c0: false when placed
+  virtual const float* node_axis(zgame::Handle node) = 0;         // its +0x38's +0x78
+  virtual int32_t rand() = 0;
+  virtual bool quiet() = 0;                                       // [0x0062f86c]: no facing asked
+};
+bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
+                 float* cos, float* cos_kept);  // 0x004b7800
+bool firepoint_reaches(const float cone[18], const float dir[3]);       // 0x004a7000, a firepoint's aim cone
+bool torso_reaches(float min_pitch, float max_pitch, float max_yaw, const float dir[3]);  // 0x00467490's answer
 
 // What the step asks outside. A plan and its virtuals are handles here until the step is wired to
 // PlanPm: vt+0x14 turn, vt+0x04 in the cone, vt+0x1c sight, vt+0x20 place.
@@ -285,14 +309,19 @@ struct FiringPm {
   float rest = 0;             // +0x10
   zgame::Handle plan = 0;     // +0x14
   float reach_arg = 0, track_arg = 0, fire_arg = 0;  // +0x18, +0x1c, +0x20
+  float x24 = 0;              // +0x24
   float range = 0;            // +0x2c
   float wait = 0;             // +0x30
   bool busy = false;          // +0x34
   float too_hot = 0;          // +0x38
+  float x3c = 0;              // +0x3c
   float x40 = 0;              // +0x40
+  float x44 = 0, x48 = 0;     // +0x44, +0x48
   uint32_t x50 = 0;           // +0x50
+  float x54 = 0;              // +0x54  what `rate` answers
   float cool_for = 0, cool_until = 0, cool_below = 0;  // +0x58, +0x5c, +0x60
   float shot_every = 0, shot_next = 0;  // +0x64, +0x68
+  void seed();                // 0x004ba750's copy of the start-up's numbers (0x004ba660)
   void step(float dt);        // 0x004bb700
 };
 
