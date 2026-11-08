@@ -434,3 +434,37 @@ extern "C" int32_t probe_pm_lobby_settings(const int32_t* in, int32_t* out) {
   std::copy(lg.begin(), lg.end(), out);
   return static_cast<int32_t>(lg.size());
 }
+
+// Pirate's Moon's target killed (0x004e2f50) for test_pm_lobby_settings.py's base part. in: health (bits), the
+// base (mpoption), active. out: the base told (-9 none), destroyed, active, health's bits.
+#include "mech3/zai_target.h"
+#include "mech3/zrdraiv.h"
+namespace {
+int32_t g_base_told;
+struct BaseHooks : mech3::ai::TargetHooks {
+  void entity_init(mech3::ai::Handle) override {}
+  int32_t node_box(mech3::ai::Handle, float* box) override {
+    for (int k = 0; k < 6; ++k) box[k] = 0;
+    return 1;
+  }
+  void base_destroyed(int32_t base) override { g_base_told = base; }
+};
+}  // namespace
+
+extern "C" void probe_pm_target_kill(const int32_t* in, int32_t* out) {
+  BaseHooks hooks;
+  mech3::ai::set_target_hooks(&hooks);
+  mech3::ai::TargetRec rec;
+  rec.height = 5.0f;
+  mech3::ai::TargetDesc d;
+  std::memcpy(&d.health, &in[0], 4);
+  d.mpoption = in[1];
+  auto* t = new mech3::ai::CZAiTarget(1, 0, d, &rec, false);
+  t->active = static_cast<uint8_t>(in[2]);
+  g_base_told = -9;
+  t->kill();
+  out[0] = g_base_told, out[1] = t->destroyed, out[2] = t->active;
+  std::memcpy(&out[3], &t->desc.health, 4);
+  delete t;
+  mech3::ai::set_target_hooks(nullptr);
+}

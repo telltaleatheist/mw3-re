@@ -11,6 +11,8 @@ and whose pick is at +0x16c (its value an item's +4), read by the exe's own 0x43
    (0x436600, run as the exe's), guaranteed to all.
 3. The option rules 0x49e400 (check_lobby_rules): which error, which confirmations (0x4afb30 with 0x1e3 and 0xfbd or
    0x2c4, answered by the case), and the team play it sets ([0x62cc34]); the screen's own calls stood in for.
+4. A target killed 0x4e2f50 (CZAiTarget::kill, MW3's 0x4d2b60): a base's (its targets.zrd mpoption, +0xe8, 1 or 2;
+   -1 none) then tells the network game 0x472b40 (TargetHooks::base_destroyed; stood in for and logged).
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_lobby_settings.py
 """
@@ -217,7 +219,36 @@ def main():
             key = theirs[-2] if op == 3 else theirs[18] if op == 1 else len(theirs)
             seen[key] = seen.get(key, 0) + 1
         print(f'{name}: 1000 identical; {dict(sorted(seen.items()))}', flush=True)
+    target_kill(probe, rng)
     os._exit(0)
+
+
+def target_kill(probe, rng):
+    z = test_pm_zar.Emulated()
+    uc = z.cpu._uc
+    told = []
+    z.native_stub(0x472b40, lambda c: told.append(s32(c.arg(0))) or 0, 0)
+    probe.probe_pm_target_kill.argtypes = [ctypes.POINTER(I32), ctypes.POINTER(I32)]
+    t = z.alloc(0x110)
+    seen = {}
+    for i in range(500):
+        health = struct.unpack('<i', struct.pack('<f', rng.choice([0.0, -5.0, 0.5, 100.0])))[0]
+        v = [health, rng.choice([-1, -1, 1, 2, 0, 7]), rng.randrange(2)]
+        uc.mem_write(t, bytes(0x110))
+        uc.mem_write(t + 0xd8, struct.pack('<i', health)), uc.mem_write(t + 0xe8, struct.pack('<i', v[1]))
+        uc.mem_write(t + 8, bytes([v[2]]))
+        told.clear()
+        z.call(0x4e2f50, ecx=t)
+        theirs = [told[0] if told else -9, uc.mem_read(t + 0xfc, 1)[0], uc.mem_read(t + 8, 1)[0],
+                  s32(struct.unpack('<I', bytes(uc.mem_read(t + 0xd8, 4)))[0])]
+        out = (I32 * 4)()
+        probe.probe_pm_target_kill((I32 * 3)(*v), out)
+        mine = list(out)
+        if mine != theirs:
+            print(f'target kill case {i} {v}: exe {theirs} port {mine}', flush=True)
+            os._exit(1)
+        seen[theirs[0]] = seen.get(theirs[0], 0) + 1
+    print(f'target kill: 500 identical; the base told {dict(sorted(seen.items()))}', flush=True)
 
 
 if __name__ == '__main__':

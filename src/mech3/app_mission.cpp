@@ -1195,6 +1195,10 @@ struct WiredTargetHooks : ai::TargetHooks {
     t.set_target(c, false);
     program_hud_target_set_by(&t);
   }
+  // Pirate's Moon 0x00472b40 on the network game (0x0047b710(0), the pilot's), the game time [0x0062da90].
+  void base_destroyed(int32_t base) override {
+    if (MultiplayerGame* g = mission_multiplayer_game()) g->base_destroyed(base, missions().time);
+  }
   GameEngine* e = nullptr;
   std::unique_ptr<ai::TargetRec> rec[2];
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
