@@ -97,6 +97,19 @@ extern "C" int probe_pm_ai_targets(const char* entry, char* out, int size) {
   return static_cast<int>(o.size());
 }
 
+// A record's reset (0x004e9d60) from every byte set to `fill`: PM's words +0x04..+0xef in PM's order (the port's
+// numbers, its target block, then its flags, held at MW3's +0xcc).
+extern "C" void probe_pm_ai_reset(uint32_t fill, uint32_t* out) {
+  AiParams p;
+  std::memset(p.raw, static_cast<int>(fill & 0xff), sizeof p.raw);
+  for (uint32_t& w : p.target_words) w = fill * 0x01010101u;
+  p.reset();
+  int k = 0;
+  for (int off = 4; off < 0xcc; off += 4) out[k++] = p.get<uint32_t>(off);
+  for (uint32_t w : p.target_words) out[k++] = w;
+  out[k++] = p.get<uint32_t>(0xcc);
+}
+
 // aiv.zrd's records (0x004f0830): the numbers, the target block, the flags as PM holds them.
 extern "C" int probe_pm_ai_aiv(const char* entry, char* out, int size) {
   rdr_hooks().localize = same;

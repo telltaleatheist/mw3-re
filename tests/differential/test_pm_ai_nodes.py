@@ -26,6 +26,7 @@ MECHS = {m: i for i, m in enumerate(md.MECHS)}
 READ, CTOR, VALVE, SOUND, LOCALIZE = 0x4ec240, 0x4d20c0, 0x4e4100, 0x590a70, 0x596db0
 TARGET, TARGET_CTOR = 0x4f1c20, 0x4f1bd0
 AIV, AIV_CTOR, AIV_DEFAULTS = 0x4f0830, 0x4e9b60, 0x60bdd0
+AIV_RESET = 0x4e9d60  # the defaults' 0x3b words copied again, the team, no orders or names
 VALVE_READ = 0x4f38e0
 HEADER, REPORT = 0x4eb960, 0x406cb0
 
@@ -328,6 +329,25 @@ def check_crafted(p, buf, like):
     return len(theirs), theirs != ours
 
 
+def check_reset(p):
+    """A record's reset (0x4e9d60) against the port's, word for word over +0x04..+0xef, from every byte filled."""
+    out = (ctypes.c_uint32 * 0x3b)()
+    for fill in (0x00, 0xab, 0xff):
+        emu = Bench()
+        emu.stand_ins()
+        r = emu.alloc(0x110)
+        emu.call(AIV_CTOR, ecx=r, args=[AIV_DEFAULTS])
+        emu.cpu._uc.mem_write(r + 4, bytes([fill]) * 0xec)
+        emu.call(AIV_RESET, ecx=r)
+        theirs = [emu.r32(r + 4 + 4 * i) for i in range(0x3b)]
+        p.probe_pm_ai_reset(fill, out)
+        ours = list(out)
+        if theirs != ours:
+            bad = [(4 + 4 * i, hex(a), hex(b)) for i, (a, b) in enumerate(zip(theirs, ours)) if a != b]
+            raise SystemExit(f'reset from {fill:#x}: (offset, exe, port) {bad}')
+    return len(theirs)
+
+
 def main():
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10 ** 6
     p = test_pm_zar.load_pm_probe()
@@ -337,6 +357,8 @@ def main():
     p.probe_pm_ai_valves.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_ai_targets.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
+    p.probe_pm_ai_reset.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32)]
+    print(f'reset: {check_reset(p)} words identical to 0x4e9d60\'s from three fills')
     buf = ctypes.create_string_buffer(1 << 22)
     files = nodes = bad = vias = tfiles = trecs = special = afiles = arecs = vfiles = vrecs = 0
     for path in sorted(PM.glob('zbd/*/reader*.zbd'))[:limit]:
