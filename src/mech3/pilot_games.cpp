@@ -1388,6 +1388,81 @@ LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text
   return LobbyRule::start;
 }
 
+// Pirate's Moon 1.0 @ 0x0049ca00: READY once locked and placed (a team in
+// team play, a skin outside it); MECHLAB and OPTIONS once locked (in team
+// play with a team) until ready; SALVAGE between rounds until ready; START
+// the host's when everyone is; ready: the lists' choices and their buttons
+// off; between rounds no skin or team change; NEW_TEAM the host's in team
+// play under 8 teams (2 in the Attack/Defend kinds, 3 on), not when ready
+// or between rounds. MW3's 0x004993f0 had no SALVAGE or OPTIONS, MECHLAB
+// for any locked player and NEW_TEAM to 8 always.
+LobbyButtons lobby_buttons(const LobbyView& v) {
+  LobbyButtons b;
+  const bool placed = v.locked && (v.team_play ? v.my_team != 0 : v.my_skin != 0);
+  const bool in = v.locked && (!v.team_play || v.my_team != 0) && !v.ready;
+  b.ready = placed, b.mechlab = in, b.salvage = v.between_rounds && !v.ready, b.options = in;
+  b.start = v.host && v.all_ready;
+  if (v.ready) {
+    b.deselect_teams = b.deselect_players = true;
+    b.pick_skin = b.join = b.remove = b.kick = b.kick2 = 0;
+  }
+  if (v.between_rounds) b.pick_skin = b.join = 0;
+  if (v.team_play && v.host) {
+    const int32_t kind = v.kind.has ? v.kind.value : 0;
+    b.new_team = v.teams < (kind < 3 ? 8 : 2) && !v.ready && !v.between_rounds;
+  }
+  return b;
+}
+
+// Pirate's Moon 1.0 @ 0x0049dc50: ready, the choice undone; else JOIN, REMOVE,
+// KICK and PICK_SKIN off, then for a team (kept for PICK_SKIN) the host's
+// PICK_SKIN (1 to 7 teams) and REMOVE (any team: 0x0049df10 takes its players
+// out first; MW3's only an empty one), JOIN when not in it, not between
+// rounds; for a player the host's KICK when it isn't the host.
+LobbyButtons lobby_team_chosen(const LobbyView& v, int32_t kind, uint32_t id, bool me_in) {
+  LobbyButtons b;
+  if (kind == 0) return b;
+  if (v.ready) {
+    b.deselect_teams = true;
+    return b;
+  }
+  b.join = b.remove = b.kick = b.pick_skin = 0;
+  if (kind == 2) {
+    b.chose_team = true;
+    if (v.host && !v.between_rounds) b.pick_skin = v.teams >= 1 && v.teams <= 7;
+    if (!me_in && !v.between_rounds) b.join = 1;
+    if (v.host) b.remove = 1;
+  } else if (kind == 1 && v.host && id != v.me) {
+    b.kick = 1;
+  }
+  return b;
+}
+
+// Pirate's Moon 1.0 @ 0x0049dfd0: ready, the choice undone; else KICK2 and
+// PICK_SKIN off, then for a player the host's KICK2 when it isn't the host,
+// or outside team play our own PICK_SKIN once locked and not between rounds
+// (MW3's at any time); any other player chosen, the choice undone.
+LobbyButtons lobby_player_chosen(const LobbyView& v, int32_t kind, uint32_t id) {
+  LobbyButtons b;
+  if (kind == 0) return b;
+  if (v.ready) {
+    b.deselect_players = true;
+    return b;
+  }
+  b.kick2 = b.pick_skin = 0;
+  if (kind != 1) return b;
+  if (v.host && id != v.me) {
+    b.kick2 = 1;
+    return b;
+  }
+  if (!v.team_play && id == v.me && v.locked && !v.between_rounds) {
+    b.pick_skin = 1;
+    return b;
+  }
+  b.deselect_players = true;
+  return b;
+}
+
 LobbyPick LobbyChoice::picked() const {
   LobbyPick p;
   if (pick >= 0 && pick < static_cast<int32_t>(values.size())) p.has = true, p.value = values[static_cast<size_t>(pick)];

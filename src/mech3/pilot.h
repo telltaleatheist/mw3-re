@@ -155,6 +155,28 @@ struct LobbyControls {
   bool locked = false;
   LobbySettings settings() const;
 };
+// Pirate's Moon's lobby buttons as its screen sets them: what the rules
+// read of the lobby (`me`'s record: its team 0x00498800, its skin
+// 0x00498830; the screen's lock, between rounds, READY and everyone ready;
+// GAME_TYPE's pick; the game's teams), and what they set (-1 left as it is).
+struct LobbyView {
+  bool host = false, team_play = false, locked = false, between_rounds = false, ready = false, all_ready = false;
+  uint32_t me = 0, my_team = 0;
+  int32_t my_skin = 0, teams = 0;
+  LobbyPick kind;
+};
+struct LobbyButtons {
+  int8_t ready = -1, mechlab = -1, salvage = -1, options = -1, start = -1, new_team = -1, pick_skin = -1, join = -1,
+         remove = -1, kick = -1, kick2 = -1;
+  bool deselect_teams = false, deselect_players = false;
+  bool chose_team = false;  // TP_LIST's team kept for PICK_SKIN (the screen's +0x167b0)
+};
+LobbyButtons lobby_buttons(const LobbyView& v);  // 0x0049ca00, after each refresh
+// A choice in TP_LIST (0x0049dc50) or PLAYERS_LIST (0x0049dfd0): the entry's
+// kind (1 a player, 2 a team, 0 none), its id, and whether `me` is in it.
+LobbyButtons lobby_team_chosen(const LobbyView& v, int32_t kind, uint32_t id, bool me_in);
+LobbyButtons lobby_player_chosen(const LobbyView& v, int32_t kind, uint32_t id);
+
 // The host's message 0x20 (0x0049d220, 0x18 bytes; MultiplayerGame::read_lobby_rules reads it).
 std::vector<uint8_t> lobby_rules_message(const LobbyControls& c);
 

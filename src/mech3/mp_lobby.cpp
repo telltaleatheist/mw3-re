@@ -427,6 +427,15 @@ void LobbyScreen::update(float dt) {
     on_button(1, 0, 0);
     g_lobby_back = 0;
   }
+  // PM 0x0049b66e: between rounds with no enemies left the match is over (its rounds those played, our team
+  // given the round), the lobby entered again as the match's end.
+  if (between_rounds && game && game->enemies_of(znet::local_id()) == 0) {
+    engine().message_box_text(0x30, "Network Message", "Game over: No enemies left");
+    game->rounds_total = net_rounds_played();
+    game->award_team(znet::local_id());
+    enter(false);
+    return;
+  }
   if (g_lobby_dirty) {
     send_rules();
     refresh_lists();
@@ -572,27 +581,29 @@ void LobbyScreen::refresh_lists() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004993f0: once the options are locked, READY for a
-// player with a skin (a team in team play), MECHLAB until ready; START for
-// the host when everyone is; ready, the lists' choices and their buttons
-// off; NEW_TEAM for the host while there are under 8 teams.
-void LobbyScreen::refresh_buttons() {
-  const uint32_t me = znet::local_id();
-  const bool team = multiplayer_team_play();
-  const bool placed = locked && (team ? game->lobby_team_id(me) != 0 : game->lobby_skin(me) != 0);
-  set_enabled(ready_box, placed ? 1 : 0);
-  const bool in = team ? locked && game->lobby_team_id(me) != 0 : locked != 0;
-  set_enabled(mechlab_btn, in && !ready_box.checked ? 1 : 0);
-  set_enabled(start_btn, znet::is_host() && all_ready ? 1 : 0);
-  if (ready_box.checked) {
-    teams_list.select_index(-1);
-    players_list.select_index(-1);
-    for (ztwod::Control* c : std::initializer_list<ztwod::Control*>{&pick_skin_btn, &join_team_btn, &remove_team_btn,
-                                                                    &kick_btn, &kick2_btn})
-      set_enabled(*c, 0);
-  }
-  if (team && znet::is_host())
-    set_enabled(new_team_btn, game->lobby_teams.size() < 8 && !ready_box.checked ? 1 : 0);
+// Pirate's Moon 1.0 @ 0x0049ca00 (lobby_buttons; MW3's 0x004993f0).
+void LobbyScreen::refresh_buttons() { apply_buttons(lobby_buttons(view())); }
+
+LobbyView LobbyScreen::view() {
+  LobbyView v;
+  v.host = znet::is_host(), v.team_play = multiplayer_team_play(), v.locked = locked;
+  v.between_rounds = between_rounds, v.ready = ready_box.checked != 0, v.all_ready = all_ready;
+  v.me = znet::local_id();
+  if (const LobbyPlayer* p = game ? game->lobby_player(v.me) : nullptr) v.my_team = p->team, v.my_skin = p->skin;
+  v.teams = game ? static_cast<int32_t>(game->lobby_teams.size()) : 0;
+  if (const CycleButton::Item* it = game_type.item(game_type.index)) v.kind.has = true, v.kind.value = it->value;
+  return v;
+}
+
+void LobbyScreen::apply_buttons(const LobbyButtons& b) {
+  const std::pair<ztwod::Control*, int8_t> set[11] = {
+      {&ready_box, b.ready},  {&mechlab_btn, b.mechlab},     {&salvage_btn, b.salvage}, {&options_btn, b.options},
+      {&start_btn, b.start},  {&new_team_btn, b.new_team},   {&pick_skin_btn, b.pick_skin}, {&join_team_btn, b.join},
+      {&remove_team_btn, b.remove}, {&kick_btn, b.kick},     {&kick2_btn, b.kick2}};
+  for (const auto& [c, on] : set)
+    if (on >= 0) set_enabled(*c, on);
+  if (b.deselect_teams) teams_list.select_index(-1);
+  if (b.deselect_players) players_list.select_index(-1);
 }
 
 // Pirate's Moon 1.0 @ 0x0049b3f0: the rules the host's until locked: the
@@ -690,45 +701,21 @@ void LobbyScreen::kick(LobbyList& from) {
   znet::kick(en->id);
 }
 
-// Mech3.exe 1.2 @ 0x0049a3a0: a team chosen gives PICK_SKIN to the host while
-// there are under 8 teams, JOIN when we are not in it, REMOVE to the host
-// for an empty one; a player chosen KICK to the host (not ourselves). Ready,
-// nothing is chosen.
+// Pirate's Moon 1.0 @ 0x0049dc50 (lobby_team_chosen; MW3's 0x0049a3a0).
 void LobbyScreen::team_chosen() {
   LobbyEntry* en = teams_list.chosen();
-  if (!en) return;
-  if (ready_box.checked) {
-    teams_list.select_index(-1);
-    return;
-  }
-  for (ztwod::Control* c : std::initializer_list<ztwod::Control*>{&join_team_btn, &remove_team_btn, &kick_btn,
-                                                                  &pick_skin_btn})
-    set_enabled(*c, 0);
-  const uint32_t me = znet::local_id();
-  if (en->kind() == 2) {
-    if (znet::is_host()) set_enabled(pick_skin_btn, game->lobby_teams.size() < 8 ? 1 : 0);
-    if (!game->in_team(me, en->id)) set_enabled(join_team_btn, 1);
-    if (znet::is_host() && static_cast<LobbyTeam*>(en)->count == 0) set_enabled(remove_team_btn, 1);
-  } else if (en->kind() == 1) {
-    if (znet::is_host() && en->id != me) set_enabled(kick_btn, 1);
-  }
+  if (!en || !game) return;
+  const LobbyView v = view();
+  const LobbyButtons b = lobby_team_chosen(v, en->kind(), en->id, en->kind() == 2 && game->in_team(v.me, en->id));
+  if (b.chose_team) chosen_team = en->id;
+  apply_buttons(b);
 }
 
-// Mech3.exe 1.2 @ 0x0049a6a0: KICK2 to the host for another player, PICK_SKIN
-// for ourselves outside team play.
+// Pirate's Moon 1.0 @ 0x0049dfd0 (lobby_player_chosen; MW3's 0x0049a6a0).
 void LobbyScreen::player_chosen() {
   LobbyEntry* en = players_list.chosen();
-  if (!en) return;
-  if (ready_box.checked) {
-    players_list.select_index(-1);
-    return;
-  }
-  set_enabled(kick2_btn, 0);
-  set_enabled(pick_skin_btn, 0);
-  if (en->kind() != 1) return;
-  const uint32_t me = znet::local_id();
-  if (znet::is_host() && en->id != me) set_enabled(kick2_btn, 1);
-  if (!multiplayer_team_play() && en->id == me) set_enabled(pick_skin_btn, 1);
+  if (!en || !game) return;
+  apply_buttons(lobby_player_chosen(view(), en->kind(), en->id));
 }
 
 // Mech3.exe 1.2 @ 0x0049bd10: in team play, the team with that skin (not
@@ -1222,21 +1209,14 @@ void LobbyScreen::back_from_salvage() {
   lance_slot(game->slot, game->store, false, kept);
 }
 
-// Mech3.exe 1.2 @ 0x0049a220: a player into a team (the network's, then the
-// record); a team's first player its owner (its data's first word).
+// Pirate's Moon 1.0 @ 0x0049daf0: a player into a team (the network's, then
+// the record), both listed. MW3's 0x0049a220 also made a team's first player
+// its owner (its data's first word); PM's never sets it.
 bool LobbyScreen::add_to_team(uint32_t team, uint32_t player) {
-  if (!game) return false;
-  LobbyTeam* t = game->lobby_team(team);
-  LobbyPlayer* p = t ? game->lobby_player(player) : nullptr;
+  if (!game || !game->lobby_team(team)) return false;
+  LobbyPlayer* p = game->lobby_player(player);
   if (!p || !znet::add_to_team(team, player)) return false;
   p->team = team;
-  if (t->owner == 0) {
-    t->owner = player;
-    uint32_t data[5] = {}, size = sizeof data;
-    znet::get_team_data(team, data, &size);
-    data[0] = player;
-    znet::set_team_data(team, data, sizeof data);
-  }
   return true;
 }
 
@@ -1261,23 +1241,23 @@ void LobbyScreen::new_team(const char* name, int32_t skin, bool join) {
   add_to_team(id, me);
 }
 
-// Mech3.exe 1.2 @ 0x0049a850: our skin, outside team play in our data (its
-// second word), in team play our team's (its data's second word).
+// Pirate's Moon 1.0 @ 0x0049e1c0: outside team play our data's skin; in it
+// the skin of the team TP_LIST last chose (+0x167b0; MW3's 0x0049a850 our
+// own team's), none chosen nothing.
 void LobbyScreen::set_skin(int32_t skin) {
   if (!game) return;
-  const uint32_t me = znet::local_id();
   if (!multiplayer_team_play()) {
-    std::vector<uint32_t> d = player_data(me);
+    std::vector<uint32_t> d = player_data(znet::local_id());
     if (d.size() < 2) return;
     d[1] = static_cast<uint32_t>(skin);
     set_my_data(d);
     return;
   }
-  const uint32_t team = game->lobby_team_id(me);
+  if (!chosen_team) return;
   uint32_t data[5] = {}, size = sizeof data;
-  znet::get_team_data(team, data, &size);
+  znet::get_team_data(chosen_team, data, &size);  // 0x005aa590
   data[1] = static_cast<uint32_t>(skin);
-  znet::set_team_data(team, data, sizeof data);
+  znet::set_team_data(chosen_team, data, sizeof data);
 }
 
 // Mech3.exe 1.2 @ 0x0049a550: into the chosen team (out of ours first).
@@ -1294,13 +1274,21 @@ void LobbyScreen::join_team() {
   set_enabled(join_team_btn, 0);
 }
 
-// Mech3.exe 1.2 @ 0x0049a630: the chosen team, when empty, gone; the list's
-// first chosen.
+// Pirate's Moon 1.0 @ 0x0049df10: TP_LIST's team gone, its players taken
+// out of it first (MW3's 0x0049a630 only an empty team), the first line
+// chosen; REMOVE and PICK_SKIN off.
 void LobbyScreen::remove_team() {
   LobbyEntry* en = teams_list.chosen();
-  if (!en || en->kind() != 2 || static_cast<LobbyTeam*>(en)->count != 0) return;
-  znet::destroy_team(en->id);
-  teams_list.select_index(0);
+  if (en) {
+    if (en->kind() != 2) return;
+    if (static_cast<LobbyTeam*>(en)->count > 0 && game)
+      for (auto& p : game->lobby_players)
+        if (p->team == en->id) znet::remove_from_team(en->id, p->id);  // 0x005a9480
+    znet::destroy_team(en->id);  // 0x005a94f0
+    teams_list.select_index(0);
+  }
+  set_enabled(remove_team_btn, 0);
+  set_enabled(pick_skin_btn, 0);
 }
 
 // ---- the chat (piece 12) ----
@@ -1410,8 +1398,7 @@ void LobbyScreen::on_chat(uint32_t from, const uint8_t* msg, size_t size) {
 void LobbyScreen::open_new_team() {
   if (!state) return;
   team_join = team_new = team_skin = 1;
-  chat_edit.set_focus(0);
-  teams_list.select_index(-1);
+  chat_edit.set_focus(0);  // PM 0x0049db50 (MW3's also undid TP_LIST's choice)
   engine().multiplayer_page(state, 3, 1);  // 0x0049cb00
 }
 
@@ -1476,9 +1463,15 @@ void TeamScreen::enter(LobbyScreen* l) {
       if (first >= i) first = i;
     }
   show_skin();
+  // PM 0x0049fc39: the first of the eight houses (messages 0x1000..0x1007, the lobby's +0x11d14) no team
+  // is named; MW3's "%1 Team" (0xf64) with A, B, ... by the first free skin. All eight taken can't happen
+  // here: eight teams leave NEW_TEAM off.
+  (void)first;
   if (lobby->team_new) {
-    const char letter[2] = {static_cast<char>('A' + (first < 0x19 ? first : 0x19)), 0};  // [0x005e3e10]
-    name_edit.set_text(zutl::format_message_f(0xf64, letter).c_str());
+    int32_t house = -1;
+    for (int32_t i = 0; i < 8 && house < 0; ++i)
+      if (!znet::team_named(e.message(0x1000 + i))) house = i;  // 0x005aa410
+    name_edit.set_text(house >= 0 ? e.message(0x1000 + house) : "");
   } else {
     name_edit.set_text("");
   }
@@ -1532,7 +1525,7 @@ void TeamScreen::ok() {
       return;
     }
     lobby->new_team(name.c_str(), skins.selected_value(), join_box.checked != 0);
-  } else if (lobby->team_skin) {
+  } else {  // PM 0x0049fed0: whenever not a new team
     lobby->set_skin(skins.selected_value());
   }
   lobby->chat_edit.set_focus(0);
