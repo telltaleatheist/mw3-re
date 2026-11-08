@@ -47,6 +47,8 @@
 #include "pm/pm_game.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
+#include "mech3/mission_world.h"
+#include "gamez/zclass/cls_data.h"
 #include "mech3/briefing.h"
 #include "mech3/debriefing.h"
 #include "mech3/mainmenu.h"
@@ -360,6 +362,7 @@ int pm_trigger_all(void* player, const float at[3]);
 float pm_tag_muzzle(void* player, const float at[3], bool* mounted);
 float pm_mech_toughness(void* mech, bool* invincible);
 bool pm_cheat(void* player, const char* text);
+bool pm_headlight(void* player, bool on, float at[3]);
 void pm_kill_left(void* mech, char* out, size_t n);
 void pm_kill_ray(const float from[3], const float to[3]);
 uint32_t pm_kill_root_flags(void* mech);
@@ -684,6 +687,26 @@ static void kill_run(const char* which, bool quick) {
       if (t > 12000) done = true;
       return;
     }
+    if (std::getenv("PM_HEADLIGHT")) {  // the player's headlight on at frame 2, its light's place at 2 and 60
+      static int t = 0;
+      float at[3] = {};
+      if (++t == 2 || t == 60) std::printf("  headlight: %d at %.0f %.0f %.0f\n", pm_headlight(player, true, at), at[0], at[1], at[2]);
+      if (t < 60) return;
+    }
+    if (std::getenv("PM_LIGHTS")) {  // every world light: active, its parents, its world place (pm-tests item 20)
+      auto* wn = static_cast<zcls::Node*>(mech3::world_hooks().world);
+      auto* w = wn ? static_cast<zcls::World*>(wn->data) : nullptr;
+      for (int32_t i = 0; w && i < w->get<int32_t>(0xa0); ++i) {
+        zcls::Node* l = w->lights[i];
+        float at[3] = {};
+        zcls::node_world_point(l, at);
+        std::printf("  light %s flags %x at %.0f %.0f %.0f parents", l->name(), l->flags(), at[0], at[1], at[2]);
+        for (int32_t k = 0; k < l->parent_count(); ++k) std::printf(" %s", l->parents[k] ? l->parents[k]->name() : "-");
+        std::printf("\n");
+      }
+      done = true;
+      return;
+    }
     if (const char* names = std::getenv("PM_NODE")) {  // a,b,c: each named node's world place, then the run ends
       std::string all = names;
       for (size_t p = 0; p <= all.size();) {
@@ -695,11 +718,24 @@ static void kill_run(const char* which, bool quick) {
         std::printf("  node %s: %s %.1f %.1f %.1f\n", n.c_str(), z ? "at" : "not found", at[0], at[1], at[2]);
         auto walk = [](zcls::Node* x, int depth, auto& self) -> void {  // each model under it: polygons, with normals, normals
           if (!x || depth > 6) return;
+          std::printf("    %*s%s class %d flags %x children %d\n", depth * 2, "", x->name(), x->get<int32_t>(0x34), x->flags(), x->child_count());
           if (pm::zmod::Model* md = x->pm_model) {
             int with = 0;
             for (int32_t i = 0; i < md->count(0x10); ++i) with += (md->polygons[i].flags & 0x1000) ? 1 : 0;
-            std::printf("    %*s%s: %d polygons, %d with normals, %d normals, flags %x\n", depth * 2, "", x->name(), md->count(0x10), with,
-                        md->count(0x18), md->header[8]);
+            float rmin = 1e9f, rmax = 0, ymin = 1e9f, ymax = -1e9f;
+            for (int32_t i = 0; i < md->count(0x14); ++i) {
+              const float* v = md->vertices + i * 3, r = std::sqrt(v[0] * v[0] + v[2] * v[2]);
+              rmin = std::min(rmin, r), rmax = std::max(rmax, r), ymin = std::min(ymin, v[1]), ymax = std::max(ymax, v[1]);
+            }
+            std::vector<int> angles;  // the vertices' bearings round the model's axis, to the degree: its sides
+            for (int32_t i = 0; i < md->count(0x14); ++i) {
+              const float* v = md->vertices + i * 3;
+              if (std::sqrt(v[0] * v[0] + v[2] * v[2]) > 0.01f) angles.push_back(static_cast<int>(std::lround(std::atan2(v[2], v[0]) * 57.29578f + 360.0)) % 360);
+            }
+            std::sort(angles.begin(), angles.end());
+            angles.erase(std::unique(angles.begin(), angles.end()), angles.end());
+            std::printf("    %*s%s: %d polygons, %d with normals, %d normals, flags %x; %d vertices, radius %.2f..%.2f, y %.2f..%.2f, %zu bearings\n", depth * 2, "", x->name(), md->count(0x10), with,
+                        md->count(0x18), md->header[8], md->count(0x14), rmin, rmax, ymin, ymax, angles.size());
           }
           for (int32_t i = 0; i < x->child_count(); ++i) self(x->children[i], depth + 1, self);
         };

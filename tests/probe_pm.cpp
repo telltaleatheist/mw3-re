@@ -3781,3 +3781,13 @@ extern "C" int32_t probe_pm_crater(int32_t op, int32_t np, const int32_t* nv, co
 // What the port side runs at, for original.py's check at exit (MW3_PRECISION).
 extern "C" int probe_fpu53() { return zfix::options().fpu53 ? 1 : 0; }
 extern "C" void probe_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
+
+namespace mech3 {
+void set_gfx_flags(int32_t v);  // options.h (its Handle clashes here)
+}
+// PM's set_gfx_flags (0x0040b270): the LIGHT MAPS level it leaves at [0x008ccc64], from `before`.
+extern "C" int32_t probe_pm_gfx_flags(int32_t flags, int32_t before) {
+  pm::zmod::draw_state().light_map_option = before;
+  mech3::set_gfx_flags(flags);
+  return pm::zmod::draw_state().light_map_option;
+}
