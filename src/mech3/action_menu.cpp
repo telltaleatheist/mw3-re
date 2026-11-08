@@ -94,11 +94,12 @@ void ScenarioList::step(int32_t by) {
   CycleButton::step(by);
   if (!s) return;
   s->descriptions.step(by);  // the cycle after this one in the screen (+0x42c)
+  // Pirate's Moon 0x0048ded0: the pilot's game takes the scenario's mode (0x0040c390, the waves loaded for
+  // Progression), and the wave shown is its best, no further than the last (0x0040c3e0).
+  ActionGame* a = current_pilot() ? current_pilot()->action() : nullptr;
+  if (a) a->set_mode(mode_of(value_at(index)));
   if (mode_of(value_at(index)) == 2) {
-    int32_t best = 0;
-    if (Pilot* p = current_pilot()) {
-      if (ActionGame* a = p->action()) best = a->waves < 0x14 ? a->waves : 0x13;
-    }
+    const int32_t best = a ? a->best_wave() : 0;
     for (EnemyList& l : s->enemies) {
       l.show_for(-1.0f);
       l.step(0);
@@ -153,8 +154,9 @@ void EnemyList::select(int32_t i) {
     c.add_item(cfg->name, static_cast<int32_t>(c.configs.size()) - 1);
   };
   if (s && !s->fixed) {
-    const ActionWaveSlot* row = action_wave(s->wave);  // past the table: none (the exe reads on)
-    const int32_t k = row && s->filling >= 0 && s->filling < 6 ? row[s->filling].config : -1;
+    // Pirate's Moon: the wave's loadout from ia_progression (0x0040c300; out of range 0).
+    const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
+    const int32_t k = g ? g->wave_config(s->wave, s->filling) : -1;
     const Config* cfg = k >= 0 && k < n ? (*list)[static_cast<size_t>(k)] : nullptr;
     if (!cfg || cfg->training) return;
     add(cfg);
@@ -182,10 +184,17 @@ void WaveList::step(int32_t by) {
   if (ActionScreen* s = screen_of(owner)) s->show_wave(it ? it->value : 0);
 }
 
-// Mech3.exe 1.2 @ 0x004897b0
+// Mech3.exe 1.2 @ 0x004897b0, Pirate's Moon 1.0 @ 0x0048e430: the best wave no further than the pilot's
+// game's last (0x0040c260; none listed with no waves), where MW3 stops at its table's 20.
 void WaveList::fill(int32_t best) {
   clear_items();
-  if (best > 0x13) best = 0x13;
+  const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
+  const int32_t last = g ? g->last_wave() : -1;
+  if (best <= last) {
+    if (best < 0) best = 0;
+  } else {
+    best = last;
+  }
   for (int32_t i = 0; i <= best; ++i) add_item(e_.message_format_ints(0xdb8, {i + 1}).c_str(), i);
   if (ActionScreen* s = screen_of(owner)) s->wave = best;
   select(best);
@@ -319,29 +328,31 @@ void ActionScreen::keep_lineup() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0048a810: the wave's enemies (-1 none), each with only its
-// loadout, nothing to choose.
+// Mech3.exe 1.2 @ 0x0048a810, Pirate's Moon 1.0 @ 0x0048f300: the wave's enemies from ia_progression
+// (0x0040c280, 0x0040c2c0), each with only its loadout, nothing to choose; the rows past the wave's hidden.
+// FIX (bug): no more than the screen's six rows (the exe writes on past them for a longer wave, a mod's).
 void ActionScreen::show_wave(int32_t w) {
   Engine& e = engine();
   fixed = 0;
   wave = w;
   waves.show_for(-1.0f);
-  for (EnemyList& l : enemies) l.clear_items();
-  // FIX (bug): past the table (the best wave 20, from the reset) the exe reads
-  // the strings after it as mechs; here none (the wave shown goes back to the
-  // first at once either way).
-  const ActionWaveSlot* row = action_wave(w);
-  for (int32_t i = 0; i < 6; ++i) {
+  for (int32_t i = 0; i < 6; ++i) enemies[i].clear_items(), enemy_configs[i].clear_items();
+  const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
+  const int32_t n = g ? g->wave_slots(w) : 0;
+  int32_t i = 0;
+  for (; i < n && i < 6; ++i) {
     filling = i;
-    const int32_t mech = row ? row[i].mech : -1;
+    const int32_t mech = g->wave_mech(w, i);
     const std::string text =
         mech == -1 ? e.message_format_ints(0x28e, {}) : std::string(e.message_format(0x28f, mech_label(e, mech)));
     EnemyList& l = enemies[i];
+    l.show_for(-1.0f);
     l.add_item(text.c_str(), mech);
     l.select(0);
     l.set_arrows(0, 0, 0);
     l.set_label_font(l.inactive_font);
   }
+  for (; i < 6; ++i) enemies[i].hide();
 }
 
 // Mech3.exe 1.2 @ 0x0048a930: every mech for each enemy (the first without
@@ -386,6 +397,8 @@ void ActionScreen::reset() {
   GameSlot* slot = player_slot();
   worlds.select(k.g874 < worlds.count() ? k.g874 : 0);  // ours: a mod's world kept by a pilot, the mod since gone
   scenarios.select(k.g878);
+  // Pirate's Moon 0x0048de20 (the scenario cycle's select): the pilot's game takes its mode (0x0040c390).
+  if (ActionGame* a = current_pilot() ? current_pilot()->action() : nullptr) a->set_mode(mode_of(scenarios.value_at(scenarios.index)));
   descriptions.select(k.g878);
   for (AllyList& l : allies) l.clear_items();
   for (EnemyList& l : enemies) l.clear_items();
@@ -448,7 +461,7 @@ void ActionScreen::accept() {
     std::snprintf(paths[0], sizeof paths[0], "..\\data\\%s\\zrdr\\aipath\\ia%d", dir, kActionScenarios[sc].mission);
     std::snprintf(paths[1], sizeof paths[1], ".\\zbd\\%s\\readeria%d", dir, kActionScenarios[sc].mission);
   }
-  g->mode = kActionScenarios[sc].mode;
+  g->set_mode(kActionScenarios[sc].mode);  // Pirate's Moon 0x0040c390: Progression's waves loaded
   if (CycleButton::Item* it = worlds.item(worlds.index)) g->set_text(&g->x38, it->text);  // (the exe reads it unchecked)
   g->set_text(&g->x3c, e.message(kActionScenarios[sc].name));
   g->set_text(&g->x40, e.message(kActionScenarios[sc].desc));
@@ -470,8 +483,7 @@ void ActionScreen::accept() {
       g->add(mech, 0, enemy_configs[i].config_at(enemy_configs[i].index), 0);
     }
   }
-  g->x74 = worlds.value_at(worlds.index);
-  g->x78 = kActionScenarios[sc].mission;
+  g->set_world(worlds.value_at(worlds.index), kActionScenarios[sc].mission);  // Pirate's Moon 0x0040c360: the world's waves
   ActionSetup& k = action_setup();
   k.g874 = worlds.index;
   k.g878 = scenarios.index;

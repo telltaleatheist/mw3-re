@@ -381,16 +381,20 @@ bool action_lineup(bool launch) {
   std::vector<uint8_t> taken(found.size());
   const Handle player = h.pilot_vehicle();
   if (h.field32(g, 0x44) == 2) {  // wave mode: the wave's enemies in place of the last
+    // Pirate's Moon 0x004a0f3c: the wave from ia_progression, no further than its last and from the first
+    // (0x0040c260), each slot's mech (0x0040c2c0) with its loadout (0x0040c300) when the mech has it.
     h.action_drop_enemies(g);
     int32_t w = static_cast<int32_t>(h.field32(g, 0x6c)) - 1;
-    if (w > 19) w = 19;
-    if (w < 0) w = 0;  // FIX (bug): the exe reads before the table (the wave starts at 1)
-    for (const WaveMech& e : kWaves[w]) {
-      if (e.mech == -1) continue;
-      const Handle dfn = h.mech_dfn(e.mech);
+    const int32_t last = h.action_last_wave(g);
+    if (w > last) w = last;
+    else if (w < 0) w = 0;
+    for (int32_t i = 0; i < h.action_wave_slots(g, w); ++i) {
+      const int32_t mech = h.action_wave_mech(g, w, i);
+      if (mech == -1) continue;
+      const Handle dfn = h.mech_dfn(mech);
       const uint32_t n = static_cast<uint32_t>(h.dfn_config_count(dfn));
-      const Handle cfg = static_cast<uint32_t>(e.config) < n ? h.dfn_config(dfn, e.config) : 0;
-      h.action_add(g, e.mech, 0, cfg, 0);
+      const uint32_t c = static_cast<uint32_t>(h.action_wave_config(g, w, i));
+      h.action_add(g, mech, 0, c < n ? h.dfn_config(dfn, static_cast<int32_t>(c)) : 0, 0);
     }
   }
   for (int32_t i = 1; i <= static_cast<int32_t>(h.field32(g, 0x7c)); ++i)

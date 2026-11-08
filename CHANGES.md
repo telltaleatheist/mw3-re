@@ -157,6 +157,8 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- Pirate's Moon: an Instant Action Progression wave written with more than six mechs, or a wave line without its loadout, no longer reads past the end (the screen shows the first six; the line is skipped).
+
 - A rare crash when a crater cut the ground in an awkward place is gone: the cut is skipped on that piece of ground.
 - **Ctrl+I in the mech lab loads a loadout again.** In the rebuild so far it read
   the file from `import` and added nothing, and still renamed the file

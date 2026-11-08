@@ -145,6 +145,12 @@ class PlayerHooks : public zgame::Unported {
   virtual Handle action_slot(Handle g, int32_t i) { return unported("action.vt+0x34", {g, i}); }
   virtual bool action_ally(Handle g, int32_t i) { return (unported("0x00436a90", {g, i}) & 0xff) != 0; }
   virtual void action_drop_enemies(Handle g) { unported("0x00436ac0", {g}); }
+  // Pirate's Moon's waves (ia_progression, ActionGame +0x8c): the last wave (0x0040c260, -1 none), a wave's
+  // slots (0x0040c280), a slot's mech (0x0040c2c0, -1) and loadout (0x0040c300).
+  virtual int32_t action_last_wave(Handle g) { return static_cast<int32_t>(unported("0x0040c260", {g})); }
+  virtual int32_t action_wave_slots(Handle g, int32_t w) { return static_cast<int32_t>(unported("0x0040c280", {g, w})); }
+  virtual int32_t action_wave_mech(Handle g, int32_t w, int32_t i) { return static_cast<int32_t>(unported("0x0040c2c0", {g, w, i})); }
+  virtual int32_t action_wave_config(Handle g, int32_t w, int32_t i) { return static_cast<int32_t>(unported("0x0040c300", {g, w, i})); }
   virtual Handle action_add(Handle g, int32_t mech, uint8_t side, Handle config, int32_t paint) {
     return unported("0x00436840", {g, mech, side, config, paint});
   }

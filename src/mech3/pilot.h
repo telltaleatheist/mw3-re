@@ -400,6 +400,23 @@ class ActionGame : public Game {
   int32_t count = 0;                 // +0x7c  line-up slots in use
   GameSlot lineup[10];               // +0x80, 0x18 each
   uint8_t side[10] = {};             // +0x170  each slot's: 1 an ally
+
+  // Pirate's Moon's waves (+0x8c, a vector of 0x10-byte waves each holding a vector of (mech, loadout)):
+  // ia_progression.zrd's block for the world, else its "default", in place of MW3's table (0x005e33a8).
+  struct WaveSlot {
+    int32_t mech, config;
+  };
+  std::vector<std::vector<WaveSlot>> progression;
+  void read_progression(const zrdr::Node* block);  // 0x0040c070: none leaves them
+  void load_progression();                         // 0x0040c410: the world's (vt+0x54, its folder's name)
+  void set_mode(int32_t m);                        // 0x0040c390: +0xa0; 2 loads the waves
+  void set_world(int32_t world, int32_t mission);  // 0x0040c360: +0xd0, +0xd4; in wave mode the waves again
+  int32_t last_wave() const;                       // 0x0040c260: -1 with none
+  int32_t wave_slots(int32_t w) const;             // 0x0040c280: 0 out of range
+  int32_t wave_mech(int32_t w, int32_t i) const;   // 0x0040c2c0: -1 out of range
+  int32_t wave_config(int32_t w, int32_t i) const; // 0x0040c300: 0 out of range
+  bool waves_done() const;                         // 0x0040c3b0: wave mode past the last wave
+  int32_t best_wave() const;                       // 0x0040c3e0: the best wave, no further than the last
 };
 
 // [0x00608e2c]: the game is team play (the connection screen's, mp_connect.h).

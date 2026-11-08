@@ -554,9 +554,8 @@ void Missions::ask_voice(Handle sound, float priority) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0048f740: the win. Instant Action's endless and wave
-// modes (+0x44 1 and 2) load the next wave's objectives instead, up to wave
-// 20 in mode 2; training goes on to its next lesson while it has one.
+// Mech3.exe 1.2 @ 0x0048f740, Pirate's Moon 1.0 @ 0x00492490: the win. Instant Action's endless and wave
+// modes (+0x44 1 and 2) load the next wave's objectives instead, up to the last wave in mode 2; training goes on to its next lesson while it has one.
 void Missions::complete() {
   MissionHooks& h = *g_hooks;
   if (ended) return;
@@ -575,7 +574,8 @@ void Missions::complete() {
       h.set_field32(ia, 0x6c, h.field32(ia, 0x6c) + 1);
       h.set_field32(ia, 0x70, h.field32(ia, 0x70) + 1);
       const Handle ia2 = h.ia_game();
-      if (h.field32(ia2, 0x44) != 2 || static_cast<int32_t>(h.field32(ia2, 0x6c)) - 1 <= 0x13) {
+      // Pirate's Moon 0x0040c3b0: the next wave while the waves last (ia_progression's), not 20.
+      if (h.field32(ia2, 0x44) != 2 || static_cast<int32_t>(h.field32(ia2, 0x6c)) - 1 <= h.ia_last_wave(ia2)) {
         h.fn_5392c0();
         h.fn_49dc80(0);
         h.objectives_free(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);
