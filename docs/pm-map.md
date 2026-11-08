@@ -1680,6 +1680,14 @@ the fifth picked; TIME +0x13c2c 0x2b6..0x2b9 for 5, 10, 20, 30 minutes and 0x2ba
 0x2bb with 10 to 100 tons by 5; ROUNDS +0x133e4 "%d" from 1 to the match's rounds between rounds, else to 10. MW3's
 were kills 1, 5, 10, 20, 40 and 100 for none, its own times and 15 weights.
 
+**PM's rules message 0x20 (the host's 0x49d220, read by 0x49d450; MW3's 0x499b10 / 0x499cf0 were 0x10 bytes).**
+0x18 bytes: +4 the flags (1 REGEN, 2 MOBILE, 4 STOCK, 8 AMMO, 0x10 SELECT (outside view), 0x80 JETS, 0x100 RADAR,
+0x20 the screen's +0x16799: options locked / between rounds), +8 the world's value (short), +0xa the kills, +0xc the
+minutes, +0xe the tons, +0x10 the kind (GAME_TYPE), +0x12 the rounds (each short), +0x14 REALLOC (a word). The reader
+picks each list by its value (0x48a2e0) and sets each box (vt+0x8c). The boxes are the screen's REGEN +0x14474,
++0x145e0, ... (JETS_CHECKBOX and RADAR_CHECKBOX in MULTIPLAYER_HOST_DIALOG, dialog.zrd, with GAME_TYPE, SALVAGE_AWARD
+(the REALLOC list) and ROUNDS_LIST).
+
 By the pair map (`analysis-output/pm-diff/pairs.json`, pm-map's columns: compiler only, compiler with other offsets or constants, changed), over the MW3 functions the port's network-side files name. Our transport replaces DirectPlay, so what matters is what reaches what we kept: the messages' contents and types, and the game's rules.
 
 | port file (MW3's) | functions | identical | compiler only | other offsets, constants | changed | MW3 only, gone | new in PM beside it |
