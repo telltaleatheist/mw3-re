@@ -530,3 +530,56 @@ extern "C" void probe_pm_player_data(const int32_t* in, int32_t* out) {
   p.from_data(d, in[0] != 0);
   out[0] = p.state, out[1] = p.skin, out[2] = p.rounds, out[3] = p.place;
 }
+
+// Pirate's Moon's lobby rounds on entering (0x0049a3c0) for test_pm_lobby_enter.py. in: from a game, played, our id,
+// host, team play, the rounds (+0x74); the players (count, then 8 of: id, team, kills, deaths, rounds, place), the
+// teams (count, then 4 of: id, rounds, number). out: extended, over, over total, next, the rounds, played, team play
+// after, our place and rounds, the most rounds and how many have it; then each team's end (its id, kept).
+namespace {
+std::vector<int32_t>* g_er;
+}  // namespace
+
+extern "C" int32_t probe_pm_enter_rounds(const int32_t* in, int32_t* out, int32_t cap) {
+  mech3::set_multiplayer_team_play(in[4] != 0);
+  mech3::MultiplayerGame g(nullptr);
+  g.rounds_total = in[5];
+  std::vector<std::unique_ptr<mech3::ScoreLine>> keep;
+  const int32_t* p = in + 7;
+  for (int32_t k = 0; k < in[6]; ++k, p += 6) {
+    auto r = std::make_unique<mech3::LobbyPlayer>();
+    r->id = static_cast<uint32_t>(p[0]), r->team = static_cast<uint32_t>(p[1]), r->kills = p[2], r->deaths = p[3];
+    r->rounds = p[4], r->place = p[5], r->name = "P" + std::to_string(p[0]);
+    auto l = std::make_unique<mech3::ScoreLine>();
+    l->kind = 1, r->score = l.get();
+    g.score_lines.push_back(std::move(l));
+    g.lobby_players.push_back(std::move(r));
+  }
+  const int32_t* t = in + 7 + 8 * 6 + 1;
+  for (int32_t k = 0; k < in[7 + 8 * 6]; ++k, t += 3) {
+    auto r = std::make_unique<mech3::LobbyTeam>();
+    r->id = static_cast<uint32_t>(t[0]), r->rounds = t[1], r->word2 = t[2], r->name = "T" + std::to_string(t[0]);
+    auto l = std::make_unique<mech3::ScoreLine>();
+    l->kind = 2, r->score = l.get();
+    g.score_lines.push_back(std::move(l));
+    g.lobby_teams.push_back(std::move(r));
+  }
+  std::vector<int32_t> lg;
+  g_er = &lg;
+  std::vector<int32_t> ends;
+  static std::vector<int32_t>* s_ends;
+  s_ends = &ends;
+  int32_t played = in[1];
+  const mech3::RoundsEntry r = g.enter_rounds(in[0] != 0, &played, static_cast<uint32_t>(in[2]), in[3] != 0,
+                                              [](mech3::LobbyTeam& tm, bool kept) {
+                                                s_ends->push_back(static_cast<int32_t>(tm.id)), s_ends->push_back(kept ? 1 : 0);
+                                                if (kept) s_ends->push_back(tm.rounds);
+                                              });
+  lg = {r.extended, r.over, r.over_total, r.next, g.rounds_total, played, mech3::multiplayer_team_play() ? 1 : 0,
+        r.place, r.rounds, g.best, g.best_count};
+  lg.insert(lg.end(), ends.begin(), ends.end());
+  if (r.next) lg.push_back(7), lg.push_back(r.place), lg.push_back(played - 1);  // the screen's next_round
+  mech3::set_multiplayer_team_play(false);
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
