@@ -236,6 +236,11 @@ They run inside the original main loop, after the original start-up.
 - `--check-mod DIR` (ours, docs/modding.md): the mod at DIR read as the game
   would read it, nothing mounted into play; the report printed, exit 1 when
   anything would be refused.
+- `--hurt F@N` (ours, for checking) sets the player's torso's internal
+  structure to F at a mission's N-th frame, as
+  `mission_c1m1_hud_static_when_hurt_headless` does: the HUD's damage static
+  in a shot (`--mission c1m1 --frame-ms 33 --hurt 0.05@5 --shot FILE
+  --shot-frame 900`).
 - `--shot FILE.bmp [--shot-frame N] [--shot-any]` saves frame N (default 30;
   with `--shot-any` every frame shown counts, the fade's too) of either
   and quits, with the window hidden; `--shot-series K` also the K frames

@@ -17,8 +17,8 @@ found or installed. The launcher below is its own program, `mw3launcher`
 
 1. SDL, the write dir, mw3.log (as now).
 2. The window, made once and kept for the game: fullscreen at the desktop
-   size, the 640x480 frame fitted as the menus are (sdl_fit), so the
-   launcher looks the same in a window, at 4:3 and at 16:9.
+   size, its 854x480 frame (16:9 since 2026-11-08, Owen: it opened 4:3)
+   fitted as the menus are (sdl_fit), letterboxed on a 4:3 screen.
 3. The install, quietly: mw3.cfg's `install=`, then the finder's places
    (`sdlfe::install_candidates`), each through `setup::check_install`.
    No message box any more: the setup screen replaces the Browse dialog.
@@ -129,7 +129,10 @@ filtered to .iso/.cue, .zip, or Mech3.exe.
 
 ## Drawing it
 
-- A 640x480 16-bit (565) canvas each frame, as the game's 2D path: the
+- An 854x480 16-bit (565) canvas each frame (16:9; 640x480 until
+  2026-11-08), as the game's 2D path. The art spans the width; the plates,
+  boxes and bar stay the 640-wide block they were laid out as, 107 in
+  (`kX`), the game rows widened to 500 for their longer lines: the
   starfield scrolling slowly to the left (a few pixels a second, its ends
   cross-faded), the metal bands top and bottom scrolling at a third of
   that, the title and emblem, the plates.
@@ -202,7 +205,8 @@ comes back with a line saying how it closed. Built 2026-10-31;
 `--shot`, a chain, `--mission`/`--fly`, `--movie`, `--dialog`, `-nofmv`, a
 named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 - Its own SDL_Renderer window (fullscreen unless `--windowed`/`--window`),
-  a 640x480 RGB565 canvas letterboxed into it. PLAY hands the window to the
+  an 854x480 (16:9) RGB565 canvas letterboxed into it; a window without
+  `--window` is 1280x720. PLAY hands the window to the
   game (2026-10-31): the renderer is freed and `SdlWindow::init` claims the
   same window for its GPU device instead of opening a second one. The
   window is not high pixel density, as the game's never was (its sizes are

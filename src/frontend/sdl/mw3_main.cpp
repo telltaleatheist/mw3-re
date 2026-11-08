@@ -163,6 +163,8 @@ struct Args {
   float turret_ahead = 0;  // --turret-ahead M (ours): the player M m from the nearest live turret, facing it
   float mech_ahead = 0;  // --mech-ahead M (ours): the player kept M to 1.5 M m from the nearest enemy mech in play, facing it
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
+  float hurt = -1.0f;  // --hurt F@N: the torso's internal structure set to F at the N-th frame (ours, checks)
+  int hurt_at = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   bool no_launcher = false;   // --no-launcher (ours: launcher.h): no find screen, the old dialog if there is no install
@@ -225,7 +227,7 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
@@ -263,6 +265,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
     else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
+    else if (s == "--hurt" && next(1)) std::sscanf(argv[++i], "%f@%d", &a.hurt, &a.hurt_at);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
@@ -1208,6 +1211,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         }
         // --objectives N (ours, for checking): F12's box shown from the N-th frame.
         if (a.objectives > 0 && shots == a.objectives) mech3::program_hud_objectives_toggle();
+        // --hurt F@N (ours, for checking): the torso's internal structure at F, as the static test does.
+        if (a.hurt >= 0.0f && shots == a.hurt_at) mech3::program_set_torso_internal(mech3::mech_mission_player(), a.hurt);
         if (a.walk && (shots == 2 || shots == 4))  // THROTTLE0's key (100%) pressed and let go
           for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
             if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == (zin::key1_of(0x24) & 0xff)) {
