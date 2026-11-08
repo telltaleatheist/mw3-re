@@ -231,6 +231,9 @@ class MissionHooks : public zgame::Unported {
   virtual Handle sound_play(Handle s, float volume) { return unported("0x0056e3d0", {s, zgame::bits(volume)}); }
   // The win (0x0048f740): Instant Action's next wave, training's lessons.
   virtual Handle ia_game() { return unported("0x00479460", {}); }
+  // Pirate's Moon: the Instant Action game's last wave (0x0040c260, ia_progression's; -1 none), which ends
+  // Progression where MW3's table ended at 20.
+  virtual int32_t ia_last_wave(Handle ia) { return static_cast<int32_t>(unported("0x0040c260", {ia})); }
   virtual void fn_5392c0() { unported("0x005392c0", {}); }
   virtual void fn_49dc80(uint8_t v) { unported("0x0049dc80", {v}); }
   virtual void objectives_free(Handle a, Handle b, Handle c, Handle d, Handle e) {

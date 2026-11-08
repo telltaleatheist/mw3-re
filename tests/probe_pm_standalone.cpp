@@ -112,3 +112,34 @@ int32_t probe_pm_sa_slot(int32_t i, int32_t* out) {
   return 0;
 }
 }  // extern "C"
+
+// Instant Action's waves (test_pm_ia_progression.py): ia_progression.zrd's `block` read as PM's 0x0040c070 does
+// into a game kept for the accessors (the archive opened by probe_pm_zrdr_load); out: the wave count, then each
+// wave's slot count and its (mech, loadout) pairs. -1 without the file.
+namespace {
+ActionGame* g_waves = nullptr;
+}
+extern "C" int probe_pm_progression(const char* block, int32_t* out, int cap) {
+  delete g_waves;
+  g_waves = new ActionGame(nullptr);
+  zrdr::Node* root = zrdr::load("ia_progression.zrd");
+  if (!root) return -1;
+  g_waves->read_progression(block ? zrdr::find(root, block) : nullptr);
+  zrdr::free_node(root);
+  int n = 0;
+  auto put = [&](int32_t v) { if (n < cap) out[n] = v; ++n; };
+  put(static_cast<int32_t>(g_waves->progression.size()));
+  for (const auto& w : g_waves->progression) {
+    put(static_cast<int32_t>(w.size()));
+    for (const auto& s : w) put(s.mech), put(s.config);
+  }
+  return n;
+}
+// The accessors on that game: the last wave (0x0040c260), wave w's slots (0x0040c280), slot i's mech and
+// loadout (0x0040c2c0, 0x0040c300).
+extern "C" void probe_pm_wave_query(int32_t w, int32_t i, int32_t out[4]) {
+  out[0] = g_waves ? g_waves->last_wave() : -1;
+  out[1] = g_waves ? g_waves->wave_slots(w) : 0;
+  out[2] = g_waves ? g_waves->wave_mech(w, i) : -1;
+  out[3] = g_waves ? g_waves->wave_config(w, i) : 0;
+}

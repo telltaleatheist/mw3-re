@@ -20,6 +20,7 @@
 #include "mech3/mech_reader.h"
 #include "mech3/options.h"
 #include "mech3/pilot.h"
+#include "mech3/mission.h"
 
 namespace mech3 {
 
@@ -872,6 +873,74 @@ void ActionGame::drop_enemies() {
   for (int32_t i = count; i >= 0; --i)
     if (!ally(i)) remove(i);
 }
+
+// Pirate's Moon 1.0 @ 0x0040c070: the block's lists, one a wave, each of (mech name, loadout) pairs; a
+// name not on the roster is -1 (0x00486730). The exe reads a pair's two values unchecked; a shorter pair
+// here keeps -1 and 0 (FIX (bug), a mod's line).
+void ActionGame::read_progression(const zrdr::Node* block) {
+  if (!block || block->type != zrdr::List) return;
+  const int32_t n = zrdr::list_count(block) - 1;
+  progression.resize(n > 0 ? static_cast<size_t>(n) : 0);
+  for (int32_t w = 0; w < n; ++w) {
+    const zrdr::Node& wave = block->list[w + 1];
+    const int32_t m = wave.type == zrdr::List ? zrdr::list_count(&wave) - 1 : 0;
+    std::vector<WaveSlot>& slots = progression[static_cast<size_t>(w)];
+    slots.assign(m > 0 ? static_cast<size_t>(m) : 0, WaveSlot{-1, 0});
+    for (int32_t i = 0; i < m; ++i) {
+      const zrdr::Node& pair = wave.list[i + 1];
+      if (pair.type != zrdr::List || zrdr::list_count(&pair) < 3) continue;
+      const zrdr::Node& name = pair.list[1];
+      slots[static_cast<size_t>(i)].mech = name.type == zrdr::String && name.s ? mech_index(name.s) : -1;
+      slots[static_cast<size_t>(i)].config = pair.list[2].type == zrdr::Int ? pair.list[2].i : 0;
+    }
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x0040c410: the world's block (vt+0x54, the world's folder: c1..), else "default".
+void ActionGame::load_progression() {
+  zrdr::Node* root = zrdr::load("ia_progression.zrd");
+  if (!root) return;  // (the exe looks in nothing)
+  zrdr::Node* block = zrdr::find(root, mission_dir(x74));
+  if (!block) block = zrdr::find(root, "default");
+  read_progression(block);
+  zrdr::free_node(root);
+}
+
+// Pirate's Moon 1.0 @ 0x0040c390
+void ActionGame::set_mode(int32_t m) {
+  mode = m;
+  if (m == 2) load_progression();
+}
+
+// Pirate's Moon 1.0 @ 0x0040c360
+void ActionGame::set_world(int32_t world, int32_t mission) {
+  x74 = world;
+  x78 = mission;
+  if (mode == 2) load_progression();
+}
+
+// Pirate's Moon 1.0 @ 0x0040c260
+int32_t ActionGame::last_wave() const { return static_cast<int32_t>(progression.size()) - 1; }
+
+// Pirate's Moon 1.0 @ 0x0040c280
+int32_t ActionGame::wave_slots(int32_t w) const {
+  return w >= 0 && static_cast<size_t>(w) < progression.size() ? static_cast<int32_t>(progression[static_cast<size_t>(w)].size()) : 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0040c2c0 / 0x0040c300: the wave is checked, the slot not. FIX (bug): the slot too
+// (a mod's wave asked past its end read on into the heap).
+int32_t ActionGame::wave_mech(int32_t w, int32_t i) const {
+  return i >= 0 && i < wave_slots(w) ? progression[static_cast<size_t>(w)][static_cast<size_t>(i)].mech : -1;
+}
+int32_t ActionGame::wave_config(int32_t w, int32_t i) const {
+  return i >= 0 && i < wave_slots(w) ? progression[static_cast<size_t>(w)][static_cast<size_t>(i)].config : 0;
+}
+
+// Pirate's Moon 1.0 @ 0x0040c3b0
+bool ActionGame::waves_done() const { return mode == 2 && last_wave() < x6c - 1; }
+
+// Pirate's Moon 1.0 @ 0x0040c3e0
+int32_t ActionGame::best_wave() const { return last_wave() < waves ? last_wave() : waves; }
 
 // Mech3.exe 1.2 @ 0x00436840
 GameSlot* ActionGame::add(int32_t mech, uint8_t s, const Config* config, int32_t paint) {

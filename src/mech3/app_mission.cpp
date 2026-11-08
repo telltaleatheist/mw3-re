@@ -669,6 +669,22 @@ struct WiredPlayerHooks : PlayerHooks {
     if (ActionGame* a = action(g)) a->drop_enemies();
     else PlayerHooks::action_drop_enemies(g);
   }
+  int32_t action_last_wave(Handle g) override {
+    ActionGame* a = action(g);
+    return a ? a->last_wave() : PlayerHooks::action_last_wave(g);
+  }
+  int32_t action_wave_slots(Handle g, int32_t w) override {
+    ActionGame* a = action(g);
+    return a ? a->wave_slots(w) : PlayerHooks::action_wave_slots(g, w);
+  }
+  int32_t action_wave_mech(Handle g, int32_t w, int32_t i) override {
+    ActionGame* a = action(g);
+    return a ? a->wave_mech(w, i) : PlayerHooks::action_wave_mech(g, w, i);
+  }
+  int32_t action_wave_config(Handle g, int32_t w, int32_t i) override {
+    ActionGame* a = action(g);
+    return a ? a->wave_config(w, i) : PlayerHooks::action_wave_config(g, w, i);
+  }
   Handle action_add(Handle g, int32_t mech, uint8_t side, Handle config, int32_t paint) override {
     ActionGame* a = action(g);
     if (!a) return PlayerHooks::action_add(g, mech, side, config, paint);
@@ -1864,6 +1880,10 @@ struct WiredMissionHooks : MissionHooks {
   Handle ia_game() override {
     ActionGame* a = launch_action(e);
     return a ? e->handle_of(a) : 0;
+  }
+  int32_t ia_last_wave(Handle ia) override {
+    auto* a = static_cast<ActionGame*>(e->object_of(ia));
+    return a ? a->last_wave() : -1;
   }
   void fn_5392c0() override { zmod::models_free_unused(); }  // 0x005392c0: the last wave's unused models freed
   void fn_49dc80(uint8_t v) override { action_lineup(v != 0); }
