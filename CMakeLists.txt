@@ -498,7 +498,7 @@ add_library(mw3probe SHARED
   tests/probe_ctlcfg.cpp
   tests/probe_ai.cpp
   tests/probe_zdec.cpp
-  tests/probe_zgeo.cpp
+  # tests/probe_zgeo.cpp: zGeo takes PM's models on `pm` (test_pm_crater_cut); MW3's crater tests run from `main`
   tests/probe_weiler.cpp
   tests/probe_convexify.cpp
   tests/probe_gmod_add.cpp

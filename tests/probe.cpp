@@ -1007,7 +1007,7 @@ int probe_copy(int root, int mode, int a, int b) {
   zcls::Node* n = root >= 0 ? zcls::node_at(root) : nullptr;
   switch (mode) {
     case 0: return node_index(zcls::tree_copy(n, a, b));
-    case 1: return node_index(zcls::tree_copy_materials(n, a, b));
+    case 1: return node_index(zcls::tree_copy_materials(n, zcls::copy_state().copy_models, a, b));  // MW3's: the models' flag kept
     case 2: return zcls::tree_destroy(n);
     case 3: return zcls::node_destroy(n);
     default: return -99;
