@@ -260,6 +260,7 @@ class WiredTickPm final : public TickPmHooks {
 
 void pm_note_hit(Brain& b, zgame::Handle attacker) {
   pm_hook_missing("the hit's damage");
+  if (std::getenv("PM_TRACE")) std::printf("pm trace: %a hit by %u\n", brain_hooks().now(), attacker);
   pm_brain(b).attackers.add(attacker, 0.0f, brain_hooks().now());
 }
 zgame::Handle pm_hardest_attacker(Brain& b) { return pm_brain(b).attackers.hardest(brain_hooks().now()); }
@@ -280,6 +281,10 @@ bool pm_frame(Brain& b, BrainControls& c, float dt) {
   pm_hook_missing(r.tick.awake ? "awake: params +0x88" : r.tick.by_player ? "sight check: by +0x98" : "sight check: by the pick");
   const bool answer = tick_pm(hooks, r.tick, c.vehicle(), dt);
   b.params.put<int32_t>(0x3c, r.tick.mode);
+  static const bool trace = std::getenv("PM_TRACE") != nullptr;  // for finding where two runs part
+  if (trace)
+    std::printf("pm trace: %a v%u mode %d busy %d orders %zu answer %d x104 %d\n", brain_hooks().now(), r.vehicle,
+                r.tick.mode, int(r.tick.busy), b.orders.size(), int(answer), int(b.x104));
   return answer;
 }
 
