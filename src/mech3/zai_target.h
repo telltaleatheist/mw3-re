@@ -129,7 +129,8 @@ struct TargetDesc {
   size_t next = 0;
   // +0x14: bit 0 display, bit 1 radar, bit 2 reticule_select, bit 3
   // zoom_select (the record's 0x08, 0x04, 0x10, 0x20).
-  uint8_t flags = 0;
+  uint8_t flags = 0;                 // PM +0x18
+  int32_t mpoption = -1;             // PM +0x14  the record's mpoption (+0x38): the base it is, 1 or 2 (0x004e2730)
   bool named = false;            // +0x18  the record's (localized) name, strdup'd (0x0049d1c0)
   std::string name;
   float load_limit = 0;          // Pirate's Moon +0x1c  the record's, tons
@@ -254,6 +255,8 @@ class TargetHooks : public zgame::Unported {
   virtual Handle anim_node(Handle anim) { (void)anim; return 0; }       // 0x0050b5e0: +0x40 unless free
   virtual Handle anim_node2(Handle anim) { (void)anim; return 0; }      // 0x0050b600: +0x64 unless free
   virtual void anim_run(Handle anim) { unported("0x00508c10", {anim, 0, 0, 0, 0}); }
+  // Pirate's Moon 0x00472b40: a base destroyed, on the network game (none: nothing).
+  virtual void base_destroyed(int32_t base) { (void)base; }
   virtual void anim_owner_release(Handle self) { unported("0x004d5100", {self}); }
   virtual uint8_t anim_owner_claim(Handle self, Handle anim) {
     return static_cast<uint8_t>(unported("0x004d4f20", {self, anim}));

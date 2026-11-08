@@ -433,6 +433,7 @@ void desc_take(TargetDesc& d, TargetRec* rec, Handle anim) {
   d.named = rec->name != nullptr;
   d.name = rec->name ? rec->name : "";
   d.destroy_anim = anim;
+  d.mpoption = rec->mpoption;  // Pirate's Moon 0x004e2730: desc +0x14
   if (rec->flags & 1) {
     d.health = d.max_health = rec->health;
   } else {
@@ -662,8 +663,9 @@ void CZAiTarget::destroy() {
   kill();
 }
 
-// Mech3.exe 1.2 @ 0x004d2b60: every trigger left fires, the entity goes
-// inactive.
+// Mech3.exe 1.2 @ 0x004d2b60, Pirate's Moon 1.0 @ 0x004e2f50: every trigger
+// left fires, the entity goes inactive; PM: a base's (its mpoption) then
+// tells the network game (0x00472b40), which may end the round.
 void CZAiTarget::kill() {
   destroyed = 1;
   if (desc.health > 0.0f) {
@@ -672,6 +674,7 @@ void CZAiTarget::kill() {
   }
   desc.health = 0;
   active = 0;
+  if (desc.mpoption >= 0) g_hooks->base_destroyed(desc.mpoption);
 }
 
 // Pirate's Moon 1.0 @ 0x004e2e30's load. FIX (B), behind per_second: per call in the exe, so at 60

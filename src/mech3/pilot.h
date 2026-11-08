@@ -120,6 +120,26 @@ class Store {
   uint8_t full = 0;                  // +0x10  set with b04, and by store_fill
 };
 
+// Pirate's Moon's lobby settings, as the lobby screen's lists and boxes give
+// them (0x0049ef20, 0x0049e400): a list's pick (none: no item selected).
+struct LobbyPick {
+  bool has = false;
+  int32_t value = 0;
+};
+struct LobbySettings {
+  LobbyPick kills, minutes, tons, realloc, rounds, kind, world;  // KILLS, TIME, WEIGHT, REALLOC, ROUNDS, the kinds, SCENARIO
+  bool respawn = false, ammo = false, outside = false, jets = false, radar = false, stock = false, mobile = false;
+};
+// What 0x0049e400 decides when the host locks the options.
+enum class LobbyRule {
+  start,              // locked: team play set (any kind but 0)
+  one_base_unlimited, // "Attack/Defend with one base requires a time limit or a score limit"
+  declined,           // a confirmation (0x1e3 with 0xfbd no limits, or 0x2c4) answered no
+  two_bases_limited,  // "...two bases requires unlimited time and unlimited score." (both lists to 1000)
+  no_respawn,         // "Attack/Defend games and 'No RESPAWN' are incompatible." (respawn turned on)
+};
+LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text), bool* team_play);
+
 // Pirate's Moon: a game's vt+0x44, the jump jets' assist: the multiplayer
 // game's 0x004365f0 (its +0xa7) when it is `g`, else every other game's
 // 0x00435070 (the MW2 jump jets option, 0x0040afd0, the other way round).
@@ -452,12 +472,16 @@ class MultiplayerGame : public Game {
   bool base_destroyed(int32_t base, float now);    // PM 0x00472b40's: reason 6, +0x8c, the clock sent now
   // PM's helpers for the lobby screen (0x0049a3c0, 0x0049b5e0) and the objectives (piece 4).
   std::string objectives_key();                    // vt+0x58 0x00436580: "mp<+0xb0>"
-  int32_t scenario_message();                      // vt+0x08 0x00437850: the scenario's text id
+  int32_t scenario_message();                      // vt+0x08 0x00437850: the world's text id
   int32_t enemies_of(uint32_t player);             // 0x004368d0: the others not on its team
   int32_t award_team(uint32_t player);             // 0x00436930: a round to each on its team; how many
   int32_t runner_up_rounds();                      // 0x00437380: the most rounds won short of `best`
   int32_t rounds_of(uint32_t player);              // 0x004366d0: its +0x2c, 0 unlisted
   int32_t place_of(uint32_t player);               // 0x004366f0: its +0x30, 0 unlisted
+  // PM 0x0049ef20's game half (the host's start; everyone's then): the settings into the game; the clock's on
+  // and its seconds out ([0x0062da98], [0x0062da94]).
+  void apply_lobby(const LobbySettings& s, bool* clock_on, float* clock_left);
+  std::vector<uint8_t> start_message();            // PM 0x0049ef20's 0x1e: each player's id, order, team number
   void score_texts(int32_t name_width, int32_t number_width);  // PM 0x00436db0 (MW3 0x00435b60): the lines, sorted
   // PM 0x0049b730, the lobby screen's results list's lines: before any round
   // message 0x2bd; else "End of Round <played> of <total>" (the saved total
@@ -477,12 +501,11 @@ class MultiplayerGame : public Game {
     int32_t seed = 0;                // +0x6c  rand()
   } rules;
   uint32_t rules_crc = 0;            // +0x88
-  int32_t pm70 = 0, pm78 = 0, pm98 = 0;  // PM's own, in the file; not yet read by anything
   int32_t pmcc = 0;                  // PM +0xcc  Total Shots on the pilot's screen, one per shot (0x00471adf)
-  uint8_t pma8 = 1, pma9 = 1;        // PM +0xa8, +0xa9, the same
-  int32_t x70 = 0;                   // +0x70  KILLS_LIST's: the score to win (never set by the constructor; saved)
-  float x74 = 10.0f;                 // +0x74  TIME_LIST's: minutes
-  int32_t x78 = 90;                  // +0x78  WEIGHT_LIST's: tons
+  uint8_t radar = 1;                 // PM +0xa8  the rules' 0x100 (RADAR_CHECKBOX's, by elimination: piece 6)
+  int32_t x70 = 0;                   // +0x70, PM +0x78  KILLS_LIST's: the score to win (never set by the constructor; saved)
+  float x74 = 10.0f;                 // +0x74, PM +0x7c  TIME_LIST's: minutes
+  int32_t x78 = 90;                  // +0x78, PM +0x80  WEIGHT_LIST's: tons
   // The network game's clock and end (PM 0x00471040, MW3 0x0046ef70); the start clears them.
   float clock_next = 0;              // PM +0x84 (MW3 +0x7c): when the host sends the clock (0x11) again
   float end_time = 0;                // PM +0x88 (MW3 +0x80): the round over then (not set by the constructor)
@@ -493,20 +516,20 @@ class MultiplayerGame : public Game {
   // PM's rounds (0x00436980): the game's kind, the base destroyed and the side the vt+0x48 names.
   int32_t kind = 0;                  // PM +0x98  0, 1 deathmatch; 3, 4 a base or two (piece 4)
   int32_t base_lost = 0;             // PM +0x8c  the base destroyed, 1 or 2 (0x00472b40); cleared by the start
-  int32_t xb0 = 0;                   // PM +0xb0  vt+0x48 (0x00436010): the side whose base is 1 (piece 4)
   uint8_t winner_set = 0;            // PM +0xaa  a winner already (0x00437970); cleared by the start
-  int32_t scenario = 0;              // PM +0xac  the scenario (0..3; vt+0x08's text by it and +0xb0)
   uint8_t jets_assist = 1;           // PM +0xa7  vt+0x44 (0x004365f0): the jump jets' assist (the MW2 option's other way round)
   // PM's between rounds (0x00438580).
   int32_t realloc = 0;               // PM +0x70  REALLOC_LIST's ("MSG_REALLOC_SALVAGE"): the rewards' scale, x2
   int32_t rounds_total = 0;          // PM +0x74  the rounds in the match (the lobby's 0x0049a3c0 extends it on a tie)
   float bonus_tons = 0;              // PM +0xd0  the places' rewards summed; read through vt+0x60 (0x00436020)
   Store round_store{0};              // PM +0xd4  what the players draw from between rounds
-  uint8_t b8c = 1, b8d = 0, b8e = 0, b8f = 1;  // +0x8c..+0x8f
-  int32_t x90 = 0, x94 = 1;          // +0x90, +0x94  DATABASE_LIST's world: its folder (0 c1) and number
+  uint8_t b8c = 1, b8d = 0, b8e = 0, b8f = 1;  // +0x8c..+0x8f; PM +0xa4..+0xa6 and +0xa9: respawn, ammo, outside, stock
+  // The world, PM's scenario list's value: its folder (0 c1, PM +0xac, vt+0x50) and number (PM +0xb0, vt+0x48:
+  // readermp<n>.zbd, "mp<n>" and the side whose base is base 1).
+  int32_t x90 = 0, x94 = 1;          // +0x90, +0x94
   int32_t kills = 0, deaths = 0;     // +0x98, +0x9c  the pilot screen's line (0x27e)
   int32_t best = 0, best_count = 0;  // PM +0xbc, +0xc0 (MW3 +0xa0, +0xa4): the most rounds won and how many have it (0x00436db0)
-  uint8_t ba8 = 0;                   // +0xa8  MOBILE_CHECKBOX's
+  uint8_t ba8 = 0;                   // +0xa8, PM +0xc4  MOBILE_CHECKBOX's
   std::string roster;                // +0xac  (0x00436470)
 };
 

@@ -937,23 +937,25 @@ MultiplayerGame::~MultiplayerGame() = default;
 void MultiplayerGame::save() {
   Game::save();
   std::FILE* f = pilot->file;
-  wr(f, &kills, 4);  // Pirate's Moon 1.0 @ 0x004361c0; the names by MW3's offsets + 0x18, multiplayer's item to confirm
+  // Pirate's Moon 1.0 @ 0x004361c0: +0xb4, +0xb8, +0x78, +0x98, +0x70, +0x74 (no more than 10), +0x7c, +0xa4..+0xa8,
+  // +0xc4, +0xac, +0xb0, +0xa9, +0x80, +0xcc.
+  wr(f, &kills, 4);
   wr(f, &deaths, 4);
-  wr(f, &pm78, 4);
-  wr(f, &pm98, 4);
-  wr(f, &pm70, 4);
-  const int32_t score = x70 > 9 ? 10 : x70;  // Pirate's Moon: saved no higher than 10
-  wr(f, &score, 4);
+  wr(f, &x70, 4);
+  wr(f, &kind, 4);
+  wr(f, &realloc, 4);
+  const int32_t rounds = rounds_total > 9 ? 10 : rounds_total;
+  wr(f, &rounds, 4);
   wr(f, &x74, 4);
   wr(f, &b8c, 1);
   wr(f, &b8d, 1);
   wr(f, &b8e, 1);
-  wr(f, &b8f, 1);
-  wr(f, &pma8, 1);
+  wr(f, &jets_assist, 1);
+  wr(f, &radar, 1);
   wr(f, &ba8, 1);
   wr(f, &x90, 4);
   wr(f, &x94, 4);
-  wr(f, &pma9, 1);
+  wr(f, &b8f, 1);
   wr(f, &x78, 4);
   wr(f, &pmcc, 4);
 }
@@ -962,22 +964,22 @@ void MultiplayerGame::save() {
 void MultiplayerGame::load() {
   Game::load();
   std::FILE* f = pilot->file;
-  rd(f, &kills, 4);  // Pirate's Moon 1.0 @ 0x004363b0
+  rd(f, &kills, 4);  // Pirate's Moon 1.0 @ 0x004363b0, 0x004361c0's order
   rd(f, &deaths, 4);
-  rd(f, &pm78, 4);
-  rd(f, &pm98, 4);
-  rd(f, &pm70, 4);
   rd(f, &x70, 4);
+  rd(f, &kind, 4);
+  rd(f, &realloc, 4);
+  rd(f, &rounds_total, 4);
   rd(f, &x74, 4);
   rd(f, &b8c, 1);
   rd(f, &b8d, 1);
   rd(f, &b8e, 1);
-  rd(f, &b8f, 1);
-  rd(f, &pma8, 1);
+  rd(f, &jets_assist, 1);
+  rd(f, &radar, 1);
   rd(f, &ba8, 1);
   rd(f, &x90, 4);
   rd(f, &x94, 4);
-  rd(f, &pma9, 1);
+  rd(f, &b8f, 1);
   rd(f, &x78, 4);
   rd(f, &pmcc, 4);
 }
@@ -1276,8 +1278,8 @@ int32_t MultiplayerGame::spawn_base(uint32_t player) {
   if (kind > 1) {
     if (const LobbyTeam* t = lobby_team(lobby_team_id(player))) {  // 0x00498800, 0x00498930
       const bool side = (static_cast<uint32_t>(t->word2) & 1) != 0;
-      if (kind == 4) return side ? (xb0 == 1 ? 8 : 0) : (xb0 == 1 ? 0 : 8);
-      if (kind == 3) return side ? 16 : (xb0 == 1 ? 0 : 8);
+      if (kind == 4) return side ? (x94 == 1 ? 8 : 0) : (x94 == 1 ? 0 : 8);
+      if (kind == 3) return side ? 16 : (x94 == 1 ? 0 : 8);
     }
   }
   return 24;
@@ -1288,8 +1290,8 @@ int32_t MultiplayerGame::spawn_base(uint32_t player) {
 bool MultiplayerGame::base_counts(int32_t base) {
   if (kind <= 1) return false;
   if (kind == 4) return true;
-  if (base == 1) return xb0 == 1;
-  if (base == 2) return xb0 == 2;
+  if (base == 1) return x94 == 1;
+  if (base == 2) return x94 == 2;
   return false;
 }
 
@@ -1309,11 +1311,72 @@ LobbyTeam* MultiplayerGame::team_numbered(int32_t number) {
   return nullptr;
 }
 
+// Pirate's Moon 1.0 @ 0x0049ef20 (the game's half): no score limit at 1000 or
+// over (0x7fffffff), a missing pick 0; the boxes into +0xa4..+0xa9 and +0xc4
+// and the rules' flags (1 respawn, 2 mobile, 4 stock, 8 ammo, 0x10 outside, 0x80
+// jets, 0x100 radar, or'd on); the world's low byte its folder (+0xac), its
+// second its number (+0xb0); the clock on under 1000 minutes.
+void MultiplayerGame::apply_lobby(const LobbySettings& s, bool* clock_on, float* clock_left) {
+  const auto val = [](const LobbyPick& p) { return p.has ? p.value : 0; };
+  x70 = s.kills.has && s.kills.value >= 1000 ? 0x7fffffff : val(s.kills);  // +0x78
+  b8c = s.respawn, b8d = s.ammo, b8e = s.outside, jets_assist = s.jets, radar = s.radar, b8f = s.stock;
+  ba8 = s.mobile;
+  x78 = val(s.tons);                                     // +0x80
+  x74 = static_cast<float>(val(s.minutes));              // +0x7c
+  realloc = val(s.realloc), rounds_total = val(s.rounds), kind = val(s.kind);
+  rules.world = static_cast<int16_t>(val(s.world));      // +0x64..+0x6a
+  rules.kills = static_cast<int16_t>(val(s.kills));
+  rules.time = static_cast<int16_t>(val(s.minutes));
+  rules.weight = static_cast<int16_t>(val(s.tons));
+  rules.flags |= (s.respawn ? 1u : 0u) | (s.mobile ? 2u : 0u) | (s.stock ? 4u : 0u) | (s.ammo ? 8u : 0u) |
+                 (s.outside ? 0x10u : 0u) | (s.jets ? 0x80u : 0u) | (s.radar ? 0x100u : 0u);
+  const float minutes = static_cast<float>(val(s.minutes));
+  *clock_on = minutes < 1000.0f;  // [0x005e29b0]
+  *clock_left = *clock_on ? minutes * 60.0f : 0.0f;
+  const uint32_t w = static_cast<uint32_t>(val(s.world));
+  x90 = static_cast<int32_t>(w & 0xff);         // +0xac
+  x94 = static_cast<int32_t>((w >> 8) & 0xff);  // +0xb0
+}
+
+// Pirate's Moon 1.0 @ 0x0049ef20's message, the host's to all, guaranteed:
+// 0x1e, then the players' count and each one's id, order and team number
+// (0x00436600); MW3's 0x0049b790 sent the 8 ids by order.
+std::vector<uint8_t> MultiplayerGame::start_message() {
+  const uint32_t n = static_cast<uint32_t>(lobby_players.size());
+  std::vector<uint32_t> w(2 + 3 * n, 0);
+  w[0] = 0x1e | (8 + 12 * n) << 16;
+  w[1] = n;
+  size_t k = 2;
+  for (auto& p : lobby_players)
+    w[k++] = p->id, w[k++] = static_cast<uint32_t>(p->order), w[k++] = net_team(p->id);
+  std::vector<uint8_t> b(4 * w.size());
+  std::memcpy(b.data(), w.data(), b.size());
+  return b;
+}
+
+// Pirate's Moon 1.0 @ 0x0049e400's rules: with no score and no time limit
+// (1000 each) one base can't play and anything but two bases asks first;
+// with either limit two bases can't; the base kinds need respawn; then the
+// start asked for.
+LobbyRule check_lobby_rules(const LobbySettings& s, bool (*confirm)(int32_t text), bool* team_play) {
+  const auto is = [](const LobbyPick& p, int32_t v) { return p.has && p.value == v; };
+  if (is(s.kills, 1000) && is(s.minutes, 1000)) {
+    if (is(s.kind, 3)) return LobbyRule::one_base_unlimited;
+    if (!is(s.kind, 4) && !confirm(0xfbd)) return LobbyRule::declined;  // 0x004afb30(1, 0x1e3, ...)
+  } else if (is(s.kind, 4)) {
+    return LobbyRule::two_bases_limited;
+  }
+  if (s.kind.has && s.kind.value > 1 && !s.respawn) return LobbyRule::no_respawn;
+  if (!confirm(0x2c4)) return LobbyRule::declined;
+  *team_play = s.kind.has && s.kind.value != 0;  // [0x0062cc34]
+  return LobbyRule::start;
+}
+
 // Pirate's Moon 1.0 @ 0x00436580 (vt+0x58): the objectives block's name, by
 // the side whose base is base 1 (vt+0x48).
 std::string MultiplayerGame::objectives_key() {
   char buf[24];
-  std::snprintf(buf, sizeof buf, "mp%d", xb0);  // [0x006055b8]
+  std::snprintf(buf, sizeof buf, "mp%d", x94);  // [0x006055b8]
   return buf;
 }
 
@@ -1321,8 +1384,8 @@ std::string MultiplayerGame::objectives_key() {
 // scenario by whether +0xb0 is 1 (0x00596e50 on the id); 0xd75 past 3.
 int32_t MultiplayerGame::scenario_message() {
   static const int32_t kIds[4][2] = {{0x321, 0x320}, {0x323, 0x322}, {0x325, 0x324}, {0x327, 0x326}};
-  if (scenario < 0 || scenario > 3) return 0xd75;
-  return kIds[scenario][xb0 == 1 ? 1 : 0];
+  if (x90 < 0 || x90 > 3) return 0xd75;
+  return kIds[x90][x94 == 1 ? 1 : 0];
 }
 
 // Pirate's Moon 1.0 @ 0x004368d0
@@ -1441,8 +1504,8 @@ bool MultiplayerGame::tally(bool award) {
     one = first == 1;
   } else {
     if (!award) return true;
-    if (base_lost == 1) award_side(xb0 == 1);  // vt+0x48
-    else if (base_lost == 2) award_side(xb0 == 2);
+    if (base_lost == 1) award_side(x94 == 1);  // vt+0x48
+    else if (base_lost == 2) award_side(x94 == 2);
   }
   if (award) {
     rescore(true);
