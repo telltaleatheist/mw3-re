@@ -190,6 +190,8 @@ struct NetLobbyAccess {
   void (*round_tally)() = nullptr;                   // PM 0x00436980(1)
   void (*store_give)(int32_t mech, const Config* c) = nullptr;  // PM 0x00475310 on the round store
   bool (*local_slot)(int32_t* mech, const Config** c) = nullptr;  // PM the game's vt+0x30(0)
+  int32_t (*game_kind)() = nullptr;                  // PM the game's +0x98
+  int32_t (*spawn_base)(uint32_t player) = nullptr;  // PM 0x00437a40
   uint32_t (*team_id)(uint32_t player) = nullptr;    // 0x00495b60: its team, 0 none
   const char* (*name)(uint32_t player) = nullptr;    // PM 0x00498930's +0x10: null none
 };

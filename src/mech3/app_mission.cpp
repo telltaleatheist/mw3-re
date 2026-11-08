@@ -2439,6 +2439,17 @@ MultiplayerGame* net_debug_game() {
 }  // namespace
 
 MultiplayerGame* mission_multiplayer_game() { return net_debug_game(); }
+
+// Pirate's Moon: the current game's vt+0x44, the jump jets' assist. Every
+// game's 0x00435070 answers the MW2 jump jets option the other way round;
+// the multiplayer game's 0x004365f0 its +0xa7 (the lobby's option).
+bool program_jets_assist() {
+  const Pilot* p = current_pilot();
+  MultiplayerGame* g = p ? (p->current && p->current == p->multi ? p->multi : nullptr)
+                         : (g_mission_engine && g_mission_engine->launch().type == 3 ? g_mission_engine->launch().multi
+                                                                                        : nullptr);
+  return jets_assist_of(g);
+}
 void mission_multiplayer_count_shot() {
   if (MultiplayerGame* g = net_debug_game()) ++g->pmcc;
 }

@@ -16,6 +16,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_reader.h"
+#include "mech3/options.h"
 #include "mech3/pilot.h"
 
 namespace mech3 {
@@ -1259,6 +1260,45 @@ void MultiplayerGame::next_round(uint32_t place, int32_t round) {
       ++it;
     }
   }
+}
+
+bool jets_assist_of(const MultiplayerGame* g) {
+  if (g) return g->jets_assist != 0;  // 0x004365f0
+  return mw2_jump_jets() == 0;        // 0x00435070
+}
+
+// Pirate's Moon 1.0 @ 0x00437a40: 24 (remote_23 on, as MW3's) but in the
+// base kinds: the player's team's side (its third data word's bit 0) and the
+// side whose base is base 1 (+0xb0, vt+0x48) pick 0, 8 or 16 (one base: side
+// 1 at 16; two bases: each side at the 8 of its base).
+int32_t MultiplayerGame::spawn_base(uint32_t player) {
+  if (kind > 1) {
+    if (const LobbyTeam* t = lobby_team(lobby_team_id(player))) {  // 0x00498800, 0x00498930
+      const bool side = (static_cast<uint32_t>(t->word2) & 1) != 0;
+      if (kind == 4) return side ? (xb0 == 1 ? 8 : 0) : (xb0 == 1 ? 0 : 8);
+      if (kind == 3) return side ? 16 : (xb0 == 1 ? 0 : 8);
+    }
+  }
+  return 24;
+}
+
+// Pirate's Moon 1.0 @ 0x00437920: in the base kinds, two bases: either;
+// otherwise base 1 or 2 only when it is the one vt+0x48 (+0xb0) names.
+bool MultiplayerGame::base_counts(int32_t base) {
+  if (kind <= 1) return false;
+  if (kind == 4) return true;
+  if (base == 1) return xb0 == 1;
+  if (base == 2) return xb0 == 2;
+  return false;
+}
+
+// Pirate's Moon 1.0 @ 0x00472b40 (the game's half; 0x004e2f50 calls it with
+// the base): over kind 1, a base that counts ends the round, "Base
+// Destroyed" (6), its number kept (+0x8c), the clock sent now (+0x84).
+bool MultiplayerGame::base_destroyed(int32_t base, float now) {
+  if (kind <= 1 || !base_counts(base)) return false;
+  round_end = 6, base_lost = base, clock_next = now;
+  return true;
 }
 
 // Pirate's Moon 1.0 @ 0x004373e0: each line's rank, 0 first, lines whose

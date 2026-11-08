@@ -998,6 +998,8 @@ NetLobbyAccess net_lobby_access() {
   a.store_give = [](int32_t mech, const Config* c) {
     if (g_net_game) g_net_game->round_store.give_config(mech, c);
   };
+  a.game_kind = [] { return g_net_game ? g_net_game->kind : 0; };
+  a.spawn_base = [](uint32_t p) { return g_net_game ? g_net_game->spawn_base(p) : 24; };
   a.local_slot = [](int32_t* mech, const Config** c) {
     if (!g_net_game) return false;
     *mech = g_net_game->slot.mech, *c = g_net_game->slot.config;  // slot 0's +4, +8
