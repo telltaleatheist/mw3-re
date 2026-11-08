@@ -62,7 +62,7 @@ class WireSteer : public Base {
   // 0x004fa470 on the brain's orders: the order's net (vt+0x14) and state (vt+0x20) both idle. The state's slot
   // answers 1 on 49 of PM's state vtables, the attack's among them (0x004eb000); both are counted assumptions.
   bool order_steers(Brain* b) override {
-    if (!b || b->orders.empty()) return missing<true>("assumed: the order's net idle (vt+0x14)");  // the exe's always has one
+    if (!b || b->orders.empty()) return missing<true>("steering with no order");  // the exe's brain always has one
     return pm_orders_idle(*b);
   }
   const std::vector<const Contact*>& contacts(zgame::Handle v) override {

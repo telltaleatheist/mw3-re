@@ -57,7 +57,7 @@ TEST(pm_wire_counts_a_call_with_no_answer) {
   EXPECT(w.order_steers(nullptr));
   EXPECT(w.order_steers(nullptr));
   const auto& m = pm_hooks_missing();
-  EXPECT(m.at("assumed: the order's net idle (vt+0x14)") == 2);
+  EXPECT(m.at("steering with no order") == 2);
   pm_hooks_missing_clear();
 }
 
