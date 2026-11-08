@@ -1,5 +1,6 @@
 #include "mech3/zai_wire_states_pm.h"
 
+#include "mech3/zai_wire_nets_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 
 #include "mech3/zai_brain_pm.h"
@@ -27,6 +28,7 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     case StepKind::CanLeaveNot: return pm_make_scan_state(o, b);
     case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
     case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
+    case StepKind::Shared: return new PmSharedState(&o);
     default: break;
   }
   const uint32_t k = static_cast<uint32_t>(b.kind);
@@ -45,7 +47,39 @@ bool pm_state_running(Brain& b) {
   if (b.orders.empty()) return false;
   BehaviourState* s = b.current().state.get();
   return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) || dynamic_cast<PmDeployState*>(s) ||
-         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s) || pm_is_scan_state(s);
+         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s) || dynamic_cast<PmSharedState*>(s) ||
+         pm_is_scan_state(s);
+}
+
+void PmSharedState::run(float dt) {
+  (void)dt;
+  Order* o = order;
+  Brain& b = *o->owner;
+  BrainHooks& h = brain_hooks();
+  const zgame::Handle v = b.controls->vehicle();
+  b.controls->stop();       // vt+0x14
+  b.controls->fire(false);  // vt+0x10(0)
+  if (!v) return;
+  if (h.vehicle_flags(v) & 0x10) {
+    if (h.player_lance_state() == 4) {  // [0x0062c40c]+0x6c vt+0x28
+      if (AiNet* f = h.formation_net()) pm_give_order(b, f, nullptr);  // 0x004fa130 on 0x00627c18
+      return;
+    }
+    const zgame::Handle pv = h.player_vehicle();
+    if (!pv) return;
+    VehicleNet* vn = pm_vehicle_net(pv);
+    if (!vn) return;
+    pm_give_order(b, vn, vn->follow());  // 0x004fa150, 0x004c7920
+    return;
+  }
+  if (!o->net) return;
+  AiNet* n = o->net->net();
+  if (!n) return;
+  float p[3];
+  h.position(v, p);
+  Behaviour* step = h.nearest(n, p);
+  for (int i = 0; i < 3; ++i) b.x298[i] = p[i];
+  pm_push_behaviour(b, step);  // 0x004fa170
 }
 
 PmAttackState::PmAttackState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
