@@ -196,7 +196,10 @@ they crash in mark_moved), `mech_dfn_bad_version_does_not_save` (PM reads no ver
 `setup_*` archive and probe tests (PM's install and titles), `fix_lava_heat_per_second` (crashes in PM's heat),
 `fix_jet_cap_per_second`, `fix_deep_water_curve`, `fix_foot_uses_its_middle_probe`, `fix_lab_sort_by_name`,
 `fix_unpause_resumes_only_the_kept_voices`, the two `game_editor_*` and
-`controls_repair_mouse_fire_only_mends_the_quit_boxs_damage`. A failure outside this list is news.
+`controls_repair_mouse_fire_only_mends_the_quit_boxs_damage`. Of MW3's differential tests, `test_pocket_frame` and
+`test_pocket_panel` fail here by design too ("dumps differ", at seed 199 and before the frame's port as well): `pm`'s
+pocket frame and panel lines are PM's, tested by `test_pm_pocket_frame` and `test_pm_pocket_lines`. A failure outside
+this list is news.
 
 ## MW3's tests rewritten for PM (`pm_moved.py`)
 
@@ -318,6 +321,8 @@ Moving the test found what the MW3 classification hid: PM's commander isn't MW3'
 
 Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_marker` (what the port builds for the marker, the tests stand in for it); 0x46c920 answers 0 where MW3's answers 1, which the port's FIX for the double delete already amounts to. `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` are not moved: the frame 0x46b980 keeps about a quarter of MW3's lines and the keys 0x46cc50 two thirds.
 
+`test_pocket_keys` moved to `test_pm_pocket_keys` (2026-11-08): 0x46cc50 on the mode PM's dispatcher makes, with its mouse look 0x46cae0 and the smoothing 0x4285d0, 1,500 frames identical, the nine branches reached, 4 of 4 breaks (the trigger's id, a jet's direction, the airborne gate, the held jump). Read side by side, PM's keys are MW3's 0x46b0a0 line for line: only offsets moved (the owner at the IControls' +0x20, the mech's vt+0xac, vt+0x150, jets +0x3e8, rates +0x544..+0x54c, the HUD's zoom box +0x1520 and lock +0x1694, the look +0x158..+0x164), the reader is cdecl, the trigger is 0x3e (0x468ff0), and the directional jets ask the game's vt+0x44, which in single player is !0x40afd0, MW3's MW2 option read the other way round; in multiplayer it reads the game's +0xa7 byte (dev 1's, not wired here). The smoothing's powered-down reset is a virtual call in PM (vt+0x18, 0x4289a0, the look's fields cleared too), which the port already has as `PlayerControls::zero`. The test runs at 24 bits, as the controls' port and `test_pm_actions`. At 53 bits (`MW3_X87=53`) 934 of the 1,500 differ, in the eased floats only (up to 273 ulp in the twist, 66 in pitch, 27 in the jump, 15 in the throttle): no call, byte or branch moves, so left alone by the rule for small rounding.
+
 ## The switch's plan (2026-11-07, for Owen and the lead: nothing flipped)
 
 **Where the switch stands (2026-11-08):** what gates `PM_AI` on by default.
@@ -328,9 +333,9 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
   alone; both campaigns played to their ends with `PM_AI=1` (`kills:99`, `standalone-kills:99`), nothing new since
   pm-v0.9.0; the canyon, mission 3's defences, the base lights, the lancemates' follow on PM's net.
 - Left, no decision needed, in this order: (1) the three commander tests moved to PM (the frame done 2026-11-08:
-  PM's 0x46b980 with 0x46b8d0, `test_pm_pocket_frame`, 3,000 frames on PM's exe, 4 of 4 breaks; then the keys and the panel) (`test_pocket_panel`,
-  `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 two
-  thirds); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
+  PM's 0x46b980 with 0x46b8d0, `test_pm_pocket_frame`, 3,000 frames on PM's exe, 4 of 4 breaks; the keys done 2026-11-08: `test_pm_pocket_keys`, 1,500 frames, 4 of 4 breaks; then the panel) (`test_pocket_panel`,
+  `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 are
+  MW3's with PM's offsets); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
   of each struct the AI port owns compared once, or a line why not; (4) the 220 functions PM changed that run as MW3's
   port: each read or tested, or a line why not; (5) every break for the AI pieces rerun on the switch's evaluation.
 - Needs Owen or his PC: the same watch on the exe for +0x588 and the fuel in a real jump; a run of the exe logging each
