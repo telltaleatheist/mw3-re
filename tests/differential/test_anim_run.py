@@ -138,7 +138,10 @@ class Emu(WorldEmu):
             cpu.stub_function(0x4f7e00, lambda c: (self.trace.extend([6, self.index(c.ecx)]), 0)[1])
             cpu.stub_function(0x4f7f70, lambda c: (self.trace.append(7), 0)[1])
         cpu.stub_function(0x5490e0, lambda c: (self.trace.append(8), 0)[1])
-        for addr, kind, pop in ((0x5031b0, 3, 0), (0x505df0, 16, 0), (0x503c10, 20, 4), (0x503d50, 21, 4),
+        # Event 3 (0x5031b0) runs; its spawn 0x50d650 (ECX the index, EDX the place) traced.
+        cpu.stub_function(0x50d650, lambda c: (self.trace.extend([12, c.ecx] + list(struct.unpack(
+            '<3I', c.read(c.edx, 12)))), 0)[1])
+        for addr, kind, pop in ((0x505df0, 16, 0), (0x503c10, 20, 4), (0x503d50, 21, 4),
                                 (0x5076c0, 37, 4)):
             cpu.stub_function(addr, lambda c, k=kind: (self.trace.extend([9, k, self.def_id(c.ecx)]), 2)[1], pop)
         # Event 36 (0x5074b0) runs, with 0x579370's 565 format (the port's
@@ -760,10 +763,29 @@ def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
 
+_LINKS = None
+
+
+def anim_of(mission):
+    """The mission's anim.zbd, linked from a short temp folder when its path is 0x80 characters or more: the port
+    takes no longer one (0x5090f0, as the exe), and a deep checkout's is (the game hands it zbd\\cN\\anim.zbd)."""
+    global _LINKS
+    path = ZBD / mission / 'anim.zbd'
+    if len(str(path)) < 0x80:
+        return path
+    if _LINKS is None:
+        import tempfile
+        _LINKS = tempfile.TemporaryDirectory(prefix='anim-run-')
+    link = Path(_LINKS.name) / f'{mission}.zbd'
+    if not link.exists():
+        link.symlink_to(path)
+    return link
+
+
 def prepare(mission, seed, cmp, stats, emu_class=None):
     """Both sides read the mission and run the post-load pass (and c1's
     cockpit reset); returns them with the call streams."""
-    world, anim = ZBD / mission / 'gamez.zbd', ZBD / mission / 'anim.zbd'
+    world, anim = ZBD / mission / 'gamez.zbd', anim_of(mission)
     rng = random.Random(seed)
     emu, port = (emu_class or Emu)(), Port()
     emu.open(world, anim)

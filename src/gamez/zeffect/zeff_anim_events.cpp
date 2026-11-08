@@ -1,4 +1,5 @@
 #include "gamez/zeffect/zeff_anim_events.h"
+#include "gamez/zeffect/zeff_init.h"
 
 #include <cmath>
 #include <cstring>
@@ -108,6 +109,16 @@ int32_t ev_sound(AnimDef& d, uint8_t* e) {
     return 2;
   }
   if (H().play_sound) H().play_sound(H().ctx, sound, 1.0f);
+  return 2;
+}
+
+// Mech3.exe 1.2 @ 0x005031b0 (Pirate's Moon 1.0 @ 0x0051b700, the same). Effect +0x0c at +0x10 from node
+// +0x0e's place (-200 the start node with its offset). Both games ship no effects (zeff_init.h): nothing spawns.
+int32_t ev_effect(AnimDef& d, uint8_t* e) {
+  float p[3] = {0, 0, 0};
+  if (Node* at = ref_or_at(d, get<int16_t>(e, 0xe), p)) zcls::node_world_point(at, p);
+  p[0] = f32(e, 0x10) + p[0], p[1] = f32(e, 0x14) + p[1], p[2] = f32(e, 0x18) + p[2];
+  effect_spawn(d.effects[get<int16_t>(e, 0xc)].get<int32_t>(0x20), p);
   return 2;
 }
 

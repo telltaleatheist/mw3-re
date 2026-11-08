@@ -21,6 +21,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zeffect/zeff_anim_save.h"
+#include "gamez/zeffect/zeff_init.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
@@ -315,7 +316,10 @@ void install_hooks() {
     *hit = g_rays++ % 3 == 0;
     return 0;
   };
-  r.effect = [](void*, AnimDef* d, uint8_t*) { tr({9, 3, static_cast<uint32_t>(did(d))}); };
+  // Event 3 runs (0x005031b0): its spawn traced, the effect's index and the place.
+  zeff::effect_hooks().spawn_asked = [](int32_t i, const float* p) {
+    tr({12, static_cast<uint32_t>(i), bits(p[0]), bits(p[1]), bits(p[2])});
+  };
   r.camera_state = [](void*, AnimDef* d, uint8_t*) { tr({9, 20, static_cast<uint32_t>(did(d))}); };
   r.camera_from_to = [](void*, AnimDef* d, zeff::SeqDef*, uint8_t*) -> int32_t {
     tr({9, 21, static_cast<uint32_t>(did(d))});
