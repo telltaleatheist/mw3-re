@@ -337,7 +337,7 @@ def main():
     for i in range(count):
         v = case(rng)
         v[K['kind']] = 0xf
-        v[K['anim_state']] = rng.randrange(0, 16)  # 4 bits in PM
+        v[K['anim_state']] = rng.randrange(0, 32)  # PM keeps 4 bits of it
         light = rng.randrange(2)
         mine = port_flags(probe, v, light)
         if mine is None:
