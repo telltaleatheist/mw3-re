@@ -1044,10 +1044,10 @@ struct WiredBrainHooks : ai::BrainHooks {
   int32_t player_lance_state() override { return e->pilot() ? e->launch().type : -1; }
   // The hit handlers' (docs/ai.md 17.8b): a mech is its own vehicle's mech
   // (vt+0x50) and its controls are its +0x37c (vt+0x40, vt+0x140); what is
-  // not a program mech (a target or a turret) is logged.
+  // not a mech (a target or a turret: PM's steering asks it of contacts) answers none by its class (0x0040bae0).
   Handle vehicle_mech(Handle v) override {
     if (veh(v)) return 0;  // 0x0040bae0
-    return entity_is_mech(mech(v)) ? v : ai::BrainHooks::vehicle_mech(v);
+    return entity_is_mech(mech(v)) ? v : entity_mech(v);
   }
   void ally_hit(Handle attacker, Handle victim) override {
     if (void* b = veh(attacker)) return program_vehicle_hit_an_ally(b, mech(victim));
