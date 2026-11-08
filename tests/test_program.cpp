@@ -20955,7 +20955,8 @@ TEST(mission_c1m2_no_cow_level_headless) {
       for (uint32_t h : mechs) alive_after += mech3::chain_alive(h) ? 1 : 0;
       for (uint32_t h : vehicles) alive_after += mech3::chain_alive(h) ? 1 : 0;
       const mech3::Objectives& o = mech3::mission_objectives();
-      objectives_open = (o.primary ? open(*o.primary, open) : 0) + (o.secondary ? open(*o.secondary, open) : 0);
+      objectives_open = (o.primary ? open(*o.primary, open) : 0) + (o.secondary ? open(*o.secondary, open) : 0) +
+                        (o.final ? open(*o.final, open) : 0);
       for (const mech3::ConfigItem* it : mech3::mission_salvage().items)
         if (it->kind() == 0) salvaged[it->id()] += it->count;
       won = mech3::missions().ended == 1 && mech3::missions().aborting == 0;
@@ -20980,6 +20981,20 @@ TEST(mission_c1m2_no_cow_level_headless) {
   EXPECT(objectives_open == 0 && won);
   for (const auto& [t, n] : types) EXPECT(salvaged[t] >= n);
   EXPECT(debriefed && !failed);
+  // c1m1 has a final list (reach_mfb): done too, or the HUD keeps its nav after the win.
+  int32_t final_open = -1;
+  bool won1 = false;
+  cheat_mission("cheat_cow_c1m1_write", 0, 1, 600, [&](int f, mech3::GameEngine&, CheatKeys& k) {
+    if (f == 5) k.press(0x37);
+    if (f != 7) return false;
+    mech3::cheat_box_type(mech3::mission_player_mech(), "there is no cow level");
+    const mech3::Objectives& o = mech3::mission_objectives();
+    final_open = o.final ? open(*o.final, open) : -2;
+    won1 = mech3::missions().ended == 1 && mech3::missions().aborting == 0;
+    return true;
+  });
+  std::printf("  no cow level in c1m1: final objectives open %d; won %d\n", final_open, won1);
+  EXPECT(final_open == 0 && won1);
 }
 
 TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
