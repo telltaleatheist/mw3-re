@@ -4594,3 +4594,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   game's waypoint) in the command mode, MW3 hangs the marker where your aim landed and switches it on and off as the
   cursor moves. Pirate's Moon drops it onto the terrain under that spot, a metre above the ground, and leaves it
   showing. (From the code: the command mode's frame, 0x46b980 and 0x46b8d0.)
+- In Pirate's Moon's lance command panel you can't order an attack on a neutral target. MW3 lights "Attack my target"
+  for anything under the cursor that isn't on your side, neutral buildings and objects included; Pirate's Moon lights
+  it only for your enemies. The panel's lines changed too: each one starts with its key, right-aligned in three
+  places (lancemates 1 to 4 show their pick key, where MW3 numbered them), and the orders' keys are read each time
+  the panel opens, not once at the mission's start (checked against the original in an emulator).
