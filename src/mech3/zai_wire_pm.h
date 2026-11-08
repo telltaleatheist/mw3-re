@@ -94,7 +94,10 @@ using WiredSteerPm = WireSteer<SteerPmHooks>;
 bool pm_frame(Brain& b, BrainControls& c, float dt);
 // A hit on the pilot, for the list. The port's hit carries no damage yet, so it counts 0: `latest`
 // is right, `hardest` isn't. The clock is the game's until [0x008c1b50] is mapped.
-void pm_note_hit(Brain& b, zgame::Handle attacker);
+void pm_note_hit(Brain& b, zgame::Handle attacker, float damage = 0.0f);
+// 0x004fbc20 and 0x004fbdd0 for the brain's on_hit and died under PM_AI=1.
+void pm_on_hit(Brain& b, HitRecord& r, zgame::Handle owner, zgame::Handle attacker, float damage);
+void pm_died(Brain& b);
 zgame::Handle pm_hardest_attacker(Brain& b);  // 0x004b2890 on the controls' +0x04
 zgame::Handle pm_latest_attacker(Brain& b);   // 0x004b2820
 

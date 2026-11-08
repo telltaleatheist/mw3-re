@@ -614,13 +614,11 @@ class Brain {
   // then the radio: an enemy's hit with the player over sqrt(500) m off
   // (call_help), the player's own (friendly_fire), and past 3 s of his hits
   // in a run the lance turns on him (0x004d5dc0).
-  void on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker);
+  void on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker, float damage = 0.0f);
   // 0x004ea630 (IControls vt+0xb4): it killed `victim` (last_shot unless an
   // ally). 0x004ea6b0's line (vt+0xa8, after the controls' tick): ejecting.
   void killed(zgame::Handle owner, zgame::Handle victim);
-  void died() {
-    if (radio) brain_hooks().radio_line(*this, 6);  // ejecting (radio +0x18)
-  }
+  void died();
   // 0x004ea500 -> 0x004b78d0 (IControls vt+0x98): it hit an ally: the firing
   // passes over targets behind that one and stands down.
   void hit_an_ally(zgame::Handle victim) {
@@ -737,7 +735,7 @@ struct AiVehicleControls : VehicleControls, BrainControls {
   bool on_path() override { return true; }                      // IControls vt+0x70 0x004e7790 -> 0x004a5270
   void died() override;                                         // IControls vt+0xa8 0x004e7800 -> 0x004ea6b0
   int update(float dt) override;                                // IControls vt+0x0c 0x004e7670 -> 0x004e71a0
-  void on_hit(void* attacker);                                  // IControls vt+0x94 0x004ea520
+  void on_hit(void* attacker, float damage = 0.0f);             // IControls vt+0x94 0x004ea520
   void hit_an_ally(void* victim) { brain->hit_an_ally(brain_hooks().vehicle_handle(victim)); }  // vt+0x98 0x004ea500
   void tick() { brain->pilot_tick(*this); }                     // IControls vt+0xa4 0x004e94f0
   void on_kill(void* victim);                                   // IControls vt+0xb4 0x004ea630

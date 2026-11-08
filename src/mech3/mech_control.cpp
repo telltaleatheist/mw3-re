@@ -579,10 +579,10 @@ int AiControls::update(float dt) {
 
 zgame::Handle AiControls::vehicle() { return ai::brain_hooks().vehicle_handle(owner); }
 // Mech3.exe 1.2 @ 0x004ea520; without a brain (the tests' controls) the base's.
-void AiControls::on_hit(void* attacker) {
+void AiControls::on_hit(void* attacker, float damage) {
   ai::BrainHooks& h = ai::brain_hooks();
-  if (brain) brain->on_hit(hit, vehicle(), h.vehicle_handle(attacker));
-  else MechControls::on_hit(attacker);
+  if (brain) brain->on_hit(hit, vehicle(), h.vehicle_handle(attacker), damage);
+  else MechControls::on_hit(attacker, damage);
 }
 
 // Mech3.exe 1.2 @ 0x004e94f0
@@ -630,7 +630,8 @@ void AiControls::hit_an_ally(void* victim) {
 }
 
 // Mech3.exe 1.2 @ 0x004aec90
-void MechControls::on_hit(void* attacker) {
+void MechControls::on_hit(void* attacker, float damage) {
+  (void)damage;
   ai::BrainHooks& h = ai::brain_hooks();
   ai::controls_hit(hit, h.vehicle_handle(owner), h.vehicle_handle(attacker));
 }

@@ -310,3 +310,40 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   rewritten campaign with more enemies. Every fixed limit a mission can reach
   (units, AI, objects, scripts) found, then raised, or refused with a message
   naming it, where the original crashed.
+- After Pirate's Moon (Owen, 2026-11-07), in one list: custom weapons with their own
+  effects and animations, custom mechs, custom maps and campaigns, all as data;
+  existing data mods (mech3ax and zStudio output) loading as they are; quicksand as a
+  part a mod can use, the pits the engine already makes plus, behind a mod's own
+  setting, the sinking Recoil had (slower, lower gravity, settling in); the game
+  editor reachable from the launcher; and installing a mod made simple: the
+  launcher takes a mod's .zip, .7z or folder (picked, or dropped on its window),
+  finds the game files in it whatever its layout, checks them with `--check-mod`,
+  asks which game, writes `mods/<name>/` with its `mod.txt`, and lists mods to turn
+  on, off and reorder, with their conflicts shown. A mod made by overwriting an
+  install is taken as the files that differ from the player's own install. Nothing is
+  ever written into the install.
+- Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
+  `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
+  Ours will be new art in MW3's style (Owen: made with the local image generator), one
+  seamless texture turned into the seven looping frames by a scripted drift, so the loop
+  stays smooth; in the rebuild's own assets with its licence, never Recoil's.
+- Making missions (Owen, 2026-11-07): worlds are zStudio's, missions are ours.
+  [zStudio](https://github.com/Vorta/zStudio) (Vorta, MIT, Windows) rebuilds Zipper's own
+  source tree from the game files and compiles worlds back to `gamez.zbd`; the rebuild
+  loads what it exports, and we don't duplicate it (what we learn goes back as pull
+  requests: knowledge and fixes in its own C#, since it takes no decompiled sources).
+  On top of a world, built in or from zStudio, the game editor gets "New mission": the
+  mission files with a player start, then units, nets, nav points and objectives placed
+  in the running game, saved as a mod. The launcher's mod section links zStudio (opens
+  it when installed on Windows) and starts the editor on a game and mission. A guide,
+  `docs/making-missions.md`, written once those exist: a world in zStudio, a mission in
+  the editor, packed and installed as a mod.
+- Our additions in their own folder (Owen, 2026-11-07): whole features that aren't the
+  original's (the mission designer, the mod installer, Recoil-style quicksand, and the
+  load watch, hit log and font search now beside ported code) go in `src/rebuild/`, so
+  `src/gamez` and `src/mech3` stay the original with its marked fixes, and
+  `src/rebuild` and `src/frontend` are ours.
+- Exe patches aren't supported: the code is open, so a change to the engine is a
+  change to the source. What exe patches were used for (weapon rows, limits, the
+  resolution) becomes data or a setting instead, so mods stay combinable and
+  multiplayer can compare them.

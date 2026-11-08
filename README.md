@@ -23,6 +23,10 @@ original.
 
 ### Coming in the next release
 
+Nothing yet.
+
+**1.0.5 (2026-11-07)**
+
 - **No crash ending a mission with a laser firing.** If a beam was still firing when
   a mission ended, the cleanup treated it as a shot and could crash, for example on
   REPLAY at the debriefing.
@@ -30,6 +34,10 @@ original.
   unchecked and overwrote what came after the list. A mod's mech could do that,
   and so could a modified player's loadout in multiplayer. The extra weapon is now
   refused and named in the log.
+- **Walls and footing match the original more closely.** Mech collision and the
+  feet's ground probes now do their sums at the precision the original game really
+  runs at. In tests they agree with it exactly; in play the difference is rare and
+  small.
 
 **1.0.4 (2026-11-07)**
 
@@ -357,6 +365,12 @@ turn them on; `mw3 --mods` lists what it found, and `mw3 --check-mod
 FOLDER` reads a mod as the game would and says what it would refuse. With
 no mods turned on, nothing changes. How to make one:
 [docs/modding.md](docs/modding.md).
+
+To build or change a world, use [zStudio](https://github.com/Vorta/zStudio) by Vorta
+(Windows): it unpacks the game's files into the editable source tree Zipper's own team
+worked from, and builds them back into game files you can ship as a mod. A guide to
+making whole missions and campaigns, with zStudio for the world and the rebuild's game
+editor for the mission, comes after Pirate's Moon.
 
 The original game has a tool of its own here: [tools/weapon-patch](tools/weapon-patch)
 adds weapons to the original `Mech3.exe`'s mech lab. It isn't part of the rebuild.
