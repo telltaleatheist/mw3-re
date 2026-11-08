@@ -369,7 +369,14 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
   `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 are
   MW3's with PM's offsets); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
   of each struct the AI port owns compared once, or a line why not (done 2026-11-08: `pm-ai-fields.md`, with `test_pm_ai_defaults` for the constructors' and start-up's values, 5 of 5 breaks); (4) the 220 functions PM changed that run as MW3's
-  port: each read or tested, or a line why not; (5) every break for the AI pieces rerun on the switch's evaluation.
+  port: each read or tested, or a line why not (done 2026-11-08: 214 of them matched to a port function by address,
+  the rest inlined into their callers. None runs in `mw3pm` with PM's AI on. A coverage build of `mw3pmtests` over four
+  runs (c1m1 for 16,125 frames, an Instant Action game, a standalone mission, c2m3) executed none of them: 203 never ran,
+  and 11 have no port function of their own. Seven of those 11 are the same as PM's, so nothing is to read. The other four
+  differ: 0x4b7b40 is the hook `reach_least` of PM's firing port, 0x4ce690 a field PM's brain clears, 0x4dc2b0 the
+  record cache (not ported, decided with Owen), and 0x4de980 the end of zrdraiv's range. PM's own port (the `zai_*_pm`
+  files) stands in for all of them. They run only with `PM_AI=0`, the comparison stand-in, where MW3's logic is
+  the point); (5) every break for the AI pieces rerun on the switch's evaluation.
 - Needs Owen or his PC: the same watch on the exe for +0x588 and the fuel in a real jump; a run of the exe logging each
   mech's place and state once a second, for a compare by event; the exe's flags for mission 5's bases; and the flip
   itself.

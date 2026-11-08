@@ -35,10 +35,11 @@ BATTLE_LOST = ['Primary Objectives', 'Mission Total', '0', "'Mechs Defeated", 'A
 # the seed under either AI (seed 2: Epona and Alan, then Dominic and Alan with MW3's AI, Epona and Alan with PM's).
 # PM's AI, the default since e40aa9b5, uses rand otherwise in the first round, so the second draws Epona and Alan;
 # PM_AI=0 still draws Dominic and Epona. Re-taken at the flip, nobody dropped.
-PROGRESSION_WON = ['Primary Objectives', "'Mechs Defeated", '2500', 'Mission Total', '4800', "'Mechs Defeated",
-                   'Actions', '5', 'Epona Rhi', '0', 'Alan Mattila', '0', 'Mission Total', '4800']
-if os.environ.get('PM_AI') == '0':
-    PROGRESSION_WON[8:12] = ['Dominic Paine', '0', 'Epona Rhi', '0']
+# Round 2 fights PM's waves 1 and 2 of ia_progression.zrd's c1 block (pm-tests item 24): a Centurion, then a Clint
+# and an Owens, 3 kills for 1100; MW3's built-in table (5 kills, 2500) was used before. The lancemates are drawn at
+# random at the launch, and the fewer enemies change the draws: Dominic and Alan, with either AI.
+PROGRESSION_WON = ['Primary Objectives', "'Mechs Defeated", '1100', 'Mission Total', '3400', "'Mechs Defeated",
+                   'Actions', '3', 'Dominic Paine', '0', 'Alan Mattila', '0', 'Mission Total', '3400']
 MISSION_1_WON = ['Primary Objectives', 'Protect FedSuns Base', '2500', 'Secondary Objectives',
                  'Protect Rim Collective Camp', '2500', "'Mechs Defeated", '1700', 'Turrets Destroyed', '1200',
                  'Campaign Total', '7900', 'Mission Total', '7900', "'Mechs Defeated", 'Chain', '4', 'Epona Rhi', '0',
