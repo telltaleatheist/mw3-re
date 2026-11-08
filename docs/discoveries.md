@@ -495,6 +495,16 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 
 From the weapon code (weapons.md).
 
+- **Some "weapon destroyed" voices are missing from the data.** When a
+  weapon is destroyed the game says its name and "destroyed", and a
+  critical hit on a weapon plays its family's line (autocannon, laser,
+  LRM...). The names a weapon's file gives (NAMESOUND) do not all exist in
+  the sound list: the autocannons, LB-X and machine guns ask for
+  `wep_autocannon_name`, which is not there (the list has `wep_cannon_name`
+  and `wep_mgun_name`), the "destroyed" word `mech_part_destroy` is not
+  there either, and TAG says "laser" (`wep_las_name`). The LB-X
+  autocannons have no family at all, so a critical on one is silent.
+  (0x004b3020, 0x004853d0; Pirate's Moon's data the same)
 - **A destroyed weapon can stay selected.** When your selected weapon is
   destroyed, the game moves you on to the next weapon on the HUD's list
   without checking that it still works, so if that one was already gone

@@ -37,6 +37,9 @@
 #include "mech3/cockpit_sound.h"
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
+#include "mech3/mech_lib.h"
+#include "mech3/mech_names.h"
+#include "mech3/sound_extra.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
 #include "mech3/mech_skis.h"
@@ -176,7 +179,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     for (Handle h : {name, destroyed})
       if (h) zsnd::play_fading(static_cast<zsnd::Object*>(h), nullptr, 1.0f, nullptr, -1.0f, 0);
   };
-  c.voice_destroyed = [](int32_t) { unported("0x004853d0"); };
+  // 0x004853d0: the weapon's family's "destroyed" voice (0x004853c0, [0x00609400 + 4 x family]; the
+  // LB-X family 0 has none) through 0x004e6d80 (no place, volume 1, no fade). A critical's (0x004b0de0).
+  c.voice_destroyed = [](int32_t index) {
+    if (Handle s = weapon_voice(weapon_family(index))) sound_play(static_cast<zsnd::Object*>(s), nullptr, 1.0f, nullptr, -1.0f);
+  };
   c.vehicle_entity = [](Handle v) { return v; };                                          // vt+0x2c: itself
   c.vehicle_velocity = [](Handle v) { return reinterpret_cast<const Vec3f*>(&mech_of(v)->velocity); };
   c.entity_node = [](Handle e) { return mech_of(e)->node; };                              // +0x04

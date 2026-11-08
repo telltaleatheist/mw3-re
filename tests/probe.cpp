@@ -1689,3 +1689,6 @@ int probe_load_and_save(const char* dir, int mech) {
 // What the port side runs at, for original.py's check at exit (MW3_PRECISION).
 extern "C" int probe_fpu53() { return zfix::options().fpu53 ? 1 : 0; }
 extern "C" void probe_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
+
+// A weapon's family (0x004853c0), which picks its destroyed voice (test_weapon_voice.py).
+extern "C" int32_t probe_weapon_family(int32_t weapon) { return mech3::weapon_family(weapon); }

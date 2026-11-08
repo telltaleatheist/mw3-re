@@ -635,6 +635,8 @@ Kept:
 
 ## Candidates for Owen
 
+- **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
+
 - A mobile field base's centroid is on the ground (dev, 2026-10-31, W34,
   ai.md 17.7): its constructor 0x00458a70 sets its node with 0x004d6c90(node,
   0, 0, 0), whose 0x005a8390 finds or makes the centroid child at the node's
