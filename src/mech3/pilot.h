@@ -351,6 +351,7 @@ struct LobbyPlayer : LobbyEntry {
   int32_t kind() const override { return 1; }
   uint32_t team = 0;                 // +0x08  0 none
   uint8_t host = 0;                  // +0x0c
+  uint8_t out = 0;                   // +0x0e  PM: out of the round (0x004379b0, from the kill's scoring 0x004721e0)
   std::string name;                  // +0x10
   int32_t state = 2;                 // +0x14  1 in the mech lab, 3 ready (its data's; 2 without)
   uint8_t left = 0;                  // +0x18  gone from the game (0x00495b10's users)
@@ -437,6 +438,7 @@ class MultiplayerGame : public Game {
   float clock_next = 0;              // +0x7c  when the host sends the clock (0x11) again
   float end_time = 0;                // +0x80  (not set by the constructor)
   int32_t end_state = 0;             // +0x84  0, 1 ending, 3 ended
+  int32_t round_end = 0;             // PM +0x90: why the round ended (0x00472850's 1..6), 0 playing
   uint8_t b8c = 1, b8d = 0, b8e = 0, b8f = 1;  // +0x8c..+0x8f
   int32_t x90 = 0, x94 = 1;          // +0x90, +0x94  DATABASE_LIST's world: its folder (0 c1) and number
   int32_t kills = 0, deaths = 0;     // +0x98, +0x9c  the pilot screen's line (0x27e)

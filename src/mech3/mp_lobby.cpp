@@ -951,7 +951,11 @@ NetLobbyAccess net_lobby_access() {
     return r ? r->order : 0;
   };
   a.left = [](uint32_t p) {
-    if (LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr) r->left = 1;
+    if (LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr) r->left = 1, r->score = nullptr;  // PM 0x0046f440
+  };
+  a.out = [](uint32_t p) {
+    const LobbyPlayer* r = g_net_game ? g_net_game->lobby_player(p) : nullptr;
+    return r ? r->out != 0 : true;
   };
   a.suicide = [](uint32_t p) {
     if (g_net_game) g_net_game->add_deaths(p, 1);

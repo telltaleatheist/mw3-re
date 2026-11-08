@@ -98,6 +98,7 @@ struct NetGameFields {
   float* clock_next = nullptr;   // +0x7c  when the host sends the clock (0x11) again
   float* end_time = nullptr;     // +0x80
   int32_t* end_state = nullptr;  // +0x84  0, 1 ending (the clock under 3 s), 3 ended
+  int32_t* round_end = nullptr;  // PM +0x90: why the round ended (5 no more enemies), 0 playing
   int32_t* kills = nullptr;      // +0x98  the pilot's totals over network games
   int32_t* deaths = nullptr;     // +0x9c
   uint8_t* flags = nullptr;      // +0x8c respawn on, +0x8d unlimited ammo, +0x8e (cleared when respawn is off)
@@ -135,6 +136,7 @@ struct NetCalls {
   uint32_t (*lobby_team_id)(uint32_t player) = nullptr;  // 0x00495b60 on the network game's +0x48: its team, 0 none
   void (*forget)(NetMech& m) = nullptr;            // 0x004aa6b0, the sensors' (ai::entities_forget)
   void (*free)(NetMech* m) = nullptr;              // vt+0 (1), 0x0046e3a0; unset: net_mech_delete
+  bool (*lobby_out)(uint32_t player) = nullptr;    // PM 0x00437990: its record's +0x0e, out with none
   void (*lobby_left)(uint32_t player) = nullptr;   // 0x00495b10 on the game's +0x48: the slot's +0x18 = 1
   // The start's and end's.
   int (*crater_veto)(const zwep::CraterOrder* order) = nullptr;  // 0x0046fd30, zDecal's [0x0060bf88]
@@ -314,6 +316,7 @@ int net_crater_veto(const zwep::CraterOrder* order);
 void net_crater_in(const uint8_t* msg, size_t size);   // 0x0046fde0
 void net_anim_sent(zeff::AnimLogRecord* rec);          // PM 0x00471f50, the anim log's: the effect to all (0x1a)
 void net_effect_in(const uint8_t* msg, size_t size);   // PM 0x00471fd0: replayed unless one like it is logged
+bool net_two_sides();                                  // PM 0x00472da0: two sides left in the round
 void net_send_drop(uint32_t station);                  // PM 0x00472010: a repair station used (0x1d, MW3's 0x1b)
 void net_drop_in(NetMech& m, const uint8_t* msg, size_t size);  // 0x0046ffd0
 void net_clock_in(const uint8_t* msg, size_t size);    // 0x00470740: the clock, and the game's end with its reason

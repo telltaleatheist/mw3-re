@@ -190,15 +190,48 @@ void net_route(uint32_t from, const uint8_t* msg, size_t size) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0046d3b0. 0x40800000 is 4 s.
+namespace {
+bool lobby_out(uint32_t player) { return g_calls.lobby_out ? g_calls.lobby_out(player) : true; }  // 0x00437990
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x00472da0: two sides still in the round, among the network mechs whose players aren't out
+// (0x004379f0) and the pilot's mech unless the local player is. A side is the mech's team mask (+0xc0).
+bool net_two_sides() {
+  bool found = false;
+  uint32_t side = 0;
+  for (NetMech* m : g_net.mechs) {
+    if (lobby_out(m->owner)) continue;
+    if (!found) {
+      found = true, side = m->team;
+    } else if (m->team != side) {
+      return true;
+    }
+  }
+  if (!found || lobby_out(znet::local_id())) return false;
+  Mech* pilot = g_calls.pilot_mech ? g_calls.pilot_mech() : nullptr;  // [0x0062c40c]'s +0x14
+  return pilot && pilot->team != side;
+}
+
+// Pirate's Moon 1.0 @ 0x0046f440 (MW3's 0x0046d3b0). 0x40800000 is 4 s. PM takes the player off the lobby's
+// scores (kills 0, its record left with no score line) and, on the host, scores the leaving as a suicide, whether
+// or not its mech is here; a round left with one side ends, "No more enemies" (5), sent at once (the clock's
+// next send now).
 void net_player_left(uint32_t from, const uint8_t* msg, size_t size) {
   (void)msg, (void)size;
-  NetMech* m = net_mech(from);
-  if (!m) return;
-  if (g_calls.hud_message) g_calls.hud_message(4.0f, 0x26a, znet::player_name(from));
-  if (g_calls.forget) g_calls.forget(*m);
-  g_calls.free ? g_calls.free(m) : net_mech_delete(m);
-  if (g_calls.lobby_left) g_calls.lobby_left(from);
+  const NetCalls& c = g_calls;
+  if (c.lobby_set_kills) c.lobby_set_kills(from, 0);  // 0x00436750 (MW3's 0x004359f0)
+  if (c.lobby_left) c.lobby_left(from);
+  if (znet::is_host()) net_score_kill(from, from);  // 0x004721e0
+  if (NetMech* m = net_mech(from)) {
+    if (c.hud_message) c.hud_message(4.0f, 0x26a, znet::player_name(from));
+    if (c.forget) c.forget(*m);
+    c.free ? c.free(m) : net_mech_delete(m);
+  }
+  if (net_two_sides()) return;
+  NetGameFields* g = c.game ? c.game() : nullptr;
+  if (!g || !g->round_end || *g->round_end != 0) return;
+  *g->round_end = 5;
+  if (g->clock_next) *g->clock_next = c.game_time ? c.game_time() : 0.0f;  // [0x0062da90]
 }
 
 namespace {

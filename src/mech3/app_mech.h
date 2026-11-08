@@ -49,6 +49,7 @@ struct NetGameAccess {
   bool (*clock_on)() = nullptr;     // [0x00609924]
   void (*set_clock_left)(float v) = nullptr;  // [0x00609920] =
   void (*exit_fade)() = nullptr;    // 0x0048ef00 to the Multi-Exit State
+  int32_t* (*round_end)() = nullptr;  // PM +0x90
 };
 void net_set_game_access(const NetGameAccess& a);
 // Ours, for the tests (multiplayer-port.md piece 5c): in the mission that is
@@ -170,7 +171,8 @@ void program_net_debug_lobby();
 struct NetLobbyAccess {
   uint32_t (*team_of)(uint32_t player) = nullptr;    // 0x00435910
   int32_t (*start_of)(uint32_t player) = nullptr;    // the record's +0x20
-  void (*left)(uint32_t player) = nullptr;           // the record's +0x18 = 1
+  void (*left)(uint32_t player) = nullptr;           // the record's +0x18 = 1 (PM: and its +0x2c score line none)
+  bool (*out)(uint32_t player) = nullptr;            // PM 0x00437990: the record's +0x0e, true none
   void (*suicide)(uint32_t player) = nullptr;        // 0x00435ac0(p, 1)
   void (*kill)(uint32_t player) = nullptr;           // 0x004359b0(p, 1)
   int32_t (*kills)(uint32_t player) = nullptr;       // 0x00435a30
