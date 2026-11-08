@@ -94,6 +94,32 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 
 `test_pm_debrief_chain`, `test_pm_messages` and `test_pm_pilot` are new, not moves: `mw3pm` through three chains to its debriefings and the campaign's end, and the port's message ids against PM's table. `test_debriefing` itself (below, unclassified) stays to move, with the twod bench on PM's exe (`campaign.md`). `test_pm_ai_nodes` is new too: PM's AI readers on every shipped net, targets, aiv and valves file, exe against port, `test_pm_ai_valves`, the valve builder and actions, `test_pm_ai_boundary`, the boundary and its clamp, and `test_pm_ai_boundary_real`, the same on every shipped polygon; `test_ai_readers` stays to move with the valves and the rest of the reader's harness.
 
+## PM's anim events against MW3's (2026-11-08)
+
+The port's event dispatch (zeff_anim_run.cpp) is MW3's; PM's runs through its own table ([0x639d8c], filled at
+0x521c77..). Event 4 now goes to PM's 0x51b910 through `zgame::Table` (zeff_light_state); 42 was already PM's
+(0x51bbf0, `zeff_anim_puffer`). mech3ax changes the record only for those two (4: 0x84 to 0x98; 42: 0x250 to 0x254,
+`number` at +184). The rest have MW3's records but changed code. Which appear in PM's shipped anims (`PM_EVENTS=1` on
+`pm_enemies_die_under_real_fire`, one mission per world, c1..c4; the same 32 kinds, one size each): 1, 2, 4..15,
+17..19, 22..27, 30..36, 41, 42. Never shipped in PM: 16, 20, 21, 28, 37, 38, 39, 40, 43, 44, 45.
+
+| Type | Event | PM / MW3 (instructions, opcode similarity) | In PM's data | Note |
+|---|---|---|---|---|
+| 2 | SOUND_NODE | 0x51b7d0 362 / 0x503270 88, 0.37 | 108 | next to port |
+| 25 | STOP_ANIMATION | 0x51f900 160 / 0x506d60 60, 0.45 | 470 | |
+| 31 | IF | 0x51fce0 288 / 0x507010 165, 0.64 | yes | PM adds tests; HW_RENDER read as the device's fog |
+| 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | |
+| 12 | OBJECT_MOTION_SI_SCRIPT | 0x51e2c0 103 / 0x505b00 120, 0.59 | yes | |
+| 1 | SOUND | 0x51b630 60 / 0x503100 52, 0.61 | yes | |
+| 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | |
+| 28 | FOG_STATE | 0x51c2f0 169 / 0x503ba0 36, 0.26 | no | mods only |
+| 43, 44, 45 | per-vertex colours on a node's model (0x50cb90, 0x55b8f0, 0x55b850) | PM only | no | unknown to the port: an anim using one stops (mods only) |
+| 16, 20, 21, 36, 37, 38 | remove child, camera, fbfx, message | PM's | no (16, 20, 21, 37, 38) | 36 shipped |
+
+None of these touches damage (their callees: camera.c, class.c's remove child, video, sound, the anim run), so none
+explains mission 3's defences (item 9). Known gaps, not from this work: `test_pm_anim` fails since before b10b924d
+("c1 full: original 5754248 bytes, port 20"); MW3's `probe_world.cpp` does not build on `pm` (PM's WorldHooks).
+
 ## MW3's tests rewritten for PM (`pm_moved.py`)
 
 `pm_moved.py test_x` imports a MW3 test with every literal in the image's range replaced by its twin in PM, and runs it on PM's exe through `libpmprobe`. No address map at run time, so the pointers the exe holds are read as they are. Run today: `test_twod`, `test_twod_msgbox`, `test_lab_list`, `test_lab_screen`.
@@ -276,7 +302,7 @@ Items 3 and 4 were started and parked: `mac5/settings` bb39448c, off main 0fb2b7
 6. Mission 2's base lights (c1m2, Owen's screenshots 2026-11-07: ours dark, the original's base lit at the start). Not the AI's headlights: their budget (0x41f4d0, 0x41f8d0) was already ported (c60db664, `test_pm_lod.py`, one light at a time) and in his build. The base is lit by the mission's anim lights: start_single_player_m2 calls start_hwlights (IF HW_RENDER), which calls turnon_baselight, turnon_pbaselight and the road lights; each loops every 2 s, its light ACTIVE while the player is in range (450 m for the base), INACTIVE otherwise. The cause: the port ran MW3's LIGHT_STATE handler (0x503390) on PM's event-4 records, which are laid out differently (to +0x98, with PM's setters, 0x51b910), so only the switch landed: starbase_light came on with range 0..10, ambient 1 and colour (0, 1, 1) where the file says 0..150, 0.45, white. Fixed by porting 0x51b910 (`test_pm_light_state`, `pm_c1m2_base_light_takes_its_state`). The light comes on 2 s in, in the exe too: the loop's first range test runs before the player's place is known. Still to see: a shot from Owen on the next build.
 7. Mission 2's tanks drawn in flat panels where the original's are smooth. The model has smooth normals, so the fault is in our shading. Check whether it's still open before starting.
 
-9. Mission 3's defences take no damage (c1m3, Owen 2026-11-07, `PM_AI=1` build 5e5cd724, screenshot: a turret targeted at 652 m, LRM 10/15 and ER large lasers, the objective "Destroy Trucks and Defenses OP: Baker" in progress). Owen, after: the shots reach them (walked up close; lasers and LRMs), the turrets' health never drops (no red on the target display), and hits from Epona and the allied turrets don't hurt them either, so it isn't the player's weapons or aim. First check whether it happens with `PM_AI` off, then which handler takes the hit and why it doesn't apply (a turret is a basic vehicle, `veh_basic_object`, not a mech, so it isn't the shot-line fix below). Mission 3 is c2m3 (PM numbers missions across worlds; c1 holds m1, m2, m5): `PM_KILL=1,1,3`. Not reproduced headless, PM_AI on or off: `PM_HOSTILES=60` fires every weapon through its trigger at each non-mech hostile in turn, and all die within 8 frames (bulldog_01, turm_lrm01/02, tur_ac01, tur_laslarge01; the building tcab03 in 93). All eight turrets die at 60 m; the four turf_/tur_ac02/03 are the ALLY ones. Damage reaches `Turret::hit` and lowers health. Ruled out: zones (mode 1, list [1]); 1/HEALTH; the PM hit 0x4aaa50 and its install (MW3's, cdecl); every turret's NaN aim height (no `firepoint` node in PM's models, 0/0 in the exe too); the trucks and mobile HQs, which are on the player's side in the data (aiv team 1, as the player and Epona). The old kill test never fired a laser (`pm_kill_fire`'s aim_and_fire makes a beam without starting it). Next: his mech, loadout and the turret names from his log and pilot files (a copy), and mission 3 played after mission 2 in one session as he did.
+9. Mission 3's defences take no damage (c1m3, Owen 2026-11-07, `PM_AI=1` build 5e5cd724, screenshot: a turret targeted at 652 m, LRM 10/15 and ER large lasers, the objective "Destroy Trucks and Defenses OP: Baker" in progress). Owen, after: the shots reach them (walked up close; lasers and LRMs), the turrets' health never drops (no red on the target display), and hits from Epona and the allied turrets don't hurt them either, so it isn't the player's weapons or aim. First check whether it happens with `PM_AI` off, then which handler takes the hit and why it doesn't apply (a turret is a basic vehicle, `veh_basic_object`, not a mech, so it isn't the shot-line fix below). Mission 3 is c2m3 (PM numbers missions across worlds; c1 holds m1, m2, m5): `PM_KILL=1,1,3`. Not reproduced headless, PM_AI on or off: `PM_HOSTILES=60` fires every weapon through its trigger at each non-mech hostile in turn, and all die within 8 frames (bulldog_01, turm_lrm01/02, tur_ac01, tur_laslarge01; the building tcab03 in 93). All eight turrets die at 60 m; the four turf_/tur_ac02/03 are the ALLY ones. Damage reaches `Turret::hit` and lowers health. Ruled out: zones (mode 1, list [1]); 1/HEALTH; the PM hit 0x4aaa50 and its install (MW3's, cdecl); every turret's NaN aim height (no `firepoint` node in PM's models, 0/0 in the exe too); the trucks and mobile HQs, which are on the player's side in the data (aiv team 1, as the player and Epona). The old kill test never fired a laser (`pm_kill_fire`'s aim_and_fire makes a beam without starting it). Next: his mech, loadout and the turret names from his log and pilot files (a copy), and mission 3 played after mission 2 in one session as he did. Launched as Owen's own pilot (a copy of his write dir, `PM_PILOT_DIR`, `PM_PILOT=Deathstalker`: LB-10X, LRM 10, two medium lasers) on c2m3 with PM_AI: every hostile but the mechs dies within 16 frames, the building in 97. Still not tried: mission 3 straight after mission 2 in one process, as he played it (no headless chain).
 
 **Both games, decided (2026-11-07):**
 

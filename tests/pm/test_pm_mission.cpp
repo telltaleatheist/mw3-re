@@ -29,6 +29,7 @@
 #include "mech3/app_vehicle.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/player.h"
+#include "mech3/pilot.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
@@ -413,7 +414,8 @@ static void kill_run(const char* which, bool quick) {
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3PM_GAME_DIR);
-  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_kill_write";
+  // PM_PILOT_DIR: a write dir to play from (a copy of a player's, with PM_PILOT the pilot to launch as).
+  const std::string wd = std::getenv("PM_PILOT_DIR") ? std::getenv("PM_PILOT_DIR") : std::string(MW3_TEST_TMP_ROOT) + "/pm_kill_write";
   std::filesystem::create_directories(wd);
   zutl::set_write_dir(wd.c_str());
   mech3::reset_states();
@@ -442,6 +444,11 @@ static void kill_run(const char* which, bool quick) {
   mech3::GameEngine::Launch l;
   std::sscanf(which, "%d,%d,%d", &l.index, &l.type, &l.number);
   if (const char* e = std::getenv("PM_MECH")) l.mech = std::atoi(e);
+  if (const char* name = std::getenv("PM_PILOT")) {  // the pilot's current game's slot: its mech, loadout and skin
+    mech3::current_pilot() = mech3::load_pilot(name, false);
+    std::printf("  pilot %s: %s\n", name, mech3::current_pilot() ? "loaded" : "not found");
+    l.keep_pilot = mech3::current_pilot() != nullptr;
+  }
   engine.set_launch(l);
   app.post_intro_ = &mech3::states().load;
   std::vector<void*> targets;
@@ -664,6 +671,28 @@ static void kill_run(const char* which, bool quick) {
         for (int k = 0; k < 3; ++k) g_light.color[k] = l->get<float>(0xa4 + 4 * k);
         for (int k = 0; k < 12; ++k) g_light.mixed[k] = l->pm_colors[k];
       }
+      done = true;
+      return;
+    }
+    if (std::getenv("PM_EVENTS")) {  // the world's anim events by type and record size (pm-tests, the event sweep)
+      std::map<std::pair<int, uint32_t>, int> seen;
+      auto& a = zeff::anim();
+      const auto walk = [&](const uint8_t* e, uint32_t size) {
+        for (uint32_t at = 0; at + 12 <= size;) {
+          uint32_t n;
+          std::memcpy(&n, e + at + 4, 4);
+          ++seen[{e[at], n}];
+          if (n < 12) break;
+          at += n;
+        }
+      };
+      for (int i = 0; i < a.def_count(); ++i) {
+        zeff::AnimDef* d = &a.defs[i];
+        for (int k = 0; k < d->count(0x108); ++k)
+          if (d->seqs[k].events) walk(d->seqs[k].events, d->seqs[k].get<uint32_t>(0x3c));
+        if (d->reset_events) walk(d->reset_events, d->get<uint32_t>(0x104));
+      }
+      for (const auto& [k, n] : seen) std::printf("  event %d size %#x: %d\n", k.first, k.second, n);
       done = true;
       return;
     }
