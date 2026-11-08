@@ -24,6 +24,7 @@ const InOutVia* at_via(Brain& b, zgame::Handle v);
 void queue_via(Brain& b, const InOutVia* via);
 zgame::Handle next_along(Brain& b, const float dir[3]);
 void set_behaviour(Brain& b, zgame::Handle beh);
+void return_back(Brain& b);
 void order_pop(Brain& b);
 zgame::Handle contact_pick(Brain& b, zgame::Handle v, int32_t kind);
 const float* entity_place(Brain& b, zgame::Handle t, float* buf);
@@ -63,6 +64,9 @@ class WireWalkT : public WireSteer<Base> {
   void queue_via(const InOutVia* via) override { wire_walk::queue_via(b_, via); }
   zgame::Handle next_along(const float dir[3]) override { return wire_walk::next_along(b_, dir); }
   void set_behaviour(zgame::Handle b) override { wire_walk::set_behaviour(b_, b); }
+  void set_again() override { b_.x104 = 1; }  // the brain's +0x158 as the orders' wiring keeps it
+  void order_ready() override {}             // MW3's orders have no such byte: always ready (pm_run_pending)
+  void return_back() override { wire_walk::return_back(b_); }
   int32_t rand_int() override { return brain_hooks().rand(); }
   float reach() override { return b_.params.get<float>(0x44); }
   double jump_fuel(zgame::Handle v) override { return brain_hooks().jump_fuel(v); }

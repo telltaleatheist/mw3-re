@@ -58,10 +58,11 @@ void away_pm(const SteerPm& s, float away[2], float* sum) {
 
 // Pirate's Moon 1.0 @ 0x004dcd20 (MW3's 0x004cee80). [0x0062fbb0] (no backing up) is never set.
 void drive_pm(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float away[2], float dist, float near, float* turn,
-              float* throttle, float inv_slow, float slack_along, float slack_side) {
+              float* throttle, float inv_slow, float slack_along, float slack_side, const float* fwd_in) {
   float pos[3], to[3], fx, fz;
   h.position(v, pos);
-  h.forward(v, &fx, &fz);
+  if (fwd_in) fx = fwd_in[0], fz = fwd_in[2];
+  else h.forward(v, &fx, &fz);
   const float fwd[3] = {fx, 0.0f, fz};
   s.carrot(to);
   bool back = s.along < 0.0f;
@@ -201,7 +202,7 @@ void MoveStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* 
   bool waiting = step == 2;
   if (!waiting) {
     away_pm(s, away, &sum);
-    if (!(s.at_end() && sum <= dist)) {
+    if (!(s.at_end() && !(sum > dist))) {  // fcomp, test ah 0x41: unordered counts as there
       drive_pm(h, s, v, away, sum, dist * 0.5f, &turn, &throttle, slow, 0.04f, 0.04f);
       h.set_turn(turn);
       h.set_throttle(throttle);
@@ -228,6 +229,95 @@ void MoveStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* 
     if (!(wake <= h.now())) break;
   }
   step = 2;
+}
+
+// Pirate's Moon 1.0 @ 0x004ddab0. FIX (bug): the exe's aim in steps 0 and 2 is a stack vector it never sets there
+// (MW3's 0x004cfad0 the same); the port aims back along the way, as its end does (docs/fixes.md).
+void MoveStatePm::run_backup(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place) {
+  float fx, fz;
+  h.forward(v, &fx, &fz);
+  const float fwd[3] = {fx, 0.0f, fz};
+  const float aim[3] = {-s.dir[0], 0.0f, -s.dir[1]};
+  const float* walk_fwd = fwd;
+  const float back[3] = {-fx, -0.0f, -fz};
+  float dot, cross;
+  bool waiting = false;
+  switch (step) {
+    case 0:
+      turn = turn_pm(back, aim, &dot, &cross, h.turn_goal(), turn_walk_params());
+      if (!(dot >= 0.9f)) {  // [0x005dfcd4]
+        h.set_turn(turn);
+        step = 0;
+        return;
+      }
+      walk_fwd = back;  // the drive turns the context's forward round again: this frame walks with the front
+      [[fallthrough]];
+    case 1: {
+      float away[2], sum;
+      away_pm(s, away, &sum);
+      if (!s.at_end() || dist < sum) {
+        const float round[3] = {-walk_fwd[0], -walk_fwd[1], -walk_fwd[2]};
+        drive_pm(h, s, v, away, sum, dist * 0.5f, &turn, &throttle, slow, 0.04f, 0.04f, round);
+        h.set_turn(turn);
+        h.set_throttle(-throttle);
+        step = 1;
+        return;
+      }
+      throttle = 0.0f;
+      h.set_throttle(0.0f);
+      h.set_turn(turn);
+      step = 2;
+      return;
+    }
+    case 2:
+      turn = turn_pm(fwd, aim, &dot, &cross, h.turn_goal(), turn_walk_params());
+      if (!(dot >= 0.9f)) {
+        h.set_turn(turn);
+        step = 2;
+        return;
+      }
+      break;
+    case 3: waiting = true; break;
+    default: return;
+  }
+  for (;;) {
+    if (!waiting) {
+      const float dir[3] = {-s.dir[0], 0.0f, -s.dir[1]};
+      if (const zgame::Handle next = h.next_along(dir)) {
+        float* from = h.way_from();
+        from[0] = place[0], from[1] = place[1], from[2] = place[2];
+        h.set_behaviour(next);
+        return;
+      }
+      turn = 0.0f;
+      throttle = 0.0f;
+      h.set_turn(0.0f);
+      h.set_throttle(throttle);
+      wake = h.now() + 5.0f;  // [0x005df000]
+    }
+    waiting = false;
+    if (!(wake <= h.now())) break;
+  }
+  step = 3;
+}
+
+// Pirate's Moon 1.0 @ 0x004e1fd0. Steps 0 and 1 only: at the end it stays as it is, the item it queued ending it.
+void MoveStatePm::run_terminus(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place) {
+  if (step != 0 && step != 1) return;
+  float away[2], sum;
+  away_pm(s, away, &sum);
+  if (s.at_end() && !(sum > dist)) {
+    h.set_again();
+    h.order_ready();
+    float* from = h.way_from();
+    from[0] = place[0], from[1] = place[1], from[2] = place[2];
+    h.return_back();
+    return;
+  }
+  drive_pm(h, s, v, away, sum, dist * 0.5f, &turn, &throttle, slow, 0.04f, 0.04f);
+  h.set_turn(turn);
+  h.set_throttle(throttle);
+  step = 1;
 }
 
 }  // namespace mech3::ai

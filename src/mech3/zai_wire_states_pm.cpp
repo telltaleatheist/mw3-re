@@ -1,5 +1,6 @@
 #include "mech3/zai_wire_states_pm.h"
 
+#include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_pm.h"
@@ -11,14 +12,28 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
   switch (b.kind) {
     case StepKind::VehAttack: return new PmAttackState(&o, &b);
     case StepKind::Jump: return new PmJumpState(&o, &b);
-    default: return nullptr;
+    case StepKind::Node:
+    case StepKind::ViaNode: return new PmMoveState(&o, &b);  // 0x005eef64's and 0x005ef498's vt+0x8c
+    case StepKind::BackupNode: return new PmMoveState(&o, &b, PmMoveState::kBackup);  // 0x005ef020's
+    case StepKind::TerminusNode: return new PmMoveState(&o, &b, PmMoveState::kTerminus);  // 0x005ef578's
+    case StepKind::VehFollow: return new PmFollowState(&o, &b);
+    case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
+    case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
+    default: break;
   }
+  const uint32_t k = static_cast<uint32_t>(b.kind);
+  if (k == kVehicleSlotsPm[3]) return new PmCircleState(&o, &b);
+  if (k == kVehicleSlotsPm[4]) return new PmManoeuvreState(&o, &b, false);
+  if (k == kVehicleSlotsPm[6]) return new PmGuardState(&o, &b);
+  if (k == kVehicleSlotsPm[8]) return new PmBehindState(&o, &b);
+  return nullptr;
 }
 
 bool pm_state_running(Brain& b) {
   if (b.orders.empty()) return false;
   BehaviourState* s = b.current().state.get();
-  return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s);
+  return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) ||
+         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s);
 }
 
 PmAttackState::PmAttackState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
@@ -72,6 +87,72 @@ void PmJumpState::run(float dt) {
     jump_ = std::make_unique<JumpPm>(*hooks_, pm_brain(b).steer, c.vehicle());
   }
   jump_->run(dt);  // may end in go_next, which destroys this state
+}
+
+}  // namespace mech3::ai
+
+namespace mech3::ai {
+
+// Pirate's Moon 1.0 @ 0x004d4600: from the start again, the vehicle stopped (its controls' vt+0x14).
+void PmMoveState::resume() {
+  s_.step = 0;
+  order->owner->controls->stop();
+}
+
+void PmMoveState::run(float dt) {
+  (void)dt;
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  PmBrain& r = pm_brain(b);
+  WireWalk& walk = pm_walk(b, c);
+  if (!started_) {  // 0x004dcbe0 once the brain's controls are known
+    started_ = true;
+    s_.start(walk, r.steer, v, from->position());
+  }
+  if (run_ == kBackup) s_.run_backup(walk, r.steer, v, from->position());
+  else if (run_ == kTerminus) s_.run_terminus(walk, r.steer, v, from->position());
+  else s_.run(walk, r.steer, v, from->position());  // either may end in set_behaviour, which destroys this state
+}
+
+}  // namespace mech3::ai
+
+namespace mech3::ai {
+
+void PmSlotState::run(float dt) {
+  (void)dt;
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  PmBrain& r = pm_brain(b);
+  WireWalk& walk = pm_walk(b, c);
+  if (!started_) {
+    started_ = true;
+    start(walk, r.steer, v);
+  }
+  step(walk, r.steer, v);  // may pop the order or hand it on, either destroying this state
+}
+
+// Pirate's Moon 1.0 @ 0x004d8d30, given the time
+void PmCircleState::resume() { s_.change_side(brain_hooks().now()); }
+
+}  // namespace mech3::ai
+
+namespace mech3::ai {
+
+// 0x004d5040 each frame on the state's own fields (laid out as MW3's).
+void PmManoeuvreState::run(float dt) {
+  (void)dt;
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  ManoeuvrePm m;
+  m.no_jets = no_jets, m.jump = jump, m.phase = phase, m.turn = turn, m.until = until, m.target = target;
+  bool gone = false;
+  gone_ = &gone;
+  m.run(pm_walk(b, c), c.vehicle());
+  if (gone) return;  // the run popped the order, and with it this state
+  gone_ = nullptr;
+  no_jets = m.no_jets, jump = m.jump, phase = m.phase, turn = m.turn, until = m.until, target = m.target;
 }
 
 }  // namespace mech3::ai

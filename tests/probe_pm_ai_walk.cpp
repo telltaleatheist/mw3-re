@@ -57,6 +57,10 @@ struct World : WalkPmHooks {
     return next == 2 ? 0x7700 : 0;
   }
   void set_behaviour(zgame::Handle b) override { ++taken, last_taken = static_cast<int>(b); }
+  void set_again() override { again = 1; }
+  void order_ready() override { ready = 1; }
+  void return_back() override { ++backs; }
+  int again = 0, ready = 0, backs = 0;
   int32_t rand_int() override { return rolls[roll++ & 1]; }
   double jump_fuel(zgame::Handle) override { return m_fuel; }
   bool airborne(zgame::Handle) override { return m_air; }
@@ -234,6 +238,14 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       ms.step = std::stoi(a[0]), w.next = std::stoi(a[1]);
       ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
       ms.run(w, s, 1, w.place);
+    } else if (op == "k") {  // the backup node's run, likewise
+      ms.step = std::stoi(a[0]), w.next = std::stoi(a[1]);
+      ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
+      ms.run_backup(w, s, 1, w.place);
+    } else if (op == "t") {  // the terminus node's run, likewise
+      ms.step = std::stoi(a[0]);
+      ms.dist = f(a[2]), ms.slow = f(a[3]), ms.wake = f(a[4]), ms.turn = f(a[5]), ms.throttle = f(a[6]);
+      ms.run_terminus(w, s, 1, w.place);
     } else if (op == "u") {
       man.no_jets = std::stoi(a[0]), man.phase = std::stoi(a[1]);
       w.m_air = a[2] == "1", w.m_hit = a[5] == "1";
@@ -364,6 +376,7 @@ extern "C" int probe_pm_ai_walk(const char* plan, char* out, int cap) {
       if (circling) o += " " + std::to_string(cp.step) + " " + std::to_string(cp.x18) + " " + std::to_string(int(w.m_cleared > 0)) + " " + std::to_string(w.sends);
       o += " " + std::to_string(w.m_stops) + " " + std::to_string(static_cast<uint32_t>(w.m_over));
       o += " " + std::to_string(man.phase) + " " + std::to_string(man.target) + " " + std::to_string(w.m_pops) + " " + std::to_string(int(w.m_fought));
+      o += " " + std::to_string(w.again) + " " + std::to_string(w.ready) + " " + std::to_string(w.backs);
       o += " " + std::to_string(ms.step) + " " + std::to_string(w.taken) + " " + std::to_string(w.last_taken);
       o += "\n";
     }

@@ -45,6 +45,10 @@ class WalkPmHooks : public SteerPmHooks {
   // The move state 0x004dcfe0 and the guarding state's pick 0x004dfec0.
   virtual zgame::Handle next_along(const float dir[3]) { (void)dir; return 0; }  // 0x004d60d0, then vt+0x74
   virtual void set_behaviour(zgame::Handle b) { (void)b; }                       // 0x004f9f00
+  // The terminus node's end (0x004e1fd0).
+  virtual void set_again() {}    // 0x004fbe60(1): the brain's +0x158, the last order run once more
+  virtual void order_ready() {}  // the order's +0x04
+  virtual void return_back() {}  // 0x004ea180 on the brain's +0x15c with a new 0x005ef250: back to the order before
   virtual int32_t rand_int() { return 0; }                                       // rand
   virtual float reach() { return 0.0f; }                                         // the brain's +0x44
   // The manoeuvre 0x004d5040.
@@ -105,6 +109,11 @@ struct MoveStatePm {
   float wake = 0;     // +0x24
   void start(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* to);    // 0x004dcbe0
   void run(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);  // 0x004dcfe0; `place` its +0x08's vt+0x1c
+  // The backup node's run (0x004ddab0, vtable 0x005ef0dc; MW3's 0x004cfad0): 0 turns its back to the way, 1 backs
+  // up it, 2 turns its front, then on as the run's end (3 the wait).
+  void run_backup(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
+  // The terminus node's run (0x004e1fd0, vtable 0x005ef634): driven there, then back to the order before.
+  void run_terminus(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
 };
 
 // The manoeuvre state (0x004d5040, vtable 0x005ee150's twin of MW3's 0x004ca600): the brakes on, then a target to

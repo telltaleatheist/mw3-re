@@ -1,9 +1,12 @@
 // The PM AI's hooks on the program (zai_wire_pm): what each asks reaches BrainHooks, and a call
 // with no answer yet is counted, not dropped.
+#include <memory>
 #include <vector>
 
 #include "check.h"
+#include "mech3/zai_brain_pm.h"
 #include "mech3/zai_wire_pm.h"
+#include "mech3/zai_wire_states_pm.h"
 #include "mech3/zainet.h"
 
 using namespace mech3::ai;
@@ -112,4 +115,28 @@ TEST(pm_wire_a_hit_reaches_the_attackers) {
   EXPECT(pm_latest_attacker(b) == 33);
   pm_wire_clear();
   pm_hooks_missing_clear();
+}
+
+// Each behaviour whose PM state is ported makes it; the rest fall to MW3's (null). Nothing is started
+// before the first run, so no brain is needed here.
+TEST(pm_wire_kinds_make_their_states) {
+  Order o;
+  auto made = [&](StepKind k) {
+    Behaviour b(k);
+    return std::unique_ptr<BehaviourState>(pm_make_state(b, o));
+  };
+  auto slot = [](int i) { return static_cast<StepKind>(kVehicleSlotsPm[i]); };
+  EXPECT(dynamic_cast<PmAttackState*>(made(StepKind::VehAttack).get()));
+  EXPECT(dynamic_cast<PmJumpState*>(made(StepKind::Jump).get()));
+  EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::Node).get()));
+  EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::ViaNode).get()));
+  EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::BackupNode).get()));
+  EXPECT(dynamic_cast<PmMoveState*>(made(StepKind::TerminusNode).get()));
+  EXPECT(dynamic_cast<PmFollowState*>(made(StepKind::VehFollow).get()));
+  EXPECT(dynamic_cast<PmCircleState*>(made(slot(3)).get()));
+  EXPECT(dynamic_cast<PmGuardState*>(made(slot(6)).get()));
+  EXPECT(dynamic_cast<PmBehindState*>(made(slot(8)).get()));
+  for (StepKind k : {StepKind::DeployNode, StepKind::VehOwn})
+    EXPECT(!made(k));
+  for (int i : {2, 5, 7, 9}) EXPECT(!made(slot(i)));
 }
