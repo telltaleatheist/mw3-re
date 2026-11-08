@@ -179,7 +179,9 @@ class WiredSidePm final : public BrainSidePmHooks {
     pm_note_hit(b, attacker, damage);
     if (hit) controls_hit(*hit, owner, attacker);
   }
-  void died_base() override { pm_hook_missing("0x004b2ab0"); }
+  // 0x004b2ab0 (MW3's 0x004aed50): the controls' tick once more; AiVehicleControls::died runs it before Brain::died
+  // reaches here, in the exe's order (the tick, then the radio's line).
+  void died_base() override {}
   double speed_at(zgame::Handle, float) override { return none<double>("vehicle.vt+0x124"); }
   bool in_world(zgame::Handle) override { return none<bool>("vehicle+0x04"); }
   void set_way(const float*, const float*, float, zgame::Handle) override { pm_hook_missing("steer.set_way"); }
