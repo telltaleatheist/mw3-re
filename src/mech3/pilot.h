@@ -206,6 +206,10 @@ struct RoundsEntry {
 // 0x00435070 (the MW2 jump jets option, 0x0040afd0, the other way round).
 bool jets_assist_of(const class MultiplayerGame* g);
 
+// Pirate's Moon 0x00491a1e: the pilot screen's multiplayer lines, from the
+// game's kills (+0xb4) and shots (+0xcc).
+std::vector<std::string> multiplayer_stat_lines(int32_t kills, int32_t shots);
+
 // Pirate's Moon's rules for a multiplayer round (0x00438380), from
 // mprounds.zrd: 8 numbers by place (the defaults [0x0060554c] when its block
 // has none) and the salvage the round gives.

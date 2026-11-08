@@ -684,3 +684,12 @@ extern "C" void probe_pm_lobby_buttons(int32_t op, const int32_t* in, int32_t* o
   for (int k = 0; k < 11; ++k) out[k] = f[k];
   out[11] = b.deselect_teams, out[12] = b.deselect_players, out[13] = b.chose_team;
 }
+
+// The pilot screen's multiplayer lines (0x00491a1e) for test_pm_pilot_stats.py: kills, shots; the lines, each ended
+// with a newline, into `out`.
+extern "C" int32_t probe_pm_stat_lines(int32_t kills, int32_t shots, char* out, int32_t cap) {
+  std::string all;
+  for (const std::string& l : mech3::multiplayer_stat_lines(kills, shots)) all += l + "\n";
+  std::snprintf(out, static_cast<size_t>(cap), "%s", all.c_str());
+  return static_cast<int32_t>(all.size());
+}
