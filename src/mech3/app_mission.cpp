@@ -2529,7 +2529,7 @@ void wire_mission_hooks(GameEngine* e) {
   wire_mech_build(&w);
   wire_sensors(&w, [](void* p, int32_t id) { return static_cast<GameEngine*>(p)->message(id); });
   net_set_game_clear([] {  // the network start's (0x0046ceb0): the network game's +0x7c, +0x80, +0x84
-    if (MultiplayerGame* g = net_debug_game()) g->clock_next = g->end_time = 0, g->end_state = 0;
+    if (MultiplayerGame* g = net_debug_game()) g->clock_next = g->end_time = 0, g->end_state = 0, g->round_end = 0;  // PM 0x0046ef80: +0x90
   });
   NetGameAccess acc;
   acc.fields = [](int32_t* players, float** clock_next, float** end_time, int32_t** end_state, int32_t** kills,
@@ -2547,6 +2547,10 @@ void wire_mission_hooks(GameEngine* e) {
   acc.clock_left = [] { return missions().clock; };      // [0x00609920]
   acc.clock_on = [] { return missions().clock_down != 0; };  // [0x00609924]
   acc.set_clock_left = [](float v) { missions().clock = v; };
+  acc.round_end = []() -> int32_t* {
+    MultiplayerGame* g = net_debug_game();
+    return g ? &g->round_end : nullptr;
+  };
   net_set_game_access(acc);
   net_set_launch_game([](NetLaunchGame* out) {  // the network launch's (0x0046da80): slot 0 is +0x20 (0x00437800)
     MultiplayerGame* g = net_debug_game();

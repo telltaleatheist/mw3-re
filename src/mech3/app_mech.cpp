@@ -1159,6 +1159,7 @@ void net_set_game_access(const NetGameAccess& a) {
         !g_game_access.fields(&f.players, &f.clock_next, &f.end_time, &f.end_state, &f.kills, &f.deaths, &f.score_limit,
                               &f.flags))
       return nullptr;
+    f.round_end = g_game_access.round_end ? g_game_access.round_end() : nullptr;
     return &f;
   };
   nc.game_time = a.game_time, nc.clock_left = a.clock_left, nc.clock_on = a.clock_on;
@@ -1178,6 +1179,7 @@ void program_net_debug_lobby() {
   g_debug_scores.clear();
   c.lobby_team_id = [](uint32_t) { return 0u; };  // each player its own side, no teams
   c.lobby_name = [](uint32_t p) { return znet::player_name(p); };
+  c.lobby_out = [](uint32_t) { return false; };  // everyone in play
   c.team_of = [](uint32_t p) { return p; };
   c.start_of = [](uint32_t p) -> int32_t {
     int32_t rank = 1;
@@ -1212,6 +1214,7 @@ void program_net_lobby(const NetLobbyAccess& a) {
   c.scores_reset = a.rescore;
   c.lobby_team_id = a.team_id;
   c.lobby_name = a.name;
+  c.lobby_out = a.out;
 }
 
 void program_mech_chat_draw(void* mech) {
