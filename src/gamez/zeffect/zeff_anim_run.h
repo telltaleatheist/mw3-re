@@ -45,7 +45,6 @@ struct AnimRunHooks {
   // 0x00507220 (ECX node or null, EDX position or null, stack &height,
   // &hit): the "if" event's line-of-sight test down from a point (0x004eed90).
   int32_t (*ray_down)(void* ctx, zcls::Node* node, const float* pos, float height, int32_t* hit) = nullptr;
-  void (*effect)(void* ctx, AnimDef* def, uint8_t* ev) = nullptr;          // event 3, 0x005031b0
   void (*camera_state)(void* ctx, AnimDef* def, uint8_t* ev) = nullptr;    // event 20, 0x00503c10
   int32_t (*camera_from_to)(void* ctx, AnimDef* def, SeqDef* seq, uint8_t* ev) = nullptr;  // event 21, 0x00503d50
   void (*remove_child)(void* ctx, AnimDef* def, uint8_t* ev) = nullptr;    // event 16, 0x004ebb40

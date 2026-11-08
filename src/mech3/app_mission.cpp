@@ -2127,9 +2127,6 @@ struct WiredMissionHooks : MissionHooks {
       if (GameEngine* g = engine_of_hooks()) g->unported("0x00507220", {});
       return 1;
     };
-    r.effect = [](void*, zeff::AnimDef*, uint8_t*) {
-      if (GameEngine* g = engine_of_hooks()) g->unported("0x005031b0", {});
-    };
     r.camera_state = [](void*, zeff::AnimDef*, uint8_t*) {
       if (GameEngine* g = engine_of_hooks()) g->unported("0x00503c10", {});
     };

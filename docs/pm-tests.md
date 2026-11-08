@@ -108,7 +108,7 @@ The port's event dispatch (zeff_anim_run.cpp) is MW3's; PM's runs through its ow
 | 2 | SOUND_NODE | 0x51b7d0 112 / 0x503270 88, 0.83 | 108 | MW3's logic, callees too (cdecl, PM's def and world offsets) |
 | 25 | STOP_ANIMATION | 0x51f900 160 / 0x506d60 60, 0.45 | 470 | ported: the last matching ref wins (`test_pm_stop_animation`) |
 | 31 | IF | 0x51fce0 288 / 0x507010 165, 0.64 | yes | PM adds tests; HW_RENDER read as the device's fog. PM's added flags are unused in the shipped records |
-| 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | PM skips node ref 0 (`0 < i`, MW3 `-1 < i`); no shipped record has 0 (c1..c4), so left as MW3's |
+| 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | PM skips node ref 0 (`0 < i`, MW3 `-1 < i`); no shipped record has 0 (c1..c4). Ported as PM's: `zgame::Table` anim_active_first_ref |
 | 12 | OBJECT_MOTION_SI_SCRIPT | 0x51e2c0 103 / 0x505b00 120, 0.59 | 412, 237, 187, 377 (c1..c4) | ported, it never played: see below |
 | 1 | SOUND | 0x51b630 60 / 0x503100 52, 0.61 | yes | MW3's logic |
 | 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | MW3's logic (the colour step and clamps read in the asm) |
@@ -120,9 +120,11 @@ The rest of the shipped types, read side by side (PM's pseudocode from `CreateAn
 the asm where Ghidra hid an add): 8, 10, 11, 13, 14, 15, 17, 18, 19, 22, 23, 24, 26, 27, 30, 32/33, 35, 36 and 41 keep
 MW3's logic; the differences are the def's offsets (nodes +0xe8 by 0x2c, the start node +0x7c, which the port's own
 layout covers), cdecl and the callees' new addresses. 10 (OBJECT_MOTION, 467 lines) was compared by its constants,
-flags and steps, not run against the exe. Not shipped and different: 3 is PM's own (0x51b700, an effect placed at a
-point from the def's +0xfc list), where the port sends 3 to the light state (mods only). So, of the shipped types,
-only 4, 12 and 25 needed PM's code (42 already had it).
+flags and steps, not run against the exe. Not shipped: 3, EFFECT (PM
+0x51b700), is MW3's 0x5031b0 unchanged (an effect from the def's list, spawned at a point); the port had it as an
+unported hook, now ported for both (`ev_effect`). Both games ship an empty EFFECTS table, so nothing spawns. So, of
+the shipped types, only 4, 12 and 25 needed PM's code (42 already had it); 3 and 6 are done for mods
+(`pm_effect_and_active_events`).
 
 Event 12 in PM takes its key frames from the anim file's SI scripts (record +0x10, the script's index; the script
 holds the cubic flag at +0x0c, the frames' size at +0x14 and the frames at +0x18), where MW3's frames follow the

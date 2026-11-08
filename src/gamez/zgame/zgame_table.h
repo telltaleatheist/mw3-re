@@ -88,6 +88,8 @@ struct Table {
   // A key-framed motion's rotation (zeff_anim_events.cpp, 0x005056b0; PM 0x0051deb0): PM normalises the product of
   // the track's quaternion and the frame's (0x0053eec0, MW3's 0x00525500) before making it a matrix.
   bool anim_quat_normalized;
+  // OBJECT_ACTIVE_STATE's node ref (zeff_anim_events.cpp, 0x005044d0): MW3 takes ref 0, PM's 0x0051cd00 refs from 1.
+  int16_t anim_active_first_ref;
 };
 
 const Table& mw3_table();

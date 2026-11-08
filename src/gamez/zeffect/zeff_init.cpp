@@ -49,7 +49,8 @@ int32_t effect_find(const char* name) {
 
 // Mech3.exe 1.2 @ 0x0050d650: a free copy of the effect (0x0050d820) placed
 // (0x0050d6a0), shown and ticking. Only with a loaded table and an index.
-void effect_spawn(int32_t index) {
+void effect_spawn(int32_t index, const float* at) {
+  if (g_hooks.spawn_asked) g_hooks.spawn_asked(index, at);
   if (!g_loaded || index == -1) return;
   if (g_hooks.unported) g_hooks.unported("0x0050d650", index);
 }

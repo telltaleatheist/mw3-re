@@ -21,6 +21,10 @@
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zeffect/zeff_anim_events.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_init.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "pm/gamez/zclass/cls_zbd.h"
@@ -45,6 +49,51 @@ TEST(pm_table_is_picked_at_run_time) {
   EXPECT(std::string(zgame::game().exe) == "Pirate's Moon 1.0");
   zgame::set_game(zgame::mw3_table());
   EXPECT(std::string(zgame::game().name) == "MechWarrior 3");
+}
+
+// Events 3 and 6 as PM's (pm-tests, the event sweep). EFFECT (MW3 0x005031b0, PM 0x0051b700, the same): the def's
+// effect +0x0c spawned at +0x10 from node +0x0e's place; -200 with no start node still adds the start's offset, as
+// the exe loads it before testing the node. OBJECT_ACTIVE_STATE: PM's 0x0051cd00 takes no node ref 0, MW3's does.
+TEST(pm_effect_and_active_events) {
+  static int32_t spawned = -9;
+  static float at[3];
+  zeff::effect_hooks().spawn_asked = [](int32_t i, const float* p) { spawned = i, std::memcpy(at, p, 12); };
+  std::vector<zeff::EffectRef> effects(3);
+  effects[2].put<int32_t>(0x20, 7);
+  zeff::AnimDef d{};
+  d.effects = effects.data();
+  const float start[3] = {100, 200, 300};
+  std::memcpy(d.raw + 0x78, start, 12);
+  uint8_t e[0x1c] = {};
+  const int16_t which = 2, from = -200;
+  const float off[3] = {1, 2, 3};
+  std::memcpy(e + 0xc, &which, 2), std::memcpy(e + 0xe, &from, 2), std::memcpy(e + 0x10, off, 12);
+  for (const zgame::Table* t : {&zgame::mw3_table(), &pm::table()}) {
+    zgame::set_game(*t);
+    spawned = -9;
+    EXPECT(zeff::ev_effect(d, e) == 2);
+    EXPECT(spawned == 7 && at[0] == 101.0f && at[1] == 202.0f && at[2] == 303.0f);
+  }
+  const int16_t none = 0;
+  std::memcpy(e + 0xe, &none, 2);
+  zeff::ev_effect(d, e);
+  EXPECT(spawned == 7 && at[0] == 1.0f && at[1] == 2.0f && at[2] == 3.0f);  // ref 0: no node, the offset alone
+  zeff::effect_hooks().spawn_asked = nullptr;
+
+  zcls::Node* n = zcls::object3d_create();
+  std::vector<zeff::NodeRef40> nodes(2);
+  nodes[0].node = n;
+  d.nodes = nodes.data();
+  uint8_t a[0x14] = {};
+  const int32_t on = 0;
+  std::memcpy(a + 0xc, &on, 4);  // ref 0 (+0x10) switched off
+  zcls::node_set_active(n, 1);
+  zgame::set_game(pm::table());
+  zeff::ev_object_active(d, a);
+  EXPECT((n->flags() & 4) != 0);  // PM: ref 0 left alone
+  zgame::set_game(zgame::mw3_table());
+  zeff::ev_object_active(d, a);
+  EXPECT((n->flags() & 4) == 0);  // MW3: ref 0 switched
 }
 
 TEST(pm_install_told_from_mw3s) {
