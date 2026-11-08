@@ -1472,6 +1472,7 @@ bool Weapon::fire(const Vec3f* velocity) {
                    (team & enemies) != 0);  // hostile to the player
   if (owner == g_world.mission_player && g_world.force_feedback && g_calls.ff_weapon) g_calls.ff_weapon(index);
   if (g_calls.test_fired) g_calls.test_fired(*this);
+  if (is_player(owner) && (def->flags & zwep::kLockOn) && salvo_left == 0 && g_calls.lock_shot) g_calls.lock_shot(*this);
   if (owner) net_event(owner, this);
   set_lock_globals(nullptr, nullptr);
   reload = def->period;

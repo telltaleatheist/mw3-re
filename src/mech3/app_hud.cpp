@@ -891,6 +891,21 @@ void wire_hud() {
     return hud_hooks().reticle_over_target(&h->target, x, y) ? 1 : 0;
   };
   wc.hud_443d20 = [](Handle s, int32_t v) { static_cast<Hud*>(s)->reticle.aim_state(v != 0); };
+  // Ours (pm-tests item 25): each lock-on volley of the player's in the log: locked or not, the target and how
+  // long since it was picked, the reticle's lock state and how long it has held, where the shot was aimed.
+  wc.lock_shot = [](const Weapon& w) {
+    Mech* m = program_view_mech();
+    Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+    if (!h) return;
+    Mech* tm = m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
+    const char* name = tm && tm->node ? static_cast<zcls::Node*>(tm->node)->name() : (m->target ? "(not a mech)" : "(none)");
+    float tp[3] = {};
+    if (tm) mech_world_position(tm, tp);
+    std::printf("mw3: lock shot: %s locked %d; target %s at %.0f %.0f %.0f, picked %.2f s ago; reticle %d, locked for %.2f s; "
+                "aimed at %.0f %.0f %.0f\n",
+                w.def && w.def->name ? w.def->name : "?", w.locked ? 1 : 0, name, tp[0], tp[1], tp[2], h->target.since_set,
+                h->reticle.lock, h->reticle.locked_for, w.target.x, w.target.y, w.target.z);
+  };
   wc.hud_highlight = [](Handle o) -> Weapon* {
     Hud* h = hud_of(o);
     return h ? static_cast<Weapon*>(h->weapons.next_weapon) : nullptr;
@@ -988,7 +1003,7 @@ void unwire_hud() {
   damage_calls().head_hit_hud = nullptr;
   WeaponCalls& wc = weapon_calls();
   wc.screen = nullptr, wc.hud_screen = nullptr, wc.hud_groups = nullptr, wc.hud_weapons = nullptr;
-  wc.hud_fire = nullptr, wc.hud_highlight = nullptr;
+  wc.hud_fire = nullptr, wc.hud_highlight = nullptr, wc.lock_shot = nullptr;
   mech_radar_blips_destroy();
   update_calls().player_frame = nullptr;
   mech_hud_calls() = MechHudCalls{};
