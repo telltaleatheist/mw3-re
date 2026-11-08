@@ -1463,6 +1463,23 @@ LobbyButtons lobby_player_chosen(const LobbyView& v, int32_t kind, uint32_t id) 
   return b;
 }
 
+// Pirate's Moon 1.0 @ 0x00491a1e: "Pilot Statistics", a blank line, the
+// kills, the shots and, with shots, the kills per thousand shots (x87:
+// kills x 1000.0f / shots, a double for "%6.2f").
+std::vector<std::string> multiplayer_stat_lines(int32_t kills, int32_t shots) {
+  std::vector<std::string> out = {"Pilot Statistics", " "};
+  char text[64];
+  std::snprintf(text, sizeof text, "Total Kills: %d", kills);
+  out.emplace_back(text);
+  std::snprintf(text, sizeof text, "Total Shots: %d", shots);
+  out.emplace_back(text);
+  if (shots != 0) {
+    std::snprintf(text, sizeof text, "Kills per 1k Shots: %6.2f", static_cast<double>(kills) * 1000.0 / shots);
+    out.emplace_back(text);
+  }
+  return out;
+}
+
 LobbyPick LobbyChoice::picked() const {
   LobbyPick p;
   if (pick >= 0 && pick < static_cast<int32_t>(values.size())) p.has = true, p.value = values[static_cast<size_t>(pick)];

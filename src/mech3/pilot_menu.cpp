@@ -366,19 +366,8 @@ void PilotScreen::fill_games() {
     case kMultiplayer:
       // Pirate's Moon 0x00491a1e: the pilot's statistics, in plain text in the exe.
       label(0x27d);
-      if (multi) {
-        games.add_item("Pilot Statistics", 0);
-        games.add_item(" ", 0);
-        char text[64];
-        std::snprintf(text, sizeof text, "Total Kills: %d", multi->kills);
-        games.add_item(text, 0);
-        std::snprintf(text, sizeof text, "Total Shots: %d", multi->pmcc);
-        games.add_item(text, 0);
-        if (multi->pmcc != 0) {
-          std::snprintf(text, sizeof text, "Kills per 1k Shots: %6.2f", static_cast<float>(multi->kills) * 1000.0f / static_cast<float>(multi->pmcc));
-          games.add_item(text, 0);
-        }
-      }
+      if (multi)
+        for (const std::string& l : multiplayer_stat_lines(multi->kills, multi->pmcc)) games.add_item(l.c_str(), 0);
       break;
     case kStandalone: {  // Pirate's Moon 0x00491bdb: those reached, by name; its mission chosen
       label(0x1027);
