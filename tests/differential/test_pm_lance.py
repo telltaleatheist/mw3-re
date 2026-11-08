@@ -143,6 +143,46 @@ def main():
                 kept += 1
     pm_floors.floors(trials=(trials, 3000), moved=(moved, 200), none=(none, 100), kept=(kept, 1000))
     print(f'ok: {trials} lances fitted alike; {moved} slots moved to another mech, {none} left with none, {kept} kept by the rule')
+    # 0x4079b0 itself with the loadout given (its fourth argument; the lobby's return from salvage, 0x49ee20, passes
+    # the one it kept): which mech the slot starts from, and the given loadout fitted in place of the slot's.
+    p.probe_pm_lance_given.argtypes = [ctypes.c_int32, ctypes.POINTER(ctypes.c_int32), ctypes.POINTER(ctypes.c_int32),
+                                       ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
+    given = 0
+    for t in range(1500):
+        keep = rng.randrange(2)
+        m = rng.randrange(n_mechs) if rng.random() < 0.9 else -1
+        k = rng.randrange(len(configs[m])) if m >= 0 and configs[m] and rng.random() < 0.4 else -1
+        gm = rng.randrange(n_mechs) if rng.random() < 0.8 else -1
+        gk = rng.randrange(len(configs[gm])) if gm >= 0 and configs[gm] else -1
+        if gk >= 0:  # its callers' rule: the slot's mech is the given loadout's (the cycle stops only there)
+            m = gm
+            k = rng.randrange(len(configs[m])) if rng.random() < 0.3 else -1
+        s = emu.alloc(0x18)
+        emu.lu.mem_write(s, bytes(0x18))
+        emu.lw(s + 4, m), emu.lw(s + 8, configs[m][k] if k >= 0 else 0)
+        store_mechs = [rng.randrange(n_mechs) for _ in range(rng.randint(0, 5))]
+        if gm >= 0 and rng.random() < 0.5:
+            store_mechs.append(gm)
+        emu.store_ = emu.alloc(0x14)
+        emu.call(STORE_CTOR, ecx=emu.store_, args=[0])
+        for sm in store_mechs:
+            emu.call(ADD_MECH, ecx=emu.store_, args=[sm])
+        gcfg = configs[gm][gk] if gk >= 0 else 0
+        emu.call(0x4079b0, ecx=s, args=[emu.store_, keep, gcfg])
+        cfg = emu.r32(s + 8)
+        want = [emu.ls32(s + 4), emu.ls32(cfg + 0x14) if cfg else -2]
+        cm = emu.ls32(cfg + 0x14) if cfg else -1  # which of its mech's loadouts (the copy stands in as itself)
+        want.append(configs[cm].index(cfg) if cfg and cm in configs and cfg in configs[cm] else -1)
+        for it in emu.items(emu.store_):
+            if emu.call(emu.r32(emu.r32(it) + 0xc), ecx=it) == 0:
+                want += [emu.ls32(it + 0x14), emu.ls32(it + 4)]
+        b = (ctypes.c_int32 * max(1, len(store_mechs)))(*store_mechs)
+        n_out = p.probe_pm_lance_given(keep, (ctypes.c_int32 * 4)(m, k, gm, gk), b, len(store_mechs), out)
+        got = list(out[:n_out])
+        if want != got:
+            raise SystemExit(f'given {t}: keep {keep} slot {m},{k} given {gm},{gk} store {store_mechs}\n  exe  {want}\n  port {got}')
+        given += gcfg != 0
+    print(f'ok: 1500 slots fitted alike with a loadout given ({given} given one)')
 
 
 if __name__ == '__main__':

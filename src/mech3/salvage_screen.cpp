@@ -78,7 +78,12 @@ SalvageScreen::SalvageScreen(Engine& e, Handle st)
   player.store = e.store_handle(e.game_store());  // 0x00479430
   player.x218 = 0;
   player.refill();
-  mission.store = e.game_kind() == kCampaign ? e.store_handle(e.campaign_salvage()) : e.mission_salvage_store();
+  // Pirate's Moon 0x0047f870: in multiplayer the round's store (+0xd4) beside the game's.
+  const int32_t kind = e.game_kind();
+  MultiplayerGame* mp = kind == kMultiplayer && current_pilot() ? current_pilot()->multiplayer() : nullptr;
+  mission.store = kind == kCampaign ? e.store_handle(e.campaign_salvage())
+                  : mp              ? e.store_handle(&mp->round_store)
+                                    : e.mission_salvage_store();
   mission.x218 = 0;
   mission.refill();
   refill();
@@ -97,7 +102,7 @@ void SalvageScreen::on_button(int32_t id, int32_t a, int32_t row) {
   };
   bool moved = false;
   if (id == kAccept) {
-    e.pop_state(0);
+    e.pop_state(6);  // Pirate's Moon 0x004809f0 (MW3's 0): the lobby's back from salvage; the briefing ignores it
   } else if (id == kPlayer) {
     if (row > 0) moved = salvage_to_mission(e.store_of(mission.store), e.store_of(player.store), item_at(player));
   } else if (id == kMission && row > 0) {

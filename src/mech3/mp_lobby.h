@@ -18,6 +18,7 @@ namespace mech3 {
 
 class MultiplayerGame;
 struct LobbyControls;
+struct GameSlot;
 struct LobbyEntry;
 class LobbyScreen;
 
@@ -117,7 +118,9 @@ class LobbyScreen : public MenuScreen {
   void start();                      // 0x0049b790
   void ready();                      // 0x0049a970
   void mech_lab();                   // 0x0049b500
-  void resume();                     // 0x0049b660
+  void resume();                     // PM 0x0049eef0 (MW3 0x0049b660): back from the lab (the state's 4 and 7)
+  void salvage();                    // PM 0x0049ed90: SALVAGE (0xb)
+  void back_from_salvage();          // PM 0x0049ee20: the state's 6
   void join_team();                  // 0x0049a550
   void remove_team();                // 0x0049a630
   bool add_to_team(uint32_t team, uint32_t player);  // 0x0049a220
@@ -174,6 +177,7 @@ class LobbyScreen : public MenuScreen {
   InvertCheck select_box;            // PM +0x148b8  SELECT_CHECKBOX (0x19)
   InvertCheck jets_box;              // PM +0x14a24  JETS_CHECKBOX (0x1a)
   InvertCheck radar_box;             // PM +0x14b90  RADAR_CHECKBOX (0x1b)
+  std::unique_ptr<GameSlot> kept_slot;  // PM +0x11d34  slot 0 as SALVAGE found it
   float rejoin_at = 0;               // PM +0x167a8  READY's team rejoin, not before (enter: the clock)
   uint8_t stock_kept = 0;            // PM +0x1679e  STOCK as the host left it (case 0x17)
   ShellButton join_team_btn;         // +0x135c8  JOIN_TEAM_BUTTON (4)

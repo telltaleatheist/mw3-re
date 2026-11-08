@@ -855,10 +855,12 @@ GameSlot* Engine::game_slot(int32_t i) {
   return nullptr;
 }
 
-void lance_slot(GameSlot& s, Store& store, bool keep) {
-  int32_t mech = s.mech;
+void lance_slot(GameSlot& s, Store& store, bool keep) { lance_slot(s, store, keep, s.config); }
+
+void lance_slot(GameSlot& s, Store& store, bool keep, const Config* cfg) {
+  if (!cfg) cfg = s.config;
+  int32_t mech = cfg ? cfg->mech : s.mech;
   if (mech == -1) return;
-  const Config* cfg = s.config;
   if (!keep) {
     while (!store.has_mech(mech)) {  // 0x00409f00
       mech = (mech + 1) % 25;  // Pirate's Moon 0x004079b0: 0x19, its roster (MW3: 19)

@@ -421,6 +421,7 @@ class GameEngine : public Engine {
   void multiplayer_page(Handle state, int32_t page, uint8_t reenter) override;  // 0x0049cb00
   void multiplayer_take_pilot(Handle first, Handle second) override;  // 0x00494920
   void multiplayer_resume(Handle screen) override;  // 0x0049b660
+  void multiplayer_salvage_back(Handle screen) override;  // PM 0x0049ee20
   void mech_draw_cockpit(Handle mech) override { program_mech_chat_draw(object_of(mech)); }  // 0x0041ab90
   NetReach network_reach() override { return p_.network_reach ? p_.network_reach() : NetReach{}; }
   void network_hosting(bool on) override {
