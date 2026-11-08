@@ -47,6 +47,16 @@
 #include "pm/pm_game.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
+#include "mech3/briefing.h"
+#include "mech3/debriefing.h"
+#include "mech3/mainmenu.h"
+#include "mech3/pilot_menu.h"
+#include "gamez/zinterp/zinterp.h"
+#include "mech3/mission_map.h"
+#include "mech3/zai_anim_owner.h"
+#include "gamez/zentity/zent_manager.h"
+#include "gamez/zmodel/gmod_puff.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/app_mech.h"
@@ -674,6 +684,33 @@ static void kill_run(const char* which, bool quick) {
       if (t > 12000) done = true;
       return;
     }
+    if (const char* names = std::getenv("PM_NODE")) {  // a,b,c: each named node's world place, then the run ends
+      std::string all = names;
+      for (size_t p = 0; p <= all.size();) {
+        const size_t e = all.find(',', p);
+        const std::string n = all.substr(p, e == std::string::npos ? std::string::npos : e - p);
+        zcls::Node* z = zcls::list_find_by_name(6, n.c_str());
+        float at[3] = {};
+        if (z) zcls::node_world_point(z, at);
+        std::printf("  node %s: %s %.1f %.1f %.1f\n", n.c_str(), z ? "at" : "not found", at[0], at[1], at[2]);
+        auto walk = [](zcls::Node* x, int depth, auto& self) -> void {  // each model under it: polygons, with normals, normals
+          if (!x || depth > 6) return;
+          if (pm::zmod::Model* md = x->pm_model) {
+            int with = 0;
+            for (int32_t i = 0; i < md->count(0x10); ++i) with += (md->polygons[i].flags & 0x1000) ? 1 : 0;
+            std::printf("    %*s%s: %d polygons, %d with normals, %d normals, flags %x\n", depth * 2, "", x->name(), md->count(0x10), with,
+                        md->count(0x18), md->header[8]);
+          }
+          for (int32_t i = 0; i < x->child_count(); ++i) self(x->children[i], depth + 1, self);
+        };
+        walk(z, 0, walk);
+        if (e == std::string::npos) break;
+        p = e + 1;
+      }
+      std::printf("  vertex shading %d\n", zmod::draw_state().vertex_shading);
+      done = true;
+      return;
+    }
     if (std::getenv("PM_EVERYONE") && t_everyone_once()) {  // every object the sensors know: kind, name, team, allies, alive
       for (const mech3::ChainSide& x : mech3::chain_everyone())
       {
@@ -685,6 +722,49 @@ static void kill_run(const char* which, bool quick) {
     }
     // PM_HOSTILES=metres: each hostile but the mechs in turn (vehicles, turrets, targets.zrd's), the player that far
     // from it, every weapon through its trigger at its node until it dies or 300 frames pass (pm-tests item 9).
+    // pm-tests item 18: there is no cow level typed at frame N (PM_COW=N[,x,z]: the player moved to x,z first);
+    // the win and loss flags and each objective logged, then Exit Mission.
+    if (const char* cow = std::getenv("PM_COW")) {
+      static int t = 0;
+      int when = 0;
+      float x = 0, z = 0;
+      const int n = std::sscanf(cow, "%d,%f,%f", &when, &x, &z);
+      ++t;
+      auto show = [](const mech3::Objective& o, int depth, auto& self) -> void {
+        std::printf("  %*s%s kind %d done %d failed %d\n", 2 * depth, "", o.desc ? o.desc->c_str() : "-", o.kind, o.done, o.failed);
+        if (auto* g = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
+          for (const auto& c : g->items) self(*c, depth + 1, self);
+      };
+      auto state = [&] {
+        const mech3::Objectives& o = mech3::mission_objectives();
+        std::printf("  t %d: ended %d aborting %d portal_reach %d\n", t, mech3::missions().ended, mech3::missions().aborting,
+                    mech3::ai::valve_find("portal_reach") ? mech3::ai::valve_find("portal_reach")->get() : -1);
+        for (const auto* g : {o.primary.get(), o.secondary.get(), o.final.get(), o.fail.get()})
+          if (g) show(*g, 1, show);
+      };
+      if (n == 3 && t == when - 20) {
+        const float to[3] = {x, pm_kill_ground(x, 300.0f, z), z};
+        mech3::move_mech(player, to, 0.0f);
+      }
+      if (t == when && std::getenv("PM_COW_PRIMARY")) {  // the primaries done as their conditions would, no cheat
+        auto all = [](mech3::Objective& o, auto& self) -> void {
+          if (auto* g = dynamic_cast<mech3::ObjectiveGroup*>(&o))
+            for (auto& c : g->items) self(*c, self);
+          if (!o.done) mech3::complete(o, 1, mech3::mission_objective_hooks());
+        };
+        state();
+        if (mech3::mission_objectives().primary) all(*mech3::mission_objectives().primary, all);
+      } else if (t == when) {
+        state(), std::printf("  cheat: %d\n", pm_cheat(player, "there is no cow level"));
+      }
+      if (t == when + 1 || t == when + 150 || t == when + 600) state();
+      if (t == when + 601) mech3::missions().on_command(0x79);
+      if (t > when + 601 || app.current() != &mech3::states().core) {
+        std::printf("  after Exit Mission: failed %d\n", engine.mission_failed());
+        done = true;
+      }
+      return;
+    }
     if (std::getenv("PM_TAG_MUZZLE")) {  // pm-tests item 15: TAG added as the build does, aimed ahead
       static int t = 0;
       if (++t == 30) {
@@ -1432,4 +1512,145 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   ::zmod::models_purge(true, true);
   std::printf("  c2m4: materials %d before the lab's purge, %d after\n", materials, ::zmod::materials().count);
   EXPECT(materials > 1000 && ::zmod::materials().count > 1000);
+}
+
+// pm-tests item 18: there is no cow level on c2m3, typed at the start and mid-mission: every primary and secondary
+// objective done, the win; Exit Mission (Ctrl+Q) brings the debriefing as a win and CONTINUE briefs mission 4.
+static void cow_run(int when);
+TEST(pm_c2m3_no_cow_level) {
+  if (!std::getenv("MW3_CAMPAIGN") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  std::vector<int> at = {30, 2400};
+  if (const char* e = std::getenv("PM_COW_AT")) at = {std::atoi(e)};  // one run, typed at that Core frame
+  for (const int when : at) {
+#if !defined(_WIN32)
+    // Each in a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      cow_run(when);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+    cow_run(when);
+#endif
+  }
+}
+
+static void cow_run(int when) {
+  {
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3PM_GAME_DIR);
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_cow_write";
+    std::filesystem::remove_all(wd);  // ours: made just below
+    std::filesystem::create_directories(wd);
+    zutl::set_write_dir(wd.c_str());
+    mech3::reset_states();
+    if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+    mech3::ai::anim_owner_free(), mech3::maps_free(), mech3::mission_maps() = mech3::MissionMaps{};
+    zent::budget() = zent::Budget{}, mech3::program_vehicles_new_process(), zmod::puff_state().tick_node = nullptr;
+    zint::scroll_list_init();  // as a new process starts (0x005962a0): the tests before this one leave their state
+    mech3::player_controls_instance() = nullptr;
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    NoKeys keys;
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files, p.input = &keys;
+    int open = -1, final_open = -1, next_op = 0, next_mission = 0;
+    bool won = false, debriefed = false, failed = true, briefed = false;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::Pilot* pilot = mech3::create_pilot("Cow");
+      EXPECT(pilot && pilot->select_campaign(0));
+      if (!pilot) return;
+      pilot->record_mission(true), pilot->record_mission(true);  // missions 1 and 2 won: mission 3, c2
+      auto* g = dynamic_cast<mech3::CampaignGame*>(pilot->current);
+      EXPECT(g && g->mission_number() == 3);
+      pilot->save();
+      pilot->current = g;
+      pilot->save();
+      int stage = -3, core = 0;
+      auto count = [](const mech3::Objective& o, auto& self) -> int {
+        int n = o.done ? 0 : 1;
+        if (auto* gr = dynamic_cast<const mech3::ObjectiveGroup*>(&o))
+          for (const auto& c : gr->items) n += self(*c, self);
+        return n;
+      };
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (stage == -3 && now == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // CAMPAIGN
+          stage = -2;
+        } else if (stage == -2) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(now);
+          if (!ps || !ps->screen) return;
+          ps->screen->refresh(false, pilot);
+          ps->screen->on_button(0x18, 0, 0);  // ACCEPT: its newest save
+          stage = -1;
+        } else if (stage == -1) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || now != &mech3::states().load || !b->loaded) return;
+          b->salvage_seen = 1;
+          b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+          stage = 0;
+        } else if (stage == 0 && now == &mech3::states().core && ++core == when) {
+          void* me = mech3::mech_mission_player();
+          EXPECT(me && pm_cheat(me, "there is no cow level"));
+          const mech3::Objectives& o = mech3::mission_objectives();
+          open = (o.primary ? count(*o.primary, count) : 0) + (o.secondary ? count(*o.secondary, count) : 0);
+          final_open = o.final ? count(*o.final, count) : 0;
+          won = mech3::missions().ended == 1 && mech3::missions().aborting == 0;
+          mech3::missions().on_command(0x79);  // Exit Mission
+          stage = 1;
+        } else if (stage == 1 && now == &mech3::states().end_win) {
+          auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
+          if (!d) return;
+          debriefed = true;
+          failed = engine.mission_failed();
+          d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
+          stage = 2;
+        } else if (stage == 2 && now == &mech3::states().load) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || !b->loaded) return;
+          engine.game_campaign(&next_op, &next_mission);
+          briefed = true;
+          stage = 3;
+        }
+      };
+      Pump pump;
+      pump.limit = 20000;
+      pump.stop = [&] { return stage == 3; };
+      app.run(pump);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    std::printf("  no cow level in c2m3 at frame %d: %d primary and secondary open, final %d open; won %d; debriefed %d "
+                "(failed %d); next briefing %d: Op %d Mission %d\n",
+                when, open, final_open, won, debriefed, failed, briefed, next_op, next_mission);
+    EXPECT(open == 0 && final_open == 0 && won);
+    EXPECT(debriefed && !failed);
+    EXPECT(briefed && next_mission == 4);
+    zgame::set_game(zgame::mw3_table());
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+  }
 }

@@ -38,7 +38,7 @@ code does nothing, and Keypad \* and Keypad − stay CHAT_ALL and CHAT_TEAM.
 | power overwhelming (toggle) | No damage to the player's mech | Mech +0x630 (invincible), as the mission scripts set it |
 | operation cwal (toggle) | The player's reload and heat dissipation 10x | Weapon::update (0x004b2c20) counts the reload down by 10 x the frame's time; the heat (0x004192f0) multiplies the dissipation by 10 after the sinks' rate |
 | food for thought (toggle) | Maximum salvage | Both of the salvage's coin flips always won (below) |
-| there is no cow level | The mission won | Maximum salvage on; every enemy mech and vehicle still up (not turrets or buildings) killed by the player with one of its own shots each (zWeapon's impact, so the kill credit 0x0041b420 and its salvage run as in play), each salvaged as if undamaged; every primary and secondary objective done (0x0045e110, with its salvage); Missions::complete (0x0048f740) |
+| there is no cow level | The mission won | Maximum salvage on; every enemy mech and vehicle still up (not turrets or buildings) killed by the player with one of its own shots each (zWeapon's impact, so the kill credit 0x0041b420 and its salvage run as in play), each salvaged as if undamaged; every primary, secondary and final objective done (0x0045e110, with its salvage; the final ones too, since the win stops their checks and they would stay open on the HUD with their nav); Missions::complete (0x0048f740) |
 | game over man | The mission lost | Missions::lose (0x0048f9e0), as the player's death |
 
 Every code lasts for the mission it was typed in: the mission's load

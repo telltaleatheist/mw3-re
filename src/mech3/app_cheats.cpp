@@ -26,8 +26,8 @@ void complete_all(Objective& o, ObjectiveHooks& h) {
 }
 
 // There is no cow level: every enemy mech and vehicle still up killed by the
-// player and salvaged whole, the coin flips won, the primary and secondary
-// objectives done, the win.
+// player and salvaged whole, the coin flips won, the primary, secondary and
+// final objectives done, the win.
 void win(Mech&) {
   Cheats& c = cheats();
   c.max_salvage = true;
@@ -42,6 +42,9 @@ void win(Mech&) {
   ObjectiveHooks& h = mission_objective_hooks();
   if (o.primary) complete_all(*o.primary, h);
   if (o.secondary) complete_all(*o.secondary, h);
+  // And the final ones (a nav to reach): the win stops their checks (0x0048f470), so
+  // they would stay open on the HUD, pointing the player at a place that does nothing.
+  if (o.final) complete_all(*o.final, h);
   mission_win();  // 0x0048f740
 }
 }  // namespace
