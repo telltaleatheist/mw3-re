@@ -467,6 +467,15 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return zcls::node_find(static_cast<zcls::Node*>(node), name);
   };
   wc.node_by_name = [](Handle node, const char* name) -> Handle { return node_find_prefix(node, name); };  // 0x004abb60
+  // A weapon built on a node (Weapon's second constructor, 0x004b28d0; a mech's TAG): its part by the node
+  // (0x0040ef30, the build's +0x28 mark and +0x40 owner), the part's mech (0x00460000) and the node's name, so it
+  // finds its firepoint. Unset, TAG kept no part or firepoint and fired from the world's origin, its beam out of sight.
+  wc.node_part = [](Handle n) -> Handle {
+    zcls::Node* z = zn(n);
+    return z && (z->get<uint32_t>(0x28) & 0xff) ? static_cast<Handle>(z->owner) : nullptr;
+  };
+  wc.part_mech = [](Handle part) -> Handle { return part ? static_cast<MechPart*>(part)->mech : nullptr; };
+  wc.node_name = [](Handle n) -> const char* { return n ? zn(n)->name() : ""; };
   // The aim's view test (0x0041bc20): [0x005f4c8c] +0x64 is the mech and its
   // camera (+0x58) +4 is 1, the cockpit.
   aim_calls().cockpit_view = [](Mech& m) {
@@ -578,6 +587,35 @@ bool mech_group_muzzle(void* mech, int32_t g, float muzzle[3], float dir[3]) {
   dir[0] = w->direction.x, dir[1] = w->direction.y, dir[2] = w->direction.z;
   return true;
 }
+// Tests only: TAG added to `mech` as its build adds it (configure_weapons: by the first firepoint's name under the
+// mech's node; a node of that name made under the torso when the model has none, marked as the build marks a part's
+// subtree), aimed 100 m ahead: its muzzle's distance from the torso, -1 when it can't be added or aimed, and whether
+// it found its part and firepoint.
+float mech_tag_muzzle(void* mech, bool* mounted) {
+  auto* me = static_cast<Mech*>(mech);
+  auto* wm = me ? static_cast<WeaponManager*>(me->ammo) : nullptr;
+  *mounted = false;
+  const std::vector<Firepoint*>* fps = wm && weapon_calls().firepoints ? weapon_calls().firepoints(me) : nullptr;
+  if (!fps || fps->empty() || !me->torso) return -1.0f;
+  auto* torso = static_cast<zcls::Node*>(me->torso->node);
+  if (!node_find_prefix(me->node, (*fps)[0]->name)) {
+    zcls::Node* fp = zcls::object3d_create();
+    zcls::node_set_name(fp, (*fps)[0]->name);
+    fp->put<uint32_t>(0x28, fp->get<uint32_t>(0x28) | 1u);
+    fp->owner = me->torso;
+    zcls::node_add_child(torso, fp);
+  }
+  Weapon* t = wm->add(0x20, me->node, (*fps)[0]->name, 4);
+  if (!t) return -1.0f;
+  *mounted = t->part && t->firepoint;
+  float p[3] = {};
+  mech_world_position(me, p);
+  Vec3f to{p[0] + 100.0f, p[1], p[2]}, mz{}, dir{};
+  if (!t->aim(&to, &mz, &dir, nullptr)) return -1.0f;
+  const float d[3] = {mz.x - p[0], mz.y - p[1], mz.z - p[2]};
+  return std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+}
+
 bool mech_group_beam(void* mech, int32_t g, BeamProbe* out) {
   auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
   if (!wm || g < 0 || g > 4 || !wm->groups[g] || wm->groups[g]->count == 0 || !wm->groups[g]->weapons[0]) return false;

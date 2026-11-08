@@ -2884,6 +2884,90 @@ TEST(mission_c1m1_maps_and_the_radar_map_mode_headless) {
 // 13 m before the player's mech at 1.25 times its centroid's height, the mech
 // drawn alone (0x004428b0) each frame; TARGET in its 3D mode draws its target
 // alone the same way (0x00441410).
+// TAG, added by its node as the build adds it (equipment 13), finds its part and firepoint, so its beam starts at
+// the mech; without the weapon calls' node lookups (0x0040ef30, 0x00460000) it fired from the world's origin.
+TEST(mission_c1m1_tag_fires_from_the_mech_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_tag_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct DepthGpu : platform::Render3D {  // a device, so the Direct3D paths run
+    int depth_rects = 0;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override { ++depth_rects; }
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  bool mounted = false;
+  float muzzle = -1.0f;
+  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode and messages, the engine's (as the SDL host's)
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames == 5) muzzle = mech3::mech_tag_muzzle(engine.object_of(engine.field32(engine.pilot(), 0x14)), &mounted);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 6; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  TAG: mounted %d, its muzzle %.1f m from the mech\n", mounted, muzzle);
+  EXPECT(mounted);
+  EXPECT(muzzle >= 0.0f && muzzle < 15.0f);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_mfd_shows_the_mech_and_target_its_target_headless) {
   if (!have_game()) return;
   SavedMounts keep;
