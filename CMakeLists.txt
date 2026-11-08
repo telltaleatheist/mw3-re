@@ -705,6 +705,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_salvage.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mechanim.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mech_build.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_pocket_panel.cpp)
 endif()
 
 # The SDL3 front end and the programs on it.

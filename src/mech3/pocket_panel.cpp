@@ -53,22 +53,21 @@ bool under_orders(const Mech* m) { return m && (m->xbc & 0x10) && m->active; }
 // The panel's +0x58: the mode's controls' mech (their IControls owner).
 Mech* player_of(const PocketPanel* p) { return p->controls ? p->controls->owner : nullptr; }
 
-// 0x00467f70 / 0x00468090's record and 0x00467e90: a line put on the panel
-// (on the list's end and in its layer); without text it is hidden, else
-// "%3d %s" (its number, 1-based) or "%s %s" (the key, the order), shown,
-// rendered and the widest kept; the next line's y below it either way.
+// Pirate's Moon 1.0 @ 0x00469980: a line put on the panel (on the list's end
+// and in its layer); without text it is hidden, else "%3s %s" (its key, blank
+// without one: MW3's 0x00467e90 numbered a lancemate's), shown, rendered and
+// the widest kept; the next line's y below it either way.
 struct Lines {
   PocketPanel* panel;
   int32_t* widest;
   int32_t x;
   int32_t* y;
   int32_t line_h;
-  void add(PocketItem* item, const char* prefix, const char* text) {
+  void add(PocketItem* item, const char* key, const char* text) {
     panel->items.push_back(item);
     panel->add(item);  // 0x0059fbe0
     if (text) {
-      if (prefix) item->set_text("%s %s", prefix, text);
-      else item->set_text("%3d %s", static_cast<int32_t>(panel->items.size()), text);
+      item->set_text("%3s %s", key ? key : "", text);
       item->show_for(-1.0f);
       if (item->needs_render) item->render();
       if (*widest < item->width) *widest = item->width;
@@ -90,22 +89,24 @@ ztwod::Rect& pocket_clip() { return g_clip; }
 // Pirate's Moon 1.0 @ 0x00469bf0 over the rows of 0x00606f30 (an action, the
 // order; the last is the command mode's own key, order 2), at each panel:
 // MW3's 0x00467d80 at the mission's start, dropping a row without a key.
-void pocket_load_commands() {
+void pocket_load_command(int32_t i) {
   static const int32_t kRows[6][2] = {{0x58, 10}, {0x59, 11}, {0x56, 0}, {0x55, 1}, {0x5a, 12}, {0x53, 2}};
-  int32_t n = 0;
-  for (const auto& row : kRows) {
-    const zgame::Handle k = g_calls.key_binding ? g_calls.key_binding(row[0]) : note("0x0051d1f0", row[0]);
-    PocketCommand& c = g_commands.rows[n++];
-    c.key[0] = 0;
-    if (g_calls.key_name) {
-      if (g_calls.key_name(k, c.key, 0x10) != c.key) c.key[0] = 0;
-    } else {
-      note("0x0051d330", k);
-    }
-    c.named = g_calls.command_text && g_calls.command_text(row[0], c.name, 0x40);
-    c.order = row[1];
+  const auto& row = kRows[i];
+  const zgame::Handle k = g_calls.key_binding ? g_calls.key_binding(row[0]) : note("0x0051d1f0", row[0]);
+  PocketCommand& c = g_commands.rows[i];
+  c.key[0] = 0;
+  if (g_calls.key_name) {
+    if (g_calls.key_name(k, c.key, 0x10) != c.key) c.key[0] = 0;
+  } else {
+    note("0x0051d330", k);
   }
-  g_commands.count = n;
+  c.named = g_calls.command_text && g_calls.command_text(row[0], c.name, 0x40);
+  c.order = row[1];
+}
+
+void pocket_load_commands() {
+  for (int32_t i = 0; i < 6; ++i) pocket_load_command(i);
+  g_commands.count = 6;
 }
 
 // Pirate's Moon 1.0 @ 0x00469a70, its test: a lancemate under orders, up, the
@@ -326,8 +327,8 @@ void PocketOrderItem::on_release() {
 
 // Mech3.exe 1.2 @ 0x0046a7b0 / 0x0046a5a0 / 0x0046a670 / 0x0046a740 /
 // 0x0046a810: lit when a lancemate is picked and (kEnemy) the cursor's
-// target is the marker or not the player's ally, (kAlly) the marker or his
-// ally, (kSpot) the cursor has a place (+0x168), (kOne) one is picked and
+// target is the marker or the player's enemy (Pirate's Moon 0x0046c140: his
+// +0xc8; MW3's took any not his ally), (kAlly) the marker or his ally, (kSpot) the cursor has a place (+0x168), (kOne) one is picked and
 // the mission has a repair bay.
 void PocketOrderItem::refresh() {
   PocketControls* c = panel->controls;
@@ -339,8 +340,7 @@ void PocketOrderItem::refresh() {
       lit = false;
     } else if (t != pocket_globals().marker) {
       const uint32_t team = g_calls.entity_team ? g_calls.entity_team(t) : note("entity.vt+0x28", t);
-      const bool ally = (player->allies & team) != 0;
-      lit = kind == kEnemy ? !ally : ally;
+      lit = ((kind == kEnemy ? player->enemies : player->allies) & team) != 0;
     }
   } else if (kind == kSpot) {
     lit = lit && c->cursor_pos;
@@ -366,7 +366,7 @@ PocketOrderItem* make_order_item(int32_t order, PocketPanel* p, int32_t px, int3
   return new PocketOrderItem(k, order, p, px, py);
 }
 
-// Mech3.exe 1.2 @ 0x00468250 (the mode's set_owner: its +0x178, +0x17c, 12)
+// Pirate's Moon 1.0 @ 0x00469dc0 (MW3's 0x00468250; the mode's set_owner: its +0x178, +0x17c, 12)
 PocketPanel::PocketPanel(PocketControls* c, int32_t px, int32_t py, int32_t lh)
     : Window(1, 1), controls(c), line_h(lh), target(this, nullptr, "   target", px, py) {
   if (!g_colours.made) {
@@ -389,7 +389,7 @@ PocketPanel::PocketPanel(PocketControls* c, int32_t px, int32_t py, int32_t lh)
     if (under_orders(entity_mech(e))) ++n;
   mates = n;
   places = n > 3 ? n : 3;
-  pocket_load_commands();
+  g_commands.count = 6;
   items.reserve(static_cast<size_t>(places + g_commands.count));
   add(&target);
   target.state |= 7;
@@ -414,13 +414,15 @@ PocketPanel::PocketPanel(PocketControls* c, int32_t px, int32_t py, int32_t lh)
     Mech* m = e ? entity_mech(e) : nullptr;
     const char* name = pocket_mate_name(*player, m);
     if (!name) continue;
+    auto* item = new PocketMateItem(this, m, nullptr, px, y);
     char key[0x10];
     const char* prefix = picks < 4 ? pocket_pick_key(picks, key) : nullptr;
     ++picks;
-    lines.add(new PocketMateItem(this, m, nullptr, px, y), prefix, name);
+    lines.add(item, prefix, name);
   }
   items.resize(static_cast<size_t>(places), nullptr);  // 0x0049ced0 / 0x004aa700
-  for (int32_t i = 0; i < g_commands.count; ++i) {  // 0x004680c0 on each
+  for (int32_t i = 0; i < g_commands.count; ++i) {  // Pirate's Moon 0x00469bf0 on each row
+    pocket_load_command(i);
     PocketCommand& cmd = g_commands.rows[i];
     if (PocketOrderItem* item = make_order_item(cmd.order, this, px, y)) lines.add(item, cmd.key, cmd.named ? cmd.name : nullptr);
   }

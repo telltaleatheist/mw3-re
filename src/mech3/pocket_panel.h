@@ -47,7 +47,8 @@ struct PocketCommands {
   int32_t count = 0;
 };
 PocketCommands& pocket_commands();
-void pocket_load_commands();  // Pirate's Moon 0x00469bf0 over its rows
+void pocket_load_command(int32_t i);  // Pirate's Moon 0x00469bf0's reads of row i
+void pocket_load_commands();          // each row's
 const char* pocket_mate_name(const Mech& player, Mech* m);
 const char* pocket_pick_key(int32_t index, char* key);
 

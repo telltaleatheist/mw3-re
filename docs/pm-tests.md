@@ -66,6 +66,7 @@ To move, ranked by how much of the moved roster ids and mech code it proves (1 f
 | `test_player.py` | gone | 17 | 3 | moved: `test_pm_player` | the player controls |
 | `test_pocket.py` | changed | 18 | 3 | moved to `test_pm_pocket.py` | PM's keys, the pushed key map, the real 0x4291a0 under the mode |
 | `test_pocket_orders.py` | gone | 9 | 1 | moved to `test_pm_pocket_orders.py` | at 53 bits, each unit's own marker |
+| `test_pocket_panel.py` | changed | | | moved to `test_pm_pocket_panel.py` | lines "%3s %s", rows read per panel, the enemy order on the player's enemies |
 | `test_power.py` | changed | 8 | 5 | moved to `test_pm_power.py` | power; the headlight off and the network target dropped |
 | `test_puffers.py` | gone | 44 | 12 | covered | test_pm_puffers |
 | `test_scenewalk.py` | changed | 33 | 13 | covered | test_pm_walk (10 of its 33 functions; the rest by test_pm_nodebox and test_pm_world_box) |
@@ -200,7 +201,7 @@ they crash in mark_moved), `mech_dfn_bad_version_does_not_save` (PM reads no ver
 `fix_unpause_resumes_only_the_kept_voices`, the two `game_editor_*` and
 `controls_repair_mouse_fire_only_mends_the_quit_boxs_damage`. Of MW3's differential tests, `test_pocket_frame` and
 `test_pocket_panel` fail here by design too ("dumps differ", at seed 199 and before the frame's port as well): `pm`'s
-pocket frame and panel lines are PM's, tested by `test_pm_pocket_frame` and `test_pm_pocket_lines`.
+pocket frame and panel are PM's, tested by `test_pm_pocket_frame`, `test_pm_pocket_panel` and `test_pm_pocket_lines`.
 
 MW3's headless lobby, network and mission tests, run alone from `build-mw3` (2026-11-08, the same with the parent
 commit's lobby files): these 13 fail or crash here by design.
@@ -334,9 +335,11 @@ No test can show these; each rests on reading the exe.
 
 Moving the test found what the MW3 classification hid: PM's commander isn't MW3's with new addresses. Ported with it: picks are commands 0x5d..0x60, keys 1..4 bound in a copy of the key map pushed for the mode, so the throttle's other keys work there; the panel's lines show those keys; the orders' keys are read at each panel from a renumbered table (the port still held MW3's numbers); the player's key handler 0x4291a0 ignores keys in the animation states 12 and 13.
 
-Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_marker` (what the port builds for the marker, the tests stand in for it); 0x46c920 answers 0 where MW3's answers 1, which the port's FIX for the double delete already amounts to. `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` are not moved: the frame 0x46b980 keeps about a quarter of MW3's lines and the keys 0x46cc50 two thirds.
+Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_marker` (what the port builds for the marker, the tests stand in for it); 0x46c920 answers 0 where MW3's answers 1, which the port's FIX for the double delete already amounts to. `test_pocket_panel`, `test_pocket_frame` and `test_pocket_keys` were not moved then (all three since, below).
 
 `test_pocket_keys` moved to `test_pm_pocket_keys` (2026-11-08): 0x46cc50 on the mode PM's dispatcher makes, with its mouse look 0x46cae0 and the smoothing 0x4285d0, 1,500 frames identical, the nine branches reached, 4 of 4 breaks (the trigger's id, a jet's direction, the airborne gate, the held jump). Read side by side, PM's keys are MW3's 0x46b0a0 line for line: only offsets moved (the owner at the IControls' +0x20, the mech's vt+0xac, vt+0x150, jets +0x3e8, rates +0x544..+0x54c, the HUD's zoom box +0x1520 and lock +0x1694, the look +0x158..+0x164), the reader is cdecl, the trigger is 0x3e (0x468ff0), and the directional jets ask the game's vt+0x44, which in single player is !0x40afd0, MW3's MW2 option read the other way round; in multiplayer it reads the game's +0xa7 byte (dev 1's, not wired here). The smoothing's powered-down reset is a virtual call in PM (vt+0x18, 0x4289a0, the look's fields cleared too), which the port already has as `PlayerControls::zero`. The test runs at 24 bits, as the controls' port and `test_pm_actions`. At 53 bits (`MW3_X87=53`) 934 of the 1,500 differ, in the eased floats only (up to 273 ulp in the twist, 66 in pitch, 27 in the jump, 15 in the throttle): no call, byte or branch moves, so left alone by the rule for small rounding.
+
+`test_pocket_panel` moved to `test_pm_pocket_panel` (2026-11-08): PM's constructor 0x469dc0 with its lines (0x469a70, 0x469bf0, each put by 0x469980), the lines' virtuals, the pick 0x46abd0, the count 0x46a370 and the destructor 0x46a2b0, run on PM's exe in test_pocket_panel's made-up world (twod_world through `pm_moved.py`, PM's offsets and globals written out in the test), 200 runs identical with every call out and a dump of each line, the nine branches reached, 12 of 12 breaks. Three things the port still had as MW3's, fixed with it: a line reads "%3s %s", its key right-aligned in three places or blank, where MW3's numbered a lancemate's line ("%3d %s") and the port wrote "%s %s"; each order's row is read from the bindings as its line is made, after the lancemates', and a lancemate's line is made before its key is bound (the order of the calls out); the enemy order is lit on one of the player's enemies (+0xc8, 0x46c140), where MW3's 0x46a5a0 took any not his ally, so a neutral target (team 0) no longer lights it. The panel's other pieces are MW3's with PM's offsets (a text's words from +0x4ac on 8 further, the item's state +0x4b8, its panel +0x4bc, its unit or order +0x4c0; the mode's order +0x180, cursor +0x184 / +0x188, +0x1a4). The test runs at 24 bits, as MW3's; as there, a lancemate's line to its unit (0x4692d0) isn't drawn in the plan.
 
 ## The switch's plan (2026-11-07, for Owen and the lead: nothing flipped)
 
@@ -350,7 +353,7 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
   alone; both campaigns played to their ends with `PM_AI=1` (`kills:99`, `standalone-kills:99`), nothing new since
   pm-v0.9.0; the canyon, mission 3's defences, the base lights, the lancemates' follow on PM's net.
 - Left, no decision needed, in this order: (1) the three commander tests moved to PM (the frame done 2026-11-08:
-  PM's 0x46b980 with 0x46b8d0, `test_pm_pocket_frame`, 3,000 frames on PM's exe, 4 of 4 breaks; the keys done 2026-11-08: `test_pm_pocket_keys`, 1,500 frames, 4 of 4 breaks; then the panel) (`test_pocket_panel`,
+  PM's 0x46b980 with 0x46b8d0, `test_pm_pocket_frame`, 3,000 frames on PM's exe, 4 of 4 breaks; the keys done 2026-11-08: `test_pm_pocket_keys`, 1,500 frames, 4 of 4 breaks; the panel done 2026-11-08: `test_pm_pocket_panel`, 200 runs, 12 of 12 breaks) (`test_pocket_panel`,
   `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 are
   MW3's with PM's offsets); (2) mission 5's bases with `PM_AI=1`, the port's side (done 2026-11-08: they drive as on the stand-in, the refit ends at the same frame); (3) every field
   of each struct the AI port owns compared once, or a line why not; (4) the 220 functions PM changed that run as MW3's
