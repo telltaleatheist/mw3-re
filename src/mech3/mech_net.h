@@ -91,6 +91,7 @@ struct NetGame {
   int32_t rounds_played = 0;           // PM [0x0062cc38]  one more at each end; the lobby's (0x0049a3c0) reads and clears it
 };
 NetGame& net_game();
+int32_t& net_rounds_played();  // its rounds_played ([0x0062cc38])
 
 // The network game's fields the sends use (MultiplayerGame, the app's).
 struct NetGameFields {

@@ -40,6 +40,7 @@ MultiplayerSetup& multiplayer_setup() {
   return s;
 }
 bool multiplayer_team_play() { return multiplayer_setup().team_play != 0; }
+void set_multiplayer_team_play(bool on) { multiplayer_setup().team_play = on ? 1 : 0; }
 
 // ---- the connection ----
 

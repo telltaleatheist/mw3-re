@@ -13,6 +13,9 @@ and whose pick is at +0x16c (its value an item's +4), read by the exe's own 0x43
    0x2c4, answered by the case), and the team play it sets ([0x62cc34]); the screen's own calls stood in for.
 4. A target killed 0x4e2f50 (CZAiTarget::kill, MW3's 0x4d2b60): a base's (its targets.zrd mpoption, +0xe8, 1 or 2;
    -1 none) then tells the network game 0x472b40 (TargetHooks::base_destroyed; stood in for and logged).
+5. The 0x1e read 0x49f510 (MultiplayerGame::read_start_message; a handler: the sender, the message): each listed player takes its order
+   (the lobby's lookup 0x498930 run), the team number unread; the messages made by start_message's rule, with counts
+   past the players listed.
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_lobby_settings.py
 """
@@ -220,7 +223,45 @@ def main():
             seen[key] = seen.get(key, 0) + 1
         print(f'{name}: 1000 identical; {dict(sorted(seen.items()))}', flush=True)
     target_kill(probe, rng)
+    read_start(probe, rng)
     os._exit(0)
+
+
+def read_start(probe, rng):
+    z = test_pm_zar.Emulated()
+    uc = z.cpu._uc
+    w = lambda a, x: uc.mem_write(a, struct.pack('<I', x & 0xffffffff))  # noqa: E731
+    r = lambda a: struct.unpack('<I', bytes(uc.mem_read(a, 4)))[0]  # noqa: E731
+    probe.probe_pm_read_start.argtypes = [ctypes.POINTER(I32), ctypes.POINTER(I32)]
+    sc, g = z.alloc(0x16800), z.alloc(0x100)
+    w(0x62db54, sc), w(sc + 0x11cf0, g)
+    for i in range(500):
+        ids = rng.sample(range(1, 40), rng.randrange(0, 9))
+        h = z.alloc(0xc)
+        prev, recs = h, []
+        for pid in ids:
+            rec, node = z.alloc(0x38), z.alloc(0xc)
+            w(rec + 4, pid), w(rec + 0x20, -5)
+            w(node + 8, rec), w(prev, node), w(node + 4, prev)
+            prev = node
+            recs.append(rec)
+        w(prev, h), w(h + 4, prev), w(g + 0x4c, h)
+        listed = rng.sample(ids + rng.sample(range(40, 60), 3), rng.randrange(0, len(ids) + 3)) if ids else []
+        words = [0x1e | (8 + 12 * len(listed)) << 16, len(listed)]
+        for pid in listed:
+            words += [pid, rng.randrange(0, 9), rng.randrange(0, 8)]
+        msg = z.alloc(4 * len(words) + 4)
+        uc.mem_write(msg, struct.pack(f'<{len(words)}I', *words))
+        z.call(0x49f510, args=(1, msg))  # (sender, message), a zNetwork handler
+        theirs = [s32(r(rec + 0x20)) for rec in recs]
+        out = (I32 * 8)()
+        inp = [len(ids)] + ids + [0] * (8 - len(ids)) + [len(words)] + words
+        probe.probe_pm_read_start((I32 * len(inp))(*inp), out)
+        mine = list(out[:len(ids)])
+        if mine != theirs:
+            print(f'0x1e read case {i} {listed}: exe {theirs} port {mine}', flush=True)
+            os._exit(1)
+    print('0x1e read: 500 identical (each listed player its order)', flush=True)
 
 
 def target_kill(probe, rng):
