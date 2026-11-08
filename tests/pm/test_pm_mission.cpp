@@ -155,7 +155,8 @@ static void shadow_cats_run() {
   mech3::options() = mech3::Options{};
   // The clock seeds the game's rand (time(), as the exe): a fixed seed makes two runs repeat.
   const std::optional<uint32_t> seed_was = crt::rand_fixed_seed();
-  crt::rand_fixed_seed() = 1u;
+  // PM_SEED=n another fixed seed: one seed's run takes one path; a score over several is the fairer one (pm-tests).
+  crt::rand_fixed_seed() = std::getenv("PM_SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("PM_SEED"))) : 1u;
   struct SeedBack {
     std::optional<uint32_t> was;
     ~SeedBack() { crt::rand_fixed_seed() = was; }
