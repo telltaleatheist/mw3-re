@@ -318,3 +318,51 @@ extern "C" int32_t probe_pm_game_kind(int32_t op, const int32_t* in, int32_t* ou
   }
   return 0;
 }
+
+// Pirate's Moon's game kinds' helpers (piece 4b) for test_pm_kind_helpers.py. in: op, team play, the player asked,
+// +0xb0, the scenario (+0xac), best (+0xbc); the players (count, then 8 of: id, team, order, rounds, place), the
+// teams (count, then 4 of: id, number, rounds). out per op: 1 the objectives key's bytes; 2 the scenario's text id;
+// 3 the enemies; 4 the team's round (the count, then each player's rounds); 5 the runner-up's rounds; 6 rounds_of;
+// 7 place_of; 8 net_team; 9 the team with that number (its id, 0 none).
+extern "C" int32_t probe_pm_kind_helpers(const int32_t* in, int32_t* out) {
+  mech3::multiplayer_setup().team_play = in[1];
+  mech3::MultiplayerGame g(nullptr);
+  g.xb0 = in[3], g.scenario = in[4], g.best = in[5];
+  const int32_t* p = in + 7;
+  for (int32_t k = 0; k < in[6]; ++k, p += 5) {
+    auto r = std::make_unique<mech3::LobbyPlayer>();
+    r->id = static_cast<uint32_t>(p[0]), r->team = static_cast<uint32_t>(p[1]), r->order = p[2];
+    r->rounds = p[3], r->place = p[4];
+    g.lobby_players.push_back(std::move(r));
+  }
+  const int32_t* t = in + 7 + 8 * 5 + 1;
+  for (int32_t k = 0; k < in[7 + 8 * 5]; ++k, t += 3) {
+    auto r = std::make_unique<mech3::LobbyTeam>();
+    r->id = static_cast<uint32_t>(t[0]), r->word2 = t[1], r->rounds = t[2];
+    g.lobby_teams.push_back(std::move(r));
+  }
+  const uint32_t who = static_cast<uint32_t>(in[2]);
+  int32_t* o = out;
+  switch (in[0]) {
+    case 1:
+      for (unsigned char c : g.objectives_key()) *o++ = c;
+      break;
+    case 2: *o++ = g.scenario_message(); break;
+    case 3: *o++ = g.enemies_of(who); break;
+    case 4:
+      *o++ = g.award_team(who);
+      for (auto& r : g.lobby_players) *o++ = r->rounds;
+      break;
+    case 5: *o++ = g.runner_up_rounds(); break;
+    case 6: *o++ = g.rounds_of(who); break;
+    case 7: *o++ = g.place_of(who); break;
+    case 8: *o++ = static_cast<int32_t>(g.net_team(who)); break;
+    case 9: {
+      const mech3::LobbyTeam* r = g.team_numbered(in[2]);
+      *o++ = r ? static_cast<int32_t>(r->id) : 0;
+      break;
+    }
+  }
+  mech3::multiplayer_setup().team_play = 0;
+  return static_cast<int32_t>(o - out);
+}

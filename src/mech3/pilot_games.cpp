@@ -1052,14 +1052,15 @@ void MultiplayerGame::clear_lobby() {
   score_lines.clear();
 }
 
-// Mech3.exe 1.2 @ 0x00435910
+// Pirate's Moon 1.0 @ 0x00436600 (MW3's 0x00435910): in team play the
+// team's third data word (+0x18; MW3 its skin, +0x10), else the player's order.
 uint32_t MultiplayerGame::net_team(uint32_t player) {
   if (!multiplayer_team_play()) {
     const LobbyPlayer* p = lobby_player(player);
     return p ? static_cast<uint32_t>(p->order) : 0;
   }
   const LobbyTeam* t = lobby_team(lobby_team_id(player));
-  return t ? static_cast<uint32_t>(t->skin) : 0;
+  return t ? static_cast<uint32_t>(t->word2) : 0;
 }
 
 // Mech3.exe 1.2 @ 0x00435960
@@ -1299,6 +1300,70 @@ bool MultiplayerGame::base_destroyed(int32_t base, float now) {
   if (kind <= 1 || !base_counts(base)) return false;
   round_end = 6, base_lost = base, clock_next = now;
   return true;
+}
+
+// Pirate's Moon 1.0 @ 0x00436650
+LobbyTeam* MultiplayerGame::team_numbered(int32_t number) {
+  for (auto& t : lobby_teams)
+    if (t->word2 == number) return t.get();
+  return nullptr;
+}
+
+// Pirate's Moon 1.0 @ 0x00436580 (vt+0x58): the objectives block's name, by
+// the side whose base is base 1 (vt+0x48).
+std::string MultiplayerGame::objectives_key() {
+  char buf[24];
+  std::snprintf(buf, sizeof buf, "mp%d", xb0);  // [0x006055b8]
+  return buf;
+}
+
+// Pirate's Moon 1.0 @ 0x00437850 (vt+0x08): the scenario's text, two per
+// scenario by whether +0xb0 is 1 (0x00596e50 on the id); 0xd75 past 3.
+int32_t MultiplayerGame::scenario_message() {
+  static const int32_t kIds[4][2] = {{0x321, 0x320}, {0x323, 0x322}, {0x325, 0x324}, {0x327, 0x326}};
+  if (scenario < 0 || scenario > 3) return 0xd75;
+  return kIds[scenario][xb0 == 1 ? 1 : 0];
+}
+
+// Pirate's Moon 1.0 @ 0x004368d0
+int32_t MultiplayerGame::enemies_of(uint32_t player) {
+  const uint32_t mine = net_team(player);  // 0x00436600
+  int32_t n = 0;
+  for (auto& p : lobby_players)
+    if (p->id != player && net_team(p->id) != mine) ++n;
+  return n;
+}
+
+// Pirate's Moon 1.0 @ 0x00436930: the player itself among them.
+int32_t MultiplayerGame::award_team(uint32_t player) {
+  const uint32_t mine = net_team(player);
+  int32_t n = 0;
+  for (auto& p : lobby_players)
+    if (net_team(p->id) == mine) ++n, ++p->rounds;
+  return n;
+}
+
+// Pirate's Moon 1.0 @ 0x00437380: the teams' in team play ([0x0062cc34]).
+int32_t MultiplayerGame::runner_up_rounds() {
+  int32_t r = 0;
+  if (multiplayer_team_play()) {
+    for (auto& t : lobby_teams)
+      if (t->rounds != best && t->rounds > r) r = t->rounds;
+  } else {
+    for (auto& p : lobby_players)
+      if (p->rounds != best && p->rounds > r) r = p->rounds;
+  }
+  return r;
+}
+
+// Pirate's Moon 1.0 @ 0x004366d0, 0x004366f0 (0x00498930 on the players)
+int32_t MultiplayerGame::rounds_of(uint32_t player) {
+  const LobbyPlayer* p = lobby_player(player);
+  return p ? p->rounds : 0;
+}
+int32_t MultiplayerGame::place_of(uint32_t player) {
+  const LobbyPlayer* p = lobby_player(player);
+  return p ? p->place : 0;
 }
 
 // Pirate's Moon 1.0 @ 0x004373e0: each line's rank, 0 first, lines whose

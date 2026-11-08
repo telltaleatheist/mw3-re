@@ -86,15 +86,17 @@ void add_player(uint32_t id, uint32_t team, bool host, const char* name, void*) 
   g->lobby_players.push_back(std::move(p));
 }
 
-// 0x00499280: each network team's record, its data the owner and skin.
+// PM 0x0049c880 (MW3's 0x00499280): each network team's record; its data
+// (PM 0x14 bytes, MW3's 8) the owner, skin, number and rounds won.
 void add_team(uint32_t id, uint32_t, bool, const char* name, void*) {
   MultiplayerGame* g = g_lobby ? g_lobby->game : nullptr;
   if (!g) return;
   auto t = std::make_unique<LobbyTeam>();
   t->id = id, t->name = name ? name : "";
-  uint32_t data[2] = {}, size = sizeof data;
-  znet::get_team_data(id, data, &size);
+  uint32_t data[5] = {}, size = sizeof data;
+  znet::get_team_data(id, data, &size);  // 0x005aa590
   t->owner = data[0], t->skin = static_cast<int32_t>(data[1]);
+  t->word2 = static_cast<int32_t>(data[2]), t->rounds = static_cast<int32_t>(data[3]);
   auto line = std::make_unique<ScoreLine>();
   line->kind = 2;
   t->score = line.get();
@@ -1154,7 +1156,7 @@ bool LobbyScreen::add_to_team(uint32_t team, uint32_t player) {
   p->team = team;
   if (t->owner == 0) {
     t->owner = player;
-    uint32_t data[2] = {}, size = sizeof data;
+    uint32_t data[5] = {}, size = sizeof data;
     znet::get_team_data(team, data, &size);
     data[0] = player;
     znet::set_team_data(team, data, sizeof data);
@@ -1162,13 +1164,18 @@ bool LobbyScreen::add_to_team(uint32_t team, uint32_t player) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0049a300: a team made with its skin (its data {0,
-// skin}) and its record; with `join` we leave ours for it.
+// PM 0x0049db90 (MW3's 0x0049a300): a team made with its skin and number
+// (its data {0, skin, number, 0, 0}) and its record; with `join` we leave ours
+// for it. The number is the highest 0..7 no team has (0x00436650); PM picks it
+// as the lobby opens (0x0049faf0's +0x123d4), here as the team is made (piece 6).
 void LobbyScreen::new_team(const char* name, int32_t skin, bool join) {
   if (!game) return;
   const uint32_t id = znet::create_team(name);
   if (!id) return;
-  const uint32_t data[2] = {0, static_cast<uint32_t>(skin)};
+  uint32_t number = 0;
+  for (int32_t i = 0; i < 8; ++i)
+    if (!game->team_numbered(i)) number = static_cast<uint32_t>(i);
+  const uint32_t data[5] = {0, static_cast<uint32_t>(skin), number, 0, 0};
   znet::set_team_data(id, data, sizeof data);
   add_team(id, 0, false, name, nullptr);  // 0x00499280
   if (!join) return;
@@ -1191,7 +1198,7 @@ void LobbyScreen::set_skin(int32_t skin) {
     return;
   }
   const uint32_t team = game->lobby_team_id(me);
-  uint32_t data[2] = {}, size = sizeof data;
+  uint32_t data[5] = {}, size = sizeof data;
   znet::get_team_data(team, data, &size);
   data[1] = static_cast<uint32_t>(skin);
   znet::set_team_data(team, data, sizeof data);
