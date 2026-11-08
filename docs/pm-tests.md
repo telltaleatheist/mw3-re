@@ -320,6 +320,22 @@ Reading only: the panel's pick by +0x70 (the mates, not the list); `program_own_
 
 ## The switch's plan (2026-11-07, for Owen and the lead: nothing flipped)
 
+**Where the switch stands (2026-11-08):** what gates `PM_AI` on by default.
+
+- Done: the first run, its hooks written and every one that fires sorted (Unported in play: the (a) list cleared, only
+  logging and identical MW3 states left); the 112 functions that ran, in five groups at 53 bits (firing, the brain and
+  the tick, the states, nets, targets); 53-bit precision kept on; the score by seeds (1..4 or 1..8, 77/2), not seed 1
+  alone; both campaigns played to their ends with `PM_AI=1` (`kills:99`, `standalone-kills:99`), nothing new since
+  pm-v0.9.0; the canyon, mission 3's defences, the base lights, the lancemates' follow on PM's net.
+- Left, no decision needed, in this order: (1) the three commander tests moved to PM (`test_pocket_panel`,
+  `test_pocket_frame`, `test_pocket_keys`; PM's frame 0x46b980 keeps a quarter of MW3's lines, its keys 0x46cc50 two
+  thirds); (2) mission 5's bases with `PM_AI=1` (`PM_MFB=4700,-4200`, `PM_KILL=0,1,5`), the port's side; (3) every field
+  of each struct the AI port owns compared once, or a line why not; (4) the 220 functions PM changed that run as MW3's
+  port: each read or tested, or a line why not; (5) every break for the AI pieces rerun on the switch's evaluation.
+- Needs Owen or his PC: the same watch on the exe for +0x588 and the fuel in a real jump; a run of the exe logging each
+  mech's place and state once a second, for a compare by event; the exe's flags for mission 5's bases; and the flip
+  itself.
+
 `mw3pm` runs MW3's AI as a stand-in. Nothing outside the `zai_*_pm` files and their tests calls PM's AI: the six hook classes (`AttackPmHooks`, `PendingPmHooks`, `JumpPmHooks`, `LinkPickPmHooks`, `SteerPmHooks`, `WalkPmHooks`, 105 virtuals) have no implementation in the program.
 
 ### 1. What the first campaign can reach and isn't ported
