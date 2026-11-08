@@ -1,8 +1,13 @@
 // Pirate's Moon's lobby rules for test_pm_net_score.py (piece 2 of the multiplayer group, pm-tests.md).
+#include <algorithm>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <string>
 #include <memory>
 #include <vector>
 
+#include "gamez/zreader/zreader.h"
 #include "mech3/mp_connect.h"
 #include "mech3/pilot.h"
 
@@ -110,3 +115,98 @@ static int32_t tally_run(const int32_t* in, int32_t* out, bool winner) {
 
 extern "C" int32_t probe_pm_tally(const int32_t* in, int32_t* out) { return tally_run(in, out, false); }
 extern "C" int32_t probe_pm_round_winner(const int32_t* in, int32_t* out) { return tally_run(in, out, true); }
+
+// Pirate's Moon's rounds reader (0x00438380) for test_pm_rounds.py: the tree read from a binary node file (as the
+// archive holds mprounds.zrd), the fallback block's name and the round. out: the table's bits, then the salvage
+// blocks handed on (each: its node's flattened strings, ints and floats' bits, -1 between).
+namespace {
+std::vector<int32_t>* g_rr;
+void flatten(const zrdr::Node& n) {
+  if (n.type == zrdr::List) {
+    for (int32_t k = 1; k < n.list[0].i; ++k) flatten(n.list[k]);
+  } else if (n.type == zrdr::String) {
+    for (const char* c = n.s; *c; ++c) g_rr->push_back(static_cast<unsigned char>(*c));
+    g_rr->push_back(0);
+  } else {
+    g_rr->push_back(n.i);
+  }
+}
+}  // namespace
+
+extern "C" int32_t probe_pm_round_rules(const char* path, const char* fallback, int32_t round, int32_t* out,
+                                        int32_t cap) {
+  std::vector<int32_t> lg;
+  g_rr = &lg;
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  zrdr::Node root{};
+  zrdr::read_node(f, &root);
+  std::fclose(f);
+  auto* saved = mech3::round_salvage;
+  mech3::round_salvage = [](mech3::Store&, zrdr::Node* n) {
+    flatten(*n);
+    g_rr->push_back(-1);
+  };
+  mech3::RoundRules r;
+  mech3::read_round_rules(r, &root, fallback, round);
+  mech3::round_salvage = saved;
+  zrdr::free_contents(&root);
+  std::vector<int32_t> head(8);
+  std::memcpy(head.data(), r.table, 32);
+  lg.insert(lg.begin(), head.begin(), head.end());
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}
+
+// Pirate's Moon's between rounds (0x00438580) for test_pm_rounds.py. in: place, round, players, REALLOC (+0x70), the
+// rounds (+0x74), the tons (+0x80), the bonus (+0xd0, bits), the rules' table (8, bits), the salvage's mechs (count,
+// 4 ids), the store (count, then 10 of: kind, id). Logged: the rules read (5, round), the salvage added (6, count);
+// then 90, the bonus's bits, the tons, the store's items (kind, id) in order.
+namespace {
+const int32_t* g_nr;
+}  // namespace
+
+extern "C" int32_t probe_pm_next_round(const int32_t* in, int32_t* out, int32_t cap) {
+  std::vector<int32_t> lg;
+  g_rr = &lg;
+  g_nr = in;
+  mech3::MultiplayerGame g(nullptr);
+  for (int32_t k = 0; k < in[2]; ++k) g.lobby_players.push_back(std::make_unique<mech3::LobbyPlayer>());
+  g.realloc = in[3], g.rounds_total = in[4], g.x78 = in[5];
+  std::memcpy(&g.bonus_tons, &in[6], 4);
+  for (int32_t k = 0; k < in[17]; ++k) {
+    mech3::ConfigItem* it;
+    if (in[18 + 2 * k] == 0) {
+      auto* b = new mech3::BaseItem;
+      b->value = in[19 + 2 * k];
+      it = b;
+    } else if (in[18 + 2 * k] == 1) {
+      auto* a = new mech3::WeaponItem;
+      a->set_id(in[19 + 2 * k]);
+      it = a;
+    } else {
+      auto* a = new mech3::AmmoItem;
+      a->set_id(in[19 + 2 * k]);
+      it = a;
+    }
+    it->count = 1;
+    g.round_store.items.push_back(it);
+  }
+  auto* saved = mech3::round_rules_read;
+  mech3::round_rules_read = [](mech3::RoundRules& r, const char*, int32_t round) {
+    g_rr->push_back(5), g_rr->push_back(round);
+    std::memcpy(r.table, &g_nr[7], 32);
+    for (int32_t k = 0; k < g_nr[15]; ++k) r.salvage.add_mech(g_nr[16] + k);
+    if (g_nr[15]) g_rr->push_back(6), g_rr->push_back(g_nr[15]);
+  };
+  g.next_round(static_cast<uint32_t>(in[0]), in[1]);
+  mech3::round_rules_read = saved;
+  int32_t b;
+  std::memcpy(&b, &g.bonus_tons, 4);
+  lg.push_back(90), lg.push_back(b), lg.push_back(g.x78);
+  for (const mech3::ConfigItem* it : g.round_store.items) lg.push_back(it->kind()), lg.push_back(it->id());
+  const int32_t m = static_cast<int32_t>(std::min<size_t>(lg.size(), static_cast<size_t>(cap)));
+  std::copy(lg.begin(), lg.begin() + m, out);
+  return m;
+}

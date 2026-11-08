@@ -1,5 +1,7 @@
 // The pilot's games, their slots and stores (docs/pilot.md, The games).
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -1186,6 +1188,76 @@ void MultiplayerGame::rescore(bool rounds) {
         p->score->score = static_cast<int32_t>(s);
         p->score->key = (low + (top * 0x1000 + (s & 0xfff)) * 8) * 2;
       }
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x004384f0: a place's (0 first, 7 last) number times
+// the scale, unsigned; a negative scale reads the table from the other end.
+float RoundRules::reward(int32_t place, float scale) const {
+  if (scale == 0.0f) return 0.0f;  // [0x005de7b4]
+  if (scale < 0.0f) return std::fabs(scale * table[7 - place]);
+  return std::fabs(scale * table[place]);
+}
+
+// Pirate's Moon 1.0 @ 0x00438460: "table" when a list of 8, "salvage" into
+// the rules' store.
+bool read_round_block(RoundRules& r, zrdr::Node* block) {
+  if (!block) return false;
+  zrdr::Node* t = zrdr::find(block, "table");
+  if (t && t->type == zrdr::List && zrdr::list_count(t) == 9)
+    for (int32_t k = 0; k < 8; ++k) zrdr::get_float_value(&t->list[1 + k], &r.table[k]);  // 0x00578fc0
+  if (zrdr::Node* v = zrdr::find(block, "salvage")) round_salvage(r.salvage, v);  // 0x00473690
+  return true;
+}
+void (*round_salvage)(Store& s, zrdr::Node* salvage) = salvage_into;
+
+// Pirate's Moon 1.0 @ 0x00438380
+void read_round_rules(RoundRules& r, zrdr::Node* root, const char* fallback, int32_t round) {
+  static const float kDefault[8] = {70, 50, 40, 35, 30, 25, 20, 15};  // [0x0060554c]
+  std::memcpy(r.table, kDefault, sizeof r.table);
+  char key[32];
+  std::snprintf(key, sizeof key, "round%d", round);
+  if (!read_round_block(r, root ? zrdr::find(root, key) : nullptr))
+    read_round_block(r, root ? zrdr::find(root, fallback) : nullptr);
+}
+void read_round_rules(RoundRules& r, const char* fallback, int32_t round) {
+  zrdr::Node* root = zrdr::load("mprounds.zrd");  // 0x00578630
+  read_round_rules(r, root, fallback, round);
+  if (root) zrdr::free_node(root);  // 0x005787a0
+}
+void (*round_rules_read)(RoundRules& r, const char* fallback, int32_t round) = read_round_rules;
+
+// Pirate's Moon 1.0 @ 0x00438580: between rounds (not after the last), the
+// next round's rules: the local player's place (scaled to 0..7 by the
+// players: x7 with 2, x4 with 3, x2 with 4 or 5) earns its reward, a
+// REALLOC_LIST-scaled number, added to the bonus tons; the round's salvage
+// goes into the round store; the weight limit grows by the first place's
+// reward, down to a multiple of 5, kept within 10..100; then the store's
+// mechs over the new limit are taken out.
+void MultiplayerGame::next_round(uint32_t place, int32_t round) {
+  if (round == rounds_total) return;
+  const float scale = static_cast<float>(realloc) * 0.5f;  // [0x005de818]
+  RoundRules rules;
+  round_rules_read(rules, "default", round + 1);  // 0x00438380
+  const size_t players = lobby_players.size();  // +0x50
+  if (players == 2) place *= 7;
+  else if (players == 3) place <<= 2;
+  else if (players == 4 || players == 5) place *= 2;
+  if (place > 7) place = 7;
+  bonus_tons += rules.reward(static_cast<int32_t>(place), scale);
+  if (!rules.salvage.items.empty()) round_store.add_all(rules.salvage);  // 0x00475270
+  int32_t tons = static_cast<int32_t>(rules.reward(0, std::fabs(scale))) + x78;  // ftol: truncates
+  tons -= tons % 5;
+  x78 = tons > 100 ? 100 : tons < 10 ? 10 : tons;
+  const float limit = static_cast<float>(x78);
+  for (auto it = round_store.items.begin(); it != round_store.items.end();) {  // 0x00438790
+    ConfigItem* item = *it;
+    if (item->kind() == 0 && limit < max_mass(item->id())) {
+      delete item;
+      it = round_store.items.erase(it);
+    } else {
+      ++it;
+    }
   }
 }
 

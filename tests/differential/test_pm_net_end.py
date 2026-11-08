@@ -4,7 +4,7 @@ new, 0xd's, "I am the host"), the crater veto ([0x639c48]) and the flag cleared,
 one), each remote mech forgotten (0x4adc40), taken off the list (0x4c63f0) and deleted (vt+0), the player data
 cleared (0x5aa4a0), the anim log's net hook off (0x526950(0, 0xc)), the force feedback stopped (0x434020, when
 there is one). New in PM: one more round played ([0x62cc38]), the round's tally (0x436980(1) on the network game,
-piece 3's), then each remote loadout's mech and loadout added to the game's stats (0x475310 on its +0xd4, piece 5's)
+piece 3's), then each remote loadout's mech and loadout given back to the round store (0x475310, Store::give_config on its +0xd4)
 and the local slot's (the game's vt+0x30(0): +4 the mech, +8 the loadout). Then the loadouts freed (0x425d50 and the
 delete) and the missing list emptied. The calls out are stood in for and logged on both sides; the handlers taken off
 are compared as a set with those the port's start and launch (net_register, 0x46f030) put on.
@@ -43,7 +43,7 @@ class Exe:
                  0x4c63f0: (self.erase, 8), 0x5a8a30: (lambda c: self.v[0], 0),
                  0x5aa4a0: (lambda c: self.log.extend([71, c.arg(0), 1 if c.arg(1) else 0, c.arg(2)]) or 0, 0),
                  0x526950: (self.anim, 0), 0x434020: (lambda c: self.log.append(72) or 0, 0),
-                 0x47b710: (lambda c: self.game, 4), 0x436980: (self.tally, 4), 0x475310: (self.stats, 8),
+                 0x47b710: (lambda c: self.game, 4), 0x436980: (self.tally, 4), 0x475310: (self.give, 8),
                  0x425d50: (lambda c: self.log.extend([73, self.tags[c.ecx]]) or 0, 0),
                  0x5ce8c0: (lambda c: 0, 0)}
         for a, (fn, pop) in stubs.items():
@@ -75,7 +75,7 @@ class Exe:
         self.log.append(25)
         return 1
 
-    def stats(self, c):
+    def give(self, c):
         assert c.ecx == self.game + 0xd4, hex(c.ecx)
         self.log += [26, s32(c.arg(0)), self.tags[c.arg(1)]]
         return 1
@@ -173,7 +173,7 @@ def main():
             os._exit(1)
         key = (v[1], theirs.count(26) > 0)
         seen[key] = seen.get(key, 0) + 1
-    print(f'{count} ends identical; (running, stats added): {dict(sorted(seen.items()))}', flush=True)
+    print(f'{count} ends identical; (running, given back to the store): {dict(sorted(seen.items()))}', flush=True)
     os._exit(0)
 
 

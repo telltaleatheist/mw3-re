@@ -132,8 +132,8 @@ void net_start() {
 
 // Pirate's Moon 1.0 @ 0x0046f150 (MW3's 0x0046d100). PM, after the force
 // feedback: one more round played, the round's tally, then each remote
-// loadout and the local slot's added to the game's stats (each its mech and
-// its loadout), before the loadouts are freed.
+// loadout and the local slot's mech and loadout given back to the round
+// store (the game's +0xd4, Store::give_config), before the loadouts are freed.
 void net_end() {
   if (!g_net.running) return;
   for (uint16_t t : kRouted) znet::off(t, net_route);
@@ -157,12 +157,12 @@ void net_end() {
   if (g_calls.ff_stop) g_calls.ff_stop();
   ++g_net.rounds_played;
   if (g_calls.round_tally) g_calls.round_tally();  // the exe reads the network game unchecked
-  if (g_calls.stats_add) {
+  if (g_calls.store_give) {
     for (const Config* c : g_net.configs)
-      if (c) g_calls.stats_add(c->mech, c);  // the exe reads each unchecked
+      if (c) g_calls.store_give(c->mech, c);  // the exe reads each unchecked
     int32_t mech = -1;
     const Config* local = nullptr;
-    if (g_calls.local_slot && g_calls.local_slot(&mech, &local)) g_calls.stats_add(mech, local);
+    if (g_calls.local_slot && g_calls.local_slot(&mech, &local)) g_calls.store_give(mech, local);
   }
   for (Config*& c : g_net.configs) {
     if (c) g_calls.config_free ? g_calls.config_free(c) : delete c;
