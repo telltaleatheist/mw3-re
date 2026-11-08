@@ -2184,7 +2184,9 @@ struct WiredMissionHooks : MissionHooks {
     ob().sync();
   }
   void pilot_game_ia() override {}
-  void fn_4f9930() override {}  // 0x004f9a10 over the world's list: to port with zEffect's start
+  // Pirate's Moon 1.0 @ 0x004f9930: the mission listeners' slot +0x0c (0x004f9a10) once the setup's done. Only the
+  // boundary's is not empty (0x004ce2f0): every compiled net's via nodes onto the current area's polygons.
+  void fn_4f9930() override { ai::inout_register_vias(); }
   void puffer_tick_reset() override {
     zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };  // PM calls this before the hooks' set-up
     wire_puff_node();

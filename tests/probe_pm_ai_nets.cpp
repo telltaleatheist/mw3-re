@@ -17,6 +17,7 @@
 #include "mech3/zai_steps.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_region.h"
+#include "mech3/zainet_inout.h"
 #include "mech3/zainetedit.h"
 #include "mech3/zrdrainet.h"
 #include "mech3/zrdraiv.h"
@@ -425,6 +426,26 @@ extern "C" int probe_pm_ai_regions(const char* text, char* out, int size) {
   zerr::set_sink(nullptr);
   rdr_hooks() = RdrHooks{};
   if (static_cast<int>(o.size()) >= size) return -2;
+  std::memcpy(out, o.c_str(), o.size() + 1);
+  return static_cast<int>(o.size());
+}
+
+// 0x004c7d60's walk (zainet_inout for_each_via) over the nets probe_pm_ai_nets built: each via node by net and slot,
+// once per polygon of the test's two. Run after probe_pm_ai_nets.
+extern "C" int probe_pm_ai_vias(char* out, int size) {
+  std::string o;
+  mech3::ai::for_each_via(
+      [](void* ctx, mech3::ai::AiNet* net, const mech3::ai::ViaNode* v) {
+        auto& o = *static_cast<std::string*>(ctx);
+        auto* c = static_cast<mech3::ai::CompiledNet*>(net);
+        int32_t slot = -1;
+        for (int32_t i = 0; i < c->count(); ++i)
+          if (c->step(i) == v) slot = i;
+        for (int poly = 0; poly < 2; ++poly)
+          o += "via " + std::to_string(c->get_id()) + ' ' + std::to_string(slot) + ' ' + std::to_string(poly) + '\n';
+      },
+      &o);
+  if (static_cast<int>(o.size()) >= size) return -1;
   std::memcpy(out, o.c_str(), o.size() + 1);
   return static_cast<int>(o.size());
 }

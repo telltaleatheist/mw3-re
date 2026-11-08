@@ -24,6 +24,8 @@ import test_pm_ai_nodes as nodes  # noqa: E402
 import test_pm_zar  # noqa: E402
 import test_pm_zreader as zr  # noqa: E402
 import zrd  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 PM = nodes.PM
 REGISTRY, NULL_STEP, DEFAULT, WORLD = 0x627c38, 0x627c08, 0x627cc8, 0x62ca90
@@ -189,6 +191,32 @@ class NetBench(nodes.Bench):
         return o + [f'report {r}' for r in self.reports]
 
 
+    def vias(self):
+        """0x4c7d60 over the registry on an area of two polygons: each via node handed to 0x4cf350 (stubbed: what it
+        gets, by net and slot, polygon by polygon; none taken, so each is also logged, 0x406cb0 stubbed)."""
+        area, polys = self.alloc(0x20), self.alloc(8)
+        self.cpu.u32(polys, 0x7100), self.cpu.u32(polys + 4, 0x7200)
+        self.cpu.u32(area + 8, polys), self.cpu.u32(area + 0xc, polys + 8)
+        got, cur = [], {}
+
+        def net_in(uc, ad, sz, u):
+            cur['net'] = self.r32(uc.reg_read(UC_X86_REG_ESP) + 4)
+        h = self.cpu._uc.hook_add(UC_HOOK_CODE, net_in, begin=0x4c7c00, end=0x4c7c00)
+
+        def handed(c):
+            node = self.r32(self.r32(c.ecx + 4) + 4)
+            poly = self.r32(c._uc.reg_read(UC_X86_REG_ESP) + 4)
+            net = cur['net']
+            b, end = self.r32(net + 0xc), self.r32(net + 0x10)
+            els = [self.r32(q) for q in range(b, end, 4)]
+            got.append(f'via {self.r32s(net + 4)} {els.index(node) if node in els else -1} {(poly >> 8) - 0x71}')
+            return 0
+        self.native_stub(0x4cf350, handed, pop=4)
+        self.native_stub(0x406cb0, lambda c: 0)
+        self.call(0x4c7d60, ecx=area)
+        self.cpu._uc.hook_del(h)
+        return got
+
     def waynets(self, names):
         self.reports = []
         o = []
@@ -312,6 +340,9 @@ class Tally:
         theirs = emu.build()
         n = self.p.probe_pm_ai_nets(world, self.buf, len(self.buf))
         ours = self.buf.value.decode('latin1').splitlines() if n >= 0 else [f'probe failed {n}']
+        theirs += emu.vias()
+        n = self.p.probe_pm_ai_vias(self.buf, len(self.buf))
+        ours += self.buf.value.decode('latin1').splitlines() if n >= 0 else [f'probe failed {n}']
         self.cases += 1
         names = [n[:-4] for n, _, _ in zrd.entries(data) if n.lower().startswith('waynet')]
         if names:
@@ -340,6 +371,7 @@ def main():
     limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10 ** 6
     p = test_pm_zar.load_pm_probe()
     p.probe_pm_ai_nets.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    p.probe_pm_ai_vias.argtypes = [ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_ai_waynets.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
     p.probe_pm_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
     t = Tally(p)
@@ -362,7 +394,7 @@ def main():
           f'{t.water} water hits: {t.bad} differ; {dict(sorted(t.seen.items()))}')
     if not t.bad and limit > 100:
         pm_floors.floors(cases=(t.cases, 100), grounded=(t.grounded, 50), water=(t.water, 50), reports=(t.seen.get('report', 0), 1),
-                         waynets=(t.waynets, 40), points=(t.seen.get('point', 0), 100),
+                         waynets=(t.waynets, 40), points=(t.seen.get('point', 0), 100), vias=(t.seen.get('via', 0), 4),
                          **{k: (t.seen.get(k, 0), 3) for k in sorted(set(KINDS.values()))})
     sys.exit(1 if t.bad else 0)
 

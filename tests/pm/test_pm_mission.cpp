@@ -16,6 +16,7 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "check.h"
+#include "mech3/zainet_inout.h"
 #include "crt/msvc_rand.h"
 #include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
@@ -477,6 +478,7 @@ static void kill_run(const char* which, bool quick) {
       }
       int32_t count = 0;
       const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&count);
+      if (t == 30) std::printf("  vias on the area: %d\n", mech3::ai::inout_via_count());
       if (std::getenv("PM_M2_FOLLOW") && t == 30)
         for (int32_t i = 0; i < count; ++i)
           if (ai[i].name && std::strcmp(ai[i].name, std::getenv("PM_M2_FOLLOW")) == 0)
