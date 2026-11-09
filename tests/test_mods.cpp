@@ -838,14 +838,51 @@ bool same_tree(const zrdr::Node& a, const zrdr::Node& b, std::string* where, con
 }
 }  // namespace
 
+namespace {
+// mech3ax's unzbd beside the checkout (../mech3ax/target/release, as test_net_save_mech3ax.py finds it) or at
+// MECH3AX_UNZBD; empty, said once, when there is none (the tests that use it then skip that part).
+fs::path find_unzbd() {
+  std::error_code ec;
+  const fs::path p = std::getenv("MECH3AX_UNZBD") ? fs::path(std::getenv("MECH3AX_UNZBD"))
+                                                  : fs::canonical(MW3_GAME_DIR, ec).parent_path().parent_path().parent_path() / "mech3ax" /
+                                                        "target" / "release" / "unzbd";
+#if defined(_WIN32)
+  (void)p;
+  std::printf("  unzbd skipped: run through the shell on the Mac and Linux only\n");
+  return {};
+#else
+  static bool said = false;
+  if (fs::is_regular_file(p, ec)) return p;
+  if (!said) std::printf("  unzbd skipped: none at %s (cargo build --release in ../mech3ax, or MECH3AX_UNZBD)\n", p.string().c_str());
+  said = true;
+  return {};
+#endif
+}
+// unzbd's export of `zbd` (`kind`: reader, motion, mechlib...), each file of its zip by name; false when it did not run.
+bool unzbd_export(const fs::path& unzbd, const char* kind, const std::string& zbd, std::map<std::string, std::string>* out) {
+  static int n = 0;
+  const std::string zip = tmp("unzbd_export") + "/" + std::to_string(n++) + ".zip";
+  const std::string cmd = "'" + unzbd.string() + "' mw " + kind + " '" + zbd + "' '" + zip + "' >/dev/null 2>&1";
+  if (std::system(cmd.c_str()) != 0) return false;
+  zutl_zip::Zip z;
+  if (!z.open(zip)) return false;
+  for (const zutl_zip::Zip::Entry& e : z.entries) {
+    std::vector<uint8_t> d;
+    std::string why;
+    if (z.read(e, &d, &why)) (*out)[e.name] = std::string(d.begin(), d.end());
+  }
+  return true;
+}
+}  // namespace
+
 // Every reader entry the install ships, written as mech3ax's JSON (to_json) and read back (parse_json): the
-// same tree, every float to the bit (docs/modding.md, Readable files). MW3_UNZBD_JSON: a folder of unzbd's own
-// `<entry>.zrd.json` for one archive (MW3_UNZBD_ARCHIVE, under zbd/), each read and checked against the entry too.
+// same tree, every float to the bit (docs/modding.md, Readable files); and with unzbd (find_unzbd) each archive's
+// own `<entry>.zrd.json` read and checked against the entry too.
 TEST(mods_reader_json_round_trips_every_shipped_entry) {
   const std::string install = MW3_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
-  int entries = 0, archives = 0, floats = 0, unzbd = 0;
+  int entries = 0, archives = 0, floats = 0, from_unzbd = 0;
   std::string first_bad;
   for (const auto& f : fs::recursive_directory_iterator(install + "/zbd", ec)) {
     const std::string name = f.path().filename().string();
@@ -854,8 +891,9 @@ TEST(mods_reader_json_round_trips_every_shipped_entry) {
     zutl_zar::init(a);
     if (!zutl_zar::open(a, f.path().string().c_str())) continue;
     ++archives;
-    const char* want = std::getenv("MW3_UNZBD_ARCHIVE");
-    const bool against = want && std::getenv("MW3_UNZBD_JSON") && fs::path(f.path()).lexically_relative(install + "/zbd").generic_string() == want;
+    static const fs::path unzbd = find_unzbd();
+    std::map<std::string, std::string> exported;
+    const bool against = !unzbd.empty() && unzbd_export(unzbd, "reader", f.path().string(), &exported);
     for (int i = 0; i < a.count; ++i) {
       uint32_t length = 0;
       std::FILE* file = zutl_zar::seek(a, i, &length);
@@ -870,13 +908,10 @@ TEST(mods_reader_json_round_trips_every_shipped_entry) {
       ++entries;
       if (back) zrdr::free_node(back);
       if (against) {
-        std::ifstream in(std::string(std::getenv("MW3_UNZBD_JSON")) + "/" + a.entries[i].name + ".json");
-        std::stringstream text;
-        text << in.rdbuf();
-        zrdr::Node* theirs = zrdr::parse_json(text.str(), &why);
+        zrdr::Node* theirs = zrdr::parse_json(exported[std::string(a.entries[i].name) + ".json"], &why);
         const bool ok = theirs && same_tree(root, *theirs, &where);
         if (!ok && first_bad.empty()) first_bad = std::string("unzbd ") + a.entries[i].name + ": " + (theirs ? where : why);
-        unzbd += ok;
+        from_unzbd += ok;
         if (theirs) zrdr::free_node(theirs);
       }
       zrdr::free_contents(&root);
@@ -884,7 +919,7 @@ TEST(mods_reader_json_round_trips_every_shipped_entry) {
     zutl_zar::destroy(a);
   }
   std::printf("  %d archives, %d entries, about %d floats%s; first difference: %s\n", archives, entries, floats,
-              unzbd ? (", " + std::to_string(unzbd) + " of unzbd's own the same").c_str() : "", first_bad.empty() ? "none" : first_bad.c_str());
+              from_unzbd ? (", " + std::to_string(from_unzbd) + " of unzbd's own the same").c_str() : "", first_bad.empty() ? "none" : first_bad.c_str());
   EXPECT(archives > 0 && entries > 100);
   EXPECT(first_bad.empty());
 }
@@ -982,7 +1017,7 @@ TEST(mods_reader_json_entry_in_a_folder_or_a_zip) {
 }
 
 // Every motion MW3 ships, as unzbd's JSON (motion_to_json) and back (motion_from_json): the entry's own bytes, and
-// read by the archive's bounded reader. MW3_UNZBD_MOTION: a folder of unzbd's own `<motion>.json`, each the entry too.
+// read by the archive's bounded reader; with unzbd (find_unzbd), its own `<motion>.json`, each the entry too.
 TEST(mods_motion_json_round_trips_every_shipped_motion) {
   const std::string install = MW3_GAME_DIR;
   std::error_code ec;
@@ -990,8 +1025,10 @@ TEST(mods_motion_json_round_trips_every_shipped_motion) {
   zutl_zar::Archive a;
   zutl_zar::init(a);
   EXPECT(zutl_zar::open(a, (install + "/zbd/motion.zbd").c_str()));
-  const char* theirs = std::getenv("MW3_UNZBD_MOTION");
-  int motions = 0, same = 0, read = 0, unzbd = 0;
+  const fs::path unzbd = find_unzbd();
+  std::map<std::string, std::string> exported;
+  const bool theirs = !unzbd.empty() && unzbd_export(unzbd, "motion", install + "/zbd/motion.zbd", &exported);
+  int motions = 0, same = 0, read = 0, from_unzbd = 0;
   std::string first_bad;
   for (int i = 0; i < a.count; ++i) {
     uint32_t length = 0;
@@ -1015,18 +1052,15 @@ TEST(mods_motion_json_round_trips_every_shipped_motion) {
       std::fclose(t);
     }
     if (theirs) {
-      std::ifstream in(std::string(theirs) + "/" + a.entries[i].name + ".json");
-      std::stringstream text;
-      text << in.rdbuf();
       std::vector<uint8_t> bytes;
-      const bool them = zsis::motion_from_json(text.str(), &bytes, &why) && bytes == entry;
-      unzbd += them;
+      const bool them = zsis::motion_from_json(exported[std::string(a.entries[i].name) + ".json"], &bytes, &why) && bytes == entry;
+      from_unzbd += them;
       if (!them && first_bad.empty()) first_bad = std::string("unzbd ") + a.entries[i].name + ": " + why;
     }
   }
   zutl_zar::destroy(a);
   std::printf("  %d motions, %d the same bytes back, %d read by the reader%s; first difference: %s\n", motions, same, read,
-              theirs ? (", " + std::to_string(unzbd) + " of unzbd's the same bytes").c_str() : "", first_bad.empty() ? "none" : first_bad.c_str());
+              theirs ? (", " + std::to_string(from_unzbd) + " of unzbd's the same bytes").c_str() : "", first_bad.empty() ? "none" : first_bad.c_str());
   EXPECT(motions > 200 && same == motions && read == motions && first_bad.empty());
 }
 
@@ -1088,31 +1122,11 @@ TEST(mods_mechlib_json_is_every_entrys_bytes) {
   const std::string install = MW3_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
-  const fs::path unzbd = std::getenv("MECH3AX_UNZBD") ? fs::path(std::getenv("MECH3AX_UNZBD"))
-                                                      : fs::canonical(install, ec).parent_path().parent_path().parent_path() / "mech3ax" /
-                                                            "target" / "release" / "unzbd";
-#if defined(_WIN32)
-  std::printf("  skipped: unzbd is run through the shell here, on the Mac and Linux\n");
-  return;
-#endif
-  if (!fs::is_regular_file(unzbd, ec)) {
-    std::printf("  skipped: no unzbd at %s (cargo build --release in ../mech3ax, or MECH3AX_UNZBD)\n", unzbd.string().c_str());
-    return;
-  }
-  const std::string zip = tmp("mods_mechlib_unzbd") + "/mechlib.zip";
-  const std::string cmd = "'" + unzbd.string() + "' mw mechlib '" + install + "/zbd/mechlib.zbd' '" + zip + "' >/dev/null 2>&1";
-  EXPECT(std::system(cmd.c_str()) == 0);
-  zutl_zip::Zip theirs;
-  EXPECT(theirs.open(zip));
-  const auto json_of = [&](const std::string& name) {
-    for (const zutl_zip::Zip::Entry& e : theirs.entries)
-      if (e.name == name) {
-        std::vector<uint8_t> d;
-        std::string why;
-        return theirs.read(e, &d, &why) ? std::string(d.begin(), d.end()) : std::string();
-      }
-    return std::string();
-  };
+  const fs::path unzbd = find_unzbd();
+  std::map<std::string, std::string> exported;
+  if (unzbd.empty()) return;
+  EXPECT(unzbd_export(unzbd, "mechlib", install + "/zbd/mechlib.zbd", &exported));
+  const auto json_of = [&](const std::string& name) { return exported[name]; };
   zutl_zar::Archive a;
   zutl_zar::init(a);
   EXPECT(zutl_zar::open(a, (install + "/zbd/mechlib.zbd").c_str()));

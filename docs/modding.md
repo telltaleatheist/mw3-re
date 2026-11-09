@@ -836,9 +836,10 @@ as a double and then narrowed, a rare value would round twice and miss by
 one bit.) `to_json` writes the shortest text that reads back to the same
 float. `mods_reader_json_round_trips_every_shipped_entry` writes every reader
 entry MW3 ships (55 archives, 1,268 entries) as JSON and reads it back to the
-same tree, every float to the bit; with `MW3_UNZBD_ARCHIVE`/`MW3_UNZBD_JSON`
-it reads unzbd's own files for one archive too (reader.zbd's 178 and c1's 58
-checked: the same trees).
+same tree, every float to the bit; with mech3ax's unzbd beside the checkout
+(`../mech3ax/target/release`, or `MECH3AX_UNZBD`; the part skipped and said
+without it) it exports each archive and reads unzbd's own files too: all
+1,268 the same trees.
 
 *Errors* name the line and the value's place, as a JSON path: "line 2 (at
 $[1][1]): true or false: the reader has none (write 1 or 0)", "line 1 (at
@@ -872,7 +873,7 @@ through `Script::read`, the archive's bounded reader. Floats are read with
 
 `mods_motion_json_round_trips_every_shipped_motion` writes each of MW3's 258
 motions as JSON (`motion_to_json`) and reads it back to the entry's own bytes,
-each read by `Script::read`; with `MW3_UNZBD_MOTION` it reads unzbd's own 258
+each read by `Script::read`; with unzbd (as above) it reads unzbd's own 258
 files too, all the same bytes. Errors name the line and place: "line 2 (at
 $.parts[0].frames[1].rotation): no \"w\"", "(at $.parts[0].frames): 2
 frames, where frame_count says 3", "(at $.loop_time): not above 0", syntax
