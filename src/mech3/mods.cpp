@@ -792,7 +792,10 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       zrdr::close_archives(true);
     } else if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zrd") == 0) {
       zrdr::init();
-      if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
+      std::string why;
+      if (std::FILE* t = std::fopen(host.c_str(), "rb")) why = zrdr::text_error(t), std::fclose(t);
+      if (!why.empty()) error(rel + ": " + why + " (the game reads the archive's entry instead)");
+      else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
       else error(rel + ": not a text .zrd the reader can read");
     }
   }

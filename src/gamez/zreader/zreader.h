@@ -91,6 +91,12 @@ std::FILE* find_in_archives(const char* name);                // 0x005572c0
 // 0x005563d0: a text file's tree, nullptr when its parentheses do not
 // balance. The root is a list of everything at the top level.
 Node* parse_text(std::FILE* file);
+// Ours (docs/modding.md, Readable files): why parse_text refuses a text file,
+// with its line, as the balance check counts ( and ) outside quotes and ';'
+// comments: "line N: a '(' never closed" (the outermost one left open),
+// "line N: a ')' with no '(' before it", "line N: a quote never closed";
+// "" when it would read. The file is left at its start.
+std::string text_error(std::FILE* file);
 
 // 0x00556740: reads the named data file. The directory is ignored for archives:
 // "foo\\bar\\detail.zrd" is looked up as "detail.zrd". Not in an archive, the
