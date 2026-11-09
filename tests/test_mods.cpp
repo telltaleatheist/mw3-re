@@ -1023,6 +1023,7 @@ TEST(mods_motion_json_errors_name_the_line_and_place) {
       {"{\"loop_time\": 2.0, \"frame_count\": 2.5, \"parts\": []}", "line 1 (at $.frame_count): not a whole number"},
       {"{\"loop_time\": 1e40, \"frame_count\": 2, \"parts\": []}", "line 1 (at $.loop_time): 1e40: past a float's range"},
       {"{\"loop_time\": 2.0, \"frame_count\": 3, \"parts\": [" + part + "]}", "line 1 (at $.parts[0].frames): 2 frames, where frame_count says 3"},
+      {"{\"loop_time\": 2.0, \"frame_count\": 1, \"parts\": [" + part + "]}", "line 1 (at $.parts[0].frames): 2 frames, where frame_count says 1"},
       {"{\"loop_time\": 2.0, \"frame_count\": 2, \"parts\": [{\"name\": \"hip\", \"frames\": [" + frame + ",\n {\"translation\": {\"x\": 0, \"y\": 0, \"z\": 0}, \"rotation\": {\"x\": 1, \"y\": 0, \"z\": 0}}]}]}",
        "line 2 (at $.parts[0].frames[1].rotation): no \"w\""},
       {"{\"loop_time\": 2.0, \"frame_count\": 2, \"parts\": [{\"name\": \"\\u4e2d\", \"frames\": []}]}", "line 1 (at $.parts[0].name): a character the game's text"},
