@@ -19,8 +19,11 @@
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zutil/zutl_zip.h"
+#include "gamez/zutil/zutl_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
@@ -1166,6 +1169,223 @@ TEST(mods_mechlib_json_is_every_entrys_bytes) {
   EXPECT(entries > 50 && same == entries);
 }
 
+// Each world's anim.zbd from unzbd's own JSON (find_unzbd): the shipped file's bytes but past names' NULs, where
+// mech3ax restores the shipped padding from tables of its own and ours is zeros (docs/modding.md).
+TEST(mods_anim_json_is_every_worlds_file) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  int worlds = 0, same = 0;
+  for (const char* w : {"c1", "c2", "c3", "c4", "c4b", "t1"}) {
+    const std::string zbd = install + "/zbd/" + w + "/anim.zbd";
+    if (!fs::exists(zbd, ec)) continue;
+    ++worlds;
+    std::map<std::string, std::string> exported;
+    EXPECT(unzbd_export(unzbd, "anim", zbd, &exported));
+    std::ifstream in(zbd, std::ios::binary);
+    const std::vector<uint8_t> shipped((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::vector<uint8_t> ours;
+    std::vector<std::pair<size_t, size_t>> masks;
+    std::string why;
+    const bool ok = zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &masks, &why);
+    if (!ok) std::printf("  %s: %s\n", w, why.c_str());
+    if (const char* dump = std::getenv("MW3_ANIM_DUMP")) std::ofstream(std::string(dump) + "/" + w + ".zbd", std::ios::binary).write(
+        reinterpret_cast<const char*>(ours.data()), static_cast<std::streamsize>(ours.size()));
+    std::vector<uint8_t> a = ours, b = shipped;
+    if (!ok) b.resize(std::min(b.size(), a.size()));  // the defs it read, against the shipped file's start
+    for (const auto& [from, to] : masks)
+      for (size_t k = from; k < to && k < a.size() && k < b.size(); ++k) a[k] = b[k] = 0;
+    size_t at = 0;
+    while (at < a.size() && at < b.size() && a[at] == b[at]) ++at;
+    const bool equal = ok && a.size() == b.size() && at == a.size();
+    same += equal;
+    std::printf("  %s: %zu bytes vs %zu, %zu names masked, %s\n", w, ours.size(), shipped.size(), masks.size(),
+                equal ? "the same" : at == a.size() && !ok ? "the same so far" : ("first difference at " + std::to_string(at)).c_str());
+  }
+  EXPECT(worlds == 6 && same == worlds);
+}
+
+// The events no shipped world uses but the runtime runs (ObjectDeleteChild, CameraState, CameraFromTo,
+// FbfxCsinwaveFromTo, AnimVerbose), in a sequence added to one of t1's defs: our file against mech3ax's own writer's
+// (rezbd beside unzbd) on the same JSON. Effect, which mech3ax refuses in MechWarrior 3, against its layout by hand.
+TEST(mods_anim_json_unused_events_as_mech3ax_writes_them) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  const fs::path rezbd = unzbd.parent_path() / "rezbd";
+  if (!fs::is_regular_file(rezbd, ec)) return (void)std::printf("  skipped: no rezbd beside unzbd\n");
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const std::string def = "ams_muz-ams_blast.json";
+  std::string& text = exported[def];
+  zutl_json::Value v;
+  std::string why;
+  EXPECT(zutl_json::parse(text, &v, &why) && v.get("nodes") && !v.get("nodes")->items.empty());
+  if (!v.get("nodes") || v.get("nodes")->items.empty()) return;
+  const std::string node = v.get("nodes")->items[0].get("name")->text;
+  const std::string ev = [&] {
+    const std::string n = "\"" + node + "\"";
+    return "{\"name\": \"mod_events\", \"seq_state\": \"OnCall\", \"reset_state\": \"OnCall\", \"pointer\": 1, \"events\": ["
+           "{\"start\": null, \"data\": {\"ObjectDeleteChild\": {\"parent\": " + n + ", \"child\": " + n + "}}},"
+           "{\"start\": {\"offset\": \"Sequence\", \"time\": 0.5}, \"data\": {\"CameraState\": {\"name\": " + n + ", \"clip_near\": 1.5, \"clip_far\": null,"
+           " \"lod_multiplier\": 2.0, \"fov_h\": null, \"fov_v\": 0.75, \"zoom_h\": null, \"zoom_v\": 3.0}}},"
+           "{\"start\": null, \"data\": {\"CameraFromTo\": {\"name\": " + n + ", \"clip_near\": {\"from\": 1.0, \"to\": 2.0}, \"clip_far\": null,"
+           " \"lod_multiplier\": null, \"fov_h\": {\"from\": 0.5, \"to\": 0.25}, \"fov_v\": null, \"zoom_h\": null, \"zoom_v\": {\"from\": 1.0, \"to\": 1.0},"
+           " \"run_time\": 2.0}}},"
+           "{\"start\": null, \"data\": {\"FbfxCsinwaveFromTo\": {\"at_node\": {\"name\": " + n + ", \"pos\": {\"x\": 1.0, \"y\": 2.0, \"z\": 3.0}},"
+           " \"screen_pos\": null, \"world_radius\": {\"from\": 5.0, \"to\": 9.0}, \"screen_radius\": null,"
+           " \"csin\": {\"x\": {\"from\": 0.1, \"to\": 0.2}, \"y\": {\"from\": 0.3, \"to\": 0.3}, \"z\": {\"from\": 1.0, \"to\": 0.0}}, \"run_time\": 4.0}}},"
+           "{\"start\": null, \"data\": {\"AnimVerbose\": {\"on\": true}}}]},";
+  }();
+  const size_t seqs = text.find("\"sequences\": [");
+  EXPECT(seqs != std::string::npos);
+  if (seqs == std::string::npos) return;
+  text.insert(seqs + std::strlen("\"sequences\": ["), ev);
+  std::vector<std::pair<std::string, std::string>> files(exported.begin(), exported.end());
+  const std::string dir = tmp("mods_anim_rezbd");
+  write_stored_zip(dir + "/t1.zip", files);
+  const std::string out = dir + "/theirs.zbd";
+  const std::string cmd = "'" + rezbd.string() + "' mw anim '" + dir + "/t1.zip' '" + out + "' >/dev/null 2>&1";
+  EXPECT(std::system(cmd.c_str()) == 0);
+  std::ifstream in(out, std::ios::binary);
+  const std::vector<uint8_t> theirs((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::vector<uint8_t> ours;
+  std::vector<std::pair<size_t, size_t>> masks;
+  EXPECT(zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &masks, &why));
+  std::vector<uint8_t> a = ours, b = theirs;
+  for (const auto& [from, to] : masks)
+    for (size_t k = from; k < to && k < a.size() && k < b.size(); ++k) a[k] = b[k] = 0;
+  size_t at = 0;
+  while (at < a.size() && at < b.size() && a[at] == b[at]) ++at;
+  std::printf("  ours %zu bytes, rezbd's %zu, first difference at %zu (%s)\n", a.size(), b.size(), at, why.c_str());
+  EXPECT(!theirs.empty() && a == b);
+  // Effect: a def with an effects list and an Effect event (mech3ax's EffectC: effect index, node index, position).
+  std::string with = exported[def];
+  const size_t fx = with.find("\"effects\": null");
+  EXPECT(fx != std::string::npos);
+  if (fx == std::string::npos) return;
+  with.replace(fx, std::strlen("\"effects\": null"), "\"effects\": [{\"name\": \"boom\", \"index\": 7, \"pad\": null}]");
+  const size_t s2 = with.find("\"sequences\": [");
+  with.insert(s2 + std::strlen("\"sequences\": ["), "{\"name\": \"fx\", \"seq_state\": \"OnCall\", \"reset_state\": \"OnCall\", \"pointer\": 1, \"events\": ["
+              "{\"start\": null, \"data\": {\"Effect\": {\"name\": \"boom\", \"at_node\": {\"name\": \"" + node + "\", \"pos\": {\"x\": 1.0, \"y\": 2.0, \"z\": 3.0}}}}}]},");
+  exported[def] = with;
+  std::vector<uint8_t> fxd;
+  EXPECT(zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &fxd, nullptr, &why));
+  const uint8_t want_head[] = {3, 1, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 1, 0};  // type 3, its size, effect 1
+  const auto hit = std::search(fxd.begin(), fxd.end(), std::begin(want_head), std::end(want_head));
+  EXPECT(hit != fxd.end());
+  const uint8_t rec[] = {'b', 'o', 'o', 'm', 0};
+  const auto r = std::search(fxd.begin(), fxd.end(), std::begin(rec), std::end(rec));
+  EXPECT(r != fxd.end() && r + 36 <= fxd.end() && r[32] == 7 && std::all_of(r - 0x24, r, [](uint8_t c) { return c == 0; }));  // the blank first record
+}
+
+// A mod's world animations as unzbd's JSON (docs/modding.md): zbd/t1/anim/ (metadata.json and the rest), then unzbd's
+// zbd/t1/anim.zip, read as the anim.zbd they stand for by the reader (0x0050a0e0); one that does not read refused and
+// the anim.zbd read; a mod's own anim.zbd stopping the search. The globals' gravity tells them apart.
+TEST(mods_anim_json_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const auto with_gravity = [&](const char* g) {
+    std::map<std::string, std::string> m = exported;
+    std::string& meta = m["metadata.json"];
+    const size_t at = meta.find("\"gravity\": ");
+    const size_t end = meta.find_first_of(",\n}", at + 11);
+    meta.replace(at, end - at, std::string("\"gravity\": ") + g);
+    return m;
+  };
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_json");
+  const std::string mod = wd + "/mods/animmod", later = wd + "/mods/later";
+  put(mod + "/mod.txt", "name=Anim\n");
+  put(later + "/mod.txt", "name=Later\n");
+  for (const auto& [n, t] : with_gravity("-9.0")) put(later + "/zbd/t1/anim/" + n, t);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"animmod", "later"}, {install});
+  zutl::mount(install);
+  const auto gravity = [] {
+    zeff::anim() = zeff::AnimState{};
+    zeff::anim_allow_loading(1);
+    zeff::anim_set_zbd_path("zbd\\t1\\anim.zbd");
+    zeff::anim_read_zbd();
+    const float g = zeff::anim().def_count() > 0 ? zeff::anim().block.get<float>(0x1c) : 0.0f;
+    zeff::anim_free_all();
+    zeff::anim() = zeff::AnimState{};
+    return g;
+  };
+  EXPECT(gravity() == -9.0f);  // only the later mod has one
+  {
+    const auto m = with_gravity("-3.5");
+    write_stored_zip(mod + "/zbd/t1/anim.zip", std::vector<std::pair<std::string, std::string>>(m.begin(), m.end()));
+  }
+  EXPECT(gravity() == -3.5f);
+  for (const auto& [n, t] : with_gravity("-4.25")) put(mod + "/zbd/t1/anim/" + n, t);
+  EXPECT(gravity() == -4.25f);  // the folder before the zip
+  put(mod + "/zbd/t1/anim/metadata.json", "{\"mission\": \"MwT1V12De\",\n \"gravity\": true}");
+  const float refused = gravity();
+  fs::remove_all(mod + "/zbd/t1/anim", ec);
+  fs::remove(mod + "/zbd/t1/anim.zip", ec);
+  fs::copy_file(install + "/zbd/t1/anim.zbd", mod + "/zbd/t1/anim.zbd", ec);
+  const float own = gravity();
+  std::printf("  refused -> %.2f, own archive -> %.2f\n", refused, own);
+  EXPECT(refused != -9.0f && refused < 0.0f && own == refused);  // the anim.zbd's, not the later mod's
+}
+
+// What a world's anim JSON refuses, with the file, line and place (docs/modding.md).
+TEST(mods_anim_json_errors_name_the_place) {
+  const auto def = [](const std::string& seq_events, const std::string& extra = "") {
+    return "{\"name\": \"box\", \"anim_name\": \"hit_box\", \"anim_root_name\": \"box\", \"has_callbacks\": false,"
+           " \"auto_reset_node_states\": false, \"local_nodes_only\": false, \"proximity_damage\": false, \"active\": true,"
+           " \"low_priority\": false, \"activation\": \"OnCall\", \"execution\": \"None\", \"network_log\": null, \"save_log\": null,"
+           " \"reset_time\": null, \"health\": 0.0, \"activ_prereq_min_to_satisfy\": 0, \"objects\": null,"
+           " \"nodes\": [{\"name\": \"box\", \"ptr\": 1}], \"lights\": null, \"puffers\": null, \"dynamic_sounds\": null, \"static_sounds\": null,"
+           " \"effects\": null, \"activ_prereqs\": null, \"anim_refs\": null, \"reset_state\": null," + extra +
+           " \"sequences\": [{\"name\": \"s\", \"seq_state\": \"Initial\", \"reset_state\": \"Initial\", \"pointer\": 1,\n \"events\": [" +
+           seq_events + "]}], \"ptrs\": null}";
+  };
+  const std::string meta = "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [\"box\"], \"script_names\": [], \"anim_list\": []}";
+  const auto run = [&](const std::string& m, const std::string& d) {
+    std::vector<uint8_t> zbd;
+    std::string why;
+    const bool ok = zeff::anim_from_json([&](const std::string& n) { return n == "metadata.json" ? m : n == "box.json" ? d : std::string(); }, &zbd,
+                                         nullptr, &why);
+    std::printf("  -> %s\n", ok ? "read" : why.c_str());
+    return ok ? std::string() : why;
+  };
+  EXPECT(run(meta, def("{\"start\": null, \"data\": {\"ObjectActiveState\": {\"node\": \"box\", \"state\": true}}}")).empty());
+  const std::pair<std::string, const char*> cases[] = {
+      {def("{\"start\": null, \"data\": {\"Teleport\": {}}}"), "box.json: line 2 (at $.sequences[0].events[0].data): not an event this format has: Teleport"},
+      {def("{\"start\": null, \"data\": {\"ObjectActiveState\": {\"node\": \"lid\", \"state\": true}}}"),
+       "(at $.sequences[0].events[0].data.ObjectActiveState.node): no node \"lid\" in the def's nodes"},
+      {def("{\"start\": null, \"data\": {\"Loop\": {\"Forever\": 1}}}"), "(at $.sequences[0].events[0].data.Loop): not Count or RunTime"},
+      {def("{\"start\": {\"offset\": \"Later\", \"time\": 1.0}, \"data\": {\"Endif\": {}}}"), "(at $.sequences[0].events[0].start.offset): not one of"},
+      {def("{\"start\": null, \"data\": {\"Sound\": {\"name\": \"bang\", \"at_node\": null}}}"),
+       "(at $.sequences[0].events[0].data.Sound.name): no sound \"bang\" in the def's static sounds"},
+      {def("", "\"activ_prereqs\": [{\"Sometimes\": {}}],"), "(at $.activ_prereqs[0]): not Animation, Object or Parent"},
+      {def("{\"start\": null, \"data\": {\"CallAnimation\": {\"name\": \"a_name_far_longer_than_thirty_one_chars\", \"operand_node\": null,"
+           " \"wait_for_completion\": null, \"parameters\": null}}}"),
+       "(at $.sequences[0].events[0].data.CallAnimation.name): longer than 31 characters"},
+  };
+  for (const auto& [d, want] : cases) {
+    std::string d2 = d;
+    if (const size_t dup = d2.find("\"activ_prereqs\": null,"); dup != std::string::npos && d2.find("\"activ_prereqs\": [") != std::string::npos)
+      d2.erase(dup, std::strlen("\"activ_prereqs\": null,"));
+    EXPECT(run(meta, d2).find(want) != std::string::npos);
+  }
+  EXPECT(run("{\"mission\": \"MwC9V10\", \"gravity\": -9.8, \"anim_def_names\": [], \"script_names\": [], \"anim_list\": []}", "")
+             .find("metadata.json: line 1 (at $.mission): not a MechWarrior 3 world mech3ax knows") != std::string::npos);
+  EXPECT(run(meta, "").find("box.json: not there") != std::string::npos);
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {
@@ -1208,6 +1428,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(good + "/zbd/motion.zip", {{"madcat_run.json", motion}, {"manifest.json", "[]"}});
   put(good + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3}, \"alpha\": 255}}]");
   write_stored_zip(good + "/zbd/mechlib.zip", {{"materials.json", "[]"}});
+  put(good + "/zbd/t1/anim/metadata.json",
+      "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [], \"script_names\": [], \"anim_list\": []}");
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -1220,6 +1442,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/motion/madcat_walk.json: added") != std::string::npos && text.find("zbd/motion.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/mechlib/materials.json: added") != std::string::npos && text.find("zbd/mechlib.zip: added") != std::string::npos);
+  EXPECT(text.find("its animations read from unzbd's JSON") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1236,6 +1459,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
   put(bad + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3},\n \"alpha\": 300}}]");
   write_stored_zip(bad + "/zbd/mechlib.zip", {{"mech_x.flt.json", "{\"nodes\": []}"}});
+  write_stored_zip(bad + "/zbd/t1/anim.zip", {{"metadata.json", "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [\"gone\"],"
+                                                                " \"script_names\": [], \"anim_list\": []}"}});
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -1272,7 +1497,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
   EXPECT(text.find("error: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
          text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
-  EXPECT(errors == 15 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
+  EXPECT(errors == 16 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
