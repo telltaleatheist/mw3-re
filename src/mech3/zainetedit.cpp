@@ -77,6 +77,40 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
   editing = build == 0;
 }
 
+// Mech3.exe 1.2 @ 0x004befc0 -> 0x004bef80 (its key 0x004c72f0 -> 0x004c72d0)
+void CZAiNetEdit::fold(NetNode* n) {
+  if (!editing || !n || n == placeholder) return;
+  dirty = 1;
+  if (!ref || !ref->file) return;
+  char key[0x20];
+  std::snprintf(key, sizeof key, "node_%02d", n->rec.index);  // 0x005e0264 into [0x0060b400]
+  ref->file->edit(key, &n->rec);
+}
+
+// Mech3.exe 1.2 @ 0x004bd100
+void CZAiNetEdit::fold_edits() {
+  if (!editing || !ref || !ref->file) {
+    dirty = 0;
+    return;
+  }
+  NetFile& f = *ref->file;
+  dirty = f.edited() ? 1 : 0;
+  f.header = header;  // 0x004dc270 -> 0x004bca40
+  for (znet::Element* e : elems) {
+    NetNode* n = e ? static_cast<AiElem*>(e)->as_node() : nullptr;  // vt+0x60, then +0x88
+    if (n) fold(n);
+  }
+  for (int32_t i = f.record_count(); i-- > 0;) {
+    const char* key = nullptr;
+    const NetNodeRec* r = f.node_raw(i, &key);  // 0x004dc690
+    if (r && node(r->index) == placeholder) {  // vt+0x0c: no such node now
+      f.edit(key, nullptr);                     // 0x004dc290 -> 0x004ddc90
+      dirty = 1;
+    }
+  }
+  dirty = f.edited() ? 1 : 0;
+}
+
 // Mech3.exe 1.2 @ 0x004bd020. The save on close (0x004bd100) is the editor's.
 CZAiNetEdit::~CZAiNetEdit() {
   for (znet::Element*& e : elems) {

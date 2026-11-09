@@ -285,9 +285,10 @@ void net_editor_goto(int32_t) {
 }
 
 // Mech3.exe 1.2 @ 0x00402e90 -> 0x00402f20 -> 0x004bd340. The release's
-// save goes no further than 0x004bd100's fold (sitting 4's edits) and the
-// stub 0x004d72a0; FIX (A), ours: the mission's archive written as the
-// editor mod's copy (net_save.h), its folder said on screen.
+// save goes no further than 0x004bd100's fold of the edits into the file's
+// record cache and the stub 0x004d72a0; FIX (A), ours: the mission's archive
+// written with the cache's records as the editor mod's copy (net_save.h),
+// its folder said on screen.
 void net_editor_save(int32_t) {
   if (!g_editor) {
     editor_status("no network to save");  // 0x00402ec0(0x30, ...): a box in the exe
@@ -299,6 +300,7 @@ void net_editor_save(int32_t) {
     if (!net_entry(*n, &archive, &entry, &bytes)) {
       editor_status("not saved: the net's file is in no open archive");
     } else {
+      n->fold_edits();  // 0x004bd100
       std::vector<std::pair<std::string, const ai::NetNodeRec*>> edits;
       for (const auto& [key, rec] : n->ref->file->cache) edits.emplace_back(key, rec);
       const std::vector<uint8_t> out = ai::net_with_edits(bytes.data(), bytes.size(), n->ref->file->tree, edits);

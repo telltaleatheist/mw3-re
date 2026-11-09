@@ -28,7 +28,7 @@ void put_node(std::vector<uint8_t>& out, const zrdr::Node& n);
 void put_record(std::vector<uint8_t>& out, const NetNodeRec& r, const zrdr::Node* was);
 
 // A net entry's bytes with each edited key's value replaced (and keys it does
-// not have added at the end), every other byte as it was; `tree` is the
+// not have added at the end; a null record drops its key), every other byte as it was; `tree` is the
 // entry as read (for put_record's `was`). Empty when the bytes are not a net
 // file's tree (a list holding the list of keys and values).
 std::vector<uint8_t> net_with_edits(const uint8_t* entry, size_t size, const zrdr::Node* tree,

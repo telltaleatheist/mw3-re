@@ -25956,13 +25956,17 @@ TEST(mission_c1m1_net_editor_saves_into_its_own_mod_headless) {
 // there once the mouse has left it and come back (the marks' flags as the
 // window would set them); a left-up on two picks links the second (a node
 // with no link to node_00) to the first and makes the editor anew on the
-// same net, one link more in its view; leaving puts the camera's far clip
-// back.
+// same net, one link more in its view; Save Changes then writes both into
+// the editor's mod (the record cache, S5 sitting 4: read back from the saved
+// archive through the reader, node_02 as the install has it); leaving puts
+// the camera's far clip back.
 TEST(mission_c1m1_net_editor_view_move_and_link_headless) {
   if (!have_game()) return;
   int32_t marks = -1, nodes = -1, links = -1, moved = 0, linked = 0, rebuilt = 0, ground = 0;
   float pick[3] = {}, node[3] = {}, far_before = 0, far_after = 0, kept = 0, dist = 0;
-  int32_t step = 0, at = 0, other = -1;
+  int32_t step = 0, at = 0, other = -1, cached = -1;
+  std::string write_dir, status;
+  float node2[3] = {};
   mech3::app_key_calls().debug_camera = true;
   cheat_mission("net_editor_view", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 10) return false;
@@ -26005,6 +26009,11 @@ TEST(mission_c1m1_net_editor_view_move_and_link_headless) {
       mech3::ai::NetNode* n = e->net->node(other);
       linked = n && n->link_index(e->net->node(0)) >= 0;
       rebuilt = e->net && e->dirty && e->view->picks.empty() && int32_t(e->view->links.size()) == links + 1;
+      cached = int32_t(e->net->ref->file->cache.size());
+      for (int i = 0; i < 3; ++i) node2[i] = e->net->node(2)->pos()[i];
+      write_dir = zutl::mounts().write;
+      mech3::net_editor_save(0);
+      status = mech3::editor_panel().rows[24]->text;
       mech3::net_editor_exit(0);
       mech3::editor_key(mech3::kEditorCommand);
       mech3::editor_hooks().camera_clip(&near_z, &far_after);
@@ -26020,4 +26029,31 @@ TEST(mission_c1m1_net_editor_view_move_and_link_headless) {
   EXPECT(ground && (pick[0] != 0 || pick[2] != 0) && dist > 0 && dist < far_before * 0.99f);
   EXPECT(moved && linked && rebuilt);
   EXPECT(kept == far_before && far_after == far_before);
+  // The save, read back through the reader.
+  bool saved_move = false, saved_link = false, saved_same = false;
+  const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
+  if (std::filesystem::exists(out) && other > 0) {
+    const zutl::Mounts keep = zutl::mounts();
+    zrdr::close_archives(true);
+    zrdr::init();
+    if (zrdr::open_archive(out.string().c_str(), true)) {
+      mech3::ai::NetFile f(1, "net_01.zrd");
+      if (f.load() != 0) {
+        char key[16];
+        std::snprintf(key, sizeof key, "node_%02d", other);
+        if (const mech3::ai::NetNodeRec* r = f.node_named("node_00"))
+          saved_move = r->pos[0] == node[0] && r->pos[1] == node[1] && r->pos[2] == node[2];
+        if (const mech3::ai::NetNodeRec* r = f.node_named(key))
+          saved_link = std::find(r->links.begin(), r->links.end(), 0) != r->links.end();
+        if (const mech3::ai::NetNodeRec* r = f.node_named("node_02"))
+          saved_same = r->pos[0] == node2[0] && r->pos[1] == node2[1] && r->pos[2] == node2[2];
+        f.unload();
+      }
+    }
+    zrdr::close_archives(true);
+    zutl::mounts() = keep;
+  }
+  std::printf("  the cache %d records; saved: node_00 moved %d, node_%02d's link %d, node_02 as it was %d; \"%s\"\n", cached,
+              saved_move, other, saved_link, saved_same, status.c_str());
+  EXPECT(cached == 2 && saved_move && saved_link && saved_same);
 }

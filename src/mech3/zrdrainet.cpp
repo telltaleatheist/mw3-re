@@ -348,6 +348,51 @@ NetNodeRec* NetFile::node_named(const char* k) {
   return current = value ? read_node(&scratch, value, k) : nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x004dc2b0 (none: 0x004ddc90). A record not cached is kept
+// when the file has no such key or it differs from the file's (0x004c6bb0);
+// a cached one, when it differs from the copy, is the copy's new value
+// unless it matches the file's again, when the copy goes. None: a copy goes,
+// and a null record marks the key gone (the save drops it). FIX (bug): the
+// exe's copy is a new record assigned (0x004da790, 0x004c63a0), which drops
+// the auxname, so a saved edit lost it; here a copy keeps it (fixes.md).
+void NetFile::edit(const char* k, const NetNodeRec* rec) {
+  if (!k) return;
+  current = nullptr;
+  auto it = cache.find(k);
+  value = find(k);  // 0x004ded60
+  key = nullptr;
+  const NetNodeRec* own = value ? read_node(&scratch, value, k) : nullptr;
+  if (!rec) {
+    if (it != cache.end()) delete it->second;
+    if (it != cache.end() && !own) cache.erase(it);
+    else cache[k] = nullptr;
+    return;
+  }
+  if (it == cache.end()) {
+    if (!own || !rec->same(*own)) cache[k] = current = new NetNodeRec(*rec);
+    return;
+  }
+  if (it->second && rec->same(*it->second)) return;
+  if (own && rec->same(*own)) {
+    delete it->second;
+    cache.erase(it);
+    current = &scratch;
+    return;
+  }
+  delete it->second;
+  it->second = current = new NetNodeRec(*rec);
+}
+
+// Mech3.exe 1.2 @ 0x004da100: no tree counts as edited.
+bool NetFile::edited() {
+  if (!cache.empty()) return true;
+  if (!tree) return true;
+  NetHeader read;
+  read.net = header.net;  // 0x004da155: the number kept
+  read.parse(tree->type == zrdr::List ? &tree->list[1] : nullptr, base_name());  // 0x004da900, as parse() does
+  return !(read == header);
+}
+
 // --- the cache by name ---------------------------------------------------
 
 std::map<std::string, NetFile*>& net_files() {

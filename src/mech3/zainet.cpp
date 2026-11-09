@@ -78,11 +78,13 @@ bool NetNode::add_link(NetNode* target) {
   return ok;
 }
 
-// Mech3.exe 1.2 @ 0x004c71a0 (the placeholder's slot is 0x00410510: no).
-// The save it asks for (0x004befc0) only acts in the editor.
+// Mech3.exe 1.2 @ 0x004c71a0 (the placeholder's slot is 0x00410510: no),
+// then the fold into the file's cache (0x004befc0), which acts only in the
+// editor.
 bool NetNode::set_pos(const float p[3]) {
   if (placeholder) return false;
   rec.pos[0] = p[0], rec.pos[1] = p[1], rec.pos[2] = p[2];
+  owner->fold(this);
   return true;
 }
 
@@ -104,6 +106,7 @@ void NetNode::link_from(NetNode* src, int32_t i) {
 bool NetNode::set_link(NetNode* target, int32_t i) {
   if (placeholder) return false;
   rec.links[size_t(i)] = owner->index_of(target ? target->as_node() : nullptr);
+  owner->fold(this);  // 0x004befc0
   return true;
 }
 
