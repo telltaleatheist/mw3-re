@@ -81,6 +81,12 @@ struct MechControls {
   virtual bool release() { return false; }
   virtual void command(int32_t cmd) { (void)cmd; }
   virtual void on_kill(void* victim) { (void)victim; }  // 0x004bf620
+  // IControls vt+0xac, a fall's landing (0x00416860): nothing but the AI's,
+  // which gets its mech up at once (0x005ac5c0 in every other vtable).
+  // vt+0xb0, up again: zero (0x00428990 and the others' thunks to 0x00426ae0)
+  // but the AI's, which keeps its values (0x004d8d20 -> 0x005ac5c0).
+  virtual void landed() {}
+  virtual void stood_up() { zero(); }
   // IControls vt+0x70, "on a path": the player's and the base's 0x0040bae0
   // (no); the AI's yes. A mech that hits a wall reverses its throttle when
   // it answers yes (0x004231c0, the mech's vt+0x140 its +0x37c).
@@ -169,6 +175,8 @@ struct AiControls : MechControls, ai::BrainControls {
   void tick() override;                       // IControls vt+0xa4 0x004e94f0
   void on_death() override;                   // IControls vt+0xa8 0x004d8d00 -> 0x004d8a00
   void on_kill(void* victim) override;        // IControls vt+0xb4 0x004ea630
+  void landed() override;                     // IControls vt+0xac 0x004d8d10 -> 0x004d8a50
+  void stood_up() override {}                 // IControls vt+0xb0 0x004d8d20 -> 0x005ac5c0
   void fire(bool on) override { MechControls::fire = on; }  // IControls vt+0x10 0x00428580
   bool reversing() override { return reverse; }  // IControls vt+0x18 0x00428500
   float throttle_now() override { return MechControls::throttle; }  // IControls vt+0x1c 0x00428510
