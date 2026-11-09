@@ -1,6 +1,7 @@
 #include "mech3/mech_reader.h"
 
 #include <cmath>
+#include <vector>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
@@ -344,16 +345,22 @@ MechDfn* load_dfn(int32_t mech) {
 // Mech3.exe 1.2 @ 0x004846a0. Cached in the mech table (0x005e60b0 + 0x3c * i);
 // a failed load is tried again next time.
 namespace {
-MechDfn* g_dfns[19] = {};  // the mech table's +0x38 (0x005e60b0, 0x3c apart)
+// The mech table's +0x38 (0x005e60b0, 0x3c apart); ours: as long as the
+// table with the mods' rows.
+std::vector<MechDfn*> g_dfns(kBuiltinMechs);
 }  // namespace
 
 MechDfn* mech_dfn(int32_t mech) {
-  if (mech < 0 || mech >= 19) return nullptr;
+  if (mech < 0 || mech >= mech_count()) return nullptr;
+  if (g_dfns.size() < static_cast<size_t>(mech_count())) g_dfns.resize(mech_count());
   if (!g_dfns[mech]) g_dfns[mech] = load_dfn(mech);
   return g_dfns[mech];
 }
 
-MechDfn*& mech_dfn_slot(int32_t mech) { return g_dfns[mech]; }
+MechDfn*& mech_dfn_slot(int32_t mech) {
+  if (g_dfns.size() <= static_cast<size_t>(mech)) g_dfns.resize(mech + 1);
+  return g_dfns[mech];
+}
 
 // The loop of 0x004844b0.
 void free_dfns() {

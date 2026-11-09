@@ -15,6 +15,7 @@ namespace mech3 {
 
 // mech_names.h (its Engine clashes with the app's): 0x00484670's message.
 int32_t mech_name_message(int32_t mech);
+const char* mech_title(int32_t mech);
 
 // 0x005e6fb0
 const ActionScenario kActionScenarios[6] = {
@@ -35,6 +36,7 @@ int32_t mode_of(int32_t scenario) {
 
 // 0x00484670: a mech's shown name, "notmech" out of range.
 const char* mech_label(Engine& e, int32_t mech) {
+  if (const char* t = mech_title(mech)) return t;  // ours: a mod's row
   if (mech < 0 || mech >= 19) return "notmech";
   const char* s = e.message(mech_name_message(mech));
   return s ? s : "";
