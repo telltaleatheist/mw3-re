@@ -867,7 +867,6 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   input.joystick_want = a.cfg_joystick, input.joystick_axes = a.cfg_joystick_axes;
   sdlfe::SdlForceDevice force([&input] { return input.joystick(); });  // FIX (A): IFORCE2 as rumble (sdl_force.h)
   input.window = window.sdl();
-  input.mickey_scale = a.win_w > 0 ? 640.0f / static_cast<float>(a.win_w) : 1.0f;
   input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
   // The MODS screen's ADD MOD (ours, mods_menu.h): SDL's pickers, their
   // answer handed to the screen (it may come on another thread); the mods
