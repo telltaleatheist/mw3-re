@@ -10,6 +10,7 @@
 
 #include "check.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_names.h"
@@ -209,6 +210,59 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   mech3::mods_identity_set(wd, {"none", "rows"});
   EXPECT(mech3::mods_identity().hash == h && mech3::mods_identity().names == std::vector<std::string>{"Rows"});
   mech3::mods_identity() = mech3::ModsIdentity{};
+}
+
+// Mods' weapons (item 2): weapon= rows after the plain PPC's place (38 on,
+// the bug fixes on or off: a pilot's saved weapon keeps its number), their
+// ammo and techs, the PPC still left out with the fixes off; a taken name
+// (the PPC's too) refused; a remount starts from the exe's tables; the rows
+// in the gameplay hash.
+TEST(mods_weapon_rows_after_the_ppcs_place) {
+  mech3::ModWeapon r;
+  std::string why;
+  EXPECT(mech3::weapon_row_parse("Laser_Huge ammo=no tech=sphere title=Huge  Laser", &r, &why) && r.name == "Laser_Huge" &&
+         !r.ammo && r.tech == mech3::kInnerSphere && r.title == "Huge  Laser");
+  EXPECT(mech3::weapon_row_parse("Rail ammo=yes tech=none", &r, &why) && r.ammo && r.tech == 0 && r.title == "Rail");
+  EXPECT(!mech3::weapon_row_parse("Rail ammo=maybe tech=none", &r, &why) && why == "ammo= must be yes or no");
+  EXPECT(!mech3::weapon_row_parse("Rail ammo=yes tech=clan heat=3", &r, &why) && why == "unknown key heat");
+  SavedMounts keep;
+  const zfix::Options saved = zfix::options();
+  const std::string wd = tmp("mods_weapons");
+  put(wd + "/mods/w/mod.txt", "name=W\nweapon=Laser_Huge ammo=no tech=sphere title=Huge Laser\nweapon=Rail ammo=yes tech=clan\n"
+                              "weapon=ppc ammo=no tech=any\nweapon=AC2 ammo=yes tech=any\n");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  std::string text;
+  for (const std::string& l : mech3::mods_mount(wd, {"w"}, {})) text += l + "\n";
+  EXPECT(text.find("weapon Laser_Huge added (weapon 38)") != std::string::npos &&
+         text.find("weapon Rail added (weapon 39)") != std::string::npos);
+  EXPECT(text.find("weapon ppc ammo=no tech=any: there is a weapon ppc already, left out") != std::string::npos);
+  EXPECT(text.find("weapon AC2 ammo=yes tech=any: there is a weapon AC2 already, left out") != std::string::npos);
+  for (bool bugs : {true, false}) {
+    zfix::options().bugs = bugs;
+    EXPECT(mech3::weapon_count() == 40);
+    EXPECT(mech3::weapon_index("laser_huge") == 38 && mech3::weapon_index("Rail") == 39 && mech3::weapon_index("AC2") == 0);
+    EXPECT(std::string(mech3::weapon_name(39)) == "Rail" && std::string(mech3::weapon_title(38)) == "Huge Laser" &&
+           mech3::weapon_title(0) == nullptr && mech3::weapon_name_message(38) == -1);
+    EXPECT(!mech3::weapon_uses_ammo(38) && mech3::weapon_uses_ammo(39) && mech3::weapon_has_tech(38, mech3::kInnerSphere) &&
+           !mech3::weapon_has_tech(38, mech3::kClan) && mech3::weapon_has_tech(39, mech3::kClan));
+    // The plain PPC (37): offered with the fixes on only, as without mods.
+    EXPECT(mech3::weapon_index("PPC") == (bugs ? 37 : -1) && std::string(mech3::weapon_name(37)) == (bugs ? "PPC" : "noweapon"));
+    EXPECT(mech3::weapon_has_tech(37, mech3::kInnerSphere) == bugs && mech3::weapon_name_message(37) == (bugs ? 0x2fd : -1));
+  }
+  zfix::options() = saved;
+  // A remount: the exe's tables, then the rows again (not refused as taken).
+  put(wd + "/mods/m/mod.txt", "name=M\nmech=scout tech=sphere mass=20 class=light\n");
+  text.clear();
+  for (const std::string& l : mech3::mods_mount(wd, {"m", "w"}, {})) text += l + "\n";
+  EXPECT(text.find("mech scout added (mech 19") != std::string::npos && text.find("weapon Rail added (weapon 39)") != std::string::npos);
+  for (const std::string& l : mech3::mods_mount(wd, {}, {})) text += l + "\n";
+  EXPECT(mech3::mech_count() == 19 && mech3::weapon_count() == (saved.bugs ? 38 : 37) && mech3::weapon_index("Rail") == -1);
+  // The gameplay hash: the weapon rows as data.
+  put(wd + "/mods/w2/mod.txt", "name=W2\nweapon=Rail ammo=yes tech=clan title=Other\n");
+  put(wd + "/mods/w3/mod.txt", "name=W3\nweapon=Rail ammo=no tech=clan\n");
+  const uint64_t h = mech3::mods_gameplay_hash(wd, {"w2"});
+  EXPECT(h != 0 && mech3::mods_gameplay_hash(wd, {"w3"}) != h);
 }
 
 TEST(mods_strings_over_the_message_table) {

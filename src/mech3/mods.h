@@ -22,6 +22,7 @@ struct ModInfo {
   std::vector<std::string> worlds;  // world=<folder>: a new world (M2), its files in zbd\<folder>\, its <folder>.gs
   std::vector<std::pair<std::string, std::string>> ia_worlds;  // ia_world=<folder> <name>: on Instant Action's list
   std::vector<std::string> mechs;   // mech=<row>: a new mech (mech_names.h, mech_row_parse), each line's value
+  std::vector<std::string> weapons; // weapon=<row>: a new weapon (weapon_row_parse)
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -30,7 +31,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // Every folder under <write dir>/mods, by folder name; each one's mod.txt read.
@@ -64,7 +65,8 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
 // same): whether a mod's file is gameplay data, which is anything but
 // strings (strings.txt), images (the texture and image archives, .png),
 // sounds (sounds*.zbd, .wav), music and movies; and one number for the
-// enabled mods' gameplay files and mod.txt's mech= rows, in their order (0
+// enabled mods' gameplay files and mod.txt's mech= and weapon= rows (as
+// parsed, a row refused as taken too: every player computes the same), in their order (0
 // with none). A translation or a texture pack does not change it.
 bool mod_file_is_gameplay(const std::string& rel);
 uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std::string>& enabled);

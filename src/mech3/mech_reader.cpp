@@ -362,6 +362,11 @@ MechDfn*& mech_dfn_slot(int32_t mech) {
   return g_dfns[mech];
 }
 
+void free_dfns_above(int32_t count) {
+  for (size_t i = static_cast<size_t>(count); i < g_dfns.size(); ++i) delete g_dfns[i], g_dfns[i] = nullptr;
+  if (g_dfns.size() > static_cast<size_t>(count)) g_dfns.resize(count);
+}
+
 // The loop of 0x004844b0.
 void free_dfns() {
   for (MechDfn*& d : g_dfns) {

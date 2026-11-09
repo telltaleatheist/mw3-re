@@ -24,7 +24,7 @@ int32_t engine_index(int32_t rating);      // 0x00432e30
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
 bool equipment_restricted(int32_t mech, int32_t kind, int32_t tech);  // 0x004d6dc0
 const char* weapon_name(int32_t weapon);   // 0x00484900, "noweapon" when out of range
-int32_t weapon_count();                    // 37 in the exe, 38 with the plain PPC (FIX (bug))
+int32_t weapon_count();                    // 37 in the exe, 38 with the plain PPC (FIX (bug)); and the mods' rows
 bool weapon_uses_ammo(int32_t weapon);     // 0x00484960, the table's byte at 0x005e6504
 bool weapon_has_tech(int32_t weapon, int32_t tech);  // 0x00484940, the table's mask at 0x005e6500
 bool equip_has_tech(int32_t kind, int32_t tech);    // 0x00484a00, the table's mask at 0x005e6878
@@ -60,6 +60,21 @@ const char* mech_title(int32_t mech);       // a mod row's title=, null for the 
 bool mech_row_parse(const std::string& value, ModMech* out, std::string* error);
 bool mech_row_add(const ModMech& row, std::string* error);  // refused when the name is taken
 void mech_rows_clear();                     // the mods' rows gone
+
+// Mods' weapons (ours): rows after the exe's 37 and the plain PPC (38th, FIX
+// (bug), offered only with the bug fixes on), from mod.txt's weapon= lines:
+// `NAME ammo=yes|no tech=clan|sphere|any|none [title=TEXT]`. The weapon
+// itself is weapons.zrd's definition of that name.
+struct ModWeapon {
+  std::string name, title;
+  bool ammo = false;
+  int32_t tech = kAnyTech;  // the mask: 1 Clan, 2 Inner Sphere, 0 none (as TAG)
+};
+constexpr int32_t kBuiltinWeapons = 38;
+const char* weapon_title(int32_t weapon);   // a mod row's title=, null for the exe's
+bool weapon_row_parse(const std::string& value, ModWeapon* out, std::string* error);
+bool weapon_row_add(const ModWeapon& row, std::string* error);  // refused when the name is taken
+void weapon_rows_clear();
 int32_t equip_slots(int32_t kind, int32_t tech); // 0x00484a20
 
 // The engine table 0x005e2f50 (79 entries: rating, name id, tons), through
