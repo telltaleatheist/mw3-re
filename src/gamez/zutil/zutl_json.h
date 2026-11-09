@@ -42,6 +42,34 @@ struct Reader {
   bool game_string(const Value& v, const std::string& path, std::string* out, size_t most = 0xffff);
 };
 
+// A large document walked a value at a time, for the files too big for one
+// tree (unzbd's gamez models.json is 41 MB): the reader steps into objects
+// and lists, and reads each item it wants as its own small tree. The same
+// line-and-path errors; each item's values carry their line in the document.
+class Pull {
+ public:
+  explicit Pull(const std::string& text);
+  ~Pull();
+  Pull(const Pull&) = delete;
+  Pull& operator=(const Pull&) = delete;
+  bool begin_object();                   // '{', or a failure
+  // The next member's name, true; false at the object's end (taken), or on a failure (why set).
+  bool member(std::string* key);
+  bool begin_list();                     // '['
+  // True for another item (its path "[i]" set); false at the list's end (taken) or a failure.
+  bool item();
+  bool value(Value* out);                // the next value whole, as a tree
+  bool skip();                           // the next value, dropped
+  bool end();                            // nothing after the document's value
+  std::string path() const;              // "$", "$.models[12]"...
+  bool fail(const std::string& what);    // at the current line and path
+  const std::string& why() const;
+
+ private:
+  struct State;
+  State* s_;
+};
+
 // The shortest text that reads back as this float (with a '.' or exponent).
 std::string f32_text(float f);
 

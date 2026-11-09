@@ -91,6 +91,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/cls_util.cpp
   src/gamez/zclass/cls_world.cpp
   src/gamez/zclass/cls_zbd.cpp
+  src/upgrades/json/gamez_json.cpp
   src/gamez/zclass/display.cpp
   src/gamez/zclass/light.cpp
   src/gamez/zclass/lod.cpp

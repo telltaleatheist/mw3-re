@@ -22,6 +22,8 @@
 #include "gamez/zutil/zutl_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "upgrades/json/gamez_json.h"
+#include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
@@ -754,16 +756,18 @@ TEST(mods_worlds_declared) {
          m.ia_worlds[0].first == "mymap" && m.ia_worlds[0].second == "My  Map" && m.ia_worlds[1].second.empty());
   SavedMounts keep;
   const std::string wd = tmp("mods_worlds");
-  put(wd + "/mods/w/mod.txt", "name=W\nworld=good\nworld=nofiles\nworld=../evil\nworld=T1\nia_world=good Good\n"
+  put(wd + "/mods/w/mod.txt", "name=W\nworld=good\nworld=nofiles\nworld=../evil\nworld=T1\nworld=json\nworld=zipped\nia_world=good Good\n"
                               "ia_world=c3\nia_world=nowhere Lost\n");
   put(wd + "/mods/w/zbd/good/gamez.zbd", "x");
+  put(wd + "/mods/w/zbd/json/gamez/metadata.json", "{}");  // a world as unzbd's JSON, a folder or its zip (gamez JSON)
+  put(wd + "/mods/w/zbd/zipped/gamez.zip", "x");
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);
   mech3::mod_worlds().clear(), mech3::mod_ia_worlds().clear();
   std::string log;
   for (const std::string& l : mech3::mods_mount(wd, {"w"}, {})) log += l + "\n";
-  EXPECT(mech3::mod_worlds() == std::vector<std::string>{"good"} && mech3::mission_dir_count() == 10 &&
-         std::string(mech3::mission_dir(9)) == "good" && std::string(mech3::mission_dir(10)) == "none");
+  EXPECT((mech3::mod_worlds() == std::vector<std::string>{"good", "json", "zipped"}) && mech3::mission_dir_count() == 12 &&
+         std::string(mech3::mission_dir(9)) == "good" && std::string(mech3::mission_dir(12)) == "none");
   EXPECT(mech3::mod_ia_worlds().size() == 2 && mech3::mod_ia_worlds()[0].name == "Good" && mech3::mod_ia_worlds()[1].name == "c3");
   EXPECT(log.find("world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
          log.find("world ../evil: no zbd") != std::string::npos && log.find("world T1: there is a world T1 already") != std::string::npos &&
@@ -1386,6 +1390,193 @@ TEST(mods_anim_json_errors_name_the_place) {
   EXPECT(run(meta, "").find("box.json: not there") != std::string::npos);
 }
 
+// Each world's gamez.zbd from unzbd's own JSON (find_unzbd): the shipped file's bytes. While the models and nodes are
+// not read, the header's known fields and the texture directory and materials are compared.
+TEST(mods_gamez_json_is_every_worlds_file) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/gamez.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  int worlds = 0, same = 0;
+  for (const char* w : {"c1", "c2", "c3", "c4", "c4b", "t1"}) {
+    const std::string zbd = install + "/zbd/" + w + "/gamez.zbd";
+    if (!fs::exists(zbd, ec)) continue;
+    ++worlds;
+    std::map<std::string, std::string> exported;
+    EXPECT(unzbd_export(unzbd, "gamez", zbd, &exported));
+    std::ifstream in(zbd, std::ios::binary);
+    const std::vector<uint8_t> shipped((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::vector<uint8_t> ours;
+    std::string why;
+    const bool ok = zcls::gamez_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &why);
+    std::vector<uint8_t> a = ours, b = shipped;
+    if (!ok) {
+      b.resize(std::min(b.size(), a.size()));
+      for (size_t k : {32})  // the offset past what is read
+        for (size_t c = 0; c < 4 && k + c < a.size(); ++c) a[k + c] = b[k + c] = 0;
+    }
+    size_t at = 0;
+    while (at < a.size() && at < b.size() && a[at] == b[at]) ++at;
+    const bool equal = a.size() == b.size() && at == a.size();
+    same += ok && equal;
+    std::printf("  %s: %zu bytes vs %zu, %s%s%s\n", w, ours.size(), shipped.size(),
+                equal ? (ok ? "the same" : "the same so far") : ("first difference at " + std::to_string(at)).c_str(), ok ? "" : "; ", ok ? "" : why.c_str());
+    EXPECT(equal);
+  }
+  EXPECT(worlds == 6);
+}
+
+// The pull reader for files too big for one tree (gamez's models.json): members and items stepped through, an item
+// read whole as a small tree, its path kept; its errors name the line and place as the tree reader's do.
+TEST(mods_json_pull_walks_and_names_the_place) {
+  const std::string doc = "{\"skip\": [1, {\"a\": 2}], \"models\": [\n {\"n\": 1},\n {\"n\": 2},\n {\"n\": 3}\n]}";
+  zutl_json::Pull p(doc);
+  std::string key;
+  std::vector<std::string> seen;
+  int sum = 0;
+  EXPECT(p.begin_object());
+  while (p.member(&key)) {
+    if (key != "models") {
+      EXPECT(p.skip());
+      continue;
+    }
+    EXPECT(p.begin_list());
+    while (p.item()) {
+      zutl_json::Value v;
+      EXPECT(p.value(&v));
+      seen.push_back(p.path() + "@" + std::to_string(v.line));
+      sum += std::atoi(v.get("n")->text.c_str());
+    }
+  }
+  EXPECT(p.why().empty() && p.end());
+  EXPECT(sum == 6 && seen.size() == 3 && seen[0] == "$.models[0]@2" && seen[2] == "$.models[2]@4");
+  const std::pair<std::string, const char*> bad[] = {
+      {"{\"models\": [{\"n\": 1}\n {\"n\": 2}]}", "line 2 (at $.models[0]): '{' where a ',' or ']' should be"},
+      {"{\"models\": [{\"n\": 1},\n {\"n\": }]}", "line 2 (at $.models[1].n): '}' where a value should be"},
+      {"{\"models\" [1]}", "line 1 (at $): no ':' after the name \"models\""},
+      {"{\"models\": [1,", "line 1 (at $.models[1]): the file ends where a value should be"},
+  };
+  for (const auto& [text, want] : bad) {
+    zutl_json::Pull q(text);
+    bool ok = q.begin_object();
+    while (ok && q.member(&key)) {
+      if (!(ok = q.begin_list())) break;
+      zutl_json::Value v;
+      while (ok && q.item()) ok = q.value(&v);
+    }
+    std::printf("  -> %s\n", q.why().c_str());
+    EXPECT(q.why().find(want) != std::string::npos);
+  }
+}
+
+// A mod's world as unzbd's JSON (docs/modding.md): zbd/t1/gamez/ (the five files), then unzbd's zbd/t1/gamez.zip,
+// opened as the gamez.zbd they stand for (0x004ff6a0, which both the load and the re-read use); one that does not
+// read refused and the gamez.zbd opened; a mod's own gamez.zbd stopping the search. The header's last free node,
+// from metadata.json, tells them apart; the rest of the file is the shipped one's (mods_gamez_json_is_every_worlds_file).
+TEST(mods_gamez_json_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/gamez.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "gamez", install + "/zbd/t1/gamez.zbd", &exported));
+  const auto with_last_free = [&](int n) {
+    std::map<std::string, std::string> m = exported;
+    std::string& meta = m["metadata.json"];
+    const size_t at = meta.find("\"node_last_free\": ");
+    const size_t end = meta.find_first_of(",\n}", at + 18);
+    meta.replace(at, end - at, "\"node_last_free\": " + std::to_string(n));
+    return m;
+  };
+  SavedMounts keep;
+  const std::string wd = tmp("mods_gamez_json");
+  const std::string mod = wd + "/mods/worldmod", later = wd + "/mods/later";
+  put(mod + "/mod.txt", "name=World\n");
+  put(later + "/mod.txt", "name=Later\n");
+  for (const auto& [n, t] : with_last_free(5000)) put(later + "/zbd/t1/gamez/" + n, t);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"worldmod", "later"}, {install});
+  zutl::mount(install);
+  const auto last_free = [] {
+    zcls::ZbdHeader h{};
+    std::FILE* f = zcls::open_zbd("zbd\\t1\\gamez.zbd", &h);
+    if (!f) return -2;
+    std::fclose(f);
+    return h.node_last_free;
+  };
+  const int shipped = [&] {
+    std::ifstream in(install + "/zbd/t1/gamez.zbd", std::ios::binary);
+    zcls::ZbdHeader h{};
+    in.read(reinterpret_cast<char*>(&h), sizeof h);
+    return h.node_last_free;
+  }();
+  EXPECT(last_free() == 5000);  // only the later mod has one
+  {
+    const auto m = with_last_free(4000);
+    write_stored_zip(mod + "/zbd/t1/gamez.zip", std::vector<std::pair<std::string, std::string>>(m.begin(), m.end()));
+  }
+  EXPECT(last_free() == 4000);
+  for (const auto& [n, t] : with_last_free(3000)) put(mod + "/zbd/t1/gamez/" + n, t);
+  EXPECT(last_free() == 3000);  // the folder before the zip
+  put(mod + "/zbd/t1/gamez/metadata.json", "{\"material_array_size\": 1000,\n \"model_array_size\": \"many\"}");
+  const int refused = last_free();
+  fs::remove_all(mod + "/zbd/t1/gamez", ec);
+  fs::remove(mod + "/zbd/t1/gamez.zip", ec);
+  fs::copy_file(install + "/zbd/t1/gamez.zbd", mod + "/zbd/t1/gamez.zbd", ec);
+  const int own = last_free();
+  std::printf("  shipped %d, refused -> %d, own archive -> %d\n", shipped, refused, own);
+  EXPECT(refused == shipped && own == shipped);
+}
+
+// What a world's JSON refuses, with the file, line and place (docs/modding.md).
+TEST(mods_gamez_json_errors_name_the_place) {
+  const std::string box = "{\"a\": {\"x\": 0, \"y\": 0, \"z\": 0}, \"b\": {\"x\": 0, \"y\": 0, \"z\": 0}}";
+  const auto node = [&](const std::string& data, const std::string& parents = "[]", const std::string& flags = "{\"active\": true}") {
+    return "{\"name\": \"n\", \"flags\": " + flags + ", \"update_flags\": 0, \"zone_id\": -1, \"model_index\": -1, \"area_partition\": null,"
+           " \"parent_indices\": " + parents + ", \"child_indices\": [], \"node_bbox\": " + box + ", \"model_bbox\": " + box +
+           ", \"child_bbox\": " + box + ", \"field192\": 0, \"field196\": 0, \"field200\": 0, \"field204\": 0,\n \"data\": " + data +
+           ", \"data_ptr\": 0, \"parent_array_ptr\": 0, \"child_array_ptr\": 0}";
+  };
+  std::map<std::string, std::string> base = {
+      {"metadata.json", "{\"material_array_size\": 4, \"model_array_size\": 4, \"node_array_size\": 4, \"node_last_free\": -1}"},
+      {"textures.json", "[{\"name\": \"rock.tif\"}]"},
+      {"materials.json", "[{\"Textured\": {\"texture_index\": 0}}]"},
+      {"models.json", "[]"},
+      {"nodes.json", "[" + node("{\"Display\": {\"origin_x\": 0, \"origin_y\": 0, \"resolution_x\": 640, \"resolution_y\": 480,"
+                                " \"clear_color\": {\"r\": 0, \"g\": 0, \"b\": 1}}}") + "]"},
+  };
+  const auto run = [&](const std::map<std::string, std::string>& m) {
+    std::vector<uint8_t> zbd;
+    std::string why;
+    const bool ok = zcls::gamez_from_json([&](const std::string& n) { return m.count(n) ? m.at(n) : std::string(); }, &zbd, &why);
+    std::printf("  -> %s\n", ok ? "read" : why.c_str());
+    return ok ? std::string() : why;
+  };
+  EXPECT(run(base).empty());
+  const auto with = [&](const char* f, const std::string& t) {
+    auto m = base;
+    m[f] = t;
+    return m;
+  };
+  const std::pair<std::map<std::string, std::string>, const char*> cases[] = {
+      {with("materials.json", "[{\"Textured\": {\"texture_index\": 3}}]"), "materials.json: line 1 (at $[0].Textured.texture_index): 3: past 0..0"},
+      {with("materials.json", "[{\"Shiny\": {}}]"), "materials.json: line 1 (at $[0]): not Textured or Colored"},
+      {with("metadata.json", "{\"material_array_size\": 1, \"model_array_size\": 4, \"node_array_size\": 4, \"node_last_free\": -1}"),
+       "materials.json: line 1 (at $): 1 materials, where the array holds 1"},
+      {with("models.json", "[{\"model_type\": \"Blob\"}]"), "models.json: line 1 (at $[0].model_type): not one of Default, Facade, Points"},
+      {with("nodes.json", "[" + node("{\"Portal\": {}}") + "]"), "nodes.json: line 2 (at $[0].data): not a node class this format has: Portal"},
+      {with("nodes.json", "[" + node("\"Empty\"", "[0, 1]") + "]"), "nodes.json: line 1 (at $[0]): an empty node has one parent"},
+      {with("nodes.json", "[" + node("\"Empty\"", "[0]", "{\"glowing\": true}") + "]"), "nodes.json: line 1 (at $[0].flags.glowing): not a flag this format has"},
+      {with("nodes.json", "[" + node("{\"Display\": {\"origin_x\": 0}}") + "]"), "nodes.json: line 2 (at $[0].data.Display): no \"origin_y\""},
+      {with("nodes.json", "[" + node("\"Empty\"", "[0]") + ",\n ]"), "nodes.json: line 3 (at $[1]): ']' where a value should be"},
+      {with("textures.json", ""), "textures.json: line 1 (at $): the file ends where a value should be"},
+  };
+  for (const auto& [m, want] : cases) EXPECT(run(m).find(want) != std::string::npos);
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {
@@ -1428,6 +1619,17 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(good + "/zbd/motion.zip", {{"madcat_run.json", motion}, {"manifest.json", "[]"}});
   put(good + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3}, \"alpha\": 255}}]");
   write_stored_zip(good + "/zbd/mechlib.zip", {{"materials.json", "[]"}});
+  // the least world: one texture, one material, no models, one empty node under... none: a world node alone
+  const std::string world_node = "[{\"name\": \"world1\", \"flags\": {\"active\": true}, \"update_flags\": 0, \"zone_id\": -1, \"model_index\": -1,"
+      " \"area_partition\": null, \"parent_indices\": [], \"child_indices\": [], \"node_bbox\": {\"a\": {\"x\": 0, \"y\": 0, \"z\": 0},"
+      " \"b\": {\"x\": 0, \"y\": 0, \"z\": 0}}, \"model_bbox\": {\"a\": {\"x\": 0, \"y\": 0, \"z\": 0}, \"b\": {\"x\": 0, \"y\": 0, \"z\": 0}},"
+      " \"child_bbox\": {\"a\": {\"x\": 0, \"y\": 0, \"z\": 0}, \"b\": {\"x\": 0, \"y\": 0, \"z\": 0}}, \"field192\": 0, \"field196\": 0,"
+      " \"field200\": 0, \"field204\": 0, \"data\": \"Empty\", \"data_ptr\": 0, \"parent_array_ptr\": 0, \"child_array_ptr\": 0}]";
+  put(good + "/zbd/t1/gamez/metadata.json", "{\"material_array_size\": 4, \"model_array_size\": 4, \"node_array_size\": 4, \"node_last_free\": -1}");
+  put(good + "/zbd/t1/gamez/textures.json", "[{\"name\": \"rock.tif\"}]");
+  put(good + "/zbd/t1/gamez/materials.json", "[{\"Textured\": {\"texture_index\": 0}}]");
+  put(good + "/zbd/t1/gamez/models.json", "[]");
+  put(good + "/zbd/t1/gamez/nodes.json", "[]");
   put(good + "/zbd/t1/anim/metadata.json",
       "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [], \"script_names\": [], \"anim_list\": []}");
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
@@ -1443,6 +1645,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("zbd/motion/madcat_walk.json: added") != std::string::npos && text.find("zbd/motion.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/mechlib/materials.json: added") != std::string::npos && text.find("zbd/mechlib.zip: added") != std::string::npos);
   EXPECT(text.find("its animations read from unzbd's JSON") != std::string::npos);
+  EXPECT(text.find("its world read from unzbd's JSON") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1459,6 +1662,10 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
   put(bad + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3},\n \"alpha\": 300}}]");
   write_stored_zip(bad + "/zbd/mechlib.zip", {{"mech_x.flt.json", "{\"nodes\": []}"}});
+  put(bad + "/zbd/c2/gamez/metadata.json", "{\"material_array_size\": 4}");
+  write_stored_zip(bad + "/zbd/c1/gamez.zip", {{"metadata.json", "{\"material_array_size\": 4, \"model_array_size\": 4, \"node_array_size\": 4,"
+                                                                 " \"node_last_free\": -1}"}, {"textures.json", "[]"}, {"materials.json", "[]"},
+                                                {"models.json", "[]"}, {"nodes.json", world_node}});
   write_stored_zip(bad + "/zbd/t1/anim.zip", {{"metadata.json", "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [\"gone\"],"
                                                                 " \"script_names\": [], \"anim_list\": []}"}});
   {
@@ -1498,7 +1705,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("error: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
          text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
   EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
-  EXPECT(errors == 16 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/c1/gamez.zip: nodes.json: line 1 (at $[0]): an empty node has one parent") != std::string::npos);
+  EXPECT(text.find("error: zbd/c2/gamez/: metadata.json: line 1 (at $): no \"model_array_size\"") != std::string::npos);
+  EXPECT(errors == 18 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&

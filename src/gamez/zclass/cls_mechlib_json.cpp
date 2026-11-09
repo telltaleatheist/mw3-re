@@ -204,7 +204,8 @@ bool object3d(Json& j, const Value& node, const std::string& at, Out& o) {
   return true;
 }
 
-bool model(Json& j, const Value& md, const std::string& at, Out& o) {
+// A model's 0x5c record into `info`, its data into `o` (the same buffer in a mechlib tree; apart in gamez's array).
+bool model(Json& j, const Value& md, const std::string& at, Out& info, Out& o, bool lights_ok) {
   uint32_t type = 0, facade = 0, flags = 0, parents = 0, vp = 0, np = 0, lp = 0, mp = 0, pp = 0;
   float scroll[2] = {0, 0}, mid[3], diag = 0;
   const Value *verts, *norms, *morphs, *lights, *polys, *ts;
@@ -218,14 +219,15 @@ bool model(Json& j, const Value& md, const std::string& at, Out& o) {
         j.u32(md, at, "vertices_ptr", &vp) && j.u32(md, at, "normals_ptr", &np) && j.u32(md, at, "lights_ptr", &lp) &&
         j.u32(md, at, "morphs_ptr", &mp)))
     return false;
-  if (!lights->items.empty()) return j.r.fail(*lights, at + ".lights", "a mechlib model's lights are not read (none ship)");
-  o.u32(type), o.u32(facade), o.u32(flags), o.u32(parents);
-  const size_t np_ = polys->items.size(), nv = verts->items.size(), nn = norms->items.size(), nm = morphs->items.size();
-  o.u32(static_cast<uint32_t>(np_)), o.u32(static_cast<uint32_t>(nv)), o.u32(static_cast<uint32_t>(nn)), o.u32(static_cast<uint32_t>(nm)), o.u32(0);
-  o.f32(0.0f), o.f32(scroll[0]), o.f32(scroll[1]), o.u32(0);
-  o.u32(ptr_for(np_, pp)), o.u32(ptr_for(nv, vp)), o.u32(ptr_for(nn, np)), o.u32(ptr_for(0, lp)), o.u32(ptr_for(nm, mp));
-  for (float x : mid) o.f32(x);
-  o.f32(diag), o.u32(0);
+  if (!lights_ok && !lights->items.empty()) return j.r.fail(*lights, at + ".lights", "a mechlib model's lights are not read (none ship)");
+  info.u32(type), info.u32(facade), info.u32(flags), info.u32(parents);
+  const size_t np_ = polys->items.size(), nv = verts->items.size(), nn = norms->items.size(), nm = morphs->items.size(), nl = lights->items.size();
+  info.u32(static_cast<uint32_t>(np_)), info.u32(static_cast<uint32_t>(nv)), info.u32(static_cast<uint32_t>(nn)), info.u32(static_cast<uint32_t>(nm));
+  info.u32(static_cast<uint32_t>(nl));
+  info.f32(0.0f), info.f32(scroll[0]), info.f32(scroll[1]), info.u32(0);
+  info.u32(ptr_for(np_, pp)), info.u32(ptr_for(nv, vp)), info.u32(ptr_for(nn, np)), info.u32(ptr_for(nl, lp)), info.u32(ptr_for(nm, mp));
+  for (float x : mid) info.f32(x);
+  info.f32(diag), info.u32(0);
   static const char* const kXyz[] = {"x", "y", "z"};
   for (const auto& [list, key] : {std::pair{verts, "vertices"}, std::pair{norms, "normals"}, std::pair{morphs, "morphs"}})
     for (size_t i = 0; i < list->items.size(); ++i) {
@@ -233,6 +235,36 @@ bool model(Json& j, const Value& md, const std::string& at, Out& o) {
       if (!j.vec(list->items[i], at + "." + key + "[" + std::to_string(i) + "]", kXyz, 3, v)) return false;
       for (float x : v) o.f32(x);
     }
+  // The lights' 0x4c records (mech3ax's PointLightC), then each one's vertices.
+  for (size_t i = 0; i < nl; ++i) {
+    const Value& l = lights->items[i];
+    const std::string la = at + ".lights[" + std::to_string(i) + "]";
+    int32_t u00, u04, u60;
+    uint32_t u24, fl, vptr;
+    float u08, c[3], f48[3], f64[3];
+    const Value *lv, *lc;
+    if (!(j.i32(l, la, "unk00", &u00) && j.i32(l, la, "unk04", &u04) && j.f32(l, la, "unk08", &u08) && (lv = j.list(l, la, "vertices", 10)) &&
+          j.u32(l, la, "unk24", &u24) && (lc = j.get(l, la, "color")) && j.f32(*lc, la + ".color", "r", &c[0]) && j.f32(*lc, la + ".color", "g", &c[1]) &&
+          j.f32(*lc, la + ".color", "b", &c[2]) && j.u32(l, la, "flags", &fl) && j.u32(l, la, "vertices_ptr", &vptr) && j.f32(l, la, "unk48", &f48[0]) &&
+          j.f32(l, la, "unk52", &f48[1]) && j.f32(l, la, "unk56", &f48[2]) && j.i32(l, la, "unk60", &u60) && j.f32(l, la, "unk64", &f64[0]) &&
+          j.f32(l, la, "unk68", &f64[1]) && j.f32(l, la, "unk72", &f64[2])))
+      return false;
+    o.i32(u00), o.i32(u04), o.f32(u08), o.i32(static_cast<int32_t>(lv->items.size())), o.u32(0), o.u32(0), o.u32(u24);
+    for (float x : c) o.f32(x);
+    const uint16_t rgb = 0, flags16 = static_cast<uint16_t>(fl & 0x7ff);  // mech3ax keeps the known bits
+    o.raw(&rgb, 2), o.raw(&flags16, 2), o.u32(vptr);
+    for (float x : f48) o.f32(x);
+    o.i32(u60);
+    for (float x : f64) o.f32(x);
+  }
+  for (size_t i = 0; i < nl; ++i) {
+    const Value& lv = *lights->items[i].get("vertices");
+    for (size_t k = 0; k < lv.items.size(); ++k) {
+      float v[3];
+      if (!j.vec(lv.items[k], at + ".lights[" + std::to_string(i) + "].vertices[" + std::to_string(k) + "]", kXyz, 3, v)) return false;
+      for (float x : v) o.f32(x);
+    }
+  }
   // The polygons' records, then each one's indices, UVs and colours.
   struct Poly {
     const Value *vi, *ni, *uv, *vc;
@@ -335,7 +367,7 @@ bool tree(Json& j, const Value& nodes, const Value& models, size_t index, int de
     uint32_t m = 0;
     if (!j.r.u32(*mi, at + ".model_index", &m)) return false;
     if (m >= models.items.size()) return j.r.fail(*mi, at + ".model_index", "no model " + std::to_string(m));
-    if (!model(j, models.items[m], "$.models[" + std::to_string(m) + "]", o)) return false;
+    if (!model(j, models.items[m], "$.models[" + std::to_string(m) + "]", o, o, false)) return false;
   }
   for (size_t k = 0; k < children->items.size(); ++k) {
     uint32_t c = 0;
@@ -398,6 +430,23 @@ bool mechlib_model_from_json(const std::string& json, std::vector<uint8_t>* entr
   Out o;
   if (!tree(j, *nodes, *models, 0, 0, seen, o)) return *why = j.r.why, false;
   *entry = std::move(o.b);
+  return true;
+}
+
+bool model_from_json(const zutl_json::Value& model_json, const std::string& path, std::vector<uint8_t>* record, std::vector<uint8_t>* data,
+                     std::string* why) {
+  Json j;
+  Out info, o;
+  if (!model(j, model_json, path, info, o, true)) return *why = j.r.why, false;
+  *record = std::move(info.b), *data = std::move(o.b);
+  return true;
+}
+
+bool object3d_from_json(const zutl_json::Value& node, const std::string& path, std::vector<uint8_t>* out, std::string* why) {
+  Json j;
+  Out o;
+  if (!object3d(j, node, path, o)) return *why = j.r.why, false;
+  *out = std::move(o.b);
   return true;
 }
 
