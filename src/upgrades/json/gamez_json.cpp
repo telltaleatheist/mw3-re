@@ -3,11 +3,15 @@
 // which match the shipped worlds. Fields unzbd leaves out take its defaults.
 #include "upgrades/json/gamez_json.h"
 
+#include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zutil/zutl_json.h"
+#include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zutl_zip.h"
 
 namespace zcls {
 namespace {
@@ -523,6 +527,52 @@ bool gamez_from_json(const std::function<std::string(const std::string&)>& file,
   }
   *zbd = std::move(o.b);
   return true;
+}
+
+int gamez_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why) {
+  if (zutl::mounts().mods.empty() || !game_path || !game_path[0]) return 0;
+  std::string dir = zutl::host(game_path);
+  const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
+  dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    const std::string meta = zutl::find_in_mod(m, dir + stem + "/metadata.json");
+    if (!meta.empty()) {  // the folder: the five files side by side
+      const std::string folder = meta.substr(0, meta.size() - std::strlen("metadata.json"));
+      *what = folder;
+      const auto file = [&](const std::string& n) {
+        std::string text;
+        if (std::FILE* f = std::fopen((folder + n).c_str(), "rb")) {
+          char buf[1 << 16];
+          for (size_t got; (got = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, got);
+          std::fclose(f);
+        }
+        return text;
+      };
+      return gamez_from_json(file, zbd, why) ? 1 : -1;
+    }
+    if (const std::string zip = zutl::find_in_mod(m, dir + stem + ".zip"); !zip.empty()) {
+      *what = zip;
+      zutl_zip::Zip z;
+      if (!z.open(zip)) return *why = "not a zip the game can read", -1;
+      const auto file = [&](const std::string& n) {
+        for (const zutl_zip::Zip::Entry& e : z.entries) {
+          if (e.name.size() != n.size()) continue;
+          bool same = true;
+          for (size_t k = 0; k < n.size() && same; ++k)
+            same = std::tolower(static_cast<unsigned char>(e.name[k])) == std::tolower(static_cast<unsigned char>(n[k]));
+          std::vector<uint8_t> d;
+          std::string err;
+          if (same && z.read(e, &d, &err)) return std::string(d.begin(), d.end());
+        }
+        return std::string();
+      };
+      return gamez_from_json(file, zbd, why) ? 1 : -1;
+    }
+    if (!zutl::find_in_mod(m, dir + stem + ".zbd").empty()) return 0;  // this mod's own gamez.zbd comes first
+  }
+  return 0;
 }
 
 }  // namespace zcls

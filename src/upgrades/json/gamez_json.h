@@ -16,4 +16,11 @@ namespace zcls {
 // the texture directory and the materials, and the call fails naming them.
 bool gamez_from_json(const std::function<std::string(const std::string&)>& file, std::vector<uint8_t>* zbd, std::string* why);
 
+// A world's gamez.zbd (its game path, zbd\\c1\\gamez.zbd) as an enabled mod's
+// JSON, first mod first, up to the first with its own gamez.zbd: the folder
+// zbd\\c1\\gamez\\ (unzbd's five files), else unzbd's zbd\\c1\\gamez.zip.
+// 1: `zbd` holds the file, `what` where it came from; -1: one there that does
+// not read (`what`, `why`); 0: none.
+int gamez_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why);
+
 }  // namespace zcls
