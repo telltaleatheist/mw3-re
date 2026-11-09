@@ -782,7 +782,17 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
-    if (const char* wall = std::getenv("PM_WALL")) {  // pm-tests 37: "x,z,radius,heading": the first node off the ground west-ish rays meet
+    if (std::getenv("PM_WALL") && std::getenv("PM_WALL_AT")) {  // the player left be until then
+      static int waited = 0;
+      if (const char* go = std::getenv("PM_WALL_GOTO"); go && (waited == 5 || waited % 300 == 0)) {  // x,z: the player kept there, as if walked in
+        float at[3] = {0, 0, 0};
+        std::sscanf(go, "%f,%f", &at[0], &at[2]);
+        mech3::chain_player_at(at);
+      }
+      if (++waited < std::atoi(std::getenv("PM_WALL_AT"))) return;
+      if (waited == std::atoi(std::getenv("PM_WALL_AT"))) std::printf("  wall: probing at frame %d\n", waited);
+    }
+    if (const char* wall = std::getenv("PM_WALL")) {  // pm-tests 37 (PM_WALL_AT=frames: that many frames in, above): "x,z,radius,heading": the first node off the ground west-ish rays meet
       float cx = 1943.1f, cz = -833.6f, radius = 150.0f, heading = 270.0f;
       std::sscanf(wall, "%f,%f,%f,%f", &cx, &cz, &radius, &heading);
       auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
@@ -797,6 +807,139 @@ static void kill_run(const char* which, bool quick) {
           if (e == std::string::npos) break;
           q = e + 1;
         }
+      }
+      if (const char* up = std::getenv("PM_WALL_UP")) {  // a,b: those nodes made active first, as a destroy anim's ObjectActiveState does
+        std::string all = up;
+        for (size_t q = 0; q <= all.size();) {
+          const size_t e = all.find(',', q);
+          const std::string nm = all.substr(q, e == std::string::npos ? std::string::npos : e - q);
+          zcls::Node* z = zcls::list_find_by_name(6, nm.c_str());
+          std::printf("  wall: %s %s\n", nm.c_str(), z ? "made active" : "not found");
+          if (z) zcls::node_set_active(z, 1);
+          if (e == std::string::npos) break;
+          q = e + 1;
+        }
+      }
+      if (const char* down = std::getenv("PM_WALL_DOWN"); down && std::getenv("PM_WALL_FAN"))
+        for (const char* nm : {"hslid01"}) if (zcls::Node* z = zcls::list_find_by_name(6, nm)) zcls::node_set_active(z, 0), (void)down;
+      if (const char* fan = std::getenv("PM_WALL_FAN")) {  // x,z,heading: a range finder's fan from the cockpit's height, 80 m out
+        float fx = 2019.0f, fz = -834.0f, fh = 270.0f;
+        std::sscanf(fan, "%f,%f,%f", &fx, &fz, &fh);
+        static zcls::LineHits r;
+        const float hi[3] = {fx, 400.0f, fz}, lo[3] = {fx, -400.0f, fz};
+        float gy = 0;
+        if (zcls::segment_nearest(world, hi, lo, &r) == 0 && r.count < r.total) gy = r.hit[r.count].point[1];
+        std::printf("  fan from %.0f %.1f %.0f, heading %.0f\n", fx, gy, fz, fh);
+        for (float side = -10.0f; side <= 10.0f; side += 5.0f)
+          for (float el = -10.0f; el <= 30.0f; el += 5.0f) {
+            const float a = (fh + side) * 3.14159265f / 180.0f, e = el * 3.14159265f / 180.0f;
+            const float from[3] = {fx, gy + 10.0f, fz};
+            const float to[3] = {fx + std::sin(a) * std::cos(e) * 80.0f, gy + 10.0f + std::sin(e) * 80.0f, fz + std::cos(a) * std::cos(e) * 80.0f};
+            if (zcls::segment_nearest(world, from, to, &r) != 0 || r.count >= r.total) {
+              std::printf("    side %+3.0f el %+3.0f: nothing\n", side, el);
+              continue;
+            }
+            const zcls::LineHit& h = r.hit[r.count];
+            std::string c;
+            for (zcls::Node* n = h.node; n && c.size() < 120; n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr) c += (c.empty() ? "" : " < ") + std::string(n->name());
+            const float dx = h.point[0] - from[0], dy = h.point[1] - from[1], dz = h.point[2] - from[2];
+            std::printf("    side %+3.0f el %+3.0f: %.1f m, at %.1f %.1f %.1f, normal %.2f %.2f %.2f, %s, flags %x, texture %s\n", side, el, std::sqrt(dx * dx + dy * dy + dz * dz),
+                        h.point[0], h.point[1], h.point[2], h.normal[0], h.normal[1], h.normal[2], c.c_str(), h.node ? h.node->flags() : 0,
+                        h.material && h.material->texture ? h.material->texture->name : (h.material ? "untextured" : "box"));
+          }
+        done = true;
+        return;
+      }
+      if (std::getenv("PM_WALL_SURVEY")) {  // pm-tests 37's survey: collidable nodes never drawn (alpha 0), and box collision far larger than the model
+        auto chain = [](zcls::Node* n) {
+          std::string c;
+          for (int d = 0; n && d < 4; ++d) {
+            c += (d ? " < " : "") + std::string(n->name());
+            n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr;
+          }
+          return c;
+        };
+        int clear = 0, boxed = 0, airy = 0;
+        for (zcls::ListItem* it = zcls::list_head(6); it; it = it->next) {
+          zcls::Node* x = it->node;
+          pm::zmod::Model* md = x ? x->pm_model : nullptr;
+          if (!md || md->count(0x10) == 0 || md->count(0x14) == 0 || !(x->flags() & 4) || !(x->flags() & 0x10)) continue;
+          if (x->flags() & 0x200000) continue;  // clutter templates: touch, never walls (cls_clutter)
+          bool live = true;  // an inactive parent keeps its subtree out of the queries too
+          for (zcls::Node* q = x; q && live; q = q->parent_count() > 0 && q->parents ? q->parents[0] : nullptr) live = (q->flags() & 4) != 0;
+          if (!live) continue;
+          float lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+          for (int32_t i = 0; i < md->count(0x14); ++i)
+            for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], md->vertices[i * 3 + k]), hi[k] = std::max(hi[k], md->vertices[i * 3 + k]);
+          float at[3] = {};
+          zcls::node_world_point(x, at);
+          bool all_clear = true;
+          for (int32_t i = 0; i < md->count(0x10) && all_clear; ++i)
+            for (int32_t k = 0; k < md->polygons[i].material_count; ++k)
+              if (md->polygons[i].materials[k] && md->polygons[i].materials[k]->alpha != 0) all_clear = false;
+          if (all_clear) {
+            ++clear;
+            std::printf("  survey clear %s: at %.0f %.0f %.0f, model %.1f..%.1f %.1f..%.1f %.1f..%.1f, %d polygons, flags %x\n", chain(x).c_str(), at[0], at[1], at[2],
+                        lo[0], hi[0], lo[1], hi[1], lo[2], hi[2], md->count(0x10), x->flags());
+          }
+          if (!(x->flags() & 0x20)) continue;
+          ++boxed;
+          // The box's faces, 6 x 6 points each: how many lie over 1.5 m from every vertex (air the box stops a shot in).
+          int far = 0, total = 0;
+          for (int face = 0; face < 6; ++face)
+            for (int a = 0; a < 6; ++a)
+              for (int b = 0; b < 6; ++b) {
+                float pt[3];
+                const int axis = face / 2, u = (axis + 1) % 3, v = (axis + 2) % 3;
+                pt[axis] = face % 2 ? hi[axis] : lo[axis];
+                pt[u] = lo[u] + (hi[u] - lo[u]) * (a + 0.5f) / 6, pt[v] = lo[v] + (hi[v] - lo[v]) * (b + 0.5f) / 6;
+                float best = 1e18f;
+                for (int32_t i = 0; i < md->count(0x14); ++i) {
+                  const float* q = md->vertices + i * 3;
+                  best = std::min(best, (q[0] - pt[0]) * (q[0] - pt[0]) + (q[1] - pt[1]) * (q[1] - pt[1]) + (q[2] - pt[2]) * (q[2] - pt[2]));
+                }
+                ++total, far += best > 2.25f;
+              }
+          if (far * 2 > total) {
+            ++airy;
+            std::printf("  survey airy %s: at %.0f %.0f %.0f, box %.1f x %.1f x %.1f, %d%% of its faces in the air, %d vertices, flags %x\n", chain(x).c_str(), at[0], at[1],
+                        at[2], hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], far * 100 / total, md->count(0x14), x->flags());
+          }
+        }
+        std::printf("  survey: %d collidable see-through, %d box-collided (%d mostly air)\n", clear, boxed, airy);
+        done = true;
+        return;
+      }
+      if (std::getenv("PM_WALL_LAVA")) {  // collidable untextured shapes against the visible lava/water surfaces over them
+        struct Box { zcls::Node* n; float lo[3], hi[3]; };
+        std::vector<Box> solid, surface;
+        for (zcls::ListItem* it = zcls::list_head(6); it; it = it->next) {
+          zcls::Node* x = it->node;
+          pm::zmod::Model* md = x ? x->pm_model : nullptr;
+          if (!md || md->count(0x10) == 0 || md->count(0x14) == 0 || !(x->flags() & 4)) continue;
+          const zmod::Material* mt = md->polygons[0].material_count > 0 ? md->polygons[0].materials[0] : nullptr;
+          Box b{x, {1e9f, 1e9f, 1e9f}, {-1e9f, -1e9f, -1e9f}};
+          for (int32_t i = 0; i < md->count(0x14); ++i)
+            for (int k = 0; k < 3; ++k) b.lo[k] = std::min(b.lo[k], md->vertices[i * 3 + k]), b.hi[k] = std::max(b.hi[k], md->vertices[i * 3 + k]);
+          const bool flat = b.hi[1] - b.lo[1] < 0.01f;
+          if (!(x->flags() & 0x10) && flat) surface.push_back(b);           // drawn, walked through: lava, water
+          else if ((x->flags() & 0x10) && mt && !mt->texture) solid.push_back(b);  // collidable, untextured
+        }
+        int above = 0;
+        for (const Box& b : solid) {
+          for (const Box& f : surface) {
+            if (b.hi[0] < f.lo[0] || b.lo[0] > f.hi[0] || b.hi[2] < f.lo[2] || b.lo[2] > f.hi[2]) continue;
+            const zmod::Material* sm = f.n->pm_model->polygons[0].material_count ? f.n->pm_model->polygons[0].materials[0] : nullptr;
+            const bool up = b.hi[1] > f.lo[1] + 0.05f;
+            above += up;
+            std::printf("  lava %s y %.1f..%.1f x %.0f..%.0f z %.0f..%.0f | surface %s (%s) y %.1f: %s\n", b.n->name(), b.lo[1], b.hi[1], b.lo[0],
+                        b.hi[0], b.lo[2], b.hi[2], f.n->name(), sm && sm->texture ? sm->texture->name : "none", f.lo[1],
+                        up ? "STANDS ABOVE" : "below or level");
+          }
+        }
+        std::printf("  lava: %zu collidable untextured, %zu walk-through surfaces, %d pairs standing above\n", solid.size(), surface.size(), above);
+        done = true;
+        return;
       }
       if (const char* clear = std::getenv("PM_WALL_CLEAR")) {  // x,z,r: collidable nodes (active, 0x10) every polygon of which is see-through (alpha 0)
         float px = 0, pz = 0, pr = 150;
@@ -859,8 +1002,9 @@ static void kill_run(const char* which, bool quick) {
       };
       std::map<std::string, std::pair<int, std::string>> seen;  // node chain -> hits, a sample
       int grounds = 0, rays = 0;
-      for (float dx = -radius; dx <= radius; dx += 10.0f)
-        for (float dz = -radius; dz <= radius; dz += 10.0f) {
+      const float step = radius < 30.0f ? 5.0f : 10.0f;
+      for (float dx = -radius; dx <= radius; dx += step)
+        for (float dz = -radius; dz <= radius; dz += step) {
           const float x = cx + dx, z = cz + dz;
           static const float top = std::getenv("PM_WALL_TOP") ? std::strtof(std::getenv("PM_WALL_TOP"), nullptr) : 400.0f;
           const float hi[3] = {x, top, z}, lo[3] = {x, -400.0f, z};
@@ -869,11 +1013,11 @@ static void kill_run(const char* which, bool quick) {
           ++grounds;
           zcls::Node* ground = r.hit[r.count].node;
           for (float dh = -30.0f; dh <= 30.0f; dh += 15.0f)
-            for (float up : {2.0f, 6.0f}) {
+            for (float up : {2.0f, 6.0f, 15.0f, 30.0f}) {
               const float a = (heading + dh) * 3.14159265f / 180.0f;
               const float from[3] = {x, gy + up, z};
               // heading 0 = +z, 90 = +x (the HUD's compass)
-              const float to[3] = {x + std::sin(a) * 60.0f, gy + up, z + std::cos(a) * 60.0f};
+              const float to[3] = {x + std::sin(a) * 80.0f, gy + up, z + std::cos(a) * 80.0f};
               ++rays;
               if (zcls::segment_nearest(world, from, to, &r) != 0 || r.count >= r.total) continue;
               const zcls::LineHit& h = r.hit[r.count];
