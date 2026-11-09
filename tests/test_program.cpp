@@ -26652,3 +26652,70 @@ TEST(mission_c1m1_tree_view_shows_the_world_headless) {
   EXPECT(world_row.find(" + ") == 0 && kids > 0 && areas > 0 && paged);
   EXPECT(opened_area && cells > 0 && closed);
 }
+
+// The reload (ours, S5 sitting 4): net_01 edited and saved on c1m1 is built
+// again from the edit, and every AI mech and vehicle whose orders were on the
+// old net is on the new one (net_hooks().rebuilt, on 0x004bed90's pattern);
+// the mission runs on.
+TEST(mission_c1m1_saved_net_hands_its_vehicles_over_headless) {
+  if (!have_game()) return;
+  std::vector<mech3::ai::Brain*> on_old;
+  mech3::ai::AiNet* old_net = nullptr;
+  mech3::ai::AiNet* new_net = nullptr;
+  int32_t step = 0, at = 0, moved_over = 0, still_old = 0, ran = 0;
+  std::string status;
+  const auto brains = [] {
+    std::vector<mech3::ai::Brain*> v;
+    for (void* b : mech3::program_ai_brains()) v.push_back(static_cast<mech3::ai::Brain*>(b));
+    return v;
+  };
+  const auto on = [](mech3::ai::Brain* b, mech3::ai::AiNet* n) {
+    for (const mech3::ai::Order& o : b->orders)
+      if (o.net && o.net->net() == n) return true;
+    return false;
+  };
+  // The address can come back from the allocator; the hook's two calls show the net was remade.
+  static int32_t drops, builds;
+  static void (*wired)(mech3::ai::AiNet*, mech3::ai::AiNet*);
+  drops = builds = 0;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("net_handover", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    if (step == 0) {
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::edit_ai_nets(0);
+      mech3::NetDialog& d = mech3::net_dialog();
+      for (size_t i = 0; i < d.items.size(); ++i)
+        if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+      mech3::net_dialog_close();
+      mech3::NetEditor* e = mech3::net_editor();
+      if (!e) return true;
+      old_net = e->net->net;
+      wired = mech3::ai::net_hooks().rebuilt;
+      mech3::ai::net_hooks().rebuilt = [](mech3::ai::AiNet* o, mech3::ai::AiNet* n) {
+        (n ? builds : drops)++;
+        wired(o, n);
+      };
+      for (mech3::ai::Brain* b : brains())
+        if (on(b, old_net)) on_old.push_back(b);
+      float p[3] = {e->net->node(1)->pos()[0] + 8.0f, e->net->node(1)->pos()[1], e->net->node(1)->pos()[2]};
+      if (e->net->node(1)->set_pos(p)) e->net->node(1)->relink();
+      mech3::net_editor_save(0);
+      status = mech3::editor_panel().rows[24]->text;
+      new_net = e->net->net;
+      mech3::ai::net_hooks().rebuilt = wired;
+      for (mech3::ai::Brain* b : on_old) (on(b, new_net) ? moved_over : still_old)++;
+      mech3::net_editor_exit(0);
+      mech3::editor_key(mech3::kEditorCommand);
+      step = 1, at = f;
+      return false;
+    }
+    ++ran;
+    return f > at + 90;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  net dropped %d, built %d; \"%s\"; %zu brains on net_01 before, %d on the new net after, %d not; ran %d frames on\n", drops, builds, status.c_str(),
+              on_old.size(), moved_over, still_old, ran);
+  EXPECT(status.find("running now") != std::string::npos && new_net && old_net && drops == 1 && builds == 1);
+  EXPECT(!on_old.empty() && moved_over == int32_t(on_old.size()) && ran > 80);
+}
