@@ -575,6 +575,81 @@ archives' net files, net_01.zrd among them, pages down and up, net_02.zrd
 opened with its 19 nodes as marks, stepped, OK closing). Breaks: the window's
 editor not stepped, Open opening nothing.
 
+## Node Params (S5 sitting 4c; ours, 2026-11-09)
+
+In the release Node Params (0x00403710 -> the node's vt+0x90, 0x004c7190 ->
+0x004c7840) opens template 180, "Node Parameters", modeless, with OK and
+Cancel and nothing else, and never hands it the node: 0x004c7820 calls
+0x004bf620, an empty function. Owen's call (2026-11-09): build it as it was
+meant to work, as ours (`upgrades/editor/node_params`).
+
+The first pick's record is a form in the editor's panel, one row a field:
+placed (kind 0, its x y z given), x, y, z, speed, wait interval, wait time
+(each "off" until a value is typed), the two can-leave words, jump,
+arrange nodes' spacing, hidden, fixed, autonext and visible (each "as the
+default", yes or no, cycling on a press), backup and shunt (yes or no), name
+and gate. A press on a value row takes typed text through zInput's character
+callback, replacing the value (Enter keeps it, Esc drops it, Backspace;
+nothing typed or a number that does not read leaves the value; "off" turns
+a switchable value off, "-" clears a name). OK puts
+the record on the node field by field (the node keeps its own auxname), its
+place through set_pos and the links stored again, so the fold
+(0x004befc0) takes it to the cache and Save Changes keeps it; the editor is
+made anew. Cancel leaves the node as it was. Without a pick: "Select a node
+first".
+
+Tests: `node_params_form_edits_the_picked_node` (no pick refused; a value
+typed and kept, another dropped by Esc, the tri-state cycle, a name; OK
+puts them on the node, Cancel does not); `mission_c1m1_node_params_saved_headless`
+(net_01's node_00: speed 0.25 and a gate, OK, Save, both read back from the
+editor mod's archive). Breaks: the speed not put on the node, the cycle
+skipping "no".
+
+## Add veh to node (S5 sitting 4c; ours, 2026-11-09)
+
+In the release Add veh to node (0x00403820) fills template 141, "Node Edit -
+Vehicle" (0x0049d350): a vehicle type (the 19 mechs' names, 0x00484650,
+then vehicle.zrd's records), x, y, z from the first pick ("Using first of
+N selected nodes" as Move Node says), yaw 0, a Team ID and Friend, Foe or
+Other. On OK it builds an aiv record (0x004df6a0) and hands it to 0x004e0540
+-> 0x004671d0, which returns 0, so the "Entry for %s on net %d is %s" path,
+the reader's reload and the vehicle's making (0x004e0680, 0x0049fce0) never
+run: nothing is made or written. Owen's call (2026-11-09): as it was meant
+to work, as ours (`upgrades/editor/add_vehicle`).
+
+A mission makes a vehicle at its start for every aiv.zrd record but the
+player's and the stealth's (player.cpp, 0x0049fce0): the name gives the type
+up to its first '_', the first item is the net it follows, then the place,
+the yaw and the team (the shipped records: 1 the player's side, 2 the
+enemy's), then tags (params, p2, p6, p8, p10, vlist, pilot ...). So OK here:
+
+- names the vehicle `<type>_NN`, the first number from 01 the entry does not
+  have;
+- writes its record as the shipped ones are: (net (x y z) yaw team) and then
+  the tags of the first record of that type in the mission's aiv.zrd,
+  copied whole (its AI's settings), or none when the mission has no such
+  vehicle (the reader's defaults);
+- makes it now, through the aiv reader (0x004df730) and create_vehicle, as
+  the mission's start would;
+- saves aiv.zrd with the record added after the last into the editor's mod
+  (the same save as a net's, so a later Save Changes keeps it: a save now
+  goes on from the last one its folder holds), so it is there from the next
+  start too. The status line says what was made and where it was saved.
+
+The form: the type (a press lists them, paged), x, y, z, yaw and the team id
+typed, the side cycling Friend, Foe, Other (the team following it: 1, 2, 0).
+
+Tests: `add_vehicle_form_and_record` (no pick refused; the form's fields
+from the node, the side cycling the team, a typed yaw, Cancel; the record
+helpers on an aiv.zrd of ours); `mission_c1m1_add_vehicle_made_and_saved_headless`
+(net_01's node_00, a ttruck as a foe: ttruck_03 made at the node, one
+vehicle more, and read back from the editor mod's archive through our aiv
+reader with net 1, team 2, the node's place and ttruck_01's settings);
+test_aiv_add_mech3ax.py (in every MW3 reader archive with an aiv.zrd, a
+record of each type its records have added as Add vehicle adds it: 240 in 48
+archives read by mech3ax's unzbd exactly as written, after every shipped
+record, every other member the same). Breaks: the tags dropped, a wrong team.
+
 ## The save (S5 sitting 2, 2026-11-09)
 
 **The text writers, ported** (`zrdrainet.cpp`): the header 0x4da1d0 ->
@@ -698,6 +773,109 @@ net_01 moved and saved into `mods\ed\zbd\c1\readerm1.zbd`, the old file as
 `.bak`, no "editor edits" folder, EXIT GAME EDIT back on MODS with the
 original pilot). Breaks: the save into the side folder, no editor on the
 first frame, MODS not opened again.
+
+## Our modding dialogs (planned; a sketch for Owen, 2026-11-09)
+
+Owen's direction: modders never have to edit a file. Each major modding
+feature gets a basic dialog in the Battlesport editor, in its style (the
+panel's rows, as the net editor's forms are), marked ours, in
+`src/upgrades/editor/`. Each writes the same files a modder would write by
+hand (mod.txt rows, reader entries, per-def animation JSON, mech3ax JSON)
+into the mod being edited, so a file-edited mod and a dialog-made one are
+the same thing, and the original reads whatever it would read of either.
+Nothing here is built; it is for Owen to look over first.
+
+**Where they live.** On the MODS screen, EDIT on a mod lists, above its
+missions, a few rows of ours: NEW WEAPON, NEW MECH VARIANT, EFFECTS AND
+ANIMATIONS, CAMPAIGN MISSIONS, PACK THIS MOD. Each opens its dialog in the
+editor's panel over a mission of the mod (the first, or c1 mission 1 when it
+has none), since the effects want a world to show in. Shift+F12 in play
+does not offer them: they write into a mod, and only MODS's EDIT names one.
+
+**The machinery they share** (built already for the net editor):
+- a form of rows, one a field: a press cycles a choice or takes typed text
+  through zInput's character callback, Enter keeping it, Esc dropping it
+  (Node Params, Add vehicle);
+- a paged list to pick from (Open's net files, Add vehicle's types);
+- the save into the mod itself with one `.bak` of each file it replaces
+  (`net_save_into_mod`, `save_archive_edit` with an entry added or replaced,
+  `archive_with_entry`), building on its own last save;
+- mod.txt read and written as the MODS screen does (`mods_*`), its lines
+  kept in their order, a row added or replaced by name;
+- the status line saying what was written and where.
+
+### 1. New weapon (Freako's case first)
+
+- **Copy** an existing weapon from a paged list of every weapon the mounted
+  mods and the install have (weapons.zrd's BALLISTICS); the new one starts
+  as its copy, named `<that>_B` and so on until free.
+- **Stats** as a form of the definition's fields as zWeapon reads them
+  (weapons.md: damage, heat, range, refire, speed, ammo per ton, the
+  ballistics' and beams' own), each typed, with the copy's value shown; the
+  row's `ammo=`, `tech=` and `title=`.
+- **Effects and sounds**: the muzzle, trail, impact and flyby picked from
+  paged lists of the animation defs and sounds the worlds have (anim names,
+  zSound's names), each shown on a mark in front of the camera when picked
+  (the def run once at the view's pick point).
+- **Writes**: `weapon=<name> ammo=.. tech=.. title=..` in mod.txt; the
+  definition as an entry of the mod's `reader.zbd` weapons.zrd (added by
+  name, as the original's reader takes an extra entry: modding.md, Both
+  ways); a new effect def, if one is made from a copy, through 3 below.
+- **Then** it appears in the mech lab from the next start, as a hand-made
+  row does.
+
+### 2. Mech variant
+
+- **Copy** a mech (the 19 and the mods' rows); name, title, tech, class and
+  mass as a form, the mass in steps of 5 as the row requires.
+- **Loadouts**: the copy's saved loadouts offered as the variant's start,
+  then edited in the mech lab as any mech's are (the lab writes
+  `configs\<name>.mw3`); the dialog itself does not rebuild the lab.
+- **Writes**: `mech=<name> tech=.. mass=.. class=.. model=<the copy's> title=..`
+  in mod.txt, and `dfn_<name>.zrd` in the mod's reader.zbd as the copy's
+  definition with the new name (its parts and hard points unchanged; a
+  different model is later work: the models are zStudio's).
+
+### 3. Effects and animations
+
+On dev 1's per-def design (modding.md, Animations a def at a time):
+- **Pick** a def by world and name from a paged list (`<node>-<anim>`), or
+  copy one under a new name.
+- **Edit** its events as a list of rows (each event's type and its few
+  numbers, its target names), its puffers' and lights' settings as forms;
+  played on a mark in the world after each change (the def started, as the
+  editor's view already runs a world).
+- **Writes**: the def's JSON as unzbd writes it, `zbd\<world>\anim\<node>-<anim>.json`
+  for one world or `zbd\anim\<node>-<anim>.json` for all, and its
+  scripts' `.zan.json` beside it, into the mod, so mech3ax reads it and the
+  per-def loader merges it.
+
+### 4. A campaign's mission list
+
+- **The list**: the mod's campaign file (campaign= in mod.txt; a new one
+  made when it has none) shown as its lines in order: op headings and
+  missions, each mission its world and number, briefing, movie and bases.
+- **Edit**: rows to add a mission (a paged list of the worlds the game and
+  the mounted mods have, and their missions), move a line up or down, drop
+  it, set its briefing and movie names, add an op heading; the name and
+  closing movie as a form.
+- **Checks** as the game's own (`campaign_parse`, a world nobody has said at
+  once, not at the next start).
+- **Writes**: the campaign's `.txt` in the mod and its `campaign=` line, as a
+  modder writes them (modding.md, Custom campaigns).
+
+### 5. Pack this mod
+
+- **Checks** it first as `--check-mod` does (its files against the install,
+  its rows, its campaigns), saying what fails.
+- **Writes** a shareable `.zip` of the mod folder (mod.txt, its files, our
+  marker files left out, `.bak` files left out) beside the mods folder, with
+  a checksum list inside (modding.md, the planned step 8), the same archive
+  ADD MOD takes back in.
+
+**Order, if Owen agrees**: 1 (new weapon), then 4 (campaign list, small),
+then 2 (mech variant), then 5 (pack), then 3 (effects, the largest, waiting
+on the per-def loader).
 
 ## The stealth object
 

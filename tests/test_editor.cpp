@@ -12,6 +12,8 @@
 #include "mech3/game_editor_net.h"
 #include "mech3/zainet.h"
 #include "mech3/zainetedit.h"
+#include "upgrades/editor/node_params.h"
+#include "upgrades/editor/add_vehicle.h"
 
 namespace {
 struct Stub : mech3::EditorHooks {
@@ -212,9 +214,8 @@ TEST(game_editor_net_dialog_and_menu) {
   EXPECT(joined(h.calls).find("place 0 0 0") != std::string::npos);
   press(h, 8);  // Save Changes: its file is in no archive here
   EXPECT(row_text(24).find("not saved") == 0 && mech3::net_editor()->dirty == 0);
-  h.calls.clear();
-  press(h, 3);  // Node Params: sitting 4's
-  EXPECT(joined(h.calls).find("not_ported Node Params") != std::string::npos);
+  press(h, 3);  // Node Params (ours): nothing picked
+  EXPECT(row_text(24) == "Select a node first");
   press(h, 12);  // Exit Net Editor
   EXPECT(!mech3::net_editor() && mech3::editor_state().mode == 0 && row_text(1) == " EDIT AI NETS");
   press(h, 8);  // the main menu's blank row: nothing
@@ -477,6 +478,129 @@ TEST(net_window_open_and_hosted_editor) {
   EXPECT(!mech3::net_window() && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
   mech3::net_editor_frame_all(false);  // the menus down: the main one stepped
   EXPECT(mech3::net_editor()->has_ground == 1);
+  mech3::net_editor_free();
+  mech3::editor_exit();
+  mech3::editor_reset();
+  mech3::set_editor_hooks(nullptr);
+}
+
+// Node Params as meant (ours; the release's 180 is empty): the first pick's
+// record as a form; typed values (Enter keeps, Esc drops), the tri-state
+// flags cycling, a name typed; OK puts it on the node and makes the editor
+// anew, Cancel leaves it.
+TEST(node_params_form_edits_the_picked_node) {
+  Stub h;
+  mech3::editor_reset();
+  mech3::set_editor_hooks(&h);
+  mech3::editor_enter();
+  auto* edit = new mech3::ai::CZAiNetEdit(9, nullptr, 0);
+  mech3::ai::NetNodeRec r0;
+  r0.index = 0, r0.pos[0] = 4.0f;
+  edit->elems = {new mech3::ai::NetNode(edit, r0)};
+  mech3::net_editor() = new mech3::NetEditor(edit, 0);
+  mech3::NetEditor* e = mech3::net_editor();
+  mech3::node_params_open(0);
+  EXPECT(!mech3::node_params_open_now() && row_text(24) == "Select a node first");
+  e->view->pick(&e->view->marks[0]);
+  mech3::node_params_open(0);
+  EXPECT(mech3::node_params_open_now() && row_text(0) == "Node Parameters: node_00");
+  EXPECT(row_text(2) == "   x: 4.000" && row_text(5) == "   speed: off");
+  const auto type = [](const char* t) {
+    for (const char* c = t; *c; ++c) mech3::node_params_char(*c, 0);
+  };
+  mech3::node_params_press(5);  // speed
+  type("0.5");
+  EXPECT(row_text(5) == " > speed: 0.5_");
+  mech3::node_params_char('\r', 0x1c);
+  EXPECT(row_text(5) == "   speed: 0.500");
+  mech3::node_params_press(2);  // x
+  type("zz");
+  mech3::node_params_char(27, 1);  // Esc: x as it was
+  EXPECT(row_text(2) == "   x: 4.000");
+  mech3::node_params_press(12);  // hidden: as the default -> yes -> no -> as the default -> yes
+  EXPECT(row_text(12) == "   hidden: yes");
+  mech3::node_params_press(12);
+  EXPECT(row_text(12) == "   hidden: no");
+  mech3::node_params_press(12);
+  EXPECT(row_text(12) == "   hidden: as the default");
+  mech3::node_params_press(12);
+  EXPECT(row_text(12) == "   hidden: yes");
+  mech3::node_params_press(18);  // name
+  type("Gate A");
+  mech3::node_params_press(20);  // OK, the typed name taken first
+  mech3::ai::NetNode* n = edit->node(0);
+  EXPECT(!mech3::node_params_open_now() && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
+  EXPECT(n->rec.speed_on == 1 && n->rec.speed == 0.5f && n->rec.hidden_set == 1 && n->rec.hidden == 1);
+  EXPECT(n->rec.name && std::string(n->rec.name) == "Gate A" && n->rec.pos[0] == 4.0f);
+  EXPECT(e->dirty == 1 && e->rebuild == 1);
+  // Cancel leaves it.
+  mech3::net_editor_step(0.1f);
+  e = mech3::net_editor();
+  e->view->pick(&e->view->marks[0]);
+  mech3::node_params_open(0);
+  mech3::node_params_press(5);
+  type("2");
+  mech3::node_params_char('\r', 0x1c);
+  mech3::node_params_press(21);  // Cancel
+  EXPECT(!mech3::node_params_open_now() && edit->node(0)->rec.speed == 0.5f);
+  mech3::net_editor_free();
+  mech3::editor_exit();
+  mech3::editor_reset();
+  mech3::set_editor_hooks(nullptr);
+}
+
+// Add veh to node (ours; the release's OK makes nothing): the form's fields
+// from the first pick (the node's place, yaw 0, Friend), the side cycling
+// the team (1, 2, 0), a typed yaw; and the record helpers on a small aiv.zrd
+// of our own: a type's tags copied, the next free name, the record added
+// after the last.
+TEST(add_vehicle_form_and_record) {
+  Stub h;
+  mech3::editor_reset();
+  mech3::set_editor_hooks(&h);
+  mech3::editor_enter();
+  auto* edit = new mech3::ai::CZAiNetEdit(10, nullptr, 0);
+  mech3::ai::NetNodeRec r0;
+  r0.index = 0, r0.pos[0] = 7.0f;
+  edit->elems = {new mech3::ai::NetNode(edit, r0)};
+  mech3::net_editor() = new mech3::NetEditor(edit, 0);
+  mech3::NetEditor* e = mech3::net_editor();
+  mech3::add_vehicle_open(0);
+  EXPECT(!mech3::add_vehicle_open_now() && row_text(24) == "Select a node first");
+  e->view->pick(&e->view->marks[0]);
+  mech3::add_vehicle_open(0);
+  EXPECT(mech3::add_vehicle_open_now() && row_text(0) == "Node Edit - Vehicle");
+  EXPECT(row_text(2) == "   x: 7.00" && row_text(5) == "   yaw: 0.00" && row_text(6) == "   team id: 1" && row_text(7) == "   side: Friend");
+  EXPECT(mech3::add_vehicle_types().size() >= 19);
+  mech3::add_vehicle_press(7);
+  EXPECT(row_text(7) == "   side: Foe" && row_text(6) == "   team id: 2");
+  mech3::add_vehicle_press(7);
+  EXPECT(row_text(7) == "   side: Other" && row_text(6) == "   team id: 0");
+  mech3::add_vehicle_press(5);  // yaw
+  for (char c : std::string("-45")) mech3::add_vehicle_char(c, 0);
+  mech3::add_vehicle_char('\r', 0x1c);
+  EXPECT(row_text(5) == "   yaw: -45.00");
+  mech3::add_vehicle_press(9);  // Cancel
+  EXPECT(!mech3::add_vehicle_open_now() && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
+  // The helpers: an aiv.zrd of (("apc_01" (3 (1 2 3) 0.5 2 "params" (9))))
+  std::vector<uint8_t> b;
+  const auto w = [&](uint32_t v) { b.insert(b.end(), reinterpret_cast<uint8_t*>(&v), reinterpret_cast<uint8_t*>(&v) + 4); };
+  const auto str = [&](const char* t) { w(3), w(uint32_t(std::strlen(t))), b.insert(b.end(), t, t + std::strlen(t)); };
+  const auto flt = [&](float f) { uint32_t u; std::memcpy(&u, &f, 4); w(2), w(u); };
+  w(4), w(2), w(4), w(3);
+  str("apc_01");
+  w(4), w(7), w(1), w(3), w(4), w(4), flt(1), flt(2), flt(3), flt(0.5f), w(1), w(2), str("params"), w(4), w(2), w(1), w(9);
+  int32_t items = 0;
+  const std::vector<uint8_t> tags = mech3::aiv_tags_of_type(b.data(), b.size(), "apc", &items);
+  EXPECT(items == 2 && !tags.empty());
+  EXPECT(mech3::aiv_free_name(b.data(), b.size(), "apc") == "apc_02" && mech3::aiv_free_name(b.data(), b.size(), "harasser") == "harasser_01");
+  const float pos[3] = {4, 5, 6};
+  const std::vector<uint8_t> rec = mech3::aiv_record(10, pos, -1.0f, 1, tags, items);
+  const std::vector<uint8_t> out = mech3::aiv_with_record(b.data(), b.size(), "apc_02", rec);
+  uint32_t pairs = 0;
+  if (out.size() > 16) std::memcpy(&pairs, out.data() + 12, 4);
+  EXPECT(out.size() == b.size() + 8 + 6 + rec.size() && pairs == 5);
+  EXPECT(std::equal(b.begin() + 16, b.end(), out.begin() + 16));  // the shipped record as it was
   mech3::net_editor_free();
   mech3::editor_exit();
   mech3::editor_reset();

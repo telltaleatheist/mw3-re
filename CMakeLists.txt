@@ -221,6 +221,8 @@ add_library(mw3core STATIC
   src/mech3/game_editor.cpp
   src/mech3/game_editor_net.cpp
   src/upgrades/editor/mods_edit.cpp
+  src/upgrades/editor/node_params.cpp
+  src/upgrades/editor/add_vehicle.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
   src/mech3/mech_reader.cpp
@@ -493,6 +495,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_netwrite.cpp
   tests/probe_net_view.cpp
   tests/probe_net_cache.cpp
+  tests/probe_aiv_add.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp

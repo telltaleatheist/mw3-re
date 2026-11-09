@@ -134,6 +134,8 @@
 #include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/editor/node_params.h"
+#include "upgrades/editor/add_vehicle.h"
 #include "mech3/zainetedit.h"
 #include "mech3/app_keys.h"
 #include "mech3/mods.h"
@@ -26328,4 +26330,142 @@ TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
   std::printf("  Open listed %d net files on its first page (net_01.zrd %d); opened \"%s\": %d nodes, %d marks, stepped %d; closed %d\n", listed,
               has01, opened.c_str(), nodes, marks, frames_run, closed);
   EXPECT(listed > 2 && has01 && nodes > 0 && marks == nodes && frames_run && closed && paged);
+}
+
+// Node Params (ours, S5 sitting 4c) on c1m1: net_01's node_00 picked, its
+// speed typed as 0.25 and its gate named, OK, Save Changes; read back from
+// the editor mod's archive through the reader, both there.
+TEST(mission_c1m1_node_params_saved_headless) {
+  if (!have_game()) return;
+  std::string write_dir, status;
+  bool formed = false;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("node_params", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    write_dir = zutl::mounts().write;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_ai_nets(0);
+    mech3::NetDialog& d = mech3::net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+    mech3::net_dialog_close();
+    mech3::NetEditor* e = mech3::net_editor();
+    if (!e) return true;
+    e->view->pick(&e->view->marks[0]);
+    mech3::node_params_open(0);
+    formed = mech3::node_params_open_now();
+    const auto type = [](const char* t) {
+      for (const char* c = t; *c; ++c) mech3::node_params_char(*c, 0);
+    };
+    mech3::node_params_press(5), type("0.25"), mech3::node_params_char('\r', 0x1c);  // speed
+    mech3::node_params_press(19), type("gate_x"), mech3::node_params_char('\r', 0x1c);  // gate
+    mech3::node_params_press(20);  // OK
+    mech3::net_editor_save(0);
+    status = mech3::editor_panel().rows[24]->text;
+    mech3::net_editor_exit(0);
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  bool speed = false, gate = false;
+  const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
+  if (std::filesystem::exists(out)) {
+    const zutl::Mounts keep = zutl::mounts();
+    zrdr::close_archives(true);
+    zrdr::init();
+    if (zrdr::open_archive(out.string().c_str(), true)) {
+      mech3::ai::NetFile f(1, "net_01.zrd");
+      if (f.load() != 0) {
+        if (const mech3::ai::NetNodeRec* r = f.node_named("node_00")) {
+          speed = r->speed_on == 1 && r->speed == 0.25f;
+          gate = r->gate && std::string(r->gate) == "gate_x";
+        }
+        f.unload();
+      }
+    }
+    zrdr::close_archives(true);
+    zutl::mounts() = keep;
+  }
+  std::printf("  the form %d; \"%s\"; saved: speed %d, gate %d\n", formed, status.c_str(), speed, gate);
+  EXPECT(formed && speed && gate);
+}
+
+// Add veh to node (ours, S5 sitting 4c) on c1m1: net_01's node_00 picked, a
+// ttruck chosen as a foe, OK: a ttruck_03 is made at the node on net 1 now,
+// and its record saved into the editor mod's aiv.zrd with ttruck_01's tags,
+// read back through our aiv reader (net, place, yaw, team, the tags' params).
+TEST(mission_c1m1_add_vehicle_made_and_saved_headless) {
+  if (!have_game()) return;
+  std::string write_dir, status, name;
+  size_t before = 0, after = 0;
+  bool found = false, place_ok = false;
+  float node[3] = {};
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("add_vehicle", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    write_dir = zutl::mounts().write;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_ai_nets(0);
+    mech3::NetDialog& d = mech3::net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+    mech3::net_dialog_close();
+    mech3::NetEditor* e = mech3::net_editor();
+    if (!e) return true;
+    for (int i = 0; i < 3; ++i) node[i] = e->net->node(0)->pos()[i];
+    e->view->pick(&e->view->marks[0]);
+    before = mech3::program_vehicles().size();
+    mech3::add_vehicle_open(0);
+    const std::vector<std::string> types = mech3::add_vehicle_types();
+    const int32_t t = int32_t(std::find(types.begin(), types.end(), "ttruck") - types.begin());
+    mech3::add_vehicle_press(1);  // vehicle type: the list
+    if (t >= 18) mech3::add_vehicle_press(19);  // (down)
+    mech3::add_vehicle_press(1 + (t >= 18 ? 1 : 0) + t % 18);
+    mech3::add_vehicle_press(7);  // side: Friend -> Foe
+    mech3::add_vehicle_press(8);  // OK
+    status = mech3::editor_panel().rows[24]->text;
+    name = mech3::add_vehicle_last();
+    after = mech3::program_vehicles().size();
+    for (void* v : mech3::program_vehicles()) {
+      mech3::VehicleSummary sm;
+      if (mech3::describe_vehicle(v, &sm) && sm.name && name == sm.name) {
+        found = true;
+        place_ok = std::hypot(sm.pos[0] - node[0], sm.pos[2] - node[2]) < 1.0f;
+      }
+    }
+    mech3::net_editor_exit(0);
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  // The saved record through the aiv reader.
+  bool read_back = false, tags = false;
+  float rpos[3] = {};
+  int32_t rnet = -1, rteam = -1;
+  const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
+  if (std::filesystem::exists(out)) {
+    const zutl::Mounts keep = zutl::mounts();
+    zrdr::close_archives(true);
+    zrdr::init();
+    mech3::ai::aiv_file_reset();
+    if (zrdr::open_archive(out.string().c_str(), true)) {
+      mech3::ai::AivRecord rec, ref;
+      if (mech3::ai::AivRecord* r = rec.read_named(name.c_str())) {
+        read_back = true;
+        rnet = r->kind(), rteam = r->team();
+        for (int i = 0; i < 3; ++i) rpos[i] = r->get<float>(0x08 + 4 * i);
+        if (mech3::ai::AivRecord* t1 = ref.read_named("ttruck_01"))
+          tags = std::memcmp(r->raw + 0x1c, t1->raw + 0x1c, 0xb0) == 0;  // params .. skin as ttruck_01's
+      }
+    }
+    mech3::ai::aiv_file_reset();
+    zrdr::close_archives(true);
+    zutl::mounts() = keep;
+  }
+  std::printf("  \"%s\"; vehicles %zu -> %zu, %s made %d at the node %d; read back %d: net %d, team %d, at %.1f %.1f %.1f "
+              "(node %.1f %.1f %.1f), ttruck_01's tags %d\n", status.c_str(), before, after, name.c_str(), found, place_ok,
+              read_back, rnet, rteam, rpos[0], rpos[1], rpos[2], node[0], node[1], node[2], tags);
+  EXPECT(name == "ttruck_03" && after == before + 1 && found && place_ok);
+  EXPECT(status.find("ttruck_03 on net 1: made") == 0 && status.find("editor edits") != std::string::npos);
+  EXPECT(read_back && rnet == 1 && rteam == 2 && rpos[0] == node[0] && rpos[2] == node[2] && tags);
 }
