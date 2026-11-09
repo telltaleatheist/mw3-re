@@ -22,6 +22,7 @@
 #include "gamez/zutil/zutl_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
@@ -1280,6 +1281,63 @@ TEST(mods_anim_json_unused_events_as_mech3ax_writes_them) {
   const uint8_t rec[] = {'b', 'o', 'o', 'm', 0};
   const auto r = std::search(fxd.begin(), fxd.end(), std::begin(rec), std::end(rec));
   EXPECT(r != fxd.end() && r + 36 <= fxd.end() && r[32] == 7 && std::all_of(r - 0x24, r, [](uint8_t c) { return c == 0; }));  // the blank first record
+}
+
+// A mod's world animations as unzbd's JSON (docs/modding.md): zbd/t1/anim/ (metadata.json and the rest), then unzbd's
+// zbd/t1/anim.zip, read as the anim.zbd they stand for by the reader (0x0050a0e0); one that does not read refused and
+// the anim.zbd read; a mod's own anim.zbd stopping the search. The globals' gravity tells them apart.
+TEST(mods_anim_json_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const auto with_gravity = [&](const char* g) {
+    std::map<std::string, std::string> m = exported;
+    std::string& meta = m["metadata.json"];
+    const size_t at = meta.find("\"gravity\": ");
+    const size_t end = meta.find_first_of(",\n}", at + 11);
+    meta.replace(at, end - at, std::string("\"gravity\": ") + g);
+    return m;
+  };
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_json");
+  const std::string mod = wd + "/mods/animmod", later = wd + "/mods/later";
+  put(mod + "/mod.txt", "name=Anim\n");
+  put(later + "/mod.txt", "name=Later\n");
+  for (const auto& [n, t] : with_gravity("-9.0")) put(later + "/zbd/t1/anim/" + n, t);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"animmod", "later"}, {install});
+  zutl::mount(install);
+  const auto gravity = [] {
+    zeff::anim() = zeff::AnimState{};
+    zeff::anim_allow_loading(1);
+    zeff::anim_set_zbd_path("zbd\\t1\\anim.zbd");
+    zeff::anim_read_zbd();
+    const float g = zeff::anim().def_count() > 0 ? zeff::anim().block.get<float>(0x1c) : 0.0f;
+    zeff::anim_free_all();
+    zeff::anim() = zeff::AnimState{};
+    return g;
+  };
+  EXPECT(gravity() == -9.0f);  // only the later mod has one
+  {
+    const auto m = with_gravity("-3.5");
+    write_stored_zip(mod + "/zbd/t1/anim.zip", std::vector<std::pair<std::string, std::string>>(m.begin(), m.end()));
+  }
+  EXPECT(gravity() == -3.5f);
+  for (const auto& [n, t] : with_gravity("-4.25")) put(mod + "/zbd/t1/anim/" + n, t);
+  EXPECT(gravity() == -4.25f);  // the folder before the zip
+  put(mod + "/zbd/t1/anim/metadata.json", "{\"mission\": \"MwT1V12De\",\n \"gravity\": true}");
+  const float refused = gravity();
+  fs::remove_all(mod + "/zbd/t1/anim", ec);
+  fs::remove(mod + "/zbd/t1/anim.zip", ec);
+  fs::copy_file(install + "/zbd/t1/anim.zbd", mod + "/zbd/t1/anim.zbd", ec);
+  const float own = gravity();
+  std::printf("  refused -> %.2f, own archive -> %.2f\n", refused, own);
+  EXPECT(refused != -9.0f && refused < 0.0f && own == refused);  // the anim.zbd's, not the later mod's
 }
 
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path

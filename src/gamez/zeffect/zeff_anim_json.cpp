@@ -4,11 +4,15 @@
 // which match the shipped files but for names' bytes past their NUL.
 #include "gamez/zeffect/zeff_anim_json.h"
 
+#include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <tuple>
 
 #include "gamez/zutil/zutl_json.h"
+#include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zutl_zip.h"
 
 namespace zeff {
 namespace {
@@ -1526,6 +1530,57 @@ bool anim_from_json(const std::function<std::string(const std::string&)>& file, 
   }
   *zbd = std::move(o.b);
   return true;
+}
+
+int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why) {
+  if (zutl::mounts().mods.empty() || !game_path || !game_path[0]) return 0;
+  std::string dir = zutl::host(game_path);
+  const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
+  dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    const std::string meta = zutl::find_in_mod(m, dir + stem + "/metadata.json");
+    if (!meta.empty()) {  // the folder: each file beside metadata.json
+      const std::string folder = meta.substr(0, meta.size() - std::strlen("metadata.json"));
+      *what = folder;
+      const auto file = [&](const std::string& n) {
+        std::string text;
+        if (std::FILE* f = std::fopen((folder + n).c_str(), "rb")) {
+          char buf[1 << 14];
+          for (size_t got; (got = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, got);
+          std::fclose(f);
+        }
+        return text;
+      };
+      return anim_from_json(file, zbd, nullptr, why) ? 1 : -1;
+    }
+    if (const std::string zip = zutl::find_in_mod(m, dir + stem + ".zip"); !zip.empty()) {
+      *what = zip;
+      zutl_zip::Zip z;
+      if (!z.open(zip)) return *why = "not a zip the game can read", -1;
+      std::map<std::string, const zutl_zip::Zip::Entry*> by_name;  // matched in any case, as the archives'
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        std::string low = e.name;
+        for (char& c : low) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        by_name[low] = &e;
+      }
+      std::string bad;
+      const auto file = [&](const std::string& n) {
+        std::string low = n;
+        for (char& c : low) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        const auto hit = by_name.find(low);
+        std::vector<uint8_t> data;
+        std::string err;
+        if (hit == by_name.end() || !z.read(*hit->second, &data, &err)) return std::string();
+        return std::string(data.begin(), data.end());
+      };
+      if (by_name.find("metadata.json") == by_name.end()) return *why = "no metadata.json in it", -1;
+      return anim_from_json(file, zbd, nullptr, why) ? 1 : -1;
+    }
+    if (!zutl::find_in_mod(m, dir + stem + ".zbd").empty()) return 0;  // this mod's own anim.zbd comes first
+  }
+  return 0;
 }
 
 }  // namespace zeff

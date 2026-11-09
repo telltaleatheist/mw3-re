@@ -20,4 +20,11 @@ namespace zeff {
 bool anim_from_json(const std::function<std::string(const std::string&)>& file, std::vector<uint8_t>* zbd,
                     std::vector<std::pair<size_t, size_t>>* names, std::string* why);
 
+// A world's anim.zbd (its game path, zbd\\c1\\anim.zbd) as an enabled mod's
+// JSON, first mod first, up to the first with its own anim.zbd: the folder
+// zbd\\c1\\anim\\ (unzbd's files, metadata.json first), else unzbd's
+// zbd\\c1\\anim.zip. 1: `zbd` holds the file, `what` where it came from;
+// -1: one there that does not read (`what`, `why`); 0: none.
+int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why);
+
 }  // namespace zeff
