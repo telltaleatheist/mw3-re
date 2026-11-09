@@ -26,6 +26,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission.h"
+#include "mech3/mod_campaign.h"
 
 namespace mech3 {
 
@@ -66,6 +67,7 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (key == "world" && !value.empty()) out->worlds.push_back(value);
     else if (key == "mech" && !value.empty()) out->mechs.push_back(value);
     else if (key == "weapon" && !value.empty()) out->weapons.push_back(value);
+    else if (key == "campaign" && !value.empty()) out->campaigns.push_back(value);
     else if (key == "ia_world" && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -144,6 +146,8 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   free_dfns_above(kBuiltinMechs);
   mech_rows_clear();
   weapon_rows_clear();
+  mod_campaigns().clear();
+  std::vector<ModCampaign> campaigns;  // checked against the worlds once every mod's are known
   std::vector<std::string> done;
   for (const std::string& want : enabled) {
     if (std::find(done.begin(), done.end(), want) != done.end()) continue;  // named twice: the first place counts
@@ -172,6 +176,13 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       }
     }
     for (const auto& [folder, name] : it->ia_worlds) ia.push_back({want, ModIaWorld{folder, name.empty() ? folder : name}});
+    for (const std::string& file : it->campaigns) {
+      ModCampaign c;
+      const bool ok = campaign_load(it->path, want, file, &c);  // a folder's pilots: one id per mod, whatever its case
+      if (!ok) log.push_back("  campaign " + file + ": " + c.error + ", left out");
+      else if (std::any_of(campaigns.begin(), campaigns.end(), [&](const ModCampaign& o) { return o.mod == want && lower(o.id) == lower(c.id); })) log.push_back("  campaign " + file + ": the mod has a campaign " + c.id + " already, left out");
+      else campaigns.push_back(c);
+    }
     // Its new mechs, after the exe's and any earlier mod's; each one's
     // definition and model where the game will look (the enabled mods in
     // order, the first wins, then the patch and the install).
@@ -231,6 +242,30 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     }
     mod_ia_worlds().push_back(w);
     log.push_back("mod " + mod + ": Instant Action world \"" + w.name + "\" on " + w.folder);
+  }
+  // The campaigns, each mission's world one that has its files somewhere mounted.
+  std::vector<std::string> roots;
+  for (const std::string& m : done)
+    if (const auto f = std::find_if(found.begin(), found.end(), [&](const ModInfo& x) { return x.folder == m; });
+        f != found.end() && f->error.empty())
+      roots.push_back(f->path);
+  roots.insert(roots.end(), later.begin(), later.end());
+  auto known = [&](const std::string& w) {
+    std::error_code ec;
+    if (mission_dir_index(w.c_str()) < 0) return false;
+    for (const std::string& r : roots)
+      if (fs::is_regular_file(zutl::any_case(r, "zbd/" + w + "/gamez.zbd"), ec)) return true;
+    return false;
+  };
+  for (const ModCampaign& c : campaigns) {
+    if (const CampaignMission* m = campaign_missing_world(c, known)) {
+      log.push_back("mod " + c.mod + ": campaign " + c.file + ": line " + std::to_string(m->line) + ": no world " + m->world +
+                    " in an enabled mod or the game, the campaign left out");
+      continue;
+    }
+    mod_campaigns().push_back(c);
+    log.push_back("mod " + c.mod + ": campaign \"" + c.name + "\" (" + c.file + ", " + std::to_string(c.missions.size()) +
+                  " missions) added");
   }
   return log;
 }
@@ -587,6 +622,30 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
     if (!own && mission_dir_index(folder.c_str()) < 0) error("ia_world " + folder + ": no such world");
     else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok");
+  }
+  std::vector<std::string> ids;
+  for (const std::string& file : m.campaigns) {
+    ModCampaign c;
+    if (!campaign_load(dir, fs::path(dir).filename().string(), file, &c)) {
+      error("campaign " + file + ": " + c.error);
+      continue;
+    }
+    if (std::find(ids.begin(), ids.end(), lower(c.id)) != ids.end()) {
+      error("campaign " + file + ": the mod has a campaign " + c.id + " already");
+      continue;
+    }
+    ids.push_back(lower(c.id));
+    out.push_back("campaign " + file + " \"" + c.name + "\": " + std::to_string(c.missions.size()) + " missions");
+    // Each world the mod's own or the game's; another mod's is known only when mounted.
+    for (const CampaignMission& cm : c.missions) {
+      const bool own = std::find(m.worlds.begin(), m.worlds.end(), cm.world) != m.worlds.end() &&
+                       fs::is_regular_file(fs::path(dir) / "zbd" / cm.world / "gamez.zbd", ec);
+      const bool game = mission_dir_index(cm.world.c_str()) >= 0 &&
+                        (install.empty() || fs::is_regular_file(zutl::any_case(install, "zbd/" + cm.world + "/gamez.zbd"), ec));
+      if (!own && !game)
+        out.push_back("warning: campaign " + file + ": line " + std::to_string(cm.line) + ": no world " + cm.world +
+                      " in the mod or the game: it plays only with a mod that adds it");
+    }
   }
   for (const std::string& line : m.mechs) {
     ModMech r;
