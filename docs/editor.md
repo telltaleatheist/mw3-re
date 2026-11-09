@@ -490,6 +490,54 @@ by the save, the setters folding, the save's fold marking a node gone);
 move and node_01's link read back from the editor mod's archive, node_02 as
 the install has it. Breaks: an undone edit kept, the place not folding.
 
+## Deleting, New Net, a new node (S5 sitting 4b, 2026-11-09)
+
+- **Delete Node** (0x00403ae0): the first pick ("Using first of N selected
+  nodes"), or else the first picked line (0x004037b0: an arrow pressed;
+  "Using first of N selected lines"; a cursor line's ends the other way
+  round). No net: "Select a node or line first". FIX (A): the exe asks with
+  an OK/Cancel box, "Confirm node deletion" / "Confirm line deletion"; here
+  the status line asks and a second Delete Node on the same one confirms.
+  Then dirty, and the editor made anew when something went.
+  - A node (0x004bd290 with 0x00403c00): never the net's only node or the
+    placeholder; its own links taken off (each to a real node), then every
+    node's link to it, its slot back to the placeholder, its key marked
+    gone in the cache (the save leaves it out), the node freed. Numbers do
+    not move: the other nodes keep theirs, and a later new node takes the
+    free slot.
+  - A line (0x004bd310): the link from the first end to the second taken
+    off (0x004c7020 -> the target's 0x004c7080 -> 0x004c70a0: erased, the
+    node folded).
+- **A new node** (0x004bd1f0 with none, 0x004c6e60): a node of the
+  defaults (0x004c6da0, which our port had taken for the placeholder's own
+  constructor; the placeholder is that node with another vtable, 0x005ca388)
+  into the first placeholder slot, or after the last, numbered by its slot,
+  folded. The frame makes one at the pick when marks are handed over with
+  nothing picked; the release's mouse never gets there (a hand-over copies
+  the picks).
+- **New Net** (0x00402c90, the dialog's first row): at the view vehicle's
+  pick, numbered by the first free id from 1 (0x0058b1c0(1, 1, 100)), a net
+  `CZAiNetEdit(id, none, 0)` with a new node at the pick, an editor on it,
+  and the node's mark pressed (0x0058ebc0) so it starts picked.
+- **Saving a new net** (ours, FIX (A) with the save): the game finds a
+  mission's nets by number, each start trying net_01 .. net_99 by name in the
+  open archives (0x00402170 -> 0x00402240); no list names them. So a net
+  whose file read nothing goes in as a new `net_NN.zrd` entry (version 106,
+  its name, its nodes) of the first open archive holding a net_NN.zrd, the
+  mission's, through the same editor mod as any save; it builds from the
+  next start.
+
+Tests: `net_editor_delete_node_line_and_new_node` (a three-node net: nothing
+picked does nothing, the first press asks, the second deletes node 1 and
+every link to and from it, the editor made anew, a new node takes slot 1, a
+picked line taken off the same way, a net's only node kept);
+`mission_c1m1_new_net_saved_and_loaded_next_start_headless` (New Net at the
+stealth's pick, a second node from the frame's hand-over, Save, and the next
+start on the same write folder, the editor mod mounted as the program
+mounts it, builds net_07 with both nodes, node_00 where it was put). Breaks:
+no new archive entry, New Net's node left at 0 0 0, the links to a deleted
+node kept.
+
 ## The save (S5 sitting 2, 2026-11-09)
 
 **The text writers, ported** (`zrdrainet.cpp`): the header 0x4da1d0 ->

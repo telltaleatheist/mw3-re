@@ -220,12 +220,20 @@ TEST(game_editor_net_dialog_and_menu) {
   press(h, 8);  // the main menu's blank row: nothing
   mech3::net_editor_save(0);  // with no editor
   EXPECT(row_text(24) == "no network to save");
-  // New Net: sitting 4's, back to the main menu.
+  // New Net without a pick: back to the main menu.
   press(h, 1);
-  h.calls.clear();
   press(h, 6);  // OK on New Net
-  EXPECT(!mech3::net_editor() && joined(h.calls).find("not_ported New Net") != std::string::npos);
-  EXPECT(row_text(1) == " EDIT AI NETS");
+  EXPECT(!mech3::net_editor() && row_text(1) == " EDIT AI NETS");
+  // With one: a new net, the first free number from 1 (net_02), a node at
+  // the pick, picked.
+  h.has_ground = true, h.ground[0] = 5.0f, h.ground[2] = -7.0f;
+  press(h, 1);
+  press(h, 6);
+  mech3::NetEditor* fresh = mech3::net_editor();
+  EXPECT(fresh && fresh->net && fresh->net->header.net == 2 && fresh->net->count() == 1);
+  EXPECT(fresh && fresh->net->node(0)->pos()[0] == 5.0f && fresh->view->picks.size() == 1);
+  EXPECT(mech3::editor_state().menu == &mech3::editor_net_menu_rows());
+  mech3::net_editor_free();
   mech3::editor_exit();
   delete a, delete b, delete c;
   mech3::editor_reset();
@@ -377,6 +385,62 @@ TEST(net_editor_frame_far_clip_move_and_link) {
   // One there already adds none; a new one goes after the last.
   EXPECT(edit->node(1)->add_link(edit->node(0)) && edit->node(1)->link_count() == 1);
   EXPECT(edit->node(1)->add_link(edit->node(1)) && edit->node(1)->link_count() == 2 && edit->node(1)->rec.links[1] == 1);
+  mech3::net_editor_free();
+  mech3::editor_exit();
+  mech3::editor_reset();
+  mech3::set_editor_hooks(nullptr);
+}
+
+// Delete Node (0x00403ae0) on a net of three nodes 0 <-> 1 -> 2: the first
+// press asks, the second deletes node 1 with every link to and from it, its
+// slot back to the placeholder and the editor made anew; a picked line is
+// taken off the same way; a new node (0x004bd1f0) takes the first free slot.
+TEST(net_editor_delete_node_line_and_new_node) {
+  Stub h;
+  mech3::editor_reset();
+  mech3::set_editor_hooks(&h);
+  mech3::editor_enter();
+  auto* edit = new mech3::ai::CZAiNetEdit(6, nullptr, 0);
+  mech3::ai::NetNodeRec r[3];
+  for (int i = 0; i < 3; ++i) r[i].index = i, r[i].pos[0] = float(i);
+  r[0].links = {1}, r[1].links = {0, 2};
+  edit->elems = {new mech3::ai::NetNode(edit, r[0]), new mech3::ai::NetNode(edit, r[1]), new mech3::ai::NetNode(edit, r[2])};
+  mech3::net_editor() = new mech3::NetEditor(edit, 0);
+  mech3::NetEditor* e = mech3::net_editor();
+  EXPECT(!edit->node(0)->placeholder && edit->placeholder->placeholder);
+  mech3::net_editor_delete(0);  // nothing picked, no line: nothing
+  EXPECT(e->armed == nullptr && edit->node(1)->link_count() == 2);
+  e->view->pick(&e->view->marks[1]);
+  mech3::net_editor_delete(0);
+  EXPECT(e->armed == &e->view->marks[1] && row_text(24).find("Confirm node deletion") == 0 && edit->node(1)->link_count() == 2);
+  mech3::net_editor_delete(0);
+  EXPECT(e->rebuild == 1 && e->dirty == 1 && edit->node(1) == edit->placeholder);
+  EXPECT(edit->node(0)->link_count() == 0 && edit->node(2)->link_count() == 0);
+  mech3::net_editor_step(0.1f);  // made anew
+  e = mech3::net_editor();
+  EXPECT(e && e->net == edit && e->view->links.empty() && e->armed == nullptr);
+  // A new node goes into the free slot, numbered by it.
+  mech3::ai::NetNode* n = edit->add_node(nullptr);
+  EXPECT(n && edit->node(1) == n && n->rec.index == 1 && !n->placeholder);
+  EXPECT(n->add_link(edit->node(2)) && n->link_count() == 1);
+  // A picked line: its arrow pressed, then Delete Node twice.
+  e->rebuild = 1;
+  mech3::net_editor_step(0.1f);
+  e = mech3::net_editor();
+  EXPECT(e->view->links.size() == 1);
+  if (e->view->links.size() == 1) {
+    znet::Link& l = e->view->links[0];
+    l.ahead.on_press();
+    EXPECT(e->view->picked_links.size() == 1);
+    mech3::net_editor_delete(0);
+    EXPECT(row_text(24).find("Confirm line deletion") == 0);
+    mech3::net_editor_delete(0);
+    EXPECT(n->link_count() == 0 && e->rebuild == 1);
+  }
+  // The net's only node is never deleted.
+  mech3::ai::CZAiNetEdit one(7, nullptr, 0);
+  mech3::ai::NetNode* only = one.add_node(nullptr);
+  EXPECT(only && !one.delete_node(only) && one.node(0) == only);
   mech3::net_editor_free();
   mech3::editor_exit();
   mech3::editor_reset();

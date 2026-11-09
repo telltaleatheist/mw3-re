@@ -51,6 +51,7 @@ struct NetEditor {
   znet::Mark* moving = nullptr;    // +0x134
   int32_t dirty = 0;               // +0x138  cleared by Save
   int32_t rebuild = 0;             // +0x13c  the editor made anew before its next frame
+  const void* armed = nullptr;     // ours: Delete Node's mark or link waiting for its second press
 };
 NetEditor*& net_editor();  // [0x005f4c6c]
 void net_editor_free();    // 0x00402ba0's first half; the program's end and the tests
@@ -65,6 +66,8 @@ void net_editor_goto(int32_t y);   // 0x004036c0
 void net_editor_save(int32_t y);   // 0x00402e90 -> 0x00402f20 (the save ours: net_save.h)
 void net_editor_exit(int32_t y);   // 0x00402ba0
 void net_editor_move(int32_t y);   // 0x00403ac0 -> 0x00403a90
+void net_editor_delete(int32_t y); // 0x00403ae0
+NetEditor* net_editor_new(int32_t id, const float at[3]);  // 0x00402c90: New Net
 znet::Mark* net_editor_first_pick();  // 0x00403770
 // 0x00403140 -> 0x00403080: the editor made anew while it asks (the net and
 // its dirty flag kept), then its frame, until a frame does not ask.

@@ -41,6 +41,7 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
   const char* fname = net ? net->name() : nullptr;
   if (!fname) fname = name_in;
   placeholder = new NetNode(this);
+  placeholder->placeholder = true;  // the 0x005ca388 vtable
   ref = new NetRef(header.net, fname);
   int32_t n = 0;
   if (ref->file) {
@@ -78,14 +79,53 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
 }
 
 // Mech3.exe 1.2 @ 0x004befc0 -> 0x004bef80 (its key 0x004c72f0 -> 0x004c72d0)
-void CZAiNetEdit::fold(NetNode* n) {
+void CZAiNetEdit::fold(NetNode* n, bool gone) {
   if (!editing || !n || n == placeholder) return;
   dirty = 1;
   if (!ref || !ref->file) return;
   char key[0x20];
   std::snprintf(key, sizeof key, "node_%02d", n->rec.index);  // 0x005e0264 into [0x0060b400]
-  ref->file->edit(key, &n->rec);
+  ref->file->edit(key, gone ? nullptr : &n->rec);
 }
+
+// Mech3.exe 1.2 @ 0x004bd1f0 (0x004c6e60 for none)
+NetNode* CZAiNetEdit::add_node(NetNode* n) {
+  if (!n) n = new NetNode(this);
+  for (size_t i = 0; i < elems.size(); ++i)
+    if (elems[i] == placeholder) {
+      n->rec.index = static_cast<int32_t>(i);
+      elems[i] = n;
+      fold(n);
+      return n;
+    }
+  n->rec.index = static_cast<int32_t>(elems.size());
+  elems.push_back(n);
+  fold(n);
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x004bd290 with 0x00403c00
+bool CZAiNetEdit::delete_node(NetNode* n) {
+  auto at = elems.end();
+  if (n && elems.size() > 1 && n != placeholder) at = std::find(elems.begin(), elems.end(), static_cast<znet::Element*>(n));
+  if (at == elems.end()) {
+    fold(n);
+    return false;
+  }
+  for (int32_t k = n->link_count(); k-- > 0;) {  // 0x004105f0: link k's node
+    NetNode* t = n->link_node(k);
+    if (t && t != placeholder) n->remove_link(t);
+  }
+  for (znet::Element* e : elems)
+    if (NetNode* o = e ? static_cast<AiElem*>(e)->as_node() : nullptr) o->remove_link(n);
+  *at = placeholder;
+  fold(n, true);
+  delete n;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004bd310
+bool CZAiNetEdit::delete_link(NetNode* a, NetNode* b) { return a && a->remove_link(b); }
 
 // Mech3.exe 1.2 @ 0x004bd100
 void CZAiNetEdit::fold_edits() {

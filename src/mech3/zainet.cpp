@@ -36,8 +36,9 @@ void AiNet::link_pass() {
 // Mech3.exe 1.2 @ 0x004c6d30 (the record copied by 0x004c6ce0 -> 0x004c6050)
 NetNode::NetNode(CZAiNetEdit* o, const NetNodeRec& r) : rec(r), owner(o) {}
 
-// Mech3.exe 1.2 @ 0x004c6da0
-NetNode::NetNode(CZAiNetEdit* o) : owner(o), placeholder(true) {}
+// Mech3.exe 1.2 @ 0x004c6da0 (CZAiNetEdit's ctor flags its placeholder after:
+// the 0x005ca388 vtable)
+NetNode::NetNode(CZAiNetEdit* o) : owner(o) {}
 
 // Mech3.exe 1.2 @ 0x004c71f0. The exe lets i reach the count, one link past
 // the end (FIX (bug): stopped there; no caller asks for it).
@@ -76,6 +77,20 @@ bool NetNode::add_link(NetNode* target) {
   const bool ok = !t->placeholder && set_link(t, i);  // the placeholder's vt+0x40 is 0x00410490
   if (!ok) rec.links.pop_back();
   return ok;
+}
+
+// Mech3.exe 1.2 @ 0x004c7020 (the placeholder's slot is 0x00410510: no): the
+// link that leads to `to` (by its number) asked of `to` (its vt+0x48,
+// 0x004c7080; the placeholder's 0x00410490 refuses), which hands it back to
+// this node's vt+0x4c (0x004c70a0): the link erased, the node folded.
+bool NetNode::remove_link(NetNode* to) {
+  if (placeholder || !to) return false;
+  const int32_t j = owner->index_of(to);
+  const auto it = std::find(rec.links.begin(), rec.links.end(), j);
+  if (j < 0 || it == rec.links.end() || to->placeholder) return false;
+  rec.links.erase(it);
+  owner->fold(this);
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x004c71a0 (the placeholder's slot is 0x00410510: no),

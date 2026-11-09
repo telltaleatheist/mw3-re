@@ -230,10 +230,10 @@ std::vector<uint8_t> net_with_edits(const uint8_t* p, size_t size, const zrdr::N
 }
 
 std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& a, const char* name,
-                                        const std::vector<uint8_t>& data) {
+                                        const std::vector<uint8_t>& data, bool add) {
   const size_t n = a.size();
   if (n < 8 || get32(a.data() + n - 8) != 1) return {};
-  const uint32_t count = get32(a.data() + n - 4);
+  uint32_t count = get32(a.data() + n - 4);
   const size_t table_size = static_cast<size_t>(count) * sizeof(zutl_zar::Entry);
   if (table_size > n - 8) return {};
   const size_t table = n - 8 - table_size;
@@ -247,7 +247,14 @@ std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& a, const cha
     std::memcpy(n, e.name, sizeof e.name);
     if (index < 0 && crt::msvc_stricmp(name, n) == 0) index = static_cast<int>(i);  // as zutl_zar::find
   }
-  if (index < 0) return {};
+  if (index < 0 && !add) return {};
+  if (index < 0) {
+    zutl_zar::Entry e{};
+    std::strncpy(e.name, name, sizeof e.name - 1);
+    entries.push_back(e);
+    index = static_cast<int>(count++);
+  }
+  const size_t new_table_size = static_cast<size_t>(count) * sizeof(zutl_zar::Entry);
   std::vector<uint8_t> out;
   for (uint32_t i = 0; i < count; ++i) {
     zutl_zar::Entry& e = entries[i];
@@ -258,9 +265,18 @@ std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& a, const cha
     e.start = start;
   }
   const size_t at = out.size();
-  out.resize(at + table_size);
-  if (count) std::memcpy(out.data() + at, entries.data(), table_size);
+  out.resize(at + new_table_size);
+  if (count) std::memcpy(out.data() + at, entries.data(), new_table_size);
   put32(out, 1), put32(out, count);
+  return out;
+}
+
+std::vector<uint8_t> net_new_entry(const char* name) {
+  std::vector<uint8_t> out;
+  put_list(out, 1);
+  put_list(out, 4);
+  put_string(out, "version"), put_list(out, 1), put_int(out, 0x6a);
+  put_string(out, "name"), put_list(out, 1), put_string(out, name);
   return out;
 }
 
@@ -325,7 +341,7 @@ std::string editor_mod(const std::string& write_dir, const std::string& source, 
   return {};
 }
 
-NetSave save_archive_edit(const char* rel, const char* name, const std::vector<uint8_t>& data) {
+NetSave save_archive_edit(const char* rel, const char* name, const std::vector<uint8_t>& data, bool add) {
   NetSave r;
   const std::string write_dir = zutl::mounts().write;
   if (write_dir.empty()) return r.error = "no write folder", r;
@@ -335,7 +351,7 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
     std::ifstream in(from, std::ios::binary);
     return std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
   }();
-  const std::vector<uint8_t> out = archive_with_entry(bytes, name, data);
+  const std::vector<uint8_t> out = archive_with_entry(bytes, name, data, add);
   if (out.empty()) return r.error = from + " does not hold " + name + " as an archive the game reads", r;
   const std::string source = mod_folder_of(write_dir, from);
   r.folder = editor_mod(write_dir, source, &r.error);

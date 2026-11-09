@@ -33,14 +33,13 @@ void none(int32_t) {}  // 0x004bf620
 void change_net_params(int32_t) { not_ported("Change Net Params (0x004036f0, the Ai Network Editor dialog 181)"); }
 void node_params(int32_t) { not_ported("Node Params (0x00403710, the Node Parameters dialog 180)"); }
 void add_vehicle(int32_t) { not_ported("Add veh to node (0x00403820, the Node Edit - Vehicle dialog 141)"); }
-void delete_node(int32_t) { not_ported("Delete Node (0x00403ae0)"); }
 void tree_view(int32_t) { not_ported("Tree View (0x00402c70, the tree window)"); }
 
 // 0x005e0f18.
 const EditorEntry kNetRows[13] = {
     {"Pick CMD or Point", none},   {" GOTO Net", net_editor_goto},        {" Change Net Params", change_net_params},
     {" Node Params", node_params}, {" Add veh to node", add_vehicle},     {" Move Node", net_editor_move},
-    {" Delete Node", delete_node}, {" Delete Net", none},                  {" Save Changes", net_editor_save},
+    {" Delete Node", net_editor_delete}, {" Delete Net", none},                  {" Save Changes", net_editor_save},
     {" Tree View", tree_view},     {"", nullptr},                          {"", nullptr},
     {" Exit Net Editor", net_editor_exit},
 };
@@ -120,6 +119,23 @@ bool net_entry(ai::CZAiNetEdit& n, std::string* archive, std::string* entry, std
     return true;
   }
   return false;
+}
+
+// Ours, for a new net (in no archive yet): the first open archive, in the
+// reader's order, that holds a net_NN.zrd, where the mission's nets are read
+// from; its path, "" when none.
+std::string nets_archive() {
+  for (zutl_zar::Archive* a : zrdr::state().archives) {
+    if (!a || !a->path) continue;
+    for (int i = 0; i < a->count; ++i) {
+      char n[sizeof a->entries[i].name + 1] = {};
+      std::memcpy(n, a->entries[i].name, sizeof a->entries[i].name);
+      if (std::strlen(n) != 10 || crt::msvc_stricmp(n + 6, ".zrd") != 0) continue;
+      n[4] = 0;
+      if (crt::msvc_stricmp(n, "net_") == 0) return a->path;
+    }
+  }
+  return {};
 }
 }  // namespace
 
@@ -208,8 +224,12 @@ void NetEditor::frame(float dt) {
   view->frame(at);
   if (!view->to_link.empty()) {
     ai::NetNode* target = nullptr;
-    if (view->picks.empty()) {
-      not_ported("a new node at the pick (0x004bd1f0, net vt+0x50)");
+    if (view->picks.empty()) {  // 0x004bd1f0: a new node at the pick
+      target = net->add_node(nullptr);
+      if (target) {
+        if (target->set_pos(ground)) target->relink();
+        dirty = 1;
+      }
     } else {
       target = as_node(view->picks.front()->elem);
     }
@@ -248,23 +268,31 @@ void edit_ai_nets(int32_t) {
 
 // The rest of 0x00402d60: a net that is not an edit (vt+0x48) edited through
 // a new one of its id (0x004bd360: CZAiNetEdit(id, none, 0)); then the old
-// editor freed, the new one kept and its menu installed. New Net (0x00402c90:
-// a new net's first node at the camera's ground point) is sitting 4's.
+// editor freed, the new one kept and its menu installed; New Net, a new net
+// with its first node at the pick (0x00402c90).
 void net_dialog_close() {
   g_dialog.open = false;
   ai::AiNet* pick = g_dialog.selected >= 0 && g_dialog.selected < static_cast<int32_t>(g_dialog.items.size())
                         ? g_dialog.items[size_t(g_dialog.selected)].second
                         : nullptr;
+  NetEditor* e = nullptr;
   if (!pick) {
-    not_ported("New Net (0x00402c90: a new net's first node)");
-    editor_main_menu();
-    return;
+    // New Net: at the view vehicle's pick (vt+0xf8), numbered by the first
+    // free id from 1 (0x0058b1c0(1, 1, 100)).
+    float at[3] = {};
+    const int32_t id = editor_hooks().ground_pick(at) ? znet::alloc_id(1, 1, 100) : -1;
+    if (id >= 0) e = net_editor_new(id, at);
+    if (!e) {
+      editor_main_menu();
+      return;
+    }
+  } else {
+    auto* edit = dynamic_cast<ai::CZAiNetEdit*>(pick);
+    if (!edit) edit = new ai::CZAiNetEdit(pick->get_id(), nullptr, 0);  // 0x004bd360 (vt+0x18 the id)
+    // The editor owns it either way: 0x00402fd0 deletes it, and a net leaves
+    // the registry as it goes.
+    e = new NetEditor(edit, 0);
   }
-  auto* edit = dynamic_cast<ai::CZAiNetEdit*>(pick);
-  if (!edit) edit = new ai::CZAiNetEdit(pick->get_id(), nullptr, 0);  // 0x004bd360 (vt+0x18 the id)
-  // The editor owns it either way: 0x00402fd0 deletes it, and a net leaves
-  // the registry as it goes.
-  NetEditor* e = new NetEditor(edit, 0);
   net_editor_free();
   g_editor = e;
   net_editor_menu();
@@ -297,7 +325,17 @@ void net_editor_save(int32_t) {
   if (ai::CZAiNetEdit* n = g_editor->net) {
     std::string archive, entry;
     std::vector<uint8_t> bytes;
-    if (!net_entry(*n, &archive, &entry, &bytes)) {
+    // A new net (New Net: its file read nothing) goes in as a new entry of
+    // the archive the mission's nets come from; the game finds nets by
+    // number (0x00402170: net_01 .. net_99), so it loads from the next start.
+    const bool fresh = !net_entry(*n, &archive, &entry, &bytes) && n->ref && n->ref->file &&
+                       !n->ref->file->tree && n->ref->file->name;
+    if (fresh) {
+      archive = nets_archive();
+      entry = n->ref->file->name;
+      bytes = ai::net_new_entry(ai::net_name(n->header.net));
+    }
+    if (archive.empty()) {
       editor_status("not saved: the net's file is in no open archive");
     } else {
       n->fold_edits();  // 0x004bd100
@@ -305,7 +343,7 @@ void net_editor_save(int32_t) {
       for (const auto& [key, rec] : n->ref->file->cache) edits.emplace_back(key, rec);
       const std::vector<uint8_t> out = ai::net_with_edits(bytes.data(), bytes.size(), n->ref->file->tree, edits);
       const ai::NetSave s = out.empty() ? ai::NetSave{false, "", "", "", entry + " does not read as a net"}
-                                        : ai::save_archive_edit(archive.c_str(), entry.c_str(), out);
+                                        : ai::save_archive_edit(archive.c_str(), entry.c_str(), out, fresh);
       editor_status(s.ok ? s.message : "not saved: " + s.error);
     }
   }
@@ -333,6 +371,64 @@ void net_editor_move(int32_t) {
   }
   g_editor->moving = m;
   g_editor->move = 1;
+}
+
+// Mech3.exe 1.2 @ 0x00402c90: a new net numbered `id` (0x004bd360:
+// CZAiNetEdit(id, none, 0)), its first node (vt+0x50(0)) at `at`, an editor
+// on it, the node's mark pressed (0x0058ebc0) so it starts picked.
+NetEditor* net_editor_new(int32_t id, const float at[3]) {
+  auto* edit = new ai::CZAiNetEdit(id, nullptr, 0);
+  ai::NetNode* n = edit->add_node(nullptr);
+  if (!n) {
+    delete edit;
+    return nullptr;
+  }
+  if (n->set_pos(at)) n->relink();  // vt+0x2c, vt+0x38
+  NetEditor* e = new NetEditor(edit, 0);
+  e->view->press(edit->node(0));  // vt+0x0c(0)
+  return e;
+}
+
+namespace {
+// Mech3.exe 1.2 @ 0x004037b0: the first picked link's ends, from and to (a
+// cursor line's the other way round), said to be the one used when there are
+// more (a box in the exe).
+bool first_picked_link(znet::Mark** a, znet::Mark** b) {
+  std::list<znet::Link*>& l = g_editor->view->picked_links;
+  if (l.empty()) return false;
+  if (l.size() > 1) editor_status("Using first of " + std::to_string(l.size()) + " selected lines");  // 0x005e0354
+  const znet::Link* k = l.front();
+  if (k->kind == 2) *a = k->to, *b = k->from;
+  else if (k->kind == 1 || k->kind == 3) *a = k->from, *b = k->to;
+  else return false;
+  return true;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00403ae0: the first pick deleted, or else the first
+// picked link's line; the editor made anew when it was. FIX (A): the exe
+// asks with an OK/Cancel box (0x00402ec0(0x21, ...)); here the status line
+// asks and a second Delete Node on the same one confirms.
+void net_editor_delete(int32_t) {
+  if (!g_editor) return;
+  ai::CZAiNetEdit* net = g_editor->net;  // vt+0x48
+  if (!net) {
+    editor_status("Select a node or line first");  // 0x005e03dc
+    return;
+  }
+  znet::Mark* m = net_editor_first_pick();
+  znet::Mark *a = nullptr, *b = nullptr;
+  if (!m && !first_picked_link(&a, &b)) return;
+  const void* what = m ? static_cast<const void*>(m) : static_cast<const void*>(g_editor->view->picked_links.front());
+  if (g_editor->armed != what) {
+    g_editor->armed = what;
+    editor_status(std::string(m ? "Confirm node deletion" : "Confirm line deletion") + ": Delete Node again");  // 0x005e0410 / 0x005e03f8
+    return;
+  }
+  g_editor->armed = nullptr;
+  g_editor->dirty = 1;
+  const bool done = m ? net->delete_node(as_node(m->elem)) : net->delete_link(as_node(a->elem), as_node(b->elem));
+  g_editor->rebuild = done ? 1 : 0;
 }
 
 // Mech3.exe 1.2 @ 0x00403080

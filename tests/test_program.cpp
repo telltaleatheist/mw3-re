@@ -21238,13 +21238,21 @@ struct CheatKeys : platform::Input {
 const char* g_cheat_mission_dir = nullptr;  // the launch's write dir kept (a saved controls file); none a fresh one
 platform::Settings* g_cheat_mission_settings = nullptr;  // the launch's saved settings; none the default
 int g_cheat_mission_op = 0;  // the campaign's operation for the launch (a lancemate comes with it); 0 the default
+// The mods the launch mounts in front of the install, as mw3_main's mods_mount does; none the default.
+const std::vector<std::string>* g_cheat_mission_mods = nullptr;
 int cheat_mission(const char* write, int32_t index, int32_t number, int limit,
                   const std::function<bool(int, mech3::GameEngine&, CheatKeys&)>& step,
                   const std::function<bool(mech3::GameEngine&, mech3::Mech3App&)>& other = nullptr) {
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
+  const std::string cheat_write = g_cheat_mission_dir ? std::string(g_cheat_mission_dir) : temp_dir(write);
+  if (g_cheat_mission_mods) {
+    zutl::set_write_dir(cheat_write);
+    for (const std::string& l : mech3::mods_mount(cheat_write, *g_cheat_mission_mods, {MW3_GAME_DIR}))
+      std::printf("  mods: %s\n", l.c_str());
+  }
   zutl::mount(MW3_GAME_DIR);
-  zutl::set_write_dir(g_cheat_mission_dir ? std::string(g_cheat_mission_dir) : temp_dir(write));
+  zutl::set_write_dir(cheat_write);
   mech3::reset_states();
   reset_process_state();
   mech3::missions() = mech3::Missions{};
@@ -26056,4 +26064,82 @@ TEST(mission_c1m1_net_editor_view_move_and_link_headless) {
   std::printf("  the cache %d records; saved: node_00 moved %d, node_%02d's link %d, node_02 as it was %d; \"%s\"\n", cached,
               saved_move, other, saved_link, saved_same, status.c_str());
   EXPECT(cached == 2 && saved_move && saved_link && saved_same);
+}
+
+// New Net (0x00402c90, S5 sitting 4b) on c1m1: a net of the first free number
+// with its first node at the stealth's pick, its mark picked; a second node
+// linked from the frame's hand-over (a new node at the pick, 0x004bd1f0);
+// Save Changes adds net_NN.zrd to the editor mod's copy of the mission's
+// archive; the next start, on the same write folder, builds it with both
+// nodes where they were put.
+TEST(mission_c1m1_new_net_saved_and_loaded_next_start_headless) {
+  if (!have_game()) return;
+  int32_t id = -1, nodes = 0, step = 0, at = 0, found = 0, read = 0;
+  float first[3] = {}, again[3] = {}, pick[3] = {};
+  std::string write_dir, status;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("new_net", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    mech3::NetEditor* e = mech3::net_editor();
+    if (step == 0) {
+      write_dir = zutl::mounts().write;
+      mech3::editor_key(mech3::kEditorCommand);  // the view on the stealth: its reticle picks from its next frame
+      step = -1, at = f;
+      return false;
+    }
+    if (step == -1) {
+      if (f < at + 3) return false;
+      mech3::edit_ai_nets(0);
+      mech3::net_dialog().selected = 0;  // New Net
+      mech3::net_dialog_close();
+      e = mech3::net_editor();
+      if (!e || !e->net) return true;
+      id = e->net->header.net;
+      for (int i = 0; i < 3; ++i) first[i] = e->net->node(0)->pos()[i];
+      mech3::editor_hooks().ground_pick(pick);  // the same frame's
+      step = 1, at = f;
+      return false;
+    }
+    if (!e) return true;
+    if (step == 1 && f > at + 2) {
+      // The picks emptied, the hand-over made by hand: a new node at the pick,
+      // linked to... none; it links the handed-over node_00 to it.
+      e->view->to_link.push_back(&e->view->marks[0]);
+      e->view->picks.clear();
+      step = 2, at = f;
+    } else if (step == 2 && f > at + 1) {
+      nodes = e->net->count();
+      mech3::net_editor_save(0);
+      status = mech3::editor_panel().rows[24]->text;
+      mech3::net_editor_exit(0);
+      mech3::editor_key(mech3::kEditorCommand);
+      return true;
+    }
+    return f > at + 200;
+  });
+  // The next start on the same folder (the editor mod on in its mw3.cfg).
+  const char* keep = g_cheat_mission_dir;
+  g_cheat_mission_dir = write_dir.c_str();
+  const std::vector<std::string> on = mech3::mods_enabled(write_dir);
+  g_cheat_mission_mods = &on;
+  cheat_mission("new_net_again", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    found = znet::find(id) != nullptr;
+    mech3::ai::NetRef ref(id, nullptr);
+    if (ref.file) {
+      read = ref.count();
+      if (const mech3::ai::NetNodeRec* r = ref.file->node_named("node_00"))
+        for (int i = 0; i < 3; ++i) again[i] = r->pos[i];
+    }
+    return true;
+  });
+  g_cheat_mission_dir = keep;
+  g_cheat_mission_mods = nullptr;
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  new net_%02d: %d nodes, node_00 at %.1f %.1f %.1f; \"%s\"; next start: built %d, %d nodes read, node_00 "
+              "at %.1f %.1f %.1f\n", id, nodes, first[0], first[1], first[2], status.c_str(), found, read, again[0],
+              again[1], again[2]);
+  EXPECT(id > 0 && id < 100 && nodes == 2 && status.find("editor edits") != std::string::npos);
+  EXPECT(first[0] == pick[0] && first[1] == pick[1] && first[2] == pick[2] && (pick[0] != 0 || pick[2] != 0));
+  EXPECT(found && read == 2 && again[0] == first[0] && again[1] == first[1] && again[2] == first[2]);
 }
