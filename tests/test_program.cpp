@@ -20966,6 +20966,383 @@ TEST(mission_c1m2_cheat_codes_headless) {
   EXPECT(cleared);
 }
 
+// pm-tests item 21: the current weapon destroyed with the weapon after it in the list already gone. The original
+// picks the HUD's next line, destroyed or not (0x004b3020), so the selection stays on a destroyed weapon; with the
+// fix (bugs) it goes to the first one still standing.
+TEST(mission_c1m1_selection_leaves_a_destroyed_weapon_headless) {
+  if (!have_game()) return;
+  for (const bool fix : {false, true}) {
+    zfix::options().bugs = fix;
+    bool on_destroyed = true, picked = false;
+    cheat_mission(fix ? "weapon_gone_fix_write" : "weapon_gone_write", 0, 1, 400, [&](int f, mech3::GameEngine&, CheatKeys&) {
+      if (f != 30) return false;
+      on_destroyed = mech3::mech_weapon_gone_case(mech3::mission_player_mech(), &picked) == 1;
+      return true;
+    });
+    std::printf("  bugs %s: the current weapon selected %d, on a destroyed one after %d\n", fix ? "on" : "off", picked, on_destroyed);
+    EXPECT(picked);
+    EXPECT(on_destroyed == !fix);
+  }
+  zfix::options().bugs = true;
+}
+
+// A splash among more objects than zClass's query holds: its 32 hits all reach zWeapon's list. With 31 slots
+// the 32nd was counted and not copied, so splash damage read past the list and crashed (seen with a mission's
+// NUKE in c1m1); the exe only reports "Database intersections array is full". Then the NUKE itself, there.
+TEST(mission_c1m1_splash_survives_a_full_query_headless) {
+  if (!have_game()) return;
+  int32_t counted = -1, matched = -1;
+  bool burst = false;
+  cheat_mission("splash_full_write", 0, 1, 200, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    float at[3];
+    mech3::mech_world_position(mech3::mission_player_mech(), at);
+    counted = mech3::weapons_query_flood(at, 2000.0f, &matched);
+    burst = mech3::weapons_burst("NUKE", at);
+    return f > 40;
+  });
+  std::printf("  the query counted %d, %d of them stored; the NUKE burst %d\n", counted, matched, burst);
+  EXPECT(counted == 32);
+  EXPECT(matched == counted);
+  EXPECT(burst);
+}
+
+// pm-tests item 25 (Owen, in MW3): in c1m2, locked on an enemy mech (A), E to the next enemy (B, one of the
+// mission's vehicles), an LRM volley at once without aiming at B. The target change resets the reticle
+// (0x0041d890 -> 0x00441780 -> 0x00443cc0), so the volley is not locked (0x004b3330 reads the weapons' +0x88, which the reticle's update clears): its missiles carry
+// no target to home on. (c1m2's B stands 13 m from A, so the flight itself does not tell them apart.)
+TEST(mission_c1m2_lock_drops_on_a_new_target_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lock_drop_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Gpu : platform::Render3D {  // a device, so the HUD is made as in play
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  struct ModeHost : ztwod::Host {
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  int fired = -1, before = -1, after_e = -1, mechs = 0;
+  bool changed = false;
+  const void* a_contact = nullptr;
+  bool locked = true, shot_lock = true;
+  float a[3] = {}, b[3] = {}, first[3] = {}, last[3] = {};
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.number = 2;  // c1m2
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int f = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++f;
+      void* me = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      mechs = n;
+      if (!me || n < 2) return;
+      bool has = false;
+      if (f == 3) {  // 200 m east of A, facing it
+        mech3::mech_world_position(ai[0].mech, a);
+        const float x = a[0] + 200.0f;
+        const float at[3] = {x, ground_under(x, a[1] + 50.0f, a[2]), a[2]};
+        mech3::move_mech(me, at, 1.5707964f);
+      }
+      if (f == 10) mech3::program_hud_target(ai[0].mech, 0), mech3::program_reticle_lock(3, 3.5f, &has);
+      if (f == 39) before = mech3::program_reticle_lock(-1, 0, &has);
+      if (f == 40) {
+        a_contact = mech3::program_view_target_contact();
+        mech3::mech_command(me, 0x46);  // E: the next enemy (0x004d6710)
+        float d[3], p0[3];
+        if (mech3::program_view_target_contact() != a_contact && mech3::program_view_target_delta(d)) {
+          mech3::mech_world_position(me, p0);
+          b[0] = p0[0] + d[0], b[1] = p0[1] + d[1], b[2] = p0[2] + d[2];
+          changed = true;
+        }
+      }
+      if (f == 41) after_e = mech3::program_reticle_lock(-1, 0, &has);
+      if (f == 42) fired = mech3::mech_trigger_lock_on(me, &locked);
+      if (f > 42) {
+        bool l2 = false;
+        float q[3];
+        if (mech3::mech_lock_on_shot(me, q, &l2)) {
+          if (f == 43) std::copy(q, q + 3, first), shot_lock = l2;
+          std::copy(q, q + 3, last);
+        }
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return f >= 120; };
+    pump.limit = 4000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  reticle %d before E, %d after; volley fired %d locked %d, its shot locked %d; from %.0f %.0f to %.0f %.0f "
+              "(A %.0f %.0f, B %.0f %.0f)\n",
+              before, after_e, fired, locked, shot_lock, first[0], first[2], last[0], last[2], a[0], a[2], b[0], b[2]);
+  EXPECT(mechs >= 2 && changed);
+  EXPECT(before == 3 && after_e != 3);
+  EXPECT(fired == 1 && !locked && !shot_lock);
+}
+
+// pm-tests item 25, Owen's likely play: locked on one target (A, a vehicle), switched to another (B, a mech, by
+// Shift+E) with the reticle on B, an LRM volley 0.1, 0.3, 0.6 and 1.0 s after the key. The lock on B takes the
+// original's 0.6 s (0x00443d20, [0x005e3a0c]) plus two frames; the volleys before it go unlocked, along the aim,
+// so onto B all the same; the one after is locked on B. No lock carries over. B walks across the line at about
+// 7 m/s; the locked LRMs, slow off the rail and slow to turn (0x00585900, as the exe: test_weapons_fly.py), pass
+// 4 m beside it and miss, as the original's would; unlocked ones that cross its body hit (the armour line).
+TEST(mission_c1m2_lock_after_e_and_aiming_at_the_new_target_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lock_aim_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Gpu : platform::Render3D {  // a device, so the HUD is made as in play
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  struct ModeHost : ztwod::Host {
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  struct Run {
+    int delay = 0, fired = -1, reticle = -1, before = -1, group = -1;
+    bool locked = true, shot_lock = true, shot_seen = false, changed = false, aim_hit = false;
+    float since = -1, near_b = 1e9f, near_a = 1e9f, aim_off = -1, armor0 = 0, armor1 = 0;
+  };
+  const int delays[4] = {6, 18, 36, 60};  // frames of 1/60 s after E
+  constexpr int kE = 196;  // A's lock (3.5 s from frame 10) still held
+  Run runs[4];
+  for (int k = 0; k < 4; ++k) {
+    Run& r = runs[k];
+    r.delay = delays[k];
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.number = 2;  // c1m2
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int f = 0;
+    const void* a_contact = nullptr;
+    float a[3] = {}, here[3] = {}, b_at[3] = {}, pitch = 0, pitch_lo = -0.3f, pitch_hi = 0.3f, heading = 0, range_[2];
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++f;
+      void* me = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      if (!me || n < 1) return;
+      bool has = false;
+      if (f == 3) {  // 200 m east of the mech, facing it
+        mech3::mech_world_position(ai[0].mech, b_at);
+        here[0] = b_at[0] + 200.0f, here[2] = b_at[2];
+        here[1] = ground_under(here[0], b_at[1] + 50.0f, here[2]);
+        heading = 1.5707964f;
+        mech3::move_mech(me, here, heading);
+        bool set = false;
+        r.group = mech3::program_hud_lock_on(ai[0].mech, &set);  // the LRMs' group selected, as a player locking would
+      }
+      if (f == 10) {  // A: the vehicle E picks after the mech, locked
+        mech3::program_hud_target(ai[0].mech, 0);
+        mech3::mech_command(me, 0x46);
+        a_contact = mech3::program_view_target_contact();
+        float d[3];
+        r.changed = mech3::program_view_target_mech() == nullptr && mech3::program_view_target_delta(d);
+        for (int i = 0; i < 3; ++i) a[i] = here[i] + d[i];
+        mech3::program_reticle_lock(3, 3.5f, &has);
+      }
+      if (f > 10 && f < kE && (f - 10) % 12 == 0) {  // turned and pitched onto the mech in steps, each once the view settles
+        int32_t px[2];
+        float pt[3];
+        bool hit = false;
+        mech3::mech_world_position(ai[0].mech, b_at);
+        if (mech3::program_hud_aim(px, pt, &hit)) {
+          const float dp = std::hypot(pt[0] - here[0], pt[2] - here[2]), db = std::hypot(b_at[0] - here[0], b_at[2] - here[2]);
+          heading += std::atan2(-(b_at[0] - here[0]), -(b_at[2] - here[2])) - std::atan2(-(pt[0] - here[0]), -(pt[2] - here[2]));
+          if (f >= 82) {  // the heading settled: the pitch bisected (+ is up); past it or the sky: lower
+            (!hit || dp > db + 3.0f ? pitch_hi : pitch_lo) = pitch;
+            pitch = 0.5f * (pitch_lo + pitch_hi);
+          }
+          r.aim_off = std::hypot(pt[0] - b_at[0], pt[2] - b_at[2]);
+          r.aim_hit = hit;
+          mech3::move_mech(me, here, heading);
+        }
+      }
+      if (f > 10) mech3::mech_torso_pitch(me, pitch, range_);
+      if (f == kE) {
+        r.before = mech3::program_reticle_lock(-1, 0, &has);
+        mech3::mech_command(me, 0x4d);  // Shift+E: the previous enemy (0x004d6260), the mech, under the reticle
+        r.changed = r.changed && mech3::program_view_target_mech() == ai[0].mech;
+      }
+      if (f == kE + r.delay) {
+        r.reticle = mech3::program_reticle_lock(-1, 0, &has);
+        r.since = mech3::program_view_target_since();
+        mech3::LaunchedMech o;
+        if (mech3::describe_mech(ai[0].mech, &o)) r.armor0 = o.armor;
+        r.fired = mech3::mech_trigger_lock_on(me, &r.locked);
+      }
+      if (f > kE + r.delay) {
+        float q[3], bp[3];
+        bool l2 = false;
+        if (mech3::mech_lock_on_shot(me, q, &l2)) {
+          if (!r.shot_seen) r.shot_lock = l2, r.shot_seen = true;
+          mech3::mech_world_position(ai[0].mech, bp);
+          r.near_b = std::min(r.near_b, std::hypot(q[0] - bp[0], q[2] - bp[2]));
+          r.near_a = std::min(r.near_a, std::hypot(q[0] - a[0], q[2] - a[2]));
+        }
+        mech3::LaunchedMech o;
+        if (mech3::describe_mech(ai[0].mech, &o)) r.armor1 = o.armor;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return f >= kE + r.delay + 240; };
+    pump.limit = 4000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+    std::printf("  reticle %.0f m off B, lock %d at the key; ", r.aim_off, r.before);
+    std::printf("%.2f s after: reticle %d; volley fired %d locked %d, its shot locked %d; nearest B %.0f m, A %.0f m; B's armour %.3f -> %.3f\n",
+                r.since, r.reticle, r.fired, r.locked, r.shot_lock, r.near_b, r.near_a, r.armor0, r.armor1);
+  }
+  for (const Run& r : runs) {
+    EXPECT(r.group >= 0 && r.changed && r.before == 3 && r.aim_off >= 0 && r.aim_off < 10.0f);
+    EXPECT(r.fired == 1 && r.shot_seen && r.locked == (r.reticle == 3) && r.shot_lock == r.locked);
+    EXPECT(r.near_b < 10.0f);  // locked or not, the missiles go by B
+  }
+  EXPECT(!runs[0].locked && !runs[1].locked && !runs[2].locked);  // no lock before the original's 0.6 s
+  EXPECT(runs[3].locked);                                          // 1.0 s: locked on B
+}
+
+// pm-tests item 23: the player knocked down in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from
+// 50 m ahead build the knock past the threshold (0x00417a80): Stagger, a fall. Until the shot line fix (579f77b3)
+// the knock's direction was always zero, so nothing fell. (2) Dropped from 150 m, a hard landing (0x004162c0: the
+// fall's speed over 80 m/s) falls one time in five (rand > 0.8); ten drops under the fixed seed.
+TEST(mission_c1m1_player_knocked_down_headless) {
+  if (!have_game()) return;
+  for (const int cause : {1, 2}) {
+    int fell_at = -1, drops = 0;
+    float force = 0;
+    cheat_mission(cause == 1 ? "knock_write" : "landing_write", 0, 1, 6000, [&](int f, mech3::GameEngine& e, CheatKeys&) {
+      void* me = mech3::mission_player_mech();
+      if (!me || f < 30) return false;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(me, &d);
+      if (d.anim_state >= 11 && d.anim_state <= 13) {
+        fell_at = f;
+        return true;
+      }
+      float at[3];
+      mech3::mech_world_position(me, at);
+      if (cause == 1) {
+        int32_t n = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+        void* def = mech3::chain_heaviest_impact();
+        force = def ? mech3::weapon_def_impact(def) : 0;
+        const float from[3] = {at[0], at[1] + 5.0f, at[2] - 50.0f};
+        if (n && def && f % 2 == 0) mech3::mech_hit_from(me, def, from, mech3::mech_node(ai[0].mech), 0.01f);
+        return f > 600;
+      }
+      if ((f - 30) % 500 == 0) {
+        if (++drops > 10) return true;
+        const float up[3] = {at[0], at[1] + 150.0f, at[2]};
+        mech3::move_mech(me, up, 0.0f);
+      }
+      (void)e;
+      return false;
+    });
+    std::printf("  cause %d: fell at frame %d (impact force %.1f, drops %d)\n", cause, fell_at, force, drops);
+    EXPECT(fell_at > 0);
+  }
+}
+
 // There is no cow level in c1m2: every enemy mech and vehicle killed by the
 // player and salvaged whole (each mech in the salvage), the objectives done,
 // the mission won; Exit Mission brings the debriefing as a win.
@@ -22516,6 +22893,8 @@ struct WideMenus {
   int32_t win_bg = -1, win_continue = -1, win_abort = -1, win_card = -1, win_line = -1, win_line_end = -1;  // the debriefing
   int32_t lab_left_w = -1, lab_left_x = -1, lab_right_w = -1, lab_accept = -1, lab_view_x = -1, lab_view_w = -1;  // the lab
   int32_t lab_render_w = 0, lab_canvas_w = 0;
+  // The lab lists' scroll arrows from their list's corner (UP, DOWN of each, x then y): the same on any canvas.
+  std::vector<int32_t> lab_arrows;
   int32_t ia_accept = -1, ia_ally = -1, ia_worlds = -1, ia_box_w = -1;  // Instant Action (made at the start)
   int32_t mb_title = -1, mb_ok = -1;  // a message box (the quit box's dlgMessage.zrd) made on the main menu
   int32_t cr_lines_w = -1, cr_lines_x = -1, cr_back = -1;  // the credits (first from the main menu)
@@ -22674,6 +23053,9 @@ WideMenus wide_menus_run(bool wide) {
         if (ls->panel_right.single) out.lab_right_w = ls->panel_right.single->width;
         out.lab_accept = ls->tabs[6].get_rect()->left;
         out.lab_render_w = mech3::render().w, out.lab_canvas_w = mech3::display().w;
+        for (mech3::LabItemList* l : {static_cast<mech3::LabItemList*>(&ls->unassigned), static_cast<mech3::LabItemList*>(&ls->assigned)})
+          for (mech3::LabListArrow* a : {l->up, l->down})
+            if (a) out.lab_arrows.push_back(a->get_x() - l->get_x()), out.lab_arrows.push_back(a->get_y() - l->get_y());
         if (mech3::LabView* v = engine.lab_view()) {
           int32_t y = 0, h = 0;
           zcls::window_origin(v->window, &out.lab_view_x, &y);
@@ -22967,6 +23349,11 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               off.lab_left_w, off.lab_left_x, on.lab_left_w, on.lab_left_x, off.lab_right_w, on.lab_right_w, off.lab_accept,
               on.lab_accept, off.lab_view_x, off.lab_view_w, on.lab_view_x, on.lab_view_w);
   EXPECT(off.lab_left_w > 0 && on.lab_left_w == off.lab_left_w + extra / 2 && on.lab_left_x == off.lab_left_x);
+  // The scroll arrows keep their place by their list (they took the canvas's centring twice: on the next list).
+  std::printf("  lab arrows from their lists:");
+  for (size_t i = 0; i < on.lab_arrows.size(); ++i) std::printf(" %d/%d", off.lab_arrows.size() > i ? off.lab_arrows[i] : -999, on.lab_arrows[i]);
+  std::printf("\n");
+  EXPECT(on.lab_arrows.size() == 8 && on.lab_arrows == off.lab_arrows);
   EXPECT(on.lab_right_w == off.lab_right_w + extra - extra / 2 && on.lab_accept == off.lab_accept + extra / 2);
   EXPECT(off.lab_view_x == 210 && off.lab_view_w == 220);
   const int32_t rw = on.lab_render_w, cw = on.lab_canvas_w;

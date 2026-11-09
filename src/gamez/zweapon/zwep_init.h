@@ -147,14 +147,14 @@ struct HitRecord {
 };
 
 // What a query found: the exe's 0x504-byte buffer, a count byte then
-// 0x28-byte records (31 fit). The segment query 0x004eed90 and the sphere
+// 0x28-byte records (32 fit: the queries stop adding once 32 are in). The segment query 0x004eed90 and the sphere
 // query 0x004f0ac0 write the count in byte 0; the nearest-hit query 0x004eece0
 // moves it to byte 1 and puts the nearest record's index in byte 0, which is
 // what the hit pick 0x00583130 reads.
 struct HitList {
   uint8_t count = 0;           // +0  the count, or the nearest record's index
   uint8_t total = 0;           // +1  the count, after 0x004eece0
-  HitRecord rec[31];           // +4
+  HitRecord rec[32];           // +4
 };
 
 // A shot in flight, 0x5d8 bytes (docs/weapons.md, "Projectile"): the pool is

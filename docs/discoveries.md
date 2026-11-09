@@ -495,6 +495,23 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 
 From the weapon code (weapons.md).
 
+- **Some "weapon destroyed" voices are missing from the data.** When a
+  weapon is destroyed the game says its name and "destroyed", and a
+  critical hit on a weapon plays its family's line (autocannon, laser,
+  LRM...). The names a weapon's file gives (NAMESOUND) do not all exist in
+  the sound list: the autocannons, LB-X and machine guns ask for
+  `wep_autocannon_name`, which is not there (the list has `wep_cannon_name`
+  and `wep_mgun_name`), the "destroyed" word `mech_part_destroy` is not
+  there either, and TAG says "laser" (`wep_las_name`). The LB-X
+  autocannons have no family at all, so a critical on one is silent.
+  (0x004b3020, 0x004853d0; Pirate's Moon's data the same)
+- **A destroyed weapon can stay selected.** When your selected weapon is
+  destroyed, the game moves you on to the next weapon on the HUD's list
+  without checking that it still works, so if that one was already gone
+  (an arm's weapons, say) you are left on a dead weapon and have to pick
+  another yourself. Pirate's Moon changed this: it skips to the next weapon
+  that can fire. The rebuild moves on to the next working one in MW3 too.
+  (0x004b3020, PM's 0x004b6f70)
 - **Craters really dig into the ground.** A crater is not a painted mark:
   the game cuts the terrain polygons under the hole away, clips the ones on
   its edge, and puts in a sloped ring and a floor, textured to match the
@@ -628,6 +645,11 @@ From the weapon code (weapons.md).
   out of room and misses; from farther away it has time to come round. A
   lock is kept for 3.5 seconds after the reticle leaves the target, so you
   can fire after looking away.
+- **A lock never carries over to a new target, it only looks that way.**
+  Switching targets drops the lock at once; the new one takes 0.6 seconds
+  with the reticle on it (1.2 against ECM). Missiles fired before that fly
+  unguided straight along the reticle, so with the reticle already on the
+  new target they still fly at it (0x00443cc0, 0x00443d20).
 - **Only a weapon's first group counts.** A loadout can list a weapon in two
   groups, like `group (1 2)`, and 59 entries across 11 stock mechs do, but the
   game reads only the first number.

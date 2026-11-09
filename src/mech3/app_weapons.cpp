@@ -41,6 +41,9 @@
 #include "mech3/cockpit_sound.h"
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
+#include "mech3/mech_lib.h"
+#include "mech3/mech_names.h"
+#include "mech3/sound_extra.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
 #include "mech3/mech_skis.h"
@@ -54,12 +57,14 @@ namespace {
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
 Mech* mech_of(Handle v) { return static_cast<Mech*>(v); }
 
-// The query record (0x504 bytes, 32 slots) into zWeapon's list (31 slots).
+// The query record (0x504 bytes, 32 slots) into zWeapon's list (as many). With 31 slots here a full query's
+// 32nd hit was counted and not copied, and splash damage read past the list: a crash where the exe only
+// reports "Database intersections array is full" (a splash among 32 or more objects).
 void to_hits(const zcls::LineHits& in, zwep::HitList* out) {
   out->count = in.count;
   out->total = in.total;
-  const int n = in.count < 31 ? in.count : 31;
-  const int t = in.total < 31 ? in.total : 31;
+  const int n = in.count < 32 ? in.count : 32;
+  const int t = in.total < 32 ? in.total : 32;
   const int k = n > t ? n : t;
   for (int i = 0; i < k; ++i) std::memcpy(&out->rec[i], &in.hit[i], sizeof(zwep::HitRecord));
 }
@@ -194,7 +199,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     for (Handle h : {name, destroyed})
       if (h) zsnd::play_fading(static_cast<zsnd::Object*>(h), nullptr, 1.0f, nullptr, -1.0f, 0);
   };
-  c.voice_destroyed = [](int32_t) { unported("0x004853d0"); };
+  // 0x004853d0: the weapon's family's "destroyed" voice (0x004853c0, [0x00609400 + 4 x family]; the
+  // LB-X family 0 has none) through 0x004e6d80 (no place, volume 1, no fade). A critical's (0x004b0de0).
+  c.voice_destroyed = [](int32_t index) {
+    if (Handle s = weapon_voice(weapon_family(index))) sound_play(static_cast<zsnd::Object*>(s), nullptr, 1.0f, nullptr, -1.0f);
+  };
   c.vehicle_entity = [](Handle v) { return v; };                                          // vt+0x2c: itself
   c.vehicle_velocity = [](Handle v) { return reinterpret_cast<const Vec3f*>(&mech_of(v)->velocity); };
   c.entity_node = [](Handle e) { return mech_of(e)->node; };                              // +0x04
@@ -596,6 +605,81 @@ int32_t program_fire_at(void* mech, const char* weapon, int32_t n, float dist) {
     if (spawn_projectile(def, nullptr, nullptr, &from, &dir, &still, 0, 0, true)) ++fired;  // hostile to the player
   }
   return fired;
+}
+
+int32_t weapons_query_flood(const float at[3], float radius, int32_t* matched) {
+  zcls::LineHits r;
+  zcls::Node* w = qworld();
+  *matched = 0;
+  if (!w || zcls::sphere_query(w, at, radius, nullptr, 1, 1, &r) != 0) return 0;
+  zwep::HitList list;
+  const zwep::Vec3f3 p{at[0], at[1], at[2]};
+  zwep::hit_hooks().query(nullptr, &p, radius, &list);  // zWeapon's (0x004f0ac0 through to_hits)
+  for (int i = 0; i < list.count; ++i) *matched += list.rec[i].node == r.hit[i].node ? 1 : 0;
+  return list.count;
+}
+
+bool weapons_burst(const char* name, const float at[3]) {
+  zwep::WeaponDef* d = zwep::find_def(name);
+  if (!d) return false;
+  const zwep::Vec3f3 p{at[0], at[1], at[2]};
+  zwep::burst_at(d, &p);  // as a mission anim's detonation (0x005822c0)
+  return true;
+}
+
+void mech_command(void* mech, int32_t cmd) { static_cast<Mech*>(mech)->command(cmd); }
+bool mech_torso_pitch(void* mech, float pitch, float range[2]) {
+  Torso* t = static_cast<Mech*>(mech)->torso;
+  if (!t) return false;
+  t->pitch = pitch;
+  range[0] = t->min_pitch, range[1] = t->max_pitch;
+  return true;
+}
+
+int mech_trigger_lock_on(void* mech, bool* locked) {
+  auto* me = static_cast<Mech*>(mech);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  me->heat = 0.0f;
+  for (uint32_t i = 0; wm && i < wm->count; ++i) {
+    Weapon* w = wm->weapons[i];
+    if (!w || !w->def || !(w->def->flags & zwep::kLockOn)) continue;
+    w->reload = 0.0f;
+    const int r = w->can_fire() && w->trigger() ? 1 : 0;
+    *locked = w->locked;
+    return r;
+  }
+  return -1;
+}
+
+int mech_lock_on_shot(void* mech, float at[3], bool* has_lock) {
+  auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  for (uint32_t i = 0; wm && i < wm->count; ++i) {
+    Weapon* w = wm->weapons[i];
+    if (!w || !w->def || !(w->def->flags & zwep::kLockOn)) continue;
+    zwep::Projectile* p = w->def->active;
+    if (!p) return 0;
+    at[0] = p->position.x, at[1] = p->position.y, at[2] = p->position.z;
+    *has_lock = p->lock_entity != nullptr;
+    return 1;
+  }
+  return 0;
+}
+
+int32_t mech_weapon_gone_case(void* mech, bool* picked) {
+  auto* wm = static_cast<WeaponManager*>(program_mech_weapons(mech));
+  *picked = false;
+  if (!wm) return -1;
+  std::vector<Weapon*> order;
+  for (WeaponGroup* g : wm->groups)
+    if (g)
+      for (uint32_t i = 0; i < g->count; ++i) order.push_back(g->weapons[i]);
+  if (order.size() < 3) return -1;
+  Weapon* a = order[0];
+  if (wm->select_group(a->group)) wm->group_ptr()->select(a);
+  *picked = wm->current() == a;
+  order[1]->destroy();
+  a->destroy();
+  return !wm->current() || wm->current()->damage == 1.0f ? 1 : 0;
 }
 
 // What F1..F5 select (CMD_WEPGRP_1..5 through the mech's command handler,

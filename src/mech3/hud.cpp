@@ -1234,6 +1234,7 @@ void HudTarget::set_target(void* t) {
 // (0.3 s) and the reticle reset.
 void HudTarget::set_shown(bool on) {
   shown = on && g_hooks->target_valid(target);
+  since_set = 0.0f;  // ours (the shots' log)
   if (shown) {
     x240c = 0.3f;  // 0x3e99999a
     static_cast<Hud*>(hud)->reticle.reset();
@@ -3081,6 +3082,7 @@ void HudReticle::update(float dt) {
   if (zoom.flags & ztwod::kHidden) Image::update(dt);
   lock_timer -= dt;
   if (lock_timer < 0.0f) lock_timer = 0.0f;  // [0x005c007c]
+  locked_for = lock == 3 ? locked_for + dt : 0.0f;  // ours (the shots' log)
 }
 
 void HudHooks::reticle_aim_state(void* r, bool over) { static_cast<HudReticle*>(r)->aim_state(over); }
@@ -3333,6 +3335,7 @@ void HudTarget::triangle(int32_t team, float dt, bool zoomed) {
 // jitters and turns yellow) and the triangle; off it, an arrow at the edge
 // in the team's colour. Then the MFD modes' tails for the target.
 void HudTarget::track(float dt) {
+  since_set += dt;  // ours (the shots' log)
   if (flags & ztwod::kHidden) return;
   HudHooks& h = *g_hooks;
   if (!h.target_valid(target)) return;

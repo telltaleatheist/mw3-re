@@ -308,9 +308,13 @@ void LabItemList::after_bind() {
   set_pos(x, y);
 }
 
-// Mech3.exe 1.2 @ 0x00452b90
+// Mech3.exe 1.2 @ 0x00452b90. FIX (B): the scroll arrows go with the list. The exe never moves a list once
+// read; the wide menus' spread does (resolution.md), and the arrows, out of the dialog, stayed where they were read.
 void LabItemList::set_pos(int32_t px, int32_t py) {
+  const int32_t dx = px - get_x(), dy = py - get_y();
   Image::set_pos(px, py);
+  for (LabListArrow* a : {up, down})
+    if (a && (dx || dy)) a->set_pos(a->get_x() + dx, a->get_y() + dy);
   layout();
 }
 

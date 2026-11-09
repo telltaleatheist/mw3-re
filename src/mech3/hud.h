@@ -453,6 +453,7 @@ class HudTarget : public HudMfd {
   void* target = nullptr;            // +0x2404
   uint8_t shown = 0;                 // +0x2408
   float x240c = 0.0f;                // +0x240c the new target's pulse: the triangle starts large and shrinks
+  float since_set = 0.0f;            // ours: seconds since the target last changed, for the shots' log
   int32_t line_h = 0;                // +0x2410
 };
 
@@ -520,6 +521,7 @@ class HudReticle : public ztwod::Image {
   zwep::HitRecord hit{};             // +0x928 what the aim hit (its node 0: nothing)
   int32_t lock = 0;                  // +0x950 the missile lock: 0 none, 1 acquiring, 2 waiting, 3 locked, 4 lost
   float lock_timer = 0.0f;           // +0x954 0.6 after a reset ([0x005e3a0c]); counts down in update
+  float locked_for = 0.0f;           // ours: seconds the lock (state 3) has held, for the shots' log
   void aim_state(bool over);         // 0x00443d20: the lock and the reticle's image
   uint32_t contacts_by_mesh(Mech* m, bool on, float reach_sq);  // Pirate's Moon 1.0 @ 0x00445c60
   void* source = nullptr;            // +0x958 (not set by the constructor)

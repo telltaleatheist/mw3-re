@@ -266,6 +266,7 @@ struct WeaponManager {                 // 0x94 bytes, Vehicle +0xd4
   bool next_group();                                       // 0x004b04f0
   bool prev_group();                                       // 0x004b0610
   bool select_group(int32_t g);                            // 0x004b0730
+  Weapon* standing_after(const Weapon* from) const;        // ours: Weapon::destroy's FIX
   void next_weapon();                                      // 0x004b0790
   void prev_weapon();                                      // 0x004b07e0
   void mode_sound() const;                                 // 0x004b0830
@@ -421,6 +422,7 @@ struct WeaponCalls {
   void (*stop_sound)(Handle s) = nullptr;                     // 0x0056e9f0
   void (*destroyed_sounds)(Handle name, Handle destroyed) = nullptr;  // 0x004e6dc0 (1.0, 0, 0, -1.0, 0)
   void (*voice_destroyed)(int32_t index) = nullptr;           // 0x004853d0
+  void (*lock_shot)(const Weapon& w) = nullptr;                // ours: a player's lock-on shot logged (pm-tests item 25)
   bool (*screen)(Handle owner) = nullptr;                     // 0x00430aa0 on +0x684 is not 0
   void (*hud_groups)(Handle owner) = nullptr;                 // 0x00446240 on the screen +0x6520
   void (*hud_weapons)(Handle owner) = nullptr;                // 0x00446520
