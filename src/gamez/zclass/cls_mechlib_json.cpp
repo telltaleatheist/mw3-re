@@ -303,7 +303,8 @@ bool model(Json& j, const Value& md, const std::string& at, Out& o) {
 bool tree(Json& j, const Value& nodes, const Value& models, size_t index, int depth, std::vector<bool>& seen, Out& o) {
   const std::string at = "$.nodes[" + std::to_string(index) + "]";
   if (index >= nodes.items.size()) return j.r.fail(nodes, "$.nodes", "no node " + std::to_string(index));
-  if (seen[index] || depth > 64) return j.r.fail(nodes.items[index], at, "reached twice (a loop in child_indices)");
+  if (seen[index]) return j.r.fail(nodes.items[index], at, "reached twice (a loop in child_indices)");
+  if (depth > 64) return j.r.fail(nodes.items[index], at, "nested past 64 deep");
   seen[index] = true;
   const Value& n = nodes.items[index];
   std::string name;
