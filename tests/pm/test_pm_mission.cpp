@@ -48,6 +48,8 @@
 #include "pm/gamez/zmodel/gmod_clip3d.h"
 #include "pm/gamez/zmodel/gmod_const.h"
 #include "pm/pm_game.h"
+#include "gamez/zimage/zimg_texture.h"
+#include "pm/gamez/zclass/cls_clutter.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
 #include "mech3/mission_world.h"
@@ -777,6 +779,142 @@ static void kill_run(const char* which, bool quick) {
         for (int32_t k = 0; k < l->parent_count(); ++k) std::printf(" %s", l->parents[k] ? l->parents[k]->name() : "-");
         std::printf("\n");
       }
+      done = true;
+      return;
+    }
+    if (const char* wall = std::getenv("PM_WALL")) {  // pm-tests 37: "x,z,radius,heading": the first node off the ground west-ish rays meet
+      float cx = 1943.1f, cz = -833.6f, radius = 150.0f, heading = 270.0f;
+      std::sscanf(wall, "%f,%f,%f,%f", &cx, &cz, &radius, &heading);
+      auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
+      if (const char* down = std::getenv("PM_WALL_DOWN")) {  // a,b: those nodes made inactive first, as a destroy anim's ObjectActiveState does
+        std::string all = down;
+        for (size_t q = 0; q <= all.size();) {
+          const size_t e = all.find(',', q);
+          const std::string nm = all.substr(q, e == std::string::npos ? std::string::npos : e - q);
+          zcls::Node* z = zcls::list_find_by_name(6, nm.c_str());
+          std::printf("  wall: %s %s\n", nm.c_str(), z ? "made inactive" : "not found");
+          if (z) zcls::node_set_active(z, 0);
+          if (e == std::string::npos) break;
+          q = e + 1;
+        }
+      }
+      if (const char* clear = std::getenv("PM_WALL_CLEAR")) {  // x,z,r: collidable nodes (active, 0x10) every polygon of which is see-through (alpha 0)
+        float px = 0, pz = 0, pr = 150;
+        std::sscanf(clear, "%f,%f,%f", &px, &pz, &pr);
+        int all = 0;
+        for (zcls::ListItem* it = zcls::list_head(6); it; it = it->next) {
+          zcls::Node* x = it->node;
+          pm::zmod::Model* md = x ? x->pm_model : nullptr;
+          if (!md || md->count(0x10) == 0 || !(x->flags() & 4) || !(x->flags() & 0x10)) continue;
+          bool clear_all = true;
+          for (int32_t i = 0; i < md->count(0x10) && clear_all; ++i) {
+            const auto& pg = md->polygons[i];
+            for (int32_t k = 0; k < pg.material_count; ++k)
+              if (pg.materials[k] && pg.materials[k]->alpha != 0) clear_all = false;
+          }
+          if (!clear_all) continue;
+          float at[3] = {};
+          zcls::node_world_point(x, at);
+          float lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+          for (int32_t i = 0; i < md->count(0x14); ++i)
+            for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], md->vertices[i * 3 + k]), hi[k] = std::max(hi[k], md->vertices[i * 3 + k]);
+          ++all;
+          const float cx2 = at[0] + (lo[0] + hi[0]) / 2, cz2 = at[2] + (lo[2] + hi[2]) / 2;
+          if (std::fabs(cx2 - px) > pr || std::fabs(cz2 - pz) > pr) continue;
+          std::printf("  clear %s < %s: centre %.1f %.1f, model x %.1f..%.1f y %.1f..%.1f z %.1f..%.1f, %d polygons, flags %x\n", x->name(),
+                      x->parent_count() > 0 && x->parents ? x->parents[0]->name() : "-", cx2, cz2, lo[0], hi[0], lo[1], hi[1], lo[2], hi[2],
+                      md->count(0x10), x->flags());
+        }
+        std::printf("  clear: %d collidable see-through nodes in the world\n", all);
+        done = true;
+        return;
+      }
+      if (const char* col = std::getenv("PM_WALL_COLUMN")) {  // x,z: every model over that point, its y range, flags, colour
+        float px = 0, pz = 0;
+        std::sscanf(col, "%f,%f", &px, &pz);
+        for (zcls::ListItem* it = zcls::list_head(6); it; it = it->next) {
+          zcls::Node* x = it->node;
+          pm::zmod::Model* md = x ? x->pm_model : nullptr;
+          if (!md || md->count(0x14) == 0) continue;
+          float lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+          for (int32_t i = 0; i < md->count(0x14); ++i)
+            for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], md->vertices[i * 3 + k]), hi[k] = std::max(hi[k], md->vertices[i * 3 + k]);
+          if (px < lo[0] || px > hi[0] || pz < lo[2] || pz > hi[2]) continue;  // world models are in world space
+          const zmod::Material* mt = md->count(0x10) > 0 && md->polygons[0].material_count > 0 ? md->polygons[0].materials[0] : nullptr;
+          std::printf("  column %s < %s: y %.1f..%.1f, %d polygons, flags %x, colour %.0f %.0f %.0f alpha %u texture %s\n", x->name(),
+                      x->parent_count() > 0 && x->parents ? x->parents[0]->name() : "-", lo[1], hi[1], md->count(0x10), x->flags(),
+                      mt ? mt->r : -1.f, mt ? mt->g : -1.f, mt ? mt->b : -1.f, mt ? mt->alpha : 0u, mt && mt->texture ? mt->texture->name : "none");
+        }
+        done = true;
+        return;
+      }
+      static zcls::LineHits r;
+      auto chain = [](zcls::Node* n) {
+        std::string c;
+        for (int d = 0; n && d < 6; ++d) {
+          c += (d ? " < " : "") + std::string(n->name());
+          n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr;
+        }
+        return c;
+      };
+      std::map<std::string, std::pair<int, std::string>> seen;  // node chain -> hits, a sample
+      int grounds = 0, rays = 0;
+      for (float dx = -radius; dx <= radius; dx += 10.0f)
+        for (float dz = -radius; dz <= radius; dz += 10.0f) {
+          const float x = cx + dx, z = cz + dz;
+          static const float top = std::getenv("PM_WALL_TOP") ? std::strtof(std::getenv("PM_WALL_TOP"), nullptr) : 400.0f;
+          const float hi[3] = {x, top, z}, lo[3] = {x, -400.0f, z};
+          if (zcls::segment_nearest(world, hi, lo, &r) != 0 || r.count >= r.total) continue;
+          const float gy = r.hit[r.count].point[1];
+          ++grounds;
+          zcls::Node* ground = r.hit[r.count].node;
+          for (float dh = -30.0f; dh <= 30.0f; dh += 15.0f)
+            for (float up : {2.0f, 6.0f}) {
+              const float a = (heading + dh) * 3.14159265f / 180.0f;
+              const float from[3] = {x, gy + up, z};
+              // heading 0 = +z, 90 = +x (the HUD's compass)
+              const float to[3] = {x + std::sin(a) * 60.0f, gy + up, z + std::cos(a) * 60.0f};
+              ++rays;
+              if (zcls::segment_nearest(world, from, to, &r) != 0 || r.count >= r.total) continue;
+              const zcls::LineHit& h = r.hit[r.count];
+              if (!h.node || h.node == ground || std::fabs(h.normal[1]) > 0.78f) continue;
+              const std::string c = chain(h.node);
+              auto& e = seen[c];
+              if (e.first++ == 0) {
+                char b[256];
+                std::snprintf(b, sizeof b, "from %.0f %.1f %.0f heading %.0f, at %.1f %.1f %.1f, normal %.2f %.2f %.2f, flags %x, class %d, model %p, material %p",
+                              x, gy + up, z, heading + dh, h.point[0], h.point[1], h.point[2], h.normal[0], h.normal[1], h.normal[2], h.node->flags(),
+                              h.node->get<int32_t>(0x34), static_cast<const void*>(h.node->pm_model), static_cast<const void*>(h.material));
+                e.second = b;
+                if (h.material) {
+                  const zmod::Material* mt = h.material;
+                  std::snprintf(b, sizeof b, "; material alpha %u flags %x rgb %.2f %.2f %.2f texture %s",
+                                mt->alpha, mt->flags, mt->r, mt->g, mt->b, mt->texture ? mt->texture->name : "none");
+                  e.second += b;
+                }
+                if (h.owner && h.node->pm_box) {  // a clutter record: its box against its model's own extent
+                  const auto* rec = static_cast<const pm::zcls::ClutterRecord*>(h.owner);
+                  const float* bx = h.node->pm_box;
+                  float lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+                  int verts = 0;
+                  auto ext = [&](zcls::Node* x, auto& self) -> void {
+                    if (pm::zmod::Model* md = x->pm_model) {
+                      for (int32_t i = 0; i < md->count(0x14); ++i, ++verts)
+                        for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], md->vertices[i * 3 + k]), hi[k] = std::max(hi[k], md->vertices[i * 3 + k]);
+                    }
+                    for (int32_t i = 0; i < x->child_count(); ++i) self(x->children[i], self);
+                  };
+                  ext(h.node, ext);
+                  std::snprintf(b, sizeof b, "; record at %.1f %.1f %.1f, fade %.0f..%.0f m, flags %x; box %.1f %.1f %.1f .. %.1f %.1f %.1f; model (%d vertices) %.1f %.1f %.1f .. %.1f %.1f %.1f",
+                                rec->matrix.m[9], rec->matrix.m[10], rec->matrix.m[11], std::sqrt(rec->near_sq), std::sqrt(rec->far_sq), rec->flags, bx[0], bx[1], bx[2], bx[3], bx[4], bx[5],
+                                verts, lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+                  e.second += b;
+                }
+              }
+            }
+        }
+      std::printf("  wall probe at %.0f %.0f: %d ground points, %d rays, %zu nodes\n", cx, cz, grounds, rays, seen.size());
+      for (const auto& [c, e] : seen) std::printf("  wall %s: %d rays; %s\n", c.c_str(), e.first, e.second.c_str());
       done = true;
       return;
     }
