@@ -295,6 +295,76 @@ does what the 105 path was for, and the release never did it.
 Decided 2026-11-07: the first, marked ours in fixes.md and CHANGES.md, inside
 the editor only; the 25 functions stay unported and listed here.
 
+## The save (S5 sitting 2, 2026-11-09)
+
+**The text writers, ported** (`zrdrainet.cpp`): the header 0x4da1d0 ->
+0x4dad10 (105: no netparams; 107 and 108: netparams first and the file's base
+name when none was read; the rest name then netparams) and a node, slot +0x14
+0x4da7e0 -> 0x4db8d0(record, FILE*, key, file). Version 105 ("BS style")
+keeps three links padded with -1 and reports more (0x311); the rest writes
+the node line, then each property that differs from the defaults at
+0x5e8af4 (plain fields up to +0x9a; the owned ones after it are other data)
+on its own line indented 14 spaces, then `\n<indent>` when any property was
+written, then ` )`. Floats compare by fcomp's C3, so a NaN counts as the
+default. In the order written: name, speed, wait_interval, wait_time, valve,
+canleave, jump, scan_aim, scan_time, scan_hit, hidden, fixed, autonext,
+visible, deploy, mcbwait, arrangenodes, backup, gate, shunt, valveunion,
+valve_assign, auxname. **It never writes `sound`**, and it writes each
+valveunion item as `( 1 "name", count )` with a comma; the `name` it writes
+is the localized one. FIX (bug): deploy's, mcbwait's and valve_assign's valve
+names are read through their pointers whatever they hold; a null one crashed
+it, and the port leaves that line out (fixes.md). Test: test_ai_netwrite.py
+(3000 random records and 600 headers against the exe, its fprintf and
+sprintf a formatter of the test's own; every line kind, every version).
+
+**The binary save, ours** (`net_save.cpp`). The release's save never reaches
+the disk (above), so Save Changes writes the mission's archive as an editor
+mod's copy:
+
+- *The net*: the entry's bytes walked as zrd nodes (`net_with_edits`); an
+  unedited key and value copied byte for byte, an edited record encoded
+  (`put_record`) and new keys appended. A record is encoded with exact values
+  (floats as their 32 bits, which is how the reader takes every number), its
+  properties as the text writer picks them, plus what the text writer drops:
+  the sound (its name from the node as read) and the written name (the
+  record keeps the localized one: the read one is kept while it still
+  localizes to it), valveunion last (the reader finds keys anywhere in the
+  value), a missing valve as an Int 0 (which the reader takes for no name).
+- *The archive* (`archive_with_entry`): the entries in their order, each
+  other one's bytes, name, comment and file time as they were, the table and
+  version 1 after them.
+- *Where* (Owen's rule through the lead, 2026-11-09; `editor_mod`,
+  `save_archive_edit`): never a folder the editor did not make. The archive
+  is the one the game finds (a mod's copy first); its edits go into an editor
+  mod of their own, `mods/<source mod's name> edits` (`editor edits` for the
+  install), made with the marker `mw3-editor.txt` and a mod.txt (`name=<source>
+  edits`, the source's `for=`). An existing folder with the marker is reused
+  (its archive saved over, the previous save kept as one `.bak`); one without
+  it is someone else's, so `<name> (2)` and on (an ADD MOD folder is the
+  author's, marker or not). An editor mod's own copy is saved over in place.
+  The mod is turned on in mw3.cfg just before its source (the install's:
+  after every mod), so it wins from the next start, and the screen says the
+  folder and "on from the next start" (the message is made; the net editor's
+  menu, which shows it, comes with sitting 3).
+
+Tests: `net_save_every_shipped_net_round_trips` (all 59 MW3 archives
+rewritten as they are: the same files; all 751 net, region and waynet files
+saved unedited: the same bytes; every node re-encoded from its record: 724
+files the same bytes even so, and all 19,950 nodes, a key's first, read back
+as the same records); `net_save_edits_read_back_through_the_reader` (c1m1's
+net_01.zrd with a node moved to a place %6.1f would round, a speed changed
+and a node added, saved into a copy of readerm1.zbd, opened with
+zrdr::open_archive and loaded by NetFile: the edits as saved, every other
+node and entry as it was); `net_save_into_the_editors_own_mod` (the install's
+archive into `editor edits (2)` past a folder of that name not ours, saved
+again with the first as .bak, a mod's into `Foo edits` just before it, its
+own copy saved over in place, the order kept, the install and the source mod
+untouched). test_net_save_mech3ax.py: mech3ax's unzbd reads every saved
+archive (53 with nets; unedited, every member the same JSON; re-encoded,
+every node's place and links the same; c1m1's edits as saved). Breaks: a
+property dropped, a table comment lost, a foreign folder reused, no .bak, the
+mod placed last, and (mech3ax) a re-encoded archive given as unedited.
+
 ## The stealth object
 
 Made at every mission load ("Creating Stealth", **0x004a4de0**, [0x00609a2c],
