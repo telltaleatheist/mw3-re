@@ -1022,7 +1022,7 @@ cannot both be on. This is the plan to fix that. Nothing here is built yet.
   appended defs keep the shipped defs' bindings.
 - Saved games are the one place the index matters. A running animation is
   saved as "Running%03d" with its def's index (0x50be30), and read back by
-  index (0x50c1d0). Activation records are saved by name.
+  index (0x50c250). Activation records are saved by name.
 
 **1. A def at a time.** A mod may hold:
 - `zbd\c1\anim\<node>-<anim>.json`: one def for one world, the file unzbd
@@ -1053,8 +1053,8 @@ shipped defs keep their indices and their node runs. Two fixes come with it:
   where today only the index is used. A save made under another mod set then
   drops the anims that moved, said in the log, instead of starting the wrong
   def;
-- the save records the mods' identity (`mods_identity`) as it does already,
-  and the load tells the player when it differs.
+- the save records the mods' identity (`mods_identity`, which today only the
+  multiplayer lobby compares), and the load tells the player when it differs.
 
 The bytes: each def is written with the anim JSON's def writer
 (`zeff_anim_json.cpp`'s, unchanged), and each base def's bytes are spliced in
@@ -1116,8 +1116,8 @@ it never sees def files or node files. A modder targeting both games ships:
 In such a mod, mod.txt's `anim=defs` tells ours to use the def files and
 ignore that mod's own whole files, so two both-ways mods still combine in
 ours. Without it a whole file wins as in point 4, and old mods are unchanged.
-The `original\` folder is the modder's to copy over an original install
-(ours ignores it: `mod_own_file`).
+The `original\` folder is the modder's to copy over an original install.
+Ours would ignore it, added to what `mod_own_file` skips as mod.txt is.
 
 Order of work, when Owen agrees, one sitting each:
 1. the merge and the def files, with a test that adding and replacing defs on
