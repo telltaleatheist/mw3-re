@@ -5385,6 +5385,52 @@ TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
 }
 #endif
 
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)  // posix_spawn
+// Pirate's Moon's opening logos (fmv.zrd's INTRO: SHOWIMAGE of each, rimage.zbd; MW3's INTRO is one movie) on
+// a 16:9 mode: each stretched over the original's 4:3 screen, as SHOWIMAGE does, at the screen's height between
+// black sides (pm-tests.md front-end item 2; fmv.md section 8). Each image's lit box (any channel over 24, from
+// the image) placed at x 1440/640 + 240, y 1080/its height: logo_fasa, 640x411, 17 % taller than its art, as the
+// original showed it. Without -nofmv, which skips INTRO; at 33 ms a frame each logo is up at these frames.
+TEST(sdl_pm_logos_keep_their_shape_on_a_wide_screen) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!std::filesystem::exists(install + "/zbd/rimage.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/wide_logos";
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  struct Logo {
+    const char* name;
+    int frame, height;  // the image's height (640 wide)
+    int box[4];         // its lit box
+  };
+  const Logo logos[] = {{"logo_microprose", 12, 480, {60, 115, 579, 376}},
+                        {"logo_zipper", 31, 480, {65, 28, 587, 444}},
+                        {"logo_fasa", 50, 411, {28, 69, 606, 331}},
+                        {"logo_microsoft", 66, 480, {89, 192, 531, 263}}};
+  for (const Logo& l : logos) {
+    if (std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "w")) {
+      std::fprintf(f, "Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\%s\\1.0]\n"
+                   "\"InGameVMode\"=dword:0000000d\n", kSettingsKey);
+      std::fclose(f);
+    }
+    const std::string bmp = dir + "/" + l.name + ".bmp";
+    const pid_t pid = spawn_mw3({"--install", install, "--write-dir", dir, "--no-launcher", "--wide-menus", "--window", "1920x1080",
+                                 "--nosound", "--hidden", "--frame-ms", "33", "--shot", bmp, "--shot-any", "--shot-frame",
+                                 std::to_string(l.frame)},
+                                dir + "/" + l.name + ".log");
+    int status = 0;
+    if (pid > 0) waitpid(pid, &status, 0);
+    int w = 0, h = 0, b[4] = {};
+    const bool ok = bmp_lit_box(bmp, &w, &h, b) && w == 1920 && h == 1080;
+    const int want[4] = {240 + l.box[0] * 9 / 4, l.box[1] * 1080 / l.height, 240 + l.box[2] * 9 / 4, l.box[3] * 1080 / l.height};
+    std::printf("  %s: lit %d..%d x %d..%d, want %d..%d x %d..%d\n", l.name, b[0], b[2], b[1], b[3], want[0], want[2], want[1], want[3]);
+    bool near = ok;
+    for (int k = 0; k < 4; ++k) near = near && std::abs(b[k] - want[k]) <= 3;
+    EXPECT(near);
+  }
+}
+#endif
+
 #if !defined(_WIN32)  // posix_spawn's std::system
 // A first start (no InGameVMode saved), in both games, plays 16:9, or the screen's own shape, at the desktop's size: mode 16
 // with the desktop's width and height saved (FIX (B), resolution.md; pm-tests.md front-end item 1). Checks keep
