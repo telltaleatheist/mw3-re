@@ -3785,7 +3785,12 @@ extern "C" void probe_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
 
 namespace mech3 {
 void set_gfx_flags(int32_t v);  // options.h (its Handle clashes here)
+int32_t light_maps_choice(uint32_t flags);  // options_menu.h
+uint32_t light_maps_flags(int32_t choice, uint32_t flags);
 }
+// PM's LIGHTING choice from GfxFlags (0x0043a890) and back (0x0043a060's write).
+extern "C" int32_t probe_pm_light_maps_choice(uint32_t flags) { return mech3::light_maps_choice(flags); }
+extern "C" uint32_t probe_pm_light_maps_flags(int32_t choice, uint32_t flags) { return mech3::light_maps_flags(choice, flags); }
 // PM's set_gfx_flags (0x0040b270): the LIGHT MAPS level it leaves at [0x008ccc64], from `before`.
 extern "C" int32_t probe_pm_gfx_flags(int32_t flags, int32_t before) {
   pm::zmod::draw_state().light_map_option = before;
