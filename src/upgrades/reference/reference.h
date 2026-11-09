@@ -20,6 +20,7 @@ struct Key {
   const char* fallback; // when it is absent ("required", "none", a value)
   const char* limits;   // what the reader takes or refuses ("" none)
   const char* meaning;  // one line, for modders
+  bool unchecked = false;  // read by code no shipped mission reaches: the test cannot see it
 };
 
 struct File {
@@ -29,6 +30,10 @@ struct File {
   const char* reader;   // the code that reads it (a function and its address, or ours)
   const char* intro;    // a paragraph: the syntax, what an unknown key does
   std::vector<Key> keys;
+  // Where the file's own names sit (records the modder names, not keys):
+  // paths whose list-valued children are names, ';' between, "" the top;
+  // null none. The test leaves lookups of those names out.
+  const char* names_at = nullptr;
 };
 
 // Every file kind, in the reference's order.
@@ -46,6 +51,22 @@ const char*& context();
 inline void seen(const char* key, const void* node = nullptr) {
   if (Observer o = observer()) o(context(), key, node);
 }
+// The test's other observer: each reader file loaded, by its name, and its
+// tree's root, so a test can tell which file a lookup's node belongs to.
+using LoadObserver = void (*)(const char* name, const void* root);
+LoadObserver& load_observer();
+template <typename T>
+T* loaded(const char* name, T* root) {
+  if (LoadObserver o = load_observer(); o && root) o(name, root);
+  return root;
+}
+// And each reader node as it is freed (its memory may then hold another
+// file's), so a test's map from node to file stays true.
+using FreeObserver = void (*)(const void* node);
+FreeObserver& free_observer();
+inline void freed(const void* node) {
+  if (FreeObserver o = free_observer()) o(node);
+}
 // Our parsers' key test: `key == lit`, reported.
 inline bool key_is(const std::string& key, const char* lit) {
   seen(lit);
@@ -57,5 +78,11 @@ File mod_txt();
 File campaign();
 File weapons();
 File dfn();
+File aiv();
+File targets();
+File nets();
+File regions();
+File valves();
+File objectives();
 
 }  // namespace upgrades::reference

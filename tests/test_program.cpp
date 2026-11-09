@@ -22,6 +22,7 @@
 #include <mach/mach.h>
 #endif
 #include <set>
+#include <unordered_map>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -9782,99 +9783,179 @@ TEST(settings_first_start_plays_at_the_desktop_size) {
 // and Core's power-up (0x0041cc30 from resume(7)) leave the Mad Cat powered
 // up; the throttle-up key, held through zInput, walks it forward along the
 // terrain (its feet on the ground), and a turn key turns it.
-// The modding reference's dfn files (docs/modding-reference.md): every key
-// any code looks up in a mech definition's tree while the 19 definitions
-// load and c1m1 starts (the player's and the enemies' mechs built, a few
-// frames run), equal to the registry. A lookup is the dfn's when the node
-// searched lies in one of the definitions' trees.
+// The reference's recorder over a whole run: each reader file loaded
+// (zrdr::load's observer) has its nodes mapped to its kind until they are
+// freed (free_contents' observer), and each lookup counts for the kind of
+// the node searched, at the moment it is made.
 namespace {
-struct RefLookup {
-  std::string key;
-  const void* node;
-};
-std::vector<RefLookup>& ref_lookups() {
-  static std::vector<RefLookup> v;
-  return v;
+// The file kind: the name lower-cased with its digits dropped (net_03.zrd,
+// net_.zrd), so the missions' copies count together; dfn_<mech> as dfn.
+std::string ref_kind(const std::string& name) {
+  std::string k;
+  for (char c : name)
+    if (!std::isdigit(static_cast<unsigned char>(c))) k += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  if (k.rfind("dfn_", 0) == 0) return "dfn";
+  if (k.rfind("reg_", 0) == 0) return "region";
+  if (k.rfind("net_", 0) == 0 || k.rfind("waynet_", 0) == 0) return "net";
+  return k;
 }
-void ref_tree_nodes(const zrdr::Node* n, std::set<const void*>* out) {
+struct RefRun {
+  std::unordered_map<const void*, std::string> owner;
+  std::map<std::string, std::set<std::string>> keys;  // kind: keys looked up in it
+  std::map<std::string, std::vector<const zrdr::Node*>> roots;  // kind: its trees still alive at the end
+  std::map<std::string, std::set<std::string>> names;  // kind: its own names (the registry's names_at)
+};
+RefRun*& ref_run() {
+  static RefRun* r = nullptr;
+  return r;
+}
+void ref_map_tree(const zrdr::Node* n, const std::string& kind) {
   if (!n) return;
-  out->insert(n);
+  ref_run()->owner[n] = kind;
   if (n->type != zrdr::List) return;
-  for (int32_t i = 1; i < n->list[0].i; ++i) ref_tree_nodes(&n->list[i], out);
+  for (int32_t i = 1; i < n->list[0].i; ++i) ref_map_tree(&n->list[i], kind);
+}
+// Records while `run` runs; the observers put back after.
+void ref_record(RefRun* out, const std::function<void()>& run) {
+  namespace ref = upgrades::reference;
+  ref_run() = out;
+  ref::load_observer() = [](const char* name, const void* root) {
+    const std::string k = ref_kind(name);
+    const auto* top = static_cast<const zrdr::Node*>(root);
+    ref_map_tree(top, k);
+    ref_run()->roots[k].push_back(top);
+    // The file's own names: each names_at path's children that hold a list.
+    for (const upgrades::reference::File& f : upgrades::reference::files()) {
+      if (k != f.id || !f.names_at) continue;
+      const auto keep = upgrades::reference::observer();
+      upgrades::reference::observer() = nullptr;  // our own walk is no reader's
+      while (top->type == zrdr::List && top->list[0].i == 2 && top->list[1].type == zrdr::List) top = &top->list[1];
+      std::string paths = f.names_at;
+      for (size_t at = 0; at <= paths.size();) {
+        const size_t semi = std::min(paths.find(';', at), paths.size());
+        const std::string path = paths.substr(at, semi - at);
+        at = semi + 1;
+        const zrdr::Node* n = path.empty() ? top : zrdr::find(const_cast<zrdr::Node*>(top), path.c_str());
+        if (!n || n->type != zrdr::List) continue;
+        for (int32_t i = 1; i + 1 < n->list[0].i; ++i)
+          if (n->list[i].type == zrdr::String && n->list[i].s && n->list[i + 1].type == zrdr::List)
+            ref_run()->names[k].insert(n->list[i].s);
+      }
+      upgrades::reference::observer() = keep;
+    }
+  };
+  ref::free_observer() = [](const void* node) {
+    ref_run()->owner.erase(node);
+    for (auto& [k, v] : ref_run()->roots) v.erase(std::remove(v.begin(), v.end(), node), v.end());
+  };
+  ref::observer() = [](const char*, const char* key, const void* node) {
+    if (auto it = ref_run()->owner.find(node); it != ref_run()->owner.end()) ref_run()->keys[it->second].insert(key);
+  };
+  run();
+  ref::observer() = nullptr, ref::free_observer() = nullptr, ref::load_observer() = nullptr;
+  ref_run() = nullptr;
 }
 }  // namespace
 
-TEST(reference_dfn_keys_are_the_readers_headless) {
+// The modding reference (docs/modding-reference.md): every key the game
+// looks up in its reader files while every campaign mission and t1 start
+// (30 frames each, the mechs, AI, objectives and valves built), by file,
+// equal to each registry: none read that the registry lacks, none listed
+// that nothing reads (but those marked unchecked: no shipped mission
+// reaches them). The files' own names (names_at) are not keys.
+TEST(reference_files_keys_are_the_readers_headless) {
   if (!have_game()) return;
-  SavedMounts keep;
-  zutl::mounts() = zutl::Mounts{};
-  zutl::mount(MW3_GAME_DIR);
-  zutl::set_write_dir(temp_dir("reference_dfn_write"));
-  mech3::reset_states();
-  reset_process_state();
-  mech3::missions() = mech3::Missions{};
-  mech3::mech_types_forget();
-  mech3::options() = mech3::Options{};
-  FakeWindow window;
-  FakeAlert alert;
-  FakeClock clock;
-  FakeScreen screen;
-  platform::SilentSoundOutput sound;
-  mech3::MountFiles files;
-  mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
-  ref_lookups().clear();
-  std::set<const void*> dfn_nodes;
-  int loaded = 0, frames = 0;
-  {
-    mech3::GameEngine engine(p, "mech3.exe -nofmv");
-    engine.quiet = true;
-    mech3::Mech3App app(&engine);
-    mech3::set_app(&app);
-    EXPECT(app.init_instance());
-    upgrades::reference::observer() = [](const char*, const char* key, const void* node) {
-      if (node) ref_lookups().push_back({key, node});
-    };
-    for (int32_t m = 0; m < 19; ++m)
-      if (const mech3::MechDfn* d = mech3::mech_dfn(m)) ++loaded, ref_tree_nodes(d->reader, &dfn_nodes);
-    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
-    engine.set_launch(l);
-    app.post_intro_ = &mech3::states().load;
-    engine.on_present = [&](int) {
-      if (app.current() == &mech3::states().core) ++frames;
-    };
-    CountingPump pump;
-    pump.limit = 4000;
-    pump.stop = [&] { return frames >= 30; };
-    app.run(pump);
-    upgrades::reference::observer() = nullptr;
-    mech3::missions().cleanup(false);
-    app.stop_game();
-    app.exit_instance();
-    mech3::set_app(nullptr);
+  namespace ref = upgrades::reference;
+  struct M { int32_t index, number; };
+  static const M kMissions[] = {{0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {2, 1}, {2, 2}, {2, 3},
+                                {2, 4}, {2, 5}, {2, 6}, {3, 1}, {3, 2}, {3, 3}, {4, 4}, {4, 5}, {4, 6}, {5, 1}};
+  RefRun run;
+  int launched = 0;
+  for (const M& mission : kMissions) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("reference_files_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    int frames = 0;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      ref_record(&run, [&] {
+        EXPECT(app.init_instance());
+        mech3::GameEngine::Launch l;
+        l.index = mission.index, l.number = mission.number;
+        engine.set_launch(l);
+        app.post_intro_ = &mech3::states().load;
+        engine.on_present = [&](int) {
+          if (app.current() == &mech3::states().core) ++frames;
+        };
+        CountingPump pump;
+        pump.limit = 4000;
+        pump.stop = [&] { return frames >= 30; };
+        app.run(pump);
+      });
+      launched += frames >= 30;
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::free_dfns();
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
   }
-  zrdr::close_archives(true);
-  mech3::free_dfns();
-  mech3::reset_states();
-  reset_process_state();
-  mech3::missions() = mech3::Missions{};
-  mech3::mech_types_forget();
-  mech3::options() = mech3::Options{};
-  std::set<std::string> read;
-  for (const RefLookup& r : ref_lookups())
-    if (dfn_nodes.count(r.node)) read.insert(r.key);
-  std::set<std::string> reg;
-  for (const upgrades::reference::File& f : upgrades::reference::files())
-    if (std::string(f.id) == "dfn") for (const upgrades::reference::Key& k : f.keys) reg.insert(k.key);
-  std::string missing, dead;
-  for (const std::string& k : read) if (!reg.count(k)) missing += k + " ";
-  for (const std::string& k : reg) if (!read.count(k)) dead += k + " ";
-  std::printf("  %d definitions, %d frames, %zu lookups, %zu keys; not in the registry: %s; never read: %s\n", loaded, frames,
-              ref_lookups().size(), read.size(), missing.c_str(), dead.c_str());
-  EXPECT(loaded == 19 && frames >= 30);
-  EXPECT(missing.empty() && dead.empty());
-  ref_lookups().clear();
+  EXPECT(launched == static_cast<int>(std::size(kMissions)));
+  for (const std::string& soil : zmod::soil_names()) run.names["weapons.zrd"].insert(soil);
+  for (const ref::File& f : ref::files()) {
+    const auto it = run.keys.find(f.id);
+    if (it == run.keys.end() && (std::string(f.id) == "mod.txt" || std::string(f.id) == "campaign")) continue;  // our parsers: test_reference.cpp
+    std::set<std::string> read;
+    if (it != run.keys.end())
+      for (const std::string& k : it->second)
+        if (!run.names[f.id].count(k)) read.insert(k);
+    std::set<std::string> reg, unchecked;
+    for (const ref::Key& k : f.keys) (k.unchecked ? unchecked : reg).insert(k.key);
+    std::string missing, dead, reached;
+    for (const std::string& k : read)
+      if (!reg.count(k) && !unchecked.count(k)) missing += k + " ";
+    for (const std::string& k : reg)
+      if (!read.count(k)) dead += k + " ";
+    for (const std::string& k : unchecked)
+      if (read.count(k) && !reg.count(k)) reached += k + " ";  // marked unchecked, yet read: unmark it
+    std::printf("  %s: %zu keys read; not in the registry: %s; never read: %s; unchecked but read: %s\n", f.id, read.size(),
+                missing.empty() ? "none" : missing.c_str(), dead.empty() ? "none" : dead.c_str(), reached.empty() ? "none" : reached.c_str());
+    EXPECT(missing.empty() && dead.empty() && reached.empty());
+  }
+  if (std::getenv("MW3_REF_DUMP"))
+    for (const auto& [kind, ks] : run.keys) {
+      std::string line;
+      for (const std::string& k : ks)
+        if (!run.names[kind].count(k)) line += k + " ";
+      std::printf("  dump %s: %s\n", kind.c_str(), line.c_str());
+    }
 }
+
 
 TEST(mission_c1m1_player_walks_and_turns_headless) {
   if (!have_game()) return;

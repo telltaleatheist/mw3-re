@@ -2,6 +2,7 @@
 // document is what `mw3 --reference` writes now, and each file kind's
 // registry holds exactly the keys its reader looks up, recorded through the
 // readers' observer while they read the shipped files.
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -137,4 +138,36 @@ TEST(reference_weapons_zrd_keys_are_the_readers) {
   for (const std::string& n : names) read.erase(n);
   EXPECT(names.size() > 30);
   EXPECT(agree("weapons.zrd", read));
+}
+
+// The observers the whole-run check relies on: a reader file's load reports
+// its root, every lookup its node, and freeing a tree each of its nodes (a
+// freed node's memory may then hold another file's, which the check's map
+// must not credit to the first).
+TEST(reference_observers_see_load_lookup_and_free) {
+  struct Seen {
+    std::set<const void*> freed;
+    int lookups = 0;
+  };
+  static Seen seen;
+  seen = Seen{};
+  std::string why;
+  zrdr::Node* root = zrdr::parse_json("[\"KEY\", [\"INNER\", 1], \"OTHER\", \"x\"]", &why);
+  EXPECT(root != nullptr);
+  if (!root) return;
+  std::set<const void*> nodes;
+  std::function<void(const zrdr::Node*)> walk = [&](const zrdr::Node* n) {
+    nodes.insert(n);
+    if (n->type == zrdr::List)
+      for (int32_t i = 1; i < n->list[0].i; ++i) walk(&n->list[i]);
+  };
+  walk(root);
+  ref::observer() = [](const char*, const char*, const void*) { ++seen.lookups; };
+  ref::free_observer() = [](const void* node) { seen.freed.insert(node); };
+  EXPECT(zrdr::find(root, "INNER") != nullptr && seen.lookups == 1);
+  zrdr::free_node(root);
+  ref::observer() = nullptr, ref::free_observer() = nullptr;
+  std::printf("  %zu nodes, %zu reported freed, %d lookups\n", nodes.size(), seen.freed.size(), seen.lookups);
+  // Every node of the tree (free_contents visits each list's count slot too).
+  EXPECT(std::includes(seen.freed.begin(), seen.freed.end(), nodes.begin(), nodes.end()));
 }

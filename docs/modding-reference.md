@@ -252,3 +252,185 @@ A reader file as weapons.zrd's (keys exact, case included; a key the game does n
 | `limp` | animations/motion | a gait block | `<mech>_limp` | - | Limping (the right limp is the left mirrored). |
 | `anim` | animations/motion/<gait> | a motion's name | `<mech>_<gait>` | - | The motion it plays. |
 | `trans` | animations/motion/<gait> | list: low high | the gait's | - | The throttle range it plays over. |
+
+## aiv.zrd (a mission's vehicles)
+
+- Where: each world's reader archive
+- Read by: `ZRdrAiv` 0x004df730 (`mech3/zrdraiv.cpp`)
+
+One record per entity, by the name the world gives it: `"name" (kind (x y z) yaw [team] tag value ...)`, the first items by place, then tags. Most tags are lists of numbers by place (docs/ai.md section 3 says where each lands). The team comes from the name when it is not given: `player` 1, `stealth` 0, others 2.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `params` | a record | list of 9 numbers | the defaults | - | Sight range, the time it may leave its net, attack range and the rest. |
+| `p2` | a record | list of 8 numbers | the defaults | - | The attack strategy, three switches and four more. |
+| `p3` | a record | list of 6 numbers | none | old form; none shipped | An older order block. |
+| `p4` | a record | list of 23 items | none | old form; none shipped | An older inline order (its 23rd item a valve). |
+| `p5` | a record | list of 5 numbers | none | old form; none shipped | Older jump settings. |
+| `p6` | a record | list of 4 numbers | the defaults | - | Four more settings. |
+| `p7` | a record | list of 8 numbers | none | old form; none shipped | Older scan settings. |
+| `p8` | a record | list of 17 numbers | the defaults | not with p3, p4, p5 or p7 | A random wait's bounds, the scans and the rest. |
+| `p9` | a record | list of 5 numbers | the defaults | - | Five more settings, one a switch. |
+| `p10` | a record | list of 2 numbers | the defaults | - | Two more settings. |
+| `p11` | a record | list of 1 number | the default | - | One more setting. |
+| `p12` | a record | list: mech flag flag | none | a mech's name | The mech it uses, and two switches. |
+| `p13` | a record | list of 1 number | 0 | - | A switch. |
+| `pilot` | a record | list: name, then `can_configure` | none | - | The pilot's name (a message key). |
+| `can_configure` | a record/pilot | flag | 0 | - | The pilot's loadout can be changed in the mech lab. |
+| `sound_tag` | a record | text | none (dom, alan, epona for the three lancemates' records) | - | The radio voice's sounds. |
+| `skin` | a record | list of 1 number | 0 | - | Its paint scheme. |
+| `lancemate` | a record | 0/1/2 or on/off/none/default | default | - | Whether it is the player's lancemate. |
+| `vlist` | a record | list of order lists (17 or 18 items) | none | - | Triggers: ranges, a region, switches and a valve to set. |
+| `mech3` | a record | list of 1 number | unset | - | A flag the MW3 code reads. |
+
+## targets.zrd (the objects one can target)
+
+- Where: each world's reader archive
+- Read by: `ZRdrTarget` 0x004e08c0 (`mech3/zrdraiv.cpp`)
+
+One record per world object by its name: `"name" (kind key value ...)`.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `health` | a record | number | none | - | Its health. |
+| `translate_to_anim_root` | a record | a key alone | no | - | Moves it with its animation's root. |
+| `destroy_anim` | a record | an animation | none | - | Played when it is destroyed. |
+| `target` | a record | list: node [(x y z)] | none | - | The node aimed at, and an offset. |
+| `centroid` | a record | list: node [(x y z)] | none | - | Its centre, and an offset. |
+| `name` | a record | a message key | none | - | The name shown when targeted. |
+| `radar` | a record | flag | the default | - | Shown on radar. |
+| `display` | a record | flag | the default | - | Shown on the HUD. |
+| `reticule_select` | a record | flag | the default | - | Can be picked with the reticle. |
+| `zoom_select` | a record | flag | the default | - | Shown in the zoom window. |
+| `height` | a record | float | none | - | Its height. |
+| `health_below` | a record | list: valve, then health values | none | - | Sets a valve as its health falls below each value. |
+
+## net_NN.zrd, waynet_NN.zrd (the AI's paths)
+
+- Where: each world's reader archive
+- Read by: `ZRdrAiNet` (`mech3/zrdrainet.cpp`; docs/ai.md)
+
+A net: `version`, `name`, `netparams`, then `node_N` records (found by their prefix) with their links and the keys below. Most keys are lists whose first item switches the setting on.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `version` | top | text | required | `mech3` | The format. |
+| `name` | top | text | the file's | - | The net's name (a node's `name` too). |
+| `netparams` | top | a block | none | - | The net's own settings. |
+| `pos` | netparams | list: x y z | none | - | The net's place. (No shipped mission reaches this read: not checked.) |
+| `speed` | a node | list: on speed | off | - | The speed along it. |
+| `canleave` | a node | list: two numbers | 0 0 | - | Whether a vehicle may leave the net here. |
+| `wait_interval` | a node | list | off | - | A random wait between visits. |
+| `wait_time` | a node | list: on time | off | - | How long to wait here. |
+| `valve` | a node | list | none | - | A valve this node sets or waits on. |
+| `auxname` | a node | text | none | - | A second name. |
+| `jump` | a node | list: on value | off | - | Jump here. |
+| `scan_aim` | a node | list: two numbers | 0 0 | - | Scan by aim here. |
+| `scan_time` | a node | list: two numbers | 0 0 | - | Scan for a time here. |
+| `scan_hit` | a node | list: two numbers | 0 0 | - | Scan when hit here. |
+| `hidden` | a node | flag | unset | - | Hidden. |
+| `fixed` | a node | flag | unset | - | Fixed. |
+| `autonext` | a node | flag | unset | - | Goes on to the next node by itself. |
+| `visible` | a node | flag | unset | - | Visible. |
+| `deploy` | a node | list | none | - | Deploys something here. |
+| `mcbwait` | a node | list | none | - | A multiplayer wait. |
+| `arrangenodes` | a node | number | unset | - | Spreads vehicles over the nodes. |
+| `sound` | a node | list | none | - | A sound played here. |
+| `backup` | a node | a key alone | no | - | Backs up to here. |
+| `gate` | a node | text | none | - | A gate's name. |
+| `shunt` | a node | a key alone | no | - | Shunts here. |
+| `valveunion` | a node | list | none | - | Valves joined here. |
+| `valve_assign` | a node | list | none | - | Valves set here. |
+
+## reg_<name>.zrd (the AI's regions)
+
+- Where: each world's reader archive
+- Read by: `ZRdrAiNet`'s region form (`mech3/zrdrainet.cpp`; docs/ai.md, Regions)
+
+A region is a net file whose `node_N` records outline an area by place; the nets' keys apply, of which only these are looked up for a region.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `version` | top | text | required | `mech3` | The format. |
+| `name` | top | text | the file's | - | The region's name (orders and objectives name it). |
+| `netparams` | top | a block | none | - | Its own settings. |
+
+## valves.zrd (a mission's switches)
+
+- Where: each world's reader archive
+- Read by: the valve reader 0x004e2330 (`mech3/zrdrvalve.cpp`; docs/ai.md, valves)
+
+One record per valve by its name. A condition tag makes the valve's value from others named in its `namelist`; the action tags fire when the valve takes their value (`update` and `delayupdate` on any change). Lists of raw words; the second of a pair wins (`sound_once` after `sound`).
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `value` | a valve | list: n | 0 | - | Its starting value. |
+| `any_nonzero` | a valve | a condition | none | one condition a valve | On while any of `namelist` is. |
+| `any_zero` | a valve | a condition | none | one condition a valve | On while any of `namelist` is off. |
+| `all_nonzero` | a valve | a condition | none | one condition a valve | On while all of `namelist` are. |
+| `all_zero` | a valve | a condition | none | one condition a valve | On while all of `namelist` are off. |
+| `namelist` | a valve | list of valve names | none | not empty with a condition | The valves a condition reads. |
+| `sound` | a valve | list: sound n | none | - | Plays a sound at value n. |
+| `sound_once` | a valve | list: sound n | none | - | The same, the first time only. |
+| `animation` | a valve | list: animation n | none | - | Runs a mission animation at value n. |
+| `animation_once` | a valve | list: animation n | none | - | The same, the first time only. |
+| `scan_aim` | a valve | list: vehicle on n | none | - | Switches a vehicle's aim scan. |
+| `scan_hit` | a valve | list: vehicle on n | none | - | Switches a vehicle's hit scan. |
+| `scan_time` | a valve | list: vehicle on n | none | - | Switches a vehicle's timed scan. |
+| `canleave` | a valve | list: vehicle on n | none | - | Lets a vehicle leave its net. |
+| `shutdown` | a valve | list: vehicle down n | none | - | Powers a mech down or up. |
+| `destroy` | a valve | list: entity n | none | - | Destroys an entity. |
+| `setteam` | a valve | list: entity team n | none | - | Changes an entity's side. |
+| `attack_strategy` | a valve | list: entity strategy n | none | - | Changes a vehicle's attack strategy. |
+| `teleport` | a valve | list: entity (x y z) yaw n | none | - | Moves an entity. |
+| `missionreset` | a valve | list: n | none | only reported | Nothing happens (the original's). |
+| `missionabort` | a valve | list: n | none | - | Aborts the mission. |
+| `missioncomplete` | a valve | list: n | none | does nothing | Nothing happens (the original's). |
+| `update` | a valve | list: valve | none | - | Fires the named valve's reactions. |
+| `delayupdate` | a valve | list: valve seconds | none | - | Sets the named valve to this one's value after a delay. |
+
+## objectives.zrd (a mission's goals)
+
+- Where: each world's reader archive
+- Read by: `objectives_load` 0x0045c2d0 and the condition reader 0x0045c920 (`mech3/mech_objective.cpp`; docs/objectives.md)
+
+One block per mission (`m1`, `m2`, ...). Each group holds `type (arguments)` pairs; the types are destroy_entity, node_change, reach_area, valve_change, obj_list, and training's weapon_fire, heat_warning, target_object, weapon_select, time_limit, face_object, reach_velocity, aim_at_object, view_object, key_press, mouse_press, joystick_press, weapon_group_select, User_Command. Lookups search depth first, so a nested condition's key can answer for its parent's.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `desc` | m<n> | a message key | none | - | The mission's text (a condition's own `desc` too). |
+| `primary` | m<n> | a group | none | - | The goals that win the mission. |
+| `secondary` | m<n> | a group | none | - | Optional goals. |
+| `final` | m<n> | a group | none | - | Goals after the primary ones. |
+| `fail` | m<n> | a group | none | one failed condition fails | What loses the mission. |
+| `sound` | a condition | a sound | none | - | Played when it is met. |
+| `visible` | a condition | flag | 1 | - | Shown in the list. |
+| `silent` | a condition | flag | 0 | - | Met without a word. |
+| `salvage` | a condition | a store | none | - | Salvage it gives: `mechs`, `weapons`, `equipment`, `ammo`, `engines`. |
+| `mechs` | salvage | list | none | - | Mechs salvaged. |
+| `weapons` | salvage | list | none | - | Weapons salvaged. |
+| `equipment` | salvage | list | none | - | Equipment salvaged. |
+| `ammo` | salvage | list | none | - | Ammunition salvaged. |
+| `engines` | salvage | list | none | - | Engines salvaged. |
+| `cond_salvage` | a condition | list of node_state entries | none | - | Salvage given if a node is (or is not) active. |
+| `persist` | a condition | a copy | none | - | Kept to the next mission. |
+| `set_valve` | a condition | list: valve value | none | - | Sets a valve when it is met. |
+| `nav` | a condition | a nav point | none | - | The nav point it shows. |
+| `node` | node_change, aim_at_object | a world node [subnodes] | none | - | The node watched. |
+| `state` | node_change | `active` or another word | none | - | Met when the node is (or is not) active. |
+| `radius` | reach_area | float (m) | 25 | - | How close to come. |
+| `point` | reach_area | list: x y z | none | used without node or nav | The place to reach. (No shipped mission reaches this read: not checked.) |
+| `valve` | valve_change | a valve | none | - | The valve watched. |
+| `value` | valve_change | int | 1 | - | The value it must take. |
+| `list` | obj_list | conditions | none | - | Its conditions. |
+| `goal_count` | obj_list | int | all | - | How many must be met. |
+| `simultaneous` | obj_list | flag | 0 | - | All at the same time. |
+| `group` | destroy_entity | a group's name | none | - | A group of entities to destroy. (No shipped mission reaches this read: not checked.) |
+| `entity` | target_object, view_object, face_object | an entity's name | none | - | The entity. (No shipped mission reaches this read: not checked.) |
+| `part` | target_object | a part's name | any | - | The part aimed at. (No shipped mission reaches this read: not checked.) |
+| `test` | reach_velocity | GT GE EQ NE LE LT | GE | - | How the speed is compared. (No shipped mission reaches this read: not checked.) |
+| `velocity` | reach_velocity | float | none | - | The speed. (No shipped mission reaches this read: not checked.) |
+| `cmd` | User_Command | a CMD_ name | none | - | The command whose key or button counts. (No shipped mission reaches this read: not checked.) |
+| `key` | key_press | key names (KEY_CTRL, KEY_ALT, KEY_SHIFT) | none | - | The key. (No shipped mission reaches this read: not checked.) |
+| `button` | mouse_press, joystick_press | left/right/middle, or a number | none | - | The button. (No shipped mission reaches this read: not checked.) |
+| `weapon` | weapon_fire, weapon_select | a weapon's name | none | - | The weapon. (No shipped mission reaches this read: not checked.) |

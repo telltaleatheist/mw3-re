@@ -8,11 +8,16 @@ is ever written into the install or into a mod.
 Every key each file a mod can change takes, with its type, default and
 limits: `docs/modding-reference.md`, generated from `src/upgrades/reference/`
 (`mw3 --reference docs/modding-reference.md`; the test `reference_*` fails
-when a reader and its registry disagree or the document is stale). Covered so
-far: mod.txt, custom campaigns, weapons.zrd, the mech definitions (their
-keys recorded while the 19 load and c1m1 starts: every module that reads a
-definition's tree); the mission readers' records, the script commands and
-the JSON forms follow.
+when a reader and its registry disagree or the document is stale). The
+check runs every campaign mission and t1 for 30 frames with zrdr's
+observers on: each file loaded is mapped node by node (until freed), and
+each lookup counts for the file whose node it searched, so every module
+that reads a file is covered, not only its reader; a file's own names (a
+weapon's, a record's) are declared per file and left out. A key the code
+reads but no shipped mission reaches is marked unchecked in the document.
+Covered so far: mod.txt, custom campaigns, weapons.zrd, the mech
+definitions, aiv.zrd, targets.zrd, the AI nets and regions, valves.zrd and
+objectives.zrd; the script commands and the JSON forms follow.
 
 ## A mod (M1, 2026-11-01)
 

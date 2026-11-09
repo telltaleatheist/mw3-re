@@ -115,7 +115,8 @@ File weapons() {
               {W, "U_LOOPED", "a sound", "none", "", "A sound looped while firing."},
               {W, "U_RECHARGE_SND", "a sound", "none", "", "Played when it has recharged."},
               {W, "NAMESOUND", "a sound", "none", "", "The voice naming it."},
-          }};
+          },
+          "BALLISTICS"};
 }
 
 }  // namespace upgrades::reference
