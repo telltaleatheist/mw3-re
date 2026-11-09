@@ -82,4 +82,27 @@ struct ModsIdentity {
 ModsIdentity& mods_identity();
 void mods_identity_set(const std::string& write_dir, const std::vector<std::string>& enabled);
 
+// The launcher's MODS list (ours, docs/modding.md, item 5): every folder in
+// the write dir's mods\ once, the enabled ones first in mw3.cfg's order, then
+// the rest by folder name. Each: whether it is on; for an enabled one, what
+// it shares with an enabled mod before it (the files the earlier one wins,
+// the mech= and weapon= names the earlier one adds) and the mods it shares
+// them with; with `check`, `mw3 --check-mod`'s count of what the game would
+// refuse (against `install`; -1 unchecked).
+struct ModsListEntry {
+  ModInfo info;
+  bool on = false;
+  std::vector<std::string> shadowed;     // its files an earlier enabled mod holds (lower case, '/')
+  std::vector<std::string> rows_taken;   // its mech= / weapon= names an earlier enabled mod adds
+  std::vector<std::string> conflicts_with;  // those mods' folders
+  int check_errors = -1;
+};
+std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check = false,
+                                     const std::string& install = "");
+// mw3.cfg's mod= lines: read, and replaced by `enabled` in order (at the
+// first old one's place, else the end; every other line kept). False when
+// the file cannot be written.
+std::vector<std::string> mods_enabled(const std::string& write_dir);
+bool mods_save_enabled(const std::string& write_dir, const std::vector<std::string>& enabled);
+
 }  // namespace mech3

@@ -281,6 +281,21 @@ number past the table: refused; a line that does not read: refused; rename
 and delete carry it; a rewrite with no rows deletes it; a stray sidecar
 beside a file with no rows ignored).
 
+## The launcher's MODS list (after PM, item 5, begun 2026-11-08)
+
+The list's model (`mods_list`, `mods_enabled`, `mods_save_enabled` in
+`mods.cpp`), shared with the screen to come: every folder in the write
+dir's `mods\` once, the enabled ones first in mw3.cfg's order, then the rest
+by folder name; a folder that is no usable mod (no `mod.txt`, no `name=`,
+another game's `for=`) listed with why, as the mount says it. For each
+enabled mod, what it shares with an enabled one before it: the files that
+one wins (any case) and the `mech=` and `weapon=` names it already adds
+(this mod's rows then refused as taken), with the mods it shares them with.
+On request, `--check-mod`'s count of what the game would refuse. Turning a
+mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
+at the first old one's place, every other line kept. Test:
+`mods_list_for_the_launcher`. The screen itself waits.
+
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
 **Names stay inside the game's folders** (2026-11-02): a name a mod's files
