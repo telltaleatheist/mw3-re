@@ -16,6 +16,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
+#include "mech3/mod_rows_file.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_reader.h"
 #include "mech3/options.h"
@@ -114,7 +115,9 @@ void Store::fill_all() {
     it->b10 = 1;
     items.push_back(it);
   };
-  for (int32_t m = 0; m < kMechCount; ++m) {  // Pirate's Moon lists the Elemental (0x004d5020 is always 0)
+  // Pirate's Moon lists the Elemental (0x004d5020 is always 0); ours: the mods' mechs after its own.
+  for (int32_t m = 0; m < mech_count(); ++m) {
+    if (m == kNoMech) continue;
     auto* b = new BaseItem;
     b->value = m;
     put(b);
@@ -494,6 +497,7 @@ bool GameSlot::set_config(const Config* c) {
 
 // Mech3.exe 1.2 @ 0x00433ef0
 void GameSlot::save(Pilot& p) {
+  rows_file::note_mech(mech);  // ours (mod_rows_file.h)
   wr(p.file, &mech, 4);
   wr(p.file, &x14, 4);
   wr(p.file, &skin, 4);
@@ -506,6 +510,7 @@ void GameSlot::save(Pilot& p) {
 // without deleting it (a leak in the exe; deleted here).
 void GameSlot::load(Pilot& p) {
   rd(p.file, &mech, 4);
+  mech = rows_file::mech(mech);  // ours (mod_rows_file.h)
   rd(p.file, &x14, 4);
   rd(p.file, &skin, 4);
   int32_t has = 0;
@@ -1657,6 +1662,7 @@ bool MultiplayerGame::lobby_lines(int32_t kinds, uint32_t local, const LobbyText
     return m ? m : "";
   };
   const auto mech = [&](int32_t m) -> std::string {  // 0x004867c0
+    if (const char* t = mech_title(m)) return t;  // ours: a mod's row
     const int32_t id = mech_name_message(m);
     return id < 0 ? "notmech" : msg(id);
   };

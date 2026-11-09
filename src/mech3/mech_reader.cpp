@@ -3,6 +3,8 @@
 #include "mech3/mech_reader.h"
 
 #include <cmath>
+#include <cstdio>
+#include <vector>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
@@ -372,16 +374,34 @@ MechDfn* load_dfn(int32_t mech) {
 // Mech3.exe 1.2 @ 0x004846a0. Cached in the mech table (0x005e60b0 + 0x3c * i);
 // a failed load is tried again next time.
 namespace {
-MechDfn* g_dfns[kMechCount] = {};  // the mech table's +0x38 (Pirate's Moon 0x00608270, 0x3c apart)
+// The mech table's +0x38 (Pirate's Moon 0x00608270, 0x3c apart); ours: as
+// long as the table with the mods' rows.
+std::vector<MechDfn*> g_dfns(kBuiltinMechs);
 }  // namespace
 
 MechDfn* mech_dfn(int32_t mech) {
-  if (mech < 0 || mech >= kMechCount) return nullptr;
+  if (mech < 0 || mech >= mech_count() || mech == kNoMech) return nullptr;
+  if (g_dfns.size() < static_cast<size_t>(mech_count())) g_dfns.resize(mech_count());
   if (!g_dfns[mech]) g_dfns[mech] = load_dfn(mech);
+  // Ours: a mod's mech whose definition does not load (broken, its files
+  // found at the mount) is said once, so its modder sees why the lab is empty.
+  static std::vector<bool> said;
+  if (!g_dfns[mech] && mech >= kFirstModMech) {
+    if (said.size() <= static_cast<size_t>(mech)) said.resize(mech + 1);
+    if (!said[mech]) std::printf("mw3: mech %s: dfn_%s.zrd did not load\n", mech_name(mech), mech_name(mech)), said[mech] = true;
+  }
   return g_dfns[mech];
 }
 
-MechDfn*& mech_dfn_slot(int32_t mech) { return g_dfns[mech]; }
+MechDfn*& mech_dfn_slot(int32_t mech) {
+  if (g_dfns.size() <= static_cast<size_t>(mech)) g_dfns.resize(mech + 1);
+  return g_dfns[mech];
+}
+
+void free_dfns_above(int32_t count) {
+  for (size_t i = static_cast<size_t>(count); i < g_dfns.size(); ++i) delete g_dfns[i], g_dfns[i] = nullptr;
+  if (g_dfns.size() > static_cast<size_t>(count)) g_dfns.resize(count);
+}
 
 // The loop of 0x004844b0.
 void free_dfns() {

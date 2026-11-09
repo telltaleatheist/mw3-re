@@ -16,6 +16,8 @@ namespace mech3 {
 
 // mech_names.h (its Engine clashes with the app's): 0x00484670's message.
 int32_t mech_name_message(int32_t mech);
+const char* mech_title(int32_t mech);
+int32_t mech_count();  // 25, or 26 and the mods' rows (25 none)
 
 // 0x005e6fb0
 const ActionScenario kActionScenarios[6] = {
@@ -36,6 +38,7 @@ int32_t mode_of(int32_t scenario) {
 
 // 0x00484670: a mech's shown name, "notmech" out of range.
 const char* mech_label(Engine& e, int32_t mech) {
+  if (const char* t = mech_title(mech)) return t;  // ours: a mod's row
   if (mech < 0 || mech >= kMechCount) return "notmech";
   const char* s = e.message(mech_name_message(mech));
   return s ? s : "";
@@ -366,7 +369,8 @@ void ActionScreen::show_custom() {
   for (int i = 0; i < 6; ++i) {
     EnemyList& l = enemies[i];
     int32_t chosen = 0, n = 0;
-    for (int32_t mech = -1; mech < kMechCount; ++mech) {
+    for (int32_t mech = -1; mech < mech_count(); ++mech) {  // ours: the mods' mechs after Pirate's Moon's
+      if (mech == kMechCount) continue;  // none (0x19)
       if (i == 0) {
         if (slot && mech == slot->mech) chosen = n;
         if (mech == -1) continue;
@@ -402,16 +406,22 @@ void ActionScreen::reset() {
   descriptions.select(k.g878);
   for (AllyList& l : allies) l.clear_items();
   for (EnemyList& l : enemies) l.clear_items();
-  int32_t chosen = 0;
-  for (int32_t mech = 0; mech < kMechCount; ++mech) {  // Pirate's Moon lists the Elemental (0x004d5020 is always 0)
+  int32_t chosen = 0, row = 0;
+  // Pirate's Moon lists the Elemental (0x004d5020 is always 0); ours: the mods' mechs after its own.
+  for (int32_t mech = 0; mech < mech_count(); ++mech, ++row) {
+    if (mech == kMechCount) {  // none (0x19)
+      --row;
+      continue;
+    }
     allies[0].add_item(e.message_format(0x18b, mech_label(e, mech)), mech);
-    if (slot && mech == slot->mech) chosen = mech;
+    if (slot && mech == slot->mech) chosen = mech < kMechCount ? mech : row;  // ours: a mod's mech by its row
   }
   allies[0].select(chosen);
   allies[1].add_item(e.message(0x28a), -1);  // Mobile Field Base: off
   allies[1].add_item(e.message(0x28b), 10);  // on
   for (int i = 2; i < 5; ++i) {
-    for (int32_t mech = -1; mech < kMechCount; ++mech) {
+    for (int32_t mech = -1; mech < mech_count(); ++mech) {  // ours: the mods' mechs after Pirate's Moon's
+      if (mech == kMechCount) continue;  // none (0x19)
       const std::string text =
           mech == -1 ? e.message_format_ints(0x28c, {}) : std::string(e.message_format(0x28d, mech_label(e, mech)));
       allies[i].add_item(text.c_str(), mech);

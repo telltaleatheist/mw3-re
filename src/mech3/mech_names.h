@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 #include "mech3/mech_ids.h"
 
@@ -25,7 +26,7 @@ int32_t engine_index(int32_t rating);      // 0x00432e30
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
 bool equipment_restricted(int32_t mech, int32_t kind, int32_t tech);  // 0x004d6dc0
 const char* weapon_name(int32_t weapon);   // 0x00484900, "noweapon" when out of range
-int32_t weapon_count();                    // kWeaponCount
+int32_t weapon_count();                    // kWeaponCount, and the mods' rows
 bool weapon_uses_ammo(int32_t weapon);     // 0x00484960, the table's byte at 0x005e6504
 bool weapon_has_tech(int32_t weapon, int32_t tech);  // 0x00484940, the table's mask at 0x005e6500
 int32_t weapon_family(int32_t weapon);     // 0x004853c0, the table's word at 0x005e64f8: its destroyed voice
@@ -42,6 +43,45 @@ int32_t weight_class(int32_t mech);        // 0x00484700: 0..3 (the roster's +0x
 // points by tonnage (0x005e6998), column 1 centre torso, 2 side torso, 3 arm, 4 leg.
 int32_t internal_points(int32_t mech, int32_t column);
 float equip_weight(int32_t kind, int32_t tech);  // 0x00484aa0
+
+// Mods' mechs (ours, docs/modding.md): rows from 26, from mod.txt's mech=
+// lines, so Pirate's Moon's 25 keep their indices and 25 (0x19) stays its
+// "no mech" (saved pilots, the debriefing, the waiting mech). A row's model (its own name
+// when not given) names the mech whose models, motions and sounds it uses;
+// its dfn_<name>.zrd and saved configs are its own.
+struct ModMech {
+  std::string name, model, title;
+  int32_t tech = kInnerSphere;
+  int32_t mass = 0;          // tons, 10..100 in steps of 5 (the internal structure's rows)
+  int32_t weight_class = 0;  // 0 light .. 3 assault
+};
+constexpr int32_t kBuiltinMechs = kMechCount;
+constexpr int32_t kNoMech = kMechCount;     // Pirate's Moon 1.0 @ 0x00449f6c, 0x0044bb00: 0x19, none
+constexpr int32_t kFirstModMech = kMechCount + 1;
+int32_t mech_count();                       // 25, or 26 and the mods' rows (25 none)
+const char* mech_model_name(int32_t mech);  // the row's model, else its name
+const char* mech_title(int32_t mech);       // a mod row's title=, null for the exe's
+// One mech= line's value: `NAME tech=clan|sphere|any mass=T class=light|medium|
+// heavy|assault [model=MECH] [title=TEXT]`, title= last (the rest of the line).
+bool mech_row_parse(const std::string& value, ModMech* out, std::string* error);
+bool mech_row_add(const ModMech& row, std::string* error);  // refused when the name is taken
+bool mech_row_add_line(const std::string& value, std::string* error);  // parsed and added (for the tests)
+void mech_rows_clear();                     // the mods' rows gone
+
+// Mods' weapons (ours): rows after Pirate's Moon's 56 (its table has the
+// plain PPC, 0x00608818), from mod.txt's weapon= lines:
+// `NAME ammo=yes|no tech=clan|sphere|any|none [title=TEXT]`. The weapon
+// itself is weapons.zrd's definition of that name.
+struct ModWeapon {
+  std::string name, title;
+  bool ammo = false;
+  int32_t tech = kAnyTech;  // the mask: 1 Clan, 2 Inner Sphere, 0 none (as TAG)
+};
+constexpr int32_t kBuiltinWeapons = kWeaponCount;
+const char* weapon_title(int32_t weapon);   // a mod row's title=, null for the exe's
+bool weapon_row_parse(const std::string& value, ModWeapon* out, std::string* error);
+bool weapon_row_add(const ModWeapon& row, std::string* error);  // refused when the name is taken
+void weapon_rows_clear();
 int32_t equip_slots(int32_t kind, int32_t tech); // 0x00484a20
 
 // The engine table 0x005e2f50 (79 entries: rating, name id, tons), through
