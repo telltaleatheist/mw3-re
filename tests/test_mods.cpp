@@ -1410,7 +1410,7 @@ TEST(mods_gamez_json_is_every_worlds_file) {
     std::vector<uint8_t> a = ours, b = shipped;
     if (!ok) {
       b.resize(std::min(b.size(), a.size()));
-      for (size_t k : {20, 32})  // the offsets past what is read
+      for (size_t k : {32})  // the offset past what is read
         for (size_t c = 0; c < 4 && k + c < a.size(); ++c) a[k + c] = b[k + c] = 0;
     }
     size_t at = 0;

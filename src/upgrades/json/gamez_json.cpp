@@ -5,6 +5,7 @@
 
 #include <cstring>
 
+#include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zutil/zutl_json.h"
 
 namespace zcls {
@@ -190,10 +191,38 @@ bool gamez_from_json(const std::function<std::string(const std::string&)>& file,
   o.put32(16, static_cast<uint32_t>(o.b.size()));
   if (!zutl_json::parse(file("materials.json"), &mats, why)) return *why = "materials.json: " + *why, false;
   if (!materials(j, mats, static_cast<uint32_t>(mat_size), ntex, o)) return *zbd = std::move(o.b), *why = "materials.json: " + j.r.why, false;
-  o.put32(20, static_cast<uint32_t>(o.b.size()));
-  (void)model_size;
+  const size_t models_at = o.b.size();
+  o.put32(20, static_cast<uint32_t>(models_at));
+  // The models, an item at a time: each one's record and its data (cls_mechlib_json's model writer, lights too).
+  {
+    const std::string text = file("models.json");
+    zutl_json::Pull pull(text);
+    std::vector<std::vector<uint8_t>> records, datas;
+    if (!pull.begin_list()) return *zbd = std::move(o.b), *why = "models.json: " + pull.why(), false;
+    while (pull.item()) {
+      Value m;
+      if (!pull.value(&m)) break;
+      records.emplace_back(), datas.emplace_back();
+      if (!zcls::model_from_json(m, pull.path(), &records.back(), &datas.back(), why)) return *zbd = std::move(o.b), *why = "models.json: " + *why, false;
+    }
+    if (!pull.why().empty() || !pull.end()) return *zbd = std::move(o.b), *why = "models.json: " + pull.why(), false;
+    const uint32_t count = static_cast<uint32_t>(records.size()), size = static_cast<uint32_t>(model_size);
+    if (count >= size) return *zbd = std::move(o.b), *why = "models.json: " + std::to_string(count) + " models, where the array holds " + std::to_string(size), false;
+    o.u32(size), o.u32(count), o.i32(static_cast<int32_t>(count));
+    uint32_t at = static_cast<uint32_t>(models_at) + 12 + (0x5c + 4) * size;
+    for (uint32_t i = 0; i < count; ++i) {
+      o.raw(records[i].data(), records[i].size()), o.u32(at);
+      at += static_cast<uint32_t>(datas[i].size());
+    }
+    for (uint32_t i = count; i < size; ++i) {  // the free slots, chained forward
+      for (int k = 0; k < 0x5c / 4; ++k) o.u32(0);
+      o.i32(i + 1 < size ? static_cast<int32_t>(i + 1) : -1);
+    }
+    for (const auto& d : datas) o.raw(d.data(), d.size());
+  }
+  o.put32(32, static_cast<uint32_t>(o.b.size()));
   *zbd = std::move(o.b);
-  return *why = "models.json and nodes.json are not read yet", false;
+  return *why = "nodes.json is not read yet", false;
 }
 
 }  // namespace zcls
