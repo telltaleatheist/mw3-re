@@ -60,6 +60,7 @@ float tether_height(int32_t roster);
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zgeometry/zgeo_model.h"
 #include "gamez/zgeometry/zgeo_weiler.h"
@@ -3787,6 +3788,16 @@ namespace mech3 {
 void set_gfx_flags(int32_t v);  // options.h (its Handle clashes here)
 int32_t light_maps_choice(uint32_t flags);  // options_menu.h
 uint32_t light_maps_flags(int32_t choice, uint32_t flags);
+}
+// An animation object's saved state packed as PM's writers do (0x00524e10, 0x00525d70): in[0] index, in[1]
+// active, in[2] matrix, in[3..14] the floats' bits, in[15] has a model, in[16] its flags, in[17] its +0x24;
+// `out` (0x3c bytes) holds what the buffer held before.
+extern "C" void probe_pm_anim_state_pack(const uint32_t* in, int model, uint8_t* out) {
+  zeff::AnimObjectState s;
+  s.index = static_cast<int32_t>(in[0]), s.active = in[1], s.matrix = in[2];
+  std::memcpy(s.m, in + 3, sizeof s.m);
+  s.has_model = in[15] != 0, s.model_flags = in[16], s.model_24 = in[17];
+  zeff::anim_state_pack(out, s, model != 0);
 }
 // PM's LIGHTING choice from GfxFlags (0x0043a890) and back (0x0043a060's write).
 extern "C" int32_t probe_pm_light_maps_choice(uint32_t flags) { return mech3::light_maps_choice(flags); }

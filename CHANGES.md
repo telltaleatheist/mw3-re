@@ -714,6 +714,7 @@ Known quirks the rebuild deliberately keeps:
 - A softer message when files match neither 1.0 nor 1.2: they look modded or from another version, data mods are read but may not play right, and a mod that patches the old Mech3.exe won't apply. It never stopped the game, and still doesn't.
 - Your data folder (settings, pilots, saves, converted movies) can live on another drive: GAME FILES, MY DATA FOLDER in the launcher copies it, checks the copy, then switches over, and removes the old copy only if you say so. If the drive is missing at start the game says so instead of starting afresh.
 - Pirate's Moon: message boxes draw their buttons on the panel. The squares of the screen behind each button are gone.
+- Pirate's Moon: campaign games saved by the rebuild now use the original's format, so the original game can load them (it used to close itself while loading the mission). Games saved by earlier versions of the rebuild still load.
 - An install without the game's fonts (arial.ttf, impact.ttf, lucon.ttf) shows its text with the system's fonts, and says so in the log, where it used to show blank labels.
 - Restarting a mission after a mech lost a limb can no longer crash in the pathfinding's start-up, which followed the limb to its freed mech.
 - The launcher brings its own font (Saira Condensed Bold, free under the SIL Open Font License) on every system, in place of Bahnschrift, DIN Condensed or a Linux face, so a Linux without the expected fonts no longer shows empty buttons. Without it the launcher searches the system's font folders.

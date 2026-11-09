@@ -191,38 +191,6 @@ bool saved(const AnimDef* d) {
   return !((f & 0x1000) && !(f & 0x2000)) && g_log.save_on;
 }
 
-// An object's node state, 0x44 bytes: its live index (-1: none, the rest
-// left as it was), whether active, whether it keeps a matrix, then the matrix
-// or the translation, rotation and scale; with `model` (the activations') its
-// model's flag 8 in bit 0 of +0x3c and the model's +0x24 at +0x40.
-void save_node(uint8_t* p, zcls::Node* n, bool model) {
-  if (!n || n->cls() != 5) {
-    wr<int32_t>(p, 0, -1);
-    return;
-  }
-  wr<int32_t>(p, 0, live_node_index(n));
-  wr<uint32_t>(p, 4, (n->flags() >> 2) & 1);
-  const uint32_t matrix = (static_cast<zcls::Object3d*>(n->data)->get<uint32_t>(0) >> 4) & 1;
-  wr<uint32_t>(p, 8, matrix);
-  auto* f = reinterpret_cast<float*>(p + 0xc);
-  if (matrix) {
-    std::memcpy(p + 0xc, zcls::object3d_matrix(n), 0x30);
-  } else {
-    float v[9];
-    zcls::object3d_get_translation(n, &v[0], &v[1], &v[2]);
-    zcls::object3d_get_rotation(n, &v[3], &v[4], &v[5]);
-    zcls::object3d_get_scale(n, &v[6], &v[7], &v[8]);
-    std::memcpy(f, v, sizeof v);
-  }
-  if (!model) return;
-  uint32_t bit = rd<uint32_t>(p, 0x3c) & ~1u;
-  if (const uint8_t* h = zcls::node_model_header(n)) {
-    bit |= (rd<uint32_t>(h, 8) >> 3) & 1;
-    wr<uint32_t>(p, 0x40, rd<uint32_t>(h, 0x24));
-  }
-  wr<uint32_t>(p, 0x3c, bit);
-}
-
 // FIX (bug): a node index read from a saved game, as 0x004fe1d0 takes it,
 // but one past the pool (a damaged save) is no node instead of memory past it;
 // FIX (A): a peer's effect record (0x1a) names them too (fixes.md). Below 0
@@ -233,39 +201,77 @@ zcls::Node* saved_node(int32_t i) {
   return zcls::node_at(i);
 }
 
-void load_node(const uint8_t* p, bool model) {
+// An object's node state as Pirate's Moon saves it, 0x3c bytes (MW3's was 0x44, its flags a word each): its
+// live index (-1: none, the rest left as it was), then a word of bits (0 active, 1 it keeps a matrix, 2 with
+// `model`, the activations', its model's flag 8), the matrix or the translation, rotation and scale, and with
+// `model` the model's +0x24 at +0x38. Bits the save does not set keep what the buffer held, as the exe's stack.
+// Pirate's Moon 1.0 @ 0x00524e10 (the activations') and 0x00525d70 (the defs'), inline in both.
+void save_node(uint8_t* p, zcls::Node* n, bool model) {
+  if (!n || n->cls() != 5) {
+    wr<int32_t>(p, 0, -1);
+    return;
+  }
+  AnimObjectState s;
+  s.index = live_node_index(n);
+  s.active = (n->flags() >> 2) & 1;
+  s.matrix = (static_cast<zcls::Object3d*>(n->data)->get<uint32_t>(0) >> 4) & 1;
+  if (s.matrix) {
+    std::memcpy(s.m, zcls::object3d_matrix(n), 0x30);
+  } else {
+    zcls::object3d_get_translation(n, &s.m[0], &s.m[1], &s.m[2]);
+    zcls::object3d_get_rotation(n, &s.m[3], &s.m[4], &s.m[5]);
+    zcls::object3d_get_scale(n, &s.m[6], &s.m[7], &s.m[8]);
+  }
+  if (const uint8_t* h = model ? zcls::node_model_header(n) : nullptr) {
+    s.has_model = true;
+    s.model_flags = rd<uint32_t>(h, 8);
+    s.model_24 = rd<uint32_t>(h, 0x24);
+  }
+  anim_state_pack(p, s, model);
+}
+
+// Pirate's Moon 1.0 @ 0x00525180 (the activations', with `model`) and 0x00525fe0 (the defs'). `old` reads the
+// 0x44-byte states our builds wrote before (MW3's layout, 2026-11-08 and earlier): pm-tests item 30.
+void load_node(const uint8_t* p, bool model, bool old) {
   zcls::Node* n = saved_node(rd<int32_t>(p, 0));
   if (!n || n->cls() != 5) return;
-  const int32_t active = rd<int32_t>(p, 4);
-  zerr::reportf(0x100, kSaveFile, model ? 0x208 : 0x41f, "Restore node: %s %d", n->name(), active);
-  zcls::node_set_active(n, active != 0);
-  if (active) {
-    if (rd<int32_t>(p, 8)) {
-      zcls::object3d_set_matrix(n, reinterpret_cast<const float*>(p + 0xc));
+  const uint32_t bits = old ? (rd<uint32_t>(p, 4) != 0 ? 1u : 0u) | (rd<uint32_t>(p, 8) != 0 ? 2u : 0u) |
+                                  ((rd<uint32_t>(p, 0x3c) & 1) << 2)
+                            : rd<uint32_t>(p, 4);
+  const uint8_t* m = p + (old ? 0xc : 8);
+  const uint32_t model_24 = rd<uint32_t>(p, old ? 0x40 : 0x38);
+  zerr::reportf(0x100, kSaveFile, model ? 0x208 : 0x41f, "Restore node: %s %d", n->name(), bits & 1);
+  zcls::node_set_active(n, (bits & 1) != 0);
+  if (bits & 1) {
+    if (bits & 2) {
+      zcls::object3d_set_matrix(n, reinterpret_cast<const float*>(m));
     } else {
-      zcls::object3d_set_translation(n, rd<float>(p, 0xc), rd<float>(p, 0x10), rd<float>(p, 0x14));
-      zcls::object3d_set_rotation(n, rd<float>(p, 0x18), rd<float>(p, 0x1c), rd<float>(p, 0x20));
-      zcls::object3d_set_scale(n, rd<float>(p, 0x24), rd<float>(p, 0x28), rd<float>(p, 0x2c));
+      zcls::object3d_set_translation(n, rd<float>(m, 0), rd<float>(m, 4), rd<float>(m, 8));
+      zcls::object3d_set_rotation(n, rd<float>(m, 0xc), rd<float>(m, 0x10), rd<float>(m, 0x14));
+      zcls::object3d_set_scale(n, rd<float>(m, 0x18), rd<float>(m, 0x1c), rd<float>(m, 0x20));
     }
   }
   // The model's flag is only ever set back, never cleared.
   uint8_t* h = model ? zcls::node_model_header(n) : nullptr;
-  if (h && (rd<uint32_t>(p, 0x3c) & 1)) {
+  if (h && (bits & 4)) {
     wr<uint32_t>(h, 8, rd<uint32_t>(h, 8) | 8);
-    wr<uint32_t>(h, 0x24, rd<uint32_t>(p, 0x40));
+    wr<uint32_t>(h, 0x24, model_24);
   }
 }
 
 // The objects' states after a 0x58-byte head (+0x54 the status, +0x55 the count).
-int32_t states_size(const uint8_t* b) { return 0x58 + 0x44 * b[0x55]; }
+int32_t states_size(const uint8_t* b) { return 0x58 + kAnimStateSize * b[0x55]; }
 void save_objects(uint8_t* b, AnimDef* d, bool model) {
   b[0x55] = d->count(0x109);
-  for (int k = 0; k < d->count(0x109); ++k) save_node(b + 0x58 + 0x44 * k, d->objects[k].node, model);
+  for (int k = 0; k < d->count(0x109); ++k) save_node(b + 0x58 + kAnimStateSize * k, d->objects[k].node, model);
 }
-// FIX (bug): an entry shorter than its count says (a damaged save) had the exe
-// read past it; only the states it holds are restored.
+// An entry exactly as long as MW3's layout for its count is one our earlier builds wrote (the sizes differ for
+// any count above 0). FIX (bug): an entry shorter than its count says (a damaged save) had the exe read past it;
+// only the states it holds are restored.
 void load_objects(const uint8_t* b, uint32_t size, bool model) {
-  for (int k = 0; k < b[0x55] && 0x58u + 0x44u * (k + 1) <= size; ++k) load_node(b + 0x58 + 0x44 * k, model);
+  const bool old = b[0x55] != 0 && size == 0x58u + kAnimStateSizeMw3 * b[0x55];
+  const uint32_t step = old ? kAnimStateSizeMw3 : kAnimStateSize;
+  for (uint32_t k = 0; k < b[0x55] && 0x58u + step * (k + 1) <= size; ++k) load_node(b + 0x58 + step * k, model, old);
 }
 }  // namespace
 
@@ -651,6 +657,65 @@ void anim_load(zsave::Context& /*ctx*/, const char* /*sub*/, const void* data, u
     zerr::reportf(0x100, kSaveFile, 0x418, "_zEffAnimReset: %s", c->name());
   }
   load_objects(b, size, false);
+}
+
+bool anim_state_round_trip(bool old, const char** name, bool* restored) {
+  *restored = false;
+  for (int32_t j = 1; j < anim().def_count(); ++j) {
+    AnimDef* d = def_at(j);
+    for (int k = 0; d->objects && k < d->count(0x109); ++k) {
+      zcls::Node* n = d->objects[k].node;
+      if (!n || n->cls() != 5 || (static_cast<zcls::Object3d*>(n->data)->get<uint32_t>(0) >> 4) & 1) continue;
+      *name = n->name();
+      zcls::node_set_active(n, 1);
+      const float t[3] = {12.5f, -7.25f, 3.0f}, r[3] = {0.25f, -0.5f, 0.125f};  // a place and turn of its own
+      zcls::object3d_set_translation(n, t[0], t[1], t[2]);
+      zcls::object3d_set_rotation(n, r[0], r[1], r[2]);
+      std::vector<uint8_t> b(0x58 + kAnimStateSizeMw3, 0);
+      b[0x55] = 1;
+      if (!old) {
+        save_node(b.data() + 0x58, n, true);
+        b.resize(0x58 + kAnimStateSize);
+      } else {  // MW3's 0x44: the index, then active, matrix and the model's flag a word each
+        wr<int32_t>(b.data() + 0x58, 0, live_node_index(n));
+        wr<uint32_t>(b.data() + 0x58, 4, 1);
+        float v[9];
+        zcls::object3d_get_translation(n, &v[0], &v[1], &v[2]);
+        zcls::object3d_get_rotation(n, &v[3], &v[4], &v[5]);
+        zcls::object3d_get_scale(n, &v[6], &v[7], &v[8]);
+        std::memcpy(b.data() + 0x58 + 0xc, v, sizeof v);
+      }
+      zcls::object3d_set_translation(n, t[0] + 100.0f, t[1] - 50.0f, t[2] + 25.0f);
+      zcls::object3d_set_rotation(n, 0.0f, 0.0f, 0.0f);
+      zcls::node_set_active(n, 0);
+      load_objects(b.data(), static_cast<uint32_t>(b.size()), true);
+      float u[3], v[3];
+      zcls::object3d_get_translation(n, &u[0], &u[1], &u[2]);
+      zcls::object3d_get_rotation(n, &v[0], &v[1], &v[2]);
+      *restored = ((n->flags() >> 2) & 1) && u[0] == t[0] && u[1] == t[1] && u[2] == t[2] && v[0] == r[0] &&
+                  v[1] == r[1] && v[2] == r[2];
+      return true;
+    }
+  }
+  return false;
+}
+
+void anim_state_pack(uint8_t* p, const AnimObjectState& s, bool model) {
+  wr<int32_t>(p, 0, s.index);
+  uint32_t bits = rd<uint32_t>(p, 4);
+  bits = (bits & ~1u) | (s.active & 1);
+  bits = (bits & ~2u) | ((s.matrix & 1) << 1);
+  if (s.matrix) std::memcpy(p + 8, s.m, 0x30);
+  else std::memcpy(p + 8, s.m, 0x24);
+  if (model) {
+    if (s.has_model) {
+      bits = (bits & ~4u) | ((s.model_flags >> 1) & 4);
+      wr<uint32_t>(p, 0x38, s.model_24);
+    } else {
+      bits &= ~4u;
+    }
+  }
+  wr<uint32_t>(p, 4, bits);
 }
 
 }  // namespace zeff

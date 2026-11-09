@@ -33,6 +33,24 @@ struct AnimLog {
 };
 AnimLog& anim_log();
 
+// An animation object's node state in a saved world (zeff_anim_save.cpp, save_node): Pirate's Moon's 0x3c bytes.
+// Earlier builds of ours wrote MW3's 0x44, read back by their size.
+constexpr uint32_t kAnimStateSize = 0x3c, kAnimStateSizeMw3 = 0x44;
+struct AnimObjectState {
+  int32_t index = -1;              // the node's live index
+  uint32_t active = 0, matrix = 0;
+  float m[12] = {};                // the matrix, or translation, rotation and scale
+  bool has_model = false;
+  uint32_t model_flags = 0, model_24 = 0;  // the model header's +0x08 and +0x24
+};
+// Into `p` as Pirate's Moon 1.0's writers do (0x00524e10, 0x00525d70): the word of bits keeps what `p` held
+// above the bits set; without `model` (the defs') bit 2 and +0x38 keep it too.
+void anim_state_pack(uint8_t* p, const AnimObjectState& s, bool model);
+// Tests only: the first animation object on a live 3D node saved as an activation's entry (PM's layout, or with
+// `old` MW3's as our earlier builds wrote) after it is given a place and turn of its own, then moved, turned and
+// hidden, and the entry loaded back. Out: the node's name; true when its place, turn and active flag came back. False with no such object.
+bool anim_state_round_trip(bool old, const char** name, bool* restored);
+
 AnimLogRecord* log_new_record();   // 0x0050bd50
 void log_drop_record();            // 0x0050ccd0, the last one
 
