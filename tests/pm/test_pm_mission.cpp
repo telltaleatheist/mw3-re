@@ -705,6 +705,16 @@ static void kill_run(const char* which, bool quick) {
       if (++t == 2 || t == 60) std::printf("  headlight: %d at %.0f %.0f %.0f\n", pm_headlight(player, true, at), at[0], at[1], at[2]);
       if (t < 60) return;
     }
+    // pm-tests item 21: the current weapon destroyed with the next in the list already gone, the HUD up.
+    if (std::getenv("PM_GONE")) {
+      bool picked = false;
+      const int32_t on = mech3::mech_weapon_gone_case(player, &picked);
+      const bool hud = mech3::program_mech_hud(player) != nullptr;
+      std::printf("  the HUD up %d, the current weapon selected %d, on a destroyed one after %d\n", hud, picked, on);
+      EXPECT(hud && picked && on == 0);
+      done = true;
+      return;
+    }
     // pm-tests item 25: the player 200 m from this mech, it targeted and the reticle locked at frame 30; at 60
     // E (the next enemy) and the lock logged each frame after.
     if (std::getenv("PM_LOCK")) {
@@ -1244,7 +1254,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1313,6 +1323,28 @@ TEST(pm_tag_fires_from_the_mech) {
   int status = 1;
   waitpid(child, &status, 0);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// pm-tests item 21: the current weapon destroyed with the weapon after it in the HUD's list already gone. Pirate's
+// Moon refreshes the list before taking its pick (0x004b6f70 calls 0x004480a0 first), so the pick leaves the
+// destroyed one out; MW3 took it stale and stayed on a destroyed weapon. PM's own, so with the bug fixes off too.
+TEST(pm_selection_leaves_a_destroyed_weapon) {
+#if !defined(_WIN32)
+  for (const bool off : {false, true}) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_GONE", "1", 1);
+      if (off) setenv("PM_BUGS_OFF", "1", 1);
+      kill_run("1,1,3", true);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
 #endif
 }
 

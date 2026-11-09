@@ -1324,7 +1324,7 @@ void Weapon::add_damage(float d) {
   if (damage == 1.0f) destroy();
 }
 
-// Mech3.exe 1.2 @ 0x004b3020
+// Mech3.exe 1.2 @ 0x004b3020, Pirate's Moon 1.0 @ 0x004b6f70 (the HUD's list refreshed before its pick is read).
 void Weapon::destroy() {
   damage = 1.0f;
   release();
@@ -1334,6 +1334,8 @@ void Weapon::destroy() {
   if (is_player(owner) && g_calls.destroyed_sounds) g_calls.destroyed_sounds(t->name_sound, t->part_destroy_sound);
   if (manager->current() == this) {
     if (is_player(owner) && g_calls.screen && g_calls.screen(owner)) {
+      // PM: the list first (0x004480a0), so its pick (the next that can fire) leaves this one out.
+      if (g_calls.hud_weapons) g_calls.hud_weapons(owner);
       // The HUD's highlighted weapon becomes the current one.
       if (Weapon* hl = g_calls.hud_highlight ? g_calls.hud_highlight(owner) : nullptr) {
         if (manager->select_group(hl->group)) manager->group_ptr()->select(hl);
