@@ -724,10 +724,11 @@ Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
   dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
   if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
   const std::string entry = zutl::host(name);
-  static std::vector<std::string> said;  // each copy said once in the log
+  static std::vector<std::string> said;  // each copy said once in the log, again if why it reads (or not) changes
   auto say = [&](const std::string& what, const char* fmt, const std::string& why) {
-    if (std::find(said.begin(), said.end(), what) != said.end()) return;
-    said.push_back(what);
+    const std::string key = what + '\n' + why;
+    if (std::find(said.begin(), said.end(), key) != said.end()) return;
+    said.push_back(key);
     std::printf(fmt, what.c_str(), why.c_str(), a.path);
   };
   auto took = [&](const std::string& what, Node* root) {
