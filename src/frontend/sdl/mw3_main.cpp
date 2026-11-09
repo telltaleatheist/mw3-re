@@ -35,7 +35,8 @@
 //   --campaign-chain new:N|resume:N|kills:N|retry:N  a pilot through the campaign as a player (ours,
 //                        campaign_chain.h): N missions won, shots in --write-dir
 //   --frame-ms N         each frame shown is N ms on the game's clock, however
-//                        fast it is drawn (ours: scripted runs keep their timing)
+//                        fast it is drawn (ours: scripted runs keep their timing);
+//                        with the network on, no faster than the wall clock
 //   --seed N             rand seeded with N where the game seeds it from the clock (ours)
 //   --window WxH         window size (default 1280x960; with any_resolution the
 //                        frame's shape, and a given size pillarboxes the frame)
@@ -871,6 +872,9 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
   clock.frame_ms = static_cast<uint32_t>(a.frame_ms);
+  // A network run's frames keep the wall clock too: the peers' packets come in
+  // real time, and a build that draws fast ran its game clock far ahead of them.
+  clock.paced = a.frame_ms > 0 && (a.net_host || !a.net_join.empty() || a.net_port >= 0 || !a.net_lan.empty() || a.net_soak);
   // --seed: every srand(time()) takes N instead (with --frame-ms a run repeats).
   if (a.seed >= 0) {
     crt::rand_fixed_seed() = static_cast<uint32_t>(a.seed);

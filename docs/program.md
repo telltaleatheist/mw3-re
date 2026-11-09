@@ -497,7 +497,13 @@ apart. Everything else is a real gap and stays listed.
   no message waiting), a sleep only adding its time. Scripted runs keep the
   same timing and run as fast as they draw. Until 2026-10-29 a pass that
   only took a window or SDL event counted too, so the clock depended on
-  the machine's load.
+  the machine's load. A network run (`--host`, `--join`, `--net-port`,
+  `--net-lan` or `--net-soak` with it) is paced as well: each pass also
+  waits until the wall clock reaches the passes times N plus the sleeps,
+  because the other players' packets come in real time. Without it a
+  Release build ran its game about 20 times faster than its peers (a
+  Debug one draws at about 33 ms anyway), and the two-process checks
+  failed only in Release (2026-11-08). Single-process runs stay free.
 - `--frame-times N` (ours, for measuring; performance.md): from the N-th
   frame shown, each frame's wall time (present to present), summed up at
   the end: mean, median, p95, p99, max.
