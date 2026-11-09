@@ -10,6 +10,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mission.h"
 #include "mech3/pilot.h"
+#include "upgrades/reference/reference.h"
 
 namespace mech3 {
 
@@ -64,14 +65,14 @@ bool campaign_parse(const std::string& text, ModCampaign* out) {
     const size_t eq = line.find('=');
     if (eq == std::string::npos) return refuse(line, "no key=value here");
     const std::string key = lower(trim(line.substr(0, eq))), value = trim(line.substr(eq + 1));
-    if (key == "name" || key == "movie_start" || key == "movie_end" || key == "stock") {
+    if (upgrades::reference::key_is(key, "name") || upgrades::reference::key_is(key, "movie_start") || upgrades::reference::key_is(key, "movie_end") || upgrades::reference::key_is(key, "stock")) {
       std::string& field = key == "name" ? out->name : key == "movie_start" ? out->movie_start : key == "movie_end" ? out->movie_end : out->stock;
       if (value.empty()) return refuse(line, "no value");
       if (key != "stock" && !field.empty()) return refuse(line, "a second " + key + "= line");
       if (key == "stock" && lower(value) != "default") return refuse(line, "only stock=default (the original's new-campaign stock) for now");
       if (key != "name" && !plain_name(value)) return refuse(line, "a movie is fmv.zrd's name, one word");
       field = key == "stock" ? "default" : value;
-    } else if (key == "op") {
+    } else if (upgrades::reference::key_is(key, "op")) {
       std::istringstream ws(value);
       std::vector<std::string> words;
       for (std::string w; ws >> w;) words.push_back(w);
@@ -83,7 +84,7 @@ bool campaign_parse(const std::string& text, ModCampaign* out) {
       if (op.empty()) return refuse(line, "an operation needs its heading");
       if (op_line) return out->error = "line " + std::to_string(op_line) + ": an op= with no mission after it", false;
       op_line = n, op_bases = bases;
-    } else if (key == "mission") {
+    } else if (upgrades::reference::key_is(key, "mission")) {
       std::istringstream ws(value);
       std::vector<std::string> words;
       for (std::string w; ws >> w;) words.push_back(w);

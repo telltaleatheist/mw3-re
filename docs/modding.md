@@ -5,6 +5,13 @@ without any change to the exe later"; small, "nothing big and dramatic").
 With no mods enabled nothing is mounted and nothing in play changes; nothing
 is ever written into the install or into a mod.
 
+Every key each file a mod can change takes, with its type, default and
+limits: `docs/modding-reference.md`, generated from `src/upgrades/reference/`
+(`mw3 --reference docs/modding-reference.md`; the test `reference_*` fails
+when a reader and its registry disagree or the document is stale). Covered so
+far: mod.txt, custom campaigns, weapons.zrd; the mech definitions, the
+mission readers' records, the script commands and the JSON forms follow.
+
 ## A mod (M1, 2026-11-01)
 
 A folder in the settings folder's `mods\` (the write dir: on Windows
