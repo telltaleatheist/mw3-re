@@ -1048,6 +1048,7 @@ int probe_pm_names(int fn, int a, int b, const char** text) {
   }
 }
 int probe_pm_name_index(int weapon, const char* name) { return weapon ? ::mech3::weapon_index(name) : ::mech3::mech_index(name); }
+int probe_pm_weapon_family(int weapon) { return ::mech3::weapon_family(weapon); }  // test_pm_weapon_voice.py
 
 // test_pm_shadows.py: the projected-shadow casters (zmod shadow_*, Pirate's Moon 0x0055d740..0x0055dec0) on
 // the trees probe_pm_mechlib loaded. One call: 0 init, 1 new (its id), 2 size(w, h), 3 node(a: a loaded root,

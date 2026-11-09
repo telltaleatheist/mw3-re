@@ -204,16 +204,12 @@ bool weapon_uses_ammo(int32_t weapon) {
   return weapon >= 0 && weapon < kWeaponCount && kWeapons[weapon].ammo;
 }
 
-// Mech3.exe 1.2 @ 0x004853c0: a weapon's family, the table's word at 0x005e64f8, which picks its
-// "destroyed" voice (0x00609400 + 4 x family, mech_lib's weapon_voice): 1 autocannons, 2 ER lasers,
-// 3 ER PPC, 4 Gauss, 5 flamer, 6 lasers, 7 LRM, 8 machine gun, 9 NARC, 10 PPC (the rebuild's 38th),
-// 11 pulse lasers, 12 SRM, 13 Streak, 14 TAG; 0 (the LB-X autocannons) has none. The exe reads past
-// the table for an index out of range; 0 here.
-int32_t weapon_family(int32_t weapon) {
-  static const uint8_t kFamily[38] = {1, 1, 1, 1, 2, 2, 2, 3, 5, 4, 6,  6,  6,  0,  0,  0,  0,  7,  7,
-                                      7, 7, 8, 9, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 1, 1, 1, 1, 10};
-  return weapon >= 0 && weapon < weapon_count() ? kFamily[weapon] : 0;
-}
+// Pirate's Moon 1.0 @ 0x004875a0 (Mech3.exe 1.2 @ 0x004853c0): a weapon's family, its row's third
+// word (0x00608820), which picks its "destroyed" voice (0x0062d438 + 4 x family, mech_lib's
+// weapon_voice; the same 14 as MW3's): 1 autocannons, 2 ER lasers, 3 ER PPC, 4 Gauss, 5 flamer,
+// 6 lasers, 7 LRM and MRM, 8 machine guns, 9 NARC, 10 PPC, 11 pulse lasers, 12 SRM, 13 Streak,
+// 14 TAG; 0 (the LB-X autocannons) has none. The exe reads past the table out of range; 0 here.
+int32_t weapon_family(int32_t weapon) { return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].family : 0; }
 
 // Mech3.exe 1.2 @ 0x00484940: the techs a weapon comes in (1 Clan, 2 Inner
 // Sphere; TAG none).
