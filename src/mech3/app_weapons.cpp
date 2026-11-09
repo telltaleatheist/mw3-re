@@ -698,10 +698,14 @@ int mech_lock_on_shot(void* mech, float at[3], bool* has_lock) {
   for (uint32_t i = 0; wm && i < wm->count; ++i) {
     Weapon* w = wm->weapons[i];
     if (!w || !w->def || !(w->def->flags & zwep::kLockOn)) continue;
+    // The mech's own (its node the shooter's): another mech's of the same weapon can be the newest.
     zwep::Projectile* p = w->def->active;
+    while (p && p->owner != static_cast<Mech*>(mech)->node) p = p->next;
     if (!p) return 0;
     at[0] = p->position.x, at[1] = p->position.y, at[2] = p->position.z;
-    *has_lock = p->lock_entity != nullptr;
+    // What it homes on (set only when locked, cleared at every spawn); +0x6c (lock_entity) is left from the
+    // pooled slot's last shot, another mech's maybe.
+    *has_lock = p->target_at != nullptr;
     return 1;
   }
   return 0;

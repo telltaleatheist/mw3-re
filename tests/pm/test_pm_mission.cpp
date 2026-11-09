@@ -78,6 +78,11 @@
 #include "mech3/zai_wire_pm.h"
 #include "gamez/zsound/zsnd.h"
 #include "platform/silent_sound.h"
+#include "platform/render3d.h"
+#include "gamez/ztwod/twod_host.h"
+#include "gamez/zutil/zutl_msgdll.h"
+#include "gamez/zclass/cls_di.h"
+#include "gamez/zmodel/gmod_cull.h"
 
 namespace {
 struct Window : platform::Window {
@@ -2086,4 +2091,171 @@ TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
   mech3::reset_states();
   mech3::options() = mech3::Options{};
   mech3::action_setup() = mech3::ActionSetup{};
+}
+
+// pm-tests item 25 on Pirate's Moon, as mission_c1m2_lock_drops_on_a_new_target_headless on MW3: in c1m2, locked on
+// an enemy mech (A), E to the next enemy (B), an LRM volley at once without aiming at B. The target change resets the
+// reticle (PM 0x0041e7e0 -> 0x00442f10 -> 0x00445580, as MW3's), so the volley is not locked: its missiles carry no
+// target to home on. E is PM's command 0x48 (MW3's 0x46).
+static float pm_ground_under(float x, float top, float z) {  // test_program.cpp's ground_under
+  zcls::Node* w = mech3::world_hooks().world;
+  if (!w) return std::nanf("");
+  float probe[3] = {x, top, z};
+  static zcls::GroundHits hits;
+  const int32_t mode = zmod::zones().mode;
+  zmod::zones().mode = 0;
+  zcls::ground_query(w, probe, 1, top, &hits);
+  zmod::zones().mode = mode;
+  float best = std::nanf("");
+  for (int i = 0; i < hits.count; ++i) {
+    if (hits.hit[i].material && hits.hit[i].material->soil == 1) continue;
+    if (!(hits.hit[i].height <= best)) best = hits.hit[i].height;
+  }
+  return best;
+}
+
+static void lock_drop_run() {
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_lock_drop_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Gpu : platform::Render3D {  // a device, so the HUD is made as in play
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  struct ModeHost : ztwod::Host {
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys, p.render = &gpu;
+  int fired = -1, before = -1, after_e = -1, mechs = 0;
+  bool changed = false, locked = true, shot_lock = true;
+  const void* a_contact = nullptr;
+  float a[3] = {}, b[3] = {}, first[3] = {}, last[3] = {};
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.number = 2;  // c1m2
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int f = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++f;
+      void* me = mech3::mission_player_mech();
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      mechs = n;
+      if (!me || n < 2) return;
+      bool has = false;
+      if (f == 3) {  // 200 m from A, facing it, on ground about A's height (east of A, MW3's spot, is c1m2's canyon here)
+        mech3::mech_world_position(ai[0].mech, a);
+        float at[3] = {}, off = 1e30f;
+        for (int k8 = 0; k8 < 8; ++k8) {
+          const float t = 0.7853982f * static_cast<float>(k8);
+          const float x = a[0] + 200.0f * std::cos(t), z = a[2] + 200.0f * std::sin(t);
+          const float y = pm_ground_under(x, a[1] + 50.0f, z);
+          if (std::fabs(y - a[1]) < off) off = std::fabs(y - a[1]), at[0] = x, at[1] = y, at[2] = z;
+        }
+        mech3::move_mech(me, at, std::atan2(at[0] - a[0], at[2] - a[2]));  // facing it: forward is -z
+      }
+      // PM's mech powers up for the first seconds (no fire, no commands): the sequence after it.
+      constexpr int k = 200;
+      if (f == k + 10) mech3::program_hud_target(ai[0].mech, 0), mech3::program_reticle_lock(3, 3.5f, &has);
+      if (f == k + 39) before = mech3::program_reticle_lock(-1, 0, &has);
+      if (f == k + 40) {
+        a_contact = mech3::program_view_target_contact();
+        mech3::mech_command(me, 0x48);  // E: the next enemy (PM's 0x004d6710)
+        float d[3], p0[3];
+        if (mech3::program_view_target_contact() != a_contact && mech3::program_view_target_delta(d)) {
+          mech3::mech_world_position(me, p0);
+          b[0] = p0[0] + d[0], b[1] = p0[1] + d[1], b[2] = p0[2] + d[2];
+          changed = true;
+        }
+      }
+      if (f == k + 41) after_e = mech3::program_reticle_lock(-1, 0, &has);
+      if (f == k + 42) fired = mech3::mech_trigger_lock_on(me, &locked);
+      if (f > k + 42) {
+        bool l2 = false;
+        float q[3];
+        if (mech3::mech_lock_on_shot(me, q, &l2)) {
+          if (f == k + 43) std::copy(q, q + 3, first), shot_lock = l2;
+          std::copy(q, q + 3, last);
+        }
+      }
+    };
+    Pump pump;
+    pump.stop = [&] { return f >= 320; };
+    pump.limit = 4000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  pm: reticle %d before E, %d after; volley fired %d locked %d, its shot locked %d; from %.0f %.0f to %.0f %.0f "
+              "(A %.0f %.0f, B %.0f %.0f)\n",
+              before, after_e, fired, locked, shot_lock, first[0], first[2], last[0], last[2], a[0], a[2], b[0], b[2]);
+  EXPECT(mechs >= 2 && changed);
+  EXPECT(before == 3 && after_e != 3);
+  EXPECT(fired == 1 && !locked && !shot_lock);
+}
+
+TEST(pm_c1m2_lock_drops_on_a_new_target_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  // In a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    lock_drop_run();
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+  lock_drop_run();
+#endif
 }
