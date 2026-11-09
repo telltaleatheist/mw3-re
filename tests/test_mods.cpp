@@ -524,7 +524,7 @@ TEST(mods_list_for_the_launcher) {
   std::error_code ec;
   fs::create_directories(wd + "/mw3.cfg.new", ec);
   EXPECT(!mech3::mods_save_enabled(wd, {"z"}));
-  EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"x"}));
+  EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"x"}) && fs::is_directory(wd + "/mw3.cfg.new", ec));  // not ours: kept
   fs::remove(wd + "/mw3.cfg.new", ec);
   EXPECT(mech3::mods_save_enabled(wd, {"z"}) && (mech3::mods_enabled(wd) == std::vector<std::string>{"z"}) &&
          !fs::exists(wd + "/mw3.cfg.new", ec));

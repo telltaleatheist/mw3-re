@@ -428,13 +428,13 @@ bool mods_save_enabled(const std::string& write_dir, const std::vector<std::stri
     o.flush();
     if (!o) {
       o.close();
-      fs::remove(tmp, ec);
+      if (fs::is_regular_file(tmp, ec)) fs::remove(tmp, ec);  // ours only: never a folder in its place
       return false;
     }
   }
   fs::rename(tmp, cfg, ec);
   if (ec) {
-    fs::remove(tmp, ec);
+    if (fs::is_regular_file(tmp, ec)) fs::remove(tmp, ec);
     return false;
   }
   return true;
