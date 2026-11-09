@@ -2472,8 +2472,11 @@ TEST(pm_c1m2_lock_drops_on_a_new_target_headless) {
 
 // pm-tests item 36 (Owen 2026-11-09): "operation cwal" typed into the cheat
 // box took the mouse off the reticle. The box opened with Shift+Enter and
-// every key of the code pressed through the keyboard's path, a key a frame,
-// the mouse moved; the controls' view (2: the reticle) watched throughout.
+// every key of the code pressed through the keyboard's path, L let go after
+// the Enter that shuts the box (typing rolls over), the mouse moved before
+// and after: the view stays the reticle's (2), the mouse moves the reticle,
+// not the torso. The fix is zInput's (main, zin_kbd.cpp; test_program's
+// mission_c1m2_cheat_box_keys_stay_in_the_box_headless).
 namespace {
 uint32_t dik_of(char c) {
   static const char* rows[] = {"1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"};
@@ -2572,34 +2575,34 @@ TEST(pm_cheat_box_keeps_the_reticle) {
   int frames = 0, last_view = -1;
   bool done = false;
   std::string seen;
+  float moved_before = 0, moved_after = 0, twist_after = 0;
   engine.on_present = [&](int) {
     if (app.current() != &mech3::states().core) return;
     void* me = mech3::mission_player_mech();
     if (!me || pm_controls_view(me) < 0) return;
     ++frames;
+    // The mouse right for 10 frames before the code, left for 10 after.
     const bool moving = (frames >= 10 && frames < 20) || (frames >= 80 && frames < 90);
     keys.mouse_dx = moving ? (frames < 50 ? 4 : -4) : 0;
-    if (frames % 5 == 0 || moving) {
-      float a[4];
-      pm_controls_aim(me, a);
-      std::printf("  f%d dx %d: reticle %.3f %.3f, twist %.3f pitch %.3f\n", frames, keys.mouse_dx, a[0], a[1], a[2], a[3]);
-    }
+    float a[4];
+    pm_controls_aim(me, a);
+    if (frames == 10) moved_before = -a[0];
+    if (frames == 20) moved_before += a[0];
+    if (frames == 80) moved_after = a[0];
+    if (frames == 90) moved_after -= a[0];
+    if (frames >= 80 && frames <= 95) twist_after = std::max(twist_after, std::fabs(a[2]));
     if (pm_controls_view(me) != last_view) {
       last_view = pm_controls_view(me);
       seen += " f" + std::to_string(frames) + ":" + std::to_string(last_view);
     }
-    if (frames == 30) {
-      std::printf("  L is command %#x, Enter %#x\n", zin::key_command(0x26), zin::key_command(0x1c));
+    if (frames == 30) {  // Shift+Enter, the code, then L and Enter rolled over as typing does: L let go after the box shut
       keys.read({keys.ev(0x2a, true)});
       keys.read({keys.ev(0x1c, true), keys.ev(0x1c, false)});
       keys.read({keys.ev(0x2a, false)});
-      if (std::getenv("PM_CWAL_BATCH")) {  // the last letter and Enter in one read, as fast typing gives
-        keys.type("operation cwa");
-        keys.read({keys.ev(0x26, true), keys.ev(0x26, false), keys.ev(0x1c, true), keys.ev(0x1c, false)});
-      } else {
-        keys.type(std::getenv("PM_CWAL_TEXT") ? std::getenv("PM_CWAL_TEXT") : "operation cwal");
-        keys.press(0x1c);
-      }
+      keys.type("operation cwa");
+      keys.read({keys.ev(0x26, true)});
+      keys.read({keys.ev(0x1c, true)});
+      keys.read({keys.ev(0x26, false), keys.ev(0x1c, false)});
     }
     if (frames == 120) done = true;
   };
@@ -2609,5 +2612,8 @@ TEST(pm_cheat_box_keeps_the_reticle) {
   app.run(pump);
   zgame::set_game(zgame::mw3_table());
   zin::set_host(nullptr);
-  std::printf("  views:%s; cwal %d; frames %d\n", seen.c_str(), pm_cheat_fast() ? 1 : 0, frames);
+  std::printf("  views:%s; cwal %d; the reticle moved %.3f before, %.3f after; the twist after %.3f; frames %d\n", seen.c_str(),
+              pm_cheat_fast() ? 1 : 0, moved_before, moved_after, twist_after, frames);
+  EXPECT(pm_cheat_fast() && seen == " f1:2");  // the reticle's view throughout
+  EXPECT(moved_before > 0.1f && moved_after > 0.1f && twist_after < 0.01f);
 }
