@@ -9,6 +9,11 @@
 #include <functional>
 #include <string>
 #include <utility>
+
+#if !defined(_WIN32)
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 #include <vector>
 
 #include "check.h"
@@ -172,6 +177,25 @@ Played play_c1m1(int32_t mech, int frames) {
   return out;
 }
 
+// A launch in a child process, as pm's other launch tests (a second mission in
+// one process is not reset for: zcls's world cells); its checks fail the parent.
+void in_child(const std::function<void()>& run) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    run();
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+  run();
+#endif
+}
+
 struct MountsBack {
   zutl::Mounts was = zutl::mounts();
   ~MountsBack() {
@@ -202,13 +226,15 @@ TEST(pm_mods_mech_row_launches_as_the_player_c1m1_headless) {
   zutl::mount(install);
   EXPECT(log.find("mech thor_b added (mech 26, 70 t, the models of thor)") != std::string::npos);
   EXPECT(mech3::mech_count() == 27 && std::string(mech3::mech_title(26)) == "Thor B");
-  const Played run = play_c1m1(26, 30);
-  std::printf("  core %d, frames %d; roster %d, parts %d, weapons %d, height %.1f, speed %.1f, motions %d\n", run.core, run.frames,
-              run.mech.roster, run.mech.parts, run.mech.weapons, static_cast<double>(run.mech.height),
-              static_cast<double>(run.mech.max_speed), run.mech.motions);
-  EXPECT(run.core && run.made && run.mech.roster == 26);
-  EXPECT(run.mech.parts > 0 && run.mech.weapons > 0);  // the Thor's model and loadout
-  EXPECT(run.mech.height > 5.0f && run.mech.height < 20.0f && run.mech.max_speed > 10.0f && run.mech.motions);
+  in_child([] {
+    const Played run = play_c1m1(26, 30);
+    std::printf("  core %d, frames %d; roster %d, parts %d, weapons %d, height %.1f, speed %.1f, motions %d\n", run.core, run.frames,
+                run.mech.roster, run.mech.parts, run.mech.weapons, static_cast<double>(run.mech.height),
+                static_cast<double>(run.mech.max_speed), run.mech.motions);
+    EXPECT(run.core && run.made && run.mech.roster == 26);
+    EXPECT(run.mech.parts > 0 && run.mech.weapons > 0);  // the Thor's model and loadout
+    EXPECT(run.mech.height > 5.0f && run.mech.height < 20.0f && run.mech.max_speed > 10.0f && run.mech.motions);
+  });
 }
 
 // A real mod (private files, never in the repo): MW3_REAL_MOD names a folder
@@ -226,12 +252,12 @@ TEST(pm_mods_real_mod_reads_and_plays_headless) {
   for (const std::string& l : mech3::mod_check(dir, install, &errors)) report += l + "\n";
   std::printf("%s", report.c_str());
   EXPECT(errors == 0);
-  // As a player installs it: a folder in mods\ with a mod.txt beside its files (linked, not copied).
+  // As a player installs it: its files copied into a folder in mods\, a mod.txt beside them.
   std::error_code ec;
   fs::remove_all(wd, ec);
   fs::create_directories(wd + "/mods/real", ec);
   std::ofstream(wd + "/mods/real/mod.txt") << "name=Real\nfor=mw3pm\n";
-  fs::create_directory_symlink(fs::absolute(fs::path(dir) / "zbd"), wd + "/mods/real/zbd", ec);
+  fs::copy(dir, wd + "/mods/real", fs::copy_options::recursive | fs::copy_options::skip_existing, ec);
   EXPECT(!ec);
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd.c_str());
@@ -241,7 +267,11 @@ TEST(pm_mods_real_mod_reads_and_plays_headless) {
   zutl::mount(install);
   const std::string reader = zutl::find("zbd\\reader.zbd");
   EXPECT(reader.find("/mods/real/") != std::string::npos);  // the mod's, not the install's
-  const Played run = play_c1m1(mech3::kMadCat, 300);
-  std::printf("  core %d, frames %d; roster %d, weapons %d\n", run.core, run.frames, run.mech.roster, run.mech.weapons);
-  EXPECT(run.core && run.frames >= 300 && run.made && run.mech.roster == mech3::kMadCat && run.mech.weapons > 0);
+  EXPECT(log.find("0 replaced") == std::string::npos);  // its files seen
+  in_child([] {
+    const Played run = play_c1m1(mech3::kMadCat, 300);
+    std::printf("  core %d, frames %d; roster %d, weapons %d\n", run.core, run.frames, run.mech.roster, run.mech.weapons);
+    EXPECT(run.core && run.frames >= 300 && run.made && run.mech.roster == mech3::kMadCat && run.mech.weapons > 0);
+  });
+  fs::remove_all(wd, ec);  // ours (made above): the private files' copy gone
 }
