@@ -134,6 +134,8 @@
 #include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
 #include "upgrades/editor/mods_edit.h"
+#include "mech3/mech_reader.h"
+#include "upgrades/reference/reference.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "mech3/zainetedit.h"
@@ -9779,6 +9781,100 @@ TEST(settings_first_start_plays_at_the_desktop_size) {
 // and Core's power-up (0x0041cc30 from resume(7)) leave the Mad Cat powered
 // up; the throttle-up key, held through zInput, walks it forward along the
 // terrain (its feet on the ground), and a turn key turns it.
+// The modding reference's dfn files (docs/modding-reference.md): every key
+// any code looks up in a mech definition's tree while the 19 definitions
+// load and c1m1 starts (the player's and the enemies' mechs built, a few
+// frames run), equal to the registry. A lookup is the dfn's when the node
+// searched lies in one of the definitions' trees.
+namespace {
+struct RefLookup {
+  std::string key;
+  const void* node;
+};
+std::vector<RefLookup>& ref_lookups() {
+  static std::vector<RefLookup> v;
+  return v;
+}
+void ref_tree_nodes(const zrdr::Node* n, std::set<const void*>* out) {
+  if (!n) return;
+  out->insert(n);
+  if (n->type != zrdr::List) return;
+  for (int32_t i = 1; i < n->list[0].i; ++i) ref_tree_nodes(&n->list[i], out);
+}
+}  // namespace
+
+TEST(reference_dfn_keys_are_the_readers_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("reference_dfn_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  ref_lookups().clear();
+  std::set<const void*> dfn_nodes;
+  int loaded = 0, frames = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    upgrades::reference::observer() = [](const char*, const char* key, const void* node) {
+      if (node) ref_lookups().push_back({key, node});
+    };
+    for (int32_t m = 0; m < 19; ++m)
+      if (const mech3::MechDfn* d = mech3::mech_dfn(m)) ++loaded, ref_tree_nodes(d->reader, &dfn_nodes);
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() == &mech3::states().core) ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 4000;
+    pump.stop = [&] { return frames >= 30; };
+    app.run(pump);
+    upgrades::reference::observer() = nullptr;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::free_dfns();
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  std::set<std::string> read;
+  for (const RefLookup& r : ref_lookups())
+    if (dfn_nodes.count(r.node)) read.insert(r.key);
+  std::set<std::string> reg;
+  for (const upgrades::reference::File& f : upgrades::reference::files())
+    if (std::string(f.id) == "dfn") for (const upgrades::reference::Key& k : f.keys) reg.insert(k.key);
+  std::string missing, dead;
+  for (const std::string& k : read) if (!reg.count(k)) missing += k + " ";
+  for (const std::string& k : reg) if (!read.count(k)) dead += k + " ";
+  std::printf("  %d definitions, %d frames, %zu lookups, %zu keys; not in the registry: %s; never read: %s\n", loaded, frames,
+              ref_lookups().size(), read.size(), missing.c_str(), dead.c_str());
+  EXPECT(loaded == 19 && frames >= 30);
+  EXPECT(missing.empty() && dead.empty());
+  ref_lookups().clear();
+}
+
 TEST(mission_c1m1_player_walks_and_turns_headless) {
   if (!have_game()) return;
   SavedMounts keep;

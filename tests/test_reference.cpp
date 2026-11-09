@@ -36,7 +36,7 @@ std::set<std::string>& recorded() {
 // and context put back after.
 std::set<std::string> record(const char* context, const std::function<void()>& run) {
   recorded().clear();
-  ref::observer() = [](const char*, const char* key) { recorded().insert(key); };
+  ref::observer() = [](const char*, const char* key, const void*) { recorded().insert(key); };
   const char* was = ref::context();
   ref::context() = context;
   run();

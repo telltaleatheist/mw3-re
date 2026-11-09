@@ -152,3 +152,103 @@ A reader file: `KEY value` pairs and `( ... )` lists. Keys match exactly, case i
 | `U_LOOPED` | a weapon | a sound | none | - | A sound looped while firing. |
 | `U_RECHARGE_SND` | a weapon | a sound | none | - | Played when it has recharged. |
 | `NAMESOUND` | a weapon | a sound | none | - | The voice naming it. |
+
+## dfn_<mech>.zrd (a mech's definition)
+
+- Where: `zbd\reader.zbd`, `dfn_<mech>.zrd` (a mod's new mech: mod.txt's `mech=`)
+- Read by: `mech3::read_dfn` 0x0046ba40 and its blocks; the cameras 0x004215d0; the gaits and canned effects 0x00431a70
+
+A reader file as weapons.zrd's (keys exact, case included; a key the game does not know is never looked at). Angles are degrees in the file. `configurations`, `firepoints`, `skins` and the `camera`, `canned` and `motion` blocks hold `NAME ( ... )` records: the names are the modder's (a loadout's message key, a firepoint's node, a view's or effect's or gait's fixed name listed below). Every lookup searches the block depth first, so a key inside a nested record can answer for its parent's.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `version` | top | int | required | must be 2 | The format; any other refuses the mech. |
+| `chicken` | top | flag 0/1 | 0 | - | Walks with backward-bending (chicken) legs. |
+| `max_turn_rate` | top | float (rad/s) | 1.2566 (72 deg/s) | - | How fast it turns (the game uses half). |
+| `accel_rate` | top | float | 0.5 | - | How fast it speeds up. |
+| `decel_rate` | top | float | 1.3 | - | How fast it slows down. |
+| `turn_accel_factor` | top | float | 1.5 | - | How quickly turning gets up to speed. |
+| `crouch_height` | top | float (m) | 1.0 | - | How far it crouches. |
+| `engine_minmax` | top | list: min max (int) | 10 400 | the maximum is always 400 | The engine ratings the mech lab offers. |
+| `torso_limits` | top | list: max yaw, min pitch, max pitch (deg) | unset | three values | How far the torso turns and tilts. |
+| `torso_shake` | top | a block | the defaults below | - | How the torso shakes on a hit: the keys below. |
+| `pitch_amp` | torso_shake | float (deg) | 28 | - | Its pitch. |
+| `yaw_amp` | torso_shake | float (deg) | 25 | - | Its yaw. |
+| `roll_amp` | torso_shake | float (deg) | 12.6 | - | Its roll. |
+| `freq` | torso_shake | float | 14 | - | How fast it shakes. |
+| `damp_freq` | torso_shake | float | 2.9 | - | How fast it dies down. |
+| `lod_range` | top | list: two floats | 95 85 | - | The distances its simpler models take over. |
+| `lean_angle` | top | float (deg) | 25 | - | How far it leans into a turn. |
+| `lean_factor` | top | float | 1 | - | How much speed adds to the lean. |
+| `lean_speed` | top | float | 1 | - | How fast it leans. |
+| `recoil_bend` | top | float (deg) | 30 | - | How far firing bends it back. |
+| `recoil_slide` | top | float | 0 | - | How far firing slides it back. |
+| `recoil_twist` | top | float (deg) | 20 | - | How far firing twists it. |
+| `aim_slerp_freq` | top | float | 3 | - | How fast the arms swing to the aim. |
+| `aim_min_pitch` | top | float (deg) | -80 | - | The lowest the arms aim. |
+| `aim_max_pitch` | top | float (deg) | 70 | - | The highest the arms aim. |
+| `aim_min_yaw` | top | float (deg) | -80 | - | The furthest left the arms aim. |
+| `aim_max_yaw` | top | float (deg) | 80 | - | The furthest right the arms aim. |
+| `aim_arm_pitch_factor` | top | float | 0.3 | - | How much of the pitch the arms take. |
+| `aim_ignore_arms` | top | flag 0/1 | 0 | - | The arms do not aim. |
+| `skins` | top | `NAME (texture ...)` records | none | - | Its paint schemes: the first in full; `damage` in full; any other is the first plus a suffix. |
+| `firepoints` | top | `NODE ( ... )` records | none | - | Where its weapons fire from: the node, then the keys below. |
+| `part` | firepoints/<node>, ammo | a part's name | none | - | The part it sits in (a firepoint's; ammunition's). |
+| `radius` | firepoints/<node> | float | 0 | - | A firepoint's spread. |
+| `share` | firepoints/<node> | float | 0 | - | A firepoint's share of the part. |
+| `parts` | top | a block | none | looked up and ignored | No shipped file has one: every mech gets the same parts. |
+| `configurations` | top | `NAME ( ... )` records | required | one at least | Its loadouts, the name a message key; the keys below. |
+| `equipment` | configurations/<name> | list of names or (name part [tech]) | none | - | Fitted equipment (AMS, ECM, ...). |
+| `internal` | configurations/<name> | `endosteel` or another word | standard | - | Its internal structure. |
+| `engine` | configurations/<name> | a block | rating 200 | - | The engine: `rating`, `xl`, `max_turn_rate`. |
+| `rating` | configurations/<name>/engine | int | 200 | - | The engine's rating. |
+| `xl` | configurations/<name>/engine | flag | 0 | - | An XL engine. |
+| `max_turn_rate` | configurations/<name>/engine | float (rad/s) | the mech's | - | The loadout's turn rate (not halved, unlike the mech's). |
+| `armor` | configurations/<name> | a block | none | the points must match the mass | Its armour: the keys below. |
+| `ferro-fibrous` | configurations/<name>/armor | flag | 0 | - | Ferro-fibrous armour. |
+| `mass` | configurations/<name>/armor | float (t) | 0 | > 0; its points must add up | The armour's weight. |
+| `head` | configurations/<name>/armor | int | 0 | - | Points on the head. |
+| `arms` | configurations/<name>/armor | int | 0 | - | Points on each arm. |
+| `legs` | configurations/<name>/armor | int | 0 | - | Points on each leg. |
+| `torso` | configurations/<name>/armor | list: front rear (int) | 0 0 | - | The centre torso's points. |
+| `torsolr` | configurations/<name>/armor | list: front rear (int) | 0 0 | - | Each side torso's points. |
+| `weapons` | configurations/<name> | list of (weapon firepoint ...) | none | 16 at most (more are cut) | Its weapons: weapons.zrd's name, the firepoint, then the keys below. |
+| `ammo` | configurations/<name>/weapons/(...) | `ammo N [part P] [extra (a b c)]` | none | - | Rounds carried, where, and up to three more bins. |
+| `extra` | configurations/<name>/weapons/(...)/ammo | list of up to 3 ints | none | 3 at most | More bins of ammunition. |
+| `group` | configurations/<name>/weapons/(...) | int | 1 | 1 to 5 (clamped) | Its weapon group. |
+| `camera` | top | a block of views | none | - | Its cameras: `tether`, `attach`, `zippercam`, `godseye`, `mcbtether`, `area`. |
+| `tether` | camera | a camera block | none | - | The chase camera. |
+| `attach` | camera | a camera block | none | - | The cockpit camera. |
+| `zippercam` | camera | a camera block | none | - | The zipper camera. |
+| `godseye` | camera | a camera block | none | - | The overhead camera. |
+| `mcbtether` | camera | a camera block | none | - | The second chase camera. |
+| `area` | camera | a camera block | none | - | The fixed camera that keeps the mech in view. |
+| `dist` | camera/<view> | float (m) | the view's | - | Its distance. |
+| `dist_vary_factor` | camera/<view> | float | the view's | - | How much speed changes the distance. |
+| `dist_vary` | camera/<view> | float | the view's | - | The most the distance changes. |
+| `dist_factor` | camera/<view> | float | the view's | - | How the distance follows. |
+| `dist_catch_up` | camera/<view> | float | the view's | - | How fast the distance catches up. |
+| `desired_pos` | camera/<view> | list: x y z | the view's | - | Where it sits. |
+| `delta_rot` | camera/<view> | list: three angles (deg) | none | - | How it is turned. |
+| `look_limits` | camera/<view> | a block: left right up down (deg) | the view's | - | How far the pilot can look. |
+| `left` | camera/<view>/look_limits | float (deg) | the view's | - | Look left. |
+| `right` | camera/<view>/look_limits | float (deg) | the view's | - | Look right. |
+| `up` | camera/<view>/look_limits | float (deg) | 45 | - | Look up. |
+| `down` | camera/<view>/look_limits | float (deg) | the view's | - | Look down. |
+| `hud` | top | a block | none | - | Puts the HUD model in the cockpit. |
+| `animations` | top | a block | none | - | Its effects and motions: `canned`, `motion`. |
+| `canned` | animations | a block | none | - | Effects at fixed places: `eject`, `jumpjets`, `narc`. |
+| `eject` | animations/canned | `(effect ofs (x y z) node NAME)` | none | - | The ejection's effect. |
+| `jumpjets` | animations/canned | the same | none | - | The jump jets' effect. |
+| `narc` | animations/canned | the same | none | - | A NARC beacon's effect. |
+| `ofs` | animations/canned/<effect> | list: x y z | 0 0 0 | - | The effect's offset. |
+| `node` | animations/canned/<effect> | a node's name | none | - | The node it follows. |
+| `motion` | animations | a block | the mech's own motions | - | Its gaits: `stand`, `step`, `walk`, `trot`, `run`, `limp`. |
+| `stand` | animations/motion | a gait block | `<mech>_stand` | - | Standing. |
+| `step` | animations/motion | a gait block | `<mech>_step` | required somewhere | Stepping in place. |
+| `walk` | animations/motion | a gait block | `<mech>_walk` | required somewhere | Walking. |
+| `trot` | animations/motion | a gait block | `<mech>_trot` | - | Trotting. |
+| `run` | animations/motion | a gait block | `<mech>_run` | - | Running. |
+| `limp` | animations/motion | a gait block | `<mech>_limp` | - | Limping (the right limp is the left mirrored). |
+| `anim` | animations/motion/<gait> | a motion's name | `<mech>_<gait>` | - | The motion it plays. |
+| `trans` | animations/motion/<gait> | list: low high | the gait's | - | The throttle range it plays over. |

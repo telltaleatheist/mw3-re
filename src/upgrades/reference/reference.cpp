@@ -12,7 +12,7 @@ const char*& context() {
 }
 
 const std::vector<File>& files() {
-  static const std::vector<File> all = {mod_txt(), campaign(), weapons()};
+  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn()};
   return all;
 }
 
