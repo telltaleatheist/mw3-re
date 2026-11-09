@@ -906,7 +906,7 @@ through the archive's own bounded readers (`read_tree`, `read_material`)
 from a `ScratchFile`. Lights in a mechlib model are refused (none ship).
 
 *The shipped bits.* `mods_mechlib_json_is_every_entrys_bytes`: with
-`MW3_UNZBD_MECHLIB` (unzbd's folder), every one of MW3's 57 models and the
+unzbd found beside the checkout (`../mech3ax`, or `MECH3AX_UNZBD`; skipped and said without it) and run on the install, every one of MW3's 57 models and the
 materials come to the archive entry's own bytes. The matrix's sines and
 cosines are rounded once from double: mech3ax's f32 `sin_cos` on the Mac is
 Apple's `__sincosf`, and `cosf` can miss it by one bit (the Blackhawk's

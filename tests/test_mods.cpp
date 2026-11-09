@@ -1081,13 +1081,38 @@ TEST(mods_scratch_file_is_read_and_removed) {
   EXPECT(!where.empty() && !fs::exists(where, ec));
 }
 
-// mechlib.zbd's entries from unzbd's own JSON (MW3_UNZBD_MECHLIB: its folder): every model and the materials the
-// entry's own bytes (docs/modding.md).
+// mechlib.zbd's entries from unzbd's own JSON: every model and the materials the entry's own bytes
+// (docs/modding.md). unzbd beside the checkout (../mech3ax/target/release, as test_net_save_mech3ax.py finds it;
+// MECH3AX_UNZBD for another), its zip read here; skipped, and said, without it.
 TEST(mods_mechlib_json_is_every_entrys_bytes) {
   const std::string install = MW3_GAME_DIR;
-  const char* theirs = std::getenv("MW3_UNZBD_MECHLIB");
   std::error_code ec;
-  if (!theirs || !fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const fs::path unzbd = std::getenv("MECH3AX_UNZBD") ? fs::path(std::getenv("MECH3AX_UNZBD"))
+                                                      : fs::canonical(install, ec).parent_path().parent_path().parent_path() / "mech3ax" /
+                                                            "target" / "release" / "unzbd";
+#if defined(_WIN32)
+  std::printf("  skipped: unzbd is run through the shell here, on the Mac and Linux\n");
+  return;
+#endif
+  if (!fs::is_regular_file(unzbd, ec)) {
+    std::printf("  skipped: no unzbd at %s (cargo build --release in ../mech3ax, or MECH3AX_UNZBD)\n", unzbd.string().c_str());
+    return;
+  }
+  const std::string zip = tmp("mods_mechlib_unzbd") + "/mechlib.zip";
+  const std::string cmd = "'" + unzbd.string() + "' mw mechlib '" + install + "/zbd/mechlib.zbd' '" + zip + "' >/dev/null 2>&1";
+  EXPECT(std::system(cmd.c_str()) == 0);
+  zutl_zip::Zip theirs;
+  EXPECT(theirs.open(zip));
+  const auto json_of = [&](const std::string& name) {
+    for (const zutl_zip::Zip::Entry& e : theirs.entries)
+      if (e.name == name) {
+        std::vector<uint8_t> d;
+        std::string why;
+        return theirs.read(e, &d, &why) ? std::string(d.begin(), d.end()) : std::string();
+      }
+    return std::string();
+  };
   zutl_zar::Archive a;
   zutl_zar::init(a);
   EXPECT(zutl_zar::open(a, (install + "/zbd/mechlib.zbd").c_str()));
@@ -1101,13 +1126,11 @@ TEST(mods_mechlib_json_is_every_entrys_bytes) {
     std::vector<uint8_t> entry(length);
     if (!f || std::fread(entry.data(), 1, length, f) != length) continue;
     ++entries;
-    std::ifstream in(std::string(theirs) + "/" + name + ".json");
-    std::stringstream text;
-    text << in.rdbuf();
+    const std::string text = json_of(name + ".json");
     std::vector<uint8_t> bytes;
     std::string why;
-    const bool ok = name == "materials" ? zcls::mechlib_materials_from_json(text.str(), &bytes, &why)
-                                        : zcls::mechlib_model_from_json(text.str(), &bytes, &why);
+    const bool ok = name == "materials" ? zcls::mechlib_materials_from_json(text, &bytes, &why)
+                                        : zcls::mechlib_model_from_json(text, &bytes, &why);
     if (ok && bytes == entry) {
       ++same;
       continue;
