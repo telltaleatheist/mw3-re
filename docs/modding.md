@@ -229,6 +229,12 @@ the fixes off: every loop over `weapon_count()` reads it through
 stock list shows only what the stock holds; `reset_ready_times`). Test:
 `mods_weapon_rows_after_the_ppcs_place`.
 
+Instant Action keeps its chosen commander, allies and enemies by their place
+in its lists (the original's setup), so adding or reordering mods' mechs can
+move those saved picks to other mechs. A mod's mech whose definition fails
+to load after the mount's check (a broken one) leaves the lab empty for it
+and says so once in the log (`mw3: mech <name>: dfn_<name>.zrd did not load`).
+
 **Fixed sizes (audit, 2026-11-08).** No array or table outside
 `mech_names.cpp` is sized by the mech or weapon count: the weapon tables
 there are read only below `kBuiltinWeapons` (a row's own fields otherwise),
@@ -409,6 +415,27 @@ scripts as before; a first line reaching into the next script ends the
 script there, the others unchanged; an offset past the file refused).
 
 **Every format a mod can replace is now read with its end known** (M3 complete, 2026-11-02): a broken file or entry is refused and named in the log, never read past its end.
+
+**Larger than shipped** (after PM, item 4, 2026-11-08). A repack that adds
+to the game's archives (mech3ax's, say) reads whole: no reader caps a count
+below what its file holds. Test `bounded_readers_take_more_than_shipped`,
+on our own repacks (no mech3ax, no real mods): mechlib.zbd with its 57 trees
+four times over (228, 3,080 models), motion.zbd's 258 motions four times
+over, reader.zbd's 178 entries four times over, c1's anim.zbd with its 529
+sources and 1,770 defs twice over, c1's gamez.zbd with 2,500 free node slots
+more (a second pool block, chained into its free list): each read whole, the
+world's same 8,167 nodes live. The limits that are left, each refused and
+named, no crash: a count the bytes left cannot hold (a tree or motion a byte
+short), reader lists past 64 deep (64 read, 65 refused), anim.zbd's def count
+(an int16 in the format: 32,767 at most; 0x7fff with too few bytes refused),
+a node array past its file.
+
+One limit is not a reader's: the model pool. Before a world is read it holds
+1,750 models (0x6d6, `reset_pool`), and a world's gamez.zbd sets it from its
+own count; a mission that loads more models than its pool holds (many new
+mechs' trees, say) stops the game with "GameZ model resource failure", as the
+original did. Not raised yet: it belongs with the other fixed limits a mission
+can reach (Planned, Whole campaigns).
 
 **`mw3 --check-mod DIR`** reads a mod as the game would without mounting it
 into play, and exits 1 when anything would be refused, else 0. It reports:
