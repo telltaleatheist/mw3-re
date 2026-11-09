@@ -1517,7 +1517,8 @@ TEST(mods_screen_add_mod_headless) {
     EXPECT(app.init_instance());
     mech3::States& st = mech3::states();
     int stage = 0, wait = 0;
-    std::string first_note, second_note, rows;
+    std::string first_note, second_note, rows, adding_note;
+    bool adding_before = false;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
@@ -1530,7 +1531,10 @@ TEST(mods_screen_add_mod_headless) {
       if (!scr) return;
       if (stage == 1) {
         scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 2, wait = 0;
-      } else if (stage == 2 && ++wait == 3) {  // taken on the screen's update
+      } else if (stage == 2 && ++wait == 1) {  // taken on the screen's update, said before it is added
+        adding_note = scr->note.text;
+        adding_before = !std::filesystem::exists(wd + "/mods/Desert Pack");
+      } else if (stage == 2 && wait == 3) {
         first_note = std::string(scr->note.text) + " " + scr->restart.text;
         for (const mech3::ModsListEntry& m : scr->tables.mods) rows += mech3::mods_row_text(m) + "|";
         scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 3, wait = 0;
@@ -1547,6 +1551,7 @@ TEST(mods_screen_add_mod_headless) {
     std::printf("  rows: %s\n  first: %s\n  second: %s (asked %d)\n  opened: %s\n", rows.c_str(), first_note.c_str(), second_note.c_str(),
                 asked, opened.c_str());
     EXPECT(stage == 4 && picked_folder == 2);
+    EXPECT(adding_note == "Adding Desert Pack..." && adding_before);  // drawn a frame before the add
     EXPECT(rows == "[x] Desert Pack|" && first_note.find("Added Desert Pack: on from the next start.") == 0);
     EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"Desert Pack"}));
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));

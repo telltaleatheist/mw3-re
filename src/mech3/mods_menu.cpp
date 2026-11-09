@@ -399,6 +399,14 @@ void ModsScreen::enter_campaign() {
 
 void ModsScreen::update(float dt) {
   Window::update(dt);
+  // The add runs on the update after "Adding ..." was drawn: it can take a
+  // while (a big archive) and the screen would look frozen without a word.
+  if (!adding.empty()) {
+    std::string path;
+    path.swap(adding);
+    add_mod(path);
+    return;
+  }
   std::string path;
   {
     Picked& p = picked();
@@ -406,7 +414,11 @@ void ModsScreen::update(float dt) {
     if (!p.answered) return;
     p.answered = false, path.swap(p.path);
   }
-  if (!path.empty()) add_mod(path);
+  if (path.empty()) return;
+  std::filesystem::path shown(path);
+  while (!shown.empty() && shown.filename().empty()) shown = shown.parent_path();  // a folder with a trailing '/'
+  tell("Adding " + shown.filename().string() + "...");
+  adding = path;
 }
 
 // Two lines under MODS (the note's and the restart's), the text wrapped at
