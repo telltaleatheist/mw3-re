@@ -194,6 +194,7 @@ struct Args {
   int frame_ms = 0;           // --frame-ms N: each frame shown N ms on the game's clock (ours)
   int64_t seed = -1;          // --seed N: rand seeded with N wherever the game seeds it from the clock (ours)
   int win = 0;  // --win N (ours): the mission won N frames in, by its Exit Mission
+  int lose = 0;  // --lose N (ours): the mission aborted N frames in, a failure
   int frame_times = 0;  // --frame-times N (ours): each frame's wall time from the N-th frame shown, summed up at the end
   int briefing_wait = 150;  // PM's main menu takes longer to take a click than MW3's
   int lab_mech = -1;  // --lab-mech N (ours): the lab's 3D view shows chassis N (alone: through c1m2's briefing)
@@ -244,7 +245,7 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lab-mech N]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
       "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
@@ -288,6 +289,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
     else if (s == "--hurt" && next(1)) std::sscanf(argv[++i], "%f@%d", &a.hurt, &a.hurt_at);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
+    else if (s == "--lose" && next(1)) a.lose = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--host") a.net_host = true;
@@ -1608,6 +1610,10 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           mech3::missions().ended = 1;
           mech3::missions().on_command(0x79);
         }
+        // --lose N (ours, for checking the failed debriefing): N frames into
+        // a mission it ends now, as a failure (0x0048fa80).
+        static int lose_frames = 0;
+        if (a.lose > 0 && app.current() == &mech3::states().core && ++lose_frames == a.lose) mech3::missions().abort_now();
         // --verbose (ours, for checking the save): the pilot's game as the
         // Win State saved it, and as a briefing finds it once its mission
         // has loaded (the saved game read back into it).

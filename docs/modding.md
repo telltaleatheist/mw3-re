@@ -20,8 +20,8 @@ for=mw3 1.2
 description=Rain on every world.
 ```
 
-`name` is required; `for`, when given, must start with `mw3` (a Pirate's
-Moon mod is left out of MW3). Other keys are ignored, `#` starts a comment.
+`name` is required; `for`, when given, must have `mw3` as its first word, a
+version after it if any (a Pirate's Moon mod, `for=mw3pm`, is left out of MW3). Other keys are ignored, `#` starts a comment.
 
 **Enabling.** `mw3.cfg` in the settings folder, one line a mod, the folder's
 name, in order (the first wins where two hold the same file):
@@ -518,6 +518,70 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   on, off and reorder, with their conflicts shown. A mod made by overwriting an
   install is taken as the files that differ from the player's own install. Nothing is
   ever written into the install.
+- The in-game MODS screen and custom campaigns (Owen, 2026-11-08): mods are turned on
+  and off, and custom campaigns entered, from the game itself, so a mod never replaces
+  the original campaign. Owen: "i just want people to be able to enable/disable mods at
+  will, and to enter custom campaigns/games". In order:
+  1. **Campaigns as data.** A mod names a campaign in mod.txt (`campaign=<file>`), a
+     text file listing its operations and missions in order: each mission's world (the
+     game's or the mod's own, `world=`), its mission files, briefing (text, and a movie
+     if any), and what comes between missions (debriefing, salvage, the mech lab as the
+     original campaign has them). Single missions the same way, a campaign of one.
+     The original campaign is untouched; a custom campaign's pilots and saves are its
+     own, beside the original's.
+  2. **A MODS button on the main menu**, set apart from the others (there is little room
+     under CAMPAIGN: at the bottom or on the right side, placed per game, MW3's and PM's
+     menus each their own; a shot of each choice for Owen first), in each game's own style
+     (its menu art, fonts, list boxes and buttons; zTwoD's widgets, as the other
+     screens). It opens a screen with two tables: CUSTOM CAMPAIGNS (each installed
+     campaign or mission, its author and version, an entry point that starts it or
+     continues its pilot) and MODS (every other mod: mechs, weapons, worlds, asset
+     packs, text; a check box each, an order, conflicts shown and why a mod isn't
+     usable). The same choices as the launcher's MODS list, which stays; both write
+     mw3.cfg. A change to the MODS table applies at the next start, said on the
+     screen (a live remount is a later step); entering a custom campaign mounts its
+     own mod for that game.
+  3. **Installing made simple**, as planned above: an ADD MOD button on the MODS screen
+     (and the launcher) opens the system's file picker; the picked .zip, .7z or folder
+     (or one dropped on the launcher) is unpacked into `mods/<name>/`, checked, sorted
+     by what it holds (a campaign, or mechs, weapons, worlds, assets, text), and shown
+     in its table at once: a campaign can be entered straight away, a content mod is
+     turned on for the next start (until the live remount). An "Open mods folder"
+     button beside it.
+  Both games: main first, pm by the crossing (PM's own campaign format where it
+  differs). Each step with its tests and a section here.
+- Modder-friendly, after the MODS screen and custom campaigns (Owen, 2026-11-08), in
+  this order:
+  1. **Readable files read directly**: a mod's loose `.zrd` as text and mech3ax's JSON
+     (models, motions, animations, worlds) taken as they are, ahead of the archives, so
+     a modder edits and runs without repacking with rezbd.
+  2. **A reference generated from the readers**: every key each reader takes
+     (weapons.zrd, the dfn files, aiv, targets, the mission scripts' commands, mod.txt),
+     with its type, default and limits, built from the code so it stays right.
+  3. **Plain errors on the MODS screen**: `--check-mod`'s findings and the mount log as
+     sentences per mod (what it replaces or adds, what is refused and why), instead of
+     a crash or silence.
+  4. **Quick testing**: a "test this mod" start straight into a chosen mission with the
+     mod on; later, weapon and mech values reloaded while the game runs.
+  5. **Starter mods and guides**: one small example of each kind (a mech variant, a
+     weapon, a translation, a single mission) that names the game's files instead of
+     shipping them, and a short guide for each.
+  6. **A modder mode**: the developer tools behind one switch (free camera, spawning a
+     unit, AI paths and nav points, hit boxes), with the Battlesport editor below.
+  7. **Requirements in mod.txt**: needs another mod, conflicts with one, the game
+     version it needs; the MODS screen warns before a mod is turned on.
+  8. **A pack button**: a mod folder to a shareable zip with its mod.txt and checksums.
+- The Battlesport editor as the mission editor (Owen, 2026-11-08, the after-PM order's
+  step 4): the original developers' in-game editor (editor.md: the AI net and vehicle
+  editors behind its menu, the stealth object's view) ported whole and wired up so
+  modders make missions with it as Zipper did, saved as a mod. It is the "game editor"
+  of Making missions below: worlds come from zStudio (Vorta's own program, maintained
+  apart), missions and their units, nets and objectives from the editor. Built in tandem
+  with the MODS screen: the screen gets an EDITOR entry from the start, a stub until
+  the editor is built, then wired to it. The editor's dialogs and screens are built out
+  to work exactly as the original's; what the exe doesn't carry but the editor needs is
+  made by hand, said as ours. After pm-v1.0.0, in the after-PM order; not to be dropped
+  (Owen: "i want to do all of this so lets not forget about it").
 - Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
   `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
   Ours will be new art in MW3's style (Owen: made with the local image generator), one

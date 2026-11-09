@@ -72,6 +72,8 @@ TEST(mods_mod_txt) {
   EXPECT(!mech3::mod_parse("name=X\nfor=mw3 1.2\n", &c) && c.error.find("mw3 1.2") != std::string::npos);  // MechWarrior 3's
   mech3::ModInfo d;
   EXPECT(mech3::mod_parse("name=X\nfor=MW3PM\n", &d));
+  mech3::ModInfo e;  // MechWarrior 3's mod: its first word is not "mw3pm"
+  EXPECT(!mech3::mod_parse("name=X\nfor=mw3 1.2\n", &e) && e.error == "it is for mw3 1.2, not Pirate's Moon");
 }
 
 TEST(mods_mount_in_order_and_game_data_only) {
