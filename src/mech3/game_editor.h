@@ -80,7 +80,7 @@ class EditorHooks : public zgame::Unported {
   // The net editor's (after v1.0): its 0.1 s step in modes 1..3
   // (0x00403140) and its frame (0x00404290, nothing without a net editor).
   virtual void net_step(float dt);  // game_editor_net.cpp: net_editor_step
-  virtual void net_frame(bool editing) { (void)editing; }
+  virtual void net_frame(bool editing);  // game_editor_net.cpp: net_editor_frame_all
   // The net editor's (sitting 3a): the view's vehicle put at a place (its
   // vt+0xdc, GOTO Net).
   virtual void view_vehicle_place(const float p[3]) { unported("view vehicle.vt+0xdc", {zgame::bits(p[0]), zgame::bits(p[2])}); }

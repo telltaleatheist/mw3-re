@@ -26262,3 +26262,70 @@ TEST(mission_c1m1_new_net_saved_and_loaded_next_start_headless) {
   EXPECT(first[0] == pick[0] && first[1] == pick[1] && first[2] == pick[2] && (pick[0] != 0 || pick[2] != 0));
   EXPECT(found && read == 2 && again[0] == first[0] && again[1] == first[1] && again[2] == first[2]);
 }
+
+// The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net
+// Params opens it; Open lists the open archives' net files, net_01.zrd among
+// them; the second listed opened shows its net in its own editor beside the
+// edited one, stepped each frame (0x00404290); OK closes it.
+TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
+  if (!have_game()) return;
+  int32_t step = 0, at = 0, listed = 0, nodes = -1, marks = -1, frames_run = 0;
+  bool has01 = false, closed = false, paged = false;
+  std::string opened;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("net_window", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    if (step == 0) {
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::edit_ai_nets(0);
+      mech3::NetDialog& d = mech3::net_dialog();
+      for (size_t i = 0; i < d.items.size(); ++i)
+        if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+      mech3::net_dialog_close();
+      if (!mech3::net_editor()) return true;
+      mech3::net_params_open(0);
+      // Open's list, as its row does.
+      mech3::EditorPanel& p = mech3::editor_panel();
+      (void)p;
+      const mech3::EditorMenu* m = mech3::editor_state().menu;
+      if (m && m->count > 3 && m->rows[3].handler) m->rows[3].handler(0x5f + 12 * 3 + 2);
+      for (int i = 1; i + 1 < mech3::editor_state().menu->count; ++i) {
+        if (std::string(mech3::editor_panel().rows[i]->text).find("(down)") != std::string::npos) continue;
+        ++listed;
+        const std::string t = mech3::editor_panel().rows[i]->text;
+        has01 = has01 || t.find("net_01.zrd") != std::string::npos;
+      }
+      {  // (down) to the next page, (up) back
+        const mech3::EditorMenu* o = mech3::editor_state().menu;
+        const int32_t down = o->count - 2;
+        if (std::string(mech3::editor_panel().rows[down]->text).find("(down)") != std::string::npos) {
+          o->rows[down].handler(0x5f + 12 * down + 2);
+          paged = std::string(mech3::editor_panel().rows[1]->text).find("(up)") != std::string::npos;
+          mech3::editor_state().menu->rows[1].handler(0x5f + 12 + 2);
+        }
+      }
+      opened = mech3::editor_panel().rows[2]->text;  // the second listed
+      mech3::editor_state().menu->rows[2].handler(0x5f + 12 * 2 + 2);
+      mech3::NetWindow* w = mech3::net_window();
+      if (!w || !w->hosted) return true;
+      nodes = w->hosted->net->count();
+      step = 1, at = f;
+      return false;
+    }
+    mech3::NetWindow* w = mech3::net_window();
+    if (step == 1 && f > at + 3) {
+      marks = w && w->hosted ? int32_t(w->hosted->view->marks.size()) : -1;
+      frames_run = w && w->hosted && w->hosted->camera ? 1 : 0;  // its frame ran: it read the camera
+      mech3::editor_state().menu->rows[1].handler(0x5f + 12 + 2);  // OK
+      closed = !mech3::net_window();
+      mech3::net_editor_exit(0);
+      mech3::editor_key(mech3::kEditorCommand);
+      return true;
+    }
+    return f > at + 200;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  Open listed %d net files on its first page (net_01.zrd %d); opened \"%s\": %d nodes, %d marks, stepped %d; closed %d\n", listed,
+              has01, opened.c_str(), nodes, marks, frames_run, closed);
+  EXPECT(listed > 2 && has01 && nodes > 0 && marks == nodes && frames_run && closed && paged);
+}

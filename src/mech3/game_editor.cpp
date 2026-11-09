@@ -67,6 +67,7 @@ EditorPanel& editor_panel() {
   return *g_state.panel;
 }
 void editor_reset() {
+  net_window_free();
   net_editor_free();
   delete g_state.panel;
   g_state = EditorState{};

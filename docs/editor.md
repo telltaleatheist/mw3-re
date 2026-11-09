@@ -538,6 +538,43 @@ mounts it, builds net_07 with both nodes, node_00 where it was put). Breaks:
 no new archive entry, New Net's node left at 0 0 0, the links to a deleted
 node kept.
 
+## The Ai Network Editor window (S5 sitting 4c, 2026-11-09)
+
+Change Net Params (0x004036f0 -> the net's vt+0x5c, 0x004bd330 ->
+0x004bf670) opens template 181, "Ai Network Editor": no parameters at all,
+only OK, Cancel and Open. The window (0x68 bytes, [0x0060b31c], made once,
+modeless) hosts an editor slot of its own at +0x64 (0x004043c0 puts it on
+the list 0x00404140 holds at [0x005f4c60], the main editor's slot first).
+
+- **Opening it** runs 0x004bf650 with the caller's ECX, which 0x004bd330
+  zeroed: 0x00404570 then frees whatever the window showed and opens
+  nothing (an earlier reading took that argument for the net passed as a
+  file name; it is null).
+- **Open** (message map 0x005ca498, id 1281, 0x004bf750): a CFileDialog
+  "Zipper Files (*.zrd)"; the path picked goes to 0x004bf640 -> 0x00404570:
+  the old editor freed, a net read from that file (0x004bd3d0:
+  `CZAiNetEdit(-1, path, 0)`) and an editor on it. FIX (A): the file dialog
+  is a list of every net_ and reg_ file the open archives hold, paged 18 to
+  a page (ours: the panel's 25 rows), Cancel at the end.
+- **Each frame** 0x00404290 steps every editor on the list (0x00403080) but
+  the main one while the editor's menus are up (their own step runs it): so
+  the window's net is drawn and picked like the edited one, beside it, with
+  no menu of its own. With the menus down, the main editor is stepped there
+  too, as in the exe.
+- **OK and Cancel** close it (DestroyWindow on a modeless dialog,
+  0x004d5610 / 0x004d55f0 -> 0x004bf6f0); its dtor (0x004bf5d0 ->
+  0x00404420) frees its editor and takes the slot off the list.
+- FIX (A): the window's controls are the panel's rows (with ours, a line
+  naming the net it shows), the net editor's step going on under them.
+
+Tests: `net_window_open_and_hosted_editor` (the rows, Open's list and
+Cancel, a file opened as a second editor that the frame steps apart from the
+main one, OK freeing it; with the menus down, the main one stepped);
+`mission_c1m1_net_window_shows_a_second_net_headless` (c1m1: Open lists the
+archives' net files, net_01.zrd among them, pages down and up, net_02.zrd
+opened with its 19 nodes as marks, stepped, OK closing). Breaks: the window's
+editor not stepped, Open opening nothing.
+
 ## The save (S5 sitting 2, 2026-11-09)
 
 **The text writers, ported** (`zrdrainet.cpp`): the header 0x4da1d0 ->
