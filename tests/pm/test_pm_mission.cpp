@@ -2202,6 +2202,106 @@ TEST(pm_c1m1_player_knocked_down_headless) {
   }
 }
 
+// As mission_c1m1_ai_mech_gets_up_at_once_headless on MW3: knocked down in PM's c1m1 (3, Mech::knocked_down), an AI
+// mech's get-up is queued as its fall lands (its controls' vt+0xa4, 0x004e8e60), the player's after the 5 s lie.
+// The AI's first mech is powered up first when it waits powered down (a powered-down mech never gets up). Each run
+// checks its own time, from going down (anim state 12/13) to the get-up at the queue's front (5/6).
+static float getup_run(int who) {
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_getup_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  float knocked = -1, down_at = -1, up_queued = -1;
+  int f = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    bool done = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || done) return;
+      ++f;
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      void* m = who ? mech3::mission_player_mech() : n ? ai[0].mech : nullptr;
+      if (!m || f < 60) return;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(m, &d);
+      const float now = mech3::mech_game_time();
+      if (knocked < 0) {
+        if (d.powering_down || d.powered_down) {
+          if (f == 60) mech3::mech_power(m, 0);
+          done = f > 3000;
+          return;
+        }
+        mech3::mech_knock_down(m, 3);
+        knocked = now;
+        return;
+      }
+      if (down_at < 0 && (d.anim_state == 12 || d.anim_state == 13)) down_at = now;
+      if (down_at >= 0 && up_queued < 0 && (d.action == 5 || d.action == 6)) up_queued = now;
+      done = up_queued >= 0 || d.anim_state == 10 || now - knocked > 20.0f;
+    };
+    Pump pump;
+    pump.limit = 9000;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  const float lie = down_at >= 0 && up_queued >= 0 ? up_queued - down_at : -1.0f;
+  std::printf("  pm %s: down %.2f s after the knock, get-up queued %.2f s later\n", who ? "player" : "AI",
+              down_at - knocked, lie);
+  std::fflush(nullptr);
+  return lie;
+}
+
+TEST(pm_c1m1_ai_mech_gets_up_at_once_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  for (const int who : {0, 1}) {
+    const auto ok = [who](float lie) { return lie > 0.0f && (who ? lie > 4.5f : lie < 4.0f); };
+#if !defined(_WIN32)
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      const float lie = getup_run(who);
+      _exit(check::failures || !ok(lie) ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+    EXPECT(ok(getup_run(who)));
+#endif
+  }
+}
+
 // pm-tests item 25 on Pirate's Moon, as mission_c1m2_lock_drops_on_a_new_target_headless on MW3: in c1m2, locked on
 // an enemy mech (A), E to the next enemy (B), an LRM volley at once without aiming at B. The target change resets the
 // reticle (PM 0x0041e7e0 -> 0x00442f10 -> 0x00445580, as MW3's), so the volley is not locked: its missiles carry no

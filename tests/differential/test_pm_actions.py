@@ -9,7 +9,8 @@ logged), its controls with the real interface vtable, legs that log their damage
 nodes, and nine action objects with the real vtable except the root sample (+0x30), which both sides compute from the
 action's time. The queue is a real MSVC list. The ray and dust of landf/landb (0x417804..) and the pose on the parts
 (0x417a2b.., in test_pm_pose) are skipped in the exe and logged, as are sounds, cameras, weapons and the skis. Runs are
-sequences of calls on one mech (falls, landings, lying down, getting up, deaths, remote mechs); after each call every
+sequences of calls on one mech (falls, landings, lying down, getting up, deaths, remote mechs, the AI's controls, whose
+landing (vt+0xa4 0x4e8e60) gets the mech up at once); after each call every
 field both sides keep, the queue, the actions and the call log must match bit for bit at 24-bit precision.
 """
 import ctypes
@@ -34,6 +35,8 @@ probe.probe_actions.argtypes = ([ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
 
 OPS = {0: 0x417350, 1: 0x417290, 2: 0x41c4c0, 3: 0x41c520, 4: 0x41c570, 5: 0x41c3f0}
 MECH_VT, MECH_SIZE, CTL_VT, CTL, ACT_VT, ACT = 0x5dfaac, 0x800, 0x5bd428, 0x74, 0x5dfeec, 0xf0
+# PM's AI controls (0x4e8c20's): the primary vtable, the IControls base at +0x330 (vtable 0x5efd00, its owner +0x1c)
+AI_VT, AI_CTL_VT, AI_CTL = 0x5efe08, 0x5efd00, 0x350
 LAST_ACTION = 0x629298
 SKIPS = {0x417804: (21, 0x417904, 0), 0x417a2b: (17, 0x417d18, 12)}
 
@@ -90,6 +93,8 @@ class Emulated(test_pm_zar.Emulated):
         self.head, self.torso, self.hip, self.weapons = a(0x80), a(0x1c0), a(0xb0), a(0x10)
         self.acts, self.avt, self.head_node, self.pos = [a(ACT) for _ in range(9)], a(0x50), a(12), a(12)
         self.player_obj, self.ff = a(0x40), a(0x40)
+        self.ai_ctl, self.ai_vbt = a(AI_CTL), a(8)
+        self.cur = self.ctl
         self.wr(self.mvt, self.raw(MECH_VT, 0x200))
         net = cpu.code(b'\xc2\x08\x00')
         self.w32(self.mvt + 0x17c, net)
@@ -194,7 +199,8 @@ class Emulated(test_pm_zar.Emulated):
         self.wr(m, s['mech'])
         w(m, self.mvt)
         w(self.mvt + 0x64, 0x402250 if s['flags'] & 4 else 0x406ce0)
-        w(m + 0x38c, self.ctl)
+        self.cur = self.ai_ctl if s['flags'] & 8 else self.ctl
+        w(m + 0x38c, self.cur)
         w(m + 0x6a8, self.pilot)
         w(self.pilot + 0xc, s['roster'])
         w(m + 0xd4, self.weapons)
@@ -215,13 +221,22 @@ class Emulated(test_pm_zar.Emulated):
             w(self.acts[k], self.avt)
             w(m + 0x468 + 4 * k, self.acts[k] if s['present'] >> k & 1 else 0)
         self.set_queue(s['queue'])
-        self.wr(self.ctl, s['ctl'])
-        w(self.ctl, 0x5e009c)
-        w(self.ctl + 4, self.vbt)
-        w(self.vbt + 4, 0x5c)
-        w(self.ctl + 0x5c, 0)
-        w(self.ctl + 0x60, self.iface)
-        w(self.ctl + 0x70, m)
+        if s['flags'] & 8:  # the AI's: vt+0xa4 0x4e90b0 -> 0x4e8e60, the owner's get-up; vt+0xa8 0x4e90c0 -> a ret
+            self.wr(self.ai_ctl, s['ctl'] + bytes(AI_CTL - CTL))
+            w(self.ai_ctl, AI_VT)
+            w(self.ai_ctl + 4, self.ai_vbt)
+            w(self.ai_vbt + 4, 0x32c)
+            w(self.ai_ctl + 0x32c, 0)
+            w(self.ai_ctl + 0x330, AI_CTL_VT)
+            w(self.ai_ctl + 0x34c, m)
+        else:
+            self.wr(self.ctl, s['ctl'])
+            w(self.ctl, 0x5e009c)
+            w(self.ctl + 4, self.vbt)
+            w(self.vbt + 4, 0x5c)
+            w(self.ctl + 0x5c, 0)
+            w(self.ctl + 0x60, self.iface)
+            w(self.ctl + 0x70, m)
         w(self.player_obj + 0x14, m if s['flags'] & 1 else 0)
         w(0x62c410, self.ff if s['flags'] & 2 else 0)
         w(LAST_ACTION, s['last'])
@@ -230,11 +245,11 @@ class Emulated(test_pm_zar.Emulated):
         r = self.call(OPS[op], ecx=m, args=args)
         r = int(r & 0xff != 0) if op in (1, 2, 5) else 0  # KnockedDown(5) returns 5
         acts = b''.join(pick(self.raw(a, ACT), ACT_FIELDS) for a in self.acts)
-        return (pick(self.raw(m, MECH_SIZE), MECH), pick(self.raw(self.ctl, CTL), CTL_FIELDS), acts,
+        return (pick(self.raw(m, MECH_SIZE), MECH), pick(self.raw(self.cur, CTL), CTL_FIELDS), acts,
                 self.queue(), struct.unpack('<i', self.raw(LAST_ACTION, 4))[0], r, self.events)
 
     def state(self):
-        return self.raw(self.mech, MECH_SIZE), self.raw(self.ctl, CTL), b''.join(self.raw(a, ACT) for a in self.acts)
+        return self.raw(self.mech, MECH_SIZE), self.raw(self.cur, CTL), b''.join(self.raw(a, ACT) for a in self.acts)
 
 
 def port(op, s):
@@ -269,10 +284,13 @@ def fresh(rng):
     for k in range(9):
         put(acts, ACT * k + 0x54, 'f', f32(rng.choice([0.5, 1.0, 1.4, 2.0])))
         put(acts, ACT * k + 0x88, 'f', 0.0)
-    return {'mech': bytes(mech), 'ctl': bytes(ctl), 'acts': bytes(acts),
+    s = {'mech': bytes(mech), 'ctl': bytes(ctl), 'acts': bytes(acts),
             'present': rng.choice([0x1fe, 0x1fe, 0x1fe, 0x07e, 0x1e6, 0x01e]), 'shadow': (rng.choice([0, 0x7070]), 0),
             'destroyed': rng.choice([0, 0, 0, 0, 1, 2, 8]), 'flags': rng.randrange(8) & (7 if rng.random() < 0.15 else 3),
             'roster': rng.randrange(25), 'last': rng.choice([0, 1, 2, 3, 4, 5, 6]), 'queue': []}
+    if rng.random() < 0.3:
+        s['flags'] |= 8  # the AI's controls: a landing gets the mech up at once
+    return s
 
 
 def main():
@@ -281,6 +299,7 @@ def main():
     rng = random.Random(1999)
     calls = 0
     states, codes = set(), set()
+    ai_up = 0  # AI landings (3, 4) whose get-up (5, 6) is queued at once
     for run in range(runs):
         s = fresh(rng)
         for step in range(rng.choice([20, 60, 150])):
@@ -305,6 +324,8 @@ def main():
                     raise SystemExit(f'run {run} step {step} op {op}: {name} differ\n  original {want[k]}\n'
                                      f'  port     {got[k]}')
             calls += 1
+            if s['flags'] & 8 and op == 0 and want[4] in (3, 4) and want[3][:1] in ([5], [6]):
+                ai_up += 1
             mech, ctl, acts = emu.state()
             s.update(mech=mech, ctl=ctl, acts=acts, queue=want[3], last=want[4])
             states.add(struct.unpack_from('<i', mech, 0x59c)[0])
@@ -317,11 +338,11 @@ def main():
                 s['mech'] = s['mech'][:0x5b4] + struct.pack('<f', -0.1) + s['mech'][0x5b8:]
     need_states = {1, 10, 11, 12, 13}
     need_codes = {3, 11, 13, 15, 17, 18, 19, 20, 21, 22}
-    if not need_states <= states or not need_codes <= codes:
-        raise SystemExit(f'coverage: states {sorted(states)}, calls {sorted(codes)}')
+    if not need_states <= states or not need_codes <= codes or not ai_up:
+        raise SystemExit(f'coverage: states {sorted(states)}, calls {sorted(codes)}, AI landings up at once {ai_up}')
     pm_floors.floors(runs=(runs, 1500), calls=(calls, 57000), states=(len(states), 10))
     print(f'ok: {runs} runs, {calls} calls identical bit for bit; states {sorted(states)}, '
-          f'{len(codes)} kinds of call out')
+          f'{len(codes)} kinds of call out; {ai_up} AI landings up at once')
 
 
 if __name__ == '__main__':
