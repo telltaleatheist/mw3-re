@@ -299,6 +299,7 @@ add_library(mw3core STATIC
   src/mech3/credits.cpp
   src/mech3/options_menu.cpp
   src/mech3/mods_menu.cpp
+  src/mech3/mod_install.cpp
   src/mech3/pause_menu.cpp
   src/mech3/quit_box.cpp
   src/mech3/lab_items.cpp
@@ -556,6 +557,7 @@ add_executable(mw3tests
   tests/test_movie_shape.cpp
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
+  tests/test_mod_install.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp

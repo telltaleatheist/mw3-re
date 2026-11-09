@@ -176,7 +176,8 @@ bool mod_may_serve(const std::string& host_path) {
   while (p.rfind("./", 0) == 0) p.erase(0, 2);
   for (const char* dir : {"pilots/", "configs/", "keys/", "saves/", "patch12/", "mods/"})
     if (p.rfind(dir, 0) == 0) return false;
-  for (const char* file : {"mw3.cfg", "settings.reg", "movie-shapes.txt"})
+  // mw3-mod-added.txt: the marker of a mod the game added (mech3/mod_install.h).
+  for (const char* file : {"mw3.cfg", "settings.reg", "movie-shapes.txt", "mw3-mod-added.txt"})
     if (p == file) return false;
   return p.size() < 4 || p.compare(p.size() - 4, 4, ".log") != 0;
 }

@@ -1,4 +1,5 @@
 #include "mech3/mods.h"
+#include "mech3/mod_install.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -220,7 +221,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     std::sort(files.begin(), files.end());
     int replaced = 0, added = 0, ignored = 0;
     for (const std::string& rel : files) {
-      if (lower(rel) == "mod.txt") continue;
+      if (mod_own_file(rel)) continue;
       if (!zutl::mod_may_serve(rel)) {
         log.push_back("  " + rel + ": the player's own kind of file, ignored");
         ++ignored;
@@ -359,7 +360,7 @@ std::vector<std::string> mod_files(const std::string& path) {
   for (fs::recursive_directory_iterator f(path, ec), end; !ec && f != end; f.increment(ec))
     if (f->is_regular_file(ec)) {
       const std::string rel = lower(fs::relative(f->path(), path, ec).generic_string());
-      if (rel != "mod.txt") files.push_back(rel);
+      if (!mod_own_file(rel)) files.push_back(rel);
     }
   std::sort(files.begin(), files.end());
   return files;
@@ -675,7 +676,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   int archives = 0, entries = 0;
   for (const std::string& rel : files) {
     const std::string low = lower(rel);
-    if (low == "mod.txt") continue;
+    if (mod_own_file(low)) continue;
     if (!zutl::mod_may_serve(rel)) {
       out.push_back(rel + ": the player's own kind of file, which a mod cannot replace (ignored)");
       continue;
