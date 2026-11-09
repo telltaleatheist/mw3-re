@@ -132,8 +132,8 @@ const Config* ConfigCycle::config_at(int32_t i) {
 }
 
 // Mech3.exe 1.2 @ 0x00489c10. No choice reads as mech 0 (the value of none),
-// so an empty list lists the Annihilator's loadouts. A wave's enemy shows only
-// the wave's loadout; training loadouts are never listed.
+// so an empty list lists the Annihilator's loadouts. A wave's enemy lists them
+// with the wave's chosen; training loadouts are not listed unless the wave's.
 void EnemyList::select(int32_t i) {
   CycleButton::select(i);
   const int32_t mech = value_at(index);
@@ -157,12 +157,25 @@ void EnemyList::select(int32_t i) {
     c.add_item(cfg->name, static_cast<int32_t>(c.configs.size()) - 1);
   };
   if (s && !s->fixed) {
-    // Pirate's Moon: the wave's loadout from ia_progression (0x0040c300; out of range 0).
+    // Pirate's Moon 1.0 @ 0x0048f4d0: every loadout but training's, the wave's (ia_progression,
+    // 0x0040c300) chosen; a training one added as "Unknown"; one past the last chooses the first.
     const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
     const int32_t k = g ? g->wave_config(s->wave, s->filling) : -1;
-    const Config* cfg = k >= 0 && k < n ? (*list)[static_cast<size_t>(k)] : nullptr;
-    if (!cfg || cfg->training) return;
-    add(cfg);
+    const Config* chosen = nullptr;
+    int32_t at = -1;
+    for (int32_t j = 0; j < n; ++j) {
+      const Config* cfg = (*list)[static_cast<size_t>(j)];
+      if (j == k) chosen = cfg;
+      if (!cfg || cfg->training) continue;
+      if (cfg == chosen) at = c.count();
+      add(cfg);
+    }
+    if (chosen && chosen->training) {
+      at = c.count();
+      c.configs.push_back(chosen);
+      c.add_item(e_.message(0xd75), static_cast<int32_t>(c.configs.size()) - 1);
+    }
+    c.select(at < 0 ? 0 : at);
   } else {
     for (int32_t k = 0; k < n; ++k) {
       const Config* cfg = (*list)[static_cast<size_t>(k)];
@@ -332,7 +345,8 @@ void ActionScreen::keep_lineup() {
 }
 
 // Mech3.exe 1.2 @ 0x0048a810, Pirate's Moon 1.0 @ 0x0048f300: the wave's enemies from ia_progression
-// (0x0040c280, 0x0040c2c0), each with only its loadout, nothing to choose; the rows past the wave's hidden.
+// (0x0040c280, 0x0040c2c0), each with its loadouts and the wave's chosen, nothing to choose; the rows past
+// the wave's hidden.
 // FIX (bug): no more than the screen's six rows (the exe writes on past them for a longer wave, a mod's).
 void ActionScreen::show_wave(int32_t w) {
   Engine& e = engine();
@@ -354,6 +368,10 @@ void ActionScreen::show_wave(int32_t w) {
     l.select(0);
     l.set_arrows(0, 0, 0);
     l.set_label_font(l.inactive_font);
+    ConfigCycle& c = enemy_configs[i];  // listed, but not to choose (0x0048f445)
+    c.show_for(-1.0f);
+    c.set_arrows(0, 0, 0);
+    c.set_label_font(c.inactive_font);
   }
   for (; i < 6; ++i) enemies[i].hide();
 }

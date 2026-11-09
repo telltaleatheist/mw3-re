@@ -35,6 +35,7 @@
 #include "gamez/zutil/zfix.h"
 #include "mech3/player.h"
 #include "mech3/pilot.h"
+#include "mech3/action_menu.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
@@ -1578,9 +1579,28 @@ TEST(pm_leg_down) {
 #endif
 }
 
+static void werewolf_run();
 TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
   // Not after the Shadow Cats in one process: what a mission leaves here crashes a second one (zcls's lists).
   if (std::getenv("MW3_CAMPAIGN") || std::getenv("PM_KILL") || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  // In a child too, so the whole-mission runs after it (pm_ia_wave_config_past_...) don't load into its world.
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    werewolf_run();
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+  werewolf_run();
+#endif
+}
+
+static void werewolf_run() {
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3PM_GAME_DIR);
@@ -1826,4 +1846,244 @@ static void cow_run(int when) {
     mech3::reset_states();
     mech3::options() = mech3::Options{};
   }
+}
+
+// pm-tests 32: an Instant Action wave whose slot asks for a loadout past its mech's last (a mod's table; no
+// shipped one has such a slot). The stock table for the world, wave 1's first slot moved one past by hand.
+static mech3::ActionGame* ia32_game_for(mech3::ActionGame& game, int world, mech3::GameEngine& engine) {
+  game.set_world(world, 1);
+  game.set_mode(2);  // the world's block of ia_progression.zrd
+  if (game.progression.empty() || game.progression[0].empty()) return nullptr;
+  const mech3::ConfigList* list = engine.mech_loadouts(game.progression[0][0].mech);
+  if (!list) return nullptr;
+  game.progression[0][0].config = static_cast<int32_t>(list->configs.size());
+  return &game;
+}
+
+// The spawn (0x004a0f3c) gives the slot no loadout (0x0040c920 with 0), and 0x00414cb0 refuses none: the mech
+// keeps the one it was made with, its first, and fights. It isn't counted destroyed: its objective stays open.
+static void ia32_spawn_run();
+TEST(pm_ia_wave_config_past_the_last_spawns_with_the_first_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  // In a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    ia32_spawn_run();
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+  ia32_spawn_run();
+#endif
+}
+
+static void ia32_spawn_run() {
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_ia32_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::ActionGame game(nullptr);
+    EXPECT(ia32_game_for(game, 1, engine));  // c2: wave 1's two enemies, the first given one past its loadouts
+    game.x6c = 1;
+    game.slot.mech = 13, game.slot.skin = 2;
+    const int32_t past = game.progression[0][0].mech, other = game.progression[0][1].mech;
+    const mech3::Config* first = engine.mech_loadouts(past)->configs[0];
+    const mech3::Config* asked = engine.mech_loadouts(other)->configs[static_cast<size_t>(game.progression[0][1].config)];
+    mech3::GameEngine::Launch l;
+    l.type = 2, l.index = 1, l.number = 1;
+    l.action = &game;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, made = -1, open = -1;
+    bool past_first = false, past_armed = false, other_asked = false, past_alive = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames != 3 && frames != 600) return;
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      if (frames == 3) made = n;
+      for (int32_t q = 0; q < n; ++q) {
+        mech3::LaunchedMech m;
+        mech3::describe_mech(ai[q].mech, &m);
+        if (frames == 3 && m.roster == past) past_first = m.config == first, past_armed = m.weapons > 0;
+        // (the slot's own copy of the loadout, 0x00434880: the same by name)
+        if (frames == 3 && m.roster == other)
+          other_asked = m.config && !std::strcmp(static_cast<const mech3::Config*>(m.config)->name, asked->name);
+        if (frames == 600 && m.roster == past) past_alive = m.anim_state != 10;
+      }
+      if (frames == 600) {  // 20 s: wave 1's objective, a destroy for each enemy, none met
+        open = 0;
+        const mech3::Objectives& o = mech3::mission_objectives();
+        if (o.primary)
+          for (const auto& g : o.primary->items)
+            if (auto* gr = dynamic_cast<const mech3::ObjectiveGroup*>(g.get()))
+              for (const auto& d : gr->items) open += d->kind == mech3::Objective::kDestroy && !d->done;
+      }
+    };
+    Pump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return frames >= 600; };
+    app.run(pump);
+    EXPECT(made == 2);
+    EXPECT(past_first && past_armed);
+    EXPECT(other_asked);
+    EXPECT(past_alive);
+    EXPECT(open == 2);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// The Action screen's wave rows (Pirate's Moon 0x0048f300, 0x0048f4d0): each enemy's loadouts listed, the
+// wave's chosen, past the last the first; a training loadout as "Unknown"; not to step through.
+TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_ia32_rows_" + std::to_string(getpid());  // a new pilot
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    auto label = [](mech3::CycleButton& c) { return std::string(c.labels.empty() || !c.labels[0]->text ? "" : c.labels[0]->text); };
+    auto stock = [&](int32_t mech) {  // the mech's loadouts but training's
+      std::vector<std::string> v;
+      if (const mech3::ConfigList* l = engine.mech_loadouts(mech))
+        for (const mech3::Config* c : l->configs)
+          if (c && !c->training) v.emplace_back(c->name);
+      return v;
+    };
+    auto items = [](mech3::CycleButton& c) {
+      std::vector<std::string> v;
+      for (int32_t i = 0; i < c.count(); ++i) v.emplace_back(c.item(i)->text);
+      return v;
+    };
+    // A mech with a training loadout, for the third row.
+    int32_t trainee = -1, training_at = -1;
+    for (int32_t m = 0; m < 25 && trainee < 0; ++m)
+      if (const mech3::ConfigList* l = engine.mech_loadouts(m))
+        for (size_t j = 0; j < l->configs.size(); ++j)
+          if (l->configs[j] && l->configs[j]->training) {
+            trainee = m, training_at = static_cast<int32_t>(j);
+            break;
+          }
+    int stage = 0;
+    bool checked = false;
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[0].on_left_up();  // INSTANT ACTION
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        ps->screen->new_bar.set_text("Waver");
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        auto* st = dynamic_cast<mech3::GameMenuState*>(app.current());
+        auto* a = st && st->kind == mech3::GameMenuState::kAction ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(st->screen_)) : nullptr;
+        mech3::ActionGame* g = mech3::current_pilot() ? mech3::current_pilot()->action() : nullptr;
+        if (!a || !g || !app.pending_list().empty()) return;
+        g->progression.assign(1, {});
+        auto& w = g->progression[0];
+        int32_t m0 = -1;  // a mech with four loadouts or more but training's
+        for (int32_t m = 0; m < 25 && m0 < 0; ++m)
+          if (stock(m).size() >= 4) m0 = m;
+        const int32_t m1 = m0;
+        EXPECT(m0 >= 0);
+        if (m0 < 0) return;
+        w.push_back({m0, static_cast<int32_t>(engine.mech_loadouts(m0)->configs.size())});  // one past its last
+        w.push_back({m1, 3});
+        if (trainee >= 0) w.push_back({trainee, training_at});
+        a->show_wave(0);
+        const std::vector<std::string> s0 = stock(m0), s1 = stock(m1);
+        EXPECT(items(a->enemy_configs[0]) == s0);
+        EXPECT(!s0.empty() && label(a->enemy_configs[0]) == s0[0] && a->enemy_configs[0].index == 0);
+        const mech3::Config* third = engine.mech_loadouts(m1)->configs[3];
+        EXPECT(items(a->enemy_configs[1]) == s1 && label(a->enemy_configs[1]) == third->name);
+        for (int i = 0; i < 2; ++i) {
+          mech3::CycleButton& c = a->enemy_configs[i];
+          EXPECT(!c.prev.enabled && !c.next.enabled && !c.click_steps);
+        }
+        if (trainee >= 0) {
+          mech3::CycleButton& c = a->enemy_configs[2];
+          EXPECT(c.count() == static_cast<int32_t>(stock(trainee).size()) + 1 && label(c) == "Unknown");
+        } else {
+          std::printf("pm_ia_wave_rows: no mech has a training loadout; that row not checked\n");
+        }
+        checked = true;
+        stage = 3;
+      }
+    };
+    Pump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    EXPECT(checked);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
 }

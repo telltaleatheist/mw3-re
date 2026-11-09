@@ -1116,7 +1116,10 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   (a block per world, else "default"; 20 waves), where MW3 had them built
   into the program. Wave 9 is written as one entry, `Masakari 1 Masakari 3`,
   so only one Masakari comes, not two. The waves end with the file's last,
-  so a mod can make Progression longer or shorter. (0x0040c070, 0x0040c410)
+  so a mod can make Progression longer or shorter. A wave entry whose loadout
+  number is past the mech's last (counting from 0) doesn't crash: the mech
+  comes with its first loadout, and the setup screen shows that one's name.
+  (0x0040c070, 0x0040c410; 0x004a0f3c, 0x0048f4d0)
 
 - **The lance command view tints the battlefield green.** When you give
   your lancemates orders from the pocket command view, the whole screen is
