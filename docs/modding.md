@@ -973,7 +973,7 @@ them again) and one JSON per entry, or per file for gamez:
 | `mechlib.zbd` | `materials.json`, `<model>.flt.json` (`format`, `version` not needed) | built, above |
 | `motion.zbd` | `<motion>.json` per motion | built, above |
 | `zbd\<world>\anim.zbd` | `metadata.json`, `<def>.json` per anim def, `<script>.zan.json` per script | built, above |
-| `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | `cls_zbd` 0x004ff520, the whole world: five files, no entries |
+| `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | built, "gamez JSON" |
 
 Proposed naming: a mod holds unzbd's output unzipped in a folder named for the
 archive without `.zbd` (`zbd\mechlib\`, `zbd\motion\`, `zbd\c1\anim\`,
@@ -987,8 +987,7 @@ the JSON folder, then the zip, then the mod's archive; mods first to last as
 now. JSON is read only from a mod, never the install.
 
 Order, smallest and most edited first: (1) reader JSON, (2) motion, (3)
-mechlib, (4) anim (all done, above); (5) gamez (a whole world, the largest;
-worth it for new maps), next. Each with a test against unzbd's own output on
+mechlib, (4) anim, (5) gamez: all done. Each with a test against unzbd's own output on
 every shipped entry, run by itself when mech3ax's unzbd is beside the
 checkout. PM's archives the same where its formats match (mech3ax's `pm`
 readers), on `pm` after pm-v1.0.0.
@@ -1127,40 +1126,48 @@ Order of work, when Owen agrees, one sitting each:
 3. `--build-anim` and `anim=defs`;
 4. the node files, after the per-def check of the shipped effect defs.
 
-## gamez JSON (plan, 2026-11-09)
+## gamez JSON (built 2026-11-09)
 
-A world's gamez.zbd as unzbd writes it: `metadata.json`, `textures.json`,
-`materials.json`, `models.json` and `nodes.json`, five files and one whole
-world; c1's are 156 B, 20 KB, 75 KB, 41 MB and 17 MB. The plan is the same as
-for anim: the JSON becomes the gamez.zbd it stands for, laid out as mech3ax's
-writer lays it (`crates/gamez/src/gamez/mw`, `nodes/*` for each node class,
-`model/mw`, `materials`; about 3k lines with the classes), then read by
-`cls_zbd` 0x4ff520 from a `ScratchFile`. The test compares against the
-shipped file on all six worlds, with unzbd beside the checkout, names masked
-past their NUL if some prove to need mech3ax's tables. Node names keep their
-"Default_node_name" padding exactly, as in mechlib.
+A mod may hold a world as unzbd writes it: the folder `zbd\c1\gamez\`
+(`metadata.json`, `textures.json`, `materials.json`, `models.json`,
+`nodes.json`) or unzbd's `zbd\c1\gamez.zip`. The game opens it as the
+world's gamez.zbd (`open_zbd` 0x4ff6a0, used by the load 0x4ff520 and the
+re-read alike, the 1.2 patch's open hook still applied): the enabled mods
+first to last, the folder then the zip, stopping at a mod with its own
+`zbd\c1\gamez.zbd`. A world a mod declares (`world=`) may be its JSON too.
+The JSON (`zcls::gamez_from_json`, `src/upgrades/json/gamez_json.cpp`)
+becomes the file it stands for, laid out as mech3ax's writer lays it: the
+header, the texture directory (each name's last '.' a NUL, its suffix kept),
+the materials with their free slots and cycles, the model array (each
+model's record and its data's offset, the free slots chained, then the
+models' data, through mechlib's model writer with lights), then the node
+array (each node's 0xd0 record and its data's offset, an empty node's its
+one parent's index, the free slots, then each node's class data, parents and
+children). Every class: empty, camera, world (fog, area, the virtual
+partition's constants, lights, sounds and every partition), window, display,
+object3d, lod and light. The file is read through a `ScratchFile`, kept
+until the next open since the reader reads on from it. Fields unzbd leaves
+out take its defaults.
 
-Its own problems:
-- **Size.** `zutl_json`'s value tree is far too big for a 41 MB models.json
-  (every number a value). gamez needs a streaming reader that writes bytes as
-  it reads, with the same line-and-path errors. The model and node writers
-  already go item by item, so they fit it. That reader comes first.
-- **Node classes.** Besides object3d (done for mechlib), a world has camera,
-  display, window, world, light, lod and empty nodes, each with its own
-  record. Each class gets a test on its own: the world's nodes of that class
-  are the same bytes.
-- **The world node** carries the area partitions (the grid of cells and their
-  node lists). That's the largest single record and the one most tied to the
-  reader's bounds (`gamez.md`).
-- **Textures and materials** are names and small records. The models'
-  polygons index the world's materials, as in mechlib.
-- **For mods**, gamez is whole-world only: no per-node merging is planned.
-  New nodes for animations come from point 2 of the design above.
+*Size.* models.json is 41 MB for c1, too big for one tree:
+`zutl_json::Pull` walks the models and nodes lists and reads each item as
+its own small tree, with the same line-and-path errors.
 
-Sittings: (1) the streaming reader and the metadata, textures and materials;
-(2) the models; (3) the node classes but world; (4) the world node and its
-partitions, all six worlds the same; (5) the load path, `--check-mod`,
-errors, breaks and docs.
+*Byte for byte.* `mods_gamez_json_is_every_worlds_file` runs unzbd on all
+six worlds: every file is the shipped one byte for byte, with no masks (c1
+11,412,064 bytes). mech3ax keeps a table of about a hundred c3 partitions
+whose middle height its float sum misses; computed in double and rounded
+once, every one comes out as shipped, so no table is needed (the same lesson
+as mechlib's cosines). Errors name the file, line and place ("nodes.json:
+line 2 (at $[0].data): not a node class this format has: Portal", "an empty
+node has one parent", an unknown flag's name). Tests: that one,
+`mods_gamez_json_in_a_folder_or_a_zip` (the order, a refusal, the
+own-archive stop), `mods_gamez_json_errors_name_the_place`,
+`mods_json_pull_walks_and_names_the_place`, the check test,
+`mods_worlds_declared`.
+
+For mods, gamez is whole-world only: no per-node merging. New nodes for
+animations come from point 2 of "Animations a def at a time".
 
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
