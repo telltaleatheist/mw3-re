@@ -100,8 +100,9 @@ struct ModsListEntry {
 std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check = false,
                                      const std::string& install = "");
 // mw3.cfg's mod= lines: read, and replaced by `enabled` in order (at the
-// first old one's place, else the end; every other line kept). False when
-// the file cannot be written.
+// first old one's place, else the end; every other line kept), through
+// mw3.cfg.new renamed over it. False when it cannot be written (the old file
+// then left as it was).
 std::vector<std::string> mods_enabled(const std::string& write_dir);
 bool mods_save_enabled(const std::string& write_dir, const std::vector<std::string>& enabled);
 

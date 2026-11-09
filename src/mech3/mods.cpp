@@ -416,11 +416,28 @@ bool mods_save_enabled(const std::string& write_dir, const std::vector<std::stri
   std::vector<std::string> mods;
   for (const std::string& m : enabled) mods.push_back("mod=" + m);
   lines.insert(lines.begin() + static_cast<long>(at), mods.begin(), mods.end());
+  // Written beside it, then renamed over it: a crash or a full disk midway
+  // leaves the old file whole (rename replaces an existing file on Windows
+  // too: MoveFileEx with MOVEFILE_REPLACE_EXISTING).
   std::error_code ec;
   fs::create_directories(write_dir, ec);
-  std::ofstream o(cfg, std::ios::trunc);
-  for (const std::string& l : lines) o << l << '\n';
-  return static_cast<bool>(o);
+  const fs::path tmp = fs::path(write_dir) / "mw3.cfg.new";
+  {
+    std::ofstream o(tmp, std::ios::trunc | std::ios::binary);
+    for (const std::string& l : lines) o << l << '\n';
+    o.flush();
+    if (!o) {
+      o.close();
+      fs::remove(tmp, ec);
+      return false;
+    }
+  }
+  fs::rename(tmp, cfg, ec);
+  if (ec) {
+    fs::remove(tmp, ec);
+    return false;
+  }
+  return true;
 }
 
 std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text,
