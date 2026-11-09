@@ -435,16 +435,27 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   (`mods_save_enabled`) and take hold at the next start, which the screen
   says while mw3.cfg differs from the run.
 - ENTER on a campaign whose mod is on in this run: `campaign_enter` (its own
-  pilots) and the Campaign State, as the main menu's CAMPAIGN; back on the
-  MODS screen, `campaign_leave`. A campaign whose mod is off is never started
-  half-mounted: ENTER turns the mod on for the next start and says so ("its
-  mod is turned on; restart to play it").
+  pilots), MODS popped and the Campaign State pushed on the main menu, so
+  the stack is CAMPAIGN's: once a pilot is chosen the Campaign State pops
+  itself and replaces the main menu with the mission's state, nothing left
+  under the mission. (With MODS left under it, that pop resumed MODS and the
+  replace swapped MODS out, keeping the main menu under the mission; found
+  in review, 2026-11-09.) The campaign's pilots are let go when the main
+  menu updates again (`MainState::update`: after QUIT, the campaign's end,
+  or CANCEL on its pilot screen), never on a resume, which the Campaign
+  State's own pop makes on its way to the mission. A campaign whose mod is
+  off is never started half-mounted: ENTER turns the mod on for the next
+  start and says so ("its mod is turned on; restart to play it").
 - EDITOR: a stub for the Battlesport editor (says it is not built yet).
 - BACK: the main menu.
 
-Test: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
+Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
 the campaign rows with a broken file, the rows' marks and notes, UP moving
-the conflict to the other mod, ON/OFF and the save). Left: ADD MOD (its own
+the conflict to the other mod, ON/OFF and the save) and
+`mods_screen_enter_campaign_and_back_headless` (MODS, ENTER, a pilot in the
+campaign's folder, the first mission, the pause's options and QUIT, the main
+menu, MODS, BACK: the stack at each step, nothing under the mission, the
+pilots kept until the main menu). Left: ADD MOD (its own
 step), a live remount, the button's place (Owen).
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
