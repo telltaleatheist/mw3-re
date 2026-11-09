@@ -134,6 +134,7 @@
 #include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/editor/node_params.h"
 #include "mech3/zainetedit.h"
 #include "mech3/app_keys.h"
 #include "mech3/mods.h"
@@ -26328,4 +26329,62 @@ TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
   std::printf("  Open listed %d net files on its first page (net_01.zrd %d); opened \"%s\": %d nodes, %d marks, stepped %d; closed %d\n", listed,
               has01, opened.c_str(), nodes, marks, frames_run, closed);
   EXPECT(listed > 2 && has01 && nodes > 0 && marks == nodes && frames_run && closed && paged);
+}
+
+// Node Params (ours, S5 sitting 4c) on c1m1: net_01's node_00 picked, its
+// speed typed as 0.25 and its gate named, OK, Save Changes; read back from
+// the editor mod's archive through the reader, both there.
+TEST(mission_c1m1_node_params_saved_headless) {
+  if (!have_game()) return;
+  std::string write_dir, status;
+  bool formed = false;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("node_params", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    write_dir = zutl::mounts().write;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_ai_nets(0);
+    mech3::NetDialog& d = mech3::net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+    mech3::net_dialog_close();
+    mech3::NetEditor* e = mech3::net_editor();
+    if (!e) return true;
+    e->view->pick(&e->view->marks[0]);
+    mech3::node_params_open(0);
+    formed = mech3::node_params_open_now();
+    const auto type = [](const char* t) {
+      for (const char* c = t; *c; ++c) mech3::node_params_char(*c, 0);
+    };
+    mech3::node_params_press(5), type("0.25"), mech3::node_params_char('\r', 0x1c);  // speed
+    mech3::node_params_press(19), type("gate_x"), mech3::node_params_char('\r', 0x1c);  // gate
+    mech3::node_params_press(20);  // OK
+    mech3::net_editor_save(0);
+    status = mech3::editor_panel().rows[24]->text;
+    mech3::net_editor_exit(0);
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  bool speed = false, gate = false;
+  const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
+  if (std::filesystem::exists(out)) {
+    const zutl::Mounts keep = zutl::mounts();
+    zrdr::close_archives(true);
+    zrdr::init();
+    if (zrdr::open_archive(out.string().c_str(), true)) {
+      mech3::ai::NetFile f(1, "net_01.zrd");
+      if (f.load() != 0) {
+        if (const mech3::ai::NetNodeRec* r = f.node_named("node_00")) {
+          speed = r->speed_on == 1 && r->speed == 0.25f;
+          gate = r->gate && std::string(r->gate) == "gate_x";
+        }
+        f.unload();
+      }
+    }
+    zrdr::close_archives(true);
+    zutl::mounts() = keep;
+  }
+  std::printf("  the form %d; \"%s\"; saved: speed %d, gate %d\n", formed, status.c_str(), speed, gate);
+  EXPECT(formed && speed && gate);
 }

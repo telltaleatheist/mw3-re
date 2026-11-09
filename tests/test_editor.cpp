@@ -12,6 +12,7 @@
 #include "mech3/game_editor_net.h"
 #include "mech3/zainet.h"
 #include "mech3/zainetedit.h"
+#include "upgrades/editor/node_params.h"
 
 namespace {
 struct Stub : mech3::EditorHooks {
@@ -212,9 +213,8 @@ TEST(game_editor_net_dialog_and_menu) {
   EXPECT(joined(h.calls).find("place 0 0 0") != std::string::npos);
   press(h, 8);  // Save Changes: its file is in no archive here
   EXPECT(row_text(24).find("not saved") == 0 && mech3::net_editor()->dirty == 0);
-  h.calls.clear();
-  press(h, 3);  // Node Params: sitting 4's
-  EXPECT(joined(h.calls).find("not_ported Node Params") != std::string::npos);
+  press(h, 3);  // Node Params (ours): nothing picked
+  EXPECT(row_text(24) == "Select a node first");
   press(h, 12);  // Exit Net Editor
   EXPECT(!mech3::net_editor() && mech3::editor_state().mode == 0 && row_text(1) == " EDIT AI NETS");
   press(h, 8);  // the main menu's blank row: nothing
@@ -477,6 +477,71 @@ TEST(net_window_open_and_hosted_editor) {
   EXPECT(!mech3::net_window() && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
   mech3::net_editor_frame_all(false);  // the menus down: the main one stepped
   EXPECT(mech3::net_editor()->has_ground == 1);
+  mech3::net_editor_free();
+  mech3::editor_exit();
+  mech3::editor_reset();
+  mech3::set_editor_hooks(nullptr);
+}
+
+// Node Params as meant (ours; the release's 180 is empty): the first pick's
+// record as a form; typed values (Enter keeps, Esc drops), the tri-state
+// flags cycling, a name typed; OK puts it on the node and makes the editor
+// anew, Cancel leaves it.
+TEST(node_params_form_edits_the_picked_node) {
+  Stub h;
+  mech3::editor_reset();
+  mech3::set_editor_hooks(&h);
+  mech3::editor_enter();
+  auto* edit = new mech3::ai::CZAiNetEdit(9, nullptr, 0);
+  mech3::ai::NetNodeRec r0;
+  r0.index = 0, r0.pos[0] = 4.0f;
+  edit->elems = {new mech3::ai::NetNode(edit, r0)};
+  mech3::net_editor() = new mech3::NetEditor(edit, 0);
+  mech3::NetEditor* e = mech3::net_editor();
+  mech3::node_params_open(0);
+  EXPECT(!mech3::node_params_open_now() && row_text(24) == "Select a node first");
+  e->view->pick(&e->view->marks[0]);
+  mech3::node_params_open(0);
+  EXPECT(mech3::node_params_open_now() && row_text(0) == "Node Parameters: node_00");
+  EXPECT(row_text(2) == "   x: 4.000" && row_text(5) == "   speed: off");
+  const auto type = [](const char* t) {
+    for (const char* c = t; *c; ++c) mech3::node_params_char(*c, 0);
+  };
+  mech3::node_params_press(5);  // speed
+  type("0.5");
+  EXPECT(row_text(5) == " > speed: 0.5_");
+  mech3::node_params_char('\r', 0x1c);
+  EXPECT(row_text(5) == "   speed: 0.500");
+  mech3::node_params_press(2);  // x
+  type("zz");
+  mech3::node_params_char(27, 1);  // Esc: x as it was
+  EXPECT(row_text(2) == "   x: 4.000");
+  mech3::node_params_press(12);  // hidden: as the default -> yes -> no -> as the default -> yes
+  EXPECT(row_text(12) == "   hidden: yes");
+  mech3::node_params_press(12);
+  EXPECT(row_text(12) == "   hidden: no");
+  mech3::node_params_press(12);
+  EXPECT(row_text(12) == "   hidden: as the default");
+  mech3::node_params_press(12);
+  EXPECT(row_text(12) == "   hidden: yes");
+  mech3::node_params_press(18);  // name
+  type("Gate A");
+  mech3::node_params_press(20);  // OK, the typed name taken first
+  mech3::ai::NetNode* n = edit->node(0);
+  EXPECT(!mech3::node_params_open_now() && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
+  EXPECT(n->rec.speed_on == 1 && n->rec.speed == 0.5f && n->rec.hidden_set == 1 && n->rec.hidden == 1);
+  EXPECT(n->rec.name && std::string(n->rec.name) == "Gate A" && n->rec.pos[0] == 4.0f);
+  EXPECT(e->dirty == 1 && e->rebuild == 1);
+  // Cancel leaves it.
+  mech3::net_editor_step(0.1f);
+  e = mech3::net_editor();
+  e->view->pick(&e->view->marks[0]);
+  mech3::node_params_open(0);
+  mech3::node_params_press(5);
+  type("2");
+  mech3::node_params_char('\r', 0x1c);
+  mech3::node_params_press(21);  // Cancel
+  EXPECT(!mech3::node_params_open_now() && edit->node(0)->rec.speed == 0.5f);
   mech3::net_editor_free();
   mech3::editor_exit();
   mech3::editor_reset();

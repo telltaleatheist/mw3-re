@@ -575,6 +575,35 @@ archives' net files, net_01.zrd among them, pages down and up, net_02.zrd
 opened with its 19 nodes as marks, stepped, OK closing). Breaks: the window's
 editor not stepped, Open opening nothing.
 
+## Node Params (S5 sitting 4c; ours, 2026-11-09)
+
+In the release Node Params (0x00403710 -> the node's vt+0x90, 0x004c7190 ->
+0x004c7840) opens template 180, "Node Parameters", modeless, with OK and
+Cancel and nothing else, and never hands it the node: 0x004c7820 calls
+0x004bf620, an empty function. Owen's call (2026-11-09): build it as it was
+meant to work, as ours (`upgrades/editor/node_params`).
+
+The first pick's record is a form in the editor's panel, one row a field:
+placed (kind 0, its x y z given), x, y, z, speed, wait interval, wait time
+(each "off" until a value is typed), the two can-leave words, jump,
+arrange nodes' spacing, hidden, fixed, autonext and visible (each "as the
+default", yes or no, cycling on a press), backup and shunt (yes or no), name
+and gate. A press on a value row takes typed text through zInput's character
+callback (Enter keeps it, Esc drops it, Backspace; a number that does not
+read leaves the value; an empty one turns a switchable value off). OK puts
+the record on the node field by field (the node keeps its own auxname), its
+place through set_pos and the links stored again, so the fold
+(0x004befc0) takes it to the cache and Save Changes keeps it; the editor is
+made anew. Cancel leaves the node as it was. Without a pick: "Select a node
+first".
+
+Tests: `node_params_form_edits_the_picked_node` (no pick refused; a value
+typed and kept, another dropped by Esc, the tri-state cycle, a name; OK
+puts them on the node, Cancel does not); `mission_c1m1_node_params_saved_headless`
+(net_01's node_00: speed 0.25 and a gate, OK, Save, both read back from the
+editor mod's archive). Breaks: the speed not put on the node, the cycle
+skipping "no".
+
 ## The save (S5 sitting 2, 2026-11-09)
 
 **The text writers, ported** (`zrdrainet.cpp`): the header 0x4da1d0 ->

@@ -14,6 +14,7 @@
 #include "mech3/net_save.h"
 #include "mech3/zainet.h"
 #include "mech3/zainetedit.h"
+#include "upgrades/editor/node_params.h"
 
 namespace mech3 {
 
@@ -30,14 +31,13 @@ constexpr int32_t kListRows = 18;  // ours: the list's rows the panel has room f
 
 void not_ported(const char* what) { editor_hooks().not_ported(what); }
 void none(int32_t) {}  // 0x004bf620
-void node_params(int32_t) { not_ported("Node Params (0x00403710, the Node Parameters dialog 180)"); }
 void add_vehicle(int32_t) { not_ported("Add veh to node (0x00403820, the Node Edit - Vehicle dialog 141)"); }
 void tree_view(int32_t) { not_ported("Tree View (0x00402c70, the tree window)"); }
 
 // 0x005e0f18.
 const EditorEntry kNetRows[13] = {
     {"Pick CMD or Point", none},   {" GOTO Net", net_editor_goto},        {" Change Net Params", net_params_open},
-    {" Node Params", node_params}, {" Add veh to node", add_vehicle},     {" Move Node", net_editor_move},
+    {" Node Params", node_params_open}, {" Add veh to node", add_vehicle},     {" Move Node", net_editor_move},
     {" Delete Node", net_editor_delete}, {" Delete Net", none},                  {" Save Changes", net_editor_save},
     {" Tree View", tree_view},     {"", nullptr},                          {"", nullptr},
     {" Exit Net Editor", net_editor_exit},
