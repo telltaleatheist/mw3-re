@@ -57,17 +57,17 @@ const char* const kWeapons[38] = {
     "StreakSRM4",   "StreakSRM6",   "TAG",           "UltraAC2",     "UltraAC5",          "UltraAC10",
     "UltraAC20",    "PPC"};
 
-std::vector<ModMech> g_rows;  // ours: the mods' mechs, index 19 on
+std::vector<ModMech> g_rows;  // ours: the mods' mechs, index 20 on (19 the exe's none)
 std::vector<ModWeapon> g_weapon_rows;  // ours: the mods' weapons, index 38 on
 // A weapon index in play: the plain PPC (37) only with the bug fixes on.
 bool live_weapon(int32_t w) { return w >= 0 && w < weapon_count() && (w != 37 || zfix::options().bugs); }
 const ModWeapon* weapon_row(int32_t w) {
   return w >= kBuiltinWeapons && w < weapon_count() ? &g_weapon_rows[w - kBuiltinWeapons] : nullptr;
 }
-const ModMech* row(int32_t mech) { return mech >= kBuiltinMechs && mech < mech_count() ? &g_rows[mech - kBuiltinMechs] : nullptr; }
+const ModMech* row(int32_t mech) { return mech >= kFirstModMech && mech < mech_count() ? &g_rows[mech - kFirstModMech] : nullptr; }
 }  // namespace
 
-int32_t mech_count() { return kBuiltinMechs + static_cast<int32_t>(g_rows.size()); }
+int32_t mech_count() { return g_rows.empty() ? kBuiltinMechs : kFirstModMech + static_cast<int32_t>(g_rows.size()); }
 const char* mech_model_name(int32_t mech) {
   const ModMech* r = row(mech);
   return r ? r->model.c_str() : mech_name(mech);
@@ -190,7 +190,7 @@ int32_t mech_index(const char* name) {
   for (int32_t i = 0; i < 19; ++i)
     if (crt::msvc_stricmp(name, kMechs[i].name) == 0) return i;
   for (size_t i = 0; i < g_rows.size(); ++i)  // ours: the mods' rows after
-    if (crt::msvc_stricmp(name, g_rows[i].name.c_str()) == 0) return kBuiltinMechs + static_cast<int32_t>(i);
+    if (crt::msvc_stricmp(name, g_rows[i].name.c_str()) == 0) return kFirstModMech + static_cast<int32_t>(i);
   return -1;
 }
 
