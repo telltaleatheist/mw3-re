@@ -98,7 +98,8 @@ void log_first_hit(const zcls::LineHits& r, int n, const float* from) {
   float best_d = 0.0f;
   for (int i = 0; i < n && i < 32; ++i) {
     const zcls::LineHit& h = r.hit[i];
-    const float d = std::hypot(h.point[0] - from[0], h.point[1] - from[1], h.point[2] - from[2]);
+    const float dx = h.point[0] - from[0], dy = h.point[1] - from[1], dz = h.point[2] - from[2];
+    const float d = std::sqrt(dx * dx + dy * dy + dz * dz);  // not 3-argument hypot: MSVC's needs msvcp140_2.dll
     if (!best || d < best_d) best = &h, best_d = d;
   }
   if (best) hit_log("shot", best->node, best->owner, best->point, best->normal, from);
