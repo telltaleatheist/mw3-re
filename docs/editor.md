@@ -915,6 +915,222 @@ On dev 1's per-def design (modding.md, Animations a def at a time):
 then 2 (mech variant), then 5 (pack), then 3 (effects, the largest, waiting
 on the per-def loader).
 
+## The vehicle editor, the map (S7, 2026-11-09)
+
+EDIT VEHICLES (0x004040c0) and debug command 0x9d both call 0x004b86e0.
+When [0x0060b310] is empty, it makes the editor (`new(0x988)`, 0x004b80f0)
+and creates it modeless (0x004d5570: `CDialog::Create(165)`). The editor
+is the **Mech AI** dialog (template 165). Its pages are child dialogs on a
+tab control, so it is not a property sheet. The source file's name is not
+in the exe: func2file puts it between weapon.cpp and zainetedit.cpp.
+`tools/analysis/dlgdump.py` prints any template's controls.
+
+**The dialog** (165, 232 x 295 dialog units): the vehicle combo 1239, the
+tab control 1236, OK, Apply (12321), Refresh (1237), and Pause (1218, a
+push-like check box). Its message map is 0x005c9480:
+
+| Control | Handler | What it does |
+|---|---|---|
+| tab 1236, TCN_SELCHANGE | 0x004b8770 (not a function in Ghidra) | 0x004b7c80: the old page gathered (UpdateData(1)) and hidden, the new one shown and filled |
+| Apply | 0x004b8d40 | 0x004b8dc0 on the selection: gather, store 0x004bb7e0, show again |
+| combo 1239, CBN_SELCHANGE | 0x004b8d70 | store into the old selection, then load the new one (0x004b8df0 -> 0x004bc140) |
+| Pause | 0x004bc3f0 | the check box read; 0x0058fa80 or 0x0058faa0 (the world paused or run) |
+| Refresh | 0x004b9f20 (not a function in Ghidra) | to read |
+| OK | 0x004b8d20 (vt+0xcc) | Apply, then DestroyWindow (0x004d5610) |
+| destroyed | 0x004b8b70 (PostNcDestroy) | 0x004bc3e0, the object deleted, [0x0060b310] cleared |
+
+**OnInitDialog** (0x004b8790) creates the twelve pages:
+- On the main tab: p1 (167, +0x4e8), p2 (166, +0x548), Attack (168,
+  +0x5b4), Retreat (169, +0x7f4), p5 (170, +0x854), Fire (171, +0x8b4) and
+  Valve (172, +0x914).
+- On Attack's own tab 1175: Circle (174), Direct (176), Jump (175), Zig Zag
+  (173) and Random Move (183).
+
+Each page is added through 0x004b8a20, which inserts a tab with the page's
+title and fits the page into the tab's rect. Then OnInitDialog fills the
+lists:
+- the vehicles from [0x0073655c] (0x004bb290 / 0x004bb200);
+- [0x00603fdc] (0x004bc480, combo +0x1f4);
+- the 19 chassis' names (0x004bc860 with 0x00484650, combo +0x274);
+- the nets (0x004b7fb0: 0x004ba2d0, 0x004ba150, 0x004bafa0, 0x004b9ff0);
+- [0x0060b504] (0x004bb300, +0x398) and [0x0060b3f4] (0x004bb620, +0x3d8);
+- the Attack strategy's two fixed strings.
+
+It then selects the first vehicle (0x004b8df0) and shows the first page of
+each tab. When the mission has no "ionet" (0x004c4a20, 0x004c4a40), +0x1d1
+is set. Which list is which, regions, valves or targets, is S7c's to read.
+
+**The pages**, as made by the constructor 0x004b80f0. Each page has its own
+vtable and its DoDataExchange at vt+0x8c:
+
+| Page | Template | Constructor | DDX | Its own handlers |
+|---|---|---|---|---|
+| p1: activation, leaving the net to follow, follow ranges | 167 | 0x004b8ba0 | 0x004b8bc0 | none |
+| p2: the vehicle (configuration, chassis, skin, pilot, objective conditional, can configure, shutdown on start, home net and Net Edit, net id, Show, Show InOut, initial position x y z yaw, team, Send home, lancemate) | 166 | 0x004b8e10 | 0x004b8eb0 | team edit 1111 (EN_CHANGE) 0x004b9270; team radios 1197..1199 0x004b9290; home net 1238 0x004b9f30; Net Edit 1250 0x004b9f50 (window 181); Send home 1255 0x004b9f70; configuration 1273 0x004b9fb0; chassis 1274 0x004b9fd0 |
+| Attack: firing accuracy, FCS/TC multiplier, strategy, throttle, its strategy tab | 168 | 0x004b92d0 | 0x004b92f0 | tab 1175 0x004b9e10 |
+| Circle: radius | 174 | 0x004b9c10 | 0x004b9c30 | none |
+| Direct: approach, minimum range | 176 | 0x004b9c60 | 0x004b9c80 | none |
+| Jump: delays, durations | 175 | 0x004b9cd0 | 0x004b9cf0 | none |
+| Zig Zag: length, target distance | 173 | 0x004b9d70 | 0x004b9d90 | none |
+| Random Move: radius ("Not yet implemented, behaves like Circle.") | 183 | 0x004b9de0 | Circle's 0x004b9c30 | none |
+| Retreat: net distance, health, time, health change; the leave-net disable for a timeout or forever | 169 | 0x004b9470 | 0x004b9490 | none |
+| p5: the scan trigger (time, hit, aim; initial and set value), scan and jump parameters, quit scan on trigger pull, collision avoidance | 170 | 0x004b9680 | 0x004b96a0 | none |
+| Fire: acquisition range, fire time, cooldown, alpha strike | 171 | 0x004b9870 | 0x004b9890 | none |
+| Valve: the valve and its value, set on health, ammo, fired on, target distance, heat, region enters or exits, target LOS | 172 | 0x004b9910 | 0x004b9930 | valve combo 1176, CBN_SELCHANGE 0x004b9f80 and CBN_SELENDOK 0x004b9fa0 |
+
+The page titles p1, p2 and p5 are aiv.zrd's record tags (its reader warns
+about p3, p4, p5, p7 and p8; docs/ai.md). Which page maps to which key is
+for each page's sitting to record.
+
+**The editor's own data:** the dialog's settings at +0x64 (AiParams,
+0x004d98c0), and the last loaded record's copy at +0x294. +0x974..+0x984
+are five tri-state flags: 2 means "as the vehicle has it".
+
+**Loading** (0x004bc140): the vehicle is the combo's item data; its
+controls are vt+0x140 and their brain vt+0x90 (a vehicle without one is
+skipped). Its aiv record comes from the cache (0x004e0680 by the vehicle's
+id). When it has none, one is made from the brain's settings (0x004df6f0,
+0x004df710) and put in the cache (0x004e06e0). The settings are taken into
++0x64 (0x004d99e0), then the pages are filled: 0x004bc260, 0x004044c0(0),
+0x004bc570, 0x004bc640, 0x004bc790 and 0x004bc930.
+
+**Storing** (Apply, 0x004bb7e0) builds a record from +0x64 (0x004d9940).
+- It compares that record with the cache's, field by field: the names
+  (0x0049d2f0, 0x004d91d0), the orders (0x004bbd70, 0x004bbdd0, 0x004bbe60,
+  0x004bbed0, 0x004bc010, 0x004bc090, 0x004bc0d0, 0x004bc110), four words
+  at +0x50 and two flag bits. When they differ, it puts the record in the
+  cache (0x004e06e0 -> 0x004defc0, which drops a record equal to the file's,
+  as the net file's 0x004dc2b0 does).
+- It compares it the same way with the brain's live settings. When those
+  differ, it gives them to the brain (0x004d99e0) and rebuilds the team's
+  three masks on the vehicle (+0xc0, +0xc4, +0xc8: the team's bits, allies
+  without bit 0, enemies the rest), and clears [0x0060b56c].
+
+**Nothing is saved.** As with the nets, an edit lives only in the aiv
+file's record cache (its map at +0x24) and in the running brain. The exe
+has no aiv text writer: the only fprintf near ZRdrAiv.cpp is 0x004e2310's
+one line. Saving is ours, built on Add vehicle's `aiv_with_record`
+(above) into the editor's mod, as the nets' save is.
+
+**Size:** about 110 functions and 3,000 lines of pseudocode, from
+0x004b7c80 to 0x004bcb70, with the cache's 0x004defc0 and 0x004df1b0 and
+the AiParams copies. 0x004b8770 and 0x004b9f20 need
+`tools/ghidra/CreateAndDecompile.java`. Pirate's Moon's differences are to
+be counted in S7c, from analysis-output/pm-diff.
+
+**Left to read in the sittings:** whether Show, Show InOut, Enable Now,
+Lancemate and the other DDX-only check boxes do anything beyond setting a
+field. Anything the release leaves empty or broken gets made to work as
+meant, as ours in `src/upgrades/editor/`.
+
+## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
+
+Owen: the editor's dialogs need not imitate MFC. The lead's call is Dear
+ImGui (MIT, source only, with an SDL3 platform backend and an SDL_GPU
+renderer backend). It is used for the Battlesport editor's dialogs and for
+our modding dialogs. The game's own menus stay zTwoD.
+
+**What it replaces:** the panel forms that stand in for Windows dialogs:
+- the net pick (139);
+- the Ai Network Editor window (181);
+- Node Params (180);
+- Add veh to node (141);
+- the tree view (155);
+- Delete Node's second-press confirm, which stood in for a Windows message box;
+- the Mech AI dialog and its twelve pages.
+
+These get real text fields, combo boxes, lists, trees and tabs, with no
+paging rows. The editor's own 25-row menus (0x0040e7b0, 0x0040e7d0, the AI
+net editor's 13 rows) are the original's in-game panel, not MFC: they stay
+as they are, drawn through zTwoD's FontText.
+
+**Code layout:**
+- Each form's state and actions are model code with no ImGui types: the
+  ported functions in `mech3/game_editor_*`, and ours in
+  `src/upgrades/editor/`.
+- A thin view, `src/frontend/sdl/editor_imgui.cpp`, draws each model and
+  calls its actions.
+- Headless tests drive the models, as today's tests do, never the widgets.
+- The vendored copy is `third_party/imgui`, one tagged release pinned (not
+  the docking branch). It holds the core files, `imgui_impl_sdl3`,
+  `imgui_impl_sdlgpu3` and LICENSE.txt.
+- The build target `mw3imgui` links into the programs (mw3, mw3pm, through
+  mw3sdl), never into mw3core or the probes.
+- THIRD-PARTY.txt gets an entry in `tools/macos/` and
+  `tools/windows/dist/`; the AppImage copies the Windows list.
+
+**Input hand-off** (`SdlPump::handle`):
+- While the editor is up, each event goes to `ImGui_ImplSDL3_ProcessEvent`
+  first. Mouse events then go on to zInput (`input_->on_event`) only when
+  `io.WantCaptureMouse` is false, and key and text events only when
+  `io.WantCaptureKeyboard` and `io.WantTextInput` are false. So the stealth
+  flies and the reticle picks whenever no window is under the mouse and no
+  field has the focus.
+- Text input (`SDL_StartTextInput`) is on only while an ImGui field has the
+  focus.
+- Our Alt+Enter keeps coming first, as now.
+- With the editor down, ImGui gets no events and nothing changes.
+
+**Render order** (`SdlRender3D::present`):
+1. The game draws its frame into `frame_` as now, the editor's zTwoD panel
+   included.
+2. The frame is blitted to the swapchain, fitted with its bars.
+3. While the editor is up and ImGui has draw data:
+   `ImGui_ImplSDLGPU3_PrepareDrawData` on the same command buffer, then a
+   render pass on the swapchain with LOADOP_LOAD, `RenderDrawData`, the end
+   of the pass and the submit. ImGui draws in window pixels over the whole
+   window, bars included, scaled by the window's pixel density.
+4. A hidden window, which the headless tests use, makes no ImGui frame.
+   `--shot` reads `frame_`, so shots show the game without ImGui; a
+   swapchain read-back for editor shots can come later if wanted.
+
+`NewFrame` and `Render` run once per presented frame, from the editor's
+frame hook, after the game's update and before present.
+
+## The vehicle editor and ImGui, in sittings (planned 2026-11-09)
+
+1. **S7a ImGui in.**
+   - Vendored and pinned, with its licence and both THIRD-PARTY.txt entries.
+   - Built into mw3 and mw3pm on macOS; the mingw cross build and the
+     Windows and Linux packages checked.
+   - The input hand-off and the render pass above, and an empty window while
+     the editor is up.
+   - Tests: a unit test of the routing (an event the editor's ImGui takes
+     never reaches zInput; with the editor down, every event does);
+     c1m1's Shift+F12 mission test unchanged.
+2. **S7b The forms built so far, moved to ImGui:** the net pick, window
+   181, Node Params, Add vehicle, the tree view and Delete's confirm (a
+   modal with Yes and No). The model/view split comes first. Their logic
+   and tests stay, and the tests drive the models; the panel's paging rows
+   go. editor.md and CHANGES.md say what changed. This is its own sitting,
+   so nothing else moves at the same time.
+3. **S7c The Mech AI dialog's shell** (ImGui for MFC: FIX (A)):
+   - The entry, object and OnInitDialog with its lists.
+   - The vehicle pick, load 0x004bc140, store 0x004bb7e0 with its compares,
+     the aiv cache's edit 0x004defc0, Apply, OK, Pause, Refresh, the close.
+     The tabs are there, with the pages empty.
+   - Differential tests of the store's compare chain and of the cache's edit
+     on random records, against the exe.
+   - A mission test on c1m1: open the editor, pick a vehicle, change a value
+     and Apply; the brain's settings change and the cache holds the record.
+   - Pirate's Moon's differences counted.
+4. **S7d The pages, part 1:** p2, the vehicle, with its handlers (team, home
+   net and Net Edit into window 181, Send home, configuration, chassis), and
+   p1. Each page's DDX becomes a field table on the model, its gather and
+   scatter checked against the exe's DDX. The exe's DDX runs in Unicorn with
+   MFC's DDX_* calls hooked to a field table.
+5. **S7e The pages, part 2:** Attack and its strategy tab (Circle, Direct,
+   Jump, Zig Zag, Random Move on Circle's DDX), Retreat, p5, Fire and Valve,
+   with the valve combo.
+6. **S7f The save (ours):**
+   - Apply's records into the editor mod's aiv.zrd for the mission
+     (`aiv_with_record`, as the nets' save), with MODS EDIT saving into the
+     mod itself.
+   - A restart read-back mission test and a mech3ax check of the written
+     archive.
+7. Then PM's differences on `pm`, and the modding dialogs (above) on the
+   same ImGui views.
+
 ## The stealth object
 
 Made at every mission load ("Creating Stealth", **0x004a4de0**, [0x00609a2c],
@@ -1037,9 +1253,9 @@ new):
    handlers above, the tree view; Save Changes to the mod's copy of the
    mission's archive (FIX (A); the map above), saying on screen where it saved; typed fields (names, numbers) bounded
    like any input.
-6. **S7** The vehicle editor mapped (0x004b80f0's object, its screens and
-   what each control edits and writes, to which file; every save to the
-   write dir), then its own sittings (likely 3 to 5), named from that map.
+6. **S7** The vehicle editor: mapped 2026-11-09 ("The vehicle editor, the
+   map"), its sittings S7a..S7f in "The vehicle editor and ImGui, in
+   sittings".
 7. **S8** The "GameZ Interpreter" console 0x5960a0, with its log callback
    0x596130, its line runner 0x596190 and its toggle 0x4810d0 (`interp.md`,
    Hidden debug console). The exe's only way in, action 0xa3, is likely
