@@ -6,7 +6,7 @@ stays where it is (`frontend/`, `platform/`, `crt/`: the stand-ins for
 DirectX, MCI, Win32 and the CRT, FIX (A)). Everything we add that the
 original does not have goes under `src/upgrades/`: gameplay upgrades of the
 Upgrades page's kind (behind an upgrade switch, not the bug-fix one) and new
-features. Nothing is moved yet; this is the plan for the lead.
+features. Nothing is moved yet. Owen (2026-11-09): the move waits for the final sweep; until then new feature and upgrade code is written straight into src/upgrades/.
 
 ## 1. Inventory (main, ee5fb3c3; 581 files)
 
@@ -21,7 +21,7 @@ three or more "ours" blocks. Counts: port 332, mixed 82, ours 93, stand-in
 | `json/` | gamez/zreader/zreader_json.cpp, gamez/zutil/zutl_json.*, zutl_zip.*, gamez/zeffect/zeff_anim_json.*, gamez/zclass/cls_mechlib_json.*, cls_zbd_json.*, gamez/zsiscript/si_script_json.* |
 | `install/` | mech3/data_folder.*, data_version.*, disc_install.*, source_archive.*, source_install.*, source_map.*, patch_import.*, patch12*.cpp/h (the official 1.2 patch's edits on 1.0 data, and our records in dialogs: MODS, UPGRADES) |
 | `cheats/` | mech3/cheats.*, app_cheats.cpp |
-| `debug/` | mech3/hit_log.*, run_log.*, load_watch.*, app_hook_census.cpp, frontend/debug_world.*, gamez/zgame/unported.h |
+| `debug/` | frontend/sdl/run_log.*, mech3/load_watch.*, app_hook_census.cpp, frontend/debug_world.*, gamez/zgame/unported.h (and the hit log's code where it sits) |
 | `editor/` | mech3/net_save.* (the editor's own mod), our editor dialogs' additions in game_editor* |
 | `ai/` | mech3/zai_nav.* (W58: the walkability grid, `nav_allies`/`nav_enemies`) |
 | `game_setup/` | mech3/game_setup.* (the launch and the debug start), app_pocket.cpp |
@@ -70,7 +70,7 @@ ported function then reads as the original's plus marked lines.
 | mechlib_load 0x4fc8f0, mechlib_read_materials 0x4fc9e0 (cls_mechlib.cpp: mod_entry) | mechlib JSON | `upgrades::mechlib_entry(lib, name, &bytes)` |
 | anim_read_zbd 0x50a0e0 (zeff_anim_init.cpp) | anim JSON | `upgrades::anim_from_mod(path, &bytes)` |
 | Mech::control axes 0x427870 (mech_control.cpp, `throttle_reverse`) | a lever's reverse | `upgrades::lever_throttle(...)` behind its switch |
-| the AI's way steps (zai_attack.cpp, zai_steps, `nav_allies`/`nav_enemies`) | the walkability grid round walls | `upgrades::nav_around(...)` behind its switch (zai_nav moves to ai/) |
+| the AI's way, wired in app_mission.cpp (`nav_allies`/`nav_enemies`) | the walkability grid round walls | `upgrades::nav_around(...)` behind its switch (zai_nav moves to ai/) |
 | the menus' canvas (app_menus.cpp, lab_view.cpp, `wide_menus`) | 16:9 menus | `upgrades::wide_canvas(...)`; app_menus is wiring, so its part stays there marked |
 | mech_names / mech_config tables (rows past the exe's 19 mechs and 37 weapons) | mod rows | the exe's tables stay as data; `mech_count()` and the row lookups past them call `upgrades::mod_mech(i)` |
 | options_menu (OPTIONS' UPGRADES button) and mainmenu (MODS) | our buttons | the button binds stay one marked line each; the pages move to upgrades/ui |
