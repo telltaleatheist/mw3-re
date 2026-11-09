@@ -156,6 +156,12 @@ From the port of the damage code, checked in an emulator against the original
   (light mechs about 3.8, assault mechs about 15) you stagger. A fall clears it.
   Such hits on the torso, arms, head or hip also rock the torso, twisting it
   away from the hit, harder for heavier weapons (0x464af0); leg hits do not.
+  A PPC (impact force 1) rocks the torso about 8 degrees, the most 0.6 s
+  after the hit and settled in about 3.5 s; in the cockpit your whole view
+  rides it, on an enemy it is just the torso turning 8 degrees, which is easy
+  to miss at range. A PPC can never knock a mech over: the total drains 6 a
+  second, and even ten PPC hits on consecutive frames stay below a 70-ton
+  mech's 11.3.
 - **Area damage skips the head** and spreads a seventh of the damage over the
   other seven locations, a fifth of that to each rear torso. Unlike direct hits
   it is scaled by difficulty even in multiplayer.

@@ -289,6 +289,13 @@ bool mech_torso_pitch(void* mech, float pitch, float range[2]);  // tests: the t
 int mech_trigger_lock_on(void* mech, bool* locked);
 int mech_lock_on_shot(void* mech, float at[3], bool* has_lock);
 float mech_knock(void* mech, float* threshold, bool* airborne);  // tests: pm-tests item 23
+// Tests (pm-tests item 40): the torso's jolt now: the spin's length (+0xd8), the rocking's angle (+0xf0, degrees),
+// the angle between the torso node as drawn and the same pose without the rocking, and how far the drawn 3x3 is
+// from the pose x the shake (0x004659c0). False without a torso node.
+struct MechJolt {
+  float spin = 0, rock_deg = 0, drawn_deg = 0, drawn_err = 0;
+};
+bool mech_torso_jolt(void* mech, MechJolt* out);
 // Tests: zWeapon's sphere query at `at` (the splash's, through its hook): how many hits it counts, and in
 // `matched` how many of those hold zClass's own record; a weapon by name burst at a point.
 int32_t weapons_query_flood(const float at[3], float radius, int32_t* matched);

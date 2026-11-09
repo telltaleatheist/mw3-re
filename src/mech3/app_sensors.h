@@ -86,6 +86,7 @@ bool chain_hit_node(void* node, void* def);
 bool mech_hit_from(void* mech, void* def, const float from[3], void* shooter, float damage_scale = 1.0f);
 void* chain_heaviest_impact();
 float weapon_def_impact(void* def);
+void* weapon_def_named(const char* name);  // tests: weapons.zrd's def by key (0x00581ed0)
 // The nodes of the animations a destroyed target's destroy animation still
 // waits for (its prerequisites, not yet run): what has to fall first, as
 // c1m3's legs under the buildings.
