@@ -265,6 +265,7 @@ add_library(mw3core STATIC
   src/mech3/zainet_region.cpp
   src/mech3/zainet_node.cpp
   src/mech3/zrdrainet.cpp
+  src/mech3/net_save.cpp
   src/mech3/zrdraiv.cpp
   src/mech3/zrdrvalve.cpp
   src/mech3/app.cpp
@@ -481,6 +482,7 @@ add_library(mw3probe SHARED
   tests/probe_sound_extra.cpp
   tests/probe_deaths.cpp
   tests/probe_ai_net.cpp
+  tests/probe_ai_netwrite.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp
@@ -561,6 +563,7 @@ add_executable(mw3tests
   tests/test_mods.cpp
   tests/test_mod_install.cpp
   tests/test_mod_campaign_pilots.cpp
+  tests/test_net_save.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp

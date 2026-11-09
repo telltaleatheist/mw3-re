@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstdio>
 #include <map>
 #include <string>
 
@@ -30,6 +31,9 @@ struct NetHeader {
   bool operator==(const NetHeader& o) const; // 0x004bca90
   // 0x004da900: `node` is the file's top list, `base` its name without ".zrd".
   void parse(zrdr::Node* node, const char* base);
+  // 0x004dad10: the header as text (the editor's; nothing in the release calls
+  // it), `base` the name when none was read. Returns the characters written.
+  int write(std::FILE* f, const char* base) const;
 };
 
 // The file object (0x118 bytes; the leaf vtable 0x005cd3a0 over 0x005cd3c0,
@@ -49,6 +53,10 @@ class NetFile : public RdrFile {
   NetNodeRec* node_raw(int32_t i, const char** key);  // 0x004dc690: always parsed
   NetNodeRec* node_named(const char* key);  // 0x004de830
   void clear_cache();                       // 0x004de010 -> 0x004da320
+  // The text writers (docs/editor.md, The AI net editor, the map): +0x1c
+  // 0x004da1d0, the header; +0x14 0x004da7e0 -> 0x004db8d0, one node_XX.
+  int write_header(std::FILE* f);
+  int write_record(const NetNodeRec& rec, std::FILE* f, const char* key) const;
 
   zrdr::Node* value = nullptr;              // +0x24  the last record's value
   const char* key = nullptr;                // +0x28  and its key
@@ -63,6 +71,7 @@ class NetFile : public RdrFile {
 std::map<std::string, NetFile*>& net_files();
 void net_files_clear();                     // not original: the tests start empty
 const char* net_name(int32_t net);          // 0x004d5280: "net_%02d", a static buffer
+const char* net_localize(const char* s);    // a node name as the reader shows it (its localize hook)
 
 // What the AI holds a net file by (4 bytes): 0x004da570 finds or makes the
 // file of that name (net_NN when none) and adds a reference; 0x004da8e0
