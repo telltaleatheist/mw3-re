@@ -22,6 +22,8 @@
 #include "mech3/mods.h"
 #include "mech3/net_save.h"
 #include "mech3/zai_valve.h"
+#include "mech3/zainet.h"
+#include "mech3/zainetedit.h"
 #include "mech3/zrdrainet.h"
 
 namespace {
@@ -358,4 +360,93 @@ TEST(net_save_edits_read_back_through_the_reader) {
   mech3::ai::valves_clear();
   std::error_code ec;
   fs::remove(saved, ec);
+}
+
+// The record cache (0x004dc2b0, NetFile::edit; S5 sitting 4) on c1's net_01:
+// the file's own record is not kept, a changed one is (a copy, its auxname
+// too), changed back it goes, a new key is kept, none marks a key gone (and
+// the save drops it), and the file reads as edited while anything is kept.
+TEST(net_record_cache_keeps_edits_until_they_are_the_files_again) {
+  const fs::path src = fs::path(MW3_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd";
+  if (!fs::exists(src)) return;
+  Hooks hooks;
+  const zutl::Mounts keep = zutl::mounts();
+  zrdr::close_archives(true);
+  zrdr::init();
+  EXPECT(zrdr::open_archive(src.string().c_str(), true));
+  {
+    mech3::ai::NetFile f(1, "net_01.zrd");
+    EXPECT(f.load() != 0);
+    const NetNodeRec* own = f.node_named("node_00");
+    EXPECT(own != nullptr);
+    if (own) {
+      NetNodeRec r(*own);
+      EXPECT(!f.edited());
+      f.edit("node_00", &r);
+      EXPECT(f.cache.empty() && !f.edited());
+      r.pos[0] += 10.0f;
+      std::free(r.auxname);
+      r.auxname = strdup("Kept");  // the exe's copy (assigned, 0x004c63a0) would drop it
+      f.edit("node_00", &r);
+      EXPECT(f.cache.size() == 1 && f.cache["node_00"] && f.cache["node_00"]->pos[0] == r.pos[0] && f.edited());
+      EXPECT(same_str(f.cache["node_00"]->auxname, "Kept"));
+      const NetNodeRec* via = f.node_named("node_00");
+      EXPECT(via && via->pos[0] == r.pos[0]);  // the reader gives the cached one
+      r.pos[0] -= 10.0f;
+      std::free(r.auxname);
+      r.auxname = own->auxname ? strdup(own->auxname) : nullptr;
+      f.edit("node_00", &r);
+      EXPECT(f.cache.empty() && !f.edited());
+      NetNodeRec added;
+      added.kind = 1, added.index = 99;
+      f.edit("node_99", &added);
+      EXPECT(f.cache.size() == 1 && f.cache["node_99"] && f.cache["node_99"]->index == 99);
+      f.edit("node_02", nullptr);
+      EXPECT(f.cache.count("node_02") && !f.cache["node_02"] && f.node_named("node_02") == nullptr);
+      // The save: node_02 dropped, node_99 added, the rest as it was.
+      std::vector<uint8_t> a = file_bytes(src), net;
+      for (const Entry& e : entries(a))
+        if (e.name == "net_01.zrd") net = e.data;
+      std::vector<std::pair<std::string, const NetNodeRec*>> edits(f.cache.begin(), f.cache.end());
+      const std::vector<uint8_t> out = mech3::ai::net_with_edits(net.data(), net.size(), f.tree, edits);
+      zrdr::Node* was = tree_of(net);
+      zrdr::Node* now = tree_of(out);
+      const std::map<std::string, NetNodeRec> before = records(was), after = records(now);
+      EXPECT(!out.empty() && before.count("node_02") && !after.count("node_02") && after.count("node_99"));
+      EXPECT(after.size() == before.size());  // one gone, one added
+      std::printf("  %zu nodes before, %zu after (node_02 gone, node_99 added)\n", before.size(), after.size());
+      free_tree(was), free_tree(now);
+    }
+    f.unload();
+  }
+  // Through the editing side: a node's set_pos folds it (0x004c71a0 ->
+  // 0x004befc0), back to its place it goes; the save's fold (0x004bd100)
+  // marks a node gone.
+  {
+    mech3::ai::net_files_clear();
+    auto* reg = new mech3::ai::AiNet(1);  // the registry's net_01, as the dialog opens it
+    {
+      mech3::ai::CZAiNetEdit e(1, nullptr, 0);
+      mech3::ai::NetFile* f = e.ref ? e.ref->file : nullptr;
+      mech3::ai::NetNode* n5 = e.node(5);
+      EXPECT(f && n5 && f->cache.empty() && e.editing);
+      if (f && n5) {
+        const float was[3] = {n5->pos()[0], n5->pos()[1], n5->pos()[2]};
+        const float to[3] = {was[0] + 3.0f, was[1], was[2]};
+        n5->set_pos(to);
+        EXPECT(f->cache.count("node_05") == 1 && e.dirty == 1);
+        n5->set_pos(was);
+        EXPECT(f->cache.empty());
+        delete e.elems[2];
+        e.elems[2] = e.placeholder;
+        e.fold_edits();
+        EXPECT(f->cache.size() == 1 && f->cache.count("node_02") && !f->cache["node_02"] && e.dirty == 1);
+      }
+    }
+    delete reg;
+    mech3::ai::net_files_clear();
+  }
+  zrdr::close_archives(true);
+  zutl::mounts() = keep;
+  mech3::ai::valves_clear();
 }

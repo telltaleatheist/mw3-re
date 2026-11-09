@@ -52,6 +52,14 @@ class CZAiNetEdit : public AiNet {
   AiNet* as_compiled() override { return net ? net->as_compiled() : nullptr; }  // +0x34 0x004bcf80
   Region* as_region() override { return net ? net->as_region() : nullptr; }     // +0x44 0x004bcfc0
   void drop_net();                          // 0x004bf4b0
+  // 0x004befc0 -> 0x004bef80: an edited node's record into its file's cache
+  // (0x004dc2b0, keyed node_NN by its number), the edit dirty; only while
+  // editing, never for the placeholder.
+  void fold(NetNode* n);
+  // 0x004bd100 (the save's first step, 0x004bd340): the header and every
+  // node folded, a file record whose node is gone marked so, dirty when the
+  // file then differs from what it read.
+  void fold_edits();
 
   bool loop(NetLoop* out);                  // 0x004bf000: the nodes form one closed loop
   Region* make_region(Region* r, const NetLoop& l);  // 0x004bf1b0: the loop's edges into `r`

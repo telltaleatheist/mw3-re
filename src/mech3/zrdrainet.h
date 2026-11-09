@@ -53,6 +53,10 @@ class NetFile : public RdrFile {
   NetNodeRec* node_raw(int32_t i, const char** key);  // 0x004dc690: always parsed
   NetNodeRec* node_named(const char* key);  // 0x004de830
   void clear_cache();                       // 0x004de010 -> 0x004da320
+  // 0x004dc2b0 (0x004ddc90 for none): an edited record kept in the cache by
+  // its key, a copy, until it is the file's own again; none marks a node gone.
+  void edit(const char* key, const NetNodeRec* rec);
+  bool edited();                            // 0x004da100: anything cached, or the header not the file's
   // The text writers (docs/editor.md, The AI net editor, the map): +0x1c
   // 0x004da1d0, the header; +0x14 0x004da7e0 -> 0x004db8d0, one node_XX.
   int write_header(std::FILE* f);

@@ -490,6 +490,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_net.cpp
   tests/probe_ai_netwrite.cpp
   tests/probe_net_view.cpp
+  tests/probe_net_cache.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp

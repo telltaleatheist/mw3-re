@@ -428,9 +428,8 @@ AI net's nodes answer in `game_editor_net`), so it is engine code, not AI.
   point through the world from the camera's near plane to its far one, the
   nearest crossing (0x004eece0), or the far end when nothing is crossed,
   kept on the stealth's overlay (the image's +0xbc) for vt+0xf8.
-- **Not yet**: a moved or linked node is not in the save until sitting 4's
-  fold into the record cache (0x004befc0 -> 0x004bef80 -> 0x004dc2b0, what
-  0x004c71a0 calls); the frame's pixel-doubled branch (0x0040d4b0: the
+- **Not yet** (at 3b; the record cache came with 4a, below): a moved or
+  linked node was not in the save; the frame's pixel-doubled branch (0x0040d4b0: the
   projection on the half window) is not the port's (no doubling).
 
 Tests: test_net_view.py (a link between two marks against the exe on
@@ -449,6 +448,47 @@ there, node_01 linked to node_00 and the editor made anew, the far clip
 back after). Breaks: the depth cut's order, the heads rounded without the
 half, the hit by the radius alone, the pick ignoring the crossing, no link
 made, the clicks kept at state 2, the far clip at 1.25, links to oneself.
+
+## The record cache (S5 sitting 4a, 2026-11-09)
+
+What makes an edit reach Save Changes. A node's setters (its place
+0x004c71a0, a link 0x004c6fc0, so a move's relink too) fold the node
+(0x004befc0 -> 0x004bef80): only while editing and never the placeholder,
+the edit made dirty and its record handed to its file's cache by key
+`node_NN` of its number (0x004c72f0 -> 0x004c72d0; 0x004dc2b0, ported as
+`NetFile::edit`):
+
+- not cached yet: kept as a copy when the file has no such key or the
+  record differs from the file's (the compare 0x004c6680, `NetNodeRec::same`);
+- cached: when it differs from the copy, the copy takes it, unless it is
+  the file's own again, when the copy goes (so an edit undone by hand is no
+  edit);
+- none (0x004ddc90): the copy goes and a null record marks the key gone;
+  the save leaves a gone key and its value out (`net_with_edits`).
+
+The reader (0x004de730 / 0x004de830) gives a cached record before the
+file's, so the editor's view and a later read see the edit. Save Changes
+first runs the save's fold 0x004bd100 (`CZAiNetEdit::fold_edits`): the
+file's header made the edit's, every node folded, a file record whose node
+is now the placeholder marked gone, dirty when the file then differs from
+what it read (0x004da100: anything cached, or the header not as read; no
+tree counts as differing).
+
+Two departures, both FIX (bug) (docs/fixes.md), neither in play: the exe's
+compare leaves out wait_time and the valve, so an edit of only those was
+thrown away as "the file's own"; and its copy is a new record assigned
+(0x004da790, 0x004c63a0), which drops the auxname, so every saved edit lost
+it. Here both are compared and a copy keeps the auxname.
+
+Tests: test_net_cache.py (the compare against the exe on 3000 random record
+pairs a field apart, every field, names in other buffers; the 134 where the
+fix departs counted; three breaks); `net_record_cache_keeps_edits_until_they_are_the_files_again`
+(c1's net_01: the file's own not kept, a change kept with its auxname and read
+back through the reader, undone it goes, a new key kept, a gone key dropped
+by the save, the setters folding, the save's fold marking a node gone);
+`mission_c1m1_net_editor_view_move_and_link_headless` now saves: node_00's
+move and node_01's link read back from the editor mod's archive, node_02 as
+the install has it. Breaks: an undone edit kept, the place not folding.
 
 ## The save (S5 sitting 2, 2026-11-09)
 

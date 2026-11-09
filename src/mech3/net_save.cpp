@@ -199,10 +199,15 @@ std::vector<uint8_t> net_with_edits(const uint8_t* p, size_t size, const zrdr::N
   std::vector<uint8_t> body;
   uint32_t count = pairs_count;
   for (const Span& s : spans) {
-    body.insert(body.end(), p + s.key_start, p + s.value_start);
     size_t k = 0;
     for (; k < edits.size(); ++k)
       if (!used[k] && !s.key.empty() && edits[k].first == s.key) break;
+    if (k < edits.size() && !edits[k].second) {  // the node gone: its key and value left out
+      used[k] = true;
+      count -= 2;
+      continue;
+    }
+    body.insert(body.end(), p + s.key_start, p + s.value_start);
     if (k < edits.size()) {
       used[k] = true;
       put_record(body, *edits[k].second, value_of(tree, s.key.c_str()));
@@ -211,7 +216,7 @@ std::vector<uint8_t> net_with_edits(const uint8_t* p, size_t size, const zrdr::N
     }
   }
   for (size_t k = 0; k < edits.size(); ++k) {
-    if (used[k]) continue;
+    if (used[k] || !edits[k].second) continue;
     put_string(body, edits[k].first.c_str());
     put_record(body, *edits[k].second, nullptr);
     count += 2;
