@@ -20,6 +20,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zutil/zutl_zip.h"
 #include "gamez/zsiscript/si_script.h"
+#include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
@@ -1056,6 +1057,54 @@ TEST(mods_scratch_file_is_read_and_removed) {
   }
   std::error_code ec;
   EXPECT(!where.empty() && !fs::exists(where, ec));
+}
+
+// mechlib.zbd's entries from unzbd's own JSON (MW3_UNZBD_MECHLIB: its folder): every model and the materials the
+// entry's own bytes (docs/modding.md).
+TEST(mods_mechlib_json_is_every_entrys_bytes) {
+  const std::string install = MW3_GAME_DIR;
+  const char* theirs = std::getenv("MW3_UNZBD_MECHLIB");
+  std::error_code ec;
+  if (!theirs || !fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  EXPECT(zutl_zar::open(a, (install + "/zbd/mechlib.zbd").c_str()));
+  int entries = 0, same = 0;
+  std::string first_bad;
+  for (int i = 0; i < a.count; ++i) {
+    const std::string name = a.entries[i].name;
+    if (name == "format" || name == "version") continue;
+    uint32_t length = 0;
+    std::FILE* f = zutl_zar::seek(a, i, &length);
+    std::vector<uint8_t> entry(length);
+    if (!f || std::fread(entry.data(), 1, length, f) != length) continue;
+    ++entries;
+    std::ifstream in(std::string(theirs) + "/" + name + ".json");
+    std::stringstream text;
+    text << in.rdbuf();
+    std::vector<uint8_t> bytes;
+    std::string why;
+    const bool ok = name == "materials" ? zcls::mechlib_materials_from_json(text.str(), &bytes, &why)
+                                        : zcls::mechlib_model_from_json(text.str(), &bytes, &why);
+    if (ok && bytes == entry) {
+      ++same;
+      continue;
+    }
+    if (!first_bad.empty()) continue;
+    if (!ok) {
+      first_bad = name + ": " + why;
+      continue;
+    }
+    size_t at = 0;
+    while (at < bytes.size() && at < entry.size() && bytes[at] == entry[at]) ++at;
+    char b[160];
+    std::snprintf(b, sizeof b, "%s: %zu bytes vs %zu, first difference at %zu (%02x vs %02x)", name.c_str(), bytes.size(), entry.size(), at,
+                  at < bytes.size() ? bytes[at] : 0, at < entry.size() ? entry[at] : 0);
+    first_bad = b;
+  }
+  zutl_zar::destroy(a);
+  std::printf("  %d entries, %d the same bytes from unzbd's JSON; first difference: %s\n", entries, same, first_bad.empty() ? "none" : first_bad.c_str());
+  EXPECT(entries > 50 && same == entries);
 }
 
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
