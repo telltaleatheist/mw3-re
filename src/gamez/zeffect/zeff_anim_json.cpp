@@ -153,7 +153,7 @@ struct Json {
 // What events name, by the def's lists (mech3ax's lookups: a list's index from 1).
 struct Def {
   std::string name, anim_name;
-  std::vector<std::string> nodes, lights, puffers, dyn_sounds, static_sounds;
+  std::vector<std::string> nodes, lights, puffers, dyn_sounds, static_sounds, effects;
   size_t anim_refs = 0;
   const std::vector<Value>* scripts = nullptr;  // metadata's script_names, read
   static int16_t find(const std::vector<std::string>& v, const std::string& n) {
@@ -702,6 +702,111 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     }
     return true;
   }
+  // Events no shipped world uses, but the runtime runs (zeff_anim_run.cpp's dispatch): for mods. Layouts as
+  // mech3ax writes them (anim-events: e03, e16, e20, e21, e37, e39).
+  if (type == "Effect") {
+    std::string n, nn;
+    float pos[3];
+    const Value* an;
+    if (!(name32("name", &n) && (an = j.get(d, at, "at_node")) && j.str(*an, at + ".at_node", "name", &nn, 255) && vec(*an, at + ".at_node", "pos", pos)))
+      return false;
+    const int16_t ei = Def::find(def.effects, n);
+    if (!ei) return j.r.fail(d, at + ".name", "no effect \"" + n + "\" in the def's effects");
+    int16_t ni = kInputCall;
+    if (nn != "INPUT_NODE" && !(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".at_node.name", "no node \"" + nn + "\" in the def's nodes");
+    o.i16(ei), o.i16(ni);
+    for (float x : pos) o.f32(x);
+    return true;
+  }
+  if (type == "ObjectDeleteChild") {
+    int16_t p, c;
+    if (!(node("parent", 0, &p) && node("child", 0, &c))) return false;
+    o.i16(p), o.i16(c);
+    return true;
+  }
+  if (type == "CameraState" || type == "CameraFromTo") {
+    const bool from_to = type == "CameraFromTo";
+    int16_t n;
+    float run = 0;
+    if (!node("name", 0, &n) || (from_to && !j.f32(d, at, "run_time", &run))) return false;
+    uint32_t flags = 0;
+    float v[7][3] = {};
+    const char* const kKeys[] = {"clip_near", "clip_far", "lod_multiplier", "fov_h", "fov_v", "zoom_h", "zoom_v"};
+    for (int k = 0; k < 7; ++k) {
+      const Value* x = j.get(d, at, kKeys[k]);
+      if (!x) return false;
+      if (x->kind == Value::Null) continue;
+      flags |= 1u << k;
+      if (!from_to) {
+        if (!j.r.f32(*x, at + "." + kKeys[k], &v[k][0])) return false;
+      } else {
+        if (!(j.f32(*x, at + "." + kKeys[k], "from", &v[k][0]) && j.f32(*x, at + "." + kKeys[k], "to", &v[k][1]))) return false;
+        v[k][2] = delta(v[k][0], v[k][1], run);
+      }
+    }
+    o.u32(flags), o.i32(n);
+    for (const auto& x : v) {
+      o.f32(x[0]);
+      if (from_to) o.f32(x[1]), o.f32(x[2]);
+    }
+    if (from_to) o.f32(run);
+    return true;
+  }
+  if (type == "FbfxCsinwaveFromTo") {
+    float run;
+    const Value *an, *sp, *wr, *sr, *cs;
+    if (!(j.f32(d, at, "run_time", &run) && (an = j.get(d, at, "at_node")) && (sp = j.get(d, at, "screen_pos")) && (wr = j.get(d, at, "world_radius")) &&
+          (sr = j.get(d, at, "screen_radius")) && (cs = j.get(d, at, "csin"))))
+      return false;
+    uint16_t flags = 0;
+    int16_t ni = 0;
+    float tr[3] = {0, 0, 0}, sx[3] = {}, sy[3] = {}, w[2] = {0, 0}, rad[3] = {}, c[3][3] = {};
+    const auto ft = [&](const Value& v, const std::string& fa, float out[3]) {
+      if (!(j.f32(v, fa, "from", &out[0]) && j.f32(v, fa, "to", &out[1]))) return false;
+      out[2] = delta(out[0], out[1], run);
+      return true;
+    };
+    if (an->kind != Value::Null) {
+      std::string nn;
+      if (!(j.str(*an, at + ".at_node", "name", &nn, 255) && vec(*an, at + ".at_node", "pos", tr))) return false;
+      if (!(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".at_node.name", "no node \"" + nn + "\" in the def's nodes");
+      flags |= 2;
+    }
+    if (sp->kind != Value::Null) {
+      const Value *x = j.get(*sp, at + ".screen_pos", "x"), *y = j.get(*sp, at + ".screen_pos", "y");
+      if (!(x && y && ft(*x, at + ".screen_pos.x", sx) && ft(*y, at + ".screen_pos.y", sy))) return false;
+      flags |= 1;
+    }
+    if (wr->kind != Value::Null) {
+      if (!(j.f32(*wr, at + ".world_radius", "from", &w[0]) && j.f32(*wr, at + ".world_radius", "to", &w[1]))) return false;
+      flags |= 8;
+    }
+    if (sr->kind != Value::Null) {
+      if (!ft(*sr, at + ".screen_radius", rad)) return false;
+      flags |= 4;
+    }
+    const char* const kXyz[] = {"x", "y", "z"};
+    for (int k = 0; k < 3; ++k) {
+      const Value* v = j.get(*cs, at + ".csin", kXyz[k]);
+      if (!v || !ft(*v, at + ".csin." + kXyz[k], c[k])) return false;
+    }
+    o.u16(flags), o.i16(ni);
+    for (float x : tr) o.f32(x);
+    for (float x : sx) o.f32(x);
+    for (float x : sy) o.f32(x);
+    o.f32(w[0]), o.f32(w[1]);
+    for (float x : rad) o.f32(x);
+    for (const auto& x : c)
+      for (float y : x) o.f32(y);
+    o.f32(run);
+    return true;
+  }
+  if (type == "AnimVerbose") {
+    bool on;
+    if (!j.boolean(d, at, "on", &on)) return false;
+    o.u32(on ? 1 : 0);
+    return true;
+  }
   if (type == "LightAnimation") {
     std::string n;
     float range[2], alt[2] = {0, 0}, color[3], run;
@@ -1139,9 +1244,16 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std:
   const Value* lists[8];
   for (int k = 0; k < 8; ++k)
     if (!(lists[k] = j.list(d, at, kLists[k], &has[k]))) return false;
+  // Effects: mech3ax writes none for MechWarrior 3 and refuses them; the reader reads them (0x24 records, 0x0050d9e0's
+  // lookup), so a mod's are written as Pirate's Moon's are, after the static sounds.
   bool effects = false;
-  if (!j.list(d, at, "effects", &effects)) return false;
-  if (effects) return j.r.fail(*j.get(d, at, "effects"), at + ".effects", "effects: not in MechWarrior 3");
+  const Value* effect_list = j.list(d, at, "effects", &effects);
+  if (!effect_list) return false;
+  for (size_t i = 0; effects && i < effect_list->items.size(); ++i) {
+    std::string n;
+    if (!j.str(effect_list->items[i], at + ".effects[" + std::to_string(i) + "]", "name", &n, 31)) return false;
+    def.effects.push_back(n);
+  }
   const auto names_of = [&](int k, std::vector<std::string>* out) {
     if (!has[k]) return true;
     for (size_t i = 0; i < lists[k]->items.size(); ++i) {
@@ -1183,10 +1295,10 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std:
   o.u32(reset_ptr), o.u32(0);  // the size patched below
   o.u8(static_cast<uint8_t>(seqs_present ? seqs->items.size() : 0));
   for (int k = 0; k < 6; ++k) o.u8(count(k, true));
-  o.u8(0), o.u8(count(6, false)), o.u8(static_cast<uint8_t>(min_sat)), o.u8(count(7, false)), o.u8(0);
+  o.u8(effects ? static_cast<uint8_t>(effect_list->items.size() + 1) : 0), o.u8(count(6, false)), o.u8(static_cast<uint8_t>(min_sat)), o.u8(count(7, false)), o.u8(0);
   const char* const kPtrs[] = {"objects_ptr", "nodes_ptr", "lights_ptr", "puffers_ptr", "dynamic_sounds_ptr", "static_sounds_ptr"};
   for (int k = 0; k < 6; ++k) o.u32(ptr_of(j, ptrs, kPtrs[k], has[k], &ok));
-  o.u32(0);
+  o.u32(ptr_of(j, ptrs, "effects_ptr", effects, &ok));
   o.u32(ptr_of(j, ptrs, "activ_prereqs_ptr", has[6], &ok));
   o.u32(ptr_of(j, ptrs, "anim_refs_ptr", has[7], &ok));
   o.u32(0);
@@ -1241,6 +1353,16 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std:
       std::vector<uint8_t> pad;
       if (!j.bytes(lists[5]->items[i], at + ".static_sounds[" + std::to_string(i) + "]", "pad", &pad)) return false;
       o.name_garbage(def.static_sounds[i], pad, 32), o.u32(0);
+    }
+  }
+  if (effects) {
+    o.zeros(0x24);
+    for (size_t i = 0; i < effect_list->items.size(); ++i) {
+      const std::string ea = at + ".effects[" + std::to_string(i) + "]";
+      std::vector<uint8_t> pad;
+      long long index = 0;
+      if (!(j.bytes(effect_list->items[i], ea, "pad", &pad) && j.i64(effect_list->items[i], ea, "index", INT32_MIN, INT32_MAX, &index))) return false;
+      o.name_garbage(def.effects[i], pad, 32), o.i32(static_cast<int32_t>(index));
     }
   }
   if (has[6]) {

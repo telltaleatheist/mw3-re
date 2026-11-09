@@ -19,6 +19,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zutil/zutl_zip.h"
+#include "gamez/zutil/zutl_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zeffect/zeff_anim_json.h"
@@ -1203,6 +1204,82 @@ TEST(mods_anim_json_is_every_worlds_file) {
                 equal ? "the same" : at == a.size() && !ok ? "the same so far" : ("first difference at " + std::to_string(at)).c_str());
   }
   EXPECT(worlds == 6 && same == worlds);
+}
+
+// The events no shipped world uses but the runtime runs (ObjectDeleteChild, CameraState, CameraFromTo,
+// FbfxCsinwaveFromTo, AnimVerbose), in a sequence added to one of t1's defs: our file against mech3ax's own writer's
+// (rezbd beside unzbd) on the same JSON. Effect, which mech3ax refuses in MechWarrior 3, against its layout by hand.
+TEST(mods_anim_json_unused_events_as_mech3ax_writes_them) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  const fs::path rezbd = unzbd.parent_path() / "rezbd";
+  if (!fs::is_regular_file(rezbd, ec)) return (void)std::printf("  skipped: no rezbd beside unzbd\n");
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const std::string def = "ams_muz-ams_blast.json";
+  std::string& text = exported[def];
+  zutl_json::Value v;
+  std::string why;
+  EXPECT(zutl_json::parse(text, &v, &why) && v.get("nodes") && !v.get("nodes")->items.empty());
+  if (!v.get("nodes") || v.get("nodes")->items.empty()) return;
+  const std::string node = v.get("nodes")->items[0].get("name")->text;
+  const std::string ev = [&] {
+    const std::string n = "\"" + node + "\"";
+    return "{\"name\": \"mod_events\", \"seq_state\": \"OnCall\", \"reset_state\": \"OnCall\", \"pointer\": 1, \"events\": ["
+           "{\"start\": null, \"data\": {\"ObjectDeleteChild\": {\"parent\": " + n + ", \"child\": " + n + "}}},"
+           "{\"start\": {\"offset\": \"Sequence\", \"time\": 0.5}, \"data\": {\"CameraState\": {\"name\": " + n + ", \"clip_near\": 1.5, \"clip_far\": null,"
+           " \"lod_multiplier\": 2.0, \"fov_h\": null, \"fov_v\": 0.75, \"zoom_h\": null, \"zoom_v\": 3.0}}},"
+           "{\"start\": null, \"data\": {\"CameraFromTo\": {\"name\": " + n + ", \"clip_near\": {\"from\": 1.0, \"to\": 2.0}, \"clip_far\": null,"
+           " \"lod_multiplier\": null, \"fov_h\": {\"from\": 0.5, \"to\": 0.25}, \"fov_v\": null, \"zoom_h\": null, \"zoom_v\": {\"from\": 1.0, \"to\": 1.0},"
+           " \"run_time\": 2.0}}},"
+           "{\"start\": null, \"data\": {\"FbfxCsinwaveFromTo\": {\"at_node\": {\"name\": " + n + ", \"pos\": {\"x\": 1.0, \"y\": 2.0, \"z\": 3.0}},"
+           " \"screen_pos\": null, \"world_radius\": {\"from\": 5.0, \"to\": 9.0}, \"screen_radius\": null,"
+           " \"csin\": {\"x\": {\"from\": 0.1, \"to\": 0.2}, \"y\": {\"from\": 0.3, \"to\": 0.3}, \"z\": {\"from\": 1.0, \"to\": 0.0}}, \"run_time\": 4.0}}},"
+           "{\"start\": null, \"data\": {\"AnimVerbose\": {\"on\": true}}}]},";
+  }();
+  const size_t seqs = text.find("\"sequences\": [");
+  EXPECT(seqs != std::string::npos);
+  if (seqs == std::string::npos) return;
+  text.insert(seqs + std::strlen("\"sequences\": ["), ev);
+  std::vector<std::pair<std::string, std::string>> files(exported.begin(), exported.end());
+  const std::string dir = tmp("mods_anim_rezbd");
+  write_stored_zip(dir + "/t1.zip", files);
+  const std::string out = dir + "/theirs.zbd";
+  const std::string cmd = "'" + rezbd.string() + "' mw anim '" + dir + "/t1.zip' '" + out + "' >/dev/null 2>&1";
+  EXPECT(std::system(cmd.c_str()) == 0);
+  std::ifstream in(out, std::ios::binary);
+  const std::vector<uint8_t> theirs((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::vector<uint8_t> ours;
+  std::vector<std::pair<size_t, size_t>> masks;
+  EXPECT(zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &masks, &why));
+  std::vector<uint8_t> a = ours, b = theirs;
+  for (const auto& [from, to] : masks)
+    for (size_t k = from; k < to && k < a.size() && k < b.size(); ++k) a[k] = b[k] = 0;
+  size_t at = 0;
+  while (at < a.size() && at < b.size() && a[at] == b[at]) ++at;
+  std::printf("  ours %zu bytes, rezbd's %zu, first difference at %zu (%s)\n", a.size(), b.size(), at, why.c_str());
+  EXPECT(!theirs.empty() && a == b);
+  // Effect: a def with an effects list and an Effect event (mech3ax's EffectC: effect index, node index, position).
+  std::string with = exported[def];
+  const size_t fx = with.find("\"effects\": null");
+  EXPECT(fx != std::string::npos);
+  if (fx == std::string::npos) return;
+  with.replace(fx, std::strlen("\"effects\": null"), "\"effects\": [{\"name\": \"boom\", \"index\": 7, \"pad\": null}]");
+  const size_t s2 = with.find("\"sequences\": [");
+  with.insert(s2 + std::strlen("\"sequences\": ["), "{\"name\": \"fx\", \"seq_state\": \"OnCall\", \"reset_state\": \"OnCall\", \"pointer\": 1, \"events\": ["
+              "{\"start\": null, \"data\": {\"Effect\": {\"name\": \"boom\", \"at_node\": {\"name\": \"" + node + "\", \"pos\": {\"x\": 1.0, \"y\": 2.0, \"z\": 3.0}}}}}]},");
+  exported[def] = with;
+  std::vector<uint8_t> fxd;
+  EXPECT(zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &fxd, nullptr, &why));
+  const uint8_t want_head[] = {3, 1, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 1, 0};  // type 3, its size, effect 1
+  const auto hit = std::search(fxd.begin(), fxd.end(), std::begin(want_head), std::end(want_head));
+  EXPECT(hit != fxd.end());
+  const uint8_t rec[] = {'b', 'o', 'o', 'm', 0};
+  const auto r = std::search(fxd.begin(), fxd.end(), std::begin(rec), std::end(rec));
+  EXPECT(r != fxd.end() && r + 36 <= fxd.end() && r[32] == 7 && std::all_of(r - 0x24, r, [](uint8_t c) { return c == 0; }));  // the blank first record
 }
 
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
