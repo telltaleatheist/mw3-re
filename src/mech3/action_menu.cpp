@@ -16,6 +16,7 @@ namespace mech3 {
 // mech_names.h (its Engine clashes with the app's): 0x00484670's message.
 int32_t mech_name_message(int32_t mech);
 const char* mech_title(int32_t mech);
+int32_t mech_count();  // 19, or 20 and the mods' rows (19 none)
 
 // 0x005e6fb0
 const ActionScenario kActionScenarios[6] = {
@@ -356,7 +357,8 @@ void ActionScreen::show_custom() {
   for (int i = 0; i < 6; ++i) {
     EnemyList& l = enemies[i];
     int32_t chosen = 0, n = 0;
-    for (int32_t mech = -1; mech < 0x13; ++mech) {
+    for (int32_t mech = -1; mech < mech_count(); ++mech) {  // ours: the mods' mechs after the exe's
+      if (mech == 0x13) continue;  // none
       if (i == 0) {
         if (slot && mech == slot->mech) chosen = n;
         if (mech == -1) continue;
@@ -390,18 +392,21 @@ void ActionScreen::reset() {
   descriptions.select(k.g878);
   for (AllyList& l : allies) l.clear_items();
   for (EnemyList& l : enemies) l.clear_items();
-  int32_t chosen = 0;
-  for (int32_t mech = 0; mech < 0x13; ++mech) {
-    if (mech == 7) continue;
+  int32_t chosen = 0, row = 0;
+  for (int32_t mech = 0; mech < mech_count(); ++mech, ++row) {  // ours: the mods' mechs after the exe's
+    if (mech == 7 || mech == 0x13) {
+      --row;
+      continue;
+    }
     allies[0].add_item(e.message_format(0x18b, mech_label(e, mech)), mech);
-    if (slot && mech == slot->mech) chosen = mech;
+    if (slot && mech == slot->mech) chosen = mech < 0x13 ? mech : row;  // ours: a mod's mech by its row
   }
   allies[0].select(chosen);
   allies[1].add_item(e.message(0x28a), -1);  // Mobile Field Base: off
   allies[1].add_item(e.message(0x28b), 10);  // on
   for (int i = 2; i < 5; ++i) {
-    for (int32_t mech = -1; mech < 0x13; ++mech) {
-      if (mech == 7) continue;
+    for (int32_t mech = -1; mech < mech_count(); ++mech) {
+      if (mech == 7 || mech == 0x13) continue;
       const std::string text =
           mech == -1 ? e.message_format_ints(0x28c, {}) : std::string(e.message_format(0x28d, mech_label(e, mech)));
       allies[i].add_item(text.c_str(), mech);

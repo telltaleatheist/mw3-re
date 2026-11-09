@@ -203,6 +203,14 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
     mech3::Store stock;
     EXPECT(stock.add_mech(19) == nullptr && stock.add_mech(-1) == nullptr && stock.add_mech(20) != nullptr);
   }
+  {  // the lab's whole stock (0x00471f40's): the mods' mechs after the exe's, never 19 or the Elemental
+    mech3::Store all;
+    all.fill_all();
+    int mechs = 0, none = 0, mods = 0;
+    for (const mech3::ConfigItem* it : all.items)
+      if (it->kind() == 0) ++mechs, none += it->id() == 19 || it->id() == 7, mods += it->id() == 20 || it->id() == 21;
+    EXPECT(mechs == 20 && none == 0 && mods == 2);
+  }
   EXPECT(text.find("mech thor tech=clan mass=70 class=heavy: there is a mech thor already, left out") != std::string::npos);
   EXPECT(text.find("mech bad tech=clan mass=7 class=heavy: mass= must be 10 to 100 tons in steps of 5, left out") != std::string::npos);
   EXPECT(text.find("mech MADCAT_B tech=any mass=20 class=light: there is a mech MADCAT_B already, left out") != std::string::npos);
@@ -259,6 +267,20 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
     // The plain PPC (37): offered with the fixes on only, as without mods.
     EXPECT(mech3::weapon_index("PPC") == (bugs ? 37 : -1) && std::string(mech3::weapon_name(37)) == (bugs ? "PPC" : "noweapon"));
     EXPECT(mech3::weapon_has_tech(37, mech3::kInnerSphere) == bugs && mech3::weapon_name_message(37) == (bugs ? 0x2fd : -1));
+  }
+  // The lab's whole stock (0x00471f40's) with the fixes off and a row there:
+  // the row's weapon (and Rail's ammo), never the plain PPC (37) nor its ammo.
+  zfix::options().bugs = false;
+  {
+    mech3::Store all;
+    all.fill_all();
+    int ppc = 0, huge = 0, rail_ammo = 0;
+    for (const mech3::ConfigItem* it : all.items) {
+      if (it->kind() == 1 || it->kind() == 2) ppc += it->id() == 37;
+      huge += it->kind() == 1 && it->id() == 38;
+      rail_ammo += it->kind() == 2 && it->id() == 39;
+    }
+    EXPECT(ppc == 0 && huge == 1 && rail_ammo == 1);
   }
   zfix::options() = saved;
   // A remount: the exe's tables, then the rows again (not refused as taken).

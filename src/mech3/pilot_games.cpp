@@ -103,8 +103,8 @@ void Store::fill_all() {
     it->b10 = 1;
     items.push_back(it);
   };
-  for (int32_t m = 0; m < 0x13; ++m) {
-    if (m == 7) continue;  // 0x00426080
+  for (int32_t m = 0; m < mech_count(); ++m) {  // ours: the mods' mechs after the exe's
+    if (m == 7 || m == kNoMech) continue;  // 0x00426080
     auto* b = new BaseItem;
     b->value = m;
     put(b);
