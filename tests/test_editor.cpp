@@ -7,6 +7,7 @@
 
 #include "check.h"
 #include "gamez/znetwork/znet_object.h"
+#include "gamez/znetwork/znet_view.h"
 #include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
 #include "mech3/zainet.h"
@@ -41,6 +42,18 @@ struct Stub : mech3::EditorHooks {
   void not_ported(const char* what) override { calls.push_back(std::string("not_ported ") + what); }
   void view_vehicle_place(const float p[3]) override {
     calls.push_back("place " + std::to_string(int(p[0])) + " " + std::to_string(int(p[1])) + " " + std::to_string(int(p[2])));
+  }
+  // The net editor's frame.
+  float near_z = 1.0f, far_z = 500.0f, pitch = 0.0f, cam[3] = {}, ground[3] = {};
+  bool has_ground = false;
+  std::vector<float> clips;  // each set_camera_clip's far
+  void camera_clip(float* n, float* f) override { *n = near_z, *f = far_z; }
+  void set_camera_clip(float n, float f) override { near_z = n, far_z = f, clips.push_back(f); }
+  const float* camera_pos() override { return cam; }
+  float camera_pitch() override { return pitch; }
+  bool ground_pick(float out[3]) override {
+    for (int i = 0; i < 3; ++i) out[i] = ground[i];
+    return has_ground;
   }
 };
 // A row's text as the panel shows it.
@@ -219,3 +232,153 @@ TEST(game_editor_net_dialog_and_menu) {
   mech3::set_editor_hooks(nullptr);
 }
 
+namespace {
+// A numbered object's elements for the view alone: each one's links by number.
+struct ViewElem : znet::Element {
+  std::vector<int32_t> to;
+  float pos[3] = {};
+  bool placed = true;
+};
+struct ViewStub : znet::ViewHooks {
+  znet::Object* net = nullptr;
+  uint32_t shift = 0;
+  ViewElem* at(znet::Element* e) { return static_cast<ViewElem*>(e); }
+  int32_t link_count(znet::Element* e) override { return int32_t(at(e)->to.size()); }
+  znet::Element* link(znet::Element* e, int32_t k) override {
+    const int32_t j = at(e)->to[size_t(k)];
+    return j >= 0 && j < net->count() ? net->elem(j) : nullptr;
+  }
+  int32_t link_index(znet::Element* e, znet::Element* t) override {
+    if (!e) return -1;
+    const int32_t j = net->index_of(t);
+    for (size_t k = 0; k < at(e)->to.size(); ++k)
+      if (j >= 0 && at(e)->to[k] == j) return int32_t(k);
+    return -1;
+  }
+  bool placed(znet::Element* e) override { return at(e)->placed; }
+  const float* pos(znet::Element* e) override { return at(e)->pos; }
+  bool sees(znet::Element*, znet::Element*) override { return true; }
+  uint32_t key_state(int32_t key) override { return key == 0x2a ? shift : 0; }
+};
+bool in_window(znet::View& v, ztwod::Object2D* o) {
+  ztwod::Object2D* prev = nullptr;
+  return v.window.find(o, &prev);
+}
+}  // namespace
+
+// The selection base (0x0058bf50): a link per pair (both ways made once, by
+// the lower end; one way from either end), a circle in the window only for a
+// placed element; a press picks (lit, the cursor's line to it), a release
+// drops the pick unless shift is held (then the circle stays pressed), a
+// plain left-up on the cursor hands the picks over to be linked.
+TEST(net_view_links_and_picks) {
+  znet::Object net(777);
+  ViewElem e[5];
+  e[0].to = {1, 9};     // to 1 one way; 9 is no element
+  e[1].to = {2};        // 1 <-> 2
+  e[2].to = {1};
+  e[3].to = {0};        // 3 -> 0, from the higher end
+  e[3].placed = false;
+  e[4].to = {4};        // to itself: it links back, so not made
+  for (ViewElem& x : e) net.elems.push_back(&x);
+  ViewStub h;
+  h.net = &net;
+  {
+    znet::View v(&net, &h);
+    EXPECT(v.marks.size() == 5 && v.links.size() == 3);
+    if (v.links.size() == 3) {
+      const auto ends = [&](const znet::Link& l) { return std::make_pair(int(l.from - &v.marks[0]), int(l.to - &v.marks[0])); };
+      EXPECT(ends(v.links[0]) == std::make_pair(0, 1) && v.links[0].kind == 1);
+      EXPECT(ends(v.links[1]) == std::make_pair(1, 2) && v.links[1].kind == 3);
+      EXPECT(ends(v.links[2]) == std::make_pair(3, 0) && v.links[2].kind == 1);
+      EXPECT(in_window(v, &v.links[1].back) && !in_window(v, &v.links[0].back) && in_window(v, &v.links[0].ahead));
+    }
+    EXPECT(in_window(v, &v.marks[0].obj) && !in_window(v, &v.marks[3].obj) && in_window(v, &v.cursor.obj));
+    znet::Mark& a = v.marks[0];
+    znet::Mark& b = v.marks[1];
+    a.obj.on_enter();
+    EXPECT(a.flags == 1 && v.hovered.size() == 1 && a.obj.color == znet::view_colors().pressed);
+    a.obj.on_press();
+    EXPECT(v.picks.size() == 1 && v.picks.front() == &a && v.cursor_lines.size() == 1 && a.obj.color == znet::view_colors().lit);
+    a.obj.on_release();  // no shift: dropped
+    EXPECT(v.picks.empty() && v.cursor_lines.empty() && a.obj.color == znet::view_colors().normal);
+    h.shift = 1;
+    a.obj.on_press(), b.obj.on_press();
+    a.obj.on_release();  // shift: kept, and pressed again
+    EXPECT(v.picks.size() == 2 && (a.obj.mouse & ztwod::kPressed));
+    v.cursor.obj.on_left_up();  // shift held: nothing handed over
+    EXPECT(v.to_link.empty());
+    h.shift = 0;
+    v.cursor.obj.on_left_up();
+    EXPECT(v.to_link.size() == 2 && v.to_link.front() == &a);
+    a.obj.on_leave();
+    EXPECT(a.flags == 0 && v.hovered.empty() && a.obj.color == znet::view_colors().lit);  // still pressed: lit
+    // Shift and a click on a circle other than the last pressed drops its pick.
+    h.shift = 1;
+    v.last = &b.obj;
+    a.obj.on_click();
+    EXPECT(v.picks.size() == 1 && v.picks.front() == &b && v.last == &a.obj && (a.flags & 2));
+  }
+  net.elems.clear();
+}
+
+// The net editor's frame (0x00403160) on a net of two nodes: looking down
+// 70 degrees or more the far clip is 1.5 times the camera's x, y and z
+// distance to the pick, otherwise the kept one again; Move Node waits for the
+// mouse to leave the node and come back, then puts it at the pick each frame
+// until it is clicked; linking the picks to the first one makes the editor
+// anew, the net and its dirty flag kept.
+TEST(net_editor_frame_far_clip_move_and_link) {
+  Stub h;
+  mech3::editor_reset();
+  mech3::set_editor_hooks(&h);
+  mech3::editor_enter();
+  auto* edit = new mech3::ai::CZAiNetEdit(5, nullptr, 0);
+  mech3::ai::NetNodeRec r0, r1;
+  r0.pos[0] = 1, r1.pos[0] = 2;
+  edit->elems = {new mech3::ai::NetNode(edit, r0), new mech3::ai::NetNode(edit, r1)};
+  h.far_z = 500.0f;
+  mech3::net_editor() = new mech3::NetEditor(edit, 0);
+  mech3::NetEditor* e = mech3::net_editor();
+  EXPECT(e->far_clip == 500.0f && e->view && e->view->marks.size() == 2);
+  // The far clip.
+  h.pitch = -1.3f, h.cam[1] = 100.0f, h.has_ground = true, h.ground[0] = 10.0f, h.ground[2] = -20.0f;
+  mech3::net_editor_step(0.1f);
+  EXPECT(!h.clips.empty() && h.clips.back() == 195.0f && e->has_ground == 1);
+  h.pitch = -0.5f;
+  mech3::net_editor_step(0.1f);
+  EXPECT(h.clips.back() == 500.0f);
+  // Move Node.
+  mech3::net_editor_move(0);
+  EXPECT(row_text(24) == "Select a node first" && e->move == 0);
+  znet::Mark& m = e->view->marks[0];
+  e->view->pick(&m);
+  mech3::net_editor_move(0);
+  EXPECT(e->move == 1 && e->moving == &m);
+  mech3::net_editor_step(0.1f);  // the mouse is off it
+  EXPECT(e->move == 2);
+  m.flags = 1 | 4;
+  mech3::net_editor_step(0.1f);  // back on it: the clicks cleared
+  EXPECT(e->move == 3 && m.flags == 1 && edit->node(0)->pos()[0] == 1.0f);
+  mech3::net_editor_step(0.1f);
+  EXPECT(edit->node(0)->pos()[0] == 10.0f && edit->node(0)->pos()[2] == -20.0f && e->dirty == 1);
+  m.flags |= 2;  // clicked
+  mech3::net_editor_step(0.1f);
+  EXPECT(e->move == 0);
+  // Linking: node 1 to node 0, then the editor made anew.
+  e->view->pick(&e->view->marks[1]);
+  e->view->on_left_up();
+  EXPECT(e->view->to_link.size() == 2);
+  mech3::net_editor_step(0.1f);
+  mech3::NetEditor* again = mech3::net_editor();
+  EXPECT(edit->node(1)->link_count() == 1 && edit->node(1)->rec.links[0] == 0 && edit->node(0)->link_count() == 0);
+  EXPECT(again && again->net == edit && again->dirty == 1 && again->rebuild == 0 && again->view->links.size() == 1);
+  EXPECT(again && again->view->picks.empty());
+  // One there already adds none; a new one goes after the last.
+  EXPECT(edit->node(1)->add_link(edit->node(0)) && edit->node(1)->link_count() == 1);
+  EXPECT(edit->node(1)->add_link(edit->node(1)) && edit->node(1)->link_count() == 2 && edit->node(1)->rec.links[1] == 1);
+  mech3::net_editor_free();
+  mech3::editor_exit();
+  mech3::editor_reset();
+  mech3::set_editor_hooks(nullptr);
+}

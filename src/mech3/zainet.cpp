@@ -1,5 +1,6 @@
 #include "mech3/zainet.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "mech3/zainetedit.h"
@@ -43,6 +44,38 @@ NetNode::NetNode(CZAiNetEdit* o) : owner(o), placeholder(true) {}
 NetNode* NetNode::link_node(int32_t i) const {
   if (i < 0 || i >= link_count()) return nullptr;
   return owner->node(rec.links[size_t(i)]);
+}
+
+// Mech3.exe 1.2 @ 0x004c7270: the link's number that leads to `to` (by its
+// number in the net), -1 for none.
+int32_t NetNode::link_index(NetNode* to) const {
+  const int32_t j = owner->index_of(to);
+  const auto it = std::find(rec.links.begin(), rec.links.end(), j);
+  if (j < 0 || it == rec.links.end()) return -1;
+  return static_cast<int32_t>(it - rec.links.begin());
+}
+
+// Mech3.exe 1.2 @ 0x004c6ec0 (the placeholder's slot is 0x00410510: no): a
+// link to `target` (its number in the net) added after the last unless one
+// leads there, then stored again through the target (its vt+0x40, 0x004c6fa0
+// -> this vt+0x44, set_link). When that refuses, the last link is taken off,
+// the new one or, when there was one already, the last there was.
+bool NetNode::add_link(NetNode* target) {
+  if (placeholder) return false;
+  NetNode* t = target ? target->as_node() : nullptr;  // vt+0x60 then +0x88
+  const int32_t j = owner->index_of(t);
+  if (!t || j < 0) return false;
+  auto it = std::find(rec.links.begin(), rec.links.end(), j);
+  int32_t i;
+  if (it != rec.links.end()) {
+    i = static_cast<int32_t>(it - rec.links.begin());
+  } else {
+    i = link_count();
+    rec.links.push_back(j);
+  }
+  const bool ok = !t->placeholder && set_link(t, i);  // the placeholder's vt+0x40 is 0x00410490
+  if (!ok) rec.links.pop_back();
+  return ok;
 }
 
 // Mech3.exe 1.2 @ 0x004c71a0 (the placeholder's slot is 0x00410510: no).

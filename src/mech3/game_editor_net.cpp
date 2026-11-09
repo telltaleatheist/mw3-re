@@ -1,11 +1,13 @@
 #include "mech3/game_editor_net.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 
 #include "crt/msvc_string.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -31,14 +33,13 @@ void none(int32_t) {}  // 0x004bf620
 void change_net_params(int32_t) { not_ported("Change Net Params (0x004036f0, the Ai Network Editor dialog 181)"); }
 void node_params(int32_t) { not_ported("Node Params (0x00403710, the Node Parameters dialog 180)"); }
 void add_vehicle(int32_t) { not_ported("Add veh to node (0x00403820, the Node Edit - Vehicle dialog 141)"); }
-void move_node(int32_t) { not_ported("Move Node (0x00403ac0)"); }
 void delete_node(int32_t) { not_ported("Delete Node (0x00403ae0)"); }
 void tree_view(int32_t) { not_ported("Tree View (0x00402c70, the tree window)"); }
 
 // 0x005e0f18.
 const EditorEntry kNetRows[13] = {
     {"Pick CMD or Point", none},   {" GOTO Net", net_editor_goto},        {" Change Net Params", change_net_params},
-    {" Node Params", node_params}, {" Add veh to node", add_vehicle},     {" Move Node", move_node},
+    {" Node Params", node_params}, {" Add veh to node", add_vehicle},     {" Move Node", net_editor_move},
     {" Delete Node", delete_node}, {" Delete Net", none},                  {" Save Changes", net_editor_save},
     {" Tree View", tree_view},     {"", nullptr},                          {"", nullptr},
     {" Exit Net Editor", net_editor_exit},
@@ -82,6 +83,26 @@ void fill_dialog() {
   editor_install(0, g_dialog_menu);
 }
 
+// The view's calls into the AI net's nodes (vtable 0x005cae60; the
+// placeholder's 0x005ca388 has the same slots for these).
+ai::NetNode* as_node(znet::Element* e) { return e ? static_cast<ai::AiElem*>(e)->as_node() : nullptr; }
+struct NodeHooks : znet::ViewHooks {
+  int32_t link_count(znet::Element* e) override { return as_node(e)->link_count(); }          // 0x004c7240
+  znet::Element* link(znet::Element* e, int32_t k) override { return as_node(e)->link_node(k); }  // 0x004c71f0
+  int32_t link_index(znet::Element* e, znet::Element* to) override { return as_node(e)->link_index(as_node(to)); }
+  bool placed(znet::Element* e) override { return as_node(e)->rec.kind == 0; }  // 0x004c72c0
+  const float* pos(znet::Element* e) override { return as_node(e)->pos(); }      // 0x004c9170
+  // 0x004d5170: from `to`'s place to e's.
+  bool sees(znet::Element* e, znet::Element* to) override {
+    return editor_hooks().clear_line(as_node(to)->pos(), as_node(e)->pos());
+  }
+};
+NodeHooks g_node_hooks;
+
+constexpr double kSteep = 1.2217304763958;  // [0x005bb938]: 70 degrees down
+constexpr double kFarOver = 1.5;            // [0x005bb940]
+constexpr float kEdge = 0.9375f;            // [0x005bb930]: off the screen's size for the clip's far side
+
 // The net file the edit read, its archive (the first open one holding it, as
 // the reader finds it) and its bytes.
 bool net_entry(ai::CZAiNetEdit& n, std::string* archive, std::string* entry, std::vector<uint8_t>* bytes) {
@@ -107,16 +128,99 @@ NetEditor*& net_editor() { return g_editor; }
 const EditorMenu& editor_net_menu_rows() { return kNetMenu; }
 const EditorMenu& editor_net_dialog_rows() { return g_dialog_menu; }
 
-// Mech3.exe 1.2 @ 0x00402f40 (the selection base 0x0058bf50 on the net and
-// the world, sitting 3b's): the camera's far clip kept (0x004f3b00's
-// second), then 0x004f2490 / 0x004f23e0 put back what they read.
-NetEditor::NetEditor(ai::CZAiNetEdit* n, int32_t d) : net(n), dirty(d) { far_clip = editor_hooks().far_clip(); }
+// Mech3.exe 1.2 @ 0x00402f40: the selection base (0x0058bf50) on the net
+// (the world, its other argument, unread), the camera's far clip kept
+// (0x004f3b00's second), then 0x004f2490 / 0x004f23e0 put back what they read.
+NetEditor::NetEditor(ai::CZAiNetEdit* n, int32_t d) : net(n), dirty(d) {
+  view = new znet::View(n, &g_node_hooks);
+  float near_z = 0.0f;
+  editor_hooks().camera_clip(&near_z, &far_clip);
+}
 
 // Mech3.exe 1.2 @ 0x00402fd0: the far clip back when it was kept, the net
-// deleted (its vt+0x00(1)).
+// deleted (its vt+0x00(1)), the selection base's dtor (0x0058c640).
 NetEditor::~NetEditor() {
-  if (far_clip > 0.0f) editor_hooks().set_far_clip(far_clip);
+  if (far_clip > 0.0f) {
+    float near_z = 0.0f, far_z = 0.0f;
+    editor_hooks().camera_clip(&near_z, &far_z);
+    editor_hooks().set_camera_clip(near_z, far_clip);
+  }
   delete net;
+  delete view;
+}
+
+// Mech3.exe 1.2 @ 0x00403160: the line clip on the screen and the camera's
+// depth, the view vehicle's pick; looking down 70 degrees or more the far
+// clip pulled in to 1.5 times the camera's distance to the pick (its x, y
+// and z apart, added), back to the kept one otherwise; Move Node's states;
+// the view (0x0058c950); then any marks to link (the view's +0xfc, a plain
+// left-up's picks) each linked to the first pick and the editor made anew.
+// With pixels doubled (0x0040d4b0) the exe sets the projection on the half
+// window around the view and back after; the port has no doubling
+// (options.cpp), so not here.
+void NetEditor::frame(float dt) {
+  (void)dt;  // 0x0058c950's first argument, unread
+  EditorHooks& h = editor_hooks();
+  h.view_refresh();  // 0x004b51f0
+  zmth::Mat34 m;
+  zmth::push(&m);  // 0x0051e9d0
+  int32_t w = 0, ht = 0;
+  h.screen_size(&w, &ht);  // 0x00558080
+  float mn[3] = {0.0f, 0.0f, 0.0f};
+  float mx[3] = {static_cast<float>(w) - kEdge, static_cast<float>(ht) - kEdge, 0.0f};
+  h.camera_clip(&mn[2], &mx[2]);
+  ztwod::set_line_clip(mn, mx);  // 0x0059b2f0
+  camera = h.camera_pos();
+  zmth::load_view();  // 0x0051ea30
+  has_ground = h.ground_pick(ground) ? 1 : 0;  // vt+0xf8 gives back the buffer it filled
+  const float* at = has_ground ? ground : nullptr;
+  if (-static_cast<double>(h.camera_pitch()) < kSteep) {
+    if (0.0f < far_clip) {
+      float near_z = 0.0f, far_z = 0.0f;
+      h.camera_clip(&near_z, &far_z);
+      h.set_camera_clip(near_z, far_clip);  // 0x004f3a70
+    }
+  } else if (camera && at) {
+    const float d[3] = {camera[0] - at[0], camera[1] - at[1], camera[2] - at[2]};
+    const float far_z = static_cast<float>((std::fabs(d[0]) + std::fabs(d[1]) + std::fabs(d[2])) * kFarOver);
+    float near_z = 0.0f, old = 0.0f;
+    h.camera_clip(&near_z, &old);
+    h.set_camera_clip(near_z, far_z);
+  }
+  if (move == 1) {
+    if (!(moving->flags & 1)) move = 2;
+  } else if (move == 2) {
+    if (moving->flags & 1) {
+      moving->flags &= ~6u;
+      ++move;
+    }
+  } else if (move == 3) {
+    if ((moving->flags & 3) == 1) {
+      if (has_ground) {
+        ai::NetNode* n = as_node(moving->elem);  // vt+0x5c
+        if (n->set_pos(ground)) n->relink();    // vt+0x2c, then vt+0x38
+        dirty = 1;
+      }
+    } else {
+      move = 0;
+    }
+  }
+  view->frame(at);
+  if (!view->to_link.empty()) {
+    ai::NetNode* target = nullptr;
+    if (view->picks.empty()) {
+      not_ported("a new node at the pick (0x004bd1f0, net vt+0x50)");
+    } else {
+      target = as_node(view->picks.front()->elem);
+    }
+    if (target) {
+      for (znet::Mark* k : view->to_link)
+        if (k->elem != target && as_node(k->elem)->add_link(target)) dirty = 1;  // vt+0x5c, vt+0x30
+      rebuild = 1;
+    }
+    view->to_link.clear();
+  }
+  zmth::pop();  // 0x0051ea00
 }
 
 void net_editor_free() {
@@ -205,6 +309,47 @@ void net_editor_save(int32_t) {
   }
   g_editor->dirty = 0;
 }
+
+// Mech3.exe 1.2 @ 0x00403770: the first pick, said to be the one used when
+// there are more (a box in the exe).
+znet::Mark* net_editor_first_pick() {
+  if (!g_editor || g_editor->view->picks.empty()) return nullptr;
+  const size_t n = g_editor->view->picks.size();
+  if (n > 1) editor_status("Using first of " + std::to_string(n) + " selected nodes");  // 0x005e0330
+  return g_editor->view->picks.front();
+}
+
+// Mech3.exe 1.2 @ 0x00403ac0 -> 0x00403a90: the first pick follows the
+// pick point from the frame after the mouse has left it and come back,
+// until it is clicked or the mouse leaves it.
+void net_editor_move(int32_t) {
+  if (!g_editor) return;
+  znet::Mark* m = net_editor_first_pick();
+  if (!m) {
+    editor_status("Select a node first");  // 0x005e03c0, a box in the exe
+    return;
+  }
+  g_editor->moving = m;
+  g_editor->move = 1;
+}
+
+// Mech3.exe 1.2 @ 0x00403080
+void net_editor_step(float dt) {
+  for (;;) {
+    if (g_editor && g_editor->rebuild) {
+      ai::CZAiNetEdit* n = g_editor->net;
+      const int32_t d = g_editor->dirty;
+      g_editor->net = nullptr;
+      delete g_editor;
+      g_editor = new NetEditor(n, d);
+    }
+    if (!g_editor) return;
+    g_editor->frame(dt);
+    if (!g_editor->rebuild) return;
+  }
+}
+
+void EditorHooks::net_step(float dt) { net_editor_step(dt); }  // 0x00403140
 
 // Mech3.exe 1.2 @ 0x00402ba0: the editor freed (0x00402fd0), the side
 // windows (the tree view's [0x005f4c74], the node window's [0x005f4c70]:

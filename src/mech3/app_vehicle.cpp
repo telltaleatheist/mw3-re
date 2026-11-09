@@ -7,12 +7,16 @@
 
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
+#include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zrender/zrndr_blit.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/zweapon/zweapon.h"
@@ -28,6 +32,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_parts.h"
 #include "mech3/mech_waynet.h"
+#include "mech3/player_view.h"
 #include "mech3/zainetedit.h"
 #include "gamez/zsound/zsnd.h"
 #include "mech3/sound_extra.h"
@@ -47,6 +52,8 @@
 // basic vehicle's and its controls' calls out wired to the ports, and what
 // the mission start (player.cpp) asks of a vehicle. Ours, not the exe's.
 namespace mech3 {
+
+void screen_to_render(float p[2]);  // options.h (0x0040d9e0), not includable with mech.h
 
 void* node_entity(void* node);  // app_weapons.cpp's 0x0040e920
 
@@ -331,6 +338,21 @@ void wire_vehicle_collisions() {
   };
 }
 // The stealth object's calls out (veh_stealth.h): the ports.
+// The player view's camera node ([0x005f4c8c] +4) and its matrices set again
+// as 0x004b51f0 does (GameEngine::view_camera_refresh).
+zcls::Node* camera_node() {
+  PlayerView* v = program_view();
+  return v ? static_cast<zcls::Node*>(v->camera) : nullptr;
+}
+void camera_refresh(zcls::Node* cam) {
+  if (!cam->data) return;
+  zmth::Mat34 local;
+  zmth::push(&local);
+  zcls::camera_update(cam);
+  zmod::set_camera(static_cast<zcls::Camera*>(cam->data));
+  zmth::pop();
+}
+
 struct WiredStealth : StealthHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
@@ -359,8 +381,36 @@ struct WiredStealth : StealthHooks {
   // section 20): nothing here.
   void readout(StealthLayer&) override {}
   void layer_off() override {}
-  // The pick's point is read only by the editors after v1.0 (S5 on).
-  void reticle_pick(ztwod::Image&) override {}
+  // Mech3.exe 1.2 @ 0x004a58d0: the reticle's point (its image's, onto the
+  // render target, 0x0040d9e0) through the world from the camera's near
+  // plane to its far one (0x00523930 at 1/near and 1/far, after the view's
+  // camera is set again, 0x004b51f0); the world's nearest crossing
+  // (0x004eece0), or the far end when it crosses nothing, kept for the
+  // stealth's vt+0xf8 (the net editor's pick). The crossing's record the
+  // exe copies beside it (0x004a5a50) is read by nothing ported.
+  void reticle_pick(ztwod::Image& i) override {
+    if (!g_stealth || !g_stealth->layer) return;
+    float p[2] = {static_cast<float>(i.get_x()), static_cast<float>(i.get_y())};
+    screen_to_render(p);
+    zcls::Node* cam = camera_node();
+    if (!cam || !cam->data) return;
+    const zcls::Camera* c = static_cast<const zcls::Camera*>(cam->data);
+    const float near_z = c->get<float>(0xb0), far_z = c->get<float>(0xb4);
+    camera_refresh(cam);
+    const zmth::Vec3 s[2] = {{p[0], p[1], 1.0f / near_z}, {p[0], p[1], 1.0f / far_z}};  // [0x005c85cc] 1
+    zmth::Vec3 w[2];
+    zmth::unproject_world(&s[0], &w[0], 1);
+    zmth::unproject_world(&s[1], &w[1], 1);
+    float* out = g_stealth->layer->pick;
+    zcls::LineHits hits;
+    zcls::Node* world = zcls::camera_world(cam);  // [0x00608c84] +4
+    if (world && zcls::segment_nearest(world, &w[0].x, &w[1].x, &hits) == 0) {
+      const float* at = hits.hit[hits.count].point;
+      out[0] = at[0], out[1] = at[1], out[2] = at[2];
+      return;
+    }
+    out[0] = w[1].x, out[1] = w[1].y, out[2] = w[1].z;
+  }
 };
 WiredStealth g_stealth_hooks;
 
@@ -381,6 +431,46 @@ struct WiredEditor : EditorHooks {
   // while editing, by its vt+0xdc (0x004a3630) with yaw 0.
   void view_vehicle_place(const float p[3]) override {
     if (g_stealth) vehicle_place(*g_stealth, p, 0.0f);
+  }
+  // The net editor's frame (game_editor.h).
+  void view_refresh() override {
+    if (zcls::Node* cam = camera_node()) camera_refresh(cam);
+  }
+  void screen_size(int32_t* w, int32_t* h) override {
+    *w = static_cast<int32_t>(zrndr::target2d().width);
+    *h = static_cast<int32_t>(zrndr::target2d().height);
+  }
+  void camera_clip(float* near_z, float* far_z) override {  // 0x004f3b00
+    zcls::Node* cam = camera_node();
+    const zcls::Camera* c = cam ? static_cast<const zcls::Camera*>(cam->data) : nullptr;
+    *near_z = c ? c->get<float>(0xb0) : 1.0f;
+    *far_z = c ? c->get<float>(0xb4) : 0.0f;
+  }
+  void set_camera_clip(float near_z, float far_z) override {
+    if (zcls::Node* cam = camera_node()) zcls::camera_set_clip(cam, near_z, far_z);
+  }
+  const float* camera_pos() override {
+    zcls::Node* cam = camera_node();
+    return cam && cam->data ? reinterpret_cast<const float*>(static_cast<const uint8_t*>(cam->data) + 0x14) : nullptr;
+  }
+  float camera_pitch() override {
+    zcls::Node* cam = camera_node();
+    return cam && cam->data ? static_cast<const zcls::Camera*>(cam->data)->get<float>(0x20) : 0.0f;
+  }
+  // The view's vehicle (the stealth object while editing): its vt+0xf8
+  // (0x004a5170), the overlay's pick point; none without the overlay.
+  bool ground_pick(float out[3]) override {
+    if (!g_stealth || !g_stealth->layer) return false;
+    const float* p = g_stealth->layer->pick;
+    out[0] = p[0], out[1] = p[1], out[2] = p[2];
+    return true;
+  }
+  bool clear_line(const float* a, const float* b) override {  // 0x004eed90 == 0
+    zcls::Node* cam = camera_node();
+    zcls::Node* world = cam ? zcls::camera_world(cam) : nullptr;  // [0x00608c84] +4
+    if (!world) return false;
+    zcls::LineHits hits;
+    return zcls::segment_list(world, a, b, &hits) == 0;
   }
 };
 WiredEditor g_editor_hooks;

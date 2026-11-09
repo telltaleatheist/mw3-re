@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "gamez/znetwork/znet_view.h"
 #include "mech3/game_editor.h"
 
 namespace mech3::ai {
@@ -39,12 +40,17 @@ struct NetEditor {
   ~NetEditor();                                    // 0x00402fd0: the far clip back, the net deleted
   NetEditor(const NetEditor&) = delete;
   NetEditor& operator=(const NetEditor&) = delete;
+  void frame(float dt);            // 0x00403160
+  const float* camera = nullptr;   // +0x00  the camera's place (its data +0x14)
+  int32_t has_ground = 0;          // +0x04  the pick gave its point
+  float ground[3] = {};            // +0x08  the view vehicle's pick
   ai::CZAiNetEdit* net = nullptr;  // +0x14, owned
+  znet::View* view = nullptr;      // +0x18  the selection base (0x0058bf50), owned
   float far_clip = 0;              // +0x128  the camera's before the editor (0x004f3b00)
+  int32_t move = 0;                // +0x130  Move Node: 1 off the node, 2 back on it, 3 following
+  znet::Mark* moving = nullptr;    // +0x134
   int32_t dirty = 0;               // +0x138  cleared by Save
-  int32_t rebuild = 0;             // +0x13c
-  // The selection base 0x0058bf50 (its view of the nodes and links, the
-  // selection box) is sitting 3b's.
+  int32_t rebuild = 0;             // +0x13c  the editor made anew before its next frame
 };
 NetEditor*& net_editor();  // [0x005f4c6c]
 void net_editor_free();    // 0x00402ba0's first half; the program's end and the tests
@@ -58,6 +64,11 @@ void net_editor_menu();            // 0x00403690: mode 1, the menu
 void net_editor_goto(int32_t y);   // 0x004036c0
 void net_editor_save(int32_t y);   // 0x00402e90 -> 0x00402f20 (the save ours: net_save.h)
 void net_editor_exit(int32_t y);   // 0x00402ba0
+void net_editor_move(int32_t y);   // 0x00403ac0 -> 0x00403a90
+znet::Mark* net_editor_first_pick();  // 0x00403770
+// 0x00403140 -> 0x00403080: the editor made anew while it asks (the net and
+// its dirty flag kept), then its frame, until a frame does not ask.
+void net_editor_step(float dt);
 
 // Ours: a line under the panel's rows (the save's folder, "no network to
 // save"), said in the log too; the next menu clears it.

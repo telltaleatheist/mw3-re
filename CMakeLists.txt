@@ -52,6 +52,7 @@ add_library(mw3core STATIC
   src/gamez/zinput/zin_cmdmap.cpp
   src/gamez/zinput/zin_joy.cpp
   src/gamez/znetwork/znet_object.cpp
+  src/gamez/znetwork/znet_view.cpp
   src/gamez/znetwork/znet_session.cpp
   src/gamez/znetwork/znet_dplay.cpp
   src/gamez/zutil/zutl_msg.cpp
@@ -488,6 +489,7 @@ add_library(mw3probe SHARED
   tests/probe_deaths.cpp
   tests/probe_ai_net.cpp
   tests/probe_ai_netwrite.cpp
+  tests/probe_net_view.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp

@@ -327,9 +327,8 @@ Ported in `mech3/game_editor_net` (EDIT AI NETS on the main menu calls it):
   passed and unread). New Net (0x00402c90, the new net's first node) is
   sitting 4's: said in the log, the main menu back.
 - **The editor object** (0x00402f40): the net it owns (deleted with it, as
-  0x00402fd0 does), the camera's far clip kept and put back (0 for none:
-  the hooks give none yet), dirty and rebuild. The selection base 0x0058bf50
-  (a display object for each node and link, the selection box) is 3b's.
+  0x00402fd0 does), the camera's far clip kept and put back, dirty and
+  rebuild; its selection base, the net view, came with 3b (below).
 - **GOTO Net** (0x004036c0): the view's vehicle (the stealth) put by its
   vt+0xdc (0x004a3630, yaw 0) at the net's place, its first node's (vt+0x04
   0x00402b20; a net without nodes gives the placeholder's, 0 0 0, as the exe).
@@ -354,6 +353,102 @@ node_00, Save Changes writing readerm1.zbd to "editor edits", byte for byte
 the install's with no edits, turned on, the marker there, the panel saying
 where). Breaks: the list unsorted, Cancel cancelling, GOTO at the second
 node, the save skipped.
+
+## The net view and the frame (S5 sitting 3b, 2026-11-09)
+
+The net editor's object holds, at +0x18, the **net view** (the "selection
+base" 0x0058bf50, 0x110 bytes): a zTwoD object in an unnamed module at
+0x0058b3c0..0x0058f8a0 right after znet_object, ported as
+`gamez/znetwork/znet_view` (named after it). It knows the net only as a
+numbered object and its elements through their virtuals (`ViewHooks`; the
+AI net's nodes answer in `game_editor_net`), so it is engine code, not AI.
+
+- **What it holds**: a *mark* for each node (0x74 bytes: the node, its point
+  in view space and on screen, a size and a circle object), a *link* for each
+  pair (0x120 bytes: kind 1 one way, 3 both ways, made once by the lower
+  node; a link from a higher node is made only when it has none back; a node
+  linked to itself makes none), a *cursor* mark at the pick point, the
+  cursor's *lines* to the picked marks (kind 2), and its own zTwoD window
+  (0x005a2b50(4, 4)) that the circles and the links' arrow objects join in
+  the order made: the cursor, then each node's circle (only when the node is
+  placed, its kind 0) and the links it starts.
+- **A mark's point** is worked out lazily in steps (+0x28): 1 through the
+  top of the matrix stack (the camera's view matrix, the frame loads it),
+  2 within the line clip's depth or 5 not, 3 projected (0x005234f0) with its
+  size (1/z times the clip's height, [0x00730804]) and a radius within 8 and
+  an eighth of the height, 4 inside the clip's box or 6 not. A circle shows
+  (0x0058ca90) only when it fits inside the clip whole, at the point rounded
+  half up; its radius drawn and hit is the mark's radius times its ring
+  (0.75, [0x005f2a60]).
+- **A link on screen** (0x0058ba40) by its ends' steps: both on screen, the
+  line as is; one or both off the box but in depth, cut to the box
+  (0x0059b490); an end out of depth, cut to the depth in view space first
+  (0x0059b370, the near ends moved before the far ones) and then projected.
+  Shorter than 2 pixels, or with an end not placed, it is hidden. Each
+  link has two arrow pairs: along (0x0058da70, heads 0.75 radii out from the
+  start and 1.75 radii back from the end, pointing to the end) for every
+  link, and against (0x0058dfd0, the same from the other end) for both-way
+  ones. A head is a chevron of three points (0x0058d9a0) that the line draw
+  closes into a triangle when its node shows.
+- **Colours** (0x00579370, each view sets them): circles red, green under
+  the mouse, yellow picked; a link's line green under the mouse, yellow
+  pressed, else blue when its ends see each other (the world's segment query
+  0x004eed90 between them) and red when not. FIX (bug): the exe reads the
+  first byte of an unwritten 0x500-byte buffer for "see each other"
+  (docs/fixes.md); here the answer alone decides. The cursor's lines are red
+  (its element answers null).
+- **The mouse**, through the window each frame (0.1 s): a press on a circle
+  picks it (lit, a cursor line to it, `picks`); a release drops the pick
+  unless left shift is held (then the circle stays pressed); shift-clicking
+  a circle other than the last pressed drops its pick; a plain left-up over
+  the cursor (the pick point, under the mouse) hands the picks over to be
+  linked (+0xfc). Hovering marks a node (+0x04 bit 0, a list at +0x108);
+  pressing a link's arrow keeps it in a list (+0xf0) nothing reads yet.
+- **The editor's frame** (0x00403160, from the step 0x00403080 each frame
+  in the net menus): the player view's camera set again (0x004b51f0), the
+  line clip set to the screen (its size less 0.9375, [0x005bb930]) and the
+  camera's near and far planes, the view matrix loaded, the pick point read
+  from the view's vehicle (vt+0xf8: the stealth's reticle pick, below).
+  **Looking down 70 degrees or more** (the camera's pitch, [0x005bb938]) the
+  far clip is pulled in to 1.5 times the camera's distance to the pick (its
+  x, y and z differences added); flatter, the far clip kept at the start
+  comes back. Then Move Node's states, the view (0x0058c950), and the
+  links: each mark handed over is linked (0x004c6ec0) to the first pick, and
+  the editor is made anew on the same net and dirty flag (the step frames it
+  again at once). With nothing picked the exe would make a new node at the
+  pick (0x004bd1f0); that is sitting 4's (in the log).
+- **Move Node** (0x00403ac0 -> 0x00403a90; "Select a node first" without a
+  pick, "Using first of N selected nodes" with more, both boxes in the exe,
+  the status line here): the first pick follows the pick point. It waits for
+  the mouse to leave the node (state 1), then to come back (2, its clicks
+  cleared), then (3) puts the node at the pick each frame (0x004c71a0, the
+  links stored again, dirty) while the mouse stays over it without a click;
+  a click or leaving it ends it.
+- **The reticle's pick** (0x004a58d0, wired in the program): the reticle's
+  point through the world from the camera's near plane to its far one, the
+  nearest crossing (0x004eece0), or the far end when nothing is crossed,
+  kept on the stealth's overlay (the image's +0xbc) for vt+0xf8.
+- **Not yet**: a moved or linked node is not in the save until sitting 4's
+  fold into the record cache (0x004befc0 -> 0x004bef80 -> 0x004dc2b0, what
+  0x004c71a0 calls); the frame's pixel-doubled branch (0x0040d4b0: the
+  projection on the half window) is not the port's (no doubling).
+
+Tests: test_net_view.py (a link between two marks against the exe on
+random cameras, clips and ends in front, behind, past the far plane and off
+screen, all nine pairs of end states: the marks' steps, the cuts, the
+direction, both arrow pairs, the circles' place and hits, the back arrows'
+hits; bit for bit at 24 bits; at 53 the floats a few ulps apart and 6 of
+the 600 cases' drawn points a pixel off, none of their states, flags or
+hits); `net_view_links_and_picks` (the links' kinds and makers, the window,
+press, release with and without shift, the hand-over, shift-click);
+`net_editor_frame_far_clip_move_and_link` (the far clip both ways, Move
+Node's states, a link and the editor made anew, add_link's two cases);
+`mission_c1m1_net_editor_view_move_and_link_headless` (net_01's 19 nodes
+and 22 links, the reticle's pick on the ground 141 m off, node_00 moved
+there, node_01 linked to node_00 and the editor made anew, the far clip
+back after). Breaks: the depth cut's order, the heads rounded without the
+half, the hit by the radius alone, the pick ignoring the crossing, no link
+made, the clicks kept at state 2, the far clip at 1.25, links to oneself.
 
 ## The save (S5 sitting 2, 2026-11-09)
 
