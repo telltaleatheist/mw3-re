@@ -293,6 +293,13 @@ float mech_knock(void* mech, float* threshold, bool* airborne);  // tests: pm-te
 // `matched` how many of those hold zClass's own record; a weapon by name burst at a point.
 int32_t weapons_query_flood(const float at[3], float radius, int32_t* matched);
 bool weapons_burst(const char* name, const float at[3]);
+// Tests only: a copy of the weapon `name` given IMPACT_PROXIMITY `proximity`, its splash query and splash run at
+// `at` (as a hit there, 0x00586350's tail); out: the query's count, how many of its records hold a node, the
+// damage calls made.
+// Also each point of a `radius` query around `at` (up to 32), for finding a crowded spot.
+bool weapons_splash_copy(const char* name, float proximity, const float at[3], int32_t* counted, int32_t* listed,
+                         int32_t* damaged);
+int32_t weapons_query_points(const float at[3], float radius, float out[32][3]);
 std::string mech_group_names(void* mech, int32_t g);
 // Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
 bool mech_lock_shown(void* mech);

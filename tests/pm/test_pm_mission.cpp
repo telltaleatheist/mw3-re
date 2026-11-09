@@ -455,6 +455,7 @@ struct LightSeen {
   float near = 0, far = 0, ambient = 0, diffuse = 0, color[3] = {}, mixed[12] = {};
 };
 static LightSeen g_light;
+static struct { bool made = false; int counted = -1, listed = -1, damaged = -1, tried = 0; } g_splash;  // PM_SPLASH
 static struct { int nodes, moved; } g_motions;  // PM_MOTIONS: event 12's nodes and how many moved
 
 static int g_crater_spikes = -1, g_craters_made = 0;
@@ -704,6 +705,19 @@ static void kill_run(const char* which, bool quick) {
       float at[3] = {};
       if (++t == 2 || t == 60) std::printf("  headlight: %d at %.0f %.0f %.0f\n", pm_headlight(player, true, at), at[0], at[1], at[2]);
       if (t < 60) return;
+    }
+    // A mod's splash on AC5 (200 m), hit where the query fills 32: the player's spot, else each one found within 2 km.
+    if (std::getenv("PM_SPLASH")) {
+      static int t = 0;
+      if (++t < 30) return;
+      float at[3], points[32][3];
+      mech3::mech_world_position(player, at);
+      const int32_t n = mech3::weapons_query_points(at, 2000.0f, points);
+      for (int32_t i = -1; i < n && g_splash.counted < 32; ++i, ++g_splash.tried)
+        g_splash.made = mech3::weapons_splash_copy("AC5", 200.0f, i < 0 ? at : points[i], &g_splash.counted,
+                                                   &g_splash.listed, &g_splash.damaged);
+      done = true;
+      return;
     }
     // pm-tests item 21: the current weapon destroyed with the next in the list already gone, the HUD up.
     if (std::getenv("PM_GONE")) {
@@ -1254,7 +1268,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1357,6 +1371,30 @@ TEST(pm_c2m3_ally_turret_keeps_off_the_player) {
   if (child == 0) {
     setenv("PM_ALLY_TURRET", "1", 1);
     kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// Always on: a mod's splash on a weapon without one (main's mission_c1m1_modded_splash_stays_within_the_list): a
+// copy of AC5 given a 200 m IMPACT_PROXIMITY, hit where the query fills zClass's 32; the splash damages at most the
+// 32 the list holds (the exe's buffer), with no read past it.
+TEST(pm_c1m1_modded_splash_stays_within_the_list) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_SPLASH", "1", 1);
+    kill_run("0,1,1", true);
+    std::printf("  AC5 with a 200 m splash, %d spots tried: the query counted %d, %d listed, %d damaged\n", g_splash.tried,
+                g_splash.counted, g_splash.listed, g_splash.damaged);
+    EXPECT(g_splash.made);
+    EXPECT(g_splash.counted == 32 && g_splash.listed == 32);
+    EXPECT(g_splash.damaged >= 1 && g_splash.damaged <= 32);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }
