@@ -118,6 +118,7 @@
 #include "mech3/mp_connect.h"
 #include "mech3/mp_lobby.h"
 #include "mech3/mods.h"
+#include "mech3/mods_menu.h"
 #include "mech3/mod_campaign.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/znetwork/znet_session.h"
@@ -1315,6 +1316,155 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
     reset_process_state();
     mech3::options() = mech3::Options{};
   }
+}
+
+// Ours (modding.md, The MODS screen): MODS, ENTER a custom campaign, its
+// first mission, the pause's options and QUIT, back through the menus to
+// MODS, BACK. The campaign's pilots stay up until MODS is back on top, and
+// the MODS state under the mission is never let go (the pause's leave once
+// did: a use after free on the way back).
+TEST(mods_screen_enter_campaign_and_back_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_enter_write");
+  zutl::set_write_dir(wd);
+  std::filesystem::create_directories(wd + "/mods/lost");
+  std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\n";
+  std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\nmission=c1 2\n";
+  mech3::ModCampaign mc;
+  EXPECT(mech3::campaign_load(wd + "/mods/lost", "lost", "lost.txt", &mc));
+  mech3::mod_campaigns() = {mc};
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_mounted() = {"lost"};
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device) override { return true; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState* m) override { return *m = platform::MouseState{}, 0; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0, core = 0;
+    bool entered = false, pilot_in_folder = false, left_early = false, back_at_main = false, mods_again = false;
+    int mission_depth = -2;
+    std::string last, trace;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      std::string names;
+      for (int i = 0; i <= app.depth(); ++i)
+        if (auto* s = dynamic_cast<mech3::State*>(app.stack(i))) names += std::string(names.empty() ? "" : " > ") + s->name();
+      if (names != last) trace += "    " + names + (mech3::entered_campaign() ? "  [campaign pilots]" : "") + "\n", last = names;
+      if (stage >= 2 && stage < 7 && !mech3::entered_campaign()) left_early = true;
+      if (now == &st.core && mission_depth == -2) mission_depth = app.depth();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ms = dynamic_cast<mech3::ModsState*>(now);
+        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+        if (!scr) return;
+        scr->campaign_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        entered = mech3::entered_campaign() != nullptr;
+        stage = 2;
+      } else if (stage == 2) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(now);
+        if (!ps || !ps->screen) return;
+        mech3::Pilot* pilot = mech3::create_pilot("Stepper");
+        pilot_in_folder = std::filesystem::exists(wd + "/pilots/mods/lost/lost/" + mech3::kCampaignMarker);
+        ps->screen->refresh(false, pilot);
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 3;
+      } else if (stage == 3) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || now != &st.load || !b->loaded) return;
+        b->salvage_seen = 1;
+        b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        stage = 4;
+      } else if (stage == 4 && now == &st.core) {
+        ++core;
+        if (core == 5) keys.key(1, true);  // Escape: the pause
+        if (core == 6) keys.key(1, false);
+      } else if (stage == 4 && now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (ps) ps->on_button(mech3::PauseScreen::kOptions, 0, 0), stage = 5;
+      } else if (stage == 5) {
+        auto* os = dynamic_cast<mech3::OptionsState*>(now);
+        if (os && os->kind == mech3::OptionsState::kGame) os->escape(), stage = 6;  // back to the pause
+      } else if (stage == 6 && now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 7;
+      } else if (stage == 7 && now == &st.main && mech3::main_menu()) {
+        back_at_main = !mech3::entered_campaign();
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS again
+        stage = 8;
+      } else if (stage == 8) {
+        auto* ms = dynamic_cast<mech3::ModsState*>(now);
+        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+        if (!scr) return;
+        mods_again = true;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        stage = 9;
+      } else if (stage == 9 && now == &st.main && app.depth() == 0) {
+        stage = 10;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    pump.stop = [&] { return stage == 10; };
+    app.run(pump);
+    std::printf("  stage %d; entered %d, pilots in the campaign's folder %d, let go early %d, the mission's depth %d, "
+                "back at the main menu with the original's pilots %d, MODS again %d; the stack:\n%s",
+                stage, entered, pilot_in_folder, left_early, mission_depth, back_at_main, mods_again, trace.c_str());
+    EXPECT(entered && pilot_in_folder && !left_early);
+    EXPECT(mission_depth == 0);  // nothing under the mission, as from CAMPAIGN
+    EXPECT(back_at_main && mods_again && stage == 10);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    if (mech3::entered_campaign()) mech3::campaign_leave();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mod_campaigns().clear();
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_mounted().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 // A mod campaign through the same screens (custom-campaigns.md, step 3):

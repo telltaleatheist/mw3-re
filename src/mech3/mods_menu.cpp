@@ -258,8 +258,9 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
   }
 }
 
-// ENTER: the chosen campaign entered (its own pilots) and the Campaign State
-// pushed, as the main menu's CAMPAIGN; a campaign whose mod is not on in this
+// ENTER: the chosen campaign entered (its own pilots), MODS let go and the
+// Campaign State pushed on the main menu, as its CAMPAIGN (the main menu
+// shown again lets the campaign go: MainState::update); a campaign whose mod is not on in this
 // run is never started half-mounted: its mod is turned on for the next start.
 void ModsScreen::enter_campaign() {
   const int32_t i = campaign_list.selected;
@@ -289,7 +290,11 @@ void ModsScreen::enter_campaign() {
     say(note, "Cannot be played: " + why);
     return;
   }
+  // The Campaign State on the main menu, as from CAMPAIGN: once a pilot is
+  // chosen it pops itself and replaces the state below with the mission's,
+  // which must be the main menu's (nothing left under a mission).
   Engine& e = engine();
+  e.pop_state(0);
   e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
 }
 
@@ -300,14 +305,7 @@ bool ModsState::enter() {
   return true;
 }
 
-// Back from a campaign entered here: the original's pilots again.
-void ModsState::resume(uint32_t arg) {
-  if (entered_campaign()) campaign_leave();
-  ShellState::resume(arg);
-}
-
 void ModsState::leave() {
-  if (entered_campaign()) campaign_leave();
   e().shell_clear(addr());
   ShellState::leave();
 }

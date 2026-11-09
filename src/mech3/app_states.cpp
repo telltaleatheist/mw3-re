@@ -1,3 +1,4 @@
+#include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
@@ -986,6 +987,11 @@ bool MainState::enter() {
 // hotkeys press the screen's buttons.
 bool MainState::update() {
   Engine& en = e();
+  // Ours: the main menu up again lets a custom campaign's pilots go (MODS's
+  // ENTER). Not on a resume: the Campaign State's pop on its way to the
+  // mission and ENTER's pop of MODS resume it in the same batch as the next
+  // command, so it never updates between.
+  if (entered_campaign()) campaign_leave();
   const bool r = ShellState::update();
   idle_ = idle_ - en.frame_dt();
   const Handle s = screen_;
@@ -1067,7 +1073,6 @@ void PauseState::leave() {
   delete_object(en, 0x60986c);
   delete_object(en, 0x609870);
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
-  if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   screen_ = 0;
   en.poke32(0x609868, 0);
   en.poke32(0x60986c, 0);

@@ -59,7 +59,6 @@ class ModsState : public MenuState {
  public:
   explicit ModsState(Handle addr) : MenuState("Mods State", addr) {}
   bool enter() override;
-  void resume(uint32_t arg) override;  // back from a campaign: campaign_leave
   void leave() override;
 };
 
