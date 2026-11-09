@@ -37,9 +37,14 @@ std::vector<uint8_t> net_with_edits(const uint8_t* entry, size_t size, const zrd
 // An archive's bytes with entry `name` (matched case-insensitively) holding
 // `data`; every other entry's bytes, name, comment and file time as they
 // were, in their order. Empty when `archive` is not a zar archive MW3 reads
-// (table, version 1, count) or has no such entry.
+// (table, version 1, count) or has no such entry, unless `add`: then the
+// entry goes after the last (no comment, no file time).
 std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& archive, const char* name,
-                                        const std::vector<uint8_t>& data);
+                                        const std::vector<uint8_t>& data, bool add = false);
+
+// A new net file's bytes, as the shipped ones begin: version ( 106 ) and
+// name ( `name` ), no nodes (net_with_edits adds them, with a null tree).
+std::vector<uint8_t> net_new_entry(const char* name);
 
 // The editor's own mod for the edits of an archive found in mod `source`
 // (its folder; "" the install): `source` itself when it is one (its marker,
@@ -64,6 +69,6 @@ struct NetSave {
 // temporary file renamed over it; the mod enabled just before its source in
 // mw3.cfg (the install's: last), so it wins from the next start. Never the
 // install's file or a folder the editor did not make.
-NetSave save_archive_edit(const char* rel, const char* name, const std::vector<uint8_t>& data);
+NetSave save_archive_edit(const char* rel, const char* name, const std::vector<uint8_t>& data, bool add = false);
 
 }  // namespace mech3::ai

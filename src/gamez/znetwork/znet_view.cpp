@@ -533,6 +533,19 @@ void View::frame(const float* at) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x0058ebc0
+bool View::press(Element* e) {
+  for (Mark& m : marks)
+    if (m.elem == e) {
+      if (!(m.obj.mouse & ztwod::kPressed)) {
+        m.obj.mouse |= ztwod::kPressed;
+        m.obj.on_press();
+      }
+      return true;
+    }
+  return false;
+}
+
 // Mech3.exe 1.2 @ 0x0058e620 (from the circle's press): the last pressed,
 // lit, picked once, and the cursor's line to it (each press adds one).
 void View::pick(Mark* m) {

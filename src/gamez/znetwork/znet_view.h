@@ -165,6 +165,7 @@ struct View : ztwod::Object2D {
   void cursor_line(Mark* m);            // 0x0058e4c0: the cursor's line to m
   void cursor_unline(Mark* m);          // 0x0058e5a0
   Mark* first_pick() { return picks.empty() ? nullptr : picks.front(); }
+  bool press(Element* e);               // 0x0058ebc0: its circle pressed (and so picked)
 
   Object* net = nullptr;               // +0x38
   ViewHooks* hooks = nullptr;          // ours: the elements' virtuals
