@@ -1,4 +1,5 @@
 #include "gamez/zreader/zreader.h"
+#include "upgrades/reference/reference.h"
 
 #include <algorithm>
 #include <cctype>
@@ -140,10 +141,14 @@ Node* find(Node* node, const char* key, int start) {
 }
 
 // Mech3.exe 1.2 @ 0x005569e0
-Node* find(Node* node, const char* key) { return find(node, key, 1); }
+Node* find(Node* node, const char* key) {
+  upgrades::reference::seen(key);  // ours: the modding reference's test observer (null in play)
+  return find(node, key, 1);
+}
 
 // Mech3.exe 1.2 @ 0x005568a0
 Node* find_flat(Node* node, const char* key, int start) {
+  upgrades::reference::seen(key);  // ours: the modding reference's test observer (null in play)
   if (!node || node->type != List) return nullptr;
   int32_t count = node->list[0].i;
   for (int i = start; i < count; ++i) {

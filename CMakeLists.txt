@@ -311,6 +311,9 @@ add_library(mw3core STATIC
   src/mech3/options_menu.cpp
   src/mech3/mods_menu.cpp
   src/mech3/mod_install.cpp
+  src/upgrades/reference/reference.cpp
+  src/upgrades/reference/reference_mods.cpp
+  src/upgrades/reference/reference_weapons.cpp
   src/mech3/pause_menu.cpp
   src/mech3/quit_box.cpp
   src/mech3/lab_items.cpp
@@ -572,6 +575,7 @@ add_executable(mw3tests
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
   tests/test_mod_install.cpp
+  tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_net_save.cpp
   tests/test_bounded_readers.cpp

@@ -34,6 +34,7 @@
 #include "mech3/mech_reader.h"
 #include "mech3/mission.h"
 #include "mech3/mod_campaign.h"
+#include "upgrades/reference/reference.h"
 
 namespace mech3 {
 
@@ -77,16 +78,16 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     const size_t eq = line.find('=');
     if (eq == std::string::npos) continue;
     const std::string key = lower(trim(line.substr(0, eq))), value = trim(line.substr(eq + 1));
-    if (key == "name") out->name = value;
-    else if (key == "version") out->version = value;
-    else if (key == "author") out->author = value;
-    else if (key == "for") out->game = value;
-    else if (key == "description") out->description = value;
-    else if (key == "world" && !value.empty()) out->worlds.push_back(value);
-    else if (key == "mech" && !value.empty()) out->mechs.push_back(value);
-    else if (key == "weapon" && !value.empty()) out->weapons.push_back(value);
-    else if (key == "campaign" && !value.empty()) out->campaigns.push_back(value);
-    else if (key == "ia_world" && !value.empty()) {
+    if (upgrades::reference::key_is(key, "name")) out->name = value;
+    else if (upgrades::reference::key_is(key, "version")) out->version = value;
+    else if (upgrades::reference::key_is(key, "author")) out->author = value;
+    else if (upgrades::reference::key_is(key, "for")) out->game = value;
+    else if (upgrades::reference::key_is(key, "description")) out->description = value;
+    else if (upgrades::reference::key_is(key, "world") && !value.empty()) out->worlds.push_back(value);
+    else if (upgrades::reference::key_is(key, "mech") && !value.empty()) out->mechs.push_back(value);
+    else if (upgrades::reference::key_is(key, "weapon") && !value.empty()) out->weapons.push_back(value);
+    else if (upgrades::reference::key_is(key, "campaign") && !value.empty()) out->campaigns.push_back(value);
+    else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
     }
