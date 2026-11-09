@@ -887,7 +887,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
     };
     mp.open_folder = [](const std::string& dir) {
       std::string url = "file://";
-      for (const unsigned char c : std::filesystem::absolute(std::filesystem::u8path(dir)).generic_u8string()) {
+      for (const unsigned char c : std::filesystem::absolute(std::filesystem::path(dir)).generic_string()) {
         if (std::isalnum(c) || std::strchr("/-_.~:", c)) url += static_cast<char>(c);
         else {
           char hex[4];

@@ -153,7 +153,7 @@ std::string unpack(const std::string& source, const fs::path& to, const ModAddLi
     if (e.other) return "it holds a link or special file (" + e.path + "), which a mod cannot have";
     if (!mod_entry_path_ok(e.path, &rel)) return "it holds a file that would land outside its folder (" + e.path + ")";
     if (rel.empty()) continue;
-    const fs::path dst = to / fs::u8path(rel);
+    const fs::path dst = to / fs::path(rel);
     if (e.dir) {
       fs::create_directories(dst, ec);
       continue;
@@ -279,18 +279,18 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
   ModAdd a;
   a.source = source;
   std::error_code ec;
-  const fs::path src = fs::u8path(source);
+  const fs::path src = fs::path(source);
   const bool folder = fs::is_directory(src, ec);
   if (!folder && !fs::is_regular_file(src, ec)) return a.error = "it is not there any more", a;
-  const fs::path mods = fs::u8path(write_dir) / "mods";
+  const fs::path mods = fs::path(write_dir) / "mods";
   if (folder) {  // never the game's own folders: the write dir, a mod already in mods\, the install
     const std::string c = fs::weakly_canonical(src, ec).generic_string();
     auto at = [&](const fs::path& p) { return fs::weakly_canonical(p, ec).generic_string(); };
     const std::string m = at(mods);
-    if (c == at(fs::u8path(write_dir)) || c == m || c.rfind(m + "/", 0) == 0 || (!install.empty() && c == at(fs::u8path(install))))
+    if (c == at(fs::path(write_dir)) || c == m || c.rfind(m + "/", 0) == 0 || (!install.empty() && c == at(fs::path(install))))
       return a.error = "that folder is the game's own: pick the mod's folder", a;
   }
-  const fs::path base = fs::u8path(write_dir) / "mod-staging";
+  const fs::path base = fs::path(write_dir) / "mod-staging";
   fs::create_directories(base, ec);
   sweep_staging(base);
   const auto t = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -302,7 +302,7 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
   }
   if (staging.empty()) return a.error = "cannot make a folder in " + base.generic_string(), a;
   { std::ofstream(staging / kModStagingMarker) << "A mod being added by the game; removed when it is done.\n"; }
-  a.staging = staging.u8string();
+  a.staging = staging.string();
   const fs::path files = staging / "files";
   fs::create_directories(files, ec);
   const std::string why = folder ? copy_folder(src, files, limits) : unpack(source, files, limits);
@@ -328,7 +328,7 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     }
   }
   const fs::path root = find_root(files);
-  a.root = root.u8string();
+  a.root = root.string();
   const fs::path mt = child(root, "mod.txt");
   a.has_mod_txt = !mt.empty() && fs::is_regular_file(mt, ec);
   a.name = stem_of(source);
@@ -345,10 +345,10 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
   a.full_install = !exe.empty() && fs::is_regular_file(exe, ec);
   if (a.full_install) {
     std::map<std::string, fs::path> theirs;
-    for (const std::string& rel : files_under(fs::u8path(install))) theirs[lower(rel)] = fs::u8path(install) / fs::u8path(rel);
+    for (const std::string& rel : files_under(fs::path(install))) theirs[lower(rel)] = fs::path(install) / fs::path(rel);
     for (const std::string& rel : files_under(root)) {
       const std::string l = lower(rel);
-      const fs::path p = root / fs::u8path(rel);
+      const fs::path p = root / fs::path(rel);
       const bool program = l.size() > 4 && (l.compare(l.size() - 4, 4, ".exe") == 0 || l.compare(l.size() - 4, 4, ".dll") == 0);
       if (program || !zutl::mod_may_serve(rel)) {
         fs::remove(p, ec), ++a.other_dropped;
@@ -371,7 +371,7 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
 ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame game, const std::string& install) {
   ModAddResult r;
   std::error_code ec;
-  const fs::path root = fs::u8path(a.root);
+  const fs::path root = fs::path(a.root);
   if (a.staging.empty() || !fs::is_directory(root, ec)) {
     r.message = "Not added: it is gone from the staging folder.";
     mod_add_discard(a);
@@ -382,7 +382,7 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
       << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "pm" : "mw3") << "\n";
   }
-  r.report = mod_check(root.u8string(), install, &r.check_errors);
+  r.report = mod_check(root.string(), install, &r.check_errors);
   if (r.check_errors > 0) {
     std::string first;
     for (const std::string& l : r.report)
@@ -396,7 +396,7 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     return r;
   }
   // A name no folder in mods\ has, whatever its case: never one replaced.
-  const fs::path mods = fs::u8path(write_dir) / "mods";
+  const fs::path mods = fs::path(write_dir) / "mods";
   fs::create_directories(mods, ec);
   const std::string base = mod_folder_name(a.name);
   std::string name = base;
@@ -414,7 +414,7 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     f << "Added by the game from " << a.source << ".\n"
       << "The game only ever removes or replaces a mod folder with this file in it.\n";
   }
-  fs::rename(root, mods / fs::u8path(name), ec);
+  fs::rename(root, mods / fs::path(name), ec);
   if (ec) {
     r.message = "Not added: cannot move it into the mods folder (" + ec.message() + ").";
     mod_add_discard(a);
@@ -423,15 +423,15 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   mod_add_discard(a);
   r.ok = true;
   r.folder = name;
-  mod_parse(read_text(mods / fs::u8path(name) / "mod.txt"), &r.info);
+  mod_parse(read_text(mods / fs::path(name) / "mod.txt"), &r.info);
   r.info.folder = name;
-  r.info.path = (mods / fs::u8path(name)).u8string();
+  r.info.path = (mods / fs::path(name)).string();
   return r;
 }
 
 void mod_add_discard(ModAdd& a) {
   if (a.staging.empty()) return;
-  const fs::path staging = fs::u8path(a.staging);
+  const fs::path staging = fs::path(a.staging);
   remove_ours(staging, kModStagingMarker);
   std::error_code ec;
   const fs::path base = staging.parent_path();

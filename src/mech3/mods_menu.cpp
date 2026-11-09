@@ -340,10 +340,10 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       return;
     case kOpenFolder: {
       std::error_code ec;
-      const std::filesystem::path m = std::filesystem::u8path(dir) / "mods";
+      const std::filesystem::path m = std::filesystem::path(dir) / "mods";
       std::filesystem::create_directories(m, ec);
-      if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.u8string()))
-        tell("The mods folder: " + m.u8string());
+      if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.string()))
+        tell("The mods folder: " + m.string());
       return;
     }
     case kEditor:
