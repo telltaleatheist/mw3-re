@@ -521,3 +521,13 @@ in the file (texture +0x24, material +0x10/+0x24, node +0x38/+0x3c/+0x58/
 +0x60, the list arrays). A 64-bit port needs separate in-memory structs with
 the file layout kept for reading (the ports keep the bytes and add typed
 pointer fields; mechlib models share the world pool since 2026-10-20).
+
+**A partition's middle height (2026-11-09, gamez JSON).** Each world
+partition's record holds the middle of its box, `(max.y + min.y) / 2`. The
+shipped files have the value computed wide and rounded once: in double and
+then to float, every partition of the six worlds comes out as shipped. A
+float sum misses by a bit in about a hundred c3 partitions, which mech3ax
+patches from a table of the shipped bits. Same lesson as mechlib's
+cosines (mechlib.md): the original's tools computed in the x87's wide
+registers, and rounding once from double is what reproduces them. Its
+diagonal is mech3ax's approximate square root of a sum taken in double.
