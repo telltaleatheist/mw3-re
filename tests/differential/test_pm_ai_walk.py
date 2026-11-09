@@ -606,7 +606,34 @@ def fight_plan(seed):
                 lines += [('D',), ('S',), ('S',), ('U', 0), ('S',)]
         else:
             lines.append((r.choice('0123567'),))
-    return lines
+    # Only on the fighting context with its own state: the harness's follow ('b') gives the exe a new state and leaves
+    # the context on the old one, where the probe makes the one state again.
+    return lines + pulled_lines(seed) if lines[4] == ('B',) and ('b',) not in lines else lines
+
+
+def pulled_lines(seed):
+    """The way pulled short with the target near: the plan's circle of the near range round the start (where to stop
+    along it), and step 6's second try. Its own stream, so the fight plan's lines before stay as they were."""
+    r = random.Random(f'fight-pulled:{seed}')
+    out = []
+    for _ in range(r.randrange(2, 6)):
+        d = r.choice([2.0, 5.0, 20.0, 60.0, 150.0])
+        a = r.uniform(-math.pi, math.pi)
+        place = [r.uniform(-50, 50), r.uniform(-3, 3), r.uniform(-50, 50)]
+        target = [place[0] + d * math.sin(a), place[1] + r.uniform(-3, 3), place[2] + d * math.cos(a)]
+        fa = a + r.uniform(-1, 1)
+        out.append(('W', place + target + [math.sin(fa), math.cos(fa), 0.0, r.choice([0.0, 0.5]), 1.0], int(r.random() < 0.9), r.choice([0, 1]), 1, 0, 0.0))
+        out.append(('Z', int(r.random() < 0.15)))
+        near = d * r.choice([0.3, 0.6, 0.9, 1.1, 1.5, 3.0])  # the target inside the near range or just out
+        clock = r.uniform(0, 100)
+        out.append(('F', [r.choice([1.0, 10.0]), r.choice([1.0, 10.0]), near * r.choice([1.0, 1.5, 3.0, 10.0]), near, clock]))
+        out += [('N', 1), ('E',)]  # entered again, so the state takes the ranges
+        if r.random() < 0.5:
+            out.append(('P',))
+        else:  # step 6, its re-plan due or not
+            out.append(('f', 6 | r.choice([0, 0x50]), [r.choice([0.0, clock + 5]), r.choice([0.0, clock - 1, clock + 5])]))
+            out += [('D',), ('S',), ('S',)]
+    return out
 
 
 def guard_plan(seed):
