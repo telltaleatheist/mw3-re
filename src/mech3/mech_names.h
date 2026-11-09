@@ -62,6 +62,7 @@ const char* mech_title(int32_t mech);       // a mod row's title=, null for the 
 // heavy|assault [model=MECH] [title=TEXT]`, title= last (the rest of the line).
 bool mech_row_parse(const std::string& value, ModMech* out, std::string* error);
 bool mech_row_add(const ModMech& row, std::string* error);  // refused when the name is taken
+bool mech_row_add_line(const std::string& value, std::string* error);  // parsed and added (for the tests)
 void mech_rows_clear();                     // the mods' rows gone
 
 // Mods' weapons (ours): rows after the exe's 37 and the plain PPC (38th, FIX

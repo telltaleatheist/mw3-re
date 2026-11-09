@@ -123,6 +123,11 @@ bool mech_row_add(const ModMech& r, std::string* error) {
   return true;
 }
 
+bool mech_row_add_line(const std::string& value, std::string* error) {
+  ModMech r;
+  return mech_row_parse(value, &r, error) && mech_row_add(r, error);
+}
+
 void mech_rows_clear() { g_rows.clear(); }
 
 const char* weapon_title(int32_t weapon) {

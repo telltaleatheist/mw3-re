@@ -38,6 +38,21 @@ bool same(const std::string& a, const std::string& b) {
   std::error_code ec;
   return !a.empty() && fs::equivalent(a, b, ec);
 }
+// A mod's mech files as the mount looks for them: a loose dfn_<name>.zrd for
+// each row and a mechlib.zbd holding mech_<model>.flt for each model (a
+// mod's mechlib is the whole archive: the first mod's hides the others').
+void mech_files(const std::string& mod, std::initializer_list<const char*> dfns, std::initializer_list<const char*> models) {
+  for (const char* d : dfns) put(mod + "/zbd/dfn_" + d + ".zrd", "(version (2))\n");
+  if (models.size() == 0) return;
+  std::error_code ec;
+  fs::create_directories(mod + "/zbd", ec);
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  if (zutl_zar::create(a, (mod + "/zbd/mechlib.zbd").c_str()))
+    for (const char* m : models) zutl_zar::add(a, ("mech_" + std::string(m) + ".flt").c_str(), "x", 1);
+  zutl_zar::close(a);
+  zutl_zar::destroy(a);
+}
 std::string tmp(const char* name) {
   const std::string d = std::string(MW3_TEST_TMP) + "/" + name;
   std::error_code ec;
@@ -184,7 +199,10 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   const std::string wd = tmp("mods_mechs");
   put(wd + "/mods/a/mod.txt", "name=A\nmech=madcat_b tech=clan mass=75 class=heavy model=madcat title=Mad Cat B\n"
                               "mech=thor tech=clan mass=70 class=heavy\nmech=bad tech=clan mass=7 class=heavy\n");
-  put(wd + "/mods/b/mod.txt", "name=B\nmech=MADCAT_B tech=any mass=20 class=light\nmech=scout tech=sphere mass=20 class=light\n");
+  put(wd + "/mods/b/mod.txt", "name=B\nmech=MADCAT_B tech=any mass=20 class=light\nmech=scout tech=sphere mass=20 class=light\n"
+                              "mech=ghost tech=sphere mass=20 class=light\nmech=shade tech=sphere mass=20 class=light model=nothing\n");
+  mech_files(wd + "/mods/a", {"madcat_b"}, {"madcat", "scout"});
+  mech_files(wd + "/mods/b", {"MADCAT_B", "scout", "shade"}, {});
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);
   mech3::mech_rows_clear();
@@ -218,6 +236,10 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   EXPECT(text.find("mech bad tech=clan mass=7 class=heavy: mass= must be 10 to 100 tons in steps of 5, left out") != std::string::npos);
   EXPECT(text.find("mech MADCAT_B tech=any mass=20 class=light: there is a mech MADCAT_B already, left out") != std::string::npos);
   EXPECT(text.find("mech scout added (mech 21, 20 t, the models of scout)") != std::string::npos);
+  // A row whose definition or model the game would not find: left out, said.
+  EXPECT(text.find("mech ghost tech=sphere mass=20 class=light: no dfn_ghost.zrd in the reader archive, left out") != std::string::npos);
+  EXPECT(text.find("mech shade tech=sphere mass=20 class=light model=nothing: no mech_nothing.flt in mechlib.zbd, left out") !=
+         std::string::npos);
   mech3::mech_rows_clear();
   EXPECT(mech3::mech_count() == 19 && mech3::mech_index("scout") == -1);
   // The gameplay hash: the rows as data.
@@ -288,6 +310,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   zfix::options() = saved;
   // A remount: the exe's tables, then the rows again (not refused as taken).
   put(wd + "/mods/m/mod.txt", "name=M\nmech=scout tech=sphere mass=20 class=light\n");
+  mech_files(wd + "/mods/m", {"scout"}, {"scout"});
   text.clear();
   for (const std::string& l : mech3::mods_mount(wd, {"m", "w"}, {})) text += l + "\n";
   EXPECT(text.find("mech scout added (mech 20") != std::string::npos && text.find("weapon Rail added (weapon 39)") != std::string::npos);
@@ -312,6 +335,8 @@ TEST(mods_saves_name_their_rows_beside_them) {
   const std::string wd = tmp("mods_rows_files");
   put(wd + "/mods/a/mod.txt", "name=A\nmech=alpha tech=clan mass=50 class=medium\nweapon=Gun_A ammo=yes tech=any\n");
   put(wd + "/mods/b/mod.txt", "name=B\nmech=beta tech=clan mass=60 class=heavy\nweapon=Gun_B ammo=no tech=any\n");
+  mech_files(wd + "/mods/a", {"alpha"}, {"alpha", "beta"});
+  mech_files(wd + "/mods/b", {"beta"}, {"alpha", "beta"});
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);
   auto mount = [&](std::vector<std::string> order) { mech3::mods_mount(wd, order, {}); };

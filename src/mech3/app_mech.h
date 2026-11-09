@@ -26,6 +26,8 @@ struct MechWiring {
   uint32_t (*pilot)(void* e) = nullptr;   // [0x0060861c]
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
   void (*forget_object)(void* e, const void* p) = nullptr;  // an object freed: its handle forgotten (FIX (A))
+  // 0x004ac150 (style 0, caption 0x1e0) with the message's %1: the build's error boxes.
+  void (*message_box1)(void* e, int32_t caption, int32_t text, const char* s) = nullptr;
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 void net_start();  // 0x0046ceb0 (mech_net.cpp): the mission's network start
