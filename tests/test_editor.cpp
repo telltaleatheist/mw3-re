@@ -446,3 +446,39 @@ TEST(net_editor_delete_node_line_and_new_node) {
   mech3::editor_reset();
   mech3::set_editor_hooks(nullptr);
 }
+
+// Change Net Params (0x004036f0 -> 0x004bf670): the Ai Network Editor
+// window, OK, Cancel and Open, no parameters; Open's list (the open
+// archives' net files: none here) and a file opened (0x00404570) as a second
+// editor that the frame steps (0x00404290) apart from the main one while the
+// menus are up; OK frees it and gives the net menu back.
+TEST(net_window_open_and_hosted_editor) {
+  Stub h;
+  mech3::editor_reset();
+  mech3::set_editor_hooks(&h);
+  mech3::editor_enter();
+  auto* edit = new mech3::ai::CZAiNetEdit(8, nullptr, 0);
+  mech3::net_editor() = new mech3::NetEditor(edit, 0);
+  mech3::net_params_open(0);
+  EXPECT(mech3::net_window() && !mech3::net_window()->hosted);
+  EXPECT(row_text(0) == "Ai Network Editor" && row_text(1) == " OK" && row_text(2) == " Cancel" && row_text(3) == " Open");
+  EXPECT(mech3::editor_state().mode == 1);
+  press(h, 3);  // Open
+  EXPECT(mech3::net_window()->choosing && row_text(0) == "Open a net file:" && row_text(1) == " Cancel");
+  press(h, 1);  // Cancel
+  EXPECT(!mech3::net_window()->choosing && row_text(3) == " Open");
+  mech3::net_window_open("net_33.zrd");
+  mech3::NetEditor* hosted = mech3::net_window()->hosted;
+  EXPECT(hosted && hosted->net && hosted->net != edit);
+  h.has_ground = true;
+  mech3::net_editor_frame_all(true);  // the window's editor stepped, not the main one
+  EXPECT(hosted->has_ground == 1 && mech3::net_editor()->has_ground == 0);
+  press(h, 1);  // OK: closed, its editor freed
+  EXPECT(!mech3::net_window() && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
+  mech3::net_editor_frame_all(false);  // the menus down: the main one stepped
+  EXPECT(mech3::net_editor()->has_ground == 1);
+  mech3::net_editor_free();
+  mech3::editor_exit();
+  mech3::editor_reset();
+  mech3::set_editor_hooks(nullptr);
+}

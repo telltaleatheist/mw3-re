@@ -30,14 +30,13 @@ constexpr int32_t kListRows = 18;  // ours: the list's rows the panel has room f
 
 void not_ported(const char* what) { editor_hooks().not_ported(what); }
 void none(int32_t) {}  // 0x004bf620
-void change_net_params(int32_t) { not_ported("Change Net Params (0x004036f0, the Ai Network Editor dialog 181)"); }
 void node_params(int32_t) { not_ported("Node Params (0x00403710, the Node Parameters dialog 180)"); }
 void add_vehicle(int32_t) { not_ported("Add veh to node (0x00403820, the Node Edit - Vehicle dialog 141)"); }
 void tree_view(int32_t) { not_ported("Tree View (0x00402c70, the tree window)"); }
 
 // 0x005e0f18.
 const EditorEntry kNetRows[13] = {
-    {"Pick CMD or Point", none},   {" GOTO Net", net_editor_goto},        {" Change Net Params", change_net_params},
+    {"Pick CMD or Point", none},   {" GOTO Net", net_editor_goto},        {" Change Net Params", net_params_open},
     {" Node Params", node_params}, {" Add veh to node", add_vehicle},     {" Move Node", net_editor_move},
     {" Delete Node", net_editor_delete}, {" Delete Net", none},                  {" Save Changes", net_editor_save},
     {" Tree View", tree_view},     {"", nullptr},                          {"", nullptr},
@@ -431,23 +430,148 @@ void net_editor_delete(int32_t) {
   g_editor->rebuild = done ? 1 : 0;
 }
 
-// Mech3.exe 1.2 @ 0x00403080
-void net_editor_step(float dt) {
+// Mech3.exe 1.2 @ 0x00403080 (ECX the editor's slot)
+void net_editor_step_slot(NetEditor*& slot, float dt) {
   for (;;) {
-    if (g_editor && g_editor->rebuild) {
-      ai::CZAiNetEdit* n = g_editor->net;
-      const int32_t d = g_editor->dirty;
-      g_editor->net = nullptr;
-      delete g_editor;
-      g_editor = new NetEditor(n, d);
+    if (slot && slot->rebuild) {
+      ai::CZAiNetEdit* n = slot->net;
+      const int32_t d = slot->dirty;
+      slot->net = nullptr;
+      delete slot;
+      slot = new NetEditor(n, d);
     }
-    if (!g_editor) return;
-    g_editor->frame(dt);
-    if (!g_editor->rebuild) return;
+    if (!slot) return;
+    slot->frame(dt);
+    if (!slot->rebuild) return;
   }
 }
+void net_editor_step(float dt) { net_editor_step_slot(g_editor, dt); }
 
 void EditorHooks::net_step(float dt) { net_editor_step(dt); }  // 0x00403140
+
+// ---- the Ai Network Editor window (template 181) ----
+
+namespace {
+NetWindow* g_window = nullptr;  // [0x0060b31c]
+std::vector<std::string> g_window_texts;
+std::vector<EditorEntry> g_window_rows;
+EditorMenu g_window_menu{0, nullptr};
+std::vector<std::string> g_open_names;  // Open's list: the open archives' net files
+
+void window_fill();
+void window_button(int32_t y);
+void window_close(int32_t) {  // OK (0x004d5610), Cancel (0x004d55f0): DestroyWindow, then 0x004bf6f0
+  net_window_free();
+  net_editor_menu();
+}
+// Open's list (FIX (A) for the CFileDialog "Zipper Files (*.zrd)", 0x004bf750):
+// every net file the open archives hold, by name, each once.
+void open_list(int32_t) {
+  g_open_names.clear();
+  for (zutl_zar::Archive* a : zrdr::state().archives) {
+    if (!a) continue;
+    for (int i = 0; i < a->count; ++i) {
+      char n[sizeof a->entries[i].name + 1] = {};
+      std::memcpy(n, a->entries[i].name, sizeof a->entries[i].name);
+      const size_t l = std::strlen(n);
+      if (l < 5 || crt::msvc_stricmp(n + l - 4, ".zrd") != 0) continue;
+      char head[5] = {n[0], n[1], n[2], n[3], 0};
+      if (crt::msvc_stricmp(head, "net_") != 0 && crt::msvc_stricmp(head, "reg_") != 0) continue;
+      if (std::find(g_open_names.begin(), g_open_names.end(), n) == g_open_names.end()) g_open_names.push_back(n);
+    }
+  }
+  std::sort(g_open_names.begin(), g_open_names.end());
+  if (g_window) g_window->choosing = true, g_window->first = 0;
+  window_fill();
+}
+constexpr int32_t kOpenRows = 18;  // ours: a page of Open's list
+void open_up(int32_t) {
+  if (g_window) g_window->first = std::max(0, g_window->first - kOpenRows);
+  window_fill();
+}
+void open_down(int32_t) {
+  if (g_window) g_window->first += kOpenRows;
+  window_fill();
+}
+void window_fill() {
+  g_window_texts.clear(), g_window_rows.clear();
+  const auto add = [](const std::string& t, void (*h)(int32_t)) { g_window_texts.push_back(t), g_window_rows.push_back({nullptr, h}); };
+  if (g_window && g_window->choosing) {
+    const int32_t n = static_cast<int32_t>(g_open_names.size()), from = g_window->first;
+    const int32_t to = std::min(n, from + kOpenRows);
+    add("Open a net file:", nullptr);
+    if (from > 0) add("   (up)", open_up);
+    for (int32_t i = from; i < to; ++i) add("   " + g_open_names[size_t(i)], window_button);
+    if (to < n) add("   (down)", open_down);
+    add(" Cancel", window_button);
+  } else {
+    add("Ai Network Editor", nullptr);
+    add(" OK", window_close);
+    add(" Cancel", window_close);
+    add(" Open", open_list);
+    const NetEditor* h = g_window ? g_window->hosted : nullptr;
+    add(h && h->net && h->net->ref && h->net->ref->file && h->net->ref->file->name
+            ? std::string("   showing ") + h->net->ref->file->name
+            : std::string(),
+        nullptr);  // ours: the net Open shows
+  }
+  for (size_t i = 0; i < g_window_rows.size(); ++i) g_window_rows[i].text = g_window_texts[i].c_str();
+  g_window_menu = EditorMenu{static_cast<int32_t>(g_window_rows.size()), g_window_rows.data()};
+  editor_install(1, g_window_menu);  // mode 1: the net editor's step goes on under it
+}
+// A row of Open's list: its file opened (0x004bf640 -> 0x00404570), or Cancel.
+void window_button(int32_t y) {
+  if (!g_window) return;
+  const int32_t i = (y - 0x5f) / 12 - 1 - (g_window->first > 0 ? 1 : 0) + g_window->first;
+  const int32_t to = std::min(static_cast<int32_t>(g_open_names.size()), g_window->first + kOpenRows);
+  g_window->choosing = false;
+  if (i >= g_window->first && i < to) net_window_open(g_open_names[size_t(i)].c_str());
+  window_fill();
+}
+}  // namespace
+
+NetWindow*& net_window() { return g_window; }
+
+// Mech3.exe 1.2 @ 0x00404570 (on the window's slot, +0x64): the editor there
+// freed (0x00402fd0); for a name, a net read from it (0x004bd3d0:
+// CZAiNetEdit(-1, name, 0)) and an editor on it.
+void net_window_open(const char* name) {
+  if (!g_window) return;
+  delete g_window->hosted;
+  g_window->hosted = nullptr;
+  if (name) g_window->hosted = new NetEditor(new ai::CZAiNetEdit(-1, name, 0), 0);
+}
+
+// Mech3.exe 1.2 @ 0x00404420 (the window's dtor, 0x004bf5d0): its editor
+// freed (0x00404490(0)) and off the frame's list.
+void net_window_free() {
+  if (!g_window) return;
+  delete g_window->hosted;
+  delete g_window;
+  g_window = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004036f0 -> net vt+0x5c (0x004bd330) -> 0x004bf670: the
+// window made once and shown (Create(0xb5)), then 0x004bf650 with the
+// caller's ECX, which 0x004bd330 zeroed: no file, so 0x00404570 frees what
+// the window showed and opens nothing. FIX (A): the window's controls as the
+// panel's rows; OK and Cancel close it, as DestroyWindow on a modeless
+// dialog does (0x004d5610 / 0x004d55f0 -> 0x004bf6f0).
+void net_params_open(int32_t) {
+  if (!g_editor) return;
+  if (!g_window) g_window = new NetWindow;
+  net_window_open(nullptr);
+  window_fill();
+}
+
+// Mech3.exe 1.2 @ 0x00404290: every editor on the list, the window's too,
+// stepped (0x00403080), all but the main one ([0x005f4c6c]) while the
+// editor's menus are up (their own step runs it then).
+void net_editor_frame_all(bool editing) {
+  if (!editing && g_editor) net_editor_step(0.1f);
+  if (g_window && g_window->hosted) net_editor_step_slot(g_window->hosted, 0.1f);
+}
+void EditorHooks::net_frame(bool editing) { net_editor_frame_all(editing); }
 
 // Mech3.exe 1.2 @ 0x00402ba0: the editor freed (0x00402fd0), the side
 // windows (the tree view's [0x005f4c74], the node window's [0x005f4c70]:

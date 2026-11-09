@@ -72,6 +72,23 @@ znet::Mark* net_editor_first_pick();  // 0x00403770
 // 0x00403140 -> 0x00403080: the editor made anew while it asks (the net and
 // its dirty flag kept), then its frame, until a frame does not ask.
 void net_editor_step(float dt);
+void net_editor_step_slot(NetEditor*& slot, float dt);  // 0x00403080 on any editor's slot
+
+// The Ai Network Editor window (template 181, 0x68 bytes, in [0x0060b31c];
+// Change Net Params opens it): OK, Cancel and Open, which shows another
+// net, read from a file, beside the edited one, its own editor at +0x64
+// stepped each frame (0x00404290); no parameters at all. FIX (A): as panel
+// rows; Open's file dialog a list of the open archives' net files.
+struct NetWindow {
+  NetEditor* hosted = nullptr;  // +0x64
+  bool choosing = false;        // ours: Open's list up
+  int32_t first = 0;            // ours: its first row shown (the panel's 25 rows page it)
+};
+NetWindow*& net_window();
+void net_params_open(int32_t y);      // 0x004036f0 -> 0x004bd330 -> 0x004bf670
+void net_window_open(const char* name);  // 0x00404570 on the window's slot
+void net_window_free();                  // 0x00404420
+void net_editor_frame_all(bool editing); // 0x00404290
 
 // Ours: a line under the panel's rows (the save's folder, "no network to
 // save"), said in the log too; the next menu clears it.
