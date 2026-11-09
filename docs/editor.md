@@ -589,8 +589,9 @@ placed (kind 0, its x y z given), x, y, z, speed, wait interval, wait time
 arrange nodes' spacing, hidden, fixed, autonext and visible (each "as the
 default", yes or no, cycling on a press), backup and shunt (yes or no), name
 and gate. A press on a value row takes typed text through zInput's character
-callback (Enter keeps it, Esc drops it, Backspace; a number that does not
-read leaves the value; an empty one turns a switchable value off). OK puts
+callback, replacing the value (Enter keeps it, Esc drops it, Backspace;
+nothing typed or a number that does not read leaves the value; "off" turns
+a switchable value off, "-" clears a name). OK puts
 the record on the node field by field (the node keeps its own auxname), its
 place through set_pos and the links stored again, so the fold
 (0x004befc0) takes it to the cache and Save Changes keeps it; the editor is
@@ -603,6 +604,51 @@ puts them on the node, Cancel does not); `mission_c1m1_node_params_saved_headles
 (net_01's node_00: speed 0.25 and a gate, OK, Save, both read back from the
 editor mod's archive). Breaks: the speed not put on the node, the cycle
 skipping "no".
+
+## Add veh to node (S5 sitting 4c; ours, 2026-11-09)
+
+In the release Add veh to node (0x00403820) fills template 141, "Node Edit -
+Vehicle" (0x0049d350): a vehicle type (the 19 mechs' names, 0x00484650,
+then vehicle.zrd's records), x, y, z from the first pick ("Using first of
+N selected nodes" as Move Node says), yaw 0, a Team ID and Friend, Foe or
+Other. On OK it builds an aiv record (0x004df6a0) and hands it to 0x004e0540
+-> 0x004671d0, which returns 0, so the "Entry for %s on net %d is %s" path,
+the reader's reload and the vehicle's making (0x004e0680, 0x0049fce0) never
+run: nothing is made or written. Owen's call (2026-11-09): as it was meant
+to work, as ours (`upgrades/editor/add_vehicle`).
+
+A mission makes a vehicle at its start for every aiv.zrd record but the
+player's and the stealth's (player.cpp, 0x0049fce0): the name gives the type
+up to its first '_', the first item is the net it follows, then the place,
+the yaw and the team (the shipped records: 1 the player's side, 2 the
+enemy's), then tags (params, p2, p6, p8, p10, vlist, pilot ...). So OK here:
+
+- names the vehicle `<type>_NN`, the first number from 01 the entry does not
+  have;
+- writes its record as the shipped ones are: (net (x y z) yaw team) and then
+  the tags of the first record of that type in the mission's aiv.zrd,
+  copied whole (its AI's settings), or none when the mission has no such
+  vehicle (the reader's defaults);
+- makes it now, through the aiv reader (0x004df730) and create_vehicle, as
+  the mission's start would;
+- saves aiv.zrd with the record added after the last into the editor's mod
+  (the same save as a net's, so a later Save Changes keeps it: a save now
+  goes on from the last one its folder holds), so it is there from the next
+  start too. The status line says what was made and where it was saved.
+
+The form: the type (a press lists them, paged), x, y, z, yaw and the team id
+typed, the side cycling Friend, Foe, Other (the team following it: 1, 2, 0).
+
+Tests: `add_vehicle_form_and_record` (no pick refused; the form's fields
+from the node, the side cycling the team, a typed yaw, Cancel; the record
+helpers on an aiv.zrd of ours); `mission_c1m1_add_vehicle_made_and_saved_headless`
+(net_01's node_00, a ttruck as a foe: ttruck_03 made at the node, one
+vehicle more, and read back from the editor mod's archive through our aiv
+reader with net 1, team 2, the node's place and ttruck_01's settings);
+test_aiv_add_mech3ax.py (in every MW3 reader archive with an aiv.zrd, a
+record of each type its records have added as Add vehicle adds it: 240 in 48
+archives read by mech3ax's unzbd exactly as written, after every shipped
+record, every other member the same). Breaks: the tags dropped, a wrong team.
 
 ## The save (S5 sitting 2, 2026-11-09)
 

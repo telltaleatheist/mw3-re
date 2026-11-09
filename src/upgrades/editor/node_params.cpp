@@ -115,18 +115,21 @@ void close_form() {
   net_editor_menu();
 }
 
-// The typed text into its field: a number for a value (an empty one turns a
-// switchable value off), the text for a name; a bad number leaves it as it was.
+// The typed text into its field: a number for a value ("off" turns a
+// switchable value off), the text for a name ("-" clears it); nothing typed
+// or a bad number leaves it as it was.
 void take() {
   if (g.typing < 0) return;
   Field& f = g.fields[size_t(g.typing)];
   const std::string& b = g.buffer;
   char* end = nullptr;
-  if (f.kind == kInt) {
+  if (b.empty()) {
+    // as it was
+  } else if (f.kind == kInt) {
     const long v = std::strtol(b.c_str(), &end, 10);
-    if (!b.empty() && end && !*end) *f.on = static_cast<int32_t>(v);
+    if (end && !*end) *f.on = static_cast<int32_t>(v);
   } else if (f.kind == kFloat) {
-    if (b.empty() && f.on) {
+    if (b == "off" && f.on) {
       *f.on = 0;
     } else {
       const float v = std::strtof(b.c_str(), &end);
@@ -134,7 +137,7 @@ void take() {
     }
   } else if (f.kind == kText) {
     std::free(*f.text);
-    *f.text = b.empty() ? nullptr : strdup(b.c_str());
+    *f.text = b == "-" ? nullptr : strdup(b.c_str());
   }
   g.typing = -1, g.buffer.clear();
 }
@@ -153,8 +156,8 @@ void press(int32_t y) {
     else if (*f.flag) *f.flag = 0;
     else *f.set = 0;
   } else {
-    g.typing = i;
-    g.buffer = f.kind == kText ? (*f.text ? *f.text : "") : (f.kind == kFloat && f.on && !*f.on ? "" : shown(f));
+    g.typing = i;  // typed text replaces the value; Enter on none keeps it
+    g.buffer.clear();
   }
   fill();
 }
@@ -185,9 +188,10 @@ void ok(int32_t) {
     e->net->fold(n);
     e->dirty = 1;
     e->rebuild = 1;
-    editor_status("node_" + std::to_string(r.index) + " set; Save Changes keeps it");
   }
+  const int32_t index = n ? n->rec.index : -1;
   close_form();
+  if (index >= 0) editor_status("node_" + std::to_string(index) + " set; Save Changes keeps it");  // after the menu's refill
 }
 
 void cancel(int32_t) { close_form(); }

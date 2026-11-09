@@ -352,12 +352,6 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   if (write_dir.empty()) return r.error = "no write folder", r;
   const std::string from = zutl::find(rel);
   if (from.empty()) return r.error = std::string(rel) + " is not found", r;
-  const std::vector<uint8_t> bytes = [&] {
-    std::ifstream in(from, std::ios::binary);
-    return std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  }();
-  const std::vector<uint8_t> out = archive_with_entry(bytes, name, data, add);
-  if (out.empty()) return r.error = from + " does not hold " + name + " as an archive the game reads", r;
   const std::string source = mod_folder_of(write_dir, from);
   const std::string& into = net_save_into_mod();
   r.folder = into.empty() ? editor_mod(write_dir, source, &r.error) : into;
@@ -366,6 +360,16 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   for (char& c : host) c = c == '\\' ? '/' : c;
   const fs::path to = fs::path(write_dir) / "mods" / r.folder / host;
   std::error_code ec;
+  // The save goes on from the last one this folder holds (its other entries
+  // as an earlier save left them: an added vehicle kept by a net's save),
+  // else from the archive the game reads.
+  const std::string base = fs::exists(to, ec) ? to.string() : from;
+  const std::vector<uint8_t> bytes = [&] {
+    std::ifstream in(base, std::ios::binary);
+    return std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }();
+  const std::vector<uint8_t> out = archive_with_entry(bytes, name, data, add);
+  if (out.empty()) return r.error = base + " does not hold " + name + " as an archive the game reads", r;
   fs::create_directories(to.parent_path(), ec);
   const fs::path tmp = to.string() + ".saving";
   {
