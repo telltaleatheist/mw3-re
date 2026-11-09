@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -583,6 +584,47 @@ bool weapons_burst(const char* name, const float at[3]) {
   const zwep::Vec3f3 p{at[0], at[1], at[2]};
   zwep::burst_at(d, &p);  // as a mission anim's detonation (0x005822c0)
   return true;
+}
+
+namespace {
+int32_t g_splash_damaged = 0;
+uint32_t (*g_splash_handler)(uintptr_t, zwep::WeaponDef*, zwep::HitRecord*, float) = nullptr;
+}  // namespace
+
+bool weapons_splash_copy(const char* name, float proximity, const float at[3], int32_t* counted, int32_t* listed,
+                         int32_t* damaged) {
+  const zwep::WeaponDef* base = zwep::find_def(name);
+  if (!base) return false;
+  zwep::WeaponDef def = *base;  // a mod's change, on a copy
+  def.impact_proximity = proximity;
+  def.impact_proximity_sq = proximity * proximity;
+  auto p = std::make_unique<zwep::Projectile>();
+  p->position = {at[0], at[1], at[2]};
+  zwep::HitList list;
+  const bool ran = zwep::splash_query(&def, p.get(), 1, &list) != 0;
+  *counted = list.count;  // a sphere query's count, 32 at most (zClass stops adding past 0x1f)
+  *listed = 0;
+  for (int32_t i = 0; i < list.count && i < 32; ++i) *listed += list.rec[i].node ? 1 : 0;
+  zwep::HitHooks& h = zwep::hit_hooks();
+  g_splash_handler = h.call_handler;
+  g_splash_damaged = 0;
+  h.call_handler = [](uintptr_t hd, zwep::WeaponDef* d, zwep::HitRecord* r, float dmg) {
+    ++g_splash_damaged;
+    return g_splash_handler ? g_splash_handler(hd, d, r, dmg) : 0u;
+  };
+  if (ran) zwep::splash(&def, p.get(), &list, 0);
+  h.call_handler = g_splash_handler;
+  *damaged = g_splash_damaged;
+  return true;
+}
+
+int32_t weapons_query_points(const float at[3], float radius, float out[32][3]) {
+  zwep::HitList list;
+  const zwep::Vec3f3 p{at[0], at[1], at[2]};
+  zwep::hit_hooks().query(nullptr, &p, radius, &list);
+  const int32_t n = list.count < 32 ? list.count : 32;
+  for (int32_t i = 0; i < n; ++i) out[i][0] = list.rec[i].point.x, out[i][1] = list.rec[i].point.y, out[i][2] = list.rec[i].point.z;
+  return n;
 }
 
 void mech_command(void* mech, int32_t cmd) { static_cast<Mech*>(mech)->command(cmd); }
