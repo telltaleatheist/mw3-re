@@ -4287,7 +4287,7 @@ TEST(launcher_narrow_spaces_widen) {
 
 // The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
 // development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
-// an empty write dir), the setup screen; and the progress screen. Each a
+// an empty write dir), the setup screen; the progress screen; the MODS list. Each a
 // lit 854x480 canvas (16:9), and the log says what it found.
 TEST(sdl_program_launcher_screens) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher";
@@ -4295,6 +4295,13 @@ TEST(sdl_program_launcher_screens) {
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/wd", ec);
   std::filesystem::create_directories(dir + "/wd2", ec);
+  // The MODS screen's list (docs/launcher.md, Mods): alpha on, beta off, a folder without a mod.txt.
+  for (const auto& [rel, text] : std::vector<std::pair<std::string, std::string>>{
+           {"/wd/mods/alpha/mod.txt", "name=Alpha\nversion=1.0\n"}, {"/wd/mods/beta/mod.txt", "name=Beta\n"},
+           {"/wd/mods/broken/zbd/x.zbd", "x"}, {"/wd/mw3.cfg", "mod=alpha\n"}}) {
+    std::filesystem::create_directories(std::filesystem::path(dir + rel).parent_path(), ec);
+    std::ofstream(dir + rel) << text;
+  }
   // The first entry hovered (Owen, the PC's fresh install): the ripple only
   // round a round badge; a square plate lights its edge (at edge_x, edge_y,
   // the plate's top, the 640 block 107 in) in amber instead.
@@ -4305,7 +4312,8 @@ TEST(sdl_program_launcher_screens) {
     const char* hover;
     int edge_x, edge_y;
   };
-  for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
+  for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
+                        Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 112},
                         Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 427, 372},
@@ -4603,10 +4611,10 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   const auto none = std::vector<std::pair<std::string, std::string>>{{"MW3_FIND_INSTALL", "1"}, {"MW3_LAUNCHER_FRAMES", "20"}};
   // No install: the games, then the find screen; nothing started.
   const LauncherRun a = run_launcher_with("launcher_v1_none", "READY\nsleep 1", nullptr, none);
-  std::printf("no install: main %d, find %d, game started %d\n", screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, QUIT\n"),
+  std::printf("no install: main %d, find %d, game started %d\n", screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n"),
               screen(a.log, "screen find: FIND THE GAME, BACK\n"), !a.args.empty());
   EXPECT(a.exited && a.args.empty());
-  EXPECT(screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, QUIT\n") && screen(a.log, "screen find: FIND THE GAME, BACK\n"));
+  EXPECT(screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n") && screen(a.log, "screen find: FIND THE GAME, BACK\n"));
   for (const char* gone : {"SETUP", "SEARCH AGAIN", "A FOLDER INSTEAD", "APPLY THE 1.2 PATCH", "POINT TO YOUR GAME",
                            "A DISC IMAGE OR DOWNLOAD", ", A FOLDER,", "THE DISC'S FOLDER"})
     EXPECT(!screen(a.log, gone));
@@ -4701,7 +4709,7 @@ TEST(sdl_program_launcher_game_files_repicks) {
   std::printf("GAME FILES by keys: focus %d, find screen %d\n", seen(a.log, "focus GAME FILES"),
               seen(a.log, "screen find: FIND THE GAME, ADD FROM MY DISC, BACK\n"));
   EXPECT(a.exited && a.args.empty());
-  EXPECT(seen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, QUIT\n") && seen(a.log, "focus MECHWARRIOR 3\n") &&
+  EXPECT(seen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n") && seen(a.log, "focus MECHWARRIOR 3\n") &&
          seen(a.log, "focus GAME FILES\n") && seen(a.log, "screen find: FIND THE GAME, ADD FROM MY DISC, BACK\n"));
   // GAME FILES, then the development copy picked (used where it is).
   const auto repick = std::vector<std::pair<std::string, std::string>>{{"MW3_FIND_INSTALL", "1"},
