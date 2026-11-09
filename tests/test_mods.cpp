@@ -1010,6 +1010,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(good + "/mod.txt", "name=Good\nversion=1\nia_world=c1 Again\n");
   put(good + "/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
   put(good + "/strings.txt", "100=Hello\n");
+  put(good + "/zbd/reader/fmv.zrd.json", "[\"INTRO\", [\"PLAYAVI\", \"intro\"]]");
+  write_stored_zip(good + "/zbd/reader.zip", {{"fmv.zrd.json", "[\"INTRO\", [\"PLAYAVI\", \"intro\"]]"}, {"notes.txt", "x"}});
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -1019,6 +1021,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   for (const std::string& l : mech3::mod_check(good, install, &errors)) text += l + "\n";
   std::printf("%s", text.c_str());
   EXPECT(errors == 0 && text.find("mod.txt: Good 1") != std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos);
+  EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1028,6 +1031,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(bad + "/zbd/rimage.zbd", "not an archive at all");
   put(bad + "/zbd/broken.zrd", "(UNCLOSED\n");
   put(bad + "/pilots/x.pil", "x");
+  put(bad + "/zbd/reader/fmv.zrd.json", "[\"INTRO\",\n [\"PLAYAVI\", true]]");
+  write_stored_zip(bad + "/zbd/reader.zip", {{"fmv.zrd.json", "[1"}});
+  put(bad + "/zbd/c1/readerm1.zip", "not a zip");
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -1057,7 +1063,10 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   text.clear();
   for (const std::string& l : mech3::mod_check(bad, install, &errors)) text += l + "\n";
   std::printf("%s", text.c_str());
-  EXPECT(errors == 8 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/reader/fmv.zrd.json: line 2 (at $[1][1]): true or false") != std::string::npos &&
+         text.find("error: zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '[' never closed") != std::string::npos &&
+         text.find("error: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
+  EXPECT(errors == 11 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&

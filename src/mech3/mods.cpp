@@ -19,6 +19,7 @@
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zutl_zip.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
@@ -797,6 +798,29 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       if (!why.empty()) error(rel + ": " + why + " (not read; an archive's entry of that name is)");
       else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
       else error(rel + ": not a text .zrd the reader can read");
+    } else if (name.size() > 9 && name.compare(name.size() - 9, 9, ".zrd.json") == 0) {  // mech3ax's JSON, beside its archive
+      std::ifstream in(host, std::ios::binary);
+      std::stringstream text;
+      text << in.rdbuf();
+      std::string why;
+      ++entries;
+      if (zrdr::Node* n = zrdr::parse_json(text.str(), &why)) zrdr::free_node(n);
+      else error(rel + ": " + why + " (not read; an archive's entry of that name is)");
+    } else if (name.rfind("reader", 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".zip") == 0) {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its entries not read; the archive's are)");
+        continue;
+      }
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        if (e.name.size() <= 9 || e.name.compare(e.name.size() - 9, 9, ".zrd.json") != 0) continue;
+        ++entries;
+        std::vector<uint8_t> data;
+        std::string why;
+        zrdr::Node* n = z.read(e, &data, &why) ? zrdr::parse_json(std::string(data.begin(), data.end()), &why) : nullptr;
+        if (n) zrdr::free_node(n);
+        else error(rel + ":" + e.name + ": " + why + " (not read; an archive's entry of that name is)");
+      }
     }
   }
   // strings.txt, as the game would take it.

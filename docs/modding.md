@@ -747,7 +747,7 @@ have none.
 
 A modder edits a reader entry as text and runs, without repacking reader.zbd.
 
-**Which lookup.** Ours, `mod_loose` in `zreader.cpp`: when an archive has the
+**Which lookup.** Ours, `mod_copy` in `zreader.cpp`: when an archive has the
 entry, `zutl::find_in_mods` is asked for the archive's own folder plus the
 entry's name (`zbd\weapons.zrd` for `zbd\reader.zbd`, `zbd\c1\world.zrd` for
 the c1 world's reader), in the enabled mods only, first mod first. The
@@ -785,13 +785,51 @@ entry and the loose copy, none without the hook),
 caught: the line count, the outer '(' (a case with two open), the hook skipped,
 the fallback dropped, the check's line dropped, the loose lookup off.
 
-**mech3ax's JSON, mapped (not built).** `unzbd` writes one zip per archive,
+**mech3ax's reader JSON (built 2026-11-09).** A mod may hold a reader entry
+as unzbd writes it: `zbd\reader\weapons.zrd.json` (a folder named as the
+archive without `.zbd`, the entry's name plus `.json`, as unzbd's
+`replace_ext` names it), or unzbd's zip itself beside the archive,
+`zbd\reader.zip`, holding `weapons.zrd.json` (its name matched in any case,
+as the archive's are; `manifest.json` and anything else in it ignored). Per
+mod, first match wins: the loose `.zrd`, then the folder's JSON, then the zip,
+then the mod's own archive; mods first to last; never the install's. The JSON
+(`zrdr::parse_json`, `zreader_json.cpp`) is the tree one to one: an array a
+list, `null` an empty one, a string (UTF-8, kept only if Windows-1252 holds
+it, as the game's text), a number with '.' or an exponent a float, else an
+int. Objects and `true`/`false` are refused: mech3ax writes neither.
+
+*Exact numbers.* An int must fit 32 bits and is read as written. A float is
+read as a double (`strtod`) and narrowed to float: mech3ax writes each float
+as its widened f32, so the double is that f32 exactly and the narrowing gives
+the same bits back; a hand-written 0.1 rounds to the nearest float as the text
+reader does. `to_json` writes the shortest text that reads back to the same
+float. `mods_reader_json_round_trips_every_shipped_entry` writes every reader
+entry MW3 ships (55 archives, 1,268 entries) as JSON and reads it back to the
+same tree, every float to the bit; with `MW3_UNZBD_ARCHIVE`/`MW3_UNZBD_JSON`
+it reads unzbd's own files for one archive too (reader.zbd's 178 and c1's 58
+checked: the same trees).
+
+*Errors* name the line and the value's place, as a JSON path: "line 2 (at
+$[1][1]): true or false: the reader has none (write 1 or 0)", "line 1 (at
+$[0]): 2147483648: past the game's 32-bit integers", "a '[' never closed",
+lists past 64 deep. A refused copy is said in the log ("mw3: mod: FILE: line
+2 (at $[1][1]): ...; zbd\reader.zbd's entry read instead") and the archive's
+entry is read; a zip that does not open, the same. A good copy goes through
+the load hook, as the archive's entry does. `--check-mod` reads every
+`*.zrd.json` and every entry of a `reader*.zip` the same way and gives the
+same lines as errors ("zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '['
+never closed (not read; an archive's entry of that name is)"). Tests:
+`mods_reader_json_errors_name_the_line_and_place`,
+`mods_reader_json_entry_in_a_folder_or_a_zip` (the order, the refusals, the
+hook), `mods_check_mod_reports_what_the_game_would_refuse`.
+
+**mech3ax's other JSON, mapped (not built).** `unzbd` writes one zip per archive,
 with `manifest.json` (the entries' names, order and the bytes needed to pack
 them again) and one JSON per entry, or per file for gamez:
 
 | Archive | unzbd's files | Our reader that would take them |
 |---|---|---|
-| `reader*.zbd` | `<entry>.json` for `<entry>.zrd` | `zrdr::load`, as a loose `.zrd`: the JSON is the tree one to one (array = list, string, an int without a '.', a float with one, `null` = an empty list), then the load hook |
+| `reader*.zbd` | `<entry>.zrd.json` | built, above |
 | `mechlib.zbd` | `format`, `version` (checked only), `materials.json`, `<model>.json` for `<model>.flt` | `mechlib_open` 0x004fc6d0 (the materials, 0x004fc9e0) and `mechlib_load` 0x004fc8f0 (one model's tree), before `mechlib_resolve` |
 | `motion.zbd` | `<motion>.json` per motion | `load_motion` (`zsis::Script::read`, bounded), one motion each |
 | `zbd\<world>\anim.zbd` | `metadata.json` (the defs' order), `<def>.json` per anim def, `<script>.json` for each `.zan` | the anim reader 0x0050a0e0, the whole file, then the post-load pass 0x0050ae60 |
@@ -799,7 +837,7 @@ them again) and one JSON per entry, or per file for gamez:
 
 Proposed naming: a mod holds unzbd's output unzipped in a folder named for the
 archive without `.zbd` (`zbd\mechlib\`, `zbd\motion\`, `zbd\c1\anim\`,
-`zbd\c1\gamez\`; `zbd\reader\weapons.json`), or the zip itself beside it
+`zbd\c1\gamez\`; the reader's `zbd\reader\weapons.zrd.json`, built), or the zip itself beside it
 (`zbd\mechlib.zip`, as unzbd wrote it). For reader, mechlib and motion each
 entry stands alone: a folder with one model's JSON replaces that model and
 the archive gives the rest, and `manifest.json` is not needed. Anim and gamez
@@ -808,9 +846,8 @@ are read whole, so their folder needs all its files or is refused (said by
 the JSON folder, then the zip, then the mod's archive; mods first to last as
 now. JSON is read only from a mod, never the install.
 
-Proposed order, smallest and most edited first: (1) reader JSON (a tree
-already, the loose `.zrd` path's twin, a small JSON reader into `zrdr::Node`
-with errors by line); (2) motion (one entry, a short struct; unzbd's motion
+Proposed order, smallest and most edited first: (1) reader JSON (done,
+above); (2) motion (one entry, a short struct; unzbd's motion
 JSON is the format mech3ax documents best); (3) mechlib models and materials
 (the new-mechs path: a mod's mech as JSON, checked with the bounded reader's
 limits); (4) anim (whole file, its names resolved by the post-load pass as
