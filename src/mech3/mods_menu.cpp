@@ -1,12 +1,15 @@
 #include "mech3/mods_menu.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <mutex>
 #include <cstdlib>
 
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/mainmenu.h"
 #include "mech3/mod_campaign.h"
+#include "mech3/mod_install.h"
 
 namespace mech3 {
 
@@ -105,6 +108,34 @@ std::vector<std::string>& mods_menu_mounted() {
   return m;
 }
 
+std::string& mods_menu_install() {
+  static std::string d;
+  return d;
+}
+
+ModsMenuPlatform& mods_menu_platform() {
+  static ModsMenuPlatform p;
+  return p;
+}
+
+namespace {
+struct Picked {
+  std::mutex m;
+  bool answered = false;
+  std::string path;
+};
+Picked& picked() {
+  static Picked p;
+  return p;
+}
+}  // namespace
+
+void mods_menu_picked(const std::string& path) {
+  Picked& p = picked();
+  std::lock_guard<std::mutex> g(p.m);
+  p.answered = true, p.path = path;
+}
+
 void ModsList::select(int32_t index) {
   FileList::select(index);
   notify(index, 0);
@@ -167,6 +198,9 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
       up(e, kUp),
       down(e, kDown),
       editor(e, kEditor),
+      add_btn(e, kAdd),
+      add_folder_btn(e, kAddFolder),
+      folder_btn(e, kOpenFolder),
       campaign_list(e, kCampaigns),
       mod_list(e, kMods) {
   target_buffers(e);
@@ -202,6 +236,9 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     bind_button(&up, "MOVEUP");
     bind_button(&down, "MOVEDOWN");
     bind_button(&editor, "EDITOR");
+    bind_button(&add_btn, "ADDMOD");
+    bind_button(&add_folder_btn, "ADDFOLDER");
+    bind_button(&folder_btn, "MODSFOLDER");
     unload();
   }
   // The details in PILOT ENTRY's box, the notes under the MODS table.
@@ -292,6 +329,23 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
     case kEnter:
       enter_campaign();
       return;
+    case kAdd:
+    case kAddFolder:
+      if (!mods_menu_platform().pick) {
+        tell("Adding a mod is not possible here: copy it into the mods folder.");
+        return;
+      }
+      tell(id == kAdd ? "Pick the mod's archive (.zip, .7z, .rar)." : "Pick the mod's folder.");
+      mods_menu_platform().pick(id == kAddFolder);
+      return;
+    case kOpenFolder: {
+      std::error_code ec;
+      const std::filesystem::path m = std::filesystem::path(dir) / "mods";
+      std::filesystem::create_directories(m, ec);
+      if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.string()))
+        tell("The mods folder: " + m.string());
+      return;
+    }
     case kEditor:
       say(note, "The mission editor is not built yet.");
       return;
@@ -341,6 +395,86 @@ void ModsScreen::enter_campaign() {
   Engine& e = engine();
   e.pop_state(0);
   e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+}
+
+void ModsScreen::update(float dt) {
+  Window::update(dt);
+  std::string path;
+  {
+    Picked& p = picked();
+    std::lock_guard<std::mutex> g(p.m);
+    if (!p.answered) return;
+    p.answered = false, path.swap(p.path);
+  }
+  if (!path.empty()) add_mod(path);
+}
+
+// Two lines under MODS (the note's and the restart's), the text wrapped at
+// a word; what does not fit ends with "...".
+void ModsScreen::tell(const std::string& text) {
+  constexpr size_t kWidth = 58;
+  std::string a = text, b;
+  if (a.size() > kWidth) {
+    size_t cut = a.rfind(' ', kWidth);
+    if (cut == std::string::npos || cut < kWidth / 2) cut = kWidth;
+    b = a.substr(cut + (a[cut] == ' ' ? 1 : 0));
+    a.resize(cut);
+    if (b.size() > kWidth) b = b.substr(0, kWidth - 3) + "...";
+  }
+  say(note, a);
+  say(restart, b);
+}
+
+// ADD MOD's pick: prepared, the game asked when its files cannot tell, added
+// (mod_install.h), turned on for the next start when it is more than a
+// campaign, shown in its table and said.
+void ModsScreen::add_mod(const std::string& path) {
+  const std::string& dir = mods_menu_write_dir();
+  ModAdd a = mod_add_prepare(dir, path, mods_menu_install());
+  if (!a.error.empty()) {
+    tell("Not added: " + a.error + ".");
+    return;
+  }
+  ModGame game = a.game;
+  if (game == ModGame::kUnknown) {
+    const int g = mods_menu_platform().ask_game ? mods_menu_platform().ask_game(a.name) : 1;
+    if (g != 1 && g != 2) {
+      mod_add_discard(a);
+      tell("Not added: no game chosen for " + a.name + ".");
+      return;
+    }
+    game = g == 2 ? ModGame::kPm : ModGame::kMw3;
+  }
+  const ModAddResult r = mod_add_finish(dir, a, game, mods_menu_install());
+  if (!r.ok) {
+    tell(r.message);
+    return;
+  }
+  const ModInfo& i = r.info;
+  const bool campaigns_only = !i.campaigns.empty() && i.mechs.empty() && i.weapons.empty() && i.ia_worlds.empty();
+  if (!campaigns_only && std::find(enabled.begin(), enabled.end(), r.folder) == enabled.end()) {
+    mods_toggle(enabled, r.folder);
+    mods_save_enabled(dir, enabled);
+  }
+  refill();
+  const std::string name = i.name.empty() ? r.folder : i.name;
+  if (campaigns_only) {
+    for (int32_t k = 0; k < campaign_list.item_count(); ++k)
+      if (tables.campaigns[static_cast<size_t>(k)].mod == r.folder) {
+        campaign_list.FileList::select(k), focus = kCampaigns;
+        break;
+      }
+    show_details();
+    tell("Added " + name + ": ENTER on its campaign turns it on for the next start.");
+  } else {
+    for (int32_t k = 0; k < mod_list.item_count(); ++k)
+      if (tables.mods[static_cast<size_t>(k)].info.folder == r.folder) {
+        mod_list.FileList::select(k), focus = kMods;
+        break;
+      }
+    show_details();
+    tell("Added " + name + ": on from the next start" + (i.campaigns.empty() ? "." : "; its campaign is listed."));
+  }
 }
 
 bool ModsState::enter() {

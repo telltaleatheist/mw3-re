@@ -459,8 +459,67 @@ the conflict to the other mod, ON/OFF and the save) and
 `mods_screen_enter_campaign_and_back_headless` (MODS, ENTER, a pilot in the
 campaign's folder, the first mission, the pause's options and QUIT, the main
 menu, MODS, BACK: the stack at each step, nothing under the mission, the
-pilots kept until the main menu). Left: ADD MOD (its own
-step), a live remount, the button's place (Owen).
+pilots kept until the main menu). The button's place: the bottom left, as
+shown (Owen, 2026-11-09). Left: a live remount.
+
+### ADD MOD (2026-11-09)
+
+Ours (`mod_install`, the MODS screen's ADD MOD, ADD FOLDER and MODS FOLDER
+tabs beside EDITOR). ADD MOD opens the system's file picker for an archive,
+ADD FOLDER its folder picker (SDL's dialogs: one dialog cannot offer both);
+the answer comes back on the screen's next update (`mods_menu_picked`, as it
+may come on another thread). MODS FOLDER opens the write dir's `mods\` in the
+system's file browser (`SDL_OpenURL` on its file:// URL). `--pick PATH`
+answers the picker for scripted runs and shots.
+
+- Archives: whatever the build's libarchive reads (the SETUP layer,
+  `source_archive`): .zip, .7z and .rar now, not a later step. A build without
+  libarchive adds folders only and says so.
+- Unpacked into a staging folder of ours (`<write dir>\mod-staging\<n>\`, the
+  marker `mw3-mod-staging.txt` in it), never into `mods\` directly. Every
+  entry is checked first: an absolute path, a drive or any ':' (an alternate
+  stream), a ".." part, a link (symbolic or hard) or another special file
+  refuses the archive whole, as does going past the caps (20,000 files, 4 GB
+  unpacked); a folder with a link in it too. On any refusal the staging
+  folder is removed (only with its marker; staging folders left by a run that
+  stopped halfway are cleared the same way at the next ADD).
+- The root: the shallowest folder with a mod.txt, else with the game's own
+  folders (zbd, video, music) or Mech3.exe, else a lone folder followed down;
+  what sits beside it (a pack's readme) is left behind.
+- A whole install (Mech3.exe in its root) is cut to the files that differ
+  from the player's install (byte for byte, names in any case); programs
+  (.exe, .dll: an exe patch cannot apply) and the player's own kind of file
+  (pilots, configs, saves) are left out. All the same: nothing to add.
+- An archive holding only a program (a mod shipped as its own installer):
+  refused, saying to run it and add the folder it makes.
+- No mod.txt: one is written, its name the archive's or folder's and for=
+  from the names only one game ships (MW3's c4b and t1 worlds and its own
+  mission readers, Pirate's Moon's readersa and readeria4); when they cannot
+  tell, a message box asks MechWarrior 3 or Pirate's Moon (Cancel: not added).
+- Checked as `--check-mod` does (`mod_check`): anything the game would refuse
+  and it is not added, the first such line said.
+- Moved into `mods\<name>\` (mod.txt's name, else the archive's) or, when a
+  folder of that name exists in any case, `<name> (2)` and on: nothing in
+  `mods\` is ever replaced or removed. The marker `mw3-mod-added.txt` in it
+  says the game made it (the only kind it may ever remove; never served from
+  the mod, nor counted as a shared file).
+- On the screen: a mod that is more than a campaign is turned on for the
+  next start; a campaign-only one is listed, ENTER turning it on for the next
+  start. Said in two lines under MODS ("Added Desert Pack: on from the next
+  start.", "Not added: it holds a file that would land outside its folder
+  (../../outside.txt).").
+
+Tests: `mod_install_entry_paths`, `mod_install_refuses_escapes_and_limits`
+(zip slip, absolute, drive, link, the caps, empty, an installer only, a
+folder with a link, the game's own folders), `mod_install_finds_each_layout`
+(flat, nested with MOD.TXT, one folder down without mod.txt, a lone folder,
+a folder source; listed with no conflict from the markers),
+`mod_install_full_install_reduced`, `mod_install_name_clash_and_foreign_folders`
+(a foreign `mods\My Mod` and a foreign staging folder untouched, a case-only
+clash, a mod the check refuses), `mods_screen_add_mod_headless` (the screen
+through the hooks), and `mod_install_real_mod_env` (MW3_PM13=<a mod on this
+machine>, reported only). Left: ADD MOD in the launcher, .7z/.rar inside an
+archive.
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 

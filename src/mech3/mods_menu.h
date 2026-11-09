@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,20 @@ bool& mods_menu_page();       // the program turns the MODS button on
 Handle& mods_menu_state();    // its menu object, made beside the main menu's
 std::string& mods_menu_write_dir();               // where mods\ and mw3.cfg are
 std::vector<std::string>& mods_menu_mounted();    // the mods on in this run
+std::string& mods_menu_install();                 // the install (a whole-install mod is cut against it)
+
+// ADD MOD's platform side (the program sets it; unset, the tabs say so):
+// the system's picker for an archive or a folder, its answer handed back
+// through mods_menu_picked from whatever thread it comes on; the mods folder
+// opened in the system's file browser; which game, when a mod's files
+// cannot tell (1 MechWarrior 3, 2 Pirate's Moon, 0 neither: not added).
+struct ModsMenuPlatform {
+  std::function<void(bool folder)> pick;
+  std::function<bool(const std::string& dir)> open_folder;
+  std::function<int(const std::string& name)> ask_game;
+};
+ModsMenuPlatform& mods_menu_platform();
+void mods_menu_picked(const std::string& path);  // "" cancelled; the screen takes it on its next update
 
 class ModsScreen;
 
@@ -36,16 +51,20 @@ class ModsList : public FileList {
 
 class ModsScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods };
+  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder };
   ModsScreen(Engine& e, Handle state);
+  void update(float dt) override;    // a picked mod taken in
   ~ModsScreen() override;
   void on_button(int32_t id, int32_t a, int32_t b) override;
   void refill();                     // both tables again from the write dir
+  void add_mod(const std::string& path);  // ADD MOD's pick: added (mod_install.h), shown, said
+  void tell(const std::string& text);     // the two lines under MODS, the text wrapped
   void show_details();               // the selected row's lines
   void enter_campaign();             // ENTER
 
   SlideButton enter, back;           // ENTER, BACK
   ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
+  ShellButton add_btn, add_folder_btn, folder_btn;  // ADD MOD, ADD FOLDER, MODS FOLDER
   ModsList campaign_list, mod_list;
   ztwod::Image lines{0}, lines2{0};
   zimg::Texture* own_lines = nullptr;  // LINES2 with the CAMPAIGNS box (ours, released with the screen)

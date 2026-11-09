@@ -43,6 +43,7 @@
 //   --nosound            no audio device (a silent DirectSound stand-in)
 //   --hidden             keep the window hidden
 //   --windowed           a window, not fullscreen (also --window, or windowed=1 in mw3.cfg)
+//   --pick PATH          the MODS screen's ADD MOD picker answered with PATH, no dialog (ours)
 //   --verbose            list every unported function reached at exit
 #include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
@@ -149,6 +150,7 @@ struct Args {
   std::vector<std::string> mods, cfg_mods;
   bool mods_given = false, no_mods = false, list_mods = false;
   std::string check_mod;  // --check-mod DIR
+  std::string pick;       // --pick PATH: the MODS screen's picker answered with PATH (ours, for scripted runs)
 
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   // The bug fixes (zfix bugs; fixes.md, The bug fixes switch): mw3.cfg's
@@ -231,7 +233,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -255,6 +257,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
+    else if (s == "--pick" && next(1)) a.pick = argv[++i];
     else if (s == "--mission" && next(1)) a.mission = argv[++i];
     else if (s == "--fly" && next(1)) a.mission = argv[++i], a.fly = true;
     else if (s == "--variant" && next(1)) a.variant = argv[++i];
@@ -865,6 +868,56 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   input.window = window.sdl();
   input.mickey_scale = a.win_w > 0 ? 640.0f / static_cast<float>(a.win_w) : 1.0f;
   input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
+  // The MODS screen's ADD MOD (ours, mods_menu.h): SDL's pickers, their
+  // answer handed to the screen (it may come on another thread); the mods
+  // folder in the system's file browser; which game, when a mod cannot tell.
+  mech3::mods_menu_install() = a.install;
+  {
+    static SDL_Window* parent = nullptr;
+    parent = window.sdl();
+    mech3::ModsMenuPlatform& mp = mech3::mods_menu_platform();
+    static std::string scripted;
+    scripted = a.pick;
+    mp.pick = [](bool folder) {
+      if (!scripted.empty()) return mech3::mods_menu_picked(scripted);
+      auto done = [](void*, const char* const* list, int) { mech3::mods_menu_picked(list && list[0] ? list[0] : ""); };
+      static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar)", "zip;7z;rar"}};
+      if (folder) SDL_ShowOpenFolderDialog(done, nullptr, parent, nullptr, false);
+      else SDL_ShowOpenFileDialog(done, nullptr, parent, filters, 1, nullptr, false);
+    };
+    mp.open_folder = [](const std::string& dir) {
+      std::string url = "file://";
+      for (const unsigned char c : std::filesystem::absolute(std::filesystem::path(dir)).generic_string()) {
+        if (std::isalnum(c) || std::strchr("/-_.~:", c)) url += static_cast<char>(c);
+        else {
+          char hex[4];
+          std::snprintf(hex, sizeof hex, "%%%02X", c);
+          url += hex;
+        }
+      }
+#if defined(_WIN32)
+      url.insert(7, "/");  // file:///C:/...
+#endif
+      return SDL_OpenURL(url.c_str());
+    };
+    mp.ask_game = [](const std::string& name) {
+      const SDL_MessageBoxButtonData buttons[] = {
+          {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Cancel"},
+          {0, 2, "Pirate's Moon"},
+          {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "MechWarrior 3"},
+      };
+      const std::string text = "Which game is \"" + name + "\" for? Its files do not say.";
+      SDL_MessageBoxData box{};
+      box.flags = SDL_MESSAGEBOX_INFORMATION;
+      box.window = parent;
+      box.title = "Add a mod";
+      box.message = text.c_str();
+      box.numbuttons = 3;
+      box.buttons = buttons;
+      int pressed = 0;
+      return SDL_ShowMessageBox(&box, &pressed) ? pressed : 0;
+    };
+  }
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it
   // (sdl_fit.h). Checks and shots stay in a window.
