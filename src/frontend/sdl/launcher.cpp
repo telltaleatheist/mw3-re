@@ -28,6 +28,8 @@
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
 #include "mech3/mods.h"
+#include "mech3/mod_install.h"
+#include "frontend/sdl/sdl_mods.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
 
@@ -341,10 +343,10 @@ enum Id {
   kAddDisc = 20,
   kGo = 30, kCancel, kNotesOk,
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
-  kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext,
+  kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext, kModAdd, kModAddFolder, kModFolder,
   kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
 };
-constexpr int kModsPerPage = 6;
+constexpr int kModsPerPage = 5;
 
 struct Install {
   bool ok = false;
@@ -454,6 +456,9 @@ class Launcher {
   bool mods_checked_ = false;
   void mods_refresh();
   void mods_save(std::vector<std::string> enabled, const std::string& said);
+  void mods_add_pending();
+  std::string pending_add_;  // ADD MOD's pick, added once "Adding ..." is drawn
+  bool add_drawn_ = false;
   std::string mod_line(const mech3::ModsListEntry& e) const;
   std::vector<std::string> notes_;  // the first start's (launcher_notes)
   std::vector<Button> buttons_;
@@ -813,6 +818,10 @@ void Launcher::layout() {
         add(kModRow + i, {70, 104 + i * 42, 500, 38}, (first + i == mod_sel_ ? "> " : "") + name, mod_line(e), e.info.error.empty());
       }
       const bool sel = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size()) && mods_[mod_sel_].on;
+      // ADD MOD (an archive), ADD FOLDER and MODS FOLDER (docs/modding.md, ADD MOD).
+      add(kModAdd, {70, 318, 150, 34}, "ADD MOD", "A mod's .zip, .7z or .rar", !asking_ && pending_add_.empty());
+      add(kModAddFolder, {226, 318, 150, 34}, "ADD FOLDER", "A mod's folder", !asking_ && pending_add_.empty());
+      add(kModFolder, {382, 318, 188, 34}, "MODS FOLDER", "Open it in the file browser");
       add(kModUp, {70, 384, 70, 34}, "UP", {}, sel && mod_sel_ > 0);
       add(kModDown, {146, 384, 70, 34}, "DOWN", {}, sel && mod_sel_ + 1 < static_cast<int>(mods_.size()) && mods_[mod_sel_ + 1].on);
       add(kModCheck, {222, 384, 100, 34}, "CHECK", {}, !mods_.empty());
@@ -1048,6 +1057,14 @@ void Launcher::picked(int what, const std::string& path) {
   // Before Windows 10 1903 such a name cannot be used (docs/program.md, Names on Windows).
   if (!zutl::narrow_paths_utf8() && !std::all_of(path.begin(), path.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
     status_ = "This version of Windows needs a folder with plain English letters in its name.", status_good_ = false;
+    layout();
+    return;
+  }
+  if (what == kModAdd || what == kModAddFolder) {  // said, drawn, then added (mods_add_pending)
+    fs::path shown(path);
+    while (!shown.empty() && shown.filename().empty()) shown = shown.parent_path();
+    status_ = "Adding " + shown.filename().string() + "...", status_good_ = true;
+    pending_add_ = path, add_drawn_ = false;
     layout();
     return;
   }
@@ -1428,6 +1445,25 @@ void Launcher::mods_save(std::vector<std::string> enabled, const std::string& sa
 
 // A row's second line: on or off, then why it cannot be used, what an
 // earlier mod takes from it, or CHECK's verdict.
+// ADD MOD's pick, once "Adding ..." has been drawn: the game's own add
+// (mech3::mod_add_run), the mod shown selected and the result said.
+void Launcher::mods_add_pending() {
+  const std::string path = pending_add_;
+  pending_add_.clear();
+  const ModsTarget t = mods_target(o_, false);
+  std::vector<std::string> on = mech3::mods_enabled(t.write_dir);
+  const mech3::ModAddDone d =
+      mech3::mod_add_run(t.write_dir, path, install_.dir,
+                         [this](const std::string& n) { return o_.shot.empty() ? ask_mod_game(win_, n) : 1; },  // a scripted run: no box
+                         &on);
+  std::printf("mw3: launcher: mods: %s\n", d.message.c_str());
+  status_ = d.message, status_good_ = d.ok;
+  mods_refresh();
+  for (size_t k = 0; k < mods_.size(); ++k)
+    if (mods_[k].info.folder == d.folder) mod_sel_ = static_cast<int>(k), mod_page_ = mod_sel_ / kModsPerPage;
+  layout();
+}
+
 std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
   if (!e.info.error.empty()) return "Not usable: " + e.info.error;
   std::string s = e.on ? "ON" : "OFF";
@@ -1514,6 +1550,21 @@ void Launcher::activate(int id) {
       mods_save(on, on[to] + (id == kModUp ? " moved up" : " moved down"));
       mod_page_ = mod_sel_ / kModsPerPage;
       layout();
+      break;
+    }
+    case kModAdd: {
+      static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar)", "zip;7z;rar"}};
+      ask_file(kModAdd, filters, 1);
+      break;
+    }
+    case kModAddFolder:
+      ask_folder(kModAddFolder);
+      break;
+    case kModFolder: {
+      const std::string where = mods_target(o_, false).write_dir + "/mods";
+      std::error_code ec;
+      fs::create_directories(where, ec);
+      if (!open_folder(where)) status_ = "The mods folder: " + where, status_good_ = true, layout();
       break;
     }
     case kModCheck:
@@ -1652,6 +1703,7 @@ LauncherChoice Launcher::run() {
     if (o_.screen == "notes" || o_.screen == "disc") screen_ = kNotes;
     if (o_.screen == "data") screen_ = kDataScreen;
     if (o_.screen == "mods") screen_ = kModsScreen, mods_refresh();
+    if (o_.screen == "mods" && !o_.pick.empty()) pending_add_ = o_.pick, mods_add_pending();  // --launcher-pick
     if (o_.screen == "disc") status_ = "No disc in a drive. Pick its image (.cue .iso) or any file of the disc.";
     if (o_.screen == "work") {
       screen_ = kWorking;
@@ -1807,6 +1859,10 @@ LauncherChoice Launcher::run() {
     draw(dt);
     const Uint64 tb = SDL_GetTicksNS();
     present();
+    if (!pending_add_.empty()) {  // ADD MOD: a frame with "Adding ..." shown first
+      if (add_drawn_) mods_add_pending();
+      else add_drawn_ = true;
+    }
     const Uint64 tc = SDL_GetTicksNS();
     if (!frames_) std::printf("mw3: launcher: first frame shown %.0f ms after the start\n", ms(t0, tc));
     ++frames_, draw_ms_ += ms(ta, tb), present_ms_ += ms(tb, tc);

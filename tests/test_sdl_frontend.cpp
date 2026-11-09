@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
@@ -4349,7 +4350,7 @@ TEST(sdl_program_launcher_screens) {
     int edge_x, edge_y;
   };
   for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
-                        Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 104},
+                        Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, ADD MOD, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 104},
                         Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 427, 372},
@@ -4387,6 +4388,47 @@ TEST(sdl_program_launcher_screens) {
     EXPECT(text.find(s.hover) != std::string::npos && edge);
     if (img) SDL_DestroySurface(img);
   }
+}
+
+// The launcher's ADD MOD (docs/modding.md, ADD MOD): the same add as the
+// game's MODS screen (mech3::mod_add_run), --launcher-pick standing for the
+// picker: a folder added into mods\, turned on in mw3.cfg, said; one named
+// CON goes in as CON_; one holding a name Windows cannot hold refused.
+TEST(launcher_add_mod_by_pick) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_add_mod";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd/mods/alpha", ec);
+  std::ofstream(dir + "/wd/mods/alpha/mod.txt") << "name=Alpha\n";
+  std::ofstream(dir + "/wd/mw3.cfg") << "mod=alpha\n";
+  std::filesystem::create_directories(dir + "/src/Sand Pack/zbd/t1", ec);
+  std::ofstream(dir + "/src/Sand Pack/zbd/t1/notes.txt") << "sand";
+  std::filesystem::create_directories(dir + "/src/CON", ec);  // its files name no game: MechWarrior 3 in a scripted run
+  std::ofstream(dir + "/src/CON/notes.txt") << "x";
+  std::filesystem::create_directories(dir + "/src/Bad/zbd", ec);
+  std::ofstream(dir + "/src/Bad/zbd/aux.txt") << "x";
+  struct Case {
+    const char* pick;
+    const char* says;
+  };
+  for (const Case& k : {Case{"/src/Sand Pack", "mods: Added Sand Pack: on from the next start.\n"},
+                        Case{"/src/CON", "mods: Added CON: on from the next start.\n"},
+                        Case{"/src/Bad", "mods: Not added: it holds a name Windows cannot hold (zbd/aux.txt)"}}) {
+    const std::string log = dir + "/add.log";
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-shot", dir + "/mods.bmp", "--launcher-screen", "mods",
+                                      "--launcher-pick", dir + k.pick},
+                                     log);
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::printf("  %s: %d\n", k.pick, text.find(k.says) != std::string::npos);
+    EXPECT(text.find(k.says) != std::string::npos);
+  }
+  EXPECT(std::filesystem::is_regular_file(dir + "/wd/mods/Sand Pack/zbd/t1/notes.txt"));
+  EXPECT((mech3::mods_enabled(dir + "/wd") == std::vector<std::string>{"alpha", "Sand Pack", "CON_"}));
+  EXPECT(std::filesystem::is_regular_file(dir + "/wd/mods/CON_/notes.txt") && !std::filesystem::exists(dir + "/wd/mods/CON"));  // never a device's name
+  EXPECT(!std::filesystem::exists(dir + "/wd/mods/Bad"));
 }
 
 // A plain mw3 start (docs/games-layout.md): straight into the game when an
@@ -4747,9 +4789,9 @@ TEST(sdl_program_launcher_mods_by_keys) {
   const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
   std::printf("MODS by keys: focus MODS %d, alpha off %d, beta on %d; cfg:\n%s", seen(a.log, "focus MODS\n"),
               seen(a.log, "launcher: mods: alpha off\n"), seen(a.log, "launcher: mods: beta on\n"), text.c_str());
-  EXPECT(a.exited && seen(a.log, "focus MODS\n") && seen(a.log, "screen mods: Alpha, Beta, UP, DOWN, CHECK, <, >, BACK\n"));
+  EXPECT(a.exited && seen(a.log, "focus MODS\n") && seen(a.log, "screen mods: Alpha, Beta, ADD MOD, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n"));
   EXPECT(seen(a.log, "launcher: mods: alpha off\n") && seen(a.log, "launcher: mods: beta on\n"));
-  EXPECT(seen(a.log, "screen mods: > Beta, Alpha, UP, DOWN, CHECK, <, >, BACK\n"));
+  EXPECT(seen(a.log, "screen mods: > Beta, Alpha, ADD MOD, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n"));
   EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nwidemenus=1\nmod=beta\n");
 }
 

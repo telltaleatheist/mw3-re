@@ -465,6 +465,34 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   return r;
 }
 
+ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled) {
+  ModAddDone d;
+  ModAdd a = mod_add_prepare(write_dir, source, install);
+  if (!a.error.empty()) return d.message = "Not added: " + a.error + ".", d;
+  ModGame game = a.game;
+  if (game == ModGame::kUnknown) {
+    const int g = ask ? ask(a.name) : 1;
+    if (g != 1 && g != 2) {
+      mod_add_discard(a);
+      return d.message = "Not added: no game chosen for " + a.name + ".", d;
+    }
+    game = g == 2 ? ModGame::kPm : ModGame::kMw3;
+  }
+  const ModAddResult r = mod_add_finish(write_dir, a, game, install);
+  if (!r.ok) return d.message = r.message, d;
+  const ModInfo& i = r.info;
+  d.ok = true, d.folder = r.folder, d.name = i.name.empty() ? r.folder : i.name;
+  d.campaign_only = !i.campaigns.empty() && i.mechs.empty() && i.weapons.empty() && i.ia_worlds.empty();
+  if (!d.campaign_only && enabled && std::find(enabled->begin(), enabled->end(), r.folder) == enabled->end()) {
+    enabled->push_back(r.folder);
+    mods_save_enabled(write_dir, *enabled);
+  }
+  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is entered from the game's MODS screen."
+                              : "Added " + d.name + ": on from the next start" + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+  return d;
+}
+
 void mod_add_discard(ModAdd& a) {
   if (a.staging.empty()) return;
   const fs::path staging = fs::path(a.staging);

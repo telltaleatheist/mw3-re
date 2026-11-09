@@ -475,6 +475,12 @@ answers the picker for scripted runs and shots.
 - Archives: whatever the build's libarchive reads (the SETUP layer,
   `source_archive`): .zip, .7z and .rar now, not a later step. A build without
   libarchive adds folders only and says so.
+- Names Windows cannot hold are refused on every system, so a mod added on
+  the Mac still works on the PC: a device name in any part (CON, PRN, AUX,
+  NUL, COM1-9, LPT1-9, with any extension, any case), a trailing dot or
+  space, < > " | ? *; two files whose names differ only in case (one would
+  overwrite the other on Windows and the Mac). A mod's folder is never given
+  a device's name (`con` becomes `con_`). (2026-11-09, second sitting.)
 - Unpacked into a staging folder of ours (`<write dir>\mod-staging\<n>\`, the
   marker `mw3-mod-staging.txt` in it), never into `mods\` directly. Every
   entry is checked first: an absolute path, a drive or any ':' (an alternate
@@ -503,6 +509,9 @@ answers the picker for scripted runs and shots.
   `mods\` is ever replaced or removed. The marker `mw3-mod-added.txt` in it
   says the game made it (the only kind it may ever remove; never served from
   the mod, nor counted as a shared file).
+- The screen says "Adding <name>..." and draws it before the add runs (on
+  its next update): a big archive takes a while, and a frame without a word
+  looked frozen. No worker thread yet.
 - On the screen: a mod that is more than a campaign is turned on for the
   next start; a campaign-only one is listed, ENTER turning it on for the next
   start. Said in two lines under MODS ("Added Desert Pack: on from the next
@@ -518,8 +527,21 @@ a folder source; listed with no conflict from the markers),
 (a foreign `mods\My Mod` and a foreign staging folder untouched, a case-only
 clash, a mod the check refuses), `mods_screen_add_mod_headless` (the screen
 through the hooks), and `mod_install_real_mod_env` (MW3_PM13=<a mod on this
-machine>, reported only). Left: ADD MOD in the launcher, .7z/.rar inside an
-archive.
+machine>, reported only).
+
+The launcher's MODS screen has the same three (ADD MOD, ADD FOLDER, MODS
+FOLDER, a row above UP and DOWN; five mods a page now), its own picker and
+its status line, through the same add (`mech3::mod_add_run`, which both
+call: prepared, the game asked, finished, turned on, the line to say);
+`--launcher-pick PATH` with `--launcher-screen mods` runs it for a shot.
+The SDL pieces both use (the folder opened, the game asked) are
+`frontend/sdl/sdl_mods`. In a scripted run (`--pick`, `--launcher-pick`)
+the game question answers MechWarrior 3 without a box. Test:
+`launcher_add_mod_by_pick`.
+
+Open: whether SDL's native pickers and the game question show above the
+game's fullscreen window on Windows (the PC, a night check). Left: archives
+inside an archive.
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 

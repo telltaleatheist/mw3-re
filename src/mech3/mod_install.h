@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -82,5 +83,18 @@ struct ModAddResult {
 ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& add, ModGame game, const std::string& install);
 // The staging folder removed (only with our marker in it).
 void mod_add_discard(ModAdd& add);
+
+// ADD MOD whole, as the MODS screen and the launcher run it: prepared, the
+// game asked when its files cannot tell (`ask`: 1 MechWarrior 3, 2 Pirate's
+// Moon, anything else not added; unset: MechWarrior 3), finished; a mod that
+// is more than a campaign turned on at the end of `enabled` and saved to
+// mw3.cfg. `message` the line to show.
+struct ModAddDone {
+  bool ok = false;
+  std::string folder, name, message;
+  bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
+};
+ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled);
 
 }  // namespace mech3
