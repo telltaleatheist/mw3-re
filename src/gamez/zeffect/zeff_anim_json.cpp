@@ -155,6 +155,7 @@ struct Def {
   std::string name, anim_name;
   std::vector<std::string> nodes, lights, puffers, dyn_sounds, static_sounds;
   size_t anim_refs = 0;
+  const std::vector<Value>* scripts = nullptr;  // metadata's script_names, read
   static int16_t find(const std::vector<std::string>& v, const std::string& n) {
     for (size_t i = 0; i < v.size(); ++i)
       if (v[i] == n) return static_cast<int16_t>(i + 1);
@@ -651,6 +652,56 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     for (float x : tp) o.f32(x);
     return true;
   }
+  if (type == "ObjectMotionSiScript") {
+    int16_t n;
+    uint32_t index;
+    if (!(node("name", 0, &n) && j.u32(d, at, "index", &index))) return false;
+    if (!def.scripts || index >= def.scripts->size()) return j.r.fail(d, at + ".index", "no script " + std::to_string(index));
+    const Value& sc = (*def.scripts)[index];
+    const std::string sa = "(script " + std::to_string(index) + ") $";
+    const Value* frames = j.get(sc, sa, "frames");
+    if (!frames || !j.r.array(*frames, sa + ".frames")) return false;
+    o.i32(n), o.u32(static_cast<uint32_t>(frames->items.size())), o.f32(0), o.f32(0), o.u32(0), o.u32(0);
+    for (size_t k = 0; k < frames->items.size(); ++k) {
+      const Value& f = frames->items[k];
+      const std::string fa = sa + ".frames[" + std::to_string(k) + "]";
+      float t0, t1;
+      const Value *tv, *rv, *sv;
+      static const Value kNull;  // unzbd leaves a frame's absent parts out
+      const auto part = [&](const char* key) { const Value* v = f.get(key); return v ? v : &kNull; };
+      if (!(j.f32(f, fa, "start_time", &t0) && j.f32(f, fa, "end_time", &t1))) return false;
+      tv = part("translate"), rv = part("rotate"), sv = part("scale");
+      o.u32((tv->kind != Value::Null ? 1u : 0u) | (rv->kind != Value::Null ? 2u : 0u) | (sv->kind != Value::Null ? 4u : 0u));
+      o.f32(t0), o.f32(t1);
+      for (const auto& [v, key] : {std::pair{tv, "translate"}, std::pair{rv, "rotate"}, std::pair{sv, "scale"}}) {
+        if (v->kind == Value::Null) continue;
+        const std::string ka = fa + "." + key;
+        const Value* base = j.get(*v, ka, "base");
+        if (!base) return false;
+        const bool rot = std::strcmp(key, "rotate") == 0;
+        for (const char* c : rot ? std::initializer_list<const char*>{"x", "y", "z", "w"} : std::initializer_list<const char*>{"x", "y", "z"}) {
+          float x;
+          if (!j.f32(*base, ka + ".base", c, &x)) return false;
+          o.f32(x);
+        }
+        if (!rot) {
+          uint32_t garbage;
+          if (!j.u32(*v, ka, "garbage", &garbage)) return false;
+          o.u32(garbage);
+        }
+        float dl[3];
+        if (!vec(*v, ka, "delta", dl)) return false;
+        for (float x : dl) o.f32(x);
+        for (const char* sp : {"spline_x", "spline_y", "spline_z"}) {
+          std::vector<uint8_t> b;
+          if (!j.bytes(*v, ka, sp, &b)) return false;
+          if (b.size() != 16) return j.r.fail(*v, ka + "." + sp, "not 16 bytes");
+          o.raw(b.data(), 16);
+        }
+      }
+    }
+    return true;
+  }
   if (type == "LightAnimation") {
     std::string n;
     float range[2], alt[2] = {0, 0}, color[3], run;
@@ -1037,7 +1088,7 @@ uint32_t ptr_of(Json& j, const Value* ptrs, const char* key, bool present, bool*
   return v;
 }
 
-bool anim_def(Json& j, const Value& d, const std::string& at, Out& o) {
+bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std::vector<Value>* scripts) {
   std::string name, anim_name, root_name;
   bool callbacks, auto_reset, local_only, proximity, active;
   int activation = 0;
@@ -1082,7 +1133,7 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o) {
   if (auto_reset) flags |= 0x10000;
   if (proximity) flags |= 0x100000;
   Def def;
-  def.name = name, def.anim_name = anim_name;
+  def.name = name, def.anim_name = anim_name, def.scripts = scripts;
   bool has[8] = {};
   const char* const kLists[] = {"objects", "nodes", "lights", "puffers", "dynamic_sounds", "static_sounds", "activ_prereqs", "anim_refs"};
   const Value* lists[8];
@@ -1314,6 +1365,19 @@ bool anim_from_json(const std::function<std::string(const std::string&)>& file, 
     if (!unix_time(dt, &ts)) return j.r.fail(f, a + ".datetime", "not a date and time"), *why = "metadata.json: " + j.r.why, false;
     o.name_garbage(n, garbage, 80), o.u32(ts);
   }
+  // The scripts the defs' ObjectMotionSiScript events index, in metadata's order.
+  std::vector<Value> scripts;
+  bool sp = false;
+  const Value* snames = j.list(meta, "$", "script_names", &sp);
+  if (!snames) return *why = "metadata.json: " + j.r.why, false;
+  for (size_t i = 0; sp && i < snames->items.size(); ++i) {
+    std::string n;
+    if (!j.r.game_string(snames->items[i], "$.script_names[" + std::to_string(i) + "]", &n, 255)) return *why = "metadata.json: " + j.r.why, false;
+    const std::string text = file(n + ".json");
+    if (text.empty()) return *why = n + ".json: not there", false;
+    scripts.emplace_back();
+    if (!zutl_json::parse(text, &scripts.back(), why)) return *why = n + ".json: " + *why, false;
+  }
   const size_t ndefs = dp ? defs->items.size() : 0;
   o.u32(0), o.u32(0), o.u16(0), o.u16(static_cast<uint16_t>(ndefs + 1)), o.u32(m->defs), o.u32(0), o.u32(0), o.u32(m->world);
   o.f32(gravity), o.zeros(28), o.u32(1), o.u32(0);
@@ -1333,7 +1397,7 @@ bool anim_from_json(const std::function<std::string(const std::string&)>& file, 
     const size_t base = o.b.size();
     std::vector<std::pair<size_t, size_t>> local;
     one.masks = &local;
-    if (!anim_def(dj, d, "$", one)) return *zbd = std::move(o.b), *why = n + ".json: " + dj.r.why, false;  // the defs before it kept
+    if (!anim_def(dj, d, "$", one, &scripts)) return *zbd = std::move(o.b), *why = n + ".json: " + dj.r.why, false;  // the defs before it kept
     o.raw(one.b.data(), one.b.size());
     if (names)
       for (const auto& [a, b] : local) names->emplace_back(base + a, base + b);
