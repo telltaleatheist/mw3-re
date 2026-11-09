@@ -14,6 +14,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 #include <vector>
 
 #include "check.h"
@@ -177,16 +180,30 @@ Played play_c1m1(int32_t mech, int frames) {
   return out;
 }
 
-// A launch in a child process, as pm's other launch tests (a second mission in
-// one process is not reset for: zcls's world cells); its checks fail the parent.
-void in_child(const std::function<void()>& run) {
+// A launch in a fresh process: this test run again alone (PM_MODS_CHILD set,
+// the launch then made in it), as an earlier test's mission in this process
+// leaves what crashes a second (zcls's lists; a fork would inherit it). The
+// child's checks fail the parent.
+void in_child(const char* test, const std::function<void()>& run) {
+  if (std::getenv("PM_MODS_CHILD")) return run();
 #if !defined(_WIN32)
+  std::string self(4096, '\0');
+#if defined(__APPLE__)
+  uint32_t size = static_cast<uint32_t>(self.size());
+  if (_NSGetExecutablePath(self.data(), &size) != 0) self.clear();
+#else
+  const ssize_t n = readlink("/proc/self/exe", self.data(), self.size() - 1);
+  self.resize(n > 0 ? static_cast<size_t>(n) : 0);
+#endif
+  self = self.c_str();
+  EXPECT(!self.empty());
   std::fflush(nullptr);
   const pid_t child = fork();
   if (child == 0) {
-    run();
-    std::fflush(nullptr);
-    _exit(check::failures ? 1 : 0);
+    setenv("PM_MODS_CHILD", "1", 1);
+    setenv("MW3_TEST", test, 1);
+    execl(self.c_str(), self.c_str(), static_cast<char*>(nullptr));
+    _exit(127);
   }
   int status = 1;
   waitpid(child, &status, 0);
@@ -226,7 +243,7 @@ TEST(pm_mods_mech_row_launches_as_the_player_c1m1_headless) {
   zutl::mount(install);
   EXPECT(log.find("mech thor_b added (mech 26, 70 t, the models of thor)") != std::string::npos);
   EXPECT(mech3::mech_count() == 27 && std::string(mech3::mech_title(26)) == "Thor B");
-  in_child([] {
+  in_child("pm_mods_mech_row_launches_as_the_player_c1m1_headless", [] {
     const Played run = play_c1m1(26, 30);
     std::printf("  core %d, frames %d; roster %d, parts %d, weapons %d, height %.1f, speed %.1f, motions %d\n", run.core, run.frames,
                 run.mech.roster, run.mech.parts, run.mech.weapons, static_cast<double>(run.mech.height),
@@ -268,7 +285,7 @@ TEST(pm_mods_real_mod_reads_and_plays_headless) {
   const std::string reader = zutl::find("zbd\\reader.zbd");
   EXPECT(reader.find("/mods/real/") != std::string::npos);  // the mod's, not the install's
   EXPECT(log.find("0 replaced") == std::string::npos);  // its files seen
-  in_child([] {
+  in_child("pm_mods_real_mod_reads_and_plays_headless", [] {
     const Played run = play_c1m1(mech3::kMadCat, 300);
     std::printf("  core %d, frames %d; roster %d, weapons %d\n", run.core, run.frames, run.mech.roster, run.mech.weapons);
     EXPECT(run.core && run.frames >= 300 && run.made && run.mech.roster == mech3::kMadCat && run.mech.weapons > 0);
