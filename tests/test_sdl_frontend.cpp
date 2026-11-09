@@ -3668,6 +3668,8 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
   };
   const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
                                            "127.0.0.1", "--frame-ms", "33", "--net-soak", "--net-seconds", "20"};
+  // The frames are wall time (--frame-ms 33 paced, network on): three games of
+  // 20 s and two returns of about 29 s reach the third game near frame 4300.
   // A: HOST; with B in, and again after each game: LOCK OPTIONS, its OK, I AM READY, START.
   std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan,
                                        "--click-at", "421,406@180", "--click-players", "183,430@60/2",
@@ -3676,14 +3678,14 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
                                        "--click-return", "246,290@160", "--click-return", "515,446@220",
                                        "--click-return", "585,418@650", "--net-ahead", "50", "--net-kill-at", "8",
                                        "--tap-ingame", "0x58@400:402",
-                                       "--frames", "4400"},
+                                       "--frames", "5200"},
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   // B: JOIN; I AM READY in the lobby, and again after each game.
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
                                        "--click-at", "100,143@420", "--click-at", "240,406@450",
                                        "--click-players", "515,446@300/2", "--click-return", "515,446@400",
-                                       "--frames", "4400"},
+                                       "--frames", "5200"},
                                       {"0x30", "0x12", "0x1f", "0x14"});
   vb.insert(vb.end(), common.begin(), common.end());
   const pid_t a = spawn(va, dir + "/a.log");
