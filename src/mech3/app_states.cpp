@@ -1,3 +1,4 @@
+#include "mech3/mods_menu.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "gamez/zutil/zfix.h"
@@ -963,6 +964,7 @@ bool MainState::enter() {
   en.screen_refresh(screen_);
   for (const auto& m : kMenus) en.poke32(m.global, en.construct(m.ctor, {}));
   if (options_upgrades_page()) options_upgrades_state() = en.construct(kUpgradesStateCtor, {});  // ours
+  if (mods_menu_page()) mods_menu_state() = en.construct(kModsStateCtor, {});  // ours
   en.twod_reset(en.peek32(0x609854));
   reset_idle();
   Mech3App& ap = a();
@@ -1015,6 +1017,7 @@ void MainState::leave() {
     en.poke32(m.global, 0);
   }
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
+  if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 
@@ -1064,6 +1067,7 @@ void PauseState::leave() {
   delete_object(en, 0x60986c);
   delete_object(en, 0x609870);
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
+  if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   screen_ = 0;
   en.poke32(0x609868, 0);
   en.poke32(0x60986c, 0);

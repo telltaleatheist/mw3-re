@@ -35,6 +35,7 @@
 #include "mech3/menu_states.h"
 #include "mech3/mission.h"
 #include "mech3/mod_campaign.h"
+#include "mech3/mods_menu.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
@@ -190,6 +191,8 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The main menu: its column of buttons at the left edge, CREDITS and
       // QUIT and the version line at the right.
       {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
+      // Ours: the MODS screen, the pilot screen's groups.
+      {kModsScreenCtor, {{0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
@@ -425,6 +428,10 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return screen(sizeof(UpgradesScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new UpgradesScreen(e, s); });
     case kUpgradesStateCtor:
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kUpgrades, h); });
+    case kModsScreenCtor:  // ours: the MODS screen
+      return screen(sizeof(ModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new ModsScreen(e, s); });
+    case kModsStateCtor:
+      return state([](Handle h) -> MenuState* { return new ModsState(h); });
     case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};
