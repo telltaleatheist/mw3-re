@@ -28,13 +28,15 @@ std::string& mods_menu_write_dir();               // where mods\ and mw3.cfg are
 std::vector<std::string>& mods_menu_mounted();    // the mods on in this run
 std::string& mods_menu_install();                 // the install (a whole-install mod is cut against it)
 
-// ADD MOD's platform side (the program sets it; unset, the tabs say so):
-// the system's picker for an archive or a folder, its answer handed back
-// through mods_menu_picked from whatever thread it comes on; the mods folder
-// opened in the system's file browser; which game, when a mod's files
-// cannot tell (1 MechWarrior 3, 2 Pirate's Moon, 0 neither: not added).
+// IMPORT's and EXPORT's platform side (the program sets it; unset, the tabs
+// say so): the system's picker for an archive or a folder, and its save box
+// for EXPORT's zip (the file name offered), each answer handed back through
+// mods_menu_picked from whatever thread it comes on; the mods folder opened
+// in the system's file browser; which game, when a mod's files cannot tell
+// (1 MechWarrior 3, 2 Pirate's Moon, 0 neither: not added).
 struct ModsMenuPlatform {
   std::function<void(bool folder)> pick;
+  std::function<void(const std::string& file_name)> save;
   std::function<bool(const std::string& dir)> open_folder;
   std::function<int(const std::string& name)> ask_game;
 };
@@ -65,13 +67,14 @@ class ModsList : public FileList {
 
 class ModsScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder };
+  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport };
   ModsScreen(Engine& e, Handle state);
   void update(float dt) override;    // a picked mod taken in
   ~ModsScreen() override;
   void on_button(int32_t id, int32_t a, int32_t b) override;
   void refill();                     // both tables again from the write dir
-  void add_mod(const std::string& path);  // ADD MOD's pick: added (mod_install.h), shown, said
+  void add_mod(const std::string& path);  // IMPORT's pick: added (mod_install.h), shown, said
+  void export_mod(const std::string& zip);  // EXPORT's answer: the chosen mod packed (upgrades/mods/mod_export.h), said
   void tell(const std::string& text);     // the two lines under MODS, the text wrapped
   void show_details();               // the selected row's lines
   void enter_campaign();             // ENTER
@@ -80,7 +83,7 @@ class ModsScreen : public MenuScreen {
 
   SlideButton enter, back;           // ENTER, BACK
   ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
-  ShellButton add_btn, add_folder_btn, folder_btn;  // ADD MOD, ADD FOLDER, MODS FOLDER
+  ShellButton add_btn, export_btn, add_folder_btn, folder_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER
   ModsList campaign_list, mod_list;
   ztwod::Image lines{0}, lines2{0};
   zimg::Texture* own_lines = nullptr;  // LINES2 with the CAMPAIGNS box (ours, released with the screen)
@@ -89,6 +92,8 @@ class ModsScreen : public MenuScreen {
   std::vector<std::string> enabled;  // mw3.cfg's, as the tabs change it
   int32_t focus = kCampaigns;        // the table the details are of
   std::string adding;                // a pick said ("Adding ...") and added on the next update
+  std::string export_folder;         // EXPORT's mod, while the save box is up
+  std::string exporting;             // its zip, said ("Exporting ...") and written on the next update
   bool editing = false;              // EDIT's list in CUSTOM CAMPAIGNS' box
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;

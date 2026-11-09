@@ -40,6 +40,7 @@ struct ModAdd {
   bool full_install = false; // a whole install (Mech3.exe in it), cut to what differs
   int same_dropped = 0;      // files the same as the install's, left out
   int other_dropped = 0;     // programs and the player's own kind of file, left out
+  bool checksums = false;    // it had an export's checksums file, and they matched
   ModGame game = ModGame::kUnknown;  // from its files (mod.txt's for= when it has one)
   std::string error;         // why it was refused, "" when it was not (staging then gone)
 };

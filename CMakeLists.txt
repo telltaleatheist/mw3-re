@@ -313,6 +313,7 @@ add_library(mw3core STATIC
   src/mech3/options_menu.cpp
   src/mech3/mods_menu.cpp
   src/mech3/mod_install.cpp
+  src/upgrades/mods/mod_export.cpp
   src/mech3/pause_menu.cpp
   src/mech3/quit_box.cpp
   src/mech3/lab_items.cpp

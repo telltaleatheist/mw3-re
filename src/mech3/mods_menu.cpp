@@ -11,6 +11,7 @@
 #include "mech3/mainmenu.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/mod_export.h"
 
 namespace mech3 {
 
@@ -235,6 +236,7 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
       down(e, kDown),
       editor(e, kEditor),
       add_btn(e, kAdd),
+      export_btn(e, kExport),
       add_folder_btn(e, kAddFolder),
       folder_btn(e, kOpenFolder),
       campaign_list(e, kCampaigns),
@@ -273,6 +275,7 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     bind_button(&down, "MOVEDOWN");
     bind_button(&editor, "EDITOR");
     bind_button(&add_btn, "ADDMOD");
+    bind_button(&export_btn, "EXPORTMOD");
     bind_button(&add_folder_btn, "ADDFOLDER");
     bind_button(&folder_btn, "MODSFOLDER");
     unload();
@@ -373,8 +376,34 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
         return;
       }
       tell(id == kAdd ? "Pick the mod's archive (.zip, .7z, .rar)." : "Pick the mod's folder.");
+      export_folder.clear();
       mods_menu_platform().pick(id == kAddFolder);
       return;
+    case kExport: {
+      // The selected row's mod, a campaign's or a mod's.
+      std::string folder;
+      if (focus == kMods) {
+        if (const ModsListEntry* m = chosen_mod()) folder = m->info.folder;
+      } else if (campaign_list.selected >= 0 && campaign_list.selected < static_cast<int32_t>(tables.campaigns.size())) {
+        folder = tables.campaigns[static_cast<size_t>(campaign_list.selected)].mod;
+      }
+      if (folder.empty()) {
+        tell("Choose a mod or a campaign to export.");
+        return;
+      }
+      if (!mods_menu_platform().save) {
+        tell("Exporting is not possible here: zip the mod's folder in the mods folder.");
+        return;
+      }
+      ModInfo info;
+      info.folder = folder;
+      for (const ModInfo& i : mods_found(dir))
+        if (i.folder == folder) info = i;
+      tell("Choose where to save " + (info.name.empty() ? folder : info.name) + ".");
+      export_folder = folder;
+      mods_menu_platform().save(mod_export_file_name(info));
+      return;
+    }
     case kOpenFolder: {
       std::error_code ec;
       const std::filesystem::path m = std::filesystem::path(dir) / "mods";
@@ -511,12 +540,29 @@ void ModsScreen::update(float dt) {
     add_mod(path);
     return;
   }
+  if (!exporting.empty()) {
+    std::string zip;
+    zip.swap(exporting);
+    export_mod(zip);
+    return;
+  }
   std::string path;
   {
     Picked& p = picked();
     std::lock_guard<std::mutex> g(p.m);
     if (!p.answered) return;
     p.answered = false, path.swap(p.path);
+  }
+  if (!export_folder.empty()) {  // EXPORT's save box answered
+    if (path.empty()) {
+      export_folder.clear();
+      tell("Not exported.");
+      return;
+    }
+    if (std::filesystem::path(path).extension().empty()) path += ".zip";  // a save box that did not add it
+    tell("Exporting to " + std::filesystem::path(path).filename().string() + "...");
+    exporting = path;
+    return;
   }
   if (path.empty()) return;
   std::filesystem::path shown(path);
@@ -568,6 +614,15 @@ void ModsScreen::add_mod(const std::string& path) {
     show_details();
     tell(d.message);
   }
+}
+
+// EXPORT's answer: the mod chosen when the save box opened, packed into
+// `zip` (upgrades/mods/mod_export.h) and said.
+void ModsScreen::export_mod(const std::string& zip) {
+  std::string folder;
+  folder.swap(export_folder);
+  const std::filesystem::path dir = std::filesystem::path(mods_menu_write_dir()) / "mods" / folder;
+  tell(mod_export(dir.string(), zip).message);
 }
 
 bool ModsState::enter() {

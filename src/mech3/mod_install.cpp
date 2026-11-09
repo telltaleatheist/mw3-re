@@ -11,6 +11,7 @@
 
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/source_archive.h"
+#include "upgrades/mods/mod_export.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
@@ -365,6 +366,13 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
   }
   const fs::path root = find_root(files);
   a.root = root.string();
+  // An exported mod's checksums (upgrades/mods/mod_export.h): every file as
+  // it was packed, nothing added.
+  if (const std::string bad = mod_checksums_verify(a.root, &a.checksums); !bad.empty()) {
+    mod_add_discard(a);
+    a.error = bad;
+    return a;
+  }
   const fs::path mt = child(root, "mod.txt");
   a.has_mod_txt = !mt.empty() && fs::is_regular_file(mt, ec);
   a.name = stem_of(source);
