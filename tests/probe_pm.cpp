@@ -935,6 +935,27 @@ int probe_pm_cfg_blob(const char* path, const char* name, int32_t* out) {
   return k;
 }
 void* probe_pm_cfg_ptr(int k) { return g_cfg_dfn->configs->configs[k]; }
+// Config k packed for the network (Pirate's Moon 0x004274d0): the words, how many (test_pm_config_unpack.py).
+int probe_pm_cfg_pack(int k, uint32_t* out, int cap) {
+  const std::vector<uint32_t> w = g_cfg_dfn->configs->configs[static_cast<size_t>(k)]->packed();
+  const int n = static_cast<int>(w.size()) < cap ? static_cast<int>(w.size()) : cap;
+  std::memcpy(out, w.data(), static_cast<size_t>(n) * 4);
+  return n;
+}
+// Another player's packed loadout unpacked (Pirate's Moon 0x00427830), then saved (0x00425e40) as a player's.
+int probe_pm_cfg_unpack_save(const uint32_t* p, int words, uint8_t* out, int cap, const char* path) {
+  using namespace ::mech3;
+  Config* c = Config::unpacked(p, static_cast<size_t>(words));
+  c->player_made = 1;
+  std::FILE* f = std::fopen(path, "wb");
+  c->save(f);
+  std::fclose(f);
+  delete c;
+  f = std::fopen(path, "rb");
+  const int n = static_cast<int>(std::fread(out, 1, static_cast<size_t>(cap), f));
+  std::fclose(f);
+  return n;
+}
 // The saved archive: the shown mech's list with `mine` marking the player's own, written
 // (0x00426bd0) in `dir`; then a new list read from it (0x004267f0) and dumped.
 int probe_pm_archive_save(const char* dir, const uint8_t* mine, int n) {

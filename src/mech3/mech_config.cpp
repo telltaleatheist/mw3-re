@@ -645,13 +645,15 @@ Config* Config::unpacked(const uint32_t* p, size_t words) {
   const uint32_t n = ((p[0] & 0xffff) - 0x34) / 0xc;
   auto* c = new Config(static_cast<int32_t>(p[0] >> 16), "remote config");
   c->player_made = 1;
+  // Pirate's Moon 0x00427830 (its packed form on the stack): the fields a bit higher than MW3's, as
+  // packed() writes them (endo steel 2, the engine 3..9, XL 10, ferro 11, the half tons 12..29).
   const uint32_t w = p[1];
-  c->endo_steel = (w >> 1) & 1;
-  c->engine = std::clamp(static_cast<int32_t>((w >> 2) & 0x7f), 0, kEngineLimit);
-  c->xl = (w >> 9) & 1;
-  const float half_tons = static_cast<float>((w >> 11) & 0x7ffff);
+  c->endo_steel = (w >> 2) & 1;
+  c->engine = std::clamp(static_cast<int32_t>((w >> 3) & 0x7f), 0, kEngineLimit);
+  c->xl = (w >> 10) & 1;
+  const float half_tons = static_cast<float>((w >> 12) & 0x3ffff);
   c->armor_tons = half_tons + half_tons;
-  c->ferro = (w >> 10) & 1;
+  c->ferro = (w >> 11) & 1;
   c->armor_tech = c->ferro ? static_cast<int32_t>(w >> 30) : kAnyTech;
   for (int i = 0; i < 11; ++i) c->armor[i] = static_cast<int32_t>(p[2 + i]);
   const size_t fit = words > 13 ? (words - 13) / 3 : 0;
