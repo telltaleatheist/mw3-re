@@ -1,7 +1,7 @@
-// Ours (docs/modding.md, gamez JSON): see cls_zbd_json.h. The layouts are
+// Ours (docs/modding.md, gamez JSON): see gamez_json.h. The layouts are
 // mech3ax's (crates/gamez/src: gamez/mw, textures/mw.rs, materials/write_*.rs),
 // which match the shipped worlds. Fields unzbd leaves out take its defaults.
-#include "gamez/zclass/cls_zbd_json.h"
+#include "upgrades/json/gamez_json.h"
 
 #include <cstring>
 

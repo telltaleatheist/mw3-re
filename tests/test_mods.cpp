@@ -22,7 +22,7 @@
 #include "gamez/zutil/zutl_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
-#include "gamez/zclass/cls_zbd_json.h"
+#include "upgrades/json/gamez_json.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
