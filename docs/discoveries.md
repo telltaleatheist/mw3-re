@@ -4664,6 +4664,26 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   then decides the winner from what it saw itself, so a player whose game hadn't shown the base falling yet can
   get a different result, a tie that extends the match (from the code: 0x472850 reads only the reason; seen in
   the rebuild by destroying the base on the host alone).
+- **A shot-down Anhur can leave an invisible wall (Pirate's Moon).** Pirate's
+  Moon's reticle, as it aims, switches each nearby target to be hit by its
+  shape and then back to being hit by a simple box around it. For a turret,
+  and the Anhur aircraft are turrets, that box was never meant to be on, and
+  once the turret is dead the reticle stops touching it, so the box stays.
+  The box surrounds everything the turret was made of: where it died and
+  wherever its wreck fell. Shoot an Anhur down over c3m6's land bridge and a
+  box from the sky to the deck stops your lasers and your mech in empty air.
+  The rebuild drops a dead turret's box. Separately, the Anhur's script means
+  to switch the aircraft off when its fall ends, but that line sits inside the
+  fall's settings and was never built into the mission, so the aircraft stays
+  on forever. (Found from a playtest's hit log and the code: 0x00445c60,
+  0x004a7620, anhur.zrd; docs/pm-tests.md item 37)
+- **The Anhur drops c3m6's land bridge (Pirate's Moon).** The bridge before
+  nav Able gives way once it has taken 20 points of harm. Standing on it alone
+  doesn't do it: in the rebuild, a mech left on the deck with the Anhur shot
+  down early stood there for good, while with the Anhur still flying the deck
+  went under it about 27 seconds in. So it's the Anhur's attack on you that
+  brings the bridge down. (Seen in the rebuild, the original still to be
+  checked: landbridges.zrd, hide_slid0* on the deck hslid0*)
 - **Typing in the chat can move your view.** The letters you type into the
   chat (or, in the rebuild, the cheat box) still reach the game's keys. If you
   are still holding the last letter when you press Enter, which is normal

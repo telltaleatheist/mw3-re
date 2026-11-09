@@ -274,7 +274,6 @@ class TargetHooks : public zgame::Unported {
     return static_cast<int32_t>(unported("0x005833f0", {self, node, fn}));
   }
   virtual void remove_handlers(Handle node) { unported("0x00583400", {node}); }
-  virtual void node_set_box_hit(Handle node, int32_t on) { (void)node, (void)on; }  // 0x004fd2c0, our fix's only (zai_target.cpp kill)
   virtual void hit_killed() { unported("0x00583710", {1, 0}); }
   virtual void hit_health(float fraction) { unported("0x00583730", {zgame::bits(fraction)}); }
   virtual void valve_set(void* valve, int32_t v) { unported("0x004d3c00", {0u, static_cast<uint32_t>(v)}); (void)valve; }

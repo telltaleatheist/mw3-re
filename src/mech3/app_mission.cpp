@@ -1207,7 +1207,6 @@ uint32_t target_weapon_hit(zwep::Handle owner, zwep::WeaponDef* def, zwep::HitRe
 float target_collide(zwep::Handle owner, float damage) { return static_cast<ai::CZAiTarget*>(owner)->on_collide(damage); }
 
 struct WiredTargetHooks : ai::TargetHooks {
-  void node_set_box_hit(Handle n, int32_t on) override { if (zcls::Node* x = node(n)) zcls::node_set_intersect_bbox(x, on); }
   void target_set(ai::AiTarget& t, ai::Contact* c) override {  // vt+0xcc: 0x0041e7e0 on the view's mech
     t.set_target(c, false);
     program_hud_target_set_by(&t);

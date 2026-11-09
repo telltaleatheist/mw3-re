@@ -477,7 +477,8 @@ static struct {
   zcls::Node* shot = nullptr; zcls::Node* walk = nullptr;
   float shot_at = 0, walk_at = 0;
   int deck_gone = -1;  // the frame hslid01 went inactive
-  int solid = 0, unseen = 0;  // anhur04's live collidable pieces after the fall; those with nothing drawable
+  int solid = 0, unseen = 0;
+  bool bridge_boxed_alive = false, bridge_boxed_dead = true;  // xslid01, a target (targets.zrd), as the deck goes  // anhur04's live collidable pieces after the fall; those with nothing drawable
 } g_anhur;
 static struct { int nodes, moved; } g_motions;  // PM_MOTIONS: event 12's nodes and how many moved
 
@@ -760,6 +761,10 @@ static void kill_run(const char* which, bool quick) {
         if (zcls::Node* d = zcls::list_find_by_name(6, "destroyed")) zcls::node_world_point(d, a);
         mech3::mech_world_position(player, me);
         std::printf("  anhur t %d: root flags %x, destroyed at %.0f %.0f %.0f, player %.1f %.1f %.1f, deck gone %d\n", t, root ? root->flags() : 0, a[0], a[1], a[2], me[0], me[1], me[2], g_anhur.deck_gone);
+      }
+      if (zcls::Node* x = zcls::list_find_by_name(6, "xslid01")) {
+        if (t == 1590) g_anhur.bridge_boxed_alive = (x->flags() & 0x20) != 0;
+        if (t == 1650) g_anhur.bridge_boxed_dead = (x->flags() & 0x20) != 0;
       }
       if (t == kill_at - 1 && root) g_anhur.boxed_alive = (root->flags() & 0x20) != 0;
       if (t == kill_at) g_anhur.killed = pm_kill_turret("anhur04");
@@ -1731,7 +1736,9 @@ TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
                   g_anhur.killed, g_anhur.boxed_alive, g_anhur.boxed_dead, name(g_anhur.shot), g_anhur.shot_at, name(g_anhur.walk), g_anhur.walk_at,
                   g_anhur.deck_gone);
       EXPECT(g_anhur.killed && g_anhur.boxed_alive);  // the reticle had boxed it as it flew near
-      std::printf("  %d solid pieces, %d with nothing drawn\n", g_anhur.solid, g_anhur.unseen);
+      std::printf("  %d solid pieces, %d with nothing drawn; xslid01 (a target, never the reticle's) boxed alive %d, dead %d\n",
+                  g_anhur.solid, g_anhur.unseen, g_anhur.bridge_boxed_alive, g_anhur.bridge_boxed_dead);
+      EXPECT(!g_anhur.bridge_boxed_alive && !g_anhur.bridge_boxed_dead);
       EXPECT(g_anhur.solid > 0 && g_anhur.unseen == 0);  // the wreck stays solid by its polygons, all of them drawn
       const bool shot_box = g_anhur.shot && std::strcmp(g_anhur.shot->name(), "anhur04") == 0;
       const bool walk_box = g_anhur.walk && std::strcmp(g_anhur.walk->name(), "anhur04") == 0;

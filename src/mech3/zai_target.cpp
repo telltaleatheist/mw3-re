@@ -674,7 +674,6 @@ void CZAiTarget::kill() {
   }
   desc.health = 0;
   active = 0;
-  if (zfix::options().bugs && node) g_hooks->node_set_box_hit(node, 0);  // FIX (bug), as a turret's death (pm-tests 37)
   if (desc.mpoption >= 0) g_hooks->base_destroyed(desc.mpoption);
 }
 
