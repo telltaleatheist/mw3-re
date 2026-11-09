@@ -86,6 +86,14 @@ class WalkPmHooks : public SteerPmHooks {
   virtual void set_jet_forward(float v) { (void)v; }                             // vt+0x3c
   virtual void stop_controls() {}                                                // vt+0x14
   virtual void manoeuvre_over() {}                                               // the brain's +0x110 down one
+  // The repair state 0x004e0790: the dock's two flags, the vehicle's mech powered down or up and asked, the
+  // pilot's own-fights switch (+0x80, set aside while it repairs) and its +0x2c4 (it runs while down).
+  virtual bool dock_drive() { return false; }                                    // [0x0062fbb2]
+  virtual bool dock_contact() { return false; }                                  // [0x0062fbb1]
+  virtual bool powered_down(zgame::Handle v) { (void)v; return false; }          // vt+0xac
+  virtual void mech_power(zgame::Handle v, int32_t down) { (void)v, (void)down; }  // vt+0x58, then 0x0041dab0
+  virtual int32_t hold() { return 0; }                                           // the brain's +0x80
+  virtual void set_runs_down(bool on) { (void)on; }                              // the brain's +0x2c4
 };
 
 float flat_dir_pm(const float from[3], const float to[3], float out[3]);  // 0x00537e60: its flat length
@@ -130,6 +138,24 @@ struct MoveStatePm {
   void run_backup(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
   // The terminus node's run (0x004e1fd0, vtable 0x005ef634): driven there, then back to the order before.
   void run_terminus(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* place);
+};
+
+// The repair state (0x004e0320 -> 0x004e03c0, vtable 0x005ef400; MW3's RepairState, 0x004d0a10): to the approach
+// point 40 m out from the dock point, through a via node when the boundary pulls it there, on to the point, a last
+// close-in under 6.5 m, then down until the dock has done (30 s at most, or pushed off the point).
+struct RepairStatePm {
+  uint8_t own_fights = 0;      // +0x14  the pilot's +0x80 before
+  float slow = 0;              // +0x18  the stopping distance
+  float inv_slow = 0;          // +0x1c
+  float until = 3.4028235e38f; // +0x20
+  int32_t phase = 0;           // +0x24  0 none, 1 begun, 2 and 3 the approach, 4 and 5 the point, 8 the close-in,
+                               //        6 waiting for the bases, 7 down, 9 and 10 through a via
+  float pulled[3] = {};        // +0x28  where the boundary pulled the approach to
+  const float* dock = nullptr; // +0x34
+  float approach[3] = {};      // +0x38
+  void start(const float* dock_point, const float pos[3]);  // 0x004e03c0's
+  void run(WalkPmHooks& h, SteerPm& s, zgame::Handle v);     // 0x004e0790
+  void end(WalkPmHooks& h, zgame::Handle v);                 // 0x004e0570, the destructor's work
 };
 
 // The vehicle net's slot 2 state (0x004e0ff0 -> 0x004e1050, vtable 0x005ef424; MW3's mode 1 CircleState, 0x004c9750 and

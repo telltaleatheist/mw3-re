@@ -105,6 +105,12 @@ class WireWalkT : public WireSteer<Base> {
   void set_jet_forward(float v) override { c_.set_jet_forward(v); }
   void stop_controls() override { c_.stop(); }
   void manoeuvre_over() override { --pm_brain(b_).tick.busy; }
+  bool dock_drive() override { return brain_hooks().dock_drive(); }
+  bool dock_contact() override { return brain_hooks().dock_contact(); }
+  bool powered_down(zgame::Handle v) override { return brain_hooks().powered_down(v) != 0; }
+  void mech_power(zgame::Handle v, int32_t down) override { brain_hooks().mech_power(brain_hooks().vehicle_mech(v), down); }
+  int32_t hold() override { return b_.params.get<int32_t>(0x80); }
+  void set_runs_down(bool on) override { b_.x2a4 = on ? 1 : 0; }
 
  private:
   Brain& b_;

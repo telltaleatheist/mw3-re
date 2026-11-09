@@ -10,6 +10,7 @@
 #include "mech3/zai_wire_firing_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 #include "mech3/zai_wire_pm.h"
+#include "mech3/zai_wire_states_pm.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -40,6 +41,7 @@ BehaviourState* RepairBehaviour::make_state(Order& o) {
   Brain* b = o.owner;
   const zgame::Handle v = b && b->controls ? b->controls->vehicle() : 0;
   if (h.has_mcb() && b && v && h.vehicle_mech(v)) got = h.dock_point(at);  // vt+0x50, then 0x0058b060 / vt+0x18
+  if (pm_ai_on()) return new PmRepairState(&o, *this, got ? at : nullptr);  // Pirate's Moon 1.0 @ 0x004e0320
   return new RepairState(&o, *this, got ? at : nullptr);
 }
 

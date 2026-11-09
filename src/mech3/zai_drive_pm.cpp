@@ -185,6 +185,179 @@ void ManoeuvrePm::leave(WalkPmHooks& h) {
   h.manoeuvre_over();
 }
 
+// Pirate's Moon 1.0 @ 0x004e03c0's approach (MW3's 0x004d0a10, at 53 bits here): the way from the pilot to the dock
+// point snapped to the nearest third of a turn, 40 m back from the point along it.
+void RepairStatePm::start(const float* d, const float pos[3]) {
+  dock = d;
+  if (!d) return;
+  const double a = std::atan2(-static_cast<double>(pos[0] - d[0]), -static_cast<double>(pos[2] - d[2]));
+  const double k = std::floor(a * 0.4774648292756546 + 0.5);  // 0x005ef3f8, 0x005de838
+  const double ang = k * 2.0943951023933334;                  // 0x005ef3f0
+  approach[0] = d[0] + static_cast<float>(-std::sin(ang)) * 40.0f;  // 0x005dfcd0
+  approach[1] = d[1] + 0.0f;
+  approach[2] = d[2] + static_cast<float>(-std::cos(ang) * 40.0);
+  phase = 1;
+}
+
+namespace {
+// Pirate's Moon 1.0 @ 0x004e0630: the way from where the pilot is to `to` at its speed, the stopping distance at it.
+void repair_aim(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float pos[3], const float* to, float* slow,
+                float* inv) {
+  float* from = h.way_from();  // the brain's +0x2b8
+  from[0] = pos[0], from[1] = pos[1], from[2] = pos[2];
+  const float speed = static_cast<float>(h.speed_at(v, h.max_throttle()));
+  s.set(h, from, to, speed, v);
+  const double stop = h.stop_distance(v, speed);
+  *slow = static_cast<float>(stop);
+  *inv = static_cast<float>(1.0 / stop);
+}
+// Pirate's Moon 1.0 @ 0x004e06b0: the same, keeping how far across it was and how far along the old way it had come.
+void repair_reaim(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float pos[3], const float* to, float* slow,
+                  float* inv) {
+  float* from = h.way_from();
+  from[0] = pos[0], from[1] = pos[1], from[2] = pos[2];
+  const float across = s.across, along = s.along;
+  const float speed = static_cast<float>(h.speed_at(v, h.max_throttle()));
+  s.set(h, from, to, speed, v);
+  s.x40 = static_cast<float>(std::cos(0.17453292519944444));  // [0x0062fb60], 0x004dbfa0
+  s.across = across;
+  s.along_at = s.along_at - along;
+  s.along_min = 0.0f;
+  if (s.along_at < s.along_min) s.along_at = s.along_min;
+  const double stop = h.stop_distance(v, speed);
+  *slow = static_cast<float>(stop);
+  *inv = static_cast<float>(1.0 / stop);
+}
+float flat_dist2(const float a[3], const float b[3]) {  // 0x00537aa0
+  const float dx = a[0] - b[0], dz = a[2] - b[2];
+  return dz * dz + dx * dx;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004e0790. Each walk is the move state's: driven until the carrot is at the way's end and the
+// pilot within its stopping distance, then on to the next.
+void RepairStatePm::run(WalkPmHooks& h, SteerPm& s, zgame::Handle v) {
+  float pos[3];
+  h.position(v, pos);  // the context's (0x004dcb90)
+  float away[2] = {0, 0}, sum = 0.0f, turn = 0.0f, throttle = 0.0f;
+  bool timed_out = false;
+  const auto measured = [&] { away_pm(s, away, &sum); };  // 0x004dccf0
+  const auto arrived = [&] { return s.at_end() && !(sum > slow); };
+  const auto drive = [&](int32_t next) {  // 0x004dcd20, the controls' vt+0x28 and vt+0x20
+    drive_pm(h, s, v, away, sum, slow * 0.5f, &turn, &throttle, inv_slow, 0.04f, 0.04f);
+    h.set_turn(turn);
+    h.set_throttle(throttle);
+    phase = next;
+  };
+  const auto pull_or_via = [&](int32_t via_phase, const float** to) {  // 0x004ccac0, then the record's +0x50
+    const bool got = h.pull(v, pos, approach, pulled);
+    if (got) {
+      if (const InOutVia* via = h.at_via(v)) {
+        h.queue_via(via);  // 0x004ea0f0 on the brain's +0x15c, a 0x005eeca4 item
+        phase = via_phase;
+        return true;
+      }
+    }
+    *to = got ? pulled : approach;
+    return false;
+  };
+  switch (phase) {
+    case 1:
+    case 9: {
+      const float* to = nullptr;
+      if (pull_or_via(9, &to)) return;
+      repair_aim(h, s, v, pos, to, &slow, &inv_slow);
+      measured();
+      drive(2);
+      return;
+    }
+    case 2:
+    case 3:
+    case 10:
+      goto approach_walk;
+    case 4:
+      measured();
+      goto point_walk;
+    case 5:
+      goto point_slow;
+    case 6:
+      goto wait_bases;
+    case 7:
+      timed_out = h.now() > until || !(flat_dist2(pos, dock) <= 42.25f);  // [0x006068f4]: 6.5 m off the point
+      goto down;
+    case 8:
+      goto close_in;
+    default:
+      goto ended;
+  }
+approach_walk: {
+  const float* to = nullptr;
+  if (pull_or_via(10, &to)) return;
+  const float dx = to[0] - s.start[0], dz = to[2] - s.start[2];
+  if (std::sqrt(dz * dz + dx * dx) >= 1.0f) repair_reaim(h, s, v, pos, to, &slow, &inv_slow);  // 0x00537ae0
+  measured();
+  if (to != approach || !arrived()) return drive(3);
+  own_fights = h.hold() == 1;
+  h.set_hold(0);
+  repair_aim(h, s, v, pos, dock, &slow, &inv_slow);
+  measured();
+}
+point_walk:
+  if (!arrived()) return drive(4);
+  slow = slow * 0.25f;          // 0x005de7ac
+  inv_slow = inv_slow * 4.0f;   // 0x005dfcfc
+point_slow:
+  measured();
+  if (!arrived()) return drive(5);
+  if (sum > 6.5f) {  // [0x006068f0]: a last close-in
+    slow = 6.5f * 0.5f;
+    inv_slow = 1.0f / slow;
+  close_in:
+    measured();
+    if (!arrived()) return drive(8);
+  }
+  h.set_turn(0.0f);
+  h.set_throttle(0.0f);
+wait_bases:
+  if (h.dock_drive() && !h.dock_contact()) {  // the bases still on their way
+    phase = 6;
+    return;
+  }
+  h.set_turn(0.0f);
+  h.set_throttle(0.0f);
+  h.mech_power(v, 1);
+  h.set_runs_down(true);
+  until = h.now() + 30.0f;  // 0x005dfd28
+down:
+  if (h.dock_drive() && h.dock_contact() && h.powered_down(v) && !timed_out) {
+    h.set_turn(0.0f);
+    h.set_throttle(0.0f);
+    phase = 7;
+    return;
+  }
+  h.mech_power(v, 0);
+  h.set_runs_down(false);
+  h.set_hold(own_fights ? 1 : 0);
+ended: {
+  float* from = h.way_from();  // where it stopped (0x005cb260)
+  h.position(v, from);
+  h.order_pop();  // the order's vt+0x0c
+}
+}
+
+// Pirate's Moon 1.0 @ 0x004e0570: ended while walking to the point or waiting, the own fights back; while down,
+// powered up again too. Ended in the close-in or by a via, they stay off (as the exe).
+void RepairStatePm::end(WalkPmHooks& h, zgame::Handle v) {
+  if (phase <= 3) return;
+  if (phase < 7) {
+    h.set_hold(own_fights ? 1 : 0);
+  } else if (phase == 7) {
+    h.mech_power(v, 0);
+    h.set_runs_down(false);
+    h.set_hold(own_fights ? 1 : 0);
+  }
+}
+
 // Pirate's Moon 1.0 @ 0x004dcbe0: the way from where it last was to the node, at the speed the brain's throttle gives.
 void MoveStatePm::start(WalkPmHooks& h, SteerPm& s, zgame::Handle v, const float* to) {
   step = 0, turn = 0.0f, throttle = 0.0f;
