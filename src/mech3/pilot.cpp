@@ -331,18 +331,21 @@ Pilot* load_pilot(const char* name, bool reload) {
   if (!p) p = new Pilot(name);  // new(0x84)
   else if (!reload) return p;
   p->open();
-  bool ok = false;
+  bool ok = false, refused = false;
   if (p->file) {
     std::fseek(p->file, 0, SEEK_SET);
     int32_t m = 0, v = 0, x = 0;
-    ok = rd4(p->file, &m) && rd4(p->file, &v) && rd4(p->file, &x) && m == p->magic && v == p->version && p->read();
+    ok = rd4(p->file, &m) && rd4(p->file, &v) && rd4(p->file, &x) && m == p->magic && v == p->version;
+    if (ok) ok = !(refused = !p->read());  // read() is false only for the mods' rows
   }
   p->close();
   if (ok) {
     g_pilots.push_back(p);
     return p;
   }
-  p->dirty = 0;  // ours: a file refused (a mod's row no enabled mod adds) is never written over
+  // ours: a file refused (a mod's row no enabled mod adds) is never written over; any
+  // other failed load the destructor saves when dirty, as the exe's does
+  if (refused) p->dirty = 0;
   delete p;
   return nullptr;
 }

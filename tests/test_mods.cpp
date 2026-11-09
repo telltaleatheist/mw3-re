@@ -331,7 +331,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
 // loadout file keep the numbers and name the rows in <file>.rows; with the
 // two mods swapped round they load with the same mechs and weapons; with
 // the mod off, refused by name and left as they were; with no sidecar, a
-// number past the table refused; a line that does not read refused; a
+// number past the table read as it is; a line that does not read refused; a
 // sidecar ignored by a file with no rows, and deleted when one is written
 // with none; the pilot's rename and delete carry it.
 TEST(mods_saves_name_their_rows_beside_them) {
@@ -438,14 +438,18 @@ TEST(mods_saves_name_their_rows_beside_them) {
     EXPECT(l.load_saved() && l.configs.empty() && l.keep_file);
     EXPECT(!l.save_all() && file("configs/beta.mw3.rows").find("Gun_A") != std::string::npos);
   }
-  // No sidecar and a row number past the table: refused, not read as it is.
+  // No sidecar and a row number past the table: read as it is, as the exe reads it (test_pilot's damaged files).
   mount({"a", "b"});
   std::error_code ec;
   fs::rename(wd + "/pilots/Rows.mw3.rows", wd + "/pilots/Rows.mw3.rows.kept", ec);
   mount({"a"});  // 20 alpha only; the file's 21 is past the table
   mech3::rows_file::refusals().clear();
-  EXPECT(mech3::load_pilot("Rows", false) == nullptr);
-  EXPECT(!mech3::rows_file::refusals().empty() && mech3::rows_file::refusals()[0].find("mech 21, which no enabled mod adds") != std::string::npos);
+  p = mech3::load_pilot("Rows", false);
+  EXPECT(p != nullptr && mech3::rows_file::refusals().empty());
+  if (p) {  // saved again: still no sidecar (21 is no mod's row here), the number kept
+    EXPECT(p->save() && file("pilots/Rows.mw3.rows") == "(none)");
+    drop(p);
+  }
   // A line that does not read: refused, never the raw numbers.
   mount({"a", "b"});
   put(wd + "/pilots/Rows.mw3.rows", "mech 21 beta\nweapon thirtynine Gun_B\nmech 20 alpha\n");

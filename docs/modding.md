@@ -261,8 +261,12 @@ round is safe. A name no enabled mod adds refuses the file, said in the log
 enabled mod adds`), and the file is left as it was: a refused pilot is not
 listed and never written, a refused loadout file is not read and never
 written over (`ConfigList::keep_file`), a refused import stays for later.
-With no sidecar, a row number past the table is refused the same way; one
-inside it is read as it is. A sidecar line that does not read refuses the
+With no sidecar, every number is read as it is, as the exe reads it, past
+the table too, and the sidecar names only rows a mod adds, so a damaged
+file's number past the table is written and read back as it is (refusing
+it, or naming it, departed from the exe: test_pilot.py's damaged files,
+fixed 2026-11-09). A failed load other than a refusal still saves a dirty
+pilot, as the exe's destructor does. A sidecar line that does not read refuses the
 file (never the raw number). A file with no row numbers ignores a sidecar,
 and writing one with none deletes it, so a stale sidecar never remaps a
 clean file. The pilot's rename and delete and the import's `.done` carry or
@@ -277,7 +281,7 @@ Test: `mods_saves_name_their_rows_beside_them` (a pilot with a mod's mech,
 loadout, stock weapon and mech, and a loadout file, saved with the mods in
 one order and loaded in the other: the same mechs and weapons; a mod off:
 refused by name, the files untouched and not written over; no sidecar and a
-number past the table: refused; a line that does not read: refused; rename
+number past the table: read as it is; a line that does not read: refused; rename
 and delete carry it; a rewrite with no rows deletes it; a stray sidecar
 beside a file with no rows ignored).
 
