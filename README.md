@@ -15,6 +15,11 @@ Microsoft or MicroProse.
 
 > Found a bug? Please [report it](#reporting-a-bug).
 
+**This is the `pm` branch: Pirate's Moon, the expansion, rebuilt the same way** (`mw3pm`, its
+own program, saves and settings). It needs your own installed Pirate's Moon; see the
+[pm-v1.0.0 release notes](docs/release-notes-pm-1.0.0.md) for what it needs and how to set it up.
+The rest of this read-me describes MechWarrior 3's rebuild, which Pirate's Moon shares.
+
 ## What's new
 
 Every release's full notes are on the [Releases](../../releases) page, and
@@ -24,6 +29,14 @@ original.
 ### Coming in the next release
 
 Nothing yet.
+
+**Pirate's Moon 1.0.0 (2026-11-09)**
+
+- **The first release of Pirate's Moon, rebuilt**: both campaigns, Instant Action with its own waves,
+  training and multiplayer, with Pirate's Moon's own AI. See the
+  [release notes](docs/release-notes-pm-1.0.0.md).
+- **The mouse moves at your desktop's speed** at any screen size, in both games (it was 3 to 4
+  times too fast on large screens).
 
 **1.0.5 (2026-11-07)**
 
@@ -167,7 +180,7 @@ Nothing yet.
   - macOS 12 or later, Apple silicon or Intel;
   - Linux, x86-64, with your distribution's Vulkan driver.
 
-Pirate's Moon is not supported yet.
+Pirate's Moon is its own program on this branch (`mw3pm`): see the note at the top.
 
 ## Download
 
@@ -219,7 +232,7 @@ is there it goes straight on into it:
   needs into a folder of the rebuild's own, with a progress bar and
   **Cancel**. An installed copy is used where it is. No Windows and no
   original installer needed. Versions 1.0 and 1.2 both work as they are:
-  1.0 plays as 1.2. Pirate's Moon is recognised, but its support comes later.
+  1.0 plays as 1.2. Pirate's Moon is its own program (`mw3pm`), which finds its own install.
 
 If something is wrong (not enough space, a damaged download, a file that
 is not MechWarrior 3) it says so in plain words and changes nothing.
