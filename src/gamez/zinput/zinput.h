@@ -100,6 +100,7 @@ struct State {
   // modifiers, for the controls screen's capture (frame_key).
   uint32_t frame_key = 0;
   KeySlot keys[kKeys];                 // 0x006385ac
+  uint8_t typed[kKeys] = {};           // ours (FIX bug): the key's press went to a text field (zin_kbd.cpp)
   CharCallback char_callback = nullptr;  // 0x0063c49c
   uintptr_t char_ctx = 0;              // 0x0063c4a0
 

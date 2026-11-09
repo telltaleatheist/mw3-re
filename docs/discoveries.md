@@ -4664,3 +4664,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   then decides the winner from what it saw itself, so a player whose game hadn't shown the base falling yet can
   get a different result, a tie that extends the match (from the code: 0x472850 reads only the reason; seen in
   the rebuild by destroying the base on the host alone).
+- **Typing in the chat can move your view.** The letters you type into the
+  chat (or, in the rebuild, the cheat box) still reach the game's keys. If you
+  are still holding the last letter when you press Enter, which is normal
+  when you type fast, the game sees that letter let go after the box closes.
+  L is the hold-to-look key, so a line ending in L ("operation cwal") left the
+  mouse turning the torso instead of moving the reticle until L was pressed
+  again. The rebuild keeps keys typed into a box out of the game. (Found from
+  a playtest and the code: 0x0051a5d0, Mech::update's view key. docs/input.md)
