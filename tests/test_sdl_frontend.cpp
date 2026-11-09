@@ -585,8 +585,8 @@ TEST(sdl_input_mouse_counts_relative_motion) {
 }
 
 // Ours, for playing fullscreen (FIX (A)): Alt+Enter toggles and the game never
-// sees that Enter; a captured mouse counts the device's own motion, as
-// DirectInput's mickeys did at any screen size; leaving the window lets go of
+// sees that Enter; a captured mouse moves at the desktop's speed at any
+// screen size (the system pointer's motion over the frame); leaving the window lets go of
 // what was held, and the game's sounds play on silent.
 TEST(sdl_fullscreen_keys_focus_and_mickeys) {
   sdlfe::SdlInput in;
@@ -615,13 +615,20 @@ TEST(sdl_fullscreen_keys_focus_and_mickeys) {
   in.keyboard_data(k, &n);
   EXPECT(toggles == 1 && n == 2 && k[0].ofs == 0x1c && k[0].data == 0x80 && k[1].data == 0);
 
-  // The mouse as the game holds it (DISCL_EXCLUSIVE | DISCL_FOREGROUND): a
-  // count is a mickey whatever the window's size.
+  // The mouse as the game holds it (DISCL_EXCLUSIVE | DISCL_FOREGROUND):
+  // FIX (A), a desktop pixel of the system pointer's motion is a frame
+  // pixel's share of the screen (docs/input.md, The mouse's speed), as
+  // DDrawCompat's default moves the original's. The cursor (and the aim, the
+  // same counts) crosses the same share of the screen in a 640x480 window
+  // and full screen at 3840x2160, the frame pillarboxed there (2880 wide).
   sdlfe::FrameShape shape{640, 480, true};
   in.shape = &shape;
-  in.mickey_scale = 0.5f;
+  int win_w = 640, win_h = 480;
+  in.window_size = [&](int* w, int* h) { *w = win_w, *h = win_h; };
   in.set_cooperative_level(platform::Input::kMouse, 5);
   EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0 && in.captured());
+  const char* scaled = SDL_GetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE);  // the system's speed, not raw counts
+  EXPECT(scaled && std::strcmp(scaled, "1") == 0);
   SDL_Event m{};
   m.type = SDL_EVENT_MOUSE_MOTION;
   m.motion.xrel = 96, m.motion.yrel = -48;
@@ -632,6 +639,22 @@ TEST(sdl_fullscreen_keys_focus_and_mickeys) {
   pump.handle(b);
   platform::MouseState ms;
   EXPECT(in.mouse_state(&ms) == 0 && ms.x == 96 && ms.y == -48 && ms.buttons[0] == 0x80);
+  win_w = 3840, win_h = 2160;
+  m.motion.xrel = 432, m.motion.yrel = -216;  // the same share of the frame: 96 x 2880 / 640
+  pump.handle(m);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 96 && ms.y == -48);
+  for (int i = 0; i < 10; ++i) {  // slow motion is not lost: the fractions carry
+    m.motion.xrel = 1, m.motion.yrel = 0;
+    pump.handle(m);
+  }
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 2);
+  // Stretched (no any_resolution): the window's width over the game's 640.
+  shape.fit = false;
+  m.motion.xrel = 600, m.motion.yrel = 0;
+  pump.handle(m);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.x == 100);
+  shape.fit = true;
+  win_w = 640, win_h = 480;
   pump.handle(b);  // held down when the player switches away; let go outside
   SDL_Event f{};
   f.type = SDL_EVENT_WINDOW_FOCUS_LOST;

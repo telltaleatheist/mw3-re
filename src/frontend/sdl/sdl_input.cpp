@@ -372,7 +372,22 @@ void SdlInput::note_mouse_state(bool want) {
 
 void SdlInput::capture(bool on) {
   captured_ = on;
+  if (on) SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "1");  // the system's speed and acceleration (sdl_input.h)
   if (window) SDL_SetWindowRelativeMouseMode(window, on);
+}
+
+// FIX (A) (docs/input.md, The mouse's speed): a desktop pixel of motion
+// (the system's pointer speed, held or not) is the share of the frame it
+// covers on the screen, so the mouse moves as on the desktop at any window
+// size, as DDrawCompat's default (MouseSensitivity=desktop) moves the
+// original's on Windows 11. Before, a held mouse's raw count was a whole
+// 640-wide pixel: six screen pixels at 3840 across.
+float SdlInput::motion_scale() const {
+  int w = 0, h = 0;
+  if (window_size) window_size(&w, &h);
+  else if (window) SDL_GetWindowSize(window, &w, &h);
+  if (w <= 0 || h <= 0) return mickey_scale;
+  return shape ? sdlfe::mickey_scale(static_cast<float>(w), static_cast<float>(h), *shape) : 640.0f / static_cast<float>(w);
 }
 
 // An exclusive mouse (DISCL_EXCLUSIVE) held while the window has the focus;
@@ -678,12 +693,7 @@ void SdlInput::on_event(const SDL_Event& e) {
       cursor_moved_ = true;
       raw_dx_ += e.motion.xrel, raw_dy_ += e.motion.yrel;
       if (acquired_[kMouse] && !muted()) {
-        float k = captured_ ? 1.0f : mickey_scale;
-        if (!captured_ && fitted() && window) {
-          int w = 0, h = 0;
-          SDL_GetWindowSize(window, &w, &h);
-          k = sdlfe::mickey_scale(static_cast<float>(w), static_cast<float>(h), *shape);
-        }
+        const float k = motion_scale();
         dx_ += e.motion.xrel * k, dy_ += e.motion.yrel * k;
       }
       break;
