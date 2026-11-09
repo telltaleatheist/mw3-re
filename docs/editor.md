@@ -774,6 +774,109 @@ net_01 moved and saved into `mods\ed\zbd\c1\readerm1.zbd`, the old file as
 original pilot). Breaks: the save into the side folder, no editor on the
 first frame, MODS not opened again.
 
+## Our modding dialogs (planned; a sketch for Owen, 2026-11-09)
+
+Owen's direction: modders never have to edit a file. Each major modding
+feature gets a basic dialog in the Battlesport editor, in its style (the
+panel's rows, as the net editor's forms are), marked ours, in
+`src/upgrades/editor/`. Each writes the same files a modder would write by
+hand (mod.txt rows, reader entries, per-def animation JSON, mech3ax JSON)
+into the mod being edited, so a file-edited mod and a dialog-made one are
+the same thing, and the original reads whatever it would read of either.
+Nothing here is built; it is for Owen to look over first.
+
+**Where they live.** On the MODS screen, EDIT on a mod lists, above its
+missions, a few rows of ours: NEW WEAPON, NEW MECH VARIANT, EFFECTS AND
+ANIMATIONS, CAMPAIGN MISSIONS, PACK THIS MOD. Each opens its dialog in the
+editor's panel over a mission of the mod (the first, or c1 mission 1 when it
+has none), since the effects want a world to show in. Shift+F12 in play
+does not offer them: they write into a mod, and only MODS's EDIT names one.
+
+**The machinery they share** (built already for the net editor):
+- a form of rows, one a field: a press cycles a choice or takes typed text
+  through zInput's character callback, Enter keeping it, Esc dropping it
+  (Node Params, Add vehicle);
+- a paged list to pick from (Open's net files, Add vehicle's types);
+- the save into the mod itself with one `.bak` of each file it replaces
+  (`net_save_into_mod`, `save_archive_edit` with an entry added or replaced,
+  `archive_with_entry`), building on its own last save;
+- mod.txt read and written as the MODS screen does (`mods_*`), its lines
+  kept in their order, a row added or replaced by name;
+- the status line saying what was written and where.
+
+### 1. New weapon (Freako's case first)
+
+- **Copy** an existing weapon from a paged list of every weapon the mounted
+  mods and the install have (weapons.zrd's BALLISTICS); the new one starts
+  as its copy, named `<that>_B` and so on until free.
+- **Stats** as a form of the definition's fields as zWeapon reads them
+  (weapons.md: damage, heat, range, refire, speed, ammo per ton, the
+  ballistics' and beams' own), each typed, with the copy's value shown; the
+  row's `ammo=`, `tech=` and `title=`.
+- **Effects and sounds**: the muzzle, trail, impact and flyby picked from
+  paged lists of the animation defs and sounds the worlds have (anim names,
+  zSound's names), each shown on a mark in front of the camera when picked
+  (the def run once at the view's pick point).
+- **Writes**: `weapon=<name> ammo=.. tech=.. title=..` in mod.txt; the
+  definition as an entry of the mod's `reader.zbd` weapons.zrd (added by
+  name, as the original's reader takes an extra entry: modding.md, Both
+  ways); a new effect def, if one is made from a copy, through 3 below.
+- **Then** it appears in the mech lab from the next start, as a hand-made
+  row does.
+
+### 2. Mech variant
+
+- **Copy** a mech (the 19 and the mods' rows); name, title, tech, class and
+  mass as a form, the mass in steps of 5 as the row requires.
+- **Loadouts**: the copy's saved loadouts offered as the variant's start,
+  then edited in the mech lab as any mech's are (the lab writes
+  `configs\<name>.mw3`); the dialog itself does not rebuild the lab.
+- **Writes**: `mech=<name> tech=.. mass=.. class=.. model=<the copy's> title=..`
+  in mod.txt, and `dfn_<name>.zrd` in the mod's reader.zbd as the copy's
+  definition with the new name (its parts and hard points unchanged; a
+  different model is later work: the models are zStudio's).
+
+### 3. Effects and animations
+
+On dev 1's per-def design (modding.md, Animations a def at a time):
+- **Pick** a def by world and name from a paged list (`<node>-<anim>`), or
+  copy one under a new name.
+- **Edit** its events as a list of rows (each event's type and its few
+  numbers, its target names), its puffers' and lights' settings as forms;
+  played on a mark in the world after each change (the def started, as the
+  editor's view already runs a world).
+- **Writes**: the def's JSON as unzbd writes it, `zbd\<world>\anim\<node>-<anim>.json`
+  for one world or `zbd\anim\<node>-<anim>.json` for all, and its
+  scripts' `.zan.json` beside it, into the mod, so mech3ax reads it and the
+  per-def loader merges it.
+
+### 4. A campaign's mission list
+
+- **The list**: the mod's campaign file (campaign= in mod.txt; a new one
+  made when it has none) shown as its lines in order: op headings and
+  missions, each mission its world and number, briefing, movie and bases.
+- **Edit**: rows to add a mission (a paged list of the worlds the game and
+  the mounted mods have, and their missions), move a line up or down, drop
+  it, set its briefing and movie names, add an op heading; the name and
+  closing movie as a form.
+- **Checks** as the game's own (`campaign_parse`, a world nobody has said at
+  once, not at the next start).
+- **Writes**: the campaign's `.txt` in the mod and its `campaign=` line, as a
+  modder writes them (modding.md, Custom campaigns).
+
+### 5. Pack this mod
+
+- **Checks** it first as `--check-mod` does (its files against the install,
+  its rows, its campaigns), saying what fails.
+- **Writes** a shareable `.zip` of the mod folder (mod.txt, its files, our
+  marker files left out, `.bak` files left out) beside the mods folder, with
+  a checksum list inside (modding.md, the planned step 8), the same archive
+  ADD MOD takes back in.
+
+**Order, if Owen agrees**: 1 (new weapon), then 4 (campaign list, small),
+then 2 (mech variant), then 5 (pack), then 3 (effects, the largest, waiting
+on the per-def loader).
+
 ## The stealth object
 
 Made at every mission load ("Creating Stealth", **0x004a4de0**, [0x00609a2c],
