@@ -198,6 +198,21 @@ comes back with a line saying how it closed. Built 2026-10-31;
 `--launcher-mw1` presses it at once (checks);
 `sdl_program_launcher_starts_mechwarrior_1989` (a stand-in script).
 
+## Mods (2026-11-08, modding item 5)
+
+MODS on the main screen (beside GAME FILES and QUIT) opens the list of the
+settings folder's `mods\` (`mech3::mods_list`, docs/modding.md, The
+launcher's MODS list): six rows a page, the enabled mods first in the order
+they win, the rest by name. A row's second line says ON or OFF and the
+folder, why a folder is no usable mod (the row greyed), what it shares with
+a mod above it, and after CHECK what the game would refuse in it. Clicking a
+row turns it on (last, below the others) or off; UP and DOWN move the
+selected enabled mod; each change rewrites mw3.cfg's `mod=` lines at once
+(written beside it and renamed over it) and counts from the game's next
+start. The game is chosen in one place, `mods_target` (its settings folder
+and the game `for=` must name): MechWarrior 3's here, Pirate's Moon's own
+folder when the modding work crosses to its branch.
+
 ## Built (2026-10-30, mac5/launcher-ui)
 
 `frontend/sdl/launcher.cpp` (`sdlfe::run_launcher`), called from
