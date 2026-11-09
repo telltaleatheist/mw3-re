@@ -53,11 +53,13 @@ void write_begin() {
   g_writes.push_back(g_write);
   g_write = Writing{}, g_write.on = true;
 }
+// Only the rows a mod adds: a number past the table (a damaged file's) is
+// written and read back as it is, as the exe does.
 void note_mech(int32_t m) {
-  if (g_write.on && is_mech_row(m)) g_write.mechs.insert(m);
+  if (g_write.on && is_mech_row(m) && m < mech_count()) g_write.mechs.insert(m);
 }
 void note_weapon(int32_t w) {
-  if (g_write.on && is_weapon_row(w)) g_write.weapons.insert(w);
+  if (g_write.on && is_weapon_row(w) && w < weapon_count()) g_write.weapons.insert(w);
 }
 
 void write_end(const std::string& path) {
@@ -112,7 +114,7 @@ int32_t mech(int32_t m) {
     if (it->second.now < 0) refuse("it uses the mod mech " + it->second.name + ", which no enabled mod adds");
     return it->second.now;
   }
-  if (!g_read.sidecar && m < mech_count()) return m;  // no sidecar: the number as it is
+  if (!g_read.sidecar) return m;  // no sidecar: the number as it is, as the exe reads it (a damaged file's too)
   refuse("it uses mech " + std::to_string(m) + ", which no enabled mod adds");
   return -1;
 }
@@ -125,7 +127,7 @@ int32_t weapon(int32_t w) {
     if (it->second.now < 0) refuse("it uses the mod weapon " + it->second.name + ", which no enabled mod adds");
     return it->second.now;
   }
-  if (!g_read.sidecar && w < weapon_count()) return w;
+  if (!g_read.sidecar) return w;
   refuse("it uses weapon " + std::to_string(w) + ", which no enabled mod adds");
   return -1;
 }
