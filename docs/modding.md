@@ -572,7 +572,12 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   editors behind its menu, the stealth object's view) ported whole and wired up so
   modders make missions with it as Zipper did, saved as a mod. It is the "game editor"
   of Making missions below: worlds come from zStudio (Vorta's own program, maintained
-  apart), missions and their units, nets and objectives from the editor.
+  apart), missions and their units, nets and objectives from the editor. Built in tandem
+  with the MODS screen: the screen gets an EDITOR entry from the start, a stub until
+  the editor is built, then wired to it. The editor's dialogs and screens are built out
+  to work exactly as the original's; what the exe doesn't carry but the editor needs is
+  made by hand, said as ours. After pm-v1.0.0, in the after-PM order; not to be dropped
+  (Owen: "i want to do all of this so lets not forget about it").
 - Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
   `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
   Ours will be new art in MW3's style (Owen: made with the local image generator), one
