@@ -50,6 +50,9 @@ struct Stealth;
 struct StealthLayer : ztwod::Layer {
   Stealth* owner = nullptr;  // +0x10
   ztwod::Image image{0};     // +0x14
+  // The reticle's pick (0x004a58d0; the image's +0xbc in the exe): the world
+  // point under it, the stealth's vt+0xf8 (0x004a5170, the net editor's).
+  float pick[3] = {};        // +0xd0
   explicit StealthLayer(Stealth* s);   // 0x004a55c0
   ~StealthLayer() override = default;  // 0x004a5640
   void update(float dt) override;      // +0x00 0x004a56b0

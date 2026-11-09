@@ -61,8 +61,10 @@ class NetNode : public AiElem {
   NetNode* as_node() override { return this; }
   int32_t link_count() const { return int32_t(rec.links.size()); }  // +0x04 0x004c7240
   NetNode* link_node(int32_t i) const;                 // +0x08 0x004c71f0
+  int32_t link_index(NetNode* to) const;               // +0x0c 0x004c7270: -1 without a link to `to`
   float* pos() { return rec.pos; }                     // +0x18 0x004c9170
   bool set_pos(const float p[3]);                      // +0x2c 0x004c71a0
+  bool add_link(NetNode* target);                      // +0x30 0x004c6ec0
   void relink();                                       // +0x38 0x00410590
   void link_from(NetNode* src, int32_t i);             // +0x50 0x004c7170
   bool set_link(NetNode* target, int32_t i);           // +0x54 0x004c6fc0

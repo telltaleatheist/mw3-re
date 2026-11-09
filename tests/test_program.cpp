@@ -25919,3 +25919,75 @@ TEST(mission_c1m1_net_editor_saves_into_its_own_mod_headless) {
   EXPECT(status.find("editor edits") != std::string::npos && status.find("next start") != std::string::npos);
   EXPECT(std::filesystem::exists(out.parent_path().parent_path().parent_path() / "mw3-editor.txt"));
 }
+
+// The net editor's frame on the mission (S5 sitting 3b): net_01 opened, its
+// view holds a mark for each node and its links; the stealth's reticle pick
+// (0x004a58d0) gives the frame a point in the world; Move Node puts node_00
+// there once the mouse has left it and come back (the marks' flags as the
+// window would set them); a left-up on two picks links the second (a node
+// with no link to node_00) to the first and makes the editor anew on the
+// same net, one link more in its view; leaving puts the camera's far clip
+// back.
+TEST(mission_c1m1_net_editor_view_move_and_link_headless) {
+  if (!have_game()) return;
+  int32_t marks = -1, nodes = -1, links = -1, moved = 0, linked = 0, rebuilt = 0, ground = 0;
+  float pick[3] = {}, node[3] = {}, far_before = 0, far_after = 0, kept = 0, dist = 0;
+  int32_t step = 0, at = 0, other = -1;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("net_editor_view", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    mech3::NetEditor* e = mech3::net_editor();
+    float near_z = 0;
+    if (step == 0) {
+      mech3::editor_hooks().camera_clip(&near_z, &far_before);
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::edit_ai_nets(0);
+      mech3::NetDialog& d = mech3::net_dialog();
+      for (size_t i = 0; i < d.items.size(); ++i)
+        if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+      mech3::net_dialog_close();
+      e = mech3::net_editor();
+      if (!e || !e->view) return true;
+      kept = e->far_clip;
+      nodes = e->net->count(), marks = int32_t(e->view->marks.size()), links = int32_t(e->view->links.size());
+      for (int32_t k = 1; k < nodes && other < 0; ++k)  // a node with no link to node_00 yet
+        if (e->net->node(k)->link_index(e->net->node(0)) < 0) other = k;
+      if (other < 0) return true;
+      e->view->pick(&e->view->marks[0]);
+      mech3::net_editor_move(0);
+      step = 1, at = f;
+      return false;
+    }
+    if (!e) return true;
+    if (step == 1 && f > at + 2) {  // the frames ran: the mouse was off it
+      ground = e->has_ground;
+      if (e->move == 2) e->view->marks[0].flags = 1, step = 2, at = f;
+    } else if (step == 2 && f > at + 2) {
+      for (int i = 0; i < 3; ++i) pick[i] = e->ground[i], node[i] = e->net->node(0)->pos()[i];
+      if (const float* c = mech3::editor_hooks().camera_pos())  // a crossing: nearer than the far plane
+        dist = std::sqrt((c[0] - pick[0]) * (c[0] - pick[0]) + (c[1] - pick[1]) * (c[1] - pick[1]) + (c[2] - pick[2]) * (c[2] - pick[2]));
+      moved = e->move == 3 && e->dirty && std::hypot(node[0] - pick[0], node[2] - pick[2]) < 0.01f;
+      e->view->marks[0].flags |= 2;  // clicked: done
+      e->view->pick(&e->view->marks[size_t(other)]);
+      e->view->on_left_up();
+      step = 3, at = f;
+    } else if (step == 3 && f > at + 1) {
+      mech3::ai::NetNode* n = e->net->node(other);
+      linked = n && n->link_index(e->net->node(0)) >= 0;
+      rebuilt = e->net && e->dirty && e->view->picks.empty() && int32_t(e->view->links.size()) == links + 1;
+      mech3::net_editor_exit(0);
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::editor_hooks().camera_clip(&near_z, &far_after);
+      return true;
+    }
+    return f > at + 200;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  net_01: %d nodes, %d marks, %d links; the pick %d at %.1f %.1f %.1f (%.0f from the camera), node_00 now %.1f %.1f %.1f (%d); "
+              "node_%02d linked %d, made anew %d; far clip %.0f, kept %.0f, after %.0f\n", nodes, marks, links, ground, pick[0], pick[1],
+              pick[2], dist, node[0], node[1], node[2], moved, other, linked, rebuilt, far_before, kept, far_after);
+  EXPECT(nodes > 1 && marks == nodes && links > 0);
+  EXPECT(ground && (pick[0] != 0 || pick[2] != 0) && dist > 0 && dist < far_before * 0.99f);
+  EXPECT(moved && linked && rebuilt);
+  EXPECT(kept == far_before && far_after == far_before);
+}

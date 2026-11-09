@@ -1444,6 +1444,18 @@ From the network code (network-messages.md).
   vehicle. Nothing in the released game can open it (docs/editor.md; the
   rebuild opens it for developers with Shift+F12 under --debug-camera and
   gives the view back on exit).
+- **How the hidden AI path editor shows a net.** Every path node is a red
+  circle over the 3D view, sized by its distance, and every link a line
+  with arrowheads pointing the way the AI may walk it (both ends for a
+  two-way link). A line is blue when its two nodes can see each other and
+  red when something is in between, so a designer could spot a path that
+  runs through a wall. Click nodes to pick them (hold shift to pick several),
+  and letting go over the ground links every picked node to the first one.
+  Move Node makes the first picked node follow the mouse over the ground.
+  Looking steeply down, the editor pulls the far clip in to about one and a
+  half times the distance to the ground, likely to keep the frame quick
+  over a whole map (docs/editor.md, The net view). In the original the blue could
+  come out red at random: it read leftover memory to decide.
 - **Battlesport was Recoil.** Recoil's exes carry their source paths, and the game's folder is
   `D:\Proj\Battlesport`, beside the engine's `D:\Proj\GameZRecoil`. So the "BATTLESPORT GAME
   EDITOR" in MW3 is most likely a name from Recoil, built alongside MW3 on the same engine
