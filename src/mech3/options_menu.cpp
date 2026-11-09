@@ -412,6 +412,40 @@ GfxAudioScreen::GfxAudioScreen(Engine& e, Handle s)
   set_active(1);
 }
 
+// Pirate's Moon 1.0 @ 0x0043a890: LIGHTING's choice from the GfxFlags light-map bits 17 and 18 (0x0040b270):
+// none LIGHT MAPS (3, the card's choice, the default), 17 A (1), 18 B (2), both ON (0, lit, no light maps);
+// bit 0 clear OFF (-1).
+int32_t light_maps_choice(uint32_t flags) {
+  if (!(flags & 1)) return -1;
+  const bool a = (flags >> 17) & 1, b = (flags >> 18) & 1;
+  return a ? (b ? 0 : 1) : (b ? 2 : 3);
+}
+
+// Pirate's Moon 1.0 @ 0x0043a060's write: the choice back into GfxFlags.
+uint32_t light_maps_flags(int32_t v, uint32_t flags) {
+  switch (v) {
+    case -1: return flags & ~1u;
+    case 0: return flags | 0x60001u;
+    case 1: return (flags & ~0x40000u) | 0x20001u;
+    case 2: return (flags & ~0x20000u) | 0x40001u;
+    case 3: return (flags & ~0x60000u) | 1u;
+    default: return flags | 1u;
+  }
+}
+
+namespace {
+// Pirate's Moon 1.0 @ 0x0043a8e0 (and inline in 0x0043ab30): LIGHTING's choices, PM's in place of MW3's on and off.
+void light_maps_list(CycleButton& c, uint32_t flags) {
+  c.clear_items();
+  c.add_item("OFF", -1);
+  c.add_item("ON", 0);
+  c.add_item("LIGHT MAPS", 3);
+  c.add_item("LIGHT MAPS A", 1);
+  c.add_item("LIGHT MAPS B", 2);
+  c.select_value(light_maps_choice(flags));
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x004395c0: a new video device asks to restart the game
 // (message 0xf2f); the rest is written whatever the answer. Lighting and the
 // shadows need a 3D card that InstallOptions allows; else they are written off.
@@ -423,7 +457,7 @@ void GfxAudioScreen::apply(int32_t to_options) {
     resolution.select_each_value(e.in_game_vmode());
     device.select_each_value(e.hw_card_dev());
     textures.select_each_value(e.texture_memory());
-    lighting.select((e.gfx_flags() & 1) != 0);
+    light_maps_list(lighting, static_cast<uint32_t>(e.gfx_flags()));  // Pirate's Moon 1.0 @ 0x0043a060
     sound.select_value(e.sound_lod());
     const int32_t lod = e.object_lod();
     if (lod >= 0 && lod <= 2) detail.select_each_value(level_of(lod));
@@ -453,7 +487,7 @@ void GfxAudioScreen::apply(int32_t to_options) {
   e.set_effects_level(level_of(effects.value_at(effects.index)));
   e.set_in_game_vmode(resolution.selected_value());
   if (e.hw_card_flag() && e.install_options(0xff)) {
-    flags = lighting.selected_value() ? flags | 1 : flags & ~1;
+    flags = static_cast<int32_t>(light_maps_flags(lighting.selected_value(), static_cast<uint32_t>(flags)));
     e.set_gfx_flags(flags);
     e.set_shadow_parts(self_shadows.selected_value());
     e.set_shadow(shadows.selected_value());
@@ -479,7 +513,7 @@ void GfxAudioScreen::device_changed(int32_t dev) {
   self_shadows.set_enabled(hw ? 1 : 0);
   const int32_t old = e.hw_card_dev();
   e.set_hw_card_dev(dev);
-  lighting.select((e.gfx_flags() & 1) != 0);
+  light_maps_list(lighting, static_cast<uint32_t>(e.gfx_flags()));  // Pirate's Moon 1.0 @ 0x0043ab30
   const int32_t fx = e.effects_level();
   if (fx >= 0 && fx <= 2) effects.select_each_value(level_of(fx));
   self_shadows.select(e.shadow_parts() != 0);

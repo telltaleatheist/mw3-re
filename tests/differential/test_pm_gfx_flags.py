@@ -1,11 +1,13 @@
 """Pirate's Moon's GfxFlags setter 0x40b270 (MW3's 0x40d430, pm-tests item 20): besides the
 flags and the sunlight node, PM's LIGHT MAPS level [0x8ccc64] from bits 17 and 18 (0, 1, 2,
 both -1: no light maps on models), left as it was for flags of 0. The port against the exe
-for random flags and starting levels; the sunlight node is not found on either side.
+for random flags and starting levels; the sunlight node is not found on either side. Then
+the options screen's LIGHTING choice (OFF, ON, LIGHT MAPS, A, B) as 0x43a890 reads it from
+the flags, and the write back (0x43a060's switch) giving each choice again.
 
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_gfx_flags.py
 
-BREAK=1 swaps the port's bits 17 and 18: it must fail.
+BREAK=1 swaps the port's bits 17 and 18, BREAK=2 its choices A and B: each must fail.
 """
 import ctypes
 import os
@@ -18,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_pm_zar  # noqa: E402
 
 SET, FIND, LEVEL, WHICH, HW_SLOT, SW_SLOT = 0x40b270, 0x50b920, 0x8ccc64, 0x618788, 0x6187a0, 0x61879c
+CHOICE, FLAGS = 0x43a890, 0x40b300
 
 
 def main():
@@ -44,10 +47,31 @@ def main():
         if mine != theirs:
             bad += 1
             print(f'FAIL flags {flags:#x} from {before}: port {mine}, exe {theirs}')
+    lib.probe_pm_light_maps_choice.argtypes = [ctypes.c_uint32]
+    lib.probe_pm_light_maps_choice.restype = ctypes.c_int32
+    lib.probe_pm_light_maps_flags.argtypes = [ctypes.c_int32, ctypes.c_uint32]
+    lib.probe_pm_light_maps_flags.restype = ctypes.c_uint32
+    now = [0]
+    z.native_stub(FLAGS, lambda c: now[0])
+    swap = {1: 2, 2: 1} if brk == 2 else {}
+    for flags in cases + [c | 1 for c in cases]:
+        now[0] = flags
+        theirs = struct.unpack('<i', struct.pack('<I', z.call(CHOICE) & 0xffffffff))[0]
+        mine = lib.probe_pm_light_maps_choice(flags)
+        mine = swap.get(mine, mine)
+        if mine != theirs:
+            bad += 1
+            print(f'FAIL choice for {flags:#x}: port {mine}, exe {theirs}')
+        for v in (-1, 0, 3, 1, 2):
+            back = lib.probe_pm_light_maps_flags(v, flags)
+            now[0] = back
+            if struct.unpack('<i', struct.pack('<I', z.call(CHOICE) & 0xffffffff))[0] != v or back & ~0x60001 != flags & ~0x60001:
+                bad += 1
+                print(f'FAIL write {v} on {flags:#x}: {back:#x}')
     if bad:
         print(f'{bad} of {len(cases)} differ')
         sys.stdout.flush(); os._exit(1)
-    print(f'ok: {len(cases)} flags, the LIGHT MAPS level identical')
+    print(f'ok: {len(cases)} flags, the LIGHT MAPS level identical; the LIGHTING choice identical on {2 * len(cases)}, each of the five written back and read again')
     sys.stdout.flush(); os._exit(0)
 
 

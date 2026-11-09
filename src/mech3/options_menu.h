@@ -195,7 +195,7 @@ class GfxAudioScreen : public MenuScreen {
   VolumeSlider sfx;                  // +0x11378  SFXSLIDER: SoundVolume
   OnOffCycle shadows;                // +0x11504  SHADOWS: Shadow
   OnOffCycle self_shadows;           // +0x11928  SELF_SHADOWS: ShadowParts
-  OnOffCycle lighting;               // +0x11d4c  LIGHTING: GfxFlags bit 0
+  OnOffCycle lighting;               // +0x11d4c  LIGHTING: GfxFlags bit 0, PM's light maps (bits 17, 18) in its choices
   ResolutionCycle resolution;        // +0x12170  RESOLUTION: InGameVMode
   DeviceCycle device;                // +0x12594  VIDEO_DEVICE: HWCardDev
   TextureCycle textures;             // +0x129b8  TEXTURES: TextureMemory
@@ -208,5 +208,10 @@ class GfxAudioScreen : public MenuScreen {
   ztwod::Image lines1{0};            // +0x13edc  LINES1
   int32_t device_on_entry = 0;       // +0x13f98  VIDEO_DEVICE's when the screen was read
 };
+
+// Pirate's Moon 1.0 @ 0x0043a890 and 0x0043a060's write: LIGHTING's choice (-1 OFF, 0 ON, 3 LIGHT MAPS, 1 A, 2 B)
+// from GfxFlags and back.
+int32_t light_maps_choice(uint32_t flags);
+uint32_t light_maps_flags(int32_t choice, uint32_t flags);
 
 }  // namespace mech3

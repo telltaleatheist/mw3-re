@@ -231,6 +231,14 @@ TEXTURES (TextureMemory), SOUND_QUALITY (SoundLOD), OBJECT_DETAIL
 (ObjectLOD) and SPECIAL_EFFECTS (EffectsLevel), the last two shown
 inverted (level 0, the most, is HIGH).
 
+Pirate's Moon's LIGHTING has five choices in place of ON and OFF (0x0043a8e0,
+also filled in 0x0043ab30 for the device): OFF, ON, LIGHT MAPS, LIGHT MAPS A,
+LIGHT MAPS B. They are GfxFlags bit 0 with the light-map bits 17 and 18
+(0x0043a890 reads them, 0x0043a060 writes them, 0x0040b270 turns them into the
+draw's option): OFF bit 0 clear; ON both bits, lit without light maps; LIGHT
+MAPS neither, the card's choice and the default; A bit 17; B bit 18. Accept
+writes them at once (the next draw), to GfxFlags_HW.
+
 MOUSE SENSITIVITY sat here from 2026-11-02 to 11-07, among the volume
 sliders; it is on the game options now (section 4).
 
