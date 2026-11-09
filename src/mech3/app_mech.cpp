@@ -2917,3 +2917,15 @@ std::vector<int32_t> salvage_weapon_types(void* o) {
 }
 
 }  // namespace mech3
+namespace mech3 {
+// Tests (pm-tests item 23): a mech's knock (+0x53c), the gait's threshold for it (0x00417a80) and whether it is
+// airborne.
+float mech_knock(void* mech, float* threshold, bool* airborne) {
+  auto* m = static_cast<Mech*>(mech);
+  float t = m->tonnage();
+  if (t < 10.0f) t = 10.0f;
+  *threshold = (t - 10.0f) * 0.0111111114f * m->knockdown[4] + m->knockdown[3];
+  *airborne = m->airborne();
+  return m->knock;
+}
+}  // namespace mech3

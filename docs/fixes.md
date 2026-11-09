@@ -447,6 +447,7 @@ change.
 | A vehicle's support on the ground, 0x004a2820 (vehicles.md, High frame rates; W57) | Its vertical speed is the ground's step over the frame, (ground - y) / dt | (B) the same rise launches a vehicle harder the shorter the frame: at 5 to 8 ms an APC rolls up to 82 degrees and leaves at up to 67 m/s, against 12 to 40 degrees at 30 fps | Behind `per_second`: on frames under 1/30 s the step counts over 1/30 s; longer frames are the exe's. The jump off steep banks at 30 fps is the exe's and kept. `fix_vehicle_support_rise_per_second` |
 | The frame's fill in a mission, 0x00576cf0 and 0x005777f0 (Owen, 2026-11-04: "the band isn't supposed to be there. it's a visual distortion") | The colour clear is off, so a pixel no draw covers keeps an older frame; the port had filled a debug viewer's blue-grey (89, 115, 140) instead | (bug) from height, a band between the far ground and the sky | With bug fixes on, the fog's colour, or black with fog off; off, depth only as the exe |
 | A light's place, 0x004fb0c0 through 0x004ed280 | (the port's own: a short chain standing in for the exe's whole walk) | (bug, the port's) a light under an object3d sat at its parent's origin | The whole chain, as the exe |
+| Weapon::destroy, 0x004b3020 (pm-tests item 21) | The current weapon destroyed: the HUD's next line becomes current (its +0x1795c, the line after it, 0x00446540), destroyed or not; without the player's screen the group's next (0x004b0790), also unchecked | (bug) the selection stays on a destroyed weapon when the one after it is gone too | Behind `bugs`: when the current one is still destroyed after that, the first standing weapon after it in the list's order (`WeaponManager::standing_after`); `mission_c1m1_selection_leaves_a_destroyed_weapon_headless`. Pirate's Moon's own (0x004b6f70) refreshes the list first and picks the next that can fire, so it avoids most of this |
 
 Notes on the fixes:
 
@@ -634,6 +635,8 @@ Kept:
   held back; pilots leave a fight as they always have).
 
 ## Candidates for Owen
+
+- **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
 
 - A mobile field base's centroid is on the ground (dev, 2026-10-31, W34,
   ai.md 17.7): its constructor 0x00458a70 sets its node with 0x004d6c90(node,

@@ -359,7 +359,7 @@ struct ProgramHudHooks : HudHooks {
     if (own) zcls::node_set_intersect(own, 1);
     out->count = r.count;
     out->total = r.total;
-    for (int i = 0; i < r.count && i < 31; ++i) std::memcpy(&out->rec[i], &r.hit[i], sizeof(zwep::HitRecord));
+    for (int i = 0; i < r.count && i < 32; ++i) std::memcpy(&out->rec[i], &r.hit[i], sizeof(zwep::HitRecord));  // all 32 (zwep_init.h)
     return res;
   }
   // The player's mech, its weapon manager and target (hud.md sections 12,
@@ -892,6 +892,26 @@ void wire_hud() {
     return hud_hooks().reticle_over_target(&h->target, x, y) ? 1 : 0;
   };
   wc.hud_443d20 = [](Handle s, int32_t v) { static_cast<Hud*>(s)->reticle.aim_state(v != 0); };
+  // Ours (pm-tests item 25): each lock-on volley of the player's in the log: locked or not, the target and how
+  // long since it was picked, the reticle's lock state and how long it has held, where the shot was aimed.
+  wc.lock_shot = [](const Weapon& w) {
+    Mech* m = program_view_mech();
+    Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+    if (!h) return;
+    Mech* tm = m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
+    const char* name = tm && tm->node ? static_cast<zcls::Node*>(tm->node)->name() : (m->target ? "(not a mech)" : "(none)");
+    float tp[3] = {};
+    if (tm) {
+      mech_world_position(tm, tp);
+    } else if (m->target) {  // a vehicle or building: where the sensors last saw it
+      mech_world_position(m, tp);
+      for (int i = 0; i < 3; ++i) tp[i] += m->target->delta[i];
+    }
+    std::printf("mw3: lock shot: %s locked %d; target %s at %.0f %.0f %.0f, picked %.2f s ago; reticle %d, locked for %.2f s; "
+                "aimed at %.0f %.0f %.0f\n",
+                w.def && w.def->name ? w.def->name : "?", w.locked ? 1 : 0, name, tp[0], tp[1], tp[2], h->target.since_set,
+                h->reticle.lock, h->reticle.locked_for, w.target.x, w.target.y, w.target.z);
+  };
   wc.hud_highlight = [](Handle o) -> Weapon* {
     Hud* h = hud_of(o);
     return h ? static_cast<Weapon*>(h->weapons.next_weapon) : nullptr;
@@ -989,7 +1009,7 @@ void unwire_hud() {
   damage_calls().head_hit_hud = nullptr;
   WeaponCalls& wc = weapon_calls();
   wc.screen = nullptr, wc.hud_screen = nullptr, wc.hud_groups = nullptr, wc.hud_weapons = nullptr;
-  wc.hud_fire = nullptr, wc.hud_highlight = nullptr;
+  wc.hud_fire = nullptr, wc.hud_highlight = nullptr, wc.lock_shot = nullptr;
   mech_radar_blips_destroy();
   update_calls().player_frame = nullptr;
   mech_hud_calls() = MechHudCalls{};
@@ -1379,5 +1399,36 @@ bool program_hud_power_state(void* mech, bool* on, bool* reticle_shown) {
   if (!h) return false;
   *on = h->active == 1, *reticle_shown = !(h->reticle.flags & ztwod::kHidden);
   return true;
+}
+
+void* program_view_target_mech() {
+  Mech* m = program_view_mech();
+  return m && m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
+}
+const void* program_view_target_contact() {
+  Mech* m = program_view_mech();
+  return m ? m->target : nullptr;
+}
+bool program_view_target_delta(float d[3]) {
+  Mech* m = program_view_mech();
+  if (!m || !m->target) return false;
+  std::copy(m->target->delta, m->target->delta + 3, d);
+  return true;
+}
+float program_view_target_since() {
+  Mech* m = program_view_mech();
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  return h ? h->target.since_set : -1.0f;
+}
+// Tests (pm-tests item 25): the view mech's reticle lock state (0..4, 3 locked) and its timer, set first when
+// `set` >= 0; and whether its weapons may lock (the manager's +0x88).
+int32_t program_reticle_lock(int32_t set, float timer, bool* has_target) {
+  Mech* m = program_view_mech();
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  *has_target = false;
+  if (!h) return -1;
+  if (set >= 0) h->reticle.lock = set, h->reticle.lock_timer = timer;
+  if (auto* wm = static_cast<WeaponManager*>(m->ammo)) *has_target = wm->has_target;
+  return h->reticle.lock;
 }
 }  // namespace mech3

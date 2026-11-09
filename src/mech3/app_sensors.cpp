@@ -731,6 +731,39 @@ std::vector<void*> chain_prerequisite_nodes() {
   return out;
 }
 
+bool mech_hit_from(void* mech, void* def, const float from[3], void* shooter, float damage_scale) {
+  auto* d = static_cast<zwep::WeaponDef*>(def);
+  auto* m = static_cast<Mech*>(mech);
+  zcls::Node* n = m ? shootable_under(static_cast<zcls::Node*>(m->target_node)) : nullptr;
+  if (!d || !n) return false;
+  float at[3];
+  world_position(n, at);
+  zwep::HitRecord rec;
+  rec.normal = {0.0f, 1.0f, 0.0f};
+  rec.point = {at[0], at[1], at[2]};
+  rec.node = static_cast<zwep::Handle>(n);
+  static zwep::Projectile p;
+  p = zwep::Projectile{};
+  p.owner = shooter;
+  p.position = {from[0], from[1], from[2]};
+  p.spawn_at = p.position;
+  p.damage_scale = damage_scale;
+  zwep::impact(d, &rec, &p, nullptr);
+  return true;
+}
+
+float weapon_def_impact(void* def) {
+  auto* d = static_cast<zwep::WeaponDef*>(def);
+  return d && d->type ? d->type->impact_force : 0.0f;
+}
+
+void* chain_heaviest_impact() {
+  zwep::WeaponDef* best = nullptr;
+  for (zwep::WeaponDef& d : zwep::state().defs)
+    if (d.type && !d.callback && !d.type->is_narc && (!best || d.type->impact_force > best->type->impact_force)) best = &d;
+  return best;
+}
+
 bool chain_hit(uint32_t h, void* def) {
   zcls::Node* n = aim_node(h);
   if (!shootable(n)) n = g_sensors.node(h, false);

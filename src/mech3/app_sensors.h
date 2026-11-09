@@ -73,6 +73,11 @@ bool chain_hit(uint32_t h, void* def);
 // The same on a scene node (the first under it a shot can damage); false
 // when none can be.
 bool chain_hit_node(void* node, void* def);
+// Tests (pm-tests item 23): one shot of `def` on a mech's aim node from `from`, owned by `shooter`'s node (the
+// knockback's direction); the weapon with the largest IMPACT_FORCE.
+bool mech_hit_from(void* mech, void* def, const float from[3], void* shooter, float damage_scale = 1.0f);
+void* chain_heaviest_impact();
+float weapon_def_impact(void* def);
 // The nodes of the animations a destroyed target's destroy animation still
 // waits for (its prerequisites, not yet run): what has to fall first, as
 // c1m3's legs under the buildings.
