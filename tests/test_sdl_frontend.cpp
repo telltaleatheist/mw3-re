@@ -2425,6 +2425,55 @@ TEST(sdl_window_shape_maps_the_mouse_through_the_frame) {
 }
 
 
+#if !defined(_WIN32)  // posix_spawn
+// Shared by both games' suites (MW3_BIN is the suite's program: mw3, or mw3pm in Pirate's Moon's).
+extern char** environ;
+namespace {
+pid_t spawn_bin(const char* bin, const std::vector<std::string>& args, const std::string& log) {
+  std::vector<std::string> a = {bin};
+  a.insert(a.end(), args.begin(), args.end());
+  std::vector<char*> argv;
+  for (std::string& s : a) argv.push_back(s.data());
+  argv.push_back(nullptr);
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  posix_spawn_file_actions_adddup2(&fa, 1, 2);
+  pid_t pid = 0;
+  const int err = posix_spawn(&pid, bin, &fa, nullptr, argv.data(), environ);
+  posix_spawn_file_actions_destroy(&fa);
+  return err == 0 ? pid : -1;
+}
+pid_t spawn_mw3(const std::vector<std::string>& args, const std::string& log) { return spawn_bin(MW3_BIN, args, log); }
+// The lit box (any channel over 24) of a 32-bit BMP: left, top, right, bottom.
+bool bmp_lit_box(const std::string& path, int* w, int* h, int box[4]) {
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return false;
+  std::vector<uint8_t> d;
+  uint8_t buf[65536];
+  for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) d.insert(d.end(), buf, buf + n);
+  std::fclose(f);
+  if (d.size() < 54 || d[0] != 'B' || d[1] != 'M' || d[28] != 32) return false;
+  auto u32 = [&](size_t at) { return static_cast<uint32_t>(d[at] | d[at + 1] << 8 | d[at + 2] << 16 | d[at + 3] << 24); };
+  const uint32_t off = u32(10);
+  *w = static_cast<int32_t>(u32(18));
+  const int32_t sh = static_cast<int32_t>(u32(22));
+  *h = std::abs(sh);
+  if (static_cast<size_t>(off) + static_cast<size_t>(*w) * *h * 4 > d.size()) return false;
+  box[0] = *w, box[1] = *h, box[2] = -1, box[3] = -1;
+  for (int y = 0; y < *h; ++y)
+    for (int x = 0; x < *w; ++x) {
+      const size_t i = off + (static_cast<size_t>(y) * *w + x) * 4;
+      if (std::max({d[i], d[i + 1], d[i + 2]}) <= 24) continue;
+      const int row = sh > 0 ? *h - 1 - y : y;  // bottom up unless the height is negative
+      box[0] = std::min(box[0], x), box[2] = std::max(box[2], x);
+      box[1] = std::min(box[1], row), box[3] = std::max(box[3], row);
+    }
+  return true;
+}
+}  // namespace
+#endif
+
 // The front end at a 16:9 or 4K window (resolution.md step 5): the menus run
 // at mode 5, a 640x480 frame pillarboxed in the window (step 2's fit), so a
 // click on each main-menu button's window point lands on that button's
@@ -2489,22 +2538,6 @@ bool bmp_shares(const std::string& path, int* w, int* h, double* lit, double* gr
   *lit = static_cast<double>(l) / n, *green = static_cast<double>(g) / n;
   return true;
 }
-pid_t spawn_bin(const char* bin, const std::vector<std::string>& args, const std::string& log) {
-  std::vector<std::string> a = {bin};
-  a.insert(a.end(), args.begin(), args.end());
-  std::vector<char*> argv;
-  for (std::string& s : a) argv.push_back(s.data());
-  argv.push_back(nullptr);
-  posix_spawn_file_actions_t fa;
-  posix_spawn_file_actions_init(&fa);
-  posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  posix_spawn_file_actions_adddup2(&fa, 1, 2);
-  pid_t pid = 0;
-  const int err = posix_spawn(&pid, bin, &fa, nullptr, argv.data(), environ);
-  posix_spawn_file_actions_destroy(&fa);
-  return err == 0 ? pid : -1;
-}
-pid_t spawn_mw3(const std::vector<std::string>& args, const std::string& log) { return spawn_bin(MW3_BIN, args, log); }
 // mw3launcher, the launcher's own program (docs/launcher.md, The two programs).
 // A stale mw3pm beside the build's launcher would make PIRATE'S MOON a live
 // entry and move every key walk: none, unless a test names its stand-in.
@@ -5245,32 +5278,6 @@ TEST(sdl_program_launcher_follows_a_moved_folder) {
 // INTRO across the whole width with bars above and below, C1M1 at the
 // screen's height with black sides. Skipped without FFmpeg in the importer.
 namespace {
-// The lit box (any channel over 24) of a 32-bit BMP: left, top, right, bottom.
-bool bmp_lit_box(const std::string& path, int* w, int* h, int box[4]) {
-  std::FILE* f = std::fopen(path.c_str(), "rb");
-  if (!f) return false;
-  std::vector<uint8_t> d;
-  uint8_t buf[65536];
-  for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) d.insert(d.end(), buf, buf + n);
-  std::fclose(f);
-  if (d.size() < 54 || d[0] != 'B' || d[1] != 'M' || d[28] != 32) return false;
-  auto u32 = [&](size_t at) { return static_cast<uint32_t>(d[at] | d[at + 1] << 8 | d[at + 2] << 16 | d[at + 3] << 24); };
-  const uint32_t off = u32(10);
-  *w = static_cast<int32_t>(u32(18));
-  const int32_t sh = static_cast<int32_t>(u32(22));
-  *h = std::abs(sh);
-  if (static_cast<size_t>(off) + static_cast<size_t>(*w) * *h * 4 > d.size()) return false;
-  box[0] = *w, box[1] = *h, box[2] = -1, box[3] = -1;
-  for (int y = 0; y < *h; ++y)
-    for (int x = 0; x < *w; ++x) {
-      const size_t i = off + (static_cast<size_t>(y) * *w + x) * 4;
-      if (std::max({d[i], d[i + 1], d[i + 2]}) <= 24) continue;
-      const int row = sh > 0 ? *h - 1 - y : y;  // bottom up unless the height is negative
-      box[0] = std::min(box[0], x), box[2] = std::max(box[2], x);
-      box[1] = std::min(box[1], row), box[3] = std::max(box[3], row);
-    }
-  return true;
-}
 }  // namespace
 
 TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
@@ -5336,7 +5343,19 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
   EXPECT(text.find("intro/") == std::string::npos && text.find("c1/") == std::string::npos);
 }
 
-// The opening's still (SPLASH's mech3splash, after INTRO) on a 16:9 mode, with
+#endif
+#endif
+
+#endif  // MW3_PM_SUITE
+
+// Both games' (pm-tests.md front-end items 1 and 2): MW3_BIN and MW3_GAME_DIR are the suite's game.
+#if !defined(_WIN32)  // posix_spawn
+#if defined(MW3_PM_SUITE)
+constexpr const char* kSettingsKey = "MechWarrior 3 EP1";  // settings.reg's key, the game's own
+#else
+constexpr const char* kSettingsKey = "MechWarrior 3";
+#endif
+// The opening's still (SPLASH's image, after INTRO) on a 16:9 mode, in both games, with
 // the wide menus and without: 4:3 at the screen's height, black sides, never
 // stretched (pm-tests.md front-end item 2). No movies needed (-nofmv).
 TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
@@ -5348,8 +5367,8 @@ TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
   std::filesystem::create_directories(dir, ec);
   for (const char* wide : {"--wide-menus", "--no-wide-menus"}) {
     if (std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "w")) {
-      std::fputs("Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0]\n"
-                 "\"InGameVMode\"=dword:0000000d\n", f);
+      std::fprintf(f, "Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\%s\\1.0]\n"
+                   "\"InGameVMode\"=dword:0000000d\n", kSettingsKey);
       std::fclose(f);
     }
     const std::string bmp = dir + "/splash" + wide + ".bmp";
@@ -5365,10 +5384,9 @@ TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
   }
 }
 #endif
-#endif
 
 #if !defined(_WIN32)  // posix_spawn's std::system
-// A first start (no InGameVMode saved) plays 16:9, or the screen's own shape, at the desktop's size: mode 16
+// A first start (no InGameVMode saved), in both games, plays 16:9, or the screen's own shape, at the desktop's size: mode 16
 // with the desktop's width and height saved (FIX (B), resolution.md; pm-tests.md front-end item 1). Checks keep
 // it off; MW3_FIRST_START=1 keeps it on in this one. The size saved is the frame the program opened.
 TEST(sdl_first_start_takes_the_desktop) {
@@ -5399,7 +5417,6 @@ TEST(sdl_first_start_takes_the_desktop) {
   EXPECT(fw > 0 && fh > 0 && fw * 3 != fh * 4);  // the desktop's shape, not the 4:3 of a check
 }
 #endif
-#endif  // MW3_PM_SUITE
 
 #if !defined(_WIN32)  // posix_spawn, waitpid
 extern char** environ;
