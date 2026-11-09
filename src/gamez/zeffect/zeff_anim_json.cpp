@@ -152,6 +152,7 @@ struct Json {
 
 // What events name, by the def's lists (mech3ax's lookups: a list's index from 1).
 struct Def {
+  std::string name, anim_name;
   std::vector<std::string> nodes, lights, puffers, dyn_sounds, static_sounds;
   size_t anim_refs = 0;
   static int16_t find(const std::vector<std::string>& v, const std::string& n) {
@@ -453,6 +454,112 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
       ad = delta(from[3], to[3], run);
     }
     for (int k = 0; k < 4; ++k) o.f32(from[k]), o.f32(to[k]), o.f32(k == 3 ? ad : delta(from[k], to[k], run));
+    o.f32(run);
+    return true;
+  }
+  if (type == "ObjectMotion") {
+    int16_t n;
+    bool impact;
+    if (!(node("node", 0, &n) && j.boolean(d, at, "impact_force", &impact))) return false;
+    uint32_t flags = impact ? 2 : 0;
+    float morph = 0, grav = 0, range[8] = {}, trans[9] = {}, fwd[2] = {0, 0}, xyz[6] = {}, scale[6] = {}, run = 0;
+    const auto rng = [&](const Value& v, const std::string& ra, const char* key, float* out) {
+      const Value* r = j.get(v, ra, key);
+      return r && j.f32(*r, ra + "." + key, "min", &out[0]) && j.f32(*r, ra + "." + key, "max", &out[1]);
+    };
+    const Value *mo, *gr, *trr, *tr, *fr, *xr, *sc, *bs, *bd, *rt;
+    if (!((mo = j.get(d, at, "morph")) && (gr = j.get(d, at, "gravity")) && (trr = j.get(d, at, "translation_range")) &&
+          (tr = j.get(d, at, "translation")) && (fr = j.get(d, at, "forward_rotation")) && (xr = j.get(d, at, "xyz_rotation")) &&
+          (sc = j.get(d, at, "scale")) && (bs = j.get(d, at, "bounce_sequence")) && (bd = j.get(d, at, "bounce_sound")) &&
+          (rt = j.get(d, at, "run_time"))))
+      return false;
+    if (mo->kind != Value::Null) {
+      if (!j.r.f32(*mo, at + ".morph", &morph)) return false;
+      flags |= 0x200;
+    }
+    if (gr->kind != Value::Null) {
+      bool cx, na;
+      if (!(j.f32(*gr, at + ".gravity", "value", &grav) && j.boolean(*gr, at + ".gravity", "complex", &cx) &&
+            j.boolean(*gr, at + ".gravity", "no_altitude", &na)))
+        return false;
+      flags |= 1 | (cx ? 0x2000 : 0) | (na ? 0x4000 : 0);
+    }
+    if (trr->kind != Value::Null) {
+      const std::string ra = at + ".translation_range";
+      if (!(rng(*trr, ra, "xz", range) && rng(*trr, ra, "y", range + 2) && rng(*trr, ra, "initial", range + 4) && rng(*trr, ra, "delta", range + 6)))
+        return false;
+      // mech3ax's quirk of two shipped defs, whose range sets only its first flag
+      const bool borked = (def.name == "ramp1" || def.name == "ramp2") && (def.anim_name == "hit_ramp1" || def.anim_name == "hit_ramp2");
+      flags |= borked ? 8 : 0x18;
+    }
+    if (tr->kind != Value::Null) {
+      if (!(vec(*tr, at + ".translation", "initial", trans) && vec(*tr, at + ".translation", "delta", trans + 3) &&
+            vec(*tr, at + ".translation", "rnd_xz", trans + 6)))
+        return false;
+      flags |= 4;
+    }
+    if (fr->kind != Value::Null) {
+      if (const Value* t = fr->kind == Value::Object ? fr->get("Time") : nullptr) {
+        if (!(j.f32(*t, at + ".forward_rotation.Time", "initial", &fwd[0]) && j.f32(*t, at + ".forward_rotation.Time", "delta", &fwd[1]))) return false;
+        flags |= 0x80;
+      } else if (const Value* ds = fr->kind == Value::Object ? fr->get("Distance") : nullptr) {
+        if (!j.f32(*ds, at + ".forward_rotation.Distance", "initial", &fwd[0])) return false;
+        flags |= 0x40;
+      } else {
+        return j.r.fail(*fr, at + ".forward_rotation", "not Time or Distance");
+      }
+    }
+    if (xr->kind != Value::Null) {
+      if (!(vec(*xr, at + ".xyz_rotation", "initial", xyz) && vec(*xr, at + ".xyz_rotation", "delta", xyz + 3))) return false;
+      flags |= 0x20;
+    }
+    if (sc->kind != Value::Null) {
+      if (!(vec(*sc, at + ".scale", "initial", scale) && vec(*sc, at + ".scale", "delta", scale + 3))) return false;
+      flags |= 0x100;
+    }
+    std::string seq[3];
+    int16_t snd[3] = {0, 0, 0};
+    float vol[3] = {0, 0, 0};
+    const char* const kWhere[] = {"default", "water", "lava"};
+    if (bs->kind != Value::Null) {
+      for (int k = 0; k < 3; ++k) {
+        const Value* v = j.get(*bs, at + ".bounce_sequence", kWhere[k]);
+        if (!v) return false;
+        if (v->kind != Value::Null && !j.r.game_string(*v, at + ".bounce_sequence." + kWhere[k], &seq[k], 31)) return false;
+      }
+      flags |= 0x800;
+    }
+    if (bd->kind != Value::Null) {
+      for (int k = 0; k < 3; ++k) {
+        const Value* v = j.get(*bd, at + ".bounce_sound", kWhere[k]);
+        if (!v) return false;
+        if (v->kind == Value::Null) continue;
+        const std::string ba = at + ".bounce_sound." + kWhere[k];
+        std::string sn;
+        if (!(j.str(*v, ba, "name", &sn, 31) && j.f32(*v, ba, "volume", &vol[k]))) return false;
+        if (!(snd[k] = Def::find(def.static_sounds, sn))) return j.r.fail(*v, ba + ".name", "no sound \"" + sn + "\" in the def's static sounds");
+      }
+      flags |= 0x1000;
+    }
+    if (rt->kind != Value::Null) {
+      if (!j.r.f32(*rt, at + ".run_time", &run)) return false;
+      flags |= 0x400;
+    }
+    o.u32(flags), o.i16(n), o.u16(0), o.f32(0), o.f32(grav), o.f32(morph);
+    for (float x : range) o.f32(x);
+    for (int k = 0; k < 6; ++k) o.f32(trans[k]);
+    o.zeros(24);  // current, gravity's delta
+    for (int k = 6; k < 9; ++k) o.f32(trans[k]);
+    o.f32(fwd[0]), o.f32(fwd[1]), o.f32(0);
+    for (int k = 0; k < 6; ++k) o.f32(xyz[k]);
+    o.zeros(12);
+    for (int k = 0; k < 6; ++k) o.f32(scale[k]);
+    o.zeros(12);
+    for (int k = 0; k < 3; ++k) {
+      if (seq[k].empty()) o.zeros(32);
+      else o.name_padded(seq[k], 32);
+      o.i16(-1), o.i16(snd[k]), o.f32(vol[k]);
+    }
     o.f32(run);
     return true;
   }
@@ -887,6 +994,7 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o) {
   if (auto_reset) flags |= 0x10000;
   if (proximity) flags |= 0x100000;
   Def def;
+  def.name = name, def.anim_name = anim_name;
   bool has[8] = {};
   const char* const kLists[] = {"objects", "nodes", "lights", "puffers", "dynamic_sounds", "static_sounds", "activ_prereqs", "anim_refs"};
   const Value* lists[8];
