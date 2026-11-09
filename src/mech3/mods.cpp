@@ -13,6 +13,7 @@
 #include <sstream>
 
 #include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_library.h"
@@ -112,8 +113,19 @@ namespace {
 // install's), or as a loose file beside it (`loose`, a reader file's).
 bool archive_has(const std::vector<std::string>& roots, const std::string& rel, const std::string& entry, bool loose) {
   std::error_code ec;
+  const fs::path archive(rel);
+  const std::string json = entry + ".json";  // mech3ax's, in a folder named as the archive or its zip (docs/modding.md)
   for (const std::string& root : roots) {
     if (loose && fs::is_regular_file(fs::path(root) / "zbd" / entry, ec)) return true;
+    const fs::path dir = fs::path(root) / archive.parent_path();
+    if (fs::is_regular_file(dir / archive.stem() / json, ec)) return true;
+    if (zutl_zip::Zip zip; fs::is_regular_file(dir / (archive.stem().string() + ".zip"), ec) &&
+                           zip.open(dir / (archive.stem().string() + ".zip")))
+      for (const zutl_zip::Zip::Entry& e : zip.entries)
+        if (e.name.size() == json.size() && std::equal(e.name.begin(), e.name.end(), json.begin(), [](char x, char y) {
+              return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+            }))
+          return true;
     const fs::path a = fs::path(root) / rel;
     if (!fs::is_regular_file(a, ec)) continue;
     zutl_zar::Archive z;
@@ -799,6 +811,34 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       if (!why.empty()) error(rel + ": " + why + " (not read; an archive's entry of that name is)");
       else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
       else error(rel + ": not a text .zrd the reader can read");
+    } else if (low.rfind("zbd/mechlib/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // mechlib's
+      std::ifstream in(host, std::ios::binary);
+      std::stringstream text;
+      text << in.rdbuf();
+      std::string why;
+      std::vector<uint8_t> entry;
+      ++entries;
+      const bool ok = name == "materials.json" ? zcls::mechlib_materials_from_json(text.str(), &entry, &why)
+                                               : zcls::mechlib_model_from_json(text.str(), &entry, &why);
+      if (!ok) error(rel + ": " + why + " (not read; the archive's entry is)");
+    } else if (low == "zbd/mechlib.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its entries not read; the archive's are)");
+        continue;
+      }
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        std::string lower = e.name;
+        for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (lower.size() <= 5 || lower.compare(lower.size() - 5, 5, ".json") != 0 || lower == "manifest.json") continue;
+        ++entries;
+        std::vector<uint8_t> data, entry;
+        std::string why;
+        const std::string text = z.read(e, &data, &why) ? std::string(data.begin(), data.end()) : std::string();
+        const bool ok = !text.empty() && (lower == "materials.json" ? zcls::mechlib_materials_from_json(text, &entry, &why)
+                                                                     : zcls::mechlib_model_from_json(text, &entry, &why));
+        if (!ok) error(rel + ":" + e.name + ": " + why + " (not read; the archive's entry is)");
+      }
     } else if (low.rfind("zbd/motion/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // a motion as unzbd's JSON
       std::ifstream in(host, std::ios::binary);
       std::stringstream text;

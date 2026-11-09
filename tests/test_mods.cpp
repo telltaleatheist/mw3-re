@@ -412,6 +412,28 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   mech3::mods_identity() = mech3::ModsIdentity{};
 }
 
+// A mech row whose definition and model a mod ships only as mech3ax's JSON (docs/modding.md): found as the game
+// would find them, a folder's JSON or the archive's zip, so the row is not left out.
+TEST(mods_mech_row_files_as_json) {
+  SavedMounts keep;
+  const std::string wd = tmp("mods_mech_json");
+  put(wd + "/mods/j/mod.txt", "name=J\nmech=jsonmech tech=clan mass=70 class=heavy\nmech=zipmech tech=clan mass=70 class=heavy model=jsonmech\n"
+                              "mech=nomech tech=clan mass=70 class=heavy model=jsonmech\n");
+  put(wd + "/mods/j/zbd/reader/dfn_jsonmech.zrd.json", "[]");
+  write_stored_zip(wd + "/mods/j/zbd/reader.zip", {{"DFN_ZIPMECH.ZRD.JSON", "[]"}});
+  write_stored_zip(wd + "/mods/j/zbd/mechlib.zip", {{"mech_jsonmech.flt.json", "{}"}});
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mech_rows_clear();
+  std::string text;
+  for (const std::string& l : mech3::mods_mount(wd, {"j"}, {})) text += l + "\n";
+  std::printf("%s", text.c_str());
+  EXPECT(text.find("mech jsonmech added") != std::string::npos && text.find("mech zipmech added") != std::string::npos);
+  EXPECT(text.find("mech nomech tech=clan mass=70 class=heavy model=jsonmech: no dfn_nomech.zrd in the reader archive, left out") !=
+         std::string::npos);
+  mech3::mech_rows_clear();
+}
+
 // Mods' weapons (item 2): weapon= rows after the plain PPC's place (38 on,
 // the bug fixes on or off: a pilot's saved weapon keeps its number), their
 // ammo and techs, the PPC still left out with the fixes off; a taken name
@@ -1147,6 +1169,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   const std::string motion = "{\"loop_time\": 2.0, \"frame_count\": 1, \"parts\": [{\"name\": \"hip\", \"frames\": [" + frame + "]}]}";
   put(good + "/zbd/motion/madcat_walk.json", motion);
   write_stored_zip(good + "/zbd/motion.zip", {{"madcat_run.json", motion}, {"manifest.json", "[]"}});
+  put(good + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3}, \"alpha\": 255}}]");
+  write_stored_zip(good + "/zbd/mechlib.zip", {{"materials.json", "[]"}});
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -1158,6 +1182,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(errors == 0 && text.find("mod.txt: Good 1") != std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos);
   EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/motion/madcat_walk.json: added") != std::string::npos && text.find("zbd/motion.zip: added") != std::string::npos);
+  EXPECT(text.find("zbd/mechlib/materials.json: added") != std::string::npos && text.find("zbd/mechlib.zip: added") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1172,6 +1197,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(bad + "/zbd/c1/readerm1.zip", "not a zip");
   put(bad + "/zbd/motion/madcat_walk.json", "{\"loop_time\": 2.0,\n \"frame_count\": 0, \"parts\": []}");
   write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
+  put(bad + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3},\n \"alpha\": 300}}]");
+  write_stored_zip(bad + "/zbd/mechlib.zip", {{"mech_x.flt.json", "{\"nodes\": []}"}});
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -1206,7 +1233,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
   EXPECT(text.find("error: zbd/motion/madcat_walk.json: line 2 (at $.frame_count): 0: a motion has at least one frame") != std::string::npos &&
          text.find("error: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
-  EXPECT(errors == 13 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
+         text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
+  EXPECT(errors == 15 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
