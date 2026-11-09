@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "gamez/zutil/zutl_path.h"
 #include <cstdlib>
@@ -11,6 +12,8 @@
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "gamez/zutil/zutl_zip.h"
+#include "gamez/zsiscript/si_script_json.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -89,6 +92,51 @@ bool read_from(zutl_zar::Archive& a, zsis::Script& s, const char* name, bool* br
 }
 }  // namespace
 
+// Ours (docs/modding.md, mech3ax's JSON): the motion as unzbd's JSON in an
+// enabled mod, first mod first, up to the first with its own motion.zbd
+// (whose archive is then read as now): the folder's <name>.json, then the
+// zip's. Read through Script::read from the entry's bytes, as the archive's.
+// False for none, and for one refused (said once in the log, with its line and
+// place): the archives' entry is read instead, not a later mod's JSON.
+namespace {
+bool motion_from_mod(zsis::Script& s, const char* name) {
+  if (zutl::mounts().mods.empty()) return 0;
+  std::string dir = zutl::host(g_motions_game_path.c_str());
+  const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
+  dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  static std::set<std::string> said;
+  for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    std::string text, what, why;
+    const int got = zutl_zip::mod_json(m, dir, stem, std::string(name) + ".json", &text, &what, &why);
+    std::vector<uint8_t> entry;
+    if (got > 0 && zsis::motion_from_json(text, &entry, &why)) {
+      std::FILE* t = std::tmpfile();
+      bool ok = false;
+      if (t) {
+        std::fwrite(entry.data(), 1, entry.size(), t);
+        std::rewind(t);
+        ok = s.read(t, static_cast<long>(entry.size()));
+        std::fclose(t);
+      }
+      if (ok) {
+        if (said.insert(what + "\n").second) std::printf("mw3: mod: %s instead of %s's motion\n", what.c_str(), g_motions_game_path.c_str());
+        return true;
+      }
+      why = t ? "not a motion the reader can read" : "no temporary file to read it from";
+    }
+    if (got != 0) {
+      if (said.insert(what + "\n" + why).second)
+        std::printf("mw3: mod: %s: %s; %s's motion read instead\n", what.c_str(), why.c_str(), g_motions_game_path.c_str());
+      return false;
+    }
+    if (!zutl::find_in_mod(m, dir + stem + ".zbd").empty()) return false;  // this mod's own archive comes first
+  }
+  return false;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x005a9ad0. The base name goes to the script's name.
 bool load_motion(zsis::Script& s, const char* name) {
   const char* base = name;
@@ -99,6 +147,7 @@ bool load_motion(zsis::Script& s, const char* name) {
   std::memcpy(s.name, base, n);
   s.name[n] = 0;
   if (!g_motions) return false;
+  if (motion_from_mod(s, name)) return true;
   bool broken = false;
   if (read_from(*g_motions, s, name, &broken)) return true;
   // Ours (docs/modding.md, M3): a motion the open archive (a mod's) has

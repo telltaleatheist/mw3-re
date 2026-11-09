@@ -34,4 +34,13 @@ struct Zip {
   bool read(const Entry& en, std::vector<uint8_t>* out, std::string* error);
 };
 
+// Ours (docs/modding.md, mech3ax's JSON): a mod's JSON for one archive entry,
+// as `dir + stem + "/" + file` (unzbd's output unzipped in a folder named as
+// the archive), else `file` in `dir + stem + ".zip"` (unzbd's zip itself,
+// matched in any case). 1: found, its text and where in `what`; 0: none in
+// this mod; -1: there but not readable (`what`, `why`: a zip that will not
+// open or an entry that will not inflate).
+int mod_json(size_t mod, const std::string& dir, const std::string& stem, const std::string& file, std::string* text,
+             std::string* what, std::string* why);
+
 }  // namespace zutl_zip

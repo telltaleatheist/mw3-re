@@ -748,32 +748,11 @@ Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
       return nullptr;
     }
     std::string text, what, why;
-    if (const std::string json = zutl::find_in_mod(m, dir + stem + "/" + entry + ".json"); !json.empty()) {
-      what = json;
-      std::FILE* f = std::fopen(json.c_str(), "rb");
-      if (!f) return nullptr;
-      char buf[1 << 14];
-      for (size_t got; (got = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, got);
-      std::fclose(f);
-    } else if (const std::string zip = zutl::find_in_mod(m, dir + stem + ".zip"); !zip.empty()) {
-      zutl_zip::Zip z;
-      if (!z.open(zip)) {
-        say(zip, "mw3: mod: %s: %s; %s's entry read instead\n", "not a zip the game can read");
-        return nullptr;
-      }
-      const zutl_zip::Zip::Entry* hit = nullptr;
-      for (const zutl_zip::Zip::Entry& e : z.entries)
-        if (same_name(e.name, entry + ".json")) hit = &e;
-      if (!hit) continue;  // the zip lacks it: the next mod's, or the entry
-      what = zip + ":" + hit->name;
-      std::vector<uint8_t> data;
-      if (!z.read(*hit, &data, &why)) {
-        say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
-        return nullptr;
-      }
-      text.assign(data.begin(), data.end());
-    } else {
-      continue;
+    const int got = zutl_zip::mod_json(m, dir, stem, entry + ".json", &text, &what, &why);
+    if (got == 0) continue;  // none here: the next mod's, or the entry
+    if (got < 0) {
+      say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+      return nullptr;
     }
     if (Node* root = parse_json(text, &why)) return took(what, root);
     say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
