@@ -1038,6 +1038,26 @@ TEST(mods_motion_json_errors_name_the_line_and_place) {
   }
 }
 
+// The bytes a JSON entry becomes, as a file for the FILE* readers: in the system's temp folder, not std::tmpfile
+// (which has failed on Windows), read from its start, and gone afterwards, only the file it made.
+TEST(mods_scratch_file_is_read_and_removed) {
+  fs::path where;
+  {
+    const std::string bytes("motion\0bytes", 12);
+    zutl_zip::ScratchFile t(bytes.data(), bytes.size());
+    EXPECT(t.file != nullptr);
+    where = t.path;
+    char back[16] = {};
+    EXPECT(t.file && std::fread(back, 1, sizeof back, t.file) == 12 && std::memcmp(back, bytes.data(), 12) == 0);
+    std::error_code ec;
+    EXPECT(fs::exists(where, ec) && where.parent_path() == fs::temp_directory_path(ec));
+    zutl_zip::ScratchFile empty(nullptr, 0);
+    EXPECT(empty.file && empty.path != t.path);
+  }
+  std::error_code ec;
+  EXPECT(!where.empty() && !fs::exists(where, ec));
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {

@@ -34,6 +34,20 @@ struct Zip {
   bool read(const Entry& en, std::vector<uint8_t>* out, std::string* error);
 };
 
+// Ours: bytes as a file for a reader that takes a FILE* (the ported readers
+// read archive entries through one), at its start. FIX (A): not std::tmpfile,
+// which on Windows has tried the drive's root and failed without rights; a
+// file of our own name in the system's temp folder (GetTempPath there),
+// removed when this goes. Null `file` when it cannot be made.
+struct ScratchFile {
+  std::FILE* file = nullptr;
+  std::filesystem::path path;
+  ScratchFile(const void* data, size_t size);
+  ~ScratchFile();
+  ScratchFile(const ScratchFile&) = delete;
+  ScratchFile& operator=(const ScratchFile&) = delete;
+};
+
 // Ours (docs/modding.md, mech3ax's JSON): a mod's JSON for one archive entry,
 // as `dir + stem + "/" + file` (unzbd's output unzipped in a folder named as
 // the archive), else `file` in `dir + stem + ".zip"` (unzbd's zip itself,

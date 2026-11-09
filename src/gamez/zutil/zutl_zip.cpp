@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 
 #include "gamez/zutil/zutl_path.h"
@@ -114,6 +115,34 @@ bool Zip::read(const Entry& en, std::vector<uint8_t>* out, std::string* error) {
     return false;
   }
   return true;
+}
+
+ScratchFile::ScratchFile(const void* data, size_t size) {
+  static unsigned serial = 0;
+  std::error_code ec;
+  const std::filesystem::path dir = std::filesystem::temp_directory_path(ec);
+  if (ec) return;
+  const auto stamp = static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count());
+  for (int tries = 0; tries < 8 && !file; ++tries) {
+    path = dir / ("mw3-entry-" + std::to_string(stamp) + "-" + std::to_string(serial++) + ".tmp");
+    if (std::filesystem::exists(path, ec)) continue;  // never one we did not make
+    file = std::fopen(path.string().c_str(), "w+b");
+  }
+  if (!file) return;
+  if (size && std::fwrite(data, 1, size, file) != size) {
+    std::fclose(file);
+    file = nullptr;
+    std::filesystem::remove(path, ec);
+    return;
+  }
+  std::rewind(file);
+}
+
+ScratchFile::~ScratchFile() {
+  if (!file) return;
+  std::fclose(file);
+  std::error_code ec;
+  std::filesystem::remove(path, ec);
 }
 
 int mod_json(size_t mod, const std::string& dir, const std::string& stem, const std::string& file, std::string* text,
