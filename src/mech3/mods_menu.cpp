@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "gamez/ztwod/twod_host.h"
+#include "mech3/mainmenu.h"
 #include "mech3/mod_campaign.h"
 
 namespace mech3 {
@@ -243,6 +244,9 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
         show_details();
       }
       return;
+    case kEnter:
+      enter_campaign();
+      return;
     case kEditor:
       say(note, "The mission editor is not built yet.");
       return;
@@ -254,6 +258,41 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
   }
 }
 
+// ENTER: the chosen campaign entered (its own pilots) and the Campaign State
+// pushed, as the main menu's CAMPAIGN; a campaign whose mod is not on in this
+// run is never started half-mounted: its mod is turned on for the next start.
+void ModsScreen::enter_campaign() {
+  const int32_t i = campaign_list.selected;
+  if (focus != kCampaigns || i < 0 || i >= static_cast<int32_t>(tables.campaigns.size())) {
+    say(note, "Choose a custom campaign to enter.");
+    return;
+  }
+  const ModsCampaignRow row = tables.campaigns[static_cast<size_t>(i)];
+  if (!row.error.empty()) {
+    say(note, "Cannot be played: " + row.error);
+    return;
+  }
+  if (!row.mounted) {
+    if (std::find(enabled.begin(), enabled.end(), row.mod) == enabled.end()) {
+      mods_toggle(enabled, row.mod);
+      mods_save_enabled(mods_menu_write_dir(), enabled);
+      refill();
+    }
+    say(note, row.name + ": its mod is turned on; restart to play it.");
+    return;
+  }
+  const ModCampaign* found = nullptr;
+  for (const ModCampaign& c : mod_campaigns())
+    if (c.mod == row.mod && c.file == row.file) found = &c;
+  std::string why = "a mission's world is missing";
+  if (!found || !campaign_enter(*found, &why)) {
+    say(note, "Cannot be played: " + why);
+    return;
+  }
+  Engine& e = engine();
+  e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+}
+
 bool ModsState::enter() {
   Engine& en = e();
   screen_ = en.construct(kModsScreenCtor, {addr()});
@@ -261,7 +300,14 @@ bool ModsState::enter() {
   return true;
 }
 
+// Back from a campaign entered here: the original's pilots again.
+void ModsState::resume(uint32_t arg) {
+  if (entered_campaign()) campaign_leave();
+  ShellState::resume(arg);
+}
+
 void ModsState::leave() {
+  if (entered_campaign()) campaign_leave();
   e().shell_clear(addr());
   ShellState::leave();
 }

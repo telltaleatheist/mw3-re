@@ -18,6 +18,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "mech3/mods_tables.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mod_rows_file.h"
 #include "mech3/mech_config.h"
@@ -863,4 +864,57 @@ TEST(mods_check_mod_reads_campaigns) {
   EXPECT(has("error: campaign more/GOOD.txt: the mod has a campaign GOOD already"));
   EXPECT(errors == 3);  // and the stub zbd/mw/gamez.zbd
   if (errors != 3) std::printf("%s", text.c_str());
+}
+
+// Ours (docs/modding.md, The MODS screen): the screen's two tables from the
+// write dir's mods, each campaign= a CUSTOM CAMPAIGNS row (a mod of campaigns
+// only not in MODS), MODS in mw3.cfg's order with the conflicts' marks and
+// notes, ON/OFF and UP/DOWN on the order, and the conflict following it.
+TEST(mods_screen_tables_order_and_conflicts) {
+  const std::string wd = tmp("mods_screen");
+  put(wd + "/mods/camp/mod.txt", "name=Camp\nauthor=Someone\nversion=1.2\ncampaign=lost.txt\ncampaign=bad.txt\n");
+  put(wd + "/mods/camp/lost.txt", "name=Lost Frontier\nmission=c1 1\n");
+  put(wd + "/mods/camp/bad.txt", "mission=c1\n");
+  put(wd + "/mods/campmech/mod.txt", "name=Camp Mech\ncampaign=drills.txt\nmech=Scout tech=clan mass=25 class=light\n");
+  put(wd + "/mods/campmech/drills.txt", "name=Drills\nmission=t1 1\n");
+  put(wd + "/mods/a/mod.txt", "name=A\n");
+  put(wd + "/mods/a/zbd/x.zbd", "a's");
+  put(wd + "/mods/b/mod.txt", "name=B\nauthor=Another\n");
+  put(wd + "/mods/b/zbd/x.zbd", "b's");
+  put(wd + "/mods/off/mod.txt", "name=Off\n");
+  std::vector<std::string> on = {"a", "b", "camp"};
+  mech3::ModsTables t = mech3::mods_tables(wd, on, {"camp"});
+  std::string rows;
+  for (const mech3::ModsCampaignRow& c : t.campaigns)
+    rows += c.mod + ":" + c.name + (c.mounted ? "+" : "") + (c.error.empty() ? "" : "!") + " ";
+  std::printf("  campaigns: %s\n", rows.c_str());
+  EXPECT(rows == "camp:Lost Frontier+ camp:bad.txt+! campmech:Drills ");
+  if (t.campaigns.size() == 3) {
+    EXPECT(t.campaigns[1].error.find("line 1") != std::string::npos);
+    EXPECT(mech3::mods_campaign_details(t.campaigns[0]) == "Someone, version 1.2");
+  }
+  rows.clear();
+  for (const mech3::ModsListEntry& m : t.mods) rows += mech3::mods_row_text(m) + "|";
+  std::printf("  mods: %s\n", rows.c_str());
+  EXPECT(rows == "[x] A|[x] B !|[ ] Camp Mech|[ ] Off|");
+  if (t.mods.size() == 4) {
+    EXPECT(mech3::mods_row_note(t.mods[0], t.mods).empty());
+    EXPECT(mech3::mods_row_note(t.mods[1], t.mods) == "Shares 1 file with A, which wins");
+  }
+  // UP on B: B first, so A is the one shadowed.
+  EXPECT(mech3::mods_move(on, "b", -1) && (on == std::vector<std::string>{"b", "a", "camp"}));
+  EXPECT(!mech3::mods_move(on, "b", -1) && !mech3::mods_move(on, "camp", 1) && !mech3::mods_move(on, "off", 1));
+  t = mech3::mods_tables(wd, on, {"camp"});
+  EXPECT(t.mods.size() == 4 && t.mods[0].info.folder == "b" && t.mods[1].info.folder == "a" &&
+         mech3::mods_row_note(t.mods[1], t.mods) == "Shares 1 file with B, which wins" &&
+         mech3::mods_row_text(t.mods[0]) == "[x] B");
+  // OFF takes it out of the order, ON puts it at the end; saved as mw3.cfg's mod= lines.
+  mech3::mods_toggle(on, "b");
+  mech3::mods_toggle(on, "off");
+  EXPECT((on == std::vector<std::string>{"a", "camp", "off"}));
+  EXPECT(mech3::mods_save_enabled(wd, on) && mech3::mods_enabled(wd) == on);
+  t = mech3::mods_tables(wd, mech3::mods_enabled(wd), {"camp"});
+  rows.clear();
+  for (const mech3::ModsListEntry& m : t.mods) rows += mech3::mods_row_text(m) + "|";
+  EXPECT(rows == "[x] A|[x] Off|[ ] B|[ ] Camp Mech|");
 }
