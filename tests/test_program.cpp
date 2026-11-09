@@ -1525,34 +1525,41 @@ TEST(mod_campaign_advance_and_end_headless) {
       mech3::Mech3App app(&engine);
       mech3::set_app(&app);
       EXPECT(app.init_instance());
+      // Entered on the main menu, as MODS's ENTER does (the main menu up lets
+      // a campaign go: MainState::update), with its pilot at `place`.
       std::string why;
-      EXPECT(mech3::campaign_enter(mc, &why));
-      mech3::Pilot* pilot = mech3::create_pilot("Stepper");
-      auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::ModCampaignGame*>(pilot->campaigns.front()) : nullptr;
-      EXPECT(g && g->a8 == 2);  // the op= heading's bases= on the first line
-      while (g && g->mission != place) {
-        auto* n = dynamic_cast<mech3::ModCampaignGame*>(g->next_mission(true, false));
-        if (!n) g = nullptr;
-        else pilot->campaigns.push_back(n), g = n;
-      }
-      EXPECT(g != nullptr);
-      if (!g) {
-        mech3::campaign_leave();
-        return;
-      }
-      pilot->current = g;
-      pilot->save();
+      mech3::Pilot* pilot = nullptr;
+      auto prepare = [&]() -> bool {
+        EXPECT(mech3::campaign_enter(mc, &why));
+        pilot = mech3::create_pilot("Stepper");
+        auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::ModCampaignGame*>(pilot->campaigns.front()) : nullptr;
+        EXPECT(g && g->a8 == 2);  // the op= heading's bases= on the first line
+        while (g && g->mission != place) {
+          auto* n = dynamic_cast<mech3::ModCampaignGame*>(g->next_mission(true, false));
+          if (!n) g = nullptr;
+          else pilot->campaigns.push_back(n), g = n;
+        }
+        EXPECT(g != nullptr);
+        if (!g) return false;
+        pilot->current = g;
+        pilot->save();
+        return true;
+      };
       int stage = 0, core = 0, after = 0;
       int32_t next_op = 0, next_mission = 0, field_bases = -1, launched_op = 0, launched_mission = 0, next_place = 0;
       bool movie_state = false, credits = false, next_briefing = false;
       engine.on_present = [&](int) {
         zgame::State* now = app.current();
         if (stage == 0 && now == &mech3::states().main && mech3::main_menu()) {
+          if (!prepare()) {
+            stage = 6;
+            return;
+          }
           const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // CAMPAIGN
           stage = 1;
         } else if (stage == 1) {
           auto* ps = dynamic_cast<mech3::PilotState*>(now);
-          if (!ps || !ps->screen) return;
+          if (!ps || !ps->screen || !pilot) return;
           ps->screen->refresh(false, pilot);
           ps->screen->on_button(0x18, 0, 0);  // ACCEPT: its newest save
           stage = 2;
