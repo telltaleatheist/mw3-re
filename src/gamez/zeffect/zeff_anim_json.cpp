@@ -377,6 +377,87 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     return true;
   }
   if (type == "Else" || type == "Endif") return j.r.object(d, at);
+  if (type == "LightState") {
+    std::string n;
+    bool active;
+    int ty = 0;
+    if (!(name32("name", &n) && j.boolean(d, at, "active_state", &active) &&
+          j.name_of(d, at, "type_", {{"Directed", 0}, {"PointSource", 1}}, &ty)))
+      return false;
+    const int16_t li = Def::find(def.lights, n);
+    if (!li) return j.r.fail(d, at + ".name", "no light \"" + n + "\" in the def's lights");
+    for (const char* pm : {"lightmap", "bicolored", "ambient_color"}) {  // Pirate's Moon's
+      const Value* v = j.get(d, at, pm);
+      if (!v) return false;
+      if (v->kind != Value::Null) return j.r.fail(*v, at + "." + pm, "not in MechWarrior 3 (null)");
+    }
+    uint32_t flags = 0;
+    int32_t ni = 0;
+    float tr[3] = {0, 0, 0}, orient[3] = {0, 0, 0}, range[2] = {0, 0}, color[3] = {0, 0, 0}, amb = 0, dif = 0;
+    const Value* t = j.get(d, at, "translate");
+    if (!t) return false;
+    if (t->kind != Value::Null) {
+      if (const Value* an = t->kind == Value::Object ? t->get("AtNode") : nullptr) {
+        std::string nn;
+        if (!(j.str(*an, at + ".translate.AtNode", "name", &nn, 255) && vec(*an, at + ".translate.AtNode", "pos", tr))) return false;
+        if (nn == "INPUT_NODE") ni = kInputCall;
+        else if (!(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".translate.AtNode.name", "no node \"" + nn + "\" in the def's nodes");
+        flags |= 2;
+      } else if (const Value* ab = t->kind == Value::Object ? t->get("Absolute") : nullptr) {
+        if (!(j.f32(*ab, at + ".translate.Absolute", "x", &tr[0]) && j.f32(*ab, at + ".translate.Absolute", "y", &tr[1]) &&
+              j.f32(*ab, at + ".translate.Absolute", "z", &tr[2])))
+          return false;
+        flags |= 1;
+      } else {
+        return j.r.fail(*t, at + ".translate", "not AtNode or Absolute");
+      }
+    }
+    bool b[4] = {false, false, false, false};
+    const char* const kBools[] = {"directional", "saturated", "subdivide", "static_"};
+    const uint32_t kBoolFlags[] = {0x80, 0x100, 0x200, 0x400};
+    for (int k = 0; k < 4; ++k) {
+      const Value* v = j.get(d, at, kBools[k]);
+      if (!v) return false;
+      if (v->kind == Value::Null) continue;
+      if (v->kind != Value::Bool) return j.r.fail(*v, at + "." + kBools[k], "not true, false or null");
+      b[k] = v->b, flags |= kBoolFlags[k];
+    }
+    const Value *ov = j.get(d, at, "orientation"), *rv = j.get(d, at, "range"), *cv = j.get(d, at, "color"), *av = j.get(d, at, "ambient"),
+                *dv = j.get(d, at, "diffuse");
+    if (!ov || !rv || !cv || !av || !dv) return false;
+    if (ov->kind != Value::Null) {
+      if (!(j.f32(*ov, at + ".orientation", "x", &orient[0]) && j.f32(*ov, at + ".orientation", "y", &orient[1]) &&
+            j.f32(*ov, at + ".orientation", "z", &orient[2])))
+        return false;
+      flags |= 4;
+    }
+    if (rv->kind != Value::Null) {
+      if (!(j.f32(*rv, at + ".range", "min", &range[0]) && j.f32(*rv, at + ".range", "max", &range[1]))) return false;
+      flags |= 8;
+    }
+    if (cv->kind != Value::Null) {
+      if (!(j.f32(*cv, at + ".color", "r", &color[0]) && j.f32(*cv, at + ".color", "g", &color[1]) && j.f32(*cv, at + ".color", "b", &color[2])))
+        return false;
+      flags |= 0x10;
+    }
+    if (av->kind != Value::Null) {
+      if (!j.r.f32(*av, at + ".ambient", &amb)) return false;
+      flags |= 0x20;
+    }
+    if (dv->kind != Value::Null) {
+      if (!j.r.f32(*dv, at + ".diffuse", &dif)) return false;
+      flags |= 0x40;
+    }
+    o.name_padded(n, 32), o.i32(li), o.u32(flags), o.u32(active ? 1 : 0), o.u32(static_cast<uint32_t>(ty));
+    for (bool x : b) o.u32(x ? 1 : 0);
+    o.i32(ni);
+    for (float x : tr) o.f32(x);
+    for (float x : orient) o.f32(x);
+    o.f32(range[0]), o.f32(range[1]);
+    for (float x : color) o.f32(x);
+    o.f32(amb), o.f32(dif);
+    return true;
+  }
   return j.r.fail(d, at, "the event " + type + " is not read yet");
 }
 
