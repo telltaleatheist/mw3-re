@@ -923,6 +923,46 @@ order, a refusal, the own-archive stop), `bounded_mechlib_json_errors_name_the_p
 needs a writer of mechlib JSON as well (not written; the unzbd run stands for
 it).
 
+**mech3ax's anim JSON (built 2026-11-09).** A mod may hold a world's
+animations as unzbd writes them: the folder `zbd\c1\anim\` (its
+`metadata.json`, a `<def>.json` per anim def, a `si-script-NNN.zan.json` per
+motion script), or unzbd's `zbd\c1\anim.zip`. The file is read whole, as
+the game reads anim.zbd: the enabled mods first to last, the folder then the
+zip, stopping at a mod with its own `zbd\c1\anim.zbd`. The JSON
+(`zeff::anim_from_json`, `zeff_anim_json.cpp`) becomes the anim.zbd it
+stands for, laid out as mech3ax's writer lays it (header, the source list,
+the globals with mech3ax's per-world pointers, def 0, then each def's 0x13c
+record, its lists, prerequisites, anim refs, reset state and sequences, each
+sequence a blob of events), read through a `ScratchFile` by the anim reader
+0x0050a0e0 and bound by the post-load pass as the shipped file is.
+
+*Names past their NUL.* The shipped files keep, after many names' NULs, what
+the original tools' buffers held. mech3ax restores those bytes from tables of
+its own built from the shipped files (its anim-names crate); we keep no
+game-derived tables (Owen's rule), so our names are zero after their NUL.
+Those bytes are never read: the reader and the runtime take names to their
+NUL. Our file therefore differs from the shipped one only past names' NULs.
+Where unzbd keeps a name's trailing bytes in the JSON (the source list's
+`garbage`, the static sounds' and anim refs' `pad`), they are written back
+exactly, and node names keep mech3ax's "Default_node_name" padding.
+
+`mods_anim_json_is_every_worlds_file` runs unzbd on all six worlds and
+compares our file with the shipped one, every name masked past its NUL: c1
+5,228,852 bytes (24,975 names), c2, c3, c4, c4b and t1 all the same. Events:
+all 39 of MechWarrior 3's types. The six no shipped world uses but the
+runtime runs (Effect, ObjectDeleteChild, CameraState, CameraFromTo,
+FbfxCsinwaveFromTo, AnimVerbose) are checked against mech3ax's own writer
+(`rezbd`) on the same JSON (`mods_anim_json_unused_events_as_mech3ax_writes_them`);
+Effect, which mech3ax refuses for MechWarrior 3, needs a def's `effects`
+list (written after the static sounds, as the reader takes it) and is checked
+by its layout. Errors name the file, line and place ("box.json: line 2 (at
+$.sequences[0].events[0].data.ObjectActiveState.node): no node \"lid\" in
+the def's nodes", an unknown event's name, a world mech3ax does not know). A
+refused world is said in the log and its anim.zbd read; `--check-mod` reads
+an `anim\` folder or `anim.zip` the same way. Tests: those two,
+`mods_anim_json_in_a_folder_or_a_zip` (the order, a refusal, the own-archive
+stop), `mods_anim_json_errors_name_the_place`, the check test.
+
 **mech3ax's other JSON, mapped (not built).** `unzbd` writes one zip per archive,
 with `manifest.json` (the entries' names, order and the bytes needed to pack
 them again) and one JSON per entry, or per file for gamez:
@@ -932,7 +972,7 @@ them again) and one JSON per entry, or per file for gamez:
 | `reader*.zbd` | `<entry>.zrd.json` | built, above |
 | `mechlib.zbd` | `materials.json`, `<model>.flt.json` (`format`, `version` not needed) | built, above |
 | `motion.zbd` | `<motion>.json` per motion | built, above |
-| `zbd\<world>\anim.zbd` | `metadata.json` (the defs' order), `<def>.json` per anim def, `<script>.json` for each `.zan` | the anim reader 0x0050a0e0, the whole file, then the post-load pass 0x0050ae60 |
+| `zbd\<world>\anim.zbd` | `metadata.json`, `<def>.json` per anim def, `<script>.zan.json` per script | built, above |
 | `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | `cls_zbd` 0x004ff520, the whole world: five files, no entries |
 
 Proposed naming: a mod holds unzbd's output unzipped in a folder named for the
@@ -946,16 +986,12 @@ are read whole, so their folder needs all its files or is refused (said by
 the JSON folder, then the zip, then the mod's archive; mods first to last as
 now. JSON is read only from a mod, never the install.
 
-Proposed order, smallest and most edited first: (1) reader JSON (done,
-above); (2) motion (done, above); (3) mechlib (done, above) (one entry, a short struct; unzbd's motion
-JSON is the format mech3ax documents best); (3) mechlib models and materials
-(the new-mechs path: a mod's mech as JSON, checked with the bounded reader's
-limits); (4) anim (whole file, its names resolved by the post-load pass as
-now); (5) gamez (a whole world, the largest; worth it for new maps). Each
-with a test that the JSON and the archive it came from give the same tree,
-on every shipped entry, as `test_mechlib.py` and `test_motion.py` check the
-binary readers. PM's archives the same where its formats match (mech3ax's
-`pm` readers), on `pm` after pm-v1.0.0.
+Order, smallest and most edited first: (1) reader JSON, (2) motion, (3)
+mechlib, (4) anim (all done, above); (5) gamez (a whole world, the largest;
+worth it for new maps), next. Each with a test against unzbd's own output on
+every shipped entry, run by itself when mech3ax's unzbd is beside the
+checkout. PM's archives the same where its formats match (mech3ax's `pm`
+readers), on `pm` after pm-v1.0.0.
 
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
