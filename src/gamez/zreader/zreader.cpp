@@ -645,6 +645,47 @@ Node* parse_list(std::FILE* f) {
 }
 }  // namespace
 
+std::string text_error(std::FILE* f) {
+  int32_t line = 1, quote_line = 0;
+  std::vector<int32_t> open;  // the line of each '(' still open
+  bool comment = false, quote = false, cr = false;
+  int ch;
+  std::string why;
+  while (why.empty() && (ch = std::fgetc(f)) != EOF) {
+    const char c = static_cast<char>(ch);
+    if (c == '\n' && !cr) ++line;
+    if (c == '\r') ++line;
+    cr = c == '\r';
+    switch (c) {
+      case '\n':
+      case '\r':
+        if (!quote) comment = false;
+        break;
+      case '"':
+        if (!comment) quote = !quote, quote_line = line;
+        break;
+      case '(':
+        if (!quote && !comment) open.push_back(line);
+        break;
+      case ')':
+        if (!quote && !comment) {
+          if (open.empty()) why = "line " + std::to_string(line) + ": a ')' with no '(' before it";
+          else open.pop_back();
+        }
+        break;
+      case ';':
+        if (!quote) comment = true;
+        break;
+      default:
+        break;
+    }
+  }
+  if (why.empty() && quote) why = "line " + std::to_string(quote_line) + ": a quote never closed";
+  if (why.empty() && !open.empty()) why = "line " + std::to_string(open.front()) + ": a '(' never closed";
+  std::fseek(f, 0, SEEK_SET);
+  return why;
+}
+
 // Mech3.exe 1.2 @ 0x005563d0
 Node* parse_text(std::FILE* file) {
   if (!balanced(file)) return nullptr;
@@ -662,20 +703,13 @@ void set_missing_hook(MissingHook hook) { g_missing_hook = hook; }
 
 // Ours (docs/modding.md): a mod's loose text copy of an archive's entry, in
 // the mod at the archive's own folder (zbd\c1\world.zrd for zbd\c1\reader.zbd's
-// world.zrd), read instead of the entry; "" without one. Each such file is
-// said once in the log.
+// world.zrd), read instead of the entry; "" without one.
 std::string mod_loose(const zutl_zar::Archive& a, const char* name) {
   if (zutl::mounts().mods.empty() || !a.path) return {};
   std::string dir = zutl::host(a.path);
   const size_t slash = dir.rfind('/');
   dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
-  const std::string found = zutl::find_in_mods(dir + zutl::host(name));
-  static std::vector<std::string> said;
-  if (!found.empty() && std::find(said.begin(), said.end(), found) == said.end()) {
-    said.push_back(found);
-    std::printf("mw3: mod: %s instead of %s's entry\n", found.c_str(), a.path);
-  }
-  return found;
+  return zutl::find_in_mods(dir + zutl::host(name));
 }
 
 Node* load(const char* path) {
@@ -687,11 +721,26 @@ Node* load(const char* path) {
     uint32_t length = 0;
     std::FILE* f = zutl_zar::seek(*a, zutl_zar::find(*a, g_fname), &length);
     if (!f) continue;
+    // A mod's loose copy, read by the same text reader as the original's own
+    // loose files and given to the load hook as the entry would be; one that
+    // does not read is refused, said once with its line, and the entry read.
     if (const std::string loose = mod_loose(*a, g_fname); !loose.empty()) {
       if (std::FILE* t = std::fopen(loose.c_str(), "rb")) {
-        Node* root = parse_text(t);
+        const std::string why = text_error(t);
+        Node* root = why.empty() ? parse_text(t) : nullptr;
         std::fclose(t);
-        if (root) return root;
+        static std::vector<std::string> said;  // each loose file said once in the log
+        const bool first = std::find(said.begin(), said.end(), loose) == said.end();
+        if (first) said.push_back(loose);
+        if (root) {
+          if (first) std::printf("mw3: mod: %s instead of %s's entry\n", loose.c_str(), a->path);
+          if (g_load_hook) g_load_hook(a->path, g_fname, root);
+          return root;
+        }
+        if (first) {
+          std::printf("mw3: mod: %s: %s; %s's entry read instead\n", loose.c_str(), why.empty() ? "it does not read" : why.c_str(),
+                      a->path);
+        }
       }
     }
     Node* root = new_nodes(List, 1);

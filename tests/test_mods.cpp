@@ -3,6 +3,7 @@
 // mod's loose .zrd over its archive's entry, nothing changed without mods.
 #include <filesystem>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <fstream>
 #include <map>
@@ -18,7 +19,9 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "mech3/mods_tables.h"
+#include "mech3/patch12.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mod_rows_file.h"
 #include "mech3/mech_config.h"
@@ -160,6 +163,149 @@ TEST(mods_loose_zrd_beats_the_archives_entry) {
   // A broken loose copy: the archive's entry after all.
   put(wd + "/mods/fmvmod/zbd/fmv.zrd", "(BROKEN\n");
   EXPECT(marked() == 0);
+}
+
+// A tree as the text reader reads it back (lists, quoted strings, ints,
+// floats always with a '.').
+std::string zrd_text(const zrdr::Node& n) {
+  char b[64];
+  switch (n.type) {
+    case zrdr::List: {
+      std::string s = "(";
+      for (int i = 1; i < n.list[0].i; ++i) s += (i > 1 ? " " : "") + zrd_text(n.list[i]);
+      return s + ")";
+    }
+    case zrdr::String: return std::string("\"") + (n.s ? n.s : "") + "\"";
+    case zrdr::Float:
+      std::snprintf(b, sizeof b, "%.9g", static_cast<double>(n.f));
+      if (std::strchr(b, 'e')) std::snprintf(b, sizeof b, "%.9f", static_cast<double>(n.f));
+      if (!std::strchr(b, '.')) std::strcat(b, ".0");
+      return b;
+    default:
+      return std::to_string(n.i);
+  }
+}
+
+// Modder-friendly step 1 (docs/modding.md, Readable files read directly): a
+// mod's loose weapons.zrd as text, at the reader archive's own folder, is
+// what the game's weapon definitions read (zwep::init), ahead of the entry,
+// also when the mod ships its own reader.zbd beside it; with none, the
+// archive's; a loose one that does not read is refused (the archive's entry
+// read) and --check-mod names its line.
+TEST(mods_loose_weapons_zrd_read_directly) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const zwep::InitHooks hooks = zwep::init_hooks();
+  zwep::init_hooks() = zwep::InitHooks{};
+  const std::string wd = tmp("mods_loose_weapons");
+  // The shipped weapons.zrd as text, the PPC's VELOCITY changed.
+  zrdr::init();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  zutl::mount(install);
+  EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));
+  std::string text;
+  if (zrdr::Node* root = zrdr::load("weapons.zrd")) {
+    zrdr::Node* v = zrdr::find(zrdr::find(root, "PPC"), "VELOCITY");
+    if (v && v->type == zrdr::List && v->list[0].i > 1) v->list[1].f = 1234.5f;
+    for (int i = 1; i < root->list[0].i; ++i) text += zrd_text(root->list[i]) + "\n";
+    zrdr::free_node(root);
+  }
+  zrdr::close_archives(true);
+  EXPECT(text.find("1234.5") != std::string::npos);
+  auto ppc = [&](const std::vector<std::string>& mods) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    if (!mods.empty()) mech3::mods_mount(wd, mods, {install});
+    zutl::mount(install);
+    zrdr::init();
+    zrdr::open_archive("zbd\\reader.zbd", true);
+    float vel = -1.0f;
+    if (zwep::init(nullptr, "weapons.zrd", 0, nullptr) == 0 || zwep::find_def("PPC"))
+      if (const zwep::WeaponDef* d = zwep::find_def("PPC")) vel = d->velocity;
+    zwep::shutdown(nullptr);
+    zrdr::close_archives(true);
+    return vel;
+  };
+  const float shipped = ppc({});
+  put(wd + "/mods/loose/mod.txt", "name=Loose\n");
+  put(wd + "/mods/loose/zbd/weapons.zrd", "; a modder's edit\n" + text);
+  const float loose = ppc({"loose"});
+  // A mod with its own copy of reader.zbd and the loose file: the loose one.
+  put(wd + "/mods/both/mod.txt", "name=Both\n");
+  fs::create_directories(wd + "/mods/both/zbd", ec);
+  fs::copy_file(install + "/zbd/reader.zbd", wd + "/mods/both/zbd/reader.zbd", fs::copy_options::overwrite_existing, ec);
+  put(wd + "/mods/both/zbd/weapons.zrd", text);
+  const float both = ppc({"both"});
+  // Broken (a '(' on line 3 never closed): refused, the entry read instead.
+  put(wd + "/mods/broken/mod.txt", "name=Broken\n");
+  put(wd + "/mods/broken/zbd/weapons.zrd", "; a modder's edit\n" + std::string("; more\n(VERSION (2)\n") + text);
+  const float broken = ppc({"broken"});
+  int errors = 0;
+  std::string report;
+  for (const std::string& l : mech3::mod_check(wd + "/mods/broken", install, &errors)) report += l + "\n";
+  int clean_errors = 0;
+  mech3::mod_check(wd + "/mods/loose", install, &clean_errors);
+  std::printf("  PPC velocity: shipped %g, loose %g, both %g, broken %g; check: %d errors\n%s", shipped, loose, both, broken, errors,
+              report.c_str());
+  EXPECT(shipped > 0.0f && shipped != 1234.5f);
+  EXPECT(loose == 1234.5f && both == 1234.5f && broken == shipped);
+  EXPECT(errors == 1 && report.find("zbd/weapons.zrd: line 3: a '(' never closed") != std::string::npos);
+  EXPECT(clean_errors == 0);
+  // The line found for each kind of imbalance.
+  auto why = [&](const std::string& t) {
+    put(wd + "/t.zrd", t);
+    std::FILE* f = std::fopen((wd + "/t.zrd").c_str(), "rb");
+    const std::string w = f ? zrdr::text_error(f) : "?";
+    if (f) std::fclose(f);
+    return w;
+  };
+  EXPECT(why("(A 1)\n(B 2)\n") == "");
+  EXPECT(why("(A 1)\r\n(B 2))\r\n") == "line 2: a ')' with no '(' before it");
+  EXPECT(why("(A \"x\n\ny)\n") == "line 1: a quote never closed");
+  EXPECT(why("(A 1\n(B 2\n") == "line 1: a '(' never closed");  // the outer one
+  EXPECT(why("; (not counted\n(A 1) ; ) nor this\n") == "");
+  zwep::init_hooks() = hooks;
+}
+
+// A loose dialog.zrd goes through the load hook as the entry does: the
+// rebuild's own records (the MODS button, MODSDIALOG; patch12_edits.cpp) are
+// in it, so a mod's edited menus keep the MODS screen.
+TEST(mods_loose_dialog_zrd_keeps_our_records) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const std::string wd = tmp("mods_loose_dialog");
+  auto read = [&](const std::vector<std::string>& mods, bool hook, std::string* text) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    if (!mods.empty()) mech3::mods_mount(wd, mods, {install});
+    zutl::mount(install);
+    if (hook) mech3::patch12::install();
+    zrdr::init();
+    zrdr::open_archive("zbd\\reader.zbd", true);
+    bool ours = false;
+    if (zrdr::Node* root = zrdr::load("dialog.zrd")) {
+      ours = zrdr::find(root, "MODSDIALOG") != nullptr;
+      if (text)
+        for (int i = 1; i < root->list[0].i; ++i) *text += zrd_text(root->list[i]) + "\n";
+      zrdr::free_node(root);
+    }
+    zrdr::close_archives(true);
+    if (hook) mech3::patch12::uninstall();
+    return ours;
+  };
+  std::string text;  // the shipped entry as text, without our records
+  EXPECT(!read({}, false, &text));
+  EXPECT(text.find("MAINMENU") != std::string::npos);
+  put(wd + "/mods/menus/mod.txt", "name=Menus\n");
+  put(wd + "/mods/menus/zbd/dialog.zrd", "; a modder's menus\n" + text);
+  EXPECT(!read({"menus"}, false, nullptr));  // the loose copy alone has none
+  EXPECT(read({}, true, nullptr));           // the entry, through the hook
+  EXPECT(read({"menus"}, true, nullptr));    // the loose copy, through the hook
 }
 
 TEST(mods_gameplay_hash_ignores_looks_and_words) {
@@ -733,7 +879,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: ia_world nowhere: no such world") != std::string::npos &&
          text.find("error: zbd/rimage.zbd: not a texture library the game can read") != std::string::npos &&
          text.find("error: zbd/c1/readerm1.zbd: entry mission.zrd cannot be read") != std::string::npos &&
-         text.find("error: zbd/broken.zrd: not a text .zrd the reader can read") != std::string::npos &&
+         text.find("error: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos &&
          text.find("pilots/x.pil: the player's own kind of file") != std::string::npos);
   EXPECT(mech3::mod_check(root + "/none", install, &errors).size() == 1 && errors == 1);
   // An install overlay: no mod.txt is a note, not an error; its files are still checked.
@@ -745,7 +891,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   std::printf("%s", text.c_str());
   EXPECT(errors == 1 && text.find("no mod.txt: checked as an install overlay") != std::string::npos &&
          text.find("error: no mod.txt") == std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos &&
-         text.find("error: zbd/broken.zrd: not a text .zrd the reader can read") != std::string::npos);
+         text.find("error: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos);
 }
 
 // Custom campaigns (docs/custom-campaigns.md): the file's lines, every one
