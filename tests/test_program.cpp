@@ -1161,6 +1161,36 @@ std::string campaign_dump(const mech3::CampaignGame* c) {
 // A registrant of the test's own: an entry written at the win's save, and
 // what the reload's mission load gives back (save.md section 3).
 std::string g_probe_read;
+// The saves' temporary files (0x005a8ab0, 0x005a8af0): tmpfile() first, as the exe; where it gives none (UCRT
+// refuses a %TMP% past 238 characters), FIX (A) a file of our own in the temp folder, read back whole and removed
+// with the rest (_rmtmp's 0x005a8b10).
+TEST(save_temp_falls_back_to_a_scratch_file) {
+  const bool had = zsave::manager() != nullptr;
+  if (!had) zsave::init();
+  const auto ours = [] {
+    std::error_code ec;
+    int n = 0;
+    for (const auto& e : std::filesystem::directory_iterator(std::filesystem::temp_directory_path(ec), ec))
+      n += e.path().filename().string().rfind("mw3-entry-", 0) == 0;
+    return n;
+  };
+  const int before = ours();
+  for (const bool fail : {false, true}) {
+    zsave::set_tmpfile(fail ? +[]() -> std::FILE* { return nullptr; } : nullptr);
+    std::FILE* f = zsave::temp_from("saved bytes", 11);
+    EXPECT(f != nullptr);
+    char back[16] = {};
+    EXPECT(f && std::fread(back, 1, sizeof back, f) == 11 && std::memcmp(back, "saved bytes", 11) == 0);
+    std::FILE* g = zsave::temp();
+    EXPECT(g != nullptr && g != f);
+    EXPECT(ours() == before + (fail ? 2 : 0));  // tmpfile's are not ours; the stand-ins are
+    zsave::temp_done();
+  }
+  zsave::set_tmpfile(nullptr);
+  EXPECT(ours() == before);  // ours removed
+  if (!had) zsave::shutdown();
+}
+
 void probe_save(zsave::Context& ctx, void*) { zsave::write(ctx, "marker", "c1m1 won", 8); }
 void probe_load(zsave::Context&, const char* sub, const void* data, uint32_t size, void*) {
   g_probe_read += std::string(sub) + "=" + std::string(static_cast<const char*>(data), size) + ";";
