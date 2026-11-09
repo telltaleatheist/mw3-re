@@ -351,7 +351,7 @@ std::vector<MechDfn*> g_dfns(kBuiltinMechs);
 }  // namespace
 
 MechDfn* mech_dfn(int32_t mech) {
-  if (mech < 0 || mech >= mech_count()) return nullptr;
+  if (mech < 0 || mech >= mech_count() || mech == kNoMech) return nullptr;
   if (g_dfns.size() < static_cast<size_t>(mech_count())) g_dfns.resize(mech_count());
   if (!g_dfns[mech]) g_dfns[mech] = load_dfn(mech);
   return g_dfns[mech];

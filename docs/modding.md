@@ -154,7 +154,9 @@ mech=thor_b tech=clan mass=70 class=heavy model=thor title=Thor B
   message id.
 
 The exe's 19 keep their numbers (`mech_names.cpp`, 0x005e6078); a mod's rows
-follow from 19 in the mods' order (`mech_count()`, `mech_row_add`). A name
+follow from 20 in the mods' order (`mech_count()`, `mech_row_add`): 19 (0x13)
+stays the exe's "no mech", which saved pilots, the debriefing and the lab's
+waiting mech hold, so it is never a mod's. A name
 already a mech (any case, the exe's or an earlier mod's), an unknown key or
 a value out of range is said in the log and the row left out; `--check-mod`
 says the same. The rows are gameplay data: `mods_gameplay_hash` mixes each
@@ -200,7 +202,7 @@ kind would need new code, not data.
 Tests: `mods_mech_rows_after_the_exes_and_in_the_gameplay_hash` (the rows'
 keys and refusals, two mods' rows in order, a taken name, the hash as data),
 `mods_mech_row_launches_as_the_player_c1m1_headless` (a Thor copy as mech
-19 from the mod's repacked reader.zbd, launched as the player's mech in c1m1
+20 from the mod's repacked reader.zbd, launched as the player's mech in c1m1
 with the Thor's model, loadout and motions), `mods_weapon_rows_after_the_ppcs_place`
 (the keys, numbers 38 on with the fixes on and off, the PPC's place, taken
 names, a remount, the hash) and `mods_weapon_row_mounts_and_fires_c1m1_headless`

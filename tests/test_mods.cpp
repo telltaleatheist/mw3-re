@@ -16,6 +16,8 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "mech3/pilot.h"
+#include "mech3/mech_reader.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -159,8 +161,8 @@ TEST(mods_gameplay_hash_ignores_looks_and_words) {
          !mech3::mod_file_is_gameplay("video/intro.m1v"));
 }
 
-// Mods' mechs (item 1 of the modding cut): mech= rows parsed, added after
-// the exe's 19 in the mods' order, bad or taken names refused with the
+// Mods' mechs (item 1 of the modding cut): mech= rows parsed, added from 20
+// in the mods' order (19 stays the exe's "no mech", 0x13), bad or taken names refused with the
 // reason; the rows count toward the gameplay hash as data (their spacing,
 // comments and titles do not), a mod of rows alone changes gameplay.
 TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
@@ -185,18 +187,26 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   mech3::mech_rows_clear();
   std::string text;
   for (const std::string& l : mech3::mods_mount(wd, {"a", "b"}, {})) text += l + "\n";
-  EXPECT(mech3::mech_count() == 21);
-  EXPECT(mech3::mech_index("MadCat_B") == 19 && mech3::mech_index("scout") == 20 && mech3::mech_index("madcat") == 9);
-  EXPECT(std::string(mech3::mech_name(19)) == "madcat_b" && std::string(mech3::mech_model_name(19)) == "madcat" &&
-         std::string(mech3::mech_model_name(9)) == "madcat" && std::string(mech3::mech_title(19)) == "Mad Cat B" &&
+  EXPECT(mech3::mech_count() == 22);
+  EXPECT(mech3::mech_index("MadCat_B") == 20 && mech3::mech_index("scout") == 21 && mech3::mech_index("madcat") == 9);
+  EXPECT(std::string(mech3::mech_name(20)) == "madcat_b" && std::string(mech3::mech_model_name(20)) == "madcat" &&
+         std::string(mech3::mech_model_name(9)) == "madcat" && std::string(mech3::mech_title(20)) == "Mad Cat B" &&
          mech3::mech_title(9) == nullptr);
-  EXPECT(mech3::max_mass(19) == 75.0f && mech3::weight_class(19) == 2 && mech3::mech_tech(19) == mech3::kClan &&
-         mech3::internal_points(19, 1) == 23 && mech3::mech_name_message(19) == -1);
-  EXPECT(mech3::max_mass(20) == 20.0f && mech3::mech_tech(20) == mech3::kInnerSphere && std::string(mech3::mech_name(21)) == "notmech");
+  EXPECT(mech3::max_mass(20) == 75.0f && mech3::weight_class(20) == 2 && mech3::mech_tech(20) == mech3::kClan &&
+         mech3::internal_points(20, 1) == 23 && mech3::mech_name_message(20) == -1);
+  EXPECT(mech3::max_mass(21) == 20.0f && mech3::mech_tech(21) == mech3::kInnerSphere && std::string(mech3::mech_name(22)) == "notmech");
+  // 19 (0x13) is still no mech with rows there: its name, no row, no index, no
+  // definition, and a pilot's stock adds none of it (0x00471c10).
+  EXPECT(std::string(mech3::mech_name(19)) == "notmech" && mech3::mech_title(19) == nullptr && mech3::mech_index("notmech") == -1);
+  EXPECT(mech3::mech_dfn(19) == nullptr && mech3::max_mass(19) == 10.0f && mech3::mech_name_message(19) == -1);
+  {
+    mech3::Store stock;
+    EXPECT(stock.add_mech(19) == nullptr && stock.add_mech(-1) == nullptr && stock.add_mech(20) != nullptr);
+  }
   EXPECT(text.find("mech thor tech=clan mass=70 class=heavy: there is a mech thor already, left out") != std::string::npos);
   EXPECT(text.find("mech bad tech=clan mass=7 class=heavy: mass= must be 10 to 100 tons in steps of 5, left out") != std::string::npos);
   EXPECT(text.find("mech MADCAT_B tech=any mass=20 class=light: there is a mech MADCAT_B already, left out") != std::string::npos);
-  EXPECT(text.find("mech scout added (mech 20, 20 t, the models of scout)") != std::string::npos);
+  EXPECT(text.find("mech scout added (mech 21, 20 t, the models of scout)") != std::string::npos);
   mech3::mech_rows_clear();
   EXPECT(mech3::mech_count() == 19 && mech3::mech_index("scout") == -1);
   // The gameplay hash: the rows as data.
@@ -255,7 +265,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   put(wd + "/mods/m/mod.txt", "name=M\nmech=scout tech=sphere mass=20 class=light\n");
   text.clear();
   for (const std::string& l : mech3::mods_mount(wd, {"m", "w"}, {})) text += l + "\n";
-  EXPECT(text.find("mech scout added (mech 19") != std::string::npos && text.find("weapon Rail added (weapon 39)") != std::string::npos);
+  EXPECT(text.find("mech scout added (mech 20") != std::string::npos && text.find("weapon Rail added (weapon 39)") != std::string::npos);
   for (const std::string& l : mech3::mods_mount(wd, {}, {})) text += l + "\n";
   EXPECT(mech3::mech_count() == 19 && mech3::weapon_count() == (saved.bugs ? 38 : 37) && mech3::weapon_index("Rail") == -1);
   // The gameplay hash: the weapon rows as data.

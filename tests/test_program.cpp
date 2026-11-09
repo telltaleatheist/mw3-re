@@ -3834,7 +3834,7 @@ bool reader_with_copy(const std::string& install, const std::string& out, const 
 }  // namespace
 
 // Mods' mechs (docs/modding.md, item 1 of the modding cut): a mod's mech= row
-// is mech 19, after the exe's 19; c1 mission 1 launches it as the player's
+// is mech 20 (19 the exe's none); c1 mission 1 launches it as the player's
 // mech from its own dfn_thor_b.zrd (the Thor's, in the mod's repacked
 // reader.zbd) with the Thor's models, motions and sounds (model=thor).
 TEST(mods_mech_row_launches_as_the_player_c1m1_headless) {
@@ -3853,8 +3853,8 @@ TEST(mods_mech_row_launches_as_the_player_c1m1_headless) {
   std::string log;
   for (const std::string& l : mech3::mods_mount(wd, {"thorb"}, {install})) log += l + "\n";
   zutl::mount(install);
-  EXPECT(log.find("mech thor_b added (mech 19, 70 t, the models of thor)") != std::string::npos);
-  EXPECT(mech3::mech_count() == 20 && std::string(mech3::mech_title(19)) == "Thor B");
+  EXPECT(log.find("mech thor_b added (mech 20, 70 t, the models of thor)") != std::string::npos);
+  EXPECT(mech3::mech_count() == 21 && std::string(mech3::mech_title(20)) == "Thor B");
   mech3::reset_states();
   reset_process_state();
   mech3::missions() = mech3::Missions{};
@@ -3874,8 +3874,8 @@ TEST(mods_mech_row_launches_as_the_player_c1m1_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
-    mech3::GameEngine::Launch l;  // c1, mission 1, the mod's mech
-    l.mech = 19;
+    mech3::GameEngine::Launch l;  // c1, mission 1, the mod's mech (20)
+    l.mech = 20;
     engine.set_launch(l);
     engine.missions_start(0x6098d0);
     EXPECT(!mech3::missions().failed);
@@ -3883,7 +3883,7 @@ TEST(mods_mech_row_launches_as_the_player_c1m1_headless) {
     EXPECT(mech3::launched_mech(&m));
     std::printf("  launched roster %d, parts %d, weapons %d, height %.1f, speed %.1f, motions %d\n", m.roster, m.parts, m.weapons,
                 static_cast<double>(m.height), static_cast<double>(m.max_speed), m.motions);
-    EXPECT(m.roster == 19);
+    EXPECT(m.roster == 20);
     EXPECT(m.parts == 13 && m.weapons > 0 && m.sinks >= 10);  // the Thor's model and loadout
     EXPECT(m.height > 5.0f && m.height < 20.0f && m.max_speed > 10.0f);
     EXPECT(m.motions);  // the Thor's walk
@@ -3971,12 +3971,12 @@ TEST(mods_weapon_row_mounts_and_fires_c1m1_headless) {
     mech3::set_app(&app);
     EXPECT(app.init_instance());
     mech3::GameEngine::Launch l;
-    l.mech = 19;
+    l.mech = 20;
     engine.set_launch(l);
     engine.missions_start(0x6098d0);
     EXPECT(!mech3::missions().failed);
     mech3::LaunchedMech m;
-    EXPECT(mech3::launched_mech(&m) && m.roster == 19 && m.weapons > 0);
+    EXPECT(mech3::launched_mech(&m) && m.roster == 20 && m.weapons > 0);
     void* me = mech3::mech_mission_player();
     std::string groups;
     for (int g = 0; g < 5; ++g) groups += mech3::mech_group_names(me, g) + " | ";

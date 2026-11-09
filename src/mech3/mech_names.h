@@ -41,8 +41,9 @@ int32_t weight_class(int32_t mech);        // 0x00484700: 0..3 (the roster's +0x
 int32_t internal_points(int32_t mech, int32_t column);
 float equip_weight(int32_t kind, int32_t tech);  // 0x00484aa0
 
-// Mods' mechs (ours, docs/modding.md): rows after the exe's 19, from mod.txt's
-// mech= lines, so the exe's keep their indices. A row's model (its own name
+// Mods' mechs (ours, docs/modding.md): rows from 20, from mod.txt's mech=
+// lines, so the exe's 19 keep their indices and 19 (0x13) stays the exe's
+// "no mech" (saved pilots, the debriefing, the waiting mech). A row's model (its own name
 // when not given) names the mech whose models, motions and sounds it uses;
 // its dfn_<name>.zrd and saved configs are its own.
 struct ModMech {
@@ -52,7 +53,9 @@ struct ModMech {
   int32_t weight_class = 0;  // 0 light .. 3 assault
 };
 constexpr int32_t kBuiltinMechs = 19;
-int32_t mech_count();                       // the exe's 19 and the mods' rows
+constexpr int32_t kNoMech = 19;             // 0x13: none
+constexpr int32_t kFirstModMech = 20;
+int32_t mech_count();                       // 19, or 20 and the mods' rows (19 none)
 const char* mech_model_name(int32_t mech);  // the row's model, else its name
 const char* mech_title(int32_t mech);       // a mod row's title=, null for the exe's
 // One mech= line's value: `NAME tech=clan|sphere|any mass=T class=light|medium|
