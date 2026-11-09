@@ -619,6 +619,14 @@ void AiControls::on_death() {
   if (brain) brain->died();
 }
 
+// Mech3.exe 1.2 @ 0x004d8a50 (through the thunk 0x004d8d10), Pirate's Moon 1.0
+// @ 0x004e8e60 (0x004e90b0): the owner's vt+0x50 (PM's vt+0x58), the entity as
+// a mech (a mech itself), gets up (0x0041b840, PM's 0x0041c570), so an AI mech
+// is up as soon as its fall lands, not after the 5 s lie (movement-jump.md).
+void AiControls::landed() {
+  if (owner) owner->get_up();  // the exe calls it on 0 too; an AI's owner is always a mech
+}
+
 // Mech3.exe 1.2 @ 0x004ea630
 void AiControls::on_kill(void* victim) {
   if (brain) brain->killed(vehicle(), ai::brain_hooks().vehicle_handle(victim));
