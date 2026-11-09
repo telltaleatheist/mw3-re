@@ -133,6 +133,7 @@
 #include "mech3/player.h"
 #include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
+#include "mech3/game_editor_tree.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
@@ -26491,4 +26492,67 @@ TEST(mission_c1m1_add_vehicle_made_and_saved_headless) {
   EXPECT(name == "ttruck_03" && after == before + 1 && found && place_ok);
   EXPECT(status.find("ttruck_03 on net 1: made") == 0 && status.find("editor edits") != std::string::npos);
   EXPECT(read_back && rnet == 1 && rteam == 2 && rpos[0] == node[0] && rpos[2] == node[2] && tags);
+}
+
+// The Tree View (0x00402bf0 -> 0x004b5580, S5 sitting 4) on c1m1: the
+// world's item first, closed; opened, its children and then an "area R C"
+// item for each partition cell (0x004b56b0); a cell opened shows its nodes;
+// the list pages; OK closes it and gives the net menu back.
+TEST(mission_c1m1_tree_view_shows_the_world_headless) {
+  if (!have_game()) return;
+  std::string world_row, area_row, after_area;
+  size_t kids = 0, areas = 0, cells = 0;
+  bool closed = false, paged = false, opened_area = false;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("tree_view", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_ai_nets(0);
+    mech3::NetDialog& d = mech3::net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+    mech3::net_dialog_close();
+    if (!mech3::net_editor()) return true;
+    mech3::tree_view(0);
+    mech3::TreeWindow* t = mech3::tree_window();
+    if (!t) return true;
+    for (const mech3::TreeItem& k : t->root.kids) (k.node ? kids : areas)++;
+    std::vector<std::string> rows = mech3::tree_rows();
+    world_row = rows.size() > 1 ? rows[1] : "";
+    mech3::tree_press(1);  // the world opened
+    rows = mech3::tree_rows();
+    paged = std::find(rows.begin(), rows.end(), "   (down)") != rows.end();
+    // Page down until an area row shows, then open it.
+    for (int page = 0; page < 200 && area_row.empty(); ++page) {
+      rows = mech3::tree_rows();
+      for (size_t i = 0; i < rows.size(); ++i)
+        if (rows[i].find("area ") != std::string::npos) {
+          for (const mech3::TreeItem& k : t->root.kids)
+            if (!k.node && !k.kids.empty() && rows[i].find(k.text) != std::string::npos && area_row.empty()) {
+              area_row = rows[i];
+              cells = k.kids.size();
+              mech3::tree_press(int32_t(i));
+              after_area = mech3::tree_rows()[i];
+              opened_area = after_area.find("- area") != std::string::npos;
+            }
+          if (!area_row.empty()) break;
+        }
+      if (area_row.empty()) {
+        const auto down = std::find(rows.begin(), rows.end(), "   (down)");
+        if (down == rows.end()) break;
+        mech3::tree_press(int32_t(down - rows.begin()));
+      }
+    }
+    rows = mech3::tree_rows();
+    mech3::tree_press(int32_t(rows.size() - 2));  // OK
+    closed = !mech3::tree_window() && mech3::editor_state().menu == &mech3::editor_net_menu_rows();
+    mech3::net_editor_exit(0);
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  \"%s\": %zu children, %zu areas; paged %d; \"%s\" -> \"%s\" (%zu nodes); closed %d\n", world_row.c_str(),
+              kids, areas, paged, area_row.c_str(), after_area.c_str(), cells, closed);
+  EXPECT(world_row.find(" + ") == 0 && kids > 0 && areas > 0 && paged);
+  EXPECT(opened_area && cells > 0 && closed);
 }

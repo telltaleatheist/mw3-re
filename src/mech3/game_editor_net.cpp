@@ -13,6 +13,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/net_save.h"
 #include "mech3/zainet.h"
+#include "mech3/game_editor_tree.h"
 #include "mech3/zainetedit.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "upgrades/editor/node_params.h"
@@ -32,7 +33,6 @@ constexpr int32_t kListRows = 18;  // ours: the list's rows the panel has room f
 
 void not_ported(const char* what) { editor_hooks().not_ported(what); }
 void none(int32_t) {}  // 0x004bf620
-void tree_view(int32_t) { not_ported("Tree View (0x00402c70, the tree window)"); }
 
 // 0x005e0f18.
 const EditorEntry kNetRows[13] = {
@@ -574,10 +574,11 @@ void net_editor_frame_all(bool editing) {
 void EditorHooks::net_frame(bool editing) { net_editor_frame_all(editing); }
 
 // Mech3.exe 1.2 @ 0x00402ba0: the editor freed (0x00402fd0), the side
-// windows (the tree view's [0x005f4c74], the node window's [0x005f4c70]:
-// sitting 4's) closed, the main menu.
+// windows closed (vt+0x60: [0x005f4c70] the Tree View's; [0x005f4c74], which
+// nothing in the exe sets), the main menu.
 void net_editor_exit(int32_t) {
   net_editor_free();
+  tree_close();  // [0x005f4c70] vt+0x60
   editor_main_menu();
 }
 

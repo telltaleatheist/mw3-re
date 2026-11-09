@@ -99,6 +99,8 @@ class EditorHooks : public zgame::Unported {
   virtual float camera_pitch() { return 0.0f; }
   virtual bool ground_pick(float out[3]) { (void)out; return false; }
   virtual bool clear_line(const float* a, const float* b) { (void)a, (void)b; return false; }
+  // The world node ([0x00608c84] +4, a zcls::Node; the Tree View's); null without one.
+  virtual void* world_node() { return nullptr; }
   virtual void not_ported(const char* what);  // a row whose editor comes after v1.0: said in the log
 };
 void set_editor_hooks(EditorHooks* h);  // null: the defaults
