@@ -1340,6 +1340,52 @@ TEST(mods_anim_json_in_a_folder_or_a_zip) {
   EXPECT(refused != -9.0f && refused < 0.0f && own == refused);  // the anim.zbd's, not the later mod's
 }
 
+// What a world's anim JSON refuses, with the file, line and place (docs/modding.md).
+TEST(mods_anim_json_errors_name_the_place) {
+  const auto def = [](const std::string& seq_events, const std::string& extra = "") {
+    return "{\"name\": \"box\", \"anim_name\": \"hit_box\", \"anim_root_name\": \"box\", \"has_callbacks\": false,"
+           " \"auto_reset_node_states\": false, \"local_nodes_only\": false, \"proximity_damage\": false, \"active\": true,"
+           " \"low_priority\": false, \"activation\": \"OnCall\", \"execution\": \"None\", \"network_log\": null, \"save_log\": null,"
+           " \"reset_time\": null, \"health\": 0.0, \"activ_prereq_min_to_satisfy\": 0, \"objects\": null,"
+           " \"nodes\": [{\"name\": \"box\", \"ptr\": 1}], \"lights\": null, \"puffers\": null, \"dynamic_sounds\": null, \"static_sounds\": null,"
+           " \"effects\": null, \"activ_prereqs\": null, \"anim_refs\": null, \"reset_state\": null," + extra +
+           " \"sequences\": [{\"name\": \"s\", \"seq_state\": \"Initial\", \"reset_state\": \"Initial\", \"pointer\": 1,\n \"events\": [" +
+           seq_events + "]}], \"ptrs\": null}";
+  };
+  const std::string meta = "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [\"box\"], \"script_names\": [], \"anim_list\": []}";
+  const auto run = [&](const std::string& m, const std::string& d) {
+    std::vector<uint8_t> zbd;
+    std::string why;
+    const bool ok = zeff::anim_from_json([&](const std::string& n) { return n == "metadata.json" ? m : n == "box.json" ? d : std::string(); }, &zbd,
+                                         nullptr, &why);
+    std::printf("  -> %s\n", ok ? "read" : why.c_str());
+    return ok ? std::string() : why;
+  };
+  EXPECT(run(meta, def("{\"start\": null, \"data\": {\"ObjectActiveState\": {\"node\": \"box\", \"state\": true}}}")).empty());
+  const std::pair<std::string, const char*> cases[] = {
+      {def("{\"start\": null, \"data\": {\"Teleport\": {}}}"), "box.json: line 2 (at $.sequences[0].events[0].data): not an event this format has: Teleport"},
+      {def("{\"start\": null, \"data\": {\"ObjectActiveState\": {\"node\": \"lid\", \"state\": true}}}"),
+       "(at $.sequences[0].events[0].data.ObjectActiveState.node): no node \"lid\" in the def's nodes"},
+      {def("{\"start\": null, \"data\": {\"Loop\": {\"Forever\": 1}}}"), "(at $.sequences[0].events[0].data.Loop): not Count or RunTime"},
+      {def("{\"start\": {\"offset\": \"Later\", \"time\": 1.0}, \"data\": {\"Endif\": {}}}"), "(at $.sequences[0].events[0].start.offset): not one of"},
+      {def("{\"start\": null, \"data\": {\"Sound\": {\"name\": \"bang\", \"at_node\": null}}}"),
+       "(at $.sequences[0].events[0].data.Sound.name): no sound \"bang\" in the def's static sounds"},
+      {def("", "\"activ_prereqs\": [{\"Sometimes\": {}}],"), "(at $.activ_prereqs[0]): not Animation, Object or Parent"},
+      {def("{\"start\": null, \"data\": {\"CallAnimation\": {\"name\": \"a_name_far_longer_than_thirty_one_chars\", \"operand_node\": null,"
+           " \"wait_for_completion\": null, \"parameters\": null}}}"),
+       "(at $.sequences[0].events[0].data.CallAnimation.name): longer than 31 characters"},
+  };
+  for (const auto& [d, want] : cases) {
+    std::string d2 = d;
+    if (const size_t dup = d2.find("\"activ_prereqs\": null,"); dup != std::string::npos && d2.find("\"activ_prereqs\": [") != std::string::npos)
+      d2.erase(dup, std::strlen("\"activ_prereqs\": null,"));
+    EXPECT(run(meta, d2).find(want) != std::string::npos);
+  }
+  EXPECT(run("{\"mission\": \"MwC9V10\", \"gravity\": -9.8, \"anim_def_names\": [], \"script_names\": [], \"anim_list\": []}", "")
+             .find("metadata.json: line 1 (at $.mission): not a MechWarrior 3 world mech3ax knows") != std::string::npos);
+  EXPECT(run(meta, "").find("box.json: not there") != std::string::npos);
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {
@@ -1382,6 +1428,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(good + "/zbd/motion.zip", {{"madcat_run.json", motion}, {"manifest.json", "[]"}});
   put(good + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3}, \"alpha\": 255}}]");
   write_stored_zip(good + "/zbd/mechlib.zip", {{"materials.json", "[]"}});
+  put(good + "/zbd/t1/anim/metadata.json",
+      "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [], \"script_names\": [], \"anim_list\": []}");
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -1394,6 +1442,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/motion/madcat_walk.json: added") != std::string::npos && text.find("zbd/motion.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/mechlib/materials.json: added") != std::string::npos && text.find("zbd/mechlib.zip: added") != std::string::npos);
+  EXPECT(text.find("its animations read from unzbd's JSON") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1410,6 +1459,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
   put(bad + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3},\n \"alpha\": 300}}]");
   write_stored_zip(bad + "/zbd/mechlib.zip", {{"mech_x.flt.json", "{\"nodes\": []}"}});
+  write_stored_zip(bad + "/zbd/t1/anim.zip", {{"metadata.json", "{\"mission\": \"MwT1V12De\", \"gravity\": -9.8, \"anim_def_names\": [\"gone\"],"
+                                                                " \"script_names\": [], \"anim_list\": []}"}});
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -1446,7 +1497,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
   EXPECT(text.find("error: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
          text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
-  EXPECT(errors == 15 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
+  EXPECT(errors == 16 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&

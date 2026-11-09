@@ -10,10 +10,12 @@
 #include <filesystem>
 #include <functional>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_library.h"
@@ -811,6 +813,45 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       if (!why.empty()) error(rel + ": " + why + " (not read; an archive's entry of that name is)");
       else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
       else error(rel + ": not a text .zrd the reader can read");
+    } else if (name == "metadata.json" && low.size() > 19 && low.compare(low.size() - 19, 19, "/anim/metadata.json") == 0) {
+      // a world's animations as unzbd's JSON: the folder read whole, as the game reads it
+      const std::string folder = host.substr(0, host.size() - std::strlen("metadata.json"));
+      std::vector<uint8_t> zbd;
+      std::string why;
+      ++entries;
+      const auto file = [&](const std::string& n) {
+        std::ifstream in(folder + n, std::ios::binary);
+        std::stringstream t;
+        t << in.rdbuf();
+        return t.str();
+      };
+      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) error(rel.substr(0, rel.size() - std::strlen("metadata.json")) + ": " + why + " (not read; the anim.zbd is)");
+      else out.push_back("  its animations read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (name == "anim.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its animations not read; the anim.zbd's are)");
+        continue;
+      }
+      std::map<std::string, const zutl_zip::Zip::Entry*> by_name;
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        std::string l = e.name;
+        for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        by_name[l] = &e;
+      }
+      const auto file = [&](const std::string& n) {
+        std::string l = n;
+        for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        std::vector<uint8_t> d;
+        std::string err;
+        const auto hit = by_name.find(l);
+        return hit != by_name.end() && z.read(*hit->second, &d, &err) ? std::string(d.begin(), d.end()) : std::string();
+      };
+      std::vector<uint8_t> zbd;
+      std::string why;
+      ++entries;
+      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) error(rel + ": " + why + " (not read; the anim.zbd is)");
+      else out.push_back("  its animations read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
     } else if (low.rfind("zbd/mechlib/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // mechlib's
       std::ifstream in(host, std::ios::binary);
       std::stringstream text;

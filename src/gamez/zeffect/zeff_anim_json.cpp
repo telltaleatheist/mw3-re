@@ -1375,6 +1375,7 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std:
       const std::string a = at + ".activ_prereqs[" + std::to_string(i) + "]";
       if (!j.r.object(v, a) || v.members.size() != 1) return j.r.fail(v, a, "not one Animation, Object or Parent");
       const std::string& kind = v.members[0].first;
+      if (kind != "Animation" && kind != "Object" && kind != "Parent") return j.r.fail(v, a, "not Animation, Object or Parent");
       const Value& p = v.members[0].second;
       const std::string pa = a + "." + kind;
       std::string n;
