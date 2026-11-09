@@ -799,10 +799,11 @@ it, as the game's text), a number with '.' or an exponent a float, else an
 int. Objects and `true`/`false` are refused: mech3ax writes neither.
 
 *Exact numbers.* An int must fit 32 bits and is read as written. A float is
-read as a double (`strtod`) and narrowed to float: mech3ax writes each float
-as its widened f32, so the double is that f32 exactly and the narrowing gives
-the same bits back; a hand-written 0.1 rounds to the nearest float as the text
-reader does. `to_json` writes the shortest text that reads back to the same
+read straight to a float (`strtof`, rounded once): mech3ax writes each f32 as
+the shortest text that reads back to it (serde's), so its bits come back; a
+hand-written 0.1 rounds to the nearest float as the text reader does. (Read
+as a double and then narrowed, a rare value would round twice and miss by
+one bit.) `to_json` writes the shortest text that reads back to the same
 float. `mods_reader_json_round_trips_every_shipped_entry` writes every reader
 entry MW3 ships (55 archives, 1,268 entries) as JSON and reads it back to the
 same tree, every float to the bit; with `MW3_UNZBD_ARCHIVE`/`MW3_UNZBD_JSON`
@@ -823,6 +824,37 @@ never closed (not read; an archive's entry of that name is)"). Tests:
 `mods_reader_json_entry_in_a_folder_or_a_zip` (the order, the refusals, the
 hook), `mods_check_mod_reports_what_the_game_would_refuse`.
 
+**mech3ax's motion JSON (built 2026-11-09).** A mod may hold a motion as
+unzbd writes it: `zbd\motion\madcat_walk.json` (a folder named as the
+archive, the motion's name plus `.json`), or unzbd's `zbd\motion.zip` itself
+(matched in any case; `manifest.json` ignored). `load_motion` asks the enabled
+mods first to last: the folder's JSON, then the zip's, stopping at the first
+mod with its own `zbd\motion.zbd` (that archive is then read as before, its
+broken motions from the next copy). The JSON (`zsis::motion_from_json`,
+`si_script_json.cpp`; documents through `zutl_json`) becomes the entry's own
+bytes: version 4, `loop_time`, `frame_count`, the part count, then -1.0 and
+1.0 (stride and multiplier, the same in every motion; unzbd checks them and
+leaves them out), each part's name, flags 12, its `frame_count` + 1
+translations and rotations (the last key the first's again, which unzbd leaves
+out); unzbd's quaternion `x, y, z, w` is the file's order. Those bytes go
+through `Script::read`, the archive's bounded reader. Floats are read with
+`strtof`, so unzbd's shortest texts come back to the bits.
+
+`mods_motion_json_round_trips_every_shipped_motion` writes each of MW3's 258
+motions as JSON (`motion_to_json`) and reads it back to the entry's own bytes,
+each read by `Script::read`; with `MW3_UNZBD_MOTION` it reads unzbd's own 258
+files too, all the same bytes. Errors name the line and place: "line 2 (at
+$.parts[0].frames[1].rotation): no \"w\"", "(at $.parts[0].frames): 2
+frames, where frame_count says 3", "(at $.loop_time): not above 0", syntax
+errors too ("line 2 (at $.parts[0].frames[1]): the file ends where a value
+should be"). A refused motion is said in the log ("mw3: mod: FILE: ...;
+zbd/motion.zbd's motion read instead") and the archives' is read, not a later
+mod's JSON. `--check-mod` reads every `zbd/motion/*.json` and `motion.zip`
+entry the same way. Tests: those two, `mods_motion_json_errors_name_the_line_and_place`,
+`bounded_motion_json_in_a_folder_or_a_zip` (`test_bounded_readers.cpp`: the
+order, the refusals, the own-archive stop),
+`mods_check_mod_reports_what_the_game_would_refuse`.
+
 **mech3ax's other JSON, mapped (not built).** `unzbd` writes one zip per archive,
 with `manifest.json` (the entries' names, order and the bytes needed to pack
 them again) and one JSON per entry, or per file for gamez:
@@ -831,7 +863,7 @@ them again) and one JSON per entry, or per file for gamez:
 |---|---|---|
 | `reader*.zbd` | `<entry>.zrd.json` | built, above |
 | `mechlib.zbd` | `format`, `version` (checked only), `materials.json`, `<model>.json` for `<model>.flt` | `mechlib_open` 0x004fc6d0 (the materials, 0x004fc9e0) and `mechlib_load` 0x004fc8f0 (one model's tree), before `mechlib_resolve` |
-| `motion.zbd` | `<motion>.json` per motion | `load_motion` (`zsis::Script::read`, bounded), one motion each |
+| `motion.zbd` | `<motion>.json` per motion | built, above |
 | `zbd\<world>\anim.zbd` | `metadata.json` (the defs' order), `<def>.json` per anim def, `<script>.json` for each `.zan` | the anim reader 0x0050a0e0, the whole file, then the post-load pass 0x0050ae60 |
 | `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | `cls_zbd` 0x004ff520, the whole world: five files, no entries |
 
@@ -847,7 +879,7 @@ the JSON folder, then the zip, then the mod's archive; mods first to last as
 now. JSON is read only from a mod, never the install.
 
 Proposed order, smallest and most edited first: (1) reader JSON (done,
-above); (2) motion (one entry, a short struct; unzbd's motion
+above); (2) motion (done, above) (one entry, a short struct; unzbd's motion
 JSON is the format mech3ax documents best); (3) mechlib models and materials
 (the new-mechs path: a mod's mech as JSON, checked with the bounded reader's
 limits); (4) anim (whole file, its names resolved by the post-load pass as

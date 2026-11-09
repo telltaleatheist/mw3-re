@@ -79,6 +79,7 @@ add_library(mw3core STATIC
   third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zutil/zutl_zip.cpp
+  src/gamez/zutil/zutl_json.cpp
   src/gamez/zsave/zsave.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
@@ -133,6 +134,7 @@ add_library(mw3core STATIC
   src/gamez/zreader/zreader.cpp
   src/gamez/zreader/zreader_json.cpp
   src/gamez/zsiscript/si_script.cpp
+  src/gamez/zsiscript/si_script_json.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
   src/gamez/zrender/zrndr_draw.cpp

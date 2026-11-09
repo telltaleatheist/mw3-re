@@ -2,8 +2,8 @@
 // mech3ax's JSON (unzbd's `<entry>.zrd.json`), the tree one to one, and back.
 // An array is a list, a string a string, a number with '.' or an exponent a
 // float, one without an int; null is an empty list (unzbd writes one for a
-// list of no items). unzbd writes each float widened to a double exactly, so
-// the double's nearest float is the entry's own bits.
+// list of no items). unzbd writes each f32 as its shortest text (serde's), so
+// a float read once from it (strtof, rounded once) is the entry's own bits.
 #include <cmath>
 #include <cfloat>
 #include <cstdint>
@@ -144,7 +144,7 @@ struct Parser {
       const double d = std::strtod(text.c_str(), nullptr);
       if (!std::isfinite(d) || std::fabs(d) > FLT_MAX) return fail(text + ": past a float's range");
       n->type = Float;
-      n->f = static_cast<float>(d);
+      n->f = std::strtof(text.c_str(), nullptr);  // not d's float: rounding twice can miss by one
       return true;
     }
     const long long v = std::strtoll(text.c_str(), nullptr, 10);

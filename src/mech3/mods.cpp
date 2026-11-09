@@ -20,6 +20,7 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_zip.h"
+#include "gamez/zsiscript/si_script_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
@@ -798,6 +799,28 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       if (!why.empty()) error(rel + ": " + why + " (not read; an archive's entry of that name is)");
       else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
       else error(rel + ": not a text .zrd the reader can read");
+    } else if (low.rfind("zbd/motion/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // a motion as unzbd's JSON
+      std::ifstream in(host, std::ios::binary);
+      std::stringstream text;
+      text << in.rdbuf();
+      std::string why;
+      std::vector<uint8_t> entry;
+      ++entries;
+      if (!zsis::motion_from_json(text.str(), &entry, &why)) error(rel + ": " + why + " (not read; the archive's motion is)");
+    } else if (low == "zbd/motion.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its motions not read; the archive's are)");
+        continue;
+      }
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        if (e.name.size() <= 5 || e.name.compare(e.name.size() - 5, 5, ".json") != 0 || e.name == "manifest.json") continue;
+        ++entries;
+        std::vector<uint8_t> data, entry;
+        std::string why;
+        if (!(z.read(e, &data, &why) && zsis::motion_from_json(std::string(data.begin(), data.end()), &entry, &why)))
+          error(rel + ":" + e.name + ": " + why + " (not read; the archive's motion is)");
+      }
     } else if (name.size() > 9 && name.compare(name.size() - 9, 9, ".zrd.json") == 0) {  // mech3ax's JSON, beside its archive
       std::ifstream in(host, std::ios::binary);
       std::stringstream text;

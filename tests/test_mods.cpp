@@ -13,11 +13,14 @@
 #include <vector>
 
 #include "check.h"
+#include "zip_write.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zutil/zutl_zip.h"
+#include "gamez/zsiscript/si_script.h"
+#include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
@@ -906,29 +909,6 @@ TEST(mods_reader_json_errors_name_the_line_and_place) {
   }
 }
 
-namespace {
-// A zip of stored (uncompressed) files, as a modder's tool may write one.
-void write_stored_zip(const std::string& path, const std::vector<std::pair<std::string, std::string>>& files) {
-  std::string out, dir;
-  auto le = [](std::string& b, uint32_t v, int n) {
-    for (int i = 0; i < n; ++i) b.push_back(static_cast<char>(v >> (8 * i)));
-  };
-  for (const auto& [name, data] : files) {
-    const uint32_t crc = zutl_zip::zip_crc(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-    const uint32_t at = static_cast<uint32_t>(out.size()), n = static_cast<uint32_t>(data.size());
-    le(out, 0x04034b50, 4), le(out, 20, 2), le(out, 0, 2), le(out, 0, 2), le(out, 0, 4), le(out, crc, 4), le(out, n, 4), le(out, n, 4);
-    le(out, static_cast<uint32_t>(name.size()), 2), le(out, 0, 2), out += name, out += data;
-    le(dir, 0x02014b50, 4), le(dir, 20, 2), le(dir, 20, 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 4), le(dir, crc, 4), le(dir, n, 4);
-    le(dir, n, 4), le(dir, static_cast<uint32_t>(name.size()), 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 4);
-    le(dir, at, 4), dir += name;
-  }
-  const uint32_t start = static_cast<uint32_t>(out.size());
-  out += dir;
-  le(out, 0x06054b50, 4), le(out, 0, 2), le(out, 0, 2), le(out, static_cast<uint32_t>(files.size()), 2), le(out, static_cast<uint32_t>(files.size()), 2);
-  le(out, static_cast<uint32_t>(dir.size()), 4), le(out, start, 4), le(out, 0, 2);
-  put(path, out);
-}
-}  // namespace
 
 // A mod's entry as mech3ax's JSON (docs/modding.md, Readable files): a loose .zrd first, then the JSON in a folder
 // named as the archive (zbd/reader/fmv.zrd.json), then the archive's zip of them (zbd/reader.zip), then the archive's
@@ -978,6 +958,85 @@ TEST(mods_reader_json_entry_in_a_folder_or_a_zip) {
   EXPECT(hooked == 6);  // every tree read, the mod's and the archive's, through the hook
 }
 
+// Every motion MW3 ships, as unzbd's JSON (motion_to_json) and back (motion_from_json): the entry's own bytes, and
+// read by the archive's bounded reader. MW3_UNZBD_MOTION: a folder of unzbd's own `<motion>.json`, each the entry too.
+TEST(mods_motion_json_round_trips_every_shipped_motion) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/motion.zbd", ec)) return;
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  EXPECT(zutl_zar::open(a, (install + "/zbd/motion.zbd").c_str()));
+  const char* theirs = std::getenv("MW3_UNZBD_MOTION");
+  int motions = 0, same = 0, read = 0, unzbd = 0;
+  std::string first_bad;
+  for (int i = 0; i < a.count; ++i) {
+    uint32_t length = 0;
+    std::FILE* f = zutl_zar::seek(a, i, &length);
+    if (!f) continue;
+    std::vector<uint8_t> entry(length);
+    if (std::fread(entry.data(), 1, length, f) != length) continue;
+    ++motions;
+    std::string json, why;
+    std::vector<uint8_t> back;
+    const bool ok = zsis::motion_to_json(entry.data(), entry.size(), &json) && zsis::motion_from_json(json, &back, &why) && back == entry;
+    same += ok;
+    if (!ok && first_bad.empty()) first_bad = std::string(a.entries[i].name) + (why.empty() ? "" : ": " + why);
+    if (std::FILE* t = std::tmpfile()) {  // the bytes through the archive's reader
+      std::fwrite(back.data(), 1, back.size(), t);
+      std::rewind(t);
+      zsis::Script sc;
+      if (sc.read(t, static_cast<long>(back.size())) && sc.part_count > 0) ++read;
+      for (uint32_t k = 0; k < sc.part_count; ++k) sc.parts[k]->destroy(), delete sc.parts[k];
+      std::free(sc.parts), sc.parts = nullptr, sc.part_count = 0;
+      std::fclose(t);
+    }
+    if (theirs) {
+      std::ifstream in(std::string(theirs) + "/" + a.entries[i].name + ".json");
+      std::stringstream text;
+      text << in.rdbuf();
+      std::vector<uint8_t> bytes;
+      const bool them = zsis::motion_from_json(text.str(), &bytes, &why) && bytes == entry;
+      unzbd += them;
+      if (!them && first_bad.empty()) first_bad = std::string("unzbd ") + a.entries[i].name + ": " + why;
+    }
+  }
+  zutl_zar::destroy(a);
+  std::printf("  %d motions, %d the same bytes back, %d read by the reader%s; first difference: %s\n", motions, same, read,
+              theirs ? (", " + std::to_string(unzbd) + " of unzbd's the same bytes").c_str() : "", first_bad.empty() ? "none" : first_bad.c_str());
+  EXPECT(motions > 200 && same == motions && read == motions && first_bad.empty());
+}
+
+// What a motion's JSON refuses, each with its line and place (docs/modding.md).
+TEST(mods_motion_json_errors_name_the_line_and_place) {
+  const std::string frame = "{\"translation\": {\"x\": 0, \"y\": 1.5, \"z\": 0}, \"rotation\": {\"x\": 1, \"y\": 0, \"z\": 0, \"w\": 0}}";
+  const std::string part = "{\"name\": \"hip\", \"frames\": [" + frame + ", " + frame + "]}";
+  const std::string good = "{\"loop_time\": 2.0, \"frame_count\": 2, \"parts\": [" + part + "]}";
+  std::vector<uint8_t> bytes;
+  std::string why;
+  EXPECT(zsis::motion_from_json(good, &bytes, &why) && bytes.size() == 24 + 4 + 3 + 4 + 3 * 28);
+  const std::pair<std::string, const char*> cases[] = {
+      {"[]", "line 1 (at $): not an object"},
+      {"{\"loop_time\": 2.0, \"parts\": []}", "line 1 (at $): no \"frame_count\""},
+      {"{\"loop_time\": 2.0,\n \"frame_count\": 0, \"parts\": []}", "line 2 (at $.frame_count): 0: a motion has at least one frame"},
+      {"{\"loop_time\": \"2\", \"frame_count\": 2, \"parts\": []}", "line 1 (at $.loop_time): not a number"},
+      {"{\"loop_time\": 2.0, \"frame_count\": 2.5, \"parts\": []}", "line 1 (at $.frame_count): not a whole number"},
+      {"{\"loop_time\": 1e40, \"frame_count\": 2, \"parts\": []}", "line 1 (at $.loop_time): 1e40: past a float's range"},
+      {"{\"loop_time\": 2.0, \"frame_count\": 3, \"parts\": [" + part + "]}", "line 1 (at $.parts[0].frames): 2 frames, where frame_count says 3"},
+      {"{\"loop_time\": 2.0, \"frame_count\": 2, \"parts\": [{\"name\": \"hip\", \"frames\": [" + frame + ",\n {\"translation\": {\"x\": 0, \"y\": 0, \"z\": 0}, \"rotation\": {\"x\": 1, \"y\": 0, \"z\": 0}}]}]}",
+       "line 2 (at $.parts[0].frames[1].rotation): no \"w\""},
+      {"{\"loop_time\": 2.0, \"frame_count\": 2, \"parts\": [{\"name\": \"\\u4e2d\", \"frames\": []}]}", "line 1 (at $.parts[0].name): a character the game's text"},
+      {"{\"loop_time\": 2.0, \"frame_count\": 2, \"parts\": [{\"name\": \"hip\",\n \"frames\": [" + frame + ",", "line 2 (at $.parts[0].frames[1]): the file ends"},
+      {"{\"loop_time\" 2.0}", "line 1 (at $): no ':' after the name \"loop_time\""},
+  };
+  for (const auto& [text, want] : cases) {
+    why.clear();
+    const bool ok = zsis::motion_from_json(text, &bytes, &why);
+    std::printf("  -> %s\n", why.c_str());
+    EXPECT(!ok && why.rfind(want, 0) == 0);
+  }
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {
@@ -1014,6 +1073,10 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(good + "/strings.txt", "100=Hello\n");
   put(good + "/zbd/reader/fmv.zrd.json", "[\"INTRO\", [\"PLAYAVI\", \"intro\"]]");
   write_stored_zip(good + "/zbd/reader.zip", {{"fmv.zrd.json", "[\"INTRO\", [\"PLAYAVI\", \"intro\"]]"}, {"notes.txt", "x"}});
+  const std::string frame = "{\"translation\": {\"x\": 0, \"y\": 1.5, \"z\": 0}, \"rotation\": {\"x\": 1, \"y\": 0, \"z\": 0, \"w\": 0}}";
+  const std::string motion = "{\"loop_time\": 2.0, \"frame_count\": 1, \"parts\": [{\"name\": \"hip\", \"frames\": [" + frame + "]}]}";
+  put(good + "/zbd/motion/madcat_walk.json", motion);
+  write_stored_zip(good + "/zbd/motion.zip", {{"madcat_run.json", motion}, {"manifest.json", "[]"}});
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -1024,6 +1087,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   std::printf("%s", text.c_str());
   EXPECT(errors == 0 && text.find("mod.txt: Good 1") != std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos);
   EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
+  EXPECT(text.find("zbd/motion/madcat_walk.json: added") != std::string::npos && text.find("zbd/motion.zip: added") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1036,6 +1100,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(bad + "/zbd/reader/fmv.zrd.json", "[\"INTRO\",\n [\"PLAYAVI\", true]]");
   write_stored_zip(bad + "/zbd/reader.zip", {{"fmv.zrd.json", "[1"}});
   put(bad + "/zbd/c1/readerm1.zip", "not a zip");
+  put(bad + "/zbd/motion/madcat_walk.json", "{\"loop_time\": 2.0,\n \"frame_count\": 0, \"parts\": []}");
+  write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -1068,7 +1134,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("error: zbd/reader/fmv.zrd.json: line 2 (at $[1][1]): true or false") != std::string::npos &&
          text.find("error: zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '[' never closed") != std::string::npos &&
          text.find("error: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
-  EXPECT(errors == 11 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/motion/madcat_walk.json: line 2 (at $.frame_count): 0: a motion has at least one frame") != std::string::npos &&
+         text.find("error: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
+  EXPECT(errors == 13 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&

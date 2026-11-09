@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "check.h"
+#include "zip_write.h"
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_zbd.h"
@@ -18,6 +19,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zsiscript/si_script.h"
+#include "gamez/zsiscript/si_script_json.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mods.h"
@@ -501,3 +503,75 @@ TEST(bounded_readers_take_more_than_shipped) {
     EXPECT(r0 == 0 && r1 == 0 && live1 == live0 && cap1 >= size + kMore && r2 == -1);
   }
 }
+
+// A mod's motion as unzbd's JSON (docs/modding.md): the folder's zbd/motion/<name>.json, then unzbd's zbd/motion.zip,
+// then the archives; a later mod's not reached past a mod with its own motion.zbd. One that does not read is refused
+// and the archive's motion read, as a broken copy is.
+TEST(bounded_motion_json_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/motion.zbd", ec)) return;
+  const zutl::Mounts saved = zutl::mounts();
+  const auto put = [](const std::string& path, const std::string& text) {
+    std::error_code e;
+    fs::create_directories(fs::path(path).parent_path(), e);
+    std::ofstream(path, std::ios::binary) << text;
+  };
+  const char* kName = "vulture_walk";
+  std::string json;
+  {
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    EXPECT(zutl_zar::open(a, (install + "/zbd/motion.zbd").c_str()));
+    uint32_t length = 0;
+    std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, kName), &length);
+    std::vector<uint8_t> entry(length);
+    EXPECT(f && std::fread(entry.data(), 1, length, f) == length && zsis::motion_to_json(entry.data(), entry.size(), &json));
+    zutl_zar::destroy(a);
+  }
+  const auto with_loop = [&](const char* t) {
+    std::string j = json;
+    const size_t at = j.find("\"loop_time\": ");
+    const size_t end = j.find(',', at);
+    return j.replace(at, end - at, std::string("\"loop_time\": ") + t);
+  };
+  const std::string wd = std::string(MW3_TEST_TMP) + "/mods_motion_json";
+  fs::remove_all(wd, ec);
+  const std::string mod = wd + "/mods/motionmod", later = wd + "/mods/later";
+  put(mod + "/mod.txt", "name=Motion\n");
+  put(later + "/mod.txt", "name=Later\n");
+  put(later + "/zbd/motion/vulture_walk.json", with_loop("9.0"));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"motionmod", "later"}, {install});
+  zutl::mount(install);
+  const auto loop = [&]() {
+    EXPECT(mech3::open_motions("zbd/motion.zbd"));
+    zsis::Script sc;
+    const bool ok = mech3::load_motion(sc, kName);
+    const float t = ok ? sc.loop_time : -1.0f;
+    mech3::script_free_parts(sc);
+    mech3::close_motions();
+    return t;
+  };
+  const float shipped = loop();
+  EXPECT(shipped == 9.0f);  // only the later mod has one
+  write_stored_zip(mod + "/zbd/motion.zip", {{"VULTURE_WALK.JSON", with_loop("3.5")}});
+  EXPECT(loop() == 3.5f);
+  put(mod + "/zbd/motion/vulture_walk.json", with_loop("4.25"));
+  EXPECT(loop() == 4.25f);  // the folder before the zip
+  put(mod + "/zbd/motion/vulture_walk.json", with_loop("-1.0"));
+  const float refused = loop();
+  put(mod + "/zbd/motion/vulture_walk.json", "{\"loop_time\": 2.0,\n \"frame_count\": 3, \"parts\": [{\"name\": \"hip\", \"frames\": []}]}");
+  const float cut = loop();
+  fs::remove_all(mod + "/zbd/motion", ec);
+  fs::remove(mod + "/zbd/motion.zip", ec);
+  fs::create_directories(mod + "/zbd", ec);
+  fs::copy_file(install + "/zbd/motion.zbd", mod + "/zbd/motion.zbd", ec);
+  const float own = loop();  // the mod's own archive stops the search: the later mod's JSON not read
+  std::printf("  later mod 9 -> %.2f; zip 3.5, folder 4.25; refused -> %.3f, %.3f; own archive -> %.3f\n", shipped, refused, cut, own);
+  EXPECT(refused != -1.0f && refused != 9.0f && refused > 0.0f);  // the archive's
+  EXPECT(cut == refused && own == refused);
+  zutl::mounts() = saved;
+}
+
