@@ -8,10 +8,13 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_mech.h"
+#include "mech3/app_turret.h"
+#include "mech3/turret.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
@@ -382,6 +385,29 @@ float pm_mech_toughness(void* mech, bool* invincible) {
 int pm_controls_view(void* mech) {
   const Mech* m = static_cast<Mech*>(mech);
   return m && m->controls ? m->controls->view : -1;
+}
+// The turret whose node this is, destroyed as its health running out does (0x004a7620); false: none.
+bool pm_kill_turret(const char* name) {
+  zcls::Node* n = zcls::list_find_by_name(6, name);
+  tur::Turret* t = n ? program_turret(node_entity(n)) : nullptr;
+  if (!t) return false;
+  t->deactivate(true);
+  return true;
+}
+// pm-tests 37's survey: every turret's root (the topmost node whose entity is that turret).
+void pm_turret_roots(std::vector<zcls::Node*>* out) {
+  for (zcls::ListItem* it = zcls::list_head(6); it; it = it->next) {
+    zcls::Node* n = it->node;
+    tur::Turret* t = n ? program_turret(node_entity(n)) : nullptr;
+    if (!t) continue;
+    zcls::Node* p = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr;
+    if (p && program_turret(node_entity(p)) == t) continue;
+    out->push_back(n);
+  }
+}
+void pm_controls_set_view(void* mech, int view) {
+  Mech* m = static_cast<Mech*>(mech);
+  if (m && m->controls) m->controls->view = view;
 }
 bool pm_cheat_fast() { return cheats().fast; }
 // The reticle (look_position x, y) and the controls' twist and pitch.
