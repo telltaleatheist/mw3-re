@@ -379,6 +379,19 @@ float pm_mech_toughness(void* mech, bool* invincible) {
   for (MechPart* p : m->parts) sum += p->armor + p->internal;
   return sum;
 }
+int pm_controls_view(void* mech) {
+  const Mech* m = static_cast<Mech*>(mech);
+  return m && m->controls ? m->controls->view : -1;
+}
+bool pm_cheat_fast() { return cheats().fast; }
+// The reticle (look_position x, y) and the controls' twist and pitch.
+void pm_controls_aim(void* mech, float out[4]) {
+  out[0] = out[1] = out[2] = out[3] = 0.0f;
+  Mech* m = static_cast<Mech*>(mech);
+  if (!m || !m->controls) return;
+  if (const float* l = m->controls->look_position()) out[0] = l[0], out[1] = l[1];
+  out[2] = m->controls->twist, out[3] = m->controls->pitch;
+}
 bool pm_cheat(void* player, const char* text) { return cheat_enter(*static_cast<Mech*>(player), text); }
 
 // pm-tests item 15: TAG added as a mech's build adds it (configure_weapons: by the first firepoint's name under the

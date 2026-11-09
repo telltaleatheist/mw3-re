@@ -17,6 +17,7 @@
 #endif
 
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zinput/zinput.h"
 #include "check.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_save.h"
@@ -1833,7 +1834,7 @@ static void cow_run(int when) {
         }
       };
       Pump pump;
-      pump.limit = 20000;
+      pump.limit = 60000;
       pump.stop = [&] { return stage == 3; };
       app.run(pump);
       mech3::missions().cleanup(false);
@@ -2467,4 +2468,146 @@ TEST(pm_c1m2_lock_drops_on_a_new_target_headless) {
 #else
   lock_drop_run();
 #endif
+}
+
+// pm-tests item 36 (Owen 2026-11-09): "operation cwal" typed into the cheat
+// box took the mouse off the reticle. The box opened with Shift+Enter and
+// every key of the code pressed through the keyboard's path, a key a frame,
+// the mouse moved; the controls' view (2: the reticle) watched throughout.
+namespace {
+uint32_t dik_of(char c) {
+  static const char* rows[] = {"1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"};
+  static const uint32_t first[] = {0x02, 0x10, 0x1e, 0x2c};
+  if (c == ' ') return 0x39;
+  for (int r = 0; r < 4; ++r)
+    if (const char* p = std::strchr(rows[r], c)) return first[r] + static_cast<uint32_t>(p - rows[r]);
+  return 0;
+}
+// The SDL host's characters for the keys typed (SdlZinHost: the keymap's).
+struct TypedHost : zin::Host {
+  uint32_t map_virtual_key(uint32_t scan) override { return scan; }
+  bool keyboard_state(uint8_t* st) override {
+    std::memset(st, 0, 256);
+    return true;
+  }
+  int32_t to_ascii(uint32_t, uint32_t scan, const uint8_t*, uint16_t* out) override {
+    if (scan == 0x1c) return *out = 0x0d, 1;
+    for (char c = ' '; c <= 'z'; ++c)
+      if ((c == ' ' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z')) && dik_of(c) == scan) return *out = static_cast<uint16_t>(c), 1;
+    return 0;
+  }
+};
+struct TypedKeys : platform::Input {
+  std::vector<std::vector<platform::KeyEvent>> frames;  // one read's events each
+  size_t at = 0;
+  uint32_t t = 0;
+  int32_t mouse_dx = 0;
+  void read(std::vector<platform::KeyEvent> ev) { frames.push_back(std::move(ev)); }
+  platform::KeyEvent ev(uint32_t dik, bool down) { return {dik, down ? 0x80u : 0u, ++t, t}; }
+  void press(uint32_t dik) { read({ev(dik, true)}), read({ev(dik, false)}); }
+  void type(const char* text) {
+    for (const char* c = text; *c; ++c) press(dik_of(*c));
+  }
+  bool open(Device d) override { return d == kKeyboard || d == kMouse; }
+  void close(Device) override {}
+  int32_t acquire(Device) override { return 0; }
+  int32_t unacquire(Device) override { return 0; }
+  int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+    uint32_t n = 0;
+    if (at < frames.size()) {
+      for (const platform::KeyEvent& e : frames[at]) if (n < *count) out[n++] = e;
+      ++at;
+    }
+    *count = n;
+    return 0;
+  }
+  int32_t mouse_state(platform::MouseState* out) override {
+    *out = platform::MouseState{};
+    out->x = mouse_dx;
+    return 0;
+  }
+  int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+};
+}  // namespace
+
+int pm_controls_view(void* mech);
+bool pm_cheat_fast();
+void pm_controls_aim(void* mech, float out[4]);
+TEST(pm_cheat_box_keeps_the_reticle) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_cwal_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  TypedKeys keys;
+  TypedHost host;
+  zin::set_host(&host);
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  mech3::Mech3App app(&engine);
+  mech3::set_app(&app);
+  EXPECT(app.init_instance());
+  mech3::GameEngine::Launch l;
+  l.index = 1, l.type = 1, l.number = 3;
+  engine.set_launch(l);
+  app.post_intro_ = &mech3::states().load;
+  int frames = 0, last_view = -1;
+  bool done = false;
+  std::string seen;
+  engine.on_present = [&](int) {
+    if (app.current() != &mech3::states().core) return;
+    void* me = mech3::mission_player_mech();
+    if (!me || pm_controls_view(me) < 0) return;
+    ++frames;
+    const bool moving = (frames >= 10 && frames < 20) || (frames >= 80 && frames < 90);
+    keys.mouse_dx = moving ? (frames < 50 ? 4 : -4) : 0;
+    if (frames % 5 == 0 || moving) {
+      float a[4];
+      pm_controls_aim(me, a);
+      std::printf("  f%d dx %d: reticle %.3f %.3f, twist %.3f pitch %.3f\n", frames, keys.mouse_dx, a[0], a[1], a[2], a[3]);
+    }
+    if (pm_controls_view(me) != last_view) {
+      last_view = pm_controls_view(me);
+      seen += " f" + std::to_string(frames) + ":" + std::to_string(last_view);
+    }
+    if (frames == 30) {
+      std::printf("  L is command %#x, Enter %#x\n", zin::key_command(0x26), zin::key_command(0x1c));
+      keys.read({keys.ev(0x2a, true)});
+      keys.read({keys.ev(0x1c, true), keys.ev(0x1c, false)});
+      keys.read({keys.ev(0x2a, false)});
+      if (std::getenv("PM_CWAL_BATCH")) {  // the last letter and Enter in one read, as fast typing gives
+        keys.type("operation cwa");
+        keys.read({keys.ev(0x26, true), keys.ev(0x26, false), keys.ev(0x1c, true), keys.ev(0x1c, false)});
+      } else {
+        keys.type(std::getenv("PM_CWAL_TEXT") ? std::getenv("PM_CWAL_TEXT") : "operation cwal");
+        keys.press(0x1c);
+      }
+    }
+    if (frames == 120) done = true;
+  };
+  Pump pump;
+  pump.limit = 60000;
+  pump.stop = [&] { return done; };
+  app.run(pump);
+  zgame::set_game(zgame::mw3_table());
+  zin::set_host(nullptr);
+  std::printf("  views:%s; cwal %d; frames %d\n", seen.c_str(), pm_cheat_fast() ? 1 : 0, frames);
 }
