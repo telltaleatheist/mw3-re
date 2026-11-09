@@ -377,6 +377,139 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     return true;
   }
   if (type == "Else" || type == "Endif") return j.r.object(d, at);
+  if (type == "PufferState") {
+    std::string n;
+    if (!name32("name", &n)) return false;
+    const int16_t pi = Def::find(def.puffers, n);
+    if (!pi) return j.r.fail(d, at + ".name", "no puffer \"" + n + "\" in the def's puffers");
+    uint32_t flags = 0, active = 0;
+    int32_t ni = -1;
+    const auto opt = [&](const char* key, uint32_t flag, int floats, float* out, const char* const* names) {
+      const Value* v = j.get(d, at, key);
+      if (!v) return false;
+      if (v->kind == Value::Null) return true;
+      flags |= flag;
+      if (floats == 1) return j.r.f32(*v, at + "." + key, out);
+      for (int k = 0; k < floats; ++k)
+        if (!j.f32(*v, at + "." + key, names[k], out + k)) return false;
+      return true;
+    };
+    static const char* const kXyz[] = {"x", "y", "z"};
+    static const char* const kRange[] = {"min", "max"};
+    float tr[3] = {}, lv[3] = {}, wv[3] = {}, mn[3] = {}, mx[3] = {}, wa[3] = {}, iv = 0, size[2] = {}, life[2] = {}, age[2] = {}, dev = 0,
+          unk[2] = {}, fade[2] = {}, fric = 0, wind = 0, prio = 0;
+    uint32_t itype = 0;
+    const Value* av = j.get(d, at, "active_state");
+    const Value* an = j.get(d, at, "at_node");
+    if (!av || !an) return false;
+    if (av->kind != Value::Null) {
+      if (!j.r.u32(*av, at + ".active_state", &active)) return false;
+      flags |= 4;
+    }
+    if (an->kind != Value::Null) {
+      std::string nn;
+      if (!j.r.game_string(*an, at + ".at_node", &nn, 255)) return false;
+      if (!(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".at_node", "no node \"" + nn + "\" in the def's nodes");
+      flags |= 2;
+    }
+    if (!(opt("translate", 1, 3, tr, kXyz) && opt("local_velocity", 8, 3, lv, kXyz) && opt("world_velocity", 0x10, 3, wv, kXyz) &&
+          opt("min_random_velocity", 0x20, 3, mn, kXyz) && opt("max_random_velocity", 0x40, 3, mx, kXyz) &&
+          opt("world_acceleration", 0x10000, 3, wa, kXyz) && opt("size_range", 0x200, 2, size, kRange) &&
+          opt("lifetime_range", 0x400, 2, life, kRange) && opt("start_age_range", 0x8000, 2, age, kRange) &&
+          opt("deviation_distance", 0x800, 1, &dev, nullptr) && opt("unk_range", 0x80000, 2, unk, kRange) &&
+          opt("fade_range", 0x1000, 2, fade, kRange) && opt("friction", 0x20000, 1, &fric, nullptr) &&
+          opt("wind_factor", 0x100000, 1, &wind, nullptr) && opt("priority", 0x400000, 1, &prio, nullptr)))
+      return false;
+    const Value* num = j.get(d, at, "number");
+    const Value* in = j.get(d, at, "interval");
+    if (!num || !in) return false;
+    if (num->kind != Value::Null) flags |= 0x200000;
+    const auto interval = [&](const Value& v, const std::string& ia) {
+      int t = 0;
+      if (!(j.name_of(v, ia, "interval_type", {{"Time", 0}, {"Distance", 1}}, &t) && j.f32(v, ia, "interval_value", &iv))) return false;
+      itype = static_cast<uint32_t>(t);
+      return true;
+    };
+    if (in->kind != Value::Null) {
+      if (!interval(*in, at + ".interval")) return false;
+      flags |= 0x180;
+    } else if (const Value* g = d.get("interval_garbage"); g && g->kind != Value::Null) {
+      bool ht = false, hv = false;
+      if (!(interval(*g, at + ".interval_garbage") && j.boolean(*g, at + ".interval_garbage", "has_interval_type", &ht) &&
+            j.boolean(*g, at + ".interval_garbage", "has_interval_value", &hv)))
+        return false;
+      flags |= (ht ? 0x80 : 0) | (hv ? 0x100 : 0);
+    }
+    const Value *tx = j.get(d, at, "textures"), *cl = j.get(d, at, "colors"), *gf = j.get(d, at, "growth_factors");
+    if (!tx || !cl || !gf) return false;
+    const auto six = [&](const Value& v, const std::string& la) {
+      if (!j.r.array(v, la)) return false;
+      if (v.items.size() > 6) return j.r.fail(v, la, "more than 6");
+      return true;
+    };
+    if (tx->kind != Value::Null) {
+      if (!six(*tx, at + ".textures")) return false;
+      flags |= 0x4000;
+    }
+    if (cl->kind != Value::Null) {
+      if (!six(*cl, at + ".colors")) return false;
+      flags |= 0x40000;
+    }
+    if (gf->kind != Value::Null) {
+      if (!six(*gf, at + ".growth_factors")) return false;
+      flags |= 0x2000;
+    }
+    o.name_padded(n, 32), o.i32(pi), o.u32(flags), o.i32(ni), o.u32(active);
+    for (const float* v : {tr, lv, wv, mn, mx, wa})
+      for (int k = 0; k < 3; ++k) o.f32(v[k]);
+    o.u32(itype), o.f32(iv);
+    for (const float* v : {size, life, age}) o.f32(v[0]), o.f32(v[1]);
+    o.f32(dev), o.f32(unk[0]), o.f32(unk[1]), o.f32(fade[0]), o.f32(fade[1]), o.f32(fric), o.f32(wind), o.f32(prio);
+    // Six textures (a run time each), six colours, six growth factors, each list after its count.
+    bool run_times = false;
+    const size_t textures_at = o.b.size();
+    o.u32(0);
+    for (size_t k = 0; k < 6; ++k) {
+      if (tx->kind == Value::Null || k >= tx->items.size()) {
+        o.zeros(36);
+        continue;
+      }
+      const std::string ta = at + ".textures[" + std::to_string(k) + "]";
+      std::string tn;
+      float rt = 0;
+      const Value* rv;
+      if (!(j.str(tx->items[k], ta, "name", &tn, 31) && (rv = j.get(tx->items[k], ta, "run_time")))) return false;
+      if (rv->kind != Value::Null) {
+        if (!j.r.f32(*rv, ta + ".run_time", &rt)) return false;
+        run_times = true;
+      }
+      o.f32(rt), o.name_padded(tn, 32);
+    }
+    if (run_times) o.b[textures_at] = 1;
+    o.u32(cl->kind == Value::Null ? 0 : static_cast<uint32_t>(cl->items.size()));
+    for (size_t k = 0; k < 6; ++k) {
+      float c[5] = {};
+      if (cl->kind != Value::Null && k < cl->items.size()) {
+        const Value& cv = cl->items[k];
+        const std::string ca = at + ".colors[" + std::to_string(k) + "]";
+        const Value* col = j.get(cv, ca, "color");
+        if (!(j.f32(cv, ca, "unk00", &c[0]) && col && j.f32(*col, ca + ".color", "r", &c[1]) && j.f32(*col, ca + ".color", "g", &c[2]) &&
+              j.f32(*col, ca + ".color", "b", &c[3]) && j.f32(cv, ca, "unk16", &c[4])))
+          return false;
+      }
+      for (float x : c) o.f32(x);
+    }
+    o.u32(gf->kind == Value::Null ? 0 : static_cast<uint32_t>(gf->items.size()));
+    for (size_t k = 0; k < 6; ++k) {
+      float g[2] = {};
+      if (gf->kind != Value::Null && k < gf->items.size()) {
+        const std::string ga = at + ".growth_factors[" + std::to_string(k) + "]";
+        if (!(j.f32(gf->items[k], ga, "min", &g[0]) && j.f32(gf->items[k], ga, "max", &g[1]))) return false;
+      }
+      o.f32(g[0]), o.f32(g[1]);
+    }
+    return true;
+  }
   if (type == "LightState") {
     std::string n;
     bool active;
