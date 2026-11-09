@@ -157,9 +157,16 @@ The exe's 19 keep their numbers (`mech_names.cpp`, 0x005e6078); a mod's rows
 follow from 20 in the mods' order (`mech_count()`, `mech_row_add`): 19 (0x13)
 stays the exe's "no mech", which saved pilots, the debriefing and the lab's
 waiting mech hold, so it is never a mod's. A name
-already a mech (any case, the exe's or an earlier mod's), an unknown key or
-a value out of range is said in the log and the row left out; `--check-mod`
-says the same. The rows are gameplay data: `mods_gameplay_hash` mixes each
+already a mech (any case, the exe's or an earlier mod's), an unknown key, a
+value out of range, or files the game would not find (`dfn_<name>.zrd` in the
+first `reader.zbd` of the enabled mods, the patch and the install, or loose
+beside it; `mech_<model>.flt` in the first `mechlib.zbd`: a mod's archive is
+the whole archive, so its own hides a later mod's) is said in the log and the
+row left out, so no list offers it; `--check-mod` says the same (the files
+against the mod and the install given). A row whose files fail anyway
+reaches the launch's error box, "Failed to create player[ <name> ]" (0xf30;
+the build's boxes, 0xf25 and 0xf30, are shown now, where they were only
+logged). The rows are gameplay data: `mods_gameplay_hash` mixes each
 parsed row (name, model, tech, mass, class; not the title or the spacing),
 so a mod of rows alone changes the lobby's check (Multiplayer, above). A row
 that parses but is refused as taken is mixed in too: every player computes
@@ -200,7 +207,10 @@ sinks...) is code as well as a name (its weight and slots by kind,
 kind would need new code, not data.
 
 Tests: `mods_mech_rows_after_the_exes_and_in_the_gameplay_hash` (the rows'
-keys and refusals, two mods' rows in order, a taken name, the hash as data),
+keys and refusals, two mods' rows in order, a taken name, files missing, the
+hash as data), `mods_mech_row_with_a_file_missing_is_refused_c1m1_headless`
+(no dfn, no model: left out at the mount and by `--check-mod`; a row added
+past that check: no mech, the launch's box naming it),
 `mods_mech_row_launches_as_the_player_c1m1_headless` (a Thor copy as mech
 20 from the mod's repacked reader.zbd, launched as the player's mech in c1m1
 with the Thor's model, loadout and motions), `mods_weapon_rows_after_the_ppcs_place`
@@ -208,6 +218,62 @@ with the Thor's model, loadout and motions), `mods_weapon_rows_after_the_ppcs_pl
 names, a remount, the hash) and `mods_weapon_row_mounts_and_fires_c1m1_headless`
 (ERPPC's definition copied as ERPPC_B in the mod's weapons.zrd, the Thor
 copy carrying it: mounted in its group in c1m1, and two shots fired).
+
+**Mod rows in the lists.** The lists that walked the exe's 19 go on to
+`mech_count()`, skipping 19 (none): Instant Action's mech lists (a mod's mech
+chosen as the commander selects its own row; the original's quirk, by
+number, stays for the exe's), the lobby's pick by tonnage, the lab's whole
+stock and the lab view's models. The plain PPC (37) is never offered with
+the fixes off: every loop over `weapon_count()` reads it through
+`weapon_has_tech` (false) or finds no definition for "noweapon" (the lab's
+stock list shows only what the stock holds; `reset_ready_times`). Test:
+`mods_weapon_rows_after_the_ppcs_place`.
+
+**Fixed sizes (audit, 2026-11-08).** No array or table outside
+`mech_names.cpp` is sized by the mech or weapon count: the weapon tables
+there are read only below `kBuiltinWeapons` (a row's own fields otherwise),
+the dfn cache grows with `mech_count()`, the lab's models are found by the
+mech stored in each (`model_index`), the loadouts' items pack a weapon in 16
+bits (`mech_config.cpp`), the network sends the roster as 32 bits. A
+sanitizer run (ASan and UBSan) of the launch tests is clean.
+
+**Saves that hold a mod's mechs and weapons.** A pilot's file
+(`pilots\<name>.mw3`), a mech's loadouts (`configs\<mech>.mw3`) and an
+exported loadout (`export\*.m3c`) keep the original's numbers; beside one
+holding a mod's row (a mech from 20, a weapon from 38), `<file>.rows` names
+each (`mod_rows_file.cpp`):
+
+```
+# The mods' mechs and weapons this file's numbers name (docs/modding.md)
+mech 21 beta
+weapon 39 Gun_B
+```
+
+Loading translates each number to that row's number now, so swapping mods
+round is safe. A name no enabled mod adds refuses the file, said in the log
+(`mw3: pilots\Rows.mw3 not loaded: it uses the mod mech beta, which no
+enabled mod adds`), and the file is left as it was: a refused pilot is not
+listed and never written, a refused loadout file is not read and never
+written over (`ConfigList::keep_file`), a refused import stays for later.
+With no sidecar, a row number past the table is refused the same way; one
+inside it is read as it is. A sidecar line that does not read refuses the
+file (never the raw number). A file with no row numbers ignores a sidecar,
+and writing one with none deletes it, so a stale sidecar never remaps a
+clean file. The pilot's rename and delete and the import's `.done` carry or
+remove it (only a file named exactly `<file>.rows`). The campaigns' saved
+games hold no mech or weapon numbers (zSave keeps the animations' state).
+
+The original exe and builds before this read the file without the sidecar:
+they see the raw numbers, 20 on or 38 on, which name nothing there. A pilot
+that used a mod's mech or weapon is ours only.
+
+Test: `mods_saves_name_their_rows_beside_them` (a pilot with a mod's mech,
+loadout, stock weapon and mech, and a loadout file, saved with the mods in
+one order and loaded in the other: the same mechs and weapons; a mod off:
+refused by name, the files untouched and not written over; no sidecar and a
+number past the table: refused; a line that does not read: refused; rename
+and delete carry it; a rewrite with no rows deletes it; a stray sidecar
+beside a file with no rows ignored).
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 

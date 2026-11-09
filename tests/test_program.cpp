@@ -3758,10 +3758,12 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
 
 namespace mech3 {  // mech_names.h and mech_reader.h (their Engine clashes with the app's)
 int32_t mech_count();
+const char* mech_name(int32_t mech);
 const char* mech_title(int32_t mech);
 void mech_rows_clear();
 void weapon_rows_clear();
 void free_dfns();
+bool mech_row_add_line(const std::string& value, std::string* error);
 }  // namespace mech3
 
 namespace {
@@ -4000,11 +4002,91 @@ TEST(mods_weapon_row_mounts_and_fires_c1m1_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Multiplayer piece 5c in a real mission (c1m1, launched as the build test
-// does): another player over the in-process hub joins with the pilot's own
-// mech and loadout; its first state makes its network mech, built as any
-// mech is, put where the state says, not colliding, in the world, its torso
-// in mode 2; its leaving deletes it, and the end takes the handlers off.
+// Mods' mechs with a file missing (item 3): a row with no dfn_<name>.zrd and
+// a row whose model= names no model are left out at the mount, said in its
+// log, so no list offers them. A row past that check whose files still fail
+// (one added here directly) launched in c1m1: no mech made, no crash, and
+// the launch's error box (0xf30, "Failed to create player[ %1 ]", shown now:
+// logged as unported before) naming it.
+TEST(mods_mech_row_with_a_file_missing_is_refused_c1m1_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  const std::string install = MW3_GAME_DIR, wd = temp_dir("mods_mech_missing_write");
+  {
+    std::error_code ec;
+    std::filesystem::create_directories(wd + "/mods/ghosts", ec);
+    std::ofstream(wd + "/mods/ghosts/mod.txt") << "name=Ghosts\nmech=ghost_nodfn tech=clan mass=70 class=heavy model=thor\n"
+                                                  "mech=ghost_nomodel tech=clan mass=70 class=heavy model=ghost\n";
+  }
+  EXPECT(reader_with_copy(install, wd + "/mods/ghosts/zbd/reader.zbd", "dfn_thor.zrd", "dfn_ghost_nomodel.zrd"));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  std::string log;
+  for (const std::string& l : mech3::mods_mount(wd, {"ghosts"}, {install})) log += l + "\n";
+  zutl::mount(install);
+  EXPECT(log.find("model=thor: no dfn_ghost_nodfn.zrd in the reader archive, left out") != std::string::npos);
+  EXPECT(log.find("model=ghost: no mech_ghost.flt in mechlib.zbd, left out") != std::string::npos);
+  EXPECT(mech3::mech_count() == 19);
+  {  // --check-mod says the same
+    int errors = 0;
+    std::string report;
+    for (const std::string& l : mech3::mod_check(wd + "/mods/ghosts", install, &errors)) report += l + "\n";
+    EXPECT(errors >= 2 && report.find("mech ghost_nodfn: no dfn_ghost_nodfn.zrd in the reader archive") != std::string::npos &&
+           report.find("mech ghost_nomodel: no mech_ghost.flt in mechlib.zbd") != std::string::npos);
+  }
+  std::string why;  // past the mount's check: the launch's own refusal
+  EXPECT(mech3::mech_row_add_line("ghost_nomodel tech=clan mass=70 class=heavy model=ghost", &why) && mech3::mech_count() == 21);
+  {
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    std::vector<std::string> boxes;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      engine.on_message_box = [&](int32_t, int32_t, int32_t) {
+        boxes.push_back(engine.last_box_text);
+        return 1u;
+      };
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      l.mech = 20;
+      engine.set_launch(l);
+      engine.missions_start(0x6098d0);
+      mech3::LaunchedMech m;
+      const bool made = mech3::launched_mech(&m);
+      std::string said;
+      for (const std::string& b : boxes) said += "[" + b + "] ";
+      std::printf("  mech 20 (%s): made %d, boxes %s\n", mech3::mech_name(20), made, said.c_str());
+      EXPECT(!made && said.find("ghost_nomodel") != std::string::npos);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+  }
+  mech3::free_dfns();
+  mech3::mech_rows_clear();
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(net_mech_made_from_a_record_c1m1_headless) {
   if (!have_game()) return;
   SavedMounts keep;

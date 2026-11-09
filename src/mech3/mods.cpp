@@ -99,6 +99,35 @@ std::vector<ModInfo> mods_found(const std::string& write_dir) {
   return out;
 }
 
+namespace {
+// Whether the game would find `entry`: in the first of `roots` holding the
+// archive `rel` (the game's reader.zbd or mechlib.zbd, a mod's before the
+// install's), or as a loose file beside it (`loose`, a reader file's).
+bool archive_has(const std::vector<std::string>& roots, const std::string& rel, const std::string& entry, bool loose) {
+  std::error_code ec;
+  for (const std::string& root : roots) {
+    if (loose && fs::is_regular_file(fs::path(root) / "zbd" / entry, ec)) return true;
+    const fs::path a = fs::path(root) / rel;
+    if (!fs::is_regular_file(a, ec)) continue;
+    zutl_zar::Archive z;
+    zutl_zar::init(z);
+    const bool has = zutl_zar::open(z, a.string().c_str()) && zutl_zar::find(z, entry.c_str()) >= 0;
+    zutl_zar::close(z);
+    zutl_zar::destroy(z);
+    return has;
+  }
+  return false;
+}
+// Why a mech row cannot be built from `roots`, "" when it can: its definition
+// and its model must be there, or the row is left out (ours: an Instant
+// Action launch or the lab would find nothing).
+std::string mech_row_missing(const ModMech& r, const std::vector<std::string>& roots) {
+  if (!archive_has(roots, "zbd/reader.zbd", "dfn_" + r.name + ".zrd", true)) return "no dfn_" + r.name + ".zrd in the reader archive";
+  if (!archive_has(roots, "zbd/mechlib.zbd", "mech_" + r.model + ".flt", false)) return "no mech_" + r.model + ".flt in mechlib.zbd";
+  return "";
+}
+}  // namespace
+
 std::vector<ModIaWorld>& mod_ia_worlds() {
   static std::vector<ModIaWorld> w;
   return w;
@@ -141,11 +170,22 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       }
     }
     for (const auto& [folder, name] : it->ia_worlds) ia.push_back({want, ModIaWorld{folder, name.empty() ? folder : name}});
-    // Its new mechs, after the exe's 19 and any earlier mod's.
+    // Its new mechs, after the exe's and any earlier mod's; each one's
+    // definition and model where the game will look (the enabled mods in
+    // order, the first wins, then the patch and the install).
+    std::vector<std::string> roots;
+    for (const std::string& m : enabled)
+      if (const auto f = std::find_if(found.begin(), found.end(), [&](const ModInfo& x) { return x.folder == m; });
+          f != found.end() && f->error.empty() && std::find(roots.begin(), roots.end(), f->path) == roots.end())
+        roots.push_back(f->path);
+    roots.insert(roots.end(), later.begin(), later.end());
     for (const std::string& line : it->mechs) {
       ModMech row;
       std::string why;
-      if (!mech_row_parse(line, &row, &why) || !mech_row_add(row, &why))
+      bool ok = mech_row_parse(line, &row, &why);
+      if (ok && mech_index(row.name.c_str()) >= 0) ok = false, why = "there is a mech " + row.name + " already";  // said before its files
+      if (ok && !(why = mech_row_missing(row, roots)).empty()) ok = false;
+      if (!ok || !mech_row_add(row, &why))
         log.push_back("  mech " + line + ": " + why + ", left out");
       else
         log.push_back("  mech " + row.name + " added (mech " + std::to_string(mech_count() - 1) + ", " + std::to_string(row.mass) +
@@ -426,6 +466,8 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     std::string why;
     if (!mech_row_parse(line, &r, &why)) error("mech " + line + ": " + why);
     else if (mech_index(r.name.c_str()) >= 0) error("mech " + r.name + ": there is a mech " + r.name + " already");
+    else if (const std::string miss = install.empty() ? "" : mech_row_missing(r, {dir, install}); !miss.empty())
+      error("mech " + r.name + ": " + miss + " (the mod's, else the install's)");
     else
       out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
                     (fs::is_regular_file(fs::path(dir) / "zbd" / ("dfn_" + r.name + ".zrd"), ec) ? ", its zbd/dfn_" + r.name + ".zrd"

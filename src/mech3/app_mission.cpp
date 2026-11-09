@@ -2430,6 +2430,9 @@ void wire_mission_hooks(GameEngine* e) {
   w.pilot = [](void* p) { return static_cast<GameEngine*>(p)->pilot(); };
   w.view = [](void* p) { return static_cast<GameEngine*>(p)->player_view(); };
   w.forget_object = [](void* p, const void* o) { static_cast<GameEngine*>(p)->forget_object(o); };
+  w.message_box1 = [](void* p, int32_t caption, int32_t text, const char* s) {
+    static_cast<GameEngine*>(p)->message_box1(0, caption, text, s);
+  };
   (void)en;
   wire_mech_build(&w);
   wire_sensors(&w, [](void* p, int32_t id) { return static_cast<GameEngine*>(p)->message(id); });

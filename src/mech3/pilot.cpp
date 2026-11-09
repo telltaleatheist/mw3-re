@@ -7,6 +7,7 @@
 
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/mod_rows_file.h"
 
 namespace mech3 {
 
@@ -174,6 +175,7 @@ bool Pilot::save() {
 // the file's end for up to 4 billion campaigns, a hang; here the reading
 // stops at the end (docs/fixes.md).
 bool Pilot::read() {
+  rows_file::read_begin(file_path());  // ours: the mods' rows its numbers name
   training->load();
   multi->load();
   action_game->load();
@@ -187,11 +189,12 @@ bool Pilot::read() {
     else delete c;
     if (std::feof(file)) break;
   }
-  return true;
+  return rows_file::read_end(nullptr);  // ours: refused when it names a row no enabled mod adds
 }
 
 // Mech3.exe 1.2 @ 0x00479390. The new campaign (the first) is never saved.
 bool Pilot::write() {
+  rows_file::write_begin();  // ours: the sidecar of the rows it holds
   training->save();
   multi->save();
   action_game->save();
@@ -201,6 +204,7 @@ bool Pilot::write() {
   if (n)
     for (size_t i = 1; i < campaigns.size(); ++i) campaigns[i]->save();
   dirty = 0;
+  rows_file::write_end(file_path());
   return true;
 }
 
@@ -223,6 +227,7 @@ bool Pilot::rename(const char* n) {
   }
   std::strncpy(name, n, sizeof name - 1);
   move_file(old_path.c_str(), file_path().c_str());
+  rows_file::move_sidecar(old_path, file_path());  // ours (save() writes it again anyway)
   save();
   return true;
 }
@@ -231,6 +236,7 @@ bool Pilot::rename(const char* n) {
 bool Pilot::delete_files() {
   for (Game* g : campaigns) delete_file(static_cast<CampaignGame*>(g)->path());
   dirty = 0;
+  rows_file::delete_sidecar(file_path());  // ours
   return delete_file(file_path().c_str());
 }
 
@@ -336,6 +342,7 @@ Pilot* load_pilot(const char* name, bool reload) {
     g_pilots.push_back(p);
     return p;
   }
+  p->dirty = 0;  // ours: a file refused (a mod's row no enabled mod adds) is never written over
   delete p;
   return nullptr;
 }

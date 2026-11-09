@@ -21,6 +21,7 @@
 namespace mech3 {
 
 const char* mech_title(int32_t mech);
+int32_t mech_count();  // mech3/mech_names.h: 19, or 20 and the mods' rows (19 none)
 int32_t mech_name_message(int32_t mech);  // mech3/mech_names.h (its Engine clashes with app_hooks.h's)
 float max_mass(int32_t mech);              // the same
 
@@ -890,8 +891,8 @@ void LobbyScreen::lock_mech() {
   }
   int32_t best = -1;
   float best_mass = 0;
-  for (int32_t m = 0; m < 0x13; ++m) {
-    if (m == 7) continue;  // 0x00426080, and the check again
+  for (int32_t m = 0; m < mech_count(); ++m) {  // ours: the mods' mechs after the exe's
+    if (m == 7 || m == 0x13) continue;  // 0x00426080, and the check again; 0x13 none
     const float mass = max_mass(m);
     if (tons < mass) continue;
     if (best == -1 || best_mass < mass) best = m, best_mass = mass;

@@ -11,6 +11,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
+#include "mech3/mod_rows_file.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_reader.h"
 #include "mech3/pilot.h"
@@ -103,8 +104,8 @@ void Store::fill_all() {
     it->b10 = 1;
     items.push_back(it);
   };
-  for (int32_t m = 0; m < 0x13; ++m) {
-    if (m == 7) continue;  // 0x00426080
+  for (int32_t m = 0; m < mech_count(); ++m) {  // ours: the mods' mechs after the exe's
+    if (m == 7 || m == kNoMech) continue;  // 0x00426080
     auto* b = new BaseItem;
     b->value = m;
     put(b);
@@ -478,6 +479,7 @@ bool GameSlot::set_config(const Config* c) {
 
 // Mech3.exe 1.2 @ 0x00433ef0
 void GameSlot::save(Pilot& p) {
+  rows_file::note_mech(mech);  // ours (mod_rows_file.h)
   wr(p.file, &mech, 4);
   wr(p.file, &x14, 4);
   wr(p.file, &skin, 4);
@@ -490,6 +492,7 @@ void GameSlot::save(Pilot& p) {
 // without deleting it (a leak in the exe; deleted here).
 void GameSlot::load(Pilot& p) {
   rd(p.file, &mech, 4);
+  mech = rows_file::mech(mech);  // ours (mod_rows_file.h)
   rd(p.file, &x14, 4);
   rd(p.file, &skin, 4);
   int32_t has = 0;

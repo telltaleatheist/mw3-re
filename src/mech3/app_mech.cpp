@@ -242,6 +242,12 @@ WiredShade g_shade_hooks;
 
 class WiredBuild : public MechBuildHooks {
  public:
+  // 0x004ac150's error boxes (no model 0xf25, unable to create 0xf30), shown
+  // (ours: a mod's mech with a file missing reaches them; logged before).
+  void message_box(int32_t message, const char* name) override {
+    if (g_w.message_box1) g_w.message_box1(g_w.engine, 0x1e0, message, name);
+    else MechBuildHooks::message_box(message, name);
+  }
   // The exe's operator new (ours): an address just allocated has no handle
   // yet, so one still mapped to it is a freed object's. Forgotten, the new
   // object gets a fresh handle: the entities' sort (0x004d7360, which breaks
