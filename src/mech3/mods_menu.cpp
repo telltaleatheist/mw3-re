@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <mutex>
+#include <cstdio>
 #include <cstdlib>
 
 #include "gamez/zimage/zimg_library.h"
@@ -116,6 +117,41 @@ std::string& mods_menu_install() {
 ModsMenuPlatform& mods_menu_platform() {
   static ModsMenuPlatform p;
   return p;
+}
+
+ModsEditStart& mods_menu_edit_start() {
+  static ModsEditStart f;
+  return f;
+}
+bool& mods_menu_reopen() {
+  static bool on = false;
+  return on;
+}
+
+std::vector<ModsEditRow> mods_edit_rows(const ModInfo& m) {
+  std::vector<ModsEditRow> rows;
+  for (const ModCampaign& c : mod_campaigns())
+    if (c.mod == m.folder)
+      for (const CampaignMission& k : c.missions) {
+        bool seen = false;
+        for (const ModsEditRow& r : rows) seen = seen || (r.world == k.world && r.number == k.number);
+        if (!seen) rows.push_back({k.world, k.number});
+      }
+  if (!rows.empty()) return rows;
+  namespace fs = std::filesystem;
+  for (const std::string& w : m.worlds) {
+    std::error_code ec;
+    std::vector<int32_t> found;
+    for (const auto& f : fs::directory_iterator(fs::path(m.path) / "zbd" / w, ec)) {
+      const std::string n = f.path().filename().string();
+      int32_t k = 0;
+      char tail[8] = {};
+      if (std::sscanf(n.c_str(), "readerm%d%7s", &k, tail) == 2 && std::string(tail) == ".zbd" && k > 0) found.push_back(k);
+    }
+    std::sort(found.begin(), found.end());
+    for (int32_t k : found) rows.push_back({w, k});
+  }
+  return rows;
 }
 
 namespace {
@@ -327,7 +363,8 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       }
       return;
     case kEnter:
-      enter_campaign();
+      if (editing) edit_start();
+      else enter_campaign();
       return;
     case kAdd:
     case kAddFolder:
@@ -347,9 +384,13 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       return;
     }
     case kEditor:
-      say(note, "The mission editor is not built yet.");
+      edit();
       return;
     case kBack:
+      if (editing) {
+        edit();  // back to the tables first
+        return;
+      }
       state_escape();
       return;
     default:
@@ -395,6 +436,69 @@ void ModsScreen::enter_campaign() {
   Engine& e = engine();
   e.pop_state(0);
   e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+}
+
+// EDITOR (ours; editor.md, The way in from MODS): the selected campaign's
+// mod, or the selected mod, its missions listed in CUSTOM CAMPAIGNS' box;
+// ENTER edits the chosen one. A mod not on in this run is turned on for the
+// next start instead, as ENTER does. Pressed again, back to the tables.
+void ModsScreen::edit() {
+  if (editing) {
+    editing = false, edit_rows.clear(), edit_mod.clear();
+    refill();
+    return;
+  }
+  std::string folder, name;
+  if (focus == kCampaigns && campaign_list.selected >= 0 &&
+      campaign_list.selected < static_cast<int32_t>(tables.campaigns.size())) {
+    const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
+    folder = c.mod, name = c.name;
+  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(tables.mods.size())) {
+    const ModsListEntry& m = tables.mods[static_cast<size_t>(mod_list.selected)];
+    folder = m.info.folder, name = m.info.name.empty() ? m.info.folder : m.info.name;
+  }
+  if (folder.empty()) {
+    say(note, "Choose a mod or a custom campaign to edit.");
+    return;
+  }
+  const std::vector<std::string>& on = mods_menu_mounted();
+  if (std::find(on.begin(), on.end(), folder) == on.end()) {
+    if (std::find(enabled.begin(), enabled.end(), folder) == enabled.end()) {
+      mods_toggle(enabled, folder);
+      mods_save_enabled(mods_menu_write_dir(), enabled);
+      refill();
+    }
+    say(note, name + ": its mod is turned on; restart to edit it.");
+    return;
+  }
+  std::vector<ModsEditRow> rows;
+  for (const ModsListEntry& m : mods_list(mods_menu_write_dir(), enabled))
+    if (m.info.folder == folder) rows = mods_edit_rows(m.info);
+  if (rows.empty()) {
+    say(note, name + " has no missions to edit (no campaign= lines, no world with a reader archive).");
+    return;
+  }
+  editing = true, edit_mod = folder, edit_rows = std::move(rows);
+  campaign_list.clear_items();
+  for (size_t i = 0; i < edit_rows.size(); ++i)
+    campaign_list.add_item((edit_rows[i].world + " mission " + std::to_string(edit_rows[i].number)).c_str(), static_cast<int32_t>(i));
+  campaign_list.layout();
+  campaign_list.FileList::select(0);
+  focus = kCampaigns;
+  say(detail, "EDIT " + name);
+  say(detail2, "");
+  say(note, "Choose a mission; ENTER opens it in the editor. EDITOR again goes back.");
+}
+
+void ModsScreen::edit_start() {
+  const int32_t i = campaign_list.selected;
+  if (i < 0 || i >= static_cast<int32_t>(edit_rows.size())) {
+    say(note, "Choose a mission to edit.");
+    return;
+  }
+  const ModsEditRow r = edit_rows[static_cast<size_t>(i)];
+  std::string why = "the editor cannot be started here";
+  if (!mods_menu_edit_start() || !mods_menu_edit_start()(edit_mod, r.world, r.number, &why)) say(note, "Cannot edit it: " + why);
 }
 
 void ModsScreen::update(float dt) {

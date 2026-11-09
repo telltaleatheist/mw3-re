@@ -1,5 +1,6 @@
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/editor/mods_edit.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "gamez/zutil/zfix.h"
@@ -440,6 +441,7 @@ bool CoreState::frame() {
 // picks the drawing path again.
 bool CoreState::update() {
   Engine& en = e();
+  if (mods_edit_leave(en)) return false;  // ours: MODS's EDIT left by EXIT GAME EDIT
   if (frame()) a().push(a().state(3), 0);
   if (en.vmode() != globals().last_vmode) {
     pick_renderer();
@@ -979,6 +981,13 @@ bool MainState::enter() {
   } else if (ap.reopen_credits()) {
     ap.reopen_credits() = 0;
     en.vcall(screen_ + kButtonCredits, 0x30, {});
+  }
+  // Ours: a mission entered by MODS's EDIT is over however it ended; MODS
+  // again when the editor's exit asked for it.
+  mods_edit_end();
+  if (mods_menu_reopen()) {
+    mods_menu_reopen() = false;
+    if (const Handle m = mods_menu_state()) en.push_state(m, 0);
   }
   return true;
 }

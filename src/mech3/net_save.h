@@ -69,6 +69,13 @@ struct NetSave {
 // temporary file renamed over it; the mod enabled just before its source in
 // mw3.cfg (the install's: last), so it wins from the next start. Never the
 // install's file or a folder the editor did not make.
+// Ours (Owen, 2026-11-09; editor.md, The way in from MODS): while set, the
+// mod a save goes into, itself (its file replaced, one .bak kept, its place
+// in the mods' order left as it is), in place of editor_mod's side folder.
+// The editor sets it for a mission entered by MODS's EDIT; Shift+F12 leaves
+// it empty.
+std::string& net_save_into_mod();
+
 NetSave save_archive_edit(const char* rel, const char* name, const std::vector<uint8_t>& data, bool add = false);
 
 }  // namespace mech3::ai

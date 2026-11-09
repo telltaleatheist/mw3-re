@@ -480,7 +480,7 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   State's own pop makes on its way to the mission. A campaign whose mod is
   off is never started half-mounted: ENTER turns the mod on for the next
   start and says so ("its mod is turned on; restart to play it").
-- EDITOR: a stub for the Battlesport editor (says it is not built yet).
+- EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
 - BACK: the main menu.
 
 Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:

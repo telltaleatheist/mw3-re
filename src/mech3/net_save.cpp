@@ -341,6 +341,11 @@ std::string editor_mod(const std::string& write_dir, const std::string& source, 
   return {};
 }
 
+std::string& net_save_into_mod() {
+  static std::string mod;
+  return mod;
+}
+
 NetSave save_archive_edit(const char* rel, const char* name, const std::vector<uint8_t>& data, bool add) {
   NetSave r;
   const std::string write_dir = zutl::mounts().write;
@@ -354,7 +359,8 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   const std::vector<uint8_t> out = archive_with_entry(bytes, name, data, add);
   if (out.empty()) return r.error = from + " does not hold " + name + " as an archive the game reads", r;
   const std::string source = mod_folder_of(write_dir, from);
-  r.folder = editor_mod(write_dir, source, &r.error);
+  const std::string& into = net_save_into_mod();
+  r.folder = into.empty() ? editor_mod(write_dir, source, &r.error) : into;
   if (r.folder.empty()) return r;
   std::string host = rel;
   for (char& c : host) c = c == '\\' ? '/' : c;
@@ -373,13 +379,15 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   r.path = to.string();
   // On, just before its source (the install's: after every mod), so it wins.
   std::vector<std::string> on = mods_enabled(write_dir);
-  if (source != r.folder || std::find(on.begin(), on.end(), r.folder) == on.end()) {  // its own copy: where it is
+  if (!into.empty()) {  // the mod itself: on where it stands
+    if (std::find(on.begin(), on.end(), r.folder) == on.end()) on.push_back(r.folder);
+  } else if (source != r.folder || std::find(on.begin(), on.end(), r.folder) == on.end()) {  // its own copy: where it is
     on.erase(std::remove(on.begin(), on.end(), r.folder), on.end());
     on.insert(source.empty() || source == r.folder ? on.end() : std::find(on.begin(), on.end(), source), r.folder);
   }
   if (!mods_save_enabled(write_dir, on)) return r.error = "saved, but mw3.cfg could not be written to turn it on", r;
   r.ok = true;
-  r.message = "Saved to mods\\" + r.folder + "\\" + rel + ": on from the next start";
+  r.message = "Saved to mods\\" + r.folder + "\\" + rel + (into.empty() ? ": on from the next start" : ": in the mod from the next start");
   return r;
 }
 
