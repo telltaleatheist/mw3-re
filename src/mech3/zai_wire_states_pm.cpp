@@ -49,7 +49,7 @@ bool pm_state_running(Brain& b) {
   if (b.orders.empty()) return false;
   BehaviourState* s = b.current().state.get();
   return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) || dynamic_cast<PmDeployState*>(s) ||
-         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s) || dynamic_cast<PmSharedState*>(s) ||
+         dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s) || dynamic_cast<PmSharedState*>(s) || dynamic_cast<PmRepairState*>(s) ||
          pm_is_scan_state(s) || pm_is_step_state(s);
 }
 
@@ -229,6 +229,27 @@ void PmDeployState::run(float dt) {
   n.valve_a = pm_id(node.valve_a), n.a = static_cast<int32_t>(node.a);
   n.valve_b = pm_id(node.valve_b), n.b = static_cast<int32_t>(node.b);
   s_.run(walk, r.steer, v, n, dt);  // may end in set_behaviour, which destroys this state
+}
+
+PmRepairState::PmRepairState(Order* o, const RepairBehaviour& b, const float* d) : BehaviourState(o, &copy_) {
+  copy_.flags = uint8_t((copy_.flags & ~1u) | (b.flags & 1u));
+  copy_.x08 = b.x08;
+  if (!d) return;
+  dock_[0] = d[0], dock_[1] = d[1], dock_[2] = d[2];
+  float pos[3];
+  brain_hooks().position(o->owner->controls->vehicle(), pos);  // the context's (0x004dcb90)
+  s_.start(dock_, pos);
+}
+
+PmRepairState::~PmRepairState() {
+  Brain& b = *order->owner;
+  if (b.controls) s_.end(pm_walk(b, *b.controls), b.controls->vehicle());
+}
+
+void PmRepairState::run(float) {
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  s_.run(pm_walk(b, c), pm_brain(b).steer, c.vehicle());  // may end in the order's pop, which destroys this state
 }
 
 }  // namespace mech3::ai

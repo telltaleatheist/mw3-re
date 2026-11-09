@@ -76,6 +76,8 @@ class BrainHooks : public zgame::Unported {
   // the dock's flags (the bases driving [0x0060b4d0], in contact
   // [0x0060b4cc]) and a mech powered down or up (0x0041cc30(1 / 0)).
   virtual int32_t bases_alive() { return static_cast<int32_t>(unported("0x0045a000", {0x605ae0})); }
+  // Pirate's Moon's refit order counts with 0x0045b120 (mech_waynet.h dock_count): unset, the bases up.
+  virtual int32_t dock_count() { return bases_alive(); }
   virtual bool mfb_ask(zgame::Handle v) { return unported("0x0047a780", {v}) & 0xff; }
   virtual bool has_mcb() { return unported("[0x0060b544]", {}) != 0; }
   virtual bool dock_point(float out[3]);
@@ -399,6 +401,9 @@ class BehaviourState {
   // Pirate's Moon's +0x20, asked by 0x004fa470 (the order idle, so the steering takes it): 0x004eb000, yes, on every
   // PM state but the jump's (0x004d5020). MW3's states, standing in, answer as PM's would (assumed).
   virtual bool idle() const { return true; }
+  // Pirate's Moon's +0x1c, asked by its refit order (0x004fa320): whether the order may be left for it.
+  // 0x004eb000, yes, on every PM state but the jump's (0x004d5020).
+  virtual bool may_leave() const { return true; }
 
   Order* order = nullptr;  // +0x04
   Behaviour* from = nullptr;

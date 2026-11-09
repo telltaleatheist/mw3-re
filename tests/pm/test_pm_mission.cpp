@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <typeinfo>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -24,6 +25,7 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zclass/light.h"
 #include "mech3/zainet_inout.h"
+#include "mech3/zai_repair.h"
 #include "crt/msvc_rand.h"
 #include "gamez/ztwod/twod_weather.h"
 #include "mech3/app_hud.h"
@@ -437,6 +439,10 @@ TEST(pm_player_tick_box_window) {
 }
 
 static bool g_refit_point = false, g_refit_done = false;
+// pm-tests 35's run (PM_REPAIR_AFTER): her order's answer, her legs then and at the end, down on the point, done.
+static int g_mate_order = -1;
+static float g_mate_legs0 = -1, g_mate_legs1 = -1;
+static bool g_mate_docked = false, g_mate_done = false;
 static float g_fall_lowest = 1e9f, g_fall_died_at = 1e9f;
 static bool g_fall_failed = false, g_fall_ai_dead = false;
 static int g_fall_mode = -1, g_fall_frames_dead = 0, g_fall_sound_from = 0, g_fall_sound_frames = 0;
@@ -652,6 +658,110 @@ static void kill_run(const char* which, bool quick) {
         for (int32_t i = 0; i < count; ++i) pm_watch(ai[i].mech, ai[i].name ? ai[i].name : "?", me);
       }
       if (const char* e = std::getenv("PM_M2_END"); t > (e ? std::atoi(e) : 3000)) done = true;
+      return;
+    }
+    if (const char* rp = std::getenv("PM_REPAIR")) {  // x,z: pm-tests 35, a lancemate ordered to repair near there
+      static int t = 0;
+      static void* mate = nullptr;
+      static mech3::ai::Brain* brain = nullptr;
+      float x = 0, z = 0;
+      std::sscanf(rp, "%f,%f", &x, &z);
+      ++t;
+      int32_t count = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&count);
+      if (t == 2) {
+        const zgame::Handle pv = engine.handle_of(player);
+        for (int32_t i = 0; i < count; ++i) {
+          const mech3::ai::AiTarget* tg = ai[i].mech ? mech3::ai::brain_hooks().targetable(engine.handle_of(ai[i].mech)) : nullptr;
+          const bool ally = tg && tg->is_ally(pv);
+          std::printf("  ai %d %s ally %d\n", i, ai[i].name ? ai[i].name : "?", ally ? 1 : 0);
+          if (ally && !mate && ai[i].controls) mate = ai[i].mech, brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+        }
+        const float at[3] = {x, pm_kill_ground(x, 300.0f, z), z};
+        mech3::move_mech(player, at, 0.0f);
+        if (mate) {
+          const float m[3] = {x + 20, pm_kill_ground(x + 20, 300.0f, z), z};
+          mech3::move_mech(mate, m, 0.0f);
+          pm_kill_hurt(mate);
+        }
+      }
+      if (t == 3)
+        for (int32_t i = 1; i <= mech3::program_mcb_points(); ++i) {
+          float q[3];
+          if (mech3::program_mcb_point(i, q)) std::printf("  mcb point %d at %.0f %.0f %.0f\n", i, q[0], q[1], q[2]);
+        }
+      if ((t == 30 || t == 31) && std::getenv("PM_REPAIR_CALL")) mech3::program_mcb_command(player);
+      if (std::getenv("PM_REPAIR_AFTER") && brain) {  // the player repaired first, then her order (Owen's)
+        static int contact = -1, closed = -1, idle = -1, ordered = -1, last_front = -9;
+        static float point[3];
+        const mech3::DockSummary d = mech3::program_dock_summary();
+        if (d.front != last_front) std::printf("  t %d: front %d drive %d busy %d requester %s\n", t, d.front, d.drive ? 1 : 0,
+                                               d.busy ? 1 : 0, d.requester == nullptr ? "none" : d.requester == mate ? "her" : d.requester == player ? "player" : "other");
+        last_front = d.front;
+        if (t == 5 || t == 6) mech3::program_mcb_command(player);
+        if (t == 6) {
+          const char* l = nullptr;
+          mech3::program_dock_point(&l, point);
+        }
+        if (t == 7 || (d.front == 2 && contact < 0 && ordered < 0)) {
+          const float at[3] = {point[0], pm_kill_ground(point[0], point[1] + 100.0f, point[2]), point[2]};
+          mech3::move_mech(player, at, 0.0f);
+          if (d.front == 2) contact = t, mech3::mech_power(player, 1);
+        }
+        static bool starbase = false;
+        if (d.front == -1 && t == 12) starbase = true, mech3::mech_power(player, 1);  // PM's static MFB: on the point, down
+        if (starbase && d.front != -1 && closed < 0) closed = t;
+        if (d.front == 5 && closed < 0) closed = t;
+        if ((d.front == 0 || d.front == 7) && closed >= 0 && idle < 0) idle = t, mech3::mech_power(player, 0);
+        if (idle >= 0 && t == idle + 120) {  // walked off the dock, then the order
+          const float off[3] = {point[0] + 60, pm_kill_ground(point[0] + 60, point[1] + 100.0f, point[2]), point[2]};
+          mech3::move_mech(player, off, 0.0f);
+          const float m[3] = {point[0] + 40, pm_kill_ground(point[0] + 40, point[1] + 100.0f, point[2] + 30), point[2] + 30};
+          mech3::move_mech(mate, m, 0.0f);
+          pm_kill_hurt(mate);
+        }
+        if (idle >= 0 && t == idle + 180) {
+          ordered = t;
+          std::printf("  after the repair: bases alive %d, mfb ask %d, repair possible %d\n", mech3::program_bases_alive(),
+                      mech3::program_mfb_ask(mate) ? 1 : 0, mech3::ai::repair_possible(&brain->current()) ? 1 : 0);
+          g_mate_legs0 = pm_kill_leg_armor(mate);
+          g_mate_order = brain->lance_order(12, nullptr);
+          std::printf("  order 12: %d\n", g_mate_order);
+        }
+        if (ordered >= 0) {
+          mech3::LaunchedMech dm;
+          mech3::describe_mech(mate, &dm);
+          float m[3];
+          mech3::mech_world_position(mate, m);
+          if (dm.powered_down && std::hypot(m[0] - point[0], m[2] - point[2]) < 6.5f) g_mate_docked = true;
+          const mech3::ai::Behaviour* beh = brain->current().state ? brain->current().state->behaviour() : nullptr;
+          const bool repairing = beh && beh->kind == mech3::ai::StepKind::Repair;  // PM's state or MW3's
+          if (g_mate_docked && !repairing && !g_mate_done) {
+            g_mate_done = g_refit_done = true;  // kill_run's end asks for a refit done
+            g_mate_legs1 = pm_kill_leg_armor(mate), ordered = t - 3300;
+          }
+        }
+        if (ordered >= 0 && (t - ordered) % 300 == 0) {
+          float m[3];
+          mech3::mech_world_position(mate, m);
+          mech3::LaunchedMech dm;
+          mech3::describe_mech(mate, &dm);
+          std::printf("  her t+%d: %.1f m from the point, powered down %d, legs %.3f, state %s\n", t - ordered,
+                      std::hypot(m[0] - point[0], m[2] - point[2]), dm.powered_down ? 1 : 0, pm_kill_leg_armor(mate),
+                      typeid(*brain->current().state).name());
+        }
+        if (t > 12000 || (ordered >= 0 && t > ordered + 3600)) done = true;
+        return;
+      }
+      if (t == 40 && brain) {
+        std::printf("  bases alive %d, mfb ask %d, repair possible %d\n", mech3::program_bases_alive(),
+                    mech3::program_mfb_ask(mate) ? 1 : 0, mech3::ai::repair_possible(&brain->current()) ? 1 : 0);
+        float dp[3] = {};
+        std::printf("  has mcb %d, drive %d, points %d, dock point %d\n", mech3::program_has_mcb() ? 1 : 0,
+                    mech3::program_dock_drive() ? 1 : 0, mech3::program_mcb_points(), mech3::program_mcb_point(dp) ? 1 : 0);
+        std::printf("  order 12: %d\n", brain->lance_order(12, nullptr));
+      }
+      if (t > 60) done = true;
       return;
     }
     if (const char* mfb = std::getenv("PM_MFB")) {  // x,z: the player there, the MFB command twice, each base's way to its point
@@ -2051,6 +2161,42 @@ TEST(pm_canyon_death_band) {
       EXPECT(g_fall_sound_from >= 1 && g_fall_sound_from <= 2);  // the fall action's start, the frame after
       EXPECT(g_fall_sound_heard > 30);
       EXPECT(g_fall_quietest > -1500);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
+}
+
+// pm-tests 35 (Owen's playtest: Epona Rhi stood still when ordered to repair), always on: in c1m1 under PM's AI the
+// player calls the MFB and is repaired, then Epona, hurt, is ordered to repair (order 12). With bug fixes on she is
+// taken at the starbase (the dock-parking fix) and at a mobile dock, walks in on PM's repair state (0x004e0790),
+// goes down on the point and comes away repaired; with them off, at the starbase the exe's dock has let the bases
+// stop and her order is refused (as the exe). Each in a child, as the other whole-mission runs.
+TEST(pm_c1m1_lancemate_repairs_at_the_dock) {
+#if !defined(_WIN32)
+  struct Case { const char* name; const char* at; bool bugs; };
+  const Case cases[] = {{"starbase", "4733,-4200", true}, {"mobile", "4041,-3388", true}, {"starbase, fixes off", "4733,-4200", false}};
+  for (const Case& k : cases) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_REPAIR", k.at, 1);
+      setenv("PM_REPAIR_AFTER", "1", 1);
+      if (!k.bugs) setenv("PM_BUGS_OFF", "1", 1);
+      g_refit_done = !k.bugs;  // refused: no refit to wait for
+      kill_run("0,1,1", true);
+      std::printf("  %s: order %d, docked %d, done %d, legs %.3f -> %.3f\n", k.name, g_mate_order, g_mate_docked ? 1 : 0,
+                  g_mate_done ? 1 : 0, g_mate_legs0, g_mate_legs1);
+      if (k.bugs) {
+        EXPECT(g_mate_order == 1 && g_mate_docked && g_mate_done);
+        EXPECT(g_mate_legs1 > g_mate_legs0 + 0.5f);
+      } else {
+        EXPECT(g_mate_order == 0 && !g_mate_docked);
+      }
       std::fflush(nullptr);
       _exit(check::failures ? 1 : 0);
     }

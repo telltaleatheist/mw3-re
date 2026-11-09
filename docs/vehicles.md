@@ -1101,6 +1101,17 @@ Test `mission_c2m1_field_bases_stay_after_a_repair_headless`:
   repair, and Dominic's F10 is refused.
 The c1m1 dock tests take either end.
 
+**Pirate's Moon's starbase (pm-tests 35, 2026-11-09).** A static MFB point
+(`static_mfb`) is refitted by PM's own state, DockRefit (0x45bc80 ..
+0x45c020), not the bases. Its end (0x45c020) clears "drive" and "contact"
+and goes idle, so in PM's exe too a lancemate's refit after the player's
+is refused (0x45ca40 needs [0x62fbb2]). With `bugs` the same parking holds
+there: the refit's end keeps "drive" and queues `DockParked`, whose next
+mech gets another refit at that point (`DockParked::end`). Test
+`pm_c1m1_lancemate_repairs_at_the_dock` (with `bugs`: Epona docked and
+repaired at the starbase and at a mobile dock; without: refused at the
+starbase).
+
 ## The AI at the dock (0x4ea260, 0x4d08d0..0x4d0ce0; step 4b6)
 
 A lancemate's way to the field bases: the player's refit order (lance

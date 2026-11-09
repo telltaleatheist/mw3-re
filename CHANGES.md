@@ -634,7 +634,7 @@ Known quirks the rebuild deliberately keeps:
 - Radio chatter plays the newest line first.
 - A lancemate told to follow you or attack walks round a wall in the way instead of standing behind it (bug fixes on).
 - A lancemate following you takes the way you walked, round corners and buildings and along canyons, instead of stopping against a wall or short of you (bug fixes on).
-- The mobile field bases stay where you called them after a repair: the next mech (a lancemate told to repair, or you powering down on the spot again) is repaired without calling them again; the third MFB press still sends them away (bug fixes on).
+- The mobile field bases stay where you called them after a repair: the next mech (a lancemate told to repair, or you powering down on the spot again) is repaired without calling them again; the third MFB press still sends them away (bug fixes on). In Pirate's Moon a starbase stays ready the same way, so a lancemate told to repair after you is taken there too.
 - Every mech's engine tops out at 400.
 - Jump jets lift you when you fire them walking uphill at more than 30 fps (the original could skim the ground with its jets burning).
 - A targeted building such as the Clan HQ in mission c3m1 shows on the radar and the map where it stands; the original pointed it at the map's zero point instead (bug fixes on).

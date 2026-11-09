@@ -13,6 +13,7 @@
 #include "mech3/zai_attack_pm.h"
 #include "mech3/zai_drive_pm.h"
 #include "mech3/zai_jump_pm.h"
+#include "mech3/zai_repair.h"
 #include "mech3/zai_wire_walk_pm.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
@@ -89,6 +90,24 @@ class PmDeployState final : public BehaviourState {
  private:
   DeployStatePm s_;
   bool started_ = false;
+};
+
+// The repair state (0x004e0320 -> 0x004e03c0, vtable 0x005ef400; MW3's RepairState): its run 0x004e0790 on the
+// brain's PM steering, as the deploy state's. Neither broken into nor firing (vt+0x04, +0x08: 0x004d5020).
+class PmRepairState final : public BehaviourState {
+ public:
+  PmRepairState(Order* o, const RepairBehaviour& b, const float* dock);  // 0x004e03c0
+  ~PmRepairState() override;  // 0x004e0550 -> 0x004e0570
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  Behaviour* behaviour() const override { return const_cast<RepairBehaviour*>(&copy_); }  // vt+0x18 0x004e0540: +0x08
+  void resume() override {}  // vt+0x10: 0x00406cb0, nothing
+  void run(float dt) override;
+
+ private:
+  RepairBehaviour copy_;  // +0x08: the refit pushes one off its stack
+  float dock_[3] = {};    // ours: the exe keeps the point's pointer, which a mission's end frees
+  RepairStatePm s_;
 };
 
 // The vehicle net's slot states (make_state on each slot's vt+0x8c, the state taking the slot's behaviour and
@@ -265,6 +284,7 @@ class PmJumpState final : public BehaviourState {
   bool may_break_in() const override { return false; }  // vt+0x04, +0x08 of 0x005eedbc: 0x004d5020
   bool may_fire() const override { return false; }
   bool idle() const override { return false; }  // vt+0x20: 0x004d5020
+  bool may_leave() const override { return false; }  // vt+0x1c: 0x004d5020
   Behaviour* behaviour() const override { return from; }
   void run(float dt) override;
 

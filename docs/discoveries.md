@@ -447,6 +447,9 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   keeps being refreshed every frame after that.
 - **A mech lying on the ground that is powered down still turns its torso
   and moves its parts**; one that is powered up holds still until it gets up.
+- **In Pirate's Moon, ordering a lancemate to repair only works while your own MFB call is waiting.** Once
+  you have been repaired at a starbase, the dock stops, and her "repair" order is refused until you call the
+  MFB again (the rebuild's bug fixes keep the dock ready for her).
 - **Knocked down, an AI mech gets up as soon as it lands; you lie on the
   ground five seconds first.** Only the AI pilot's controls ask for the
   get-up at the end of the fall; everyone else waits the lying timer (and a

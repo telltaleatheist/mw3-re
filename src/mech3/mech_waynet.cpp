@@ -341,9 +341,9 @@ void McbWaynet::clear() {
 // else "occupied". Second: the request; the chosen point onto the mission's
 // own waynet when there is one, which is the mission's again. Third: the
 // front state's abort.
-void McbWaynet::command(Handle mech) {
+void McbWaynet::command(Handle mech) {  // Pirate's Moon 1.0 @ 0x0047ca80: PM's count (dock_count)
   WaynetHooks& h = *g_hooks;
-  if (h.bases_alive() < 1) return;
+  if (dock_count() < 1) return;
   if (step == 0) {
     if (!h.dock_idle()) {
       h.say(3);  // +0x98 mcb_occupied
@@ -404,10 +404,26 @@ void mcb_waynet_free() {
   g_mcb = nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x0047a730
+// Pirate's Moon 1.0 @ 0x0045b120
+int32_t dock_count() {
+  const int32_t up = g_hooks->bases_alive();  // 0x0045b0d0
+  McbWaynet* w = mcb_waynet();
+  if (!w) return 0;
+  if (up != 0) return w->count();
+  int32_t n = 0;
+  for (int32_t i = 0; i < w->count(); ++i) {
+    WaynetPoint* p = as_point(w->elem(i));  // 0x005acad0
+    if (!p) continue;
+    if (!p->static_mfb) p->hidden = 1;  // its +0x11
+    else if (!p->hidden) ++n;
+  }
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x0047a730, Pirate's Moon 1.0 @ 0x0047ca10: PM's count (dock_count).
 bool mfb_set_requester(Handle mech) {
   WaynetHooks& h = *g_hooks;
-  if (h.bases_alive() <= 0) return false;
+  if (dock_count() <= 0) return false;
   const Handle v = mech ? h.entity_vehicle(mech) : nullptr;  // vt+0x50
   return v && h.dock_set_requester(v);
 }

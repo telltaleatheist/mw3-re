@@ -526,10 +526,16 @@ void DockRefit::anim_ended(int32_t stopped) {
   finished = true;
 }
 
-// Pirate's Moon 1.0 @ 0x0045c020
+// Pirate's Moon 1.0 @ 0x0045c020. FIX (bug), ours, the dock-parking fix's (DockParked): with bug fixes on the
+// starbase stays ready for the next mech, the bases still allowed to drive, so a lancemate ordered to repair is
+// taken; the exe idles it with the flag off, and her request is refused until the player calls the MFB again.
 void DockRefit::end() {
   finished = false;
   field_bases_contact() = false;
+  if (zfix::options().bugs) {
+    reg->states.push_back(&reg->parked);
+    return;
+  }
   field_bases_drive() = false;
   reg->states.push_back(&reg->idle);
 }
@@ -769,9 +775,13 @@ bool DockParked::step(float) {
   reg->requester = hk().player_vehicle();
   return true;
 }
-// The next mech's turn: no places (the bases are on them).
+// The next mech's turn: no places (the bases are on them); at a starbase, another refit there.
 void DockParked::end() {
   reg->idle_on = false;
+  if (reg->dock_point && hk().dock_point_static(reg->dock_point)) {
+    reg->states.push_back(&reg->refit);
+    return;
+  }
   for (DockStep* st : {static_cast<DockStep*>(&reg->contact), static_cast<DockStep*>(&reg->deploy),
                        static_cast<DockStep*>(&reg->repair), static_cast<DockStep*>(&reg->close),
                        static_cast<DockStep*>(&reg->reset)})

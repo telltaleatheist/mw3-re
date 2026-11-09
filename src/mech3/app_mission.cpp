@@ -1073,6 +1073,7 @@ struct WiredBrainHooks : ai::BrainHooks {
   void allies_turn() override { ai::pm_ai_on() ? ai::allies_turn_pm() : ai::allies_turn(); }  // 0x004e6240 / 0x004d5dc0 (sensors.cpp)
   // The refit's (zai_repair): the field bases and the dock (app_vehicle).
   int32_t bases_alive() override { return program_bases_alive(); }
+  int32_t dock_count() override { return program_dock_count(); }
   bool mfb_ask(Handle v) override { return program_mfb_ask(mech(v)); }
   bool has_mcb() override { return program_has_mcb(); }
   bool dock_point(float out[3]) override { return program_mcb_point(out); }

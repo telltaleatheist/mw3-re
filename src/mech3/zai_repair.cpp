@@ -7,6 +7,10 @@
 
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/zai_node.h"
+#include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_orders_pm.h"
+#include "mech3/zai_wire_pm.h"
+#include "mech3/zai_wire_states_pm.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -21,7 +25,7 @@ constexpr float kDockNear2 = 144.0f;     // 0x005e4a18: 12 m, the dock's own (ve
 float cos_quarter_turn() { return static_cast<float>(std::cos(0.78539816339744828)); }
 }  // namespace
 
-bool BrainHooks::refit(Brain& b) { return refit_order(b); }
+bool BrainHooks::refit(Brain& b) { return pm_ai_on() ? refit_order_pm(b) : refit_order(b); }
 bool BrainHooks::dock_point(float out[3]) {
   (void)out;
   unported("0x0058b060 on [0x0060b544]", {});
@@ -37,6 +41,7 @@ BehaviourState* RepairBehaviour::make_state(Order& o) {
   Brain* b = o.owner;
   const zgame::Handle v = b && b->controls ? b->controls->vehicle() : 0;
   if (h.has_mcb() && b && v && h.vehicle_mech(v)) got = h.dock_point(at);  // vt+0x50, then 0x0058b060 / vt+0x18
+  if (pm_ai_on()) return new PmRepairState(&o, *this, got ? at : nullptr);  // Pirate's Moon 1.0 @ 0x004e0320
   return new RepairState(&o, *this, got ? at : nullptr);
 }
 
@@ -219,6 +224,22 @@ bool refit_order(Brain& b) {
   if (!h.mfb_ask(b.controls ? b.controls->vehicle() : 0)) return false;  // ECX [0x0060b544], EDX the vehicle
   if (!repair_possible(&b.current())) return false;
   b.push_behaviour(&temp);  // 0x004e88c0
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x004fb850 (the brain's vt+0x48; orders 7 and 12 through 0x004fb690): MW3's 0x004ea260 with
+// PM's count (0x0045b120, taken first: it hides points as it counts), the current order leavable first
+// (0x004fa320), and the firing's preferred target (its record's +0x8c, the brain's +0x124) dropped before the push.
+bool refit_order_pm(Brain& b) {
+  BrainHooks& h = brain_hooks();
+  const int32_t up = h.dock_count();
+  RepairBehaviour temp;  // 0x004e02a0, on the stack
+  if (!pm_order_leavable(b) || up <= 0) return false;
+  const zgame::Handle v = b.controls ? b.controls->vehicle() : 0;
+  if (!h.mfb_ask(v)) return false;  // 0x0047ca60 with [0x0062fc18]
+  if (!repair_possible(&b.current())) return false;  // 0x004e02c0
+  if (v) pm_firing(b, v).pick.prefer = 0;
+  pm_push_behaviour(b, &temp);  // 0x004fa170
   return true;
 }
 

@@ -480,6 +480,7 @@ int32_t program_field_bases_lines() {
   return n;
 }
 int32_t program_bases_alive() { return field_bases().alive(); }
+int32_t program_dock_count() { return dock_count(); }  // Pirate's Moon 1.0 @ 0x0045b120
 bool program_mfb_ask(void* mech) { return mcb_waynet() && mfb_set_requester(mech); }  // 0x0047a780
 bool program_has_mcb() { return mcb_waynet() != nullptr; }
 bool program_mcb_point(float out[3]) {  // 0x0058b060 by +0x20, then vt+0x18
