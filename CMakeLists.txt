@@ -131,6 +131,7 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_puff.cpp
   src/gamez/zmodel/gmod_screen.cpp
   src/gamez/zreader/zreader.cpp
+  src/gamez/zreader/zreader_json.cpp
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp

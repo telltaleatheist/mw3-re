@@ -1,6 +1,7 @@
 #include "gamez/zreader/zreader.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -12,6 +13,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "gamez/zutil/zutl_zip.h"
 
 namespace zrdr {
 
@@ -701,15 +703,82 @@ void set_load_hook(LoadHook hook) { g_load_hook = hook; }
 MissingHook g_missing_hook = nullptr;
 void set_missing_hook(MissingHook hook) { g_missing_hook = hook; }
 
-// Ours (docs/modding.md): a mod's loose text copy of an archive's entry, in
-// the mod at the archive's own folder (zbd\c1\world.zrd for zbd\c1\reader.zbd's
-// world.zrd), read instead of the entry; "" without one.
-std::string mod_loose(const zutl_zar::Archive& a, const char* name) {
-  if (zutl::mounts().mods.empty() || !a.path) return {};
+// Ours (docs/modding.md, Readable files read directly): a mod's own copy of
+// an archive's entry, at the archive's own folder (zbd\\c1\\ for the c1
+// world's reader): per mod, first to last, a loose `<entry>` (text, as
+// 0x005563d0 reads), then mech3ax's JSON, `<archive>\\<entry>.json` (the
+// folder unzbd's zip unpacks to), then `<archive>.zip` holding `<entry>.json`.
+// The first found is the one; one that does not read is said once, with its
+// line, and null comes back (the entry read instead). Null without one.
+bool same_name(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+  return true;
+}
+Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
+  if (zutl::mounts().mods.empty() || !a.path) return nullptr;
   std::string dir = zutl::host(a.path);
   const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
   dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
-  return zutl::find_in_mods(dir + zutl::host(name));
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  const std::string entry = zutl::host(name);
+  static std::vector<std::string> said;  // each copy said once in the log
+  auto say = [&](const std::string& what, const char* fmt, const std::string& why) {
+    if (std::find(said.begin(), said.end(), what) != said.end()) return;
+    said.push_back(what);
+    std::printf(fmt, what.c_str(), why.c_str(), a.path);
+  };
+  auto took = [&](const std::string& what, Node* root) {
+    say(what, "mw3: mod: %s%s instead of %s's entry\n", "");
+    if (g_load_hook) g_load_hook(a.path, g_fname, root);
+    return root;
+  };
+  for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    if (const std::string loose = zutl::find_in_mod(m, dir + entry); !loose.empty()) {
+      std::FILE* t = std::fopen(loose.c_str(), "rb");
+      if (!t) return nullptr;
+      std::string why = text_error(t);
+      Node* root = why.empty() ? parse_text(t) : nullptr;
+      std::fclose(t);
+      if (root) return took(loose, root);
+      say(loose, "mw3: mod: %s: %s; %s's entry read instead\n", why.empty() ? "it does not read" : why);
+      return nullptr;
+    }
+    std::string text, what, why;
+    if (const std::string json = zutl::find_in_mod(m, dir + stem + "/" + entry + ".json"); !json.empty()) {
+      what = json;
+      std::FILE* f = std::fopen(json.c_str(), "rb");
+      if (!f) return nullptr;
+      char buf[1 << 14];
+      for (size_t got; (got = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, got);
+      std::fclose(f);
+    } else if (const std::string zip = zutl::find_in_mod(m, dir + stem + ".zip"); !zip.empty()) {
+      zutl_zip::Zip z;
+      if (!z.open(zip)) {
+        say(zip, "mw3: mod: %s: %s; %s's entry read instead\n", "not a zip the game can read");
+        return nullptr;
+      }
+      const zutl_zip::Zip::Entry* hit = nullptr;
+      for (const zutl_zip::Zip::Entry& e : z.entries)
+        if (same_name(e.name, entry + ".json")) hit = &e;
+      if (!hit) continue;  // the zip lacks it: the next mod's, or the entry
+      what = zip + ":" + hit->name;
+      std::vector<uint8_t> data;
+      if (!z.read(*hit, &data, &why)) {
+        say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+        return nullptr;
+      }
+      text.assign(data.begin(), data.end());
+    } else {
+      continue;
+    }
+    if (Node* root = parse_json(text, &why)) return took(what, root);
+    say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+    return nullptr;
+  }
+  return nullptr;
 }
 
 Node* load(const char* path) {
@@ -721,28 +790,8 @@ Node* load(const char* path) {
     uint32_t length = 0;
     std::FILE* f = zutl_zar::seek(*a, zutl_zar::find(*a, g_fname), &length);
     if (!f) continue;
-    // A mod's loose copy, read by the same text reader as the original's own
-    // loose files and given to the load hook as the entry would be; one that
-    // does not read is refused, said once with its line, and the entry read.
-    if (const std::string loose = mod_loose(*a, g_fname); !loose.empty()) {
-      if (std::FILE* t = std::fopen(loose.c_str(), "rb")) {
-        const std::string why = text_error(t);
-        Node* root = why.empty() ? parse_text(t) : nullptr;
-        std::fclose(t);
-        static std::vector<std::string> said;  // each loose file said once in the log
-        const bool first = std::find(said.begin(), said.end(), loose) == said.end();
-        if (first) said.push_back(loose);
-        if (root) {
-          if (first) std::printf("mw3: mod: %s instead of %s's entry\n", loose.c_str(), a->path);
-          if (g_load_hook) g_load_hook(a->path, g_fname, root);
-          return root;
-        }
-        if (first) {
-          std::printf("mw3: mod: %s: %s; %s's entry read instead\n", loose.c_str(), why.empty() ? "it does not read" : why.c_str(),
-                      a->path);
-        }
-      }
-    }
+    // A mod's own copy (mod_copy), given to the load hook as the entry is.
+    if (Node* root = mod_copy(*a, g_fname)) return root;
     Node* root = new_nodes(List, 1);
     g_entry_end = std::ftell(f) + static_cast<long>(length), g_depth = 0, g_broken = false;
     read_node(f, root);
