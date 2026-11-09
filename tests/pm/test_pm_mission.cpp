@@ -388,6 +388,7 @@ int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemi
 int pm_controls_view(void* mech);
 void pm_controls_set_view(void* mech, int view);
 bool pm_kill_turret(const char* name);
+void pm_turret_roots(std::vector<zcls::Node*>* out);
 int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
 void pm_kill_loadout(void* player);
@@ -798,6 +799,51 @@ static void kill_run(const char* which, bool quick) {
         g_anhur.walk = first(knee, ahead, &g_anhur.walk_at);
       }
       if (t == (std::getenv("PM_ANHUR_TRACK") ? 2400 : 1650)) done = true;
+      return;
+    }
+    // pm-tests 37's survey: every turret boxed as the reticle leaves one it passed, then destroyed (frame 30); 1500
+    // frames on, each root's box against its live pieces' boxes: how far past them it reaches (empty air it stops).
+    if (std::getenv("PM_DEADROOTS")) {
+      static int t = 0;
+      static std::vector<zcls::Node*> roots;
+      if (++t == 30) {
+        pm_turret_roots(&roots);
+        for (zcls::Node* r : roots) {
+          std::printf("  deadroot %s at load: flags %x%s\n", r->name(), r->flags(), (r->flags() & 0x20) ? " (boxed already: the reticle, as the player starts near it)" : "");
+          zcls::node_set_intersect_bbox(r, 1);
+          pm_kill_turret(r->name());
+        }
+        std::printf("  deadroots: %zu turrets destroyed\n", roots.size());
+      }
+      if (t < 1530) return;
+      const auto extent = [](zcls::Node* n, float lo[3], float hi[3]) {
+        float c[8][3];
+        if (zcls::node_box_corners(n, c) != 0) return false;
+        for (int i = 0; i < 8; ++i)
+          for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], c[i][k]), hi[k] = std::max(hi[k], c[i][k]);
+        return true;
+      };
+      int walls = 0;
+      for (zcls::Node* r : roots) {
+        float lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f}, at[3] = {};
+        if (!extent(r, lo, hi)) continue;
+        zcls::node_world_point(r, at);
+        const bool boxed = (r->flags() & 0x20) != 0;
+        walls += boxed;
+        std::printf("  deadroot %s at %.0f %.0f %.0f: %s, box %.0f x %.0f x %.0f m, y %.0f..%.0f\n", r->name(), at[0], at[1], at[2],
+                    boxed ? "BOXED (stops shots and mechs)" : "mesh only", hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], lo[1], hi[1]);
+        if (const char* tree = std::getenv("PM_DEADROOTS_TREE"); tree && std::strcmp(tree, r->name()) == 0) {
+          std::function<void(zcls::Node*, int)> dump = [&](zcls::Node* q, int d) {
+            float w[3] = {};
+            zcls::node_world_point(q, w);
+            std::printf("    %*s%s flags %x at %.0f %.0f %.0f\n", 2 * d, "", q->name(), q->flags(), w[0], w[1], w[2]);
+            for (int32_t i = 0; i < q->child_count() && d < 5; ++i) dump(q->children[i], d + 1);
+          };
+          dump(r, 0);
+        }
+      }
+      std::printf("  deadroots: %d of %zu dead turrets boxed\n", walls, roots.size());
+      done = true;
       return;
     }
     // pm-tests item 30: an animation object's saved state loaded back, in PM's layout and in MW3's (our earlier builds').
@@ -1713,7 +1759,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 

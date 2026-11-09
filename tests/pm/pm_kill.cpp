@@ -394,6 +394,17 @@ bool pm_kill_turret(const char* name) {
   t->deactivate(true);
   return true;
 }
+// pm-tests 37's survey: every turret's root (the topmost node whose entity is that turret).
+void pm_turret_roots(std::vector<zcls::Node*>* out) {
+  for (zcls::ListItem* it = zcls::list_head(6); it; it = it->next) {
+    zcls::Node* n = it->node;
+    tur::Turret* t = n ? program_turret(node_entity(n)) : nullptr;
+    if (!t) continue;
+    zcls::Node* p = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr;
+    if (p && program_turret(node_entity(p)) == t) continue;
+    out->push_back(n);
+  }
+}
 void pm_controls_set_view(void* mech, int view) {
   Mech* m = static_cast<Mech*>(mech);
   if (m && m->controls) m->controls->view = view;
