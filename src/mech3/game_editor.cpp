@@ -4,6 +4,7 @@
 
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/ztimer.h"
+#include "mech3/game_editor_net.h"
 
 namespace mech3 {
 
@@ -12,7 +13,6 @@ EditorHooks g_default_hooks;
 EditorHooks* g_hooks = &g_default_hooks;
 EditorState g_state;
 
-void edit_ai_nets(int32_t) { g_hooks->not_ported("EDIT AI NETS (0x00402d60, the AI net editor)"); }
 void edit_vehicles(int32_t) { g_hooks->not_ported("EDIT VEHICLES (0x004040c0 -> 0x004b86e0, the vehicle editor)"); }
 void edit_weapons(int32_t) {}  // 0x004bf620: nothing in MW3
 void exit_game_edit(int32_t y) { editor_exit(y); }
@@ -67,6 +67,7 @@ EditorPanel& editor_panel() {
   return *g_state.panel;
 }
 void editor_reset() {
+  net_editor_free();
   delete g_state.panel;
   g_state = EditorState{};
 }
@@ -172,7 +173,8 @@ void editor_frame() {
     p.layer.update(h.frame_dt());  // 0x0059fd20
     if (g_state.mode > 0 && g_state.mode < 4) h.net_step(0.1f);
     if (pressed && g_state.menu) {
-      const EditorEntry& e = g_state.menu->rows[shown ? r : 0];
+      // ours: a shown row past the menu's (the status line) is no row of it
+      const EditorEntry& e = g_state.menu->rows[shown && r < g_state.menu->count ? r : 0];
       if (e.handler) e.handler(m.y);
     }
     (void)(h.command(0x9c) & 3);  // the trace, 0x005ac5c0: empty

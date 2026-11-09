@@ -213,6 +213,7 @@ add_library(mw3core STATIC
   src/mech3/veh_move.cpp
   src/mech3/veh_stealth.cpp
   src/mech3/game_editor.cpp
+  src/mech3/game_editor_net.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
   src/mech3/mech_reader.cpp

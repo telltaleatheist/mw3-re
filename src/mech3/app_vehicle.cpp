@@ -377,6 +377,11 @@ struct WiredEditor : EditorHooks {
   void view_on_pilot() override {
     if (void* m = mech_mission_player()) program_view_attach(*static_cast<Mech*>(m));
   }
+  // GOTO Net: the view's vehicle ([0x005f4c8c]+0x64), the stealth object
+  // while editing, by its vt+0xdc (0x004a3630) with yaw 0.
+  void view_vehicle_place(const float p[3]) override {
+    if (g_stealth) vehicle_place(*g_stealth, p, 0.0f);
+  }
 };
 WiredEditor g_editor_hooks;
 }  // namespace
