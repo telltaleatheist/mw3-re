@@ -21,6 +21,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **Typing in the cheat box or the chat no longer moves your view.** A key you type into a box still counted for the game when you let it go after pressing Enter, as you do when typing fast; L is the hold-to-look key, so "operation cwal" left the mouse turning the torso instead of moving the reticle. Keys typed into a box are the box's now.
 - **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
 
 - **Difficulty sets the damage your side takes again.** The rebuild read the setting but never passed that part on, so every level played like High: you took full damage even on Medium. Now, as in the original, you and your allies take 40% on Low, 70% on Medium and 100% on High (not in multiplayer). This is not behind the bug-fix switch, because it restores the original. On Low the screen's heat haze is back to the original's rule too, from the same setting.
