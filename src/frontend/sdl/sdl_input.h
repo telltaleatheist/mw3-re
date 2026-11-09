@@ -72,16 +72,17 @@ class SdlInput : public platform::Input {
   int32_t joystick_set_deadzone(uint32_t ofs, uint32_t dz) override;
 
   // The window an exclusive mouse captures (relative mouse mode, as
-  // DirectInput's DISCL_EXCLUSIVE hides and holds the cursor). Captured, a
-  // mickey is a count of the mouse's own, as DirectInput's were at any screen
-  // size (FIX (A); SDL's relative motion is raw, without the system's speed).
-  // Not captured, the mickeys a window pixel of motion makes (the game's 640
-  // over the window's width).
+  // DirectInput's DISCL_EXCLUSIVE hides and holds the cursor). Held or not,
+  // a mickey is a frame pixel's worth of the system pointer's motion (FIX
+  // (A), motion_scale: the system's speed, the window's size now), as the
+  // original moves under DDrawCompat on Windows 11 at any screen size.
+  // `mickey_scale` only without a window (tests).
   SDL_Window* window = nullptr;
   float mickey_scale = 1.0f;
-  // With any_resolution, the frame's shape in the window (sdl_fit.h): an
-  // uncaptured mouse's scale is then a frame pixel a mickey, through the
-  // pillarboxed rect.
+  std::function<void(int*, int*)> window_size;  // tests: the window's size (unset: SDL's)
+  float motion_scale() const;  // the mickeys a window pixel (point on the Mac) of motion makes
+  // The frame's shape in the window (sdl_fit.h): with any_resolution the
+  // scale is through the pillarboxed rect, else the window's whole width.
   const FrameShape* shape = nullptr;
   bool captured() const { return captured_; }
   bool fitted() const { return shape && shape->fit; }

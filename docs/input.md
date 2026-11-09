@@ -461,6 +461,29 @@ name), `sdl_input_stick_taken_out_reads_centred`. Breaks: the packed map,
 no table entry, the unplugged stick not read, its turn held, always the
 first device, one usage an input item: each caught.
 
+## 10. The mouse's speed (Owen, 2026-11-09)
+
+Owen: ours far too fast, MW3 and PM, Mac and PC (3840x2160); the original
+at about the desktop's speed. The original's mouse is DirectInput's counts
+times MouseAccel (section 2) on a 640x480 screen. On the reference runtime,
+DDrawCompat 0.6 and later scale a fullscreen game's mouse to the desktop's
+speed by default (`MouseSensitivity=desktop(100)`, its wiki's
+Configuration page; `native` is the old raw counts), so a stroke that
+crosses the desktop crosses the game's screen. Ours took SDL's raw count
+(relative mode, no system speed) as a whole 640-wide pixel, about six
+screen pixels at 3840 across, in the fullscreen menus and in missions.
+
+FIX (A), platform only (`SdlInput::motion_scale`): a mickey is the system
+pointer's motion (SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE: its speed and
+acceleration) times the frame's width over its width on the screen
+(`sdlfe::mickey_scale`, the window's size read at each motion, so a
+fullscreen switch or a resize takes at once). Held or free alike; the menus
+in a window still put the cursor under the system's (section 8). zInput is
+untouched: MouseAccel and MOUSE SENSITIVITY apply on top, as the
+original's 1.3 did over DDrawCompat's counts. A 640x480 window is one to
+one, as before. Not measured against the original on Owen's PC (his hand
+on the mouse); the rule is DDrawCompat's.
+
 ## Open
 
 - The controls screen (0x0042be10 ..), which uses read_key and the wait
