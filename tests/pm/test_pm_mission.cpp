@@ -2838,6 +2838,149 @@ static int knock_run(int cause) {
   return fell_at;
 }
 
+// pm-tests 40 (Owen 2026-11-09: "PPCs don't seem to knock enemies back the way they knock him back"): PM's c1m1
+// with PM's AI, its first enemy mech hit by the PPC from the player's place. One hit, then 8 s watched: the torso's
+// spin (+0xd8, 0x00464af0: 15 deg x the force held to 1 x 0.5 x the impulse's length), the rocking it drives (+0xe4
+// as the quaternion +0xf0, 0x00464e80) and the torso node as drawn (its 3x3 the pose x the shake, 0x004659c0;
+// the angle between it and the same without the rocking is what a player sees). Then a PPC every frame for 10
+// frames: the knock (+0x53c, 6 a second off, 0x005bce40) against the fall's threshold (0x00418850).
+struct PpcJolt {
+  float force = 0, spin = 0, spin_expect = 0, peak_deg = 0, peak_at = -1, drawn_peak_deg = 0, half_at = -1;
+  float under1_at = -1, drawn_err = 0, threshold = 0, knock_max = 0;
+  int falls = 0;
+};
+
+static PpcJolt ppc_run() {
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_ppc_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  PpcJolt r;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    bool done = false;
+    int f = 0, barrage = 0, after = 0;
+    float hit_time = -1;
+    std::vector<std::pair<float, float>> curve;  // seconds after the hit, the rocking in degrees
+    void* ppc = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || done) return;
+      ++f;
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      void* me = mech3::mission_player_mech();
+      if (!me || !n || f < 60) return;
+      void* m = ai[0].mech;
+      if (!ppc) ppc = mech3::weapon_def_named("PPC");
+      mech3::MechJolt j;
+      if (!ppc || !mech3::mech_torso_jolt(m, &j)) {
+        done = f > 300;
+        return;
+      }
+      const float now = mech3::mech_game_time();
+      bool airborne = false;
+      const float knock = mech3::mech_knock(m, &r.threshold, &airborne);
+      mech3::LaunchedMech d;
+      mech3::describe_mech(m, &d);
+      const auto hit = [&] {
+        float at[3];
+        mech3::mech_world_position(me, at);
+        at[1] += 5.0f;
+        mech3::mech_hit_from(m, ppc, at, mech3::mech_node(me), 0.01f);
+      };
+      if (hit_time < 0) {
+        hit();
+        hit_time = now;
+        r.force = mech3::weapon_def_impact(ppc);
+        mech3::MechJolt now_j;
+        if (mech3::mech_torso_jolt(m, &now_j)) r.spin = now_j.spin;
+        return;
+      }
+      if (now - hit_time <= 8.0f) {
+        const float t = now - hit_time;
+        r.drawn_err = std::max(r.drawn_err, j.drawn_err);
+        if (j.rock_deg > r.peak_deg) r.peak_deg = j.rock_deg, r.peak_at = t;
+        r.drawn_peak_deg = std::max(r.drawn_peak_deg, j.drawn_deg);
+        curve.push_back({t, j.rock_deg});
+        return;
+      }
+      if (barrage < 10) {
+        hit();
+        ++barrage;
+        r.knock_max = std::max(r.knock_max, mech3::mech_knock(m, &r.threshold, &airborne));
+      }
+      if (d.anim_state >= 11 && d.anim_state <= 13) ++r.falls;
+      (void)knock;
+      done = barrage >= 10 && ++after > 60;
+    };
+    Pump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    for (const auto& [t, deg] : curve) {
+      if (t > r.peak_at && r.half_at < 0 && deg < r.peak_deg * 0.5f) r.half_at = t;
+      if (t > r.peak_at && r.under1_at < 0 && deg < 1.0f) r.under1_at = t;
+    }
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  const float fc = r.force > 1.0f ? 1.0f : r.force;
+  r.spin_expect = 0.2617994f * fc * 0.5f * r.force;
+  std::printf("  pm PPC: force %.2f; spin %.4f rad/s (expect %.4f); rocking peaks %.2f deg at %.2f s (drawn %.2f, "
+              "3x3 off by %.2g), half by %.2f s, under 1 deg by %.2f s; 10 at once: knock %.2f vs the fall's %.2f, "
+              "fallen %d frames\n",
+              r.force, r.spin, r.spin_expect, r.peak_deg, r.peak_at, r.drawn_peak_deg, r.drawn_err, r.half_at,
+              r.under1_at, r.knock_max, r.threshold, r.falls);
+  std::fflush(nullptr);
+  return r;
+}
+
+TEST(pm_c1m1_ppc_rocks_an_enemy_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    const PpcJolt r = ppc_run();
+    const bool ok = r.force > 0 && std::fabs(r.spin - r.spin_expect) < 1e-3f && r.peak_deg > 0.5f &&
+                    std::fabs(r.drawn_peak_deg - r.peak_deg) < 0.05f * r.peak_deg + 0.01f && r.drawn_err < 1e-4f &&
+                    r.under1_at > r.peak_at && r.knock_max > 0;
+    _exit(check::failures || !ok ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
 TEST(pm_c1m1_player_knocked_down_headless) {
   if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
   for (const int cause : {1, 2}) {

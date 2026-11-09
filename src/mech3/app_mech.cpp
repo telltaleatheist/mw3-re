@@ -3125,4 +3125,29 @@ float mech_knock(void* mech, float* threshold, bool* airborne) {
   *airborne = m->airborne();
   return m->knock;
 }
+
+bool mech_torso_jolt(void* mech, MechJolt* out) {
+  Torso* t = static_cast<Mech*>(mech)->torso;
+  const float* drawn = t && t->node ? zcls::object3d_matrix(static_cast<zcls::Node*>(t->node)) : nullptr;
+  if (!drawn) return false;
+  float q[4], qn[4], full[4], none[4], mf[9], mn[9], keep[4];
+  t->shake_q(q);
+  std::memcpy(keep, t->jolt_q, sizeof keep);
+  t->jolt_q[0] = 1, t->jolt_q[1] = t->jolt_q[2] = t->jolt_q[3] = 0;
+  t->shake_q(qn);
+  std::memcpy(t->jolt_q, keep, sizeof keep);
+  zmth::quat_mul(t->rot, q, full);
+  zmth::quat_mul(t->rot, qn, none);
+  zmth::quat_matrix(full, mf);
+  zmth::quat_matrix(none, mn);
+  float err = 0, tr = 0;
+  for (int i = 0; i < 9; ++i) err = std::max(err, std::fabs(drawn[i] - mf[i])), tr += drawn[i] * mn[i];
+  const float c = std::clamp((tr - 1.0f) * 0.5f, -1.0f, 1.0f);
+  const Vec3& s = t->jolt_spin;
+  out->spin = std::sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
+  out->rock_deg = 2.0f * std::acos(std::min(1.0f, std::fabs(t->jolt_q[0]))) * 57.29578f;
+  out->drawn_deg = std::acos(c) * 57.29578f;
+  out->drawn_err = err;
+  return true;
+}
 }  // namespace mech3

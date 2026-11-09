@@ -792,6 +792,8 @@ float weapon_def_impact(void* def) {
   return d && d->type ? d->type->impact_force : 0.0f;
 }
 
+void* weapon_def_named(const char* name) { return zwep::find_def(name); }
+
 void* chain_heaviest_impact() {
   zwep::WeaponDef* best = nullptr;
   for (zwep::WeaponDef& d : zwep::state().defs)
