@@ -390,6 +390,9 @@ void Turret::deactivate(bool destroyed) {
   if (attacker) h.credit_kill(attacker, self);
   if (destroyed && destroy_anim && node) h.anim_run(destroy_anim, node);
   active = 0;
+  // FIX (bug), behind bugs: PM's reticle (0x00445c60) leaves a live contact's root boxed, and once dead it is
+  // never touched again: the box over the death point and the falling wreck stopped shots and mechs (pm-tests 37).
+  if (zfix::options().bugs && node) h.node_set_box_hit(node, 0);
   // FIX (bug), behind bugs: the exe puts the effect out only when it is not
   // showing, so a charge lit as the turret dies stays lit (docs/fixes.md).
   if (effect) {

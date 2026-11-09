@@ -21,6 +21,7 @@
 #include "check.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_save.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zclass/light.h"
 #include "mech3/zainet_inout.h"
 #include "crt/msvc_rand.h"
@@ -384,6 +385,9 @@ void pm_leg_reset();
 const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
+int pm_controls_view(void* mech);
+void pm_controls_set_view(void* mech, int view);
+bool pm_kill_turret(const char* name);
 int pm_missile_hits();
 float pm_kill_ground(float x, float y, float z);
 void pm_kill_loadout(void* player);
@@ -467,6 +471,14 @@ struct LightSeen {
 static LightSeen g_light;
 static struct { bool found[2] = {}, restored[2] = {}; const char* name[2] = {}; } g_animsave;  // PM_ANIMSAVE
 static struct { bool made = false; int counted = -1, listed = -1, damaged = -1, tried = 0; } g_splash;  // PM_SPLASH
+// PM_ANHUR (pm-tests 37): anhur04 shot down near the bridge; its root boxed while alive, what a shot and a walk meet after.
+static struct {
+  bool killed = false, boxed_alive = false, boxed_dead = true;
+  zcls::Node* shot = nullptr; zcls::Node* walk = nullptr;
+  float shot_at = 0, walk_at = 0;
+  int deck_gone = -1;  // the frame hslid01 went inactive
+  int solid = 0, unseen = 0;  // anhur04's live collidable pieces after the fall; those with nothing drawable
+} g_anhur;
 static struct { int nodes, moved; } g_motions;  // PM_MOTIONS: event 12's nodes and how many moved
 
 static int g_crater_spikes = -1, g_craters_made = 0;
@@ -730,6 +742,59 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    // pm-tests 37: the player on the land bridge where Owen stood, anhur04 shot down as it passes (frame 1500), the
+    // segments a shot and a walk take toward its fall 150 frames on. PM_ANHUR=frame kills it then; PM_ANHUR_TRACK logs
+    // to 2400, with the frame the deck (hslid01) gives way under the Anhur's fire.
+    if (std::getenv("PM_ANHUR")) {
+      static int t = 0;
+      ++t;
+      zcls::Node* root = zcls::list_find_by_name(6, "anhur04");
+      if (t == 5) {
+        const float at[3] = {1958.6f, 0, -828.7f};
+        mech3::chain_player_at(at);
+      }
+      const int kill_at = std::atoi(std::getenv("PM_ANHUR")) > 1 ? std::atoi(std::getenv("PM_ANHUR")) : 1500;
+      if (zcls::Node* d = zcls::list_find_by_name(6, "hslid01"); d && !(d->flags() & 4) && g_anhur.deck_gone < 0) g_anhur.deck_gone = t;
+      if (std::getenv("PM_ANHUR_TRACK") && t % 30 == 0) {
+        float a[3] = {}, me[3] = {};
+        if (zcls::Node* d = zcls::list_find_by_name(6, "destroyed")) zcls::node_world_point(d, a);
+        mech3::mech_world_position(player, me);
+        std::printf("  anhur t %d: root flags %x, destroyed at %.0f %.0f %.0f, player %.1f %.1f %.1f, deck gone %d\n", t, root ? root->flags() : 0, a[0], a[1], a[2], me[0], me[1], me[2], g_anhur.deck_gone);
+      }
+      if (t == kill_at - 1 && root) g_anhur.boxed_alive = (root->flags() & 0x20) != 0;
+      if (t == kill_at) g_anhur.killed = pm_kill_turret("anhur04");
+      if (t == 1650 && root) {
+        g_anhur.boxed_dead = (root->flags() & 0x20) != 0;
+        auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
+        static zcls::LineHits r;
+        const auto first = [&](const float a[3], const float b[3], float* d) -> zcls::Node* {
+          if (zcls::segment_nearest(world, a, b, &r) != 0 || r.count >= r.total) return nullptr;
+          const zcls::LineHit& h = r.hit[r.count];
+          *d = std::sqrt((h.point[0] - a[0]) * (h.point[0] - a[0]) + (h.point[1] - a[1]) * (h.point[1] - a[1]) + (h.point[2] - a[2]) * (h.point[2] - a[2]));
+          return h.node;
+        };
+        // Up past the falling wreck toward where the Anhur died, and along the deck at a mech's knee (Owen's "hit wall" at y 1.9).
+        const float eye[3] = {1958.6f, 7.0f, -828.7f}, sky[3] = {1930.0f, 45.0f, -1000.0f};
+        const float knee[3] = {1958.6f, 1.9f, -828.7f}, ahead[3] = {1958.6f, 1.9f, -900.0f};
+        std::function<void(zcls::Node*, bool)> pieces = [&](zcls::Node* q, bool live) {
+          live = live && (q->flags() & 4);
+          if (pm::zmod::Model* md = q->pm_model; live && md && (q->flags() & 0x10) && md->count(0x10) > 0) {
+            bool seen = false;
+            for (int32_t i = 0; i < md->count(0x10) && !seen; ++i)
+              for (int32_t k = 0; k < md->polygons[i].material_count; ++k)
+                if (md->polygons[i].materials[k] && md->polygons[i].materials[k]->alpha != 0) seen = true;
+            ++g_anhur.solid;
+            if (!seen) ++g_anhur.unseen, std::printf("  anhur: %s solid, nothing drawn\n", q->name());
+          }
+          for (int32_t i = 0; i < q->child_count(); ++i) pieces(q->children[i], live);
+        };
+        pieces(root, true);
+        g_anhur.shot = first(eye, sky, &g_anhur.shot_at);
+        g_anhur.walk = first(knee, ahead, &g_anhur.walk_at);
+      }
+      if (t == (std::getenv("PM_ANHUR_TRACK") ? 2400 : 1650)) done = true;
+      return;
+    }
     // pm-tests item 30: an animation object's saved state loaded back, in PM's layout and in MW3's (our earlier builds').
     if (std::getenv("PM_ANIMSAVE")) {
       static int t = 0;
@@ -780,6 +845,81 @@ static void kill_run(const char* which, bool quick) {
         std::printf("\n");
       }
       done = true;
+      return;
+    }
+    if (const char* sky = std::getenv("PM_WALL_SKY")) {  // pm-tests 37: "x,z,heading,frames": the player kept there, a fan up into the sky every 30 frames
+      static int t = 0;
+      float sx = 2019.0f, sz = -834.0f, sh = 270.0f, until = 4000.0f;
+      std::sscanf(sky, "%f,%f,%f,%f", &sx, &sz, &sh, &until);
+      ++t;
+      if (!std::getenv("PM_WALL_STAY") && (t == 5 || (t % 300 == 0 && !std::getenv("PM_WALL_ONCE")))) {
+        const float at[3] = {sx, 0, sz};
+        mech3::chain_player_at(at);
+      }
+      if (t % 30 != 0) return;
+      if (t > until) {
+        done = true;
+        return;
+      }
+      auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
+      float me[3], cam[3], torso[3];
+      mech3::mech_world_position(player, me);
+      if (const char* stay = std::getenv("PM_WALL_STAY")) me[0] = sx, me[1] = static_cast<float>(std::atof(stay)), me[2] = sz;  // the player left be, the rays from there
+      if (std::getenv("PM_WALL_CAMERA")) {  // from the outside camera (view 3), as Owen's range reads
+        pm_controls_set_view(player, 3);
+        if (mech3::program_view_positions(cam, torso)) me[0] = cam[0], me[1] = cam[1] - 10.0f, me[2] = cam[2];
+      }
+      if (const char* back = std::getenv("PM_WALL_BACK")) {  // dist,up: from behind the mech, as a chase camera
+        float bd = 25.0f, bu = 10.0f;
+        std::sscanf(back, "%f,%f", &bd, &bu);
+        const float a = sh * 3.14159265f / 180.0f;
+        me[0] -= std::sin(a) * bd, me[2] -= std::cos(a) * bd, me[1] += bu;
+      }
+      static zcls::LineHits r;
+      std::map<std::string, std::pair<int, float>> seen;  // chain: rays, the nearest
+      int rays = 0;
+      for (float side = -30.0f; side <= 30.0f; side += 10.0f)
+        for (float el = 0.0f; el <= 80.0f; el += 10.0f) {
+          ++rays;
+          const float a = (sh + side) * 3.14159265f / 180.0f, e = el * 3.14159265f / 180.0f;
+          const float from[3] = {me[0], me[1] + 10.0f, me[2]};
+          const float to[3] = {from[0] + std::sin(a) * std::cos(e) * 200.0f, from[1] + std::sin(e) * 200.0f, from[2] + std::cos(a) * std::cos(e) * 200.0f};
+          if (zcls::segment_nearest(world, from, to, &r) != 0 || r.count >= r.total) continue;
+          const zcls::LineHit& h = r.hit[r.count];
+          if (el < 10.0f && h.node && (h.node->flags() & 0x8000)) continue;  // the ground ahead
+          std::string c;
+          for (zcls::Node* n = h.node; n && c.size() < 120; n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr)
+            c += (c.empty() ? "" : " < ") + std::string(n->name()) + (c.empty() ? "" : "");
+          char tail[64];
+          std::snprintf(tail, sizeof tail, " (flags %x)", h.node ? h.node->flags() : 0);
+          c += tail;
+          const float d = std::sqrt((h.point[0] - from[0]) * (h.point[0] - from[0]) + (h.point[1] - from[1]) * (h.point[1] - from[1]) + (h.point[2] - from[2]) * (h.point[2] - from[2]));
+          auto& s = seen[c];
+          s.second = s.first++ ? std::min(s.second, d) : d;
+        }
+      std::printf("  sky t %d: from %.0f %.0f %.0f, view %d, %d rays\n", t, me[0], me[1] + 10.0f, me[2], pm_controls_view(player), rays);
+      if (const char* kill = std::getenv("PM_WALL_KILL"); kill && t == std::atoi(kill)) {  // frame: destroy_anhur04 run, as a shot down
+        std::printf("  sky: anhur04's turret %s\n", pm_kill_turret("anhur04") ? "destroyed" : "not found");
+      }
+      for (const char* nm : {"anhur01", "anhur02", "anhur03", "anhur04"})
+        if (zcls::Node* z = zcls::list_find_by_name(6, nm)) {
+          float p[3] = {}, c[8][3] = {}, lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+          zcls::node_world_point(z, p);
+          const int got = zcls::node_box_corners(z, c);
+          for (int i = 0; i < 8; ++i)
+            for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], c[i][k]), hi[k] = std::max(hi[k], c[i][k]);
+          std::printf("    %s at %.1f %.1f %.1f flags %x, box (%d) %.0f..%.0f %.0f..%.0f %.0f..%.0f\n", nm, p[0], p[1], p[2], z->flags(), got, lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]);
+          if (std::getenv("PM_WALL_KILL") && std::strcmp(nm, "anhur04") == 0) {
+            std::function<void(zcls::Node*, int)> walk = [&](zcls::Node* q, int d) {
+              float w[3] = {};
+              zcls::node_world_point(q, w);
+              std::printf("      %*s%s cls %d flags %x at %.0f %.0f %.0f\n", 2 * d, "", q->name(), q->cls(), q->flags(), w[0], w[1], w[2]);
+              for (int32_t i = 0; i < q->child_count() && d < 4; ++i) walk(q->children[i], d + 1);
+            };
+            walk(z, 0);
+          }
+        }
+      for (auto& [c, s] : seen) std::printf("    %d rays, nearest %.1f m: %s\n", s.first, s.second, c.c_str());
       return;
     }
     if (std::getenv("PM_WALL") && std::getenv("PM_WALL_AT")) {  // the player left be until then
@@ -1568,12 +1708,46 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
 // Always on: the same fall with the camera by the cockpit and outside: entering the cloud
 // tints the screen to its colour by the camera's height (docs/vehicles.md, The cloud's screen tint).
+// pm-tests 37, Owen's invisible wall in c3m6: an Anhur shot down over the land bridge left its root's box (set by PM's
+// reticle while it flew near, never cleared once it was dead) spanning where it died and its falling wreck. With bug
+// fixes on the dead turret drops it; off, the box stops the shot and the walk as in the exe (docs/fixes.md).
+TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
+#if !defined(_WIN32)
+  for (const bool bugs : {true, false}) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_ANHUR", "1", 1);
+      if (!bugs) setenv("PM_BUGS_OFF", "1", 1);
+      kill_run("2,1,6", true);
+      const auto name = [](zcls::Node* n) { return n ? n->name() : "nothing"; };
+      std::printf("  bugs %d: killed %d, boxed alive %d, dead %d; shot meets %s at %.1f m, walk %s at %.1f m; the deck gone at frame %d\n", bugs,
+                  g_anhur.killed, g_anhur.boxed_alive, g_anhur.boxed_dead, name(g_anhur.shot), g_anhur.shot_at, name(g_anhur.walk), g_anhur.walk_at,
+                  g_anhur.deck_gone);
+      EXPECT(g_anhur.killed && g_anhur.boxed_alive);  // the reticle had boxed it as it flew near
+      std::printf("  %d solid pieces, %d with nothing drawn\n", g_anhur.solid, g_anhur.unseen);
+      EXPECT(g_anhur.solid > 0 && g_anhur.unseen == 0);  // the wreck stays solid by its polygons, all of them drawn
+      const bool shot_box = g_anhur.shot && std::strcmp(g_anhur.shot->name(), "anhur04") == 0;
+      const bool walk_box = g_anhur.walk && std::strcmp(g_anhur.walk->name(), "anhur04") == 0;
+      EXPECT(g_anhur.boxed_dead == !bugs);
+      EXPECT(shot_box == !bugs);
+      EXPECT(walk_box == !bugs);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
+}
+
 TEST(pm_cloud_screen_tint) {
 #if !defined(_WIN32)
   for (const char* camera : {"1", "2"}) {
