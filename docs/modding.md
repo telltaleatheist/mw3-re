@@ -486,6 +486,18 @@ and `gamez.zbd` gets its signature and version only: the rest needs the world
 up. Every shipped kind passes on c1, c4b and t1. Test:
 `mods_check_mod_reads_animations_at_any_depth`.
 
+**Pitfall: an edited `reader.zbd` for the original Pirate's Moon needs its
+CRC.** PM's archives (zArchive version 2) end with a CRC of every entry's
+data, in table order. The original PM checks only `zbd\reader.zbd`'s, after
+the intro (0x004876e0; protection.md section 6 on the `pm` branch), and on a
+mismatch closes with no message. So a `reader.zbd` edited for the original
+needs its CRC set again: `tools/analysis/zcrc.py --fix reader.zbd` (on the
+`pm` branch), or rebuild it with `tools/analysis/zarc.py`, which writes it.
+The other archives hold 0 there and are never checked. It doesn't matter
+for our port: the check is a protection trap we leave out (FIX (trap)), and
+a mod's archive loads with any CRC. MechWarrior 3's archives (version 1)
+have none.
+
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
