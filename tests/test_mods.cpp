@@ -1662,6 +1662,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
   put(bad + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3},\n \"alpha\": 300}}]");
   write_stored_zip(bad + "/zbd/mechlib.zip", {{"mech_x.flt.json", "{\"nodes\": []}"}});
+  put(bad + "/zbd/c2/gamez/metadata.json", "{\"material_array_size\": 4}");
   write_stored_zip(bad + "/zbd/c1/gamez.zip", {{"metadata.json", "{\"material_array_size\": 4, \"model_array_size\": 4, \"node_array_size\": 4,"
                                                                  " \"node_last_free\": -1}"}, {"textures.json", "[]"}, {"materials.json", "[]"},
                                                 {"models.json", "[]"}, {"nodes.json", world_node}});
@@ -1705,7 +1706,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
   EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
   EXPECT(text.find("error: zbd/c1/gamez.zip: nodes.json: line 1 (at $[0]): an empty node has one parent") != std::string::npos);
-  EXPECT(errors == 17 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/c2/gamez/: metadata.json: line 1 (at $): no \"model_array_size\"") != std::string::npos);
+  EXPECT(errors == 18 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&

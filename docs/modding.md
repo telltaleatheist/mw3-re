@@ -1156,9 +1156,12 @@ its own small tree, with the same line-and-path errors.
 *Byte for byte.* `mods_gamez_json_is_every_worlds_file` runs unzbd on all
 six worlds: every file is the shipped one byte for byte, with no masks (c1
 11,412,064 bytes). mech3ax keeps a table of about a hundred c3 partitions
-whose middle height its float sum misses; computed in double and rounded
-once, every one comes out as shipped, so no table is needed (the same lesson
-as mechlib's cosines). Errors name the file, line and place ("nodes.json:
+whose middle height its float sum misses; its partitions' pointers are not
+in the 1.2 c3 file (another release's, it seems), and on all six 1.2 worlds a
+float sum and a double one give the same bits, so neither the table nor the
+way of summing matters for these files. Ours sums in double and rounds once,
+as the original's tools likely did (unverified: no file here tells them
+apart). Errors name the file, line and place ("nodes.json:
 line 2 (at $[0].data): not a node class this format has: Portal", "an empty
 node has one parent", an unknown flag's name). Tests: that one,
 `mods_gamez_json_in_a_folder_or_a_zip` (the order, a refusal, the

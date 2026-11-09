@@ -361,7 +361,7 @@ bool node_data(Json& j, const Value& n, const std::string& at, const std::string
         if (!(j.i64(pt, pa, "x", INT32_MIN, INT32_MAX, &x) && j.i64(pt, pa, "z", INT32_MIN, INT32_MAX, &z) && vec(j, pt, pa, "min", mn) &&
               vec(j, pt, pa, "max", mx) && indices(j, pt, pa, "node_indices", &nodes) && j.i64(pt, pa, "nodes_ptr", 0, 0xffffffffll, &nptr)))
           return false;
-        // the middle's y in doubles, rounded once: the shipped bits (mech3ax keeps a table of those its float sum misses)
+        // the middle's y in doubles, rounded once; on the 1.2 worlds a float sum gives the same bits (gamez.md)
         const float mid_y = static_cast<float>((static_cast<double>(mx[1]) + static_cast<double>(mn[1])) * 0.5);
         o.u32(0x100), o.i32(-1), o.f32(static_cast<float>(x)), o.f32(static_cast<float>(z));
         for (float v : mn) o.f32(v);
