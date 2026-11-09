@@ -456,6 +456,112 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     o.f32(run);
     return true;
   }
+  if (type == "LightAnimation") {
+    std::string n;
+    float range[2], alt[2] = {0, 0}, color[3], run;
+    const Value *rv, *av, *cv;
+    if (!(name32("name", &n) && (rv = j.get(d, at, "range")) && (av = j.get(d, at, "range_alt")) && (cv = j.get(d, at, "color")) &&
+          j.f32(*rv, at + ".range", "min", &range[0]) && j.f32(*rv, at + ".range", "max", &range[1]) && j.f32(*cv, at + ".color", "r", &color[0]) &&
+          j.f32(*cv, at + ".color", "g", &color[1]) && j.f32(*cv, at + ".color", "b", &color[2]) && j.f32(d, at, "run_time", &run)))
+      return false;
+    if (av->kind != Value::Null && !(j.f32(*av, at + ".range_alt", "min", &alt[0]) && j.f32(*av, at + ".range_alt", "max", &alt[1]))) return false;
+    const int16_t li = Def::find(def.lights, n);
+    if (!li) return j.r.fail(d, at + ".name", "no light \"" + n + "\" in the def's lights");
+    o.name_padded(n, 32), o.i32(li), o.f32(range[0]), o.f32(range[1]), o.f32(alt[0]), o.f32(alt[1]), o.zeros(8);
+    for (float x : color) o.f32(x);
+    o.zeros(24), o.f32(run);
+    return true;
+  }
+  if (type == "ObjectAddChild") {
+    int16_t p, c;
+    if (!(node("parent", 0, &p) && node("child", 0, &c))) return false;
+    o.i16(p), o.i16(c);
+    return true;
+  }
+  if (type == "ObjectCycleTexture") {
+    int16_t n;
+    long long reset;
+    if (!(node("name", 0, &n) && j.i64(d, at, "reset", 0, 65535, &reset))) return false;
+    o.u32(1), o.i16(n), o.u16(static_cast<uint16_t>(reset));
+    return true;
+  }
+  if (type == "Callback") {
+    uint32_t v;
+    if (!j.u32(d, at, "value", &v)) return false;
+    o.u32(v);
+    return true;
+  }
+  if (type == "SoundNode") {
+    std::string n;
+    bool active;
+    if (!(name32("name", &n) && j.boolean(d, at, "active_state", &active))) return false;
+    const int16_t si = Def::find(def.dyn_sounds, n);
+    if (!si) return j.r.fail(d, at + ".name", "no sound \"" + n + "\" in the def's dynamic sounds");
+    uint32_t flags = 0;
+    int32_t ni = 0;
+    float tr[3] = {0, 0, 0};
+    const Value* t = j.get(d, at, "translate");
+    if (!t) return false;
+    if (t->kind != Value::Null) {
+      if (const Value* an = t->kind == Value::Object ? t->get("AtNode") : nullptr) {
+        std::string nn;
+        if (!(j.str(*an, at + ".translate.AtNode", "name", &nn, 255) && vec(*an, at + ".translate.AtNode", "pos", tr))) return false;
+        if (!(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".translate.AtNode.name", "no node \"" + nn + "\" in the def's nodes");
+        flags = 2;
+      } else if (const Value* ab = t->kind == Value::Object ? t->get("Absolute") : nullptr) {
+        if (!(j.f32(*ab, at + ".translate.Absolute", "x", &tr[0]) && j.f32(*ab, at + ".translate.Absolute", "y", &tr[1]) &&
+              j.f32(*ab, at + ".translate.Absolute", "z", &tr[2])))
+          return false;
+        flags = 1;
+      } else {
+        return j.r.fail(*t, at + ".translate", "not AtNode or Absolute");
+      }
+    }
+    o.name_padded(n, 32), o.i32(si), o.u32(flags), o.u32(active ? 1 : 0), o.i32(ni);
+    for (float x : tr) o.f32(x);
+    return true;
+  }
+  if (type == "DetonateWeapon") {
+    std::string w, nn;
+    float pos[3];
+    const Value* an;
+    if (!(j.str(d, at, "weapon", &w, 9) && (an = j.get(d, at, "at_node")) && j.str(*an, at + ".at_node", "name", &nn, 255) &&
+          vec(*an, at + ".at_node", "pos", pos)))
+      return false;
+    int16_t ni = kInputCall;
+    if (nn != "INPUT_NODE" && !(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".at_node.name", "no node \"" + nn + "\" in the def's nodes");
+    o.name_padded(w, 10), o.i16(ni);
+    for (float x : pos) o.f32(x);
+    return true;
+  }
+  if (type == "FogState") {
+    uint32_t flags = 0;
+    int ty = 1;
+    float color[3] = {0, 0, 0}, alt[2] = {0, 0}, range[2] = {0, 0};
+    const Value *tv, *cv, *av, *rv;
+    if (!((tv = j.get(d, at, "type_")) && (cv = j.get(d, at, "color")) && (av = j.get(d, at, "altitude")) && (rv = j.get(d, at, "range")))) return false;
+    if (tv->kind != Value::Null) {
+      if (!j.name_of(d, at, "type_", {{"Off", 0}, {"Linear", 1}, {"Exponential", 2}}, &ty)) return false;
+      flags |= 1;
+    }
+    if (cv->kind != Value::Null) {
+      if (!(j.f32(*cv, at + ".color", "r", &color[0]) && j.f32(*cv, at + ".color", "g", &color[1]) && j.f32(*cv, at + ".color", "b", &color[2])))
+        return false;
+      flags |= 2;
+    }
+    if (av->kind != Value::Null) {
+      if (!(j.f32(*av, at + ".altitude", "min", &alt[0]) && j.f32(*av, at + ".altitude", "max", &alt[1]))) return false;
+      flags |= 4;
+    }
+    if (rv->kind != Value::Null) {
+      if (!(j.f32(*rv, at + ".range", "min", &range[0]) && j.f32(*rv, at + ".range", "max", &range[1]))) return false;
+      flags |= 8;
+    }
+    o.name_padded("default_fog_name", 32), o.u32(flags), o.u32(static_cast<uint32_t>(ty));
+    for (float x : color) o.f32(x);
+    o.f32(alt[0]), o.f32(alt[1]), o.f32(range[0]), o.f32(range[1]);
+    return true;
+  }
   if (type == "PufferState") {
     std::string n;
     if (!name32("name", &n)) return false;
