@@ -38,6 +38,7 @@ class ModsScreen : public MenuScreen {
  public:
   enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods };
   ModsScreen(Engine& e, Handle state);
+  ~ModsScreen() override;
   void on_button(int32_t id, int32_t a, int32_t b) override;
   void refill();                     // both tables again from the write dir
   void show_details();               // the selected row's lines
@@ -47,6 +48,7 @@ class ModsScreen : public MenuScreen {
   ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
   ModsList campaign_list, mod_list;
   ztwod::Image lines{0}, lines2{0};
+  zimg::Texture* own_lines = nullptr;  // LINES2 with the CAMPAIGNS box (ours, released with the screen)
   ztwod::Text detail_label, detail, detail2, note, restart;  // DETAILS: the row's name, its author and version
   ModsTables tables;
   std::vector<std::string> enabled;  // mw3.cfg's, as the tabs change it

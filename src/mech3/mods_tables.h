@@ -35,6 +35,9 @@ std::string mods_row_text(const ModsListEntry& m);
 // The line under the table for a MODS row: why it cannot be used, what it
 // shares with which earlier mod (that one wins), or "" when nothing.
 std::string mods_row_note(const ModsListEntry& m, const std::vector<ModsListEntry>& all);
+// A CUSTOM CAMPAIGNS row as shown: its name, " !" after it when its mod is
+// off in this run or it cannot be played (the note line says which).
+std::string mods_campaign_row_text(const ModsCampaignRow& c);
 // A campaign row's details: "<author>, version <v>" and why it cannot be played.
 std::string mods_campaign_details(const ModsCampaignRow& c);
 

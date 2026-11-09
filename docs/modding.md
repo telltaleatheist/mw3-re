@@ -421,9 +421,13 @@ program turns it on (`mods_menu_page`), so the probes see the original's
 menu. The screen is made when MODS is pressed and reads dialog.zrd itself
 (the main menu's tree is not the file's by then).
 
-- CUSTOM CAMPAIGNS (the pilots' box): a row for each `campaign=` of every
-  mod in the write dir's `mods\`, by its `name=`; DETAILS shows its author
-  and version. A mod of campaigns only is not in MODS; one that also adds
+- CAMPAIGNS (Owen, 2026-11-09: a plain list as MODS, not the pilots' six
+  bars): the games' list in a copy of the games' box at the left, lined up
+  with MODS (`campaign_lines`: the pilot screen's lines, the six bars' box
+  taken out, the same size and place so 16:9 stretches it the same); a row
+  for each `campaign=` of every mod in the write dir's `mods\`, by its
+  `name=`, ` !` after one whose mod is off in this run or that cannot be
+  played (the note line says which); DETAILS shows its author and version. A mod of campaigns only is not in MODS; one that also adds
   mechs, weapons or Instant Action worlds is in both.
 - MODS (the games' box): every other mod, `[x]` on or `[ ]` off, the
   enabled ones first in mw3.cfg's order (`mods_list`, the launcher's), a

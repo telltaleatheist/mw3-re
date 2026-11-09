@@ -1,7 +1,9 @@
 #include "mech3/mods_menu.h"
 
 #include <algorithm>
+#include <cstdlib>
 
+#include "gamez/zimage/zimg_library.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/mainmenu.h"
 #include "mech3/mod_campaign.h"
@@ -54,6 +56,10 @@ std::string mods_row_note(const ModsListEntry& m, const std::vector<ModsListEntr
   if (files) what = std::to_string(files) + (files == 1 ? " file" : " files");
   if (rows) what += (what.empty() ? "" : " and ") + std::to_string(rows) + (rows == 1 ? " mech/weapon" : " mechs/weapons");
   return "Shares " + what + " with " + names + ", which wins";
+}
+
+std::string mods_campaign_row_text(const ModsCampaignRow& c) {
+  return c.name + (c.mounted && c.error.empty() ? "" : " !");
 }
 
 std::string mods_campaign_details(const ModsCampaignRow& c) {
@@ -112,6 +118,37 @@ void target_buffers(Engine& e) {
   const Handle r = e.video_buffer_d90();
   e.render_set_target2(e.video_target(), r, b, a);
 }
+// Ours (Owen, 2026-11-09): the pilot screen's lines (pilot_bg_lines, 619x445)
+// with the pilots' box of six bars (24,113 to 256,437) taken out and a copy
+// of its right box (the games' plain one, 378,33, 241x210) put in its place,
+// the CAMPAIGNS list's box lined up with MODS'. The same size and place, so
+// the wide layout stretches it as the pilot screen's. Null when it cannot.
+zimg::Texture* campaign_lines(zimg::Texture* src) {
+  constexpr int kBoxX = 378, kBoxY = 33, kBoxW = 241, kBoxH = 210, kToX = 24, kToY = 113, kClearW = 265;
+  if (!src || !src->pixels || !src->alpha || src->palette_count || src->width < kBoxX + kBoxW ||
+      src->height < kToY + kBoxH)
+    return nullptr;
+  const int w = src->width, h = src->height;
+  zimg::Texture* dst = ztwod::host().image_new(w, h);
+  if (!dst) return nullptr;
+  dst->flags = (src->flags & ~(zimg::kAlphaOwned | zimg::kPaletteOwned)) | zimg::kPixelsOwned | zimg::kAlphaOwned;
+  dst->alpha = static_cast<uint8_t*>(std::calloc(static_cast<size_t>(w) * h, 1));
+  auto* in = static_cast<const uint16_t*>(src->pixels);
+  auto* out = static_cast<uint16_t*>(dst->pixels);
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x) {
+      const bool cleared = x < kClearW && y >= kToY;
+      out[y * w + x] = cleared ? 0 : in[y * w + x];
+      dst->alpha[y * w + x] = cleared ? 0 : src->alpha[y * w + x];
+    }
+  for (int y = 0; y < kBoxH; ++y)
+    for (int x = 0; x < kBoxW; ++x) {
+      out[(kToY + y) * w + kToX + x] = in[(kBoxY + y) * w + kBoxX + x];
+      dst->alpha[(kToY + y) * w + kToX + x] = src->alpha[(kBoxY + y) * w + kBoxX + x];
+    }
+  return dst;
+}
+
 void put(ztwod::Text& t, const char* font, int32_t x, int32_t y) {
   t.set_font(ztwod::host().font_find(font));
   t.set_pos(x, y);
@@ -148,6 +185,7 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     add(&background);
     bind_primitive(&lines, "LINES");
     bind_primitive(&lines2, "LINES2");
+    if ((own_lines = campaign_lines(lines2.image))) lines2.set_image(own_lines);
     bind_button(&enter, "ENTER");
     bind_button(&back, "BACK");
     if (!moving) {
@@ -180,11 +218,18 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
   refill();
 }
 
+ModsScreen::~ModsScreen() {
+  if (own_lines) {
+    lines2.set_image(static_cast<zimg::Texture*>(nullptr));
+    ztwod::host().image_release(own_lines);
+  }
+}
+
 void ModsScreen::refill() {
   tables = mods_tables(mods_menu_write_dir(), enabled, mods_menu_mounted());
   campaign_list.clear_items();
   for (size_t i = 0; i < tables.campaigns.size(); ++i)
-    campaign_list.add_item(tables.campaigns[i].name.c_str(), static_cast<int32_t>(i));
+    campaign_list.add_item(mods_campaign_row_text(tables.campaigns[i]).c_str(), static_cast<int32_t>(i));
   const int32_t was = mod_list.selected;
   mod_list.clear_items();
   for (size_t i = 0; i < tables.mods.size(); ++i)

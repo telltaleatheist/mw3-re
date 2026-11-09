@@ -892,6 +892,10 @@ TEST(mods_screen_tables_order_and_conflicts) {
   if (t.campaigns.size() == 3) {
     EXPECT(t.campaigns[1].error.find("line 1") != std::string::npos);
     EXPECT(mech3::mods_campaign_details(t.campaigns[0]) == "Someone, version 1.2");
+    // The row: its name, " !" when it cannot be played or its mod is off here.
+    EXPECT(mech3::mods_campaign_row_text(t.campaigns[0]) == "Lost Frontier" &&
+           mech3::mods_campaign_row_text(t.campaigns[1]) == "bad.txt !" &&
+           mech3::mods_campaign_row_text(t.campaigns[2]) == "Drills !");
   }
   rows.clear();
   for (const mech3::ModsListEntry& m : t.mods) rows += mech3::mods_row_text(m) + "|";
