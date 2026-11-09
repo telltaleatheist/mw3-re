@@ -91,6 +91,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
 #include "mech3/mods.h"
+#include "mech3/mods_menu.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_keys.h"
@@ -742,6 +743,8 @@ int main(int argc, char** argv) {
   if (!a.mods.empty())
     for (const std::string& line : mech3::mods_mount(a.write_dir, a.mods, {patch_dir, a.install}))
       std::printf("mw3: %s\n", line.c_str());
+  mech3::mods_menu_write_dir() = a.write_dir;  // the MODS screen's (ours)
+  mech3::mods_menu_mounted() = a.mods;
   if (!a.patch.empty()) {
     const mech3::setup::Result r = mech3::setup::apply_patch(a.patch, a.write_dir, nullptr);
     if (a.verbose) std::printf("%s", r.detail.c_str());

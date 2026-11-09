@@ -407,7 +407,60 @@ Step 3 (2026-11-09), the advance and the movies by line:
 Tests: `mod_campaign_advance_over_the_list`,
 `mod_campaign_advance_and_end_headless` (the real screens: the pilot screen,
 the briefing, a won mission, the debriefing, the next briefing, the ending).
-Next: the MODS screen's CUSTOM CAMPAIGNS table.
+
+### The MODS screen (begun 2026-11-09)
+
+Ours, from the game's own pieces (`mods_menu`, `mods_tables.h`): a MODS
+button on the main menu and its screen, both our records in dialog.zrd
+(`patch12::apply_ours`, as the options' UPGRADES): the button after QUIT in
+the original's look (`circlebtn_small`, a red label, OPTIONS' line), placed
+for Owen to choose (at the bottom continuing the left column, or on the
+right under the circle); the screen, MODSDIALOG, on the pilot screen's art
+and widgets, with the pilot screen's groups at 16:9. Bound only where the
+program turns it on (`mods_menu_page`), so the probes see the original's
+menu. The screen is made when MODS is pressed and reads dialog.zrd itself
+(the main menu's tree is not the file's by then).
+
+- CAMPAIGNS (Owen, 2026-11-09: a plain list as MODS, not the pilots' six
+  bars): the games' list in a copy of the games' box at the left, lined up
+  with MODS (`campaign_lines`: the pilot screen's lines, the six bars' box
+  taken out, the same size and place so 16:9 stretches it the same); a row
+  for each `campaign=` of every mod in the write dir's `mods\`, by its
+  `name=`, ` !` after one whose mod is off in this run or that cannot be
+  played (the note line says which); DETAILS shows its author and version. A mod of campaigns only is not in MODS; one that also adds
+  mechs, weapons or Instant Action worlds is in both.
+- MODS (the games' box): every other mod, `[x]` on or `[ ]` off, the
+  enabled ones first in mw3.cfg's order (`mods_list`, the launcher's), a
+  ` !` after one with a conflict or that cannot be used; chosen, the line
+  under the tabs says why it cannot be used, or what it shares with which
+  earlier mod ("Shares 1 file with Green HUD, which wins").
+- ON/OFF (an off mod goes to the end of the order), UP and DOWN (earlier
+  wins a shared file) write mw3.cfg's `mod=` lines at once
+  (`mods_save_enabled`) and take hold at the next start, which the screen
+  says while mw3.cfg differs from the run.
+- ENTER on a campaign whose mod is on in this run: `campaign_enter` (its own
+  pilots), MODS popped and the Campaign State pushed on the main menu, so
+  the stack is CAMPAIGN's: once a pilot is chosen the Campaign State pops
+  itself and replaces the main menu with the mission's state, nothing left
+  under the mission. (With MODS left under it, that pop resumed MODS and the
+  replace swapped MODS out, keeping the main menu under the mission; found
+  in review, 2026-11-09.) The campaign's pilots are let go when the main
+  menu updates again (`MainState::update`: after QUIT, the campaign's end,
+  or CANCEL on its pilot screen), never on a resume, which the Campaign
+  State's own pop makes on its way to the mission. A campaign whose mod is
+  off is never started half-mounted: ENTER turns the mod on for the next
+  start and says so ("its mod is turned on; restart to play it").
+- EDITOR: a stub for the Battlesport editor (says it is not built yet).
+- BACK: the main menu.
+
+Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
+the campaign rows with a broken file, the rows' marks and notes, UP moving
+the conflict to the other mod, ON/OFF and the save) and
+`mods_screen_enter_campaign_and_back_headless` (MODS, ENTER, a pilot in the
+campaign's folder, the first mission, the pause's options and QUIT, the main
+menu, MODS, BACK: the stack at each step, nothing under the mission, the
+pilots kept until the main menu). Left: ADD MOD (its own
+step), a live remount, the button's place (Owen).
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 

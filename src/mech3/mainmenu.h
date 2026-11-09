@@ -15,7 +15,7 @@ namespace mech3 {
 // (AUXBITMAP). Pressed, it pushes its menu's state; QUIT asks first.
 class MainMenuButton : public SlideButton {
  public:
-  enum Kind : int32_t { kInstantAction, kNewCampaign, kMultiplayer, kTraining, kOptions, kCredits, kQuit };
+  enum Kind : int32_t { kInstantAction, kNewCampaign, kMultiplayer, kTraining, kOptions, kCredits, kQuit, kMods };  // kMods ours
   MainMenuButton(Engine& e, Kind k);  // 0x00438d70(-1), the line hidden
   ~MainMenuButton() override = default;  // 0x0048e840 (0x0048e860); 0x00486840..0x00486900
   void update(float dt) override;    // +0x24  0x0048e810
@@ -44,6 +44,7 @@ class MainMenu : public MenuScreen {
   zrdr::Node* definition = nullptr;  // +0x12600  the dialog's tree when it loaded
   ztwod::Control unused_button;      // +0x12604  never bound
   ztwod::Text version;               // +0x12750  "MechWarrior 3 1.2", bottom right
+  MainMenuButton mods;               // ours: MODS (mods_menu.h), bound only with mods_menu_page
 };
 
 MainMenu* main_menu();               // [0x00609854]

@@ -1,3 +1,5 @@
+#include "mech3/mod_campaign.h"
+#include "mech3/mods_menu.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "gamez/zutil/zfix.h"
@@ -963,6 +965,7 @@ bool MainState::enter() {
   en.screen_refresh(screen_);
   for (const auto& m : kMenus) en.poke32(m.global, en.construct(m.ctor, {}));
   if (options_upgrades_page()) options_upgrades_state() = en.construct(kUpgradesStateCtor, {});  // ours
+  if (mods_menu_page()) mods_menu_state() = en.construct(kModsStateCtor, {});  // ours
   en.twod_reset(en.peek32(0x609854));
   reset_idle();
   Mech3App& ap = a();
@@ -984,6 +987,11 @@ bool MainState::enter() {
 // hotkeys press the screen's buttons.
 bool MainState::update() {
   Engine& en = e();
+  // Ours: the main menu up again lets a custom campaign's pilots go (MODS's
+  // ENTER). Not on a resume: the Campaign State's pop on its way to the
+  // mission and ENTER's pop of MODS resume it in the same batch as the next
+  // command, so it never updates between.
+  if (entered_campaign()) campaign_leave();
   const bool r = ShellState::update();
   idle_ = idle_ - en.frame_dt();
   const Handle s = screen_;
@@ -1015,6 +1023,7 @@ void MainState::leave() {
     en.poke32(m.global, 0);
   }
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
+  if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 

@@ -116,7 +116,8 @@ The file as built is in modding.md, Custom campaigns (the shape above with
 
 Built: step 1 the file (modding.md, Custom campaigns), step 2 the game
 type and its pilots, step 3 the advance over the list, the field bases and
-the movies by line (the same section).
+the movies by line (the same section); entering one from the MODS screen
+(modding.md, The MODS screen).
 
 ## Next, after the review
 
