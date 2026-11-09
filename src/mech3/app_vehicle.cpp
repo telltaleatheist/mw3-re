@@ -465,6 +465,10 @@ struct WiredEditor : EditorHooks {
     out[0] = p[0], out[1] = p[1], out[2] = p[2];
     return true;
   }
+  void* world_node() override {
+    zcls::Node* cam = camera_node();
+    return cam ? zcls::camera_world(cam) : nullptr;
+  }
   bool clear_line(const float* a, const float* b) override {  // 0x004eed90 == 0
     zcls::Node* cam = camera_node();
     zcls::Node* world = cam ? zcls::camera_world(cam) : nullptr;  // [0x00608c84] +4

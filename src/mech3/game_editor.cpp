@@ -5,6 +5,7 @@
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/ztimer.h"
 #include "mech3/game_editor_net.h"
+#include "mech3/game_editor_tree.h"
 
 namespace mech3 {
 
@@ -67,6 +68,7 @@ EditorPanel& editor_panel() {
   return *g_state.panel;
 }
 void editor_reset() {
+  tree_close();
   net_window_free();
   net_editor_free();
   delete g_state.panel;

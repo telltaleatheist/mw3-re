@@ -650,6 +650,30 @@ record of each type its records have added as Add vehicle adds it: 240 in 48
 archives read by mech3ax's unzbd exactly as written, after every shipped
 record, every other member the same). Breaks: the tags dropped, a wrong team.
 
+## The tree view (S5 sitting 4, 2026-11-09)
+
+Tree View (0x00402c70 -> 0x00402bf0) makes, once, a modeless window of
+template 155 (an untitled "Dialog": a tree control, OK, Cancel; 0x004b5580,
+0xa8 bytes, [0x005f4c70]). It shows the world, not the net: on its
+OnInitDialog (0x004b56b0) the world node ([0x00608c84] +4) and its children,
+each with theirs (0x004b57d0), then under the world an "area R C" item for
+each partition row and column (0x005e8858) holding that cell's nodes. It
+only shows: nothing in it can be changed, and OK and Cancel close it
+(DestroyWindow, then 0x004b5830 deletes it and clears the global). Exit Net
+Editor closes it too (0x00402ba0, the window's vt+0x60; it also closes
+[0x005f4c74], which nothing in the exe sets).
+
+FIX (A): the items are the editor panel's rows, one an item, two spaces a
+level, "+ " closed with children, "- " open (a press opens or closes it, as
+the control's expand), 20 to a page with up and down rows, OK and Cancel.
+Ported in `mech3/game_editor_tree`; the world comes through the editor's
+hooks (`world_node`).
+
+Test: `mission_c1m1_tree_view_shows_the_world_headless` (world1 first,
+closed; opened, its 16 children and 418 area items; the list pages; an area
+opened shows its node; OK closes it, the net menu back). Breaks: no area
+items, a press not opening.
+
 ## The save (S5 sitting 2, 2026-11-09)
 
 **The text writers, ported** (`zrdrainet.cpp`): the header 0x4da1d0 ->
