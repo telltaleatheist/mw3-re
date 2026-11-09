@@ -993,6 +993,140 @@ every shipped entry, run by itself when mech3ax's unzbd is beside the
 checkout. PM's archives the same where its formats match (mech3ax's `pm`
 readers), on `pm` after pm-v1.0.0.
 
+## Animations a def at a time (design, proposal only, 2026-11-09)
+
+Owen's ask: animations moddable, and easy, with every old mod working
+exactly as before. Today a mod replaces a world's whole anim.zbd (or its
+whole JSON, above). Adding one weapon effect, say a heavy gauss rifle's
+`hgaus_fire` with its trail, muzzle flash and flyby loops, means editing all
+six worlds' anim.zbd and gamez.zbd, and two mods that touch animations
+cannot both be on. This is the plan to fix that. Nothing here is built yet.
+
+**What the engine already allows (from the code).**
+- Defs find each other by name. CallAnimation keeps the target's name and
+  looks it up the first time it runs (0x506640: a search over all defs by
+  name, the index cached in the event at +0x30). Stop, reset and invalidate
+  find their def by name too (0x506d60..0x506ea0), as do `anim_find`
+  (0x50b450) and the prerequisites' type 1 (0x508950). So a def added under a
+  new name is reachable by any def that names it, and a def replaced under its
+  own name is what its callers get.
+- An anim ref (a def's own list, 0x48 bytes) is a slot the calling def fills
+  at run time. It holds no index into the set, so merging does not touch it.
+- Within a def, events index only that def's own lists: nodes, lights,
+  puffers, sounds, effects, scripts. A def's JSON stands alone, apart from the
+  .zan scripts it names by index. Those come with it (below).
+- The fixup (0x50a0e0) binds each def to a world node by name: +0x20, with a
+  run of defs of the same node name taking that name's successive nodes.
+  The post-load pass (0x50ae60) then works on each def alone (loops 1-4).
+  Neither cares where in the list a def sits, except for those runs, so
+  appended defs keep the shipped defs' bindings.
+- Saved games are the one place the index matters. A running animation is
+  saved as "Running%03d" with its def's index (0x50be30), and read back by
+  index (0x50c1d0). Activation records are saved by name.
+
+**1. A def at a time.** A mod may hold:
+- `zbd\c1\anim\<node>-<anim>.json`: one def for one world, the file unzbd
+  writes for it;
+- `zbd\anim\<node>-<anim>.json`: one def for every world;
+- a script it names, `si-script-<name>.zan.json`, beside it. The def's
+  `index` in ObjectMotionSiScript then names its own file
+  (`"script": "si-script-<name>.zan"`, our addition), so no global script
+  numbering is shared between mods.
+
+No `metadata.json` means "merge into the world's set", not "the whole file"
+(the whole-file form, above, keeps metadata.json). The world's set is built
+from three things:
+- the base: the world's own anim.zbd, or the first enabled mod's whole file
+  (below);
+- each def file: it replaces the base def of the same key (the file's
+  `<node>-<anim>` name, which unzbd makes from the def's node name and anim
+  name), or it is added;
+- per key, the first enabled mod that has it wins, as for every other file
+  (mods first to last; the first wins). The lead's brief said "later
+  winning"; this keeps our one rule. Within one mod, the world's own folder
+  beats the world-less one.
+
+Order and indices: replaced defs keep their base index. Added defs go after
+the base's last def, in the order of the mods and then by name, so the
+shipped defs keep their indices and their node runs. Two fixes come with it:
+- a saved running animation is checked by name as well as index on load,
+  where today only the index is used. A save made under another mod set then
+  drops the anims that moved, said in the log, instead of starting the wrong
+  def;
+- the save records the mods' identity (`mods_identity`) as it does already,
+  and the load tells the player when it differs.
+
+The bytes: each def is written with the anim JSON's def writer
+(`zeff_anim_json.cpp`'s, unchanged), and each base def's bytes are spliced in
+from the base file. A def's bytes are self-contained: its record, its lists,
+its reset state and its sequences. Then the header's def count is set and the
+file is read by 0x50a0e0 as now.
+
+**2. The nodes a def needs.** A weapon effect's def drives its own nodes:
+`hgaus_trc.flt` and its tracer, a muzzle-flash model. Today they live in each
+world's gamez.zbd, which is why an effect means six gamez edits. Proposal: a
+def may come with its node tree as a mechlib-style model,
+`zbd\anim\<node>.flt.json` (the format of `mechlib_model_from_json`, above).
+- It is loaded the way a mech's parts are: read_tree, mechlib_resolve onto the
+  world's materials, its textures by name from the texture archives.
+- It is put into the world inactive before the fixup, under its node name, so
+  0x50a0e0's search finds it. Effects are made active and placed by their own
+  defs (CallAnimation's at-node and the motion events), as the shipped ones
+  are.
+- Its materials: a mechlib model indexes mechlib's shared list, so the file
+  carries a `materials` list of its own (our addition), appended to the
+  world's list as mechlib's are resolved.
+- A texture of its own needs a texture library, which this does not cover;
+  for now the shipped textures, or a mod's whole rtexture file.
+- Open: whether any shipped effect def relies on a gamez-only node class
+  (lights, LODs). Lights come from the def's own light list, made at load.
+  To check per shipped effect def before building.
+
+**3. Conflicts on the MODS screen.** The list's model (`mods_list`, above)
+already reports the files an enabled mod shares with one before it. Def
+files get the same treatment, keyed by world and def: "Heavy Gauss's
+hgaus_fire (all worlds) is Other Mod's, which comes first". It also reports
+when a whole-file mod sets the base for a world in which another mod adds
+defs, so a modder sees which defs take effect. `--check-mod` reads each def
+file alone through the def writer and names its errors by file and place, as
+it does for the whole JSON.
+
+**4. Old mods, and the two forms together.**
+- A mod's whole anim.zbd (or whole JSON folder or zip) is still the base,
+  exactly as today: with no def files anywhere, nothing changes.
+- With both kinds enabled: the base is the first enabled mod's whole file for
+  that world (else the install's). Def files from mods listed before that mod
+  replace or add defs over it. Def files from mods after it only add defs the
+  base lacks, and never replace that mod's own. So a whole-file mod keeps what
+  it shipped against anything listed after it, as it does now, and a
+  def-at-a-time mod listed ahead of it can still put its defs in.
+- Two whole-file mods for one world cannot be merged, as now; the first
+  wins, and the screen says so.
+
+**5. Both ways.** The original reads only a world's anim.zbd (and gamez.zbd);
+it never sees def files or node files. A modder targeting both games ships:
+- the def files, for ours;
+- a whole anim.zbd per world built from the install's plus those defs, for
+  the original. We would give this a tool: `--build-anim <mod>` writes each
+  world's merged file into the mod's `original\` folder, with the same
+  splicing as the loader;
+- the effect's nodes in each world's gamez.zbd, for the original only (it has
+  no other way to get them).
+
+In such a mod, mod.txt's `anim=defs` tells ours to use the def files and
+ignore that mod's own whole files, so two both-ways mods still combine in
+ours. Without it a whole file wins as in point 4, and old mods are unchanged.
+The `original\` folder is the modder's to copy over an original install
+(ours ignores it: `mod_own_file`).
+
+Order of work, when Owen agrees, one sitting each:
+1. the merge and the def files, with a test that adding and replacing defs on
+   all six worlds leaves every other def's bytes as shipped, plus the save's
+   name check;
+2. the MODS screen's conflicts and `--check-mod`;
+3. `--build-anim` and `anim=defs`;
+4. the node files, after the per-def check of the shipped effect defs.
+
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
