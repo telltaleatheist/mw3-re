@@ -608,9 +608,10 @@ every node's place and links the same; c1m1's edits as saved). Breaks: a
 property dropped, a table comment lost, a foreign folder reused, no .bak, the
 mod placed last, and (mech3ax) a re-encoded archive given as unedited.
 
-## The way in from MODS (Owen, 2026-11-09; planned, not built)
+## The way in from MODS (Owen, 2026-11-09; built 2026-11-09)
 
-The design of how a modder reaches the editor; built after sitting 4c.
+How a modder reaches the editor (`upgrades/editor/mods_edit`, the MODS
+screen's `edit` and `edit_start`, the program's start in app_engine.cpp).
 
 - **The MODS page offers no way in to edit the original campaign**: no row
   for it there. That is the whole rule: nothing stops anyone changing the
@@ -638,12 +639,28 @@ The design of how a modder reaches the editor; built after sitting 4c.
   dialogs, planned), in `src/upgrades/`; editing files the old way keeps
   working beside them.
 
-What it reuses: the MODS screen's tables (`mods_tables`, the campaign rows
-and their missions), `campaign_enter`'s mission start minus the pilot
-screen, `editor_enter` (0x0040e430) called by the start instead of the key,
-`save_archive_edit` with the mod's own folder as the target, the `.bak` rule
-it has. Tests: EDIT on a test mod's mission opens the editor in it, a move
-saved into the mod with a `.bak`, Exit landing on MODS.
+As built: EDITOR (the screen's art names it so; it is EDIT) lists the
+selected campaign's missions, each world and number once (`mods_edit_rows`;
+a mod without campaign= lines lists its worlds' `zbd\<world>\readerm<N>.zbd`)
+in CUSTOM CAMPAIGNS' box; ENTER opens the chosen one, EDITOR or BACK goes
+back to the tables. The mission starts as a debug start does (a stand-in
+pilot, no briefing: `set_launch`, then the Load state); the HUD's first frame
+opens the editor (`editor_enter`, 0x0040e430, as Shift+F12 does, so its
+menus and the stealth are the original's); `net_save_into_mod` sends every
+save into the mod (its file replaced, one `.bak`, its place in mw3.cfg's
+order left as it is). EXIT GAME EDIT asks to leave; the Core state's next
+update cleans the mission up (0x00491780) and puts the main menu up, which
+opens MODS again; the chosen pilot and the launch come back however the
+mission ended (the main menu's enter ends the session). Exit Net Editor goes
+back to the editor's main menu, as in the original.
+
+Test: `mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless`
+(a mod with a campaign on c1 mission 1 and its own copy of readerm1.zbd:
+EDIT lists one row, ENTER opens the mission with the editor up, node_00 of
+net_01 moved and saved into `mods\ed\zbd\c1\readerm1.zbd`, the old file as
+`.bak`, no "editor edits" folder, EXIT GAME EDIT back on MODS with the
+original pilot). Breaks: the save into the side folder, no editor on the
+first frame, MODS not opened again.
 
 ## The stealth object
 

@@ -39,6 +39,20 @@ struct ModsMenuPlatform {
   std::function<int(const std::string& name)> ask_game;
 };
 ModsMenuPlatform& mods_menu_platform();
+// EDIT's (editor.md, The way in from MODS): the program's start of a mod's
+// mission in the editor (the mod's folder, the world, its m<n>; false with
+// `why` when it cannot), and the flag that opens MODS again when the main
+// menu comes back (the editor's exit sets it).
+using ModsEditStart = std::function<bool(const std::string& mod, const std::string& world, int32_t number, std::string* why)>;
+ModsEditStart& mods_menu_edit_start();
+bool& mods_menu_reopen();
+// A mod's missions for EDIT: its campaigns' lines when it has any (mounted:
+// mod_campaigns), else its worlds' reader archives (zbd\<world>\readerm<N>.zbd).
+struct ModsEditRow {
+  std::string world;
+  int32_t number = 0;
+};
+std::vector<ModsEditRow> mods_edit_rows(const ModInfo& m);
 void mods_menu_picked(const std::string& path);  // "" cancelled; the screen takes it on its next update
 
 class ModsScreen;
@@ -61,6 +75,8 @@ class ModsScreen : public MenuScreen {
   void tell(const std::string& text);     // the two lines under MODS, the text wrapped
   void show_details();               // the selected row's lines
   void enter_campaign();             // ENTER
+  void edit();                       // EDITOR (ours): the selected mod's or campaign's missions, or back
+  void edit_start();                 // ENTER while editing: the chosen mission in the editor
 
   SlideButton enter, back;           // ENTER, BACK
   ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
@@ -73,6 +89,9 @@ class ModsScreen : public MenuScreen {
   std::vector<std::string> enabled;  // mw3.cfg's, as the tabs change it
   int32_t focus = kCampaigns;        // the table the details are of
   std::string adding;                // a pick said ("Adding ...") and added on the next update
+  bool editing = false;              // EDIT's list in CUSTOM CAMPAIGNS' box
+  std::string edit_mod;              // its mod's folder
+  std::vector<ModsEditRow> edit_rows;
 };
 
 // "Mods State" (ours): the screen made on entering, let go on leaving, as

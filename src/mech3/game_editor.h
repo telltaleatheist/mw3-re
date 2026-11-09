@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 
 #include "gamez/zgame/unported.h"
 #include "gamez/zinput/zinput.h"
@@ -107,7 +108,10 @@ void editor_fill(EditorPanel& p, const EditorMenu& m);         // 0x0040e6a0
 void editor_install(int32_t mode, const EditorMenu& m);       // 0x0040e7b0
 void editor_main_menu();                                       // 0x0040e7d0
 void editor_enter();                                           // 0x0040e430: command 0x9a's
-void editor_exit(int32_t y = 0);                               // 0x0040e7f0: EXIT GAME EDIT's (ours: the view back)
+void editor_exit(int32_t y = 0);
+// Ours: called at the end of the exit when set (MODS's EDIT: back to MODS;
+// upgrades/editor/mods_edit.h).
+std::function<void()>& editor_after_exit();                               // 0x0040e7f0: EXIT GAME EDIT's (ours: the view back)
 void editor_frame();                                           // 0x0040e4b0, each frame from the HUD's
 // Ours (docs/editor.md S4): command 0x9a, Shift+F12 under --debug-camera
 // (debugcamera=1): the editor's entry, or its exit when it is up.

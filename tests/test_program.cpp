@@ -133,6 +133,7 @@
 #include "mech3/player.h"
 #include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
+#include "upgrades/editor/mods_edit.h"
 #include "mech3/zainetedit.h"
 #include "mech3/app_keys.h"
 #include "mech3/mods.h"
@@ -1348,6 +1349,124 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
     reset_process_state();
     mech3::options() = mech3::Options{};
   }
+}
+
+// Ours (editor.md, The way in from MODS): MODS, a custom campaign chosen,
+// EDITOR lists its missions, ENTER opens c1 mission 1 with the editor up (no
+// Shift+F12); net_01's node_00 moved and saved goes into the mod itself, its
+// own readerm1.zbd replaced and the old one kept as .bak; EXIT GAME EDIT
+// lands on MODS again, the stand-in pilot let go.
+TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  const std::string wd = temp_dir("mods_screen_edit_write");
+  zutl::set_write_dir(wd);
+  std::filesystem::create_directories(wd + "/mods/ed/zbd/c1");
+  std::ofstream(wd + "/mods/ed/mod.txt") << "name=Edit Me\ncampaign=ed.txt\n";
+  std::ofstream(wd + "/mods/ed/ed.txt") << "name=Edit Campaign\nmission=c1 1\n";
+  const std::string own = wd + "/mods/ed/zbd/c1/readerm1.zbd";
+  std::filesystem::copy_file(std::filesystem::path(MW3_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd", own);
+  const auto bytes = [](const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  const std::string before = bytes(own);
+  mech3::mods_mount(wd, {"ed"}, {MW3_GAME_DIR});
+  zutl::mount(MW3_GAME_DIR);
+  mech3::mods_save_enabled(wd, {"ed"});
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_mounted() = {"ed"};
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0, frames = 0, rows = 0;
+    bool listed = false, editor_up = false, moved = false, saved_into_mod = false, kept_bak = false, mods_again = false;
+    std::string status, row0;
+    uint32_t real_pilot = 0, pilot_after = 0;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        real_pilot = engine.peek32(0x60861c);
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ms = dynamic_cast<mech3::ModsState*>(now);
+        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+        if (!scr) return;
+        scr->campaign_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDIT
+        rows = int(scr->edit_rows.size());
+        listed = scr->editing && rows == 1 && scr->edit_rows[0].world == "c1" && scr->edit_rows[0].number == 1;
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        stage = 2;
+      } else if (stage == 2 && now == &st.core) {
+        if (++frames < 5) return;
+        editor_up = mech3::editor_state().active == 1;
+        mech3::edit_ai_nets(0);
+        mech3::NetDialog& d = mech3::net_dialog();
+        for (size_t i = 0; i < d.items.size(); ++i)
+          if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+        mech3::net_dialog_close();
+        mech3::NetEditor* e = mech3::net_editor();
+        if (e && e->net && e->net->node(0)) {
+          float at[3] = {e->net->node(0)->pos()[0] + 25.0f, e->net->node(0)->pos()[1], e->net->node(0)->pos()[2]};
+          moved = e->net->node(0)->set_pos(at);
+          mech3::net_editor_save(0);
+          status = mech3::editor_panel().rows[24]->text;
+        }
+        saved_into_mod = bytes(own) != before && !std::filesystem::exists(wd + "/mods/editor edits");
+        kept_bak = std::filesystem::exists(own + ".bak") && bytes(own + ".bak") == before;
+        mech3::net_editor_exit(0);
+        mech3::editor_exit(0);  // EXIT GAME EDIT
+        stage = 3;
+      } else if (stage == 3) {
+        auto* ms = dynamic_cast<mech3::ModsState*>(now);
+        if (!ms) return;
+        mods_again = true;
+        pilot_after = engine.peek32(0x60861c);
+        stage = 4;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 8000;
+    pump.stop = [&] { return stage == 4; };
+    app.run(pump);
+    std::printf("  stage %d; EDIT listed %d (%d rows), the editor up %d, moved %d, saved into the mod %d, .bak kept %d; "
+                "\"%s\"; MODS again %d, the pilot back %d\n", stage, listed, rows, editor_up, moved, saved_into_mod,
+                kept_bak, status.c_str(), mods_again, pilot_after == real_pilot);
+    EXPECT(listed && editor_up && moved && saved_into_mod && kept_bak);
+    EXPECT(status.find("mods\\ed\\") != std::string::npos);
+    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mod_campaigns().clear();
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_mounted().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 // Ours (modding.md, The MODS screen): MODS, ENTER a custom campaign, its
