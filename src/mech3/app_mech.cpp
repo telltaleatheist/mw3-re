@@ -1199,6 +1199,18 @@ void program_net_debug_lobby() {
   c.lobby_kills = [](uint32_t p) { return g_debug_scores[p].kills; };
   c.lobby_score = c.lobby_kills;
   c.lobby_deaths = [](uint32_t p) { return g_debug_scores[p].deaths; };
+  // The round's winner on the clock (PM's 0x00437970 through the tally 0x00436980): one player alone first by
+  // score, here the kills; none (a tie) and the host's clock goes on into overtime (pm-tests 31: unset, every
+  // stand-in game did, and the soak's clock ran on past 0).
+  c.round_winner = [] {
+    int32_t best = -1, at_best = 0;
+    for (const auto& r : znet::lists().players) {
+      const int32_t k = g_debug_scores[r->id].kills;
+      if (k > best) best = k, at_best = 1;
+      else if (k == best) ++at_best;
+    }
+    return at_best == 1;
+  };
   c.lobby_scores = [](uint32_t* out, int32_t cap) {
     int32_t n = 0;
     for (const auto& r : znet::lists().players) {
