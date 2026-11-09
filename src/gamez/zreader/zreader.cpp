@@ -104,6 +104,7 @@ uint32_t read_node(std::FILE* file, Node* node) {
 
 // Mech3.exe 1.2 @ 0x00556840. Walks slot 0 too; it is an Int, so nothing happens.
 void free_contents(Node* node) {
+  upgrades::reference::freed(node);  // ours: the reference test's observer (null in play)
   if (node->type == String) {
     std::free(node->s);
     node->s = nullptr;
@@ -776,7 +777,7 @@ Node* load(const char* path) {
     std::FILE* f = zutl_zar::seek(*a, zutl_zar::find(*a, g_fname), &length);
     if (!f) continue;
     // A mod's own copy (mod_copy), given to the load hook as the entry is.
-    if (Node* root = mod_copy(*a, g_fname)) return root;
+    if (Node* root = mod_copy(*a, g_fname)) return upgrades::reference::loaded(g_fname, root);  // ours: the reference test's observer
     Node* root = new_nodes(List, 1);
     g_entry_end = std::ftell(f) + static_cast<long>(length), g_depth = 0, g_broken = false;
     read_node(f, root);
@@ -787,13 +788,13 @@ Node* load(const char* path) {
       return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
     }
     if (g_load_hook) g_load_hook(a->path, g_fname, root);
-    return root;
+    return upgrades::reference::loaded(g_fname, root);
   }
   std::FILE* f = zutl::open(path, "rb");
   if (!f) return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
   Node* root = parse_text(f);
   std::fclose(f);
-  return root;
+  return upgrades::reference::loaded(g_fname, root);
 }
 
 }  // namespace zrdr

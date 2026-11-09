@@ -6,13 +6,21 @@ Observer& observer() {
   static Observer o = nullptr;
   return o;
 }
+FreeObserver& free_observer() {
+  static FreeObserver o = nullptr;
+  return o;
+}
+LoadObserver& load_observer() {
+  static LoadObserver o = nullptr;
+  return o;
+}
 const char*& context() {
   static const char* c = "";
   return c;
 }
 
 const std::vector<File>& files() {
-  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn()};
+  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives()};
   return all;
 }
 
@@ -38,7 +46,7 @@ std::string markdown() {
     s += "| Key | In | Type | When absent | Limits | What it does |\n|---|---|---|---|---|---|\n";
     for (const Key& k : f.keys)
       s += "| `" + cell(k.key) + "` | " + cell(*k.path ? k.path : "top") + " | " + cell(k.type) + " | " + cell(k.fallback) + " | " +
-           cell(k.limits) + " | " + cell(k.meaning) + " |\n";
+           cell(k.limits) + " | " + cell(k.meaning) + (k.unchecked ? " (No shipped mission reaches this read: not checked.)" : "") + " |\n";
   }
   return s;
 }
