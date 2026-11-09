@@ -608,6 +608,41 @@ every node's place and links the same; c1m1's edits as saved). Breaks: a
 property dropped, a table comment lost, a foreign folder reused, no .bak, the
 mod placed last, and (mech3ax) a re-encoded archive given as unedited.
 
+## The way in from MODS (Owen, 2026-11-09; planned, not built)
+
+The design of how a modder reaches the editor; built after sitting 4c.
+
+- **The original is never edited.** No row for the original campaign, no
+  edit in place of an installed file. Shift+F12 in play stays as the
+  developers left it (`--debug-camera`), and a save from there still goes to
+  "editor edits" as now (The save, below).
+- **New maps are zStudio's job.** Modders bring them in by ADD MOD or by
+  dropping folders into `mods\`; the mod system picks them up as today.
+- **On the MODS screen** a selected mod or campaign gets PLAY (today's
+  ENTER) and EDIT; the EDITOR tab becomes that EDIT.
+  1. EDIT lists the mod's missions: its `campaign=` lines' missions, or else
+     its worlds (mod_worlds).
+  2. Picking one loads it in editor mode: the mod mounted, the view on the
+     stealth, the editor's menu open (no Shift+F12), the mission otherwise
+     running as under the editor now.
+  3. A mod not mounted this run is turned on and the screen says "restart to
+     edit it", as ENTER does for a campaign, until the live remount exists.
+- **Save Changes in a mod's mission saves into that mod itself**, keeping one
+  `.bak` of the file it replaces; for mods this replaces the "<mod> edits"
+  side folder (editor_mod). Never into the install.
+- **Exit Net Editor / EXIT GAME EDIT return to the MODS screen** when the
+  editor came from it (not to the mission).
+- **Later**: our own dialogs for most things, weapons first (Our modding
+  dialogs, planned), in `src/upgrades/`; editing files the old way keeps
+  working beside them.
+
+What it reuses: the MODS screen's tables (`mods_tables`, the campaign rows
+and their missions), `campaign_enter`'s mission start minus the pilot
+screen, `editor_enter` (0x0040e430) called by the start instead of the key,
+`save_archive_edit` with the mod's own folder as the target, the `.bak` rule
+it has. Tests: EDIT on a test mod's mission opens the editor in it, a move
+saved into the mod with a `.bak`, Exit landing on MODS.
+
 ## The stealth object
 
 Made at every mission load ("Creating Stealth", **0x004a4de0**, [0x00609a2c],
