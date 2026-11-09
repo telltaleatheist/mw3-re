@@ -211,7 +211,9 @@ selected enabled mod; each change rewrites mw3.cfg's `mod=` lines at once
 (written beside it and renamed over it) and counts from the game's next
 start. The game is chosen in one place, `mods_target` (its settings folder
 and the game `for=` must name): MechWarrior 3's here, Pirate's Moon's own
-folder when the modding work crosses to its branch.
+folder when the modding work crosses to its branch. Below the banner, as
+the other screens: the rows, the status under them, and the mods folder's
+path in the footer.
 
 ## Built (2026-10-30, mac5/launcher-ui)
 

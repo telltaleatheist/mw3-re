@@ -810,7 +810,7 @@ void Launcher::layout() {
       for (int i = 0; i < kModsPerPage && first + i < static_cast<int>(mods_.size()); ++i) {
         const mech3::ModsListEntry& e = mods_[first + i];
         const std::string name = e.info.name.empty() ? e.info.folder : e.info.name + (e.info.version.empty() ? "" : " " + e.info.version);
-        add(kModRow + i, {70, 112 + i * 42, 500, 38}, (first + i == mod_sel_ ? "> " : "") + name, mod_line(e), e.info.error.empty());
+        add(kModRow + i, {70, 104 + i * 42, 500, 38}, (first + i == mod_sel_ ? "> " : "") + name, mod_line(e), e.info.error.empty());
       }
       const bool sel = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size()) && mods_[mod_sel_].on;
       add(kModUp, {70, 384, 70, 34}, "UP", {}, sel && mod_sel_ > 0);
@@ -951,14 +951,15 @@ void Launcher::draw(float dt) {
       text_.draw_wrapped(canvas_, confirm_text_, 16, kWhite, W / 2, 150, 460);
       break;
     case kModsScreen: {
-      text_.draw(canvas_, "MODS", 24, kAmber, W / 2, 40);
+      // Below the banner, as the other screens: the rows, the status under
+      // them, the folder in the footer.
       const std::string where = mods_target(o_, false).write_dir + "/mods";
-      text_.draw(canvas_, text_.fit("In " + where + ", in the order they win", 12, 560), 12, kDim, W / 2, 68);
+      text_.draw(canvas_, text_.fit("Mods in " + where + ", in the order they win", 12, W - 32), 12, kDim, 16, H - 24, -1);
       if (mods_.empty())
-        text_.draw_wrapped(canvas_, "No mods yet. A mod is a folder in the mods folder above with a mod.txt (docs/modding.md).", 14,
+        text_.draw_wrapped(canvas_, "No mods yet. A mod is a folder in the mods folder below with a mod.txt (docs/modding.md).", 14,
                            kWhite, W / 2, 180, 460);
       if (!status_.empty())
-        text_.draw(canvas_, text_.fit(status_, 12, 560), 12, status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 90);
+        text_.draw(canvas_, text_.fit(status_, 12, 560), 12, status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 367);
       break;
     }
     case kDataScreen: {
