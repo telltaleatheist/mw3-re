@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 // Mech, part, weapon and equipment names and ids (docs/mechdef-parts.md,
 // docs/mechdef-configs.md). Original file unknown: between mech_waynet.cpp and
@@ -39,6 +40,26 @@ int32_t weight_class(int32_t mech);        // 0x00484700: 0..3 (the roster's +0x
 // points by tonnage (0x005e6998), column 1 centre torso, 2 side torso, 3 arm, 4 leg.
 int32_t internal_points(int32_t mech, int32_t column);
 float equip_weight(int32_t kind, int32_t tech);  // 0x00484aa0
+
+// Mods' mechs (ours, docs/modding.md): rows after the exe's 19, from mod.txt's
+// mech= lines, so the exe's keep their indices. A row's model (its own name
+// when not given) names the mech whose models, motions and sounds it uses;
+// its dfn_<name>.zrd and saved configs are its own.
+struct ModMech {
+  std::string name, model, title;
+  int32_t tech = kInnerSphere;
+  int32_t mass = 0;          // tons, 10..100 in steps of 5 (the internal structure's rows)
+  int32_t weight_class = 0;  // 0 light .. 3 assault
+};
+constexpr int32_t kBuiltinMechs = 19;
+int32_t mech_count();                       // the exe's 19 and the mods' rows
+const char* mech_model_name(int32_t mech);  // the row's model, else its name
+const char* mech_title(int32_t mech);       // a mod row's title=, null for the exe's
+// One mech= line's value: `NAME tech=clan|sphere|any mass=T class=light|medium|
+// heavy|assault [model=MECH] [title=TEXT]`, title= last (the rest of the line).
+bool mech_row_parse(const std::string& value, ModMech* out, std::string* error);
+bool mech_row_add(const ModMech& row, std::string* error);  // refused when the name is taken
+void mech_rows_clear();                     // the mods' rows gone
 int32_t equip_slots(int32_t kind, int32_t tech); // 0x00484a20
 
 // The engine table 0x005e2f50 (79 entries: rating, name id, tons), through

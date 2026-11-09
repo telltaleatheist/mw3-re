@@ -22,6 +22,7 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "mech3/mech_names.h"
 #include "mech3/mission.h"
 
 namespace mech3 {
@@ -61,6 +62,7 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (key == "for") out->game = value;
     else if (key == "description") out->description = value;
     else if (key == "world" && !value.empty()) out->worlds.push_back(value);
+    else if (key == "mech" && !value.empty()) out->mechs.push_back(value);
     else if (key == "ia_world" && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -132,6 +134,16 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       }
     }
     for (const auto& [folder, name] : it->ia_worlds) ia.push_back({want, ModIaWorld{folder, name.empty() ? folder : name}});
+    // Its new mechs, after the exe's 19 and any earlier mod's.
+    for (const std::string& line : it->mechs) {
+      ModMech row;
+      std::string why;
+      if (!mech_row_parse(line, &row, &why) || !mech_row_add(row, &why))
+        log.push_back("  mech " + line + ": " + why + ", left out");
+      else
+        log.push_back("  mech " + row.name + " added (mech " + std::to_string(mech_count() - 1) + ", " + std::to_string(row.mass) +
+                      " t, the models of " + row.model + ")");
+    }
     // Each file: what it replaces (a copy later in the mounts) or adds.
     std::vector<std::string> files;
     std::error_code ec;
@@ -193,6 +205,16 @@ uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std:
     done.push_back(want);
     const auto it = std::find_if(found.begin(), found.end(), [&](const ModInfo& m) { return m.folder == want; });
     if (it == found.end() || !it->error.empty()) continue;
+    // The mech= rows are gameplay data as parsed (spacing and comments aside).
+    for (const std::string& line : it->mechs) {
+      ModMech r;
+      std::string why;
+      if (!mech_row_parse(line, &r, &why)) continue;
+      const std::string key = "mech=" + r.name + " " + r.model + " " + std::to_string(r.tech) + " " + std::to_string(r.mass) + " " +
+                              std::to_string(r.weight_class);
+      any = true;
+      mix(key.data(), key.size() + 1);
+    }
     std::vector<std::string> files;
     std::error_code ec;
     for (fs::recursive_directory_iterator f(it->path, ec), end; !ec && f != end; f.increment(ec))
@@ -375,6 +397,16 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
     if (!own && mission_dir_index(folder.c_str()) < 0) error("ia_world " + folder + ": no such world");
     else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok");
+  }
+  for (const std::string& line : m.mechs) {
+    ModMech r;
+    std::string why;
+    if (!mech_row_parse(line, &r, &why)) error("mech " + line + ": " + why);
+    else if (mech_index(r.name.c_str()) >= 0) error("mech " + r.name + ": there is a mech " + r.name + " already");
+    else
+      out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
+                    (fs::is_regular_file(fs::path(dir) / "zbd" / ("dfn_" + r.name + ".zrd"), ec) ? ", its zbd/dfn_" + r.name + ".zrd"
+                                                                                                  : ", its dfn_" + r.name + ".zrd from a reader archive"));
   }
   // Every file.
   std::vector<std::string> files;

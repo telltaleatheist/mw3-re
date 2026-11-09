@@ -1,7 +1,11 @@
 #include "mech3/mech_names.h"
 
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
+#include <sstream>
+#include <vector>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
@@ -52,18 +56,87 @@ const char* const kWeapons[38] = {
     "PulseLaser_Medium", "PulseLaser_Large", "SRM2", "SRM4",         "SRM6",              "StreakSRM2",
     "StreakSRM4",   "StreakSRM6",   "TAG",           "UltraAC2",     "UltraAC5",          "UltraAC10",
     "UltraAC20",    "PPC"};
+
+std::vector<ModMech> g_rows;  // ours: the mods' mechs, index 19 on
+const ModMech* row(int32_t mech) { return mech >= kBuiltinMechs && mech < mech_count() ? &g_rows[mech - kBuiltinMechs] : nullptr; }
 }  // namespace
 
+int32_t mech_count() { return kBuiltinMechs + static_cast<int32_t>(g_rows.size()); }
+const char* mech_model_name(int32_t mech) {
+  const ModMech* r = row(mech);
+  return r ? r->model.c_str() : mech_name(mech);
+}
+const char* mech_title(int32_t mech) {
+  const ModMech* r = row(mech);
+  return r ? r->title.c_str() : nullptr;
+}
+
+bool mech_row_parse(const std::string& value, ModMech* out, std::string* error) {
+  *out = ModMech{};
+  std::istringstream in(value);
+  in >> out->name;
+  std::string tech, cls, word;
+  bool mass = false;
+  while (in >> word) {
+    const size_t eq = word.find('=');
+    const std::string key = word.substr(0, eq), v = eq == std::string::npos ? "" : word.substr(eq + 1);
+    if (key == "title") {  // the rest of the line
+      std::string rest;
+      std::getline(in, rest);
+      out->title = v + rest;
+      break;
+    }
+    if (key == "tech") tech = v;
+    else if (key == "mass") out->mass = std::atoi(v.c_str()), mass = true;
+    else if (key == "class") cls = v;
+    else if (key == "model") out->model = v;
+    else return *error = "unknown key " + key, false;
+  }
+  if (out->name.empty() || out->name.find('=') != std::string::npos) return *error = "no name", false;
+  if (out->name.size() > 40) return *error = "the name is longer than 40", false;  // the exe's 64-byte paths
+  for (char c : out->name)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') return *error = "the name " + out->name + " has a character other than a-z, 0-9, _ and -", false;
+  if (tech == "clan") out->tech = kClan;
+  else if (tech == "sphere") out->tech = kInnerSphere;
+  else if (tech == "any") out->tech = kAnyTech;
+  else return *error = "tech= must be clan, sphere or any", false;
+  if (!mass || out->mass < 10 || out->mass > 100 || out->mass % 5) return *error = "mass= must be 10 to 100 tons in steps of 5", false;
+  static const char* const kClasses[4] = {"light", "medium", "heavy", "assault"};
+  out->weight_class = -1;
+  for (int32_t i = 0; i < 4; ++i)
+    if (cls == kClasses[i]) out->weight_class = i;
+  if (out->weight_class < 0) return *error = "class= must be light, medium, heavy or assault", false;
+  if (out->model.empty()) out->model = out->name;
+  if (out->title.empty()) out->title = out->name;
+  return true;
+}
+
+bool mech_row_add(const ModMech& r, std::string* error) {
+  if (mech_index(r.name.c_str()) >= 0) return *error = "there is a mech " + r.name + " already", false;
+  g_rows.push_back(r);
+  return true;
+}
+
+void mech_rows_clear() { g_rows.clear(); }
+
 // Mech3.exe 1.2 @ 0x00484720
-int32_t mech_tech(int32_t mech) { return mech >= 0 && mech < 19 ? kMechs[mech].tech : kAnyTech; }
+int32_t mech_tech(int32_t mech) {
+  if (const ModMech* r = row(mech)) return r->tech;
+  return mech >= 0 && mech < 19 ? kMechs[mech].tech : kAnyTech;
+}
 
 // Mech3.exe 1.2 @ 0x00484650
-const char* mech_name(int32_t mech) { return mech >= 0 && mech < 19 ? kMechs[mech].name : "notmech"; }
+const char* mech_name(int32_t mech) {
+  if (const ModMech* r = row(mech)) return r->name.c_str();
+  return mech >= 0 && mech < 19 ? kMechs[mech].name : "notmech";
+}
 
 // Mech3.exe 1.2 @ 0x004845f0. The table's +0x24 is the entry's own index.
 int32_t mech_index(const char* name) {
   for (int32_t i = 0; i < 19; ++i)
     if (crt::msvc_stricmp(name, kMechs[i].name) == 0) return i;
+  for (size_t i = 0; i < g_rows.size(); ++i)  // ours: the mods' rows after
+    if (crt::msvc_stricmp(name, g_rows[i].name.c_str()) == 0) return kBuiltinMechs + static_cast<int32_t>(i);
   return -1;
 }
 
@@ -153,7 +226,8 @@ bool equip_has_tech(int32_t kind, int32_t tech) {
   return kind >= 0 && kind < 15 && (kTech[kind] & tech) != 0;
 }
 
-// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's 0xd82.. in the mech table.
+// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's 0xd82.. in the mech table (-1
+// for a mod's row: its title, mech_title).
 int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < 19 ? 0xd82 + mech : -1; }
 
 // Mech3.exe 1.2 @ 0x00484920. The ids skip 0x2e6 (LB-10X AC is 0xe6, an
@@ -182,11 +256,15 @@ int32_t weapon_count() { return zfix::options().bugs ? 38 : 37; }
 // the Mad Cat, Owens and Puma 1 (discoveries.md).
 int32_t weight_class(int32_t mech) {
   static const int32_t kClass[19] = {2, 2, 1, 1, 2, 2, 3, 0, 0, 1, 2, 1, 1, 1, 1, 3, 3, 2, 2};  // 0x005e60a4
+  if (const ModMech* r = row(mech)) return r->weight_class;
   return mech >= 0 && mech < 19 ? kClass[mech] : 0;
 }
 
 // Mech3.exe 1.2 @ 0x004846e0
-float max_mass(int32_t mech) { return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f; }
+float max_mass(int32_t mech) {
+  if (const ModMech* r = row(mech)) return static_cast<float>(r->mass);
+  return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f;
+}
 
 // Mech3.exe 1.2 @ 0x00485400 (and 0x00485430, 0x00485460, 0x00485490): the
 // BattleTech table, a row per 5 t from 10 t (tonnage, CT, side torso, arm, leg).

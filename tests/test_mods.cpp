@@ -12,6 +12,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
 
@@ -155,6 +156,59 @@ TEST(mods_gameplay_hash_ignores_looks_and_words) {
   EXPECT(mech3::mod_file_is_gameplay("zbd/c1/reader.zbd") && mech3::mod_file_is_gameplay("zbd/fmv.zrd") &&
          !mech3::mod_file_is_gameplay("zbd/rtexture.zbd") && !mech3::mod_file_is_gameplay("pilots/x.pil") &&
          !mech3::mod_file_is_gameplay("video/intro.m1v"));
+}
+
+// Mods' mechs (item 1 of the modding cut): mech= rows parsed, added after
+// the exe's 19 in the mods' order, bad or taken names refused with the
+// reason; the rows count toward the gameplay hash as data (their spacing,
+// comments and titles do not), a mod of rows alone changes gameplay.
+TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
+  mech3::ModMech r;
+  std::string why;
+  EXPECT(mech3::mech_row_parse("madcat_b tech=clan mass=75 class=heavy model=madcat title=Mad Cat  B", &r, &why));
+  EXPECT(r.name == "madcat_b" && r.model == "madcat" && r.title == "Mad Cat  B" && r.tech == mech3::kClan && r.mass == 75 &&
+         r.weight_class == 2);
+  EXPECT(mech3::mech_row_parse("scout tech=sphere mass=20 class=light", &r, &why) && r.model == "scout" && r.title == "scout");
+  EXPECT(!mech3::mech_row_parse("scout tech=sphere mass=22 class=light", &r, &why) && why.find("steps of 5") != std::string::npos);
+  EXPECT(!mech3::mech_row_parse("scout tech=pirate mass=20 class=light", &r, &why) && why.find("tech=") != std::string::npos);
+  EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=huge", &r, &why) && why.find("class=") != std::string::npos);
+  EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light speed=9", &r, &why) && why == "unknown key speed");
+  EXPECT(!mech3::mech_row_parse("sc/out tech=any mass=20 class=light", &r, &why));
+  SavedMounts keep;
+  const std::string wd = tmp("mods_mechs");
+  put(wd + "/mods/a/mod.txt", "name=A\nmech=madcat_b tech=clan mass=75 class=heavy model=madcat title=Mad Cat B\n"
+                              "mech=thor tech=clan mass=70 class=heavy\nmech=bad tech=clan mass=7 class=heavy\n");
+  put(wd + "/mods/b/mod.txt", "name=B\nmech=MADCAT_B tech=any mass=20 class=light\nmech=scout tech=sphere mass=20 class=light\n");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mech_rows_clear();
+  std::string text;
+  for (const std::string& l : mech3::mods_mount(wd, {"a", "b"}, {})) text += l + "\n";
+  EXPECT(mech3::mech_count() == 21);
+  EXPECT(mech3::mech_index("MadCat_B") == 19 && mech3::mech_index("scout") == 20 && mech3::mech_index("madcat") == 9);
+  EXPECT(std::string(mech3::mech_name(19)) == "madcat_b" && std::string(mech3::mech_model_name(19)) == "madcat" &&
+         std::string(mech3::mech_model_name(9)) == "madcat" && std::string(mech3::mech_title(19)) == "Mad Cat B" &&
+         mech3::mech_title(9) == nullptr);
+  EXPECT(mech3::max_mass(19) == 75.0f && mech3::weight_class(19) == 2 && mech3::mech_tech(19) == mech3::kClan &&
+         mech3::internal_points(19, 1) == 23 && mech3::mech_name_message(19) == -1);
+  EXPECT(mech3::max_mass(20) == 20.0f && mech3::mech_tech(20) == mech3::kInnerSphere && std::string(mech3::mech_name(21)) == "notmech");
+  EXPECT(text.find("mech thor tech=clan mass=70 class=heavy: there is a mech thor already, left out") != std::string::npos);
+  EXPECT(text.find("mech bad tech=clan mass=7 class=heavy: mass= must be 10 to 100 tons in steps of 5, left out") != std::string::npos);
+  EXPECT(text.find("mech MADCAT_B tech=any mass=20 class=light: there is a mech MADCAT_B already, left out") != std::string::npos);
+  EXPECT(text.find("mech scout added (mech 20, 20 t, the models of scout)") != std::string::npos);
+  mech3::mech_rows_clear();
+  EXPECT(mech3::mech_count() == 19 && mech3::mech_index("scout") == -1);
+  // The gameplay hash: the rows as data.
+  put(wd + "/mods/rows/mod.txt", "name=Rows\nmech=scout tech=sphere mass=20 class=light title=Scout\n");
+  put(wd + "/mods/rows2/mod.txt", "# the same row\nname=Rows 2\n  mech = scout  tech=sphere   mass=20 class=light title=Another\n");
+  put(wd + "/mods/rows3/mod.txt", "name=Rows 3\nmech=scout tech=sphere mass=25 class=light title=Scout\n");
+  put(wd + "/mods/none/mod.txt", "name=None\ndescription=mech=scout\n");
+  const uint64_t h = mech3::mods_gameplay_hash(wd, {"rows"});
+  EXPECT(h != 0 && mech3::mods_gameplay_hash(wd, {"rows2"}) == h && mech3::mods_gameplay_hash(wd, {"rows3"}) != h);
+  EXPECT(mech3::mods_gameplay_hash(wd, {"none"}) == 0);
+  mech3::mods_identity_set(wd, {"none", "rows"});
+  EXPECT(mech3::mods_identity().hash == h && mech3::mods_identity().names == std::vector<std::string>{"Rows"});
+  mech3::mods_identity() = mech3::ModsIdentity{};
 }
 
 TEST(mods_strings_over_the_message_table) {

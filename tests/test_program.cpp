@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "crt/msvc_string.h"
 #include "check.h"
 #include "gamez/zsave/zsave.h"
 #include "gamez/zmodel/gmod_light.h"
@@ -3752,6 +3753,108 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   reset_process_state();  // as a new process: zSound not yet initialised
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
+  mech3::options() = mech3::Options{};
+}
+
+namespace mech3 {  // mech_names.h and mech_reader.h (their Engine clashes with the app's)
+int32_t mech_count();
+const char* mech_title(int32_t mech);
+void mech_rows_clear();
+void free_dfns();
+}  // namespace mech3
+
+namespace {
+// The install's reader.zbd with a copy of `from` named `to` added, as a
+// mech3ax repack of it would be: the mod's own reader archive.
+bool reader_with_copy(const std::string& install, const std::string& out, const char* from, const char* to) {
+  zutl_zar::Archive src, dst;
+  zutl_zar::init(src), zutl_zar::init(dst);
+  bool ok = zutl_zar::open(src, (install + "/zbd/reader.zbd").c_str());
+  std::error_code ec;
+  std::filesystem::create_directories(std::filesystem::path(out).parent_path(), ec);
+  ok = ok && zutl_zar::create(dst, out.c_str());
+  std::vector<char> copy;
+  for (int i = 0; ok && i < src.count; ++i) {
+    uint32_t n = src.entries[i].length;
+    std::vector<char> b(n ? n : 1);
+    ok = zutl_zar::read(src, i, b.data(), &n) == 0;
+    zutl_zar::add(dst, src.entries[i].name, b.data(), n);
+    if (crt::msvc_stricmp(src.entries[i].name, from) == 0) copy.assign(b.begin(), b.begin() + n);
+  }
+  ok = ok && !copy.empty();
+  if (ok) zutl_zar::add(dst, to, copy.data(), static_cast<uint32_t>(copy.size()));
+  zutl_zar::close(dst), zutl_zar::close(src);
+  zutl_zar::destroy(dst), zutl_zar::destroy(src);
+  return ok;
+}
+}  // namespace
+
+// Mods' mechs (docs/modding.md, item 1 of the modding cut): a mod's mech= row
+// is mech 19, after the exe's 19; c1 mission 1 launches it as the player's
+// mech from its own dfn_thor_b.zrd (the Thor's, in the mod's repacked
+// reader.zbd) with the Thor's models, motions and sounds (model=thor).
+TEST(mods_mech_row_launches_as_the_player_c1m1_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  const std::string install = MW3_GAME_DIR, wd = temp_dir("mods_mech_row_write");
+  {
+    std::error_code ec;
+    std::filesystem::create_directories(wd + "/mods/thorb", ec);
+    std::ofstream(wd + "/mods/thorb/mod.txt") << "name=Thor B\nmech=thor_b tech=clan mass=70 class=heavy model=thor title=Thor B\n";
+  }
+  EXPECT(reader_with_copy(install, wd + "/mods/thorb/zbd/reader.zbd", "dfn_thor.zrd", "dfn_thor_b.zrd"));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mech_rows_clear();
+  std::string log;
+  for (const std::string& l : mech3::mods_mount(wd, {"thorb"}, {install})) log += l + "\n";
+  zutl::mount(install);
+  EXPECT(log.find("mech thor_b added (mech 19, 70 t, the models of thor)") != std::string::npos);
+  EXPECT(mech3::mech_count() == 20 && std::string(mech3::mech_title(19)) == "Thor B");
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, mission 1, the mod's mech
+    l.mech = 19;
+    engine.set_launch(l);
+    engine.missions_start(0x6098d0);
+    EXPECT(!mech3::missions().failed);
+    mech3::LaunchedMech m;
+    EXPECT(mech3::launched_mech(&m));
+    std::printf("  launched roster %d, parts %d, weapons %d, height %.1f, speed %.1f, motions %d\n", m.roster, m.parts, m.weapons,
+                static_cast<double>(m.height), static_cast<double>(m.max_speed), m.motions);
+    EXPECT(m.roster == 19);
+    EXPECT(m.parts == 13 && m.weapons > 0 && m.sinks >= 10);  // the Thor's model and loadout
+    EXPECT(m.height > 5.0f && m.height < 20.0f && m.max_speed > 10.0f);
+    EXPECT(m.motions);  // the Thor's walk
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::free_dfns();
+  mech3::mech_rows_clear();
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
 }
 

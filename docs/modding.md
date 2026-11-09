@@ -130,6 +130,49 @@ an id left out, nothing without mods) and `mod_world_plays_in_instant_action_hea
 (a mod world of c1's files linked, `source c1.gs`, Instant Action on world
 9: its readers read from `zbd\mymap\`, the player's mech in play).
 
+## New mechs (after PM, item 1, 2026-11-08)
+
+**A new mech.** `mech=` in mod.txt, one line a mech:
+
+```
+mech=thor_b tech=clan mass=70 class=heavy model=thor title=Thor B
+```
+
+- the name first (letters, digits, `_` and `-`, up to 40): its definition is
+  `dfn_<name>.zrd`, in the mod's `reader.zbd` (a mech3ax repack of the
+  game's with the entry added; a loose `.zrd` is read only as text) and its
+  saved loadouts `configs\<name>.mw3`;
+- `tech=clan`, `sphere` or `any`; `mass=` the most tons, 10 to 100 in steps
+  of 5 (the internal structure's table has a row each 5 t); `class=light`,
+  `medium`, `heavy` or `assault` (the roster's class, as the exe's own table:
+  not always the tonnage's, discoveries.md);
+- `model=` the mech whose models (`mech_<model>.flt`, its `_hud` and
+  variants), motions, step sounds and voice it uses, its own name when not
+  given (then they come from the mod's own mechlib.zbd and motion.zbd);
+- `title=` the name shown (the rest of the line), else the name. The
+  original's names come from Mech3Msg.dll (0xd82 on); a mod's row has no
+  message id.
+
+The exe's 19 keep their numbers (`mech_names.cpp`, 0x005e6078); a mod's rows
+follow from 19 in the mods' order (`mech_count()`, `mech_row_add`). A name
+already a mech (any case, the exe's or an earlier mod's), an unknown key or
+a value out of range is said in the log and the row left out; `--check-mod`
+says the same. The rows are gameplay data: `mods_gameplay_hash` mixes each
+parsed row (name, model, tech, mass, class; not the title or the spacing),
+so a mod of rows alone changes the lobby's check (Multiplayer, above).
+
+The original's quirks stay with their numbers: the Mad Cat's loadouts weigh
+half a ton less (mech 9 only, `Config::weight`), so the Mad Cat's own
+loadouts copied to a new 75 t row are half a ton over and refused; the
+Elemental's (7) are never weighed, and the other checks by number
+(`mech_damage.cpp`, `mech_build.cpp`) stay the Elemental's alone.
+
+Tests: `mods_mech_rows_after_the_exes_and_in_the_gameplay_hash` (the rows'
+keys and refusals, two mods' rows in order, a taken name, the hash as data)
+and `mods_mech_row_launches_as_the_player_c1m1_headless` (a Thor copy as
+mech 19 from the mod's repacked reader.zbd, launched as the player's mech
+in c1m1 with the Thor's model, loadout and motions).
+
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
 **Names stay inside the game's folders** (2026-11-02): a name a mod's files
@@ -300,8 +343,9 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
-- After v1.0: a custom campaign, new mechs and weapons (the exe's name
-  tables made data), loose `.zan` motions, the launcher's MODS list.
+- After v1.0: a custom campaign, new mechs (done: New mechs, above) and
+  weapons (the exe's name tables made data), loose `.zan` motions, the
+  launcher's MODS list.
 - Existing data mods load (Owen, 2026-11-07): a file the old engine loaded isn't
   refused by a check stricter than it was. An exe patch can't apply; what it
   changed is rebuilt as data. Tested on real mods, kept out of the repo.

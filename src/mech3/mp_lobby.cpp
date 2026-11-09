@@ -20,6 +20,7 @@
 
 namespace mech3 {
 
+const char* mech_title(int32_t mech);
 int32_t mech_name_message(int32_t mech);  // mech3/mech_names.h (its Engine clashes with app_hooks.h's)
 float max_mass(int32_t mech);              // the same
 
@@ -540,7 +541,8 @@ void LobbyScreen::refresh_lists() {
     if (!team && p->skin != 0) s += skin_tag(e, " {%s} ", p->skin);
     if (mine) {
       const int32_t m = mech_name_message(mine->mech);
-      s += m < 0 ? "notmech" : e.message(m);  // 0x00484670
+      const char* t = mech_title(mine->mech);  // ours: a mod's row
+      s += t ? t : m < 0 ? "notmech" : e.message(m);  // 0x00484670
     }
     players_list.add(s, p.get());
   }
