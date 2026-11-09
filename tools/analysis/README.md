@@ -32,6 +32,8 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 | `calls.py <addr>` | The functions one function calls, labelled with their source file and strings. |
 | `pe.py` | Reads 32-bit values and C strings from the exe by address (`pe.py vt <addr> <n> [other]` compares vtables). |
 | `zrd.py <archive.zbd> [name.zrd]` | Lists a `.zbd` archive, or prints one reader file as nested lists. |
+| `zarc.py <archive.zbd> <out.zbd> <name.zrd>=<file> ...` | Rebuilds a Pirate's Moon (version 2) archive with entries replaced: data in table order, CRC recomputed, as PM's exe requires. |
+| `zcrc.py [--fix] <archive.zbd> ...` | Checks (or rewrites) a Pirate's Moon archive's CRC. |
 | `rdrkeys.py [filter]` | Every reader lookup in the exe: key, getter, where the value is stored, function and source file. |
 | `fields.py <vtable>` | Recovers an object's field layout from how its methods use `this` (offsets, widths, float use, functions). |
 | `msgtable.py [id ...]` | The message table in `Mech3Msg.dll`, the strings the game formats by id. |
