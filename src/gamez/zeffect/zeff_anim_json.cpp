@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <map>
+#include <tuple>
 
 #include "gamez/zutil/zutl_json.h"
 
@@ -377,6 +378,84 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     return true;
   }
   if (type == "Else" || type == "Endif") return j.r.object(d, at);
+  // mech3ax's delta: 0 when from equals to or the run time is 0 (a given delta in the JSON wins).
+  const auto delta = [](float from, float to, float run) { return to == from || run == 0.0f ? 0.0f : (to - from) / run; };
+  if (type == "ObjectMotionFromTo") {
+    int16_t n;
+    float run = 0;
+    if (!(node("name", 0, &n) && j.f32(d, at, "run_time", &run))) return false;
+    uint32_t flags = 0;
+    float morph[3] = {};
+    float tv[3][9] = {};  // translate, rotate, scale: from, to, delta
+    const Value* mo = j.get(d, at, "morph");
+    if (!mo) return false;
+    if (mo->kind != Value::Null) {
+      if (!(j.f32(*mo, at + ".morph", "from", &morph[0]) && j.f32(*mo, at + ".morph", "to", &morph[1]))) return false;
+      morph[2] = delta(morph[0], morph[1], run), flags |= 8;
+    }
+    const char* const kKeys[] = {"translate", "rotate", "scale"};
+    const char* const kDeltas[] = {"translate_delta", "rotate_delta", "scale_delta"};
+    const uint32_t kFlags[] = {1, 2, 4};
+    for (int k = 0; k < 3; ++k) {
+      const Value *ft = j.get(d, at, kKeys[k]), *dl = j.get(d, at, kDeltas[k]);
+      if (!ft || !dl) return false;
+      if (ft->kind != Value::Null) {
+        if (!(vec(*ft, at + "." + kKeys[k], "from", tv[k]) && vec(*ft, at + "." + kKeys[k], "to", tv[k] + 3))) return false;
+        flags |= kFlags[k];
+      }
+      if (dl->kind != Value::Null) {
+        if (!(j.f32(*dl, at + "." + kDeltas[k], "x", &tv[k][6]) && j.f32(*dl, at + "." + kDeltas[k], "y", &tv[k][7]) &&
+              j.f32(*dl, at + "." + kDeltas[k], "z", &tv[k][8])))
+          return false;
+      } else {
+        for (int c = 0; c < 3; ++c) tv[k][6 + c] = delta(tv[k][c], tv[k][3 + c], run);
+      }
+    }
+    o.u32(flags), o.i32(n), o.f32(morph[0]), o.f32(morph[1]), o.f32(morph[2]);
+    for (const auto& t : tv)
+      for (float x : t) o.f32(x);
+    o.f32(run);
+    return true;
+  }
+  if (type == "ObjectOpacityFromTo") {
+    int16_t n;
+    float run = 0, from = 0, to = 0, dl = 0;
+    int16_t sf = -1, st = -1;
+    const Value *of, *ot, *od;
+    if (!(node("name", 0, &n) && j.f32(d, at, "run_time", &run) && (of = j.get(d, at, "opacity_from")) && (ot = j.get(d, at, "opacity_to")) &&
+          (od = j.get(d, at, "opacity_delta")) && j.f32(*of, at + ".opacity_from", "opacity", &from) && j.f32(*ot, at + ".opacity_to", "opacity", &to)))
+      return false;
+    for (auto [v, out, key] : {std::tuple{of, &sf, "opacity_from"}, std::tuple{ot, &st, "opacity_to"}}) {
+      const Value* stv = j.get(*v, at + "." + key, "state");
+      if (!stv) return false;
+      if (stv->kind == Value::Bool) *out = stv->b ? 1 : 0;
+      else if (stv->kind != Value::Null) return j.r.fail(*stv, at + "." + key + ".state", "not true, false or null");
+    }
+    if (od->kind != Value::Null) {
+      if (!j.r.f32(*od, at + ".opacity_delta", &dl)) return false;
+    } else {
+      dl = delta(from, to, run);
+    }
+    o.i32(n), o.i16(sf), o.i16(st), o.f32(from), o.f32(to), o.f32(dl), o.f32(run);
+    return true;
+  }
+  if (type == "FbfxColorFromTo") {
+    float from[4], to[4], run = 0, ad = 0;
+    const Value *fv, *tv, *adv;
+    if (!((fv = j.get(d, at, "from")) && (tv = j.get(d, at, "to")) && (adv = j.get(d, at, "alpha_delta")) && j.f32(d, at, "run_time", &run)))
+      return false;
+    const char* const kRgba[] = {"r", "g", "b", "a"};
+    for (int k = 0; k < 4; ++k)
+      if (!(j.f32(*fv, at + ".from", kRgba[k], &from[k]) && j.f32(*tv, at + ".to", kRgba[k], &to[k]))) return false;
+    if (adv->kind != Value::Null) {
+      if (!j.r.f32(*adv, at + ".alpha_delta", &ad)) return false;
+    } else {
+      ad = delta(from[3], to[3], run);
+    }
+    for (int k = 0; k < 4; ++k) o.f32(from[k]), o.f32(to[k]), o.f32(k == 3 ? ad : delta(from[k], to[k], run));
+    o.f32(run);
+    return true;
+  }
   if (type == "PufferState") {
     std::string n;
     if (!name32("name", &n)) return false;
