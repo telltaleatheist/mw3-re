@@ -3955,8 +3955,9 @@ TEST(sdl_network_soak_four_players) {
     }
     return text;
   };
+  constexpr int kDelayMs = 80;  // each way
   setenv("MW3_NET_LOSS", "0.05", 1);
-  setenv("MW3_NET_DELAY", "80", 1);
+  setenv("MW3_NET_DELAY", std::to_string(kDelayMs).c_str(), 1);
   auto args = [&](int n, const std::string& net) {
     std::filesystem::create_directories(dir + "/p" + std::to_string(n), ec);
     std::vector<std::string> v = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind", "127.0.0.1",
@@ -4000,9 +4001,14 @@ TEST(sdl_network_soak_four_players) {
     }
   // Each one's lines: its own place by time, what it saw of the others, its
   // memory, its scores.
-  struct Seen { long long t; uint32_t id; float x, z; };
+  struct Seen { long long t; uint32_t id; float x, z, top; };
   struct Own { long long t; float x, z; int alive; };
-  struct Log { uint32_t id = 0; std::vector<Own> own; std::vector<Seen> seen; std::vector<size_t> rss; std::string scores; std::set<uint32_t> last_seen; };
+  struct Log { uint32_t id = 0; float top = -1; std::vector<Own> own; std::vector<Seen> seen; std::vector<size_t> rss; std::string scores; std::set<uint32_t> last_seen; };
+  // A part's " top S": the mech's loadout's top speed (m/s), -1 without one.
+  auto top_in = [](const std::string& line, size_t from, size_t to) {
+    const size_t k = line.find(" top ", from);
+    return k == std::string::npos || k >= to ? -1.0f : std::strtof(line.c_str() + k + 5, nullptr);
+  };
   std::vector<Log> logs(pids.size());
   for (size_t i = 0; i < pids.size(); ++i) {
     const std::string text = read(dir + "/p" + std::to_string(i + 1) + ".log");
@@ -4024,6 +4030,7 @@ TEST(sdl_network_soak_four_players) {
                       &z, &alive, &used) < 8)
         continue;
       L.id = id, L.rss.push_back(kb), L.own.push_back({t, x, z, alive});
+      L.top = top_in(line, used, line.find("; sees ", used));
       // The others seen at the end: the last line with 2 s left (in the last
       // seconds the end's unload takes the mechs).
       const bool counted = clock >= 2.0f;
@@ -4033,7 +4040,7 @@ TEST(sdl_network_soak_four_players) {
         int active;
         if (std::sscanf(line.c_str() + p, "; sees %u %f %f %f %d", &who, &x, &y, &z, &active) != 5) continue;
         if (counted) L.last_seen.insert(who);
-        if (active) L.seen.push_back({t, who, x, z});
+        if (active) L.seen.push_back({t, who, x, z, top_in(line, p + 7, line.find("; sees ", p + 7))});
       }
     }
   }
@@ -4054,6 +4061,34 @@ TEST(sdl_network_soak_four_players) {
     }
     return false;
   };
+  // The tracking limit from the run's own numbers: the remote mech is where its last state put it, moved on by
+  // its controls (the state's throttle and turn) and pulled to the state's place, so it is behind its owner by
+  // at most the top speed times one way's delay, a send period (net_send_period at four players, the lobby's
+  // rate 0: 1/7 s, 0x00470b40) and a frame (30 fps), with half a metre over. The top speed is measured: each
+  // owner's 95th-percentile speed between its own lines, the fastest of the four.
+  float v_top = 0;
+  for (const Log& L : logs) {
+    std::vector<float> v;
+    for (size_t k = 1; k < L.own.size(); ++k) {
+      const Own &a = L.own[k - 1], &b = L.own[k];
+      const float d = std::hypot(b.x - a.x, b.z - a.z);
+      if (a.alive && b.alive && b.t > a.t && d < 30.0f) v.push_back(d * 1000.0f / static_cast<float>(b.t - a.t));
+    }
+    std::sort(v.begin(), v.end());
+    if (!v.empty()) v_top = std::max(v_top, v[v.size() * 95 / 100]);
+  }
+  const float limit = v_top * (kDelayMs / 1000.0f + 1.0f / 7.0f + 1.0f / 30.0f) + 0.5f;
+  std::printf("  tracking limit %.2f m (top speed %.1f m/s)\n", limit, v_top);
+  // Each remote mech as fast as its owner's own (its loadout came over whole): a remote too slow is pulled along
+  // by every state, its tracking error no more than lag's, so only this catches it (pm-tests 34: PM's engine read
+  // from MW3's bits, 6.3 m/s against 22.5).
+  int speeds_off = 0;
+  for (const Log& L : logs)
+    for (const Seen& s : L.seen)
+      for (const Log& O : logs)
+        if (O.id == s.id && (O.top < 0 || s.top < 0 || std::fabs(s.top - O.top) > 0.01f * O.top + 0.01f)) {
+          if (speeds_off++ < 3) std::printf("  player %u sees %u at top speed %.2f, its own %.2f\n", L.id, s.id, s.top, O.top);
+        }
   bool clean = true, over = true, tracked = true, memory = true;
   for (size_t i = 0; i < pids.size(); ++i) {
     Log& L = logs[i];
@@ -4083,12 +4118,13 @@ TEST(sdl_network_soak_four_players) {
                 "memory %+.1f%% (%zu KB at the end), scores \"%s\"\n",
                 i + 1, L.id, exited ? "exited" : "did not exit cleanly", n, L.last_seen.size(), median, p95, err.size(),
                 growth * 100.0f, n ? L.rss.back() : 0, L.scores.c_str());
-    tracked &= L.last_seen.size() == pids.size() - 1 && err.size() >= 20 && p95 < 5.0f;
+    tracked &= L.last_seen.size() == pids.size() - 1 && err.size() >= 20 && p95 < limit;
     memory &= growth < 0.10f;
   }
   EXPECT(clean);
   EXPECT(over);
   EXPECT(tracked);
+  EXPECT(speeds_off == 0);
   EXPECT(memory);
   bool alike = !logs.empty();
   for (const Log& L : logs) alike &= L.scores == logs[0].scores;
