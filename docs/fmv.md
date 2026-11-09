@@ -446,10 +446,15 @@ kept by `--original` like the menus themselves) the movies play on the
 menus' wide canvas (853x480 at 16:9), where 0x005773e0's stretch over the
 whole target drew every 640x480 movie and still image a third too wide.
 `GameEngine::fmv_stretch`, over the whole of a buffer wider than 4:3, keeps
-the picture's shape instead: centred at the buffer's height with black
-sides, or, for a movie stretch whose black bars are baked into its frame,
-its picture rows at the buffer's width with bars above and below. The logo
-screens (SPLASH's stills) are drawn the first way. A 4:3 buffer (no wide
+the picture's shape instead: the original's 4:3 screen centred at the
+buffer's height with black sides, the whole image stretched over it as it
+was over a 4:3 target, or, for a movie stretch whose black bars are baked
+into its frame, its picture rows at the buffer's width with bars above and
+below. The logo screens (SPLASH's stills, Pirate's Moon's INTRO logos) are
+drawn the first way: in the 4:3 frame, not their own shape (2026-11-09), so
+a still that isn't 640x480 is stretched as the original stretched it.
+Pirate's Moon's `logo_fasa` is 640x411, shown 17 % taller than its art, at
+4:3 and at 16:9 alike; every still MechWarrior 3 stretches is 640x480. A 4:3 buffer (no wide
 menus, an in-game mode up to 10) is drawn as the original drew it.
 
 **The shapes, measured** (`mech3/movie_shape`), not known by name:

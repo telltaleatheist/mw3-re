@@ -464,7 +464,8 @@ void GameEngine::wait_end() {
 // DirectDraw's stretch without filtering. Ours: over the whole of a buffer
 // wider than 4:3 the picture keeps its shape (the original's screen was
 // always 4:3): a movie's letterboxed rows at the buffer's width, anything
-// else at its height, centred on black (docs/fmv.md section 8).
+// else stretched into the original's 4:3 screen at its height, centred on
+// black (docs/fmv.md section 8).
 void GameEngine::fmv_stretch(zimg::Texture* image, int32_t left, int32_t top, int32_t right, int32_t bottom,
                              int32_t src_top, int32_t src_bottom) {
   if (!image || !image->pixels || image->width <= 0 || image->height <= 0) return;
@@ -473,9 +474,11 @@ void GameEngine::fmv_stretch(zimg::Texture* image, int32_t left, int32_t top, in
   int32_t sy0 = 0, rows = ih;
   if (width_ * 3 > height_ * 4 && left <= 0 && top <= 0 && right >= width_ && bottom >= height_) {
     if (src_top >= 0 && src_bottom >= src_top && src_bottom < ih) sy0 = src_top, rows = src_bottom - src_top + 1;
-    // The picture's shape: a crop at the buffer's width, else the image's own.
+    // The picture's shape: a crop at the buffer's width, else the original's 4:3 screen, the whole image stretched
+    // over it as on a 4:3 target (PM's 640x411 logo_fasa 17 % taller, as the original showed it).
     int64_t dw = width_, dh = static_cast<int64_t>(width_) * rows / iw;
-    if (rows == ih || dh > height_) dh = height_, dw = static_cast<int64_t>(height_) * iw * ih / (static_cast<int64_t>(rows) * ih);
+    if (rows == ih) dh = height_, dw = static_cast<int64_t>(height_) * 4 / 3;
+    else if (dh > height_) dh = height_, dw = static_cast<int64_t>(height_) * iw * ih / (static_cast<int64_t>(rows) * ih);
     if (dw > width_) dw = width_;
     std::fill(buffer_.begin(), buffer_.begin() + static_cast<std::ptrdiff_t>(width_) * height_, uint16_t{0});
     left = static_cast<int32_t>((width_ - dw) / 2), top = static_cast<int32_t>((height_ - dh) / 2);

@@ -40,7 +40,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from test_anim_run import (COUNT, DEFS, LOG_COUNT, Compare, Emu, Port, f2u, f32, prepare, play,  # noqa: E402
+from test_anim_run import (COUNT, DEFS, LOG_COUNT, Compare, Emu, Port, anim_of, f2u, f32, prepare, play,  # noqa: E402
                            probe, random_table)
 from test_gamez import WORLDS, ZBD  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
@@ -467,7 +467,7 @@ def port_world(mission, seed, emu):
     """prepare()'s port side alone (the same table and cockpit reset), the
     original's ids taken from `emu`, a world of the same mission."""
     port = Port()
-    port.open(ZBD / mission / 'gamez.zbd', ZBD / mission / 'anim.zbd')
+    port.open(ZBD / mission / 'gamez.zbd', anim_of(mission))  # a deep checkout's path is too long for the port
     port.set_random(random_table(random.Random(seed)))
     port.load()
     count, base = struct.unpack('<h', emu.cpu.read(COUNT, 2))[0], emu.u(DEFS)
