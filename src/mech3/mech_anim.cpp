@@ -112,19 +112,13 @@ bool motion_from_mod(zsis::Script& s, const char* name) {
     const int got = zutl_zip::mod_json(m, dir, stem, std::string(name) + ".json", &text, &what, &why);
     std::vector<uint8_t> entry;
     if (got > 0 && zsis::motion_from_json(text, &entry, &why)) {
-      std::FILE* t = std::tmpfile();
-      bool ok = false;
-      if (t) {
-        std::fwrite(entry.data(), 1, entry.size(), t);
-        std::rewind(t);
-        ok = s.read(t, static_cast<long>(entry.size()));
-        std::fclose(t);
-      }
+      zutl_zip::ScratchFile t(entry.data(), entry.size());
+      const bool ok = t.file && s.read(t.file, static_cast<long>(entry.size()));
       if (ok) {
         if (said.insert(what + "\n").second) std::printf("mw3: mod: %s instead of %s's motion\n", what.c_str(), g_motions_game_path.c_str());
         return true;
       }
-      why = t ? "not a motion the reader can read" : "no temporary file to read it from";
+      why = t.file ? "not a motion the reader can read" : "no temporary file to read it from";
     }
     if (got != 0) {
       if (said.insert(what + "\n" + why).second)

@@ -885,6 +885,43 @@ entry the same way. Tests: those two, `mods_motion_json_errors_name_the_line_and
 order, the refusals, the own-archive stop),
 `mods_check_mod_reports_what_the_game_would_refuse`.
 
+**mech3ax's mechlib JSON (built 2026-11-09).** A mod may hold mechlib's
+entries as unzbd writes them: `zbd\mechlib\mech_thor.flt.json` (a model's
+node tree) and `zbd\mechlib\materials.json` (the shared materials), or
+unzbd's `zbd\mechlib.zip` itself. `mechlib_load` and the materials' read ask
+the enabled mods first to last, the folder then the zip, stopping at a mod
+with its own `zbd\mechlib.zbd`; a model the archive lacks is served too, so a
+new mech's model needs no repacked mechlib.zbd, and a `mech=` row finds its
+`dfn_<name>.zrd` and `mech_<model>.flt` as JSON (a folder's or a zip's) as it
+finds them in an archive. The JSON (`zcls::mechlib_model_from_json`,
+`mechlib_materials_from_json`, `cls_mechlib_json.cpp`) becomes the entry's
+bytes as mech3ax's writer lays them out: from node 0 down, each node's 0xd0
+record (its name over "Default_node_name", flags from the named booleans,
+the node's `index` in the model slot, as unzbd keeps it), its object3d (0x90:
+`Initial`, a `Matrix`, or `RotateTranslateScale` built as mech3ax builds it,
+unzbd's `original` matrix where the sums differ, the zero signs), its model
+(0x5c, then vertices, normals, morphs, the polygons' 0x24 records, then each
+polygon's indices, UVs and colours), then its children. Those bytes go
+through the archive's own bounded readers (`read_tree`, `read_material`)
+from a `ScratchFile`. Lights in a mechlib model are refused (none ship).
+
+*The shipped bits.* `mods_mechlib_json_is_every_entrys_bytes`: with
+`MW3_UNZBD_MECHLIB` (unzbd's folder), every one of MW3's 57 models and the
+materials come to the archive entry's own bytes. The matrix's sines and
+cosines are rounded once from double: mech3ax's f32 `sin_cos` on the Mac is
+Apple's `__sincosf`, and `cosf` can miss it by one bit (the Blackhawk's
+lcalf: cos 0.855211 is 0x3f27f37b in the file and in truth, 0x3f27f37c from
+`cosf`); the true value, rounded, is the file's on every system. Errors name
+the place: "(at $.nodes[0].model_index): no model 3", "(at
+$.models[0].polygons[0].priority): 51: past -50..50", "(at $.nodes[0]):
+reached twice (a loop in child_indices)", an unknown flag's name.
+`--check-mod` reads `zbd/mechlib/*.json` and `mechlib.zip`. Tests:
+`bounded_mechlib_json_in_a_folder_or_a_zip` (a model the archive lacks, the
+order, a refusal, the own-archive stop), `bounded_mechlib_json_errors_name_the_place`,
+`mods_mech_row_files_as_json`, the check test. A self-contained round trip
+needs a writer of mechlib JSON as well (not written; the unzbd run stands for
+it).
+
 **mech3ax's other JSON, mapped (not built).** `unzbd` writes one zip per archive,
 with `manifest.json` (the entries' names, order and the bytes needed to pack
 them again) and one JSON per entry, or per file for gamez:
@@ -892,7 +929,7 @@ them again) and one JSON per entry, or per file for gamez:
 | Archive | unzbd's files | Our reader that would take them |
 |---|---|---|
 | `reader*.zbd` | `<entry>.zrd.json` | built, above |
-| `mechlib.zbd` | `format`, `version` (checked only), `materials.json`, `<model>.json` for `<model>.flt` | `mechlib_open` 0x004fc6d0 (the materials, 0x004fc9e0) and `mechlib_load` 0x004fc8f0 (one model's tree), before `mechlib_resolve` |
+| `mechlib.zbd` | `materials.json`, `<model>.flt.json` (`format`, `version` not needed) | built, above |
 | `motion.zbd` | `<motion>.json` per motion | built, above |
 | `zbd\<world>\anim.zbd` | `metadata.json` (the defs' order), `<def>.json` per anim def, `<script>.json` for each `.zan` | the anim reader 0x0050a0e0, the whole file, then the post-load pass 0x0050ae60 |
 | `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | `cls_zbd` 0x004ff520, the whole world: five files, no entries |
@@ -909,7 +946,7 @@ the JSON folder, then the zip, then the mod's archive; mods first to last as
 now. JSON is read only from a mod, never the install.
 
 Proposed order, smallest and most edited first: (1) reader JSON (done,
-above); (2) motion (done, above) (one entry, a short struct; unzbd's motion
+above); (2) motion (done, above); (3) mechlib (done, above) (one entry, a short struct; unzbd's motion
 JSON is the format mech3ax documents best); (3) mechlib models and materials
 (the new-mechs path: a mod's mech as JSON, checked with the bounded reader's
 limits); (4) anim (whole file, its names resolved by the post-load pass as

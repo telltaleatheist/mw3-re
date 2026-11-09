@@ -85,6 +85,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/class.cpp
   src/gamez/zclass/cls_di.cpp
   src/gamez/zclass/cls_mechlib.cpp
+  src/gamez/zclass/cls_mechlib_json.cpp
   src/gamez/zclass/cls_node.cpp
   src/gamez/zclass/cls_util.cpp
   src/gamez/zclass/cls_world.cpp

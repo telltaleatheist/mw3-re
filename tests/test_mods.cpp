@@ -20,6 +20,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zutil/zutl_zip.h"
 #include "gamez/zsiscript/si_script.h"
+#include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
@@ -409,6 +410,28 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   mech3::mods_identity_set(wd, {"none", "rows"});
   EXPECT(mech3::mods_identity().hash == h && mech3::mods_identity().names == std::vector<std::string>{"Rows"});
   mech3::mods_identity() = mech3::ModsIdentity{};
+}
+
+// A mech row whose definition and model a mod ships only as mech3ax's JSON (docs/modding.md): found as the game
+// would find them, a folder's JSON or the archive's zip, so the row is not left out.
+TEST(mods_mech_row_files_as_json) {
+  SavedMounts keep;
+  const std::string wd = tmp("mods_mech_json");
+  put(wd + "/mods/j/mod.txt", "name=J\nmech=jsonmech tech=clan mass=70 class=heavy\nmech=zipmech tech=clan mass=70 class=heavy model=jsonmech\n"
+                              "mech=nomech tech=clan mass=70 class=heavy model=jsonmech\n");
+  put(wd + "/mods/j/zbd/reader/dfn_jsonmech.zrd.json", "[]");
+  write_stored_zip(wd + "/mods/j/zbd/reader.zip", {{"DFN_ZIPMECH.ZRD.JSON", "[]"}});
+  write_stored_zip(wd + "/mods/j/zbd/mechlib.zip", {{"mech_jsonmech.flt.json", "{}"}});
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mech_rows_clear();
+  std::string text;
+  for (const std::string& l : mech3::mods_mount(wd, {"j"}, {})) text += l + "\n";
+  std::printf("%s", text.c_str());
+  EXPECT(text.find("mech jsonmech added") != std::string::npos && text.find("mech zipmech added") != std::string::npos);
+  EXPECT(text.find("mech nomech tech=clan mass=70 class=heavy model=jsonmech: no dfn_nomech.zrd in the reader archive, left out") !=
+         std::string::npos);
+  mech3::mech_rows_clear();
 }
 
 // Mods' weapons (item 2): weapon= rows after the plain PPC's place (38 on,
@@ -1038,6 +1061,74 @@ TEST(mods_motion_json_errors_name_the_line_and_place) {
   }
 }
 
+// The bytes a JSON entry becomes, as a file for the FILE* readers: in the system's temp folder, not std::tmpfile
+// (which has failed on Windows), read from its start, and gone afterwards, only the file it made.
+TEST(mods_scratch_file_is_read_and_removed) {
+  fs::path where;
+  {
+    const std::string bytes("motion\0bytes", 12);
+    zutl_zip::ScratchFile t(bytes.data(), bytes.size());
+    EXPECT(t.file != nullptr);
+    where = t.path;
+    char back[16] = {};
+    EXPECT(t.file && std::fread(back, 1, sizeof back, t.file) == 12 && std::memcmp(back, bytes.data(), 12) == 0);
+    std::error_code ec;
+    EXPECT(fs::exists(where, ec) && fs::equivalent(where.parent_path(), fs::temp_directory_path(ec), ec));
+    zutl_zip::ScratchFile empty(nullptr, 0);
+    EXPECT(empty.file && empty.path != t.path);
+  }
+  std::error_code ec;
+  EXPECT(!where.empty() && !fs::exists(where, ec));
+}
+
+// mechlib.zbd's entries from unzbd's own JSON (MW3_UNZBD_MECHLIB: its folder): every model and the materials the
+// entry's own bytes (docs/modding.md).
+TEST(mods_mechlib_json_is_every_entrys_bytes) {
+  const std::string install = MW3_GAME_DIR;
+  const char* theirs = std::getenv("MW3_UNZBD_MECHLIB");
+  std::error_code ec;
+  if (!theirs || !fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  EXPECT(zutl_zar::open(a, (install + "/zbd/mechlib.zbd").c_str()));
+  int entries = 0, same = 0;
+  std::string first_bad;
+  for (int i = 0; i < a.count; ++i) {
+    const std::string name = a.entries[i].name;
+    if (name == "format" || name == "version") continue;
+    uint32_t length = 0;
+    std::FILE* f = zutl_zar::seek(a, i, &length);
+    std::vector<uint8_t> entry(length);
+    if (!f || std::fread(entry.data(), 1, length, f) != length) continue;
+    ++entries;
+    std::ifstream in(std::string(theirs) + "/" + name + ".json");
+    std::stringstream text;
+    text << in.rdbuf();
+    std::vector<uint8_t> bytes;
+    std::string why;
+    const bool ok = name == "materials" ? zcls::mechlib_materials_from_json(text.str(), &bytes, &why)
+                                        : zcls::mechlib_model_from_json(text.str(), &bytes, &why);
+    if (ok && bytes == entry) {
+      ++same;
+      continue;
+    }
+    if (!first_bad.empty()) continue;
+    if (!ok) {
+      first_bad = name + ": " + why;
+      continue;
+    }
+    size_t at = 0;
+    while (at < bytes.size() && at < entry.size() && bytes[at] == entry[at]) ++at;
+    char b[160];
+    std::snprintf(b, sizeof b, "%s: %zu bytes vs %zu, first difference at %zu (%02x vs %02x)", name.c_str(), bytes.size(), entry.size(), at,
+                  at < bytes.size() ? bytes[at] : 0, at < entry.size() ? entry[at] : 0);
+    first_bad = b;
+  }
+  zutl_zar::destroy(a);
+  std::printf("  %d entries, %d the same bytes from unzbd's JSON; first difference: %s\n", entries, same, first_bad.empty() ? "none" : first_bad.c_str());
+  EXPECT(entries > 50 && same == entries);
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {
@@ -1078,6 +1169,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   const std::string motion = "{\"loop_time\": 2.0, \"frame_count\": 1, \"parts\": [{\"name\": \"hip\", \"frames\": [" + frame + "]}]}";
   put(good + "/zbd/motion/madcat_walk.json", motion);
   write_stored_zip(good + "/zbd/motion.zip", {{"madcat_run.json", motion}, {"manifest.json", "[]"}});
+  put(good + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3}, \"alpha\": 255}}]");
+  write_stored_zip(good + "/zbd/mechlib.zip", {{"materials.json", "[]"}});
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -1089,6 +1182,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(errors == 0 && text.find("mod.txt: Good 1") != std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos);
   EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
   EXPECT(text.find("zbd/motion/madcat_walk.json: added") != std::string::npos && text.find("zbd/motion.zip: added") != std::string::npos);
+  EXPECT(text.find("zbd/mechlib/materials.json: added") != std::string::npos && text.find("zbd/mechlib.zip: added") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -1103,6 +1197,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(bad + "/zbd/c1/readerm1.zip", "not a zip");
   put(bad + "/zbd/motion/madcat_walk.json", "{\"loop_time\": 2.0,\n \"frame_count\": 0, \"parts\": []}");
   write_stored_zip(bad + "/zbd/motion.zip", {{"madcat_run.json", "{\"loop_time\": -1.0, \"frame_count\": 1, \"parts\": []}"}});
+  put(bad + "/zbd/mechlib/materials.json", "[{\"Colored\": {\"color\": {\"r\": 1, \"g\": 2, \"b\": 3},\n \"alpha\": 300}}]");
+  write_stored_zip(bad + "/zbd/mechlib.zip", {{"mech_x.flt.json", "{\"nodes\": []}"}});
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -1137,7 +1233,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          text.find("error: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
   EXPECT(text.find("error: zbd/motion/madcat_walk.json: line 2 (at $.frame_count): 0: a motion has at least one frame") != std::string::npos &&
          text.find("error: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
-  EXPECT(errors == 13 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
+         text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
+  EXPECT(errors == 15 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&

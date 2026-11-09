@@ -2,7 +2,10 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <vector>
+
+#include "gamez/zutil/zutl_zip.h"
 
 // zSave, docs/save.md.
 namespace zsave {
@@ -10,6 +13,25 @@ namespace zsave {
 namespace {
 Manager* g_manager = nullptr;          // [0x00736580]
 std::vector<std::FILE*> g_temps;       // what _rmtmp closes: every tmpfile() still open
+// FIX (A): where tmpfile() gives none (UCRT refuses a %TMP% past 238 characters), a file of our own in the
+// temp folder (zutl_zip::ScratchFile), closed and removed with the rest.
+std::vector<std::unique_ptr<zutl_zip::ScratchFile>> g_scratch;
+std::FILE* (*g_tmpfile)() = std::tmpfile;
+std::FILE* make_temp() {
+  if (std::FILE* f = g_tmpfile()) {
+    g_temps.push_back(f);
+    return f;
+  }
+  auto s = std::make_unique<zutl_zip::ScratchFile>(nullptr, 0);
+  std::FILE* f = s->file;
+  if (f) g_scratch.push_back(std::move(s));
+  return f;
+}
+void close_temps() {
+  for (std::FILE* f : g_temps) std::fclose(f);
+  g_temps.clear();
+  g_scratch.clear();
+}
 const char kHeader[] = "zSaveHeader";  // 0x005f4b94
 
 uint32_t file_size(std::FILE* f) {
@@ -161,16 +183,15 @@ bool load(const char* path, int32_t kind) {
 // Mech3.exe 1.2 @ 0x005a8ab0
 std::FILE* temp() {
   if (!g_manager) return nullptr;
-  std::FILE* f = std::tmpfile();
-  if (f) g_temps.push_back(f);
-  return f;
+  return make_temp();
 }
+
+void set_tmpfile(std::FILE* (*fn)()) { g_tmpfile = fn ? fn : std::tmpfile; }
 
 // Mech3.exe 1.2 @ 0x005a8b10, and the _rmtmp of 0x005a9210
 void temp_done() {
   if (!g_manager) return;
-  for (std::FILE* f : g_temps) std::fclose(f);
-  g_temps.clear();
+  close_temps();
 }
 
 // Mech3.exe 1.2 @ 0x005a8ad0, 0x005a9210
@@ -185,16 +206,14 @@ void write_temp(std::FILE* f, Context& ctx, const char* sub) {
     write(ctx, sub, data, static_cast<uint32_t>(size));
     std::free(data);
   }
-  for (std::FILE* t : g_temps) std::fclose(t);
-  g_temps.clear();
+  close_temps();
 }
 
 // Mech3.exe 1.2 @ 0x005a8af0, 0x005a9290
 std::FILE* temp_from(const void* data, uint32_t size) {
   if (!g_manager) return nullptr;
-  std::FILE* f = std::tmpfile();
+  std::FILE* f = make_temp();
   if (!f) return nullptr;
-  g_temps.push_back(f);
   std::fwrite(data, size, 1, f);
   std::fflush(f);
   std::rewind(f);
