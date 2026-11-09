@@ -746,17 +746,6 @@ bool launch_player();  // 0x00491150 (mech3/mission_launch.h, whose mech headers
 
 namespace {
 BriefingScreen* briefing_of(const GameEngine& e, Handle s) { return dynamic_cast<BriefingScreen*>(e.screen_of(s)); }
-
-// 0x00435350 (a campaign's vt+0x54): the mission directory, c4b past Op 4 Mission 3.
-int32_t campaign_dir(const CampaignGame& c) {
-  switch (c.operation()) {
-    case 1: return 0;
-    case 2: return 1;
-    case 3: return 2;
-    case 4: return (3 < c.mission_number()) + 3;
-    default: return -1;
-  }
-}
 }  // namespace
 
 // The Load state from the menus: its game is the chosen pilot's (the
@@ -773,7 +762,7 @@ void GameEngine::load_state_enter() {
   if (auto* c = dynamic_cast<CampaignGame*>(g)) {
     l.number = c->mission_number();
     l.op = c->operation();
-    l.index = campaign_dir(*c);
+    l.index = c->world_index();
   } else if (auto* t = dynamic_cast<TrainingGame*>(g)) {
     l.number = t->mission;
     l.index = 5;  // t1

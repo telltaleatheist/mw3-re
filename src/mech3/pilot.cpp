@@ -14,6 +14,7 @@ namespace mech3 {
 namespace {
 std::list<Pilot*> g_pilots;    // [0x0060860c], the count [0x00608610]
 Pilot* g_current = nullptr;    // [0x0060861c]
+std::string g_folder = "pilots";  // ours: pilots_folder()
 
 constexpr int32_t kVersion = 15 + 0x20;  // 0x00423cf0 (the loadouts' 15) + 0x20
 
@@ -67,13 +68,15 @@ bool wr4(std::FILE* f, const void* p) { return std::fwrite(p, 1, 4, f) == 4; }
 
 std::list<Pilot*>& pilots() { return g_pilots; }
 Pilot*& current_pilot() { return g_current; }
+const std::string& pilots_folder() { return g_folder; }
+void set_pilots_folder(const std::string& folder) { g_folder = folder.empty() ? "pilots" : folder; }
 
 // Mech3.exe 1.2 @ 0x00477b20. FIX (bug): the name is copied with strcpy into
 // 64 bytes; a longer one (a long pilots\ file name) overwrote the games'
 // vector and crashed. Here it is cut, and load_pilots skips such files.
 Pilot::Pilot(const char* n) : version(kVersion) {
   std::strncpy(name, n ? n : "", sizeof name - 1);
-  auto* c = new CampaignGame(this, 1, 1);  // new(200)
+  auto* c = new_campaign_game(this, 1, 1);  // new(200)
   current = c;
   campaigns.push_back(c);
   lab = new LabGame(this);                 // new(0x84)
@@ -104,8 +107,8 @@ void Pilot::close() {
   file = nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x00478c80
-std::string Pilot::file_path() const { return std::string("pilots\\") + name + ".mw3"; }
+// Mech3.exe 1.2 @ 0x00478c80 (ours: in pilots_folder())
+std::string Pilot::file_path() const { return g_folder + "\\" + name + ".mw3"; }
 
 // Mech3.exe 1.2 @ 0x00478ce0. False when it was already open. A header that
 // does not match is written over, the rest of the file kept (OPEN_ALWAYS).
@@ -184,7 +187,7 @@ bool Pilot::read() {
   std::fread(&n, 1, 4, file);
   if (n && campaigns.capacity() < n + 1 && n < 0x10000) campaigns.reserve(n + 1);
   for (; n; --n) {
-    auto* c = new CampaignGame(this);  // new(200), read
+    auto* c = read_campaign_game(this);  // new(200), read
     if (c->readable()) campaigns.push_back(c);
     else delete c;
     if (std::feof(file)) break;
@@ -271,12 +274,12 @@ bool Pilot::record_mission(bool next) {
   const bool fix = zfix::options().bugs;
   CampaignGame* g = static_cast<CampaignGame*>(current)->next_mission(next, !fix);
   if (g && g != current) {
-    const int32_t m = g->mission_number(), op = g->operation();
+    const int32_t m = g->mission, op = g->campaign;
     auto it = campaigns.begin();
     for (; it != campaigns.end(); ++it) {
       if ((*it)->type() != kCampaign) continue;
       auto* c = static_cast<CampaignGame*>(*it);
-      if (c->operation() == op && c->mission_number() == m) break;
+      if (c->campaign == op && c->mission == m) break;
     }
     bool filed = true;
     if (it == campaigns.end()) {
@@ -377,11 +380,12 @@ bool delete_pilot(const char* name) {
 // zutl::list (the write dir's and the mounts' pilots\, each name once), and
 // _mkdir makes the folders in the write dir; the exe closed the search with
 // CloseHandle, not FindClose. FIX (bug): names that do not fit a pilot's 64
-// bytes are skipped (they crashed the exe, see the constructor).
+// bytes are skipped (they crashed the exe, see the constructor). Ours: in
+// pilots_folder().
 void load_pilots() {
   std::error_code ec;
-  fs::create_directories(zutl::write_path("pilots\\games"), ec);
-  for (const std::string& file : zutl::list("pilots\\*.mw3")) {
+  fs::create_directories(zutl::write_path((g_folder + "\\games").c_str()), ec);
+  for (const std::string& file : zutl::list((g_folder + "\\*.mw3").c_str())) {
     std::string n = file;  // _splitpath's file name
     const size_t slash = n.find_last_of("\\/:");
     if (slash != std::string::npos) n = n.substr(slash + 1);

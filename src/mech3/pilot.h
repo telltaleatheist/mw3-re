@@ -182,14 +182,18 @@ class CampaignGame : public Game {
   void load() override;              // vt+0x1c  0x00434ae0
   int32_t type() const override { return kCampaign; }  // 0x00499270
   const char* game_text(int32_t slot) override { return slot == 0x0c ? name() : nullptr; }
-  const char* name();                // vt+0x0c  0x00434900: "Op N, Mission M" (into text)
+  virtual const char* name();        // vt+0x0c  0x00434900: "Op N, Mission M" (into text)
   const char* path();                // vt+0x14  0x00434980: its saved game (into text)
   const char* path_for(const char* pilot_name);  // 0x00434950
   bool readable();                   // vt+0x20  0x00435330: its saved game exists
   bool restore() override;           // vt+0x28  0x004352d0: its saved game's world read (zSave)
   void merge_salvage();              // 0x00434cb0, at the end of load
-  int32_t operation() const { return campaign; }  // vt+0x48  0x00437870
-  int32_t mission_number() const { return mission; }  // vt+0x4c  0x00437880
+  // What the mission and its screens see. The saved games' names, their
+  // filing and the advance use the fields themselves (the same here).
+  virtual int32_t operation() const { return campaign; }  // vt+0x48  0x00437870
+  virtual int32_t mission_number() const { return mission; }  // vt+0x4c  0x00437880
+  // vt+0x54 (0x00435350): the mission's folder (mission_dir's index), c4b past Op 4 Mission 3.
+  virtual int32_t world_index() const;
   // `save` false: the world's save left to the caller (record_mission's FIX).
   CampaignGame* next_mission(bool next, bool save = true);  // vt+0x24  0x00434e00
   GameSlot* slot_at(int32_t i);      // vt+0x34  0x00435110: 0 the player's, then the lancemates
@@ -214,6 +218,29 @@ class CampaignGame : public Game {
   int32_t b4[4] = {};                // +0xb4
   int32_t c4 = 0;                    // +0xc4
 };
+
+// Ours (docs/custom-campaigns.md): a mod's campaign, the original's campaign
+// game (its stores, lancemates, saves and screens; the kind the original's
+// code and the scripts see is still the campaign's, 1) walking the mod's
+// list: `campaign` is 1 and `mission` the place in the list, 1-based, so its
+// saved games are <pilot>01<place>.mw3 in the campaign's own pilots folder.
+// The mission sees its line's world as the original's would: the operation
+// of c1..c4b (4 for any other world: six missions' room) and the line's m<n>.
+class ModCampaignGame : public CampaignGame {
+ public:
+  ModCampaignGame(Pilot* p, int32_t place) : CampaignGame(p, 1, place) {}
+  explicit ModCampaignGame(Pilot* p) : CampaignGame(p) {}
+  const char* name() override;       // "<op heading>, Mission <n within it>", or "Mission <n>"
+  int32_t operation() const override;
+  int32_t mission_number() const override;
+  int32_t world_index() const override;  // the line's world, -1 when gone
+  bool restore() override;           // not at a world's start (the first, or a new world)
+  const struct CampaignMission* entry() const;  // its line, null past the list
+};
+// The campaign games a pilot makes: a mod campaign's while one is entered
+// (mod_campaign.h, campaign_enter), else the original's.
+CampaignGame* new_campaign_game(Pilot* p, int32_t campaign, int32_t mission);
+CampaignGame* read_campaign_game(Pilot* p);
 
 // The Instant Action settings the game keeps outside the game object and the
 // pilot's file carries ([0x00605820..0x0060587f]; the Action screen's).
@@ -464,6 +491,11 @@ Pilot* load_pilot(const char* name, bool reload);  // 0x00478700
 Pilot* create_pilot(const char* name);  // 0x004788b0: or the one already listed
 bool delete_pilot(const char* name);  // 0x00477f50: and its files
 void load_pilots();                  // 0x00478560: every pilots\*.mw3
+// Ours: the folder the pilots are in, "pilots" (the original's), or a mod
+// campaign's own while it is entered (custom-campaigns.md): its pilot files,
+// and their saved games in its games\.
+const std::string& pilots_folder();
+void set_pilots_folder(const std::string& folder);
 void delete_other_pilots();          // 0x004785f0: all but the current one
 Pilot* debug_start_campaign(int32_t campaign, int32_t mission);  // 0x00478a40, "DefaultPlayer"
 // Mech3.exe 1.2 @ 0x00484870: the next mission, past the operation's last

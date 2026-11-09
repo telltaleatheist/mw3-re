@@ -52,4 +52,22 @@ std::vector<ModCampaign>& mod_campaigns();
 // original's pilots/ layout inside (custom-campaigns.md, question 2).
 std::string campaign_pilots_dir(const ModCampaign& c);
 
+// The file our code puts in a campaign's pilots folder when it makes it;
+// only a folder holding it is ever removed (campaign_pilots_remove).
+constexpr const char* kCampaignMarker = "mw3-campaign.txt";
+
+// The campaign entered (a copy), null while the original's pilots are up.
+const ModCampaign* entered_campaign();
+// Into the campaign's own pilots: its folder made with our marker (an
+// existing one kept when it has the marker or is empty; one holding other
+// files refused, `why`), every pilot listed now saved and let go, the
+// pilots folder set to it and its pilots loaded; their campaign games are
+// ModCampaignGames on its list. campaign_leave goes back to the original's.
+bool campaign_enter(const ModCampaign& c, std::string* why);
+void campaign_leave();
+// The player's removal of every pilot of a campaign, on their choice only:
+// nothing happens unless `confirm` says yes, and only a folder with our
+// marker is removed (never the one entered). False with `why` otherwise.
+bool campaign_pilots_remove(const ModCampaign& c, const std::function<bool()>& confirm, std::string* why);
+
 }  // namespace mech3
