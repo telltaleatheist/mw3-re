@@ -1127,6 +1127,41 @@ Order of work, when Owen agrees, one sitting each:
 3. `--build-anim` and `anim=defs`;
 4. the node files, after the per-def check of the shipped effect defs.
 
+## gamez JSON (plan, 2026-11-09)
+
+A world's gamez.zbd as unzbd writes it: `metadata.json`, `textures.json`,
+`materials.json`, `models.json` and `nodes.json`, five files and one whole
+world; c1's are 156 B, 20 KB, 75 KB, 41 MB and 17 MB. The plan is the same as
+for anim: the JSON becomes the gamez.zbd it stands for, laid out as mech3ax's
+writer lays it (`crates/gamez/src/gamez/mw`, `nodes/*` for each node class,
+`model/mw`, `materials`; about 3k lines with the classes), then read by
+`cls_zbd` 0x4ff520 from a `ScratchFile`. The test compares against the
+shipped file on all six worlds, with unzbd beside the checkout, names masked
+past their NUL if some prove to need mech3ax's tables. Node names keep their
+"Default_node_name" padding exactly, as in mechlib.
+
+Its own problems:
+- **Size.** `zutl_json`'s value tree is far too big for a 41 MB models.json
+  (every number a value). gamez needs a streaming reader that writes bytes as
+  it reads, with the same line-and-path errors. The model and node writers
+  already go item by item, so they fit it. That reader comes first.
+- **Node classes.** Besides object3d (done for mechlib), a world has camera,
+  display, window, world, light, lod and empty nodes, each with its own
+  record. Each class gets a test on its own: the world's nodes of that class
+  are the same bytes.
+- **The world node** carries the area partitions (the grid of cells and their
+  node lists). That's the largest single record and the one most tied to the
+  reader's bounds (`gamez.md`).
+- **Textures and materials** are names and small records. The models'
+  polygons index the world's materials, as in mechlib.
+- **For mods**, gamez is whole-world only: no per-node merging is planned.
+  New nodes for animations come from point 2 of the design above.
+
+Sittings: (1) the streaming reader and the metadata, textures and materials;
+(2) the models; (3) the node classes but world; (4) the world node and its
+partitions, all six worlds the same; (5) the load path, `--check-mod`,
+errors, breaks and docs.
+
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
