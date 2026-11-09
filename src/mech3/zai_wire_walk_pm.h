@@ -110,7 +110,7 @@ class WireWalkT : public WireSteer<Base> {
   bool powered_down(zgame::Handle v) override { return brain_hooks().powered_down(v) != 0; }
   void mech_power(zgame::Handle v, int32_t down) override { brain_hooks().mech_power(brain_hooks().vehicle_mech(v), down); }
   int32_t hold() override { return b_.params.get<int32_t>(0x80); }
-  void set_runs_down(bool on) override { b_.x2a4 = on ? 1 : 0; }
+  void set_runs_down(bool on) override { b_.x2a4 = pm_brain(b_).tick.runs_down = on ? 1 : 0; }  // one field in the exe
 
  private:
   Brain& b_;

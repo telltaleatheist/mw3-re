@@ -431,6 +431,10 @@ TEST(pm_player_tick_box_window) {
 }
 
 static bool g_refit_point = false, g_refit_done = false;
+// pm-tests 35's run (PM_REPAIR_AFTER): her order's answer, her legs then and at the end, down on the point, done.
+static int g_mate_order = -1;
+static float g_mate_legs0 = -1, g_mate_legs1 = -1;
+static bool g_mate_docked = false, g_mate_done = false;
 static float g_fall_lowest = 1e9f, g_fall_died_at = 1e9f;
 static bool g_fall_failed = false, g_fall_ai_dead = false;
 static int g_fall_mode = -1, g_fall_frames_dead = 0, g_fall_sound_from = 0, g_fall_sound_frames = 0;
@@ -703,7 +707,22 @@ static void kill_run(const char* which, bool quick) {
           ordered = t;
           std::printf("  after the repair: bases alive %d, mfb ask %d, repair possible %d\n", mech3::program_bases_alive(),
                       mech3::program_mfb_ask(mate) ? 1 : 0, mech3::ai::repair_possible(&brain->current()) ? 1 : 0);
-          std::printf("  order 12: %d\n", brain->lance_order(12, nullptr));
+          g_mate_legs0 = pm_kill_leg_armor(mate);
+          g_mate_order = brain->lance_order(12, nullptr);
+          std::printf("  order 12: %d\n", g_mate_order);
+        }
+        if (ordered >= 0) {
+          mech3::LaunchedMech dm;
+          mech3::describe_mech(mate, &dm);
+          float m[3];
+          mech3::mech_world_position(mate, m);
+          if (dm.powered_down && std::hypot(m[0] - point[0], m[2] - point[2]) < 6.5f) g_mate_docked = true;
+          const mech3::ai::Behaviour* beh = brain->current().state ? brain->current().state->behaviour() : nullptr;
+          const bool repairing = beh && beh->kind == mech3::ai::StepKind::Repair;  // PM's state or MW3's
+          if (g_mate_docked && !repairing && !g_mate_done) {
+            g_mate_done = g_refit_done = true;  // kill_run's end asks for a refit done
+            g_mate_legs1 = pm_kill_leg_armor(mate), ordered = t - 3300;
+          }
         }
         if (ordered >= 0 && (t - ordered) % 300 == 0) {
           float m[3];
@@ -1632,6 +1651,42 @@ TEST(pm_canyon_death_band) {
       EXPECT(g_fall_sound_from >= 1 && g_fall_sound_from <= 2);  // the fall action's start, the frame after
       EXPECT(g_fall_sound_heard > 30);
       EXPECT(g_fall_quietest > -1500);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
+}
+
+// pm-tests 35 (Owen's playtest: Epona Rhi stood still when ordered to repair), always on: in c1m1 under PM's AI the
+// player calls the MFB and is repaired, then Epona, hurt, is ordered to repair (order 12). With bug fixes on she is
+// taken at the starbase (the dock-parking fix) and at a mobile dock, walks in on PM's repair state (0x004e0790),
+// goes down on the point and comes away repaired; with them off, at the starbase the exe's dock has let the bases
+// stop and her order is refused (as the exe). Each in a child, as the other whole-mission runs.
+TEST(pm_c1m1_lancemate_repairs_at_the_dock) {
+#if !defined(_WIN32)
+  struct Case { const char* name; const char* at; bool bugs; };
+  const Case cases[] = {{"starbase", "4733,-4200", true}, {"mobile", "4041,-3388", true}, {"starbase, fixes off", "4733,-4200", false}};
+  for (const Case& k : cases) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_REPAIR", k.at, 1);
+      setenv("PM_REPAIR_AFTER", "1", 1);
+      if (!k.bugs) setenv("PM_BUGS_OFF", "1", 1);
+      g_refit_done = !k.bugs;  // refused: no refit to wait for
+      kill_run("0,1,1", true);
+      std::printf("  %s: order %d, docked %d, done %d, legs %.3f -> %.3f\n", k.name, g_mate_order, g_mate_docked ? 1 : 0,
+                  g_mate_done ? 1 : 0, g_mate_legs0, g_mate_legs1);
+      if (k.bugs) {
+        EXPECT(g_mate_order == 1 && g_mate_docked && g_mate_done);
+        EXPECT(g_mate_legs1 > g_mate_legs0 + 0.5f);
+      } else {
+        EXPECT(g_mate_order == 0 && !g_mate_docked);
+      }
       std::fflush(nullptr);
       _exit(check::failures ? 1 : 0);
     }
