@@ -80,6 +80,12 @@ class EditorHooks : public zgame::Unported {
   // (0x00403140) and its frame (0x00404290, nothing without a net editor).
   virtual void net_step(float dt) { unported("0x00403140", {zgame::bits(dt)}); }
   virtual void net_frame(bool editing) { (void)editing; }
+  // The net editor's (sitting 3a): the view's vehicle put at a place (its
+  // vt+0xdc, GOTO Net) and the camera's far clip (0x004f3b00 / 0x004f3a70;
+  // 0 for none, then nothing is put back).
+  virtual void view_vehicle_place(const float p[3]) { unported("view vehicle.vt+0xdc", {zgame::bits(p[0]), zgame::bits(p[2])}); }
+  virtual float far_clip() { return 0.0f; }
+  virtual void set_far_clip(float f) { (void)f; }
   virtual void not_ported(const char* what);  // a row whose editor comes after v1.0: said in the log
 };
 void set_editor_hooks(EditorHooks* h);  // null: the defaults

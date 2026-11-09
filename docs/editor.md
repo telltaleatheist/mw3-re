@@ -143,9 +143,9 @@ editor's frame 0x00404290 (nothing without a net editor).
 
 ### The AI net editor (0x005e0f18, 13 rows; installed by 0x00403690)
 
-0x00402d60 first picks a point or net node under the mouse (0x0040e120 ->
-0x004d55c0, the camera's pick vt+0xf8, 0x0058b1c0), then installs the menu
-"AI NET EDITOR" in mode 1. It is the editing side of `CZAiNetEdit`
+0x00402d60 first asks for a net in the AI Network Editor dialog (0x0040e120
+-> 0x004a4c20, template 139; corrected 2026-11-09, sitting 1 read it as a
+pick under the mouse), then installs the menu "AI NET EDITOR" in mode 1. It is the editing side of `CZAiNetEdit`
 (0x004bd360, 0x004bd3d0; docs/ai.md: only the builder side is ported).
 
 | Row | Text | Handler |
@@ -196,10 +196,20 @@ over the selection base 0x0058bf50, with one list of them at [0x005f4c60].
 | +0x138 | dirty; cleared by Save, carried over a rebuild |
 | +0x13c | rebuild asked (0x00403080 deletes this and makes a new one on the same net) |
 
-**The flow.** 0x00402d60: the first pick (0x0040e120 -> 0x004d55c0): an
-object under the mouse that is a net (vt+0x48) edits it through 0x004bd360 by
-id; else the camera's pick (vt+0xf8) gives a point, a free id from
-0x0058b1c0 and a new net with one node (0x00402c90). It frees the old editor,
+**The flow.** 0x00402d60 opens the AI Network Editor dialog (0x0040e120:
+0x004a4c20 builds it over the base 0x004d5530, vtable 0x005c8388; 0x004d55c0
+is `CDialog::DoModal`). Template 139, 186x63: "Select a network to edit:", a
+drop-down list (1072, sorted: CBS_SORT), OK and Cancel. Its init (0x004a4cd0)
+adds every net of the list at [0x00603fdc] by name (vt+0x28 the net, vt+0x4c
+its name; CB_ADDSTRING, the net as the item's data), then inserts "New Net"
+at the top with no net (0x005e8340, CB_INSERTSTRING 0) and selects it. Its
+only message, WM_DESTROY (0x004a4d90), keeps the selection's index (+0x64)
+and net (+0x68, none for New Net or no selection). Any close counts:
+0x0040e120 takes the selection when DoModal returns non-zero, so **Cancel
+opens the selected net too**. A net that is not compiled (vt+0x48) is
+edited through 0x004bd360 by its id (vt+0x18); New Net takes the camera's
+ground pick (vt+0xf8), a free id from 0x0058b1c0 and makes a net with one
+node there (0x00402c90). It frees the old editor,
 keeps the new one in [0x005f4c6c] and installs the menu (0x00403690).
 0x00404290 runs the frame of every editor but the one given, 0.1 s each,
 0x00403080 / 0x00403160 for each. The frame: the view (0x0058c950, the
@@ -294,6 +304,56 @@ edit shows at the next mission load. The first is small and is a choice: it
 does what the 105 path was for, and the release never did it.
 Decided 2026-11-07: the first, marked ours in fixes.md and CHANGES.md, inside
 the editor only; the 25 functions stay unported and listed here.
+
+## The way in (S5 sitting 3a, 2026-11-09)
+
+Ported in `mech3/game_editor_net` (EDIT AI NETS on the main menu calls it):
+
+- **The dialog** (template 139; FIX (A), ours): in the editor's panel, not an
+  MFC dialog, and not modal (the mission runs on, as under the editor's
+  menus). Its rows are the template's controls: the title, "Select a network
+  to edit:", the list, OK and Cancel. The list is znet's registry by name,
+  sorted case-insensitively (the drop-down's CBS_SORT; Windows sorts with
+  CompareString, which may order punctuation otherwise, but no shipped net
+  name differs by it), "New Net" at the top and selected; the selected row
+  marked `>`; a longer list pages with "(up)" and "(down)" rows (ours: the
+  panel has 25 rows). A list row selects; OK and Cancel both open the
+  selection, as the exe's do.
+- **Opening** (the rest of 0x00402d60): a net that is not an edit (vt+0x48)
+  is edited through a new one of its id (0x004bd360: `CZAiNetEdit(id, none,
+  0)`, the editing side, which takes its own id from 400..499); the old
+  editor freed, the new one kept (`net_editor()`, [0x005f4c6c]), its menu
+  installed (0x00403690: mode 1, 0x005e0f18; the title and the net's name
+  passed and unread). New Net (0x00402c90, the new net's first node) is
+  sitting 4's: said in the log, the main menu back.
+- **The editor object** (0x00402f40): the net it owns (deleted with it, as
+  0x00402fd0 does), the camera's far clip kept and put back (0 for none:
+  the hooks give none yet), dirty and rebuild. The selection base 0x0058bf50
+  (a display object for each node and link, the selection box) is 3b's.
+- **GOTO Net** (0x004036c0): the view's vehicle (the stealth) put by its
+  vt+0xdc (0x004a3630, yaw 0) at the net's place, its first node's (vt+0x04
+  0x00402b20; a net without nodes gives the placeholder's, 0 0 0, as the exe).
+- **Save Changes** (0x00402e90 -> 0x00402f20 -> 0x004bd340): no editor, "no
+  network to save" (a box in the exe, 0x00402ec0; ours the status line);
+  else the net's file found in the first open archive that holds it (the
+  reader's order), the file object's edited records (its cache, which
+  sitting 4 fills) put in by `net_with_edits`, and `save_archive_edit` (The
+  save, below); its folder and "on from the next start" in the panel's last
+  row (`editor_status`, ours, and the log). Dirty cleared.
+- **Exit Net Editor** (0x00402ba0): the editor freed, the main menu. The
+  side windows it also closes (the tree view, the node window) are sitting
+  4's. The rows still to come say "not ported yet" in the log.
+- The panel's frame ignores a shown row past the menu's (the status line;
+  in the exe no row past the menu's is ever shown).
+
+Tests: `game_editor_net_dialog_and_menu` (the list sorted under New Net, a
+row selecting, Cancel opening the selection, the 13 rows, GOTO's place,
+Save's line, Exit, New Net); `mission_c1m1_net_editor_saves_into_its_own_mod_headless`
+(c1m1: the editor entered, net_01 opened from the dialog, the stealth put on
+node_00, Save Changes writing readerm1.zbd to "editor edits", byte for byte
+the install's with no edits, turned on, the marker there, the panel saying
+where). Breaks: the list unsorted, Cancel cancelling, GOTO at the second
+node, the save skipped.
 
 ## The save (S5 sitting 2, 2026-11-09)
 

@@ -132,6 +132,8 @@
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/player.h"
 #include "mech3/game_editor.h"
+#include "mech3/game_editor_net.h"
+#include "mech3/zainetedit.h"
 #include "mech3/app_keys.h"
 #include "mech3/mods.h"
 #include "mech3/sensors.h"
@@ -25861,4 +25863,59 @@ TEST(reset_process_state_clears_the_entity_walk) {
   std::vector<int> order;
   zent::budget().update_all(list, [&](int i) { order.push_back(i); });
   EXPECT(order == (std::vector<int>{0, 1, 2, 3}));  // from the start
+}
+
+// The AI net editor's way in (S5 sitting 3a): in c1m1, the editor entered as
+// Shift+F12's command does, EDIT AI NETS's dialog lists the mission's nets,
+// net_01 opened from it, GOTO Net puts the stealth at its first node, and
+// Save Changes (no edits yet) writes readerm1.zbd to the write dir's
+// "editor edits" mod, the same bytes as the install's, turned on in mw3.cfg,
+// and says so in the panel's last row.
+TEST(mission_c1m1_net_editor_saves_into_its_own_mod_headless) {
+  if (!have_game()) return;
+  bool listed = false, opened = false, placed = false, saved = false, same = false, on = false;
+  std::string status, write_dir;
+  float node[3] = {}, at[3] = {};
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("net_editor_write", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 10) return false;
+    write_dir = zutl::mounts().write;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_ai_nets(0);
+    mech3::NetDialog& d = mech3::net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i), listed = true;
+    mech3::net_dialog_close();
+    mech3::NetEditor* e = mech3::net_editor();
+    opened = e && e->net && e->net->header.net == 1 && mech3::editor_state().mode == 1;
+    if (!opened) return true;
+    if (mech3::ai::NetNode* n = e->net->node(0)) node[0] = n->pos()[0], node[1] = n->pos()[1], node[2] = n->pos()[2];
+    mech3::net_editor_goto(0);
+    mech3::VehicleSummary v;
+    if (mech3::describe_vehicle(mech3::program_stealth(), &v)) {
+      at[0] = v.pos[0], at[1] = v.pos[1], at[2] = v.pos[2];
+      placed = std::hypot(at[0] - node[0], at[2] - node[2]) < 0.5f;
+    }
+    mech3::net_editor_save(0);
+    status = mech3::editor_panel().rows[24]->text;
+    mech3::net_editor_exit(0);
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
+  const auto bytes = [](const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  saved = std::filesystem::exists(out);
+  same = saved && bytes(out) == bytes(std::filesystem::path(MW3_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd");
+  for (const std::string& m : mech3::mods_enabled(write_dir)) on = on || m == "editor edits";
+  std::printf("  listed %d, opened %d, the stealth at %.1f %.1f %.1f for node_00 %.1f %.1f %.1f (%d); saved %d, the same "
+              "bytes %d, on %d; the panel: \"%s\"\n", listed, opened, at[0], at[1], at[2], node[0], node[1], node[2], placed,
+              saved, same, on, status.c_str());
+  EXPECT(listed && opened && placed);
+  EXPECT(saved && same && on);
+  EXPECT(status.find("editor edits") != std::string::npos && status.find("next start") != std::string::npos);
+  EXPECT(std::filesystem::exists(out.parent_path().parent_path().parent_path() / "mw3-editor.txt"));
 }
