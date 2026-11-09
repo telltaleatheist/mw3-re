@@ -229,6 +229,12 @@ the fixes off: every loop over `weapon_count()` reads it through
 stock list shows only what the stock holds; `reset_ready_times`). Test:
 `mods_weapon_rows_after_the_ppcs_place`.
 
+Instant Action keeps its chosen commander, allies and enemies by their place
+in its lists (the original's setup), so adding or reordering mods' mechs can
+move those saved picks to other mechs. A mod's mech whose definition fails
+to load after the mount's check (a broken one) leaves the lab empty for it
+and says so once in the log (`mw3: mech <name>: dfn_<name>.zrd did not load`).
+
 **Fixed sizes (audit, 2026-11-08).** No array or table outside
 `mech_names.cpp` is sized by the mech or weapon count: the weapon tables
 there are read only below `kBuiltinWeapons` (a row's own fields otherwise),

@@ -1,6 +1,7 @@
 #include "mech3/mech_reader.h"
 
 #include <cmath>
+#include <cstdio>
 #include <vector>
 
 #include "crt/msvc_math.h"
@@ -354,6 +355,13 @@ MechDfn* mech_dfn(int32_t mech) {
   if (mech < 0 || mech >= mech_count() || mech == kNoMech) return nullptr;
   if (g_dfns.size() < static_cast<size_t>(mech_count())) g_dfns.resize(mech_count());
   if (!g_dfns[mech]) g_dfns[mech] = load_dfn(mech);
+  // Ours: a mod's mech whose definition does not load (broken, its files
+  // found at the mount) is said once, so its modder sees why the lab is empty.
+  static std::vector<bool> said;
+  if (!g_dfns[mech] && mech >= kFirstModMech) {
+    if (said.size() <= static_cast<size_t>(mech)) said.resize(mech + 1);
+    if (!said[mech]) std::printf("mw3: mech %s: dfn_%s.zrd did not load\n", mech_name(mech), mech_name(mech)), said[mech] = true;
+  }
   return g_dfns[mech];
 }
 
