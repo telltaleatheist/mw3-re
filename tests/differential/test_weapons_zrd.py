@@ -644,6 +644,25 @@ def surface_marks(emu):
     return k
 
 
+def mod_weapon_appended(emu, tree, crater):
+    """Both ways (docs/modding.md, New mechs and weapons): a mod's weapon= row ships its definition in weapons.zrd,
+    which the original reads too. ERPPC copied as ERPPC_B at the end of BALLISTICS, as the mod row's test does: the
+    original reads 50 defs with no error, the port the same, and the original's mech lab view of its own 37
+    weapons is the shipped file's."""
+    import copy
+    errors = lambda ev: sum(1 for e in ev if e and e[0] == 15)
+    rc, _, ev = compare(emu, ser(tree), crater, 1, 1, 'weapons.zrd, for the lab view')
+    shipped_lab, shipped_errors = [emu.lab(w) for w in range(37)], errors(ev)
+    t = copy.deepcopy(tree)
+    top = t[0]
+    bal = top[kv(top)['BALLISTICS'] + 1]
+    bal += ['ERPPC_B', copy.deepcopy(bal[kv(bal)['ERPPC'] + 1])]
+    rc, nd, ev = compare(emu, ser(t), crater, 1, 1, "weapons.zrd with a mod's ERPPC_B appended")
+    assert rc == 0 and nd == 50 and errors(ev) == shipped_errors, (rc, nd, errors(ev), shipped_errors)
+    assert [emu.lab(w) for w in range(37)] == shipped_lab
+    return nd
+
+
 def main():
     emu = Emulated()
     rng = random.Random(1999)
@@ -655,6 +674,7 @@ def main():
     assert rc == 0 and ndefs == 49, (rc, ndefs)
     real_calls = len(ev)
     compare(emu, real, crater, 0, 0, 'weapons.zrd, software, no tick')
+    appended = mod_weapon_appended(emu, tree, crater)
     # As in a mission: the script's `LoadSoils soils.zrd` has run before the
     # weapons are read, so there is an impact block per soil (the pock marks).
     loaded, soil_cases = soils_check(emu, rng)
@@ -675,7 +695,8 @@ def main():
     missing = sorted(COVER[a] for a in set(COVER) - emu.reached)
     if missing:
         raise SystemExit(f'coverage: never reached {missing}')
-    print(f'ok: LoadSoils on {soil_cases} files; weapons.zrd (49 defs, {real_calls} calls), with the mission '
+    print(f'ok: LoadSoils on {soil_cases} files; weapons.zrd (49 defs, {real_calls} calls; with a mod weapon appended, '
+          f'{appended} defs, no error, the lab view of the 37 unchanged), with the mission '
           f'soils ({marks} weapons with a dirt, mud or snow mark), and {variants} variants ({defs} defs, {calls} calls, '
           f'{fails} rejected) agree byte for byte, with the mech lab view of all 37 weapons; '
           f'all {len(COVER)} paths reached')

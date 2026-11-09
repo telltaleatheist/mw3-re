@@ -201,6 +201,36 @@ is 38 and the rows once there are rows; 37 itself then still reads as no
 weapon with the fixes off). A name taken (the PPC's too) is refused. The
 rows are gameplay data in the hash as the mechs' are (name, ammo, tech).
 
+**Both ways (Owen, 2026-11-09).** Mods must load in ours as they are, and a
+mod made for ours must not break the original where it ships files the
+original reads too. A mech or weapon row adds only entries the original never
+asks for, read by name into tables sized from the data:
+
+- **weapons.zrd** (a weapon row's definition): zWeapon's reader 0x583880
+  counts BALLISTICS' pairs, `(items - 1) / 2`, and allocates that many
+  definitions, `calloc(1, count * 500)`, each read from the file; the game
+  finds a definition by name (0x581ed0) for the 37 weapons it knows. An extra
+  entry is read into its own slot and never asked for. Run on the original
+  (`test_weapons_zrd.py`, `mod_weapon_appended`): the shipped file with ERPPC
+  copied as ERPPC_B at the end of BALLISTICS reads 50 definitions with no
+  error, the port byte for byte the same, and the original's mech lab view of
+  its 37 weapons unchanged. (Put a new weapon at the end: a definition's
+  index, +0x10, is its place in the list.)
+- **reader.zbd's dfn_<name>.zrd** (a mech row's definition): the archive's
+  table is read whole whatever its count (0x5767b0, grown by 0x576690's
+  `realloc(count * 0x94)`), and the mech
+  reader 0x46ba40 opens `dfn_<name>.zrd` only for the 19 names of its own
+  table (0x5e6078). An extra entry is never opened.
+- **mechlib.zbd's mech_<model>.flt and motion.zbd's motions**: models and
+  motions are opened by name (0x4fc8f0, 0x5a9ad0); mechlib's materials table
+  is sized from its own count (0x4fc9e0, `operator new(count * 4)`), so a
+  mod's mechlib with more materials reads in the original as in ours.
+- **configs\<name>.mw3**: only read for a mech the original lists.
+
+So nothing a row adds can overflow or break the original, and no separate
+file is needed. Files only ours reads (mod.txt, strings.txt, campaign files,
+mech3ax JSON beside an archive) the original never opens.
+
 Equipment has no rows: each of the 15 kinds (AMS, jump jets, ECM, the heat
 sinks...) is code as well as a name (its weight and slots by kind,
 `equip_weight`, `equip_slots`, and what the mech does with it), so a new
