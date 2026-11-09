@@ -204,6 +204,101 @@ bool parse(const std::string& text, Value* out, std::string* why) {
   return ok;
 }
 
+struct Pull::State {
+  Parser p;
+  std::vector<bool> fresh;  // per open object or list: no member or item taken yet
+  std::vector<int> index;   // per open list: the item's index
+};
+
+Pull::Pull(const std::string& text) : s_(new State{Parser{text, 0, 1, 0, {}, {}}, {}, {}}) {}
+Pull::~Pull() { delete s_; }
+
+bool Pull::begin_object() {
+  Parser& p = s_->p;
+  p.space();
+  if (p.at >= p.t.size() || p.t[p.at] != '{') return p.fail("not an object ({..})");
+  ++p.at;
+  s_->fresh.push_back(true), p.path.push_back("");
+  return true;
+}
+
+bool Pull::member(std::string* key) {
+  Parser& p = s_->p;
+  p.space();
+  if (p.at >= p.t.size()) return p.fail("a '{' never closed");
+  if (p.t[p.at] == '}') {
+    ++p.at;
+    s_->fresh.pop_back(), p.path.pop_back();
+    return false;
+  }
+  if (!s_->fresh.back()) {
+    if (p.t[p.at] != ',') return p.fail(std::string("'") + p.t[p.at] + "' where a ',' or '}' should be");
+    ++p.at;
+    p.space();
+  }
+  s_->fresh.back() = false;
+  if (p.at >= p.t.size() || p.t[p.at] != '"') return p.fail("where a member's name should be");
+  key->clear();
+  if (!p.string(key)) return false;
+  p.space();
+  if (p.at >= p.t.size() || p.t[p.at] != ':') return p.fail("no ':' after the name \"" + *key + "\"");
+  ++p.at;
+  p.path.back() = "." + *key;
+  return true;
+}
+
+bool Pull::begin_list() {
+  Parser& p = s_->p;
+  p.space();
+  if (p.at >= p.t.size() || p.t[p.at] != '[') return p.fail("not a list ([..])");
+  ++p.at;
+  s_->fresh.push_back(true), s_->index.push_back(-1), p.path.push_back("");
+  return true;
+}
+
+bool Pull::item() {
+  Parser& p = s_->p;
+  p.space();
+  if (p.at >= p.t.size()) return p.fail("a '[' never closed");
+  if (p.t[p.at] == ']') {
+    ++p.at;
+    s_->fresh.pop_back(), s_->index.pop_back(), p.path.pop_back();
+    return false;
+  }
+  if (!s_->fresh.back()) {
+    if (p.t[p.at] != ',') return p.fail(std::string("'") + p.t[p.at] + "' where a ',' or ']' should be");
+    ++p.at;
+  }
+  s_->fresh.back() = false;
+  p.path.back() = "[" + std::to_string(++s_->index.back()) + "]";
+  return true;
+}
+
+bool Pull::value(Value* out) {
+  *out = Value{};
+  return s_->p.value(out);
+}
+
+bool Pull::skip() {
+  Value v;
+  return s_->p.value(&v);
+}
+
+bool Pull::end() {
+  Parser& p = s_->p;
+  p.space();
+  return p.at >= p.t.size() || p.fail("more after the document's value");
+}
+
+std::string Pull::path() const {
+  std::string r = "$";
+  for (const std::string& c : s_->p.path) r += c;
+  return r;
+}
+
+bool Pull::fail(const std::string& what) { return s_->p.fail(what); }
+const std::string& Pull::why() const { return s_->p.why; }
+
 bool Reader::fail(const Value& v, const std::string& path, const std::string& what) {
   if (why.empty()) why = "line " + std::to_string(v.line) + " (at " + path + "): " + what;
   return false;

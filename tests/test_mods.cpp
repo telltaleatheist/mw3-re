@@ -22,6 +22,7 @@
 #include "gamez/zutil/zutl_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zclass/cls_zbd_json.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
@@ -1384,6 +1385,86 @@ TEST(mods_anim_json_errors_name_the_place) {
   EXPECT(run("{\"mission\": \"MwC9V10\", \"gravity\": -9.8, \"anim_def_names\": [], \"script_names\": [], \"anim_list\": []}", "")
              .find("metadata.json: line 1 (at $.mission): not a MechWarrior 3 world mech3ax knows") != std::string::npos);
   EXPECT(run(meta, "").find("box.json: not there") != std::string::npos);
+}
+
+// Each world's gamez.zbd from unzbd's own JSON (find_unzbd): the shipped file's bytes. While the models and nodes are
+// not read, the header's known fields and the texture directory and materials are compared.
+TEST(mods_gamez_json_is_every_worlds_file) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/gamez.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  int worlds = 0, same = 0;
+  for (const char* w : {"c1", "c2", "c3", "c4", "c4b", "t1"}) {
+    const std::string zbd = install + "/zbd/" + w + "/gamez.zbd";
+    if (!fs::exists(zbd, ec)) continue;
+    ++worlds;
+    std::map<std::string, std::string> exported;
+    EXPECT(unzbd_export(unzbd, "gamez", zbd, &exported));
+    std::ifstream in(zbd, std::ios::binary);
+    const std::vector<uint8_t> shipped((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::vector<uint8_t> ours;
+    std::string why;
+    const bool ok = zcls::gamez_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &why);
+    std::vector<uint8_t> a = ours, b = shipped;
+    if (!ok) {
+      b.resize(std::min(b.size(), a.size()));
+      for (size_t k : {20, 32})  // the offsets past what is read
+        for (size_t c = 0; c < 4 && k + c < a.size(); ++c) a[k + c] = b[k + c] = 0;
+    }
+    size_t at = 0;
+    while (at < a.size() && at < b.size() && a[at] == b[at]) ++at;
+    const bool equal = a.size() == b.size() && at == a.size();
+    same += ok && equal;
+    std::printf("  %s: %zu bytes vs %zu, %s%s%s\n", w, ours.size(), shipped.size(),
+                equal ? (ok ? "the same" : "the same so far") : ("first difference at " + std::to_string(at)).c_str(), ok ? "" : "; ", ok ? "" : why.c_str());
+    EXPECT(equal);
+  }
+  EXPECT(worlds == 6);
+}
+
+// The pull reader for files too big for one tree (gamez's models.json): members and items stepped through, an item
+// read whole as a small tree, its path kept; its errors name the line and place as the tree reader's do.
+TEST(mods_json_pull_walks_and_names_the_place) {
+  const std::string doc = "{\"skip\": [1, {\"a\": 2}], \"models\": [\n {\"n\": 1},\n {\"n\": 2},\n {\"n\": 3}\n]}";
+  zutl_json::Pull p(doc);
+  std::string key;
+  std::vector<std::string> seen;
+  int sum = 0;
+  EXPECT(p.begin_object());
+  while (p.member(&key)) {
+    if (key != "models") {
+      EXPECT(p.skip());
+      continue;
+    }
+    EXPECT(p.begin_list());
+    while (p.item()) {
+      zutl_json::Value v;
+      EXPECT(p.value(&v));
+      seen.push_back(p.path() + "@" + std::to_string(v.line));
+      sum += std::atoi(v.get("n")->text.c_str());
+    }
+  }
+  EXPECT(p.why().empty() && p.end());
+  EXPECT(sum == 6 && seen.size() == 3 && seen[0] == "$.models[0]@2" && seen[2] == "$.models[2]@4");
+  const std::pair<std::string, const char*> bad[] = {
+      {"{\"models\": [{\"n\": 1}\n {\"n\": 2}]}", "line 2 (at $.models[0]): '{' where a ',' or ']' should be"},
+      {"{\"models\": [{\"n\": 1},\n {\"n\": }]}", "line 2 (at $.models[1].n): '}' where a value should be"},
+      {"{\"models\" [1]}", "line 1 (at $): no ':' after the name \"models\""},
+      {"{\"models\": [1,", "line 1 (at $.models[1]): the file ends where a value should be"},
+  };
+  for (const auto& [text, want] : bad) {
+    zutl_json::Pull q(text);
+    bool ok = q.begin_object();
+    while (ok && q.member(&key)) {
+      if (!(ok = q.begin_list())) break;
+      zutl_json::Value v;
+      while (ok && q.item()) ok = q.value(&v);
+    }
+    std::printf("  -> %s\n", q.why().c_str());
+    EXPECT(q.why().find(want) != std::string::npos);
+  }
 }
 
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
