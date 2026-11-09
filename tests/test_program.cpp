@@ -21334,6 +21334,31 @@ TEST(mission_c1m1_splash_survives_a_full_query_headless) {
   EXPECT(burst);
 }
 
+// A mod's splash on a weapon that has none (a player's mod gave autocannons IMPACT_PROXIMITY in the hundreds of
+// metres): a copy of AC5 with 200, hit where a 200 m query fills zClass's 32. The splash damages what the list
+// holds, at most 32, as the exe's loop over its 32-record buffer; no read past it.
+TEST(mission_c1m1_modded_splash_stays_within_the_list_headless) {
+  if (!have_game()) return;
+  int32_t counted = -1, listed = -1, damaged = -1, tried = 0;
+  bool made = false;
+  cheat_mission("splash_mod_write", 0, 1, 200, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    float at[3], points[32][3];
+    mech3::mech_world_position(mech3::mission_player_mech(), at);
+    const int32_t n = mech3::weapons_query_points(at, 2000.0f, points);
+    for (int32_t i = -1; i < n && counted < 32; ++i, ++tried) {  // the player's spot, then each one found around
+      const float* p = i < 0 ? at : points[i];
+      made = mech3::weapons_splash_copy("AC5", 200.0f, p, &counted, &listed, &damaged);
+    }
+    return true;
+  });
+  std::printf("  AC5 with a 200 m splash, %d spots tried: the query counted %d, %d listed, %d damaged\n", tried, counted,
+              listed, damaged);
+  EXPECT(made);
+  EXPECT(counted == 32 && listed == 32);
+  EXPECT(damaged >= 1 && damaged <= 32);
+}
+
 // pm-tests item 25 (Owen, in MW3): in c1m2, locked on an enemy mech (A), E to the next enemy (B, one of the
 // mission's vehicles), an LRM volley at once without aiming at B. The target change resets the reticle
 // (0x0041d890 -> 0x00441780 -> 0x00443cc0), so the volley is not locked (0x004b3330 reads the weapons' +0x88, which the reticle's update clears): its missiles carry
