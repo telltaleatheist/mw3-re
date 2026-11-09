@@ -1467,6 +1467,104 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Ours (modding.md, ADD MOD): the MODS screen's ADD FOLDER through the
+// platform's hooks as the program sets them: a picked folder added, listed
+// and on for the next start, said under MODS; one whose game its files do
+// not tell asks, and cancelled is not added; MODS FOLDER asks for mods\.
+TEST(mods_screen_add_mod_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_add_write"), src = temp_dir("mods_screen_add_src");
+  zutl::set_write_dir(wd);
+  std::filesystem::create_directories(src + "/Desert Pack/zbd/t1");
+  std::ofstream(src + "/Desert Pack/zbd/t1/notes.txt") << "sand";
+  std::filesystem::create_directories(src + "/Plain");
+  std::ofstream(src + "/Plain/notes.txt") << "which game?";
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_mounted() = {};
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  std::vector<std::string> picks = {src + "/Desert Pack", src + "/Plain"};
+  int asked = 0, picked_folder = 0;
+  std::string opened;
+  mech3::ModsMenuPlatform& mp = mech3::mods_menu_platform();
+  const mech3::ModsMenuPlatform saved = mp;
+  mp.pick = [&](bool folder) {
+    picked_folder += folder;
+    mech3::mods_menu_picked(picks.empty() ? "" : picks.front());
+    if (!picks.empty()) picks.erase(picks.begin());
+  };
+  mp.ask_game = [&](const std::string&) { return ++asked, 0; };  // cancelled
+  mp.open_folder = [&](const std::string& dir) { return opened = dir, true; };
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0, wait = 0;
+    std::string first_note, second_note, rows;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (!scr) return;
+      if (stage == 1) {
+        scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 2, wait = 0;
+      } else if (stage == 2 && ++wait == 3) {  // taken on the screen's update
+        first_note = std::string(scr->note.text) + " " + scr->restart.text;
+        for (const mech3::ModsListEntry& m : scr->tables.mods) rows += mech3::mods_row_text(m) + "|";
+        scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 3, wait = 0;
+      } else if (stage == 3 && ++wait == 3) {
+        second_note = std::string(scr->note.text) + " " + scr->restart.text;
+        scr->on_button(mech3::ModsScreen::kOpenFolder, 0, 0);
+        stage = 4;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 2000;
+    pump.stop = [&] { return stage == 4; };
+    app.run(pump);
+    std::printf("  rows: %s\n  first: %s\n  second: %s (asked %d)\n  opened: %s\n", rows.c_str(), first_note.c_str(), second_note.c_str(),
+                asked, opened.c_str());
+    EXPECT(stage == 4 && picked_folder == 2);
+    EXPECT(rows == "[x] Desert Pack|" && first_note.find("Added Desert Pack: on from the next start.") == 0);
+    EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"Desert Pack"}));
+    EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));
+    EXPECT(asked == 1 && second_note.find("Not added: no game chosen for Plain.") == 0 && !std::filesystem::exists(wd + "/mods/Plain"));
+    EXPECT(std::filesystem::equivalent(opened, wd + "/mods"));
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mp = saved;
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // A mod campaign through the same screens (custom-campaigns.md, step 3):
 // its two lines, c1 4 then c2 1, as places 1 and 2 of its list. The first
 // line's movie_start= before its briefing (not "campaign": not Op 1 Mission
