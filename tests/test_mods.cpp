@@ -1,6 +1,7 @@
 // Mods (mech3/mods, docs/modding.md): mod.txt, the folders found, the mounts
 // in mw3.cfg's order, the player's own files never served from a mod, a
 // mod's loose .zrd over its archive's entry, nothing changed without mods.
+#include <algorithm>
 #include <filesystem>
 #include <cstdint>
 #include <cstring>
@@ -16,6 +17,7 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "gamez/zutil/zutl_zip.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
@@ -791,6 +793,191 @@ TEST(mods_broken_reader_entries_are_refused) {
   zrdr::close_archives(true);
 }
 
+namespace {
+// Two trees the same node for node: types, ints, float bits, strings, list lengths.
+bool same_tree(const zrdr::Node& a, const zrdr::Node& b, std::string* where, const std::string& at = "$") {
+  if (a.type != b.type) return *where = at + ": type", false;
+  switch (a.type) {
+    case zrdr::Int: if (a.i != b.i) return *where = at + ": int", false; return true;
+    case zrdr::Float: if (std::memcmp(&a.f, &b.f, 4) != 0) return *where = at + ": float", false; return true;
+    case zrdr::String: if (std::strcmp(a.s, b.s) != 0) return *where = at + ": string", false; return true;
+    case zrdr::List: {
+      if (zrdr::list_count(&a) != zrdr::list_count(&b)) return *where = at + ": length", false;
+      for (int32_t i = 1; i < zrdr::list_count(&a); ++i)
+        if (!same_tree(a.list[i], b.list[i], where, at + "[" + std::to_string(i - 1) + "]")) return false;
+      return true;
+    }
+    default: return *where = at + ": unknown type", false;
+  }
+}
+}  // namespace
+
+// Every reader entry the install ships, written as mech3ax's JSON (to_json) and read back (parse_json): the
+// same tree, every float to the bit (docs/modding.md, Readable files). MW3_UNZBD_JSON: a folder of unzbd's own
+// `<entry>.zrd.json` for one archive (MW3_UNZBD_ARCHIVE, under zbd/), each read and checked against the entry too.
+TEST(mods_reader_json_round_trips_every_shipped_entry) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  int entries = 0, archives = 0, floats = 0, unzbd = 0;
+  std::string first_bad;
+  for (const auto& f : fs::recursive_directory_iterator(install + "/zbd", ec)) {
+    const std::string name = f.path().filename().string();
+    if (name.rfind("reader", 0) != 0 || f.path().extension() != ".zbd") continue;
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    if (!zutl_zar::open(a, f.path().string().c_str())) continue;
+    ++archives;
+    const char* want = std::getenv("MW3_UNZBD_ARCHIVE");
+    const bool against = want && std::getenv("MW3_UNZBD_JSON") && fs::path(f.path()).lexically_relative(install + "/zbd").generic_string() == want;
+    for (int i = 0; i < a.count; ++i) {
+      uint32_t length = 0;
+      std::FILE* file = zutl_zar::seek(a, i, &length);
+      if (!file) continue;
+      zrdr::Node root{};
+      zrdr::read_node(file, &root);
+      std::string json, why, where;
+      zrdr::Node* back = zrdr::to_json(root, &json) ? zrdr::parse_json(json, &why) : nullptr;
+      const bool same = back && same_tree(root, *back, &where);
+      if (!same && first_bad.empty()) first_bad = name + "/" + a.entries[i].name + ": " + (back ? where : why);
+      floats += static_cast<int>(std::count(json.begin(), json.end(), '.'));
+      ++entries;
+      if (back) zrdr::free_node(back);
+      if (against) {
+        std::ifstream in(std::string(std::getenv("MW3_UNZBD_JSON")) + "/" + a.entries[i].name + ".json");
+        std::stringstream text;
+        text << in.rdbuf();
+        zrdr::Node* theirs = zrdr::parse_json(text.str(), &why);
+        const bool ok = theirs && same_tree(root, *theirs, &where);
+        if (!ok && first_bad.empty()) first_bad = std::string("unzbd ") + a.entries[i].name + ": " + (theirs ? where : why);
+        unzbd += ok;
+        if (theirs) zrdr::free_node(theirs);
+      }
+      zrdr::free_contents(&root);
+    }
+    zutl_zar::destroy(a);
+  }
+  std::printf("  %d archives, %d entries, about %d floats%s; first difference: %s\n", archives, entries, floats,
+              unzbd ? (", " + std::to_string(unzbd) + " of unzbd's own the same").c_str() : "", first_bad.empty() ? "none" : first_bad.c_str());
+  EXPECT(archives > 0 && entries > 100);
+  EXPECT(first_bad.empty());
+}
+
+// What the reader's JSON refuses, each with its line and the JSON path of the value (docs/modding.md).
+TEST(mods_reader_json_errors_name_the_line_and_place) {
+  const std::pair<const char*, const char*> cases[] = {
+      {"[1, [2, {}]]", "line 1 (at $[1][1]): an object"},
+      {"[1,\n [2,\n  true]]", "line 3 (at $[1][1]): true or false"},
+      {"[2147483648]", "line 1 (at $[0]): 2147483648: past the game's 32-bit integers"},
+      {"[-2147483649]", "line 1 (at $[0]): -2147483649: past the game's 32-bit integers"},
+      {"[1e39]", "line 1 (at $[0]): 1e39: past a float's range"},
+      {"[1,\n2", "line 2 (at $): a '[' never closed"},
+      {"[1 2]", "line 1 (at $): '2' where a ',' or ']' should be"},
+      {"[\"a\nb\"]", "line 1 (at $[0]): a string never closed on its line"},
+      {"[\"\\u4e2d\"]", "line 1 (at $[0]): a character the game's text (Windows-1252) cannot hold"},
+      {"\"text\"", "line 1 (at $): the entry is not a list"},
+      {"[1] [2]", "line 1 (at $): more after the entry's list"},
+      {"[1.]", "line 1 (at $[0]): a '.' with no digits after it"},
+  };
+  for (const auto& [text, want] : cases) {
+    std::string why;
+    zrdr::Node* n = zrdr::parse_json(text, &why);
+    std::printf("  %-22s -> %s\n", std::string(text).substr(0, 22).c_str(), why.c_str());
+    EXPECT(n == nullptr);
+    EXPECT(why.rfind(want, 0) == 0);
+    if (n) zrdr::free_node(n);
+  }
+  std::string deep;
+  for (int i = 0; i < 65; ++i) deep += "[";
+  std::string why;
+  EXPECT(zrdr::parse_json(deep, &why) == nullptr && why.find("lists nested past 64 deep") != std::string::npos);
+  // What reads: null an empty list, '.' or an exponent a float, else an int; Windows-1252 text kept.
+  zrdr::Node* n = zrdr::parse_json("[null, 1, 1.0, 2e0, -0.5, \"caf\\u00e9\", [\"KEY\", [3]]]", &why);
+  EXPECT(n && zrdr::list_count(n) == 8);
+  if (n) {
+    EXPECT(n->list[1].type == zrdr::List && zrdr::list_count(&n->list[1]) == 1);
+    EXPECT(n->list[2].type == zrdr::Int && n->list[2].i == 1);
+    EXPECT(n->list[3].type == zrdr::Float && n->list[3].f == 1.0f && n->list[4].type == zrdr::Float && n->list[4].f == 2.0f);
+    EXPECT(n->list[5].type == zrdr::Float && n->list[5].f == -0.5f);
+    EXPECT(n->list[6].type == zrdr::String && std::string(n->list[6].s) == "caf\xe9");
+    int32_t v = 0;
+    EXPECT(zrdr::get_int(n, "KEY", &v) && v == 3);
+    zrdr::free_node(n);
+  }
+}
+
+namespace {
+// A zip of stored (uncompressed) files, as a modder's tool may write one.
+void write_stored_zip(const std::string& path, const std::vector<std::pair<std::string, std::string>>& files) {
+  std::string out, dir;
+  auto le = [](std::string& b, uint32_t v, int n) {
+    for (int i = 0; i < n; ++i) b.push_back(static_cast<char>(v >> (8 * i)));
+  };
+  for (const auto& [name, data] : files) {
+    const uint32_t crc = zutl_zip::zip_crc(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+    const uint32_t at = static_cast<uint32_t>(out.size()), n = static_cast<uint32_t>(data.size());
+    le(out, 0x04034b50, 4), le(out, 20, 2), le(out, 0, 2), le(out, 0, 2), le(out, 0, 4), le(out, crc, 4), le(out, n, 4), le(out, n, 4);
+    le(out, static_cast<uint32_t>(name.size()), 2), le(out, 0, 2), out += name, out += data;
+    le(dir, 0x02014b50, 4), le(dir, 20, 2), le(dir, 20, 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 4), le(dir, crc, 4), le(dir, n, 4);
+    le(dir, n, 4), le(dir, static_cast<uint32_t>(name.size()), 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 2), le(dir, 0, 4);
+    le(dir, at, 4), dir += name;
+  }
+  const uint32_t start = static_cast<uint32_t>(out.size());
+  out += dir;
+  le(out, 0x06054b50, 4), le(out, 0, 2), le(out, 0, 2), le(out, static_cast<uint32_t>(files.size()), 2), le(out, static_cast<uint32_t>(files.size()), 2);
+  le(out, static_cast<uint32_t>(dir.size()), 4), le(out, start, 4), le(out, 0, 2);
+  put(path, out);
+}
+}  // namespace
+
+// A mod's entry as mech3ax's JSON (docs/modding.md, Readable files): a loose .zrd first, then the JSON in a folder
+// named as the archive (zbd/reader/fmv.zrd.json), then the archive's zip of them (zbd/reader.zip), then the archive's
+// own entry. A JSON that does not read is refused, the archive's entry read instead; through the same load hook.
+TEST(mods_reader_json_entry_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const std::string wd = tmp("mods_json");
+  const std::string mod = wd + "/mods/jsonmod";
+  put(mod + "/mod.txt", "name=JSON\n");
+  put(wd + "/mods/later/mod.txt", "name=Later\n");  // after it: never asked while the first mod has a copy, even a broken one
+  put(wd + "/mods/later/zbd/reader/fmv.zrd.json", "[\"MODDED\", \"later\"]");
+  static int hooked = 0;
+  hooked = 0;
+  auto marked = [&]() -> std::string {
+    zrdr::init();
+    zrdr::set_load_hook([](const char*, const char* entry, zrdr::Node*) { hooked += std::strcmp(entry, "fmv.zrd") == 0; });
+    EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));
+    zrdr::Node* n = zrdr::load("fmv.zrd");
+    const char* from = n ? zrdr::get_string(n, "MODDED") : nullptr;
+    const std::string r = from ? from : n && zrdr::find(n, "INTRO") ? "archive" : "none";
+    if (n) zrdr::free_node(n);
+    zrdr::set_load_hook(nullptr);
+    zrdr::close_archives(true);
+    return r;
+  };
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"jsonmod", "later"}, {install});
+  zutl::mount(install);
+  write_stored_zip(mod + "/zbd/reader.zip", {{"other.zrd.json", "[\"MODDED\", \"other\"]"}, {"FMV.ZRD.JSON", "[\"MODDED\", \"zip\"]"}});
+  EXPECT(marked() == "zip");  // the name matched as the archive's are, any case
+  put(mod + "/zbd/reader/fmv.zrd.json", "[\"MODDED\", \"folder\"]");
+  EXPECT(marked() == "folder");
+  put(mod + "/zbd/fmv.zrd", "(MODDED \"loose\")\n");
+  EXPECT(marked() == "loose");
+  fs::remove(mod + "/zbd/fmv.zrd", ec);
+  put(mod + "/zbd/reader/fmv.zrd.json", "[\"MODDED\",\n {\"no\": 1}]");
+  EXPECT(marked() == "archive");  // refused: the archive's entry
+  fs::remove(mod + "/zbd/reader/fmv.zrd.json", ec);
+  write_stored_zip(mod + "/zbd/reader.zip", {{"other.zrd.json", "[]"}});
+  EXPECT(marked() == "later");  // the zip without it: the next mod's
+  put(mod + "/zbd/reader.zip", "not a zip");
+  EXPECT(marked() == "archive");  // refused, as a broken copy is
+  EXPECT(hooked == 6);  // every tree read, the mod's and the archive's, through the hook
+}
+
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
 // holds: none is a zar archive, and each once came back refused as one.
 TEST(mods_check_mod_reads_animations_at_any_depth) {
@@ -825,6 +1012,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(good + "/mod.txt", "name=Good\nversion=1\nia_world=c1 Again\n");
   put(good + "/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
   put(good + "/strings.txt", "100=Hello\n");
+  put(good + "/zbd/reader/fmv.zrd.json", "[\"INTRO\", [\"PLAYAVI\", \"intro\"]]");
+  write_stored_zip(good + "/zbd/reader.zip", {{"fmv.zrd.json", "[\"INTRO\", [\"PLAYAVI\", \"intro\"]]"}, {"notes.txt", "x"}});
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec)) {
     fs::create_directories(good + "/zbd/c1", ec);
     fs::copy_file(install + "/zbd/c1/readerm1.zbd", good + "/zbd/c1/readerm1.zbd", ec);
@@ -834,6 +1023,7 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   for (const std::string& l : mech3::mod_check(good, install, &errors)) text += l + "\n";
   std::printf("%s", text.c_str());
   EXPECT(errors == 0 && text.find("mod.txt: Good 1") != std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos);
+  EXPECT(text.find("zbd/reader/fmv.zrd.json: added") != std::string::npos && text.find("zbd/reader.zip: added") != std::string::npos);
   if (fs::exists(install + "/zbd/c1/readerm1.zbd", ec))
     EXPECT(text.find("zbd/c1/readerm1.zbd: replaces the game's") != std::string::npos && text.find("0 errors") != std::string::npos);
   // Bad: no name, a world without files, an unknown Instant Action world, a
@@ -843,6 +1033,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   put(bad + "/zbd/rimage.zbd", "not an archive at all");
   put(bad + "/zbd/broken.zrd", "(UNCLOSED\n");
   put(bad + "/pilots/x.pil", "x");
+  put(bad + "/zbd/reader/fmv.zrd.json", "[\"INTRO\",\n [\"PLAYAVI\", true]]");
+  write_stored_zip(bad + "/zbd/reader.zip", {{"fmv.zrd.json", "[1"}});
+  put(bad + "/zbd/c1/readerm1.zip", "not a zip");
   {
     std::vector<uint8_t> huge = {4, 0, 0, 0, 0, 0xca, 0x9a, 0x3b};  // a list of a billion
     zutl_zar::Archive a;
@@ -872,7 +1065,10 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   text.clear();
   for (const std::string& l : mech3::mod_check(bad, install, &errors)) text += l + "\n";
   std::printf("%s", text.c_str());
-  EXPECT(errors == 8 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(text.find("error: zbd/reader/fmv.zrd.json: line 2 (at $[1][1]): true or false") != std::string::npos &&
+         text.find("error: zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '[' never closed") != std::string::npos &&
+         text.find("error: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
+  EXPECT(errors == 11 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
