@@ -114,6 +114,9 @@ The format and the pilots' folder stand, with three additions:
 The file as built is in modding.md, Custom campaigns (the shape above with
 `-` for a default briefing, and no comments after a value).
 
+Built: step 1 the file (modding.md, Custom campaigns), step 2 the game
+type and its pilots (the same section).
+
 ## Next, after the review
 
 The parser and its checks (mod.txt's `campaign=`, `--check-mod`), the

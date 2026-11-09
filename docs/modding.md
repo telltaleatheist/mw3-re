@@ -343,8 +343,38 @@ movie_end=c4win
   marker (custom-campaigns.md).
 
 Tests: `mods_campaign_file`, `mods_campaigns_mounted`,
-`mods_check_mod_reads_campaigns`. Next: the campaign game type and its
-pilots, the advance over the list, the MODS screen's CUSTOM CAMPAIGNS table.
+`mods_check_mod_reads_campaigns`.
+
+Step 2 (2026-11-10), the game and its pilots (`mod_campaign.cpp`,
+`ModCampaignGame` in `pilot.h`):
+
+- Entering a campaign (`campaign_enter`, for the MODS screen to call) lets
+  the original's pilots go (saved first), makes the campaign's folder in the
+  write dir with our marker `mw3-campaign.txt`, and lists only the pilots
+  there; leaving (`campaign_leave`) brings the original's back. A folder of
+  that name holding files the game did not put there is never entered.
+  Everything the pilot module names goes through `pilots_folder()`: the
+  pilot files and their saved games in its `games\`.
+- While entered, every campaign game a pilot makes or reads is a
+  `ModCampaignGame`: the original's campaign game (the kind the original's
+  code and the scripts see is still the campaign's, 1, so every screen
+  between missions is the original's) whose `mission` is its place in the
+  list and `campaign` 1, so its saved games are `<pilot>01<place>.mw3`. The
+  mission sees the line as the original's would (vt+0x48, +0x4c, +0x54,
+  virtual in the exe too): the world's operation (c1..c3 1..3, c4 and c4b 4,
+  any other world 4, the six-mission count the AI's in/out names take), the
+  line's `m<n>`, its folder. Its name is the `op=` heading and the mission's
+  place under it ("Op A, Mission 2"). A saved game's world is restored except
+  at a world's start: the first mission and any whose world differs from the
+  one before (the original's Op N Mission 1 and Op 4 Mission 4).
+- Removing a campaign's pilots (`campaign_pilots_remove`) happens only on
+  the player's yes, never for the campaign entered, and only for a folder
+  holding our marker. The pilot screen's DELETE of one pilot asks as the
+  original does ("Ok to delete pilot?") and removes its files only.
+
+Test: `mod_campaign_pilots_and_games`. Next: the advance over the list (the
+original's walk by operations is still what `next_mission` does), the field
+bases and the movies by line, then the MODS screen's CUSTOM CAMPAIGNS table.
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 

@@ -4,7 +4,12 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
+
+#include "gamez/zutil/zutl_path.h"
+#include "mech3/mission.h"
+#include "mech3/pilot.h"
 
 namespace mech3 {
 
@@ -153,5 +158,118 @@ std::vector<ModCampaign>& mod_campaigns() {
 }
 
 std::string campaign_pilots_dir(const ModCampaign& c) { return "pilots/mods/" + c.mod + "/" + c.id; }
+
+namespace {
+std::unique_ptr<ModCampaign> g_entered;
+
+// The game's pilots folder for it (the original's separators) and its place on disk.
+std::string game_folder(const ModCampaign& c) { return "pilots\\mods\\" + c.mod + "\\" + c.id; }
+fs::path disk_folder(const ModCampaign& c) { return fs::path(zutl::write_path(game_folder(c).c_str())); }
+
+// Every pilot let go, each saved while dirty (its destructor), as a new start finds them.
+void drop_pilots() {
+  current_pilot() = nullptr;
+  for (Pilot* p : pilots()) delete p;
+  pilots().clear();
+}
+}  // namespace
+
+const ModCampaign* entered_campaign() { return g_entered.get(); }
+
+bool campaign_enter(const ModCampaign& c, std::string* why) {
+  const fs::path dir = disk_folder(c);
+  std::error_code ec;
+  if (fs::exists(dir, ec) && !fs::exists(dir / kCampaignMarker, ec) && !fs::is_empty(dir, ec)) {
+    if (why) *why = dir.generic_string() + " holds files the game did not put there";
+    return false;
+  }
+  fs::create_directories(dir / "games", ec);
+  if (!fs::exists(dir / kCampaignMarker, ec)) {
+    std::ofstream(dir / kCampaignMarker) << "The pilots of the campaign \"" << c.name << "\" (mod " << c.mod << ", " << c.file
+                                         << "), made by the game. Deleting this folder deletes them.\n";
+  }
+  if (!fs::exists(dir / kCampaignMarker, ec)) {
+    if (why) *why = "cannot write " + (dir / kCampaignMarker).generic_string();
+    return false;
+  }
+  drop_pilots();
+  g_entered = std::make_unique<ModCampaign>(c);
+  set_pilots_folder(game_folder(c));
+  load_pilots();
+  return true;
+}
+
+void campaign_leave() {
+  drop_pilots();
+  g_entered.reset();
+  set_pilots_folder("pilots");
+  load_pilots();
+}
+
+bool campaign_pilots_remove(const ModCampaign& c, const std::function<bool()>& confirm, std::string* why) {
+  const fs::path dir = disk_folder(c);
+  std::error_code ec;
+  auto refuse = [&](const std::string& w) {
+    if (why) *why = w;
+    return false;
+  };
+  if (g_entered && g_entered->mod == c.mod && lower(g_entered->id) == lower(c.id)) return refuse("the campaign is entered");
+  if (!fs::is_directory(dir, ec)) return refuse("no pilots for it");
+  if (!fs::is_regular_file(dir / kCampaignMarker, ec)) return refuse(dir.generic_string() + " has no " + kCampaignMarker + ": not the game's");
+  if (!confirm || !confirm()) return refuse("not confirmed");
+  fs::remove_all(dir, ec);
+  return !ec || refuse(ec.message());
+}
+
+// ---- the campaign game on the list (pilot.h) ----
+
+CampaignGame* new_campaign_game(Pilot* p, int32_t campaign, int32_t mission) {
+  if (g_entered) return new ModCampaignGame(p, mission);
+  return new CampaignGame(p, campaign, mission);
+}
+CampaignGame* read_campaign_game(Pilot* p) {
+  if (g_entered) return new ModCampaignGame(p);
+  return new CampaignGame(p);
+}
+
+const CampaignMission* ModCampaignGame::entry() const {
+  if (!g_entered || mission < 1 || static_cast<size_t>(mission) > g_entered->missions.size()) return nullptr;
+  return &g_entered->missions[static_cast<size_t>(mission) - 1];
+}
+
+int32_t ModCampaignGame::operation() const {
+  const CampaignMission* e = entry();
+  if (!e) return 0;
+  const std::string w = lower(e->world);
+  return w == "c1" ? 1 : w == "c2" ? 2 : w == "c3" ? 3 : 4;
+}
+
+int32_t ModCampaignGame::mission_number() const {
+  const CampaignMission* e = entry();
+  return e ? e->number : 0;
+}
+
+int32_t ModCampaignGame::world_index() const {
+  const CampaignMission* e = entry();
+  return e ? mission_dir_index(e->world.c_str()) : -1;
+}
+
+const char* ModCampaignGame::name() {
+  const CampaignMission* e = entry();
+  if (!e) return (text = "Mission " + std::to_string(mission)).c_str();
+  int32_t n = 1;
+  for (const CampaignMission* m = e; m != &g_entered->missions.front() && (m - 1)->op == e->op; --m) ++n;
+  text = (e->op.empty() ? "" : e->op + ", ") + "Mission " + std::to_string(n);
+  return text.c_str();
+}
+
+// 0x004352d0's rule on the list: not at a world's start (the original's
+// Op N Mission 1 and Op 4 Mission 4), which is the first mission and any
+// whose world differs from the one before.
+bool ModCampaignGame::restore() {
+  const CampaignMission* e = entry();
+  if (b0 || !e || mission == 1 || lower((e - 1)->world) != lower(e->world) || !readable()) return false;
+  return pilot_hooks().load_world(path(), 2);
+}
 
 }  // namespace mech3

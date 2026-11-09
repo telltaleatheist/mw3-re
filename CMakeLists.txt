@@ -555,6 +555,7 @@ add_executable(mw3tests
   tests/test_movie_shape.cpp
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
+  tests/test_mod_campaign_pilots.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp

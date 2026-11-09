@@ -626,11 +626,11 @@ void CampaignGame::merge_salvage() {
 // settled in place: the slots' mechs and loadouts listed in +0x50 (docs/campaign.md 4).
 CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   PilotHooks& h = pilot_hooks();
-  int32_t m = mission_number(), op = operation();
+  int32_t m = mission, op = campaign;
   const bool over = campaign_advance(op, m);
   if (next_one) {
     if (over) return nullptr;
-    auto* g = new CampaignGame(pilot, op, m);
+    auto* g = new_campaign_game(pilot, op, m);
     g->store.assign(store);
     g->store.add_all(store64);
     std::memcpy(g->b4, b4, sizeof b4);
@@ -708,16 +708,27 @@ void CampaignGame::copy_lancemates(const CampaignGame& from) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00434950
+// Mech3.exe 1.2 @ 0x00434950 (ours: in pilots_folder())
 const char* CampaignGame::path_for(const char* pilot_name) {
   char buf[0x200];
-  std::snprintf(buf, sizeof buf, "pilots//games//%s%02d%02d.mw3", pilot_name, operation(), mission_number());
+  std::snprintf(buf, sizeof buf, "%s//games//%s%02d%02d.mw3", pilots_folder().c_str(), pilot_name, campaign, mission);
   text = buf;
   return text.c_str();
 }
 
 // Mech3.exe 1.2 @ 0x00434980
 const char* CampaignGame::path() { return path_for(pilot->name); }
+
+// Mech3.exe 1.2 @ 0x00435350 (vt+0x54)
+int32_t CampaignGame::world_index() const {
+  switch (operation()) {
+    case 1: return 0;
+    case 2: return 1;
+    case 3: return 2;
+    case 4: return (3 < mission_number()) + 3;
+    default: return -1;
+  }
+}
 
 // Mech3.exe 1.2 @ 0x00435330 (0x00576080: _access)
 bool CampaignGame::readable() { return zutl::exists(path()); }
