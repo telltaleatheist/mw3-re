@@ -44,9 +44,15 @@ struct ModAdd {
 };
 
 // A path inside an archive made safe: '/' separated, relative, no "..",
-// no drive or ':' (alternate streams), no control characters; "." and empty
-// parts dropped. False for anything that would land outside the folder.
+// no drive or ':' (alternate streams), no control characters, every part a
+// name Windows can hold (windows_name_ok); "." and empty parts dropped.
+// False for anything that would land outside the folder or not unpack on
+// Windows (checked on every system: a mod added on the Mac goes to the PC).
 bool mod_entry_path_ok(const std::string& path, std::string* clean);
+bool mod_entry_escapes(const std::string& path);
+// Not a device (CON, PRN, AUX, NUL, COM1-9, LPT1-9, any extension, any
+// case), no trailing dot or space; < > " | ? * are refused by the path check.
+bool windows_name_ok(const std::string& part);
 // A folder name for mods\ from a name: letters, digits, space, '-', '_', '.',
 // '(' and ')' kept, others '_'; trimmed; "mod" when nothing is left.
 std::string mod_folder_name(const std::string& name);

@@ -145,13 +145,16 @@ std::string unpack(const std::string& source, const fs::path& to, const ModAddLi
   source::ArchiveReader r;
   if (!r.open_file(source)) return "cannot read it as an archive" + (r.error().empty() ? "" : ": " + r.error());
   int64_t bytes = 0, count = 0;
+  std::map<std::string, std::string> seen;  // each file's name in lower case, as first given
   std::vector<uint8_t> buf(1 << 16);
   source::ArchiveReader::Entry e;
   std::error_code ec;
   while (r.next(&e)) {
     std::string rel;
     if (e.other) return "it holds a link or special file (" + e.path + "), which a mod cannot have";
-    if (!mod_entry_path_ok(e.path, &rel)) return "it holds a file that would land outside its folder (" + e.path + ")";
+    if (!mod_entry_path_ok(e.path, &rel))
+      return (mod_entry_escapes(e.path) ? "it holds a file that would land outside its folder ("
+                                        : "it holds a name Windows cannot hold (") + e.path + ")";
     if (rel.empty()) continue;
     const fs::path dst = to / fs::path(rel);
     if (e.dir) {
@@ -159,6 +162,8 @@ std::string unpack(const std::string& source, const fs::path& to, const ModAddLi
       continue;
     }
     if (++count > limits.max_files) return "it holds more than " + std::to_string(limits.max_files) + " files";
+    if (const auto [it, fresh] = seen.emplace(lower(rel), rel); !fresh && it->second != rel)
+      return "it holds two files whose names differ only in case (" + it->second + ", " + rel + ")";
     if (e.size > 0 && bytes + e.size > limits.max_bytes)
       return "it unpacks to more than " + size_text(limits.max_bytes);
     fs::create_directories(dst.parent_path(), ec);
@@ -184,6 +189,7 @@ std::string unpack(const std::string& source, const fs::path& to, const ModAddLi
 std::string copy_folder(const fs::path& from, const fs::path& to, const ModAddLimits& limits) {
   std::error_code ec;
   int64_t bytes = 0, count = 0;
+  std::map<std::string, std::string> seen;
   for (fs::recursive_directory_iterator it(from, fs::directory_options::none, ec), end; !ec && it != end; it.increment(ec)) {
     const fs::path rel = fs::relative(it->path(), from, ec);
     if (it->is_symlink(ec)) return "it holds a link (" + rel.generic_string() + "), which a mod cannot have";
@@ -192,6 +198,11 @@ std::string copy_folder(const fs::path& from, const fs::path& to, const ModAddLi
       continue;
     }
     if (!it->is_regular_file(ec)) return "it holds a special file (" + rel.generic_string() + ")";
+    std::string clean;
+    if (!mod_entry_path_ok(rel.generic_string(), &clean))
+      return "it holds a name Windows cannot hold (" + rel.generic_string() + ")";
+    if (const auto [at, fresh] = seen.emplace(lower(clean), clean); !fresh && at->second != clean)
+      return "it holds two files whose names differ only in case (" + at->second + ", " + clean + ")";
     if (++count > limits.max_files) return "it holds more than " + std::to_string(limits.max_files) + " files";
     bytes += static_cast<int64_t>(it->file_size(ec));
     if (bytes > limits.max_bytes) return "it holds more than " + size_text(limits.max_bytes);
@@ -213,6 +224,28 @@ void sweep_staging(const fs::path& base) {
 
 }  // namespace
 
+// Whether a path leaves its folder (absolute, a drive, ".."), as opposed to
+// only naming something Windows cannot hold: for the message.
+bool mod_entry_escapes(const std::string& path) {
+  std::string p = path;
+  std::replace(p.begin(), p.end(), '\\', '/');
+  if (p.empty() || p[0] == '/' || (p.size() > 1 && p[1] == ':')) return true;
+  return ("/" + p + "/").find("/../") != std::string::npos;
+}
+
+// A name Windows can hold and that is not a device (CON, PRN, AUX, NUL,
+// COM1-9, LPT1-9, with any extension, any case); no trailing dot or space.
+// Checked everywhere, so a mod added on the Mac still works on Windows.
+bool windows_name_ok(const std::string& part) {
+  if (part.empty() || part.back() == '.' || part.back() == ' ') return false;
+  const std::string base = lower(part.substr(0, part.find('.')));
+  for (const char* d : {"con", "prn", "aux", "nul"})
+    if (base == d) return false;
+  if (base.size() == 4 && (base.rfind("com", 0) == 0 || base.rfind("lpt", 0) == 0) && base[3] >= '1' && base[3] <= '9')
+    return false;
+  return true;
+}
+
 bool mod_own_file(const std::string& rel) {
   const std::string l = lower(rel);
   return l == "mod.txt" || l == lower(kModAddedMarker);
@@ -228,10 +261,12 @@ bool mod_entry_path_ok(const std::string& path, std::string* clean) {
     if (i < p.size() && p[i] != '/') {
       const unsigned char c = static_cast<unsigned char>(p[i]);
       if (c < 0x20 || c == ':') return false;  // a drive ("C:"), an alternate stream, control characters
+      if (std::strchr("<>\"|?*", c)) return false;  // what Windows cannot hold in a name
       part += p[i];
       continue;
     }
     if (part == "..") return false;
+    if (!part.empty() && part != "." && !windows_name_ok(part)) return false;
     if (!part.empty() && part != ".") {
       if (++parts > 32) return false;
       out += (out.empty() ? "" : "/") + part;
@@ -251,7 +286,8 @@ std::string mod_folder_name(const std::string& name) {
   while (!s.empty() && (s.back() == ' ' || s.back() == '.')) s.pop_back();
   while (!s.empty() && (s.front() == ' ' || s.front() == '.')) s.erase(s.begin());
   if (s.size() > 64) s.resize(64);
-  return s.empty() ? "mod" : s;
+  if (s.empty()) return "mod";
+  return windows_name_ok(s) ? s : s + "_";  // "CON" and its kind: not a folder Windows can make
 }
 
 ModGame mod_game_of(const std::vector<std::string>& rel_paths) {
