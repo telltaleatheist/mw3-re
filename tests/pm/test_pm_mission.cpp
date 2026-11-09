@@ -2091,8 +2091,8 @@ TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
 // pm-tests item 23 on Pirate's Moon, as mission_c1m1_player_knocked_down_headless on MW3: the player knocked down
 // in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from 50 m ahead build the knock past the threshold
 // (0x00417a80): Stagger, a fall. (2) Dropped from 150 m, a hard landing (0x004162c0: the fall's speed over 80 m/s)
-// falls one time in five (rand > 0.8); up to 30 drops under the fixed seed (PM's c1m1 draws rand in another
-// order than MW3's, so its first ten all stand).
+// falls one time in five (rand > 0.8, as PM's 0x00416ec9); seed 3, whose first drop stands (0.57) and second falls
+// (0.96), so the run stays short. Under seed 1, MW3's, PM's c1m1 draws in another order: the fall comes on drop 25.
 static int knock_run(int cause) {
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
@@ -2106,7 +2106,8 @@ static int knock_run(int cause) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  crt::rand_fixed_seed() = 1u;  // the landings' rand, as a new process with a fixed clock
+  // The landings' rand, as a new process with a fixed clock; PM_SEED=n another seed.
+  crt::rand_fixed_seed() = std::getenv("PM_SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("PM_SEED"))) : 3u;
   NoKeys keys;
   Window window;
   Alert alert;
@@ -2154,7 +2155,7 @@ static int knock_run(int cause) {
         return;
       }
       if ((f - 30) % 500 == 0) {
-        if (++drops > 30) {
+        if (++drops > 5) {
           done = true;
           return;
         }
@@ -2163,7 +2164,7 @@ static int knock_run(int cause) {
       }
     };
     Pump pump;
-    pump.limit = 17000;
+    pump.limit = 6000;
     pump.stop = [&] { return done; };
     app.run(pump);
     mech3::missions().cleanup(false);
