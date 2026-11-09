@@ -442,4 +442,12 @@ bool model_from_json(const zutl_json::Value& model_json, const std::string& path
   return true;
 }
 
+bool object3d_from_json(const zutl_json::Value& node, const std::string& path, std::vector<uint8_t>* out, std::string* why) {
+  Json j;
+  Out o;
+  if (!object3d(j, node, path, o)) return *why = j.r.why, false;
+  *out = std::move(o.b);
+  return true;
+}
+
 }  // namespace zcls

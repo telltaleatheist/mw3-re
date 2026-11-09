@@ -24,4 +24,7 @@ bool mechlib_model_from_json(const std::string& json, std::vector<uint8_t>* entr
 bool model_from_json(const zutl_json::Value& model, const std::string& path, std::vector<uint8_t>* record, std::vector<uint8_t>* data,
                      std::string* why);
 
+// A node's object3d data (0x90), from its JSON node (`data.Object3d`), as in a mechlib tree.
+bool object3d_from_json(const zutl_json::Value& node, const std::string& path, std::vector<uint8_t>* out, std::string* why);
+
 }  // namespace zcls
