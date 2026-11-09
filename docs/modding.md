@@ -514,6 +514,32 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   on, off and reorder, with their conflicts shown. A mod made by overwriting an
   install is taken as the files that differ from the player's own install. Nothing is
   ever written into the install.
+- The in-game MODS screen and custom campaigns (Owen, 2026-11-08): mods are turned on
+  and off, and custom campaigns entered, from the game itself, so a mod never replaces
+  the original campaign. Owen: "i just want people to be able to enable/disable mods at
+  will, and to enter custom campaigns/games". In order:
+  1. **Campaigns as data.** A mod names a campaign in mod.txt (`campaign=<file>`), a
+     text file listing its operations and missions in order: each mission's world (the
+     game's or the mod's own, `world=`), its mission files, briefing (text, and a movie
+     if any), and what comes between missions (debriefing, salvage, the mech lab as the
+     original campaign has them). Single missions the same way, a campaign of one.
+     The original campaign is untouched; a custom campaign's pilots and saves are its
+     own, beside the original's.
+  2. **A MODS button on the main menu**, under CAMPAIGN, in each game's own style
+     (its menu art, fonts, list boxes and buttons; zTwoD's widgets, as the other
+     screens). It opens a screen with two tables: CUSTOM CAMPAIGNS (each installed
+     campaign or mission, its author and version, an entry point that starts it or
+     continues its pilot) and MODS (every other mod: mechs, weapons, worlds, asset
+     packs, text; a check box each, an order, conflicts shown and why a mod isn't
+     usable). The same choices as the launcher's MODS list, which stays; both write
+     mw3.cfg. A change to the MODS table applies at the next start, said on the
+     screen (a live remount is a later step); entering a custom campaign mounts its
+     own mod for that game.
+  3. **Installing made simple**, as planned above: a mod's .zip, .7z or folder dropped
+     on the launcher (or picked), and an "Open mods folder" button in both the
+     launcher and the MODS screen.
+  Both games: main first, pm by the crossing (PM's own campaign format where it
+  differs). Each step with its tests and a section here.
 - Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
   `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
   Ours will be new art in MW3's style (Owen: made with the local image generator), one
