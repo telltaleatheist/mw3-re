@@ -180,6 +180,16 @@ bool apply_one(Node* top, const Edit& e) {
   return ok;
 }
 
+// The list an edit's path starts from: the entry's record, or (Pirate's
+// Moon's dlgOptions.zrd, whose top is "3:33" "PM" "9/13/1999" (the dialogs),
+// a stray date read as keys) the list inside it holding the path's first key.
+Node* record_of(Node* top, const std::string& first) {
+  if (slot(top, first)) return top;
+  for (int32_t i = 1; top && top->type == zrdr::List && i < top->list[0].i; ++i)
+    if (top->list[i].type == zrdr::List && slot(&top->list[i], first)) return &top->list[i];
+  return top;
+}
+
 }  // namespace
 
 bool parse_value(const char* text, Node* out) {
@@ -201,6 +211,7 @@ bool apply_ours(const std::string& archive, const std::string& entry, Node* root
     Node copy = tree::clone(*root);  // a record not as expected (a mod's) is left whole
     Node* top = &copy;
     while (top->list[0].i == 2 && top->list[1].type == zrdr::List) top = &top->list[1];
+    top = record_of(top, split(e.path).front());
     // Our values' small font is the dialog's own (Pirate's Moon's is ia_small_amber).
     std::string value = e.b;
     const Node* font = walk(top, split("GAME_OPTION_DIALOG/BUTTONS/CONTROLS_CFG/LABEL/font/@0"), 6);

@@ -292,6 +292,16 @@ with a local build that also took archive version 2):
 | `motion.zbd`'s motions | format 4 | format 4 | read |
 | the mech definitions (`dfn_*.zrd`) | | new weapons | "Unrecognized Weapon" (`XPulseLaser_Large`, `HeavyLaser_Large`, `TBOLT5`), and the shadowcat and thor not built |
 
+PM's `dlgOptions.zrd` is wrapped (2026-11-09): its top is `"3:33" "PM"
+"9/13/1999" (the dialogs)`, a time and date (a stamp left in the file),
+which the reader takes as two keys: `3:33` with the value `PM`, then
+`9/13/1999` with every dialog. The game finds its dialogs by name at any
+depth (zrdr::find), so it never noticed; our records (patch12::apply_ours,
+MOUSE SENSITIVITY and UPGRADES) walked from the top and went in nowhere
+("BindButton (UPGRADES) failed"). They now start from the list holding
+their first key. The layout is MW3's otherwise (LINES at 441, not 443, and
+ia_small_amber for ia_small_green). `tests/pm/test_pm_options.cpp`.
+
 A side effect seen: `mw3 --fly` on a world that fails to load retries the
 load every frame (ours, the debug start), so it never quits.
 
