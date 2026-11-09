@@ -255,7 +255,8 @@ They run inside the original main loop, after the original start-up.
   (0x00434e00), so the store, the slots and the field bases are a real
   campaign's (without the earlier missions' salvage). `--win N` wins the
   mission N frames in as a player does, by Exit Mission once won (the end
-  screen, its fade, the debriefing's Win State and its save); with
+  screen, its fade, the debriefing's Win State and its save); `--lose N`
+  ends it N frames in as a failure (0x0048fa80: the failed debriefing); with
   `--verbose` the program prints the pilot's game as the Win State saved it
   and as each briefing finds it once its mission has loaded
   (`tools/analysis/savecheck.py`, save.md), and each state the app moves to
