@@ -691,6 +691,7 @@ Known quirks the rebuild deliberately keeps:
 - The controls screen's KEY A and KEY B columns take a key again: click the box, press the key (v1.0 never saw it; the mouse and joystick columns were not affected).
 - A MOUSE SENSITIVITY slider on the Game Options screen, under Invert Mouse (0.5 to 3.0): it sets how far the mouse turns the mech in a mission. It starts at the original's 1.3, and Invert Mouse keeps it.
 - An UPGRADES page, one press from the options (in the menus and in a mission): the bug fixes and wide menus switches, saved with your settings.
+- Pirate's Moon's Game Options have MOUSE SENSITIVITY and UPGRADES too (they were missing: its options file is laid out differently).
 - The music pauses while a movie plays and comes back after (the campaign's opening movie no longer has the menu music under it), as when the game read its movies off the CD.
 - On a wide screen the arm weapons reach the reticle across the whole width: an arm weapon still fires straight ahead when aimed far off to the side, but the limit now widens with the screen, so it starts at the same place on screen as on a 4:3 one (bug fixes on).
 - Cheat codes in single player (ours): Shift+Enter, Keypad * or Keypad − in a mission opens a box for six codes, from a radar that shows everything to an instant win (README, Cheat codes).

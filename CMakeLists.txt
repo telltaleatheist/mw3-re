@@ -644,6 +644,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
     tests/pm/test_pm_objectives.cpp
+    tests/pm/test_pm_options.cpp
     tests/pm/test_pm_hud.cpp
     tests/pm/test_pm_mods.cpp
   )

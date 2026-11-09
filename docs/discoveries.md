@@ -4280,6 +4280,11 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon's options file carries a time stamp: 3:33 PM, 13 September
+  1999.** Its first words are "3:33" "PM" "9/13/1999", before the dialogs, a
+  date and time someone left in it. The game never minds: it finds each
+  dialog by its name.
+
 - **In Pirate's Moon only you can fall over from a hard landing.** In
   MechWarrior 3 any mech that came down hard or fast sideways could fall. In
   Pirate's Moon the roll is made only for the player, so enemies always land
