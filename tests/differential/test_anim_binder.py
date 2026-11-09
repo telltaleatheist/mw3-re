@@ -176,6 +176,9 @@ def run(mission, totals):
         if rnd == 'bind again':
             sa_kept = sa
     sa = sa_kept
+    if not sa:  # a world with no anim defs compares nothing (a deep checkout's long path once did this)
+        print(f'FAIL {mission}: no anim defs read', flush=True)
+        os._exit(1)
     bound = [s for s in sa if s[0] == 1]
     totals['defs'] += len(sa)
     totals['bound'] += len(bound)
