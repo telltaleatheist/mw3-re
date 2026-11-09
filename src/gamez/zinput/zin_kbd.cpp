@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "gamez/zinput/zinput.h"
+#include "gamez/zutil/zfix.h"
 
 namespace zin {
 
@@ -166,11 +167,19 @@ void kbd_read(bool callbacks) {
     if (plain) code = with_modifiers(s, e);
     if (!in_table(code)) continue;
     if (e.data & 0x80) {
-      apply(s, code, true);
+      // FIX (bug): a key typed into a text field is the field's, its press
+      // and its release, not the commands'. The original marked both, so a
+      // letter let go after the Enter that closes the field read as released
+      // to the game: L's, the hold-to-look key, put the reticle's view in the
+      // free look (docs/input.md, fixes.md).
+      s.typed[code] = s.char_callback && zfix::options().bugs;
+      if (!s.typed[code]) apply(s, code, true);
       if (plain && !s.frame_key) s.frame_key = code;
       if (s.char_callback) {
         if (const uint32_t ch = key_char(code)) s.char_callback(static_cast<int32_t>(ch), static_cast<int32_t>(code), s.char_ctx);
       }
+    } else if (s.typed[code]) {
+      s.typed[code] = 0;
     } else {
       apply(s, code, false);
     }

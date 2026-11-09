@@ -56,6 +56,16 @@ one and is down; then, when `callbacks` is set and no text callback is,
 every listed key that is down runs its callback. Any result but 0 or
 DIERR_INPUTLOST (re-acquired) drops the read, DI_BUFFEROVERFLOW too.
 
+The original marks a key's state even while a text callback takes its
+character; commands are kept off only by the line's own command map (zTwoD's
+console pushes a copy with +0x3f58 0) and by the callbacks' check. A key let
+go after the Enter that closes the line (typing rolls over: L down, Enter
+down, L up) so reads as released once the map is back, and a key polled for
+its release runs: L is the hold-to-look key (Mech::update, 0x17, view 2 <->
+3), so "operation cwal" left the reticle in the free look. FIX (bug), behind
+the bug-fix switch: a key whose press goes to a text field is the field's,
+its release too (State::typed); `mission_c1m2_cheat_box_keys_stay_in_the_box_headless`.
+
 `read_key(wait)` 0x0051aa00 takes events one at a time and returns the last
 plain or modified key that went down. Quirk: the count it asks for is the
 last read's, so after an empty read it asks for none; with `wait` (unused,

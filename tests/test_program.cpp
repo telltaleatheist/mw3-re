@@ -21568,6 +21568,77 @@ TEST(cheat_food_for_thought_wins_the_salvage_coins) {
 // (every mech and vehicle on the radar), operation cwal (the reload and heat
 // dissipation 10x), food for thought on and off again, game over man (the
 // loss); then the next mission starts with none on.
+// pm-tests item 36 (Owen 2026-11-09, on Pirate's Moon; MW3 the same):
+// "operation cwal" typed with L let go after the Enter that closes the box
+// read as L released to the game once the box was gone: L, the hold-to-look
+// key (Mech::update's 0x17), put the reticle's view (2) in the free look (3),
+// the mouse on the torso. With the fix a key typed into the box is the box's,
+// press and release; with the bug-fix switch off, the original's.
+TEST(mission_c1m2_cheat_box_keys_stay_in_the_box_headless) {
+  if (!have_game()) return;
+  struct TypedHost : zin::Host {
+    uint32_t map_virtual_key(uint32_t scan) override { return scan; }
+    bool keyboard_state(uint8_t* kb) override {
+      std::memset(kb, 0, 256);
+      return true;
+    }
+    int32_t to_ascii(uint32_t, uint32_t scan, const uint8_t*, uint16_t* out) override {
+      static const char rows[] = "qwertyuiop\0\0\0\0asdfghjkl\0\0\0\0\0zxcvbnm";
+      if (scan == 0x1c) return *out = 0x0d, 1;
+      if (scan == 0x39) return *out = ' ', 1;
+      if (scan >= 0x10 && scan < 0x10 + sizeof rows && rows[scan - 0x10]) return *out = static_cast<uint16_t>(rows[scan - 0x10]), 1;
+      return 0;
+    }
+  } host;
+  auto scan_of = [](char c) -> uint32_t {
+    static const char rows[] = "qwertyuiop\0\0\0\0asdfghjkl\0\0\0\0\0zxcvbnm";
+    if (c == ' ') return 0x39;
+    for (uint32_t i = 0; i < sizeof rows; ++i)
+      if (rows[i] && rows[i] == c) return 0x10 + i;
+    return 0;
+  };
+  zin::Host* const was = zin::g_host;
+  const bool bugs = zfix::options().bugs;
+  auto run = [&](bool fix) {
+    zfix::options().bugs = fix;
+    zin::set_host(&host);
+    int32_t before = -1, after = -1;
+    uint32_t l_state = 99;
+    bool opened = false, fast = false;
+    cheat_mission("cheat_box_keys_write", 0, 2, 600, [&](int f, mech3::GameEngine&, CheatKeys& k) {
+      void* me = mech3::mission_player_mech();
+      if (f == 5) {
+        before = mech3::mech_controls_view(me);
+        k.key(0x2a, true), k.press(0x1c), k.key(0x2a, false);  // Shift+Enter: the box
+      }
+      if (f == 7) {
+        opened = mech3::cheat_box_open(me);
+        for (const char* c = "operation cwa"; *c; ++c) k.press(scan_of(*c));
+      }
+      // L, then Enter before L is let go, as typing rolls over: the box
+      // closes on Enter and L's release comes after.
+      if (f == 9) k.key(0x26, true);
+      if (f == 10) k.key(0x1c, true);
+      if (f == 11) k.key(0x26, false), k.key(0x1c, false);
+      if (f == 14) {
+        fast = mech3::cheats().fast && !mech3::cheat_box_open(me);
+        after = mech3::mech_controls_view(me);
+        l_state = zin::key_state(0x26);  // nothing left held
+        return true;
+      }
+      return false;
+    });
+    zin::set_host(was);
+    std::printf("  bug fixes %s: box %d, cwal %d, view %d then %d, L's state %u\n", fix ? "on" : "off", opened, fast, before, after,
+                l_state);
+    EXPECT(opened && fast && before == 2 && l_state == 0);
+    return after;
+  };
+  EXPECT(run(true) == 2);   // the reticle kept
+  EXPECT(run(false) == 3);  // the original's: L's free look
+  zfix::options().bugs = bugs;
+}
+
 TEST(mission_c1m2_cheat_codes_headless) {
   if (!have_game()) return;
   std::vector<std::string> lines;

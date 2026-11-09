@@ -4241,3 +4241,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   thing the original has to pathfinding: it is why a lancemate walks a neat L
   round a hill, and why he will not follow you into a patch at all. (Found
   from the code: 0x004c3000. docs/ai.md section 11)
+
+- **Typing in the chat can move your view.** The letters you type into the
+  chat (or, in the rebuild, the cheat box) still reach the game's keys. If you
+  are still holding the last letter when you press Enter, which is normal
+  when you type fast, the game sees that letter let go after the box closes.
+  L is the hold-to-look key, so a line ending in L ("operation cwal") left the
+  mouse turning the torso instead of moving the reticle until L was pressed
+  again. The rebuild keeps keys typed into a box out of the game. (Found from
+  a playtest and the code: 0x0051a5d0, Mech::update's view key. docs/input.md)
