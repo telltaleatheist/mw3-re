@@ -633,6 +633,7 @@ if(MW3_BUILD_PM)
   add_library(pmcore ALIAS mw3core)
   add_executable(mw3pmtests
     tests/pm/test_pm_lobby.cpp
+    tests/pm/test_pm_net.cpp
     tests/pm/test_pm_wire.cpp
     tests/pm/test_pm_wire_walk.cpp
     tests/pm/test_pm_wire_fight.cpp
