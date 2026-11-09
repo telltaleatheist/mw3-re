@@ -1189,6 +1189,8 @@ TEST(mods_anim_json_is_every_worlds_file) {
     std::string why;
     const bool ok = zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &masks, &why);
     if (!ok) std::printf("  %s: %s\n", w, why.c_str());
+    if (const char* dump = std::getenv("MW3_ANIM_DUMP")) std::ofstream(std::string(dump) + "/" + w + ".zbd", std::ios::binary).write(
+        reinterpret_cast<const char*>(ours.data()), static_cast<std::streamsize>(ours.size()));
     std::vector<uint8_t> a = ours, b = shipped;
     if (!ok) b.resize(std::min(b.size(), a.size()));  // the defs it read, against the shipped file's start
     for (const auto& [from, to] : masks)

@@ -563,6 +563,94 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     o.f32(run);
     return true;
   }
+  // A connector's end: {"Pos": {x, y, z}}, or "Input"; 0 none, 1 a position, 2 the input's.
+  const auto cpos = [&](const char* key, float out[3], int* kind) {
+    const Value* v = j.get(d, at, key);
+    if (!v) return false;
+    *kind = 0;
+    if (v->kind == Value::Null) return true;
+    if (v->kind == Value::String && v->text == "Input") return *kind = 2, true;
+    const Value* p = v->kind == Value::Object ? v->get("Pos") : nullptr;
+    if (!p) return j.r.fail(*v, at + "." + key, "not Pos or \"Input\"");
+    *kind = 1;
+    return j.f32(*p, at + "." + key + ".Pos", "x", &out[0]) && j.f32(*p, at + "." + key + ".Pos", "y", &out[1]) &&
+           j.f32(*p, at + "." + key + ".Pos", "z", &out[2]);
+  };
+  if (type == "ObjectConnector") {
+    int16_t n, from = 0, to = 0;
+    float run, maxlen = 0, fp[3] = {0, 0, 0}, tp[3] = {0, 0, 0}, ft[2] = {0, 0}, tt[2] = {1, 1};
+    uint32_t flags = 0;
+    int fk, tk;
+    const Value *fn, *tn, *fv, *tv, *ml;
+    if (!(node("name", 0, &n) && j.f32(d, at, "run_time", &run) && (fn = j.get(d, at, "from_node")) && (tn = j.get(d, at, "to_node")) &&
+          cpos("from_pos", fp, &fk) && cpos("to_pos", tp, &tk) && (fv = j.get(d, at, "from_t")) && (tv = j.get(d, at, "to_t")) &&
+          (ml = j.get(d, at, "max_length"))))
+      return false;
+    for (auto [v, out, key, mine, input] : {std::tuple{fn, &from, "from_node", 1u, 2u}, std::tuple{tn, &to, "to_node", 0x20u, 0x40u}}) {
+      if (v->kind == Value::Null) continue;
+      std::string nn;
+      if (!j.r.game_string(*v, at + "." + key, &nn, 255)) return false;
+      if (nn == "INPUT_NODE") flags |= input;
+      else if (!(*out = Def::find(def.nodes, nn))) return j.r.fail(*v, at + "." + key, "no node \"" + nn + "\" in the def's nodes");
+      else flags |= mine;
+    }
+    flags |= (fk == 1 ? 8 : fk == 2 ? 0x10 : 0) | (tk == 1 ? 0x100 : tk == 2 ? 0x200 : 0);
+    for (auto [v, out, key, scalar, range] : {std::tuple{fv, ft, "from_t", 0x400u, 0x800u}, std::tuple{tv, tt, "to_t", 0x1000u, 0x2000u}}) {
+      if (v->kind == Value::Null) continue;
+      if (const Value* sc = v->kind == Value::Object ? v->get("Scalar") : nullptr) {
+        if (!j.r.f32(*sc, at + "." + key + ".Scalar", &out[0])) return false;
+        out[1] = out[0], flags |= scalar;
+      } else if (const Value* rg = v->kind == Value::Object ? v->get("Range") : nullptr) {
+        if (!(j.f32(*rg, at + "." + key + ".Range", "min", &out[0]) && j.f32(*rg, at + "." + key + ".Range", "max", &out[1]))) return false;
+        flags |= range;
+      } else {
+        return j.r.fail(*v, at + "." + key, "not Scalar or Range");
+      }
+    }
+    if (ml->kind != Value::Null) {
+      if (!j.r.f32(*ml, at + ".max_length", &maxlen)) return false;
+      flags |= 0x8000;
+    }
+    o.u32(flags), o.i16(n), o.i16(from), o.i16(to), o.u16(0);
+    for (float x : fp) o.f32(x);
+    for (float x : tp) o.f32(x);
+    o.f32(ft[0]), o.f32(ft[1]), o.f32(delta(ft[0], ft[1], run)), o.f32(0);
+    o.f32(tt[0]), o.f32(tt[1]), o.f32(delta(tt[0], tt[1], run)), o.f32(0);
+    o.f32(run), o.f32(maxlen);
+    return true;
+  }
+  if (type == "CallObjectConnector") {
+    std::string n;
+    float fp[3] = {0, 0, 0}, tp[3] = {0, 0, 0};
+    int fk, tk;
+    const Value *sv, *fn, *tn;
+    if (!(name32("name", &n) && (sv = j.get(d, at, "save_index")) && (fn = j.get(d, at, "from_node")) && (tn = j.get(d, at, "to_node")) &&
+          cpos("from_pos", fp, &fk) && cpos("to_pos", tp, &tk)))
+      return false;
+    int16_t save = -1, from = 0, to = 0;
+    if (sv->kind != Value::Null) {
+      long long si;
+      if (!j.num(*sv, at + ".save_index", 0, static_cast<long long>(def.anim_refs) - 1, &si)) return false;
+      save = static_cast<int16_t>(si);
+    }
+    uint32_t flags = (fk == 1 ? 0x10 : fk == 2 ? 0x20 : 0) | (tk == 1 ? 0x400 : tk == 2 ? 0x800 : 0);
+    for (auto [v, out, key, shift] : {std::tuple{fn, &from, "from_node", 0}, std::tuple{tn, &to, "to_node", 6}}) {
+      if (v->kind == Value::Null) continue;
+      std::string nn;
+      bool pos;
+      if (!(j.str(*v, at + "." + key, "name", &nn, 255) && j.boolean(*v, at + "." + key, "pos", &pos))) return false;
+      if (nn == "INPUT_NODE") {
+        flags |= (pos ? 8u : 4u) << shift;
+      } else {
+        if (!(*out = Def::find(def.nodes, nn))) return j.r.fail(*v, at + "." + key + ".name", "no node \"" + nn + "\" in the def's nodes");
+        flags |= (pos ? 2u : 1u) << shift;
+      }
+    }
+    o.u32(flags), o.name_padded(n, 32), o.i16(0), o.i16(save), o.i16(from), o.i16(to);
+    for (float x : fp) o.f32(x);
+    for (float x : tp) o.f32(x);
+    return true;
+  }
   if (type == "LightAnimation") {
     std::string n;
     float range[2], alt[2] = {0, 0}, color[3], run;
@@ -1140,7 +1228,7 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o) {
       std::vector<uint8_t> pad;
       if (!(j.str(p, pa, "name", &n, 31) && j.bytes(p, pa, "name_pad", &pad))) return false;
       if (kind == "CallAnimation") {
-        o.name_garbage(n, pad, 32), o.zeros(32), o.u32(0);
+        o.name_garbage(n, pad, 64), o.u32(0);  // the pad runs over the whole 0x40
       } else if (kind == "CallObjectConnector") {
         std::string ln;
         std::vector<uint8_t> lpad;
