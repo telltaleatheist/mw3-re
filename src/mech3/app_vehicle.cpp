@@ -480,6 +480,38 @@ struct WiredEditor : EditorHooks {
 WiredEditor g_editor_hooks;
 }  // namespace
 
+namespace {
+// Ours (decided 2026-11-07, docs/editor.md, The reload), on 0x004bed90's
+// pattern: a net about to be dropped, every vehicle's brain on it lets go
+// (the list [0x0073655c]: vt+0x140, the controls' vt+0x64, Brain's
+// 0x004e9100) and is kept; the new net built, each kept one takes it (vt+0x04,
+// 0x004e9380: one order on the net). The first build of a mission has none.
+std::vector<ai::Brain*> g_handed;
+void net_handover(ai::AiNet* old_net, ai::AiNet* new_net) {
+  if (!new_net) {
+    g_handed.clear();
+    if (!old_net) return;
+    for (void* b : program_ai_brains())
+      if (static_cast<ai::Brain*>(b)->clear_if_object(old_net)) g_handed.push_back(static_cast<ai::Brain*>(b));
+    return;
+  }
+  for (ai::Brain* b : g_handed) b->set_net(new_net);
+  g_handed.clear();
+}
+}  // namespace
+
+std::vector<void*> program_ai_brains() {
+  std::vector<void*> v;
+  int32_t n = 0;
+  const AiMechMade* made = mission_ai_mechs(&n);
+  for (int32_t i = 0; i < n; ++i)
+    if (void* b = made[i].controls ? program_ai_mech_brain(made[i].controls) : nullptr) v.push_back(b);
+  for (Vehicle* veh : g_order)
+    if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(veh)->controls))
+      if (c->brain) v.push_back(c->brain.get());
+  return v;
+}
+
 void* program_stealth_controls() { return static_cast<VehicleControls*>(new StealthControls); }  // 0x004ac860(0xa1c), 0x004a51b0(1)
 void* program_stealth_create(void* ctl) {
   g_stealth = stealth_create(static_cast<StealthControls*>(static_cast<VehicleControls*>(ctl)));
@@ -510,6 +542,7 @@ void wire_vehicles(const MechWiring* w) {
   set_waynet_hooks(&g_waynets);
   wire_vehicle_collisions();
   ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
+  ai::net_hooks().rebuilt = net_handover;  // ours (editor.md, The reload): 0x004bed90's pattern
   // 0x004bdec9..0x004bdf17, while a world is loaded: the ground from 10 m
   // above the node (0x004edab0), the height picked by 0x004abd90 (a 10 m step,
   // water not ground). Unset, the nodes kept the files' heights.

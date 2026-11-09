@@ -630,6 +630,7 @@ struct AiMechMade {
   const char* name = nullptr;  // the aiv.zrd record's
 };
 const AiMechMade* mission_ai_mechs(int32_t* count);
+void* program_ai_mech_brain(void* controls);  // an AI mech's controls' brain (ai::Brain*), else null
 // A mech freed: off the AI mechs made (their names, for the valves' lookups) and the player hooks' set.
 void mission_ai_mech_forget(const void* mech, uint32_t handle);
 // The mission's objectives as the program read them (mech_objective.h), and

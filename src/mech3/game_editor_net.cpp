@@ -343,7 +343,13 @@ void net_editor_save(int32_t) {
       const std::vector<uint8_t> out = ai::net_with_edits(bytes.data(), bytes.size(), n->ref->file->tree, edits);
       const ai::NetSave s = out.empty() ? ai::NetSave{false, "", "", "", entry + " does not read as a net"}
                                         : ai::save_archive_edit(archive.c_str(), entry.c_str(), out, fresh);
-      editor_status(s.ok ? s.message : "not saved: " + s.error);
+      // Ours (decided 2026-11-07, docs/editor.md, The reload): the release's
+      // reload (0x004bed90) acts only on version 105, which no file is; here a
+      // saved net 106 that is running is built again from the edit (0x004be670)
+      // and the vehicles on it go over to the new one (net_hooks().rebuilt).
+      bool rebuilt = false;
+      if (s.ok && n->header.version == 0x6a && n->net && n->net->as_compiled()) rebuilt = n->build_compiled() != nullptr;
+      editor_status(s.ok ? s.message + (rebuilt ? "; running now" : "") : "not saved: " + s.error);
     }
   }
   g_editor->dirty = 0;

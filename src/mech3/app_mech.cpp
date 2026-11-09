@@ -2938,4 +2938,9 @@ float mech_knock(void* mech, float* threshold, bool* airborne) {
   *airborne = m->airborne();
   return m->knock;
 }
+void* program_ai_mech_brain(void* controls) {
+  auto* c = dynamic_cast<AiControls*>(static_cast<MechControls*>(controls));
+  return c ? c->brain.get() : nullptr;
+}
+
 }  // namespace mech3

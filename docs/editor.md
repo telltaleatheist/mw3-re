@@ -305,6 +305,20 @@ does what the 105 path was for, and the release never did it.
 Decided 2026-11-07: the first, marked ours in fixes.md and CHANGES.md, inside
 the editor only; the 25 functions stay unported and listed here.
 
+Done (sitting 4, 2026-11-09): Save Changes on a running net (version 106,
+built) compiles it again from the edit (`build_compiled`, 0x004be300) and
+the status adds "running now". `net_hooks().rebuilt` is called twice: before
+the old net is dropped, every AI mech's and vehicle's brain that has an order
+on it lets go (0x004e9100, the controls' vt+0x64) and is kept
+(`program_ai_brains()`, standing in for [0x0073655c]); after the build each
+kept one takes the new net (vt+0x04, 0x004e9380). The built net is the
+CZAiNetEdit's and outlives the editor (its dtor, 0x004bd020, does not free
+it), so leaving the editor leaves the vehicles on it.
+Waynets and regions are not rebuilt; their edits show at the next start.
+Test: `mission_c1m1_saved_net_hands_its_vehicles_over_headless` (two
+brains on net_01 before, both on the new net after, 90 frames on); with no
+hook, or no vt+0x04, the mission crashes in the next brain frame.
+
 ## The way in (S5 sitting 3a, 2026-11-09)
 
 Ported in `mech3/game_editor_net` (EDIT AI NETS on the main menu calls it):
