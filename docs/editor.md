@@ -612,10 +612,12 @@ mod placed last, and (mech3ax) a re-encoded archive given as unedited.
 
 The design of how a modder reaches the editor; built after sitting 4c.
 
-- **The original is never edited.** No row for the original campaign, no
-  edit in place of an installed file. Shift+F12 in play stays as the
-  developers left it (`--debug-camera`), and a save from there still goes to
-  "editor edits" as now (The save, below).
+- **The MODS page offers no way in to edit the original campaign**: no row
+  for it there. That is the whole rule: nothing stops anyone changing the
+  originals who sets out to (no tamper traps, no read-only marks, no refusing
+  an edited install; Owen, 2026-11-09). Shift+F12 in play stays as the
+  developers left it (`--debug-camera`), its save still going to "editor
+  edits" (The save, below), and editing files by hand stays open.
 - **New maps are zStudio's job.** Modders bring them in by ADD MOD or by
   dropping folders into `mods\`; the mod system picks them up as today.
 - **On the MODS screen** a selected mod or campaign gets PLAY (today's
