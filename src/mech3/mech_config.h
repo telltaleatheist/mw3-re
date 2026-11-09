@@ -177,6 +177,7 @@ struct ConfigList {                // 0x18 bytes
   int32_t count;                   // +0x00
   int32_t mech;                    // +0x04
   std::vector<Config*> configs;    // +0x0c
+  bool keep_file = false;          // ours: its file named a mod's row no enabled mod adds, so never written over
   ConfigList(int32_t mech, int32_t count);  // 0x00424a90
   ~ConfigList();                            // 0x00425110
   bool load_saved();                        // 0x00424b70, configs\<mech>.mw3

@@ -280,6 +280,7 @@ add_library(mw3core STATIC
   src/mech3/movie_shape.cpp
   src/mech3/movie_shape_table.cpp
   src/mech3/mods.cpp
+  src/mech3/mod_rows_file.cpp
   third_party/pl_mpeg/pl_mpeg.c
   src/mech3/app_mission.cpp
   src/mech3/app_hook_census.cpp

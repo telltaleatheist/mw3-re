@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,8 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "mech3/mod_rows_file.h"
+#include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/mech_reader.h"
 
@@ -295,6 +298,157 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   put(wd + "/mods/w3/mod.txt", "name=W3\nweapon=Rail ammo=no tech=clan\n");
   const uint64_t h = mech3::mods_gameplay_hash(wd, {"w2"});
   EXPECT(h != 0 && mech3::mods_gameplay_hash(wd, {"w3"}) != h);
+}
+
+// Saves that hold a mod's mechs and weapons (item 3): a pilot's file and a
+// loadout file keep the numbers and name the rows in <file>.rows; with the
+// two mods swapped round they load with the same mechs and weapons; with
+// the mod off, refused by name and left as they were; with no sidecar, a
+// number past the table refused; a line that does not read refused; a
+// sidecar ignored by a file with no rows, and deleted when one is written
+// with none; the pilot's rename and delete carry it.
+TEST(mods_saves_name_their_rows_beside_them) {
+  SavedMounts keep;
+  const std::string wd = tmp("mods_rows_files");
+  put(wd + "/mods/a/mod.txt", "name=A\nmech=alpha tech=clan mass=50 class=medium\nweapon=Gun_A ammo=yes tech=any\n");
+  put(wd + "/mods/b/mod.txt", "name=B\nmech=beta tech=clan mass=60 class=heavy\nweapon=Gun_B ammo=no tech=any\n");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  auto mount = [&](std::vector<std::string> order) { mech3::mods_mount(wd, order, {}); };
+  auto file = [&](const std::string& rel) {
+    std::ifstream f(wd + "/" + rel, std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return f ? ss.str() : std::string("(none)");
+  };
+  auto drop = [](mech3::Pilot* p) {  // out of the list, not written: as a new start would find the file
+    mech3::pilots().remove(p);
+    p->dirty = 0;
+    delete p;
+  };
+  mount({"a", "b"});  // alpha 20, beta 21, Gun_A 38, Gun_B 39
+  EXPECT(mech3::mech_index("alpha") == 20 && mech3::mech_index("beta") == 21 && mech3::weapon_index("Gun_B") == 39);
+  // A pilot: its lab game's slot on beta with Gun_B fitted, Gun_A and alpha in its stock.
+  mech3::Pilot* p = mech3::create_pilot("Rows");
+  EXPECT(p != nullptr);
+  p->select_game(mech3::kMechLab);
+  {
+    auto* c = new mech3::Config(21, "mine");  // the slot's own (its dtor deletes it)
+    auto* w = new mech3::WeaponItem;
+    w->count = 1, w->weapon = 39, w->tech = 2;
+    c->items.push_back(w);
+    delete p->current->slot.config;
+    p->current->slot.config = c;
+    p->current->slot.mech = 21;
+  }
+  for (mech3::ConfigItem* it : p->store()->items) delete it;  // a stock of its own (the lab's whole one saves empty)
+  p->store()->items.clear();
+  p->store()->full = 0;
+  auto* gun = new mech3::WeaponItem;
+  gun->count = 1, gun->weapon = 38, gun->tech = 1;
+  p->store()->items.push_back(gun);
+  p->store()->add_mech(20);
+  EXPECT(p->save());
+  EXPECT(file("pilots/Rows.mw3.rows").find("mech 21 beta") != std::string::npos &&
+         file("pilots/Rows.mw3.rows").find("weapon 39 Gun_B") != std::string::npos &&
+         file("pilots/Rows.mw3.rows").find("mech 20 alpha") != std::string::npos);
+  drop(p);
+  // A loadout file of beta's with Gun_A.
+  {
+    mech3::ConfigList l(21, 0);
+    auto* c = new mech3::Config(21, "beta_gun");
+    c->player_made = 1;
+    auto* w = new mech3::WeaponItem;
+    w->count = 1, w->weapon = 38, w->tech = 1;
+    c->items.push_back(w);
+    l.configs.push_back(c);
+    EXPECT(l.save_all());
+    l.configs.clear();
+    delete c;
+  }
+  EXPECT(file("configs/beta.mw3.rows").find("weapon 38 Gun_A") != std::string::npos);
+  // The mods swapped round: beta 20, alpha 21, Gun_B 38, Gun_A 39; the same mechs and weapons.
+  mount({"b", "a"});
+  EXPECT(mech3::mech_index("beta") == 20 && mech3::weapon_index("Gun_A") == 39);
+  p = mech3::load_pilot("Rows", false);
+  EXPECT(p != nullptr);
+  if (p) {
+    p->select_game(mech3::kMechLab);
+    const mech3::GameSlot& s = p->current->slot;
+    int32_t fitted = -1, stocked = -1, mech_stock = -1;
+    if (s.config && !s.config->items.empty()) fitted = s.config->items.front()->id();
+    for (const mech3::ConfigItem* it : p->store()->items) {
+      if (it->kind() == 1) stocked = it->id();
+      if (it->kind() == 0) mech_stock = it->id();
+    }
+    std::printf("  swapped: slot mech %d (%s), its loadout's mech %d, fitted %d, stock weapon %d, stock mech %d\n", s.mech,
+                mech3::mech_name(s.mech), s.config ? s.config->mech : -9, fitted, stocked, mech_stock);
+    EXPECT(s.mech == 20 && s.config && s.config->mech == 20 && fitted == 38 && stocked == 39 && mech_stock == 21);
+    drop(p);
+  }
+  {
+    mech3::ConfigList l(mech3::mech_index("beta"), 0);
+    EXPECT(l.load_saved() && l.configs.size() == 1 && !l.keep_file);
+    EXPECT(!l.configs.empty() && l.configs[0]->items.front()->id() == 39 && l.configs[0]->mech == 20);
+    for (mech3::Config* c : l.configs) delete c;
+    l.configs.clear();
+  }
+  // Mod b off: beta and Gun_B gone; the pilot refused by name, its file left alone.
+  const std::string before = file("pilots/Rows.mw3");
+  mech3::rows_file::refusals().clear();
+  mount({"a"});
+  EXPECT(mech3::load_pilot("Rows", false) == nullptr && mech3::find_pilot("Rows") == nullptr);
+  EXPECT(file("pilots/Rows.mw3") == before && file("pilots/Rows.mw3.rows").find("beta") != std::string::npos);
+  EXPECT(!mech3::rows_file::refusals().empty() &&
+         mech3::rows_file::refusals()[0].find("the mod mech beta, which no enabled mod adds") != std::string::npos);
+  // beta's loadout file: alpha's mod alone has no beta, so no list asks for it;
+  // with b back and a off, Gun_A is refused and the file kept.
+  mount({"b"});
+  {
+    mech3::ConfigList l(mech3::mech_index("beta"), 0);
+    EXPECT(l.load_saved() && l.configs.empty() && l.keep_file);
+    EXPECT(!l.save_all() && file("configs/beta.mw3.rows").find("Gun_A") != std::string::npos);
+  }
+  // No sidecar and a row number past the table: refused, not read as it is.
+  mount({"a", "b"});
+  std::error_code ec;
+  fs::rename(wd + "/pilots/Rows.mw3.rows", wd + "/pilots/Rows.mw3.rows.kept", ec);
+  mount({"a"});  // 20 alpha only; the file's 21 is past the table
+  mech3::rows_file::refusals().clear();
+  EXPECT(mech3::load_pilot("Rows", false) == nullptr);
+  EXPECT(!mech3::rows_file::refusals().empty() && mech3::rows_file::refusals()[0].find("mech 21, which no enabled mod adds") != std::string::npos);
+  // A line that does not read: refused, never the raw numbers.
+  mount({"a", "b"});
+  put(wd + "/pilots/Rows.mw3.rows", "mech 21 beta\nweapon thirtynine Gun_B\nmech 20 alpha\n");
+  mech3::rows_file::refusals().clear();
+  EXPECT(mech3::load_pilot("Rows", false) == nullptr);
+  EXPECT(!mech3::rows_file::refusals().empty() && mech3::rows_file::refusals()[0].find("does not read at line 2") != std::string::npos);
+  fs::rename(wd + "/pilots/Rows.mw3.rows.kept", wd + "/pilots/Rows.mw3.rows", ec);
+  // Rename and delete carry the sidecar; a rewrite with no rows deletes it.
+  p = mech3::load_pilot("Rows", false);
+  EXPECT(p != nullptr);
+  if (p) {
+    EXPECT(p->rename("Rows2"));
+    EXPECT(file("pilots/Rows.mw3.rows") == "(none)" && file("pilots/Rows2.mw3.rows").find("mech 21 beta") != std::string::npos);
+    p->select_game(mech3::kMechLab);
+    p->current->slot.mech = 3;
+    delete p->current->slot.config;
+    p->current->slot.config = nullptr;
+    for (mech3::ConfigItem* it : p->store()->items) delete it;
+    p->store()->items.clear();
+    EXPECT(p->save() && file("pilots/Rows2.mw3.rows") == "(none)");
+    p->current->slot.mech = 20;
+    EXPECT(p->save() && file("pilots/Rows2.mw3.rows") != "(none)");
+    EXPECT(mech3::delete_pilot("Rows2") && file("pilots/Rows2.mw3") == "(none)" && file("pilots/Rows2.mw3.rows") == "(none)");
+  }
+  // A sidecar beside a file with no rows is ignored (a stale one from elsewhere).
+  p = mech3::create_pilot("Plain");
+  EXPECT(p && p->save());
+  put(wd + "/pilots/Plain.mw3.rows", "nonsense\n");
+  drop(p);
+  EXPECT(mech3::load_pilot("Plain", false) != nullptr);
+  while (!mech3::pilots().empty()) mech3::delete_pilot(mech3::pilots().front()->name);
+  mech3::mods_mount(wd, {}, {});
 }
 
 TEST(mods_strings_over_the_message_table) {

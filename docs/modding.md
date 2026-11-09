@@ -209,6 +209,62 @@ names, a remount, the hash) and `mods_weapon_row_mounts_and_fires_c1m1_headless`
 (ERPPC's definition copied as ERPPC_B in the mod's weapons.zrd, the Thor
 copy carrying it: mounted in its group in c1m1, and two shots fired).
 
+**Mod rows in the lists.** The lists that walked the exe's 19 go on to
+`mech_count()`, skipping 19 (none): Instant Action's mech lists (a mod's mech
+chosen as the commander selects its own row; the original's quirk, by
+number, stays for the exe's), the lobby's pick by tonnage, the lab's whole
+stock and the lab view's models. The plain PPC (37) is never offered with
+the fixes off: every loop over `weapon_count()` reads it through
+`weapon_has_tech` (false) or finds no definition for "noweapon" (the lab's
+stock list shows only what the stock holds; `reset_ready_times`). Test:
+`mods_weapon_rows_after_the_ppcs_place`.
+
+**Fixed sizes (audit, 2026-11-08).** No array or table outside
+`mech_names.cpp` is sized by the mech or weapon count: the weapon tables
+there are read only below `kBuiltinWeapons` (a row's own fields otherwise),
+the dfn cache grows with `mech_count()`, the lab's models are found by the
+mech stored in each (`model_index`), the loadouts' items pack a weapon in 16
+bits (`mech_config.cpp`), the network sends the roster as 32 bits. A
+sanitizer run (ASan and UBSan) of the launch tests is clean.
+
+**Saves that hold a mod's mechs and weapons.** A pilot's file
+(`pilots\<name>.mw3`), a mech's loadouts (`configs\<mech>.mw3`) and an
+exported loadout (`export\*.m3c`) keep the original's numbers; beside one
+holding a mod's row (a mech from 20, a weapon from 38), `<file>.rows` names
+each (`mod_rows_file.cpp`):
+
+```
+# The mods' mechs and weapons this file's numbers name (docs/modding.md)
+mech 21 beta
+weapon 39 Gun_B
+```
+
+Loading translates each number to that row's number now, so swapping mods
+round is safe. A name no enabled mod adds refuses the file, said in the log
+(`mw3: pilots\Rows.mw3 not loaded: it uses the mod mech beta, which no
+enabled mod adds`), and the file is left as it was: a refused pilot is not
+listed and never written, a refused loadout file is not read and never
+written over (`ConfigList::keep_file`), a refused import stays for later.
+With no sidecar, a row number past the table is refused the same way; one
+inside it is read as it is. A sidecar line that does not read refuses the
+file (never the raw number). A file with no row numbers ignores a sidecar,
+and writing one with none deletes it, so a stale sidecar never remaps a
+clean file. The pilot's rename and delete and the import's `.done` carry or
+remove it (only a file named exactly `<file>.rows`). The campaigns' saved
+games hold no mech or weapon numbers (zSave keeps the animations' state).
+
+The original exe and builds before this read the file without the sidecar:
+they see the raw numbers, 20 on or 38 on, which name nothing there. A pilot
+that used a mod's mech or weapon is ours only.
+
+Test: `mods_saves_name_their_rows_beside_them` (a pilot with a mod's mech,
+loadout, stock weapon and mech, and a loadout file, saved with the mods in
+one order and loaded in the other: the same mechs and weapons; a mod off:
+refused by name, the files untouched and not written over; no sidecar and a
+number past the table: refused; a line that does not read: refused; rename
+and delete carry it; a rewrite with no rows deletes it; a stray sidecar
+beside a file with no rows ignored).
+
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
 **Names stay inside the game's folders** (2026-11-02): a name a mod's files
