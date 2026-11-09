@@ -4687,6 +4687,35 @@ TEST(sdl_program_launcher_converts_the_movies_before_the_game) {
   std::filesystem::remove_all(root, ec);
 }
 
+// MODS (docs/launcher.md, Mods) by keys (MW3_LAUNCHER_NAV), in a test write
+// dir: alpha on, beta off. MODS, then the first row (alpha) pressed: off;
+// then the second (beta): on. mw3.cfg's mod= lines follow each press, its
+// other lines kept; the screen's list follows (beta first, the one on).
+TEST(sdl_program_launcher_mods_by_keys) {
+  auto seen = [](const std::string& log, const std::string& line) { return log.find(line) != std::string::npos; };
+  const auto keys = std::vector<std::pair<std::string, std::string>>{
+      {"MW3_FIND_INSTALL", "1"}, {"MW3_LAUNCHER_FRAMES", "30"}, {"MW3_LAUNCHER_NAV", "next,next,next,press,next,press,next,next,press"}};
+  auto mods = [](const std::string& d) {
+    std::error_code ec;
+    for (const auto& [rel, text] : std::vector<std::pair<std::string, std::string>>{
+             {"/wd/mods/alpha/mod.txt", "name=Alpha\n"}, {"/wd/mods/beta/mod.txt", "name=Beta\n"},
+             {"/wd/mw3.cfg", std::string("install=") + MW3_GAME_DIR + "\nmod=alpha\nwidemenus=1\n"}}) {
+      std::filesystem::create_directories(std::filesystem::path(d + rel).parent_path(), ec);
+      std::ofstream(d + rel) << text;
+    }
+  };
+  const LauncherRun a = run_launcher_with("launcher_mods_keys", "READY", nullptr, keys, mods, false);
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_mods_keys";
+  std::ifstream cfg(dir + "/wd/mw3.cfg");
+  const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
+  std::printf("MODS by keys: focus MODS %d, alpha off %d, beta on %d; cfg:\n%s", seen(a.log, "focus MODS\n"),
+              seen(a.log, "launcher: mods: alpha off\n"), seen(a.log, "launcher: mods: beta on\n"), text.c_str());
+  EXPECT(a.exited && seen(a.log, "focus MODS\n") && seen(a.log, "screen mods: Alpha, Beta, UP, DOWN, CHECK, <, >, BACK\n"));
+  EXPECT(seen(a.log, "launcher: mods: alpha off\n") && seen(a.log, "launcher: mods: beta on\n"));
+  EXPECT(seen(a.log, "screen mods: > Beta, Alpha, UP, DOWN, CHECK, <, >, BACK\n"));
+  EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nmod=beta\nwidemenus=1\n");
+}
+
 // GAME FILES (Owen, 2026-11-02): the find screen at any time, by keys or a
 // pad as by the mouse (MW3_LAUNCHER_NAV); with the install in use lacking
 // its music, ADD FROM MY DISC there too. A repick to a copy used where it
