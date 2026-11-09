@@ -1445,6 +1445,8 @@ std::string program_net_soak_line() {
                   me->arms[0] ? me->arms[0]->aim_yaw : 0.0f, me->arms[1] ? me->arms[1]->aim_pitch : 0.0f,
                   me->arms[1] ? me->arms[1]->aim_yaw : 0.0f);
     s += buf;
+    std::snprintf(buf, sizeof buf, " top %.2f", me->max_speed);  // its loadout's top speed (m/s), for the remote's against it
+    s += buf;
   }
   for (NetMech* m : net_game().mechs) {
     mech_world_position(m, p);
@@ -1453,6 +1455,8 @@ std::string program_net_soak_line() {
                   p[0], p[1], p[2], (m->state.flags >> 1 & 1) ? 0 : 1, mech_health(m), m->anim_index,
                   m->arms[0] ? m->arms[0]->aim_pitch : 0.0f, m->arms[0] ? m->arms[0]->aim_yaw : 0.0f,
                   m->arms[1] ? m->arms[1]->aim_pitch : 0.0f, m->arms[1] ? m->arms[1]->aim_yaw : 0.0f, now - m->heard);
+    s += buf;
+    std::snprintf(buf, sizeof buf, " top %.2f", m->max_speed);
     s += buf;
   }
   return s;
