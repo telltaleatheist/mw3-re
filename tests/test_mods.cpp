@@ -941,6 +941,8 @@ TEST(mods_reader_json_entry_in_a_folder_or_a_zip) {
   const std::string wd = tmp("mods_json");
   const std::string mod = wd + "/mods/jsonmod";
   put(mod + "/mod.txt", "name=JSON\n");
+  put(wd + "/mods/later/mod.txt", "name=Later\n");  // after it: never asked while the first mod has a copy, even a broken one
+  put(wd + "/mods/later/zbd/reader/fmv.zrd.json", "[\"MODDED\", \"later\"]");
   static int hooked = 0;
   hooked = 0;
   auto marked = [&]() -> std::string {
@@ -957,7 +959,7 @@ TEST(mods_reader_json_entry_in_a_folder_or_a_zip) {
   };
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);
-  mech3::mods_mount(wd, {"jsonmod"}, {install});
+  mech3::mods_mount(wd, {"jsonmod", "later"}, {install});
   zutl::mount(install);
   write_stored_zip(mod + "/zbd/reader.zip", {{"other.zrd.json", "[\"MODDED\", \"other\"]"}, {"FMV.ZRD.JSON", "[\"MODDED\", \"zip\"]"}});
   EXPECT(marked() == "zip");  // the name matched as the archive's are, any case
@@ -970,9 +972,9 @@ TEST(mods_reader_json_entry_in_a_folder_or_a_zip) {
   EXPECT(marked() == "archive");  // refused: the archive's entry
   fs::remove(mod + "/zbd/reader/fmv.zrd.json", ec);
   write_stored_zip(mod + "/zbd/reader.zip", {{"other.zrd.json", "[]"}});
-  EXPECT(marked() == "archive");  // the zip without it
+  EXPECT(marked() == "later");  // the zip without it: the next mod's
   put(mod + "/zbd/reader.zip", "not a zip");
-  EXPECT(marked() == "archive");
+  EXPECT(marked() == "archive");  // refused, as a broken copy is
   EXPECT(hooked == 6);  // every tree read, the mod's and the archive's, through the hook
 }
 
