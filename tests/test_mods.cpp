@@ -265,6 +265,7 @@ TEST(mods_loose_weapons_zrd_read_directly) {
   EXPECT(why("(A 1)\n(B 2)\n") == "");
   EXPECT(why("(A 1)\r\n(B 2))\r\n") == "line 2: a ')' with no '(' before it");
   EXPECT(why("(A \"x\n\ny)\n") == "line 1: a quote never closed");
+  EXPECT(why("(A 1\n(B 2\n") == "line 1: a '(' never closed");  // the outer one
   EXPECT(why("; (not counted\n(A 1) ; ) nor this\n") == "");
   zwep::init_hooks() = hooks;
 }
