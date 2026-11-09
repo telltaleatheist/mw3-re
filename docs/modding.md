@@ -217,6 +217,12 @@ with the Thor's model, loadout and motions), `mods_weapon_rows_after_the_ppcs_pl
 names, a remount, the hash) and `mods_weapon_row_mounts_and_fires_c1m1_headless`
 (ERPPC's definition copied as ERPPC_B in the mod's weapons.zrd, the Thor
 copy carrying it: mounted in its group in c1m1, and two shots fired).
+On Pirate's Moon those launches are MechWarrior 3's (its data); PM's own:
+`pm_mods_mech_row_launches_as_the_player_c1m1_headless` (a Thor copy as mech
+26 in PM's c1m1) and `pm_mods_real_mod_reads_and_plays_headless`, a real mod
+when `MW3_REAL_MOD` names its files (laid out as an install's): `--check-mod`
+finds nothing to refuse, and copied into mods\ it plays PM's c1m1. Its files
+stay out of the repo; the test skips without them.
 
 **Mod rows in the lists.** The lists that walked Pirate's Moon's 25 go on to
 `mech_count()`, skipping 25 (none): Instant Action's mech lists (a mod's mech
