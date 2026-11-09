@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from test_anim_run import Compare, Emu, Port, f2u, f32, probe  # noqa: E402
+from test_anim_run import Compare, Emu, Port, anim_of, f2u, f32, probe  # noqa: E402
 from test_gamez import ZBD  # noqa: E402
 
 probe.lv_world.argtypes = [ctypes.c_float] * 6 + [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
@@ -146,7 +146,7 @@ def port_words(fn, *args):
 def main():
     runs = int(sys.argv[1]) if len(sys.argv) > 1 else 300
     rng = random.Random(9)
-    world, anim = ZBD / 'c1' / 'gamez.zbd', ZBD / 'c1' / 'anim.zbd'
+    world, anim = ZBD / 'c1' / 'gamez.zbd', anim_of('c1')
     emu, port = LabEmu(), Port()
     emu.open(world, anim)
     port.open(world, anim)
