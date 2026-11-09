@@ -1050,7 +1050,7 @@ TEST(mods_scratch_file_is_read_and_removed) {
     char back[16] = {};
     EXPECT(t.file && std::fread(back, 1, sizeof back, t.file) == 12 && std::memcmp(back, bytes.data(), 12) == 0);
     std::error_code ec;
-    EXPECT(fs::exists(where, ec) && where.parent_path() == fs::temp_directory_path(ec));
+    EXPECT(fs::exists(where, ec) && fs::equivalent(where.parent_path(), fs::temp_directory_path(ec), ec));
     zutl_zip::ScratchFile empty(nullptr, 0);
     EXPECT(empty.file && empty.path != t.path);
   }
