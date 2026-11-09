@@ -546,6 +546,33 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
      button beside it.
   Both games: main first, pm by the crossing (PM's own campaign format where it
   differs). Each step with its tests and a section here.
+- Modder-friendly, after the MODS screen and custom campaigns (Owen, 2026-11-08), in
+  this order:
+  1. **Readable files read directly**: a mod's loose `.zrd` as text and mech3ax's JSON
+     (models, motions, animations, worlds) taken as they are, ahead of the archives, so
+     a modder edits and runs without repacking with rezbd.
+  2. **A reference generated from the readers**: every key each reader takes
+     (weapons.zrd, the dfn files, aiv, targets, the mission scripts' commands, mod.txt),
+     with its type, default and limits, built from the code so it stays right.
+  3. **Plain errors on the MODS screen**: `--check-mod`'s findings and the mount log as
+     sentences per mod (what it replaces or adds, what is refused and why), instead of
+     a crash or silence.
+  4. **Quick testing**: a "test this mod" start straight into a chosen mission with the
+     mod on; later, weapon and mech values reloaded while the game runs.
+  5. **Starter mods and guides**: one small example of each kind (a mech variant, a
+     weapon, a translation, a single mission) that names the game's files instead of
+     shipping them, and a short guide for each.
+  6. **A modder mode**: the developer tools behind one switch (free camera, spawning a
+     unit, AI paths and nav points, hit boxes), with the Battlesport editor below.
+  7. **Requirements in mod.txt**: needs another mod, conflicts with one, the game
+     version it needs; the MODS screen warns before a mod is turned on.
+  8. **A pack button**: a mod folder to a shareable zip with its mod.txt and checksums.
+- The Battlesport editor as the mission editor (Owen, 2026-11-08, the after-PM order's
+  step 4): the original developers' in-game editor (editor.md: the AI net and vehicle
+  editors behind its menu, the stealth object's view) ported whole and wired up so
+  modders make missions with it as Zipper did, saved as a mod. It is the "game editor"
+  of Making missions below: worlds come from zStudio (Vorta's own program, maintained
+  apart), missions and their units, nets and objectives from the editor.
 - Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
   `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
   Ours will be new art in MW3's style (Owen: made with the local image generator), one
