@@ -517,6 +517,17 @@ TEST(mods_list_for_the_launcher) {
   ss << f.rdbuf();
   EXPECT(ss.str() == "install=/somewhere\nmod=x\nmod=z\nwidemenus=1\n");
   EXPECT(mech3::mods_save_enabled(wd, {}) && mech3::mods_enabled(wd).empty());
+  // The write goes through mw3.cfg.new renamed over it: when that cannot be
+  // written (a folder in its place here, a full disk in play) the save fails
+  // and mw3.cfg is left whole.
+  EXPECT(mech3::mods_save_enabled(wd, {"x"}));
+  std::error_code ec;
+  fs::create_directories(wd + "/mw3.cfg.new", ec);
+  EXPECT(!mech3::mods_save_enabled(wd, {"z"}));
+  EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"x"}) && fs::is_directory(wd + "/mw3.cfg.new", ec));  // not ours: kept
+  fs::remove(wd + "/mw3.cfg.new", ec);
+  EXPECT(mech3::mods_save_enabled(wd, {"z"}) && (mech3::mods_enabled(wd) == std::vector<std::string>{"z"}) &&
+         !fs::exists(wd + "/mw3.cfg.new", ec));
 }
 
 TEST(mods_strings_over_the_message_table) {
