@@ -525,7 +525,9 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
      original campaign has them). Single missions the same way, a campaign of one.
      The original campaign is untouched; a custom campaign's pilots and saves are its
      own, beside the original's.
-  2. **A MODS button on the main menu**, under CAMPAIGN, in each game's own style
+  2. **A MODS button on the main menu**, set apart from the others (there is little room
+     under CAMPAIGN: at the bottom or on the right side, placed per game, MW3's and PM's
+     menus each their own; a shot of each choice for Owen first), in each game's own style
      (its menu art, fonts, list boxes and buttons; zTwoD's widgets, as the other
      screens). It opens a screen with two tables: CUSTOM CAMPAIGNS (each installed
      campaign or mission, its author and version, an entry point that starts it or
@@ -535,9 +537,13 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
      mw3.cfg. A change to the MODS table applies at the next start, said on the
      screen (a live remount is a later step); entering a custom campaign mounts its
      own mod for that game.
-  3. **Installing made simple**, as planned above: a mod's .zip, .7z or folder dropped
-     on the launcher (or picked), and an "Open mods folder" button in both the
-     launcher and the MODS screen.
+  3. **Installing made simple**, as planned above: an ADD MOD button on the MODS screen
+     (and the launcher) opens the system's file picker; the picked .zip, .7z or folder
+     (or one dropped on the launcher) is unpacked into `mods/<name>/`, checked, sorted
+     by what it holds (a campaign, or mechs, weapons, worlds, assets, text), and shown
+     in its table at once: a campaign can be entered straight away, a content mod is
+     turned on for the next start (until the live remount). An "Open mods folder"
+     button beside it.
   Both games: main first, pm by the crossing (PM's own campaign format where it
   differs). Each step with its tests and a section here.
 - Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
