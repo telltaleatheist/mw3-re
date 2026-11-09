@@ -315,6 +315,114 @@ void mods_identity_set(const std::string& write_dir, const std::vector<std::stri
   }
 }
 
+namespace {
+std::vector<std::string> mod_files(const std::string& path) {
+  std::vector<std::string> files;
+  std::error_code ec;
+  for (fs::recursive_directory_iterator f(path, ec), end; !ec && f != end; f.increment(ec))
+    if (f->is_regular_file(ec)) {
+      const std::string rel = lower(fs::relative(f->path(), path, ec).generic_string());
+      if (rel != "mod.txt") files.push_back(rel);
+    }
+  std::sort(files.begin(), files.end());
+  return files;
+}
+std::vector<std::string> row_names(const ModInfo& m) {
+  std::vector<std::string> names;
+  for (const auto* rows : {&m.mechs, &m.weapons}) {
+    const std::string kind = rows == &m.mechs ? "mech " : "weapon ";
+    for (const std::string& line : *rows) {
+      std::istringstream in(line);
+      std::string name;
+      if (in >> name) names.push_back(kind + lower(name));
+    }
+  }
+  return names;
+}
+}  // namespace
+
+std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check,
+                                     const std::string& install) {
+  const std::vector<ModInfo> found = mods_found(write_dir);
+  std::vector<ModsListEntry> out;
+  for (const std::string& want : enabled) {
+    const auto it = std::find_if(found.begin(), found.end(), [&](const ModInfo& m) { return m.folder == want; });
+    const bool listed = std::any_of(out.begin(), out.end(), [&](const ModsListEntry& e) { return e.info.folder == want; });
+    if (it == found.end() || listed) continue;
+    ModsListEntry e;
+    e.info = *it;
+    e.on = true;
+    out.push_back(e);
+  }
+  for (const ModInfo& m : found)
+    if (std::none_of(out.begin(), out.end(), [&](const ModsListEntry& e) { return e.info.folder == m.folder; })) {
+      ModsListEntry e;
+      e.info = m;
+      out.push_back(e);
+    }
+  // What each enabled one shares with an enabled one before it (usable ones: an unusable mod mounts nothing).
+  std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
+  std::vector<std::string> before_folders;
+  for (ModsListEntry& e : out) {
+    if (!e.on || !e.info.error.empty()) continue;
+    const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
+    for (size_t k = 0; k < before.size(); ++k) {
+      bool shared = false;
+      for (const std::string& f : files)
+        if (std::binary_search(before[k].first.begin(), before[k].first.end(), f)) e.shadowed.push_back(f), shared = true;
+      for (const std::string& r : rows)
+        if (std::find(before[k].second.begin(), before[k].second.end(), r) != before[k].second.end()) e.rows_taken.push_back(r), shared = true;
+      if (shared) e.conflicts_with.push_back(before_folders[k]);
+    }
+    before.emplace_back(files, rows);
+    before_folders.push_back(e.info.folder);
+  }
+  if (check)
+    for (ModsListEntry& e : out) {
+      int errors = 0;
+      mod_check(e.info.path, install, &errors);
+      e.check_errors = errors;
+    }
+  return out;
+}
+
+std::vector<std::string> mods_enabled(const std::string& write_dir) {
+  std::vector<std::string> out;
+  std::ifstream f(fs::path(write_dir) / "mw3.cfg");
+  for (std::string line; std::getline(f, line);) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.rfind("mod=", 0) == 0) out.push_back(line.substr(4));
+  }
+  return out;
+}
+
+bool mods_save_enabled(const std::string& write_dir, const std::vector<std::string>& enabled) {
+  if (write_dir.empty()) return false;
+  const fs::path cfg = fs::path(write_dir) / "mw3.cfg";
+  std::vector<std::string> lines;
+  size_t at = std::string::npos;
+  {
+    std::ifstream f(cfg);
+    for (std::string line; std::getline(f, line);) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.rfind("mod=", 0) == 0) {
+        if (at == std::string::npos) at = lines.size();
+        continue;
+      }
+      lines.push_back(line);
+    }
+  }
+  if (at == std::string::npos) at = lines.size();
+  std::vector<std::string> mods;
+  for (const std::string& m : enabled) mods.push_back("mod=" + m);
+  lines.insert(lines.begin() + static_cast<long>(at), mods.begin(), mods.end());
+  std::error_code ec;
+  fs::create_directories(write_dir, ec);
+  std::ofstream o(cfg, std::ios::trunc);
+  for (const std::string& l : lines) o << l << '\n';
+  return static_cast<bool>(o);
+}
+
 std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text,
                                             const std::map<std::string, int32_t>& ids) {
   std::vector<std::string> log;

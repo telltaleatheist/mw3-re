@@ -281,6 +281,21 @@ number past the table: refused; a line that does not read: refused; rename
 and delete carry it; a rewrite with no rows deletes it; a stray sidecar
 beside a file with no rows ignored).
 
+## The launcher's MODS list (after PM, item 5, begun 2026-11-08)
+
+The list's model (`mods_list`, `mods_enabled`, `mods_save_enabled` in
+`mods.cpp`), shared with the screen to come: every folder in the write
+dir's `mods\` once, the enabled ones first in mw3.cfg's order, then the rest
+by folder name; a folder that is no usable mod (no `mod.txt`, no `name=`,
+another game's `for=`) listed with why, as the mount says it. For each
+enabled mod, what it shares with an enabled one before it: the files that
+one wins (any case) and the `mech=` and `weapon=` names it already adds
+(this mod's rows then refused as taken), with the mods it shares them with.
+On request, `--check-mod`'s count of what the game would refuse. Turning a
+mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
+at the first old one's place, every other line kept. Test:
+`mods_list_for_the_launcher`. The screen itself waits.
+
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
 **Names stay inside the game's folders** (2026-11-02): a name a mod's files
@@ -434,7 +449,7 @@ One limit is not a reader's: the model pool. Before a world is read it holds
 1,750 models (0x6d6, `reset_pool`), and a world's gamez.zbd sets it from its
 own count; a mission that loads more models than its pool holds (many new
 mechs' trees, say) stops the game with "GameZ model resource failure", as the
-original did. Not raised yet: it belongs with the other fixed limits a mission
+original did. Not raised yet: it is the first entry of the fixed limits a mission
 can reach (Planned, Whole campaigns).
 
 **`mw3 --check-mod DIR`** reads a mod as the game would without mounting it
@@ -481,6 +496,12 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
   rewritten campaign with more enemies. Every fixed limit a mission can reach
   (units, AI, objects, scripts) found, then raised, or refused with a message
   naming it, where the original crashed.
+  The fixed limits found so far:
+  1. The model pool: 1,750 models (0x6d6, `reset_pool`) before a world is
+     read, the world's gamez.zbd count after; past it the game stops with
+     "GameZ model resource failure: restarting your game usually solves
+     this." (`model_alloc`, 0x00538fe0). Found by item 4's mechlib four times
+     over (3,080 models); to be sized from the mods' rows.
 - After Pirate's Moon (Owen, 2026-11-07), in one list: custom weapons with their own
   effects and animations, custom mechs, custom maps and campaigns, all as data;
   existing data mods (mech3ax and zStudio output) loading as they are; quicksand as a

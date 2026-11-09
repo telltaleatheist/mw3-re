@@ -476,6 +476,49 @@ TEST(mods_saves_name_their_rows_beside_them) {
   mech3::mods_mount(wd, {}, {});
 }
 
+// The launcher's MODS list (item 5, its model): the enabled mods first in
+// mw3.cfg's order, the rest by folder name; a folder that is no usable mod
+// listed with why; an enabled mod's files and rows an earlier enabled one
+// holds, with that mod named; the check's count on request; the new order
+// written as mw3.cfg's mod= lines at the old ones' place, every other line kept.
+TEST(mods_list_for_the_launcher) {
+  const std::string wd = tmp("mods_list");
+  put(wd + "/mods/y/mod.txt", "name=Y\nmech=scout tech=sphere mass=20 class=light\n");
+  put(wd + "/mods/y/zbd/a.zbd", "y's");
+  put(wd + "/mods/x/mod.txt", "name=X\nmech=Scout tech=clan mass=25 class=light\nweapon=Rail ammo=yes tech=any\n");
+  put(wd + "/mods/x/zbd/A.zbd", "x's");
+  put(wd + "/mods/x/zbd/b.zbd", "x's own");
+  put(wd + "/mods/z/mod.txt", "name=Z\n");
+  put(wd + "/mods/z/zbd/b.zbd", "z's");
+  put(wd + "/mods/broken/zbd/c.zbd", "no mod.txt");
+  put(wd + "/mods/pm/mod.txt", "name=P\nfor=pm 1.0\n");
+  put(wd + "/mw3.cfg", "install=/somewhere\nmod=y\nmod=x\nwidemenus=1\nmod=gone\n");
+  EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"y", "x", "gone"}));
+  const std::vector<mech3::ModsListEntry> l = mech3::mods_list(wd, mech3::mods_enabled(wd));
+  std::string order;
+  for (const mech3::ModsListEntry& e : l) order += e.info.folder + (e.on ? "+ " : " ");
+  std::printf("  list: %s\n", order.c_str());
+  EXPECT(order == "y+ x+ broken pm z ");
+  if (l.size() == 5) {
+    EXPECT(l[0].shadowed.empty() && l[0].conflicts_with.empty());
+    EXPECT((l[1].shadowed == std::vector<std::string>{"zbd/a.zbd"}) && (l[1].rows_taken == std::vector<std::string>{"mech scout"}) &&
+           (l[1].conflicts_with == std::vector<std::string>{"y"}));
+    EXPECT(l[2].info.error == "no mod.txt" && l[3].info.error.find("not MechWarrior 3") != std::string::npos);
+    EXPECT(!l[4].on && l[4].shadowed.empty() && l[0].check_errors == -1);  // z is off: nothing shared counted
+  }
+  // z on after x: its b.zbd is x's.
+  const std::vector<mech3::ModsListEntry> l2 = mech3::mods_list(wd, {"x", "z"}, true, "");
+  EXPECT(l2.size() == 5 && (l2[1].shadowed == std::vector<std::string>{"zbd/b.zbd"}) &&
+         (l2[1].conflicts_with == std::vector<std::string>{"x"}) && l2[0].check_errors >= 0 && l2[1].check_errors >= 0);
+  // Saved: mod= lines at the first old one's place, the rest kept.
+  EXPECT(mech3::mods_save_enabled(wd, {"x", "z"}));
+  std::ifstream f(wd + "/mw3.cfg");
+  std::stringstream ss;
+  ss << f.rdbuf();
+  EXPECT(ss.str() == "install=/somewhere\nmod=x\nmod=z\nwidemenus=1\n");
+  EXPECT(mech3::mods_save_enabled(wd, {}) && mech3::mods_enabled(wd).empty());
+}
+
 TEST(mods_strings_over_the_message_table) {
   SavedMounts keep;
   const std::string wd = tmp("mods_strings");
