@@ -9929,7 +9929,8 @@ TEST(reference_files_keys_are_the_readers_headless) {
   for (const std::string& soil : zmod::soil_names()) run.names["weapons.zrd"].insert(soil);
   for (const ref::File& f : ref::files()) {
     const auto it = run.keys.find(f.id);
-    if (it == run.keys.end() && (std::string(f.id) == "mod.txt" || std::string(f.id) == "campaign")) continue;  // our parsers: test_reference.cpp
+    const std::string id = f.id;
+    if (id == "mod.txt" || id == "campaign" || id == "interp") continue;  // not reader files: test_reference.cpp
     std::set<std::string> read;
     if (it != run.keys.end())
       for (const std::string& k : it->second)

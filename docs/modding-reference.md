@@ -434,3 +434,199 @@ One block per mission (`m1`, `m2`, ...). Each group holds `type (arguments)` pai
 | `key` | key_press | key names (KEY_CTRL, KEY_ALT, KEY_SHIFT) | none | - | The key. (No shipped mission reaches this read: not checked.) |
 | `button` | mouse_press, joystick_press | left/right/middle, or a number | none | - | The button. (No shipped mission reaches this read: not checked.) |
 | `weapon` | weapon_fire, weapon_select | a weapon's name | none | - | The weapon. (No shipped mission reaches this read: not checked.) |
+
+## Script commands (interp.zbd, a world's .gs and .gw)
+
+- Where: `zbd\interp.zbd` (a mod's own scripts)
+- Read by: the preprocessor 0x00590e80, the dispatcher 0x00591300 (`zint::dispatch`), MW3's pre hook 0x004107e0
+
+One command a line, its words split by spaces; `$name` expands a macro (`set`). The type is the arguments in the order the command reads them: `s` text, `f` a number with a point, `i` a whole number, `b` on/off (`on` or `true`, anything else off), `-` none. Most names match any longer word that starts with them (`CameraSetFOVwide` is `CameraSetFOV`); those marked exact must be the whole word. Most commands act on the current node, which `FindNode`, `FindSubNode` and the `New*` commands set. Messages go nowhere in the shipped game (the console is not built). An unknown word is skipped.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `AddChild` | command | s | - | any word starting with it | Add child. |
+| `AddClutterTemplates` | command | s | - | any word starting with it | Add clutter templates. |
+| `AddEnhancerImage` | command | s | - | any word starting with it | Add enhancer image. |
+| `AnimSetDebugFrame` | command | - | - | any word starting with it | Anim set debug frame. |
+| `AnimSetZBDFile` | command | s | - | any word starting with it | Anim set zbd file. |
+| `CameraGetTranslate` | command | - | - | exact name | Camera get translate. |
+| `CameraSetActive` | command | b | - | any word starting with it | Camera set active. |
+| `CameraSetDynamicLOD` | command | f | - | any word starting with it | Camera set dynamic lod. |
+| `CameraSetFarClip` | command | f | - | exact name | Camera set far clip. |
+| `CameraSetFOV` | command | ff | - | any word starting with it | Camera set fov. |
+| `CameraSetHorizon` | command | s | - | any word starting with it | Camera set horizon. |
+| `CameraSetHorizonXZ` | command | s | - | any word starting with it | Camera set horizon xz. |
+| `CameraSetLODMultiplier` | command | f | - | any word starting with it | Camera set lod multiplier. |
+| `CameraSetNearClip` | command | f | - | exact name | Camera set near clip. |
+| `CameraSetNearFarClip` | command | ff | - | any word starting with it | Camera set near far clip. |
+| `CameraSetObjectHSETest` | command | b | - | any word starting with it | Camera set object hse test. |
+| `CameraSetRotate` | command | fff | - | any word starting with it | Camera set rotate. |
+| `CameraSetTranslate` | command | fff | - | any word starting with it | Camera set translate. |
+| `CameraSetWindow` | command | s | - | any word starting with it | Camera set window. |
+| `CameraSetWorld` | command | s | - | any word starting with it | Camera set world. |
+| `ClearScreenBuffer` | command | b | - | any word starting with it | Clear screen buffer. |
+| `CountCameraNodes` | command | - | - | any word starting with it | Count camera nodes. |
+| `CountUsedNodes` | command | - | - | any word starting with it | Count used nodes. |
+| `CycleTextureSetLooping` | command | b | - | any word starting with it | Cycle texture set looping. |
+| `CycleTextureSetMap` | command | s | - | any word starting with it | Cycle texture set map. |
+| `CycleTextureSetOn` | command | i | - | any word starting with it | Cycle texture set on. |
+| `CycleTextureSetSpeed` | command | f | - | any word starting with it | Cycle texture set speed. |
+| `DeleteChild` | command | s | - | any word starting with it | Delete child. |
+| `DeleteFile` | command | s | - | any word starting with it | Delete file. |
+| `DeleteTree` | command | s | - | any word starting with it | Delete tree. |
+| `DirectedLightFluctuate` | command | b | - | exact name | Directed light fluctuate. |
+| `DirectedLightFluctuateBaseAndAmp` | command | ff | - | exact name | Directed light fluctuate base and amp. |
+| `DirectedLightFluctuateHeading` | command | f | - | exact name | Directed light fluctuate heading. |
+| `DirectedLightFluctuatePeriod` | command | f | - | exact name | Directed light fluctuate period. |
+| `DirectedLightFluctuateWavelength` | command | f | - | exact name | Directed light fluctuate wavelength. |
+| `DisplayOrigin` | command | ii | - | any word starting with it | Display origin. |
+| `DisplayResolution` | command | ii | - | any word starting with it | Display resolution. |
+| `DisplaySetClearColor` | command | fff | - | any word starting with it | Display set clear color. |
+| `Echo` | command | - | - | any word starting with it | Logs the rest of the line. |
+| `echo` | command | - | - | any word starting with it | Logs the rest of the line. |
+| `endif` | preprocessor | - | - | 5 letters | Ends an ifdef or ifndef block. |
+| `FindNode` | command | s | - | any word starting with it | Find node. |
+| `FindSubNode` | command | s | - | any word starting with it | Find sub node. |
+| `FogLargeObjects` | command | b | - | any word starting with it | Fog large objects. |
+| `FreeNode` | command | s | - | any word starting with it | Free node. |
+| `GameZReadZBDFile` | command | s | - | any word starting with it | Game z read zbd file. |
+| `GameZWriteZBDFile` | command | s | - | any word starting with it | Game z write zbd file. |
+| `GetBFETolerance` | command | - | - | any word starting with it | Get bfe tolerance. |
+| `GlobalWindRandomAccel` | command | f | - | any word starting with it | Global wind random accel. |
+| `GlobalWindRandomAngVel` | command | f | - | any word starting with it | Global wind random ang vel. |
+| `GlobalWindRandomMaxSpeed` | command | f | - | any word starting with it | Global wind random max speed. |
+| `GlobalWindStaticVelocity` | command | fff | - | any word starting with it | Global wind static velocity. |
+| `ifdef` | preprocessor | macro | - | 5 letters | Runs the lines up to endif only when the macro is set. |
+| `ifndef` | preprocessor | macro | - | 6 letters | Runs the lines up to endif only when the macro is not set. |
+| `LensFlareTexture` | command | is | - | any word starting with it | Lens flare texture. |
+| `LightNew` | command | s | - | any word starting with it | Light new. |
+| `LightSetActive` | command | b | - | any word starting with it | Light set active. |
+| `LightSetAmbient` | command | f | - | any word starting with it | Light set ambient. |
+| `LightSetColor` | command | fff | - | any word starting with it | Light set color. |
+| `LightSetDiffuse` | command | f | - | any word starting with it | Light set diffuse. |
+| `LightSetDirectedSource` | command | - | - | any word starting with it | Light set directed source. |
+| `LightSetDirectional` | command | b | - | any word starting with it | Light set directional. |
+| `LightSetOrientation` | command | fff | - | any word starting with it | Light set orientation. |
+| `LightSetPointSource` | command | - | - | any word starting with it | Light set point source. |
+| `LightSetRanges` | command | ff | - | any word starting with it | Light set ranges. |
+| `LightSetSaturated` | command | b | - | any word starting with it | Light set saturated. |
+| `LightSetStatic` | command | b | - | any word starting with it | Light set static. |
+| `LightSetSubdivide` | command | b | - | any word starting with it | Light set subdivide. |
+| `LightSetTranslate` | command | fff | - | any word starting with it | Light set translate. |
+| `LoadSoils` | command | s | - | any word starting with it | Load soils. |
+| `LODAddChild` | command | s | - | any word starting with it | Lod add child. |
+| `LODSetRange` | command | ff | - | any word starting with it | Lod set range. |
+| `MakeShadows` | command | - | - | exact name | Make shadows. |
+| `MatlFaceColor` | command | fff | - | any word starting with it | Matl face color. |
+| `MatlNew` | command | - | - | any word starting with it | Matl new. |
+| `MatlTexture` | command | s | - | any word starting with it | Matl texture. |
+| `mkdir` | preprocessor | s | - | 5 letters | Makes a folder. |
+| `ModelDoShadows` | command | b | - | any word starting with it | Model do shadows. |
+| `ModelNew` | command | ss | - | any word starting with it | Model new. |
+| `ModelPolygonBegin` | command | - | - | any word starting with it | Model polygon begin. |
+| `ModelPolygonEnd` | command | - | - | any word starting with it | Model polygon end. |
+| `ModelPolygonUV` | command | ff | - | any word starting with it | Model polygon uv. |
+| `ModelPolygonVertex` | command | fff | - | any word starting with it | Model polygon vertex. |
+| `NewCamera` | command | s | - | any word starting with it | New camera. |
+| `NewDisplay` | command | s | - | any word starting with it | New display. |
+| `NewLOD` | command | s | - | any word starting with it | New lod. |
+| `NewNode` | command | s | - | any word starting with it | New node. |
+| `NewObject3D` | command | s | - | any word starting with it | New object3 d. |
+| `NewSEQ` | command | s | - | any word starting with it | New seq. |
+| `NewWindow` | command | s | - | any word starting with it | New window. |
+| `NewWorld` | command | s | - | any word starting with it | New world. |
+| `NodeDump` | command | - | - | exact name | Node dump. |
+| `NodeSetActive` | command | b | - | any word starting with it | Node set active. |
+| `NodeSetCanModify` | command | b | - | any word starting with it | Node set can modify. |
+| `NodeSetDescription` | command | s | - | any word starting with it | Node set description. |
+| `NodeSetLighting` | command | b | - | any word starting with it | Node set lighting. |
+| `NodeSetOverwrite` | command | b | - | any word starting with it | Node set overwrite. |
+| `Object3DAddChild` | command | s | - | any word starting with it | Object3 d add child. |
+| `Object3DGetTranslate` | command | - | - | exact name | Object3 d get translate. |
+| `Object3DRegisterTexturesToWorld` | command | b | - | any word starting with it | Object3 d register textures to world. |
+| `Object3DRotate` | command | fff | - | any word starting with it | Object3 d rotate. |
+| `Object3DScale` | command | fff | - | any word starting with it | Object3 d scale. |
+| `Object3DSetActionPriority` | command | i | - | any word starting with it | Object3 d set action priority. |
+| `Object3DSetActive` | command | b | - | any word starting with it | Object3 d set active. |
+| `Object3DSetColor` | command | i | - | any word starting with it | Object3 d set color. |
+| `Object3DSetFacade` | command | - | - | any word starting with it | Object3 d set facade. |
+| `Object3DSetMorphVertex` | command | f | - | any word starting with it | Object3 d set morph vertex. |
+| `Object3DSetOpacity` | command | f | - | any word starting with it | Object3 d set opacity. |
+| `Object3DSetOpacityIsSet` | command | i | - | any word starting with it | Object3 d set opacity is set. |
+| `Object3DSetPoints` | command | - | - | any word starting with it | Object3 d set points. |
+| `Object3DSetPriority` | command | i | - | any word starting with it | Object3 d set priority. |
+| `Object3DSetScroll` | command | bff | - | any word starting with it | Object3 d set scroll. |
+| `Object3DSetScrollAlways` | command | bff | - | any word starting with it | Object3 d set scroll always. |
+| `Object3DSetShowBackFace` | command | b | - | any word starting with it | Object3 d set show back face. |
+| `Object3DSetTextureWorldBaseCoordinates` | command | ff | - | any word starting with it | Object3 d set texture world base coordinates. |
+| `Object3DSetTextureWorldTexturesPerMeter` | command | ff | - | any word starting with it | Object3 d set texture world textures per meter. |
+| `Object3DTranslate` | command | fff | - | any word starting with it | Object3 d translate. |
+| `PerspectiveTexture` | command | b | - | any word starting with it | Perspective texture. |
+| `PrintNodeCount` | command | s | - | any word starting with it | Print node count. |
+| `PrintTree` | command | - | - | exact name | Print tree. |
+| `PrintUsedNodes` | command | - | - | any word starting with it | Print used nodes. |
+| `Quit` | preprocessor | - | - | exact name | Ends the current script file (the one that sourced it goes on). |
+| `RdrAddPath` | command | s | - | any word starting with it | Rdr add path. |
+| `RdrSetPath` | command | s | - | any word starting with it | Rdr set path. |
+| `SEQ` | command | - | - | a prefix | Any word starting SEQ: the SEQ commands' table (never a miss). |
+| `SEQAddChild` | command | sif | - | any word starting with it | Seq add child. |
+| `SEQNew` | command | s | - | any word starting with it | Seq new. |
+| `SEQSetActive` | command | i | - | any word starting with it | Seq set active. |
+| `SEQSetLoop` | command | i | - | any word starting with it | Seq set loop. |
+| `SEQSetPause` | command | i | - | exact name | Seq set pause. |
+| `SEQSetRepeat` | command | i | - | any word starting with it | Seq set repeat. |
+| `set` | preprocessor | name value | - | 3 letters | Sets a macro (`$name` in later lines). |
+| `SetAltitudeSurface` | command | b | - | any word starting with it | Set altitude surface. |
+| `SetBFETolerance` | command | f | - | any word starting with it | Set bfe tolerance. |
+| `SetColinearTolerance` | command | f | - | any word starting with it | Set colinear tolerance. |
+| `SetCoplanarTolerance` | command | f | - | any word starting with it | Set coplanar tolerance. |
+| `SetGameZNodeArraySize` | command | i | - | any word starting with it | Set game z node array size. |
+| `SetIntersectBBOX` | command | b | - | any word starting with it | Set intersect bbox. |
+| `SetIntersectSurface` | command | b | - | any word starting with it | Set intersect surface. |
+| `SetInverseZTolerance` | command | f | - | any word starting with it | Set inverse z tolerance. |
+| `SetLandmark` | command | b | - | any word starting with it | Set landmark. |
+| `SetMaterialArraySize` | command | i | - | any word starting with it | Set material array size. |
+| `SetModel3DArraySize` | command | i | - | any word starting with it | Set model3 d array size. |
+| `SetPaletteName` | command | s | - | any word starting with it | Set palette name. |
+| `SetPaletteShading` | command | b | - | any word starting with it | Set palette shading. |
+| `SetPerspectiveAdaptiveCorrection` | command | iif | - | any word starting with it | Set perspective adaptive correction. |
+| `SetPerspectiveInverseZTolerance` | command | f | - | any word starting with it | Set perspective inverse z tolerance. |
+| `SetPerspectiveTextureDeltaX` | command | i | - | any word starting with it | Set perspective texture delta x. |
+| `SetPerspectiveTextureFarZ` | command | f | - | any word starting with it | Set perspective texture far z. |
+| `SetProximity` | command | b | - | any word starting with it | Set proximity. |
+| `SetSmallPolygonRejectArea` | command | f | - | any word starting with it | Set small polygon reject area. |
+| `SetTextureDirectory` | command | s | - | any word starting with it | Set texture directory. |
+| `SetVertexShading` | command | b | - | any word starting with it | Set vertex shading. |
+| `source` | preprocessor | s | - | 6 letters | Runs another script file. |
+| `TextureAdd` | command | s | - | any word starting with it | Texture add. |
+| `var` | preprocessor | name = value, or name set value | - | 3 letters | Sets a registered variable (int or float; strings refuse). |
+| `Verbose` | command | b | - | any word starting with it | Verbose. |
+| `VideoSetDither` | command | b | - | exact name | Video set dither. |
+| `VideoSetWireFrame` | command | b | - | exact name | Video set wire frame. |
+| `who` | preprocessor | - | - | 3 letters | Logs every macro and variable. |
+| `WindowAddClearPolygonVertex` | command | fff | - | any word starting with it | Window add clear polygon vertex. |
+| `WindowBuffer` | command | i | - | exact name | Window buffer. |
+| `WindowCloseClearPolygon` | command | - | - | any word starting with it | Window close clear polygon. |
+| `WindowOrigin` | command | ii | - | any word starting with it | Window origin. |
+| `WindowResolution` | command | ii | - | any word starting with it | Window resolution. |
+| `WindowSetClearPolygon` | command | b | - | any word starting with it | Window set clear polygon. |
+| `WorldAddLight` | command | s | - | any word starting with it | World add light. |
+| `WorldExtents` | command | ff | - | any word starting with it | World extents. |
+| `WorldGetFogColor` | command | - | - | exact name | World get fog color. |
+| `WorldGetFogRange` | command | - | - | exact name | World get fog range. |
+| `WorldOrigin` | command | ff | - | any word starting with it | World origin. |
+| `WorldPartition` | command | ff | - | any word starting with it | World partition. |
+| `WorldPartitionInclusionTolerance` | command | ff | - | any word starting with it | World partition inclusion tolerance. |
+| `WorldPartitionMaxDECFeatureCount` | command | i | - | any word starting with it | World partition max dec feature count. |
+| `WorldSetFogAltitude` | command | ff | - | any word starting with it | World set fog altitude. |
+| `WorldSetFogColor` | command | fff | - | any word starting with it | World set fog color. |
+| `WorldSetFogDensity` | command | f | - | any word starting with it | World set fog density. |
+| `WorldSetFogRange` | command | ff | - | exact name | World set fog range. |
+| `WorldSetFogRangeFar` | command | f | - | exact name | World set fog range far. |
+| `WorldSetFogRangeNear` | command | f | - | exact name | World set fog range near. |
+| `WorldSetFogState` | command | s | - | any word starting with it | World set fog state. |
+| `WorldSetGravity` | MW3 | f | - | exact name | The world's gravity (MW3's own command; no shipped script uses it). |
+| `WorldSetVirtualPartition` | command | b | - | any word starting with it | World set virtual partition. |
+| `WorldSetVirtualPartitionMapSize` | command | ii | - | any word starting with it | World set virtual partition map size. |
+| `WriteTextureSetMap` | command | s | - | any word starting with it | Write texture set map. |
+| `WriteTextureSetType` | command | i | - | any word starting with it | Write texture set type. |

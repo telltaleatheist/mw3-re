@@ -17,7 +17,11 @@ weapon's, a record's) are declared per file and left out. A key the code
 reads but no shipped mission reaches is marked unchecked in the document.
 Covered so far: mod.txt, custom campaigns, weapons.zrd, the mech
 definitions, aiv.zrd, targets.zrd, the AI nets and regions, valves.zrd and
-objectives.zrd; the script commands and the JSON forms follow.
+objectives.zrd, and the script commands (every name the preprocessor, the
+dispatcher and MW3's pre hook test, from an unknown word under each first
+letter, and each command's arguments as it reads them, from running it with
+0 to 12 numbers on a stand-in node and no engine; they agree with
+interp.md's table from the disassembly); the JSON forms follow.
 
 ## A mod (M1, 2026-11-01)
 
