@@ -2087,3 +2087,112 @@ TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
   mech3::options() = mech3::Options{};
   mech3::action_setup() = mech3::ActionSetup{};
 }
+
+// pm-tests item 23 on Pirate's Moon, as mission_c1m1_player_knocked_down_headless on MW3: the player knocked down
+// in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from 50 m ahead build the knock past the threshold
+// (0x00417a80): Stagger, a fall. (2) Dropped from 150 m, a hard landing (0x004162c0: the fall's speed over 80 m/s)
+// falls one time in five (rand > 0.8, as PM's 0x00416ec9); seed 3, whose first drop stands (0.57) and second falls
+// (0.96), so the run stays short. Under seed 1, MW3's, PM's c1m1 draws in another order: the fall comes on drop 25.
+static int knock_run(int cause) {
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_knock_write";
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  // The landings' rand, as a new process with a fixed clock; PM_SEED=n another seed.
+  crt::rand_fixed_seed() = std::getenv("PM_SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("PM_SEED"))) : 3u;
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  int fell_at = -1, drops = 0, f = 0;
+  float force = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    bool done = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || done) return;
+      ++f;
+      void* me = mech3::mission_player_mech();
+      if (!me || f < 30) return;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(me, &d);
+      if (d.anim_state >= 11 && d.anim_state <= 13) {
+        fell_at = f, done = true;
+        return;
+      }
+      float at[3];
+      mech3::mech_world_position(me, at);
+      if (cause == 1) {
+        int32_t n = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+        void* def = mech3::chain_heaviest_impact();
+        force = def ? mech3::weapon_def_impact(def) : 0;
+        const float from[3] = {at[0], at[1] + 5.0f, at[2] - 50.0f};
+        if (n && def && f % 2 == 0) mech3::mech_hit_from(me, def, from, mech3::mech_node(ai[0].mech), 0.01f);
+        done = f > 600;
+        return;
+      }
+      if ((f - 30) % 500 == 0) {
+        if (++drops > 5) {
+          done = true;
+          return;
+        }
+        const float up[3] = {at[0], at[1] + 150.0f, at[2]};
+        mech3::move_mech(me, up, 0.0f);
+      }
+    };
+    Pump pump;
+    pump.limit = 6000;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  pm cause %d: fell at frame %d (impact force %.1f, drops %d)\n", cause, fell_at, force, drops);
+  std::fflush(nullptr);
+  return fell_at;
+}
+
+TEST(pm_c1m1_player_knocked_down_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  for (const int cause : {1, 2}) {
+#if !defined(_WIN32)
+    // Each in a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      const int fell = knock_run(cause);
+      _exit(check::failures || fell <= 0 ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+    EXPECT(knock_run(cause) > 0);
+#endif
+  }
+}
