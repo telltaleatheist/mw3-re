@@ -21,6 +21,7 @@
 #include "gamez/zutil/zutl_zip.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
@@ -1164,6 +1165,42 @@ TEST(mods_mechlib_json_is_every_entrys_bytes) {
   zutl_zar::destroy(a);
   std::printf("  %d entries, %d the same bytes from unzbd's JSON; first difference: %s\n", entries, same, first_bad.empty() ? "none" : first_bad.c_str());
   EXPECT(entries > 50 && same == entries);
+}
+
+// Each world's anim.zbd from unzbd's own JSON (find_unzbd): the shipped file's bytes but past names' NULs, where
+// mech3ax restores the shipped padding from tables of its own and ours is zeros (docs/modding.md).
+TEST(mods_anim_json_is_every_worlds_file) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  int worlds = 0, same = 0;
+  for (const char* w : {"c1", "c2", "c3", "c4", "c4b", "t1"}) {
+    const std::string zbd = install + "/zbd/" + w + "/anim.zbd";
+    if (!fs::exists(zbd, ec)) continue;
+    ++worlds;
+    std::map<std::string, std::string> exported;
+    EXPECT(unzbd_export(unzbd, "anim", zbd, &exported));
+    std::ifstream in(zbd, std::ios::binary);
+    const std::vector<uint8_t> shipped((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::vector<uint8_t> ours;
+    std::vector<std::pair<size_t, size_t>> masks;
+    std::string why;
+    const bool ok = zeff::anim_from_json([&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); }, &ours, &masks, &why);
+    if (!ok) std::printf("  %s: %s\n", w, why.c_str());
+    std::vector<uint8_t> a = ours, b = shipped;
+    if (!ok) b.resize(std::min(b.size(), a.size()));  // the defs it read, against the shipped file's start
+    for (const auto& [from, to] : masks)
+      for (size_t k = from; k < to && k < a.size() && k < b.size(); ++k) a[k] = b[k] = 0;
+    size_t at = 0;
+    while (at < a.size() && at < b.size() && a[at] == b[at]) ++at;
+    const bool equal = ok && a.size() == b.size() && at == a.size();
+    same += equal;
+    std::printf("  %s: %zu bytes vs %zu, %zu names masked, %s\n", w, ours.size(), shipped.size(), masks.size(),
+                equal ? "the same" : at == a.size() && !ok ? "the same so far" : ("first difference at " + std::to_string(at)).c_str());
+  }
+  EXPECT(worlds == 6 && same == worlds);
 }
 
 // A world's own files in a mod, in a folder past the 127 characters zEffect's path
