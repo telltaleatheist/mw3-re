@@ -231,6 +231,152 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
     for (float x : tr) o.f32(x);
     return true;
   }
+  const auto vec = [&](const Value& obj, const std::string& oa, const char* key, float out[3]) {
+    const Value* v = j.get(obj, oa, key);
+    return v && j.f32(*v, oa + "." + key, "x", &out[0]) && j.f32(*v, oa + "." + key, "y", &out[1]) && j.f32(*v, oa + "." + key, "z", &out[2]);
+  };
+  const auto opt_node = [&](const char* key, int16_t input, int16_t* out) {  // null: 0
+    const Value* v = j.get(d, at, key);
+    if (!v) return false;
+    if (v->kind == Value::Null) return *out = 0, true;
+    std::string n;
+    if (!j.r.game_string(*v, at + "." + key, &n, 255)) return false;
+    if (n == "INPUT_NODE") return *out = input, true;
+    if (!(*out = Def::find(def.nodes, n))) return j.r.fail(*v, at + "." + key, "no node \"" + n + "\" in the def's nodes");
+    return true;
+  };
+  const auto name32 = [&](const char* key, std::string* n) { return j.str(d, at, key, n, 31); };
+  if (type == "ObjectScaleState") {
+    float v[3];
+    int16_t n;
+    if (!(vec(d, at, "state", v) && node("name", 0, &n))) return false;
+    for (float x : v) o.f32(x);
+    o.i32(n);
+    return true;
+  }
+  if (type == "ObjectTranslateState") {
+    bool relative;
+    float v[3];
+    int16_t n, an;
+    if (!(j.boolean(d, at, "relative", &relative) && vec(d, at, "state", v) && node("node", 0, &n) && opt_node("at_node", kInputCall, &an)))
+      return false;
+    o.u32(relative ? 1 : 0);
+    for (float x : v) o.f32(x);
+    o.i16(n), o.i16(an);
+    return true;
+  }
+  if (type == "ObjectRotateState") {
+    float v[3];
+    int16_t n, an = 0;
+    uint32_t flags = 0;
+    const Value* basis;
+    if (!(vec(d, at, "state", v) && node("name", 0, &n) && (basis = j.get(d, at, "basis")))) return false;
+    if (basis->kind == Value::String && (basis->text == "Relative" || basis->text == "Absolute")) {
+      flags = basis->text == "Relative" ? 1 : 0;
+    } else if (basis->kind == Value::Object && basis->members.size() == 1 &&
+               (basis->members[0].first == "AtNodeXYZ" || basis->members[0].first == "AtNodeMatrix")) {
+      flags = basis->members[0].first == "AtNodeXYZ" ? 2 : 4;
+      std::string bn;
+      if (!j.r.game_string(basis->members[0].second, at + ".basis." + basis->members[0].first, &bn, 255)) return false;
+      if (bn == "INPUT_NODE") an = kInputCall;
+      else if (!(an = Def::find(def.nodes, bn))) return j.r.fail(*basis, at + ".basis", "no node \"" + bn + "\" in the def's nodes");
+    } else {
+      return j.r.fail(*basis, at + ".basis", "not Relative, Absolute, AtNodeXYZ or AtNodeMatrix");
+    }
+    o.u32(flags);
+    for (float x : v) o.f32(x);
+    o.i16(n), o.i16(an);
+    return true;
+  }
+  if (type == "ObjectOpacityState") {
+    bool state;
+    int16_t n;
+    float opacity = 0;
+    const Value* op;
+    if (!(j.boolean(d, at, "state", &state) && node("name", kInputActive, &n) && (op = j.get(d, at, "opacity")))) return false;
+    if (op->kind != Value::Null && !j.r.f32(*op, at + ".opacity", &opacity)) return false;
+    o.u16(state ? 1 : 0), o.u16(op->kind != Value::Null ? 1 : 0), o.f32(opacity), o.i16(n), o.u16(0);
+    return true;
+  }
+  if (type == "CallSequence" || type == "StopSequence") {
+    std::string n;
+    if (!name32("name", &n)) return false;
+    o.name_padded(n, 32), o.i32(-1);
+    return true;
+  }
+  if (type == "StopAnimation") {
+    std::string n;
+    if (!name32("name", &n)) return false;
+    o.name_padded(n, 32), o.i16(0), o.i16(0);
+    return true;
+  }
+  if (type == "ResetAnimation" || type == "InvalidateAnimation") {
+    std::string n;
+    if (!name32("name", &n)) return false;
+    o.name_padded(n, 32), o.i32(0);
+    return true;
+  }
+  if (type == "Loop") {
+    if (!j.r.object(d, at) || d.members.size() != 1) return j.r.fail(d, at, "not one Count or RunTime");
+    const auto& [k, v] = d.members[0];
+    if (k == "Count") {
+      long long c;
+      if (!j.num(v, at + ".Count", -32768, 65535, &c)) return false;
+      o.u32(1), o.u16(static_cast<uint16_t>(c)), o.u16(0);
+    } else if (k == "RunTime") {
+      float t;
+      if (!j.r.f32(v, at + ".RunTime", &t)) return false;
+      o.u32(2), o.f32(t);
+    } else {
+      return j.r.fail(d, at, "not Count or RunTime");
+    }
+    return true;
+  }
+  if (type == "Sound") {
+    std::string n;
+    if (!name32("name", &n)) return false;
+    const int16_t si = Def::find(def.static_sounds, n);
+    if (!si) return j.r.fail(d, at + ".name", "no sound \"" + n + "\" in the def's static sounds");
+    const Value* an = j.get(d, at, "at_node");
+    if (!an) return false;
+    int16_t ni = 0;
+    float pos[3] = {0, 0, 0};
+    if (an->kind != Value::Null) {
+      std::string nn;
+      if (!(j.str(*an, at + ".at_node", "name", &nn, 255) && vec(*an, at + ".at_node", "pos", pos))) return false;
+      if (!(ni = Def::find(def.nodes, nn))) return j.r.fail(*an, at + ".at_node.name", "no node \"" + nn + "\" in the def's nodes");
+    }
+    o.i16(si), o.i16(ni);
+    for (float x : pos) o.f32(x);
+    return true;
+  }
+  if (type == "If" || type == "Elseif") {
+    const Value* c = j.get(d, at, "condition");
+    if (!c || !j.r.object(*c, at + ".condition") || c->members.size() != 1) return j.r.fail(d, at + ".condition", "not one condition");
+    const auto& [k, v] = c->members[0];
+    const std::string ca = at + ".condition." + k;
+    uint32_t ty = 0, node_index = 0, value = 0;
+    float f = 0;
+    if (k == "RandomWeight" || k == "PlayerRange") {
+      if (!j.r.f32(v, ca, &f)) return false;
+      ty = k == "RandomWeight" ? 1 : 2;
+      std::memcpy(&value, &f, 4);
+    } else if (k == "AnimationLod") {
+      if (!j.r.u32(v, ca, &value)) return false;
+      ty = 4;
+    } else if (k == "NodeUndercover") {
+      if (!(j.u32(v, ca, "node_index", &node_index) && j.u32(v, ca, "distance", &value))) return false;
+      ty = 16;
+    } else if (k == "HwRender" || k == "PlayerFirstPerson") {
+      if (v.kind != Value::Bool) return j.r.fail(v, ca, "not true or false");
+      ty = k == "HwRender" ? 32 : 64, value = v.b ? 1 : 0;
+    } else {
+      return j.r.fail(*c, at + ".condition", "not a condition this format has: " + k);
+    }
+    o.u32(ty), o.u32(node_index), o.u32(value);
+    return true;
+  }
+  if (type == "Else" || type == "Endif") return j.r.object(d, at);
   return j.r.fail(d, at, "the event " + type + " is not read yet");
 }
 
