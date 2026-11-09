@@ -37,12 +37,14 @@ const std::vector<File>& files();
 std::string markdown();
 
 // The test's observer: each key a reader looks up, with the context the test
-// set (`context`). Null in play: the readers' one check is a pointer.
-using Observer = void (*)(const char* context, const char* key);
+// set (`context`) and the reader node searched (null for our parsers), so a
+// test can tell one file's lookups from another's. Null in play: the
+// readers' one check is a pointer.
+using Observer = void (*)(const char* context, const char* key, const void* node);
 Observer& observer();
 const char*& context();
-inline void seen(const char* key) {
-  if (Observer o = observer()) o(context(), key);
+inline void seen(const char* key, const void* node = nullptr) {
+  if (Observer o = observer()) o(context(), key, node);
 }
 // Our parsers' key test: `key == lit`, reported.
 inline bool key_is(const std::string& key, const char* lit) {
@@ -54,5 +56,6 @@ inline bool key_is(const std::string& key, const char* lit) {
 File mod_txt();
 File campaign();
 File weapons();
+File dfn();
 
 }  // namespace upgrades::reference

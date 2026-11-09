@@ -9,8 +9,10 @@ Every key each file a mod can change takes, with its type, default and
 limits: `docs/modding-reference.md`, generated from `src/upgrades/reference/`
 (`mw3 --reference docs/modding-reference.md`; the test `reference_*` fails
 when a reader and its registry disagree or the document is stale). Covered so
-far: mod.txt, custom campaigns, weapons.zrd; the mech definitions, the
-mission readers' records, the script commands and the JSON forms follow.
+far: mod.txt, custom campaigns, weapons.zrd, the mech definitions (their
+keys recorded while the 19 load and c1m1 starts: every module that reads a
+definition's tree); the mission readers' records, the script commands and
+the JSON forms follow.
 
 ## A mod (M1, 2026-11-01)
 
