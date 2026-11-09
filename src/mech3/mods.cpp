@@ -22,6 +22,9 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "crt/msvc_string.h"
+#include "mech3/mech_names.h"
+#include "mech3/mech_reader.h"
 #include "mech3/mission.h"
 
 namespace mech3 {
@@ -61,13 +64,17 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (key == "for") out->game = value;
     else if (key == "description") out->description = value;
     else if (key == "world" && !value.empty()) out->worlds.push_back(value);
+    else if (key == "mech" && !value.empty()) out->mechs.push_back(value);
+    else if (key == "weapon" && !value.empty()) out->weapons.push_back(value);
     else if (key == "ia_world" && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
     }
   }
   if (out->name.empty()) out->error = "mod.txt has no name= line";
-  else if (!out->game.empty() && lower(out->game).rfind("mw3", 0) != 0) out->error = "it is for " + out->game + ", not MechWarrior 3";
+  // Pirate's Moon's mods say for=mw3pm (a version may follow); MechWarrior 3's (mw3) are another game's.
+  else if (!out->game.empty() && lower(out->game).substr(0, lower(out->game).find_first_of(" \t")) != "mw3pm")
+    out->error = "it is for " + out->game + ", not Pirate's Moon";
   return out->error.empty();
 }
 
@@ -94,6 +101,35 @@ std::vector<ModInfo> mods_found(const std::string& write_dir) {
   return out;
 }
 
+namespace {
+// Whether the game would find `entry`: in the first of `roots` holding the
+// archive `rel` (the game's reader.zbd or mechlib.zbd, a mod's before the
+// install's), or as a loose file beside it (`loose`, a reader file's).
+bool archive_has(const std::vector<std::string>& roots, const std::string& rel, const std::string& entry, bool loose) {
+  std::error_code ec;
+  for (const std::string& root : roots) {
+    if (loose && fs::is_regular_file(fs::path(root) / "zbd" / entry, ec)) return true;
+    const fs::path a = fs::path(root) / rel;
+    if (!fs::is_regular_file(a, ec)) continue;
+    zutl_zar::Archive z;
+    zutl_zar::init(z);
+    const bool has = zutl_zar::open(z, a.string().c_str()) && zutl_zar::find(z, entry.c_str()) >= 0;
+    zutl_zar::close(z);
+    zutl_zar::destroy(z);
+    return has;
+  }
+  return false;
+}
+// Why a mech row cannot be built from `roots`, "" when it can: its definition
+// and its model must be there, or the row is left out (ours: an Instant
+// Action launch or the lab would find nothing).
+std::string mech_row_missing(const ModMech& r, const std::vector<std::string>& roots) {
+  if (!archive_has(roots, "zbd/reader.zbd", "dfn_" + r.name + ".zrd", true)) return "no dfn_" + r.name + ".zrd in the reader archive";
+  if (!archive_has(roots, "zbd/mechlib.zbd", "mech_" + r.model + ".flt", false)) return "no mech_" + r.model + ".flt in mechlib.zbd";
+  return "";
+}
+}  // namespace
+
 std::vector<ModIaWorld>& mod_ia_worlds() {
   static std::vector<ModIaWorld> w;
   return w;
@@ -104,6 +140,10 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   std::vector<std::string> log;
   std::vector<std::pair<std::string, ModIaWorld>> ia;  // the mod's name, the entry
   const std::vector<ModInfo> found = mods_found(write_dir);
+  // A remount starts from the exe's tables (the mods' rows and their cached definitions gone).
+  free_dfns_above(kBuiltinMechs);
+  mech_rows_clear();
+  weapon_rows_clear();
   std::vector<std::string> done;
   for (const std::string& want : enabled) {
     if (std::find(done.begin(), done.end(), want) != done.end()) continue;  // named twice: the first place counts
@@ -132,6 +172,35 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       }
     }
     for (const auto& [folder, name] : it->ia_worlds) ia.push_back({want, ModIaWorld{folder, name.empty() ? folder : name}});
+    // Its new mechs, after the exe's and any earlier mod's; each one's
+    // definition and model where the game will look (the enabled mods in
+    // order, the first wins, then the patch and the install).
+    std::vector<std::string> roots;
+    for (const std::string& m : enabled)
+      if (const auto f = std::find_if(found.begin(), found.end(), [&](const ModInfo& x) { return x.folder == m; });
+          f != found.end() && f->error.empty() && std::find(roots.begin(), roots.end(), f->path) == roots.end())
+        roots.push_back(f->path);
+    roots.insert(roots.end(), later.begin(), later.end());
+    for (const std::string& line : it->mechs) {
+      ModMech row;
+      std::string why;
+      bool ok = mech_row_parse(line, &row, &why);
+      if (ok && mech_index(row.name.c_str()) >= 0) ok = false, why = "there is a mech " + row.name + " already";  // said before its files
+      if (ok && !(why = mech_row_missing(row, roots)).empty()) ok = false;
+      if (!ok || !mech_row_add(row, &why))
+        log.push_back("  mech " + line + ": " + why + ", left out");
+      else
+        log.push_back("  mech " + row.name + " added (mech " + std::to_string(mech_count() - 1) + ", " + std::to_string(row.mass) +
+                      " t, the models of " + row.model + ")");
+    }
+    for (const std::string& line : it->weapons) {
+      ModWeapon row;
+      std::string why;
+      if (!weapon_row_parse(line, &row, &why) || !weapon_row_add(row, &why))
+        log.push_back("  weapon " + line + ": " + why + ", left out");
+      else
+        log.push_back("  weapon " + row.name + " added (weapon " + std::to_string(weapon_count() - 1) + ")");
+    }
     // Each file: what it replaces (a copy later in the mounts) or adds.
     std::vector<std::string> files;
     std::error_code ec;
@@ -193,6 +262,24 @@ uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std:
     done.push_back(want);
     const auto it = std::find_if(found.begin(), found.end(), [&](const ModInfo& m) { return m.folder == want; });
     if (it == found.end() || !it->error.empty()) continue;
+    // The mech= rows are gameplay data as parsed (spacing and comments aside).
+    for (const std::string& line : it->mechs) {
+      ModMech r;
+      std::string why;
+      if (!mech_row_parse(line, &r, &why)) continue;
+      const std::string key = "mech=" + r.name + " " + r.model + " " + std::to_string(r.tech) + " " + std::to_string(r.mass) + " " +
+                              std::to_string(r.weight_class);
+      any = true;
+      mix(key.data(), key.size() + 1);
+    }
+    for (const std::string& line : it->weapons) {
+      ModWeapon r;
+      std::string why;
+      if (!weapon_row_parse(line, &r, &why)) continue;
+      const std::string key = "weapon=" + r.name + " " + std::to_string(r.ammo) + " " + std::to_string(r.tech);
+      any = true;
+      mix(key.data(), key.size() + 1);
+    }
     std::vector<std::string> files;
     std::error_code ec;
     for (fs::recursive_directory_iterator f(it->path, ec), end; !ec && f != end; f.increment(ec))
@@ -228,6 +315,131 @@ void mods_identity_set(const std::string& write_dir, const std::vector<std::stri
     const std::string name = it != found.end() && !it->name.empty() ? it->name : want;
     if (std::find(id.names.begin(), id.names.end(), name) == id.names.end()) id.names.push_back(name);
   }
+}
+
+namespace {
+std::vector<std::string> mod_files(const std::string& path) {
+  std::vector<std::string> files;
+  std::error_code ec;
+  for (fs::recursive_directory_iterator f(path, ec), end; !ec && f != end; f.increment(ec))
+    if (f->is_regular_file(ec)) {
+      const std::string rel = lower(fs::relative(f->path(), path, ec).generic_string());
+      if (rel != "mod.txt") files.push_back(rel);
+    }
+  std::sort(files.begin(), files.end());
+  return files;
+}
+std::vector<std::string> row_names(const ModInfo& m) {
+  std::vector<std::string> names;
+  for (const auto* rows : {&m.mechs, &m.weapons}) {
+    const std::string kind = rows == &m.mechs ? "mech " : "weapon ";
+    for (const std::string& line : *rows) {
+      std::istringstream in(line);
+      std::string name;
+      if (in >> name) names.push_back(kind + lower(name));
+    }
+  }
+  return names;
+}
+}  // namespace
+
+std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check,
+                                     const std::string& install) {
+  const std::vector<ModInfo> found = mods_found(write_dir);
+  std::vector<ModsListEntry> out;
+  for (const std::string& want : enabled) {
+    const auto it = std::find_if(found.begin(), found.end(), [&](const ModInfo& m) { return m.folder == want; });
+    const bool listed = std::any_of(out.begin(), out.end(), [&](const ModsListEntry& e) { return e.info.folder == want; });
+    if (it == found.end() || listed) continue;
+    ModsListEntry e;
+    e.info = *it;
+    e.on = true;
+    out.push_back(e);
+  }
+  for (const ModInfo& m : found)
+    if (std::none_of(out.begin(), out.end(), [&](const ModsListEntry& e) { return e.info.folder == m.folder; })) {
+      ModsListEntry e;
+      e.info = m;
+      out.push_back(e);
+    }
+  // What each enabled one shares with an enabled one before it (usable ones: an unusable mod mounts nothing).
+  std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
+  std::vector<std::string> before_folders;
+  for (ModsListEntry& e : out) {
+    if (!e.on || !e.info.error.empty()) continue;
+    const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
+    for (size_t k = 0; k < before.size(); ++k) {
+      bool shared = false;
+      for (const std::string& f : files)
+        if (std::binary_search(before[k].first.begin(), before[k].first.end(), f)) e.shadowed.push_back(f), shared = true;
+      for (const std::string& r : rows)
+        if (std::find(before[k].second.begin(), before[k].second.end(), r) != before[k].second.end()) e.rows_taken.push_back(r), shared = true;
+      if (shared) e.conflicts_with.push_back(before_folders[k]);
+    }
+    before.emplace_back(files, rows);
+    before_folders.push_back(e.info.folder);
+  }
+  if (check)
+    for (ModsListEntry& e : out) {
+      int errors = 0;
+      mod_check(e.info.path, install, &errors);
+      e.check_errors = errors;
+    }
+  return out;
+}
+
+std::vector<std::string> mods_enabled(const std::string& write_dir) {
+  std::vector<std::string> out;
+  std::ifstream f(fs::path(write_dir) / "mw3.cfg");
+  for (std::string line; std::getline(f, line);) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.rfind("mod=", 0) == 0) out.push_back(line.substr(4));
+  }
+  return out;
+}
+
+bool mods_save_enabled(const std::string& write_dir, const std::vector<std::string>& enabled) {
+  if (write_dir.empty()) return false;
+  const fs::path cfg = fs::path(write_dir) / "mw3.cfg";
+  std::vector<std::string> lines;
+  size_t at = std::string::npos;
+  {
+    std::ifstream f(cfg);
+    for (std::string line; std::getline(f, line);) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.rfind("mod=", 0) == 0) {
+        if (at == std::string::npos) at = lines.size();
+        continue;
+      }
+      lines.push_back(line);
+    }
+  }
+  if (at == std::string::npos) at = lines.size();
+  std::vector<std::string> mods;
+  for (const std::string& m : enabled) mods.push_back("mod=" + m);
+  lines.insert(lines.begin() + static_cast<long>(at), mods.begin(), mods.end());
+  // Written beside it, then renamed over it: a crash or a full disk midway
+  // leaves the old file whole (rename replaces an existing file on Windows
+  // too: MoveFileEx with MOVEFILE_REPLACE_EXISTING).
+  std::error_code ec;
+  fs::create_directories(write_dir, ec);
+  const fs::path tmp = fs::path(write_dir) / "mw3.cfg.new";
+  {
+    std::ofstream o(tmp, std::ios::trunc | std::ios::binary);
+    for (const std::string& l : lines) o << l << '\n';
+    o.flush();
+    if (!o) {
+      o.close();
+      if (fs::is_regular_file(tmp, ec)) fs::remove(tmp, ec);  // ours only: never a folder in its place
+      return false;
+    }
+  }
+  fs::rename(tmp, cfg, ec);
+  if (ec) {
+    if (fs::is_regular_file(tmp, ec)) fs::remove(tmp, ec);
+    return false;
+  }
+  return true;
 }
 
 std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text,
@@ -375,6 +587,26 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
     if (!own && mission_dir_index(folder.c_str()) < 0) error("ia_world " + folder + ": no such world");
     else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok");
+  }
+  for (const std::string& line : m.mechs) {
+    ModMech r;
+    std::string why;
+    if (!mech_row_parse(line, &r, &why)) error("mech " + line + ": " + why);
+    else if (mech_index(r.name.c_str()) >= 0) error("mech " + r.name + ": there is a mech " + r.name + " already");
+    else if (const std::string miss = install.empty() ? "" : mech_row_missing(r, {dir, install}); !miss.empty())
+      error("mech " + r.name + ": " + miss + " (the mod's, else the install's)");
+    else
+      out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
+                    (fs::is_regular_file(fs::path(dir) / "zbd" / ("dfn_" + r.name + ".zrd"), ec) ? ", its zbd/dfn_" + r.name + ".zrd"
+                                                                                                  : ", its dfn_" + r.name + ".zrd from a reader archive"));
+  }
+  for (const std::string& line : m.weapons) {
+    ModWeapon r;
+    std::string why;
+    if (!weapon_row_parse(line, &r, &why)) error("weapon " + line + ": " + why);
+    else if (weapon_index(r.name.c_str()) >= 0 || crt::msvc_stricmp(r.name.c_str(), "PPC") == 0)
+      error("weapon " + r.name + ": there is a weapon " + r.name + " already");
+    else out.push_back("weapon " + r.name + ": ok, its definition from the mod's weapons.zrd");
   }
   // Every file.
   std::vector<std::string> files;

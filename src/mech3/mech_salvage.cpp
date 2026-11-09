@@ -91,13 +91,15 @@ std::string printf_s(const char* fmt, const std::string& a, int32_t n) {
 // Clan tech), 0x004739c0 (ammo: its weapon's), 0x00473960 (equipment).
 std::string item_name(const ConfigItem& it, const MessageText& msg) {
   switch (it.kind()) {
-    case 0: return text_of(msg, mech_name_message(it.id()), "notmech");
+    case 0:
+      if (const char* t = mech_title(it.id())) return t;  // ours: a mod's row
+      return text_of(msg, mech_name_message(it.id()), "notmech");
     case 1: {
-      std::string s = text_of(msg, weapon_name_message(it.id()), "noweapon");
+      std::string s = weapon_title(it.id()) ? weapon_title(it.id()) : text_of(msg, weapon_name_message(it.id()), "noweapon");
       if (static_cast<const WeaponItem&>(it).tech == 1) s += " (CLAN)";
       return s;
     }
-    case 2: return text_of(msg, weapon_name_message(it.id()), "noweapon");
+    case 2: return weapon_title(it.id()) ? weapon_title(it.id()) : text_of(msg, weapon_name_message(it.id()), "noweapon");
     case 3: {
       auto& e = static_cast<const EquipmentItem&>(it);
       std::string s = text_of(msg, equip_name_message(e.equipment), "none");

@@ -22,6 +22,7 @@
 
 namespace mech3 {
 
+int32_t mech_count();  // mech3/mech_names.h: 25, or 26 and the mods' rows (25 none)
 int32_t mech_name_message(int32_t mech);  // mech3/mech_names.h (its Engine clashes with app_hooks.h's)
 float max_mass(int32_t mech);              // the same
 
@@ -941,7 +942,9 @@ void LobbyScreen::lock_mech() {
   lobby_store_ready(st);
   int32_t best = -1;
   float best_mass = 0;
-  for (int32_t m = 0; m < kMechCount; ++m) {  // Pirate's Moon 0x0049ea10: the Elemental too (0x004d5020 is always 0)
+  // Pirate's Moon 0x0049ea10: the Elemental too (0x004d5020 is always 0); ours: the mods' mechs after its own.
+  for (int32_t m = 0; m < mech_count(); ++m) {
+    if (m == kMechCount) continue;  // none (0x19)
     const float mass = max_mass(m);
     if (tons < mass) continue;
     if (best == -1 || best_mass < mass) best = m, best_mass = mass;

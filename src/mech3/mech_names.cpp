@@ -1,7 +1,11 @@
 #include "mech3/mech_names.h"
 
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
+#include <sstream>
+#include <vector>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
@@ -122,18 +126,142 @@ const struct { const char* name; int32_t message; int32_t family; uint8_t tech; 
     {"XPulseLaser_Small", 0xfe8, 11, 2, 0},
     {"XPulseLaser_Medium", 0xfe9, 11, 2, 0},
     {"XPulseLaser_Large", 0xfea, 11, 2, 0}};
+
+std::vector<ModMech> g_rows;  // ours: the mods' mechs, index 26 on (25 Pirate's Moon's none)
+std::vector<ModWeapon> g_weapon_rows;  // ours: the mods' weapons, index 56 on
+const ModWeapon* weapon_row(int32_t w) {
+  return w >= kBuiltinWeapons && w < weapon_count() ? &g_weapon_rows[w - kBuiltinWeapons] : nullptr;
+}
+const ModMech* row(int32_t mech) { return mech >= kFirstModMech && mech < mech_count() ? &g_rows[mech - kFirstModMech] : nullptr; }
 }  // namespace
 
+int32_t mech_count() { return g_rows.empty() ? kBuiltinMechs : kFirstModMech + static_cast<int32_t>(g_rows.size()); }
+const char* mech_model_name(int32_t mech) {
+  const ModMech* r = row(mech);
+  return r ? r->model.c_str() : mech_name(mech);
+}
+const char* mech_title(int32_t mech) {
+  const ModMech* r = row(mech);
+  return r ? r->title.c_str() : nullptr;
+}
+
+bool mech_row_parse(const std::string& value, ModMech* out, std::string* error) {
+  *out = ModMech{};
+  std::istringstream in(value);
+  in >> out->name;
+  std::string tech, cls, word;
+  bool mass = false;
+  while (in >> word) {
+    const size_t eq = word.find('=');
+    const std::string key = word.substr(0, eq), v = eq == std::string::npos ? "" : word.substr(eq + 1);
+    if (key == "title") {  // the rest of the line
+      std::string rest;
+      std::getline(in, rest);
+      out->title = v + rest;
+      break;
+    }
+    if (key == "tech") tech = v;
+    else if (key == "mass") out->mass = std::atoi(v.c_str()), mass = true;
+    else if (key == "class") cls = v;
+    else if (key == "model") out->model = v;
+    else return *error = "unknown key " + key, false;
+  }
+  if (out->name.empty() || out->name.find('=') != std::string::npos) return *error = "no name", false;
+  if (out->name.size() > 40) return *error = "the name is longer than 40", false;  // the exe's 64-byte paths
+  for (char c : out->name)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') return *error = "the name " + out->name + " has a character other than a-z, 0-9, _ and -", false;
+  if (tech == "clan") out->tech = kClan;
+  else if (tech == "sphere") out->tech = kInnerSphere;
+  else if (tech == "any") out->tech = kAnyTech;
+  else return *error = "tech= must be clan, sphere or any", false;
+  if (!mass || out->mass < 10 || out->mass > 100 || out->mass % 5) return *error = "mass= must be 10 to 100 tons in steps of 5", false;
+  static const char* const kClasses[4] = {"light", "medium", "heavy", "assault"};
+  out->weight_class = -1;
+  for (int32_t i = 0; i < 4; ++i)
+    if (cls == kClasses[i]) out->weight_class = i;
+  if (out->weight_class < 0) return *error = "class= must be light, medium, heavy or assault", false;
+  if (out->model.empty()) out->model = out->name;
+  if (out->title.empty()) out->title = out->name;
+  return true;
+}
+
+bool mech_row_add(const ModMech& r, std::string* error) {
+  if (mech_index(r.name.c_str()) >= 0) return *error = "there is a mech " + r.name + " already", false;
+  g_rows.push_back(r);
+  return true;
+}
+
+bool mech_row_add_line(const std::string& value, std::string* error) {
+  ModMech r;
+  return mech_row_parse(value, &r, error) && mech_row_add(r, error);
+}
+
+void mech_rows_clear() { g_rows.clear(); }
+
+const char* weapon_title(int32_t weapon) {
+  const ModWeapon* r = weapon_row(weapon);
+  return r ? r->title.c_str() : nullptr;
+}
+
+bool weapon_row_parse(const std::string& value, ModWeapon* out, std::string* error) {
+  *out = ModWeapon{};
+  std::istringstream in(value);
+  in >> out->name;
+  std::string ammo, tech, word;
+  while (in >> word) {
+    const size_t eq = word.find('=');
+    const std::string key = word.substr(0, eq), v = eq == std::string::npos ? "" : word.substr(eq + 1);
+    if (key == "title") {
+      std::string rest;
+      std::getline(in, rest);
+      out->title = v + rest;
+      break;
+    }
+    if (key == "ammo") ammo = v;
+    else if (key == "tech") tech = v;
+    else return *error = "unknown key " + key, false;
+  }
+  if (out->name.empty() || out->name.find('=') != std::string::npos) return *error = "no name", false;
+  if (out->name.size() > 31) return *error = "the name is longer than 31", false;  // a weapon definition's name
+  for (char c : out->name)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') return *error = "the name " + out->name + " has a character other than a-z, 0-9, _ and -", false;
+  if (ammo == "yes") out->ammo = true;
+  else if (ammo != "no") return *error = "ammo= must be yes or no", false;
+  if (tech == "clan") out->tech = kClan;
+  else if (tech == "sphere") out->tech = kInnerSphere;
+  else if (tech == "any") out->tech = kAnyTech;
+  else if (tech == "none") out->tech = 0;
+  else return *error = "tech= must be clan, sphere, any or none", false;
+  if (out->title.empty()) out->title = out->name;
+  return true;
+}
+
+bool weapon_row_add(const ModWeapon& r, std::string* error) {
+  if (weapon_index(r.name.c_str()) >= 0) return *error = "there is a weapon " + r.name + " already", false;
+  g_weapon_rows.push_back(r);
+  return true;
+}
+
+void weapon_rows_clear() { g_weapon_rows.clear(); }
+
 // Mech3.exe 1.2 @ 0x00484720
-int32_t mech_tech(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].tech : kAnyTech; }
+int32_t mech_tech(int32_t mech) {
+  if (const ModMech* r = row(mech)) return r->tech;
+  return mech >= 0 && mech < kMechCount ? kMechs[mech].tech : kAnyTech;
+}
 
 // Mech3.exe 1.2 @ 0x00484650
-const char* mech_name(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].name : "notmech"; }
+const char* mech_name(int32_t mech) {
+  if (const ModMech* r = row(mech)) return r->name.c_str();
+  return mech >= 0 && mech < kMechCount ? kMechs[mech].name : "notmech";
+}
 
 // Mech3.exe 1.2 @ 0x004845f0. The table's +0x24 is the entry's own index.
 int32_t mech_index(const char* name) {
   for (int32_t i = 0; i < kMechCount; ++i)
     if (crt::msvc_stricmp(name, kMechs[i].name) == 0) return i;
+  for (size_t i = 0; i < g_rows.size(); ++i)  // ours: the mods' rows after
+    if (crt::msvc_stricmp(name, g_rows[i].name.c_str()) == 0) return kFirstModMech + static_cast<int32_t>(i);
   return -1;
 }
 
@@ -155,8 +283,8 @@ int32_t equip_kind(const char* name) {
 // Mech3.exe 1.2 @ 0x004848a0. Any case.
 int32_t weapon_index(const char* name) {
   if (!name || !*name) return -1;
-  for (int32_t i = 0; i < kWeaponCount; ++i)
-    if (crt::msvc_stricmp(kWeapons[i].name, name) == 0) return i;
+  for (int32_t i = 0; i < weapon_count(); ++i)
+    if (crt::msvc_stricmp(weapon_name(i), name) == 0) return i;
   return -1;
 }
 
@@ -201,6 +329,7 @@ const WeaponLab* weapon_lab(int32_t weapon) { return g_weapon_lab ? g_weapon_lab
 
 // Mech3.exe 1.2 @ 0x00484960: autocannons, Gauss, LB-X, missiles, MGUN and NARC.
 bool weapon_uses_ammo(int32_t weapon) {
+  if (const ModWeapon* r = weapon_row(weapon)) return r->ammo;
   return weapon >= 0 && weapon < kWeaponCount && kWeapons[weapon].ammo;
 }
 
@@ -208,12 +337,14 @@ bool weapon_uses_ammo(int32_t weapon) {
 // word (0x00608820), which picks its "destroyed" voice (0x0062d438 + 4 x family, mech_lib's
 // weapon_voice; the same 14 as MW3's): 1 autocannons, 2 ER lasers, 3 ER PPC, 4 Gauss, 5 flamer,
 // 6 lasers, 7 LRM and MRM, 8 machine guns, 9 NARC, 10 PPC, 11 pulse lasers, 12 SRM, 13 Streak,
-// 14 TAG; 0 (the LB-X autocannons) has none. The exe reads past the table out of range; 0 here.
+// 14 TAG; 0 (the LB-X autocannons) has none. The exe reads past the table out of range; 0 here
+// (a mod's weapon: none).
 int32_t weapon_family(int32_t weapon) { return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].family : 0; }
 
 // Mech3.exe 1.2 @ 0x00484940: the techs a weapon comes in (1 Clan, 2 Inner
 // Sphere; TAG none).
 bool weapon_has_tech(int32_t weapon, int32_t tech) {
+  if (const ModWeapon* r = weapon_row(weapon)) return (r->tech & tech) != 0;
   return weapon >= 0 && weapon < kWeaponCount && (kWeapons[weapon].tech & tech) != 0;
 }
 
@@ -224,29 +355,38 @@ bool equip_has_tech(int32_t kind, int32_t tech) {
   return kind >= 0 && kind < 15 && (kTech[kind] & tech) != 0;
 }
 
-// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's ids in the mech table (Pirate's Moon's new mechs 0xfeb..).
+// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's ids in the mech table (Pirate's Moon's new mechs 0xfeb..);
+// -1 for a mod's row (its title, mech_title).
 int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].message : -1; }
 
-// Mech3.exe 1.2 @ 0x00484920
+// Mech3.exe 1.2 @ 0x00484920 (-1 for a mod's row: its title)
 int32_t weapon_name_message(int32_t weapon) { return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].message : -1; }
 
 // Mech3.exe 1.2 @ 0x00484980: 0x1c6.. by equipment kind.
 int32_t equip_name_message(int32_t kind) { return kind >= 0 && kind < 15 ? 0x1c6 + kind : -1; }
 
 // Mech3.exe 1.2 @ 0x00484900
-const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].name : "noweapon"; }
+const char* weapon_name(int32_t weapon) {
+  if (const ModWeapon* r = weapon_row(weapon)) return r->name.c_str();
+  return weapon >= 0 && weapon < kWeaponCount ? kWeapons[weapon].name : "noweapon";
+}
 
 // Pirate's Moon's table has the plain PPC MW3's lacked (index 8), so MW3's FIX (bug) has no place here.
-int32_t weapon_count() { return kWeaponCount; }
+// Ours: the mods' rows follow it.
+int32_t weapon_count() { return kBuiltinWeapons + static_cast<int32_t>(g_weapon_rows.size()); }
 
 // Mech3.exe 1.2 @ 0x00484700. Not the tonnage's class: the Annihilator is 2,
 // the Mad Cat, Owens and Puma 1 (discoveries.md).
 int32_t weight_class(int32_t mech) {
+  if (const ModMech* r = row(mech)) return r->weight_class;
   return mech >= 0 && mech < kMechCount ? kMechs[mech].weight_class : 0;
 }
 
 // Mech3.exe 1.2 @ 0x004846e0
-float max_mass(int32_t mech) { return mech >= 0 && mech < kMechCount ? kMechs[mech].mass : 10.0f; }
+float max_mass(int32_t mech) {
+  if (const ModMech* r = row(mech)) return static_cast<float>(r->mass);
+  return mech >= 0 && mech < kMechCount ? kMechs[mech].mass : 10.0f;
+}
 
 // Mech3.exe 1.2 @ 0x00485400 (and 0x00485430, 0x00485460, 0x00485490): the
 // BattleTech table, a row per 5 t from 10 t (tonnage, CT, side torso, arm, leg).

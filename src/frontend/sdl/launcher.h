@@ -59,4 +59,13 @@ struct LauncherChoice {
 
 LauncherChoice run_launcher(const LauncherOptions& o);
 
+// The MODS screen's game (docs/launcher.md, Mods): the settings folder whose
+// mods\ and mw3.cfg it lists and writes, and the game a mod.txt's for= must
+// name. On this branch Pirate's Moon's: the launcher's own folder (Pirate's
+// Moon's, data_folder_at_start) and for=mw3pm, whatever `pm`.
+struct ModsTarget {
+  std::string write_dir, game;
+};
+ModsTarget mods_target(const LauncherOptions& o, bool pm);
+
 }  // namespace sdlfe

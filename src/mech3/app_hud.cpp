@@ -728,6 +728,7 @@ struct ProgramHudHooks : HudHooks {
     return c ? c->name : nullptr;
   }
   const char* mech_display_name(int32_t kind) override {  // 0x00484670
+    if (const char* t = mech_title(kind)) return t;  // ours: a mod's row
     return kind >= 0 && kind < kMechCount ? message(mech_name_message(kind)) : "notmech";
   }
   int32_t mech_aim_part(Mech* m) override { return m->xf8; }

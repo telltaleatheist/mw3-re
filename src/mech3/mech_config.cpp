@@ -11,6 +11,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_ids.h"
 #include "mech3/mech_names.h"
+#include "mech3/mod_rows_file.h"
 #include "mech3/mech_reader.h"
 
 namespace mech3 {
@@ -414,12 +415,17 @@ void ConfigItem::load(std::FILE* f) {
   rd(f, &v, 4);
   rd(f, &part, 4);
   rd(f, &group, 4);
+  // Ours: a mod's row number translated by the file's sidecar (mod_rows_file.h).
+  if (kind() == 0) v = rows_file::mech(v);
+  else if (kind() == 1 || kind() == 2) v = rows_file::weapon(v);
   set_id(v);
 }
 
 // Mech3.exe 1.2 @ 0x00472a80. The kind and id come from vt+0x0c and vt+0x14.
 uint32_t ConfigItem::save(std::FILE* f) const {
   const int32_t k = kind(), v = id();
+  if (k == 0) rows_file::note_mech(v);  // ours: the sidecar's rows
+  else if (k == 1 || k == 2) rows_file::note_weapon(v);
   return wr(f, &k, 4) + wr(f, &count, 4) + wr(f, &v, 4) + wr(f, &part, 4) + wr(f, &group, 4);
 }
 
@@ -544,6 +550,7 @@ bool Config::load(std::FILE* f) {
   zutl_zar::read_string(f, &name);
   load_items(f);
   rd(f, &mech, 4);
+  mech = rows_file::mech(mech);  // ours (mod_rows_file.h)
   rd(f, &g70, 4), rd(f, &turn_rate, 4), rd(f, &g78, 4);
   rd(f, &accel_rate, 4), rd(f, &decel_rate, 4), rd(f, &turn_accel, 4);
   rd(f, &endo_steel, 1);
@@ -584,6 +591,7 @@ uint32_t Config::save(std::FILE* f) {
   crc = checksum();
   zutl_zar::write_string(f, name);
   uint32_t n = save_items(f);
+  rows_file::note_mech(mech);
   n += wr(f, &mech, 4);
   uint8_t move[12];  // +0x70..+0x7b, one write
   std::memcpy(move, &g70, 4), std::memcpy(move + 4, &turn_rate, 4), std::memcpy(move + 8, &g78, 4);
@@ -838,6 +846,8 @@ bool ConfigList::load_saved() {
     zutl_zar::destroy(a);
     return false;
   }
+  rows_file::read_begin(path);
+  const size_t had = configs.size();
   uint32_t version = 0, size = 4;
   if (zutl_zar::read(a, zutl_zar::find(a, "version"), &version, &size) == 0 && version == kConfigVersion) {  // 0x00423cf0
     for (int i = 1; i < a.count; ++i) {
@@ -847,6 +857,13 @@ bool ConfigList::load_saved() {
   }
   zutl_zar::close(a);
   zutl_zar::destroy(a);
+  // Ours: a file naming a mod's row no enabled mod adds is not loaded, and
+  // kept as it is (save_all leaves it alone).
+  if (!rows_file::read_end(nullptr)) {
+    for (size_t i = had; i < configs.size(); ++i) delete configs[i];
+    configs.resize(had);
+    keep_file = true;
+  }
   return true;
 }
 
@@ -857,8 +874,10 @@ bool ConfigList::save_all() {
   // 0x00576080 ".\\configs" and _mkdir: zutl::open makes the folder in the write dir.
   char path[128];
   std::snprintf(path, sizeof path, "configs\\%s.mw3", mech_name(this->mech));
+  if (keep_file) return false;  // ours: its file named a row no enabled mod adds
   zutl_zar::Archive a;
   zutl_zar::init(a);
+  rows_file::write_begin();
   if (!zutl_zar::create(a, path)) {
     zutl_zar::destroy(a);
     return false;
@@ -870,6 +889,7 @@ bool ConfigList::save_all() {
       zutl_zar::add_written(a, c->name, [](std::FILE* f, void* c) { return static_cast<Config*>(c)->save(f); }, c);
   zutl_zar::close(a);
   zutl_zar::destroy(a);
+  rows_file::write_end(path);
   return true;
 }
 
@@ -911,9 +931,11 @@ bool lab_export_config(const Config& c, const std::string& file) {
   const std::string path = "configs\\" + file + ".m3c";
   std::FILE* f = zutl::open(path.c_str(), "wb");
   if (!f) return false;
+  rows_file::write_begin();
   zutl_zar::write_string(f, c.name ? c.name : "");
   const_cast<Config&>(c).save(f);
   std::fclose(f);
+  rows_file::write_end(path);
   return true;
 }
 
@@ -928,9 +950,11 @@ Config* lab_import_config(const std::string& file) {
   std::free(name);
   // FIX (trap): the exe also drops a loadout whose checksum (0x00427430) is
   // not its +0x88, as the saved ones' (docs/protection.md).
+  rows_file::read_begin(path);
   const bool ok = c->load(f);
   std::fclose(f);
-  if (ok) return c;
+  const bool rows = rows_file::read_end(nullptr);  // ours: a mod's row no enabled mod adds
+  if (ok && rows) return c;
   delete c;
   return nullptr;
 }

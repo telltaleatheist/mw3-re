@@ -27,6 +27,7 @@
 #include "mech3/menu_ripple.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
+#include "mech3/mods.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
 
@@ -339,7 +340,10 @@ enum Id {
   kAddDisc = 20,
   kGo = 30, kCancel, kNotesOk,
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
+  kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext,
+  kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
 };
+constexpr int kModsPerPage = 6;
 
 struct Install {
   bool ok = false;
@@ -441,7 +445,15 @@ class Launcher {
   SDL_Surface* canvas_ = nullptr;
   Art art_;
   Text text_;
-  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen } screen_ = kMain;
+  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kModsScreen } screen_ = kMain;
+  // The MODS screen (docs/launcher.md, Mods): the list as mech3::mods_list
+  // gives it, the one selected (UP, DOWN), the page, whether CHECK ran.
+  std::vector<mech3::ModsListEntry> mods_;
+  int mod_sel_ = -1, mod_page_ = 0;
+  bool mods_checked_ = false;
+  void mods_refresh();
+  void mods_save(std::vector<std::string> enabled, const std::string& said);
+  std::string mod_line(const mech3::ModsListEntry& e) const;
   std::vector<std::string> notes_;  // the first start's (launcher_notes)
   std::vector<Button> buttons_;
   int hot_ = -1, focus_ = -1;
@@ -750,8 +762,9 @@ void Launcher::layout() {
       }
       // GAME FILES (Owen, 2026-11-02): the find screen at any time, to pick
       // or refresh the game's files; QUIT for fullscreen (Escape too).
-      add(kFiles, {196, 384, 120, 34}, "GAME FILES");
-      add(kQuit, {324, 384, 120, 34}, "QUIT");
+      add(kFiles, {132, 384, 120, 34}, "GAME FILES");
+      add(kMods, {260, 384, 120, 34}, "MODS");
+      add(kQuit, {388, 384, 120, 34}, "QUIT");
       break;
     }
     case kSetupScreen: {
@@ -789,9 +802,27 @@ void Launcher::layout() {
         add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
       add(kNotesOk, {250, 384, 140, 34}, "OK");
       break;
+    case kModsScreen: {
+      // A row a mod (click: on or off), UP and DOWN for the selected one,
+      // CHECK (what the game would refuse in each), the pages, BACK.
+      const int first = mod_page_ * kModsPerPage;
+      for (int i = 0; i < kModsPerPage && first + i < static_cast<int>(mods_.size()); ++i) {
+        const mech3::ModsListEntry& e = mods_[first + i];
+        const std::string name = e.info.name.empty() ? e.info.folder : e.info.name + (e.info.version.empty() ? "" : " " + e.info.version);
+        add(kModRow + i, {70, 104 + i * 42, 500, 38}, (first + i == mod_sel_ ? "> " : "") + name, mod_line(e), e.info.error.empty());
+      }
+      const bool sel = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size()) && mods_[mod_sel_].on;
+      add(kModUp, {70, 384, 70, 34}, "UP", {}, sel && mod_sel_ > 0);
+      add(kModDown, {146, 384, 70, 34}, "DOWN", {}, sel && mod_sel_ + 1 < static_cast<int>(mods_.size()) && mods_[mod_sel_ + 1].on);
+      add(kModCheck, {222, 384, 100, 34}, "CHECK", {}, !mods_.empty());
+      add(kModPrev, {328, 384, 50, 34}, "<", {}, mod_page_ > 0);
+      add(kModNext, {384, 384, 50, 34}, ">", {}, (mod_page_ + 1) * kModsPerPage < static_cast<int>(mods_.size()));
+      add(kBack, {440, 384, 130, 34}, "BACK");
+      break;
+    }
   }
   {  // the screen and its plates (the checks follow them)
-    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data"};
+    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "mods"};
     std::string labels;
     for (const Button& b : buttons_) labels += (labels.empty() ? "" : ", ") + b.label;
     std::printf("mw3: launcher: screen %s: %s\n", kNames[screen_], labels.c_str());
@@ -918,6 +949,18 @@ void Launcher::draw(float dt) {
     case kConfirm:
       text_.draw_wrapped(canvas_, confirm_text_, 16, kWhite, W / 2, 150, 460);
       break;
+    case kModsScreen: {
+      // Below the banner, as the other screens: the rows, the status under
+      // them, the folder in the footer.
+      const std::string where = mods_target(o_, false).write_dir + "/mods";
+      text_.draw(canvas_, text_.fit("Mods in " + where + ", in the order they win", 12, W - 32), 12, kDim, 16, H - 24, -1);
+      if (mods_.empty())
+        text_.draw_wrapped(canvas_, "No mods yet. A mod is a folder in the mods folder below with a mod.txt (docs/modding.md).", 14,
+                           kWhite, W / 2, 180, 460);
+      if (!status_.empty())
+        text_.draw(canvas_, text_.fit(status_, 12, 560), 12, status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 367);
+      break;
+    }
     case kDataScreen: {
       text_.draw_wrapped(canvas_, "Your settings, pilots, saved games and converted movies are in:", 16, kWhite, W / 2, 130, 480);
       text_.draw_wrapped(canvas_, text_.fit(o_.write_dir, 14, 480), 14, kAmber, W / 2, 176, 480);
@@ -1366,8 +1409,56 @@ void Launcher::finish_work() {
   layout();
 }
 
+void Launcher::mods_refresh() {
+  const ModsTarget t = mods_target(o_, false);
+  mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_, install_.dir);
+  if (mod_sel_ >= static_cast<int>(mods_.size())) mod_sel_ = static_cast<int>(mods_.size()) - 1;
+  if (mod_page_ * kModsPerPage >= static_cast<int>(mods_.size())) mod_page_ = 0;
+}
+
+// The new order (the enabled, as they win) written to mw3.cfg; the list read again.
+void Launcher::mods_save(std::vector<std::string> enabled, const std::string& said) {
+  const bool ok = mech3::mods_save_enabled(mods_target(o_, false).write_dir, enabled);
+  std::printf("mw3: launcher: mods: %s\n", ok ? said.c_str() : "mw3.cfg could not be written");
+  status_ = ok ? said + ". It counts from the next start of the game." : "Could not write mw3.cfg: nothing changed.";
+  status_good_ = ok;
+  mods_refresh();
+}
+
+// A row's second line: on or off, then why it cannot be used, what an
+// earlier mod takes from it, or CHECK's verdict.
+std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
+  if (!e.info.error.empty()) return "Not usable: " + e.info.error;
+  std::string s = e.on ? "ON" : "OFF";
+  s += " - " + e.info.folder;
+  if (!e.conflicts_with.empty()) {
+    std::string with;
+    for (const std::string& c : e.conflicts_with) with += (with.empty() ? "" : ", ") + c;
+    s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size()) + " with " + with + " (above wins)";
+  }
+  if (e.check_errors == 0) s += " - check: fine";
+  else if (e.check_errors > 0) s += " - check: " + std::to_string(e.check_errors) + " the game would refuse (mw3.log)";
+  return s;
+}
+
 void Launcher::activate(int id) {
   sounds_.play(Sounds::kSelect);
+  if (id >= kModRow && id < kModRow + kModsPerPage) {  // a mod's row: selected, and turned on or off
+    const int i = mod_page_ * kModsPerPage + (id - kModRow);
+    if (i >= static_cast<int>(mods_.size())) return;
+    mod_sel_ = i;
+    std::vector<std::string> on;
+    for (const mech3::ModsListEntry& e : mods_)
+      if (e.on && &e != &mods_[i]) on.push_back(e.info.folder);
+    const bool now = !mods_[i].on;
+    const std::string folder = mods_[i].info.folder;
+    if (now) on.push_back(folder);  // turned on: last, below the others
+    mods_save(on, folder + (now ? " on" : " off"));
+    for (size_t k = 0; k < mods_.size(); ++k)
+      if (mods_[k].info.folder == folder) mod_sel_ = static_cast<int>(k);
+    layout();
+    return;
+  }
   static const SDL_DialogFileFilter kZip[] = {{"The 1.2 patch (.zip, .exe)", "zip;exe"}, {"All files", "*"}};
   switch (id) {
     case kMw3:
@@ -1403,6 +1494,37 @@ void Launcher::activate(int id) {
     case kKeepOld:
       status_ = "The old copy stays in " + move_from_ + ".", status_good_ = true;
       from_files_ = false, screen_ = kMain, layout();
+      break;
+    case kMods:
+      screen_ = kModsScreen, status_.clear(), mods_checked_ = false, mod_sel_ = -1, mod_page_ = 0;
+      mods_refresh();
+      layout();
+      break;
+    case kModUp:
+    case kModDown: {  // the selected (enabled) mod a place earlier or later in mw3.cfg
+      std::vector<std::string> on;
+      for (const mech3::ModsListEntry& e : mods_)
+        if (e.on) on.push_back(e.info.folder);
+      if (mod_sel_ < 0 || mod_sel_ >= static_cast<int>(on.size())) break;
+      const int to = mod_sel_ + (id == kModUp ? -1 : 1);
+      if (to < 0 || to >= static_cast<int>(on.size())) break;
+      std::swap(on[mod_sel_], on[to]);
+      mod_sel_ = to;
+      mods_save(on, on[to] + (id == kModUp ? " moved up" : " moved down"));
+      mod_page_ = mod_sel_ / kModsPerPage;
+      layout();
+      break;
+    }
+    case kModCheck:
+      mods_checked_ = true;
+      mods_refresh();
+      status_ = "Checked: each mod read as the game would read it", status_good_ = true;
+      layout();
+      break;
+    case kModPrev:
+    case kModNext:
+      mod_page_ = std::max(0, mod_page_ + (id == kModNext ? 1 : -1));
+      layout();
       break;
     case kFiles:  // the find screen at any time (Owen): repick or refresh the game's files
       if (pm_last_ && !o_.pm_bin.empty()) {  // Pirate's Moon's: its folder, nothing to import yet
@@ -1528,6 +1650,7 @@ LauncherChoice Launcher::run() {
     if (o_.screen == "pick") status_ = "Not found on this computer or in a disc drive. Pick it: a disc image, a download, or Mech3.exe.";
     if (o_.screen == "notes" || o_.screen == "disc") screen_ = kNotes;
     if (o_.screen == "data") screen_ = kDataScreen;
+    if (o_.screen == "mods") screen_ = kModsScreen, mods_refresh();
     if (o_.screen == "disc") status_ = "No disc in a drive. Pick its image (.cue .iso) or any file of the disc.";
     if (o_.screen == "work") {
       screen_ = kWorking;
@@ -1724,6 +1847,11 @@ LauncherChoice Launcher::run() {
 LauncherChoice run_launcher(const LauncherOptions& o) {
   Launcher l(o);
   return l.run();
+}
+
+ModsTarget mods_target(const LauncherOptions& o, bool pm) {
+  (void)pm;  // this launcher's own folder is Pirate's Moon's (data_folder_at_start), its mods for=mw3pm
+  return {o.write_dir, "mw3pm"};
 }
 
 }  // namespace sdlfe

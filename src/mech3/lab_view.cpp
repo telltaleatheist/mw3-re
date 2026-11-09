@@ -28,6 +28,7 @@ namespace mech3 {
 
 // mech_lib.h's (its header brings the mech's own Handle with it).
 zcls::Node* mech_model(int32_t roster, int32_t variant);  // 0x00484760
+int32_t mech_count();  // mech_names.h: 25, or 26 and the mods' rows (25 none)
 
 namespace {
 constexpr int32_t kMechs = kMechCount;                          // the chassis
@@ -95,7 +96,8 @@ bool GameEngine::lab_world_load(Handle) {
   ls.x40_ = 1;
   zcls::frame_update();                   // 0x004f7f70
   zcls::purge_lists();                    // 0x004f7bd0
-  for (int32_t i = 0; i < kMechs; ++i) {  // 0x0044fcc0(i) into +0x20
+  for (int32_t i = 0; i < mech_count(); ++i) {  // 0x0044fcc0(i) into +0x20; ours: the mods' mechs after the exe's
+    if (i == kMechs) continue;  // 0x19: none
     const Handle h = alloc_block(0x14);
     set_field32(h, 0x08, static_cast<uint32_t>(i));
     set_field32(h, 0x10, 0xffffffffu);

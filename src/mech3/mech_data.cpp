@@ -117,7 +117,7 @@ MechData* mech_data_new(int32_t roster) {
   g_hooks->on_new(0x234, p);
   mech_data_init(*p);
   p->roster = roster;
-  p->name = mech_name(roster);
+  p->name = mech_model_name(roster);  // ours: a mod row's model (mech_names.h)
   mech_data_load(*p);
   g_hooks->on_new(0xc, nullptr);  // the list's node
   g_cache.push_back(p);

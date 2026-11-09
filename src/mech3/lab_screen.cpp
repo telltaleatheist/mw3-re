@@ -23,6 +23,7 @@ namespace mech3 {
 
 // mech_names.h (its Engine clashes with the app's): 0x00484670's message and 0x004846e0.
 int32_t mech_name_message(int32_t mech);
+const char* mech_title(int32_t mech);
 float max_mass(int32_t mech);
 int32_t internal_points(int32_t mech, int32_t column);    // 0x00485400..0x00485490
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
@@ -48,6 +49,7 @@ int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
 // Mech3.exe 1.2 @ 0x00484670: a mech's name from Mech3Msg.dll, "notmech"
 // out of range; CString::Format's "%s" gives "(null)" for none.
 std::string display_name(Engine& e, int32_t mech) {
+  if (const char* t = mech_title(mech)) return t;  // ours: a mod's row
   if (mech < 0 || mech >= kMechCount) return "notmech";
   const char* s = e.message(mech_name_message(mech));
   return s ? s : "(null)";
