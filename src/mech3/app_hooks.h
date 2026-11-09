@@ -685,6 +685,16 @@ class Engine : public zgame::AppHooks {
   // Our addition: the Load state is entered (its 0x004091e0 reads the
   // pilot's game first). The program fills its game from the chosen pilot.
   virtual void load_state_enter() {}
+  // Ours (custom-campaigns.md): a mod campaign's briefing for the Load state
+  // (null: the original's brief_<dir><n>), and the Win Movie state's movie
+  // (the original's c4win; a mod campaign's movie_end=, null for none).
+  virtual const char* campaign_briefing() { return nullptr; }
+  virtual const char* campaign_end_movie() { return "c4win"; }
+  // Ours: a campaign mission won that ends the campaign (the Win State's Op 4
+  // Mission 6), and one a replay loads afresh (the debriefing's Op N Mission
+  // 1 and Op 4 Mission 4: a world's start); a mod campaign's by its list.
+  virtual bool campaign_ends_at(int32_t op, int32_t mission) { return op == 4 && mission == 6; }
+  virtual bool campaign_world_start(int32_t op, int32_t mission) { return mission == 1 || (op == 4 && mission == 4); }
   // The Load state's start of the briefing's script (inline in 0x00409440:
   // the list +0x11220's playing byte set, its current entry the first).
   virtual void briefing_script_start(Handle s) {

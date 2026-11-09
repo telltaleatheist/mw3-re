@@ -592,11 +592,12 @@ void GameMenuState::resume(uint32_t arg) {
       if (arg == 2) {
         if (!p) return;
         CampaignGame* c = p->campaign();
-        if (ap.fmv() && c && c->mission_number() == 1 && c->operation() == 1) {
+        // Op 1 Mission 1's "campaign" (a mod campaign's movie_start=, intro_movie).
+        if (const char* intro = c ? c->intro_movie() : nullptr; ap.fmv() && intro) {
           movie = en.movie_new();  // new(0x20) + 0x00598cc0(0, 0, 0)
           const Handle hwnd = ap.frame_ ? en.frame_hwnd(ap.frame_) : 0;
           if (hwnd) en.movie_set_window(movie, hwnd);
-          if (en.movie_load(movie, "fmv.zrd", "campaign") != -1) en.movie_play(movie);
+          if (en.movie_load(movie, "fmv.zrd", intro) != -1) en.movie_play(movie);
         }
         shell_resume(1);
       } else if (arg == 3) {

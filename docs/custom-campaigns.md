@@ -115,7 +115,8 @@ The file as built is in modding.md, Custom campaigns (the shape above with
 `-` for a default briefing, and no comments after a value).
 
 Built: step 1 the file (modding.md, Custom campaigns), step 2 the game
-type and its pilots (the same section).
+type and its pilots, step 3 the advance over the list, the field bases and
+the movies by line (the same section).
 
 ## Next, after the review
 

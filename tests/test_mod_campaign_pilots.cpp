@@ -148,3 +148,66 @@ TEST(mod_campaign_pilots_and_games) {
   drop_all();
   mech3::set_pilot_hooks(nullptr);
 }
+
+// The advance over the list (step 3): every next game is the next place,
+// past op 1's four missions with no roll to (2, 1); bases= where a line or
+// its op= heading sets them, else carried; the last line won ends the
+// campaign. The original's games keep the original's advance and resets.
+TEST(mod_campaign_advance_over_the_list) {
+  zutl::mounts().read.clear();
+  zutl::set_write_dir(tmp("mod_campaign_advance"));
+  CampaignHooks h;
+  mech3::set_pilot_hooks(&h);
+  mech3::ModCampaign c;
+  c.mod = "m", c.id = "long", c.file = "long.txt";
+  EXPECT(mech3::campaign_parse("name=Long\nmovie_start=intro\nop=One\nmission=c1 1 b1 v1\nmission=c1 2\nmission=c1 3\n"
+                               "mission=c1 4\nmission=c1 5 - - bases=1\nop=Two bases=2\nmission=c2 2\nmission=c3 1 - v7\n",
+                               &c));
+  EXPECT(c.missions.size() == 7);
+
+  // The original's: Op 1 Mission 4 goes on to Op 2 Mission 1 with its bases reset.
+  mech3::CampaignGame orig(nullptr, 1, 4);
+  int32_t op = orig.campaign, m = orig.mission, bases = 0;
+  orig.a8 = 1;
+  EXPECT(!orig.advance(op, m, bases) && op == 2 && m == 1 && bases == 3);
+  EXPECT(std::string(mech3::CampaignGame(nullptr, 1, 1).intro_movie()) == "campaign");
+  EXPECT(mech3::CampaignGame(nullptr, 1, 2).intro_movie() == nullptr);
+
+  std::string why;
+  EXPECT(mech3::campaign_enter(c, &why));
+  mech3::Pilot* p = mech3::create_pilot("Long");
+  mech3::current_pilot() = p;
+  auto* g = p ? dynamic_cast<mech3::ModCampaignGame*>(p->campaigns[0]) : nullptr;
+  EXPECT(g && g->a8 == 3 && std::string(g->intro_movie() ? g->intro_movie() : "") == "intro");
+  EXPECT(g && std::string(g->briefing() ? g->briefing() : "") == "b1" && std::string(g->movie() ? g->movie() : "") == "v1");
+  if (!g || !p->select_campaign(0)) return;
+  // Each won: the place after it, the bases as the list gives them.
+  const int32_t want_bases[] = {3, 3, 2, 2, 1, 2, 2};  // one lost in mission 2; line 5 sets 1, Two's heading 2
+  for (int32_t place = 2; place <= 7; ++place) {
+    auto* at = dynamic_cast<mech3::ModCampaignGame*>(p->current);
+    if (!at) break;
+    if (place == 3) at->a8 = 2;  // a field base lost in mission 2
+    EXPECT(!p->record_mission(true));
+    auto* n = dynamic_cast<mech3::ModCampaignGame*>(p->current);
+    EXPECT(n && n->campaign == 1 && n->mission == place && n->a8 == want_bases[place - 1]);
+    EXPECT(n && n->intro_movie() == nullptr && n->briefing() == nullptr);
+  }
+  auto* last = dynamic_cast<mech3::ModCampaignGame*>(p->current);
+  EXPECT(last && last->mission == 7 && last->operation() == 3 && last->mission_number() == 1);
+  EXPECT(last && std::string(last->movie() ? last->movie() : "") == "v7" && std::string(last->name()) == "Two, Mission 2");
+  // A world's start (a replay's fresh load, no restore): the first line and
+  // each new world; only the last line ends it.
+  std::string starts, lasts;
+  for (mech3::Game* x : p->campaigns)
+    if (auto* mg = dynamic_cast<mech3::ModCampaignGame*>(x)) starts += mg->world_start() ? '1' : '0', lasts += mg->last() ? '1' : '0';
+  EXPECT(starts == "1000011" && lasts == "0000001");
+  // The last won: over, nothing new filed.
+  EXPECT(p->record_mission(true) && p->current == last && p->campaign_count() == 7);
+  if (last) {
+    int32_t lop = 0, lm = 0, lb = 0;
+    EXPECT(last->advance(lop, lm, lb) && lm == 8);
+  }
+  mech3::campaign_leave();
+  drop_all();
+  mech3::set_pilot_hooks(nullptr);
+}
