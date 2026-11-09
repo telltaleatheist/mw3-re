@@ -20,8 +20,8 @@ for=mw3 1.2
 description=Rain on every world.
 ```
 
-`name` is required; `for`, when given, must start with `mw3` (a Pirate's
-Moon mod is left out of MW3). Other keys are ignored, `#` starts a comment.
+`name` is required; `for`, when given, must have `mw3` as its first word, a
+version after it if any (a Pirate's Moon mod, `for=mw3pm`, is left out of MW3). Other keys are ignored, `#` starts a comment.
 
 **Enabling.** `mw3.cfg` in the settings folder, one line a mod, the folder's
 name, in order (the first wins where two hold the same file):
