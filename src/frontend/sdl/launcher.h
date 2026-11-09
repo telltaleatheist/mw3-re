@@ -22,7 +22,7 @@ struct LauncherOptions {
   std::vector<std::string> more_installs;  // a development build's copy
   bool fullscreen = true;
   bool sound = true;  // the main menu's rollover and select sounds from the install (off with --nosound)
-  int win_w = 1280, win_h = 960;
+  int win_w = 1280, win_h = 720;  // 16:9, as the canvas
   // For checking (--launcher-shot FILE [--launcher-screen main|setup|pick|work|notes|disc]):
   // the screen drawn once into FILE (a BMP of the 640x480 canvas), no window shown.
   std::string shot, screen = "main";

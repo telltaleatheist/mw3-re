@@ -27,7 +27,7 @@ class MenuState : public ShellState {
 // read the options on every entry.
 class OptionsState : public MenuState {
  public:
-  enum Kind { kGame, kGfxAudio, kControls };
+  enum Kind { kGame, kGfxAudio, kControls, kUpgrades };  // kUpgrades ours (options_menu.h)
   OptionsState(Kind k, Handle addr);  // the screen: 0x004379f0, 0x00438f60, 0x0042a590
   // 0x00438c90 (Game: the menus' screen mode 5 first), 0x0042da50 (the others).
   bool enter() override;

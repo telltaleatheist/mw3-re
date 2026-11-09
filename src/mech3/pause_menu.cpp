@@ -1,3 +1,4 @@
+#include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
 
 #include "mech3/app.h"
@@ -79,6 +80,7 @@ void PauseScreen::on_button(int32_t id, int32_t a, int32_t b) {
       e.poke32(0x609868, e.construct(0x438be0, {}));
       e.poke32(0x60986c, e.construct(0x43a640, {}));
       e.poke32(0x609870, e.construct(0x42d9d0, {}));
+      if (options_upgrades_page()) options_upgrades_state() = e.construct(kUpgradesStateCtor, {});  // ours
       e.push_state(e.peek32(0x609868), 0);
       return;
     case kReplay:

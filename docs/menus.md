@@ -184,10 +184,35 @@ ACCEPT:
 | MW2JJETS | ON / OFF | 0x0040d1e0 / 0x0040d1c0 |
 | CMD_INVERT_MOUSE_Y | ON / OFF | MouseAccelY < 0; written -1.3 or 1.3 straight into the entry |
 
-MOUSE SENSITIVITY (Owen, 2026-11-02) is ours, on GRAPHICS & AUDIO among
-the volume sliders (below). With it on, INVERT MOUSE Y here sets only Y's
-sign and keeps the magnitude whatever the bug-fix switch (the original's
-reset to 1.3 stays for a screen without the slider: the probes).
+MOUSE SENSITIVITY is ours (Owen, 2026-11-02; moved here from GRAPHICS &
+AUDIO on 11-07, pm-tests.md front-end item 3): the volumes' slider record
+under INVERT MOUSE Y, just below the panel's frame (the nine rows fill it),
+its label spaced as the original's ("M O U S E   S E N S I T I V I T Y",
+three spaces between words as "I N V E R T   M O U S E") at the column's x.
+It sets MouseAccelX and Y's magnitude, 0.5 to 3.0 in tenths, and INVERT
+MOUSE Y only Y's sign, whatever the bug-fix switch (the original's reset to
+1.3 stays for a screen without the slider: the probes). It starts from
+MouseAccelX, the original's 1.3 untouched, so a player who never moves it
+plays as the original; saved as MouseAccelX/Y with the other settings; a
+mission takes them at its start, the menus keep 1.3 (CoreState::leave).
+Bound only where the program turns it on (`options_sensitivity_slider`).
+Not behind the bug-fix switch: an option whose default is the original's.
+
+**UPGRADES** (ours, Owen 2026-11-07, item 4): a button under CONTROLS
+inside the screens' bracket (GRAPHICS & AUDIO's record at y 160), from the
+main menu and from a mission's pause alike, pushing the upgrades page
+(`UpgradesScreen`, UPGRADES_DIALOG, our record): the game options'
+background, ACCEPT and BACK, the credits' frame (`credit_lines`; the game
+options' `option1_lines` would leave seven of its nine boxes empty) and a
+`textbox70` under each switch's ON/OFF row, the arrows at the box's ends.
+Today it holds BUG FIXES (zfix bugs, at once) and WIDE MENUS (from the next
+screen made); ACCEPT saves both to mw3.cfg (`bugfixes=`, `widemenus=`). On a
+wide canvas it has its own groups (its frame starts left of x 0, so it would
+count as the middle). Our records' small font is the dialog's own (CONTROLS'
+label): ia_small_green in MW3, ia_small_amber in Pirate's Moon. The release
+plan's upgrades page (release.md) grows from this one.
+`options_mouse_sensitivity_slider_headless`, `options_our_records_take_the_dialogs_font`,
+`mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`.
 
 The red choices are the cheats (protection.md: turning them on sets the
 cheated flag). ACCEPT (0x00437f60) applies (+0x10 with 1), writes the
@@ -206,20 +231,8 @@ TEXTURES (TextureMemory), SOUND_QUALITY (SoundLOD), OBJECT_DETAIL
 (ObjectLOD) and SPECIAL_EFFECTS (EffectsLevel), the last two shown
 inverted (level 0, the most, is HIGH).
 
-**MOUSE SENSITIVITY** (ours, Owen 2026-11-02): a third slider of the same
-kind under the volumes, our own record edit (`patch12::apply_ours`, on any
-data version): the same record and art (sliderunfilled / sliderfilled, no
-new images), the label spaced as the original's ("M O U S E  S E N S I T I V I T Y"),
-at the volumes' 25-pixel step: MUSIC and SFX moved up 10 (y 47, 72), ours at
-97, VIDEO_DEVICE from 110 to 122. It sets MouseAccelX and Y's magnitude,
-0.5 to 3.0 in tenths (Y keeps its sign, the game options' invert box); it
-starts from MouseAccelX, the original's 1.3 untouched, so a player who never
-moves it plays as the original. Saved as MouseAccelX/Y with the other
-settings; a mission takes them at its start, the menus keep 1.3
-(CoreState::leave). Bound only where the program turns it on
-(`options_sensitivity_slider`): the probes run the original's screens. Not
-behind the bug-fix switch: an option whose default is the original's.
-`options_mouse_sensitivity_slider_headless`.
+MOUSE SENSITIVITY sat here from 2026-11-02 to 11-07, among the volume
+sliders; it is on the game options now (section 4).
 
 **The device** (0x00439a90, and inline when VIDEO_DEVICE is pressed,
 0x0043a0d0): RESOLUTION and TEXTURES are rebuilt for it; LIGHTING and

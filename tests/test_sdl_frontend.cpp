@@ -3876,6 +3876,8 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
   };
   const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
                                            "127.0.0.1", "--frame-ms", "33", "--net-soak", "--net-seconds", "20"};
+  // The frames are wall time (--frame-ms 33 paced, network on): three games of
+  // 20 s and two returns of about 29 s reach the third game near frame 4300.
   // A: HOST; with B in, and again after each game: LOCK OPTIONS, its OK, I AM READY, START.
   std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan,
                                        "--click-at", "421,406@" + menu_frame(180), "--click-players", std::string(kLockAt) + "@60/2",
@@ -3884,14 +3886,14 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
                                        "--click-return", "246,290@" + menu_frame(160), "--click-return", "515,446@" + menu_frame(220),
                                        "--click-return", "585,418@" + menu_frame(650), "--net-ahead", "50", "--net-kill-at", "8",
                                        "--tap-ingame", "0x58@400:402",
-                                       "--frames", menu_frame(4400)},
+                                       "--frames", menu_frame(5200)},
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   // B: JOIN; I AM READY in the lobby, and again after each game.
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
                                        "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
                                        "--click-players", "515,446@300/2", "--click-return", "515,446@" + menu_frame(400),
-                                       "--frames", menu_frame(4400)},
+                                       "--frames", menu_frame(5200)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
   vb.insert(vb.end(), common.begin(), common.end());
   const pid_t a = spawn(va, dir + "/a.log");
@@ -4524,7 +4526,7 @@ TEST(launcher_narrow_spaces_widen) {
 // The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
 // development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
 // an empty write dir), the setup screen; and the progress screen. Each a
-// lit 640x480 canvas, and the log says what it found.
+// lit 854x480 canvas (16:9), and the log says what it found.
 TEST(sdl_program_launcher_screens) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher";
   std::error_code ec;
@@ -4533,7 +4535,7 @@ TEST(sdl_program_launcher_screens) {
   std::filesystem::create_directories(dir + "/wd2", ec);
   // The first entry hovered (Owen, the PC's fresh install): the ripple only
   // round a round badge; a square plate lights its edge (at edge_x, edge_y,
-  // the plate's top) in amber instead.
+  // the plate's top, the 640 block 107 in) in amber instead.
   struct Shot {
     const char* screen;
     bool none;
@@ -4542,11 +4544,11 @@ TEST(sdl_program_launcher_screens) {
     int edge_x, edge_y;
   };
   for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
-                        Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 320, 222},
-                        Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 320, 222},
-                        Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 320, 372},
-                        Shot{"notes", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 320, 318},
-                        Shot{"disc", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 320, 318}}) {
+                        Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
+                        Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
+                        Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 427, 372},
+                        Shot{"notes", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 427, 318},
+                        Shot{"disc", false, "screen notes: ADD FROM MY DISC, OK\n", "hover ADD FROM MY DISC: edge\n", 427, 318}}) {
     const std::string bmp = dir + "/" + s.screen + ".bmp", log = dir + "/" + s.screen + ".log";
     if (s.none) setenv("MW3_FIND_INSTALL", "1", 1);
     const pid_t pid = spawn_launcher({"--write-dir", dir + (s.none ? "/wd2" : "/wd"), "--launcher-shot", bmp, "--launcher-screen", s.screen}, log);
@@ -4574,7 +4576,7 @@ TEST(sdl_program_launcher_screens) {
                   text.find(s.says) != std::string::npos);
       if (c) SDL_DestroySurface(c);
     }
-    EXPECT(img && img->w == 640 && img->h == 480 && lit > n / 4);
+    EXPECT(img && img->w == 854 && img->h == 480 && lit > n / 5);  // 16:9 (Owen, 2026-11-08): more dark sky, 24% lit at least
     EXPECT(text.find(s.says) != std::string::npos);
     EXPECT(text.find(s.hover) != std::string::npos && edge);
     if (img) SDL_DestroySurface(img);
@@ -5295,7 +5297,69 @@ TEST(sdl_program_movies_keep_their_shape_on_a_wide_screen) {
   const std::string text((std::istreambuf_iterator<char>(cache)), std::istreambuf_iterator<char>());
   EXPECT(text.find("intro/") == std::string::npos && text.find("c1/") == std::string::npos);
 }
+
+// The opening's still (SPLASH's mech3splash, after INTRO) on a 16:9 mode, with
+// the wide menus and without: 4:3 at the screen's height, black sides, never
+// stretched (pm-tests.md front-end item 2). No movies needed (-nofmv).
+TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!std::filesystem::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/wide_splash";
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  for (const char* wide : {"--wide-menus", "--no-wide-menus"}) {
+    if (std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "w")) {
+      std::fputs("Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0]\n"
+                 "\"InGameVMode\"=dword:0000000d\n", f);
+      std::fclose(f);
+    }
+    const std::string bmp = dir + "/splash" + wide + ".bmp";
+    const pid_t pid = spawn_mw3({"--install", install, "--write-dir", dir, "--no-launcher", "-nofmv", wide, "--window",
+                                 "1920x1080", "--nosound", "--hidden", "--shot", bmp, "--shot-any", "--shot-frame", "2"},
+                                dir + "/splash" + wide + ".log");
+    int status = 0;
+    if (pid > 0) waitpid(pid, &status, 0);
+    int w = 0, h = 0, b[4] = {};
+    const bool ok = bmp_lit_box(bmp, &w, &h, b) && w == 1920 && h == 1080;
+    std::printf("%s: splash lit %d..%d x %d..%d\n", wide, b[0], b[2], b[1], b[3]);
+    EXPECT(ok && b[0] >= 230 && b[2] <= 1690 && b[1] <= 30 && b[3] >= 1050);  // 1440 wide in the middle
+  }
+}
 #endif
+#endif
+
+#if !defined(_WIN32)  // posix_spawn's std::system
+// A first start (no InGameVMode saved) plays 16:9, or the screen's own shape, at the desktop's size: mode 16
+// with the desktop's width and height saved (FIX (B), resolution.md; pm-tests.md front-end item 1). Checks keep
+// it off; MW3_FIRST_START=1 keeps it on in this one. The size saved is the frame the program opened.
+TEST(sdl_first_start_takes_the_desktop) {
+  const std::string install = MW3_GAME_DIR;
+  if (!std::filesystem::exists(install + "/zbd/mechlib.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_first_start";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  const std::string line = "MW3_FIRST_START=1 \"" + std::string(MW3_BIN) + "\" --install \"" + install + "\" --write-dir \"" + dir +
+                           "\" --no-launcher --hidden --nosound --frames 60 > \"" + dir + "/out.log\" 2>&1";
+  EXPECT(std::system(line.c_str()) == 0);
+  auto text = [](const std::string& path) {
+    std::ifstream in(path);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  const std::string out = text(dir + "/out.log"), reg = text(dir + "/settings.reg");
+  int fw = 0, fh = 0, cw = 0, ch = 0;
+  const size_t at = out.find("mw3: screen: frame ");
+  if (at != std::string::npos) std::sscanf(out.c_str() + at, "mw3: screen: frame %d x %d, canvas %d x %d", &fw, &fh, &cw, &ch);
+  auto dword = [&](const char* key) {
+    const size_t k = reg.find(std::string("\"") + key + "\"=dword:");
+    return k == std::string::npos ? -1 : static_cast<int>(std::strtol(reg.c_str() + k + std::strlen(key) + 9, nullptr, 16));
+  };
+  std::printf("  frame %d x %d, canvas %d x %d; saved mode %d, %d x %d\n", fw, fh, cw, ch, dword("InGameVMode"),
+              dword("ScreenWidth"), dword("ScreenHeight"));
+  EXPECT(dword("InGameVMode") == 16 && dword("ScreenWidth") == fw && dword("ScreenHeight") == fh);
+  EXPECT(fw > 0 && fh > 0 && fw * 3 != fh * 4);  // the desktop's shape, not the 4:3 of a check
+}
 #endif
 #endif  // MW3_PM_SUITE
 

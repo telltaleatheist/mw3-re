@@ -60,7 +60,9 @@ bug fixes, covers every play change. After this:
 
 - **The bug fixes switch goes away.**
 - **Game-breaking bug fixes are always on,** with no switch.
-- **Every other fix is an upgrade,** on a new settings page, each with its own
+- **Every other fix is an upgrade,** on the settings page (the UPGRADES page,
+  from the options, holds the bug fixes and wide menus switches since
+  2026-11-08: menus.md section 4), each with its own
   switch, all on by default, so a player can turn them off for the original
   experience. These include:
   - The mobile field bases regrouping as soon as a repair is done.

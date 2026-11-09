@@ -35,7 +35,8 @@
 //   --campaign-chain new:N|resume:N|kills:N|retry:N  a pilot through the campaign as a player (ours,
 //                        campaign_chain.h): N missions won, shots in --write-dir
 //   --frame-ms N         each frame shown is N ms on the game's clock, however
-//                        fast it is drawn (ours: scripted runs keep their timing)
+//                        fast it is drawn (ours: scripted runs keep their timing);
+//                        with the network on, no faster than the wall clock
 //   --seed N             rand seeded with N where the game seeds it from the clock (ours)
 //   --window WxH         window size (default 1280x960; with any_resolution the
 //                        frame's shape, and a given size pillarboxes the frame)
@@ -72,6 +73,7 @@
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
+#include "mech3/options_menu.h"
 #include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
 #include "frontend/sdl/sdl_input.h"
@@ -176,6 +178,8 @@ struct Args {
   int pilot_game = 0;
   int target = 0;  // --target N (ours, for checking TARGET): from frame N the nearest AI mech targeted, the pulse logged  // --pilot-game N: that pilot's saved game of mission N
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
+  float hurt = -1.0f;  // --hurt F@N: the torso's internal structure set to F at the N-th frame (ours, checks)
+  int hurt_at = 0;
   int click = 0, click_up = 0, shot_series = 0;
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   bool no_launcher = false;   // --no-launcher (ours: launcher.h): no find screen, the old dialog if there is no install
@@ -240,7 +244,7 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--win N] [--lab-mech N]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lab-mech N]\n"
       "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
@@ -282,6 +286,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--target" && next(1)) a.target = std::atoi(argv[++i]);
     else if (s == "--pilot-game" && next(1)) a.pilot_game = std::atoi(argv[++i]);
     else if (s == "--objectives" && next(1)) a.objectives = std::atoi(argv[++i]);
+    else if (s == "--hurt" && next(1)) std::sscanf(argv[++i], "%f@%d", &a.hurt, &a.hurt_at);
     else if (s == "--win" && next(1)) a.win = std::atoi(argv[++i]);
     else if (s == "--lab-mech" && next(1)) a.lab_mech = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
@@ -680,6 +685,10 @@ int mw3_game_main(int argc, char** argv) {
   // line's, else mw3.cfg's widemenus=, else on.
   zfix::options().wide_menus = a.wide_menus >= 0 ? a.wide_menus != 0 : a.cfg_wide_menus != 0;
   zfix::options().throttle_reverse = a.cfg_throttle_reverse != 0;  // with bugs (lever_reverse_on)
+  // The options' UPGRADES page saves its switches here, beside the rest of mw3.cfg (ours).
+  mech3::options_upgrades_saver() = [wd = a.write_dir](const char* key, bool on) {
+    if (!wd.empty()) sdlfe::save_config_value(wd, key, on ? "1" : "0");
+  };
   mech3::app_key_calls().debug_camera = a.debug_camera;
   if (a.debug_camera) std::printf("mw3: --debug-camera: the game editor on Shift+F12 (docs/editor.md)\n");
   if (!zfix::options().bugs)
@@ -878,11 +887,16 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   // (sdl_fit.h). Checks and shots stay in a window.
   window.set_fullscreen(!a.windowed && !a.window_given && !a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
   // FIX (B): a first start's mission at the desktop's size; checks and shots keep 640x480.
-  window.set_first_start_desktop(!a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty());
+  // MW3_FIRST_START=1 keeps it on in a check (sdl_first_start_takes_the_desktop).
+  window.set_first_start_desktop((!a.hidden && a.frames == 0 && a.chain.empty() && a.modes.empty()) ||
+                                 std::getenv("MW3_FIRST_START") != nullptr);
   sdlfe::SdlZinHost zin_host(&input);
   zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
   clock.frame_ms = static_cast<uint32_t>(a.frame_ms);
+  // A network run's frames keep the wall clock too: the peers' packets come in
+  // real time, and a build that draws fast ran its game clock far ahead of them.
+  clock.paced = a.frame_ms > 0 && (a.net_host || !a.net_join.empty() || a.net_port >= 0 || !a.net_lan.empty() || a.net_soak);
   // --seed: every srand(time()) takes N instead (with --frame-ms a run repeats).
   if (a.seed >= 0) {
     crt::rand_fixed_seed() = static_cast<uint32_t>(a.seed);
@@ -1282,6 +1296,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         }
         // --objectives N (ours, for checking): F12's box shown from the N-th frame.
         if (a.objectives > 0 && shots == a.objectives) mech3::program_hud_objectives_toggle();
+        // --hurt F@N (ours, for checking): the torso's internal structure at F, as the static test does.
+        if (a.hurt >= 0.0f && shots == a.hurt_at) mech3::program_set_torso_internal(mech3::mech_mission_player(), a.hurt);
         if (a.walk && (shots == 2 || shots == 4))  // THROTTLE0's key (100%) pressed and let go
           for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
             if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == (zin::key1_of(0x24) & 0xff)) {

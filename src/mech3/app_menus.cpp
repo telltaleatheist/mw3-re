@@ -193,6 +193,9 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
+      // Ours: the upgrades page, the game options' groups; its frame (the
+      // credits' lines) starts left of the frame's edge.
+      {kUpgradesScreenCtor, {{-120, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}},
       // The graphics and audio options: the settings' panel left, ACCEPT and
       // BACK (and the plate behind them) right.
       {0x438f60, {{0, 0, 380, 420, kLeft}, {380, 0, 640, 480, kRight}}},
@@ -273,6 +276,11 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
     auto* axp = dynamic_cast<AxisPopupScreen*>(s);
     auto* team = dynamic_cast<TeamScreen*>(s);  // the new team's dialog's: the same (0x00579500(2) as it enters)
     if ((lsp && o == &lsp->backdrop) || (axp && o == &axp->background) || (team && o == &team->backdrop)) continue;
+    // The main menu's background borrowed (1280x960, 0x0040a110): a view the
+    // display's size from 0, so left there (with no image, nothing to move).
+    // Held still (in a mission) the controls' went to the middle, the game
+    // options showing at its left (pm-tests.md front-end item 5).
+    if (o == &s->background && im && (!im->image || im->image->width > 640)) continue;
     if (im && !stretched && (right - left >= 600 || (img_w >= 600 && img_w <= 640))) {
       widen_background(*im, extra, table ? table->inset : 0, table ? table->shade0 : 150, table ? table->shade1 : 60);
       continue;
@@ -413,6 +421,10 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kGame, h); });
     case 0x43a640:
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kGfxAudio, h); });
+    case kUpgradesScreenCtor:  // ours: the upgrades page
+      return screen(sizeof(UpgradesScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new UpgradesScreen(e, s); });
+    case kUpgradesStateCtor:
+      return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kUpgrades, h); });
     case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};

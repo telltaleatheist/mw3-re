@@ -40,7 +40,9 @@ double ready_wait_ms() {
   return e ? std::atof(e) : 20000.0;
 }
 namespace fs = std::filesystem;
-constexpr int W = 640, H = 480;
+// 16:9 (Owen, 2026-11-08): the art across the width, the plates and boxes a
+// 640-wide block in the middle (kX in), as laid out for 640x480 before.
+constexpr int W = 854, H = 480, kX = (W - 640) / 2;
 constexpr int kBadge = 76;  // a game's badge across, on the 640x480 canvas
 
 // ---- art ----
@@ -713,6 +715,7 @@ void Launcher::watch_game() {
 void Launcher::layout() {
   buttons_.clear();
   auto add = [&](int id, SDL_Rect r, std::string label, std::string sub = {}, bool on = true) {
+    r.x += kX;
     buttons_.push_back({id, r, std::move(label), std::move(sub), on});
   };
   if (sounds_on_ && install_.ok && !sounds_tried_) {  // any screen, once there is an install
@@ -728,7 +731,7 @@ void Launcher::layout() {
       // The games as round badges (Owen: the ripple belongs to a circle),
       // each name and line beside its badge, the ripple from its centre.
       auto game = [&](int id, int row, int badge, const char* name, const std::string& line, bool on) {
-        add(id, {130, 118 + row * 84, 380, 80}, name, line, on);
+        add(id, {70, 118 + row * 84, 500, 80}, name, line, on);  // 500 wide at 16:9 (380 at 4:3): the longer lines
         buttons_.back().badge = badge;
       };
       game(kMw3, 0, 0, "MECHWARRIOR 3", sub, true);
@@ -886,14 +889,14 @@ void Launcher::draw(float dt) {
   switch (screen_) {
     case kMain:
       if (!status_.empty()) {
-        SDL_Rect box{110, 104, 420, 24};
+        SDL_Rect box{kX + 110, 104, 420, 24};
         SDL_FillSurfaceRect(canvas_, &box, SDL_MapSurfaceRGB(canvas_, status_good_ ? 16 : 30, status_good_ ? 26 : 14, 16));
         text_.draw(canvas_, status_, 12, status_good_ ? SDL_Color{200, 230, 200, 255} : SDL_Color{240, 190, 180, 255}, W / 2, 116);
       }
       text_.draw(canvas_, "Unofficial fan rebuild. MechWarrior is a trademark of Microsoft.", 12, kDim, 16, H - 24, -1);
       break;
     case kSetupScreen: {
-      SDL_Rect box{70, 104, 500, 64};
+      SDL_Rect box{kX + 70, 104, 500, 64};
       SDL_FillSurfaceRect(canvas_, &box, SDL_MapSurfaceRGB(canvas_, 16, 18, 22));
       text_.draw_wrapped(canvas_, kFindWords, 13, kWhite, W / 2, 114, 480);
       if (!status_.empty())
@@ -930,9 +933,9 @@ void Launcher::draw(float dt) {
         p = work_->progress, title = work_->title;
       }
       text_.draw(canvas_, title, 26, kAmber, W / 2, 140);
-      SDL_Rect bar{120, 200, 400, 26}, in{123, 203, static_cast<int>(394 * std::clamp(p.fraction, 0.0, 1.0)), 20};
+      SDL_Rect bar{kX + 120, 200, 400, 26}, in{kX + 123, 203, static_cast<int>(394 * std::clamp(p.fraction, 0.0, 1.0)), 20};
       SDL_FillSurfaceRect(canvas_, &bar, SDL_MapSurfaceRGB(canvas_, 140, 100, 50));
-      SDL_Rect inner{122, 202, 396, 22};
+      SDL_Rect inner{kX + 122, 202, 396, 22};
       SDL_FillSurfaceRect(canvas_, &inner, SDL_MapSurfaceRGB(canvas_, 10, 12, 14));
       SDL_FillSurfaceRect(canvas_, &in, SDL_MapSurfaceRGB(canvas_, 214, 140, 40));
       char pct[16];

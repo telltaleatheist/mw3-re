@@ -103,9 +103,17 @@ class SdlClock : public platform::Clock {
     if (frame_ms) slept_ += ms;
     else SDL_Delay(ms);
   }
-  void frame() { ++frames_; }  // a pass of the app's loop
+  // A pass of the app's loop. `paced` (a network run): the pass also waits
+  // until the wall clock has caught up, as the other players run in real time.
+  void frame() {
+    ++frames_;
+    if (!paced) return;
+    const Uint64 due = start_ + frames_ * frame_ms + slept_, now = SDL_GetTicks();
+    if (due > now) SDL_Delay(static_cast<Uint32>(due - now));
+  }
 
   uint32_t frame_ms = 0;
+  bool paced = false;
 
  private:
   Uint64 start_;
