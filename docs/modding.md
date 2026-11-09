@@ -296,6 +296,56 @@ mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
 at the first old one's place, every other line kept. Test:
 `mods_list_for_the_launcher`. The screen itself waits.
 
+## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
+
+The plan and what the original takes from code: `custom-campaigns.md`. A
+`campaign=<file>` line in mod.txt names a text file in the mod (several
+lines, several campaigns); the file's name without `.txt` is the
+campaign's id and its pilots' folder, `pilots\mods\<mod>\<id>\`, so no
+two campaigns share pilots (letters, digits, `_` and `-`, up to 32; two
+with the same id in one mod, any case: the second left out). The file:
+
+```
+name=Hard Rain
+stock=default
+movie_start=campaign
+op=Operation 1 bases=3
+mission=c1 1 brief_c11 c1m1
+mission=mymod_w1 1
+op=Operation 2 bases=3
+mission=c4 4 - c4m4
+mission=c4b 4 bases=3
+movie_end=c4win
+```
+
+- `name=` (required) the campaign's name; `stock=default` the original's
+  new-campaign stock (the only one for now); `movie_start=`, `movie_end=`
+  fmv.zrd's names, each optional.
+- `op=<heading> [bases=N]` a heading over the missions after it; with
+  `bases=` the field bases (0 to 3) are set to N at its first mission.
+- `mission=<world> <n> [briefing] [movie] [bases=N]` one mission in play
+  order: its world (a folder, the game's or a mod's `world=`), its `m<n>`
+  block and start animation, briefing.zrd's block (else
+  `brief_<world><n>`, `-` for that), fmv.zrd's movie before the briefing
+  (`-` or none for none), and its own reset of the field bases.
+- `#` starts a comment line. Every line must read: a misspelt key or a
+  missing number refuses the whole campaign, naming the line (a dropped
+  mission would change the campaign silently).
+- At mount, once every enabled mod's worlds are added, each mission's world
+  must have its `zbd\<world>\gamez.zbd` in an enabled mod, the patch or the
+  install; a line naming one that does not is refused, named in the log, and
+  the whole campaign is left out (a mod that needs another mod's world plays
+  only with that mod enabled). `--check-mod` reports each campaign, refuses
+  a line that does not read, and warns about a world neither the mod's nor
+  the install's.
+- The game never deletes a campaign's pilots' folder on its own: removing it
+  is the player's choice, behind a confirm, and only for a folder with our
+  marker (custom-campaigns.md).
+
+Tests: `mods_campaign_file`, `mods_campaigns_mounted`,
+`mods_check_mod_reads_campaigns`. Next: the campaign game type and its
+pilots, the advance over the list, the MODS screen's CUSTOM CAMPAIGNS table.
+
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
 **Names stay inside the game's folders** (2026-11-02): a name a mod's files

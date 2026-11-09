@@ -23,6 +23,7 @@ struct ModInfo {
   std::vector<std::pair<std::string, std::string>> ia_worlds;  // ia_world=<folder> <name>: on Instant Action's list
   std::vector<std::string> mechs;   // mech=<row>: a new mech (mech_names.h, mech_row_parse), each line's value
   std::vector<std::string> weapons; // weapon=<row>: a new weapon (weapon_row_parse)
+  std::vector<std::string> campaigns;  // campaign=<file>: a custom campaign (mod_campaign.h)
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -31,7 +32,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech, weapon), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon, campaign), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // Every folder under <write dir>/mods, by folder name; each one's mod.txt read.
@@ -41,7 +42,9 @@ std::vector<ModInfo> mods_found(const std::string& write_dir);
 // whatever is mounted now and before `later` (the patch and the install,
 // mounted after this by the caller). The log's lines: each mod and every
 // file it replaces or adds, the player's own files it holds ignored, and
-// names that are no usable mod.
+// names that are no usable mod. Its campaigns go on mod_campaigns() once
+// every mod's worlds are known: one with a line that does not read, or a
+// mission on a world no enabled mod or `later` has, is left out whole.
 std::vector<std::string> mods_mount(const std::string& write_dir, const std::vector<std::string>& enabled,
                                     const std::vector<std::string>& later);
 
@@ -54,8 +57,9 @@ std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text
                                             const std::map<std::string, int32_t>& ids);
 
 // mw3 --check-mod DIR (M3): the mod at `dir` read as the game would read
-// it, nothing mounted into play: mod.txt, its worlds and Instant Action
-// entries, every file (what it replaces in `install`, when given, or adds;
+// it, nothing mounted into play: mod.txt, its worlds, Instant Action
+// entries and campaigns (a world neither the mod's nor `install`'s only a
+// warning: another mod may add it), every file (what it replaces in `install`, when given, or adds;
 // the player's own kind ignored), every archive's table, every reader
 // archive's entries and loose .zrd through the bounded reader, strings.txt.
 // The report's lines; `errors` counts what the game would refuse.

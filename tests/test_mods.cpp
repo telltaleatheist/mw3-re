@@ -3,6 +3,7 @@
 // mod's loose .zrd over its archive's entry, nothing changed without mods.
 #include <filesystem>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -17,6 +18,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "mech3/mod_campaign.h"
 #include "mech3/mod_rows_file.h"
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
@@ -739,4 +741,122 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(errors == 1 && text.find("no mod.txt: checked as an install overlay") != std::string::npos &&
          text.find("error: no mod.txt") == std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos &&
          text.find("error: zbd/broken.zrd: not a text .zrd the reader can read") != std::string::npos);
+}
+
+// Custom campaigns (docs/custom-campaigns.md): the file's lines, every one
+// read or the whole campaign refused, naming the line.
+TEST(mods_campaign_file) {
+  mech3::ModCampaign c;
+  EXPECT(mech3::campaign_parse("\xef\xbb\xbfname=Hard Rain\nstock=default\nmovie_start=campaign\n# a comment\n"
+                               "mission=t1 1\nop=Operation 1 bases=3\nmission=c1 1 brief_c11 c1m1\nmission=mymod_w1 2\n"
+                               "op=Operation 2\nmission=c4 4 - c4m4\nmission=c4b 4 bases=2\nmovie_end=c4win\n", &c));
+  EXPECT(c.name == "Hard Rain" && c.stock == "default" && c.movie_start == "campaign" && c.movie_end == "c4win" && c.missions.size() == 5);
+  if (c.missions.size() == 5) {
+    const auto& m = c.missions;
+    EXPECT(m[0].world == "t1" && m[0].number == 1 && m[0].op.empty() && m[0].bases == -1 && m[0].line == 5);
+    EXPECT(m[1].world == "c1" && m[1].briefing == "brief_c11" && m[1].movie == "c1m1" && m[1].op == "Operation 1" && m[1].bases == 3);
+    EXPECT(m[2].world == "mymod_w1" && m[2].number == 2 && m[2].bases == -1 && m[2].briefing.empty());
+    EXPECT(m[3].op == "Operation 2" && m[3].bases == -1 && m[3].briefing.empty() && m[3].movie == "c4m4");
+    EXPECT(m[4].world == "c4b" && m[4].bases == 2 && m[4].line == 11);
+  }
+  auto refused = [](const std::string& text, const std::string& why) {
+    mech3::ModCampaign r;
+    const bool ok = mech3::campaign_parse(text, &r);
+    if (ok || r.error != why) std::printf("  campaign error: %s\n", r.error.c_str());
+    return !ok && r.error == why;
+  };
+  EXPECT(refused("name=X\nmisson=c1 1\n", "line 2: misson=c1 1: no such key (name, stock, movie_start, movie_end, op, mission)"));
+  EXPECT(refused("name=X\nmission c1 1\n", "line 2: mission c1 1: no key=value here"));
+  EXPECT(refused("name=X\nmission=c1\n", "line 2: mission=c1: mission=<world> <number> [briefing] [movie] [bases=N]"));
+  EXPECT(refused("name=X\nmission=c1 0\n", "line 2: mission=c1 0: 0: the mission's number is 1 to 99 (its m<n> block)"));
+  EXPECT(refused("name=X\nmission=c1 1x\n", "line 2: mission=c1 1x: 1x: the mission's number is 1 to 99 (its m<n> block)"));
+  EXPECT(refused("name=X\nmission=../c1 1\n", "line 2: mission=../c1 1: the world is a folder's name, one word"));
+  EXPECT(refused("name=X\nmission=c1 1 a b c\n", "line 2: mission=c1 1 a b c: mission=<world> <number> [briefing] [movie] [bases=N]"));
+  EXPECT(refused("name=X\nmission=c1 1 bases=4\n", "line 2: mission=c1 1 bases=4: bases=4: the field bases are 0 to 3"));
+  EXPECT(refused("name=X\nop=bases=3\nmission=c1 1\n", "line 2: op=bases=3: an operation needs its heading"));
+  EXPECT(refused("name=X\nop=A\nop=B\nmission=c1 1\n", "line 2: an op= with no mission after it"));
+  EXPECT(refused("name=X\nmission=c1 1\nop=A\n", "line 3: an op= with no mission after it"));
+  EXPECT(refused("name=X\nstock=mine.txt\nmission=c1 1\n",
+                 "line 2: stock=mine.txt: only stock=default (the original's new-campaign stock) for now"));
+  EXPECT(refused("name=X\nname=Y\nmission=c1 1\n", "line 2: name=Y: a second name= line"));
+  EXPECT(refused("name=X\nmovie_end=c4 win\nmission=c1 1\n", "line 2: movie_end=c4 win: a movie is fmv.zrd's name, one word"));
+  EXPECT(refused("mission=c1 1\n", "no name= line"));
+  EXPECT(refused("name=X\n# none\n", "no mission= line"));
+}
+
+// Several campaigns per mod, each its own pilots' folder; one that does not
+// read, or names a world no enabled mod or the game has, left out whole.
+TEST(mods_campaigns_mounted) {
+  SavedMounts keep;
+  const std::string wd = tmp("mods_campaigns"), install = wd + "/install";
+  put(install + "/zbd/c1/gamez.zbd", "x");
+  put(install + "/zbd/c4/gamez.zbd", "x");
+  put(wd + "/mods/a/mod.txt", "name=A\nworld=aworld\ncampaign=one.txt\ncampaign=camps/two.txt\ncampaign=again/ONE.txt\n"
+                              "campaign=../x.txt\ncampaign=gone.txt\ncampaign=bad.txt\ncampaign=lost.txt\ncampaign=noc2.txt\n"
+                              "campaign=uses_b.txt\ncampaign=my camp.txt\n");
+  put(wd + "/mods/a/zbd/aworld/gamez.zbd", "x");
+  put(wd + "/mods/a/one.txt", "name=One\nmission=c1 1\nmission=aworld 1\n");
+  put(wd + "/mods/a/camps/two.txt", "name=Two\nmission=c4 4\n");
+  put(wd + "/mods/a/again/ONE.txt", "name=One again\nmission=c1 1\n");
+  put(wd + "/mods/a/bad.txt", "name=Bad\nmission=c1 1\nmision=c1 2\n");
+  put(wd + "/mods/a/lost.txt", "name=Lost\nmission=c1 1\nmission=nowhere 1\n");
+  put(wd + "/mods/a/noc2.txt", "name=No c2\nmission=c2 1\n");  // a game world the install lacks
+  put(wd + "/mods/a/uses_b.txt", "name=Uses B\nmission=bworld 2\n");
+  put(wd + "/mods/b/mod.txt", "name=B\nworld=bworld\n");
+  put(wd + "/mods/b/zbd/bworld/gamez.zbd", "x");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mod_worlds().clear(), mech3::mod_ia_worlds().clear();
+  std::string log;
+  for (const std::string& l : mech3::mods_mount(wd, {"a", "b"}, {install})) log += l + "\n";
+  const auto& cs = mech3::mod_campaigns();
+  EXPECT(cs.size() == 3);
+  if (cs.size() == 3) {
+    EXPECT(cs[0].name == "One" && cs[0].id == "one" && cs[0].mod == "a" && mech3::campaign_pilots_dir(cs[0]) == "pilots/mods/a/one");
+    EXPECT(cs[1].name == "Two" && cs[1].id == "two" && mech3::campaign_pilots_dir(cs[1]) == "pilots/mods/a/two");
+    EXPECT(cs[2].name == "Uses B");
+  }
+  auto has = [&](const char* s) {
+    if (log.find(s) == std::string::npos) std::printf("  missing from the log: %s\n", s);
+    return log.find(s) != std::string::npos;
+  };
+  EXPECT(has("campaign again/ONE.txt: the mod has a campaign ONE already, left out"));
+  EXPECT(has("campaign ../x.txt: campaign=../x.txt: a file inside the mod, left out"));
+  EXPECT(has("campaign gone.txt: campaign=gone.txt: no such file in the mod, left out"));
+  EXPECT(has("campaign bad.txt: line 3: mision=c1 2: no such key"));
+  EXPECT(has("campaign my camp.txt: campaign=my camp.txt: its name (its pilots' folder) is letters, digits, _ and -, up to 32, left out"));
+  EXPECT(has("mod a: campaign lost.txt: line 3: no world nowhere in an enabled mod or the game, the campaign left out"));
+  EXPECT(has("mod a: campaign noc2.txt: line 2: no world c2 in an enabled mod or the game, the campaign left out"));
+  EXPECT(has("mod a: campaign \"One\" (one.txt, 2 missions) added"));
+  // b off: its world gone, the campaign on it left out; a remount starts over.
+  mech3::mod_worlds().clear();
+  log.clear();
+  for (const std::string& l : mech3::mods_mount(wd, {"a"}, {install})) log += l + "\n";
+  EXPECT(mech3::mod_campaigns().size() == 2 && has("campaign uses_b.txt: line 2: no world bworld"));
+  mech3::mod_worlds().clear(), mech3::mod_ia_worlds().clear(), mech3::mod_campaigns().clear();
+}
+
+TEST(mods_check_mod_reads_campaigns) {
+  const std::string root = tmp("mods_check_campaigns"), install = root + "/install", mod = root + "/m";
+  put(install + "/zbd/c1/gamez.zbd", "x");
+  put(mod + "/mod.txt", "name=M\nworld=mw\ncampaign=good.txt\ncampaign=bad.txt\ncampaign=more/GOOD.txt\n");
+  put(mod + "/mw.gs", "x");
+  put(mod + "/zbd/mw/gamez.zbd", "x");
+  put(mod + "/good.txt", "name=Good\nmission=c1 1\nmission=mw 1\nmission=other 3\n");
+  put(mod + "/bad.txt", "name=Bad\nmission=c1\n");
+  put(mod + "/more/GOOD.txt", "name=Again\nmission=c1 1\n");
+  int errors = 0;
+  std::string text;
+  for (const std::string& l : mech3::mod_check(mod, install, &errors)) text += l + "\n";
+  auto has = [&](const char* s) {
+    if (text.find(s) == std::string::npos) std::printf("  missing from the report: %s\n", s);
+    return text.find(s) != std::string::npos;
+  };
+  EXPECT(has("campaign good.txt \"Good\": 3 missions\n"));
+  EXPECT(has("warning: campaign good.txt: line 4: no world other in the mod or the game: it plays only with a mod that adds it\n"));
+  EXPECT(text.find("line 2: no world") == std::string::npos && text.find("line 3: no world") == std::string::npos);
+  EXPECT(has("error: campaign bad.txt: line 2: mission=c1: mission=<world> <number>"));
+  EXPECT(has("error: campaign more/GOOD.txt: the mod has a campaign GOOD already"));
+  EXPECT(errors == 3);  // and the stub zbd/mw/gamez.zbd
+  if (errors != 3) std::printf("%s", text.c_str());
 }
