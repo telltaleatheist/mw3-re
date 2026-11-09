@@ -64,5 +64,6 @@ class RepairState : public BehaviourState {
 // field base up, the dock asked for the pilot's vehicle (0x0047a780) and the
 // repair possible, the repair behaviour pushed on the current order's net.
 bool refit_order(Brain& b);
+bool refit_order_pm(Brain& b);  // Pirate's Moon 1.0 @ 0x004fb850, under its AI
 
 }  // namespace mech3::ai

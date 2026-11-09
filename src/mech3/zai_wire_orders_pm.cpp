@@ -206,4 +206,15 @@ void pm_pop_order(Brain& b) {
   if (!h.popped) b.pop();  // an order without a state still goes
 }
 
+// Pirate's Moon 1.0 @ 0x004fa320: the pilot's +0xee bit 1 (+0xce here; on unless its aiv clears it), and the
+// current order's net part and state both answering yes: the part's vt+0x10 (no on the built-in net's, as its
+// vt+0x14) and the state's vt+0x1c (no for a jump).
+bool pm_order_leavable(Brain& b) {
+  if (!(b.params.raw[0xce] & 2)) return false;
+  const Order& o = b.current();
+  AiNet* n = o.net ? o.net->net() : nullptr;
+  if (n && dynamic_cast<BuiltinNet*>(n)) return false;
+  return !o.state || o.state->may_leave();
+}
+
 }  // namespace mech3::ai

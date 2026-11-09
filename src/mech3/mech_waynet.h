@@ -109,6 +109,10 @@ class McbWaynet : public Waynet {
 };
 
 WaynetPoint* as_point(znet::Element* e);  // vt+0x78: a point itself, else none (0x0040bae0)
+// Pirate's Moon 1.0 @ 0x0045b120, where MW3's MFB command, request and refit order count the bases
+// (0x0045a000): with a base up, the mcbwaynet's elements; with none, its static MFB points still shown,
+// every other point hidden on the way (no base can reach it). 0 with no mcbwaynet.
+int32_t dock_count();
 McbWaynet* mcb_waynet();       // [0x0060b544]
 McbWaynet* mcb_waynet_make();  // 0x004d5460: made once (an id of 10000 up, kept by znet's clear)
 void mcb_waynet_free();        // 0x004d54f0 (the mission's cleanup)

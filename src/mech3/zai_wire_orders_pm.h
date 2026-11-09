@@ -21,6 +21,7 @@ bool pm_orders_idle(Brain& b);                             // 0x004fa470
 void pm_give_order(Brain& b, AiNet* net, Behaviour* beh);  // 0x004ea740 (0x004fa150)
 void pm_push_behaviour(Brain& b, Behaviour* beh);          // 0x004ea7f0 (0x004fa170)
 void pm_pop_order(Brain& b);                               // 0x004ea220
+bool pm_order_leavable(Brain& b);                          // 0x004fa320: the refit order may take the pilot
 
 }  // namespace mech3::ai
 

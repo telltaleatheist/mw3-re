@@ -265,6 +265,7 @@ class PmJumpState final : public BehaviourState {
   bool may_break_in() const override { return false; }  // vt+0x04, +0x08 of 0x005eedbc: 0x004d5020
   bool may_fire() const override { return false; }
   bool idle() const override { return false; }  // vt+0x20: 0x004d5020
+  bool may_leave() const override { return false; }  // vt+0x1c: 0x004d5020
   Behaviour* behaviour() const override { return from; }
   void run(float dt) override;
 

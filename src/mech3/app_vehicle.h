@@ -111,6 +111,7 @@ void program_waypoint_arrow_draw();
 // the dock asked for a mech (0x0047a780: the mcbwaynet there, 0x0047a730),
 // the mcbwaynet there, its selected point's place, the dock's two flags.
 int32_t program_bases_alive();
+int32_t program_dock_count();  // PM's count of the docks (mech_waynet.h dock_count)
 bool program_mfb_ask(void* mech);
 bool program_has_mcb();
 bool program_mcb_point(float out[3]);
