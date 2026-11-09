@@ -58,7 +58,7 @@ Such files in a mod are listed as ignored.
   the c1 world's reader). The game's own rule (zreader.md) reads a loose file
   only when no archive has the name; inside a mod the loose copy comes first.
   Each such file is named in the log; one that does not parse leaves the
-  archive's entry in use.
+  archive's entry in use (Readable files read directly, below).
 - mech3ax (TerranMechworks, `unzbd` / `rezbd`) unpacks the archives to JSON
   and PNG and packs them again byte for byte: reader, image and texture,
   sound, interp, mechlib, motion, gamez and anim archives. It reads
@@ -742,6 +742,83 @@ The other archives hold 0 there and are never checked. It doesn't matter
 for our port: the check is a protection trap we leave out (FIX (trap)), and
 a mod's archive loads with any CRC. MechWarrior 3's archives (version 1)
 have none.
+
+## Readable files read directly (modder-friendly step 1, begun 2026-11-09)
+
+A modder edits a reader entry as text and runs, without repacking reader.zbd.
+
+**Which lookup.** Ours, `mod_loose` in `zreader.cpp`: when an archive has the
+entry, `zutl::find_in_mods` is asked for the archive's own folder plus the
+entry's name (`zbd\weapons.zrd` for `zbd\reader.zbd`, `zbd\c1\world.zrd` for
+the c1 world's reader), in the enabled mods only, first mod first. The
+original has a loose-file lookup, but not one that can do this: `zrdr::load`
+(0x00556740) asks the archives first and takes the text branch (the search
+path 0x00556240, then the text reader 0x005563d0) only for a name no archive
+has. Our text branch keeps that rule for the install; the mod's copy is the one
+case where a loose file wins over an entry, and only inside a mod (an
+install's stray `.zrd` changes nothing).
+
+**The same reader.** The loose file goes through the original's text reader
+(0x005563d0, `parse_text`), as the game's own loose files do, and then through
+the load hook as an archive entry does, with the archive's name: the official
+1.2 patch's edits (`patch12`) and the rebuild's own records (the MODS button,
+MODSDIALOG; `patch12_edits.cpp`) are applied to it, so a mod's edited
+dialog.zrd keeps the MODS screen.
+
+**Errors.** Before it is parsed, `zrdr::text_error` reads the file's brackets
+and quotes, skipping `;` comments: "line N: a '(' never closed" (the outermost
+one), "line N: a ')' with no '(' before it", "line N: a quote never closed".
+A file with one is refused, said once in the log ("mw3: mod: FILE: line 3: a
+'(' never closed; zbd\reader.zbd's entry read instead"), and the archive's entry
+is read: a broken edit never leaves the game without the entry. `--check-mod`
+gives the same line as an error ("zbd/weapons.zrd: line 3: a '(' never closed
+(not read; an archive's entry of that name is)"). A loose copy that reads is
+named in the log once ("FILE instead of ARCHIVE's entry").
+
+Tests (`test_mods.cpp`): `mods_loose_weapons_zrd_read_directly` (the PPC's
+VELOCITY as zwep::init reads it: 900 shipped, 1234.5 with the loose copy, also
+when the mod has its own reader.zbd beside it, 900 again with the copy broken
+on line 3, which `--check-mod` names; each error's line),
+`mods_loose_dialog_zrd_keeps_our_records` (MODSDIALOG through the hook, for the
+entry and the loose copy, none without the hook),
+`mods_loose_zrd_beats_the_archives_entry` (no mod: the archive's). Breaks
+caught: the line count, the outer '(' (a case with two open), the hook skipped,
+the fallback dropped, the check's line dropped, the loose lookup off.
+
+**mech3ax's JSON, mapped (not built).** `unzbd` writes one zip per archive,
+with `manifest.json` (the entries' names, order and the bytes needed to pack
+them again) and one JSON per entry, or per file for gamez:
+
+| Archive | unzbd's files | Our reader that would take them |
+|---|---|---|
+| `reader*.zbd` | `<entry>.json` for `<entry>.zrd` | `zrdr::load`, as a loose `.zrd`: the JSON is the tree one to one (array = list, string, an int without a '.', a float with one, `null` = an empty list), then the load hook |
+| `mechlib.zbd` | `format`, `version` (checked only), `materials.json`, `<model>.json` for `<model>.flt` | `mechlib_open` 0x004fc6d0 (the materials, 0x004fc9e0) and `mechlib_load` 0x004fc8f0 (one model's tree), before `mechlib_resolve` |
+| `motion.zbd` | `<motion>.json` per motion | `load_motion` (`zsis::Script::read`, bounded), one motion each |
+| `zbd\<world>\anim.zbd` | `metadata.json` (the defs' order), `<def>.json` per anim def, `<script>.json` for each `.zan` | the anim reader 0x0050a0e0, the whole file, then the post-load pass 0x0050ae60 |
+| `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | `cls_zbd` 0x004ff520, the whole world: five files, no entries |
+
+Proposed naming: a mod holds unzbd's output unzipped in a folder named for the
+archive without `.zbd` (`zbd\mechlib\`, `zbd\motion\`, `zbd\c1\anim\`,
+`zbd\c1\gamez\`; `zbd\reader\weapons.json`), or the zip itself beside it
+(`zbd\mechlib.zip`, as unzbd wrote it). For reader, mechlib and motion each
+entry stands alone: a folder with one model's JSON replaces that model and
+the archive gives the rest, and `manifest.json` is not needed. Anim and gamez
+are read whole, so their folder needs all its files or is refused (said by
+`--check-mod`), and the archive is used. Within one mod: a loose `.zrd`, then
+the JSON folder, then the zip, then the mod's archive; mods first to last as
+now. JSON is read only from a mod, never the install.
+
+Proposed order, smallest and most edited first: (1) reader JSON (a tree
+already, the loose `.zrd` path's twin, a small JSON reader into `zrdr::Node`
+with errors by line); (2) motion (one entry, a short struct; unzbd's motion
+JSON is the format mech3ax documents best); (3) mechlib models and materials
+(the new-mechs path: a mod's mech as JSON, checked with the bounded reader's
+limits); (4) anim (whole file, its names resolved by the post-load pass as
+now); (5) gamez (a whole world, the largest; worth it for new maps). Each
+with a test that the JSON and the archive it came from give the same tree,
+on every shipped entry, as `test_mechlib.py` and `test_motion.py` check the
+binary readers. PM's archives the same where its formats match (mech3ax's
+`pm` readers), on `pm` after pm-v1.0.0.
 
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
