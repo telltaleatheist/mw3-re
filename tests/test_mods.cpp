@@ -21,6 +21,7 @@
 #include "mech3/mods.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mods_tables.h"
+#include "mech3/patch12.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mod_rows_file.h"
 #include "mech3/mech_config.h"
@@ -266,6 +267,44 @@ TEST(mods_loose_weapons_zrd_read_directly) {
   EXPECT(why("(A \"x\n\ny)\n") == "line 1: a quote never closed");
   EXPECT(why("; (not counted\n(A 1) ; ) nor this\n") == "");
   zwep::init_hooks() = hooks;
+}
+
+// A loose dialog.zrd goes through the load hook as the entry does: the
+// rebuild's own records (the MODS button, MODSDIALOG; patch12_edits.cpp) are
+// in it, so a mod's edited menus keep the MODS screen.
+TEST(mods_loose_dialog_zrd_keeps_our_records) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const std::string wd = tmp("mods_loose_dialog");
+  auto read = [&](const std::vector<std::string>& mods, bool hook, std::string* text) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    if (!mods.empty()) mech3::mods_mount(wd, mods, {install});
+    zutl::mount(install);
+    if (hook) mech3::patch12::install();
+    zrdr::init();
+    zrdr::open_archive("zbd\\reader.zbd", true);
+    bool ours = false;
+    if (zrdr::Node* root = zrdr::load("dialog.zrd")) {
+      ours = zrdr::find(root, "MODSDIALOG") != nullptr;
+      if (text)
+        for (int i = 1; i < root->list[0].i; ++i) *text += zrd_text(root->list[i]) + "\n";
+      zrdr::free_node(root);
+    }
+    zrdr::close_archives(true);
+    if (hook) mech3::patch12::uninstall();
+    return ours;
+  };
+  std::string text;  // the shipped entry as text, without our records
+  EXPECT(!read({}, false, &text));
+  EXPECT(text.find("MAINMENU") != std::string::npos);
+  put(wd + "/mods/menus/mod.txt", "name=Menus\n");
+  put(wd + "/mods/menus/zbd/dialog.zrd", "; a modder's menus\n" + text);
+  EXPECT(!read({"menus"}, false, nullptr));  // the loose copy alone has none
+  EXPECT(read({}, true, nullptr));           // the entry, through the hook
+  EXPECT(read({"menus"}, true, nullptr));    // the loose copy, through the hook
 }
 
 TEST(mods_gameplay_hash_ignores_looks_and_words) {
