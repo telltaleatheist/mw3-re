@@ -29,6 +29,7 @@
 #include "mech3/game_setup.h"
 #include "mech3/mods.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/mod_export.h"
 #include "frontend/sdl/sdl_mods.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
@@ -344,6 +345,7 @@ enum Id {
   kGo = 30, kCancel, kNotesOk,
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
   kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext, kModAdd, kModAddFolder, kModFolder,
+  kModExport,
   kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
 };
 constexpr int kModsPerPage = 5;
@@ -423,6 +425,7 @@ class Launcher {
   void activate(int id);
   void ask_file(int what, const SDL_DialogFileFilter* filters, int n);
   void ask_folder(int what);
+  void ask_save(int what, const std::string& file_name);
   void picked(int what, const std::string& path);
   void finish_work();
   void look_at(const std::string& path);
@@ -457,8 +460,12 @@ class Launcher {
   void mods_refresh();
   void mods_save(std::vector<std::string> enabled, const std::string& said);
   void mods_add_pending();
-  std::string pending_add_;  // ADD MOD's pick, added once "Adding ..." is drawn
+  std::string pending_add_;  // IMPORT's pick, added once "Adding ..." is drawn
   bool add_drawn_ = false;
+  std::string export_folder_;   // EXPORT's mod, while the save box is up
+  std::string pending_export_;  // its zip, written once "Exporting ..." is drawn
+  bool export_drawn_ = false;
+  void mods_export_pending();
   std::string mod_line(const mech3::ModsListEntry& e) const;
   std::vector<std::string> notes_;  // the first start's (launcher_notes)
   std::vector<Button> buttons_;
@@ -819,9 +826,14 @@ void Launcher::layout() {
       }
       const bool sel = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size()) && mods_[mod_sel_].on;
       // ADD MOD (an archive), ADD FOLDER and MODS FOLDER (docs/modding.md, ADD MOD).
-      add(kModAdd, {70, 318, 150, 34}, "ADD MOD", "A mod's .zip, .7z or .rar", !asking_ && pending_add_.empty());
-      add(kModAddFolder, {226, 318, 150, 34}, "ADD FOLDER", "A mod's folder", !asking_ && pending_add_.empty());
-      add(kModFolder, {382, 318, 188, 34}, "MODS FOLDER", "Open it in the file browser");
+      // IMPORT (an archive; ADD MOD before), EXPORT (the selected mod as a .zip),
+      // ADD FOLDER and MODS FOLDER (docs/modding.md, IMPORT and EXPORT).
+      const bool idle = !asking_ && pending_add_.empty() && pending_export_.empty();
+      const bool chosen = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size());
+      add(kModAdd, {70, 318, 112, 34}, "IMPORT", "A .zip, .7z or .rar", idle);
+      add(kModExport, {188, 318, 112, 34}, "EXPORT", "The mod as a .zip", idle && chosen);
+      add(kModAddFolder, {306, 318, 128, 34}, "ADD FOLDER", "A mod's folder", idle);
+      add(kModFolder, {440, 318, 130, 34}, "MODS FOLDER", "In the file browser");
       add(kModUp, {70, 384, 70, 34}, "UP", {}, sel && mod_sel_ > 0);
       add(kModDown, {146, 384, 70, 34}, "DOWN", {}, sel && mod_sel_ + 1 < static_cast<int>(mods_.size()) && mods_[mod_sel_ + 1].on);
       add(kModCheck, {222, 384, 100, 34}, "CHECK", {}, !mods_.empty());
@@ -1051,12 +1063,34 @@ void Launcher::ask_folder(int what) {
   SDL_ShowOpenFolderDialog(Pick::done, &pick_, win_, nullptr, false);
 }
 
+void Launcher::ask_save(int what, const std::string& file_name) {
+  {
+    std::lock_guard<std::mutex> g(pick_.m);
+    pick_.what = what, pick_.path.clear(), pick_.answered = pick_.cancelled = false;
+  }
+  asking_ = true, ask_shown_ = false, ask_at_ = SDL_GetTicksNS();
+  std::printf("mw3: launcher: the save box asked for\n");
+  static const SDL_DialogFileFilter filters[] = {{"Zip archive (.zip)", "zip"}};
+  const char* docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS);
+  static std::string start;
+  start = docs ? (fs::path(docs) / file_name).string() : file_name;
+  SDL_ShowSaveFileDialog(Pick::done, &pick_, win_, filters, 1, start.c_str());
+}
+
 // A picked path: what the button that asked does with it.
 void Launcher::picked(int what, const std::string& path) {
   using namespace mech3::setup;
   // Before Windows 10 1903 such a name cannot be used (docs/program.md, Names on Windows).
   if (!zutl::narrow_paths_utf8() && !std::all_of(path.begin(), path.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
     status_ = "This version of Windows needs a folder with plain English letters in its name.", status_good_ = false;
+    layout();
+    return;
+  }
+  if (what == kModExport) {  // said, drawn, then written (mods_export_pending)
+    std::string zip = path;
+    if (fs::path(zip).extension().empty()) zip += ".zip";  // a save box that did not add it
+    status_ = "Exporting to " + fs::path(zip).filename().string() + "...", status_good_ = true;
+    pending_export_ = zip, export_drawn_ = false;
     layout();
     return;
   }
@@ -1464,6 +1498,19 @@ void Launcher::mods_add_pending() {
   layout();
 }
 
+// EXPORT's zip, once "Exporting ..." has been drawn: the game's own export
+// (mech3::mod_export) of the mod chosen when the save box opened.
+void Launcher::mods_export_pending() {
+  const std::string zip = pending_export_;
+  pending_export_.clear();
+  const ModsTarget t = mods_target(o_, false);
+  const mech3::ModExportResult r = mech3::mod_export((fs::path(t.write_dir) / "mods" / export_folder_).string(), zip);
+  export_folder_.clear();
+  std::printf("mw3: launcher: mods: %s\n", r.message.c_str());
+  status_ = r.message, status_good_ = r.ok;
+  layout();
+}
+
 std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
   if (!e.info.error.empty()) return "Not usable: " + e.info.error;
   std::string s = e.on ? "ON" : "OFF";
@@ -1559,6 +1606,15 @@ void Launcher::activate(int id) {
     }
     case kModAddFolder:
       ask_folder(kModAddFolder);
+      break;
+    case kModExport:
+      if (mod_sel_ < 0 || mod_sel_ >= static_cast<int>(mods_.size())) break;
+      export_folder_ = mods_[mod_sel_].info.folder;
+      if (!o_.save_pick.empty()) {  // --launcher-save-pick: no box
+        picked(kModExport, o_.save_pick);
+        break;
+      }
+      ask_save(kModExport, mech3::mod_export_file_name(mods_[mod_sel_].info));
       break;
     case kModFolder: {
       const std::string where = mods_target(o_, false).write_dir + "/mods";
@@ -1859,9 +1915,13 @@ LauncherChoice Launcher::run() {
     draw(dt);
     const Uint64 tb = SDL_GetTicksNS();
     present();
-    if (!pending_add_.empty()) {  // ADD MOD: a frame with "Adding ..." shown first
+    if (!pending_add_.empty()) {  // IMPORT: a frame with "Adding ..." shown first
       if (add_drawn_) mods_add_pending();
       else add_drawn_ = true;
+    }
+    if (!pending_export_.empty()) {  // EXPORT: a frame with "Exporting ..." shown first
+      if (export_drawn_) mods_export_pending();
+      else export_drawn_ = true;
     }
     const Uint64 tc = SDL_GetTicksNS();
     if (!frames_) std::printf("mw3: launcher: first frame shown %.0f ms after the start\n", ms(t0, tc));

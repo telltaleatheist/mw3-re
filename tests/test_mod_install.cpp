@@ -7,6 +7,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -14,6 +15,9 @@
 #include "check.h"
 #include "mech3/mod_install.h"
 #include "mech3/mods.h"
+#include "mech3/patch_import.h"
+#include "mech3/source_archive.h"
+#include "upgrades/mods/mod_export.h"
 
 #if MW3_HAVE_LIBARCHIVE
 #if defined(_WIN32) && !defined(NOMINMAX)
@@ -323,4 +327,229 @@ TEST(mod_install_real_mod_env) {
   std::printf("  finish: %s (%d errors)\n", r.ok ? r.folder.c_str() : r.message.c_str(), r.check_errors);
   EXPECT(no_staging(wd));
 }
+
+// EXPORT and IMPORT (docs/modding.md, IMPORT and EXPORT): a mod with JSON
+// folders exported, nothing but its own files in the zip, and the zip taken
+// back as the same mod; one changed, added to or cut short refused by its
+// checksums.
+namespace {
+// Every file under a folder with its bytes, by its path from there.
+std::vector<std::pair<std::string, std::string>> tree_of(const fs::path& dir) {
+  std::vector<std::pair<std::string, std::string>> v;
+  std::error_code ec;
+  for (fs::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
+    if (it->is_regular_file(ec)) v.emplace_back(fs::relative(it->path(), dir, ec).generic_string(), text_of(it->path()));
+  std::sort(v.begin(), v.end());
+  return v;
+}
+// A zip's entries with their bytes, as IMPORT's reader reads them.
+std::vector<Entry> zip_entries(const std::string& path) {
+  std::vector<Entry> v;
+  mech3::source::ArchiveReader r;
+  if (!r.open_file(path)) return v;
+  mech3::source::ArchiveReader::Entry e;
+  uint8_t buf[4096];
+  while (r.next(&e)) {
+    if (e.dir) continue;
+    Entry f{e.path, ""};
+    for (int64_t n; (n = r.read(buf, sizeof buf)) > 0;) f.data.append(reinterpret_cast<const char*>(buf), static_cast<size_t>(n));
+    v.push_back(f);
+  }
+  return v;
+}
+}  // namespace
+
+TEST(mod_export_round_trip) {
+  const std::string wd = tmp("mod_export_wd"), wd2 = tmp("mod_export_wd2"), out = tmp("mod_export_out");
+  const fs::path mod = fs::path(wd) / "mods" / "Hard Rain";
+  std::string bin;
+  for (int i = 0; i < 70000; ++i) bin += static_cast<char>((i * 131) ^ (i >> 7));  // past a deflate window, every byte
+  const std::vector<std::pair<std::string, std::string>> own = {
+      {"mod.txt", "name=Hard Rain\nversion=1.2\nauthor=A Modder\nfor=mw3\n"},
+      {"zbd/c1/rain.bin", bin},
+      {"zbd/reader/fmv.zrd.json", "[\"MODDED\", \"rain\"]"},  // a JSON folder, as unzbd writes it
+      {"zbd/reader/other.zrd.json", "[]"},
+      {"zbd/Deep/Er/notes.txt", "kept, any case"},
+  };
+  for (const auto& [rel, data] : own) put(mod / rel, data);
+  // Ours and the player's, never in the zip; beside the mod, never looked at.
+  for (const char* rel : {"mw3-mod-added.txt", "mw3-checksums.txt", "zbd/c1/gamez.zbd.bak", "zbd/c1/anim.zbd.saving",
+                          ".DS_Store", "zbd/Thumbs.db", "pilots/Owen.txt", "mw3.cfg", "game.log", "._mod.txt"})
+    put(mod / rel, "not the mod's");
+  put(fs::path(wd) / "mods" / "Other" / "mod.txt", "name=Other\n");
+  put(fs::path(wd) / "mods" / "Hard Rain.txt", "beside it");
+  put(fs::path(wd) / "mw3.cfg", "mod=Hard Rain\n");
+
+  mech3::ModInfo info;
+  info.name = "Hard Rain", info.version = "1.2";
+  const std::string name = mech3::mod_export_file_name(info);
+  info.name = "Rain: A/B", info.version = "";
+  EXPECT(name == "Hard Rain 1.2.zip" && mech3::mod_export_file_name(info) == "Rain_ A_B.zip");
+  info = {}, info.folder = "plain";
+  EXPECT(mech3::mod_export_file_name(info) == "plain.zip");
+
+  const mech3::ModExportList list = mech3::mod_export_list(mod.string());
+  std::printf("  list: %zu files, %zu left out%s\n", list.files.size(), list.left_out.size(), list.error.c_str());
+  EXPECT(list.error.empty() && list.files.size() == own.size() && list.left_out.size() == 10);
+  const std::string zip = out + "/" + name;
+  const mech3::ModExportResult r = mech3::mod_export(mod.string(), zip);
+  std::printf("  export: %s\n", r.message.c_str());
+  EXPECT(r.ok && r.files == 5 && r.left_out == 10 && !fs::exists(zip + ".saving"));
+
+  // The zip: the mod's own files under its name, and the sums of each, in
+  // sha256sum's form (a player can check it with sha256sum -c).
+  const std::vector<Entry> in = zip_entries(zip);
+  std::string sums;
+  for (const Entry& e : in)
+    if (e.path == "Hard Rain/mw3-checksums.txt") sums = e.data;
+  EXPECT(in.size() == own.size() + 1);
+  for (const auto& [rel, data] : own) {
+    bool found = false;
+    for (const Entry& e : in) found |= e.path == "Hard Rain/" + rel && e.data == data;
+    EXPECT(found);
+    const std::string line = mech3::sha256_hex(reinterpret_cast<const uint8_t*>(data.data()), data.size()) + "  " + rel + "\n";
+    EXPECT(sums.find(line) != std::string::npos);
+  }
+  for (const Entry& e : in) EXPECT(e.path.rfind("Hard Rain/", 0) == 0 && e.path.find("not the mod") == std::string::npos);
+
+  // Taken back by IMPORT as the same mod: every file the same, the sums
+  // checked and gone, mod.txt as written.
+  mech3::ModAdd a;
+  const mech3::ModAddResult back = add(wd2, zip, "", &a);
+  std::printf("  import: %s\n", back.ok ? back.folder.c_str() : back.message.c_str());
+  EXPECT(back.ok && back.folder == "Hard Rain" && a.checksums && a.has_mod_txt);
+  EXPECT(back.info.name == "Hard Rain" && back.info.version == "1.2" && back.info.author == "A Modder");
+  std::vector<std::pair<std::string, std::string>> got = tree_of(fs::path(wd2) / "mods" / "Hard Rain");
+  got.erase(std::remove_if(got.begin(), got.end(), [](const auto& f) { return f.first == mech3::kModAddedMarker; }), got.end());
+  std::vector<std::pair<std::string, std::string>> want = own;
+  std::sort(want.begin(), want.end());
+  EXPECT(got == want);
+  EXPECT(no_staging(wd2) && mods_in(wd2) == "Hard Rain|");
+  // Exported again from there: the same files (our marker left out again).
+  const mech3::ModExportResult again = mech3::mod_export((fs::path(wd2) / "mods" / "Hard Rain").string(), out + "/again.zip");
+  EXPECT(again.ok && again.files == 5 && again.left_out == 1);
+}
+
+TEST(mod_export_checksums_refuse_a_changed_zip) {
+  const std::string wd = tmp("mod_export_sums_wd"), out = tmp("mod_export_sums_out");
+  const fs::path mod = fs::path(wd) / "mods" / "Sums";
+  put(mod / "mod.txt", "name=Sums\nfor=mw3\n");
+  put(mod / "zbd/a.txt", "first");
+  put(mod / "zbd/b.txt", "second");
+  const std::string zip = out + "/sums.zip";
+  EXPECT(mech3::mod_export(mod.string(), zip).ok);
+  const std::vector<Entry> in = zip_entries(zip);
+  EXPECT(in.size() == 4);
+  struct Case {
+    const char* what;
+    std::vector<Entry> entries;
+    const char* error;  // a piece of the refusal; "" taken
+  };
+  std::vector<Case> cases;
+  auto changed = [&](const std::function<void(std::vector<Entry>&)>& f) {
+    std::vector<Entry> v = in;
+    f(v);
+    return v;
+  };
+  cases.push_back({"as exported", in, ""});
+  cases.push_back({"a file changed", changed([](auto& v) { for (Entry& e : v) if (e.path == "Sums/zbd/a.txt") e.data = "First"; }),
+                   "zbd/a.txt does not match its checksum"});
+  cases.push_back({"a file added", changed([](auto& v) { v.push_back({"Sums/zbd/c.txt", "third"}); }), "do not list (zbd/c.txt)"});
+  cases.push_back({"a file gone", changed([](auto& v) { v.erase(std::remove_if(v.begin(), v.end(), [](const Entry& e) { return e.path == "Sums/zbd/b.txt"; }), v.end()); }),
+                   "is missing (zbd/b.txt)"});
+  cases.push_back({"mod.txt changed", changed([](auto& v) { for (Entry& e : v) if (e.path == "Sums/mod.txt") e.data += "author=someone\n"; }),
+                   "mod.txt does not match"});
+  cases.push_back({"a damaged list", changed([](auto& v) { for (Entry& e : v) if (e.path == "Sums/mw3-checksums.txt") e.data[3] = 'x'; }),
+                   "checksums file is damaged (line 1)"});
+  cases.push_back({"a list naming outside", changed([](auto& v) { for (Entry& e : v) if (e.path == "Sums/mw3-checksums.txt") e.data += std::string(64, '0') + "  ../x.txt\n"; }),
+                   "names a file outside it"});
+  // What a system's own zipping leaves (Finder's): not the mod's, taken.
+  cases.push_back({"a Finder zip", changed([](auto& v) { v.push_back({"Sums/.DS_Store", "x"}), v.push_back({"__MACOSX/Sums/._mod.txt", "x"}); }), ""});
+  // Its list written by hand in sha256sum's binary form, CRLF: taken.
+  cases.push_back({"sha256sum -b, CRLF", changed([](auto& v) {
+                     for (Entry& e : v)
+                       if (e.path == "Sums/mw3-checksums.txt") {
+                         std::string t;
+                         for (char c : e.data) t += c == '\n' ? std::string("\r\n") : std::string(1, c);
+                         for (size_t at = 0; (at = t.find("  ", at)) != std::string::npos;) t.replace(at, 2, " *");
+                         e.data = "# made by hand\r\n" + t;
+                       }
+                   }), ""});
+  int n = 0;
+  for (const Case& k : cases) {
+    const std::string wd2 = tmp(("mod_export_sums_" + std::to_string(n)).c_str());
+    const std::string z = write_zip(out + "/case" + std::to_string(n++) + ".zip", k.entries);
+    mech3::ModAdd a;
+    const mech3::ModAddResult r = add(wd2, z, "", &a);
+    std::printf("  %s: %s\n", k.what, r.ok ? "taken" : r.message.c_str());
+    if (*k.error) EXPECT(!r.ok && r.message.find(k.error) != std::string::npos && mods_in(wd2).empty());
+    else EXPECT(r.ok && a.checksums && !fs::exists(fs::path(wd2) / "mods/Sums" / mech3::kModChecksums));
+    EXPECT(no_staging(wd2));
+  }
+  // A zip with no list is taken as before (every mod zip made by hand).
+  const std::string wd3 = tmp("mod_export_sums_none");
+  mech3::ModAdd a;
+  EXPECT(add(wd3, write_zip(out + "/none.zip", {{"Sums/mod.txt", "name=Sums\n"}, {"Sums/zbd/a.txt", "x"}}), "", &a).ok && !a.checksums);
+}
+
+TEST(mod_export_refusals) {
+  const std::string wd = tmp("mod_export_refuse_wd"), out = tmp("mod_export_refuse_out");
+  const fs::path mod = fs::path(wd) / "mods" / "R";
+  put(mod / "mod.txt", "name=R\n");
+  put(mod / "zbd/a.txt", "a");
+  // Never into its own folder (the next export would take the zip in).
+  mech3::ModExportResult r = mech3::mod_export(mod.string(), (mod / "zbd/R.zip").string());
+  EXPECT(!r.ok && r.message.find("inside the mod's own folder") != std::string::npos && !fs::exists(mod / "zbd/R.zip"));
+  // Only our files and the player's: nothing to export.
+  const fs::path empty = fs::path(wd) / "mods" / "E";
+  put(empty / "mw3-mod-added.txt", "x");
+  put(empty / "pilots/p.txt", "x");
+  r = mech3::mod_export(empty.string(), out + "/e.zip");
+  EXPECT(!r.ok && r.message.find("no files of its own") != std::string::npos && !fs::exists(out + "/e.zip"));
+  EXPECT(!mech3::mod_export((fs::path(wd) / "mods" / "gone").string(), out + "/g.zip").ok);
+  // A name Windows cannot hold: IMPORT would refuse the zip, so EXPORT does.
+  const fs::path bad = fs::path(wd) / "mods" / "B";
+  put(bad / "mod.txt", "name=B\n");
+  put(bad / "zbd/what?.txt", "x");
+  r = mech3::mod_export(bad.string(), out + "/b.zip");
+  std::printf("  bad name: %s\n", r.message.c_str());
+  EXPECT(!r.ok && r.message.find("Windows cannot hold (zbd/what?.txt)") != std::string::npos && !fs::exists(out + "/b.zip"));
+#if !defined(_WIN32)
+  // A link (it could point anywhere): refused, not followed.
+  const fs::path linked = fs::path(wd) / "mods" / "L";
+  put(linked / "mod.txt", "name=L\n");
+  std::error_code ec;
+  fs::create_symlink(fs::path(wd) / "mw3.cfg", linked / "cfg.txt", ec);
+  r = mech3::mod_export(linked.string(), out + "/l.zip");
+  EXPECT(!r.ok && r.message.find("a link (cfg.txt)") != std::string::npos && !fs::exists(out + "/l.zip"));
+  // Two names differing only in case, where the system can hold both.
+  const fs::path cased = fs::path(wd) / "mods" / "C";
+  put(cased / "mod.txt", "name=C\n");
+  put(cased / "a.txt", "1");
+  put(cased / "A.txt", "2");
+  if (text_of(cased / "a.txt") == "1") {
+    r = mech3::mod_export(cased.string(), out + "/c.zip");
+    EXPECT(!r.ok && r.message.find("differ only in case") != std::string::npos);
+  }
 #endif
+  // A zip already there is replaced whole (the save box asked).
+  put(out + "/old.zip", "an old file");
+  r = mech3::mod_export(mod.string(), out + "/old.zip");
+  EXPECT(r.ok && zip_entries(out + "/old.zip").size() == 3);
+}
+#endif
+
+// The sums over data in pieces, the same as over it whole.
+TEST(mod_export_sha256_in_pieces) {
+  std::string data;
+  for (int i = 0; i < 300; ++i) data += static_cast<char>(i * 37 + 11);
+  EXPECT(mech3::sha256_hex(nullptr, 0) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  EXPECT(mech3::sha256_hex(reinterpret_cast<const uint8_t*>("abc"), 3) ==
+         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  for (size_t n : {0, 1, 55, 56, 63, 64, 65, 119, 128, 300})
+    for (size_t piece : {1, 7, 63, 64, 65, 200}) {
+      mech3::Sha256 s;
+      for (size_t at = 0; at < n; at += piece) s.add(reinterpret_cast<const uint8_t*>(data.data()) + at, std::min(piece, n - at));
+      EXPECT(s.hex() == mech3::sha256_hex(reinterpret_cast<const uint8_t*>(data.data()), n));
+    }
+}

@@ -492,10 +492,11 @@ menu, MODS, BACK: the stack at each step, nothing under the mission, the
 pilots kept until the main menu). The button's place: the bottom left, as
 shown (Owen, 2026-11-09). Left: a live remount.
 
-### ADD MOD (2026-11-09)
+### ADD MOD (2026-11-09; IMPORT since the evening)
 
-Ours (`mod_install`, the MODS screen's ADD MOD, ADD FOLDER and MODS FOLDER
-tabs beside EDITOR). ADD MOD opens the system's file picker for an archive,
+Ours (`mod_install`, the MODS screen's IMPORT, EXPORT, ADD FOLDER and MODS
+FOLDER tabs beside EDITOR; IMPORT was ADD MOD, EXPORT is the next section).
+IMPORT opens the system's file picker for an archive,
 ADD FOLDER its folder picker (SDL's dialogs: one dialog cannot offer both);
 the answer comes back on the screen's next update (`mods_menu_picked`, as it
 may come on another thread). MODS FOLDER opens the write dir's `mods\` in the
@@ -568,6 +569,59 @@ The SDL pieces both use (the folder opened, the game asked) are
 `frontend/sdl/sdl_mods`. In a scripted run (`--pick`, `--launcher-pick`)
 the game question answers MechWarrior 3 without a box. Test:
 `launcher_add_mod_by_pick`.
+
+### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
+
+IMPORT is ADD MOD renamed. EXPORT packs the selected mod (a MODS row, or a
+campaign's row: its mod) into one .zip that IMPORT takes back as the same
+mod: `src/upgrades/mods/mod_export` (ours, the first of the MODS screen's
+code in `src/upgrades/`).
+
+- **Where:** the system's save box (`SDL_ShowSaveFileDialog`) in the
+  player's documents folder, "<name> <version>.zip" offered (mod.txt's name,
+  else the folder's, made a name every system can hold). `.zip` added when
+  the box returns a name without one. Written as `<zip>.saving` and renamed
+  over the name when whole; never into the mod's own folder. "Exporting to
+  <zip>..." is drawn before the work, as IMPORT's "Adding".
+- **In it:** the mod's files under one folder named as the mod (so unzipping
+  it into `mods\` by hand makes a mod folder too), mod.txt with them, each
+  with its own time, deflated; and `mw3-checksums.txt` beside mod.txt:
+  sha256sum's lines (`<64 hex>  <path>`), one per file, so a player can check
+  it with `sha256sum -c` (or `shasum -a 256 -c`).
+- **Left out:** our markers (`mw3-mod-added.txt`, the staging marker), an old
+  checksums file (made anew), the player's own kind of file
+  (`zutl::mod_may_serve`: pilots\, configs\, saves\, mw3.cfg, logs and the
+  rest), `*.bak`, `*.saving`, and the systems' folder notes (.DS_Store,
+  Thumbs.db, desktop.ini, `._` files).
+- **Refused whole,** as IMPORT would refuse the zip: a link, a special file,
+  a name Windows cannot hold, two names differing only in case, more than
+  IMPORT's caps (20,000 files, 4 GB), nothing of its own.
+- **IMPORT's check:** a root with `mw3-checksums.txt` (any case) has every
+  file listed with its sum and nothing else beside it (the systems' folder
+  notes apart: a Finder re-zip adds them); a file changed, added or missing,
+  a damaged line or a path that leaves the folder refuses the zip, named.
+  Matched, the list is removed (a mod folder keeps no list that goes stale
+  as the modder edits it). A zip without one is taken as before. sha256sum's
+  binary mark (` *path`), CRLF lines and `#` comments are read.
+- **The launcher's MODS list:** IMPORT, EXPORT, ADD FOLDER, MODS FOLDER in
+  one row, EXPORT on the selected mod through the same `mech3::mod_export`
+  and its own save box. `--save-pick PATH` (the game) and
+  `--launcher-save-pick PATH` answer the save box in scripted runs.
+- **Both ways:** the zip holds only the mod's own files and our checksums
+  text, which neither game reads, so the original takes an unzipped export
+  as it took the mod.
+
+Tests: `mod_export_round_trip` (a mod with JSON folders and every kind of
+left-out file, and files beside it in mods\: the zip holds only the mod's,
+the sums are sha256sum's, IMPORT takes it back byte for byte with the same
+mod.txt, and exporting that again gives the same files),
+`mod_export_checksums_refuse_a_changed_zip` (changed, added, gone, mod.txt
+changed, a damaged list, a list naming outside: refused; a Finder re-zip, a
+hand-made list in binary form with CRLF: taken; no list: taken),
+`mod_export_refusals` (into its own folder, nothing of its own, gone, a name
+Windows cannot hold, a link, a case clash, a zip replaced whole),
+`mod_export_sha256_in_pieces`, and `mods_screen_add_mod_headless` (EXPORT
+through the screen's save hook, and the box cancelled).
 
 Open: whether SDL's native pickers and the game question show above the
 game's fullscreen window on Windows (the PC, a night check). Left: archives

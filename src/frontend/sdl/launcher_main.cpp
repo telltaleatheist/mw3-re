@@ -4,7 +4,7 @@
 // it, hiding while the game runs. mw3 itself starts without it.
 //
 //   mw3launcher [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--no-import]
-//               [--launcher-shot FILE [--launcher-screen main|setup|work|notes|mods [--launcher-pick PATH]]]
+//               [--launcher-shot FILE [--launcher-screen main|setup|work|notes|mods [--launcher-pick PATH] [--launcher-save-pick PATH]]]
 //               [--launcher-play] [--launcher-mw1]
 #include <SDL3/SDL.h>
 
@@ -101,6 +101,7 @@ int main(int argc, char** argv) {
     else if (s == "--launcher-shot") o.shot = next(), hidden_log = true;
     else if (s == "--launcher-screen") o.screen = next();
     else if (s == "--launcher-pick") o.pick = next();
+    else if (s == "--launcher-save-pick") o.save_pick = next();
     else if (s == "--launcher-play") o.play = true;
     else if (s == "--launcher-mw1") o.play_mw1 = true;
     else if (s == "--launcher-pm") o.play_pm = true;

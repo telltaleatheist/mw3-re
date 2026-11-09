@@ -43,7 +43,8 @@
 //   --nosound            no audio device (a silent DirectSound stand-in)
 //   --hidden             keep the window hidden
 //   --windowed           a window, not fullscreen (also --window, or windowed=1 in mw3.cfg)
-//   --pick PATH          the MODS screen's ADD MOD picker answered with PATH, no dialog (ours)
+//   --pick PATH          the MODS screen's IMPORT picker answered with PATH, no dialog (ours)
+//   --save-pick PATH     the MODS screen's EXPORT save box answered with PATH, no dialog (ours)
 //   --verbose            list every unported function reached at exit
 #include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
@@ -152,6 +153,7 @@ struct Args {
   bool mods_given = false, no_mods = false, list_mods = false;
   std::string check_mod;  // --check-mod DIR
   std::string pick;       // --pick PATH: the MODS screen's picker answered with PATH (ours, for scripted runs)
+  std::string save_pick;  // --save-pick PATH: EXPORT's save box answered with PATH
 
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   // The bug fixes (zfix bugs; fixes.md, The bug fixes switch): mw3.cfg's
@@ -234,7 +236,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -259,6 +261,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
     else if (s == "--pick" && next(1)) a.pick = argv[++i];
+    else if (s == "--save-pick" && next(1)) a.save_pick = argv[++i];
     else if (s == "--mission" && next(1)) a.mission = argv[++i];
     else if (s == "--fly" && next(1)) a.mission = argv[++i], a.fly = true;
     else if (s == "--variant" && next(1)) a.variant = argv[++i];
@@ -885,6 +888,19 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar)", "zip;7z;rar"}};
       if (folder) SDL_ShowOpenFolderDialog(done, nullptr, parent, nullptr, false);
       else SDL_ShowOpenFileDialog(done, nullptr, parent, filters, 1, nullptr, false);
+    };
+    // EXPORT: the system's save box in the player's documents, the mod's
+    // "<name> <version>.zip" offered.
+    static std::string scripted_save;
+    scripted_save = a.save_pick;
+    mp.save = [](const std::string& file_name) {
+      if (!scripted_save.empty()) return mech3::mods_menu_picked(scripted_save);
+      auto done = [](void*, const char* const* list, int) { mech3::mods_menu_picked(list && list[0] ? list[0] : ""); };
+      static const SDL_DialogFileFilter filters[] = {{"Zip archive (.zip)", "zip"}};
+      const char* docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS);
+      static std::string start;
+      start = docs ? (std::filesystem::path(docs) / file_name).string() : file_name;
+      SDL_ShowSaveFileDialog(done, nullptr, parent, filters, 1, start.c_str());
     };
     mp.open_folder = [](const std::string& dir) { return sdlfe::open_folder(dir); };
     mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : 1; };  // --pick: no box

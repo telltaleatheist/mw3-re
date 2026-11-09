@@ -1618,10 +1618,13 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Ours (modding.md, ADD MOD): the MODS screen's ADD FOLDER through the
-// platform's hooks as the program sets them: a picked folder added, listed
-// and on for the next start, said under MODS; one whose game its files do
-// not tell asks, and cancelled is not added; MODS FOLDER asks for mods\.
+// Ours (modding.md, ADD MOD; IMPORT and EXPORT): the MODS screen's ADD
+// FOLDER through the platform's hooks as the program sets them: a picked
+// folder added, listed and on for the next start, said under MODS; one whose
+// game its files do not tell asks, and cancelled is not added; EXPORT offers
+// "<name>.zip" for the selected mod and writes it where the save box says
+// ("Exporting ..." drawn first), a cancelled box writes nothing; MODS FOLDER
+// asks for mods\.
 TEST(mods_screen_add_mod_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1648,6 +1651,14 @@ TEST(mods_screen_add_mod_headless) {
   };
   mp.ask_game = [&](const std::string&) { return ++asked, 0; };  // cancelled
   mp.open_folder = [&](const std::string& dir) { return opened = dir, true; };
+  std::vector<std::string> saves = {src + "/out/Desert Pack.zip", ""};
+  std::string offered;
+  mp.save = [&](const std::string& name) {
+    offered = name;
+    mech3::mods_menu_picked(saves.empty() ? "" : saves.front());
+    if (!saves.empty()) saves.erase(saves.begin());
+  };
+  std::filesystem::create_directories(src + "/out");
   mech3::reset_states();
   reset_process_state();
   mech3::missions() = mech3::Missions{};
@@ -1668,7 +1679,7 @@ TEST(mods_screen_add_mod_headless) {
     EXPECT(app.init_instance());
     mech3::States& st = mech3::states();
     int stage = 0, wait = 0;
-    std::string first_note, second_note, rows, adding_note;
+    std::string first_note, second_note, rows, adding_note, exporting_note, exported_note, cancelled_note;
     bool adding_before = false;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
@@ -1691,6 +1702,14 @@ TEST(mods_screen_add_mod_headless) {
         scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 3, wait = 0;
       } else if (stage == 3 && ++wait == 3) {
         second_note = std::string(scr->note.text) + " " + scr->restart.text;
+        scr->on_button(mech3::ModsScreen::kExport, 0, 0), stage = 5, wait = 0;  // Desert Pack, selected by its add
+      } else if (stage == 5 && ++wait == 1) {
+        exporting_note = scr->note.text;
+      } else if (stage == 5 && wait == 3) {
+        exported_note = std::string(scr->note.text) + " " + scr->restart.text;
+        scr->on_button(mech3::ModsScreen::kExport, 0, 0), stage = 6, wait = 0;  // the box cancelled
+      } else if (stage == 6 && ++wait == 3) {
+        cancelled_note = scr->note.text;
         scr->on_button(mech3::ModsScreen::kOpenFolder, 0, 0);
         stage = 4;
       }
@@ -1708,6 +1727,10 @@ TEST(mods_screen_add_mod_headless) {
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));
     EXPECT(asked == 1 && second_note.find("Not added: no game chosen for Plain.") == 0 && !std::filesystem::exists(wd + "/mods/Plain"));
     EXPECT(std::filesystem::equivalent(opened, wd + "/mods"));
+    std::printf("  export: offered %s; %s; %s; %s\n", offered.c_str(), exporting_note.c_str(), exported_note.c_str(), cancelled_note.c_str());
+    EXPECT(offered == "Desert Pack.zip" && exporting_note == "Exporting to Desert Pack.zip...");
+    EXPECT(exported_note.find("Exported Desert Pack to Desert Pack.zip (2 files).") == 0);  // notes.txt and the mod.txt written at its add
+    EXPECT(std::filesystem::is_regular_file(src + "/out/Desert Pack.zip") && cancelled_note == "Not exported.");
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
