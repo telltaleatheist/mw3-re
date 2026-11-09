@@ -120,6 +120,15 @@ TEST(mod_install_entry_paths) {
   EXPECT(mech3::mod_entry_path_ok("zbd\\c1\\a.zbd", &c) && c == "zbd/c1/a.zbd");
   EXPECT(mech3::mod_entry_path_ok("my mod/zbd/a..b.zbd", &c) && c == "my mod/zbd/a..b.zbd");  // ".." only as a whole part
   EXPECT(mech3::mod_folder_name(" Hard Rain: v2/x ") == "Hard Rain_ v2_x" && mech3::mod_folder_name("...") == "mod");
+  // Names Windows cannot hold, refused on every system (a mod added on the
+  // Mac goes to the PC): devices with any extension and case, a trailing
+  // dot or space, < > " | ? *.
+  for (const char* bad : {"zbd/CON", "zbd/con.txt", "Aux.zbd", "zbd/nul.tar.gz", "COM1.txt", "zbd/lpt9", "prn/x.txt",
+                          "zbd/x.", "zbd/x ", "zbd /x.txt", "zbd/a<b", "zbd/a>b", "zbd/a\"b", "zbd/a|b", "zbd/a?b", "zbd/a*b"})
+    EXPECT(!mech3::mod_entry_path_ok(bad, &c));
+  for (const char* good : {"zbd/console.txt", "zbd/com10.txt", "zbd/lpt0", "zbd/com.txt", "zbd/auxiliary.zbd", "zbd/.hidden"})
+    EXPECT(mech3::mod_entry_path_ok(good, &c));
+  EXPECT(mech3::mod_folder_name("con") == "con_" && mech3::mod_folder_name("LPT1") == "LPT1_" && mech3::mod_folder_name("Console") == "Console");
   // The game by the names only one ships.
   EXPECT(mech3::mod_game_of({"zbd/c4b/gamez.zbd"}) == mech3::ModGame::kMw3);
   EXPECT(mech3::mod_game_of({"ZBD/C2/READERSA1.ZBD"}) == mech3::ModGame::kPm);
@@ -147,6 +156,10 @@ TEST(mod_install_refuses_escapes_and_limits) {
       {"count.zip", {{"zbd/a.txt", "a"}, {"zbd/b.txt", "b"}, {"zbd/c.txt", "c"}}, {1 << 20, 2}, "more than 2 files"},
       {"size.zip", {{"zbd/a.txt", std::string(3000, 'a')}}, {1000, 100}, "more than 1000 bytes"},
       {"empty.zip", {}, {}, "empty"},
+      {"device.zip", {{"zbd/a.txt", "a"}, {"zbd/CON.txt", "x"}}, {}, "Windows cannot hold"},
+      {"wild.zip", {{"zbd/what?.txt", "x"}}, {}, "Windows cannot hold"},
+      {"dot.zip", {{"zbd/notes.txt.", "x"}}, {}, "Windows cannot hold"},
+      {"case.zip", {{"zbd/Mech.txt", "a"}, {"zbd/mech.txt", "b"}}, {}, "differ only in case"},
       {"setup.zip", {{"ModSetup.exe", "MZ"}}, {}, "only a program"},
   };
   for (const Case& k : cases) {
@@ -167,7 +180,13 @@ TEST(mod_install_refuses_escapes_and_limits) {
     const mech3::ModAddResult r = add(wd, src + "/linked", "");
     EXPECT(!r.ok && r.message.find("link") != std::string::npos && mods_in(wd).empty() && no_staging(wd));
   }
-  // The game's own folders are not mods.
+  // A folder with a device name in it: refused too.
+  put(src + "/devices/zbd/aux.txt", "a");
+  {
+    const mech3::ModAddResult r = add(wd, src + "/devices", "");
+    EXPECT(!r.ok && r.message.find("Windows cannot hold") != std::string::npos && mods_in(wd).empty() && no_staging(wd));
+  }
+    // The game's own folders are not mods.
   put(wd + "/mods/x/mod.txt", "name=X\n");
   EXPECT(!add(wd, wd + "/mods/x", "").ok && !add(wd, wd + "/mods", "").ok && !add(wd, wd, "").ok);
   EXPECT(mods_in(wd) == "x|");

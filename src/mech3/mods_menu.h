@@ -72,6 +72,7 @@ class ModsScreen : public MenuScreen {
   ModsTables tables;
   std::vector<std::string> enabled;  // mw3.cfg's, as the tabs change it
   int32_t focus = kCampaigns;        // the table the details are of
+  std::string adding;                // a pick said ("Adding ...") and added on the next update
 };
 
 // "Mods State" (ours): the screen made on entering, let go on leaving, as

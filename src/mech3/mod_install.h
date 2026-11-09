@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -44,9 +45,15 @@ struct ModAdd {
 };
 
 // A path inside an archive made safe: '/' separated, relative, no "..",
-// no drive or ':' (alternate streams), no control characters; "." and empty
-// parts dropped. False for anything that would land outside the folder.
+// no drive or ':' (alternate streams), no control characters, every part a
+// name Windows can hold (windows_name_ok); "." and empty parts dropped.
+// False for anything that would land outside the folder or not unpack on
+// Windows (checked on every system: a mod added on the Mac goes to the PC).
 bool mod_entry_path_ok(const std::string& path, std::string* clean);
+bool mod_entry_escapes(const std::string& path);
+// Not a device (CON, PRN, AUX, NUL, COM1-9, LPT1-9, any extension, any
+// case), no trailing dot or space; < > " | ? * are refused by the path check.
+bool windows_name_ok(const std::string& part);
 // A folder name for mods\ from a name: letters, digits, space, '-', '_', '.',
 // '(' and ')' kept, others '_'; trimmed; "mod" when nothing is left.
 std::string mod_folder_name(const std::string& name);
@@ -76,5 +83,18 @@ struct ModAddResult {
 ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& add, ModGame game, const std::string& install);
 // The staging folder removed (only with our marker in it).
 void mod_add_discard(ModAdd& add);
+
+// ADD MOD whole, as the MODS screen and the launcher run it: prepared, the
+// game asked when its files cannot tell (`ask`: 1 MechWarrior 3, 2 Pirate's
+// Moon, anything else not added; unset: MechWarrior 3), finished; a mod that
+// is more than a campaign turned on at the end of `enabled` and saved to
+// mw3.cfg. `message` the line to show.
+struct ModAddDone {
+  bool ok = false;
+  std::string folder, name, message;
+  bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
+};
+ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled);
 
 }  // namespace mech3

@@ -587,6 +587,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/sdl_install.cpp
     src/frontend/sdl/sdl_music.cpp
     src/frontend/sdl/sdl_platform.cpp
+    src/frontend/sdl/sdl_mods.cpp
     src/frontend/sdl/sdl_render3d.cpp
     src/frontend/sdl/sdl_sound.cpp
     src/frontend/sdl/sdl_vfw.cpp

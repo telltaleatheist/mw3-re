@@ -93,6 +93,7 @@
 #include "mech3/app.h"
 #include "mech3/mods.h"
 #include "mech3/mods_menu.h"
+#include "frontend/sdl/sdl_mods.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_keys.h"
@@ -885,38 +886,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       if (folder) SDL_ShowOpenFolderDialog(done, nullptr, parent, nullptr, false);
       else SDL_ShowOpenFileDialog(done, nullptr, parent, filters, 1, nullptr, false);
     };
-    mp.open_folder = [](const std::string& dir) {
-      std::string url = "file://";
-      for (const unsigned char c : std::filesystem::absolute(std::filesystem::path(dir)).generic_string()) {
-        if (std::isalnum(c) || std::strchr("/-_.~:", c)) url += static_cast<char>(c);
-        else {
-          char hex[4];
-          std::snprintf(hex, sizeof hex, "%%%02X", c);
-          url += hex;
-        }
-      }
-#if defined(_WIN32)
-      url.insert(7, "/");  // file:///C:/...
-#endif
-      return SDL_OpenURL(url.c_str());
-    };
-    mp.ask_game = [](const std::string& name) {
-      const SDL_MessageBoxButtonData buttons[] = {
-          {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Cancel"},
-          {0, 2, "Pirate's Moon"},
-          {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "MechWarrior 3"},
-      };
-      const std::string text = "Which game is \"" + name + "\" for? Its files do not say.";
-      SDL_MessageBoxData box{};
-      box.flags = SDL_MESSAGEBOX_INFORMATION;
-      box.window = parent;
-      box.title = "Add a mod";
-      box.message = text.c_str();
-      box.numbuttons = 3;
-      box.buttons = buttons;
-      int pressed = 0;
-      return SDL_ShowMessageBox(&box, &pressed) ? pressed : 0;
-    };
+    mp.open_folder = [](const std::string& dir) { return sdlfe::open_folder(dir); };
+    mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : 1; };  // --pick: no box
   }
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it

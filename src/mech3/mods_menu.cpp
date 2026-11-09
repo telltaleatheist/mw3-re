@@ -399,6 +399,14 @@ void ModsScreen::enter_campaign() {
 
 void ModsScreen::update(float dt) {
   Window::update(dt);
+  // The add runs on the update after "Adding ..." was drawn: it can take a
+  // while (a big archive) and the screen would look frozen without a word.
+  if (!adding.empty()) {
+    std::string path;
+    path.swap(adding);
+    add_mod(path);
+    return;
+  }
   std::string path;
   {
     Picked& p = picked();
@@ -406,7 +414,11 @@ void ModsScreen::update(float dt) {
     if (!p.answered) return;
     p.answered = false, path.swap(p.path);
   }
-  if (!path.empty()) add_mod(path);
+  if (path.empty()) return;
+  std::filesystem::path shown(path);
+  while (!shown.empty() && shown.filename().empty()) shown = shown.parent_path();  // a folder with a trailing '/'
+  tell("Adding " + shown.filename().string() + "...");
+  adding = path;
 }
 
 // Two lines under MODS (the note's and the restart's), the text wrapped at
@@ -429,51 +441,28 @@ void ModsScreen::tell(const std::string& text) {
 // (mod_install.h), turned on for the next start when it is more than a
 // campaign, shown in its table and said.
 void ModsScreen::add_mod(const std::string& path) {
-  const std::string& dir = mods_menu_write_dir();
-  ModAdd a = mod_add_prepare(dir, path, mods_menu_install());
-  if (!a.error.empty()) {
-    tell("Not added: " + a.error + ".");
+  const ModAddDone d = mod_add_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, &enabled);
+  if (!d.ok) {
+    tell(d.message);
     return;
-  }
-  ModGame game = a.game;
-  if (game == ModGame::kUnknown) {
-    const int g = mods_menu_platform().ask_game ? mods_menu_platform().ask_game(a.name) : 1;
-    if (g != 1 && g != 2) {
-      mod_add_discard(a);
-      tell("Not added: no game chosen for " + a.name + ".");
-      return;
-    }
-    game = g == 2 ? ModGame::kPm : ModGame::kMw3;
-  }
-  const ModAddResult r = mod_add_finish(dir, a, game, mods_menu_install());
-  if (!r.ok) {
-    tell(r.message);
-    return;
-  }
-  const ModInfo& i = r.info;
-  const bool campaigns_only = !i.campaigns.empty() && i.mechs.empty() && i.weapons.empty() && i.ia_worlds.empty();
-  if (!campaigns_only && std::find(enabled.begin(), enabled.end(), r.folder) == enabled.end()) {
-    mods_toggle(enabled, r.folder);
-    mods_save_enabled(dir, enabled);
   }
   refill();
-  const std::string name = i.name.empty() ? r.folder : i.name;
-  if (campaigns_only) {
+  if (d.campaign_only) {
     for (int32_t k = 0; k < campaign_list.item_count(); ++k)
-      if (tables.campaigns[static_cast<size_t>(k)].mod == r.folder) {
+      if (tables.campaigns[static_cast<size_t>(k)].mod == d.folder) {
         campaign_list.FileList::select(k), focus = kCampaigns;
         break;
       }
     show_details();
-    tell("Added " + name + ": ENTER on its campaign turns it on for the next start.");
+    tell("Added " + d.name + ": ENTER on its campaign turns it on for the next start.");
   } else {
     for (int32_t k = 0; k < mod_list.item_count(); ++k)
-      if (tables.mods[static_cast<size_t>(k)].info.folder == r.folder) {
+      if (tables.mods[static_cast<size_t>(k)].info.folder == d.folder) {
         mod_list.FileList::select(k), focus = kMods;
         break;
       }
     show_details();
-    tell("Added " + name + ": on from the next start" + (i.campaigns.empty() ? "." : "; its campaign is listed."));
+    tell(d.message);
   }
 }
 
