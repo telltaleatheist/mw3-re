@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from test_anim_run import COUNT, DEFS, Emu, Port  # noqa: E402
+from test_anim_run import COUNT, DEFS, Emu, Port, anim_of  # noqa: E402
 from test_gamez import WORLDS, ZBD, probe  # noqa: E402
 from calltrace import Trace, compare, ret_pop  # noqa: E402
 
@@ -147,7 +147,7 @@ def check(name, a_log, b_log, sa, sb):
 
 
 def run(mission, totals):
-    world, anim = ZBD / mission / 'gamez.zbd', ZBD / mission / 'anim.zbd'
+    world, anim = ZBD / mission / 'gamez.zbd', anim_of(mission)
     emu, port = Emu(), Port()
     emu.open(world, anim)
     port.open(world, anim)

@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from original import ROOT  # noqa: E402
 from test_gamez import WORLDS, ZBD, Emulated as WorldEmu, probe  # noqa: E402
+from test_anim_run import anim_of, short_link  # noqa: E402  (the port and the exe take no anim path of 0x80 or more)
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
 probe.probe_anim.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
@@ -189,7 +190,7 @@ def check_prerequisite_fix(emu, buf):
     one and keeps the others."""
     def find():
         for w in WORLDS:
-            world, anim = ZBD / w / 'gamez.zbd', ZBD / w / 'anim.zbd'
+            world, anim = ZBD / w / 'gamez.zbd', anim_of(w)
             emu.run(world, anim)
             data = anim.read_bytes()
             count = struct.unpack('<h', emu.cpu.read(BLOCK + 0x0a, 2))[0]
@@ -210,6 +211,7 @@ def check_prerequisite_fix(emu, buf):
     tmp.mkdir(exist_ok=True)
     path = tmp / 'doctored.zbd'
     path.write_bytes(doctored)
+    path = short_link(path, 'doctored.zbd')
     want = emu.run(world, path, full=True)
     compare(f'doctored {w}, exe path', want, probe.probe_anim(str(world).encode(), str(path).encode(), -1, 1, buf,
                                                             len(buf)), buf)
@@ -232,19 +234,19 @@ def main():
     buf = ctypes.create_string_buffer(64 << 20)
     calls = live = 0
     for w in WORLDS:
-        world, anim = ZBD / w / 'gamez.zbd', ZBD / w / 'anim.zbd'
+        world, anim = ZBD / w / 'gamez.zbd', anim_of(w)
         want = emu.run(world, anim, full=True)
         compare(f'{w} full', want, probe.probe_anim(str(world).encode(), str(anim).encode(), -1, 1, buf, len(buf)), buf)
         calls += struct.unpack_from('<i', want, 4)[0]
         live += emu.i32(0x60bf3c)
     runs = 0
     for w, other in (('t1', 'c1'), ('c1', 't1'), ('c4b', 'c4')):
-        world, anim = ZBD / other / 'gamez.zbd', ZBD / w / 'anim.zbd'
+        world, anim = ZBD / other / 'gamez.zbd', anim_of(w)
         want = emu.run(world, anim)
         compare(f'{w} anim on {other} world', want,
                 probe.probe_anim(str(world).encode(), str(anim).encode(), -1, 0, buf, len(buf)), buf)
         runs += 1
-    world, anim = ZBD / 't1' / 'gamez.zbd', ZBD / 't1' / 'anim.zbd'
+    world, anim = ZBD / 't1' / 'gamez.zbd', anim_of('t1')
     total = struct.unpack_from('<i', emu.run(world, anim), 4)[0]
     for k in sorted({0, 1, 2, total // 3, total // 2, total - 2, total - 1}):
         want = emu.run(world, anim, fail_at=k)

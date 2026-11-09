@@ -769,14 +769,18 @@ _LINKS = None
 def anim_of(mission):
     """The mission's anim.zbd, linked from a short temp folder when its path is 0x80 characters or more: the port
     takes no longer one (0x5090f0, as the exe), and a deep checkout's is (the game hands it zbd\\cN\\anim.zbd)."""
+    return short_link(ZBD / mission / 'anim.zbd', f'{mission}.zbd')
+
+
+def short_link(path, name):
+    """`path` itself when shorter than 0x80 characters, else a link to it named `name` in a short temp folder."""
     global _LINKS
-    path = ZBD / mission / 'anim.zbd'
     if len(str(path)) < 0x80:
         return path
     if _LINKS is None:
         import tempfile
         _LINKS = tempfile.TemporaryDirectory(prefix='anim-run-')
-    link = Path(_LINKS.name) / f'{mission}.zbd'
+    link = Path(_LINKS.name) / name
     if not link.exists():
         link.symlink_to(path)
     return link
