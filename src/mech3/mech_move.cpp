@@ -578,7 +578,7 @@ void Mech::update_action(float dt) {
           const float d = (1.0f - s) * 0.01f;  // 0x005e236c
           legs[0]->apply_damage(d, 0);
           legs[1]->apply_damage(d, 0);
-          if (controls && g_calls.controls_landed) g_calls.controls_landed(*this);
+          if (controls) controls->landed();  // vt +0xac: the AI's gets up now
           lie_time = 5.0f;
           vec_3c = vec_58 = velocity = impulse = push = Vec3{0, 0, 0};
         }
@@ -595,7 +595,7 @@ void Mech::update_action(float dt) {
         legs[0]->foot->show_shadow(true);
         legs[1]->foot->show_shadow(true);
         if (g_calls.restore_camera) g_calls.restore_camera(*this);
-        if (controls) controls->zero();  // vt +0xb0, 0x00428990
+        if (controls) controls->stood_up();  // vt +0xb0: zero, but the AI's keeps them
         break;
       default:
         break;

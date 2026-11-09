@@ -115,13 +115,29 @@ weapons off for falls; then each frame the momentum +0x488 x 0.6 (per frame),
 the solver, Advance(dt), and the root motion: `vx = (root.x - last.x) / dt +
 momentum.x`, the same for z; the pose goes to the parts. When it ends: after
 landf/landb each leg takes `tonnage / 10000` (`(1 - clamp((100 - t) * 0.01))
-* 0.01`), velocity cleared, lying timer +0x590 = 5 s; after getup state 1,
-knock cleared, weapons and feet back, controls zeroed. The next action in the
+* 0.01`), the controls' vt+0xac, velocity cleared, lying timer +0x590 = 5 s;
+after getup state 1, knock cleared, weapons and feet back, the controls'
+vt+0xb0. The next action in the
 queue must fit (landf after falling or after landb (typo-like; harmless),
 getup only from 12/13), else it is dropped.
 
 Update counts +0x590 down while the queue is empty, the mech is in 12/13 and
 powered up; below 0 (and local) GetUp. Down time = fall + land + 5 s + getup.
+
+**An AI mech does not lie** (2026-11-09). The controls' vt+0xac is 0x5ac5c0
+(a bare `ret`) in every IControls vtable but the AI controls' 0x5cd210, whose
+0x4d8d10 is a thunk to 0x4d8a50: the owner's vt+0x50 (the entity as a mech: a
+mech is itself) gets up, 0x41b840, while the landing is still the queue's
+front and the state 12/13. The get-up is queued then and starts the same
+frame, so an AI's down time is fall + land + getup; the player's, a network
+mech's and the pocket commander's lie the 5 s. vt+0xb0, at the getup's end,
+zeroes the controls (0x428990 and the player's 0x428730, the pocket's
+0x46b730, the AI base's 0x4d8be0: thunks to 0x426ae0 -> 0x426c80) but the AI
+controls' 0x4d8d20, 0x5ac5c0: an AI keeps its throttle and turn. The port:
+`MechControls::landed` / `stood_up`, the AI's overrides (mech_control.cpp).
+Tests: test_actions.py (AI controls with the real vtable and layout, its
+landings up at once) and mission_c1m1_ai_mech_gets_up_at_once_headless (an
+AI's get-up queued 1.06 s after it goes down, the landing; the player's 6.06 s).
 
 ## Knockdown
 

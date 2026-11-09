@@ -447,6 +447,10 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   keeps being refreshed every frame after that.
 - **A mech lying on the ground that is powered down still turns its torso
   and moves its parts**; one that is powered up holds still until it gets up.
+- **Knocked down, an AI mech gets up as soon as it lands; you lie on the
+  ground five seconds first.** Only the AI pilot's controls ask for the
+  get-up at the end of the fall; everyone else waits the lying timer (and a
+  powered-down mech does not get up at all).
 - **"Center legs" swings the legs round at 1.75 times the twist per second**
   (0x464e80, `movement-ground.md`): with the torso twisted 40 degrees, the legs
   start turning at 70 degrees a second and slow as they catch up. Throttle

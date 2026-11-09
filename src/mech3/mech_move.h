@@ -23,7 +23,6 @@ struct MoveCalls {
   void (*jet_pose)(Mech&) = nullptr;               // test hook (0x004177e7..0x004179fd): unset runs Mech::pose_jump
   void (*landing_dust)(Mech&) = nullptr;           // test hook (0x004164f3..0x0041660b): unset runs Mech::ground_dust
   void (*landing_pose)(Mech&) = nullptr;           // test hook (0x0041660b..): unset runs Mech::landing_pose
-  void (*controls_landed)(Mech&) = nullptr;        // controls vt +0xac (0x005ac5c0, nothing, in the base)
   void (*weapons_enable)(Mech&, int on) = nullptr; // 0x004b0bf0 on +0xd4
   void (*fall_camera)(Mech&) = nullptr;            // 0x00413af0
   void (*restore_camera)(Mech&) = nullptr;         // 0x00413b70

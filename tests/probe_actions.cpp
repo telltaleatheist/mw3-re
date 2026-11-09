@@ -5,9 +5,11 @@
 // out is logged as (count, code, args...).
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #include "mech3/mech.h"
+#include "mech3/mech_control.h"
 #include "mech3/mech_move.h"
 
 using namespace mech3;
@@ -60,6 +62,7 @@ struct TestAction : MechAction {
 struct State {
   Mech m;
   MechControls c;
+  std::unique_ptr<AiControls> ai;  // flag 8: the AI's controls (no brain)
   MechData pilot;
   LogLeg legs[2];
   Foot feet[2];
@@ -111,7 +114,7 @@ extern "C" {
 // (0x6d8), controls (0x74), nine actions (0xf0 each, `present` bit k), the
 // two feet (+0x78 shadow) and the vital parts' destroyed bytes. The queue is
 // `queue` (n in *nq, written back). `flags`: 1 player, 2 force feedback, 4
-// remote. Returns the function's result.
+// remote, 8 the AI's controls. Returns the function's result.
 int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, uint32_t present, uint32_t shadow0,
                       uint32_t shadow1, uint32_t destroyed, uint32_t flags, int32_t roster, int32_t last_action,
                       float dt, int32_t arg, int32_t arg2, int32_t* queue, int32_t* nq, int32_t* out, int32_t* n,
@@ -122,9 +125,11 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
   m = Mech{};
   mech_io(m, mech, false);
   g->c = MechControls{};
-  controls_io(g->c, ctl, false);
-  m.controls = &g->c;
-  g->c.owner = &m;
+  g->ai = std::make_unique<AiControls>();
+  MechControls& ctls = flags & 8 ? static_cast<MechControls&>(*g->ai) : g->c;
+  controls_io(ctls, ctl, false);
+  m.controls = &ctls;
+  ctls.owner = &m;
   g->pilot.roster = roster;
   m.pilot = &g->pilot;
   for (int i = 0; i < 2; ++i) {
@@ -162,7 +167,6 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
     log({15, bits(d)});
     return false;
   };
-  c.controls_landed = nullptr;
   c.weapons_enable = [](Mech&, int on) { log({18, on}); };
   c.fall_camera = [](Mech&) { log({19}); };
   c.restore_camera = [](Mech&) { log({20}); };
@@ -187,7 +191,7 @@ int32_t probe_actions(int32_t op, uint8_t* mech, uint8_t* ctl, uint8_t* acts, ui
     default: r = m.knocked_down(arg); break;
   }
   mech_io(m, mech, true);
-  controls_io(g->c, ctl, true);
+  controls_io(ctls, ctl, true);
   for (int k = 0; k < 9; ++k) action_io(g->acts[k], acts + 0xf0 * k, true);
   int32_t k = 0;
   for (int32_t v : m.actions) queue[k++] = v;

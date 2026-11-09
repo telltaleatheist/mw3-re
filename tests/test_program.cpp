@@ -21695,6 +21695,47 @@ TEST(mission_c1m1_player_knocked_down_headless) {
   }
 }
 
+// An AI mech knocked down in c1m1 gets up as soon as its fall lands: its controls' vt+0xac (0x004d8a50) queue
+// the get-up then (0x0041b840), where every other mech lies 5 s first (Mech::Update's countdown). Knocked down
+// (3, Mech::knocked_down) once powered up (it waits powered down); timed on the game clock from the landing (anim state 12/13) to the
+// get-up's start (5/6 at the queue's front) and to standing (1). The player's mech, knocked down the same way,
+// waits the 5 s.
+TEST(mission_c1m1_ai_mech_gets_up_at_once_headless) {
+  if (!have_game()) return;
+  float lie[2] = {-1, -1}, stand[2] = {-1, -1};
+  for (const int who : {0, 1}) {  // 0 the AI's mech, 1 the player's
+    float knocked = -1, down_at = -1, up_queued = -1, standing = -1;
+    cheat_mission("ai_getup_write", 0, 1, 9000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+      int32_t n = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&n);
+      void* m = who ? mech3::mission_player_mech() : n ? ai[0].mech : nullptr;
+      if (!m || f < 60) return false;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(m, &d);
+      const float now = mech3::mech_game_time();
+      if (knocked < 0) {
+        if (d.powering_down || d.powered_down) {  // c1m1's first AI mech waits powered down; a powered-down mech stays down
+          if (f == 60) mech3::mech_power(m, 0);
+          return f > 3000;
+        }
+        mech3::mech_knock_down(m, 3);
+        knocked = now;
+        return false;
+      }
+      if (down_at < 0 && (d.anim_state == 12 || d.anim_state == 13)) down_at = now;
+      if (down_at >= 0 && up_queued < 0 && (d.action == 5 || d.action == 6)) up_queued = now;
+      if (up_queued >= 0 && d.anim_state == 1) standing = now;
+      return standing >= 0 || d.anim_state == 10 || now - knocked > 20.0f;
+    });
+    lie[who] = up_queued - down_at, stand[who] = standing - down_at;
+    std::printf("  %s: down %.2f s after the knock; get-up queued %.2f s later, standing %.2f s later\n",
+                who ? "player" : "AI", down_at - knocked, lie[who], stand[who]);
+    EXPECT(down_at > knocked && up_queued > down_at && standing > up_queued);
+  }
+  EXPECT(lie[0] < 4.0f);             // the AI's: the landing's animation alone
+  EXPECT(lie[1] > lie[0] + 4.5f);    // the player's: the landing and the 5 s lie
+}
+
 // There is no cow level in c1m2: every enemy mech and vehicle killed by the
 // player and salvaged whole (each mech in the salvage), the objectives done,
 // the mission won; Exit Mission brings the debriefing as a win.
