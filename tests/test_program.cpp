@@ -3760,32 +3760,76 @@ namespace mech3 {  // mech_names.h and mech_reader.h (their Engine clashes with 
 int32_t mech_count();
 const char* mech_title(int32_t mech);
 void mech_rows_clear();
+void weapon_rows_clear();
 void free_dfns();
 }  // namespace mech3
 
 namespace {
-// The install's reader.zbd with a copy of `from` named `to` added, as a
-// mech3ax repack of it would be: the mod's own reader archive.
-bool reader_with_copy(const std::string& install, const std::string& out, const char* from, const char* to) {
+// A reader file's node tree (docs/zreader.md: int32 type then value; 1 int,
+// 2 float, 3 string with its length, 4 list counting itself), to edit a copy.
+struct Zrd {
+  uint32_t type = 0, word = 0;
+  std::string text;
+  std::vector<Zrd> list;
+};
+Zrd zrd_read(const char*& p) {
+  Zrd n;
+  std::memcpy(&n.type, p, 4), p += 4;
+  uint32_t v;
+  std::memcpy(&v, p, 4), p += 4;
+  if (n.type == 3) n.text.assign(p, v), p += v;
+  else if (n.type == 4) for (uint32_t i = 1; i < v; ++i) n.list.push_back(zrd_read(p));
+  else n.word = v;
+  return n;
+}
+void zrd_write(const Zrd& n, std::string& out) {
+  auto u32 = [&](uint32_t v) { out.append(reinterpret_cast<const char*>(&v), 4); };
+  u32(n.type);
+  if (n.type == 3) u32(static_cast<uint32_t>(n.text.size())), out += n.text;
+  else if (n.type == 4) {
+    u32(static_cast<uint32_t>(n.list.size()) + 1);
+    for (const Zrd& c : n.list) zrd_write(c, out);
+  } else u32(n.word);
+}
+void zrd_rename(Zrd& n, const std::string& from, const std::string& to) {
+  if (n.type == 3 && n.text == from) n.text = to;
+  for (Zrd& c : n.list) zrd_rename(c, from, to);
+}
+// The install's reader.zbd with entries edited or added (`edit` gets each
+// entry's name and bytes and may add more), as a mech3ax repack of it would
+// be: the mod's own reader archive.
+bool reader_with(const std::string& install, const std::string& out,
+                 const std::function<void(std::vector<std::pair<std::string, std::string>>&)>& edit) {
   zutl_zar::Archive src, dst;
   zutl_zar::init(src), zutl_zar::init(dst);
   bool ok = zutl_zar::open(src, (install + "/zbd/reader.zbd").c_str());
-  std::error_code ec;
-  std::filesystem::create_directories(std::filesystem::path(out).parent_path(), ec);
-  ok = ok && zutl_zar::create(dst, out.c_str());
-  std::vector<char> copy;
+  std::vector<std::pair<std::string, std::string>> entries;
   for (int i = 0; ok && i < src.count; ++i) {
     uint32_t n = src.entries[i].length;
-    std::vector<char> b(n ? n : 1);
+    std::string b(n ? n : 1, '\0');
     ok = zutl_zar::read(src, i, b.data(), &n) == 0;
-    zutl_zar::add(dst, src.entries[i].name, b.data(), n);
-    if (crt::msvc_stricmp(src.entries[i].name, from) == 0) copy.assign(b.begin(), b.begin() + n);
+    entries.emplace_back(src.entries[i].name, b.substr(0, n));
   }
-  ok = ok && !copy.empty();
-  if (ok) zutl_zar::add(dst, to, copy.data(), static_cast<uint32_t>(copy.size()));
-  zutl_zar::close(dst), zutl_zar::close(src);
-  zutl_zar::destroy(dst), zutl_zar::destroy(src);
-  return ok;
+  zutl_zar::close(src), zutl_zar::destroy(src);
+  if (!ok) return false;
+  edit(entries);
+  std::error_code ec;
+  std::filesystem::create_directories(std::filesystem::path(out).parent_path(), ec);
+  if (!zutl_zar::create(dst, out.c_str())) return false;
+  for (const auto& [name, bytes] : entries) zutl_zar::add(dst, name.c_str(), bytes.data(), static_cast<uint32_t>(bytes.size()));
+  zutl_zar::close(dst), zutl_zar::destroy(dst);
+  return true;
+}
+bool reader_with_copy(const std::string& install, const std::string& out, const char* from, const char* to) {
+  bool found = false;
+  const bool ok = reader_with(install, out, [&](std::vector<std::pair<std::string, std::string>>& e) {
+    for (size_t i = 0, n = e.size(); i < n; ++i)
+      if (crt::msvc_stricmp(e[i].first.c_str(), from) == 0) {
+        const std::string bytes = e[i].second;  // before the vector grows
+        e.emplace_back(to, bytes), found = true;
+      }
+  });
+  return ok && found;
 }
 }  // namespace
 
@@ -3851,6 +3895,104 @@ TEST(mods_mech_row_launches_as_the_player_c1m1_headless) {
   zrdr::close_archives(true);
   mech3::free_dfns();
   mech3::mech_rows_clear();
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
+// Mods' weapons (item 2 of the modding cut): a weapon= row is weapon 38 (after
+// the plain PPC's place, with the bug fixes on or off), its definition the
+// mod's weapons.zrd entry of that name (ERPPC's copied, in the mod's
+// repacked reader.zbd). The mod's Thor copy carries it in place of its ER
+// PPC; launched in c1m1 it has it mounted in a group, and it fires.
+TEST(mods_weapon_row_mounts_and_fires_c1m1_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  const std::string install = MW3_GAME_DIR, wd = temp_dir("mods_weapon_row_write");
+  {
+    std::error_code ec;
+    std::filesystem::create_directories(wd + "/mods/lasers", ec);
+    std::ofstream(wd + "/mods/lasers/mod.txt") << "name=Lasers\nmech=thor_b tech=clan mass=70 class=heavy model=thor\n"
+                                                  "weapon=ERPPC_B ammo=no tech=any title=ER PPC B\n";
+  }
+  bool weapon_copied = false, dfn_copied = false;
+  EXPECT(reader_with(install, wd + "/mods/lasers/zbd/reader.zbd", [&](std::vector<std::pair<std::string, std::string>>& e) {
+    for (size_t i = 0, n = e.size(); i < n; ++i) {
+      const char* p = e[i].second.data();
+      if (crt::msvc_stricmp(e[i].first.c_str(), "weapons.zrd") == 0) {
+        Zrd root = zrd_read(p);
+        for (Zrd& top : root.list)
+          for (size_t k = 0; k + 1 < top.list.size(); k += 2)
+            for (size_t w = 0; w + 1 < top.list[k + 1].list.size(); w += 2)
+                if (top.list[k + 1].list[w].text == "ERPPC") {
+                  Zrd name = top.list[k + 1].list[w], def = top.list[k + 1].list[w + 1];
+                  name.text = "ERPPC_B";
+                  top.list[k + 1].list.push_back(name), top.list[k + 1].list.push_back(def);
+                  weapon_copied = true;
+                  break;
+                }
+        e[i].second.clear();
+        zrd_write(root, e[i].second);
+      } else if (crt::msvc_stricmp(e[i].first.c_str(), "dfn_thor.zrd") == 0) {
+        Zrd root = zrd_read(p);
+        zrd_rename(root, "ERPPC", "ERPPC_B");
+        std::string bytes;
+        zrd_write(root, bytes);
+        e.emplace_back("dfn_thor_b.zrd", bytes), dfn_copied = true;
+      }
+    }
+  }));
+  EXPECT(weapon_copied && dfn_copied);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  std::string log;
+  for (const std::string& l : mech3::mods_mount(wd, {"lasers"}, {install})) log += l + "\n";
+  zutl::mount(install);
+  EXPECT(log.find("weapon ERPPC_B added (weapon 38)") != std::string::npos);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.mech = 19;
+    engine.set_launch(l);
+    engine.missions_start(0x6098d0);
+    EXPECT(!mech3::missions().failed);
+    mech3::LaunchedMech m;
+    EXPECT(mech3::launched_mech(&m) && m.roster == 19 && m.weapons > 0);
+    void* me = mech3::mech_mission_player();
+    std::string groups;
+    for (int g = 0; g < 5; ++g) groups += mech3::mech_group_names(me, g) + " | ";
+    const int32_t fired = mech3::program_fire_at(me, "ERPPC_B", 2, 100.0f);
+    std::printf("  groups: %s\n  fired %d\n", groups.c_str(), fired);
+    EXPECT(groups.find("ERPPC_B") != std::string::npos && groups.find("ERPPC ") == std::string::npos);
+    EXPECT(fired == 2);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::free_dfns();
+  mech3::mech_rows_clear();
+  mech3::weapon_rows_clear();
   mech3::reset_states();
   reset_process_state();
   mech3::missions() = mech3::Missions{};

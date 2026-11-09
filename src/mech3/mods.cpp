@@ -22,7 +22,9 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "crt/msvc_string.h"
 #include "mech3/mech_names.h"
+#include "mech3/mech_reader.h"
 #include "mech3/mission.h"
 
 namespace mech3 {
@@ -63,6 +65,7 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (key == "description") out->description = value;
     else if (key == "world" && !value.empty()) out->worlds.push_back(value);
     else if (key == "mech" && !value.empty()) out->mechs.push_back(value);
+    else if (key == "weapon" && !value.empty()) out->weapons.push_back(value);
     else if (key == "ia_world" && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -106,6 +109,10 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   std::vector<std::string> log;
   std::vector<std::pair<std::string, ModIaWorld>> ia;  // the mod's name, the entry
   const std::vector<ModInfo> found = mods_found(write_dir);
+  // A remount starts from the exe's tables (the mods' rows and their cached definitions gone).
+  free_dfns_above(kBuiltinMechs);
+  mech_rows_clear();
+  weapon_rows_clear();
   std::vector<std::string> done;
   for (const std::string& want : enabled) {
     if (std::find(done.begin(), done.end(), want) != done.end()) continue;  // named twice: the first place counts
@@ -143,6 +150,14 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       else
         log.push_back("  mech " + row.name + " added (mech " + std::to_string(mech_count() - 1) + ", " + std::to_string(row.mass) +
                       " t, the models of " + row.model + ")");
+    }
+    for (const std::string& line : it->weapons) {
+      ModWeapon row;
+      std::string why;
+      if (!weapon_row_parse(line, &row, &why) || !weapon_row_add(row, &why))
+        log.push_back("  weapon " + line + ": " + why + ", left out");
+      else
+        log.push_back("  weapon " + row.name + " added (weapon " + std::to_string(weapon_count() - 1) + ")");
     }
     // Each file: what it replaces (a copy later in the mounts) or adds.
     std::vector<std::string> files;
@@ -212,6 +227,14 @@ uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std:
       if (!mech_row_parse(line, &r, &why)) continue;
       const std::string key = "mech=" + r.name + " " + r.model + " " + std::to_string(r.tech) + " " + std::to_string(r.mass) + " " +
                               std::to_string(r.weight_class);
+      any = true;
+      mix(key.data(), key.size() + 1);
+    }
+    for (const std::string& line : it->weapons) {
+      ModWeapon r;
+      std::string why;
+      if (!weapon_row_parse(line, &r, &why)) continue;
+      const std::string key = "weapon=" + r.name + " " + std::to_string(r.ammo) + " " + std::to_string(r.tech);
       any = true;
       mix(key.data(), key.size() + 1);
     }
@@ -407,6 +430,14 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
                     (fs::is_regular_file(fs::path(dir) / "zbd" / ("dfn_" + r.name + ".zrd"), ec) ? ", its zbd/dfn_" + r.name + ".zrd"
                                                                                                   : ", its dfn_" + r.name + ".zrd from a reader archive"));
+  }
+  for (const std::string& line : m.weapons) {
+    ModWeapon r;
+    std::string why;
+    if (!weapon_row_parse(line, &r, &why)) error("weapon " + line + ": " + why);
+    else if (weapon_index(r.name.c_str()) >= 0 || crt::msvc_stricmp(r.name.c_str(), "PPC") == 0)
+      error("weapon " + r.name + ": there is a weapon " + r.name + " already");
+    else out.push_back("weapon " + r.name + ": ok, its definition from the mod's weapons.zrd");
   }
   // Every file.
   std::vector<std::string> files;

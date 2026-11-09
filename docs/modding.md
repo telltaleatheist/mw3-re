@@ -130,7 +130,7 @@ an id left out, nothing without mods) and `mod_world_plays_in_instant_action_hea
 (a mod world of c1's files linked, `source c1.gs`, Instant Action on world
 9: its readers read from `zbd\mymap\`, the player's mech in play).
 
-## New mechs (after PM, item 1, 2026-11-08)
+## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
 **A new mech.** `mech=` in mod.txt, one line a mech:
 
@@ -159,7 +159,11 @@ already a mech (any case, the exe's or an earlier mod's), an unknown key or
 a value out of range is said in the log and the row left out; `--check-mod`
 says the same. The rows are gameplay data: `mods_gameplay_hash` mixes each
 parsed row (name, model, tech, mass, class; not the title or the spacing),
-so a mod of rows alone changes the lobby's check (Multiplayer, above).
+so a mod of rows alone changes the lobby's check (Multiplayer, above). A row
+that parses but is refused as taken is mixed in too: every player computes
+the same. Each mount starts from the exe's tables (`mods_mount` clears the
+rows and the definitions cached for them), so mounting again, as the
+launcher's MODS list will, adds the rows afresh.
 
 The original's quirks stay with their numbers: the Mad Cat's loadouts weigh
 half a ton less (mech 9 only, `Config::weight`), so the Mad Cat's own
@@ -167,11 +171,41 @@ loadouts copied to a new 75 t row are half a ton over and refused; the
 Elemental's (7) are never weighed, and the other checks by number
 (`mech_damage.cpp`, `mech_build.cpp`) stay the Elemental's alone.
 
+**A new weapon.** `weapon=` in mod.txt, one line a weapon:
+
+```
+weapon=ERPPC_B ammo=no tech=any title=ER PPC B
+```
+
+- the name first (as a mech's, up to 31): the weapon itself is the entry of
+  that name in `weapons.zrd` (the mod's reader.zbd), which zWeapon reads as
+  it reads the game's; a mech's loadout names it as any weapon;
+- `ammo=yes` or `no` (whether the lab sells rounds for it and its bin
+  empties); `tech=clan`, `sphere`, `any` or `none` (the techs the lab offers
+  it in; TAG's is none);
+- `title=` the name shown, else the name.
+
+The exe's 37 keep their numbers, the plain PPC (FIX (bug), offered with the
+bug fixes on) keeps 37, and a mod's rows follow from 38 whether the fixes
+are on or off, so a pilot's saved weapon keeps its number (`weapon_count()`
+is 38 and the rows once there are rows; 37 itself then still reads as no
+weapon with the fixes off). A name taken (the PPC's too) is refused. The
+rows are gameplay data in the hash as the mechs' are (name, ammo, tech).
+
+Equipment has no rows: each of the 15 kinds (AMS, jump jets, ECM, the heat
+sinks...) is code as well as a name (its weight and slots by kind,
+`equip_weight`, `equip_slots`, and what the mech does with it), so a new
+kind would need new code, not data.
+
 Tests: `mods_mech_rows_after_the_exes_and_in_the_gameplay_hash` (the rows'
-keys and refusals, two mods' rows in order, a taken name, the hash as data)
-and `mods_mech_row_launches_as_the_player_c1m1_headless` (a Thor copy as
-mech 19 from the mod's repacked reader.zbd, launched as the player's mech
-in c1m1 with the Thor's model, loadout and motions).
+keys and refusals, two mods' rows in order, a taken name, the hash as data),
+`mods_mech_row_launches_as_the_player_c1m1_headless` (a Thor copy as mech
+19 from the mod's repacked reader.zbd, launched as the player's mech in c1m1
+with the Thor's model, loadout and motions), `mods_weapon_rows_after_the_ppcs_place`
+(the keys, numbers 38 on with the fixes on and off, the PPC's place, taken
+names, a remount, the hash) and `mods_weapon_row_mounts_and_fires_c1m1_headless`
+(ERPPC's definition copied as ERPPC_B in the mod's weapons.zrd, the Thor
+copy carrying it: mounted in its group in c1m1, and two shots fired).
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
@@ -343,9 +377,8 @@ up. Every shipped kind passes on c1, c4b and t1. Test:
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
-- After v1.0: a custom campaign, new mechs (done: New mechs, above) and
-  weapons (the exe's name tables made data), loose `.zan` motions, the
-  launcher's MODS list.
+- After v1.0: a custom campaign, new mechs and weapons (done: New mechs and
+  weapons, above), loose `.zan` motions, the launcher's MODS list.
 - Existing data mods load (Owen, 2026-11-07): a file the old engine loaded isn't
   refused by a check stricter than it was. An exe patch can't apply; what it
   changed is rebuilt as data. Tested on real mods, kept out of the repo.
