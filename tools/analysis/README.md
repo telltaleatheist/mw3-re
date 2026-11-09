@@ -49,6 +49,7 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 | `pmdiff.py` | Pairs every PM function with its MW3 1.2 twin (bytes, strings, calls, link order, structure) and sorts them identical / changed / new / MW3 only, into `analysis-output/pm-diff/` (`pairs.json`, `report.txt`) and `pm-func2file.json`. |
 | `pmdata.py [mw3_dir] [pm_dir] [-v]` | PM's `zbd/` against MW3 1.2's, file by file and zArchive entry by entry. |
 | `x87.py <start> <end> [reg=name ...]` | Traces a straight-line asm range's x87 code into C expressions in the exe's evaluation order (Ghidra's printed sums are not; a port that must match bit for bit needs the real order). Run from the repo root. |
+| `breakrun.py QUEUE.json OUT.jsonl WORKTREE... [--python PY]` | Runs a queue of breaks (a text swap in the port, then the target rebuilt and its differential tests run) across worktrees, one line of result each: caught only when a test that passes unbroken fails with the break, a death at start-up is "invalid" (its header). |
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
 whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
