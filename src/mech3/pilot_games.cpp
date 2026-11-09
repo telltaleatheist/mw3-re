@@ -626,8 +626,8 @@ void CampaignGame::merge_salvage() {
 // settled in place: the slots' mechs and loadouts listed in +0x50 (docs/campaign.md 4).
 CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   PilotHooks& h = pilot_hooks();
-  int32_t m = mission, op = campaign;
-  const bool over = campaign_advance(op, m);
+  int32_t m = mission, op = campaign, bases = a8;
+  const bool over = advance(op, m, bases);
   if (next_one) {
     if (over) return nullptr;
     auto* g = new_campaign_game(pilot, op, m);
@@ -637,7 +637,7 @@ CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
     if (Store* salvage = h.mission_salvage()) g->store3c.assign(*salvage);
     else g->store3c.clear();  // [0x00609990] is always set in the exe
     g->slot.copy_from(slot);
-    g->a8 = (m == 1 || (op == 4 && m == 4)) ? 3 : a8;
+    g->a8 = bases;
     g->c4 = c4;
     g->copy_lancemates(*this);
     if (save) h.save_world(g->path(), 2);
@@ -659,6 +659,14 @@ CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   store78.clear();
   b0 = 0;
   return this;
+}
+
+// Inline in 0x00434e00: the advance (0x00484870, campaign_advance) and the
+// next game's +0xa8.
+bool CampaignGame::advance(int32_t& op, int32_t& m, int32_t& bases) const {
+  const bool over = campaign_advance(op, m);
+  bases = (m == 1 || (op == 4 && m == 4)) ? 3 : a8;
+  return over;
 }
 
 // Mech3.exe 1.2 @ 0x00435110

@@ -34,6 +34,7 @@
 #include "mech3/mainmenu.h"
 #include "mech3/menu_states.h"
 #include "mech3/mission.h"
+#include "mech3/mod_campaign.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
@@ -746,6 +747,11 @@ bool launch_player();  // 0x00491150 (mech3/mission_launch.h, whose mech headers
 
 namespace {
 BriefingScreen* briefing_of(const GameEngine& e, Handle s) { return dynamic_cast<BriefingScreen*>(e.screen_of(s)); }
+// The launch's mod campaign game: the chosen pilot's, from the menus (a debug start's is not).
+const ModCampaignGame* mod_game(const GameEngine::Launch& l) {
+  const Pilot* p = l.keep_pilot ? current_pilot() : nullptr;
+  return p ? dynamic_cast<const ModCampaignGame*>(p->current) : nullptr;
+}
 }  // namespace
 
 // The Load state from the menus: its game is the chosen pilot's (the
@@ -833,16 +839,41 @@ uint8_t GameEngine::briefing_has_movie() { return app().fmv(); }
 // the main window and fmv.zrd's "c<op>m<n>" of the pilot's game (0x004099c0),
 // played when it loads: the mission's briefing movie, an operation's opener
 // at its first mission. Nothing shows until zFMV is ported.
+// Ours: a mod campaign's line's movie, none when it names none.
 void GameEngine::briefing_play_movie(uint32_t state) {
   if (state != states().load.addr()) return Engine::briefing_play_movie(state);
   const Handle m = states().load.movie_;
   const Handle game = pilot_game(pilot());
   char name[32];
-  std::snprintf(name, sizeof name, "c%dm%d", static_cast<int32_t>(vcall(game, 0x48, {})),
-                static_cast<int32_t>(vcall(game, 0x4c, {})));
+  if (const ModCampaignGame* mod = mod_game(launch_)) {
+    if (!mod->movie()) return;
+    std::snprintf(name, sizeof name, "%s", mod->movie());
+  } else {
+    std::snprintf(name, sizeof name, "c%dm%d", static_cast<int32_t>(vcall(game, 0x48, {})),
+                  static_cast<int32_t>(vcall(game, 0x4c, {})));
+  }
   const Handle frame = app().frame_;
   if (const Handle hwnd = frame ? frame_hwnd(frame) : 0) movie_set_window(m, hwnd);  // 0x0040a7d0
   if (movie_load(m, "fmv.zrd", name) != -1) movie_play(m);
+}
+
+const char* GameEngine::campaign_briefing() {
+  const ModCampaignGame* mod = mod_game(launch_);
+  return mod ? mod->briefing() : nullptr;
+}
+const char* GameEngine::campaign_end_movie() {
+  const ModCampaign* c = entered_campaign();
+  if (!c) return "c4win";
+  return c->movie_end.empty() ? nullptr : c->movie_end.c_str();
+}
+
+bool GameEngine::campaign_ends_at(int32_t op, int32_t mission) {
+  const ModCampaignGame* mod = mod_game(launch_);
+  return mod ? mod->last() : Engine::campaign_ends_at(op, mission);
+}
+bool GameEngine::campaign_world_start(int32_t op, int32_t mission) {
+  const ModCampaignGame* mod = mod_game(launch_);
+  return mod ? mod->world_start() : Engine::campaign_world_start(op, mission);
 }
 
 void GameEngine::briefing_script_start(Handle s) {

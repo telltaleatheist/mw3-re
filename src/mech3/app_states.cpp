@@ -3,6 +3,8 @@
 #include "gamez/zutil/zfix.h"
 #include "mech3/app_shadows.h"
 
+#include <cstdio>
+
 #include "crt/msvc_math.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app.h"
@@ -94,7 +96,8 @@ void AttractState::leave() {
 
 // Mech3.exe 1.2 @ 0x0047a9b0: the movie whatever the -nofmv setting.
 bool WinMovieState::enter() {
-  movie_ = start_movie(e(), "c4win");
+  const char* end = e().campaign_end_movie();  // ours: "c4win", or a mod campaign's
+  movie_ = end ? start_movie(e(), end) : 0;
   return true;
 }
 
@@ -1127,7 +1130,8 @@ bool LoadState::update() {
   en.missions_reset(0x6098d0);
   char name[256];
   static const char* const kNames[] = {"brief_%s%d", "brief_ia%s%d", "brief_mp%s%d", "brief_%s%d"};
-  if (type >= 1 && type <= 4) en.format(kNames[type - 1], {dir, mission}, name, sizeof name);
+  if (const char* b = en.campaign_briefing()) std::snprintf(name, sizeof name, "%s", b);  // ours
+  else if (type >= 1 && type <= 4) en.format(kNames[type - 1], {dir, mission}, name, sizeof name);
   else en.format("default", {}, name, sizeof name);
   en.sounds_nop(en.app_sounds(), 0);  // an empty function, called with a stray argument
   if (en.app_flag_1c3() == 0) en.voice_start(name);
@@ -1185,7 +1189,7 @@ bool WinState::enter() {
   en.twod_set_cursor(0);
   const int32_t type = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x2c, {}));
   if (type == 1) {
-    if (!lost && clean) campaign_won_ = (campaign == 4 && mission == 6) ? 1 : 0;
+    if (!lost && clean) campaign_won_ = en.campaign_ends_at(campaign, mission) ? 1 : 0;  // Op 4 Mission 6 (ours: a hook)
     else en.mission_results(1, 1);
   }
   screen_ = en.construct(0x47b430, {addr(), campaign, mission, addr() + 0x10});  // new(0x13bf4)

@@ -690,7 +690,7 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
       e.campaign_reset_lancemates();
       int32_t op = 0, mission = 0;
       e.game_campaign(&op, &mission);
-      e.mission_cleanup(mission == 1 || (op == 4 && mission == 4) ? 1 : 0);
+      e.mission_cleanup(e.campaign_world_start(op, mission) ? 1 : 0);  // Op N Mission 1, Op 4 Mission 4 (ours: a hook)
       e.anim_reset();
       e.campaign_set_b0(0);
     }

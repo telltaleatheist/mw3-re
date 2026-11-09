@@ -118,6 +118,7 @@
 #include "mech3/mp_connect.h"
 #include "mech3/mp_lobby.h"
 #include "mech3/mods.h"
+#include "mech3/mod_campaign.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/znetwork/znet_session.h"
 #include "mech3/briefing.h"
@@ -1306,6 +1307,179 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
       }
       mech3::missions().cleanup(false);
       app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
+// A mod campaign through the same screens (custom-campaigns.md, step 3):
+// its two lines, c1 4 then c2 1, as places 1 and 2 of its list. The first
+// line's movie_start= before its briefing (not "campaign": not Op 1 Mission
+// 1's), its briefing= and movie, its op= heading's bases=2; won, the next
+// line (not c1 5) with the original's brief_c21, its own movie and the field
+// bases carried (no reset: the list sets none there); the last won, the
+// ending's movie_end= and the credits. The first lost: briefed again, its
+// world loaded afresh (a world's start on the list, not by Op N Mission 1).
+TEST(mod_campaign_advance_and_end_headless) {
+  if (!have_game()) return;
+  mech3::ModCampaign mc;
+  mc.mod = "m", mc.id = "steps", mc.file = "steps.txt";
+  EXPECT(mech3::campaign_parse("name=Steps\nmovie_start=modstart\nmovie_end=modend\nop=First bases=2\n"
+                               "mission=c1 4 brief_c12 moda\nmission=c2 1 - modb\n",
+                               &mc));
+  struct Case { int32_t place; bool lose; };
+  for (const Case k : {Case{1, false}, Case{2, false}, Case{1, true}}) {
+    const int32_t place = k.place;
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir(k.lose ? "mod_campaign_lost_write" : place == 1 ? "mod_campaign_next_write" : "mod_campaign_end_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      struct MovieEngine : mech3::GameEngine {
+        using GameEngine::GameEngine;
+        std::vector<std::string> asked, voices;
+        std::vector<int32_t> cleanups;
+        mech3::Handle movie_new() override { return 0x7e000001; }
+        void mission_cleanup(int32_t unload) override {
+          cleanups.push_back(unload);
+          GameEngine::mission_cleanup(unload);
+        }
+        int32_t movie_load(mech3::Handle, const char*, const char* name) override {
+          asked.push_back(name ? name : "");
+          return -1;
+        }
+        void voice_start(const char* name) override {  // the Load state's briefing name
+          voices.push_back(name ? name : "");
+          GameEngine::voice_start(name);
+        }
+      } engine(p, "mech3.exe");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      std::string why;
+      EXPECT(mech3::campaign_enter(mc, &why));
+      mech3::Pilot* pilot = mech3::create_pilot("Stepper");
+      auto* g = pilot && !pilot->campaigns.empty() ? dynamic_cast<mech3::ModCampaignGame*>(pilot->campaigns.front()) : nullptr;
+      EXPECT(g && g->a8 == 2);  // the op= heading's bases= on the first line
+      while (g && g->mission != place) {
+        auto* n = dynamic_cast<mech3::ModCampaignGame*>(g->next_mission(true, false));
+        if (!n) g = nullptr;
+        else pilot->campaigns.push_back(n), g = n;
+      }
+      EXPECT(g != nullptr);
+      if (!g) {
+        mech3::campaign_leave();
+        return;
+      }
+      pilot->current = g;
+      pilot->save();
+      int stage = 0, core = 0, after = 0;
+      int32_t next_op = 0, next_mission = 0, field_bases = -1, launched_op = 0, launched_mission = 0, next_place = 0;
+      bool movie_state = false, credits = false, next_briefing = false;
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (stage == 0 && now == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // CAMPAIGN
+          stage = 1;
+        } else if (stage == 1) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(now);
+          if (!ps || !ps->screen) return;
+          ps->screen->refresh(false, pilot);
+          ps->screen->on_button(0x18, 0, 0);  // ACCEPT: its newest save
+          stage = 2;
+        } else if (stage == 2) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || now != &mech3::states().load || !b->loaded) return;
+          engine.game_campaign(&launched_op, &launched_mission);
+          b->salvage_seen = 1;
+          b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+          stage = 3;
+        } else if (stage == 3 && now == &mech3::states().core) {
+          if (++core == 30) {
+            if (mech3::CampaignGame* c = mech3::current_pilot()->campaign()) c->a8 = 1;  // a field base lost
+            if (k.lose) {
+              mech3::missions().abort_now();  // the pause's REPLAY: lost
+            } else {
+              mech3::missions().ended = 1;
+              mech3::missions().on_command(0x71);  // Exit Mission
+            }
+            stage = 4;
+          }
+        } else if (stage == 4 && now == &mech3::states().end_win) {
+          auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
+          if (!d) return;
+          d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
+          stage = 5;
+        } else if (stage == 5) {
+          if (now == &mech3::states().load) {
+            mech3::BriefingScreen* b = mech3::briefing_screen();
+            if (!b || !b->loaded) return;
+            engine.game_campaign(&next_op, &next_mission);
+            if (mech3::CampaignGame* c = mech3::current_pilot()->campaign()) field_bases = c->a8, next_place = c->mission;
+            next_briefing = true;
+            stage = 6;
+          } else if (dynamic_cast<mech3::CreditsState*>(now)) {
+            credits = true;
+            stage = 6;
+          } else if (now == &mech3::states().main && ++after > 200) {
+            stage = 6;
+          }
+        }
+      };
+      CountingPump pump;
+      pump.limit = 9000;
+      pump.stop = [&] { return stage == 6; };
+      app.run(pump);
+      auto has = [](const std::vector<std::string>& v, const char* n) { return std::find(v.begin(), v.end(), n) != v.end(); };
+      movie_state = has(engine.asked, "modend");
+      std::string names, voices;
+      for (const std::string& n : engine.asked) names += " " + n;
+      for (const std::string& n : engine.voices) voices += " " + n;
+      std::string cleanups;
+      for (const int32_t u : engine.cleanups) cleanups += " " + std::to_string(u);
+      std::printf("  place %d%s: movies asked for:%s; briefings:%s; cleanups:%s; launched Op %d Mission %d, next Op %d Mission %d "
+                  "(place %d, briefing %d), field bases %d; ending %d, credits %d\n",
+                  place, k.lose ? " lost" : "", names.c_str(), voices.c_str(), cleanups.c_str(), launched_op, launched_mission, next_op, next_mission, next_place,
+                  next_briefing, field_bases, movie_state, credits);
+      EXPECT(!has(engine.asked, "campaign") && !has(engine.asked, "c4win") && !has(engine.asked, "c1m4") && !has(engine.asked, "c2m1"));
+      if (k.lose) {
+        EXPECT(next_briefing && next_place == 1 && next_op == 1 && next_mission == 4);  // the same line again
+        EXPECT(!engine.cleanups.empty() && engine.cleanups.front() == 1);  // its world afresh (the original's c1 4: kept)
+        EXPECT(!movie_state);
+      } else if (place == 1) {
+        EXPECT(launched_op == 1 && launched_mission == 4);
+        EXPECT(has(engine.asked, "modstart") && has(engine.asked, "moda") && has(engine.voices, "brief_c12"));
+        EXPECT(next_briefing && next_place == 2 && next_op == 2 && next_mission == 1);  // the list's next line
+        EXPECT(has(engine.asked, "modb") && has(engine.voices, "brief_c21"));
+        EXPECT(field_bases == 1);  // carried: the original's would be 3 at an operation's first mission
+        EXPECT(!movie_state);
+      } else {
+        EXPECT(launched_op == 2 && launched_mission == 1);
+        EXPECT(!has(engine.asked, "modstart") && has(engine.asked, "modb"));
+        EXPECT(movie_state && credits && !next_briefing);  // the list's end
+      }
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      mech3::campaign_leave();
       app.exit_instance();
       mech3::set_app(nullptr);
     }

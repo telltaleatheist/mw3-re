@@ -349,7 +349,7 @@ movie_end=c4win
 Tests: `mods_campaign_file`, `mods_campaigns_mounted`,
 `mods_check_mod_reads_campaigns`.
 
-Step 2 (2026-11-10), the game and its pilots (`mod_campaign.cpp`,
+Step 2 (2026-11-09), the game and its pilots (`mod_campaign.cpp`,
 `ModCampaignGame` in `pilot.h`):
 
 - Entering a campaign (`campaign_enter`, for the MODS screen to call) lets
@@ -376,9 +376,38 @@ Step 2 (2026-11-10), the game and its pilots (`mod_campaign.cpp`,
   holding our marker. The pilot screen's DELETE of one pilot asks as the
   original does ("Ok to delete pilot?") and removes its files only.
 
-Test: `mod_campaign_pilots_and_games`. Next: the advance over the list (the
-original's walk by operations is still what `next_mission` does), the field
-bases and the movies by line, then the MODS screen's CUSTOM CAMPAIGNS table.
+Test: `mod_campaign_pilots_and_games`.
+
+Step 3 (2026-11-09), the advance and the movies by line:
+
+- A mission won goes on to the list's next line, whatever its world (the
+  original's walk by operations, `next_mission`'s `campaign_advance`, is a
+  virtual `advance` the mod game replaces). The last line won ends the
+  campaign as Op 4 Mission 6 does: the Win Movie state, then the credits.
+  A failed or cheated mission is played again with its world loaded afresh
+  at a world's start on the list (the first line, or a world other than the
+  line before's: the original's Op N Mission 1 and Op 4 Mission 4), the same
+  rule as a saved game's restore. The Win State and the debriefing ask the
+  engine (`campaign_ends_at`, `campaign_world_start`), which answers the
+  original's way for the original's campaign. What a mission itself decides
+  by its operation and number (Op 4 Mission 4's salvage of allies' mechs,
+  the voices) follows the line's world and `m<n>`, as the mission sees them.
+- The field bases: a line's `bases=`, or for an `op=` heading's first line
+  the heading's, sets them there (the first line's at the campaign's start);
+  everywhere else they carry on, one lost each time a field base dies. The
+  original's resets at each operation's first mission and at Op 4 Mission 4
+  are not applied to a mod's list: write `bases=` where you want them.
+- The movies: `movie_start=` before the first line's briefing, in place of
+  the original's "campaign" (which plays only before Op 1 Mission 1); a
+  line's movie before its briefing in place of `c<op>m<n>` (none when the
+  line names none); `movie_end=` in place of `c4win` (none when not set). A
+  line's briefing names briefing.zrd's block (and its voice) in place of
+  `brief_<world><n>`.
+
+Tests: `mod_campaign_advance_over_the_list`,
+`mod_campaign_advance_and_end_headless` (the real screens: the pilot screen,
+the briefing, a won mission, the debriefing, the next briefing, the ending).
+Next: the MODS screen's CUSTOM CAMPAIGNS table.
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 

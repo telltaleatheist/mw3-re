@@ -232,6 +232,10 @@ CampaignGame* read_campaign_game(Pilot* p) {
   return new CampaignGame(p);
 }
 
+ModCampaignGame::ModCampaignGame(Pilot* p, int32_t place) : CampaignGame(p, 1, place) {
+  if (const CampaignMission* e = entry(); e && place == 1 && e->bases >= 0) a8 = ac = e->bases;
+}
+
 const CampaignMission* ModCampaignGame::entry() const {
   if (!g_entered || mission < 1 || static_cast<size_t>(mission) > g_entered->missions.size()) return nullptr;
   return &g_entered->missions[static_cast<size_t>(mission) - 1];
@@ -263,12 +267,43 @@ const char* ModCampaignGame::name() {
   return text.c_str();
 }
 
-// 0x004352d0's rule on the list: not at a world's start (the original's
-// Op N Mission 1 and Op 4 Mission 4), which is the first mission and any
-// whose world differs from the one before.
-bool ModCampaignGame::restore() {
+// The list's next line, with its bases= when it sets them (an op= heading's
+// first line takes the heading's), else carried; past the last, over.
+bool ModCampaignGame::advance(int32_t& op, int32_t& m, int32_t& bases) const {
+  op = 1;
+  m = mission + 1;
+  if (!g_entered || m < 2 || static_cast<size_t>(m) > g_entered->missions.size()) return true;
+  const int32_t b = g_entered->missions[static_cast<size_t>(m) - 1].bases;
+  bases = b >= 0 ? b : a8;
+  return false;
+}
+
+const char* ModCampaignGame::intro_movie() const {
+  return mission == 1 && g_entered && !g_entered->movie_start.empty() ? g_entered->movie_start.c_str() : nullptr;
+}
+
+const char* ModCampaignGame::briefing() const {
   const CampaignMission* e = entry();
-  if (b0 || !e || mission == 1 || lower((e - 1)->world) != lower(e->world) || !readable()) return false;
+  return e && !e->briefing.empty() ? e->briefing.c_str() : nullptr;
+}
+
+const char* ModCampaignGame::movie() const {
+  const CampaignMission* e = entry();
+  return e && !e->movie.empty() ? e->movie.c_str() : nullptr;
+}
+
+// A world's start on the list (the original's Op N Mission 1 and Op 4
+// Mission 4): the first mission and any whose world differs from the one
+// before. 0x004352d0's restore skips it; a replay loads its world afresh.
+bool ModCampaignGame::world_start() const {
+  const CampaignMission* e = entry();
+  return !e || mission == 1 || lower((e - 1)->world) != lower(e->world);
+}
+
+bool ModCampaignGame::last() const { return g_entered && static_cast<size_t>(mission) == g_entered->missions.size(); }
+
+bool ModCampaignGame::restore() {
+  if (b0 || world_start() || !readable()) return false;
   return pilot_hooks().load_world(path(), 2);
 }
 

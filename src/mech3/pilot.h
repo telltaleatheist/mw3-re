@@ -196,6 +196,13 @@ class CampaignGame : public Game {
   virtual int32_t world_index() const;
   // `save` false: the world's save left to the caller (record_mission's FIX).
   CampaignGame* next_mission(bool next, bool save = true);  // vt+0x24  0x00434e00
+  // Ours: next_mission's advance (campaign_advance) to the next mission's
+  // operation and number, and the field bases there (3 at an operation's
+  // first mission and at Op 4 Mission 4, else carried). True when over.
+  virtual bool advance(int32_t& op, int32_t& m, int32_t& bases) const;
+  // Ours: the pilot screen's movie before this game's briefing (inline in
+  // pilot_menu: fmv.zrd's "campaign" at Op 1 Mission 1), null for none.
+  virtual const char* intro_movie() const { return mission_number() == 1 && operation() == 1 ? "campaign" : nullptr; }
   GameSlot* slot_at(int32_t i);      // vt+0x34  0x00435110: 0 the player's, then the lancemates
   int32_t slot_count() const;        // vt+0x38  0x00435180 (vt+0x3c 0x00437820 the same)
   // The mission start's lancemate i (player_setup): appended when it is the
@@ -228,13 +235,19 @@ class CampaignGame : public Game {
 // of c1..c4b (4 for any other world: six missions' room) and the line's m<n>.
 class ModCampaignGame : public CampaignGame {
  public:
-  ModCampaignGame(Pilot* p, int32_t place) : CampaignGame(p, 1, place) {}
+  ModCampaignGame(Pilot* p, int32_t place);  // the first line's bases= at place 1
   explicit ModCampaignGame(Pilot* p) : CampaignGame(p) {}
   const char* name() override;       // "<op heading>, Mission <n within it>", or "Mission <n>"
   int32_t operation() const override;
   int32_t mission_number() const override;
   int32_t world_index() const override;  // the line's world, -1 when gone
   bool restore() override;           // not at a world's start (the first, or a new world)
+  bool advance(int32_t& op, int32_t& m, int32_t& bases) const override;  // the next line; past the last, over
+  const char* intro_movie() const override;  // movie_start= before the first line
+  const char* briefing() const;      // the line's briefing, null for the original's brief_<world><n>
+  const char* movie() const;         // the line's movie before its briefing, null for none
+  bool world_start() const;          // the first line, or a world other than the line before's
+  bool last() const;                 // the list's last line
   const struct CampaignMission* entry() const;  // its line, null past the list
 };
 // The campaign games a pilot makes: a mod campaign's while one is entered
