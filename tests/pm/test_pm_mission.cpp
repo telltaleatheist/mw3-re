@@ -19,6 +19,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "check.h"
 #include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zclass/light.h"
 #include "mech3/zainet_inout.h"
 #include "crt/msvc_rand.h"
@@ -455,6 +456,7 @@ struct LightSeen {
   float near = 0, far = 0, ambient = 0, diffuse = 0, color[3] = {}, mixed[12] = {};
 };
 static LightSeen g_light;
+static struct { bool found[2] = {}, restored[2] = {}; const char* name[2] = {}; } g_animsave;  // PM_ANIMSAVE
 static struct { bool made = false; int counted = -1, listed = -1, damaged = -1, tried = 0; } g_splash;  // PM_SPLASH
 static struct { int nodes, moved; } g_motions;  // PM_MOTIONS: event 12's nodes and how many moved
 
@@ -716,6 +718,15 @@ static void kill_run(const char* which, bool quick) {
       for (int32_t i = -1; i < n && g_splash.counted < 32; ++i, ++g_splash.tried)
         g_splash.made = mech3::weapons_splash_copy("AC5", 200.0f, i < 0 ? at : points[i], &g_splash.counted,
                                                    &g_splash.listed, &g_splash.damaged);
+      done = true;
+      return;
+    }
+    // pm-tests item 30: an animation object's saved state loaded back, in PM's layout and in MW3's (our earlier builds').
+    if (std::getenv("PM_ANIMSAVE")) {
+      static int t = 0;
+      if (++t < 30) return;
+      for (int old = 0; old < 2; ++old)
+        g_animsave.found[old] = zeff::anim_state_round_trip(old != 0, &g_animsave.name[old], &g_animsave.restored[old]);
       done = true;
       return;
     }
@@ -1268,7 +1279,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1395,6 +1406,31 @@ TEST(pm_c1m1_modded_splash_stays_within_the_list) {
     EXPECT(g_splash.made);
     EXPECT(g_splash.counted == 32 && g_splash.listed == 32);
     EXPECT(g_splash.damaged >= 1 && g_splash.damaged <= 32);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// Always on, pm-tests item 30: a saved world's animation object states read back (zeff_anim_save.cpp,
+// load_objects): PM's 0x3c-byte layout, which our writer now matches with PM's (test_pm_anim_save.py), and
+// MW3's 0x44-byte one our builds wrote before, told apart by the entry's size. Each puts the moved and hidden node
+// back where it was, active.
+TEST(pm_c1m2_anim_states_load_in_both_layouts) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_ANIMSAVE", "1", 1);
+    kill_run("0,1,2", true);
+    for (int old = 0; old < 2; ++old)
+      std::printf("  %s layout: an object found %d (%s), restored %d\n", old ? "MW3's (our earlier builds')" : "PM's",
+                  g_animsave.found[old], g_animsave.name[old] ? g_animsave.name[old] : "-", g_animsave.restored[old]);
+    EXPECT(g_animsave.found[0] && g_animsave.restored[0]);
+    EXPECT(g_animsave.found[1] && g_animsave.restored[1]);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }
