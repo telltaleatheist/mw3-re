@@ -182,6 +182,35 @@ void scan_run_pm(ScanPmHooks& h, OrdersPm& o, int32_t tests, zgame::Handle next)
   h.set_behaviour(next);
 }
 
+// Pirate's Moon 1.0 @ 0x004d48b0 (MW3's 0x004c9f40)
+void speed_run_pm(OrderStepPmHooks& h, OrdersPm& o, uint32_t value, zgame::Handle next) {
+  h.set_max_throttle(value);
+  o.again = 1;  // 0x004fbe60(1)
+  h.set_behaviour(next);
+}
+
+// Pirate's Moon 1.0 @ 0x004d4a20, 0x004d4b80 (MW3's 0x004ca070, 0x004ca190). MW3's wait_interval goes on a NaN.
+bool wait_due_pm(float start, float value, float now, bool absolute) {
+  return absolute ? double{now} > double{value} : double{now} > double{value} + double{start};
+}
+void wait_run_pm(OrderStepPmHooks& h, float start, float value, float now, bool absolute, zgame::Handle next) {
+  if (wait_due_pm(start, value, now, absolute)) h.set_behaviour(next);
+}
+
+// Pirate's Moon 1.0 @ 0x004d6ec0 (MW3's 0x004ca2e0): the way finder's next step, else the one that follows.
+void pass_run_pm(OrderStepPmHooks& h, OrdersPm& o, zgame::Handle step, zgame::Handle next) {
+  zgame::Handle n = h.path_next(step);
+  if (!n) n = next;
+  o.again = 1;
+  h.set_behaviour(n);
+}
+
+// Pirate's Moon 1.0 @ 0x004d7010 (MW3's 0x004cdcf0)
+void assign_run_pm(OrderStepPmHooks& h, OrdersPm& o, zgame::Handle step, zgame::Handle valve, int32_t value, zgame::Handle next) {
+  h.valve_set(valve, value);
+  pass_run_pm(h, o, step, next);
+}
+
 // Pirate's Moon 1.0 @ 0x004c7800: every kind's behaviour by vt+0x90 of its slot; any other kind slot 0.
 zgame::Handle kind_behaviour_pm(NetSlotsPmHooks& h, int32_t kind) {
   static constexpr int8_t kSlot[8] = {0, 2, 3, 4, 6, 7, 8, 9};

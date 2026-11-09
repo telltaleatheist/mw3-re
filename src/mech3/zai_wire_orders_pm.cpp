@@ -1,8 +1,11 @@
 #include "mech3/zai_wire_states_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 
+#include <cstring>
+
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zai_valve.h"
 #include "mech3/zai_wire_attack_pm.h"
 #include "mech3/zai_wire_pm.h"
 
@@ -102,6 +105,74 @@ class PmScanState final : public BehaviourState, ScanPmHooks {
 
 BehaviourState* pm_make_scan_state(Order& o, Behaviour& b) { return new PmScanState(&o, &b); }
 bool pm_is_scan_state(const BehaviourState* s) { return dynamic_cast<const PmScanState*>(s) != nullptr; }
+
+namespace {
+float as_float(uint32_t u) {
+  float f;
+  std::memcpy(&f, &u, 4);
+  return f;
+}
+
+// PM's scripted steps' states (OrderStepPmHooks) on the brain. The waits' ctors (0x004d4970, 0x004d4ad0) are MW3's: the
+// start the game time, the pilot stopped (IControls vt+0x14).
+class PmStepState final : public BehaviourState, OrderStepPmHooks {
+ public:
+  PmStepState(Order* o, Behaviour* b) : BehaviourState(o, b) {
+    if (b->kind == StepKind::WaitInterval || b->kind == StepKind::WaitTime) {
+      start_ = brain_hooks().now();  // [0x0062da90]
+      o->owner->controls->stop();
+    }
+  }
+  Behaviour* behaviour() const override { return from; }  // 0x004df460
+  void run(float) override {
+    const auto* st = static_cast<const Step*>(from);
+    OrdersPm mirror;
+    switch (from->kind) {
+      case StepKind::Speed: speed_run_pm(*this, mirror, static_cast<const ValueStep*>(from)->value, pm_id(st->next)); break;
+      case StepKind::WaitInterval:
+      case StepKind::WaitTime:
+        wait_run_pm(*this, start_, as_float(static_cast<const ValueStep*>(from)->value), brain_hooks().now(), from->kind == StepKind::WaitTime,
+                    pm_id(st->next));
+        return;  // no again
+      case StepKind::ValveAssign: {
+        const auto* a = static_cast<const AssignStep*>(from);
+        assign_run_pm(*this, mirror, pm_id(from), pm_id(a->valve), a->value, pm_id(st->next));
+        break;
+      }
+      default: pass_run_pm(*this, mirror, pm_id(from), pm_id(st->next)); break;
+    }
+  }
+  void set_max_throttle(uint32_t bits) override { order->owner->xec = as_float(bits); }
+  zgame::Handle path_next(zgame::Handle step) override {
+    return pm_id(brain_hooks().path_next(*order->owner, static_cast<Behaviour*>(pm_ptr(step))));
+  }
+  // FIX (bug), as MW3's AssignState: a record whose valve isn't found has none, which the exe sets (a crash).
+  void valve_set(zgame::Handle valve, int32_t value) override {
+    if (auto* v = static_cast<Valve*>(pm_ptr(valve))) v->set(value);
+  }
+  void set_behaviour(zgame::Handle next) override {
+    if (from->kind != StepKind::WaitInterval && from->kind != StepKind::WaitTime) order->owner->x104 = 1;  // the mirror's again
+    order->set_behaviour(static_cast<Behaviour*>(pm_ptr(next)));  // 0x004f9f00: this state destroyed
+  }
+
+ private:
+  float start_ = 0;  // +0x0c
+};
+}  // namespace
+
+BehaviourState* pm_make_step_state(Order& o, Behaviour& b) {
+  switch (b.kind) {
+    case StepKind::Speed:
+    case StepKind::WaitInterval:
+    case StepKind::WaitTime:
+    case StepKind::Valve:
+    case StepKind::Shunt:
+    case StepKind::ValveUnion:
+    case StepKind::ValveAssign: return new PmStepState(&o, &b);
+    default: return nullptr;
+  }
+}
+bool pm_is_step_state(const BehaviourState* s) { return dynamic_cast<const PmStepState*>(s) != nullptr; }
 
 void pm_run_orders(Brain& b, float dt) {
   if (b.orders.empty()) return;

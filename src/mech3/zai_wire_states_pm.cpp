@@ -29,7 +29,9 @@ BehaviourState* pm_make_state(Behaviour& b, Order& o) {
     case StepKind::Manoeuvre: return new PmManoeuvreState(&o, &b, false);
     case StepKind::Manoeuvre2: return new PmManoeuvreState(&o, &b, true);
     case StepKind::Shared: return new PmSharedState(&o);
-    default: break;
+    default:
+      if (BehaviourState* s = pm_make_step_state(o, b)) return s;
+      break;
   }
   const uint32_t k = static_cast<uint32_t>(b.kind);
   if (k == kVehicleSlotsPm[2]) return new PmRoundState(&o, &b);
@@ -48,7 +50,7 @@ bool pm_state_running(Brain& b) {
   BehaviourState* s = b.current().state.get();
   return dynamic_cast<PmAttackState*>(s) || dynamic_cast<PmJumpState*>(s) || dynamic_cast<PmMoveState*>(s) || dynamic_cast<PmDeployState*>(s) ||
          dynamic_cast<PmSlotState*>(s) || dynamic_cast<PmManoeuvreState*>(s) || dynamic_cast<PmSharedState*>(s) ||
-         pm_is_scan_state(s);
+         pm_is_scan_state(s) || pm_is_step_state(s);
 }
 
 void PmSharedState::run(float dt) {

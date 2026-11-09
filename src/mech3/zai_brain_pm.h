@@ -169,6 +169,26 @@ class ScanPmHooks {
 };
 void scan_run_pm(ScanPmHooks& h, OrdersPm& o, int32_t tests, zgame::Handle next);  // 0x004d5a10
 
+// The scripted steps' states, MW3's with PM's offsets: speed (vtable 0x005eddac, MW3's SpeedState), the two waits
+// (0x005ede8c wait_interval, 0x005edf6c wait_time; WaitState), and valve, shunt and valve union (0x005ee04c,
+// 0x005ee86c, 0x005eea2c; PassState) and valve_assign (0x005eeb0c; AssignState). All yes to vt+0x04, +0x08, +0x20.
+class OrderStepPmHooks {
+ public:
+  virtual ~OrderStepPmHooks() = default;
+  virtual void set_max_throttle(uint32_t bits) = 0;               // the brain's +0x10c (MW3's +0xec)
+  virtual zgame::Handle path_next(zgame::Handle step) = 0;        // 0x004d3120 on the brain's +0x1f8
+  virtual void valve_set(zgame::Handle valve, int32_t value) = 0;  // 0x004e40d0
+  virtual void set_behaviour(zgame::Handle next) = 0;             // 0x004f9f00: this state goes
+};
+void speed_run_pm(OrderStepPmHooks& h, OrdersPm& o, uint32_t value, zgame::Handle next);  // 0x004d48b0
+// 0x004d4a20 (wait_interval: the step's seconds after the state's start) and 0x004d4b80 (wait_time: the game time past
+// the step's), both on only strictly past it (a NaN never), the sum at the x87's precision.
+bool wait_due_pm(float start, float value, float now, bool absolute);
+void wait_run_pm(OrderStepPmHooks& h, float start, float value, float now, bool absolute, zgame::Handle next);
+void pass_run_pm(OrderStepPmHooks& h, OrdersPm& o, zgame::Handle step, zgame::Handle next);  // 0x004d6ec0
+void assign_run_pm(OrderStepPmHooks& h, OrdersPm& o, zgame::Handle step, zgame::Handle valve, int32_t value,
+                   zgame::Handle next);  // 0x004d7010
+
 // A vehicle's net (0x004c6f90, vtable 0x005ed448): ten slots in its +0x0c, each a behaviour's object. The kinds an
 // order asks by, and each slot's class by its vtable, are the exe's.
 inline constexpr uint32_t kVehicleSlotsPm[10] = {0x005ed38c, 0x005ed2d0, 0x005ed214, 0x005ed158, 0x005df820,

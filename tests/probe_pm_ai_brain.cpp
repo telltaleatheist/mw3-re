@@ -161,6 +161,45 @@ extern "C" int32_t probe_pm_ai_scan(int32_t tests, uint32_t* out) {
 }
 
 namespace {
+// test_pm_ai_steps.py: the scripted steps' states, the way finder's answers from `next_at` (0 none).
+struct Steps : OrderStepPmHooks {
+  std::vector<uint32_t> log;
+  uint32_t throttle = 0, next_at = 0;
+  void set_max_throttle(uint32_t bits) override { throttle = bits; }
+  Handle path_next(Handle step) override { log.push_back(71), log.push_back(static_cast<uint32_t>(step)); return next_at; }
+  void valve_set(Handle v, int32_t value) override {
+    log.push_back(72), log.push_back(static_cast<uint32_t>(v)), log.push_back(72), log.push_back(static_cast<uint32_t>(value));
+  }
+  void set_behaviour(Handle n) override { log.push_back(64), log.push_back(static_cast<uint32_t>(n)); }
+};
+}  // namespace
+
+// kind: 0 speed, 1 wait_interval, 2 wait_time, 3 pass, 4 assign. in: value (or the valve), its value, start, now,
+// the way finder's answer. out: the calls, then the again flag and the throttle's bits.
+extern "C" int32_t probe_pm_ai_order_step(int32_t kind, const uint32_t* in, uint32_t* out) {
+  Steps t;
+  OrdersPm o;
+  t.next_at = in[4];
+  float f[3];
+  std::memcpy(f, in + 1, 12);
+  switch (kind) {
+    case 0: speed_run_pm(t, o, in[0], 0xb7); break;
+    case 1:
+    case 2: {
+      float v;
+      std::memcpy(&v, in, 4);
+      wait_run_pm(t, f[1], v, f[2], kind == 2, 0xb7);
+      break;
+    }
+    case 3: pass_run_pm(t, o, 0xc5, 0xb7); break;
+    default: assign_run_pm(t, o, 0xc5, in[0], static_cast<int32_t>(in[1]), 0xb7); break;
+  }
+  t.log.push_back(o.again), t.log.push_back(t.throttle);
+  std::memcpy(out, t.log.data(), t.log.size() * 4);
+  return static_cast<int32_t>(t.log.size());
+}
+
+namespace {
 struct Slots : NetSlotsPmHooks {
   const uint8_t* live;
   Handle slot(int32_t i) override { return live[i] ? 0x200 + i : 0; }
