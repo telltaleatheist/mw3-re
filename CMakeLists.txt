@@ -78,6 +78,7 @@ add_library(mw3core STATIC
   src/mech3/game_setup.cpp
   third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
+  src/gamez/zutil/zutl_zip.cpp
   src/gamez/zsave/zsave.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
