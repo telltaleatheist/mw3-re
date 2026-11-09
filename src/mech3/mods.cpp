@@ -72,7 +72,9 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     }
   }
   if (out->name.empty()) out->error = "mod.txt has no name= line";
-  else if (!out->game.empty() && lower(out->game).rfind("mw3", 0) != 0) out->error = "it is for " + out->game + ", not MechWarrior 3";
+  // The first word exactly (a version may follow): "mw3pm" is Pirate's Moon's, not this game's.
+  else if (!out->game.empty() && lower(out->game).substr(0, lower(out->game).find_first_of(" \t")) != "mw3")
+    out->error = "it is for " + out->game + ", not MechWarrior 3";
   return out->error.empty();
 }
 
