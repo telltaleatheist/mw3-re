@@ -462,6 +462,18 @@ game type 1; mech-build.md section 8). 0x0049e5e0, in order:
      index is out of range (0x00414390 is called either way).
 4. 1.
 
+**Pirate's Moon (0x004a17d0, 2026-11-09, pm-tests 43):** no game-type test.
+The pilot's current game ([0x0062c40c] +0x6c), whatever its kind, a
+campaign's or a Pirate Missions game's: none, or no aiv record named
+`player` (0x004f19e0 on "player", MW3's 0x004e0680), and it returns 0. Then
+its slots through its own vt+0x30 (slot i) and vt+0x34 (the count, asked
+again each turn), the paint from its slot 0 (+0x10); the rest as MW3's. The
+port had kept MW3's campaign-only version, so a Pirate Missions mission
+started with no lancemates (Owen's "nobody is in the mission with me"); the
+port's `launch_lancemates` is PM's now, through `PlayerHooks::lance_game`,
+`lance_slot`, `lance_slot_count`. `test_pm_standalone_chain.py` checks each
+of the eleven missions starts with its lineup's lancemates.
+
 0x0049e540 (ECX the pilot): no player vehicle (+0x14), "Player does not
 exist so cannot assume duties of %s" (then the exe reads through it); his
 controls (+0x37c) as their IControls base, none: "Player has no controller

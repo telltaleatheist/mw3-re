@@ -723,3 +723,4 @@ Known quirks the rebuild deliberately keeps:
 - The launcher brings its own font (Saira Condensed Bold, free under the SIL Open Font License) on every system, in place of Bahnschrift, DIN Condensed or a Linux face, so a Linux without the expected fonts no longer shows empty buttons. Without it the launcher searches the system's font folders.
 - An install without the game's fonts, on a system without them either, now shows its text in free stand-ins the package carries (Liberation Sans, Anton, Liberation Mono), sized to keep the original's line heights.
 - A mech can no longer be given more than 16 weapons by a mod or by another player's loadout in multiplayer: the extra one is left off and named in the log, where it used to overwrite memory.
+- Pirate Missions: your lancemates come with you into each mission. The rebuild had left them out (only the first campaign's lance was made at launch).

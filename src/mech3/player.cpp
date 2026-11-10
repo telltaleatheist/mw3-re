@@ -499,25 +499,24 @@ bool action_lineup(bool launch) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0049e5e0: at a campaign's launch, each lancemate slot
-// after the player's (vt+0x34 from 1, vt+0x38 of them, up to the first
-// none): its record (+0x14) made an AI mech of the slot's mech (+0x04) on
-// the player's own net, then the slot's loadout (+0x08) and the paint of the
-// player's slot (+0x10) put on it. A slot without a mech (-1) leaves its
-// record's triggers to the player (0x0049e540). docs/mission-start.md section 12.
+// Pirate's Moon 1.0 @ 0x004a17d0 (MW3's 0x0049e5e0, for a campaign only): at
+// the launch, each lancemate slot after the player's of the pilot's current
+// game, a campaign's or a Pirate Missions game's (vt+0x30 from 1, vt+0x34 of
+// them, up to the first none): its record (+0x14) made an AI mech of the
+// slot's mech (+0x04) on the player's own net, then the slot's loadout (+0x08)
+// and the paint of the game's first slot (+0x10) put on it. A slot without a
+// mech (-1) leaves its record's triggers to the player (0x0049e540).
+// docs/mission-start.md section 12; pm-tests 43.
 bool launch_lancemates() {
   PlayerHooks& h = *g_hooks;
-  if (h.game_type() != 1) return false;
-  ai::AivRecord rec;  // 0x004e0490
+  ai::AivRecord rec;  // 0x004f1810 (MW3's 0x004e0490)
   const char* name = nullptr;
-  h.aiv_count();  // 0x004decf0 on [0x0060b5e0]; its answer unused
-  const Handle campaign = h.campaign();
-  const ai::AivRecord* first = campaign ? h.aiv_read(rec, 0, &name) : nullptr;
-  const int32_t paint = static_cast<int32_t>(h.field32(h.game_slot(0), 0x10));
-  if (!campaign || !first) return false;
-  const int32_t n = h.campaign_slot_count(campaign);
-  for (int32_t i = 1; i < n;) {
-    const Handle slot = h.campaign_slot(campaign, i++);
+  const Handle game = h.lance_game();  // [0x0062c40c] +0x6c
+  if (!game || !h.aiv_read_named(rec, "player")) return false;  // 0x004f19e0 (MW3's 0x004e0680) on "player"
+  const Handle first = h.lance_slot(game, 0);
+  const int32_t paint = first ? static_cast<int32_t>(h.field32(first, 0x10)) : 0;
+  for (int32_t i = 1; i < h.lance_slot_count(game);) {
+    const Handle slot = h.lance_slot(game, i++);
     if (!slot) break;
     const int32_t mech = static_cast<int32_t>(h.field32(slot, 0x04));
     const int32_t index = static_cast<int32_t>(h.field32(slot, 0x14));
