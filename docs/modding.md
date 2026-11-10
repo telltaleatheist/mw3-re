@@ -527,8 +527,7 @@ records, ENTER relabelled PLAY).
   it replaces there and in the game, the files and rows it adds, what is the
   same), then the mod's own sentences. The game's own campaign has no mod to
   report on, and says so. TEST and EDITOR still wait for step 4;
-  nothing on this screen deletes anything yet (a copy's DELETE comes with
-  Save as).
+  DELETE and RESET are step 4c, below.
 - The old two-table function (`mods_tables`) is gone. An older slip put
   right on the way: in the wide layout the bottom tab row's group ended at
   x 400, inside MODS FOLDER (388 to 468), so that tab's image was drawn apart
@@ -614,6 +613,45 @@ Tests: `editor_saves_only_as_a_copy_of_the_campaign` (the rule on built
 folders, the copy, the box), `mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless`
 (both halves), `mods_campaign_mission_has_the_editor_headless`,
 `sdl_program_mods_enter_plays_an_entry_and_back` (MODS, EDITOR, PLAY).
+
+### DELETE and RESET (step 4c)
+
+Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Deleting and resetting).
+`upgrades/mods/mods_delete`; one tab on MODS under REPORT, which reads
+DELETE or RESET by the row chosen and is not shown when there is nothing of
+ours to remove (`ModsScreen::show_delete_tab`). Every one asks in the game's
+box, saying what goes, with counts read from the folder at that moment.
+
+| The row chosen | The box | What goes |
+|---|---|---|
+| A copy of ours (the editor's marker in its mod folder) | "Delete <name>? Its 2 pilots and 5 saved games go with it." | `mods\<copy>` and `campaigns\<id>` |
+| A mod the game imported, chosen at the right (mod_install's marker; ADD FOLDER copies the folder in, so it has one too) | "Delete <name>? It is ticked for: MechWarrior 3, Long Night." or "It is not ticked for any campaign." | `mods\<folder>` only. Its ticks are left: those campaigns show "!" until it is turned off or imported again |
+| An imported campaign, chosen at the left | "Delete <name>? Its pilots and saved games are kept: import it again to go on." | `mods\<folder>` only; the row is then the "!" kind |
+| What is left of a campaign whose mod is gone ("!") | "Delete what is left of <name>? Its 2 pilots and 5 saved games go with it." | `campaigns\<id>` |
+| The game's own campaign: RESET | "Reset <name> to the original? Its ticked mods are cleared, and its 2 pilots and 5 saved games here go with it. Your pilots in the main game are not changed." | `campaigns\<id>` emptied and made again as a first start makes it; the row stays, chosen |
+| A mod folder with no marker of ours (put there by hand) | no tab; the note: "<name> was not added by the game: remove its folder yourself (MODS FOLDER)." | nothing |
+
+- **Refused, said**: a campaign another is built on (a copy's `base=` names
+  it: "Delete that one first."); the campaign the run is inside; Instant
+  Action's entry (its ALL OFF is the way); a campaign's own mod chosen at the
+  right ("choose the campaign at the left"). Not offered in TEST's mode, nor
+  while REPORT's or a mission list is up.
+- **The one remover** (`remove_marked_folder(write_dir, "mods" or
+  "campaigns", name, marker)`): the name must be one plain folder name; the
+  folder must be directly under this write dir's `mods\` or `campaigns\`,
+  be a real folder (not a link), and hold the marker as a real file. A marked
+  mod folder goes whole, a stray file of the player's in it too (we made the
+  folder). A marked campaign folder holding a folder the game does not make
+  there (anything but `pilots` and `configs`) stops with nothing removed and
+  says so, as `entry_ensure` refuses "files the game did not put there". A
+  link inside a folder is removed as a link; what it points at is never
+  entered or touched.
+- A copy's mod folder is removed before its campaign folder, so a failure
+  there leaves the pilots and saved games alone. After any of them the game's
+  own campaign is chosen.
+
+Tests: `mods_delete_remover_takes_only_a_marked_folder`,
+`mods_delete_by_the_row_chosen` (built folders), `mods_screen_delete_and_reset_headless`.
 
 ### Instant Action's own MODS (first part)
 

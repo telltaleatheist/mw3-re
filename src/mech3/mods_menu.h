@@ -84,7 +84,7 @@ class ModsScreen;
 
 class ModsScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport, kTest };
+  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport, kTest, kDelete };
   ModsScreen(Engine& e, Handle state);
   void update(float dt) override;    // a picked mod taken in
   ~ModsScreen() override;
@@ -106,6 +106,11 @@ class ModsScreen : public MenuScreen {
   ModsSlideButton enter, back;       // ENTER, BACK
   ShellButton editor, test_btn;      // EDITOR, TEST (ON/OFF, UP, DOWN are the tick list's)
   ShellButton add_btn, export_btn, add_folder_btn, folder_btn, report_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, REPORT
+  // DELETE and RESET (upgrades/mods/mods_delete.h), one place, two tabs: the one the chosen row's plan names is
+  // shown (RESET for the game's own campaign), neither when there is nothing of ours to remove.
+  ShellButton delete_btn, reset_btn;
+  void delete_row();                 // the chosen row deleted or reset, after the game's confirm
+  void show_delete_tab();
   ModsList campaign_list;
   ModTickList ticks;                 // MODS: the chosen campaign's (upgrades/mods/mods_tick_list.h)
   ModsList& mod_list;                // its list

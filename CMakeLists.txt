@@ -339,6 +339,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/campaign_entries.cpp
   src/upgrades/mods/entry_pilot_copy.cpp
   src/upgrades/mods/entry_run.cpp
+  src/upgrades/mods/mods_delete.cpp
   src/upgrades/mods/entry_pilots.cpp
   src/upgrades/mods/mods_tick_list.cpp
   src/upgrades/mods/ia_mods_menu.cpp
@@ -625,6 +626,7 @@ add_executable(mw3tests
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp
+  tests/test_mods_delete.cpp
   tests/test_entry_pilot_copy.cpp
   tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
