@@ -186,6 +186,13 @@ took an attacker / none, fired: trigger / group_add, follow made: MW3's push.
   300 seeded queries a world is the limit of this evidence: another flip may sit outside them.
 - `test_pm_ai_boundary_real` fails at set-up, before and after that merge alike: "game/pm/zbd/c1/gamez.zbd: the port
   read gave -2" within a second. It checks nothing as it stands.
+- `test_pm_ai_pick` was flaky, on `pm` before that merge too (1 run in 16 failed there, 9 in 16 on the merged tree,
+  at case 0 or 9: the exe says a plan was made, the port's log says "held"). The port was right and the probe wrong:
+  it called the pick's result "held" when it had the address of the plan the firing started with, but the pick
+  deletes that plan before it makes a new one (0x004bc2e0), and the allocator can hand the new one the freed
+  address; which runs did so went by the heap's layout. The probe now says "held" when the result is the firing's
+  own plan still in place (the pick returns a new plan for its caller to store and leaves the firing's null).
+  24 runs of 24 pass, with the totals of the good runs before.
 - MW3's own differential tests do not run against PM with `MW3_EXE=pm`: `test_di`, `test_skis`, `test_inout`,
   `test_inout_query`, `test_place` and `test_shotq` stop in their set-up (StopIteration) and `test_mission_load` at
   "0x4050d0 has no place in PM's exe". PM's are the `test_pm_*` files.
