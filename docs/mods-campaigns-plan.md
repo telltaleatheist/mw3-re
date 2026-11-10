@@ -42,9 +42,15 @@ Pirate Missions), MechWarrior 3 one.
   what it changed from the campaign it was saved from. TEST plays one mission
   of the chosen campaign with its ticks.
 - **Pilots and saves:** each campaign entry keeps its own, so modded progress
-  never mixes with the main menu's campaign. Starting a campaign entry can
-  copy a pilot over from the main menu's campaign; the copy goes on alone and
-  the original pilot is never written.
+  never mixes with the main menu's campaign. **The player picks their own
+  pilot** (Owen, 2026-11-10): an entry's pilot screen lists its own pilots and
+  the main game's; picking a main-game pilot the entry does not have brings it
+  and its saved mechs across quietly, then and there, and it goes on as the
+  entry's own. No question is asked. The main game's pilot is never written,
+  so what the pilot earns in an entry (kills, progress) stays with the entry's
+  copy. In the game's own campaign the pilot carries on from where it is; in a
+  different campaign it starts at that campaign's first mission, and its saved
+  games are not brought.
 
 Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 (the official one or a copy), tick his mod, PLAY.
