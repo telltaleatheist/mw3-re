@@ -901,6 +901,15 @@ TEST(mods_needs_warn_never_block) {
                                      mech3::mods_row_note(e, on).rfind("It needs Green HUD", 0) == 0);
     if (e.info.folder == "red") EXPECT((e.needs == std::vector<std::string>{"It conflicts with X, which is on."}));
   }
+  // A Pirate's Moon mod (the launcher's MODS on PM): against mw3pm's own version, named for that game.
+  const std::string game = mech3::mods_game();
+  mech3::mods_game() = "mw3pm";
+  put(wd + "/mods/pmx/mod.txt", "name=PMX\nfor=mw3pm\ngame_version=1.0.9\n");
+  mech3::mods_program_version() = "pm-v1.0.2";
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"pmx"}))
+    if (e.info.folder == "pmx")
+      EXPECT((e.needs == std::vector<std::string>{"It needs Pirate's Moon Rebuild 1.0.9 or later; this is 1.0.2."}));
+  mech3::mods_game() = game;
   mech3::mods_program_version() = "";  // unknown: game_version= not checked
   for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"x"}))
     if (e.info.folder == "x") EXPECT(std::none_of(e.needs.begin(), e.needs.end(), [](const std::string& w) { return w.find("Rebuild") != std::string::npos; }));
@@ -954,6 +963,28 @@ TEST(mods_list_for_the_launcher) {
   fs::remove(wd + "/mw3.cfg.new", ec);
   EXPECT(mech3::mods_save_enabled(wd, {"z"}) && (mech3::mods_enabled(wd) == std::vector<std::string>{"z"}) &&
          !fs::exists(wd + "/mw3.cfg.new", ec));
+  // A Notepad-edited mw3.cfg (CRLF, the last line without an ending): every
+  // line kept byte for byte, the mod= lines in the file's own ending.
+  {
+    std::ofstream o(wd + "/mw3.cfg", std::ios::binary);
+    o << "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=old\r\n# a note  \r\nlast=1";
+  }
+  EXPECT(mech3::mods_save_enabled(wd, {"a", "b"}));
+  std::ifstream crlf(wd + "/mw3.cfg", std::ios::binary);
+  std::stringstream cs;
+  cs << crlf.rdbuf();
+  EXPECT(cs.str() == "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=a\r\nmod=b\r\n# a note  \r\nlast=1\r\n");
+  EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"a", "b"}));
+  // And a plain one stays plain.
+  {
+    std::ofstream o(wd + "/mw3.cfg", std::ios::binary);
+    o << "install=/x\nkeep=me\n";
+  }
+  EXPECT(mech3::mods_save_enabled(wd, {"a"}));
+  std::ifstream lf(wd + "/mw3.cfg", std::ios::binary);
+  std::stringstream ls;
+  ls << lf.rdbuf();
+  EXPECT(ls.str() == "install=/x\nkeep=me\nmod=a\n");
 }
 
 TEST(mods_strings_over_the_message_table) {
