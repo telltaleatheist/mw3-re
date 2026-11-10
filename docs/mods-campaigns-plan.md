@@ -12,8 +12,8 @@ Pirate Missions), MechWarrior 3 one.
 - **Game mods are played through MODS.** Game mods are worlds and campaigns
   (built in zStudio and imported whole) and assets (new or changed mechs,
   weapons and their values).
-- **Instant Action takes mods**: it is an entry in the same CAMPAIGNS list,
-  with the same checkboxes; PLAY opens Instant Action's own screen with them.
+- **Instant Action takes mods, from its own screen** (Owen, 2026-11-10,
+  replacing "an entry in the CAMPAIGNS list"): see Instant Action below.
 - **Multiplayer takes no mods for now**; perhaps later, if players ask.
 - **Translations and purely visual mods are not managed.** Players do them the
   old way, with an installer that replaces game files; nothing stops that, and
@@ -70,6 +70,25 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - Nothing is lost on the way: the `mod=` lines a player has today become the
   official campaign entry's ticks the first time this build starts.
 
+## Instant Action (Owen, 2026-11-10)
+
+- **A MODS button on Instant Action's own screen** opens the tick list a
+  campaign has: every imported mod with a checkbox, order and conflicts shown.
+- **ACCEPT starts the game again into Instant Action with those mods** and
+  comes back to the same screen. With nothing ticked, Instant Action is the
+  original and nothing starts again.
+- **The ticks are remembered.** With mods ticked, INSTANT ACTION on the main
+  menu goes straight into the modded one. The screen always says what is on
+  ("MODS: 2 on"), and one button turns them all off (back to the original).
+- **Custom maps:** a ticked mod's Instant Action maps (`ia_world=`) show in
+  the map list beside the game's own, so a map a player built and imported as
+  a mod is played here.
+- **Saved mech loadouts with mods on are kept apart** from the main game's (a
+  loadout with a modded weapon would not load in the original); the copy-over
+  offer brings the player's existing ones across.
+- **MODS, CAMPAIGNS lists campaigns only**: Instant Action has no row there.
+  Underneath it is still the entry `ia` (its folder, ticks and loadouts).
+
 ## Settled in the lead's review (2026-11-10)
 
 - **Inside a campaign entry** the player gets that entry's own screen only:
@@ -77,7 +96,7 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
   Multiplayer is not offered there. Leaving goes back to MODS on a plain run.
 - **Entering and leaving restart the program** (the first version). On Windows
   in fullscreen the desktop shows for about a second between the two.
-- **One Instant Action entry per game**, on both games.
+- **One set of Instant Action ticks per game**, on both games (Instant Action below).
 - **The Upgrades settings are the player's, not the entry's**: one set for the
   whole game, whichever campaign is played.
 - **A ticked mod that has gone missing** (removed from the mods folder) shows
