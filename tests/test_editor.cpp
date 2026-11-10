@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/mech_ids.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/znetwork/znet_view.h"
 #include "mech3/game_editor.h"
@@ -31,14 +32,14 @@ namespace {
 struct Stub : mech3::EditorHooks {
   std::vector<std::string> calls;
   zin::MouseInfo m;
-  uint32_t pick = 0;      // command 0x9b's state
+  uint32_t pick = 0;      // command 0xa3's state
   int32_t lines = 0;      // the debug lines on at the entry
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg>) override {
     calls.push_back(std::string("unported ") + key);
     return 0;
   }
   zin::MouseInfo mouse() override { return m; }
-  uint32_t command(int32_t cmd) override { return cmd == 0x9b ? pick : 0; }
+  uint32_t command(int32_t cmd) override { return cmd == 0xa3 ? pick : 0; }  // PM's pick (MW3's 0x9b)
   void input_reset() override { calls.push_back("input_reset"); }
   void push_map() override { calls.push_back("push_map"); }
   void pop_map() override { calls.push_back("pop_map"); }
@@ -101,7 +102,7 @@ TEST(game_editor_entry_and_exit_in_the_originals_order) {
   const mech3::EditorState& st = mech3::editor_state();
   const mech3::EditorPanel& p = mech3::editor_panel();
   EXPECT(st.active == 1 && st.mode == 0 && st.menu == &mech3::editor_main_menu_rows() && p.layer.active);
-  EXPECT(joined(h.calls) == "push_map, bind 155 57 1, bind 156 1081 2, view_on_stealth, lines off");
+  EXPECT(joined(h.calls) == "push_map, bind 163 57 1, bind 164 1081 2, view_on_stealth, lines off");
   const char* want[8] = {"PICK A COMMAND", " EDIT AI NETS", " EDIT VEHICLES", " EDIT WEAPONS", " HELP", "", "", " EXIT GAME EDIT"};  // HELP: ours
   for (int i = 0; i < 25; ++i) {
     const std::string text = p.rows[i]->text;
@@ -118,7 +119,7 @@ TEST(game_editor_entry_and_exit_in_the_originals_order) {
   h.lines = 0;  // the release's: no debug lines to hide or bring back
   mech3::editor_enter();
   mech3::editor_exit();
-  EXPECT(joined(h.calls) == "push_map, bind 155 57 1, bind 156 1081 2, view_on_stealth, pop_map, view_on_pilot");
+  EXPECT(joined(h.calls) == "push_map, bind 163 57 1, bind 164 1081 2, view_on_stealth, pop_map, view_on_pilot");
   mech3::editor_key(0x61);  // another command: nothing
   EXPECT(st.active == 0);
   mech3::set_editor_hooks(nullptr);
@@ -709,7 +710,7 @@ TEST(vehicle_editor_pages_show_and_take_back) {
   h.a.put<float>(0x14, 1.5707964f);  // the yaw, radians in play
   h.a.put<int32_t>(0x18, 2);
   h.a.put<int32_t>(0xbc, 2);         // loadout 2, Assault
-  h.a.put<int32_t>(0xc4, 9);         // madcat
+  h.a.put<int32_t>(0xc4, mech3::kMadCat);  // madcat: 13 in PM's order (MW3's 9)
   h.a.put<int32_t>(0xc8, 40);        // the skin
   h.a.put<int32_t>(0x8c, 1);         // range to the player
   h.a.pilot = strdup("Dom");
@@ -732,7 +733,7 @@ TEST(vehicle_editor_pages_show_and_take_back) {
   const mech3::DlgCombo& cfg = p2.at(1273).combo;
   EXPECT(cfg.texts() == std::vector<std::string>({"Assault", "Standard"}) && cfg.cur == 0 && cfg.data(0) == 2);
   const mech3::DlgCombo& ch = p2.at(1274).combo;
-  EXPECT(ch.items.size() == 20 && ch.cur >= 0 && ch.items[size_t(ch.cur)].text == "madcat");
+  EXPECT(ch.items.size() == 26 && ch.cur >= 0 && ch.items[size_t(ch.cur)].text == "madcat");  // PM's 25 and "default"
   // Typed and picked, then Apply: on the brain in play units.
   p2.at(1200).text = " 30 ";
   p2.at(1203).text = "180";

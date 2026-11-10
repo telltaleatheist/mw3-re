@@ -8,8 +8,15 @@ counts and the last answer.
 
 Breaks, by hand in zainet_inout_view.cpp, each must fail: the wall 9 m high; yellow for kind 2; the 1024 test as >;
 the second triangle's swap of b and c left out.
+
+With MW3_EXE=pm, Pirate's Moon's (0x4ce970, 0x4cea50, 0x4cedd0, the adds 0x4cecc0 / 0x4ced50 by the map's
+neighbours): its polygons (tested +0x46, kind +0x48, corners 0x54 bytes), its cdecl colour 0x5275d0 and add
+0x55cb70 (the model, count, points, ..., one material by pointer, the back flag, the zone), and the refs' rebuild
+0x55c470 after every add, counted. Each corner's place (+0x0c) is its offset (+0x00) moved 100 in x, so the walls
+must follow the offsets. Breaks on pm: the place for the offset; the rebuild left out; the back flag the other way.
 """
 import ctypes
+import os
 import random
 import struct
 import sys
@@ -18,10 +25,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import load_probe  # noqa: E402
 from original import Original  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
 WALLS, ADD_POLY, CORNERS_STEP = 0x4c42e0, 0x4c43b0, 0x4c45f0
 COLOR, MODEL_ADD = 0x50de00, 0x53c6c0
+PM = os.environ.get('MW3_EXE') == 'pm'
+SORT = 0x55c470  # PM's own (no MW3 twin): the model's refs rebuilt
+# The polygon's corners begin/end, tested, kind; a corner's size and where its point is.
+POLY_TESTED, POLY_KIND, VERT_SIZE = (0x46, 0x48, 0x54) if PM else (0x35, 0x38, 0x1c)
 MODEL = 0x00badd00
 
 
@@ -33,7 +45,7 @@ class Tri(ctypes.Structure):
 class Out(ctypes.Structure):
     _fields_ = [('full', ctypes.c_int32 * 64), ('tris', Tri * 2048), ('n_tris', ctypes.c_int32),
                 ('colors', (ctypes.c_float * 3) * 256), ('n_colors', ctypes.c_int32), ('triangles', ctypes.c_int32),
-                ('vertices', ctypes.c_int32), ('last', ctypes.c_int32)]
+                ('vertices', ctypes.c_int32), ('last', ctypes.c_int32), ('sorts', ctypes.c_int32)]
 
 
 probe = load_probe()
@@ -71,44 +83,62 @@ def setup(o):
         return len(RUN['colors'])
 
     def add(o):
-        if o.ecx != MODEL:
-            raise RuntimeError('0x53c6c0 on %#x' % o.ecx)
-        pts = struct.unpack('<9f', o.read(o.arg(0), 36))
-        RUN['tris'].append((o.edx, o.arg(6), o.arg(8), o.read(o.arg(9), 4), pts))
+        if PM:  # cdecl: model, n, points, normals, uvs, 3 morph, count, materials, priority, back, 0x800, zone
+            if o.arg(0) != MODEL or o.arg(8) != 1:
+                raise RuntimeError('0x55cb70 on %#x, %d materials' % (o.arg(0), o.arg(8)))
+            pts = struct.unpack('<9f', o.read(o.arg(2), 36))
+            mat = struct.unpack('<I', o.read(o.arg(9), 4))[0]
+            RUN['tris'].append((o.arg(1), mat, o.arg(11), o.read(o.arg(13), 4), pts))
+        else:
+            if o.ecx != MODEL:
+                raise RuntimeError('0x53c6c0 on %#x' % o.ecx)
+            pts = struct.unpack('<9f', o.read(o.arg(0), 36))
+            RUN['tris'].append((o.edx, o.arg(6), o.arg(8), o.read(o.arg(9), 4), pts))
         ans = RUN['answers']
         a = ans[RUN['next'] % len(ans)]
         RUN['next'] += 1
         return a
 
-    o.stub_function(COLOR, color, 12)
-    o.stub_function(MODEL_ADD, add, 0x2c)
+    o.stub_function(COLOR, color, 0 if PM else 12)
+    o.stub_function(MODEL_ADD, add, 0 if PM else 0x2c)
+    if PM:
+        def sort(o):
+            if o.arg(0) != MODEL:
+                raise RuntimeError('0x55c470 on %#x' % o.arg(0))
+            RUN['sorts'] += 1
+            return 0
+        o.stubs[SORT] = (sort, 0)  # PM's own address: past the map
+        o._uc.hook_add(UC_HOOK_CODE, o._stub_hit, begin=SORT, end=SORT)
 
 
 def run_exe(o, c):
     RUN.clear()
-    RUN.update(tris=[], colors=[], answers=c['answers'], next=0)
+    RUN.update(tris=[], colors=[], answers=c['answers'], next=0, sorts=0)
     rec = RUN
-    b = o.alloc(0x40)
-    o.write(b, bytes(0x40))
+    b = o.alloc(0x44)
+    o.write(b, bytes(0x44))
     o.call(WALLS, ecx=b, stack_args=(MODEL,))
     o.u32(b + 4, c['start'])
     full = []
     for p in c['polys']:
-        verts = o.alloc(0x1c * len(p['corners']))
+        verts = o.alloc(VERT_SIZE * len(p['corners']))
         for i, v in enumerate(p['corners']):
-            o.write(verts + 0x1c * i, struct.pack('<3f', *v) + bytes(0x10))
-        poly = o.alloc(0x40)
-        o.write(poly, bytes(0x40))
+            body = struct.pack('<3f', *v)
+            if PM:  # the offset, then the place 100 away
+                body += struct.pack('<3f', v[0] + 100.0, v[1], v[2])
+            o.write(verts + VERT_SIZE * i, body + bytes(VERT_SIZE - len(body)))
+        poly = o.alloc(0x64)
+        o.write(poly, bytes(0x64))
         o.u32(poly + 0x08, verts)
-        o.u32(poly + 0x0c, verts + 0x1c * len(p['corners']))
-        o.write(poly + 0x35, bytes([p['tested']]))
-        o.u32(poly + 0x38, p['kind'])
+        o.u32(poly + 0x0c, verts + VERT_SIZE * len(p['corners']))
+        o.write(poly + POLY_TESTED, bytes([p['tested']]))
+        o.u32(poly + POLY_KIND, p['kind'])
         slot = o.alloc(4)
         o.u32(slot, poly)
         o.call(ADD_POLY, ecx=b, stack_args=(slot,))
         full.append(o.uc.reg_read(UC_X86_REG_EAX) & 0xff)  # AL
     tri, verts, last = struct.unpack('<iI', o.read(b, 8)) + struct.unpack('<i', o.read(b + 0x3c, 4))
-    return dict(full=full, tris=rec['tris'], colors=rec['colors'], counts=(tri, verts, last))
+    return dict(full=full, tris=rec['tris'], colors=rec['colors'], counts=(tri, verts, last), sorts=rec['sorts'])
 
 
 def run_port(c):
@@ -124,7 +154,7 @@ def run_port(c):
     tris = [(t.n, t.material, t.flag, bytes(t.zone), tuple(t.pts)) for t in out.tris[:min(out.n_tris, 2048)]]
     return dict(full=list(out.full[:len(c['polys'])]), tris=tris, n_tris=out.n_tris,
                 colors=[tuple(x) for x in out.colors[:out.n_colors]],
-                counts=(out.triangles, out.vertices & 0xffffffff, out.last))
+                counts=(out.triangles, out.vertices & 0xffffffff, out.last), sorts=out.sorts)
 
 
 def main():
@@ -146,7 +176,7 @@ def main():
             print('run %d: more than 2048 triangles, raise the probe\'s table' % n)
             bad += 1
             continue
-        for k in ('full', 'colors', 'tris', 'counts'):
+        for k in ('full', 'colors', 'tris', 'counts', 'sorts'):
             if want[k] != got[k]:
                 bad += 1
                 if bad <= 8:
