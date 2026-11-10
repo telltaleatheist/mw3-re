@@ -17,6 +17,11 @@ restored sounds, pictures, voice lines and text stay on (Owen's rule,
 change sits under which switch: [`docs/upgrades-sort.md`](docs/upgrades-sort.md).
 A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
 
+Pirate's Moon's page has four: no WATER MOVEMENT, because the water change
+corrects something Pirate's Moon's own game no longer does, so there would be
+nothing to switch. Its SMALL FIXES list is its own, nine lines. A water
+setting already in your settings file is left as it is.
+
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
 machines, what makes it behave differently on a fast computer, and bugs where
@@ -707,6 +712,7 @@ Known quirks the rebuild deliberately keeps:
 - A MOUSE SENSITIVITY slider on the Game Options screen, under Invert Mouse (0.5 to 3.0): it sets how far the mouse turns the mech in a mission. It starts at the original's 1.3, and Invert Mouse keeps it.
 - An UPGRADES page, one press from the options (in the menus and in a mission): the bug fixes and wide menus switches, saved with your settings.
 - Pirate's Moon's Game Options have MOUSE SENSITIVITY and UPGRADES too (they were missing: its options file is laid out differently).
+- Pirate's Moon's UPGRADES page: MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING, SMALL FIXES and WIDE MENUS. The heading in the objectives box, the HUD static that thickens with damage, the fog and light fixes and the crash guards in the AI are always on; the destroyed weapon's selection is Pirate's Moon's own, which already moves on.
 - The music pauses while a movie plays and comes back after (the campaign's opening movie no longer has the menu music under it), as when the game read its movies off the CD.
 - On a wide screen the arm weapons reach the reticle across the whole width: an arm weapon still fires straight ahead when aimed far off to the side, but the limit now widens with the screen, so it starts at the same place on screen as on a 4:3 one (bug fixes on).
 - Cheat codes in single player (ours): Shift+Enter, Keypad * or Keypad − in a mission opens a box for six codes, from a radar that shows everything to an instant win (README, Cheat codes).
@@ -723,7 +729,7 @@ Known quirks the rebuild deliberately keeps:
 - A controls file whose first axis names no source, with no key list, gets no axis source; Pirate's Moon took the file name's address as one.
 - A mech under deep water drowns at the same speed at any frame rate.
 - Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).
-- Pirate's Moon: a firepoint whose aim range runs past straight up or down keeps its real top limit (bug fixes on).
+- Pirate's Moon: a firepoint whose aim range runs past straight up or down aims as the original's does (any top limit becomes straight up). Earlier rebuilds corrected this with bug fixes on; it is a quirk that changes how far a weapon can aim, so it is the original's again (Owen, 2026-11-10).
 - Pirate's Moon: a mission trigger that sets an AI range on a vehicle with no pilot does nothing, where the original would crash. No shipped mission does this.
 - Pirate's Moon: a broken mission boundary with impossible numbers can't crash the AI's way finding.
 - Linux: the game no longer closes at the end of the intro movies. The launcher closed when the game appeared, which unmounted the AppImage the game was still running from; it now waits, out of sight, until the game ends.

@@ -61,6 +61,17 @@ lines without the three Pirate's Moon ones (7 to 9, on Pirate's Moon's own
 list) and without the two not made yet (21, 22), in shorter words to fit the
 page.
 
+On this branch the page's list is Pirate's Moon's, nine lines: 1, 3, 4, 5,
+13, 14, 16, 17 and 18. Left off: 2, 19 and 20 (MW3's data: the shared code
+finds nothing to change in Pirate's Moon's files), 12 (Pirate's Moon's table
+has the plain PPC), 15 (Pirate's Moon's exe moves the selection, 0x004b6f70;
+the fix is not on this branch), 10 (this branch's HUD has no such change),
+6 and 11 (made without a switch in the code, here and on main), and 7 to 9
+(the lead, 2026-11-10: the three guards stay always on and unlisted, a crash
+or an unset value having no original to give back). The page has four
+switches: no Water movement, which has nothing to act on here (fixes.md, On
+Pirate's Moon).
+
 1. A turret's charge or glow goes out when the turret dies.
 2. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
 3. Tripod turrets aim and turn when facing straight up or down.

@@ -7510,7 +7510,8 @@ TEST(sdl_pm_program_entry_takes_each_of_its_campaigns) {
 // The whole way on Pirate's Moon, in one process each (sdl_restart.h; MechWarrior 3's is
 // sdl_program_restarts_into_and_out_of_an_entry): mw3pm started into Instant Action's entry, and into the Pirate
 // Missions' with --entry-play, opens the entry's own screen (its pilots, empty: the pilot screen) and not the
-// main menu; CANCEL there closes the game and starts it again plain, on MODS. The entry's folder has its own
+// main menu; CANCEL there closes the game and starts it again plain: on MODS from the Pirate Missions, on the
+// main menu from Instant Action (it came from there: Instant Action's MODS). The entry's folder has its own
 // pilots and loadouts; the run inside the entry never makes the main menu's pilots; nothing of the write dir is
 // still open at the exec. An entry that is not there puts the player on MODS.
 TEST(sdl_pm_program_restarts_into_and_out_of_its_entries) {
@@ -7535,10 +7536,14 @@ TEST(sdl_pm_program_restarts_into_and_out_of_its_entries) {
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     auto at = [&](const std::string& what, size_t from = 0) { return text.find(what, from); };
+    const bool ia = std::string(r.id) == "ia";
     const size_t entered = at(std::string("mw3: entry ") + r.id + " (" + r.name + "): 0 mods"),
-                 left = at(std::string("mw3: entry ") + r.id + " left: starting again on MODS"), closed = at("mw3: closed, result 0"),
-                 mods = at("mw3: the main menu opens on MODS (--open-mods)");
-    std::printf("  %s: entered %d, left %d, closed %d, on MODS %d\n", r.id, entered != std::string::npos, left != std::string::npos,
+                 left = at(std::string("mw3: entry ") + r.id + " left: starting again on " + (ia ? "the main menu" : "MODS")),
+                 closed = at("mw3: closed, result 0");
+    // The second run's start: on MODS it says so; plain on the main menu it is the program's first line again.
+    const size_t mods = ia ? (closed == std::string::npos ? closed : at("mw3pm (", closed)) : at("mw3: the main menu opens on MODS (--open-mods)");
+    EXPECT(ia == (at("(--open-mods)") == std::string::npos) && at("(--open-ia)") == std::string::npos);
+    std::printf("  %s: entered %d, left %d, closed %d, started again %d\n", r.id, entered != std::string::npos, left != std::string::npos,
                 closed != std::string::npos, mods != std::string::npos);
     EXPECT(entered != std::string::npos && left != std::string::npos && closed != std::string::npos && mods != std::string::npos);
     EXPECT(entered < left && left < closed && closed < mods);
@@ -7569,5 +7574,47 @@ TEST(sdl_pm_program_restarts_into_and_out_of_its_entries) {
   const std::string b((std::istreambuf_iterator<char>(g)), std::istreambuf_iterator<char>());
   EXPECT(b.find("mw3: entry mw3: there is no such campaign") != std::string::npos && b.find("mw3: the main menu opens on MODS") != std::string::npos);
   fs::remove_all(dir, ec);
+}
+#endif
+
+#if defined(MW3_PM_SUITE)
+// Pirate's Moon's UPGRADES page saves four switches and wide menus, never the water key (it shows no WATER: the
+// change gates nothing in Pirate's Moon). So a player's upgrade_water= line, whatever it says, is in mw3.cfg
+// byte for byte after the page's saves, once, and still reads as theirs. (The saver writes every line with a
+// plain line end, a file from Windows too: the shared saver's way for every key, so the file here has plain ones.)
+TEST(pm_upgrades_save_leaves_the_water_line_as_it_is) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm_upgrades_water";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  const std::string water = "upgrade_water=0\n";
+  {
+    std::ofstream f(dir + "/mw3.cfg", std::ios::binary);
+    f << "install=X\n" << water << "upgrade_small_fixes=1\nwidemenus=0\n";
+  }
+  // The page's ACCEPT on Pirate's Moon (UpgradesScreen::apply): these keys, through the program's saver.
+  for (const auto& [key, on] : std::vector<std::pair<const char*, bool>>{
+           {"upgrade_mfb_regroup", true}, {"upgrade_improved_ai", false}, {"upgrade_artemis", true}, {"upgrade_small_fixes", false}, {"widemenus", true}})
+    EXPECT(sdlfe::save_config_value(dir, key, on ? "1" : "0"));
+  std::ifstream f(dir + "/mw3.cfg", std::ios::binary);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  std::printf("  after the saves: %zu bytes, the water line there %d\n", text.size(), text.find(water) != std::string::npos);
+  EXPECT(text.find(water) != std::string::npos && text.find("upgrade_water=1") == std::string::npos);
+  EXPECT(text.find("upgrade_water", text.find(water) + 1) == std::string::npos && text.find("install=X\n") != std::string::npos);
+  EXPECT(text.find("upgrade_small_fixes=0") != std::string::npos && text.find("upgrade_improved_ai=0") != std::string::npos &&
+         text.find("upgrade_mfb_regroup=1") != std::string::npos && text.find("widemenus=1") != std::string::npos);
+  // Read back: water off as the player had it, the others as saved.
+  upgrades::Config c;
+  std::istringstream in(text);
+  for (std::string l; std::getline(in, l);) {
+    if (!l.empty() && l.back() == '\r') l.pop_back();
+    upgrades::read_line(l, c);
+  }
+  const zfix::Options keep = zfix::options();
+  zfix::set_all(true);
+  sdlfe::apply_upgrades_config("", c, false);
+  EXPECT(!zfix::options().water && zfix::options().mfb_regroup && !zfix::options().improved_ai && zfix::options().artemis && !zfix::options().small_fixes);
+  zfix::options() = keep;
+  std::filesystem::remove_all(dir, ec);
 }
 #endif

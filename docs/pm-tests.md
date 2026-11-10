@@ -818,3 +818,10 @@ state, so it counts again. In play it would be a frame or more of a wrong turn, 
 The fix is known: PM's `unit_flat` and `wide_sum` (`zai_steer_pm`) for the same expressions, what's stored in a float
 and what stays in the register by function (pm-map.md, PM's AI at 53 bits), with the tests' compares exact at 53.
 `ai_nets` and `ai_regions` differ only at 24, which isn't the reference; `ai_repair`'s crash is the test's teardown.
+
+## The multiplayer menu state's destructor (2026-11-10)
+
+MW3's 0x0049ca00 runs against the port's in `test_pilotscreen.py` (each plan ends with the state's delete: the
+three screens' vt+0x08(1), compared). Pirate's Moon's 0x004a0230 has no differential yet: it is checked only by the
+screens' count in `pm_menus_take_a_picked_mode_at_once_headless`. A PM twin (PM's state made and deleted in the
+emulator against `pmprobe`) is listed for after 1.1.0.

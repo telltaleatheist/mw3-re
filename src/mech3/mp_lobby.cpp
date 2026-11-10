@@ -127,9 +127,9 @@ bool LobbyScreen::mods_of(const std::vector<uint32_t>& d, uint64_t* hash, std::v
 // 1.1.0, or the original's data).
 bool LobbyScreen::upgrades_of(const std::vector<uint32_t>& d, uint32_t* bits) {
   *bits = 0;
-  if (d.size() < 4 || d[0] != 1) return false;
-  const size_t worlds = d[3] < 64 ? d[3] : 64;
-  size_t at = std::max<size_t>(5, 4 + worlds);
+  if (d.size() <= kPmDataWords || d[0] != 1) return false;
+  const size_t worlds = d[kPmDataWords] < 64 ? d[kPmDataWords] : 64;  // Pirate's Moon's layout, as mods_of
+  size_t at = kPmDataWords + 1 + worlds;
   if (at + 4 > d.size() || d[at] != kModsMark) return false;
   const uint32_t count = std::min<uint32_t>(d[at + 3], 16);
   at += 4;

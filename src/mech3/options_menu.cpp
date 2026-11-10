@@ -186,6 +186,12 @@ void UpgradesScreen::AcceptButton::on_left_up() {
   e_.menu_mode_picked();  // ours: wide menus on or off at once
 }
 
+// Pirate's Moon's page shows four of the five switches (upgrades::switches()' order: water first). WATER is not
+// on it: Pirate's Moon's wading is its own code, so MechWarrior 3's water change gates nothing here. The switch
+// keeps its place in mw3.cfg (upgrade_water=, read and left as it is: ACCEPT does not write it) and in the
+// lobby's word, so the two games' settings line up.
+constexpr int kFirstShown = 1;
+
 UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
     : MenuScreen(e, s), accept(e), back(e), water(e), mfb_regroup(e), improved_ai(e), artemis(e), small_fixes(e),
       wide_menus(e), small_list(e) {
@@ -196,7 +202,7 @@ UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
     bind_primitive(&lines, "LINES");
     bind_primitive(&lines1, "LINES1");
     char name[8];
-    for (int k = 0; k < 6; ++k) std::snprintf(name, sizeof(name), "BOX%d", k + 1), bind_primitive(&box[k], name);
+    for (int k = 0; k < 5; ++k) std::snprintf(name, sizeof(name), "BOX%d", k + 1), bind_primitive(&box[k], name);  // PM: five rows
     bind_button(&accept, "ACCEPT");
     bind_button(&back, "BACK");
     if (!moving) {
@@ -209,7 +215,7 @@ UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
       back.set_baked(true);
     }
     static const char* const kNames[5] = {"WATER", "MFB_REGROUP", "IMPROVED_AI", "ARTEMIS", "SMALL_FIXES"};
-    for (int k = 0; k < 5; ++k) bind_button(five[k], kNames[k]);
+    for (int k = kFirstShown; k < 5; ++k) bind_button(five[k], kNames[k]);
     bind_button(&wide_menus, "WIDE_MENUS");
     bind_button(&small_list, "SMALL_LIST");
     unload();
@@ -226,7 +232,7 @@ UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
   set_flags_all(0);
   set_active(1);
   if (hosts)
-    for (OnOffCycle* c : five) c->enabled = 0, c->refresh();
+    for (int k = kFirstShown; k < 5; ++k) five[k]->enabled = 0, five[k]->refresh();
 }
 
 // The switches take hold at once, and wide menus too (ACCEPT's
@@ -236,17 +242,17 @@ void UpgradesScreen::apply(int32_t to_options) {
   zfix::Options& o = zfix::options();
   const auto& sw = upgrades::switches();
   if (!to_options) {
-    for (size_t k = 0; k < sw.size(); ++k) five[k]->select(o.*sw[k].field);
+    for (size_t k = kFirstShown; k < sw.size(); ++k) five[k]->select(o.*sw[k].field);
     wide_menus.select(o.wide_menus);
     return;
   }
   const bool hosts = upgrades::hosts();
   if (!hosts)
-    for (size_t k = 0; k < sw.size(); ++k) o.*sw[k].field = five[k]->selected_value() != 0;
+    for (size_t k = kFirstShown; k < sw.size(); ++k) o.*sw[k].field = five[k]->selected_value() != 0;
   o.wide_menus = wide_menus.selected_value() != 0;
   if (auto& save = options_upgrades_saver()) {
     if (!hosts)
-      for (size_t k = 0; k < sw.size(); ++k) save((std::string("upgrade_") + sw[k].key).c_str(), o.*sw[k].field);
+      for (size_t k = kFirstShown; k < sw.size(); ++k) save((std::string("upgrade_") + sw[k].key).c_str(), o.*sw[k].field);
     save("widemenus", o.wide_menus);
   }
 }

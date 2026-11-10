@@ -48,26 +48,22 @@ void apply(const Config& c) {
   }
 }
 
-// MechWarrior 3's list; Pirate's Moon has its own (its branch).
+// Pirate's Moon's list (MechWarrior 3's is main's): what the Small fixes switch turns off here, each line's code
+// named in docs/upgrades-sort.md. Not on it: MechWarrior 3's lines for its own data (two c4 enemies' orders, c4b's
+// areas, c2 mission 3's Fireflies: the code is shared and finds nothing to change in Pirate's Moon's files), the
+// plain PPC (Pirate's Moon's table has it), the destroyed weapon's selection (Pirate's Moon's exe moves it), and
+// Pirate's Moon's three AI guards (always on: a crash or an unset value has no original to give back).
 const std::vector<const char*>& small_fixes_list() {
   static const std::vector<const char*> l = {
       "A turret's charge or glow goes out when it dies.",
-      "Two c4 enemies follow their scripted orders.",
       "Tripod turrets aim when facing straight up or down.",
       "A vehicle's gun stops at its true aiming limit.",
       "A vehicle file with pitch and no roll keeps its pitch.",
-      "An AI pilot at a backup node turns the right way.",
-      "The reticle locks past 800 m when the weapons reach.",
-      "LOCK_ON_LEAD reads the right value (a typo).",
-      "The mech lab offers the plain PPC the data defines.",
       "TAG's strike lands where the target is, not was.",
       "A held beam stays on a moving mech after release.",
-      "A destroyed weapon's selection moves to a working one.",
       "A mech re-placed where it stands keeps to its ground.",
       "A mission's last animation can be waited for.",
       "An animation whose object is missing waits its turn.",
-      "Leaving c4b mission 5's or 6's area fails it.",
-      "c2 mission 3's objective waits for its two Fireflies.",
   };
   return l;
 }

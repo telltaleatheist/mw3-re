@@ -1344,14 +1344,10 @@ void Weapon::destroy() {
     } else {
       manager->next_weapon();
     }
-    // FIX (bug): the HUD's pick is the next line whether or not it still stands, and
-    // next_weapon stays in the group, so the selection could stay on a destroyed weapon
-    // (pm-tests item 21). The first standing one after this in the list's order instead.
-    if (zfix::options().small_fixes && manager->current() && manager->current()->damage == 1.0f)
-      if (Weapon* w = manager->standing_after(this)) {
-        if (manager->select_group(w->group)) manager->group_ptr()->select(w);
-        if (is_player(owner) && g_calls.screen && g_calls.screen(owner) && g_calls.hud_weapons) g_calls.hud_weapons(owner);
-      }
+    // No fix here on Pirate's Moon (MechWarrior 3's has one behind small_fixes, pm-tests item 21): PM's own
+    // 0x004b6f70 refreshes the HUD's list before its pick (0x004480a0 above), so the player's selection leaves
+    // a destroyed weapon as the exe does it. A vehicle without the player's screen takes its group's next
+    // unchecked (0x004b45f0), as the exe.
   }
   halt(loop_sound);
   loop_sound = nullptr;
