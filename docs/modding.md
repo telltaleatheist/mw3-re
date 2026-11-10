@@ -507,6 +507,12 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   start and says so ("its mod is turned on; restart to play it").
 - EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
 - BACK: the main menu.
+- ENTER and BACK hit where they are drawn (`ModsSlideButton`, lead 2026-11-10):
+  the ring and knob of their 82x82 image (alpha 64 and up) and their label's
+  box. SlideButton's own test (0x004855f0) takes the whole image with the
+  label's height added below and the label's end beside, which reached over
+  the tab row: a click on MODS FOLDER's right edge, or a tab placed past
+  x 452, left the screen too. `sdl_program_mods_back_hits_where_drawn`.
 
 Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
 the campaign rows with a broken file, the rows' marks and notes, UP moving

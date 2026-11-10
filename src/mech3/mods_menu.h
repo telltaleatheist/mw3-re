@@ -59,6 +59,18 @@ void mods_menu_picked(const std::string& path);  // "" cancelled; the screen tak
 
 class ModsScreen;
 
+// Ours (lead, 2026-11-10): ENTER and BACK hit where they are drawn, their
+// ring and knob (the image's pixels of alpha 64 and up) and their label's own
+// box. SlideButton::hit
+// (0x004855f0) takes get_rect, which adds every label's height below the
+// image and reaches to the label's end: past BACK's circle, over the tab row
+// beside it, so a tab there also left the screen. The original's screens keep theirs.
+class ModsSlideButton : public SlideButton {
+ public:
+  using SlideButton::SlideButton;
+  int32_t hit(int32_t px, int32_t py) override;
+};
+
 class ModsList : public FileList {
  public:
   ModsList(Engine& e, int32_t id) : FileList(e, id) {}
@@ -81,7 +93,7 @@ class ModsScreen : public MenuScreen {
   void edit();                       // EDITOR (ours): the selected mod's or campaign's missions, or back
   void edit_start();                 // ENTER while editing: the chosen mission in the editor
 
-  SlideButton enter, back;           // ENTER, BACK
+  ModsSlideButton enter, back;       // ENTER, BACK
   ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
   ShellButton add_btn, export_btn, add_folder_btn, folder_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER
   ModsList campaign_list, mod_list;

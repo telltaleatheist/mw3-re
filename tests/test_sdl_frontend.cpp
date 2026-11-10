@@ -2014,6 +2014,73 @@ TEST(sdl_install_is_found_and_saved) {
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 extern char** environ;
 
+// Ours (lead, 2026-11-10): the MODS screen's BACK hits where it is drawn,
+// its ring and knob and its label. SlideButton's own test (0x004855f0) took
+// its 82x82 image with the label's height below and the label's end beside,
+// reaching over the tab row (MODS FOLDER at 388,438), so a click on MODS
+// FOLDER's right edge left the screen as well. The program, MODS clicked,
+// then one point each run, --verbose naming each state and MW3_NO_OPEN_FOLDER
+// saying the folder instead of opening it.
+TEST(sdl_program_mods_back_hits_where_drawn) {
+  if (!have_fonts()) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_mods_back_hits";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir + "/wd");
+  setenv("MW3_NO_OPEN_FOLDER", "1", 1);
+  struct Point {
+    const char* where;
+    const char* at;
+    bool folder, back;  // MODS FOLDER's answer, back at the main menu
+  };
+  const Point points[] = {{"MODS FOLDER's right edge", "460,446", true, false},
+                          {"the tab row past MODS FOLDER", "470,446", false, false},
+                          {"just under BACK's ring", "490,438", false, false},
+                          {"BACK's knob", "493,407", false, true},
+                          {"BACK's label", "530,408", false, true}};
+  for (const Point& pt : points) {
+    const std::string out = dir + "/run.log";
+    std::vector<std::string> args = {MW3_BIN, "--verbose", "--nosound", "--hidden", "--write-dir", dir + "/wd", "--install", MW3_GAME_DIR,
+                                     "--click-at", "112,415@40", "--click-at", std::string(pt.at) + "@100", "--shot", dir + "/x.bmp",
+                                     "--shot-frame", "140"};
+    std::vector<char*> argv;
+    for (std::string& a : args) argv.push_back(a.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, out.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    const int err = posix_spawn(&pid, MW3_BIN, &fa, nullptr, argv.data(), environ);
+    posix_spawn_file_actions_destroy(&fa);
+    EXPECT(err == 0);
+    if (err) continue;
+    int status = 0;
+    bool quit = false;
+    const auto start = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(60)) {
+      if (waitpid(pid, &status, WNOHANG) == pid) {
+        quit = true;
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (!quit) kill(pid, SIGKILL), waitpid(pid, &status, 0);
+    std::string log;
+    if (FILE* f = std::fopen(out.c_str(), "r")) {
+      char buf[4096];
+      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) log.append(buf, n);
+      std::fclose(f);
+    }
+    const size_t mods = log.find("mw3: state Mods State");
+    const bool folder = log.find("mw3: open folder ") != std::string::npos;
+    const bool back = mods != std::string::npos && log.find("mw3: state Main State", mods) != std::string::npos;
+    std::printf("  %s (%s): MODS %d, folder %d, back %d\n", pt.where, pt.at, mods != std::string::npos, folder, back);
+    EXPECT(quit && mods != std::string::npos && folder == pt.folder && back == pt.back);
+  }
+  unsetenv("MW3_NO_OPEN_FOLDER");
+  std::filesystem::remove_all(dir);
+}
+
 // --frames through the pause (mission-plan item 22): a launched mission's
 // frames counted only those that drew the scene, so Escape's pause screen
 // stopped the count and the run never ended. The program itself, Escape at
