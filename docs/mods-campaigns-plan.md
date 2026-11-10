@@ -70,6 +70,27 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - Nothing is lost on the way: the `mod=` lines a player has today become the
   official campaign entry's ticks the first time this build starts.
 
+## Settled in the lead's review (2026-11-10)
+
+- **Inside a campaign entry** the player gets that entry's own screen only:
+  its pilot screen, Instant Action's screen, the mission (TEST) or the editor.
+  Multiplayer is not offered there. Leaving goes back to MODS on a plain run.
+- **Entering and leaving restart the program** (the first version). On Windows
+  in fullscreen the desktop shows for about a second between the two.
+- **One Instant Action entry per game**, on both games.
+- **The Upgrades settings are the player's, not the entry's**: one set for the
+  whole game, whichever campaign is played.
+- **A ticked mod that has gone missing** (removed from the mods folder) shows
+  as missing, and the entry does not start until it is unticked or imported
+  again. The entry's pilots and saves are kept.
+- **Deleting a copy** removes its pilots and saves with it, and the confirm
+  says so. Official entries and imported mods' files are never deleted this way.
+- **A saved game belongs to its entry**: it lives in the entry's own pilots
+  folder and records the entry and its ticks, so loading it after the ticks
+  changed says so.
+- **No release ever read `mod=` lines** (mods came after 1.0.5), so the move of
+  those lines into the official entry only meets test folders.
+
 ## Open
 
 - 1.1.0 waits for this (Owen, 2026-11-10), so mods change behaviour once.
