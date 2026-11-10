@@ -23,6 +23,7 @@
 #include "crt/msvc_string.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zsave/zsave.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -39,6 +40,7 @@
 #include "mech3/player.h"
 #include "platform/silent_sound.h"
 #include "pm/pm_game.h"
+#include "upgrades/mods/save_mods.h"
 
 namespace mech3 {  // mech_names.h (its Engine clashes with the app's)
 int32_t mech_count();
@@ -446,4 +448,47 @@ TEST(pm_mods_real_mod_reads_and_plays_headless) {
     EXPECT(run.core && run.frames >= 300 && run.made && run.mech.roster == mech3::kMadCat && run.mech.weapons > 0);
   });
   fs::remove_all(wd, ec);  // ours (made above): the private files' copy gone
+}
+
+// The save's mods on PM (docs/modding.md, The save's mods): a game saved as PM's (its zSave archives, version 2)
+// with a gameplay mod holds Mods/identity, one without holds none; the load's line as on MW3.
+TEST(pm_saved_game_records_its_mods) {
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_save_identity";
+  std::error_code ec;
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd + "/mods/world/zbd/c1", ec);
+  std::ofstream(wd + "/mods/world/mod.txt") << "name=World\nfor=mw3pm\n";
+  std::ofstream(wd + "/mods/world/zbd/c1/gamez.zbd") << "world";
+  const mech3::ModsIdentity keep = mech3::mods_identity();
+  zgame::set_game(pm::table());
+  const bool had = zsave::manager() != nullptr;
+  if (!had) zsave::init();
+  mech3::save_mods_register();
+  const auto saved = [&](const std::vector<std::string>& mods, const std::string& name) {
+    mech3::mods_identity_set(wd, mods);
+    const std::string path = wd + "/" + name;
+    EXPECT(zsave::save(path.c_str(), 2));
+    return path;
+  };
+  const auto has_entry = [](const std::string& path) {
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    const bool ok = zutl_zar::open(a, path.c_str()) && zutl_zar::find(a, "Mods/identity") >= 0;
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+    return ok;
+  };
+  const std::string plain = saved({}, "plain.mw3"), world = saved({"world"}, "world.mw3");
+  EXPECT(!has_entry(plain) && has_entry(world));
+  mech3::mods_identity_set(wd, {});
+  mech3::save_mods_begin_load();
+  EXPECT(zsave::load(world.c_str(), 2));
+  const std::string said = mech3::save_mods_note();
+  std::printf("  %s\n", said.c_str());
+  EXPECT(said == "Saved with mods: World; none now");
+  mech3::save_mods_begin_load();
+  EXPECT(zsave::load(plain.c_str(), 2) && mech3::save_mods_note().empty());
+  if (!had) zsave::shutdown();
+  zgame::set_game(zgame::mw3_table());
+  mech3::mods_identity() = keep;
 }

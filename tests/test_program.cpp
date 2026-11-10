@@ -2256,6 +2256,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     mech3::set_app(&app);
     EXPECT(app.init_instance());
     zsave::add("TestProbe", probe_save, nullptr, 2000, nullptr);
+    mech3::mods_identity() = mech3::ModsIdentity{0xfeedull, {"Test mod"}};  // saved with a gameplay mod (save_mods)
     int stage = 0, core_frames = 0, briefing_frames = 0;
     bool no_editor = false;  // ours: editor.md, The way in
     size_t steps = 0, objects = 0;
@@ -2586,9 +2587,10 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     mech3::set_app(&app);
     EXPECT(app.init_instance());
     zsave::add("TestProbe", nullptr, probe_load, 2000, nullptr);
+    mech3::mods_identity() = mech3::ModsIdentity{};  // loaded with none: the loading screen says so
     int stage = 0;
     std::string after;
-    bool listed = false, current_c1m2 = false, file_kept = false, restored = false;
+    bool listed = false, current_c1m2 = false, file_kept = false, restored = false, mods_said = false;
     engine.on_present = [&](int) {
       if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
         const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // NEW CAMPAIGN
@@ -2610,6 +2612,8 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         mech3::Pilot* q = mech3::current_pilot();
         after = campaign_dump(q ? q->campaign() : nullptr);
         restored = g_probe_read == "marker=c1m1 won;";
+        for (const ztwod::Text& l : b->lines.lines)
+          mods_said = mods_said || std::string(l.text) == "Saved with mods: Test mod; none now";
         stage = 3;
       }
     };
@@ -2620,6 +2624,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(stage == 3 && listed && current_c1m2);
     EXPECT(!save_file.empty() && file_kept);  // zSave's file, so the pilot kept the save
     EXPECT(restored);                         // and the mission load read it back
+    EXPECT(mods_said);                        // ours: the save's mods against none now (save_mods)
     EXPECT(engine.unported_counts().count("0x005a8a70") == 0 && engine.unported_counts().count("0x005a8a90") == 0);
     if (after != before) std::printf("  before the quit:\n%s\n  after the reload:\n%s\n", before.c_str(), after.c_str());
     EXPECT(!before.empty() && before != "none" && after == before);

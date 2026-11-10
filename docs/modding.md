@@ -1097,8 +1097,8 @@ shared animations (`anim_file_unread`, mods.cpp).
 - Each file that does not read, or is passed over by the rules, is said once
   in the log (`mw3: mod: ...`).
 - A saved running animation whose def at the saved index has another name
-  is dropped and said (`zeff_anim_save.cpp`, running_load). Recording the
-  mods' identity in the save is not built yet. In test_anim_save.py's saves
+  is dropped and said (`zeff_anim_save.cpp`, running_load). The save also
+  records its mods (below, The save's mods). In test_anim_save.py's saves
   (six missions, plain, cross-loaded from the original's, and damaged), the
   only runs dropped are the damaged phase's records cut short before their
   name ends (all 28 shorter than 0x28 bytes, the name read as the zeros
@@ -1277,6 +1277,32 @@ shipped defs keep their indices and their node runs. Two fixes come with it:
   def;
 - the save records the mods' identity (`mods_identity`, which today only the
   multiplayer lobby compares), and the load tells the player when it differs.
+
+**The save's mods (built 2026-11-10).** `upgrades/mods/save_mods`, a zSave
+registrant of ours, "Mods" (priority 1, saved and read ahead of the
+animations' 0x32..0x34):
+- A campaign game saved while a gameplay mod is on (`mods_identity`'s hash
+  not 0, the lobby's rule: textures, sounds, strings, music and movies do
+  not count) holds one more entry, `Mods/identity`, as text:
+  `hash <16 hex digits>`, then `mod <name>` for each such mod. Saved
+  without one, the file is the original's, entry for entry.
+- The original's load passes over an entry whose owner it has not
+  registered (0x005a8e40; `test_zsave.py` runs loads with registrants
+  missing), so the original exe and earlier builds read ours as before.
+- Each saved-game read (`PilotHooks::load_world`) starts as "made without
+  mods"; the entry, when there, gives the save's. After the mission load's
+  "Saved Game Loaded", a save whose hash is not the running one's adds a line
+  to the loading screen and the log: "Saved with other mods: A; now B",
+  "Saved with mods: A; none now" or "Saved without mods; now with B". The game
+  still loads: the animations are matched by name (above), so what moved is
+  dropped rather than run as the wrong one.
+
+Tests: `mods_saved_game_records_its_mods` (a world mod, two of them, a
+textures mod: the entry only with gameplay; each pairing said or not, once;
+the text read back), and `campaign_menus_to_c1m1_through_the_briefing_headless`
+(c1m1 won with a mod's identity, c1m2's load with none: the loading screen's
+line). Breaks caught: the line left out, the entry written without mods, the
+load's reset left out.
 
 The bytes: each def is written with the anim JSON's def writer
 (`zeff_anim_json.cpp`'s, unchanged), and each base def's bytes are spliced in

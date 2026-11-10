@@ -22,6 +22,7 @@
 #include "mech3/options.h"
 #include "mech3/pilot.h"
 #include "mech3/mission.h"
+#include "upgrades/mods/save_mods.h"
 
 namespace mech3 {
 
@@ -51,7 +52,10 @@ ActionSetup& action_setup() {
 
 Config* PilotHooks::config_load(const char* name, std::FILE* f) { return Config::from_file(name, f); }
 void PilotHooks::save_world(const char* path, int32_t kind) { zsave::save(path, kind); }
-bool PilotHooks::load_world(const char* path, int32_t kind) { return zsave::load(path, kind); }
+bool PilotHooks::load_world(const char* path, int32_t kind) {
+  save_mods_begin_load();  // ours: the save's mods, said after the load (upgrades/mods/save_mods)
+  return zsave::load(path, kind);
+}
 void PilotHooks::config_save(Config* c, std::FILE* f) {
   if (c) c->save(f);
 }
