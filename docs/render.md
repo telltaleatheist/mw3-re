@@ -726,6 +726,16 @@ It is dt-scaled already, so no frame-rate fix. The ported draw reads the
 moved UVs as any others. `zmod::model_set_scroll`, `zmod::model_scroll_tick`;
 `tests/differential/test_model_fx.py`.
 
+At the reference runtime's 53 bits the exe keeps the step's sum on the FPU
+stack before the `_ftol` cut (only dt x speed is stored as a float), so
+`scroll_step` does the same under `zfix fpu53` (b9bc219e, as PM's).
+Measured on real data (2026-11-10): the float way and the double way give
+the same cut and the same step on every call, 0 differences in 19.8
+million calls (c1m1 for 20,000 frames and c2m1, c2m3, c3m1, c3m4, c3m6,
+c4m1, c4m3, c4bm5, t1m2 for 3,000 each: the worlds' scripted scrolls and
+the vehicles' tracks). The speeds times dt and the UV ranges stay small,
+so the cut never meets a whole number at the edge; no branch flips.
+
 ### The object3d colour blend (0x4fb8c0, 0x4fb840; ported 2026-10-25)
 
 0x4fb8c0 (object3d.c, ECX the node, EDX an rgb or none, stack a weight)
