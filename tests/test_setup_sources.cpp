@@ -545,6 +545,87 @@ TEST(setup_install_pirates_moon_from_its_disc) {
   fs::remove_all(tmp, ec);
 }
 
+// Pirate's Moon's checks before a start (docs/launcher.md, Pirate's Moon),
+// each case a copy of game/pm by links with one file gone or emptied: only
+// what stops mw3pm starting refuses; the rest are notes in plain words. The
+// disc's soundsH.zbd goes to the settings folder, the install never written.
+TEST(setup_pirates_moon_checks_before_a_start) {
+  if (!have_games()) return;
+  namespace fs = std::filesystem;
+  namespace su = mech3::setup;
+  const std::string tmp = std::string(MW3_TEST_TMP) + "/pm-checks";
+  std::error_code ec;
+  fs::remove_all(tmp, ec);
+  auto copy = [&](const std::string& name, const std::string& gone, const std::string& empty) {
+    const fs::path to = fs::path(tmp) / name;
+    fs::create_directories(to);
+    for (const auto& e : fs::recursive_directory_iterator(kGame + "/pm")) {
+      const std::string rel = fs::relative(e.path(), kGame + "/pm").generic_string();
+      if (rel == gone || rel.rfind(gone + "/", 0) == 0) continue;
+      if (e.is_directory()) fs::create_directories(to / rel);
+      else if (rel == empty) std::fclose(std::fopen((to / rel).string().c_str(), "wb"));
+      else fs::create_symlink(e.path(), to / rel);
+    }
+    return to.string();
+  };
+  auto listing = [&](const std::string& dir) {
+    std::string out;
+    for (const auto& e : fs::recursive_directory_iterator(dir))
+      out += e.path().string() + " " + std::to_string(e.is_regular_file() ? fs::file_size(e.path()) : 0) + "\n";
+    return out;
+  };
+  auto has = [](const su::Result& r, const char* a, const char* b) {
+    for (const std::string& w : r.warnings)
+      if (w.find(a) != std::string::npos && w.find(b) != std::string::npos) return true;
+    return false;
+  };
+
+  const su::Result good = su::check_install(kGame + "/pm", tmp + "/w0", true);
+  EXPECT(good.ok && good.pirates_moon && good.warnings.empty());
+
+  const std::string sounds = copy("sounds", "", "zbd/soundsH.zbd"), before = listing(sounds);
+  const std::string wd = tmp + "/write";
+  const su::Result a = su::check_install(sounds, wd, true);
+  std::printf("  soundsH empty: %s | %s\n", a.summary.c_str(), a.warnings.empty() ? "" : a.warnings[0].c_str());
+  EXPECT(a.ok && a.warnings.size() == 1 && has(a, "soundsH.zbd is empty", "ADD FROM MY DISC"));
+  const su::Result add = su::add_pm_sounds(kGame + "/pm-disc/pm.iso", wd, nullptr);
+  std::printf("  added: %s\n", add.summary.c_str());
+  EXPECT(add.ok && slurp(wd + "/zbd/soundsH.zbd") == slurp(kGame + "/pm/zbd/soundsH.zbd") && !fs::exists(wd + "/zbd/soundsH.zbd.new"));
+  EXPECT(su::check_install(sounds, wd, true).warnings.empty());
+  EXPECT(listing(sounds) == before && fs::file_size(sounds + "/zbd/soundsH.zbd") == 0);  // the install untouched
+  // A second time, and one the player put there: kept.
+  const su::Result again = su::add_pm_sounds(kGame + "/pm-disc/pm.iso", wd, nullptr);
+  EXPECT(again.ok && again.summary.find("left as it is") != std::string::npos);
+  // Not the Pirate's Moon disc, or not a disc.
+  const su::Result not_disc = su::add_pm_sounds(kGame + "/pm", tmp + "/w1", nullptr);
+  EXPECT(!not_disc.ok && !fs::exists(tmp + "/w1/zbd/soundsH.zbd"));
+  int calls = 0;
+  const su::Result stop = su::add_pm_sounds(kGame + "/pm-disc/pm.iso", tmp + "/w2", [&](const su::Progress&) { return ++calls < 3; });
+  EXPECT(stop.cancelled && !stop.ok && !fs::exists(tmp + "/w2/zbd/soundsH.zbd") && !fs::exists(tmp + "/w2/zbd/soundsH.zbd.new"));
+  const su::Result missing = su::check_install(copy("nosounds", "zbd/soundsH.zbd", ""), tmp + "/w3", true);
+  EXPECT(missing.ok && has(missing, "soundsH.zbd is missing", "lower-quality"));
+
+  // What stops a start: no Mech3Msg.dll, an empty reader.zbd.
+  const su::Result msg = su::check_install(copy("nomsg", "Mech3Msg.dll", ""), tmp + "/w4", true);
+  std::printf("  no Mech3Msg.dll: %s\n", msg.summary.c_str());
+  EXPECT(!msg.ok && msg.summary.find("cannot start") != std::string::npos && msg.summary.find("Mech3Msg.dll") != std::string::npos);
+  const su::Result reader = su::check_install(copy("reader", "", "zbd/reader.zbd"), tmp + "/w5", true);
+  EXPECT(!reader.ok && reader.summary.find("reader.zbd") != std::string::npos);
+  // What stops the missions: a core file, an operation's.
+  const su::Result interp = su::check_install(copy("nointerp", "zbd/interp.zbd", ""), tmp + "/w6", true);
+  std::printf("  no interp.zbd: %s\n", interp.warnings.empty() ? "" : interp.warnings[0].c_str());
+  EXPECT(interp.ok && interp.warnings.size() == 1 && has(interp, "missions will not load", "zbd\\interp.zbd is missing"));
+  const std::string no_op = copy("noc2", "zbd/c2/gamez.zbd", "zbd/c4/reader.zbd");
+  const su::Result ops = su::check_install(no_op, tmp + "/w7", true);
+  std::printf("  operations: %s\n", ops.warnings.empty() ? "" : ops.warnings[0].c_str());
+  EXPECT(ops.ok && ops.warnings.size() == 1 && has(ops, "operations 2 and 4", "cannot be played"));
+  // A file in the settings folder counts.
+  fs::create_directories(tmp + "/w8/zbd/c2", ec);
+  fs::create_symlink(kGame + "/pm/zbd/c2/gamez.zbd", tmp + "/w8/zbd/c2/gamez.zbd", ec);
+  EXPECT(has(su::check_install(no_op, tmp + "/w8", true), "Operation 4's missions are", "it cannot"));
+  fs::remove_all(tmp, ec);
+}
+
 // The real thing, when the backups are here (a long read: MW3_SETUP_LONG=1):
 // Redump's MechWarrior 3 zip, its data track 626 MB and two audio tracks.
 TEST(setup_map_the_real_redump_zip) {

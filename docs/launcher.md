@@ -213,6 +213,29 @@ single-game packages stay. One sitting each, each with its tests:
    empty `zbd\soundsH.zbd` (the disc's copy put in Pirate's Moon's settings
    folder, never into the install); anything else that blocks a start.
    Tests: each case made in a copy, the words checked, the install untouched.
+   **Done (2026-11-09):** `setup::check_install(dir, write_dir, true)` and
+   `Launcher::start_pm`. What blocks was measured on copies of game/pm with
+   one file gone, mw3pm run to its menu and into c1m1: only an empty or
+   missing `zbd\reader.zbd` and a missing `Mech3Msg.dll` stop it starting
+   (refused, in words, nothing started). Missing `interp.zbd`, `mechlib.zbd`
+   or `motion.zbd` stop the missions ("Failed to Interpret: c1.gs -- Mission
+   Load Aborted"), and an operation without its `gamez.zbd` or `reader.zbd`
+   crashes on its load (MW3's mw3 too): notes naming them. An empty or
+   missing `soundsH.zbd` only drops to soundsL's 11 kHz sounds: a note.
+   A file in PM's settings folder counts (searched before the install). The
+   notes show once on BEFORE YOU PLAY (their CRC kept as `pm_notes=` in
+   mw3.cfg; new ones show again), then only in the log. `setup::add_pm_sounds`
+   takes the disc's `zbd\soundsH.zbd` from its cabinet into PM's settings
+   folder's `zbd\` (one already there kept), for sitting 4's ADD FROM MY
+   DISC. The launcher finds PM's settings folder as mw3pm does
+   (`data_folder_at_start(..., "Pirate's Moon")`; `MW3_PM_WRITE_DIR` for
+   checks) and writes nothing there. Tests: `setup_pirates_moon_checks_before_a_start`
+   (each case by links, the words, the disc's sounds added and the install's
+   listing unchanged, a cancel), `sdl_program_launcher_checks_pirates_moon`
+   (refused, notes once, then logged, a new note shown, the settings
+   folder's sounds counted). Breaks: the Mech3Msg.dll check dropped, the
+   settings folder not read, the notes always shown, operation 4 missed:
+   each caught.
 4. **GAME FILES for Pirate's Moon**: its folder, ADD FROM MY DISC (the
    music), SETUP, and MY DATA FOLDER where it applies, the same screens as
    MW3's acting on the game last clicked. Tests: each button through the

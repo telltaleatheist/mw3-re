@@ -60,6 +60,12 @@ Result install_from_source(const source::Found& found, const std::string& out_di
 // front of the install at every start (the install is never written).
 Result apply_patch(const std::string& source, const std::string& write_dir, const ProgressFn& progress);
 
+// Pirate's Moon's zbd/soundsH.zbd from its disc's cabinet (a drive, the
+// disc's folder, an .iso or a .cue) into `write_dir`/zbd, searched before the
+// install: for an install whose own is empty (check_install's note). The
+// install is never written, and one already in `write_dir` is kept.
+Result add_pm_sounds(const std::string& source, const std::string& write_dir, const ProgressFn& progress);
+
 // A disc image's CD audio (its .cue) as music_dir/trackNN.wav.
 Result add_music(const std::string& cue, const std::string& music_dir, const ProgressFn& progress);
 
@@ -90,6 +96,9 @@ std::vector<DiscSource> find_discs();
 
 // Whether `dir` holds MechWarrior 3 (zbd/reader.zbd), and which data
 // version: 1.2 with `write_dir`/patch12 in front of it when that exists.
+// `pirates_moon`: refused only when mw3pm cannot start (no reader.zbd or
+// Mech3Msg.dll); missions that cannot load and an empty soundsH.zbd are
+// `warnings`, a file in `write_dir` counting as there.
 Result check_install(const std::string& dir, const std::string& write_dir, bool pirates_moon = false);
 
 }  // namespace mech3::setup

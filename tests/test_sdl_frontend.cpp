@@ -4994,6 +4994,7 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/wd", ec);
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);  // never the player's own
   std::filesystem::path install = std::filesystem::path(MW3_GAME_DIR).parent_path() / "pm";
   const bool have_pm = std::filesystem::is_regular_file(install / "Mech3.exe", ec);
   if (!have_pm) {
@@ -5052,6 +5053,7 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   std::getline(kept, line);
   EXPECT(line == "pm_install=" + dir + "/gone");
   unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
 }
 #endif
 
@@ -5103,11 +5105,13 @@ TEST(sdl_program_launcher_finds_pirates_moon) {
   }
   fs::permissions(pm, fs::perms::owner_all, ec);
   setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);
   const std::string log = dir + "/launcher.log";
   const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-pm", "--window", "640x480", "--hidden", "--nosound"}, log);
   int status = 0;
   EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
   unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
   setenv("HOME", home_was.c_str(), 1);
   std::ifstream lf(log);
   const std::string text((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>());
@@ -5121,6 +5125,95 @@ TEST(sdl_program_launcher_finds_pirates_moon) {
   EXPECT(text.find("Pirate's Moon found at " + bottle.string()) != std::string::npos);
   EXPECT(cfg.find("pm_install=" + bottle.string()) != std::string::npos);
   EXPECT(args.size() >= 2 && args[0] == "--install" && args[1] == bottle.string());
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Pirate's Moon checked before it starts (docs/launcher.md, Pirate's Moon,
+// sitting 3), each case game/pm by links with a file gone or emptied: what
+// stops it is said and nothing starts; notes are shown once (BEFORE YOU PLAY,
+// its OK pressed by --launcher-pm), then only logged; the disc's soundsH.zbd
+// in PM's settings folder counts. Neither the install nor that folder written.
+TEST(sdl_program_launcher_checks_pirates_moon) {
+  namespace fs = std::filesystem;
+  const fs::path game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  std::error_code ec;
+  if (!fs::is_regular_file(game / "Mech3.exe", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher pm checks";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  auto copy = [&](const std::string& name, const std::string& gone, const std::string& empty) {
+    const fs::path to = fs::path(dir) / name;
+    fs::create_directories(to);
+    for (const auto& e : fs::recursive_directory_iterator(game)) {
+      const std::string rel = fs::relative(e.path(), game).generic_string();
+      if (rel == gone) continue;
+      if (e.is_directory()) fs::create_directories(to / rel);
+      else if (rel == empty) std::fclose(std::fopen((to / rel).string().c_str(), "wb"));
+      else fs::create_symlink(e.path(), to / rel);
+    }
+    return to.string();
+  };
+  const std::string pm = dir + "/mw3pm";
+  {
+    std::ofstream sh(pm);
+    sh << "#!/bin/sh\necho started >> \"" << dir << "/started.txt\"\nexit 0\n";
+  }
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);
+  auto starts = [&]() {
+    std::ifstream f(dir + "/started.txt");
+    int n = 0;
+    for (std::string l; std::getline(f, l);) ++n;
+    return n;
+  };
+  auto run = [&](const std::string& install, const char* name) {
+    {
+      std::ofstream c(dir + "/wd/mw3.cfg", std::ios::app);
+      c << "pm_install=" << install << "\n";
+    }
+    const std::string log = dir + "/" + name + ".log";
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-pm", "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto listing = [&](const std::string& d) {
+    std::string out;
+    for (const auto& e : fs::recursive_directory_iterator(d, ec)) out += e.path().string() + "\n";
+    return out;
+  };
+
+  // What stops it: said, nothing started.
+  std::string text = run(copy("nomsg", "Mech3Msg.dll", ""), "nomsg");
+  EXPECT(text.find("cannot start") != std::string::npos && text.find("no Mech3Msg.dll") != std::string::npos && starts() == 0);
+  // A note: shown once with its OK, then started; the next start only logs it.
+  const std::string quiet = copy("quiet", "", "zbd/soundsH.zbd"), before = listing(quiet);
+  text = run(quiet, "first");
+  EXPECT(text.find("note: Its zbd\\soundsH.zbd is empty") != std::string::npos &&
+         text.find("Pirate's Moon's notes shown") != std::string::npos && starts() == 1);
+  std::ifstream cf(dir + "/wd/mw3.cfg");
+  const std::string cfg((std::istreambuf_iterator<char>(cf)), std::istreambuf_iterator<char>());
+  EXPECT(cfg.find("pm_notes=") != std::string::npos);
+  text = run(quiet, "second");
+  EXPECT(text.find("note: Its zbd\\soundsH.zbd") != std::string::npos && text.find("notes shown") == std::string::npos &&
+         starts() == 2);
+  // Another note is shown again.
+  text = run(copy("noop", "zbd/c3/gamez.zbd", "zbd/soundsH.zbd"), "noop");
+  EXPECT(text.find("Operation 3's missions") != std::string::npos && text.find("notes shown") != std::string::npos && starts() == 3);
+  // The disc's sounds in PM's settings folder: no note.
+  EXPECT(!fs::exists(dir + "/pmwd", ec));  // nothing written there by the launcher
+  fs::create_directories(dir + "/pmwd/zbd", ec);
+  fs::create_symlink(game / "zbd" / "soundsH.zbd", dir + "/pmwd/zbd/soundsH.zbd", ec);
+  text = run(quiet, "sounds");
+  EXPECT(text.find("soundsH") == std::string::npos && text.find("Found MechWarrior 3: Pirate's Moon") != std::string::npos &&
+         starts() == 4);
+  EXPECT(listing(quiet) == before && fs::file_size(quiet + "/zbd/soundsH.zbd", ec) == 0);
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
+  fs::remove_all(dir, ec);
 }
 #endif
 
