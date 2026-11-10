@@ -81,7 +81,7 @@ class AiParams {
   char* sound_tag = nullptr;                  // +0xd8  the radio voice: "dom", "alan", "epona"
 };
 
-// 0x0049d2f0: two names equal; none (null) is never equal, not even to none.
+// PM's 0x004a06c0: two names equal, or both none (MW3's 0x0049d2f0 never matches a none).
 bool same_name(const char* a, const char* b);
 
 int32_t team_side(int32_t which);             // 0x004d5af0: 0 -> 1, 1 -> 2, else 0

@@ -104,7 +104,8 @@ bool x87_equal(float a, float b) { return !(a < b) && !(a > b); }
 // Mech3.exe 1.2 @ 0x004df1b0. Word i is at +0x04 + 4i; each compared as a
 // float (x87_equal) or as an int, as the exe does, and the flag bytes +0xcc /
 // +0xcd by their bits. Word 0x0f's place in the order and the skipped ones
-// are the exe's.
+// are the exe's. Pirate's Moon 1.0 @ 0x004f02b0 is this plus the target block
+// and +0xce bit 1 (its order differs; no side effects, the same result).
 bool AiParams::same_numbers(const AiParams& o) const {
   const auto f = [&](int w) { return x87_equal(get<float>(4 + 4 * w), o.get<float>(4 + 4 * w)); };
   const auto i = [&](int w) { return get<int32_t>(4 + 4 * w) == o.get<int32_t>(4 + 4 * w); };
@@ -125,7 +126,19 @@ bool AiParams::same_numbers(const AiParams& o) const {
   // 0x004bc110 (ECX the first): bit 1 of +0xcd equal, and bit 0 too unless the first has bit 1.
   const uint8_t y = raw[0xcd] ^ o.raw[0xcd];
   if ((y & 2) || (!(raw[0xcd] & 2) && (y & 1))) return false;
-  return i(0x31) && !(x & 0x80);
+  if (!(i(0x31) && !(x & 0x80))) return false;
+  // Pirate's Moon 1.0 @ 0x004c25a0: the target block, floats but for words 2
+  // and 3, and its flags (PM's +0xed bits 2-7, +0xee bit 0; here +0xcd, +0xce).
+  const auto t = [&](int w) {
+    float p, q;
+    std::memcpy(&p, &target_words[w], 4);
+    std::memcpy(&q, &o.target_words[w], 4);
+    return x87_equal(p, q);
+  };
+  if (!(t(0) && t(1) && target_words[2] == o.target_words[2] && target_words[3] == o.target_words[3] && t(4) &&
+        t(5) && t(6) && t(7) && !(y & 0xfc) && !((raw[0xce] ^ o.raw[0xce]) & 1)))
+    return false;
+  return !((raw[0xce] ^ o.raw[0xce]) & 2);  // Pirate's Moon 1.0 @ 0x004f02b0's last test
 }
 
 // Mech3.exe 1.2 @ 0x004d9140: one vlist entry against another.
@@ -147,7 +160,8 @@ bool AiParams::same_vlist(const AiParams& o) const {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0049d2f0
-bool same_name(const char* a, const char* b) { return a && b && std::strcmp(a, b) == 0; }
+// Pirate's Moon 1.0 @ 0x004a06c0 (Mech3.exe 1.2 @ 0x0049d2f0 plus its first
+// test: the same pointer, two nones too, is equal).
+bool same_name(const char* a, const char* b) { return a == b || (a && b && std::strcmp(a, b) == 0); }
 
 }  // namespace mech3::ai
