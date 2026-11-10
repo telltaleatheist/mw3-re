@@ -19,6 +19,7 @@ struct LauncherOptions {
   std::string cfg_install;                // mw3.cfg's install=
   std::string cfg_pm_install;             // mw3.cfg's pm_install= (Pirate's Moon's folder)
   std::string cfg_pm_notes;               // mw3.cfg's pm_notes=: the CRC of the PM notes last shown
+  std::string cfg_mw3_notes;              // mw3.cfg's mw3_notes=: the same for MechWarrior 3's start check
   std::string pm_write_dir;               // Pirate's Moon's settings folder (MW3_PM_WRITE_DIR; else found at its start)
   std::string cfg_mw1_game;               // mw3.cfg's mw1_game= (MechWarrior 1989's folder)
   std::vector<std::string> more_installs;  // a development build's copy

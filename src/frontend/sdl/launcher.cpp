@@ -421,6 +421,9 @@ class Launcher {
   void run_mw1();
   void start_game(bool pm = false);
   void start_pm();
+  bool mw3_ready();
+  void mw3_notes_seen();
+  bool notes_once(const std::vector<std::string>& notes, std::string* crc_kept, const char* key);
   void find_pm();
   // GAME FILES on Pirate's Moon (files_pm_): its settings folder as mw3pm
   // finds it, its usual one (MW3's sibling, "MicroProse/Pirate's Moon", made
@@ -506,6 +509,7 @@ class Launcher {
   bool files_pm_ = false;  // GAME FILES' screens are Pirate's Moon's (pm_last_ when they opened)
   bool pm_lacks_music_ = false, pm_lacks_sounds_ = false;  // pm_refresh
   std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
+  std::vector<std::string> mw3_check_notes_;  // start_check's for MW3, part of notes_ (notes_refresh)
   std::string mw3_program_, pm_program_;  // each game's program's version (--version), once at the start
   bool entries_logged_ = false;
   std::string game_name_ = "MechWarrior 3";  // the one started, for the status lines
@@ -707,30 +711,51 @@ void Launcher::start_pm() {
   mech3::setup::Result r;
   const std::vector<std::string> notes = pm_notes(&r);
   std::printf("mw3: launcher: %s\n", r.summary.c_str());
-  std::string all;
-  for (const std::string& w : notes) std::printf("mw3: launcher: note: %s\n", w.c_str()), all += w + "\n";
+  for (const std::string& w : notes) std::printf("mw3: launcher: note: %s\n", w.c_str());
   if (!r.ok) {
     status_ = r.summary, status_good_ = false;
     screen_ = kMain, layout();
     return;
   }
+  files_pm_ = true;  // its ADD FROM MY DISC on the notes
+  pm_after_notes_ = true;
+  if (notes_once(notes, &o_.cfg_pm_notes, "pm_notes")) return;
+  pm_after_notes_ = false;
+  start_game(true);
+}
+
+// A game's notes before a start, new ones (their CRC not `crc_kept`, saved as `key`=) shown once on BEFORE YOU PLAY,
+// whose OK starts the game (pm_after_notes_ says which); true when shown.
+bool Launcher::notes_once(const std::vector<std::string>& notes, std::string* crc_kept, const char* key) {
+  std::string all;
+  for (const std::string& n : notes) all += n + "\n";
   char crc[16];
   std::snprintf(crc, sizeof crc, "%08x", zutl_zar::crc32(0, reinterpret_cast<const uint8_t*>(all.data()), all.size()));
-  if (!notes.empty() && o_.cfg_pm_notes != crc) {
-    o_.cfg_pm_notes = crc;
-    save_config_value(o_.write_dir, "pm_notes", crc);
-    notes_ = notes, files_pm_ = true;  // its ADD FROM MY DISC on the notes
-    pm_refresh();
-    std::printf("mw3: launcher: Pirate's Moon's notes shown\n");
-    play_after_notes_ = pm_after_notes_ = true, status_.clear();
-    screen_ = kNotes, layout();
-    if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK): the notes' OK pressed
-      auto_ok_ = false;
-      activate(kNotesOk);
-    }
-    return;
+  if (notes.empty() || *crc_kept == crc) return false;
+  *crc_kept = crc;
+  save_config_value(o_.write_dir, key, crc);
+  notes_ = notes;
+  std::printf("mw3: launcher: %s's notes shown\n", pm_after_notes_ ? "Pirate's Moon" : "MechWarrior 3");
+  play_after_notes_ = true, status_.clear();
+  screen_ = kNotes, layout();
+  if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK, --launcher-pm, --launcher-play): the notes' OK pressed
+    auto_ok_ = false;
+    activate(kNotesOk);
   }
-  start_game(true);
+  return true;
+}
+
+// MechWarrior 3 checked before PLAY as Pirate's Moon is (start_pm, setup::start_check): its new notes once on
+// BEFORE YOU PLAY, whose OK plays. What stops it starting is left to mw3, which says it in its own box as the
+// original does ("Cannot read mech3Msg.dll from the game folder."). False: not started now.
+bool Launcher::mw3_ready() {
+  if (!install_.ok) return true;  // the find screen's own path
+  const mech3::setup::Result r = mech3::setup::start_check(install_.dir, o_.write_dir, false);
+  std::printf("mw3: launcher: %s\n", r.summary.c_str());
+  for (const std::string& w : r.warnings) std::printf("mw3: launcher: note: %s\n", w.c_str());
+  if (!r.ok) return true;
+  files_pm_ = pm_after_notes_ = false;
+  return !notes_once(r.warnings, &o_.cfg_mw3_notes, "mw3_notes");
 }
 
 // Pirate's Moon's notes before a start: the check's, and no music as
@@ -1314,6 +1339,21 @@ void Launcher::notes_refresh() {
   for (const std::string& n : launcher_notes(install_.version, !lacks_music_, !lacks_movies_, dir))
     std::printf("mw3: launcher: note: %s\n", n.c_str());
   notes_ = launcher_notes(install_.version, !lacks_music_, !lacks_movies_, text_.fit(dir, 14, 440));  // a long folder shortened
+  // The start check's notes on the same screen, so PLAY does not show a second one (mw3_ready).
+  const mech3::setup::Result c = mech3::setup::start_check(install_.dir, o_.write_dir, false);
+  mw3_check_notes_ = c.ok ? c.warnings : std::vector<std::string>{};
+  for (const std::string& n : mw3_check_notes_) std::printf("mw3: launcher: note: %s\n", n.c_str()), notes_.push_back(n);
+}
+
+// The start check's notes counted as shown (mw3_notes=, as notes_once keeps them): the notes screen has them.
+void Launcher::mw3_notes_seen() {
+  std::string all;
+  for (const std::string& n : mw3_check_notes_) all += n + "\n";
+  char crc[16];
+  std::snprintf(crc, sizeof crc, "%08x", zutl_zar::crc32(0, reinterpret_cast<const uint8_t*>(all.data()), all.size()));
+  if (mw3_check_notes_.empty() || o_.cfg_mw3_notes == crc) return;
+  o_.cfg_mw3_notes = crc;
+  save_config_value(o_.write_dir, "mw3_notes", crc);
 }
 
 // Pirate's Moon's usual settings folder: beside MechWarrior 3's under
@@ -1388,6 +1428,7 @@ std::string Launcher::in_use() const {
 // MechWarrior 3 started: by mw3launcher as the game's own program, else
 // (a plain mw3 start, or no game_bin) the window handed on.
 void Launcher::play() {
+  if (!mw3_ready()) return;
   // The movies converted here first, with the bar (Owen: a first start sat
   // 44 s on "Starting MechWarrior 3..." while mw3 did it); mw3's own import
   // stays the fallback for a start without the launcher.
@@ -1559,6 +1600,7 @@ void Launcher::use_install(const std::string& dir, const std::string& version, c
   }
   if (!notes_.empty()) {
     play_after_notes_ = true, status_.clear();
+    mw3_notes_seen();
     screen_ = kNotes, layout();
     if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK): the notes' OK pressed
       auto_ok_ = false;
@@ -2038,7 +2080,7 @@ LauncherChoice Launcher::run() {
   // A game without its files opens the find screen only when it is chosen;
   // a plain mw3 start that found none shows that screen alone.
   if (o_.setup_only) screen_ = kSetupScreen;
-  else if (install_.ok && first_start) screen_ = kNotes;
+  else if (install_.ok && first_start) screen_ = kNotes, mw3_notes_seen();
   layout();
   // Not high pixel density: the game takes this window (one window into the
   // game), and its sizes are the window's points (SdlWindow, SdlInput).
@@ -2059,7 +2101,7 @@ LauncherChoice Launcher::run() {
   SDL_SetTextureScaleMode(tex_, SDL_SCALEMODE_LINEAR);
   Uint64 last = SDL_GetTicks();
   SDL_InitSubSystem(SDL_INIT_GAMEPAD);  // a pad steps through the plates too (nav)
-  if (o_.play) activate(kMw3);
+  if (o_.play) auto_ok_ = true, activate(kMw3);  // its notes' OK pressed too
   // Checks: keys or a pad as a list ("next,next,press"), each step logged.
   if (const char* steps = SDL_getenv("MW3_LAUNCHER_NAV")) {
     std::string all = steps;
