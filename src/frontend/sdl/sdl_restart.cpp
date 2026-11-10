@@ -167,7 +167,9 @@ bool restart_into(const std::string&, const std::vector<std::string>& args, std:
   AllowSetForegroundWindow(pi.dwProcessId);     // its window may come to the front as ours did
   ResumeThread(pi.hThread);
   CloseHandle(pi.hThread), CloseHandle(pi.hProcess);
-  ExitProcess(0);  // the run is over (main has closed it); nothing more of this process is wanted
+  // The run is over (main has closed it); nothing more of this process is wanted. Its exit code tells a
+  // launcher that is still watching it that the game went on as another process (log_start.h).
+  ExitProcess(static_cast<UINT>(kStartedAgainExit));
 }
 
 #else

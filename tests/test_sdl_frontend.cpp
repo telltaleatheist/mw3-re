@@ -38,6 +38,7 @@
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
+#include "frontend/sdl/log_start.h"
 #include "frontend/sdl/text_fit.h"
 #include <SDL3_ttf/SDL_ttf.h>
 #include "frontend/sdl/sdl_force.h"
@@ -5121,6 +5122,14 @@ TEST(sdl_program_launcher_stays_when_the_game_fails_or_is_slow) {
               has(slow.log, "no first frame from the game after"), has(slow.log, "the launcher closes"), slow.game_alive);
   EXPECT(slow.exited && slow.game_alive);
   EXPECT(has(slow.log, "no first frame from the game after") && has(slow.log, "the launcher closes"));
+  // A game the launcher is still watching (it never saw a first frame) that ends by starting itself again as a
+  // new process (Windows' restart, log_start.h's exit code): the game goes on, so the launcher closes without
+  // a word of an error and does not come back.
+  const LauncherRun again = run_launcher_with("launcher_game_again", "sleep 1\nDONE\nexit " + std::to_string(sdlfe::kStartedAgainExit));
+  std::printf("a game that started itself again: said %d, no error %d\n", has(again.log, "started itself again"),
+              !has(again.log, "exited (93)"));
+  EXPECT(again.exited && has(again.log, "MechWarrior 3 started itself again") && has(again.log, "the launcher closes"));
+  EXPECT(!has(again.log, "exited (93)") && !has(again.log, "closed with an error"));
 }
 
 // The launcher for v1.0 (Owen and the lead, 2026-11-02; docs/launcher.md):
