@@ -142,7 +142,12 @@ sound per surface (volume by speed), 0x4000 no ground test. With gravity the
 node looks for ground under it (0x505160 over 0x4edab0's hits): crossing it
 lands it (snapped, or bounced up by half the step when moving sideways);
 landing slower than its acceleration ends the motion, faster keeps 20% of
-the speed. Falling 15 s with nothing below ends it (unless 0x400).
+the speed. Falling 15 s with nothing below ends it (unless 0x400). Around the
+query a node is taken out (flag 8): MW3 the anim's own node, Pirate's Moon
+(0x51cd60) the node moved (zgame `anim_motion_ground_self`). A PM turret's
+debris therefore lands on the turret's platform (g3, in the turret's tree),
+where MW3's way finds no ground and drops it through the world
+(`pm_c1m2_turret_debris_lands_on_its_platform`; pm-tests 37).
 
 The frame used for the start vector and the own-frame gravity is the
 *transpose* of the node-to-world rotation (0x5047fa, 0x50497e), i.e. world

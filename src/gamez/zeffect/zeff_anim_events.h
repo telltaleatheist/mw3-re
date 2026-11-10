@@ -83,5 +83,9 @@ float connector_part(zcls::Node* node, const float from[3], float t0, const floa
 // stack how far up to look, &hit: the ground nearest the point.
 int32_t ground_below(const float pos[3], float reach, GroundHits& hits, int32_t* best);  // 0x00505160
 float distance2_to_player(zcls::Node* node);                       // 0x00507340
+// Tests: called before OBJECT_MOTION's ground query with the anim's node, the node moved, the one taken out of the
+// query (MW3's the first, PM's the second), its place and how far up.
+using MotionSurvey = void (*)(zcls::Node* anim_node, zcls::Node* moved, zcls::Node* out, const float pos[3], float reach);
+MotionSurvey& motion_survey();
 
 }  // namespace zeff

@@ -93,6 +93,9 @@ struct Table {
   // The pocket commander's frame (pocket_panel.cpp, 0x00469d00; PM's 0x0046b980): PM puts the marker on the ground
   // (0x0046b8d0) and never switches it on or off, and with no target re-picks nothing.
   bool pocket_frame_pm;
+  // OBJECT_MOTION's ground query (zeff_anim_events.cpp, 0x00504520; PM 0x0051cd60): MW3 takes its anim's node out of
+  // it (flag 8), PM the node it moves.
+  bool anim_motion_ground_self;
 };
 
 const Table& mw3_table();

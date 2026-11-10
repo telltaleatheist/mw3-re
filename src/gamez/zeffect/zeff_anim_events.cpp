@@ -323,6 +323,11 @@ int32_t ev_object_rotate(AnimDef& d, uint8_t* e) {
   return 2;
 }
 
+MotionSurvey& motion_survey() {
+  static MotionSurvey s = nullptr;
+  return s;
+}
+
 // Mech3.exe 1.2 @ 0x00505160. The ground hit nearest the point, among those
 // less than 10 above it (the first one is taken whatever its height).
 const GroundHit* ground_below(const float pos[3], float reach, GroundHits& hits) {
@@ -341,7 +346,8 @@ const GroundHit* ground_below(const float pos[3], float reach, GroundHits& hits)
   return best < 0 ? nullptr : &hits.hit[best];
 }
 
-// Mech3.exe 1.2 @ 0x00504520. ECX def, EDX seq, the event on the stack.
+// Mech3.exe 1.2 @ 0x00504520; Pirate's Moon 1.0 @ 0x0051cd60, whose ground query leaves out the node moved
+// ([ebp-0x2c]) where MW3's leaves out its anim's (zgame anim_motion_ground_self). ECX def, EDX seq, the event on the stack.
 // Object motion (mech3ax ObjectMotion): node +0x10; flags +0x0c: 1 gravity
 // (+0x18, along world y, or the node's own frame with 0x2000), 2 add the
 // anim's start vector in the parent's frame, 4 velocity +0x40 / accel +0x4c,
@@ -439,14 +445,16 @@ int32_t ev_object_motion(AnimDef& d, SeqDef& s, uint8_t* e) {
     float pos[3];
     if ((f & 1) && !(f & 0x4000)) {
       zcls::node_world_position(n, pos);
+      Node* out = zgame::game().anim_motion_ground_self ? n : d.node;
+      if (motion_survey()) motion_survey()(d.node, n, out, pos, std::fabs(dy));  // a test's comparison of the two
       int32_t saved;
-      zcls::node_get_flag8(d.node, &saved);
-      zcls::node_set_flag8(d.node, 0);
+      zcls::node_get_flag8(out, &saved);
+      zcls::node_set_flag8(out, 0);
       GroundHits hits;
       hit = ground_below(pos, std::fabs(dy), hits);
       static GroundHit kept;  // the hit outlives `hits` below
       if (hit) kept = *hit, hit = &kept;
-      zcls::node_set_flag8(d.node, saved);
+      zcls::node_set_flag8(out, saved);
       if (dy < 0.0) {
         if (hit) {
           if (pos[1] + dy < hit->y) {
