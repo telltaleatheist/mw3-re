@@ -334,6 +334,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/mod_test.cpp
   src/upgrades/mods/mod_needs.cpp
   src/upgrades/mods/campaign_entries.cpp
+  src/upgrades/mods/entry_pilot_copy.cpp
   src/upgrades/mods/starter_mods.cpp
   src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
@@ -616,6 +617,7 @@ add_executable(mw3tests
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp
+  tests/test_entry_pilot_copy.cpp
   tests/test_net_save.cpp
   tests/test_new_weapon.cpp
   tests/test_teleport.cpp

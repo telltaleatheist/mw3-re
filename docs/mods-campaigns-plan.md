@@ -96,3 +96,19 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - 1.1.0 waits for this (Owen, 2026-11-10), so mods change behaviour once.
 - The starter mods' translation kind: kept as it is (it costs nothing), but not
   featured, since translations are not managed.
+
+## Built: the pilot's copy (2026-11-10)
+
+`mech3::entry_copy_pilot` (`upgrades/mods/entry_pilot_copy`), the function
+behind "starting a campaign entry can copy a pilot over"; the MODS screen's
+offer calls it. It copies the main menu's `pilots/<name>.mw3`, that pilot's
+saved games (`pilots/games/<name>CCMM.mw3`: the name, four digits, nothing
+else, so Bob's copy leaves Bob2's saves) and each one's `.rows`, into the
+entry's `pilots/`, and the saved loadouts `configs/*.mw3` into the entry's
+loadouts folder (given by the caller). The originals are only read. Nothing
+in the entry is replaced: a pilot or a saved game of that name already there
+refuses the whole copy, and a loadout file the entry already has is kept
+(counted in `configs_kept`). The entry's folder must carry our marker. A
+copy that fails part-way removes the files it made and the folders it made
+if they are empty again, nothing else. `main_menu_pilots` lists the names
+to offer. Tests: `entry_pilot_copy_*` (tests/test_entry_pilot_copy.cpp).
