@@ -27,10 +27,12 @@ found or installed. The launcher below is its own program, `mw3launcher`
      (each game's data version and its program's, sitting 5 of Pirate's Moon
      below). The label (Owen, 2026-11-10: shown, never blocking) is
      "official" when the data is a release's (MW3 1.0, 1.2, or 1.0 with the
-     patch's files; PM 1.0), the program a release build (a bare vX.Y.Z tag,
-     PM's pm-vX.Y.Z) and no mods are on, else "modified (data, program, 2
-     mods)" naming which (`official_words`; breaks: mods ignored, any v tag
-     taken as a release, the data always official: each caught). Or "Not found yet:
+     patch's files; PM 1.0) and the program a release build (a bare vX.Y.Z
+     tag, PM's pm-vX.Y.Z), else "modified (data, program)" naming which
+     (`official_words`; breaks: any v tag taken as a release, the data always
+     official: each caught). Mods are a feature, not a change to the game
+     (lead): a neutral note of their own, "Ready, official: data 1.2,
+     program v1.1.0, 2 mods on, <folder>" (`versions_words`). Or "Not found yet:
      click to find your game" (a click opens the find screen; v1.0, Owen
      2026-11-02: only then, the launcher always opens on the games). A
      folder too long for the plate is
