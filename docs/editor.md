@@ -1603,6 +1603,26 @@ Checked:
   PM's motion.zbd is left out: every entry stores a length of 1, and the
   editor never saves into it.
 
+### Pirate's Moon's net view (pm, P3, 2026-11-10)
+
+No logic change. Every znet_view pair (0x5acde0..0x5b02b0) and the frame
+0x403190 differ in their code only: PM's build passes in registers or on the
+stack where MW3's passed in other registers (its clip setter 0x5bb1f0 is cdecl,
+MW3's 0x59b2f0 takes ECX and EDX), and it inlines a few calls. In the frame, the
+line clip's box (0, 0, then the screen less 0.9375) is inline, as MW3's asm
+has it (the port's `kEdge`), and the 70-degree test (1.2217305) and the 1.5 are
+read from globals of the same values. The ground pick is the world's vt+0x104
+(MW3's +0xf8), a hook in the port.
+
+Checked: test_net_view.py with MW3_EXE=pm, at 53 bits, the reference
+runtime's (CLAUDE.md). 600 runs, every state, flag and hit the same, 6 drawn
+points a pixel off (as MW3's at 53). At 24 bits PM's floats land 1 to 3 ulps
+from MW3's (its build keeps and spills x87 values elsewhere); all states and
+pixels still agree, so the gap is left alone. Breaks caught: a circle's hit by
+its radius alone, a head's point moved. The test takes PM's three zTwoD
+vtables from its ctors: the address map gives the arrow's 4 off (0x5f16e0 for
+0x5f16dc).
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one

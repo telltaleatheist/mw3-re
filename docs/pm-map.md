@@ -217,7 +217,8 @@ PM's code (unique hits only).
 A slip found (2026-11-10): the vehicle editor's strategy map, MW3's
 0x60b2f8, maps to 0x62f8f4, but PM's own thunk 0x4be440 loads 0x62f8f8 (the
 block's delta is 4 off there). `test_vehicle_ddx.py` passes PM's address
-itself. A global a test hands over as ECX or a value is not translated anyway;
+itself. A second (2026-11-10): the net view's arrow vtable 0x5cf1d0 maps to
+0x5f16e0; PM's ctor at 0x5aec80 stores 0x5f16dc (`test_net_view.py`). A global a test hands over as ECX or a value is not translated anyway;
 check such an address against the PM code that uses it.
 
 **`original.py` on PM's exe** (`MW3_EXE=pm`): every image address a test
