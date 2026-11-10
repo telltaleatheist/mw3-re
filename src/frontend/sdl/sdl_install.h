@@ -31,10 +31,13 @@ std::string pick_source(const std::string& file, const std::vector<std::string>&
 std::string install_of_program_value(std::string value);
 
 // Where the original may be installed, in order: the installer's registry
-// values (HKLM SOFTWARE\MicroProse\MechWarrior 3\1.0 "Program", App Paths
-// mech3.exe; their 32-bit and VirtualStore views), the installer's default
-// folders, then this program's own folder and the one above it.
-std::vector<std::string> install_candidates();
+// values (HKLM SOFTWARE\MicroProse\MechWarrior 3\1.0 "Program", Pirate's
+// Moon's "MechWarrior 3 EP1"; App Paths mech3.exe; their 32-bit and
+// VirtualStore views), the installer's default folders, the usual ones, the
+// Wine, Proton and Lutris prefixes and the Mac's CrossOver and Whisky
+// bottles, then this program's own folder and the one above it. Folders
+// only: the caller checks which game each holds (map_source).
+std::vector<std::string> install_candidates(bool pirates_moon = false);
 
 // mw3.cfg's install= line set to `install` (added, or replacing the old one),
 // the other lines kept; false when the file cannot be written.

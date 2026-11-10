@@ -164,6 +164,43 @@ for Pirate's Moon the same folder picker, which also keeps MY DATA FOLDER, ADD
 FROM MY DISC and SETUP out of it (later items). Installing from a disc and its
 music (the image's track 2) are later too.
 
+### Pirate's Moon as MechWarrior 3 (plan, 2026-11-09; toward the combined 1.1.0)
+
+The lead, from Owen: the launcher does for Pirate's Moon everything it does for
+MechWarrior 3. Owen's rules for all of it: open and easy (players may replace
+the games' programs or data; no integrity or hash refusals, no automatic
+repair: the launcher re-detects what is there, shows it, and explains plainly
+only what truly cannot run); nothing it does touches a player's mods, pilots,
+saves, settings or imported data; each game still starts on its own, and the
+single-game packages stay. One sitting each, each with its tests:
+
+1. **Found by itself.** `sdlfe::install_candidates` takes the game: Pirate's
+   Moon's registry key (HKLM `SOFTWARE\MicroProse\MechWarrior 3 EP1\1.0`
+   "Program", both views and the VirtualStore copies), its default and usual
+   folders, and the same Wine, Proton and Lutris prefixes as MechWarrior 3's,
+   plus the Mac's (CrossOver and Whisky bottles, both games). Each candidate
+   through `map_source`, so neither game's folder is taken for the other's.
+   The launcher looks when mw3.cfg's `pm_install=` is empty or no longer
+   holds the game, and saves what it finds. Tests: a fake HOME with prefixes
+   and bottles (each game found in its own, an MW3 folder never taken as
+   PM's, the saved one first); Windows' registry part by the mingw build.
+2. **Installed from the disc or an image** (.iso, .cue/.bin, a zip or 7z of
+   either) into the rebuild's own folder, as MW3's SETUP does, music from
+   the image's track 2. `setup::install_from_source` taking a Pirate's Moon
+   source (today refused: "Its support comes later"). Tests on game/pm-disc
+   (the image), the result read by `map_source` as PM and played to its
+   first frame by mw3pm.
+3. **Checks before the first game**, in plain words: missing files; an
+   empty `zbd\soundsH.zbd` (the disc's copy put in Pirate's Moon's settings
+   folder, never into the install); anything else that blocks a start.
+   Tests: each case made in a copy, the words checked, the install untouched.
+4. **GAME FILES for Pirate's Moon**: its folder, ADD FROM MY DISC (the
+   music), SETUP, and MY DATA FOLDER where it applies, the same screens as
+   MW3's acting on the game last clicked. Tests: each button through the
+   screens on PM, MW3's files untouched.
+5. **Versions**: each entry shows its game's data version and its program's
+   version. Test: the launcher's text for both games.
+
 ## Installed anywhere (2026-11-06, a player's request)
 
 Nothing keeps where the programs are. They find each other beside themselves;
