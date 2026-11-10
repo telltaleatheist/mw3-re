@@ -499,8 +499,9 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
     enabled->push_back(r.folder);
     entry_mods_save(write_dir, *enabled);  // the run's entry's ticks (campaign_entries.h)
   }
-  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is entered from the game's MODS screen."
-                              : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is listed."
+              : !enabled ? "Added " + d.name + (mod_is_campaign(i) ? ": its campaign is listed." : ": tick it for a campaign, then PLAY.")
+                         : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
   return d;
 }
 

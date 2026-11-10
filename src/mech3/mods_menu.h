@@ -7,6 +7,8 @@
 #include "mech3/menu_states.h"
 #include "mech3/menu_widgets.h"
 #include "mech3/mods_tables.h"
+#include "mech3/mods_widgets.h"
+#include "upgrades/mods/mods_tick_list.h"
 
 // Ours (Owen, 2026-11-08; docs/modding.md, The MODS screen): the main menu's
 // MODS button and its screen, MODSDIALOG (our record edits,
@@ -74,32 +76,6 @@ void mods_menu_picked(const std::string& path);  // "" cancelled; the screen tak
 
 class ModsScreen;
 
-// The screen's pieces other screens of ours on its look use (upgrades/mods/
-// ia_mods_menu.h): the render target, a text placed and said, and the pilot
-// screen's lines with the pilots' box taken out and (`left_box`) a copy of the right box in its place.
-void mods_screen_target(Engine& e);
-void mods_text_put(ztwod::Text& t, const char* font, int32_t x, int32_t y);
-void mods_text_say(ztwod::Text& t, const std::string& s);
-zimg::Texture* mods_screen_lines(zimg::Texture* src, bool left_box = true);
-
-// Ours (lead, 2026-11-10): ENTER and BACK hit where they are drawn, their
-// ring and knob (the image's pixels of alpha 64 and up) and their label's own
-// box. SlideButton::hit
-// (0x004855f0) takes get_rect, which adds every label's height below the
-// image and reaches to the label's end: past BACK's circle, over the tab row
-// beside it, so a tab there also left the screen. The original's screens keep theirs.
-class ModsSlideButton : public SlideButton {
- public:
-  using SlideButton::SlideButton;
-  int32_t hit(int32_t px, int32_t py) override;
-};
-
-class ModsList : public FileList {
- public:
-  ModsList(Engine& e, int32_t id) : FileList(e, id) {}
-  void select(int32_t index) override;  // and tells the screen (its id, the index)
-};
-
 class ModsScreen : public MenuScreen {
  public:
   enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport, kTest };
@@ -112,7 +88,9 @@ class ModsScreen : public MenuScreen {
   void export_mod(const std::string& zip);  // EXPORT's answer: the chosen mod packed (upgrades/mods/mod_export.h), said
   void tell(const std::string& text);     // the two lines under MODS, the text wrapped
   void show_details();               // the selected row's lines
-  void enter_campaign();             // ENTER
+  void enter_campaign();             // PLAY
+  void choose_entry();               // the campaign chosen at the left: MODS filled with its ticks
+  const ModsCampaignRow* chosen_row() const;
   void edit();                       // EDITOR (ours): the selected mod's or campaign's missions, or back
   void test();                       // TEST (ours): the same with the game's missions, to play
   void missions(bool test);          // EDITOR's and TEST's list, or back to the tables
@@ -120,14 +98,17 @@ class ModsScreen : public MenuScreen {
   void report();                     // REPORT (ours, upgrades/mods/mod_report.h): the chosen mod's sentences, or back
 
   ModsSlideButton enter, back;       // ENTER, BACK
-  ShellButton toggle, up, down, editor, test_btn;  // ON/OFF, UP, DOWN, EDITOR, TEST
+  ShellButton editor, test_btn;      // EDITOR, TEST (ON/OFF, UP, DOWN are the tick list's)
   ShellButton add_btn, export_btn, add_folder_btn, folder_btn, report_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, REPORT
-  ModsList campaign_list, mod_list;
+  ModsList campaign_list;
+  ModTickList ticks;                 // MODS: the chosen campaign's (upgrades/mods/mods_tick_list.h)
+  ModsList& mod_list;                // its list
+  std::vector<std::string>& enabled; // its ticks, in winning order
   ztwod::Image lines{0}, lines2{0};
   zimg::Texture* own_lines = nullptr;  // LINES2 with the CAMPAIGNS box (ours, released with the screen)
   ztwod::Text detail_label, detail, detail2, note, restart;  // DETAILS: the row's name, its author and version
   ModsTables tables;
-  std::vector<std::string> enabled;  // the game's own campaign entry's ticks, as the tabs change them
+  std::string entry;                 // the campaign chosen at the left (campaign_entries.h): MODS shows its ticks
   int32_t focus = kCampaigns;        // the table the details are of
   std::string adding;                // a pick said ("Adding ...") and added on the next update
   std::string export_folder;         // EXPORT's mod, while the save box is up

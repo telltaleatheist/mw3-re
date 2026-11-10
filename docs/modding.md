@@ -473,6 +473,54 @@ asks; the run inside an entry: the pilot screen, a mission, back to the pilot
 screen, CANCEL leaves once), `mods_campaign_mission_has_the_editor_headless`,
 `net_save_into_the_editors_own_mod`, `mods_screen_add_mod_headless`.
 
+### The CAMPAIGNS screen (step 3a)
+
+The MODS screen is the campaigns' now (mods_menu.{h,cpp}; MODSDIALOG's
+records, ENTER relabelled PLAY).
+
+- **CAMPAIGNS (left)** (`mods_entry_rows`): every campaign entry but
+  Instant Action's: the game's own first (chosen as the screen opens), each
+  campaign a mod brings (its `campaign=` lines, or the mod itself when it
+  plays the game's own campaign over its files), each copy (`base=`: its note
+  says "A copy of <campaign>"), then those whose mod is gone, under the name
+  our marker kept. A row ends in " !" when it cannot be played now, and
+  chosen, the note says why: its campaign file does not read (the row is
+  named by the file), its mod is gone (its pilots and saves are kept), or a
+  ticked or built-on mod is missing (named).
+- **MODS (right)** (`ModTickList`, the widget Instant Action's MODS uses):
+  the chosen campaign's. First its own mods, on, their box reading "[on]"
+  where a tick box reads "[x]" or "[ ]", not the player's to turn off: its campaign mod, the mods it is built on, and what
+  those name with `needs=` (ON/OFF on one says "Part of this campaign: always
+  on." or "Needed by <mod>: always on."). Then every asset mod with that
+  campaign's ticks in winning order. ON/OFF, UP and DOWN write that
+  campaign's `campaigns\<id>\mods.txt` at once; another campaign's ticks
+  are its own.
+- **A campaign mod's own assets** (mechs, weapons) are on for that campaign
+  only: a campaign mod is not a row of MODS for other campaigns. A modder who
+  wants the same mechs or weapons in other campaigns ships them as a second,
+  asset mod and names it in the campaign's `needs=`.
+- **PLAY** starts the program again into the chosen campaign
+  (`--entry <id> --entry-play`), whichever table has the focus; one that
+  cannot be played is refused with the reason.
+- **IMPORT** adds a mod unticked: "Added <name>: tick it for a campaign, then
+  PLAY."; a campaign: "Added <name>: its campaign is listed.", its row
+  chosen. Nothing changes for any campaign until the player ticks it. (The
+  editor's saves inside a campaign's run still tick their mod for that
+  campaign, `current_entry`.)
+- REPORT, EXPORT, ADD FOLDER and MODS FOLDER as before, on the chosen
+  campaign's mod or the chosen mod. TEST and EDITOR still wait for step 4;
+  nothing on this screen deletes anything yet (a copy's DELETE comes with
+  Save as).
+- The old two-table function (`mods_tables`) is gone. An older slip put
+  right on the way: in the wide layout the bottom tab row's group ended at
+  x 400, inside MODS FOLDER (388 to 468), so that tab's image was drawn apart
+  from its label; the group reaches 480 now (app_menus.cpp).
+
+Tests: `mods_screen_campaign_rows_ticks_order_and_conflicts` (the rows and
+the order's rules), `mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless`,
+`sdl_program_mods_enter_plays_an_entry_and_back` (a campaign's row and PLAY;
+the game's own with a mod ticked on the screen).
+
 ### Instant Action's own MODS (first part)
 
 Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Instant Action): Instant
