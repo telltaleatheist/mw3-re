@@ -209,6 +209,36 @@ bool save_config_value(const std::string& write_dir, const std::string& key, con
   return static_cast<bool>(o);
 }
 
+void apply_upgrades_config(const std::string& write_dir, const upgrades::Config& c, bool original) {
+  upgrades::apply(c);
+  if (upgrades::needs_migrating(c) && !write_dir.empty()) {
+    for (const upgrades::Switch& sw : upgrades::switches())
+      save_config_value(write_dir, std::string("upgrade_") + sw.key, c.bugfixes ? "1" : "0");
+    remove_config_value(write_dir, "bugfixes");
+  }
+  if (original) zfix::set_upgrades(false);
+}
+
+bool remove_config_value(const std::string& write_dir, const std::string& key) {
+  if (write_dir.empty()) return false;
+  const fs::path cfg = fs::path(write_dir) / "mw3.cfg";
+  std::vector<std::string> lines;
+  bool found = false;
+  {
+    std::ifstream f(cfg);
+    std::string line;
+    while (std::getline(f, line)) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (line.rfind(key + "=", 0) == 0) found = true;
+      else lines.push_back(line);
+    }
+  }
+  if (!found) return true;
+  std::ofstream o(cfg, std::ios::trunc);
+  for (const std::string& l : lines) o << l << '\n';
+  return static_cast<bool>(o);
+}
+
 namespace {
 // Two buttons: true for Browse.
 bool ask_browse(const std::string& text) {

@@ -4,6 +4,8 @@
 #include "gamez/zreader/zreader.h"
 #include "mech3/app.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/entry_run.h"
+#include "upgrades/mods/ia_mods_menu.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -54,6 +56,14 @@ void MainMenuButton::on_left_up() {
     Control::on_left_up();
     if (const Handle s = mods_menu_state()) e_.push_state(s, 0);
     return;
+  }
+  // Ours (upgrades/mods/ia_mods.h): with mods ticked for Instant Action, a
+  // plain run's INSTANT ACTION starts the program again into the modded one.
+  if (kind == kInstantAction && ia_mods_page() && entry_run().screen == EntryRun::kNone && ia_mods_restart() &&
+      ia_straight_in(mods_menu_write_dir())) {
+    Control::on_left_up();
+    std::string why;
+    if (ia_mods_restart()(true, "", &why)) return;
   }
   if (enabled) {
     Control::on_left_up();

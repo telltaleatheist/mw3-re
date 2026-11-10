@@ -28,7 +28,7 @@ struct TurretLimits {
   virtual bool within(const float d[3]) const;
   // vt+0x04 0x004a41b0: within, the direction itself (true); else the
   // limit it passed, at the direction's heading (false). FIX (bug), behind
-  // zfix bugs: the exe takes the heading's length as hypot(x, y), not
+  // zfix small_fixes: the exe takes the heading's length as hypot(x, y), not
   // hypot(x, z); its only vehicle caller drops the answer (docs/vehicles.md).
   virtual bool clamp(const float d[3], float out[3]) const;
   float lo_sin, lo_cos;  // +0x04

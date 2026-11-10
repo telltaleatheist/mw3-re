@@ -56,6 +56,11 @@ line per switch, and Small fixes a button that shows its list.
 
 ### Small fixes, as the in-game list would show them
 
+The page's list (`upgrades/settings/upgrades.cpp`) is MechWarrior 3's: these
+lines without the three Pirate's Moon ones (7 to 9, on Pirate's Moon's own
+list) and without the two not made yet (21, 22), in shorter words to fit the
+page.
+
 1. A turret's charge or glow goes out when the turret dies.
 2. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
 3. Tripod turrets aim and turn when facing straight up or down.

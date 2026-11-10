@@ -3015,7 +3015,7 @@ void hook_census_report(const char* key) {
 // Ours (W58, docs/lancemate-pathing.md): as play starts, the 3 x 3 tiles
 // round the player built when a pilot uses the grid (the lance starts by him).
 void GameEngine::nav_prebuild() {
-  if (zfix::options().bugs) ai::nav::restart();
+  if (zfix::options().improved_ai) ai::nav::restart();
   void* p = mech_mission_player();
   if (!p) return;
   int32_t made = 0;

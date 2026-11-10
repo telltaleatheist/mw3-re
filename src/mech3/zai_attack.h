@@ -133,7 +133,7 @@ class AttackReturnState : public BehaviourState {
 bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3], float* turn, float* throttle,
               bool back);
 
-// Ours (W17, FIX (bug) behind bugs; ai.md section 17.6): round a wall. No
+// Ours (W17, FIX (bug) behind improved_ai; ai.md section 17.6): round a wall. No
 // progress toward a target past `reach` for 2 s (a wall, or a contact holding
 // the carrot back), the clear heading nearest the target (the wall kept on
 // one side) is walked until the line to it is clear; after 20 s it gives up
@@ -149,7 +149,7 @@ struct WallDetour {
   bool goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float out[3]);
 };
 
-// Ours (W58, behind bugs and the side's switch; docs/lancemate-pathing.md):
+// Ours (W58, behind improved_ai and the side's switch; docs/lancemate-pathing.md):
 // a pilot's grid path toward its point, and when it fights, a firing spot
 // with a line of sight to the enemy within its range.
 struct NavWay {
@@ -164,7 +164,7 @@ struct NavWay {
   // sight from here is blocked.
   bool step(zgame::Handle v, const float pos[3], const float to[3], bool enemy, float range, float dt, float out[3], bool must_find = false);
 };
-// Whether this pilot walks by the grid (zfix bugs, its side's switch).
+// Whether this pilot walks by the grid (zfix improved_ai, its side's switch).
 bool nav_for(zgame::Handle v);
 void nav_drive(Brain& b, zgame::Handle v, const float pos[3], const float goal[3], float* turn);
 
@@ -214,7 +214,7 @@ class FollowState : public BehaviourState {
   WallDetour detour;           // ours (W17): round a wall
   NavWay nav;                  // ours (W58): by the grid
 
-  // Ours (W27, FIX (bug) behind bugs; ai.md section 17.6): the leader's way
+  // Ours (W27, FIX (bug) behind improved_ai; ai.md section 17.6): the leader's way
   // as breadcrumbs, a point each 8 m he walks (the last 60). Past his
   // follow range with the leader out of sight (a wall between their eyes),
   // he walks to the newest point he can see, then on to newer ones; the

@@ -9,7 +9,7 @@
 
 // Ours, not the exe's (W58, docs/lancemate-pathing.md): a walkability grid
 // over the mission's world and paths on it, so an AI pilot whose straight
-// way is blocked walks round. Behind zfix bugs (nav_allies, nav_enemies);
+// way is blocked walks round. Behind zfix improved_ai (nav_allies, nav_enemies);
 // the brain's decisions stay the exe's, only the point it walks toward is
 // a path's waypoint when the straight line is blocked.
 namespace zcls { struct Node; }
@@ -207,7 +207,7 @@ struct Follower {
   bool step(const float pos[3], const float to[3], float now, float dt, float out[3], bool must_find = false, float reach = 0.0f);
 };
 
-// Whether a pilot of that side walks by the grid: zfix bugs and the side's
+// Whether a pilot of that side walks by the grid: zfix improved_ai and the side's
 // switch, and not in a network game.
 bool on_for(bool ally);
 

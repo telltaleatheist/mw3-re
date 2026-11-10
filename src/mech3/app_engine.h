@@ -340,6 +340,7 @@ class GameEngine : public Engine {
                         const char* s3) override;
   uint32_t message_box_plain(int32_t a, int32_t caption, const std::string& text) override;
   uint32_t message_box_text(int32_t a, const char* caption, const std::string& text) override;
+  uint32_t message_box_words(int32_t a, const std::string& caption, const std::string& text) override;
   void credits_restart(Handle screen) override;
   void pilot_state_set_mode(Handle state, int32_t mode) override;
   void action_open(Handle screen) override;

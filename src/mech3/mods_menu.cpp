@@ -13,6 +13,7 @@
 #include "mech3/mod_campaign.h"
 #include "mech3/mission.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/mod_export.h"
 
@@ -152,6 +153,11 @@ ModsEditStart& mods_menu_test_start() {
   static ModsEditStart f;
   return f;
 }
+ModsPlay& mods_menu_play() {
+  static ModsPlay p;
+  return p;
+}
+
 bool& mods_menu_reopen() {
   static bool on = false;
   return on;
@@ -247,7 +253,7 @@ void target_buffers(Engine& e) {
 // of its right box (the games' plain one, 378,33, 241x210) put in its place,
 // the CAMPAIGNS list's box lined up with MODS'. The same size and place, so
 // the wide layout stretches it as the pilot screen's. Null when it cannot.
-zimg::Texture* campaign_lines(zimg::Texture* src) {
+zimg::Texture* campaign_lines(zimg::Texture* src, bool left_box = true) {
   constexpr int kBoxX = 378, kBoxY = 33, kBoxW = 241, kBoxH = 210, kToX = 24, kToY = 113, kClearW = 265;
   if (!src || !src->pixels || !src->alpha || src->palette_count || src->width < kBoxX + kBoxW ||
       src->height < kToY + kBoxH)
@@ -265,7 +271,7 @@ zimg::Texture* campaign_lines(zimg::Texture* src) {
       out[y * w + x] = cleared ? 0 : in[y * w + x];
       dst->alpha[y * w + x] = cleared ? 0 : src->alpha[y * w + x];
     }
-  for (int y = 0; y < kBoxH; ++y)
+  for (int y = 0; left_box && y < kBoxH; ++y)
     for (int x = 0; x < kBoxW; ++x) {
       out[(kToY + y) * w + kToX + x] = in[(kBoxY + y) * w + kBoxX + x];
       dst->alpha[(kToY + y) * w + kToX + x] = src->alpha[(kBoxY + y) * w + kBoxX + x];
@@ -282,6 +288,11 @@ void say(ztwod::Text& t, const std::string& s) {
   if (t.needs_render) t.render();
 }
 }  // namespace
+
+void mods_screen_target(Engine& e) { target_buffers(e); }
+void mods_text_put(ztwod::Text& t, const char* font, int32_t x, int32_t y) { put(t, font, x, y); }
+void mods_text_say(ztwod::Text& t, const std::string& s) { say(t, s); }
+zimg::Texture* mods_screen_lines(zimg::Texture* src, bool left_box) { return campaign_lines(src, left_box); }
 
 int32_t ModsSlideButton::hit(int32_t px, int32_t py) {
   if (!get_rect()) return 0;  // off, or being read, as SlideButton's
@@ -367,7 +378,7 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
   add(&detail_label), add(&detail), add(&detail2), add(&note), add(&restart);
   set_flags_all(0);
   set_active(1);
-  enabled = mods_enabled(mods_menu_write_dir());
+  enabled = entry_mods_on(mods_menu_write_dir());
   refill();
 }
 
@@ -390,7 +401,7 @@ void ModsScreen::refill() {
   campaign_list.layout(), mod_list.layout();
   if (focus == kMods && was >= 0 && was < mod_list.item_count()) mod_list.FileList::select(was);
   else if (campaign_list.item_count() && campaign_list.selected < 0) campaign_list.FileList::select(0);
-  say(restart, enabled == mods_menu_mounted() ? "" : "Mod changes take hold at the next start.");
+  say(restart, "ON/OFF: " + official_entries().front().name + "'s mods. ENTER here plays it with them.");
   show_details();
 }
 
@@ -402,7 +413,7 @@ void ModsScreen::show_details() {
     const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
     d = c.name, d2 = mods_campaign_details(c);
     if (!c.error.empty()) n = "Cannot be played: " + c.error;
-    else if (!c.mounted) n = "Its mod is off: ENTER turns it on for the next start.";
+    else n = "ENTER plays it: the game starts again with its mods.";
   } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(tables.mods.size())) {
     const ModsListEntry& m = tables.mods[static_cast<size_t>(mod_list.selected)];
     d = m.info.name.empty() ? m.info.folder : m.info.name;
@@ -436,7 +447,7 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
         const bool turning_on = id == kToggle && std::find(enabled.begin(), enabled.end(), folder) == enabled.end();
         if (id == kToggle) mods_toggle(enabled, folder);
         else mods_move(enabled, folder, id == kUp ? -1 : 1);
-        mods_save_enabled(dir, enabled);
+        entry_mods_save(dir, enabled);
         refill();
         for (int32_t i = 0; i < mod_list.item_count(); ++i)
           if (tables.mods[static_cast<size_t>(i)].info.folder == folder) mod_list.FileList::select(i);
@@ -529,39 +540,33 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
 // shown again lets the campaign go: MainState::update); a campaign whose mod is not on in this
 // run is never started half-mounted: its mod is turned on for the next start.
 void ModsScreen::enter_campaign() {
-  const int32_t i = campaign_list.selected;
-  if (focus != kCampaigns || i < 0 || i >= static_cast<int32_t>(tables.campaigns.size())) {
-    say(note, "Choose a custom campaign to enter.");
-    return;
-  }
-  const ModsCampaignRow row = tables.campaigns[static_cast<size_t>(i)];
-  if (!row.error.empty()) {
-    say(note, "Cannot be played: " + row.error);
-    return;
-  }
-  if (!row.mounted) {
-    if (std::find(enabled.begin(), enabled.end(), row.mod) == enabled.end()) {
-      mods_toggle(enabled, row.mod);
-      mods_save_enabled(mods_menu_write_dir(), enabled);
-      refill();
+  // The entry: the chosen custom campaign's, or (the MODS table in focus) the game's own with its ticks.
+  std::string entry = official_entries().front().id, name = official_entries().front().name;
+  if (focus == kCampaigns) {
+    const int32_t i = campaign_list.selected;
+    if (i < 0 || i >= static_cast<int32_t>(tables.campaigns.size())) {
+      say(note, "Choose a custom campaign to enter.");
+      return;
     }
-    say(note, row.name + ": its mod is turned on; restart to play it.");
-    return;
+    const ModsCampaignRow& row = tables.campaigns[static_cast<size_t>(i)];
+    if (!row.error.empty()) {
+      say(note, "Cannot be played: " + row.error);
+      return;
+    }
+    entry.clear(), name = row.name;
+    for (const CampaignEntry& e : campaign_entries(mods_menu_write_dir()))
+      if (e.mod == row.mod && e.campaign + ".txt" == row.file) entry = e.id;
   }
-  const ModCampaign* found = nullptr;
-  for (const ModCampaign& c : mod_campaigns())
-    if (c.mod == row.mod && c.file == row.file) found = &c;
-  std::string why = "a mission's world is missing";
-  if (!found || !campaign_enter(*found, &why)) {
-    say(note, "Cannot be played: " + why);
-    return;
+  const std::vector<CampaignEntry> all = campaign_entries(mods_menu_write_dir());
+  const CampaignEntry* e = find_entry(all, entry);
+  std::string why = "it is not among the campaigns";
+  if (e) {
+    why.clear();
+    for (const std::string& m : entry_missing_mods(mods_menu_write_dir(), *e))
+      why += (why.empty() ? "its mods are not all there (turn them off or import them again): " : ", ") + m;
   }
-  // The Campaign State on the main menu, as from CAMPAIGN: once a pilot is
-  // chosen it pops itself and replaces the state below with the mission's,
-  // which must be the main menu's (nothing left under a mission).
-  Engine& e = engine();
-  e.pop_state(0);
-  e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+  if (why.empty() && !mods_menu_play()) why = "the game cannot start again from here";
+  if (!why.empty() || !mods_menu_play()(entry, &why)) say(note, name + " cannot be played: " + why);
 }
 
 // REPORT (ours; modding.md, Plain errors on the MODS screen): the chosen
@@ -645,14 +650,10 @@ void ModsScreen::missions(bool test) {
     say(note, std::string("Choose a mod or a custom campaign to ") + verb + ".");
     return;
   }
+  // Its mod must be mounted in this run, which a plain run never has (step 4 starts again into it; --mod NAME does meanwhile).
   const std::vector<std::string>& on = mods_menu_mounted();
   if (std::find(on.begin(), on.end(), folder) == on.end()) {
-    if (std::find(enabled.begin(), enabled.end(), folder) == enabled.end()) {
-      mods_toggle(enabled, folder);
-      mods_save_enabled(mods_menu_write_dir(), enabled);
-      refill();
-    }
-    say(note, name + ": its mod is turned on; restart to " + verb + " it.");
+    say(note, std::string(test ? "TEST" : "EDITOR") + " is not available from MODS yet.");
     return;
   }
   std::vector<ModsEditRow> rows;
@@ -761,7 +762,7 @@ void ModsScreen::add_mod(const std::string& path) {
         break;
       }
     show_details();
-    tell("Added " + d.name + ": ENTER on its campaign turns it on for the next start.");
+    tell("Added " + d.name + ": ENTER on its campaign plays it.");
   } else {
     for (int32_t k = 0; k < mod_list.item_count(); ++k)
       if (tables.mods[static_cast<size_t>(k)].info.folder == d.folder) {

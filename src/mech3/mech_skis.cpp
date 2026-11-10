@@ -249,7 +249,7 @@ bool Skis::update(float dt) {
   // mech in another zone (a lancemate in c2m4's tunnel) lost its own floor and
   // read the land over it as a wall ahead (fixes.md). Its own feet read them all.
   const int32_t zone_mode = zmod::zones().mode;
-  if (zfix::options().bugs && &m != mech3::world().mission_player) zmod::zones().mode = 0;
+  if (zfix::options().improved_ai && &m != mech3::world().mission_player) zmod::zones().mode = 0;
   // Pirate's Moon 0x004fcf70, 0x004fcf20: the mech's own node out of the query, its flag 8 back after.
   int32_t own_flag = 0;
   auto* own = static_cast<Node*>(m.node);

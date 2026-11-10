@@ -302,7 +302,7 @@ class BrainHooks : public zgame::Unported {
   virtual void place(zgame::Handle v, const float p[3], float yaw) {
     unported("vehicle.vt+0xdc", {v, zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2]), zgame::bits(yaw)});
   }
-  // Ours (W17, FIX (bug) behind bugs): a wall (a level-facing face of the
+  // Ours (W17, FIX (bug) behind improved_ai): a wall (a level-facing face of the
   // world, as the collision's segment query 0x004efcd0 finds them) between
   // the two points. Unset: none.
   virtual bool wall_between(const float from[3], const float to[3]) {

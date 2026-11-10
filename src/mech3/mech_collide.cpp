@@ -154,7 +154,7 @@ int32_t Mech::collide_query(const float* list, int32_t points) {
   intersect(0);
   // FIX (bug), W58: an AI mech out of the camera's zones has their walls too (Skis::update).
   const int32_t zone_mode = zmod::zones().mode;
-  if (zfix::options().bugs && this != world().mission_player) zmod::zones().mode = 0;
+  if (zfix::options().improved_ai && this != world().mission_player) zmod::zones().mode = 0;
   if (g_calls.segments) g_calls.segments(segs, points, recs);
   else if (zcls::Node* w = world_hooks().world) zcls::segment_query(w, segs, points, recs);
   zmod::zones().mode = zone_mode;

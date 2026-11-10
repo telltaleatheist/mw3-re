@@ -67,8 +67,8 @@ struct FakeHost : zfmv::Host {
 // 882 bytes each; 200 steps a lap of the 176400-byte buffer, so every wrap
 // lands on 0), and how far the frame ever went back.
 int worst_drop(bool bugs) {
-  const bool keep = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool keep = zfix::all();
+  zfix::set_all(bugs);
   FakeHost host;
   zfmv::set_host(&host);
   int drop = 0;
@@ -88,7 +88,7 @@ int worst_drop(bool bugs) {
     EXPECT(last >= 15 * 19);  // it kept up with 20 s of sound
   }
   zfmv::set_host(nullptr);
-  zfix::options().bugs = keep;
+  zfix::set_all(keep);
   return drop;
 }
 }  // namespace

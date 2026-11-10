@@ -1,5 +1,6 @@
 #include "mech3/mech_ids.h"
 #include "mech3/mp_lobby.h"
+#include "upgrades/settings/upgrades.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
 
@@ -31,6 +32,7 @@ uint8_t g_lobby_back = 0;   // [0x006099c8]
 
 namespace {
 constexpr uint32_t kModsMark = 0x53444f4d;  // "MODS": our block in a player's lobby data (the mods check)
+constexpr uint32_t kUpgradesMark = 0x52475055;  // "UPGR": after it, the Upgrades page's five as bits (1.1.0 on)
 // Pirate's Moon's player data, 7 words (0x0049a3c0); our add-on worlds' count follows it, then their values.
 constexpr size_t kPmDataWords = 7;
 }  // namespace
@@ -118,6 +120,25 @@ bool LobbyScreen::mods_of(const std::vector<uint32_t>& d, uint64_t* hash, std::v
     at += (len + 3) / 4;
     names->push_back(n);
   }
+  return true;
+}
+
+// The upgrades block after the mods block: false without one (a build before
+// 1.1.0, or the original's data).
+bool LobbyScreen::upgrades_of(const std::vector<uint32_t>& d, uint32_t* bits) {
+  *bits = 0;
+  if (d.size() < 4 || d[0] != 1) return false;
+  const size_t worlds = d[3] < 64 ? d[3] : 64;
+  size_t at = std::max<size_t>(5, 4 + worlds);
+  if (at + 4 > d.size() || d[at] != kModsMark) return false;
+  const uint32_t count = std::min<uint32_t>(d[at + 3], 16);
+  at += 4;
+  for (uint32_t k = 0; k < count && at < d.size(); ++k) {
+    const uint32_t len = std::min<uint32_t>(d[at++], 64);
+    at += (len + 3) / 4;
+  }
+  if (at + 2 > d.size() || d[at] != kUpgradesMark) return false;
+  *bits = d[at + 1];
   return true;
 }
 
@@ -350,6 +371,9 @@ void LobbyScreen::enter(bool from_game) {
         data.push_back(w);
       }
     }
+    // Ours (the Upgrades page): the five switches; a joiner plays on the host's.
+    data.push_back(kUpgradesMark);
+    data.push_back(upgrades::bits());
   }
   mods_checked = 0;
   znet::set_player_data(me, data.data(), static_cast<uint32_t>(data.size() * 4));
@@ -452,11 +476,21 @@ void LobbyScreen::update(float dt) {
     if (mods_of(player_data(znet::session().host_id), &theirs, &their_names)) {
       mods_checked = 1;
       const ModsIdentity& mine = mods_identity();
+      uint32_t hosts = 0;
       if (theirs != mine.hash) {
         cursor_obj.erase();
         engine().message_box_plain(0x30, 0x2a8, "Your mods don't match the host's. The host uses: " + mods_text(their_names) +
                                                      ". You use: " + mods_text(mine.names) + ".");
         g_lobby_back = 1;
+      } else if (upgrades_of(player_data(znet::session().host_id), &hosts)) {
+        const uint32_t own = upgrades::bits();
+        upgrades::take_hosts(hosts);  // the game on the host's switches; back at network_set(0)
+        std::printf("mw3: upgrades: the host's switches 0x%x (ours 0x%x)\n", hosts, own);
+      } else {
+        // A host before 1.1.0 sends none: each side plays on its own (multiplayer-port.md).
+        cursor_obj.erase();
+        engine().message_box_plain(0x30, 0x2a8, "The host's game is older than 1.1.0 and does not send its upgrades: "
+                                                "each player's own Upgrades switches apply, which may differ.");
       }
     }
   }
@@ -968,7 +1002,7 @@ void LobbyScreen::lock_mech() {
   const ConfigList* l = e.mech_loadouts(slot.mech);
   int32_t at = -1;  // 0x00425b70: by pointer, which the slot's copy never is
   // FIX (bug): a chosen stock loadout kept, found by its name (fixes.md).
-  const bool by_name = zfix::options().bugs && slot.config->name;
+  const bool by_name = zfix::options().fixed && slot.config->name;
   if (l)
     for (size_t i = 0; i < l->configs.size(); ++i)
       if (by_name ? l->configs[i]->name && std::strcmp(l->configs[i]->name, slot.config->name) == 0

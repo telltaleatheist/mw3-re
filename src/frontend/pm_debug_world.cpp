@@ -199,7 +199,7 @@ void pm_world_frame(const float eye[3], float yaw, float pitch, platform::Render
   // depth only, over a back buffer that starts black.
   uint8_t r, g, b;
   zmod::fog_frame_fill(&r, &g, &b);  // FIX (bug), as the mission's (GameEngine::video_clear_b)
-  render->clear(zfix::options().bugs, r, g, b);
+  render->clear(zfix::options().fixed, r, g, b);
   zcls::render_world(cam, 0);
   render->present();
 }

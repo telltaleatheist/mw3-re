@@ -245,9 +245,9 @@ int probe_lab_list(const char* reader, const char* name, const char* tokens, con
   reset();
   ListEngine engine;
   const bool per_second = zfix::options().per_second;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   zfix::options().per_second = false;
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   g_items.clear();
   {
     std::istringstream ts(tokens);
@@ -349,7 +349,7 @@ int probe_lab_list(const char* reader, const char* name, const char* tokens, con
   g_store = nullptr;
   zrdr::close_archives(true);
   zfix::options().per_second = per_second;
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   ztwod::set_host(nullptr);
   if (static_cast<int>(dump.size()) >= size) return -1;
   std::memcpy(out, dump.data(), dump.size() + 1);

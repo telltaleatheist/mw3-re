@@ -184,6 +184,24 @@ bool entry_save_ticks(const std::string& write_dir, const CampaignEntry& e, cons
   return write_text(fs::path(entry_dir(write_dir, e.id)) / kEntryTicksFile, text);
 }
 
+std::string& current_entry() {
+  static std::string id;
+  if (id.empty()) id = official_entries().front().id;
+  return id;
+}
+std::vector<std::string> entry_mods_on(const std::string& write_dir) { return entry_ticks(write_dir, current_entry()); }
+bool entry_mods_save(const std::string& write_dir, const std::vector<std::string>& on) {
+  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
+  const CampaignEntry* e = find_entry(all, current_entry());
+  return e && entry_save_ticks(write_dir, *e, on);
+}
+std::string entry_on_words(const std::string& write_dir) {
+  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
+  const CampaignEntry* e = find_entry(all, current_entry());
+  const std::string name = e ? e->name : current_entry();
+  return current_entry() == official_entries().front().id ? "on for " + name + ": play it from MODS" : "on for " + name + " from its next start";
+}
+
 std::vector<std::string> entry_mount_list(const std::string& write_dir, const CampaignEntry& e,
                                           std::vector<std::string>* locked) {
   const std::vector<CampaignEntry> all = campaign_entries(write_dir);
@@ -269,7 +287,8 @@ std::vector<std::string> entries_migrate(const std::string& write_dir) {
       log.push_back("mods: " + e.id + " takes the " + std::to_string(assets.size()) + " mods mw3.cfg had on");
   }
   // mw3.cfg: every line kept byte for byte, the key added at the end (none made where there is none).
-  if (!fs::is_regular_file(cfg, ec)) return log;
+  // With no mod= line there was nothing to move, and the file is left as it is.
+  if (!fs::is_regular_file(cfg, ec) || on.empty()) return log;
   std::string eol = text.find("\r\n") != std::string::npos ? "\r\n" : "\n";
   std::string out = text;
   if (!out.empty() && out.back() != '\n') out += eol;

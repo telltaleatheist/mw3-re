@@ -622,7 +622,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   EXPECT(text.find("weapon ppc ammo=no tech=any: there is a weapon ppc already, left out") != std::string::npos);
   EXPECT(text.find("weapon AC2 ammo=yes tech=any: there is a weapon AC2 already, left out") != std::string::npos);
   for (bool bugs : {true, false}) {
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     EXPECT(mech3::weapon_count() == 58);
     EXPECT(mech3::weapon_index("laser_huge") == 56 && mech3::weapon_index("Rail") == 57 && mech3::weapon_index("AC2") == 0);
     EXPECT(std::string(mech3::weapon_name(57)) == "Rail" && std::string(mech3::weapon_title(56)) == "Huge Laser" &&
@@ -633,7 +633,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
     EXPECT(mech3::weapon_index("PPC") == 8 && std::string(mech3::weapon_name(8)) == "PPC" && mech3::weapon_name_message(8) == 0x2fd);
   }
   // The lab's whole stock (0x00471f40's) with a row there: the row's weapon (and Rail's ammo).
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   {
     mech3::Store all;
     all.fill_all();

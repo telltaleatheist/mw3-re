@@ -42,7 +42,7 @@ int32_t fade_step(Fade* f, float dt) {
   f->current = dir * dt * 2500.0f + f->current;
   // FIX (bug): a step reaching the target ends the fade there, so fades to a
   // partial volume end instead of wobbling around it.
-  const bool reached = zfix::options().bugs && (dir > 0.0f ? f->current >= f->target : f->current <= f->target);
+  const bool reached = zfix::options().fixed && (dir > 0.0f ? f->current >= f->target : f->current <= f->target);
   if (reached) f->current = f->target;
   if (f->current > 0.0f) f->current = 0.0f;
   else if (f->current < -10000.0f) f->current = -10000.0f;

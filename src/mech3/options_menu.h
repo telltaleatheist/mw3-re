@@ -106,8 +106,10 @@ class GameOptionsScreen : public MenuScreen {
   bool has_upgrades = false;         // bound
 };
 
-// Ours: the upgrades page (UPGRADES_DIALOG), the game options' look: the bug
-// fixes (zfix bugs) and wide menus (zfix wide_menus), applied on ACCEPT and saved.
+// Ours: the upgrades page (UPGRADES_DIALOG), the game options' look: the five
+// switches (upgrades/settings, docs/upgrades-sort.md) and wide menus, applied
+// on ACCEPT and saved, with the Small fixes list to read. In a network game a
+// joiner's show the host's, greyed (upgrades::hosts()).
 class UpgradesScreen : public MenuScreen {
  public:
   UpgradesScreen(Engine& e, Handle state);
@@ -117,13 +119,24 @@ class UpgradesScreen : public MenuScreen {
     explicit AcceptButton(Engine& e) : SlideButton(e, -1) {}
     void on_left_up() override;
   };
+  // The list: read only, no row lit or picked.
+  class ReadList : public FileList {
+   public:
+    explicit ReadList(Engine& e) : FileList(e, -1) {}
+    bool can_light(int32_t) override { return false; }
+    void select(int32_t) override {}
+  };
   AcceptButton accept;
   StateBackButton back;
-  OnOffCycle bug_fixes;              // BUG_FIXES
+  OnOffCycle water, mfb_regroup, improved_ai, artemis, small_fixes;  // the five, upgrades::switches()' order
   OnOffCycle wide_menus;             // WIDE_MENUS
+  ReadList small_list;               // SMALL_LIST: upgrades::small_fixes_list()
   ztwod::Image lines{0};             // LINES
   ztwod::Image lines1{0};            // LINES1
-  ztwod::Image box1{0}, box2{0};     // BOX1, BOX2: each switch's box
+  ztwod::Image box[6] = {ztwod::Image{0}, ztwod::Image{0}, ztwod::Image{0},
+                         ztwod::Image{0}, ztwod::Image{0}, ztwod::Image{0}};  // BOX1..BOX6: each switch's box
+  ztwod::Text note;                  // what off means, or that they are the host's
+  OnOffCycle* five[5] = {&water, &mfb_regroup, &improved_ai, &artemis, &small_fixes};
 };
 
 // MUSICSLIDER and SFXSLIDER (vtables 0x005bffb0, 0x005bff20), 0x18c bytes: a

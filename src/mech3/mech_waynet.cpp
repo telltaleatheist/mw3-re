@@ -234,7 +234,7 @@ void Waynet::note(znet::Element* p, bool add) {
   if (add) watched.push_back(p);
 }
 
-// Mech3.exe 1.2 @ 0x00479c50. FIX (bug), behind `bugs`: the exe's loop
+// Mech3.exe 1.2 @ 0x00479c50. FIX (bug), behind `fixed`: the exe's loop
 // compares the point before with the selected one, so once past the selected
 // point it skips the rest of the list (their nav lines unsaid until they are
 // selected); here only the selected point is left to the end. And a selected
@@ -243,7 +243,7 @@ void Waynet::note(znet::Element* p, bool add) {
 uint8_t Waynet::frame(Handle vehicle) {
   WaynetHooks& h = *g_hooks;
   znet::Element* sel = elem(current);  // 0x0058b060
-  const bool fix = zfix::options().bugs;
+  const bool fix = zfix::options().fixed;
   znet::Element* prev = nullptr;
   for (znet::Element* e : watched) {
     if (fix ? e == sel : prev == sel) continue;
@@ -468,17 +468,17 @@ void waynet_icons_free() {
     if (i) h.icon_free(i);  // vt+0x00(1)
     i = nullptr;
   }
-  // FIX (bug), behind `bugs`: the exe's loop releases two images, then steps
+  // FIX (bug), behind `fixed`: the exe's loop releases two images, then steps
   // four slots on ([0x00608bb0] / [0x00608bb4], then [0x00608bc0] / [0x00608bc4]): the up and down arrows'
   // images are never released (zImage keeps them, a reference more each
   // mission). Here all eight.
-  const bool all = zfix::options().bugs;
+  const bool all = zfix::options().fixed;
   for (int i = 0; i < 8; ++i) {
     if (!all && (i & 2)) continue;
     if (g_arrows[i]) h.image_release(g_arrows[i]);  // 0x00517b10
     g_arrows[i] = nullptr;
   }
-  // FIX (bug), behind `bugs`: the arrow kept the released image, and the next
+  // FIX (bug), behind `fixed`: the arrow kept the released image, and the next
   // mission's first edge arrow reads its size before setting its own
   // (hud_arrow): a read of freed memory (AddressSanitizer, 2026-10-30). The
   // arrow lets go of it; that first arrow is then placed by a size of 0.

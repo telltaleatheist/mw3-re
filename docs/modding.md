@@ -46,7 +46,11 @@ description=Rain on every world.
 `name` is required; `for`, when given, must have `mw3` as its first word, a
 version after it if any (a Pirate's Moon mod, `for=mw3pm`, is left out of MW3). Other keys are ignored, `#` starts a comment.
 
-**Enabling.** `mw3.cfg` in the settings folder, one line a mod, the folder's
+**Enabling.** Since mods by campaign (below, step 2b) a plain start mounts no
+mods: a mod is ticked for a campaign entry (`campaigns\<id>\mods.txt`, the
+same lines) and mounted when that entry is played from MODS; `--mod NAME`
+still mounts one for a single run. Before that, and still the lines' form:
+`mw3.cfg` in the settings folder, one line a mod, the folder's
 name, in order (the first wins where two hold the same file):
 
 ```
@@ -390,8 +394,7 @@ storage, no screen yet.
 - **`--entry ID`**: the run mounts that entry's mods in place of mw3.cfg's
   and keeps its pilots and its saved loadouts in the entry from the start.
   One that is not there, cannot be played or misses a mod is said in the log
-  and the game's own start goes on. Until step 2b a plain start still mounts
-  mw3.cfg's `mod=` lines, so the MODS screen keeps working.
+  and the game's own start goes on.
 - **The first start of this build** (`entries_migrate`, once: mw3.cfg's
   `mods_moved=1`): mw3.cfg's `mod=` lines become the ticks of both of Pirate's
   Moon's campaigns, `campaign` and `pirate` (the mods were on for both; main:
@@ -462,6 +465,102 @@ reached by the command line only (the MODS screen calls it in step 2b).
 Tests: `sdl_restart_args_are_the_starts_own`,
 `sdl_program_restarts_into_and_out_of_an_entry` (one process: into Instant
 Action's entry, CANCEL, MODS), `campaign_entry_keeps_its_own_saved_loadouts`.
+
+### A plain start is the original (step 2b)
+
+- **The flip** (mw3_main.cpp): a start without `--entry` mounts no mods,
+  whatever mw3.cfg's `mod=` lines say (they were moved to the entries once,
+  `entries_migrate`). `--mod NAME` still mounts for one run (checks, modders).
+- **The run's entry** (`current_entry`, campaign_entries.h): `--entry`'s,
+  else the game's own campaign. Everything that used to turn a mod on through
+  mw3.cfg writes that entry's ticks instead (`entry_mods_on`,
+  `entry_mods_save`): the editor's saves (net_save.cpp), IMPORT
+  (mod_install.cpp) and the present MODS screen's ON/OFF, UP, DOWN. Their
+  messages say "on for MechWarrior 3: play it from MODS" (a plain run) or
+  "on for <entry> from its next start" (inside one). `mods_enabled` and
+  `mods_save_enabled` stay the raw mw3.cfg reader and writer (the migration's).
+- **The MODS screen until step 3** (`mods_menu_play`, set by the program):
+  ENTER on a custom campaign starts the program again into its entry
+  (`--entry <mod>~<id> --entry-play`); ENTER with the MODS table in focus,
+  into the game's own campaign with its ticks. An entry missing a mod is
+  refused there, said. Nothing is entered in place any more. TEST and EDITOR
+  need the mod mounted in the same run, which a plain run never has: "not
+  available from MODS yet" until step 4. Instant Action with mods has no way
+  in from this screen (its own MODS button comes next, plan: Instant Action).
+- **A saved game's entry** (`save_entry_set`, save_mods.h): set once the
+  entry's mods are mounted.
+- A check's scripted input (`--click-at`, `--tap`) is not carried to the
+  start it causes.
+
+Tests: `sdl_program_mods_enter_plays_an_entry_and_back` (a plain start with a
+`mod=` line mounts nothing; MODS, ENTER, the entry's run; then an entry left
+with a pilot loaded), `mods_screen_enter_campaign_and_back_headless` (ENTER's
+asks; the run inside an entry: the pilot screen, a mission, back to the pilot
+screen, CANCEL leaves once), `mods_campaign_mission_has_the_editor_headless`,
+`net_save_into_the_editors_own_mod`, `mods_screen_add_mod_headless`.
+
+### Instant Action's own MODS (first part)
+
+Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Instant Action): Instant
+Action takes mods from its own screen, not from MODS's list.
+
+- **The tab** (`ActionScreen` 0x00488bc0, button 5; our record `IAMODS`
+  inserted after ACTIONDIALOG's CANCEL, patch12_edits.cpp): MODS at (420,172)
+  under the scenario's description, the pilot screen's tab image, and a line
+  right of it saying what this run has on: "MODS: off", "MODS: 2 on"
+  (`ia_mods_line`). Bound only where the program turns it on
+  (`ia_mods_page`); the probes run the original's dialog.
+- **The tick list** (`upgrades/mods/ia_mods_menu`, the "IA Mods State" pushed
+  over Instant Action's; our record IAMODSDIALOG from MODSDIALOG's): the MODS
+  list with ON/OFF, UP, DOWN, ALL OFF at the top left under a line that
+  follows the ticks as they stand, the chosen row's note (why it cannot be
+  used, what it needs, what it shares with which earlier mod), ACCEPT and
+  BACK. The left box of the MODS screen's lines is not drawn.
+- **The widget** (`upgrades/mods/mods_tick_list`, `ModTickList`): the list,
+  its three buttons, the ticks in winning order and the note, for any screen
+  whose dialog has MODLIST, TOGGLE, MOVEUP and MOVEDOWN; step 3's CAMPAIGNS
+  screen uses the same one.
+- **ACCEPT** (`ia_mods_step`): the entry `ia`'s ticks are saved. A plain run:
+  none ticked goes back, any ticked starts the program again into the entry
+  (`--entry ia --entry-ia`; an entry missing a mod is refused, said). Inside
+  the entry: unchanged goes back, changed starts again with the new set, none
+  left starts again plain on Instant Action (`--open-ia`: the main menu
+  presses INSTANT ACTION at once, the app's reopen flag). ALL OFF is ALL OFF
+  then ACCEPT.
+- **Leaving** modded Instant Action by its pilot screen's CANCEL starts again
+  on the main menu of a plain run (no `--open-mods`: the player came from the
+  main menu).
+- **Straight in** (`ia_straight_in`, `MainMenuButton::on_left_up`): on a
+  plain run, INSTANT ACTION (the button, its hotkey and the app's reopen
+  press all go through the button) starts the program again into the entry
+  when it has ticks and none is missing. A ticked mod gone: the original
+  Instant Action opens and its line says "MODS: 1 missing"
+  (`ia_mods_missing`); the list shows which, and ACCEPT there refuses until
+  it is turned off or imported again.
+- **The pilot goes along** (`--entry-pilot NAME`, `RestartTo::pilot`,
+  `ia_start_pilot`): ACCEPT passes the chosen pilot's name; the main menu's
+  state, once the pilots are loaded, picks the pilot of that name in the
+  run's folder and sets the app's "back from a game" flags (0x0048a750), so
+  Instant Action opens on its own screen, not the pilot screen. No pilot of
+  that name: the pilot screen.
+- **The one offer** (`ia_pilot_state`, dev 3's `entry_copy_pilot`): going
+  into the entry with a pilot it does not have, the game's own message box
+  asks once whether to copy the pilot and the saved mechs there ("Your pilot
+  here is not changed."). OK copies (the originals only read; a failed copy
+  is said and nothing starts); CANCEL notes the name in
+  `campaigns\ia\pilots-not-copied.txt`, never asked again, and the entry
+  opens on its pilot screen for a new one.
+- A list longer than its box (fourteen rows) scrolls by the list's own arrows.
+- Checks: `MW3_BOX_ANSWER=N` answers every message box N at once, said in
+  the log with its text (a scripted click repeats while a box is up, so it
+  cannot press the box's own buttons).
+
+Tests: `sdl_program_instant_action_mods` (three runs, each one process; the
+offer answered no), `sdl_program_instant_action_mods_pilot_and_straight_in`
+(the offer answered yes, the pilot picked after the restart; straight in
+from the main menu; a ticked mod gone), `ia_mods_accept_steps_and_line`,
+`ia_mods_straight_in_missing_and_the_pilot_offer`,
+`sdl_restart_args_are_the_starts_own`.
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
@@ -598,9 +697,10 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   under the tabs says why it cannot be used, or what it shares with which
   earlier mod ("Shares 1 file with Green HUD, which wins").
 - ON/OFF (an off mod goes to the end of the order), UP and DOWN (earlier
-  wins a shared file) write mw3.cfg's `mod=` lines at once
-  (`mods_save_enabled`) and take hold at the next start, which the screen
-  says while mw3.cfg differs from the run.
+  wins a shared file) write the game's own campaign entry's ticks at once
+  (`entry_mods_save`; mw3.cfg's `mod=` lines until step 2b); ENTER with this
+  table in focus plays that campaign with them (Starting again into an
+  entry, step 2b).
 - ENTER on a campaign whose mod is on in this run: `campaign_enter` (its own
   pilots), MODS popped and the Campaign State pushed on the main menu, so
   the stack is CAMPAIGN's: once a pilot is chosen the Campaign State pops
@@ -740,9 +840,9 @@ answers the picker for scripted runs and shots.
 - The screen says "Adding <name>..." and draws it before the add runs (on
   its next update): a big archive takes a while, and a frame without a word
   looked frozen. No worker thread yet.
-- On the screen: a mod that is more than a campaign is turned on for the
-  next start; a campaign-only one is listed, ENTER turning it on for the next
-  start. Said in two lines under MODS ("Added Desert Pack: on from the next
+- On the screen: a mod that is more than a campaign is ticked for the run's
+  entry (the game's own campaign on a plain run); a campaign-only one is
+  listed, ENTER playing it. Said in two lines under MODS ("Added Desert Pack: on from the next
   start.", "Not added: it holds a file that would land outside its folder
   (../../outside.txt).").
 
@@ -1047,8 +1147,9 @@ there). With a mod or a custom campaign chosen:
   (the pause's QUIT is the tested way), MODS is on top again and the chosen
   pilot and the launch are put back (`mods_edit_begin` with `editor`
   false).
-- A mod not on in this run is turned on for the next start instead, as EDIT
-  and ENTER do. TEST again leaves the list; EDITOR while it is up shows
+- A mod not mounted in this run (any, on a plain run, since step 2b): "TEST
+  is not available from MODS yet." until step 4 starts again into it;
+  `--mod NAME` mounts it meanwhile. TEST again leaves the list; EDITOR while it is up shows
   EDIT's list of the same mod (and TEST while EDIT's is up, TEST's); BACK
   leaves the list first.
 

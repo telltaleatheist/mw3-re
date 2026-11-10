@@ -808,10 +808,10 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
   }
   // FIX (bug): the exe drops colinear points from the points only, so every
   // UV, colour and normal after one belongs to the next point (a crater's
-  // cut ground pieces have such points). zfix bugs: they go too.
+  // cut ground pieces have such points). zfix fixed: they go too.
   std::vector<float> nrm, uv, col, mp, muv;
   PolygonAdd fixed = a;
-  if (k < n && zfix::options().bugs) {
+  if (k < n && zfix::options().fixed) {
     auto take = [&](const float* src, int width, std::vector<float>& to) -> const float* {
       if (!src) return nullptr;
       for (int32_t i : kept) to.insert(to.end(), src + width * i, src + width * (i + 1));

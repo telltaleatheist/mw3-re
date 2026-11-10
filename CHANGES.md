@@ -7,12 +7,15 @@ original address, the evidence, how each fix is tested) is
 [`docs/fixes.md`](docs/fixes.md). In the code each change is marked `FIX`
 next to the function it touches.
 
-**To play with every bug fix off:** start `mw3 --original`, or put
-`bugfixes=0` in `mw3.cfg` in your settings folder. That puts back every
-change under "Bug fixes that change play" below except the frame-rate ones
-(the game still plays at the same pace on any computer), and keeps the
-fixes that let the game run at all and the crash fixes. `bugfixes=1`, or no
-line, keeps them on.
+**To play the game as it shipped:** the options' UPGRADES page has five
+switches, all on to start: WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS
+TRACKING and SMALL FIXES (the page lists what the small fixes are). Turn one
+off and that part plays as in 1999; `mw3 --original` turns all five off for
+one run. Crash fixes, the fixes that let the game run today, and the
+restored sounds, pictures, voice lines and text stay on (Owen's rule,
+2026-11-10). In a network game everyone plays on the host's switches. Which
+change sits under which switch: [`docs/upgrades-sort.md`](docs/upgrades-sort.md).
+A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
 
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
@@ -24,6 +27,7 @@ it is clear what the designers meant.
 - **Pirate's Moon's HUD static thickens the worse your mech is hurt.** The original works out how
   strong the static should be and then, on a 3D card, draws it at full strength however hurt you are;
   now it grades with your health, as MechWarrior 3's does: faint at 15% health, a full sheet near death.
+- **The Small Pulse Laser has its muzzle flash.** Its weapon data named a flash no mission has, so it fired with none; it now shows the Small Laser's blue flash, as every other laser uses its size's colour.
 - **Typing in the cheat box or the chat no longer moves your view.** A key you type into a box still counted for the game when you let it go after pressing Enter, as you do when typing fast; L is the hold-to-look key, so "operation cwal" left the mouse turning the torso instead of moving the reticle. Keys typed into a box are the box's now.
 - **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
 
@@ -757,3 +761,5 @@ Known quirks the rebuild deliberately keeps:
 - The launcher no longer says "N mods on" beside a game: a game started from the launcher is always the original, and mods are played from its own MODS screen.
 - The launcher says "Opening the file picker..." before it asks the system for the picker. The system can take a second to open it (far longer the first time on some Macs), and until now the launcher sat frozen on the old screen meanwhile.
 - A resolution picked in GRAPHICS & AUDIO changes the menus' shape as soon as you press ACCEPT (4:3 to 16:9 or back), and so does WIDE MENUS on the UPGRADES page: you are put on the main menu in the new shape. Before, the menus kept their old shape until the game was started again.
+- Mods by campaign: the main menu always plays the original game. Starting the game no longer applies any mod, so CAMPAIGN, INSTANT ACTION and multiplayer on the main menu use the game's own files, and nobody's campaign can be changed by a mod. Mods are played from MODS: ENTER on a custom campaign closes the game and starts it again inside that campaign, with its mods, its own pilots, saves and saved mech loadouts; ENTER with the mods list chosen does the same for the game's own campaign with the mods turned on in that list. CANCEL on the campaign's pilot screen brings you back to MODS, on the original again. The mods you had turned on are kept: they became the campaign's ticks. (The new CAMPAIGNS list with a checkbox per mod, Instant Action's own MODS button, and TEST and EDITOR from MODS follow; until then TEST and EDITOR say they are not available there.)
+- Instant Action has its own MODS button. It opens a list of every mod you have imported, each with a checkbox, in the order they win; ACCEPT closes the game and starts it again in Instant Action with the ticked mods (their maps, mechs and weapons), with its own pilots and saved mech loadouts kept apart from the main game's. The screen always says what is on ("MODS: 2 on"), and ALL OFF goes back to the original Instant Action. With nothing ticked, Instant Action is the original and nothing restarts. The ticks are remembered: with mods ticked, INSTANT ACTION on the main menu goes straight into the modded one. The first time, the game asks once whether to copy your pilot and saved mechs there (your own pilot is never changed); if a ticked mod has been removed, Instant Action opens as the original and says "MODS: 1 missing".

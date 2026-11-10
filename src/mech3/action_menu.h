@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <cstdint>
 #include <vector>
 
@@ -125,6 +126,15 @@ class ActionScreen : public MenuScreen {
   ztwod::Image lines1{0};            // +0x174fc  LINES1
   ztwod::Image lines2{0};            // +0x175b8  LINES2
   ztwod::Image lines3{0};            // +0x17674  LINES3
+  // Ours (upgrades/mods/ia_mods_menu.h): the MODS tab (5) and its line
+  // ("MODS: 2 on"), made and bound only where the program turns them on
+  // (the original's constructor makes nothing more).
+  struct ModsTab {
+    explicit ModsTab(Engine& e) : btn(e, 5) {}
+    ShellButton btn;
+    ztwod::Text line;
+  };
+  std::unique_ptr<ModsTab> mods_tab;
 };
 
 }  // namespace mech3

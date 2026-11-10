@@ -721,7 +721,7 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
   std::vector<std::vector<float>> uv;
   std::vector<const float*> uv_of;
   PolygonAdd use = a;
-  if (k < n && zfix::options().bugs) {
+  if (k < n && zfix::options().fixed) {
     auto take = [&](const float* src, int width, std::vector<float>& to) {
       for (int32_t i : kept) to.insert(to.end(), src + width * i, src + width * (i + 1));
       return to.data();

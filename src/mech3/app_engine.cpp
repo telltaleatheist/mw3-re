@@ -32,6 +32,7 @@
 #include "mech3/controls_cfg.h"
 #include "mech3/options.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/mod_test.h"
 #include "mech3/options_menu.h"
@@ -216,6 +217,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   options_sensitivity_slider() = true;  // ours: the options' MOUSE SENSITIVITY
   options_upgrades_page() = true;       // ours: the options' UPGRADES page
   mods_menu_page() = true;              // ours: the main menu's MODS
+  ia_mods_page() = true;                // ours: Instant Action's MODS tab
   // Ours: MODS's EDIT (upgrades/editor/mods_edit.h): the mission started as
   // a debug start is (a stand-in pilot, no briefing), the chosen pilot and
   // the launch put back when it is over.
@@ -495,6 +497,14 @@ uint32_t GameEngine::message_box3(int32_t a, int32_t caption, int32_t text, cons
     return on_message_box(a, caption, text);
   }
   return game_message_box(a, caption, zutl::format_message(text, {s1, s2, s3}));
+}
+
+uint32_t GameEngine::message_box_words(int32_t a, const std::string& caption, const std::string& text) {
+  if (on_message_box) {
+    last_box_text = text;
+    return on_message_box(a, 0, 0);
+  }
+  return game_message_box(a, caption.c_str(), text);  // (Pirate's Moon's box takes its caption as words: 0x004afa20)
 }
 
 uint32_t GameEngine::message_box_plain(int32_t a, int32_t caption, const std::string& text) {
@@ -856,7 +866,7 @@ void GameEngine::video_clear_b(Handle) {
   if (!p_.render) return;
   uint8_t r, g, b;
   zmod::fog_frame_fill(&r, &g, &b);
-  p_.render->clear(zfix::options().bugs, r, g, b);
+  p_.render->clear(zfix::options().fixed, r, g, b);
 }
 // 0x00579840: the cursor's on/off, the old state back. The menus draw their own.
 uint32_t GameEngine::video_show_cursor(uint32_t on) {

@@ -1167,7 +1167,7 @@ class Hud : public ztwod::Layer {
   void raise_static(float level, int32_t kind, float hold);          // 0x0043c1f0
   zrdr::Node* reader = nullptr;      // +0x22e38 hud.zrd's root during the set-up
   // +0x22e3c the resolution's block during it. Not set by the original's
-  // constructor; FIX (bug), behind zfix bugs: cleared here (docs/hud.md).
+  // constructor; FIX (bug), behind zfix fixed: cleared here (docs/hud.md).
   zrdr::Node* block;
   // FIX (B), any_resolution (resolution.md step 4): past mode 10 hud.zrd has no
   // block, so V640x480's positions are laid out on the display (the canvas)

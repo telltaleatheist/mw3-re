@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include "gamez/zutil/zutl_path.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "mech3/source_archive.h"
 #include "upgrades/mods/mod_export.h"
 
@@ -496,10 +497,10 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   d.campaign_only = !i.campaigns.empty() && i.mechs.empty() && i.weapons.empty() && i.ia_worlds.empty();
   if (!d.campaign_only && enabled && std::find(enabled->begin(), enabled->end(), r.folder) == enabled->end()) {
     enabled->push_back(r.folder);
-    mods_save_enabled(write_dir, *enabled);
+    entry_mods_save(write_dir, *enabled);  // the run's entry's ticks (campaign_entries.h)
   }
   d.message = d.campaign_only ? "Added " + d.name + ": its campaign is entered from the game's MODS screen."
-                              : "Added " + d.name + ": on from the next start" + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+                              : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
   return d;
 }
 

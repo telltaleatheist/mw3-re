@@ -149,12 +149,12 @@ void valve_timers_add(Reaction* r) { add_reaction(valve_timers(), r); }
 // Mech3.exe 1.2 @ 0x004d3d30. A lone timer whose update starts another
 // delayed update is replaced, as it runs, by a list of itself and the new
 // one; the exe then clears the slot, losing the new timer (and the list).
-// FIX (bug), behind zfix bugs: the list stays, without the finished timer.
+// FIX (bug), behind zfix fixed: the list stays, without the finished timer.
 void valves_tick(float now) {
   Reaction*& slot = valve_timers();
   Reaction* t = slot;
   if (!t || !t->tick(now)) return;
-  if (zfix::options().bugs && slot != t) {
+  if (zfix::options().fixed && slot != t) {
     if (Composite* c = slot->as_composite()) c->items.remove(t);
     return;
   }

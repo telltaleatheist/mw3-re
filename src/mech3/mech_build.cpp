@@ -683,8 +683,9 @@ void cone_set(Firepoint& fp) {
   if (!(-kHalfPi <= min_pitch && max_pitch <= kHalfPi)) {
     g_hooks->report(0x100, 0x72, "Requires version of CZValidateDir that handles angles outside the range");
     if (min_pitch < -kHalfPi) min_pitch = -kHalfPi;
-    // FIX (bug): the exe compares with -pi/2 here (0x005ea7b4), so any top is taken to pi/2.
-    if (max_pitch > (zfix::options().bugs ? kHalfPi : -kHalfPi)) max_pitch = kHalfPi;
+    // Quirk, left as the original (Owen, 2026-11-10): the exe compares the top with -pi/2 here (0x005ea7b4, a
+    // slip for 0x005ea7b0), so any top is taken to pi/2 (fixes.md, A firepoint's aim cone).
+    if (max_pitch > -kHalfPi) max_pitch = kHalfPi;
   }
   cone_pitch(fp.cone + 14, min_pitch, max_pitch);
 }

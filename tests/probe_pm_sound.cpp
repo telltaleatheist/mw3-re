@@ -25,7 +25,7 @@ extern "C" {
 // The original's path (pmprobe has no probe.cpp to turn the fixes off).
 void probe_pm_snd_use() {
   zfix::options().per_second = false;
-  zfix::options().bugs = false;
+  zfix::set_all(false);
 }
 
 // PM's statics after probe_snd_begin's fresh State: its defaults are PM's

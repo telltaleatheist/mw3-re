@@ -233,10 +233,10 @@ void probe_wn_flags(int32_t id, uint8_t mfb, uint8_t xe, uint8_t reached, uint32
 void probe_wn_reset_icons() {
   probe_app::Mute mute;
   m3::waynet_icons_count() = 0;
-  const bool was = zfix::options().bugs;
-  zfix::options().bugs = true;  // all eight images forgotten (the original path keeps four)
+  const bool was = zfix::all();
+  zfix::set_all(true);  // all eight images forgotten (the original path keeps four)
   m3::waynet_icons_free();
-  zfix::options().bugs = was;
+  zfix::set_all(was);
 }
 // FIX (bug) (0x00479c50, 0x00479ef0): with the default behaviour
 // selected (no place) the frame answers 0 and draws no arrow, where the

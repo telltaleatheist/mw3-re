@@ -379,7 +379,7 @@ void FightState::run(float dt) {
   float throttle;
   // FIX (bug), ours (W27): stuck short of the enemy behind a wall, round it.
   float ahead[2] = {0, 0}, goal[3];
-  if (zfix::options().bugs) {
+  if (zfix::options().improved_ai) {
     h.forward(v, &ahead[0], &ahead[1]);
     // Ours (W58): by the grid to a firing spot, when the straight way or the sight is blocked.
     if (nav_for(v) && nav.step(v, from, to, true, b.params.get<float>(0x28), dt, goal)) {
@@ -469,7 +469,7 @@ bool pick_heading(const float pos[3], const float to[3], int32_t* side, float ou
 }
 }  // namespace
 
-// Ours (W17, FIX (bug) behind bugs): where to walk this frame when the
+// Ours (W17, FIX (bug) behind improved_ai): where to walk this frame when the
 // pilot has stopped short of the target (a wall, or a contact holding the
 // carrot back); false to follow as the exe.
 bool WallDetour::goal(const float pos[3], const float fwd[2], const float to[3], float reach, float dt, float goal[3]) {
@@ -550,7 +550,7 @@ bool sight(const float a[3], const float b[3], float stop = 0.0f) {
 }
 }  // namespace
 
-// Ours (W27, FIX (bug) behind bugs): the leader's place kept each 8 m.
+// Ours (W27, FIX (bug) behind improved_ai): the leader's place kept each 8 m.
 void FollowState::trail_record(const float to[3]) {
   Trail& t = trail;
   if (!t.crumbs.empty()) {
@@ -566,7 +566,7 @@ void FollowState::trail_record(const float to[3]) {
   }
 }
 
-// Ours (W27, FIX (bug) behind bugs): where to walk this frame when the
+// Ours (W27, FIX (bug) behind improved_ai): where to walk this frame when the
 // leader is out of reach past the follow range: out of sight (a mech's
 // width), or in sight with no way on for 3 s. His way, crumb by crumb: the
 // nearest one in sight first, then on, skipping ahead only to one in sight
@@ -817,13 +817,13 @@ void FollowState::run(float dt) {
   bool on_crumb = false;
   float at[3] = {to[0], to[1], to[2]};
   float goal[3], ahead[2] = {0, 0};
-  if (zfix::options().bugs) h.forward(v, &ahead[0], &ahead[1]), trail_record(to);  // ours, for the detour and the trail
+  if (zfix::options().improved_ai) h.forward(v, &ahead[0], &ahead[1]), trail_record(to);  // ours, for the detour and the trail
   const bool clamped = h.inout_clamp(v, to, at);  // 0x004c3000: the boundary pulls the target's place
   // FIX (bug), ours (W58): a lancemate by the grid when the exe's walk fails:
   // a wall on the way, or no progress, the boundary's pull included (the leader
   // stands in a shape: it holds him at the edge).
   const bool at_edge = clamped && !nav.follow.path.empty();  // keeps to a path it took
-  if (zfix::options().bugs && nav_for(v) &&
+  if (zfix::options().improved_ai && nav_for(v) &&
       nav.step(v, pos, to, !h.targetable(target) || !h.targetable(target)->is_ally(v), b.params.get<float>(0x28), dt, goal, at_edge)) {
     aim(b, v, pos, goal, 0.0f);
     slack_side = 2.0f;
@@ -835,13 +835,13 @@ void FollowState::run(float dt) {
     if (!(pulled && same_or_nan(at[0], s.start[0]) && same_or_nan(at[2], s.start[2]))) aim(b, v, pos, at, 0.0f);
     pulled = 1;
     detour.on = false;
-  } else if (zfix::options().bugs && trail_goal(pos, to, b.params.get<float>(0x28), dt, goal)) {
+  } else if (zfix::options().improved_ai && trail_goal(pos, to, b.params.get<float>(0x28), dt, goal)) {
     aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W27): along the leader's way
     slack_side = 2.0f;
     pulled = 0;
     detour.on = false, detour.watch_t = 0;
     on_crumb = true;
-  } else if (zfix::options().bugs && detour.goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
+  } else if (zfix::options().improved_ai && detour.goal(pos, ahead, to, b.params.get<float>(0x28), dt, goal)) {
     aim(b, v, pos, goal, 0.0f);  // FIX (bug), ours (W17): round the wall
     slack_side = 2.0f;
     pulled = 0;

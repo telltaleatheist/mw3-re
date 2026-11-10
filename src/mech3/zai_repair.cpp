@@ -161,7 +161,7 @@ void RepairState::run(float dt) {
       }
       // Ours (W58): by the grid to the approach point when the way is blocked.
       float goal[3];
-      if (zfix::options().bugs && nav_for(v) && nav.step(v, pos, approach, false, 0.0f, dt, goal)) {
+      if (zfix::options().mfb_regroup && nav_for(v) && nav.step(v, pos, approach, false, 0.0f, dt, goal)) {
         nav_drive(b, v, pos, goal, &nav_turn);
         phase = 2;
         return;
