@@ -171,6 +171,32 @@ no free claims stays allocated: memory only). PM's AI's counters for the first r
 the pick (753,222 and 9,341), why no engage (mode 0, net, state, leash), why no target, picked facing / not facing,
 took an attacker / none, fired: trigger / group_add, follow made: MW3's push.
 
+## What the geometry tests can and cannot see (2026-11-10, the merge of main's di53)
+
+- `test_pm_di` (PM's ground, point, segment, shot and sphere queries against its exe) runs the x87 at 24 bits, where
+  `zgeo::X` rounds each step to a float: it cannot see a change to the 53-bit forms, and play runs at 53. Two switches
+  make the other run: `MW3_X87=53` (the exe at control word 0x027f, the probe's fpu53 on) and `MW3_DI_COUNT=1`, which
+  counts instead of stopping at the first mismatch and prints per world the floats compared, those not bit-equal but
+  inside the allowance (2e-4), and each query with a value outside it:
+  `MW3_X87=53 MW3_DI_COUNT=1 .venv/bin/python tests/differential/run_capped.py --mem-gb 4 --secs 1500 -- .venv/bin/python tests/differential/test_pm_di.py`.
+  It exits 1 on a query outside the allowance that is not on its known list (one: c2, clutter (tree), query 90,
+  "nearest", exe 0.8851358 against port 0.8856983). So it pins c3's query 239, where MW3's x87 form of
+  `segment_nearest`'s distance picked the other of two coincident hits (pm-map.md, The geometry queries at 53 bits).
+  The counts on this branch: c1 655 of 10,899, c2 8,344 of 27,564, c3 280 of 11,259, c4 779 of 21,426.
+  300 seeded queries a world is the limit of this evidence: another flip may sit outside them.
+- `test_pm_ai_boundary_real` fails at set-up, before and after that merge alike: "game/pm/zbd/c1/gamez.zbd: the port
+  read gave -2" within a second. It checks nothing as it stands.
+- `test_pm_ai_pick` was flaky, on `pm` before that merge too (1 run in 16 failed there, 9 in 16 on the merged tree,
+  at case 0 or 9: the exe says a plan was made, the port's log says "held"). The port was right and the probe wrong:
+  it called the pick's result "held" when it had the address of the plan the firing started with, but the pick
+  deletes that plan before it makes a new one (0x004bc2e0), and the allocator can hand the new one the freed
+  address; which runs did so went by the heap's layout. The probe now says "held" when the result is the firing's
+  own plan still in place (the pick returns a new plan for its caller to store and leaves the firing's null).
+  24 runs of 24 pass, with the totals of the good runs before.
+- MW3's own differential tests do not run against PM with `MW3_EXE=pm`: `test_di`, `test_skis`, `test_inout`,
+  `test_inout_query`, `test_place` and `test_shotq` stop in their set-up (StopIteration) and `test_mission_load` at
+  "0x4050d0 has no place in PM's exe". PM's are the `test_pm_*` files.
+
 ## The campaign chains on `pm` (2026-11-08)
 
 `mw3pm --campaign-chain` (mw3_main's driver) with `PM_AI=1 --hidden --nosound` on a scratch write dir: `new:99` plays the

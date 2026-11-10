@@ -12,6 +12,7 @@
 #include "gamez/zclass/lod.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmodel/gmod_const.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -38,10 +39,11 @@ void corners_sphere(const float corners[8][3], float centre[3], float* radius) {
       else if (hi[k] < v) hi[k] = v;
     }
   }
-  const float hx = (hi[0] - lo[0]) * 0.5f, hy = (hi[1] - lo[1]) * 0.5f, hz = (hi[2] - lo[2]) * 0.5f;
-  centre[0] = hx + lo[0], centre[1] = hy + lo[1], centre[2] = hz + lo[2];
-  const float xy = hx * hx + hy * hy;
-  const float sum = xy + hz * hz;
+  using zgeo::X;  // hx and hy stored, hz kept on the x87
+  const float hx = (hi[0] - lo[0]) * 0.5f, hy = (hi[1] - lo[1]) * 0.5f;
+  const X hz = (X(hi[2]) - lo[2]) * 0.5f;
+  centre[0] = hx + lo[0], centre[1] = hy + lo[1], centre[2] = (hz + lo[2]).f();
+  const float sum = ((X(hx) * hx + X(hy) * hy) + hz * hz).f();
   *radius = approx_sqrt(sum);
 }
 

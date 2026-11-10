@@ -1,111 +1,169 @@
-# The Upgrades sort (a proposal for Owen, 2026-11-10)
+# The Upgrades sort (for Owen, 2026-11-10, re-sorted to his rule)
 
-Owen's rule: "only game breaking/major bugs are changed. every other bug we
-fix or change we make is set behind an 'upgrades' setting". This sorts every
-row of `fixes.md`, MW3's (main) and Pirate's Moon's own (pm), into:
+Owen's rule (2026-11-10): missing content restored (voice lines, wingmen's
+calls), corrected graphics, and the sound, HUD and text fixes stay on for
+good, with no switch. Gameplay or physics changes that aren't game-breaking
+go behind a switch: the big, noticeable ones each get their own, the small
+ones all go under one **Small fixes** switch whose list a player can read.
+"Some people want to play the game exactly as it was 30 years ago. We should
+be able to give them that experience."
 
-- **(a) game-breaking, always on, no switch**: crashes, hangs, stray memory
-  and lost data, the FIX (A) / FIX (B) port fixes (running on modern systems,
-  the frame-rate timings), the copy-protection traps; plus fixes that live only
-  in our own tools;
-- **(b) upgrades**, each under a switch, all on by default;
-- **(c) unsure**, with the reason;
+This sorts every row of `fixes.md`, MW3's (main) and Pirate's Moon's own
+(pm), into:
+
+- **(a) always on, no switch**: game-breaking (crashes, hangs, stray memory
+  and lost data), the FIX (A) / FIX (B) port fixes (running on modern systems,
+  the frame-rate timings), the copy-protection traps, fixes only our own tools
+  reach; and restored content, pictures, sound, HUD and text;
+- **(b) own switches**: the four big ones, all on by default;
+- **(c) Small fixes**: every other gameplay change, one switch, on by default;
 - and rows of `fixes.md` that change nothing (candidates, ported as written).
 
-No code changes with this. Owen approves (or moves rows) before anything moves.
+Rows that could sit on either side are listed under **For Owen** with the
+side this proposes. No code changes with this; Owen approves (or moves rows)
+before anything moves.
 
-473 rows: 386 always on, 5 in our own tools,
-72 upgrades under 10 switches, 3 unsure, 7 not changes.
+478 rows: fixes.md's 473 table rows, its four data typos still to fix (Original bugs
+still to fix) and the Small Pulse Laser's flash. 434 always on, 5 in our own
+tools, 8 under the four own switches, 22 under Small fixes, 4 left as the original, 5 not changes.
 Rows are MW3's unless marked PM (a row on both games is listed once, as MW3's).
 
 ## The switches
 
-Four are Owen's; the rest group the remaining upgrades, few and plain. The
-host's settings carry to everyone in a multiplayer game (release.md); the
-lobby would send them as it sends the mods' check.
+Only gameplay switches are left, so the host's settings carry to everyone in
+a multiplayer game (release.md); the lobby would send them as it sends the
+mods' check. With every switch off the game plays as it shipped, but for the
+always-on rows: no crashes or lost data, and the content, pictures, sound, HUD
+and text put back as the data had them.
 
-| Switch | What it changes | Rows | In multiplayer |
-|---|---|---|---|
-| MFB regroup after repair | The field bases come back to you as soon as a repair is done, and a lancemate can use them too (Owen's). | 2 | The host's. Multiplayer has field bases: MW3's c1 map 1 lists three mobile HQs (`mobilehq_01..03` in its readermp1 aiv.zrd), and the lobby's mobile bases option puts repair stations on every map's waynet points (`program_set_mp_mobile_bases`; their repairs use the same dock). PM's maps list no mobile HQ, but every one carries a waynet_mp file as MW3's station maps do, so the option's stations may apply there too (PM's lobby side not read yet). |
-| Improved AI | Lancemates find their way round walls, rivers and corners; turrets, vehicles and scripted AI as the data meant (Owen's). | 15 | The host's, and it touches little: a network game has no turrets (starting one clears the app's turret flag, [0x608e3a] = 0 at 0x0047fd72; ending it sets it again at 0x0047fd91), no lancemates, and the only AI vehicles are MW3's c1 map 1's three mobile HQs; every other map of both games lists only the players (`remote_N`) and the stealth object. |
-| Water movement | Deep water slows a mech smoothly instead of stopping it (Owen's). | 1 | The host's for everyone: it changes how fast every mech moves. |
-| Artemis tracking | Artemis FCS missiles get their extra tracking (Owen's). | 1 | The host's for everyone: it changes hits. |
-| Weapons and combat | Typos and slips in weapons and damage: TAG, beams, the reticle's reach, the plain PPC, heat-sink loss said. | 8 | The host's for everyone: it changes damage and hits. |
-| Mech movement | How a mech's feet and placing behave (gait blend, a mech re-placed under a bridge). | 2 | The host's for everyone. |
-| Missions and campaign | Objectives, animations' conditions, nav points, the saved game and the debriefing as the data meant. | 8 | The host's (only the parts multiplayer uses: objectives' boxes, the animations). |
-| Screens and sound | The HUD's texts and radar, the picture (fade-ins, lights, the sky), sounds, movies and the credits. | 23 | The host's, as the rule says; nothing in it changes the game's state, so it could be each player's own if Owen prefers. |
-| Controls | Input slips: keys typed into text, a stick's lever and its reverse, the mouse settings kept, the fall's force feedback. | 8 | Each player's own input; as the rule says the host's, but none of it is shared state. |
-| Multiplayer | The network's own slips: latency, a remote aim, a push's kill credit, the lock's loadout. | 4 | The host's for everyone (it decides them). |
+| Switch | What it changes | Rows |
+|---|---|---|
+| MFB regroup after repair | The field bases come back to you as soon as a repair is done, and a lancemate can use them too. | 2 |
+| Improved AI | Lancemates find their way round walls, rivers and corners, and keep their floor in another zone. | 4 |
+| Water movement | Deep water slows a mech smoothly instead of stopping it. | 1 |
+| Artemis tracking | Artemis FCS missiles get their extra tracking. | 1 |
+| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts, the mechs' data typos. | 22 |
+
+The turrets' pick (their count ran on across missions, so each later mission's
+turrets acted less often) was the one other row noticeable in play; Owen made
+it a permanent fix (always on, 2026-11-10). The reticle's pick past 800 m (a lock at the long weapons' range) is the next
+most visible; Small fixes.
 
 The bug-fix switch goes away: `bugfixes=` in mw3.cfg is read once, as all
-upgrades on or off, then dropped; `--original` turns every upgrade off for that
+switches on or off, then dropped; `--original` turns every switch off for that
 run. The UPGRADES page (which today holds BUG FIXES and the wide menus) gets a
-line per switch.
+line per switch, and Small fixes a button that shows its list.
+
+### Small fixes, as the in-game list would show them
+
+1. A turret's charge or glow goes out when the turret dies.
+2. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
+3. Tripod turrets aim and turn when facing straight up or down.
+4. A vehicle's gun stops at its true aiming limit.
+5. A vehicle file with pitch and no roll keeps its pitch settings (no shipped vehicle).
+6. An AI pilot at a backup node turns the right way (no shipped net has one).
+7. Pirate's Moon: the same backup node fix.
+8. Pirate's Moon: a deploy node's valves are read (no shipped file uses them).
+9. Pirate's Moon: range actions on a valve (no shipped file uses them).
+10. The reticle locks on a mech past 800 m when the selected weapons reach it.
+11. LOCK_ON_LEAD reads the right value (a typo).
+12. The mech lab offers the plain PPC the data defines.
+13. TAG's air strike lands where the target is, not where it stood 7 s before.
+14. A beam held after its button is let go stays on a moving mech.
+15. A destroyed weapon's selection moves on to one that still stands.
+16. A mech re-placed where it stands no longer drops under a bridge or onto a roof.
+17. A mission's last animation can be waited for.
+18. An animation whose object is missing waits for its conditions.
+19. Leaving c4b mission 5's or 6's area fails the mission.
+20. c2 mission 3's secondary objective waits for the mission's two Fireflies (it named two that aren't there, so it completed at once).
+21. The Sunder Alternate B carries its LRM 20's extra 240 missiles (to be made).
+22. The Strider's recoil slide is read as a number, as on the Cauldron, Bushwacker and Champion (to be made).
+
+## Owen's answers (2026-11-10)
+
+The borderline rows, as Owen settled them:
+
+- **Always on, no switch**: the stick lever's reverse, the slider and the axis
+  popup (hardware support); the typed-key leak, the mouse sensitivity kept and
+  the fall's force feedback; the HUD timer and the debriefing time; the
+  lancemates' career kills and the saved-game list after No; nav points marked
+  reached; all four multiplayer fixes; the Small Pulse Laser's muzzle flash (a
+  corrected graphic: to be made, the Small Laser's blue flash in its place).
+  Also always on as proposed: Alan's voice, the heat-sink callout, delayed
+  updates, the aim past 4:3, the gait's blend-in.
+- **Left as the original** (the fix removed, or never made): Pirate's Moon's
+  firepoint aim cone (0x4a6ee0) and aim re-pick (0x4bb290); vehicles passing
+  through walls, and not slowed by quicksand or lava.
+- **Small fixes**: c2 mission 3's secondary objective (the Fireflies), made
+  already under the bug fixes (fixes.md's row said otherwise); the plain PPC; the turrets and vehicles (Improved AI stays the
+  lancemates' pathing).
+- **The turrets' pick** (0x004a70d0, the count across missions): a permanent
+  fix, always on (Owen, later the same day).
 
 ## Where the `bugs` switch's users go
 
 Every `zfix::options().bugs` in the code today, by file (main / pm), and the
-switch it would read instead. Several of them guard fixes this sort puts under
-(a) (crashes, stray memory); those would lose their switch and stay on.
+switch it would read instead. Many of them guard fixes this sort puts under
+(a); those would lose their switch and stay on.
 
 | File | Uses (MW3 / PM) | Goes to |
 |---|---|---|
-| `frontend/pm_debug_world.cpp` | - / 1 | Screens and sound (the same, PM's debug view) |
+| `frontend/pm_debug_world.cpp` | - / 1 | always on (PM's debug view) |
 | `frontend/sdl/mw3_main.cpp` | 2 / 2 | the switch itself (`bugfixes=` and `--original`): replaced by the Upgrades settings and an "all off" for `--original` |
-| `gamez/zeffect/zeff_anim_init.cpp` | 2 / 2 | Missions and campaign (the animations' last def, missing prerequisites) |
-| `gamez/zfmv/fmv_script.cpp` | 1 / 1 | Screens and sound (movies) |
-| `gamez/zfmv/fmv_stream.cpp` | 1 / 1 | Screens and sound (movies) |
-| `gamez/zinput/zin_kbd.cpp` | 1 / 1 | Controls (a typed key) |
-| `gamez/zmodel/gmod_const.cpp` | 1 / 1 | Screens and sound |
-| `gamez/zmodel/gmod_puff.cpp` | 1 / 1 | Screens and sound (particle fade-in) |
-| `gamez/zsound/zsnd_3d.cpp` | 1 / 1 | Screens and sound (fades) |
-| `gamez/zsound/zsnd_grp.cpp` | 1 / 1 | Screens and sound (wingmen's ammo calls) |
-| `gamez/zsound/zsnd_init.cpp` | 3 / 1 | Screens and sound (stereo, the medium format) |
-| `gamez/zsound/zsnd_play.cpp` | 1 / - | Screens and sound (unpause) |
+| `gamez/zeffect/zeff_anim_init.cpp` | 2 / 2 | Small fixes (the animations' last def, missing prerequisites) |
+| `gamez/zfmv/fmv_script.cpp` | 1 / 1 | always on (movies) |
+| `gamez/zfmv/fmv_stream.cpp` | 1 / 1 | always on (movies) |
+| `gamez/zinput/zin_kbd.cpp` | 1 / 1 | always on (a typed key) |
+| `gamez/zmodel/gmod_const.cpp` | 1 / 1 | always on |
+| `gamez/zmodel/gmod_puff.cpp` | 1 / 1 | always on (particle fade-in) |
+| `gamez/zsound/zsnd_3d.cpp` | 1 / 1 | always on (fades) |
+| `gamez/zsound/zsnd_grp.cpp` | 1 / 1 | always on (wingmen's ammo calls) |
+| `gamez/zsound/zsnd_init.cpp` | 3 / 1 | always on (stereo, the medium format) |
+| `gamez/zsound/zsnd_play.cpp` | 1 / - | always on (unpause) |
 | `gamez/zweapon/zwep_beam.cpp` | 1 / 1 | always on (TAG's hold at 60 and 144 fps: frame-rate timing, as `per_second`) |
 | `gamez/zweapon/zwep_shot.cpp` | 1 / 1 | Artemis tracking |
-| `mech3/app_engine.cpp` | 1 / 1 | Screens and sound (the frame's fill) |
-| `mech3/app_menus.cpp` | 1 / 1 | Missions and campaign (lancemates' career kills) |
+| `mech3/app_engine.cpp` | 1 / 1 | always on (the frame's fill) |
+| `mech3/app_menus.cpp` | 1 / 1 | always on (lancemates' career kills) |
 | `mech3/app_mission.cpp` | 1 / 1 | Improved AI (the nav restart) |
-| `mech3/controls_menu.cpp` | 3 / 3 | Controls |
-| `mech3/credits.cpp` | 1 / 1 | Screens and sound |
-| `mech3/debriefing.cpp` | 1 / 1 | Missions and campaign (the mission time) |
-| `mech3/force_feedback.cpp` | 1 / 1 | Controls (the fall's force feedback) |
-| `mech3/hud.cpp` | 5 / 5 | Screens and sound (the HUD) |
-| `mech3/lab_screen.cpp` | 1 / 1 | Screens and sound (sort by name) |
-| `mech3/mech_build.cpp` | - / 1 | Weapons and combat (PM's firepoint pitch) |
+| `mech3/controls_menu.cpp` | 3 / 3 | always on (the lever, a slider) |
+| `mech3/credits.cpp` | 1 / 1 | always on |
+| `mech3/debriefing.cpp` | 1 / 1 | always on (the mission time) |
+| `mech3/force_feedback.cpp` | 1 / 1 | always on (the fall's force feedback) |
+| `mech3/hud.cpp` | 5 / 5 | always on (the HUD) |
+| `mech3/lab_screen.cpp` | 1 / 1 | always on (sort by name) |
+| `mech3/mech_build.cpp` | - / 1 | none: the exe's way always (PM's firepoint aim cone, Owen 2026-11-10) |
 | `mech3/mech_collide.cpp` | 1 / 1 | always on (a mech's collision zones outside the player's: the lancemate's lost floor is a stray-state fix) |
-| `mech3/mech_control.cpp` | 2 / 2 | Controls (the lever's reverse, no stick) |
+| `mech3/mech_control.cpp` | 2 / 2 | always on (the lever's reverse, no stick) |
 | `mech3/mech_fieldbase_dock.cpp` | 4 / 5 | MFB regroup after repair |
 | `mech3/mech_move.cpp` | 1 / - | Water movement |
-| `mech3/mech_names.cpp` | 2 / - | Weapons and combat (the plain PPC) |
-| `mech3/mech_net.cpp` | 3 / 3 | Multiplayer |
-| `mech3/mech_objective.cpp` | 1 / 1 | Missions and campaign (objective data) |
-| `mech3/mech_parts.cpp` | 1 / 1 | Weapons and combat (the heat-sink critical) |
-| `mech3/mech_place.cpp` | 1 / 1 | Mech movement |
-| `mech3/mech_pose.cpp` | 2 / 2 | Mech movement |
-| `mech3/mech_skin.cpp` | 1 / 1 | Screens and sound (damage textures) |
-| `mech3/mech_skis.cpp` | 2 / 1 | Mech movement |
-| `mech3/mech_waynet.cpp` | 2 / 2 | Missions and campaign (nav points reached) |
+| `mech3/mech_names.cpp` | 2 / - | Small fixes (the plain PPC) |
+| `mech3/mech_net.cpp` | 3 / 3 | always on (remote aim, the push's credit, the latency) |
+| `mech3/mech_objective.cpp` | 1 / 1 | Small fixes (objective data) |
+| `mech3/mech_parts.cpp` | 1 / 1 | always on (the heat-sink callout) |
+| `mech3/mech_place.cpp` | 1 / 1 | Small fixes (placing a mech) |
+| `mech3/mech_pose.cpp` | 2 / 2 | always on (the gait's blend: the feet's pose) |
+| `mech3/mech_skin.cpp` | 1 / 1 | always on (damage textures) |
+| `mech3/mech_skis.cpp` | 2 / 1 | Improved AI (an AI mech's floor) and always on (the foot probes) |
+| `mech3/mech_waynet.cpp` | 2 / 2 | always on (nav points reached) |
 | `mech3/mission_launch.cpp` | 1 / 1 | always on (a crash with the view on another vehicle at the launch) |
-| `mech3/mp_lobby.cpp` | 1 / 1 | Multiplayer (the lock's stock loadout) |
-| `mech3/options_menu.cpp` | 4 / 4 | the UPGRADES page's BUG FIXES line: replaced by one line per switch; the mouse sensitivity's use: Controls |
-| `mech3/pilot.cpp` | 3 / 3 | Missions and campaign (pilot names, saving before the question) |
+| `mech3/mp_lobby.cpp` | 1 / 1 | always on (the lock's stock loadout) |
+| `mech3/options_menu.cpp` | 4 / 4 | the UPGRADES page's BUG FIXES line: replaced by one line per switch; the mouse sensitivity's use: always on |
+| `mech3/pilot.cpp` | 3 / 3 | always on (pilot names, saving before the question) |
 | `mech3/player.cpp` | 2 / 2 | always on (a vehicle's whole names, its controller's crash) |
 | `mech3/pocket_panel.cpp` | 1 / 1 | always on (the pocket commander's use after free) |
 | `mech3/quit_box.cpp` | 4 / 4 | always on (closing with the box up left the mouse unable to fire) |
-| `mech3/turret.cpp` | 3 / 3 | Improved AI (turrets) |
-| `mech3/veh_controls.cpp` | 2 / 2 | Improved AI (vehicles) |
-| `mech3/weapon.cpp` | 6 / 6 | Weapons and combat (aim, TAG, ammo) |
+| `mech3/turret.cpp` | 3 / 3 | always on (the turrets' pick, Owen 2026-11-10) and Small fixes (a turret shut down, its yaw) |
+| `mech3/veh_controls.cpp` | 2 / 2 | Small fixes (vehicles) |
+| `mech3/weapon.cpp` | 6 / 6 | Small fixes (TAG, the beam, the selection); always on (the aim past 4:3, ZAPS_HUD's hold) |
 | `mech3/zai_attack.cpp` | 5 / 5 | Improved AI (the detour and trail) |
 | `mech3/zai_nav.cpp` | 1 / 1 | Improved AI |
 | `mech3/zai_repair.cpp` | 1 / 1 | MFB regroup after repair (the drive to the dock) |
-| `mech3/zai_valve.cpp` | 1 / 1 | Improved AI |
-| `mech3/zrdraiv.cpp` | 3 / 3 | Improved AI (Alan's voice, loose orders) and Missions and campaign (c4b 5 and 6's boundaries) |
-| `pm/gamez/zeffect/zeff_anim_init.cpp` | - / 2 | Missions and campaign (PM's copy) |
-| `pm/gamez/zmodel/gmod_clip3d.cpp` | - / 1 | Screens and sound |
-| `pm/gamez/zmodel/gmod_const.cpp` | - / 1 | Screens and sound |
-| `pm/gamez/zmodel/gmod_projected.cpp` | - / 1 | Screens and sound |
+| `mech3/zai_valve.cpp` | 1 / 1 | always on (delayed updates) |
+| `mech3/zrdraiv.cpp` | 3 / 3 | always on (Alan's voice); Small fixes (loose orders, c4b 5 and 6's boundaries) |
+| `pm/gamez/zeffect/zeff_anim_init.cpp` | - / 2 | Small fixes (PM's copy) |
+| `pm/gamez/zmodel/gmod_clip3d.cpp` | - / 1 | always on |
+| `pm/gamez/zmodel/gmod_const.cpp` | - / 1 | always on |
+| `pm/gamez/zmodel/gmod_projected.cpp` | - / 1 | always on |
 
 ## (a) Always on, no switch
 
@@ -500,106 +558,22 @@ switch it would read instead. Several of them guard fixes this sort puts under
 | Pirate's Moon's via cost, 0x4cf730 (`way_through`) | PM | the port doesn't read it. |
 | Pirate's Moon's saved worlds' animation states, 0x524e10 / 0x525d70 and… | PM | the saves our earlier builds wrote are still read: an entry exactly MW3's length for its count is read in… |
 
-### Copy-protection traps, FIX (trap) (5)
+### Restored content, pictures, sound, HUD and text (42)
+
+Owen's rule: on for good; the borderline ones he confirmed (Owen's answers, above).
 
 | Fix | Game | Why |
 |---|---|---|
-| The mech lab's import, 0x004260c0 | MW3 | hand-edited loadouts refused, as the saved ones (protection.md) |
-| Saved loadouts, Load 0x424600 | MW3 | anti-tamper, `protection.md` |
-| Exe self-check, 0x4854c0 | MW3 | as the row says |
-| Multiplayer rules check, 0x46fc08 | MW3 | as the row says |
-| Archive lines, 0x5955e0 / 0x596620 | MW3 | a damaged interp.zbd crashes or overruns |
-
-### Only in our own tools (the editor, mods) (5)
-
-No original play to restore: the original never reaches these.
-
-| Fix | Game | Why |
-|---|---|---|
-| The developers' teleport 0x004a37a0 and dialog 132 (editor.md, Teleport;… | MW3 | crashes, a lost backup, a Cancel that does not cancel; a world a mod adds may have no location.zrd |
-| The AI net record compare, 0x4c6680 (editor.md, The record cache) | MW3 | an edit of only those reads as the file's own, and the record cache drops it: lost at the save |
-| The AI net record cache's copy, 0x4dc2b0 (0x4da790 then 0x4c63a0) | MW3 | every edited node saved without its auxname |
-| The editor's reload, 0x4bed90 (editor.md, The reload) | MW3 | an edit to a running net shows only at the next start |
-| Pirate's Moon's teleport, a typed place 0x004a8d70 (editor.md, Pirate's… | PM | MW3's took the yaw field; a typed place saved with a stray facing |
-
-## (b) Upgrades, by switch
-
-### MFB regroup after repair (2)
-
-| Fix | Game | Why |
-|---|---|---|
-| The dock's places step, 0x0045ab70 with the request 0x0045a780… | MW3 | called to the point they last docked at, the bases already stand on their slots (the close drives them back,… |
-| The repair dock after a repair, 0x0045b6c0 / 0x0045b6f0 (vehicles.md,… | MW3 | every repair needs a new M-M at the same place, and a lancemate cannot use the bases after the player |
-
-### Improved AI (15)
-
-| Fix | Game | Why |
-|---|---|---|
-| An ordered lancemate's follow, 0x004d1980 (ai.md section 17.6, W17) | MW3 | a lancemate told to follow or attack stands behind a wall, short of the target, for good |
-| An ordered lancemate's follow round corners, 0x004d1980 (ai.md section… | MW3 | round a corner or along a canyon he is left behind, against a wall or stood still |
-| The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | MW3 | the count runs on across missions: each later mission's turrets act once every as many frames as turrets… |
-| A turret shut down, 0x004a7620 | MW3 | the flag test is the wrong way round: an effect lit as the turret dies (a charge before a shot) stays lit;… |
+| The Small Pulse Laser's muzzle flash (weapons.zrd's `plaser_blue_muz.flt`; fixes.md, Candidates) | MW3 | a graphic missing: no world has the flash it names, so it fires with none. To be made: the Small Laser's `laser_blue_muz.flt` in its place (Owen 2026-11-10) |
 | Alan's voice, aiv.zrd 0x4df730 | MW3 | misplaced data: his voice lines likely do not play there |
-| Loose orders, aiv.zrd 0x4df730 | MW3 | misplaced data: the reader skips them, so those enemies follow no scripted orders |
-| A turret's yaw, 0x004a71c0 (W50) | MW3 | a facing straight up or down (the tripod turrets are made so) zeroes the yaw matrix's axes: the turret and… |
-| Vehicle gun limits, 0x4a41b0 (vehicles.md, The gun's aim) | MW3 | a vehicle's clamped aim misses its limit (24.6 degrees for a target dead ahead 40 degrees up with the… |
-| Vehicle motion block, 0x49ef40 (vehicles.md) | MW3 | a vehicle with chas_pitch and no chas_roll loses its pitch settings (no shipped vehicle has either key) |
-| AI backup node's state, 0x4cfad0 | MW3 | the pilot turns toward a random direction; no shipped net has a backup node |
-| An AI mech's ground and collision queries, 0x00476a30 and 0x00422f5c… | MW3 | a lancemate in a zone the player is not in loses his floor; the skis take the land over him (the lowest of… |
-| A lancemate's walk, the follow's 0x004d1980, the fight's 0x004d1d10 and… | MW3 | Owen: "the pathing is a ridiculous joke": a lancemate stands at a river, a wall or a shape's edge for good,… |
-| Pirate's Moon's backup node's state, 0x4ddab0 (zai_drive_pm `run_backup`) | PM | as MW3's |
-| Pirate's Moon's deploy node's valves, 0x4de0e0 (zai_drive_pm… | PM | as MW3's |
-| Pirate's Moon's range actions on a valve, 0x4f5050 (`RangeAction::fire`) | PM | no brain, no write, as the scan switches. No shipped file uses these keys. |
-
-### Water movement (1)
-
-| Fix | Game | Why |
-|---|---|---|
-| Deep water, gait 0x4181c0 | MW3 | the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 |
-
-### Artemis tracking (1)
-
-| Fix | Game | Why |
-|---|---|---|
-| Missile homing, 0x00585900 (weapons.md, Homing) | MW3 | the FCS "double tracking" never applies (the terrain following, +0x5c8, does) |
-
-### Weapons and combat (8)
-
-| Fix | Game | Why |
-|---|---|---|
-| The reticle's pick, 0x00444350 (hud.md section 10) | MW3 | six weapons reach past it (ER large laser and NARC 1000 m, ER PPC 920, Gauss 880, LB 2-X 870, Ultra AC/2… |
 | Heat-sink critical, 0x460d50 | MW3 | losing a sink is silent (`heat.md`, `damage.md`) |
 | A weapon's aim, 0x004b36e0 (weapons.md, Aim) | MW3 | wider than 4:3 the reticle reaches past the cone, so at full twist the arm beams snapped to the arm's line… |
-| LOCK_ON_LEAD, 0x583fb9 | MW3 | a typo: `[eax+0xc]` for `[eax+4]` |
-| Plain PPC, weapon table 0x5e64f0 | MW3 | the mech lab cannot offer a weapon the data defines |
-| TAG's strike, 0x4afed0 | MW3 | they arrive 7 s later where the target stood: a mech walking at 30 kph or more is not touched |
-| A beam after its button is let go, 0x004b4230 (weapons.md, Beams) | MW3 | the beam trails a moving mech by a metre or more, and its ray starts there (playtest #24) |
-| Weapon::destroy, 0x004b3020 (pm-tests item 21) | MW3 | the selection stays on a destroyed weapon when the one after it is gone too |
-
-### Mech movement (2)
-
-| Fix | Game | Why |
-|---|---|---|
 | Gait blend-in, 0x417a80 (0x417d85) | MW3 | the right foot snaps to the walk's angle and the left lurches toward the right's old one for the first 2/3 s… |
-| Placing a mech, 0x4161c0 | MW3 | a mech re-placed where it stands (a mech swap, 0x4783c0) can drop under a bridge or land on a roof; the… |
-
-### Missions and campaign (8)
-
-| Fix | Game | Why |
-|---|---|---|
 | The nav waynet's frame, 0x00479c50 (vehicles.md, The nav waynet) | MW3 | once past the selected point the rest of the list is skipped: those nav points are not marked reached (their… |
-| Animation prerequisites, 0x50aaa3 | MW3 | the mission's last animation can never be waited for |
-| Missing animation object, 0x50a0e0 | MW3 | the animation then fires without waiting for any of its conditions |
 | The debriefing's mission time, 0x0047b750 | MW3 | past an hour 01:01:3640 |
 | Saved game replaced before the question, 0x478f10 / 0x434e00 | MW3 | No keeps the old entry in the list, but its file already holds the new world |
 | Lancemates' career kills, 0x0047ac20 (the Win State's copy of the… | MW3 | a lancemate not on that card (or not matched by name) loses their career mech kills on every win |
-| c4b missions 5 and 6's boundaries, the aiv.zrd vlist reader 0x4dfb00 | MW3 | leaving either mission's area never fails it |
 | Delayed updates, 0x4d3d30 | MW3 | the new timers are lost: c3 mission 2's `ambush_powerup_down_a` can lose three radio lines |
-
-### Screens and sound (23)
-
-| Fix | Game | Why |
-|---|---|---|
 | The radar's contacts, 0x0043dd00 (from 0x0043e445; hud.md section 15) | MW3 | a targets.zrd building's node is at the world's origin, its mesh in world co-ordinates, so a targeted… |
 | The HUD's timer, 0x43c390 | MW3 | past an hour the seconds run into the thousands: 3700 s shows 01:01:3640 |
 | TARGET's distance past 1 km, 0x00441850 | MW3 | a cosmetic text slip |
@@ -623,11 +597,6 @@ No original play to restore: the original never reaches these.
 | Pirate's Moon's projected lights' splits, 0x00562840… | PM | As MW3's row |
 | Medium sound format, 0x570ccf and the per-sound formats (Pirate's Moon… | PM | a typo: the medium playback format is never read |
 | Pirate's Moon's HUD static, 0x0043dfa0 (hud.md section 21) | PM | the level is worked out and then ignored, where MW3's static thickened with damage |
-
-### Controls (8)
-
-| Fix | Game | Why |
-|---|---|---|
 | A key typed into a text field, zInput's read 0x0051a5d0 (input.md;… | MW3 | a key let go after the Enter that closes a line (the cheat box, the chat) read as released to the game: L,… |
 | A stick's throttle lever, PlayerControls' axes 0x00427870 (W56; Reddit… | MW3 | a lever had no reverse of its own: a player had to find Backspace |
 | The reverse flag on a stick's lever, PlayerControls' axes 0x00427870 (a… | MW3 | the lever has its own reverse now, and the flag stuck: throttle-down tapped with the lever behind stop, or… |
@@ -636,25 +605,143 @@ No original play to restore: the original never reaches these.
 | The game options' invert box, ACCEPT 0x00438100 | MW3 | the player's mouse sensitivity (the registry's MouseAccelY, any size) is lost each time the options are… |
 | Key names, 0x51c480 | MW3 | 0xde..0xff read the joystick's names, then numbers, as names |
 | The saved mouse settings, the same writes (MouseAccelX/Y at… | MW3 | a value set for a moment would reach the disk; with our MOUSE SENSITIVITY the player's own value must… |
+| A peer's latency, 0x00470a00 (multiplayer-port.md piece 14c, the 1.2… | MW3 | the clamp means a negative trip to give 0; read unsigned, a delay past the round trip (a stall, a peer's… |
 
-### Multiplayer (4)
+### By Owen's call (4)
+
+Owen, 2026-11-10: all four multiplayer fixes always on (the latency's is in the restored rows' table above), and the turrets' pick.
 
 | Fix | Game | Why |
 |---|---|---|
+| The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | MW3 | the count runs on across missions: each later mission's turrets act once every as many frames as turrets… |
 | A remote mech's aim carried on by the lag, 0x0046e4d0… | MW3 | the correction is about 0.1%: the remote aim shown lags behind |
 | A collision's push from a remote mech, 0x004705b0 (multiplayer-port.md… | MW3 | a pilot killed by the push credits no one |
-| A peer's latency, 0x00470a00 (multiplayer-port.md piece 14c, the 1.2… | MW3 | the clamp means a negative trip to give 0; read unsigned, a delay past the round trip (a stall, a peer's… |
 | The lock's stock loadout, 0x0049b360 (multiplayer-port.md piece 11b) | MW3 | every player is put back on the mech's first stock loadout, even one who chose another stock one |
+
+### Copy-protection traps, FIX (trap) (5)
+
+| Fix | Game | Why |
+|---|---|---|
+| The mech lab's import, 0x004260c0 | MW3 | hand-edited loadouts refused, as the saved ones (protection.md) |
+| Saved loadouts, Load 0x424600 | MW3 | anti-tamper, `protection.md` |
+| Exe self-check, 0x4854c0 | MW3 | as the row says |
+| Multiplayer rules check, 0x46fc08 | MW3 | as the row says |
+| Archive lines, 0x5955e0 / 0x596620 | MW3 | a damaged interp.zbd crashes or overruns |
+
+### Only in our own tools (the editor, mods) (5)
+
+No original play to restore: the original never reaches these.
+
+| Fix | Game | Why |
+|---|---|---|
+| The developers' teleport 0x004a37a0 and dialog 132 (editor.md, Teleport;… | MW3 | crashes, a lost backup, a Cancel that does not cancel; a world a mod adds may have no location.zrd |
+| The AI net record compare, 0x4c6680 (editor.md, The record cache) | MW3 | an edit of only those reads as the file's own, and the record cache drops it: lost at the save |
+| The AI net record cache's copy, 0x4dc2b0 (0x4da790 then 0x4c63a0) | MW3 | every edited node saved without its auxname |
+| The editor's reload, 0x4bed90 (editor.md, The reload) | MW3 | an edit to a running net shows only at the next start |
+| Pirate's Moon's teleport, a typed place 0x004a8d70 (editor.md, Pirate's… | PM | MW3's took the yaw field; a typed place saved with a stray facing |
+
+### fixes.md's data typos still to fix (4)
+
+fixes.md's bulleted list (Original bugs still to fix) holds data typos for the
+importer besides the tables' rows; c2m3's Fireflies there is the Missions row
+below. The list's other entries (the CPU speed, the precision notes, the
+fonts) are port fixes, FIX (A) / (B), or the exe's own precision: always on,
+or no change. Two typos are pictures and text (always on), two play (Small
+fixes, items 22 and 23):
+
+| Fix | Game | Why |
+|---|---|---|
+| Firefly skin 5's label `MSG_SKIN_VARIANTD` (should be `VARIANTE`, SLATE) | MW3 | text: always on. To be made |
+| c1's script `Object3DSetScrllAlways` on `ocean52` (should be `Object3DSetScrollAlways`) | MW3 | a picture: the water does not scroll. Always on. To be made |
+| Sunder Alternate B's `extra (120 120)` beside the LRM 20's `ammo` instead of inside it | MW3 | play: 240 missiles lost. Small fixes. To be made |
+| Strider's `recoil_slide ("1.5.0")` as text (should be `1.5`) | MW3 | play: its recoil read as none. Small fixes. To be made |
+
+## (b) Own switches
+
+### MFB regroup after repair (2)
+
+| Fix | Game | Why |
+|---|---|---|
+| The dock's places step, 0x0045ab70 with the request 0x0045a780… | MW3 | called to the point they last docked at, the bases already stand on their slots (the close drives them back,… |
+| The repair dock after a repair, 0x0045b6c0 / 0x0045b6f0 (vehicles.md,… | MW3 | every repair needs a new M-M at the same place, and a lancemate cannot use the bases after the player |
+
+### Improved AI (4)
+
+| Fix | Game | Why |
+|---|---|---|
+| An ordered lancemate's follow, 0x004d1980 (ai.md section 17.6, W17) | MW3 | a lancemate told to follow or attack stands behind a wall, short of the target, for good |
+| An ordered lancemate's follow round corners, 0x004d1980 (ai.md section… | MW3 | round a corner or along a canyon he is left behind, against a wall or stood still |
+| An AI mech's ground and collision queries, 0x00476a30 and 0x00422f5c… | MW3 | a lancemate in a zone the player is not in loses his floor; the skis take the land over him (the lowest of… |
+| A lancemate's walk, the follow's 0x004d1980, the fight's 0x004d1d10 and… | MW3 | Owen: "the pathing is a ridiculous joke": a lancemate stands at a river, a wall or a shape's edge for good,… |
+
+### Water movement (1)
+
+| Fix | Game | Why |
+|---|---|---|
+| Deep water, gait 0x4181c0 | MW3 | the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 |
+
+### Artemis tracking (1)
+
+| Fix | Game | Why |
+|---|---|---|
+| Missile homing, 0x00585900 (weapons.md, Homing) | MW3 | the FCS "double tracking" never applies (the terrain following, +0x5c8, does) |
 
 Deep water: its row once said "game-breaking per Owen" (2026-10-30, when it was folded into `bugs`); release.md names water movement as an upgrade, so it is listed there.
 
-## (c) Unsure
+## (c) Small fixes (22)
+
+One switch; the in-game list above names each in the same order.
+
+### Turrets, vehicles and the AI's data (9)
 
 | Fix | Game | Why |
 |---|---|---|
-| String variables, 0x596020 | MW3 | no effect: nothing registers a string variable, so the fix never runs |
+| A turret shut down, 0x004a7620 | MW3 | the flag test is the wrong way round: an effect lit as the turret dies (a charge before a shot) stays lit;… |
+| Loose orders, aiv.zrd 0x4df730 | MW3 | misplaced data: the reader skips them, so those enemies follow no scripted orders |
+| A turret's yaw, 0x004a71c0 (W50) | MW3 | a facing straight up or down (the tripod turrets are made so) zeroes the yaw matrix's axes: the turret and… |
+| Vehicle gun limits, 0x4a41b0 (vehicles.md, The gun's aim) | MW3 | a vehicle's clamped aim misses its limit (24.6 degrees for a target dead ahead 40 degrees up with the… |
+| Vehicle motion block, 0x49ef40 (vehicles.md) | MW3 | a vehicle with chas_pitch and no chas_roll loses its pitch settings (no shipped vehicle has either key) |
+| AI backup node's state, 0x4cfad0 | MW3 | the pilot turns toward a random direction; no shipped net has a backup node |
+| Pirate's Moon's backup node's state, 0x4ddab0 (zai_drive_pm `run_backup`) | PM | as MW3's |
+| Pirate's Moon's deploy node's valves, 0x4de0e0 (zai_drive_pm… | PM | as MW3's |
+| Pirate's Moon's range actions on a valve, 0x4f5050 (`RangeAction::fire`) | PM | no brain, no write, as the scan switches. No shipped file uses these keys. |
+
+### Weapons (6)
+
+| Fix | Game | Why |
+|---|---|---|
+| The reticle's pick, 0x00444350 (hud.md section 10) | MW3 | six weapons reach past it (ER large laser and NARC 1000 m, ER PPC 920, Gauss 880, LB 2-X 870, Ultra AC/2… |
+| LOCK_ON_LEAD, 0x583fb9 | MW3 | a typo: `[eax+0xc]` for `[eax+4]` |
+| Plain PPC, weapon table 0x5e64f0 | MW3 | the mech lab cannot offer a weapon the data defines |
+| TAG's strike, 0x4afed0 | MW3 | they arrive 7 s later where the target stood: a mech walking at 30 kph or more is not touched |
+| A beam after its button is let go, 0x004b4230 (weapons.md, Beams) | MW3 | the beam trails a moving mech by a metre or more, and its ray starts there (playtest #24) |
+| Weapon::destroy, 0x004b3020 (pm-tests item 21) | MW3 | the selection stays on a destroyed weapon when the one after it is gone too |
+
+### Mech movement (1)
+
+| Fix | Game | Why |
+|---|---|---|
+| Placing a mech, 0x4161c0 | MW3 | a mech re-placed where it stands (a mech swap, 0x4783c0) can drop under a bridge or land on a roof; the… |
+
+### Missions (4)
+
+| Fix | Game | Why |
+|---|---|---|
+| Animation prerequisites, 0x50aaa3 | MW3 | the mission's last animation can never be waited for |
+| Missing animation object, 0x50a0e0 | MW3 | the animation then fires without waiting for any of its conditions |
+| c4b missions 5 and 6's boundaries, the aiv.zrd vlist reader 0x4dfb00 | MW3 | leaving either mission's area never fails it |
+| c2m3's secondary objective (objectives.zrd c2 `m3`, "Destroy Smoke Jaguar… | MW3 | the objective completes with both Fireflies alive (playtest W24). Made already: `fix_objective_data` points them at firefly_03 / 04 (Owen 2026-10-25; fixes.md, Original bugs still to fix, whose row here was stale); Small fixes (Owen 2026-11-10) (the… |
+
+## Left as the original (Owen, 2026-11-10) (4)
+
+Owen's call: these play as they shipped, the fix removed (Pirate's Moon's firepoint cone, behind `bugs` today, takes the exe's way always) or never made.
+
+| Fix | Game | Why |
+|---|---|---|
 | A firepoint's aim cone (Pirate's Moon 0x4a6ee0) | PM | a Pirate's Moon typo that changes a firepoint's aim limit: a balance change as much as a bug |
 | Pirate's Moon's aim re-pick, 0x4bb290 (`AimPm::repick`) | PM | Pirate's Moon's aim re-pick may be a slip or meant: making it MW3's changes how often PM's AI hits |
+| Vehicle motion block, 0x49ef40 / 0x49ecd0 (vehicles.md, In the program) | MW3 | Candidate for Owen: vehicles never place their collision points and pass through walls and buildings except… |
+| Vehicle suspension, 0x4a1760 / 0x4a23f0 (vehicles.md, The suspension) | MW3 | Candidate for Owen (balance): vehicles are never slowed in quicksand or lava as their quicksand_slowdown /… |
 
 ## Not changes
 
@@ -662,10 +749,8 @@ Rows of fixes.md that change nothing (candidates for Owen, ported as written, a 
 
 | Fix | Game | Why |
 |---|---|---|
-| Vehicle motion block, 0x49ef40 / 0x49ecd0 (vehicles.md, In the program) | MW3 | Candidate for Owen: vehicles never place their collision points and pass through walls and buildings except… |
-| Vehicle suspension, 0x4a1760 / 0x4a23f0 (vehicles.md, The suspension) | MW3 | Candidate for Owen (balance): vehicles are never slowed in quicksand or lava as their quicksand_slowdown /… |
-| c2m3's secondary objective (objectives.zrd c2 `m3`, "Destroy Smoke Jaguar… | MW3 | the objective completes with both Fireflies alive (playtest W24). Not fixed: **a candidate for Owen** (the… |
 | The mech lab's Ctrl+X / Ctrl+I on Pirate's Moon | PM | none: ported as written |
 | Pirate's Moon's `MipBias -1` (common.gw), 0x00598230 | PM | Not reproduced yet: the words are read, the value goes nowhere. Candidate for Owen with the renderer's… |
 | Deep water, gait (MW3 0x4181c0; Pirate's Moon 0x418fc0) | PM | Candidate for Owen, not changed: PM's line is `(0.6 - 1) / H * d + 0.6`, clamped to 0.6..1, which is 0.6 at… |
 | Plain PPC, on `pm` | PM | Not a fix on this branch: the row above is MW3's |
+| String variables, 0x596020 | MW3 | no effect (was under unsure): nothing registers a string variable, so the fix never runs |

@@ -181,13 +181,17 @@ extern "C" int32_t probe_pm_ai_pick(const int32_t* in, const int32_t* rands, con
   Contact held;
   Contact* held_p = in[6] == 1 ? &held : nullptr;
   if (in[6]) fi.plan = new PlanPm, fi.plan->slot = &held_p;
-  PlanPm* const old = fi.plan;
   PlanPm* r = plan_pick(fi);
   auto& l = p.log;
   l.push_back(0x2b);
   if (!r) {
     l.push_back(0);
-  } else if (r == old) {
+  } else if (r == fi.plan) {
+    // Held: the pick gave back the firing's plan and left it there. Not by the old plan's address: a new plan
+    // is made after the old one is deleted and can land where it was, which read as "held" on some runs
+    // (test_pm_ai_pick failed 1 run in 16 on pm, cases 0 and 9). The pick itself never stores a new plan:
+    // 0x004bc2e0 returns the held one from firing+0x14, or deletes it, zeroes +0x14, and returns the new one
+    // for its caller to store (as plan_pick does), so here, right after the call, fi.plan is set only when held.
     l.push_back(2);
   } else {
     l.push_back(1), l.push_back(r->slot == &p.target ? 99 : static_cast<uint32_t>(p.index(*r->slot)));
