@@ -36,6 +36,7 @@
 #include "mech3/mission.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
@@ -194,6 +195,7 @@ const std::vector<ScreenGroups>& screen_groups() {
       // Ours: the MODS screen, the pilot screen's groups; its tabs along the
       // bottom (EDITOR, ADD MOD, ADD FOLDER, MODS FOLDER) kept together at the left.
       {kModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      {kIaModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
@@ -433,6 +435,10 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return screen(sizeof(ModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new ModsScreen(e, s); });
     case kModsStateCtor:
       return state([](Handle h) -> MenuState* { return new ModsState(h); });
+    case kIaModsScreenCtor:  // ours: Instant Action's MODS
+      return screen(sizeof(IaModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new IaModsScreen(e, s); });
+    case kIaModsStateCtor:
+      return state([](Handle h) -> MenuState* { return new IaModsState(h); });
     case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};

@@ -13,6 +13,8 @@
 #include "mech3/mech_names.h"
 #include "mech3/mod_campaign.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/entry_run.h"
+#include "upgrades/mods/ia_mods.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -206,4 +208,31 @@ TEST(campaign_entry_keeps_its_own_saved_loadouts) {
   mech3::set_configs_folder("");
   EXPECT(mech3::configs_folder() == "configs");
   zutl::mounts() = before;
+}
+
+// Instant Action's MODS (upgrades/mods/ia_mods_menu.h): what ACCEPT does with
+// the ticks as they were and are, and the screen's line.
+TEST(ia_mods_accept_steps_and_line) {
+  using V = std::vector<std::string>;
+  using mech3::IaModsStep;
+  // A plain run: nothing ticked is the original and nothing starts again; any ticked starts into the entry.
+  EXPECT(mech3::ia_mods_step({}, {}, false) == IaModsStep::kBack);
+  EXPECT(mech3::ia_mods_step({"a"}, {}, false) == IaModsStep::kBack);
+  EXPECT(mech3::ia_mods_step({}, {"a"}, false) == IaModsStep::kIntoEntry);
+  EXPECT(mech3::ia_mods_step({"a"}, {"a"}, false) == IaModsStep::kIntoEntry);  // ticked but not mounted in this run
+  // Inside the entry: unchanged goes back, changed starts again with the new set, none left goes back to the plain run.
+  EXPECT(mech3::ia_mods_step({"a", "b"}, {"a", "b"}, true) == IaModsStep::kBack);
+  EXPECT(mech3::ia_mods_step({"a", "b"}, {"b", "a"}, true) == IaModsStep::kIntoEntry);  // the order is a change
+  EXPECT(mech3::ia_mods_step({"a"}, {"a", "b"}, true) == IaModsStep::kIntoEntry);
+  EXPECT(mech3::ia_mods_step({"a"}, {}, true) == IaModsStep::kPlain);
+  const fs::path wd = tmp("ia_mods_line");
+  const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
+  const mech3::CampaignEntry* ia = mech3::find_entry(all, mech3::kIaEntry);
+  EXPECT(ia && mech3::entry_save_ticks(wd.string(), *ia, V{"a", "b"}));
+  EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: off");  // ticked, but this run is the original
+  mech3::entry_run() = mech3::EntryRun{};
+  mech3::entry_run().screen = mech3::EntryRun::kInstantAction, mech3::entry_run().id = mech3::kIaEntry;
+  EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: 2 on");
+  EXPECT(mech3::ia_mods_line(wd.string(), 1) == "MODS: 1 on" && mech3::ia_mods_line(wd.string(), 0) == "MODS: off");  // the tick list's own count
+  mech3::entry_run() = mech3::EntryRun{};
 }

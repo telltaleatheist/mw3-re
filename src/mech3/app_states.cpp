@@ -3,6 +3,7 @@
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/entry_run.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "gamez/zutil/zfix.h"
@@ -1063,6 +1064,7 @@ void MainState::leave() {
   }
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
   if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
+  if (const Handle m = ia_mods_state()) en.vcall(m, 0x00, {1}), ia_mods_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 

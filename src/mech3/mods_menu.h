@@ -74,6 +74,14 @@ void mods_menu_picked(const std::string& path);  // "" cancelled; the screen tak
 
 class ModsScreen;
 
+// The screen's pieces other screens of ours on its look use (upgrades/mods/
+// ia_mods_menu.h): the render target, a text placed and said, and the pilot
+// screen's lines with the pilots' box taken out and (`left_box`) a copy of the right box in its place.
+void mods_screen_target(Engine& e);
+void mods_text_put(ztwod::Text& t, const char* font, int32_t x, int32_t y);
+void mods_text_say(ztwod::Text& t, const std::string& s);
+zimg::Texture* mods_screen_lines(zimg::Texture* src, bool left_box = true);
+
 // Ours (lead, 2026-11-10): ENTER and BACK hit where they are drawn, their
 // ring and knob (the image's pixels of alpha 64 and up) and their label's own
 // box. SlideButton::hit

@@ -248,7 +248,7 @@ void target_buffers(Engine& e) {
 // of its right box (the games' plain one, 378,33, 241x210) put in its place,
 // the CAMPAIGNS list's box lined up with MODS'. The same size and place, so
 // the wide layout stretches it as the pilot screen's. Null when it cannot.
-zimg::Texture* campaign_lines(zimg::Texture* src) {
+zimg::Texture* campaign_lines(zimg::Texture* src, bool left_box = true) {
   constexpr int kBoxX = 378, kBoxY = 33, kBoxW = 241, kBoxH = 210, kToX = 24, kToY = 113, kClearW = 265;
   if (!src || !src->pixels || !src->alpha || src->palette_count || src->width < kBoxX + kBoxW ||
       src->height < kToY + kBoxH)
@@ -266,7 +266,7 @@ zimg::Texture* campaign_lines(zimg::Texture* src) {
       out[y * w + x] = cleared ? 0 : in[y * w + x];
       dst->alpha[y * w + x] = cleared ? 0 : src->alpha[y * w + x];
     }
-  for (int y = 0; y < kBoxH; ++y)
+  for (int y = 0; left_box && y < kBoxH; ++y)
     for (int x = 0; x < kBoxW; ++x) {
       out[(kToY + y) * w + kToX + x] = in[(kBoxY + y) * w + kBoxX + x];
       dst->alpha[(kToY + y) * w + kToX + x] = src->alpha[(kBoxY + y) * w + kBoxX + x];
@@ -283,6 +283,11 @@ void say(ztwod::Text& t, const std::string& s) {
   if (t.needs_render) t.render();
 }
 }  // namespace
+
+void mods_screen_target(Engine& e) { target_buffers(e); }
+void mods_text_put(ztwod::Text& t, const char* font, int32_t x, int32_t y) { put(t, font, x, y); }
+void mods_text_say(ztwod::Text& t, const std::string& s) { say(t, s); }
+zimg::Texture* mods_screen_lines(zimg::Texture* src, bool left_box) { return campaign_lines(src, left_box); }
 
 int32_t ModsSlideButton::hit(int32_t px, int32_t py) {
   if (!get_rect()) return 0;  // off, or being read, as SlideButton's
