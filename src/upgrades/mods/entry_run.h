@@ -11,7 +11,7 @@
 namespace mech3 {
 
 struct EntryRun {
-  enum Screen { kNone, kPlay, kInstantAction, kTest } screen = kNone;
+  enum Screen { kNone, kPlay, kInstantAction, kTest, kEdit } screen = kNone;
   std::string id;               // the entry (campaign_entries.h)
   std::string mod, campaign;    // a mod's campaign: its folder and campaign= id; "" the game's own
   std::function<void()> leave;  // the program's: the game closed and started again on MODS
@@ -25,6 +25,9 @@ struct EntryRun {
   int32_t number = 0;
   bool started = false;         // the first mission was started
   std::string said;             // why it could not be, for the test screen
+  // kEdit (step 4b): the mission opened in the editor at once; leaving the editor leaves the entry, and MODS
+  // opens on `choose` when the session made a copy (upgrades/editor/save_as.h), else on this entry.
+  std::string choose;
 };
 EntryRun& entry_run();
 

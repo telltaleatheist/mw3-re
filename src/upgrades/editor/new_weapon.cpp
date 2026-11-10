@@ -1,4 +1,5 @@
 #include "upgrades/editor/new_weapon.h"
+#include "upgrades/editor/save_as.h"
 
 #include <algorithm>
 #include <cctype>
@@ -367,6 +368,7 @@ std::string row_line(ModWeapon* r, std::string* why) {
 }
 
 void ok() {
+  if (!editor_save_ready([] { ok(); })) return;  // ours (save_as.h): the copy's name first
   ModWeapon r;
   std::string why;
   const std::string line = row_line(&r, &why);
@@ -376,6 +378,8 @@ void ok() {
   const std::string& mod = mods_edit_session().mod;
   const fs::path dir = fs::path(zutl::mounts().write) / "mods" / mod;
   std::error_code ec;
+  if (!editor_owns_mod(zutl::mounts().write, mod))  // never an imported mod's or a hand-made folder's files (save_as.h)
+    return show_error("mods\\" + mod + " was not made by the editor, so it is never written");
   const WeaponEffects fx = effects_picked();
   const std::string& copy = g.copies[size_t(g.copy)];
   std::string where = "zbd\\reader.zbd";

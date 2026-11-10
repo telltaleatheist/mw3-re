@@ -177,6 +177,10 @@ ModsTestRestart& mods_menu_test_restart() {
   static ModsTestRestart r;
   return r;
 }
+ModsTestRestart& mods_menu_edit_restart() {
+  static ModsTestRestart r;
+  return r;
+}
 std::string& mods_menu_open_entry() {
   static std::string id;
   return id;
@@ -703,14 +707,6 @@ void ModsScreen::missions(bool test) {
     tell("Tick " + (picked->info.name.empty() ? picked->info.folder : picked->info.name) + " for " + name + " to " + (test ? "test" : "edit") + " it there.");
     return;
   }
-  // EDITOR through an entry, saving as a copy, is step 4b; until then it opens only on a mod mounted in this
-  // very run (a start with --mod NAME, for us and modders), in place as before.
-  const std::vector<std::string>& mounted = mods_menu_mounted();
-  const std::string edit_folder = picked ? picked->info.folder : folder;
-  if (!test && (edit_folder.empty() || std::find(mounted.begin(), mounted.end(), edit_folder) == mounted.end())) {
-    say(note, "EDITOR is not available from MODS yet.");
-    return;
-  }
   std::vector<ModsEditRow> rows;
   auto add = [&](const std::vector<ModsEditRow>& more) {
     for (const ModsEditRow& r : more) {
@@ -725,18 +721,15 @@ void ModsScreen::missions(bool test) {
       if (i.folder == f) return i;
     return ModInfo{};
   };
-  if (!test) {
-    add(mods_edit_rows(info_of(edit_folder)));
-  } else {
-    if (picked) add(mods_edit_rows(picked->info));
-    if (!own) add(mods_edit_rows(info_of(folder)));
-    add(mods_test_rows(own ? ModInfo{} : info_of(folder), mods_menu_install()));
-  }
+  // EDITOR's list is TEST's: any mission the campaign plays can be opened; its saves make a copy (save_as.h).
+  if (picked) add(mods_edit_rows(picked->info));
+  if (!own) add(mods_edit_rows(info_of(folder)));
+  add(mods_test_rows(own ? ModInfo{} : info_of(folder), mods_menu_install()));
   if (rows.empty()) {
     say(note, name + " has no missions to " + (test ? "test" : "edit") + " (no campaign= lines, no world with a reader archive).");
     return;
   }
-  editing = true, testing = test, edit_mod = test ? folder : edit_folder, edit_rows = std::move(rows);
+  editing = true, testing = test, edit_mod = folder, edit_rows = std::move(rows);
   campaign_list.clear_items();
   for (size_t i = 0; i < edit_rows.size(); ++i)
     campaign_list.add_item((edit_rows[i].world + " mission " + std::to_string(edit_rows[i].number)).c_str(), static_cast<int32_t>(i));
@@ -746,7 +739,7 @@ void ModsScreen::missions(bool test) {
   say(detail, (test ? "TEST " : "EDIT ") + name);
   say(detail2, "");
   tell(test ? "Choose a mission; PLAY starts the game again in " + name + " and plays it. TEST again goes back."
-            : "Choose a mission; PLAY opens it in the editor. EDITOR again goes back.");
+            : "Choose a mission; PLAY starts the game again in " + name + " with it open in the editor. Saving there makes a copy.");
 }
 
 // Inside an entry started for TEST: the screen is its test list alone.
@@ -801,9 +794,10 @@ void ModsScreen::edit_start() {
   const ModsEditRow r = edit_rows[static_cast<size_t>(i)];
   // On a plain run TEST starts the program again into the campaign; inside it (the test mode) the mission is
   // played in place, the mechs' definitions read again (upgrades/mods/mod_test.h).
-  if (testing && !test_mode) {
+  if (!test_mode) {
     std::string why = "the game cannot start again from here";
-    if (!mods_menu_test_restart() || !mods_menu_test_restart()(entry, r.world, r.number, &why)) tell("Cannot play it: " + why);
+    const ModsTestRestart& go = testing ? mods_menu_test_restart() : mods_menu_edit_restart();
+    if (!go || !go(entry, r.world, r.number, &why)) tell(std::string(testing ? "Cannot play it: " : "Cannot edit it: ") + why);
     return;
   }
   const ModsEditStart& start = testing ? mods_menu_test_start() : mods_menu_edit_start();

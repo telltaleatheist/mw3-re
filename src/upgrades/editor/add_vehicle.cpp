@@ -1,4 +1,5 @@
 #include "upgrades/editor/add_vehicle.h"
+#include "upgrades/editor/save_as.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -118,6 +119,7 @@ bool spawn(const std::string& name, const std::vector<uint8_t>& value) {
 // shipped ones are), its net, place, yaw and team ours; made now, and the
 // entry saved into the editor's mod.
 void ok() {
+  if (!editor_save_ready([] { ok(); })) return;  // ours (save_as.h): the copy's name first
   NetEditor* e = net_editor();
   std::string archive;
   std::vector<uint8_t> aiv;
