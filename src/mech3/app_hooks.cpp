@@ -163,6 +163,16 @@ void Engine::menu_mode_picked() {
   if (old < 0) return;
   menu_vmode_ = -1;
   if (menu_vmode() == old || app().stack(0) != app().state(2)) return;
+  // The main menu's state is replaced by itself: its leave frees its screen and the menu objects, its enter
+  // makes them at the new mode. A replace swaps the top state only (zGameApp), so the screens above the main
+  // menu's are popped first: the depth, less the pops queued already (ACCEPT's own). Anything else queued
+  // (a push, a replace) and the stack is not ours to unwind: the menus then take the mode at the next start.
+  int pops = app().depth();
+  for (const zgame::App::Pending& c : app().pending_list()) {
+    if (c.type != zgame::Command::Pop) return;
+    --pops;
+  }
+  for (; pops > 0; --pops) app().pop(0);
   menu_reshape_ = true;
   replace_state(2);
 }
