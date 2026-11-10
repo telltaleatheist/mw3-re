@@ -6607,6 +6607,78 @@ TEST(net_game_over_reaches_the_main_menu_c1m1_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The app's network on (0x0047fc40, multiplayer-port.md): no turrets in a network game (+0x1b2 [0x00608e3a] 0, so
+// the mission load reads no aiTurrets.zrd), message 0xc's handler on, the invincibility cheat (+0x1b8) off; off: the
+// turrets back and the handler gone. c1m1 loaded inside one makes no turret; loaded after it, its turrets again.
+TEST(net_game_has_no_turrets_c1m1_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("net_turrets_write"));
+  const auto load = [&](bool network, uint8_t* flag, uint8_t* cheat) -> int32_t {
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    size_t made = 0;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      app.byte_at(0x1b8) = 1;  // the invincibility cheat, as the debug menu sets it
+      if (network) engine.network_set(1);
+      *flag = app.byte_at(0x1b2), *cheat = app.byte_at(0x1b8);
+      mech3::GameEngine::Launch l;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      int core_frames = 0;
+      engine.on_present = [&](int) {
+        if (app.current() == &mech3::states().core && ++core_frames == 5) made = mech3::tur::turret_list().size();
+      };
+      CountingPump pump;
+      pump.limit = 900;
+      pump.stop = [&] { return core_frames >= 5; };
+      app.run(pump);
+      EXPECT(core_frames >= 5);
+      if (network) {
+        engine.network_set(0);
+        EXPECT(app.byte_at(0x1b2) == 1);  // the turrets back with the network game's end
+      }
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    return static_cast<int32_t>(made);  // the mission's turrets (the id count is reset each mission with the fixes on)
+  };
+  uint8_t flag_net = 9, cheat_net = 9, flag_after = 9, cheat_after = 9;
+  const int32_t in_net = load(true, &flag_net, &cheat_net);
+  const int32_t after = load(false, &flag_after, &cheat_after);
+  std::printf("  in a network game: flag %d, cheat %d, turrets made %d; after it: flag %d, turrets made %d\n", flag_net,
+              cheat_net, in_net, flag_after, after);
+  EXPECT(flag_net == 0 && cheat_net == 0 && in_net == 0);
+  EXPECT(flag_after == 1 && after > 0);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
 namespace {
 // Observers on the action lists, around the two ticks (docs/action-lists.md):
 // each records its place and what the ticks have done so far.

@@ -567,22 +567,35 @@ std::vector<std::string> mods_enabled(const std::string& write_dir) {
 bool mods_save_enabled(const std::string& write_dir, const std::vector<std::string>& enabled) {
   if (write_dir.empty()) return false;
   const fs::path cfg = fs::path(write_dir) / "mw3.cfg";
+  // Each line kept with its own ending, byte for byte (a CRLF file stays CRLF); ours take the file's.
   std::vector<std::string> lines;
   size_t at = std::string::npos;
+  std::string eol = "\n";
+  bool last_open = false;  // the file's last line without an ending: given one, as it was given before
   {
-    std::ifstream f(cfg);
-    for (std::string line; std::getline(f, line);) {
-      if (!line.empty() && line.back() == '\r') line.pop_back();
+    std::ifstream f(cfg, std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    const std::string text = ss.str();
+    bool seen_eol = false;
+    for (size_t pos = 0; pos < text.size();) {
+      size_t end = text.find('\n', pos);
+      std::string line = text.substr(pos, end == std::string::npos ? std::string::npos : end + 1 - pos);
+      pos = end == std::string::npos ? text.size() : end + 1;
+      if (!seen_eol && line.size() >= 2 && line.compare(line.size() - 2, 2, "\r\n") == 0) eol = "\r\n";
+      if (!line.empty() && line.back() == '\n') seen_eol = true;
       if (line.rfind("mod=", 0) == 0) {
         if (at == std::string::npos) at = lines.size();
         continue;
       }
       lines.push_back(line);
     }
+    last_open = !lines.empty() && !lines.back().empty() && lines.back().back() != '\n';
   }
+  if (last_open) lines.back() += eol;
   if (at == std::string::npos) at = lines.size();
   std::vector<std::string> mods;
-  for (const std::string& m : enabled) mods.push_back("mod=" + m);
+  for (const std::string& m : enabled) mods.push_back("mod=" + m + eol);
   lines.insert(lines.begin() + static_cast<long>(at), mods.begin(), mods.end());
   // Written beside it, then renamed over it: a crash or a full disk midway
   // leaves the old file whole (rename replaces an existing file on Windows
@@ -592,7 +605,7 @@ bool mods_save_enabled(const std::string& write_dir, const std::vector<std::stri
   const fs::path tmp = fs::path(write_dir) / "mw3.cfg.new";
   {
     std::ofstream o(tmp, std::ios::trunc | std::ios::binary);
-    for (const std::string& l : lines) o << l << '\n';
+    for (const std::string& l : lines) o << l;
     o.flush();
     if (!o) {
       o.close();
