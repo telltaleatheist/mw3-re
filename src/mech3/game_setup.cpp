@@ -434,6 +434,38 @@ Result add_music(const std::string& cue, const std::string& music_dir, const Pro
   return r;
 }
 
+Result add_pm_from_disc(const std::string& source, const std::string& music_dir, const std::string& write_dir,
+                        const ProgressFn& progress) {
+  const ProgressFn p = forward_only(progress);
+  std::string ext = fs::path(source).extension().string();
+  for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  const bool both = !music_dir.empty() && !write_dir.empty();
+  Result r;
+  r.pirates_moon = true;
+  if (!write_dir.empty()) {
+    r = add_pm_sounds(source, write_dir, [&](const Progress& g) {
+      return p(Progress{g.stage, both ? g.fraction * 0.5 : g.fraction, g.message});
+    });
+    if (!r.ok || music_dir.empty()) return r;
+  }
+  if (music_dir.empty()) return r;
+  if (ext != ".cue") {  // a drive, a folder or an .iso: no CD audio to read
+    const std::string why = "The music comes only from a disc image that kept the CD audio (a .cue with its .bin files).";
+    if (r.ok) r.warnings.push_back(why);
+    else r.summary = why;
+    return r;
+  }
+  const Result m = add_music(source, music_dir, [&](const Progress& g) {
+    return p(Progress{g.stage, both ? 0.5 + g.fraction * 0.5 : g.fraction, g.message});
+  });
+  if (write_dir.empty()) return m;
+  r.music_tracks = m.music_tracks, r.cancelled = m.cancelled;
+  if (m.ok) r.summary += " " + m.summary;
+  else r.warnings.push_back(m.summary);
+  if (!m.detail.empty()) r.detail += m.detail;
+  return r;
+}
+
 Result add_pm_sounds(const std::string& source, const std::string& write_dir, const ProgressFn& progress) {
   const ProgressFn p = forward_only(progress);
   Result r;

@@ -240,6 +240,32 @@ single-game packages stay. One sitting each, each with its tests:
    music), SETUP, and MY DATA FOLDER where it applies, the same screens as
    MW3's acting on the game last clicked. Tests: each button through the
    screens on PM, MW3's files untouched.
+   **Done (2026-11-09):** GAME FILES opens on the game last clicked
+   (`files_pm_`), and PIRATE'S MOON with none found opens its find screen
+   as MECHWARRIOR 3 does (it asked for a folder before). On PM every screen
+   uses PM's own settings folder: "MicroProse/Pirate's Moon" beside MW3's
+   usual one, as SDL_GetPrefPath makes it for mw3pm (worked out here, not
+   created), or where its pointer leads.
+   - FIND THE GAME searches as at the start (sitting 1, plus its own
+     `install\`), then a disc in a drive, then the picker. A pick is
+     installed into `<PM settings>\install`, its music into `music\`. An
+     installed copy is used where it is. MechWarrior 3 picked there is said
+     ("This is MechWarrior 3, not Pirate's Moon: give it under MECHWARRIOR
+     3's GAME FILES"), and PM picked in MW3's is said the other way
+     (`game_words`).
+   - ADD FROM MY DISC (`setup::add_pm_from_disc`) adds the music from a
+     .cue and the soundsH.zbd (sitting 3), each only when missing.
+   - MY DATA FOLDER moves PM's folder (its pointer in PM's usual one, a
+     "Pirate's Moon Data" folder inside a drive's root), its install with
+     it (`pm_install=` follows). MW3's folder and settings are untouched.
+   - PM's notes before a start add MW3's no-music note.
+   Checks: `MW3_LAUNCHER_FILES=pm` (GAME FILES on PM), `MW3_LAUNCHER_ADD`
+   (ADD FROM MY DISC's pick), and `--launcher-pm` with `MW3_LAUNCHER_PICK`
+   and none found (its find screen, the pick installed, then started).
+   `sdl_program_launcher_game_files_pirates_moon` runs install, MW3 picked,
+   add, move, and the start from the moved folder. Breaks: the wanted game
+   ignored, the install into MW3's folder, PM's add dropped, PM's move not
+   followed: each caught.
 5. **Versions**: each entry shows its game's data version and its program's
    version. Test: the launcher's text for both games.
 
