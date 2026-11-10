@@ -264,7 +264,8 @@ std::vector<std::string> entries_migrate(const std::string& write_dir) {
       log.push_back("mods: " + e.id + " takes the " + std::to_string(assets.size()) + " mods mw3.cfg had on");
   }
   // mw3.cfg: every line kept byte for byte, the key added at the end (none made where there is none).
-  if (!fs::is_regular_file(cfg, ec)) return log;
+  // With no mod= line there was nothing to move, and the file is left as it is.
+  if (!fs::is_regular_file(cfg, ec) || on.empty()) return log;
   std::string eol = text.find("\r\n") != std::string::npos ? "\r\n" : "\n";
   std::string out = text;
   if (!out.empty() && out.back() != '\n') out += eol;
