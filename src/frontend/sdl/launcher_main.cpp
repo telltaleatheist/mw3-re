@@ -79,6 +79,7 @@ void read_config(const std::string& write_dir, sdlfe::LauncherOptions& o) {
     if (line.rfind("mw1_game=", 0) == 0) o.cfg_mw1_game = zutl::path_from_config(line.substr(9));
     if (line.rfind("pm_install=", 0) == 0) o.cfg_pm_install = zutl::path_from_config(line.substr(11));
     if (line.rfind("pm_notes=", 0) == 0) o.cfg_pm_notes = line.substr(9);
+    if (line.rfind("mw3_notes=", 0) == 0) o.cfg_mw3_notes = line.substr(10);
   }
 }
 

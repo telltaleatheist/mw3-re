@@ -15,11 +15,13 @@ void help_menus(std::vector<HelpForm>& out) {
                       "editor's menu."},
                      {"EDIT VEHICLES", "",
                       "The Mech AI window: pick one of the mission's vehicles and change its AI settings."},
-                     {"EDIT WEAPONS", "", "Empty in the original game: it does nothing (yet)."},
+                     {"EDIT WEAPONS", "",
+                      "New Weapon: a weapon copied from one the game knows, its name and numbers set, written into "
+                      "the mod (opened from MODS, EDITOR only). Empty in the original game; ours."},
                      {"HELP", "", "This quick start, in a window. Ours: the original had none."},
                      {"EXIT GAME EDIT", "",
-                      "Close the editor. From MODS it goes back to the MODS screen; after Shift+F12 the view goes "
-                      "back to your mech."},
+                      "Close the editor. From MODS's EDITOR it goes back to the MODS screen; in a custom campaign's "
+                      "mission the view goes back to your mech and the mission goes on."},
                  }});
   out.push_back({"net menu", "The net editor's menu",
                  "The net editor's own menu, shown once a net is picked. Click a node in the world to pick it; "

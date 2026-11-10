@@ -42,6 +42,12 @@ constexpr Edit kEdits[] = {
 //   nine boxes would stand empty) with the shell's textbox70 under each
 //   switch's on/off row (TORSO AUTO RETURN's, its arrows at the box's ends).
 constexpr Edit kOurs[] = {
+    // - EDITOR (Owen, 2026-11-09; docs/editor.md, The way in): the pause's
+    //   button under OPTIONS, in the buttons' zig-zag (84 down, RESUME's and
+    //   REPLAY's column), RESUME's record; bound only in a mission the MODS
+    //   screen launched (pause_menu.cpp).
+    {"zbd/reader.zbd", "dlgpause.zrd", Insert, R"(PAUSEDIALOG/BUTTONS/OPTIONS)", R"("EDITOR")",
+     R"(("POSITION" (24 352) "BITMAP" ("circlebtn_small") "LABEL" ("E D I T O R" "offset" (47 35) "font" ("main_red")) "ROLLOVER" ("SOUND" ("menu_rollover" 1.0)) "ACTIVATE" ("SOUND" ("menu_select" 1.0))))"},
     {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GAME_OPTION_DIALOG/BUTTONS/CMD_INVERT_MOUSE_Y)", R"("MOUSE_SENSITIVITY")",
      R"(("POSITION" (250 352) "BITMAP" ("sliderunfilled") "LABEL" ("M O U S E   S E N S I T I V I T Y" "offset" (-185 1) "font" ("ia_dark_grey")) "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select" 1.0)) "FILLBITMAP" ("sliderfilled")))"},
     {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GAME_OPTION_DIALOG/BUTTONS/CONTROLS_CFG)", R"("UPGRADES")",

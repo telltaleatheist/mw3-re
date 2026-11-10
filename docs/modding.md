@@ -204,7 +204,9 @@ loadouts copied to a new 75 t row are half a ton over and refused; the
 Elemental's (11) are never weighed, and the other checks by number
 (`mech_damage.cpp`, `mech_build.cpp`) stay the Elemental's alone.
 
-**A new weapon.** `weapon=` in mod.txt, one line a weapon:
+**A new weapon.** `weapon=` in mod.txt, one line a weapon (the editor's
+New Weapon writes both the line and the definition: MODS, EDITOR, a mission,
+EDIT WEAPONS; editor.md, New Weapon):
 
 ```
 weapon=ERPPC_B ammo=no tech=any title=ER PPC B
@@ -1071,7 +1073,105 @@ every shipped entry, run by itself when mech3ax's unzbd is beside the
 checkout. PM's archives the same where its formats match (mech3ax's `pm`
 readers), on `pm` after pm-v1.0.0.
 
-## Animations a def at a time (design, proposal only, 2026-11-09)
+## Animations a def at a time (design 2026-11-09; step 1 built 2026-11-10)
+
+**Built (step 1): the merge, the def files and the save's name check.**
+- `upgrades/mods/anim_defs` (`mod_def_files`, `with_defs`, `def_spans`)
+  runs in the anim load (`zeff::anim_read_zbd`), on the file chosen (the
+  install's, or the first enabled mod's whole anim.zbd or JSON).
+- A def file is read alone by `zeff::anim_def_from_json`. Its key is
+  unzbd's file name for it, from its own names (`anim_def_key`: node-anim,
+  or node-anim-root when the root is another node; the same as unzbd's names
+  on every def of the six worlds).
+- An ObjectMotionSiScript event in a def file names its script's file
+  (`"script": "si-script-<name>.zan"`, read from `<name>.json` beside it)
+  in place of metadata's index.
+- Each file that does not read, or is passed over by the rules, is said once
+  in the log (`mw3: mod: ...`).
+- A saved running animation whose def at the saved index has another name
+  is dropped and said (`zeff_anim_save.cpp`, running_load). Recording the
+  mods' identity in the save is not built yet. In test_anim_save.py's saves
+  (six missions, plain, cross-loaded from the original's, and damaged), the
+  only runs dropped are the damaged phase's records cut short before their
+  name ends (all 28 shorter than 0x28 bytes, the name read as the zeros
+  past the cut). No plain or cross-loaded save loses one.
+
+Tests: `mods_anim_def_files_merge_on_every_world` (all six worlds: the keys,
+one def replaced, a scripted one where the world has one, and one added,
+every other def's bytes, the header and what follows as shipped) and
+`mods_anim_def_files_by_the_mods_order` (t1: the order rules, the notes, the
+world as the game reads it, the save's drop). Breaks caught: no replacing in
+place, the root left out of the key, a later mod replacing the base's def,
+the name check left out.
+
+**Built (step 2, 2026-11-10): the MODS screen and `--check-mod`.**
+- The list (`mods_list`) reads each enabled mod's def files by world and key
+  (their own names, `anim_defs::def_file_key`) and its whole anim files.
+- `anims_taken` holds a def an earlier enabled mod's def files hold for the
+  same world: a world-less one meets every world.
+- `anim_bases` holds a world where an earlier enabled mod's whole anim file
+  is the base, so this mod's def files only add new animations there.
+- Both mark the mod as sharing with that mod ("Shares 1 animation with a,
+  which wins; its animations only add to t1", or "Its animations only add to
+  t1: c has the whole world's").
+- `--check-mod` reads each def file alone (`zeff::anim_def_from_json`, scripts
+  beside it) and names the line and place of one that does not read ("this
+  animation left out"), else says which animation it is and for which
+  world.
+
+Test: `mods_anim_def_files_on_the_list_and_checked`. Breaks caught: a
+world-less def not meeting a world's; the check not reading def files.
+
+**Built (step 3, 2026-11-10): `--build-anim` and `anim=defs`.**
+- `mw3 --build-anim <mod> [--install DIR]`
+  (`anim_defs::build_for_original`): for each world of the install that the
+  mod has def files for, it writes the install's anim.zbd with the mod's
+  def files merged in (its world folder before its world-less one, the first
+  file of a key) to `<mod>\original\zbd\<world>\anim.zbd`, keeping a .bak of
+  one there before. Errors are named and counted, and the exit code is 1 on
+  any.
+- mod.txt's `anim=defs` tells ours that the mod's whole anim files (at
+  `zbd\<world>\` too) are the original's copy:
+  - the load passes over them, for the next holder's (a mod's, else the
+    install's): `anim_from_mod`'s skip and `whole_file_past_defs_only`;
+  - the def merge's base passes over them as well;
+  - the MODS list takes no base from them;
+  - its def files are merged as any mod's.
+- `original\` is ours never to read: `mod_own_file` leaves it out of the
+  list's sharing, the lobby's hash and `--check-mod`. It is never served at
+  a game path anyway.
+
+Tests:
+- `test_anim_build.py`: def files from unzbd, one replaced (a scripted one
+  on c1, its script by file) and one added, built by the real
+  `mw3 --build-anim`; the original's reader 0x50a0e0, its post-load
+  0x50ae60 and frames of random calls (test_anim_run's run_mission) run on
+  each built file as the port does, on t1 and c1.
+- `mods_anim_defs_only_and_build_anim`: with anim=defs the install's base
+  (gravity) and the def added; without it the mod's own file; no base and
+  no sharing from original\; the built file walks, with its .bak.
+
+Breaks caught: the count left as it was; the anim=defs skip left out;
+original\ counted as the mod's.
+
+**Step 4's check (2026-11-10): what the shipped effect defs need from the
+world.** These are the 64 animation names weapons.zrd uses (every key holding
+ANIMATION). On each of the six worlds (unzbd's anim and gamez JSON), the 60
+defs that have one name 221 nodes (their own node, their node list and their
+object list).
+- Every one of those nodes is an Object3d tree (220).
+- The one exception is `impact_ppc_mech`'s camera1, the world's own camera,
+  which every world has.
+- No effect def names a LOD, a light or any other node class from the world.
+  Their lights (32 defs), puffers (17) and static sounds (5) come from their
+  own lists, made at load.
+
+So a node file holding object3d trees in mechlib's model form is enough for
+any effect. A def naming a camera can name the world's. The four names with
+no def in any world are in fixes.md, Candidates for Owen.
+
+Step 4 below (the node files) is still to build.
+
 
 Owen's ask: animations moddable, and easy, with every old mod working
 exactly as before. Today a mod replaces a world's whole anim.zbd (or its

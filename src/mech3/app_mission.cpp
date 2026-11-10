@@ -2644,7 +2644,13 @@ void GameEngine::missions_start(uint32_t list) {
     if (!quiet) watch.emplace();
     m.start();
   }
-  if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");
+  if (m.failed) {
+    std::fprintf(stderr, "mw3: the mission load failed\n");
+    // FIX (bug): the exe's report is empty, so a failed load went back to the briefing without a word.
+    if (may_ask || on_message_box)
+      message_box_plain(0, 0x1e0, "This mission could not be loaded: " + (m.failed_why.empty() ? std::string("its files are incomplete") : m.failed_why) +
+                                      ". Your game files may be damaged or incomplete: install them again from your disc (the launcher's GAME FILES).");
+  }
   zcls::Node* cam = mission_node(*this, camera_);
   if (launch_.active && launch_.have_pos && cam) {  // as the debug viewer places it (render.md section 0)
     zcls::camera_set_rotation(cam, -launch_.pitch, launch_.yaw + 3.14159265f, 0.0f);

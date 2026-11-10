@@ -8,9 +8,11 @@ key is bound to (0x0040db60 registers only 0x61, 0x70, 0x7e and 0x6c to the
 debug handler 0x0040dba0). Mapped 2026-10-31 (dev 2); the entry, exit,
 panel, main menu and the view on the stealth ported 2026-11-01 (S4, below;
 the AI net and vehicle editors behind its rows come after v1.0). The
-port reaches it with Shift+F12 under `--debug-camera` (or `debugcamera=1`
-in mw3.cfg) only, as Owen asked: "exactly what they did", a developer's
-tool. (F11 is the lancemate command screen in the original's default keys,
+port first reached it with Shift+F12 under `--debug-camera` only, as Owen
+asked: "exactly what they did", a developer's tool. Since 2026-11-09 players
+reach it only from the MODS screen (The way in, below); `--debug-camera`
+stays a developer's command-line flag that no player reaches (mw3.cfg's
+`debugcamera=1` was dropped then). (F11 is the lancemate command screen in the original's default keys,
 Shift+F11 and Ctrl+F11 the awaiting orders; Shift+F12 is bound to nothing,
 on every keyboard. Agreed with the lead 2026-11-01.)
 
@@ -137,7 +139,7 @@ editor's frame 0x00404290 (nothing without a net editor).
 | 0 | PICK A COMMAND | none | the header |
 | 1 | EDIT AI NETS | 0x00402d60 | the AI net editor (below) |
 | 2 | EDIT VEHICLES | 0x004040c0 -> 0x004b86e0 | the vehicle editor: a 0x988-byte object (0x004b80f0, vtables 0x005c9898, 0x005c97c0), [0x0060b310]; also debug command 0x9d's |
-| 3 | EDIT WEAPONS | 0x004bf620 | the shared empty function: nothing in MW3 |
+| 3 | EDIT WEAPONS | 0x004bf620 | the shared empty function: nothing in MW3; ours: New Weapon (1a below) |
 | 4..6 | (blank) | none | |
 | 7 | EXIT GAME EDIT | 0x0040e7f0 | the exit above |
 
@@ -759,6 +761,35 @@ every node's place and links the same; c1m1's edits as saved). Breaks: a
 property dropped, a table comment lost, a foreign folder reused, no .bak, the
 mod placed last, and (mech3ax) a re-encoded archive given as unedited.
 
+## The way in (Owen, 2026-11-09)
+
+The editor is reached only through the MODS screen:
+- **MODS -> EDITOR:** a mod's or custom campaign's mission, opened with the
+  editor up. Its saves go into that mod, one .bak kept (below).
+- **A custom campaign played from MODS (ENTER):** every mission of it has the
+  editor in the level, by Shift+F12 and the pause menu's EDITOR (ours: a
+  button under OPTIONS, patch12_edits.cpp, bound only there). Its saves go
+  into the campaign's mod, one .bak kept, as EDITOR's do (`editor_from_level`
+  sets `net_save_into_mod` from the campaign entered). EXIT GAME EDIT goes
+  back to the mission.
+- **Everywhere else** there is no editor: the original's campaign, Pirate
+  Missions, Instant Action, training and multiplayer. Shift+F12 is bound
+  but does nothing there, and the pause has no EDITOR (`editor_reachable`,
+  mods_edit.h).
+- **`--debug-camera`** is a developer's command-line flag and no player
+  reaches it. It opens the editor in any mission, saving into "editor
+  edits".
+- **A mod without a campaign** has no PLAY of its own: its missions are
+  opened through EDITOR, editor up.
+- **Tests:**
+  - `mods_campaign_mission_has_the_editor_headless`: MODS, ENTER on a
+    campaign, its first mission. Shift+F12 opens the editor and closes it
+    again; a net saved goes into mods\lost\; the pause offers EDITOR, which
+    resumes and opens it.
+  - `campaign_menus_to_c1m1_through_the_briefing_headless`: from the main
+    menu's CAMPAIGN, editor_reachable is false and Shift+F12's command opens
+    nothing.
+
 ## The way in from MODS (Owen, 2026-11-09; built 2026-11-09)
 
 How a modder reaches the editor (`upgrades/editor/mods_edit`, the MODS
@@ -863,72 +894,112 @@ does not offer them: they write into a mod, and only MODS's EDIT names one.
 - **Then** it appears in the mech lab from the next start, as a hand-made
   row does.
 
-### 1a. New Weapon on EDIT WEAPONS (plan, 2026-11-09)
+### 1a. New Weapon on EDIT WEAPONS (built 2026-11-10: main fields, then effects and sounds)
 
-The lead's call (from Owen, 2026-11-09): the New Weapon dialog opens from
-the main menu's **EDIT WEAPONS** row. In the release that row is the shared
-empty function (0x004bf620, above): the developers kept a place for it in
-their menu and never filled it. Using it keeps the editor's spirit, and
-those rows of ours stay under MODS's EDIT. Nothing is built yet.
+Owen's calls (2026-11-09): it opens only from MODS → EDITOR, not by
+Shift+F12; the main fields come first, the effects and sounds in a second
+sitting. Built in `upgrades/editor/new_weapon` with its tips in
+`help_weapons.cpp`.
 
-**The row.** EDIT WEAPONS (ours: its handler, the row's text and place kept)
-opens "New Weapon" when the editor came from MODS's EDIT, so there is a mod
-to write into (`mods_edit_session()`, `net_save_into_mod()`). Under Shift+F12
-there is none, and the line under the menu says so: "EDIT WEAPONS writes
-into a mod: open one from MODS, EDITOR". The guide and the row's tip say the
-same (help_menus.cpp).
+**The row.** EDIT WEAPONS (the release's empty 0x004bf620; the row's text
+and place kept) calls `new_weapon_open`. In a mission the MODS screen's
+EDITOR opened (`mods_edit_session().active`) it opens the form. Anywhere
+else, a custom campaign's Shift+F12 and the pause's EDITOR included, the
+line under the menu says "EDIT WEAPONS writes into a mod: open one from
+MODS, EDITOR".
 
-**The form** (ImGui, as the others; its tips in a help table beside it, in
-the guide):
-1. **Copy:** a list of every weapon the game knows, the exe's 37 by name and
-   the enabled mods' rows after them, each read from the first weapons.zrd
-   that has it (the mod's own reader.zbd, a loose `zbd\weapons.zrd` in it,
-   the patch, the install). The new one starts as the copy's definition,
-   named `<copy>_B`, then `_C`..., the first free.
-2. **The row:** its name (up to 31; letters, digits, `_` and `-`), ammo
-   yes/no, tech (clan, sphere, any, none), title. Each is refused on the
-   spot the way mod.txt's reader refuses it (a taken name, a bad tech).
-3. **The definition:** the fields zWeapon reads from weapons.zrd (0x583880;
-   docs/weapons.md, Definitions), each typed, with the copy's value beside it.
-   For a first sitting that is damage, heat, range, velocity, refire, ammo per
-   ton and the beam's or projectile's own, with the rest kept as the copy has
-   them. The definition's index (+0x10) is its place in BALLISTICS, so a new
-   one always goes last (modding.md, Both ways).
-4. **OK** writes it:
-   - `weapon=<name> ammo=.. tech=.. title=..` in the mod's mod.txt, as the
-     MODS screen writes the file (`mods_*`: its lines in their order, the row
-     replaced by name if there);
-   - the definition at the end of BALLISTICS in the mod's reader.zbd entry
-     weapons.zrd. This uses the editor's archive save (`save_archive_edit`,
-     an entry replaced or added, one .bak) and a byte-level writer like
-     aiv_save's (`weapons_with_definition`: every other byte as it was). If
-     the mod has a loose `zbd\weapons.zrd`, it goes there instead, as text.
-     The loose file wins in a mod (modding.md, Readable files read directly).
-     The original's text reader reads it, and its .bak is kept the same way.
-   - The line under the menu says what was written and that the lab offers
-     it from the next start (mod rows are read at the mount).
-5. **Cancel** closes it unwritten.
+**The form:**
+- **copy of:** weapons.zrd's BALLISTICS names that the lab knows
+  (`weapon_index`: the exe's 37, the plain PPC and the mods' rows). They are
+  read from the mod's own zbd\reader.zbd if it has one (as its last save
+  left it), else from the reader.zbd the game finds.
+- Picking one fills every field from that definition: the name the first
+  free of `<copy>_B` .. `_Z`, `_B2` .. (free of every weapon and every
+  definition), the title the same, ammo and tech from the exe's table for
+  that weapon.
+- **The row:** name (up to 31), ammo, tech (Clan, Inner Sphere, any, none),
+  title. OK checks it as mod.txt's reader does (`weapon_row_parse`) and as a
+  mount would (`weapon_row_taken`: a name of the exe's, the plain PPC's or a
+  row's), and against weapons.zrd's own names. A refusal shows on the form's
+  last line, the form staying up and nothing written.
+- **The numbers:** damage (DAMAGE), heat (HEAT's first value), range
+  (RANGE), fire rate (FIRE_RATE), velocity (VELOCITY, not written for a
+  beam, which keeps its own), Clan tons and slots, Inner Sphere tons and
+  slots (MASS clan / sphere: only the techs it is offered in are written; a
+  copy with one pair offers it for both), rounds a ton (MASS ammo, written
+  with ammo). Every other key is the copy's, and a number keeps the copy's
+  type (an Int stays an Int). A NAME key, if the copy had one, becomes the
+  new name: the game finds a definition by it (0x581ed0).
 
-**Second sitting:** the effects and sounds (the muzzle, trail, impact and
-flyby picked from lists of the worlds' animation defs and zSound's names),
-each shown once at the view's pick when picked (sketch item 1, Effects and
-sounds; with item 3's machinery).
+**OK writes:**
+- **The definition** at the end of BALLISTICS
+  (`weapons_with_definition`): every byte as it was but BALLISTICS' item
+  count, the new name and definition after its last item. It goes through
+  the editor's archive save (`save_archive_edit("zbd\\reader.zbd",
+  "weapons.zrd")`): into the mod itself, its earlier reader.zbd kept as
+  .bak.
+- **mod.txt:** `weapon=<name> ammo=.. tech=.. [title=..]`, put in place of a
+  weapon= line naming the same weapon (any case), else after the last line.
+  Line ends are kept, and the old file is kept as mod.txt.bak.
+- A mod with its own loose zbd\weapons.zrd (which wins in a mod): the form
+  reads its text (`weapons_text_bytes`: the text reader, then the tree's
+  bytes) and OK puts the pair in it as text
+  (`weapons_text_with_definition`: after BALLISTICS' last item, found past
+  strings and ';' comments, everything else of the modder's kept), checked by
+  reading it back, the old text kept as weapons.zrd.bak. No reader.zbd is
+  made then.
 
-**Tests (planned):**
-- the form: the copy's naming, the row's checks, the definition's fields;
-- the written weapons.zrd read by our reader and, in Unicorn, by the
-  original's 0x583880 (test_weapons_zrd.py's `mod_weapon_appended`, with
-  the dialog's output), each with one definition more and the 37 unchanged;
-- mech3ax reading the saved archive, every other member the same;
-- mod.txt parsed back with the row;
-- c1m1 from MODS's EDIT: New Weapon on ERPPC, OK, then the next start: the
-  lab lists the new weapon, and a loadout naming it builds.
+The lab offers it from the next start (rows are read at the mount).
 
-**For Owen:**
-- whether Shift+F12 should open the form too, saving into "editor edits" as
-  the nets do (planned here: no, the dialog wants a mod of its own);
-- whether the first sitting's fields are enough, or every field of the
-  definition from the start.
+**Checked:**
+- `test_new_weapon.cpp` (mw3tests):
+  - the shipped file: 49 definitions, 38 offered; ERPPC's numbers as the
+    file has them (6 t / 2 slots Clan, 7 / 3 Inner Sphere);
+  - ERPPC_B appended differs in one byte before it, and zWeapon's reader
+    (zwep::init) reads it with its numbers, every other definition as shipped;
+  - mod.txt's line replaced or appended (CRLF kept);
+  - the form under a session: taken and malformed names refused with nothing
+    written; OK's mod.txt and reader.zbd; the next start's mount has the row
+    (number 38 on, its ammo and techs) and its definition.
+- `test_new_weapon.py`: three copies (a PPC, an autocannon with ammo, a beam),
+  every number changed, through the original's own reader 0x583880 in
+  Unicorn. Each reads 50 definitions with no error and the port the same,
+  field for field (test_weapons_zrd's compare). The new one's damage, range,
+  period and MASS are in the exe's WeaponType, and the original's lab view
+  of its 37 is unchanged. mech3ax reads the install's reader.zbd with it,
+  every other member the same and the weapon last. Breaks caught: the count
+  not raised, DAMAGE written to the copy, the sphere pair under clan.
+- The help coverage test opens it (11 forms).
+
+**Effects and sounds** (the second sitting, 2026-11-10). Eight slots, each a
+list of the names the file's definitions use there (`effect_choices`; what
+the shipped weapons use is in every world), "(none)" first, the copy's
+picked:
+- muzzle and firing sound: FIRE's ANIMATION and SOUND;
+- projectile, projectile animation, trail and flyby sound: FLYOUT's MODEL,
+  MODEL_ANIMATION, ANIMATION and SOUND;
+- impact and impact sound: IMPACT default's ANIMATION and SOUND.
+
+A pick replaces the value's first item (a muzzle's second, "follows the
+firepoint", kept), "(none)" leaves the key out, and a key the copy lacks is
+added. The other soils' impact blocks stay the copy's.
+
+Picking one shows it once where the view points (the editor's ground pick,
+else its camera): an animation by `zeff::anim_find` and `anim_start_at`, as
+the weapons' own effects start; a sound by `zsnd::find` and `play_at`. A
+model is not shown. A name the mission has not loaded (or a sound with the sound off) says so under the menu.
+
+Tests:
+- `new_weapon_effects_and_sounds`: ERPPC's eight as the file has them, the
+  choices; picks written and read back, the copy's own untouched.
+- `new_weapon_loose_text`: the shipped file as text with comments reads
+  back to its exact bytes, and the pair put in the text reads as the binary
+  append does.
+- `new_weapon_form_effects_and_loose_file`: the preview's calls (an
+  animation and a sound shown; a model and "(none)" not); OK into a loose
+  file, its comment kept, a .bak, no reader.zbd; the next start reads it.
+- `test_new_weapon.py`'s fourth case: six picks through the original's
+  0x583880, read as the port reads them.
 
 ### 2. Mech variant
 

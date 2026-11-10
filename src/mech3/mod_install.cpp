@@ -249,7 +249,9 @@ bool windows_name_ok(const std::string& part) {
 
 bool mod_own_file(const std::string& rel) {
   const std::string l = lower(rel);
-  return l == "mod.txt" || l == lower(kModAddedMarker);
+  // original\ (ours: modding.md, Animations a def at a time, Both ways): the
+  // files a modder ships for the original game, which ours never reads.
+  return l == "mod.txt" || l == lower(kModAddedMarker) || l.rfind("original/", 0) == 0;
 }
 
 bool mod_entry_path_ok(const std::string& path, std::string* clean) {

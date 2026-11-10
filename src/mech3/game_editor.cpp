@@ -10,6 +10,7 @@
 #include "upgrades/editor/aiv_save.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/help.h"
+#include "upgrades/editor/new_weapon.h"
 
 namespace mech3 {
 
@@ -18,13 +19,12 @@ EditorHooks g_default_hooks;
 EditorHooks* g_hooks = &g_default_hooks;
 EditorState g_state;
 
-void edit_weapons(int32_t) {}  // 0x004bf620: nothing in MW3
 void exit_game_edit(int32_t y) { editor_exit(y); }
 
 // 0x005e0d30.
 const EditorEntry kMainRows[8] = {
     {"PICK A COMMAND", nullptr},          {" EDIT AI NETS", edit_ai_nets}, {" EDIT VEHICLES", edit_vehicles},
-    {" EDIT WEAPONS", edit_weapons},       {" HELP", help_open},            {"", nullptr},  // HELP: ours
+    {" EDIT WEAPONS", new_weapon_open},    {" HELP", help_open},            {"", nullptr},  // both ours: New Weapon (upgrades/editor/new_weapon; 0x004bf620 empty), HELP
     {"", nullptr},                         {" EXIT GAME EDIT", exit_game_edit},
 };
 const EditorMenu kMainMenu = {8, kMainRows};

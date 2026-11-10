@@ -81,6 +81,7 @@ constexpr int32_t kBuiltinWeapons = kWeaponCount;
 const char* weapon_title(int32_t weapon);   // a mod row's title=, null for the exe's
 bool weapon_row_parse(const std::string& value, ModWeapon* out, std::string* error);
 bool weapon_row_add(const ModWeapon& row, std::string* error);  // refused when the name is taken
+bool weapon_row_taken(const std::string& name);  // one of the exe's names (the plain PPC's too) or a row's, any case
 void weapon_rows_clear();
 int32_t equip_slots(int32_t kind, int32_t tech); // 0x00484a20
 

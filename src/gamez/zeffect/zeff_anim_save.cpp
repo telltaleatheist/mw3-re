@@ -535,6 +535,16 @@ void running_load(zsave::Context& /*ctx*/, const char* /*sub*/, const void* data
     return;
   }
   AnimDef* d = def_at(index);
+  // Ours (docs/modding.md, Animations a def at a time): the def at that index
+  // must have the saved name too. A save made under another set of animation
+  // mods may hold another def there: dropped, said, not started wrong.
+  if (std::strncmp(d->name(), reinterpret_cast<const char*>(h + 8), 0x20) != 0) {
+    char saved[0x21] = {};
+    std::memcpy(saved, h + 8, 0x20);
+    std::printf("mw3: save: running animation %d was %s, now %s: not put back\n", index, saved, d->name());
+    zsave::temp_done();
+    return;
+  }
   zcls::Node* n = saved_node(rd<int32_t>(h, 0x28));
   if (rd<int32_t>(h, 4)) {
     while (d->instance && d->node != n) d = d->instance;

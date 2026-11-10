@@ -1,9 +1,12 @@
 #include "upgrades/editor/mods_edit.h"
 
 #include "mech3/app_hooks.h"
+#include "mech3/app_keys.h"
 #include "mech3/game_editor.h"
+#include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "mech3/net_save.h"
+#include "mech3/pilot.h"
 
 namespace mech3 {
 
@@ -37,6 +40,27 @@ bool mods_edit_leave(Engine& en) {
   mods_menu_reopen() = true;
   en.replace_state(2);  // the main menu, which opens MODS again
   return true;
+}
+
+namespace {
+// A custom campaign's mission: the current pilot's game is the entered
+// campaign's (ModCampaignGame), so the campaign was entered from MODS.
+const ModCampaign* campaign_mission() {
+  const ModCampaign* c = entered_campaign();
+  const Pilot* p = current_pilot();
+  return c && p && dynamic_cast<const ModCampaignGame*>(p->current) ? c : nullptr;
+}
+}  // namespace
+
+bool editor_reachable() { return mods_edit_session().active || campaign_mission() || app_key_calls().debug_camera; }
+
+void editor_from_level() {
+  if (!editor_reachable()) return;
+  if (!mods_edit_session().active) {
+    const ModCampaign* c = campaign_mission();
+    ai::net_save_into_mod() = c ? c->mod : std::string();
+  }
+  editor_key(kEditorCommand);
 }
 
 void mods_edit_end() {
