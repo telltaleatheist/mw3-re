@@ -430,6 +430,41 @@ TEST(mod_export_round_trip) {
   EXPECT(again.ok && again.files == 5 && again.left_out == 1);
 }
 
+// Modder step 8 (modding.md, IMPORT and EXPORT, the pack): EXPORT checks the
+// mod first and says what the game would refuse, packing it all the same; a
+// folder with no mod.txt gets one in the zip (its folder's name, this game),
+// with its sum, never in the folder; IMPORT takes that zip back as a mod.
+TEST(mod_export_packs_checked_and_with_its_mod_txt) {
+  const std::string wd = tmp("mod_pack_wd"), wd2 = tmp("mod_pack_wd2"), out = tmp("mod_pack_out");
+  const fs::path bad = fs::path(wd) / "mods" / "Bad";
+  put(bad / "mod.txt", "name=Bad\nfor=mw3\nmech=broken\n");
+  put(bad / "zbd/a.txt", "a");
+  mech3::ModExportResult r = mech3::mod_export(bad.string(), out + "/bad.zip", "", true);
+  std::printf("  checked: %s\n", r.message.c_str());
+  EXPECT(r.ok && r.refused == 1 && !r.made_mod_txt && fs::exists(out + "/bad.zip"));
+  EXPECT(r.message.find("The game would refuse 1 thing in it; its report says what.") != std::string::npos);
+  r = mech3::mod_export(bad.string(), out + "/bad2.zip");  // unchecked: as before
+  EXPECT(r.ok && r.refused == -1 && r.message.find("refuse") == std::string::npos);
+  // Laid out as an install, no mod.txt.
+  const fs::path overlay = fs::path(wd) / "mods" / "Overlay";
+  put(overlay / "zbd/b.txt", "b");
+  r = mech3::mod_export(overlay.string(), out + "/overlay.zip", "", true);
+  std::printf("  overlay: %s\n", r.message.c_str());
+  EXPECT(r.ok && r.made_mod_txt && r.refused == 0 && !fs::exists(overlay / "mod.txt"));
+  EXPECT(r.message.find("(1 file and a mod.txt)") != std::string::npos);
+  std::string txt, sums;
+  for (const Entry& e : zip_entries(out + "/overlay.zip")) {
+    if (e.path == "Overlay/mod.txt") txt = e.data;
+    if (e.path == "Overlay/mw3-checksums.txt") sums = e.data;
+  }
+  EXPECT(txt == "name=Overlay\nfor=mw3\n");
+  EXPECT(sums.find(mech3::sha256_hex(reinterpret_cast<const uint8_t*>(txt.data()), txt.size()) + "  mod.txt\n") != std::string::npos);
+  mech3::ModAdd a;
+  const mech3::ModAddResult back = add(wd2, out + "/overlay.zip", "", &a);
+  std::printf("  import: %s\n", back.ok ? back.folder.c_str() : back.message.c_str());
+  EXPECT(back.ok && a.checksums && a.has_mod_txt && back.info.name == "Overlay" && back.info.error.empty());
+}
+
 TEST(mod_export_checksums_refuse_a_changed_zip) {
   const std::string wd = tmp("mod_export_sums_wd"), out = tmp("mod_export_sums_out");
   const fs::path mod = fs::path(wd) / "mods" / "Sums";
