@@ -1075,6 +1075,13 @@ readers), on `pm` after pm-v1.0.0.
 
 ## Animations a def at a time (design 2026-11-09; step 1 built 2026-11-10)
 
+Pirate's Moon (branch pm) reads a world's animations from its anim.zbd only
+(its own reader, 0x00523140): a mod's anim.zbd, yes; unzbd's JSON
+(`anim.zip`, `anim/`), def files and node files, no. `--check-mod` says so
+for each such file, and the MODS list counts them on the mod's line
+("N animation files Pirate's Moon does not read") instead of reporting
+shared animations (`anim_file_unread`, mods.cpp).
+
 **Built (step 1): the merge, the def files and the save's name check.**
 - `upgrades/mods/anim_defs` (`mod_def_files`, `with_defs`, `def_spans`)
   runs in the anim load (`zeff::anim_read_zbd`), on the file chosen (the

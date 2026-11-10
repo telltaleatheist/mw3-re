@@ -108,6 +108,7 @@ struct ModsListEntry {
   // (its def files then only add new animations there).
   std::vector<std::string> anims_taken;
   std::vector<std::string> anim_bases;
+  int anims_unread = 0;  // ours: its animation files the game does not read (Pirate's Moon: unzbd's JSON, def and node files)
   std::vector<std::string> conflicts_with;  // those mods' folders
   int check_errors = -1;
 };

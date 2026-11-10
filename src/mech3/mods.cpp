@@ -77,6 +77,17 @@ std::string& mods_game() {
   return g;
 }
 
+// Ours: a mod's animation files Pirate's Moon's reader (0x00523140) does not read: unzbd's
+// JSON (zbd/<world>/anim.zip, anim/), def and node files (zbd/anim/). Its anim.zbd it reads.
+bool anim_file_unread(const std::string& low) {
+  if (mods_game() != "mw3pm" || low.rfind("zbd/", 0) != 0) return false;
+  if (low.rfind("zbd/anim/", 0) == 0) return true;
+  const size_t s = low.find('/', 4);
+  if (s == std::string::npos) return false;
+  const std::string tail = low.substr(s + 1);
+  return tail == "anim.zip" || tail.rfind("anim/", 0) == 0;
+}
+
 bool mod_parse(const std::string& text, ModInfo* out) {
   std::istringstream in(text);
   for (std::string line; std::getline(in, line);) {
@@ -431,6 +442,7 @@ ModAnims mod_anims(const std::string& dir) {
     if (!it->is_regular_file(ec)) continue;
     const std::string rel = fs::relative(it->path(), dir, ec).generic_string(), low = lower(rel);
     std::string world;
+    if (anim_file_unread(low)) continue;  // not read by Pirate's Moon: nothing shared
     if (anim_defs::is_def_file(dir, rel, &world)) {
       if (const std::string key = anim_defs::def_file_key(it->path().string()); !key.empty()) a.defs.emplace_back(world, key);
       continue;
@@ -467,6 +479,11 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
   std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
   std::vector<std::string> before_folders;
   std::vector<ModAnims> before_anims;
+  for (ModsListEntry& e : out) {
+    std::error_code ec;
+    for (fs::recursive_directory_iterator f(e.info.path, ec), end; !ec && f != end; f.increment(ec))
+      if (f->is_regular_file(ec) && anim_file_unread(lower(fs::relative(f->path(), e.info.path, ec).generic_string()))) ++e.anims_unread;
+  }
   for (ModsListEntry& e : out) {
     if (!e.on || !e.info.error.empty()) continue;
     const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
@@ -767,6 +784,10 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     out.push_back(rel + (install.empty() ? "" : over ? ": replaces the game's" : ": added"));
     const std::string host = (fs::path(dir) / rel).generic_string();
     const std::string name = low.substr(low.rfind('/') == std::string::npos ? 0 : low.rfind('/') + 1);
+    if (anim_file_unread(low)) {
+      out.push_back("  not read by Pirate's Moon, whose animations come from a world's anim.zbd only");
+      continue;
+    }
     // Not zar archives (M3): the texture and image libraries, the scripts.
     if (name == "rimage.zbd" || name.rfind("rtexture", 0) == 0 || name.rfind("rmechtex", 0) == 0 ||
         name.rfind("texture", 0) == 0 || name.rfind("mechtex", 0) == 0) {

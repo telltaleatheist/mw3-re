@@ -335,6 +335,10 @@ void camera_dump(Interp& in, zcls::Camera* c) {  // 0x00594f90
 
 Globals& globals() { return g_globals; }
 Engine& engine() { return g_engine; }
+int32_t& zbd_read_failures() {
+  static int32_t n = 0;
+  return n;
+}
 Observer& observer() { return g_observer; }
 const Vtable& base_vtable() { return kBaseVtable; }
 

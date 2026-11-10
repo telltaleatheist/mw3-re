@@ -60,6 +60,7 @@ class MissionHooks : public zgame::Unported {
   // zInterp, on the script object [0x006040b0].
   virtual void interp_define(const char* name) { unported("0x00595bb0", {name}); }
   virtual uint8_t interp_source(const char* path) { return static_cast<uint8_t>(unported("0x00595990", {path})); }
+  virtual int32_t zbd_read_failures() { return 0; }  // ours: zint::zbd_read_failures()
   // The options (ported, mech3/options).
   virtual int32_t hw_card_flag() { return static_cast<int32_t>(unported("0x0040d4d0", {})); }
   virtual int32_t texture_memory() { return static_cast<int32_t>(unported("0x0040d410", {})); }
