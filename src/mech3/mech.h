@@ -347,7 +347,8 @@ struct Mech : Vehicle {
   // docs/ai.md 17.4a): the speed at a share of the top speed, and how far a
   // speed carries while the throttle eases down (speed / decel_rate).
   float speed_at(float share) const { return max_speed * share; }
-  float stopping_distance(float speed) const { return speed / throttle_down; }
+  // Returned in the register, unrounded, as 0x0041d210 does (the AI divides by it: zai_x87.h).
+  double stopping_distance(float speed) const { return double{speed} / throttle_down; }
   // vt+0x114 0x0041d1d0: the speed the smoothed throttle asks (its
   // controls' vt+0x1c, GetThrottle, times the top speed).
   float throttle_speed() const;

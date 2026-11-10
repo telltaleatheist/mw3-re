@@ -1,6 +1,7 @@
 #include "pm/gamez/zmodel/gmod_const.h"
 #include "mech3/zainet_inout.h"
 #include "mech3/zainet_inout_view.h"
+#include "mech3/zai_x87.h"
 
 #include <cfloat>
 #include <cmath>
@@ -222,9 +223,9 @@ void read_model(InOutArea& area, zcls::Node* node) {
     for (int32_t i = 0; i < nv; ++i) {
       const float* s = m->vertices + 3 * i;
       float* d = buf.data() + 3 * i;
-      d[0] = ((s[0] * t[0] + s[1] * t[3]) + s[2] * t[6]) + t[9];
-      d[1] = ((s[0] * t[1] + s[1] * t[4]) + s[2] * t[7]) + t[10];
-      d[2] = ((s[0] * t[2] + s[1] * t[5]) + s[2] * t[8]) + t[11];
+      d[0] = stored(((double{s[0]} * t[0] + double{s[1]} * t[3]) + double{s[2]} * t[6]) + t[9]);  // in the register
+      d[1] = stored(((double{s[0]} * t[1] + double{s[1]} * t[4]) + double{s[2]} * t[7]) + t[10]);
+      d[2] = stored(((double{s[0]} * t[2] + double{s[1]} * t[5]) + double{s[2]} * t[8]) + t[11]);
     }
   }
   if (kGroundCorners && g_hooks.ground)

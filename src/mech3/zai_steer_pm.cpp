@@ -5,16 +5,6 @@
 namespace mech3::ai {
 
 // Pirate's Moon 1.0 @ 0x004dc0f0, its defaults the statics 0x0060bb78..0x0060bba8.
-float unit_flat(float* x, float* z, bool root_stored) {
-  const double root = std::sqrt(double{*x} * *x + double{*z} * *z);
-  const float len = static_cast<float>(root);
-  if (len != 0.0f) {
-    const double k = 1.0 / (root_stored ? double{len} : root);
-    *x = static_cast<float>(*x * k), *z = static_cast<float>(*z * k);
-  }
-  return len;
-}
-
 SteerPm::SteerPm() {
   start[0] = start[1] = start[2] = 0;
   dir[0] = dir[1] = 0;

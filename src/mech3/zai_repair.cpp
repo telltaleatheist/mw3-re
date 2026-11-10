@@ -1,4 +1,5 @@
 #include "mech3/zai_repair.h"
+#include "mech3/zai_x87.h"
 
 #include "gamez/zutil/zfix.h"
 #include "mech3/zai_attack.h"
@@ -58,7 +59,7 @@ bool repair_possible(Order* o) {
 
 // Mech3.exe 1.2 @ 0x004d0a10. The approach point: the way from the pilot to
 // the dock point snapped to the nearest third of a turn, 40 m back from the
-// dock point along it (x87 at play's 24 bits, the trig in full).
+// dock point along it.
 RepairState::RepairState(Order* o, const RepairBehaviour& b, const float* d) : BehaviourState(o, &copy) {
   copy.flags = uint8_t((copy.flags & ~1u) | (b.flags & 1u));
   copy.x08 = b.x08;
@@ -67,16 +68,18 @@ RepairState::RepairState(Order* o, const RepairBehaviour& b, const float* d) : B
   dock = dock_at;
   float pos[3];
   brain_hooks().position(o->owner->controls->vehicle(), pos);  // the context's (0x004cecf0)
-  const float dx = pos[0] - d[0], dz = pos[2] - d[2];
-  const double a = std::atan2(-static_cast<double>(dx), -static_cast<double>(dz));
-  const float t = static_cast<float>(static_cast<float>(a * 0.4774648292756546) - -0.5);  // 0x005cc580, 0x005cc588
-  const auto k = static_cast<float>(std::floor(static_cast<double>(t)));
-  const auto ang = static_cast<float>(k * 2.0943951023933334);  // 0x005cc590
-  const auto s = static_cast<float>(-std::sin(static_cast<double>(ang)));
-  const auto c = static_cast<float>(-std::cos(static_cast<double>(ang)));
-  approach[0] = d[0] + s * kApproach;
-  approach[1] = d[1] + 0.0f;
-  approach[2] = d[2] + c * kApproach;
+  // As the reference runs it at 53 bits (zai_x87.h): the angle, its floor and
+  // multiple and the cosine in the register; the sine stored first.
+  const float dx = stored(double{pos[0]} - d[0]), dz = stored(double{pos[2]} - d[2]);
+  const double a = std::atan2(-static_cast<double>(dx), -static_cast<double>(dz));  // fpatan
+  const double t = a * 0.4774648292756546 - -0.5;  // 0x005cc580, 0x005cc588
+  const double ang = std::floor(t) * 2.0943951023933334;  // 0x005cc590
+  const float s = stored(-std::sin(ang));
+  const double c = -std::cos(ang);
+  const float sx = stored(double{s} * kApproach), cz = stored(c * kApproach);
+  approach[0] = stored(double{d[0]} + sx);
+  approach[1] = stored(double{d[1]} + 0.0f);
+  approach[2] = stored(double{d[2]} + cz);
   phase = 1;
 }
 
@@ -103,8 +106,9 @@ void RepairState::aim(Brain& b, const float pos[3], const float* to) {
   b.x298[0] = pos[0], b.x298[1] = pos[1], b.x298[2] = pos[2];
   const float speed = h.speed_at(v, b.xec);
   b.steer.set(b.x298, to, speed, v);  // 0x004cea30
-  slow = h.stopping_distance(v, speed);
-  inv_slow = 1.0f / slow;  // 0x005cc528
+  const double sd = h.stopping_distance(v, speed);  // vt+0x120's register value (zai_x87.h)
+  slow = static_cast<float>(sd);
+  inv_slow = static_cast<float>(1.0 / sd);  // 0x005cc528
 }
 
 // The three walks (0x004d0e31, 0x004d0f2f, 0x004d100f): by the steering
@@ -146,10 +150,8 @@ void RepairState::run(float dt) {
     case 2: {
       // Pulled by the mission's boundary, straight for the pulled point.
       if (h.inout_clamp(v, approach, pulled)) {  // 0x004c3000
-        float to[3] = {pulled[0] - pos[0], 0.0f, pulled[2] - pos[2]};
-        zmth::Vec3 w{to[0], 0.0f, to[2]};
-        zmth::flat_normalize(w, w);  // 0x0051e210
-        to[0] = w.x, to[1] = w.y, to[2] = w.z;
+        float to[3] = {stored(double{pulled[0]} - pos[0]), 0.0f, stored(double{pulled[2]} - pos[2])};
+        unit_flat(&to[0], &to[2], true);  // 0x0051e210 as the exe runs it (zai_x87.h)
         float dot, cross;
         const float turn = turn_toward(fwd, to, &dot, &cross, c.turn_goal(), turn_params());  // 0x004cdd40
         c.set_turn(turn);

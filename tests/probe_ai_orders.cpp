@@ -426,7 +426,7 @@ struct Hooks : ai::BrainHooks {
       if (en.handle && en.handle == e) *x = en.fwd[0], *z = en.fwd[1];
   }
   float speed_at(zgame::Handle, float share) override { return g_mech.speed_at(share); }
-  float stopping_distance(zgame::Handle, float speed) override { return g_mech.stopping_distance(speed); }
+  double stopping_distance(zgame::Handle, float speed) override { return g_mech.stopping_distance(speed); }
   float stop_share(zgame::Handle, float d) override { return fl(call("vehicle.vt+0x12c", {bits(d)})); }
   // The attack's test: the vehicle net's unported states as fakes (the
   // emulator's makers stubbed the same), by its behaviour's +0x04 (0).

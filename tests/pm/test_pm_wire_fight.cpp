@@ -46,7 +46,7 @@ struct Fake : BrainHooks {
   }
   void* object_of(Handle h) override { return h == 0x55 ? static_cast<void*>(wm) : nullptr; }
   float speed_at(Handle, float t) override { return t; }
-  float stopping_distance(Handle, float s) override { return s; }
+  double stopping_distance(Handle, float s) override { return s; }
 };
 struct Controls : BrainControls {
   Handle vehicle() override { return 7; }

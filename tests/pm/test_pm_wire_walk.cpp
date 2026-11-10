@@ -26,7 +26,7 @@ struct Fake : BrainHooks {
   Contact* pick(Handle, int32_t side) override { return side == 1 ? &c : nullptr; }
   Handle vehicle_mech(Handle v) override { return v == 7 ? v : 0; }
   float speed_at(Handle, float t) override { return t * 2.0f; }
-  float stopping_distance(Handle, float s) override { return s * 3.0f; }
+  double stopping_distance(Handle, float s) override { return s * 3.0f; }
   float jump_fuel(Handle) override { return 0.25f; }
   bool airborne(Handle) override { return in_air; }
   float forward_speed(Handle) override { return 4.0f; }

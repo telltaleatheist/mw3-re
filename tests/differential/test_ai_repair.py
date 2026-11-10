@@ -16,8 +16,7 @@ the vehicle's mech (vt+0x50, itself) and power (0x41cc30), powered down
 pilot moved, the steering sometimes left at its end (arrived), the flags,
 the clock and the power changing; the answers, calls, order stacks (the
 repair state's phase, fights, stopping distance, end time and approach
-point), steering and the brain's +0x80, +0x2a4, +0x298 must match, at
-24-bit x87.
+point), steering and the brain's +0x80, +0x2a4, +0x298 must match, at the reference's 53-bit x87.
 """
 import ctypes
 import os
@@ -26,7 +25,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_attack as ta  # noqa: E402
 import test_ai_lance as tl  # noqa: E402

@@ -367,19 +367,19 @@ float vehicle_share_for(const BasicVehicle& v, float speed) {
 }
 
 // Mech3.exe 1.2 @ 0x004ad020
-float vehicle_stopping_distance(const BasicVehicle& v, float speed) {
+double vehicle_stopping_distance(const BasicVehicle& v, float speed) {
   const VehicleMotion* m = motion(v);
-  return m ? speed / m->rate_damping[1] : 0.0f;
+  return m ? double{speed} / m->rate_damping[1] : 0.0;
 }
 
 // Mech3.exe 1.2 @ 0x004ad050
 float vehicle_stopping_now(const BasicVehicle& v) {
-  return vehicle_stopping_distance(v, motion(v) ? std::fabs(vehicle_move_speed(v)) : 0.0f);
+  return static_cast<float>(vehicle_stopping_distance(v, motion(v) ? std::fabs(vehicle_move_speed(v)) : 0.0f));
 }
 
 // Mech3.exe 1.2 @ 0x004ad0b0
 float vehicle_stopping_at(const BasicVehicle& v, float share) {
-  return vehicle_stopping_distance(v, std::fabs(vehicle_speed_at(v, share)));
+  return static_cast<float>(vehicle_stopping_distance(v, std::fabs(vehicle_speed_at(v, share))));
 }
 
 // Mech3.exe 1.2 @ 0x004ad100: the throttle share that slows to a stop within

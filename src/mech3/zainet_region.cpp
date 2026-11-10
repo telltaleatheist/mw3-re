@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "mech3/zainetedit.h"
+#include "mech3/zai_x87.h"
 
 #pragma STDC FP_CONTRACT OFF
 
