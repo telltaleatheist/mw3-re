@@ -34,7 +34,7 @@ bool g_asked = false;
 
 // 0 not ours, 1 a flag of ours alone, 2 one with its value.
 int ours(const std::string& s) {
-  if (s == "--entry" || s == "--mod") return 2;
+  if (s == "--entry" || s == "--mod" || s == "--entry-pilot") return 2;
   if (s == "--click-at" || s == "--tap") return 2;  // a check's script is for the run it was given to
   if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--restarted" || s == "--no-mods") return 1;
   return 0;
@@ -57,6 +57,7 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
   } else if (to.open_ia) {
     out.push_back("--open-ia");
   }
+  if (!to.pilot.empty() && (to.open_ia || to.screen == RestartTo::kInstantAction)) out.push_back("--entry-pilot"), out.push_back(to.pilot);
   out.push_back("--restarted");
   return out;
 }
