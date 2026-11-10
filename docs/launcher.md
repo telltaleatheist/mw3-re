@@ -23,11 +23,13 @@ found or installed. The launcher below is its own program, `mw3launcher`
    (`sdlfe::install_candidates`), each through `setup::check_install`.
    No message box any more: the setup screen replaces the Browse dialog.
 4. **The launcher screen** (mockup 1). Entries:
-   - **MechWarrior 3**: "Ready: version 1.2, <folder>", or "Not found yet:
+   - **MechWarrior 3**: "Ready: data 1.2, program v1.1.0, <folder>" (each
+     game's data version and its program's own `--version`, sitting 5 of
+     Pirate's Moon below), or "Not found yet:
      click to find your game" (a click opens the find screen; v1.0, Owen
      2026-11-02: only then, the launcher always opens on the games). A
      folder too long for the plate is
-     shortened from the middle by its drawn width ("Ready: version 1.2, "
+     shortened from the middle by its drawn width ("Ready: data 1.2, ...: "
      kept, more of the folder's end; `fit_middle`, text_fit.cpp): a long
      path ran past both sides on Owen's PC (lead, 2026-10-31).
      `launcher_long_path_fits_the_button`.
@@ -268,6 +270,25 @@ single-game packages stay. One sitting each, each with its tests:
    followed: each caught.
 5. **Versions**: each entry shows its game's data version and its program's
    version. Test: the launcher's text for both games.
+   **Done (2026-11-09):** "Ready: data 1.2, program v1.1.0, <folder>", PM's
+   the same. PM's data version is measured as mw3pm measures it, its 14 main
+   files against the 1.0 disc's sizes and CRCs (branch pm's kPmFiles, copied
+   into `check_pm`), a settings folder's file first: "1.0", "unknown" (shown
+   "data unknown (a mod?)") or "incomplete". Each program's version comes
+   from its file, never by running it: `mw3_version_tag` in mw3_main.cpp
+   ("MW3-PROGRAM-VERSION:" and MW3_VERSION, kept by `used`, printed by
+   --version), found by `program_version` reading the file (a tag across its
+   1 MB chunks too, the launcher's own half-needle skipped). Running mw3.exe
+   to ask would load its DLLs, and Windows shows a box for a missing one. A
+   file without the tag (a script, an older build) shows no program
+   version. mw3pm gets the tag once pm merges main (its --version line
+   should print `mw3_version_tag + 20` as mw3's does). Tests:
+   `sdl_program_launcher_shows_each_games_versions` (both lines, a tag
+   across the chunk edge, an empty match skipped, a file without one never
+   run, the real mw3's equal to its --version) and the data cases in
+   `setup_pirates_moon_checks_before_a_start` (a changed file of the same
+   size, a missing one). Breaks: the program left out, the data CRC not
+   checked, the chunk edge lost, the empty tag taken: each caught.
 
 ## Installed anywhere (2026-11-06, a player's request)
 

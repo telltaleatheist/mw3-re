@@ -581,7 +581,16 @@ TEST(setup_pirates_moon_checks_before_a_start) {
   };
 
   const su::Result good = su::check_install(kGame + "/pm", tmp + "/w0", true);
-  EXPECT(good.ok && good.pirates_moon && good.warnings.empty());
+  EXPECT(good.ok && good.pirates_moon && good.warnings.empty() && good.version == "1.0");
+  // Its data's version (sitting 5): a file changed, one gone.
+  EXPECT(su::check_install(copy("modded", "", "force_eff.ifr"), tmp + "/w9", true).version == "unknown");
+  const std::string same_size = copy("same size", "force_eff.ifr", "");  // its size, other bytes
+  std::string eff = slurp(kGame + "/pm/force_eff.ifr");
+  eff[eff.size() / 2] ^= 0x5a;
+  std::FILE* ef = std::fopen((same_size + "/force_eff.ifr").c_str(), "wb");
+  std::fwrite(eff.data(), 1, eff.size(), ef);
+  std::fclose(ef);
+  EXPECT(su::check_install(same_size, tmp + "/w10", true).version == "unknown");
 
   const std::string sounds = copy("sounds", "", "zbd/soundsH.zbd"), before = listing(sounds);
   const std::string wd = tmp + "/write";
@@ -614,7 +623,8 @@ TEST(setup_pirates_moon_checks_before_a_start) {
   // What stops the missions: a core file, an operation's.
   const su::Result interp = su::check_install(copy("nointerp", "zbd/interp.zbd", ""), tmp + "/w6", true);
   std::printf("  no interp.zbd: %s\n", interp.warnings.empty() ? "" : interp.warnings[0].c_str());
-  EXPECT(interp.ok && interp.warnings.size() == 1 && has(interp, "missions will not load", "zbd\\interp.zbd is missing"));
+  EXPECT(interp.ok && interp.warnings.size() == 1 && has(interp, "missions will not load", "zbd\\interp.zbd is missing") &&
+         interp.version == "incomplete");
   const std::string no_op = copy("noc2", "zbd/c2/gamez.zbd", "zbd/c4/reader.zbd");
   const su::Result ops = su::check_install(no_op, tmp + "/w7", true);
   std::printf("  operations: %s\n", ops.warnings.empty() ? "" : ops.warnings[0].c_str());

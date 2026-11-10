@@ -91,6 +91,16 @@
 #include "frontend/sdl/sdl_vfw.h"
 #include "frontend/sdl/net_enet.h"
 #include "frontend/sdl/net_upnp.h"
+
+#ifndef MW3_VERSION
+#define MW3_VERSION "unknown"
+#endif
+// Ours: the build's version in the file, where the launcher reads it without
+// running the program (launcher.cpp, program_version); --version prints it.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((used))
+#endif
+extern "C" const char mw3_version_tag[] = "MW3-PROGRAM-VERSION:" MW3_VERSION;
 #include "gamez/znetwork/znet_dplay.h"
 #include "gamez/znetwork/znet_session.h"
 #include "gamez/ztwod/twod_host.h"
@@ -255,10 +265,7 @@ bool parse(int argc, char** argv, Args& a) {
     auto next = [&](int n) { return i + n < argc; };
     if (s == "--help" || s == "-h") return usage(), false;
     if (s == "--version") {  // ours: the build, and (on Windows) that every DLL it needs loaded
-#ifndef MW3_VERSION
-#define MW3_VERSION "unknown"
-#endif
-      std::printf("mw3 (MechWarrior 3 rebuild) %s\n", MW3_VERSION);
+      std::printf("mw3 (MechWarrior 3 rebuild) %s\n", mw3_version_tag + 20);
       std::exit(0);
     }
     else if (s == "--install" && next(1)) a.install = argv[++i];
