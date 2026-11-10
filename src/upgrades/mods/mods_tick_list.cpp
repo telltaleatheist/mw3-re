@@ -25,19 +25,15 @@ void ModTickList::fill(const std::string& dir, const std::vector<std::string>& o
   if (list.item_count()) list.FileList::select(was >= 0 && was < list.item_count() ? was : 0);
 }
 
-// A row as shown: mods_row_text's, and for a locked one "(always on)" after
-// it, the name shortened ("Freako Wea..") when the box (28 characters wide)
-// would otherwise cut the words off; the details show the whole name.
+// A row as shown: mods_row_text's "[x] Name" or "[ ] Name"; a locked one's
+// box reads "[on]" (the name whole, cut only as any row is at the box's edge).
 std::string ModTickList::row_text(const ModsListEntry& m) const {
   std::string t = mods_row_text(m);
-  if (!is_locked(m.info.folder)) return t;
-  constexpr size_t kWidth = 28;
-  const std::string lock = " (always on)";
-  const bool flagged = t.size() > 2 && t.compare(t.size() - 2, 2, " !") == 0;
-  if (flagged) t.resize(t.size() - 2);
-  const size_t room = kWidth - lock.size() - (flagged ? 2 : 0);
-  if (t.size() > room) t = t.substr(0, room - 2) + "..";
-  return t + lock + (flagged ? " !" : "");
+  if (locked.empty() || t.size() < 3) return t;
+  // With "[on]" rows in the list the tick boxes are padded to its width, so every name starts in one column.
+  if (is_locked(m.info.folder) && t.compare(0, 3, "[x]") == 0) t.replace(0, 3, "[on]");
+  else t.insert(3, " ");
+  return t;
 }
 
 bool ModTickList::is_locked(const std::string& folder) const { return std::find(locked.begin(), locked.end(), folder) != locked.end(); }

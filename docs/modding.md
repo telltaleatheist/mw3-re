@@ -488,8 +488,8 @@ records, ENTER relabelled PLAY).
   named by the file), its mod is gone (its pilots and saves are kept), or a
   ticked or built-on mod is missing (named).
 - **MODS (right)** (`ModTickList`, the widget Instant Action's MODS uses):
-  the chosen campaign's. First its own mods, on, "(always on)" after the
-  name, not the player's to turn off: its campaign mod, the mods it is built on, and what
+  the chosen campaign's. First its own mods, on, their box reading "[on]"
+  where a tick box reads "[x]" or "[ ]", not the player's to turn off: its campaign mod, the mods it is built on, and what
   those name with `needs=` (ON/OFF on one says "Part of this campaign: always
   on." or "Needed by <mod>: always on."). Then every asset mod with that
   campaign's ticks in winning order. ON/OFF, UP and DOWN write that

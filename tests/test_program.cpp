@@ -2079,7 +2079,7 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
         scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
         camp_after = rows();
         scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the chosen campaign, whichever table has the focus
-        // A copy of Long Night whose own name is too long for the box: shortened, the lock's words whole.
+        // A copy of Long Night whose own name is too long for the box: kept whole, the lock in its box.
         scr->campaign_list.select(2);
         long_row = scr->mod_list.items.empty() ? "" : scr->mod_list.items[0]->text;
         // Back on the game's own: its tick as it was left; a ticked mod that has gone refuses PLAY, named.
@@ -2105,12 +2105,12 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
                 own_again.c_str(), refused.c_str());
     EXPECT(stage == 3 && details == "MechWarrior 3");
     EXPECT(own_rows == "[ ] Green HUD|[ ] Weps|" && own_after == "[x] Green HUD|[ ] Weps|" && own_file_mid == "mod=hud\n");
-    EXPECT(camp_rows == "[x] Camp (always on)|[x] Weps (always on)|[ ] Green HUD|" && grey);
+    EXPECT(camp_rows == "[on] Camp|[on] Weps|[ ]  Green HUD|" && grey);
     EXPECT(locked_note == "Part of this campaign: always on." && needed_note == "Needed by Camp: always on." && locked_unchanged);
-    EXPECT(camp_after == "[x] Camp (always on)|[x] Weps (always on)|[x] Green HUD|" && text_of("campaigns/camp~night/mods.txt") == "mod=hud\n");
+    EXPECT(camp_after == "[on] Camp|[on] Weps|[x]  Green HUD|" && text_of("campaigns/camp~night/mods.txt") == "mod=hud\n");
     EXPECT(own_again == "[x] Green HUD|[ ] Weps|" && text_of("campaigns/mw3/mods.txt") == "mod=hud\n");
     EXPECT((asked == std::vector<std::string>{"camp~night", "mw3"}));  // the third PLAY was refused
-    EXPECT(long_row == "[x] A Very Lon.. (always on)");
+    EXPECT(long_row == "[on] A Very Long Name For A Mod");  // whole: the box cuts it as it cuts any row
     EXPECT(refused.find("MechWarrior 3 cannot be played: these mods are not there any more") == 0 && refused.find("hud") != std::string::npos);
     mech3::mods_menu_play() = nullptr;
     app.stop_game();
@@ -2396,7 +2396,7 @@ TEST(mods_screen_add_mod_headless) {
     EXPECT(adding_note == "Adding Desert Pack..." && adding_before);  // drawn a frame before the add
     // Desert Pack holds a file of the game's own t1 world: a campaign over the game's files, listed in CAMPAIGNS and
     // chosen; in MODS it is that campaign's own mod (on, locked), nothing is ticked for any campaign by an import.
-    EXPECT(rows == "[x] Desert Pack (always on)|" && own_locked && campaign_rows == "MechWarrior 3|Desert Pack|" && chosen_campaign == "Desert Pack");
+    EXPECT(rows == "[on] Desert Pack|" && own_locked && campaign_rows == "MechWarrior 3|Desert Pack|" && chosen_campaign == "Desert Pack");
     EXPECT(first_note.find("Added Desert Pack: its campaign is listed.") == 0);
     EXPECT(mech3::entry_mods_on(wd).empty() && mech3::mods_enabled(wd).empty() && !std::filesystem::exists(wd + "/campaigns/Desert Pack/mods.txt"));
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));

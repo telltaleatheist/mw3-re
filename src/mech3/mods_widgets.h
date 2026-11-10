@@ -35,7 +35,7 @@ class ModsList : public FileList {
   ModsList(Engine& e, int32_t id) : FileList(e, id) {}
   void select(int32_t index) override;  // and tells the screen (its id, the index)
   // Ours: an item's value carries kLockedRow for a campaign's own mod in its
-  // tick list (on, not the player's to turn off; its text says "(always on)").
+  // tick list (on, not the player's to turn off; its box reads "[on]").
   static constexpr int32_t kLockedRow = 0x40000000;
 };
 
