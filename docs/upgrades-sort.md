@@ -23,8 +23,9 @@ Rows that could sit on either side are listed under **For Owen** with the
 side this proposes. No code changes with this; Owen approves (or moves rows)
 before anything moves.
 
-474 rows (fixes.md's 473 and the Small Pulse Laser's flash, to be made): 431 always on, 5 in our own
-tools, 8 under the four own switches, 21 under Small fixes, 4 left as the original, 5 not changes.
+478 rows: fixes.md's 473 table rows, its four data typos still to fix (Original bugs
+still to fix) and the Small Pulse Laser's flash. 434 always on, 5 in our own
+tools, 8 under the four own switches, 22 under Small fixes, 4 left as the original, 5 not changes.
 Rows are MW3's unless marked PM (a row on both games is listed once, as MW3's).
 
 ## The switches
@@ -41,15 +42,11 @@ and text put back as the data had them.
 | Improved AI | Lancemates find their way round walls, rivers and corners, and keep their floor in another zone. | 4 |
 | Water movement | Deep water slows a mech smoothly instead of stopping it. | 1 |
 | Artemis tracking | Artemis FCS missiles get their extra tracking. | 1 |
-| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts. | 21 |
+| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts, the mechs' data typos. | 22 |
 
-Big enough to be noticed in play, besides the four: **the turrets' pick**
-(their count runs on across missions: each later mission's turrets act once
-every as many frames as turrets have been made since the game started, so
-they fire and turn slower mission after mission).
-A player replaying the campaign would feel it. Proposed in Small fixes; it
-could be its own switch, or join Improved AI as the first sort had it.
-The reticle's pick past 800 m (a lock at the long weapons' range) is the next
+The turrets' pick (their count ran on across missions, so each later mission's
+turrets acted less often) was the one other row noticeable in play; Owen made
+it a permanent fix (always on, 2026-11-10). The reticle's pick past 800 m (a lock at the long weapons' range) is the next
 most visible; Small fixes.
 
 The bug-fix switch goes away: `bugfixes=` in mw3.cfg is read once, as all
@@ -59,27 +56,28 @@ line per switch, and Small fixes a button that shows its list.
 
 ### Small fixes, as the in-game list would show them
 
-1. Turrets in later missions act as often as in the first (their turn count no longer runs on across missions).
-2. A turret's charge or glow goes out when the turret dies.
-3. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
-4. Tripod turrets aim and turn when facing straight up or down.
-5. A vehicle's gun stops at its true aiming limit.
-6. A vehicle file with pitch and no roll keeps its pitch settings (no shipped vehicle).
-7. An AI pilot at a backup node turns the right way (no shipped net has one).
-8. Pirate's Moon: the same backup node fix.
-9. Pirate's Moon: a deploy node's valves are read (no shipped file uses them).
-10. Pirate's Moon: range actions on a valve (no shipped file uses them).
-11. The reticle locks on a mech past 800 m when the selected weapons reach it.
-12. LOCK_ON_LEAD reads the right value (a typo).
-13. The mech lab offers the plain PPC the data defines.
-14. TAG's air strike lands where the target is, not where it stood 7 s before.
-15. A beam held after its button is let go stays on a moving mech.
-16. A destroyed weapon's selection moves on to one that still stands.
-17. A mech re-placed where it stands no longer drops under a bridge or onto a roof.
-18. A mission's last animation can be waited for.
-19. An animation whose object is missing waits for its conditions.
-20. Leaving c4b mission 5's or 6's area fails the mission.
-21. c2 mission 3's secondary objective waits for the mission's two Fireflies (it named two that aren't there, so it completed at once).
+1. A turret's charge or glow goes out when the turret dies.
+2. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
+3. Tripod turrets aim and turn when facing straight up or down.
+4. A vehicle's gun stops at its true aiming limit.
+5. A vehicle file with pitch and no roll keeps its pitch settings (no shipped vehicle).
+6. An AI pilot at a backup node turns the right way (no shipped net has one).
+7. Pirate's Moon: the same backup node fix.
+8. Pirate's Moon: a deploy node's valves are read (no shipped file uses them).
+9. Pirate's Moon: range actions on a valve (no shipped file uses them).
+10. The reticle locks on a mech past 800 m when the selected weapons reach it.
+11. LOCK_ON_LEAD reads the right value (a typo).
+12. The mech lab offers the plain PPC the data defines.
+13. TAG's air strike lands where the target is, not where it stood 7 s before.
+14. A beam held after its button is let go stays on a moving mech.
+15. A destroyed weapon's selection moves on to one that still stands.
+16. A mech re-placed where it stands no longer drops under a bridge or onto a roof.
+17. A mission's last animation can be waited for.
+18. An animation whose object is missing waits for its conditions.
+19. Leaving c4b mission 5's or 6's area fails the mission.
+20. c2 mission 3's secondary objective waits for the mission's two Fireflies (it named two that aren't there, so it completed at once).
+21. The Sunder Alternate B carries its LRM 20's extra 240 missiles (to be made).
+22. The Strider's recoil slide is read as a number, as on the Cauldron, Bushwacker and Champion (to be made).
 
 ## Owen's answers (2026-11-10)
 
@@ -96,9 +94,11 @@ The borderline rows, as Owen settled them:
 - **Left as the original** (the fix removed, or never made): Pirate's Moon's
   firepoint aim cone (0x4a6ee0) and aim re-pick (0x4bb290); vehicles passing
   through walls, and not slowed by quicksand or lava.
-- **Small fixes**: c2 mission 3's secondary objective (the Fireflies), to be
-  made; the plain PPC; the turrets and vehicles (Improved AI stays the
+- **Small fixes**: c2 mission 3's secondary objective (the Fireflies), made
+  already under the bug fixes (fixes.md's row said otherwise); the plain PPC; the turrets and vehicles (Improved AI stays the
   lancemates' pathing).
+- **The turrets' pick** (0x004a70d0, the count across missions): a permanent
+  fix, always on (Owen, later the same day).
 
 ## Where the `bugs` switch's users go
 
@@ -152,7 +152,7 @@ switch it would read instead. Many of them guard fixes this sort puts under
 | `mech3/player.cpp` | 2 / 2 | always on (a vehicle's whole names, its controller's crash) |
 | `mech3/pocket_panel.cpp` | 1 / 1 | always on (the pocket commander's use after free) |
 | `mech3/quit_box.cpp` | 4 / 4 | always on (closing with the box up left the mouse unable to fire) |
-| `mech3/turret.cpp` | 3 / 3 | Small fixes (turrets) |
+| `mech3/turret.cpp` | 3 / 3 | always on (the turrets' pick, Owen 2026-11-10) and Small fixes (a turret shut down, its yaw) |
 | `mech3/veh_controls.cpp` | 2 / 2 | Small fixes (vehicles) |
 | `mech3/weapon.cpp` | 6 / 6 | Small fixes (TAG, the beam, the selection); always on (the aim past 4:3, ZAPS_HUD's hold) |
 | `mech3/zai_attack.cpp` | 5 / 5 | Improved AI (the detour and trail) |
@@ -607,12 +607,13 @@ Owen's rule: on for good; the borderline ones he confirmed (Owen's answers, abov
 | The saved mouse settings, the same writes (MouseAccelX/Y at… | MW3 | a value set for a moment would reach the disk; with our MOUSE SENSITIVITY the player's own value must… |
 | A peer's latency, 0x00470a00 (multiplayer-port.md piece 14c, the 1.2… | MW3 | the clamp means a negative trip to give 0; read unsigned, a delay past the round trip (a stall, a peer's… |
 
-### Multiplayer, by Owen's call (3)
+### By Owen's call (4)
 
-Owen, 2026-11-10: all four multiplayer fixes always on (the latency's is in the restored rows' table above).
+Owen, 2026-11-10: all four multiplayer fixes always on (the latency's is in the restored rows' table above), and the turrets' pick.
 
 | Fix | Game | Why |
 |---|---|---|
+| The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | MW3 | the count runs on across missions: each later mission's turrets act once every as many frames as turrets… |
 | A remote mech's aim carried on by the lag, 0x0046e4d0… | MW3 | the correction is about 0.1%: the remote aim shown lags behind |
 | A collision's push from a remote mech, 0x004705b0 (multiplayer-port.md… | MW3 | a pilot killed by the push credits no one |
 | The lock's stock loadout, 0x0049b360 (multiplayer-port.md piece 11b) | MW3 | every player is put back on the mech's first stock loadout, even one who chose another stock one |
@@ -638,6 +639,22 @@ No original play to restore: the original never reaches these.
 | The AI net record cache's copy, 0x4dc2b0 (0x4da790 then 0x4c63a0) | MW3 | every edited node saved without its auxname |
 | The editor's reload, 0x4bed90 (editor.md, The reload) | MW3 | an edit to a running net shows only at the next start |
 | Pirate's Moon's teleport, a typed place 0x004a8d70 (editor.md, Pirate's… | PM | MW3's took the yaw field; a typed place saved with a stray facing |
+
+### fixes.md's data typos still to fix (4)
+
+fixes.md's bulleted list (Original bugs still to fix) holds data typos for the
+importer besides the tables' rows; c2m3's Fireflies there is the Missions row
+below. The list's other entries (the CPU speed, the precision notes, the
+fonts) are port fixes, FIX (A) / (B), or the exe's own precision: always on,
+or no change. Two typos are pictures and text (always on), two play (Small
+fixes, items 22 and 23):
+
+| Fix | Game | Why |
+|---|---|---|
+| Firefly skin 5's label `MSG_SKIN_VARIANTD` (should be `VARIANTE`, SLATE) | MW3 | text: always on. To be made |
+| c1's script `Object3DSetScrllAlways` on `ocean52` (should be `Object3DSetScrollAlways`) | MW3 | a picture: the water does not scroll. Always on. To be made |
+| Sunder Alternate B's `extra (120 120)` beside the LRM 20's `ammo` instead of inside it | MW3 | play: 240 missiles lost. Small fixes. To be made |
+| Strider's `recoil_slide ("1.5.0")` as text (should be `1.5`) | MW3 | play: its recoil read as none. Small fixes. To be made |
 
 ## (b) Own switches
 
@@ -671,15 +688,14 @@ No original play to restore: the original never reaches these.
 
 Deep water: its row once said "game-breaking per Owen" (2026-10-30, when it was folded into `bugs`); release.md names water movement as an upgrade, so it is listed there.
 
-## (c) Small fixes (21)
+## (c) Small fixes (22)
 
 One switch; the in-game list above names each in the same order.
 
-### Turrets, vehicles and the AI's data (10)
+### Turrets, vehicles and the AI's data (9)
 
 | Fix | Game | Why |
 |---|---|---|
-| The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | MW3 | the count runs on across missions: each later mission's turrets act once every as many frames as turrets… |
 | A turret shut down, 0x004a7620 | MW3 | the flag test is the wrong way round: an effect lit as the turret dies (a charge before a shot) stays lit;… |
 | Loose orders, aiv.zrd 0x4df730 | MW3 | misplaced data: the reader skips them, so those enemies follow no scripted orders |
 | A turret's yaw, 0x004a71c0 (W50) | MW3 | a facing straight up or down (the tripod turrets are made so) zeroes the yaw matrix's axes: the turret and… |
@@ -714,7 +730,7 @@ One switch; the in-game list above names each in the same order.
 | Animation prerequisites, 0x50aaa3 | MW3 | the mission's last animation can never be waited for |
 | Missing animation object, 0x50a0e0 | MW3 | the animation then fires without waiting for any of its conditions |
 | c4b missions 5 and 6's boundaries, the aiv.zrd vlist reader 0x4dfb00 | MW3 | leaving either mission's area never fails it |
-| c2m3's secondary objective (objectives.zrd c2 `m3`, "Destroy Smoke Jaguar… | MW3 | the objective completes with both Fireflies alive (playtest W24). To be made (Owen 2026-11-10: a small fix) (the… |
+| c2m3's secondary objective (objectives.zrd c2 `m3`, "Destroy Smoke Jaguar… | MW3 | the objective completes with both Fireflies alive (playtest W24). Made already: `fix_objective_data` points them at firefly_03 / 04 (Owen 2026-10-25; fixes.md, Original bugs still to fix, whose row here was stale); Small fixes (Owen 2026-11-10) (the… |
 
 ## Left as the original (Owen, 2026-11-10) (4)
 
