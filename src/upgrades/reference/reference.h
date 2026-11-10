@@ -99,5 +99,6 @@ File world();
 File landmines();
 File hud();
 File sounds();
+File dialogs();
 
 }  // namespace upgrades::reference

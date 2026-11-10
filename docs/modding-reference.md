@@ -633,6 +633,89 @@ The sound settings, then `SETS`: each set's sounds by name with their keys, and 
 | `SOUND_GROUPS` | top | a block | none | - | The sound groups. |
 | `DEMO_GROUPS` | top | a block | none | the demo build only | The demo's groups. (No shipped mission reaches this read: not checked.) |
 
+## The dialogs (dialog.zrd, dlg*.zrd, briefing.zrd)
+
+- Where: `zbd\reader.zbd`
+- Read by: zTwoD's dialog reader (`Dialog::load` 0x0059f010) and each screen's binds (docs/twod.md, menus.md)
+
+One record per dialog by the name its screen asks for (`MAINMENU`, `GAME_OPTION_DIALOG`, `MESSAGEBOX`, ...). `PRIMITIVES` and `BUTTONS` hold the dialog's pictures and controls by name; a screen binds the names it knows (an unknown name is never shown, a missing one is reported and left out). The keys below are read by every screen's binds; this list is what the menus the check opens read (every main menu screen, the options' pages, the briefing, the message box).
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `IMAGE_PATH` | a dialog | text: folders, `;` between | none | - | Where its pictures are found. |
+| `SHARED_IMAGE_PATH` | a dialog | text | none | - | More folders, shared with other dialogs. |
+| `PRIMITIVES` | a dialog | `NAME ( ... )` records | none | - | Its pictures (backgrounds, lines, boxes) by name. |
+| `BUTTONS` | a dialog | `NAME ( ... )` records | none | - | Its controls by name: the screen's buttons, lists, sliders. |
+| `CURSOR` | a dialog | a block | none | - | Its mouse cursor: `BITMAP`, `CENTER`, `CAPTURE`. |
+| `CAPTURE` | CURSOR | int | 0 | - | Keeps the cursor inside the dialog. |
+| `FONTS` | a dialog | a block | none | - | Fonts the dialog names. |
+| `BACKGROUND_IMAGES` | a dialog | list | none | - | Pictures shown behind it. |
+| `BACKGROUND_SOUNDS` | a dialog | list | none | - | Sounds played while it shows. |
+| `BACKGROUND_TEXT` | a dialog | list | none | - | Text shown behind it. |
+| `BACKGROUND_VIDEOS` | a dialog | list | none | - | Videos shown behind it. |
+| `MOUSETRAP` | a dialog | list | none | - | A rectangle the mouse is held in. |
+| `POSITION` | a button or picture | list: x y | 0 0 | - | Where it sits (640 x 480). |
+| `BITMAP` | a button or picture | a picture's name | none | - | Its picture. |
+| `AUXBITMAP` | a button or picture | a picture's name | none | the main menu's | A second picture (the main menu's glow). |
+| `CENTER` | a button or picture | flag | 0 | - | Its position is its centre. |
+| `SIZE` | a button or picture | list: w h | the picture's | - | Its size. |
+| `RECT` | a button or picture | list: x y w h | none | - | Its area. |
+| `LABEL` | a button or picture | text, or (text offset font) lists | none | - | Its words, their offset and font. |
+| `TEXT` | a button or picture | a message key | none | - | Its text. |
+| `FONT` | a button or picture | a font's name | the dialog's | - | Its font. |
+| `OFFSET` | a button or picture | list: x y | 0 0 | - | Its label's offset. |
+| `ROLLOVER` | a button or picture | a block | none | - | What changes under the mouse: picture, label, `SOUND`, `FLASH`. |
+| `ACTIVATE` | a button or picture | a block | none | - | What a press does: `SOUND`, picture. |
+| `DISABLE` | a button or picture | a block | none | - | How it looks when off. |
+| `DISABLE_SEL` | a button or picture | a block | none | - | How a check box looks when off and checked. |
+| `DISABLE_UNSEL` | a button or picture | a block | none | - | How a check box looks when off and not checked. |
+| `CHECKED` | a button or picture | a block | none | - | How a check box looks when checked. |
+| `FLASH` | a button or picture | list | none | - | A blinking label under the mouse. |
+| `SOUND` | a button or picture | a sound | none | - | Played (under the mouse, on a press). |
+| `GLOW_OFFSET` | a button or picture | list: x y | 0 0 | the main menu's | Where its glow sits. |
+| `HELP` | a button or picture | a message key | none | - | Its help line. |
+| `RADIUS` | a button or picture | int | the default | - | A round button's size. |
+| `MAXRADIUS` | a button or picture | int | the default | - | How far its glow grows. |
+| `FILLBITMAP` | a button or picture | a picture's name | none | a slider's | A slider's filled part. |
+| `WORDWRAP` | a button or picture | list | none | - | Text wrapped at a width. |
+| `UP` | a button or picture | a block | none | a list's | Its scroll-up arrow. |
+| `DOWN` | a button or picture | a block | none | a list's | Its scroll-down arrow. |
+| `NORMAL_FONT` | a list | a font's name | the dialog's | - | Its rows' font. |
+| `SELECTED_FONT` | a list | a font's name | NORMAL_FONT | - | The chosen row's font. |
+| `STATIC_FONT` | a list | a font's name | none | the mech lab's | Rows that cannot be chosen. |
+| `LIST_FONT` | a list | a font's name | the dialog's | - | A drop list's font. |
+| `SPACING` | a list | list: x y | 0 0 | - | The space between rows. |
+| `LISTSIZE` | a list | int | the default | - | Rows shown. |
+| `LISTWIDTH` | a list | int | the default | - | Its width. |
+| `LIST_OFFSET` | a list | list: x y | 0 0 | - | Where its rows start. |
+| `ACTIVE_RECT` | a list | list: x y w h | none | - | The area that takes clicks. |
+| `ITEMROLLOVER` | a list | a block | none | - | A row under the mouse. |
+| `BAR` | a list | a block | none | - | Its bar. |
+| `ROLLOVER_SOUND` | a list | a sound | none | - | Played over a row. |
+| `SELECT_SOUND` | a list | a sound | none | - | Played on choosing a row. |
+| `OPTIONTEXT` | the controls | a picture or text | none | - | The controls screen's description line. |
+| `SCROLLING_TEXT` | the credits | a block | none | - | The credits' text. |
+| `SCROLL_RATE` | the credits | float | the default | - | How fast the credits scroll. |
+| `MB_YES` | the message box | a button | not shown | - | Its YES button. |
+| `MB_NO` | the message box | a button | not shown | - | Its NO button. |
+| `MB_ABORT` | the message box | a button | not shown | - | Its ABORT button. |
+| `MB_RETRY` | the message box | a button | not shown | - | Its RETRY button. |
+| `MB_IGNORE` | the message box | a button | not shown | - | Its IGNORE button. |
+| `CALL_BUTTON` | the multiplayer screen | a button | not shown | - | Its CALL button. |
+| `MAP` | the briefing | a block | none | - | The briefing's map. |
+| `MARKERS` | the briefing | list | none | - | The map's markers, with the briefing's sounds. |
+| `at` | the briefing | number (s) | 0 | - | When a briefing step starts. |
+| `image` | the briefing | a picture's name | none | - | A briefing step's picture. |
+| `string` | the briefing | a message key | none | - | A briefing step's text. |
+| `label` | the briefing | a message key | none | - | A marker's label. |
+| `sound` | the briefing | a sound | none | - | A briefing step's sound. |
+| `color` | the briefing | list: r g b | white | - | A marker's colour. |
+| `radius` | the briefing | list: two ints | none | - | A marker's circle. |
+| `points` | the briefing | list of points | none | - | A marker's path. |
+| `offset` | the briefing | list: x y | 0 0 | - | A label's offset. |
+| `font` | the briefing | a font's name | the dialog's | - | A step's font. |
+| `inactive_font` | the action menu | a font's name | none | - | A choice that is off. |
+
 ## Script commands (interp.zbd, a world's .gs and .gw)
 
 - Where: `zbd\interp.zbd` (a mod's own scripts)
