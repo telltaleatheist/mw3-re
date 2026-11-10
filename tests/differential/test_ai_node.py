@@ -28,8 +28,7 @@ position, the controls, rand, the boundary, the way finder, the states made
 and destroyed), the order's state (a node state's node, phase and
 +0x10..+0x24, another real state's step, or a fake's number), the steering
 block and the brain's +0x298, +0xec and +0x104 must match (a pick alone:
-the step picked and the running sums the exe leaves in [0x60b444]), at
-24-bit x87. The turns are also run alone on random vectors.
+the step picked and the running sums the exe leaves in [0x60b444]), at the reference's 53-bit x87. The turns are also run alone on random vectors.
 """
 import ctypes
 import math
@@ -39,7 +38,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_frame as tf  # noqa: E402
 import test_ai_orders as to  # noqa: E402

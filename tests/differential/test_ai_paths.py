@@ -12,7 +12,7 @@ Every mission's nets built (as test_ai_nets.py), then in each: the nearest
 step to points round its nodes, and ways between random pairs of its nodes
 for pilots standing near the start, with and without jump jets, named for
 a gate or not, under random valve settings, each way then followed step by
-step. Per-frame code: the x87 at 24 bits. Both sides' output streams
+step. Per-frame code: the x87 at the reference's 53 bits. Both sides' output streams
 (tests/probe_ai_net.cpp: steps as slots, ways as lists of slots with their
 lengths) must match.
 """

@@ -273,7 +273,7 @@ class BrainHooks : public zgame::Unported {
   // see of the pilot (its vehicle's +0x04 name and vt+0x50's +0x3d8 jump jets).
   virtual Behaviour* path_next(Brain& b, Behaviour* at);
   virtual float speed_at(zgame::Handle v, float share);
-  virtual float stopping_distance(zgame::Handle v, float speed);
+  virtual double stopping_distance(zgame::Handle v, float speed);  // in the register, unrounded, as vt+0x120 returns it
   virtual float stop_share(zgame::Handle v, float d);  // vt+0x12c, the Mech's 0x0041d240
   // The station keeping's (zai_attack): a vehicle's vt+0xf4 (0 for the
   // mechs, 0x0040bae0) and its speed (vt+0x114; its velocity is velocity()).
@@ -501,11 +501,11 @@ struct Steer {
   bool near() const;                                   // 0x004ce6a0
   void carrot(float out[3]) const;                    // 0x004ce6f0
   void project(const float p[3], float out[2]) const;  // 0x004ceb00
-  void advance(float d) { along_at += d, along -= d; }  // 0x004ce800
-  void shift(float da, float ds) { along -= da, side -= ds, along_at += da, across += ds; }  // 0x004ce820
+  void advance(float d);              // 0x004ce800
+  void shift(float da, float ds);     // 0x004ce820
 
  private:
-  float distance_off() const;  // the measure 0x004ce6a0 and 0x004ceb50 compare with near_dist
+  double distance_off() const;  // the measure 0x004ce6a0 and 0x004ceb50 compare with near_dist (unrounded)
   void push_by_contacts(zgame::Handle owner, float dt);
 };
 

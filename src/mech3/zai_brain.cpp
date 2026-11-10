@@ -1,6 +1,7 @@
 #include "mech3/zai_brain.h"
 #include "mech3/zai_wire_pm.h"
 #include "mech3/zai_wire_states_pm.h"
+#include "mech3/zai_x87.h"
 
 #include "mech3/zai_attack.h"
 
@@ -103,7 +104,7 @@ void BrainHooks::radio_line(Brain& b, int32_t event) {
 float BrainHooks::heat(zgame::Handle v) { return fbits(unported("vehicle.vt+0x9c", {v})); }
 Behaviour* BrainHooks::path_next(Brain& b, Behaviour* at) { return b.path.next(at); }
 float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported("vehicle.vt+0x118", {v, bits(share)})); }
-float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
+double BrainHooks::stopping_distance(zgame::Handle v, float speed) {
   return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
 }
 float BrainHooks::stop_share(zgame::Handle v, float d) { return fbits(unported("vehicle.vt+0x12c", {v, bits(d)})); }
@@ -526,38 +527,44 @@ void WaitState::run(float dt) {
   if (on) order->set_behaviour(st->next);  // 0x004e8120: this state destroyed
 }
 
-// Mech3.exe 1.2 @ 0x004cb120 with 0x004cb250 (x87 at 24 bits: floats; the
-// flat distance through the CRT's _hypot, here the root of the squares)
+// Mech3.exe 1.2 @ 0x004cb120 with 0x004cb250, as the reference runs it at 53
+// bits (zai_x87.h): _hypot's result, the ratio, k, t3 and the total stay in
+// the register, each time stored after its root; the flat distance through
+// the CRT's _hypot, the root of the squares' sum at 53 bits.
 JumpPlan jump_plan(const float from[3], const float to[3], float up, float down, float margin, float speed) {
   JumpPlan p;
-  const float d[3] = {to[0] - from[0], to[1] - from[1], to[2] - from[2]};
-  const float hyp = std::sqrt(d[0] * d[0] + d[2] * d[2]);  // the CRT's _hypot, at 24 bits
-  p.dist = hyp;
+  const float d[3] = {stored(double{to[0]} - from[0]), stored(double{to[1]} - from[1]), stored(double{to[2]} - from[2])};
+  const double hyp = std::sqrt(double{d[0]} * d[0] + double{d[2]} * d[2]);  // _hypot (0x005bb5b0), kept
+  p.dist = stored(hyp);
   p.rise = d[1];
   if (d[1] < 0.0f || std::isnan(d[1])) {  // C0: below, or unordered
     p.rise = -d[1];
     p.climb = margin;
-    p.fall = margin + p.rise;
+    p.fall = stored(double{margin} + p.rise);
   } else {
-    p.climb = d[1] + margin;
+    p.climb = stored(double{d[1]} + margin);
     p.fall = margin;
   }
-  p.ratio = up / down;
+  const double ratio = double{up} / down;
+  p.ratio = stored(ratio);
   p.t[2] = 0;
-  p.k = 2.0f / ((down - up) * p.ratio);
-  p.t[0] = std::sqrt(p.climb * p.k);
-  p.t[1] = -(p.t[0] * p.ratio);
-  p.t[4] = std::sqrt(p.fall * p.k);
-  p.t[3] = -(p.ratio * p.t[4]);
-  p.total = ((p.t[3] + p.t[4]) + p.t[1]) + p.t[0];
-  p.need = p.total > 0.0f ? hyp / p.total : 3.4028234663852886e38f;  // 0x7f7fffff
+  const double k = 2.0 / ((double{down} - up) * ratio);  // 0x005cb130
+  p.k = stored(k);
+  p.t[0] = stored(std::sqrt(p.climb * k));
+  p.t[1] = stored(-(p.t[0] * ratio));
+  p.t[4] = stored(std::sqrt(p.fall * k));
+  const double t3 = -(ratio * p.t[4]);
+  p.t[3] = stored(t3);
+  const double total = ((t3 + p.t[4]) + p.t[1]) + p.t[0];
+  p.total = stored(total);
+  p.need = total > 0.0 ? stored(hyp / total) : 3.4028234663852886e38f;  // 0x7f7fffff
   // 0x004cb250: no faster than needed; no glide without a speed.
   if (speed > p.need) {
     p.t[2] = 0, p.speed = p.need;
   } else if (!(speed > 0.0f)) {
     p.t[2] = 0, p.speed = speed;
   } else {
-    p.t[2] = p.dist / speed - p.total;
+    p.t[2] = stored(double{p.dist} / speed - p.total);
     p.speed = speed;
   }
   return p;
@@ -572,15 +579,15 @@ JumpState::JumpState(Order* o, Behaviour* step) : BehaviourState(o, step) {
   const float g = h.gravity();
   const Behaviour* next = static_cast<const Step*>(step)->next;
   const float top = h.speed_at(v, b.xec);  // vt+0x118
-  const float up = (1.0f * 8.0f + g) - g;  // 0x005e1f8c
+  const float up = stored((1.0 * 8.0f + g) - g);  // 0x005e1f8c: 0x0041d490's sum in the register, less g, stored
   const float* to = next->way_point();     // vt+0x1c
   float at[3];
   h.position(v, at);  // 0x005a85e0
   const JumpPlan p = jump_plan(at, to, up, -g, fbits(static_cast<const ValueStep*>(step)->value), top);
   jet = (g - g) / 8.0f;
   const float now = h.now();
-  float t = now;
-  for (int i = 0; i < 5; ++i) until[i] = t = t + p.t[i];
+  double t = now;  // the running sum stays in the register, each end stored
+  for (int i = 0; i < 5; ++i) t = t + p.t[i], until[i] = stored(t);
   speed = p.speed;
   phase = 0;
 }
@@ -605,7 +612,7 @@ void JumpState::run(float dt) {
     flat_way(at, to, &w);  // 0x004ce230, the next step's vt+0x18
     float fwd[3] = {0, 0, 0};
     h.forward(v, &fwd[0], &fwd[2]);  // +0x24
-    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    const float dot = wide_sum(fwd[0], w.dir[0], fwd[2], w.dir[2]);
     float cross;
     turn = turn_hold(fwd, w.dir, &dot, &cross, turn, turn_params());  // 0x004c8df0 with [0x0060b478]
   } else {
@@ -817,34 +824,56 @@ constexpr float kKeepNear = 30.0f;  // 0x005e8bd0 / 0x005e8bc8
 constexpr float kBand = 10.0f;      // 0x005e8bd4
 }  // namespace
 
+// The steering's sums are the exe's at 53 bits: what it keeps in the
+// register stays a double here until it stores it (zai_x87.h; pm-tests.md,
+// MW3's AI at 53 bits).
+
 // Mech3.exe 1.2 @ 0x004ceb00: p from the carrot, along the segment and to
-// its side.
+// its side. Both differences stay in the register; the across uses x's
+// difference as stored.
 void Steer::project(const float p[3], float out[2]) const {
-  const float dx = p[0] - start[0], dz = p[2] - start[2];
-  out[0] = dx * dir[0] + dz * dir[1];
-  out[1] = dx * dir[1] - dz * dir[0];
-  out[0] = out[0] - along_at;
-  out[1] = out[1] - across;
+  const double dx = double{p[0]} - start[0], dz = double{p[2]} - start[2];
+  const float dx_stored = stored(dx);
+  out[0] = stored(dz * dir[1] + dx * dir[0]);
+  out[1] = stored(double{dx_stored} * dir[1] - dz * dir[0]);
+  out[0] = stored(double{out[0]} - along_at);
+  out[1] = stored(double{out[1]} - across);
 }
 
 // Mech3.exe 1.2 @ 0x004ce6f0
 void Steer::carrot(float out[3]) const {
-  out[0] = dir[0] * along_at + start[0];
-  out[1] = 0 + start[1];
-  out[2] = dir[1] * along_at + start[2];
+  out[0] = stored(double{along_at} * dir[0]);
+  out[2] = stored(double{along_at} * dir[1]);
+  out[0] = stored(double{start[0]} + out[0]);
+  out[1] = stored(double{start[1]} + 0.0f);
+  out[2] = stored(double{start[2]} + out[2]);
   if (across < 0 || across > 0) {  // the x87's C3: 0 or a NaN adds nothing
-    out[0] = across * dir[1] + out[0];
-    out[2] = out[2] - across * dir[0];
+    out[0] = stored(double{across} * dir[1] + out[0]);
+    out[2] = stored(double{out[2]} - double{across} * dir[0]);
   }
 }
 
 // The distance from the segment 0x004ce6a0 and 0x004ceb50 measure: to the
-// side, plus how far before its start or past its end.
-float Steer::distance_off() const {
-  float m = std::fabs(side);
+// side, plus how far before its start or past its end, in the register.
+double Steer::distance_off() const {
+  double m = std::fabs(side);
   if (!(along >= 0)) m = m - along;  // the x87's unordered compares as written
-  else if (along > length) m = (along - length) + m;
+  else if (along > length) m = (double{along} - length) + m;
   return m;
+}
+
+// Mech3.exe 1.2 @ 0x004ce800
+void Steer::advance(float d) {
+  along_at = stored(double{along_at} + d);
+  along = stored(double{along} - d);
+}
+
+// Mech3.exe 1.2 @ 0x004ce820
+void Steer::shift(float da, float ds) {
+  along = stored(double{along} - da);
+  side = stored(double{side} - ds);
+  along_at = stored(double{along_at} + da);
+  across = stored(double{across} + ds);
 }
 
 // Mech3.exe 1.2 @ 0x004ce6a0
@@ -861,8 +890,8 @@ void Steer::push_by_contacts(zgame::Handle owner, float dt) {
   BrainHooks& h = brain_hooks();
   const std::vector<Contact*>* cs = h.contacts(owner);
   if (!cs) return;
-  const float a = along > 0 ? kKeepNear + along : kKeepNear;
-  const float limit = kBand * kBand + a * a;
+  const double a = along > 0 ? double{kKeepNear} + along : double{kKeepNear};  // 0x004ce780, in the register
+  const float limit = stored(double{kBand} * kBand + a * a);
   for (const Contact* c : *cs) {
     if (c->dist2 > limit) break;  // 0x004ce7d0 (a NaN distance is taken)
     const zgame::Handle e = h.contact_entity(c);
@@ -871,20 +900,22 @@ void Steer::push_by_contacts(zgame::Handle owner, float dt) {
     h.position(e, p);
     project(p, l);
     if (l[0] >= along || -kKeepNear >= l[0]) continue;
-    const float d = l[1] - side;
+    // 0x004ce860: the side's difference compared and taken off unrounded, stored for its sign.
+    const double d = double{l[1]} - side;
+    const float d_stored = stored(d);
     if (std::fabs(d) >= kBand) continue;
-    const float room = (kKeepNear + l[0]) - std::fabs(d);
+    const float room = stored((double{kKeepNear} + l[0]) - std::fabs(d));
     if (!(room > 0)) continue;
     float da = room, ds = 0;
     float fx, fz;
     h.forward(e, &fx, &fz);
-    const float dot = -dir[0] * fx + -dir[1] * fz;
-    float f = (dot - 0.0f) / (cos_three_quarter_pi() - 0.0f);
+    const float dot = wide_sum(-dir[0], fx, -dir[1], fz);
+    double f = (double{dot} - 0.0f) / (double{cos_three_quarter_pi()} - 0.0f);
     if (!(0 >= f)) {
-      if (f > 1.0f) f = 1.0f;
-      const float w = f * room;
-      da = da - w;
-      ds = ds - static_cast<float>(std::copysign(static_cast<double>(w), static_cast<double>(d)));
+      if (f > 1.0) f = 1.0;
+      const double w = f * room;
+      da = stored(double{da} - w);
+      ds = stored(double{ds} - std::copysign(w, double{d_stored}));
     }
     shift(da, ds);  // 0x004ce820
   }
@@ -899,10 +930,10 @@ void Steer::measure(zgame::Handle owner, float dt) {
   float l[2];
   project(p, l);
   along = l[0], side = l[1];
-  float room = kKeepNear - std::fabs(side);
+  double room = double{kKeepNear} - std::fabs(side);  // in the register
   if (!(room >= 0)) room = 0;
-  const float over = std::fabs(along) - room;
-  if (over > 0) advance(static_cast<float>(std::copysign(static_cast<double>(over), static_cast<double>(along))));
+  const double over = std::fabs(along) - room;
+  if (over > 0) advance(stored(std::copysign(over, double{along})));
   if (near()) push_by_contacts(owner, dt);
 }
 
@@ -911,27 +942,20 @@ void Steer::measure(zgame::Handle owner, float dt) {
 // along_min, then the measure.
 void Steer::update(float dt, zgame::Handle owner) {
   const float to = across_to;
-  const float n = (to - across) * 2.0f * dt + across;
-  across = n;
+  const double n = (double{to} - across) * 2.0f * dt + across;  // compared unrounded, then stored
+  across = stored(n);
   if (!(std::fabs(to - n) >= 0.05)) across = to;
-  const float a = along_at - rate * dt;
-  along_at = a;
+  const double a = double{along_at} - double{rate} * dt;
+  along_at = stored(a);
   if (!(a >= along_min)) along_at = along_min;
   measure(owner, dt);
 }
 
 // Mech3.exe 1.2 @ 0x004cea30 (with 0x004ce530 for the direction).
 void Steer::set(const float to[3], const float from[3], float r, zgame::Handle owner) {
-  dir[0] = to[0] - from[0];
-  dir[1] = to[2] - from[2];
-  const float len = std::sqrt(dir[1] * dir[1] + dir[0] * dir[0]);
-  if (len != 0) {
-    dir[0] = (1.0f / len) * dir[0];
-    dir[1] = (1.0f / len) * dir[1];
-  } else {
-    dir[0] = dir[0] * 0.0f;
-    dir[1] = dir[1] * 0.0f;
-  }
+  dir[0] = stored(double{to[0]} - from[0]);
+  dir[1] = stored(double{to[2]} - from[2]);
+  const float len = unit_flat(&dir[0], &dir[1], true);  // 0x004ce530
   along_at = length = len;
   along_min = 0, across = 0, across_to = 0;
   rate = r;
@@ -1555,8 +1579,8 @@ bool Brain::frame(BrainControls& c, float dt) {
     if (!attacking && xf0 == 0 && params.get<int32_t>(0xa0) && may_fire()) {
       if (xf4 == kFltMax) {  // a random wait between +0x64 and +0x68
         const float lo = params.get<float>(0x64), hi = params.get<float>(0x68), now = h.now();
-        const float r = static_cast<float>(h.rand());
-        xf4 = (hi - lo) * 3.051851e-05f * r + lo + now;
+        const double r = h.rand();
+        xf4 = stored((double{hi} - lo) * 3.051851e-05f * r + lo + now);  // in the register, stored once
       } else if (h.now() > xf4) {
         due = true;
         manoeuvre();

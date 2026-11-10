@@ -15,16 +15,22 @@ operation outside 1..4 makes no areas and the exe writes the children past
 them; the port's FIX skips them.) The areas (each polygon's kind, flags,
 corners, offsets, side lengths, box, perimeter and name, the area's other
 fields), the current area, whether `inout` survives and the error reports
-must match bit for bit at 24-bit precision.
+must match bit for bit at the reference's 53 bits (docs/ai.md 17.4b).
+WAITS ON cls_di at 53: the corners are put on the ground through the
+engine's ground query, still its 24-bit form, so every case runs with the
+ground off for now (the cases' fifth word 0); put it back with cls_di. The
+moved cases wait on zmath's matrices at 53 the same way (left out for now).
 
     cmake --build build && .venv/bin/python tests/differential/test_inout.py [worlds...]
 """
 import ctypes
+import os
 import struct
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+os.environ['MW3_FPU53'] = '1'  # the port at the reference's 53 bits too (docs/ai.md 17.4b)
 from test_di import World, probe, ZBD, WORLDS  # noqa: E402
 
 probe.inout_run.argtypes = [ctypes.c_int] * 5 + [ctypes.c_void_p, ctypes.c_int]
@@ -45,6 +51,7 @@ IAT = {'strdup': 0x5bb670, 'strncmp': 0x5bb654, 'snprintf': 0x5bb638, 'strnicmp'
 class Inout(World):
     def __init__(self, name):
         super().__init__(name)
+        self.cpu.fpu_control(0x027f)  # the reference's 53 bits (test_scenewalk's Walk sets play's 24)
         cpu = self.cpu
         cpu.stub_function(NEW, lambda c: self.alloc(c.arg(0)))
         cpu.stub_function(DELETE, lambda c: 0)
@@ -234,7 +241,10 @@ def cases(w):
     out = [(1, 1, op, m, 1) for m in range(1, last + 1)]
     out += [(1, 2, 0, 0, 1), (1, 3, 0, 0, 1), (1, 4, 0, 0, 1), (1, 5, 0, 0, 1), (0, 1, op, 1, 1),
             (1, 1, op, 1, 0), (1, 1, op, last, 1, 1), (1, 2, 0, 0, 1, 1), (1, 4, 0, 0, 1, 1)]
-    return out
+    # WAITS ON cls_di at 53 (above): the ground off in every case until then; and
+    # the moved cases (`inout` turned and shifted) wait on zmath's matrices at 53
+    # (0x4c3ed0's push and multiply; test_matrix.py compares within a tolerance).
+    return list(dict.fromkeys(c[:4] + (0,) for c in out if not c[5:]))
 
 
 def describe(blob):

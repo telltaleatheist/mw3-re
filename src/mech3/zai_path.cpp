@@ -1,4 +1,5 @@
 #include "mech3/zai_path.h"
+#include "mech3/zai_x87.h"
 
 #include <cfloat>
 #include <cmath>
@@ -87,7 +88,7 @@ bool PathFinder::walk(Behaviour* s) {
     nx = nx ? nx->as_behaviour() : nullptr;
     if (!nx || !nx->passable(pilot, s)) continue;
     if (const float* q = nx->position()) {
-      length = dist(at_pos, q) + length;
+      length = stored(double{dist(at_pos, q)} + length);
       at_pos = q;
     }
     go = walk(nx);
