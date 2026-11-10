@@ -825,3 +825,12 @@ MW3's 0x0049ca00 runs against the port's in `test_pilotscreen.py` (each plan end
 three screens' vt+0x08(1), compared). Pirate's Moon's 0x004a0230 has no differential yet: it is checked only by the
 screens' count in `pm_menus_take_a_picked_mode_at_once_headless`. A PM twin (PM's state made and deleted in the
 emulator against `pmprobe`) is listed for after 1.1.0.
+
+## Instant Action's MODS on Pirate's Moon (2026-11-10)
+
+`sdl_pm_program_instant_action_mods` is the twin of MW3's: from PM's Instant Action screen the MODS tab opens our
+screen, a tick and ACCEPT start the game again inside entry ia with the mod mounted, and ALL OFF inside the entry
+starts it again plain on Instant Action. The clicks are MW3's (PM's main menu has INSTANT ACTION at the same place;
+the tab and its screen are our records). Seen in a windowed 16:9 run (canvas 853 x 480): the tab and its "MODS: off"
+line sit under the scenario's description inside the right bracket. Not covered on PM: the offer to copy a pilot
+answered yes, and the straight-in start with mods ticked (MW3's second test).

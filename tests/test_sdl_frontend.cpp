@@ -7618,3 +7618,58 @@ TEST(pm_upgrades_save_leaves_the_water_line_as_it_is) {
   std::filesystem::remove_all(dir, ec);
 }
 #endif
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)  // posix_spawn, execv
+// Instant Action's MODS on Pirate's Moon, the twin of sdl_program_instant_action_mods: the MODS tab on PM's
+// Instant Action screen opens our screen; a tick and ACCEPT start the game again inside entry ia with the mod
+// mounted (the first run was the original); inside the entry, ALL OFF starts it again plain, on Instant Action.
+TEST(sdl_pm_program_instant_action_mods) {
+  namespace fs = std::filesystem;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm ia mods";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel) << text;
+  };
+  put("wd/mods/hud/mod.txt", "name=Amber HUD\n");
+  put("wd/mods/other/mod.txt", "name=Other\n");
+  setenv("MW3_BOX_ANSWER", "2", 1);  // the offer to copy the pilot: no (a new pilot is made there)
+  auto run = [&](const std::vector<std::string>& extra, const char* name) {
+    std::vector<std::string> args = {"--install", MW3_GAME_DIR, "--no-launcher", "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
+                                     "--frame-ms", "33", "--seed", "1", "--frames", "500"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3(args, log);
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto text_of = [&](const std::string& rel) {
+    std::ifstream f(dir + "/" + rel);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const size_t none = std::string::npos;
+  // INSTANT ACTION, a pilot "a" typed and ACCEPTed, the MODS tab, ON/OFF on the first row (Amber HUD), ACCEPT.
+  const std::string a = run({"--click-at", "60,210@120", "--tap", "30@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
+                             "--click-at", "425,255@340", "--click-at", "420,320@380"}, "a");
+  const size_t asked = a.find("mw3: Instant Action's MODS: starting again into entry ia"), entered = a.find("mw3: entry ia (Instant Action): 1 mods");
+  std::printf("  A: asked %d, entered %d, mounted %d\n", asked != none, entered != none, a.find("mod hud (Amber HUD) mounted") != none);
+  EXPECT(asked != none && entered != none && asked < entered && a.find("mod hud (Amber HUD) mounted", entered) != none);
+  EXPECT(a.substr(0, asked == none ? 0 : asked).find("mounted") == none);  // the first run was the original
+  EXPECT(entered != none && a.find("mw3: closed, result 0", entered) != none && a.find("could not start again") == none);
+  EXPECT(text_of("wd/campaigns/ia/mods.txt") == "mod=hud\n");
+  EXPECT(fs::is_regular_file(dir + "/wd/pilots/a.mw3") && !fs::exists(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  // Inside the entry (its pilot screen first: a pilot "a" of its own), the MODS tab, ALL OFF.
+  const std::string b = run({"--entry", "ia", "--entry-ia", "--tap", "30@120", "--click-at", "420,320@160", "--click-at", "440,180@260",
+                             "--click-at", "120,63@300"}, "b");
+  const size_t off = b.find("mw3: Instant Action's MODS: starting again plain, on Instant Action"), ia = b.find("mw3: the main menu opens on Instant Action (--open-ia)");
+  std::printf("  B: all off asked %d, plain on Instant Action %d\n", off != none, ia != none);
+  EXPECT(off != none && ia != none && off < ia && b.find("mw3: entry", ia) == none && b.find("mounted", ia) == none);
+  EXPECT(text_of("wd/campaigns/ia/mods.txt").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  unsetenv("MW3_BOX_ANSWER");
+  if (!std::getenv("MW3_KEEP_TMP")) fs::remove_all(dir, ec);
+}
+#endif
