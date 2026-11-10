@@ -26952,7 +26952,7 @@ struct HelpSeen {
 TEST(mission_c1m1_editor_help_covers_every_form_headless) {
   if (!have_game()) return;
   HelpSeen seen;
-  int32_t forms = 0;
+  int32_t forms = 0, previews = 0;
   mech3::app_key_calls().debug_camera = true;
   cheat_mission("editor_help", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 30) return false;
@@ -27010,6 +27010,13 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
     ms.active = true, ms.mod = "help_check";
     mech3::new_weapon_open(0);
     look(mech3::new_weapon_form());
+    // A muzzle and a sound picked: shown in the running mission by the engine's own calls (no preview hooks).
+    for (const char* slot : {"muzzle", "firing sound"})
+      if (mech3::FormField* x = mech3::new_weapon_form().field(slot); x && x->choices.size() > 2) {
+        *x->i = 2;
+        mech3::new_weapon_form().changed(*x);
+        ++previews;
+      }
     mech3::new_weapon_form().press("Cancel");
     ms = kept;
     mech3::editor_key(mech3::kEditorCommand);
@@ -27027,7 +27034,7 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
               seen.missing.size(), stale.size());
   for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
   for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
-  EXPECT(forms == 11 && seen.missing.empty() && stale.empty());
+  EXPECT(forms == 11 && previews == 2 && seen.missing.empty() && stale.empty());
 }
 
 // The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net

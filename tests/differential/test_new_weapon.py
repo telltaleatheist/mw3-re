@@ -30,20 +30,24 @@ UNZBD = Path(os.environ.get('MECH3AX_UNZBD') or
 
 W.probe.probe_new_weapon.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
                                      ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_int32), ctypes.c_int,
-                                     ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+                                     ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 
-CASES = [  # copy, name, (damage, heat, range, fire rate, velocity), (clan t, s, sphere t, s, rounds), tech, ammo
-    ('ERPPC', 'ERPPC_B', (21.5, 0.5, 1000.0, 0.2, 800.0), (8, 3, 9, 4, 0), 3, 0),
-    ('AC20', 'AC20_B', (8.0, 0.06, 300.0, 0.4, 450.0), (12, 8, 13, 9, 7), 2, 1),
-    ('Laser_Large', 'Laser_Large_B', (9.0, 0.3, 600.0, 0.5, 1.0), (5, 2, 6, 3, 0), 1, 0),
+CASES = [  # copy, name, (damage, heat, range, fire rate, velocity), (clan t, s, sphere t, s, rounds), tech, ammo, effects
+    ('ERPPC', 'ERPPC_B', (21.5, 0.5, 1000.0, 0.2, 800.0), (8, 3, 9, 4, 0), 3, 0, ''),
+    ('AC20', 'AC20_B', (8.0, 0.06, 300.0, 0.4, 450.0), (12, 8, 13, 9, 7), 2, 1, ''),
+    ('Laser_Large', 'Laser_Large_B', (9.0, 0.3, 600.0, 0.5, 1.0), (5, 2, 6, 3, 0), 1, 0, ''),
+    # The effects and sounds (EffectSlot numbers): the muzzle and firing sound changed, the trail left out, a flyby
+    # sound added, the impact and its sound changed.
+    ('ERPPC', 'ERPPC_C', (17.0, 0.408, 920.0, 0.25, 900.0), (6, 2, 7, 3, 0), 3, 0,
+     '0=gaus_muzl.flt|1=wep_ac20_fire|4=(none)|5=wep_slaser_on|6=aclbsmall_impact|7=snd_ac20_hit'),
 ]
 
 
 def made(real, c):
-    copy, name, nums, ints, tech, ammo = c
+    copy, name, nums, ints, tech, ammo, fx = c
     out = ctypes.create_string_buffer(len(real) + 65536)
     n = W.probe.probe_new_weapon(real, len(real), copy.encode(), name.encode(), (ctypes.c_float * 5)(*nums),
-                                 (ctypes.c_int32 * 5)(*ints), tech, ammo, out, len(out))
+                                 (ctypes.c_int32 * 5)(*ints), tech, ammo, fx.encode(), out, len(out))
     assert n > 0, (copy, n)
     return out.raw[:n]
 
