@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -23,6 +24,7 @@
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "upgrades/json/gamez_json.h"
+#include "upgrades/reference/reference.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_json.h"
@@ -1902,4 +1904,75 @@ TEST(mods_screen_tables_order_and_conflicts) {
   rows.clear();
   for (const mech3::ModsListEntry& m : t.mods) rows += mech3::mods_row_text(m) + "|";
   EXPECT(rows == "[x] A|[x] Off|[ ] B|[ ] Camp Mech|");
+}
+
+// The modding reference's JSON forms (docs/modding-reference.md): every member our readers look up in
+// mech3ax's JSON (zutl_json's get and member report each), by form, while they read unzbd's export of
+// the shipped files: the motions, mechlib, every world's anim.zbd and gamez.zbd. Equal to each registry.
+namespace {
+std::map<std::string, std::set<std::string>>& json_keys() {
+  static std::map<std::string, std::set<std::string>> m;
+  return m;
+}
+}  // namespace
+
+TEST(reference_json_forms_keys_are_the_readers) {
+  namespace ref = upgrades::reference;
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/gamez.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  json_keys().clear();
+  ref::observer() = [](const char* context, const char* key, const void*) { json_keys()[context].insert(key); };
+  const char* was = ref::context();
+  std::map<std::string, std::string> ex;
+  std::string why;
+  std::vector<uint8_t> out;
+  ref::context() = "json:motion";
+  if (unzbd_export(unzbd, "motion", install + "/zbd/motion.zbd", &ex))
+    for (const auto& [n, t] : ex)
+      if (n.size() > 5 && n.compare(n.size() - 5, 5, ".json") == 0 && n != "manifest.json") zsis::motion_from_json(t, &out, &why);
+  ex.clear();
+  ref::context() = "json:mechlib";
+  if (unzbd_export(unzbd, "mechlib", install + "/zbd/mechlib.zbd", &ex))
+    for (const auto& [n, t] : ex) {
+      if (n == "manifest.json" || n.size() < 5 || n.compare(n.size() - 5, 5, ".json") != 0) continue;
+      if (n == "materials.json") zcls::mechlib_materials_from_json(t, &out, &why);
+      else zcls::mechlib_model_from_json(t, &out, &why);
+    }
+  for (const char* w : {"c1", "c2", "c3", "c4", "c4b", "t1"}) {
+    for (const char* kind : {"anim", "gamez"}) {
+      ex.clear();
+      const std::string zbd = install + "/zbd/" + w + "/" + kind + ".zbd";
+      if (!fs::exists(zbd, ec) || !unzbd_export(unzbd, kind, zbd, &ex)) continue;
+      auto file = [&](const std::string& n) { return ex.count(n) ? ex[n] : std::string(); };
+      if (std::string(kind) == "anim") {
+        ref::context() = "json:anim";
+        zeff::anim_from_json(file, &out, nullptr, &why);
+      } else {
+        ref::context() = "json:gamez";
+        zcls::gamez_from_json(file, &out, &why);
+      }
+    }
+  }
+  ref::observer() = nullptr;
+  ref::context() = was;
+  int forms = 0;
+  for (const ref::File& f : ref::files()) {
+    if (std::string(f.id).rfind("json:", 0) != 0) continue;
+    ++forms;
+    std::set<std::string> reg, missing, dead;
+    for (const ref::Key& k : f.keys) reg.insert(k.key);
+    const std::set<std::string>& read = json_keys()[f.id];
+    for (const std::string& k : read) if (!reg.count(k)) missing.insert(k);
+    for (const std::string& k : reg) if (!read.count(k)) dead.insert(k);
+    std::string m, d;
+    for (const std::string& k : missing) m += k + " ";
+    for (const std::string& k : dead) d += k + " ";
+    std::printf("  %s: %zu keys read; not in the registry: %s; never read: %s\n", f.id, read.size(), m.empty() ? "none" : m.c_str(),
+                d.empty() ? "none" : d.c_str());
+    EXPECT(missing.empty() && dead.empty() && !read.empty());
+  }
+  EXPECT(forms == 4);
 }

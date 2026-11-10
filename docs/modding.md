@@ -19,8 +19,11 @@ Covered so far: mod.txt, custom campaigns, weapons.zrd, the mech
 definitions, aiv.zrd, targets.zrd, the AI nets and regions, valves.zrd,
 objectives.zrd, aiTurrets.zrd, vehicle.zrd, world.zrd, landmines.zrd,
 hud.zrd, sounds.zrd, the dialogs (the check also opens every main menu
-screen and the options' pages for them) and the script commands; the JSON
-forms follow. A file's own names are declared per file (`names_at`: a path,
+screen and the options' pages for them), the script commands, and mech3ax's
+JSON forms (motion, mechlib, anim, gamez: the members our readers take,
+recorded while they read unzbd's export of every shipped file, listed
+compactly since their meanings are mech3ax's schema; skipped without
+mech3ax beside the checkout). A file's own names are declared per file (`names_at`: a path,
 `@top` for a record asked of the root by name, `m<n>` for the missions'
 blocks, `any:KEY` for the list after KEY wherever it stands); a key the
 registry lists is a key wherever it stands.

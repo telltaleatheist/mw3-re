@@ -10041,7 +10041,7 @@ TEST(reference_files_keys_are_the_readers_headless) {
   for (const ref::File& f : ref::files()) {
     const auto it = run.keys.find(f.id);
     const std::string id = f.id;
-    if (id == "mod.txt" || id == "campaign" || id == "interp") continue;  // not reader files: test_reference.cpp
+    if (id == "mod.txt" || id == "campaign" || id == "interp" || id.rfind("json:", 0) == 0) continue;  // not reader files: their own tests
     std::set<std::string> reg, unchecked;
     for (const ref::Key& k : f.keys) (k.unchecked ? unchecked : reg).insert(k.key);
     // A file's names leave the lookups, but a key the registry lists is a key

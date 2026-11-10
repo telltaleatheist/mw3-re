@@ -326,6 +326,7 @@ add_library(mw3core STATIC
   src/upgrades/reference/reference_interp.cpp
   src/upgrades/reference/reference_others.cpp
   src/upgrades/reference/reference_dialogs.cpp
+  src/upgrades/reference/reference_json.cpp
   src/mech3/pause_menu.cpp
   src/mech3/quit_box.cpp
   src/mech3/lab_items.cpp
