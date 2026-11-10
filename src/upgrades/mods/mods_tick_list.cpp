@@ -20,7 +20,8 @@ void ModTickList::fill(const std::string& dir, const std::vector<std::string>& o
     if (is_locked(m.info.folder) || !assets_only || !mod_is_campaign(m.info)) rows.push_back(std::move(m));
   list.clear_items();
   for (size_t i = 0; i < rows.size(); ++i)
-    list.add_item(mods_row_text(rows[i]).c_str(), static_cast<int32_t>(i) | (is_locked(rows[i].info.folder) ? ModsList::kGreyRow : 0));
+    list.add_item((mods_row_text(rows[i]) + (is_locked(rows[i].info.folder) ? " (always on)" : "")).c_str(),
+                  static_cast<int32_t>(i) | (is_locked(rows[i].info.folder) ? ModsList::kLockedRow : 0));
   list.layout();
   if (list.item_count()) list.FileList::select(was >= 0 && was < list.item_count() ? was : 0);
 }

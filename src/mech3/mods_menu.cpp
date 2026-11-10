@@ -248,17 +248,7 @@ void ModsList::select(int32_t index) {
   notify(index, 0);
 }
 
-void ModsList::layout() {
-  FileList::layout();
-  static const Handle grey = ztwod::host().font_find("ia_dark_grey");
-  const int32_t n = std::min<int32_t>(static_cast<int32_t>(rows.size()), item_count() - top);
-  for (int32_t i = 0; i < n; ++i) {
-    FileRow* r = rows[static_cast<size_t>(i)];
-    const bool want = grey && (items[static_cast<size_t>(i + top)]->value & kGreyRow) != 0;
-    r->set_font(want ? grey : font_normal);
-    if (r->needs_render) r->render();
-  }
-}
+
 
 namespace {
 constexpr size_t kReportWidth = 34;  // REPORT's characters a row in the campaigns' box (main_darkgreen)

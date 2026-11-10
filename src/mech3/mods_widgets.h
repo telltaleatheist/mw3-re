@@ -34,10 +34,9 @@ class ModsList : public FileList {
  public:
   ModsList(Engine& e, int32_t id) : FileList(e, id) {}
   void select(int32_t index) override;  // and tells the screen (its id, the index)
-  // Ours: an item whose value has kGreyRow is shown in the grey font (a
-  // campaign's own mods in its tick list: on, not the player's to turn off).
-  static constexpr int32_t kGreyRow = 0x40000000;
-  void layout() override;
+  // Ours: an item's value carries kLockedRow for a campaign's own mod in its
+  // tick list (on, not the player's to turn off; its text says "(always on)").
+  static constexpr int32_t kLockedRow = 0x40000000;
 };
 
 }  // namespace mech3

@@ -19,8 +19,8 @@ class ModTickList {
   enum Id : int32_t { kList = 0x7000, kToggle, kUp, kDown };
   explicit ModTickList(Engine& e) : list(e, kList), toggle(e, kToggle), up(e, kUp), down(e, kDown) {}
   // The rows from the write dir's mods\: `locked` first (a campaign's own
-  // mod, its bases', what they need: on, in grey, not the player's to turn
-  // off), then `ticks` in their order, then the rest; `assets_only` leaves
+  // mod, its bases', what they need: on, "(always on)" after the name, not
+  // the player's to turn off), then `ticks` in their order, then the rest; `assets_only` leaves
   // out campaign mods that are not locked (campaign_entries.h,
   // mod_is_campaign). The row chosen is kept.
   void fill(const std::string& write_dir, const std::vector<std::string>& ticks, const std::vector<std::string>& locked = {},

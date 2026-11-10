@@ -488,8 +488,8 @@ records, ENTER relabelled PLAY).
   named by the file), its mod is gone (its pilots and saves are kept), or a
   ticked or built-on mod is missing (named).
 - **MODS (right)** (`ModTickList`, the widget Instant Action's MODS uses):
-  the chosen campaign's. First its own mods, on and in the grey font, not the
-  player's to turn off: its campaign mod, the mods it is built on, and what
+  the chosen campaign's. First its own mods, on, "(always on)" after the
+  name, not the player's to turn off: its campaign mod, the mods it is built on, and what
   those name with `needs=` (ON/OFF on one says "Part of this campaign: always
   on." or "Needed by <mod>: always on."). Then every asset mod with that
   campaign's ticks in winning order. ON/OFF, UP and DOWN write that
@@ -511,8 +511,10 @@ records, ENTER relabelled PLAY).
   campaign's mod or the chosen mod. TEST and EDITOR still wait for step 4;
   nothing on this screen deletes anything yet (a copy's DELETE comes with
   Save as).
-- The old two-table function (`mods_tables`) is gone; `ModsList` shows an
-  item whose value has `kGreyRow` in the grey font.
+- The old two-table function (`mods_tables`) is gone. An older slip put
+  right on the way: in the wide layout the bottom tab row's group ended at
+  x 400, inside MODS FOLDER (388 to 468), so that tab's image was drawn apart
+  from its label; the group reaches 480 now (app_menus.cpp).
 
 Tests: `mods_screen_campaign_rows_ticks_order_and_conflicts` (the rows and
 the order's rules), `mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless`,
