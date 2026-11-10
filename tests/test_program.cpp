@@ -1719,7 +1719,7 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
         if (!ps || !ps->screen) return;
         mech3::Pilot* pilot = mech3::create_pilot("Stepper");
-        pilot_in_folder = std::filesystem::exists(wd + "/pilots/mods/lost/lost/" + mech3::kCampaignMarker);
+        pilot_in_folder = std::filesystem::exists(wd + "/campaigns/lost~lost/" + mech3::kCampaignMarker);
         ps->screen->refresh(false, pilot);
         ps->screen->on_button(0x18, 0, 0);  // ACCEPT
         stage = 3;
@@ -2051,7 +2051,7 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
         if (!ps || !ps->screen) return;
         mech3::Pilot* pilot = mech3::create_pilot("Stepper");
-        pilot_in_folder = std::filesystem::exists(wd + "/pilots/mods/lost/lost/" + mech3::kCampaignMarker);
+        pilot_in_folder = std::filesystem::exists(wd + "/campaigns/lost~lost/" + mech3::kCampaignMarker);
         ps->screen->refresh(false, pilot);
         ps->screen->on_button(0x18, 0, 0);  // ACCEPT
         stage = 3;

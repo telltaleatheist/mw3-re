@@ -2477,8 +2477,8 @@ TEST(mods_campaigns_mounted) {
   const auto& cs = mech3::mod_campaigns();
   EXPECT(cs.size() == 3);
   if (cs.size() == 3) {
-    EXPECT(cs[0].name == "One" && cs[0].id == "one" && cs[0].mod == "a" && mech3::campaign_pilots_dir(cs[0]) == "pilots/mods/a/one");
-    EXPECT(cs[1].name == "Two" && cs[1].id == "two" && mech3::campaign_pilots_dir(cs[1]) == "pilots/mods/a/two");
+    EXPECT(cs[0].name == "One" && cs[0].id == "one" && cs[0].mod == "a" && mech3::campaign_pilots_dir(cs[0]) == "campaigns/a~one/pilots");
+    EXPECT(cs[1].name == "Two" && cs[1].id == "two" && mech3::campaign_pilots_dir(cs[1]) == "campaigns/a~two/pilots");
     EXPECT(cs[2].name == "Uses B");
   }
   auto has = [&](const char* s) {

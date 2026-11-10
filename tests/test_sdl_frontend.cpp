@@ -4582,6 +4582,49 @@ TEST(sdl_program_plain_start_goes_straight_in_or_to_setup) {
   unsetenv("MW3_START_ONLY");
 }
 
+// Mods by campaign, step 1 (upgrades/mods/campaign_entries.h): a start moves
+// mw3.cfg's mod= lines to the campaign entries once, and --entry mounts an
+// entry's mods (its campaign mod, what that needs, then its ticks); an entry
+// that is not there is said and the game's own start goes on.
+TEST(sdl_program_entry_mounts_its_mods) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/entry start";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel) << text;
+  };
+  put("wd/mods/weps/mod.txt", "name=Weps\nweapon=GAUSS2 ammo=yes tech=sphere\n");
+  put("wd/mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\nneeds=weps\n");
+  put("wd/mods/camp/night.txt", "name=Long Night\nop=Op 1\nmission=c1 1\n");
+  put("wd/mw3.cfg", "mod=weps\n");
+  setenv("MW3_START_ONLY", "1", 1);
+  auto run = [&](const std::vector<std::string>& extra, const char* name) {
+    std::vector<std::string> args = {"--write-dir", dir + "/wd", "--window", "640x480", "--nosound"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    EXPECT(waited(spawn_mw3(args, log), &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const std::string a = run({"--entry", "camp~night"}, "a");
+  const std::string b = run({"--entry", "nosuch"}, "b");
+  unsetenv("MW3_START_ONLY");
+  std::ifstream cfg(dir + "/wd/mw3.cfg");
+  const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
+  std::printf("  entry: %d, moved %d, unknown said %d\n", a.find("mw3: entry camp~night (Long Night): 2 mods") != std::string::npos,
+              a.find("mods: moved to their campaigns") != std::string::npos, b.find("mw3: entry nosuch: there is no such campaign") != std::string::npos);
+  EXPECT(a.find("mods: mw3 takes the 1 mods mw3.cfg had on") != std::string::npos && a.find("mods: moved to their campaigns") != std::string::npos);
+  EXPECT(a.find("mw3: entry camp~night (Long Night): 2 mods") != std::string::npos);
+  EXPECT(fs::is_regular_file(dir + "/wd/campaigns/camp~night/mw3-campaign.txt"));
+  EXPECT(b.find("mw3: entry nosuch: there is no such campaign; the game's own start instead") != std::string::npos &&
+         b.find("mods: moved") == std::string::npos);  // once
+  EXPECT(text.find("mod=weps\nmods_moved=1\n") != std::string::npos);  // its line kept, the key after it (install= the start's own)
+  fs::remove_all(dir, ec);
+}
+
 // One window from the find screen into the game: a plain mw3 start with no
 // install found (MW3_FIND_INSTALL), an installed copy picked
 // (MW3_LAUNCHER_PICK), hands its window over, its renderer freed, and the

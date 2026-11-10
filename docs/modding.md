@@ -355,6 +355,47 @@ mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
 at the first old one's place, every other line kept. Test:
 `mods_list_for_the_launcher`. The screen itself waits.
 
+## Mods by campaign: the entries (step 1 of docs/mods-campaigns-plan.md, 2026-11-10)
+
+Ours, `upgrades/mods/campaign_entries`. Built so far: the model and its
+storage, no screen yet.
+
+- **Entries** (`campaign_entries`): the game's own (`official_entries()`:
+  `mw3` and `ia` on main), then each campaign mod's `campaign=` as
+  `<mod>~<id>`, or the mod itself (id `<mod>`, base `mw3`) when it plays the
+  game's campaign over its files, then each folder of ours under
+  `campaigns\` whose mod is gone (`missing`: its saves stay listed). A copy is
+  a mod whose mod.txt has `base=<entry>`.
+- **A mod's kind** (`mod_is_campaign`): mod.txt's `kind=campaign|assets`
+  when given; else a campaign with `campaign=`, `world=` or `base=` lines or
+  files under the game's own worlds (`zbd\c1\` .. `zbd\t1\`, any case),
+  an asset mod otherwise.
+- **Each entry's folder**, `<write dir>\campaigns\<id>\` (`entry_ensure`):
+  our marker `mw3-campaign.txt`, `pilots\` (the original's layout, saves in
+  `pilots\games\`), `mods.txt` (its ticks, `mod=` lines in winning order,
+  written beside it and renamed over it). A folder there without our marker
+  and not empty is never taken. Mods never serve `campaigns\` files
+  (`zutl::mod_may_serve`). A mod's campaign entered from MODS keeps its pilots
+  there now (`campaign_pilots_dir`: `campaigns/<mod>~<id>/pilots`).
+- **What an entry mounts** (`entry_mount_list`): its own mod, its bases'
+  (a copy over what it was saved from), what those `needs=`, then its ticks;
+  the first part is locked. `entry_missing_mods`: a tick or a base that is
+  gone or unusable; such an entry does not start.
+- **`--entry ID`**: the run mounts that entry's mods in place of mw3.cfg's
+  and, for the game's own campaign and Instant Action, keeps its pilots in
+  the entry. One that is not there, cannot be played or misses a mod is said
+  in the log and the game's own start goes on. Until step 2 a plain start
+  still mounts mw3.cfg's `mod=` lines, so the MODS screen keeps working.
+- **The first start of this build** (`entries_migrate`, once: mw3.cfg's
+  `mods_moved=1`): mw3.cfg's `mod=` lines become the `mw3` entry's ticks (its
+  asset mods), and each enabled campaign mod's entries get the same;
+  `pilots\mods\<mod>\<id>\` with our marker moves to its entry. mw3.cfg
+  keeps every line byte for byte; none is made where there is none.
+
+Tests: `campaign_entries_listed_by_kind`, `_folder_ticks_and_mounts`,
+`_kind_rule`, `_first_start_moves_the_mods` (test_campaign_entries.cpp),
+`sdl_program_entry_mounts_its_mods` (a real start, a space in the path).
+
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
 The plan and what the original takes from code: `custom-campaigns.md`. A

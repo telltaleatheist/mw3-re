@@ -33,6 +33,8 @@ Every key each file a mod can change is read with: its type, what the game takes
 | `needs` | top | `<mod> [version]` | none | the last word a version when it starts with a digit | Another mod it needs, by folder or `name=` (any case), and its least version. The MODS screens warn when it is missing, off or older; the mod is still turned on. |
 | `conflicts` | top | `<mod>` | none | - | A mod it does not work with, by folder or `name=`. The MODS screens warn when both are on; neither is stopped. |
 | `game_version` | top | a version (`1.1.0`) | none | - | The least MechWarrior 3 Rebuild version it needs; an older program warns on the MODS screens and still loads it. |
+| `kind` | top | `campaign` or `assets` | by its contents | - | Where MODS lists it: a campaign of its own, or an asset mod ticked per campaign. Without it, a mod with `campaign=` or `world=` lines or files of the game's own worlds (`zbd\c1\` to `zbd\t1\`) is a campaign. |
+| `base` | top | an entry's id | none | written by the game | A copy's: the campaign it was saved from (`mw3`, or `<mod>~<campaign>`), mounted under it. |
 
 ## A custom campaign's file
 
