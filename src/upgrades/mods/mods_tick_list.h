@@ -30,6 +30,7 @@ class ModTickList {
   void all_off();
   const ModsListEntry* chosen() const;
   bool is_locked(const std::string& folder) const;
+  std::string row_text(const ModsListEntry& m) const;  // as shown; a locked one's "(always on)" kept whole
   std::string locked_why(const std::string& folder) const;  // "Part of this campaign: always on." / "Needed by <mod>: always on."
   std::string note() const;  // the chosen row's line, "" when nothing to say
 

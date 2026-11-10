@@ -20,10 +20,24 @@ void ModTickList::fill(const std::string& dir, const std::vector<std::string>& o
     if (is_locked(m.info.folder) || !assets_only || !mod_is_campaign(m.info)) rows.push_back(std::move(m));
   list.clear_items();
   for (size_t i = 0; i < rows.size(); ++i)
-    list.add_item((mods_row_text(rows[i]) + (is_locked(rows[i].info.folder) ? " (always on)" : "")).c_str(),
-                  static_cast<int32_t>(i) | (is_locked(rows[i].info.folder) ? ModsList::kLockedRow : 0));
+    list.add_item(row_text(rows[i]).c_str(), static_cast<int32_t>(i) | (is_locked(rows[i].info.folder) ? ModsList::kLockedRow : 0));
   list.layout();
   if (list.item_count()) list.FileList::select(was >= 0 && was < list.item_count() ? was : 0);
+}
+
+// A row as shown: mods_row_text's, and for a locked one "(always on)" after
+// it, the name shortened ("Freako Wea..") when the box (28 characters wide)
+// would otherwise cut the words off; the details show the whole name.
+std::string ModTickList::row_text(const ModsListEntry& m) const {
+  std::string t = mods_row_text(m);
+  if (!is_locked(m.info.folder)) return t;
+  constexpr size_t kWidth = 28;
+  const std::string lock = " (always on)";
+  const bool flagged = t.size() > 2 && t.compare(t.size() - 2, 2, " !") == 0;
+  if (flagged) t.resize(t.size() - 2);
+  const size_t room = kWidth - lock.size() - (flagged ? 2 : 0);
+  if (t.size() > room) t = t.substr(0, room - 2) + "..";
+  return t + lock + (flagged ? " !" : "");
 }
 
 bool ModTickList::is_locked(const std::string& folder) const { return std::find(locked.begin(), locked.end(), folder) != locked.end(); }

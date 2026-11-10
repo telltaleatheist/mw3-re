@@ -2006,6 +2006,7 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
   put("mods/weps/mod.txt", "name=Weps\n");
   put("mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\nneeds=weps\n");
   put("mods/camp/night.txt", "name=Long Night\nmission=c1 1\n");
+  put("mods/longname/mod.txt", "name=A Very Long Name For A Mod\nkind=campaign\nbase=camp~night\n");
   mech3::mods_menu_write_dir() = wd;
   mech3::mods_menu_install() = MW3_GAME_DIR;
   mech3::reset_states();
@@ -2032,6 +2033,7 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
     EXPECT(app.init_instance());
     mech3::States& st = mech3::states();
     int stage = 0;
+    std::string long_row;
     std::string own_rows, own_after, camp_rows, camp_after, locked_note, needed_note, own_again, own_file_mid, refused, details;
     std::vector<std::string> asked;
     bool locked_unchanged = false, grey = false;
@@ -2077,6 +2079,9 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
         scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
         camp_after = rows();
         scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the chosen campaign, whichever table has the focus
+        // A copy of Long Night whose own name is too long for the box: shortened, the lock's words whole.
+        scr->campaign_list.select(2);
+        long_row = scr->mod_list.items.empty() ? "" : scr->mod_list.items[0]->text;
         // Back on the game's own: its tick as it was left; a ticked mod that has gone refuses PLAY, named.
         scr->campaign_list.select(0);
         own_again = rows();
@@ -2105,6 +2110,7 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
     EXPECT(camp_after == "[x] Camp (always on)|[x] Weps (always on)|[x] Green HUD|" && text_of("campaigns/camp~night/mods.txt") == "mod=hud\n");
     EXPECT(own_again == "[x] Green HUD|[ ] Weps|" && text_of("campaigns/mw3/mods.txt") == "mod=hud\n");
     EXPECT((asked == std::vector<std::string>{"camp~night", "mw3"}));  // the third PLAY was refused
+    EXPECT(long_row == "[x] A Very Lon.. (always on)");
     EXPECT(refused.find("MechWarrior 3 cannot be played: these mods are not there any more") == 0 && refused.find("hud") != std::string::npos);
     mech3::mods_menu_play() = nullptr;
     app.stop_game();
