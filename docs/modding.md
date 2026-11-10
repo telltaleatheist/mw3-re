@@ -195,7 +195,7 @@ so a mod of rows alone changes the lobby's check (Multiplayer, above). A row
 that parses but is refused as taken is mixed in too: every player computes
 the same. Each mount starts from the exe's tables (`mods_mount` clears the
 rows and the definitions cached for them), so mounting again, as the
-launcher's MODS list will, adds the rows afresh.
+MODS screen's TEST does, adds the rows afresh.
 
 The original's quirks stay with their numbers: the Mad Cat's loadouts weigh
 half a ton less (mech 9 only, `Config::weight`), so the Mad Cat's own
@@ -340,10 +340,11 @@ number past the table: read as it is; a line that does not read: refused; rename
 and delete carry it; a rewrite with no rows deletes it; a stray sidecar
 beside a file with no rows ignored).
 
-## The launcher's MODS list (after PM, item 5, begun 2026-11-08)
+## The mods list (after PM, item 5, begun 2026-11-08)
 
 The list's model (`mods_list`, `mods_enabled`, `mods_save_enabled` in
-`mods.cpp`), shared with the screen to come: every folder in the write
+`mods.cpp`), shared by the games' MODS screens (the launcher's own MODS
+screen, built on it, was removed 2026-11-10: launcher.md, Mods): every folder in the write
 dir's `mods\` once, the enabled ones first in mw3.cfg's order, then the rest
 by folder name; a folder that is no usable mod (no `mod.txt`, no `name=`,
 another game's `for=`) listed with why, as the mount says it. For each
@@ -353,7 +354,7 @@ one wins (any case) and the `mech=` and `weapon=` names it already adds
 On request, `--check-mod`'s count of what the game would refuse. Turning a
 mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
 at the first old one's place, every other line kept. Test:
-`mods_list_for_the_launcher`. The screen itself waits.
+`mods_list_for_the_launcher`.
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
@@ -546,17 +547,12 @@ start's mount left out of it, as sentences for a player.
   screen), shows the chosen mod's or campaign's mod's sentences in that box,
   wrapped to 34 characters, with the count refused under DETAILS; REPORT or
   BACK goes back to the tables, ENTER does nothing there.
-- In the launcher: CHECK with a mod chosen opens its report on a page of its
-  own (`<`, `>`, BACK to MODS). A Pirate's Moon mod's comes from
-  `mw3pm --mod-report <folder> --install <PM's install>`, PM's own readers;
-  `--mod-report` is a file-only flag (no SDL, no write dir, no log), so the
-  player's folder and log are untouched.
+- The launcher's CHECK showed the same report until its MODS screen was
+  removed (2026-11-10); `mw3pm --mod-report` was its way to PM's readers.
 
 Tests: `mods_report_says_what_a_mod_does_in_sentences` (the sentences, the
 wrap, a mod checked and mounted), `mods_screen_report_shows_a_mods_sentences_headless`
-(REPORT, ENTER ignored, BACK to the tables, then out) and
-`sdl_program_launcher_mod_report_in_sentences` (MW3's from the check, PM's
-from mw3pm's answer, BACK to MODS).
+(REPORT, ENTER ignored, BACK to the tables, then out).
 
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
@@ -569,7 +565,7 @@ enforced (open and easy: a mod is always turned on when asked):
   naming the other is enough; each pair is said once.
 - `game_version=<version>`: the least MechWarrior 3 Rebuild version. Checked
   against the program's own (`mods_program_version`, set by mw3 at its
-  start; the launcher sets mw3pm's from its file for a Pirate's Moon mod);
+  start);
   unknown, unchecked.
 
 `mods_list` gives each mod its warnings (`ModsListEntry::needs`), an off
@@ -581,14 +577,10 @@ needs MechWarrior 3 Rebuild 1.1.0 or later; this is 1.0.5.".
   table (and how many more, REPORT); an on mod with one is flagged ` !` and
   its note starts with them; an off mod's note says "Turned on: ...";
   REPORT lists them first.
-- In the launcher: a row turned on says its first warning on the status
-  line; an on mod's line ends "N warnings (CHECK)"; its report lists them first.
 
 Tests: `mods_needs_warn_never_block` (the keys, every warning, an off mod's,
-a conflict named back, the program unknown),
-`mods_screen_turning_on_warns_never_blocks_headless` and
-`sdl_program_launcher_mod_needs_warn_never_block` (turned on all the same,
-said, mw3.cfg written).
+a conflict named back, the program unknown) and
+`mods_screen_turning_on_warns_never_blocks_headless`.
 
 ### ADD MOD (2026-11-09; IMPORT since the evening)
 
@@ -658,15 +650,10 @@ clash, a mod the check refuses), `mods_screen_add_mod_headless` (the screen
 through the hooks), and `mod_install_real_mod_env` (MW3_PM13=<a mod on this
 machine>, reported only).
 
-The launcher's MODS screen has the same three (ADD MOD, ADD FOLDER, MODS
-FOLDER, a row above UP and DOWN; five mods a page now), its own picker and
-its status line, through the same add (`mech3::mod_add_run`, which both
-call: prepared, the game asked, finished, turned on, the line to say);
-`--launcher-pick PATH` with `--launcher-screen mods` runs it for a shot.
-The SDL pieces both use (the folder opened, the game asked) are
-`frontend/sdl/sdl_mods`. In a scripted run (`--pick`, `--launcher-pick`)
-the game question answers MechWarrior 3 without a box. Test:
-`launcher_add_mod_by_pick`.
+The launcher had the same three, through the same add, until its MODS
+screen was removed (2026-11-10, launcher.md, Mods). The SDL pieces (the
+folder opened, the game asked) are `frontend/sdl/sdl_mods`. In a scripted
+run (`--pick`) the game question answers MechWarrior 3 without a box.
 
 ### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
 
@@ -701,10 +688,7 @@ code in `src/upgrades/`).
   Matched, the list is removed (a mod folder keeps no list that goes stale
   as the modder edits it). A zip without one is taken as before. sha256sum's
   binary mark (` *path`), CRLF lines and `#` comments are read.
-- **The launcher's MODS list:** IMPORT, EXPORT, ADD FOLDER, MODS FOLDER in
-  one row, EXPORT on the selected mod through the same `mech3::mod_export`
-  and its own save box. `--save-pick PATH` (the game) and
-  `--launcher-save-pick PATH` answer the save box in scripted runs.
+- `--save-pick PATH` answers the save box in scripted runs.
 - **Both ways:** the zip holds only the mod's own files and our checksums
   text, which neither game reads, so the original takes an unzipped export
   as it took the mod.
@@ -1257,7 +1241,7 @@ readers), on `pm` after pm-v1.0.0.
 Pirate's Moon (branch pm) reads a world's animations from its anim.zbd only
 (its own reader, 0x00523140): a mod's anim.zbd, yes; unzbd's JSON
 (`anim.zip`, `anim/`), def files and node files, no. For a Pirate's Moon mod
-(`for=mw3pm`: mw3pm's own check, and the launcher's MODS for Pirate's Moon)
+(`for=mw3pm`: mw3pm's own check)
 `--check-mod` says so for each such file, and the MODS list counts them on the mod's line
 ("N animation files Pirate's Moon does not read") instead of reporting
 shared animations (`anim_file_unread`, mods.cpp).
@@ -1604,7 +1588,8 @@ animations come from point 2 of "Animations a def at a time".
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim
   (above), each with `--check-mod` looking inside.
 - After v1.0: a custom campaign, new mechs and weapons (done: New mechs and
-  weapons, above), loose `.zan` motions, the launcher's MODS list.
+  weapons, above), loose `.zan` motions, the launcher's MODS list (built, then
+  removed 2026-11-10: the games' MODS screens).
 - Existing data mods load (Owen, 2026-11-07): a file the old engine loaded isn't
   refused by a check stricter than it was. An exe patch can't apply; what it
   changed is rebuilt as data. Tested on real mods, kept out of the repo.
@@ -1649,8 +1634,8 @@ animations come from point 2 of "Animations a def at a time".
      campaign or mission, its author and version, an entry point that starts it or
      continues its pilot) and MODS (every other mod: mechs, weapons, worlds, asset
      packs, text; a check box each, an order, conflicts shown and why a mod isn't
-     usable). The same choices as the launcher's MODS list, which stays; both write
-     mw3.cfg. A change to the MODS table applies at the next start, said on the
+     usable). It writes mw3.cfg (the launcher's MODS list did too, until it was
+     removed 2026-11-10). A change to the MODS table applies at the next start, said on the
      screen (a live remount is a later step); entering a custom campaign mounts its
      own mod for that game.
   3. **Installing made simple**, as planned above: an ADD MOD button on the MODS screen

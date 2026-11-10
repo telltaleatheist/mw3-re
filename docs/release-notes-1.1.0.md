@@ -69,7 +69,7 @@ You need your own copy of each game you play (an installed copy, the disc, or a 
 - **One launcher for both games.** Click MECHWARRIOR 3 or PIRATE'S MOON. Each game shows its data's and its program's version, and whether it is "official" or "modified" (just a label: modified games start as before).
 - **Checks before a game starts.** It says in plain words what is missing (an operation's missions, an empty sounds file). It refuses only when a game can't start at all.
 - **GAME FILES** finds, installs, or adds music and sounds from the disc for either game, and moves its data folder. One game's files are never touched by the other's.
-- **MODS** works on the game you clicked last: turn mods on and off, reorder, IMPORT, EXPORT, and CHECK for a mod's report. For Pirate's Moon mods, CHECK asks Pirate's Moon itself.
+- **Mods are managed in each game**, on its own MODS screen. The launcher says how many mods each game has on.
 - **UPDATES** asks GitHub for the newest release. If there is one, it shows the notes and asks before downloading and installing it. Your mods, pilots, saves and settings are kept.
 - The package's version is at the bottom of its main screen.
 

@@ -201,7 +201,7 @@ Moon.app".
       Moon keeps its own `pm-vX.Y.Z` tag, shown on its line (launcher.md,
       Versions).
 - [ ] `pm` has `main` merged before its tag, so mw3pm carries the version tag
-      the launcher reads (`mw3_version_tag`) and the launcher's mods code
+      the launcher reads (`mw3_version_tag`) and the shared mods code
       (`mods_game` "mw3pm" as its default); otherwise its line says "modified
       (program)".
 - [ ] Owen tags both commits, or approves the tags.
