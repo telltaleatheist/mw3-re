@@ -819,7 +819,8 @@ Ours, in three pieces:
   0x00495410), the bars' focus 0x00495310, the hand-over 0x00494920 (the
   pilot's name, "<name>'s Game", 2..8 players with 8). The engine: the
   network switch 0x0047fc40 (on: zNetwork on the platform's transport,
-  `Platform::network_open`, FIX (A); off: the game ended, zNetwork down),
+  `Platform::network_open`, FIX (A); off: the game ended, zNetwork down;
+  the rest of it, below, ported 2026-11-10),
   the page switch 0x0049cb20 and its request 0x0049cb00. Ours: the screen
   connects and searches the LAN as soon as it opens (Owen); Stop Search
   with another address searches there instead; a name in use is found
@@ -1297,3 +1298,28 @@ Ours, in three pieces:
 - network-messages.md's open items: the caller of 0x21, 0x18's +4 value,
   the 0xf flag bits, whether the lobby handlers stay registered in a
   mission, the name of the setting at [0x00608e28].
+
+## The network switch's other half (0x0047fc40, ported 2026-11-10)
+
+Found by the Upgrades sort's multiplayer check (upgrades-sort.md): the port's
+switch only brought zNetwork up and down. The exe also, on (after zNetwork):
+- clears the app's +0x1b2 ([0x00608e3a], `mov [0x608e3a], bl` at 0x0047fd72
+  with ebx 0): the mission load's two turret cases (0x00490c6e, 0x00490d06)
+  and `player_setup`'s argument (0x00490c01) read it, so a network game
+  reads no aiTurrets.zrd and makes no turret;
+- adds message 0xc's handler (0x00587aa0, type 0xc, 0x0047fde0, 2): a network
+  error's text into "Network Error:" (0xd78) handed to the message box
+  0x004ac050 with its first argument 0, which shows nothing (dropped in the
+  release; ported as that);
+- clears +0x1b8 ([0x00608e40]), the invincibility cheat (its reader 0x004782f0,
+  `cheat_invincible`).
+Off: +0x1b2 back to 1 (0x0047fd91) before the game's end 0x0046d100, the 0xc
+handler removed (0x00587b20), zNetwork down, then +0x19c (the lobby launch),
++0x1a4 and +0x1a8 cleared (+0x1a8 is not in the port: the DirectPlay lobby
+launch is not ported). Both flags are also the developer menu's (MFC
+message-map entries, unreachable in the release): command 0x9c67 toggles
++0x1b2 (0x00483310, its check mark 0x00483330), 0x004835a0 +0x1b8.
+`GameEngine::network_set`. Test: `net_game_has_no_turrets_c1m1_headless`
+(c1m1 loaded inside a network game makes no turret and the cheat is off; the
+flag back after it, and c1m1 then makes its 14 turrets). Breaks caught: the
+flag not cleared, not set back, the cheat kept.
