@@ -635,3 +635,11 @@ program files are replaced.
 5. **Owen's hard rule, checked**: the upgrade test (`sdl_program_package_upgrade_keeps_the_players_files`)
    run through the updater's own swap, the settings folders unchanged by
    hash.
+   **Done (2026-11-10):** the test's new program folder is built beside and
+   put in by `upgrades::update::swap_in`; the 12 player files (MW3's data
+   folder through its pointer, PM's settings folder) kept byte for byte,
+   every mw3.cfg line kept, both games started from the new programs. Break
+   (the new copy never put in: the old programs started again): caught. The
+   Mac's own install (`sdl_update_installs_the_mac_app`) checks the settings
+   folder beside the app the same way. Left for the release: the Windows
+   Setup's upgrade over 1.0.x on Owen's PC (release.md, Windows).

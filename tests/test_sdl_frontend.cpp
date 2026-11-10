@@ -5520,8 +5520,8 @@ TEST(sdl_program_package_layouts_find_both_games) {
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // Owen's hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
-// settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one as an
-// installer or a dragged app does, and both games started from each through PLAY: MechWarrior 3's data folder (moved
+// settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one through
+// the updater's own swap (upgrades::update::swap_in, as its install does), and both games started from each through PLAY: MechWarrior 3's data folder (moved
 // elsewhere by its pointer, MY DATA FOLDER) and Pirate's Moon's settings folder keep every file byte for byte, and
 // every mw3.cfg line; only logs and the launcher's own new keys are added.
 TEST(sdl_program_package_upgrade_keeps_the_players_files) {
@@ -5561,7 +5561,9 @@ TEST(sdl_program_package_upgrade_keeps_the_players_files) {
   };
   const std::map<std::string, std::string> before = snapshot();
   const auto make_app = [&](const char* version) {  // a package's program folder: the launcher and two games
-    const fs::path app = root / "Program";
+    // The old one made in place; the new one built beside and put in by the updater's own swap (sitting 5).
+    const bool fresh = std::string(version) == "new";
+    const fs::path app = fresh ? root / "Download" / "Program" : root / "Program";
     fs::remove_all(app, ec);
     fs::create_directories(app, ec);
     fs::copy_file(MW3_LAUNCHER_BIN, app / "mw3launcher", ec);
@@ -5569,7 +5571,11 @@ TEST(sdl_program_package_upgrade_keeps_the_players_files) {
       std::ofstream(app / game) << "#!/bin/sh\necho " << version << " " << game << " >> \"" << (root / "started.txt").string() << "\"\nexit 0\n";
       fs::permissions(app / game, fs::perms::owner_all, ec);
     }
-    return app;
+    if (!fresh) return app;
+    std::string error;
+    EXPECT(upgrades::update::swap_in(app.string(), (root / "Program").string(), &error));
+    fs::remove_all(root / "Download", ec);
+    return root / "Program";
   };
   setenv("MW3_USUAL_FOLDER", usual.c_str(), 1);
   setenv("MW3_NO_IMPORT", "1", 1);
