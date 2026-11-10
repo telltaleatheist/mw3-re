@@ -1965,10 +1965,12 @@ EntryPilotsRun entry_pilots_run(const std::string& wd, bool own_campaign) {
     std::vector<std::string> boxes;
     engine.on_message_box = [&](int32_t, int32_t, int32_t) { return boxes.push_back(engine.last_box_text), 1u; };
     int stage = 0;
+    mech3::PilotScreen* shown = nullptr;
     engine.on_present = [&](int) {
       auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
       if (stage != 0 || !ps || !ps->screen) return;
       mech3::PilotScreen* s = ps->screen;
+      shown = s;
       auto rows = [&] {
         std::string t;
         for (const auto* i : s->pilots.items) t += std::string(i->text) + "|";
@@ -2013,6 +2015,9 @@ EntryPilotsRun entry_pilots_run(const std::string& wd, bool own_campaign) {
     pump.stop = [&] { return stage == 1; };
     app.run(pump);
     EXPECT(stage == 1 && left == 0);
+    // The screen is still up and its choice points at a pilot about to be dropped: cleared first, so nothing
+    // on the way out can read a pilot that is gone.
+    if (shown) shown->chosen = nullptr;
     if (!own_campaign) {
       // Let go and read again: the copy's file holds no saved campaign (the main campaign's records had no saved game here).
       drop();
