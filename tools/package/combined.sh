@@ -47,21 +47,21 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 
 if [ "$PLATFORM" = mac ]; then
   # Pirate's Moon alone (pm's own script), which also leaves mw3pm built.
-  (cd "$W/pm" && tools/macos/make_app.sh "${EXTRA[@]}")
+  (cd "$W/pm" && tools/macos/make_app.sh ${EXTRA[@]+"${EXTRA[@]}"})
   cp "$W"/pm/build-mac/dist/PM-Rebuild-*-mac.dmg "$OUT/"
   PM_BIN="$W/pm/build-mac-pkg/mw3pm"
   # MechWarrior 3 alone, then the combined one from the same build.
-  (cd "$W/main" && MW3_PKG_STEM=MW3-alone tools/macos/make_app.sh "${EXTRA[@]}")
+  (cd "$W/main" && MW3_PKG_STEM=MW3-alone tools/macos/make_app.sh ${EXTRA[@]+"${EXTRA[@]}"})
   cp "$W"/main/build-mac/dist/MW3-alone-*-mac.dmg "$OUT/"
-  (cd "$W/main" && MW3_PKG_KEEP_BUILD=1 MW3_PKG_PM_BIN="$PM_BIN" tools/macos/make_app.sh "${EXTRA[@]}")
+  (cd "$W/main" && MW3_PKG_KEEP_BUILD=1 MW3_PKG_PM_BIN="$PM_BIN" tools/macos/make_app.sh ${EXTRA[@]+"${EXTRA[@]}"})
   cp "$W"/main/build-mac/dist/MW3-Rebuild-*-mac.dmg "$OUT/"
 else
-  (cd "$W/pm" && tools/linux/make-appimage.sh "${EXTRA[@]}")
+  (cd "$W/pm" && tools/linux/make-appimage.sh ${EXTRA[@]+"${EXTRA[@]}"})
   cp "$W"/pm/build-linux-pkg/dist/PM-Rebuild-*-x86_64.AppImage "$OUT/"
   PM_BIN="$W/pm/build-linux-pkg/mw3pm"
-  (cd "$W/main" && MW3_PKG_STEM=MW3-alone tools/linux/make-appimage.sh "${EXTRA[@]}")
+  (cd "$W/main" && MW3_PKG_STEM=MW3-alone tools/linux/make-appimage.sh ${EXTRA[@]+"${EXTRA[@]}"})
   cp "$W"/main/build-linux-pkg/dist/MW3-alone-*-x86_64.AppImage "$OUT/"
-  (cd "$W/main" && MW3_PKG_KEEP_BUILD=1 MW3_PKG_PM_BIN="$PM_BIN" tools/linux/make-appimage.sh "${EXTRA[@]}")
+  (cd "$W/main" && MW3_PKG_KEEP_BUILD=1 MW3_PKG_PM_BIN="$PM_BIN" tools/linux/make-appimage.sh ${EXTRA[@]+"${EXTRA[@]}"})
   cp "$W"/main/build-linux-pkg/dist/MW3-Rebuild-*-x86_64.AppImage "$OUT/"
 fi
 python3 -I tools/package/sums.py "$OUT"

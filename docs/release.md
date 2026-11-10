@@ -167,12 +167,83 @@ the game's path is built into the programs.
 
 ### Packages with Pirate's Moon
 
-`main` builds no `mw3pm`. When packages take it from a tag on `pm`, it goes beside
-`mw3` and the launcher finds it there (launcher.md, Pirate's Moon): in
-`tools/macos/make_app.sh` copied to Contents/MacOS, signed and added to the
-library walk's `exes`, and in `tools/linux/make-appimage.sh` copied to usr/bin
-and given to linuxdeploy with `-e`; `tools/windows/package.cmd` copies it to the
-package folder, and `check_dist.ps1` then checks its DLLs.
+`main` builds no `mw3pm`; main's package scripts take one built on `pm`
+(`MW3_PKG_PM_BIN`): `tools/macos/make_app.sh` copies it to Contents/MacOS, adds
+it to the library walk and signs it as `mw3`; `tools/linux/make-appimage.sh`
+copies it to usr/bin and gives it to linuxdeploy with `-e`;
+`tools/windows/package.cmd` copies it beside `mw3.exe` and `check_dist.ps1 -Pm`
+requires it and checks its DLLs. Each checks every program is there.
+
+## The combined package (1.1.0 on)
+
+From 1.1.0 every release is one package per platform holding the launcher,
+MechWarrior 3 and Pirate's Moon (Owen, 2026-11-09), plus each game alone, all on
+one GitHub release. The launcher's updater takes only the combined package's
+name (launcher.md, Updates).
+
+| Platform | Combined (the updater's) | MechWarrior 3 alone | Pirate's Moon alone |
+|---|---|---|---|
+| Windows | `MW3-Rebuild-Setup-<v>.exe`, `MW3-Rebuild-<v>-win64.zip` | `MW3-alone-Setup-<v>.exe`, `MW3-alone-<v>-win64.zip` | `PM-Rebuild-Setup-<pm v>.exe`, `mw3pm-<pm v>-win64.zip` |
+| Mac | `MW3-Rebuild-<v>-mac.dmg` | `MW3-alone-<v>-mac.dmg` | `PM-Rebuild-<pm v>-mac.dmg` |
+| Linux | `MW3-Rebuild-<v>-x86_64.AppImage` | `MW3-alone-<v>-x86_64.AppImage` | `PM-Rebuild-<pm v>-x86_64.AppImage` |
+
+The combined and MW3-alone Windows installers share 1.0's AppId, so either
+upgrades an existing install in place (MW3 alone removes a combined install's
+`mw3pm.exe`); PM alone has its own. The Mac apps are "MechWarrior 3.app"
+(combined and MW3 alone, one bundle id, replacing 1.0's) and "Pirate's
+Moon.app".
+
+### Versions and tags
+
+- [ ] `main` and `pm` each pass section 1 on their release commits.
+- [ ] The package's version is main's tag, a bare `vX.Y.Z` (1.1.0 first); the
+      launcher shows it on its footer and the updater compares it. Pirate's
+      Moon keeps its own `pm-vX.Y.Z` tag, shown on its line (launcher.md,
+      Versions).
+- [ ] `pm` has `main` merged before its tag, so mw3pm carries the version tag
+      the launcher reads (`mw3_version_tag`) and the launcher's mods code
+      (`mods_game` "mw3pm" as its default); otherwise its line says "modified
+      (program)".
+- [ ] Owen tags both commits, or approves the tags.
+
+### Building
+
+- [ ] Each platform from the two tags, in clean worktrees of their own:
+      `tools/package/combined.sh mac v1.1.0 pm-v1.0.2 --deps` on the Mac,
+      `tools/package/combined.sh linux v1.1.0 pm-v1.0.2 PREFIX TOOLS` in WSL,
+      `tools\package\combined.cmd v1.1.0 pm-v1.0.2` on the PC. Each makes the
+      three packages in `build-pkg/dist/<platform>/` with their SHA256SUMS and
+      runs the platform's own checks (section 3) on each.
+- [ ] No version ends in `-dirty`, and the combined package's file names carry
+      main's version, PM alone's pm's.
+- [ ] Every platform's files gathered in one folder and
+      `python3 -I tools/package/sums.py <folder>` run over all of them: that
+      SHA256SUMS goes up with the release (**required**: the updater installs
+      nothing without its line).
+
+### Checking
+
+- [ ] On each platform, the combined package installed over the last release
+      (1.0.x's Setup, its app, its AppImage) with a pilot, a save, a mod and a
+      data folder moved by MY DATA FOLDER present: every one of them unchanged
+      by hash after the install and after a game of each, and the uninstaller
+      (Windows) leaves them (the hard rule; `sdl_program_package_upgrade_keeps_the_players_files`
+      checks the launcher's side).
+- [ ] The launcher shows both games, "official" with their own versions, and
+      starts each; each game starts alone too.
+- [ ] MW3 alone and PM alone each install and start on their own.
+- [ ] The updater: a release's UPDATES from the last package finds this one
+      (once published, from a copy of the last release).
+
+### The notes
+
+- [ ] One GitHub release per package version, named for it ("MechWarrior 3
+      Rebuild 1.1.0"), its notes split by game: **MechWarrior 3**, **Pirate's
+      Moon**, **The launcher**, each from its own CHANGES.md (main's, pm's). The
+      launcher's UPDATE screen shows them as written (headings, `- ` items).
+- [ ] Which download is which, at the top: the combined package first, then
+      each game alone.
+- [ ] Not a draft and not a prerelease once published (the updater skips both).
 
 ## 4. Privacy
 
