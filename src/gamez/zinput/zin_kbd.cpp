@@ -172,7 +172,7 @@ void kbd_read(bool callbacks) {
       // letter let go after the Enter that closes the field read as released
       // to the game: L's, the hold-to-look key, put the reticle's view in the
       // free look (docs/input.md, fixes.md).
-      s.typed[code] = s.char_callback && zfix::options().bugs;
+      s.typed[code] = s.char_callback && zfix::options().fixed;
       if (!s.typed[code]) apply(s, code, true);
       if (plain && !s.frame_key) s.frame_key = code;
       if (s.char_callback) {

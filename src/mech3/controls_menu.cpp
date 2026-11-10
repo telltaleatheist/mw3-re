@@ -54,7 +54,7 @@ int32_t axis_of_source(int32_t source) {
 // sliders never. FIX (bug), W56: the sliders too (a throttle lever is often
 // one: a T.16000M's could not be picked).
 bool source_listed(int32_t source) {
-  if (zfix::options().bugs && (source == 7 || source == 8)) return true;
+  if (zfix::options().fixed && (source == 7 || source == 8)) return true;
   return (source >= 1 && source <= 6) || (source >= 9 && source <= 11);
 }
 // Ours (W56): a slider's reading is DirectInput's default 0..65535 (zInput
@@ -889,7 +889,7 @@ void AxisPopupScreen::update(float dt) {
     return;
   }
   float r = e.source_value(src, j);
-  if (zfix::options().bugs && slider(src)) r = r / kSliderHalf - 1.0f;
+  if (zfix::options().fixed && slider(src)) r = r / kSliderHalf - 1.0f;
   float v = (r - -1.0f) * 0.5f;
   if (invert.checked) v = 1.0f - v;
   if (v > 1.0f) v = 1.0f;
@@ -910,7 +910,7 @@ void AxisPopupScreen::OkButton::on_left_up() {
   const float k = s->invert.checked ? -1.0f : 1.0f;
   const float v = e_.source_value(src, j);
   float scale = k, offset = (v * k) * -1.0f;
-  if (zfix::options().bugs) {
+  if (zfix::options().fixed) {
     // Ours (W56): the throttle bound stop-to-full, wherever the lever sits at
     // OK: the defaults' -0.5 and 0.5 with Invert (which the popup shows
     // checked for them, the scale being negative), +0.5 without; with

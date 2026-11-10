@@ -122,7 +122,7 @@ TEST(fix_damage_lists_line_up) {
   struct Case { const char* file; int first_d; };  // index of the first _d texture
   for (const Case& c : {Case{"dfn_madcat.zrd", 17}, Case{"dfn_supernova.zrd", 15}}) {
     for (bool fix : {true, false}) {
-      zfix::options().bugs = fix;
+      zfix::set_all(fix);
       mech3::SkinSet* set = mech3::read_skins(zrdr::load(c.file));
       EXPECT(set && set->damage);
       if (!set || !set->damage) continue;
@@ -134,7 +134,7 @@ TEST(fix_damage_lists_line_up) {
       delete set;
     }
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   zrdr::close_archives(true);
 }
 
@@ -168,7 +168,7 @@ struct CountingOutput : platform::SoundOutput {
 
 // A fade from 0 to -30 dB, a second of 30 fps steps: ended or still running.
 bool fade_ends(bool fix) {
-  zfix::options().bugs = fix;
+  zfix::set_all(fix);
   CountingOutput out;
   zsnd::hooks().output = &out;
   zsnd::Sound s;
@@ -181,14 +181,14 @@ bool fade_ends(bool fix) {
   for (zsnd::Fade* x : zsnd::state().free_fades) delete x;
   zsnd::state().free_fades.clear();
   zsnd::hooks().output = nullptr;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   return ended;
 }
 
 // Pause kept one voice of a sound that also has a quieter duplicate: how many
 // plays the unpause asks for.
 int unpause_plays(bool fix) {
-  zfix::options().bugs = fix;
+  zfix::set_all(fix);
   CountingOutput out;
   zsnd::hooks().output = &out;
   zsnd::Sound s;
@@ -206,7 +206,7 @@ int unpause_plays(bool fix) {
   snap.push_back(r);  // the exe's snapshot repeats a record for a voice it skips
   zsnd::resume_snapshot(&snap);
   zsnd::hooks().output = nullptr;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   return out.plays;
 }
 }  // namespace
@@ -236,7 +236,7 @@ TEST(fix_ammo_groups_keep_their_names) {
   EXPECT(groups != nullptr);
   int found = 0, named_play_count = 0;
   for (bool fix : {true, false}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     for (int32_t i = 1; groups && i < groups->list[0].i; ++i) {
       zsnd::Group* g = zsnd::read_group(&groups->list[i], nullptr);
       if (!g) continue;
@@ -248,7 +248,7 @@ TEST(fix_ammo_groups_keep_their_names) {
       delete g;
     }
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   EXPECT(found == 1);
   EXPECT(named_play_count == 6);
   zrdr::close_archives(true);
@@ -369,8 +369,8 @@ float touch_damage(float fps, bool per_second) {
 }
 
 float wading_speed(float depth, bool fixed) {
-  const bool bugs = zfix::options().bugs;
-  zfix::options().bugs = fixed;
+  const bool bugs = zfix::all();
+  zfix::set_all(fixed);
   mech3::Mech& m = *bare_mech();
   m.foot(0)->water_depth = depth, m.foot(1)->water_depth = depth;
   m.anim_state = 1;
@@ -378,7 +378,7 @@ float wading_speed(float depth, bool fixed) {
   mech3::move_calls().move = [](mech3::Mech&, float, mech3::MechAnim*, float) {};
   m.select_gait(1.0f / 30);
   mech3::move_calls() = mech3::MoveCalls{};
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   return m.speed_target;
 }
 
@@ -490,8 +490,8 @@ TEST(fix_touch_damage_the_same_a_hit_at_any_rate) {
 TEST(fix_heat_sink_critical_is_called_out) {
   static int voiced = 0;
   auto crit = [](bool fixed) {
-    const bool bugs = zfix::options().bugs;
-    zfix::options().bugs = fixed;
+    const bool bugs = zfix::all();
+    zfix::set_all(fixed);
     mech3::Mech& m = *bare_mech();
     m.active = true;
     m.heat_sinks.count = 10;
@@ -506,7 +506,7 @@ TEST(fix_heat_sink_critical_is_called_out) {
     mech3::heat_calls().screen = nullptr;
     mech3::damage_calls().equip_voice = nullptr;
     mech3::world().player = was;
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     return std::make_tuple(ok, voiced, left);
   };
   const auto [ok_off, voiced_off, left_off] = crit(false);
@@ -535,7 +535,7 @@ TEST(fix_deep_water_curve) {
 TEST(fix_lone_delayed_update_keeps_the_next) {
   using namespace mech3::ai;
   for (const bool bugs : {false, true}) {
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     valves_end();
     Valve* a = valve_get("a");
     Valve* b = valve_get("b");
@@ -549,7 +549,7 @@ TEST(fix_lone_delayed_update_keeps_the_next) {
     EXPECT(c->get() == (bugs ? 1 : 0));
     valves_end();
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 // Valves that update themselves (FIX (bug), fixes.md, ai.md section 8): an
@@ -601,10 +601,10 @@ TEST(fix_foot_uses_its_middle_probe) {
   EXPECT(hit == &s.contact[1] && s.water_at(0, 1.4f, &surface));
   s.height_at(0, 1.6f, &hit);
   EXPECT(hit == &s.contact[2] && !s.water_at(0, 1.6f, &surface));
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   s.height_at(0, 1.0f, &hit);
   EXPECT(hit == &s.contact[2] && !s.water_at(0, 1.0f, &surface));
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 namespace {
@@ -614,12 +614,12 @@ mech3::ai::AivRecord* aiv_record(const char* archive, const char* name, bool fix
   const std::string path = std::string(MW3_GAME_DIR) + "/zbd/" + archive;
   if (std::FILE* f = std::fopen(path.c_str(), "rb")) std::fclose(f);
   else return nullptr;
-  zfix::options().bugs = fix;
+  zfix::set_all(fix);
   zrdr::init();
   zrdr::open_archive(path.c_str(), true);
   auto* r = new mech3::ai::AivRecord;
   r->parse(zrdr::find(zrdr::load("aiv.zrd"), name), name);
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   return r;
 }
 void close_aiv(mech3::ai::AivRecord* r) {
@@ -668,7 +668,7 @@ TEST(fix_zaps_hud_reads_its_hold) {
     if (b->list[i].type == zrdr::String && std::strcmp(b->list[i].s, "ERPPC") == 0) erppc = &b->list[i + 1];
   EXPECT(erppc != nullptr);
   for (bool fix : {true, false}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     zwep::WeaponDef d;
     d.name = "ERPPC";
     d.period = 1.0f;
@@ -676,7 +676,7 @@ TEST(fix_zaps_hud_reads_its_hold) {
     EXPECT(d.type && d.type->zaps_hud == 0.5f && d.type->zaps_hud_2 == (fix ? 2.0f : 0.5f));
     mech3::free_weapon_type(&d);
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   zrdr::close_archives(true);
 }
 
@@ -717,7 +717,7 @@ TEST(fix_beam_recharge_per_second) {
 // in the constructor; here the HUD is built over garbage and the set-up runs
 // with no block (the exe would read through 0xcdcdcdcd).
 TEST(fix_hud_block_cleared) {
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   void* storage = ::operator new(sizeof(mech3::Hud));
   std::memset(storage, 0xcd, sizeof(mech3::Hud));
   auto* hud = new (storage) mech3::Hud(nullptr);  // the default hooks: no hud.zrd, video mode 0
@@ -842,15 +842,15 @@ float mouse_y_accel(float current, bool inverted);  // options_menu.h (its Handl
 // The game options' invert box (0x00438100): the exe writes -1.3 or 1.3
 // over MouseAccelY; fixed, the player's sensitivity keeps its size.
 TEST(fix_inverted_mouse_keeps_sensitivity) {
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   EXPECT(mech3::mouse_y_accel(2.5f, true) == -2.5f);
   EXPECT(mech3::mouse_y_accel(-2.5f, false) == 2.5f);
   EXPECT(mech3::mouse_y_accel(-0.7f, true) == -0.7f);
   EXPECT(mech3::mouse_y_accel(0.0f, true) == -1.3f);
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   EXPECT(mech3::mouse_y_accel(2.5f, true) == -1.3f);
   EXPECT(mech3::mouse_y_accel(-2.5f, false) == 1.3f);
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 namespace mech3 {
@@ -870,14 +870,14 @@ TEST(fix_credits_other_voices_offset) {
   zrdr::Node node;
   node.type = zrdr::List, node.list = line;
   int32_t off[2] = {30, 0};
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   mech3::credit_line_offset(&node, off);
   EXPECT(off[0] == 20 && off[1] == 20);
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   off[0] = 30, off[1] = 0;
   mech3::credit_line_offset(&node, off);
   EXPECT(off[0] == 30 && off[1] == 0);
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 // TARGET's distance past 1 km (0x00441850): the exe runs "1.50km" straight
@@ -900,13 +900,13 @@ TEST(fix_target_distance_km_spaced) {
   hud->mech = reinterpret_cast<mech3::Mech*>(&hooks);  // only passed back to the hooks
   hud->target.hud = hud;
   hooks.ready = true;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   hud->target.data_text();
   EXPECT(std::strcmp(hud->target.texts[1].text, "Turret (1.50km)") == 0);
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   hud->target.data_text();
   EXPECT(std::strcmp(hud->target.texts[1].text, "Turret1.50km") == 0);
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   hud->mech = nullptr;
   hud->~Hud();
   ::operator delete(storage);
@@ -962,7 +962,7 @@ TEST(fix_hud_timer_past_an_hour) {
   struct Clock : mech3::HudHooks {
     float mission_time(bool) override { return 3700.25f; }
   } hooks;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   mech3::set_hud_hooks(&hooks);
   void* storage = ::operator new(sizeof(mech3::Hud));
   std::memset(storage, 0, sizeof(mech3::Hud));
@@ -972,10 +972,10 @@ TEST(fix_hud_timer_past_an_hour) {
   hud->target.hide();  // no tracking
   hud->data_update(0.033f);
   EXPECT(std::strcmp(hud->timer.text, "01:01:40") == 0);
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   hud->data_update(0.033f);
   EXPECT(std::strcmp(hud->timer.text, "01:01:3640") == 0);
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   hud->mech = nullptr;
   hud->~Hud();
   ::operator delete(storage);
@@ -986,7 +986,7 @@ TEST(fix_hud_timer_past_an_hour) {
 // step of y + 10 reaches only -90, so it takes the floor; the fixed step of
 // 10 keeps it on the bridge (0x004161c0, mission-start.md section 11).
 static float place_on_bridge(bool fix) {
-  zfix::options().bugs = fix;
+  zfix::set_all(fix);
   static mech3::Mech m;
   static mech3::PlayerControls c;
   static mech3::Skis s;
@@ -1008,7 +1008,7 @@ static float place_on_bridge(bool fix) {
   mech3::place_calls() = mech3::PlaceCalls{};
   mech3::collide_calls().set_position = nullptr;
   mech3::update_calls().moved = nullptr;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   return placed_y;
 }
 
@@ -1021,12 +1021,12 @@ TEST(fix_place_steps_ten_above) {
 // needs on the target at a frame rate: the exe's float sum takes 61 at 60
 // fps and 145 at 144; in whole milliseconds, one second exactly.
 static int tag_hold_frames(int fps, bool fix) {
-  zfix::options().bugs = fix;
+  zfix::set_all(fix);
   float t = 0;
   int n = 0;
   do t = static_cast<float>(1.0 / fps) + t, ++n;
   while (!zwep::designate_held(t, 1.0f));
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   return n;
 }
 
@@ -1034,7 +1034,7 @@ static int tag_hold_frames(int fps, bool fix) {
 // and each update until the one that stops it): the exe's 32 / 62 / 146 at
 // 30 / 60 / 144 fps; fixed, 1.067 s at any rate.
 static int tag_beam_frames(int fps, bool fix) {
-  zfix::options().bugs = fix;
+  zfix::set_all(fix);
   static mech3::WeaponType t;
   static mech3::WeaponManager m(nullptr);
   zwep::WeaponDef def{};
@@ -1053,7 +1053,7 @@ static int tag_beam_frames(int fps, bool fix) {
     }
   }
   mech3::weapon_calls().beam_stop = nullptr;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   return frames;
 }
 
@@ -1094,13 +1094,13 @@ TEST(fix_tag_strike_homes_on_the_unit) {
   t.strike_weapon = &missile;
   const zwep::Vec3f3 dir{0, 0, -1}, at{0, 0, -300};
   for (int fix = 0; fix < 2; ++fix) {
-    zfix::options().bugs = fix != 0;
+    zfix::set_all(fix != 0);
     seen_at = seen_vel = nullptr;
     t.strike(nullptr, dir, at, reinterpret_cast<mech3::Handle>(0x99));
     if (fix) EXPECT(seen_at == &unit_at && seen_vel == &unit_vel);
     else EXPECT(seen_at == &t.strike_point && seen_vel == nullptr);
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   c.strike_target = nullptr, c.spawn = nullptr;
 }
 
@@ -1302,9 +1302,9 @@ TEST(fix_vehicle_motion_chas_roll_and_missing_lists) {
   items[2].type = zrdr::List, items[2].list = values;
   zrdr::Node mode{};
   mode.type = zrdr::List, mode.list = items;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   for (bool on : {false, true}) {
-    zfix::options().bugs = on;
+    zfix::set_all(on);
     VehicleControls c;
     int32_t count = 7;
     vehicle_motion_read(c, nullptr, &mode, "veh", "type", &count);
@@ -1316,7 +1316,7 @@ TEST(fix_vehicle_motion_chas_roll_and_missing_lists) {
       EXPECT(c.motion.chas_pitch.x == 0 && c.motion.chas_pitch.z == 0);  // as the exe
     }
   }
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   items[1].s = nullptr;  // not the reader's to free
   zrdr::free_contents(&mode);
 }
@@ -1325,16 +1325,16 @@ TEST(fix_vehicle_gun_clamp) {
   using namespace mech3;
   TurretLimits lim(-0.2588f, 0.5f);
   const float d[3] = {0.0f, 0.64278764f, -0.76604444f};  // 40 degrees up, ahead
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   for (bool on : {false, true}) {
-    zfix::options().bugs = on;
+    zfix::set_all(on);
     float out[3];
     EXPECT(!lim.clamp(d, out));
     const double pitch = std::atan2(double{out[1]}, std::hypot(double{out[0]}, double{out[2]}));
     if (on) EXPECT(std::fabs(pitch - 0.5) < 1e-5);
     else EXPECT(std::fabs(pitch - 0.5) > 0.05);  // as the exe: about 24.6 degrees
   }
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
 }
 
 TEST(fix_vehicle_collision_fire_floor) {
@@ -1517,10 +1517,10 @@ TEST(fix_waynet_arrow_lets_go_of_released_images) {
     Handle image_get(const char*) override { return new zimg::Texture(); }
     void image_release(Handle image) override { ++released, delete static_cast<zimg::Texture*>(image); }
   } hooks;
-  const bool saved_bugs = zfix::options().bugs;
+  const bool saved_bugs = zfix::all();
   set_waynet_hooks(&hooks);
   for (int fix = 0; fix < 2; ++fix) {
-    zfix::options().bugs = fix != 0;
+    zfix::set_all(fix != 0);
     waynet_icons_ref();
     zimg::Texture* shown = new zimg::Texture();  // the arrow's image this mission (one the hooks do not free)
     shown->width = 24, shown->height = 16;
@@ -1540,7 +1540,7 @@ TEST(fix_waynet_arrow_lets_go_of_released_images) {
     delete shown;
   }
   set_waynet_hooks(nullptr);
-  zfix::options().bugs = saved_bugs;
+  zfix::set_all(saved_bugs);
 }
 
 // Artemis IV's double tracking (FIX (bug); weapons.md, Homing): a shot fired
@@ -1582,13 +1582,13 @@ TEST(fix_artemis_fcs_doubles_the_turn_rate) {
     }
     return miss;
   };
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   float turn_plain = 0, turn_fcs = 0;
-  zfix::options().bugs = false;  // the original: the shot's 2 never read
+  zfix::set_all(false);  // the original: the shot's 2 never read
   const float off_plain = salvo(1.0f, nullptr), off_fcs = salvo(2.0f, nullptr);
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   const float on_plain = salvo(1.0f, &turn_plain), on_fcs = salvo(2.0f, &turn_fcs);
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   std::printf("  salvo's mean closest pass: original %.2f / %.2f m, fixed %.2f (plain) / %.2f m (FCS); first turn %.4f / %.4f\n",
               off_plain, off_fcs, on_plain, on_fcs, turn_plain, turn_fcs);
   EXPECT(off_plain == off_fcs);
@@ -1627,7 +1627,7 @@ TEST(fix_aim_cone_widens_with_the_view) {
   fp.model_part = 3;
   // Whether a target `deg` degrees off the arm gets the beam (else the arm's line).
   auto follows = [&](float deg, float w, bool bugs) {
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     width = w;
     mech3::BeamWeapon b(&def, nullptr, &m);
     b.part = reinterpret_cast<mech3::Handle>(0x2000), b.firepoint = &fp;
@@ -1641,7 +1641,7 @@ TEST(fix_aim_cone_widens_with_the_view) {
   EXPECT(!follows(32, 1, true) && !follows(32, 1, false));  // 4:3: the exe's snap
   EXPECT(follows(32, wide, true) && !follows(32, wide, false));
   EXPECT(!follows(40, wide, true));  // past 16:9's cone (about 34 degrees)
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   mech3::weapon_world().player = player_was;
   c = kept;
 }
@@ -1769,9 +1769,9 @@ TEST(fix_throttle_lever_reaches_reverse) {
   zfix::options().throttle_reverse = false;
   EXPECT(near(lever_target(z, 0, 1000), 0.0f) && near(lever_target(z, 0, -1000), 1.0f));
   zfix::options().throttle_reverse = true;
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   EXPECT(near(lever_target(z, 0, 1000), 0.0f) && near(lever_target(z, 0, -1000), 1.0f));
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 // W59 (Owen's v1.0 crash, zmth::load+0x1d in c4b's last fight): an unbalanced

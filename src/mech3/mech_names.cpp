@@ -61,7 +61,7 @@ const char* const kWeapons[38] = {
 std::vector<ModMech> g_rows;  // ours: the mods' mechs, index 20 on (19 the exe's none)
 std::vector<ModWeapon> g_weapon_rows;  // ours: the mods' weapons, index 38 on
 // A weapon index in play: the plain PPC (37) only with the bug fixes on.
-bool live_weapon(int32_t w) { return w >= 0 && w < weapon_count() && (w != 37 || zfix::options().bugs); }
+bool live_weapon(int32_t w) { return w >= 0 && w < weapon_count() && (w != 37 || zfix::options().small_fixes); }
 const ModWeapon* weapon_row(int32_t w) {
   return w >= kBuiltinWeapons && w < weapon_count() ? &g_weapon_rows[w - kBuiltinWeapons] : nullptr;
 }
@@ -334,7 +334,7 @@ const char* weapon_name(int32_t weapon) {
 // offered, so their numbers stay the same with the fixes off.
 int32_t weapon_count() {
   if (!g_weapon_rows.empty()) return kBuiltinWeapons + static_cast<int32_t>(g_weapon_rows.size());
-  return zfix::options().bugs ? 38 : 37;
+  return zfix::options().small_fixes ? 38 : 37;
 }
 
 // Mech3.exe 1.2 @ 0x00484700. Not the tonnage's class: the Annihilator is 2,

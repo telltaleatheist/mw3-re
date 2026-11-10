@@ -91,7 +91,7 @@ void Skis::fit(int side) {
 }
 
 // FIX (bug): half x 0.5, the value Pirate's Moon writes (its 0x477d1a); MW3 never writes it.
-float Skis::mid() const { return zfix::options().bugs ? half * kHalf : mid_width; }
+float Skis::mid() const { return zfix::options().fixed ? half * kHalf : mid_width; }
 
 // Mech3.exe 1.2 @ 0x00475de0. The contact is the mid probe's within
 // mid() / 2 of it, else the front or back one.
@@ -251,7 +251,7 @@ bool Skis::update(float dt) {
   // mech in another zone (a lancemate in c2m4's tunnel) lost its own floor and
   // read the land over it as a wall ahead (fixes.md). Its own feet read them all.
   const int32_t zone_mode = zmod::zones().mode;
-  if (zfix::options().bugs && &m != mech3::world().mission_player) zmod::zones().mode = 0;
+  if (zfix::options().improved_ai && &m != mech3::world().mission_player) zmod::zones().mode = 0;
   if (g_calls.query) {
     g_calls.query(&world[start], count, matrix[10] - kQueryTop, &hits[start]);
   } else if (Node* w = world_hooks().world) {

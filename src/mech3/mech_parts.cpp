@@ -368,12 +368,12 @@ bool MechPart::critical(int kind, int) {
   bool ok = false;
   switch (kind) {
     case kCritSink: {
-      // FIX (bug), behind bugs: 0x0045fbc0 always reports failure, so the
+      // FIX (bug), behind fixed: 0x0045fbc0 always reports failure, so the
       // callout never played; a sink actually lost counts as success
       // (docs/fixes.md).
       const int32_t before = m.heat_sinks.count;
       m.heat_sinks.lose(1);
-      ok = zfix::options().bugs && m.heat_sinks.count < before;
+      ok = zfix::options().fixed && m.heat_sinks.count < before;
       if (!player) return ok;
       if (ok && g_calls.equip_voice) g_calls.equip_voice(kSink);
       break;

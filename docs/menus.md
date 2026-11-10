@@ -205,8 +205,15 @@ main menu and from a mission's pause alike, pushing the upgrades page
 background, ACCEPT and BACK, the credits' frame (`credit_lines`; the game
 options' `option1_lines` would leave seven of its nine boxes empty) and a
 `textbox70` under each switch's ON/OFF row, the arrows at the box's ends.
-Today it holds BUG FIXES (zfix bugs, at once) and WIDE MENUS (from the next
-screen made); ACCEPT saves both to mw3.cfg (`bugfixes=`, `widemenus=`). On a
+Since 1.1.0 (Owen, 2026-11-10; docs/upgrades-sort.md) it holds the five
+upgrades, WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING and SMALL
+FIXES (zfix's five, at once), and WIDE MENUS (from the next screen made), one
+column in the frame at y 64 to 214; ACCEPT saves them to mw3.cfg
+(`upgrade_<name>=`, `widemenus=`). On the right, SMALL FIXES (our list record,
+read only: no row lit or picked, 14 rows, the arrows scroll) lists the small
+fixes in plain words (`upgrades::small_fixes_list`), and a line under the
+frame says what off means, or, for a joiner in a network game, that the five
+are the host's (greyed, not saved). On a
 wide canvas it has its own groups (its frame starts left of x 0, so it would
 count as the middle). Our records' small font is the dialog's own (CONTROLS'
 label): ia_small_green in MW3, ia_small_amber in Pirate's Moon. The release

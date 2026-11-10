@@ -439,7 +439,7 @@ void lab_take_off(Engine& e, LabAssignedList& list, int32_t index);
 // (1 at start: the last).
 uint8_t& lab_firepoint_toggle();
 
-// 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix bugs:
+// 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix fixed:
 // the exe compares the mechs' numbers) or 1 the tonnage, then the number.
 bool chassis_before(Engine& e, int32_t by, int32_t ma, int32_t mb);
 

@@ -135,6 +135,9 @@ class LobbyScreen : public MenuScreen {
   // sides' mods ("" when they match).
   static bool mods_of(const std::vector<uint32_t>& data, uint64_t* hash, std::vector<std::string>* names);
   static std::string mods_text(const std::vector<std::string>& names);
+  // Ours (the Upgrades page): the five switches' bits after the mods block;
+  // false when there are none (a build before 1.1.0).
+  static bool upgrades_of(const std::vector<uint32_t>& data, uint32_t* bits);
   uint8_t mods_checked = 0;          // ours: the joiner compared its mods with the host's
   // Ours (piece 9c, the lead's plan for piece 11): the host's addresses, as
   // on the connection screen, while it waits for players.

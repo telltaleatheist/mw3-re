@@ -391,7 +391,7 @@ void probe_va_aim_at(const float* d, float* out) {
   std::memcpy(out, g_ac->aim.dir, 12);
 }
 int probe_va_turn(float dt) { return m3::turret_turn(*g_ac, g_ac->aim, dt); }
-void probe_zfix_bugs(int on) { zfix::options().bugs = on != 0; }  // the fix's own check
+void probe_zfix_bugs(int on) { zfix::set_all(on != 0); }  // the fix's own check
 
 }  // extern "C"
 

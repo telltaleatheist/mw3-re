@@ -257,9 +257,9 @@ int probe_actionscreen_run(const char* reader, const char* dir, uint32_t state, 
   }
   mech3::set_app(app.get());
   const bool per_second = zfix::options().per_second;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   zfix::options().per_second = false;  // the original's path (zfix.h)
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   zrdr::init();
   zrdr::close_archives(true);
   zrdr::open_archive(reader, true);
@@ -398,7 +398,7 @@ int probe_actionscreen_run(const char* reader, const char* dir, uint32_t state, 
   zutl::mounts() = saved;
   mech3::set_pilot_hooks(nullptr);
   zfix::options().per_second = per_second;
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   mech3::set_app(nullptr);
   ztwod::set_host(nullptr);
   if (static_cast<int>(dump.size()) >= size) return -1;

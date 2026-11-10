@@ -14,7 +14,7 @@ namespace zutl { struct MessageDll; }
 // official 1.2 patch changed in the game's data, redone while 1.0's data
 // loads. Each change applies only to a file that is 1.0's own (by size and
 // CRC, data_version.h), so 1.2's files, a mix's patched files and unknown
-// data (a mod, another version) are left as they are. Not behind zfix bugs:
+// data (a mod, another version) are left as they are. Not behind a zfix switch:
 // it makes 1.0's data the 1.2 the port was ported from. The changes are our
 // own values, edits and wording, except the small copies Owen agreed to
 // (patch12_copies.inc's entries, patch12_files.inc's two maps: 1.2's data).

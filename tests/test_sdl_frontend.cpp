@@ -43,6 +43,7 @@
 #include "frontend/sdl/sdl_input.h"
 #include "mech3/controls_cfg.h"
 #include "frontend/sdl/sdl_install.h"
+#include "upgrades/settings/upgrades.h"
 #include "frontend/sdl/sdl_platform.h"
 #include "frontend/sdl/sdl_sound.h"
 #include "frontend/sdl/sdl_twod_host.h"
@@ -78,6 +79,84 @@
 
 #include <cstdio>
 #include <map>
+
+// The Upgrades page's settings (ours, upgrades/settings; docs/upgrades-sort.md):
+// mw3.cfg's five keys, 1.0.x's bugfixes= read once as all five and replaced by
+// them, --original all five off with nothing saved and the always-on fixes
+// kept, and the lobby's word a joiner takes and gives back.
+TEST(upgrades_settings_keys_migration_original_and_the_host_word) {
+  const zfix::Options saved = zfix::options();
+  auto cfg_of = [](const std::vector<std::string>& lines) {
+    upgrades::Config c;
+    for (const std::string& l : lines) upgrades::read_line(l, c);
+    return c;
+  };
+  const std::string dir = std::string(MW3_TEST_TMP) + "/upgrades_cfg";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  auto write = [&](const char* text) {
+    if (std::FILE* f = std::fopen((dir + "/mw3.cfg").c_str(), "w")) std::fputs(text, f), std::fclose(f);
+  };
+  auto text = [&] {
+    std::ifstream f(dir + "/mw3.cfg");
+    std::stringstream b;
+    b << f.rdbuf();
+    return b.str();
+  };
+  // No key: all on.
+  zfix::set_all(false);
+  sdlfe::apply_upgrades_config(dir, cfg_of({}), false);
+  EXPECT(upgrades::bits() == 0x1f);
+  // Each key its own; unknown values are not keys.
+  upgrades::Config c = cfg_of({"upgrade_water=0", "upgrade_artemis=0", "upgrade_small_fixes=2"});
+  EXPECT(!upgrades::read_line("upgrade_small_fixes=2", c) && !upgrades::read_line("upgrade_water=", c));
+  sdlfe::apply_upgrades_config(dir, c, false);
+  EXPECT(!zfix::options().water && zfix::options().mfb_regroup && zfix::options().improved_ai && !zfix::options().artemis &&
+         zfix::options().small_fixes && upgrades::bits() == 0x16);
+  // 1.0.x's bugfixes=0: all five off, written as the five keys, bugfixes= gone, the rest kept.
+  write("install=X\nbugfixes=0\nwidemenus=1\n");
+  c = cfg_of({"install=X", "bugfixes=0", "widemenus=1"});
+  EXPECT(upgrades::needs_migrating(c));
+  sdlfe::apply_upgrades_config(dir, c, false);
+  const std::string after = text();
+  EXPECT(upgrades::bits() == 0 && after.find("bugfixes=") == std::string::npos && after.find("install=X") != std::string::npos &&
+         after.find("widemenus=1") != std::string::npos);
+  for (const upgrades::Switch& sw : upgrades::switches())
+    EXPECT(after.find(std::string("upgrade_") + sw.key + "=0\n") != std::string::npos);
+  // Read back: the keys now, no migration again.
+  std::vector<std::string> lines;
+  {
+    std::istringstream in(after);
+    for (std::string l; std::getline(in, l);) lines.push_back(l);
+  }
+  c = cfg_of(lines);
+  EXPECT(!upgrades::needs_migrating(c));
+  // A key wins over a bugfixes= left beside it.
+  c = cfg_of({"bugfixes=0", "upgrade_water=1"});
+  EXPECT(!upgrades::needs_migrating(c));
+  sdlfe::apply_upgrades_config("", c, false);
+  EXPECT(upgrades::bits() == 0x1);
+  // --original: all five off whatever the file says, the always-on fixes kept, nothing written.
+  write("upgrade_water=1\n");
+  zfix::set_all(true);
+  sdlfe::apply_upgrades_config(dir, cfg_of({"upgrade_water=1"}), true);
+  EXPECT(upgrades::bits() == 0 && zfix::options().fixed && text() == "upgrade_water=1\n");
+  // The host's word: taken, the page's state says so, given back once.
+  zfix::set_upgrades(true);
+  upgrades::take_hosts(0xf);
+  EXPECT(upgrades::hosts() && upgrades::bits() == 0xf && !zfix::options().small_fixes);
+  upgrades::take_hosts(0x3);  // a second word keeps the first own set
+  upgrades::give_back();
+  EXPECT(!upgrades::hosts() && upgrades::bits() == 0x1f);
+  upgrades::give_back();
+  EXPECT(upgrades::bits() == 0x1f);
+  // The Small fixes list: plain lines that fit the page's list (59 of its letters).
+  EXPECT(!upgrades::small_fixes_list().empty());
+  for (const char* l : upgrades::small_fixes_list()) EXPECT(std::strlen(l) <= 59);
+  zfix::options() = saved;
+  std::filesystem::remove_all(dir, ec);
+}
 
 TEST(sdl_input_scancodes_map_to_dik_codes) {
   using sdlfe::dik_from_scancode;
@@ -1861,7 +1940,7 @@ static ClickRun click_run(int hold_frames, bool bugs) {
       if (frames == 3) {
         // The original's path for the beam only once the mission is up (its
         // load needs the HUD constructor's fix, hud.md section 3).
-        zfix::options().bugs = bugs;
+        zfix::set_all(bugs);
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
         for (int32_t g = 0; g < 5 && group < 0; ++g)
           if (mech3::mech_group_names(player, g).find("ERLaser_Medium") != std::string::npos) group = g;
@@ -3075,8 +3154,10 @@ TEST(sdl_intro_follows_its_sound_without_a_beat) {
   };
   auto play = [&](bool original) {
     std::vector<std::string> a = {MW3_BIN, "--install", install, "--write-dir", dir, "--no-launcher", "--frames", "200", "--hidden"};
-    if (original) a.push_back("--original");
+    // The exe's own path: the always-on fixes too (the movie's step is one).
+    if (original) setenv("MW3_EXE_PATHS", "1", 1);
     const std::string log = run(a, original ? "original" : "fixed");
+    unsetenv("MW3_EXE_PATHS");
     Beat b;
     b.device = log.find("sound device 44100 Hz, 2 channels, 441 sample frames") != std::string::npos;
     int last = -1;
@@ -3266,6 +3347,8 @@ TEST(sdl_two_processes_from_the_lobby_into_a_game) {
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/a", ec);
   std::filesystem::create_directories(dir + "/b", ec);
+  // The host plays with Small fixes off: the joiner's game takes the host's five.
+  if (std::FILE* f = std::fopen((dir + "/a/mw3.cfg").c_str(), "w")) std::fputs("upgrade_small_fixes=0\n", f), std::fclose(f);
   auto spawn = [&](std::vector<std::string> args, const std::string& log) {
     std::vector<std::string> v = {MW3_BIN};
     v.insert(v.end(), args.begin(), args.end());
@@ -3354,6 +3437,7 @@ TEST(sdl_two_processes_from_the_lobby_into_a_game) {
   EXPECT(has(la, "multiplayer page 2") && has(lb, "multiplayer page 2"));
   EXPECT(has(la, "Loading [ c1 ]") && has(lb, "Loading [ c1 ]") && has(la, "Ready To Launch") && has(lb, "Ready To Launch"));
   EXPECT(sa.lines > 3 && sb.lines > 3 && sa.saw > 3 && sb.saw > 3);
+  EXPECT(has(lb, "mw3: upgrades: the host's switches 0xf (ours 0x1f)") && !has(la, "mw3: upgrades: the host's"));
   // Standing still, each one's own place is where the other sees it.
   EXPECT(std::fabs(sa.them[0] - sb.me[0]) < 2.0f && std::fabs(sa.them[2] - sb.me[2]) < 2.0f);
   EXPECT(std::fabs(sb.them[0] - sa.me[0]) < 2.0f && std::fabs(sb.them[2] - sa.me[2]) < 2.0f);
@@ -4242,8 +4326,12 @@ TEST(sdl_network_soak_four_players) {
 // bugfixes=0 in mw3.cfg turn every play-changing fix off, said at the start;
 // bugfixes=1 and no line leave them on.
 TEST(sdl_program_bugfixes_switch) {
+  // The Upgrades page's five (upgrades-sort.md): 1.0.x's bugfixes= becomes
+  // the five keys at the first start; --original turns the five off for the
+  // run and saves nothing.
   const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_bugfixes";
   std::error_code ec;
+  std::string cfg_after;
   auto run = [&](const char* cfg, bool original) {
     std::filesystem::remove_all(dir, ec);
     std::filesystem::create_directories(dir, ec);
@@ -4255,19 +4343,27 @@ TEST(sdl_program_bugfixes_switch) {
     const pid_t pid = spawn_mw3(a, log);
     int status = 0;
     if (pid > 0) waitpid(pid, &status, 0);
-    std::string text;
-    if (std::FILE* f = std::fopen(log.c_str(), "r")) {
-      char buf[4096];
-      for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
-      std::fclose(f);
-    }
-    return text.find("mw3: bug fixes off") != std::string::npos;
+    auto read = [](const std::string& p) {
+      std::string text;
+      if (std::FILE* f = std::fopen(p.c_str(), "r")) {
+        char buf[4096];
+        for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+        std::fclose(f);
+      }
+      return text;
+    };
+    cfg_after = read(dir + "/mw3.cfg");
+    return read(log).find("mw3: --original: the five upgrades off") != std::string::npos;
   };
+  auto has = [&](const char* k) { return cfg_after.find(k) != std::string::npos; };
   EXPECT(!run(nullptr, false));
+  EXPECT(!run("bugfixes=0\n", false));
+  EXPECT(!has("bugfixes=") && has("upgrade_water=0") && has("upgrade_mfb_regroup=0") && has("upgrade_improved_ai=0") &&
+         has("upgrade_artemis=0") && has("upgrade_small_fixes=0"));
   EXPECT(!run("bugfixes=1\n", false));
-  EXPECT(run("bugfixes=0\n", false));
+  EXPECT(!has("bugfixes=") && has("upgrade_water=1") && has("upgrade_small_fixes=1"));
   EXPECT(run(nullptr, true));
-  EXPECT(run("bugfixes=1\n", true));  // --original wins
+  EXPECT(run("upgrade_water=1\n", true) && cfg_after == "upgrade_water=1\n");  // --original wins, saves nothing
 }
 #endif
 
