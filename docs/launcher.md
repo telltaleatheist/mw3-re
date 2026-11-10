@@ -524,3 +524,122 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 - The working title ("MW3 REBUILD" on the title art) and the font: Owen's.
 - The calls are Mw3 dev's `mech3::setup` (game_setup.h, mac4/setup-api).
 - Once the GUI-subsystem build lands, mw3.log is the only console.
+
+## Updates (planned 2026-11-10; Owen 2026-11-09, no signing)
+
+CHECK FOR UPDATES in the launcher, the same flow on all three platforms, never
+the settings folders (MW3's, PM's, or where their pointers lead): only the
+program files are replaced.
+
+1. **Check**: GitHub's releases list
+   (`api.github.com/repos/telltaleatheist/mw3-re/releases`), the highest
+   bare `vX.Y.Z` tag of the releases that are neither drafts nor
+   prereleases (`pm-v*` game releases and anything else left out; lead
+   2026-11-10: not the Latest flag, which anyone may set otherwise), compared
+   with the launcher's own tag (`MW3_VERSION`, numbers part by part; a build
+   between releases counts as its last release). Fetched with the
+   system's `curl` (macOS, Linux, and Windows 10 1803+ ship it: no new
+   library, and its HTTPS is the system's), run as a child with no shell, a
+   time limit and its arguments an array; a small JSON reader for the fields
+   needed (`tag_name`, `draft`, `prerelease`, `body`, `assets[].name`,
+   `assets[].browser_download_url`). The individual games' downloads may sit
+   on the same release as extra assets: only the platform's package asset is
+   taken. `MW3_UPDATE_API` names another URL for
+   checks (a `file://` JSON). Tests: newer, same, older, a dev build, no
+   network, a broken answer: each said in plain words.
+   **Done (2026-11-10):** `upgrades::update` (`parse_releases`, a small JSON
+   reader; `package_tag`, `newest_package`, `compare_versions`, `judge`) and
+   `sdlfe::curl_get` / `check_for_updates` (`frontend/sdl/sdl_update`; curl
+   found at Windows' System32\curl.exe or /usr/bin/curl, never through
+   PATH; `--proto =https`, `file://` only for `MW3_UPDATE_API`). UPDATES on
+   the main screen (GAME FILES, MODS, UPDATES, QUIT) asks on the worker and
+   says the verdict on the status line. Checked once against GitHub's real
+   list: v1.0.5 the newest package, this build up to date. Tests:
+   `update_reads_the_releases_list` (escapes, \u, a surrogate pair, four broken
+   answers), `update_picks_the_newest_package_release` (drafts, prereleases,
+   pm-v*, rc tags, 1.10 above 1.9), `update_compares_versions` (a dev build
+   counts as its release), `update_says_what_it_found`,
+   `sdl_update_fetch_by_curl`, `sdl_program_launcher_checks_for_updates`.
+   Breaks: drafts kept, rc tags taken: each caught.
+2. **The notes and the question**: an UPDATE screen with the release's notes
+   (its body, wrapped and paged, the markdown's `#` and `-` shown plainly),
+   "Download and install MechWarrior 3 Rebuild 1.2.0?", DOWNLOAD AND
+   INSTALL and NOT NOW. Tests: the screen's text from a fixture release.
+   **Done (2026-11-10):** a newer release opens the UPDATE screen
+   (`Launcher::show_update`): "MECHWARRIOR 3 REBUILD 1.2.0", its notes as
+   plain lines (`upgrades::update::notes_lines`: headings without #, items as
+   bullets, **, * and ` marks dropped, links as their text) wrapped to 500 px
+   and paged with < and >, the question with "Your mods, pilots, saves and
+   settings are kept.", DOWNLOAD AND INSTALL (sitting 3) and NOT NOW. Same or
+   older: the main screen's status line, as sitting 1. `--launcher-screen
+   update` shoots it (with `MW3_UPDATE_API`). Tests:
+   `update_notes_as_plain_lines`, `sdl_program_launcher_checks_for_updates`
+   (the screen's plates and notes; none for same, older or broken). Break:
+   no screen for a newer release: caught.
+3. **The download and its check**: the platform's asset
+   (`MW3-Rebuild-Setup-<v>.exe`, `MW3-Rebuild-<v>-mac.dmg`,
+   `MW3-Rebuild-<v>-x86_64.AppImage`, the packaging's names) and the
+   release's `SHA256SUMS`, over HTTPS by curl into the system's temp folder,
+   with the bar and CANCEL; the asset's SHA-256 (patch_import's) against its
+   line. A mismatch, a missing line or a cut download installs nothing and
+   says so. Tests: good, wrong sum, no sums file, cancelled, cut short.
+   **Done (2026-11-10):** `upgrades::update::platform_asset` (the games' own
+   downloads on the release are other names, never taken), `sums_line` (text
+   and binary forms, any case), `sdlfe::curl_download` (to `.part`, renamed when
+   complete; no total limit, a minute without data ends it; the bar from the
+   file's size against the asset's; CANCEL kills curl and removes the part),
+   `download_update` (SHA256SUMS first, then the package, hashed by
+   `mech3::sha256_file_hex` a megabyte at a time). DOWNLOAD AND INSTALL runs it
+   on the worker into `<temp>/MW3-Rebuild-update` (never a settings folder);
+   every failure removes the file and says why ("did not match its checksum,
+   so nothing was installed", "has no SHA256SUMS", "has no line for ...",
+   curl's reason). Tests: `update_picks_the_platforms_package_and_its_sum`,
+   `sdl_update_download_and_its_check` (good, wrong sum, no line, no sums, no
+   package, cancelled, gone), `sdl_program_launcher_checks_for_updates` (the
+   newer release downloaded and checked through the screen, into the test's
+   own TMPDIR). Breaks: the sum not compared: caught; a cancel keeping the
+   part file: not caught (a local copy ends before the cancel can meet a part
+   file; the cancel's words and nothing kept are tested).
+4. **The install, each platform's normal way**: Windows runs the new Setup
+   (Inno Setup, the same AppId, upgrading in place; the launcher quits
+   first); the Mac replaces the whole app (the downloaded DMG attached with
+   `hdiutil`, the new app copied beside the old one, swapped in, the old one
+   removed only once the new one is in place, the DMG detached); Linux swaps
+   the AppImage (`$APPIMAGE`: the new one written beside it, made executable,
+   renamed over it). Then the new launcher is started and this one quits.
+   Tests: the Mac and Linux swaps on scratch copies (a bundle, an AppImage
+   file), a failure part way leaving the old program working; Windows
+   compile-checked with the mingw build and played on Owen's PC.
+   **Done (2026-11-10):** `upgrades::update::swap_in` (copied beside the old as
+   .new, the old moved aside as .old, the new renamed in, the old removed last;
+   any failure puts the old back; an earlier try's .new/.old cleared) and
+   `sdlfe::install_update`: Windows starts the new Setup and the launcher quits;
+   the Mac attaches the DMG (`hdiutil attach -nobrowse -readonly -noautoopen`
+   on a mount point of our own), swaps its app in for the running one (found
+   from the executable's path; only an .app with Contents/MacOS/mw3launcher,
+   the new one too), detaches; Linux swaps the AppImage in for `$APPIMAGE`
+   (only a file *.AppImage). A copy not run from its package (the build, a
+   dev run) refuses in words ("cannot replace itself: ...use the downloaded
+   file"). After an install the new launcher starts on its own
+   (`start_detached`) and this one quits; `MW3_UPDATE_TARGET` and
+   `MW3_UPDATE_NO_RESTART` for checks. Tests:
+   `update_swaps_the_program_in_or_keeps_the_old` (a folder, a file with its
+   execute bit, a missing new copy, a missing target, a read-only folder: the
+   old kept), `sdl_update_installs_the_mac_app` (a real DMG made by hdiutil:
+   swapped, detached, the DMG removed, the settings folder beside unchanged;
+   not our app and a DMG without one refused), the launcher test (the build's
+   launcher refuses to replace itself). Breaks: any target taken, not
+   detached: each caught. Windows' branch compile-checked with mingw; Linux's
+   is not compiled on this Mac (its package build is the first), and the
+   Windows Setup run waits for Owen's PC.
+5. **Owen's hard rule, checked**: the upgrade test (`sdl_program_package_upgrade_keeps_the_players_files`)
+   run through the updater's own swap, the settings folders unchanged by
+   hash.
+   **Done (2026-11-10):** the test's new program folder is built beside and
+   put in by `upgrades::update::swap_in`; the 12 player files (MW3's data
+   folder through its pointer, PM's settings folder) kept byte for byte,
+   every mw3.cfg line kept, both games started from the new programs. Break
+   (the new copy never put in: the old programs started again): caught. The
+   Mac's own install (`sdl_update_installs_the_mac_app`) checks the settings
+   folder beside the app the same way. Left for the release: the Windows
+   Setup's upgrade over 1.0.x on Owen's PC (release.md, Windows).

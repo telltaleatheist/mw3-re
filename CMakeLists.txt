@@ -327,6 +327,7 @@ add_library(mw3core STATIC
   src/mech3/mod_install.cpp
   src/upgrades/mods/mod_export.cpp
   src/upgrades/mods/anim_defs.cpp
+  src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
   src/upgrades/reference/reference_mods.cpp
   src/upgrades/reference/reference_weapons.cpp
@@ -589,6 +590,7 @@ add_executable(mw3tests
   tests/test_lance.cpp
   tests/test_nav.cpp
   tests/test_setup_sources.cpp
+  tests/test_update.cpp
   tests/test_data_folder.cpp
   tests/test_patch12.cpp
   tests/test_video_device.cpp
@@ -732,6 +734,7 @@ if(SDL3_FOUND)
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
+      src/frontend/sdl/sdl_update.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
       src/frontend/sdl/modes_chain.cpp
@@ -776,6 +779,7 @@ if(SDL3_FOUND)
     add_executable(mw3launcher
       src/frontend/sdl/launcher_main.cpp
       src/frontend/sdl/launcher.cpp
+      src/frontend/sdl/sdl_update.cpp
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
     )
@@ -813,6 +817,7 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      src/frontend/sdl/sdl_update.cpp
       tests/test_net_enet.cpp
       tests/test_net_upnp.cpp
     )

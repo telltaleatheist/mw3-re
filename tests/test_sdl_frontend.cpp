@@ -26,6 +26,8 @@
 
 #include "check.h"
 #include "mech3/source_map.h"
+#include "mech3/patch_import.h"
+#include "frontend/sdl/sdl_update.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/editor_imgui.h"
@@ -4377,7 +4379,7 @@ TEST(sdl_program_launcher_screens) {
     const char* hover;
     int edge_x, edge_y;
   };
-  for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
+  for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
                         Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 104},
                         Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
@@ -4717,10 +4719,10 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   const auto none = std::vector<std::pair<std::string, std::string>>{{"MW3_FIND_INSTALL", "1"}, {"MW3_LAUNCHER_FRAMES", "20"}};
   // No install: the games, then the find screen; nothing started.
   const LauncherRun a = run_launcher_with("launcher_v1_none", "READY\nsleep 1", nullptr, none);
-  std::printf("no install: main %d, find %d, game started %d\n", screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n"),
+  std::printf("no install: main %d, find %d, game started %d\n", screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n"),
               screen(a.log, "screen find: FIND THE GAME, BACK\n"), !a.args.empty());
   EXPECT(a.exited && a.args.empty());
-  EXPECT(screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n") && screen(a.log, "screen find: FIND THE GAME, BACK\n"));
+  EXPECT(screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n") && screen(a.log, "screen find: FIND THE GAME, BACK\n"));
   for (const char* gone : {"SETUP", "SEARCH AGAIN", "A FOLDER INSTEAD", "APPLY THE 1.2 PATCH", "POINT TO YOUR GAME",
                            "A DISC IMAGE OR DOWNLOAD", ", A FOLDER,", "THE DISC'S FOLDER"})
     EXPECT(!screen(a.log, gone));
@@ -4903,7 +4905,7 @@ TEST(sdl_program_launcher_game_files_repicks) {
   std::printf("GAME FILES by keys: focus %d, find screen %d\n", seen(a.log, "focus GAME FILES"),
               seen(a.log, "screen find: FIND THE GAME, ADD FROM MY DISC, BACK\n"));
   EXPECT(a.exited && a.args.empty());
-  EXPECT(seen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n") && seen(a.log, "focus MECHWARRIOR 3\n") &&
+  EXPECT(seen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n") && seen(a.log, "focus MECHWARRIOR 3\n") &&
          seen(a.log, "focus GAME FILES\n") && seen(a.log, "screen find: FIND THE GAME, ADD FROM MY DISC, BACK\n"));
   // GAME FILES, then the development copy picked (used where it is).
   const auto repick = std::vector<std::pair<std::string, std::string>>{{"MW3_FIND_INSTALL", "1"},
@@ -5242,6 +5244,218 @@ TEST(sdl_program_launcher_checks_mechwarrior3) {
 }
 #endif
 
+// The updater's fetch (docs/launcher.md, Updates, sitting 1): the system's curl as a child, its arguments an array.
+// A file:// fixture read only when allowed (checks), a missing one said in curl's words, an http address refused.
+TEST(sdl_update_fetch_by_curl) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "update_fetch";
+  fs::create_directories(dir, ec);
+  std::ofstream(dir / "releases.json") << "[{\"tag_name\":\"v9.9.9\",\"draft\":false,\"prerelease\":false,\"body\":\"New.\",\"assets\":[]}]";
+  std::string out, error;
+  const std::string url = "file://" + (dir / "releases.json").string();
+  EXPECT(sdlfe::curl_get(url, 10, &out, &error, true) && out.find("v9.9.9") != std::string::npos);
+  EXPECT(!sdlfe::curl_get(url, 10, &out, &error, false) && error == "not an https address");
+  EXPECT(!sdlfe::curl_get("file://" + (dir / "gone.json").string(), 10, &out, &error, true) && !error.empty() && out.empty());
+  std::printf("  a missing file: %s\n", error.c_str());
+  EXPECT(!sdlfe::curl_get("http://localhost:9/x", 10, &out, &error, false) && !error.empty());  // https only
+  std::printf("  http: %s\n", error.c_str());
+  fs::remove_all(dir, ec);
+}
+
+// The updater's download (sitting 3) on file:// fixtures: this platform's package and the release's SHA256SUMS
+// fetched, the package checked against its line; a wrong sum, no sums, no line, no package and a cancel each
+// install nothing, leave nothing behind, and say why.
+TEST(sdl_update_download_and_its_check) {
+  namespace fs = std::filesystem;
+  namespace u = upgrades::update;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "update_download";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir / "release", ec);
+  const char* names[] = {"MW3-Rebuild-Setup-9.0.0.exe", "MW3-Rebuild-9.0.0-mac.dmg", "MW3-Rebuild-9.0.0-x86_64.AppImage"};
+  const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
+  const std::string bytes(300000, 'p');
+  std::ofstream(dir / "release" / ours, std::ios::binary) << bytes;
+  const std::string sum = mech3::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+  const auto sums = [&](const std::string& text) { std::ofstream(dir / "release" / "SHA256SUMS") << text; };
+  const auto url = [&](const std::string& n) { return "file://" + (dir / "release" / n).string(); };
+  u::Release r;
+  r.tag = "v9.0.0";
+  r.assets = {{"mw3-9.0.0-win64.zip", url("nothing"), 1}, {ours, url(ours), bytes.size()}, {"SHA256SUMS", url("SHA256SUMS"), 0}};
+  setenv("MW3_UPDATE_API", "file:///fixture", 1);  // checks: file:// assets allowed
+  const std::string to = (dir / "download").string();
+  const auto leftovers = [&]() {
+    int n = 0;
+    for (const auto& e : fs::directory_iterator(to, ec)) ++n, (void)e;
+    return n;
+  };
+  // Good.
+  sums(sum + "  " + ours + "\n");
+  int calls = 0;
+  sdlfe::Downloaded d = sdlfe::download_update(r, to, [&](double) { return ++calls, true; });
+  std::printf("  good: %s (%d progress calls)\n", d.words.c_str(), calls);
+  EXPECT(d.ok && d.path == (fs::path(to) / ours).string() && fs::file_size(d.path, ec) == bytes.size() && calls > 0 && leftovers() == 1);
+  // A wrong sum: removed.
+  sums(std::string(64, 'f') + "  " + ours + "\n");
+  d = sdlfe::download_update(r, to, nullptr);
+  EXPECT(!d.ok && d.words.find("did not match its checksum") != std::string::npos && leftovers() == 0);
+  // SHA256SUMS without its line; no SHA256SUMS on the release; no package for this platform.
+  sums(sum + "  other.dmg\n");
+  d = sdlfe::download_update(r, to, nullptr);
+  EXPECT(!d.ok && d.words.find("has no line for " + ours) != std::string::npos && leftovers() == 0);
+  u::Release no_sums = r;
+  no_sums.assets.pop_back();
+  EXPECT(sdlfe::download_update(no_sums, to, nullptr).words.find("no SHA256SUMS") != std::string::npos);
+  u::Release no_package = r;
+  no_package.assets.erase(no_package.assets.begin() + 1);
+  EXPECT(sdlfe::download_update(no_package, to, nullptr).words.rfind("This release has no ", 0) == 0);
+  // Cancelled at once: nothing kept, said so.
+  sums(sum + "  " + ours + "\n");
+  d = sdlfe::download_update(r, to, [](double) { return false; });
+  std::printf("  cancelled: %s\n", d.words.c_str());
+  EXPECT(!d.ok && d.cancelled && d.words.find("cancelled") != std::string::npos && leftovers() == 0);
+  // The package gone from the release's place: curl's reason.
+  fs::remove(dir / "release" / ours, ec);
+  d = sdlfe::download_update(r, to, nullptr);
+  std::printf("  gone: %s\n", d.words.c_str());
+  EXPECT(!d.ok && d.words.rfind("The download stopped: ", 0) == 0 && leftovers() == 0);
+  unsetenv("MW3_UPDATE_API");
+  fs::remove_all(dir, ec);
+}
+
+#if defined(__APPLE__)
+// The Mac's install (sitting 4): a real DMG holding a new app, attached read-only, its app swapped in for the old
+// one (MW3_UPDATE_TARGET in place of the running app), detached; a target that is not our app, or a DMG without one,
+// changes nothing. The settings folder beside it untouched.
+TEST(sdl_update_installs_the_mac_app) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "update_mac";
+  fs::remove_all(root, ec);
+  const auto put = [&](const fs::path& p, const std::string& t) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p) << t;
+  };
+  const auto text = [](const fs::path& p) {
+    std::ifstream f(p);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const fs::path old_app = root / "Applications" / "MW3 Rebuild.app";
+  put(old_app / "Contents" / "MacOS" / "mw3launcher", "#!/bin/sh\necho old\n");
+  put(root / "Library" / "MicroProse" / "MechWarrior 3" / "mw3.cfg", "mod=one\n");
+  put(root / "dmg-src" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher", "#!/bin/sh\necho new\n");
+  put(root / "dmg-src" / "MW3 Rebuild.app" / "Contents" / "Info.plist", "<plist/>\n");
+  const std::string dmg = (root / "MW3-Rebuild-9.0.0-mac.dmg").string();
+  const std::string make = "/usr/bin/hdiutil create -quiet -fs HFS+ -volname 'MW3 Rebuild' -srcfolder '" + (root / "dmg-src").string() +
+                           "' -format UDZO '" + dmg + "'";
+  if (std::system(make.c_str()) != 0) {
+    std::printf("  no hdiutil here: skipped\n");
+    return;
+  }
+  // Not our app: refused, nothing changed.
+  put(root / "Elsewhere" / "Other.app" / "Contents" / "MacOS" / "other", "theirs");
+  setenv("MW3_UPDATE_TARGET", (root / "Elsewhere" / "Other.app").c_str(), 1);
+  sdlfe::Installed in = sdlfe::install_update(dmg);
+  EXPECT(!in.ok && in.words.find("cannot replace itself") != std::string::npos && text(root / "Elsewhere" / "Other.app" / "Contents" / "MacOS" / "other") == "theirs");
+  // Ours: swapped, detached, the DMG gone, the settings untouched.
+  setenv("MW3_UPDATE_TARGET", old_app.c_str(), 1);
+  in = sdlfe::install_update(dmg);
+  std::printf("  mac install: %s (restart %s)\n", in.words.c_str(), in.restart.c_str());
+  EXPECT(in.ok && text(old_app / "Contents" / "MacOS" / "mw3launcher") == "#!/bin/sh\necho new\n" && fs::exists(old_app / "Contents" / "Info.plist"));
+  EXPECT(in.restart == (old_app / "Contents" / "MacOS" / "mw3launcher").string() && !fs::exists(dmg) &&
+         !fs::exists(root / "Applications" / "MW3 Rebuild.app.old") && !fs::exists(root / "Applications" / "MW3 Rebuild.app.new"));
+  EXPECT(text(root / "Library" / "MicroProse" / "MechWarrior 3" / "mw3.cfg") == "mod=one\n");
+  std::string mounted;
+  {
+    FILE* p = popen("/sbin/mount", "r");
+    char buf[512];
+    while (p && std::fgets(buf, sizeof buf, p)) mounted += buf;
+    if (p) pclose(p);
+  }
+  EXPECT(mounted.find("MW3-Rebuild-update-mount") == std::string::npos);  // detached
+  // A DMG without our app: nothing installed.
+  fs::remove_all(root / "dmg-src" / "MW3 Rebuild.app", ec);
+  put(root / "dmg-src" / "readme.txt", "no app");
+  std::system(make.c_str());
+  in = sdlfe::install_update(dmg);
+  EXPECT(!in.ok && in.words.find("holds no MW3 Rebuild app") != std::string::npos && text(old_app / "Contents" / "MacOS" / "mw3launcher") == "#!/bin/sh\necho new\n");
+  unsetenv("MW3_UPDATE_TARGET");
+  fs::remove_all(root, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// UPDATES on the main screen (sitting 1): the releases list asked (MW3_UPDATE_API, a fixture), its verdict on the
+// status line: a newer package release, none newer, an answer that isn't one; PM's releases and drafts left out.
+TEST(sdl_program_launcher_checks_for_updates) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "launcher_updates";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir / "wd", ec);
+  std::ofstream(dir / "wd" / "mw3.cfg") << "install=" << MW3_GAME_DIR << "\n";
+  const auto rel = [](const char* tag, bool draft) {
+    return std::string("{\"tag_name\":\"") + tag + "\",\"draft\":" + (draft ? "true" : "false") +
+           ",\"prerelease\":false,\"body\":\"## Fixes\\r\\n- **Lasers** hit again\\n- The `c1m2` crash\",\"assets\":[]}";
+  };
+  // The newer release with this platform's package and its SHA256SUMS (sitting 3: DOWNLOAD AND INSTALL pressed).
+  namespace u = upgrades::update;
+  const char* names[] = {"MW3-Rebuild-Setup-98.1.0.exe", "MW3-Rebuild-98.1.0-mac.dmg", "MW3-Rebuild-98.1.0-x86_64.AppImage"};
+  const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
+  const std::string bytes(5000, 'n');
+  std::ofstream(dir / ours, std::ios::binary) << bytes;
+  std::ofstream(dir / "SHA256SUMS") << mech3::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()) << "  " << ours << "\n";
+  std::string newest = rel("v98.1.0", false);
+  newest.replace(newest.find("\"assets\":[]"), 11, "\"assets\":[{\"name\":\"" + ours + "\",\"size\":5000,\"browser_download_url\":\"file://" +
+                                                   (dir / ours).string() + "\"},{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"file://" +
+                                                   (dir / "SHA256SUMS").string() + "\"}]");
+  std::ofstream(dir / "newer.json") << "[" << rel("pm-v99.0.0", false) << "," << rel("v99.0.0", true) << "," << newest << "]";
+  std::ofstream(dir / "older.json") << "[" << rel("v0.0.1", false) << "]";
+  std::ofstream(dir / "broken.json") << "<html>API rate limit exceeded</html>";
+  setenv("MW3_LAUNCHER_FRAMES", "240", 1);
+  setenv("MW3_LAUNCHER_NAV", "next,next,next,next,press", 1);  // MECHWARRIOR 3, GAME FILES, MODS, UPDATES (PM greyed, skipped)
+  unsetenv("MW3_PM_BIN");
+  auto run = [&](const char* name) {
+    setenv("MW3_UPDATE_API", ("file://" + (dir / (std::string(name) + ".json")).string()).c_str(), 1);
+    if (std::string(name) == "newer") setenv("MW3_LAUNCHER_UPDATE_GO", "1", 1);
+    else unsetenv("MW3_LAUNCHER_UPDATE_GO");
+    const std::string tmp_was = std::getenv("TMPDIR") ? std::getenv("TMPDIR") : "";
+    fs::create_directories(dir / "tmp", ec);
+    setenv("TMPDIR", (dir / "tmp").c_str(), 1);  // the download's folder in the test's own place
+    const std::string log = (dir / (std::string(name) + ".log")).string();
+    const pid_t pid = spawn_launcher({"--write-dir", (dir / "wd").string(), "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    if (tmp_was.empty()) unsetenv("TMPDIR");
+    else setenv("TMPDIR", tmp_was.c_str(), 1);
+    if (std::string(name) == "newer") EXPECT(fs::exists(dir / "tmp" / "MW3-Rebuild-update" / ours, ec));
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (text.find("launcher: update: ") == std::string::npos)  // where the steps went
+      for (size_t a = text.find("focus "); a != std::string::npos; a = text.find("focus ", a + 1))
+        std::printf("    %s\n", text.substr(a, text.find('\n', a) - a).c_str());
+    const size_t at = text.find("launcher: update: ");
+    const std::string said = at == std::string::npos ? "(none)" : text.substr(at + 18, text.find('\n', at) - at - 18);
+    std::printf("  %s: %s\n", name, said.c_str());
+    if (std::string(name) == "newer")  // sitting 2: the notes and the question
+      EXPECT(text.find("screen update: <, >, DOWNLOAD AND INSTALL, NOT NOW\n") != std::string::npos &&
+             text.find("update notes: Fixes\n") != std::string::npos && text.find("update notes: \xe2\x80\xa2 Lasers hit again\n") != std::string::npos &&
+             text.find("update notes: \xe2\x80\xa2 The c1m2 crash\n") != std::string::npos &&
+             text.find("launcher: update: Downloaded and checked: " + ours + ".\n") != std::string::npos &&
+             text.find("cannot replace itself") != std::string::npos);  // run from the build, not an app or an AppImage: refused
+    else
+      EXPECT(text.find("screen update:") == std::string::npos);
+    return said;
+  };
+  EXPECT(run("newer").rfind("MechWarrior 3 Rebuild 98.1.0 is out (this is ", 0) == 0);
+  EXPECT(run("older").rfind("This is the newest MechWarrior 3 Rebuild (", 0) == 0);
+  EXPECT(run("broken").find("GitHub's answer could not be read") != std::string::npos);
+  for (const char* k : {"MW3_LAUNCHER_FRAMES", "MW3_LAUNCHER_NAV", "MW3_UPDATE_API", "MW3_LAUNCHER_UPDATE_GO"}) unsetenv(k);
+  fs::remove_all(dir, ec);
+}
+#endif
+
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // The combined package's layouts (release.md, Packages with Pirate's Moon): the launcher with mw3 and mw3pm beside it
 // in a program folder (Windows' and a zip's), a Mac app's Contents/MacOS (with its Info.plist; SDL's base path is
@@ -5306,8 +5520,8 @@ TEST(sdl_program_package_layouts_find_both_games) {
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // Owen's hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
-// settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one as an
-// installer or a dragged app does, and both games started from each through PLAY: MechWarrior 3's data folder (moved
+// settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one through
+// the updater's own swap (upgrades::update::swap_in, as its install does), and both games started from each through PLAY: MechWarrior 3's data folder (moved
 // elsewhere by its pointer, MY DATA FOLDER) and Pirate's Moon's settings folder keep every file byte for byte, and
 // every mw3.cfg line; only logs and the launcher's own new keys are added.
 TEST(sdl_program_package_upgrade_keeps_the_players_files) {
@@ -5347,7 +5561,9 @@ TEST(sdl_program_package_upgrade_keeps_the_players_files) {
   };
   const std::map<std::string, std::string> before = snapshot();
   const auto make_app = [&](const char* version) {  // a package's program folder: the launcher and two games
-    const fs::path app = root / "Program";
+    // The old one made in place; the new one built beside and put in by the updater's own swap (sitting 5).
+    const bool fresh = std::string(version) == "new";
+    const fs::path app = fresh ? root / "Download" / "Program" : root / "Program";
     fs::remove_all(app, ec);
     fs::create_directories(app, ec);
     fs::copy_file(MW3_LAUNCHER_BIN, app / "mw3launcher", ec);
@@ -5355,7 +5571,11 @@ TEST(sdl_program_package_upgrade_keeps_the_players_files) {
       std::ofstream(app / game) << "#!/bin/sh\necho " << version << " " << game << " >> \"" << (root / "started.txt").string() << "\"\nexit 0\n";
       fs::permissions(app / game, fs::perms::owner_all, ec);
     }
-    return app;
+    if (!fresh) return app;
+    std::string error;
+    EXPECT(upgrades::update::swap_in(app.string(), (root / "Program").string(), &error));
+    fs::remove_all(root / "Download", ec);
+    return root / "Program";
   };
   setenv("MW3_USUAL_FOLDER", usual.c_str(), 1);
   setenv("MW3_NO_IMPORT", "1", 1);
