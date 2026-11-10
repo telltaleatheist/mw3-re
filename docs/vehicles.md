@@ -1548,7 +1548,8 @@ aim and the limits. The limits' within on every kind directly in
 ## The turrets in the program (app_turret.cpp; step 4c3)
 
 The mission load (mission.cpp, the two cases at 0x490c8e / 0x490d25, when
-the app's +0x1b2 [0x608e3a] is set) calls `program_turrets_load`: the
+the app's +0x1b2 [0x608e3a] is set; a network game clears it,
+multiplayer-port.md, The network switch's other half) calls `program_turrets_load`: the
 loader, its hooks on the ports (zClass's lists, nodes and matrices, zEffect,
 zSound, zWeapon's definitions, beams, locks and shots, the hit callback, the
 matrix stack). The turret goes on zEntity's list (0x5a7f50) and so into
