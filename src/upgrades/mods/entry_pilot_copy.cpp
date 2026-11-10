@@ -21,10 +21,12 @@ bool plain_name(const std::string& n) {
   return n.find_first_of("/\\:") == std::string::npos;
 }
 
-// A pilot's saved game: <name>CCMM.mw3 (CampaignGame::path_for), in any letter case.
+// A pilot's saved game, in any letter case. Pirate's Moon's are <name>MM.mw3, the mission alone in two digits
+// (CampaignGame::path_for, PM 0x00435680); MechWarrior 3's, on main, <name>CCMM.mw3.
+constexpr size_t kSaveDigits = 2;
 bool game_of(const std::string& file, const std::string& name) {
   const std::string f = lower(file), n = lower(name);
-  if (f.size() != n.size() + 8 || f.compare(0, n.size(), n) != 0 || f.compare(f.size() - 4, 4, ".mw3") != 0) return false;
+  if (f.size() != n.size() + kSaveDigits + 4 || f.compare(0, n.size(), n) != 0 || f.compare(f.size() - 4, 4, ".mw3") != 0) return false;
   return std::all_of(f.begin() + static_cast<std::ptrdiff_t>(n.size()), f.end() - 4, [](char c) { return c >= '0' && c <= '9'; });
 }
 

@@ -402,6 +402,21 @@ storage, no screen yet.
 Tests: `campaign_entries_listed_by_kind`, `_folder_ticks_and_mounts`,
 `_kind_rule`, `_first_start_moves_the_mods` (test_campaign_entries.cpp),
 `sdl_program_entry_mounts_its_mods` (a real start, a space in the path).
+On Pirate's Moon, inside an entry (the restart, `--entry-play`): the
+Campaign's entry opens the Campaign State and the Pirate Missions' entry
+(`pirate`) their own Standalone State, which sits in the main menu's training
+slot on PM (`MainState::update`); each entry has its own loadouts folder
+(`entry_configs_folder`); a pilot copied into an entry (`entry_copy_pilot`)
+takes PM's saved games, `games\<name>MM.mw3` with the mission in two digits
+(MechWarrior 3's are `<name>CCMM.mw3`); a saved game names its entry
+("Saved in another campaign (Campaign); this is Pirate Missions"). Tests:
+`pm_entry_play_opens_each_entrys_own_state_headless`,
+`pm_entries_have_their_own_loadouts_and_take_a_pilots_saves`,
+`pm_entries_saved_game_names_its_campaign`,
+`sdl_pm_program_restarts_into_and_out_of_its_entries` (mw3pm into Instant
+Action's and the Pirate Missions' entries and out again to MODS, one process
+each).
+
 Pirate's Moon's: `pm_entries_are_the_two_campaigns_and_instant_action`,
 `pm_entries_each_keep_their_own_folder_pilots_and_ticks`,
 `pm_entries_first_start_gives_both_campaigns_the_mods`

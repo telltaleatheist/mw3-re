@@ -122,7 +122,8 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 behind "starting a campaign entry can copy a pilot over"; the MODS screen's
 offer calls it. It copies the main menu's `pilots/<name>.mw3`, that pilot's
 saved games (`pilots/games/<name>CCMM.mw3`: the name, four digits, nothing
-else, so Bob's copy leaves Bob2's saves) and each one's `.rows`, into the
+else, so Bob's copy leaves Bob2's saves; on branch `pm` Pirate's Moon's
+`<name>MM.mw3`, two digits, as its `CampaignGame::path_for` writes them) and each one's `.rows`, into the
 entry's `pilots/`, and the saved loadouts `configs/*.mw3` into the entry's
 loadouts folder (given by the caller). The originals are only read. Nothing
 in the entry is replaced: a pilot or a saved game of that name already there

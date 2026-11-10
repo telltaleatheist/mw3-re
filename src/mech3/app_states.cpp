@@ -1024,7 +1024,9 @@ bool MainState::update() {
     } else {
       run.opened = true;
       if (run.screen == EntryRun::kInstantAction) en.vcall(screen_ + kButtonInstantAction, 0x30, {});
-      else en.push_state(en.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+      // Pirate's Moon: the Pirate Missions' entry ("pirate") opens their own state, which sits in the main
+      // menu's training slot here (mainmenu.cpp: 0x62d8a4, the Standalone State 0x00489b20); the Campaign's its own.
+      else en.push_state(en.peek32(menu_global(run.id == "pirate" ? MainMenuButton::kTraining : MainMenuButton::kNewCampaign)), 0);
     }
     return r;
   }

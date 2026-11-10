@@ -22,7 +22,7 @@ struct PilotCopy {
 std::vector<std::string> main_menu_pilots(const std::string& write_dir);
 
 // Copies pilot `name` from <write dir>/pilots (its <name>.mw3, the saved games
-// games/<name>CCMM.mw3, each one's .rows beside it) into <entry dir>/pilots,
+// games/<name>MM.mw3 (Pirate's Moon's two digits; main's are CCMM), each one's .rows beside it) into <entry dir>/pilots,
 // and the saved loadouts <write dir>/configs/*.mw3 into `configs_dir`.
 // `entry_dir` is the entry's own folder (campaigns/<id>, our marker in it:
 // one without the marker is refused) and `configs_dir` its loadouts' folder
