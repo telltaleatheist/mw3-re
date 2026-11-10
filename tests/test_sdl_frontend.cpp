@@ -5185,6 +5185,68 @@ TEST(sdl_program_launcher_checks_mechwarrior3) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// The combined package's layouts (release.md, Packages with Pirate's Moon): the launcher with mw3 and mw3pm beside it
+// in a program folder (Windows' and a zip's), a Mac app's Contents/MacOS (with its Info.plist; SDL's base path is
+// Resources there, the launcher looks beside its own executable), and an AppImage's usr/bin. Each shows both games
+// with their programs' versions (read from the files) and starts each.
+TEST(sdl_program_package_layouts_find_both_games) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path pm_game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  if (!fs::is_regular_file(pm_game / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "package layouts";
+  fs::remove_all(root, ec);
+  fs::create_directories(root / "wd", ec);
+  std::ofstream(root / "wd" / "mw3.cfg") << "install=" << MW3_GAME_DIR << "\npm_install=" << pm_game.string() << "\n";
+  const std::string tag = std::string("MW3-PROGRAM") + "-VERSION:";
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_GAME_BIN");
+  setenv("MW3_PM_WRITE_DIR", (root / "pmwd").c_str(), 1);
+  setenv("MW3_NO_IMPORT", "1", 1);
+  struct Layout {
+    const char* name;
+    fs::path bin;  // where the three programs go
+  };
+  const Layout layouts[] = {{"program folder", root / "MW3 Rebuild"},
+                            {"Mac app", root / "MW3 Rebuild.app" / "Contents" / "MacOS"},
+                            {"AppImage", root / "AppDir" / "usr" / "bin"}};
+  for (const Layout& l : layouts) {
+    fs::create_directories(l.bin, ec);
+    if (std::string(l.name) == "Mac app") {
+      fs::create_directories(l.bin.parent_path() / "Resources", ec);
+      std::ofstream(l.bin.parent_path() / "Info.plist") << "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>"
+                                                           "<key>CFBundleExecutable</key><string>mw3launcher</string></dict></plist>\n";
+    }
+    fs::copy_file(MW3_LAUNCHER_BIN, l.bin / "mw3launcher", fs::copy_options::overwrite_existing, ec);
+    for (const auto& [game, version] : {std::pair<const char*, const char*>{"mw3", "v1.1.0"}, {"mw3pm", "pm-v1.0.1"}}) {
+      // A script that says which ran, its file carrying the version tag after a comment.
+      std::ofstream(l.bin / game, std::ios::binary) << "#!/bin/sh\necho " << game << " >> \"" << (l.bin / "started.txt").string() << "\"\nexit 0\n# "
+                                                    << tag << version << std::string(1, '\0') << "\n";
+      fs::permissions(l.bin / game, fs::perms::owner_all, ec);
+    }
+    std::string text;
+    for (const char* flag : {"--launcher-play", "--launcher-pm"}) {
+      const std::string log = (root / (std::string(l.name) + flag + ".log")).string();
+      const pid_t pid = spawn_bin((l.bin / "mw3launcher").c_str(), {"--write-dir", (root / "wd").string(), flag, "--window", "640x480", "--hidden", "--nosound"}, log);
+      int status = 0;
+      EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+      std::ifstream f(log);
+      text += std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    }
+    std::ifstream sf(l.bin / "started.txt");
+    const std::string started((std::istreambuf_iterator<char>(sf)), std::istreambuf_iterator<char>());
+    const bool mw3_line = text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v1.1.0, ") != std::string::npos;
+    const bool pm_line = text.find("entry PIRATE'S MOON: Ready, official: data 1.0, program pm-v1.0.1, ") != std::string::npos;
+    std::printf("  %s: both lines %d %d, started %s\n", l.name, mw3_line, pm_line, started == "mw3\nmw3pm\n" ? "both" : started.c_str());
+    EXPECT(mw3_line && pm_line && started == "mw3\nmw3pm\n");
+  }
+  unsetenv("MW3_PM_WRITE_DIR");
+  unsetenv("MW3_NO_IMPORT");
+  fs::remove_all(root, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // Owen's hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
 // settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one as an
 // installer or a dragged app does, and both games started from each through PLAY: MechWarrior 3's data folder (moved
