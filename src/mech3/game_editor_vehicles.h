@@ -55,10 +55,6 @@ struct VehicleEditorHooks {
   // vt+0x64, 0x004e9100), the vehicle is put at the place (vt+0xdc), the brain
   // takes the net again (vt+0x04, 0x004e9380).
   virtual void send_home(void*, ai::AiNet*, const float[3], float) {}
-  // Show InOut ([0x0060b334], 0x004c4920 / 0x004c4a40): whether the mission's
-  // boundary is drawn, and drawing it from a net named so (null: taken down).
-  virtual bool inout_shown() { return false; }
-  virtual void show_inout(const char*) {}
 };
 void set_vehicle_editor_hooks(VehicleEditorHooks* h);  // null: the defaults
 VehicleEditorHooks& vehicle_editor_hooks();

@@ -10,6 +10,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/zai_target.h"
 #include "mech3/zainet.h"
+#include "mech3/zainet_inout_view.h"
 
 namespace mech3 {
 
@@ -164,9 +165,9 @@ void home_net_show() {
   else
     net_editor_slot_free(e.shown);
   if (!e.show_inout)
-    g_hooks->show_inout(nullptr);
-  else if (!g_hooks->inout_shown())
-    g_hooks->show_inout("ionet");  // 0x005e88d4
+    ai::inout_view_show(nullptr);  // 0x004c4a40(0)
+  else if (ai::inout_view_empty())
+    ai::inout_view_show("ionet");  // 0x005e88d4
   if (n)
     combo(1238).select_string(n->name());
   else
@@ -521,8 +522,8 @@ void edit_vehicles(int32_t) {
   load_shown(0);
   build();
   vehicle_editor_tab(kPageP1);
-  g_editor->show_inout = g_hooks->inout_shown();
-  if (g_editor->show_inout) g_hooks->show_inout("ionet");
+  g_editor->show_inout = !ai::inout_view_empty();
+  if (g_editor->show_inout) ai::inout_view_show("ionet");
   form_show(&g_editor->form);
 }
 

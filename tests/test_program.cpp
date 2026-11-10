@@ -143,6 +143,7 @@
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "mech3/zainetedit.h"
+#include "mech3/zainet_inout_view.h"
 #include "mech3/app_keys.h"
 #include "mech3/mods.h"
 #include "mech3/sensors.h"
@@ -26942,11 +26943,13 @@ TEST(mission_c1m1_vehicle_editor_applies_to_a_brain_headless) {
 // editor's pages): a made vehicle's page shows its home net; Show checked
 // and Apply puts a second net editor on that net (0x004044c0, on the frame's
 // list); a place typed, Apply and Send home put the vehicle there
-// (0x004bc960); Show unchecked frees the editor again.
+// (0x004bc960); Show InOut draws the boundary's walls under the world
+// (0x004c4730); both unchecked take them down again.
 TEST(mission_c1m1_vehicle_editor_p2_shows_the_net_and_sends_home_headless) {
   if (!have_game()) return;
   std::string picked, net_name;
   bool shown = false, freed = false, on_net = false;
+  int32_t walls_parents = 0, walls_models = 0, walls_polys = 0;
   float target[3] = {}, before[3] = {}, after[3] = {};
   int32_t at = -1, home = -1;
   mech3::app_key_calls().debug_camera = true;
@@ -26974,11 +26977,17 @@ TEST(mission_c1m1_vehicle_editor_p2_shows_the_net_and_sends_home_headless) {
       const mech3::DlgCombo& nets = p2.at(1238).combo;
       if (nets.cur >= 0) net_name = nets.items[size_t(nets.cur)].text;
       p2.at(1249).check = 1;  // Show
+      p2.at(1282).check = 1;  // Show InOut
       target[0] = before[0] + 20.0f, target[1] = before[1], target[2] = before[2] + 20.0f;
       p2.at(1200).text = std::to_string(target[0]);
       p2.at(1202).text = std::to_string(target[2]);
       e->form.press("Apply");
       shown = e->shown && e->shown->net && e->shown->net->net && e->shown->net->net->get_id() == home;
+      if (zcls::Node* w = mech3::ai::inout_view()) {
+        walls_parents = w->parent_count(), walls_models = w->child_count();
+        for (int32_t k = 0; k < w->child_count(); ++k)
+          if (const zmod::Model* m = w->children[k]->model) walls_polys += static_cast<int32_t>(m->count(0x10));
+      }
       e->form.changed(*e->form.field("Send home"));
       at = f;
       return false;
@@ -26991,8 +27000,9 @@ TEST(mission_c1m1_vehicle_editor_p2_shows_the_net_and_sends_home_headless) {
       if (mech3::ai::AiParams* b = mech3::vehicle_editor_hooks().brain_params(e->items[size_t(e->selected)].vehicle))
         on_net = b->get<int32_t>(0x04) == home;
       e->pages[mech3::kPageP2].at(1249).check = 0;
+      e->pages[mech3::kPageP2].at(1282).check = 0;
       e->form.press("Apply");
-      freed = !e->shown;
+      freed = !e->shown && mech3::ai::inout_view_empty();
       e->form.press("OK");
     }
     mech3::editor_key(mech3::kEditorCommand);
@@ -27003,6 +27013,8 @@ TEST(mission_c1m1_vehicle_editor_p2_shows_the_net_and_sends_home_headless) {
               "on its net %d; freed %d\n",
               picked.c_str(), home, net_name.c_str(), shown, before[0], before[2], after[0], after[2], target[0],
               target[2], on_net, freed);
+  std::printf("  the boundary's walls: %d models, %d triangles, %d parent\n", walls_models, walls_polys, walls_parents);
   EXPECT(!picked.empty() && !net_name.empty() && shown && freed && on_net);
+  EXPECT(walls_parents == 1 && walls_models > 0 && walls_polys > 0);
   EXPECT(std::fabs(after[0] - target[0]) < 2.0f && std::fabs(after[2] - target[2]) < 2.0f);
 }
