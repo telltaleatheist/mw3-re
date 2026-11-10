@@ -38,6 +38,11 @@ std::vector<uint8_t> aiv_tags_of_type(const uint8_t* entry, size_t size, const s
 // empty when the bytes are not a reader file's tree.
 std::vector<uint8_t> aiv_with_record(const uint8_t* entry, size_t size, const std::string& name,
                                      const std::vector<uint8_t>& value);
+// The aiv.zrd entry of the first open archive holding one, and that archive's
+// path: as this run last saved it (aiv_entry_saved) when it did. The vehicle
+// editor's save (aiv_save.h) builds on the same bytes.
+bool aiv_entry_of_mission(std::string* archive, std::vector<uint8_t>* bytes);
+void aiv_entry_saved(const std::string& archive, const std::vector<uint8_t>& bytes);
 // The first record name `type_NN` (NN from 01) the entry does not have.
 std::string aiv_free_name(const uint8_t* entry, size_t size, const std::string& type);
 

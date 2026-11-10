@@ -1405,6 +1405,62 @@ spare entry (+0x3fc), which nothing else reads (0x004bb360).
   - Health, its number and "open" put on the brain's vlist at Apply;
   - a typed "gate_9" makes the valve, lists it and adds its entry.
 
+### The vehicle editor's save (ours, S7f, 2026-11-09)
+
+The exe keeps Apply only in aiv.zrd's record cache and in the running brain
+(above). Ours saves it (`upgrades/editor/aiv_save`).
+- **The notes:** each record the store puts in the cache is noted (the last of
+  each vehicle) as its value's bytes, written at once over the mission's
+  aiv.zrd as it stands. No pointer into the mission is kept. The notes are
+  cleared when the mission's vehicles are forgotten.
+- **FIX (bug), the cache's lifetime:** every record the editor keeps in the
+  cache (0x004defc0) holds a reference on aiv.zrd. So the file never unloads,
+  and the cache outlives the mission: the next mission's vehicle editor loads
+  the old records, their orders on freed regions and valves. The cache is
+  emptied (0x004df5d0) when the mission's vehicles are forgotten (fixes.md).
+- **Save** (the Mech AI form, beside Refresh) Applies the vehicle shown, then
+  writes every noted record into the mission's aiv.zrd (the open archive's, as
+  this run last saved it). The archive is saved as the nets' save does it, with
+  `save_archive_edit`: into the editor's mod, or under MODS EDIT into the mod
+  itself, one .bak kept. The form's last line and the panel say where.
+- **The record written:** an edited record keeps its bytes group by group
+  wherever it reads back to the same values. The groups are the header's kind,
+  place, yaw and team, then each tag: params, p2, p6, p8, p9, p10, p11, p12,
+  p13, pilot with its can_configure, skin, lancemate, sound_tag, vlist and
+  mech3. So the shipped files' message keys (pilot "MSG_AIV_..."), number
+  types and tag order stay. A changed group is written anew in the file's units,
+  ints and floats as the reader takes them. A group the record lacks is added
+  only where the record differs from the reader's defaults.
+- **The old tags** p3, p4, p5 and p7 give way to p8, and p4's inline order to
+  vlist. No shipped file has them.
+- **Tags the reader does not know** are kept as they were.
+- **Representation limits** (the format's, not the save's):
+  - The yaw is degrees in the file and radians read, so a rewritten one can
+    come back within an ulp.
+  - A record with no chassis writes p12 "default", which no lookup knows (-1):
+    the exe crashes on a p12 with no name.
+  - No pilot name drops the tag. With can_configure away from the defaults'
+    there is nowhere else to keep the flag, so "" is written, which reads as an
+    empty name rather than none.
+  - No voice drops sound_tag, so Epona_Rhi, Alan_Mattila and Dominic_Paine get
+    their voices back by name (the reader's default).
+- **Tests:**
+  - test_aiv_save_mech3ax.py: every record of all 48 MW3 aiv.zrd files (768)
+    written over itself comes back byte for byte, and mech3ax reads each save
+    exactly as the shipped archive. Six seeds then change one group of every
+    record (a word, a flag bit, the chassis, the pilot, the voice, an order,
+    mech3); each reads back with the change, and mech3ax reads each save with
+    every other member and every record's name the same.
+  - Breaks, each fails: p8's 5th item from +0x74; the vlist's region and valve
+    swapped; every group kept even when changed.
+  - mission_c1m1_vehicle_editor_saved_and_read_next_start_headless: owens_01's
+    place, pilot, skin and a p1 range saved twice (a .bak left). Between the
+    starts nothing holds aiv.zrd (its references 0), so the next start, on the
+    same folder, reads the saved file and gives its brain all four.
+  - mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless: the
+    vehicle editor's Save under MODS EDIT goes into the mod itself, the net's
+    save kept as the .bak.
+
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 
 Owen: the editor's dialogs need not imitate MFC. The lead's call is Dear
@@ -1551,7 +1607,7 @@ frame hook, after the game's update and before present.
 5. **S7e The pages, part 2** (part 1 done above; Valve next): Attack and its strategy tab (Circle, Direct,
    Jump, Zig Zag, Random Move on Circle's DDX), Retreat, p5, Fire and Valve,
    with the valve combo.
-6. **S7f The save (ours):**
+6. **S7f The save (ours)** (done, above):
    - Apply's records into the editor mod's aiv.zrd for the mission
      (`aiv_with_record`, as the nets' save), with MODS EDIT saving into the
      mod itself.

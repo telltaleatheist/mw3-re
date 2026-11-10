@@ -18,6 +18,7 @@
 #include "mech3/game_editor_vehicles.h"
 #include "mech3/mech_config.h"
 #include "mech3/zai_valve.h"
+#include "upgrades/editor/aiv_save.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
@@ -670,6 +671,7 @@ TEST(vehicle_editor_shell_loads_and_applies) {
   EXPECT(!mech3::vehicle_editor());
   mech3::set_vehicle_editor_hooks(nullptr);
   mech3::ai::aiv_file_reset();
+  mech3::aiv_notes_clear();  // the stubs' records (their orders' valves freed next)
 }
 
 // The pages p1 and p2 (S7d; docs/editor.md, The vehicle editor's pages): the
@@ -772,6 +774,7 @@ TEST(vehicle_editor_pages_show_and_take_back) {
   for (mech3::Config*& c : h.loadouts.configs) delete c, c = nullptr;
   mech3::set_vehicle_editor_hooks(nullptr);
   mech3::ai::aiv_file_reset();
+  mech3::aiv_notes_clear();  // the stubs' records (their orders' valves freed next)
 }
 
 // S7e1: Attack with its strategy list and its own tab (Circle first), a
@@ -826,6 +829,7 @@ TEST(vehicle_editor_attack_retreat_p5_fire) {
   EXPECT(e->form.press("OK") && !mech3::vehicle_editor());
   mech3::set_vehicle_editor_hooks(nullptr);
   mech3::ai::aiv_file_reset();
+  mech3::aiv_notes_clear();  // the stubs' records (their orders' valves freed next)
 }
 
 // S7e2: the Valve page: the valves listed; one picked gets an entry of the
@@ -866,5 +870,6 @@ TEST(vehicle_editor_valve_page) {
   EXPECT(e->form.press("OK") && !mech3::vehicle_editor());
   mech3::set_vehicle_editor_hooks(nullptr);
   mech3::ai::aiv_file_reset();
+  mech3::aiv_notes_clear();  // the stubs' records (their orders' valves freed next)
   mech3::ai::valves_clear();
 }

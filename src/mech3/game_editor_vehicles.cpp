@@ -13,6 +13,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/zai_target.h"
 #include "mech3/zainet.h"
+#include "upgrades/editor/aiv_save.h"
 #include "mech3/zainet_inout_view.h"
 #include "mech3/zainet_region.h"
 #include "mech3/zai_valve.h"
@@ -551,6 +552,7 @@ void store(int32_t i) {
   if (!kept || !same(*kept)) {
     static_cast<ai::AiParams&>(e.made) = rec;  // 0x004df710 on the record read, then 0x004e06e0
     ai::aiv_file().edit(it->name.c_str(), e.made);
+    aiv_note_edit(it->name, e.made, e.made.mech3_set, e.made.mech3);  // ours: for the form's Save (aiv_save.h)
   }
   // The exe resets each word to 2 after reading the next one, so +0x980's is
   // never reset (docs/editor.md, The vehicle editor).
@@ -836,7 +838,13 @@ void build() {
   for (const int32_t id : {1145, 1191, 1216, 1232})
     e.form.fields.push_back(edit(("##" + std::to_string(id)).c_str(), kPageFire, id));
   e.form.fields.push_back(pause);
-  e.form.buttons = {{"OK", vehicle_editor_ok}, {"Apply", vehicle_editor_apply}, {"Refresh", vehicle_editor_refresh}};
+  FormField saved{"##saved", FormField::kText};  // ours: where Save wrote
+  saved.text = &e.saved, saved.read_only = true;
+  e.form.fields.push_back(saved);
+  e.form.buttons = {{"OK", vehicle_editor_ok},
+                    {"Apply", vehicle_editor_apply},
+                    {"Refresh", vehicle_editor_refresh},
+                    {"Save", vehicle_editor_save}};
 }
 
 int32_t shown_selection = 0;  // the selection loaded last (the combo's change stores the old one first)
@@ -1042,6 +1050,17 @@ void vehicle_editor_valve_picked() {
   const DlgCombo& c = valve_list();
   if (c.cur != -1 && c.items[size_t(c.cur)].text == g_editor->valve_name) return;
   vehicle_editor_valve_changed();
+}
+
+// Ours (docs/editor.md, The vehicle editor's save): the records Applied this
+// mission into aiv.zrd in the editor's mod (aiv_save.h), the shown vehicle
+// Applied first; said under the panel and on the form's line.
+void vehicle_editor_save() {
+  if (!g_editor) return;
+  vehicle_editor_apply();
+  const ai::NetSave s = aiv_save_edits();
+  g_editor->saved = s.ok ? s.message : "not saved: " + s.error;
+  editor_status(g_editor->saved);
 }
 
 // DestroyWindow -> 0x004b8b70: the object deleted and [0x0060b310] cleared

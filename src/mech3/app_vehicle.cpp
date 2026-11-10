@@ -40,6 +40,7 @@
 #include "mech3/sound_extra.h"
 #include "mech3/mission_world.h"
 #include "mech3/sensors.h"
+#include "upgrades/editor/aiv_save.h"
 #include "mech3/game_editor_vehicles.h"
 #include "mech3/veh_basic_object.h"
 #include "mech3/veh_controls.h"
@@ -1073,6 +1074,11 @@ void program_vehicles_forget() {
   // Ours: the vehicle editor holds the mission's vehicles; the exe's dialog
   // outlives them (its next Apply would reach freed ones).
   vehicle_editor_close();
+  aiv_notes_clear();  // ours: the records Applied, waiting for a Save
+  // FIX (bug): the vehicle editor's records (0x004defc0) each hold a reference
+  // on aiv.zrd, so the file never unloads and they outlive the mission: the
+  // next mission's editor loads them, their orders on freed regions and valves.
+  ai::aiv_file().empty_cache();
   g_vehicles.clear(), g_order.clear();
   if (g_stealth) {  // made by the world's load, before the mission's vehicles: it stays the world's
     g_vehicles.insert(static_cast<Vehicle*>(static_cast<BasicVehicle*>(g_stealth)));
