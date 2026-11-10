@@ -416,6 +416,7 @@ class Launcher {
   void find_mw1();
   void run_mw1();
   void start_game(bool pm = false);
+  void start_pm();
   void find_pm();
   void watch_game();
   void layout();
@@ -511,6 +512,7 @@ class Launcher {
   bool auto_go_ = false;  // MW3_LAUNCHER_PICK (checks): its look's INSTALL pressed too
   bool auto_ok_ = false;  // and the notes' OK after it
   bool play_after_notes_ = false;  // the notes after an install: their OK starts the game
+  bool pm_after_notes_ = false;    // ... Pirate's Moon (its notes, start_pm)
   bool from_files_ = false;        // the find screen opened by GAME FILES: a new pick goes back to the games
   std::function<void()> after_convert_;  // where the movies' conversion goes on to
   bool converted_ = false;               // tried once this start (a failure is not retried before the game)
@@ -633,6 +635,40 @@ void Launcher::run_mw1() {
   status_ = code == 0 ? "MechWarrior (1989) closed." : "MechWarrior (1989) closed with an error (" + std::to_string(code) + "): see its log.";
   status_good_ = code == 0;
   if (win_ && !o_.hidden) SDL_ShowWindow(win_), SDL_RaiseWindow(win_);
+}
+
+// Pirate's Moon checked before it starts (setup::check_install, docs/launcher.md,
+// Pirate's Moon): what stops it is said instead of starting; notes not shown
+// before (pm_notes=, their CRC) once on BEFORE YOU PLAY, whose OK starts it.
+// Its settings folder as mw3pm finds its own; nothing is written to it here.
+void Launcher::start_pm() {
+  std::string wd = o_.pm_write_dir;
+  if (wd.empty() && !data_folder_at_start(&wd, false, nullptr, "Pirate's Moon")) wd.clear();
+  const mech3::setup::Result r = mech3::setup::check_install(pm_dir_, wd, true);
+  std::printf("mw3: launcher: %s\n", r.summary.c_str());
+  std::string all;
+  for (const std::string& w : r.warnings) std::printf("mw3: launcher: note: %s\n", w.c_str()), all += w + "\n";
+  if (!r.ok) {
+    status_ = r.summary, status_good_ = false;
+    screen_ = kMain, layout();
+    return;
+  }
+  char crc[16];
+  std::snprintf(crc, sizeof crc, "%08x", zutl_zar::crc32(0, reinterpret_cast<const uint8_t*>(all.data()), all.size()));
+  if (!r.warnings.empty() && o_.cfg_pm_notes != crc) {
+    o_.cfg_pm_notes = crc;
+    save_config_value(o_.write_dir, "pm_notes", crc);
+    notes_ = r.warnings;
+    std::printf("mw3: launcher: Pirate's Moon's notes shown\n");
+    play_after_notes_ = pm_after_notes_ = true, status_.clear();
+    screen_ = kNotes, layout();
+    if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK): the notes' OK pressed
+      auto_ok_ = false;
+      activate(kNotesOk);
+    }
+    return;
+  }
+  start_game(true);
 }
 
 // MechWarrior 3 as its own program (game_bin): the install and the options
@@ -1666,7 +1702,7 @@ void Launcher::activate(int id) {
         status_ = "Pick your Pirate's Moon folder: the one with Mech3.exe.", status_good_ = true;
         ask_folder(kPm);
       } else {
-        start_game(true);
+        start_pm();
       }
       break;
     case kMw1:
@@ -1688,7 +1724,12 @@ void Launcher::activate(int id) {
       break;
     case kNotesOk:
       status_.clear();
-      if (play_after_notes_) {
+      if (play_after_notes_ && pm_after_notes_) {
+        play_after_notes_ = pm_after_notes_ = false;
+        notes_refresh();  // MW3's again
+        screen_ = kMain, layout();
+        start_game(true);
+      } else if (play_after_notes_) {
         play_after_notes_ = false;
         play();
       } else {
@@ -1847,7 +1888,7 @@ LauncherChoice Launcher::run() {
   if (o_.play_mw1) activate(kMw1), done_ = !asking_;
   if (o_.play_pm) {  // never the picker: a check has nobody to answer it
     if (pm_dir_.empty()) done_ = true;
-    else activate(kPm), o_.quit_after_game = true;
+    else auto_ok_ = true, activate(kPm), o_.quit_after_game = true, done_ = !game_;  // its notes' OK; refused: quit
   }
   while (!done_) {
     SDL_Event e;

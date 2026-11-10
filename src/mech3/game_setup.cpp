@@ -1,6 +1,7 @@
 #include "mech3/game_setup.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -433,6 +434,128 @@ Result add_music(const std::string& cue, const std::string& music_dir, const Pro
   return r;
 }
 
+Result add_pm_sounds(const std::string& source, const std::string& write_dir, const ProgressFn& progress) {
+  const ProgressFn p = forward_only(progress);
+  Result r;
+  r.pirates_moon = true;
+  if (write_dir.empty()) {
+    r.summary = "There is no settings folder to put the sounds in.";
+    return r;
+  }
+  std::error_code ec;
+  const fs::path to = fs::path(write_dir) / "zbd" / "soundsH.zbd";
+  if (fs::is_regular_file(to, ec) && fs::file_size(to, ec) > 0) {  // the player's own, or ours from before
+    r.ok = true;
+    r.summary = "Your settings folder already has Pirate's Moon's sounds (" + to.string() + "): left as it is.";
+    return r;
+  }
+  Disc disc;
+  std::string err;
+  const Disc::File* hdr = nullptr;
+  if (disc.open(source, &err)) hdr = disc.find("DATA1.HDR");
+  const Disc::File* cab = hdr ? disc.find("DATA1.CAB") : nullptr;
+  std::vector<uint8_t> hdr_bytes(hdr ? static_cast<size_t>(hdr->size) : 0);
+  if (!cab || !disc.read(*hdr, 0, hdr_bytes.size(), hdr_bytes.data())) {
+    r.detail = err;
+    r.summary = "That could not be read as the Pirate's Moon disc: a disc in a drive, a disc image (.cue or .iso) or "
+                "the disc's folder.";
+    return r;
+  }
+  std::vector<uint8_t> sounds;
+  bool found = false, expansion = false;
+  uint64_t done = 0;
+  const bool read = each_installshield(
+      hdr_bytes, cab->size,
+      [&](uint64_t at, size_t n, uint8_t* out) {
+        if (!disc.read(*cab, at, n, out)) return false;
+        done += n;
+        return true;
+      },
+      [&](PatchEntry&& e) {
+        std::string l = e.path;
+        for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (l == "zbd/c1/readersa1.zbd") expansion = true;
+        if (l == "zbd/soundsh.zbd") sounds = std::move(e.data), found = true;
+        if (!p(Progress{"Reading the disc", static_cast<double>(done) / static_cast<double>(cab->size), e.path}))
+          r.cancelled = true;
+        return !r.cancelled;
+      },
+      &err);
+  if (r.cancelled) {
+    r.summary = "Cancelled. Nothing was changed.";
+    return r;
+  }
+  if (!read || !expansion || !found || sounds.empty()) {
+    r.detail = err;
+    r.summary = !read ? "Part of the disc could not be read correctly. Clean the disc and try again, or make a new image of it."
+                      : "That is not the Pirate's Moon disc: its sounds are not on it.";
+    return r;
+  }
+  const fs::path tmp = to.string() + ".new";
+  fs::create_directories(to.parent_path(), ec);
+  std::FILE* f = std::fopen(tmp.string().c_str(), "wb");
+  const bool wrote = f && std::fwrite(sounds.data(), 1, sounds.size(), f) == sounds.size();
+  const bool closed = f && std::fclose(f) == 0;
+  if (wrote && closed) fs::rename(tmp, to, ec);
+  if (!wrote || !closed || ec) {
+    fs::remove(tmp, ec);
+    r.summary = "The sounds could not be written to " + to.parent_path().string() + ". Is the disk full?";
+    return r;
+  }
+  p(Progress{"Done", 1, ""});
+  r.ok = true, r.files = 1, r.bytes = sounds.size();
+  r.summary = "Pirate's Moon's sounds were added from the disc (" + mb(sounds.size()) + ", in your settings folder).";
+  return r;
+}
+
+// Pirate's Moon before a start (docs/launcher.md, Pirate's Moon): one release,
+// no patch and no movies. Only what stops mw3pm starting refuses (measured: no
+// reader.zbd, no Mech3Msg.dll); what stops its missions loading and an empty
+// soundsH.zbd (it falls back to soundsL's 11 kHz sounds) are notes. A file in
+// the settings folder counts: it is searched before the install.
+static Result& check_pm(const std::string& dir, const std::string& write_dir, Result& r) {
+  std::error_code ec;
+  auto size_of = [&](const std::string& rel) -> int64_t {  // -1 when not there
+    for (const std::string& d : {write_dir, dir}) {
+      if (d.empty()) continue;
+      const std::string f = zutl::any_case(d, rel);
+      if (!f.empty() && fs::is_regular_file(f, ec)) return static_cast<int64_t>(fs::file_size(f, ec));
+    }
+    return -1;
+  };
+  const std::string name = version_words("", true);
+  if (size_of("zbd/reader.zbd") <= 0 || zutl::any_case(dir, "Mech3Msg.dll").empty()) {
+    const char* what = size_of("zbd/reader.zbd") <= 0 ? "an empty zbd\\reader.zbd (its menus and words)"
+                                                        : "no Mech3Msg.dll (its messages)";
+    r.summary = name + " cannot start: " + dir + " has " + what + ". Reinstall it from its disc, or pick another copy.";
+    return r;
+  }
+  r.ok = true;
+  r.summary = "Found " + name + " at " + dir + ".";
+  std::string core;
+  for (const char* f : {"zbd/interp.zbd", "zbd/mechlib.zbd", "zbd/motion.zbd"})
+    if (size_of(f) <= 0) core += std::string(core.empty() ? "" : ", ") + "zbd\\" + (f + 4);
+  if (!core.empty())
+    r.warnings.push_back("Its missions will not load: " + core + (core.find(',') == std::string::npos ? " is" : " are") +
+                         " missing or empty. Reinstall " + name + " from its disc.");
+  std::vector<int> gone;
+  for (int c = 1; c <= 4; ++c) {
+    const std::string op = "zbd/c" + std::to_string(c) + "/";
+    if (size_of(op + "gamez.zbd") <= 0 || size_of(op + "reader.zbd") <= 0) gone.push_back(c);
+  }
+  const int n_ops = static_cast<int>(gone.size());
+  std::string ops;  // "2", "2 and 4", "1, 2 and 4"
+  for (int i = 0; i < n_ops; ++i) ops += (i == 0 ? "" : i + 1 == n_ops ? " and " : ", ") + std::to_string(gone[i]);
+  if (n_ops)
+    r.warnings.push_back((n_ops == 1 ? "Operation " + ops + "'s missions are" : "The missions of operations " + ops + " are") +
+                         " missing or empty, so " + (n_ops == 1 ? "it" : "they") + " cannot be played.");
+  if (size_of("zbd/soundsH.zbd") <= 0)
+    r.warnings.push_back("Its zbd\\soundsH.zbd is " + std::string(size_of("zbd/soundsH.zbd") < 0 ? "missing" : "empty") +
+                         ", so the game plays its lower-quality sounds. ADD FROM MY DISC puts the disc's copy in your "
+                         "settings folder (your install is not changed).");
+  return r;
+}
+
 Result check_install(const std::string& dir, const std::string& write_dir, bool pirates_moon) {
   Result r;
   r.install_dir = dir, r.pirates_moon = pirates_moon;
@@ -441,11 +564,7 @@ Result check_install(const std::string& dir, const std::string& write_dir, bool 
     r.summary = std::string("No ") + (pirates_moon ? "Pirate's Moon" : "MechWarrior 3") + " was found in " + dir + ": it has no zbd folder with the game's data.";
     return r;
   }
-  if (pirates_moon) {  // one release, no patch and no movies (docs/launcher.md, Pirate's Moon)
-    r.ok = true;
-    r.summary = "Found " + version_words("", true) + " at " + dir + ".";
-    return r;
-  }
+  if (pirates_moon) return check_pm(dir, write_dir, r);
   const std::string overlay = write_dir.empty() ? std::string() : write_dir + "/patch12";
   r.version = version_of(dir, fs::is_directory(overlay, ec) ? overlay : std::string());
   r.ok = true;
