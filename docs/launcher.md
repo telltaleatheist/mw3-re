@@ -99,6 +99,38 @@ waits in SDL_WaitEventTimeout (the run loop serving the panel at once). The
 log times it: "the file picker asked for", "the picker took the focus N ms
 after", "the picker answered (...) N ms after".
 
+The picker's wait (measured 2026-11-10, playtest-1.1.0 item 2). The call that
+opens the panel (`SDL_ShowOpenFileDialog`) blocks the main thread until the
+system's panel service answers; the sheet is on screen 3 to 20 ms after it
+returns. On the Mac, a fresh process each row, the panel cancelled by code:
+
+| Start folder | First picker | Second, same process |
+|---|---|---|
+| none (the system's last one) | 967 ms | 528 ms |
+| Downloads (26 items, 9.7 GB, two disc zips) | 945 ms | 530 ms |
+| an empty folder | 967 ms | 520 ms |
+| none, fullscreen window | 948 ms | 249 ms |
+
+A plain NSOpenPanel without SDL gave the same (905 to 1009 ms, then 497 to
+560 ms; the same for the Desktop and /Volumes). So the start folder and what
+is in it make no difference, and the picker is opened without one, as before:
+the system reopens the player's last folder. The 9.5 s once seen ("took the
+focus 9531 ms after") was the system's panel service starting cold for the
+app: in the system log the launcher's main thread waits 8.4 s on it while the
+service sets up iCloud Drive, Finder extensions and the sidebar's volumes,
+then the panel is blank for 5 s more while the service fills it. None of it
+is ours to shorten, and it did not happen again once the service was warm.
+
+What was ours: the ask and the blocking call were made in the click's own
+step, before the screen with its "Pick it" line was drawn, so the launcher sat
+frozen on the old screen. Now the ask waits one frame (`ask_pending_`): the
+launcher draws the screen with "Opening the file picker..." in a box at the
+bottom, presents it, then calls (`open_picker`). The log adds "the picker's
+notice shown" and "the picker's call took N ms". For the checks
+`MW3_LAUNCHER_PICKER=cancel` answers the ask as cancelled with no window and
+`MW3_LAUNCHER_PICKER_SHOT` saves the frame on screen at the ask
+(`sdl_program_launcher_says_the_picker_is_opening_before_it_asks`).
+
 GAME FILES opens the same screen with the install in use ("Using
 MechWarrior 3 1.2 at <folder>. No music.") and, while it lacks movies or
 music, ADD FROM MY DISC (back to this screen after). A new pick goes back

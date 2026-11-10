@@ -4813,6 +4813,52 @@ TEST(sdl_program_launcher_converts_the_movies_before_the_game) {
   std::filesystem::remove_all(root, ec);
 }
 
+// The system's picker blocks while it comes up (about a second on the Mac, 9 s
+// seen on a cold start; docs/launcher.md, The picker's wait): the launcher
+// shows a frame that says so first, then asks. MW3_LAUNCHER_PICKER=cancel
+// answers the ask without a window; the frame at the ask is saved.
+TEST(sdl_program_launcher_says_the_picker_is_opening_before_it_asks) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_picker_notice";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  const std::string shot = dir + "/ask.bmp";
+  setenv("MW3_LAUNCHER_PICKER", "cancel", 1);
+  setenv("MW3_LAUNCHER_PICKER_SHOT", shot.c_str(), 1);
+  setenv("MW3_LAUNCHER_FRAMES", "20", 1);
+  const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-mw1", "--window", "640x480", "--nosound", "--hidden"},
+                                   dir + "/launcher.log");
+  unsetenv("MW3_LAUNCHER_FRAMES");
+  unsetenv("MW3_LAUNCHER_PICKER_SHOT");
+  unsetenv("MW3_LAUNCHER_PICKER");
+  int status = 0;
+  const bool exited = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  std::ifstream f(dir + "/launcher.log");
+  const std::string log((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const size_t frame = log.find("first frame shown"), notice = log.find("the picker's notice shown"),
+               asked = log.find("the folder picker asked for"), answered = log.find("the picker answered (cancelled)");
+  std::printf("the picker's notice: exited %d, first frame %d, notice %d, asked %d, answered %d\n", exited, frame != std::string::npos,
+              notice != std::string::npos, asked != std::string::npos, answered != std::string::npos);
+  EXPECT(exited);
+  EXPECT(frame != std::string::npos && notice != std::string::npos && asked != std::string::npos && answered != std::string::npos);
+  EXPECT(frame < notice && notice < asked && asked < answered);  // a frame on screen before the blocking call
+  EXPECT(log.find("frames, ") != std::string::npos);            // and the launcher draws on after the answer
+  // The frame at the ask carries the notice: its box's amber edge and dark inside, low in the middle.
+  SDL_Surface* bmp = SDL_LoadBMP(shot.c_str());
+  EXPECT(bmp != nullptr);
+  if (bmp) {
+    Uint8 r = 0, g = 0, b = 0, a = 0;
+    EXPECT(bmp->w == 854 && bmp->h == 480);
+    SDL_ReadSurfacePixel(bmp, 854 / 2 - 151, 480 - 26, &r, &g, &b, &a);
+    std::printf("the notice's edge %d %d %d\n", r, g, b);
+    EXPECT(r > 120 && r < 160 && g > 85 && g < 115 && b > 35 && b < 65);
+    SDL_ReadSurfacePixel(bmp, 854 / 2 - 145, 480 - 38, &r, &g, &b, &a);
+    EXPECT(r < 30 && g < 30 && b < 30);
+    SDL_DestroySurface(bmp);
+  }
+  std::filesystem::remove_all(dir, ec);
+}
+
 // GAME FILES (Owen, 2026-11-02): the find screen at any time, by keys or a
 // pad as by the mouse (MW3_LAUNCHER_NAV); with the install in use lacking
 // its music, ADD FROM MY DISC there too. A repick to a copy used where it
