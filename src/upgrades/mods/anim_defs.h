@@ -43,4 +43,13 @@ std::vector<uint8_t> with_defs(const std::vector<uint8_t>& base, const std::vect
 // over. Each def file is read by zeff::anim_def_from_json.
 std::vector<DefFile> mod_def_files(const char* game_path, const std::vector<uint8_t>& base, std::vector<std::string>* notes);
 
+// A mod's file (its path in the mod, '/', any case) as a def file: true for
+// zbd/<world>/anim/<x>.json (`world` the world) and zbd/anim/<x>.json
+// (`world` ""), not a script (si-script-*), and not in a folder holding the
+// world's whole JSON (metadata.json). `mod_dir` is the mod's folder.
+bool is_def_file(const std::string& mod_dir, const std::string& rel, std::string* world);
+// A def file's key from its own names (zeff::anim_def_key), "" when its JSON
+// does not read or has none.
+std::string def_file_key(const std::string& path);
+
 }  // namespace mech3::anim_defs

@@ -1526,6 +1526,58 @@ TEST(mods_anim_def_files_by_the_mods_order) {
   zeff::anim() = zeff::AnimState{};
 }
 
+// The def files on the MODS list and in --check-mod (docs/modding.md, Animations a def at a time, step 2): on t1,
+// enabled c (a whole anim.zbd), a (k1 for every world), b (k1 for t1, and a new one): a's and b's animations only add
+// to t1 (c's is the base), b's k1 is a's; --check-mod reads each def file alone and names one that does not read.
+TEST(mods_anim_def_files_on_the_list_and_checked) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const std::vector<uint8_t> shipped = bytes_of(install + "/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> spans;
+  EXPECT(mech3::anim_defs::def_spans(shipped.data(), shipped.size(), &spans));
+  if (spans.size() < 3) return;
+  const std::string k1 = spans[1].key;
+  const std::string& d1 = exported[k1 + ".json"];
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_defs_list");
+  const std::string a = wd + "/mods/a", b = wd + "/mods/b", c = wd + "/mods/c", d = wd + "/mods/d";
+  for (const std::string& m : {a, b, c, d}) put(m + "/mod.txt", "name=" + m.substr(m.size() - 1) + "\n");
+  fs::create_directories(c + "/zbd/t1", ec);
+  fs::copy_file(install + "/zbd/t1/anim.zbd", c + "/zbd/t1/anim.zbd", ec);
+  put(a + "/zbd/anim/" + k1 + ".json", json_with(d1, "health", "11.0"));
+  put(b + "/zbd/t1/anim/" + k1 + ".json", json_with(d1, "health", "12.0"));
+  put(b + "/zbd/t1/anim/b_new.json", json_with(d1, "anim_name", "\"b_added\""));
+  put(d + "/zbd/anim/broken.json", json_with(d1, "activation", "\"Sometimes\""));
+  const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {"c", "a", "b"});
+  const auto entry = [&](const char* f) -> const mech3::ModsListEntry* {
+    for (const auto& e : list)
+      if (e.info.folder == f) return &e;
+    return nullptr;
+  };
+  const mech3::ModsListEntry *ea = entry("a"), *eb = entry("b");
+  EXPECT(ea && eb);
+  if (!ea || !eb) return;
+  const std::string na = mech3::mods_row_note(*ea, list), nb = mech3::mods_row_note(*eb, list);
+  std::printf("  a: %s\n  b: %s\n", na.c_str(), nb.c_str());
+  EXPECT(ea->anims_taken.empty() && ea->anim_bases == std::vector<std::string>({"t1"}) && ea->conflicts_with == std::vector<std::string>({"c"}));
+  EXPECT(eb->anims_taken == std::vector<std::string>({"t1 " + k1}) && eb->anim_bases == std::vector<std::string>({"t1"}));
+  EXPECT(na.find("only add to t1") != std::string::npos && nb.find("1 animation") != std::string::npos);
+  int errors = 0;
+  std::string report;
+  for (const std::string& l : mech3::mod_check(b, install, &errors)) report += l + "\n";
+  EXPECT(errors == 0 && report.find("the animation " + k1 + " for t1") != std::string::npos &&
+         report.find("b_added for t1") != std::string::npos);
+  report.clear();
+  for (const std::string& l : mech3::mod_check(d, install, &errors)) report += l + "\n";
+  std::printf("  d: %s", report.substr(report.find("zbd/anim/broken.json")).c_str());
+  EXPECT(errors == 1 && report.find("activation") != std::string::npos && report.find("left out") != std::string::npos);
+}
+
 // What a world's anim JSON refuses, with the file, line and place (docs/modding.md).
 TEST(mods_anim_json_errors_name_the_place) {
   const auto def = [](const std::string& seq_events, const std::string& extra = "") {

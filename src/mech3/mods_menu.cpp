@@ -60,6 +60,12 @@ std::string mods_row_note(const ModsListEntry& m, const std::vector<ModsListEntr
   std::string what;
   if (files) what = std::to_string(files) + (files == 1 ? " file" : " files");
   if (rows) what += (what.empty() ? "" : " and ") + std::to_string(rows) + (rows == 1 ? " mech/weapon" : " mechs/weapons");
+  const size_t anims = m.anims_taken.size();
+  if (anims) what += (what.empty() ? "" : " and ") + std::to_string(anims) + (anims == 1 ? " animation" : " animations");
+  std::string bases;
+  for (const std::string& w : m.anim_bases) bases += (bases.empty() ? "" : ", ") + w;
+  if (what.empty()) return "Its animations only add to " + bases + ": " + names + " has the whole world's";
+  if (!bases.empty()) return "Shares " + what + " with " + names + ", which wins; its animations only add to " + bases;
   return "Shares " + what + " with " + names + ", which wins";
 }
 

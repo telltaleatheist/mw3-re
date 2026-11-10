@@ -10,6 +10,7 @@
 #include <set>
 
 #include "gamez/zeffect/zeff_anim_json.h"
+#include "gamez/zutil/zutl_json.h"
 #include "gamez/zutil/zutl_path.h"
 
 namespace mech3::anim_defs {
@@ -172,6 +173,38 @@ std::vector<DefFile> mod_def_files(const char* game_path, const std::vector<uint
     }
   }
   return out;
+}
+
+bool is_def_file(const std::string& mod_dir, const std::string& rel, std::string* world) {
+  const std::string low = lower(rel);
+  std::vector<std::string> parts;
+  for (size_t at = 0; at <= low.size();) {
+    size_t e = low.find('/', at);
+    if (e == std::string::npos) e = low.size();
+    parts.push_back(low.substr(at, e - at));
+    at = e + 1;
+  }
+  const std::string& name = parts.back();
+  if (name.size() <= 5 || name.compare(name.size() - 5, 5, ".json") != 0 || name.rfind("si-script-", 0) == 0) return false;
+  if (parts.size() == 3 && parts[0] == "zbd" && parts[1] == "anim") return *world = "", true;
+  if (parts.size() != 4 || parts[0] != "zbd" || parts[2] != "anim") return false;
+  std::error_code ec;
+  const fs::path folder = (fs::path(mod_dir) / rel).parent_path();
+  if (fs::exists(folder / "metadata.json", ec) || name == "metadata.json") return false;  // the world's whole JSON
+  *world = parts[1];
+  return true;
+}
+
+std::string def_file_key(const std::string& path) {
+  zutl_json::Value d;
+  std::string why;
+  if (!zutl_json::parse(text_of(path), &d, &why)) return {};
+  const auto field = [&](const char* k) {
+    const zutl_json::Value* v = d.get(k);
+    return v && v->kind == zutl_json::Value::String ? v->text : std::string();
+  };
+  const std::string n = field("name"), a = field("anim_name");
+  return n.empty() || a.empty() ? std::string() : zeff::anim_def_key(n, a, field("anim_root_name"));
 }
 
 }  // namespace mech3::anim_defs

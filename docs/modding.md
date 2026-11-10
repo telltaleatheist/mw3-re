@@ -1102,7 +1102,25 @@ world as the game reads it, the save's drop). Breaks caught: no replacing in
 place, the root left out of the key, a later mod replacing the base's def,
 the name check left out.
 
-Steps 2-4 below are still to build.
+**Built (step 2, 2026-11-10): the MODS screen and `--check-mod`.**
+- The list (`mods_list`) reads each enabled mod's def files by world and key
+  (their own names, `anim_defs::def_file_key`) and its whole anim files.
+- `anims_taken` holds a def an earlier enabled mod's def files hold for the
+  same world: a world-less one meets every world.
+- `anim_bases` holds a world where an earlier enabled mod's whole anim file
+  is the base, so this mod's def files only add new animations there.
+- Both mark the mod as sharing with that mod ("Shares 1 animation with a,
+  which wins; its animations only add to t1", or "Its animations only add to
+  t1: c has the whole world's").
+- `--check-mod` reads each def file alone (`zeff::anim_def_from_json`, scripts
+  beside it) and names the line and place of one that does not read ("this
+  animation left out"), else says which animation it is and for which
+  world.
+
+Test: `mods_anim_def_files_on_the_list_and_checked`. Breaks caught: a
+world-less def not meeting a world's; the check not reading def files.
+
+Steps 3-4 below are still to build.
 
 
 Owen's ask: animations moddable, and easy, with every old mod working

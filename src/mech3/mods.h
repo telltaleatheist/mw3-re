@@ -98,6 +98,12 @@ struct ModsListEntry {
   bool on = false;
   std::vector<std::string> shadowed;     // its files an earlier enabled mod holds (lower case, '/')
   std::vector<std::string> rows_taken;   // its mech= / weapon= names an earlier enabled mod adds
+  // Ours (modding.md, Animations a def at a time): its def files' animations
+  // an earlier enabled mod's def files hold ("c1 <key>", "all worlds <key>"),
+  // and the worlds where an earlier enabled mod's whole anim file is the base
+  // (its def files then only add new animations there).
+  std::vector<std::string> anims_taken;
+  std::vector<std::string> anim_bases;
   std::vector<std::string> conflicts_with;  // those mods' folders
   int check_errors = -1;
 };
