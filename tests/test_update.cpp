@@ -93,13 +93,16 @@ TEST(update_notes_as_plain_lines) {
 TEST(update_picks_the_platforms_package_and_its_sum) {
   u::Release r;
   r.tag = "v1.2.0";
-  for (const char* n : {"mw3-1.2.0-win64.zip", "MW3-Rebuild-Setup-1.2.0.exe", "MW3-Rebuild-1.2.0-mac.dmg", "MW3-Rebuild-1.2.0-x86_64.AppImage",
+  // The games alone (release.md, The combined package) first, so a pick that took them would show.
+  for (const char* n : {"MW3-alone-Setup-1.2.0.exe", "MW3-alone-1.2.0-mac.dmg", "MW3-alone-1.2.0-x86_64.AppImage", "PM-Rebuild-Setup-pm-v1.0.2.exe",
+                        "PM-Rebuild-pm-v1.0.2-mac.dmg", "PM-Rebuild-pm-v1.0.2-x86_64.AppImage", "mw3pm-pm-v1.0.2-win64.zip",
+                        "mw3-1.2.0-win64.zip", "MW3-Rebuild-Setup-1.2.0.exe", "MW3-Rebuild-1.2.0-mac.dmg", "MW3-Rebuild-1.2.0-x86_64.AppImage",
                         "mw3pm-1.0.2-mac.zip", "SHA256SUMS"})
     r.assets.push_back({n, std::string("https://x/") + n, 100});
   EXPECT(u::platform_asset(r, u::Platform::kWindows)->name == "MW3-Rebuild-Setup-1.2.0.exe");  // not the game alone's zip
   EXPECT(u::platform_asset(r, u::Platform::kMac)->name == "MW3-Rebuild-1.2.0-mac.dmg");
   EXPECT(u::platform_asset(r, u::Platform::kLinux)->name == "MW3-Rebuild-1.2.0-x86_64.AppImage");
-  r.assets.erase(r.assets.begin() + 1, r.assets.begin() + 4);
+  r.assets.erase(r.assets.begin() + 8, r.assets.begin() + 11);  // the combined ones gone: the games alone never taken
   EXPECT(!u::platform_asset(r, u::Platform::kMac) && !u::platform_asset(r, u::Platform::kWindows));
   const std::string h1(64, 'a'), h2 = "0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef";
   const std::string sums = h1 + "  MW3-Rebuild-1.2.0-mac.dmg\r\n" + h2 + " *MW3-Rebuild-Setup-1.2.0.exe\nnot a line\n" + std::string(63, 'b') + "  short.dmg\n";
