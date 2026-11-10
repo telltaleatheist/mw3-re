@@ -650,6 +650,24 @@ Kept:
 
 ## Candidates for Owen
 
+- **Effects named in weapons.zrd that no world has** (data, not code; found
+  2026-11-10 by the check below in modding.md, Animations a def at a time,
+  step 4). Four of the 64 animation names weapons.zrd uses have no
+  animation in any of the six worlds, so nothing plays there:
+  - the Small Pulse Laser's muzzle flash `plaser_blue_muz.flt`. The Small
+    Laser's `laser_blue_muz.flt` exists, and the Medium and Large Pulse
+    Lasers use the green and red lasers' muzzles; the pulse laser's own blue
+    impact `plaser_impact_blue.flt` exists;
+  - the LB-X submunitions' (lb2xburst .. lb20xburst) FLYOUT MODEL_ANIMATION
+    `mac_fire` (their `mac_trc.flt` model still flies);
+  - `mine_turr`'s `laser_dummygreen.flt` and LANDMINE's `smokepuff_trail`
+    (no shipped mission fires either).
+
+  Pointing the Small Pulse Laser at `laser_blue_muz.flt` (a reader-side
+  substitute behind the bug fixes, or a weapons.zrd edit in a mod) would
+  give it a muzzle flash like its siblings. Whether one was meant (a typo)
+  or left out is a guess, so it is not changed.
+
 - **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
 
 - A mobile field base's centroid is on the ground (dev, 2026-10-31, W34,

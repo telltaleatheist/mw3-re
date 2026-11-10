@@ -4271,3 +4271,10 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   messages are switched off in the released build. The rebuild stops the load in
   both cases and says what is missing. (From the code: 0x0048faf0, 0x0050ae60,
   the empty report 0x0049bfd0; found while making the launcher's checks)
+- **The Small Pulse Laser fires with no muzzle flash.** Its weapon data names a
+  flash, `plaser_blue_muz.flt`, that no mission contains, so nothing plays at
+  the barrel. The Small Laser's blue flash (`laser_blue_muz.flt`) is there, and
+  the Medium and Large Pulse Lasers use the green and red lasers' flashes. The
+  LB-X autocannons' scattered pellets name a missing animation too (`mac_fire`),
+  so they fly without one. (From the data: weapons.zrd against every world's
+  anim.zbd. docs/fixes.md, Candidates for Owen)

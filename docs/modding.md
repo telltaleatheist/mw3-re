@@ -1152,6 +1152,22 @@ Tests:
 Breaks caught: the count left as it was; the anim=defs skip left out;
 original\ counted as the mod's.
 
+**Step 4's check (2026-11-10): what the shipped effect defs need from the
+world.** These are the 64 animation names weapons.zrd uses (every key holding
+ANIMATION). On each of the six worlds (unzbd's anim and gamez JSON), the 60
+defs that have one name 221 nodes (their own node, their node list and their
+object list).
+- Every one of those nodes is an Object3d tree (220).
+- The one exception is `impact_ppc_mech`'s camera1, the world's own camera,
+  which every world has.
+- No effect def names a LOD, a light or any other node class from the world.
+  Their lights (32 defs), puffers (17) and static sounds (5) come from their
+  own lists, made at load.
+
+So a node file holding object3d trees in mechlib's model form is enough for
+any effect. A def naming a camera can name the world's. The four names with
+no def in any world are in fixes.md, Candidates for Owen.
+
 Step 4 below (the node files) is still to build.
 
 
