@@ -140,6 +140,7 @@
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor_vehicles.h"
 #include "upgrades/editor/form.h"
+#include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "mech3/zainetedit.h"
@@ -26677,6 +26678,118 @@ TEST(mission_c1m1_vehicle_editor_saved_and_read_next_start_headless) {
   EXPECT(picked == "owens_01" && saved.find("editor edits") != std::string::npos && bak && refs_between == 0);
   EXPECT(found_again && std::fabs(x_again - x0) < 0.01f && std::fabs(range_again - range) < 0.001f && skin_again == 9 &&
          pilot_again == "Saved Pilot");
+}
+
+// The editor's help (ours, docs/editor-guide.md) on c1m1: every form the
+// editor opens (the net dialog, Node Params, Add vehicle, Delete's question,
+// the net window and its Open list, the Tree View, the Help window, Mech AI
+// and its message) and both menus: each field, button, tab and row has a tip,
+// and each tip names an item its form has.
+namespace {
+struct HelpSeen {
+  std::map<std::string, std::set<std::string>> items;  // by the help table's form
+  std::vector<std::string> missing;
+  std::string table_of(const std::string& title) {
+    for (const mech3::HelpForm& f : mech3::help_forms())
+      if (title == f.form) return f.form;
+    std::string key = title.substr(0, std::min(title.find("##"), title.find(':')));
+    return key;
+  }
+  void item(const std::string& title, const std::string& it) {
+    items[table_of(title)].insert(it);
+    if (!mech3::help_tip(title, it)) missing.push_back(title + " / " + it);
+  }
+  void form(const mech3::EditorForm& f) {
+    for (const mech3::FormField& x : f.fields) {
+      if (x.kind == mech3::FormField::kLabel) continue;
+      if (x.kind == mech3::FormField::kTabs)
+        for (const std::string& c : x.choices) item(f.title, "tab " + c);
+      else
+        item(f.title, x.label);
+    }
+    for (const mech3::FormButton& b : f.buttons) item(f.title, b.label);
+  }
+  void menu(const char* table, const mech3::EditorMenu& m) {
+    for (int32_t r = 0; r < m.count; ++r) {
+      std::string t = m.rows[r].text;
+      while (!t.empty() && t.front() == ' ') t.erase(t.begin());
+      if (!t.empty()) item(table, t);
+    }
+  }
+};
+}  // namespace
+
+TEST(mission_c1m1_editor_help_covers_every_form_headless) {
+  if (!have_game()) return;
+  HelpSeen seen;
+  int32_t forms = 0;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("editor_help", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    const auto look = [&](const mech3::EditorForm& form) {
+      if (!mech3::form_shown(&form)) return;
+      ++forms;
+      seen.form(form);
+    };
+    mech3::editor_key(mech3::kEditorCommand);
+    seen.menu("main menu", mech3::editor_main_menu_rows());
+    seen.menu("net menu", mech3::editor_net_menu_rows());
+    mech3::edit_ai_nets(0);
+    look(mech3::net_dialog_form());
+    mech3::NetDialog& d = mech3::net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+    mech3::net_dialog_close();
+    mech3::NetEditor* e = mech3::net_editor();
+    if (!e) return true;
+    e->view->pick(&e->view->marks[0]);
+    mech3::node_params_open(0);
+    look(mech3::node_params_form());
+    mech3::node_params_form().press("Cancel");
+    mech3::add_vehicle_open(0);
+    look(mech3::add_vehicle_form());
+    mech3::add_vehicle_form().press("Cancel");
+    mech3::net_editor_delete(0);
+    look(mech3::net_delete_form());
+    mech3::net_delete_form().press("Cancel");
+    mech3::net_params_open(0);
+    look(mech3::net_window_form());
+    mech3::net_window_form().press("Open");
+    look(mech3::net_open_form());
+    mech3::net_open_form().press("Cancel");
+    mech3::net_window_form().press("OK");
+    mech3::tree_view(0);
+    look(mech3::tree_form());
+    mech3::tree_form().press("OK");
+    mech3::help_open(0);
+    look(mech3::help_window());
+    mech3::help_window().press("Close");
+    mech3::net_editor_exit(0);
+    mech3::edit_vehicles(0);
+    if (mech3::VehicleEditor* v = mech3::vehicle_editor()) {
+      look(v->form);
+      v->pages[mech3::kPageP1].at(1209).text = "not a number";
+      v->form.press("Apply");
+      look(v->message);
+      v->message.press("OK");
+      v->form.press("OK");
+    }
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  // Each table's tips against what its form showed.
+  std::vector<std::string> stale;
+  for (const mech3::HelpForm& f : mech3::help_forms()) {
+    const auto it = seen.items.find(f.form);
+    for (const mech3::HelpTip& t : f.tips)
+      if (it == seen.items.end() || !it->second.count(t.item)) stale.push_back(std::string(f.form) + " / " + t.item);
+  }
+  std::printf("  %d forms looked at, %zu tables; no tip: %zu; tips for nothing: %zu\n", forms, seen.items.size(),
+              seen.missing.size(), stale.size());
+  for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
+  for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
+  EXPECT(forms == 10 && seen.missing.empty() && stale.empty());
 }
 
 // The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net

@@ -46,6 +46,7 @@
 //   --pick PATH          the MODS screen's IMPORT picker answered with PATH, no dialog (ours)
 //   --save-pick PATH     the MODS screen's EXPORT save box answered with PATH, no dialog (ours)
 //   --reference FILE     the modding reference (docs/modding-reference.md) written to FILE (ours)
+//   --editor-guide FILE  the editor's guide (docs/editor-guide.md) written to FILE, from its tooltips (ours)
 //   --verbose            list every unported function reached at exit
 #include "crt/msvc_rand.h"
 #include <SDL3/SDL.h>
@@ -76,6 +77,7 @@
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
+#include "upgrades/editor/help.h"
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor.h"
 #include "mech3/options_menu.h"
@@ -157,6 +159,7 @@ struct Args {
   bool mods_given = false, no_mods = false, list_mods = false;
   std::string check_mod;  // --check-mod DIR
   std::string reference;  // --reference FILE: the modding reference written (upgrades/reference)
+  std::string editor_guide;  // --editor-guide FILE: the editor's guide written (upgrades/editor/help)
   std::string pick;       // --pick PATH: the MODS screen's picker answered with PATH (ours, for scripted runs)
   std::string save_pick;  // --save-pick PATH: EXPORT's save box answered with PATH
 
@@ -241,7 +244,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--reference FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -266,6 +269,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
     else if (s == "--reference" && next(1)) a.reference = argv[++i];
+    else if (s == "--editor-guide" && next(1)) a.editor_guide = argv[++i];
     else if (s == "--pick" && next(1)) a.pick = argv[++i];
     else if (s == "--save-pick" && next(1)) a.save_pick = argv[++i];
     else if (s == "--mission" && next(1)) a.mission = argv[++i];
@@ -627,6 +631,12 @@ int main(int argc, char** argv) {
     std::ofstream f(a.reference, std::ios::binary);
     f << upgrades::reference::markdown();
     std::printf("mw3: the modding reference written to %s\n", a.reference.c_str());
+    return f ? 0 : 1;
+  }
+  if (!a.editor_guide.empty()) {  // the same: docs/editor-guide.md from the editor's tips
+    std::ofstream f(a.editor_guide, std::ios::binary);
+    f << mech3::editor_guide_markdown();
+    std::printf("mw3: the editor's guide written to %s\n", a.editor_guide.c_str());
     return f ? 0 : 1;
   }
   if (!a.shot.empty()) a.hidden = true;

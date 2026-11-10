@@ -11,6 +11,7 @@
 #include "backends/imgui_impl_sdlgpu3.h"
 #include "upgrades/editor/ddx.h"
 #include "upgrades/editor/form.h"
+#include "upgrades/editor/help.h"
 
 namespace sdlfe {
 
@@ -20,6 +21,11 @@ std::map<std::pair<const mech3::EditorForm*, std::string>, ImVec4> g_rects;
 void note_rect(const mech3::EditorForm* f, const std::string& label) {
   const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
   g_rects[{f, label}] = ImVec4(a.x, a.y, b.x, b.y);
+}
+// The help's tip (upgrades/editor/help.h) for the item just drawn.
+void tip(const mech3::EditorForm& f, const std::string& item) {
+  if (!ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) return;
+  if (const char* t = mech3::help_tip(f.title, item)) ImGui::SetItemTooltip("%s", t);
 }
 
 // One form, as ImGui widgets over its fields (form.h). A change writes the
@@ -144,14 +150,18 @@ void field(mech3::EditorForm& form, mech3::FormField& f) {
       if (ImGui::BeginTabBar(f.label.c_str())) {
         for (int32_t k = 0; k < static_cast<int32_t>(f.choices.size()); ++k)
           if (ImGui::BeginTabItem(f.choices[size_t(k)].c_str())) {
+            tip(form, "tab " + f.choices[size_t(k)]);
             if (*f.i != k) *f.i = k, changed = true;
             ImGui::EndTabItem();
+          } else {
+            tip(form, "tab " + f.choices[size_t(k)]);
           }
         ImGui::EndTabBar();
       }
       break;
   }
   if (f.kind != mech3::FormField::kTree) note_rect(&form, f.label);
+  if (f.kind != mech3::FormField::kTabs && f.kind != mech3::FormField::kLabel) tip(form, f.label);
   if (changed && f.changed) {
     mech3::FormField* p = &f;
     mech3::EditorForm* fp = &form;
@@ -187,6 +197,7 @@ void form(mech3::EditorForm& f, int n) {
     if (i) ImGui::SameLine();
     const bool pressed = ImGui::Button(f.buttons[i].label.c_str());
     note_rect(&f, f.buttons[i].label);
+    tip(f, f.buttons[i].label);
     if (pressed) {
       mech3::EditorForm* fp = &f;
       const std::string label = f.buttons[i].label;
@@ -214,6 +225,9 @@ void draw_editor_forms() {
   const std::vector<mech3::EditorForm*> forms = mech3::editor_forms();  // a copy: a press may change the list
   int n = 0;
   for (mech3::EditorForm* f : forms) form(*f, n++);
+  // The editor panel's row under the mouse (the game's own menu, not ImGui's).
+  if (!ImGui::GetIO().WantCaptureMouse)
+    if (const char* t = mech3::editor_row_tip()) ImGui::SetTooltip("%s", t);
 }
 
 bool editor_event_to_game(const SDL_Event& e, bool want_mouse, bool want_keyboard, bool want_text) {

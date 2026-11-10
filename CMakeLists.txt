@@ -224,6 +224,10 @@ add_library(mw3core STATIC
   src/mech3/game_editor_vehicles.cpp
   src/upgrades/editor/ddx.cpp
   src/upgrades/editor/form.cpp
+  src/upgrades/editor/help.cpp
+  src/upgrades/editor/help_menus.cpp
+  src/upgrades/editor/help_nets.cpp
+  src/upgrades/editor/help_vehicles.cpp
   src/upgrades/editor/mods_edit.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp

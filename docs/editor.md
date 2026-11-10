@@ -863,6 +863,73 @@ does not offer them: they write into a mod, and only MODS's EDIT names one.
 - **Then** it appears in the mech lab from the next start, as a hand-made
   row does.
 
+### 1a. New Weapon on EDIT WEAPONS (plan, 2026-11-09)
+
+The lead's call (from Owen, 2026-11-09): the New Weapon dialog opens from
+the main menu's **EDIT WEAPONS** row. In the release that row is the shared
+empty function (0x004bf620, above): the developers kept a place for it in
+their menu and never filled it. Using it keeps the editor's spirit, and
+those rows of ours stay under MODS's EDIT. Nothing is built yet.
+
+**The row.** EDIT WEAPONS (ours: its handler, the row's text and place kept)
+opens "New Weapon" when the editor came from MODS's EDIT, so there is a mod
+to write into (`mods_edit_session()`, `net_save_into_mod()`). Under Shift+F12
+there is none, and the line under the menu says so: "EDIT WEAPONS writes
+into a mod: open one from MODS, EDITOR". The guide and the row's tip say the
+same (help_menus.cpp).
+
+**The form** (ImGui, as the others; its tips in a help table beside it, in
+the guide):
+1. **Copy:** a list of every weapon the game knows, the exe's 37 by name and
+   the enabled mods' rows after them, each read from the first weapons.zrd
+   that has it (the mod's own reader.zbd, a loose `zbd\weapons.zrd` in it,
+   the patch, the install). The new one starts as the copy's definition,
+   named `<copy>_B`, then `_C`..., the first free.
+2. **The row:** its name (up to 31; letters, digits, `_` and `-`), ammo
+   yes/no, tech (clan, sphere, any, none), title. Each is refused on the
+   spot the way mod.txt's reader refuses it (a taken name, a bad tech).
+3. **The definition:** the fields zWeapon reads from weapons.zrd (0x583880;
+   docs/weapons.md, Definitions), each typed, with the copy's value beside it.
+   For a first sitting that is damage, heat, range, velocity, refire, ammo per
+   ton and the beam's or projectile's own, with the rest kept as the copy has
+   them. The definition's index (+0x10) is its place in BALLISTICS, so a new
+   one always goes last (modding.md, Both ways).
+4. **OK** writes it:
+   - `weapon=<name> ammo=.. tech=.. title=..` in the mod's mod.txt, as the
+     MODS screen writes the file (`mods_*`: its lines in their order, the row
+     replaced by name if there);
+   - the definition at the end of BALLISTICS in the mod's reader.zbd entry
+     weapons.zrd. This uses the editor's archive save (`save_archive_edit`,
+     an entry replaced or added, one .bak) and a byte-level writer like
+     aiv_save's (`weapons_with_definition`: every other byte as it was). If
+     the mod has a loose `zbd\weapons.zrd`, it goes there instead, as text.
+     The loose file wins in a mod (modding.md, Readable files read directly).
+     The original's text reader reads it, and its .bak is kept the same way.
+   - The line under the menu says what was written and that the lab offers
+     it from the next start (mod rows are read at the mount).
+5. **Cancel** closes it unwritten.
+
+**Second sitting:** the effects and sounds (the muzzle, trail, impact and
+flyby picked from lists of the worlds' animation defs and zSound's names),
+each shown once at the view's pick when picked (sketch item 1, Effects and
+sounds; with item 3's machinery).
+
+**Tests (planned):**
+- the form: the copy's naming, the row's checks, the definition's fields;
+- the written weapons.zrd read by our reader and, in Unicorn, by the
+  original's 0x583880 (test_weapons_zrd.py's `mod_weapon_appended`, with
+  the dialog's output), each with one definition more and the 37 unchanged;
+- mech3ax reading the saved archive, every other member the same;
+- mod.txt parsed back with the row;
+- c1m1 from MODS's EDIT: New Weapon on ERPPC, OK, then the next start: the
+  lab lists the new weapon, and a loadout naming it builds.
+
+**For Owen:**
+- whether Shift+F12 should open the form too, saving into "editor edits" as
+  the nets do (planned here: no, the dialog wants a mod of its own);
+- whether the first sitting's fields are enough, or every field of the
+  definition from the start.
+
 ### 2. Mech variant
 
 - **Copy** a mech (the 19 and the mods' rows); name, title, tech, class and
@@ -1460,6 +1527,35 @@ The exe keeps Apply only in aiv.zrd's record cache and in the running brain
   - mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless: the
     vehicle editor's Save under MODS EDIT goes into the mod itself, the net's
     save kept as the .bak.
+
+## The editor's help (ours, 2026-11-09)
+
+Owen asked (through the lead) for help in the game and on GitHub, from one
+source so the two cannot drift.
+- **The tables** (`upgrades/editor/help.h`) sit beside the forms' models:
+  help_menus.cpp (both menus' rows), help_nets.cpp (the net dialog, Node
+  Params, Add vehicle, Delete's question, the net window and its Open list,
+  the Tree View, the Help window) and help_vehicles.cpp (Mech AI, its pages
+  and tabs, its message). Each entry is keyed by its form's title (up to "##"
+  or ':') and the item's label (a tab as "tab <title>").
+- **In the game** the ImGui view shows an item's tip on hover. A row of the
+  editor's panel (the game's own menu) shows its tip as a tooltip while the
+  mouse is over it.
+- **HELP rows**, ours, sit in a blank row of each menu (main menu row 4, net
+  menu row 10). They open "Editor help", the quick start.
+- **The guide**, docs/editor-guide.md, is generated whole from the same
+  tables: the quick start, the walk-through from a fresh mod to a changed
+  mission, and a section per form. `build/mw3 --editor-guide
+  docs/editor-guide.md` writes it.
+- **Tests:**
+  - `editor_guide_is_current` fails when the guide is stale. It also checks
+    every tip is filled, each item once, the Help window and the lookup.
+  - `mission_c1m1_editor_help_covers_every_form_headless` opens all ten forms
+    and reads both menus: every field, button, tab and row has a tip (0
+    without), and every tip names an item its form has (0 stale).
+  - Break: a tip renamed ("Send hom") fails both.
+- Valve's "Target Distance" check box is labelled "Target Distance##valve"
+  now: the form already had Zig Zag's field of that name.
 
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 

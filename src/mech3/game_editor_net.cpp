@@ -17,6 +17,7 @@
 #include "mech3/zainetedit.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "upgrades/editor/form.h"
+#include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
 
 namespace mech3 {
@@ -38,7 +39,7 @@ const EditorEntry kNetRows[13] = {
     {"Pick CMD or Point", none},   {" GOTO Net", net_editor_goto},        {" Change Net Params", net_params_open},
     {" Node Params", node_params_open}, {" Add veh to node", add_vehicle_open},     {" Move Node", net_editor_move},
     {" Delete Node", net_editor_delete}, {" Delete Net", none},                  {" Save Changes", net_editor_save},
-    {" Tree View", tree_view},     {"", nullptr},                          {"", nullptr},
+    {" Tree View", tree_view},     {" Help", help_open},                   {"", nullptr},  // Help: ours
     {" Exit Net Editor", net_editor_exit},
 };
 const EditorMenu kNetMenu = {13, kNetRows};
