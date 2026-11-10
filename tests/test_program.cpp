@@ -2122,7 +2122,9 @@ TEST(mods_screen_delete_and_reset_headless) {
     put(std::string("campaigns/") + id + "/pilots/games/Ace0101.mw3", "save");
   }
   put("campaigns/mw3/mods.txt", "mod=weps\n");
-  put("pilots/Main.mw3", "the main menu's");
+  // Something of the main menu's folder to see untouched. Not a pilot file: the game would load it, and a pilot
+  // left loaded by one test is met by the next test's pilot screen.
+  put("pilots/the main menu's.txt", "kept");
   mech3::mods_menu_write_dir() = wd;
   mech3::mods_menu_install() = MW3_GAME_DIR;
   mech3::reset_states();
@@ -2196,7 +2198,7 @@ TEST(mods_screen_delete_and_reset_headless) {
       answer = 1;
       scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
       reset_done = !fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && !fs::exists(wd + "/campaigns/mw3/mods.txt") &&
-                   fs::exists(wd + "/campaigns/mw3/mw3-campaign.txt") && fs::exists(wd + "/pilots/Main.mw3") && scr->enabled.empty();
+                   fs::exists(wd + "/campaigns/mw3/mw3-campaign.txt") && fs::exists(wd + "/pilots/the main menu's.txt") && scr->enabled.empty();
       // A campaign's own mod chosen at the right: sent to its row.
       campaign("Night, mine");
       mod("Night, mine");
@@ -2238,6 +2240,7 @@ TEST(mods_screen_delete_and_reset_headless) {
       EXPECT(boxes[3] == "Delete Long Night? Its pilots and saved games are kept: import it again to go on.");
       EXPECT(boxes[4] == "Delete Weps? It is not ticked for any campaign.");  // the game's own campaign's tick went with its reset
     }
+    EXPECT(mech3::pilots().empty());  // nothing loaded here is left for the next test
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
