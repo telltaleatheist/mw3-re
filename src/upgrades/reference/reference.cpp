@@ -24,7 +24,7 @@ const char*& context() {
 }
 
 const std::vector<File>& files() {
-  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives(), interp()};
+  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives(), turrets(), vehicles(), world(), landmines(), hud(), sounds(), interp()};
   return all;
 }
 

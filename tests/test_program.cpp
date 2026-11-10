@@ -9837,6 +9837,7 @@ void ref_record(RefRun* out, const std::function<void()>& run) {
         const size_t semi = std::min(paths.find(';', at), paths.size());
         const std::string path = paths.substr(at, semi - at);
         at = semi + 1;
+        if (path == "@top" || path == "m<n>") continue;  // rules the lookup applies (above)
         const zrdr::Node* n = path.empty() ? top : zrdr::find(const_cast<zrdr::Node*>(top), path.c_str());
         if (!n || n->type != zrdr::List) continue;
         for (int32_t i = 1; i + 1 < n->list[0].i; ++i)
@@ -9851,7 +9852,20 @@ void ref_record(RefRun* out, const std::function<void()>& run) {
     for (auto& [k, v] : ref_run()->roots) v.erase(std::remove(v.begin(), v.end(), node), v.end());
   };
   ref::observer() = [](const char*, const char* key, const void* node) {
-    if (auto it = ref_run()->owner.find(node); it != ref_run()->owner.end()) ref_run()->keys[it->second].insert(key);
+    auto it = ref_run()->owner.find(node);
+    if (it == ref_run()->owner.end()) return;
+    // names_at "@top": a key asked of the file's root is a record's name (is
+    // there a vehicle of this type?); "m<n>": the missions' blocks.
+    for (const upgrades::reference::File& f : upgrades::reference::files()) {
+      if (it->second != f.id || !f.names_at) continue;
+      const std::string rules = std::string(";") + f.names_at + ";";
+      const auto& roots = ref_run()->roots[it->second];
+      const bool top = std::find(roots.begin(), roots.end(), node) != roots.end();
+      const bool mission = key[0] == 'm' && key[1] && std::all_of(key + 1, key + std::strlen(key), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); });
+      if ((top && rules.find(";@top;") != std::string::npos) || (mission && rules.find(";m<n>;") != std::string::npos))
+        ref_run()->names[it->second].insert(key);
+    }
+    ref_run()->keys[it->second].insert(key);
   };
   run();
   ref::observer() = nullptr, ref::free_observer() = nullptr, ref::load_observer() = nullptr;
