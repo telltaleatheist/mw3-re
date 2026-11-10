@@ -19,18 +19,19 @@ struct FormTree {
 };
 
 struct FormField {
-  enum Kind { kLabel, kInt, kFloat, kFlag, kTri, kText, kChoice, kTree };
+  enum Kind { kLabel, kInt, kFloat, kFlag, kTri, kText, kChoice, kTree, kTabs };
   std::string label;
   Kind kind = kLabel;
-  int32_t* i = nullptr;          // kInt: the value; kChoice: the chosen index (-1 none)
+  int32_t* i = nullptr;          // kInt: the value; kChoice: the chosen index (-1 none); kTabs: the page shown
   float* f = nullptr;            // kFloat
   int32_t* on = nullptr;         // kFloat: whether it is given (null: always)
   uint8_t* set = nullptr;        // kTri: whether it is given ("as the default" when not)
   uint8_t* flag = nullptr;       // kFlag, kTri: the value
   std::string* text = nullptr;   // kText
-  std::vector<std::string> choices;  // kChoice
+  std::vector<std::string> choices;  // kChoice; kTabs: the pages' titles
   FormTree* tree = nullptr;      // kTree
   std::function<void()> changed;     // after a change through the form
+  int32_t page = -1;             // shown only while the form's tabs show this page (-1: always)
 };
 
 struct FormButton {

@@ -38,6 +38,7 @@
 #include "mech3/sound_extra.h"
 #include "mech3/mission_world.h"
 #include "mech3/sensors.h"
+#include "mech3/game_editor_vehicles.h"
 #include "mech3/veh_basic_object.h"
 #include "mech3/veh_controls.h"
 #include "mech3/veh_move.h"
@@ -478,6 +479,61 @@ struct WiredEditor : EditorHooks {
   }
 };
 WiredEditor g_editor_hooks;
+
+// The vehicle editor's (game_editor_vehicles.h): zEntity's list in order,
+// each mech (the AI's by its aiv record's name, the player's "player") and
+// each made vehicle with AI controls (by its node's name, its record's).
+struct WiredVehicleEditor : VehicleEditorHooks {
+  std::vector<VehicleEditorItem> vehicles() override {
+    std::vector<VehicleEditorItem> out;
+    int32_t n = 0;
+    const AiMechMade* made = mission_ai_mechs(&n);
+    for (const ai::Handle h : ai::entity_list()) {
+      void* o = g_w.object_of ? g_w.object_of(g_w.engine, h) : nullptr;
+      if (!o) continue;
+      if (entity_is_mech(o)) {
+        const char* name = o == mech_mission_player() ? "player" : nullptr;
+        for (int32_t i = 0; i < n && !name; ++i)
+          if (made[i].mech == o) name = made[i].name;
+        if (name) out.push_back({name, o});
+        continue;
+      }
+      if (std::find(g_order.begin(), g_order.end(), static_cast<Vehicle*>(o)) == g_order.end()) continue;
+      auto* bv = static_cast<BasicVehicle*>(static_cast<Vehicle*>(o));
+      if (!dynamic_cast<ai::AiVehicleControls*>(bv->controls)) continue;  // vt+0x140 -> vt+0x54
+      VehicleSummary sm;
+      if (describe_vehicle(o, &sm) && sm.name) out.push_back({sm.name, o});
+    }
+    return out;
+  }
+  ai::AiParams* brain_params(void* v) override {
+    int32_t n = 0;
+    const AiMechMade* made = mission_ai_mechs(&n);
+    for (int32_t i = 0; i < n; ++i)
+      if (made[i].mech == v && made[i].controls)
+        if (auto* b = static_cast<ai::Brain*>(program_ai_mech_brain(made[i].controls))) return &b->params;
+    if (std::find(g_order.begin(), g_order.end(), static_cast<Vehicle*>(v)) != g_order.end())
+      if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(static_cast<Vehicle*>(v))->controls))
+        if (c->brain) return &c->brain->params;
+    return nullptr;
+  }
+  void set_masks(void* v, uint32_t team, uint32_t allies, uint32_t enemies) override {
+    if (entity_is_mech(v)) {
+      mech_set_mask(v, 0xc0, team), mech_set_mask(v, 0xc4, allies), mech_set_mask(v, 0xc8, enemies);
+    } else if (auto* t = static_cast<ai::AiTarget*>(program_vehicle_target(v))) {
+      t->team = team, t->allies = allies, t->enemies = enemies;
+    }
+  }
+  uint32_t player_allies() override { return mech_allies(mech_mission_player()); }
+  uint32_t player_enemies() override {
+    const auto* p = static_cast<const Mech*>(mech_mission_player());
+    return p ? p->enemies : 0;
+  }
+  void pause(bool on) override {
+    program_app_pause(on);  // 0x0058fa80 / 0x0058faa0
+  }
+};
+WiredVehicleEditor g_vehicle_editor_hooks;
 }  // namespace
 
 namespace {
@@ -525,6 +581,7 @@ void wire_vehicles(const MechWiring* w) {
     set_veh_basic_hooks(nullptr);
     set_stealth_hooks(nullptr);
     set_editor_hooks(nullptr);
+    set_vehicle_editor_hooks(nullptr);
     set_veh_controls_hooks(nullptr);
     set_field_base_hooks(nullptr);
     set_field_cut_hooks(nullptr);
@@ -536,6 +593,7 @@ void wire_vehicles(const MechWiring* w) {
   set_veh_basic_hooks(&g_hooks);
   set_stealth_hooks(&g_stealth_hooks);
   set_editor_hooks(&g_editor_hooks);
+  set_vehicle_editor_hooks(&g_vehicle_editor_hooks);
   set_veh_controls_hooks(&g_controls);
   set_field_base_hooks(&g_field_bases);
   set_field_cut_hooks(&g_field_cut);
@@ -989,6 +1047,9 @@ void program_vehicles_new_process() {  // tests: stop_game freed the stealth's n
   g_vehicles.clear(), g_order.clear();
 }
 void program_vehicles_forget() {
+  // Ours: the vehicle editor holds the mission's vehicles; the exe's dialog
+  // outlives them (its next Apply would reach freed ones).
+  vehicle_editor_close();
   g_vehicles.clear(), g_order.clear();
   if (g_stealth) {  // made by the world's load, before the mission's vehicles: it stays the world's
     g_vehicles.insert(static_cast<Vehicle*>(static_cast<BasicVehicle*>(g_stealth)));

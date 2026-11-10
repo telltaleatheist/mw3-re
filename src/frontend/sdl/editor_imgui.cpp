@@ -86,6 +86,16 @@ void field(mech3::EditorForm& form, mech3::FormField& f) {
     case mech3::FormField::kTree:
       if (f.tree) tree_items(*f.tree);
       break;
+    case mech3::FormField::kTabs:
+      if (ImGui::BeginTabBar(f.label.c_str())) {
+        for (int32_t k = 0; k < static_cast<int32_t>(f.choices.size()); ++k)
+          if (ImGui::BeginTabItem(f.choices[size_t(k)].c_str())) {
+            if (*f.i != k) *f.i = k, changed = true;
+            ImGui::EndTabItem();
+          }
+        ImGui::EndTabBar();
+      }
+      break;
   }
   if (f.kind != mech3::FormField::kTree) note_rect(&form, f.label);
   if (changed && f.changed) {
@@ -113,7 +123,12 @@ void form(mech3::EditorForm& f, int n) {
       return;
     }
   }
-  for (mech3::FormField& x : f.fields) field(f, x);
+  int32_t page = -1;  // the page the form's tabs show
+  for (mech3::FormField& x : f.fields) {
+    if (x.page >= 0 && x.page != page) continue;
+    field(f, x);
+    if (x.kind == mech3::FormField::kTabs && x.i) page = *x.i;
+  }
   for (size_t i = 0; i < f.buttons.size(); ++i) {
     if (i) ImGui::SameLine();
     const bool pressed = ImGui::Button(f.buttons[i].label.c_str());
