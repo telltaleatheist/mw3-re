@@ -450,6 +450,7 @@ class Launcher {
   void activate(int id);
   void ask_file(int what, const SDL_DialogFileFilter* filters, int n);
   void ask_folder(int what);
+  void open_picker();
   void picked(int what, const std::string& path);
   void finish_work();
   void look_at(const std::string& path);
@@ -524,6 +525,11 @@ class Launcher {
   bool asking_ = false;
   Uint64 ask_at_ = 0;      // when the picker was asked for (its timing in the log)
   bool ask_shown_ = false;  // the panel took the window's focus
+  // The ask waits a frame: the system's call blocks (a second on the Mac, 9 s
+  // seen on a cold start), so the screen says so first (docs/launcher.md).
+  bool ask_pending_ = false, ask_is_folder_ = false;
+  const SDL_DialogFileFilter* ask_filters_ = nullptr;
+  int ask_filter_count_ = 0;
   std::string confirm_text_, pending_source_;
   std::string move_to_, move_from_;  // the data folder's move (ask_move)
   std::vector<std::string> move_copied_;
@@ -1205,6 +1211,12 @@ void Launcher::draw(float dt) {
                   static_cast<int32_t>(ring_amp_), wl, ring_phase_, nullptr, zrndr::X87::k53);
     drew_ripple_ = true;
   }
+  if (ask_pending_) {  // the frame left on screen while the system's picker comes up
+    SDL_Rect edge{W / 2 - 151, H - 42, 302, 32}, box{W / 2 - 150, H - 41, 300, 30};  // the bottom strip: no plate there
+    SDL_FillSurfaceRect(canvas_, &edge, SDL_MapSurfaceRGB(canvas_, 140, 100, 50));
+    SDL_FillSurfaceRect(canvas_, &box, SDL_MapSurfaceRGB(canvas_, 10, 12, 14));
+    text_.draw(canvas_, ask_is_folder_ ? "Opening the folder picker..." : "Opening the file picker...", 13, kAmber, W / 2, H - 26);
+  }
 }
 
 void Launcher::present() {
@@ -1220,18 +1232,28 @@ void Launcher::ask_file(int what, const SDL_DialogFileFilter* filters, int n) {
     std::lock_guard<std::mutex> g(pick_.m);
     pick_.what = what, pick_.path.clear(), pick_.answered = pick_.cancelled = false;
   }
-  asking_ = true, ask_shown_ = false, ask_at_ = SDL_GetTicksNS();
-  std::printf("mw3: launcher: the file picker asked for\n");
-  SDL_ShowOpenFileDialog(Pick::done, &pick_, win_, filters, n, nullptr, false);
+  asking_ = ask_pending_ = true, ask_shown_ = ask_is_folder_ = false;
+  ask_filters_ = filters, ask_filter_count_ = n;
 }
 void Launcher::ask_folder(int what) {
   {
     std::lock_guard<std::mutex> g(pick_.m);
     pick_.what = what, pick_.path.clear(), pick_.answered = pick_.cancelled = false;
   }
-  asking_ = true, ask_shown_ = false, ask_at_ = SDL_GetTicksNS();
-  std::printf("mw3: launcher: the folder picker asked for\n");
-  SDL_ShowOpenFolderDialog(Pick::done, &pick_, win_, nullptr, false);
+  asking_ = ask_pending_ = ask_is_folder_ = true, ask_shown_ = false;
+}
+// The system's picker, once the frame with its notice is on screen (run).
+// MW3_LAUNCHER_PICKER=cancel (checks): no window, the ask answered as cancelled;
+// MW3_LAUNCHER_PICKER_SHOT: the frame on screen at the ask, saved.
+void Launcher::open_picker() {
+  if (const char* shot = SDL_getenv("MW3_LAUNCHER_PICKER_SHOT")) SDL_SaveBMP(canvas_, shot);
+  ask_pending_ = false, ask_at_ = SDL_GetTicksNS();
+  std::printf("mw3: launcher: the %s picker asked for\n", ask_is_folder_ ? "folder" : "file");
+  const char* check = SDL_getenv("MW3_LAUNCHER_PICKER");
+  if (check && std::strcmp(check, "cancel") == 0) Pick::done(&pick_, nullptr, 0);
+  else if (ask_is_folder_) SDL_ShowOpenFolderDialog(Pick::done, &pick_, win_, nullptr, false);
+  else SDL_ShowOpenFileDialog(Pick::done, &pick_, win_, ask_filters_, ask_filter_count_, nullptr, false);
+  std::printf("mw3: launcher: the picker's call took %.0f ms\n", static_cast<double>(SDL_GetTicksNS() - ask_at_) / 1e6);
 }
 
 // A picked path: what the button that asked does with it.
@@ -2119,7 +2141,7 @@ LauncherChoice Launcher::run() {
         nav(a == kNext ? 1 : a == kPrev ? -1 : a == kPress ? 2 : a == kEscape ? 3 : 0);
       }
     }
-    if (asking_) {
+    if (asking_ && !ask_pending_) {
       int what = 0;
       std::string path;
       bool answered = false, cancelled = false;
@@ -2152,6 +2174,10 @@ LauncherChoice Launcher::run() {
     present();
     const Uint64 tc = SDL_GetTicksNS();
     if (!frames_) std::printf("mw3: launcher: first frame shown %.0f ms after the start\n", ms(t0, tc));
+    if (ask_pending_) {
+      std::printf("mw3: launcher: the picker's notice shown\n");
+      open_picker();
+    }
     ++frames_, draw_ms_ += ms(ta, tb), present_ms_ += ms(tb, tc);
     if (quit_after_ > 0 && frames_ >= quit_after_) done_ = true;  // MW3_LAUNCHER_FRAMES (checks)
     if (!vsync_) {  // no vsync: the rest of a 60th of a second, to the nanosecond

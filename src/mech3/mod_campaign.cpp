@@ -10,6 +10,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mission.h"
 #include "mech3/pilot.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "upgrades/reference/reference.h"
 
 namespace mech3 {
@@ -158,14 +159,16 @@ std::vector<ModCampaign>& mod_campaigns() {
   return c;
 }
 
-std::string campaign_pilots_dir(const ModCampaign& c) { return "pilots/mods/" + c.mod + "/" + c.id; }
+std::string campaign_pilots_dir(const ModCampaign& c) { return std::string(kEntriesFolder) + "/" + c.mod + "~" + c.id + "/pilots"; }
 
 namespace {
 std::unique_ptr<ModCampaign> g_entered;
 
-// The game's pilots folder for it (the original's separators) and its place on disk.
-std::string game_folder(const ModCampaign& c) { return "pilots\\mods\\" + c.mod + "\\" + c.id; }
-fs::path disk_folder(const ModCampaign& c) { return fs::path(zutl::write_path(game_folder(c).c_str())); }
+// Its entry (upgrades/mods/campaign_entries.h): the game's pilots folder in it (the original's
+// separators) and the entry's folder on disk, our marker in it.
+std::string entry_id(const ModCampaign& c) { return c.mod + "~" + c.id; }
+std::string game_folder(const ModCampaign& c) { return entry_pilots_folder(entry_id(c)); }
+fs::path disk_folder(const ModCampaign& c) { return fs::path(zutl::write_path((std::string(kEntriesFolder) + "\\" + entry_id(c)).c_str())); }
 
 // Every pilot let go, each saved while dirty (its destructor), as a new start finds them.
 void drop_pilots() {
@@ -178,21 +181,10 @@ void drop_pilots() {
 const ModCampaign* entered_campaign() { return g_entered.get(); }
 
 bool campaign_enter(const ModCampaign& c, std::string* why) {
+  CampaignEntry e;
+  e.kind = CampaignEntry::kImported, e.id = entry_id(c), e.name = c.name, e.mod = c.mod, e.campaign = c.id;
   const fs::path dir = disk_folder(c);
-  std::error_code ec;
-  if (fs::exists(dir, ec) && !fs::exists(dir / kCampaignMarker, ec) && !fs::is_empty(dir, ec)) {
-    if (why) *why = dir.generic_string() + " holds files the game did not put there";
-    return false;
-  }
-  fs::create_directories(dir / "games", ec);
-  if (!fs::exists(dir / kCampaignMarker, ec)) {
-    std::ofstream(dir / kCampaignMarker) << "The pilots of the campaign \"" << c.name << "\" (mod " << c.mod << ", " << c.file
-                                         << "), made by the game. Deleting this folder deletes them.\n";
-  }
-  if (!fs::exists(dir / kCampaignMarker, ec)) {
-    if (why) *why = "cannot write " + (dir / kCampaignMarker).generic_string();
-    return false;
-  }
+  if (!entry_ensure(dir.parent_path().parent_path().string(), e, why)) return false;  // the write dir, two up
   drop_pilots();
   g_entered = std::make_unique<ModCampaign>(c);
   set_pilots_folder(game_folder(c));

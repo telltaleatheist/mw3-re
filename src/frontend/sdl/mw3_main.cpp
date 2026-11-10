@@ -80,6 +80,7 @@
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/mods/anim_defs.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/starter_mods.h"
 #include "upgrades/mods/mod_report.h"
@@ -178,6 +179,8 @@ struct Args {
   // else mw3.cfg's mod= lines, in order; --no-mods none; --mods lists them.
   std::vector<std::string> mods, cfg_mods;
   bool mods_given = false, no_mods = false, list_mods = false;
+  // --entry ID (ours, upgrades/mods/campaign_entries.h): a MODS campaign entry's mods and pilots for this run.
+  std::string entry;
   std::string check_mod;  // --check-mod DIR
   std::string mod_report;  // --mod-report DIR (ours, upgrades/mods/mod_report.h): the check as sentences
   std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
@@ -277,7 +280,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -296,6 +299,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--write-dir" && next(1)) a.write_dir = argv[++i];
     else if (s == "--mod" && next(1)) a.mods.emplace_back(argv[++i]), a.mods_given = true;
     else if (s == "--no-mods") a.no_mods = true;
+    else if (s == "--entry" && next(1)) a.entry = argv[++i];
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
     else if (s == "--mod-report" && next(1)) a.mod_report = argv[++i];
@@ -757,6 +761,29 @@ int mw3_game_main(int argc, char** argv) {
     }
     SDL_Quit();
     return 0;
+  }
+  // Mods by campaign (ours, docs/mods-campaigns-plan.md): mw3.cfg's mod= lines
+  // moved to the campaign entries once; --entry mounts an entry's mods
+  // instead of them and keeps its pilots in its own folder. One that is gone
+  // or cannot be played: the plain start, said.
+  if (!a.write_dir.empty())
+    for (const std::string& line : mech3::entries_migrate(a.write_dir)) std::printf("mw3: %s\n", line.c_str());
+  if (!a.entry.empty()) {
+    const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(a.write_dir);
+    const mech3::CampaignEntry* e = mech3::find_entry(all, a.entry);
+    std::string why = !e ? "there is no such campaign" : e->missing || !e->error.empty() ? e->error : std::string();
+    if (why.empty())
+      for (const std::string& m : mech3::entry_missing_mods(a.write_dir, *e))
+        why += (why.empty() ? "its mods are not all there (untick or import them again): " : ", ") + m;
+    if (why.empty() && !mech3::entry_ensure(a.write_dir, *e, &why)) e = nullptr;
+    if (!why.empty()) {
+      std::printf("mw3: entry %s: %s; the game's own start instead\n", a.entry.c_str(), why.c_str());
+      a.entry.clear();
+    } else {
+      a.mods = mech3::entry_mount_list(a.write_dir, *e);
+      if (e->campaign.empty()) mech3::set_pilots_folder(mech3::entry_pilots_folder(e->id));  // a mod's campaign: when entered
+      std::printf("mw3: entry %s (%s): %zu mods\n", e->id.c_str(), e->name.c_str(), a.mods.size());
+    }
   }
   // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
   // platform fixes that let it run stay on: fixes.md, The bug fixes switch).

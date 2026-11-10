@@ -29,6 +29,9 @@ struct ModInfo {
   std::vector<std::pair<std::string, std::string>> needs;  // needs=<mod> [version]: another mod (folder or name), its least version
   std::vector<std::string> conflicts;  // conflicts=<mod>: a mod it does not work with
   std::string game_version;            // game_version=<version>: the least MechWarrior 3 Rebuild version it needs
+  // Ours (upgrades/mods/campaign_entries.h, mods by campaign): kind=campaign|assets over the rule, and a copy's
+  // base=, the entry it was saved from.
+  std::string kind, base;
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -37,7 +40,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech, weapon, campaign, anim, needs, conflicts, game_version), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon, campaign, anim, needs, conflicts, game_version, kind, base), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // The game a mod's for= must name (its first word): "mw3pm" on branch pm ("mw3" on main, whose launcher's MODS sets

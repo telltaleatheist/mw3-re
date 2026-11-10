@@ -7,9 +7,16 @@ records (0x4ffb40, 0x4ffb90, 0x4ffc80).
     .venv/bin/python -P tests/differential/test_pm_di.py [queries per world]
 
 Every hit is compared as bits: normal, height or point, zones, material and node slots, whether it has an owner.
+
+The x87 runs at 24 bits here, where zgeo::X rounds each step to a float, so this run cannot see a change to the
+53-bit forms. MW3_X87=53 runs the exe at 53 bits and the port with fpu53 on (the reference runtime, CLAUDE.md);
+PM's port does not match its exe there yet (docs/pm-map.md, The geometry queries at 53 bits), so with it
+MW3_DI_COUNT=1 counts instead of stopping: per world the floats compared, those not bit-equal but inside the
+allowance, and each query with a value outside it.
 """
 import ctypes
 import math
+import os
 import random
 import struct
 import sys
@@ -21,6 +28,19 @@ import test_pm_gamez as g  # noqa: E402
 import test_pm_zar  # noqa: E402
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 from original import FTOL, IAT_FTOL  # noqa: E402
+
+X53 = os.environ.get('MW3_X87') == '53'
+COUNT = os.environ.get('MW3_DI_COUNT') == '1'
+MISSES = []
+KNOWN_AT_53 = ('c2 clutter (tree) query 90 nearest',)  # exe 0.8851358 / port 0.8856983, on pm before di53 too
+
+
+def fail(message):
+    """A query that does not match: the run's end, or with MW3_DI_COUNT a line kept for the world's count."""
+    if not COUNT:
+        raise SystemExit(message)
+    MISSES.append(message.split('\n')[0])
+
 
 GROUND, POINT, SEGMENTS, LINES, NEAREST, SPHERE = 0x5003a0, 0x4ff8d0, 0x502360, 0x501030, 0x500f80, 0x5033b0
 FIND_ZONE = 0x55d270
@@ -42,7 +62,7 @@ class Emulated(g.Emulated):
         self.cpu.import_code(IAT_FTOL, FTOL)
         self.cpu.import_code(IAT_FLOOR, FLOOR)
         self.cpu.stub_import(0x5bb654, self.strncmp)  # the sphere query's name test
-        self.cpu.fpu_control(0x007f)
+        self.cpu.fpu_control(0x027f if X53 else 0x007f)
         self.stack([world], 5, 6, 5, models=True, nodes=True)
         self.probes, self.out = self.alloc(4 * 3 * 64), self.alloc(REC * 24)
         self.a, self.b = self.alloc(12), self.alloc(12)
@@ -236,6 +256,7 @@ def compare_sphere(want, got, stats):
 def main():
     queries = int(sys.argv[1]) if len(sys.argv) > 1 else 300
     p = test_pm_zar.load_pm_probe()
+    p.probe_pm_set_fpu53(1 if X53 else 0)  # zgeo::X
     p.probe_pm_draw_load.argtypes = [ctypes.c_char_p]
     FP = ctypes.POINTER(ctypes.c_float)
     IP = ctypes.POINTER(ctypes.c_int32)
@@ -249,6 +270,7 @@ def main():
     buf = (ctypes.c_int32 * (1 << 20))()
     totals = {'ground': 0, 'point': 0, 'segs': 0, 'list': 0, 'nearest': 0, 'floats': 0, 'near': 0}
     for name in sys.argv[2:] or ('c1', 'c2', 'c3', 'c4'):
+        before, missed = dict(totals), len(MISSES)
         path = g.ZBD / name / 'gamez.zbd'
         emu = Emulated(path)
         if p.probe_pm_draw_load(str(path).encode()) != 0:
@@ -288,7 +310,7 @@ def main():
             got = list(buf[:n])
             bad = compare(want, got, kind, totals)
             if bad:
-                raise SystemExit(f'{name} query {q} {kind}: {bad}\n exe {want[:30]}\n port {got[:30]}')
+                fail(f'{name} query {q} {kind}: {bad}\n exe {want[:30]}\n port {got[:30]}')
         # The sphere query records a node with flag 0x40: some of the world's get it, on both sides.
         for i in range(2500):
             n = emu.node_at(i)
@@ -305,7 +327,7 @@ def main():
             n = p.probe_pm_di_sphere(slot, (ctypes.c_float * 3)(*centre), radius, prefix.encode() if prefix else None, ranged, int(sighted), buf, len(buf))
             bad = compare_sphere(want, list(buf[:n]), totals)
             if bad:
-                raise SystemExit(f'{name} sphere {q}: {bad}\n exe {want[:20]}\n port {list(buf[:n])[:20]}')
+                fail(f'{name} sphere {q}: {bad}\n exe {want[:20]}\n port {list(buf[:n])[:20]}')
         # A cell's clutter, crafted on both sides from a world's model node: as an array, then through a tree.
         data = emu.i32(world + 0x38) & 0xffffffff
         ox, oz = struct.unpack('<2f', emu.read(data + 0x34, 8))
@@ -408,8 +430,22 @@ def main():
                 if not bad and any(not near(x, y) for x, y in zip(centre, mine)):
                     bad = f'the node\'s centre {centre} / {list(mine)}'
                 if bad:
-                    raise SystemExit(f'{name} clutter ({"tree" if boxed else "array"}) query {q} {kind}: {bad}\n exe {want[:30]}\n port {got[:30]}')
+                    fail(f'{name} clutter ({"tree" if boxed else "array"}) query {q} {kind}: {bad}\n exe {want[:30]}\n port {got[:30]}')
+        if COUNT:
+            print(f'{name} at {"53" if X53 else "24"} bits: floats {totals["floats"] - before["floats"]}, not bit-equal inside the allowance '
+                  f'{totals["near"] - before["near"]}, queries with a value outside it {len(MISSES) - missed}', flush=True)
+            for m in MISSES[missed:]:
+                print(f'  outside: {m}', flush=True)
+            continue
         print(f'{name}: {queries} queries match; hits so far {totals}', flush=True)
+    if COUNT:
+        print(f'counted: {len(MISSES)} queries outside the allowance')
+        # The ones known on this branch (docs/pm-tests.md); any other is new. Pinned by this: c3 query 239
+        # "nearest", two coincident hits, which MW3's x87 form of segment_nearest's distance picked the other way.
+        new = [m for m in MISSES if not any(m.startswith(k) for k in KNOWN_AT_53)]
+        if new:
+            raise SystemExit('new at 53 bits:\n ' + '\n '.join(new))
+        return
     pm_floors.floors(ground=(totals['ground'], 3000), point=(totals['point'], 500), segs=(totals['segs'], 1400), list=(totals['list'], 240), nearest=(totals['nearest'], 200), sphere=(totals['sphere'], 1300), clutter=(totals['clutter hits'], 2200))
     print(f'ok: {totals}')
 

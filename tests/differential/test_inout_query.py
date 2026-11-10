@@ -12,8 +12,7 @@ box and past it, one end near a corner, short hops along a side, ends inside
 a polygon, ends on a corner. Each answer (which point: `to`, the near or far
 point, or a corner), its value, the area's whole state after it (pointers as
 ids), the flags and the normal must match bit for bit at the reference's 53 bits
-(docs/ai.md 17.4b). WAITS ON cls_di at 53, as test_inout.py: the areas are
-loaded with the ground off for now (the cases' fifth word 0).
+(docs/ai.md 17.4b).
 
     cmake --build build && .venv/bin/python tests/differential/test_inout_query.py [queries] [worlds...]
 """
@@ -162,8 +161,7 @@ def main():
     for w in worlds:
         op = OPERATION[w]
         last = 4 if op < 3 else 6
-        # WAITS ON cls_di at 53 (above): the ground off until then.
-        cases = [(1, 1, op, m, 0) for m in range(1, last + 1)] + [(1, 2, 0, 0, 0), (1, 4, 0, 0, 0)]
+        cases = [(1, 1, op, m, 1) for m in range(1, last + 1)] + [(1, 2, 0, 0, 1), (1, 4, 0, 0, 1)]
         for case in cases:
             emu = Query(w)
             if probe.sw_load(str(ZBD / w / 'gamez.zbd').encode()) != 0:

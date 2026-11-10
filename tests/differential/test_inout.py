@@ -16,10 +16,6 @@ them; the port's FIX skips them.) The areas (each polygon's kind, flags,
 corners, offsets, side lengths, box, perimeter and name, the area's other
 fields), the current area, whether `inout` survives and the error reports
 must match bit for bit at the reference's 53 bits (docs/ai.md 17.4b).
-WAITS ON cls_di at 53: the corners are put on the ground through the
-engine's ground query, still its 24-bit form, so every case runs with the
-ground off for now (the cases' fifth word 0); put it back with cls_di. The
-moved cases wait on zmath's matrices at 53 the same way (left out for now).
 
     cmake --build build && .venv/bin/python tests/differential/test_inout.py [worlds...]
 """
@@ -241,10 +237,7 @@ def cases(w):
     out = [(1, 1, op, m, 1) for m in range(1, last + 1)]
     out += [(1, 2, 0, 0, 1), (1, 3, 0, 0, 1), (1, 4, 0, 0, 1), (1, 5, 0, 0, 1), (0, 1, op, 1, 1),
             (1, 1, op, 1, 0), (1, 1, op, last, 1, 1), (1, 2, 0, 0, 1, 1), (1, 4, 0, 0, 1, 1)]
-    # WAITS ON cls_di at 53 (above): the ground off in every case until then; and
-    # the moved cases (`inout` turned and shifted) wait on zmath's matrices at 53
-    # (0x4c3ed0's push and multiply; test_matrix.py compares within a tolerance).
-    return list(dict.fromkeys(c[:4] + (0,) for c in out if not c[5:]))
+    return out
 
 
 def describe(blob):

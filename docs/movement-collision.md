@@ -290,10 +290,51 @@ it, with exclude 0x40000 and the node's own INTERSECT off, finds nothing
 (first-hit is left off after, not restored). The record: node, its centre
 as the point, material 0, the squared distance; the normal is left.
 
-**Precision.** These run while the game is up, at the 24-bit precision
-Direct3D 6 sets; the ports are in floats. The inverse 0x00523c50 had been
-ported at 53 bits (`zmth::invert`, doubles); `zmth::invert_single` is the
-same at 24 bits, which this test needed.
+**Precision.** These run while the game is up. The reference runtime runs
+the x87 at 53 bits (CLAUDE.md, FPU precision), where what the exe keeps in
+the register is a double until it stores it; Direct3D 6 on Win9x would have
+set 24, where each step rounds to a float. All of cls_di's queries (the
+ground, the mechs' segments, the shots, the one point and the sphere) now
+take the exe's form at 53 behind `zfix fpu53` (`zgeo::X`), and the old float
+form at 24, which the tests still check. Read from the disassembly with
+`tools/analysis/x87.py`; what stays in the register, by function:
+- The cell index (`cell_of`, all nine sites): `(x - origin) * inv` goes to
+  `floor` unrounded. **At 24 a probe within an ulp of a cell's edge can land
+  in the cell beside the one 53 gives**, and its ground is then looked up
+  among the other cell's nodes (seen on c1: a probe at x = -1536.0001 found
+  ground at 53 and none at 24).
+- The polygon normal 0x524020: only the first edge's x difference is
+  stored; the other differences, the cross, the root and 1 over it stay.
+  0x54d760 (the shot test): its own cross kept for both dots, the normal
+  stored too; the end's dot compared unrounded; t kept for the point.
+- The ground polygon 0x54c330 and the one-point test 0x54d640: the edge
+  test's sum (the loop's edges store `c - a` first in 0x54d640, the closing
+  one not); 1 over the normal's y and both slopes kept for every probe; the
+  height stored once.
+- The crossings 0x54e2b0 / 0x54ea30 / 0x54dd30: the plane dot's sum, t's
+  difference, the edge test's sum and the texture coordinates' sums; their
+  gradient 0x5240d7 keeps p, q and b (q stored too), stores r, s, a, d and 1/d.
+- The vertices through the stack's top (0x54c655, 0x54cad0 both ways), the
+  box corners 0x522d60 / 0x522ab0 (which products and sums are stored
+  differs word by word: a table in `zmth_matrix.cpp`), the box matrices of
+  0x4ebdb0 / 0x4ec150 and the stack's multiply 0x51fee0: each word's sums
+  stored once.
+- The inverse 0x523c50 (`zmth::invert`, now also its last row and the
+  translation's sums) at 53, `invert_single` at 24. The sphere's corners
+  0x4f9c40 (hz kept), its range (0x51e000's squares summed, root stored) and
+  the nearest hit's squared distances (0x51dfa0).
+
+At 53 (`MW3_PRECISION=53`), `test_di` matches whole (9000 ground and 9000
+segment queries on the six worlds), so do `test_inout` with the ground on and
+`test_inout_query`; `test_shotq` matches c1's shots, its sphere query waits on
+`transform_points` 0x5227a0 and c2 on the camera's and sun's matrices (euler
+0x521670, the translate 0x520480, the rotations 0x520610..): zmath's matrices
+at 53 are their own item.
+
+The 24-bit port of 0x4ebdb0's local-times-top had four entries summed in
+the wrong order ((0 + 2) + 1 where the exe does (0 + 1) + 2); no shipped
+world reached it in the tests (a node with both its own matrix and a stack
+top). Corrected at both precisions.
 
 **FIX (A)**: the model test past the record's 32nd slot would write past it
 (only the walk's entry checks); the port stops at 32.
