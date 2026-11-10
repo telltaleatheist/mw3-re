@@ -4735,3 +4735,21 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   LB-X autocannons' scattered pellets name a missing animation too (`mac_fire`),
   so they fly without one. (From the data: weapons.zrd against every world's
   anim.zbd. docs/fixes.md, Candidates for Owen)
+- **The developers left their own teleport spots in every operation.** Each
+  world's reader.zbd holds a location.zrd, the list a hidden teleport tool
+  read (a debug command no key reaches in the release). The spots:
+  - c1: Mission 1 Start, Mission 2 Start, Mission 3 Start, IA_base;
+  - c2: Mission 1-3 Start, m1_dam, m3_dock, IA_base, m4_pipes;
+  - c3: m4_factories, m5_dome, m5_gateway, m6_spaceport, m3_dropship,
+    m5_dock, IA_base;
+  - c4: m1_Train_station, m3_clan_base, m4_chateau, "personal trans
+    trigger", IA_base;
+  - c4b: dome, gate, batchall;
+  - t1 (training): Start Area, beach, town, road, mech_list, RoadEnd.
+
+  "IA_base" in each campaign world points at where the Instant Action base
+  is. The tool also listed the mission's nav points and your own place, and
+  its save stamped every file "Last updated Sep 20 1999 at 16:29:38", the
+  date and time the game was built. The rebuild opens it as the editor's
+  TELEPORT. (From the data and the code: 0x004a37a0, dialog 132.
+  docs/editor.md, Teleport)
